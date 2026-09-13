@@ -154,7 +154,7 @@ if (!$error && $redirect_after === '__kursant_ms365__') {
     }
 
     require_once dirname(__DIR__) . '/includes/karty30.php';
-    $token = k30_imp_token_create('stu', (int)$student['id'], 0);
+    $token = k30_imp_token_create('stu', (int)$student['id'], null);
     header('Location: ' . rtrim(KURSANT_NEW_UI_URL, '/') . '/impersonate?t=' . urlencode($token));
     exit;
 }
@@ -184,7 +184,7 @@ if (!$error && $redirect_after === '__prowadzacy_ms365__') {
     }
 
     require_once dirname(__DIR__) . '/includes/karty30.php';
-    $token = k30_imp_token_create('dyd', (int)$u['id'], 0);
+    $token = k30_imp_token_create('dyd', (int)$u['id'], null);
     header('Location: ' . rtrim(KURSANT_NEW_UI_URL, '/') . '/prowadzacy-impersonate?t=' . urlencode($token));
     exit;
 }

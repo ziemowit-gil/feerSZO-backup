@@ -134,7 +134,14 @@ function karty30_migrate(): void {
         try {
             $_st = $pdo->prepare("SELECT id FROM users WHERE ti_placeholder_instructor=?");
             $_st->execute([$_ph_key]);
-            if (!$_st->fetch()) {
+            $_ph_exists = $_st->fetch();
+            $_st->closeCursor(); // bez tego statement zostaje "aktywny" (fetch() zwrócił
+            // wiersz, kursor nie jest wyczerpany) przez CAŁĄ resztę tej funkcji — $_st
+            // to zmienna funkcyjna, nie blokowa, więc żyje aż do końca karty30_migrate().
+            // SQLite odmawia wtedy DDL (CREATE/DROP/ALTER TABLE) gdziekolwiek dalej w tej
+            // funkcji z "database table is locked", niezależnie jakiej tabeli dotyczy —
+            // tak właśnie psuł się DROP TABLE w rekonstrukcji k30_imp_tokens niżej.
+            if (!$_ph_exists) {
                 $pdo->prepare(
                     "INSERT INTO users (name, email, password, role, is_active, ti_placeholder_instructor)
                      VALUES (?, ?, ?, 'viewer', 0, ?)"
@@ -1363,6 +1370,50 @@ HTML;
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME NOT NULL
     )");
+    // Rekonstrukcja k30_imp_tokens — admin_id musi dopuszczać NULL. Kolumna powstała
+    // z myślą wyłącznie o impersonacji przez admina (stąd NOT NULL REFERENCES users),
+    // ale logowanie przez Microsoft 365 (auth/microsoft.php, __kursant_ms365__ i
+    // __prowadzacy_ms365__) tworzy ten sam token dla SAMODZIELNEGO logowania — bez
+    // żadnego admina po drugiej stronie. Wcześniej wywoływano k30_imp_token_create()
+    // z admin_id=0, co łamało FK (brak users.id=0) i kończyło się 500 na callbacku
+    // OAuth. Tokeny żyją 30 s i tak czyszczone są od razu przy każdym create/consume —
+    // rekonstrukcja tabeli nic realnie nie traci.
+    $_imp_admin_cols = db_all("SELECT \"notnull\" AS nn FROM pragma_table_info('k30_imp_tokens') WHERE name='admin_id'");
+    $_imp_admin_nn = $_imp_admin_cols[0] ?? null;
+    if ($_imp_admin_nn && (int)$_imp_admin_nn['nn'] === 1) {
+        try {
+            $_imp_rows = db_all("SELECT * FROM k30_imp_tokens");
+            $pdo->exec("PRAGMA foreign_keys=OFF");
+            $pdo->exec("BEGIN");
+            $pdo->exec("CREATE TABLE k30_imp_tokens_v2 (
+                token      TEXT     NOT NULL PRIMARY KEY,
+                type       TEXT     NOT NULL,
+                target_id  INTEGER  NOT NULL,
+                admin_id   INTEGER  REFERENCES users(id) ON DELETE CASCADE,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME NOT NULL
+            )");
+            if ($_imp_rows) {
+                $_imp_ins = $pdo->prepare(
+                    "INSERT INTO k30_imp_tokens_v2 (token, type, target_id, admin_id, created_at, expires_at)
+                     VALUES (?,?,?,?,?,?)"
+                );
+                foreach ($_imp_rows as $_imp_row) {
+                    $_imp_ins->execute([
+                        $_imp_row['token'], $_imp_row['type'], $_imp_row['target_id'],
+                        $_imp_row['admin_id'], $_imp_row['created_at'], $_imp_row['expires_at'],
+                    ]);
+                }
+            }
+            $pdo->exec("DROP TABLE k30_imp_tokens");
+            $pdo->exec("ALTER TABLE k30_imp_tokens_v2 RENAME TO k30_imp_tokens");
+            $pdo->exec("COMMIT");
+            $pdo->exec("PRAGMA foreign_keys=ON");
+        } catch (\Throwable $e) {
+            try { $pdo->exec("ROLLBACK"); } catch (\Throwable $r) {}
+            $pdo->exec("PRAGMA foreign_keys=ON");
+        }
+    }
 
     // Certyfikaty X.509 wystawiane kursantom przez EJBCA
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_certs (
@@ -1477,12 +1528,14 @@ HTML;
 
 /**
  * Tworzy jednorazowy token impersonacji (ważny 30 s).
- * @param  string $type      'dyd' lub 'stu'
- * @param  int    $target_id users.id (dyd) lub k30_ti_student_accounts.id (stu)
- * @param  int    $admin_id  aktywny admin SZO
+ * @param  string   $type      'dyd' lub 'stu'
+ * @param  int      $target_id users.id (dyd) lub k30_ti_student_accounts.id (stu)
+ * @param  int|null $admin_id  aktywny admin SZO — null przy samodzielnym logowaniu
+ *                              (np. auth/microsoft.php: __kursant_ms365__/__prowadzacy_ms365__),
+ *                              gdzie nie ma żadnego admina po drugiej stronie
  * @return string token (hex 32)
  */
-function k30_imp_token_create(string $type, int $target_id, int $admin_id): string {
+function k30_imp_token_create(string $type, int $target_id, ?int $admin_id): string {
     $token = bin2hex(random_bytes(32));
     db_insert('k30_imp_tokens', [
         'token'     => $token,
