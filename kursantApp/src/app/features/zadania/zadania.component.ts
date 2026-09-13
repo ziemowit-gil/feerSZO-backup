@@ -25,7 +25,7 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
     </div>
 
     <div class="page-header">
-      <h1>Dydaktyka / eLearning</h1>
+      <h1>Materiały i zadania</h1>
       <p class="subtitle">Materiały, zadania domowe i oceny</p>
     </div>
 

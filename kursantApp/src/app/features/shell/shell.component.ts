@@ -367,7 +367,7 @@ export class ShellComponent implements OnInit {
   private readonly NAV_ITEMS: NavItem[] = [
     { path: 'dane',       label: 'Dane kursanta',      icon: 'person' },
     { path: 'lekcje',     label: 'Moje lekcje',        icon: 'calendar_month',  section: 'Nauka' },
-    { path: 'zadania',    label: 'Dydaktyka',           icon: 'assignment',      badgeKey: 'hw' },
+    { path: 'zadania',    label: 'Materiały i zadania', icon: 'assignment',      badgeKey: 'hw' },
     { path: 'oceny',      label: 'Oceny',              icon: 'grade' },
     { path: 'plan',       label: 'Plan nauczania',      icon: 'list_alt' },
     { path: 'testy',      label: 'Testy',              icon: 'quiz' },

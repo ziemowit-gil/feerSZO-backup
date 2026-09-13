@@ -59,7 +59,7 @@ export const routes: Routes = [
         path: 'zadania',
         loadComponent: () =>
           import('./features/zadania/zadania.component').then(m => m.ZadaniaComponent),
-        title: 'Dydaktyka / eLearning',
+        title: 'Materiały i zadania',
       },
       {
         path: 'oceny',
