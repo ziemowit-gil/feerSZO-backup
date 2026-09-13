@@ -900,6 +900,24 @@ switch ($action) {
         // dotąd nieobecnego w nowym panelu.
         $pay = k30_ti_client_payment($cid);
 
+        // 12-cyfrowy numer referencyjny per aktywna grupa: 6 cyfr numeru
+        // kursanta (client_id) + 6 cyfr numeru kursu (course_id), oba
+        // dopełnione zerami z lewej — osobne żądanie, niezależne od tytułu
+        // przelewu wyżej (który używa group_code, nie surowego course_id).
+        $refs_stmt = $pdo->prepare("
+            SELECT e.course_id, c.name AS course_name
+            FROM k30_ti_enrollments e
+            JOIN k30_ti_courses c ON c.id = e.course_id
+            WHERE e.client_id = ? AND e.status = 'active'
+            ORDER BY c.name
+        ");
+        $refs_stmt->execute([$cid]);
+        $pay_refs = array_map(fn($r) => [
+            'course_id'   => (int)$r['course_id'],
+            'course_name' => $r['course_name'],
+            'ref'         => sprintf('%06d%06d', $cid, (int)$r['course_id']),
+        ], $refs_stmt->fetchAll(PDO::FETCH_ASSOC));
+
         json_ok([
             'balance'      => round($bal, 2),
             'currency'     => 'PLN',
@@ -907,6 +925,7 @@ switch ($action) {
             'pay_account'  => $pay['account'],
             'pay_title'    => $pay['title'],
             'pay_codes'    => $pay['codes'],
+            'pay_refs'     => $pay_refs,
         ]);
     }
 

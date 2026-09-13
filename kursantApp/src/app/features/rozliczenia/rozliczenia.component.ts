@@ -160,7 +160,7 @@ const GATEWAY_LABELS: Record<string, string> = {
       </div>
 
       <!-- Dane do wpłaty -->
-      @if (d.pay_account || d.pay_title || d.pay_codes?.length) {
+      @if (d.pay_account || d.pay_title || d.pay_codes?.length || d.pay_refs?.length) {
         <section class="k-card" aria-labelledby="pay-info-heading">
           <h2 class="k-card-title" id="pay-info-heading">
             <span class="material-symbols-outlined" aria-hidden="true">account_balance</span>
@@ -187,6 +187,21 @@ const GATEWAY_LABELS: Record<string, string> = {
                     <span class="pay-code-chip" [class.individual]="code === 9999">
                       {{ code === 9999 ? '9999 · indywidualny' : code }}
                     </span>
+                  }
+                </dd>
+              </div>
+            }
+            @if (d.pay_refs?.length) {
+              <div class="pay-info-row">
+                <dt>Numer referencyjny</dt>
+                <dd>
+                  @for (r of d.pay_refs; track r.course_id) {
+                    <div class="pay-ref-item">
+                      <span class="pay-account">{{ r.ref }}</span>
+                      @if (d.pay_refs.length > 1) {
+                        <span class="text-muted text-sm"> — {{ r.course_name }}</span>
+                      }
+                    </div>
                   }
                 </dd>
               </div>
@@ -273,6 +288,8 @@ const GATEWAY_LABELS: Record<string, string> = {
     }
 
     .pay-account { font-family: monospace; font-weight: 600; letter-spacing: .02em; }
+
+    .pay-ref-item { margin-bottom: .25rem; &:last-child { margin-bottom: 0; } }
 
     .pay-code-chip {
       display: inline-flex;

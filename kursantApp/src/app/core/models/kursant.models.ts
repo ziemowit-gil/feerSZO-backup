@@ -220,6 +220,14 @@ export interface BillingData {
   pay_title: string;
   /** Kody modeli rozliczeń aktywnych zapisów (9999 = indywidualny). */
   pay_codes: number[];
+  /** 12-cyfrowy numer referencyjny per aktywna grupa: 6 cyfr nr kursanta + 6 cyfr nr kursu. */
+  pay_refs: PaymentRef[];
+}
+
+export interface PaymentRef {
+  course_id: number;
+  course_name: string;
+  ref: string;
 }
 
 export interface YearEndOverpayCourse {
