@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
@@ -35,13 +36,14 @@ export interface LessonFormDialogData {
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule, MatDialogModule,
-    MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatSnackBarModule,
+    MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatCheckboxModule, MatSnackBarModule,
     QuickDateChipsComponent,
   ],
   template: `
     <h2 mat-dialog-title>{{ data.mode === 'add' ? 'Nowa lekcja' : 'Edytuj lekcję' }}</h2>
     <form [formGroup]="form" (ngSubmit)="save()">
       <mat-dialog-content>
+        <div class="dialog-columns">
         <div class="form-grid">
           <mat-form-field appearance="fill">
             <mat-label>Grupa</mat-label>
@@ -109,12 +111,13 @@ export interface LessonFormDialogData {
           </mat-form-field>
         </div>
 
-        <div class="form-checks">
-          <label class="check-row"><input type="checkbox" formControlName="has_homework"> Zadano pracę domową</label>
-          <label class="check-row"><input type="checkbox" formControlName="self_prep_remote"> Praca własna kursanta (bez sprawdzania obecności)</label>
+        <div class="checks-column">
+          <mat-checkbox formControlName="has_homework">Zadano pracę domową</mat-checkbox>
+          <mat-checkbox formControlName="self_prep_remote">Praca własna kursanta (bez sprawdzania obecności)</mat-checkbox>
           @if (data.mode === 'add') {
-            <label class="check-row"><input type="checkbox" formControlName="notify"> Powiadom kursantów SMS-em</label>
+            <mat-checkbox formControlName="notify">Powiadom kursantów SMS-em</mat-checkbox>
           }
+        </div>
         </div>
       </mat-dialog-content>
 
@@ -127,13 +130,18 @@ export interface LessonFormDialogData {
     </form>
   `,
   styles: [`
+    .dialog-columns { display: grid; grid-template-columns: 1fr 210px; gap: 0 1.5rem; align-items: start; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 1rem; padding-top: .25rem; }
     .form-grid mat-form-field { width: 100%; }
     .span-2 { grid-column: span 2; }
     .date-chips-row { grid-column: 1 / -1; margin-top: -.5rem; }
-    .form-checks { display: flex; gap: 1.25rem; flex-wrap: wrap; margin: 0 0 .5rem; }
-    .check-row { display: flex; align-items: center; gap: .4rem; font-size: .88rem; }
-    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr 1fr; } .span-2 { grid-column: 1 / -1; } }
+    .checks-column { display: flex; flex-direction: column; gap: 1rem; padding-top: 1.5rem; }
+    @media (max-width: 720px) {
+      .dialog-columns { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr 1fr; }
+      .span-2 { grid-column: 1 / -1; }
+      .checks-column { flex-direction: row; flex-wrap: wrap; padding-top: .5rem; }
+    }
   `],
 })
 export class LessonFormDialogComponent implements OnInit {
