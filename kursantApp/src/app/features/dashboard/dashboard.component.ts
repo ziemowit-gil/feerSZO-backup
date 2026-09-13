@@ -101,6 +101,42 @@ import { AppDataService } from '../../core/services/app-data.service';
           </article>
         </div>
 
+        <!-- Najbliższe zajęcia -->
+        @if (d.upcoming_lessons.length > 0) {
+          <section aria-labelledby="upcoming-heading" class="k-card">
+            <h2 class="k-card-title" id="upcoming-heading">
+              <span class="material-symbols-outlined" aria-hidden="true">event_upcoming</span>
+              Najbliższe zajęcia
+            </h2>
+
+            <ul role="list" style="margin:0;padding:0;list-style:none;" class="upcoming-list">
+              @for (lesson of d.upcoming_lessons; track lesson.id) {
+                <li role="listitem" class="upcoming-item">
+                  <div class="upcoming-when">
+                    <span class="upcoming-date">{{ lesson.date | date:'d MMM':'':\'pl\' }}</span>
+                    <span class="upcoming-time text-muted">{{ lesson.time_from }}–{{ lesson.time_to }}</span>
+                  </div>
+                  <div class="upcoming-info">
+                    <strong>{{ lesson.course_name }}</strong>
+                    <span class="text-muted text-sm">{{ lesson.instructor_name }}</span>
+                  </div>
+                  @if (lesson.meeting_url) {
+                    <a [href]="lesson.meeting_url"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       mat-stroked-button
+                       [attr.aria-label]="'Dołącz online do zajęć ' + lesson.course_name + ' ' + (lesson.date | date:'d MMM':'':'pl') + ' — nowa karta'">
+                      <span class="material-symbols-outlined" aria-hidden="true">video_call</span>
+                      Dołącz
+                    </a>
+                  }
+                </li>
+              }
+            </ul>
+            <a routerLink="/lekcje" mat-button class="mt-2">Zobacz wszystkie lekcje →</a>
+          </section>
+        }
+
         <!-- Active courses -->
         @if (d.active_courses.length > 0) {
           <section aria-labelledby="courses-heading" class="k-card">
@@ -199,6 +235,36 @@ import { AppDataService } from '../../core/services/app-data.service';
     .summary-card-sub { margin: 0; font-size: .85rem; color: #6b7280; }
 
     .mt-2 { margin-top: .75rem; }
+
+    .upcoming-list { display: flex; flex-direction: column; gap: .75rem; margin-bottom: .75rem; }
+
+    .upcoming-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding-bottom: .75rem;
+      border-bottom: 1px solid #e5e7eb;
+
+      &:last-child { border-bottom: none; padding-bottom: 0; }
+    }
+
+    .upcoming-when {
+      display: flex;
+      flex-direction: column;
+      min-width: 4.5rem;
+
+      .upcoming-date { font-weight: 700; color: #111827; }
+      .upcoming-time { font-size: .8rem; }
+    }
+
+    .upcoming-info {
+      display: flex;
+      flex-direction: column;
+      gap: .1rem;
+      flex: 1;
+      min-width: 0;
+    }
 
     .courses-list { display: flex; flex-direction: column; gap: 1rem; }
 

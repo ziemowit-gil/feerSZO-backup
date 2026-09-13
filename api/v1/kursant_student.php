@@ -402,7 +402,7 @@ switch ($action) {
         $active   = array_filter($courses, fn($c) => $c['status'] === 'active');
         $inactive = array_filter($courses, fn($c) => $c['status'] !== 'active');
 
-        // Next upcoming lesson
+        // Najbliższe nadchodzące lekcje (do 4) — dashboard pokazuje listę, nie tylko jedną najbliższą
         $nl_stmt = $pdo->prepare("
             SELECT s.id, s.course_id, s.lesson_date, s.time_from, s.time_to,
                    s.status, s.notes,
@@ -419,13 +419,13 @@ switch ($action) {
               AND s.lesson_date >= date('now')
               AND s.status NOT IN ('cancelled', 'removed', 'reserved')
             ORDER BY s.lesson_date ASC, s.time_from ASC
-            LIMIT 1
+            LIMIT 4
         ");
         $nl_stmt->execute([$cid, $cid]);
-        $next = $nl_stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $upcoming_rows = $nl_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $next_data = null;
-        if ($next) {
+        $upcoming_lessons = [];
+        foreach ($upcoming_rows as $next) {
             $sid_next = (int)$next['id'];
             $att_stmt = $pdo->prepare("SELECT cancel_pending FROM k30_ti_attendance WHERE session_id = ? AND client_id = ?");
             $att_stmt->execute([$sid_next, $cid]);
@@ -436,7 +436,7 @@ switch ($action) {
             $rq_stmt->execute([$sid_next, $cid]);
             $reschedule_prop = (bool)$rq_stmt->fetchColumn();
 
-            $next_data = [
+            $upcoming_lessons[] = [
                 'id'                  => $sid_next,
                 'course_id'           => (int)$next['course_id'],
                 'course_name'         => $next['course_name'],
@@ -453,6 +453,7 @@ switch ($action) {
                 'reschedule_proposed' => $reschedule_prop,
             ];
         }
+        $next_data = $upcoming_lessons[0] ?? null;
 
         // Unread counts
         $msg_stmt = $pdo->prepare("SELECT COUNT(*) FROM k30_ti_messages WHERE student_id = ? AND sender = 'staff' AND is_read = 0");
@@ -510,6 +511,7 @@ switch ($action) {
             'active_courses'   => array_values($active),
             'inactive_courses' => array_values($inactive),
             'next_lesson'      => $next_data,
+            'upcoming_lessons' => $upcoming_lessons,
             'streak_days'      => 0,
             'msg_unread'       => $msg_unread,
             'notices_unread'   => $notices_unread,

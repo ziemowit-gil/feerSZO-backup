@@ -66,6 +66,7 @@ export interface DashboardData {
   active_courses: Course[];
   inactive_courses: Course[];
   next_lesson: Lesson | null;
+  upcoming_lessons: Lesson[];
   streak_days: number;
   notices_unread: number;
   msg_unread: number;
