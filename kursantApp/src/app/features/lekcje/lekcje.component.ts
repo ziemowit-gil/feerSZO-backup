@@ -9,13 +9,19 @@ import { MatInputModule } from '@angular/material/input';
 import { KursantApiService } from '../../core/services/kursant-api.service';
 import { Lesson, LessonStatus } from '../../core/models/kursant.models';
 
+// Etykiety zgodne z K30_TI_SESSION_STATUSES (includes/karty30.php) tam, gdzie
+// status pochodzi wprost z k30_ti_sessions.status — ten sam status ma
+// wyglądać tak samo w panelu kursanta i w panelu dydaktyka.
 const STATUS_LABELS: Record<LessonStatus, string> = {
-  planned:        'Zaplanowana',
-  held:           'Odbyta',
-  cancelled:      'Odwołana',
-  excused:        'Usprawiedliwiona',
-  absence:        'Nieobecność',
-  remote_material:'Praca własna',
+  planned:           'Zaplanowana',
+  held:              'Odbyta',
+  cancelled:         'Odwołana',
+  excused:           'Usprawiedliwiona',
+  absence:           'Nieobecność',
+  remote_material:   'Praca własna',
+  individual_change: 'Zajęcia indywidualne',
+  reserved:          'Rezerwacja',
+  draft:             'Wersja robocza',
 };
 
 @Component({
