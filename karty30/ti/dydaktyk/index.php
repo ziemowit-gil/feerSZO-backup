@@ -3239,6 +3239,30 @@ if ($cur_course && dyd_is_staff()) {
 
   <?= flash_html() ?>
 
+  <?php if (defined('KURSANT_NEW_UI_ENABLED') && KURSANT_NEW_UI_ENABLED && defined('KURSANT_NEW_UI_URL')): ?>
+  <div class="alert alert-info d-flex align-items-start gap-2" role="status" id="dydNewUiBanner">
+    <i class="bi bi-stars fs-5 mt-1 flex-shrink-0" aria-hidden="true"></i>
+    <div class="flex-grow-1">
+      <strong>Testujemy nowy interfejs panelu prowadzącego.</strong>
+      Możesz już wypróbować nowocześniejszą wersję — część funkcji może tam jeszcze nie działać w pełni,
+      w razie problemów zawsze możesz wrócić tutaj.
+      <a href="<?= h(rtrim(KURSANT_NEW_UI_URL, '/') . '/logowanie-prowadzacy') ?>" class="alert-link ms-1">Wypróbuj nowy panel &rarr;</a>
+    </div>
+    <button type="button" class="btn-close" aria-label="Zamknij komunikat"
+            onclick="try{localStorage.setItem('ti_dyd_newui_banner_dismissed','1')}catch(e){}; this.closest('#dydNewUiBanner').remove()"></button>
+  </div>
+  <script>
+  (function(){
+    try {
+      if (localStorage.getItem('ti_dyd_newui_banner_dismissed') === '1') {
+        var el = document.getElementById('dydNewUiBanner');
+        if (el) el.remove();
+      }
+    } catch (e) {}
+  })();
+  </script>
+  <?php endif; ?>
+
   <?php
     // Przełącznik roli kierownik/prowadzący — tylko dla kierownika, który jest
     // też prowadzącym (patrz dyd_require()/dyd_is_staff() w auth.php). Zwykły
