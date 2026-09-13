@@ -748,6 +748,17 @@ export interface InstructorAttendanceTrendPoint {
   pct: number | null;
 }
 
+export interface InstructorCurriculumItem {
+  id: number;
+  course_id: number;
+  section: string | null;
+  title: string;
+  description: string | null;
+  est_minutes: number;
+  is_active: number;
+  position: number;
+}
+
 export interface InstructorAbsence {
   session_id: number;
   client_id: number;

@@ -9,7 +9,7 @@ import {
   InstructorFormalnosci, InstructorHelpdeskTicket,
   InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
   InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary,
-  InstructorAttendanceTrendPoint, InstructorAbsence,
+  InstructorAttendanceTrendPoint, InstructorAbsence, InstructorCurriculumItem,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -197,4 +197,17 @@ export class InstructorApiService {
   }
 
   getAbsences() { return this.get<InstructorAbsence[]>('absences'); }
+
+  getCurriculum(courseId: number) {
+    return this.get<InstructorCurriculumItem[]>('curriculum', { course_id: String(courseId) });
+  }
+  saveCurriculumItem(payload: { item_id?: number; course_id: number; section: string; title: string; description: string; est_minutes: number; is_active: boolean }) {
+    return this.post<void>('curriculum_save', payload);
+  }
+  deleteCurriculumItem(courseId: number, itemId: number) {
+    return this.post<void>('curriculum_delete', { course_id: courseId, item_id: itemId });
+  }
+  moveCurriculumItem(courseId: number, itemId: number, dir: 'up' | 'down') {
+    return this.post<void>('curriculum_move', { course_id: courseId, item_id: itemId, dir });
+  }
 }

@@ -1536,6 +1536,74 @@ switch ($action) {
         json_ok($rows);
     }
 
+    // ── program nauczania (sylabus kursu) ───────────────────────────────────────────
+    // Odpowiednik _tab_program.php: CRUD tematów realizowanych w tym kursie
+    // (k30_ti_curriculum) + zmiana kolejności. Świadomie NIE przeniesione w
+    // tym kroku: import CSV (curr_import), formularz zbiorczy 5 wierszy
+    // (curr_bulk) i podgląd wymagań/kryteriów z sylabusa wzorcowego przedmiotu
+    // (_syllabus_ref.php, ti_course_syllabus/ti_syllabus_coverage) — to
+    // dodatkowe, drugorzędne ścieżki wobec podstawowego CRUD-u, zostają na
+    // razie w klasycznym panelu.
+    case 'curriculum': {
+        $cid = (int)($_GET['course_id'] ?? 0);
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+        json_ok(k30_ti_curriculum_list($cid));
+    }
+
+    case 'curriculum_save': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $cid  = (int)($body['course_id'] ?? 0);
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+        $title = trim((string)($body['title'] ?? ''));
+        if ($title === '') json_err('Podaj temat.');
+
+        $itemId = (int)($body['item_id'] ?? 0);
+        if ($itemId) {
+            $existing = k30_ti_curriculum_get($itemId);
+            if (!$existing || (int)$existing['course_id'] !== $cid) json_err('Brak dostępu do tej pozycji.', 403);
+        }
+        $data = [
+            'course_id' => $cid, 'section' => (string)($body['section'] ?? ''), 'title' => $title,
+            'description' => (string)($body['description'] ?? ''), 'est_minutes' => (int)($body['est_minutes'] ?? 0),
+            'is_active' => !empty($body['is_active']),
+        ];
+        k30_ti_curriculum_save($data, $itemId ?: null, $instructor_id);
+        json_ok(null, $itemId ? 'Pozycja zaktualizowana.' : 'Pozycja dodana.');
+    }
+
+    case 'curriculum_delete': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $cid  = (int)($body['course_id'] ?? 0);
+        $itemId = (int)($body['item_id'] ?? 0);
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+        $existing = $itemId ? k30_ti_curriculum_get($itemId) : null;
+        if (!$existing || (int)$existing['course_id'] !== $cid) json_err('Brak dostępu do tej pozycji.', 403);
+        k30_ti_curriculum_delete($itemId);
+        json_ok(null, 'Pozycja usunięta.');
+    }
+
+    case 'curriculum_move': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $cid    = (int)($body['course_id'] ?? 0);
+        $itemId = (int)($body['item_id'] ?? 0);
+        $dir    = (string)($body['dir'] ?? '');
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+        if (!in_array($dir, ['up', 'down'], true)) json_err('Nieprawidłowy kierunek.');
+
+        $ids = array_map(fn($r) => (int)$r['id'], k30_ti_curriculum_list($cid));
+        $idx = array_search($itemId, $ids, true);
+        if ($idx === false) json_err('Brak dostępu do tej pozycji.', 403);
+        $swapWith = $dir === 'up' ? $idx - 1 : $idx + 1;
+        if ($swapWith >= 0 && $swapWith < count($ids)) {
+            [$ids[$idx], $ids[$swapWith]] = [$ids[$swapWith], $ids[$idx]];
+            k30_ti_curriculum_reorder($cid, $ids);
+        }
+        json_ok(null, 'Kolejność zaktualizowana.');
+    }
+
     default:
         json_err('Nieznana akcja.', 404);
 }

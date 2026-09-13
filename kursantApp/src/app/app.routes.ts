@@ -83,6 +83,12 @@ export const routes: Routes = [
         title: 'Nieobecności — Panel prowadzącego',
       },
       {
+        path: 'program',
+        loadComponent: () =>
+          import('./features/instructor/program/program.component').then(m => m.InstructorProgramComponent),
+        title: 'Program nauczania — Panel prowadzącego',
+      },
+      {
         path: 'zasoby/dysk',
         loadComponent: () =>
           import('./features/instructor/zasoby/dysk.component').then(m => m.InstructorDyskComponent),

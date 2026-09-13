@@ -178,6 +178,7 @@ export class InstructorShellComponent implements OnInit {
         { path: 'helpdesk', label: 'Helpdesk', icon: 'support_agent' },
         { path: 'protokoly', label: 'Protokoły', icon: 'fact_check' },
         { path: 'nieobecnosci', label: 'Nieobecności', icon: 'person_off' },
+        { path: 'program', label: 'Program nauczania', icon: 'menu_book' },
       ],
     },
     {
