@@ -93,7 +93,12 @@ export class AuthService {
   }
 
   logout(): void {
-    this.http.post(`${API}?action=logout`, {}).subscribe({ error: () => {} });
+    // Idempotentne — auth.interceptor.ts woła to też na 401 z dowolnej
+    // chronionej akcji; bez tej strażniczki drugie/trzecie wywołanie (np. gdy
+    // kilka równoległych żądań dostanie 401 naraz) wysyłałoby kolejne zbędne
+    // POST ?action=logout, każdy nadal bez tokenu, więc też kończący się 401.
+    if (!this._token()) return;
+    const token = this._token();
     this._token.set(null);
     this._student.set(null);
     this._role.set('student');
@@ -103,6 +108,8 @@ export class AuthService {
     localStorage.removeItem(ROLE_KEY);
     localStorage.removeItem(ACTOR_KEY);
     this.appData.reset();
+    this.http.post(`${API}?action=logout`, {}, { headers: { Authorization: `Bearer ${token}` } })
+      .subscribe({ error: () => {} });
     this.router.navigate(['/login']);
   }
 

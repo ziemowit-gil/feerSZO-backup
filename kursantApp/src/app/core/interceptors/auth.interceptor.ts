@@ -10,6 +10,11 @@ const PUBLIC_LOGIN_ACTIONS = [
   'action=login', 'action=parent_login', 'action=parent_otp_send',
   'action=parent_otp_verify', 'action=parent_select_child',
   'action=authp_login', 'action=impersonate_exchange',
+  // logout samo woła auth.logout() (patrz auth.service.ts) — 401 tutaj (np. bo
+  // token już wygasł zanim zdążyliśmy się wylogować) nie może z powrotem
+  // wywoływać logout(), bo to właśnie ten POST logout ponownie by odpalił —
+  // nieskończona pętla POST ?action=logout, każdy kończący się 401.
+  'action=logout',
 ];
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
