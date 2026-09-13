@@ -3227,15 +3227,6 @@ document.addEventListener('DOMContentLoaded', function() {
   <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".</p>
   <?= $ti_ctx_switch_html ?>
 
-  <div class="alert alert-info d-flex align-items-start gap-2 mb-3" role="note">
-    <i class="bi bi-camera-video-fill fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
-    <div>
-      <strong>Platforma Moodle została wyłączona.</strong>
-      Materiały i zadania domowe prowadzący udostępnia teraz bezpośrednio tutaj, w tym panelu.
-      Od 1 września zajęcia odbywają się przez <strong>Zoom</strong>.
-    </div>
-  </div>
-
   <?php
     $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']);
     if ($hwf): ?>
