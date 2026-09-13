@@ -65,6 +65,18 @@ import { Term } from '../../core/models/kursant.models';
                 </p>
               </div>
               <div class="term-actions">
+                @if (term.body_html) {
+                  <button type="button"
+                          class="preview-toggle"
+                          [attr.aria-expanded]="expandedId() === term.id"
+                          [attr.aria-controls]="'term-body-' + term.id"
+                          (click)="togglePreview(term.id)">
+                    <span class="material-symbols-outlined" aria-hidden="true">
+                      {{ expandedId() === term.id ? 'expand_less' : 'visibility' }}
+                    </span>
+                    {{ expandedId() === term.id ? 'Ukryj treść' : 'Podgląd treści' }}
+                  </button>
+                }
                 @if (term.file_url) {
                   <a [href]="term.file_url"
                      target="_blank" rel="noopener noreferrer"
@@ -76,6 +88,10 @@ import { Term } from '../../core/models/kursant.models';
                 }
               </div>
             </div>
+
+            @if (expandedId() === term.id) {
+              <div class="term-body" [id]="'term-body-' + term.id" [innerHTML]="safeBody(term.body_html)"></div>
+            }
 
             @if (!term.is_accepted) {
               <div class="accept-section">
@@ -127,7 +143,9 @@ import { Term } from '../../core/models/kursant.models';
 
     .term-title { font-size: 1rem; font-weight: 600; margin: 0 0 .2rem; color: #111827; }
 
-    .pdf-link {
+    .term-actions { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
+
+    .pdf-link, .preview-toggle {
       display: inline-flex;
       align-items: center;
       gap: .3rem;
@@ -136,9 +154,29 @@ import { Term } from '../../core/models/kursant.models';
       font-size: .875rem;
       padding: .3rem .625rem;
       border-radius: .4rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
 
       &:hover { background: #eff6ff; }
       .material-symbols-outlined { font-size: 1rem; }
+    }
+
+    .term-body {
+      margin: 0 0 1rem;
+      padding: 1rem;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: .5rem;
+      font-size: .875rem;
+      line-height: 1.6;
+      color: #374151;
+      max-height: 24rem;
+      overflow-y: auto;
+
+      ::ng-deep p { margin: 0 0 .75rem; }
+      ::ng-deep p:last-child { margin-bottom: 0; }
     }
 
     .accept-section { margin-top: .5rem; }
@@ -164,8 +202,17 @@ export class RegulaminyComponent implements OnInit {
   terms       = signal<Term[]>([]);
   acceptedMsg = signal<string | null>(null);
   accepting: Record<number, boolean> = {};
+  expandedId  = signal<number | null>(null);
 
   pendingCount = computed(() => this.terms().filter(t => !t.is_accepted && t.required).length);
+
+  togglePreview(id: number): void {
+    this.expandedId.update(cur => cur === id ? null : id);
+  }
+
+  safeBody(html: string): string {
+    return html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/on\w+="[^"]*"/g, '');
+  }
 
   ngOnInit(): void {
     this.api.getTerms().subscribe({
