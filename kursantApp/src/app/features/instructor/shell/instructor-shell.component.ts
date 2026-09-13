@@ -2,11 +2,12 @@ import { Component, signal, computed, HostListener, OnInit } from '@angular/core
 import { inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { InstructorAuthService } from '../../../core/auth/instructor-auth.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
+import { CoursePickerDialogComponent } from './course-picker-dialog.component';
 
 interface NavItem { path: string; label: string; icon: string; }
 
@@ -19,7 +20,7 @@ interface NavItem { path: string; label: string; icon: string; }
 @Component({
   selector: 'app-instructor-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule, FormsModule, MatButtonModule, MatTooltipModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule, MatButtonModule, MatDialogModule, MatTooltipModule],
   template: `
     <a href="#main-content" class="skip-link">Przejdź do treści głównej</a>
     <div class="app-shell">
@@ -32,15 +33,6 @@ interface NavItem { path: string; label: string; icon: string; }
           <span class="brand-icon material-symbols-outlined" aria-hidden="true">person_book</span>
           <span class="brand-name">Panel prowadzącego</span>
         </a>
-        @if (courseCtx.courses().length > 1) {
-          <div class="topbar-course">
-            <span class="material-symbols-outlined" aria-hidden="true">groups</span>
-            <select aria-label="Aktywna grupa" [ngModel]="courseCtx.selectedId()" (ngModelChange)="courseCtx.selectedId.set($event)">
-              <option [ngValue]="null">— wszystkie grupy —</option>
-              @for (c of courseCtx.courses(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
-            </select>
-          </div>
-        }
         <div class="topbar-spacer" aria-hidden="true"></div>
         <div class="topbar-user">
           <span class="user-name">{{ instructorName() }}</span>
@@ -61,6 +53,13 @@ interface NavItem { path: string; label: string; icon: string; }
               <span class="sidebar-user-name">{{ instructorName() }}</span>
             </div>
           </div>
+          @if (courseCtx.courses().length > 1) {
+            <button type="button" class="course-picker-btn" (click)="openCoursePicker()">
+              <span class="material-symbols-outlined" aria-hidden="true">groups</span>
+              <span class="course-picker-label">{{ activeCourseLabel() }}</span>
+              <span class="material-symbols-outlined" aria-hidden="true">expand_more</span>
+            </button>
+          }
           <hr class="k-divider" aria-hidden="true">
           <ul role="list" style="margin:0;padding:0;list-style:none;">
             @for (item of NAV_ITEMS; track item.path) {
@@ -103,13 +102,6 @@ interface NavItem { path: string; label: string; icon: string; }
       color: #111827; font-weight: 600; font-size: 1rem; flex-shrink: 0;
       .brand-icon { color: #2563eb; font-size: 1.4rem; }
     }
-    .topbar-course {
-      display: flex; align-items: center; gap: .35rem; padding: .3rem .6rem; border-radius: .5rem;
-      background: #f3f4f6; color: #374151;
-      .material-symbols-outlined { font-size: 1.1rem; color: #6b7280; }
-      select { border: none; background: none; font: inherit; font-size: .85rem; color: inherit; max-width: 200px; }
-      @media (max-width: 640px) { select { max-width: 120px; } }
-    }
     .topbar-spacer { flex: 1; }
     .topbar-user {
       display: flex; align-items: center; gap: .5rem; padding-left: .5rem; border-left: 1px solid #e5e7eb;
@@ -122,20 +114,45 @@ interface NavItem { path: string; label: string; icon: string; }
       display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .9rem; flex-shrink: 0;
     }
     .sidebar-user-name { font-weight: 600; font-size: .9rem; display: block; color: #111827; }
+    .course-picker-btn {
+      display: flex; align-items: center; gap: .5rem; width: calc(100% - 2rem); margin: 0 1rem .75rem;
+      padding: .5rem .65rem; border: 1px solid #e5e7eb; border-radius: .6rem; background: #f9fafb;
+      color: #374151; font: inherit; font-size: .85rem; cursor: pointer;
+      .material-symbols-outlined:first-child { color: #6b7280; font-size: 1.1rem; }
+      .material-symbols-outlined:last-child { margin-left: auto; color: #9ca3af; font-size: 1.1rem; }
+      &:hover { background: #f3f4f6; }
+    }
+    .course-picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left; }
     .sidebar-footer { margin-top: auto; padding: .5rem 0 1rem; border-top: 1px solid #e5e7eb; }
     main#main-content { flex: 1; overflow-y: auto; padding: 1.75rem 2rem; }
     @media (max-width: 768px) { main#main-content { padding: 1rem; } }
   `],
 })
 export class InstructorShellComponent implements OnInit {
-  private auth = inject(InstructorAuthService);
-  courseCtx    = inject(InstructorCourseContextService);
+  private auth   = inject(InstructorAuthService);
+  private dialog = inject(MatDialog);
+  courseCtx      = inject(InstructorCourseContextService);
 
   instructor  = this.auth.instructor;
   sidebarOpen = signal(false);
 
   ngOnInit(): void {
     this.courseCtx.ensureLoaded();
+  }
+
+  activeCourseLabel = computed(() => {
+    const id = this.courseCtx.selectedId();
+    if (id === null) return '— wszystkie grupy —';
+    return this.courseCtx.courses().find(c => c.id === id)?.name ?? '— wszystkie grupy —';
+  });
+
+  openCoursePicker(): void {
+    this.dialog.open(CoursePickerDialogComponent, {
+      width: '360px', maxWidth: '95vw',
+      data: { courses: this.courseCtx.courses(), selectedId: this.courseCtx.selectedId() },
+    }).afterClosed().subscribe((result?: { picked: boolean; id: number | null }) => {
+      if (result?.picked) this.courseCtx.selectedId.set(result.id);
+    });
   }
 
   readonly NAV_ITEMS: NavItem[] = [
