@@ -533,5 +533,17 @@ export interface InstructorMaterial {
   session_id: number | null;
   session_date: string | null;
   session_topic: string | null;
+  open_at: string | null;
+  close_at: string | null;
   availability: { state: 'open' | 'upcoming' | 'closed'; label: string };
 }
+
+export const INSTRUCTOR_MATERIAL_TYPES: { value: string; label: string }[] = [
+  { value: 'zadanie', label: 'Zadanie' },
+  { value: 'link', label: 'Link' },
+  { value: 'plik', label: 'Plik' },
+  { value: 'dokumentacja', label: 'Dokumentacja' },
+  { value: 'wideo', label: 'Wideo' },
+  { value: 'prezentacja', label: 'Prezentacja' },
+  { value: 'inne', label: 'Inne' },
+];

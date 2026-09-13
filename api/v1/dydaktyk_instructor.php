@@ -527,6 +527,95 @@ switch ($action) {
         json_err('Plik nie istnieje.', 404);
     }
 
+    // Dodanie/edycja — multipart/form-data (upload pliku), jak submit_homework.
+    // Logika 1:1 z index.php op=save_material, bez opcji wklejenia pliku z
+    // dysku ownCloud (cloud_pick.php — zostaje w klasycznym panelu).
+    case 'save_material': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+
+        $mid       = (int)($body['material_id'] ?? 0);
+        $cid       = (int)($body['course_id'] ?? 0);
+        $types     = k30_ti_material_types();
+        $type      = trim((string)($body['type'] ?? 'inne'));
+        if (!isset($types[$type])) $type = 'inne';
+        $title     = trim((string)($body['title'] ?? ''));
+        $desc      = trim((string)($body['description'] ?? ''));
+        $url       = trim((string)($body['url'] ?? ''));
+        $session_id = (int)($body['session_id'] ?? 0) ?: null;
+        $dt_in     = function (string $k) use ($body): ?string {
+            $v = trim((string)($body[$k] ?? ''));
+            return $v !== '' ? str_replace('T', ' ', $v) . (strlen($v) === 16 ? ':00' : '') : null;
+        };
+        $open_at  = $dt_in('open_at');
+        $close_at = $dt_in('close_at');
+
+        if ($title === '') json_err('Podaj tytuł materiału.');
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+        if ($session_id && !db_one("SELECT 1 FROM k30_ti_sessions WHERE id=? AND course_id=?", [$session_id, $cid])) $session_id = null;
+
+        try {
+            $up = k30_ti_homework_upload('attach', 'mat');
+        } catch (\Throwable $e) {
+            json_err($e->getMessage());
+        }
+
+        if ($mid) {
+            $m = k30_ti_material_get($mid);
+            if (!$m || !k30_ti_instructor_owns_course($instructor_id, (int)$m['course_id'])) {
+                json_err('Brak dostępu do tego materiału.', 403);
+            }
+            $set = [
+                'course_id' => $cid, 'session_id' => $session_id, 'type' => $type,
+                'title' => $title, 'description' => $desc, 'url' => $url,
+                'open_at' => $open_at, 'close_at' => $close_at,
+                'is_active' => !empty($body['is_active']) ? 1 : 0,
+            ];
+            if ($up) {
+                if ($m['attach_path'] !== '') k30_ti_homework_delete_file($m['attach_path']);
+                $set['attach_name'] = $up['name'];
+                $set['attach_path'] = $up['stored'];
+            }
+            $cols = []; $params = [];
+            foreach ($set as $k => $v) { $cols[] = "$k=?"; $params[] = $v; }
+            $params[] = $mid;
+            $pdo->prepare('UPDATE k30_ti_materials SET ' . implode(',', $cols) . ' WHERE id=?')->execute($params);
+            $msg = 'Materiał zaktualizowany.';
+        } else {
+            db_insert('k30_ti_materials', [
+                'course_id' => $cid, 'session_id' => $session_id, 'type' => $type,
+                'title' => $title, 'description' => $desc, 'url' => $url,
+                'open_at' => $open_at, 'close_at' => $close_at,
+                'attach_name' => $up['name'] ?? '', 'attach_path' => $up['stored'] ?? '',
+                'is_active' => 1, 'created_by' => $instructor_id,
+            ]);
+            $msg = 'Materiał dodany.';
+        }
+
+        if (!empty($body['notify'])) {
+            k30_ti_notify_dydaktyka(
+                $cid, 'Zmiana w materiale: ' . $title,
+                'Prowadzący zaktualizował materiał „' . htmlspecialchars($title, ENT_QUOTES) . '" w sekcji Dydaktyka / eLearning.',
+                rtrim(APP_URL, '/') . '/karty30/ti/kursant/index.php?tab=zadania',
+                (defined('ORG_NAME') ? ORG_NAME : 'TI') . ': zmiana w materiałach — "' . $title . '".'
+            );
+        }
+        json_ok(null, $msg);
+    }
+
+    case 'delete_material': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $mid  = (int)($body['material_id'] ?? 0);
+        $m    = $mid ? k30_ti_material_get($mid) : null;
+        if (!$m || !k30_ti_instructor_owns_course($instructor_id, (int)$m['course_id'])) {
+            json_err('Brak dostępu do tego materiału.', 403);
+        }
+        k30_ti_homework_delete_file($m['attach_path']);
+        $pdo->prepare('DELETE FROM k30_ti_materials WHERE id=?')->execute([$mid]);
+        json_ok(null, 'Materiał usunięty.');
+    }
+
     default:
         json_err('Nieznana akcja.', 404);
 }

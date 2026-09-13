@@ -62,4 +62,12 @@ export class InstructorApiService {
   materialFileUrl(materialId: number): string {
     return `${API}?action=material_file&id=${materialId}&token=${encodeURIComponent(this.auth.token() ?? '')}`;
   }
+  /** FormData: material_id (edycja, opcjonalnie), course_id, type, title, description,
+   *  url, session_id, open_at, close_at, is_active, notify, attach (plik, opcjonalnie). */
+  saveMaterial(fd: FormData) {
+    return this.post<void>('save_material', fd);
+  }
+  deleteMaterial(materialId: number) {
+    return this.post<void>('delete_material', { material_id: materialId });
+  }
 }
