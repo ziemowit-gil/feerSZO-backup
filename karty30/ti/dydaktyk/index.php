@@ -438,7 +438,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: index.php?tab=wiadomosci'); exit;
         }
         $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
-        ti_msg_post_to_student($acc_id, $subject, $body, $uid, $senderName, false);
+        $_msg_id = ti_msg_post_to_student($acc_id, $subject, $body, $uid, $senderName, false);
+        if (!empty($_FILES['attachments']['name'][0])) ti_msg_save_attachments($_msg_id, $_FILES['attachments']);
         flash_set('success', 'Wiadomość wysłana.');
         header('Location: index.php?tab=wiadomosci&student=' . $acc_id); exit;
     }
@@ -499,7 +500,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $toAdminId   = ($toAdminRaw === '-1') ? -1 : (int)$toAdminRaw;
         if ($body !== '') {
             $senderName = (string)($me['name'] ?? $me['username'] ?? 'Prowadzący');
-            ti_admin_msg_send($uid, $senderName, $subject, $body, $toAdminId);
+            $_msg_id = ti_admin_msg_send($uid, $senderName, $subject, $body, $toAdminId);
+            if (!empty($_FILES['attachments']['name'][0])) ti_msg_save_attachments($_msg_id, $_FILES['attachments'], 'admin');
             flash_set('success', 'Wiadomość wysłana.');
         }
         header('Location: index.php?tab=wiadomosci&thread=admin&to_admin=' . $toAdminId); exit;
@@ -511,17 +513,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // co protokoły miesięczne).
     if ($op === 'dyd_msg_helpdesk_send') {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/helpdesk.php';
+        $body_html = trim((string)($_POST['body'] ?? ''));
+        // Helpdesk renderuje opis jako czysty tekst — edytor daje HTML, więc
+        // zamieniamy na tekst z zachowaniem akapitów/łamania wierszy (ten sam
+        // wzorzec co crm_offer_plain(), bez dociągania całego pliku CRM).
+        $body = preg_replace('#<br\s*/?>#i', "\n", $body_html) ?? $body_html;
+        $body = preg_replace('#</(p|div|li|h[1-6])>#i', "\n", $body) ?? $body;
+        $body = trim(html_entity_decode(strip_tags($body), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $subject = trim((string)($_POST['subject'] ?? ''));
-        $body    = trim((string)($_POST['body'] ?? ''));
         if ($subject === '') $subject = mb_strimwidth($body, 0, 60, '…');
         if ($body !== '') {
             $requester = ['id' => $uid, 'name' => (string)($me['name'] ?? ''), 'email' => (string)($me['email'] ?? '')];
             $api = hd_dyd_api_call('create', [
                 'title' => $subject, 'description' => $body, 'category' => 'it_inne', 'priority' => 'normalny',
             ], 'POST');
-            if ($api === null) {
-                hd_ticket_quick_create($requester, $subject, $body, 'it_inne', 'normalny', 'dydaktyk');
-            }
+            $ticket_id = $api['data']['ticket_id']
+                ?? hd_ticket_quick_create($requester, $subject, $body, 'it_inne', 'normalny', 'dydaktyk');
+            // Załączniki idą zawsze wprost na bazę — przesyłanie plików przez
+            // wywołanie API (JSON) nie ma dziś sensu, to zwykły multipart POST.
+            if (!empty($_FILES['attachments']['name'][0])) hd_save_attachments((int)$ticket_id, $_FILES['attachments'], $uid);
             flash_set('success', 'Zgłoszenie wysłane do Helpdesku IT.');
         }
         header('Location: index.php?tab=wiadomosci'); exit;

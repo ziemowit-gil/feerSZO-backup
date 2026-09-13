@@ -595,8 +595,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subject = mb_substr(trim((string)($_POST['thread_subject'] ?? $_POST['subject'] ?? '')), 0, 200);
         if ($body !== '') {
             try {
-                ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 4000), $subject);
-                ti_account_log((int)$student['id'], 'msg_sent', mb_substr($body, 0, 100));
+                $_msg_id = ti_msg_student_reply((int)$student['id'], mb_substr($body, 0, 8000), $subject);
+                if (!empty($_FILES['attachments']['name'][0])) ti_msg_save_attachments($_msg_id, $_FILES['attachments']);
+                ti_account_log((int)$student['id'], 'msg_sent', mb_substr(strip_tags($body), 0, 100));
                 header('Location: index.php?tab=wiadomosci&sent=1'); exit;
             } catch (\RuntimeException $e) {
                 header('Location: index.php?tab=wiadomosci&blocked=1'); exit;
@@ -4517,7 +4518,8 @@ document.addEventListener('DOMContentLoaded', function() {
         <time class="text-body-secondary small ms-auto" datetime="<?= h($m['created_at'] ?? '') ?>"><?= h($ts) ?></time>
       </header>
       <div class="border rounded-2 p-3 <?= $mine ? 'border-primary border-opacity-50 bg-primary bg-opacity-10' : '' ?>">
-        <p class="mb-0" style="white-space:pre-wrap;line-height:1.6"><?= h($m['body']) ?></p>
+        <p class="mb-0" style="line-height:1.6"><?= ti_msg_render($m['body']) ?></p>
+        <?= ti_msg_render_attachments((int)$m['id'], 'student', 'msg_attachment.php') ?>
       </div>
     </article>
   </li>
@@ -4554,21 +4556,45 @@ document.addEventListener('DOMContentLoaded', function() {
     </h2>
   </div>
   <div class="card-body">
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
       <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
       <input type="hidden" name="_op" value="msg_new">
       <input type="hidden" name="subject" value="">
       <div class="mb-3">
         <label class="form-label fw-semibold" for="newMsgBody">Treść <span class="text-danger" aria-hidden="true">*</span></label>
         <textarea class="form-control" id="newMsgBody" name="body"
-                  rows="4" maxlength="4000" required
+                  rows="4" required
                   placeholder="Napisz wiadomość do prowadzącego…"></textarea>
         <div class="form-text">Prowadzący odpowie tutaj. <a href="?tab=ustawienia">Skonfiguruj powiadomienia e-mail / SMS</a>.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="newMsgAttach">Załączniki <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+        <input type="file" class="form-control" id="newMsgAttach" name="attachments[]" multiple
+               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv">
+        <div class="form-text">Maks. 10 MB / plik.</div>
       </div>
       <button type="submit" class="btn btn-primary">
         <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij wiadomość
       </button>
     </form>
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+    <script>
+    if (window.tinymce) {
+      tinymce.init({
+        selector: '#newMsgBody',
+        license_key: 'gpl',
+        promotion: false,
+        branding: false,
+        menubar: false,
+        toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat',
+        plugins: 'lists link',
+        height: 180,
+        entity_encoding: 'raw',
+        setup: function (editor) { editor.on('change', function () { editor.save(); }); }
+      });
+      document.addEventListener('submit', function () { tinymce.triggerSave(); }, true);
+    }
+    </script>
   </div>
 </section>
 <?php endif; ?>

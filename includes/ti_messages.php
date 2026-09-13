@@ -15,6 +15,117 @@
 
 require_once __DIR__ . '/db.php';
 
+/**
+ * Sanityzuje HTML z lekkiego edytora WYSIWYG wiadomości (pogrubienie, kursywa,
+ * podkreślenie, listy, linki — bez obrazków/tabel/skryptów/styli). Ten sam
+ * wzorzec co crm_offer_sanitize_html() (includes/crm_offers.php), zawężony do
+ * tego, co faktycznie daje edytor wiadomości.
+ */
+function ti_msg_sanitize_html(string $html): string {
+    if (trim($html) === '') return '';
+    $html = preg_replace('#<(script|style|iframe|object|embed)\b[^>]*>.*?</\1>#is', '', $html) ?? '';
+    $html = preg_replace('#<(script|style|iframe|object|embed)\b[^>]*/?>#i', '', $html) ?? '';
+    $allowed = '<p><br><strong><b><em><i><u><ul><ol><li><a>';
+    $clean = strip_tags($html, $allowed);
+    $clean = preg_replace('/\s+on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? '';
+    $clean = preg_replace('/\s+(href|src)\s*=\s*("\s*javascript:[^"]*"|\'\s*javascript:[^\']*\'|javascript:[^\s>]*)/i', '', $clean) ?? '';
+    $plain = html_entity_decode(strip_tags($clean), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $plain = trim(str_replace("\xc2\xa0", ' ', $plain));
+    if ($plain === '') return '';
+    return trim($clean);
+}
+
+/**
+ * Renderuje treść wiadomości do wyświetlenia: wpisy z edytora (HTML) przechodzą
+ * przez whitelistę, starsze wpisy (czysty tekst sprzed edytora) dostają
+ * nl2br(h()) jak dotąd — rozpoznanie po obecności tagów.
+ */
+function ti_msg_render(?string $v): string {
+    $v = trim((string)$v);
+    if ($v === '') return '';
+    if (preg_match('#</?(p|br|ul|ol|li|strong|em|b|i|u|a)\b#i', $v)) {
+        return ti_msg_sanitize_html($v);
+    }
+    return nl2br(h($v));
+}
+
+/** Dozwolone rozszerzenia załączników wiadomości — ten sam zestaw co helpdesk/new.php. */
+const TI_MSG_ATTACH_EXT = ['pdf','doc','docx','xls','xlsx','jpg','jpeg','png','gif','zip','txt','csv'];
+
+function ti_msg_attachments_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        // `kind` odróżnia do jakiej tabeli odnosi się message_id — wiadomości
+        // kursant↔prowadzący (k30_ti_messages) i wiadomości do kierownictwa
+        // (k30_ti_admin_msgs) mają rozłączne przestrzenie id, stąd bez ON DELETE
+        // CASCADE/FK (miękkie odwołanie, jak w reszcie modułu TI).
+        db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_message_attachments (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id    INTEGER NOT NULL,
+            kind          TEXT    NOT NULL DEFAULT 'student',
+            original_name TEXT    NOT NULL,
+            stored_path   TEXT    NOT NULL,
+            file_size     INTEGER NOT NULL DEFAULT 0,
+            uploaded_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_msg_attach_msg ON k30_ti_message_attachments(kind, message_id)");
+    } catch (\Throwable $e) {}
+}
+
+/**
+ * Zapisuje na dysk i w bazie załączniki jednej wiadomości z $_FILES['attachments']
+ * (pole `multiple`). Pliki spoza whitelisty rozszerzeń są po cichu pomijane —
+ * to samo zachowanie co w helpdesk/new.php. $kind: 'student' (k30_ti_messages)
+ * albo 'admin' (k30_ti_admin_msgs).
+ */
+function ti_msg_save_attachments(int $messageId, array $filesField, string $kind = 'student'): void {
+    if (empty($filesField['name'][0])) return;
+    ti_msg_attachments_migrate();
+    $dir = UPLOAD_DIR . 'ti_messages/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    foreach ($filesField['name'] as $i => $origName) {
+        if (($filesField['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        if (!in_array($ext, TI_MSG_ATTACH_EXT, true)) continue;
+        if ((int)($filesField['size'][$i] ?? 0) > 10 * 1024 * 1024) continue; // 10 MB / plik
+        $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        if (@move_uploaded_file($filesField['tmp_name'][$i], $dir . $stored)) {
+            db_insert('k30_ti_message_attachments', [
+                'message_id'    => $messageId,
+                'kind'          => $kind,
+                'original_name' => mb_substr($origName, 0, 200),
+                'stored_path'   => 'ti_messages/' . $stored,
+                'file_size'     => (int)($filesField['size'][$i] ?? 0),
+            ]);
+        }
+    }
+}
+
+/** Załączniki jednej wiadomości. $kind: 'student' albo 'admin' — patrz ti_msg_save_attachments(). */
+function ti_msg_attachments_for(int $messageId, string $kind = 'student'): array {
+    ti_msg_attachments_migrate();
+    return db_all("SELECT * FROM k30_ti_message_attachments WHERE message_id=? AND kind=? ORDER BY id", [$messageId, $kind]);
+}
+
+/**
+ * Lista załączników wiadomości jako gotowe HTML (linki pobrania) — wspólna dla
+ * panelu dydaktyka (msg_attachment.php) i panelu kursanta (kursant/msg_attachment.php),
+ * każdy przekazuje własną ścieżkę skryptu pobierania (osobne sesje/autoryzacja).
+ */
+function ti_msg_render_attachments(int $messageId, string $kind, string $downloadScript): string {
+    $rows = ti_msg_attachments_for($messageId, $kind);
+    if (!$rows) return '';
+    $out = '<div class="mt-1 d-flex flex-wrap gap-2">';
+    foreach ($rows as $r) {
+        $out .= '<a class="badge text-bg-light border text-decoration-none" href="'
+              . h($downloadScript . '?id=' . (int)$r['id']) . '">'
+              . '<i class="bi bi-paperclip me-1" aria-hidden="true"></i>' . h((string)$r['original_name']) . '</a>';
+    }
+    return $out . '</div>';
+}
+
 /** Lista wiadomości w wątku kursanta (rosnąco po dacie). */
 function ti_msg_list_for_student(int $studentId): array {
     return db_all(
@@ -69,7 +180,7 @@ function ti_msg_post_to_student(int $studentId, string $subject, string $body, ?
         'sender_user_id' => $byUserId ?: null,
         'sender_name'    => mb_substr($byName, 0, 120),
         'subject'        => mb_substr(trim($subject), 0, 200),
-        'body'           => trim($body),
+        'body'           => ti_msg_sanitize_html($body),
         'is_read'        => 0,
         'created_at'     => date('Y-m-d H:i:s'),
     ]);
@@ -107,7 +218,7 @@ function ti_msg_student_reply(int $studentId, string $body, string $subject = ''
         'sender'      => 'student',
         'sender_name' => mb_substr($byName, 0, 120),
         'subject'     => mb_substr(trim($subject), 0, 200),
-        'body'        => trim($body),
+        'body'        => ti_msg_sanitize_html($body),
         'is_read'     => 0,
         'created_at'  => date('Y-m-d H:i:s'),
     ]);
@@ -369,7 +480,7 @@ function ti_admin_msg_send(int $userId, string $userName, string $subject, strin
         'user_name'   => $userName,
         'to_admin_id' => $toAdminId,
         'subject'     => $subject,
-        'body'        => $body,
+        'body'        => ti_msg_sanitize_html($body),
     ]);
     _ti_admin_msg_notify_admins($userName, $subject ?: 'Nowa wiadomość od prowadzącego', $body, $toAdminId);
     return $id;

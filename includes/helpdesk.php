@@ -1450,6 +1450,35 @@ function hd_ticket_quick_create(array $requester, string $title, string $descrip
 }
 
 /**
+ * Zapisuje załączniki zgłoszenia z $_FILES['attachments'] (pole `multiple`) —
+ * ten sam wzorzec co helpdesk/new.php (whitelist rozszerzeń, katalog
+ * uploads/helpdesk/). Używane m.in. przez panel dydaktyka, gdzie zgłoszenie
+ * powstaje przez hd_ticket_quick_create()/API zamiast tego formularza.
+ */
+function hd_save_attachments(int $ticketId, array $filesField, ?int $uploadedBy = null): void {
+    if (empty($filesField['name'][0])) return;
+    $dir = UPLOAD_DIR . 'helpdesk/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $allow = ['pdf','doc','docx','xls','xlsx','jpg','jpeg','png','gif','zip','txt','csv'];
+    foreach ($filesField['name'] as $i => $origName) {
+        if (($filesField['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        if (!in_array($ext, $allow, true)) continue;
+        if ((int)($filesField['size'][$i] ?? 0) > 10 * 1024 * 1024) continue; // 10 MB / plik
+        $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        if (@move_uploaded_file($filesField['tmp_name'][$i], $dir . $stored)) {
+            db_insert('helpdesk_attachments', [
+                'ticket_id'     => $ticketId,
+                'original_name' => $origName,
+                'stored_path'   => 'helpdesk/' . $stored,
+                'file_size'     => $filesField['size'][$i],
+                'uploaded_by'   => $uploadedBy,
+            ]);
+        }
+    }
+}
+
+/**
  * Wywołuje karty30/ti/dydaktyk/api_helpdesk.php przez HTTP, przekazując
  * ciasteczko bieżącej sesji panelu dydaktyka — patrz ti_protocols_api_call()
  * (includes/ti_protocols.php) po dokładne uzasadnienie tego wzorca. Zwraca

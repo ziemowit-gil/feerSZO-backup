@@ -252,7 +252,8 @@ $_has_active = $dyd_thread_is_admin || !empty($dyd_msg_student);
               <time class="text-muted ms-auto" datetime="<?= h($am['created_at'] ?? '') ?>"><?= h($amTs) ?></time>
             </header>
             <div class="border rounded-2 p-2 border-primary border-opacity-25 bg-primary bg-opacity-10"
-                 style="font-size:.875rem;white-space:pre-wrap"><?= h($am['body']) ?></div>
+                 style="font-size:.875rem"><?= ti_msg_render($am['body']) ?></div>
+            <?= ti_msg_render_attachments((int)$am['id'], 'admin', 'msg_attachment.php') ?>
             <?php if ($am['reply_body']): ?>
             <div class="mt-2 border rounded-2 p-2 border-success border-opacity-25 bg-success bg-opacity-10"
                  style="font-size:.875rem;white-space:pre-wrap">
@@ -261,7 +262,7 @@ $_has_active = $dyd_thread_is_admin || !empty($dyd_msg_student);
                 <span class="text-muted">odpowiedź</span>
                 <time class="text-muted ms-auto"><?= h($amRepliedTs) ?></time>
               </div>
-              <?= h($am['reply_body']) ?>
+              <?= ti_msg_render($am['reply_body']) ?>
             </div>
             <?php endif; ?>
           </article>
@@ -305,7 +306,8 @@ $_has_active = $dyd_thread_is_admin || !empty($dyd_msg_student);
               <?php endif; ?>
             </header>
             <div class="border rounded-2 p-2 <?= $fromStaff ? 'border-primary border-opacity-25 bg-primary bg-opacity-10' : '' ?>"
-                 style="font-size:.875rem;white-space:pre-wrap"><?= h($msg['body']) ?></div>
+                 style="font-size:.875rem"><?= ti_msg_render($msg['body']) ?></div>
+            <?= ti_msg_render_attachments((int)$msg['id'], 'student', 'msg_attachment.php') ?>
           </article>
         </li>
         <?php endforeach; ?>
@@ -324,7 +326,7 @@ $_has_active = $dyd_thread_is_admin || !empty($dyd_msg_student);
         <input type="hidden" name="course_id" value="<?= $cur_course ?>">
         <input type="hidden" name="to_admin_id" value="<?= $dyd_admin_active_id ?>">
         <div class="d-flex gap-2">
-          <textarea class="form-control form-control-sm" name="body" rows="3"
+          <textarea class="form-control form-control-sm" id="dydAdminReplyBody" name="body" rows="3"
                     placeholder="Napisz kolejną wiadomość…" required style="resize:none"></textarea>
           <button class="btn btn-primary btn-sm align-self-end" type="submit">
             <i class="bi bi-send"></i><span class="visually-hidden">Wyślij</span>
@@ -370,15 +372,55 @@ document.addEventListener('DOMContentLoaded', function () {
     u.searchParams.delete('to_admin');
     history.replaceState(null, '', u.toString());
   });
+  // Edytor odpowiedzi w offcanvasie — dopiero po pokazaniu (textarea była display:none)
+  el.addEventListener('shown.bs.offcanvas', function () {
+    dydInitMsgEditor('#dydAdminReplyBody, #dydReplyBody', 120);
+  });
 });
 </script>
 <?php endif; ?>
 
-<!-- Modal nowej wiadomości -->
+<!-- Edytor WYSIWYG treści wiadomości (lekki: bez obrazków/tabel) — ładowany raz,
+     inicjalizowany dopiero po pokazaniu modala/offcanvasu (textarea display:none
+     wcześniej łamie TinyMCE). tinymce.triggerSave() przed każdym submit zapisuje
+     HTML z edytora z powrotem do textarea, żeby reszta JS (budowanie _op itd.)
+     czytała aktualną treść. -->
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+function dydInitMsgEditor(selector, height) {
+  if (!window.tinymce) return;
+  tinymce.init({
+    selector: selector,
+    license_key: 'gpl',
+    promotion: false,
+    branding: false,
+    menubar: false,
+    toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat',
+    plugins: 'lists link',
+    height: height || 200,
+    entity_encoding: 'raw',
+    setup: function (editor) { editor.on('change', function () { editor.save(); }); }
+  });
+}
+document.addEventListener('submit', function () {
+  if (window.tinymce) tinymce.triggerSave();
+}, true);
+document.addEventListener('DOMContentLoaded', function () {
+  var newMsgModal = document.getElementById('dydMsgNew');
+  if (newMsgModal) {
+    newMsgModal.addEventListener('shown.bs.modal', function () {
+      if (tinymce.get('dydMsgNewBody')) return; // już zainicjalizowany — nie od nowa
+      dydInitMsgEditor('#dydMsgNewBody', 220);
+    });
+  }
+});
+</script>
+
+<!-- Modal nowej wiadomości — dwie kolumny: adresat (drzewo) | treść -->
 <div class="modal fade" id="dydMsgNew" tabindex="-1" aria-labelledby="dydMsgNewLabel" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
-      <form method="post" id="dydMsgNewForm">
+      <form method="post" id="dydMsgNewForm" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="course_id" value="<?= $cur_course ?>">
         <div class="modal-header">
@@ -386,45 +428,83 @@ document.addEventListener('DOMContentLoaded', function () {
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
         </div>
         <div class="modal-body">
-          <!-- Rodzaj adresata — drzewo zamiast płaskiej listy -->
-          <div class="mb-3">
-            <label class="form-label fw-semibold" id="dydMsgRecipLbl">Adresat <span class="text-danger">*</span></label>
-            <input type="hidden" id="dydMsgRecip" name="_recip">
-            <div class="border rounded" id="dydMsgRecipTree" role="tree" aria-labelledby="dydMsgRecipLbl"
-                 style="max-height:230px;overflow-y:auto">
-              <?php if (!empty($dyd_msg_accounts)): ?>
-              <details open class="dyd-recip-group">
-                <summary class="fw-semibold px-2 py-1"><i class="bi bi-people me-1" aria-hidden="true"></i>Kursanci</summary>
-                <div class="pb-1">
-                  <?php foreach ($dyd_msg_accounts as $a): ?>
-                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
-                          data-value="s_<?= (int)$a['id'] ?>"><?= h($a['name']) ?> — <?= h($a['course_name']) ?></button>
-                  <?php endforeach; ?>
-                </div>
-              </details>
-              <?php endif; ?>
-              <details open class="dyd-recip-group">
-                <summary class="fw-semibold px-2 py-1"><i class="bi bi-building me-1" aria-hidden="true"></i>Kierownictwo</summary>
-                <div class="pb-1">
-                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
-                          data-value="a_-1"><?= h(TI_KIS_NAME) ?> — Kierownik Instytucji</button>
-                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
-                          data-value="a_0">Administratorzy (wszyscy)</button>
-                  <?php foreach ($dyd_admin_users as $au): ?>
-                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
-                          data-value="a_<?= (int)$au['id'] ?>"><?= h($au['name']) ?></button>
-                  <?php endforeach; ?>
-                </div>
-              </details>
-              <details open class="dyd-recip-group">
-                <summary class="fw-semibold px-2 py-1"><i class="bi bi-life-preserver me-1" aria-hidden="true"></i>Pomoc techniczna</summary>
-                <div class="pb-1">
-                  <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
-                          data-value="h_1">Helpdesk IT — zgłoś problem</button>
-                </div>
-              </details>
+          <div class="row g-3">
+            <!-- ═══ Kolumna 1: adresat (drzewo) ═══ -->
+            <div class="col-md-5">
+              <label class="form-label fw-semibold" id="dydMsgRecipLbl">Adresat <span class="text-danger">*</span></label>
+              <input type="hidden" id="dydMsgRecip" name="_recip">
+              <div class="border rounded" id="dydMsgRecipTree" role="tree" aria-labelledby="dydMsgRecipLbl"
+                   style="max-height:340px;overflow-y:auto">
+                <?php if (!empty($dyd_msg_accounts)): ?>
+                <details open class="dyd-recip-group">
+                  <summary class="fw-semibold px-2 py-1"><i class="bi bi-people me-1" aria-hidden="true"></i>Kursanci</summary>
+                  <div class="pb-1">
+                    <?php foreach ($dyd_msg_accounts as $a): ?>
+                    <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                            data-value="s_<?= (int)$a['id'] ?>"><?= h($a['name']) ?> — <?= h($a['course_name']) ?></button>
+                    <?php endforeach; ?>
+                  </div>
+                </details>
+                <?php endif; ?>
+                <details open class="dyd-recip-group">
+                  <summary class="fw-semibold px-2 py-1"><i class="bi bi-building me-1" aria-hidden="true"></i>Kierownictwo</summary>
+                  <div class="pb-1">
+                    <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                            data-value="a_-1"><?= h(TI_KIS_NAME) ?> — Kierownik Instytucji</button>
+                    <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                            data-value="a_0">Administratorzy (wszyscy)</button>
+                    <?php foreach ($dyd_admin_users as $au): ?>
+                    <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                            data-value="a_<?= (int)$au['id'] ?>"><?= h($au['name']) ?></button>
+                    <?php endforeach; ?>
+                  </div>
+                </details>
+                <details open class="dyd-recip-group">
+                  <summary class="fw-semibold px-2 py-1"><i class="bi bi-life-preserver me-1" aria-hidden="true"></i>Pomoc techniczna</summary>
+                  <div class="pb-1">
+                    <button type="button" class="dydRecipItem btn btn-sm d-block w-100 text-start border-0 rounded-0"
+                            data-value="h_1">Helpdesk IT — zgłoś problem</button>
+                  </div>
+                </details>
+              </div>
+              <div class="small text-body-secondary mt-1" id="dydMsgRecipHint">Wybierz adresata z listy powyżej.</div>
             </div>
-            <div class="small text-body-secondary mt-1" id="dydMsgRecipHint">Wybierz adresata z listy powyżej.</div>
+
+            <!-- ═══ Kolumna 2: temat + treść (WYSIWYG) + załączniki ═══ -->
+            <div class="col-md-7">
+              <!-- Pola specyficzne dla kursanta -->
+              <div id="dydMsgStudentFields">
+                <div class="mb-3">
+                  <label class="form-label">Temat</label>
+                  <input type="text" class="form-control" name="subject_s" placeholder="Temat wiadomości (opcjonalny)">
+                </div>
+              </div>
+              <!-- Pola specyficzne dla admina -->
+              <div id="dydMsgAdminFields" class="d-none">
+                <div class="mb-3">
+                  <label class="form-label">Temat</label>
+                  <input type="text" class="form-control" name="subject_a" placeholder="Temat wiadomości (opcjonalny)">
+                </div>
+              </div>
+              <!-- Pola specyficzne dla helpdesku -->
+              <div id="dydMsgHelpdeskFields" class="d-none">
+                <div class="mb-3">
+                  <label class="form-label">Temat zgłoszenia</label>
+                  <input type="text" class="form-control" name="subject_h" placeholder="np. Nie działa link do spotkania Zoom">
+                </div>
+                <p class="text-body-secondary small">Zgłoszenie trafi do Helpdesku IT, nie do kierownictwa placówki.</p>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold" for="dydMsgNewBody">Treść <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="dydMsgNewBody" name="body" rows="6" required placeholder="Napisz wiadomość…"></textarea>
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Załączniki <span class="text-body-secondary fw-normal">(opcjonalnie)</span></label>
+                <input type="file" class="form-control" name="attachments[]" multiple
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip,.txt,.csv">
+                <div class="form-text">Maks. 10 MB / plik.</div>
+              </div>
+            </div>
           </div>
           <style>
             #dydMsgRecipTree summary { cursor: pointer; list-style: none; background: var(--bs-tertiary-bg); }
@@ -436,32 +516,6 @@ document.addEventListener('DOMContentLoaded', function () {
             .dydRecipItem:hover { background: var(--bs-tertiary-bg); }
             .dydRecipItem.active { background: var(--bs-primary); color: #fff; }
           </style>
-          <!-- Pola specyficzne dla kursanta -->
-          <div id="dydMsgStudentFields">
-            <div class="mb-3">
-              <label class="form-label">Temat</label>
-              <input type="text" class="form-control" name="subject_s" placeholder="Temat wiadomości (opcjonalny)">
-            </div>
-          </div>
-          <!-- Pola specyficzne dla admina -->
-          <div id="dydMsgAdminFields" class="d-none">
-            <div class="mb-3">
-              <label class="form-label">Temat</label>
-              <input type="text" class="form-control" name="subject_a" placeholder="Temat wiadomości (opcjonalny)">
-            </div>
-          </div>
-          <!-- Pola specyficzne dla helpdesku -->
-          <div id="dydMsgHelpdeskFields" class="d-none">
-            <div class="mb-3">
-              <label class="form-label">Temat zgłoszenia</label>
-              <input type="text" class="form-control" name="subject_h" placeholder="np. Nie działa link do spotkania Zoom">
-            </div>
-            <p class="text-body-secondary small">Zgłoszenie trafi do Helpdesku IT, nie do kierownictwa placówki.</p>
-          </div>
-          <div class="mb-2">
-            <label class="form-label fw-semibold">Treść <span class="text-danger">*</span></label>
-            <textarea class="form-control" name="body" rows="4" required placeholder="Napisz wiadomość…"></textarea>
-          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
