@@ -1,4 +1,4 @@
-import { Component, signal, inject, OnInit } from '@angular/core';
+import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,6 +27,18 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
       <h1>Dydaktyka / eLearning</h1>
       <p class="subtitle">Materiały, zadania domowe i oceny</p>
     </div>
+
+    @if (courseOptions().length > 1) {
+      <div class="course-filter">
+        <label for="course-filter-select">Grupa</label>
+        <select id="course-filter-select" (change)="onCourseFilterChange($event)">
+          <option value="" [selected]="selectedCourseId() === null">Wszystkie</option>
+          @for (c of courseOptions(); track c.id) {
+            <option [value]="c.id" [selected]="selectedCourseId() === c.id">{{ c.name }}</option>
+          }
+        </select>
+      </div>
+    }
 
     @if (loading()) {
       <div class="loading-overlay" role="status" aria-label="Ładowanie zadań">
@@ -276,6 +288,22 @@ import { DydGroup, Homework } from '../../core/models/kursant.models';
     }
 
     .file-input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+    .course-filter {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: 1rem;
+      font-size: .875rem;
+
+      select {
+        padding: .35rem .6rem;
+        border: 1px solid #d1d5db;
+        border-radius: .4rem;
+        font-size: .875rem;
+        background: #fff;
+      }
+    }
   `],
 })
 export class ZadaniaComponent implements OnInit {
@@ -284,19 +312,36 @@ export class ZadaniaComponent implements OnInit {
   private fb    = inject(FormBuilder);
 
   loading    = signal(true);
-  groups     = signal<DydGroup[]>([]);
+  allGroups  = signal<DydGroup[]>([]);
+  selectedCourseId = signal<number | null>(null);
   submitMsg  = signal<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   submitForms: Record<number, FormGroup<any>> = {};
   submitting: Record<number, boolean> = {};
   selectedFiles: Record<number, File> = {};
 
+  courseOptions = computed(() => {
+    const seen = new Map<number, string>();
+    for (const g of this.allGroups()) if (!seen.has(g.course_id)) seen.set(g.course_id, g.course_name);
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  });
+
+  groups = computed(() => {
+    const cid = this.selectedCourseId();
+    return cid === null ? this.allGroups() : this.allGroups().filter(g => g.course_id === cid);
+  });
+
+  onCourseFilterChange(event: Event): void {
+    const val = (event.target as HTMLSelectElement).value;
+    this.selectedCourseId.set(val === '' ? null : Number(val));
+  }
+
   ngOnInit(): void {
     this.api.getHomework().subscribe({
       next: res => {
         this.loading.set(false);
         if (res.success && res.data) {
-          this.groups.set(res.data);
+          this.allGroups.set(res.data);
           res.data.forEach(g =>
             g.homeworks.forEach(hw => {
               this.submitForms[hw.id] = this.fb.nonNullable.group({ body: [''] });
@@ -342,7 +387,7 @@ export class ZadaniaComponent implements OnInit {
       next: res => {
         this.submitting[hw.id] = false;
         if (res.success) {
-          this.groups.update(gs =>
+          this.allGroups.update(gs =>
             gs.map(g => ({
               ...g,
               homeworks: g.homeworks.map(h =>

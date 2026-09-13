@@ -17,7 +17,18 @@ interface NavItem {
   section?: string;
   badgeKey?: keyof Badges;
   hideMinor?: boolean;
+  /** Widoczne tylko dla tych ról; brak = widoczne dla wszystkich (w tym parent/authp). */
+  onlyRoles?: ('student' | 'parent' | 'authp')[];
 }
+
+/**
+ * Zakładki widoczne dla roli parent/authp — odpowiednik zawężonego menu
+ * karty30/ti/kursant/parent.php (rozliczenia/portfel/frekwencja/oceny/licencje/
+ * harmonogram/wiadomosci/vlab/dostep) i authorized_person.php (tylko
+ * lekcje/rozliczenia, do odczytu — patrz gating w api/v1/kursant_student.php).
+ */
+const PARENT_VISIBLE = new Set(['dane', 'lekcje', 'oceny', 'plan', 'licencje', 'wiadomosci', 'rozliczenia', 'vlab', 'dostep']);
+const AUTHP_VISIBLE  = new Set(['dane', 'lekcje', 'rozliczenia']);
 
 interface Badges { msg: number; notices: number; terms: number; }
 
@@ -31,6 +42,17 @@ interface Badges { msg: number; notices: number; terms: number; }
   template: `
     <a href="#main-content" class="skip-link">Przejdź do treści głównej</a>
     <div class="app-shell">
+      @if (roleBannerText()) {
+        <div class="role-banner" [class.role-banner--imp]="role() === 'impersonation'" role="status">
+          <span class="material-symbols-outlined" aria-hidden="true">
+            {{ role() === 'impersonation' ? 'visibility' : (role() === 'authp' ? 'lock' : 'family_restroom') }}
+          </span>
+          <span>{{ roleBannerText() }}</span>
+          @if (role() === 'impersonation') {
+            <button class="role-banner-exit" (click)="logout()">Zakończ impersonację</button>
+          }
+        </div>
+      }
       <!-- Top bar -->
       <header class="topbar" role="banner">
         <button class="topbar-hamburger"
@@ -153,6 +175,30 @@ interface Badges { msg: number; notices: number; terms: number; }
     </div>
   `,
   styles: [`
+    .role-banner {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .5rem 1rem;
+      background: #eff6ff;
+      color: #1e40af;
+      font-size: .85rem;
+      border-bottom: 1px solid #bfdbfe;
+
+      &.role-banner--imp { background: #fef3c7; color: #92400e; border-bottom-color: #fde68a; }
+
+      .role-banner-exit {
+        margin-left: auto;
+        background: none;
+        border: 1px solid currentColor;
+        color: inherit;
+        border-radius: .4rem;
+        padding: .2rem .6rem;
+        font-size: .8rem;
+        cursor: pointer;
+      }
+    }
+
     .topbar {
       display: flex;
       align-items: center;
@@ -256,8 +302,20 @@ export class ShellComponent implements OnInit {
   private api  = inject(KursantApiService);
 
   student       = this.auth.student;
+  role          = this.auth.role;
+  actorName     = this.auth.actorName;
   sidebarOpen   = signal(false);
   badges        = signal<Badges>({ msg: 0, notices: 0, terms: 0 });
+
+  roleBannerText = computed(() => {
+    const name = this.actorName();
+    switch (this.role()) {
+      case 'parent':        return `Widok opiekuna${name ? ' — ' + name : ''}. Zmiany dotyczą konta dziecka.`;
+      case 'authp':         return `Wgląd osoby upoważnionej${name ? ' — ' + name : ''} — tylko do odczytu.`;
+      case 'impersonation': return `Impersonacja administratora (${name || 'admin'}) — oglądasz konto: ${this.studentName()}.`;
+      default:              return '';
+    }
+  });
 
   studentName = computed(() => {
     const s = this.student();
@@ -289,15 +347,23 @@ export class ShellComponent implements OnInit {
     { path: 'dysk',       label: 'Mój dysk',           icon: 'cloud' },
     { path: 'licencje',   label: 'Licencje',           icon: 'key' },
     { path: 'pfron',      label: 'PFRON',              icon: 'accessibility' },
-    { path: 'problem',    label: 'Pomoc',              icon: 'help',            section: 'Inne' },
-    { path: 'aktywnosc',  label: 'Aktywność',          icon: 'history' },
-    { path: 'ustawienia', label: 'Ustawienia',         icon: 'settings' },
-    { path: 'regulaminy', label: 'Regulaminy',         icon: 'gavel',           badgeKey: 'terms' },
+    { path: 'problem',    label: 'Pomoc',              icon: 'help',            section: 'Inne', onlyRoles: ['student'] },
+    { path: 'aktywnosc',  label: 'Aktywność',          icon: 'history',         onlyRoles: ['student'] },
+    { path: 'ustawienia', label: 'Ustawienia',         icon: 'settings',        onlyRoles: ['student'] },
+    { path: 'regulaminy', label: 'Regulaminy',         icon: 'gavel',           badgeKey: 'terms', onlyRoles: ['student'] },
+    { path: 'dostep',     label: 'Dostęp opiekuna',    icon: 'shield_person',   onlyRoles: ['parent'] },
   ];
 
   visibleNavItems = computed(() => {
     const isMinor = this.student()?.is_minor ?? false;
-    return this.NAV_ITEMS.filter(item => !(isMinor && item.hideMinor));
+    const role = this.auth.role();
+    return this.NAV_ITEMS.filter(item => {
+      if (isMinor && item.hideMinor) return false;
+      if (item.onlyRoles && !item.onlyRoles.includes(role as 'student' | 'parent' | 'authp')) return false;
+      if (role === 'parent' && !PARENT_VISIBLE.has(item.path) && !item.onlyRoles) return false;
+      if (role === 'authp' && !AUTHP_VISIBLE.has(item.path)) return false;
+      return true;
+    });
   });
 
   private push = inject(PushService);

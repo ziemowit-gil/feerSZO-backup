@@ -1,21 +1,28 @@
 import { Component, signal, inject } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../core/auth/auth.service';
+import { ParentOtpChild } from '../../core/models/kursant.models';
+
+/** Rola wybrana na ekranie logowania — odpowiednik trzech stron logowania
+ *  klasycznego panelu (login.php / parent_login.php / authp_login.php). */
+type LoginMode = 'student' | 'parent' | 'authp';
+type ParentStage = 'password' | 'sms-phone' | 'sms-code' | 'sms-choose';
 
 @Component({
   selector: 'app-login',
   standalone: true,
   imports: [
-    CommonModule, ReactiveFormsModule, RouterLink,
+    CommonModule, ReactiveFormsModule, FormsModule,
     MatFormFieldModule, MatInputModule, MatButtonModule,
-    MatCheckboxModule, MatProgressSpinnerModule,
+    MatCheckboxModule, MatProgressSpinnerModule, MatButtonToggleModule,
   ],
   template: `
     <div class="login-layout" role="main">
@@ -48,90 +55,117 @@ import { AuthService } from '../../core/auth/auth.service';
             <span class="material-symbols-outlined">school</span>
           </div>
           <h1 class="login-title">Panel Kursanta</h1>
-          <p class="login-subtitle">Zaloguj się, aby kontynuować naukę</p>
+          <p class="login-subtitle">{{ subtitle() }}</p>
+
+          <!-- Wybór roli: kursant / rodzic / osoba upoważniona -->
+          <mat-button-toggle-group class="login-mode" [value]="mode()" (change)="setMode($event.value)" aria-label="Loguję się jako">
+            <mat-button-toggle value="student">Kursant</mat-button-toggle>
+            <mat-button-toggle value="parent">Rodzic</mat-button-toggle>
+            <mat-button-toggle value="authp">Upoważniony</mat-button-toggle>
+          </mat-button-toggle-group>
 
           <!-- Error region -->
           @if (error()) {
-            <div class="k-alert danger"
-                 role="alert"
-                 aria-live="assertive"
-                 id="login-error">
+            <div class="k-alert danger" role="alert" aria-live="assertive" id="login-error">
               <span class="material-symbols-outlined" aria-hidden="true">error</span>
               <span>{{ error() }}</span>
             </div>
           }
-
-          <form [formGroup]="form"
-                (ngSubmit)="onSubmit()"
-                novalidate
-                aria-describedby="login-error">
-            <!-- Login -->
-            <mat-form-field appearance="fill" class="login-field">
-              <mat-label>Login lub e-mail</mat-label>
-              <input matInput
-                     formControlName="login"
-                     type="text"
-                     id="login-input"
-                     autocomplete="username"
-                     [attr.aria-describedby]="loginErrors() ? 'login-err' : null"
-                     [attr.aria-invalid]="loginErrors() ? 'true' : null">
-              @if (loginErrors()) {
-                <mat-error id="login-err">{{ loginErrors() }}</mat-error>
-              }
-            </mat-form-field>
-
-            <!-- Password -->
-            <mat-form-field appearance="fill" class="login-field">
-              <mat-label>Hasło</mat-label>
-              <input matInput
-                     formControlName="password"
-                     [type]="showPwd() ? 'text' : 'password'"
-                     id="password-input"
-                     autocomplete="current-password"
-                     [attr.aria-describedby]="pwdErrors() ? 'pwd-err' : null"
-                     [attr.aria-invalid]="pwdErrors() ? 'true' : null">
-              <button matIconSuffix
-                      type="button"
-                      mat-icon-button
-                      [attr.aria-label]="showPwd() ? 'Ukryj hasło' : 'Pokaż hasło'"
-                      [attr.aria-pressed]="showPwd()"
-                      (click)="togglePwd()">
-                <span class="material-symbols-outlined" aria-hidden="true">
-                  {{ showPwd() ? 'visibility_off' : 'visibility' }}
-                </span>
-              </button>
-              @if (pwdErrors()) {
-                <mat-error id="pwd-err">{{ pwdErrors() }}</mat-error>
-              }
-            </mat-form-field>
-
-            <!-- Remember me -->
-            <div class="login-remember">
-              <mat-checkbox formControlName="remember" id="remember-me">
-                Zapamiętaj mnie
-              </mat-checkbox>
+          @if (info()) {
+            <div class="k-alert info" role="status" aria-live="polite">
+              <span class="material-symbols-outlined" aria-hidden="true">info</span>
+              <span>{{ info() }}</span>
             </div>
+          }
 
-            <!-- Submit -->
-            <button mat-flat-button
-                    type="submit"
-                    class="login-submit"
-                    [disabled]="loading()"
-                    [attr.aria-busy]="loading()">
-              @if (loading()) {
-                <mat-progress-spinner diameter="20" mode="indeterminate" aria-label="Logowanie…"></mat-progress-spinner>
-              } @else {
-                Zaloguj się
+          <!-- Kursant / Osoba upoważniona: login + hasło -->
+          @if (mode() !== 'parent' || parentStage() === 'password') {
+            <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate aria-describedby="login-error">
+              <mat-form-field appearance="fill" class="login-field">
+                <mat-label>Login lub e-mail</mat-label>
+                <input matInput formControlName="login" type="text" id="login-input" autocomplete="username"
+                       [attr.aria-describedby]="loginErrors() ? 'login-err' : null"
+                       [attr.aria-invalid]="loginErrors() ? 'true' : null">
+                @if (loginErrors()) { <mat-error id="login-err">{{ loginErrors() }}</mat-error> }
+              </mat-form-field>
+
+              <mat-form-field appearance="fill" class="login-field">
+                <mat-label>Hasło</mat-label>
+                <input matInput formControlName="password" [type]="showPwd() ? 'text' : 'password'" id="password-input"
+                       autocomplete="current-password"
+                       [attr.aria-describedby]="pwdErrors() ? 'pwd-err' : null"
+                       [attr.aria-invalid]="pwdErrors() ? 'true' : null">
+                <button matIconSuffix type="button" mat-icon-button
+                        [attr.aria-label]="showPwd() ? 'Ukryj hasło' : 'Pokaż hasło'"
+                        [attr.aria-pressed]="showPwd()" (click)="togglePwd()">
+                  <span class="material-symbols-outlined" aria-hidden="true">{{ showPwd() ? 'visibility_off' : 'visibility' }}</span>
+                </button>
+                @if (pwdErrors()) { <mat-error id="pwd-err">{{ pwdErrors() }}</mat-error> }
+              </mat-form-field>
+
+              @if (mode() !== 'authp') {
+                <div class="login-remember">
+                  <mat-checkbox formControlName="remember" id="remember-me">Zapamiętaj mnie</mat-checkbox>
+                </div>
               }
-            </button>
-          </form>
+
+              <button mat-flat-button type="submit" class="login-submit" [disabled]="loading()" [attr.aria-busy]="loading()">
+                @if (loading()) {
+                  <mat-progress-spinner diameter="20" mode="indeterminate" aria-label="Logowanie…"></mat-progress-spinner>
+                } @else { Zaloguj się }
+              </button>
+            </form>
+
+            @if (mode() === 'parent') {
+              <button type="button" class="login-switch-link" (click)="parentStage.set('sms-phone'); error.set(null)">
+                Nie masz hasła? Zaloguj się kodem SMS
+              </button>
+            }
+          }
+
+          <!-- Rodzic: logowanie kodem SMS (krok 1 — telefon) -->
+          @if (mode() === 'parent' && parentStage() === 'sms-phone') {
+            <form (ngSubmit)="onOtpSend()" novalidate>
+              <mat-form-field appearance="fill" class="login-field">
+                <mat-label>Numer telefonu opiekuna</mat-label>
+                <input matInput type="tel" [(ngModel)]="otpPhone" name="phone" autocomplete="tel" required>
+              </mat-form-field>
+              <button mat-flat-button type="submit" class="login-submit" [disabled]="loading()">
+                @if (loading()) { <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner> } @else { Wyślij kod SMS }
+              </button>
+            </form>
+            <button type="button" class="login-switch-link" (click)="parentStage.set('password'); error.set(null)">Wróć do logowania hasłem</button>
+          }
+
+          <!-- Rodzic: logowanie kodem SMS (krok 2 — kod) -->
+          @if (mode() === 'parent' && parentStage() === 'sms-code') {
+            <form (ngSubmit)="onOtpVerify()" novalidate>
+              <mat-form-field appearance="fill" class="login-field">
+                <mat-label>Kod z SMS (6 cyfr)</mat-label>
+                <input matInput type="text" inputmode="numeric" [(ngModel)]="otpCode" name="code" required maxlength="6">
+              </mat-form-field>
+              <button mat-flat-button type="submit" class="login-submit" [disabled]="loading()">
+                @if (loading()) { <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner> } @else { Potwierdź kod }
+              </button>
+            </form>
+          }
+
+          <!-- Rodzic: wybór dziecka, gdy numer pasuje do >1 konta -->
+          @if (mode() === 'parent' && parentStage() === 'sms-choose') {
+            <ul class="login-choose-child">
+              @for (kid of otpChildren(); track kid.id) {
+                <li>
+                  <button type="button" class="login-link" (click)="onSelectChild(kid.id)">
+                    <span class="material-symbols-outlined" aria-hidden="true">person</span>
+                    {{ kid.name }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
 
           <!-- Other panels -->
           <nav aria-label="Inne panele" class="login-links">
-            <a href="/karty30/ti/kursant/parent.php" class="login-link">
-              <span class="material-symbols-outlined" aria-hidden="true">family_restroom</span>
-              Panel rodzica / opiekuna
-            </a>
             <a href="/karty30/ti/kursant/pfron.php" class="login-link">
               <span class="material-symbols-outlined" aria-hidden="true">accessibility</span>
               Portal PFRON
@@ -289,6 +323,47 @@ import { AuthService } from '../../core/auth/auth.service';
       &:disabled { opacity: .6; }
     }
 
+    .login-mode {
+      display: flex;
+      width: 100%;
+      margin-bottom: 1.25rem;
+
+      ::ng-deep .mat-button-toggle { flex: 1; }
+      ::ng-deep .mat-button-toggle-label-content { padding: 0 .5rem; font-size: .85rem; }
+    }
+
+    .login-switch-link {
+      display: block;
+      width: 100%;
+      background: none;
+      border: none;
+      color: #2563eb;
+      font-size: .85rem;
+      text-align: center;
+      cursor: pointer;
+      padding: .5rem;
+      margin-bottom: 1rem;
+
+      &:hover, &:focus-visible { text-decoration: underline; }
+    }
+
+    .login-choose-child {
+      list-style: none;
+      margin: 0 0 1rem;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+
+      .login-link {
+        width: 100%;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        cursor: pointer;
+        font-size: .9rem;
+      }
+    }
+
     .login-links {
       display: flex;
       flex-direction: column;
@@ -328,9 +403,30 @@ export class LoginComponent {
     remember: [false],
   });
 
-  loading  = signal(false);
-  error    = signal<string | null>(null);
-  showPwd  = signal(false);
+  mode        = signal<LoginMode>('student');
+  parentStage = signal<ParentStage>('password');
+  loading     = signal(false);
+  error       = signal<string | null>(null);
+  info        = signal<string | null>(null);
+  showPwd     = signal(false);
+
+  otpPhone    = '';
+  otpCode     = '';
+  otpChildren = signal<ParentOtpChild[]>([]);
+
+  subtitle = () => ({
+    student: 'Zaloguj się, aby kontynuować naukę',
+    parent:  'Wgląd opiekuna w konto dziecka',
+    authp:   'Wgląd osoby upoważnionej (tylko odczyt)',
+  })[this.mode()];
+
+  setMode(mode: LoginMode): void {
+    this.mode.set(mode);
+    this.parentStage.set('password');
+    this.error.set(null);
+    this.info.set(null);
+    this.form.reset({ login: '', password: '', remember: false });
+  }
 
   togglePwd(): void { this.showPwd.set(!this.showPwd()); }
 
@@ -349,6 +445,20 @@ export class LoginComponent {
     return null;
   };
 
+  private afterLogin(res: { success: boolean; must_change_password?: boolean; error?: string }): void {
+    this.loading.set(false);
+    if (res.success) {
+      this.router.navigate([res.must_change_password ? '/ustawienia' : '/dane']);
+    } else {
+      this.error.set(res.error ?? 'Błąd logowania.');
+    }
+  }
+
+  private onError(err: any): void {
+    this.loading.set(false);
+    this.error.set(err?.error?.error ?? 'Błąd połączenia z serwerem. Spróbuj ponownie.');
+  }
+
   onSubmit(): void {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.loading()) return;
@@ -357,20 +467,54 @@ export class LoginComponent {
     this.loading.set(true);
     this.error.set(null);
 
-    this.auth.login(login, password, remember).subscribe({
+    const req$ = this.mode() === 'parent'
+      ? this.auth.parentLogin(login, password, remember)
+      : this.mode() === 'authp'
+        ? this.auth.authpLogin(login, password)
+        : this.auth.login(login, password, remember);
+
+    req$.subscribe({ next: res => this.afterLogin(res), error: err => this.onError(err) });
+  }
+
+  onOtpSend(): void {
+    if (!this.otpPhone.trim() || this.loading()) return;
+    this.loading.set(true);
+    this.error.set(null);
+    this.auth.parentOtpSend(this.otpPhone.trim()).subscribe({
       next: res => {
         this.loading.set(false);
         if (res.success) {
-          this.router.navigate([res.must_change_password ? '/ustawienia' : '/dane']);
+          this.info.set('Kod SMS został wysłany — wpisz go poniżej.');
+          this.parentStage.set('sms-code');
         } else {
-          this.error.set(res.error ?? 'Błąd logowania.');
+          this.error.set(res.error ?? 'Nie udało się wysłać kodu.');
         }
       },
-      error: err => {
+      error: err => this.onError(err),
+    });
+  }
+
+  onOtpVerify(): void {
+    if (!this.otpCode.trim() || this.loading()) return;
+    this.loading.set(true);
+    this.error.set(null);
+    this.auth.parentOtpVerify(this.otpCode.trim()).subscribe({
+      next: res => {
         this.loading.set(false);
-        const msg = err?.error?.error ?? 'Błąd połączenia z serwerem. Spróbuj ponownie.';
-        this.error.set(msg);
+        if (!res.success) { this.error.set((res as any).error ?? 'Nieprawidłowy kod.'); return; }
+        if ('token' in res) { this.afterLogin(res); return; }
+        this.otpChildren.set(res.data.choose_child);
+        this.parentStage.set('sms-choose');
       },
+      error: err => this.onError(err),
+    });
+  }
+
+  onSelectChild(studentId: number): void {
+    this.loading.set(true);
+    this.auth.parentSelectChild(studentId).subscribe({
+      next: res => this.afterLogin(res),
+      error: err => this.onError(err),
     });
   }
 }

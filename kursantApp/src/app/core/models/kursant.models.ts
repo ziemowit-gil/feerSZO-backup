@@ -1,8 +1,18 @@
 // Domain models for the kursant (student) panel
 
+/**
+ * Rola konta wpiętego w token API: kursant, rodzic/opiekun, osoba upoważniona
+ * (wgląd tylko do odczytu) lub impersonacja admina (pełne uprawnienia kursanta).
+ * Odpowiednik trzech odrębnych stron logowania klasycznego panelu
+ * (login.php / parent_login.php / authp_login.php) + admin/test_login.php.
+ */
+export type KursantRole = 'student' | 'parent' | 'authp' | 'impersonation';
+
 export interface LoginResponse {
   success: boolean;
   token: string;
+  role: KursantRole;
+  actor_name: string;
   student: StudentAccount;
   client: ClientInfo;
   must_change_password: boolean;
@@ -62,6 +72,8 @@ export interface DashboardData {
   terms_pending: number;
   cal_ical: string;
   cal_gcal: string;
+  role: KursantRole;
+  actor_name: string;
 }
 
 export type LessonStatus =
@@ -114,6 +126,7 @@ export interface Material {
 export interface DydGroup {
   session_id: number;
   session_date: string;
+  course_id: number;
   course_name: string;
   materials: Material[];
   homeworks: Homework[];
@@ -295,4 +308,19 @@ export interface ApiResponse<T = void> {
   data?: T;
   error?: string;
   message?: string;
+}
+
+export interface GuardianNotifyPrefs {
+  guardian_email: string;
+  guardian_phone: string;
+  parent_notify_absence: boolean;
+  parent_notify_grade: boolean;
+  parent_notify_messages: boolean;
+  parent_notify_lessons: boolean;
+  child_access_blocked: boolean;
+}
+
+export interface ParentOtpChild {
+  id: number;
+  name: string;
 }

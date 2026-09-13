@@ -15,6 +15,18 @@ import { GradesByCourse, Grade } from '../../core/models/kursant.models';
       <p class="subtitle">Dziennik ocen ze wszystkich kursów</p>
     </div>
 
+    @if (allCourses().length > 1) {
+      <div class="course-filter">
+        <label for="grades-course-filter">Grupa</label>
+        <select id="grades-course-filter" (change)="onCourseFilterChange($event)">
+          <option value="" [selected]="selectedCourseId() === null">Wszystkie</option>
+          @for (c of allCourses(); track c.course_id) {
+            <option [value]="c.course_id" [selected]="selectedCourseId() === c.course_id">{{ c.course_name }}</option>
+          }
+        </select>
+      </div>
+    }
+
     @if (loading()) {
       <div class="loading-overlay" role="status" aria-label="Ładowanie ocen">
         <span class="material-symbols-outlined" aria-hidden="true" style="font-size:2.5rem;opacity:.3">hourglass_top</span>
@@ -106,19 +118,46 @@ import { GradesByCourse, Grade } from '../../core/models/kursant.models';
 
       .material-symbols-outlined { font-size: 1rem; }
     }
+
+    .course-filter {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: 1rem;
+      font-size: .875rem;
+
+      select {
+        padding: .35rem .6rem;
+        border: 1px solid #d1d5db;
+        border-radius: .4rem;
+        font-size: .875rem;
+        background: #fff;
+      }
+    }
   `],
 })
 export class OcenyComponent implements OnInit {
   private api = inject(KursantApiService);
 
   loading = signal(true);
-  courses = signal<GradesByCourse[]>([]);
+  allCourses = signal<GradesByCourse[]>([]);
+  selectedCourseId = signal<number | null>(null);
+
+  courses = computed(() => {
+    const cid = this.selectedCourseId();
+    return cid === null ? this.allCourses() : this.allCourses().filter(c => c.course_id === cid);
+  });
+
+  onCourseFilterChange(event: Event): void {
+    const val = (event.target as HTMLSelectElement).value;
+    this.selectedCourseId.set(val === '' ? null : Number(val));
+  }
 
   ngOnInit(): void {
     this.api.getGrades().subscribe({
       next: res => {
         this.loading.set(false);
-        if (res.success && res.data) this.courses.set(res.data);
+        if (res.success && res.data) this.allCourses.set(res.data);
       },
       error: () => this.loading.set(false),
     });

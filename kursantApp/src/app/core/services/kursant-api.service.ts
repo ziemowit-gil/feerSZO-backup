@@ -5,7 +5,7 @@ import {
   ApiResponse, DashboardData, Lesson, DydGroup, GradesByCourse,
   CurriculumItem, TestItem, Notice, Message, BillingData,
   OnlineState, OwnCloudState, VlabServer, License, ActivityLogEntry,
-  Term, AuthorizedPerson, YearEndOverpayInfo,
+  Term, AuthorizedPerson, YearEndOverpayInfo, GuardianNotifyPrefs,
 } from '../models/kursant.models';
 
 const API = '/api/v1/kursant_student.php';
@@ -29,6 +29,7 @@ export class KursantApiService {
   getLessons(page = '1') { return this.get<Lesson[]>('lessons', { page }); }
   getHomework()   { return this.get<DydGroup[]>('homework'); }
   getGrades()     { return this.get<GradesByCourse[]>('grades'); }
+  getGuardianNotifyPrefs() { return this.get<GuardianNotifyPrefs>('guardian_notify_prefs'); }
   getCurriculum() { return this.get<CurriculumItem[]>('curriculum'); }
   getTests()      { return this.get<TestItem[]>('tests'); }
   getNotices()    { return this.get<Notice[]>('notices'); }
@@ -94,5 +95,16 @@ export class KursantApiService {
   orderVlabServer()    { return this.post<void>('order_dedicated_server'); }
   cancelVlabServer(server_id: number) {
     return this.post<void>('cancel_dedicated_server', { server_id });
+  }
+
+  // ── Opiekun (rola parent) ──────────────────────────────
+  guardianChildAccess(op: 'block' | 'unblock' | 'reset_password') {
+    return this.post<{ new_password?: string }>('guardian_child_access', { op });
+  }
+  saveGuardianNotifyPrefs(prefs: Partial<GuardianNotifyPrefs>) {
+    return this.post<void>('guardian_notify_prefs', prefs);
+  }
+  guardianChangePassword(newPwd: string) {
+    return this.post<void>('guardian_change_password', { new_password: newPwd });
   }
 }

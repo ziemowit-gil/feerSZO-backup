@@ -15,6 +15,7 @@ require_once __DIR__ . '/../../includes/ti_notices.php';
 require_once __DIR__ . '/../../includes/ti_payments.php';
 require_once __DIR__ . '/../../includes/ti_terms.php';
 require_once __DIR__ . '/../../includes/ti_reschedule.php';
+require_once __DIR__ . '/../../karty30/ti/kursant/auth.php';
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
 $allowed_origins = ['http://localhost:4202', 'http://localhost:4201', 'http://localhost:4200'];
@@ -40,9 +41,29 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_api_tokens (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )");
 $pdo->exec("CREATE INDEX IF NOT EXISTS idx_kursant_api_tok ON k30_ti_api_tokens(token)");
+$tok_cols = array_column($pdo->query("PRAGMA table_info(k30_ti_api_tokens)")->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach ([
+    'role'       => "ALTER TABLE k30_ti_api_tokens ADD COLUMN role TEXT NOT NULL DEFAULT 'student'",
+    'actor_id'   => "ALTER TABLE k30_ti_api_tokens ADD COLUMN actor_id INTEGER",
+    'actor_name' => "ALTER TABLE k30_ti_api_tokens ADD COLUMN actor_name TEXT",
+] as $col => $sql) {
+    if (!in_array($col, $tok_cols, true)) { try { $pdo->exec($sql); } catch (\PDOException) {} }
+}
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
+
+/** Wystawia token API dla danej roli (student/rodzic/upoważniony/impersonacja admina). */
+function issue_token(int $studentId, string $role = 'student', ?int $actorId = null, string $actorName = '', bool $remember = false, ?int $ttlSeconds = null): string {
+    global $pdo;
+    $token      = bin2hex(random_bytes(32));
+    $expires_at = date('Y-m-d H:i:s', time() + ($ttlSeconds ?? ($remember ? 30 * 86400 : 8 * 3600)));
+    $pdo->prepare("INSERT INTO k30_ti_api_tokens (student_id, token, expires_at, role, actor_id, actor_name) VALUES (?, ?, ?, ?, ?, ?)")
+        ->execute([$studentId, $token, $expires_at, $role, $actorId, $actorName ?: null]);
+    $pdo->prepare("DELETE FROM k30_ti_api_tokens WHERE student_id = ? AND expires_at < datetime('now')")
+        ->execute([$studentId]);
+    return $token;
+}
 
 function json_ok(mixed $data, string $message = ''): void {
     echo json_encode(['success' => true, 'data' => $data, 'message' => $message]);
@@ -89,21 +110,20 @@ if ($action === 'login' && $method === 'POST') {
         exit;
     }
 
-    // Generate token
-    $token      = bin2hex(random_bytes(32));
-    $expires_at = date('Y-m-d H:i:s', time() + ($remember ? 30 * 86400 : 8 * 3600));
-    $pdo->prepare("INSERT INTO k30_ti_api_tokens (student_id, token, expires_at) VALUES (?, ?, ?)")
-        ->execute([$acc['id'], $token, $expires_at]);
+    $token = issue_token((int)$acc['id'], 'student', null, '', $remember);
+    $payload = build_login_payload($acc);
 
-    // Prune old tokens
-    $pdo->prepare("DELETE FROM k30_ti_api_tokens WHERE student_id = ? AND expires_at < datetime('now')")
-        ->execute([$acc['id']]);
+    echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => 'student', 'actor_name' => ''], $payload));
+    exit;
+}
 
+/** Kształtuje odpowiedź logowania (student/client) współdzieloną przez wszystkie role. */
+function build_login_payload(array $acc): array {
     $student = [
         'id'                    => (int)$acc['id'],
         'client_id'             => (int)$acc['client_id'],
         'login'                 => $acc['login'],
-        'login_alias'           => $acc['login_alias'],
+        'login_alias'           => $acc['login_alias'] ?? null,
         'is_minor'              => (bool)($acc['is_minor'] ?? 0),
         'must_change_password'  => (bool)($acc['must_change_password'] ?? 0),
         'push_enabled'          => (int)($acc['push_enabled'] ?? 0),
@@ -123,22 +143,137 @@ if ($action === 'login' && $method === 'POST') {
         'name'       => $acc['client_name'],
         'first_name' => $name_parts[0] ?? '',
         'last_name'  => $name_parts[1] ?? '',
-        'email'      => $acc['email'],
-        'phone'      => $acc['phone'],
+        'email'      => $acc['client_email'] ?? $acc['email'] ?? null,
+        'phone'      => $acc['client_phone'] ?? $acc['phone'] ?? null,
     ];
-
-    echo json_encode([
-        'success'              => true,
-        'token'                => $token,
+    return [
         'student'              => $student,
         'client'               => $client,
         'must_change_password' => $student['must_change_password'],
-    ]);
+    ];
+}
+
+/** Konto kursanta (dla loginu rodzica/upoważnionego/impersonacji) po id, z danymi klienta. */
+function load_account_with_client(int $studentId): ?array {
+    global $pdo;
+    $stmt = $pdo->prepare("
+        SELECT a.*, c.name AS client_name, c.email, c.phone
+        FROM k30_ti_student_accounts a
+        JOIN k30_clients c ON c.id = a.client_id
+        WHERE a.id = ? AND a.is_active = 1
+    ");
+    $stmt->execute([$studentId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+// ── Parent/guardian login (public) ────────────────────────────────────────────
+if ($action === 'parent_login' && $method === 'POST') {
+    $body     = get_body();
+    $login    = trim((string)($body['login'] ?? ''));
+    $password = (string)($body['password'] ?? '');
+    $remember = (bool)($body['remember'] ?? false);
+    if (!$login || !$password) json_err('Login i hasło są wymagane.');
+
+    karty30_migrate();
+    if (!parent_login_with_password($login, $password)) {
+        json_err('Nieprawidłowy login lub hasło.', 401);
+    }
+    $sid = (int)($_SESSION['k30_ti_parent']['student_id'] ?? 0);
+    $mustChange = !empty($_SESSION['k30_ti_parent']['must_change']);
+    $acc = load_account_with_client($sid);
+    if (!$acc) json_err('Nie znaleziono konta kursanta.', 404);
+
+    $token = issue_token($sid, 'parent', null, 'Opiekun', $remember);
+    $payload = build_login_payload($acc);
+    $payload['must_change_password'] = $mustChange;
+    echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => 'parent', 'actor_name' => 'Opiekun'], $payload));
+    exit;
+}
+
+if ($action === 'parent_otp_send' && $method === 'POST') {
+    $phone = trim((string)(get_body()['phone'] ?? ''));
+    if (!$phone) json_err('Podaj numer telefonu.');
+    karty30_migrate();
+    $count = parent_otp_send($phone);
+    if ($count < 1) json_err('Nie znaleziono kursanta powiązanego z tym numerem.', 404);
+    json_ok(['matched' => $count], 'Kod SMS został wysłany.');
+}
+
+if ($action === 'parent_otp_verify' && $method === 'POST') {
+    $code = trim((string)(get_body()['code'] ?? ''));
+    if (!$code) json_err('Podaj kod SMS.');
+    karty30_migrate();
+    $kids = parent_otp_verify($code);
+    if ($kids === null) json_err('Nieprawidłowy lub wygasły kod.', 401);
+    if (count($kids) === 1) {
+        $sid = (int)$kids[0]['id'];
+        if (!parent_login_for_student($sid)) json_err('Logowanie nie powiodło się.', 500);
+        $acc = load_account_with_client($sid);
+        $token = issue_token($sid, 'parent', null, 'Opiekun', false);
+        echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => 'parent', 'actor_name' => 'Opiekun'], build_login_payload($acc)));
+        exit;
+    }
+    json_ok(['choose_child' => $kids]);
+}
+
+if ($action === 'parent_select_child' && $method === 'POST') {
+    $sid = (int)(get_body()['student_id'] ?? 0);
+    if (!$sid) json_err('Brak student_id.');
+    karty30_migrate();
+    if (!parent_login_for_student($sid)) json_err('Logowanie nie powiodło się.', 403);
+    $acc = load_account_with_client($sid);
+    if (!$acc) json_err('Nie znaleziono konta kursanta.', 404);
+    $token = issue_token($sid, 'parent', null, 'Opiekun', false);
+    echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => 'parent', 'actor_name' => 'Opiekun'], build_login_payload($acc)));
+    exit;
+}
+
+// ── Authorized person login (public) ──────────────────────────────────────────
+if ($action === 'authp_login' && $method === 'POST') {
+    $body     = get_body();
+    $login    = trim((string)($body['login'] ?? ''));
+    $password = (string)($body['password'] ?? '');
+    if (!$login || !$password) json_err('Login i hasło są wymagane.');
+
+    karty30_migrate();
+    if (!authp_login($login, $password)) {
+        json_err('Nieprawidłowy login, hasło, lub konto niedostępne dla osoby upoważnionej.', 401);
+    }
+    $sid = (int)($_SESSION['k30_ti_authp']['student_id'] ?? 0);
+    $authpId = (int)($_SESSION['k30_ti_authp']['authp_id'] ?? 0);
+    $authpName = (string)($_SESSION['k30_ti_authp']['name'] ?? 'Osoba upoważniona');
+    $acc = load_account_with_client($sid);
+    if (!$acc) json_err('Nie znaleziono konta kursanta.', 404);
+
+    $token = issue_token($sid, 'authp', $authpId, $authpName, false, 8 * 3600);
+    echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => 'authp', 'actor_name' => $authpName], build_login_payload($acc)));
+    exit;
+}
+
+// ── Admin impersonation exchange (public — jednorazowy token z panelu admina) ─
+if ($action === 'impersonate_exchange' && ($method === 'POST' || $method === 'GET')) {
+    $t = trim((string)($method === 'POST' ? (get_body()['t'] ?? '') : ($_GET['t'] ?? '')));
+    if (!$t) json_err('Brak tokenu.');
+    karty30_migrate();
+    $imp = k30_imp_token_consume($t);
+    if (!$imp || $imp['type'] !== 'stu') json_err('Token wygasł lub jest nieprawidłowy.', 403);
+
+    $sid = (int)$imp['target_id'];
+    $acc = load_account_with_client($sid);
+    if (!$acc) json_err('Nie znaleziono konta kursanta.', 404);
+    $admin = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
+    $admin->execute([(int)$imp['admin_id']]);
+    $adminRow = $admin->fetch(PDO::FETCH_ASSOC);
+    $adminName = $adminRow['name'] ?? $adminRow['email'] ?? 'Administrator';
+
+    $token = issue_token($sid, 'impersonation', (int)$imp['admin_id'], $adminName, false, 2 * 3600);
+    echo json_encode(array_merge(['success' => true, 'token' => $token, 'role' => 'impersonation', 'actor_name' => $adminName], build_login_payload($acc)));
     exit;
 }
 
 // ── Token authentication ──────────────────────────────────────────────────────
-function verify_token(): ?int {
+function verify_token(): ?array {
     global $pdo;
     // Apache/mod_php pod niektórymi konfiguracjami nie przekazuje nagłówka
     // Authorization do $_SERVER (brak CGIPassAuth/RewriteRule) — bez tego
@@ -152,17 +287,47 @@ function verify_token(): ?int {
     if (!str_starts_with($auth, 'Bearer ')) return null;
     $token = substr($auth, 7);
     $stmt  = $pdo->prepare("
-        SELECT student_id FROM k30_ti_api_tokens
+        SELECT student_id, role, actor_id, actor_name FROM k30_ti_api_tokens
         WHERE token = ? AND expires_at > datetime('now')
         LIMIT 1
     ");
     $stmt->execute([$token]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $row ? (int)$row['student_id'] : null;
+    if (!$row) return null;
+    return [
+        'student_id' => (int)$row['student_id'],
+        'role'       => $row['role'] ?: 'student',
+        'actor_id'   => $row['actor_id'] !== null ? (int)$row['actor_id'] : null,
+        'actor_name' => $row['actor_name'] ?? '',
+    ];
 }
 
-$student_id = verify_token();
-if (!$student_id) json_err('Nieautoryzowany dostęp.', 401);
+$auth_ctx = verify_token();
+if (!$auth_ctx) json_err('Nieautoryzowany dostęp.', 401);
+$student_id      = $auth_ctx['student_id'];
+$auth_role       = $auth_ctx['role'];
+$auth_actor_name = $auth_ctx['actor_name'];
+
+// ── Role-based gating: rodzic/opiekun i osoba upoważniona mają węższy zakres
+//    akcji niż kursant — analogicznie do odrębnych stron parent.php /
+//    authorized_person.php w klasycznym panelu (impersonacja admina zachowuje
+//    pełne uprawnienia kursanta, tak jak student_impersonate() w auth.php). ──
+if ($auth_role === 'authp') {
+    $authp_allowed = ['dashboard', 'lessons', 'billing', 'logout'];
+    if (!in_array($action, $authp_allowed, true)) {
+        json_err('Brak uprawnień do tej operacji — wgląd upoważniony jest tylko do odczytu.', 403);
+    }
+} elseif ($auth_role === 'parent') {
+    $parent_blocked = [
+        'change_password', 'set_alias', 'change_email', 'update_settings',
+        'owncloud_create', 'owncloud_reset', 'order_dedicated_server', 'cancel_dedicated_server',
+        'push_subscribe', 'push_unsubscribe', 'cal_token_reset', 'report_issue', 'submit_homework',
+        'cancel_lesson', 'uncancel_lesson', 'rate_lesson',
+    ];
+    if (in_array($action, $parent_blocked, true)) {
+        json_err('Brak uprawnień do tej operacji z poziomu konta opiekuna.', 403);
+    }
+}
 
 // ── Helper: load student + client ─────────────────────────────────────────────
 function load_student(int $sid): array {
@@ -351,6 +516,8 @@ switch ($action) {
             'terms_pending'    => $terms_pending,
             'cal_ical'         => "{$cal_base}?token={$cal_token}",
             'cal_gcal'         => 'https://calendar.google.com/calendar/r?cid=' . urlencode("webcal://szo.feer.org.pl/karty30/ti/kursant/ical.php?token={$cal_token}"),
+            'role'             => $auth_role,
+            'actor_name'       => $auth_actor_name,
         ]);
     }
 
@@ -406,7 +573,7 @@ switch ($action) {
         $cid = (int)($pdo->query("SELECT client_id FROM k30_ti_student_accounts WHERE id = {$student_id}")->fetchColumn());
 
         $sess_stmt = $pdo->prepare("
-            SELECT DISTINCT s.id AS session_id, s.lesson_date AS session_date, c.name AS course_name
+            SELECT DISTINCT s.id AS session_id, s.lesson_date AS session_date, s.course_id AS course_id, c.name AS course_name
             FROM k30_ti_sessions s
             JOIN k30_ti_courses c ON c.id = s.course_id
             JOIN k30_ti_enrollments e ON e.course_id = s.course_id AND e.client_id = ? AND e.status = 'active'
@@ -468,6 +635,7 @@ switch ($action) {
             $groups[] = [
                 'session_id'   => $session_id,
                 'session_date' => $sess['session_date'],
+                'course_id'    => (int)$sess['course_id'],
                 'course_name'  => $sess['course_name'],
                 'materials'    => $materials,
                 'homeworks'    => $homeworks,
@@ -1265,6 +1433,73 @@ switch ($action) {
         $pdo->prepare("UPDATE k30_ti_student_accounts SET push_subscription=NULL, push_enabled=0 WHERE id=?")
             ->execute([$student_id]);
         json_ok(null, 'Powiadomienia push wyłączone.');
+    }
+
+    // ── Opiekun: zarządzanie dostępem dziecka (reset hasła / blokada) ─────────
+    // Odpowiednik karty30/ti/kursant/parent.php:56-68 (_op child_reset_pass/child_block/child_unblock).
+    case 'guardian_child_access': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        if ($auth_role !== 'parent') json_err('Dostępne tylko dla konta opiekuna.', 403);
+        $op = (string)(get_body()['op'] ?? '');
+        if ($op === 'block') {
+            $pdo->prepare("UPDATE k30_ti_student_accounts SET child_access_blocked=1, updated_at=datetime('now') WHERE id=?")->execute([$student_id]);
+            json_ok(null, 'Wstrzymano dostęp dziecka do panelu.');
+        }
+        if ($op === 'unblock') {
+            $pdo->prepare("UPDATE k30_ti_student_accounts SET child_access_blocked=0, updated_at=datetime('now') WHERE id=?")->execute([$student_id]);
+            json_ok(null, 'Przywrócono dostęp dziecka do panelu.');
+        }
+        if ($op === 'reset_password') {
+            $words = ['Kot', 'Pies', 'Dom', 'Las', 'Rok', 'Mak', 'Lis', 'Sad', 'Byk', 'Dab'];
+            $newPass = $words[random_int(0, count($words) - 1)] . random_int(10, 99);
+            $pdo->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=1, updated_at=datetime('now') WHERE id=?")
+                ->execute([password_hash($newPass, PASSWORD_BCRYPT), $student_id]);
+            json_ok(['new_password' => $newPass], 'Ustawiono nowe hasło dziecka — przekaż je dziecku, nie pokażemy go ponownie.');
+        }
+        json_err('Nieznana operacja.');
+    }
+
+    // ── Opiekun: powiadomienia (e-mail/SMS na kontakt opiekuna) ───────────────
+    case 'guardian_notify_prefs': {
+        if ($auth_role !== 'parent') json_err('Dostępne tylko dla konta opiekuna.', 403);
+        if ($method === 'GET') {
+            $cur = $pdo->prepare("SELECT parent_notify_absence, parent_notify_grade, parent_notify_messages, parent_notify_lessons, guardian_email, guardian_phone, child_access_blocked FROM k30_ti_student_accounts WHERE id=?");
+            $cur->execute([$student_id]);
+            $row = $cur->fetch(PDO::FETCH_ASSOC) ?: [];
+            json_ok([
+                'guardian_email'          => $row['guardian_email'] ?? '',
+                'guardian_phone'          => $row['guardian_phone'] ?? '',
+                'parent_notify_absence'   => (bool)($row['parent_notify_absence'] ?? 1),
+                'parent_notify_grade'     => (bool)($row['parent_notify_grade'] ?? 1),
+                'parent_notify_messages'  => (bool)($row['parent_notify_messages'] ?? 1),
+                'parent_notify_lessons'   => (bool)($row['parent_notify_lessons'] ?? 1),
+                'child_access_blocked'    => (bool)($row['child_access_blocked'] ?? 0),
+            ]);
+        }
+        $body = get_body();
+        $pdo->prepare("UPDATE k30_ti_student_accounts SET parent_notify_absence=?, parent_notify_grade=?, parent_notify_messages=?, parent_notify_lessons=? WHERE id=?")
+            ->execute([
+                !empty($body['parent_notify_absence'])  ? 1 : 0,
+                !empty($body['parent_notify_grade'])    ? 1 : 0,
+                !empty($body['parent_notify_messages']) ? 1 : 0,
+                !empty($body['parent_notify_lessons'])  ? 1 : 0,
+                $student_id,
+            ]);
+        json_ok(null, 'Ustawienia powiadomień zapisane.');
+    }
+
+    // ── Opiekun: zmiana własnego hasła (nie kursanta) ─────────────────────────
+    // Odpowiednik parent.php:39-54 (_op parent_self_pass). Osoba upoważniona nie
+    // ma samoobsługowej zmiany hasła w klasycznym panelu (login/hasło nadaje jej
+    // kursant w zakładce „Upoważnieni") — świadomie pomijamy tu rolę authp.
+    case 'guardian_change_password': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        if ($auth_role !== 'parent') json_err('Dostępne tylko dla konta opiekuna.', 403);
+        $new_pwd = (string)(get_body()['new_password'] ?? '');
+        if (strlen($new_pwd) < 8) json_err('Nowe hasło musi mieć min. 8 znaków.');
+        $pdo->prepare("UPDATE k30_ti_student_accounts SET parent_password_hash=?, parent_must_change=0, updated_at=datetime('now') WHERE id=?")
+            ->execute([password_hash($new_pwd, PASSWORD_BCRYPT), $student_id]);
+        json_ok(null, 'Hasło opiekuna zostało zmienione.');
     }
 
     default:

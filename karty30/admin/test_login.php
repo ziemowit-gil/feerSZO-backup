@@ -24,11 +24,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['type'], $_POST['targe
     csrf_check();
     $type      = $_POST['type'] === 'stu' ? 'stu' : 'dyd';
     $target_id = (int)$_POST['target_id'];
+    $new_ui    = $type === 'stu' && !empty($_POST['new_ui']);
     if ($target_id > 0) {
         $token = k30_imp_token_create($type, $target_id, (int)(current_user()['id'] ?? 0));
-        $redirect = $type === 'stu'
-            ? APP_URL . '/karty30/ti/kursant/imp.php?t=' . urlencode($token)
-            : APP_URL . '/karty30/ti/dydaktyk/imp.php?t=' . urlencode($token);
+        if ($new_ui) {
+            $redirect = rtrim(KURSANT_NEW_UI_URL, '/') . '/impersonate?t=' . urlencode($token);
+        } else {
+            $redirect = $type === 'stu'
+                ? APP_URL . '/karty30/ti/kursant/imp.php?t=' . urlencode($token)
+                : APP_URL . '/karty30/ti/dydaktyk/imp.php?t=' . urlencode($token);
+        }
         header('Location: ' . $redirect);
         exit;
     }
@@ -85,6 +90,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="type" id="imp_type" value="">
     <input type="hidden" name="target_id" id="imp_target" value="">
+    <input type="hidden" name="new_ui" id="imp_new_ui" value="">
   </form>
 
   <div class="row g-4">
@@ -146,11 +152,17 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                     <td><?= h($stu['client_name'] ?? '—') ?></td>
                     <td class="font-monospace small"><?= h($stu['login']) ?></td>
                     <td class="text-muted small"><?= (int)$stu['upcoming'] ?> nadch.</td>
-                    <td>
+                    <td class="d-flex gap-1">
                       <button type="button" class="btn btn-sm btn-outline-success imp-btn"
                               data-type="stu" data-id="<?= $stu['id'] ?>"
                               data-label="<?= h($stu['client_name'] ?? $stu['login']) ?>">
                         <i class="bi bi-box-arrow-in-right me-1"></i>Zaloguj
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary imp-btn"
+                              data-type="stu" data-id="<?= $stu['id'] ?>" data-new-ui="1"
+                              data-label="<?= h($stu['client_name'] ?? $stu['login']) ?>"
+                              title="Otwórz w nowym panelu (Angular)">
+                        <i class="bi bi-box-arrow-in-right me-1"></i>Nowy panel
                       </button>
                     </td>
                   </tr>
@@ -171,6 +183,7 @@ document.querySelectorAll('.imp-btn').forEach(function(btn) {
     if (!confirm('Zalogować się jako: ' + label + '?\nOtworzy się nowa zakładka.')) return;
     document.getElementById('imp_type').value   = this.dataset.type;
     document.getElementById('imp_target').value = this.dataset.id;
+    document.getElementById('imp_new_ui').value = this.dataset.newUi || '';
     var form = document.getElementById('impForm');
     form.target = '_blank';
     form.submit();

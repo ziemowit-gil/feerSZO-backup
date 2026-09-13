@@ -9,6 +9,12 @@ export const routes: Routes = [
     title: 'Logowanie — Panel Kursanta',
   },
   {
+    path: 'impersonate',
+    loadComponent: () =>
+      import('./features/impersonate/impersonate.component').then(m => m.ImpersonateComponent),
+    title: 'Logowanie administratora — Panel Kursanta',
+  },
+  {
     path: '',
     loadComponent: () =>
       import('./features/shell/shell.component').then(m => m.ShellComponent),
@@ -128,6 +134,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/upowaznieni/upowaznieni.component').then(m => m.UpowaznienComponent),
         title: 'Upoważnieni',
+      },
+      {
+        path: 'dostep',
+        loadComponent: () =>
+          import('./features/dostep/dostep.component').then(m => m.DostepComponent),
+        title: 'Dostęp opiekuna',
       },
     ],
   },
