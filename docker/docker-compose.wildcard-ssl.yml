@@ -36,7 +36,6 @@ services:
       # ── Entrypoints ────────────────────────────────────────────────────────
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.ejbca-admin.address=:8443"
       # ── Resolver 'le' — HTTP-01 (zachowany dla routerów z prod.yml) ────────
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"

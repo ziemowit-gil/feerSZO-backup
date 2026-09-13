@@ -4,7 +4,6 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/x509_login.php';
-require_once dirname(__DIR__) . '/includes/ejbca.php';
 
 require_login();
 if (!is_admin()) { http_response_code(403); die('Brak uprawnień.'); }
@@ -13,7 +12,6 @@ x509_init();
 
 $errors  = [];
 $pending = null;
-$ejbca_available = ejbca_enabled();
 
 // ── POST handlers ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -28,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $days     = max(30, min(1825, (int)($_POST['cert_days']  ?? 730)));
         $bits     = in_array((int)($_POST['cert_bits'] ?? 2048), [2048, 4096]) ? (int)$_POST['cert_bits'] : 2048;
         $pass     = $_POST['cert_password'] ?? '';
-        $source   = ($_POST['cert_source'] ?? 'self') === 'ejbca' && $ejbca_available ? 'ejbca' : 'self';
 
         if (!$user_id)           $errors[] = 'Wybierz użytkownika.';
         if ($cn === '')          $errors[] = 'Pole CN jest wymagane.';
@@ -38,19 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$errors) {
             try {
-                if ($source === 'ejbca') {
-                    $ejbca_username = 'panel-' . $user_id . '-' . bin2hex(random_bytes(4));
-                    $result = ejbca_issue_login_cert($ejbca_username, $cn, $pass, $org, $country);
-                    x509_register_ejbca_cert($user_id, $cn, $result);
-                } else {
-                    $result = x509_generate_for_user($user_id, $pass, $cn, $org, $country, $bits, $days);
-                }
+                $result = x509_generate_for_user($user_id, $pass, $cn, $org, $country, $bits, $days);
                 $uname  = db_one("SELECT name FROM users WHERE id=?", [$user_id])['name'] ?? '';
                 $_SESSION['x509_pending'] = [
                     'user_id'     => $user_id,
                     'user_name'   => $uname,
                     'cn'          => $cn,
-                    'source'      => $source,
+                    'source'      => 'self',
                     'p12_b64'     => base64_encode($result['p12_data']),
                     'p12_pass'    => $result['p12_pass'],
                     'key_pem'     => $result['key_pem'],
@@ -212,20 +203,6 @@ include dirname(__DIR__) . '/includes/header.php';
         <div class="col-md-4">
           <label class="form-label fw-semibold">CN — imię i nazwisko <span class="text-danger">*</span></label>
           <input type="text" name="cert_cn" class="form-control" placeholder="Jan Kowalski" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label fw-semibold">Źródło certyfikatu</label>
-          <select name="cert_source" class="form-select">
-            <option value="self">Self-signed (jak dotychczas)</option>
-            <?php if ($ejbca_available): ?>
-            <option value="ejbca">Wewnętrzny CA (EJBCA)</option>
-            <?php endif; ?>
-          </select>
-          <?php if (!$ejbca_available): ?>
-          <div class="form-text">EJBCA nieskonfigurowane — zob. <code>docker/EJBCA.md</code>.</div>
-          <?php else: ?>
-          <div class="form-text">Dla EJBCA: ważność i rozmiar klucza określa profil certyfikatu w CA (pola niżej są wtedy ignorowane).</div>
-          <?php endif; ?>
         </div>
         <div class="col-md-4">
           <label class="form-label fw-semibold">Hasło PKCS#12 <span class="text-danger">*</span></label>

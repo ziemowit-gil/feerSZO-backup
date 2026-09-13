@@ -1,1 +1,0 @@
-scripts/ejbca_provision_app_cert.sh

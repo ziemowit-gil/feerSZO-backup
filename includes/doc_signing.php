@@ -4,8 +4,7 @@
  *
  * User wgrywa dokument, pobiera go, podpisuje SAMODZIELNIE poza systemem
  * (własnym certyfikatem X.509 — kwalifikowanym lub niekwalifikowanym, np.
- * mSzafir/Certum/SimplySign, albo certyfikatem wystawionym przez wewnętrzne
- * EJBCA), a następnie wgrywa podpisany plik z powrotem. Serwer nie ma
+ * mSzafir/Certum/SimplySign), a następnie wgrywa podpisany plik z powrotem. Serwer nie ma
  * dostępu do klucza prywatnego — podpis powstaje zawsze „zewnętrznie".
  * Kryptograficzną detekcję/walidację podpisu wykonuje includes/sigcheck.php
  * (współdzielone z modułem EZD i walidacją podpisów umów).

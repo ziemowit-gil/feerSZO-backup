@@ -168,12 +168,11 @@ else
             ufw allow 22/tcp   comment 'SSH'
             ufw allow 80/tcp   comment 'HTTP'
             ufw allow 443/tcp  comment 'HTTPS'
-            ufw allow 8443/tcp comment 'EJBCA AdminWeb'
             echo "y" | ufw enable
-            ok "UFW włączony z regułami 22/80/443/8443"
+            ok "UFW włączony z regułami 22/80/443"
         fi
     else
-        for port in 22 80 443 8443; do
+        for port in 22 80 443; do
             if ufw status | grep -q "^${port}"; then
                 ok "UFW port ${port}: otwarty"
             else
