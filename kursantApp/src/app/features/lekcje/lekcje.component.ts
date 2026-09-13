@@ -82,8 +82,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
                 <th scope="col">Prowadzący</th>
                 <th scope="col">Sala</th>
                 <th scope="col">Status</th>
-                <th scope="col">Ocena</th>
-                <th scope="col"><span class="sr-only">Akcje</span></th>
+                <th scope="col">Akcje</th>
               </tr>
             </thead>
             <tbody>
@@ -111,29 +110,25 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
                     </span>
                   </td>
                   <td>
-                    @if (lesson.status === 'held') {
-                      @if (lesson.rating) {
-                        <div class="stars-display" [attr.aria-label]="'Ocena: ' + lesson.rating + ' na 5'">
-                          @for (i of [1,2,3,4,5]; track i) {
-                            <span class="material-symbols-outlined star"
-                                  [class.filled]="i <= lesson.rating"
-                                  aria-hidden="true">star</span>
-                          }
-                        </div>
-                      } @else {
-                        <button mat-stroked-button
-                                class="btn-small"
-                                [attr.aria-label]="'Oceń lekcję z ' + lesson.date"
-                                (click)="openRatingDialog(lesson)">
-                          Oceń
-                        </button>
-                      }
-                    } @else {
-                      <span aria-hidden="true">—</span>
-                    }
-                  </td>
-                  <td>
                     <div class="action-cell">
+                      @if (lesson.status === 'held') {
+                        @if (lesson.rating) {
+                          <div class="stars-display" [attr.aria-label]="'Ocena: ' + lesson.rating + ' na 5'">
+                            @for (i of [1,2,3,4,5]; track i) {
+                              <span class="material-symbols-outlined star"
+                                    [class.filled]="i <= lesson.rating"
+                                    aria-hidden="true">star</span>
+                            }
+                          </div>
+                        } @else {
+                          <button mat-stroked-button
+                                  class="btn-small"
+                                  [attr.aria-label]="'Oceń lekcję z ' + lesson.date"
+                                  (click)="openRatingDialog(lesson)">
+                            Oceń
+                          </button>
+                        }
+                      }
                       @if (lesson.status === 'planned') {
                         @if (!lesson.cancel_requested) {
                           <button mat-stroked-button
@@ -150,6 +145,9 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
                             Cofnij
                           </button>
                         }
+                      }
+                      @if (lesson.status !== 'held' && lesson.status !== 'planned') {
+                        <span aria-hidden="true">—</span>
                       }
                     </div>
                   </td>
@@ -254,7 +252,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
 
     .btn-danger { color: #b91c1c !important; border-color: #fca5a5 !important; }
 
-    .action-cell { display: flex; gap: .5rem; }
+    .action-cell { display: flex; align-items: center; gap: .5rem; flex-wrap: nowrap; white-space: nowrap; }
 
     .rating-overlay {
       position: fixed;

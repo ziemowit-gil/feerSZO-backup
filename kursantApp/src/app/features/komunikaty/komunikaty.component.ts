@@ -45,7 +45,7 @@ import { Notice } from '../../core/models/kursant.models';
                 <h2 class="notice-title">{{ notice.title }}</h2>
                 <p class="text-muted text-sm">
                   {{ notice.created_at | date:'d MMM yyyy, HH:mm':'':\'pl\' }}
-                  @if (notice.category) {
+                  @if (notice.category && notice.category !== 'all') {
                     · <span>{{ notice.category }}</span>
                   }
                 </p>
