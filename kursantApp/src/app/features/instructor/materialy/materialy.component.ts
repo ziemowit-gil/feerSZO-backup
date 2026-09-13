@@ -1,9 +1,9 @@
 import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorMaterial } from '../../../core/models/kursant.models';
 import { MaterialFormDialogComponent } from './material-form-dialog.component';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -17,7 +17,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 @Component({
   selector: 'app-instructor-materialy',
   standalone: true,
-  imports: [CommonModule, DatePipe, FormsModule, MatButtonModule, MatDialogModule, MatSnackBarModule],
+  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule, MatSnackBarModule],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie materiałów… }</div>
 
@@ -38,16 +38,6 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
     }
 
     @if (!loading()) {
-      @if (allCourses().length > 1) {
-        <div class="course-filter">
-          <label for="course-select">Grupa</label>
-          <select id="course-select" [(ngModel)]="courseFilter">
-            <option [ngValue]="null">— wszystkie grupy —</option>
-            @for (c of allCourses(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
-          </select>
-        </div>
-      }
-
       @if (filteredMaterials().length === 0) {
         <div class="k-card">
           <div class="empty-state">
@@ -102,10 +92,6 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
     .page-header { position: relative; }
     .add-btn { position: absolute; top: 0; right: 0; }
 
-    .course-filter { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem;
-      label { font-size: .85rem; color: var(--c-text-muted); }
-      select { padding: .4rem .6rem; border: 1px solid var(--c-border-2); border-radius: .5rem; font-size: .85rem; }
-    }
     .mat-card { &.mat-inactive { opacity: .6; } }
     .mat-title-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .mat-title { font-size: 1.05rem; margin: 0; }
@@ -122,25 +108,20 @@ export class InstructorMaterialyComponent implements OnInit {
   private api    = inject(InstructorApiService);
   private snack  = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  courseCtx      = inject(InstructorCourseContextService);
 
   loading      = signal(true);
   materials    = signal<InstructorMaterial[]>([]);
-  courseFilter = signal<number | null>(null);
-
-  allCourses = computed(() => {
-    const map = new Map<number, string>();
-    for (const m of this.materials()) map.set(m.course_id, m.course_name);
-    return Array.from(map, ([id, name]) => ({ id, name }));
-  });
 
   filteredMaterials = computed(() => {
-    const cid = this.courseFilter();
+    const cid = this.courseCtx.selectedId();
     const all = this.materials();
     return cid ? all.filter(m => m.course_id === cid) : all;
   });
 
   ngOnInit(): void {
     this.load();
+    this.courseCtx.ensureLoaded();
   }
 
   load(): void {
@@ -161,14 +142,14 @@ export class InstructorMaterialyComponent implements OnInit {
   startAdd(): void {
     this.dialog.open(MaterialFormDialogComponent, {
       width: '640px', maxWidth: '95vw',
-      data: { mode: 'add', material: null, courses: this.allCourses() },
+      data: { mode: 'add', material: null, courses: this.courseCtx.courses() },
     }).afterClosed().subscribe(saved => { if (saved) this.load(); });
   }
 
   startEdit(m: InstructorMaterial): void {
     this.dialog.open(MaterialFormDialogComponent, {
       width: '640px', maxWidth: '95vw',
-      data: { mode: 'edit', material: m, courses: this.allCourses() },
+      data: { mode: 'edit', material: m, courses: this.courseCtx.courses() },
     }).afterClosed().subscribe(saved => { if (saved) this.load(); });
   }
 

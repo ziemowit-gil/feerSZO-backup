@@ -1,10 +1,9 @@
 import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorLessonRow } from '../../../core/models/kursant.models';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { LessonFormDialogComponent } from './lesson-form-dialog.component';
@@ -23,7 +22,7 @@ import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
 @Component({
   selector: 'app-instructor-lekcje',
   standalone: true,
-  imports: [CommonModule, DatePipe, FormsModule, MatButtonModule, MatDialogModule, MatSnackBarModule, StatusLabelPipe],
+  imports: [CommonModule, DatePipe, MatButtonModule, MatDialogModule, StatusLabelPipe],
   template: `
     <div aria-live="polite" class="sr-only">@if (loading()) { Ładowanie lekcji… }</div>
 
@@ -44,16 +43,6 @@ import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
     }
 
     @if (!loading()) {
-      @if (courses().length > 1) {
-        <div class="course-filter">
-          <label for="course-select">Grupa</label>
-          <select id="course-select" [(ngModel)]="courseFilter">
-            <option [ngValue]="null">— wszystkie grupy —</option>
-            @for (c of courses(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
-          </select>
-        </div>
-      }
-
       @if (filteredLessons().length === 0) {
         <div class="k-card">
           <div class="empty-state">
@@ -93,15 +82,15 @@ import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
                       @else { <span class="text-muted">—</span> }
                     </td>
                     <td class="text-end actions-cell">
-                      <button mat-stroked-button type="button" class="btn-small" (click)="startEdit(l)">Edytuj</button>
+                      <button mat-stroked-button type="button" class="btn-small btn-edit" (click)="startEdit(l)">Edytuj</button>
                       @if (l.status !== 'remote_material' && l.status !== 'cancelled') {
-                        <button mat-stroked-button type="button" class="btn-small" (click)="openAttendance(l)">Obecność</button>
+                        <button mat-stroked-button type="button" class="btn-small btn-success" (click)="openAttendance(l)">Obecność</button>
                       }
-                      <button mat-stroked-button type="button" class="btn-small" (click)="openReschedule(l)">Termin</button>
+                      <button mat-stroked-button type="button" class="btn-small btn-amber" (click)="openReschedule(l)">Termin</button>
                       @if (l.status === 'cancelled') {
-                        <button mat-stroked-button type="button" class="btn-small" (click)="openCancel(l)">Przywróć</button>
+                        <button mat-stroked-button type="button" class="btn-small btn-success" (click)="openCancel(l)">Przywróć</button>
                       } @else {
-                        <button mat-stroked-button type="button" class="btn-small" color="warn" (click)="openCancel(l)">Odwołaj</button>
+                        <button mat-stroked-button type="button" class="btn-small btn-danger" (click)="openCancel(l)">Odwołaj</button>
                       }
                     </td>
                   </tr>
@@ -117,12 +106,12 @@ import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
     .page-header { position: relative; }
     .add-btn { position: absolute; top: 0; right: 0; }
 
-    .course-filter { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem;
-      label { font-size: .85rem; color: var(--c-text-muted); }
-      select { padding: .4rem .6rem; border: 1px solid var(--c-border-2); border-radius: .5rem; font-size: .85rem; }
-    }
     .btn-small { font-size: .78rem !important; padding: .2rem .625rem !important; height: auto !important; }
     .actions-cell { display: flex; gap: .4rem; justify-content: flex-end; flex-wrap: wrap; }
+    .btn-edit    { color: #4f46e5 !important; border-color: #4f46e5 !important; }
+    .btn-success { color: #15803d !important; border-color: #15803d !important; }
+    .btn-amber   { color: #92400e !important; border-color: #b45309 !important; }
+    .btn-danger  { color: #b91c1c !important; border-color: #b91c1c !important; }
     .today-row { background: #eff6ff; }
     .status-badge.warn { background: var(--c-warning-bg); color: var(--c-warning); margin-left: .3rem; }
     .status-badge.status-cancelled { background: #fee2e2; color: #b91c1c; }
@@ -134,27 +123,22 @@ import { CancelLessonDialogComponent } from './cancel-lesson-dialog.component';
 export class InstructorLekcjeComponent implements OnInit {
   private api    = inject(InstructorApiService);
   private dialog = inject(MatDialog);
+  courseCtx      = inject(InstructorCourseContextService);
 
   today = new Date().toISOString().slice(0, 10);
 
   loading  = signal(true);
   lessons  = signal<InstructorLessonRow[]>([]);
-  courseFilter = signal<number | null>(null);
-
-  courses = computed(() => {
-    const map = new Map<number, string>();
-    for (const l of this.lessons()) map.set(l.course_id, l.course_name);
-    return Array.from(map, ([id, name]) => ({ id, name }));
-  });
 
   filteredLessons = computed(() => {
-    const cid = this.courseFilter();
+    const cid = this.courseCtx.selectedId();
     const all = this.lessons();
     return cid ? all.filter(l => l.course_id === cid) : all;
   });
 
   ngOnInit(): void {
     this.load();
+    this.courseCtx.ensureLoaded();
   }
 
   load(): void {
@@ -171,14 +155,14 @@ export class InstructorLekcjeComponent implements OnInit {
   startAdd(): void {
     this.dialog.open(LessonFormDialogComponent, {
       width: '720px', maxWidth: '95vw',
-      data: { mode: 'add', lesson: null, courses: this.courses() },
+      data: { mode: 'add', lesson: null, courses: this.courseCtx.courses() },
     }).afterClosed().subscribe(saved => { if (saved) this.load(); });
   }
 
   startEdit(l: InstructorLessonRow): void {
     this.dialog.open(LessonFormDialogComponent, {
       width: '720px', maxWidth: '95vw',
-      data: { mode: 'edit', lesson: l, courses: this.courses() },
+      data: { mode: 'edit', lesson: l, courses: this.courseCtx.courses() },
     }).afterClosed().subscribe(saved => { if (saved) this.load(); });
   }
 

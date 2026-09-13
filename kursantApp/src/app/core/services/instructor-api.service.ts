@@ -27,6 +27,7 @@ export class InstructorApiService {
   }
 
   getDashboard() { return this.get<InstructorDashboard>('dashboard'); }
+  getCourses() { return this.get<{ id: number; name: string }[]>('courses'); }
 
   getLessons(courseId?: number) {
     return this.get<InstructorLessonRow[]>('lessons', courseId ? { course_id: String(courseId) } : {});

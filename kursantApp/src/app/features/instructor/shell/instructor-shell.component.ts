@@ -1,10 +1,12 @@
-import { Component, signal, computed, HostListener } from '@angular/core';
+import { Component, signal, computed, HostListener, OnInit } from '@angular/core';
 import { inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { InstructorAuthService } from '../../../core/auth/instructor-auth.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 
 interface NavItem { path: string; label: string; icon: string; }
 
@@ -17,7 +19,7 @@ interface NavItem { path: string; label: string; icon: string; }
 @Component({
   selector: 'app-instructor-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule, MatButtonModule, MatTooltipModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, CommonModule, FormsModule, MatButtonModule, MatTooltipModule],
   template: `
     <a href="#main-content" class="skip-link">Przejdź do treści głównej</a>
     <div class="app-shell">
@@ -30,6 +32,15 @@ interface NavItem { path: string; label: string; icon: string; }
           <span class="brand-icon material-symbols-outlined" aria-hidden="true">person_book</span>
           <span class="brand-name">Panel prowadzącego</span>
         </a>
+        @if (courseCtx.courses().length > 1) {
+          <div class="topbar-course">
+            <span class="material-symbols-outlined" aria-hidden="true">groups</span>
+            <select aria-label="Aktywna grupa" [ngModel]="courseCtx.selectedId()" (ngModelChange)="courseCtx.selectedId.set($event)">
+              <option [ngValue]="null">— wszystkie grupy —</option>
+              @for (c of courseCtx.courses(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
+            </select>
+          </div>
+        }
         <div class="topbar-spacer" aria-hidden="true"></div>
         <div class="topbar-user">
           <span class="user-name">{{ instructorName() }}</span>
@@ -92,6 +103,13 @@ interface NavItem { path: string; label: string; icon: string; }
       color: #111827; font-weight: 600; font-size: 1rem; flex-shrink: 0;
       .brand-icon { color: #2563eb; font-size: 1.4rem; }
     }
+    .topbar-course {
+      display: flex; align-items: center; gap: .35rem; padding: .3rem .6rem; border-radius: .5rem;
+      background: #f3f4f6; color: #374151;
+      .material-symbols-outlined { font-size: 1.1rem; color: #6b7280; }
+      select { border: none; background: none; font: inherit; font-size: .85rem; color: inherit; max-width: 200px; }
+      @media (max-width: 640px) { select { max-width: 120px; } }
+    }
     .topbar-spacer { flex: 1; }
     .topbar-user {
       display: flex; align-items: center; gap: .5rem; padding-left: .5rem; border-left: 1px solid #e5e7eb;
@@ -109,11 +127,16 @@ interface NavItem { path: string; label: string; icon: string; }
     @media (max-width: 768px) { main#main-content { padding: 1rem; } }
   `],
 })
-export class InstructorShellComponent {
+export class InstructorShellComponent implements OnInit {
   private auth = inject(InstructorAuthService);
+  courseCtx    = inject(InstructorCourseContextService);
 
   instructor  = this.auth.instructor;
   sidebarOpen = signal(false);
+
+  ngOnInit(): void {
+    this.courseCtx.ensureLoaded();
+  }
 
   readonly NAV_ITEMS: NavItem[] = [
     { path: 'pulpit', label: 'Pulpit', icon: 'home' },

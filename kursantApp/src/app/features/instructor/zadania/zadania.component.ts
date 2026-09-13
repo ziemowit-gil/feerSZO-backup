@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
+import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/models/kursant.models';
 
 /**
@@ -32,16 +33,6 @@ import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/
     }
 
     @if (!loading()) {
-      @if (courses().length > 1) {
-        <div class="course-filter">
-          <label for="course-select">Grupa</label>
-          <select id="course-select" [(ngModel)]="courseFilter">
-            <option [ngValue]="null">— wszystkie grupy —</option>
-            @for (c of courses(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
-          </select>
-        </div>
-      }
-
       @if (filteredHomework().length === 0) {
         <div class="k-card">
           <div class="empty-state">
@@ -105,10 +96,6 @@ import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/
     }
   `,
   styles: [`
-    .course-filter { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem;
-      label { font-size: .85rem; color: var(--c-text-muted); }
-      select { padding: .4rem .6rem; border: 1px solid var(--c-border-2); border-radius: .5rem; font-size: .85rem; }
-    }
     .hw-card { &.hw-inactive { opacity: .6; } }
     .hw-title-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .hw-title { font-size: 1.05rem; margin: 0; }
@@ -132,10 +119,10 @@ import { InstructorHomework, InstructorHomeworkSubmission } from '../../../core/
 export class InstructorZadaniaComponent implements OnInit {
   private api   = inject(InstructorApiService);
   private snack = inject(MatSnackBar);
+  courseCtx     = inject(InstructorCourseContextService);
 
   loading  = signal(true);
   homework = signal<InstructorHomework[]>([]);
-  courseFilter = signal<number | null>(null);
 
   expandedId     = signal<number | null>(null);
   detailLoading  = signal(false);
@@ -144,20 +131,15 @@ export class InstructorZadaniaComponent implements OnInit {
   gradeMap: Record<number, string> = {};
   feedbackMap: Record<number, string> = {};
 
-  courses = computed(() => {
-    const map = new Map<number, string>();
-    for (const h of this.homework()) map.set(h.course_id, h.course_name);
-    return Array.from(map, ([id, name]) => ({ id, name }));
-  });
-
   filteredHomework = computed(() => {
-    const cid = this.courseFilter();
+    const cid = this.courseCtx.selectedId();
     const all = this.homework();
     return cid ? all.filter(h => h.course_id === cid) : all;
   });
 
   ngOnInit(): void {
     this.load();
+    this.courseCtx.ensureLoaded();
   }
 
   load(): void {

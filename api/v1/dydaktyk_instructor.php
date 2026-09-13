@@ -246,6 +246,16 @@ if (!$instructor_id) json_err('Nieautoryzowany dostęp.', 401);
 
 // ── Route dispatch ────────────────────────────────────────────────────────────
 switch ($action) {
+    // Lista własnych kursów (id+nazwa) — dla wspólnego selektora grupy w
+    // topbarze (InstructorCourseContextService), jedno źródło zamiast
+    // wyprowadzania listy z każdej zakładki osobno (lessons/homework/materials).
+    case 'courses': {
+        json_ok(array_map(
+            fn($c) => ['id' => (int)$c['id'], 'name' => (string)$c['name']],
+            k30_ti_instructor_courses($instructor_id, false)
+        ));
+    }
+
     // ── pulpit ─────────────────────────────────────────────────────────────────
     case 'dashboard': {
         $u = db_one("SELECT id, name, email FROM users WHERE id=?", [$instructor_id]);
