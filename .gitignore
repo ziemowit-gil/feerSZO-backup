@@ -30,5 +30,6 @@ docker/.env
 config.local.php
 docker/.env.prod
 docker/.env.cloudflare
+bin/.deploy-mydevil.conf
 debug_*.php
 crm/triage.sqlite
