@@ -1,5 +1,5 @@
-import { Component, signal, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, signal, inject, OnInit } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -51,6 +51,12 @@ type Stage = 'password' | 'totp';
               @if (loading()) { <mat-progress-spinner diameter="20" mode="indeterminate" aria-label="Logowanie…"></mat-progress-spinner> } @else { Dalej }
             </button>
           </form>
+
+          <div class="divider"><span>lub</span></div>
+          <a mat-stroked-button href="/auth/ms365_prowadzacy.php" class="m365-btn">
+            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+            Zaloguj przez Microsoft 365
+          </a>
         }
 
         @if (stage() === 'totp') {
@@ -81,11 +87,32 @@ type Stage = 'password' | 'totp';
     .remember { display: block; margin-bottom: 1rem; }
     .submit { width: 100%; }
     .back { width: 100%; margin-top: .5rem; background: none; border: none; color: var(--c-link); cursor: pointer; font-size: .9rem; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      color: #9ca3af;
+      font-size: .8rem;
+      margin: 1rem 0;
+
+      &::before, &::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+    }
+
+    .m365-btn {
+      width: 100%;
+      height: 2.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+    }
   `],
 })
-export class InstructorLoginComponent {
+export class InstructorLoginComponent implements OnInit {
   private auth   = inject(InstructorAuthService);
   private router = inject(Router);
+  private route  = inject(ActivatedRoute);
 
   stage   = signal<Stage>('password');
   loading = signal(false);
@@ -96,6 +123,24 @@ export class InstructorLoginComponent {
   code     = '';
   remember = false;
   private pendingToken = '';
+
+  private static readonly M365_ERRORS: Record<string, string> = {
+    no_account:  'To konto Microsoft nie jest powiązane z żadnym kontem prowadzącego. Zaloguj się e-mailem i hasłem.',
+    no_access:   'Konto zostało rozpoznane, ale nie ma dostępu do panelu prowadzącego.',
+    unavailable: 'Logowanie przez Microsoft 365 jest obecnie niedostępne.',
+  };
+
+  ngOnInit(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const pending = params.get('pending_token');
+    if (pending) {
+      this.pendingToken = pending;
+      this.stage.set('totp');
+      return;
+    }
+    const code = params.get('m365_error');
+    if (code) this.error.set(InstructorLoginComponent.M365_ERRORS[code] ?? 'Nie udało się zalogować przez Microsoft 365.');
+  }
 
   onPasswordSubmit(): void {
     if (!this.email || !this.password) return;

@@ -40,14 +40,29 @@ export class InstructorAuthService {
   verifyTotp(pendingToken: string, code: string, remember: boolean): Observable<InstructorLoginResponse> {
     return this.http
       .post<InstructorLoginResponse>(`${API}?action=verify_totp`, { pending_token: pendingToken, code, remember })
-      .pipe(tap(res => {
-        if (res.success && res.data) {
-          this._token.set(res.data.token);
-          this._instructor.set(res.data.instructor);
-          localStorage.setItem(TOKEN_KEY, res.data.token);
-          localStorage.setItem(INSTRUCTOR_KEY, JSON.stringify(res.data.instructor));
-        }
-      }));
+      .pipe(tap(res => this.#applyIfToken(res)));
+  }
+
+  /**
+   * Wymiana jednorazowego tokenu z logowania Microsoft 365 (auth/ms365_prowadzacy.php
+   * → auth/microsoft.php) na sesję. Konto z rolą 'admin' dostaje od razu pełny
+   * token (jak verify_totp); pozostałe konta wciąż muszą przejść TOTP — wtedy
+   * odpowiedź ma ten sam kształt co action=login (pending_token).
+   */
+  impersonate(t: string): Observable<InstructorLoginResponse | InstructorTotpRequiredResponse> {
+    return this.http
+      .post<InstructorLoginResponse | InstructorTotpRequiredResponse>(`${API}?action=impersonate_exchange`, { t })
+      .pipe(tap(res => this.#applyIfToken(res)));
+  }
+
+  #applyIfToken(res: InstructorLoginResponse | InstructorTotpRequiredResponse): void {
+    if (res.success && 'token' in (res.data ?? {})) {
+      const data = res.data as { token: string; instructor: Instructor };
+      this._token.set(data.token);
+      this._instructor.set(data.instructor);
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(INSTRUCTOR_KEY, JSON.stringify(data.instructor));
+    }
   }
 
   logout(): void {

@@ -178,6 +178,37 @@ if ($action === 'verify_totp' && $method === 'POST') {
     json_ok(['token' => $token, 'instructor' => instructor_public_profile($u)]);
 }
 
+// ── Bridge: logowanie przez Microsoft 365 (auth/ms365_prowadzacy.php) ─────────
+// Konsumuje jednorazowy token 'dyd' wystawiony w auth/microsoft.php
+// (k30_imp_token_create) po zweryfikowaniu tożsamości Microsoft — ten sam
+// mechanizm co impersonacja admina (k30_imp_tokens), ale admin_id=0.
+// TOTP jest obowiązkowe jak przy logowaniu hasłem (dyd_require()) — wyjątek
+// tylko dla roli 'admin' — więc zwracamy tu ten sam kształt odpowiedzi co
+// action=login (pending_token), chyba że konto jest zwolnione z 2FA.
+if ($action === 'impersonate_exchange' && $method === 'POST') {
+    $t = trim((string)(get_body()['t'] ?? ''));
+    if (!$t) json_err('Brak tokenu.');
+
+    $imp = k30_imp_token_consume($t);
+    if (!$imp || $imp['type'] !== 'dyd') json_err('Token wygasł lub jest nieprawidłowy.', 403);
+
+    $uid = (int)$imp['target_id'];
+    $u   = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$uid]);
+    if (!$u || !dyd_profile_from_user($u)) json_err('Konto nie istnieje, zostało dezaktywowane, lub nie ma dostępu do panelu.', 403);
+
+    if ($u['role'] === 'admin') {
+        $token = issue_instructor_token($uid, false);
+        json_ok(['token' => $token, 'instructor' => instructor_public_profile($u)]);
+    }
+
+    if (empty($u['totp_confirmed']) || empty($u['totp_secret'])) {
+        json_err('To konto nie ma jeszcze skonfigurowanej weryfikacji dwuetapowej (TOTP) — dokończ jej założenie w klasycznym panelu prowadzącego, potem wróć tutaj.', 409);
+    }
+
+    $pending = issue_2fa_pending_token($uid);
+    json_ok(['totp_required' => true, 'pending_token' => $pending]);
+}
+
 // ── Token authentication ──────────────────────────────────────────────────────
 function verify_instructor_token(): ?int {
     global $pdo;
@@ -394,6 +425,65 @@ switch ($action) {
             "UPDATE k30_ti_sessions SET status='planned', cancel_reason='', cancelled_by_role='', cancelled_by='', cancelled_at=NULL, updated_at=datetime('now') WHERE id=?"
         )->execute([$sid]);
         json_ok(null, 'Lekcja przywrócona (zaplanowana).');
+    }
+
+    // ── zadania domowe ───────────────────────────────────────────────────────────
+    case 'homework': {
+        $course_ids = instructor_course_ids($instructor_id);
+        $filter_course = (int)($_GET['course_id'] ?? 0);
+        if ($filter_course && !in_array($filter_course, $course_ids, true)) {
+            json_err('Ten kurs nie jest Twój.', 403);
+        }
+        $scope_ids = $filter_course ? [$filter_course] : $course_ids;
+
+        $homeworks = [];
+        foreach ($scope_ids as $cid) {
+            foreach (k30_ti_homework_list($cid) as $hw) $homeworks[] = $hw;
+        }
+        usort($homeworks, fn($a, $b) =>
+            ((int)$b['is_active'] <=> (int)$a['is_active'])
+            ?: strcmp((string)($b['due_at'] ?? '9999'), (string)($a['due_at'] ?? '9999'))
+            ?: ((int)$b['id'] <=> (int)$a['id'])
+        );
+        $homeworks = array_map(function ($hw) {
+            $hw['availability'] = k30_ti_avail_status($hw['open_at'] ?? null, $hw['close_at'] ?? null);
+            return $hw;
+        }, $homeworks);
+        json_ok($homeworks);
+    }
+
+    case 'homework_submissions': {
+        $hid = (int)($_GET['homework_id'] ?? 0);
+        $hw  = $hid ? k30_ti_homework_get($hid) : null;
+        if (!$hw || !k30_ti_instructor_owns_course($instructor_id, (int)$hw['course_id'])) {
+            json_err('Brak dostępu do tego zadania.', 403);
+        }
+        json_ok([
+            'homework'    => $hw,
+            'submissions' => k30_ti_homework_submissions($hid),
+        ]);
+    }
+
+    case 'grade_submission': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $sid  = (int)($body['submission_id'] ?? 0);
+        $sub  = $sid ? db_one(
+            "SELECT s.id, h.course_id FROM k30_ti_homework_submissions s
+             JOIN k30_ti_homework h ON h.id=s.homework_id WHERE s.id=?", [$sid]
+        ) : null;
+        if (!$sub || !k30_ti_instructor_owns_course($instructor_id, (int)$sub['course_id'])) {
+            json_err('Brak dostępu do tego oddania.', 403);
+        }
+        $grade = trim((string)($body['grade'] ?? ''));
+        $fb    = trim((string)($body['feedback'] ?? ''));
+        $pdo->prepare(
+            "UPDATE k30_ti_homework_submissions
+             SET grade=?, feedback=?, status=?, graded_by=?, graded_at=datetime('now'), updated_at=datetime('now')
+             WHERE id=?"
+        )->execute([$grade, $fb, ($grade !== '' || $fb !== '') ? 'graded' : 'submitted', $instructor_id, $sid]);
+        k30_ti_grade_sync_from_homework($sid, $instructor_id);
+        json_ok(null, 'Ocena zapisana' . ($grade !== '' ? ' i dodana do dziennika ocen.' : '.'));
     }
 
     default:

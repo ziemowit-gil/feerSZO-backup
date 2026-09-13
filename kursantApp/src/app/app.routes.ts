@@ -37,6 +37,12 @@ export const routes: Routes = [
     ],
   },
   {
+    path: 'prowadzacy-impersonate',
+    loadComponent: () =>
+      import('./features/instructor/impersonate/instructor-impersonate.component').then(m => m.InstructorImpersonateComponent),
+    title: 'Logowanie Microsoft 365 — Panel prowadzącego',
+  },
+  {
     path: 'impersonate',
     loadComponent: () =>
       import('./features/impersonate/impersonate.component').then(m => m.ImpersonateComponent),

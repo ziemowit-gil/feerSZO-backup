@@ -151,6 +151,36 @@ if (!$error && $redirect_after === '__kursant_ms365__') {
     exit;
 }
 
+// ── Logowanie prowadzącego (nowy panel beta) przez Microsoft 365 ──────────────
+// Ten sam warunek dostępu co klasyczny most karty30/ti/dydaktyk/office_enter.php
+// (konto SZO w tabeli users + dyd_profile_from_user()) — tylko cel przekierowania
+// jest inny: kursantApp zamiast osobnej sesji k30_dydaktyk.
+if (!$error && $redirect_after === '__prowadzacy_ms365__') {
+    $ms_id = $ms_user['id'] ?? '';
+    $ms_em = strtolower((string)($ms_user['mail'] ?? $ms_user['userPrincipalName'] ?? ''));
+    $prowadzacy_login_url = rtrim(KURSANT_NEW_UI_URL, '/') . '/logowanie-prowadzacy';
+
+    $u = $ms_em !== '' || $ms_id !== ''
+        ? db_one("SELECT * FROM users WHERE (email = ? OR microsoft_id = ?) LIMIT 1", [$ms_em, $ms_id])
+        : null;
+
+    if (!$u || !$u['is_active']) {
+        header('Location: ' . $prowadzacy_login_url . '?m365_error=no_account');
+        exit;
+    }
+
+    require_once dirname(__DIR__) . '/karty30/ti/dydaktyk/auth.php';
+    if (!dyd_profile_from_user($u)) {
+        header('Location: ' . $prowadzacy_login_url . '?m365_error=no_access');
+        exit;
+    }
+
+    require_once dirname(__DIR__) . '/includes/karty30.php';
+    $token = k30_imp_token_create('dyd', (int)$u['id'], 0);
+    header('Location: ' . rtrim(KURSANT_NEW_UI_URL, '/') . '/prowadzacy-impersonate?t=' . urlencode($token));
+    exit;
+}
+
 if (!$error) {
     $email = $ms_user['mail'] ?? $ms_user['userPrincipalName'];
     $name  = $ms_user['displayName'] ?? $email;
