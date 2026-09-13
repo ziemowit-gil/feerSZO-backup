@@ -21,7 +21,6 @@ $_guide = [
         ['Dostępność',      $_g('dostepnosc'),      'Twoje okna godzinowe w tygodniu — zajęcia można ustawiać tylko w nich.', 'Dawniej siedem kafelków dni; teraz jedna tabela z sumą godzin.'],
         ['Zapisy na zajęcia', 'rekrutacja.php',      'Zapisy kursantów na wolne terminy i tury zajęć.', ''],
         ['Plan cykliczny',  $_g('cykliczne'),       'Zajęcia stałe: reguły powtarzania i generowanie terminów.', ''],
-        ['Planner',         'planner.php',                   'Układanie harmonogramu z bloków — osobne narzędzie.', ''],
     ],
     'Kurs — praca z grupą' => [
         ['Zajęcia',       $_ct('lekcje'),      'Terminy zajęć: dodawanie, edycja, obecność, odwołanie i zmiana terminu. Klik w datę (albo „Wejdź”) otwiera kartę lekcji z listą obecności.', 'Dawniej dwa widoki (lista i tabela) — został jeden, tabelaryczny.'],

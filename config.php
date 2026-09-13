@@ -107,11 +107,6 @@ if (!defined('LDAP_USERS_OU'))  define('LDAP_USERS_OU',  getenv('LDAP_USERS_OU')
 // na LDAP_USERS_OU automatycznie przestają je widzieć.
 if (!defined('LDAP_DISABLED_OU')) define('LDAP_DISABLED_OU', getenv('LDAP_DISABLED_OU') ?: 'ou=disabled,dc=feer,dc=org,dc=pl');
 
-// ── SZO Planner ───────────────────────────────────────────────────────────────
-// URL aplikacji Angular SZO Planner. Lokalnie: http://localhost:4201
-// W produkcji: https://szo-planner.feer.org.pl
-if (!defined('SZO_PLANNER_URL')) define('SZO_PLANNER_URL', getenv('SZO_PLANNER_URL') ?: 'http://localhost:4201');
-
 // URL nowego panelu kursanta (Angular 19). Lokalnie: http://localhost:4202
 // W produkcji: https://ti.feer.org.pl/newUI/
 if (!defined('KURSANT_NEW_UI_URL')) define('KURSANT_NEW_UI_URL', getenv('KURSANT_NEW_UI_URL') ?: 'http://localhost:4202');

@@ -1,8 +1,10 @@
 <?php
 /**
- * includes/ti_planner_ext.php — SZO Planner Extended: infrastruktura, ścieżki, drafty, żetony.
+ * includes/ti_planner_ext.php — infrastruktura TI: sale, ścieżki, drafty, żetony.
  *
- * Rozbudowuje podstawowy ti_planner.php o:
+ * Uwaga: nazwa historyczna — moduł "SZO Planner" (includes/ti_planner.php) został
+ * usunięty, ale ten plik jest niezależną, współdzieloną infrastrukturą używaną
+ * przez sale/rezerwacje, pulę żetonów, rekrutację i eksport do Librusa. Definiuje:
  *   k30_pl_rooms, k30_pl_laptop_pool, k30_pl_laptop_loans, k30_pl_online_meetings
  *   k30_pl_tech_paths, k30_pl_session_staff, k30_pl_cycle_templates
  *   k30_pl_schedule_drafts, k30_pl_audit_log

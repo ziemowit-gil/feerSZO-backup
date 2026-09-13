@@ -8,7 +8,7 @@
  *
  * Ekran mieszkał w module administracyjnym (karty30/ti/periods.php); okresy
  * zakłada i zamyka kierownik, więc stoi tam, gdzie on pracuje — w panelu.
- * Stary adres przekierowuje tutaj. Auth i layout jak w planner.php: osobna
+ * Stary adres przekierowuje tutaj. Auth i layout jak w resztcie panelu: osobna
  * sesja panelu, ta sama skórka co reszta paneli.
  *
  * CSRF: csrf_token()/csrf_check() działają i tu — auth_start() nie rusza już

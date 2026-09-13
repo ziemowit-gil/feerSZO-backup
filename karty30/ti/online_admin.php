@@ -215,7 +215,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
     <p class="small text-body-secondary mb-3">
       Jeden host Zoom nie prowadzi dwóch spotkań jednocześnie, więc terminy z tej listy
       blokują ustawianie nakładających się zajęć zdalnych (panel prowadzącego, dodawanie
-      i klonowanie lekcji, serie, zajęcia stałe, kopiowanie okresów, planner).
+      i klonowanie lekcji, serie, zajęcia stałe, kopiowanie okresów).
       Stałe linki kursów to spotkania cykliczne <em>bez</em> ustalonego terminu (typ 3),
       dlatego API Zoom nie zna ich godzin — zajętość lekcji SZO liczona jest z bazy.
     </p>

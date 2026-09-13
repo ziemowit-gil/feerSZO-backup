@@ -16,7 +16,6 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms_templates.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_notices.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
 
@@ -3035,9 +3034,6 @@ if ($cur_course && dyd_is_staff()) {
   <a class="dyd-sb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
      <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
     <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
-  </a>
-  <a class="dyd-sb-link" href="planner.php">
-    <i class="bi bi-layout-wtf" aria-hidden="true"></i>Planner
   </a>
   <a class="dyd-sb-link" href="protokoly_moje.php">
     <i class="bi bi-journal-check" aria-hidden="true"></i>Protokoły

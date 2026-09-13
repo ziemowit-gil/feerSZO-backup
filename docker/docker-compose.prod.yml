@@ -267,25 +267,6 @@ services:
       - "traefik.http.routers.ngo-wildcard-http.service=feer"
       - "traefik.http.routers.ngo-wildcard-http.middlewares=ngo-wildcard-redir@docker"
 
-  # ── SZO Planner — prod Traefik labels ────────────────────────────────────
-  szo-planner:
-    labels:
-      - "traefik.enable=true"
-
-      # ── szo-planner.feer.org.pl — HTTPS ze SSL Let's Encrypt ─────────────
-      - "traefik.http.routers.planner.rule=Host(`szo-planner.feer.org.pl`)"
-      - "traefik.http.routers.planner.entrypoints=websecure"
-      - "traefik.http.routers.planner.tls=true"
-      - "traefik.http.routers.planner.tls.certresolver=le"
-      - "traefik.http.routers.planner.middlewares=sec-headers@docker"
-      - "traefik.http.services.planner.loadbalancer.server.port=80"
-
-      # ── HTTP → HTTPS redirect ─────────────────────────────────────────────
-      - "traefik.http.routers.planner-http.rule=Host(`szo-planner.feer.org.pl`)"
-      - "traefik.http.routers.planner-http.entrypoints=web"
-      - "traefik.http.routers.planner-http.middlewares=https-redirect@docker"
-      - "traefik.http.routers.planner-http.service=planner"
-
   # ── Strona błędu — rejestracja w Traefik ────────────────────────────────
   error-pages:
     labels:

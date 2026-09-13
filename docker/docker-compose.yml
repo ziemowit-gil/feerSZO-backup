@@ -77,17 +77,6 @@ services:
     networks:
       - feer
 
-  # ── SZO Planner — Angular SPA (nginx) ────────────────────────────────────
-  szo-planner:
-    build:
-      context: ../plannerNew
-      dockerfile: Dockerfile
-    image: feer-szo-planner:latest
-    container_name: feer-szo-planner
-    restart: unless-stopped
-    networks:
-      - feer
-
   # ── Silnik egzaminów TI — Java (generowanie testów, ocenianie, piaskownica) ─
   #
   # Usługa stoi WYŁĄCZNIE w sieci `exam`, która jest wewnętrzna (internal: true).

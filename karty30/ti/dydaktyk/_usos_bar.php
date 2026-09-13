@@ -61,7 +61,6 @@ $_usos_sections = [
             $_it('dostepnosc',       'Dostępność',        $_g('dostepnosc'), $_n_avail),
             $_it('',                 'Zapisy na zajęcia', 'rekrutacja.php'),
             $_it('cykliczne',        'Plan cykliczny',    $_g('cykliczne')),
-            $_it('',                 'Planner',           'planner.php'),
             $_it('',                 'Protokoły',         'protokoly_moje.php', $_n_protocols, 'warning'),
         ],
     ],
