@@ -34,6 +34,12 @@ export const routes: Routes = [
           import('./features/instructor/lekcje/lekcje.component').then(m => m.InstructorLekcjeComponent),
         title: 'Lekcje — Panel prowadzącego',
       },
+      {
+        path: 'zadania',
+        loadComponent: () =>
+          import('./features/instructor/zadania/zadania.component').then(m => m.InstructorZadaniaComponent),
+        title: 'Zadania — Panel prowadzącego',
+      },
     ],
   },
   {

@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   ApiResponse, InstructorDashboard, InstructorLessonRow, InstructorAttendanceEntry,
+  InstructorHomework, InstructorHomeworkDetail,
 } from '../models/kursant.models';
 
 const API = '/api/v1/dydaktyk_instructor.php';
@@ -37,5 +38,15 @@ export class InstructorApiService {
   }
   uncancelLesson(sessionId: number) {
     return this.post<void>('uncancel_lesson', { session_id: sessionId });
+  }
+
+  getHomework(courseId?: number) {
+    return this.get<InstructorHomework[]>('homework', courseId ? { course_id: String(courseId) } : {});
+  }
+  getHomeworkSubmissions(homeworkId: number) {
+    return this.get<InstructorHomeworkDetail>('homework_submissions', { homework_id: String(homeworkId) });
+  }
+  gradeSubmission(submissionId: number, grade: string, feedback: string) {
+    return this.post<void>('grade_submission', { submission_id: submissionId, grade, feedback });
   }
 }

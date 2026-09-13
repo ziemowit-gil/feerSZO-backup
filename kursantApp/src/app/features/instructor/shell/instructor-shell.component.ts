@@ -118,6 +118,7 @@ export class InstructorShellComponent {
   readonly NAV_ITEMS: NavItem[] = [
     { path: 'pulpit', label: 'Pulpit', icon: 'home' },
     { path: 'lekcje', label: 'Lekcje', icon: 'calendar_month' },
+    { path: 'zadania', label: 'Zadania', icon: 'assignment' },
   ];
 
   instructorName = computed(() => this.instructor()?.name ?? '');

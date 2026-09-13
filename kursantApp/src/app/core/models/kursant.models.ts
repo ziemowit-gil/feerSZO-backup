@@ -486,3 +486,35 @@ export interface InstructorAttendanceEntry {
   cancelled: number;
   no_show: number;
 }
+
+export interface InstructorHomework {
+  id: number;
+  course_id: number;
+  course_name: string;
+  title: string;
+  description: string | null;
+  hint: string | null;
+  due_at: string | null;
+  is_active: number;
+  sub_count: number;
+  graded_count: number;
+  availability: { state: 'open' | 'upcoming' | 'closed'; label: string };
+}
+
+export interface InstructorHomeworkSubmission {
+  id: number;
+  client_id: number;
+  client_name: string;
+  body: string | null;
+  file_name: string | null;
+  file_path: string | null;
+  status: 'submitted' | 'graded';
+  grade: string | null;
+  feedback: string | null;
+  submitted_at: string | null;
+}
+
+export interface InstructorHomeworkDetail {
+  homework: InstructorHomework;
+  submissions: InstructorHomeworkSubmission[];
+}
