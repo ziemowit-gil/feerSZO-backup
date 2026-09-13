@@ -50,20 +50,23 @@ RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 
 # Domyślnie cała subdomena ti.* serwuje panel kursanta. Wykluczamy już-przepisane
-# ścieżki /karty30/ (kursant i dydaktyk — by nie zapętlić) oraz statykę.
+# ścieżki /karty30/ (kursant i dydaktyk — by nie zapętlić), statykę oraz /auth/
+# (logowanie Microsoft 365 dla kursanta i prowadzącego — auth/ms365.php,
+# auth/ms365_prowadzacy.php, callback auth/microsoft.php).
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
-# Identyczny mechanizm jak ti*., tylko bez aliasu /dydaktyk.
+# Identyczny mechanizm jak ti*. (w tym wyjątek /auth/ dla logowania Microsoft
+# 365), tylko bez aliasu /dydaktyk.
 RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 
 RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena crm. → moduł CRM ──────────────────────────────────────────────
