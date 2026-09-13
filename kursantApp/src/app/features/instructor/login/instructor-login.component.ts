@@ -89,8 +89,18 @@ type Stage = 'choice' | 'password' | 'totp';
     </div>
   `,
   styles: [`
-    .page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
-    .form-card { width: 100%; max-width: 380px; }
+    /* To samo tło co ekrany wejścia całego SZO (includes/auth_screen.php,
+       auth_screen_bg_layers()) — kolor marki + geometryczny wzór SVG + skos. */
+    .page {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem;
+      background-color: #DC2626;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Cg fill='%23000' fill-opacity='.055'%3E%3Crect x='24' y='40' width='120' height='120' rx='8'/%3E%3Ccircle cx='330' cy='96' r='58'/%3E%3Crect x='210' y='250' width='150' height='150' rx='8'/%3E%3Cpath d='M0 210l70-70v46l-24 24zm52 132l96-96v46l-50 50z'/%3E%3Cpath d='M300 0l60 60-24 24-60-60z'/%3E%3C/g%3E%3C/svg%3E"),
+        repeating-linear-gradient(135deg, rgba(0,0,0,.045) 0 3px, transparent 3px 26px);
+      background-size: 420px 420px, auto;
+      background-attachment: fixed;
+    }
+    .form-card { width: 100%; max-width: 380px; background: #fff; }
     .logo { display: flex; justify-content: center; margin-bottom: .75rem;
       .material-symbols-outlined { font-size: 2.5rem; color: var(--c-brand); }
     }
