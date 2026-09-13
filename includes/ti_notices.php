@@ -162,11 +162,35 @@ function ti_notices_migrate(): void {
                 . "\n\n• Prostszy widok listy lekcji — mniej odznak przy statusie, jeden wspólny przycisk „Więcej” z akcjami zamiast kilku osobnych."
                 . "\n• Przycisk „Uzupełnij dane lekcji” dostępny też na Pulpicie oraz dla już odbytych lekcji, którym brakuje tematu."
                 . "\n• Nowy kreator protokołów miesięcznych (zakładka „Protokoły”) — prosta lista miesięcy do zamknięcia, z podsumowaniem lekcji i frekwencji."
-                . "\n• „Zgłoś problem” w zakładce Komunikacja — zgłoszenie trafia bezpośrednio do Helpdesku IT."
+                . "\n• Zgłaszanie problemów technicznych przez „Nową wiadomość” (zakładka Komunikacja → Wiadomości) —"
+                . ' adresat „Helpdesk IT” zamiast osobnej strony.'
                 . "\n• Ekran logowania i wyboru roli ujednolicony wizualnie z resztą systemu."
                 . "\n• Dla kierownika: przełączanie na widok dowolnego prowadzącego (z uzasadnieniem, logowane), nowy „Audyt dzienników”"
                 . ' z wysyłką przypomnień e-mailem o brakach w dokumentacji i ocenach, oraz nadpłata do końca roku jako okno'
                 . ' bezpośrednio w liście kont kursantów.'
+                . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
+            ]);
+        }
+    } catch (\Throwable $e) {}
+
+    // Seed jednorazowy — jak zgłaszać problemy techniczne (Helpdesk przez Nową wiadomość).
+    try {
+        $seeded7 = db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_helpdesk_howto_seeded'");
+        if (!$seeded7) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_helpdesk_howto_seeded','1')")->execute();
+            db()->prepare(
+                "INSERT INTO k30_ti_notices (title, body, audience, is_pinned, is_active, expires_at, author_name, created_at, updated_at)
+                 VALUES (?, ?, 'all', 1, 1, NULL, 'System', datetime('now'), datetime('now'))"
+            )->execute([
+                'Jak zgłaszać problemy techniczne',
+                'Masz problem techniczny (np. nie działa link do spotkania, błąd w panelu, coś się nie zapisuje)?'
+                . ' Zgłoś go bezpośrednio z panelu, bez dzwonienia czy pisania e-maila osobno:'
+                . "\n\n1. Wejdź w zakładkę Komunikacja → Wiadomości."
+                . "\n2. Kliknij „Nowa wiadomość”."
+                . "\n3. Jako adresata rozwiń gałąź „Pomoc techniczna” i wybierz „Helpdesk IT — zgłoś problem”."
+                . "\n4. Opisz temat i treść zgłoszenia tak dokładnie, jak się da (co się dzieje, od kiedy, na jakim urządzeniu) i wyślij."
+                . "\n\nZgłoszenie trafia do Helpdesku IT jako osobny ticket — dostaniesz potwierdzenie e-mailem"
+                . ' z numerem zgłoszenia, po którym możesz śledzić jego status.'
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
         }
