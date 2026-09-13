@@ -221,6 +221,10 @@ const GATEWAY_LABELS: Record<string, string> = {
                       }
                     </div>
                   }
+                  <p class="text-muted text-sm" style="margin:.4rem 0 0">
+                    To Twój indywidualny numer konta — stanowi część numeru rachunku bankowego.
+                    Przy wpłacie na to konto tytuł przelewu nie ma znaczenia.
+                  </p>
                 </dd>
               </div>
             }
