@@ -1,7 +1,8 @@
 import { Component, signal, inject, OnInit, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { KursantApiService } from '../../core/services/kursant-api.service';
-import { GradesByCourse, Grade } from '../../core/models/kursant.models';
+import { AppDataService } from '../../core/services/app-data.service';
+import { GradesByCourse } from '../../core/models/kursant.models';
 
 @Component({
   selector: 'app-oceny',
@@ -14,18 +15,6 @@ import { GradesByCourse, Grade } from '../../core/models/kursant.models';
       <h1>Oceny</h1>
       <p class="subtitle">Dziennik ocen ze wszystkich kursów</p>
     </div>
-
-    @if (allCourses().length > 1) {
-      <div class="course-filter">
-        <label for="grades-course-filter">Grupa</label>
-        <select id="grades-course-filter" (change)="onCourseFilterChange($event)">
-          <option value="" [selected]="selectedCourseId() === null">Wszystkie</option>
-          @for (c of allCourses(); track c.course_id) {
-            <option [value]="c.course_id" [selected]="selectedCourseId() === c.course_id">{{ c.course_name }}</option>
-          }
-        </select>
-      </div>
-    }
 
     @if (loading()) {
       <div class="loading-overlay" role="status" aria-label="Ładowanie ocen">
@@ -119,39 +108,20 @@ import { GradesByCourse, Grade } from '../../core/models/kursant.models';
       .material-symbols-outlined { font-size: 1rem; }
     }
 
-    .course-filter {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
-      margin-bottom: 1rem;
-      font-size: .875rem;
-
-      select {
-        padding: .35rem .6rem;
-        border: 1px solid #d1d5db;
-        border-radius: .4rem;
-        font-size: .875rem;
-        background: #fff;
-      }
-    }
   `],
 })
 export class OcenyComponent implements OnInit {
-  private api = inject(KursantApiService);
+  private api     = inject(KursantApiService);
+  private appData = inject(AppDataService);
 
   loading = signal(true);
   allCourses = signal<GradesByCourse[]>([]);
-  selectedCourseId = signal<number | null>(null);
 
+  // Grupa wybrana w globalnym przełączniku w shellu (widoczny gdy >1 grupa).
   courses = computed(() => {
-    const cid = this.selectedCourseId();
+    const cid = this.appData.selectedCourseId();
     return cid === null ? this.allCourses() : this.allCourses().filter(c => c.course_id === cid);
   });
-
-  onCourseFilterChange(event: Event): void {
-    const val = (event.target as HTMLSelectElement).value;
-    this.selectedCourseId.set(val === '' ? null : Number(val));
-  }
 
   ngOnInit(): void {
     this.api.getGrades().subscribe({

@@ -3,6 +3,7 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { KursantApiService } from '../../core/services/kursant-api.service';
+import { AppDataService } from '../../core/services/app-data.service';
 import { Term } from '../../core/models/kursant.models';
 
 @Component({
@@ -155,7 +156,8 @@ import { Term } from '../../core/models/kursant.models';
   `],
 })
 export class RegulaminyComponent implements OnInit {
-  private api   = inject(KursantApiService);
+  private api     = inject(KursantApiService);
+  private appData = inject(AppDataService);
   private snack = inject(MatSnackBar);
 
   loading     = signal(true);
@@ -194,6 +196,7 @@ export class RegulaminyComponent implements OnInit {
           const msg = `Zaakceptowano: ${term.title}`;
           this.acceptedMsg.set(msg);
           this.snack.open(msg, 'OK', { duration: 4000 });
+          this.appData.refresh(); // odśwież licznik oczekujących regulaminów w shellu
         }
       },
       error: () => {

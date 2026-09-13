@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
 import { LoginResponse, StudentAccount, KursantRole, ParentOtpChild } from '../models/kursant.models';
+import { AppDataService } from '../services/app-data.service';
 
 const TOKEN_KEY   = 'k30_kursant_token';
 const STUDENT_KEY = 'k30_kursant_student';
@@ -14,8 +15,9 @@ interface ParentOtpChoice { success: true; data: { choose_child: ParentOtpChild[
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private http   = inject(HttpClient);
-  private router = inject(Router);
+  private http    = inject(HttpClient);
+  private router  = inject(Router);
+  private appData = inject(AppDataService);
 
   private _token     = signal<string | null>(localStorage.getItem(TOKEN_KEY));
   private _student   = signal<StudentAccount | null>(this.#loadStudent());
@@ -100,6 +102,7 @@ export class AuthService {
     localStorage.removeItem(STUDENT_KEY);
     localStorage.removeItem(ROLE_KEY);
     localStorage.removeItem(ACTOR_KEY);
+    this.appData.reset();
     this.router.navigate(['/login']);
   }
 

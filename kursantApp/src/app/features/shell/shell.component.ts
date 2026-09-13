@@ -7,7 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth/auth.service';
-import { KursantApiService } from '../../core/services/kursant-api.service';
+import { AppDataService } from '../../core/services/app-data.service';
 import { PushService } from '../../core/services/push.service';
 
 interface NavItem {
@@ -41,6 +41,10 @@ interface Badges { msg: number; notices: number; terms: number; }
   ],
   template: `
     <a href="#main-content" class="skip-link">Przejdź do treści głównej</a>
+    <div aria-live="polite" aria-atomic="true" class="sr-only">
+      @if (appData.loading()) { Ładowanie danych panelu… }
+      @if (appData.error()) { Błąd ładowania danych: {{ appData.error() }} }
+    </div>
     <div class="app-shell">
       @if (roleBannerText()) {
         <div class="role-banner" [class.role-banner--imp]="role() === 'impersonation'" role="status">
@@ -124,6 +128,18 @@ interface Badges { msg: number; notices: number; terms: number; }
               <span class="sidebar-user-login text-muted text-sm">{{ student()?.login }}</span>
             </div>
           </div>
+
+          @if (appData.courses().length > 1) {
+            <div class="sidebar-group-switch">
+              <label for="group-switch">Grupa</label>
+              <select id="group-switch" (change)="onGroupChange($event)">
+                <option value="" [selected]="appData.selectedCourseId() === null">Wszystkie grupy</option>
+                @for (c of appData.courses(); track c.id) {
+                  <option [value]="c.id" [selected]="appData.selectedCourseId() === c.id">{{ c.name }}</option>
+                }
+              </select>
+            </div>
+          }
 
           <hr class="k-divider" aria-hidden="true">
 
@@ -285,6 +301,23 @@ interface Badges { msg: number; notices: number; terms: number; }
     .sidebar-user-name { font-weight: 600; font-size: .9rem; display: block; color: #111827; }
     .sidebar-user-login { display: block; color: #6b7280; font-size: .8rem; }
 
+    .sidebar-group-switch {
+      padding: 0 1rem .75rem;
+      display: flex;
+      flex-direction: column;
+      gap: .3rem;
+
+      label { font-size: .75rem; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; }
+
+      select {
+        padding: .4rem .5rem;
+        border: 1px solid #d1d5db;
+        border-radius: .4rem;
+        font-size: .85rem;
+        background: #fff;
+      }
+    }
+
     .sidebar-footer {
       margin-top: auto;
       padding: .5rem 0 1rem;
@@ -299,13 +332,13 @@ interface Badges { msg: number; notices: number; terms: number; }
 })
 export class ShellComponent implements OnInit {
   private auth = inject(AuthService);
-  private api  = inject(KursantApiService);
+  appData      = inject(AppDataService);
 
   student       = this.auth.student;
   role          = this.auth.role;
   actorName     = this.auth.actorName;
   sidebarOpen   = signal(false);
-  badges        = signal<Badges>({ msg: 0, notices: 0, terms: 0 });
+  badges        = this.appData.badges;
 
   roleBannerText = computed(() => {
     const name = this.actorName();
@@ -370,18 +403,15 @@ export class ShellComponent implements OnInit {
 
   ngOnInit(): void {
     this.push.init();
-    this.api.getDashboard().subscribe({
-      next: res => {
-        if (res.success && res.data) {
-          this.badges.set({
-            msg:     res.data.msg_unread,
-            notices: res.data.notices_unread,
-            terms:   res.data.terms_pending,
-          });
-        }
-      },
-      error: () => {},
-    });
+    // Shell montuje się raz na sesję (login lub odświeżenie strony z ważnym
+    // tokenem) — to jest jedyne miejsce, w którym dashboard jest pobierany
+    // od zera; dalsza nawigacja między zakładkami czyta już z pamięci.
+    this.appData.load();
+  }
+
+  onGroupChange(event: Event): void {
+    const val = (event.target as HTMLSelectElement).value;
+    this.appData.selectedCourseId.set(val === '' ? null : Number(val));
   }
 
   toggleSidebar() { this.sidebarOpen.update(v => !v); }

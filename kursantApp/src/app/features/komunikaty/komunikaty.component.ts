@@ -2,6 +2,7 @@ import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { KursantApiService } from '../../core/services/kursant-api.service';
+import { AppDataService } from '../../core/services/app-data.service';
 import { Notice } from '../../core/models/kursant.models';
 
 @Component({
@@ -104,7 +105,8 @@ import { Notice } from '../../core/models/kursant.models';
   `],
 })
 export class KomunikatyComponent implements OnInit {
-  private api = inject(KursantApiService);
+  private api     = inject(KursantApiService);
+  private appData = inject(AppDataService);
 
   loading = signal(true);
   notices = signal<Notice[]>([]);
@@ -125,6 +127,7 @@ export class KomunikatyComponent implements OnInit {
         this.notices.update(list =>
           list.map(n => n.id === notice.id ? { ...n, is_read: true } : n)
         );
+        this.appData.refresh(); // odśwież licznik nieprzeczytanych w shellu
       },
     });
   }

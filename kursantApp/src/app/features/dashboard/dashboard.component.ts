@@ -1,10 +1,9 @@
-import { Component, signal, inject, OnInit } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule, DatePipe, PercentPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { KursantApiService } from '../../core/services/kursant-api.service';
-import { DashboardData } from '../../core/models/kursant.models';
+import { AppDataService } from '../../core/services/app-data.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -243,27 +242,13 @@ import { DashboardData } from '../../core/models/kursant.models';
     }
   `],
 })
-export class DashboardComponent implements OnInit {
-  private api = inject(KursantApiService);
+export class DashboardComponent {
+  private appData = inject(AppDataService);
 
-  loading = signal(true);
-  error   = signal<string | null>(null);
-  data    = signal<DashboardData | null>(null);
-
-  ngOnInit(): void {
-    this.api.getDashboard().subscribe({
-      next: res => {
-        this.loading.set(false);
-        if (res.success && res.data) {
-          this.data.set(res.data);
-        } else {
-          this.error.set(res.error ?? 'Nie udało się załadować danych.');
-        }
-      },
-      error: () => {
-        this.loading.set(false);
-        this.error.set('Błąd połączenia z serwerem.');
-      },
-    });
-  }
+  // Dane pobiera raz ShellComponent.ngOnInit (patrz AppDataService) — ten
+  // widok tylko czyta współdzielony magazyn, więc powrót na tę zakładkę po
+  // wcześniejszym wejściu jest natychmiastowy (bez ponownego zapytania).
+  loading = this.appData.loading;
+  error   = this.appData.error;
+  data    = this.appData.dashboard;
 }
