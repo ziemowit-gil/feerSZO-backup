@@ -36,6 +36,7 @@ require_once __DIR__ . '/../../includes/helpdesk.php';
 require_once __DIR__ . '/../../includes/owncloud.php';
 require_once __DIR__ . '/../../includes/ti_zoom_calendar.php';
 require_once __DIR__ . '/../../includes/ti_protocols.php';
+require_once __DIR__ . '/../../includes/ti_syllabus.php';
 require_once __DIR__ . '/../../karty30/ti/dydaktyk/auth.php'; // dyd_authenticate()/dyd_profile_from_user() — czyste, bez sesji
 
 // ── CORS for Angular dev server ───────────────────────────────────────────────
@@ -1602,6 +1603,74 @@ switch ($action) {
             k30_ti_curriculum_reorder($cid, $ids);
         }
         json_ok(null, 'Kolejność zaktualizowana.');
+    }
+
+    // Dodawanie kilku tematów naraz bez pliku CSV — odpowiednik op=curr_bulk
+    // (formularz kilku wierszy w _tab_program.php): wiersze z pustym tematem
+    // są pomijane, reszta dokłada się na koniec sylabusa (position rosnąco).
+    case 'curriculum_bulk': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $cid  = (int)($body['course_id'] ?? 0);
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+        $items = is_array($body['items'] ?? null) ? $body['items'] : [];
+        $added = 0;
+        foreach ($items as $it) {
+            $title = trim((string)($it['title'] ?? ''));
+            if ($title === '') continue;
+            k30_ti_curriculum_save([
+                'course_id' => $cid, 'section' => (string)($it['section'] ?? ''), 'title' => $title,
+                'description' => (string)($it['description'] ?? ''), 'est_minutes' => (int)($it['est_minutes'] ?? 0),
+                'is_active' => 1,
+            ], null, $instructor_id);
+            $added++;
+        }
+        json_ok(null, $added ? "Dodano tematów: {$added}." : 'Nie dodano nic — wpisz przynajmniej jeden temat.');
+    }
+
+    // Import sylabusa z pliku CSV albo wklejonej treści — odpowiednik
+    // op=curr_import. Plik ma pierwszeństwo nad wklejoną treścią, jak w klasyku.
+    case 'curriculum_import': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $cid  = (int)($body['course_id'] ?? 0);
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+
+        $raw = (string)($body['csv'] ?? '');
+        if (!empty($_FILES['csv_file']['tmp_name']) && is_uploaded_file($_FILES['csv_file']['tmp_name'])) {
+            if ((int)($_FILES['csv_file']['size'] ?? 0) > 2 * 1024 * 1024) {
+                json_err('Plik jest za duży — sylabus w CSV nie powinien przekraczać 2 MB.');
+            }
+            $raw = (string)file_get_contents($_FILES['csv_file']['tmp_name']);
+            if (!mb_check_encoding($raw, 'UTF-8')) $raw = mb_convert_encoding($raw, 'UTF-8', 'Windows-1250');
+        }
+        if (trim($raw) === '') json_err('Wgraj plik CSV albo wklej treść do zaimportowania.');
+
+        $result = k30_ti_curriculum_import_csv($cid, $raw, $instructor_id);
+        $msg = 'Zaimportowano tematów: ' . $result['added'] . '.';
+        if ($result['errors']) {
+            $msg .= ' Pominięto ' . count($result['errors']) . ' wiersz(y): '
+                . implode('; ', array_map(fn($e) => 'linia ' . $e['line'] . ' — ' . $e['msg'], array_slice($result['errors'], 0, 5)));
+        }
+        json_ok(['added' => $result['added'], 'errors' => $result['errors']], $msg);
+    }
+
+    // Podgląd wymagań i kryteriów oceniania z sylabusa wzorcowego przedmiotu
+    // (prowadzi je administracja, tu tylko odczyt) — odpowiednik _syllabus_ref.php.
+    case 'syllabus_ref': {
+        $cid = (int)($_GET['course_id'] ?? 0);
+        if (!$cid || !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Ten kurs nie jest Twój.', 403);
+
+        $syl = ti_course_syllabus($cid);
+        if (!$syl) json_ok(['syllabus' => null, 'coverage' => null, 'requirement' => [], 'criterion' => []]);
+
+        $coverage = ti_syllabus_coverage((int)$syl['id'], $cid);
+        json_ok([
+            'syllabus' => ['title' => $syl['title'], 'version' => $syl['version'], 'inherited' => !empty($syl['inherited'])],
+            'coverage' => $coverage,
+            'requirement' => ti_syllabus_items((int)$syl['id'], 'requirement', true),
+            'criterion'   => ti_syllabus_items((int)$syl['id'], 'criterion', true),
+        ]);
     }
 
     // ── zajęcia stałe (reguła cykliczna) ─────────────────────────────────────────────

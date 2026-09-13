@@ -759,6 +759,24 @@ export interface InstructorCurriculumItem {
   position: number;
 }
 
+export interface InstructorSyllabusItem {
+  id: number;
+  title: string;
+  description: string | null;
+}
+
+export interface InstructorSyllabusRef {
+  syllabus: { title: string; version: number; inherited: boolean } | null;
+  coverage: { total: number; covered: number; pct: number } | null;
+  requirement: InstructorSyllabusItem[];
+  criterion: InstructorSyllabusItem[];
+}
+
+export interface InstructorCurriculumImportResult {
+  added: number;
+  errors: { line: number; msg: string }[];
+}
+
 export interface InstructorRecurringRule {
   id: number;
   course_id: number;

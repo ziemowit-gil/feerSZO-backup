@@ -10,7 +10,7 @@ import {
   InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
   InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary,
   InstructorAttendanceTrendPoint, InstructorAbsence, InstructorCurriculumItem,
-  InstructorRecurringRule,
+  InstructorRecurringRule, InstructorSyllabusRef, InstructorCurriculumImportResult,
 } from '../models/kursant.models';
 import { InstructorAuthService } from '../auth/instructor-auth.service';
 
@@ -210,6 +210,16 @@ export class InstructorApiService {
   }
   moveCurriculumItem(courseId: number, itemId: number, dir: 'up' | 'down') {
     return this.post<void>('curriculum_move', { course_id: courseId, item_id: itemId, dir });
+  }
+  saveCurriculumBulk(courseId: number, items: { section: string; title: string; description: string; est_minutes: number }[]) {
+    return this.post<void>('curriculum_bulk', { course_id: courseId, items });
+  }
+  /** fd: course_id, csv_file (opcjonalnie, plik) i/lub csv (wklejona treść) — plik ma pierwszeństwo. */
+  importCurriculumCsv(fd: FormData) {
+    return this.post<InstructorCurriculumImportResult>('curriculum_import', fd);
+  }
+  getSyllabusRef(courseId: number) {
+    return this.get<InstructorSyllabusRef>('syllabus_ref', { course_id: String(courseId) });
   }
 
   getRecurringRules() { return this.get<InstructorRecurringRule[]>('recurring_rules'); }
