@@ -25,6 +25,13 @@ interface NavSection { title?: string; items: NavItem[]; }
   template: `
     <a href="#main-content" class="skip-link">Przejdź do treści głównej</a>
     <div class="app-shell">
+      @if (!betaBannerDismissed()) {
+        <div class="beta-banner" role="status">
+          <span class="material-symbols-outlined" aria-hidden="true">science</span>
+          <span>Testujemy nową wersję panelu prowadzącego, opartą na nowocześniejszym interfejsie. Część funkcji może jeszcze nie działać w pełni — w razie problemów skorzystaj z klasycznego panelu (link w menu bocznym).</span>
+          <button class="beta-banner-dismiss" type="button" (click)="dismissBetaBanner()" aria-label="Zamknij komunikat">Rozumiem</button>
+        </div>
+      }
       <header class="topbar" role="banner">
         <button class="topbar-hamburger" mat-icon-button aria-label="Otwórz menu nawigacji"
                 [attr.aria-expanded]="sidebarOpen()" (click)="toggleSidebar()">
@@ -98,6 +105,14 @@ interface NavSection { title?: string; items: NavItem[]; }
     </div>
   `,
   styles: [`
+    .beta-banner {
+      display: flex; align-items: center; gap: .6rem; padding: .5rem 1rem;
+      background: #fef3c7; color: #92400e; font-size: .85rem; border-bottom: 1px solid #fde68a;
+      .beta-banner-dismiss {
+        margin-left: auto; flex-shrink: 0; background: none; border: 1px solid currentColor;
+        color: inherit; border-radius: .4rem; padding: .2rem .6rem; font-size: .8rem; cursor: pointer;
+      }
+    }
     .topbar {
       display: flex; align-items: center; gap: .5rem; height: 56px; min-height: 56px;
       padding: 0 1rem; background: #ffffff; border-bottom: 1px solid #e5e7eb; z-index: 100;
@@ -145,6 +160,19 @@ export class InstructorShellComponent implements OnInit {
 
   instructor  = this.auth.instructor;
   sidebarOpen = signal(false);
+
+  private static readonly BETA_BANNER_KEY = 'ti_instructor_beta_banner_dismissed';
+  betaBannerDismissed = signal(this.readBetaBannerDismissed());
+
+  private readBetaBannerDismissed(): boolean {
+    try { return localStorage.getItem(InstructorShellComponent.BETA_BANNER_KEY) === '1'; }
+    catch { return false; }
+  }
+
+  dismissBetaBanner(): void {
+    this.betaBannerDismissed.set(true);
+    try { localStorage.setItem(InstructorShellComponent.BETA_BANNER_KEY, '1'); } catch { /* ignore */ }
+  }
 
   ngOnInit(): void {
     this.courseCtx.ensureLoaded();
