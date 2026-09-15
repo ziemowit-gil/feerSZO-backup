@@ -36,8 +36,9 @@ $sprawy_events = db_all(
        AND (s.owner_id = ? OR s.created_by = ?
             OR EXISTS(SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?)
             OR EXISTS(SELECT 1 FROM role_permissions rp
-                      JOIN users_roles ur ON ur.role_id=rp.role_id AND ur.user_id=?
-                      WHERE rp.module='ezd' AND rp.can_read=1))
+                      JOIN roles r ON r.id=rp.role_id
+                      JOIN users u2 ON u2.role=r.name
+                      WHERE u2.id=? AND rp.module='ezd' AND rp.can_read=1))
      ORDER BY s.deadline",
     [$month_start, $month_end, $user_id, $user_id, $user_id, $user_id]
 );
@@ -65,8 +66,9 @@ $rpwy_events = db_all(
        AND date(w.data_doreczenia, '+' || w.termin_dni || ' days') BETWEEN ? AND ?
        AND (w.created_by = ? OR p.owner_id = ? OR s.owner_id = ?
             OR EXISTS(SELECT 1 FROM role_permissions rp
-                      JOIN users_roles ur ON ur.role_id=rp.role_id AND ur.user_id=?
-                      WHERE rp.module='ezd' AND rp.can_read=1))
+                      JOIN roles r ON r.id=rp.role_id
+                      JOIN users u2 ON u2.role=r.name
+                      WHERE u2.id=? AND rp.module='ezd' AND rp.can_read=1))
      ORDER BY deadline",
     [$month_start, $month_end, $user_id, $user_id, $user_id, $user_id]
 );
