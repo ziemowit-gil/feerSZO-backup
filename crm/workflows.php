@@ -28,7 +28,7 @@ $uid    = (int)(current_user()['id'] ?? 0);
 $types  = crm_quick_types();
 // Kroki typu „zadanie" tworzą zadania CRM (includes/crm_tasks.php), a te nie mają
 // list ani obszarów — do wskazania jest osoba, która ma je zrobić.
-require_once dirname(dirname(__DIR__)) . '/includes/crm_owner_rules.php';
+require_once dirname(__DIR__) . '/includes/crm_owner_rules.php';
 $people = crm_owner_candidates();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
