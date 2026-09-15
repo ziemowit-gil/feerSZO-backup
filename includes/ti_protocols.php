@@ -311,13 +311,27 @@ function ti_protocol_ensure(int $course_id, int $period_id, ?int $by = null, str
             ? 'Protokół zajęć za okres: ' . (string)$per['name']
             : 'Protokół zajęć bez wskazanego okresu';
     }
-    return db_insert('k30_ti_protocols', [
-        'course_id'  => $course_id,
-        'period_id'  => $period_id ?: null,
-        'title'      => $title,
-        'status'     => 'open',
-        'created_by' => $by,
-    ]);
+    try {
+        return db_insert('k30_ti_protocols', [
+            'course_id'  => $course_id,
+            'period_id'  => $period_id ?: null,
+            'title'      => $title,
+            'status'     => 'open',
+            'created_by' => $by,
+        ]);
+    } catch (\PDOException $e) {
+        // Podwójny klik / dwie karty na tym samym kursie+okresie: SELECT wyżej
+        // nie jest atomowy względem tego INSERT-a, więc przy wyścigu druga
+        // próba trafia na unique index — dogrywamy SELECT zamiast wywalać 500.
+        if (str_contains($e->getMessage(), 'idx_ti_prot_course_period')) {
+            $existing = db_one(
+                "SELECT id FROM k30_ti_protocols WHERE course_id=? AND COALESCE(period_id,0)=CAST(? AS INTEGER)",
+                [$course_id, $period_id]
+            );
+            if ($existing) return (int)$existing['id'];
+        }
+        throw $e;
+    }
 }
 
 /** Uczestnicy kursu do protokołu (aktywni zapisani, alfabetycznie). */
