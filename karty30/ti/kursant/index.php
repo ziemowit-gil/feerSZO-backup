@@ -1188,7 +1188,7 @@ include __DIR__ . '/_layout_head.php';
 <?php include __DIR__ . '/_layout_foot.php'; exit; endif; ?>
 
 <?php
-  // Grupy menu — spłaszczone w dropdowny (Nauka / Konto / Dostępy / Inne).
+  // Grupy menu — spłaszczone w dropdowny (Szkolenia / Konto / Dostępy / Inne).
   // Wcześniej Rozliczenia/Portfel/Upoważnieni/Pomoc/Aktywność/Ustawienia/Regulaminy
   // były pozycjami PŁASKIMI obok tych dropdownów — przy 12 elementach na pasku
   // pasek zawijał się na dwa wiersze na węższych ekranach. Konto i Inne grupują
@@ -1223,11 +1223,11 @@ include __DIR__ . '/_layout_head.php';
       </a>
     </li>
 
-    <!-- Nauka: lekcje, dydaktyka/eLearning, oceny -->
+    <!-- Szkolenia: lekcje, dydaktyka/eLearning, oceny -->
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $nauka_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Nauka
+        <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Szkolenia
         <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?><span class="visually-hidden"> zadań do oddania</span></span><?php endif; ?>
       </a>
       <ul class="dropdown-menu">
@@ -1778,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Kompletna lista — ta ściana ZASTĘPUJE (nie duplikuje) kompaktowy pasek kafli z góry strony:
   // na tej zakładce pasek jest ukrywany w motywie Metro (patrz .kp-nav-startpage niżej), więc
   // Start musi dawać dostęp do wszystkich sekcji, łącznie z tymi schowanymi wcześniej w rozwijanych
-  // podgrupach „Nauka”/„Dostępy”.
+  // podgrupach „Szkolenia”/„Dostępy”.
   $kp_start_items = [
     ['tab' => 'lekcje',      'icon' => 'calendar-check',   'label' => 'Moje lekcje'],
     ['tab' => 'zadania',     'icon' => 'journal-check',    'label' => 'Dydaktyka / eLearning', 'badge' => $hw_pending_total],

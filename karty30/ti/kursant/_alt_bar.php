@@ -5,7 +5,7 @@
  *
  * Ten sam układ co pasek dydaktyka (karty30/ti/dydaktyk/_usos_bar.php): cała
  * nawigacja siedzi nad treścią w dwóch rzędach — pierwszy to sekcje (Mój panel,
- * Nauka, Komunikacja, Dostępy, Sprawy, Konto), drugi to pozycje sekcji
+ * Szkolenia, Komunikacja, Dostępy, Sprawy, Konto), drugi to pozycje sekcji
  * otwartej — a pod nimi okruszki. Zakładki i adresy są te same co w widoku
  * klasycznym (`?tab=`), zmienia się tylko sposób ich podania: zamiast paska
  * zakładek z rozwijanymi grupami wszystko widać wprost.
@@ -45,7 +45,7 @@ $_alt_sections = [
         ],
     ],
     'nauka' => [
-        'label' => 'Nauka',
+        'label' => 'Szkolenia',
         'href'  => $_g('lekcje'),
         'items' => [
             $_it('lekcje',   'Moje lekcje',           $_g('lekcje')),
