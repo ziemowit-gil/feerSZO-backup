@@ -13,6 +13,7 @@ import (
 	"strings"
 )
 
+const appVersion = "1.0"
 const listenAddr = "127.0.0.1:52117"
 
 // isAllowedOrigin ogranicza CORS do domen tego wdrożenia (feerSZO/ngosystem) —
@@ -99,7 +100,12 @@ func runServe() error {
 	}
 	fmt.Printf("SzoCert %s — zalogowany jako: %s\n", appVersion, id.Cert.Subject.CommonName)
 	fmt.Printf("Nasłuchuję na http://%s (zostaw to okno otwarte podczas logowania)\n", listenAddr)
+	return serveIdentity(id)
+}
 
+// serveIdentity uruchamia nasłuch dla już wczytanej tożsamości — używane też
+// przez wariant GUI (gui.go), gdzie identity jest ładowane/importowane wcześniej.
+func serveIdentity(id *identity) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", withCORS(handlePing))
 	mux.HandleFunc("/sign", withCORS(handleSign(id)))

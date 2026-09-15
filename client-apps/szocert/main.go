@@ -9,6 +9,11 @@
 // Użycie:
 //   szocert import ścieżka/do/certyfikatu.p12
 //   szocert serve
+//
+// To wariant CLI (terminal). Wariant GUI (dwuklik, natywne okna) jest w
+// gui.go / gui_darwin.go / gui_windows.go — budowany z -tags gui.
+//go:build !gui
+
 package main
 
 import (
@@ -17,8 +22,6 @@ import (
 
 	"golang.org/x/term"
 )
-
-const appVersion = "1.0"
 
 func main() {
 	if len(os.Args) < 2 {
