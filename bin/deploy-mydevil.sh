@@ -51,6 +51,17 @@ if [[ "${ALIAS_DOMAINS+isset}" != "isset" ]]; then
         "ezd.feer.org.pl"
         "zadania.feer.org.pl"
         "ti.feer.org.pl"
+        # ngosystem.pl — transparentne aliasy (patrz .htaccess: RewriteCond
+        # %{HTTP_HOST} po prefiksie, niezależnie od domeny bazowej), muszą
+        # mieć własny vhost (pointer) na MyDevil ZANIM delegacja DNS
+        # (bin/mydevil-dns-delegate.sh) przełączy je z Cloudflare.
+        "ngosystem.pl"
+        "www.ngosystem.pl"
+        "szo.ngosystem.pl"
+        "crm.ngosystem.pl"
+        "ezd.ngosystem.pl"
+        "zadania.ngosystem.pl"
+        "ti.ngosystem.pl"
     )
 fi
 
