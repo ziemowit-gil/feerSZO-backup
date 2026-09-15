@@ -62,7 +62,13 @@ if ($isCli) {
 
         // Zapisanie pliku blokady o uniwersalnej nazwie .INSTALL_COMPLETE
         file_put_contents($lockFile, date('Y-m-d H:i:s'));
-        $message = "SUKCES: Konto serwisowe zostało $action. Plik blokady .INSTALL_COMPLETE utworzony.";
+        // Hasło istnieje tylko w tej zmiennej — baza trzyma wyłącznie hash
+        // (bcrypt, jednokierunkowy). Zapisz je teraz, bo po zakończeniu
+        // skryptu nie da się go już nigdzie odzyskać.
+        $message = "SUKCES: Konto serwisowe zostało $action.\n"
+            . "E-mail:  $email\n"
+            . "Hasło:   $password   (zapisz je teraz — to jedyny moment, kiedy jest widoczne)\n"
+            . "Plik blokady .INSTALL_COMPLETE utworzony.";
     } catch (Exception $e) {
         $message = "Błąd bazy danych: " . $e->getMessage();
     }
