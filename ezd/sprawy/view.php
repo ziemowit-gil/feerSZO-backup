@@ -491,12 +491,12 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 .dekr-row:last-child{border-bottom:none}
 
 /* ── Stepper ──────────────────────────────── */
-.ezd-stepper{display:flex;align-items:flex-start;gap:.25rem;overflow-x:auto;padding:.25rem 0}
-.ezd-step{flex:1 1 0;min-width:64px;text-align:center;position:relative}
-.ezd-step::before{content:'';position:absolute;top:14px;left:-50%;width:100%;height:2px;background:#e2e8f0;z-index:0}
+.ezd-stepper{display:flex;align-items:flex-start;gap:.25rem;overflow-x:auto;padding:.1rem 0}
+.ezd-step{flex:1 1 0;min-width:56px;text-align:center;position:relative}
+.ezd-step::before{content:'';position:absolute;top:11px;left:-50%;width:100%;height:2px;background:#e2e8f0;z-index:0}
 .ezd-step:first-child::before{display:none}
-.ezd-step-dot{position:relative;z-index:1;width:30px;height:30px;border-radius:50%;margin:0 auto .35rem;display:flex;align-items:center;justify-content:center;background:#e2e8f0;color:#94a3b8;font-size:.85rem;border:2px solid #fff;box-shadow:0 0 0 1px #e2e8f0}
-.ezd-step-lbl{font-size:.66rem;color:#94a3b8;line-height:1.15}
+.ezd-step-dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;margin:0 auto .25rem;display:flex;align-items:center;justify-content:center;background:#e2e8f0;color:#94a3b8;font-size:.68rem;border:2px solid #fff;box-shadow:0 0 0 1px #e2e8f0}
+.ezd-step-lbl{font-size:.62rem;color:#94a3b8;line-height:1.1}
 .ezd-step-done .ezd-step-dot{background:#22c55e;color:#fff;box-shadow:0 0 0 1px #22c55e}
 .ezd-step-done::before{background:#22c55e}
 .ezd-step-done .ezd-step-lbl{color:#16a34a}
@@ -520,7 +520,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 .tl-meta{font-size:.7rem;color:#94a3b8;display:flex;flex-wrap:wrap;gap:.3rem .7rem}
 
 /* ── Pasek postępu etapu obiegu ─────────────── */
-.sp-etap-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.55rem 1.1rem;margin-bottom:.75rem}
+.sp-etap-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.3rem 1rem;margin-bottom:.75rem}
 
 /* ── Drag-and-Drop pliki koszulki ────────────── */
 .sp-dz-overlay{position:absolute;inset:0;background:rgba(37,99,235,.08);border:2.5px dashed #2563eb;border-radius:10px;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none;backdrop-filter:blur(1px)}
