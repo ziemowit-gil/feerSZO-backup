@@ -1948,9 +1948,8 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php
     $contact_emails = [];
     if (!empty($client['email']))          $contact_emails[] = ['Główny', $client['email']];
-    // Login konta Microsoft pomijamy — kursant nie zakłada go ani nie kasuje
-    // z panelu (ti_student_selfservice_enabled), więc nie pokazujemy adresu,
-    // przy którym nic nie może zrobić.
+    // Login konta Microsoft pokazujemy tylko, gdy kursant sam nim zarządza
+    // z panelu (ti_student_selfservice_enabled) i faktycznie je ma.
     if (ti_student_selfservice_enabled() && !empty($account['ms_upn']))
         $contact_emails[] = ['Szkoleniowy (MS)', $account['ms_upn']];
     if (!empty($account['guardian_email'])) $contact_emails[] = ['Opiekun', $account['guardian_email']];

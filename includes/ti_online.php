@@ -56,18 +56,16 @@ function ti_ms_enabled(): bool {
 }
 
 /**
- * Czy kursant obsługuje konta Microsoft 365 SAM, ze swojego panelu.
- *
- * Wyłączone: zajęcia idą przez Zoom, materiały i zadania przez zakładkę
- * „Dydaktyka / eLearning", a konta szkoleniowe zakłada administracja — kursant
- * nie ma po co ich zakładać ani kasować z panelu. Wyłącznik jest tutaj, w jednym
+ * Czy kursant obsługuje konta Microsoft 365 SAM, ze swojego panelu (zakładanie
+ * i kasowanie z zakładki „Szkolenia online"). Wyłącznik jest tutaj, w jednym
  * miejscu: pyta o niego zarówno zakładka „Szkolenia online", jak i endpoint
  * ti_online_api.php, więc nie da się obejść interfejsu żądaniem wprost.
  *
- * Nie dotyczy administracji (karty30/ti/*) — tam provisioning działa jak dotąd.
+ * Nie dotyczy administracji (karty30/ti/*) — tam provisioning działa jak dotąd,
+ * niezależnie od tego przełącznika.
  */
 function ti_student_selfservice_enabled(): bool {
-    return false;
+    return true;
 }
 
 // ── Stan kursanta ─────────────────────────────────────────────────────────────
