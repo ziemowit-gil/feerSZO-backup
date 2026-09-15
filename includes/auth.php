@@ -384,9 +384,13 @@ function _admin_ip_guard(): void {
     exit;
 }
 
-function can_edit(): bool {
-    return can_write('umowy') || can_write('granty');
-}
+// can_edit() — zdefiniowane w includes/permissions.php (uwzględnia też EZD).
+// UWAGA: nie deklaruj tu drugiej wersji — bezwarunkowa deklaracja funkcji na
+// najwyższym poziomie pliku jest przez PHP hoistowana w momencie kompilacji
+// TEGO pliku, więc i tak wygrywa z jakąkolwiek osłoną `function_exists()` w
+// permissions.php (uczono się tego na własnym błędzie: rola ograniczona do
+// RPW nie widziała przycisku „Zarejestruj przesyłkę", bo can_edit() z tego
+// miejsca po cichu ignorował can_write('ezd')).
 
 function is_admin(): bool {
     $u = current_user();
