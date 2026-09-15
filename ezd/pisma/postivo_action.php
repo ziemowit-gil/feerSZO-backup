@@ -75,7 +75,7 @@ if ($action === 'send') {
         header('Location: ' . $redirect);
         exit;
     }
-    $pdf_path = UPLOAD_DIR . $pdf_zal['plik'];
+    $pdf_path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $pdf_zal['sprawa_id'] . '/' . $pdf_zal['filename'];
     if (!file_exists($pdf_path)) {
         flash_set('error', 'Nie znaleziono pliku PDF na serwerze.');
         header('Location: ' . $redirect);
@@ -103,12 +103,17 @@ if ($action === 'send') {
             "SELECT * FROM ezd_zalaczniki WHERE pismo_id=? AND mime_type='application/pdf' ORDER BY id DESC LIMIT 1",
             [$companion_id]
         );
-        if (!$companion_zal || !file_exists(UPLOAD_DIR . $companion_zal['plik'])) {
+        if (!$companion_zal) {
             flash_set('error', 'Dołączane pismo nie ma dostępnego pliku PDF.');
             header('Location: ' . $redirect);
             exit;
         }
-        $companion_pdf_path = UPLOAD_DIR . $companion_zal['plik'];
+        $companion_pdf_path = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $companion_zal['sprawa_id'] . '/' . $companion_zal['filename'];
+        if (!file_exists($companion_pdf_path)) {
+            flash_set('error', 'Dołączane pismo nie ma dostępnego pliku PDF.');
+            header('Location: ' . $redirect);
+            exit;
+        }
     }
 
     $recipient_name = trim($_POST['recipient_name'] ?? $pismo['odbiorca'] ?? '');
