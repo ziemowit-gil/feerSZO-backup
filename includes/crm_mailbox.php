@@ -596,17 +596,27 @@ function crm_mailbox_assign(int $id, ?int $user_id): void {
  * Zakłada sprawę CRM na podstawie wiadomości i przypisuje ją do bieżącego użytkownika.
  * Wiadomość idzie do „załatwionych" — dalsza praca toczy się na sprawie.
  */
+/**
+ * $opts['contact_id']: sprawa idzie domyślnie na kontakt nadawcy maila; ten klucz
+ * pozwala ją założyć na innym kontakcie CRM (np. nadawca zgłasza w czyimś imieniu).
+ * Wiadomość i tak zostaje powiązana z nadawcą — zmienia się tylko właściciel sprawy.
+ */
 function crm_mailbox_create_case(int $id, array $opts = []): array {
     $m = crm_mailbox_message($id);
     if (!$m) return ['ok' => false, 'error' => 'Wiadomość nie istnieje.'];
     if (empty($m['contact_id'])) return ['ok' => false, 'error' => 'Wiadomość nie ma powiązanego kontaktu.'];
+
+    $contact_id = (int)($opts['contact_id'] ?? 0) ?: (int)$m['contact_id'];
+    if (!db_one("SELECT 1 AS x FROM crm_contacts WHERE id=? AND crm_active=1", [$contact_id])) {
+        return ['ok' => false, 'error' => 'Wybrany kontakt nie istnieje.'];
+    }
 
     $uid   = (int)(current_user()['id'] ?? 0);
     $body  = trim((string)($m['body'] ?? ''));
     $prio  = in_array($opts['priority'] ?? '', ['low', 'medium', 'high'], true) ? $opts['priority'] : 'medium';
     $title = trim((string)($opts['title'] ?? '')) ?: (trim((string)($m['subject'] ?? '')) ?: 'Wiadomość e-mail');
     $case_id = db_insert('crm_cases', [
-        'contact_id'  => (int)$m['contact_id'],
+        'contact_id'  => $contact_id,
         'title'       => mb_substr($title, 0, 200),
         'description' => "Z wiadomości od " . (string)($m['from_email'] ?: $m['contact_email']) . ' ('
                        . date('d.m.Y H:i', strtotime((string)$m['sent_at'])) . "):\n\n"
@@ -623,7 +633,7 @@ function crm_mailbox_create_case(int $id, array $opts = []): array {
     if (empty($opts['keep_open'])) crm_mailbox_set_status($id, 'archived');
     try {
         require_once __DIR__ . '/crm_automation.php';
-        crm_automation_fire('case_created', (int)$m['contact_id'], ['case_id' => $case_id]);
+        crm_automation_fire('case_created', $contact_id, ['case_id' => $case_id]);
     } catch (\Throwable $e) {}
 
     return ['ok' => true, 'case_id' => $case_id, 'url' => APP_URL . '/crm/cases/view.php?id=' . $case_id];
@@ -689,9 +699,13 @@ function crm_mailbox_ezd_sprawy(string $q = '', int $limit = 30): array {
  * Rejestr pism i numeracja po stronie EzdMailService, żeby Skrzynka CRM
  * i Poczta EZD nie rozjechały się w formacie znaku sprawy.
  *
+ * $strona: opcjonalny kontakt CRM, dla którego zakłada się NOWĄ koszulkę (gdy
+ * $teczka_id) — jeśli inny niż nadawca maila. Bez znaczenia przy dopinaniu do
+ * istniejącej koszulki ($sprawa_id), bo ta ma już swoje strony.
+ *
  * @return array{ok:bool, error:string, url:string, znak:string}
  */
-function crm_mailbox_to_ezd(int $comm_id, ?int $sprawa_id = null, ?int $teczka_id = null): array {
+function crm_mailbox_to_ezd(int $comm_id, ?int $sprawa_id = null, ?int $teczka_id = null, array $strona = []): array {
     $out = ['ok' => false, 'error' => '', 'url' => '', 'znak' => ''];
     if (!crm_mailbox_ezd_available()) {
         $out['error'] = 'Moduł EZD jest wyłączony albo nie masz w nim uprawnień do zapisu.';
@@ -711,7 +725,7 @@ function crm_mailbox_to_ezd(int $comm_id, ?int $sprawa_id = null, ?int $teczka_i
                 'url'  => APP_URL . '/ezd/sprawy/view.php?id=' . $sprawa_id,
             ];
         } elseif ($teczka_id) {
-            $r = $svc->createSprawaFromComm($comm_id, $teczka_id);
+            $r = $svc->createSprawaFromComm($comm_id, $teczka_id, '', $strona);
             $out = ['ok' => true, 'error' => '', 'znak' => $r['znak'], 'url' => $r['url']];
             $new_sprawa = true;
         } else {

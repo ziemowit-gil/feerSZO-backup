@@ -87,6 +87,20 @@ require_once __DIR__ . '/mail_queue.php';
         UNIQUE(user_id, mailbox)
     )");
     $exec("CREATE INDEX IF NOT EXISTS idx_ezd_mail_acct_user ON ezd_mail_user_accounts(user_id)");
+
+    // Strony sprawy — tabela należy „koncepcyjnie" do ezd/sprawy/view.php (tam
+    // powstała), ale createSprawaFromComm() poniżej też do niej pisze, więc ma
+    // swoją leniwą migrację i tutaj — kolejność ładowania plików nie gwarantuje,
+    // że widok koszulki już ją utworzył.
+    $exec("CREATE TABLE IF NOT EXISTS ezd_strony (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sprawa_id INTEGER NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        crm_id INTEGER DEFAULT NULL,
+        rola TEXT NOT NULL DEFAULT '',
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
 })();
 
 // ── Stałe ────────────────────────────────────────────────────────────────────
@@ -169,9 +183,15 @@ class EzdMailService
      * Wspólna ścieżka dla Poczty EZD i Skrzynki CRM — numeracja i znak sprawy powstają
      * w jednym miejscu, żeby oba widoki nie rozjechały się w formacie znaku.
      *
+     * $strona: opcjonalny kontakt, dla którego zakładana jest sprawa — jeśli inny
+     * niż nadawca maila (np. sprawa dotyczy podopiecznego, a pisze opiekun).
+     * Domyślnie (brak $strona['name']) sprawa nie dostaje żadnej strony — tak
+     * jak dotychczas, zgodność wsteczna z wywołaniami bez tego argumentu.
+     * Klucze: name (wymagany, by cokolwiek zapisać), crm_id (?int), rola (string).
+     *
      * @return array{sprawa_id:int, pismo_id:?int, znak:string, url:string}
      */
-    public function createSprawaFromComm(int $comm_id, int $teczka_id, string $title = ''): array
+    public function createSprawaFromComm(int $comm_id, int $teczka_id, string $title = '', array $strona = []): array
     {
         $comm = db_one("SELECT * FROM crm_communications WHERE id=?", [$comm_id]);
         if (!$comm) throw new \RuntimeException('Wiadomość nie istnieje.');
@@ -193,6 +213,19 @@ class EzdMailService
         $sprawa_id = (int)$this->pdo->lastInsertId();
 
         $pismo_id = $this->linkCommToSprawa($comm_id, $sprawa_id);
+
+        $strona_name = trim((string)($strona['name'] ?? ''));
+        if ($strona_name !== '') {
+            $this->pdo->prepare(
+                "INSERT INTO ezd_strony (sprawa_id, name, crm_id, rola, created_by) VALUES (?,?,?,?,?)"
+            )->execute([
+                $sprawa_id,
+                mb_substr($strona_name, 0, 200),
+                (int)($strona['crm_id'] ?? 0) ?: null,
+                trim((string)($strona['rola'] ?? '')),
+                $user_id,
+            ]);
+        }
 
         return [
             'sprawa_id' => $sprawa_id,

@@ -137,10 +137,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'case':
                 $r = crm_mailbox_create_case($mid, [
-                    'title'     => (string)($_POST['case_title'] ?? ''),
-                    'priority'  => (string)($_POST['case_priority'] ?? 'medium'),
-                    'assign_to' => (int)($_POST['case_owner'] ?? 0),
-                    'keep_open' => !empty($_POST['case_keep_open']),
+                    'title'      => (string)($_POST['case_title'] ?? ''),
+                    'priority'   => (string)($_POST['case_priority'] ?? 'medium'),
+                    'assign_to'  => (int)($_POST['case_owner'] ?? 0),
+                    'keep_open'  => !empty($_POST['case_keep_open']),
+                    // Domyślnie sprawa idzie na kontakt nadawcy maila — pole jest
+                    // widoczne w formularzu tylko po to, by dało się to nadpisać
+                    // (np. sprawa dotyczy kogoś, kogo nadawca tylko reprezentuje).
+                    'contact_id' => (int)($_POST['case_contact_id'] ?? 0) ?: null,
                 ]);
                 if (!empty($r['ok'])) {
                     flash_set('success', 'Sprawa utworzona z wiadomości.');
@@ -153,7 +157,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $r = crm_mailbox_to_ezd(
                     $mid,
                     (int)($_POST['sprawa_id'] ?? 0) ?: null,
-                    (int)($_POST['teczka_id'] ?? 0) ?: null
+                    (int)($_POST['teczka_id'] ?? 0) ?: null,
+                    [
+                        'name'   => (string)($_POST['strona_name'] ?? ''),
+                        'crm_id' => (int)($_POST['strona_crm_id'] ?? 0) ?: null,
+                        'rola'   => (string)($_POST['strona_rola'] ?? ''),
+                    ]
                 );
                 if (!empty($r['ok'])) {
                     flash_set('success', 'Wiadomość zarejestrowana w dzienniku EZD' . ($r['znak'] ? ' — ' . $r['znak'] : '') . '.'
@@ -1366,6 +1375,14 @@ include __DIR__ . '/includes/header_crm.php';
         <div class="ib-dbody">
           <form method="post" class="row g-2 align-items-end"><?= $hidden ?>
             <input type="hidden" name="_op" value="case">
+            <div class="col-md-6 position-relative">
+              <label class="form-label small fw-semibold mb-1">Kontakt (dla kogo sprawa)</label>
+              <input type="hidden" name="case_contact_id" id="caseContactId" value="<?= (int)($msg['contact_id'] ?? 0) ?>">
+              <input type="text" id="caseContactName" class="form-control form-control-sm"
+                     value="<?= h($msg['contact_name'] ?? '') ?>" autocomplete="off"
+                     placeholder="Domyślnie nadawca — zacznij pisać, by wybrać innego">
+              <div id="caseContactSuggestions" class="list-group mt-1" style="position:absolute;z-index:500;min-width:280px;max-height:180px;overflow-y:auto;display:none"></div>
+            </div>
             <div class="col-md-6">
               <label class="form-label small fw-semibold mb-1">Tytuł sprawy</label>
               <input name="case_title" class="form-control form-control-sm"
@@ -1460,7 +1477,7 @@ include __DIR__ . '/includes/header_crm.php';
               <div class="col-md-6">
                 <form method="post"><?= $hidden ?><input type="hidden" name="_op" value="ezd">
                   <div class="ib-lbl">Albo załóż nową koszulkę</div>
-                  <div class="input-group input-group-sm">
+                  <div class="input-group input-group-sm mb-2">
                     <select name="teczka_id" class="form-select" required>
                       <option value="">— segregator (teczka) —</option>
                       <?php foreach ($ezd_teczki as $t): ?>
@@ -1471,8 +1488,28 @@ include __DIR__ . '/includes/header_crm.php';
                     </select>
                     <button class="btn btn-crm-outline"><i class="bi bi-folder-plus"></i> Załóż</button>
                   </div>
+                  <div class="row g-2 position-relative">
+                    <div class="col-7">
+                      <input type="hidden" name="strona_crm_id" id="ezdStronaCrmId" value="<?= (int)($msg['contact_id'] ?? 0) ?>">
+                      <input type="text" id="ezdStronaName" name="strona_name" class="form-control form-control-sm"
+                             value="<?= h($msg['contact_name'] ?? '') ?>" autocomplete="off"
+                             placeholder="Strona sprawy — domyślnie nadawca">
+                      <div id="ezdStronaSuggestions" class="list-group mt-1" style="position:absolute;z-index:500;min-width:260px;max-height:180px;overflow-y:auto;display:none"></div>
+                    </div>
+                    <div class="col-5">
+                      <select name="strona_rola" class="form-select form-select-sm">
+                        <option value="">— rola —</option>
+                        <option value="Wnioskodawca">Wnioskodawca</option>
+                        <option value="Strona">Strona</option>
+                        <option value="Pełnomocnik">Pełnomocnik</option>
+                        <option value="Uczestnik">Uczestnik</option>
+                      </select>
+                    </div>
+                  </div>
                   <div class="form-text" style="font-size:.72rem">
                     Znak sprawy nadaje EZD — temat wiadomości staje się tytułem koszulki.
+                    Kontakt powyżej zostaje wpisany jako strona koszulki — nadpisz go, gdy sprawa
+                    dotyczy kogoś innego niż nadawca.
                     Nadawca dostanie e-mail „Informacja o zarejestrowaniu sprawy w systemie EZD FEER"
                     (nie wysyłamy go przy dopinaniu do istniejącej koszulki ani do nadawców automatycznych).
                   </div>
@@ -1572,6 +1609,48 @@ include __DIR__ . '/includes/header_crm.php';
     if (f) f.focus();
   });
 });
+
+// Wyszukiwarka kontaktu CRM — sprawa/koszulka domyślnie idzie na nadawcę maila,
+// ale pola pozwalają nadpisać to innym kontaktem (np. sprawa dotyczy kogoś,
+// kogo nadawca tylko reprezentuje). Ten sam wzorzec co strony EZD w
+// ezd/sprawy/view.php (crm/api/contacts_search.php).
+function ibWireContactSearch(nameId, hiddenId, boxId) {
+  var input = document.getElementById(nameId);
+  var box   = document.getElementById(boxId);
+  var hid   = document.getElementById(hiddenId);
+  if (!input || !box || !hid) return;
+  var timer = null;
+  function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  input.addEventListener('input', function () {
+    hid.value = '';
+    clearTimeout(timer);
+    var q = this.value.trim();
+    if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    timer = setTimeout(function () {
+      fetch('<?= APP_URL ?>/crm/api/contacts_search.php?q=' + encodeURIComponent(q) + '&limit=8', {credentials: 'same-origin'})
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.length) { box.style.display = 'none'; return; }
+          box.innerHTML = data.map(function (c) {
+            return '<button type="button" class="list-group-item list-group-item-action py-1 px-2 text-start" style="font-size:.8rem" data-id="' + c.id + '" data-name="' + esc(c.name) + '">' +
+              '<strong>' + esc(c.name) + '</strong>' + (c.organizacja ? '<span class="text-muted ms-1">' + esc(c.organizacja) + '</span>' : '') +
+            '</button>';
+          }).join('');
+          box.style.display = '';
+          box.querySelectorAll('button').forEach(function (b) {
+            b.addEventListener('click', function () {
+              input.value = this.dataset.name;
+              hid.value   = this.dataset.id;
+              box.style.display = 'none';
+            });
+          });
+        }).catch(function () {});
+    }, 280);
+  });
+  document.addEventListener('click', function (e) { if (!input.contains(e.target)) box.style.display = 'none'; });
+}
+ibWireContactSearch('caseContactName', 'caseContactId', 'caseContactSuggestions');
+ibWireContactSearch('ezdStronaName', 'ezdStronaCrmId', 'ezdStronaSuggestions');
 </script>
 <?php endif; ?>
 
