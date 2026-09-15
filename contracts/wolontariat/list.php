@@ -212,19 +212,17 @@ function _wolontariat_list_html(array $ctx): string {
 
     <!-- ── Wyniki ─────────────────────────────────────────────────────────────── -->
     <?php if (!$rows): ?>
-    <div class="card shadow-sm">
-      <div class="card-body text-center py-5">
-        <i class="bi bi-heart display-4 text-secondary opacity-25 d-block mb-3"></i>
-        <h5 class="text-muted">Brak porozumień wolontariackich</h5>
-        <p class="text-muted small mb-3">
-          <?= $filtering ? 'Spróbuj zmienić kryteria filtrowania.' : 'Nie dodano jeszcze żadnych porozumień.' ?>
-        </p>
-        <?php if (!$filtering && $can_edit_w): ?>
-        <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/new.php" class="btn btn-primary">
-          <i class="bi bi-plus-lg me-1"></i>Dodaj pierwsze porozumienie
-        </a>
-        <?php endif; ?>
-      </div>
+    <div class="tz-empty">
+      <i class="bi bi-heart" aria-hidden="true"></i>
+      <h5 class="mb-1" style="color:var(--tz-ink)">Brak porozumień wolontariackich</h5>
+      <p class="mb-3">
+        <?= $filtering ? 'Spróbuj zmienić kryteria filtrowania.' : 'Nie dodano jeszcze żadnych porozumień.' ?>
+      </p>
+      <?php if (!$filtering && $can_edit_w): ?>
+      <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/new.php" class="tz-btn">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>Dodaj pierwsze porozumienie
+      </a>
+      <?php endif; ?>
     </div>
 
     <?php elseif ($f['view'] === 'cards'): ?>
@@ -277,9 +275,9 @@ function _wolontariat_list_html(array $ctx): string {
 
     <?php else: ?>
     <!-- WIDOK TABELI -->
-    <div class="card shadow-sm mb-3">
-      <div class="table-responsive">
-        <table class="table wol-table mb-0">
+    <div class="tz-card mb-3">
+      <div class="pv-table-wrap" style="border:none;border-radius:0;margin-bottom:0">
+        <table class="pv-table wol-table mb-0">
           <thead>
             <tr>
               <th style="width:2%" class="ps-3"><input type="checkbox" id="cb-all" class="form-check-input" title="Zaznacz wszystkie"></th>
@@ -398,9 +396,9 @@ function _wolontariat_list_html(array $ctx): string {
         </table>
       </div>
       <?php include dirname(__DIR__) . '/includes/bulk_bar.php'; ?>
-      <div class="card-footer d-flex justify-content-between align-items-center py-2" style="background:#FAFAFA">
-        <small class="text-muted">
-          Znaleziono: <strong><?= $total ?></strong>
+      <div class="tz-card__ft d-flex justify-content-between align-items-center">
+        <small style="color:var(--tz-muted)">
+          Znaleziono: <strong style="color:var(--tz-ink)"><?= $total ?></strong>
           <?= $filtering ? '— filtrowanie aktywne' : '' ?>
         </small>
         <?php if ($pag['pages'] > 1): ?><?= pagination_html($pag) ?><?php endif; ?>
@@ -430,10 +428,13 @@ $ctx = compact('f','status_cfg','status_counts','all_total','active_total',
                'qs_base','TYPE','TABLE','can_edit_w');
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
+require_once dirname(dirname(__DIR__)) . '/panel/includes/pv_ui.php';
 require_once dirname(__DIR__) . '/includes/adv_filter.php';
+pv_ui_styles();
 ?>
 
 <style>
+/* ── Pigułki statusu (klikalny filtr) — kolor per-status, reszta pod tz ──── */
 .wol-stat-pill {
   display: inline-flex; align-items: center; gap: .4rem;
   padding: .35rem .85rem;
@@ -446,26 +447,13 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
 .wol-stat-pill:hover { filter: brightness(.95); transform: translateY(-1px); }
 .wol-stat-pill.selected { box-shadow: 0 0 0 3px rgba(0,0,0,.15); }
 
-.wol-table th {
-  font-size: .73rem; font-weight: 700; letter-spacing: .05em;
-  text-transform: uppercase; color: #6B7280;
-  padding: .6rem .9rem;
-  background: #F9FAFB;
-  border-bottom: 2px solid #E5E7EB;
-  white-space: nowrap;
-}
-.wol-table td {
-  padding: .72rem .9rem;
-  vertical-align: middle;
-  border-bottom: 1px solid #F3F4F6;
-  font-size: .855rem;
-}
-.wol-table tr:last-child td { border-bottom: none; }
-.wol-table tr[data-row-href]:hover td { background: #FAFAFA; cursor: pointer; }
+/* Przełącznik widoku tabela/karty — stan wybrany dla tz-btn--ghost */
+.tz-btn--ghost.active { background: var(--tz); color: var(--tz-on, #fff); border-color: var(--tz); }
+.wol-table tr[data-row-href] { cursor: pointer; }
 
-.wol-num  { font-family: monospace; font-weight: 700; font-size: .87rem; color: #111827; }
-.wol-name { font-weight: 600; color: #111827; }
-.wol-sub  { font-size: .75rem; color: #9CA3AF; margin-top: 1px; }
+.wol-num  { font-family: monospace; font-weight: 700; font-size: .87rem; color: var(--tz-ink); }
+.wol-name { font-weight: 600; color: var(--tz-ink); }
+.wol-sub  { font-size: .75rem; color: var(--tz-muted); margin-top: 1px; }
 .wol-status-pill {
   display: inline-flex; align-items: center; gap: .3rem;
   padding: .18rem .6rem; border-radius: 2rem;
@@ -473,52 +461,44 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
 }
 
 .wol-card {
-  background: #fff; border: 1px solid #E5E7EB; border-radius: 12px;
+  background: var(--tz-bg); border: 1px solid var(--tz-line); border-radius: 14px;
   padding: 1rem 1.1rem; transition: box-shadow .15s, transform .12s;
 }
 .wol-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
-.wol-card-num  { font-family: monospace; font-size: .75rem; color: #9CA3AF; margin-bottom: .2rem; }
-.wol-card-name { font-weight: 700; font-size: .95rem; color: #111827; margin-bottom: .15rem; }
-.wol-card-meta { font-size: .78rem; color: #6B7280; }
+.wol-card-num  { font-family: monospace; font-size: .75rem; color: var(--tz-muted); margin-bottom: .2rem; }
+.wol-card-name { font-weight: 700; font-size: .95rem; color: var(--tz-ink); margin-bottom: .15rem; }
+.wol-card-meta { font-size: .78rem; color: var(--tz-muted); }
 </style>
 
-<!-- ── Nagłówek strony ──────────────────────────────────────────────────────── -->
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <div>
-    <h4 class="mb-0 d-flex align-items-center gap-2">
-      <span class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px">
-        <i class="bi bi-heart-fill text-primary" style="font-size:1rem"></i>
-      </span>
-      Porozumienia wolontariackie
-      <span class="badge bg-secondary" id="wol-total-badge"><?= $all_total ?></span>
-    </h4>
-    <div class="text-muted small ms-1" style="margin-left:50px">
-      Aktywnych: <?= $active_total ?> · zakończonych: <?= ($status_counts['zakończona'] ?? 0) + ($status_counts['rozwiązana'] ?? 0) ?>
-    </div>
-  </div>
-  <div class="d-flex gap-2">
-    <?php if (module_enabled('dyspozycyjnosc_enabled')): ?>
-    <a href="<?= APP_URL ?>/contracts/wolontariat/urlopy.php" class="btn btn-outline-warning position-relative" title="Zatwierdzanie urlopów">
-      <i class="bi bi-airplane me-1"></i>Urlopy
-      <?php if ($_urlop_pending): ?>
-      <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $_urlop_pending ?></span>
-      <?php endif; ?>
-    </a>
-    <?php endif; ?>
-    <?php if ($can_edit_w): ?>
-    <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/new.php" class="btn btn-primary">
-      <i class="bi bi-plus-lg me-1"></i>Nowe porozumienie
-    </a>
-    <a href="<?= APP_URL ?>/reports/export.php?type=<?= $TYPE ?>" class="btn btn-outline-secondary btn-sm" title="Eksportuj do CSV">
-      <i class="bi bi-download"></i>
-    </a>
-    <?php endif; ?>
-  </div>
-</div>
+<?php pv_page_header('Porozumienia wolontariackie', [
+    'icon' => 'bi-heart-fill',
+    'sub'  => 'Aktywnych: ' . $active_total . ' · zakończonych: ' . (($status_counts['zakończona'] ?? 0) + ($status_counts['rozwiązana'] ?? 0)),
+    'actions' => (function () use ($_urlop_pending, $can_edit_w, $TYPE) {
+        ob_start();
+        if (module_enabled('dyspozycyjnosc_enabled')): ?>
+        <a href="<?= APP_URL ?>/contracts/wolontariat/urlopy.php" class="tz-btn tz-btn--ghost position-relative" title="Zatwierdzanie urlopów">
+          <i class="bi bi-airplane" aria-hidden="true"></i>Urlopy
+          <?php if ($_urlop_pending): ?>
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $_urlop_pending ?></span>
+          <?php endif; ?>
+        </a>
+        <?php endif;
+        if ($can_edit_w): ?>
+        <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/new.php" class="tz-btn">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe porozumienie
+        </a>
+        <a href="<?= APP_URL ?>/reports/export.php?type=<?= $TYPE ?>" class="tz-btn tz-btn--ghost" title="Eksportuj do CSV">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </a>
+        <?php endif;
+        return ob_get_clean();
+    })(),
+]); ?>
+<span id="wol-total-badge" class="visually-hidden"><?= $all_total ?></span>
 
 <!-- ── Pasek filtrów ──────────────────────────────────────────────────────── -->
-<div class="card shadow-sm mb-3">
-  <div class="card-body p-2">
+<div class="tz-card mb-3">
+  <div class="tz-card__bd">
     <form method="get" id="wol-filter-form">
       <?php if ($f['view'] !== 'table'): ?><input type="hidden" name="view" value="<?= h($f['view']) ?>"><?php endif; ?>
 
@@ -557,7 +537,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
           </select>
         </div>
         <div class="col-auto">
-          <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i> Szukaj</button>
+          <button class="tz-btn" type="submit" style="min-height:31px;padding:.35rem 1rem"><i class="bi bi-search" aria-hidden="true"></i> Szukaj</button>
         </div>
         <div class="col-auto">
           <a class="adv-toggle <?= $adv_open?'is-active':'' ?>"
@@ -569,18 +549,18 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
         </div>
         <?php if ($f['q'] || $f['status'] || $f['opiekun'] || $f['projekt'] || $f['woj'] || $f['typ'] || $f['obszar'] || $f['zgoda'] || $adv_count): ?>
         <div class="col-auto">
-          <a href="?<?= $f['view'] !== 'table' ? 'view='.$f['view'] : '' ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x"></i> Wyczyść</a>
+          <a href="?<?= $f['view'] !== 'table' ? 'view='.$f['view'] : '' ?>" class="tz-btn tz-btn--ghost" style="min-height:31px;padding:.35rem 1rem"><i class="bi bi-x" aria-hidden="true"></i> Wyczyść</a>
         </div>
         <?php endif; ?>
         <div class="col-auto ms-auto">
-          <div class="btn-group btn-group-sm" role="group">
+          <div class="d-flex gap-1" role="group" aria-label="Widok listy">
             <a href="?<?= http_build_query(array_merge($qs_base, ['view'=>'table'])) ?>"
-               class="btn btn-outline-secondary <?= $f['view']==='table'?'active':'' ?>" title="Tabela">
-              <i class="bi bi-table"></i>
+               class="tz-btn tz-btn--ghost <?= $f['view']==='table'?'active':'' ?>" style="min-height:31px;padding:.35rem .7rem" title="Tabela">
+              <i class="bi bi-table" aria-hidden="true"></i>
             </a>
             <a href="?<?= http_build_query(array_merge($qs_base, ['view'=>'cards'])) ?>"
-               class="btn btn-outline-secondary <?= $f['view']==='cards'?'active':'' ?>" title="Karty">
-              <i class="bi bi-grid-3x2-gap"></i>
+               class="tz-btn tz-btn--ghost <?= $f['view']==='cards'?'active':'' ?>" style="min-height:31px;padding:.35rem .7rem" title="Karty">
+              <i class="bi bi-grid-3x2-gap" aria-hidden="true"></i>
             </a>
           </div>
         </div>
@@ -673,8 +653,8 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
               </div>
             </div>
             <div class="col-12 d-flex justify-content-end gap-2">
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="wol-adv-clear"><i class="bi bi-eraser"></i> Wyczyść zaawansowane</button>
-              <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Zastosuj filtry</button>
+              <button type="button" class="tz-btn tz-btn--ghost" style="min-height:31px;padding:.35rem 1rem" id="wol-adv-clear"><i class="bi bi-eraser" aria-hidden="true"></i> Wyczyść zaawansowane</button>
+              <button type="submit" class="tz-btn" style="min-height:31px;padding:.35rem 1rem"><i class="bi bi-funnel" aria-hidden="true"></i> Zastosuj filtry</button>
             </div>
           </div>
         </div>
