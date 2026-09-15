@@ -191,7 +191,7 @@ class PostivoClient
      * @return array{
      *   status:string, tracking:string, updated_at:string, job_id:string,
      *   operator:string, service_name:string, status_name:string,
-     *   dispatch_date:string, pages:int,
+     *   dispatch_date:string, pages:int, recipient_name:string, recipient_address:string,
      *   events:array<array{code:string,name:string,date:string}>
      * }
      */
@@ -202,6 +202,14 @@ class PostivoClient
             $detail = $resp->statusDetails[0] ?? null;
             $sd     = $detail?->shipmentDetails;
             $code   = strtoupper($sd?->status?->code ?? '');
+
+            $rcp = $sd?->recipient;
+            $recipient_name = trim(($rcp?->name ?? '') . ($rcp?->name2 ? ' ' . $rcp->name2 : ''));
+            $recipient_address = '';
+            if ($rcp) {
+                $street_line = trim($rcp->address . ($rcp->homeNumber ? ' ' . $rcp->homeNumber : '') . ($rcp->flatNumber ? '/' . $rcp->flatNumber : ''));
+                $recipient_address = trim($street_line . ($rcp->postCode || $rcp->city ? "\n" . trim(($rcp->postCode ?? '') . ' ' . ($rcp->city ?? '')) : ''));
+            }
 
             $status = match($code) {
                 'ACCEPTED'   => 'processing',
@@ -233,6 +241,8 @@ class PostivoClient
                 'status_name'   => $sd?->status?->name ?? '',
                 'dispatch_date' => $sd?->dispatchDate ? (string)$sd->dispatchDate : '',
                 'pages'         => (int)($sd?->pageNumber ?? 0),
+                'recipient_name'    => $recipient_name,
+                'recipient_address' => $recipient_address,
                 'events'        => $events,
             ];
         } catch (\Throwable $e) {

@@ -732,6 +732,15 @@ function ezd_rpwy_apply_postivo_status(int $rpwy_id, array $status_data, int $us
     ];
     $tracking = trim((string)($status_data['tracking'] ?? ''));
     if ($tracking !== '') { $sql .= ", nr_nadania=?"; $params[] = $tracking; }
+
+    // Adres potwierdzony przez Postivo — nadpisuje to, co wpisano ręcznie przy
+    // rejestracji (to jest faktyczny adres na kopercie, źródło prawdy).
+    $rcp_addr = trim((string)($status_data['recipient_address'] ?? ''));
+    if ($rcp_addr !== '') { $sql .= ", adres=?"; $params[] = $rcp_addr; }
+    // Odbiorcę nadpisuj tylko jeśli jeszcze nie ma nic sensownego wpisanego.
+    $rcp_name = trim((string)($status_data['recipient_name'] ?? ''));
+    if ($rcp_name !== '' && trim((string)$r['odbiorca']) === '') { $sql .= ", odbiorca=?"; $params[] = $rcp_name; }
+
     $sql .= " WHERE id=?"; $params[] = $rpwy_id;
     db()->prepare($sql)->execute($params);
 
