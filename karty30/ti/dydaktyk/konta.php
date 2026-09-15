@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                ->execute([$aid]);
             flash_set('success', 'Alias logowania usunięty.');
         }
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     // Ręczne zatwierdzenie dodatkowego numeru SMS (alternatywa dla samoobsługowej weryfikacji
@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                ->execute([$aid]);
             flash_set('success', 'Numer zatwierdzony — od teraz będzie otrzymywał powiadomienia SMS.');
         }
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     if ($op === 'create') {
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pass  = _gen_student_pass();
         $hash  = password_hash($pass, PASSWORD_BCRYPT);
 
-        db_insert('k30_ti_student_accounts', [
+        $new_id = db_insert('k30_ti_student_accounts', [
             'client_id'     => $cid,
             'login'         => $login,
             'password_hash' => $hash,
@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['new_student_creds'] = ['login' => $login, 'password' => $pass, 'name' => $c['name']];
         $sms = _student_send_login_sms($c['phone'] ?? '', $login, $pass);
         flash_set('success', "Konto kursanta dla {$c['name']} utworzone. Login: {$login}." . $sms . $ref_msg);
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $new_id); exit;
     }
 
     // Zbiorcze tworzenie kont panelu dla wielu beneficjentów naraz
@@ -224,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['new_student_creds'] = ['login' => $acc['login'], 'password' => $pass, 'name' => $c['name'] ?? ''];
         $sms = _student_send_login_sms($c['phone'] ?? '', $acc['login'], $pass);
         flash_set('success', "Hasło zresetowane dla {$acc['login']}." . $sms);
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     // Hasło serwisowe: stałe 8-znakowe hasło ustawiane RAZEM jako hasło lokalne
@@ -253,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['new_student_creds'] = ['login' => $acc['login'], 'password' => $pass, 'name' => $c['name'] ?? ''];
         $sms = _student_send_login_sms($c['phone'] ?? '', $acc['login'], $pass);
         flash_set('success', "Hasło serwisowe ustawione dla {$acc['login']}." . $sms . $ms_msg);
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     // Nadanie / zmiana numeru kursanta (przez kierownika)
@@ -265,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                ->execute([mb_substr($no, 0, 40), $aid]);
             flash_set('success', $no !== '' ? 'Numer kursanta zapisany.' : 'Numer kursanta usunięty.');
         }
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     if ($op === 'toggle') {
@@ -275,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE k30_ti_student_accounts SET is_active=?, updated_at=datetime('now') WHERE id=?")
                ->execute([$acc['is_active'] ? 0 : 1, $aid]);
         }
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     if ($op === 'delete') {
@@ -291,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare("UPDATE k30_ti_student_accounts SET child_access_blocked=0, updated_at=datetime('now') WHERE id=?")
            ->execute([$aid]);
         flash_set('success','Dostęp kursanta do panelu został przywrócony.');
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     // ── Podszywanie się pod kursanta („zaloguj jako") ────────────────────────
@@ -300,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acc = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
         if (!$acc || empty($acc['is_active'])) {
             flash_set('danger', 'Konto nie istnieje lub jest nieaktywne.');
-            header('Location: konta.php'); exit;
+            header('Location: konta.php?selected=' . $aid); exit;
         }
         // Zamknij sesję panelu kierownika, otwórz osobną sesję kursanta (k30_student).
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
@@ -319,14 +319,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash_set('danger', $res['msg']);
         }
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     if ($op === 'ms_delete') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $res = ti_ms_delete($aid);
         flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     // Zapis danych opiekuna + status małoletniego
@@ -370,7 +370,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             flash_set('success', 'Ustawienia nadpłaty i metod płatności zapisane.');
         }
-        header('Location: konta.php'); exit;
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
+    // Licencje na oprogramowanie (inne niż MS365) — przypisanie/cofnięcie wprost
+    // z panelu akcji konta kursanta (katalog i pełny widok wszystkich przypisań
+    // zostają w karty30/ti/licencje_admin.php).
+    if ($op === 'license_assign') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        $license_id = (int)($_POST['license_id'] ?? 0);
+        if (!$acc || !$license_id) {
+            flash_set('danger', 'Wybierz oprogramowanie.');
+            header('Location: konta.php?selected=' . $aid); exit;
+        }
+        $exp = trim($_POST['expires_at'] ?? '');
+        if ($exp !== '') {
+            $d = DateTime::createFromFormat('Y-m-d', $exp);
+            if (!$d || $d->format('Y-m-d') !== $exp) $exp = '';
+        }
+        db_insert('k30_ti_client_licenses', [
+            'license_id'  => $license_id,
+            'client_id'   => $acc['client_id'],
+            'login'       => trim($_POST['login'] ?? ''),
+            'access_key'  => trim($_POST['access_key'] ?? ''),
+            'notes'       => trim($_POST['notes'] ?? ''),
+            'expires_at'  => $exp ?: null,
+            'status'      => 'active',
+            'assigned_by' => $uid,
+        ]);
+        flash_set('success', 'Licencja przypisana kursantowi.');
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
+    if ($op === 'license_revoke') {
+        $aid           = (int)($_POST['account_id'] ?? 0);
+        $assignment_id = (int)($_POST['assignment_id'] ?? 0);
+        if ($assignment_id) {
+            db()->prepare("UPDATE k30_ti_client_licenses SET status='revoked' WHERE id=?")->execute([$assignment_id]);
+            flash_set('success', 'Przypisanie licencji cofnięte.');
+        }
+        header('Location: konta.php?selected=' . $aid); exit;
     }
 
     // Wygeneruj link magiczny rodzica i wyślij go e-mailem (jeśli jest adres)
@@ -697,6 +737,13 @@ unset($_SESSION['new_authp_creds']);
 $authp_revoked_id = $_SESSION['authp_revoked_id'] ?? null;
 unset($_SESSION['authp_revoked_id']);
 
+// Wybrane konto (panel akcji pod listą — zamiast rozwijanego menu per wiersz)
+$selected_id  = (int)($_GET['selected'] ?? 0);
+$selected_acc = null;
+foreach ($accounts as $a) {
+    if ((int)$a['id'] === $selected_id) { $selected_acc = $a; break; }
+}
+
 // Edytor opiekuna
 $guardian_id  = (int)($_GET['guardian'] ?? 0);
 $guardian_acc = $guardian_id ? db_one(
@@ -861,6 +908,188 @@ function printBulk(){
     <div class="small text-muted">Logowanie rodzica (login + hasło): <a href="<?= h($parent_portal_url) ?>" target="_blank"><?= h($parent_portal_url) ?></a></div>
   </div>
   <button type="button" class="btn-close" onclick="this.closest('.alert').remove()" aria-label="Zamknij"></button>
+</div>
+<?php endif; ?>
+
+<!-- Panel działań dla wybranego konta (najpierw wybierz kursanta w tabeli, potem akcja) -->
+<?php if ($selected_acc): $sa = $selected_acc; $sa_has_ms = !empty($sa['ms_user_id']); ?>
+<div class="card border-0 shadow-sm mb-4" id="akcje-kursanta">
+  <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2">
+    <i class="bi bi-gear me-2 text-primary" aria-hidden="true"></i>
+    <span>Działania — <?= h($sa['client_name']) ?></span>
+    <span class="badge <?= $sa['is_active'] ? 'bg-success' : 'bg-secondary' ?>"><?= $sa['is_active'] ? 'Aktywne' : 'Zablokowane' ?></span>
+    <span class="font-monospace text-body-secondary small">(<?= h($sa['login']) ?>)</span>
+    <a href="konta.php" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Zamknij</a>
+  </div>
+  <div class="card-body d-flex flex-column gap-3">
+
+    <div class="d-flex flex-wrap gap-2">
+      <?php if ($sa['is_active']): ?>
+      <form method="post" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja panelu pozostanie aktywna w tej karcie.')">
+        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"        value="impersonate">
+        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+        <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj jako kursant <span class="text-body-secondary small">(podgląd)</span></button>
+      </form>
+      <?php endif; ?>
+      <a class="btn btn-sm btn-outline-secondary" href="../messages.php?student=<?= (int)$sa['id'] ?>"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Wyślij wiadomość</a>
+      <a class="btn btn-sm btn-outline-info" href="?guardian=<?= (int)$sa['id'] ?>"><i class="bi bi-people me-1" aria-hidden="true"></i>Opiekun / dostęp rodzica</a>
+      <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#overpayModal<?= (int)$sa['id'] ?>"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Nadpłata do końca roku / metody płatności</button>
+      <?php if (empty($sa['is_minor'])): ?>
+      <a class="btn btn-sm btn-outline-primary" href="?authp=<?= (int)$sa['id'] ?>"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Osoby upoważnione</a>
+      <?php endif; ?>
+
+      <?php foreach ([2, 3] as $pn):
+        $pval = trim((string)($sa["notify_phone{$pn}"] ?? ''));
+        if ($pval === '' || !empty($sa["notify_phone{$pn}_verified"])) continue;
+      ?>
+      <form method="post" onsubmit="return confirm('Zatwierdzić numer <?= h($pval) ?> do powiadomień SMS tego kursanta? Rób to tylko, gdy masz pewność, że numer należy do kursanta lub jego opiekuna.')">
+        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"        value="approve_notify_phone">
+        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+        <input type="hidden" name="which"      value="<?= $pn ?>">
+        <button type="submit" class="btn btn-sm btn-outline-warning">
+          <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Zatwierdź numer SMS <?= $pn === 2 ? 'drugi' : 'trzeci' ?>
+          <span class="text-body-secondary small">(<?= h($pval) ?>)</span>
+        </button>
+      </form>
+      <?php endforeach; ?>
+
+      <?php if (!empty($sa['login_alias'])): ?>
+      <form method="post" onsubmit="return confirm('Usunąć alias logowania tego kursanta?')">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="clear_alias">
+        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Usuń alias logowania <span class="text-body-secondary small">(<?= h($sa['login_alias']) ?>)</span></button>
+      </form>
+      <?php endif; ?>
+    </div>
+
+    <?php if ($ms_online_enabled): ?>
+    <div>
+      <div class="small fw-semibold text-body-secondary mb-1">Nauka online</div>
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" <?= $sa_has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
+          <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op"        value="<?= $sa_has_ms ? 'ms_delete' : 'ms_create' ?>">
+          <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+          <button type="submit" class="btn btn-sm <?= $sa_has_ms ? 'btn-outline-danger' : 'btn-outline-primary' ?>">
+            <i class="bi bi-microsoft me-1" aria-hidden="true"></i><?= $sa_has_ms ? 'Usuń konto Microsoft' : 'Utwórz konto Microsoft' ?>
+          </button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <div>
+      <div class="small fw-semibold text-body-secondary mb-1">Hasło i dostęp</div>
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" onsubmit="return confirm('Zresetować hasło?')">
+          <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op"        value="reset_pass">
+          <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+          <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło</button>
+        </form>
+        <form method="post" onsubmit="return confirm('Ustawić hasło serwisowe (8 znaków)?<?= $sa_has_ms ? ' Nadpisze też hasło konta Microsoft tego kursanta.' : '' ?>')">
+          <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op"        value="service_pass">
+          <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+          <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Hasło serwisowe <span class="text-body-secondary small">(8 znaków<?= $sa_has_ms ? ', nadpisuje też MS' : '' ?>)</span></button>
+        </form>
+        <form method="post">
+          <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op"        value="toggle">
+          <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">
+            <i class="bi <?= $sa['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-1" aria-hidden="true"></i><?= $sa['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
+          </button>
+        </form>
+        <?php if (!empty($sa['child_access_blocked'])): ?>
+        <form method="post" onsubmit="return confirm('Przywrócić kursantowi dostęp do panelu? Dostęp został wstrzymany przez opiekuna.')">
+          <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op"        value="child_unblock">
+          <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+          <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Odblokuj dostęp <span class="text-body-secondary small">(wstrzymany przez opiekuna)</span></button>
+        </form>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <?php
+      $sa_licenses = k30_ti_client_licenses((int)$sa['client_id']);
+      $sa_license_catalog = array_filter(k30_ti_licenses_all(true), fn($l) => !empty($l['is_active']));
+    ?>
+    <div class="border-top pt-3">
+      <div class="small fw-semibold text-body-secondary mb-1">
+        Licencje na oprogramowanie <span class="fw-normal">(inne niż Microsoft 365 — Adobe, Canva, antywirus…)</span>
+      </div>
+      <?php if ($sa_licenses): ?>
+      <ul class="list-group list-group-flush mb-2" style="max-width:560px">
+        <?php foreach ($sa_licenses as $sl): $sl_expired = !empty($sl['expires_at']) && $sl['expires_at'] < date('Y-m-d'); ?>
+        <li class="list-group-item d-flex align-items-center gap-2 px-0 py-1 small">
+          <span class="fw-semibold"><?= h($sl['license_name']) ?></span>
+          <?php if ($sl['login']): ?><span class="font-monospace text-body-secondary"><?= h($sl['login']) ?></span><?php endif; ?>
+          <?php if (!empty($sl['expires_at'])): ?>
+          <span class="<?= $sl_expired ? 'text-danger fw-semibold' : 'text-body-secondary' ?>">do <?= h($sl['expires_at']) ?><?= $sl_expired ? ' (wygasło)' : '' ?></span>
+          <?php endif; ?>
+          <form method="post" class="ms-auto" onsubmit="return confirm('Cofnąć przypisanie licencji „<?= h(addslashes($sl['license_name'])) ?>”?')">
+            <input type="hidden" name="_token"       value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"          value="license_revoke">
+            <input type="hidden" name="account_id"   value="<?= (int)$sa['id'] ?>">
+            <input type="hidden" name="assignment_id" value="<?= (int)$sl['id'] ?>">
+            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Cofnij przypisanie" aria-label="Cofnij przypisanie licencji <?= h($sl['license_name']) ?>"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+          </form>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?>
+      <p class="text-body-secondary small mb-2">Brak przypisanych licencji.</p>
+      <?php endif; ?>
+
+      <?php if ($sa_license_catalog): ?>
+      <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"        value="license_assign">
+        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+        <div>
+          <label class="form-label small mb-0" for="lic_sel_<?= (int)$sa['id'] ?>">Oprogramowanie</label>
+          <select class="form-select form-select-sm" id="lic_sel_<?= (int)$sa['id'] ?>" name="license_id" required style="min-width:170px">
+            <option value="">— wybierz —</option>
+            <?php foreach ($sa_license_catalog as $lc): ?>
+            <option value="<?= (int)$lc['id'] ?>"><?= h($lc['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_login_<?= (int)$sa['id'] ?>">Login</label>
+          <input type="text" class="form-control form-control-sm font-monospace" id="lic_login_<?= (int)$sa['id'] ?>" name="login" style="width:130px">
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_key_<?= (int)$sa['id'] ?>">Klucz</label>
+          <input type="text" class="form-control form-control-sm font-monospace" id="lic_key_<?= (int)$sa['id'] ?>" name="access_key" style="width:130px">
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_exp_<?= (int)$sa['id'] ?>">Ważne do</label>
+          <input type="date" class="form-control form-control-sm" id="lic_exp_<?= (int)$sa['id'] ?>" name="expires_at" min="<?= date('Y-m-d') ?>">
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Przypisz</button>
+      </form>
+      <?php else: ?>
+      <p class="text-body-secondary small mb-0">Brak aktywnego oprogramowania w katalogu.</p>
+      <?php endif; ?>
+      <a href="../licencje_admin.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
+    </div>
+
+    <div class="border-top pt-3">
+      <form method="post" onsubmit="return confirm('Usunąć konto „<?= h(addslashes($sa['client_name'])) ?>”? Tej operacji nie można cofnąć.')">
+        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"        value="delete">
+        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konto</button>
+      </form>
+    </div>
+
+  </div>
 </div>
 <?php endif; ?>
 
@@ -1243,11 +1472,11 @@ function printBulk(){
         <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
           <caption class="visually-hidden">Lista kont kursantów</caption>
           <thead class="table-light">
-            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Akcje</th></tr>
+            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Wybór</th></tr>
           </thead>
           <tbody>
-            <?php foreach ($accounts as $a): ?>
-            <tr class="<?= $a['is_active'] ? '' : 'opacity-50' ?>">
+            <?php foreach ($accounts as $a): $is_sel = $selected_id === (int)$a['id']; ?>
+            <tr class="<?= $a['is_active'] ? '' : 'opacity-50' ?> <?= $is_sel ? 'table-primary' : '' ?>">
               <td class="fw-semibold"><?= h($a['client_name']) ?></td>
               <td>
                 <form method="post" class="d-flex gap-1">
@@ -1308,128 +1537,16 @@ function printBulk(){
                 <?php endif; ?>
               </td>
               <td class="text-end">
-                <?php $aname = h($a['client_name']); ?>
-                <div class="dropdown">
-                  <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                          data-acct-menu data-bs-toggle="dropdown" aria-expanded="false"
-                          aria-label="Działania dla kursanta <?= $aname ?>">
-                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i><span class="d-none d-xl-inline ms-1">Działania</span>
-                  </button>
-                  <ul class="dropdown-menu dropdown-menu-end shadow">
-                    <li><h6 class="dropdown-header"><?= $aname ?></h6></li>
-
-                    <?php if ($a['is_active']): ?>
-                    <li>
-                      <form method="post" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja panelu pozostanie aktywna w tej karcie.')">
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="impersonate">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-in-right me-2 text-primary" aria-hidden="true"></i>Zaloguj jako kursant <span class="text-body-secondary small">(podgląd)</span></button>
-                      </form>
-                    </li>
-                    <?php endif; ?>
-                    <li><a class="dropdown-item" href="../messages.php?student=<?= (int)$a['id'] ?>"><i class="bi bi-envelope me-2" aria-hidden="true"></i>Wyślij wiadomość</a></li>
-                    <li><a class="dropdown-item" href="?guardian=<?= (int)$a['id'] ?>"><i class="bi bi-people me-2 text-info" aria-hidden="true"></i>Opiekun / dostęp rodzica</a></li>
-                    <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#overpayModal<?= (int)$a['id'] ?>"><i class="bi bi-cash-coin me-2 text-success" aria-hidden="true"></i>Nadpłata do końca roku / metody płatności</a></li>
-                    <?php if (empty($a['is_minor'])): ?>
-                    <li><a class="dropdown-item" href="?authp=<?= (int)$a['id'] ?>"><i class="bi bi-person-check me-2 text-primary" aria-hidden="true"></i>Osoby upoważnione</a></li>
-                    <?php endif; ?>
-
-                    <?php foreach ([2, 3] as $pn):
-                      $pval = trim((string)($a["notify_phone{$pn}"] ?? ''));
-                      if ($pval === '' || !empty($a["notify_phone{$pn}_verified"])) continue;
-                    ?>
-                    <li>
-                      <form method="post" onsubmit="return confirm('Zatwierdzić numer <?= h($pval) ?> do powiadomień SMS tego kursanta? Rób to tylko, gdy masz pewność, że numer należy do kursanta lub jego opiekuna.')">
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="approve_notify_phone">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <input type="hidden" name="which"      value="<?= $pn ?>">
-                        <button type="submit" class="dropdown-item">
-                          <i class="bi bi-shield-check me-2 text-warning" aria-hidden="true"></i>Zatwierdź numer SMS <?= $pn === 2 ? 'drugi' : 'trzeci' ?>
-                          <span class="text-body-secondary small">(<?= h($pval) ?>)</span>
-                        </button>
-                      </form>
-                    </li>
-                    <?php endforeach; ?>
-
-                    <?php if (!empty($a['login_alias'])): ?>
-                    <li>
-                      <form method="post" onsubmit="return confirm('Usunąć alias logowania tego kursanta?')">
-                        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op" value="clear_alias">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item"><i class="bi bi-x-circle me-2 text-secondary" aria-hidden="true"></i>Usuń alias logowania <span class="text-body-secondary small">(<?= h($a['login_alias']) ?>)</span></button>
-                      </form>
-                    </li>
-                    <?php endif; ?>
-
-                    <?php if ($ms_online_enabled): ?>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><h6 class="dropdown-header">Nauka online</h6></li>
-                    <li>
-                      <form method="post" <?= $has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="<?= $has_ms ? 'ms_delete' : 'ms_create' ?>">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item <?= $has_ms ? 'text-danger' : '' ?>">
-                          <i class="bi bi-microsoft me-2 <?= $has_ms ? 'text-danger' : 'text-primary' ?>" aria-hidden="true"></i><?= $has_ms ? 'Usuń konto Microsoft' : 'Utwórz konto Microsoft' ?>
-                        </button>
-                      </form>
-                    </li>
-                    <?php endif; ?>
-
-                    <li><hr class="dropdown-divider"></li>
-
-                    <li>
-                      <form method="post" onsubmit="return confirm('Zresetować hasło?')">
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="reset_pass">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item"><i class="bi bi-key me-2 text-warning" aria-hidden="true"></i>Resetuj hasło</button>
-                      </form>
-                    </li>
-                    <li>
-                      <form method="post" onsubmit="return confirm('Ustawić hasło serwisowe (8 znaków)?<?= $has_ms ? ' Nadpisze też hasło konta Microsoft tego kursanta.' : '' ?>')">
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="service_pass">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item"><i class="bi bi-shield-lock me-2 text-warning" aria-hidden="true"></i>Hasło serwisowe <span class="text-body-secondary small">(8 znaków<?= $has_ms ? ', nadpisuje też MS' : '' ?>)</span></button>
-                      </form>
-                    </li>
-                    <li>
-                      <form method="post">
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="toggle">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item">
-                          <i class="bi <?= $a['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-2" aria-hidden="true"></i><?= $a['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
-                        </button>
-                      </form>
-                    </li>
-                    <?php if (!empty($a['child_access_blocked'])): ?>
-                    <li>
-                      <form method="post" onsubmit="return confirm('Przywrócić kursantowi dostęp do panelu? Dostęp został wstrzymany przez opiekuna.')">
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="child_unblock">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item"><i class="bi bi-unlock text-success me-2" aria-hidden="true"></i>Odblokuj dostęp <span class="text-body-secondary small">(wstrzymany przez opiekuna)</span></button>
-                      </form>
-                    </li>
-                    <?php endif; ?>
-
-                    <li><hr class="dropdown-divider"></li>
-
-                    <li>
-                      <form method="post" onsubmit="return confirm('Usunąć konto „<?= h(addslashes($a['client_name'])) ?>”? Tej operacji nie można cofnąć.')">
-                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-                        <input type="hidden" name="_op"        value="delete">
-                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-                        <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash me-2" aria-hidden="true"></i>Usuń konto</button>
-                      </form>
-                    </li>
-                  </ul>
-                </div>
+                <a href="?selected=<?= (int)$a['id'] ?>#akcje-kursanta"
+                   class="btn btn-sm <?= $is_sel ? 'btn-primary' : 'btn-outline-primary' ?>"
+                   <?= $is_sel ? 'aria-current="true"' : '' ?>
+                   aria-label="<?= $is_sel ? 'Wybrany kursant' : 'Wybierz kursanta' ?> <?= h($a['client_name']) ?> — pokaż działania">
+                  <?php if ($is_sel): ?>
+                  <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Wybrany
+                  <?php else: ?>
+                  <i class="bi bi-gear me-1" aria-hidden="true"></i>Zarządzaj
+                  <?php endif; ?>
+                </a>
               </td>
             </tr>
             <?php endforeach; ?>
@@ -1492,20 +1609,5 @@ function printBulk(){
 </div>
 </div>
 </main>
-
-<script>
-// Menu działań w wierszu: Popper ze strategią 'fixed', aby rozwijane menu nie
-// było obcinane przez overflow kontenera .table-responsive.
-(function(){
-  if (typeof bootstrap === 'undefined') return;
-  document.querySelectorAll('[data-acct-menu]').forEach(function(el){
-    bootstrap.Dropdown.getOrCreateInstance(el, {
-      popperConfig: function(defaultConfig){
-        return Object.assign({}, defaultConfig, { strategy: 'fixed' });
-      }
-    });
-  });
-})();
-</script>
 
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
