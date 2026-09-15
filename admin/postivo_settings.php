@@ -18,9 +18,13 @@ $cfg = [
     'postivo_color_print'         => postivo_setting('postivo_color_print'),
     'postivo_duplex_print'        => postivo_setting('postivo_duplex_print'),
     'postivo_envelope_color_print'=> postivo_setting('postivo_envelope_color_print'),
+    'postivo_sender_id'           => postivo_setting('postivo_sender_id'),
     'postivo_sender_name'         => postivo_setting('postivo_sender_name'),
     'postivo_return_address'      => postivo_setting('postivo_return_address'),
 ];
+// ID nadawcy skonfigurowanego w koncie Postivo.pl (panel → Nadawcy) — 6140,
+// dopóki admin nie wpisze innego. Ta sama wartość domyślna co PostivoClient::_sender_id().
+$sender_id_display = $cfg['postivo_sender_id'] !== '' ? $cfg['postivo_sender_id'] : '6140';
 
 $client     = new PostivoClient();
 $configured = $client->is_configured();
@@ -45,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'postivo_color_print'          => !empty($_POST['postivo_color_print'])          ? '1' : '0',
             'postivo_duplex_print'         => !empty($_POST['postivo_duplex_print'])         ? '1' : '0',
             'postivo_envelope_color_print' => !empty($_POST['postivo_envelope_color_print']) ? '1' : '0',
+            'postivo_sender_id'            => trim($_POST['postivo_sender_id']            ?? ''),
             'postivo_sender_name'          => trim($_POST['postivo_sender_name']          ?? ''),
             'postivo_return_address'       => trim($_POST['postivo_return_address']       ?? ''),
         ];
@@ -395,8 +400,19 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <!-- ── Dane nadawcy ───────────────────────────────────────────────────────── -->
   <div class="card shadow-sm mb-3">
-    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane nadawcy (informacyjne)</div>
+    <div class="card-header fw-semibold"><i class="bi bi-person-vcard"></i> Dane nadawcy</div>
     <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label fw-semibold small" for="postivo_sender_id">ID nadawcy</label>
+        <input type="number" name="postivo_sender_id" id="postivo_sender_id" min="1"
+               class="form-control form-control-sm font-monospace"
+               value="<?= h($cfg['postivo_sender_id']) ?>"
+               placeholder="<?= h($sender_id_display) ?>">
+        <div class="form-text">
+          ID profilu nadawcy z konta Postivo.pl (panel → Nadawcy) — używane przy każdej wysyłce.
+          Puste pole = domyślne <strong><?= h($sender_id_display) ?></strong>.
+        </div>
+      </div>
       <div class="mb-3">
         <label class="form-label fw-semibold small">Nazwa nadawcy</label>
         <input type="text" name="postivo_sender_name"
@@ -404,7 +420,7 @@ include dirname(__DIR__) . '/includes/header.php';
                value="<?= h($cfg['postivo_sender_name']) ?>"
                placeholder="np. Fundacja XYZ">
         <div class="form-text">
-          Nadawca jest konfigurowany w koncie Postivo.pl (panel → Nadawcy). To pole jest pomocnicze — przechowuje nazwę dla celów audytowych.
+          Pole pomocnicze — przechowuje nazwę dla celów audytowych, nie wpływa na wysyłkę.
         </div>
       </div>
       <div class="mb-0">

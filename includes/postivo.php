@@ -297,10 +297,18 @@ class PostivoClient
         }
     }
 
+    /** ID nadawcy skonfigurowanego w koncie Postivo.pl (panel → Nadawcy) — domyślnie 6140. */
+    private function _sender_id(): int
+    {
+        $raw = postivo_setting('postivo_sender_id');
+        return $raw !== '' ? (int)$raw : 6140;
+    }
+
     private function _build_options(): Components\ShipmentOptions
     {
         $carrier_id = (int)postivo_setting('postivo_carrier_id');
         $service_id = (int)postivo_setting('postivo_service_id');
+        $sender_id  = $this->_sender_id();
 
         if ($carrier_id && $service_id) {
             $inline = new Components\InlineConfig(
@@ -312,11 +320,11 @@ class PostivoClient
                 duplexPrint:        postivo_setting('postivo_duplex_print')         === '1' ? true : null,
                 envelopeColorPrint: postivo_setting('postivo_envelope_color_print') === '1' ? true : null,
             );
-            return new Components\ShipmentOptions(inlineConfig: $inline);
+            return new Components\ShipmentOptions(inlineConfig: $inline, senderId: $sender_id);
         }
 
         if ($config_id = (int)postivo_setting('postivo_config_id')) {
-            return new Components\ShipmentOptions(predefinedConfigId: $config_id);
+            return new Components\ShipmentOptions(predefinedConfigId: $config_id, senderId: $sender_id);
         }
 
         throw new RuntimeException(
