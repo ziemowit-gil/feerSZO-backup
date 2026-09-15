@@ -111,8 +111,8 @@ include dirname(__DIR__) . '/includes/header_crm.php';
           </thead>
           <tbody>
           <?php foreach ($cmp as $f):
-            $va = crm_audit_format($f, $A[$f] ?? null);
-            $vb = crm_audit_format($f, $B[$f] ?? null);
+            $va = crm_audit_format($f, isset($A[$f]) ? (string)$A[$f] : null);
+            $vb = crm_audit_format($f, isset($B[$f]) ? (string)$B[$f] : null);
             if ($va === '—' && $vb === '—') continue;
             $diff = $va !== $vb;
           ?>
