@@ -159,9 +159,19 @@ if ($via_postivo) {
 
         // Wpis RPW-W od razu jako "nadana" (z kosztem, jeśli Postivo je wycenił) —
         // dalsze zmiany (doręczono/zwrócono) dociągnie cron/postivo_status_sync.php.
-        $status_extra = ['nr_nadania' => $postivo_id];
+        $status_extra = [];
         if ($price !== null) $status_extra['koszt'] = $price;
         try { ezd_rpwy_set_status((int)$res['id'], 'nadana', $status_extra, $user_id); } catch (\Throwable $e) {}
+
+        // Od razu dociągnij szczegóły z Postivo (operator, typ przesyłki, nr
+        // zlecenia, historia statusów) — nie czekamy na najbliższy cykl crona.
+        try {
+            $status_data = $client->get_status($postivo_id);
+            ezd_rpwy_apply_postivo_status((int)$res['id'], $status_data, $user_id);
+        } catch (\Throwable $e) {
+            // Postivo bywa wolne z pierwszym statusem tuż po nadaniu — nic
+            // się nie stanie, cron/postivo_status_sync.php dociągnie później.
+        }
 
         // Poświadczenie nadania — ten sam styl wizualny co "Kopia z poświadczeniem"
         // (nagłówek systemu, tabela .cert-t, autor wydruku — patrz includes/ezd_kopia.php),

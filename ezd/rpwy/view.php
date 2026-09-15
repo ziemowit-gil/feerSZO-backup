@@ -130,6 +130,40 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
 
+    <?php if (!empty($r['postivo_job_id'])): ?>
+    <!-- Szczegóły z Postivo.pl -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold" style="font-size:.82rem"><i class="bi bi-send-fill me-1 text-primary"></i>Postivo.pl</div>
+      <div class="card-body">
+        <dl class="meta-dl mb-0 row">
+          <div class="col-sm-6">
+            <dt>Operator pocztowy</dt><dd><?= h($r['postivo_operator'] ?: '—') ?></dd>
+            <dt>Typ przesyłki</dt><dd><?= h($r['postivo_service_name'] ?: '—') ?></dd>
+            <dt>Liczba stron</dt><dd><?= (int)$r['postivo_pages'] ?: '—' ?></dd>
+          </div>
+          <div class="col-sm-6">
+            <dt>Numer zlecenia (Postivo)</dt><dd class="font-monospace"><?= h($r['postivo_job_id']) ?></dd>
+            <dt>Aktualny status</dt><dd><?= h($r['postivo_status_name'] ?: '—') ?></dd>
+            <dt>Planowana data nadania</dt><dd><?= $r['postivo_dispatch_date'] ? date_pl($r['postivo_dispatch_date']) : '—' ?></dd>
+          </div>
+        </dl>
+        <?php
+        $events = json_decode((string)($r['postivo_events_json'] ?? '[]'), true) ?: [];
+        if ($events):
+        ?>
+        <div class="border-top pt-2 mt-2">
+          <div class="text-muted mb-1" style="font-size:.78rem">Historia statusów</div>
+          <ul class="list-unstyled mb-0" style="font-size:.8rem">
+            <?php foreach (array_reverse($events) as $ev): ?>
+            <li class="mb-1"><span class="text-muted font-monospace" style="font-size:.74rem"><?= h($ev['date'] ?? '—') ?></span> — <?= h($ev['name'] ?? ($ev['code'] ?? '')) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Dowód doręczenia -->
     <div class="card shadow-sm">
       <div class="card-header fw-semibold" style="font-size:.82rem"><i class="bi bi-patch-check me-1 text-success"></i>Potwierdzenie odbioru</div>

@@ -75,6 +75,16 @@ const EZD_RPWY_STATUSY = [
     foreach ([
         "ALTER TABLE ezd_rpwy ADD COLUMN awizo_date     DATE",
         "ALTER TABLE ezd_rpwy ADD COLUMN doreczenie_typ TEXT NOT NULL DEFAULT 'faktyczne'",
+        // Szczegóły z Postivo.pl — patrz ezd_rpwy_apply_postivo_status().
+        // nr_nadania (istniejące pole) trzyma numer śledzenia U OPERATORA
+        // (np. Poczty Polskiej); postivo_job_id to ID zlecenia w samym Postivo.
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_job_id      TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_operator    TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_service_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_status_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_dispatch_date DATE",
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_pages        INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_events_json  TEXT NOT NULL DEFAULT '[]'",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -656,4 +666,47 @@ function ezd_rpwy_dispatch_cert_pdf(int $rpwy_id, int $user_id): string {
     $mpdf->AddPage();
     $mpdf->WriteHTML($html);
     return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+}
+
+/**
+ * Zapisuje w RPW-W szczegóły przesyłki z PostivoClient::get_status() — operator,
+ * typ przesyłki, aktualny status, planowaną datę nadania, liczbę stron, numer
+ * śledzenia u operatora (nr_nadania) i pełną historię zmian statusu
+ * (postivo_events_json). Jeśli status przeszedł w stan finalny (doręczono/
+ * zwrócono), odbija to też w polu `status` wpisu — patrz ezd_rpwy_set_status().
+ * Wołane po wysyłce (ezd/sprawy/quick_dispatch.php) i cyklicznie
+ * (cron/postivo_status_sync.php).
+ */
+function ezd_rpwy_apply_postivo_status(int $rpwy_id, array $status_data, int $user_id): void {
+    $r = ezd_rpwy_get($rpwy_id);
+    if (!$r) return;
+
+    $sql = "UPDATE ezd_rpwy SET postivo_job_id=?, postivo_operator=?, postivo_service_name=?,
+            postivo_status_name=?, postivo_dispatch_date=?, postivo_pages=?, postivo_events_json=?,
+            updated_at=datetime('now')";
+    $params = [
+        (string)($status_data['job_id']        ?? ''),
+        (string)($status_data['operator']      ?? ''),
+        (string)($status_data['service_name']  ?? ''),
+        (string)($status_data['status_name']   ?? ''),
+        ($status_data['dispatch_date'] ?? '') ?: null,
+        (int)($status_data['pages'] ?? 0),
+        json_encode($status_data['events'] ?? [], JSON_UNESCAPED_UNICODE),
+    ];
+    $tracking = trim((string)($status_data['tracking'] ?? ''));
+    if ($tracking !== '') { $sql .= ", nr_nadania=?"; $params[] = $tracking; }
+    $sql .= " WHERE id=?"; $params[] = $rpwy_id;
+    db()->prepare($sql)->execute($params);
+
+    // Tylko przejścia, które faktycznie zmieniają sytuację prawną przesyłki —
+    // 'processing'/'sent'/'unknown' zostają jako 'nadana' (już tak ustawione
+    // przy wysyłce), nie ma co nadpisywać.
+    $map = ['delivered' => 'doreczona', 'failed' => 'zwrocona'];
+    $new_status = $map[$status_data['status'] ?? ''] ?? null;
+    if ($new_status && $r['status'] !== $new_status) {
+        $extra = ($status_data['status'] === 'failed')
+            ? ['zwrot_powod' => 'Niedostarczone (Postivo: ' . ($status_data['status_name'] ?: 'failed') . ')']
+            : [];
+        ezd_rpwy_set_status($rpwy_id, $new_status, $extra, $user_id);
+    }
 }

@@ -25,14 +25,6 @@ require_once $base_dir . '/includes/ezd.php';
 require_once $base_dir . '/includes/ezd_rpwy.php';
 require_once $base_dir . '/includes/postivo.php';
 
-// Postivo → RPW-W (książka nadawcza): tylko przejścia, które faktycznie
-// zmieniają sytuację prawną przesyłki — 'processing'/'sent'/'unknown' zostają
-// jako 'nadana' (już tak ustawione przy wysyłce), nie ma co nadpisywać.
-const POSTIVO_TO_RPWY_STATUS = [
-    'delivered' => 'doreczona',
-    'failed'    => 'zwrocona',
-];
-
 echo "[" . date('Y-m-d H:i:s') . "] Start: postivo_status_sync\n";
 
 if (!module_enabled('ezd_enabled')) {
@@ -67,6 +59,18 @@ foreach ($pending as $p) {
         $status_data = $client->get_status($p['postivo_job_id']);
         $new_status  = $status_data['status'];
 
+        // Zawsze dociągnij szczegóły do RPW-W (operator, typ przesyłki, nr
+        // zlecenia, PEŁNA historia zdarzeń) — historia rośnie nawet gdy status
+        // "zbiorczy" się nie zmienił, więc to NIE jest pod warunkiem niżej.
+        $rpwy = ezd_rpwy_for_pismo((int)$p['id']);
+        if ($rpwy) {
+            try {
+                ezd_rpwy_apply_postivo_status((int)$rpwy['id'], $status_data, 0);
+            } catch (\Throwable $e) {
+                echo "    ↳ RPW-W: błąd aktualizacji szczegółów — " . $e->getMessage() . "\n";
+            }
+        }
+
         if ($new_status === $old_status) continue;
 
         db()->prepare(
@@ -79,20 +83,7 @@ foreach ($pending as $p) {
 
         echo "  ✓ pismo #{$p['id']}: {$old_status} → {$new_status}\n";
         $changed++;
-
-        // Odbij istotne zmiany też w książce nadawczej RPW-W (jeśli to pismo ma wpis).
-        if (isset(POSTIVO_TO_RPWY_STATUS[$new_status])) {
-            $rpwy = ezd_rpwy_for_pismo((int)$p['id']);
-            if ($rpwy && $rpwy['status'] !== POSTIVO_TO_RPWY_STATUS[$new_status]) {
-                try {
-                    $extra = $new_status === 'failed' ? ['zwrot_powod' => 'Niedostarczone (Postivo: failed)'] : [];
-                    ezd_rpwy_set_status((int)$rpwy['id'], POSTIVO_TO_RPWY_STATUS[$new_status], $extra, 0);
-                    echo "    ↳ RPW-W " . ezd_rpwy_label($rpwy) . ": {$rpwy['status']} → " . POSTIVO_TO_RPWY_STATUS[$new_status] . "\n";
-                } catch (\Throwable $e) {
-                    echo "    ↳ RPW-W: błąd aktualizacji statusu — " . $e->getMessage() . "\n";
-                }
-            }
-        }
+        if ($rpwy) echo "    ↳ RPW-W " . ezd_rpwy_label($rpwy) . " zaktualizowane (status: " . ($status_data['status_name'] ?: $new_status) . ")\n";
     } catch (\Throwable $e) {
         echo "  ✗ pismo #{$p['id']}: " . $e->getMessage() . "\n";
         $errs++;

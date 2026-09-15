@@ -187,12 +187,21 @@ class PostivoClient
      * @return array ['status' => string, 'tracking' => string, 'updated_at' => string]
      * @throws RuntimeException
      */
+    /**
+     * @return array{
+     *   status:string, tracking:string, updated_at:string, job_id:string,
+     *   operator:string, service_name:string, status_name:string,
+     *   dispatch_date:string, pages:int,
+     *   events:array<array{code:string,name:string,date:string}>
+     * }
+     */
     public function get_status(string $postivo_id): array
     {
         try {
             $resp   = $this->sdk()->shipments->status([$postivo_id]);
             $detail = $resp->statusDetails[0] ?? null;
-            $code   = strtoupper($detail?->shipmentDetails?->status?->code ?? '');
+            $sd     = $detail?->shipmentDetails;
+            $code   = strtoupper($sd?->status?->code ?? '');
 
             $status = match($code) {
                 'ACCEPTED'   => 'processing',
@@ -203,11 +212,28 @@ class PostivoClient
                 default      => strtolower($code) ?: 'unknown',
             };
 
-            $date = $detail?->shipmentDetails?->status?->date;
+            $date = $sd?->status?->date;
+
+            $events = [];
+            foreach ($detail?->statusEvents ?? [] as $ev) {
+                $events[] = [
+                    'code' => (string)($ev->code ?? ''),
+                    'name' => (string)($ev->name ?? ''),
+                    'date' => $ev->date ? $ev->date->format('Y-m-d H:i:s') : '',
+                ];
+            }
+
             return [
-                'status'     => $status,
-                'tracking'   => $detail?->shipmentDetails?->trackingNumber ?? '',
-                'updated_at' => $date ? $date->format('Y-m-d H:i:s') : '',
+                'status'        => $status,
+                'tracking'      => $sd?->trackingNumber ?? '',
+                'updated_at'    => $date ? $date->format('Y-m-d H:i:s') : '',
+                'job_id'        => $sd?->id ?? $postivo_id,
+                'operator'      => $sd?->carrier?->name ?? '',
+                'service_name'  => $sd?->service?->name ?? '',
+                'status_name'   => $sd?->status?->name ?? '',
+                'dispatch_date' => $sd?->dispatchDate ? (string)$sd->dispatchDate : '',
+                'pages'         => (int)($sd?->pageNumber ?? 0),
+                'events'        => $events,
             ];
         } catch (\Throwable $e) {
             throw new RuntimeException('Błąd pobierania statusu Postivo.pl: ' . $e->getMessage());
