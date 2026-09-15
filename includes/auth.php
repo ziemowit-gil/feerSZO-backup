@@ -105,6 +105,21 @@ function is_ezd_only(): bool {
 }
 
 /**
+ * Zawężenie w obrębie is_ezd_only(): rola widzi WYŁĄCZNIE Rejestr Przesyłek
+ * Wpływających (RPW, „Rejestr Przychodzących") — reszta /ezd/* jest zablokowana.
+ * Zob. rola 'ezd_biuro' (includes/permissions.php).
+ */
+function is_ezd_rpw_only(): bool {
+    $u = current_user();
+    if (!$u) return false;
+    if ($u['role'] === 'ezd_biuro') return true;
+    try {
+        $r = db_one("SELECT ezd_rpw_only FROM roles WHERE name=?", [$u['role']]);
+        return !empty($r['ezd_rpw_only']);
+    } catch (\Throwable $e) { return false; }
+}
+
+/**
  * Zwraca "schemat://host" gdy request przyszedł na dedykowany alias CRM
  * (crm.feer.org.pl / crm.ngosystem.pl), inaczej null. APP_URL jest stałe
  * (szo.feer.org.pl), więc bez tego require_login()/crm/login.php wyrzucałyby
@@ -235,11 +250,15 @@ function require_login(): void {
         $rel = ($base && $base !== '/') ? substr($uri, strlen($base)) : $uri;
         $rel = strtolower(preg_replace('/\?.*/', '', $rel));
 
-        $allowed_prefixes = [
-            '/ezd/', '/auth/',
-            '/user/first_login_consent',
-            '/panel/password', '/panel/2fa', '/panel/profile_edit', '/panel/sessions',
-        ];
+        // ezd_biuro i inne role ezd_rpw_only: zawężone WYŁĄCZNIE do Rejestru
+        // Przychodzących (RPW) — nie do całego /ezd/ jak zwykłe konto ezd_only.
+        $rpw_only = is_ezd_rpw_only();
+
+        $allowed_prefixes = $rpw_only
+            ? ['/ezd/rpw/', '/auth/', '/user/first_login_consent',
+               '/panel/password', '/panel/2fa', '/panel/profile_edit', '/panel/sessions']
+            : ['/ezd/', '/auth/', '/user/first_login_consent',
+               '/panel/password', '/panel/2fa', '/panel/profile_edit', '/panel/sessions'];
 
         // Launcher portalu + moduły przyznane indywidualnie (ponad rolę)
         $allowed_prefixes[] = '/portal.php';
@@ -252,7 +271,7 @@ function require_login(): void {
             if (str_starts_with($rel, $p)) { $is_allowed = true; break; }
         }
         if (!$is_allowed) {
-            header('Location: ' . APP_URL . '/ezd/index.php');
+            header('Location: ' . APP_URL . ($rpw_only ? '/ezd/rpw/index.php' : '/ezd/index.php'));
             exit;
         }
     }

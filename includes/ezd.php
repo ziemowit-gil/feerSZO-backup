@@ -2333,7 +2333,45 @@ function ezd_rpw_create(array $d, int $user_id): array {
     ]);
     $id = (int)db()->lastInsertId();
     ezd_log(null, null, null, null, $user_id, 'rpw_create', "Zarejestrowano RPW $nr/$rok: " . mb_substr($d['opis'] ?? '', 0, 60));
+    _ezd_rpw_notify_admins($id, $nr, $rok, trim($d['opis'] ?? ''), trim($d['nadawca'] ?? ''), $user_id);
     return ['id' => $id, 'rpw_nr' => $nr, 'rok' => $rok];
+}
+
+/**
+ * Auto-info do administratorów o nowej przesyłce zarejestrowanej w Rejestrze
+ * Przychodzących (RPW) — dzwonek powiadomień (in-app) + e-mail.
+ * Wywoływane z ezd_rpw_create() (rejestracja ręczna, m.in. rola 'ezd_biuro').
+ */
+function _ezd_rpw_notify_admins(int $rpw_id, string $nr, int $rok, string $opis, string $nadawca, int $created_by): void {
+    $admins = db_all("SELECT * FROM users WHERE role='admin' AND is_active=1");
+    if (!$admins) return;
+
+    require_once __DIR__ . '/notifications.php';
+    require_once __DIR__ . '/approval.php';
+
+    $author = db_one("SELECT name FROM users WHERE id=?", [$created_by])['name'] ?? '';
+    $org    = defined('ORG_NAME') ? ORG_NAME : '';
+    $url    = '/ezd/rpw/view.php?id=' . $rpw_id;
+    $title  = 'Nowa przesyłka RPW ' . $nr . '/' . $rok;
+    $body   = $opis !== '' ? mb_substr($opis, 0, 160) : '';
+
+    foreach ($admins as $admin) {
+        try { notif_create((int)$admin['id'], 'ezd_rpw', $title, $body, $url); } catch (\Throwable $e) {}
+        if (!empty($admin['email'])) {
+            $html = "
+<p>Dzień dobry,</p>
+<p>W dzienniku podawczym zarejestrowano nową przesyłkę wpływającą w Rejestrze Przychodzących (RPW) systemu <strong>" . htmlspecialchars($org) . "</strong>.</p>
+<table style='border-collapse:collapse;margin:12px 0'>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Numer:</td><td><strong>RPW " . htmlspecialchars($nr . '/' . $rok) . "</strong></td></tr>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Nadawca:</td><td>" . htmlspecialchars($nadawca) . "</td></tr>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Opis:</td><td>" . htmlspecialchars($opis) . "</td></tr>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Zarejestrował(a):</td><td>" . htmlspecialchars($author) . "</td></tr>
+</table>
+<p><a href='" . htmlspecialchars(APP_URL . $url) . "' style='background:#0d6efd;color:#fff;padding:10px 22px;text-decoration:none;border-radius:4px;display:inline-block'>Otwórz w Rejestrze →</a></p>
+";
+            try { approval_send_email($admin['email'], "Nowa przesyłka RPW {$nr}/{$rok} — {$org}", $html); } catch (\Throwable $e) {}
+        }
+    }
 }
 
 function ezd_rpw_update(int $id, array $d, int $user_id): void {

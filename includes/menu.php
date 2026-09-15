@@ -185,6 +185,17 @@ function _menu_ezd_items(): array {
     ];
 }
 
+// ── Widok EZD-only zawężony do RPW (rola ezd_biuro) ──────────────────────────
+function _menu_ezd_rpw_only(): array {
+    if (!module_enabled('ezd_enabled')) return [];
+    return [[
+        'id'=>'ezd','label'=>'Wirtualne biurko','icon'=>'bi-building-gear','ezd'=>true,
+        'active'=>_menu_hit('/ezd/'),'groups'=>[['label'=>null,'items'=>[
+            _mi('Dziennik podawczy','/ezd/rpw/index.php','bi-mailbox2',['match'=>'/ezd/rpw/','kw'=>'rpw korespondencja wpływ rejestr przychodzących']),
+        ]]],
+    ]];
+}
+
 // ── Widok wolontariusza / użytkownika (viewer) ───────────────────────────────
 /**
  * Pasek SZO dla wolontariusza.
@@ -517,7 +528,10 @@ function _menu_editor(): array {
 function menu_build(): array {
     $u = current_user();
     if (!$u)                                                   return ['mode'=>'guest','tree'=>[]];
-    if (function_exists('is_ezd_only') && is_ezd_only())       return ['mode'=>'ezd','tree'=>_menu_prune(_menu_ezd())];
+    if (function_exists('is_ezd_only') && is_ezd_only()) {
+        $ezd_tree = (function_exists('is_ezd_rpw_only') && is_ezd_rpw_only()) ? _menu_ezd_rpw_only() : _menu_ezd();
+        return ['mode'=>'ezd','tree'=>_menu_prune($ezd_tree)];
+    }
     if (!can_edit())                                           return ['mode'=>'viewer','tree'=>_menu_prune(_menu_viewer())];
     return ['mode'=>'editor','tree'=>_menu_editor()];
 }

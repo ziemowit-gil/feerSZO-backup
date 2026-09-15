@@ -82,12 +82,16 @@ function _permissions_init(): void {
         is_system INTEGER NOT NULL DEFAULT 0,
         crm_only  INTEGER NOT NULL DEFAULT 0,
         ezd_only  INTEGER NOT NULL DEFAULT 0,
+        ezd_rpw_only INTEGER NOT NULL DEFAULT 0,
         sort_order INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     // Migracja istniejących baz — dodaj kolumny flag jeśli nie istnieją
     try { $pdo->exec("ALTER TABLE roles ADD COLUMN crm_only INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     try { $pdo->exec("ALTER TABLE roles ADD COLUMN ezd_only INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // ezd_rpw_only — zawężenie w obrębie ezd_only WYŁĄCZNIE do Rejestru Przesyłek
+    // Wpływających (RPW, „Rejestr Przychodzących"); zob. rola 'ezd_biuro'.
+    try { $pdo->exec("ALTER TABLE roles ADD COLUMN ezd_rpw_only INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     // wbudowane role z ograniczonym zakresem
     try { $pdo->exec("UPDATE roles SET crm_only=1 WHERE name='crm_user'"); } catch (\Throwable $e) {}
     try { $pdo->exec("UPDATE roles SET ezd_only=1 WHERE name='ezd_user'"); } catch (\Throwable $e) {}
@@ -162,6 +166,19 @@ function _permissions_init(): void {
         $ezd_id = (int)$pdo->query("SELECT id FROM roles WHERE name='ezd_user'")->fetchColumn();
         $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
             ->execute([$ezd_id, 'ezd', 1, 1, 0]);
+    }
+
+    // Idempotentnie dodaj rolę ezd_biuro jeśli nie istnieje — biuro/kancelaria:
+    // wgląd i rejestrowanie przesyłek WYŁĄCZNIE w Rejestrze Przesyłek Wpływających
+    // (RPW, „Rejestr Przychodzących"); reszta modułu EZD (koszulki, sprawy, pisma,
+    // archiwum, JRWA…) jest dla tej roli zablokowana (require_login() w auth.php).
+    $ezd_biuro_exists = $pdo->query("SELECT COUNT(*) FROM roles WHERE name='ezd_biuro'")->fetchColumn();
+    if (!$ezd_biuro_exists) {
+        $pdo->exec("INSERT INTO roles (name, display_name, description, is_system, crm_only, ezd_only, ezd_rpw_only, sort_order)
+                    VALUES ('ezd_biuro','EZD - biuro','Biuro/kancelaria — wgląd i rejestrowanie przesyłek wyłącznie w Rejestrze Przychodzących (RPW), bez dostępu do pozostałych sekcji Wirtualnego biurka',1,0,1,1,6)");
+        $ezd_biuro_id = (int)$pdo->query("SELECT id FROM roles WHERE name='ezd_biuro'")->fetchColumn();
+        $pdo->prepare("INSERT OR IGNORE INTO role_permissions (role_id, module, can_read, can_write, can_delete) VALUES (?,?,?,?,?)")
+            ->execute([$ezd_biuro_id, 'ezd', 1, 1, 0]);
     }
 
     // EZD: wymuś brak dostępu przez rolę dla editor i viewer (dostęp tylko per-konto lub rola ezd_user)

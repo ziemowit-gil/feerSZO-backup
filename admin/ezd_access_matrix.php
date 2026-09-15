@@ -44,6 +44,7 @@ foreach ($roles as $r) {
         'write'  => !empty($mp['can_write']),
         'delete' => !empty($mp['can_delete']),
         'ezd_only' => !empty($r['ezd_only']),
+        'ezd_rpw_only' => !empty($r['ezd_rpw_only']),
     ];
 }
 
@@ -136,6 +137,7 @@ function eam_render_body(array $ctx): void {
           <td class="am-cell"><?= eam_flag($is_admin_role || $p['delete'],'U', 'Usuwanie') ?></td>
           <td class="am-cell">
             <?php if ($is_admin_role): ?><span class="eam-scope">wszystko</span>
+            <?php elseif ($p['ezd_rpw_only']): ?><span class="eam-scope eam-scope-only">tylko RPW (Rejestr Przychodzących)</span>
             <?php elseif ($p['ezd_only']): ?><span class="eam-scope eam-scope-only">tylko EZD</span>
             <?php elseif ($p['read'] || $p['write']): ?><span class="eam-scope">EZD + system</span>
             <?php else: ?><span class="am-muted">—</span><?php endif; ?>
