@@ -238,4 +238,11 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 
+<!-- Hosting -->
+<div class="d-flex align-items-center gap-2 justify-content-center text-muted mb-3" style="font-size:.82rem">
+  <i class="bi bi-hdd-rack" aria-hidden="true"></i>
+  <span>Serwer napędzany przez</span>
+  <a href="https://www.mydevil.net/" target="_blank" rel="noopener" class="fw-semibold text-decoration-none">mydevil.net</a>
+</div>
+
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
