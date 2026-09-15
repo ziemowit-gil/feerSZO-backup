@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
 # bin/migrate-to-mydevil.sh — CAŁY pipeline migracji w jednym poleceniu:
-#   1. bin/pull-db-from-docker.sh   — ściągnij aktualną bazę ze starego VPS-a
-#   2. bin/deploy-mydevil.sh        — kod + composer + domeny + SSL + cron
-#   3. bin/deploy-mydevil.sh --sync-data --db-file=<świeżo ściągnięta baza>
+#   1. bin/pull-db-from-docker.sh          — ściągnij aktualną bazę ze starego VPS-a
+#   2. bin/deploy-mydevil.sh               — kod + composer + domeny + SSL + cron
+#   3. bin/copy-config-local-to-mydevil.sh — sekrety (MS_*/LDAP_*/EXAM_ENGINE_*/...)
+#      przekopiowane 1:1 ze starego VPS-a, zamiast wpisywać je ręcznie w instalatorze
+#   4. bin/deploy-mydevil.sh --sync-data --db-file=<świeżo ściągnięta baza>
 #
 # Jeśli konfiguracje (bin/.pull-db-from-docker.conf, bin/.deploy-mydevil.conf)
 # jeszcze nie istnieją, ten skrypt najpierw odpala odpowiednie kreatory.
 #
 # NIE automatyzuje (i tak wymaga Ciebie): dokończenia importu w przeglądarce
-# (https://TWOJA_DOMENA/install.php), uzupełnienia config.local.php sekretami
-# na koncie MyDevil, przełączenia DNS. Te trzy kroki są celowo ręczne —
-# patrz podsumowanie na końcu.
+# (https://TWOJA_DOMENA/install.php), przełączenia DNS, oraz ewentualnej ręcznej
+# poprawki adresów w skopiowanym config.local.php, jeśli na starym VPS wskazywały
+# na wewnętrzne nazwy kontenerów Dockera zamiast publicznych domen usług
+# (exam-engine, DSS, LDAP, ownCloud). Patrz podsumowanie na końcu.
 #
 # Użycie:
-#   bash bin/migrate-to-mydevil.sh                 # pełny pipeline
-#   bash bin/migrate-to-mydevil.sh --dry-run        # podgląd kroku deployu (bez zmian)
-#   bash bin/migrate-to-mydevil.sh --skip-pull       # użyj już ściągniętej umowy.production.db
-#   bash bin/migrate-to-mydevil.sh --skip-ssl        # bez wydawania certów SSL
-#   bash bin/migrate-to-mydevil.sh --yes             # bez pytań potwierdzających
+#   bash bin/migrate-to-mydevil.sh                   # pełny pipeline
+#   bash bin/migrate-to-mydevil.sh --dry-run          # podgląd kroku deployu (bez zmian)
+#   bash bin/migrate-to-mydevil.sh --skip-pull         # użyj już ściągniętej umowy.production.db
+#   bash bin/migrate-to-mydevil.sh --skip-ssl          # bez wydawania certów SSL
+#   bash bin/migrate-to-mydevil.sh --skip-config       # bez kopiowania config.local.php
+#   bash bin/migrate-to-mydevil.sh --force-config       # nadpisz config.local.php na MyDevil, jeśli już tam jest
+#   bash bin/migrate-to-mydevil.sh --yes               # bez pytań potwierdzających
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,13 +36,15 @@ warn()    { echo -e "${YELLOW}⚠ $*${RESET}"; }
 die()     { echo -e "${RED}✖ $*${RESET}" >&2; exit 1; }
 section() { echo -e "\n${BOLD}▓▓▓ $* ▓▓▓━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"; }
 
-DRY=false; SKIP_PULL=false; SKIP_SSL=false; ASSUME_YES=false
+DRY=false; SKIP_PULL=false; SKIP_SSL=false; ASSUME_YES=false; SKIP_CONFIG=false; FORCE_CONFIG=false
 for arg in "$@"; do
     case "$arg" in
-        --dry-run)   DRY=true ;;
-        --skip-pull) SKIP_PULL=true ;;
-        --skip-ssl)  SKIP_SSL=true ;;
-        --yes)       ASSUME_YES=true ;;
+        --dry-run)     DRY=true ;;
+        --skip-pull)   SKIP_PULL=true ;;
+        --skip-ssl)    SKIP_SSL=true ;;
+        --skip-config) SKIP_CONFIG=true ;;
+        --force-config) FORCE_CONFIG=true ;;
+        --yes)         ASSUME_YES=true ;;
         --help|-h) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Nieznana opcja: $arg" >&2; exit 1 ;;
     esac
@@ -65,24 +72,43 @@ fi
 
 # ── Krok 1: pobierz świeżą bazę ze starego VPS-a ────────────────────────────
 if ! $SKIP_PULL; then
-    section "Krok 1/3 — pobieranie bazy z Dockera (stary VPS)"
+    section "Krok 1/4 — pobieranie bazy z Dockera (stary VPS)"
     bash "${SCRIPT_DIR}/pull-db-from-docker.sh" --out="$PROD_DB"
 else
-    section "Krok 1/3 — pominięty (--skip-pull)"
+    section "Krok 1/4 — pominięty (--skip-pull)"
     [[ -f "$PROD_DB" ]] || die "Brak ${PROD_DB} — usuń --skip-pull albo najpierw uruchom bin/pull-db-from-docker.sh --out=umowy.production.db"
     info "Używam istniejącego: ${PROD_DB}"
 fi
 
 # ── Krok 2: kod + composer + domeny + SSL + cron ────────────────────────────
-section "Krok 2/3 — wdrożenie kodu na MyDevil"
+section "Krok 2/4 — wdrożenie kodu na MyDevil"
 _deploy_args=()
 $DRY      && _deploy_args+=(--dry-run)
 $SKIP_SSL && _deploy_args+=(--skip-ssl)
 $ASSUME_YES && _deploy_args+=(--yes)
-bash "${SCRIPT_DIR}/deploy-mydevil.sh" "${_deploy_args[@]}"
+if [ ${#_deploy_args[@]} -gt 0 ]; then
+    bash "${SCRIPT_DIR}/deploy-mydevil.sh" "${_deploy_args[@]}"
+else
+    bash "${SCRIPT_DIR}/deploy-mydevil.sh"
+fi
 
-# ── Krok 3: wyślij dane (bazę jako umowy.import.db + uploads + certy) ───────
-section "Krok 3/3 — przesyłanie danych"
+# ── Krok 3: sekrety (config.local.php ze starego VPS-a, bez ręcznego wpisywania) ─
+if ! $SKIP_CONFIG; then
+    section "Krok 3/4 — kopiowanie config.local.php ze starego VPS-a"
+    _config_args=()
+    $DRY          && _config_args+=(--dry-run)
+    $FORCE_CONFIG && _config_args+=(--force)
+    if [ ${#_config_args[@]} -gt 0 ]; then
+        bash "${SCRIPT_DIR}/copy-config-local-to-mydevil.sh" "${_config_args[@]}"
+    else
+        bash "${SCRIPT_DIR}/copy-config-local-to-mydevil.sh"
+    fi
+else
+    section "Krok 3/4 — pominięty (--skip-config)"
+fi
+
+# ── Krok 4: wyślij dane (bazę jako umowy.import.db + uploads + certy) ───────
+section "Krok 4/4 — przesyłanie danych"
 _sync_args=(--sync-data --db-file="$PROD_DB")
 $DRY        && _sync_args+=(--dry-run)
 $SKIP_SSL   && _sync_args+=(--skip-ssl)
@@ -90,15 +116,15 @@ $ASSUME_YES && _sync_args+=(--yes)
 bash "${SCRIPT_DIR}/deploy-mydevil.sh" "${_sync_args[@]}"
 
 # ── Podsumowanie ─────────────────────────────────────────────────────────────
-section "Gotowe — zostały 3 ręczne kroki"
+section "Gotowe — zostały ręczne kroki"
 # shellcheck source=/dev/null
 [[ -f "$DEPLOY_CONF" ]] && source "$DEPLOY_CONF"
 cat <<EOF
   1. Wejdź na https://${PRIMARY_DOMAIN:-TWOJA_DOMENA}/install.php i dokończ
      import (krok "Baza danych" → "Plik już na serwerze").
-  2. Uzupełnij config.local.php NA KONCIE MyDevil sekretami (MS_*,
-     EXAM_ENGINE_URL/TOKEN, dss_url, LDAP_*) wskazującymi na usługi
-     zostające na starym VPS.
+  2. Sprawdź skopiowany config.local.php NA KONCIE MyDevil — jeśli sekrety
+     (EXAM_ENGINE_URL, dss_url, LDAP_HOST...) wskazywały na wewnętrzne nazwy
+     kontenerów Dockera zamiast publicznych domen, popraw je ręcznie.
   3. Dopiero po weryfikacji pod tymczasowym testem — przełącz DNS na IP MyDevil.
 EOF
 ok "Pipeline zakończony."
