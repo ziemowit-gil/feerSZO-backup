@@ -3,11 +3,14 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/x509_login.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Integracje';
 
 // ── Status integracji ──────────────────────────────────────────────────────────
+$int_x509       = false;
+try { $int_x509 = x509_any_active(); } catch (\Throwable $e) {}
 $int_m365       = (bool)(org_setting('m365_tenant_id'));
 $int_sp         = (bool)(org_setting('sharepoint_site_url'));
 $int_smtp       = (bool)(org_setting('smtp_host') ?: org_setting('m365_send_from_email'));
@@ -30,6 +33,7 @@ try {
 } catch (\Throwable $e) {}
 
 $connected_total = array_sum(array_map('intval', [
+    $int_x509,
     $int_m365, $int_sp, $int_smtp, $int_sms, $int_whatsapp, $int_postivo,
     $int_autenti, $int_docusign, $int_apaczka, $int_furgonetka,
     $int_ceidg, $int_canva, $int_ai,
@@ -117,6 +121,13 @@ function _isection(string $icon, string $label): void {
   <?php _icard('bi-microsoft',         'Microsoft 365',       'Konta, M365 Groups, licencje',            $int_m365,  '/admin/m365.php',                '#0078d4') ?>
   <?php _icard('bi-cloud-upload-fill', 'SharePoint — pliki',  'Synchronizacja i przechowywanie plików',  $int_sp,    '/admin/sharepoint_settings.php',  '#038387') ?>
   <?php _icard('bi-cloud-arrow-up',    'SharePoint Backup',   'Automatyczny backup bazy danych',         $int_sp,    '/admin/sp_onboarding.php',        '#038387') ?>
+
+  <?php _isection('bi-patch-check-fill', 'Logowanie i bezpieczeństwo') ?>
+
+  <?php /* Aplikacja SzoCert (podpisywanie wyzwania certyfikatem, bez wysyłania
+           klucza do przeglądarki) do pobrania jest podlinkowana bezpośrednio
+           z tej strony zarządzania certyfikatami — auth/szocert_download.php. */ ?>
+  <?php _icard('bi-patch-check-fill',  'Logowanie X.509',     'Certyfikaty admina i aplikacja SzoCert',  $int_x509,  '/admin/x509_login.php',           '#0f766e') ?>
 
   <?php _isection('bi-envelope', 'Komunikacja') ?>
 
