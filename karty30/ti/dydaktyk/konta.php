@@ -374,8 +374,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Licencje na oprogramowanie (inne niż MS365) — przypisanie/cofnięcie wprost
-    // z panelu akcji konta kursanta (katalog i pełny widok wszystkich przypisań
-    // zostają w karty30/ti/licencje_admin.php).
+    // z panelu akcji konta kursanta (ta sama baza co katalog/pełny widok w
+    // licencje.php — ekran kierownika, bez konta SZO — i w admin/licencje_admin.php).
     if ($op === 'license_assign') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
@@ -1077,7 +1077,7 @@ function printBulk(){
       <?php else: ?>
       <p class="text-body-secondary small mb-0">Brak aktywnego oprogramowania w katalogu.</p>
       <?php endif; ?>
-      <a href="../licencje_admin.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
+      <a href="licencje.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
     </div>
 
     <div class="border-top pt-3">
