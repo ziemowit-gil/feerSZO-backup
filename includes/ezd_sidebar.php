@@ -2,6 +2,11 @@
 /** EZD Sidebar — partial ładowany przez header.php tylko na stronach /ezd/. */
 $_ezd_sp = parse_url($_uri ?? ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? '';
 
+// Rola zawężona wyłącznie do Rejestru Przychodzących (RPW, np. 'ezd_biuro'):
+// pokaż w sidebarze TYLKO Dziennik podawczy + Szukaj (w wersji RPW-only) —
+// reszta sekcji i tak jest zablokowana przez require_login() (auth.php).
+$_esb_rpw_only = function_exists('is_ezd_rpw_only') && is_ezd_rpw_only();
+
 // Pobierz odznaki (ostrożnie — te pliki mogą nie być jeszcze załadowane)
 $_esb_rpw = $_esb_rpwy = $_esb_dekr = 0;
 try {
@@ -47,7 +52,7 @@ function _esb_exact(string $path): string {
     </button>
   </div>
 
-  <?php if (function_exists('can_edit') && can_edit()): ?>
+  <?php if (!$_esb_rpw_only && function_exists('can_edit') && can_edit()): ?>
   <div class="ezd-sb-actions">
     <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1">
       <i class="bi bi-folder-plus" aria-hidden="true"></i>Nowa koszulka
@@ -56,6 +61,23 @@ function _esb_exact(string $path): string {
   <?php endif; ?>
 
   <nav class="ezd-sb-nav" aria-label="Moduły EZD">
+
+    <?php if ($_esb_rpw_only): ?>
+
+    <a href="<?= APP_URL ?>/ezd/rpw/index.php"
+       class="ezd-sb-link<?= _esb_a('/ezd/rpw/') ?>">
+      <i class="bi bi-mailbox2" aria-hidden="true"></i><span>Dziennik podawczy</span>
+      <?php if ($_esb_rpw): ?>
+      <span class="ezd-sb-badge"><?= $_esb_rpw ?></span>
+      <?php endif; ?>
+    </a>
+
+    <a href="<?= APP_URL ?>/ezd/rpw/szukaj.php"
+       class="ezd-sb-link<?= _esb_a('/ezd/rpw/szukaj') ?>">
+      <i class="bi bi-search" aria-hidden="true"></i><span>Szukaj</span>
+    </a>
+
+    <?php else: ?>
 
     <a href="<?= APP_URL ?>/ezd/index.php"
        class="ezd-sb-link<?= _esb_exact('/ezd/index.php') ?>">
@@ -154,6 +176,8 @@ function _esb_exact(string $path): string {
        class="ezd-sb-link<?= _esb_a('/admin/ezd_access_matrix') ?>">
       <i class="bi bi-shield-check" aria-hidden="true"></i><span>Macierz dostępu</span>
     </a>
+    <?php endif; ?>
+
     <?php endif; ?>
 
   </nav>
