@@ -82,6 +82,35 @@ if ($action === 'send') {
         exit;
     }
 
+    // Opcjonalne pismo dołączone do TEJ SAMEJ przesyłki (jedna koperta, jedno
+    // zlecenie Postivo) — np. pismo przewodnie + załącznik jako osobne wpisy
+    // w rejestrze, ale fizycznie jeden list.
+    $companion = null;
+    $companion_pdf_path = null;
+    $companion_id = (int)($_POST['companion_pismo_id'] ?? 0) ?: null;
+    if ($companion_id) {
+        $companion = db_one(
+            "SELECT * FROM ezd_pisma WHERE id=? AND sprawa_id=? AND kierunek='wychodzace'
+               AND (postivo_job_id IS NULL OR postivo_job_id='')",
+            [$companion_id, $pismo['sprawa_id']]
+        );
+        if (!$companion) {
+            flash_set('error', 'Wybrane pismo do dołączenia jest niedostępne (już nadane albo z innej sprawy).');
+            header('Location: ' . $redirect);
+            exit;
+        }
+        $companion_zal = db_one(
+            "SELECT * FROM ezd_zalaczniki WHERE pismo_id=? AND mime_type='application/pdf' ORDER BY id DESC LIMIT 1",
+            [$companion_id]
+        );
+        if (!$companion_zal || !file_exists(UPLOAD_DIR . $companion_zal['plik'])) {
+            flash_set('error', 'Dołączane pismo nie ma dostępnego pliku PDF.');
+            header('Location: ' . $redirect);
+            exit;
+        }
+        $companion_pdf_path = UPLOAD_DIR . $companion_zal['plik'];
+    }
+
     $recipient_name = trim($_POST['recipient_name'] ?? $pismo['odbiorca'] ?? '');
     $address_line1  = trim($_POST['address_line1']  ?? '');
     $address_line2  = trim($_POST['address_line2']  ?? '');
@@ -111,11 +140,12 @@ if ($action === 'send') {
         exit;
     }
 
-    // Generuj scalony PDF: cover page + oryginał
+    // Generuj scalony PDF: cover page + oryginał (+ ewentualnie dołączone pismo)
     $referent_name = db_one("SELECT name FROM users WHERE id=?", [$pismo['owner_id'] ?? 0])['name'] ?? '';
+    $originals     = $companion_pdf_path ? [$pdf_path, $companion_pdf_path] : [$pdf_path];
     $merged_pdf    = null;
     try {
-        $merged_pdf = postivo_build_cover_pdf($pdf_path, [
+        $merged_pdf = postivo_build_cover_pdf($originals, [
             'doc_title'   => $doc_title,
             'doc_reason'  => $doc_reason,
             'recipient'   => $recipient_name,
@@ -128,8 +158,11 @@ if ($action === 'send') {
         ]);
         $send_path = $merged_pdf;
     } catch (\Throwable $e) {
-        // Jeśli generowanie cover page nie powiedzie się — wyślij sam oryginał
+        // Jeśli generowanie cover page (albo scalenie z dołączonym pismem) nie
+        // powiedzie się — wyślij sam oryginał; dołączone pismo zostaje nienadane,
+        // zamiast wysyłać niekompletną przesyłkę bez wyjaśnienia.
         $send_path = $pdf_path;
+        $companion = null;
     }
 
     try {
@@ -147,28 +180,41 @@ if ($action === 'send') {
             'pdf_path'       => $send_path,
         ]);
 
-        $postivo_id = $result['id'];
-        db()->prepare(
-            "UPDATE ezd_pisma SET
-               postivo_job_id       = ?,
-               postivo_status       = 'draft',
-               postivo_sent_at      = datetime('now'),
-               postivo_adres        = ?,
-               postivo_kod_pocztowy = ?,
-               postivo_miasto       = ?,
-               updated_at           = datetime('now')
-             WHERE id = ?"
-        )->execute([
-            $postivo_id,
-            $address_line1 . ($address_line2 ? "\n" . $address_line2 : ''),
-            $postcode,
-            $city,
-            $pismo_id,
-        ]);
+        $postivo_id  = $result['id'];
+        $addr_full   = $address_line1 . ($address_line2 ? "\n" . $address_line2 : '');
+        // Jedna koperta = jedno zlecenie: obie pozycje rejestru (pismo główne
+        // i dołączone, jeśli scalenie się powiodło) dostają ten sam postivo_job_id,
+        // żeby dziennik pokazywał je jako wysłane RAZEM, a nie dwa osobne listy.
+        $ids_to_mark = $companion ? [$pismo_id, (int)$companion['id']] : [$pismo_id];
+        foreach ($ids_to_mark as $pid) {
+            db()->prepare(
+                "UPDATE ezd_pisma SET
+                   postivo_job_id       = ?,
+                   postivo_status       = 'draft',
+                   postivo_sent_at      = datetime('now'),
+                   postivo_adres        = ?,
+                   postivo_kod_pocztowy = ?,
+                   postivo_miasto       = ?,
+                   updated_at           = datetime('now')
+                 WHERE id = ?"
+            )->execute([$postivo_id, $addr_full, $postcode, $city, $pid]);
+        }
 
-        ezd_log(null, (int)$pismo['sprawa_id'], $pismo_id, null, (int)current_user()['id'],
-            'postivo_wyslano', 'Nadano pismo przez Postivo.pl, ID: ' . $postivo_id);
-        flash_set('success', 'List nadany przez Postivo.pl. ID zlecenia: ' . $postivo_id);
+        $uid = (int)current_user()['id'];
+        if ($companion) {
+            ezd_log(null, (int)$pismo['sprawa_id'], $pismo_id, null, $uid, 'postivo_wyslano',
+                'Nadano pismo przez Postivo.pl razem z pismem ' . ($companion['sygnatura'] ?: '#' . $companion['id'])
+                . ' (jedna przesyłka), ID: ' . $postivo_id);
+            ezd_log(null, (int)$pismo['sprawa_id'], (int)$companion['id'], null, $uid, 'postivo_wyslano',
+                'Nadano pismo przez Postivo.pl razem z pismem ' . ($pismo['sygnatura'] ?: '#' . $pismo_id)
+                . ' (jedna przesyłka), ID: ' . $postivo_id);
+            flash_set('success', 'List nadany przez Postivo.pl razem z pismem '
+                . ($companion['sygnatura'] ?: '#' . $companion['id']) . '. ID zlecenia: ' . $postivo_id);
+        } else {
+            ezd_log(null, (int)$pismo['sprawa_id'], $pismo_id, null, $uid,
+                'postivo_wyslano', 'Nadano pismo przez Postivo.pl, ID: ' . $postivo_id);
+            flash_set('success', 'List nadany przez Postivo.pl. ID zlecenia: ' . $postivo_id);
+        }
     } catch (RuntimeException $e) {
         flash_set('error', 'Błąd wysyłki Postivo.pl: ' . $e->getMessage());
     } finally {
@@ -193,15 +239,22 @@ if ($action === 'refresh_status') {
         $client      = new PostivoClient();
         $status_data = $client->get_status($pismo['postivo_job_id']);
         $old_status  = $pismo['postivo_status'] ?? '';
+        $uid         = (int)current_user()['id'];
 
+        // Jeden postivo_job_id może siedzieć na kilku pismach (jedna koperta) —
+        // status dotyczy całej przesyłki, więc aktualizujemy WSZYSTKIE naraz,
+        // żeby dziennik nie pokazywał różnych statusów dla tego samego listu.
+        $siblings = db_all("SELECT id, sprawa_id FROM ezd_pisma WHERE postivo_job_id=?", [$pismo['postivo_job_id']]);
         db()->prepare(
-            "UPDATE ezd_pisma SET postivo_status=?, updated_at=datetime('now') WHERE id=?"
-        )->execute([$status_data['status'], $pismo_id]);
+            "UPDATE ezd_pisma SET postivo_status=?, updated_at=datetime('now') WHERE postivo_job_id=?"
+        )->execute([$status_data['status'], $pismo['postivo_job_id']]);
 
         if ($status_data['status'] !== $old_status) {
-            ezd_log(null, (int)$pismo['sprawa_id'], $pismo_id, null, (int)current_user()['id'],
-                'postivo_status', 'Status Postivo.pl: ' . ($old_status ?: '—') . ' → ' . $status_data['status']
-                . ($status_data['tracking'] ? ' (nr śledzenia: ' . $status_data['tracking'] . ')' : ''));
+            foreach ($siblings as $sib) {
+                ezd_log(null, (int)$sib['sprawa_id'], (int)$sib['id'], null, $uid,
+                    'postivo_status', 'Status Postivo.pl: ' . ($old_status ?: '—') . ' → ' . $status_data['status']
+                    . ($status_data['tracking'] ? ' (nr śledzenia: ' . $status_data['tracking'] . ')' : ''));
+            }
         }
 
         $track = $status_data['tracking'] ? ' Nr śledzenia: ' . $status_data['tracking'] . '.' : '';
@@ -231,11 +284,18 @@ if ($action === 'cancel') {
         $client = new PostivoClient();
         $client->cancel($pismo['postivo_job_id']);
 
+        // Anulowanie dotyczy całej przesyłki (koperty) — jeśli inne pismo
+        // dzieli z tym ten sam postivo_job_id, ono też przestaje być nadane.
+        $siblings = db_all("SELECT id, sprawa_id FROM ezd_pisma WHERE postivo_job_id=?", [$pismo['postivo_job_id']]);
         db()->prepare(
-            "UPDATE ezd_pisma SET postivo_status='cancelled', updated_at=datetime('now') WHERE id=?"
-        )->execute([$pismo_id]);
+            "UPDATE ezd_pisma SET postivo_status='cancelled', updated_at=datetime('now') WHERE postivo_job_id=?"
+        )->execute([$pismo['postivo_job_id']]);
 
-        ezd_log($pismo['sprawa_id'], current_user()['id'], 'pisma', 'Anulowano zlecenie Postivo.pl: ' . $pismo['postivo_job_id'], $pismo_id);
+        $uid = (int)current_user()['id'];
+        foreach ($siblings as $sib) {
+            ezd_log(null, (int)$sib['sprawa_id'], (int)$sib['id'], null, $uid,
+                'postivo_anulowano', 'Anulowano zlecenie Postivo.pl: ' . $pismo['postivo_job_id']);
+        }
         flash_set('success', 'Zlecenie Postivo.pl anulowane.');
     } catch (RuntimeException $e) {
         flash_set('error', 'Błąd anulowania Postivo.pl: ' . $e->getMessage());

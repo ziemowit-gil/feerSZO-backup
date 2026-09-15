@@ -9,9 +9,13 @@
  */
 
 /**
- * Generuje scalony PDF: strona tytułowa + oryginalny dokument.
+ * Generuje scalony PDF: strona tytułowa + jeden lub więcej oryginalnych dokumentów.
  *
- * @param string $original_pdf_path  Ścieżka do oryginalnego PDF
+ * Kilka pism nadanych jako JEDNA przesyłka (jedna koperta, jedno zlecenie
+ * Postivo) to wciąż jeden PDF ze wspólną stroną tytułową — reszta stron to
+ * kolejne pisma, w kolejności podania.
+ *
+ * @param string|list<string> $original_pdf_paths  Ścieżka (lub ścieżki) do oryginalnych PDF-ów
  * @param array  $cover              Dane strony tytułowej:
  *   - doc_title    string  Tytuł dokumentu (co to jest)
  *   - doc_reason   string  Powód wysyłki (dlaczego otrzymujesz)
@@ -25,12 +29,16 @@
  * @return string  Ścieżka do tymczasowego scalonego pliku PDF (do usunięcia przez wywołującego)
  * @throws \RuntimeException
  */
-function postivo_build_cover_pdf(string $original_pdf_path, array $cover): string
+function postivo_build_cover_pdf(string|array $original_pdf_paths, array $cover): string
 {
-    if (!file_exists($original_pdf_path)) {
-        throw new \RuntimeException('Nie znaleziono pliku PDF: ' . $original_pdf_path);
+    $original_pdf_paths = is_array($original_pdf_paths) ? $original_pdf_paths : [$original_pdf_paths];
+    foreach ($original_pdf_paths as $path) {
+        if (!file_exists($path)) {
+            throw new \RuntimeException('Nie znaleziono pliku PDF: ' . $path);
+        }
     }
 
+    require_once __DIR__ . '/ezd.php'; // ezd_merge_pdf_files()
     $tmp_dir = sys_get_temp_dir();
     $merged  = $tmp_dir . '/postivo_merged_' . bin2hex(random_bytes(8)) . '.pdf';
 
@@ -147,38 +155,16 @@ HTML;
     $mpdf_cover->WriteHTML($html);
     $cover_pdf = $mpdf_cover->Output('', \Mpdf\Output\Destination::STRING_RETURN);
 
-    // Scala: cover page + oryginał
+    // Scala: cover page + wszystkie oryginały, w podanej kolejności.
+    // ezd_merge_pdf_files() (qpdf, z FPDI jako fallback) obsługuje też PDF-y
+    // ze skompresowanym cross-reference (1.5+), których import*Page mPDF
+    // powyżej nie potrafił odczytać.
     $cover_tmp = $tmp_dir . '/postivo_cover_' . bin2hex(random_bytes(8)) . '.pdf';
     file_put_contents($cover_tmp, $cover_pdf);
     unset($mpdf_cover, $cover_pdf);
 
     try {
-        $mpdf = new \Mpdf\Mpdf([
-            'format'        => 'A4',
-            'margin_top'    => 0,
-            'margin_bottom' => 0,
-            'margin_left'   => 0,
-            'margin_right'  => 0,
-            'tempDir'       => $tmp_dir,
-        ]);
-
-        // Strona 1 — cover
-        $cnt = $mpdf->setSourceFile($cover_tmp);
-        for ($p = 1; $p <= $cnt; $p++) {
-            $pid = $mpdf->importPage($p);
-            $mpdf->AddPage('P', '', 0, '', 0, 0, 0, 0, 0, 0);
-            $mpdf->useImportedPage($pid, 0, 0, 210, 297);
-        }
-
-        // Strony N — oryginalny PDF
-        $cnt = $mpdf->setSourceFile($original_pdf_path);
-        for ($p = 1; $p <= $cnt; $p++) {
-            $pid = $mpdf->importPage($p);
-            $mpdf->AddPage('P', '', 0, '', 0, 0, 0, 0, 0, 0);
-            $mpdf->useImportedPage($pid, 0, 0, 210, 297);
-        }
-
-        $mpdf->Output($merged, \Mpdf\Output\Destination::FILE);
+        ezd_merge_pdf_files(array_merge([$cover_tmp], $original_pdf_paths), $merged);
     } finally {
         @unlink($cover_tmp);
     }

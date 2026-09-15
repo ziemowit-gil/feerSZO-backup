@@ -327,6 +327,16 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           "SELECT 1 FROM ezd_zalaczniki WHERE pismo_id=? AND mime_type='application/pdf'",
           [$id]
       );
+      // Inne pisma tej samej sprawy, które da się dołączyć do TEJ SAMEJ przesyłki
+      // (jedna koperta, jedno zlecenie Postivo) — jeszcze nienadane, z własnym PDF.
+      $postivo_companions = db_all(
+          "SELECT DISTINCT p.id, p.sygnatura, p.title FROM ezd_pisma p
+             JOIN ezd_zalaczniki z ON z.pismo_id = p.id AND z.mime_type='application/pdf'
+            WHERE p.sprawa_id = ? AND p.kierunek='wychodzace' AND p.id != ?
+              AND (p.postivo_job_id IS NULL OR p.postivo_job_id = '')
+         ORDER BY p.created_at DESC",
+          [$pismo['sprawa_id'], $id]
+      );
     ?>
     <div class="card shadow-sm mb-3 <?= $p_job_id ? 'border-primary' : '' ?>">
       <div class="card-header fw-semibold" style="font-size:.82rem">
@@ -340,6 +350,23 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <div class="mb-1 text-muted" style="font-size:.75rem">
             ID zlecenia: <span class="font-monospace"><?= h($p_job_id) ?></span>
           </div>
+          <?php
+            // To samo postivo_job_id na kilku pismach = jedna koperta, jedno zlecenie.
+            $p_siblings = db_all(
+                "SELECT id, sygnatura, title FROM ezd_pisma WHERE postivo_job_id=? AND id != ?",
+                [$p_job_id, $id]
+            );
+          ?>
+          <?php if ($p_siblings): ?>
+          <div class="text-muted mb-2" style="font-size:.75rem">
+            <i class="bi bi-envelope-paper me-1"></i>Wysłane razem z:
+            <?= implode(', ', array_map(
+                fn($sib) => '<a href="' . APP_URL . '/ezd/pisma/view.php?id=' . (int)$sib['id'] . '">'
+                          . h($sib['sygnatura'] ?: ('#' . $sib['id'])) . '</a>',
+                $p_siblings
+            )) ?>
+          </div>
+          <?php endif; ?>
           <?php if ($pismo['postivo_adres'] || $pismo['postivo_miasto']): ?>
           <div class="text-muted mb-2" style="font-size:.75rem">
             <?= h($pismo['postivo_adres'] ?? '') ?><?= ($pismo['postivo_adres'] && $pismo['postivo_miasto']) ? ', ' : '' ?><?= h(($pismo['postivo_kod_pocztowy'] ?? '') . ' ' . ($pismo['postivo_miasto'] ?? '')) ?>
@@ -438,6 +465,25 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
               <input type="text" name="doc_reason" class="form-control form-control-sm"
                      placeholder="np. W związku z zakończeniem okresu wolontariatu…" required>
             </div>
+            <?php if ($postivo_companions): ?>
+            <div class="mb-2">
+              <label class="form-label mb-1" style="font-size:.75rem;font-weight:600"
+                     title="Oba pisma pojadą w jednej kopercie jako jedno zlecenie Postivo">
+                Dołącz do tej samej przesyłki <span class="text-muted fw-normal">(opcjonalnie)</span>
+              </label>
+              <select name="companion_pismo_id" class="form-select form-select-sm">
+                <option value="">— brak, wyślij osobno —</option>
+                <?php foreach ($postivo_companions as $pc): ?>
+                <option value="<?= (int)$pc['id'] ?>">
+                  <?= h($pc['sygnatura'] ?: ('#' . $pc['id'])) ?> — <?= h(mb_substr((string)$pc['title'], 0, 60)) ?>
+                </option>
+                <?php endforeach; ?>
+              </select>
+              <div class="form-text" style="font-size:.7rem">
+                Wybrane pismo trafi do tej samej koperty — jedno zlecenie, oba wpisy w rejestrze dostaną ten sam numer.
+              </div>
+            </div>
+            <?php endif; ?>
             <button type="submit" class="btn btn-primary btn-sm w-100"
                     onclick="return confirm('Wysłać list przez Postivo.pl?')">
               <i class="bi bi-send me-1"></i>Wyślij listem
