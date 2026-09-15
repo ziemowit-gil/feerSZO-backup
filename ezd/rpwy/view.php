@@ -20,6 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!can_edit()) { flash_set('error','Brak uprawnień.'); header('Location:'.APP_URL.'/ezd/rpwy/view.php?id='.$id); exit; }
     $uid = (int)current_user()['id'];
     $act = $_POST['action'] ?? '';
+    if (!empty($r['postivo_job_id']) && in_array($act, ['doreczono', 'zwrot', 'fikcja'], true)) {
+        flash_set('error', 'Ta przesyłka jest obsługiwana przez Postivo.pl — doręczenie i zwrot są śledzone automatycznie.');
+        header('Location:'.APP_URL.'/ezd/rpwy/view.php?id='.$id); exit;
+    }
     try {
         if ($act === 'nadaj') {
             ezd_rpwy_set_status($id, 'nadana', [
@@ -329,6 +333,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <?php endif; ?>
 
         <?php if(in_array($r['status'], ['nadana'], true)): ?>
+        <?php if(!empty($r['postivo_job_id'])): ?>
+        <div class="alert alert-secondary py-2 mb-0" style="font-size:.78rem">
+          <i class="bi bi-robot me-1"></i>Status doręczenia i ewentualny zwrot są śledzone automatycznie przez Postivo.pl — ręczne potwierdzanie jest wyłączone dla tej przesyłki.
+        </div>
+        <?php else: ?>
         <button class="btn btn-success btn-sm" data-bs-toggle="collapse" data-bs-target="#act-dor">
           <i class="bi bi-check2-circle me-1"></i>Potwierdź doręczenie
         </button>
@@ -357,8 +366,9 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </form>
         </div>
         <?php endif; ?>
+        <?php endif; ?>
 
-        <?php if(!$r['data_doreczenia'] && !empty($sp['zpo']) && in_array($r['status'], ['nadana','zwrocona'], true)): ?>
+        <?php if(!$r['data_doreczenia'] && empty($r['postivo_job_id']) && !empty($sp['zpo']) && in_array($r['status'], ['nadana','zwrocona'], true)): ?>
         <button class="btn btn-outline-warning btn-sm" data-bs-toggle="collapse" data-bs-target="#act-fikcja">
           <i class="bi bi-exclamation-circle me-1"></i>Fikcja doręczenia
         </button>
