@@ -186,14 +186,11 @@ function _menu_ezd_items(): array {
 }
 
 // ── Widok EZD-only zawężony do RPW (rola ezd_biuro) ──────────────────────────
+// Bez menu — jedyna dostępna strona to Rejestr Przychodzących (RPW), na którą
+// i tak trafiają automatycznie (require_login() w auth.php), więc nawigacja
+// górna jest zbędna.
 function _menu_ezd_rpw_only(): array {
-    if (!module_enabled('ezd_enabled')) return [];
-    return [[
-        'id'=>'ezd','label'=>'Wirtualne biurko','icon'=>'bi-building-gear','ezd'=>true,
-        'active'=>_menu_hit('/ezd/'),'groups'=>[['label'=>null,'items'=>[
-            _mi('Dziennik podawczy','/ezd/rpw/index.php','bi-mailbox2',['match'=>'/ezd/rpw/','kw'=>'rpw korespondencja wpływ rejestr przychodzących']),
-        ]]],
-    ]];
+    return [];
 }
 
 // ── Widok wolontariusza / użytkownika (viewer) ───────────────────────────────
