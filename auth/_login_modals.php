@@ -127,7 +127,58 @@
           <span id="login-error-text"><?= h($error) ?></span>
         </div>
         <?php endif; ?>
-        <p style="font-size:.85rem;color:var(--ks-muted);margin:0 0 1rem">Plik PKCS#12 (.p12) wygenerowany przez administratora systemu.</p>
+        <div id="szocert-app-box" style="display:none;margin-bottom:1rem">
+          <button type="button" id="szocert-app-btn" class="ks-btn ks-btn--primary" style="width:100%">
+            <i class="bi bi-usb-symbol" aria-hidden="true"></i> Zaloguj aplikacją SzoCert
+          </button>
+          <p style="font-size:.78rem;color:var(--ks-muted);margin:.5rem 0 0">Wykryto aplikację SzoCert — klucz certyfikatu zostaje na Twoim komputerze.</p>
+        </div>
+        <form method="post" id="szocert-app-form" style="display:none">
+          <input type="hidden" name="_csrf"          value="<?= csrf_token() ?>">
+          <input type="hidden" name="_method"        value="x509_app">
+          <input type="hidden" name="challenge_id"   id="f-x509-challenge-id">
+          <input type="hidden" name="cert_pem"       id="f-x509-cert-pem">
+          <input type="hidden" name="signature_b64"  id="f-x509-signature-b64">
+        </form>
+        <script>
+        (function () {
+            var SZOCERT_URL = 'http://127.0.0.1:52117';
+            var box = document.getElementById('szocert-app-box');
+            var btn = document.getElementById('szocert-app-btn');
+            if (!box || !btn) return;
+
+            fetch(SZOCERT_URL + '/ping', { mode: 'cors', cache: 'no-store' })
+                .then(function (r) { if (r.ok) box.style.display = 'block'; })
+                .catch(function () { /* aplikacja nieuruchomiona — zostaje ukryty upload .p12 poniżej */ });
+
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                btn.textContent = 'Łączę z SzoCert…';
+                fetch('<?= APP_URL ?>/auth/x509_challenge.php', { method: 'POST', cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (ch) {
+                        if (!ch.ok) throw new Error('Nie udało się utworzyć wyzwania.');
+                        return fetch(SZOCERT_URL + '/sign', {
+                            method: 'POST', mode: 'cors', cache: 'no-store',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ nonce_b64: ch.nonce_b64 })
+                        }).then(function (r) { return r.json(); }).then(function (sig) {
+                            if (!sig.ok) throw new Error(sig.error || 'Aplikacja SzoCert odrzuciła podpis.');
+                            document.getElementById('f-x509-challenge-id').value  = ch.challenge_id;
+                            document.getElementById('f-x509-cert-pem').value     = sig.cert_pem;
+                            document.getElementById('f-x509-signature-b64').value = sig.signature_b64;
+                            document.getElementById('szocert-app-form').submit();
+                        });
+                    })
+                    .catch(function (e) {
+                        btn.disabled = false;
+                        btn.textContent = 'Zaloguj aplikacją SzoCert';
+                        alert('Logowanie SzoCert nie powiodło się: ' + e.message);
+                    });
+            });
+        })();
+        </script>
+        <p style="font-size:.85rem;color:var(--ks-muted);margin:0 0 1rem">Bez aplikacji: plik PKCS#12 (.p12) wygenerowany przez administratora systemu.</p>
         <form method="post" enctype="multipart/form-data" novalidate aria-labelledby="mx509-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="x509">

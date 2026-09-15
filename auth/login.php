@@ -200,6 +200,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    elseif ($method === 'x509_app' && $x509_available) {
+        // Challenge-response przez aplikację kliencką SzoCert — klucz prywatny
+        // nigdy nie opuszcza komputera użytkownika (patrz includes/x509_login.php
+        // x509_verify_challenge() i bin/szocert-app).
+        $active_tab   = 'x509';
+        $challenge_id = $_POST['challenge_id']  ?? '';
+        $cert_pem     = $_POST['cert_pem']      ?? '';
+        $signature_b64 = $_POST['signature_b64'] ?? '';
+
+        $user = null;
+        if ($challenge_id && $cert_pem && $signature_b64) {
+            try { $user = x509_verify_challenge($challenge_id, $cert_pem, $signature_b64); } catch (\Throwable $e) {}
+        }
+        if ($user && account_is_office_only($user)) {
+            authlog_write((int)$user['id'], 'login_blocked_office', $user['email'] ?? '', 'Konto służbowe — wymagane logowanie przez Microsoft 365');
+            $error = 'Konto służbowe @feer.org.pl loguje się wyłącznie przez Microsoft 365 (Office).';
+            $active_tab = 'x509';
+        } elseif ($user) {
+            log_auth_action((int)$user['id'], 'login_x509_app', 'Logowanie X.509 (SzoCert): ' . $user['email']);
+            authlog_write((int)$user['id'], 'login_x509_app', $user['email'], 'Logowanie certyfikatem X.509 (aplikacja SzoCert)');
+            require_once dirname(__DIR__) . '/includes/webauthn.php';
+            if (webauthn_login_gate($user, $redirect)) exit;
+            login_user($user);
+            header('Location: ' . ($redirect ?: _login_landing($user))); exit;
+        } else {
+            $error = 'Logowanie aplikacją SzoCert nie powiodło się — wyzwanie wygasło albo certyfikat jest nieprawidłowy/unieważniony.';
+        }
+    }
+
     elseif ($method === 'code') {
         $code = trim($_POST['login_code'] ?? '');
         $user = auth_login_by_code($code);
