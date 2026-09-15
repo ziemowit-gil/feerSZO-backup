@@ -46,8 +46,8 @@ class PostivoClient
             return ['ok' => false, 'msg' => 'Brak klucza API.', 'balance' => null];
         }
         try {
-            $resp    = $this->sdk()->accounts->ping();
-            $balance = $resp->pingResponse?->balance ?? null;
+            $resp    = $this->sdk()->accounts->get();
+            $balance = $resp->accountResponse?->credit ?? null;
             $msg     = 'Połączenie nawiązane pomyślnie.';
             if ($balance !== null) {
                 $msg .= ' Saldo konta: ' . number_format((float)$balance, 2, ',', ' ') . ' zł.';
@@ -67,7 +67,7 @@ class PostivoClient
     public function get_metadata(): array
     {
         try {
-            $resp = $this->sdk()->metadata->get();
+            $resp = $this->sdk()->metadata->list();
             $md   = $resp->metadataResponse;
             return [
                 'carriers'           => $md?->carriers          ?? [],
