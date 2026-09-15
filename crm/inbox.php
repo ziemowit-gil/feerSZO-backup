@@ -368,25 +368,39 @@ include __DIR__ . '/includes/header_crm.php';
 .ib-ctx { padding:.9rem 1.15rem; border-top:1px solid #F1F2F4; font-size:.82rem }
 .ib-ctx a { text-decoration:none }
 .ib-lbl { font-size:.68rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#9CA3AF; margin-bottom:.25rem }
-.ib-pill { display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .5rem .3rem .8rem; border-radius:2rem;
-  font-size:.78rem; font-weight:600; text-decoration:none; border:2px solid transparent }
+.ib-pill { display:inline-flex; align-items:center; gap:.4rem; padding:.32rem .55rem .32rem .8rem; border-radius:10px;
+  font-size:.78rem; font-weight:600; text-decoration:none; border:1.5px solid transparent;
+  transition:background .12s, border-color .12s, box-shadow .12s }
+.ib-pill:hover { box-shadow:0 1px 2px rgba(16,24,40,.06) }
 /* Licznik jako osobna plakietka — inaczej „Nowe 23" czyta się jak jedno wyrażenie. */
 .ib-cnt { display:inline-block; min-width:1.5rem; padding:0 .35rem; border-radius:2rem;
   font-size:.72rem; font-weight:700; line-height:1.4; text-align:center }
 
-/* ── Nagłówek strony (lokalny, jednowierszowy) ──────────────────────────── */
+/* ── Nagłówek strony (lokalny, jednowierszowy) ─────────────────────────────
+   Karta zamiast gołego tekstu na tle strony — odróżnia „chrome" skrzynki
+   od listy wiadomości pod spodem, bez odbierania miejsca na pasek widoków. */
 .ib-header { display:flex; align-items:center; justify-content:space-between;
-  gap:1rem; flex-wrap:wrap; margin-bottom:.9rem }
-.ib-header-title { display:flex; align-items:center; gap:.5rem;
-  font-size:1.22rem; font-weight:700; color:#111827; line-height:1.2 }
+  gap:1rem; flex-wrap:wrap; margin-bottom:.7rem;
+  background:#fff; border:1px solid #EDEFF2; border-radius:14px;
+  padding:.85rem 1.1rem; box-shadow:0 1px 2px rgba(16,24,40,.04) }
+.ib-header-title { display:flex; align-items:center; gap:.6rem;
+  font-size:1.24rem; font-weight:700; color:#111827; line-height:1.2; letter-spacing:-.01em }
+.ib-header-icon { display:inline-flex; align-items:center; justify-content:center;
+  width:2.15rem; height:2.15rem; border-radius:10px; flex-shrink:0;
+  background:var(--crm-accent-bg, #EEF4FF); color:var(--crm-accent, #0176D3); font-size:1.05rem }
 .ib-header-actions { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; flex-shrink:0 }
+.ib-header-sep { width:1px; align-self:stretch; min-height:22px; background:#E5E7EB; margin:0 .15rem }
 .ib-help { color:#9CA3AF; font-size:.9rem; cursor:help; display:inline-flex }
 .ib-help:hover, .ib-help:focus-visible { color:var(--crm-primary) }
 
 /* ── Pasek narzędzi (widoki + filtry) ───────────────────────────────────
    Wcześniej pola i przyciski miały różne wysokości i „Sprawdź teraz" łamał
-   się na dwie linie. Teraz jedna wysokość (32 px) i wspólny promień. */
-.ib-toolbar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem }
+   się na dwie linie. Teraz jedna wysokość (32 px) i wspólny promień.
+   Ta sama karta co nagłówek, żeby oba paski czytały się jako jedna „chrome"
+   skrzynki, a nie dwa osobne, gołe rzędy nad listą. */
+.ib-toolbar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem;
+  background:#fff; border:1px solid #EDEFF2; border-radius:14px;
+  padding:.6rem .75rem; box-shadow:0 1px 2px rgba(16,24,40,.04) }
 .ib-views { display:flex; gap:.4rem; flex-wrap:wrap; min-width:0 }
 .ib-field, .ib-toolbar .form-select, .ib-toolbar .form-control {
   height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px;
@@ -560,7 +574,7 @@ include __DIR__ . '/includes/header_crm.php';
          w podpowiedzi przy tytule, bo przydaje się raz, a zabierał miejsce zawsze. */ ?>
 <div class="ib-header">
   <div class="ib-header-title">
-    <i class="bi bi-inbox-fill" style="color:#0176D3" aria-hidden="true"></i>
+    <span class="ib-header-icon"><i class="bi bi-inbox-fill" aria-hidden="true"></i></span>
     <span>Skrzynka CRM</span>
     <span class="ib-help" tabindex="0" role="note"
           aria-label="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, zarejestruj w dzienniku EZD albo przekaż e-mailem"
@@ -577,6 +591,9 @@ include __DIR__ . '/includes/header_crm.php';
             title="Napisz nową wiadomość do kontaktu z CRM — wyśle się z CRM i zapisze w historii kontaktu">
       <i class="bi bi-pencil-square" aria-hidden="true"></i>Napisz
     </button>
+    <?php endif; ?>
+    <?php if ($can_write && is_admin()): ?>
+    <span class="ib-header-sep" aria-hidden="true"></span>
     <?php endif; ?>
     <?php if (is_admin()): ?>
     <form method="post" class="d-flex gap-1 align-items-center">
