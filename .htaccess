@@ -55,7 +55,7 @@ RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 # auth/ms365_prowadzacy.php, callback auth/microsoft.php).
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|assets|uploads|errors|api|newUI)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
