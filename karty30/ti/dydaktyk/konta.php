@@ -1538,13 +1538,14 @@ function printBulk(){
               </td>
               <td class="text-end">
                 <a href="?selected=<?= (int)$a['id'] ?>#akcje-kursanta"
-                   class="btn btn-sm <?= $is_sel ? 'btn-primary' : 'btn-outline-primary' ?>"
+                   class="btn btn-sm text-nowrap <?= $is_sel ? 'btn-primary' : 'btn-outline-primary' ?>"
                    <?= $is_sel ? 'aria-current="true"' : '' ?>
+                   title="<?= $is_sel ? 'Wybrany kursant' : 'Zarządzaj' ?>"
                    aria-label="<?= $is_sel ? 'Wybrany kursant' : 'Wybierz kursanta' ?> <?= h($a['client_name']) ?> — pokaż działania">
                   <?php if ($is_sel): ?>
-                  <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Wybrany
+                  <i class="bi bi-check-circle-fill" aria-hidden="true"></i><span class="d-none d-xl-inline ms-1">Wybrany</span>
                   <?php else: ?>
-                  <i class="bi bi-gear me-1" aria-hidden="true"></i>Zarządzaj
+                  <i class="bi bi-gear" aria-hidden="true"></i><span class="d-none d-xl-inline ms-1">Zarządzaj</span>
                   <?php endif; ?>
                 </a>
               </td>
