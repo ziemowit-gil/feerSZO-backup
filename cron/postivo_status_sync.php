@@ -22,7 +22,16 @@ require_once $base_dir . '/config.php';
 require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/ezd.php';
+require_once $base_dir . '/includes/ezd_rpwy.php';
 require_once $base_dir . '/includes/postivo.php';
+
+// Postivo → RPW-W (książka nadawcza): tylko przejścia, które faktycznie
+// zmieniają sytuację prawną przesyłki — 'processing'/'sent'/'unknown' zostają
+// jako 'nadana' (już tak ustawione przy wysyłce), nie ma co nadpisywać.
+const POSTIVO_TO_RPWY_STATUS = [
+    'delivered' => 'doreczona',
+    'failed'    => 'zwrocona',
+];
 
 echo "[" . date('Y-m-d H:i:s') . "] Start: postivo_status_sync\n";
 
@@ -70,6 +79,20 @@ foreach ($pending as $p) {
 
         echo "  ✓ pismo #{$p['id']}: {$old_status} → {$new_status}\n";
         $changed++;
+
+        // Odbij istotne zmiany też w książce nadawczej RPW-W (jeśli to pismo ma wpis).
+        if (isset(POSTIVO_TO_RPWY_STATUS[$new_status])) {
+            $rpwy = ezd_rpwy_for_pismo((int)$p['id']);
+            if ($rpwy && $rpwy['status'] !== POSTIVO_TO_RPWY_STATUS[$new_status]) {
+                try {
+                    $extra = $new_status === 'failed' ? ['zwrot_powod' => 'Niedostarczone (Postivo: failed)'] : [];
+                    ezd_rpwy_set_status((int)$rpwy['id'], POSTIVO_TO_RPWY_STATUS[$new_status], $extra, 0);
+                    echo "    ↳ RPW-W " . ezd_rpwy_label($rpwy) . ": {$rpwy['status']} → " . POSTIVO_TO_RPWY_STATUS[$new_status] . "\n";
+                } catch (\Throwable $e) {
+                    echo "    ↳ RPW-W: błąd aktualizacji statusu — " . $e->getMessage() . "\n";
+                }
+            }
+        }
     } catch (\Throwable $e) {
         echo "  ✗ pismo #{$p['id']}: " . $e->getMessage() . "\n";
         $errs++;

@@ -34,11 +34,21 @@ $access  = ezd_sprawa_access($sprawa, $user_id);
 $can_act = ($access === 'write') && ($sprawa['status'] !== 'closed');
 if (!$can_act) { flash_set('error', 'Brak uprawnień do koszulki.'); header('Location: ' . $redirect); exit; }
 
-$zal_ids     = array_map('intval', (array)($_POST['zal_ids'] ?? []));
-$title       = trim($_POST['title']    ?? '');
-$odbiorca    = trim($_POST['odbiorca'] ?? '');
-$sposob      = $_POST['sposob'] ?? 'zwykly';
-$via_postivo = !empty($_POST['send_postivo']);
+$zal_ids  = array_map('intval', (array)($_POST['zal_ids'] ?? []));
+$title    = trim($_POST['title']    ?? '');
+$odbiorca = trim($_POST['odbiorca'] ?? '');
+$sposob   = $_POST['sposob'] ?? 'zwykly';
+
+// Tryb wysyłki — decyduje, czy generujemy poświadczenie i synchronizujemy
+// status z Postivo, czy tylko rejestrujemy wpis:
+//   wydruk        — do podpisu odręcznego, bez elektronicznej wysyłki
+//   elektroniczny — wysłane innym kanałem (e-mail/eDoręczenia) poza systemem,
+//                   NIE generuje poświadczenia
+//   postivo       — system sam wysyła i generuje poświadczenie nadania +
+//                   status synchronizuje się automatycznie (cron/postivo_status_sync.php)
+$tryb = $_POST['tryb'] ?? 'wydruk';
+if (!in_array($tryb, ['wydruk', 'elektroniczny', 'postivo'], true)) $tryb = 'wydruk';
+$via_postivo = ($tryb === 'postivo');
 
 if (!$zal_ids) { flash_set('error', 'Nie zaznaczono żadnego pliku.'); header('Location: ' . $redirect); exit; }
 if (!array_key_exists($sposob, EZD_RPWY_SPOSOBY)) $sposob = 'zwykly';
@@ -51,7 +61,8 @@ try {
     header('Location: ' . $redirect); exit;
 }
 
-$msg = 'Zarejestrowano w wychodzących: ' . ezd_rpwy_label($res) . ' (' . count($zal_ids) . ' plik(ów) w jednej przesyłce).';
+$tryb_label = ['wydruk' => 'do wydruku i podpisu odręcznego', 'elektroniczny' => 'elektronicznie (bez poświadczenia)', 'postivo' => 'przez Postivo.pl'][$tryb];
+$msg = 'Zarejestrowano w wychodzących: ' . ezd_rpwy_label($res) . ' (' . count($zal_ids) . ' plik(ów) w jednej przesyłce, ' . $tryb_label . ').';
 
 if ($via_postivo) {
     require_once dirname(dirname(__DIR__)) . '/includes/postivo.php';
@@ -113,7 +124,7 @@ if ($via_postivo) {
         ]);
 
         $client = new PostivoClient();
-        $result = $client->send_letter([
+        $send_params = [
             'recipient_name' => $recipient_name,
             'address_line1'  => $address_line1 . ($home_number ? ' ' . $home_number : ''),
             'address_line2'  => $address_line2 ?: null,
@@ -124,8 +135,13 @@ if ($via_postivo) {
             'postcode'       => $postcode,
             'country'        => $country,
             'pdf_path'       => $merged_pdf,
-        ]);
+        ];
 
+        // Wycena — najlepszy dostępny moment (dokładnie ten sam scalony PDF i
+        // adres, co realna wysyłka). Brak wyceny nie blokuje wysyłki.
+        $price = $client->get_price($send_params);
+
+        $result     = $client->send_letter($send_params);
         $postivo_id = $result['id'];
         $addr_full  = $address_line1 . ($address_line2 ? "\n" . $address_line2 : '');
         db()->prepare(
@@ -135,7 +151,30 @@ if ($via_postivo) {
 
         ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'postivo_wyslano',
             'Nadano przez Postivo.pl (szybka wysyłka, ' . count($pdf_paths) . ' plik(ów) scalonych), ID: ' . $postivo_id);
-        flash_set('success', $msg . ' Nadano przez Postivo.pl, ID zlecenia: ' . $postivo_id . '.');
+
+        // Wpis RPW-W od razu jako "nadana" (z kosztem, jeśli Postivo je wycenił) —
+        // dalsze zmiany (doręczono/zwrócono) dociągnie cron/postivo_status_sync.php.
+        $status_extra = ['nr_nadania' => $postivo_id];
+        if ($price !== null) $status_extra['koszt'] = $price;
+        try { ezd_rpwy_set_status((int)$res['id'], 'nadana', $status_extra, $user_id); } catch (\Throwable $e) {}
+
+        // Poświadczenie nadania z Postivo — ten sam mechanizm co ręcznie wgrywany
+        // dowód doręczenia (epo_*), więc widać je od razu na karcie wpisu RPW-W.
+        $cert_note = '';
+        try {
+            $cert_bytes = $client->get_document($postivo_id, 'dispatch_cert');
+            if ($cert_bytes) {
+                ezd_rpwy_store_epo_bytes((int)$res['id'], $cert_bytes, 'poswiadczenie_' . $postivo_id . '.pdf',
+                    'application/pdf', $user_id, 'Poświadczenie nadania z Postivo.pl');
+            } else {
+                $cert_note = ' (poświadczenie jeszcze niedostępne u Postivo — spróbuj pobrać później z karty wpisu RPW-W).';
+            }
+        } catch (\Throwable $e) {
+            $cert_note = ' (nie udało się pobrać poświadczenia: ' . $e->getMessage() . ' — spróbuj później z karty wpisu RPW-W).';
+        }
+
+        $price_note = $price !== null ? (' Koszt: ' . number_format($price, 2, ',', ' ') . ' zł.') : '';
+        flash_set('success', $msg . ' Nadano przez Postivo.pl, ID zlecenia: ' . $postivo_id . '.' . $price_note . $cert_note);
     } catch (\Throwable $e) {
         flash_set('error', $msg . ' Rejestracja OK, ale wysyłka Postivo nie powiodła się: ' . $e->getMessage());
     } finally {

@@ -2091,6 +2091,21 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
           <input type="text" name="odbiorca" id="qd-odbiorca" class="form-control" required>
         </div>
         <div class="mb-3">
+          <label class="form-label fw-semibold d-block">Jak wysłać?</label>
+          <div class="form-check">
+            <input class="form-check-input qd-tryb" type="radio" name="tryb" value="wydruk" id="qd-tryb-wydruk" checked>
+            <label class="form-check-label" for="qd-tryb-wydruk"><i class="bi bi-printer me-1"></i>Wydruk do podpisu odręcznego</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input qd-tryb" type="radio" name="tryb" value="elektroniczny" id="qd-tryb-elektroniczny">
+            <label class="form-check-label" for="qd-tryb-elektroniczny"><i class="bi bi-at me-1"></i>Elektronicznie (inny kanał — bez poświadczenia)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input qd-tryb" type="radio" name="tryb" value="postivo" id="qd-tryb-postivo">
+            <label class="form-check-label" for="qd-tryb-postivo"><i class="bi bi-send-fill me-1"></i>Postivo.pl — wysyła system, generuje poświadczenie, status synchronizuje się automatycznie</label>
+          </div>
+        </div>
+        <div class="mb-3">
           <label class="form-label fw-semibold" for="qd-sposob">Sposób wysyłki (rejestr RPW-W)</label>
           <select name="sposob" id="qd-sposob" class="form-select">
             <?php foreach (EZD_RPWY_SPOSOBY as $sk => $sv): ?>
@@ -2098,17 +2113,15 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" name="send_postivo" value="1" id="qd-postivo">
-          <label class="form-check-label fw-semibold" for="qd-postivo">
-            <i class="bi bi-send-fill text-success me-1"></i>Wyślij od razu przez Postivo.pl
-          </label>
-          <div class="form-text">Wymaga, żeby zaznaczone pliki (albo część z nich) były w PDF — reszta zostanie tylko zarejestrowana, bez fizycznej wysyłki. Postivo scali zaznaczone PDF-y w jedną kopertę.</div>
+        <div class="form-check mb-2" id="qd-zpo-wrap">
+          <input class="form-check-input" type="checkbox" id="qd-zpo">
+          <label class="form-check-label" for="qd-zpo">Z potwierdzeniem odbioru (ZPO)</label>
+          <div class="form-text">Ustawia powyżej „Polecony za potwierdzeniem odbioru" w rejestrze RPW-W. Uwaga: to sam wpis w książce nadawczej — żeby Postivo faktycznie nadało jako przesyłkę z (e)ZPO, musi mieć tak skonfigurowaną usługę w Administracja → Postivo (jedna, globalna konfiguracja usługi/przewoźnika — obecnie system nie wybiera usługi per wysyłka).</div>
         </div>
         <div class="collapse" id="qd-postivo-fields">
           <div class="row g-2 p-2 rounded border bg-light mb-2">
             <div class="col-md-6"><label class="form-label small mb-0">Nazwa odbiorcy (do koperty)</label><input type="text" name="recipient_name" class="form-control form-control-sm"></div>
-            <div class="col-md-6"><label class="form-label small mb-0">Powód wysyłki</label><input type="text" name="doc_reason" class="form-control form-control-sm" value="Korespondencja urzędowa"></div>
+            <div class="col-md-6"><label class="form-label small mb-0">Powód wysyłki</label><input type="text" name="doc_reason" id="qd-doc-reason" class="form-control form-control-sm" value="Korespondencja urzędowa"></div>
             <div class="col-md-8"><label class="form-label small mb-0">Ulica i numer <span class="text-danger">*</span></label><input type="text" name="address_line1" class="form-control form-control-sm"></div>
             <div class="col-md-2"><label class="form-label small mb-0">Nr domu</label><input type="text" name="home_number" class="form-control form-control-sm"></div>
             <div class="col-md-2"><label class="form-label small mb-0">Nr lokalu</label><input type="text" name="flat_number" class="form-control form-control-sm"></div>
@@ -2117,6 +2130,10 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
             <div class="col-md-3"><label class="form-label small mb-0">Miasto <span class="text-danger">*</span></label><input type="text" name="city" class="form-control form-control-sm"></div>
             <div class="col-md-6"><label class="form-label small mb-0">Telefon (opcjonalnie)</label><input type="text" name="phone_number" class="form-control form-control-sm"></div>
             <div class="col-md-6"><label class="form-label small mb-0">Kraj</label><input type="text" name="country" class="form-control form-control-sm" value="PL"></div>
+            <div class="col-12">
+              <button type="button" id="qd-preview-btn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye me-1"></i>Podgląd wydruku</button>
+              <span class="form-text">Otwiera w nowej karcie dokładnie to, co poleci do Postivo — zanim zlecisz wysyłkę.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -2135,9 +2152,50 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
     var modalCnt = document.getElementById('qd-modal-count');
     var fileList = document.getElementById('qd-file-list');
     var idsHost  = document.getElementById('qd-zal-ids');
-    var postivoChk = document.getElementById('qd-postivo');
+    var trybRadios = () => Array.from(document.querySelectorAll('.qd-tryb'));
     var postivoFields = document.getElementById('qd-postivo-fields');
+    var zpoChk     = document.getElementById('qd-zpo');
+    var sposobSel  = document.getElementById('qd-sposob');
+    var previewBtn = document.getElementById('qd-preview-btn');
+    var qdForm     = document.getElementById('qd-form');
     if (!btn) return;
+
+    function currentTryb() {
+        var r = trybRadios().find(r => r.checked);
+        return r ? r.value : 'wydruk';
+    }
+    function refreshTrybUI() {
+        var isPostivo = currentTryb() === 'postivo';
+        var bs = bootstrap.Collapse.getOrCreateInstance(postivoFields, {toggle: false});
+        isPostivo ? bs.show() : bs.hide();
+    }
+    trybRadios().forEach(r => r.addEventListener('change', refreshTrybUI));
+    refreshTrybUI();
+
+    if (zpoChk && sposobSel) {
+        zpoChk.addEventListener('change', function () {
+            sposobSel.value = this.checked ? 'polecony_zpo' : 'zwykly';
+        });
+    }
+
+    if (previewBtn) {
+        previewBtn.addEventListener('click', function () {
+            var tmp = document.createElement('form');
+            tmp.method = 'post';
+            tmp.action = '<?= APP_URL ?>/ezd/sprawy/quick_dispatch_preview.php';
+            tmp.target = '_blank';
+            Array.from(qdForm.elements).forEach(function (el) {
+                if (!el.name) return;
+                if (el.type === 'checkbox' || el.type === 'radio') { if (!el.checked) return; }
+                var inp = document.createElement('input');
+                inp.type = 'hidden'; inp.name = el.name; inp.value = el.value;
+                tmp.appendChild(inp);
+            });
+            document.body.appendChild(tmp);
+            tmp.submit();
+            tmp.remove();
+        });
+    }
 
     function refresh() {
         var checked = checks().filter(c => c.checked);
@@ -2167,13 +2225,6 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
         modalCnt.textContent = checked.length;
         fileList.innerHTML = checked.map(c => '<li>' + (c.dataset.name || c.value) + '</li>').join('');
     });
-
-    if (postivoChk) {
-        postivoChk.addEventListener('change', function () {
-            var bs = bootstrap.Collapse.getOrCreateInstance(postivoFields, {toggle: false});
-            this.checked ? bs.show() : bs.hide();
-        });
-    }
 })();
 </script>
 <?php endif; ?>
