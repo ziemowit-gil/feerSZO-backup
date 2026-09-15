@@ -2272,7 +2272,7 @@ function ezd_rpw_get(int $id): ?array {
     $r = db_one(
         "SELECT r.*, s.znak_sprawy, s.title AS sprawa_title,
                 p.title AS pismo_title, p.sygnatura AS pismo_sygnatura,
-                c.name AS creator_name
+                c.name AS creator_name, c.email AS creator_login
          FROM ezd_rpw r
          LEFT JOIN ezd_sprawy s ON s.id = r.sprawa_id
          LEFT JOIN ezd_pisma  p ON p.id = r.pismo_id
@@ -2349,7 +2349,9 @@ function _ezd_rpw_notify_admins(int $rpw_id, string $nr, int $rok, string $opis,
     require_once __DIR__ . '/notifications.php';
     require_once __DIR__ . '/approval.php';
 
-    $author = db_one("SELECT name FROM users WHERE id=?", [$created_by])['name'] ?? '';
+    $creator     = db_one("SELECT name, email FROM users WHERE id=?", [$created_by]);
+    $author      = $creator['name'] ?? '';
+    $author_login = $creator['email'] ?? '';
     $org    = defined('ORG_NAME') ? ORG_NAME : '';
     $url    = '/ezd/rpw/view.php?id=' . $rpw_id;
     $title  = 'Nowa przesyłka RPW ' . $nr . '/' . $rok;
@@ -2365,7 +2367,7 @@ function _ezd_rpw_notify_admins(int $rpw_id, string $nr, int $rok, string $opis,
   <tr><td style='padding:4px 12px 4px 0;color:#555'>Numer:</td><td><strong>RPW " . htmlspecialchars($nr . '/' . $rok) . "</strong></td></tr>
   <tr><td style='padding:4px 12px 4px 0;color:#555'>Nadawca:</td><td>" . htmlspecialchars($nadawca) . "</td></tr>
   <tr><td style='padding:4px 12px 4px 0;color:#555'>Opis:</td><td>" . htmlspecialchars($opis) . "</td></tr>
-  <tr><td style='padding:4px 12px 4px 0;color:#555'>Zarejestrował(a):</td><td>" . htmlspecialchars($author) . "</td></tr>
+  <tr><td style='padding:4px 12px 4px 0;color:#555'>Zarejestrował(a):</td><td>" . htmlspecialchars($author) . ($author_login ? ' (' . htmlspecialchars($author_login) . ')' : '') . "</td></tr>
 </table>
 <p><a href='" . htmlspecialchars(APP_URL . $url) . "' style='background:#0d6efd;color:#fff;padding:10px 22px;text-decoration:none;border-radius:4px;display:inline-block'>Otwórz w Rejestrze →</a></p>
 ";

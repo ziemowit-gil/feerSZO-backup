@@ -107,7 +107,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <dd class="col-8 col-sm-9 mb-0"><?= nl2br(h($rpw['uwagi'])) ?></dd>
         <?php endif; ?>
         <dt class="col-4 col-sm-3 text-muted fw-normal">Zarejestrował</dt>
-        <dd class="col-8 col-sm-9 mb-0"><?= h($rpw['creator_name'] ?: '—') ?> · <?= date('d.m.Y H:i', strtotime($rpw['created_at'])) ?></dd>
+        <dd class="col-8 col-sm-9 mb-0">
+          <?= h($rpw['creator_name'] ?: '—') ?><?php if ($rpw['creator_login']): ?> <span class="text-muted" style="font-size:.78rem">(<?= h($rpw['creator_login']) ?>)</span><?php endif; ?>
+          · <?= date('d.m.Y H:i', strtotime($rpw['created_at'])) ?>
+        </dd>
       </dl>
 
       <?php if($locked && $rpw['znak_sprawy']): ?>
