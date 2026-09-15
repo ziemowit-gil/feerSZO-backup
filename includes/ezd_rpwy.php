@@ -29,11 +29,12 @@ const EZD_RPWY_SPOSOBY = [
 ];
 
 const EZD_RPWY_STATUSY = [
-    'przygotowana' => ['label' => 'Przygotowana', 'class' => 'secondary'],
-    'nadana'       => ['label' => 'Nadana',       'class' => 'primary'],
-    'doreczona'    => ['label' => 'Doręczona',    'class' => 'success'],
-    'zwrocona'     => ['label' => 'Zwrócona',     'class' => 'danger'],
-    'anulowana'    => ['label' => 'Anulowana',    'class' => 'dark'],
+    'przygotowana'   => ['label' => 'Przygotowana',           'class' => 'secondary'],
+    'postivo_queued' => ['label' => 'Przetwarzanie - Postivo', 'class' => 'warning'],
+    'nadana'         => ['label' => 'Nadana',                 'class' => 'primary'],
+    'doreczona'      => ['label' => 'Doręczona',               'class' => 'success'],
+    'zwrocona'       => ['label' => 'Zwrócona',                'class' => 'danger'],
+    'anulowana'      => ['label' => 'Anulowana',               'class' => 'dark'],
 ];
 
 // ── Auto-migracja ─────────────────────────────────────────────────────────────
@@ -93,6 +94,12 @@ const EZD_RPWY_STATUSY = [
         "ALTER TABLE ezd_rpwy ADD COLUMN nadanie_name TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE ezd_rpwy ADD COLUMN nadanie_mime TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE ezd_rpwy ADD COLUMN nadanie_size INTEGER NOT NULL DEFAULT 0",
+        // Kolejka wysyłek Postivo — zlecone w ciągu dnia, faktycznie wysyłane
+        // zbiorczo o 16:30 (cron/postivo_dispatch_batch.php). Status
+        // 'postivo_queued' (patrz EZD_RPWY_STATUSY) + zapisany PDF i parametry
+        // wysyłki (JSON), żeby cron mógł je odtworzyć bez trzymania sesji.
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_pending_pdf  TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN postivo_pending_json TEXT NOT NULL DEFAULT ''",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -759,4 +766,91 @@ function ezd_rpwy_apply_postivo_status(int $rpwy_id, array $status_data, int $us
             : [];
         ezd_rpwy_set_status($rpwy_id, $new_status, $extra, $user_id);
     }
+}
+
+/**
+ * Kolejkuje wpis RPW-W do zbiorczej wysyłki przez Postivo — zapisuje trwale
+ * (nie w /tmp) scalony PDF koperty i parametry wysyłki, i ustawia status
+ * "Przetwarzanie - Postivo". Faktyczne nadanie robi dopiero
+ * cron/postivo_dispatch_batch.php (o 16:30) przez ezd_rpwy_postivo_dispatch().
+ */
+function ezd_rpwy_postivo_queue(int $rpwy_id, string $merged_pdf_path, array $send_params, int $user_id): void {
+    $dir = UPLOAD_DIR . EZD_RPWY_SUBDIR . $rpwy_id . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $stored = 'pending_postivo_' . date('Ymd_His') . '.pdf';
+    if (!copy($merged_pdf_path, $dir . $stored)) {
+        throw new \RuntimeException('Nie udało się zapisać PDF-a do kolejki wysyłki.');
+    }
+
+    db()->prepare("UPDATE ezd_rpwy SET postivo_pending_pdf=?, postivo_pending_json=?, updated_at=datetime('now') WHERE id=?")
+        ->execute([$stored, json_encode($send_params, JSON_UNESCAPED_UNICODE), $rpwy_id]);
+
+    ezd_rpwy_set_status($rpwy_id, 'postivo_queued', [], $user_id);
+}
+
+/**
+ * Wysyła zakolejkowany wpis przez Postivo (patrz ezd_rpwy_postivo_queue()) —
+ * cena, nadanie, poświadczenie nadania, pierwszy odczyt statusu. Wołane przez
+ * cron/postivo_dispatch_batch.php. Zwraca ['ok'=>bool, 'postivo_id'=>?string,
+ * 'error'=>?string].
+ */
+function ezd_rpwy_postivo_dispatch(int $rpwy_id, int $user_id): array {
+    require_once __DIR__ . '/postivo.php';
+
+    $r = ezd_rpwy_get($rpwy_id);
+    if (!$r) return ['ok' => false, 'postivo_id' => null, 'error' => 'Wpis nie istnieje.'];
+    if ($r['status'] !== 'postivo_queued') return ['ok' => false, 'postivo_id' => null, 'error' => 'Wpis nie jest w kolejce Postivo.'];
+    if (!$r['postivo_pending_pdf'] || !$r['postivo_pending_json']) {
+        return ['ok' => false, 'postivo_id' => null, 'error' => 'Brak zapisanych danych kolejki (PDF/parametry).'];
+    }
+
+    $pdf_path = UPLOAD_DIR . EZD_RPWY_SUBDIR . $rpwy_id . '/' . $r['postivo_pending_pdf'];
+    if (!is_file($pdf_path)) {
+        return ['ok' => false, 'postivo_id' => null, 'error' => 'Zapisany PDF do wysyłki zniknął z dysku: ' . $pdf_path];
+    }
+    $send_params = json_decode((string)$r['postivo_pending_json'], true);
+    if (!is_array($send_params)) {
+        return ['ok' => false, 'postivo_id' => null, 'error' => 'Uszkodzone parametry wysyłki (JSON).'];
+    }
+    $send_params['pdf_path'] = $pdf_path;
+
+    try {
+        $client     = new PostivoClient();
+        $price      = $client->get_price($send_params);
+        $result     = $client->send_letter($send_params);
+        $postivo_id = $result['id'];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'postivo_id' => null, 'error' => $e->getMessage()];
+    }
+
+    if ($r['pismo_id']) {
+        $addr_full = (string)($send_params['address_line1'] ?? '') . (($send_params['address_line2'] ?? '') ? "\n" . $send_params['address_line2'] : '');
+        db()->prepare(
+            "UPDATE ezd_pisma SET postivo_job_id=?, postivo_status='draft', postivo_sent_at=datetime('now'),
+             postivo_adres=?, postivo_kod_pocztowy=?, postivo_miasto=?, updated_at=datetime('now') WHERE id=?"
+        )->execute([$postivo_id, $addr_full, $send_params['postcode'] ?? '', $send_params['city'] ?? '', $r['pismo_id']]);
+    }
+
+    ezd_log(null, $r['sprawa_id'] ?: null, $r['pismo_id'] ?: null, null, $user_id, 'postivo_wyslano',
+        'Nadano przez Postivo.pl (wysyłka zbiorcza 16:30), ID: ' . $postivo_id);
+
+    $extra = $price !== null ? ['koszt' => $price] : [];
+    ezd_rpwy_set_status($rpwy_id, 'nadana', $extra, $user_id);
+
+    try {
+        $cert_bytes = ezd_rpwy_dispatch_cert_pdf($rpwy_id, $user_id);
+        ezd_rpwy_store_nadanie_bytes($rpwy_id, $cert_bytes, 'poswiadczenie_nadania_' . $postivo_id . '.pdf',
+            'application/pdf', $user_id, 'Poświadczenie nadania (Postivo.pl, ID ' . $postivo_id . ')');
+    } catch (\Throwable $e) { /* nieblokujące — spróbuj później z karty wpisu */ }
+
+    try {
+        $status_data = $client->get_status($postivo_id);
+        ezd_rpwy_apply_postivo_status($rpwy_id, $status_data, $user_id);
+    } catch (\Throwable $e) { /* dociągnie cron/postivo_status_sync.php */ }
+
+    // Zużyty PDF z kolejki już niepotrzebny — poświadczenie nadania go zastępuje.
+    @unlink($pdf_path);
+    db()->prepare("UPDATE ezd_rpwy SET postivo_pending_pdf='', postivo_pending_json='' WHERE id=?")->execute([$rpwy_id]);
+
+    return ['ok' => true, 'postivo_id' => $postivo_id, 'error' => null];
 }

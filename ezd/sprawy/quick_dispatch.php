@@ -108,6 +108,9 @@ if ($via_postivo) {
         header('Location: ' . $redirect); exit;
     }
 
+    // Nie wysyłamy od razu — kolejkujemy. Zlecenia z całego dnia lecą do
+    // Postivo zbiorczo o 16:30 (cron/postivo_dispatch_batch.php), status
+    // wpisu to w międzyczasie "Przetwarzanie - Postivo".
     $merged_pdf = null;
     try {
         $referent_name = db_one("SELECT name FROM users WHERE id=?", [$sprawa['owner_id'] ?? 0])['name'] ?? '';
@@ -123,7 +126,6 @@ if ($via_postivo) {
             'org_email'   => defined('ORG_EMAIL')   ? ORG_EMAIL   : '',
         ]);
 
-        $client = new PostivoClient();
         $send_params = [
             'recipient_name' => $recipient_name,
             'address_line1'  => $address_line1 . ($home_number ? ' ' . $home_number : ''),
@@ -134,7 +136,6 @@ if ($via_postivo) {
             'city'           => $city,
             'postcode'       => $postcode,
             'country'        => $country,
-            'pdf_path'       => $merged_pdf,
             // Wybór usługi PER WYSYŁKA (patrz ezd/sprawy/postivo_services.php) —
             // gdy puste, PostivoClient sam sięgnie po domyślny nośnik/usługę
             // z Administracja → Postivo.
@@ -142,55 +143,10 @@ if ($via_postivo) {
             'service_id'     => (int)($_POST['service_id'] ?? 0) ?: null,
         ];
 
-        // Wycena — najlepszy dostępny moment (dokładnie ten sam scalony PDF i
-        // adres, co realna wysyłka). Brak wyceny nie blokuje wysyłki.
-        $price = $client->get_price($send_params);
-
-        $result     = $client->send_letter($send_params);
-        $postivo_id = $result['id'];
-        $addr_full  = $address_line1 . ($address_line2 ? "\n" . $address_line2 : '');
-        db()->prepare(
-            "UPDATE ezd_pisma SET postivo_job_id=?, postivo_status='draft', postivo_sent_at=datetime('now'),
-             postivo_adres=?, postivo_kod_pocztowy=?, postivo_miasto=?, updated_at=datetime('now') WHERE id=?"
-        )->execute([$postivo_id, $addr_full, $postcode, $city, $pismo_id]);
-
-        ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'postivo_wyslano',
-            'Nadano przez Postivo.pl (szybka wysyłka, ' . count($pdf_paths) . ' plik(ów) scalonych), ID: ' . $postivo_id);
-
-        // Wpis RPW-W od razu jako "nadana" (z kosztem, jeśli Postivo je wycenił) —
-        // dalsze zmiany (doręczono/zwrócono) dociągnie cron/postivo_status_sync.php.
-        $status_extra = [];
-        if ($price !== null) $status_extra['koszt'] = $price;
-        try { ezd_rpwy_set_status((int)$res['id'], 'nadana', $status_extra, $user_id); } catch (\Throwable $e) {}
-
-        // Od razu dociągnij szczegóły z Postivo (operator, typ przesyłki, nr
-        // zlecenia, historia statusów) — nie czekamy na najbliższy cykl crona.
-        try {
-            $status_data = $client->get_status($postivo_id);
-            ezd_rpwy_apply_postivo_status((int)$res['id'], $status_data, $user_id);
-        } catch (\Throwable $e) {
-            // Postivo bywa wolne z pierwszym statusem tuż po nadaniu — nic
-            // się nie stanie, cron/postivo_status_sync.php dociągnie później.
-        }
-
-        // Poświadczenie nadania — ten sam styl wizualny co "Kopia z poświadczeniem"
-        // (nagłówek systemu, tabela .cert-t, autor wydruku — patrz includes/ezd_kopia.php),
-        // zamiast surowego dokumentu Postivo. Zapisane w OSOBNYM polu od dowodu
-        // doręczenia (epo_*) — to poświadczenie NADANIA, skan ZPO/e-Doręczeń
-        // wraca dopiero po czasie i musi dać się wgrać niezależnie.
-        $cert_note = '';
-        try {
-            $cert_bytes = ezd_rpwy_dispatch_cert_pdf((int)$res['id'], $user_id);
-            ezd_rpwy_store_nadanie_bytes((int)$res['id'], $cert_bytes, 'poswiadczenie_nadania_' . $postivo_id . '.pdf',
-                'application/pdf', $user_id, 'Poświadczenie nadania (Postivo.pl, ID ' . $postivo_id . ')');
-        } catch (\Throwable $e) {
-            $cert_note = ' (nie udało się wygenerować poświadczenia: ' . $e->getMessage() . ' — spróbuj później z karty wpisu RPW-W).';
-        }
-
-        $price_note = $price !== null ? (' Koszt: ' . number_format($price, 2, ',', ' ') . ' zł.') : '';
-        flash_set('success', $msg . ' Nadano przez Postivo.pl, ID zlecenia: ' . $postivo_id . '.' . $price_note . $cert_note);
+        ezd_rpwy_postivo_queue((int)$res['id'], $merged_pdf, $send_params, $user_id);
+        flash_set('success', $msg . ' Zakolejkowano do Postivo.pl — zostanie faktycznie nadane dziś o 16:30 (status: Przetwarzanie - Postivo).');
     } catch (\Throwable $e) {
-        flash_set('error', $msg . ' Rejestracja OK, ale wysyłka Postivo nie powiodła się: ' . $e->getMessage());
+        flash_set('error', $msg . ' Rejestracja OK, ale nie udało się zakolejkować wysyłki Postivo: ' . $e->getMessage());
     } finally {
         if ($merged_pdf && file_exists($merged_pdf)) @unlink($merged_pdf);
     }

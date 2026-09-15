@@ -125,6 +125,11 @@ $AGENTS = [
         'file'     => __DIR__ . '/postivo_status_sync.php',
         'interval' => 10800,        // co 3 godziny — Postivo przetwarza asynchronicznie
     ],
+    'postivo_dispatch_batch' => [
+        'file'     => __DIR__ . '/postivo_dispatch_batch.php',
+        'interval' => 86400,        // raz dziennie — zbiorcza wysyłka wpisów RPW-W
+        'schedule' => [16, 17],     // zakolejkowanych w ciągu dnia (status "Przetwarzanie - Postivo")
+    ],
     'process_m365_queue' => [
         'file'     => __DIR__ . '/process_m365_queue.php',
         'interval' => 300,          // co 5 min
