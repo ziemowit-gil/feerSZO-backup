@@ -185,3 +185,102 @@ function x509_any_active(): bool {
     );
     return (bool)$r;
 }
+
+// ── Logowanie challenge-response (aplikacja kliencka SzoCert) ───────────────
+//
+// Zamiast przesyłać cały plik .p12 + hasło przy każdym logowaniu, aplikacja
+// kliencka (bin/szocert-app) trzyma klucz prywatny LOKALNIE na komputerze
+// użytkownika (nigdy nie trafia na serwer) i tylko PODPISUJE jednorazowe
+// wyzwanie (nonce). Serwer weryfikuje podpis kluczem publicznym z certyfikatu
+// (cert_pem — dane publiczne, bezpieczne do przesłania) i sprawdza, że
+// fingerprint pasuje do aktywnego, niewycofanego wpisu w admin_x509_certs
+// (ten sam wpis, który dziś tworzy admin/x509_login.php).
+
+function x509_challenge_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS x509_login_challenges (
+            id         CHAR(32) PRIMARY KEY,
+            nonce_b64  TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            used_at    DATETIME DEFAULT NULL
+        )");
+    } catch (\Throwable $e) {
+        error_log('[x509_login] challenge migrate: ' . $e->getMessage());
+    }
+}
+
+/** Tworzy jednorazowe wyzwanie logowania. Ważne 2 minuty. */
+function x509_challenge_create(): array {
+    x509_challenge_migrate();
+    $id    = bin2hex(random_bytes(16));
+    $nonce = random_bytes(32);
+    db()->prepare("INSERT INTO x509_login_challenges (id, nonce_b64) VALUES (?, ?)")
+        ->execute([$id, base64_encode($nonce)]);
+    return ['challenge_id' => $id, 'nonce_b64' => base64_encode($nonce)];
+}
+
+/** Zużywa wyzwanie (jednorazowe) i zwraca nonce, albo null jeśli nieznane/wygasłe/już użyte. */
+function x509_challenge_consume(string $challenge_id): ?string {
+    x509_challenge_migrate();
+    $row = db_one(
+        "SELECT nonce_b64 FROM x509_login_challenges
+         WHERE id = ? AND used_at IS NULL AND created_at > ?",
+        [$challenge_id, date('Y-m-d H:i:s', time() - 120)]
+    );
+    if (!$row) return null;
+    db()->prepare("UPDATE x509_login_challenges SET used_at = datetime('now') WHERE id = ?")
+        ->execute([$challenge_id]);
+    return $row['nonce_b64'];
+}
+
+/**
+ * Weryfikuje odpowiedź na wyzwanie: podpis (SHA256) nonce'a kluczem prywatnym
+ * pasującym do przesłanego certyfikatu publicznego. Zwraca wiersz usera albo
+ * null. Te same reguły co x509_verify_login (rola, revoked, expired, EJBCA).
+ */
+function x509_verify_challenge(string $challenge_id, string $cert_pem, string $signature_b64): ?array {
+    x509_init();
+
+    $nonce_b64 = x509_challenge_consume($challenge_id);
+    if ($nonce_b64 === null) return null;
+
+    $cert = @openssl_x509_read($cert_pem);
+    if (!$cert) return null;
+
+    $fp = openssl_x509_fingerprint($cert, 'sha256');
+    if (!$fp) return null;
+
+    $row = db_one(
+        "SELECT u.*, c.issuer_type
+         FROM admin_x509_certs c
+         JOIN users u ON u.id = c.user_id
+         WHERE c.fingerprint  = ?
+           AND c.revoked_at  IS NULL
+           AND c.valid_to     > datetime('now')
+           AND u.is_active    = 1",
+        [$fp]
+    );
+    if (!$row) return null;
+
+    if (!in_array($row['role'] ?? '', ['admin', 'editor', 'superadmin'], true)) return null;
+
+    if (($row['issuer_type'] ?? 'self') === 'ejbca') {
+        error_log('[x509_login] odrzucono logowanie (challenge) certyfikatem EJBCA dla fp=' . $fp);
+        return null;
+    }
+
+    $pubkey = openssl_pkey_get_public($cert);
+    if (!$pubkey) return null;
+
+    $signature = base64_decode($signature_b64, true);
+    $nonce     = base64_decode($nonce_b64, true);
+    if ($signature === false || $nonce === false) return null;
+
+    $ok = openssl_verify($nonce, $signature, $pubkey, OPENSSL_ALGO_SHA256);
+    if ($ok !== 1) return null;
+
+    return $row;
+}
