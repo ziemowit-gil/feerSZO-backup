@@ -34,3 +34,4 @@ bin/.deploy-mydevil.conf
 bin/.pull-db-from-docker.conf
 debug_*.php
 crm/triage.sqlite
+bin/.dns-delegate-mydevil.conf
