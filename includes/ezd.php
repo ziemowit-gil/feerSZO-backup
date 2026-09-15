@@ -3334,6 +3334,13 @@ function _ezd_upload_process(array $f, int $sprawa_id, int $user_id, ?int $pismo
         }
     }
 
+    // Prefiksuj znakiem sprawy: "{numer sprawy}.{tytuł pliku}" — od razu widać,
+    // do której koszulki plik należy, nawet po ściągnięciu/wyeksportowaniu.
+    $znak = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [$sprawa_id])['znak_sprawy'] ?? '';
+    if ($znak !== '') {
+        $orig_name = mb_substr($znak . '.' . $orig_name, 0, 255);
+    }
+
     $dir = UPLOAD_DIR . EZD_UPLOAD_SUBDIR . $sprawa_id . '/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
