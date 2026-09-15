@@ -327,10 +327,11 @@ $_sys_name = 'Systemie Wspomagania Zarządzania Organizacją';
 
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
-    'title'     => 'Logowanie',
-    'tab'       => 'login',
-    'bootstrap' => true,
-    'main_id'   => 'login-main',
+    'title'          => 'Logowanie',
+    'side_tabs_html' => auth_screen_login_tabs('login'),
+    'bootstrap'      => true,
+    'width'          => 760,
+    'main_id'        => 'login-main',
 ]);
 
 // Modale alternatywnych metod renderujemy do bufora — trafiają poza kartę.

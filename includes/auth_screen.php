@@ -424,6 +424,34 @@ html[data-theme="hc"] .ks-hero-h1,html[data-theme="hc"] .ks-hero-lead{color:#fff
 <?php
 }
 
+/**
+ * Buduje HTML zakładek "Zaloguj / Rejestracja / Odzyskiwanie hasła" do użytku
+ * jako side_tabs_html w auth_screen_head() — wspólne dla auth/login.php i
+ * user/register.php, tak by oba ekrany pokazywały ten sam, spójny zestaw
+ * (układ zakładek po lewej / karta po prawej, jak karty30/ti/login.php).
+ * user/verify_reset.php (tryb 'plain', własny wielokrokowy kreator) NIE
+ * korzysta z tego układu — zakładka tylko do niego prowadzi.
+ *
+ * @param string $active 'login' | 'register' | 'reset'
+ */
+function auth_screen_login_tabs(string $active): string {
+    ob_start();
+    ?>
+    <a class="ks-tab" href="<?= APP_URL ?>/auth/login.php" <?= $active === 'login' ? 'aria-current="page"' : '' ?>>
+      <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj
+    </a>
+    <?php if (register_is_open() || $active === 'register'): ?>
+    <a class="ks-tab" href="<?= APP_URL ?>/user/register.php" <?= $active === 'register' ? 'aria-current="page"' : '' ?>>
+      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Rejestracja
+    </a>
+    <?php endif; ?>
+    <a class="ks-tab" href="<?= APP_URL ?>/user/verify_reset.php" <?= $active === 'reset' ? 'aria-current="page"' : '' ?>>
+      <i class="bi bi-key me-1" aria-hidden="true"></i>Odzyskiwanie hasła
+    </a>
+    <?php
+    return ob_get_clean();
+}
+
 /** Renderuje wskaźnik kroków (1..N); $light — wariant na tle marki (tryb 'plain'). */
 function auth_screen_steps(array $labels, int $current, bool $light = false): void {
     echo '<div class="ks-steps' . ($light ? ' ks-steps--light' : '')
