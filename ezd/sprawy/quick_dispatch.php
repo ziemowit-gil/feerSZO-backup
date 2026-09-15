@@ -135,6 +135,11 @@ if ($via_postivo) {
             'postcode'       => $postcode,
             'country'        => $country,
             'pdf_path'       => $merged_pdf,
+            // Wybór usługi PER WYSYŁKA (patrz ezd/sprawy/postivo_services.php) —
+            // gdy puste, PostivoClient sam sięgnie po domyślny nośnik/usługę
+            // z Administracja → Postivo.
+            'carrier_id'     => (int)($_POST['carrier_id'] ?? 0) ?: null,
+            'service_id'     => (int)($_POST['service_id'] ?? 0) ?: null,
         ];
 
         // Wycena — najlepszy dostępny moment (dokładnie ten sam scalony PDF i

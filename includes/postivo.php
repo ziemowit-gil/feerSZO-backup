@@ -159,7 +159,10 @@ class PostivoClient
         $shipment = new Components\Shipment(
             recipients: $recipient,
             documents:  $document,
-            options:    $this->_build_options(),
+            options:    $this->_build_options(
+                isset($params['carrier_id']) ? (int)$params['carrier_id'] : null,
+                isset($params['service_id']) ? (int)$params['service_id'] : null,
+            ),
         );
 
         try {
@@ -285,7 +288,10 @@ class PostivoClient
             $shipment = new Components\Shipment(
                 recipients: $recipient,
                 documents:  $document,
-                options:    $this->_build_options(),
+                options:    $this->_build_options(
+                    isset($params['carrier_id']) ? (int)$params['carrier_id'] : null,
+                    isset($params['service_id']) ? (int)$params['service_id'] : null,
+                ),
             );
 
             $resp = $this->sdk()->shipments->price($shipment);
@@ -304,10 +310,15 @@ class PostivoClient
         return $raw !== '' ? (int)$raw : 6140;
     }
 
-    private function _build_options(): Components\ShipmentOptions
+    /**
+     * @param ?int $carrier_id_override Wybór usługi PER WYSYŁKA (np. z modala
+     *        "Zarejestruj w wychodzących") — nadpisuje domyślny nośnik z
+     *        Administracja → Postivo. Wymaga podania razem z $service_id_override.
+     */
+    private function _build_options(?int $carrier_id_override = null, ?int $service_id_override = null): Components\ShipmentOptions
     {
-        $carrier_id = (int)postivo_setting('postivo_carrier_id');
-        $service_id = (int)postivo_setting('postivo_service_id');
+        $carrier_id = $carrier_id_override ?? (int)postivo_setting('postivo_carrier_id');
+        $service_id = $service_id_override ?? (int)postivo_setting('postivo_service_id');
         $sender_id  = $this->_sender_id();
 
         if ($carrier_id && $service_id) {

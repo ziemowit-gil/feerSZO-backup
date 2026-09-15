@@ -2073,6 +2073,8 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="sprawa_id" value="<?= $id ?>">
       <div id="qd-zal-ids"></div>
+      <input type="hidden" name="carrier_id" id="qd-carrier-id" value="">
+      <input type="hidden" name="service_id" id="qd-service-id" value="">
       <div class="modal-header">
         <h2 class="modal-title h5" id="qdModalLabel"><i class="bi bi-mailbox2 text-success me-2"></i>Zarejestruj w wychodzących</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -2120,6 +2122,13 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
         </div>
         <div class="collapse" id="qd-postivo-fields">
           <div class="row g-2 p-2 rounded border bg-light mb-2">
+            <div class="col-12">
+              <label class="form-label small mb-0" for="qd-service">Usługa Postivo (nośnik/przewoźnik)</label>
+              <select id="qd-service" class="form-select form-select-sm">
+                <option value="">— domyślna (z Administracja → Postivo) —</option>
+              </select>
+              <div id="qd-service-status" class="form-text"></div>
+            </div>
             <div class="col-md-6"><label class="form-label small mb-0">Nazwa odbiorcy (do koperty)</label><input type="text" name="recipient_name" class="form-control form-control-sm"></div>
             <div class="col-md-6"><label class="form-label small mb-0">Powód wysyłki</label><input type="text" name="doc_reason" id="qd-doc-reason" class="form-control form-control-sm" value="Korespondencja urzędowa"></div>
             <div class="col-md-8"><label class="form-label small mb-0">Ulica i numer <span class="text-danger">*</span></label><input type="text" name="address_line1" class="form-control form-control-sm"></div>
@@ -2164,10 +2173,51 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
         var r = trybRadios().find(r => r.checked);
         return r ? r.value : 'wydruk';
     }
+    var servicesLoaded = false;
+    var serviceSel   = document.getElementById('qd-service');
+    var serviceStatus = document.getElementById('qd-service-status');
+    var carrierIdInp = document.getElementById('qd-carrier-id');
+    var serviceIdInp = document.getElementById('qd-service-id');
+
+    function loadPostivoServices() {
+        if (servicesLoaded || !serviceSel) return;
+        servicesLoaded = true;
+        serviceStatus.textContent = 'Wczytuję dostępne usługi…';
+        fetch('<?= APP_URL ?>/ezd/sprawy/postivo_services.php')
+            .then(r => r.json())
+            .then(function (data) {
+                if (!data.ok) { serviceStatus.textContent = 'Nie udało się wczytać usług: ' + data.error; return; }
+                (data.carriers || []).forEach(function (c) {
+                    var grp = document.createElement('optgroup');
+                    grp.label = c.carrier_name;
+                    (c.services || []).forEach(function (s) {
+                        var opt = document.createElement('option');
+                        opt.value = c.carrier_id + ':' + s.service_id;
+                        opt.textContent = s.service_name + (s.service_return_fee ? ' (zwrot: ' + s.service_return_fee + ' zł)' : '');
+                        if (c.carrier_id === data.default_carrier_id && s.service_id === data.default_service_id) opt.selected = true;
+                        grp.appendChild(opt);
+                    });
+                    serviceSel.appendChild(grp);
+                });
+                serviceStatus.textContent = '';
+                serviceSel.dispatchEvent(new Event('change'));
+            })
+            .catch(function () { serviceStatus.textContent = 'Błąd sieci przy wczytywaniu usług.'; });
+    }
+
+    if (serviceSel) {
+        serviceSel.addEventListener('change', function () {
+            var parts = (this.value || '').split(':');
+            carrierIdInp.value = parts[0] || '';
+            serviceIdInp.value = parts[1] || '';
+        });
+    }
+
     function refreshTrybUI() {
         var isPostivo = currentTryb() === 'postivo';
         var bs = bootstrap.Collapse.getOrCreateInstance(postivoFields, {toggle: false});
         isPostivo ? bs.show() : bs.hide();
+        if (isPostivo) loadPostivoServices();
     }
     trybRadios().forEach(r => r.addEventListener('change', refreshTrybUI));
     refreshTrybUI();
