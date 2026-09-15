@@ -163,19 +163,17 @@ if ($via_postivo) {
         if ($price !== null) $status_extra['koszt'] = $price;
         try { ezd_rpwy_set_status((int)$res['id'], 'nadana', $status_extra, $user_id); } catch (\Throwable $e) {}
 
-        // Poświadczenie nadania z Postivo — ten sam mechanizm co ręcznie wgrywany
-        // dowód doręczenia (epo_*), więc widać je od razu na karcie wpisu RPW-W.
+        // Poświadczenie nadania — ten sam styl wizualny co "Kopia z poświadczeniem"
+        // (nagłówek systemu, tabela .cert-t, autor wydruku — patrz includes/ezd_kopia.php),
+        // zamiast surowego dokumentu Postivo. Zapisane jak ręcznie wgrywany dowód
+        // doręczenia (epo_*), więc widać je od razu na karcie wpisu RPW-W.
         $cert_note = '';
         try {
-            $cert_bytes = $client->get_document($postivo_id, 'dispatch_cert');
-            if ($cert_bytes) {
-                ezd_rpwy_store_epo_bytes((int)$res['id'], $cert_bytes, 'poswiadczenie_' . $postivo_id . '.pdf',
-                    'application/pdf', $user_id, 'Poświadczenie nadania z Postivo.pl');
-            } else {
-                $cert_note = ' (poświadczenie jeszcze niedostępne u Postivo — spróbuj pobrać później z karty wpisu RPW-W).';
-            }
+            $cert_bytes = ezd_rpwy_dispatch_cert_pdf((int)$res['id'], $user_id);
+            ezd_rpwy_store_epo_bytes((int)$res['id'], $cert_bytes, 'poswiadczenie_nadania_' . $postivo_id . '.pdf',
+                'application/pdf', $user_id, 'Poświadczenie nadania (Postivo.pl, ID ' . $postivo_id . ')');
         } catch (\Throwable $e) {
-            $cert_note = ' (nie udało się pobrać poświadczenia: ' . $e->getMessage() . ' — spróbuj później z karty wpisu RPW-W).';
+            $cert_note = ' (nie udało się wygenerować poświadczenia: ' . $e->getMessage() . ' — spróbuj później z karty wpisu RPW-W).';
         }
 
         $price_note = $price !== null ? (' Koszt: ' . number_format($price, 2, ',', ' ') . ' zł.') : '';

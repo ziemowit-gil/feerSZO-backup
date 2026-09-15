@@ -597,3 +597,63 @@ function ezd_rpwy_quick_dispatch(int $sprawa_id, array $zal_ids, string $title, 
 
     return ['pismo_id' => $pismo_id] + $rpwy;
 }
+
+/**
+ * Generuje PDF "poświadczenia nadania" dla wpisu RPW-W, tym samym stylem
+ * wizualnym co "Kopia z poświadczeniem" (patrz includes/ezd_kopia.php —
+ * ta sama tabela .cert-t, nagłówek systemu, autor wydruku), tylko z danymi
+ * wysyłki zamiast danych kopiowanego dokumentu. Używane np. po wysyłce przez
+ * Postivo — zamiast (albo obok) surowego "dispatch_cert" z ich API — patrz
+ * ezd/sprawy/quick_dispatch.php. Zwraca surowe bajty PDF.
+ */
+function ezd_rpwy_dispatch_cert_pdf(int $rpwy_id, int $user_id): string {
+    require_once __DIR__ . '/ezd_kopia.php';
+    require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+    $r = ezd_rpwy_get($rpwy_id);
+    if (!$r) throw new \RuntimeException('Wpis RPW-W nie istnieje.');
+    $pismo  = $r['pismo_id']  ? ezd_pismo_get((int)$r['pismo_id'])   : null;
+    $sprawa = $r['sprawa_id'] ? ezd_sprawa_get((int)$r['sprawa_id']) : null;
+
+    $row = function (string $label, string $value, bool $mono = false) {
+        return '<tr><td class="lbl">' . h($label) . '</td>'
+             . '<td class="val' . ($mono ? ' mono' : '') . '">' . h($value) . '</td></tr>';
+    };
+
+    $html = '<div class="cert">'
+        . '<div class="cert-h">Poświadczenie nadania przesyłki:</div>'
+        . '<table class="cert-t">'
+        . $row('Numer w książce nadawczej (RPW-W)', ezd_rpwy_label($r))
+        . ($sprawa ? $row('Znak sprawy (koszulka)', trim(($sprawa['znak_sprawy'] ?? '') . (($sprawa['title'] ?? '') !== '' ? ' — ' . $sprawa['title'] : ''))) : '')
+        . ($pismo  ? $row('Pismo', trim(($pismo['sygnatura'] ?? '') . ' — ' . ($pismo['title'] ?? ''))) : '')
+        . $row('Odbiorca', (string)($r['odbiorca'] ?: '—'))
+        . $row('Adres', (string)($r['adres'] ?: '—'))
+        . $row('Sposób wysyłki', EZD_RPWY_SPOSOBY[$r['sposob']]['label'] ?? (string)$r['sposob'])
+        . $row('Data nadania', $r['data_wysylki'] ? date_pl($r['data_wysylki']) : '—')
+        . $row('Numer nadania', (string)($r['nr_nadania'] ?: '—'))
+        . ((float)($r['koszt'] ?? 0) > 0 ? $row('Koszt', number_format((float)$r['koszt'], 2, ',', ' ') . ' zł') : '')
+        . '<tr><td class="lbl"></td><td class="val sys">' . h(_ezd_kopia_system_label()) . '</td></tr>'
+        . $row('Data wystawienia poświadczenia', date('Y-m-d H:i'))
+        . $row('Autor', ezd_kopia_autor($user_id))
+        . '</table></div>';
+
+    $tmp = UPLOAD_DIR . 'mpdf_tmp';
+    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+    $mpdf = new \Mpdf\Mpdf([
+        'mode'          => 'utf-8',
+        'format'        => 'A4',
+        'margin_left'   => 20,
+        'margin_right'  => 20,
+        'margin_top'    => 18,
+        'margin_bottom' => 18,
+        'default_font'  => 'dejavusans',
+        'tempDir'       => $tmp,
+    ]);
+    $mpdf->SetTitle('Poświadczenie nadania — ' . ezd_rpwy_label($r));
+    $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''));
+    $mpdf->SetCreator('EZD ' . (defined('APP_VERSION') ? APP_VERSION : ''));
+    $mpdf->WriteHTML(_ezd_kopia_css(), \Mpdf\HTMLParserMode::HEADER_CSS);
+    $mpdf->AddPage();
+    $mpdf->WriteHTML($html);
+    return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+}
