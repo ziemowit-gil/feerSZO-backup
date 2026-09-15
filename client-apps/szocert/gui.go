@@ -11,26 +11,46 @@ package main
 import "fmt"
 
 func main() {
-	id, err := loadIdentity()
-	if err != nil {
+	if !identityExists() {
 		p12Path, ok := guiChooseFile()
 		if !ok {
 			return
 		}
-		password, ok := guiAskPassword()
+		p12Password, ok := guiAskPassword("Hasło do pliku certyfikatu (od administratora):")
 		if !ok {
 			return
 		}
-		if impErr := importP12(p12Path, password); impErr != nil {
-			guiShowDialog("Błąd — SzoCert", "Import nie powiódł się: "+impErr.Error())
+		protectPassword, ok := guiAskPassword("Ustaw hasło zabezpieczające SzoCert (będzie proszone przy KAŻDYM uruchomieniu):")
+		if !ok {
 			return
 		}
-		id, err = loadIdentity()
-		if err != nil {
-			guiShowDialog("Błąd — SzoCert", "Import się powiódł, ale odczyt się nie udał: "+err.Error())
+		if len(protectPassword) < 4 {
+			guiShowDialog("Błąd — SzoCert", "Hasło zabezpieczające musi mieć co najmniej 4 znaki.")
 			return
 		}
-		guiShowDialog("SzoCert", "Zaimportowano certyfikat: "+id.Cert.Subject.CommonName)
+		if err := importP12(p12Path, p12Password, protectPassword); err != nil {
+			guiShowDialog("Błąd — SzoCert", "Import nie powiódł się: "+err.Error())
+			return
+		}
+		guiShowDialog("SzoCert", "Zaimportowano certyfikat. Teraz podaj hasło zabezpieczające, żeby uruchomić nasłuch.")
+	}
+
+	unlockPassword, ok := guiAskPassword("Hasło zabezpieczające SzoCert:")
+	if !ok {
+		return
+	}
+	id, err := loadIdentity(unlockPassword)
+	if err != nil {
+		guiShowDialog("Błąd — SzoCert", err.Error())
+		return
+	}
+
+	if !guiAutostartInstalled() {
+		if guiAskYesNo("SzoCert", "Uruchamiać SzoCert automatycznie przy starcie systemu? (i tak trzeba będzie podać hasło zabezpieczające)") {
+			if err := guiInstallAutostart(); err != nil {
+				guiShowDialog("Błąd — SzoCert", "Nie udało się dodać do autostartu: "+err.Error())
+			}
+		}
 	}
 
 	go func() { _ = serveIdentity(id) }()

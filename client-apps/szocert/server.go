@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -93,18 +92,9 @@ func handleSign(id *identity) http.HandlerFunc {
 	}
 }
 
-func runServe() error {
-	id, err := loadIdentity()
-	if err != nil {
-		return err
-	}
-	fmt.Printf("SzoCert %s — zalogowany jako: %s\n", appVersion, id.Cert.Subject.CommonName)
-	fmt.Printf("Nasłuchuję na http://%s (zostaw to okno otwarte podczas logowania)\n", listenAddr)
-	return serveIdentity(id)
-}
-
-// serveIdentity uruchamia nasłuch dla już wczytanej tożsamości — używane też
-// przez wariant GUI (gui.go), gdzie identity jest ładowane/importowane wcześniej.
+// serveIdentity uruchamia nasłuch dla już odszyfrowanej tożsamości — hasło
+// zabezpieczające jest pytane WCZEŚNIEJ, w main.go (CLI) / gui.go (GUI),
+// bo tam różni się sposób wpisywania (term.ReadPassword vs natywne okno).
 func serveIdentity(id *identity) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", withCORS(handlePing))

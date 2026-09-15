@@ -40,7 +40,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "serve":
-		if err := runServe(); err != nil {
+		if err := cmdServe(); err != nil {
 			fmt.Fprintln(os.Stderr, "Błąd:", err)
 			os.Exit(1)
 		}
@@ -80,22 +80,53 @@ func cmdImport(p12Path string) error {
 		}
 	}
 
-	fmt.Print("Hasło do pliku certyfikatu: ")
+	fmt.Print("Hasło do pliku certyfikatu (od administratora): ")
+	p12PassBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return fmt.Errorf("nie mogę odczytać hasła: %w", err)
+	}
+
+	fmt.Print("Ustaw hasło zabezpieczające SzoCert (będzie proszone przy KAŻDYM uruchomieniu): ")
+	protectBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return fmt.Errorf("nie mogę odczytać hasła: %w", err)
+	}
+	if len(protectBytes) < 4 {
+		return fmt.Errorf("hasło zabezpieczające musi mieć co najmniej 4 znaki")
+	}
+
+	if err := importP12(p12Path, string(p12PassBytes), string(protectBytes)); err != nil {
+		return err
+	}
+
+	id, err := loadIdentity(string(protectBytes))
+	if err != nil {
+		return fmt.Errorf("import się powiódł, ale odczyt się nie udał: %w", err)
+	}
+	fmt.Printf("Zaimportowano certyfikat: %s (ważny do %s)\n", id.Cert.Subject.CommonName, id.Cert.NotAfter.Format("2006-01-02"))
+	fmt.Println("Gotowe — teraz uruchom: szocert serve (poprosi o hasło zabezpieczające)")
+	return nil
+}
+
+func cmdServe() error {
+	if !identityExists() {
+		path, _ := identityPath()
+		return fmt.Errorf("brak zaimportowanego certyfikatu (%s) — uruchom najpierw: szocert import <plik.p12>", path)
+	}
+	fmt.Print("Hasło zabezpieczające SzoCert: ")
 	passBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
 	if err != nil {
 		return fmt.Errorf("nie mogę odczytać hasła: %w", err)
 	}
 
-	if err := importP12(p12Path, string(passBytes)); err != nil {
+	id, err := loadIdentity(string(passBytes))
+	if err != nil {
 		return err
 	}
-
-	id, err := loadIdentity()
-	if err != nil {
-		return fmt.Errorf("import się powiódł, ale odczyt się nie udał: %w", err)
-	}
-	fmt.Printf("Zaimportowano certyfikat: %s (ważny do %s)\n", id.Cert.Subject.CommonName, id.Cert.NotAfter.Format("2006-01-02"))
-	fmt.Println("Gotowe — teraz uruchom: szocert serve")
-	return nil
+	fmt.Printf("SzoCert %s — zalogowany jako: %s\n", appVersion, id.Cert.Subject.CommonName)
+	fmt.Printf("Nasłuchuję na http://%s (zostaw to okno otwarte podczas logowania)\n", listenAddr)
+	return serveIdentity(id)
 }
