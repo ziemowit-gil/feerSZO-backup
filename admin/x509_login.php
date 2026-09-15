@@ -160,7 +160,14 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
     <div class="mb-3 p-2 rounded" style="background:#fffbeb;border:1px solid #f59e0b">
       <strong>Hasło PKCS#12:</strong> <code class="fs-6"><?= h($pk['p12_pass']) ?></code>
-      <br><small class="text-muted">Zachowaj to hasło — będzie potrzebne przy każdym logowaniu.</small>
+      <br><small class="text-muted">Zachowaj to hasło — potrzebne przy każdym ręcznym uploadzie .p12,
+        albo JEDNORAZOWO przy imporcie do aplikacji SzoCert (patrz niżej).</small>
+    </div>
+    <div class="mb-3 p-3 rounded border" style="background:#eff6ff">
+      <i class="bi bi-lightbulb-fill text-primary me-1"></i>
+      <strong>Wygodniej:</strong> aplikacja <strong>SzoCert</strong> importuje ten plik raz i potem
+      loguje jednym kliknięciem — bez wybierania pliku .p12 za każdym razem.
+      <a href="<?= APP_URL ?>/auth/szocert_download.php" target="_blank" class="ms-1">Pobierz SzoCert &rarr;</a>
     </div>
     <details class="mb-3">
       <summary class="small text-muted">Fingerprint SHA-256 i szczegóły techniczne</summary>

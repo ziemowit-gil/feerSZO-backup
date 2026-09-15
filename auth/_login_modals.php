@@ -178,7 +178,10 @@
             });
         })();
         </script>
-        <p style="font-size:.85rem;color:var(--ks-muted);margin:0 0 1rem">Bez aplikacji: plik PKCS#12 (.p12) wygenerowany przez administratora systemu.</p>
+        <p style="font-size:.85rem;color:var(--ks-muted);margin:0 0 1rem">
+          Bez aplikacji: plik PKCS#12 (.p12) wygenerowany przez administratora systemu.
+          (<a href="<?= APP_URL ?>/auth/szocert_download.php" target="_blank">pobierz SzoCert, żeby nie robić tego za każdym razem</a>)
+        </p>
         <form method="post" enctype="multipart/form-data" novalidate aria-labelledby="mx509-title">
           <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
           <input type="hidden" name="_method" value="x509">
