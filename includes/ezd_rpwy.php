@@ -85,6 +85,14 @@ const EZD_RPWY_STATUSY = [
         "ALTER TABLE ezd_rpwy ADD COLUMN postivo_dispatch_date DATE",
         "ALTER TABLE ezd_rpwy ADD COLUMN postivo_pages        INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE ezd_rpwy ADD COLUMN postivo_events_json  TEXT NOT NULL DEFAULT '[]'",
+        // Poświadczenie NADANIA (generowane od razu, patrz
+        // ezd_rpwy_dispatch_cert_pdf()) — OSOBNE od epo_* (to jest dowód
+        // DORĘCZENIA/ZPO, skan wraca dopiero po czasie) — inaczej wygenerowanie
+        // poświadczenia od razu blokowałoby później wgranie skanu ZPO.
+        "ALTER TABLE ezd_rpwy ADD COLUMN nadanie_file TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN nadanie_name TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN nadanie_mime TEXT    NOT NULL DEFAULT ''",
+        "ALTER TABLE ezd_rpwy ADD COLUMN nadanie_size INTEGER NOT NULL DEFAULT 0",
     ] as $alter) {
         try { $pdo->exec($alter); } catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
@@ -497,17 +505,22 @@ function ezd_rpwy_epo_upload(int $id, string $field, int $user_id): ?string {
 }
 
 /**
- * Zapisuje jako "dowód" (epo_*) surowe bajty dokumentu (np. poświadczenie
- * nadania pobrane z Postivo.pl — patrz PostivoClient::get_document(),
- * typ 'dispatch_cert') — wariant ezd_rpwy_epo_upload() bez $_FILES.
+ * Zapisuje jako "dowód DORĘCZENIA" (epo_*) surowe bajty dokumentu — skan ZPO /
+ * dowód odbioru z e-Doręczeń, wgrywany ręcznie PO tym jak przesyłka wróci.
+ * Wariant ezd_rpwy_epo_upload() bez $_FILES.
+ *
+ * UWAGA: NIE używać dla poświadczenia NADANIA (to co innego — patrz
+ * ezd_rpwy_store_nadanie_bytes() niżej; te dwa pola muszą być rozdzielone,
+ * bo poświadczenie nadania powstaje od razu, a dowód doręczenia dopiero
+ * później, i wgranie jednego nie może blokować drugiego).
  */
-function ezd_rpwy_store_epo_bytes(int $id, string $bytes, string $name, string $mime, int $user_id, string $log_note = 'Dodano poświadczenie'): void {
+function ezd_rpwy_store_epo_bytes(int $id, string $bytes, string $name, string $mime, int $user_id, string $log_note = 'Dodano dowód doręczenia'): void {
     $dir = UPLOAD_DIR . EZD_RPWY_SUBDIR . $id . '/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $ext    = strtolower(pathinfo($name, PATHINFO_EXTENSION)) ?: 'pdf';
     $stored = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     if (file_put_contents($dir . $stored, $bytes) === false) {
-        throw new \RuntimeException('Nie udało się zapisać poświadczenia na dysku.');
+        throw new \RuntimeException('Nie udało się zapisać dowodu doręczenia na dysku.');
     }
 
     $r = ezd_rpwy_get($id);
@@ -516,6 +529,30 @@ function ezd_rpwy_store_epo_bytes(int $id, string $bytes, string $name, string $
     db()->prepare("UPDATE ezd_rpwy SET epo_file=?,epo_name=?,epo_mime=?,epo_size=?,updated_at=datetime('now') WHERE id=?")
         ->execute([$stored, $name, $mime, strlen($bytes), $id]);
     ezd_log(null, $r['sprawa_id'] ?? null, $r['pismo_id'] ?? null, null, $user_id, 'rpwy_epo',
+        $log_note . ' — ' . ($r ? ezd_rpwy_label($r) : '#' . $id));
+}
+
+/**
+ * Zapisuje jako "poświadczenie NADANIA" (nadanie_*) surowe bajty dokumentu —
+ * np. wygenerowane od razu po wysyłce przez Postivo (patrz
+ * ezd_rpwy_dispatch_cert_pdf() i ezd/sprawy/quick_dispatch.php). Osobne pole
+ * od epo_* (dowód DORĘCZENIA) — patrz uwaga wyżej.
+ */
+function ezd_rpwy_store_nadanie_bytes(int $id, string $bytes, string $name, string $mime, int $user_id, string $log_note = 'Dodano poświadczenie nadania'): void {
+    $dir = UPLOAD_DIR . EZD_RPWY_SUBDIR . $id . '/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $ext    = strtolower(pathinfo($name, PATHINFO_EXTENSION)) ?: 'pdf';
+    $stored = 'nadanie_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (file_put_contents($dir . $stored, $bytes) === false) {
+        throw new \RuntimeException('Nie udało się zapisać poświadczenia nadania na dysku.');
+    }
+
+    $r = ezd_rpwy_get($id);
+    if ($r && $r['nadanie_file']) { $old = $dir . $r['nadanie_file']; if (is_file($old)) @unlink($old); }
+
+    db()->prepare("UPDATE ezd_rpwy SET nadanie_file=?,nadanie_name=?,nadanie_mime=?,nadanie_size=?,updated_at=datetime('now') WHERE id=?")
+        ->execute([$stored, $name, $mime, strlen($bytes), $id]);
+    ezd_log(null, $r['sprawa_id'] ?? null, $r['pismo_id'] ?? null, null, $user_id, 'rpwy_nadanie',
         $log_note . ' — ' . ($r ? ezd_rpwy_label($r) : '#' . $id));
 }
 

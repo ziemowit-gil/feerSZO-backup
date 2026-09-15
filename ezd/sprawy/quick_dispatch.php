@@ -175,12 +175,13 @@ if ($via_postivo) {
 
         // Poświadczenie nadania — ten sam styl wizualny co "Kopia z poświadczeniem"
         // (nagłówek systemu, tabela .cert-t, autor wydruku — patrz includes/ezd_kopia.php),
-        // zamiast surowego dokumentu Postivo. Zapisane jak ręcznie wgrywany dowód
-        // doręczenia (epo_*), więc widać je od razu na karcie wpisu RPW-W.
+        // zamiast surowego dokumentu Postivo. Zapisane w OSOBNYM polu od dowodu
+        // doręczenia (epo_*) — to poświadczenie NADANIA, skan ZPO/e-Doręczeń
+        // wraca dopiero po czasie i musi dać się wgrać niezależnie.
         $cert_note = '';
         try {
             $cert_bytes = ezd_rpwy_dispatch_cert_pdf((int)$res['id'], $user_id);
-            ezd_rpwy_store_epo_bytes((int)$res['id'], $cert_bytes, 'poswiadczenie_nadania_' . $postivo_id . '.pdf',
+            ezd_rpwy_store_nadanie_bytes((int)$res['id'], $cert_bytes, 'poswiadczenie_nadania_' . $postivo_id . '.pdf',
                 'application/pdf', $user_id, 'Poświadczenie nadania (Postivo.pl, ID ' . $postivo_id . ')');
         } catch (\Throwable $e) {
             $cert_note = ' (nie udało się wygenerować poświadczenia: ' . $e->getMessage() . ' — spróbuj później z karty wpisu RPW-W).';

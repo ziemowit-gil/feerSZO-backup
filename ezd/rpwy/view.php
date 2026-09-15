@@ -133,7 +133,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <?php if (!empty($r['postivo_job_id'])): ?>
     <!-- Szczegóły z Postivo.pl -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header fw-semibold" style="font-size:.82rem"><i class="bi bi-send-fill me-1 text-primary"></i>Postivo.pl</div>
+      <div class="card-header fw-semibold d-flex align-items-center gap-2" style="font-size:.82rem">
+        <i class="bi bi-send-fill text-primary"></i>Postivo.pl
+        <button type="button" class="btn btn-sm btn-outline-primary ms-auto" data-bs-toggle="modal" data-bs-target="#postivoHistModal">
+          <i class="bi bi-clock-history me-1"></i>Śledź historię
+        </button>
+      </div>
       <div class="card-body">
         <dl class="meta-dl mb-0 row">
           <div class="col-sm-6">
@@ -147,21 +152,79 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <dt>Planowana data nadania</dt><dd><?= $r['postivo_dispatch_date'] ? date_pl($r['postivo_dispatch_date']) : '—' ?></dd>
           </div>
         </dl>
-        <?php
-        $events = json_decode((string)($r['postivo_events_json'] ?? '[]'), true) ?: [];
-        if ($events):
-        ?>
+        <?php if($r['nadanie_file']): ?>
         <div class="border-top pt-2 mt-2">
-          <div class="text-muted mb-1" style="font-size:.78rem">Historia statusów</div>
-          <ul class="list-unstyled mb-0" style="font-size:.8rem">
-            <?php foreach (array_reverse($events) as $ev): ?>
-            <li class="mb-1"><span class="text-muted font-monospace" style="font-size:.74rem"><?= h($ev['date'] ?? '—') ?></span> — <?= h($ev['name'] ?? ($ev['code'] ?? '')) ?></li>
-            <?php endforeach; ?>
-          </ul>
+          <a href="<?= APP_URL ?>/ezd/rpwy/nadanie.php?id=<?= $id ?>" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-file-earmark-check me-1"></i>Poświadczenie nadania
+            <span class="text-muted ms-1">(<?= number_format($r['nadanie_size']/1024, 0, ',', ' ') ?> KB)</span>
+          </a>
         </div>
         <?php endif; ?>
       </div>
     </div>
+
+    <!-- Modal: historia statusów (na żywo z Postivo.pl) -->
+    <div class="modal fade" id="postivoHistModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h6"><i class="bi bi-clock-history me-2"></i>Historia statusów — Postivo.pl</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="ph-summary" class="mb-2" style="font-size:.85rem">
+              <strong>Aktualny status:</strong> <span id="ph-status"><?= h($r['postivo_status_name'] ?: '—') ?></span>
+            </div>
+            <ul id="ph-events" class="list-unstyled mb-0" style="font-size:.8rem">
+              <?php
+              $events = array_reverse(json_decode((string)($r['postivo_events_json'] ?? '[]'), true) ?: []);
+              foreach ($events as $ev):
+              ?>
+              <li class="mb-1"><span class="text-muted font-monospace" style="font-size:.74rem"><?= h($ev['date'] ?? '—') ?></span> — <?= h($ev['name'] ?? ($ev['code'] ?? '')) ?></li>
+              <?php endforeach; ?>
+              <?php if (!$events): ?><li class="text-muted">Brak historii — spróbuj odświeżyć.</li><?php endif; ?>
+            </ul>
+          </div>
+          <div class="modal-footer">
+            <span id="ph-err" class="text-danger small me-auto"></span>
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zamknij</button>
+            <button type="button" id="ph-refresh" class="btn btn-primary"><i class="bi bi-arrow-clockwise me-1"></i>Odśwież teraz</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function () {
+        var btn = document.getElementById('ph-refresh');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+            btn.disabled = true;
+            btn.textContent = 'Odświeżam…';
+            var err = document.getElementById('ph-err');
+            err.textContent = '';
+            var fd = new FormData();
+            fd.append('_csrf', '<?= csrf_token() ?>');
+            fd.append('id', <?= (int)$id ?>);
+            fetch('<?= APP_URL ?>/ezd/rpwy/postivo_refresh.php', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(function (data) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Odśwież teraz';
+                    if (!data.ok) { err.textContent = data.error || 'Błąd odświeżania.'; return; }
+                    document.getElementById('ph-status').textContent = data.status_label + (data.status_name ? ' (' + data.status_name + ')' : '');
+                    var list = document.getElementById('ph-events');
+                    list.innerHTML = data.events.length
+                        ? data.events.map(ev => '<li class="mb-1"><span class="text-muted font-monospace" style="font-size:.74rem">' + (ev.date || '—') + '</span> — ' + (ev.name || ev.code || '') + '</li>').join('')
+                        : '<li class="text-muted">Brak historii.</li>';
+                })
+                .catch(function () {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Odśwież teraz';
+                    err.textContent = 'Błąd sieci.';
+                });
+        });
+    })();
+    </script>
     <?php endif; ?>
 
     <!-- Dowód doręczenia -->
