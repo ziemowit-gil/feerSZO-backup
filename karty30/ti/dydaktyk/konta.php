@@ -41,6 +41,18 @@ function _gen_student_pass(): string {
     return $words[random_int(0, count($words)-1)] . random_int(10, 99);
 }
 
+/**
+ * Generuje 8-znakowe hasło serwisowe (litery + cyfry, bez znaków mylących się
+ * wizualnie: 0/O, 1/l/I) — do przekazania telefonicznie/SMS-em i ustawienia
+ * jednocześnie jako hasło lokalne panelu i hasło konta Microsoft (jeśli istnieje).
+ */
+function _gen_service_password(): string {
+    $chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    $pass  = '';
+    for ($i = 0; $i < 8; $i++) $pass .= $chars[random_int(0, strlen($chars) - 1)];
+    return $pass;
+}
+
 /** Generuje unikalny 12-cyfrowy numer identyfikacyjny kursanta */
 function _gen_student_no(): string {
     do {
@@ -212,6 +224,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['new_student_creds'] = ['login' => $acc['login'], 'password' => $pass, 'name' => $c['name'] ?? ''];
         $sms = _student_send_login_sms($c['phone'] ?? '', $acc['login'], $pass);
         flash_set('success', "Hasło zresetowane dla {$acc['login']}." . $sms);
+        header('Location: konta.php'); exit;
+    }
+
+    // Hasło serwisowe: stałe 8-znakowe hasło ustawiane RAZEM jako hasło lokalne
+    // panelu kursanta i (jeśli kursant ma konto MS) hasło jego konta Microsoft —
+    // by nie miał dwóch różnych haseł do zapamiętania.
+    if ($op === 'service_pass') {
+        $aid  = (int)($_POST['account_id'] ?? 0);
+        $acc  = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        if (!$acc) { flash_set('danger','Konto nie istnieje.'); header('Location: konta.php'); exit; }
+
+        $pass = _gen_service_password();
+        db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=1, updated_at=datetime('now') WHERE id=?")
+           ->execute([password_hash($pass, PASSWORD_BCRYPT), $aid]);
+
+        $ms_msg = '';
+        if (!empty($acc['ms_user_id'])) {
+            try {
+                m365_training()->set_password($acc['ms_user_id'], $pass, true);
+                $ms_msg = ' Nadpisano też hasło konta Microsoft (' . $acc['ms_upn'] . ').';
+            } catch (\Throwable $e) {
+                $ms_msg = ' UWAGA: nie udało się nadpisać hasła konta Microsoft: ' . $e->getMessage();
+            }
+        }
+
+        $c = db_one("SELECT name, phone FROM k30_clients WHERE id=?", [$acc['client_id']]);
+        $_SESSION['new_student_creds'] = ['login' => $acc['login'], 'password' => $pass, 'name' => $c['name'] ?? ''];
+        $sms = _student_send_login_sms($c['phone'] ?? '', $acc['login'], $pass);
+        flash_set('success', "Hasło serwisowe ustawione dla {$acc['login']}." . $sms . $ms_msg);
         header('Location: konta.php'); exit;
     }
 
@@ -1346,6 +1387,14 @@ function printBulk(){
                         <input type="hidden" name="_op"        value="reset_pass">
                         <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
                         <button type="submit" class="dropdown-item"><i class="bi bi-key me-2 text-warning" aria-hidden="true"></i>Resetuj hasło</button>
+                      </form>
+                    </li>
+                    <li>
+                      <form method="post" onsubmit="return confirm('Ustawić hasło serwisowe (8 znaków)?<?= $has_ms ? ' Nadpisze też hasło konta Microsoft tego kursanta.' : '' ?>')">
+                        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+                        <input type="hidden" name="_op"        value="service_pass">
+                        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-shield-lock me-2 text-warning" aria-hidden="true"></i>Hasło serwisowe <span class="text-body-secondary small">(8 znaków<?= $has_ms ? ', nadpisuje też MS' : '' ?>)</span></button>
                       </form>
                     </li>
                     <li>

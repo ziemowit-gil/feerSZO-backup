@@ -697,7 +697,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cur = (string)($_POST['current'] ?? '');
         $new = (string)($_POST['new'] ?? '');
         $cnf = (string)($_POST['confirm'] ?? '');
-        $acc = db_one("SELECT password_hash FROM k30_ti_student_accounts WHERE id=?", [(int)$student['id']]);
+        $acc = db_one("SELECT password_hash, ms_user_id, ms_upn FROM k30_ti_student_accounts WHERE id=?", [(int)$student['id']]);
         $forced = !empty($account['must_change_password']);
         $err = '';
         // Przy pierwszym logowaniu (must_change_password) nie weryfikujemy aktualnego hasła
@@ -715,7 +715,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         db()->prepare("UPDATE k30_ti_student_accounts SET password_hash=?, must_change_password=0, updated_at=datetime('now') WHERE id=?")
            ->execute([password_hash($new, PASSWORD_BCRYPT), (int)$student['id']]);
-        ti_account_log((int)$student['id'], 'password_changed', $forced ? 'Ustawiono hasło przy pierwszym logowaniu.' : 'Zmieniono hasło.');
+        $log_note = $forced ? 'Ustawiono hasło przy pierwszym logowaniu.' : 'Zmieniono hasło.';
+        // Kursant ma jedno hasło do wszystkiego — jeśli ma też konto Microsoft (EDU),
+        // nadpisz od razu jego hasło tym samym, nowym hasłem.
+        if (!empty($acc['ms_user_id'])) {
+            try {
+                m365_training()->set_password($acc['ms_user_id'], $new, false);
+                $log_note .= ' Zaktualizowano też hasło konta Microsoft (' . $acc['ms_upn'] . ').';
+            } catch (\Throwable $e) {
+                $log_note .= ' UWAGA: nie udało się zaktualizować hasła konta Microsoft: ' . $e->getMessage();
+            }
+        }
+        ti_account_log((int)$student['id'], 'password_changed', $log_note);
         header('Location: index.php?tab=ustawienia&pwok=1'); exit;
     }
 
