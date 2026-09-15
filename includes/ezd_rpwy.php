@@ -741,6 +741,10 @@ function ezd_rpwy_apply_postivo_status(int $rpwy_id, array $status_data, int $us
     $rcp_name = trim((string)($status_data['recipient_name'] ?? ''));
     if ($rcp_name !== '' && trim((string)$r['odbiorca']) === '') { $sql .= ", odbiorca=?"; $params[] = $rcp_name; }
 
+    // Koszt potwierdzony przez Postivo (po faktycznym nadaniu) jest dokładniejszy
+    // niż wycena sprzed wysyłki (get_price() w ezd/sprawy/quick_dispatch.php).
+    if (($status_data['price'] ?? null) !== null) { $sql .= ", koszt=?"; $params[] = (float)$status_data['price']; }
+
     $sql .= " WHERE id=?"; $params[] = $rpwy_id;
     db()->prepare($sql)->execute($params);
 

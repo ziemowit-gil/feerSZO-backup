@@ -192,7 +192,7 @@ class PostivoClient
      *   status:string, tracking:string, updated_at:string, job_id:string,
      *   operator:string, service_name:string, status_name:string,
      *   dispatch_date:string, pages:int, recipient_name:string, recipient_address:string,
-     *   events:array<array{code:string,name:string,date:string}>
+     *   price:?float, events:array<array{code:string,name:string,date:string}>
      * }
      */
     public function get_status(string $postivo_id): array
@@ -243,6 +243,7 @@ class PostivoClient
                 'pages'         => (int)($sd?->pageNumber ?? 0),
                 'recipient_name'    => $recipient_name,
                 'recipient_address' => $recipient_address,
+                'price'         => $sd?->price !== null ? (float)$sd->price : null,
                 'events'        => $events,
             ];
         } catch (\Throwable $e) {
