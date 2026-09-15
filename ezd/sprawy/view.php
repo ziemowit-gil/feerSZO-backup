@@ -4,6 +4,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ezd_rpwy.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_kopia.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ezd_zal_menu.php';
 require_once dirname(dirname(__DIR__)) . '/includes/mail_queue.php';
@@ -663,6 +664,9 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     <div class="d-flex gap-2 flex-wrap">
       <?php if($zalaczniki): ?>
       <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#przekazDokModal"><i class="bi bi-send-check me-1"></i>Przekaż</button>
+      <button id="qd-btn" class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#quickDispatchModal" disabled>
+        <i class="bi bi-mailbox2 me-1"></i>Zarejestruj w wychodzących<span id="qd-count" class="badge bg-success ms-1 d-none">0</span>
+      </button>
       <?php endif; ?>
       <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
       <a href="<?= APP_URL ?>/ezd/sprawy/spinacz.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-info"><i class="bi bi-paperclip me-1"></i>Spinacz</a>
@@ -717,7 +721,8 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
         }
         ?>
         <div class="sp-file-row">
-          <input type="checkbox" class="form-check-input flex-shrink-0" style="margin:0">
+          <input type="checkbox" class="form-check-input flex-shrink-0 qd-check" style="margin:0"
+                 value="<?= (int)$z['id'] ?>" data-name="<?= h($z['original_name']) ?>" aria-label="Zaznacz do wysyłki">
           <i class="bi <?= ezd_file_icon($z['original_name']) ?> fs-5 flex-shrink-0 text-muted"></i>
           <div class="flex-grow-1 overflow-hidden">
             <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= $z['id'] ?>"
@@ -2059,6 +2064,118 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
     </div>
   </div>
 </div>
+<?php endif; ?>
+
+<?php if($can_act): ?>
+<div class="modal fade" id="quickDispatchModal" tabindex="-1" aria-labelledby="qdModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <form method="post" action="<?= APP_URL ?>/ezd/sprawy/quick_dispatch.php" class="modal-content" id="qd-form">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="sprawa_id" value="<?= $id ?>">
+      <div id="qd-zal-ids"></div>
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="qdModalLabel"><i class="bi bi-mailbox2 text-success me-2"></i>Zarejestruj w wychodzących</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Zaznaczone pliki (<span id="qd-modal-count">0</span>) — jedna przesyłka</label>
+          <ul id="qd-file-list" class="small mb-0 ps-3"></ul>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="qd-title">Tytuł pisma</label>
+          <input type="text" name="title" id="qd-title" class="form-control" placeholder="np. Odpowiedź w sprawie…">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="qd-odbiorca">Odbiorca <span class="text-danger">*</span></label>
+          <input type="text" name="odbiorca" id="qd-odbiorca" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="qd-sposob">Sposób wysyłki (rejestr RPW-W)</label>
+          <select name="sposob" id="qd-sposob" class="form-select">
+            <?php foreach (EZD_RPWY_SPOSOBY as $sk => $sv): ?>
+            <option value="<?= $sk ?>"><?= h($sv['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="send_postivo" value="1" id="qd-postivo">
+          <label class="form-check-label fw-semibold" for="qd-postivo">
+            <i class="bi bi-send-fill text-success me-1"></i>Wyślij od razu przez Postivo.pl
+          </label>
+          <div class="form-text">Wymaga, żeby zaznaczone pliki (albo część z nich) były w PDF — reszta zostanie tylko zarejestrowana, bez fizycznej wysyłki. Postivo scali zaznaczone PDF-y w jedną kopertę.</div>
+        </div>
+        <div class="collapse" id="qd-postivo-fields">
+          <div class="row g-2 p-2 rounded border bg-light mb-2">
+            <div class="col-md-6"><label class="form-label small mb-0">Nazwa odbiorcy (do koperty)</label><input type="text" name="recipient_name" class="form-control form-control-sm"></div>
+            <div class="col-md-6"><label class="form-label small mb-0">Powód wysyłki</label><input type="text" name="doc_reason" class="form-control form-control-sm" value="Korespondencja urzędowa"></div>
+            <div class="col-md-8"><label class="form-label small mb-0">Ulica i numer <span class="text-danger">*</span></label><input type="text" name="address_line1" class="form-control form-control-sm"></div>
+            <div class="col-md-2"><label class="form-label small mb-0">Nr domu</label><input type="text" name="home_number" class="form-control form-control-sm"></div>
+            <div class="col-md-2"><label class="form-label small mb-0">Nr lokalu</label><input type="text" name="flat_number" class="form-control form-control-sm"></div>
+            <div class="col-md-6"><label class="form-label small mb-0">Adres cd. (opcjonalnie)</label><input type="text" name="address_line2" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="form-label small mb-0">Kod pocztowy <span class="text-danger">*</span></label><input type="text" name="postcode" class="form-control form-control-sm" placeholder="00-001"></div>
+            <div class="col-md-3"><label class="form-label small mb-0">Miasto <span class="text-danger">*</span></label><input type="text" name="city" class="form-control form-control-sm"></div>
+            <div class="col-md-6"><label class="form-label small mb-0">Telefon (opcjonalnie)</label><input type="text" name="phone_number" class="form-control form-control-sm"></div>
+            <div class="col-md-6"><label class="form-label small mb-0">Kraj</label><input type="text" name="country" class="form-control form-control-sm" value="PL"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-success"><i class="bi bi-mailbox2 me-1"></i>Zarejestruj</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+    var checks   = () => Array.from(document.querySelectorAll('.qd-check'));
+    var btn      = document.getElementById('qd-btn');
+    var countEl  = document.getElementById('qd-count');
+    var modalCnt = document.getElementById('qd-modal-count');
+    var fileList = document.getElementById('qd-file-list');
+    var idsHost  = document.getElementById('qd-zal-ids');
+    var postivoChk = document.getElementById('qd-postivo');
+    var postivoFields = document.getElementById('qd-postivo-fields');
+    if (!btn) return;
+
+    function refresh() {
+        var checked = checks().filter(c => c.checked);
+        if (checked.length > 0) {
+            btn.removeAttribute('disabled');
+            countEl.classList.remove('d-none');
+            countEl.textContent = checked.length;
+        } else {
+            btn.setAttribute('disabled', 'disabled');
+            countEl.classList.add('d-none');
+        }
+    }
+    document.addEventListener('change', function (e) {
+        if (e.target.classList && e.target.classList.contains('qd-check')) refresh();
+    });
+    refresh();
+
+    // Przy otwarciu modala: przepisz zaznaczenie do ukrytych pól formularza.
+    document.getElementById('quickDispatchModal').addEventListener('show.bs.modal', function () {
+        var checked = checks().filter(c => c.checked);
+        idsHost.innerHTML = '';
+        checked.forEach(function (c) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'zal_ids[]'; inp.value = c.value;
+            idsHost.appendChild(inp);
+        });
+        modalCnt.textContent = checked.length;
+        fileList.innerHTML = checked.map(c => '<li>' + (c.dataset.name || c.value) + '</li>').join('');
+    });
+
+    if (postivoChk) {
+        postivoChk.addEventListener('change', function () {
+            var bs = bootstrap.Collapse.getOrCreateInstance(postivoFields, {toggle: false});
+            this.checked ? bs.show() : bs.hide();
+        });
+    }
+})();
+</script>
 <?php endif; ?>
 
 <?php if($can_act && $signed_pdfs): ?>

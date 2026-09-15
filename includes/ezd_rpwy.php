@@ -526,3 +526,51 @@ function ezd_rpwy_from_pismo(int $pismo_id, array $over, int $user_id): array {
         'status'       => ($p['data_wysylki'] ?? '') ? 'nadana' : 'przygotowana',
     ], $over), $user_id);
 }
+
+/**
+ * Szybka wysyłka z listy dokumentów koszulki: zaznaczone pliki (dowolna
+ * liczba) trafiają do JEDNEGO nowego pisma wychodzącego, które dostaje
+ * JEDEN wpis w książce nadawczej (liczba_szt = liczba plików) — jedna
+ * przesyłka/koperta, niezależnie ile dokumentów zawiera. Zwraca
+ * ['pismo_id'=>int, 'id'=>int (rpwy), 'rpwy_nr'=>int, 'rok'=>int].
+ */
+function ezd_rpwy_quick_dispatch(int $sprawa_id, array $zal_ids, string $title, string $odbiorca, string $sposob, int $user_id): array {
+    $zal_ids = array_values(array_unique(array_map('intval', $zal_ids)));
+    if (!$zal_ids) throw new \RuntimeException('Nie wybrano żadnego pliku.');
+    $title = trim($title) !== '' ? trim($title) : 'Przesyłka wychodząca';
+
+    // Upewnij się, że wskazane pliki naprawdę należą do tej koszulki (nie do
+    // innej sprawy podsuniętej przez zmanipulowany request).
+    $placeholders = implode(',', array_fill(0, count($zal_ids), '?'));
+    $found = db_all(
+        "SELECT id FROM ezd_zalaczniki WHERE sprawa_id=? AND id IN ($placeholders)",
+        array_merge([$sprawa_id], $zal_ids)
+    );
+    if (count($found) !== count($zal_ids)) {
+        throw new \RuntimeException('Część wskazanych plików nie należy do tej koszulki.');
+    }
+
+    $pismo_id = ezd_pismo_create([
+        'sprawa_id'     => $sprawa_id,
+        'kierunek'      => 'wychodzace',
+        'title'         => $title,
+        'odbiorca'      => $odbiorca,
+        'rodzaj_medium' => 'papier',
+        'data_wysylki'  => date('Y-m-d'),
+    ], $user_id);
+
+    db()->prepare("UPDATE ezd_zalaczniki SET pismo_id=? WHERE sprawa_id=? AND id IN ($placeholders)")
+        ->execute(array_merge([$pismo_id, $sprawa_id], $zal_ids));
+
+    ezd_log(null, $sprawa_id, $pismo_id, null, $user_id, 'quick_dispatch',
+        'Szybka rejestracja w wychodzących: ' . count($zal_ids) . ' plik(ów) → pismo #' . $pismo_id);
+
+    $rpwy = ezd_rpwy_from_pismo($pismo_id, [
+        'sposob'     => $sposob,
+        'odbiorca'   => $odbiorca ?: '—',
+        'liczba_szt' => count($zal_ids),
+        'status'     => 'przygotowana',
+    ], $user_id);
+
+    return ['pismo_id' => $pismo_id] + $rpwy;
+}
