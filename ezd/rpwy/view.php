@@ -116,7 +116,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           </div>
           <div class="col-sm-6">
             <dt>Data nadania</dt><dd><?= date_pl($r['data_wysylki']) ?></dd>
-            <dt>Numer nadania</dt><dd class="font-monospace"><?= h($r['nr_nadania'] ?: '—') ?></dd>
+            <dt>Numer nadania</dt><dd class="font-monospace"><?php
+              if ($r['nr_nadania']) { echo h($r['nr_nadania']); }
+              elseif (!empty($r['postivo_job_id'])) { echo '<span class="text-muted fst-italic">Oczekuje na nadanie w UP</span>'; }
+              else { echo '—'; }
+            ?></dd>
             <dt>Liczba przesyłek</dt><dd><?= (int)$r['liczba_szt'] ?></dd>
             <dt>Opłata</dt><dd><?= $r['koszt'] > 0 ? number_format((float)$r['koszt'], 2, ',', ' ') . ' zł' : '—' ?></dd>
           </div>
