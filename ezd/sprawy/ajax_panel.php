@@ -124,8 +124,8 @@ $uid = 'kp' . $id; // unikalne prefiksy id dla WCAG (wielokrotne otwieranie tego
     <?php if ($pisma): ?>
     <div class="tl-wrap" role="list" aria-label="Lista pism">
       <?php foreach ($pisma as $p):
-        $kier = EZD_KIERUNKI[$p['kierunek']] ?? ['label'=>$p['kierunek'],'icon'=>'bi-envelope','class'=>'secondary'];
-        $kshort = str_replace(['przychodzace','wychodzace','wewnetrzne'],['in','out','int'],$p['kierunek']);
+        $kier = EZD_KIERUNKI[$p['sub_type']] ?? ['label'=>$p['sub_type'],'icon'=>'bi-envelope','class'=>'secondary'];
+        $kshort = str_replace(['przychodzace','wychodzace','wewnetrzne'],['in','out','int'],$p['sub_type']);
       ?>
       <div class="tl-item" role="listitem">
         <div class="tl-dot pismo-<?= $kshort ?>" aria-hidden="true"></div>
