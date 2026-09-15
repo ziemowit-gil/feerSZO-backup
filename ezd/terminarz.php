@@ -116,7 +116,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <li class="breadcrumb-item active">Terminarz</li>
 </ol></nav>
 
-<?php flash_render(); ?>
+<?= flash_html() ?>
 
 <!-- Nagłówek nawigacja -->
 <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">

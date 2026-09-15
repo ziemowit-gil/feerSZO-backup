@@ -22,7 +22,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <li class="breadcrumb-item active">Dokumenty do podpisu</li>
 </ol></nav>
 
-<?php flash_render(); ?>
+<?= flash_html() ?>
 
 <div class="row g-4">
 
