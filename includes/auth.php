@@ -271,7 +271,17 @@ function require_login(): void {
             if (str_starts_with($rel, $p)) { $is_allowed = true; break; }
         }
         if (!$is_allowed) {
-            header('Location: ' . APP_URL . ($rpw_only ? '/ezd/rpw/index.php' : '/ezd/index.php'));
+            // Rola zawężona do RPW: zamiast po cichu przekierowywać, pokaż wprost
+            // komunikat o braku uprawnień — użytkownik ma wiedzieć, że to celowe
+            // ograniczenie roli, a nie błąd nawigacji.
+            if ($rpw_only) {
+                http_response_code(403);
+                include __DIR__ . '/header.php';
+                echo '<div class="container mt-5"><div class="alert alert-danger">Brak uprawnień dla twojej roli.</div></div>';
+                include __DIR__ . '/footer.php';
+                exit;
+            }
+            header('Location: ' . APP_URL . '/ezd/index.php');
             exit;
         }
     }
