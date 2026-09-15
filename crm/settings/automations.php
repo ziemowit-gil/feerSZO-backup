@@ -57,6 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'case_status_changed'    => ['to_status' => trim($_POST['t_case_to_status'] ?? '')],
             default                  => [],
         };
+        // Typ kontaktu — warunek wspólny dla wszystkich zdarzeń (nie tylko „nowy
+        // kontakt"), np. żeby wykluczyć „kontakt techniczny" z reguły.
+        $t_contact_type = trim($_POST['t_contact_type'] ?? '');
+        if ($t_contact_type !== '' && array_key_exists($t_contact_type, CRM_CONTACT_TYPES)) {
+            $trigger_config['contact_type'] = $t_contact_type;
+        }
         $action_config = match ($action) {
             'send_email_template'  => ['template_id' => (int)($_POST['a_template_id'] ?? 0)],
             'add_tag'               => ['tag' => trim($_POST['a_tag_add'] ?? '')],
@@ -210,6 +216,16 @@ require_once __DIR__ . '/_nav.php';
           <option value="<?= $ev ?>" <?= ($edit_row['trigger_event'] ?? '') === $ev ? 'selected' : '' ?>><?= h($label) ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small mb-1">Typ kontaktu (opcjonalnie)</label>
+        <select name="t_contact_type" class="form-select form-select-sm">
+          <option value="">— dowolny —</option>
+          <?php foreach (CRM_CONTACT_TYPES as $tk => $tv): ?>
+          <option value="<?= h($tk) ?>" <?= ($edit_trigger['contact_type'] ?? '') === $tk ? 'selected' : '' ?>><?= h($tv['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text" style="font-size:.77rem">Ogranicza regułę do kontaktów tego typu — niezależnie od wybranego zdarzenia.</div>
       </div>
       <div class="col-md-6" id="cfg_contact_created" style="display:none">
         <label class="form-label small mb-1">Źródło kontaktu (opcjonalnie)</label>

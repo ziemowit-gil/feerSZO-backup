@@ -426,10 +426,14 @@ class PocztaScanService
 
         try {
             require_once __DIR__ . '/crm.php';
+            require_once __DIR__ . '/crm_contact_analyzer.php';
             $disp  = $name !== '' ? $name : ucfirst((string)strtok($addr, '@'));
             $parts = preg_split('/\s+/', $disp, 2);
             $cid = CrmManager::createContact([
-                'type'          => 'osoba',
+                // Adresy noreply/system same się nie odpiszą i nie są realnym
+                // kontaktem biznesowym — kartoteka istnieje tylko po to, żeby nie
+                // gubić historii komunikacji (zob. CRM_CONTACT_TYPES).
+                'type'          => crm_is_robot_sender($addr) ? 'kontakt_techniczny' : 'osoba',
                 'status'        => 'prospect',
                 'imie_nazwisko' => $disp,
                 'imie'          => $parts[0] ?? '',

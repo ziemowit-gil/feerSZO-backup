@@ -1713,6 +1713,11 @@ if (isset($_GET['_section'])) {
 // ── Załaduj dane do pełnej strony ─────────────────────────────────────────────
 $contact = crm_mask_contact((array)CrmManager::getContact($id));  // podgląd wg uprawnień per pole
 
+// Kontakt techniczny (adres automatyczny — noreply/system) to rekord bez
+// żadnych "ludzkich" opcji CRM: bez tagów, spraw, ofert, konwersji typu itd.
+// Jedyne, co ma sens przy takim wpisie, to podgląd historii komunikacji.
+$_is_tech = ($contact['type'] ?? '') === 'kontakt_techniczny';
+
 $contact_actions   = CrmManager::getContactActions($id);
 $linked_action_ids = array_column($contact_actions, 'id');
 $all_actions_raw   = db_all("SELECT id, nazwa, typ, status, data_od FROM actions ORDER BY data_od DESC, nazwa");
@@ -1829,8 +1834,9 @@ include __DIR__ . '/../includes/header_crm.php';
     <div class="flex-grow-1 min-w-0">
       <h1 class="crm-contact-name"><?= h($contact['imie_nazwisko']) ?></h1>
       <div class="crm-contact-sub">
-        <i class="bi <?= $contact['type'] === 'organizacja' ? 'bi-building' : 'bi-person' ?> me-1" aria-hidden="true"></i>
-        <?= $contact['type'] === 'organizacja' ? 'Organizacja / firma' : 'Osoba fizyczna' ?>
+        <?php $_ct_meta = CRM_CONTACT_TYPES[$contact['type']] ?? CRM_CONTACT_TYPES['osoba']; ?>
+        <i class="bi <?= h($_ct_meta['icon']) ?> me-1" aria-hidden="true"></i>
+        <?= h($_ct_meta['label']) ?>
         <?php if ($_sfv['stanowisko'] && $contact['stanowisko']): ?>
           · <?= h($contact['stanowisko']) ?>
         <?php endif; ?>
@@ -1849,7 +1855,7 @@ include __DIR__ . '/../includes/header_crm.php';
 
   <!-- Pasek akcji -->
   <div class="cv-panel__body d-flex flex-wrap gap-2" style="border-top:1px solid var(--crm-border)">
-    <?php if ($crm_can_write): ?>
+    <?php if ($crm_can_write && !$_is_tech): ?>
     <a href="<?= APP_URL ?>/crm/contact/add.php?id=<?= $id ?>" class="btn btn-sm btn-crm-primary">
       <i class="bi bi-pencil-fill me-1" aria-hidden="true"></i>Edytuj dane
     </a>
@@ -1860,7 +1866,7 @@ include __DIR__ . '/../includes/header_crm.php';
     <button type="button" class="btn btn-sm btn-crm-outline" onclick="openCommModal(<?= $id ?>,'sms')">
       <i class="bi bi-phone-fill me-1" aria-hidden="true"></i>Wyślij SMS
     </button>
-    <?php if ($crm_can_write): ?>
+    <?php if ($crm_can_write && !$_is_tech): ?>
     <button type="button" class="btn btn-sm <?= !empty($contact['is_critical']) ? 'btn-outline-danger' : 'btn-outline-secondary' ?>"
             data-bs-toggle="modal" data-bs-target="#criticalModal"
             title="Oznacz kontakt, bez którego staje część działalności — bank, dostawca internetu, hosting">
@@ -1868,21 +1874,21 @@ include __DIR__ . '/../includes/header_crm.php';
       <?= !empty($contact['is_critical']) ? 'Krytyczny operacyjnie' : 'Oznacz jako krytyczny' ?>
     </button>
     <?php endif; ?>
-    <?php if ($crm_can_write && empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
+    <?php if ($crm_can_write && !$_is_tech && empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
     <button type="button" class="btn btn-sm btn-outline-secondary"
             data-bs-toggle="modal" data-bs-target="#assignPersonModal"
             title="Dopisz tę osobę jako osobę kontaktową przy innej kartotece (np. przy firmie)">
       <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Przypisz jako osobę kontaktową
     </button>
     <?php endif; ?>
-    <?php if ($crm_can_write): ?>
+    <?php if ($crm_can_write && !$_is_tech): ?>
     <button type="button" class="btn btn-sm btn-outline-secondary"
             data-bs-toggle="modal" data-bs-target="#convertTypeModal"
             title="Zmień typ kontaktu: Osoba ↔ Organizacja">
       <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwertuj typ
     </button>
     <?php endif; ?>
-    <?php if ($crm_can_write && $contract_import_data): ?>
+    <?php if ($crm_can_write && !$_is_tech && $contract_import_data): ?>
     <button type="button" class="btn btn-sm btn-outline-secondary"
             data-bs-toggle="modal" data-bs-target="#importContractModal"
             title="Zaciągnij dane osobowe z umów tej osoby">
@@ -2039,6 +2045,17 @@ $case_status_cfg = [
 ?>
 <div class="cv-single">
 
+    <?php if ($_is_tech): ?>
+    <ul class="nav cv-tabs cv-tabs--sticky mb-3" id="cvTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="cv-tab-activity-btn" data-bs-toggle="tab"
+                data-bs-target="#cv-tab-activity" type="button" role="tab"
+                aria-controls="cv-tab-activity" aria-selected="true">
+          <i class="bi bi-chat-left-text" aria-hidden="true"></i>Historia komunikacji
+        </button>
+      </li>
+    </ul>
+    <?php else: ?>
     <ul class="nav cv-tabs cv-tabs--sticky mb-3" id="cvTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="cv-tab-activity-btn" data-bs-toggle="tab"
@@ -2110,6 +2127,7 @@ $case_status_cfg = [
         </button>
       </li>
     </ul>
+    <?php endif; ?>
 
     <div class="tab-content">
 
@@ -2119,7 +2137,9 @@ $case_status_cfg = [
 
         <?php /* Zadania CRM przy kartotece — przypomnienia „oddzwonić", „wysłać
                  ofertę". To NIE są zadania modułu Zadań: nie mają obszaru ani
-                 tablicy, mają osobę i termin. Zob. includes/crm_tasks.php. */ ?>
+                 tablicy, mają osobę i termin. Zob. includes/crm_tasks.php.
+                 Kontakt techniczny nie ma tu żadnych opcji poza historią komunikacji. */ ?>
+        <?php if (!$_is_tech): ?>
         <?php require_once dirname(dirname(__DIR__)) . '/includes/crm_tasks.php';
               $cv_tasks = crm_tasks_for_contact($id); ?>
         <div class="cv-panel"><div class="cv-panel__body">
@@ -2194,6 +2214,7 @@ $case_status_cfg = [
             <?= _cv_activities_html($id, $crm_can_write, $crm_can_delete) ?>
           </div>
         </div></div>
+        <?php endif; ?>
 
         <div class="cv-panel"><div class="cv-panel__body">
           <div class="cv-shead">
@@ -2210,6 +2231,7 @@ $case_status_cfg = [
 
       </div>
 
+      <?php if (!$_is_tech): ?>
       <!-- ZAKŁADKA: Notatki -->
       <!-- ZAKŁADKA: Osoby kontaktowe (tylko organizacje, firmy, partnerzy) -->
       <?php if (!empty(CRM_CONTACT_TYPES[$contact['type']]['org_like'])): ?>
@@ -2260,6 +2282,7 @@ $case_status_cfg = [
       <?php include dirname(__DIR__) . '/includes/cv/tab_data.php'; ?>
 
       <?php include dirname(__DIR__) . '/includes/cv/tab_engage.php'; ?>
+      <?php endif; ?>
     </div><!-- /tab-content -->
 </div><!-- /cv-single -->
 

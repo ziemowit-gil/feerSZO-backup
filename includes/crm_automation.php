@@ -54,6 +54,13 @@ function crm_automation_fire(string $event, int $contact_id, array $context = []
     crm_migrate();
 
     $rules = db_all("SELECT * FROM crm_automations WHERE trigger_event=? AND is_active=1", [$event]);
+    if ($rules && !isset($context['contact_type'])) {
+        // Typ kontaktu dochodzi do kontekstu automatycznie, niezależnie od zdarzenia —
+        // tak reguła może np. pominąć „kontakt techniczny" (adres noreply/system),
+        // bez powtarzania tego samego pola w każdym wywołującym miejscu.
+        $c = db_one("SELECT type FROM crm_contacts WHERE id=?", [$contact_id]);
+        $context['contact_type'] = $c['type'] ?? null;
+    }
     foreach ($rules as $rule) {
         $trigger_config = json_decode($rule['trigger_config'] ?: '{}', true) ?: [];
         if (!crm_automation_matches($trigger_config, $context)) continue;
@@ -97,6 +104,9 @@ function crm_automation_run_action(array $rule, int $contact_id, array $context)
         case 'send_email_template':
             // RODO — respektuj globalne wypisanie (ta sama flaga co kampanie mailowe)
             if (!empty($contact['email_opt_out']) || empty($contact['email'])) return;
+            // Kontakt techniczny to adres noreply/system — wysyłka tam nic nie da,
+            // a często odbija się jako niedostarczona.
+            if (($contact['type'] ?? '') === 'kontakt_techniczny') return;
             $tpl = db_one("SELECT * FROM crm_templates WHERE id=? AND is_active=1", [(int)($cfg['template_id'] ?? 0)]);
             if (!$tpl) return;
             require_once __DIR__ . '/mail_queue.php';
