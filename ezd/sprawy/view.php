@@ -2115,10 +2115,20 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="form-check mb-2" id="qd-zpo-wrap">
-          <input class="form-check-input" type="checkbox" id="qd-zpo">
-          <label class="form-check-label" for="qd-zpo">Z potwierdzeniem odbioru (ZPO)</label>
-          <div class="form-text">Ustawia powyżej „Polecony za potwierdzeniem odbioru" w rejestrze RPW-W. Uwaga: to sam wpis w książce nadawczej — żeby Postivo faktycznie nadało jako przesyłkę z (e)ZPO, musi mieć tak skonfigurowaną usługę w Administracja → Postivo (jedna, globalna konfiguracja usługi/przewoźnika — obecnie system nie wybiera usługi per wysyłka).</div>
+        <div class="mb-2" id="qd-zpo-wrap">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="qd-zpo-on">
+            <label class="form-check-label fw-semibold" for="qd-zpo-on">Z potwierdzeniem odbioru (ZPO)</label>
+          </div>
+          <div class="form-check ms-4 d-none" id="qd-zpo-epo-wrap">
+            <input class="form-check-input" type="checkbox" id="qd-zpo-epo">
+            <label class="form-check-label" for="qd-zpo-epo">Elektroniczne (EPO) — Poczta Polska, zamiast papierowej „żółtej kartki"</label>
+          </div>
+          <div class="form-text">
+            Ustawia sposób w rejestrze RPW-W na „Polecony za potwierdzeniem odbioru".
+            Dla trybu Postivo dodatkowo dobiera pasującą usługę Poczty Polskiej z listy poniżej (po nazwie) — sprawdź, czy trafiła właściwa, zwłaszcza jeśli to pierwszy raz.
+          </div>
+        </div>
         </div>
         <div class="collapse" id="qd-postivo-fields">
           <div class="row g-2 p-2 rounded border bg-light mb-2">
@@ -2163,7 +2173,6 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
     var idsHost  = document.getElementById('qd-zal-ids');
     var trybRadios = () => Array.from(document.querySelectorAll('.qd-tryb'));
     var postivoFields = document.getElementById('qd-postivo-fields');
-    var zpoChk     = document.getElementById('qd-zpo');
     var sposobSel  = document.getElementById('qd-sposob');
     var previewBtn = document.getElementById('qd-preview-btn');
     var qdForm     = document.getElementById('qd-form');
@@ -2178,6 +2187,40 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
     var serviceStatus = document.getElementById('qd-service-status');
     var carrierIdInp = document.getElementById('qd-carrier-id');
     var serviceIdInp = document.getElementById('qd-service-id');
+
+    var zpoOnChk  = document.getElementById('qd-zpo-on');
+    var zpoEpoChk = document.getElementById('qd-zpo-epo');
+    var zpoEpoWrap = document.getElementById('qd-zpo-epo-wrap');
+
+    // ZPO oparte na checkboxach: "Z ZPO" włącza drugi checkbox "Elektroniczne
+    // (EPO)" (Poczta Polska) — bez niego to papierowa "żółta kartka". Zawsze
+    // ustawia sposób RPW-W; dla trybu Postivo dodatkowo próbuje dopasować
+    // usługę po nazwie (dopiero gdy lista jest już wczytana).
+    function currentZpoChoice() {
+        if (!zpoOnChk || !zpoOnChk.checked) return 'brak';
+        return (zpoEpoChk && zpoEpoChk.checked) ? 'epo' : 'papier';
+    }
+    function applyZpoAutoMatch() {
+        var choice = currentZpoChoice();
+        if (choice === 'brak') return;
+        if (sposobSel) sposobSel.value = 'polecony_zpo';
+        if (!serviceSel || !servicesLoaded) return;
+        var opts = Array.from(serviceSel.querySelectorAll('option')).filter(o => o.value);
+        var match = opts.find(function (o) {
+            var t = o.textContent.toLowerCase();
+            var hasEpo = t.indexOf('epo') !== -1;
+            return choice === 'epo' ? hasEpo : (t.indexOf('potw') !== -1 && !hasEpo);
+        });
+        if (match) { serviceSel.value = match.value; serviceSel.dispatchEvent(new Event('change')); }
+    }
+    if (zpoOnChk) {
+        zpoOnChk.addEventListener('change', function () {
+            zpoEpoWrap.classList.toggle('d-none', !this.checked);
+            if (!this.checked && zpoEpoChk) zpoEpoChk.checked = false;
+            applyZpoAutoMatch();
+        });
+    }
+    if (zpoEpoChk) zpoEpoChk.addEventListener('change', applyZpoAutoMatch);
 
     function loadPostivoServices() {
         if (servicesLoaded || !serviceSel) return;
@@ -2201,6 +2244,7 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
                 });
                 serviceStatus.textContent = '';
                 serviceSel.dispatchEvent(new Event('change'));
+                applyZpoAutoMatch();
             })
             .catch(function () { serviceStatus.textContent = 'Błąd sieci przy wczytywaniu usług.'; });
     }
@@ -2221,12 +2265,6 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
     }
     trybRadios().forEach(r => r.addEventListener('change', refreshTrybUI));
     refreshTrybUI();
-
-    if (zpoChk && sposobSel) {
-        zpoChk.addEventListener('change', function () {
-            sposobSel.value = this.checked ? 'polecony_zpo' : 'zwykly';
-        });
-    }
 
     if (previewBtn) {
         previewBtn.addEventListener('click', function () {
