@@ -2,12 +2,11 @@
 /**
  * contracts/includes/cv_layout.php
  *
- * Współdzielony layout widoku umowy — boczne zakładki (sidebar nav-pills) +
- * sekcje ".cv-section" zamiast klasycznych kart Bootstrap z zakładkami w nagłówku.
- * Wzorowany 1:1 na contracts/wolontariat/view.php (tam nawigacja używa ID
- * #wolontariatTabs / #wolontariatTabsContent — tu te same reguły, ale pod
- * generycznymi klasami .cv-side-tabs / .cv-side-tabs-content, żeby dało się
- * używać w wielu widokach umów bez duplikowania CSS).
+ * Współdzielony layout widoku umowy — poziomy pasek zakładek NAD treścią
+ * (nie z boku — świadomie zrezygnowano z sidebara: zajmował kolumnę na
+ * szerokich ekranach bez realnej korzyści i nie mieścił się dobrze na
+ * węższych) + sekcje ".cv-section" zamiast klasycznych kart Bootstrap
+ * z zakładkami w nagłówku.
  *
  * Użycie:
  *   require_once dirname(__DIR__) . '/includes/cv_layout.php';
@@ -18,26 +17,26 @@
  */
 ?>
 <style>
-/* Zakładki z boku (układ pionowy) */
-.cv-tabs-layout { display: flex; gap: 1rem; align-items: flex-start; }
+/* Zakładki poziome nad treścią (nazwa klasy `cv-side-tabs` zostaje z
+   powodów historycznych/kompatybilności z markupem widoków umów). */
+.cv-tabs-layout { display: block; }
 .cv-side-tabs {
-  flex: 0 0 218px; max-width: 218px;
-  flex-direction: column; gap: .12rem;
-  position: sticky; top: 1rem; border: none;
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: .2rem;
+  width: 100%; margin: 0 0 1rem; border: none;
   /* Nieprzezroczysta karta — pod spodem jest geometryczne tło aplikacji
      (includes/app_bg.php), które prześwitywało pod tekstem. */
   background: #fff;
   border: 1px solid #E2E8F0;
   border-radius: 12px;
-  padding: .4rem;
+  padding: .35rem;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .cv-side-tabs .nav-link {
-  border: none !important; border-radius: 9px !important;
-  padding: .5rem .75rem; font-size: .83rem; font-weight: 500;
-  color: #64748B; text-align: left; white-space: normal;
-  background: transparent !important; width: 100%;
-  display: flex; align-items: center; gap: .55rem;
+  border: none !important; border-radius: 8px !important;
+  padding: .5rem .9rem; font-size: .83rem; font-weight: 500;
+  color: #64748B; text-align: center; white-space: nowrap;
+  background: transparent !important; width: auto;
+  display: inline-flex; align-items: center; gap: .45rem;
   transition: color .15s ease, background .15s ease;
 }
 .cv-side-tabs .nav-link:hover { color: #1E3A5F; background: #F1F5F9 !important; }
@@ -45,11 +44,11 @@
 .cv-side-tabs .nav-link[aria-selected="true"] {
   color: #1E6DFF !important; background: #EFF5FF !important; font-weight: 700 !important;
 }
-.cv-side-tabs .nav-link .bi { font-size: .95rem; width: 1.15rem; text-align: center; flex-shrink: 0; }
+.cv-side-tabs .nav-link .bi { font-size: .95rem; flex-shrink: 0; }
 
 /* Zawartość zakładek */
 .cv-side-tabs-content {
-  flex: 1 1 auto; min-width: 0;
+  width: 100%;
   background: #fff;                     /* treść zawsze na białym, nie na wzorze tła */
   border: 1px solid #E2E8F0 !important;
   border-radius: 12px !important;
@@ -60,14 +59,10 @@
 /* Animacja przełączania — NIE nadpisujemy Bootstrap fade/show (to psuje przełączanie) */
 .cv-side-tabs-content .tab-pane.fade.show.active { opacity: 1; }
 
-/* Na wąskich ekranach: karty wracają na górę poziomo */
+/* Na wąskich ekranach: pasek zakładek przewija się w poziomie zamiast zawijać */
 @media (max-width: 860px) {
-  .cv-tabs-layout { flex-direction: column; }
-  .cv-side-tabs {
-    flex-basis: auto; max-width: none; width: 100%;
-    flex-direction: row; flex-wrap: wrap; position: static;
-  }
-  .cv-side-tabs .nav-link { width: auto; }
+  .cv-side-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cv-side-tabs .nav-link { flex-shrink: 0; }
 }
 
 /* Sekcja (zastępuje .card/.card-header/.card-body dla prostych bloków danych) */

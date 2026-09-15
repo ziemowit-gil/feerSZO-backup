@@ -822,19 +822,23 @@ if (!empty($_GET['show_aneks'])): ?>
 
 <!-- ── Styles widoku umowy ──────────────────────────────────────────────────── -->
 <style>
-/* Zakładki z boku (układ pionowy) */
-.cv-tabs-layout { display: flex; gap: 1rem; align-items: flex-start; }
+/* Zakładki poziome nad treścią (świadomie bez sidebara — zob. contracts/includes/cv_layout.php) */
+.cv-tabs-layout { display: block; }
 #wolontariatTabs {
-  flex: 0 0 218px; max-width: 218px;
-  flex-direction: column; gap: .12rem;
-  position: sticky; top: 1rem; border: none;
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: .2rem;
+  width: 100%; margin: 0 0 1rem; border: none;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: .35rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 #wolontariatTabs .nav-link {
-  border: none !important; border-radius: 9px !important;
-  padding: .5rem .75rem; font-size: .83rem; font-weight: 500;
-  color: #64748B; text-align: left; white-space: normal;
-  background: transparent !important; width: 100%;
-  display: flex; align-items: center; gap: .55rem;
+  border: none !important; border-radius: 8px !important;
+  padding: .5rem .9rem; font-size: .83rem; font-weight: 500;
+  color: #64748B; text-align: center; white-space: nowrap;
+  background: transparent !important; width: auto;
+  display: inline-flex; align-items: center; gap: .45rem;
   transition: color .15s ease, background .15s ease;
 }
 #wolontariatTabs .nav-link:hover { color: #1E3A5F; background: #F1F5F9 !important; }
@@ -842,11 +846,11 @@ if (!empty($_GET['show_aneks'])): ?>
 #wolontariatTabs .nav-link[aria-selected="true"] {
   color: #1E6DFF !important; background: #EFF5FF !important; font-weight: 700 !important;
 }
-#wolontariatTabs .nav-link .bi { font-size: .95rem; width: 1.15rem; text-align: center; flex-shrink: 0; }
+#wolontariatTabs .nav-link .bi { font-size: .95rem; flex-shrink: 0; }
 
 /* Zawartość zakładek */
 #wolontariatTabsContent {
-  flex: 1 1 auto; min-width: 0;
+  width: 100%;
   border: 1px solid #E2E8F0 !important;
   border-radius: 12px !important;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
@@ -855,14 +859,10 @@ if (!empty($_GET['show_aneks'])): ?>
 /* Animacja przełączania — NIE nadpisujemy Bootstrap fade/show (to psuje przełączanie) */
 #wolontariatTabsContent .tab-pane.fade.show.active { opacity: 1; }
 
-/* Na wąskich ekranach: karty wracają na górę poziomo */
+/* Na wąskich ekranach: pasek zakładek przewija się w poziomie zamiast zawijać */
 @media (max-width: 860px) {
-  .cv-tabs-layout { flex-direction: column; }
-  #wolontariatTabs {
-    flex-basis: auto; max-width: none; width: 100%;
-    flex-direction: row; flex-wrap: wrap; position: static;
-  }
-  #wolontariatTabs .nav-link { width: auto; }
+  #wolontariatTabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #wolontariatTabs .nav-link { flex-shrink: 0; }
 }
 
 /* Sekcja */
