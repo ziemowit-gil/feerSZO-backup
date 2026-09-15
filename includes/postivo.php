@@ -61,6 +61,10 @@ class PostivoClient
     /**
      * Pobiera metadane API: nośniki (z usługami), papiery, koperty.
      *
+     * SDK zwraca obiekty (MetadataResponseCarrier, Paper, EnvelopeTemplate, Envelope)
+     * z polami camelCase — od razu spłaszczamy je do zwykłych tablic asocjacyjnych
+     * z kluczami snake_case, żeby reszta aplikacji nie musiała znać kształtu SDK.
+     *
      * @return array ['carriers' => [...], 'papers' => [...], 'envelope_templates' => [...]]
      * @throws RuntimeException
      */
@@ -69,10 +73,42 @@ class PostivoClient
         try {
             $resp = $this->sdk()->metadata->list();
             $md   = $resp->metadataResponse;
+
+            $carriers = array_map(static function ($c) {
+                return [
+                    'carrier_id'   => $c->carrierId,
+                    'carrier_name' => $c->carrierName,
+                    'services'     => array_map(static function ($s) {
+                        return [
+                            'service_id'         => $s->serviceId,
+                            'service_name'        => $s->serviceName,
+                            'service_return_fee'  => $s->serviceReturnFee,
+                        ];
+                    }, $c->services ?? []),
+                ];
+            }, $md?->carriers ?? []);
+
+            $papers = array_map(static function ($p) {
+                return ['paper_id' => $p->paperId, 'paper_name' => $p->paperName];
+            }, $md?->papers ?? []);
+
+            $envelope_templates = array_map(static function ($g) {
+                return [
+                    'envelope_group_name' => $g->envelopeGroupName,
+                    'envelope'            => array_map(static function ($e) {
+                        return [
+                            'envelope_id'   => $e->envelopeId,
+                            'envelope_name' => $e->envelopeName,
+                            'max_sheets'    => $e->maxSheets,
+                        ];
+                    }, $g->envelope ?? []),
+                ];
+            }, $md?->envelopeTemplates ?? []);
+
             return [
-                'carriers'           => $md?->carriers          ?? [],
-                'papers'             => $md?->papers            ?? [],
-                'envelope_templates' => $md?->envelopeTemplates ?? [],
+                'carriers'           => $carriers,
+                'papers'             => $papers,
+                'envelope_templates' => $envelope_templates,
             ];
         } catch (\Throwable $e) {
             throw new RuntimeException('Błąd pobierania metadanych Postivo.pl: ' . $e->getMessage());
