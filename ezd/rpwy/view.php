@@ -247,8 +247,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           więc doręczenie przyjęto na dzień upływu tego okresu.
         </div>
         <?php endif; ?>
-        <?php elseif(!empty($sp['zpo'])): ?>
-        <div class="text-muted mb-2" style="font-size:.82rem"><i class="bi bi-hourglass-split me-1"></i>Oczekuje na potwierdzenie odbioru.</div>
+        <?php elseif(!empty($sp['zpo']) || !empty($r['postivo_job_id'])): ?>
+        <div class="text-muted mb-2" style="font-size:.82rem"><i class="bi bi-hourglass-split me-1"></i>Oczekuje na potwierdzenie odbioru<?= !empty($r['postivo_job_id']) ? ' — status śledzony automatycznie przez Postivo.pl' : '' ?>.</div>
         <?php else: ?>
         <div class="text-muted mb-2" style="font-size:.82rem">Ten sposób wysyłki nie przewiduje potwierdzenia odbioru.</div>
         <?php endif; ?>

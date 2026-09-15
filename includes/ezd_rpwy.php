@@ -721,7 +721,7 @@ function ezd_rpwy_dispatch_cert_pdf(int $rpwy_id, int $user_id): string {
  * Wołane po wysyłce (ezd/sprawy/quick_dispatch.php) i cyklicznie
  * (cron/postivo_status_sync.php).
  */
-function ezd_rpwy_apply_postivo_status(int $rpwy_id, array $status_data, int $user_id): void {
+function ezd_rpwy_apply_postivo_status(int $rpwy_id, array $status_data, int $user_id, ?PostivoClient $client = null): void {
     $r = ezd_rpwy_get($rpwy_id);
     if (!$r) return;
 
@@ -765,6 +765,25 @@ function ezd_rpwy_apply_postivo_status(int $rpwy_id, array $status_data, int $us
             ? ['zwrot_powod' => 'Niedostarczone (Postivo: ' . ($status_data['status_name'] ?: 'failed') . ')']
             : [];
         ezd_rpwy_set_status($rpwy_id, $new_status, $extra, $user_id);
+
+        // Auto-potwierdzenie odbioru: gdy Postivo mówi "doręczono", ściągnij od
+        // razu elektroniczne potwierdzenie odbioru (EPO) z ich API zamiast
+        // czekać na ręczne wgranie skanu żółtej kartki — jeśli usługa je ma.
+        if ($new_status === 'doreczona' && $client && empty($r['epo_file'])) {
+            $job_id = (string)($status_data['job_id'] ?? '');
+            if ($job_id !== '') {
+                try {
+                    $epo_bytes = $client->get_document($job_id, 'epo_pdf');
+                    if ($epo_bytes) {
+                        ezd_rpwy_store_epo_bytes($rpwy_id, $epo_bytes, 'epo_' . $job_id . '.pdf',
+                            'application/pdf', $user_id, 'Elektroniczne potwierdzenie odbioru (auto, Postivo.pl)');
+                    }
+                } catch (\Throwable $e) {
+                    // Nie każda usługa ma EPO (np. zwykły list) — cicho pomijamy,
+                    // dowód wtedy wgrywa się ręcznie po powrocie żółtej kartki.
+                }
+            }
+        }
     }
 }
 
@@ -845,7 +864,7 @@ function ezd_rpwy_postivo_dispatch(int $rpwy_id, int $user_id): array {
 
     try {
         $status_data = $client->get_status($postivo_id);
-        ezd_rpwy_apply_postivo_status($rpwy_id, $status_data, $user_id);
+        ezd_rpwy_apply_postivo_status($rpwy_id, $status_data, $user_id, $client);
     } catch (\Throwable $e) { /* dociągnie cron/postivo_status_sync.php */ }
 
     // Zużyty PDF z kolejki już niepotrzebny — poświadczenie nadania go zastępuje.

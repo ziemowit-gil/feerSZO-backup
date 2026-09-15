@@ -35,7 +35,7 @@ if (!$access) { http_response_code(403); echo json_encode(['ok' => false, 'error
 try {
     $client      = new PostivoClient();
     $status_data = $client->get_status($r['postivo_job_id']);
-    ezd_rpwy_apply_postivo_status($id, $status_data, (int)current_user()['id']);
+    ezd_rpwy_apply_postivo_status($id, $status_data, (int)current_user()['id'], $client);
     $updated = ezd_rpwy_get($id);
     echo json_encode([
         'ok'            => true,

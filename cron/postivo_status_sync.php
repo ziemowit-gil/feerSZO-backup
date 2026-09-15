@@ -65,7 +65,7 @@ foreach ($pending as $p) {
         $rpwy = ezd_rpwy_for_pismo((int)$p['id']);
         if ($rpwy) {
             try {
-                ezd_rpwy_apply_postivo_status((int)$rpwy['id'], $status_data, 0);
+                ezd_rpwy_apply_postivo_status((int)$rpwy['id'], $status_data, 0, $client);
             } catch (\Throwable $e) {
                 echo "    ↳ RPW-W: błąd aktualizacji szczegółów — " . $e->getMessage() . "\n";
             }
