@@ -8,8 +8,9 @@
  * e=N w query string, unikając sesji po stronie tego pliku.
  *
  * Wygląd współdzielony z resztą logowania SZO (includes/auth_screen.php) —
- * ten sam szablon co auth/login.php: zakładki na górze (tu: rodzaj
- * użytkownika zamiast Zaloguj/Rejestracja) i biała karta z formularzem.
+ * ten sam szablon co auth/login.php, ale w wariancie „zakładki roli po
+ * lewej, formularz po prawej" (side_tabs_html), bo tu są 4 zakładki zamiast
+ * zwykłych dwóch (Zaloguj/Rejestracja).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
@@ -61,25 +62,21 @@ $_tabs = [
     'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check'],
 ];
 
-// ── Pasek zakładek na górze (w miejscu Zaloguj/Rejestracja z SZO) ────────────
+// ── Zakładki roli po lewej (zamiast poziomego paska nad kartą) ───────────────
 ob_start();
-?>
-<nav class="ks-tabs" aria-label="Rodzaj użytkownika">
-  <?php foreach ($_tabs as $_key => $_t): ?>
+foreach ($_tabs as $_key => $_t): ?>
   <a class="ks-tab" href="login.php?tab=<?= $_key ?>" <?= $tab === $_key ? 'aria-current="page"' : '' ?>>
     <i class="bi <?= $_t['icon'] ?> me-1" aria-hidden="true"></i><?= h($_t['label']) ?>
   </a>
-  <?php endforeach; ?>
-</nav>
-<?php
+<?php endforeach;
 $_tabs_html = ob_get_clean();
 
 auth_screen_head([
-    'title'     => $_titles[$tab] . ' — Logowanie',
-    'tabs_html' => $_tabs_html,
-    'bootstrap' => true,
-    'width'     => 460,
-    'main_id'   => 'ti-login-main',
+    'title'          => $_titles[$tab] . ' — Logowanie',
+    'side_tabs_html' => $_tabs_html,
+    'bootstrap'       => true,
+    'width'           => 760,
+    'main_id'         => 'ti-login-main',
 ]);
 ?>
 

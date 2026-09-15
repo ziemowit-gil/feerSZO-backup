@@ -52,10 +52,13 @@ function auth_screen_bg_css(string $sel = 'html,body'): void {
 /**
  * Otwiera stronę: <head>, pasek dostępności, marka, zakładki, karta.
  *
- * @param array $o title      — tytuł w <title> (bez nazwy organizacji)
- *                 tab        — 'login' | 'register' | '' (bez zakładek)
+ * @param array $o title          — tytuł w <title> (bez nazwy organizacji)
+ *                 tab            — 'login' | 'register' | '' (bez zakładek)
+ *                 tabs_html      — HTML zakładek NAD kartą (poziomo), zamiast domyślnych login/register
+ *                 side_tabs_html — HTML zakładek PO LEWEJ karty (pionowo) — wariant „wybór roli z lewej,
+ *                                  formularz z prawej" (np. karty30/ti/login.php). Wyklucza tabs_html/tab.
  *                 mode       — 'card' (biała karta) | 'plain' (treść na tle)
- *                 width      — szerokość kolumny w px (domyślnie 700)
+ *                 width      — szerokość kolumny w px (domyślnie 700; przy side_tabs_html sensowniej 760+)
  *                 narrow     — true: treść karty w kolumnie 420 px
  *                 bootstrap  — true: dołącz CSS Bootstrapa + harmonizację
  *                 main_id    — id elementu <main> (kotwica skip-linka)
@@ -70,9 +73,11 @@ function auth_screen_head(array $o = []): void {
     $narrow    = $o['narrow']    ?? ($mode === 'card');
     $bootstrap = !empty($o['bootstrap']);
     $main_id   = $o['main_id']   ?? 'ks-main';
+    $side_tabs = $o['side_tabs_html'] ?? null;
     $GLOBALS['__ks_mode']    = $mode;
     $GLOBALS['__ks_bs']      = $bootstrap;
     $GLOBALS['__ks_org']     = $org_name;
+    $GLOBALS['__ks_split']   = $side_tabs !== null;
     ?><!DOCTYPE html>
 <html lang="pl" data-fs="m">
 <head>
@@ -147,6 +152,19 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ks-in
 .ks-tab{padding:.55rem 1.15rem;border-radius:10px 10px 0 0;text-decoration:none;font-size:.92rem;font-weight:600;color:#fff}
 .ks-tab:hover{background:rgba(255,255,255,.16);color:#fff}
 .ks-tab[aria-current="page"]{background:var(--ks-card);color:var(--ks)}
+
+/* ── Wariant: zakładki (rola) po lewej, karta z formularzem po prawej ───── */
+.ks-split{display:flex;align-items:stretch;gap:0}
+.ks-side-tabs{display:flex;flex-direction:column;gap:.25rem;padding:1.75rem .5rem 1.75rem 0;flex-shrink:0;min-width:190px}
+.ks-side-tabs .ks-tab{border-radius:10px 0 0 10px;justify-content:flex-start;text-align:left;padding:.8rem 1.2rem}
+.ks-side-tabs .ks-tab[aria-current="page"]{background:var(--ks-card);color:var(--ks);box-shadow:2px 0 0 var(--ks-card)}
+.ks-split .ks-card{flex:1;min-width:0;border-radius:var(--ks-radius)}
+@media(max-width:700px){
+  .ks-split{flex-direction:column}
+  .ks-side-tabs{flex-direction:row;flex-wrap:wrap;padding:0 0 .5rem;min-width:0}
+  .ks-side-tabs .ks-tab{border-radius:10px 10px 0 0}
+  .ks-side-tabs .ks-tab[aria-current="page"]{box-shadow:none}
+}
 
 /* ── Karta ─────────────────────────────────────────────────────────────── */
 .ks-card{background:var(--ks-card);border-radius:var(--ks-radius);padding:2.75rem 1.5rem 2.5rem;
@@ -376,7 +394,12 @@ html[data-theme="hc"] .ks-hero-h1,html[data-theme="hc"] .ks-hero-lead{color:#fff
     <?php endif; ?>
   </div>
 
-  <?php if (isset($o['tabs_html'])): ?>
+  <?php if ($side_tabs !== null): ?>
+  <div class="ks-split">
+    <nav class="ks-side-tabs" aria-label="Rodzaj użytkownika">
+      <?= $side_tabs ?>
+    </nav>
+  <?php elseif (isset($o['tabs_html'])): ?>
   <div class="ks-toprow">
     <?= $o['tabs_html'] ?>
   </div>
@@ -429,6 +452,7 @@ function auth_screen_foot(array $o = []): void {
     $mode  = $GLOBALS['__ks_mode'] ?? 'card';
     $bs    = $o['bootstrap'] ?? ($GLOBALS['__ks_bs'] ?? false);
     $org   = $GLOBALS['__ks_org'] ?? '';
+    $split = $GLOBALS['__ks_split'] ?? false;
     $links = $o['links'] ?? [
         ['url' => APP_URL . '/karty30/ti/dydaktyk/login.php', 'label' => 'Panel dydaktyka',    'icon' => 'bi-easel2'],
         ['url' => APP_URL . '/auth/report_login_issue.php',   'label' => 'Problem z logowaniem','icon' => 'bi-life-preserver'],
@@ -439,6 +463,9 @@ function auth_screen_foot(array $o = []): void {
   </main>
   <?php else: ?>
   </main>
+  <?php endif; ?>
+  <?php if ($split): ?>
+  </div><!-- /.ks-split -->
   <?php endif; ?>
 
   <?= $o['extra_html'] ?? '' ?>
