@@ -166,7 +166,8 @@ if ($action === 'send') {
             $pismo_id,
         ]);
 
-        ezd_log($pismo['sprawa_id'], current_user()['id'], 'pisma', 'Nadano pismo przez Postivo.pl, ID: ' . $postivo_id, $pismo_id);
+        ezd_log(null, (int)$pismo['sprawa_id'], $pismo_id, null, (int)current_user()['id'],
+            'postivo_wyslano', 'Nadano pismo przez Postivo.pl, ID: ' . $postivo_id);
         flash_set('success', 'List nadany przez Postivo.pl. ID zlecenia: ' . $postivo_id);
     } catch (RuntimeException $e) {
         flash_set('error', 'Błąd wysyłki Postivo.pl: ' . $e->getMessage());
@@ -191,10 +192,17 @@ if ($action === 'refresh_status') {
     try {
         $client      = new PostivoClient();
         $status_data = $client->get_status($pismo['postivo_job_id']);
+        $old_status  = $pismo['postivo_status'] ?? '';
 
         db()->prepare(
             "UPDATE ezd_pisma SET postivo_status=?, updated_at=datetime('now') WHERE id=?"
         )->execute([$status_data['status'], $pismo_id]);
+
+        if ($status_data['status'] !== $old_status) {
+            ezd_log(null, (int)$pismo['sprawa_id'], $pismo_id, null, (int)current_user()['id'],
+                'postivo_status', 'Status Postivo.pl: ' . ($old_status ?: '—') . ' → ' . $status_data['status']
+                . ($status_data['tracking'] ? ' (nr śledzenia: ' . $status_data['tracking'] . ')' : ''));
+        }
 
         $track = $status_data['tracking'] ? ' Nr śledzenia: ' . $status_data['tracking'] . '.' : '';
         flash_set('success', 'Status zaktualizowany: ' . $status_data['status'] . '.' . $track);

@@ -121,6 +121,10 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [7, 9],       // między 7:00 a 9:00
     ],
+    'postivo_status_sync' => [
+        'file'     => __DIR__ . '/postivo_status_sync.php',
+        'interval' => 10800,        // co 3 godziny — Postivo przetwarza asynchronicznie
+    ],
     'process_m365_queue' => [
         'file'     => __DIR__ . '/process_m365_queue.php',
         'interval' => 300,          // co 5 min
