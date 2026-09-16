@@ -17,7 +17,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cron \
     msmtp \
     qpdf \
+    sudo \
+    python3 \
+    nodejs \
+    gcc \
+    g++ \
+    libc6-dev \
+    default-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
+
+# ── Piaskownica Equi Exams: użytkownik bez logowania do uruchamiania kodu
+#    kursanta, oddzielony od www-data (patrz modules/equi_exams/logic/sandbox.php).
+#    `www-data` dostaje WYŁĄCZNIE bezhasłowe, bez-argumentowe uprawnienie do
+#    jednego stałego polecenia — bez wildcardów, żeby nic więcej nie dało się
+#    tą regułą uruchomić jako examrun.
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin examrun \
+    && echo 'www-data ALL=(examrun) NOPASSWD: /usr/local/bin/php /var/www/html/cli/exam_sandbox_worker.php' \
+        > /etc/sudoers.d/exam-sandbox \
+    && echo 'Defaults:www-data !requiretty' >> /etc/sudoers.d/exam-sandbox \
+    && chmod 0440 /etc/sudoers.d/exam-sandbox \
+    && visudo -cf /etc/sudoers.d/exam-sandbox
 
 # Rozszerzenia PHP (SQLite + MySQL + extras)
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
