@@ -125,15 +125,29 @@ $_sb_color        = org_setting('sidebar_color') ?: '#1e293b';
 $_volunteer_color = org_setting('volunteer_color') ?: '#2563eb';
 $_org_logo  = org_setting('org_logo');  // relative filename under assets/logo/
 
-// Oblicz kontrast: jasny lub ciemny tekst zależnie od luminancji tła
+// Oblicz kontrast: jasny lub ciemny tekst zależnie od tła navbara.
+// Zamiast pojedynczego progu luminancji (błędnie klasyfikował niektóre
+// nasycone/ciemne kolory jako "jasne", dając ciemny tekst na ciemnym tle),
+// liczymy realny współczynnik kontrastu WCAG między tłem a OBOMA wariantami
+// tekstu i wybieramy ten, który faktycznie się z tłem lepiej kontrastuje.
 function _sb_luminance(string $hex): float {
     $hex = ltrim($hex, '#');
     if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+    if (strlen($hex) !== 6 || !ctype_xdigit($hex)) $hex = '1e293b'; // niepoprawna wartość — bezpieczny fallback
     [$r, $g, $b] = [hexdec(substr($hex,0,2))/255, hexdec(substr($hex,2,2))/255, hexdec(substr($hex,4,2))/255];
     $lin = fn($c) => $c <= .03928 ? $c/12.92 : (($c+.055)/1.055)**2.4;
     return .2126*$lin($r) + .7152*$lin($g) + .0722*$lin($b);
 }
-$_sb_dark = _sb_luminance($_sb_color) < 0.35; // true = ciemne tło → jasne napisy
+/** Współczynnik kontrastu WCAG między dwiema luminancjami (1:1 do 21:1). */
+function _sb_contrast(float $l1, float $l2): float {
+    $lighter = max($l1, $l2) + 0.05;
+    $darker  = min($l1, $l2) + 0.05;
+    return $lighter / $darker;
+}
+$_sb_bg_lum = _sb_luminance($_sb_color);
+// Reprezentatywne kolory tekstu z obu gałęzi poniżej (#cbd5e1 jasny / #1e293b ciemny) —
+// wygrywa ten, który daje wyższy realny kontrast względem skonfigurowanego tła.
+$_sb_dark = _sb_contrast($_sb_bg_lum, _sb_luminance('#cbd5e1')) > _sb_contrast($_sb_bg_lum, _sb_luminance('#1e293b'));
 
 // Tokeny kolorów sidebara
 if ($_sb_dark) {
