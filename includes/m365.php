@@ -1395,10 +1395,15 @@ function m365_should_be_active(array $row): bool {
     // Flaga „nie wyłączaj dostępu po wygaśnięciu umowy" — konto pozostaje aktywne
     // mimo upływu daty zakończenia (np. wolontariusz kontynuujący współpracę)
     $nie_wylaczaj = !empty($row['m365_nie_wylaczaj']);
-    if (!$nie_wylaczaj && in_array($status, ['zakończona','anulowana','rozwiązana','wygasła'], true)) return false;
+    // Okres ochronny po akceptacji wniosku o rozwiązanie umowy
+    // (includes/termination.php::decide_termination) — konto zostaje aktywne
+    // jeszcze 4h od decyzji, dopóki nie minie m365_deactivate_after.
+    $grace_until = $row['m365_deactivate_after'] ?? null;
+    $in_grace    = $grace_until && strtotime($grace_until) > time();
+    if (!$nie_wylaczaj && !$in_grace && in_array($status, ['zakończona','anulowana','rozwiązana','wygasła'], true)) return false;
     if ($start && $start > $today) return false;
     // Wyłącz konto w dniu wygaśnięcia umowy (włącznie) — nie dzień po
-    if (!$bezterminowa && !$nie_wylaczaj && $end && $end <= $today) return false;
+    if (!$bezterminowa && !$nie_wylaczaj && !$in_grace && $end && $end <= $today) return false;
     return true;
 }
 

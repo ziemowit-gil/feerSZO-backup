@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/termination_schema.php';
+require_once __DIR__ . '/m365_deactivation_schema.php';
 
 const TERMINATION_STATUSES = [
     'oczekuje'     => ['label' => 'Oczekuje',     'class' => 'warning'],
@@ -179,9 +180,19 @@ function decide_termination(int $req_id, int $admin_id, string $decision, string
         db()->prepare("UPDATE {$table} SET status='rozwiązana', updated_at=? WHERE id=?")
             ->execute([date('Y-m-d H:i:s'), $req['contract_id']]);
 
+        // Okres ochronny: konto M365 i login do panelu ("konto SZO") pozostają
+        // aktywne jeszcze 4h od decyzji — wyłącza je dopiero cron/sync_m365.php
+        // po upływie tego terminu (patrz includes/m365.php::m365_should_be_active()).
+        // Tabele bez integracji M365 (praca/uslugi/inne) nie mają tej kolumny —
+        // wtedy po prostu nic nie ma tu do zaplanowania.
+        try {
+            db()->prepare("UPDATE {$table} SET m365_deactivate_after = datetime('now', '+4 hours') WHERE id = ?")
+                ->execute([$req['contract_id']]);
+        } catch (\Throwable $e) {}
+
         log_contract_action($req['contract_type'], $req['contract_id'], $admin_id,
             'termination_approved',
-            'Zaakceptowano wniosek o rozwiązanie. Umowa rozwiązana.' . ($note ? ' ' . $note : '')
+            'Zaakceptowano wniosek o rozwiązanie. Umowa rozwiązana. Konto M365/SZO zostanie wyłączone za 4h.' . ($note ? ' ' . $note : '')
         );
     } else {
         log_contract_action($req['contract_type'], $req['contract_id'], $admin_id,

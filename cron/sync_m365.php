@@ -20,6 +20,7 @@ require_once $base_dir . '/config.php';
 require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/m365.php';
+require_once $base_dir . '/includes/m365_deactivation_schema.php';
 
 $today = date('Y-m-d');
 echo "[{$today} " . date('H:i:s') . "] Synchronizacja M365 — start\n";
@@ -40,7 +41,7 @@ try {
         try {
             $rows = db_all(
                 "SELECT id, numer_umowy, m365_user_id, m365_login, m365_konto_aktywne,
-                        status, bezterminowa, m365_nie_wylaczaj,
+                        status, bezterminowa, m365_nie_wylaczaj, m365_deactivate_after,
                         data_rozpoczecia, data_zakonczenia, data_zawarcia, termin_oddania
                  FROM {$table}
                  WHERE m365_konto = 1
@@ -136,6 +137,11 @@ try {
                 echo "  [WARN] {$login} — brak licencji M365, wymuszam wyłączenie\n";
             }
 
+            // Konto SZO (login do panelu) idzie w parze z kontem M365 —
+            // ten sam stan docelowy, w tym samym momencie (patrz okres
+            // ochronny w m365_should_be_active() po rozwiązaniu umowy).
+            _sync_local_account_active($m365_uid, $should, $login);
+
             if ($ms_enabled === $should) {
                 // Stan w chmurze jest poprawny — wyrównaj tylko DB
                 foreach ($u['contracts'] as $c) {
@@ -175,4 +181,21 @@ try {
 } catch (\Throwable $e) {
     echo "[" . date('H:i:s') . "] BŁĄD KRYTYCZNY: " . $e->getMessage() . "\n";
     exit(1);
+}
+
+// ── Pomocnicze ─────────────────────────────────────────────────────────────────
+
+/**
+ * Wyłącza/włącza lokalny login do panelu (users.is_active) powiązanego
+ * z kontem M365 (users.microsoft_id) — ten sam stan docelowy co konto M365,
+ * ustalany identycznie (m365_should_be_active() + okres ochronny po
+ * rozwiązaniu umowy). Wzorzec jak contracts/m365_action.php (akcja delete_m365).
+ */
+function _sync_local_account_active(string $m365_uid, bool $should, string $login): void {
+    $local = db_one("SELECT id, is_active FROM users WHERE microsoft_id = ? LIMIT 1", [$m365_uid]);
+    if (!$local) return;
+    $target = $should ? 1 : 0;
+    if ((int)$local['is_active'] === $target) return;
+    db()->prepare("UPDATE users SET is_active = ? WHERE id = ?")->execute([$target, $local['id']]);
+    echo "  [OK] {$login} — konto SZO " . ($should ? 'WŁĄCZONO' : 'WYŁĄCZONO') . " (users.id={$local['id']})\n";
 }
