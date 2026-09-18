@@ -268,19 +268,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
-    // Numer rachunku bankowego do wpłat za zajęcia — wpisywany ręcznie przez
-    // kierownika (numer nadany przez bank organizacji), bez własnej walidacji NRB.
-    if ($op === 'set_payment_account') {
-        $aid = (int)($_POST['account_id'] ?? 0);
-        $acc_no = trim($_POST['payment_bank_account'] ?? '');
-        if ($aid) {
-            db()->prepare("UPDATE k30_ti_student_accounts SET payment_bank_account=?, updated_at=datetime('now') WHERE id=?")
-               ->execute([mb_substr($acc_no, 0, 40), $aid]);
-            flash_set('success', $acc_no !== '' ? 'Numer konta do wpłat zapisany.' : 'Numer konta do wpłat usunięty.');
-        }
-        header('Location: konta.php?selected=' . $aid); exit;
-    }
-
     if ($op === 'toggle') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
@@ -362,9 +349,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?guardian=' . $aid); exit;
     }
 
-    // Zapis nadpłaty do końca roku (kierownik) + dozwolonych metod płatności (admin) —
-    // ten sam ekran obsługuje oba, bo panel kierownika nie rozróżnia ról w praktyce
-    // (dyd_is_staff() = admin SZO LUB rola panelu kierownik/zastępca).
+    // Zapis danych sekcji Płatności: nadpłata do końca roku (kierownik) + dozwolone
+    // metody płatności (admin) — ten sam ekran obsługuje oba, bo panel kierownika
+    // nie rozróżnia ról w praktyce (dyd_is_staff() = admin SZO LUB rola panelu
+    // kierownik/zastępca) — oraz numer konta do wpłat za zajęcia (wpisywany ręcznie,
+    // numer nadany przez bank organizacji, bez własnej walidacji NRB).
     if ($op === 'overpay_save') {
         $aid = (int)($_POST['account_id'] ?? 0);
         if ($aid) {
@@ -374,14 +363,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ));
             db()->prepare(
                 "UPDATE k30_ti_student_accounts
-                 SET allow_year_end_overpay=?, allowed_payment_methods=?, updated_at=datetime('now')
+                 SET allow_year_end_overpay=?, allowed_payment_methods=?, payment_bank_account=?, updated_at=datetime('now')
                  WHERE id=?"
             )->execute([
                 isset($_POST['allow_year_end_overpay']) ? 1 : 0,
                 implode(',', $methods),
+                mb_substr(trim($_POST['payment_bank_account'] ?? ''), 0, 40),
                 $aid,
             ]);
-            flash_set('success', 'Ustawienia nadpłaty i metod płatności zapisane.');
+            flash_set('success', 'Ustawienia płatności zapisane.');
         }
         header('Location: konta.php?selected=' . $aid); exit;
     }
@@ -947,7 +937,7 @@ function printBulk(){
       <?php endif; ?>
       <a class="btn btn-sm btn-outline-secondary" href="../messages.php?student=<?= (int)$sa['id'] ?>"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Wyślij wiadomość</a>
       <a class="btn btn-sm btn-outline-info" href="?guardian=<?= (int)$sa['id'] ?>"><i class="bi bi-people me-1" aria-hidden="true"></i>Opiekun / dostęp rodzica</a>
-      <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#overpayModal<?= (int)$sa['id'] ?>"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Nadpłata do końca roku / metody płatności</button>
+      <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#overpayModal<?= (int)$sa['id'] ?>"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Płatności</button>
       <?php if (empty($sa['is_minor'])): ?>
       <a class="btn btn-sm btn-outline-primary" href="?authp=<?= (int)$sa['id'] ?>"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Osoby upoważnione</a>
       <?php endif; ?>
@@ -1026,21 +1016,6 @@ function printBulk(){
         </form>
         <?php endif; ?>
       </div>
-    </div>
-
-    <div class="border-top pt-3">
-      <div class="small fw-semibold text-body-secondary mb-1">Numer konta do wpłat za zajęcia</div>
-      <form method="post" class="d-flex gap-2" style="max-width:420px">
-        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-        <input type="hidden" name="_op"        value="set_payment_account">
-        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-        <label class="visually-hidden" for="pay_acc<?= (int)$sa['id'] ?>">Numer konta do wpłat za zajęcia — <?= h($sa['client_name']) ?></label>
-        <input type="text" id="pay_acc<?= (int)$sa['id'] ?>" name="payment_bank_account"
-               value="<?= h($sa['payment_bank_account'] ?? '') ?>"
-               class="form-control form-control-sm font-monospace" placeholder="np. numer nadany przez bank" maxlength="40">
-        <button type="submit" class="btn btn-sm btn-outline-secondary flex-shrink-0"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
-      </form>
-      <div class="form-text">Wpisywany ręcznie przez kierownika (numer nadany przez bank organizacji) — system go nie generuje ani nie weryfikuje.</div>
     </div>
 
     <?php
@@ -1599,11 +1574,19 @@ function printBulk(){
         <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
         <div class="modal-header">
           <h5 class="modal-title" id="overpayModalLbl<?= (int)$a['id'] ?>">
-            <i class="bi bi-cash-coin me-2 text-primary" aria-hidden="true"></i>Nadpłata do końca roku — <?= h($a['client_name']) ?>
+            <i class="bi bi-cash-coin me-2 text-primary" aria-hidden="true"></i>Płatności — <?= h($a['client_name']) ?>
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
         </div>
         <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="pay_acc<?= (int)$a['id'] ?>">Numer konta do wpłat za zajęcia</label>
+            <input type="text" id="pay_acc<?= (int)$a['id'] ?>" name="payment_bank_account"
+                   value="<?= h($a['payment_bank_account'] ?? '') ?>"
+                   class="form-control form-control-sm font-monospace" placeholder="np. numer nadany przez bank" maxlength="40">
+            <div class="form-text">Wpisywany ręcznie przez kierownika (numer nadany przez bank organizacji) — system go nie generuje ani nie weryfikuje.</div>
+          </div>
+          <hr>
           <p class="text-muted small mb-3">
             Nadpłata do końca roku (kreator w portfelu kursanta) z powodów podatkowych/księgowych musi
             być opłacona w tym samym roku kalendarzowym — dlatego jest dostępna tylko dla wybranych
