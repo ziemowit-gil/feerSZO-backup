@@ -487,6 +487,10 @@ function karty30_migrate(): void {
         // Powiadomienia o zmianach w dydaktyce/eLearningu (nowe materiały, zadania, terminy)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_dydaktyka INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_dydaktyka   INTEGER NOT NULL DEFAULT 0",
+        // Numer rachunku bankowego do wpłat za zajęcia — wpisywany ręcznie przez
+        // kierownika (np. numer subkonta/maski nadany przez bank organizacji),
+        // system go nie generuje ani nie waliduje jako realnego NRB.
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN payment_bank_account TEXT NOT NULL DEFAULT ''",
         // Stały link Zoom per kursant (per zapis) — nadrzędny nad stałym linkiem kursu
         "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_id  TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_url TEXT NOT NULL DEFAULT ''",

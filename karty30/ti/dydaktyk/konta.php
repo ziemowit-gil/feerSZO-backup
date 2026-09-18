@@ -268,6 +268,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    // Numer rachunku bankowego do wpłat za zajęcia — wpisywany ręcznie przez
+    // kierownika (numer nadany przez bank organizacji), bez własnej walidacji NRB.
+    if ($op === 'set_payment_account') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc_no = trim($_POST['payment_bank_account'] ?? '');
+        if ($aid) {
+            db()->prepare("UPDATE k30_ti_student_accounts SET payment_bank_account=?, updated_at=datetime('now') WHERE id=?")
+               ->execute([mb_substr($acc_no, 0, 40), $aid]);
+            flash_set('success', $acc_no !== '' ? 'Numer konta do wpłat zapisany.' : 'Numer konta do wpłat usunięty.');
+        }
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     if ($op === 'toggle') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
@@ -1013,6 +1026,21 @@ function printBulk(){
         </form>
         <?php endif; ?>
       </div>
+    </div>
+
+    <div class="border-top pt-3">
+      <div class="small fw-semibold text-body-secondary mb-1">Numer konta do wpłat za zajęcia</div>
+      <form method="post" class="d-flex gap-2" style="max-width:420px">
+        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"        value="set_payment_account">
+        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+        <label class="visually-hidden" for="pay_acc<?= (int)$sa['id'] ?>">Numer konta do wpłat za zajęcia — <?= h($sa['client_name']) ?></label>
+        <input type="text" id="pay_acc<?= (int)$sa['id'] ?>" name="payment_bank_account"
+               value="<?= h($sa['payment_bank_account'] ?? '') ?>"
+               class="form-control form-control-sm font-monospace" placeholder="np. numer nadany przez bank" maxlength="40">
+        <button type="submit" class="btn btn-sm btn-outline-secondary flex-shrink-0"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button>
+      </form>
+      <div class="form-text">Wpisywany ręcznie przez kierownika (numer nadany przez bank organizacji) — system go nie generuje ani nie weryfikuje.</div>
     </div>
 
     <?php

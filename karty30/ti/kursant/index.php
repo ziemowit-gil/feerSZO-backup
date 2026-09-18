@@ -4753,6 +4753,9 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
     <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawien">
       <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczenstwo</a>
+      <?php if (trim((string)($account['payment_bank_account'] ?? '')) !== ''): ?>
+      <a href="#ust-wplaty" class="ust-navlink btn btn-sm text-start"><i class="bi bi-cash-coin     me-2" aria-hidden="true"></i>Dane do wpłat</a>
+      <?php endif; ?>
       <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
       <a href="#ust-push"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell-fill     me-2" aria-hidden="true"></i>Push</a>
       <a href="#ust-cal"    class="ust-navlink btn btn-sm text-start"><i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>Kalendarz</a>
@@ -4855,6 +4858,22 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
     </section>
+
+    <?php $pay_acc = trim((string)($account['payment_bank_account'] ?? '')); if ($pay_acc !== ''): ?>
+    <!-- Dane do wpłat -->
+    <section id="ust-wplaty" class="card" aria-labelledby="ust-wplaty-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-cash-coin text-primary" aria-hidden="true"></i>
+        <h2 id="ust-wplaty-h" class="h6 fw-bold mb-0">Dane do wpłat</h2>
+      </div>
+      <div class="card-body">
+        <label class="form-label small mb-1" for="pay-acc-ro">Numer konta do wpłat za zajęcia</label>
+        <input type="text" class="form-control form-control-sm font-monospace" id="pay-acc-ro" readonly
+               value="<?= h($pay_acc) ?>" style="max-width:420px">
+        <div class="form-text">Numer przydzielony przez organizację — zmiany zgłoś kierownikowi.</div>
+      </div>
+    </section>
+    <?php endif; ?>
 
     <!-- 2. Powiadomienia -->
     <section id="ust-notify" class="card" aria-labelledby="ust-notify-h">
