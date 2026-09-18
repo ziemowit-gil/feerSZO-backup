@@ -55,7 +55,7 @@ RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 # auth/ms365_prowadzacy.php, callback auth/microsoft.php).
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|assets|uploads|errors|api|newUI)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
@@ -66,7 +66,7 @@ RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 
 RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena crm. → moduł CRM ──────────────────────────────────────────────
@@ -75,7 +75,7 @@ RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 # (aby nie zapętlić) oraz zasoby statyczne / strony błędów.
 RewriteCond %{HTTP_HOST} ^crm\. [NC]
 RewriteCond %{REQUEST_URI} !^/crm/ [NC]
-RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /crm/$1 [L]
 
 # ── Subdomeny poczta. i webmail. → strona wyboru klienta poczty ─────────────
@@ -86,7 +86,7 @@ RewriteRule ^(.*)$ /crm/$1 [L]
 # Pomijamy sam katalog (aby nie zapętlić) oraz zasoby statyczne / strony błędów.
 RewriteCond %{HTTP_HOST} ^(poczta|webmail)\. [NC]
 RewriteCond %{REQUEST_URI} !^/webmail/ [NC]
-RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /webmail/$1 [L]
 
 # ── Subdomena strukturaorg. → katalog / struktura organizacji ───────────────
@@ -95,7 +95,7 @@ RewriteRule ^(.*)$ /webmail/$1 [L]
 # katalog modułu (aby nie zapętlić) oraz zasoby statyczne / strony błędów.
 RewriteCond %{HTTP_HOST} ^strukturaorg\. [NC]
 RewriteCond %{REQUEST_URI} !^/directory/ [NC]
-RewriteCond %{REQUEST_URI} !^/(assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /directory/$1 [L]
 
 # ── Subdomena tozsamosc. → moduł Tożsamość (Entra ID self-service) ──────────
@@ -105,7 +105,7 @@ RewriteRule ^(.*)$ /directory/$1 [L]
 # callback) i /user/ (odzyskiwanie dostępu) muszą działać normalnie.
 RewriteCond %{HTTP_HOST} ^tozsamosc\. [NC]
 RewriteCond %{REQUEST_URI} !^/tozsamosc/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|user|assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|user|contracts|assets|uploads|errors|api)/ [NC]
 RewriteRule ^(.*)$ /tozsamosc/$1 [L]
 
 # ── Subdomena szo-logowanie365. → bezpośrednie logowanie Microsoft 365 ──────
