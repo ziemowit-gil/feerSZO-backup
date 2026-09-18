@@ -13,6 +13,36 @@
 
 define('APP_CLI', true);
 require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/includes/db.php';
+
+/**
+ * Interwał dla sync_m365: normalnie co 15 min, ale gdy istnieje umowa
+ * z aktywnym/właśnie upłynniętym okresem ochronnym po rozwiązaniu (patrz
+ * includes/termination.php::decide_termination(), m365_deactivate_after),
+ * skracamy do 5 min — żeby konto M365/SZO wyłączyło się szybko po
+ * zakończeniu 4h okresu, a nie czekało do kolejnych 15 min.
+ */
+function _dispatcher_sync_m365_interval(): int {
+    $normal = 900;   // 15 min
+    $fast   = 300;    // 5 min
+    $tables = ['umowy_wolontariat', 'umowy_zlecenie', 'umowy_dzielo'];
+    foreach ($tables as $table) {
+        try {
+            $row = db_one(
+                "SELECT 1 FROM {$table}
+                 WHERE m365_konto = 1 AND m365_konto_aktywne = 1
+                   AND m365_deactivate_after IS NOT NULL
+                   AND m365_deactivate_after > datetime('now', '-1 hour')
+                 LIMIT 1"
+            );
+            if ($row) return $fast;
+        } catch (\Throwable $e) {
+            // Kolumna/tabela może jeszcze nie istnieć (samonaprawa schematu
+            // przy pierwszym użyciu modułu wniosków o rozwiązanie) — pomijamy.
+        }
+    }
+    return $normal;
+}
 
 // ── Rejestr agentów ───────────────────────────────────────────────────────
 // interval: minimalna przerwa między uruchomieniami (sekundy)
@@ -61,7 +91,7 @@ $AGENTS = [
     ],
     'sync_m365' => [
         'file'     => __DIR__ . '/sync_m365.php',
-        'interval' => 900,          // co 15 min
+        'interval' => '_dispatcher_sync_m365_interval', // 15 min normalnie, 5 min po terminacjach (patrz wyżej)
     ],
     'kdok_cleanup' => [
         'file'     => __DIR__ . '/kdok_cleanup.php',
@@ -302,10 +332,12 @@ foreach ($AGENTS as $name => $cfg) {
         }
     }
 
-    // Sprawdź interwał
+    // Sprawdź interwał — może być liczbą (sekundy) albo nazwą funkcji
+    // zwracającej liczbę dynamicznie (patrz sync_m365 / okres ochronny).
+    $interval = is_callable($cfg['interval']) ? (int)call_user_func($cfg['interval']) : (int)$cfg['interval'];
     $lock = $lock_dir . '/umowy_cron_' . $name . '.last';
     $last = file_exists($lock) ? (int)file_get_contents($lock) : 0;
-    if ($now - $last < $cfg['interval']) {
+    if ($now - $last < $interval) {
         continue;
     }
 
