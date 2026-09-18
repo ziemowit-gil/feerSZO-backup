@@ -27,16 +27,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('danger', 'Nie można rozpatrzyć tego wniosku (być może już rozpatrzony).');
         }
     }
-    header('Location: ' . APP_URL . '/admin/terminations.php' . ($_GET['status'] ? '?status=' . urlencode($_GET['status'] ?? '') : ''));
+    $_redirect_qs = [];
+    if ($_GET['status'] ?? '')        $_redirect_qs['status']        = $_GET['status'];
+    if ($_GET['contract_type'] ?? '') $_redirect_qs['contract_type'] = $_GET['contract_type'];
+    if ($_GET['contract_id'] ?? '')   $_redirect_qs['contract_id']   = $_GET['contract_id'];
+    header('Location: ' . APP_URL . '/admin/terminations.php' . ($_redirect_qs ? '?' . http_build_query($_redirect_qs) : ''));
     exit;
 }
 
-$filter   = $_GET['status'] ?? '';
-$requests = get_all_termination_requests($filter);
+$filter    = $_GET['status'] ?? '';
+$flt_type  = $_GET['contract_type'] ?? '';
+$flt_cid   = isset($_GET['contract_id']) ? (int)$_GET['contract_id'] : 0;
+$is_scoped = $flt_type !== '' && $flt_cid > 0;
+
+$scoped_all = $is_scoped ? get_termination_requests($flt_type, $flt_cid) : null;
+$requests   = $is_scoped
+    ? ($filter ? array_values(array_filter($scoped_all, fn($r) => $r['status'] === $filter)) : $scoped_all)
+    : get_all_termination_requests($filter);
 
 $counts = [];
 foreach (['', 'oczekuje', 'zaakceptowany', 'odrzucony'] as $s) {
-    $counts[$s] = count(get_all_termination_requests($s));
+    if ($is_scoped) {
+        $counts[$s] = $s === '' ? count($scoped_all) : count(array_filter($scoped_all, fn($r) => $r['status'] === $s));
+    } else {
+        $counts[$s] = count(get_all_termination_requests($s));
+    }
+}
+
+$scoped_label = '';
+if ($is_scoped) {
+    try {
+        $_c = db_one("SELECT numer_umowy FROM " . table_for_type($flt_type) . " WHERE id=?", [$flt_cid]);
+        $scoped_label = ($_c['numer_umowy'] ?? "#{$flt_cid}");
+    } catch (\Exception $e) { $scoped_label = "#{$flt_cid}"; }
 }
 
 $PAGE_TITLE = 'Wnioski o rozwiązanie umów';
@@ -49,6 +72,17 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
+<?php if ($is_scoped): ?>
+<div class="alert alert-secondary d-flex justify-content-between align-items-center py-2 mb-3">
+  <span>
+    <i class="bi bi-funnel"></i> Filtr: <strong><?= h(CONTRACT_TYPES[$flt_type] ?? $flt_type) ?> · <?= h($scoped_label) ?></strong>
+  </span>
+  <a href="<?= APP_URL ?>/admin/terminations.php<?= $filter ? '?status=' . h($filter) : '' ?>" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-x-lg"></i> Wyczyść filtr umowy
+  </a>
+</div>
+<?php endif; ?>
+
 <!-- Filtry -->
 <div class="mb-3 d-flex gap-2 flex-wrap">
   <?php
@@ -60,7 +94,9 @@ include dirname(__DIR__) . '/includes/header.php';
   ];
   foreach ($tabs as $key => $tab):
       $active = $filter === $key ? '' : 'outline-';
-      $url = APP_URL . '/admin/terminations.php' . ($key ? '?status=' . $key : '');
+      $_qs = $key ? ['status' => $key] : [];
+      if ($is_scoped) { $_qs['contract_type'] = $flt_type; $_qs['contract_id'] = $flt_cid; }
+      $url = APP_URL . '/admin/terminations.php' . ($_qs ? '?' . http_build_query($_qs) : '');
   ?>
   <a href="<?= h($url) ?>" class="btn btn-sm btn-<?= $active ?><?= $tab['class'] ?>">
     <?= $tab['label'] ?>

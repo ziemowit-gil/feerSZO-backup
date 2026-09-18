@@ -153,8 +153,13 @@ $_cvh_accent = match($_cvh_st['class']) {
         $_cvh_show_renew     = can_edit() && ($_cvh_type ?? '') === 'wolontariat';
         $_cvh_show_terminate = can_edit() && ($_cvh_type ?? '') === 'wolontariat'
             && empty($_pending_term) && defined('TERMINABLE_STATUSES') && in_array($_cvh_status, TERMINABLE_STATUSES);
+        $_cvh_show_term_link = is_admin() && ($_cvh_type ?? '') === 'wolontariat'
+            && function_exists('module_enabled') && module_enabled('terminations_enabled');
+        $_cvh_term_count = ($_cvh_show_term_link && function_exists('get_termination_requests'))
+            ? count(get_termination_requests($_cvh_type, (int)($_cvh_id ?? 0)))
+            : 0;
       ?>
-      <?php if ($_cvh_show_renew || $_cvh_show_terminate): ?>
+      <?php if ($_cvh_show_renew || $_cvh_show_terminate || $_cvh_show_term_link): ?>
       <div class="dropdown d-inline-block">
         <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
                 data-bs-toggle="dropdown" aria-expanded="false" title="Umowa — przedłużenie, rozwiązanie">
@@ -173,6 +178,16 @@ $_cvh_accent = match($_cvh_st['class']) {
             <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#terminateModal">
               <i class="bi bi-x-circle me-2 text-danger"></i>Rozwiąż umowę
             </button>
+          </li>
+          <?php endif; ?>
+          <?php if ($_cvh_show_term_link): ?>
+          <li>
+            <a class="dropdown-item" href="<?= APP_URL ?>/admin/terminations.php?contract_type=wolontariat&contract_id=<?= (int)($_cvh_id ?? 0) ?>">
+              <i class="bi bi-file-earmark-x me-2 text-secondary"></i>Wnioski o rozwiązanie
+              <?php if ($_cvh_term_count > 0): ?>
+              <span class="badge bg-secondary ms-1"><?= $_cvh_term_count ?></span>
+              <?php endif; ?>
+            </a>
           </li>
           <?php endif; ?>
         </ul>
