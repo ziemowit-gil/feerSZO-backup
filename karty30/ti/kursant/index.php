@@ -1194,7 +1194,7 @@ include __DIR__ . '/_layout_head.php';
   // pasek zawijał się na dwa wiersze na węższych ekranach. Konto i Inne grupują
   // je tak samo jak w panelu Angular (sekcje KONTO / INNE w bocznym menu).
   $nauka_tabs     = ['lekcje','zadania','zapisy','oceny','plan','egzaminy','testy'];
-  $konto_tabs     = ['rozliczenia','portfel','upowaznieni','ustawienia'];
+  $konto_tabs     = ['platnosci','rozliczenia','portfel','upowaznieni','ustawienia'];
   $dostepy_tabs   = ['online','vlab','dysk','licencje','pfron'];
   $inne_tabs      = ['problem','aktywnosc','regulaminy'];
   $nauka_active   = in_array($tab, $nauka_tabs, true);
@@ -1273,6 +1273,8 @@ include __DIR__ . '/_layout_head.php';
       </a>
       <ul class="dropdown-menu">
         <?php if (!$is_minor): ?>
+        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='platnosci'?'active':'' ?>" href="?tab=platnosci" <?= $tab==='platnosci'?'aria-current="page"':'' ?>>
+          <i class="bi bi-cash-coin me-2" aria-hidden="true"></i>Płatności</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='rozliczenia'?'active':'' ?>" href="?tab=rozliczenia" <?= $tab==='rozliczenia'?'aria-current="page"':'' ?>>
           <i class="bi bi-receipt me-2" aria-hidden="true"></i>Rozliczenia</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='portfel'?'active':'' ?>" href="?tab=portfel" <?= $tab==='portfel'?'aria-current="page"':'' ?>>
@@ -3526,6 +3528,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <?php endif; ?>
 
+<?php elseif ($tab === 'platnosci' && !$is_minor):
+  $pay_acc = trim((string)($account['payment_bank_account'] ?? ''));
+?>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-cash-coin text-primary" aria-hidden="true"></i>
+      <h2 class="h6 fw-bold mb-0">Płatności</h2>
+    </div>
+    <div class="card-body">
+      <?php if ($pay_acc !== ''): ?>
+      <label class="form-label small mb-1" for="pay-acc-ro">Numer konta do wpłat za zajęcia</label>
+      <input type="text" class="form-control form-control-sm font-monospace" id="pay-acc-ro" readonly
+             value="<?= h($pay_acc) ?>" style="max-width:420px">
+      <div class="form-text">Numer przydzielony przez organizację — zmiany zgłoś kierownikowi.</div>
+      <?php else: ?>
+      <p class="text-body-secondary small mb-0">Kierownik jeszcze nie przydzielił numeru konta do wpłat za zajęcia.</p>
+      <?php endif; ?>
+    </div>
+  </div>
+
 <?php elseif ($tab === 'rozliczenia' && !$is_minor):
   $rv_client_id    = $student['client_id'];
   $rv_show_lessons = false;
@@ -4753,9 +4776,6 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
     <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawien">
       <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczenstwo</a>
-      <?php if (trim((string)($account['payment_bank_account'] ?? '')) !== ''): ?>
-      <a href="#ust-wplaty" class="ust-navlink btn btn-sm text-start"><i class="bi bi-cash-coin     me-2" aria-hidden="true"></i>Dane do wpłat</a>
-      <?php endif; ?>
       <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
       <a href="#ust-push"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell-fill     me-2" aria-hidden="true"></i>Push</a>
       <a href="#ust-cal"    class="ust-navlink btn btn-sm text-start"><i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>Kalendarz</a>
@@ -4858,22 +4878,6 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
     </section>
-
-    <?php $pay_acc = trim((string)($account['payment_bank_account'] ?? '')); if ($pay_acc !== ''): ?>
-    <!-- Dane do wpłat -->
-    <section id="ust-wplaty" class="card" aria-labelledby="ust-wplaty-h">
-      <div class="card-header d-flex align-items-center gap-2 py-2">
-        <i class="bi bi-cash-coin text-primary" aria-hidden="true"></i>
-        <h2 id="ust-wplaty-h" class="h6 fw-bold mb-0">Dane do wpłat</h2>
-      </div>
-      <div class="card-body">
-        <label class="form-label small mb-1" for="pay-acc-ro">Numer konta do wpłat za zajęcia</label>
-        <input type="text" class="form-control form-control-sm font-monospace" id="pay-acc-ro" readonly
-               value="<?= h($pay_acc) ?>" style="max-width:420px">
-        <div class="form-text">Numer przydzielony przez organizację — zmiany zgłoś kierownikowi.</div>
-      </div>
-    </section>
-    <?php endif; ?>
 
     <!-- 2. Powiadomienia -->
     <section id="ust-notify" class="card" aria-labelledby="ust-notify-h">
