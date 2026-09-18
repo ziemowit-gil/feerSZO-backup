@@ -469,6 +469,34 @@ HTML;
 <p style="font-size:.8em;color:#888">Wiadomość automatyczna — {{org}}.</p>
 HTML;
 
+    // ── TI: zatwierdzony numer konta do wpłat (do kursanta) ───────────
+    $ti_payment_account_body = <<<'HTML'
+<p>Dzień dobry, <strong>{{osoba}}</strong>,</p>
+<p>Kierownik zatwierdził numer konta do wpłat za zajęcia i szkolenia w ramach {{org}}.</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+              padding:0;margin:16px 0 20px;">
+  <tr><td style="padding:18px 22px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;width:150px;">Numer konta</td>
+        <td style="padding:5px 0;font-size:15px;color:#212529;font-weight:700;font-family:monospace">{{numer_konta}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Rodzaj rachunku</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{typ_konta}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  Wszelkie wpłaty związane z zajęciami i szkoleniami prosimy wnosić <strong>wyłącznie na ten rachunek</strong>.
+</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
+HTML;
+
     // ── TI: rozliczenie miesięczne (do kursanta) ──────────────────────
     $ti_billing_body = <<<'HTML'
 <p>Dzień dobry,</p>
@@ -890,6 +918,23 @@ HTML;
                 'subject_suffix'=> ['label' => 'Końcówka tematu',             'sample' => 'potwierdzono odwołanie udziału — 30.06.2026'],
                 'lead_html'     => ['label' => 'Główna treść (HTML)',          'sample' => 'Twoja prośba o odwołanie udziału w lekcji <strong>Kurs obsługi komputera</strong> (30.06.2026 o 10:00) została <strong>potwierdzona</strong>.'],
                 'url'           => ['label' => 'Link do panelu kursanta',      'sample' => $base . '/karty30/ti/kursant/index.php?tab=lekcje'],
+            ],
+        ],
+
+        'ti_payment_account' => [
+            'label'       => 'TI: zatwierdzony numer konta do wpłat (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-bank',
+            'auto'        => false,
+            'description' => 'Wysyłane do kursanta (i opiekuna małoletniego) po zatwierdzeniu przez kierownika numeru konta do wpłat za zajęcia i szkolenia (karty30/ti/dydaktyk/konta.php).',
+            'subject'     => 'Numer konta do wpłat za zajęcia — {{org}}',
+            'body'        => $ti_payment_account_body,
+            'vars'        => [
+                'accent'       => ['label' => 'Kolor akcentu',       'sample' => '#0d6efd'],
+                'osoba'        => ['label' => 'Kursant',             'sample' => 'Jan Kowalski'],
+                'numer_konta'  => ['label' => 'Numer konta',         'sample' => 'PL61 1090 1014 0000 0712 1981 2874'],
+                'typ_konta'    => ['label' => 'Rodzaj rachunku',     'sample' => 'Rachunek organizacji: Konto główne (dla TI)'],
+                'org'          => ['label' => 'Nazwa organizacji',   'sample' => 'Dydaktyka TI'],
             ],
         ],
 

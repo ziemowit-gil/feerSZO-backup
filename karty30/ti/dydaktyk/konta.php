@@ -13,6 +13,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // konta MS
 require_once dirname(__DIR__) . '/kursant/auth.php'; // parent_make_token(), student_impersonate()
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_referrals.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payment_account_schema.php';
 
 $me       = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -352,8 +353,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Zapis danych sekcji Płatności: nadpłata do końca roku (kierownik) + dozwolone
     // metody płatności (admin) — ten sam ekran obsługuje oba, bo panel kierownika
     // nie rozróżnia ról w praktyce (dyd_is_staff() = admin SZO LUB rola panelu
-    // kierownik/zastępca) — oraz numer konta do wpłat za zajęcia (wpisywany ręcznie,
-    // numer nadany przez bank organizacji, bez własnej walidacji NRB).
+    // kierownik/zastępca). Numer konta do wpłat ma OSOBNĄ akcję z krokiem
+    // zatwierdzenia — patrz payment_account_confirm poniżej.
     if ($op === 'overpay_save') {
         $aid = (int)($_POST['account_id'] ?? 0);
         if ($aid) {
@@ -363,16 +364,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ));
             db()->prepare(
                 "UPDATE k30_ti_student_accounts
-                 SET allow_year_end_overpay=?, allowed_payment_methods=?, payment_bank_account=?, updated_at=datetime('now')
+                 SET allow_year_end_overpay=?, allowed_payment_methods=?, updated_at=datetime('now')
                  WHERE id=?"
             )->execute([
                 isset($_POST['allow_year_end_overpay']) ? 1 : 0,
                 implode(',', $methods),
-                mb_substr(trim($_POST['payment_bank_account'] ?? ''), 0, 40),
                 $aid,
             ]);
             flash_set('success', 'Ustawienia płatności zapisane.');
         }
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
+    // Zatwierdzenie numeru konta do wpłat za zajęcia — krok weryfikacyjny
+    // (modal podglądu) przed zapisem. Loguje historię zmian i wysyła e-mail
+    // do kursanta (i opiekuna, jeśli małoletni) z zatwierdzonym numerem.
+    if ($op === 'payment_account_confirm') {
+        $aid    = (int)($_POST['account_id'] ?? 0);
+        $source = ($_POST['pay_source'] ?? '') === 'org' ? 'org' : 'custom';
+        $acc = $aid ? db_one(
+            "SELECT a.*, cl.name AS client_name, cl.email AS client_email
+             FROM k30_ti_student_accounts a
+             JOIN k30_clients cl ON cl.id = a.client_id WHERE a.id = ?", [$aid]
+        ) : null;
+
+        if (!$acc) { flash_set('danger', 'Konto kursanta nie istnieje.'); header('Location: konta.php'); exit; }
+
+        $new_account = '';
+        $type_label  = '';
+        if ($source === 'org') {
+            $org_idx = (int)($_POST['org_account_index'] ?? -1);
+            $org_acc = null;
+            foreach (k30_ti_org_accounts_list() as $oa) {
+                if ($oa['index'] === $org_idx) { $org_acc = $oa; break; }
+            }
+            if (!$org_acc) { flash_set('danger', 'Wybrany rachunek organizacji nie istnieje.'); header('Location: konta.php?selected=' . $aid); exit; }
+            $new_account = $org_acc['nrb'];
+            $type_label  = 'Rachunek organizacji: ' . $org_acc['label'] . ($org_acc['dla_ti'] ? ' (dla TI)' : '');
+        } else {
+            $new_account = mb_substr(trim($_POST['custom_account'] ?? ''), 0, 40);
+            $type_label  = 'Numer indywidualny (niestandardowy)';
+            if ($new_account === '') { flash_set('danger', 'Podaj numer konta.'); header('Location: konta.php?selected=' . $aid); exit; }
+        }
+
+        $old_account = (string)($acc['payment_bank_account'] ?? '');
+
+        db()->prepare(
+            "UPDATE k30_ti_student_accounts
+             SET payment_bank_account=?, payment_bank_account_source=?, updated_at=datetime('now')
+             WHERE id=?"
+        )->execute([$new_account, $source, $aid]);
+
+        $emailed = false;
+        $to_addrs = [];
+        if (!empty($acc['client_email']) && filter_var($acc['client_email'], FILTER_VALIDATE_EMAIL)) {
+            $to_addrs[$acc['client_email']] = $acc['client_name'];
+        }
+        if (!empty($acc['is_minor']) && !empty($acc['guardian_email']) && filter_var($acc['guardian_email'], FILTER_VALIDATE_EMAIL)) {
+            $to_addrs[$acc['guardian_email']] = $acc['guardian_name'] ?? '';
+        }
+        if ($to_addrs) {
+            require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+            require_once dirname(dirname(dirname(__DIR__))) . '/includes/email_templates.php';
+            $org = defined('ORG_NAME') ? ORG_NAME : 'Dydaktyka TI';
+            $rendered = email_tpl_render('ti_payment_account', [
+                'accent'      => '#0d6efd',
+                'osoba'       => $acc['client_name'],
+                'numer_konta' => $new_account,
+                'typ_konta'   => $type_label,
+                'org'         => $org,
+            ]);
+            if ($rendered['enabled']) {
+                try {
+                    foreach ($to_addrs as $addr => $name) {
+                        mail_queue_add($addr, (string)$name, $rendered['subject'], $rendered['html'], '', 'ti_payment_account', $aid);
+                    }
+                    $emailed = true;
+                } catch (\Throwable $e) {}
+            }
+        }
+
+        db_insert('k30_ti_payment_account_log', [
+            'student_account_id' => $aid,
+            'old_account'        => $old_account,
+            'new_account'        => $new_account,
+            'source'             => $source,
+            'changed_by'         => $uid,
+            'changed_by_name'    => $dyd_name,
+            'emailed'            => $emailed ? 1 : 0,
+            'created_at'         => date('Y-m-d H:i:s'),
+        ]);
+
+        flash_set('success', 'Numer konta zatwierdzony.' . ($emailed ? ' Kursant otrzymał powiadomienie e-mail.' : ' Nie wysłano e-maila (brak poprawnego adresu kursanta).'));
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
@@ -714,11 +797,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Wczytaj
 $accounts = db_all(
-    "SELECT a.*, cl.name AS client_name
+    "SELECT a.*, cl.name AS client_name, cl.email AS client_email
      FROM k30_ti_student_accounts a
      JOIN k30_clients cl ON cl.id=a.client_id
      ORDER BY cl.name"
 );
+$ti_org_accounts = k30_ti_org_accounts_list();
 $taken_ids   = array_column($accounts, 'client_id');
 $all_clients = db_all("SELECT id, name FROM k30_clients ORDER BY name");
 $no_account  = array_filter($all_clients, fn($c) => !in_array((int)$c['id'], $taken_ids));
@@ -938,6 +1022,7 @@ function printBulk(){
       <a class="btn btn-sm btn-outline-secondary" href="../messages.php?student=<?= (int)$sa['id'] ?>"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Wyślij wiadomość</a>
       <a class="btn btn-sm btn-outline-info" href="?guardian=<?= (int)$sa['id'] ?>"><i class="bi bi-people me-1" aria-hidden="true"></i>Opiekun / dostęp rodzica</a>
       <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#overpayModal<?= (int)$sa['id'] ?>"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Płatności</button>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#paymentAccountModal<?= (int)$sa['id'] ?>"><i class="bi bi-bank me-1" aria-hidden="true"></i>Numer konta do wpłat</button>
       <?php if (empty($sa['is_minor'])): ?>
       <a class="btn btn-sm btn-outline-primary" href="?authp=<?= (int)$sa['id'] ?>"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Osoby upoważnione</a>
       <?php endif; ?>
@@ -1579,12 +1664,14 @@ function printBulk(){
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label small fw-semibold" for="pay_acc<?= (int)$a['id'] ?>">Numer konta do wpłat za zajęcia</label>
-            <input type="text" id="pay_acc<?= (int)$a['id'] ?>" name="payment_bank_account"
-                   value="<?= h($a['payment_bank_account'] ?? '') ?>"
-                   class="form-control form-control-sm font-monospace" placeholder="np. numer nadany przez bank" maxlength="40">
-            <div class="form-text">Wpisywany ręcznie przez kierownika (numer nadany przez bank organizacji) — system go nie generuje ani nie weryfikuje.</div>
+          <div class="mb-3 small">
+            <span class="text-muted">Numer konta do wpłat za zajęcia:</span>
+            <?php if ($a['payment_bank_account']): ?>
+            <strong class="font-monospace"><?= h($a['payment_bank_account']) ?></strong>
+            <?php else: ?>
+            <span class="text-muted fst-italic">nie ustawiony</span>
+            <?php endif; ?>
+            — zarządzany w osobnym oknie („Numer konta do wpłat", wymaga zatwierdzenia).
           </div>
           <hr>
           <p class="text-muted small mb-3">
@@ -1616,7 +1703,136 @@ function printBulk(){
     </div>
   </div>
 </div>
+
+<!-- ── Modal: Numer konta do wpłat (wybór → podgląd → zatwierdzenie) ────────── -->
+<div class="modal fade" id="paymentAccountModal<?= (int)$a['id'] ?>" tabindex="-1" aria-labelledby="paymentAccountModalLbl<?= (int)$a['id'] ?>" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="payAccForm<?= (int)$a['id'] ?>">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="payment_account_confirm">
+        <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
+        <input type="hidden" name="pay_source" id="payAccSourceField<?= (int)$a['id'] ?>" value="">
+        <input type="hidden" name="org_account_index" id="payAccOrgIdxField<?= (int)$a['id'] ?>" value="">
+        <input type="hidden" name="custom_account" id="payAccCustomField<?= (int)$a['id'] ?>" value="">
+        <div class="modal-header">
+          <h5 class="modal-title" id="paymentAccountModalLbl<?= (int)$a['id'] ?>">
+            <i class="bi bi-bank me-2 text-primary" aria-hidden="true"></i>Numer konta do wpłat — <?= h($a['client_name']) ?>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+
+          <!-- Krok 1: wybór rachunku -->
+          <div id="payAccStep1_<?= (int)$a['id'] ?>">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold" for="payAccSourceSel<?= (int)$a['id'] ?>">Rodzaj rachunku</label>
+              <select class="form-select form-select-sm" id="payAccSourceSel<?= (int)$a['id'] ?>"
+                      onchange="tiPayAccToggle(<?= (int)$a['id'] ?>)">
+                <?php foreach ($ti_org_accounts as $oa): ?>
+                <option value="org:<?= $oa['index'] ?>"
+                        data-nrb="<?= h($oa['nrb']) ?>"
+                        data-label="<?= h('Rachunek organizacji: ' . $oa['label'] . ($oa['dla_ti'] ? ' (dla TI)' : '')) ?>"
+                        <?= ($a['payment_bank_account_source'] ?? '') === 'org' && $a['payment_bank_account'] === $oa['nrb'] ? 'selected' : '' ?>>
+                  <?= h($oa['label']) ?> — <?= h($oa['nrb']) ?><?= $oa['dla_ti'] ? ' (dla TI)' : '' ?>
+                </option>
+                <?php endforeach; ?>
+                <option value="custom" <?= (($a['payment_bank_account_source'] ?? '') === 'custom' || !$ti_org_accounts) ? 'selected' : '' ?>>
+                  Inny / niestandardowy numer
+                </option>
+              </select>
+              <?php if (!$ti_org_accounts): ?>
+              <div class="form-text">Brak zdefiniowanych rachunków organizacji — dodaj je w Ustawieniach → Rachunki.</div>
+              <?php endif; ?>
+            </div>
+            <div class="mb-2" id="payAccCustomWrap<?= (int)$a['id'] ?>" style="<?= (($a['payment_bank_account_source'] ?? '') === 'custom' || !$ti_org_accounts) ? '' : 'display:none' ?>">
+              <label class="form-label small fw-semibold" for="payAccCustomInput<?= (int)$a['id'] ?>">Numer konta</label>
+              <input type="text" id="payAccCustomInput<?= (int)$a['id'] ?>"
+                     value="<?= ($a['payment_bank_account_source'] ?? '') === 'custom' ? h($a['payment_bank_account'] ?? '') : '' ?>"
+                     class="form-control form-control-sm font-monospace" placeholder="np. numer nadany przez bank" maxlength="40">
+              <div class="form-text">Numer nadany przez bank organizacji — system go nie generuje ani nie weryfikuje.</div>
+            </div>
+            <div class="form-text">
+              Aktualnie zatwierdzony numer:
+              <strong class="font-monospace"><?= $a['payment_bank_account'] ? h($a['payment_bank_account']) : '— brak —' ?></strong>
+            </div>
+          </div>
+
+          <!-- Krok 2: podgląd i zatwierdzenie -->
+          <div id="payAccStep2_<?= (int)$a['id'] ?>" style="display:none">
+            <p class="fw-semibold">Czy zatwierdzasz ten rachunek do obsługi płatności za zajęcia i szkolenia dla tego kursanta?</p>
+            <table class="table table-sm table-borderless mb-0">
+              <tr><td class="text-muted" style="width:110px">Kursant</td><td><strong><?= h($a['client_name']) ?></strong></td></tr>
+              <tr><td class="text-muted">Numer konta</td><td><strong class="font-monospace" id="payAccPreviewNumber<?= (int)$a['id'] ?>"></strong></td></tr>
+              <tr><td class="text-muted">Typ</td><td id="payAccPreviewType<?= (int)$a['id'] ?>"></td></tr>
+            </table>
+            <div class="form-text">Po zatwierdzeniu kursant (i opiekun, jeśli małoletni) otrzyma e-mail z tym numerem konta.</div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="button" class="btn btn-primary" id="payAccNextBtn<?= (int)$a['id'] ?>"
+                  onclick="tiPayAccPreview(<?= (int)$a['id'] ?>)">
+            Dalej — podgląd <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary d-none" id="payAccBackBtn<?= (int)$a['id'] ?>"
+                  onclick="tiPayAccBack(<?= (int)$a['id'] ?>)">Wróć</button>
+          <button type="submit" class="btn btn-success d-none" id="payAccSubmitBtn<?= (int)$a['id'] ?>">
+            <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zatwierdź rachunek
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <?php endforeach; ?>
+
+<script>
+function tiPayAccToggle(id) {
+  var sel  = document.getElementById('payAccSourceSel' + id);
+  var wrap = document.getElementById('payAccCustomWrap' + id);
+  if (sel && wrap) wrap.style.display = (sel.value === 'custom') ? '' : 'none';
+}
+function tiPayAccPreview(id) {
+  var sel = document.getElementById('payAccSourceSel' + id);
+  if (!sel) return;
+  var val = sel.value;
+  var numberEl = document.getElementById('payAccPreviewNumber' + id);
+  var typeEl   = document.getElementById('payAccPreviewType' + id);
+
+  if (val === 'custom') {
+    var input = document.getElementById('payAccCustomInput' + id);
+    var num = (input.value || '').trim();
+    if (!num) { alert('Podaj numer konta.'); return; }
+    numberEl.textContent = num;
+    typeEl.textContent   = 'Numer indywidualny (niestandardowy)';
+    document.getElementById('payAccSourceField' + id).value = 'custom';
+    document.getElementById('payAccOrgIdxField' + id).value = '';
+    document.getElementById('payAccCustomField' + id).value = num;
+  } else {
+    var opt = sel.options[sel.selectedIndex];
+    numberEl.textContent = opt.getAttribute('data-nrb') || '';
+    typeEl.textContent   = opt.getAttribute('data-label') || '';
+    document.getElementById('payAccSourceField' + id).value = 'org';
+    document.getElementById('payAccOrgIdxField' + id).value = val.split(':')[1] || '';
+    document.getElementById('payAccCustomField' + id).value = '';
+  }
+
+  document.getElementById('payAccStep1_' + id).style.display = 'none';
+  document.getElementById('payAccStep2_' + id).style.display = '';
+  document.getElementById('payAccNextBtn' + id).classList.add('d-none');
+  document.getElementById('payAccBackBtn' + id).classList.remove('d-none');
+  document.getElementById('payAccSubmitBtn' + id).classList.remove('d-none');
+}
+function tiPayAccBack(id) {
+  document.getElementById('payAccStep1_' + id).style.display = '';
+  document.getElementById('payAccStep2_' + id).style.display = 'none';
+  document.getElementById('payAccNextBtn' + id).classList.remove('d-none');
+  document.getElementById('payAccBackBtn' + id).classList.add('d-none');
+  document.getElementById('payAccSubmitBtn' + id).classList.add('d-none');
+}
+</script>
 
 </div>
 </div>

@@ -2975,6 +2975,29 @@ function k30_ti_org_account(): array {
 }
 
 /**
+ * Wszystkie rachunki organizacji (ustawienia → Rachunki, settings.org_rachunki_bankowe)
+ * — do wyboru per kursant w karty30/ti/dydaktyk/konta.php (zamiast tylko tego
+ * oznaczonego dla_ti). Zwraca listę z indeksem oryginalnym z JSON (do identyfikacji
+ * wyboru w formularzu) i etykietą do wyświetlenia.
+ * @return array<int, array{index:int,label:string,nrb:string,dla_ti:bool}>
+ */
+function k30_ti_org_accounts_list(): array {
+    $raw  = org_setting('org_rachunki_bankowe');
+    $list = $raw ? (json_decode($raw, true) ?: []) : [];
+    $out  = [];
+    foreach ((is_array($list) ? $list : []) as $i => $a) {
+        if (!is_array($a) || empty($a['nrb'])) continue;
+        $out[] = [
+            'index'  => (int)$i,
+            'label'  => trim(($a['nazwa'] ?? '') !== '' ? (string)$a['nazwa'] : (string)($a['bank'] ?? 'Rachunek organizacji')),
+            'nrb'    => (string)$a['nrb'],
+            'dla_ti' => !empty($a['dla_ti']),
+        ];
+    }
+    return $out;
+}
+
+/**
  * Automatyczny tytuł wpłaty za zajęcia TI. Schemat:
  *   TI/{id kursanta}[/{kod grupy}] {Imię Nazwisko}
  * np. „TI/105/74226 Jan Kowalski" (wpłata na grupę), „TI/105 Jan Kowalski"
