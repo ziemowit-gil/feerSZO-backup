@@ -78,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name          = trim($_POST['requester_name'] ?? '');
     $powod         = trim($_POST['powod'] ?? '');
     $proposed_date = trim($_POST['proposed_date'] ?? '') ?: null;
+    $variant       = ($type === 'wolontariat') ? (trim($_POST['variant'] ?? '') ?: 'standard_14') : null;
+    if ($variant !== null && !isset(TERMINATION_VARIANTS[$variant])) $variant = 'standard_14';
 
     $allowed = array_filter($contracts, fn($c) => $c['contract_type'] === $type && $c['id'] === $cid);
     if (!$allowed) $errors[] = 'Wybrana umowa nie należy do Twojego konta lub nie podlega rozwiązaniu.';
@@ -91,13 +93,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $TABLE = table_for_type($type);
         $row   = db_one("SELECT * FROM {$TABLE} WHERE id=?", [$cid]);
-        $req_id = create_termination_request($type, $cid, $user['id'], $name, $powod, $proposed_date);
+        $req_id = create_termination_request(
+            $type, $cid, $user['id'], $name, $powod, $proposed_date,
+            $type === 'wolontariat' ? 'wolontariusz' : null, $variant
+        );
 
         require_once dirname(__DIR__) . '/includes/approval.php';
         log_contract_action($type, $cid, $user['id'], 'termination_request',
             'Złożono wniosek o rozwiązanie przez: ' . $name);
 
-        _termination_notify_admins($type, $row ?? [], $name, $powod, $proposed_date);
+        $_req_saved = db_one("SELECT * FROM contract_termination_requests WHERE id=?", [$req_id]);
+        _termination_notify_admins(
+            $type, $row ?? [], $name, $powod, $proposed_date,
+            $_req_saved['initiator'] ?? null, $_req_saved['variant'] ?? null, $_req_saved['effective_date'] ?? null
+        );
+        if ($type === 'wolontariat' && $row) {
+            _termination_notify_volunteer_new_request($req_id, $row);
+        }
 
         require_once dirname(__DIR__) . '/includes/notifications.php';
         $admins = db_all("SELECT id FROM users WHERE role='admin' AND is_active=1");
@@ -207,17 +219,38 @@ if ($_is_volunteer_only) {
           <textarea name="powod" id="powod" class="form-control" rows="4" required aria-required="true"
                     placeholder="Opisz krótko powód złożenia wniosku o rozwiązanie umowy..."><?= h($_POST['powod'] ?? '') ?></textarea>
         </div>
+        <div class="mb-3" id="terminationVariantWrap" style="display:none">
+          <label for="variant" class="form-label fw-semibold">Tryb rozwiązania</label>
+          <select name="variant" id="variant" class="form-select">
+            <?php foreach (TERMINATION_VARIANTS as $vk => $vdef): ?>
+            <option value="<?= h($vk) ?>" <?= ($_POST['variant'] ?? 'standard_14') === $vk ? 'selected' : '' ?>>
+              <?= h($vdef['label']) ?>
+            </option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Okres wypowiedzenia zgodny z § 7 porozumienia wolontariackiego.</div>
+        </div>
         <div class="mb-4">
           <label for="proposed_date" class="form-label fw-semibold">Proponowana data rozwiązania <span class="text-muted fw-normal small">(opcjonalnie)</span></label>
           <input type="date" name="proposed_date" id="proposed_date" class="form-control"
                  value="<?= h($_POST['proposed_date'] ?? '') ?>"
                  min="<?= date('Y-m-d') ?>">
-          <div class="form-text">Pozostaw puste, jeśli data ma zostać ustalona przez administratora.</div>
+          <div class="form-text">Pozostaw puste, aby datę wyliczyć automatycznie z wybranego trybu (lub ustaliło ją administrator).</div>
         </div>
         <button type="submit" class="tz-btn">
           <i class="bi bi-send" aria-hidden="true"></i> Złóż wniosek o rozwiązanie
         </button>
       </form>
+      <script>
+      (function () {
+        var sel = document.getElementById('sel_type');
+        var wrap = document.getElementById('terminationVariantWrap');
+        if (!sel || !wrap) return;
+        function toggle() { wrap.style.display = sel.value.indexOf('wolontariat:') === 0 ? '' : 'none'; }
+        sel.addEventListener('change', toggle);
+        toggle();
+      })();
+      </script>
 
       <?php endif; ?>
 
@@ -239,6 +272,8 @@ if ($_is_volunteer_only) {
           'powod'         => mb_strimwidth((string)$r['powod'], 0, 80, '…'),
           'decision_note' => $r['decision_note'] ?? '',
           'created_pl'    => date_pl($r['created_at']),
+          'variant_label' => termination_variant_label($r['variant'] ?? null),
+          'effective_pl'  => !empty($r['effective_date']) ? date_pl($r['effective_date']) : '',
       ];
   }, $my_requests);
   include __DIR__ . '/includes/pv_term_history.php';
@@ -323,6 +358,18 @@ if ($_is_volunteer_only) {
                       placeholder="Opisz krótko powód złożenia wniosku o rozwiązanie umowy..."><?= h($_POST['powod'] ?? '') ?></textarea>
           </div>
 
+          <div class="mb-3" id="terminationVariantWrap" style="display:none">
+            <label for="variant" class="form-label">Tryb rozwiązania</label>
+            <select name="variant" id="variant" class="form-select">
+              <?php foreach (TERMINATION_VARIANTS as $vk => $vdef): ?>
+              <option value="<?= h($vk) ?>" <?= ($_POST['variant'] ?? 'standard_14') === $vk ? 'selected' : '' ?>>
+                <?= h($vdef['label']) ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Okres wypowiedzenia zgodny z § 7 porozumienia wolontariackiego.</div>
+          </div>
+
           <div class="tz-note mb-3">
             <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
             <span>Wniosek zostanie rozpatrzony przez administratora. Umowa zostanie rozwiązana
@@ -335,6 +382,16 @@ if ($_is_volunteer_only) {
             </button>
           </div>
         </form>
+        <script>
+        (function () {
+          var sel = document.getElementById('sel_type');
+          var wrap = document.getElementById('terminationVariantWrap');
+          if (!sel || !wrap) return;
+          function toggle() { wrap.style.display = sel.value.indexOf('wolontariat:') === 0 ? '' : 'none'; }
+          sel.addEventListener('change', toggle);
+          toggle();
+        })();
+        </script>
 
         <?php endif; ?>
       </div>

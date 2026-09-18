@@ -114,6 +114,21 @@ include dirname(__DIR__) . '/includes/header.php';
           · Propon. data: <strong><?= date_pl($req['proposed_date']) ?></strong>
           <?php endif; ?>
         </div>
+        <?php if (!empty($req['variant']) || !empty($req['initiator'])): ?>
+        <div class="small text-muted mb-1">
+          <?php if (!empty($req['initiator'])): ?>
+          <i class="bi bi-person-fill-gear"></i> <?= h(termination_initiator_label($req['initiator'])) ?>
+          <?php endif; ?>
+          <?php if (!empty($req['variant'])): ?>
+          · Tryb: <strong><?= h(termination_variant_label($req['variant'])) ?></strong>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($req['effective_date'])): ?>
+        <div class="small text-muted mb-1">
+          <i class="bi bi-flag"></i> Efektywna data zakończenia: <strong><?= date_pl($req['effective_date']) ?></strong>
+        </div>
+        <?php endif; ?>
         <?php if (!$is_pending && $req['decided_at']): ?>
         <div class="small text-muted">
           Rozpatrzono: <?= date_pl($req['decided_at']) ?>

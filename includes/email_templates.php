@@ -235,6 +235,75 @@ HTML;
 </p>
 HTML;
 
+    // — Potwierdzenie oświadczenia o rezygnacji/rozwiązaniu porozumienia wolontariackiego —
+    $termination_confirmation_body = <<<HTML
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">
+  Dzień dobry, <strong>{{osoba}}</strong>,
+</p>
+<p style="margin:0 0 24px;font-size:15px;color:#333333;">
+  Potwierdzamy przyjęcie oświadczenia dotyczącego rezygnacji / rozwiązania porozumienia
+  wolontariackiego z dnia <strong>{{data_oswiadczenia}}</strong>.
+</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+              padding:0;margin-bottom:24px;">
+  <tr><td style="padding:20px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;width:170px;">Numer porozumienia</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Powód</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{powod}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Tryb rozwiązania</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;">{{tryb}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data zakończenia współpracy</td>
+        <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{data_zakonczenia}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  Wniosek zostanie rozpatrzony przez administratora — porozumienie zostanie formalnie
+  rozwiązane dopiero po jego akceptacji. O decyzji poinformujemy odrębnym e-mailem.
+  Szczegóły znajdziesz <a href="{{url}}" style="color:{{accent}};font-weight:600;">w systemie</a>.
+</p>
+HTML;
+
+    // — Przypomnienie milowe — zbliża się/nastąpił koniec okresu wypowiedzenia —
+    $termination_milestone_body = <<<HTML
+<p style="margin:0 0 16px;font-size:15px;color:#333333;">
+  Dzień dobry, <strong>{{osoba}}</strong>,
+</p>
+<p style="margin:0 0 24px;font-size:15px;color:#333333;">
+  {{urgency_text}}
+</p>
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="background:#f8f9fa;border-radius:6px;border-left:4px solid {{accent}};
+              padding:0;margin-bottom:24px;">
+  <tr><td style="padding:20px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;width:170px;">Numer porozumienia</td>
+        <td style="padding:5px 0;font-size:14px;color:#212529;font-weight:600;">{{numer}}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:#6c757d;">Data zakończenia współpracy</td>
+        <td style="padding:5px 0;font-size:14px;color:{{accent}};font-weight:700;">{{data_zakonczenia}}</td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  <a href="{{url}}" style="color:{{accent}};font-weight:600;">Otwórz porozumienie w systemie</a>
+</p>
+HTML;
+
     // — Zaproszenie opiekuna do odnowienia zgody na wolontariat małoletniego —
     $guardian_consent_body = <<<'HTML'
 <html><body style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#212529;line-height:1.6">
@@ -653,6 +722,46 @@ HTML;
                 'opiekun_email'    => ['label' => 'E-mail opiekuna',     'sample' => 'anna.kowalska@example.com'],
                 'data_weryfikacji' => ['label' => 'Data weryfikacji',    'sample' => '05.07.2026'],
                 'url'              => ['label' => 'Link do umowy',       'sample' => $base . '/contracts/wolontariat/view.php?id=14'],
+            ],
+        ],
+
+        'termination_confirmation' => [
+            'label'       => 'Potwierdzenie — rezygnacja/rozwiązanie porozumienia wolontariackiego',
+            'group'       => 'Umowy',
+            'icon'        => 'bi-file-earmark-x',
+            'auto'        => false,
+            'description' => 'Wysyłane do wolontariusza natychmiast po przyjęciu oświadczenia o rezygnacji lub rozwiązaniu porozumienia — niezależnie od tego, czy złożył je sam, czy pracownik w jego imieniu.',
+            'subject'     => 'Potwierdzenie przyjęcia oświadczenia — porozumienie {{numer}}',
+            'body'        => $termination_confirmation_body,
+            'vars'        => [
+                'accent'            => ['label' => 'Kolor akcentu',                'sample' => '#0d6efd'],
+                'osoba'             => ['label' => 'Wolontariusz',                 'sample' => 'Jan Kowalski'],
+                'numer'             => ['label' => 'Numer porozumienia',           'sample' => 'W/2026/014'],
+                'data_oswiadczenia' => ['label' => 'Data sporządzenia oświadczenia','sample' => '18.09.2026'],
+                'powod'             => ['label' => 'Powód rezygnacji/rozwiązania', 'sample' => 'Zmiana miejsca zamieszkania.'],
+                'tryb'              => ['label' => 'Tryb rozwiązania (opis)',      'sample' => 'Standardowy (14 dni) — okres wypowiedzenia: 14 dni'],
+                'data_zakonczenia'  => ['label' => 'Data zakończenia współpracy',  'sample' => '02.10.2026'],
+                'url'               => ['label' => 'Link do porozumienia',         'sample' => $base . '/contracts/wolontariat/view.php?id=14'],
+                'org'               => ['label' => 'Nazwa organizacji',           'sample' => 'Fundacja FEER'],
+            ],
+        ],
+
+        'termination_milestone' => [
+            'label'       => 'Przypomnienie — upływa okres wypowiedzenia',
+            'group'       => 'Umowy',
+            'icon'        => 'bi-alarm',
+            'auto'        => true,
+            'description' => 'Cykliczne przypomnienie dla wolontariusza, którego okres wypowiedzenia porozumienia zbliża się do końca (7, 1 dzień) lub upłynął dzisiaj.',
+            'subject'     => 'Przypomnienie: {{urgency_short}} — porozumienie {{numer}}',
+            'body'        => $termination_milestone_body,
+            'vars'        => [
+                'accent'           => ['label' => 'Kolor akcentu (zależny od pilności)', 'sample' => '#fd7e14'],
+                'osoba'            => ['label' => 'Wolontariusz',              'sample' => 'Jan Kowalski'],
+                'numer'            => ['label' => 'Numer porozumienia',        'sample' => 'W/2026/014'],
+                'urgency_text'     => ['label' => 'Tekst pilności',            'sample' => 'Okres wypowiedzenia porozumienia upływa za <strong>1 dzień</strong>.'],
+                'urgency_short'    => ['label' => 'Krótki tekst pilności (temat)', 'sample' => 'okres wypowiedzenia upływa za 1 dzień'],
+                'data_zakonczenia' => ['label' => 'Data zakończenia współpracy', 'sample' => '02.10.2026'],
+                'url'              => ['label' => 'Link do porozumienia',       'sample' => $base . '/contracts/wolontariat/view.php?id=14'],
             ],
         ],
 

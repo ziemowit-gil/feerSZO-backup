@@ -494,6 +494,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_submit_termination']
     csrf_check();
     $powod         = trim($_POST['powod'] ?? '');
     $proposed_date = trim($_POST['proposed_date'] ?? '') ?: null;
+    $initiator     = trim($_POST['initiator'] ?? '') ?: 'korzystajacy';
+    if (!isset(TERMINATION_INITIATORS[$initiator])) $initiator = 'korzystajacy';
+    $variant       = trim($_POST['variant'] ?? '') ?: 'standard_14';
+    if (!isset(TERMINATION_VARIANTS[$variant])) $variant = 'standard_14';
     $existing_term = get_pending_termination_for_contract($TYPE, $id);
     if (!$powod) {
         flash_set('danger', 'Podaj powód rozwiązania umowy.');
@@ -501,10 +505,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_submit_termination']
         flash_set('warning', 'Istnieje już oczekujący wniosek o rozwiązanie tej umowy.');
     } else {
         $u = current_user();
-        create_termination_request($TYPE, $id, (int)$u['id'], $row['imie_nazwisko'], $powod, $proposed_date);
+        $req_id = create_termination_request(
+            $TYPE, $id, (int)$u['id'], $row['imie_nazwisko'], $powod, $proposed_date,
+            $initiator, $variant
+        );
         log_contract_action($TYPE, $id, (int)$u['id'], 'termination_request',
             'Złożono wniosek o rozwiązanie przez: ' . $u['name']);
-        _termination_notify_admins($TYPE, $row, $row['imie_nazwisko'], $powod, $proposed_date);
+        $_req_saved = db_one("SELECT * FROM contract_termination_requests WHERE id=?", [$req_id]);
+        _termination_notify_admins(
+            $TYPE, $row, $row['imie_nazwisko'], $powod, $proposed_date,
+            $_req_saved['initiator'] ?? null, $_req_saved['variant'] ?? null, $_req_saved['effective_date'] ?? null
+        );
+        _termination_notify_volunteer_new_request($req_id, $row);
         flash_set('success', 'Wniosek o rozwiązanie umowy został złożony. Administrator rozpatrzy go wkrótce.');
     }
     header('Location: view.php?id=' . $id); exit;
@@ -4114,6 +4126,23 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
             Wniosek zostanie przesłany do administratora, który podejmie ostateczną decyzję.
           </p>
           <div class="mb-3">
+            <label class="form-label fw-semibold small">Strona wypowiadająca</label>
+            <select name="initiator" class="form-select">
+              <?php foreach (TERMINATION_INITIATORS as $ik => $ilabel): ?>
+              <option value="<?= h($ik) ?>" <?= $ik === 'korzystajacy' ? 'selected' : '' ?>><?= h($ilabel) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Tryb rozwiązania</label>
+            <select name="variant" class="form-select">
+              <?php foreach (TERMINATION_VARIANTS as $vk => $vdef): ?>
+              <option value="<?= h($vk) ?>" <?= $vk === 'standard_14' ? 'selected' : '' ?>><?= h($vdef['label']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Zgodnie z § 7 porozumienia. Wolontariusz otrzyma potwierdzenie e-mailem.</div>
+          </div>
+          <div class="mb-3">
             <label class="form-label fw-semibold small">Powód rozwiązania <span class="text-danger">*</span></label>
             <textarea name="powod" class="form-control" rows="3" required
                       placeholder="Opisz powód rozwiązania porozumienia…"></textarea>
@@ -4122,6 +4151,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
             <label class="form-label fw-semibold small">Proponowana data rozwiązania <span class="text-muted fw-normal">(opcjonalnie)</span></label>
             <input type="date" name="proposed_date" class="form-control"
                    min="<?= date('Y-m-d') ?>">
+            <div class="form-text">Pozostaw puste, aby datę wyliczyć automatycznie z wybranego trybu.</div>
           </div>
         </div>
         <div class="modal-footer">

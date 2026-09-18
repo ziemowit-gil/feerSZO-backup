@@ -86,6 +86,11 @@ $AGENTS = [
         'interval' => 86400,
         'schedule' => [8, 10],
     ],
+    'termination_milestone_reminder' => [
+        'file'     => __DIR__ . '/termination_milestone_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [8, 10],      // między 8:00 a 10:00
+    ],
     'szkolenia_notifier' => [
         'file'     => __DIR__ . '/agents/szkolenia_notifier.php',
         'interval' => 86400,        // sprawdza codziennie, wysyła raz w miesiącu (po 25. dniu)

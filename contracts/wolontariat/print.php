@@ -552,20 +552,35 @@ table.data tr:nth-child(even) td { background: #f7f7f7; }
     </div>
   </div>
 
-  <!-- ── § 7. Rozwiązanie porozumienia ────────────────────────────────── -->
+  <!-- ── § 7. Rezygnacja i rozwiązanie porozumienia ───────────────────── -->
   <div class="section">
-    <div class="section-title">§ 7. Rozwiązanie porozumienia</div>
+    <div class="section-title">§ 7. Rezygnacja i rozwiązanie porozumienia</div>
     <div class="klauzula">
       <?php if ($bezterminowa): ?>
-        Porozumienie zawarto na czas nieokreślony. Każda ze stron może wypowiedzieć porozumienie
-        ze skutkiem natychmiastowym lub z&nbsp;zachowaniem uzgodnionego okresu wypowiedzenia.
+        1. Porozumienie zawarto na&nbsp;czas nieokreślony.
       <?php else: ?>
-        Porozumienie wygasa z&nbsp;upływem czasu, na jaki zostało zawarte, tj. w&nbsp;dniu <?= $data_end_fmt ?>.
-        Każda ze stron może rozwiązać porozumienie przed tym terminem za porozumieniem stron
-        lub ze skutkiem natychmiastowym w&nbsp;przypadku rażącego naruszenia jego postanowień.
+        1. Porozumienie zawarto na&nbsp;czas określony i&nbsp;wygasa z&nbsp;upływem czasu,
+        na&nbsp;jaki zostało zawarte, tj.&nbsp;w&nbsp;dniu <?= $data_end_fmt ?>.
       <?php endif; ?>
-      Wolontariuszowi przysługuje zaświadczenie o&nbsp;wykonanym wolontariacie na&nbsp;jego wniosek
-      (art.&nbsp;44 ustawy o&nbsp;działalności pożytku publicznego i&nbsp;o&nbsp;wolontariacie).
+      <br>2. Niezależnie od&nbsp;czasu trwania porozumienia, każda ze&nbsp;stron — Wolontariusz
+      lub&nbsp;Korzystający — może je&nbsp;rozwiązać przed tym terminem w&nbsp;drodze pisemnego
+      oświadczenia (rezygnacji lub&nbsp;wypowiedzenia), a&nbsp;także za&nbsp;zgodnym porozumieniem
+      obu&nbsp;stron.
+      <br>3. Oświadczenie o&nbsp;rezygnacji lub&nbsp;rozwiązaniu porozumienia wskazuje datę jego
+      sporządzenia oraz&nbsp;zwięzłe uzasadnienie przyczyny podjętej decyzji.
+      <br>4. Rozwiązanie następuje z&nbsp;zachowaniem <strong>14-dniowego okresu wypowiedzenia</strong>,
+      liczonego od&nbsp;dnia doręczenia oświadczenia drugiej stronie, chyba że&nbsp;strony uzgodnią
+      termin krótszy albo&nbsp;rozwiązanie ze&nbsp;skutkiem natychmiastowym.
+      <br>5. Niezależnie od&nbsp;okresu wypowiedzenia, każda ze&nbsp;stron może rozwiązać porozumienie
+      <strong>ze&nbsp;skutkiem natychmiastowym z&nbsp;ważnych powodów</strong>, w&nbsp;szczególności
+      w&nbsp;przypadku rażącego naruszenia postanowień porozumienia lub&nbsp;zasad&nbsp;BHP,
+      zagrożenia zdrowia lub&nbsp;bezpieczeństwa Wolontariusza, bądź&nbsp;utraty przez Wolontariusza
+      możliwości wykonywania świadczeń z&nbsp;przyczyn zdrowotnych lub&nbsp;losowych.
+      <br>6. Strony mogą w&nbsp;każdym czasie rozwiązać porozumienie <strong>za&nbsp;zgodnym
+      porozumieniem, ze&nbsp;skutkiem natychmiastowym</strong>, bez&nbsp;zachowania okresu
+      wypowiedzenia określonego w&nbsp;ust.&nbsp;4.
+      <br>7. Wolontariuszowi przysługuje zaświadczenie o&nbsp;wykonanym wolontariacie na&nbsp;jego
+      wniosek (art.&nbsp;44 ustawy o&nbsp;działalności pożytku publicznego i&nbsp;o&nbsp;wolontariacie).
     </div>
   </div>
 

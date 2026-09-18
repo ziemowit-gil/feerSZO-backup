@@ -48,6 +48,11 @@ foreach (['oczekuje','zaakceptowany','odrzucony'] as $s) {
         <span class="badge bg-<?= $m[1] ?>"><?= h($m[0]) ?></span>
       </div>
       <div class="text-muted" style="font-size:.78rem">Powód: <?= h($r['powod']) ?></div>
+      <?php if (!empty($r['variant_label'])): ?>
+      <div class="text-muted" style="font-size:.78rem">
+        Tryb: <?= h($r['variant_label']) ?><?= !empty($r['effective_pl']) ? ' · koniec współpracy: ' . h($r['effective_pl']) : '' ?>
+      </div>
+      <?php endif; ?>
       <?php if ($r['decision_note']): ?>
       <div class="<?= $r['status'] === 'odrzucony' ? 'text-danger' : 'text-muted' ?>" style="font-size:.78rem">
         <i class="bi bi-chat-left-text me-1" aria-hidden="true"></i><?= h($r['decision_note']) ?>
