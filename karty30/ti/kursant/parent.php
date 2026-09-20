@@ -571,6 +571,11 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link <?= $ptab==='platnosci'?'active':'' ?>" href="?ptab=platnosci" <?= $ptab==='platnosci'?'aria-current="page"':'' ?>>
+          <i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Płatności
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link <?= $ptab==='frekwencja'?'active':'' ?>" href="?ptab=frekwencja" <?= $ptab==='frekwencja'?'aria-current="page"':'' ?>>
           <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Frekwencja
         </a>
@@ -725,6 +730,27 @@ document.addEventListener('DOMContentLoaded', function() {
     $rv_show_lessons = false;
     include __DIR__ . '/_rozliczenia_view.php';
 ?>
+
+<?php elseif ($ptab === 'platnosci'):
+    $pp_acc = db_one(
+        "SELECT payment_bank_account, payment_bank_account_source FROM k30_ti_student_accounts WHERE id=?",
+        [(int)$parent['student_id']]
+    );
+    $pp_pay_acc = trim((string)($pp_acc['payment_bank_account'] ?? ''));
+?>
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-cash-coin text-primary" aria-hidden="true"></i>Płatności</h2>
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <?php if ($pp_pay_acc !== ''): ?>
+      <label class="form-label small mb-1" for="pp-acc-ro">Numer konta do wpłat za zajęcia</label>
+      <input type="text" class="form-control form-control-sm font-monospace" id="pp-acc-ro" readonly
+             value="<?= h($pp_pay_acc) ?>" style="max-width:420px">
+      <div class="form-text">Numer przydzielony przez organizację — zmiany zgłoś kierownikowi.</div>
+      <?php else: ?>
+      <p class="text-body-secondary small mb-0">Kierownik jeszcze nie przydzielił numeru konta do wpłat za zajęcia.</p>
+      <?php endif; ?>
+    </div>
+  </div>
 
 <?php elseif ($ptab === 'portfel'):
     $pw_client_id       = $parent['client_id'];
