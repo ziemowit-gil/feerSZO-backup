@@ -1130,9 +1130,56 @@ function printBulk(){
     <div class="tab-pane fade <?= $active_tab === 'ogolne' ? 'show active' : '' ?>" id="tab-ogolne" role="tabpanel" aria-labelledby="tab-btn-ogolne" tabindex="0">
       <div class="d-flex flex-column gap-3">
 
+        <div>
+          <div class="small fw-semibold text-body-secondary mb-1">Dane</div>
+          <div class="row g-3 align-items-end">
+            <div class="col-auto">
+              <form method="post" class="d-flex gap-1">
+                <input type="hidden" name="_token"      value="<?= h(dyd_token()) ?>">
+                <input type="hidden" name="_op"         value="set_no">
+                <input type="hidden" name="account_id"  value="<?= (int)$sa['id'] ?>">
+                <div>
+                  <label class="form-label small mb-0" for="no<?= (int)$sa['id'] ?>">Nr kursanta</label>
+                  <div class="d-flex gap-1">
+                    <input type="text" id="no<?= (int)$sa['id'] ?>" name="student_no" value="<?= h($sa['student_no'] ?? '') ?>"
+                           class="form-control form-control-sm font-monospace" style="width:110px" placeholder="—">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Zapisz numer kursanta" aria-label="Zapisz numer kursanta"><i class="bi bi-save" aria-hidden="true"></i></button>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div class="col-auto">
+              <div class="small text-muted mb-0">Ostatnie logowanie</div>
+              <div>
+                <?php if ($sa['last_login']): ?>
+                <?= h(date('d.m.Y H:i', strtotime($sa['last_login']))) ?>
+                <?php if (!empty($sa['last_login_ip'])): ?>
+                <span class="font-monospace text-muted small"><i class="bi bi-geo-alt" aria-hidden="true"></i> <?= h($sa['last_login_ip']) ?></span>
+                <?php endif; ?>
+                <?php else: ?>
+                <span class="text-muted">—</span>
+                <?php endif; ?>
+              </div>
+            </div>
+            <?php if (!empty($sa['login_alias'])): ?>
+            <div class="col-auto">
+              <div class="small text-muted mb-0">Alias logowania</div>
+              <div class="text-info"><i class="bi bi-arrow-return-right" aria-hidden="true"></i> <?= h($sa['login_alias']) ?></div>
+            </div>
+            <?php endif; ?>
+          </div>
+        </div>
+
         <?php if ($ms_online_enabled): ?>
         <div>
           <div class="small fw-semibold text-body-secondary mb-1">Nauka online</div>
+          <?php if ($sa_has_ms): ?>
+          <div class="small mb-2">
+            <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+              <i class="bi bi-microsoft" aria-hidden="true"></i> <span class="font-monospace"><?= h($sa['ms_upn']) ?></span>
+            </span>
+          </div>
+          <?php endif; ?>
           <div class="d-flex flex-wrap gap-2">
             <form method="post" <?= $sa_has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
@@ -1749,96 +1796,40 @@ function printBulk(){
           <button type="button" class="btn btn-sm btn-outline-secondary student-filter-chip" data-status="maloletni" aria-pressed="false">Małoletni</button>
         </div>
       </div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0" style="font-size:.86rem" id="accounts-table">
-          <caption class="visually-hidden">Lista kont kursantów</caption>
-          <thead class="table-light">
-            <tr><th>Beneficjent</th><th>Nr kursanta</th><th>Login</th><th>Status</th><th>Nauka online</th><th>Ostatnie logowanie</th><th class="text-end">Wybór</th></tr>
-          </thead>
-          <tbody>
-            <?php foreach ($accounts as $a): $is_sel = $selected_id === (int)$a['id'];
-              $_status_flags = trim(($a['is_active'] ? 'aktywne' : 'zablokowane') . (!empty($a['is_minor']) ? ' maloletni' : ''));
-            ?>
-            <tr class="<?= $a['is_active'] ? '' : 'opacity-50' ?> <?= $is_sel ? 'table-primary' : '' ?>"
-                data-name="<?= h(mb_strtolower($a['client_name'])) ?>"
-                data-login="<?= h(mb_strtolower($a['login'])) ?>"
-                data-status="<?= h($_status_flags) ?>">
-              <td class="fw-semibold"><?= h($a['client_name']) ?></td>
-              <td>
-                <form method="post" class="d-flex gap-1">
-                  <input type="hidden" name="_token"      value="<?= h(dyd_token()) ?>">
-                  <input type="hidden" name="_op"         value="set_no">
-                  <input type="hidden" name="account_id"  value="<?= (int)$a['id'] ?>">
-                  <label class="visually-hidden" for="no<?= (int)$a['id'] ?>">Numer kursanta — <?= h($a['client_name']) ?></label>
-                  <input type="text" id="no<?= (int)$a['id'] ?>" name="student_no" value="<?= h($a['student_no'] ?? '') ?>"
-                         class="form-control form-control-sm font-monospace py-0" style="width:84px" placeholder="—">
-                  <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Zapisz numer kursanta" aria-label="Zapisz numer kursanta"><i class="bi bi-save" aria-hidden="true"></i></button>
-                </form>
-              </td>
-              <td>
-                <div class="font-monospace"><?= h($a['login']) ?></div>
-                <?php if (!empty($a['login_alias'])): ?>
-                <div class="small text-info" title="Alias ustawiony przez kursanta"><i class="bi bi-arrow-return-right" aria-hidden="true"></i> <?= h($a['login_alias']) ?></div>
-                <?php endif; ?>
-              </td>
-              <td>
-                <span class="badge <?= $a['is_active'] ? 'bg-success' : 'bg-secondary' ?>">
-                  <?= $a['is_active'] ? 'Aktywne' : 'Zablokowane' ?>
-                </span>
-                <?php if (!empty($a['is_minor'])): ?>
-                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Małoletni — rozliczenia dla rodzica">
-                  <i class="bi bi-people" aria-hidden="true"></i> małoletni
-                </span>
-                <?php endif; ?>
-                <?php if (!empty($a['child_access_blocked'])): ?>
-                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Logowanie kursanta wstrzymane przez opiekuna">
-                  <i class="bi bi-lock-fill" aria-hidden="true"></i> wstrzymany przez opiekuna
-                </span>
-                <?php endif; ?>
-              </td>
-              <td style="min-width:160px">
-                <?php $has_ms = !empty($a['ms_user_id']); ?>
-                <?php if (!$ms_online_enabled): ?>
-                <span class="text-muted small">moduł wyłączony</span>
-                <?php else: ?>
-                <div class="d-flex flex-column gap-1">
-                  <?php if ($has_ms): ?>
-                  <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle text-truncate" style="max-width:100%" title="<?= h($a['ms_upn']) ?>">
-                    <i class="bi bi-microsoft" aria-hidden="true"></i> <span class="font-monospace"><?= h($a['ms_upn']) ?></span>
-                  </span>
-                  <?php else: ?>
-                  <span class="badge bg-secondary-subtle text-secondary-emphasis border">Brak konta MS</span>
-                  <?php endif; ?>
-                </div>
-                <?php endif; ?>
-              </td>
-              <td class="text-muted">
-                <?php if ($a['last_login']): ?>
-                <?= h(date('d.m.Y H:i', strtotime($a['last_login']))) ?>
-                <?php if (!empty($a['last_login_ip'])): ?>
-                <div class="font-monospace" style="font-size:.78em"><i class="bi bi-geo-alt" aria-hidden="true"></i> <?= h($a['last_login_ip']) ?></div>
-                <?php endif; ?>
-                <?php else: ?>
-                —
-                <?php endif; ?>
-              </td>
-              <td class="text-end">
-                <a href="?selected=<?= (int)$a['id'] ?>#detail-panel"
-                   class="btn btn-sm text-nowrap <?= $is_sel ? 'btn-primary' : 'btn-outline-primary' ?>"
-                   <?= $is_sel ? 'aria-current="true"' : '' ?>
-                   title="<?= $is_sel ? 'Wybrany kursant' : 'Zarządzaj' ?>"
-                   aria-label="<?= $is_sel ? 'Wybrany kursant' : 'Wybierz kursanta' ?> <?= h($a['client_name']) ?> — pokaż działania">
-                  <?php if ($is_sel): ?>
-                  <i class="bi bi-check-circle-fill" aria-hidden="true"></i><span class="d-none d-xl-inline ms-1">Wybrany</span>
-                  <?php else: ?>
-                  <i class="bi bi-gear" aria-hidden="true"></i><span class="d-none d-xl-inline ms-1">Zarządzaj</span>
-                  <?php endif; ?>
-                </a>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+      <!-- Zwarta lista — bez tabeli/przewijania w poziomie (kolumna jest teraz
+           węższa niż dawniej, pełna tabela by się nie mieściła). Nr kursanta,
+           MS365 i ostatnie logowanie przeniesione do zakładki „Ogólne". -->
+      <div class="list-group list-group-flush" id="accounts-table">
+        <?php foreach ($accounts as $a): $is_sel = $selected_id === (int)$a['id'];
+          $_status_flags = trim(($a['is_active'] ? 'aktywne' : 'zablokowane') . (!empty($a['is_minor']) ? ' maloletni' : ''));
+        ?>
+        <a href="?selected=<?= (int)$a['id'] ?>#detail-panel"
+           class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-2 <?= $is_sel ? 'active' : '' ?> <?= $a['is_active'] ? '' : 'opacity-75' ?>"
+           data-name="<?= h(mb_strtolower($a['client_name'])) ?>"
+           data-login="<?= h(mb_strtolower($a['login'])) ?>"
+           data-status="<?= h($_status_flags) ?>"
+           <?= $is_sel ? 'aria-current="true"' : '' ?>>
+          <span class="text-truncate">
+            <span class="fw-semibold d-block text-truncate"><?= h($a['client_name']) ?></span>
+            <span class="small font-monospace <?= $is_sel ? '' : 'text-muted' ?>"><?= h($a['login']) ?></span>
+          </span>
+          <span class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+            <span class="badge <?= $a['is_active'] ? 'bg-success' : 'bg-secondary' ?>">
+              <?= $a['is_active'] ? 'Aktywne' : 'Zablokowane' ?>
+            </span>
+            <?php if (!empty($a['is_minor'])): ?>
+            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Małoletni — rozliczenia dla rodzica">
+              <i class="bi bi-people" aria-hidden="true"></i>
+            </span>
+            <?php endif; ?>
+            <?php if (!empty($a['child_access_blocked'])): ?>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Logowanie kursanta wstrzymane przez opiekuna">
+              <i class="bi bi-lock-fill" aria-hidden="true"></i>
+            </span>
+            <?php endif; ?>
+          </span>
+        </a>
+        <?php endforeach; ?>
       </div>
       <?php endif; ?>
     </div>
@@ -1899,7 +1890,7 @@ function tiPayAccBack() {
 (function () {
   var search = document.getElementById('studentSearch');
   var chips  = document.querySelectorAll('.student-filter-chip');
-  var rows   = document.querySelectorAll('#accounts-table tbody tr[data-name]');
+  var rows   = document.querySelectorAll('#accounts-table .list-group-item[data-name]');
   var activeStatus = 'all';
 
   function apply() {
