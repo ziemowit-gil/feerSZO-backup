@@ -292,7 +292,7 @@ $pr_confirm = $pr_empty
         <?php if ($pr_acked): ?>
         <div class="alert alert-success py-2 small mb-0" role="status">
           <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>
-          Potwierdzone elektronicznie: <strong><?= h($pr['hours_ack_name'] ?: '—') ?></strong>,
+          Potwierdzone elektronicznie: <strong><?= h(ti_protocol_hours_ack_label($pr) ?: '—') ?></strong>,
           <?= h(date('d.m.Y H:i', strtotime((string)$pr['hours_ack_at']))) ?><?php
             if (trim((string)$pr['hours_ack_ip']) !== ''): ?>, IP <?= h($pr['hours_ack_ip']) ?><?php endif; ?>.
           Na wydruku zamiast miejsca na podpis widnieje ten ślad.
@@ -304,12 +304,24 @@ $pr_confirm = $pr_empty
           moich zastrzeżeń. Potwierdzenie zapisuje kto, kiedy i z jakiego adresu IP je złożył;
           odblokowanie protokołu je unieważnia.
         </p>
-        <form method="post" class="usos-noprint"
-              onsubmit="return confirm('Potwierdzić zgodność ewidencji godzin i naliczenia wypłaty?')">
+        <form method="post" class="usos-noprint" id="prHoursAckForm"
+              onsubmit="return confirm(document.getElementById('pr_on_behalf') && document.getElementById('pr_on_behalf').checked
+                ? 'Uzupełnić ewidencję godzin i naliczenie wypłaty w zastępstwie prowadzącego?'
+                : 'Potwierdzić zgodność ewidencji godzin i naliczenia wypłaty?')">
           <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
           <input type="hidden" name="_op" value="protocol_hours_ack">
           <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
           <input type="hidden" name="protocol_id" value="<?= (int)$pr['id'] ?>">
+          <?php if (dyd_is_staff()): ?>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="pr_on_behalf" name="on_behalf" value="1">
+            <label class="form-check-label small" for="pr_on_behalf">
+              Uzupełniam w zastępstwie prowadzącego — zapisze się jako
+              „Uzupełnienie w/z <?= h($me['name'] ?? '') ?>" zamiast podpisu prowadzącego.
+              Wypłata nadal naliczy się prowadzącemu przypisanemu do kursu/lekcji.
+            </label>
+          </div>
+          <?php endif; ?>
           <button class="btn btn-sm btn-success">
             <i class="bi bi-pen me-1" aria-hidden="true"></i>Potwierdzam zgodność
           </button>

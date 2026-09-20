@@ -1429,8 +1429,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ti_protocol_approve($pid, $uid, $me_name);
                 flash_set('success', 'Protokół zatwierdzony — ocen nie można już zmieniać.');
             } elseif ($op === 'protocol_hours_ack') {
-                ti_protocol_hours_ack($pid, $uid, $me_name, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
-                flash_set('success', 'Ewidencja godzin i naliczenie wypłaty potwierdzone — ślad zapisany w protokole.');
+                $hours_on_behalf = dyd_is_staff() && !empty($_POST['on_behalf']);
+                ti_protocol_hours_ack($pid, $uid, $me_name, (string)($_SERVER['REMOTE_ADDR'] ?? ''), $hours_on_behalf);
+                flash_set('success', $hours_on_behalf
+                    ? 'Ewidencja godzin uzupełniona w zastępstwie prowadzącego — ślad zapisany w protokole.'
+                    : 'Ewidencja godzin i naliczenie wypłaty potwierdzone — ślad zapisany w protokole.');
             } elseif ($op === 'protocol_org_ack') {
                 if (!dyd_is_staff()) { http_response_code(403); exit('Podpisać za organizatora może pracownik D3 lub administrator.'); }
                 ti_protocol_org_ack($pid, $uid, $me_name, (string)($_SERVER['REMOTE_ADDR'] ?? ''));

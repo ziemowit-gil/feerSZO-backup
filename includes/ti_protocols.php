@@ -80,6 +80,12 @@ function ti_protocols_migrate(): void {
         "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_name TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_at   TEXT",
         "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_ip   TEXT NOT NULL DEFAULT ''",
+        // Ewidencję godzin potwierdza zwykle sam prowadzący — gdy w jego imieniu
+        // zrobi to kierownik/zastępca (np. prowadzący zapomniał/nie ma dostępu),
+        // znacznik odróżnia to od jego własnego podpisu na wydruku i w panelu.
+        // Nie wpływa na naliczenie wypłaty — ta liczy się zawsze wg instructor_id
+        // kursu/lekcji, niezależnie kto kliknął potwierdzenie.
+        "ALTER TABLE k30_ti_protocols ADD COLUMN hours_ack_on_behalf INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_by     INTEGER",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_name   TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_at     TEXT",
@@ -488,9 +494,17 @@ function ti_protocol_hours_acked(array $prot): bool {
  * adresu IP; potwierdzenie jest jednorazowe (do wycofania przez odblokowanie
  * protokołu, tak samo jak zatwierdzenie ocen).
  *
+ * Kierownik/administrator może uzupełnić to potwierdzenie w imieniu prowadzącego
+ * (np. gdy ten zapomniał albo nie ma dostępu) — zaznaczając w panelu jawny
+ * checkbox "w zastępstwie" ($on_behalf). Zapisujemy to jako "uzupełnienie
+ * w zastępstwie" (hours_ack_on_behalf), żeby wydruk/panel nie sugerował
+ * fałszywie podpisu samego prowadzącego. Nie zmienia to, komu liczy się
+ * wypłata — ta zawsze wynika z instructor_id kursu/lekcji, nie z tego kto
+ * kliknął potwierdzenie.
+ *
  * @throws RuntimeException gdy protokół nie istnieje albo już potwierdzony.
  */
-function ti_protocol_hours_ack(int $protocol_id, ?int $by, string $by_name, string $ip = ''): void {
+function ti_protocol_hours_ack(int $protocol_id, ?int $by, string $by_name, string $ip = '', bool $on_behalf = false): void {
     ti_protocols_migrate();
     $prot = ti_protocol_get($protocol_id);
     if (!$prot)                            throw new \RuntimeException('Protokół nie istnieje.');
@@ -500,9 +514,23 @@ function ti_protocol_hours_ack(int $protocol_id, ?int $by, string $by_name, stri
     db()->prepare(
         "UPDATE k30_ti_protocols
             SET hours_ack_by=?, hours_ack_name=?, hours_ack_at=datetime('now'), hours_ack_ip=?,
-                updated_at=datetime('now')
+                hours_ack_on_behalf=?, updated_at=datetime('now')
           WHERE id=?"
-    )->execute([$by, $by_name, substr($ip, 0, 64), $protocol_id]);
+    )->execute([$by, $by_name, substr($ip, 0, 64), $on_behalf ? 1 : 0, $protocol_id]);
+}
+
+/**
+ * Etykieta do wyświetlenia przy potwierdzeniu ewidencji godzin — zwykły podpis
+ * prowadzącego albo "Uzupełnienie w/z [imię] ([rola])", gdy zrobił to kierownik
+ * lub zastępca w jego imieniu (patrz hours_ack_on_behalf w ti_protocol_hours_ack()).
+ */
+function ti_protocol_hours_ack_label(array $prot): string {
+    $name = (string)($prot['hours_ack_name'] ?? '');
+    if ($name === '' || empty($prot['hours_ack_on_behalf'])) return $name;
+
+    $role = function_exists('ti_panel_role') ? ti_panel_role((int)($prot['hours_ack_by'] ?? 0)) : '';
+    $role_label = K30_TI_PANEL_ROLES[$role] ?? 'kierownik';
+    return 'Uzupełnienie w/z ' . $name . ' (' . $role_label . ')';
 }
 
 /** Czy protokół jest podpisany za organizatora. */
@@ -807,7 +835,7 @@ function ti_protocol_print_html(array $prot): string {
 
     $acked = ti_protocol_hours_acked($prot);
     $sign_instructor = $acked
-        ? 'Potwierdzone elektronicznie w panelu:<br><strong>' . $h($prot['hours_ack_name'] ?: '—') . '</strong><br>'
+        ? 'Potwierdzone elektronicznie w panelu:<br><strong>' . $h(ti_protocol_hours_ack_label($prot) ?: '—') . '</strong><br>'
           . $h(date('d.m.Y H:i', strtotime((string)$prot['hours_ack_at'])))
           . ($prot['hours_ack_ip'] !== '' ? '<br>IP ' . $h($prot['hours_ack_ip']) : '')
         : '.............................................<br>data i podpis prowadzącego';
