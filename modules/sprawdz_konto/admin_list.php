@@ -15,6 +15,18 @@ require_once __DIR__ . '/logic/sprawdz_konto.php';
 sprawdz_konto_migrate();
 
 require_role('admin', 'editor');
+$user = current_user();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'resend_kursant') {
+    csrf_check();
+    $account_id = (int)($_POST['account_id'] ?? 0);
+    $ok = $account_id ? sprawdz_konto_resend_kursant_link($account_id, (int)$user['id']) : false;
+    flash_set($ok ? 'success' : 'danger', $ok
+        ? 'Link do sprawdzarki numeru konta wysłany ponownie.'
+        : 'Nie udało się wysłać linku — sprawdź, czy kursant ma ustawiony numer konta i poprawny adres e-mail.');
+    header('Location: ' . APP_URL . '/modules/sprawdz_konto/admin_list.php');
+    exit;
+}
 
 $tokens = sprawdz_konto_list_tokens();
 
@@ -89,10 +101,20 @@ include dirname(__DIR__, 2) . '/includes/header.php';
           <span class="text-muted">— nie otwarto —</span>
           <?php endif; ?>
         </td>
-        <td>
+        <td class="text-nowrap">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#skPreview<?= (int)$t['id'] ?>">
             <i class="bi bi-eye"></i> Podgląd
           </button>
+          <?php if ($t['typ'] === 'kursant'): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Wysłać ponownie link do sprawdzarki numeru konta? Poprzedni link przestanie działać.')">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_action" value="resend_kursant">
+            <input type="hidden" name="account_id" value="<?= (int)$t['ref_id'] ?>">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-envelope-arrow-up"></i> Wyślij ponownie
+            </button>
+          </form>
+          <?php endif; ?>
         </td>
       </tr>
       <?php endforeach; ?>

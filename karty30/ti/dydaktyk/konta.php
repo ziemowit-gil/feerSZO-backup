@@ -462,6 +462,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    // Ponowna wysyłka linku do sprawdzarki numeru konta, BEZ zmiany samego
+    // numeru — np. gdy kursant/opiekun zgubił poprzedni e-mail.
+    if ($op === 'payment_account_resend_link') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $ok  = $aid ? sprawdz_konto_resend_kursant_link($aid, $uid) : false;
+        flash_set($ok ? 'success' : 'danger', $ok
+            ? 'Link do sprawdzarki numeru konta wysłany ponownie.'
+            : 'Nie udało się wysłać linku — sprawdź, czy kursant ma ustawiony numer konta i poprawny adres e-mail.');
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     // Licencje na oprogramowanie (inne niż MS365) — przypisanie/cofnięcie wprost
     // z panelu akcji konta kursanta (ta sama baza co katalog/pełny widok w
     // licencje.php — ekran kierownika, bez konta SZO — i w admin/licencje_admin.php).
@@ -1026,6 +1037,12 @@ function printBulk(){
       <a class="btn btn-sm btn-outline-info" href="?guardian=<?= (int)$sa['id'] ?>"><i class="bi bi-people me-1" aria-hidden="true"></i>Opiekun / dostęp rodzica</a>
       <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#overpayModal<?= (int)$sa['id'] ?>"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Płatności</button>
       <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#paymentAccountModal<?= (int)$sa['id'] ?>"><i class="bi bi-bank me-1" aria-hidden="true"></i>Numer konta do wpłat</button>
+      <form method="post" class="d-inline" onsubmit="return confirm('Wysłać ponownie link do sprawdzarki numeru konta? Poprzedni link przestanie działać.')">
+        <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op"        value="payment_account_resend_link">
+        <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope-arrow-up me-1" aria-hidden="true"></i>Wyślij ponownie link</button>
+      </form>
       <?php if (empty($sa['is_minor'])): ?>
       <a class="btn btn-sm btn-outline-primary" href="?authp=<?= (int)$sa['id'] ?>"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Osoby upoważnione</a>
       <?php endif; ?>

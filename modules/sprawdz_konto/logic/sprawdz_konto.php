@@ -342,6 +342,55 @@ function sprawdz_konto_list_tokens(int $limit = 300): array {
 // logikę budowania i wysyłki maila ti_payment_account, więc nie ma potrzeby
 // duplikować jej tutaj osobnym wrapperem.
 
+/**
+ * (Ponownie) wysyła link kursantowi BEZ zmiany numeru konta — np. gdy
+ * odbiorca zgubił poprzedni e-mail. Token jest mimo to odświeżony
+ * (sprawdz_konto_create_token() unieważnia poprzedni — jeden aktywny naraz),
+ * więc stary link przestaje działać. Wołane z karty30/ti/dydaktyk/konta.php
+ * (akcja payment_account_resend_link) i modules/sprawdz_konto/admin_list.php.
+ */
+function sprawdz_konto_resend_kursant_link(int $account_id, ?int $sent_by = null): bool {
+    $acc = db_one(
+        "SELECT a.*, cl.name AS client_name, cl.email AS client_email
+         FROM k30_ti_student_accounts a
+         JOIN k30_clients cl ON cl.id = a.client_id WHERE a.id = ?",
+        [$account_id]
+    );
+    if (!$acc) return false;
+
+    $preview = sprawdz_konto_kursant_account_by_id($account_id);
+    if (!$preview) return false; // brak jakiegokolwiek numeru (ani wlasnego, ani domyslnego) do pokazania
+
+    $to_addrs = [];
+    if (!empty($acc['client_email']) && filter_var($acc['client_email'], FILTER_VALIDATE_EMAIL)) {
+        $to_addrs[$acc['client_email']] = $acc['client_name'];
+    }
+    if (!empty($acc['is_minor']) && !empty($acc['guardian_email']) && filter_var($acc['guardian_email'], FILTER_VALIDATE_EMAIL)) {
+        $to_addrs[$acc['guardian_email']] = $acc['guardian_name'] ?? '';
+    }
+    if (!$to_addrs) return false;
+
+    require_once __DIR__ . '/../../../includes/mail_queue.php';
+    require_once __DIR__ . '/../../../includes/email_templates.php';
+
+    $token = sprawdz_konto_create_token('kursant', 'ti', $account_id, $sent_by);
+    $org   = defined('ORG_NAME') ? ORG_NAME : 'Dydaktyka TI';
+    $rendered = email_tpl_render('ti_payment_account', [
+        'accent'      => '#0d6efd',
+        'osoba'       => $acc['client_name'],
+        'numer_konta' => $preview['numer_konta'],
+        'typ_konta'   => $preview['typ_konta'],
+        'link'        => sprawdz_konto_token_url($token),
+        'org'         => $org,
+    ]);
+    if (!$rendered['enabled']) return false;
+
+    foreach ($to_addrs as $addr => $name) {
+        mail_queue_add($addr, (string)$name, $rendered['subject'], $rendered['html'], '', 'ti_payment_account', $account_id);
+    }
+    return true;
+}
+
 /** Wysyła link kontrahentowi — wołane z modules/sprawdz_konto/admin_send.php. */
 function sprawdz_konto_send_kontrahent_link(string $type, int $contract_id, string $email, string $name, ?int $sent_by = null): bool {
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
