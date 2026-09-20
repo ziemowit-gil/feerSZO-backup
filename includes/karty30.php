@@ -4843,6 +4843,37 @@ function ti_session_note_on_behalf(int $session_id, int $uid, string $name): voi
 }
 
 /**
+ * Zbiorcze uzupełnienie zaległej lekcji: wszyscy aktywni uczestnicy obecni,
+ * status przechodzi na 'held' (albo 'individual_change' dla podgrupy/kursu
+ * jednoosobowego — ta sama reguła co w kreatorze/save_attendance). Temat nie
+ * jest ruszany — to tylko szybkie domknięcie zaległej frekwencji z listy "Do
+ * zrobienia", brakujący temat nadal widać osobno (docs_complete).
+ * Zwraca true, jeśli coś zaktualizowano.
+ */
+function ti_session_bulk_mark_present(int $session_id): bool {
+    $s = db_one("SELECT course_id, status FROM k30_ti_sessions WHERE id=?", [$session_id]);
+    if (!$s || (string)$s['status'] !== 'planned') return false;
+
+    $course_id = (int)$s['course_id'];
+    $enrolled  = db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]);
+    $active_ids = array_values(array_filter(array_map('intval', array_column($enrolled, 'client_id')), function ($cid) use ($session_id) {
+        $a = db_one("SELECT cancelled, no_show FROM k30_ti_attendance WHERE session_id=? AND client_id=?", [$session_id, $cid]);
+        return !$a || (empty($a['cancelled']) && empty($a['no_show']));
+    }));
+    k30_ti_save_attendance($session_id, $active_ids);
+
+    $course = db_one("SELECT is_subgroup FROM k30_ti_courses WHERE id=?", [$course_id]);
+    $new_st = (!empty($course['is_subgroup']) || count($active_ids) <= 1) ? 'individual_change' : 'held';
+    db()->prepare("UPDATE k30_ti_sessions SET status=?, updated_at=datetime('now') WHERE id=? AND status='planned'")
+        ->execute([$new_st, $session_id]);
+
+    foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]) as $er) {
+        try { k30_ti_check_low_attendance($course_id, (int)$er['client_id']); } catch (\Throwable $ex) {}
+    }
+    return true;
+}
+
+/**
  * Odwołuje udział pojedynczego uczestnika w lekcji (Beneficjent / Doradca / admin).
  * Tworzy lub aktualizuje wiersz obecności: cancelled=1, attended=0.
  * Taki udział nie jest liczony do ceny w rozliczeniu miesięcznym.

@@ -98,7 +98,7 @@
                 </button>
               </div>
             </div>
-            <p class="text-body-secondary small mb-2">Niezaznaczeni zostaną odnotowani jako nieobecni.</p>
+            <p class="text-body-secondary small mb-2" id="wiz_att_hint">Niezaznaczeni zostaną odnotowani jako nieobecni.</p>
 
             <div id="wiz_att_list" class="mb-3">
               <div class="text-body-secondary small text-center py-3">
@@ -149,6 +149,7 @@
           'id'      => (int)$s['id'],
           'label'   => ($s['time_from'] ? substr($s['time_from'],0,5).'–'.substr($s['time_to']??'',0,5).' · ' : '') . $s['course_name'],
           'topic'   => $s['topic'] ?? '',
+          'status'  => (string)($s['status'] ?? 'planned'),
           'attendees' => $att,
       ];
   }, $dyd_wizard_sessions)) ?>;
@@ -191,13 +192,23 @@
     }
     if (tot) tot.textContent = active.length;
 
+    // Lekcja jeszcze nieuzupełniona ("planned") — domyślnie wszyscy obecni,
+    // odznacz wyjątki. Lekcja już odbyta (dopisujemy tylko brakujący temat)
+    // pokazuje rzeczywisty zapisany stan obecności, żeby nic nie nadpisać.
+    var defaultPresent = s.status === 'planned';
+    var hint = document.getElementById('wiz_att_hint');
+    if (hint) hint.textContent = defaultPresent
+      ? 'Domyślnie wszyscy obecni — odznacz nieobecnych.'
+      : 'Niezaznaczeni zostaną odnotowani jako nieobecni.';
+
     var html = '';
     active.forEach(function(a) {
-      var checked = a.attended ? 'checked' : '';
-      html += '<div class="wiz-att-row' + (a.attended ? ' wiz-att-row-present' : '') + '" id="wiz_row_' + a.id + '">' +
+      var present = defaultPresent ? true : !!a.attended;
+      var checked = present ? 'checked' : '';
+      html += '<div class="wiz-att-row' + (present ? ' wiz-att-row-present' : '') + '" id="wiz_row_' + a.id + '">' +
               '<input class="wiz-att-cb form-check-input" type="checkbox" name="attended[]" value="' + a.id + '" id="wiz_cb_' + a.id + '" ' + checked + ' onchange="wizAttChange()">' +
               '<label for="wiz_cb_' + a.id + '" style="cursor:pointer;flex-grow:1;margin-bottom:0">' + escHtml(a.name) + '</label>' +
-              (a.attended ? '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle small"><i class="bi bi-check2-circle me-1"></i>obecny</span>' : '') +
+              (present ? '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle small"><i class="bi bi-check2-circle me-1"></i>obecny</span>' : '') +
               '</div>';
     });
     list.innerHTML = html;
@@ -253,7 +264,7 @@
     var ext = (window.DYD_EXT_SESSIONS || {})[String(sid)];
     if (!ext) return;
     if (!SESSIONS.find(function(s){ return s.id === sid; })) {
-      SESSIONS.push({ id: sid, label: ext.label, topic: ext.topic, attendees: ext.attendees });
+      SESSIONS.push({ id: sid, label: ext.label, topic: ext.topic, status: ext.status, attendees: ext.attendees });
     }
     wizOpen(sid);
   };

@@ -127,9 +127,24 @@ if ($open_ses):
     </div>
   </div>
 
-  <?php if ((string)$open_ses['status'] !== 'remote_material' && $_o_active): ?>
-  <div class="card-header border-top">Obecność</div>
-  <form method="post">
+  <?php if ((string)$open_ses['status'] !== 'remote_material' && $_o_active):
+    // Lekcja jeszcze nieuzupełniona — domyślnie wszyscy obecni, odznacz wyjątki
+    // (tak samo jak w kreatorze). Już odbytą lekcję pokazujemy z rzeczywistym
+    // zapisanym stanem, żeby korekta niczego nie nadpisała po cichu.
+    $_o_default_present = (string)$open_ses['status'] === 'planned';
+  ?>
+  <div class="card-header border-top d-flex align-items-center flex-wrap gap-2">
+    <span>Obecność</span>
+    <div class="d-flex gap-2 ms-auto usos-noprint">
+      <button type="button" class="btn btn-outline-success btn-sm py-0" onclick="dydAttSetAll('#att-form-<?= (int)$open_id ?>',true)">
+        <i class="bi bi-check-all me-1" aria-hidden="true"></i>Wszyscy
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm py-0" onclick="dydAttSetAll('#att-form-<?= (int)$open_id ?>',false)">
+        <i class="bi bi-square me-1" aria-hidden="true"></i>Wyczyść
+      </button>
+    </div>
+  </div>
+  <form method="post" id="att-form-<?= (int)$open_id ?>">
     <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op"        value="save_attendance">
     <input type="hidden" name="session_id" value="<?= (int)$open_id ?>">
@@ -144,11 +159,11 @@ if ($open_ses):
           <th scope="col" style="width:12rem">Uwagi</th>
         </tr></thead>
         <tbody>
-          <?php foreach ($_o_active as $_a): ?>
+          <?php foreach ($_o_active as $_a): $_a_present = $_o_default_present ? true : !empty($_a['attended']); ?>
           <tr>
             <td>
               <input type="checkbox" class="form-check-input dyd-att-cb" name="attended[]" value="<?= (int)$_a['client_id'] ?>"
-                     <?= !empty($_a['attended']) ? 'checked' : '' ?>
+                     <?= $_a_present ? 'checked' : '' ?>
                      aria-label="Obecność: <?= h($_a['client_name']) ?>">
             </td>
             <td class="small"><?= h($_a['client_name']) ?></td>
@@ -164,11 +179,16 @@ if ($open_ses):
     <div class="card-body d-flex flex-wrap gap-2 align-items-center usos-noprint">
       <button class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz obecność</button>
       <span class="form-text mb-0">
-        Zapis obecności oznacza lekcję jako odbytą.
+        <?= $_o_default_present ? 'Domyślnie wszyscy obecni — odznacz nieobecnych. ' : '' ?>Zapis obecności oznacza lekcję jako odbytą.
         <?php if (!$_o_past): ?><strong>Lekcji z przyszłości nie da się rozliczyć</strong> — zapis zostanie odrzucony.<?php endif; ?>
       </span>
     </div>
   </form>
+  <script>
+  function dydAttSetAll(formSel, val) {
+    document.querySelectorAll(formSel + ' .dyd-att-cb').forEach(function(cb){ cb.checked = val; });
+  }
+  </script>
   <?php elseif ((string)$open_ses['status'] === 'remote_material'): ?>
   <div class="card-body border-top small text-body-secondary">
     Praca własna prowadzącego — bez listy obecności, liczona do rozliczenia.

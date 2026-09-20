@@ -602,6 +602,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=komunikaty'); exit;
     }
 
+    // Zbiorcze uzupełnienie zaległych lekcji z widżetu "Do zrobienia" — obejmuje
+    // sesje z różnych kursów naraz, więc nie ma jednego course_id w POST; każdą
+    // sesję autoryzujemy osobno (dyd_owns_session), stąd handler PRZED bramką
+    // course_id niżej.
+    if ($op === 'bulk_complete_overdue') {
+        $ids  = array_unique(array_map('intval', (array)($_POST['session_ids'] ?? [])));
+        $done = 0;
+        foreach ($ids as $sid) {
+            if ($sid && dyd_owns_session($uid, $sid) && ti_session_bulk_mark_present($sid)) {
+                ti_session_note_on_behalf($sid, $uid, (string)($me['name'] ?? ''));
+                $done++;
+            }
+        }
+        flash_set($done ? 'success' : 'warning', $done
+            ? 'Uzupełniono ' . $done . ' ' . ($done === 1 ? 'zaległą lekcję' : 'zaległych lekcji') . ' — wszyscy obecni.'
+            : 'Nie uzupełniono żadnej lekcji — sprawdź, czy nadal są zaplanowane.');
+        header('Location: index.php?tab=pulpit'); exit;
+    }
+
     // Pozostałe operacje wymagają własności kursu. Kierownik (staff) przechodzi
     // zawsze — jego operacje z zakładek (np. create_course, move_student) nie
     // niosą course_id w POST, a dyd_owns_course() dla course_id=0 zwraca false,
@@ -1849,6 +1868,18 @@ if ($course_ids) {
          WHERE s.course_id IN ($ph) AND a.cancel_pending=1",
         $course_ids
     )['n'] ?? 0);
+    // Zaległe (nie dzisiejsze) zaplanowane lekcje — osobno od $dash_today, żeby
+    // "Do zrobienia" mogło zaproponować jedno zbiorcze uzupełnienie zamiast
+    // każenia wchodzić w każdą z osobna (patrz bulk_complete_overdue).
+    $dash_overdue = db_all(
+        "SELECT s.id, s.lesson_date, c.name AS course_name
+           FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id
+          WHERE s.course_id IN ($ph) AND s.status='planned' AND s.lesson_date < date('now','localtime')
+          ORDER BY s.lesson_date",
+        $course_ids
+    );
+} else {
+    $dash_overdue = [];
 }
 
 // ── Kreator zajęć: dzisiejsze zaplanowane lekcje ─────────────────────────────

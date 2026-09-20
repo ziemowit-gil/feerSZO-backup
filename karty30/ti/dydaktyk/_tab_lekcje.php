@@ -618,6 +618,7 @@ foreach ($_ext_for_wiz as $_we) {
     $_wiz_ext_data[(int)$_we['id']] = [
         'label'     => ($_we['time_from'] ? substr($_we['time_from'],0,5).'–'.substr($_we['time_to']??'',0,5).' · ' : '') . ($_we['course_name'] ?? ''),
         'topic'     => (string)($_we['topic'] ?? ''),
+        'status'    => (string)($_we['status'] ?? 'planned'),
         'attendees' => array_values(array_map(fn($a) => [
             'id'        => (int)$a['client_id'],
             'name'      => (string)($a['client_name'] ?? ''),

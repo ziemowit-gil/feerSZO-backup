@@ -52,6 +52,16 @@ if (!empty($dyd_wizard_sessions)) {
     $_n = count($dyd_wizard_sessions);
     $_todo[] = ['warning', 'magic', $_n . ' ' . ($_n === 1 ? 'dzisiejsza lekcja' : 'dzisiejszych lekcji') . ' do uzupełnienia (obecność i temat)', null, 'Uruchom kreator'];
 }
+// Zaległe (sprzed dziś) — zbiorczy przycisk zamiast każenia wchodzić w każdą
+// z osobna; "wszyscy obecni" jest domyślnym, najczęstszym przypadkiem (patrz
+// bulk_complete_overdue / ti_session_bulk_mark_present()). Temat trzeba i tak
+// dopisać osobno — to zbiorcze działanie dotyczy tylko frekwencji/statusu.
+if (!empty($dash_overdue)) {
+    $_n = count($dash_overdue);
+    $_todo[] = ['danger', 'clock-history',
+        $_n . ' ' . ($_n === 1 ? 'zaległa lekcja (sprzed dziś) do uzupełnienia' : 'zaległych lekcji (sprzed dziś) do uzupełnienia'),
+        null, 'Wszyscy obecni', "dydBulkOverdue({$_n})"];
+}
 if (!empty($dash_pending_cancel)) {
     $_todo[] = ['warning', 'person-dash', $dash_pending_cancel . ' ' . ((int)$dash_pending_cancel === 1 ? 'prośba' : 'prośby') . ' o odwołanie udziału do rozpatrzenia', 'index.php?tab=nieobecnosci', 'Nieobecności'];
 }
@@ -220,13 +230,17 @@ if ($_prot_prev):
     <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Zadania czekające na prowadzącego</caption>
       <tbody>
-        <?php foreach ($_todo as [$_v, $_ico, $_txt, $_href, $_lbl]): ?>
+        <?php foreach ($_todo as $_row): [$_v, $_ico, $_txt, $_href, $_lbl] = $_row; $_onclick = $_row[5] ?? null; ?>
         <tr>
           <td style="width:2rem"><i class="bi bi-<?= h($_ico) ?> text-<?= h($_v) ?>" aria-hidden="true"></i></td>
           <td class="small"><?= h($_txt) ?></td>
           <td class="text-end text-nowrap" style="width:11rem">
             <?php if ($_href): ?>
               <a href="<?= h($_href) ?>" class="btn btn-sm btn-outline-primary"><?= h($_lbl) ?></a>
+            <?php elseif ($_onclick): ?>
+              <button type="button" class="btn btn-sm btn-danger" onclick="<?= h($_onclick) ?>">
+                <i class="bi bi-check2-all me-1" aria-hidden="true"></i><?= h($_lbl) ?>
+              </button>
             <?php else: ?>
               <button type="button" class="btn btn-sm btn-primary" aria-haspopup="dialog"
                       onclick="wizOpen(<?= count($dyd_wizard_sessions) === 1 ? (int)$dyd_wizard_sessions[0]['id'] : 'null' ?>)">
@@ -241,6 +255,23 @@ if ($_prot_prev):
   </div>
   <?php endif; ?>
 </div>
+
+<?php if (!empty($dash_overdue)): ?>
+<form method="post" id="bulkOverdueForm" class="d-none">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <input type="hidden" name="_op" value="bulk_complete_overdue">
+  <?php foreach ($dash_overdue as $_ov): ?>
+  <input type="hidden" name="session_ids[]" value="<?= (int)$_ov['id'] ?>">
+  <?php endforeach; ?>
+</form>
+<script>
+function dydBulkOverdue(n) {
+  if (confirm('Uzupełnić ' + n + ' zaległ' + (n === 1 ? 'ą lekcję' : 'ych lekcji') + ' — wszyscy obecni? Temat trzeba będzie dopisać osobno.')) {
+    document.getElementById('bulkOverdueForm').submit();
+  }
+}
+</script>
+<?php endif; ?>
 
 <?php /* ── Dziś ──────────────────────────────────────────────────────────── */ ?>
 <div class="card">
