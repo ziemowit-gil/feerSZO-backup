@@ -88,18 +88,26 @@ function sprawdz_konto_migrate(): void {
     } catch (\Throwable $e) {}
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS sprawdz_konto_tokens (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            token       VARCHAR(64) NOT NULL,
-            typ         VARCHAR(20) NOT NULL,
-            ref_type    VARCHAR(20) NOT NULL DEFAULT '',
-            ref_id      INTEGER NOT NULL,
-            created_by  INTEGER,
-            revoked     INTEGER NOT NULL DEFAULT 0,
-            created_at  DATETIME NOT NULL,
-            expires_at  DATETIME NOT NULL
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            token           VARCHAR(64) NOT NULL,
+            typ             VARCHAR(20) NOT NULL,
+            ref_type        VARCHAR(20) NOT NULL DEFAULT '',
+            ref_id          INTEGER NOT NULL,
+            created_by      INTEGER,
+            revoked         INTEGER NOT NULL DEFAULT 0,
+            created_at      DATETIME NOT NULL,
+            expires_at      DATETIME NOT NULL,
+            first_viewed_at DATETIME,
+            last_viewed_at  DATETIME,
+            view_count      INTEGER NOT NULL DEFAULT 0
         )");
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sprawdz_konto_tokens_token ON sprawdz_konto_tokens(token)");
     } catch (\Throwable $e) {}
+    // Instalacje sprzed dodania śledzenia odsłon — kolumny mogły nie powstać
+    // razem z CREATE TABLE powyżej (tabela już istniała).
+    foreach (['first_viewed_at' => 'DATETIME', 'last_viewed_at' => 'DATETIME', 'view_count' => 'INTEGER NOT NULL DEFAULT 0'] as $col => $def) {
+        try { db()->exec("ALTER TABLE sprawdz_konto_tokens ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
+    }
 }
 
 // ── Ograniczenie liczby prób (po IP) ─────────────────────────────────────────
@@ -259,9 +267,72 @@ function sprawdz_konto_resolve_token(string $token): ?array {
     if (!$row) return null;
     if (strtotime($row['expires_at']) < time()) return null;
 
-    return $row['typ'] === 'kursant'
+    $result = $row['typ'] === 'kursant'
         ? sprawdz_konto_kursant_account_by_id((int)$row['ref_id'])
         : sprawdz_konto_kontrahent_official_account();
+
+    if ($result) {
+        $now = date('Y-m-d H:i:s');
+        db()->prepare(
+            "UPDATE sprawdz_konto_tokens
+             SET first_viewed_at = COALESCE(first_viewed_at, ?), last_viewed_at = ?, view_count = view_count + 1
+             WHERE id = ?"
+        )->execute([$now, $now, $row['id']]);
+    }
+
+    return $result;
+}
+
+/**
+ * Lista wysłanych linków dla panelu admina (modules/sprawdz_konto/admin_list.php)
+ * — status, odbiorca/kontekst, statystyki odsłon. Rozwiązuje odbiorcę per typ,
+ * bez ujawniania numeru konta (to osobna akcja "Podgląd" w panelu, na żądanie).
+ */
+function sprawdz_konto_list_tokens(int $limit = 300): array {
+    sprawdz_konto_migrate();
+    require_once __DIR__ . '/../../../includes/functions.php';
+    $rows = db_all("SELECT * FROM sprawdz_konto_tokens ORDER BY created_at DESC LIMIT ?", [$limit]);
+    $now = time();
+
+    foreach ($rows as &$r) {
+        $r['status'] = $r['revoked']
+            ? 'unieważniony'
+            : (strtotime($r['expires_at']) < $now ? 'wygasł' : 'aktywny');
+
+        if ($r['typ'] === 'kursant') {
+            $acc = db_one(
+                "SELECT cl.name FROM k30_ti_student_accounts a
+                 JOIN k30_clients cl ON cl.id = a.client_id WHERE a.id = ?",
+                [(int)$r['ref_id']]
+            );
+            $r['odbiorca'] = $acc['name'] ?? '(konto kursanta usunięte)';
+            $r['kontekst'] = 'Kursant TI';
+        } else {
+            $type = $r['ref_type'];
+            $r['odbiorca'] = '(umowa usunięta)';
+            $r['kontekst'] = CONTRACT_TYPES[$type] ?? $type;
+            if (isset(SPRAWDZ_KONTO_CONTRACT_NAME_COLS[$type])) {
+                $table    = table_for_type($type);
+                $name_col = SPRAWDZ_KONTO_CONTRACT_NAME_COLS[$type];
+                try {
+                    $c = db_one("SELECT {$name_col} AS strona, numer_umowy FROM {$table} WHERE id = ?", [(int)$r['ref_id']]);
+                    if ($c) {
+                        $r['odbiorca'] = (string)$c['strona'];
+                        $r['kontekst'] .= ' · ' . $c['numer_umowy'];
+                    }
+                } catch (\Throwable $e) {}
+            }
+        }
+
+        $r['created_by_name'] = '';
+        if (!empty($r['created_by'])) {
+            $u = db_one("SELECT name FROM users WHERE id = ?", [(int)$r['created_by']]);
+            $r['created_by_name'] = $u['name'] ?? '';
+        }
+    }
+    unset($r);
+
+    return $rows;
 }
 
 // ── Wysyłka linku e-mailem ────────────────────────────────────────────────────

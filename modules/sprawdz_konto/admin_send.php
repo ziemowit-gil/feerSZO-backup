@@ -61,8 +61,11 @@ $PAGE_TITLE = 'Link weryfikacyjny numeru konta — kontrahent';
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-shield-lock text-primary"></i> Link weryfikacyjny numeru konta — kontrahent</h4>
+  <a href="<?= APP_URL ?>/modules/sprawdz_konto/admin_list.php" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-list-check me-1"></i>Wysłane linki
+  </a>
 </div>
 
 <?= flash_html() ?>
@@ -118,7 +121,38 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <?php endif; ?>
       </div>
       <button type="submit" class="btn btn-success"><i class="bi bi-send me-1"></i>Wyślij link weryfikacyjny</button>
+      <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#skSendPreview">
+        <i class="bi bi-eye me-1"></i>Podgląd
+      </button>
     </form>
+  </div>
+</div>
+
+<?php $_preview = sprawdz_konto_kontrahent_official_account(); ?>
+<div class="modal fade" id="skSendPreview" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Podgląd — co zobaczy kontrahent</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <?php if ($_preview): ?>
+        <p class="mb-1 small text-muted">Numer konta</p>
+        <p class="fs-5 fw-bold font-monospace mb-3"><?= h($_preview['numer_konta']) ?></p>
+        <p class="mb-1 small text-muted">Rodzaj rachunku</p>
+        <p class="mb-0"><?= h($_preview['typ_konta']) ?></p>
+        <?php else: ?>
+        <div class="alert alert-warning mb-0">
+          Brak skonfigurowanego oficjalnego rachunku organizacji — uzupełnij go w Ustawieniach → Rachunki
+          przed wysyłką linku.
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zamknij</button>
+      </div>
+    </div>
   </div>
 </div>
 <?php endif; ?>
