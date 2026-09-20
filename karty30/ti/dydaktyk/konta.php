@@ -1813,20 +1813,13 @@ function printBulk(){
             <span class="fw-semibold d-block text-truncate"><?= h($a['client_name']) ?></span>
             <span class="small font-monospace <?= $is_sel ? '' : 'text-muted' ?>"><?= h($a['login']) ?></span>
           </span>
-          <span class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
-            <span class="badge <?= $a['is_active'] ? 'bg-success' : 'bg-secondary' ?>">
-              <?= $a['is_active'] ? 'Aktywne' : 'Zablokowane' ?>
-            </span>
-            <?php if (!empty($a['is_minor'])): ?>
-            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Małoletni — rozliczenia dla rodzica">
-              <i class="bi bi-people" aria-hidden="true"></i>
-            </span>
-            <?php endif; ?>
-            <?php if (!empty($a['child_access_blocked'])): ?>
-            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Logowanie kursanta wstrzymane przez opiekuna">
-              <i class="bi bi-lock-fill" aria-hidden="true"></i>
-            </span>
-            <?php endif; ?>
+          <span class="text-end small flex-shrink-0 <?= $is_sel ? '' : 'text-muted' ?>">
+            <?php
+              $_status_words = [$a['is_active'] ? 'Aktywne' : 'Zablokowane'];
+              if (!empty($a['is_minor'])) $_status_words[] = 'małoletni';
+              if (!empty($a['child_access_blocked'])) $_status_words[] = 'wstrzymany przez opiekuna';
+            ?>
+            <?= h(implode(' · ', $_status_words)) ?>
           </span>
         </a>
         <?php endforeach; ?>
