@@ -71,16 +71,10 @@ unset($_SESSION['sprawdz_konto_result']);
 <title>Sprawdź numer konta do wpłat · <?= h($org) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<style>
-  body{background:#f6f7fb;color:#111827}
-  .sk-wrap{max-width:640px;margin:0 auto;padding:32px 16px 60px}
-  .sk-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
-  .sk-hp{position:absolute;left:-9999px;top:-9999px}
-  .sk-result{border-left:4px solid #198754;background:#f0fdf4}
-</style>
 </head>
-<body>
-<div class="sk-wrap">
+<body class="bg-light">
+<div class="container py-5">
+<div class="col-12 col-md-8 col-lg-6 mx-auto">
 
   <div class="text-center mb-4">
     <h1 class="h4 fw-bold mb-1"><i class="bi bi-bank text-primary"></i> Sprawdź numer konta do wpłat</h1>
@@ -90,12 +84,14 @@ unset($_SESSION['sprawdz_konto_result']);
   <?= flash_html() ?>
 
   <?php if ($result): ?>
-  <div class="sk-card sk-result p-4 mb-4">
-    <h2 class="h6 fw-bold mb-3"><i class="bi bi-check-circle-fill text-success"></i> Numer konta do wpłat</h2>
-    <p class="mb-1 small text-muted">Numer konta</p>
-    <p class="fs-5 fw-bold font-monospace mb-3"><?= h($result['numer_konta']) ?></p>
-    <p class="mb-1 small text-muted">Rodzaj rachunku</p>
-    <p class="mb-0"><?= h($result['typ_konta']) ?></p>
+  <div class="card border-success mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-check-circle-fill text-success"></i> Numer konta do wpłat</h2>
+      <p class="mb-1 small text-muted">Numer konta</p>
+      <p class="fs-5 fw-bold font-monospace mb-3"><?= h($result['numer_konta']) ?></p>
+      <p class="mb-1 small text-muted">Rodzaj rachunku</p>
+      <p class="mb-0"><?= h($result['typ_konta']) ?></p>
+    </div>
   </div>
   <div class="alert alert-warning small">
     <i class="bi bi-exclamation-triangle"></i>
@@ -104,44 +100,48 @@ unset($_SESSION['sprawdz_konto_result']);
   </div>
   <?php endif; ?>
 
-  <div class="sk-card p-4 mb-4">
-    <h2 class="h6 fw-bold mb-3"><i class="bi bi-mortarboard"></i> Jestem kursantem</h2>
-    <form method="post" novalidate>
-      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-      <input type="hidden" name="_typ" value="kursant">
-      <div class="sk-hp" aria-hidden="true">
-        <label>Strona www <input type="text" name="strona_www" tabindex="-1" autocomplete="off"></label>
-      </div>
-      <div class="mb-3">
-        <label class="form-label small fw-semibold" for="k_login">Login do panelu kursanta</label>
-        <input type="text" class="form-control" id="k_login" name="login" required maxlength="60">
-      </div>
-      <div class="mb-3">
-        <label class="form-label small fw-semibold" for="k_name">Imię i nazwisko</label>
-        <input type="text" class="form-control" id="k_name" name="imie_nazwisko" required maxlength="150">
-      </div>
-      <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Sprawdź numer konta</button>
-    </form>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-mortarboard"></i> Jestem kursantem</h2>
+      <form method="post" novalidate>
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_typ" value="kursant">
+        <div class="visually-hidden">
+          <label>Strona www <input type="text" name="strona_www" tabindex="-1" autocomplete="off"></label>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="k_login">Login do panelu kursanta</label>
+          <input type="text" class="form-control" id="k_login" name="login" required maxlength="60">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="k_name">Imię i nazwisko</label>
+          <input type="text" class="form-control" id="k_name" name="imie_nazwisko" required maxlength="150">
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Sprawdź numer konta</button>
+      </form>
+    </div>
   </div>
 
-  <div class="sk-card p-4 mb-4">
-    <h2 class="h6 fw-bold mb-3"><i class="bi bi-briefcase"></i> Jestem kontrahentem</h2>
-    <form method="post" novalidate>
-      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-      <input type="hidden" name="_typ" value="kontrahent">
-      <div class="sk-hp" aria-hidden="true">
-        <label>Strona www <input type="text" name="strona_www" tabindex="-1" autocomplete="off"></label>
-      </div>
-      <div class="mb-3">
-        <label class="form-label small fw-semibold" for="c_numer">Numer umowy</label>
-        <input type="text" class="form-control" id="c_numer" name="numer_umowy" required maxlength="100" placeholder="np. Z/2026/014">
-      </div>
-      <div class="mb-3">
-        <label class="form-label small fw-semibold" for="c_name">Imię i nazwisko / nazwa</label>
-        <input type="text" class="form-control" id="c_name" name="imie_nazwisko" required maxlength="150">
-      </div>
-      <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Sprawdź numer konta</button>
-    </form>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-briefcase"></i> Jestem kontrahentem</h2>
+      <form method="post" novalidate>
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="_typ" value="kontrahent">
+        <div class="visually-hidden">
+          <label>Strona www <input type="text" name="strona_www" tabindex="-1" autocomplete="off"></label>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="c_numer">Numer umowy</label>
+          <input type="text" class="form-control" id="c_numer" name="numer_umowy" required maxlength="100" placeholder="np. Z/2026/014">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="c_name">Imię i nazwisko / nazwa</label>
+          <input type="text" class="form-control" id="c_name" name="imie_nazwisko" required maxlength="150">
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>Sprawdź numer konta</button>
+      </form>
+    </div>
   </div>
 
   <div class="small text-muted">
@@ -159,6 +159,7 @@ unset($_SESSION['sprawdz_konto_result']);
     </p>
   </div>
 
+</div>
 </div>
 </body>
 </html>
