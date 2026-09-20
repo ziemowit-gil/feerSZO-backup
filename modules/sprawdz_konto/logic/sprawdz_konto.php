@@ -26,6 +26,9 @@
  * tu pominięty — nie nadaje się do weryfikacji tożsamości kontrahenta.
  */
 
+require_once __DIR__ . '/../../../includes/karty30.php';
+require_once __DIR__ . '/../../../includes/ti_payment_account_schema.php';
+
 const SPRAWDZ_KONTO_CONTRACT_NAME_COLS = [
     'zlecenie'    => 'imie_nazwisko',
     'uslugi'      => 'nazwa_wykonawcy',
@@ -39,6 +42,12 @@ function sprawdz_konto_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    // Kolumny payment_bank_account (karty30_migrate) i payment_bank_account_source
+    // (require w nagłówku pliku, IIFE) — ta strona jest pierwszym i jedynym
+    // wejściem do systemu, które NIE przechodzi przez karty30/ti/dydaktyk/konta.php,
+    // więc samonaprawa schematu może tu nigdy się nie uruchomić, jeśli nie
+    // wymusimy jej jawnie.
+    karty30_migrate();
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS sprawdz_konto_log (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
