@@ -4814,6 +4814,35 @@ function k30_ti_save_attendance(int $session_id, array $attended_ids): void {
 }
 
 /**
+ * Gdy kierownik/administrator uzupełnia dokumentację lekcji (obecność/temat)
+ * za prowadzącego — bez własnego pola podpisu na poziomie sesji (w
+ * przeciwieństwie do protokołu, patrz ti_protocol_hours_ack()) — dopisujemy
+ * automatycznie ślad do notatki prowadzącego (instructor_notes, widocznej
+ * tylko w panelu dydaktyka, nie kursantowi). Nie wpływa na wypłatę — ta
+ * zawsze liczy się wg instructor_id sesji/kursu.
+ */
+function ti_session_note_on_behalf(int $session_id, int $uid, string $name): void {
+    if (!dyd_is_staff()) return;
+    $s = db_one(
+        "SELECT COALESCE(s.instructor_id, c.instructor_id) AS iid, COALESCE(s.instructor_notes,'') AS notes
+           FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
+          WHERE s.id=?",
+        [$session_id]
+    );
+    if (!$s || (int)$s['iid'] === $uid) return; // to jego własna lekcja — nie zastępstwo
+
+    $note = 'Uzupełniono w/z: ' . trim($name);
+    if (str_contains((string)$s['notes'], $note)) return; // już odnotowane przy poprzednim zapisie tej lekcji
+
+    db()->prepare(
+        "UPDATE k30_ti_sessions
+            SET instructor_notes = TRIM(COALESCE(instructor_notes,'') || CASE WHEN COALESCE(instructor_notes,'') <> '' THEN char(10) ELSE '' END || ?),
+                updated_at = datetime('now')
+          WHERE id=?"
+    )->execute([$note, $session_id]);
+}
+
+/**
  * Odwołuje udział pojedynczego uczestnika w lekcji (Beneficjent / Doradca / admin).
  * Tworzy lub aktualizuje wiersz obecności: cancelled=1, attended=0.
  * Taki udział nie jest liczony do ceny w rozliczeniu miesięcznym.

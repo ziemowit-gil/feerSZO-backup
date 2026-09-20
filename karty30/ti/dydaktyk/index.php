@@ -1106,6 +1106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare("UPDATE k30_ti_sessions SET topic=?, notes=?, updated_at=datetime('now') WHERE id=?")
                     ->execute([$topic, $notes, $sid]);
             }
+            ti_session_note_on_behalf($sid, $uid, (string)($me['name'] ?? ''));
             flash_set('success', 'Zajęcia uzupełnione — obecność i temat zapisane.');
         }
         header('Location: ' . $back); exit;
@@ -1123,6 +1124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (($_sess_row2['status'] ?? '') === 'remote_material') {
                 // Praca własna prowadzącego — wszyscy automatycznie obecni
                 db()->prepare("UPDATE k30_ti_attendance SET attended=1 WHERE session_id=? AND COALESCE(cancelled,0)=0 AND COALESCE(no_show,0)=0")->execute([$sid]);
+                ti_session_note_on_behalf($sid, $uid, (string)($me['name'] ?? ''));
                 flash_set('info', 'Praca prowadzącego — wszyscy kursanci oznaczeni jako obecni.');
                 header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
             }
@@ -1145,6 +1147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$_cid]) as $er) {
                 try { k30_ti_check_low_attendance($_cid, (int)$er['client_id']); } catch (\Throwable $ex) {}
             }
+            ti_session_note_on_behalf($sid, $uid, (string)($me['name'] ?? ''));
             flash_set('success', 'Obecność zapisana.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
