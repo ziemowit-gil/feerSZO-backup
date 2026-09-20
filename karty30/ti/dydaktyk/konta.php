@@ -14,6 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // 
 require_once dirname(__DIR__) . '/kursant/auth.php'; // parent_make_token(), student_impersonate()
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_referrals.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payment_account_schema.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/sprawdz_konto/logic/sprawdz_konto.php';
 
 $me       = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -426,12 +427,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($to_addrs) {
             require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
             require_once dirname(dirname(dirname(__DIR__))) . '/includes/email_templates.php';
-            $org = defined('ORG_NAME') ? ORG_NAME : 'Dydaktyka TI';
+            $org   = defined('ORG_NAME') ? ORG_NAME : 'Dydaktyka TI';
+            $token = sprawdz_konto_create_token('kursant', 'ti', $aid, $uid);
             $rendered = email_tpl_render('ti_payment_account', [
                 'accent'      => '#0d6efd',
                 'osoba'       => $acc['client_name'],
                 'numer_konta' => $new_account,
                 'typ_konta'   => $type_label,
+                'link'        => sprawdz_konto_token_url($token),
                 'org'         => $org,
             ]);
             if ($rendered['enabled']) {

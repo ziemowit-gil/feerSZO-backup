@@ -492,8 +492,38 @@ HTML;
 <p style="margin:0 0 8px;font-size:14px;color:#495057;">
   Wszelkie wpłaty związane z zajęciami i szkoleniami prosimy wnosić <strong>wyłącznie na ten rachunek</strong>.
 </p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{link}}" style="background:{{accent}};color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Sprawdź aktualny numer konta →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d">
+  Link działa również później — jeśli numer konta się zmieni, zawsze zobaczysz pod nim aktualny.
+</p>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
   Wiadomość automatyczna z systemu {{org}}.
+</p>
+HTML;
+
+    // ── Link weryfikacyjny numeru konta (do kontrahenta) ──────────────
+    $sprawdz_konto_kontrahent_body = <<<'HTML'
+<p>Dzień dobry, <strong>{{osoba}}</strong>,</p>
+<p>
+  W związku z rozliczeniami w ramach współpracy z {{org}} przesyłamy spersonalizowany link,
+  pod którym można w każdej chwili zweryfikować <strong>oficjalny numer konta</strong> organizacji do wpłat.
+</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{link}}" style="background:{{accent}};color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Sprawdź numer konta →
+  </a>
+</div>
+<p style="margin:0 0 8px;font-size:14px;color:#495057;">
+  Zalecamy skorzystanie z tego linku przed każdą wpłatą, zwłaszcza jeśli numer konta w otrzymanej
+  fakturze lub innej wiadomości budzi jakiekolwiek wątpliwości — to najprostszy sposób ochrony przed
+  próbami podmiany numeru konta.
+</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość wysłana na prośbę/w związku ze współpracą z {{org}}.
 </p>
 HTML;
 
@@ -934,7 +964,24 @@ HTML;
                 'osoba'        => ['label' => 'Kursant',             'sample' => 'Jan Kowalski'],
                 'numer_konta'  => ['label' => 'Numer konta',         'sample' => 'PL61 1090 1014 0000 0712 1981 2874'],
                 'typ_konta'    => ['label' => 'Rodzaj rachunku',     'sample' => 'Rachunek organizacji: Konto główne (dla TI)'],
+                'link'         => ['label' => 'Link do ponownego sprawdzenia numeru', 'sample' => $base . '/konto.php?t=abc123'],
                 'org'          => ['label' => 'Nazwa organizacji',   'sample' => 'Dydaktyka TI'],
+            ],
+        ],
+
+        'sprawdz_konto_kontrahent' => [
+            'label'       => 'Link weryfikacyjny numeru konta (do kontrahenta)',
+            'group'       => 'Umowy',
+            'icon'        => 'bi-shield-lock',
+            'auto'        => false,
+            'description' => 'Wysyłany ręcznie przez pracownika (modules/sprawdz_konto/admin_send.php) — spersonalizowany link, pod którym kontrahent może zweryfikować oficjalny numer konta organizacji do wpłat (ochrona przed podmianą numeru konta na fakturze/w mailu).',
+            'subject'     => 'Weryfikacja numeru konta do wpłat — {{org}}',
+            'body'        => $sprawdz_konto_kontrahent_body,
+            'vars'        => [
+                'accent' => ['label' => 'Kolor akcentu',     'sample' => '#0d6efd'],
+                'osoba'  => ['label' => 'Kontrahent',        'sample' => 'Jan Kowalski'],
+                'link'   => ['label' => 'Link weryfikacyjny', 'sample' => $base . '/konto.php?t=abc123'],
+                'org'    => ['label' => 'Nazwa organizacji', 'sample' => 'Fundacja FEER'],
             ],
         ],
 
