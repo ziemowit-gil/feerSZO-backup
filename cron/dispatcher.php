@@ -296,6 +296,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie — porzuca wiadomości bez akcji starsze niż 3 mies.
         'schedule' => [3, 5],       // między 3:00 a 5:00
     ],
+    'sprawdz_konto_log_cleanup' => [
+        'file'     => __DIR__ . '/sprawdz_konto_log_cleanup.php',
+        'interval' => 86400,        // raz dziennie — retencja logów (90 dni)
+        'schedule' => [3, 5],       // między 3:00 a 5:00
+    ],
     'ezd_mail_ingest' => [
         'file'     => __DIR__ . '/ezd_mail_ingest.php',
         'interval' => 300,          // co 5 min — match [EZD:ZNAK] i Inbox Ogólny
