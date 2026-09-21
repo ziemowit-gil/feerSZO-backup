@@ -189,6 +189,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie (skrypt działa tylko w pierwszy dzień miesiąca, za miesiąc poprzedni)
         'schedule' => [21, 23],     // wieczorem pierwszego dnia miesiąca
     ],
+    'edok_monthly_archive' => [
+        'file'     => __DIR__ . '/edok_monthly_archive.php',
+        'interval' => 86400,        // raz dziennie (skrypt działa tylko w pierwszy dzień miesiąca, za miesiąc poprzedni — Uchwała 5/2026 §7)
+        'schedule' => [21, 23],     // wieczorem pierwszego dnia miesiąca
+    ],
     'ti_lesson_reminders' => [
         'file'     => __DIR__ . '/ti_lesson_reminders.php',
         'interval' => 86400,        // raz dziennie — SMS o zajęciach zaplanowanych na jutro

@@ -85,7 +85,7 @@ if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Cache-Control: no-cache');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Numer', 'Kierunek', 'Kontrahent', 'NIP', 'Tytuł', 'Netto', 'VAT', 'Brutto', 'Waluta', 'Status', 'Klasyfikacja', 'Dodano'], ';');
+    fputcsv($out, ['Numer', 'Kierunek', 'Kontrahent', 'NIP', 'Tytuł', 'Netto', 'VAT', 'Brutto', 'Waluta', 'Status', 'Klasyfikacja', 'Dodano'], ';', '"', '\\');
     foreach ($docs as $d) {
         fputcsv($out, [
             $d['number'], ($d['kierunek'] ?? 'wydatek') === 'przychod' ? 'Przychód' : 'Wydatek', $d['kontrahent_nazwa'], $d['kontrahent_nip'], $d['title'],
@@ -93,7 +93,7 @@ if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
             EDOK_STATUSES[$d['status']]['label'] ?? $d['status'],
             edok_transfer_label_klasyfikacja($d['rodzaj_dzialalnosci'], $d['projekt']),
             $d['created_at'],
-        ], ';');
+        ], ';', '"', '\\');
     }
     fclose($out);
     exit;
@@ -115,6 +115,7 @@ require_once __DIR__ . '/../includes/header.php';
     </a>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
     <a href="<?= APP_URL ?>/edok/raport_analityczny.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a>
+    <a href="<?= APP_URL ?>/edok/archiwum.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive"></i> Archiwum miesięczne</a>
     <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
     <?php if (is_admin() || edok_has_role('ksiegowy')): ?>
     <form method="post" class="d-inline" onsubmit="return confirm('Przeliczyć tytuły przelewów wszystkich niezaakceptowanych dokumentów do aktualnego formatu?');">

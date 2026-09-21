@@ -947,8 +947,12 @@ function edok_print_html(array $doc): string {
     }
     $html .= '</tbody></table>';
 
+    // current_user()/sesja web mogą nie istnieć poza kontekstem przeglądarki (np. cron
+    // archiwizacji miesięcznej nie ładuje includes/auth.php celowo — patrz
+    // cron/edok_monthly_archive.php) — wtedy karta jest oznaczona jako wygenerowana automatycznie.
+    $stamp_user = function_exists('current_user') ? current_user() : null;
     $html .= '<div class="stamp">Karta wygenerowana elektronicznie z systemu EODoK dnia ' . date('d.m.Y H:i')
-        . ' przez ' . h(current_user()['name'] ?? '—') . '. Identyfikatory osób decydujących, stemple czasowe '
+        . ' przez ' . h($stamp_user['name'] ?? 'system (archiwizacja automatyczna)') . '. Identyfikatory osób decydujących, stemple czasowe '
         . 'i historia decyzji zastępują w pełni tradycyjne pieczątki dekretacyjne.</div>';
 
     $html .= '</div>';
@@ -1129,7 +1133,7 @@ function edok_build_monthly_zestawienie_csv(int $year, int $month): ?string {
     $full_path = $out_dir . $filename;
     $f = fopen($full_path, 'w');
     fwrite($f, "\xEF\xBB\xBF");
-    fputcsv($f, ['Dokument', 'Karta akceptacji (id)', 'Etap', 'Status etapu', 'Akceptant', 'Metoda weryfikacji', 'Data i czas', 'Nr faktury / nr akceptacji'], ';');
+    fputcsv($f, ['Dokument', 'Karta akceptacji (id)', 'Etap', 'Status etapu', 'Akceptant', 'Metoda weryfikacji', 'Data i czas', 'Nr faktury / nr akceptacji'], ';', '"', '\\');
     foreach ($rows as $r) {
         fputcsv($f, [
             $r['number'],
@@ -1140,7 +1144,7 @@ function edok_build_monthly_zestawienie_csv(int $year, int $month): ?string {
             $r['verify_method'] ?: '—',
             $r['decided_at'] ?: '—',
             $r['nr_faktury'] ?: $r['number'],
-        ], ';');
+        ], ';', '"', '\\');
     }
     fclose($f);
     return 'edok_generated/monthly/' . $filename;

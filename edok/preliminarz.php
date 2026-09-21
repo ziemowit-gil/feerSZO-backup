@@ -97,14 +97,14 @@ if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Cache-Control: no-cache');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Źródło','Numer','Tytuł','Tytuł przelewu','Kontrahent','NIP','Nr rachunku','Netto','VAT','Brutto','Waluta','Termin płatności','Klasyfikacja','Status płatności','MPP'], ';');
+    fputcsv($out, ['Źródło','Numer','Tytuł','Tytuł przelewu','Kontrahent','NIP','Nr rachunku','Netto','VAT','Brutto','Waluta','Termin płatności','Klasyfikacja','Status płatności','MPP'], ';', '"', '\\');
     foreach ($rows as $r) {
         fputcsv($out, [
             strtoupper($r['source']), $r['number'], $r['title'], $r['tytul_przelewu'] ?? '', $r['kontrahent'], $r['nip'], $r['rachunek_bankowy'],
             $r['kwota_netto'], $r['kwota_vat'], $r['kwota_brutto'], $r['waluta'],
             $r['termin_platnosci'] ? substr($r['termin_platnosci'], 0, 10) : '',
             $r['klasyfikacja'], $r['status_platnosci'], !empty($r['wymaga_mpp']) ? 'MPP' : '',
-        ], ';');
+        ], ';', '"', '\\');
     }
     fclose($out);
     exit;
