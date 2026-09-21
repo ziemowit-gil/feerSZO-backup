@@ -357,6 +357,57 @@ function edok_next_number(): string {
     return sprintf('EODoK/%04d/%s', $next, $year);
 }
 
+/**
+ * Numer dla dokumentu TESTOWEGO — osobny prefiks "EODoK-TEST/" (nigdy nie pasuje
+ * do wzorca "EODoK/NNNN/RRRR" z edok_next_number()), żeby dokumenty demo/testowe
+ * nigdy nie zużywały realnej sekwencji numerów akceptacji ani nie mieszały się
+ * z prawdziwymi dokumentami w Preliminarzu/archiwizacji. Numeracja literowa:
+ * A, B, C… Z, AA, AB… (kolejna wolna litera wg już istniejących numerów testowych).
+ */
+function edok_next_test_number(): string {
+    $rows = db_all("SELECT number FROM edok_documents WHERE number LIKE 'EODoK-TEST/%'");
+    $used = 0;
+    foreach ($rows as $r) {
+        if (preg_match('/^EODoK-TEST\/([A-Z]+)$/', $r['number'], $m)) {
+            $val = 0;
+            foreach (str_split($m[1]) as $ch) $val = $val * 26 + (ord($ch) - 64);
+            $used = max($used, $val);
+        }
+    }
+    $n = $used + 1;
+    $letters = '';
+    while ($n > 0) {
+        $n--;
+        $letters = chr(65 + ($n % 26)) . $letters;
+        $n = intdiv($n, 26);
+    }
+    return 'EODoK-TEST/' . $letters;
+}
+
+/** Czy numer dokumentu jest numerem testowym (edok_next_test_number()) — do masowego czyszczenia demo/testów. */
+function edok_is_test_number(string $number): bool {
+    return str_starts_with($number, 'EODoK-TEST/');
+}
+
+/**
+ * Usuwa wszystkie dokumenty testowe (i powiązane etapy/audyt/wygenerowane PDF-y,
+ * łącznie z plikami na dysku, best-effort). Zwraca liczbę usuniętych dokumentów.
+ */
+function edok_delete_test_documents(): int {
+    $rows = db_all("SELECT id FROM edok_documents WHERE number LIKE 'EODoK-TEST/%'");
+    foreach ($rows as $r) {
+        $id = (int)$r['id'];
+        foreach (db_all("SELECT file_path FROM edok_generated_pdf WHERE doc_id = ?", [$id]) as $g) {
+            if ($g['file_path']) @unlink(UPLOAD_DIR . ltrim($g['file_path'], '/'));
+        }
+        db_exec("DELETE FROM edok_generated_pdf WHERE doc_id = ?", [$id]);
+        db_exec("DELETE FROM edok_steps WHERE doc_id = ?", [$id]);
+        db_exec("DELETE FROM edok_events WHERE doc_id = ?", [$id]);
+        db_exec("DELETE FROM edok_documents WHERE id = ?", [$id]);
+    }
+    return count($rows);
+}
+
 /** Czy typ dokumentu jest fakturą (tytuł przelewu używa wtedy oznaczenia FAK, nie DOK). */
 function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
     return in_array($typ_dokumentu, ['faktura_vat', 'faktura_korygujaca'], true);

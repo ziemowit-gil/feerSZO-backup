@@ -33,6 +33,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     exit;
 }
 
+// Zbiorcze usunięcie dokumentów testowych (numer EODoK-TEST/…, patrz edok/add.php
+// checkbox "Dokument testowy") — tylko admin, nie dotyka realnej sekwencji EODoK.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_test_docs') {
+    csrf_check();
+    if (!is_admin()) {
+        flash_set('danger', 'Brak uprawnień do usuwania dokumentów testowych.');
+    } else {
+        $n = edok_delete_test_documents();
+        flash_set('success', $n > 0 ? "Usunięto dokumentów testowych: {$n}." : 'Brak dokumentów testowych do usunięcia.');
+    }
+    header('Location: ' . APP_URL . '/edok/index.php');
+    exit;
+}
+
 $filter_status = $_GET['status'] ?? '';
 $filter_q      = trim($_GET['q'] ?? '');
 
@@ -96,6 +110,13 @@ require_once __DIR__ . '/../includes/header.php';
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="action" value="update_titles">
       <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-repeat"></i> Aktualizuj tytuły</button>
+    </form>
+    <?php endif; ?>
+    <?php if (is_admin()): ?>
+    <form method="post" class="d-inline" onsubmit="return confirm('Usunąć wszystkie dokumenty testowe (numer EODoK-TEST/…) wraz z etapami, audytem i wygenerowanymi PDF-ami? Tej operacji nie można cofnąć.');">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="delete_test_docs">
+      <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i> Usuń testowe</button>
     </form>
     <?php endif; ?>
     <?php if (is_admin() || edok_has_role('upload')): ?>
@@ -166,7 +187,7 @@ require_once __DIR__ . '/../includes/header.php';
       <?php endif; ?>
       <?php foreach ($docs as $doc): ?>
       <tr>
-        <td><code><?= h($doc['number']) ?></code></td>
+        <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?></td>
         <td><?= h($doc['kontrahent_nazwa']) ?></td>
         <td><?= h($doc['title']) ?></td>
         <td class="text-end font-monospace"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td>

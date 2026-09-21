@@ -41,6 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // dogenerowywany na serwerze z prawdziwym numerem, niezależnie od tego, co JS
     // pokazał w podglądzie (patrz edokSuggestTytul()/edokTytulDirty w skrypcie niżej).
     $tytul_przelewu_auto = ($_POST['tytul_przelewu_auto'] ?? '1') === '1';
+    // Dokument testowy (tylko admin) — osobna numeracja EODoK-TEST/… zamiast realnej
+    // sekwencji EODoK/NNNN/RRRR, żeby demo/testy nie zużywały prawdziwych numerów
+    // akceptacji. Usuwane zbiorczo przyciskiem "Usuń dokumenty testowe" (edok/index.php).
+    $is_test = is_admin() && !empty($_POST['is_test']);
 
     if (!isset(EDOK_TYPES[$typ_dokumentu]))               $errors[] = 'Wybierz typ dokumentu.';
     if ($description === '')                              $errors[] = 'Uzupełnij opis wydatku — jest wymagany do kontroli merytorycznej.';
@@ -74,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         $user = current_user();
-        $number = edok_next_number();
+        $number = $is_test ? edok_next_test_number() : edok_next_number();
         if ($tytul_przelewu === '' || $tytul_przelewu_auto) {
             $tytul_przelewu = edok_generate_tytul_przelewu([
                 'typ_dokumentu'    => $typ_dokumentu,
@@ -150,6 +154,15 @@ require_once __DIR__ . '/../includes/header.php';
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="ksef_file_path" id="ksef_file_path" value="">
       <input type="hidden" name="tytul_przelewu_auto" id="tytul_przelewu_auto" value="<?= ($_POST['tytul_przelewu_auto'] ?? '1') === '0' ? '0' : '1' ?>">
+
+      <?php if (is_admin()): ?>
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="is_test" id="is_test" value="1" <?= !empty($_POST['is_test']) ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="is_test">
+          Dokument testowy — numer <code>EODoK-TEST/…</code> zamiast realnej sekwencji, łatwy do zbiorczego usunięcia z listy EODoK.
+        </label>
+      </div>
+      <?php endif; ?>
 
       <?php if (org_setting('kdok_ksef_enabled') === '1'): ?>
       <div class="mb-3 p-2 rounded border bg-light">
