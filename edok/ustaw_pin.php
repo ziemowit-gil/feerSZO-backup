@@ -13,6 +13,12 @@ $user = current_user();
 $uid  = (int)$user['id'];
 $has_pin = edok_pin_is_set($uid);
 
+$db_user = db_one("SELECT password, microsoft_id FROM users WHERE id = ?", [$uid]);
+// Konta logujące się wyłącznie przez Microsoft 365 (bez hasła lokalnego) nie mają
+// czego zweryfikować — tak samo jak w panel/password.php. Wymagamy aktualnego hasła
+// tylko wtedy, gdy takie hasło w ogóle istnieje.
+$has_local_password = !empty($db_user['password']);
+
 $errors  = [];
 $success = false;
 
@@ -23,8 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_pin          = trim($_POST['new_pin'] ?? '');
     $confirm_pin      = trim($_POST['confirm_pin'] ?? '');
 
-    $db_user = db_one("SELECT password FROM users WHERE id = ?", [$uid]);
-    if (empty($db_user['password']) || !password_verify($current_password, $db_user['password'])) {
+    if ($has_local_password && !password_verify($current_password, $db_user['password'])) {
         $errors[] = 'Aktualne hasło logowania jest nieprawidłowe.';
     }
     if (!preg_match('/^\d{6}$/', $new_pin)) {
@@ -67,10 +72,16 @@ require_once __DIR__ . '/../includes/header.php';
         </p>
         <form method="post" novalidate>
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <?php if ($has_local_password): ?>
           <div class="mb-3">
             <label class="form-label small fw-semibold" for="current_password">Aktualne hasło logowania</label>
             <input type="password" id="current_password" name="current_password" class="form-control form-control-sm" required autocomplete="current-password">
           </div>
+          <?php else: ?>
+          <div class="alert alert-light border small py-2 mb-3">
+            <i class="bi bi-microsoft"></i> Twoje konto loguje się przez Microsoft 365 (bez hasła lokalnego) — nie musisz go potwierdzać.
+          </div>
+          <?php endif; ?>
           <div class="mb-3">
             <label class="form-label small fw-semibold" for="new_pin"><?= $has_pin ? 'Nowy PIN' : 'PIN' ?> (6 cyfr)</label>
             <input type="password" id="new_pin" name="new_pin" class="form-control form-control-sm" inputmode="numeric" pattern="\d{6}" maxlength="6" required autocomplete="off">

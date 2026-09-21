@@ -354,19 +354,20 @@ edokToggleProjekt();
 edokMppCheck();
 
 // Podpowiedź tytułu przelewu — ten sam wzorzec co edok_generate_tytul_przelewu() w PHP
-// (Uchwała 5/2026 §2 pkt 8-9: "PŁATNOŚĆ: {opis} | AKC: {numer} | FAK/DOK: {identyfikator}"),
-// żeby podgląd na żywo odpowiadał temu, co dogeneruje backend. Numer EODoK nie
-// istnieje jeszcze na etapie formularza (nadawany dopiero przy zapisie) — podgląd
-// pokazuje placeholder, ale to serwer (edok_generate_tytul_przelewu()) wstawi
-// prawdziwy numer, dopóki pole nie zostanie ręcznie zmienione (edokTytulDirty /
-// ukryte pole tytul_przelewu_auto).
+// (Uchwała 5/2026 §2 pkt 8-9: "PŁATNOŚĆ: {opis} - AKC: {numer} - FAK/DOK: {identyfikator}",
+// separator " - ", nie "|" — pionowa kreska bywa odrzucana przez systemy bankowości
+// elektronicznej, np. PKO), żeby podgląd na żywo odpowiadał temu, co dogeneruje
+// backend. Numer EODoK nie istnieje jeszcze na etapie formularza (nadawany dopiero
+// przy zapisie) — podgląd pokazuje placeholder, ale to serwer
+// (edok_generate_tytul_przelewu()) wstawi prawdziwy numer, dopóki pole nie zostanie
+// ręcznie zmienione (edokTytulDirty / ukryte pole tytul_przelewu_auto).
 var EDOK_TYPE_LABELS = <?= json_encode(EDOK_TYPES, JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_FAKTURA_TYPES = ['faktura_vat', 'faktura_korygujaca'];
 var edokTytulDirty = <?= (($_POST['tytul_przelewu_auto'] ?? '1') === '0') ? 'true' : 'false' ?>;
 function edokShortOpis(text) {
   text = (text || '').trim().replace(/\s+/g, ' ');
   if (!text) return '';
-  return text.length > 60 ? text.substring(0, 60) + '…' : text;
+  return text.length > 60 ? text.substring(0, 60) + '...' : text;
 }
 function edokSuggestTytul(force) {
   var field = document.getElementById('tytul_przelewu');
@@ -376,10 +377,10 @@ function edokSuggestTytul(force) {
   var nr = document.getElementById('nr_faktury').value.trim();
   var opisEl = document.querySelector('[name="description"]');
   var opis = edokShortOpis(opisEl ? opisEl.value : '') || typ;
-  var numer = 'EODoK/…/' + new Date().getFullYear();
+  var numer = 'EODoK/.../' + new Date().getFullYear();
   var jestFaktura = EDOK_FAKTURA_TYPES.indexOf(typKey) !== -1 && nr !== '';
   var ident = jestFaktura ? ('FAK: ' + nr) : ('DOK: ' + (typ + (nr ? ' ' + nr : '')).trim());
-  var t = 'PŁATNOŚĆ: ' + opis + ' | AKC: ' + numer + ' | ' + ident;
+  var t = 'PŁATNOŚĆ: ' + opis + ' - AKC: ' + numer + ' - ' + ident;
   field.value = t.trim().substring(0, 140);
   document.getElementById('tytul_przelewu_auto').value = '1';
   edokTytulDirty = false;

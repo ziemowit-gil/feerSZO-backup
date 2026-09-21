@@ -364,15 +364,20 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
 
 /**
  * Tytuł przelewu wg formatów wymaganych Uchwałą 5/2026 §2 pkt 8-9:
- *   faktura:     "PŁATNOŚĆ: {opis} | AKC: {numer akceptacji} | FAK: {nr faktury}"
- *   bez faktury: "PŁATNOŚĆ: {opis} | AKC: {numer akceptacji} | DOK: {typ dokumentu} {nr}"
- * Numerem akceptacji jest numer EODoK (nadawany przy intake, patrz edok_next_number()) —
- * jedyny numer, jaki dokument ma od początku obiegu. Opis to pierwsze 60 znaków pola
- * "description"; gdy pusty, używana jest nazwa typu dokumentu. Przy przekroczeniu
- * limitu 140 znaków (typowy limit pola tytułu w bankowości elektronicznej — ten sam
- * co w KDOK, ksiegowosc/add.php) tytuł skraca się do formatu "AKC:{numer} FAK:{nr}" /
- * "AKC:{numer} DOK:{identyfikator}" (§2 pkt 11) — kolejność zachowania: numer akceptacji,
- * potem numer faktury/dokumentu, na końcu (odrzucany jako pierwszy) opis celu płatności.
+ *   faktura:     "PŁATNOŚĆ: {opis} - AKC: {numer akceptacji} - FAK: {nr faktury}"
+ *   bez faktury: "PŁATNOŚĆ: {opis} - AKC: {numer akceptacji} - DOK: {typ dokumentu} {nr}"
+ * Separator " - " (nie "|") — pionowa kreska bywa odrzucana lub obcinana przez
+ * systemy bankowości elektronicznej (np. PKO) w polu tytułu przelewu; uchwała
+ * używa "|" tylko jako wizualny separator w treści dokumentu, nie jako wymóg co do
+ * znaku w samym przelewie. Z tego samego powodu wielokropek to zwykłe trzy kropki,
+ * nie znak „…” (U+2026). Numerem akceptacji jest numer EODoK (nadawany przy intake,
+ * patrz edok_next_number()) — jedyny numer, jaki dokument ma od początku obiegu.
+ * Opis to pierwsze 60 znaków pola "description"; gdy pusty, używana jest nazwa typu
+ * dokumentu. Przy przekroczeniu limitu 140 znaków (typowy limit pola tytułu w
+ * bankowości elektronicznej — ten sam co w KDOK, ksiegowosc/add.php) tytuł skraca
+ * się do formatu "AKC:{numer} FAK:{nr}" / "AKC:{numer} DOK:{identyfikator}"
+ * (§2 pkt 11) — kolejność zachowania: numer akceptacji, potem numer faktury/dokumentu,
+ * na końcu (odrzucany jako pierwszy) opis celu płatności.
  */
 function edok_generate_tytul_przelewu(array $doc): string {
     $numer         = trim((string)($doc['number'] ?? ''));
@@ -385,7 +390,7 @@ function edok_generate_tytul_przelewu(array $doc): string {
     $opis_krotki = $typ_label;
     if ($opis !== '') {
         $opis_krotki = mb_substr($opis, 0, 60);
-        if (mb_strlen($opis) > 60) $opis_krotki .= '…';
+        if (mb_strlen($opis) > 60) $opis_krotki .= '...';
     }
 
     $ident = $jest_faktura
@@ -395,7 +400,7 @@ function edok_generate_tytul_przelewu(array $doc): string {
     $parts = ['PŁATNOŚĆ: ' . $opis_krotki];
     if ($numer !== '') $parts[] = 'AKC: ' . $numer;
     $parts[] = $ident;
-    $t = implode(' | ', $parts);
+    $t = implode(' - ', $parts);
 
     if (mb_strlen($t) <= 140) return $t;
 
@@ -423,12 +428,12 @@ function edok_generate_tytul_pakiet(array $docs, string $opis_celu = ''): string
 
     $opis = $opis_celu !== '' ? preg_replace('/\s+/', ' ', trim($opis_celu)) : ('zbiorcza płatność za ' . count($docs) . ' dokumentów');
     $opis_krotki = mb_substr($opis, 0, 60);
-    if (mb_strlen($opis) > 60) $opis_krotki .= '…';
+    if (mb_strlen($opis) > 60) $opis_krotki .= '...';
 
     $akc = 'AKC: ' . implode(', ', $numery);
     $fak = $faktury ? 'FAK: ' . implode(', ', $faktury) : 'DOK: ' . implode(', ', $numery);
 
-    $t = 'PŁATNOŚĆ: ' . $opis_krotki . ' | ' . $akc . ' | ' . $fak;
+    $t = 'PŁATNOŚĆ: ' . $opis_krotki . ' - ' . $akc . ' - ' . $fak;
     if (mb_strlen($t) <= 140) return $t;
 
     $pierwszy  = $numery[0] ?? '';

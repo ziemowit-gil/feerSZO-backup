@@ -533,11 +533,11 @@ function edokViewSuggestTytul() {
   var opisField = document.querySelector('#metaForm [name="description"]');
   var nr = nrField ? nrField.value.trim() : '';
   var opis = (opisField ? opisField.value : '').trim().replace(/\s+/g, ' ');
-  if (opis.length > 60) opis = opis.substring(0, 60) + '…';
+  if (opis.length > 60) opis = opis.substring(0, 60) + '...';
   if (!opis) opis = EDOK_TYP_LABEL_VIEW;
   var jestFaktura = EDOK_FAKTURA_TYPES_VIEW.indexOf(EDOK_TYP_KEY_VIEW) !== -1 && nr !== '';
   var ident = jestFaktura ? ('FAK: ' + nr) : ('DOK: ' + (EDOK_TYP_LABEL_VIEW + (nr ? ' ' + nr : '')).trim());
-  var t = 'PŁATNOŚĆ: ' + opis + (EDOK_NUMBER_VIEW ? (' | AKC: ' + EDOK_NUMBER_VIEW) : '') + ' | ' + ident;
+  var t = 'PŁATNOŚĆ: ' + opis + (EDOK_NUMBER_VIEW ? (' - AKC: ' + EDOK_NUMBER_VIEW) : '') + ' - ' + ident;
   document.getElementById('e_tytul').value = t.trim().substring(0, 140);
 }
 </script>
