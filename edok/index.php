@@ -131,6 +131,7 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
     <?php endif; ?>
     <?php if (is_admin() || edok_has_role('upload')): ?>
+    <a href="<?= APP_URL ?>/edok/mt940_import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bank2"></i> Import wyciągu (MT940)</a>
     <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy dokument</a>
     <?php endif; ?>
   </div>

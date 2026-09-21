@@ -1131,6 +1131,148 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
     return $encoded !== false ? $encoded : $content;
 }
 
+// ── Import wyciągu bankowego — MT940 (iPKO biznes) ─────────────────────────────
+// Wg oficjalnej specyfikacji PKO BP „Struktura pliku wyjściowego – Raport MT940":
+// pole :61: (jedna operacja) + następujące po nim :86: z podpolami ~20..~63.
+// Pole "puste" oznacza bajt ASCII 255 — zamieniany na sentinel PRZED konwersją
+// kodowania (żeby nie zależeć od tego, jak 0xFF zmapuje się po iconv). Parser
+// wyciąga tylko operacje UZNANIOWE ('C' — wpływy), bo tylko one kwalifikują się
+// jako dokumenty przychodowe EODoK (Uchwała 5/2026 §1 pkt 2); operacje obciążeniowe
+// ('D' — wypływy) są zwracane informacyjnie, ale nie są celem tego importu — EODoK
+// dla wydatków ma własny obieg zaczynający się od faktury/rachunku, nie od wyciągu.
+
+const EDOK_MT940_EMPTY = "\x02EMPTY\x02";
+
+/** Normalizuje kodowanie pliku MT940 do UTF-8, chroniąc marker "pole puste" (ASCII 255) przed konwersją. */
+function edok_mt940_normalize(string $raw): string {
+    $raw = str_replace("\xFF", EDOK_MT940_EMPTY, $raw);
+    if (!mb_check_encoding($raw, 'UTF-8')) {
+        $conv = @iconv('ISO-8859-2', 'UTF-8//TRANSLIT', $raw);
+        if ($conv !== false) $raw = $conv;
+    }
+    return $raw;
+}
+
+/** Saldo (:60F:/:62F:/:64:): znak D/C + data RRMMDD + waluta + kwota (przecinek dziesiętny). */
+function edok_mt940_parse_saldo(string $s): array {
+    if (!preg_match('/^([CD])(\d{6})([A-Z]{3})([\d,]+)$/', trim($s), $m)) return [];
+    return [
+        'znak'   => $m[1],
+        'data'   => '20' . substr($m[2], 0, 2) . '-' . substr($m[2], 2, 2) . '-' . substr($m[2], 4, 2),
+        'waluta' => $m[3],
+        'kwota'  => str_replace(',', '.', $m[4]),
+    ];
+}
+
+/**
+ * Pierwsza linia pola :61: — data waluty/operacji, znak C/D, kwota, referencja
+ * własna (jeśli nie 'NONREF'), numer operacji (zawsze ostatnie 16 znaków linii —
+ * to jedyny niezawodny sposób oddzielenia zmiennej długości pola referencji
+ * od stałej długości numeru operacji, bez zgadywania czy referencja jest pełna).
+ */
+function edok_mt940_parse_61(string $line): ?array {
+    if (!preg_match('/^(\d{6})(\d{4})([CD])([\d,]+)N(\d{3})(.*)$/', trim($line), $m)) return null;
+    $rest           = $m[6];
+    $numer_operacji = mb_substr($rest, -16);
+    $referencja_raw = rtrim(mb_substr($rest, 0, -16), '/');
+    return [
+        'data_waluty'    => '20' . substr($m[1], 0, 2) . '-' . substr($m[1], 2, 2) . '-' . substr($m[1], 4, 2),
+        'znak'           => $m[3],
+        'kwota'          => str_replace(',', '.', $m[4]),
+        'kod_ozsi'       => $m[5],
+        'referencja'     => ($referencja_raw === '' || $referencja_raw === 'NONREF') ? null : $referencja_raw,
+        'numer_operacji' => $numer_operacji,
+    ];
+}
+
+/**
+ * Parsuje cały plik MT940 (jeden wyciąg, może zawierać wiele operacji :61:/:86:).
+ * Zwraca ['account_nrb', 'statement_no', 'opening', 'closing', 'transactions' => [...]]
+ * gdzie każda transakcja ma: data_waluty, znak (C/D), kwota, referencja, numer_operacji,
+ * tytul (złożony z podpól ~20-~25), kontrahent_bank (~30), kontrahent_konto (~31),
+ * kontrahent_nazwa (~32+~33), kontrahent_iban (~38), data_dokumentu (~60), swrk (~63).
+ */
+function edok_mt940_parse(string $raw): array {
+    $content = edok_mt940_normalize($raw);
+    $lines   = preg_split('/\r\n|\r|\n/', $content);
+
+    $out = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'transactions' => []];
+    $tx  = null;
+    $sub = [];
+
+    $get = function (int $n) use (&$sub): string {
+        $v = trim($sub[$n] ?? '');
+        return $v === EDOK_MT940_EMPTY ? '' : $v;
+    };
+    $flush = function () use (&$tx, &$sub, &$out, $get) {
+        if ($tx === null) return;
+        $tx['tytul']            = trim(implode(' ', array_filter([$get(20), $get(21), $get(22), $get(23), $get(24), $get(25)], fn($s) => $s !== '')));
+        $tx['kontrahent_bank']  = $get(30);
+        $tx['kontrahent_konto'] = $get(31);
+        $tx['kontrahent_nazwa'] = trim(($get(32) . ' ' . $get(33)));
+        $tx['kontrahent_iban']  = $get(38);
+        $tx['data_dokumentu']   = $get(60);
+        $tx['swrk']             = $get(63);
+        $out['transactions'][]  = $tx;
+        $tx = null; $sub = [];
+    };
+
+    foreach ($lines as $line) {
+        $line = rtrim($line, "\r\n");
+        if ($line === '') continue;
+        if (str_starts_with($line, ':25:')) { $out['account_nrb'] = ltrim(substr($line, 4), '/'); continue; }
+        if (str_starts_with($line, ':28C:')) { $out['statement_no'] = trim(substr($line, 5)); continue; }
+        if (str_starts_with($line, ':60F:')) { $out['opening'] = edok_mt940_parse_saldo(substr($line, 5)); continue; }
+        if (str_starts_with($line, ':61:')) { $flush(); $parsed = edok_mt940_parse_61(substr($line, 4)); if ($parsed) $tx = $parsed; continue; }
+        if (str_starts_with($line, ':62F:')) { $flush(); $out['closing'] = edok_mt940_parse_saldo(substr($line, 5)); continue; }
+        if (str_starts_with($line, ':64:') || str_starts_with($line, ':20:') || $line === '-') continue;
+        if (preg_match('/^~(\d{2})(.*)$/', $line, $m)) { $sub[(int)$m[1]] = $m[2]; continue; }
+        // inne linie (np. druga linia :61: z kodem O-ZSI, albo pierwsza linia :86:) — nieistotne dla importu
+    }
+    $flush();
+
+    return $out;
+}
+
+/**
+ * Tworzy dokument EODoK typu "wyciąg_bankowy" (kierunek=przychod, status=w_obiegu,
+ * bez pliku źródłowego — kontrola merytoryczna i tak wymaga jego dołączenia, więc
+ * import nie omija tego wymogu) z jednej operacji uznaniowej z edok_mt940_parse().
+ * Zwraca id nowego dokumentu.
+ */
+function edok_mt940_create_doc(array $tx, int $user_id): int {
+    $user  = current_user();
+    $number = edok_next_number();
+    $opis   = $tx['tytul'] !== '' ? $tx['tytul'] : 'Wpływ na rachunek bankowy';
+    $doc = [
+        'number'              => $number,
+        'title'               => $opis,
+        'kierunek'            => 'przychod',
+        'typ_dokumentu'       => 'wyciag_bankowy',
+        'description'         => $opis,
+        'kontrahent_nazwa'    => $tx['kontrahent_nazwa'] !== '' ? $tx['kontrahent_nazwa'] : '(nieznany wpłacający)',
+        'kontrahent_nip'      => '',
+        'nr_faktury'          => $tx['referencja'] ?: $tx['numer_operacji'],
+        'zrodlo_przychodu'    => trim($tx['kontrahent_nazwa'] . ($tx['kontrahent_iban'] !== '' ? ' (' . $tx['kontrahent_iban'] . ')' : '')),
+        'data_wystawienia'    => $tx['data_waluty'],
+        'data_wplywu'         => $tx['data_waluty'],
+        'kwota_netto'         => number_format((float)$tx['kwota'], 2, ',', ''),
+        'kwota_vat'           => '0,00',
+        'kwota_brutto'        => number_format((float)$tx['kwota'], 2, ',', ''),
+        'waluta'              => 'PLN',
+        'rodzaj_dzialalnosci' => '',
+        'status'              => 'w_obiegu',
+        'created_by'          => $user_id,
+        'creator_name'        => ($user['name'] ?? ('uid:' . $user_id)) . ' (import MT940)',
+        'created_at'          => date('Y-m-d H:i:s'),
+        'updated_at'          => date('Y-m-d H:i:s'),
+    ];
+    $doc['tytul_przelewu'] = edok_generate_tytul_przelewu($doc);
+    $doc_id = db_insert('edok_documents', $doc);
+    edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Utworzono z importu wyciągu bankowego MT940 (operacja ' . $tx['numer_operacji'] . '). Wymaga dołączenia skanu wyciągu i uzupełnienia dekretacji przed kontrolą merytoryczną.', $doc);
+    return $doc_id;
+}
+
 // ── Tabela analityczna przychody/koszty ────────────────────────────────────────
 // Zestawienie zaakceptowanych dokumentów (przychody i wydatki) w wybranym okresie,
 // pogrupowane wg klasyfikacji (rodzaj działalności / projekt), z wynikiem
