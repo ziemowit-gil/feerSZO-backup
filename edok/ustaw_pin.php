@@ -14,10 +14,12 @@ $uid  = (int)$user['id'];
 $has_pin = edok_pin_is_set($uid);
 
 $db_user = db_one("SELECT password, microsoft_id FROM users WHERE id = ?", [$uid]);
-// Konta logujące się wyłącznie przez Microsoft 365 (bez hasła lokalnego) nie mają
-// czego zweryfikować — tak samo jak w panel/password.php. Wymagamy aktualnego hasła
-// tylko wtedy, gdy takie hasło w ogóle istnieje.
-$has_local_password = !empty($db_user['password']);
+// Konta logujące się przez Microsoft 365 (microsoft_id ustawiony) nie muszą
+// potwierdzać hasła lokalnego, nawet jeśli takie hasło technicznie istnieje
+// w bazie — użytkownik loguje się przez Office/M365, więc realnie go nie zna/
+// nie używa. Bez microsoft_id — jak w panel/password.php: hasło wymagane
+// tylko wtedy, gdy konto w ogóle je ma.
+$skip_password_check = !empty($db_user['microsoft_id']) || empty($db_user['password']);
 
 $errors  = [];
 $success = false;
@@ -29,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_pin          = trim($_POST['new_pin'] ?? '');
     $confirm_pin      = trim($_POST['confirm_pin'] ?? '');
 
-    if ($has_local_password && !password_verify($current_password, $db_user['password'])) {
+    if (!$skip_password_check && !password_verify($current_password, $db_user['password'])) {
         $errors[] = 'Aktualne hasło logowania jest nieprawidłowe.';
     }
     if (!preg_match('/^\d{6}$/', $new_pin)) {
@@ -72,14 +74,15 @@ require_once __DIR__ . '/../includes/header.php';
         </p>
         <form method="post" novalidate>
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <?php if ($has_local_password): ?>
+          <?php if (!$skip_password_check): ?>
           <div class="mb-3">
             <label class="form-label small fw-semibold" for="current_password">Aktualne hasło logowania</label>
             <input type="password" id="current_password" name="current_password" class="form-control form-control-sm" required autocomplete="current-password">
           </div>
           <?php else: ?>
           <div class="alert alert-light border small py-2 mb-3">
-            <i class="bi bi-microsoft"></i> Twoje konto loguje się przez Microsoft 365 (bez hasła lokalnego) — nie musisz go potwierdzać.
+            <i class="bi <?= !empty($db_user['microsoft_id']) ? 'bi-microsoft' : 'bi-info-circle' ?>"></i>
+            <?= !empty($db_user['microsoft_id']) ? 'Logujesz się przez Microsoft 365 — nie musisz potwierdzać hasła.' : 'Twoje konto nie ma hasła lokalnego — nie musisz go potwierdzać.' ?>
           </div>
           <?php endif; ?>
           <div class="mb-3">
