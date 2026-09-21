@@ -109,6 +109,7 @@ require_once __DIR__ . '/../includes/header.php';
       <i class="bi bi-filetype-csv"></i> Eksport CSV
     </a>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
+    <a href="<?= APP_URL ?>/edok/raport_analityczny.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a>
     <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
     <?php if (is_admin() || edok_has_role('ksiegowy')): ?>
     <form method="post" class="d-inline" onsubmit="return confirm('Przeliczyć tytuły przelewów wszystkich niezaakceptowanych dokumentów do aktualnego formatu?');">

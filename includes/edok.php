@@ -975,6 +975,67 @@ function edok_latest_generated_pdf(int $doc_id): ?array {
     return db_one("SELECT * FROM edok_generated_pdf WHERE doc_id = ? ORDER BY id DESC LIMIT 1", [$doc_id]);
 }
 
+// ── Tabela analityczna przychody/koszty ────────────────────────────────────────
+// Zestawienie zaakceptowanych dokumentów (przychody i wydatki) w wybranym okresie,
+// pogrupowane wg klasyfikacji (rodzaj działalności / projekt), z wynikiem
+// (przychody - wydatki). Kwoty w polach edok_documents są tekstem z przecinkiem
+// dziesiętnym (format PL) — sumowane w PHP, NIE przez SQL CAST (który dla SQLite
+// obcina "123,00" do 123, gubiąc grosze).
+
+function _edok_kwota_float(string $s): float {
+    return (float) str_replace(',', '.', str_replace(' ', '', $s));
+}
+
+/**
+ * @param array $f data_od, data_do (YYYY-MM-DD, filtr po data_wplywu — ustawiane
+ *                 dla każdego dokumentu, patrz edok/add.php)
+ * @return array{groups: array, totals: array}
+ */
+function edok_analityczny_query(array $f = []): array {
+    $where  = ["status = 'zaakceptowany'"];
+    $params = [];
+    if (!empty($f['data_od'])) { $where[] = "COALESCE(data_wplywu, data_wystawienia, created_at) >= ?"; $params[] = $f['data_od']; }
+    if (!empty($f['data_do'])) { $where[] = "COALESCE(data_wplywu, data_wystawienia, created_at) <= ?"; $params[] = $f['data_do']; }
+
+    $rows = db_all(
+        "SELECT kierunek, rodzaj_dzialalnosci, projekt, kwota_netto, kwota_vat, kwota_brutto
+         FROM edok_documents WHERE " . implode(' AND ', $where),
+        $params
+    );
+
+    $groups = [];
+    $totals = ['przychod_netto' => 0.0, 'przychod_brutto' => 0.0, 'wydatek_netto' => 0.0, 'wydatek_brutto' => 0.0];
+
+    foreach ($rows as $r) {
+        $kierunek = ($r['kierunek'] ?: 'wydatek') === 'przychod' ? 'przychod' : 'wydatek';
+        $rodzaj   = $r['rodzaj_dzialalnosci'] ?: '';
+        $projekt  = $rodzaj === 'projekt' ? trim((string)$r['projekt']) : '';
+        $key      = $rodzaj . '|' . $projekt;
+
+        if (!isset($groups[$key])) {
+            $groups[$key] = [
+                'label'           => $rodzaj !== '' ? edok_transfer_label_klasyfikacja($rodzaj, $projekt) : '(bez klasyfikacji)',
+                'przychod_netto'  => 0.0, 'przychod_brutto' => 0.0,
+                'wydatek_netto'   => 0.0, 'wydatek_brutto'  => 0.0,
+            ];
+        }
+
+        $netto  = _edok_kwota_float((string)$r['kwota_netto']);
+        $brutto = _edok_kwota_float((string)$r['kwota_brutto']);
+        $groups[$key][$kierunek . '_netto']  += $netto;
+        $groups[$key][$kierunek . '_brutto'] += $brutto;
+        $totals[$kierunek . '_netto']  += $netto;
+        $totals[$kierunek . '_brutto'] += $brutto;
+    }
+
+    ksort($groups);
+    $totals['wynik_brutto'] = $totals['przychod_brutto'] - $totals['wydatek_brutto'];
+    foreach ($groups as &$g) $g['wynik_brutto'] = $g['przychod_brutto'] - $g['wydatek_brutto'];
+    unset($g);
+
+    return ['groups' => array_values($groups), 'totals' => $totals];
+}
+
 // ── Preliminarz Płatności (przeniesiony z KDOK, ujednolicony z KDOK) ──────────
 // EODoK jest docelowym miejscem dla NOWYCH dokumentów, ale istniejące
 // dokumenty zaakceptowane jeszcze w KDOK (includes/ksiegowosc.php) też czekają
