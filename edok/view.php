@@ -161,76 +161,153 @@ require_once __DIR__ . '/../includes/header.php';
 
 $jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
 $steps_config = [
-    'meryt'      => ['sub' => $jest_przychod ? 'Weryfikacja zgodności wpływu z rzeczywistym zdarzeniem' : 'Weryfikacja wykonania usługi/dostawy przez zleceniodawcę', 'icon' => 'bi-patch-check',       'color' => 'primary'],
-    'formal'     => ['sub' => $jest_przychod ? 'Źródło i data wpływu, powiązanie z dokumentem'          : 'NIP, stawki VAT, elementy ustawowe faktury',                 'icon' => 'bi-file-earmark-check', 'color' => 'info'],
-    'rachunkowa' => ['sub' => 'Przeliczenia i zgodność kwot netto/VAT/brutto',              'icon' => 'bi-calculator',         'color' => 'warning'],
-    'dekretacja' => ['sub' => $jest_przychod ? 'Rodzaj działalności, projekt/MPK przychodu'              : 'Rodzaj działalności, projekt, MPK',                          'icon' => 'bi-journal-bookmark',   'color' => 'dark'],
-    'zatwierdza' => ['sub' => $jest_przychod ? 'Zatwierdzenie do ujęcia przychodu w ewidencji'           : 'Zatwierdzenie do wypłaty i księgowania',                     'icon' => 'bi-cash-coin',          'color' => 'success'],
+    'meryt'      => ['sub' => $jest_przychod ? 'Weryfikacja zgodności wpływu z rzeczywistym zdarzeniem' : 'Weryfikacja wykonania usługi/dostawy przez zleceniodawcę', 'icon' => 'bi-patch-check',       'tone' => 'blue'],
+    'formal'     => ['sub' => $jest_przychod ? 'Źródło i data wpływu, powiązanie z dokumentem'          : 'NIP, stawki VAT, elementy ustawowe faktury',                 'icon' => 'bi-file-earmark-check', 'tone' => 'cyan'],
+    'rachunkowa' => ['sub' => 'Przeliczenia i zgodność kwot netto/VAT/brutto',              'icon' => 'bi-calculator',         'tone' => 'amber'],
+    'dekretacja' => ['sub' => $jest_przychod ? 'Rodzaj działalności, projekt/MPK przychodu'              : 'Rodzaj działalności, projekt, MPK',                          'icon' => 'bi-journal-bookmark',   'tone' => 'slate'],
+    'zatwierdza' => ['sub' => $jest_przychod ? 'Zatwierdzenie do ujęcia przychodu w ewidencji'           : 'Zatwierdzenie do wypłaty i księgowania',                     'icon' => 'bi-cash-coin',          'tone' => 'emerald'],
 ];
+
+// Krok "bieżący" = pierwszy niezdecydowany w kolejności — sekwencyjność obiegu
+// gwarantuje, że w danej chwili jest ich co najwyżej jeden (edok_step_blocked_reason()).
+$current_key = null;
+if (!$is_terminal) {
+    foreach (edok_step_order() as $sk) {
+        $s = $doc['steps'][$sk] ?? null;
+        if (!$s || !in_array($s['status'], ['ok', 'uwagi', 'odrzucono'], true)) { $current_key = $sk; break; }
+    }
+}
+$current_cfg     = $current_key ? $steps_config[$current_key] : null;
+$current_blocked = $current_key ? edok_step_blocked_reason($doc, $current_key) : null;
+$current_can_act = $current_key && !$current_blocked && edok_has_role($current_key) && !$is_terminal;
+$current_pending = ($current_key && !$current_blocked) ? edok_step_validation_errors($doc, $current_key) : [];
 ?>
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <div class="d-flex align-items-center gap-2">
-    <a href="<?= APP_URL ?>/edok/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
-    <h4 class="mb-0"><code><?= h($doc['number']) ?></code> <?= edok_status_badge($doc['status']) ?></h4>
+<style type="text/tailwindcss">
+.edok-page { @apply tw-max-w-6xl tw-mx-auto; }
+.edok-topbar { @apply tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-3 tw-mb-4; }
+.edok-topbar__title { @apply tw-flex tw-items-center tw-gap-2 tw-text-lg tw-font-bold tw-text-slate-800; }
+.edok-actions { @apply tw-flex tw-items-center tw-gap-2 tw-flex-wrap; }
+
+.edok-btn { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-1.5 tw-text-sm tw-font-semibold tw-border tw-transition-colors tw-no-underline tw-cursor-pointer; }
+.edok-btn-ghost   { @apply tw-bg-white tw-border-slate-200 tw-text-slate-600 hover:tw-bg-slate-50; }
+.edok-btn-primary { @apply tw-bg-blue-600 tw-border-blue-600 tw-text-white hover:tw-bg-blue-700; }
+.edok-btn-success { @apply tw-bg-emerald-600 tw-border-emerald-600 tw-text-white hover:tw-bg-emerald-700; }
+.edok-btn-warning { @apply tw-bg-amber-500 tw-border-amber-500 tw-text-white hover:tw-bg-amber-600; }
+.edok-btn-danger  { @apply tw-bg-white tw-border-red-200 tw-text-red-600 hover:tw-bg-red-50; }
+.edok-btn-sm      { @apply tw-px-2 tw-py-1 tw-text-xs; }
+.edok-btn:disabled { @apply tw-opacity-50 tw-cursor-not-allowed; }
+
+.edok-badge { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-full tw-px-2.5 tw-py-0.5 tw-text-xs tw-font-semibold; }
+.edok-badge-secondary { @apply tw-bg-slate-100 tw-text-slate-600; }
+.edok-badge-warning   { @apply tw-bg-amber-100 tw-text-amber-700; }
+.edok-badge-success   { @apply tw-bg-emerald-100 tw-text-emerald-700; }
+.edok-badge-danger    { @apply tw-bg-red-100 tw-text-red-700; }
+.edok-badge-dark      { @apply tw-bg-slate-800 tw-text-white; }
+
+.edok-alert { @apply tw-rounded-lg tw-border tw-px-3 tw-py-2 tw-text-sm tw-flex tw-items-start tw-gap-2; }
+.edok-alert-danger  { @apply tw-bg-red-50 tw-border-red-200 tw-text-red-700; }
+.edok-alert-warning { @apply tw-bg-amber-50 tw-border-amber-200 tw-text-amber-700; }
+
+.edok-card { @apply tw-bg-white tw-rounded-xl tw-border tw-border-slate-200 tw-shadow-sm tw-mb-4 tw-overflow-hidden; }
+.edok-card__hd { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-2.5 tw-border-b tw-border-slate-100 tw-font-semibold tw-text-slate-700 tw-text-sm; }
+.edok-card__bd { @apply tw-p-4; }
+
+.edok-kv { @apply tw-w-full tw-text-sm; }
+.edok-kv tr + tr td { @apply tw-pt-1.5; }
+.edok-kv td:first-child { @apply tw-text-slate-500 tw-pr-3 tw-align-top tw-w-[42%]; }
+.edok-kv td:last-child { @apply tw-font-medium tw-text-slate-800; }
+.edok-amounts { @apply tw-rounded-lg tw-bg-slate-50 tw-p-3 tw-mb-3; }
+.edok-amounts .total { @apply tw-border-t tw-border-slate-200 tw-pt-1.5 tw-mt-1.5 tw-font-bold; }
+
+.edok-tracker { @apply tw-flex tw-items-stretch tw-gap-1 sm:tw-gap-2 tw-mb-4; }
+.edok-tracker__step { @apply tw-flex-1 tw-rounded-lg tw-border tw-px-2 tw-py-2 tw-text-center tw-bg-white tw-border-slate-200; }
+.edok-tracker__step.is-done    { @apply tw-bg-emerald-50 tw-border-emerald-200; }
+.edok-tracker__step.is-current { @apply tw-bg-blue-50 tw-border-blue-300 tw-ring-2 tw-ring-blue-200; }
+.edok-tracker__step.is-blocked { @apply tw-bg-slate-50 tw-border-slate-200 tw-opacity-60; }
+.edok-tracker__step.is-rejected{ @apply tw-bg-red-50 tw-border-red-200; }
+.edok-tracker__step.is-uwagi   { @apply tw-bg-amber-50 tw-border-amber-200; }
+.edok-tracker__num { @apply tw-text-[.65rem] tw-font-bold tw-text-slate-400 tw-block; }
+.edok-tracker__label { @apply tw-text-[.72rem] tw-font-semibold tw-text-slate-700 tw-block tw-leading-tight tw-mt-0.5; }
+.edok-tracker__icon { @apply tw-text-base tw-block tw-mt-1; }
+
+.edok-history-item { @apply tw-flex tw-items-start tw-gap-2 tw-py-2 tw-border-b tw-border-slate-100 last:tw-border-0 tw-text-sm; }
+
+.edok-wizard .modal-content { @apply tw-rounded-xl tw-border-0 tw-shadow-lg; }
+.edok-wizard-hd { @apply tw-px-4 tw-py-3 tw-border-b tw-border-slate-100; }
+.edok-wizard-pane { @apply tw-p-4; }
+.edok-choice { @apply tw-flex-1 tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border-2 tw-border-slate-200 tw-px-3 tw-py-2.5 tw-cursor-pointer tw-transition-colors tw-text-sm tw-font-semibold tw-text-slate-500; }
+.edok-choice input { @apply tw-sr-only; }
+.edok-choice:has(input:checked).choice-ok      { @apply tw-border-emerald-500 tw-bg-emerald-50 tw-text-emerald-700; }
+.edok-choice:has(input:checked).choice-uwagi   { @apply tw-border-amber-500 tw-bg-amber-50 tw-text-amber-700; }
+.edok-choice:has(input:checked).choice-odrzuc  { @apply tw-border-red-500 tw-bg-red-50 tw-text-red-700; }
+.edok-pin-input { @apply tw-w-full tw-text-center tw-text-2xl tw-tracking-[.5em] tw-font-mono tw-rounded-lg tw-border tw-border-slate-300 tw-py-2 focus:tw-border-blue-400 focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-blue-100; }
+.edok-pin-input.is-invalid { @apply tw-border-red-400 tw-ring-2 tw-ring-red-100; }
+</style>
+
+<div class="edok-page">
+<div class="edok-topbar">
+  <div class="edok-topbar__title">
+    <a href="<?= APP_URL ?>/edok/index.php" class="edok-btn edok-btn-ghost edok-btn-sm" aria-label="Wróć"><i class="bi bi-arrow-left"></i></a>
+    <code><?= h($doc['number']) ?></code>
+    <?= edok_status_badge($doc['status']) ?>
   </div>
   <?php $generated = edok_latest_generated_pdf($id); ?>
-  <div class="d-flex gap-2">
-    <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-sm btn-outline-secondary" title="Twój PIN EODoK">
-      <i class="bi bi-shield-lock"></i>
-    </a>
+  <div class="edok-actions">
+    <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="edok-btn edok-btn-ghost" title="Twój PIN EODoK"><i class="bi bi-shield-lock"></i></a>
     <?php if ($generated): ?>
-    <a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>&type=final" target="_blank" class="btn btn-sm btn-primary">
-      <i class="bi bi-file-earmark-check"></i> Pobierz dokument końcowy
+    <a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>&type=final" target="_blank" class="edok-btn edok-btn-primary">
+      <i class="bi bi-file-earmark-check"></i> Dokument końcowy
     </a>
     <?php else: ?>
-    <a href="<?= APP_URL ?>/edok/print.php?id=<?= $id ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-printer"></i> Wydruk dekretacji i zatwierdzenia
+    <a href="<?= APP_URL ?>/edok/print.php?id=<?= $id ?>" target="_blank" class="edok-btn edok-btn-ghost">
+      <i class="bi bi-printer"></i> Wydruk
     </a>
     <?php endif; ?>
     <?php if (edok_has_unlock_perm() && $is_terminal): ?>
-    <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#unlockModal">
+    <button class="edok-btn edok-btn-ghost" type="button" data-bs-toggle="modal" data-bs-target="#unlockModal">
       <i class="bi bi-arrow-counterclockwise"></i> Cofnij decyzję
     </button>
     <?php endif; ?>
     <?php if (!$is_terminal && (is_admin() || (int)$doc['created_by'] === (int)($user['id'] ?? 0))): ?>
-    <form method="post" onsubmit="return confirm('Wycofać dokument z obiegu?');" class="d-inline">
+    <form method="post" onsubmit="return confirm('Wycofać dokument z obiegu?');" class="tw-inline">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="action" value="withdraw_doc">
-      <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x-lg"></i> Wycofaj</button>
+      <button class="edok-btn edok-btn-danger" type="submit"><i class="bi bi-x-lg"></i> Wycofaj</button>
     </form>
     <?php endif; ?>
   </div>
 </div>
 
 <?php if ($errors): ?>
-<div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
+<div class="edok-alert edok-alert-danger tw-mb-4">
+  <i class="bi bi-exclamation-triangle-fill tw-mt-0.5"></i>
+  <ul class="tw-mb-0 tw-pl-4"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+</div>
 <?php endif; ?>
 
-<div class="row g-3">
-  <div class="col-lg-5">
+<div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-12 tw-gap-4">
+  <div class="lg:tw-col-span-5">
     <!-- Karta dokumentu -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-header py-2"><strong><i class="bi bi-file-earmark-text"></i> <?= h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) ?></strong></div>
-      <div class="card-body py-2">
-        <table class="table table-sm table-borderless mb-2 small">
+    <div class="edok-card">
+      <div class="edok-card__hd"><i class="bi bi-file-earmark-text"></i> <?= h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) ?></div>
+      <div class="edok-card__bd">
+        <table class="edok-kv tw-mb-3">
           <tbody>
-            <tr><td class="text-muted" style="width:42%">Kontrahent</td><td class="fw-semibold"><?= h($doc['kontrahent_nazwa']) ?></td></tr>
-            <?php if ($doc['kontrahent_nip']): ?>
-            <tr><td class="text-muted">NIP</td><td class="font-monospace"><?= h($doc['kontrahent_nip']) ?></td></tr>
-            <?php endif; ?>
-            <tr><td class="text-muted">Numer dokumentu</td><td class="font-monospace"><?= h($doc['nr_faktury']) ?></td></tr>
-            <?php if ($doc['data_wystawienia']): ?><tr><td class="text-muted">Data wystawienia</td><td><?= date_pl($doc['data_wystawienia']) ?></td></tr><?php endif; ?>
-            <?php if ($doc['data_sprzedazy']): ?><tr><td class="text-muted">Data sprzedaży/wykonania</td><td><?= date_pl($doc['data_sprzedazy']) ?></td></tr><?php endif; ?>
-            <?php if ($doc['data_wplywu']): ?><tr><td class="text-muted">Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
+            <tr><td>Kontrahent</td><td><?= h($doc['kontrahent_nazwa']) ?></td></tr>
+            <?php if ($doc['kontrahent_nip']): ?><tr><td>NIP</td><td class="tw-font-mono"><?= h($doc['kontrahent_nip']) ?></td></tr><?php endif; ?>
+            <tr><td>Numer dokumentu</td><td class="tw-font-mono"><?= h($doc['nr_faktury']) ?></td></tr>
+            <?php if ($doc['data_wystawienia']): ?><tr><td>Data wystawienia</td><td><?= date_pl($doc['data_wystawienia']) ?></td></tr><?php endif; ?>
+            <?php if ($doc['data_sprzedazy']): ?><tr><td>Data sprzedaży/wykonania</td><td><?= date_pl($doc['data_sprzedazy']) ?></td></tr><?php endif; ?>
+            <?php if ($doc['data_wplywu']): ?><tr><td>Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
             <?php if ($doc['kierunek'] === 'przychod' && $doc['zrodlo_przychodu']): ?>
-            <tr><td class="text-muted">Źródło przychodu</td><td><?= h($doc['zrodlo_przychodu']) ?></td></tr>
+            <tr><td>Źródło przychodu</td><td><?= h($doc['zrodlo_przychodu']) ?></td></tr>
             <?php endif; ?>
             <?php if ($doc['tytul_przelewu']): ?>
             <tr>
-              <td class="text-muted"><?= $doc['kierunek'] === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu' ?></td>
+              <td><?= $doc['kierunek'] === 'przychod' ? 'Sugerowana referencja' : 'Tytuł przelewu' ?></td>
               <td>
-                <span class="font-monospace" id="tytul_przelewu_view"><?= h($doc['tytul_przelewu']) ?></span>
-                <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Kopiuj"
+                <span class="tw-font-mono tw-text-xs" id="tytul_przelewu_view"><?= h($doc['tytul_przelewu']) ?></span>
+                <button type="button" class="tw-text-blue-600 tw-ml-1" title="Kopiuj"
                   onclick="navigator.clipboard.writeText(document.getElementById('tytul_przelewu_view').textContent)">
                   <i class="bi bi-clipboard"></i>
                 </button>
@@ -240,102 +317,97 @@ $steps_config = [
           </tbody>
         </table>
 
-        <div class="p-2 rounded border bg-light mb-2">
-          <table class="table table-sm table-borderless mb-0 small">
+        <div class="edok-amounts">
+          <table class="edok-kv">
             <tbody>
-              <tr><td class="text-muted" style="width:42%">Netto</td><td class="text-end font-monospace"><?= h($doc['kwota_netto']) ?></td></tr>
-              <tr><td class="text-muted">VAT</td><td class="text-end font-monospace"><?= h($doc['kwota_vat']) ?></td></tr>
-              <tr class="border-top"><td class="fw-semibold">Brutto</td><td class="text-end font-monospace fw-semibold"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td></tr>
+              <tr><td>Netto</td><td class="tw-text-right tw-font-mono"><?= h($doc['kwota_netto']) ?></td></tr>
+              <tr><td>VAT</td><td class="tw-text-right tw-font-mono"><?= h($doc['kwota_vat']) ?></td></tr>
+              <tr class="total"><td>Brutto</td><td class="tw-text-right tw-font-mono"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td></tr>
             </tbody>
           </table>
         </div>
 
         <?php if ($doc['description']): ?>
-        <p class="small mb-2"><strong><?= $doc['kierunek'] === 'przychod' ? 'Opis przychodu:' : 'Opis wydatku:' ?></strong> <?= nl2br(h($doc['description'])) ?></p>
+        <p class="tw-text-sm tw-mb-3"><strong><?= $doc['kierunek'] === 'przychod' ? 'Opis przychodu:' : 'Opis wydatku:' ?></strong> <?= nl2br(h($doc['description'])) ?></p>
         <?php endif; ?>
 
         <?php if ($doc['file_path']): ?>
-        <a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+        <a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>" target="_blank" class="edok-btn edok-btn-ghost edok-btn-sm">
           <i class="bi bi-file-earmark-pdf"></i> Dokument źródłowy
         </a>
         <?php endif; ?>
       </div>
     </div>
 
-    <!-- Dekretacja — ledger -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-header py-2"><strong><i class="bi bi-journal-bookmark"></i> Dekretacja</strong></div>
-      <div class="card-body py-2">
+    <!-- Dekretacja -->
+    <div class="edok-card">
+      <div class="edok-card__hd"><i class="bi bi-journal-bookmark"></i> Dekretacja</div>
+      <div class="edok-card__bd">
         <?php if ($doc['rodzaj_dzialalnosci'] || $doc['projekt'] || $doc['mpk']): ?>
-        <table class="table table-sm table-borderless mb-0 small">
+        <table class="edok-kv">
           <tbody>
-            <?php if ($doc['rodzaj_dzialalnosci']): ?>
-            <tr><td class="text-muted" style="width:42%">Rodzaj działalności</td><td class="fw-semibold"><?= h(EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? $doc['rodzaj_dzialalnosci']) ?></td></tr>
-            <?php endif; ?>
-            <?php if ($doc['projekt']): ?>
-            <tr><td class="text-muted">Projekt / działanie</td><td class="font-monospace"><?= h($doc['projekt']) ?></td></tr>
-            <?php endif; ?>
-            <?php if ($doc['mpk']): ?>
-            <tr><td class="text-muted">MPK</td><td class="font-monospace"><?= h($doc['mpk']) ?></td></tr>
-            <?php endif; ?>
+            <?php if ($doc['rodzaj_dzialalnosci']): ?><tr><td>Rodzaj działalności</td><td><?= h(EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? $doc['rodzaj_dzialalnosci']) ?></td></tr><?php endif; ?>
+            <?php if ($doc['projekt']): ?><tr><td>Projekt / działanie</td><td class="tw-font-mono"><?= h($doc['projekt']) ?></td></tr><?php endif; ?>
+            <?php if ($doc['mpk']): ?><tr><td>MPK</td><td class="tw-font-mono"><?= h($doc['mpk']) ?></td></tr><?php endif; ?>
           </tbody>
         </table>
         <?php else: ?>
-        <p class="text-muted small mb-0">Nie uzupełniono — wymagane przed zaakceptowaniem etapu „Dekretacja i alokacja kosztów”.</p>
+        <p class="tw-text-sm tw-text-slate-500 tw-mb-0">Nie uzupełniono — wymagane przed zaakceptowaniem etapu „Dekretacja i alokacja kosztów”.</p>
         <?php endif; ?>
       </div>
     </div>
 
     <?php if (!$is_terminal && (is_admin() || edok_has_role('upload') || edok_has_role('dekretacja'))): ?>
-    <button class="btn btn-sm btn-outline-secondary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#metaForm">
+    <button class="edok-btn edok-btn-ghost tw-mb-4" type="button" data-bs-toggle="collapse" data-bs-target="#metaForm">
       <i class="bi bi-pencil"></i> Edytuj dane dokumentu
     </button>
     <div class="collapse" id="metaForm">
-      <form method="post" class="border rounded p-2 bg-light mb-3">
+      <form method="post" class="edok-card">
+        <div class="edok-card__bd">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="action" value="update_meta">
 
-        <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1">Opis wydatku <?= $locked_meryt ? '<i class="bi bi-lock-fill text-muted"></i>' : '' ?></label>
+        <div class="tw-mb-2">
+          <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Opis <?= $locked_meryt ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
           <textarea name="description" class="form-control form-control-sm" rows="2" <?= $locked_meryt ? 'readonly' : '' ?>><?= h($doc['description']) ?></textarea>
         </div>
         <div class="row g-2 mb-2">
           <div class="col-sm-8">
-            <label class="form-label small fw-semibold mb-1">Kontrahent <?= $locked_formal ? '<i class="bi bi-lock-fill text-muted"></i>' : '' ?></label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Kontrahent <?= $locked_formal ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
             <input type="text" name="kontrahent_nazwa" class="form-control form-control-sm" value="<?= h($doc['kontrahent_nazwa']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
           </div>
           <div class="col-sm-4">
-            <label class="form-label small fw-semibold mb-1">NIP</label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">NIP</label>
             <input type="text" name="kontrahent_nip" class="form-control form-control-sm" value="<?= h($doc['kontrahent_nip']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
           </div>
         </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1">Numer dokumentu</label>
+        <div class="tw-mb-2">
+          <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Numer dokumentu</label>
           <input type="text" name="nr_faktury" class="form-control form-control-sm" value="<?= h($doc['nr_faktury']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
         </div>
         <?php if ($doc['kierunek'] === 'przychod'): ?>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1">Źródło przychodu <?= $locked_formal ? '<i class="bi bi-lock-fill text-muted"></i>' : '' ?></label>
+        <div class="tw-mb-2">
+          <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Źródło przychodu <?= $locked_formal ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
           <input type="text" name="zrodlo_przychodu" class="form-control form-control-sm" value="<?= h($doc['zrodlo_przychodu']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
         </div>
         <?php endif; ?>
         <div class="row g-2 mb-2">
           <div class="col-sm-4">
-            <label class="form-label small fw-semibold mb-1">Netto <?= $locked_rachunkowa ? '<i class="bi bi-lock-fill text-muted"></i>' : '' ?></label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Netto <?= $locked_rachunkowa ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
             <input type="text" id="e_netto" name="kwota_netto" class="form-control form-control-sm font-monospace text-end" value="<?= h($doc['kwota_netto']) ?>" <?= $locked_rachunkowa ? 'readonly' : 'oninput="edokViewRecalc()"' ?>>
           </div>
           <div class="col-sm-4">
-            <label class="form-label small fw-semibold mb-1">VAT</label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">VAT</label>
             <input type="text" id="e_vat" name="kwota_vat" class="form-control form-control-sm font-monospace text-end" value="<?= h($doc['kwota_vat']) ?>" <?= $locked_rachunkowa ? 'readonly' : 'oninput="edokViewRecalc()"' ?>>
           </div>
           <div class="col-sm-4">
-            <label class="form-label small fw-semibold mb-1">Brutto</label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Brutto</label>
             <input type="text" id="e_brutto" name="kwota_brutto" class="form-control form-control-sm font-monospace text-end fw-semibold" value="<?= h($doc['kwota_brutto']) ?>" <?= $locked_rachunkowa ? 'readonly' : '' ?>>
           </div>
         </div>
         <div class="row g-2 mb-2">
           <div class="col-sm-6">
-            <label class="form-label small fw-semibold mb-1">Rodzaj działalności <?= $locked_dekretacja ? '<i class="bi bi-lock-fill text-muted"></i>' : '' ?></label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Rodzaj działalności <?= $locked_dekretacja ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
             <select name="rodzaj_dzialalnosci" class="form-select form-select-sm" <?= $locked_dekretacja ? 'disabled' : '' ?>>
               <option value="">— wybierz —</option>
               <?php foreach (EDOK_RODZAJ_DZIALALNOSCI as $k => $l): ?>
@@ -345,142 +417,154 @@ $steps_config = [
             <?php if ($locked_dekretacja): ?><input type="hidden" name="rodzaj_dzialalnosci" value="<?= h($doc['rodzaj_dzialalnosci']) ?>"><?php endif; ?>
           </div>
           <div class="col-sm-6">
-            <label class="form-label small fw-semibold mb-1">Projekt / działanie</label>
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Projekt / działanie</label>
             <input type="text" name="projekt" class="form-control form-control-sm" value="<?= h($doc['projekt']) ?>" <?= $locked_dekretacja ? 'readonly' : '' ?>>
           </div>
         </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1">MPK</label>
+        <div class="tw-mb-2">
+          <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">MPK</label>
           <input type="text" name="mpk" class="form-control form-control-sm" value="<?= h($doc['mpk']) ?>">
         </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1"><?= $doc['kierunek'] === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu' ?></label>
+        <div class="tw-mb-3">
+          <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1"><?= $doc['kierunek'] === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu' ?></label>
           <div class="input-group input-group-sm">
             <input type="text" id="e_tytul" name="tytul_przelewu" class="form-control form-control-sm" maxlength="140" value="<?= h($doc['tytul_przelewu']) ?>">
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="edokViewSuggestTytul()"><i class="bi bi-magic"></i> Generuj</button>
           </div>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz</button>
+        <button type="submit" class="edok-btn edok-btn-primary"><i class="bi bi-save"></i> Zapisz</button>
+        </div>
       </form>
     </div>
     <?php endif; ?>
   </div>
 
-  <div class="col-lg-7">
-    <!-- Kroki akceptacji -->
-    <?php $n = 0; foreach ($steps_config as $step_key => $cfg): $n++; ?>
-    <?php
-    $step    = $doc['steps'][$step_key] ?? null;
-    $decided = $step && in_array($step['status'], ['ok', 'uwagi', 'odrzucono'], true);
-    $blocked_reason = $decided ? null : edok_step_blocked_reason($doc, $step_key);
-    $can_act = !$decided && !$blocked_reason && edok_has_role($step_key) && !$is_terminal;
-    $pending_validation = (!$decided && !$blocked_reason) ? edok_step_validation_errors($doc, $step_key) : [];
-    ?>
-    <div class="card shadow-sm mb-3 <?= $blocked_reason ? 'opacity-75' : '' ?>">
-      <div class="card-header py-2 d-flex justify-content-between align-items-center">
-        <span>
-          <span class="badge bg-secondary me-1">Etap <?= $n ?>/5</span>
-          <i class="bi <?= $cfg['icon'] ?> text-<?= $cfg['color'] ?>"></i>
-          <strong><?= h(edok_step_label($step_key, $doc)) ?></strong>
-          <div class="text-muted small ms-4"><?= h($cfg['sub']) ?></div>
-        </span>
-        <?php if ($decided): ?>
-          <?php if ($step['status'] === 'ok'): ?>
-          <span class="badge bg-success"><i class="bi bi-check-lg"></i> Tak</span>
-          <?php elseif ($step['status'] === 'odrzucono'): ?>
-          <span class="badge bg-danger"><i class="bi bi-x-lg"></i> Odrzucono</span>
-          <?php else: ?>
-          <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Z uwagami</span>
-          <?php endif; ?>
-        <?php elseif ($blocked_reason): ?>
-          <span class="badge bg-secondary"><i class="bi bi-lock-fill"></i> Zablokowany</span>
-        <?php else: ?>
-          <span class="badge bg-secondary">Oczekuje</span>
-        <?php endif; ?>
+  <div class="lg:tw-col-span-7">
+    <!-- Śledzik postępu obiegu -->
+    <div class="edok-tracker">
+      <?php $n = 0; foreach ($steps_config as $sk => $cfg): $n++;
+        $s = $doc['steps'][$sk] ?? null;
+        $cls = 'is-pending';
+        $icon = 'bi-circle';
+        if ($s && $s['status'] === 'ok')        { $cls = 'is-done';     $icon = 'bi-check-circle-fill'; }
+        elseif ($s && $s['status'] === 'odrzucono') { $cls = 'is-rejected'; $icon = 'bi-x-circle-fill'; }
+        elseif ($s && $s['status'] === 'uwagi') { $cls = 'is-uwagi';    $icon = 'bi-exclamation-circle-fill'; }
+        elseif ($sk === $current_key)           { $cls = 'is-current'; $icon = $cfg['icon']; }
+        elseif (!$s)                            { $cls = 'is-blocked'; $icon = 'bi-lock-fill'; }
+      ?>
+      <div class="edok-tracker__step <?= $cls ?>" title="<?= h(edok_step_label($sk, $doc)) ?>">
+        <span class="edok-tracker__num">ETAP <?= $n ?></span>
+        <i class="bi <?= $icon ?> edok-tracker__icon"></i>
+        <span class="edok-tracker__label tw-hidden sm:tw-block"><?= h(edok_step_label($sk, $doc)) ?></span>
       </div>
-      <div class="card-body py-2">
-        <?php if ($decided): ?>
-        <div class="small">
-          <span class="text-muted">Przez:</span> <strong><?= h($step['user_name']) ?></strong>
-          <?php if ($step['user_role']): ?><span class="text-muted">(<?= h($step['user_role']) ?>)</span><?php endif; ?>
-          &nbsp;|&nbsp; <?= date_pl($step['decided_at']) ?> <?= date('H:i', strtotime($step['decided_at'])) ?>
-        </div>
-        <?php if ($step['notes']): ?>
-        <div class="mt-1 text-warning-emphasis small"><strong>Uwagi:</strong> <?= nl2br(h($step['notes'])) ?></div>
-        <?php endif; ?>
-        <?php elseif ($blocked_reason): ?>
-        <p class="text-muted small mb-0"><i class="bi bi-lock-fill"></i> <?= h($blocked_reason) ?></p>
-        <?php elseif ($can_act): ?>
-          <?php if ($step_key === 'rachunkowa'): ?>
-          <?php
-          $netto  = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_netto']));
-          $vat    = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_vat']));
-          $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_brutto']));
-          $ok_sum = $brutto <= 0 || abs(($netto + $vat) - $brutto) <= 0.01;
-          ?>
-          <table class="table table-sm table-borderless mb-2 small">
-            <tbody>
-              <tr><td class="text-muted" style="width:42%">Netto + VAT</td><td class="text-end font-monospace"><?= number_format($netto + $vat, 2, ',', ' ') ?></td></tr>
-              <tr class="border-top"><td class="fw-semibold">Brutto na dokumencie</td><td class="text-end font-monospace fw-semibold"><?= number_format($brutto, 2, ',', ' ') ?></td></tr>
-            </tbody>
-          </table>
-          <div class="mb-2 small <?= $ok_sum ? 'text-success' : 'text-danger' ?>">
-            <i class="bi <?= $ok_sum ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?>"></i>
-            <?= $ok_sum ? 'Kwoty się zgadzają.' : 'Kwoty się NIE zgadzają — popraw dane dokumentu przed akceptacją.' ?>
-          </div>
-          <?php endif; ?>
-          <?php if ($pending_validation): ?>
-          <div class="alert alert-warning py-2 small mb-2">
-            <?php foreach ($pending_validation as $e): ?><div><i class="bi bi-exclamation-triangle"></i> <?= h($e) ?></div><?php endforeach; ?>
-          </div>
-          <?php else: ?>
-          <p class="text-muted small mb-2">Oczekuje na Twoją decyzję.</p>
-          <?php endif; ?>
-        <?php else: ?>
-        <p class="text-muted small mb-0">Oczekuje — brak uprawnień.</p>
-        <?php endif; ?>
+      <?php endforeach; ?>
+    </div>
 
-        <?php if ($can_act): ?>
-        <div class="mt-2 border-top pt-2">
-          <?php if (!edok_pin_is_set((int)$user['id'])): ?>
-          <div class="alert alert-warning py-2 small mb-2">
-            <i class="bi bi-shield-exclamation"></i> Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania ("Tak/OK") etapu.
-            <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="alert-link">Ustaw PIN</a>.
-          </div>
-          <?php endif; ?>
-          <form method="post" class="edok-step-form" onsubmit="return edokStepSubmit(event, this)">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="action" value="<?= $step_key ?>">
-            <input type="hidden" name="step_pin" class="step-pin-field">
-            <div class="d-flex gap-3 mb-2 flex-wrap">
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="step_status" id="<?= $step_key ?>_ok" value="ok">
-                <label class="form-check-label text-success fw-semibold" for="<?= $step_key ?>_ok"><i class="bi bi-check-circle-fill"></i> Tak / OK</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="step_status" id="<?= $step_key ?>_uwagi" value="uwagi">
-                <label class="form-check-label text-warning fw-semibold" for="<?= $step_key ?>_uwagi"><i class="bi bi-exclamation-circle-fill"></i> Z uwagami</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="step_status" id="<?= $step_key ?>_odrzucono" value="odrzucono">
-                <label class="form-check-label text-danger fw-semibold" for="<?= $step_key ?>_odrzucono"><i class="bi bi-x-circle-fill"></i> Odrzuć</label>
-              </div>
-            </div>
-            <div class="mb-2">
-              <textarea name="step_notes" class="form-control form-control-sm" rows="2" placeholder="Ewentualne uwagi lub powód odrzucenia…"></textarea>
-            </div>
-            <button type="submit" class="btn btn-sm btn-<?= $cfg['color'] ?>"><i class="bi bi-check2"></i> Zapisz decyzję</button>
-          </form>
-        </div>
+    <!-- Bieżący etap -->
+    <?php if ($is_terminal): ?>
+    <div class="edok-card">
+      <div class="edok-card__bd tw-text-center tw-py-6">
+        <?php if ($doc['status'] === 'zaakceptowany'): ?>
+        <i class="bi bi-check-circle-fill tw-text-5xl tw-text-emerald-500"></i>
+        <p class="tw-mt-2 tw-font-semibold tw-text-slate-700">Obieg zakończony — dokument w pełni zaakceptowany.</p>
+        <?php elseif ($doc['status'] === 'odrzucony'): ?>
+        <i class="bi bi-x-circle-fill tw-text-5xl tw-text-red-500"></i>
+        <p class="tw-mt-2 tw-font-semibold tw-text-slate-700">Dokument odrzucony.</p>
+        <?php else: ?>
+        <i class="bi bi-slash-circle tw-text-5xl tw-text-slate-400"></i>
+        <p class="tw-mt-2 tw-font-semibold tw-text-slate-700">Dokument wycofany.</p>
         <?php endif; ?>
       </div>
     </div>
-    <?php endforeach; ?>
+    <?php elseif ($current_key): ?>
+    <div class="edok-card">
+      <div class="edok-card__hd">
+        <i class="bi <?= $current_cfg['icon'] ?>"></i> Bieżący etap: <?= h(edok_step_label($current_key, $doc)) ?>
+        <span class="edok-badge edok-badge-secondary tw-ml-auto">Etap <?= array_search($current_key, array_keys($steps_config), true) + 1 ?>/5</span>
+      </div>
+      <div class="edok-card__bd">
+        <p class="tw-text-sm tw-text-slate-500 tw-mb-3"><?= h($current_cfg['sub']) ?></p>
+
+        <?php if ($current_blocked): ?>
+        <div class="edok-alert edok-alert-warning"><i class="bi bi-lock-fill tw-mt-0.5"></i> <?= h($current_blocked) ?></div>
+
+        <?php elseif (!edok_has_role($current_key)): ?>
+        <div class="edok-alert edok-alert-warning"><i class="bi bi-person-x tw-mt-0.5"></i> Oczekuje na decyzję osoby z uprawnieniem do tego etapu.</div>
+
+        <?php else: ?>
+          <?php if ($current_key === 'rachunkowa'):
+            $netto  = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_netto']));
+            $vat    = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_vat']));
+            $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_brutto']));
+            $ok_sum = $brutto <= 0 || abs(($netto + $vat) - $brutto) <= 0.01;
+          ?>
+          <div class="edok-amounts">
+            <table class="edok-kv">
+              <tbody>
+                <tr><td>Netto + VAT</td><td class="tw-text-right tw-font-mono"><?= number_format($netto + $vat, 2, ',', ' ') ?></td></tr>
+                <tr class="total"><td>Brutto na dokumencie</td><td class="tw-text-right tw-font-mono"><?= number_format($brutto, 2, ',', ' ') ?></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="edok-alert <?= $ok_sum ? 'tw-bg-emerald-50 tw-border-emerald-200 tw-text-emerald-700' : 'edok-alert-danger' ?> tw-mb-3">
+            <i class="bi <?= $ok_sum ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> tw-mt-0.5"></i>
+            <?= $ok_sum ? 'Kwoty się zgadzają.' : 'Kwoty się NIE zgadzają — popraw dane dokumentu przed akceptacją.' ?>
+          </div>
+          <?php endif; ?>
+
+          <?php if ($current_pending): ?>
+          <div class="edok-alert edok-alert-warning tw-mb-3">
+            <i class="bi bi-exclamation-triangle tw-mt-0.5"></i>
+            <ul class="tw-mb-0 tw-pl-4"><?php foreach ($current_pending as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+          </div>
+          <?php endif; ?>
+
+          <?php if (!edok_pin_is_set((int)$user['id'])): ?>
+          <div class="edok-alert edok-alert-warning tw-mb-3">
+            <i class="bi bi-shield-exclamation tw-mt-0.5"></i>
+            Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania. <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="tw-font-semibold tw-underline">Ustaw PIN</a>.
+          </div>
+          <?php else: ?>
+          <button type="button" class="edok-btn edok-btn-primary" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
+            <i class="bi bi-ui-checks"></i> Podejmij decyzję
+          </button>
+          <?php endif; ?>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Historia decyzji już podjętych -->
+    <?php
+    $decided_steps = array_filter($doc['steps'], fn($s) => in_array($s['status'], ['ok', 'uwagi', 'odrzucono'], true));
+    if ($decided_steps):
+    ?>
+    <div class="edok-card">
+      <div class="edok-card__hd"><i class="bi bi-list-check"></i> Decyzje podjęte</div>
+      <div class="edok-card__bd tw-py-1">
+        <?php foreach ($steps_config as $sk => $cfg): $s = $doc['steps'][$sk] ?? null; if (!$s || !in_array($s['status'], ['ok', 'uwagi', 'odrzucono'], true)) continue; ?>
+        <div class="edok-history-item">
+          <?php if ($s['status'] === 'ok'): ?><i class="bi bi-check-circle-fill tw-text-emerald-500 tw-mt-0.5"></i>
+          <?php elseif ($s['status'] === 'odrzucono'): ?><i class="bi bi-x-circle-fill tw-text-red-500 tw-mt-0.5"></i>
+          <?php else: ?><i class="bi bi-exclamation-circle-fill tw-text-amber-500 tw-mt-0.5"></i><?php endif; ?>
+          <div class="tw-flex-1">
+            <div><strong><?= h(edok_step_label($sk, $doc)) ?></strong> — <?= h($s['user_name']) ?><?= $s['user_role'] ? ' (' . h($s['user_role']) . ')' : '' ?></div>
+            <div class="tw-text-xs tw-text-slate-500">
+              <?= date_pl($s['decided_at']) ?> <?= date('H:i', strtotime($s['decided_at'])) ?>
+              <?php if (($s['verify_method'] ?? '') === 'pin' && ($s['verify_result'] ?? '') === 'ok'): ?> · <i class="bi bi-shield-check"></i> PIN<?php endif; ?>
+            </div>
+            <?php if ($s['notes']): ?><div class="tw-text-sm tw-text-amber-700 tw-mt-0.5"><?= nl2br(h($s['notes'])) ?></div><?php endif; ?>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Historia / audyt -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-header py-2"><strong><i class="bi bi-clock-history"></i> Historia obiegu (audyt)</strong></div>
-      <div class="card-body py-2">
+    <div class="edok-card">
+      <div class="edok-card__hd"><i class="bi bi-clock-history"></i> Historia obiegu (audyt)</div>
+      <div class="edok-card__bd tw-p-0">
         <div class="table-responsive">
           <table class="table table-sm mb-0 small">
             <thead><tr><th>Kiedy</th><th>Kto</th><th>Zdarzenie</th></tr></thead>
@@ -499,6 +583,7 @@ $steps_config = [
     </div>
   </div>
 </div>
+</div><!-- /.edok-page -->
 
 <?php if (edok_has_unlock_perm()): ?>
 <div class="modal fade" id="unlockModal" tabindex="-1">
@@ -522,60 +607,96 @@ $steps_config = [
 </div>
 <?php endif; ?>
 
-<!-- PIN jako wyskakujące okno — jeden modal współdzielony przez wszystkie etapy tej strony.
-     Otwiera się tylko dla decyzji "Tak/OK" (jedyna, którą uchwała nazywa "akceptacją"),
-     "Z uwagami"/"Odrzuć" wysyłają się od razu bez PIN-u — patrz edokStepSubmit(). -->
-<div class="modal fade" id="pinModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+<?php if ($current_key && $current_can_act && edok_pin_is_set((int)$user['id'])): ?>
+<!-- Kreator decyzji: jeden modal, dwa "panele" (decyzja → PIN dla "Tak/OK") — patrz edokWizard* w skrypcie niżej. -->
+<div class="modal fade edok-wizard" id="stepWizardModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title"><i class="bi bi-shield-lock"></i> Potwierdź PIN-em</h6>
+      <div class="modal-header edok-wizard-hd">
+        <h6 class="modal-title tw-font-bold"><i class="bi <?= $current_cfg['icon'] ?>"></i> <?= h(edok_step_label($current_key, $doc)) ?></h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <p class="small text-muted mb-2">Akceptacja ("Tak/OK") etapu wymaga weryfikacji tożsamości PIN-em EODoK.</p>
-        <input type="password" id="pinModalInput" class="form-control text-center font-monospace" style="letter-spacing:.4em;font-size:1.2rem"
-               inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••">
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
-        <button type="button" class="btn btn-primary btn-sm" id="pinModalConfirm"><i class="bi bi-check2"></i> Potwierdź</button>
-      </div>
+      <form method="post" id="wizardForm" onsubmit="return edokWizardSubmit(event, this)">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="action" value="<?= h($current_key) ?>">
+        <input type="hidden" name="step_pin" id="wizardPin">
+
+        <div class="edok-wizard-pane" id="wizardPaneDecision">
+          <div class="tw-flex tw-gap-2 tw-mb-3">
+            <label class="edok-choice choice-ok">
+              <input type="radio" name="step_status" value="ok" required>
+              <i class="bi bi-check-circle-fill tw-text-xl"></i> Tak / OK
+            </label>
+            <label class="edok-choice choice-uwagi">
+              <input type="radio" name="step_status" value="uwagi">
+              <i class="bi bi-exclamation-circle-fill tw-text-xl"></i> Z uwagami
+            </label>
+            <label class="edok-choice choice-odrzuc">
+              <input type="radio" name="step_status" value="odrzucono">
+              <i class="bi bi-x-circle-fill tw-text-xl"></i> Odrzuć
+            </label>
+          </div>
+          <textarea name="step_notes" class="form-control form-control-sm" rows="2" placeholder="Ewentualne uwagi lub powód odrzucenia…"></textarea>
+        </div>
+
+        <div class="edok-wizard-pane tw-hidden" id="wizardPanePin">
+          <p class="tw-text-sm tw-text-slate-500 tw-mb-2">Akceptacja ("Tak/OK") wymaga weryfikacji tożsamości PIN-em EODoK.</p>
+          <input type="password" id="wizardPinInput" class="edok-pin-input" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••">
+        </div>
+
+        <div class="tw-flex tw-justify-end tw-gap-2 tw-px-4 tw-pb-4">
+          <button type="button" class="edok-btn edok-btn-ghost" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="edok-btn edok-btn-primary" id="wizardNextBtn"><i class="bi bi-arrow-right"></i> Dalej</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
+<?php endif; ?>
 
 <script>
 (function () {
-  var modalEl = document.getElementById('pinModal');
-  var input   = document.getElementById('pinModalInput');
-  var confirmBtn = document.getElementById('pinModalConfirm');
-  var modal   = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
-  var pendingForm = null;
+  var modalEl = document.getElementById('stepWizardModal');
+  if (!modalEl) return;
+  var modal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+  var paneDecision = document.getElementById('wizardPaneDecision');
+  var panePin      = document.getElementById('wizardPanePin');
+  var pinInput      = document.getElementById('wizardPinInput');
+  var pinHidden     = document.getElementById('wizardPin');
+  var nextBtn        = document.getElementById('wizardNextBtn');
+  var form          = document.getElementById('wizardForm');
 
-  function confirmPin() {
-    var pin = input.value.trim();
-    if (!/^\d{6}$/.test(pin)) { input.classList.add('is-invalid'); input.focus(); return; }
-    input.classList.remove('is-invalid');
-    if (pendingForm) {
-      pendingForm.querySelector('.step-pin-field').value = pin;
-      var f = pendingForm; pendingForm = null;
-      if (modal) modal.hide();
-      f.submit();
-    }
+  function resetWizard() {
+    paneDecision.classList.remove('tw-hidden');
+    panePin.classList.add('tw-hidden');
+    nextBtn.innerHTML = '<i class="bi bi-arrow-right"></i> Dalej';
+    if (pinInput) { pinInput.value = ''; pinInput.classList.remove('is-invalid'); }
   }
-  if (confirmBtn) confirmBtn.addEventListener('click', confirmPin);
-  if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); confirmPin(); } });
-  if (modalEl) modalEl.addEventListener('shown.bs.modal', function () { input.value = ''; input.classList.remove('is-invalid'); input.focus(); });
+  modalEl.addEventListener('shown.bs.modal', resetWizard);
 
-  window.edokStepSubmit = function (event, form) {
-    var status = (form.querySelector('input[name="step_status"]:checked') || {}).value;
+  window.edokWizardSubmit = function (event, f) {
+    var status = (f.querySelector('input[name="step_status"]:checked') || {}).value;
+    if (!status) { event.preventDefault(); return false; }
     if (status !== 'ok') return true; // "Z uwagami"/"Odrzuć" — bez PIN, wysyła się normalnie
-    event.preventDefault();
-    if (!modal) { form.submit(); return false; } // Bootstrap niedostępny — degradacja do zwykłego submitu
-    pendingForm = form;
-    modal.show();
-    return false;
+
+    var onPinPane = !panePin.classList.contains('tw-hidden');
+    if (!onPinPane) {
+      event.preventDefault();
+      paneDecision.classList.add('tw-hidden');
+      panePin.classList.remove('tw-hidden');
+      nextBtn.innerHTML = '<i class="bi bi-check2"></i> Potwierdź';
+      setTimeout(function () { pinInput.focus(); }, 80);
+      return false;
+    }
+    var pin = pinInput.value.trim();
+    if (!/^\d{6}$/.test(pin)) {
+      event.preventDefault();
+      pinInput.classList.add('is-invalid');
+      pinInput.focus();
+      return false;
+    }
+    pinHidden.value = pin;
+    return true; // wysyła formularz normalnie
   };
 })();
 
