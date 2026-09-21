@@ -1738,3 +1738,87 @@ function edok_ksef_create_doc(array $invoice_data): int {
 
     return $doc_id;
 }
+
+// ── Szablony dokumentów (powtarzalne wydatki/przychody — np. stały czynsz,
+// cykliczna darowizna) ──────────────────────────────────────────────────────
+// Szablon jest globalny (jak task_templates w module Zadań — patrz
+// includes/tasks.php) i tylko wypełnia formularz edok/add.php domyślnymi
+// wartościami; zastosowanie NIE tworzy dokumentu samodzielnie — użytkownik
+// zawsze uzupełnia kwotę/datę i przechodzi przez normalny formularz.
+
+function edok_templates_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    db()->exec("CREATE TABLE IF NOT EXISTS edok_templates (
+        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        name                 TEXT    NOT NULL,
+        kierunek             TEXT    NOT NULL DEFAULT 'wydatek',
+        typ_dokumentu        TEXT    NOT NULL DEFAULT '',
+        description          TEXT    NOT NULL DEFAULT '',
+        kontrahent_nazwa     TEXT    NOT NULL DEFAULT '',
+        kontrahent_nip       TEXT    NOT NULL DEFAULT '',
+        rachunek_bankowy     TEXT    NOT NULL DEFAULT '',
+        stawka_vat           TEXT    NOT NULL DEFAULT '',
+        waluta               TEXT    NOT NULL DEFAULT 'PLN',
+        rodzaj_dzialalnosci  TEXT    NOT NULL DEFAULT '',
+        projekt              TEXT    NOT NULL DEFAULT '',
+        mpk                  TEXT    NOT NULL DEFAULT '',
+        zrodlo_przychodu     TEXT    NOT NULL DEFAULT '',
+        kwota_netto          TEXT    NOT NULL DEFAULT '',
+        kwota_vat            TEXT    NOT NULL DEFAULT '',
+        kwota_brutto         TEXT    NOT NULL DEFAULT '',
+        is_active            INTEGER NOT NULL DEFAULT 1,
+        created_by           INTEGER,
+        created_at           TEXT,
+        updated_at           TEXT
+    )");
+}
+
+/** Wszystkie szablony (aktywne domyślnie), posortowane po kierunku i nazwie. */
+function edok_get_templates(bool $active_only = true): array {
+    edok_templates_migrate();
+    return db_all(
+        "SELECT * FROM edok_templates" . ($active_only ? " WHERE is_active = 1" : "")
+        . " ORDER BY kierunek, name"
+    );
+}
+
+function edok_get_template(int $id): ?array {
+    edok_templates_migrate();
+    return db_one("SELECT * FROM edok_templates WHERE id = ?", [$id]) ?: null;
+}
+
+const EDOK_TEMPLATE_FIELDS = [
+    'name', 'kierunek', 'typ_dokumentu', 'description', 'kontrahent_nazwa', 'kontrahent_nip',
+    'rachunek_bankowy', 'stawka_vat', 'waluta', 'rodzaj_dzialalnosci', 'projekt', 'mpk',
+    'zrodlo_przychodu', 'kwota_netto', 'kwota_vat', 'kwota_brutto',
+];
+
+/** Tworzy (id=0) albo aktualizuje szablon. Zwraca id. */
+function edok_template_save(array $data, int $id = 0): int {
+    edok_templates_migrate();
+    $row = [];
+    foreach (EDOK_TEMPLATE_FIELDS as $f) $row[$f] = trim((string)($data[$f] ?? ''));
+    if ($row['kierunek'] !== 'przychod') $row['kierunek'] = 'wydatek';
+    if ($row['waluta'] === '') $row['waluta'] = 'PLN';
+
+    if ($id > 0) {
+        db_update('edok_templates', $row, $id);
+        return $id;
+    }
+    $row['is_active']  = 1;
+    $row['created_by'] = current_user()['id'] ?? null;
+    $row['created_at'] = date('Y-m-d H:i:s');
+    return db_insert('edok_templates', $row);
+}
+
+function edok_template_set_active(int $id, bool $active): void {
+    edok_templates_migrate();
+    db_update('edok_templates', ['is_active' => $active ? 1 : 0], $id);
+}
+
+function edok_template_delete(int $id): void {
+    edok_templates_migrate();
+    db()->prepare("DELETE FROM edok_templates WHERE id = ?")->execute([$id]);
+}

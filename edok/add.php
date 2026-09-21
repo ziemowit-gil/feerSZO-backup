@@ -10,6 +10,8 @@ require_once __DIR__ . '/../includes/ksiegowosc.php';
 
 edok_require_role('upload');
 edok_migrate();
+edok_templates_migrate();
+$edok_templates = edok_get_templates(true);
 
 $errors = [];
 
@@ -190,6 +192,19 @@ require_once __DIR__ . '/../includes/header.php';
           <button type="button" class="btn btn-outline-primary" id="ksef_fetch_btn" onclick="edokKsefFetch()">Pobierz i uzupełnij</button>
         </div>
         <div id="ksef_fetch_status" class="form-text"></div>
+      </div>
+      <?php endif; ?>
+
+      <?php if ($edok_templates): ?>
+      <div class="mb-3 p-2 rounded border bg-light">
+        <label class="form-label small fw-semibold mb-1" for="edok_template_select"><i class="bi bi-file-earmark-richtext"></i> Zastosuj szablon</label>
+        <select id="edok_template_select" class="form-select form-select-sm" onchange="edokApplyTemplate(this.value)">
+          <option value="">— bez szablonu —</option>
+          <?php foreach ($edok_templates as $t): ?>
+          <option value="<?= (int)$t['id'] ?>"><?= $t['kierunek'] === 'przychod' ? '↑ ' : '↓ ' ?><?= h($t['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text">Uzupełnia formularz danymi powtarzalnego wydatku/przychodu (np. stały czynsz) — kwotę i skan zawsze uzupełnia się osobno.</div>
       </div>
       <?php endif; ?>
 
@@ -375,6 +390,39 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+var EDOK_TEMPLATES = <?= json_encode(array_column($edok_templates, null, 'id'), JSON_UNESCAPED_UNICODE) ?>;
+
+// Zastosuj szablon — wypełnia pola formularza wartościami domyślnymi zapisanymi
+// w edok_templates (edok/szablony.php); nie dotyka kwoty/daty/skanu, bo te są
+// specyficzne dla każdego wystąpienia powtarzalnego dokumentu.
+function edokApplyTemplate(id) {
+  if (!id || !EDOK_TEMPLATES[id]) return;
+  var t = EDOK_TEMPLATES[id];
+  var set = function (name, val) { var el = document.querySelector('[name="' + name + '"]'); if (el) el.value = val || ''; };
+
+  document.getElementById(t.kierunek === 'przychod' ? 'kierunek_przychod' : 'kierunek_wydatek').checked = true;
+  edokToggleKierunek();
+
+  set('typ_dokumentu', t.typ_dokumentu);
+  set('description', t.description);
+  set('kontrahent_nazwa', t.kontrahent_nazwa);
+  set('kontrahent_nip', t.kontrahent_nip);
+  set('rachunek_bankowy', t.rachunek_bankowy);
+  set('zrodlo_przychodu', t.zrodlo_przychodu);
+  set('waluta', t.waluta);
+  set('stawka_vat', t.stawka_vat);
+  set('rodzaj_dzialalnosci', t.rodzaj_dzialalnosci);
+  set('projekt', t.projekt);
+  set('mpk', t.mpk);
+  if (t.kwota_netto)  set('kwota_netto', t.kwota_netto);
+  if (t.kwota_vat)    set('kwota_vat', t.kwota_vat);
+  if (t.kwota_brutto) set('kwota_brutto', t.kwota_brutto);
+
+  edokToggleProjekt();
+  edokRecalc();
+  edokSuggestTytul();
+}
+
 function edokRecalc() {
   var netto = parseFloat((document.getElementById('kwota_netto').value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
   var vatSel = document.getElementById('stawka_vat');
