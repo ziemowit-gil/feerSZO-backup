@@ -188,7 +188,7 @@ $current_pending = ($current_key && !$current_blocked) ? edok_step_validation_er
 .edok-topbar__title { @apply tw-flex tw-items-center tw-gap-2 tw-text-lg tw-font-bold tw-text-slate-800; }
 .edok-actions { @apply tw-flex tw-items-center tw-gap-2 tw-flex-wrap; }
 
-.edok-btn { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-1.5 tw-text-sm tw-font-semibold tw-border tw-transition-colors tw-no-underline tw-cursor-pointer; }
+.edok-btn { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-1.5 tw-text-sm tw-font-semibold tw-border tw-border-solid tw-transition-colors tw-no-underline tw-cursor-pointer; }
 .edok-btn-ghost   { @apply tw-bg-white tw-border-slate-200 tw-text-slate-600 hover:tw-bg-slate-50; }
 .edok-btn-primary { @apply tw-bg-blue-600 tw-border-blue-600 tw-text-white hover:tw-bg-blue-700; }
 .edok-btn-success { @apply tw-bg-emerald-600 tw-border-emerald-600 tw-text-white hover:tw-bg-emerald-700; }
@@ -204,43 +204,43 @@ $current_pending = ($current_key && !$current_blocked) ? edok_step_validation_er
 .edok-badge-danger    { @apply tw-bg-red-100 tw-text-red-700; }
 .edok-badge-dark      { @apply tw-bg-slate-800 tw-text-white; }
 
-.edok-alert { @apply tw-rounded-lg tw-border tw-px-3 tw-py-2 tw-text-sm tw-flex tw-items-start tw-gap-2; }
+.edok-alert { @apply tw-rounded-lg tw-border tw-border-solid tw-px-3 tw-py-2 tw-text-sm tw-flex tw-items-start tw-gap-2; }
 .edok-alert-danger  { @apply tw-bg-red-50 tw-border-red-200 tw-text-red-700; }
 .edok-alert-warning { @apply tw-bg-amber-50 tw-border-amber-200 tw-text-amber-700; }
 
-.edok-card { @apply tw-bg-white tw-rounded-xl tw-border tw-border-slate-200 tw-shadow-sm tw-mb-4 tw-overflow-hidden; }
-.edok-card__hd { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-2.5 tw-border-b tw-border-slate-100 tw-font-semibold tw-text-slate-700 tw-text-sm; }
+.edok-card { @apply tw-bg-white tw-rounded-xl tw-border tw-border-solid tw-border-slate-300 tw-shadow-sm tw-mb-4 tw-overflow-hidden; }
+.edok-card__hd { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-200 tw-font-semibold tw-text-slate-800 tw-text-sm; }
 .edok-card__bd { @apply tw-p-4; }
 
 .edok-kv { @apply tw-w-full tw-text-sm; }
 .edok-kv tr + tr td { @apply tw-pt-1.5; }
-.edok-kv td:first-child { @apply tw-text-slate-500 tw-pr-3 tw-align-top tw-w-[42%]; }
-.edok-kv td:last-child { @apply tw-font-medium tw-text-slate-800; }
-.edok-amounts { @apply tw-rounded-lg tw-bg-slate-50 tw-p-3 tw-mb-3; }
-.edok-amounts .total { @apply tw-border-t tw-border-slate-200 tw-pt-1.5 tw-mt-1.5 tw-font-bold; }
+.edok-kv td:first-child { @apply tw-text-slate-600 tw-pr-3 tw-align-top tw-w-[42%]; }
+.edok-kv td:last-child { @apply tw-font-medium tw-text-slate-900; }
+.edok-amounts { @apply tw-rounded-lg tw-bg-slate-100 tw-p-3 tw-mb-3; }
+.edok-amounts .total { @apply tw-border-t tw-border-solid tw-border-slate-300 tw-pt-1.5 tw-mt-1.5 tw-font-bold; }
 
 .edok-tracker { @apply tw-flex tw-items-stretch tw-gap-1 sm:tw-gap-2 tw-mb-4; }
-.edok-tracker__step { @apply tw-flex-1 tw-rounded-lg tw-border tw-px-2 tw-py-2 tw-text-center tw-bg-white tw-border-slate-200; }
-.edok-tracker__step.is-done    { @apply tw-bg-emerald-50 tw-border-emerald-200; }
-.edok-tracker__step.is-current { @apply tw-bg-blue-50 tw-border-blue-300 tw-ring-2 tw-ring-blue-200; }
-.edok-tracker__step.is-blocked { @apply tw-bg-slate-50 tw-border-slate-200 tw-opacity-60; }
-.edok-tracker__step.is-rejected{ @apply tw-bg-red-50 tw-border-red-200; }
-.edok-tracker__step.is-uwagi   { @apply tw-bg-amber-50 tw-border-amber-200; }
-.edok-tracker__num { @apply tw-text-[.65rem] tw-font-bold tw-text-slate-400 tw-block; }
-.edok-tracker__label { @apply tw-text-[.72rem] tw-font-semibold tw-text-slate-700 tw-block tw-leading-tight tw-mt-0.5; }
+.edok-tracker__step { @apply tw-flex-1 tw-rounded-lg tw-border tw-border-solid tw-px-2 tw-py-2 tw-text-center tw-bg-white tw-border-slate-300; }
+.edok-tracker__step.is-done    { @apply tw-bg-emerald-50 tw-border-emerald-300; }
+.edok-tracker__step.is-current { @apply tw-bg-blue-50 tw-border-blue-400 tw-ring-2 tw-ring-blue-200; }
+.edok-tracker__step.is-blocked { @apply tw-bg-slate-100 tw-border-slate-300 tw-opacity-70; }
+.edok-tracker__step.is-rejected{ @apply tw-bg-red-50 tw-border-red-300; }
+.edok-tracker__step.is-uwagi   { @apply tw-bg-amber-50 tw-border-amber-300; }
+.edok-tracker__num { @apply tw-text-[.65rem] tw-font-bold tw-text-slate-500 tw-block; }
+.edok-tracker__label { @apply tw-text-[.72rem] tw-font-semibold tw-text-slate-800 tw-block tw-leading-tight tw-mt-0.5; }
 .edok-tracker__icon { @apply tw-text-base tw-block tw-mt-1; }
 
-.edok-history-item { @apply tw-flex tw-items-start tw-gap-2 tw-py-2 tw-border-b tw-border-slate-100 last:tw-border-0 tw-text-sm; }
+.edok-history-item { @apply tw-flex tw-items-start tw-gap-2 tw-py-2 tw-border-b tw-border-solid tw-border-slate-200 last:tw-border-0 tw-text-sm; }
 
 .edok-wizard .modal-content { @apply tw-rounded-xl tw-border-0 tw-shadow-lg; }
-.edok-wizard-hd { @apply tw-px-4 tw-py-3 tw-border-b tw-border-slate-100; }
+.edok-wizard-hd { @apply tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-200; }
 .edok-wizard-pane { @apply tw-p-4; }
-.edok-choice { @apply tw-flex-1 tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border-2 tw-border-slate-200 tw-px-3 tw-py-2.5 tw-cursor-pointer tw-transition-colors tw-text-sm tw-font-semibold tw-text-slate-500; }
+.edok-choice { @apply tw-flex-1 tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border-2 tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2.5 tw-cursor-pointer tw-transition-colors tw-text-sm tw-font-semibold tw-text-slate-600; }
 .edok-choice input { @apply tw-sr-only; }
 .edok-choice:has(input:checked).choice-ok      { @apply tw-border-emerald-500 tw-bg-emerald-50 tw-text-emerald-700; }
 .edok-choice:has(input:checked).choice-uwagi   { @apply tw-border-amber-500 tw-bg-amber-50 tw-text-amber-700; }
 .edok-choice:has(input:checked).choice-odrzuc  { @apply tw-border-red-500 tw-bg-red-50 tw-text-red-700; }
-.edok-pin-input { @apply tw-w-full tw-text-center tw-text-2xl tw-tracking-[.5em] tw-font-mono tw-rounded-lg tw-border tw-border-slate-300 tw-py-2 focus:tw-border-blue-400 focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-blue-100; }
+.edok-pin-input { @apply tw-w-full tw-text-center tw-text-2xl tw-tracking-[.5em] tw-font-mono tw-rounded-lg tw-border tw-border-solid tw-border-slate-400 tw-py-2 focus:tw-border-blue-400 focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-blue-100; }
 .edok-pin-input.is-invalid { @apply tw-border-red-400 tw-ring-2 tw-ring-red-100; }
 </style>
 
