@@ -57,6 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($kontrahent_nip !== '' && !edok_nip_valid($kontrahent_nip)) $errors[] = 'NIP kontrahenta ma nieprawidłową sumę kontrolną.';
     if ($nr_faktury === '')                                $errors[] = 'Podaj numer dokumentu.';
     if ($kierunek === 'przychod' && $zrodlo_przychodu === '') $errors[] = 'Wskaż źródło przychodu (darczyńca, kontrahent albo tytuł wpływu).';
+    if ($data_wystawienia !== '') {
+        $granica = edok_typ_data_graniczna($typ_dokumentu);
+        if ($granica !== null && $data_wystawienia < $granica) {
+            $errors[] = 'Dokumenty typu „' . (EDOK_TYPES[$typ_dokumentu] ?? $typ_dokumentu) . '” wystawione przed '
+                . date_pl($granica) . ' nie są przyjmowane w EODoK — skieruj je dotychczasowym obiegiem (KDOK).';
+        }
+    }
     $brutto_num = (float) str_replace([' ', ','], ['', '.'], $kwota_brutto);
     if ($brutto_num <= 0)                                  $errors[] = 'Podaj kwotę brutto większą od zera.';
 
@@ -201,7 +208,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
           <label class="form-label">Typ dokumentu</label>
-          <select name="typ_dokumentu" id="typ_dokumentu" class="form-select" required onchange="edokSuggestTytul()">
+          <select name="typ_dokumentu" id="typ_dokumentu" class="form-select" required onchange="edokSuggestTytul(); edokCheckDataGraniczna()">
             <option value="">— wybierz —</option>
             <?php foreach (EDOK_TYPES as $k => $l): ?>
             <option value="<?= h($k) ?>" data-kierunek="<?= in_array($k, EDOK_TYPES_PRZYCHOD, true) ? 'przychod' : 'wydatek' ?>"
@@ -256,7 +263,8 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="row g-3 mb-3">
         <div class="col-sm-4">
           <label class="form-label">Data wystawienia</label>
-          <input type="date" name="data_wystawienia" id="data_wystawienia" class="form-control" value="<?= h($_POST['data_wystawienia'] ?? '') ?>" onchange="edokSuggestTytul()">
+          <input type="date" name="data_wystawienia" id="data_wystawienia" class="form-control" value="<?= h($_POST['data_wystawienia'] ?? '') ?>" onchange="edokSuggestTytul(); edokCheckDataGraniczna()">
+          <div class="form-text text-danger d-none" id="data_graniczna_hint"></div>
         </div>
         <div class="col-sm-4">
           <label class="form-label">Data sprzedaży / wykonania</label>
@@ -410,8 +418,27 @@ function edokToggleKierunek() {
   });
   document.getElementById('description_label').firstChild.textContent = kierunek === 'przychod' ? 'Opis przychodu ' : 'Opis wydatku ';
   document.getElementById('zrodlo_przychodu_wrap').style.display = kierunek === 'przychod' ? '' : 'none';
+  edokCheckDataGraniczna();
 }
 edokToggleKierunek();
+
+// Faktury/rachunki wystawione przed datą graniczną nie są przyjmowane w EODoK
+// (ten sam wzorzec co edok_typ_data_graniczna() w PHP — tylko podpowiedź, serwer
+// waliduje niezależnie i ostatecznie).
+var EDOK_CUTOFF_FAKTURA  = '2026-09-01';
+var EDOK_CUTOFF_RACHUNEK = '2026-10-01';
+function edokCheckDataGraniczna() {
+  var typ  = document.getElementById('typ_dokumentu').value;
+  var data = document.getElementById('data_wystawienia').value;
+  var hint = document.getElementById('data_graniczna_hint');
+  var granica = EDOK_FAKTURA_TYPES.indexOf(typ) !== -1 ? EDOK_CUTOFF_FAKTURA : (typ === 'rachunek' ? EDOK_CUTOFF_RACHUNEK : null);
+  if (granica && data && data < granica) {
+    hint.textContent = 'Ten typ dokumentu wystawiony przed ' + granica.split('-').reverse().join('.') + ' nie jest przyjmowany w EODoK — użyj dotychczasowego obiegu (KDOK).';
+    hint.classList.remove('d-none');
+  } else {
+    hint.classList.add('d-none');
+  }
+}
 
 // Podpowiedź tytułu przelewu — ten sam wzorzec co edok_generate_tytul_przelewu() w PHP
 // (Uchwała 5/2026 §2 pkt 8-9: "PŁATNOŚĆ: {opis} - AKC: {numer} - FAK/DOK: {identyfikator}",

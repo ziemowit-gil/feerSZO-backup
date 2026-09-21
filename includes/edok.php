@@ -51,6 +51,19 @@ const EDOK_TYPES = [
 /** Typy dokumentów klasyfikowane jako przychodowe (edok_documents.kierunek = 'przychod'). */
 const EDOK_TYPES_PRZYCHOD = ['wyciag_bankowy', 'potwierdzenie_wplaty', 'faktura_sprzedazy', 'darowizna', 'dotacja_grant', 'inny_przychod'];
 
+// Daty graniczne wprowadzenia EODoK dla dokumentów historycznych — faktury
+// i rachunki wystawione przed tymi datami idą dotychczasowym obiegiem (KDOK),
+// nie przez EODoK (patrz edok_typ_data_graniczna(), sprawdzane w edok/add.php).
+const EDOK_CUTOFF_FAKTURA  = '2026-09-01'; // faktury VAT / korygujące
+const EDOK_CUTOFF_RACHUNEK = '2026-10-01'; // rachunki
+
+/** Data graniczna dla typu dokumentu (faktury/rachunki) — null, jeśli typ nie ma granicy. */
+function edok_typ_data_graniczna(string $typ_dokumentu): ?string {
+    if (in_array($typ_dokumentu, ['faktura_vat', 'faktura_korygujaca'], true)) return EDOK_CUTOFF_FAKTURA;
+    if ($typ_dokumentu === 'rachunek') return EDOK_CUTOFF_RACHUNEK;
+    return null;
+}
+
 const EDOK_STATUSES = [
     'draft'         => ['label' => 'Projekt (wersja robocza)',              'class' => 'secondary'],
     'w_obiegu'      => ['label' => 'W obiegu',                              'class' => 'warning'],
