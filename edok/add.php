@@ -16,8 +16,10 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
+    $kierunek         = in_array($_POST['kierunek'] ?? '', ['wydatek', 'przychod'], true) ? $_POST['kierunek'] : 'wydatek';
     $typ_dokumentu    = $_POST['typ_dokumentu'] ?? '';
     $description      = trim($_POST['description'] ?? '');
+    $zrodlo_przychodu = trim($_POST['zrodlo_przychodu'] ?? '');
     $kontrahent_nazwa = trim($_POST['kontrahent_nazwa'] ?? '');
     $kontrahent_nip   = preg_replace('/\D/', '', trim($_POST['kontrahent_nip'] ?? ''));
     $nr_faktury       = trim($_POST['nr_faktury'] ?? '');
@@ -47,10 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $is_test = is_admin() && !empty($_POST['is_test']);
 
     if (!isset(EDOK_TYPES[$typ_dokumentu]))               $errors[] = 'Wybierz typ dokumentu.';
-    if ($description === '')                              $errors[] = 'Uzupełnij opis wydatku — jest wymagany do kontroli merytorycznej.';
-    if ($kontrahent_nazwa === '')                          $errors[] = 'Podaj nazwę kontrahenta.';
+    if (isset(EDOK_TYPES[$typ_dokumentu]) && in_array($typ_dokumentu, EDOK_TYPES_PRZYCHOD, true) !== ($kierunek === 'przychod')) {
+        $errors[] = 'Wybrany typ dokumentu nie pasuje do zaznaczonego kierunku (wydatek/przychód).';
+    }
+    if ($description === '')                              $errors[] = 'Uzupełnij opis ' . ($kierunek === 'przychod' ? 'przychodu' : 'wydatku') . ' — jest wymagany do kontroli merytorycznej.';
+    if ($kontrahent_nazwa === '')                          $errors[] = 'Podaj nazwę kontrahenta' . ($kierunek === 'przychod' ? '/darczyńcy.' : '.');
     if ($kontrahent_nip !== '' && !edok_nip_valid($kontrahent_nip)) $errors[] = 'NIP kontrahenta ma nieprawidłową sumę kontrolną.';
     if ($nr_faktury === '')                                $errors[] = 'Podaj numer dokumentu.';
+    if ($kierunek === 'przychod' && $zrodlo_przychodu === '') $errors[] = 'Wskaż źródło przychodu (darczyńca, kontrahent albo tytuł wpływu).';
     $brutto_num = (float) str_replace([' ', ','], ['', '.'], $kwota_brutto);
     if ($brutto_num <= 0)                                  $errors[] = 'Podaj kwotę brutto większą od zera.';
 
@@ -79,23 +85,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $user = current_user();
         $number = $is_test ? edok_next_test_number() : edok_next_number();
-        if ($tytul_przelewu === '' || $tytul_przelewu_auto) {
+        if ($kierunek === 'przychod') {
+            $tytul_przelewu = ''; // nie dotyczy — brak wychodzącej płatności
+        } elseif ($tytul_przelewu === '' || $tytul_przelewu_auto) {
             $tytul_przelewu = edok_generate_tytul_przelewu([
                 'typ_dokumentu'    => $typ_dokumentu,
                 'nr_faktury'       => $nr_faktury,
                 'number'           => $number,
                 'data_wystawienia' => $data_wystawienia,
                 'description'      => $description,
+                'kierunek'         => $kierunek,
             ]);
         }
         $doc_id = db_insert('edok_documents', [
             'number'              => $number,
             'title'               => $nr_faktury !== '' ? $nr_faktury : $number,
+            'kierunek'            => $kierunek,
             'typ_dokumentu'       => $typ_dokumentu,
             'description'         => $description,
             'kontrahent_nazwa'    => $kontrahent_nazwa,
             'kontrahent_nip'      => $kontrahent_nip,
             'nr_faktury'          => $nr_faktury,
+            'zrodlo_przychodu'    => $zrodlo_przychodu,
             'data_wystawienia'    => $data_wystawienia ?: null,
             'data_sprzedazy'      => $data_sprzedazy ?: null,
             'data_wplywu'         => $data_wplywu ?: null,
@@ -175,13 +186,26 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <?php endif; ?>
 
+      <?php $kierunek_val = ($_POST['kierunek'] ?? 'wydatek') === 'przychod' ? 'przychod' : 'wydatek'; ?>
+      <div class="mb-3">
+        <label class="form-label">Kierunek dokumentu</label>
+        <div class="btn-group d-block" role="group">
+          <input type="radio" class="btn-check" name="kierunek" id="kierunek_wydatek" value="wydatek" <?= $kierunek_val === 'wydatek' ? 'checked' : '' ?> onchange="edokToggleKierunek()">
+          <label class="btn btn-outline-secondary btn-sm" for="kierunek_wydatek"><i class="bi bi-cash-stack"></i> Wydatek</label>
+          <input type="radio" class="btn-check" name="kierunek" id="kierunek_przychod" value="przychod" <?= $kierunek_val === 'przychod' ? 'checked' : '' ?> onchange="edokToggleKierunek()">
+          <label class="btn btn-outline-secondary btn-sm" for="kierunek_przychod"><i class="bi bi-piggy-bank"></i> Przychód</label>
+        </div>
+        <div class="form-text">Dokumenty przychodowe (wyciągi, wpłaty, darowizny, granty) — Uchwała 5/2026 §1 pkt 2, obowiązkowo od 1.10.2026.</div>
+      </div>
+
       <div class="row g-3 mb-3">
         <div class="col-sm-6">
           <label class="form-label">Typ dokumentu</label>
           <select name="typ_dokumentu" id="typ_dokumentu" class="form-select" required onchange="edokSuggestTytul()">
             <option value="">— wybierz —</option>
             <?php foreach (EDOK_TYPES as $k => $l): ?>
-            <option value="<?= h($k) ?>" <?= ($_POST['typ_dokumentu'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option>
+            <option value="<?= h($k) ?>" data-kierunek="<?= in_array($k, EDOK_TYPES_PRZYCHOD, true) ? 'przychod' : 'wydatek' ?>"
+              <?= ($_POST['typ_dokumentu'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -193,9 +217,15 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
 
       <div class="mb-3">
-        <label class="form-label">Opis wydatku <span class="text-muted fw-normal">(kontrola merytoryczna)</span></label>
+        <label class="form-label" id="description_label">Opis wydatku <span class="text-muted fw-normal">(kontrola merytoryczna)</span></label>
         <textarea name="description" class="form-control" rows="2" required oninput="edokSuggestTytul()"
           placeholder="Cel wydatku, potwierdzenie wykonania usługi/dostawy…"><?= h($_POST['description'] ?? '') ?></textarea>
+      </div>
+
+      <div class="mb-3" id="zrodlo_przychodu_wrap" style="display:none">
+        <label class="form-label">Źródło przychodu <span class="text-muted fw-normal">(darczyńca, kontrahent albo tytuł wpływu)</span></label>
+        <input type="text" name="zrodlo_przychodu" id="zrodlo_przychodu" class="form-control" maxlength="255"
+          value="<?= h($_POST['zrodlo_przychodu'] ?? '') ?>" placeholder="np. Darowizna od Jan Kowalski / Grant NIW-CRSO nr …">
       </div>
 
       <div class="mb-2">
@@ -365,6 +395,23 @@ function edokToggleProjekt() {
 }
 edokToggleProjekt();
 edokMppCheck();
+
+// Kierunek dokumentu (Uchwała 5/2026 §1 pkt 2) — filtruje typy dostępne w selektorze,
+// przełącza etykietę opisu i pokazuje pole źródła przychodu. Nie zmienia numeru
+// dokumentu ani skanu — te są wspólne dla obu kierunków.
+function edokToggleKierunek() {
+  var kierunek = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek';
+  var typSel = document.getElementById('typ_dokumentu');
+  Array.from(typSel.options).forEach(function (o) {
+    if (!o.value) return;
+    var match = o.dataset.kierunek === kierunek;
+    o.hidden = !match;
+    if (!match && o.selected) typSel.value = '';
+  });
+  document.getElementById('description_label').firstChild.textContent = kierunek === 'przychod' ? 'Opis przychodu ' : 'Opis wydatku ';
+  document.getElementById('zrodlo_przychodu_wrap').style.display = kierunek === 'przychod' ? '' : 'none';
+}
+edokToggleKierunek();
 
 // Podpowiedź tytułu przelewu — ten sam wzorzec co edok_generate_tytul_przelewu() w PHP
 // (Uchwała 5/2026 §2 pkt 8-9: "PŁATNOŚĆ: {opis} - AKC: {numer} - FAK/DOK: {identyfikator}",

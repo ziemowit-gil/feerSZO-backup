@@ -47,14 +47,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     exit;
 }
 
-$filter_status = $_GET['status'] ?? '';
-$filter_q      = trim($_GET['q'] ?? '');
+$filter_status   = $_GET['status'] ?? '';
+$filter_kierunek = $_GET['kierunek'] ?? '';
+$filter_q        = trim($_GET['q'] ?? '');
 
 $where  = ['1=1'];
 $params = [];
 if ($filter_status && isset(EDOK_STATUSES[$filter_status])) {
     $where[]  = 'status = ?';
     $params[] = $filter_status;
+}
+if (in_array($filter_kierunek, ['wydatek', 'przychod'], true)) {
+    $where[]  = "COALESCE(kierunek,'wydatek') = ?";
+    $params[] = $filter_kierunek;
 }
 if ($filter_q !== '') {
     $where[]  = '(number LIKE ? OR title LIKE ? OR kontrahent_nazwa LIKE ? OR nr_faktury LIKE ?)';
@@ -80,10 +85,10 @@ if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Cache-Control: no-cache');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Numer', 'Kontrahent', 'NIP', 'Tytuł', 'Netto', 'VAT', 'Brutto', 'Waluta', 'Status', 'Klasyfikacja', 'Dodano'], ';');
+    fputcsv($out, ['Numer', 'Kierunek', 'Kontrahent', 'NIP', 'Tytuł', 'Netto', 'VAT', 'Brutto', 'Waluta', 'Status', 'Klasyfikacja', 'Dodano'], ';');
     foreach ($docs as $d) {
         fputcsv($out, [
-            $d['number'], $d['kontrahent_nazwa'], $d['kontrahent_nip'], $d['title'],
+            $d['number'], ($d['kierunek'] ?? 'wydatek') === 'przychod' ? 'Przychód' : 'Wydatek', $d['kontrahent_nazwa'], $d['kontrahent_nip'], $d['title'],
             $d['kwota_netto'], $d['kwota_vat'], $d['kwota_brutto'], $d['waluta'] ?: 'PLN',
             EDOK_STATUSES[$d['status']]['label'] ?? $d['status'],
             edok_transfer_label_klasyfikacja($d['rodzaj_dzialalnosci'], $d['projekt']),
@@ -156,6 +161,14 @@ require_once __DIR__ . '/../includes/header.php';
     </select>
   </div>
   <div class="col-auto">
+    <label class="form-label small mb-1">Kierunek</label>
+    <select name="kierunek" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      <option value="wydatek" <?= $filter_kierunek === 'wydatek' ? 'selected' : '' ?>>Wydatek</option>
+      <option value="przychod" <?= $filter_kierunek === 'przychod' ? 'selected' : '' ?>>Przychód</option>
+    </select>
+  </div>
+  <div class="col-auto">
     <label class="form-label small mb-1">Szukaj</label>
     <input type="text" name="q" class="form-control form-control-sm" value="<?= h($filter_q) ?>" placeholder="numer, kontrahent, tytuł…">
   </div>
@@ -169,6 +182,7 @@ require_once __DIR__ . '/../includes/header.php';
     <thead class="table-light">
       <tr>
         <th>Numer</th>
+        <th>Kierunek</th>
         <th>Kontrahent</th>
         <th>Tytuł</th>
         <th class="text-end">Kwota brutto</th>
@@ -183,11 +197,12 @@ require_once __DIR__ . '/../includes/header.php';
     </thead>
     <tbody>
       <?php if (!$docs): ?>
-      <tr><td colspan="12" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
+      <tr><td colspan="13" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
       <?php endif; ?>
       <?php foreach ($docs as $doc): ?>
       <tr>
         <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?></td>
+        <td><?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? '<span class="badge bg-info text-dark">Przychód</span>' : '<span class="badge bg-secondary">Wydatek</span>' ?></td>
         <td><?= h($doc['kontrahent_nazwa']) ?></td>
         <td><?= h($doc['title']) ?></td>
         <td class="text-end font-monospace"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td>

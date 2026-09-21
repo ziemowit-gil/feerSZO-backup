@@ -32,13 +32,24 @@
 // ── Stałe ─────────────────────────────────────────────────────────────────────
 
 const EDOK_TYPES = [
+    // Wydatki / dokumenty kosztowe
     'faktura_vat'        => 'Faktura VAT',
     'faktura_korygujaca' => 'Faktura korygująca',
     'rachunek'           => 'Rachunek',
     'nota_ksiegowa'      => 'Nota księgowa',
     'lista_plac'         => 'Lista płac',
     'inny'               => 'Inny dokument księgowy',
+    // Przychody (Uchwała 5/2026 §1 pkt 2 — obowiązkowo od 1.10.2026, patrz EDOK_TYPES_PRZYCHOD)
+    'wyciag_bankowy'      => 'Wyciąg bankowy',
+    'potwierdzenie_wplaty' => 'Potwierdzenie wpłaty',
+    'faktura_sprzedazy'   => 'Faktura sprzedaży',
+    'darowizna'           => 'Darowizna',
+    'dotacja_grant'       => 'Dotacja / grant',
+    'inny_przychod'       => 'Inny dokument przychodowy',
 ];
+
+/** Typy dokumentów klasyfikowane jako przychodowe (edok_documents.kierunek = 'przychod'). */
+const EDOK_TYPES_PRZYCHOD = ['wyciag_bankowy', 'potwierdzenie_wplaty', 'faktura_sprzedazy', 'darowizna', 'dotacja_grant', 'inny_przychod'];
 
 const EDOK_STATUSES = [
     'draft'         => ['label' => 'Projekt (wersja robocza)',              'class' => 'secondary'],
@@ -123,6 +134,11 @@ function edok_migrate(): void {
         'stawka_vat'             => "TEXT NOT NULL DEFAULT ''",
         // Numer referencyjny KSeF, gdy dokument pochodzi z synchronizacji
         'ksef_reference'         => "TEXT NOT NULL DEFAULT ''",
+        // Dokumenty przychodowe (Uchwała 5/2026 §1 pkt 2) — kierunek odróżnia je od
+        // wydatków (inny etap 5, inna walidacja formalna, pomijane w tytule przelewu
+        // i Preliminarzu Płatności — patrz edok_step_label()/edok_preliminarz_query()).
+        'kierunek'               => "TEXT NOT NULL DEFAULT 'wydatek'",
+        'zrodlo_przychodu'       => "TEXT NOT NULL DEFAULT ''",
     ]);
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
@@ -431,6 +447,9 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
  * na końcu (odrzucany jako pierwszy) opis celu płatności.
  */
 function edok_generate_tytul_przelewu(array $doc): string {
+    // Dokumenty przychodowe nie generują wychodzącej płatności — nie dotyczy ich tytuł przelewu.
+    if (($doc['kierunek'] ?? 'wydatek') === 'przychod') return '';
+
     $numer         = trim((string)($doc['number'] ?? ''));
     $typ_dokumentu = (string)($doc['typ_dokumentu'] ?? '');
     $typ_label     = EDOK_TYPES[$typ_dokumentu] ?? 'Dokument księgowy';
@@ -521,6 +540,19 @@ function edok_step_order(): array {
 }
 
 /**
+ * Etykieta etapu — zależna od kierunku dokumentu. Uchwała 5/2026 §1 pkt 2 obejmuje
+ * też dokumenty przychodowe, dla których etap 5 nie jest "zatwierdzeniem do zapłaty"
+ * (nie ma wychodzącej płatności), tylko zatwierdzeniem do ujęcia przychodu w
+ * ewidencji. Pozostałe etapy nazywają się tak samo niezależnie od kierunku.
+ */
+function edok_step_label(string $step_key, ?array $doc = null): string {
+    if ($step_key === 'zatwierdza' && ($doc['kierunek'] ?? 'wydatek') === 'przychod') {
+        return 'Zatwierdzenie do ujęcia przychodu w ewidencji';
+    }
+    return EDOK_STEPS[$step_key] ?? $step_key;
+}
+
+/**
  * Zwraca powód blokady, jeśli etap $step_key nie może być jeszcze decydowany,
  * bo poprzedzający go etap nie ma statusu 'ok' — albo null, gdy droga jest wolna.
  */
@@ -532,7 +564,7 @@ function edok_step_blocked_reason(array $doc, string $step_key): ?string {
     $prev_key    = $order[$idx - 1];
     $prev_status = $doc['steps'][$prev_key]['status'] ?? null;
     if ($prev_status !== 'ok') {
-        return 'Etap „' . EDOK_STEPS[$prev_key] . '” musi być zakończony (Tak/OK), zanim można zdecydować o etapie „' . EDOK_STEPS[$step_key] . '”.';
+        return 'Etap „' . edok_step_label($prev_key, $doc) . '” musi być zakończony (Tak/OK), zanim można zdecydować o etapie „' . edok_step_label($step_key, $doc) . '”.';
     }
     return null;
 }
@@ -556,6 +588,12 @@ function edok_step_validation_errors(array $doc, string $step_key): array {
         $nip = preg_replace('/\D/', '', (string)($doc['kontrahent_nip'] ?? ''));
         if ($nip !== '' && !edok_nip_valid($nip)) $errors[] = 'Kontrola formalno-prawna: NIP kontrahenta ma nieprawidłową sumę kontrolną.';
         if (trim((string)($doc['nr_faktury'] ?? '')) === '') $errors[] = 'Kontrola formalno-prawna: podaj numer dokumentu.';
+        // Dokumenty przychodowe (Uchwała 5/2026 §2 ostatni punkt): źródło i data wpływu
+        // muszą być ustalone, żeby powiązać wpływ z zapisem w ewidencji.
+        if (($doc['kierunek'] ?? 'wydatek') === 'przychod') {
+            if (trim((string)($doc['zrodlo_przychodu'] ?? '')) === '') $errors[] = 'Kontrola formalno-prawna: wskaż źródło przychodu (darczyńca, kontrahent albo tytuł wpływu).';
+            if (trim((string)($doc['data_wplywu'] ?? '')) === '') $errors[] = 'Kontrola formalno-prawna: podaj datę wpływu środków.';
+        }
     }
 
     if ($step_key === 'rachunkowa') {
@@ -590,15 +628,15 @@ function edok_nip_valid(string $nip): bool {
 
 // ── Audyt ─────────────────────────────────────────────────────────────────────
 
-/** Zapisuje jedno zdarzenie audytu — identyfikator + rola + stempel czasowy zastępują pieczątkę. */
-function edok_log(int $doc_id, string $event_type, string $step_key, string $from_status, string $to_status, string $comment): void {
+/** Zapisuje jedno zdarzenie audytu — identyfikator + rola + stempel czasowy zastępują pieczątkę. $doc (opcjonalnie) daje etykiecie etapu właściwy kierunek (patrz edok_step_label()). */
+function edok_log(int $doc_id, string $event_type, string $step_key, string $from_status, string $to_status, string $comment, ?array $doc = null): void {
     $user = current_user();
     $uid  = (int)($user['id'] ?? 0);
     db_insert('edok_events', [
         'doc_id'      => $doc_id,
         'event_type'  => $event_type,
         'step_key'    => $step_key,
-        'step_label'  => $step_key !== '' ? (EDOK_STEPS[$step_key] ?? $step_key) : '',
+        'step_label'  => $step_key !== '' ? edok_step_label($step_key, $doc) : '',
         'from_status' => $from_status,
         'to_status'   => $to_status,
         'actor_id'    => $uid,
@@ -657,11 +695,11 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
         ]);
     }
 
-    edok_log($id, 'decision', $step_key, $doc['status'], $doc['status'], EDOK_STEPS[$step_key] . ' → ' . $dec_label . ($notes !== '' ? (': ' . $notes) : '') . ($verify_method === 'pin' ? ' (tożsamość zweryfikowana PIN-em)' : ''));
+    edok_log($id, 'decision', $step_key, $doc['status'], $doc['status'], edok_step_label($step_key, $doc) . ' → ' . $dec_label . ($notes !== '' ? (': ' . $notes) : '') . ($verify_method === 'pin' ? ' (tożsamość zweryfikowana PIN-em)' : ''), $doc);
 
     if ($status === 'odrzucono') {
         db_exec("UPDATE edok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
-        edok_log($id, 'status_change', $step_key, $doc['status'], 'odrzucony', 'Dokument odrzucony na etapie: ' . EDOK_STEPS[$step_key]);
+        edok_log($id, 'status_change', $step_key, $doc['status'], 'odrzucony', 'Dokument odrzucony na etapie: ' . edok_step_label($step_key, $doc), $doc);
         return ['status' => 'odrzucony', 'rejected' => true];
     }
 
@@ -669,7 +707,10 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
     $new_status = edok_is_complete($fresh) ? 'zaakceptowany' : 'w_obiegu';
     db_exec("UPDATE edok_documents SET status=?, updated_at=datetime('now') WHERE id=?", [$new_status, $id]);
     if ($new_status === 'zaakceptowany') {
-        edok_log($id, 'status_change', '', $doc['status'], 'zaakceptowany', 'Obieg zakończony — dokument zaakceptowany do zapłaty i księgowania (5/5 etapów).');
+        $koncowy_opis = ($doc['kierunek'] ?? 'wydatek') === 'przychod'
+            ? 'Obieg zakończony — przychód zaakceptowany do ujęcia w ewidencji (5/5 etapów).'
+            : 'Obieg zakończony — dokument zaakceptowany do zapłaty i księgowania (5/5 etapów).';
+        edok_log($id, 'status_change', '', $doc['status'], 'zaakceptowany', $koncowy_opis, $doc);
         // Dokument końcowy (źródło + karta akceptacji) — best-effort, błąd generowania
         // PDF nie może cofnąć już zapisanej akceptacji.
         try {
@@ -789,13 +830,14 @@ function edok_print_css(): string {
 /** Fragment HTML karty akceptacji (bez <html>/<head>/<body>) — dla przeglądarki i dla mPDF. */
 function edok_print_html(array $doc): string {
     $org = defined('ORG_NAME') ? ORG_NAME : '';
+    $jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
     $html = '<div class="sheet">';
-    $html .= '<h1>' . h($org ?: 'EODoK') . ' — Karta akceptacji dokumentu</h1>';
+    $html .= '<h1>' . h($org ?: 'EODoK') . ' — Karta akceptacji dokumentu' . ($jest_przychod ? ' przychodowego' : '') . '</h1>';
     $html .= '<div class="sub">Dokument <strong>' . h($doc['number']) . '</strong> · '
         . h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) . ' · nr ' . h($doc['nr_faktury'])
         . ' · status: ' . h(EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status']) . '</div>';
 
-    $html .= '<table class="head-table"><tr><td class="l">Kontrahent</td><td>' . h($doc['kontrahent_nazwa'])
+    $html .= '<table class="head-table"><tr><td class="l">' . ($jest_przychod ? 'Kontrahent / darczyńca' : 'Kontrahent') . '</td><td>' . h($doc['kontrahent_nazwa'])
         . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr></table>';
 
     $html .= '<table class="kwoty"><tr>'
@@ -804,9 +846,16 @@ function edok_print_html(array $doc): string {
         . '<td class="lbl">Brutto</td><td>' . h($doc['kwota_brutto'] ?: '—') . ' ' . h($doc['waluta']) . '</td>'
         . '</tr></table>';
 
-    $html .= '<h2>Opis wydatku</h2><div class="desc">' . (trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '—') . '</div>';
+    $html .= '<h2>' . ($jest_przychod ? 'Opis przychodu' : 'Opis wydatku') . '</h2><div class="desc">' . (trim($doc['description']) !== '' ? nl2br(h($doc['description'])) : '—') . '</div>';
 
-    $html .= '<h2>Dekretacja i alokacja kosztów</h2><table class="head-table"><tr>'
+    if ($jest_przychod) {
+        $html .= '<h2>Źródło przychodu</h2><table class="head-table"><tr>'
+            . '<td class="l">Źródło</td><td>' . h($doc['zrodlo_przychodu'] ?: '—') . '</td>'
+            . '<td class="l">Data wpływu</td><td>' . h($doc['data_wplywu'] ? date_pl($doc['data_wplywu']) : '—') . '</td>'
+            . '</tr></table>';
+    }
+
+    $html .= '<h2>' . ($jest_przychod ? 'Klasyfikacja przychodu' : 'Dekretacja i alokacja kosztów') . '</h2><table class="head-table"><tr>'
         . '<td class="l">Rodzaj działalności</td><td>' . h(EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? '—') . '</td>'
         . '<td class="l">Projekt / MPK</td><td>' . h($doc['projekt'] ?: $doc['mpk'] ?: '—') . '</td>'
         . '</tr></table>';
@@ -814,9 +863,9 @@ function edok_print_html(array $doc): string {
     $html .= '<h2>Etapy akceptacji</h2><table class="steps"><thead><tr>'
         . '<th style="width:32%">Etap</th><th style="width:14%">Rodzaj akceptacji</th><th style="width:22%">Kto / kiedy</th><th>Opis / uwagi</th>'
         . '</tr></thead><tbody>';
-    foreach (EDOK_STEPS as $sk => $sl) {
+    foreach (array_keys(EDOK_STEPS) as $sk) {
         $s = $doc['steps'][$sk] ?? null;
-        $html .= '<tr><td>' . h($sl) . '</td>'
+        $html .= '<tr><td>' . h(edok_step_label($sk, $doc)) . '</td>'
             . '<td class="dec">' . h(edok_print_decision_label($s)) . '</td>'
             . '<td>' . edok_print_who($s) . '</td>'
             . '<td>' . ($s && trim((string)$s['notes']) !== '' ? nl2br(h($s['notes'])) : '—') . '</td></tr>';
@@ -972,7 +1021,9 @@ function edok_platnosc_priorytet_label(int $p): string {
  * status_platnosci, wymaga_mpp, priorytet, view_url.
  */
 function edok_preliminarz_query(array $f = []): array {
-    $where  = ["status = 'zaakceptowany'", "COALESCE(wyklucz_z_preliminarza,0) = 0"];
+    // Dokumenty przychodowe nie generują wychodzącej płatności — nie mają czego robić
+    // w Preliminarzu (kolejce "co trzeba zapłacić").
+    $where  = ["status = 'zaakceptowany'", "COALESCE(wyklucz_z_preliminarza,0) = 0", "COALESCE(kierunek,'wydatek') = 'wydatek'"];
     $params = [];
     if (!empty($f['status_platnosci'])) { $where[] = "COALESCE(status_platnosci,'nowy') = ?"; $params[] = $f['status_platnosci']; }
     else                                { $where[] = "COALESCE(status_platnosci,'nowy') NOT IN ('anulowany')"; }

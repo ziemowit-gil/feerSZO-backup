@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $kontrahent_nazwa = $locked_formal      ? $doc['kontrahent_nazwa'] : trim($_POST['kontrahent_nazwa'] ?? '');
         $kontrahent_nip   = $locked_formal      ? $doc['kontrahent_nip']   : preg_replace('/\D/', '', trim($_POST['kontrahent_nip'] ?? ''));
         $nr_faktury       = $locked_formal      ? $doc['nr_faktury']       : trim($_POST['nr_faktury'] ?? '');
+        $zrodlo_przychodu = $locked_formal      ? $doc['zrodlo_przychodu'] : trim($_POST['zrodlo_przychodu'] ?? '');
         $kwota_netto      = $locked_rachunkowa  ? $doc['kwota_netto']      : trim($_POST['kwota_netto'] ?? '');
         $kwota_vat        = $locked_rachunkowa  ? $doc['kwota_vat']        : trim($_POST['kwota_vat'] ?? '');
         $kwota_brutto     = $locked_rachunkowa  ? $doc['kwota_brutto']     : trim($_POST['kwota_brutto'] ?? '');
@@ -41,21 +42,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $projekt          = $locked_dekretacja  ? $doc['projekt']         : trim($_POST['projekt'] ?? '');
         $mpk              = trim($_POST['mpk'] ?? '');
         $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
-        if ($tytul_przelewu === '') {
+        if ($doc['kierunek'] === 'przychod') {
+            $tytul_przelewu = '';
+        } elseif ($tytul_przelewu === '') {
             $tytul_przelewu = edok_generate_tytul_przelewu([
                 'typ_dokumentu'    => $doc['typ_dokumentu'],
                 'nr_faktury'       => $nr_faktury,
                 'number'           => $doc['number'],
                 'data_wystawienia' => $doc['data_wystawienia'],
                 'description'      => $description,
+                'kierunek'         => $doc['kierunek'],
             ]);
         }
 
         db_exec(
-            "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?,
+            "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?, zrodlo_przychodu=?,
                 kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, tytul_przelewu=?, updated_at=datetime('now')
              WHERE id=?",
-            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu, $id]
+            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu, $id]
         );
         edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Zaktualizowano dane dokumentu.');
         flash_set('success', 'Dane zaktualizowane.');
@@ -155,12 +159,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $PAGE_TITLE = $doc['number'] . ' — EODoK';
 require_once __DIR__ . '/../includes/header.php';
 
+$jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
 $steps_config = [
-    'meryt'      => ['sub' => 'Weryfikacja wykonania usługi/dostawy przez zleceniodawcę', 'icon' => 'bi-patch-check',       'color' => 'primary'],
-    'formal'     => ['sub' => 'NIP, stawki VAT, elementy ustawowe faktury',                 'icon' => 'bi-file-earmark-check', 'color' => 'info'],
+    'meryt'      => ['sub' => $jest_przychod ? 'Weryfikacja zgodności wpływu z rzeczywistym zdarzeniem' : 'Weryfikacja wykonania usługi/dostawy przez zleceniodawcę', 'icon' => 'bi-patch-check',       'color' => 'primary'],
+    'formal'     => ['sub' => $jest_przychod ? 'Źródło i data wpływu, powiązanie z dokumentem'          : 'NIP, stawki VAT, elementy ustawowe faktury',                 'icon' => 'bi-file-earmark-check', 'color' => 'info'],
     'rachunkowa' => ['sub' => 'Przeliczenia i zgodność kwot netto/VAT/brutto',              'icon' => 'bi-calculator',         'color' => 'warning'],
-    'dekretacja' => ['sub' => 'Rodzaj działalności, projekt, MPK',                          'icon' => 'bi-journal-bookmark',   'color' => 'dark'],
-    'zatwierdza' => ['sub' => 'Zatwierdzenie do wypłaty i księgowania',                     'icon' => 'bi-cash-coin',          'color' => 'success'],
+    'dekretacja' => ['sub' => $jest_przychod ? 'Rodzaj działalności, projekt/MPK przychodu'              : 'Rodzaj działalności, projekt, MPK',                          'icon' => 'bi-journal-bookmark',   'color' => 'dark'],
+    'zatwierdza' => ['sub' => $jest_przychod ? 'Zatwierdzenie do ujęcia przychodu w ewidencji'           : 'Zatwierdzenie do wypłaty i księgowania',                     'icon' => 'bi-cash-coin',          'color' => 'success'],
 ];
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -217,6 +222,9 @@ $steps_config = [
             <?php if ($doc['data_wystawienia']): ?><tr><td class="text-muted">Data wystawienia</td><td><?= date_pl($doc['data_wystawienia']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_sprzedazy']): ?><tr><td class="text-muted">Data sprzedaży/wykonania</td><td><?= date_pl($doc['data_sprzedazy']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_wplywu']): ?><tr><td class="text-muted">Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
+            <?php if ($doc['kierunek'] === 'przychod' && $doc['zrodlo_przychodu']): ?>
+            <tr><td class="text-muted">Źródło przychodu</td><td><?= h($doc['zrodlo_przychodu']) ?></td></tr>
+            <?php endif; ?>
             <?php if ($doc['tytul_przelewu']): ?>
             <tr>
               <td class="text-muted">Tytuł przelewu</td>
@@ -243,7 +251,7 @@ $steps_config = [
         </div>
 
         <?php if ($doc['description']): ?>
-        <p class="small mb-2"><strong>Opis wydatku:</strong> <?= nl2br(h($doc['description'])) ?></p>
+        <p class="small mb-2"><strong><?= $doc['kierunek'] === 'przychod' ? 'Opis przychodu:' : 'Opis wydatku:' ?></strong> <?= nl2br(h($doc['description'])) ?></p>
         <?php endif; ?>
 
         <?php if ($doc['file_path']): ?>
@@ -305,6 +313,12 @@ $steps_config = [
           <label class="form-label small fw-semibold mb-1">Numer dokumentu</label>
           <input type="text" name="nr_faktury" class="form-control form-control-sm" value="<?= h($doc['nr_faktury']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
         </div>
+        <?php if ($doc['kierunek'] === 'przychod'): ?>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Źródło przychodu <?= $locked_formal ? '<i class="bi bi-lock-fill text-muted"></i>' : '' ?></label>
+          <input type="text" name="zrodlo_przychodu" class="form-control form-control-sm" value="<?= h($doc['zrodlo_przychodu']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
+        </div>
+        <?php endif; ?>
         <div class="row g-2 mb-2">
           <div class="col-sm-4">
             <label class="form-label small fw-semibold mb-1">Netto <?= $locked_rachunkowa ? '<i class="bi bi-lock-fill text-muted"></i>' : '' ?></label>
@@ -339,6 +353,7 @@ $steps_config = [
           <label class="form-label small fw-semibold mb-1">MPK</label>
           <input type="text" name="mpk" class="form-control form-control-sm" value="<?= h($doc['mpk']) ?>">
         </div>
+        <?php if ($doc['kierunek'] !== 'przychod'): ?>
         <div class="mb-2">
           <label class="form-label small fw-semibold mb-1">Tytuł przelewu</label>
           <div class="input-group input-group-sm">
@@ -346,6 +361,7 @@ $steps_config = [
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="edokViewSuggestTytul()"><i class="bi bi-magic"></i> Generuj</button>
           </div>
         </div>
+        <?php endif; ?>
         <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz</button>
       </form>
     </div>
@@ -367,7 +383,7 @@ $steps_config = [
         <span>
           <span class="badge bg-secondary me-1">Etap <?= $n ?>/5</span>
           <i class="bi <?= $cfg['icon'] ?> text-<?= $cfg['color'] ?>"></i>
-          <strong><?= h(EDOK_STEPS[$step_key]) ?></strong>
+          <strong><?= h(edok_step_label($step_key, $doc)) ?></strong>
           <div class="text-muted small ms-4"><?= h($cfg['sub']) ?></div>
         </span>
         <?php if ($decided): ?>
