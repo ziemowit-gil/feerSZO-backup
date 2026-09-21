@@ -1271,10 +1271,14 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
         $nrb_k = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
         if (strlen($nrb_k) !== 26) continue; // brak/nieprawidłowy rachunek kontrahenta — nie da się ułożyć wiersza
 
-        $data_fmt     = str_replace('-', '', $doc['termin_platnosci'] ? substr($doc['termin_platnosci'], 0, 10) : date('Y-m-d'));
+        // Data realizacji i tytuł przelewu liczone na bieżąco w momencie eksportu
+        // (nie z zapisanych w dokumencie termin_platnosci/tytul_przelewu, które mogą
+        // być nieaktualne, np. gdy dokument czekał w Preliminarzu kilka dni) — tak
+        // samo jak przy generowaniu/odświeżaniu tytułu przy nadawaniu do zapłaty.
+        $data_fmt     = str_replace('-', '', date('Y-m-d'));
         $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
         $bank_k       = substr($nrb_k, 2, 8);
-        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize((string)($doc['tytul_przelewu'] ?: $doc['title'] ?? '')), 35, 4));
+        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
         // Referencja własna zleceniodawcy: max 16 znaków, bez polskich liter/znaków specjalnych poza / - ? : ( ) . , ' + spacja.
         $referencja   = mb_substr(preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? '')), 0, 16);
 
@@ -1332,10 +1336,11 @@ function edok_millenet_export(array $docs, string $rachunek_zlecen_nrb): string 
         $nrb_k = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
         if (strlen($nrb_k) !== 26) continue;
 
-        $data_fmt     = str_replace('-', '', $doc['termin_platnosci'] ? substr($doc['termin_platnosci'], 0, 10) : date('Y-m-d'));
+        // Data realizacji i tytuł przelewu liczone na bieżąco w momencie eksportu — patrz komentarz w edok_ipko_biznes_export().
+        $data_fmt     = str_replace('-', '', date('Y-m-d'));
         $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
         $bank_k       = substr($nrb_k, 2, 8);
-        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize((string)($doc['tytul_przelewu'] ?: $doc['title'] ?? '')), 35, 4));
+        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
         // Adnotacje: kod rekoncyliacyjny do 16 znaków, umieszczony między "$$$...$$$" (§3.1 pozycja 16).
         $referencja = mb_substr(preg_replace('/[^A-Za-z0-9]/', '', (string)($doc['number'] ?? '')), 0, 16);
         $adnotacje  = $referencja !== '' ? '$$$' . $referencja . '$$$' : '';
