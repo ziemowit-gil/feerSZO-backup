@@ -657,6 +657,36 @@ function edok_is_complete(array $doc): bool {
 }
 
 /**
+ * Dokumenty gotowe do akceptacji "Tak/OK" przez $user_id, pogrupowane wg etapu
+ * (edok/pending.php — "podpisywanie zbiorcze": jeden wpisany PIN potwierdza
+ * wiele dokumentów naraz zamiast osobno dla każdego). Zwraca tylko dokumenty,
+ * dla których dany etap NIE jest jeszcze zdecydowany, NIE jest zablokowany
+ * poprzednim etapem, user ma do niego rolę, i walidacja "OK" przechodzi bez
+ * błędów (niekompletne dane wymagają ręcznej uwagi, nie nadają się do
+ * zbiorczego podpisu). Każdy dokument czeka najwyżej na JEDEN aktywny etap
+ * naraz — sekwencyjność obiegu (edok_step_blocked_reason()) to gwarantuje.
+ *
+ * @return array<string, array> step_key => lista dokumentów (edok_get())
+ */
+function edok_pending_for_user(int $user_id): array {
+    $out = [];
+    foreach (db_all("SELECT id FROM edok_documents WHERE status = 'w_obiegu'") as $row) {
+        $doc = edok_get((int)$row['id']);
+        if (!$doc) continue;
+        foreach (edok_step_order() as $step_key) {
+            $step = $doc['steps'][$step_key] ?? null;
+            if ($step && in_array($step['status'], ['ok', 'uwagi', 'odrzucono'], true)) continue;
+            if (edok_step_blocked_reason($doc, $step_key) !== null) continue;
+            if (!edok_has_role($step_key, $user_id)) continue;
+            if (edok_step_validation_errors($doc, $step_key)) continue;
+            $out[$step_key][] = $doc;
+            break; // znaleziono jedyny aktywny etap tego dokumentu — reszta nieistotna
+        }
+    }
+    return $out;
+}
+
+/**
  * Zapisuje decyzję jednego etapu obiegu dla dokumentu.
  * Zwraca ['status' => string edok_documents.status po zapisie, 'rejected' => bool].
  */

@@ -108,6 +108,11 @@ require_once __DIR__ . '/../includes/header.php';
     <a href="<?= APP_URL ?>/edok/index.php?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" class="btn btn-outline-success btn-sm">
       <i class="bi bi-filetype-csv"></i> Eksport CSV
     </a>
+    <?php $pending_count = array_sum(array_map('count', edok_pending_for_user((int)current_user()['id']))); ?>
+    <a href="<?= APP_URL ?>/edok/pending.php" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-check2-all"></i> Do akceptacji
+      <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
+    </a>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
     <a href="<?= APP_URL ?>/edok/raport_analityczny.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a>
     <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
