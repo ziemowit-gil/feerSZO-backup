@@ -464,6 +464,43 @@ auth_screen_head([
 .spin-icon{display:none;width:1rem;height:1rem;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:_spin .6s linear infinite;flex-shrink:0}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 @media(max-width:480px){.digit-box{width:42px;height:54px;font-size:1.55rem}.pesel-box{width:48px;height:60px}}
+
+/* ── Lekki odświeżony wygląd tej strony (scoped do #ika-main — nie dotyka
+   pozostałych ekranów logowania korzystających z tego samego systemu tz-*). ── */
+#ika-main .tz-card{
+  border-radius:16px;border-color:var(--tz-line);
+  box-shadow:0 1px 2px rgba(15,23,42,.04),0 10px 28px -16px rgba(15,23,42,.16);
+}
+#ika-main .tz-card__hd{
+  gap:.55rem;padding:.95rem 1.25rem;font-size:.98rem;letter-spacing:-.01em;
+}
+#ika-main .tz-card__hd i{
+  width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:8px;background:var(--tz-50);font-size:.95rem;flex-shrink:0;
+}
+#ika-main .tz-btn{
+  border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.06);
+  transition:transform .12s ease,box-shadow .12s ease,background .12s ease,border-color .12s ease;
+}
+#ika-main .tz-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 16px -6px rgba(15,23,42,.28)}
+#ika-main .tz-btn:active:not(:disabled){transform:translateY(0)}
+#ika-main .tz-btn--email:hover{box-shadow:0 6px 16px -6px rgba(4,120,87,.4)}
+#ika-main .tz-btn--setup:hover{box-shadow:0 6px 16px -6px rgba(180,83,9,.4)}
+
+/* Karta kontekstu (moduł/zasób + użytkownik) — miększy akcent koloru modułu. */
+.ika-mod-icon{border-radius:12px!important;box-shadow:inset 0 0 0 1px rgba(15,23,42,.05)}
+.ika-user-pill{box-shadow:0 1px 2px rgba(15,23,42,.05)}
+
+/* Pola na cyfry — nieco większe, miększe krawędzie, płynniejsze wypełnianie. */
+.digit-box,.pesel-box{border-radius:12px;transition:border-color .15s,box-shadow .15s,background .15s,transform .1s}
+.digit-box.filled,.pesel-box.filled{transform:translateY(-1px)}
+.digit-box.is-error,.pesel-box.is-error{animation:_shake .32s ease}
+@keyframes _shake{20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}
+
+/* Karty odzyskiwania dostępu — subtelne uniesienie przy najechaniu. */
+#ika-main .recovery-btn{border-radius:11px;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+#ika-main .recovery-btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px -8px rgba(15,23,42,.22)}
+#ika-main .recovery-btn i{width:22px;text-align:center;flex-shrink:0}
 </style>
 
 <!-- ── Nagłówek strony ───────────────────────────────────────────────────────── -->
@@ -476,7 +513,7 @@ auth_screen_head([
 <div class="tz-card mb-3">
   <div class="tz-card__bd" style="padding:.85rem 1.25rem">
     <div class="d-flex align-items-center gap-3 flex-wrap">
-      <div style="width:42px;height:42px;border-radius:11px;flex-shrink:0;
+      <div class="ika-mod-icon" style="width:42px;height:42px;flex-shrink:0;
                   background:<?= h($dest_ctx['color']) ?>1a;color:<?= h($dest_ctx['color']) ?>;
                   display:flex;align-items:center;justify-content:center;font-size:1.25rem"
            aria-hidden="true">
@@ -486,7 +523,7 @@ auth_screen_head([
         <div class="fw-bold" style="color:var(--tz-strong)"><?= h($dest_ctx['module']) ?></div>
         <div class="text-muted small"><?= h($dest_ctx['resource']) ?></div>
       </div>
-      <div class="d-flex align-items-center gap-2 border rounded-pill px-3 py-1"
+      <div class="ika-user-pill d-flex align-items-center gap-2 border rounded-pill px-3 py-1"
            style="background:var(--tz-canvas);border-color:var(--tz-line)!important">
         <span style="width:26px;height:26px;border-radius:50%;background:var(--tz);color:#fff;
                      display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.62rem;flex-shrink:0"
