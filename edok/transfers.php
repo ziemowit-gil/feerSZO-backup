@@ -118,15 +118,17 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="p-2 rounded border bg-light h-100">
             <div class="fw-semibold small text-muted mb-2"><i class="bi bi-arrow-up-right text-danger"></i> Z rachunku / klasyfikacji</div>
             <div class="mb-2">
-              <select name="rachunek_z_nrb" class="form-select form-select-sm" required>
+              <select name="rachunek_z_nrb" id="rachunek_z_nrb" class="form-select form-select-sm" required onchange="this.dataset.autoOdplatna=''">
                 <option value="">— wybierz rachunek —</option>
                 <?php foreach ($rachunki as $r): ?>
-                <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)</option>
+                <option value="<?= h($r['nrb']) ?>" data-dla-odplatnej="<?= !empty($r['dla_odplatnej']) ? '1' : '0' ?>">
+                  <?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
+                </option>
                 <?php endforeach; ?>
               </select>
             </div>
             <div class="mb-2">
-              <select name="rodzaj_dzialalnosci_z" class="form-select form-select-sm" onchange="edokTrToggle(this,'projekt_z_wrap')">
+              <select name="rodzaj_dzialalnosci_z" id="rodzaj_dzialalnosci_z" class="form-select form-select-sm" onchange="edokTrToggle(this,'projekt_z_wrap'); edokTrSuggestOdplatna('z')">
                 <option value="">— klasyfikacja (opcjonalnie) —</option>
                 <?php foreach (EDOK_RODZAJ_DZIALALNOSCI as $k => $l): ?>
                 <option value="<?= h($k) ?>"><?= h($l) ?></option>
@@ -142,15 +144,17 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="p-2 rounded border bg-light h-100">
             <div class="fw-semibold small text-muted mb-2"><i class="bi bi-arrow-down-left text-success"></i> Na rachunek / klasyfikację</div>
             <div class="mb-2">
-              <select name="rachunek_do_nrb" class="form-select form-select-sm" required>
+              <select name="rachunek_do_nrb" id="rachunek_do_nrb" class="form-select form-select-sm" required onchange="this.dataset.autoOdplatna=''">
                 <option value="">— wybierz rachunek —</option>
                 <?php foreach ($rachunki as $r): ?>
-                <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)</option>
+                <option value="<?= h($r['nrb']) ?>" data-dla-odplatnej="<?= !empty($r['dla_odplatnej']) ? '1' : '0' ?>">
+                  <?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)<?= !empty($r['dla_odplatnej']) ? ' — konto dla działalności odpłatnej' : '' ?>
+                </option>
                 <?php endforeach; ?>
               </select>
             </div>
             <div class="mb-2">
-              <select name="rodzaj_dzialalnosci_do" class="form-select form-select-sm" onchange="edokTrToggle(this,'projekt_do_wrap')">
+              <select name="rodzaj_dzialalnosci_do" id="rodzaj_dzialalnosci_do" class="form-select form-select-sm" onchange="edokTrToggle(this,'projekt_do_wrap'); edokTrSuggestOdplatna('do')">
                 <option value="">— klasyfikacja (opcjonalnie) —</option>
                 <?php foreach (EDOK_RODZAJ_DZIALALNOSCI as $k => $l): ?>
                 <option value="<?= h($k) ?>"><?= h($l) ?></option>
@@ -216,6 +220,19 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 function edokTrToggle(sel, wrapId) {
   document.getElementById(wrapId).style.display = (sel.value === 'projekt') ? '' : 'none';
+}
+// Uchwała 5/2026 §6 — gdy klasyfikacja to "działalność odpłatna", podpowiedz (nie wymuszaj)
+// rachunek oznaczony jako "dla działalności odpłatnej" w Ustawieniach organizacji, o ile
+// pole rachunku nie jest już ustawione ręcznie na inne konto.
+function edokTrSuggestOdplatna(side) {
+  var rodzaj = document.getElementById('rodzaj_dzialalnosci_' + side);
+  var rachunek = document.getElementById('rachunek_' + side + '_nrb');
+  if (!rodzaj || !rachunek || rodzaj.value !== 'odplatna') return;
+  var match = Array.from(rachunek.options).find(function (o) { return o.dataset.dlaOdplatnej === '1'; });
+  if (match && (rachunek.value === '' || rachunek.dataset.autoOdplatna === '1')) {
+    rachunek.value = match.value;
+    rachunek.dataset.autoOdplatna = '1';
+  }
 }
 </script>
 

@@ -293,14 +293,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Konto do wpłat TI jest jedno — nowa flaga zdejmuje ją z pozostałych
         $ti_flag = isset($_POST['rachunek_dla_ti']) ? 1 : 0;
         if ($ti_flag) foreach ($rachunki_cur as &$ex2) { $ex2['dla_ti'] = 0; } unset($ex2);
+        // Konto dla działalności odpłatnej jest jedno (Uchwała 5/2026 §6) — analogicznie do TI
+        $odplatna_flag = isset($_POST['rachunek_dla_odplatnej']) ? 1 : 0;
+        if ($odplatna_flag) foreach ($rachunki_cur as &$ex3) { $ex3['dla_odplatnej'] = 0; } unset($ex3);
         $rachunki_cur[] = [
-            'nrb'    => $raw_nrb,
-            'waluta' => mb_substr(trim($_POST['rachunek_waluta'] ?? 'PLN'), 0, 10),
-            'nazwa'  => mb_substr(trim($_POST['rachunek_nazwa'] ?? ''), 0, 140),
-            'adres'  => mb_substr(trim($_POST['rachunek_adres'] ?? ''), 0, 140),
-            'bank'   => mb_substr(trim($_POST['rachunek_bank']  ?? ''), 0, 100),
-            'opis'   => mb_substr(trim($_POST['rachunek_opis']  ?? ''), 0, 100),
-            'dla_ti' => $ti_flag,
+            'nrb'           => $raw_nrb,
+            'waluta'        => mb_substr(trim($_POST['rachunek_waluta'] ?? 'PLN'), 0, 10),
+            'nazwa'         => mb_substr(trim($_POST['rachunek_nazwa'] ?? ''), 0, 140),
+            'adres'         => mb_substr(trim($_POST['rachunek_adres'] ?? ''), 0, 140),
+            'bank'          => mb_substr(trim($_POST['rachunek_bank']  ?? ''), 0, 100),
+            'opis'          => mb_substr(trim($_POST['rachunek_opis']  ?? ''), 0, 100),
+            'dla_ti'        => $ti_flag,
+            'dla_odplatnej' => $odplatna_flag,
         ];
         org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
         flash_set('success', 'Dodano rachunek ' . format_iban_pl($raw_nrb) . '.');
@@ -321,6 +325,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', $now_on
             ? 'Rachunek oznaczony jako konto do wpłat TI — będzie podpowiadany kursantom i drukowany na fakturach TI.'
             : 'Zdjęto oznaczenie konta TI — moduł TI wróci do kont ustawionych na kursach.');
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+
+    } elseif (isset($_POST['set_odplatnej_rachunek'])) {
+        // Oznacz rachunek jako konto dla działalności odpłatnej (Uchwała 5/2026 §6) —
+        // dokładnie jeden; ponowny klik zdejmuje.
+        $odp_nrb = trim($_POST['odplatnej_nrb'] ?? '');
+        $rachunki_cur = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
+        $now_on = false;
+        foreach ($rachunki_cur as &$rr) {
+            $was = !empty($rr['dla_odplatnej']);
+            $rr['dla_odplatnej'] = ($rr['nrb'] === $odp_nrb && !$was) ? 1 : 0;
+            if (!empty($rr['dla_odplatnej'])) $now_on = true;
+        }
+        unset($rr);
+        org_setting_set('org_rachunki_bankowe', json_encode($rachunki_cur, JSON_UNESCAPED_UNICODE));
+        flash_set('success', $now_on
+            ? 'Rachunek oznaczony jako konto dla działalności odpłatnej — będzie podpowiadany w EODoK dla dokumentów tej klasyfikacji.'
+            : 'Zdjęto oznaczenie konta dla działalności odpłatnej.');
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
 
     } elseif (isset($_POST['delete_rachunek'])) {
@@ -1182,7 +1204,11 @@ include dirname(__DIR__) . '/includes/header.php';
             <input class="form-check-input" type="checkbox" name="rachunek_dla_ti" id="rachunek_dla_ti">
             <label class="form-check-label small" for="rachunek_dla_ti">Konto do wpłat TI</label>
           </div>
-          <div class="form-text mt-0">Podpowiadane kursantom i drukowane na fakturach TI (jedno konto).</div>
+          <div class="form-check form-switch mb-1">
+            <input class="form-check-input" type="checkbox" name="rachunek_dla_odplatnej" id="rachunek_dla_odplatnej">
+            <label class="form-check-label small" for="rachunek_dla_odplatnej">Konto dla działalności odpłatnej</label>
+          </div>
+          <div class="form-text mt-0">Uchwała 5/2026 wymaga odrębnego rachunku dla działalności odpłatnej (jedno konto).</div>
         </div>
         <div class="col-md-4">
           <button type="submit" name="add_rachunek" class="btn btn-sm btn-primary w-100">
@@ -1191,6 +1217,14 @@ include dirname(__DIR__) . '/includes/header.php';
         </div>
       </div>
     </form>
+
+    <?php if (!array_filter($rachunki, fn($r) => !empty($r['dla_odplatnej']))): ?>
+    <div class="alert alert-warning py-2 small">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      Uchwała Zarządu nr 5/2026 wymaga prowadzenia odrębnego rachunku bankowego dla działalności odpłatnej (§6) —
+      żaden z rachunków poniżej nie jest tak oznaczony.
+    </div>
+    <?php endif; ?>
 
     <!-- Lista rachunków -->
     <?php if ($rachunki): ?>
@@ -1213,6 +1247,9 @@ include dirname(__DIR__) . '/includes/header.php';
               <?php if (!empty($r['dla_ti'])): ?>
               <span class="badge text-bg-primary ms-1" title="Konto do wpłat TI — podpowiadane kursantom i drukowane na fakturach TI">TI</span>
               <?php endif; ?>
+              <?php if (!empty($r['dla_odplatnej'])): ?>
+              <span class="badge text-bg-info ms-1" title="Konto dla działalności odpłatnej (Uchwała 5/2026 §6)">ODPŁ.</span>
+              <?php endif; ?>
             </td>
             <td><span class="badge bg-secondary bg-opacity-75"><?= h($r['waluta'] ?: 'PLN') ?></span></td>
             <td class="text-muted small">
@@ -1231,6 +1268,14 @@ include dirname(__DIR__) . '/includes/header.php';
                 <button type="submit" name="set_ti_rachunek" class="btn btn-sm btn-outline-<?= !empty($r['dla_ti']) ? 'secondary' : 'primary' ?>"
                         title="<?= !empty($r['dla_ti']) ? 'Zdejmij oznaczenie konta do wpłat TI' : 'Oznacz jako konto do wpłat TI' ?>">
                   <?= !empty($r['dla_ti']) ? 'Zdejmij TI' : 'Ustaw dla TI' ?>
+                </button>
+              </form>
+              <form method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="odplatnej_nrb" value="<?= h($r['nrb']) ?>">
+                <button type="submit" name="set_odplatnej_rachunek" class="btn btn-sm btn-outline-<?= !empty($r['dla_odplatnej']) ? 'secondary' : 'info' ?>"
+                        title="<?= !empty($r['dla_odplatnej']) ? 'Zdejmij oznaczenie konta dla działalności odpłatnej' : 'Oznacz jako konto dla działalności odpłatnej' ?>">
+                  <?= !empty($r['dla_odplatnej']) ? 'Zdejmij odpł.' : 'Ustaw dla odpł.' ?>
                 </button>
               </form>
               <form method="post" class="d-inline"
