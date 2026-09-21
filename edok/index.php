@@ -66,6 +66,7 @@ require_once __DIR__ . '/../includes/header.php';
       <i class="bi bi-filetype-csv"></i> Eksport CSV
     </a>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
+    <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
     <?php if (is_admin() || edok_has_role('upload')): ?>
     <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy dokument</a>
     <?php endif; ?>

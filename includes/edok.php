@@ -136,6 +136,25 @@ function edok_migrate(): void {
         decided_at TEXT,
         notes      TEXT    NOT NULL DEFAULT ''
     )");
+    _edok_add_columns($db, 'edok_steps', [
+        // Weryfikacja tożsamości przy akceptacji (Uchwała 5/2026, §1 pkt 4) — tylko dla
+        // decyzji "Tak/OK": metoda ('pin'), wynik ('ok') i czas weryfikacji.
+        'verify_method' => "TEXT NOT NULL DEFAULT ''",
+        'verify_result' => "TEXT NOT NULL DEFAULT ''",
+        'verified_at'   => "TEXT",
+    ]);
+
+    // PIN EODoK — osobny sekret od hasła logowania, wymagany do potwierdzenia decyzji
+    // "Tak/OK" na każdym z 5 etapów (Uchwała 5/2026, §1 pkt 4). Blokada po zbyt wielu
+    // nieudanych próbach, jak w edok_kontrahent_accounts (includes/edok_portal_auth.php).
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_user_pins (
+        user_id         INTEGER PRIMARY KEY,
+        pin_hash        TEXT    NOT NULL DEFAULT '',
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        locked_until    TEXT,
+        created_at      TEXT    NOT NULL DEFAULT '',
+        updated_at      TEXT    NOT NULL DEFAULT ''
+    )");
 
     // Audyt — insert-only, zastępuje fizyczne pieczątki (identyfikator + stempel czasowy).
     $db->exec("CREATE TABLE IF NOT EXISTS edok_events (
@@ -263,6 +282,66 @@ function edok_has_unlock_perm(): bool {
 
 function edok_user_roles(int $user_id): array {
     return array_column(db_all("SELECT role FROM edok_user_roles WHERE user_id = ?", [$user_id]), 'role');
+}
+
+// ── PIN — weryfikacja tożsamości przy akceptacji etapu (Uchwała 5/2026, §1 pkt 4) ─
+// Osobny sekret dla EODoK, NIE hasło logowania. Wymagany tylko przy decyzji
+// "Tak/OK" (akceptacja) — "Z uwagami"/"Odrzuć" nie są aktem akceptacji dokumentu.
+
+const EDOK_PIN_MAX_ATTEMPTS = 5;
+const EDOK_PIN_LOCKOUT_MIN  = 15;
+
+function edok_pin_is_set(int $user_id): bool {
+    return (bool) db_one("SELECT 1 FROM edok_user_pins WHERE user_id = ? AND pin_hash != ''", [$user_id]);
+}
+
+/** Ustawia/zmienia PIN. Rzuca wyjątek przy nieprawidłowym formacie (musi być walidowane wcześniej po stronie wywołującej co do potwierdzenia hasła). */
+function edok_pin_set(int $user_id, string $pin): void {
+    if (!preg_match('/^\d{6}$/', $pin)) throw new RuntimeException('PIN musi składać się z dokładnie 6 cyfr.');
+    $hash = password_hash($pin, PASSWORD_BCRYPT);
+    if (db_one("SELECT user_id FROM edok_user_pins WHERE user_id = ?", [$user_id])) {
+        db_exec("UPDATE edok_user_pins SET pin_hash=?, failed_attempts=0, locked_until=NULL, updated_at=datetime('now') WHERE user_id=?", [$hash, $user_id]);
+    } else {
+        db_insert('edok_user_pins', [
+            'user_id'         => $user_id,
+            'pin_hash'        => $hash,
+            'failed_attempts' => 0,
+            'locked_until'    => null,
+            'created_at'      => date('Y-m-d H:i:s'),
+            'updated_at'      => date('Y-m-d H:i:s'),
+        ]);
+    }
+}
+
+/**
+ * Weryfikuje PIN przy próbie akceptacji ("Tak/OK") etapu $step_key dokumentu $doc_id.
+ * Blokuje na EDOK_PIN_LOCKOUT_MIN minut po EDOK_PIN_MAX_ATTEMPTS nieudanych próbach.
+ * Każda próba (udana i nieudana) o wyniku negatywnym trafia do audytu (edok_events).
+ * Zwraca null przy sukcesie, albo komunikat błędu do pokazania użytkownikowi.
+ */
+function edok_pin_verify_for_decision(int $user_id, string $pin, int $doc_id, string $step_key): ?string {
+    $row = db_one("SELECT * FROM edok_user_pins WHERE user_id = ?", [$user_id]);
+    if (!$row || $row['pin_hash'] === '') {
+        return 'Nie masz jeszcze ustawionego PIN-u EODoK — ustaw go, aby móc akceptować dokumenty.';
+    }
+    if (!empty($row['locked_until']) && strtotime($row['locked_until']) > time()) {
+        return 'PIN zablokowany po zbyt wielu nieudanych próbach — spróbuj ponownie po ' . date('H:i', strtotime($row['locked_until'])) . '.';
+    }
+    if (!preg_match('/^\d{6}$/', $pin) || !password_verify($pin, $row['pin_hash'])) {
+        $attempts     = (int)$row['failed_attempts'] + 1;
+        $locked_until = $attempts >= EDOK_PIN_MAX_ATTEMPTS
+            ? date('Y-m-d H:i:s', strtotime('+' . EDOK_PIN_LOCKOUT_MIN . ' minutes'))
+            : null;
+        db_exec("UPDATE edok_user_pins SET failed_attempts=?, locked_until=? WHERE user_id=?", [$attempts, $locked_until, $user_id]);
+        edok_log($doc_id, 'pin_failed', $step_key, '', '',
+            'Błędny PIN przy próbie akceptacji etapu „' . (EDOK_STEPS[$step_key] ?? $step_key) . '”'
+            . ($locked_until ? ' — PIN zablokowany do ' . date('H:i', strtotime($locked_until)) . '.' : '.'));
+        return $locked_until
+            ? 'Błędny PIN. PIN zablokowany na ' . EDOK_PIN_LOCKOUT_MIN . ' minut po ' . EDOK_PIN_MAX_ATTEMPTS . ' nieudanych próbach.'
+            : 'Błędny PIN.';
+    }
+    db_exec("UPDATE edok_user_pins SET failed_attempts=0, locked_until=NULL WHERE user_id=?", [$user_id]);
+    return null;
 }
 
 // ── Numeracja ─────────────────────────────────────────────────────────────────
@@ -438,7 +517,7 @@ function edok_is_complete(array $doc): bool {
  * Zapisuje decyzję jednego etapu obiegu dla dokumentu.
  * Zwraca ['status' => string edok_documents.status po zapisie, 'rejected' => bool].
  */
-function edok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes): array {
+function edok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes, bool $pin_verified = false): array {
     $id    = (int)$doc['id'];
     $user  = current_user();
     $who   = $user['name'] ?? ('uid:' . $user_id);
@@ -446,25 +525,34 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
     $step_row  = $doc['steps'][$step_key] ?? null;
     $dec_label = match($status) { 'ok' => 'TAK', 'uwagi' => 'Z uwagami', 'odrzucono' => 'ODRZUCONO', default => $status };
 
+    // Weryfikacja PIN wymagana i sprawdzona wcześniej (edok_pin_verify_for_decision) tylko
+    // dla decyzji "Tak/OK" — to jedyna, którą uchwała nazywa "akceptacją dokumentu".
+    $verify_method = ($status === 'ok' && $pin_verified) ? 'pin' : '';
+    $verify_result = ($status === 'ok' && $pin_verified) ? 'ok'  : '';
+    $verified_at   = ($status === 'ok' && $pin_verified) ? date('Y-m-d H:i:s') : null;
+
     if ($step_row) {
         db_exec(
-            "UPDATE edok_steps SET status=?, user_id=?, user_name=?, user_role=?, decided_at=?, notes=? WHERE id=?",
-            [$status, $user_id, $who, $role, date('Y-m-d H:i:s'), $notes, $step_row['id']]
+            "UPDATE edok_steps SET status=?, user_id=?, user_name=?, user_role=?, decided_at=?, notes=?, verify_method=?, verify_result=?, verified_at=? WHERE id=?",
+            [$status, $user_id, $who, $role, date('Y-m-d H:i:s'), $notes, $verify_method, $verify_result, $verified_at, $step_row['id']]
         );
     } else {
         db_insert('edok_steps', [
-            'doc_id'     => $id,
-            'step_key'   => $step_key,
-            'status'     => $status,
-            'user_id'    => $user_id,
-            'user_name'  => $who,
-            'user_role'  => $role,
-            'decided_at' => date('Y-m-d H:i:s'),
-            'notes'      => $notes,
+            'doc_id'        => $id,
+            'step_key'      => $step_key,
+            'status'        => $status,
+            'user_id'       => $user_id,
+            'user_name'     => $who,
+            'user_role'     => $role,
+            'decided_at'    => date('Y-m-d H:i:s'),
+            'notes'         => $notes,
+            'verify_method' => $verify_method,
+            'verify_result' => $verify_result,
+            'verified_at'   => $verified_at,
         ]);
     }
 
-    edok_log($id, 'decision', $step_key, $doc['status'], $doc['status'], EDOK_STEPS[$step_key] . ' → ' . $dec_label . ($notes !== '' ? (': ' . $notes) : ''));
+    edok_log($id, 'decision', $step_key, $doc['status'], $doc['status'], EDOK_STEPS[$step_key] . ' → ' . $dec_label . ($notes !== '' ? (': ' . $notes) : '') . ($verify_method === 'pin' ? ' (tożsamość zweryfikowana PIN-em)' : ''));
 
     if ($status === 'odrzucono') {
         db_exec("UPDATE edok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
@@ -563,8 +651,10 @@ function edok_print_decision_label(?array $step): string {
 
 function edok_print_who(?array $step): string {
     if (!$step || !$step['decided_at']) return '—';
+    $verify = ($step['verify_method'] ?? '') === 'pin' && ($step['verify_result'] ?? '') === 'ok'
+        ? '<br><span style="font-size:8.5px">Tożsamość zweryfikowana: PIN</span>' : '';
     return h($step['user_name']) . ($step['user_role'] ? ' (' . h($step['user_role']) . ')' : '')
-        . '<br>' . date_pl($step['decided_at']) . ' ' . date('H:i', strtotime($step['decided_at']));
+        . '<br>' . date_pl($step['decided_at']) . ' ' . date('H:i', strtotime($step['decided_at'])) . $verify;
 }
 
 /** Styl karty — bez @page/@media print (nieistotne dla mPDF, dodawane osobno w print.php dla przeglądarki). */

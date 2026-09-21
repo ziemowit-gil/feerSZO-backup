@@ -83,19 +83,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $status = $_POST['step_status'] ?? '';
         $notes  = trim($_POST['step_notes'] ?? '');
+        $pin    = trim($_POST['step_pin'] ?? '');
+        $pin_verified = false;
 
         if (!$errors) {
             if (!in_array($status, ['ok', 'uwagi', 'odrzucono'], true)) {
                 $errors[] = 'Wybierz decyzję.';
             } elseif ($status === 'ok') {
                 foreach (edok_step_validation_errors($doc, $action) as $e) $errors[] = $e;
+                // Weryfikacja tożsamości PIN-em — wymagana wyłącznie przy akceptacji
+                // ("Tak/OK"), zgodnie z Uchwałą 5/2026 §1 pkt 4.
+                if (!$errors) {
+                    $pin_error = edok_pin_verify_for_decision((int)$user['id'], $pin, $id, $action);
+                    if ($pin_error !== null) {
+                        $errors[] = $pin_error;
+                    } else {
+                        $pin_verified = true;
+                    }
+                }
             } elseif ($status === 'odrzucono' && $notes === '') {
                 $errors[] = 'Podaj powód odrzucenia.';
             }
         }
 
         if (!$errors) {
-            $result = edok_decide_step($doc, $action, $status, (int)$user['id'], $notes);
+            $result = edok_decide_step($doc, $action, $status, (int)$user['id'], $notes, $pin_verified);
             flash_set($result['rejected'] ? 'warning' : 'success', $result['rejected'] ? 'Dokument odrzucony.' : 'Decyzja zapisana.');
             header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
             exit;
@@ -158,6 +170,9 @@ $steps_config = [
   </div>
   <?php $generated = edok_latest_generated_pdf($id); ?>
   <div class="d-flex gap-2">
+    <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-sm btn-outline-secondary" title="Twój PIN EODoK">
+      <i class="bi bi-shield-lock"></i>
+    </a>
     <?php if ($generated): ?>
     <a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>&type=final" target="_blank" class="btn btn-sm btn-primary">
       <i class="bi bi-file-earmark-check"></i> Pobierz dokument końcowy
@@ -433,6 +448,17 @@ $steps_config = [
             <div class="mb-2">
               <textarea name="step_notes" class="form-control form-control-sm" rows="2" placeholder="Ewentualne uwagi lub powód odrzucenia…"></textarea>
             </div>
+            <?php if (!edok_pin_is_set((int)$user['id'])): ?>
+            <div class="alert alert-warning py-2 small mb-2">
+              <i class="bi bi-shield-exclamation"></i> Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania ("Tak/OK") etapu.
+              <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="alert-link">Ustaw PIN</a>.
+            </div>
+            <?php else: ?>
+            <div class="mb-2" style="max-width:220px">
+              <label class="form-label small fw-semibold mb-1">PIN <span class="text-muted fw-normal">(wymagany tylko dla „Tak/OK”)</span></label>
+              <input type="password" name="step_pin" class="form-control form-control-sm" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••">
+            </div>
+            <?php endif; ?>
             <button type="submit" class="btn btn-sm btn-<?= $cfg['color'] ?>"><i class="bi bi-check2"></i> Zapisz decyzję</button>
           </form>
         </div>
