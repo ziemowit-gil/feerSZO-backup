@@ -443,9 +443,15 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
 }
 
 /**
- * Tytuł przelewu wg formatów wymaganych Uchwałą 5/2026 §2 pkt 8-9:
+ * Tytuł przelewu (dla wydatku) albo sugerowana referencja wpłaty (dla przychodu)
+ * wg formatów wymaganych Uchwałą 5/2026 §2 pkt 8-9:
  *   faktura:     "PŁATNOŚĆ: {opis} - AKC: {numer akceptacji} - FAK: {nr faktury}"
  *   bez faktury: "PŁATNOŚĆ: {opis} - AKC: {numer akceptacji} - DOK: {typ dokumentu} {nr}"
+ * Dla dokumentów przychodowych (kierunek=przychod) prefiks to "PRZYCHÓD:" zamiast
+ * "PŁATNOŚĆ:", zawsze z identyfikatorem "DOK:" — nie ma tu wychodzącej płatności do
+ * zlecenia, ale wartość i tak jest użyteczna jako sugerowana referencja, którą
+ * wpłacający może podać w tytule swojego przelewu, albo do ręcznego dopasowania
+ * wpływu na wyciągu bankowym do tego dokumentu (etap 5/5 — patrz edok/view.php).
  * Separator " - " (nie "|") — pionowa kreska bywa odrzucana lub obcinana przez
  * systemy bankowości elektronicznej (np. PKO) w polu tytułu przelewu; uchwała
  * używa "|" tylko jako wizualny separator w treści dokumentu, nie jako wymóg co do
@@ -460,14 +466,13 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
  * na końcu (odrzucany jako pierwszy) opis celu płatności.
  */
 function edok_generate_tytul_przelewu(array $doc): string {
-    // Dokumenty przychodowe nie generują wychodzącej płatności — nie dotyczy ich tytuł przelewu.
-    if (($doc['kierunek'] ?? 'wydatek') === 'przychod') return '';
+    $jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
 
     $numer         = trim((string)($doc['number'] ?? ''));
     $typ_dokumentu = (string)($doc['typ_dokumentu'] ?? '');
     $typ_label     = EDOK_TYPES[$typ_dokumentu] ?? 'Dokument księgowy';
     $nr_dok        = trim((string)($doc['nr_faktury'] ?? ''));
-    $jest_faktura  = edok_tytul_jest_faktura($typ_dokumentu) && $nr_dok !== '';
+    $jest_faktura  = !$jest_przychod && edok_tytul_jest_faktura($typ_dokumentu) && $nr_dok !== '';
 
     $opis = preg_replace('/\s+/', ' ', trim((string)($doc['description'] ?? '')));
     $opis_krotki = $typ_label;
@@ -480,7 +485,7 @@ function edok_generate_tytul_przelewu(array $doc): string {
         ? 'FAK: ' . $nr_dok
         : 'DOK: ' . trim($typ_label . ($nr_dok !== '' ? ' ' . $nr_dok : ''));
 
-    $parts = ['PŁATNOŚĆ: ' . $opis_krotki];
+    $parts = [($jest_przychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') . $opis_krotki];
     if ($numer !== '') $parts[] = 'AKC: ' . $numer;
     $parts[] = $ident;
     $t = implode(' - ', $parts);

@@ -92,10 +92,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $user = current_user();
         $number = $is_test ? edok_next_test_number() : edok_next_number();
-        if ($kierunek === 'przychod') {
-            $tytul_przelewu = ''; // nie dotyczy — brak wychodzącej płatności
-        } elseif ($tytul_przelewu === '' || $tytul_przelewu_auto) {
+        if ($tytul_przelewu === '' || $tytul_przelewu_auto) {
             $tytul_przelewu = edok_generate_tytul_przelewu([
+                'kierunek'         => $kierunek,
                 'typ_dokumentu'    => $typ_dokumentu,
                 'nr_faktury'       => $nr_faktury,
                 'number'           => $number,
@@ -328,7 +327,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
 
       <div class="mb-3">
-        <label class="form-label">Tytuł przelewu</label>
+        <label class="form-label" id="tytul_przelewu_label">Tytuł przelewu</label>
         <div class="input-group">
           <input type="text" name="tytul_przelewu" id="tytul_przelewu" class="form-control" maxlength="140"
             value="<?= h($_POST['tytul_przelewu'] ?? '') ?>" placeholder="Uzupełni się automatycznie z danych dokumentu…"
@@ -418,6 +417,7 @@ function edokToggleKierunek() {
   });
   document.getElementById('description_label').firstChild.textContent = kierunek === 'przychod' ? 'Opis przychodu ' : 'Opis wydatku ';
   document.getElementById('zrodlo_przychodu_wrap').style.display = kierunek === 'przychod' ? '' : 'none';
+  document.getElementById('tytul_przelewu_label').textContent = kierunek === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu';
   edokCheckDataGraniczna();
 }
 edokToggleKierunek();
@@ -465,9 +465,10 @@ function edokSuggestTytul(force) {
   var opisEl = document.querySelector('[name="description"]');
   var opis = edokShortOpis(opisEl ? opisEl.value : '') || typ;
   var numer = 'EODoK/.../' + new Date().getFullYear();
-  var jestFaktura = EDOK_FAKTURA_TYPES.indexOf(typKey) !== -1 && nr !== '';
+  var jestPrzychod = (document.querySelector('input[name="kierunek"]:checked') || {}).value === 'przychod';
+  var jestFaktura = !jestPrzychod && EDOK_FAKTURA_TYPES.indexOf(typKey) !== -1 && nr !== '';
   var ident = jestFaktura ? ('FAK: ' + nr) : ('DOK: ' + (typ + (nr ? ' ' + nr : '')).trim());
-  var t = 'PŁATNOŚĆ: ' + opis + ' - AKC: ' + numer + ' - ' + ident;
+  var t = (jestPrzychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') + opis + ' - AKC: ' + numer + ' - ' + ident;
   field.value = t.trim().substring(0, 140);
   document.getElementById('tytul_przelewu_auto').value = '1';
   edokTytulDirty = false;

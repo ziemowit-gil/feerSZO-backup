@@ -42,9 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $projekt          = $locked_dekretacja  ? $doc['projekt']         : trim($_POST['projekt'] ?? '');
         $mpk              = trim($_POST['mpk'] ?? '');
         $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
-        if ($doc['kierunek'] === 'przychod') {
-            $tytul_przelewu = '';
-        } elseif ($tytul_przelewu === '') {
+        if ($tytul_przelewu === '') {
             $tytul_przelewu = edok_generate_tytul_przelewu([
                 'typ_dokumentu'    => $doc['typ_dokumentu'],
                 'nr_faktury'       => $nr_faktury,
@@ -227,7 +225,7 @@ $steps_config = [
             <?php endif; ?>
             <?php if ($doc['tytul_przelewu']): ?>
             <tr>
-              <td class="text-muted">Tytuł przelewu</td>
+              <td class="text-muted"><?= $doc['kierunek'] === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu' ?></td>
               <td>
                 <span class="font-monospace" id="tytul_przelewu_view"><?= h($doc['tytul_przelewu']) ?></span>
                 <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="Kopiuj"
@@ -353,15 +351,13 @@ $steps_config = [
           <label class="form-label small fw-semibold mb-1">MPK</label>
           <input type="text" name="mpk" class="form-control form-control-sm" value="<?= h($doc['mpk']) ?>">
         </div>
-        <?php if ($doc['kierunek'] !== 'przychod'): ?>
         <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1">Tytuł przelewu</label>
+          <label class="form-label small fw-semibold mb-1"><?= $doc['kierunek'] === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu' ?></label>
           <div class="input-group input-group-sm">
             <input type="text" id="e_tytul" name="tytul_przelewu" class="form-control form-control-sm" maxlength="140" value="<?= h($doc['tytul_przelewu']) ?>">
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="edokViewSuggestTytul()"><i class="bi bi-magic"></i> Generuj</button>
           </div>
         </div>
-        <?php endif; ?>
         <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz</button>
       </form>
     </div>
@@ -595,6 +591,7 @@ function edokViewRecalc() {
 var EDOK_NUMBER_VIEW       = <?= json_encode($doc['number'], JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_TYP_KEY_VIEW      = <?= json_encode($doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_TYP_LABEL_VIEW    = <?= json_encode(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
+var EDOK_KIERUNEK_VIEW     = <?= json_encode($doc['kierunek'] ?? 'wydatek', JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_FAKTURA_TYPES_VIEW = ['faktura_vat', 'faktura_korygujaca'];
 function edokViewSuggestTytul() {
   var nrField = document.querySelector('#metaForm [name="nr_faktury"]');
@@ -603,9 +600,10 @@ function edokViewSuggestTytul() {
   var opis = (opisField ? opisField.value : '').trim().replace(/\s+/g, ' ');
   if (opis.length > 60) opis = opis.substring(0, 60) + '...';
   if (!opis) opis = EDOK_TYP_LABEL_VIEW;
-  var jestFaktura = EDOK_FAKTURA_TYPES_VIEW.indexOf(EDOK_TYP_KEY_VIEW) !== -1 && nr !== '';
+  var jestPrzychod = EDOK_KIERUNEK_VIEW === 'przychod';
+  var jestFaktura = !jestPrzychod && EDOK_FAKTURA_TYPES_VIEW.indexOf(EDOK_TYP_KEY_VIEW) !== -1 && nr !== '';
   var ident = jestFaktura ? ('FAK: ' + nr) : ('DOK: ' + (EDOK_TYP_LABEL_VIEW + (nr ? ' ' + nr : '')).trim());
-  var t = 'PŁATNOŚĆ: ' + opis + (EDOK_NUMBER_VIEW ? (' - AKC: ' + EDOK_NUMBER_VIEW) : '') + ' - ' + ident;
+  var t = (jestPrzychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') + opis + (EDOK_NUMBER_VIEW ? (' - AKC: ' + EDOK_NUMBER_VIEW) : '') + ' - ' + ident;
   document.getElementById('e_tytul').value = t.trim().substring(0, 140);
 }
 </script>
