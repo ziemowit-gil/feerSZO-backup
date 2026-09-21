@@ -521,22 +521,23 @@ function edokViewRecalc() {
   if (netto + vat > 0) b.value = (netto + vat).toFixed(2).replace('.', ',');
 }
 
-// Ten sam wzorzec co edok_generate_tytul_przelewu() w PHP — numer EODoK, typ i data
-// wystawienia są tu stałe (nieedytowalne w tym formularzu), numer faktury i opis
-// brane z pól edycji (opis skracany do 60 znaków tak jak w PHP).
-var EDOK_NUMBER_VIEW    = <?= json_encode($doc['number'], JSON_UNESCAPED_UNICODE) ?>;
-var EDOK_TYP_LABEL_VIEW = <?= json_encode(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
-var EDOK_DATA_WYST_PL   = <?= json_encode($doc['data_wystawienia'] ? date('d.m.Y', strtotime($doc['data_wystawienia'])) : '', JSON_UNESCAPED_UNICODE) ?>;
+// Ten sam wzorzec co edok_generate_tytul_przelewu() w PHP (Uchwała 5/2026 §2 pkt 8-9) —
+// numer EODoK i typ dokumentu są tu stałe (nieedytowalne w tym formularzu), numer
+// faktury i opis brane z pól edycji (opis skracany do 60 znaków tak jak w PHP).
+var EDOK_NUMBER_VIEW       = <?= json_encode($doc['number'], JSON_UNESCAPED_UNICODE) ?>;
+var EDOK_TYP_KEY_VIEW      = <?= json_encode($doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
+var EDOK_TYP_LABEL_VIEW    = <?= json_encode(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
+var EDOK_FAKTURA_TYPES_VIEW = ['faktura_vat', 'faktura_korygujaca'];
 function edokViewSuggestTytul() {
   var nrField = document.querySelector('#metaForm [name="nr_faktury"]');
   var opisField = document.querySelector('#metaForm [name="description"]');
   var nr = nrField ? nrField.value.trim() : '';
   var opis = (opisField ? opisField.value : '').trim().replace(/\s+/g, ' ');
   if (opis.length > 60) opis = opis.substring(0, 60) + '…';
-  var t = EDOK_NUMBER_VIEW ? (EDOK_NUMBER_VIEW + ' — ' + EDOK_TYP_LABEL_VIEW) : EDOK_TYP_LABEL_VIEW;
-  if (nr) t += ' nr ' + nr;
-  if (EDOK_DATA_WYST_PL) t += ' z ' + EDOK_DATA_WYST_PL;
-  if (opis) t += ' — ' + opis;
+  if (!opis) opis = EDOK_TYP_LABEL_VIEW;
+  var jestFaktura = EDOK_FAKTURA_TYPES_VIEW.indexOf(EDOK_TYP_KEY_VIEW) !== -1 && nr !== '';
+  var ident = jestFaktura ? ('FAK: ' + nr) : ('DOK: ' + (EDOK_TYP_LABEL_VIEW + (nr ? ' ' + nr : '')).trim());
+  var t = 'PŁATNOŚĆ: ' + opis + (EDOK_NUMBER_VIEW ? (' | AKC: ' + EDOK_NUMBER_VIEW) : '') + ' | ' + ident;
   document.getElementById('e_tytul').value = t.trim().substring(0, 140);
 }
 </script>

@@ -9,6 +9,30 @@ require_once __DIR__ . '/../includes/edok.php';
 edok_require_access();
 edok_migrate();
 
+// Masowe przeliczenie tytułów przelewów do aktualnego formatu (Uchwała 5/2026 §2
+// pkt 8-9) — tylko dla dokumentów jeszcze niezaakceptowanych (zaakceptowany ma już
+// wygenerowany dokument końcowy z kartą akceptacji, w którym tytuł się nie zmienia).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_titles') {
+    csrf_check();
+    if (!is_admin() && !edok_has_role('ksiegowy')) {
+        flash_set('danger', 'Brak uprawnień do aktualizacji tytułów przelewów.');
+    } else {
+        $rows = db_all("SELECT * FROM edok_documents WHERE status != 'zaakceptowany'");
+        $n = 0;
+        foreach ($rows as $r) {
+            $nowy = edok_generate_tytul_przelewu($r);
+            if ($nowy !== $r['tytul_przelewu']) {
+                db_exec("UPDATE edok_documents SET tytul_przelewu=?, updated_at=datetime('now') WHERE id=?", [$nowy, $r['id']]);
+                edok_log((int)$r['id'], 'edit', '', $r['status'], $r['status'], 'Tytuł przelewu zaktualizowany do aktualnego formatu (Uchwała 5/2026).');
+                $n++;
+            }
+        }
+        flash_set('success', $n > 0 ? "Zaktualizowano tytuły przelewów: {$n}." : 'Wszystkie tytuły są już aktualne.');
+    }
+    header('Location: ' . APP_URL . '/edok/index.php' . (($_GET['status'] ?? '') !== '' ? '?status=' . urlencode($_GET['status']) : ''));
+    exit;
+}
+
 $filter_status = $_GET['status'] ?? '';
 $filter_q      = trim($_GET['q'] ?? '');
 
@@ -67,6 +91,13 @@ require_once __DIR__ . '/../includes/header.php';
     </a>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
     <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
+    <?php if (is_admin() || edok_has_role('ksiegowy')): ?>
+    <form method="post" class="d-inline" onsubmit="return confirm('Przeliczyć tytuły przelewów wszystkich niezaakceptowanych dokumentów do aktualnego formatu?');">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="update_titles">
+      <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-repeat"></i> Aktualizuj tytuły</button>
+    </form>
+    <?php endif; ?>
     <?php if (is_admin() || edok_has_role('upload')): ?>
     <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy dokument</a>
     <?php endif; ?>

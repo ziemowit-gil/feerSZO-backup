@@ -357,34 +357,83 @@ function edok_next_number(): string {
     return sprintf('EODoK/%04d/%s', $next, $year);
 }
 
+/** Czy typ dokumentu jest fakturą (tytuł przelewu używa wtedy oznaczenia FAK, nie DOK). */
+function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
+    return in_array($typ_dokumentu, ['faktura_vat', 'faktura_korygujaca'], true);
+}
+
 /**
- * Sensowny domyślny tytuł przelewu: "{numer EODoK} — {typ dokumentu} nr {nr faktury}
- * z {data wystawienia} — {krótki opis}". Numer EODoK jest zawsze na początku (jeśli
- * znany — patrz obsługa w edok/add.php, gdzie w momencie podglądu w formularzu numer
- * jeszcze nie istnieje). Zamiast nazwy kontrahenta — skrócony opis wydatku (pierwsze
- * 60 znaków pola „description”), bo to on identyfikuje przelew na wyciągu bankowym
- * lepiej niż sama nazwa kontrahenta. Przycięty do 140 znaków (typowy limit pola
- * tytułu przelewu w bankowości elektronicznej — ten sam limit co w KDOK, ksiegowosc/add.php).
+ * Tytuł przelewu wg formatów wymaganych Uchwałą 5/2026 §2 pkt 8-9:
+ *   faktura:     "PŁATNOŚĆ: {opis} | AKC: {numer akceptacji} | FAK: {nr faktury}"
+ *   bez faktury: "PŁATNOŚĆ: {opis} | AKC: {numer akceptacji} | DOK: {typ dokumentu} {nr}"
+ * Numerem akceptacji jest numer EODoK (nadawany przy intake, patrz edok_next_number()) —
+ * jedyny numer, jaki dokument ma od początku obiegu. Opis to pierwsze 60 znaków pola
+ * "description"; gdy pusty, używana jest nazwa typu dokumentu. Przy przekroczeniu
+ * limitu 140 znaków (typowy limit pola tytułu w bankowości elektronicznej — ten sam
+ * co w KDOK, ksiegowosc/add.php) tytuł skraca się do formatu "AKC:{numer} FAK:{nr}" /
+ * "AKC:{numer} DOK:{identyfikator}" (§2 pkt 11) — kolejność zachowania: numer akceptacji,
+ * potem numer faktury/dokumentu, na końcu (odrzucany jako pierwszy) opis celu płatności.
  */
 function edok_generate_tytul_przelewu(array $doc): string {
-    $numer = trim((string)($doc['number'] ?? ''));
-    $typ   = EDOK_TYPES[$doc['typ_dokumentu'] ?? ''] ?? 'Dokument księgowy';
-    $nr    = trim((string)($doc['nr_faktury'] ?? ''));
-    $data     = trim((string)($doc['data_wystawienia'] ?? ''));
-    $data_fmt = ($data !== '' && strtotime($data)) ? date('d.m.Y', strtotime($data)) : '';
+    $numer         = trim((string)($doc['number'] ?? ''));
+    $typ_dokumentu = (string)($doc['typ_dokumentu'] ?? '');
+    $typ_label     = EDOK_TYPES[$typ_dokumentu] ?? 'Dokument księgowy';
+    $nr_dok        = trim((string)($doc['nr_faktury'] ?? ''));
+    $jest_faktura  = edok_tytul_jest_faktura($typ_dokumentu) && $nr_dok !== '';
+
     $opis = preg_replace('/\s+/', ' ', trim((string)($doc['description'] ?? '')));
-    $opis_krotki = '';
+    $opis_krotki = $typ_label;
     if ($opis !== '') {
         $opis_krotki = mb_substr($opis, 0, 60);
         if (mb_strlen($opis) > 60) $opis_krotki .= '…';
     }
 
-    $t = $numer !== '' ? $numer . ' — ' . $typ : $typ;
-    if ($nr !== '')          $t .= ' nr ' . $nr;
-    if ($data_fmt !== '')    $t .= ' z ' . $data_fmt;
-    if ($opis_krotki !== '') $t .= ' — ' . $opis_krotki;
+    $ident = $jest_faktura
+        ? 'FAK: ' . $nr_dok
+        : 'DOK: ' . trim($typ_label . ($nr_dok !== '' ? ' ' . $nr_dok : ''));
 
-    return mb_substr(trim($t), 0, 140);
+    $parts = ['PŁATNOŚĆ: ' . $opis_krotki];
+    if ($numer !== '') $parts[] = 'AKC: ' . $numer;
+    $parts[] = $ident;
+    $t = implode(' | ', $parts);
+
+    if (mb_strlen($t) <= 140) return $t;
+
+    // Format skrócony (§2 pkt 11): zachowuje numer akceptacji i identyfikator
+    // dokumentu, odrzuca opis celu płatności jako pierwszy.
+    $short_akc   = $numer !== '' ? 'AKC:' . $numer : '';
+    $short_ident = $jest_faktura ? 'FAK:' . $nr_dok : 'DOK:' . ($nr_dok !== '' ? $nr_dok : $numer);
+    $short = trim($short_akc . ' ' . $short_ident);
+    return mb_substr($short, 0, 140);
+}
+
+/**
+ * Tytuł zbiorczy dla płatności obejmującej kilka dokumentów jednym przelewem
+ * (§2 pkt 10-11). Gdy pełna lista numerów faktur/dokumentów nie mieści się
+ * w limicie 140 znaków, używa oznaczenia PAKIET — pełna lista pozostaje
+ * w dokumentacji przelewu (edok_documents/edok_transfers), nie w samym tytule.
+ */
+function edok_generate_tytul_pakiet(array $docs, string $opis_celu = ''): string {
+    $docs = array_values($docs);
+    if (count($docs) === 1) return edok_generate_tytul_przelewu($docs[0]);
+    if (count($docs) === 0) return '';
+
+    $numery  = array_values(array_unique(array_filter(array_map(fn($d) => trim((string)($d['number'] ?? '')), $docs))));
+    $faktury = array_values(array_unique(array_filter(array_map(fn($d) => trim((string)($d['nr_faktury'] ?? '')), $docs))));
+
+    $opis = $opis_celu !== '' ? preg_replace('/\s+/', ' ', trim($opis_celu)) : ('zbiorcza płatność za ' . count($docs) . ' dokumentów');
+    $opis_krotki = mb_substr($opis, 0, 60);
+    if (mb_strlen($opis) > 60) $opis_krotki .= '…';
+
+    $akc = 'AKC: ' . implode(', ', $numery);
+    $fak = $faktury ? 'FAK: ' . implode(', ', $faktury) : 'DOK: ' . implode(', ', $numery);
+
+    $t = 'PŁATNOŚĆ: ' . $opis_krotki . ' | ' . $akc . ' | ' . $fak;
+    if (mb_strlen($t) <= 140) return $t;
+
+    $pierwszy  = $numery[0] ?? '';
+    $short_akc = count($numery) > 1 ? 'AKC:' . $pierwszy . '+' . (count($numery) - 1) : 'AKC:' . $pierwszy;
+    return mb_substr(trim($short_akc . ' PAKIET'), 0, 140);
 }
 
 // ── Pobieranie dokumentu ──────────────────────────────────────────────────────

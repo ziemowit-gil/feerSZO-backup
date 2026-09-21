@@ -37,6 +37,22 @@ $filters = array_filter([
     'q'                => $f_q,
 ]);
 
+// Tytuł zbiorczy dla kilku dokumentów płaconych jednym przelewem (Uchwała 5/2026
+// §2 pkt 10-11) — tylko dokumenty z EODoK (numeracja/format specyficzne dla EODoK,
+// archiwalny KDOK ma własną numerację i nie pasuje do formatu AKC/FAK).
+$pakiet_tytul = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pakiet_tytul') {
+    csrf_check();
+    $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['pakiet_ids'] ?? '')))));
+    if (count($ids) < 2) {
+        flash_set('warning', 'Zaznacz co najmniej dwa dokumenty EODoK, żeby wygenerować tytuł zbiorczy.');
+    } else {
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $docs = db_all("SELECT * FROM edok_documents WHERE id IN ($placeholders)", $ids);
+        $pakiet_tytul = edok_generate_tytul_pakiet($docs);
+    }
+}
+
 $rows = edok_preliminarz_query($filters);
 
 if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
@@ -82,6 +98,24 @@ require_once __DIR__ . '/../includes/header.php';
 <p class="text-muted small">Zaakceptowane dokumenty z EODoK oraz archiwalnego KDOK — jedna lista płatności niezależnie od modułu pochodzenia.</p>
 
 <?= flash_html() ?>
+
+<?php if ($pakiet_tytul !== null): ?>
+<div class="alert alert-info d-flex align-items-center gap-2">
+  <i class="bi bi-magic"></i>
+  <span class="font-monospace flex-grow-1" id="pakiet_tytul_text"><?= h($pakiet_tytul) ?></span>
+  <button type="button" class="btn btn-sm btn-outline-secondary" title="Kopiuj"
+    onclick="navigator.clipboard.writeText(document.getElementById('pakiet_tytul_text').textContent)">
+    <i class="bi bi-clipboard"></i> Kopiuj
+  </button>
+</div>
+<p class="text-muted small">Pełna lista dokumentów objętych tą płatnością pozostaje w danych poszczególnych dokumentów EODoK — wklej powyższy tytuł w banku i odnotuj wykonany przelew na każdym z nich.</p>
+<?php endif; ?>
+
+<form method="post" id="pakietForm" class="d-none">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="action" value="pakiet_tytul">
+  <input type="hidden" name="pakiet_ids" id="pakiet_ids">
+</form>
 
 <form method="get" class="card shadow-sm mb-3">
   <div class="card-body py-2">
@@ -130,6 +164,13 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </form>
 
+<div class="d-none align-items-center gap-2 mb-3" id="pakietBar">
+  <span class="small text-muted"><span id="pakietCount">0</span> zaznaczonych dokumentów EODoK</span>
+  <button type="button" class="btn btn-sm btn-outline-primary" onclick="edokPakietSubmit()">
+    <i class="bi bi-magic"></i> Wygeneruj tytuł zbiorczy
+  </button>
+</div>
+
 <?php if ($sumy): ?>
 <div class="d-flex flex-wrap gap-3 mb-3">
   <?php foreach ($sumy as $w => $s): ?>
@@ -156,6 +197,7 @@ require_once __DIR__ . '/../includes/header.php';
     <table class="table table-hover table-sm mb-0 align-middle" style="font-size:.83rem">
       <thead class="table-dark">
         <tr>
+          <th style="width:2rem"></th>
           <th>Źródło</th>
           <th>Numer</th>
           <th>Kontrahent / NIP</th>
@@ -178,6 +220,11 @@ require_once __DIR__ . '/../includes/header.php';
         $rowClass = match(true) { $p === 1 => 'table-danger', $p === 2 => 'table-warning', default => '' };
         ?>
         <tr class="<?= $rowClass ?>">
+          <td>
+            <?php if ($r['source'] === 'edok'): ?>
+            <input type="checkbox" class="form-check-input pakiet-check" value="<?= (int)$r['id'] ?>">
+            <?php endif; ?>
+          </td>
           <td><span class="badge bg-<?= $r['source'] === 'edok' ? 'primary' : 'secondary' ?>"><?= strtoupper($r['source']) ?></span></td>
           <td><a href="<?= h($r['view_url']) ?>"><code><?= h($r['number']) ?></code></a></td>
           <td>
@@ -221,5 +268,26 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 <?php endif; ?>
+
+<script>
+(function () {
+  var boxes = Array.from(document.querySelectorAll('.pakiet-check'));
+  var bar   = document.getElementById('pakietBar');
+  var count = document.getElementById('pakietCount');
+  function sync() {
+    var n = boxes.filter(function (b) { return b.checked; }).length;
+    count.textContent = n;
+    bar.classList.toggle('d-none', n < 2);
+    bar.classList.toggle('d-flex', n >= 2);
+  }
+  boxes.forEach(function (b) { b.addEventListener('change', sync); });
+  sync();
+})();
+function edokPakietSubmit() {
+  var ids = Array.from(document.querySelectorAll('.pakiet-check')).filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+  document.getElementById('pakiet_ids').value = ids.join(',');
+  document.getElementById('pakietForm').submit();
+}
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
