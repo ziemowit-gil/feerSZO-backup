@@ -1300,6 +1300,63 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
     return $encoded !== false ? $encoded : $content;
 }
 
+/**
+ * Eksport przelewów zbiorczych — Bank Millennium (Millenet), format ELIXIR-O.
+ * Wg oficjalnej specyfikacji „Opis formatu pliku płatności krajowych do
+ * importu w systemie Millenet" (wer. 2020-08-14): plik CSV bez nagłówka/
+ * stopki, CRLF, pola rozdzielone przecinkiem, ale — inaczej niż w pliku iPKO
+ * biznes (edok_ipko_biznes_export()) — WYBRANE pola ("Pole w „ "" w
+ * specyfikacji: rachunki, nazwa/adres, tytuł, kod klasyfikacji, adnotacje)
+ * muszą być w cudzysłowach; potwierdzone wprost oficjalnym przykładem w
+ * dokumencie. To realna różnica między bankami we wspólnym standardzie
+ * ELIXIR-O (Rada Bankowości Elektronicznej) — obie funkcje są osobno
+ * zweryfikowane wobec swoich oficjalnych przykładów, nie kopiują się
+ * bezkrytycznie. Podpola łączone "|", jak w iPKO biznes. Millennium wprost
+ * akceptuje też UTF-8 (obok CP852/CP1250/ISO-8859-2) — bez wymuszonej
+ * konwersji kodowania, w przeciwieństwie do PKO.
+ */
+function edok_millenet_export(array $docs, string $rachunek_zlecen_nrb): string {
+    $nrb_z = preg_replace('/\D/', '', $rachunek_zlecen_nrb);
+    if (strlen($nrb_z) !== 26) throw new RuntimeException('Rachunek zleceniodawcy musi mieć 26 cyfr (NRB).');
+    $bank_z = substr($nrb_z, 2, 8);
+
+    $konto = null;
+    foreach (edok_rachunki_list() as $r) if ($r['nrb'] === $nrb_z) { $konto = $r; break; }
+    $nazwa_zlec = (($konto['nazwa'] ?? '') !== '') ? $konto['nazwa'] : (defined('ORG_NAME') ? ORG_NAME : '');
+    $adres_zlec = (($konto['adres'] ?? '') !== '') ? $konto['adres'] : (string) org_setting('org_adres');
+    $q = fn(string $s): string => '"' . $s . '"';
+
+    $rows = [];
+    foreach ($docs as $doc) {
+        if (($doc['kierunek'] ?? 'wydatek') !== 'wydatek') continue;
+        $nrb_k = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
+        if (strlen($nrb_k) !== 26) continue;
+
+        $data_fmt     = str_replace('-', '', $doc['termin_platnosci'] ? substr($doc['termin_platnosci'], 0, 10) : date('Y-m-d'));
+        $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
+        $bank_k       = substr($nrb_k, 2, 8);
+        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize((string)($doc['tytul_przelewu'] ?: $doc['title'] ?? '')), 35, 4));
+        // Adnotacje: kod rekoncyliacyjny do 16 znaków, umieszczony między "$$$...$$$" (§3.1 pozycja 16).
+        $referencja = mb_substr(preg_replace('/[^A-Za-z0-9]/', '', (string)($doc['number'] ?? '')), 0, 16);
+        $adnotacje  = $referencja !== '' ? '$$$' . $referencja . '$$$' : '';
+
+        $fields = [
+            '110', $data_fmt, (string)$kwota_groszy, $bank_z, '0',
+            $q($nrb_z), $q($nrb_k),
+            $q(edok_ipko_name_address_field($nazwa_zlec, $adres_zlec)),
+            $q(edok_ipko_name_address_field((string)($doc['kontrahent_nazwa'] ?? ''), '')),
+            '0', $bank_k,
+            $q($tytul),
+            $q(''), $q(''),
+            $q('51'),
+            $q($adnotacje),
+        ];
+        $rows[] = implode(',', $fields);
+    }
+
+    return $rows ? implode("\r\n", $rows) . "\r\n" : '';
+}
+
 // ── Import wyciągu bankowego — MT940 (iPKO biznes) ─────────────────────────────
 // Wg oficjalnej specyfikacji PKO BP „Struktura pliku wyjściowego – Raport MT940":
 // pole :61: (jedna operacja) + następujące po nim :86: z podpolami ~20..~63.
