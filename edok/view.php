@@ -181,6 +181,53 @@ $current_cfg     = $current_key ? $steps_config[$current_key] : null;
 $current_blocked = $current_key ? edok_step_blocked_reason($doc, $current_key) : null;
 $current_can_act = $current_key && !$current_blocked && edok_has_role($current_key) && !$is_terminal;
 $current_pending = ($current_key && !$current_blocked) ? edok_step_validation_errors($doc, $current_key) : [];
+
+/**
+ * Pola "typowe" dla danego etapu/obszaru kontroli — to, co akceptujący
+ * powinien mieć przed oczami PODEJMUJĄC decyzję, nie tylko w tle strony.
+ * Wartości użytkownika escapowane pojedynczo (h()) przed złożeniem z gotowym
+ * znacznikiem HTML (np. ikoną statusu) — string zwracany jest już bezpieczny
+ * do wypisania wprost, bez ponownego h() przy renderowaniu.
+ */
+function edok_step_review_fields(string $step_key, array $doc): array {
+    switch ($step_key) {
+        case 'meryt':
+            return [
+                ['Opis', $doc['description'] !== '' ? nl2br(h($doc['description'])) : '—'],
+                ['Kwota brutto', h($doc['kwota_brutto']) . ' ' . h($doc['waluta'])],
+                ['Dokument źródłowy', $doc['file_path']
+                    ? '<span class="tw-text-emerald-600"><i class="bi bi-check-circle-fill"></i> dołączony</span>'
+                    : '<span class="tw-text-red-600"><i class="bi bi-x-circle-fill"></i> brak</span>'],
+            ];
+        case 'formal':
+            $nip = trim((string)$doc['kontrahent_nip']);
+            $nip_ok = $nip === '' || edok_nip_valid($nip);
+            return [
+                ['Kontrahent', h($doc['kontrahent_nazwa']) ?: '—'],
+                ['NIP', $nip !== ''
+                    ? h($nip) . ' ' . ($nip_ok ? '<span class="tw-text-emerald-600"><i class="bi bi-check-circle-fill"></i></span>' : '<span class="tw-text-red-600"><i class="bi bi-x-circle-fill"></i> błędna suma kontrolna</span>')
+                    : '—'],
+                ['Numer dokumentu', $doc['nr_faktury'] !== '' ? h($doc['nr_faktury']) : '—'],
+                ['Data wystawienia', $doc['data_wystawienia'] ? date_pl($doc['data_wystawienia']) : '—'],
+            ];
+        case 'dekretacja':
+            return [
+                ['Rodzaj działalności', $doc['rodzaj_dzialalnosci']
+                    ? h(EDOK_RODZAJ_DZIALALNOSCI[$doc['rodzaj_dzialalnosci']] ?? $doc['rodzaj_dzialalnosci'])
+                    : '<span class="tw-text-red-600">nie uzupełniono</span>'],
+                ['Projekt / MPK', ($doc['projekt'] ?: $doc['mpk']) !== '' ? h($doc['projekt'] ?: $doc['mpk']) : '—'],
+            ];
+        case 'zatwierdza':
+            return [
+                ['Kontrahent', h($doc['kontrahent_nazwa']) ?: '—'],
+                ['Kwota brutto', h($doc['kwota_brutto']) . ' ' . h($doc['waluta'])],
+                [$doc['kierunek'] === 'przychod' ? 'Sugerowana referencja' : 'Tytuł przelewu', $doc['tytul_przelewu'] !== '' ? h($doc['tytul_przelewu']) : '—'],
+            ];
+        default:
+            return [];
+    }
+}
+$current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [];
 ?>
 <style type="text/tailwindcss">
 .edok-page { @apply tw-max-w-6xl tw-mx-auto; }
@@ -491,44 +538,16 @@ $current_pending = ($current_key && !$current_blocked) ? edok_step_validation_er
         <?php elseif (!edok_has_role($current_key)): ?>
         <div class="edok-alert edok-alert-warning"><i class="bi bi-person-x tw-mt-0.5"></i> Oczekuje na decyzję osoby z uprawnieniem do tego etapu.</div>
 
+        <?php elseif (!edok_pin_is_set((int)$user['id'])): ?>
+        <div class="edok-alert edok-alert-warning tw-mb-3">
+          <i class="bi bi-shield-exclamation tw-mt-0.5"></i>
+          Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania. <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="tw-font-semibold tw-underline">Ustaw PIN</a>.
+        </div>
+
         <?php else: ?>
-          <?php if ($current_key === 'rachunkowa'):
-            $netto  = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_netto']));
-            $vat    = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_vat']));
-            $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_brutto']));
-            $ok_sum = $brutto <= 0 || abs(($netto + $vat) - $brutto) <= 0.01;
-          ?>
-          <div class="edok-amounts">
-            <table class="edok-kv">
-              <tbody>
-                <tr><td>Netto + VAT</td><td class="tw-text-right tw-font-mono"><?= number_format($netto + $vat, 2, ',', ' ') ?></td></tr>
-                <tr class="total"><td>Brutto na dokumencie</td><td class="tw-text-right tw-font-mono"><?= number_format($brutto, 2, ',', ' ') ?></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="edok-alert <?= $ok_sum ? 'tw-bg-emerald-50 tw-border-emerald-200 tw-text-emerald-700' : 'edok-alert-danger' ?> tw-mb-3">
-            <i class="bi <?= $ok_sum ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> tw-mt-0.5"></i>
-            <?= $ok_sum ? 'Kwoty się zgadzają.' : 'Kwoty się NIE zgadzają — popraw dane dokumentu przed akceptacją.' ?>
-          </div>
-          <?php endif; ?>
-
-          <?php if ($current_pending): ?>
-          <div class="edok-alert edok-alert-warning tw-mb-3">
-            <i class="bi bi-exclamation-triangle tw-mt-0.5"></i>
-            <ul class="tw-mb-0 tw-pl-4"><?php foreach ($current_pending as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
-          </div>
-          <?php endif; ?>
-
-          <?php if (!edok_pin_is_set((int)$user['id'])): ?>
-          <div class="edok-alert edok-alert-warning tw-mb-3">
-            <i class="bi bi-shield-exclamation tw-mt-0.5"></i>
-            Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania. <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="tw-font-semibold tw-underline">Ustaw PIN</a>.
-          </div>
-          <?php else: ?>
-          <button type="button" class="edok-btn edok-btn-primary" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
-            <i class="bi bi-ui-checks"></i> Podejmij decyzję
-          </button>
-          <?php endif; ?>
+        <button type="button" class="edok-btn edok-btn-primary" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
+          <i class="bi bi-ui-checks"></i> Podejmij decyzję
+        </button>
         <?php endif; ?>
       </div>
     </div>
@@ -622,6 +641,35 @@ $current_pending = ($current_key && !$current_blocked) ? edok_step_validation_er
         <input type="hidden" name="step_pin" id="wizardPin">
 
         <div class="edok-wizard-pane" id="wizardPaneDecision">
+          <?php if ($current_review): ?>
+          <table class="edok-kv tw-mb-3">
+            <tbody>
+              <?php foreach ($current_review as [$label, $value]): ?>
+              <tr><td><?= h($label) ?></td><td><?= $value ?></td></tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+          <?php endif; ?>
+
+          <?php if ($current_key === 'rachunkowa'):
+            $netto  = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_netto']));
+            $vat    = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_vat']));
+            $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)$doc['kwota_brutto']));
+            $ok_sum = $brutto <= 0 || abs(($netto + $vat) - $brutto) <= 0.01;
+          ?>
+          <div class="edok-alert <?= $ok_sum ? 'tw-bg-emerald-50 tw-border-emerald-200 tw-text-emerald-700' : 'edok-alert-danger' ?> tw-mb-3">
+            <i class="bi <?= $ok_sum ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill' ?> tw-mt-0.5"></i>
+            <?= $ok_sum ? 'Netto + VAT zgadza się z kwotą brutto.' : 'Netto + VAT NIE zgadza się z kwotą brutto — popraw dane dokumentu przed akceptacją.' ?>
+          </div>
+          <?php endif; ?>
+
+          <?php if ($current_pending): ?>
+          <div class="edok-alert edok-alert-warning tw-mb-3">
+            <i class="bi bi-exclamation-triangle tw-mt-0.5"></i>
+            <ul class="tw-mb-0 tw-pl-4"><?php foreach ($current_pending as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+          </div>
+          <?php endif; ?>
+
           <div class="tw-flex tw-gap-2 tw-mb-3">
             <label class="edok-choice choice-ok">
               <input type="radio" name="step_status" value="ok" required>
