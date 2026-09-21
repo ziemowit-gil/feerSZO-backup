@@ -53,7 +53,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pakie
     }
 }
 
+// Eksport przelewów zbiorczych do iPKO biznes (format ELIXIR-O) — tylko EODoK,
+// tylko dokumenty wydatkowe zaakceptowane z prawidłowym 26-cyfrowym rachunkiem
+// kontrahenta (edok_ipko_biznes_export() pomija resztę). Patrz includes/edok.php.
+$ipko_error = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'export_ipko') {
+    csrf_check();
+    $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['pakiet_ids'] ?? '')))));
+    $rachunek_zlecen = trim($_POST['rachunek_zlecen'] ?? '');
+    if (!$ids) {
+        flash_set('warning', 'Zaznacz co najmniej jeden dokument do eksportu.');
+    } elseif ($rachunek_zlecen === '') {
+        flash_set('warning', 'Wybierz rachunek, z którego mają pójść przelewy.');
+    } else {
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $docs = db_all(
+            "SELECT * FROM edok_documents WHERE id IN ($placeholders) AND status='zaakceptowany' AND COALESCE(kierunek,'wydatek')='wydatek'",
+            $ids
+        );
+        try {
+            $content = edok_ipko_biznes_export($docs, $rachunek_zlecen);
+            if ($content === '') {
+                flash_set('warning', 'Żaden z zaznaczonych dokumentów nie nadaje się do eksportu (brak prawidłowego 26-cyfrowego rachunku kontrahenta).');
+            } else {
+                header('Content-Type: text/plain; charset=ISO-8859-2');
+                header('Content-Disposition: attachment; filename="iPKO_biznes_' . date('Y-m-d_His') . '.txt"');
+                header('Content-Length: ' . strlen($content));
+                echo $content;
+                exit;
+            }
+        } catch (\Throwable $e) {
+            flash_set('danger', 'Błąd eksportu: ' . $e->getMessage());
+        }
+    }
+}
+
 $rows = edok_preliminarz_query($filters);
+$rachunki_org = edok_rachunki_list();
 
 if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
@@ -117,6 +153,13 @@ require_once __DIR__ . '/../includes/header.php';
   <input type="hidden" name="pakiet_ids" id="pakiet_ids">
 </form>
 
+<form method="post" id="ipkoForm" class="d-none">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="action" value="export_ipko">
+  <input type="hidden" name="pakiet_ids" id="ipko_pakiet_ids">
+  <input type="hidden" name="rachunek_zlecen" id="ipko_rachunek_zlecen">
+</form>
+
 <form method="get" class="card shadow-sm mb-3">
   <div class="card-body py-2">
     <div class="row g-2 align-items-end">
@@ -164,12 +207,27 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </form>
 
-<div class="d-none align-items-center gap-2 mb-3" id="pakietBar">
+<div class="d-none align-items-center gap-2 mb-3 flex-wrap" id="pakietBar">
   <span class="small text-muted"><span id="pakietCount">0</span> zaznaczonych dokumentów EODoK</span>
   <button type="button" class="btn btn-sm btn-outline-primary" onclick="edokPakietSubmit()">
     <i class="bi bi-magic"></i> Wygeneruj tytuł zbiorczy
   </button>
+  <?php if ($rachunki_org): ?>
+  <span class="text-muted">·</span>
+  <select id="ipko_rachunek_select" class="form-select form-select-sm" style="width:auto" title="Rachunek, z którego mają pójść przelewy">
+    <option value="">— rachunek nadawcy —</option>
+    <?php foreach ($rachunki_org as $r): ?>
+    <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)</option>
+    <?php endforeach; ?>
+  </select>
+  <button type="button" class="btn btn-sm btn-outline-success" onclick="edokIpkoSubmit()">
+    <i class="bi bi-bank"></i> Eksportuj do iPKO biznes
+  </button>
+  <?php endif; ?>
 </div>
+<?php if ($rachunki_org): ?>
+<p class="text-muted small">Eksport do iPKO biznes: plik przelewów zbiorczych (ELIXIR-O) — zaimportuj go w iPKO biznes i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta.</p>
+<?php endif; ?>
 
 <?php if ($sumy): ?>
 <div class="d-flex flex-wrap gap-3 mb-3">
@@ -271,22 +329,33 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
 (function () {
-  var boxes = Array.from(document.querySelectorAll('.pakiet-check'));
-  var bar   = document.getElementById('pakietBar');
-  var count = document.getElementById('pakietCount');
+  var boxes  = Array.from(document.querySelectorAll('.pakiet-check'));
+  var bar    = document.getElementById('pakietBar');
+  var count  = document.getElementById('pakietCount');
+  var tytulBtn = bar ? bar.querySelector('button[onclick="edokPakietSubmit()"]') : null;
   function sync() {
     var n = boxes.filter(function (b) { return b.checked; }).length;
     count.textContent = n;
-    bar.classList.toggle('d-none', n < 2);
-    bar.classList.toggle('d-flex', n >= 2);
+    bar.classList.toggle('d-none', n < 1);
+    bar.classList.toggle('d-flex', n >= 1);
+    if (tytulBtn) tytulBtn.disabled = n < 2;
   }
   boxes.forEach(function (b) { b.addEventListener('change', sync); });
   sync();
 })();
+function edokSelectedIds() {
+  return Array.from(document.querySelectorAll('.pakiet-check')).filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+}
 function edokPakietSubmit() {
-  var ids = Array.from(document.querySelectorAll('.pakiet-check')).filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
-  document.getElementById('pakiet_ids').value = ids.join(',');
+  document.getElementById('pakiet_ids').value = edokSelectedIds().join(',');
   document.getElementById('pakietForm').submit();
+}
+function edokIpkoSubmit() {
+  var rachunek = document.getElementById('ipko_rachunek_select');
+  if (!rachunek || !rachunek.value) { alert('Wybierz rachunek, z którego mają pójść przelewy.'); return; }
+  document.getElementById('ipko_pakiet_ids').value = edokSelectedIds().join(',');
+  document.getElementById('ipko_rachunek_zlecen').value = rachunek.value;
+  document.getElementById('ipkoForm').submit();
 }
 </script>
 

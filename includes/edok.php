@@ -975,6 +975,114 @@ function edok_latest_generated_pdf(int $doc_id): ?array {
     return db_one("SELECT * FROM edok_generated_pdf WHERE doc_id = ? ORDER BY id DESC LIMIT 1", [$doc_id]);
 }
 
+// ── Eksport przelewów zbiorczych — iPKO biznes (ELIXIR-O) ─────────────────────
+// Wg oficjalnej specyfikacji PKO BP „Struktura pliku wejściowego – iPKO biznes
+// – ELIXIR-O": plik CSV BEZ nagłówka/stopki, jeden wiersz = jedno zlecenie,
+// pola rozdzielone przecinkiem, wiersze zakończone <CR><LF>, max 5000 rekordów
+// w pliku, strona kodowa CP852 albo ISO-8859-2 — bank WPROST ODRADZA UTF-8 i
+// Windows-1250 (błędy Ą/Ć/Ę/Ł/Ń/Ó/Ś/Ź/Ż). Znak "," rozdziela pola, znak "|"
+// rozdziela WIERSZE WEWNĄTRZ pola złożonego (nazwa/adres/tytuł — patrz
+// edok_ipko_name_address_field()) — żaden z tych znaków nie może występować
+// w treści samego pola (edok_ipko_sanitize() je usuwa). To dokładnie dlatego
+// edok_generate_tytul_przelewu() (Faza B) nie używa już "|" jako separatora
+// w tytule przelewu — ten sam znak jest zastrzeżony przez format importu banku.
+//
+// UWAGA: to generator PLIKU IMPORTU, nie zlecenie płatności — wygenerowany
+// plik trzeba samodzielnie zaimportować i zweryfikować w iPKO biznes przed
+// skierowaniem do realizacji. Adres kontrahenta nie jest przechowywany
+// w EODoK, więc pole nazwy/adresu kontrahenta zawiera samą nazwę. Przykłady
+// w oficjalnym dokumencie PKO nie pokazują pól w cudzysłowach mimo że opis
+// tekstowy specyfikacji tego wymaga — ten eksporter podąża za przykładami
+// (bez cudzysłowów), bo to one odzwierciedlają format faktycznie akceptowany
+// przez system banku.
+
+/** Dzieli tekst na $max_lines wierszy po maksymalnie $len znaków (pola nazwa/adres/tytuł w Elixir-O). */
+function edok_ipko_wrap_lines(string $text, int $len, int $max_lines): array {
+    $text = preg_replace('/\s+/', ' ', trim($text));
+    $lines = [];
+    while ($text !== '' && count($lines) < $max_lines) {
+        $lines[] = mb_substr($text, 0, $len);
+        $text = mb_substr($text, $len);
+    }
+    while (count($lines) < $max_lines) $lines[] = '';
+    return $lines;
+}
+
+/** Usuwa znaki zastrzeżone dla struktury pliku Elixir-O (",", "|", cudzysłów) z treści pola. */
+function edok_ipko_sanitize(string $s): string {
+    return str_replace([',', '|', '"'], [' ', '/', "'"], $s);
+}
+
+/**
+ * Pole "nazwa i adres" (4*35 znaków, wiersze 1-2 = nazwa, 3-4 = adres, złączone "|").
+ * Tabela pól w oficjalnym PDF PKO opisowo podaje separator "?", ale rzeczywiste
+ * przykłady pliku w tym samym dokumencie (sekcja 3.2, zweryfikowane wizualnie
+ * na renderze strony — pdftotext w tabeli myli "|" z "?") konsekwentnie używają
+ * "|" — zgodnie też z ogólną zasadą z sekcji 2 dokumentu ("do oddzielenia
+ * wykorzystywany jest znak pionowej kreski"). Ten eksporter podąża za
+ * przykładami/zasadą ogólną, nie za opisem tabeli pól.
+ */
+function edok_ipko_name_address_field(string $nazwa, string $adres): string {
+    return implode('|', array_merge(
+        edok_ipko_wrap_lines(edok_ipko_sanitize($nazwa), 35, 2),
+        edok_ipko_wrap_lines(edok_ipko_sanitize($adres), 35, 2)
+    ));
+}
+
+/**
+ * Generuje plik przelewów zbiorczych ELIXIR-O dla podanych dokumentów EODoK
+ * (tylko kierunek=wydatek — przychody nie generują wychodzącej płatności;
+ * dokumenty bez prawidłowego 26-cyfrowego rachunku kontrahenta są pomijane).
+ * $rachunek_zlecen_nrb — NRB rachunku organizacji, z którego mają pójść
+ * przelewy (musi występować na liście edok_rachunki_list(), żeby dociągnąć
+ * nazwę/adres nadawcy zapisane przy tym rachunku).
+ * Zwraca gotowy content pliku w ISO-8859-2 (do zapisu/pobrania jako .txt).
+ */
+function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): string {
+    $nrb_z = preg_replace('/\D/', '', $rachunek_zlecen_nrb);
+    if (strlen($nrb_z) !== 26) throw new RuntimeException('Rachunek zleceniodawcy musi mieć 26 cyfr (NRB).');
+    $bank_z = substr($nrb_z, 2, 8);
+
+    $konto = null;
+    foreach (edok_rachunki_list() as $r) if ($r['nrb'] === $nrb_z) { $konto = $r; break; }
+    $nazwa_zlec = (($konto['nazwa'] ?? '') !== '') ? $konto['nazwa'] : (defined('ORG_NAME') ? ORG_NAME : '');
+    $adres_zlec = (($konto['adres'] ?? '') !== '') ? $konto['adres'] : (string) org_setting('org_adres');
+
+    $rows = [];
+    foreach ($docs as $doc) {
+        if (($doc['kierunek'] ?? 'wydatek') !== 'wydatek') continue;
+        $nrb_k = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
+        if (strlen($nrb_k) !== 26) continue; // brak/nieprawidłowy rachunek kontrahenta — nie da się ułożyć wiersza
+
+        $data_fmt     = str_replace('-', '', $doc['termin_platnosci'] ? substr($doc['termin_platnosci'], 0, 10) : date('Y-m-d'));
+        $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
+        $bank_k       = substr($nrb_k, 2, 8);
+        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize((string)($doc['tytul_przelewu'] ?: $doc['title'] ?? '')), 35, 4));
+        // Referencja własna zleceniodawcy: max 16 znaków, bez polskich liter/znaków specjalnych poza / - ? : ( ) . , ' + spacja.
+        $referencja   = mb_substr(preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? '')), 0, 16);
+
+        $fields = [
+            '110', $data_fmt, (string)$kwota_groszy, $bank_z, '0',
+            $nrb_z, $nrb_k,
+            edok_ipko_name_address_field($nazwa_zlec, $adres_zlec),
+            edok_ipko_name_address_field((string)($doc['kontrahent_nazwa'] ?? ''), ''),
+            '0', $bank_k,
+            $tytul,
+            '', '',
+            '51',
+        ];
+        // Pole 16 (referencja) pojawia się w przykładach TYLKO gdy ma wartość —
+        // bez referencji wiersz kończy się od razu po polu 15 ("51"), bez
+        // dodatkowego pustego przecinka na końcu.
+        if ($referencja !== '') $fields[] = $referencja;
+        $rows[] = implode(',', $fields);
+    }
+
+    $content = $rows ? implode("\r\n", $rows) . "\r\n" : '';
+    $encoded = @iconv('UTF-8', 'ISO-8859-2//TRANSLIT', $content);
+    return $encoded !== false ? $encoded : $content;
+}
+
 // ── Tabela analityczna przychody/koszty ────────────────────────────────────────
 // Zestawienie zaakceptowanych dokumentów (przychody i wydatki) w wybranym okresie,
 // pogrupowane wg klasyfikacji (rodzaj działalności / projekt), z wynikiem
