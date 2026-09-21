@@ -17,6 +17,7 @@ edok_migrate();
 
 $data_od = trim($_GET['data_od'] ?? date('Y-m-01'));
 $data_do = trim($_GET['data_do'] ?? date('Y-m-d'));
+$baza    = ($_GET['baza'] ?? 'brutto') === 'netto' ? 'netto' : 'brutto'; // podstawa liczenia kolumny "Wynik"
 
 $raport = edok_analityczny_query(['data_od' => $data_od, 'data_do' => $data_do]);
 $groups = $raport['groups'];
@@ -24,6 +25,8 @@ $totals = $raport['totals'];
 
 $fmt = fn(float $v) => number_format($v, 2, ',', ' ');
 $okres_label = date_pl($data_od) . ' – ' . date_pl($data_do);
+$wynik_key   = 'wynik_' . $baza;
+$baza_label  = $baza === 'netto' ? 'netto' : 'brutto';
 
 // ── Eksport PDF ─────────────────────────────────────────────────────────────
 if (($_GET['export'] ?? '') === 'pdf') {
@@ -48,17 +51,17 @@ if (($_GET['export'] ?? '') === 'pdf') {
     </style>';
     $html .= '<h1>' . h($org ?: 'EODoK') . ' — Tabela analityczna: przychody i koszty</h1>';
     $html .= '<div class="sub">Okres: ' . h($okres_label) . ' · dokumenty zaakceptowane · wygenerowano ' . date('d.m.Y H:i') . ' przez ' . h(current_user()['name'] ?? '—') . '</div>';
-    $html .= '<table><thead><tr><th>Klasyfikacja</th><th>Przychody netto</th><th>Przychody brutto</th><th>Wydatki netto</th><th>Wydatki brutto</th><th>Wynik (brutto)</th></tr></thead><tbody>';
+    $html .= '<table><thead><tr><th>Klasyfikacja</th><th>Przychody netto</th><th>Przychody brutto</th><th>Wydatki netto</th><th>Wydatki brutto</th><th>Wynik (' . h($baza_label) . ')</th></tr></thead><tbody>';
     foreach ($groups as $g) {
         $html .= '<tr><td>' . h($g['label']) . '</td>'
             . '<td class="num">' . $fmt($g['przychod_netto']) . '</td><td class="num">' . $fmt($g['przychod_brutto']) . '</td>'
             . '<td class="num">' . $fmt($g['wydatek_netto']) . '</td><td class="num">' . $fmt($g['wydatek_brutto']) . '</td>'
-            . '<td class="num' . ($g['wynik_brutto'] < 0 ? ' neg' : '') . '">' . $fmt($g['wynik_brutto']) . '</td></tr>';
+            . '<td class="num' . ($g[$wynik_key] < 0 ? ' neg' : '') . '">' . $fmt($g[$wynik_key]) . '</td></tr>';
     }
     $html .= '<tr class="totals"><td>RAZEM</td>'
         . '<td class="num">' . $fmt($totals['przychod_netto']) . '</td><td class="num">' . $fmt($totals['przychod_brutto']) . '</td>'
         . '<td class="num">' . $fmt($totals['wydatek_netto']) . '</td><td class="num">' . $fmt($totals['wydatek_brutto']) . '</td>'
-        . '<td class="num' . ($totals['wynik_brutto'] < 0 ? ' neg' : '') . '">' . $fmt($totals['wynik_brutto']) . '</td></tr>';
+        . '<td class="num' . ($totals[$wynik_key] < 0 ? ' neg' : '') . '">' . $fmt($totals[$wynik_key]) . '</td></tr>';
     $html .= '</tbody></table>';
     $mpdf->WriteHTML($html);
     $mpdf->Output('EODoK_analityczna_' . $data_od . '_' . $data_do . '.pdf', \Mpdf\Output\Destination::INLINE);
@@ -72,11 +75,11 @@ if (($_GET['export'] ?? '') === 'xlsx') {
     $x->addSheet('Analityczna');
     $x->writeRow(['Tabela analityczna przychody/koszty — EODoK', 'Okres: ' . $okres_label]);
     $x->writeRow([]);
-    $x->writeRow(['Klasyfikacja', 'Przychody netto', 'Przychody brutto', 'Wydatki netto', 'Wydatki brutto', 'Wynik (brutto)'], ['header']);
+    $x->writeRow(['Klasyfikacja', 'Przychody netto', 'Przychody brutto', 'Wydatki netto', 'Wydatki brutto', 'Wynik (' . $baza_label . ')'], ['header']);
     foreach ($groups as $g) {
-        $x->writeRow([$g['label'], $g['przychod_netto'], $g['przychod_brutto'], $g['wydatek_netto'], $g['wydatek_brutto'], $g['wynik_brutto']]);
+        $x->writeRow([$g['label'], $g['przychod_netto'], $g['przychod_brutto'], $g['wydatek_netto'], $g['wydatek_brutto'], $g[$wynik_key]]);
     }
-    $x->writeRow(['RAZEM', $totals['przychod_netto'], $totals['przychod_brutto'], $totals['wydatek_netto'], $totals['wydatek_brutto'], $totals['wynik_brutto']], ['header']);
+    $x->writeRow(['RAZEM', $totals['przychod_netto'], $totals['przychod_brutto'], $totals['wydatek_netto'], $totals['wydatek_brutto'], $totals[$wynik_key]], ['header']);
     $x->output('EODoK_analityczna_' . $data_od . '_' . $data_do . '.xlsx');
     exit;
 }
@@ -98,7 +101,7 @@ require_once __DIR__ . '/../includes/header.php';
     </a>
   </div>
 </div>
-<p class="text-muted small">Zaakceptowane dokumenty EODoK w wybranym okresie (wg daty wpływu / wystawienia), pogrupowane wg klasyfikacji. Wynik = przychody brutto − wydatki brutto.</p>
+<p class="text-muted small">Zaakceptowane dokumenty EODoK w wybranym okresie (wg daty wpływu / wystawienia), pogrupowane wg klasyfikacji. Wynik = przychody − wydatki, liczone na podstawie <?= h($baza_label) ?>.</p>
 
 <form method="get" class="row g-2 mb-3 align-items-end">
   <div class="col-auto">
@@ -108,6 +111,13 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="col-auto">
     <label class="form-label small mb-1">Do</label>
     <input type="date" name="data_do" class="form-control form-control-sm" value="<?= h($data_do) ?>">
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-1">Wynik liczony na podstawie</label>
+    <select name="baza" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="brutto" <?= $baza === 'brutto' ? 'selected' : '' ?>>Brutto</option>
+      <option value="netto" <?= $baza === 'netto' ? 'selected' : '' ?>>Netto</option>
+    </select>
   </div>
   <div class="col-auto">
     <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Pokaż</button>
@@ -123,7 +133,7 @@ require_once __DIR__ . '/../includes/header.php';
         <th class="text-end">Przychody brutto</th>
         <th class="text-end">Wydatki netto</th>
         <th class="text-end">Wydatki brutto</th>
-        <th class="text-end">Wynik (brutto)</th>
+        <th class="text-end">Wynik (<?= h($baza_label) ?>)</th>
       </tr>
     </thead>
     <tbody>
@@ -133,11 +143,11 @@ require_once __DIR__ . '/../includes/header.php';
       <?php foreach ($groups as $g): ?>
       <tr>
         <td><?= h($g['label']) ?></td>
-        <td class="text-end font-monospace"><?= $fmt($g['przychod_netto']) ?></td>
-        <td class="text-end font-monospace fw-semibold"><?= $fmt($g['przychod_brutto']) ?></td>
-        <td class="text-end font-monospace"><?= $fmt($g['wydatek_netto']) ?></td>
-        <td class="text-end font-monospace fw-semibold"><?= $fmt($g['wydatek_brutto']) ?></td>
-        <td class="text-end font-monospace fw-bold <?= $g['wynik_brutto'] < 0 ? 'text-danger' : 'text-success' ?>"><?= $fmt($g['wynik_brutto']) ?></td>
+        <td class="text-end font-monospace <?= $baza === 'netto' ? 'fw-semibold' : '' ?>"><?= $fmt($g['przychod_netto']) ?></td>
+        <td class="text-end font-monospace <?= $baza === 'brutto' ? 'fw-semibold' : '' ?>"><?= $fmt($g['przychod_brutto']) ?></td>
+        <td class="text-end font-monospace <?= $baza === 'netto' ? 'fw-semibold' : '' ?>"><?= $fmt($g['wydatek_netto']) ?></td>
+        <td class="text-end font-monospace <?= $baza === 'brutto' ? 'fw-semibold' : '' ?>"><?= $fmt($g['wydatek_brutto']) ?></td>
+        <td class="text-end font-monospace fw-bold <?= $g[$wynik_key] < 0 ? 'text-danger' : 'text-success' ?>"><?= $fmt($g[$wynik_key]) ?></td>
       </tr>
       <?php endforeach; ?>
     </tbody>
@@ -149,7 +159,7 @@ require_once __DIR__ . '/../includes/header.php';
         <td class="text-end font-monospace"><?= $fmt($totals['przychod_brutto']) ?></td>
         <td class="text-end font-monospace"><?= $fmt($totals['wydatek_netto']) ?></td>
         <td class="text-end font-monospace"><?= $fmt($totals['wydatek_brutto']) ?></td>
-        <td class="text-end font-monospace <?= $totals['wynik_brutto'] < 0 ? 'text-danger' : 'text-success' ?>"><?= $fmt($totals['wynik_brutto']) ?></td>
+        <td class="text-end font-monospace <?= $totals[$wynik_key] < 0 ? 'text-danger' : 'text-success' ?>"><?= $fmt($totals[$wynik_key]) ?></td>
       </tr>
     </tfoot>
     <?php endif; ?>

@@ -1181,7 +1181,11 @@ function edok_analityczny_query(array $f = []): array {
 
     ksort($groups);
     $totals['wynik_brutto'] = $totals['przychod_brutto'] - $totals['wydatek_brutto'];
-    foreach ($groups as &$g) $g['wynik_brutto'] = $g['przychod_brutto'] - $g['wydatek_brutto'];
+    $totals['wynik_netto']  = $totals['przychod_netto']  - $totals['wydatek_netto'];
+    foreach ($groups as &$g) {
+        $g['wynik_brutto'] = $g['przychod_brutto'] - $g['wydatek_brutto'];
+        $g['wynik_netto']  = $g['przychod_netto']  - $g['wydatek_netto'];
+    }
     unset($g);
 
     return ['groups' => array_values($groups), 'totals' => $totals];
