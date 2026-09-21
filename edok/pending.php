@@ -89,11 +89,12 @@ require_once __DIR__ . '/../includes/header.php';
     <span class="badge bg-secondary"><?= count($docs) ?></span>
   </div>
   <div class="card-body py-2">
-    <form method="post" class="bulk-form" data-step="<?= h($step_key) ?>">
+    <form method="post" class="bulk-form" data-step="<?= h($step_key) ?>" onsubmit="return edokBulkSubmit(event, this)">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="action" value="bulk_decide">
       <input type="hidden" name="step_key" value="<?= h($step_key) ?>">
       <input type="hidden" name="doc_ids" class="doc_ids_field">
+      <input type="hidden" name="pin" class="step-pin-field">
       <div class="table-responsive mb-2">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
@@ -117,27 +118,77 @@ require_once __DIR__ . '/../includes/header.php';
         </table>
       </div>
       <?php if ($has_pin): ?>
-      <div class="d-flex align-items-end gap-2 flex-wrap">
-        <div style="max-width:200px">
-          <label class="form-label small fw-semibold mb-1">PIN</label>
-          <input type="password" name="pin" class="form-control form-control-sm" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••">
-        </div>
-        <button type="submit" class="btn btn-sm btn-success disabled-until-selected" disabled>
-          <i class="bi bi-check2-all"></i> Zatwierdź zaznaczone
-        </button>
-      </div>
+      <button type="submit" class="btn btn-sm btn-success disabled-until-selected" disabled>
+        <i class="bi bi-check2-all"></i> Zatwierdź zaznaczone (PIN)
+      </button>
       <?php endif; ?>
     </form>
   </div>
 </div>
 <?php endforeach; ?>
 
+<!-- PIN jako wyskakujące okno — jeden modal współdzielony przez wszystkie karty etapów. -->
+<div class="modal fade" id="pinModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-shield-lock"></i> Potwierdź PIN-em</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2" id="pinModalCount"></p>
+        <input type="password" id="pinModalInput" class="form-control text-center font-monospace" style="letter-spacing:.4em;font-size:1.2rem"
+               inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••">
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-primary btn-sm" id="pinModalConfirm"><i class="bi bi-check2"></i> Potwierdź</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+(function () {
+  var modalEl = document.getElementById('pinModal');
+  var input   = document.getElementById('pinModalInput');
+  var countEl = document.getElementById('pinModalCount');
+  var confirmBtn = document.getElementById('pinModalConfirm');
+  var modal   = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+  var pendingForm = null;
+
+  function confirmPin() {
+    var pin = input.value.trim();
+    if (!/^\d{6}$/.test(pin)) { input.classList.add('is-invalid'); input.focus(); return; }
+    input.classList.remove('is-invalid');
+    if (pendingForm) {
+      pendingForm.querySelector('.step-pin-field').value = pin;
+      var f = pendingForm; pendingForm = null;
+      if (modal) modal.hide();
+      f.submit();
+    }
+  }
+  if (confirmBtn) confirmBtn.addEventListener('click', confirmPin);
+  if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); confirmPin(); } });
+  if (modalEl) modalEl.addEventListener('shown.bs.modal', function () { input.value = ''; input.classList.remove('is-invalid'); input.focus(); });
+
+  window.edokBulkSubmit = function (event, form) {
+    var checked = Array.from(form.querySelectorAll('.doc-check')).filter(function (b) { return b.checked; });
+    if (!checked.length) { event.preventDefault(); return false; }
+    event.preventDefault();
+    form.querySelector('.doc_ids_field').value = checked.map(function (b) { return b.value; }).join(',');
+    if (!modal) { form.submit(); return false; }
+    countEl.textContent = 'Zatwierdzasz zbiorczo ' + checked.length + ' dokument(ów).';
+    pendingForm = form;
+    modal.show();
+    return false;
+  };
+})();
+
 document.querySelectorAll('.bulk-form').forEach(function (form) {
-  var boxes   = Array.from(form.querySelectorAll('.doc-check'));
+  var boxes     = Array.from(form.querySelectorAll('.doc-check'));
   var selectAll = form.querySelector('.select-all');
-  var btn     = form.querySelector('.disabled-until-selected');
-  var hidden  = form.querySelector('.doc_ids_field');
+  var btn       = form.querySelector('.disabled-until-selected');
   function sync() {
     var checked = boxes.filter(function (b) { return b.checked; });
     if (btn) btn.disabled = checked.length === 0;
@@ -149,11 +200,6 @@ document.querySelectorAll('.bulk-form').forEach(function (form) {
       sync();
     });
   }
-  form.addEventListener('submit', function (e) {
-    var checked = boxes.filter(function (b) { return b.checked; });
-    if (!checked.length) { e.preventDefault(); return; }
-    hidden.value = checked.map(function (b) { return b.value; }).join(',');
-  });
   sync();
 });
 </script>

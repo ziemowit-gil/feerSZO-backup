@@ -444,9 +444,16 @@ $steps_config = [
 
         <?php if ($can_act): ?>
         <div class="mt-2 border-top pt-2">
-          <form method="post">
+          <?php if (!edok_pin_is_set((int)$user['id'])): ?>
+          <div class="alert alert-warning py-2 small mb-2">
+            <i class="bi bi-shield-exclamation"></i> Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania ("Tak/OK") etapu.
+            <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="alert-link">Ustaw PIN</a>.
+          </div>
+          <?php endif; ?>
+          <form method="post" class="edok-step-form" onsubmit="return edokStepSubmit(event, this)">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="action" value="<?= $step_key ?>">
+            <input type="hidden" name="step_pin" class="step-pin-field">
             <div class="d-flex gap-3 mb-2 flex-wrap">
               <div class="form-check">
                 <input class="form-check-input" type="radio" name="step_status" id="<?= $step_key ?>_ok" value="ok">
@@ -464,17 +471,6 @@ $steps_config = [
             <div class="mb-2">
               <textarea name="step_notes" class="form-control form-control-sm" rows="2" placeholder="Ewentualne uwagi lub powód odrzucenia…"></textarea>
             </div>
-            <?php if (!edok_pin_is_set((int)$user['id'])): ?>
-            <div class="alert alert-warning py-2 small mb-2">
-              <i class="bi bi-shield-exclamation"></i> Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania ("Tak/OK") etapu.
-              <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="alert-link">Ustaw PIN</a>.
-            </div>
-            <?php else: ?>
-            <div class="mb-2" style="max-width:220px">
-              <label class="form-label small fw-semibold mb-1">PIN <span class="text-muted fw-normal">(wymagany tylko dla „Tak/OK”)</span></label>
-              <input type="password" name="step_pin" class="form-control form-control-sm" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••">
-            </div>
-            <?php endif; ?>
             <button type="submit" class="btn btn-sm btn-<?= $cfg['color'] ?>"><i class="bi bi-check2"></i> Zapisz decyzję</button>
           </form>
         </div>
@@ -528,7 +524,63 @@ $steps_config = [
 </div>
 <?php endif; ?>
 
+<!-- PIN jako wyskakujące okno — jeden modal współdzielony przez wszystkie etapy tej strony.
+     Otwiera się tylko dla decyzji "Tak/OK" (jedyna, którą uchwała nazywa "akceptacją"),
+     "Z uwagami"/"Odrzuć" wysyłają się od razu bez PIN-u — patrz edokStepSubmit(). -->
+<div class="modal fade" id="pinModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-shield-lock"></i> Potwierdź PIN-em</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">Akceptacja ("Tak/OK") etapu wymaga weryfikacji tożsamości PIN-em EODoK.</p>
+        <input type="password" id="pinModalInput" class="form-control text-center font-monospace" style="letter-spacing:.4em;font-size:1.2rem"
+               inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••">
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-primary btn-sm" id="pinModalConfirm"><i class="bi bi-check2"></i> Potwierdź</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+(function () {
+  var modalEl = document.getElementById('pinModal');
+  var input   = document.getElementById('pinModalInput');
+  var confirmBtn = document.getElementById('pinModalConfirm');
+  var modal   = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+  var pendingForm = null;
+
+  function confirmPin() {
+    var pin = input.value.trim();
+    if (!/^\d{6}$/.test(pin)) { input.classList.add('is-invalid'); input.focus(); return; }
+    input.classList.remove('is-invalid');
+    if (pendingForm) {
+      pendingForm.querySelector('.step-pin-field').value = pin;
+      var f = pendingForm; pendingForm = null;
+      if (modal) modal.hide();
+      f.submit();
+    }
+  }
+  if (confirmBtn) confirmBtn.addEventListener('click', confirmPin);
+  if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); confirmPin(); } });
+  if (modalEl) modalEl.addEventListener('shown.bs.modal', function () { input.value = ''; input.classList.remove('is-invalid'); input.focus(); });
+
+  window.edokStepSubmit = function (event, form) {
+    var status = (form.querySelector('input[name="step_status"]:checked') || {}).value;
+    if (status !== 'ok') return true; // "Z uwagami"/"Odrzuć" — bez PIN, wysyła się normalnie
+    event.preventDefault();
+    if (!modal) { form.submit(); return false; } // Bootstrap niedostępny — degradacja do zwykłego submitu
+    pendingForm = form;
+    modal.show();
+    return false;
+  };
+})();
+
 function edokViewRecalc() {
   var n = document.getElementById('e_netto'), v = document.getElementById('e_vat'), b = document.getElementById('e_brutto');
   if (!n || !v || !b) return;
