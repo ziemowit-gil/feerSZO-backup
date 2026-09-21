@@ -100,7 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'number'           => $number,
                 'data_wystawienia' => $data_wystawienia,
                 'description'      => $description,
-                'kierunek'         => $kierunek,
+                'kwota_brutto'     => $kwota_brutto,
+                'waluta'           => $waluta,
             ]);
         }
         $doc_id = db_insert('edok_documents', [
@@ -440,8 +441,8 @@ function edokCheckDataGraniczna() {
   }
 }
 
-// Podpowiedź tytułu przelewu — ten sam wzorzec co edok_generate_tytul_przelewu() w PHP
-// (Uchwała 5/2026 §2 pkt 8-9: "PŁATNOŚĆ: {opis} - AKC: {numer} - FAK/DOK: {identyfikator}",
+// Podpowiedź tytułu przelewu — ten sam wzorzec co edok_generate_tytul_przelewu() w PHP:
+// "PŁATNOŚĆ: {opis} - FAK/DOK: {identyfikator} - AKC: {numer} - {kwota} {waluta}",
 // separator " - ", nie "|" — pionowa kreska bywa odrzucana przez systemy bankowości
 // elektronicznej, np. PKO), żeby podgląd na żywo odpowiadał temu, co dogeneruje
 // backend. Numer EODoK nie istnieje jeszcze na etapie formularza (nadawany dopiero
@@ -468,7 +469,9 @@ function edokSuggestTytul(force) {
   var jestPrzychod = (document.querySelector('input[name="kierunek"]:checked') || {}).value === 'przychod';
   var jestFaktura = !jestPrzychod && EDOK_FAKTURA_TYPES.indexOf(typKey) !== -1 && nr !== '';
   var ident = jestFaktura ? ('FAK: ' + nr) : ('DOK: ' + (typ + (nr ? ' ' + nr : '')).trim());
-  var t = (jestPrzychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') + opis + ' - AKC: ' + numer + ' - ' + ident;
+  var kwota = (document.getElementById('kwota_brutto') || {}).value || '';
+  var waluta = (document.getElementById('waluta') || {}).value || 'PLN';
+  var t = (jestPrzychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') + opis + ' - ' + ident + ' - AKC: ' + numer + (kwota.trim() ? (' - ' + kwota.trim() + ' ' + waluta) : '');
   field.value = t.trim().substring(0, 140);
   document.getElementById('tytul_przelewu_auto').value = '1';
   edokTytulDirty = false;

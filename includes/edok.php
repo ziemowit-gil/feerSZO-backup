@@ -258,6 +258,24 @@ function edok_migrate(): void {
         gen_name      TEXT    NOT NULL DEFAULT '',
         created_at    TEXT    NOT NULL DEFAULT ''
     )");
+
+    // Archiwum miesięczne (Uchwała 5/2026 §7) — wydruk kart akceptacji + automatyczne
+    // zestawienie dokument→karta→akceptant za dany miesiąc. generated_by NULL = cron.
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_monthly_archive (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        year          INTEGER NOT NULL,
+        month         INTEGER NOT NULL,
+        pdf_path      TEXT    NOT NULL DEFAULT '',
+        csv_path      TEXT    NOT NULL DEFAULT '',
+        doc_count     INTEGER NOT NULL DEFAULT 0,
+        generated_by  INTEGER,
+        gen_name      TEXT    NOT NULL DEFAULT '',
+        generated_at  TEXT    NOT NULL DEFAULT '',
+        verified_by   INTEGER,
+        verified_name TEXT    NOT NULL DEFAULT '',
+        verified_at   TEXT
+    )");
+    try { $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_edok_monthly_archive ON edok_monthly_archive(year, month)"); } catch (\Throwable $e) {}
 }
 
 function _edok_add_columns(PDO $db, string $table, array $cols): void {
@@ -443,10 +461,12 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
 }
 
 /**
- * Tytuł przelewu (dla wydatku) albo sugerowana referencja wpłaty (dla przychodu)
- * wg formatów wymaganych Uchwałą 5/2026 §2 pkt 8-9:
- *   faktura:     "PŁATNOŚĆ: {opis} - AKC: {numer akceptacji} - FAK: {nr faktury}"
- *   bez faktury: "PŁATNOŚĆ: {opis} - AKC: {numer akceptacji} - DOK: {typ dokumentu} {nr}"
+ * Tytuł przelewu (dla wydatku) albo sugerowana referencja wpłaty (dla przychodu),
+ * oparty na formatach z Uchwały 5/2026 §2 pkt 8-9, w kolejności ustalonej z
+ * użytkownikiem: 1) opis, 2) numer dokumentu źródłowego (FAK/DOK), 3) numer
+ * akceptacji (AKC), 4) kwota:
+ *   faktura:     "PŁATNOŚĆ: {opis} - FAK: {nr faktury} - AKC: {numer akceptacji} - {kwota} {waluta}"
+ *   bez faktury: "PŁATNOŚĆ: {opis} - DOK: {typ dokumentu} {nr} - AKC: {numer akceptacji} - {kwota} {waluta}"
  * Dla dokumentów przychodowych (kierunek=przychod) prefiks to "PRZYCHÓD:" zamiast
  * "PŁATNOŚĆ:", zawsze z identyfikatorem "DOK:" — nie ma tu wychodzącej płatności do
  * zlecenia, ale wartość i tak jest użyteczna jako sugerowana referencja, którą
@@ -461,9 +481,12 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
  * Opis to pierwsze 60 znaków pola "description"; gdy pusty, używana jest nazwa typu
  * dokumentu. Przy przekroczeniu limitu 140 znaków (typowy limit pola tytułu w
  * bankowości elektronicznej — ten sam co w KDOK, ksiegowosc/add.php) tytuł skraca
- * się do formatu "AKC:{numer} FAK:{nr}" / "AKC:{numer} DOK:{identyfikator}"
- * (§2 pkt 11) — kolejność zachowania: numer akceptacji, potem numer faktury/dokumentu,
- * na końcu (odrzucany jako pierwszy) opis celu płatności.
+ * się do formatu wprost z uchwały (§2 pkt 11) "AKC:{numer} FAK:{nr}" /
+ * "AKC:{numer} DOK:{identyfikator}" — ta kolejność skrótu (AKC pierwsze) jest
+ * cytatem z treści uchwały i NIE zmienia się razem z kolejnością pól pełnego
+ * formatu powyżej; kwota jest w skrócie pomijana jako pierwsza (§2 pkt 11:
+ * odrzuca się najpierw opis celu płatności, kwota nie jest wymieniona w ogóle,
+ * więc traktowana jest jako równie zbywalna przy braku miejsca).
  */
 function edok_generate_tytul_przelewu(array $doc): string {
     $jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
@@ -473,6 +496,8 @@ function edok_generate_tytul_przelewu(array $doc): string {
     $typ_label     = EDOK_TYPES[$typ_dokumentu] ?? 'Dokument księgowy';
     $nr_dok        = trim((string)($doc['nr_faktury'] ?? ''));
     $jest_faktura  = !$jest_przychod && edok_tytul_jest_faktura($typ_dokumentu) && $nr_dok !== '';
+    $kwota         = trim((string)($doc['kwota_brutto'] ?? ''));
+    $waluta        = trim((string)($doc['waluta'] ?? '')) ?: 'PLN';
 
     $opis = preg_replace('/\s+/', ' ', trim((string)($doc['description'] ?? '')));
     $opis_krotki = $typ_label;
@@ -485,9 +510,9 @@ function edok_generate_tytul_przelewu(array $doc): string {
         ? 'FAK: ' . $nr_dok
         : 'DOK: ' . trim($typ_label . ($nr_dok !== '' ? ' ' . $nr_dok : ''));
 
-    $parts = [($jest_przychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') . $opis_krotki];
+    $parts = [($jest_przychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') . $opis_krotki, $ident];
     if ($numer !== '') $parts[] = 'AKC: ' . $numer;
-    $parts[] = $ident;
+    if ($kwota !== '') $parts[] = $kwota . ' ' . $waluta;
     $t = implode(' - ', $parts);
 
     if (mb_strlen($t) <= 140) return $t;
@@ -513,6 +538,8 @@ function edok_generate_tytul_pakiet(array $docs, string $opis_celu = ''): string
 
     $numery  = array_values(array_unique(array_filter(array_map(fn($d) => trim((string)($d['number'] ?? '')), $docs))));
     $faktury = array_values(array_unique(array_filter(array_map(fn($d) => trim((string)($d['nr_faktury'] ?? '')), $docs))));
+    $waluta  = trim((string)($docs[0]['waluta'] ?? '')) ?: 'PLN';
+    $suma    = array_sum(array_map(fn($d) => _edok_kwota_float((string)($d['kwota_brutto'] ?? '0')), $docs));
 
     $opis = $opis_celu !== '' ? preg_replace('/\s+/', ' ', trim($opis_celu)) : ('zbiorcza płatność za ' . count($docs) . ' dokumentów');
     $opis_krotki = mb_substr($opis, 0, 60);
@@ -521,7 +548,7 @@ function edok_generate_tytul_pakiet(array $docs, string $opis_celu = ''): string
     $akc = 'AKC: ' . implode(', ', $numery);
     $fak = $faktury ? 'FAK: ' . implode(', ', $faktury) : 'DOK: ' . implode(', ', $numery);
 
-    $t = 'PŁATNOŚĆ: ' . $opis_krotki . ' - ' . $akc . ' - ' . $fak;
+    $t = 'PŁATNOŚĆ: ' . $opis_krotki . ' - ' . $fak . ' - ' . $akc . ' - ' . number_format($suma, 2, ',', '') . ' ' . $waluta;
     if (mb_strlen($t) <= 140) return $t;
 
     $pierwszy  = $numery[0] ?? '';
@@ -1021,6 +1048,144 @@ function edok_generate_final_pdf(int $doc_id): string {
 
 function edok_latest_generated_pdf(int $doc_id): ?array {
     return db_one("SELECT * FROM edok_generated_pdf WHERE doc_id = ? ORDER BY id DESC LIMIT 1", [$doc_id]);
+}
+
+// ── Archiwizacja miesięczna (Uchwała 5/2026 §7) ────────────────────────────────
+// Wydruk kart akceptacji wszystkich dokumentów dodanych w danym miesiącu (wg
+// created_at — ta sama definicja "miesiąca" co dotychczasowy ręczny przycisk
+// w edok/monthly_pdf.php, teraz współdzielona z automatyczną archiwizacją) +
+// zestawienie powiązań dokument→karta akceptacji→akceptant.
+
+/** HTML wszystkich kart akceptacji z danego miesiąca (jedna karta = jedna strona, <pagebreak /> między nimi). Współdzielone przez edok/monthly_pdf.php (ręczny przycisk) i edok_build_monthly_pdf_file() (cron). */
+function edok_monthly_cards_html(int $year, int $month): array {
+    $rows = db_all(
+        "SELECT id FROM edok_documents
+         WHERE CAST(SUBSTR(created_at, 6, 2) AS INTEGER) = ? AND CAST(SUBSTR(created_at, 1, 4) AS INTEGER) = ?
+         ORDER BY id ASC",
+        [$month, $year]
+    );
+    $html = '<style>' . edok_print_css() . '</style>';
+    $n = 0;
+    foreach ($rows as $r) {
+        $doc = edok_get((int)$r['id']);
+        if (!$doc) continue;
+        if ($n > 0) $html .= '<pagebreak />';
+        $html .= edok_print_html($doc);
+        $n++;
+    }
+    return ['html' => $html, 'count' => $n];
+}
+
+const EDOK_MONTHS_PL = ['', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+
+/** Buduje i zapisuje na dysk PDF kart akceptacji za dany miesiąc. Zwraca ścieżkę względną albo null, gdy brak dokumentów. */
+function edok_build_monthly_pdf_file(int $year, int $month): ?string {
+    $cards = edok_monthly_cards_html($year, $month);
+    if ($cards['count'] === 0) return null;
+
+    require_once dirname(__DIR__) . '/vendor/autoload.php';
+    $tmp_dir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
+    if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
+    $mpdf = new \Mpdf\Mpdf([
+        'mode' => 'utf-8', 'format' => 'A4',
+        'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 8, 'margin_bottom' => 8,
+        'default_font' => 'dejavusans', 'tempDir' => $tmp_dir,
+    ]);
+    $mpdf->SetTitle('EODoK — dokumenty ' . (EDOK_MONTHS_PL[$month] ?? $month) . ' ' . $year);
+    $mpdf->WriteHTML($cards['html']);
+
+    $out_dir = UPLOAD_DIR . 'edok_generated/monthly/';
+    if (!is_dir($out_dir)) mkdir($out_dir, 0755, true);
+    $filename = sprintf('EODoK_%04d_%02d.pdf', $year, $month);
+    $mpdf->Output($out_dir . $filename, \Mpdf\Output\Destination::FILE);
+    return 'edok_generated/monthly/' . $filename;
+}
+
+/**
+ * Zestawienie powiązań dokument→karta akceptacji→akceptant za dany miesiąc
+ * (Uchwała 5/2026 §7 ostatni akapit) — jeden wiersz na (dokument, etap).
+ * Kolumny: identyfikator dokumentu źródłowego, identyfikator karty akceptacji,
+ * dane akceptanta, etap, status, data i czas akceptacji, numer faktury/numer
+ * akceptacji wykorzystany w tytule przelewu. Zapisuje CSV na dysk, zwraca
+ * ścieżkę względną albo null, gdy brak dokumentów w tym miesiącu.
+ */
+function edok_build_monthly_zestawienie_csv(int $year, int $month): ?string {
+    $rows = db_all(
+        "SELECT d.id AS doc_id, d.number, d.nr_faktury, d.tytul_przelewu,
+                s.step_key, s.status AS step_status, s.user_name, s.user_role, s.decided_at, s.verify_method,
+                g.id AS karta_id
+         FROM edok_documents d
+         JOIN edok_steps s ON s.doc_id = d.id
+         LEFT JOIN edok_generated_pdf g ON g.doc_id = d.id
+         WHERE CAST(SUBSTR(d.created_at, 6, 2) AS INTEGER) = ? AND CAST(SUBSTR(d.created_at, 1, 4) AS INTEGER) = ?
+         ORDER BY d.id, CASE s.step_key WHEN 'meryt' THEN 1 WHEN 'formal' THEN 2 WHEN 'rachunkowa' THEN 3 WHEN 'dekretacja' THEN 4 WHEN 'zatwierdza' THEN 5 END",
+        [$month, $year]
+    );
+    if (!$rows) return null;
+
+    $out_dir = UPLOAD_DIR . 'edok_generated/monthly/';
+    if (!is_dir($out_dir)) mkdir($out_dir, 0755, true);
+    $filename = sprintf('zestawienie_%04d_%02d.csv', $year, $month);
+    $full_path = $out_dir . $filename;
+    $f = fopen($full_path, 'w');
+    fwrite($f, "\xEF\xBB\xBF");
+    fputcsv($f, ['Dokument', 'Karta akceptacji (id)', 'Etap', 'Status etapu', 'Akceptant', 'Metoda weryfikacji', 'Data i czas', 'Nr faktury / nr akceptacji'], ';');
+    foreach ($rows as $r) {
+        fputcsv($f, [
+            $r['number'],
+            $r['karta_id'] ?: '—',
+            EDOK_STEPS[$r['step_key']] ?? $r['step_key'],
+            $r['step_status'],
+            $r['user_name'] . ($r['user_role'] ? ' (' . $r['user_role'] . ')' : ''),
+            $r['verify_method'] ?: '—',
+            $r['decided_at'] ?: '—',
+            $r['nr_faktury'] ?: $r['number'],
+        ], ';');
+    }
+    fclose($f);
+    return 'edok_generated/monthly/' . $filename;
+}
+
+/**
+ * Orkiestruje archiwizację miesięczną: buduje PDF + zestawienie, zapisuje/
+ * aktualizuje wiersz w edok_monthly_archive (jeden na miesiąc — kolejne
+ * wywołanie nadpisuje pliki i wiersz, np. przy ręcznym powtórzeniu po
+ * uzupełnieniu dokumentów). $user_id = null → wywołanie z crona.
+ * Zwraca wiersz edok_monthly_archive albo null, gdy brak dokumentów.
+ */
+function edok_run_monthly_archive(int $year, int $month, ?int $user_id = null): ?array {
+    $pdf_path = edok_build_monthly_pdf_file($year, $month);
+    if ($pdf_path === null) return null;
+    $csv_path = edok_build_monthly_zestawienie_csv($year, $month);
+
+    $doc_count = (int) (db_one(
+        "SELECT COUNT(*) c FROM edok_documents WHERE CAST(SUBSTR(created_at,6,2) AS INTEGER)=? AND CAST(SUBSTR(created_at,1,4) AS INTEGER)=?",
+        [$month, $year]
+    )['c'] ?? 0);
+
+    $user = $user_id ? db_one("SELECT name FROM users WHERE id = ?", [$user_id]) : null;
+    $data = [
+        'year'         => $year,
+        'month'        => $month,
+        'pdf_path'     => $pdf_path,
+        'csv_path'     => $csv_path ?: '',
+        'doc_count'    => $doc_count,
+        'generated_by' => $user_id,
+        'gen_name'     => $user_id ? ($user['name'] ?? ('uid:' . $user_id)) : 'cron/edok_monthly_archive.php',
+        'generated_at' => date('Y-m-d H:i:s'),
+    ];
+
+    $existing = db_one("SELECT id FROM edok_monthly_archive WHERE year = ? AND month = ?", [$year, $month]);
+    if ($existing) {
+        db_exec(
+            "UPDATE edok_monthly_archive SET pdf_path=?, csv_path=?, doc_count=?, generated_by=?, gen_name=?, generated_at=? WHERE id=?",
+            [$data['pdf_path'], $data['csv_path'], $data['doc_count'], $data['generated_by'], $data['gen_name'], $data['generated_at'], $existing['id']]
+        );
+        $id = (int)$existing['id'];
+    } else {
+        $id = db_insert('edok_monthly_archive', $data);
+    }
+    return db_one("SELECT * FROM edok_monthly_archive WHERE id = ?", [$id]);
 }
 
 // ── Eksport przelewów zbiorczych — iPKO biznes (ELIXIR-O) ─────────────────────

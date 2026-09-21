@@ -50,6 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'data_wystawienia' => $doc['data_wystawienia'],
                 'description'      => $description,
                 'kierunek'         => $doc['kierunek'],
+                'kwota_brutto'     => $kwota_brutto,
+                'waluta'           => $doc['waluta'],
             ]);
         }
 
@@ -592,10 +594,12 @@ var EDOK_NUMBER_VIEW       = <?= json_encode($doc['number'], JSON_UNESCAPED_UNIC
 var EDOK_TYP_KEY_VIEW      = <?= json_encode($doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_TYP_LABEL_VIEW    = <?= json_encode(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu'], JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_KIERUNEK_VIEW     = <?= json_encode($doc['kierunek'] ?? 'wydatek', JSON_UNESCAPED_UNICODE) ?>;
+var EDOK_WALUTA_VIEW       = <?= json_encode($doc['waluta'] ?: 'PLN', JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_FAKTURA_TYPES_VIEW = ['faktura_vat', 'faktura_korygujaca'];
 function edokViewSuggestTytul() {
   var nrField = document.querySelector('#metaForm [name="nr_faktury"]');
   var opisField = document.querySelector('#metaForm [name="description"]');
+  var bruttoField = document.getElementById('e_brutto');
   var nr = nrField ? nrField.value.trim() : '';
   var opis = (opisField ? opisField.value : '').trim().replace(/\s+/g, ' ');
   if (opis.length > 60) opis = opis.substring(0, 60) + '...';
@@ -603,7 +607,8 @@ function edokViewSuggestTytul() {
   var jestPrzychod = EDOK_KIERUNEK_VIEW === 'przychod';
   var jestFaktura = !jestPrzychod && EDOK_FAKTURA_TYPES_VIEW.indexOf(EDOK_TYP_KEY_VIEW) !== -1 && nr !== '';
   var ident = jestFaktura ? ('FAK: ' + nr) : ('DOK: ' + (EDOK_TYP_LABEL_VIEW + (nr ? ' ' + nr : '')).trim());
-  var t = (jestPrzychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') + opis + (EDOK_NUMBER_VIEW ? (' - AKC: ' + EDOK_NUMBER_VIEW) : '') + ' - ' + ident;
+  var kwota = bruttoField ? bruttoField.value.trim() : '';
+  var t = (jestPrzychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') + opis + ' - ' + ident + (EDOK_NUMBER_VIEW ? (' - AKC: ' + EDOK_NUMBER_VIEW) : '') + (kwota ? (' - ' + kwota + ' ' + EDOK_WALUTA_VIEW) : '');
   document.getElementById('e_tytul').value = t.trim().substring(0, 140);
 }
 </script>
