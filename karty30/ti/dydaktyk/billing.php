@@ -29,7 +29,11 @@ ti_payments_migrate();
 if (module_enabled('invoices_enabled')) {
     require_once dirname(dirname(dirname(__DIR__))) . '/includes/invoices.php';
     invoices_migrate();
+    // Backend Betterfly (opcjonalny) — logika wystawiania/statusu faktur TI.
+    $bf = dirname(dirname(dirname(__DIR__))) . '/includes/betterfly_invoices.php';
+    if (is_file($bf)) require_once $bf;
 }
+$bf_backend = function_exists('betterfly_is_ti_backend') && betterfly_is_ti_backend();
 
 $PAGE_TITLE = 'Rozliczenia TI';
 $can_write  = true;   // kierownik z definicji pisze (dyd_is_staff wyżej)
@@ -301,6 +305,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $bid = (int)($_POST['billing_id'] ?? 0);
         if (!module_enabled('invoices_enabled')) {
             flash_set('warning', 'Moduł Faktury jest wyłączony.');
+        } elseif ($bf_backend) {
+            // Backend Betterfly: faktura z wiersza rozliczenia (per kurs lub zbiorcza).
+            try {
+                $res = betterfly_issue_ti_from_billing($bid, ['uid' => $uid]);
+                if (!empty($res['via_edok'])) {
+                    flash_set('success', 'Faktura utworzona w Betterfly i skierowana do obiegu EODoK (dokument #' . (int)$res['edok_doc_id'] . '). Zatwierdzenie po akceptacji obiegu.');
+                } else {
+                    flash_set('success', 'Faktura wystawiona w Betterfly' . (!empty($res['number']) ? ' (nr ' . $res['number'] . ').' : '.'));
+                }
+            } catch (\Throwable $e) {
+                flash_set('danger', 'Betterfly: ' . $e->getMessage());
+            }
         } else {
             $res = invoice_from_ti_billing($bid, $uid);
             if (empty($res['ok'])) {
@@ -927,6 +943,11 @@ echo '<main id="main" class="dyd-wrap">';
                   $_fv = db_one("SELECT id, number, status FROM invoices
                                   WHERE source='ti_billing' AND source_id=? AND deleted_at IS NULL", [(int)$b['id']]);
               } catch (\Throwable $e) { /* moduł jeszcze nie migrowany */ }
+              // Backend Betterfly: powiązanie tego rozliczenia z fakturą Betterfly.
+              $_bf = null;
+              if ($bf_backend && function_exists('betterfly_link_for_billing')) {
+                  try { $_bf = betterfly_link_for_billing($b); } catch (\Throwable $e) {}
+              }
             ?>
             <div style="font-size:.72rem" class="mt-1">
               <?php
@@ -941,7 +962,14 @@ echo '<main id="main" class="dyd-wrap">';
                     } catch (\Throwable $e) {}
                 }
               ?>
-              <?php if ($_fv): ?>
+              <?php if ($_bf): ?>
+                <i class="bi bi-receipt text-success me-1"></i>
+                Betterfly: <?= h($_bf['number'] ?: 'bufor') ?>
+                <span class="text-muted">(<?= (int)$_bf['doc_status'] === 1 ? 'zatwierdzona' : 'bufor' ?><?= (int)($_bf['edok_doc_id'] ?? 0) > 0 ? ' · w obiegu EODoK' : '' ?>)</span>
+                <?php if ((int)($_bf['edok_doc_id'] ?? 0) > 0): ?>
+                  <a href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$_bf['edok_doc_id'] ?>" title="Dokument w obiegu EODoK"><i class="bi bi-box-arrow-up-right"></i></a>
+                <?php endif; ?>
+              <?php elseif ($_fv): ?>
                 <i class="bi bi-receipt text-success me-1"></i>
                 <a href="<?= APP_URL ?>/crm/invoices/view.php?id=<?= (int)$_fv['id'] ?>">
                   <?= h($_fv['number'] ?: 'szkic faktury') ?></a>
@@ -956,7 +984,7 @@ echo '<main id="main" class="dyd-wrap">';
                   <input type="hidden" name="_op" value="make_invoice">
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                   <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem">
-                    <i class="bi bi-receipt me-1"></i>Wystaw fakturę
+                    <i class="bi bi-receipt me-1"></i>Wystaw fakturę<?= $bf_backend ? ' (Betterfly)' : '' ?>
                   </button>
                 </form>
               <?php endif; ?>
