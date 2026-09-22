@@ -20,6 +20,7 @@ require_once $base_dir . '/config.php';
 require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/pelnomocnictwa.php';
+require_once $base_dir . '/includes/pelnomocnictwa_ezd.php';
 require_once $base_dir . '/includes/notifications.php';
 require_once $base_dir . '/includes/mail_queue.php';
 
@@ -107,6 +108,14 @@ HTML;
         echo "[" . date('Y-m-d H:i:s') . "] BLAD {$p['numer']}: " . $e->getMessage() . "\n";
         $errs++;
     }
+}
+
+// Zamknij koszulki EZD pełnomocnictw, które wygasły lub zostały odwołane.
+try {
+    $closed = pelnomocnictwa_ezd_close_expired();
+    if ($closed) echo "[" . date('Y-m-d H:i:s') . "] Zamknięto {$closed} koszulek EZD (wygasłe/odwołane).\n";
+} catch (\Throwable $e) {
+    echo "[" . date('Y-m-d H:i:s') . "] BLAD zamykania koszulek: " . $e->getMessage() . "\n";
 }
 
 try {

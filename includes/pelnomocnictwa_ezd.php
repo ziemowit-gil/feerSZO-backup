@@ -186,6 +186,36 @@ function pelnomocnictwo_ezd_attach_generated(int $peln_id, string $typ, ?int $us
     }
 }
 
+/** Zamyka koszulkę EZD powiązaną z wpisem (np. po odwołaniu/wygaśnięciu). */
+function pelnomocnictwo_ezd_close_koszulka(int $peln_id, ?int $user_id, string $reason): bool {
+    if (!pelnomocnictwo_ezd_active()) return false;
+    require_once __DIR__ . '/ezd.php';
+    $row = pelnomocnictwo_get($peln_id);
+    if (!$row || empty($row['ezd_sprawa_id'])) return false;
+    $s = ezd_sprawa_get((int)$row['ezd_sprawa_id']);
+    if (!$s || ($s['status'] ?? '') === 'closed') return false;
+    try {
+        ezd_sprawa_close((int)$row['ezd_sprawa_id'], (int)($user_id ?: ($row['created_by'] ?? 0)), $reason);
+        pelnomocnictwo_log($peln_id, 'ezd_close', 'Zamknięto koszulkę EZD: ' . $reason, $user_id);
+        return true;
+    } catch (\Throwable $e) { return false; }
+}
+
+/** Zamyka koszulki EZD wszystkich pełnomocnictw wygasłych/odwołanych (dla crona). Zwraca liczbę zamkniętych. */
+function pelnomocnictwa_ezd_close_expired(): int {
+    if (!pelnomocnictwo_ezd_active()) return 0;
+    $n = 0;
+    try { $rows = db_all("SELECT * FROM pelnomocnictwa WHERE ezd_sprawa_id IS NOT NULL"); }
+    catch (\Throwable $e) { return 0; }
+    foreach ($rows as $r) {
+        $st = pelnomocnictwo_status($r);
+        if (!in_array($st, ['wygasle', 'odwolane'], true)) continue;
+        $reason = $st === 'odwolane' ? 'Pełnomocnictwo odwołane' : 'Pełnomocnictwo wygasło';
+        if (pelnomocnictwo_ezd_close_koszulka((int)$r['id'], null, $reason)) $n++;
+    }
+    return $n;
+}
+
 /** Odnośnik do koszulki EZD wpisu (lub null). */
 function pelnomocnictwo_ezd_url(array $row): ?string {
     if (empty($row['ezd_sprawa_id'])) return null;

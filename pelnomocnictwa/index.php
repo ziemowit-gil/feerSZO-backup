@@ -24,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sid = pelnomocnictwo_save($id, $_POST, $user_id);
             // Załóż (idempotentnie) koszulkę w EZD dla każdego pełnomocnictwa.
             $koszulka = pelnomocnictwo_ensure_koszulka($sid, $user_id);
+            // Powiadom pełnomocnika o udzieleniu (tylko przy tworzeniu nowego wpisu).
+            if (!$id) pelnomocnictwo_notify_grantee($sid, 'granted');
             $msg = $id ? 'Zaktualizowano pełnomocnictwo.' : 'Dodano pełnomocnictwo do rejestru.';
             if ($koszulka) $msg .= ' Założono koszulkę w EZD. Wgraj podpisany skan.';
             flash_set('success', $msg);
@@ -32,7 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'revoke') {
             $id = (int)($_POST['id'] ?? 0);
             pelnomocnictwo_revoke($id, $_POST['data_odwolania'] ?? null, $user_id);
-            flash_set('success', 'Pełnomocnictwo odwołane — możesz wygenerować dokument odwołania.');
+            pelnomocnictwo_notify_grantee($id, 'revoked');
+            pelnomocnictwo_ezd_close_koszulka($id, $user_id, 'Pełnomocnictwo odwołane');
+            flash_set('success', 'Pełnomocnictwo odwołane — powiadomiono pełnomocnika, koszulka EZD zamknięta.');
             header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
         }
         if ($action === 'attach_generated') {
@@ -200,6 +204,8 @@ include dirname(__DIR__) . '/includes/header.php';
           <?php endforeach; ?>
         </select>
       </div>
+      <div class="col-md-3"><label class="form-label mb-1" style="font-size:.74rem">E-mail pełnomocnika <span class="text-muted">(powiadomienia)</span></label>
+        <input type="email" name="pelnomocnik_email" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik_email'] ?? '') ?>" placeholder="opcjonalnie — inaczej z konta"></div>
 
       <div class="col-12 position-relative" id="peln-user-search-wrap">
         <label class="form-label mb-1" style="font-size:.74rem"><i class="bi bi-person-check me-1"></i>Powiąż z kontem użytkownika <span class="text-muted">(pełnomocnik zobaczy wpis w swoim panelu)</span></label>
@@ -356,6 +362,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
   <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-search"></i> Filtruj</button>
   <?php if($q || $status || $rok): ?><a href="<?= APP_URL ?>/pelnomocnictwa/index.php" class="btn btn-outline-secondary btn-sm">Wyczyść</a><?php endif; ?>
+  <a href="<?= APP_URL ?>/pelnomocnictwa/export.php?q=<?= urlencode($q) ?>&status=<?= urlencode($status) ?>&rok=<?= (int)$rok ?>" class="btn btn-outline-success btn-sm" title="Eksport do CSV (z bieżącym filtrem)"><i class="bi bi-filetype-csv me-1"></i>Eksport CSV</a>
 </form>
 
 <!-- Lista -->

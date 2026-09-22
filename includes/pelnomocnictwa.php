@@ -19,6 +19,7 @@
         mocodawca              TEXT    NOT NULL DEFAULT '',
         pelnomocnik            TEXT    NOT NULL DEFAULT '',
         pelnomocnik_pesel      TEXT    NOT NULL DEFAULT '',
+        pelnomocnik_email      TEXT    NOT NULL DEFAULT '',
         pelnomocnik_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
         zwrot                  TEXT    NOT NULL DEFAULT '',
         rodzaj                 TEXT    NOT NULL DEFAULT 'ogolne',
@@ -62,6 +63,7 @@
     $cols = [
         "pelnomocnik_pesel       TEXT    NOT NULL DEFAULT ''",
         "pelnomocnik_user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "pelnomocnik_email       TEXT    NOT NULL DEFAULT ''",
         "zwrot                   TEXT    NOT NULL DEFAULT ''",
         "rodzaj                  TEXT    NOT NULL DEFAULT 'ogolne'",
         "kor_tryb                TEXT    NOT NULL DEFAULT ''",
@@ -209,6 +211,9 @@ function pelnomocnictwo_log_meta(string $action): array {
         'reminder'    => ['Przypomnienie o wygasaniu', 'bi-bell text-warning'],
         'ezd_koszulka'=> ['Założono koszulkę w EZD', 'bi-folder-plus text-primary'],
         'ezd_pismo'   => ['Skan w koszulce EZD',    'bi-folder-check text-success'],
+        'ezd_close'   => ['Zamknięto koszulkę EZD', 'bi-folder-x text-secondary'],
+        'notify_grant'=> ['Powiadomiono pełnomocnika (udzielenie)', 'bi-envelope text-primary'],
+        'notify_revoke'=>['Powiadomiono pełnomocnika (odwołanie)',  'bi-envelope text-danger'],
         default       => [$action ?: 'Zmiana',     'bi-dot text-muted'],
     };
 }
@@ -260,6 +265,7 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
     if ($pelnomocnik === '') throw new \RuntimeException('Pełnomocnik jest wymagany.');
 
     $pelnomocnik_pesel  = trim($d['pelnomocnik_pesel'] ?? '');
+    $pelnomocnik_email  = trim($d['pelnomocnik_email'] ?? '');
     $pelnomocnik_user_id = (int)($d['pelnomocnik_user_id'] ?? 0) ?: null;
     $zwrot              = in_array(($d['zwrot'] ?? ''), ['pan','pani'], true) ? $d['zwrot'] : '';
     $rodzaj             = array_key_exists(($d['rodzaj'] ?? ''), pelnomocnictwa_rodzaje()) ? $d['rodzaj'] : 'ogolne';
@@ -292,19 +298,19 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
             $numer = $existing['numer'];
         }
         db()->prepare(
-            "UPDATE pelnomocnictwa SET numer=?,mocodawca=?,pelnomocnik=?,pelnomocnik_pesel=?,pelnomocnik_user_id=?,zwrot=?,rodzaj=?,kor_tryb=?,kor_szczegoly=?,zakres=?,forma=?,
+            "UPDATE pelnomocnictwa SET numer=?,mocodawca=?,pelnomocnik=?,pelnomocnik_pesel=?,pelnomocnik_email=?,pelnomocnik_user_id=?,zwrot=?,rodzaj=?,kor_tryb=?,kor_szczegoly=?,zakres=?,forma=?,
              data_udzielenia=?,data_waznosci=?,data_odwolania=?,uwagi=?,podpisujacy=?,podpisujacy_funkcja=?,
              updated_at=datetime('now') WHERE id=?"
-        )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $zwrot, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $id]);
+        )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_email, $pelnomocnik_user_id, $zwrot, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $id]);
         pelnomocnictwo_log($id, 'update', 'Zaktualizowano dane wpisu.', $user_id);
         return $id;
     }
 
     $numer = trim($d['numer'] ?? '') ?: pelnomocnictwa_suggest_numer();
     db()->prepare(
-        "INSERT INTO pelnomocnictwa (numer,mocodawca,pelnomocnik,pelnomocnik_pesel,pelnomocnik_user_id,zwrot,rodzaj,kor_tryb,kor_szczegoly,zakres,forma,data_udzielenia,data_waznosci,data_odwolania,uwagi,podpisujacy,podpisujacy_funkcja,created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $zwrot, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $user_id]);
+        "INSERT INTO pelnomocnictwa (numer,mocodawca,pelnomocnik,pelnomocnik_pesel,pelnomocnik_email,pelnomocnik_user_id,zwrot,rodzaj,kor_tryb,kor_szczegoly,zakres,forma,data_udzielenia,data_waznosci,data_odwolania,uwagi,podpisujacy,podpisujacy_funkcja,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_email, $pelnomocnik_user_id, $zwrot, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $user_id]);
     $newId = (int)db()->lastInsertId();
     pelnomocnictwo_log($newId, 'create', 'Dodano pełnomocnictwo ' . $numer . ' dla: ' . $pelnomocnik . '.', $user_id);
     return $newId;
@@ -323,6 +329,69 @@ function pelnomocnictwo_revoke(int $id, ?string $date, ?int $user_id): void {
     db()->prepare("UPDATE pelnomocnictwa SET data_odwolania=?, updated_at=datetime('now') WHERE id=?")
         ->execute([$date, $id]);
     pelnomocnictwo_log($id, 'revoke', 'Odwołano ze skutkiem na ' . pelnomocnictwo_data_slownie($date) . '.', $user_id);
+}
+
+/** Adres e-mail pełnomocnika: pole `pelnomocnik_email` lub e-mail powiązanego konta. */
+function pelnomocnictwo_grantee_email(array $row): string {
+    $e = trim((string)($row['pelnomocnik_email'] ?? ''));
+    if ($e !== '') return $e;
+    if (!empty($row['pelnomocnik_user_id'])) {
+        $u = db_one("SELECT email FROM users WHERE id=?", [(int)$row['pelnomocnik_user_id']]);
+        return trim((string)($u['email'] ?? ''));
+    }
+    return '';
+}
+
+/**
+ * Powiadamia pełnomocnika o udzieleniu/odwołaniu: dzwonek (gdy powiązane konto)
+ * + e-mail (gdy jest adres). $event = 'granted'|'revoked'.
+ */
+function pelnomocnictwo_notify_grantee(int $id, string $event): void {
+    $row = pelnomocnictwo_get($id);
+    if (!$row) return;
+    if (!function_exists('notif_create') && is_file(__DIR__ . '/notifications.php')) require_once __DIR__ . '/notifications.php';
+    if (!function_exists('mail_queue_add') && is_file(__DIR__ . '/mail_queue.php')) require_once __DIR__ . '/mail_queue.php';
+
+    $org      = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Organizacja');
+    $isRevoke = $event === 'revoked';
+    $title    = $isRevoke ? "Odwołano pełnomocnictwo {$row['numer']}" : "Udzielono Ci pełnomocnictwa {$row['numer']}";
+    $short    = $isRevoke ? "Pełnomocnictwo {$row['numer']} zostało odwołane." : "Pełnomocnictwo od: {$row['mocodawca']}.";
+
+    if (!empty($row['pelnomocnik_user_id']) && function_exists('notif_create')) {
+        if (function_exists('notif_migrate')) { try { notif_migrate(); } catch (\Throwable $e) {} }
+        try { notif_create((int)$row['pelnomocnik_user_id'], 'pelnomocnictwo', $title, $short, ''); } catch (\Throwable $e) {}
+    }
+
+    $email = pelnomocnictwo_grantee_email($row);
+    if ($email !== '' && function_exists('mail_queue_add')) {
+        $color  = $isRevoke ? '#dc3545' : '#0d6efd';
+        $zakres = ($row['rodzaj'] ?? '') === 'korespondencja' ? pelnomocnictwo_kor_opis($row) : implode('; ', pelnomocnictwo_zakres_items($row));
+        $name   = htmlspecialchars($row['pelnomocnik']);
+        $moc    = htmlspecialchars($row['mocodawca']);
+        $numer  = htmlspecialchars($row['numer']);
+        $zak    = htmlspecialchars(mb_substr($zakres, 0, 400));
+        $waz    = $row['data_waznosci'] ? htmlspecialchars(pelnomocnictwo_data_slownie($row['data_waznosci'])) : 'bezterminowo';
+        $intro  = $isRevoke
+            ? "Informujemy, że pełnomocnictwo <strong>{$numer}</strong> udzielone przez <strong>{$moc}</strong> zostało <strong>odwołane</strong>."
+            : "Informujemy, że <strong>{$moc}</strong> udzielił(a) Panu/Pani pełnomocnictwa <strong>{$numer}</strong>.";
+        $extra  = $isRevoke ? '' : "<div style=\"border-left:3px solid {$color};background:#f8f9fa;padding:10px 14px;margin:14px 0\">Zakres: {$zak}<br>Ważne do: {$waz}</div>";
+        $html = <<<HTML
+<html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#212529">
+<div style="background:{$color};padding:18px 22px;border-radius:10px 10px 0 0">
+  <h2 style="color:#fff;margin:0;font-size:1.05rem">Pełnomocnictwo — {$org}</h2>
+</div>
+<div style="border:1px solid #dee2e6;border-top:none;padding:22px;border-radius:0 0 10px 10px">
+  <p>Szanowny/a <strong>{$name}</strong>,</p>
+  <p>{$intro}</p>
+  {$extra}
+  <p style="color:#6c757d;font-size:.82em;margin-top:18px;padding-top:12px;border-top:1px solid #dee2e6">{$org}</p>
+</div></body></html>
+HTML;
+        try { mail_queue_add($email, $row['pelnomocnik'], ($isRevoke ? 'Odwołanie pełnomocnictwa ' : 'Pełnomocnictwo ') . $row['numer'], $html); } catch (\Throwable $e) {}
+    }
+
+    pelnomocnictwo_log($id, $isRevoke ? 'notify_revoke' : 'notify_grant',
+        'Powiadomiono pełnomocnika' . ($email ? " ({$email})" : ' (dzwonek)') . '.', null);
 }
 
 function pelnomocnictwo_delete(int $id): void {
