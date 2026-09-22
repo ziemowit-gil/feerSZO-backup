@@ -26,8 +26,11 @@ Trzy niezależne kanały kopii + monitoring. Wszystko gated rolą **admin**; pan
 
 ### 2. Kanał SharePoint (osobny)
 
-- `cron/agents/sp_backup_incremental.php` (co 6h) + `cron/agents/sp_backup_full.php` (nocą 1:00–3:00). Własne znaczniki `.last_sp_*` — **nie mieszać** z lokalnymi.
-- Cicho pomijają, gdy `sp_enabled != 1`. Realny backup **off-site**.
+- `cron/agents/sp_backup_incremental.php` (co 6h) + `cron/agents/sp_backup_full.php` (nocą 1:00–3:00). Własne znaczniki `.last_sp_*` — **nie mieszać** z lokalnymi. Cicho pomijają, gdy `sp_enabled != 1`. Realny backup **off-site**.
+- **Parytet z lokalnym:** obejmuje bazę, `uploads/` **i `certs/`**; pliki są **szyfrowane** (`_sp_backup_prepare()`), gdy szyfrowanie włączone. Foldery na SP: `sp_backup_folder/{incremental,full}/YYYY-MM/`.
+- **Alerty:** przy nieudanej wysyłce agenci wołają `backup_alert()` (dzwonek + e-mail do adminów). Sukces → znacznik `.last_sp_ok`.
+- **Retencja:** `sp_backup_retention()` (po pełnym backupie, raz na dobę) zachowuje min. 3 najnowsze kopie każdego typu w każdym kanale, starsze niż `sp_backup_retention_days` (dom. 90) usuwa.
+- **Panel:** dashboard „Kondycja kopii" pokazuje ostatnią wysyłkę na SP (wiek), folder i próg retencji.
 
 ### 3. Wspólna logika — `includes/backup.php`
 
