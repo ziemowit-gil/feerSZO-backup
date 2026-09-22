@@ -120,6 +120,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER",        // łączenie: id zgłoszenia głównego
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_issue_id INTEGER",   // integracja Redmine: numer issue
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_last_journal_id INTEGER NOT NULL DEFAULT 0", // ost. zaimportowana notatka
+        "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_comments_last TEXT NOT NULL DEFAULT ''",     // ost. wartość pola „Komentarze" z Redmine
     ] as $sql) { try { $pdo->exec($sql); } catch (\Throwable $e) {} }
     // SQLite dopuszcza wiele NULL w UNIQUE — token unikalny tylko dla wypełnionych.
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)"); } catch (\Throwable $e) {}
@@ -1545,6 +1546,26 @@ function hd_redmine_pull_ticket(array $ticket): bool {
 
     $upd = [];
     if ($maxJ > $lastJ) $upd['redmine_last_journal_id'] = $maxJ;
+
+    // 1b) Pole niestandardowe „Komentarze" z Redmine → wiadomość w SZO (przy zmianie).
+    if (function_exists('redmine_issue_comments_value')) {
+        $cval = redmine_issue_comments_value($issue);
+        if ($cval !== null) {
+            $cval = trim($cval);
+            $last = trim((string)($ticket['redmine_comments_last'] ?? ''));
+            if ($cval !== '' && $cval !== $last) {
+                db_insert('helpdesk_messages', [
+                    'ticket_id'   => $ticket_id,
+                    'user_id'     => null,
+                    'user_name'   => 'Redmine: Komentarze',
+                    'body'        => $cval,
+                    'is_internal' => 0,
+                ]);
+                $upd['redmine_comments_last'] = $cval;
+                $changed = true;
+            }
+        }
+    }
 
     // 2) Mapowanie zamknięcia: issue zamknięte w Redmine → SZO „rozwiązane".
     $closed = !empty($issue['closed_on']);

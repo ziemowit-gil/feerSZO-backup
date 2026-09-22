@@ -17,6 +17,7 @@ $KEYS = [
     'redmine_default_project_id', 'redmine_default_tracker_id',
     'helpdesk_frontend_only', 'redmine_minihelpdesk_enabled', 'redmine_webhook_secret',
     'redmine_oauth_client_id', 'redmine_oauth_client_secret', 'redmine_oauth_scope',
+    'redmine_comments_cf_id',
 ];
 $settings = [];
 foreach ($KEYS as $k) { $settings[$k] = org_setting($k); }
@@ -68,6 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
         if ($cid > 0 && $src !== '') $cfs[] = ['id' => $cid, 'source' => $src];
     }
     org_setting_set('redmine_custom_fields', $cfs ? json_encode($cfs) : '');
+
+    org_setting_set('redmine_comments_cf_id', trim($_POST['redmine_comments_cf_id'] ?? ''));
 
     $settings = array_merge($settings, $save);
     flash_set('success', 'Ustawienia Redmine zapisane.');
@@ -331,6 +334,29 @@ include dirname(__DIR__) . '/includes/header.php';
       </div>
     </div>
   <?php endfor; ?>
+
+  <hr>
+  <div class="fw-semibold small mb-2"><i class="bi bi-chat-left-text me-1"></i>Pole „Komentarze" z Redmine → SZO</div>
+  <div class="form-text mb-2">
+    Utwórz w Redmine pole niestandardowe zagadnień (<em>Administracja → Pola niestandardowe → Nowe pole</em>,
+    format „Długi tekst", nazwa <strong>Komentarze</strong>) i wskaż je poniżej. Jego treść będzie
+    trafiać do zgłoszenia w SZO jako wiadomość dla klienta (przy każdej zmianie).
+  </div>
+  <div class="mb-3" style="max-width:360px">
+    <label class="form-label small">Pole „Komentarze"</label>
+    <?php if ($cf_defs): ?>
+      <select name="redmine_comments_cf_id" class="form-select form-select-sm">
+        <option value="0">— po nazwie „Komentarze" —</option>
+        <?php foreach ($cf_defs as $cid => $cname): ?>
+        <option value="<?= (int)$cid ?>" <?= (string)$settings['redmine_comments_cf_id'] === (string)$cid ? 'selected' : '' ?>><?= h($cname) ?> (#<?= (int)$cid ?>)</option>
+        <?php endforeach; ?>
+      </select>
+    <?php else: ?>
+      <input type="number" name="redmine_comments_cf_id" class="form-control form-control-sm"
+             value="<?= h($settings['redmine_comments_cf_id']) ?>" placeholder="ID pola (puste = po nazwie)">
+    <?php endif; ?>
+    <div class="form-text">Puste = dopasowanie po nazwie „Komentarze".</div>
+  </div>
 
   <div class="d-flex gap-2 mt-3">
     <button type="submit" name="_save" class="btn btn-primary btn-sm"><i class="bi bi-floppy"></i> Zapisz</button>

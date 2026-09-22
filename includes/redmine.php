@@ -437,6 +437,27 @@ function redmine_build_custom_fields(array $ticket): array
 }
 
 /**
+ * Odczytuje wartość pola niestandardowego „Komentarze" z danych issue.
+ * Dopasowanie po ID (settings redmine_comments_cf_id) lub po nazwie „Komentarze".
+ * @return string|null null gdy pola nie ma na issue.
+ */
+function redmine_issue_comments_value(array $issue): ?string
+{
+    $cfId = (int)org_setting('redmine_comments_cf_id');
+    foreach ((array)($issue['custom_fields'] ?? []) as $cf) {
+        $match = $cfId > 0
+            ? ((int)($cf['id'] ?? 0) === $cfId)
+            : (mb_strtolower(trim((string)($cf['name'] ?? ''))) === 'komentarze');
+        if ($match) {
+            $v = $cf['value'] ?? '';
+            if (is_array($v)) $v = implode(', ', array_map('strval', $v));
+            return (string)$v;
+        }
+    }
+    return null;
+}
+
+/**
  * Test połączenia — pobiera bieżącego użytkownika po kluczu API.
  * @return array{ok:bool, error?:string, user?:string}
  */
