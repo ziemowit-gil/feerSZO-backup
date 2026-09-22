@@ -296,6 +296,13 @@ function betterfly_invoice_payload(int $purchasingPartyId, array $items, array $
     if (!empty($opts['description'])) {
         $payload['Description'] = (string)$opts['description'];
     }
+    // Rachunek bankowy: numer (IBAN/NRB) lub Id konta zdefiniowanego w Betterfly.
+    if (!empty($opts['bank_account_number'])) {
+        $payload['BankAccountNumber'] = (string)$opts['bank_account_number'];
+    }
+    if (!empty($opts['bank_account_id'])) {
+        $payload['BankAccountId'] = (int)$opts['bank_account_id'];
+    }
 
     $defaultVat = (int)org_setting('betterfly_default_vat_rate_id');
     foreach ($items as $it) {
@@ -325,6 +332,26 @@ function betterfly_ti_unit_net(float $rate): float
     }
     $vatPct = (float)(org_setting('betterfly_default_vat_percent') ?: 23);
     return round($rate / (1 + $vatPct / 100), 2);
+}
+
+/**
+ * Rachunek bankowy (NRB/IBAN) dla faktury TI kursanta. Priorytet ustala istniejąca
+ * k30_ti_client_payment(): rachunek indywidualny kursanta → domyślny kursu →
+ * rachunek organizacji „dla TI" (fallback). Zwraca numer bez spacji ('' gdy brak).
+ */
+function betterfly_ti_bank_account(int $client_id): string
+{
+    if (!function_exists('k30_ti_client_payment')) {
+        $k = __DIR__ . '/karty30.php';
+        if (is_file($k)) { try { require_once $k; } catch (\Throwable $e) { /* ignore */ } }
+    }
+    if (!function_exists('k30_ti_client_payment')) return '';
+    try {
+        $acc = (string)(k30_ti_client_payment($client_id)['account'] ?? '');
+    } catch (\Throwable $e) {
+        return '';
+    }
+    return preg_replace('/\s+/', '', $acc) ?? '';
 }
 
 // ── Wystawianie faktury za KURS (TI → Betterfly) ─────────────────────────────
@@ -389,9 +416,10 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
         ]];
 
         $payload = betterfly_invoice_payload($customerId, $items, [
-            'payment_type_id'  => $opts['payment_type_id']  ?? null,
-            'payment_deadline' => $opts['payment_deadline'] ?? null,
-            'description'      => 'Faktura za kurs TI: ' . $billing['course_name'],
+            'payment_type_id'     => $opts['payment_type_id']  ?? null,
+            'payment_deadline'    => $opts['payment_deadline'] ?? null,
+            'bank_account_number' => (string)($opts['bank_account_number'] ?? '') ?: betterfly_ti_bank_account($client_id),
+            'description'         => 'Faktura za kurs TI: ' . $billing['course_name'],
         ]);
 
         $invoiceId = $client->createInvoice($payload);
@@ -529,9 +557,10 @@ function betterfly_issue_ti_client_invoice(int $client_id, int $month, int $year
         foreach ($lines as $l) $totalNet += $l['ProductCurrencyPrice'] * $l['Quantity'];
 
         $payload = betterfly_invoice_payload($customerId, $lines, [
-            'payment_type_id'  => $opts['payment_type_id']  ?? null,
-            'payment_deadline' => $opts['payment_deadline'] ?? null,
-            'description'      => sprintf('Faktura za zajęcia TI (%d kurs%s), %02d/%d',
+            'payment_type_id'     => $opts['payment_type_id']  ?? null,
+            'payment_deadline'    => $opts['payment_deadline'] ?? null,
+            'bank_account_number' => (string)($opts['bank_account_number'] ?? '') ?: betterfly_ti_bank_account($client_id),
+            'description'         => sprintf('Faktura za zajęcia TI (%d kurs%s), %02d/%d',
                                           count($lines), count($lines) === 1 ? '' : 'y', $month, $year),
         ]);
         $invoiceId = $client->createInvoice($payload);
