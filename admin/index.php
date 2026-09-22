@@ -252,6 +252,7 @@ $groups = [
         'items' => [
             ['icon'=>'bi-plug',                 'label'=>'Integracje',               'url'=>'/admin/integrations.php'],
             ['icon'=>'bi-receipt',              'label'=>'Comarch Betterfly',        'url'=>'/admin/betterfly_settings.php'],
+            ['icon'=>'bi-kanban',               'label'=>'Redmine (Helpdesk)',       'url'=>'/admin/redmine_settings.php'],
         ],
     ],
 

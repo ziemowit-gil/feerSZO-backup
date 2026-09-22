@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "648e01eb0a3c5618c296cfb59e82684b",
+    "content-hash": "beb6cb4f0ebdf9360c5aba33577b7db5",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1221,6 +1221,72 @@
                 "source": "https://github.com/schmittjoh/metadata/tree/2.9.0"
             },
             "time": "2025-11-30T20:12:26+00:00"
+        },
+        {
+            "name": "kbsali/redmine-api",
+            "version": "v2.9.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/kbsali/php-redmine-api.git",
+                "reference": "7d12a025fbde81627998514ab88809004a2cc4a1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/kbsali/php-redmine-api/zipball/7d12a025fbde81627998514ab88809004a2cc4a1",
+                "reference": "7d12a025fbde81627998514ab88809004a2cc4a1",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-simplexml": "*",
+                "php": "^7.4 || ^8.0",
+                "psr/http-client": "^1.0",
+                "psr/http-factory": "^1.0"
+            },
+            "require-dev": {
+                "art4/rector-bc-library": "^1.0",
+                "behat/behat": "^3.15",
+                "friendsofphp/php-cs-fixer": "^3.94",
+                "guzzlehttp/psr7": "^2.8",
+                "php-mock/php-mock-phpunit": "^2.15",
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^9.6 || ^10.5 || ^11.5 || ^12.5 || ^13.0",
+                "rector/rector": "^2.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Redmine\\": "src/Redmine/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Kevin Saliou",
+                    "email": "kevin@saliou.name",
+                    "homepage": "http://kevin.saliou.name"
+                },
+                {
+                    "name": "Artur Weigandt",
+                    "email": "artur@wlabs.de",
+                    "homepage": "https://wlabs.de"
+                }
+            ],
+            "description": "Redmine API client",
+            "homepage": "https://github.com/kbsali/php-redmine-api",
+            "keywords": [
+                "api",
+                "redmine"
+            ],
+            "support": {
+                "issues": "https://github.com/kbsali/php-redmine-api/issues",
+                "source": "https://github.com/kbsali/php-redmine-api/tree/v2.9.1"
+            },
+            "time": "2026-04-03T07:36:19+00:00"
         },
         {
             "name": "krowinski/bcmath-extended",

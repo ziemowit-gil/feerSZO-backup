@@ -118,6 +118,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN access_token  TEXT",
         "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME", // SLA: pierwsza odpowiedź operatora
         "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER",        // łączenie: id zgłoszenia głównego
+        "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_issue_id INTEGER",   // integracja Redmine: numer issue
     ] as $sql) { try { $pdo->exec($sql); } catch (\Throwable $e) {} }
     // SQLite dopuszcza wiele NULL w UNIQUE — token unikalny tylko dla wypełnionych.
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)"); } catch (\Throwable $e) {}
@@ -1393,6 +1394,37 @@ HTML;
  * $requester: ['id'=>int|null, 'name'=>string, 'email'=>string].
  * $source: znacznik pochodzenia zgłoszenia (np. 'dydaktyk') — do raportów.
  */
+/**
+ * Integracja Redmine (jednokierunkowa): tworzy issue w Redmine z nowego zgłoszenia
+ * i zapisuje jego numer w helpdesk_tickets.redmine_issue_id. Best-effort — błąd
+ * integracji NIE może zablokować utworzenia zgłoszenia w SZO.
+ */
+function hd_redmine_sync_ticket(int $ticket_id): void {
+    if ($ticket_id <= 0) return;
+    $rm = __DIR__ . '/redmine.php';
+    if (!is_file($rm)) return;
+    require_once $rm;
+    if (!function_exists('redmine_is_enabled') || !redmine_is_enabled()) return;
+
+    try {
+        $t = db_one("SELECT * FROM helpdesk_tickets WHERE id=?", [$ticket_id]);
+        if (!$t || (int)($t['redmine_issue_id'] ?? 0) > 0) return; // brak lub już wypchnięte
+
+        $meta = 'Zgłoszenie SZO ' . (string)$t['number'] . "\n"
+              . 'Zgłaszający: ' . trim((string)($t['requester_name'] ?? '') . ' <' . (string)($t['requester_email'] ?? '') . '>') . "\n"
+              . 'Kategoria: ' . (string)$t['category'] . ' | Priorytet: ' . (string)$t['priority'] . "\n\n"
+              . (string)($t['description'] ?? '');
+
+        $res = redmine_create_issue([
+            'subject'     => '[' . (string)$t['number'] . '] ' . (string)$t['title'],
+            'description' => $meta,
+        ]);
+        db_update('helpdesk_tickets', ['redmine_issue_id' => (int)$res['id']], $ticket_id);
+    } catch (\Throwable $e) {
+        error_log('[redmine] sync zgłoszenia #' . $ticket_id . ': ' . $e->getMessage());
+    }
+}
+
 function hd_ticket_quick_create(array $requester, string $title, string $description, string $category, string $priority, string $source): int {
     helpdesk_migrate();
     if (!isset(HD_CATEGORIES[$category])) $category = 'it_inne';
@@ -1418,6 +1450,8 @@ function hd_ticket_quick_create(array $requester, string $title, string $descrip
         'body'        => $description,
         'is_internal' => 0,
     ]);
+
+    hd_redmine_sync_ticket($ticket_id); // integracja Redmine (best-effort)
 
     // E-mail potwierdzający do zgłaszającego + powiadomienie operatorów —
     // ten sam wzorzec co w helpdesk/new.php, w try/catch (mail nie może

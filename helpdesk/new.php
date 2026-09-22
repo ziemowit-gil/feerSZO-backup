@@ -54,6 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_internal' => 0,
         ]);
 
+        hd_redmine_sync_ticket($ticket_id); // integracja Redmine (best-effort)
+
         // Załączniki
         if (!empty($_FILES['attachments']['name'][0])) {
             $dir = UPLOAD_DIR . 'helpdesk/';

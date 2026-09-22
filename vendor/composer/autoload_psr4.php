@@ -18,6 +18,7 @@ return array(
     'Symfony\\Component\\HttpClient\\' => array($vendorDir . '/symfony/http-client'),
     'Speakeasy\\Serializer\\' => array($vendorDir . '/speakeasy/serializer/src'),
     'Smsapi\\Client\\' => array($vendorDir . '/smsapi/php-client/src'),
+    'Redmine\\' => array($vendorDir . '/kbsali/redmine-api/src/Redmine'),
     'Psr\\SimpleCache\\' => array($vendorDir . '/psr/simple-cache/src'),
     'Psr\\Log\\' => array($vendorDir . '/psr/log/src'),
     'Psr\\Http\\Message\\' => array($vendorDir . '/psr/http-factory/src', $vendorDir . '/psr/http-message/src'),

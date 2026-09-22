@@ -98,5 +98,7 @@ function ealias_create_ticket(array $req): int {
         'is_internal' => 0,
     ]);
 
+    if (function_exists('hd_redmine_sync_ticket')) hd_redmine_sync_ticket($ticket_id); // integracja Redmine
+
     return $ticket_id;
 }

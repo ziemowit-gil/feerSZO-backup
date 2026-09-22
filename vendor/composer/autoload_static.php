@@ -44,6 +44,10 @@ class ComposerStaticInitb098d4d5ec536a935fb927115e8bce12
             'Speakeasy\\Serializer\\' => 21,
             'Smsapi\\Client\\' => 14,
         ),
+        'R' =>
+        array (
+            'Redmine\\' => 8,
+        ),
         'P' =>
         array (
             'Psr\\SimpleCache\\' => 16,
@@ -175,6 +179,10 @@ class ComposerStaticInitb098d4d5ec536a935fb927115e8bce12
         'Smsapi\\Client\\' =>
         array (
             0 => __DIR__ . '/..' . '/smsapi/php-client/src',
+        ),
+        'Redmine\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine',
         ),
         'Psr\\SimpleCache\\' =>
         array (
@@ -3951,6 +3959,46 @@ class ComposerStaticInitb098d4d5ec536a935fb927115e8bce12
         'Random\\Engine\\Secure' => __DIR__ . '/..' . '/symfony/polyfill-php82/Resources/stubs/Random/Engine/Secure.php',
         'Random\\RandomError' => __DIR__ . '/..' . '/symfony/polyfill-php82/Resources/stubs/Random/RandomError.php',
         'Random\\RandomException' => __DIR__ . '/..' . '/symfony/polyfill-php82/Resources/stubs/Random/RandomException.php',
+        'Redmine\\Api' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api.php',
+        'Redmine\\Api\\AbstractApi' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/AbstractApi.php',
+        'Redmine\\Api\\Attachment' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Attachment.php',
+        'Redmine\\Api\\CustomField' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/CustomField.php',
+        'Redmine\\Api\\Group' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Group.php',
+        'Redmine\\Api\\Issue' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Issue.php',
+        'Redmine\\Api\\IssueCategory' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/IssueCategory.php',
+        'Redmine\\Api\\IssuePriority' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/IssuePriority.php',
+        'Redmine\\Api\\IssueRelation' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/IssueRelation.php',
+        'Redmine\\Api\\IssueStatus' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/IssueStatus.php',
+        'Redmine\\Api\\Membership' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Membership.php',
+        'Redmine\\Api\\News' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/News.php',
+        'Redmine\\Api\\Project' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Project.php',
+        'Redmine\\Api\\Query' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Query.php',
+        'Redmine\\Api\\Role' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Role.php',
+        'Redmine\\Api\\Search' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Search.php',
+        'Redmine\\Api\\TimeEntry' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/TimeEntry.php',
+        'Redmine\\Api\\TimeEntryActivity' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/TimeEntryActivity.php',
+        'Redmine\\Api\\Tracker' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Tracker.php',
+        'Redmine\\Api\\User' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/User.php',
+        'Redmine\\Api\\Version' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Version.php',
+        'Redmine\\Api\\Wiki' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Api/Wiki.php',
+        'Redmine\\Client\\Client' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Client/Client.php',
+        'Redmine\\Client\\ClientApiTrait' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Client/ClientApiTrait.php',
+        'Redmine\\Client\\NativeCurlClient' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Client/NativeCurlClient.php',
+        'Redmine\\Client\\Psr18Client' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Client/Psr18Client.php',
+        'Redmine\\Exception' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Exception.php',
+        'Redmine\\Exception\\ClientException' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Exception/ClientException.php',
+        'Redmine\\Exception\\InvalidApiNameException' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Exception/InvalidApiNameException.php',
+        'Redmine\\Exception\\InvalidParameterException' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Exception/InvalidParameterException.php',
+        'Redmine\\Exception\\MissingParameterException' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Exception/MissingParameterException.php',
+        'Redmine\\Exception\\SerializerException' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Exception/SerializerException.php',
+        'Redmine\\Exception\\UnexpectedResponseException' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Exception/UnexpectedResponseException.php',
+        'Redmine\\Http\\HttpClient' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Http/HttpClient.php',
+        'Redmine\\Http\\HttpFactory' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Http/HttpFactory.php',
+        'Redmine\\Http\\Request' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Http/Request.php',
+        'Redmine\\Http\\Response' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Http/Response.php',
+        'Redmine\\Serializer\\JsonSerializer' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Serializer/JsonSerializer.php',
+        'Redmine\\Serializer\\PathSerializer' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Serializer/PathSerializer.php',
+        'Redmine\\Serializer\\XmlSerializer' => __DIR__ . '/..' . '/kbsali/redmine-api/src/Redmine/Serializer/XmlSerializer.php',
         'SensitiveParameter' => __DIR__ . '/..' . '/symfony/polyfill-php82/Resources/stubs/SensitiveParameter.php',
         'SensitiveParameterValue' => __DIR__ . '/..' . '/symfony/polyfill-php82/Resources/stubs/SensitiveParameterValue.php',
         'Smsapi\\Client\\Curl\\Discovery\\CurlDiscovery' => __DIR__ . '/..' . '/smsapi/php-client/src/Curl/Discovery/CurlDiscovery.php',
