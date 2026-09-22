@@ -1,0 +1,583 @@
+<?php
+/**
+ * includes/betterfly_invoices.php — warstwa biznesowa integracji Betterfly.
+ *
+ * Odpowiada za:
+ *   - mapowanie danych SZO (CRM / TI) na struktury API Betterfly,
+ *   - rozliczanie modułu TI PER KURS (jeden kurs = osobna faktura / pozycja),
+ *   - bramę uprawnień: moduł TI musi być włączony przez administratora,
+ *   - synchronizację statusów płatności (Betterfly → SZO),
+ *   - lokalny rejestr powiązań (tabela betterfly_invoices).
+ *
+ * Warstwa transportowa (OAuth, cURL, endpointy) jest w includes/betterfly.php.
+ *
+ * Uwaga księgowa: faktura w Betterfly odwołuje się do ISTNIEJĄCYCH obiektów —
+ * PurchasingPartyId (kontrahent) i ProductId (produkt). Dlatego:
+ *   - nabywcę mapujemy po NIP (find-or-create kontrahenta),
+ *   - dla pozycji kursu używamy produktu skonfigurowanego przez admina
+ *     (betterfly_ti_product_id, opcjonalnie nadpisanie per kurs), a tożsamość
+ *     kursu przenosimy w opisie pozycji (ProductDescription). Nie tworzymy
+ *     produktów „w ciemno", bo schemat POST /products zależy od wersji API.
+ */
+
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/betterfly.php';
+
+// ── Schemat lokalnego rejestru (idempotentna samonaprawa) ────────────────────
+
+function betterfly_invoices_migrate(): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    db()->exec("CREATE TABLE IF NOT EXISTS betterfly_invoices (
+        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        source                TEXT    NOT NULL DEFAULT 'ti_course',  -- ti_course | crm
+        course_id             INTEGER NOT NULL DEFAULT 0,            -- k30_ti_courses.id (0 dla CRM)
+        client_id             INTEGER NOT NULL DEFAULT 0,            -- k30_clients.id
+        crm_contact_id        INTEGER NOT NULL DEFAULT 0,            -- kontakt CRM (jeśli dotyczy)
+        period_month          INTEGER NOT NULL DEFAULT 0,
+        period_year           INTEGER NOT NULL DEFAULT 0,
+        betterfly_customer_id INTEGER NOT NULL DEFAULT 0,
+        betterfly_invoice_id  INTEGER NOT NULL DEFAULT 0,
+        number                TEXT    NOT NULL DEFAULT '',
+        net_total             REAL    NOT NULL DEFAULT 0,
+        gross_total           REAL    NOT NULL DEFAULT 0,
+        vat_total             REAL    NOT NULL DEFAULT 0,
+        currency              TEXT    NOT NULL DEFAULT 'PLN',
+        doc_status            INTEGER NOT NULL DEFAULT 0,            -- 0 bufor / 1 zatwierdzona
+        payment_status        INTEGER NOT NULL DEFAULT 0,            -- 0 niezapłacona / 1 zapłacona / 2 częściowo
+        last_error            TEXT    NOT NULL DEFAULT '',
+        created_by            INTEGER,
+        created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
+    // Zapobiega dublowaniu faktury dla tego samego kursu/klienta/okresu.
+    db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_betterfly_inv_scope
+        ON betterfly_invoices (source, course_id, client_id, period_month, period_year)");
+}
+
+// ── Brama uprawnień: moduł TI włączony przez administratora ───────────────────
+
+/**
+ * Rzuca BetterFlyException, jeśli fakturowanie TI przez Betterfly nie jest dostępne.
+ *
+ * Warunki:
+ *   1. Integracja Betterfly aktywna       (settings: betterfly_enabled = '1'),
+ *   2. Administrator włączył moduł TI      (settings: betterfly_ti_enabled = '1'),
+ *   3. Wywołujący (kontekst web) ma prawo zapisu w obszarze TI (can_write('karty30')).
+ *      W kontekście CLI/cron (brak sesji użytkownika) sprawdzamy tylko 1–2.
+ */
+function betterfly_ti_require(): void
+{
+    if (!BetterFlyClient::isEnabled()) {
+        throw new BetterFlyException('Integracja Comarch Betterfly nie jest włączona.');
+    }
+    if (org_setting('betterfly_ti_enabled') !== '1') {
+        throw new BetterFlyException('Fakturowanie modułu TI przez Betterfly nie zostało włączone przez administratora.');
+    }
+    // Uprawnienie użytkownika egzekwujemy tylko, gdy istnieje sesja (web).
+    if (function_exists('current_user') && current_user() && function_exists('can_write')) {
+        if (!can_write('karty30')) {
+            throw new BetterFlyException('Brak uprawnień do fakturowania w module TI.');
+        }
+    }
+}
+
+// ── Rozliczanie PER KURS ─────────────────────────────────────────────────────
+
+/**
+ * Liczy rozliczenie klienta za KONKRETNY kurs w danym miesiącu.
+ * Reguła godzin (spójna z includes/ti_hours_report.php): ceil(minuty / 60) PER LEKCJA,
+ * tylko dla lekcji z odnotowaną obecnością (attended = 1). Stawka pochodzi z zapisu
+ * kursanta na kurs (k30_ti_enrollments.hourly_rate).
+ *
+ * @return array{course_id:int,client_id:int,course_name:string,month:int,year:int,
+ *               hours:float,hourly_rate:float,amount:float,lessons:int}
+ */
+function betterfly_ti_course_billing(int $course_id, int $client_id, int $month, int $year): array
+{
+    $course = db_one("SELECT id, name, no_invoice FROM k30_ti_courses WHERE id=?", [$course_id]);
+    if (!$course) {
+        throw new BetterFlyException("Kurs TI #{$course_id} nie istnieje.");
+    }
+    if ((int)($course['no_invoice'] ?? 0) === 1) {
+        throw new BetterFlyException("Kurs \"{$course['name']}\" jest oznaczony jako wyłączony z fakturowania.");
+    }
+
+    $enr = db_one(
+        "SELECT hourly_rate FROM k30_ti_enrollments WHERE course_id=? AND client_id=?",
+        [$course_id, $client_id]
+    );
+    if (!$enr) {
+        throw new BetterFlyException("Klient #{$client_id} nie jest zapisany na kurs #{$course_id}.");
+    }
+    $rate = (float)$enr['hourly_rate'];
+
+    // Lekcje kursu w danym miesiącu, na których klient był obecny.
+    $rows = db_all(
+        "SELECT s.duration_min
+           FROM k30_ti_sessions s
+           JOIN k30_ti_attendance a ON a.session_id = s.id AND a.client_id = ?
+          WHERE s.course_id = ?
+            AND a.attended = 1
+            AND CAST(strftime('%m', s.lesson_date) AS INTEGER) = ?
+            AND CAST(strftime('%Y', s.lesson_date) AS INTEGER) = ?",
+        [$client_id, $course_id, $month, $year]
+    );
+
+    $hours = 0.0;
+    foreach ($rows as $r) {
+        $hours += (float)ceil(((int)$r['duration_min']) / 60); // ceil per lekcja
+    }
+
+    return [
+        'course_id'   => $course_id,
+        'client_id'   => $client_id,
+        'course_name' => (string)$course['name'],
+        'month'       => $month,
+        'year'        => $year,
+        'hours'       => $hours,
+        'hourly_rate' => $rate,
+        'amount'      => round($hours * $rate, 2),
+        'lessons'     => count($rows),
+    ];
+}
+
+// ── Mapowanie danych nabywcy ─────────────────────────────────────────────────
+
+/**
+ * Buduje payload kontrahenta Betterfly ze znormalizowanych danych nabywcy.
+ * Wejście (klucze opcjonalne poza name):
+ *   name, nip, email, phone, street, building, flat, postcode, city, country,
+ *   is_company (bool; domyślnie: firma gdy podano NIP).
+ */
+function betterfly_customer_payload(array $buyer): array
+{
+    $name = trim((string)($buyer['name'] ?? ''));
+    if ($name === '') {
+        throw new BetterFlyException('Nabywca wymaga nazwy.');
+    }
+    $nip        = preg_replace('/\D+/', '', (string)($buyer['nip'] ?? '')) ?? '';
+    $isCompany  = array_key_exists('is_company', $buyer) ? (bool)$buyer['is_company'] : ($nip !== '');
+
+    $payload = [
+        'Name'        => $name,
+        'CustomerType'=> $isCompany ? 1 : 0, // 1 = podmiot gospodarczy, 0 = osoba fizyczna
+    ];
+    if ($nip !== '')                             $payload['CustomerTaxNumber'] = $nip;
+    if (trim((string)($buyer['email'] ?? '')))   $payload['Mail']             = trim((string)$buyer['email']);
+    if (trim((string)($buyer['phone'] ?? '')))   $payload['PhoneNumber']      = trim((string)$buyer['phone']);
+    if (trim((string)($buyer['country'] ?? ''))) $payload['CountryCode']      = trim((string)$buyer['country']);
+
+    $addr = array_filter([
+        'Street'         => trim((string)($buyer['street']   ?? '')),
+        'BuildingNumber' => trim((string)($buyer['building'] ?? '')),
+        'FlatNumber'     => trim((string)($buyer['flat']     ?? '')),
+        'PostalCode'     => trim((string)($buyer['postcode'] ?? '')),
+        'City'           => trim((string)($buyer['city']     ?? '')),
+    ], fn($v) => $v !== '');
+    if ($addr) $payload['Address'] = $addr;
+
+    return $payload;
+}
+
+/** Buduje dane nabywcy z kontaktu CRM (crm_contact_persons / crm.php). */
+function betterfly_buyer_from_crm_contact(array $c): array
+{
+    return [
+        'name'     => (string)($c['imie_nazwisko'] ?? $c['name'] ?? ''),
+        'nip'      => (string)($c['nip'] ?? ''),
+        'email'    => (string)($c['email'] ?? ''),
+        'phone'    => (string)($c['telefon'] ?? $c['phone'] ?? ''),
+        'street'   => trim((string)($c['addr_street'] ?? $c['adres'] ?? '')),
+        'building' => (string)($c['addr_house'] ?? ''),
+        'flat'     => (string)($c['addr_flat'] ?? ''),
+        'postcode' => (string)($c['addr_postal'] ?? ''),
+        'city'     => (string)($c['addr_city'] ?? ''),
+    ];
+}
+
+/**
+ * Buduje dane nabywcy dla kursanta TI (k30_clients). Kursant to zwykle osoba
+ * fizyczna bez NIP — jeśli fakturę pokrywa płatnik z NIP (rodzic/podmiot),
+ * przekaż jego dane w $override (name/nip/...).
+ */
+function betterfly_buyer_from_ti_client(int $client_id, array $override = []): array
+{
+    $c = db_one("SELECT id, name, email, phone, address FROM k30_clients WHERE id=?", [$client_id]);
+    if (!$c) {
+        throw new BetterFlyException("Kursant TI #{$client_id} nie istnieje.");
+    }
+    $buyer = [
+        'name'   => (string)$c['name'],
+        'email'  => (string)($c['email'] ?? ''),
+        'phone'  => (string)($c['phone'] ?? ''),
+        'street' => trim((string)($c['address'] ?? '')),
+    ];
+    return array_merge($buyer, array_filter($override, fn($v) => $v !== null && $v !== ''));
+}
+
+// ── Mapowanie pozycji i budowa faktury ───────────────────────────────────────
+
+/**
+ * Zwraca ProductId dla pozycji kursu. Kolejność:
+ *   1) nadpisanie per kurs: settings betterfly_ti_product_course_{course_id},
+ *   2) domyślny produkt TI:  settings betterfly_ti_product_id.
+ * Rzuca wyjątek, gdy admin nie skonfigurował żadnego — świadomie nie tworzymy
+ * produktów automatycznie (schemat POST /products zależy od wersji API).
+ */
+function betterfly_ti_product_id(int $course_id): int
+{
+    $override = (int)org_setting('betterfly_ti_product_course_' . $course_id);
+    if ($override > 0) return $override;
+
+    $default = (int)org_setting('betterfly_ti_product_id');
+    if ($default > 0) return $default;
+
+    throw new BetterFlyException(
+        'Brak produktu Betterfly dla pozycji kursu — ustaw betterfly_ti_product_id '
+        . '(lub betterfly_ti_product_course_' . $course_id . ') w ustawieniach.'
+    );
+}
+
+/**
+ * Buduje payload faktury sprzedaży.
+ *
+ * @param int   $purchasingPartyId  Id kontrahenta (nabywcy) w Betterfly
+ * @param array $items              pozycje: [{ProductId, Quantity, ProductCurrencyPrice, ProductDescription?, VatRateId?}]
+ * @param array $opts               issue_date, sales_date, payment_deadline (Y-m-d),
+ *                                  payment_type_id, description, invoice_type, payment_status
+ */
+function betterfly_invoice_payload(int $purchasingPartyId, array $items, array $opts = []): array
+{
+    if ($purchasingPartyId <= 0) {
+        throw new BetterFlyException('Faktura wymaga PurchasingPartyId (nabywcy).');
+    }
+    if (!$items) {
+        throw new BetterFlyException('Faktura wymaga co najmniej jednej pozycji.');
+    }
+
+    $paymentTypeId = (int)($opts['payment_type_id'] ?? (int)org_setting('betterfly_default_payment_type_id'));
+    if ($paymentTypeId <= 0) {
+        throw new BetterFlyException('Brak formy płatności — ustaw betterfly_default_payment_type_id lub przekaż payment_type_id.');
+    }
+
+    $iso = static fn(?string $d): ?string => $d ? (new DateTimeImmutable($d))->format('Y-m-d\T00:00:00P') : null;
+
+    $today   = date('Y-m-d');
+    $payload = [
+        'PurchasingPartyId' => $purchasingPartyId,
+        'PaymentTypeId'     => $paymentTypeId,
+        'PaymentStatus'     => (int)($opts['payment_status'] ?? 0),
+        'InvoiceType'       => (int)($opts['invoice_type'] ?? 0),
+        'IssueDate'         => $iso($opts['issue_date']       ?? $today),
+        'SalesDate'         => $iso($opts['sales_date']       ?? $today),
+        'PaymentDeadline'   => $iso($opts['payment_deadline'] ?? $today),
+        'Items'             => [],
+    ];
+    if (!empty($opts['description'])) {
+        $payload['Description'] = (string)$opts['description'];
+    }
+
+    $defaultVat = (int)org_setting('betterfly_default_vat_rate_id');
+    foreach ($items as $it) {
+        $line = [
+            'ProductId'            => (int)$it['ProductId'],
+            'Quantity'             => (float)$it['Quantity'],
+            'ProductCurrencyPrice' => round((float)$it['ProductCurrencyPrice'], 2),
+        ];
+        $line['ProductDescription'] = (string)($it['ProductDescription'] ?? '');
+        $vat = (int)($it['VatRateId'] ?? $defaultVat);
+        if ($vat > 0) $line['VatRateId'] = $vat;
+        $payload['Items'][] = $line;
+    }
+
+    return $payload;
+}
+
+/**
+ * Przelicza cenę brutto na netto, gdy stawki TI są brutto
+ * (settings betterfly_ti_price_is_gross = '1', procent VAT w betterfly_default_vat_percent).
+ * Betterfly przyjmuje ProductCurrencyPrice jako cenę netto.
+ */
+function betterfly_ti_unit_net(float $rate): float
+{
+    if (org_setting('betterfly_ti_price_is_gross') !== '1') {
+        return round($rate, 2);
+    }
+    $vatPct = (float)(org_setting('betterfly_default_vat_percent') ?: 23);
+    return round($rate / (1 + $vatPct / 100), 2);
+}
+
+// ── Wystawianie faktury za KURS (TI → Betterfly) ─────────────────────────────
+
+/**
+ * Wystawia fakturę za jeden kurs TI dla jednego kursanta za dany miesiąc.
+ *
+ * Kroki:
+ *   1. weryfikacja bramy (moduł TI włączony przez admina + uprawnienia),
+ *   2. rozliczenie per kurs (godziny × stawka),
+ *   3. find-or-create kontrahenta po NIP,
+ *   4. budowa i wysłanie faktury (jedna pozycja = ten kurs),
+ *   5. opcjonalne zatwierdzenie, zapis do lokalnego rejestru.
+ *
+ * @param array $opts  buyer_override (dane płatnika z NIP), confirm (bool),
+ *                     payment_type_id, vat_rate_id, payment_deadline, uid,
+ *                     allow_zero (dopuść 0 godzin)
+ * @return array{ok:bool, local_id:int, betterfly_invoice_id:int, number:string,
+ *               customer_id:int, billing:array, error?:string}
+ */
+function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $month, int $year, array $opts = []): array
+{
+    betterfly_invoices_migrate();
+    betterfly_ti_require();
+
+    $uid = (int)($opts['uid'] ?? (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 0));
+
+    $billing = betterfly_ti_course_billing($course_id, $client_id, $month, $year);
+    if ($billing['hours'] <= 0 && empty($opts['allow_zero'])) {
+        throw new BetterFlyException(
+            "Brak godzin do zafakturowania dla kursu \"{$billing['course_name']}\" ({$month}/{$year})."
+        );
+    }
+
+    // Nabywca: kursant + ewentualne dane płatnika (np. rodzic/podmiot z NIP).
+    $buyer   = betterfly_buyer_from_ti_client($client_id, (array)($opts['buyer_override'] ?? []));
+    $client  = BetterFlyClient::fromSettings();
+
+    // Rejestruj rekord wcześnie, by zapisać ewentualny błąd (last_error).
+    $localId = betterfly_upsert_local([
+        'source'       => 'ti_course',
+        'course_id'    => $course_id,
+        'client_id'    => $client_id,
+        'period_month' => $month,
+        'period_year'  => $year,
+        'created_by'   => $uid,
+    ]);
+
+    try {
+        $customerId = $client->ensureCustomer(betterfly_customer_payload($buyer));
+
+        $unitNet = betterfly_ti_unit_net((float)$billing['hourly_rate']);
+        $desc    = sprintf('Zajęcia TI — %s, %02d/%d (%s godz.)',
+            $billing['course_name'], $month, $year, rtrim(rtrim(number_format($billing['hours'], 2, '.', ''), '0'), '.'));
+
+        $items = [[
+            'ProductId'            => betterfly_ti_product_id($course_id),
+            'Quantity'             => (float)$billing['hours'],
+            'ProductCurrencyPrice' => $unitNet,
+            'ProductDescription'   => $desc,
+            'VatRateId'            => (int)($opts['vat_rate_id'] ?? 0) ?: (int)org_setting('betterfly_default_vat_rate_id'),
+        ]];
+
+        $payload = betterfly_invoice_payload($customerId, $items, [
+            'payment_type_id'  => $opts['payment_type_id']  ?? null,
+            'payment_deadline' => $opts['payment_deadline'] ?? null,
+            'description'      => 'Faktura za kurs TI: ' . $billing['course_name'],
+        ]);
+
+        $invoiceId = $client->createInvoice($payload);
+
+        $docStatus = 0;
+        $number    = '';
+        if (!empty($opts['confirm'])) {
+            $client->confirmInvoice($invoiceId);
+            $docStatus = 1;
+        }
+        // Dociągnij numer/kwoty z API (numer nadawany automatycznie).
+        $fetched = $client->getInvoice($invoiceId);
+        if ($fetched) {
+            $number    = (string)($fetched['Number'] ?? '');
+            $docStatus = (int)($fetched['Status'] ?? $docStatus);
+        }
+
+        betterfly_upsert_local([
+            'id'                    => $localId,
+            'betterfly_customer_id' => $customerId,
+            'betterfly_invoice_id'  => $invoiceId,
+            'number'                => $number,
+            'net_total'             => (float)($fetched['NetTotal']   ?? round($unitNet * $billing['hours'], 2)),
+            'gross_total'           => (float)($fetched['GrossTotal'] ?? 0),
+            'vat_total'             => (float)($fetched['VatTotal']   ?? 0),
+            'currency'              => (string)($fetched['CurrencyCode'] ?? 'PLN'),
+            'doc_status'            => $docStatus,
+            'payment_status'        => (int)($fetched['PaymentStatus'] ?? 0),
+            'last_error'            => '',
+        ]);
+
+        return [
+            'ok'                   => true,
+            'local_id'             => $localId,
+            'betterfly_invoice_id' => $invoiceId,
+            'number'               => $number,
+            'customer_id'          => $customerId,
+            'billing'              => $billing,
+        ];
+    } catch (BetterFlyException $e) {
+        betterfly_upsert_local(['id' => $localId, 'last_error' => $e->getMessage()]);
+        error_log('[betterfly] Wystawienie faktury TI (kurs ' . $course_id . ', klient ' . $client_id . ') nieudane: ' . $e->getMessage());
+        throw $e;
+    }
+}
+
+/**
+ * Wystawia fakturę CRM z dowolnych pozycji (np. z oferty/usługi).
+ *
+ * @param array $buyer  dane nabywcy (patrz betterfly_customer_payload / betterfly_buyer_from_crm_contact)
+ * @param array $items  pozycje: [{ProductId, Quantity, ProductCurrencyPrice, ProductDescription?, VatRateId?}]
+ * @param array $opts   crm_contact_id, confirm, payment_type_id, payment_deadline, description, uid
+ * @return array{ok:bool, local_id:int, betterfly_invoice_id:int, number:string, customer_id:int}
+ */
+function betterfly_issue_crm_invoice(array $buyer, array $items, array $opts = []): array
+{
+    betterfly_invoices_migrate();
+    if (!BetterFlyClient::isEnabled()) {
+        throw new BetterFlyException('Integracja Comarch Betterfly nie jest włączona.');
+    }
+    if (function_exists('current_user') && current_user() && function_exists('can_write')) {
+        if (!can_write('crm')) {
+            throw new BetterFlyException('Brak uprawnień do fakturowania w module CRM.');
+        }
+    }
+
+    $uid    = (int)($opts['uid'] ?? (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 0));
+    $client = BetterFlyClient::fromSettings();
+
+    $customerId = $client->ensureCustomer(betterfly_customer_payload($buyer));
+    $payload    = betterfly_invoice_payload($customerId, $items, $opts);
+    $invoiceId  = $client->createInvoice($payload);
+
+    if (!empty($opts['confirm'])) {
+        $client->confirmInvoice($invoiceId);
+    }
+    $fetched = $client->getInvoice($invoiceId);
+
+    $localId = betterfly_upsert_local([
+        'source'                => 'crm',
+        'crm_contact_id'        => (int)($opts['crm_contact_id'] ?? 0),
+        'betterfly_customer_id' => $customerId,
+        'betterfly_invoice_id'  => $invoiceId,
+        'number'                => (string)($fetched['Number'] ?? ''),
+        'net_total'             => (float)($fetched['NetTotal']   ?? 0),
+        'gross_total'           => (float)($fetched['GrossTotal'] ?? 0),
+        'vat_total'             => (float)($fetched['VatTotal']   ?? 0),
+        'currency'              => (string)($fetched['CurrencyCode'] ?? 'PLN'),
+        'doc_status'            => (int)($fetched['Status'] ?? (!empty($opts['confirm']) ? 1 : 0)),
+        'payment_status'        => (int)($fetched['PaymentStatus'] ?? 0),
+        'created_by'            => $uid,
+    ]);
+
+    return [
+        'ok'                   => true,
+        'local_id'             => $localId,
+        'betterfly_invoice_id' => $invoiceId,
+        'number'               => (string)($fetched['Number'] ?? ''),
+        'customer_id'          => $customerId,
+    ];
+}
+
+// ── Pobieranie / synchronizacja statusów (Betterfly → SZO) ───────────────────
+
+/**
+ * Synchronizuje jedną fakturę z lokalnego rejestru: pobiera aktualny stan z
+ * Betterfly i aktualizuje status dokumentu oraz płatności.
+ *
+ * @return array zaktualizowany rekord lokalny
+ */
+function betterfly_sync_invoice(int $local_id): array
+{
+    betterfly_invoices_migrate();
+    $row = db_one("SELECT * FROM betterfly_invoices WHERE id=?", [$local_id]);
+    if (!$row) {
+        throw new BetterFlyException("Rekord faktury #{$local_id} nie istnieje.");
+    }
+    if ((int)$row['betterfly_invoice_id'] <= 0) {
+        throw new BetterFlyException("Rekord #{$local_id} nie ma powiązanej faktury Betterfly.");
+    }
+
+    $client  = BetterFlyClient::fromSettings();
+    $fetched = $client->getInvoice((int)$row['betterfly_invoice_id']);
+    if (!$fetched) {
+        throw new BetterFlyException("Nie udało się pobrać faktury Betterfly #{$row['betterfly_invoice_id']}.");
+    }
+
+    betterfly_upsert_local([
+        'id'             => $local_id,
+        'number'         => (string)($fetched['Number']       ?? $row['number']),
+        'net_total'      => (float)($fetched['NetTotal']      ?? $row['net_total']),
+        'gross_total'    => (float)($fetched['GrossTotal']    ?? $row['gross_total']),
+        'vat_total'      => (float)($fetched['VatTotal']      ?? $row['vat_total']),
+        'currency'       => (string)($fetched['CurrencyCode'] ?? $row['currency']),
+        'doc_status'     => (int)($fetched['Status']        ?? $row['doc_status']),
+        'payment_status' => (int)($fetched['PaymentStatus'] ?? $row['payment_status']),
+        'last_error'     => '',
+    ]);
+
+    return db_one("SELECT * FROM betterfly_invoices WHERE id=?", [$local_id]) ?? [];
+}
+
+/**
+ * Synchronizuje wszystkie faktury nieoznaczone jako w pełni opłacone.
+ * Nadaje się do crona. Zwraca liczbę zaktualizowanych i listę błędów.
+ *
+ * @return array{synced:int, errors:array<int,string>}
+ */
+function betterfly_sync_pending(): array
+{
+    betterfly_invoices_migrate();
+    $rows   = db_all("SELECT id FROM betterfly_invoices WHERE betterfly_invoice_id > 0 AND payment_status <> 1");
+    $synced = 0;
+    $errors = [];
+    foreach ($rows as $r) {
+        try {
+            betterfly_sync_invoice((int)$r['id']);
+            $synced++;
+        } catch (BetterFlyException $e) {
+            $errors[(int)$r['id']] = $e->getMessage();
+            error_log('[betterfly] Synchronizacja faktury #' . $r['id'] . ' nieudana: ' . $e->getMessage());
+        }
+    }
+    return ['synced' => $synced, 'errors' => $errors];
+}
+
+/** Czytelny status płatności (Betterfly PaymentStatus 0/1/2). */
+function betterfly_payment_status_label(int $status): string
+{
+    return [0 => 'Niezapłacona', 1 => 'Zapłacona', 2 => 'Częściowo zapłacona'][$status] ?? 'Nieznany';
+}
+
+// ── Lokalny rejestr — upsert ─────────────────────────────────────────────────
+
+/**
+ * Wstawia lub aktualizuje rekord w betterfly_invoices. Przy braku 'id' próbuje
+ * dopasować po unikalnym zakresie (source+course+client+okres) i zwraca istniejące id.
+ */
+function betterfly_upsert_local(array $data): int
+{
+    betterfly_invoices_migrate();
+
+    if (empty($data['id'])) {
+        // Deduplikacja po zakresie dla ścieżki TI (CRM zwykle wstawia nowy rekord).
+        if (($data['source'] ?? '') === 'ti_course') {
+            $existing = db_one(
+                "SELECT id FROM betterfly_invoices
+                  WHERE source='ti_course' AND course_id=? AND client_id=? AND period_month=? AND period_year=?",
+                [(int)($data['course_id'] ?? 0), (int)($data['client_id'] ?? 0),
+                 (int)($data['period_month'] ?? 0), (int)($data['period_year'] ?? 0)]
+            );
+            if ($existing) $data['id'] = (int)$existing['id'];
+        }
+    }
+
+    if (!empty($data['id'])) {
+        $id = (int)$data['id'];
+        unset($data['id']);
+        if ($data) db_update('betterfly_invoices', $data, $id);
+        return $id;
+    }
+
+    return db_insert('betterfly_invoices', $data);
+}
