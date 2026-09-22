@@ -354,6 +354,49 @@ function betterfly_ti_bank_account(int $client_id): string
     return preg_replace('/\s+/', '', $acc) ?? '';
 }
 
+/** Czy Betterfly jest wybranym backendem faktur TI (settings: invoices_backend='betterfly'). */
+function betterfly_is_ti_backend(): bool
+{
+    return trim(org_setting('invoices_backend')) === 'betterfly';
+}
+
+/**
+ * Wystawia fakturę Betterfly z wiersza rozliczenia k30_ti_billing.
+ * Wiersz z course_id>0 → faktura za kurs; course_id=0/NULL → zbiorcza per kursant
+ * (osobna pozycja na każdy kurs). Mapuje istniejący przycisk „Wystaw fakturę".
+ */
+function betterfly_issue_ti_from_billing(int $billing_id, array $opts = []): array
+{
+    betterfly_invoices_migrate();
+    $b = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$billing_id]);
+    if (!$b) {
+        throw new BetterFlyException("Rozliczenie #{$billing_id} nie istnieje.");
+    }
+    $client = (int)$b['client_id'];
+    $month  = (int)$b['month'];
+    $year   = (int)$b['year'];
+    $course = (int)($b['course_id'] ?? 0);
+
+    return $course > 0
+        ? betterfly_issue_ti_course_invoice($course, $client, $month, $year, $opts)
+        : betterfly_issue_ti_client_invoice($client, $month, $year, $opts);
+}
+
+/**
+ * Znajduje rekord betterfly_invoices odpowiadający wierszowi rozliczenia
+ * (do pokazania statusu na liście rozliczeń TI). Null gdy brak.
+ */
+function betterfly_link_for_billing(array $billing_row): ?array
+{
+    betterfly_invoices_migrate();
+    return db_one(
+        "SELECT * FROM betterfly_invoices
+          WHERE direction='sales' AND client_id=? AND course_id=? AND period_month=? AND period_year=?",
+        [(int)$billing_row['client_id'], (int)($billing_row['course_id'] ?? 0),
+         (int)$billing_row['month'], (int)$billing_row['year']]
+    );
+}
+
 // ── Wystawianie faktury za KURS (TI → Betterfly) ─────────────────────────────
 
 /**
