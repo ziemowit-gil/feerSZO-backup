@@ -588,6 +588,23 @@ function betterfly_payment_status_label(int $status): string
     return [0 => 'Niezapłacona', 1 => 'Zapłacona', 2 => 'Częściowo zapłacona'][$status] ?? 'Nieznany';
 }
 
+/**
+ * Słownik stawek VAT Betterfly (pole „Rate"/VatRateId) → etykieta.
+ * Zgodny z dokumentacją produktów: 9=23%, 8=8%, 7=5%, 6=4%, 2=0%, 1=zw, 0=np.
+ */
+function betterfly_vat_rate_options(): array
+{
+    return [
+        9 => '23%',
+        8 => '8%',
+        7 => '5%',
+        6 => '4%',
+        2 => '0%',
+        1 => 'zw. (zwolniony)',
+        0 => 'np. (nie podlega)',
+    ];
+}
+
 // ── Integracja z obiegiem akceptacji EODoK ───────────────────────────────────
 
 /** Czy faktury sprzedaży mają przechodzić akceptację EODoK przed zatwierdzeniem. */

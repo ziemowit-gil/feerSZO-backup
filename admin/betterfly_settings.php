@@ -91,6 +91,19 @@ $stats = db_one("SELECT
 
 $configured = $settings['betterfly_client_id'] !== '' && $settings['betterfly_client_secret'] !== '';
 
+// ── Słowniki do list wyboru ─────────────────────────────────────────────────────
+// Produkty pobieramy z API (gdy skonfigurowane); stawki VAT to stały słownik.
+$products       = [];
+$products_error = '';
+if ($configured) {
+    try {
+        $products = BetterFlyClient::fromSettings()->listProducts();
+    } catch (\Throwable $e) {
+        $products_error = $e->getMessage();
+    }
+}
+$vat_options = betterfly_vat_rate_options();
+
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
@@ -176,25 +189,58 @@ include dirname(__DIR__) . '/includes/header.php';
       <label class="form-label fw-semibold small">Domyślna forma płatności (PaymentTypeId) <span class="text-danger">*</span></label>
       <input type="number" name="betterfly_default_payment_type_id" class="form-control form-control-sm"
              value="<?= h($settings['betterfly_default_payment_type_id']) ?>" placeholder="np. 10260089">
-      <div class="form-text">Id formy płatności z Betterfly.</div>
+      <div class="form-text">Id formy płatności z Betterfly. API nie udostępnia listy form
+        płatności — odczytaj Id w panelu Betterfly (Ustawienia → Formy płatności).</div>
     </div>
     <div class="col-sm-6 mb-3">
-      <label class="form-label fw-semibold small">Domyślna stawka VAT (VatRateId) <span class="text-danger">*</span></label>
-      <input type="number" name="betterfly_default_vat_rate_id" class="form-control form-control-sm"
-             value="<?= h($settings['betterfly_default_vat_rate_id']) ?>" placeholder="np. 9">
-      <div class="form-text">Id stawki VAT z Betterfly (nie procent).</div>
+      <label class="form-label fw-semibold small">Domyślna stawka VAT <span class="text-danger">*</span></label>
+      <select name="betterfly_default_vat_rate_id" class="form-select form-select-sm">
+        <option value="">— wybierz —</option>
+        <?php foreach ($vat_options as $vid => $vlabel): ?>
+        <option value="<?= (int)$vid ?>" <?= (string)$vid === (string)$settings['betterfly_default_vat_rate_id'] ? 'selected' : '' ?>>
+          <?= h($vlabel) ?> (VatRateId <?= (int)$vid ?>)
+        </option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text">Słownik stawek VAT Betterfly.</div>
     </div>
   </div>
 
   <div class="mb-3">
-    <label class="form-label fw-semibold small">Produkt dla pozycji kursu TI (ProductId) <span class="text-danger">*</span></label>
-    <input type="number" name="betterfly_ti_product_id" class="form-control form-control-sm"
-           value="<?= h($settings['betterfly_ti_product_id']) ?>" placeholder="np. 11521520">
-    <div class="form-text">
-      Produkt/usługa w Betterfly użyty jako pozycja faktury za kurs. Nazwa kursu i okres
-      trafiają do opisu pozycji. Nadpisanie per kurs: klucz
-      <code>betterfly_ti_product_course_&lt;id_kursu&gt;</code>.
-    </div>
+    <label class="form-label fw-semibold small">Produkt dla pozycji kursu TI <span class="text-danger">*</span></label>
+    <?php if ($products): ?>
+      <select name="betterfly_ti_product_id" class="form-select form-select-sm">
+        <option value="">— wybierz produkt —</option>
+        <?php
+          $cur = (string)$settings['betterfly_ti_product_id'];
+          $found = false;
+          foreach ($products as $p):
+            $pid = (string)(int)($p['Id'] ?? 0);
+            if ($pid === $cur) $found = true;
+        ?>
+        <option value="<?= h($pid) ?>" <?= $pid === $cur ? 'selected' : '' ?>>
+          <?= h(trim((string)($p['Name'] ?? '')) . ' — ' . (string)($p['ProductCode'] ?? '')
+                . ' (' . number_format((float)($p['SaleNetPrice'] ?? 0), 2, ',', ' ') . ' zł netto)') ?>
+        </option>
+        <?php endforeach; ?>
+        <?php if (!$found && $cur !== ''): ?>
+        <option value="<?= h($cur) ?>" selected>Bieżący ProductId <?= h($cur) ?> (spoza listy)</option>
+        <?php endif; ?>
+      </select>
+      <div class="form-text">Produkt/usługa Betterfly użyty jako pozycja faktury za kurs (lista z API).</div>
+    <?php else: ?>
+      <input type="number" name="betterfly_ti_product_id" class="form-control form-control-sm"
+             value="<?= h($settings['betterfly_ti_product_id']) ?>" placeholder="np. 11521520">
+      <div class="form-text">
+        <?php if ($products_error !== ''): ?>
+          <span class="text-warning">Nie udało się pobrać listy produktów z API (<?= h($products_error) ?>) — wpisz ProductId ręcznie.</span>
+        <?php else: ?>
+          Zapisz Client ID/Secret i przetestuj połączenie, aby wybierać produkt z listy. Na razie wpisz ProductId ręcznie.
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+    <div class="form-text">Nazwa kursu i okres trafiają do opisu pozycji. Nadpisanie per kurs: klucz
+      <code>betterfly_ti_product_course_&lt;id_kursu&gt;</code>.</div>
   </div>
 
   <div class="form-check form-switch mb-2">
