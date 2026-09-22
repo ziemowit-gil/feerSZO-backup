@@ -58,12 +58,20 @@ function redmine_oauth_redirect_uri(): string
     return rtrim(APP_URL, '/') . '/auth/redmine_callback.php';
 }
 
+/** Zakresy OAuth (uprawnienia Redmine). API /issues wymaga min. view_issues. */
+function redmine_oauth_scope(): string
+{
+    $s = trim(org_setting('redmine_oauth_scope'));
+    return $s !== '' ? $s : 'view_issues add_issues add_issue_notes';
+}
+
 function redmine_oauth_authorize_url(string $state): string
 {
     $q = http_build_query([
         'response_type' => 'code',
         'client_id'     => trim(org_setting('redmine_oauth_client_id')),
         'redirect_uri'  => redmine_oauth_redirect_uri(),
+        'scope'         => redmine_oauth_scope(),
         'state'         => $state,
     ]);
     return rtrim(trim(org_setting('redmine_url')), '/') . '/oauth/authorize?' . $q;

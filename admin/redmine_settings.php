@@ -16,7 +16,7 @@ $KEYS = [
     'redmine_enabled', 'redmine_url', 'redmine_api_key',
     'redmine_default_project_id', 'redmine_default_tracker_id',
     'helpdesk_frontend_only', 'redmine_minihelpdesk_enabled', 'redmine_webhook_secret',
-    'redmine_oauth_client_id', 'redmine_oauth_client_secret',
+    'redmine_oauth_client_id', 'redmine_oauth_client_secret', 'redmine_oauth_scope',
 ];
 $settings = [];
 foreach ($KEYS as $k) { $settings[$k] = org_setting($k); }
@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
     $save['redmine_minihelpdesk_enabled'] = isset($_POST['redmine_minihelpdesk_enabled']) ? '1' : '0';
     $save['redmine_webhook_secret']       = trim($_POST['redmine_webhook_secret'] ?? '');
     $save['redmine_oauth_client_id']      = trim($_POST['redmine_oauth_client_id'] ?? '');
+    $save['redmine_oauth_scope']          = trim($_POST['redmine_oauth_scope'] ?? '');
     $osecret = trim($_POST['redmine_oauth_client_secret'] ?? '');
     if ($osecret !== '') $save['redmine_oauth_client_secret'] = $osecret;
     // Klucz API — zachowaj stary, gdy pole puste.
@@ -239,6 +240,14 @@ include dirname(__DIR__) . '/includes/header.php';
              autocomplete="new-password"
              placeholder="<?= $settings['redmine_oauth_client_secret'] ? '(zapisany — zostaw puste)' : 'Client Secret' ?>">
     </div>
+  </div>
+  <div class="mb-2">
+    <label class="form-label small">Zakresy OAuth (scope)</label>
+    <input type="text" name="redmine_oauth_scope" class="form-control form-control-sm font-monospace"
+           value="<?= h($settings['redmine_oauth_scope']) ?>" placeholder="view_issues add_issues add_issue_notes">
+    <div class="form-text">Uprawnienia żądane od Redmine. <strong>Bez <code>view_issues</code> API zwraca 403.</strong>
+      Te same zakresy zaznacz na aplikacji OAuth w Redmine. Po zmianie zakresów użytkownicy muszą
+      <strong>rozłączyć i połączyć konto ponownie</strong> (token zapamiętuje stare zakresy).</div>
   </div>
   <div class="form-text mb-3">Użytkownicy łączą konto na stronie <code><?= h(rtrim(APP_URL, '/')) ?>/auth/redmine_account.php</code>.</div>
 
