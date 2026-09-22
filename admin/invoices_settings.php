@@ -32,6 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         org_setting_set('fakturownia_default_kind', trim($_POST['default_kind'] ?? 'vat') ?: 'vat');
         org_setting_set('fakturownia_payment_days', (string)max(0, (int)($_POST['payment_days'] ?? 14)));
 
+        // Backend faktur: fakturownia | ksef | betterfly (dla TI decyduje betterfly_is_ti_backend()).
+        $backend = in_array($_POST['invoices_backend'] ?? '', ['fakturownia', 'ksef', 'betterfly'], true)
+            ? $_POST['invoices_backend'] : 'fakturownia';
+        org_setting_set('invoices_backend', $backend);
+
         if (trim($_POST['token'] ?? '') !== '') {
             org_setting_set('fakturownia_token', trim($_POST['token']));
         }
@@ -86,6 +91,20 @@ include dirname(__DIR__) . '/includes/header.php';
         <form method="post">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="_action" value="save">
+
+          <?php $backend_cur = trim(org_setting('invoices_backend')) ?: 'fakturownia'; ?>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="invoices_backend">Backend faktur</label>
+            <select class="form-select" id="invoices_backend" name="invoices_backend">
+              <option value="fakturownia" <?= $backend_cur === 'fakturownia' ? 'selected' : '' ?>>Fakturownia.pl</option>
+              <option value="ksef"        <?= $backend_cur === 'ksef'        ? 'selected' : '' ?>>KSeF (FA(3) w SZO)</option>
+              <option value="betterfly"   <?= $backend_cur === 'betterfly'   ? 'selected' : '' ?>>Comarch Betterfly</option>
+            </select>
+            <div class="form-text">
+              Wybrany system wystawia faktury TI (przycisk „Wystaw fakturę" w rozliczeniach).
+              Konfiguracja Betterfly: <a href="<?= APP_URL ?>/admin/betterfly_settings.php">Comarch Betterfly</a>.
+            </div>
+          </div>
 
           <div class="mb-3">
             <label class="form-label fw-semibold" for="account">Konto (subdomena)</label>
