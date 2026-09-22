@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/redmine.php';
+require_once dirname(__DIR__) . '/includes/helpdesk.php'; // HD_CATEGORIES do mapowania
 
 require_role('admin');
 $PAGE_TITLE = 'Ustawienia Redmine';
@@ -34,6 +35,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
     if ($key !== '') $save['redmine_api_key'] = $key;
 
     foreach ($save as $k => $v) { org_setting_set($k, $v); }
+
+    // Mapa kategoria → tracker (tylko wskazane wartości).
+    $catMap = [];
+    foreach ((array)($_POST['cat_tracker'] ?? []) as $ck => $tid) {
+        $tid = (int)$tid;
+        if ($tid > 0 && isset(HD_CATEGORIES[$ck])) $catMap[$ck] = $tid;
+    }
+    org_setting_set('redmine_category_trackers', $catMap ? json_encode($catMap) : '');
+
     $settings = array_merge($settings, $save);
     flash_set('success', 'Ustawienia Redmine zapisane.');
     header('Location: redmine_settings.php'); exit;
@@ -47,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_test'])) {
 
 $configured = $settings['redmine_url'] !== '' && $settings['redmine_api_key'] !== '';
 $lib_ok     = class_exists(\Redmine\Client\NativeCurlClient::class);
+$trackers   = $configured ? redmine_trackers() : [];   // [id=>nazwa]
+$cat_map    = redmine_category_tracker_map();
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -158,6 +170,34 @@ include dirname(__DIR__) . '/includes/header.php';
     Można wstawić w Redmine (menu/nagłówek) lub osadzić na stronie w <code>&lt;iframe&gt;</code>.
     Chroniony honeypotem i limitem na sesję — dla pełnej publiczności rozważ Cloudflare.
   </div>
+
+  <hr>
+  <div class="fw-semibold small mb-2"><i class="bi bi-diagram-2 me-1"></i>Mapowanie kategorii → tracker Redmine</div>
+  <?php if (!$trackers): ?>
+    <div class="form-text mb-3">Zapisz URL/klucz API i użyj „Testuj połączenie", aby wczytać listę trackerów z Redmine.</div>
+  <?php else: ?>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th class="small">Kategoria zgłoszenia</th><th class="small" style="max-width:220px">Tracker Redmine</th></tr></thead>
+        <tbody>
+        <?php foreach (HD_CATEGORIES as $ck => $cl): if ($ck === 'bug_report') continue; ?>
+          <tr>
+            <td class="small"><?= h($cl) ?> <span class="text-muted">(<?= h($ck) ?>)</span></td>
+            <td>
+              <select name="cat_tracker[<?= h($ck) ?>]" class="form-select form-select-sm">
+                <option value="0">— domyślny —</option>
+                <?php foreach ($trackers as $tid => $tname): ?>
+                <option value="<?= (int)$tid ?>" <?= (int)($cat_map[$ck] ?? 0) === (int)$tid ? 'selected' : '' ?>><?= h($tname) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <div class="form-text mb-3">Puste = użyj domyślnego trackera. Dotyczy zgłoszeń z Helpdesku SZO i mini-helpdesku.</div>
+  <?php endif; ?>
 
   <div class="d-flex gap-2">
     <button type="submit" name="_save" class="btn btn-primary btn-sm"><i class="bi bi-floppy"></i> Zapisz</button>

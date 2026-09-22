@@ -117,6 +117,37 @@ function redmine_get_issue(int $issue_id, array $include = ['journals']): ?array
 }
 
 /**
+ * Lista trackerów Redmine [id => nazwa]. Pusta tablica przy błędzie/braku konfiguracji.
+ */
+function redmine_trackers(): array
+{
+    try {
+        $client = redmine_client();
+        $names  = $client->getApi('tracker')->listNames();
+        return is_array($names) ? $names : [];
+    } catch (\Throwable $e) {
+        error_log('[redmine] trackers: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** Mapa kategoria SZO → tracker_id Redmine (settings JSON redmine_category_trackers). */
+function redmine_category_tracker_map(): array
+{
+    $raw = org_setting('redmine_category_trackers');
+    $map = $raw ? json_decode($raw, true) : [];
+    return is_array($map) ? $map : [];
+}
+
+/** Tracker dla kategorii — z mapy, a gdy brak → domyślny tracker. */
+function redmine_tracker_for_category(string $category): int
+{
+    $map = redmine_category_tracker_map();
+    $tid = (int)($map[$category] ?? 0);
+    return $tid > 0 ? $tid : (int)org_setting('redmine_default_tracker_id');
+}
+
+/**
  * Test połączenia — pobiera bieżącego użytkownika po kluczu API.
  * @return array{ok:bool, error?:string, user?:string}
  */

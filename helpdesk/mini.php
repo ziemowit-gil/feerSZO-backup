@@ -22,9 +22,24 @@ if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
 $enabled = redmine_is_enabled() && org_setting('redmine_minihelpdesk_enabled') === '1';
 $title_org = org_setting('org_nazwa') ?: 'Helpdesk';
 
+// Kategorie widoczne w publicznym formularzu (klucze zgodne z HD_CATEGORIES —
+// mapowanie na tracker Redmine ustawia admin w panelu integracji).
+$MINI_CATS = [
+    'it_sprzet'         => 'Sprzęt IT',
+    'it_oprogramowanie' => 'Oprogramowanie',
+    'it_siec'           => 'Sieć / Internet',
+    'it_dostep'         => 'Dostęp / Uprawnienia',
+    'it_konto'          => 'Konto / Logowanie',
+    'it_m365'           => 'Microsoft 365',
+    'it_printer'        => 'Drukarki / Urządzenia',
+    'zgl_blad'          => 'Błąd w systemie',
+    'zgl_nowa_funkcja'  => 'Propozycja nowej funkcji',
+    'it_inne'           => 'Inne',
+];
+
 $done   = null;   // ['num'=>int]
 $error  = '';
-$vals   = ['name' => '', 'email' => '', 'subject' => '', 'body' => ''];
+$vals   = ['name' => '', 'email' => '', 'subject' => '', 'body' => '', 'category' => ''];
 
 if ($enabled && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // Honeypot — pole „firma" jest ukryte; boty je wypełniają.
@@ -37,25 +52,30 @@ if ($enabled && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (count($hist) >= 5) {
             $error = 'Za dużo zgłoszeń w krótkim czasie — spróbuj później.';
         } else {
-            $vals['name']    = trim((string)($_POST['name'] ?? ''));
-            $vals['email']   = trim((string)($_POST['email'] ?? ''));
-            $vals['subject'] = trim((string)($_POST['subject'] ?? ''));
-            $vals['body']    = trim((string)($_POST['body'] ?? ''));
+            $vals['name']     = trim((string)($_POST['name'] ?? ''));
+            $vals['email']    = trim((string)($_POST['email'] ?? ''));
+            $vals['subject']  = trim((string)($_POST['subject'] ?? ''));
+            $vals['body']     = trim((string)($_POST['body'] ?? ''));
+            $vals['category'] = isset($MINI_CATS[$_POST['category'] ?? '']) ? (string)$_POST['category'] : '';
 
             if ($vals['subject'] === '' || $vals['body'] === '') {
                 $error = 'Podaj temat i opis zgłoszenia.';
             } elseif ($vals['email'] !== '' && !filter_var($vals['email'], FILTER_VALIDATE_EMAIL)) {
                 $error = 'Nieprawidłowy adres e-mail.';
             } else {
+                $cat_label = $vals['category'] !== '' ? $MINI_CATS[$vals['category']] : '(nie wskazano)';
                 $desc = $vals['body'] . "\n\n---\n"
                       . 'Zgłaszający: ' . ($vals['name'] !== '' ? $vals['name'] : '(nie podano)')
                       . ($vals['email'] !== '' ? ' <' . $vals['email'] . '>' : '') . "\n"
+                      . 'Kategoria: ' . $cat_label . "\n"
                       . 'Kanał: mini-helpdesk';
                 try {
-                    $res = redmine_create_issue([
-                        'subject'     => $vals['subject'],
-                        'description' => $desc,
-                    ]);
+                    $issue = ['subject' => $vals['subject'], 'description' => $desc];
+                    if ($vals['category'] !== '') {
+                        $tid = redmine_tracker_for_category($vals['category']);
+                        if ($tid > 0) $issue['tracker_id'] = $tid;
+                    }
+                    $res = redmine_create_issue($issue);
                     $hist[] = $now;
                     $_SESSION['mini_hd'] = $hist;
                     $done = ['num' => (int)$res['id']];
@@ -134,6 +154,13 @@ if ($enabled && $_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="email" id="email" name="email" value="<?= h($vals['email']) ?>" maxlength="180">
           </div>
         </div>
+        <label for="category">Kategoria</label>
+        <select id="category" name="category" style="width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:9px; font:inherit; background:#fff; color:inherit;">
+          <option value="">— wybierz —</option>
+          <?php foreach ($MINI_CATS as $ck => $cl): ?>
+          <option value="<?= h($ck) ?>" <?= ($vals['category'] ?? '') === $ck ? 'selected' : '' ?>><?= h($cl) ?></option>
+          <?php endforeach; ?>
+        </select>
         <label for="subject">Temat *</label>
         <input type="text" id="subject" name="subject" value="<?= h($vals['subject']) ?>" maxlength="200" required>
         <label for="body">Opis problemu *</label>

@@ -1426,10 +1426,15 @@ function hd_redmine_sync_ticket(int $ticket_id): void {
               . 'Kategoria: ' . (string)$t['category'] . ' | Priorytet: ' . (string)$t['priority'] . "\n\n"
               . (string)($t['description'] ?? '');
 
-        $res = redmine_create_issue([
+        $issue = [
             'subject'     => '[' . (string)$t['number'] . '] ' . (string)$t['title'],
             'description' => $meta,
-        ]);
+        ];
+        if (function_exists('redmine_tracker_for_category')) {
+            $tid = redmine_tracker_for_category((string)$t['category']);
+            if ($tid > 0) $issue['tracker_id'] = $tid;
+        }
+        $res = redmine_create_issue($issue);
         db_update('helpdesk_tickets', ['redmine_issue_id' => (int)$res['id']], $ticket_id);
     } catch (\Throwable $e) {
         error_log('[redmine] sync zgłoszenia #' . $ticket_id . ': ' . $e->getMessage());
