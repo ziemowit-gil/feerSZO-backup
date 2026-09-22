@@ -251,6 +251,7 @@ $groups = [
         'color' => 'slate',
         'items' => [
             ['icon'=>'bi-plug',                 'label'=>'Integracje',               'url'=>'/admin/integrations.php'],
+            ['icon'=>'bi-receipt',              'label'=>'Comarch Betterfly',        'url'=>'/admin/betterfly_settings.php'],
         ],
     ],
 

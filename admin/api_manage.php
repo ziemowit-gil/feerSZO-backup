@@ -202,6 +202,7 @@ $int_whatsapp  = (bool)(org_setting('whatsapp_token'));
 $int_apaczka   = org_setting('apaczka_enabled') === '1' && (bool)(org_setting('apaczka_api_key'));
 $int_furgonetka= org_setting('furgonetka_enabled') === '1';
 $int_autenti   = (bool)(org_setting('autenti_client_id'));
+$int_betterfly = (bool)(org_setting('betterfly_client_id'));
 $int_docusign  = (bool)(org_setting('docusign_account_id'));
 $int_ceidg     = (bool)(org_setting('ceidg_api_key'));
 $int_postivo   = (bool)(org_setting('postivo_api_key'));
@@ -759,6 +760,10 @@ function _int_card(string $icon, string $name, string $desc, bool $connected, st
 
     <?php _int_card('bi-pen-fill',          'Autenti eSign',      'Podpisywanie dokumentów przez Autenti',                 $int_autenti,  '/admin/autenti_settings.php',     '#1e40af') ?>
     <?php _int_card('bi-pen-fill',          'DocuSign',           'Podpisywanie dokumentów przez DocuSign',                $int_docusign, '/admin/docusign_settings.php',    '#ffb900') ?>
+
+    <div class="col-12 mt-2"><div class="text-muted fw-semibold small mb-1" style="text-transform:uppercase;letter-spacing:.07em"><i class="bi bi-receipt me-1"></i>Finanse &amp; Faktury</div></div>
+
+    <?php _int_card('bi-receipt',           'Comarch Betterfly',  'Wystawianie i pobieranie faktur (CRM/TI)',              $int_betterfly,'/admin/betterfly_settings.php',   '#0ea5e9') ?>
 
     <div class="col-12 mt-2"><div class="text-muted fw-semibold small mb-1" style="text-transform:uppercase;letter-spacing:.07em"><i class="bi bi-box-seam me-1"></i>Logistyka &amp; Zewnętrzne</div></div>
 

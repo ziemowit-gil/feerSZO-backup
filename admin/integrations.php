@@ -18,6 +18,7 @@ $int_sms        = (bool)(org_setting('sms_api_key') ?: org_setting('sms_api_toke
 $int_whatsapp   = (bool)(org_setting('whatsapp_token'));
 $int_postivo    = (bool)(org_setting('postivo_api_key'));
 $int_autenti    = (bool)(org_setting('autenti_client_id'));
+$int_betterfly  = (bool)(org_setting('betterfly_client_id'));
 $int_docusign   = (bool)(org_setting('docusign_account_id'));
 $int_apaczka    = org_setting('apaczka_enabled') === '1' && (bool)(org_setting('apaczka_api_key'));
 $int_furgonetka = org_setting('furgonetka_enabled') === '1';
@@ -146,6 +147,10 @@ function _isection(string $icon, string $label): void {
   <?php _icard('bi-box-seam-fill',     'Apaczka',             'Nadawanie paczek — Apaczka.pl',           $int_apaczka,    '/admin/apaczka_settings.php',    '#f97316') ?>
   <?php _icard('bi-truck',             'Furgonetka',          'Nadawanie paczek — Furgonetka.pl',        $int_furgonetka, '/admin/furgonetka_settings.php', '#0369a1') ?>
   <?php _icard('bi-building-check',    'CEIDG',               'Weryfikacja firm z rejestru CEIDG',       $int_ceidg,      '/admin/ceidg_settings.php',      '#16a34a') ?>
+
+  <?php _isection('bi-receipt', 'Finanse & Faktury') ?>
+
+  <?php _icard('bi-receipt',           'Comarch Betterfly',   'Wystawianie i pobieranie faktur (CRM/TI)', $int_betterfly, '/admin/betterfly_settings.php', '#0ea5e9') ?>
 
   <?php _isection('bi-mortarboard', 'E-learning & Zasoby') ?>
 
