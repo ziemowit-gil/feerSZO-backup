@@ -403,6 +403,77 @@ function invoice_series_number(string $series, int $month, int $year, bool $test
     return $pre . $series . '/' . $year . '/' . $mm . '/' . str_pad((string)($max + 1), 3, '0', STR_PAD_LEFT);
 }
 
+/** Przedrostek numeru faktury testowej. */
+const INVOICE_TEST_PREFIX = 'TEST/';
+
+/** Czy faktura jest testowa (nie trafia do systemów zewnętrznych ani do akt). */
+function invoice_is_test(array $inv): bool
+{
+    return !empty($inv['is_test']);
+}
+
+/**
+ * Czy fakturę należy wystawić w KSeF.
+ *
+ * KSeF obejmuje obrót między podatnikami (B2B). Faktura dla osoby fizycznej
+ * nieprowadzącej działalności — czyli bez NIP-u — jest poza tym obowiązkiem
+ * i wystawiamy ją lokalnie, z numerem nadanym przez SZO.
+ *
+ * Rozstrzyga obecność poprawnego NIP-u nabywcy: nie mamy innego pewnego sygnału,
+ * a brak NIP-u przy sprzedaży konsumenckiej jest regułą, nie wyjątkiem.
+ * Dla faktur z rozliczeń TI to przypadek domyślny — nabywcą jest zwykle kursant
+ * albo jego opiekun.
+ */
+function invoice_ksef_applicable(array $inv): bool
+{
+    if (invoice_is_test($inv)) return false;   // dokument testowy nigdy nie wychodzi
+    $nip = preg_replace('/\D+/', '', (string)($inv['buyer_tax_no'] ?? '')) ?? '';
+    return strlen($nip) === 10;
+}
+
+/**
+ * Rodzaj nabywcy: 'OF' (osoba fizyczna — brak NIP) albo 'NIP' (podatnik).
+ *
+ * Decyduje o tym samym co invoice_ksef_applicable(), ale służy do POKAZANIA
+ * operatorowi, z kim ma do czynienia — brak NIP-u znaczy sprzedaż konsumencka,
+ * a więc dokument poza KSeF.
+ */
+function invoice_buyer_kind(?string $tax_no): string
+{
+    return strlen(preg_replace('/\D+/', '', (string)$tax_no) ?? '') === 10 ? 'NIP' : 'OF';
+}
+
+/**
+ * Ustala nabywcę, jaki powstanie z rozliczenia TI — bez tworzenia faktury.
+ *
+ * Ta sama logika co invoice_from_ti_billing(): płatnik rozliczenia, a gdy go nie
+ * ma — sam kursant; NIP dociągamy z kartoteki CRM po nazwie. Dzięki temu panel
+ * generowania pokazuje „OF" albo NIP ZANIM operator kliknie.
+ *
+ * @return array{name:string,tax_no:string,kind:string}
+ */
+function invoice_ti_buyer_preview(array $billing_row): array
+{
+    $name = trim((string)($billing_row['payer_name'] ?? '')) ?: trim((string)($billing_row['client_name'] ?? ''));
+    $nip  = '';
+    if ($name !== '') {
+        try {
+            $c = db_one("SELECT nip FROM crm_contacts WHERE crm_active=1 AND LOWER(imie_nazwisko)=LOWER(?) LIMIT 1", [$name]);
+            $nip = (string)($c['nip'] ?? '');
+        } catch (\Throwable $e) { $nip = ''; }
+    }
+    return ['name' => $name, 'tax_no' => $nip, 'kind' => invoice_buyer_kind($nip)];
+}
+
+/** Powód, dla którego faktura nie idzie do KSeF — do pokazania operatorowi. */
+function invoice_ksef_skip_reason(array $inv): string
+{
+    if (invoice_is_test($inv)) return 'Faktura testowa — nie jest wysyłana do KSeF ani do systemu księgowego.';
+    return invoice_ksef_applicable($inv)
+        ? ''
+        : 'Nabywca bez NIP — sprzedaż na rzecz osoby fizycznej jest poza KSeF.';
+}
+
 /**
  * Numer faktury z rozliczenia TI (seria TI).
  *
