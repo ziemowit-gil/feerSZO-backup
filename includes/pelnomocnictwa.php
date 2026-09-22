@@ -36,6 +36,7 @@
         dokument_typ           TEXT    NOT NULL DEFAULT '',
         dokument_uploaded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
         dokument_uploaded_at   DATETIME,
+        ezd_sprawa_id          INTEGER,
         created_by             INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -63,6 +64,7 @@
         "rodzaj                  TEXT    NOT NULL DEFAULT 'ogolne'",
         "kor_tryb                TEXT    NOT NULL DEFAULT ''",
         "kor_szczegoly           TEXT    NOT NULL DEFAULT ''",
+        "ezd_sprawa_id           INTEGER",
         "podpisujacy             TEXT    NOT NULL DEFAULT ''",
         "podpisujacy_funkcja     TEXT    NOT NULL DEFAULT ''",
         "dokument_plik           TEXT    NOT NULL DEFAULT ''",
@@ -191,6 +193,8 @@ function pelnomocnictwo_log_meta(string $action): array {
         'doc_delete'  => ['Usunięto skan',         'bi-scissors text-warning'],
         'doc_generate'=> ['Wygenerowano dokument', 'bi-file-earmark-richtext text-info'],
         'reminder'    => ['Przypomnienie o wygasaniu', 'bi-bell text-warning'],
+        'ezd_koszulka'=> ['Założono koszulkę w EZD', 'bi-folder-plus text-primary'],
+        'ezd_pismo'   => ['Skan w koszulce EZD',    'bi-folder-check text-success'],
         default       => [$action ?: 'Zmiana',     'bi-dot text-muted'],
     };
 }
@@ -433,6 +437,26 @@ function pelnomocnictwa_expiring(int $days = 30): array {
     } catch (\Throwable $e) { return []; }
     // Dodatkowe zabezpieczenie: status wyliczany (na wypadek odwołania z datą dzisiejszą).
     return array_values(array_filter($rows, fn($r) => pelnomocnictwo_status($r) === 'wazne'));
+}
+
+/**
+ * Czy wpis wymaga wgrania podpisanego skanu — wymuszamy podpis dla wszystkich
+ * nieodwołanych pełnomocnictw, które nie mają jeszcze dołączonego dokumentu.
+ */
+function pelnomocnictwo_needs_signature(array $row): bool {
+    if (!empty($row['dokument_plik'])) return false;
+    return pelnomocnictwo_status($row) !== 'odwolane';
+}
+
+/** Nieodwołane pełnomocnictwa bez podpisanego skanu — do banera „domagaj się podpisu". */
+function pelnomocnictwa_missing_signature(): array {
+    try {
+        $rows = db_all(
+            "SELECT * FROM pelnomocnictwa WHERE (dokument_plik IS NULL OR dokument_plik = '')
+             ORDER BY data_udzielenia DESC, id DESC"
+        );
+    } catch (\Throwable $e) { return []; }
+    return array_values(array_filter($rows, 'pelnomocnictwo_needs_signature'));
 }
 
 /** Statystyki do widżetu/dashboardu: liczba wg statusu. */

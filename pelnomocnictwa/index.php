@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/pelnomocnictwa.php';
+require_once dirname(__DIR__) . '/includes/pelnomocnictwa_ezd.php';
 
 require_login();
 require_module_enabled('pelnomocnictwa_enabled', 'Rejestr pełnomocnictw');
@@ -19,15 +20,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? '';
     try {
         if ($action === 'save') {
-            $id = (int)($_POST['id'] ?? 0);
-            pelnomocnictwo_save($id, $_POST, $user_id);
-            flash_set('success', $id ? 'Zaktualizowano pełnomocnictwo.' : 'Dodano pełnomocnictwo do rejestru.');
-            header('Location:'.APP_URL.'/pelnomocnictwa/index.php'); exit;
+            $id  = (int)($_POST['id'] ?? 0);
+            $sid = pelnomocnictwo_save($id, $_POST, $user_id);
+            // Załóż (idempotentnie) koszulkę w EZD dla każdego pełnomocnictwa.
+            $koszulka = pelnomocnictwo_ensure_koszulka($sid, $user_id);
+            $msg = $id ? 'Zaktualizowano pełnomocnictwo.' : 'Dodano pełnomocnictwo do rejestru.';
+            if ($koszulka) $msg .= ' Założono koszulkę w EZD. Wgraj podpisany skan.';
+            flash_set('success', $msg);
+            header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$sid.'#form-peln'); exit;
         }
         if ($action === 'revoke') {
             $id = (int)($_POST['id'] ?? 0);
             pelnomocnictwo_revoke($id, $_POST['data_odwolania'] ?? null, $user_id);
             flash_set('success', 'Pełnomocnictwo odwołane — możesz wygenerować dokument odwołania.');
+            header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
+        }
+        if ($action === 'make_koszulka') {
+            $id  = (int)($_POST['id'] ?? 0);
+            $sid = pelnomocnictwo_ensure_koszulka($id, $user_id);
+            flash_set($sid ? 'success' : 'error', $sid ? 'Założono/znaleziono koszulkę w EZD.' : 'Nie udało się założyć koszulki (moduł EZD wyłączony?).');
             header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
         }
         if ($action === 'delete' && is_admin()) {
@@ -40,7 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $typ = ($_POST['dokument_typ'] ?? '') === 'odwolanie' ? 'odwolanie' : 'pelnomocnictwo';
             $err = pelnomocnictwo_upload($id, $user_id, $typ);
             if ($err) throw new \RuntimeException($err);
-            flash_set('success', 'Dokument dołączony do wpisu.');
+            // Zarejestruj podpisany skan w koszulce EZD (zakłada ją, jeśli brak).
+            $pismo = pelnomocnictwo_ezd_register_signed($id, $user_id);
+            flash_set('success', 'Dokument dołączony do wpisu.' . ($pismo ? ' Zarejestrowano w koszulce EZD.' : ''));
             header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
         }
         if ($action === 'delete_dokument') {
@@ -98,6 +111,22 @@ include dirname(__DIR__) . '/includes/header.php';
         </span></a>
     <?php endforeach; ?>
     <?php if (count($expiring) > 6): ?><span class="text-muted">i <?= count($expiring)-6 ?> więcej…</span><?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php $missing = pelnomocnictwa_missing_signature(); if ($missing): ?>
+<div class="alert alert-danger d-flex align-items-start gap-2 py-2" role="alert">
+  <i class="bi bi-exclamation-octagon-fill mt-1"></i>
+  <div style="font-size:.84rem">
+    <strong><?= count($missing) ?></strong> pełnomocnictw czeka na wgranie podpisanego skanu — bez niego wpis jest niekompletny:
+    <?php foreach (array_slice($missing, 0, 8) as $ms): ?>
+      <a href="?edit=<?= $ms['id'] ?>#form-peln" class="text-decoration-none">
+        <span class="badge bg-white text-danger border border-danger me-1" style="font-size:.72rem">
+          <i class="bi bi-paperclip"></i> <?= h($ms['numer']) ?> · <?= h($ms['pelnomocnik']) ?>
+        </span></a>
+    <?php endforeach; ?>
+    <?php if (count($missing) > 8): ?><span class="text-muted">i <?= count($missing)-8 ?> więcej…</span><?php endif; ?>
   </div>
 </div>
 <?php endif; ?>
@@ -207,7 +236,29 @@ include dirname(__DIR__) . '/includes/header.php';
       <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $edit['id'] ?>&typ=odwolanie" target="_blank" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-x me-1"></i>Odwołanie</a>
     </div>
 
+    <?php if (module_enabled('ezd_enabled')): ?>
+    <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
+      <span class="text-muted" style="font-size:.72rem"><i class="bi bi-folder me-1"></i>Koszulka w EZD:</span>
+      <?php if (!empty($edit['ezd_sprawa_id'])): $_ku = pelnomocnictwo_ezd_url($edit); ?>
+      <a href="<?= h($_ku) ?>" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-folder2-open me-1"></i>Otwórz koszulkę</a>
+      <?php else: ?>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="make_koszulka">
+        <input type="hidden" name="id" value="<?= $edit['id'] ?>">
+        <button class="btn btn-outline-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Załóż koszulkę</button>
+      </form>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
     <div class="mt-3">
+      <?php if (pelnomocnictwo_needs_signature($edit)): ?>
+      <div class="alert alert-warning py-2 mb-2" style="font-size:.8rem">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Wymagany podpisany skan.</strong>
+        Wygeneruj dokument, podpisz i wgraj go tutaj — dopóki tego nie zrobisz, wpis pozostaje niekompletny<?= !empty($edit['ezd_sprawa_id']) ? ', a koszulka EZD otwarta' : '' ?>.
+      </div>
+      <?php endif; ?>
       <span class="text-muted" style="font-size:.72rem"><i class="bi bi-paperclip me-1"></i>Podpisany skan (PDF/JPG/PNG):</span>
       <?php if ($edit['dokument_plik']): ?>
       <div class="d-flex align-items-center gap-2 mt-1">
@@ -317,10 +368,18 @@ include dirname(__DIR__) . '/includes/header.php';
           <td class="text-nowrap text-muted" style="font-size:.78rem">
             <?= $r['data_udzielenia'] ? date_pl($r['data_udzielenia']) : '—' ?> – <?= $r['data_waznosci'] ? date_pl($r['data_waznosci']) : 'bezterminowo' ?>
           </td>
-          <td><span class="badge bg-<?= $color ?> bg-opacity-15 text-<?= $color ?> border border-<?= $color ?>" style="font-size:.72rem"><?= h($label) ?></span></td>
+          <td>
+            <span class="badge bg-<?= $color ?> bg-opacity-15 text-<?= $color ?> border border-<?= $color ?>" style="font-size:.72rem"><?= h($label) ?></span>
+            <?php if (pelnomocnictwo_needs_signature($r)): ?>
+            <span class="badge bg-danger bg-opacity-15 text-danger border border-danger" style="font-size:.68rem" title="Brak podpisanego skanu"><i class="bi bi-paperclip"></i> brak podpisu</span>
+            <?php endif; ?>
+          </td>
           <td class="text-end text-nowrap">
             <?php if ($r['dokument_plik']): ?>
             <a href="<?= APP_URL ?>/pelnomocnictwa/dokument_download.php?id=<?= $r['id'] ?>" class="btn btn-xs btn-outline-success btn-sm" title="Pobierz podpisany skan"><i class="bi bi-paperclip"></i></a>
+            <?php endif; ?>
+            <?php if (!empty($r['ezd_sprawa_id']) && module_enabled('ezd_enabled')): ?>
+            <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$r['ezd_sprawa_id'] ?>" class="btn btn-xs btn-outline-primary btn-sm" title="Koszulka w EZD" target="_blank"><i class="bi bi-folder2-open"></i></a>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $r['id'] ?>&typ=pelnomocnictwo" class="btn btn-xs btn-outline-secondary btn-sm" title="Generuj dokument" target="_blank"><i class="bi bi-file-earmark-richtext"></i></a>
             <a href="<?= APP_URL ?>/pelnomocnictwa/print.php?id=<?= $r['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm" title="Wydruk rejestru" target="_blank"><i class="bi bi-printer"></i></a>
