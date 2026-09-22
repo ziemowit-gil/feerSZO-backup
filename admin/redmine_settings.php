@@ -143,15 +143,17 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="card-header fw-semibold"><i class="bi bi-info-circle me-1"></i>Jak to działa</div>
 <div class="card-body small">
   <ul class="mb-2 ps-3">
-    <li class="mb-2">Integracja jest <strong>jednokierunkowa</strong>: nowe zgłoszenie w Helpdesku SZO
-      tworzy zagadnienie (issue) w Redmine, a jego numer zapisuje się przy zgłoszeniu.</li>
+    <li class="mb-2"><strong>Do Redmine:</strong> nowe zgłoszenie w Helpdesku SZO tworzy
+      zagadnienie (issue) w Redmine, a jego numer zapisuje się przy zgłoszeniu.</li>
+    <li class="mb-2"><strong>Z Redmine (co 10 min, cron):</strong> nowe notatki wracają jako
+      wiadomości zgłoszenia, a zamknięcie issue ustawia status „Rozwiązane".</li>
     <li class="mb-2">Nie potrzebujesz OAuth (sekcja „Applications") — wystarczy <strong>klucz API</strong>.</li>
     <li class="mb-2">W Redmine: <em>Administracja → Ustawienia → API</em> → włącz „REST web service";
       klucz API weźmiesz z <em>Moje konto</em>.</li>
     <li class="mb-2">Wskaż projekt docelowy — jego identyfikator widać w adresie
       <code>/projects/&lt;identyfikator&gt;</code>.</li>
   </ul>
-  <div class="text-muted">Wewnętrzny moduł Helpdesk działa dalej; Redmine dostaje kopię zgłoszeń.</div>
+  <div class="text-muted">Synchronizacja jest <strong>dwukierunkowa</strong>. Wewnętrzny moduł Helpdesk działa dalej.</div>
 </div>
 </div>
 </div>

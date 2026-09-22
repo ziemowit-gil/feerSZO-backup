@@ -119,6 +119,7 @@ function helpdesk_migrate(): void {
         "ALTER TABLE helpdesk_tickets ADD COLUMN first_response_at DATETIME", // SLA: pierwsza odpowiedź operatora
         "ALTER TABLE helpdesk_tickets ADD COLUMN merged_into INTEGER",        // łączenie: id zgłoszenia głównego
         "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_issue_id INTEGER",   // integracja Redmine: numer issue
+        "ALTER TABLE helpdesk_tickets ADD COLUMN redmine_last_journal_id INTEGER NOT NULL DEFAULT 0", // ost. zaimportowana notatka
     ] as $sql) { try { $pdo->exec($sql); } catch (\Throwable $e) {} }
     // SQLite dopuszcza wiele NULL w UNIQUE — token unikalny tylko dla wypełnionych.
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_hd_token ON helpdesk_tickets(access_token)"); } catch (\Throwable $e) {}
@@ -1423,6 +1424,82 @@ function hd_redmine_sync_ticket(int $ticket_id): void {
     } catch (\Throwable $e) {
         error_log('[redmine] sync zgłoszenia #' . $ticket_id . ': ' . $e->getMessage());
     }
+}
+
+/**
+ * Dwukierunkowa synchronizacja: pobiera z Redmine stan powiązanego issue —
+ * importuje NOWE notatki jako wiadomości zgłoszenia i mapuje zamknięcie issue
+ * na status SZO. Best-effort. Zwraca true, gdy coś zaktualizowano.
+ */
+function hd_redmine_pull_ticket(array $ticket): bool {
+    $rm = __DIR__ . '/redmine.php';
+    if (!is_file($rm)) return false;
+    require_once $rm;
+    if (!function_exists('redmine_is_enabled') || !redmine_is_enabled()) return false;
+
+    $iid = (int)($ticket['redmine_issue_id'] ?? 0);
+    if ($iid <= 0) return false;
+
+    try {
+        $issue = redmine_get_issue($iid, ['journals']);
+    } catch (\Throwable $e) {
+        error_log('[redmine] pull #' . ($ticket['id'] ?? 0) . ': ' . $e->getMessage());
+        return false;
+    }
+    if (!$issue) return false;
+
+    $ticket_id = (int)$ticket['id'];
+    $changed   = false;
+
+    // 1) Import nowych notatek z dziennika (journals) jako wiadomości.
+    $lastJ = (int)($ticket['redmine_last_journal_id'] ?? 0);
+    $maxJ  = $lastJ;
+    foreach ((array)($issue['journals'] ?? []) as $j) {
+        $jid   = (int)($j['id'] ?? 0);
+        $notes = trim((string)($j['notes'] ?? ''));
+        if ($jid <= $lastJ || $notes === '') continue;
+        $author = trim((string)($j['user']['name'] ?? 'Redmine'));
+        db_insert('helpdesk_messages', [
+            'ticket_id'   => $ticket_id,
+            'user_id'     => null,
+            'user_name'   => 'Redmine: ' . $author,
+            'body'        => $notes,
+            'is_internal' => 0,
+        ]);
+        if ($jid > $maxJ) $maxJ = $jid;
+        $changed = true;
+    }
+
+    $upd = [];
+    if ($maxJ > $lastJ) $upd['redmine_last_journal_id'] = $maxJ;
+
+    // 2) Mapowanie zamknięcia: issue zamknięte w Redmine → SZO „rozwiązane".
+    $closed = !empty($issue['closed_on']);
+    if ($closed && !in_array((string)$ticket['status'], ['rozwiązane', 'zamknięte'], true)) {
+        $upd['status'] = 'rozwiązane';
+        $changed = true;
+    }
+
+    if ($upd) db_update('helpdesk_tickets', $upd, $ticket_id);
+    return $changed;
+}
+
+/**
+ * Synchronizuje wszystkie zgłoszenia powiązane z Redmine (nie zamknięte).
+ * Do crona. Zwraca ['synced'=>int, 'errors'=>int].
+ */
+function hd_redmine_pull_all(): array {
+    helpdesk_migrate();
+    $rows = db_all(
+        "SELECT * FROM helpdesk_tickets
+          WHERE redmine_issue_id > 0 AND status <> 'zamknięte' AND merged_into IS NULL"
+    );
+    $synced = 0; $errors = 0;
+    foreach ($rows as $t) {
+        try { if (hd_redmine_pull_ticket($t)) $synced++; }
+        catch (\Throwable $e) { $errors++; error_log('[redmine] pull_all #' . $t['id'] . ': ' . $e->getMessage()); }
+    }
+    return ['synced' => $synced, 'errors' => $errors];
 }
 
 function hd_ticket_quick_create(array $requester, string $title, string $description, string $category, string $priority, string $source): int {

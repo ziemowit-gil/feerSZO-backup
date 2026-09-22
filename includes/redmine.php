@@ -99,6 +99,24 @@ function redmine_create_issue(array $params): array
 }
 
 /**
+ * Pobiera issue z Redmine wraz z dziennikiem (journals — notatki/zmiany).
+ * @return array|null tablica danych issue (bez opakowania 'issue') albo null.
+ */
+function redmine_get_issue(int $issue_id, array $include = ['journals']): ?array
+{
+    if ($issue_id <= 0) return null;
+    $client = redmine_client();
+    try {
+        $res = $client->getApi('issue')->show($issue_id, ['include' => $include]);
+    } catch (\Throwable $e) {
+        error_log('[redmine] get issue #' . $issue_id . ': ' . $e->getMessage());
+        throw new RedmineException('Błąd API Redmine przy pobieraniu zgłoszenia #' . $issue_id . ': ' . $e->getMessage(), 0, $e);
+    }
+    if (is_array($res) && isset($res['issue']) && is_array($res['issue'])) return $res['issue'];
+    return is_array($res) ? $res : null;
+}
+
+/**
  * Test połączenia — pobiera bieżącego użytkownika po kluczu API.
  * @return array{ok:bool, error?:string, user?:string}
  */

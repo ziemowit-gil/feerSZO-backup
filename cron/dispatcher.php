@@ -331,6 +331,11 @@ $AGENTS = [
         'interval' => 3600,         // co godzinę — nowe faktury zakupu do obiegu EODoK (jeśli włączone)
         'schedule' => [6, 23],      // w godzinach pracy
     ],
+    'redmine_sync' => [
+        'file'     => __DIR__ . '/redmine_sync.php',
+        'interval' => 600,          // co 10 min — notatki i statusy z Redmine → Helpdesk
+        'schedule' => [6, 23],      // w godzinach pracy
+    ],
 ];
 
 // Agenci aktywni tylko w środowisku Docker
