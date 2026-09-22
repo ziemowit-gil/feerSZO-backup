@@ -321,6 +321,11 @@ $AGENTS = [
         'interval' => 300,          // co 5 min — match [EZD:ZNAK] i Inbox Ogólny
         'schedule' => [6, 23],      // w godzinach pracy (M365 Graph jest tu ograniczony)
     ],
+    'betterfly_sync' => [
+        'file'     => __DIR__ . '/betterfly_sync.php',
+        'interval' => 10800,        // co 3 godziny — statusy płatności faktur Betterfly
+        'schedule' => [6, 23],      // w godzinach pracy
+    ],
 ];
 
 // Agenci aktywni tylko w środowisku Docker
