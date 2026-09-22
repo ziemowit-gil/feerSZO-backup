@@ -43,6 +43,7 @@ if ($ticket && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_reply']))
             'is_internal' => 0,
         ]);
         db_update('helpdesk_tickets', ['updated_at' => date('Y-m-d H:i:s')], (int)$ticket['id']);
+        hd_redmine_push_note((int)$ticket['id'], $body, (int)($ticket['requester_id'] ?? 0) ?: null, false); // → Redmine
         if (in_array($ticket['status'], ['oczekuje', 'rozwiązane'], true)) {
             db_update('helpdesk_tickets', ['status' => 'otwarte', 'updated_at' => date('Y-m-d H:i:s')], (int)$ticket['id']);
         }

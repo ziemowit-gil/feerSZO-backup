@@ -142,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_add_msg'])) {
         $msg_id = db_insert('helpdesk_messages', ['ticket_id' => $id, 'user_id' => $uid,
             'user_name' => $u['name'] ?? '', 'body' => $body, 'is_internal' => $is_internal]);
         db_update('helpdesk_tickets', ['updated_at' => date('Y-m-d H:i:s')], $id);
+        hd_redmine_push_note($id, $body, $uid, (bool)$is_internal); // komentarz zwrotny → Redmine
 
         if ($is_op && !$is_internal && empty($ticket['first_response_at'])) {
             db_update('helpdesk_tickets', ['first_response_at' => date('Y-m-d H:i:s')], $id);

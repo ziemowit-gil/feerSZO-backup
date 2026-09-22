@@ -1442,6 +1442,56 @@ function hd_redmine_sync_ticket(int $ticket_id): void {
 }
 
 /**
+ * Komentarz zwrotny SZO → Redmine: dopisuje wiadomość ze zgłoszenia jako notatkę
+ * do powiązanego issue. Jeśli autor ma połączenie OAuth — notatka jako on;
+ * inaczej przez konto integracyjne (z prefiksem nazwiska). Best-effort.
+ *
+ * Po wysłaniu przesuwa redmine_last_journal_id za bieżące notatki, żeby własna
+ * notatka nie wróciła przy najbliższym pull (unika duplikatu/pętli).
+ */
+function hd_redmine_push_note(int $ticket_id, string $body, ?int $author_uid, bool $internal = false): void {
+    if (trim($body) === '') return;
+    $rm = __DIR__ . '/redmine.php';
+    if (!is_file($rm)) return;
+    require_once $rm;
+    if (!function_exists('redmine_is_enabled') || !redmine_is_enabled()) return;
+
+    $t   = db_one("SELECT redmine_issue_id FROM helpdesk_tickets WHERE id=?", [$ticket_id]);
+    $iid = (int)($t['redmine_issue_id'] ?? 0);
+    if ($iid <= 0) return;
+
+    try {
+        if ($author_uid && function_exists('redmine_user_connected') && redmine_user_connected($author_uid)) {
+            // Jako użytkownik (OAuth) — autor notatki = realna osoba w Redmine.
+            redmine_user_api_request($author_uid, 'PUT', '/issues/' . $iid . '.json',
+                ['issue' => ['notes' => $body, 'private_notes' => $internal]]);
+        } else {
+            $who = '';
+            if ($author_uid) {
+                $r = db_one("SELECT name FROM users WHERE id=?", [$author_uid]);
+                $who = trim((string)($r['name'] ?? ''));
+            }
+            redmine_add_note($iid, ($who !== '' ? '[' . $who . '] ' : '[SZO] ') . $body, $internal);
+        }
+
+        // Zapobiega ponownemu zaimportowaniu tej notatki przez pull.
+        try {
+            $issue = redmine_get_issue($iid, ['journals']);
+            $maxJ = 0;
+            foreach ((array)($issue['journals'] ?? []) as $j) { $maxJ = max($maxJ, (int)($j['id'] ?? 0)); }
+            if ($maxJ > 0) {
+                $cur = db_one("SELECT redmine_last_journal_id FROM helpdesk_tickets WHERE id=?", [$ticket_id]);
+                if ($maxJ > (int)($cur['redmine_last_journal_id'] ?? 0)) {
+                    db_update('helpdesk_tickets', ['redmine_last_journal_id' => $maxJ], $ticket_id);
+                }
+            }
+        } catch (\Throwable $e) { /* nieistotne */ }
+    } catch (\Throwable $e) {
+        error_log('[redmine] push note zgłoszenie #' . $ticket_id . ': ' . $e->getMessage());
+    }
+}
+
+/**
  * Dwukierunkowa synchronizacja: pobiera z Redmine stan powiązanego issue —
  * importuje NOWE notatki jako wiadomości zgłoszenia i mapuje zamknięcie issue
  * na status SZO. Best-effort. Zwraca true, gdy coś zaktualizowano.

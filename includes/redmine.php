@@ -326,6 +326,23 @@ function redmine_tracker_for_category(string $category): int
 }
 
 /**
+ * Dodaje notatkę do issue (ścieżka klucza API — autor = konto integracyjne).
+ * @return bool true przy powodzeniu
+ */
+function redmine_add_note(int $issue_id, string $note, bool $private = false): bool
+{
+    if ($issue_id <= 0 || trim($note) === '') return false;
+    $client = redmine_client();
+    try {
+        $client->getApi('issue')->update($issue_id, ['notes' => $note, 'private_notes' => $private]);
+        return true;
+    } catch (\Throwable $e) {
+        error_log('[redmine] add_note #' . $issue_id . ': ' . $e->getMessage());
+        throw new RedmineException('Błąd dodawania notatki do Redmine: ' . $e->getMessage(), 0, $e);
+    }
+}
+
+/**
  * Test połączenia — pobiera bieżącego użytkownika po kluczu API.
  * @return array{ok:bool, error?:string, user?:string}
  */
