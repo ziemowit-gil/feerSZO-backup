@@ -105,6 +105,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $flash_type = 'warning';
     }
 
+    if ($act === 'save_settings') {
+        $h = max(1, min(168, (int)($_POST['max_hours'] ?? 8)));
+        org_setting_set('backup_alert_max_hours', (string)$h);
+        $flash = 'Zapisano próg alertu o przeterminowaniu: ' . $h . ' h.'; $flash_type = 'success';
+    }
+
+    $verify = null;
+    if ($act === 'verify') {
+        $verify = backup_verify(true);
+        $flash = $verify['problems']
+            ? 'Weryfikacja: wykryto ' . $verify['problems'] . ' problem(ów) — patrz niżej.'
+            : 'Weryfikacja: wszystkie ' . $verify['checked'] . ' kopii poprawne.';
+        $flash_type = $verify['problems'] ? 'danger' : 'success';
+    }
+
     if ($act === 'delete') {
         $rel  = trim($_POST['file'] ?? '', '/');
         $full = realpath($bak_root . '/' . $rel);
@@ -120,16 +135,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: ' . APP_URL . '/admin/backups.php'
-         . ($flash ? '?msg=' . urlencode($flash) . '&type=' . $flash_type : ''));
-    exit;
+    // Weryfikacja renderuje wyniki na miejscu (bez przekierowania).
+    if ($act !== 'verify') {
+        header('Location: ' . APP_URL . '/admin/backups.php'
+             . ($flash ? '?msg=' . urlencode($flash) . '&type=' . $flash_type : ''));
+        exit;
+    }
 }
+$verify = $verify ?? null;
 
 if (!empty($_GET['msg'])) { $flash = $_GET['msg']; $flash_type = $_GET['type'] ?? 'success'; }
 
 // ── Skanuj katalog backupów ───────────────────────────────────────────────
 $months = [];
 $total_size = 0;
+$manifest = backup_manifest_load();
 
 if (is_dir($bak_root)) {
     foreach (array_reverse(glob($bak_root . '/????-??', GLOB_ONLYDIR)) as $mdir) {
@@ -156,6 +176,7 @@ if (is_dir($bak_root)) {
                 'type'  => $type,
                 'enc'   => $enc,
                 'kind'  => $kind,
+                'sha'   => $manifest[$month . '/' . basename($fp)]['sha256'] ?? '',
             ];
         }
         usort($files, fn($a,$b) => $b['mtime'] - $a['mtime']);
@@ -210,6 +231,95 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
 
 <?php if ($flash): ?>
 <div class="alert alert-<?= h($flash_type) ?> py-2 small"><?= $flash ?></div>
+<?php endif; ?>
+
+<?php
+// ── Kondycja / RPO ─────────────────────────────────────────────────────────
+$_last_ok   = backup_last_ok_ts();
+$_stale     = backup_is_stale();
+$_max_h     = backup_max_age_hours();
+$_age_h     = $_last_ok ? round((time() - $_last_ok) / 3600, 1) : null;
+$_counts    = ['db' => 0, 'uploads' => 0, 'certs' => 0];
+foreach (glob($bak_root . '/????-??/*') ?: [] as $fp) {
+    if (!is_file($fp)) continue;
+    $k = backup_kind(basename($fp));
+    if ($k && isset($_counts[$k])) $_counts[$k]++;
+}
+$_health_cls = $_last_ok === 0 ? 'secondary' : ($_stale ? 'danger' : 'success');
+$_health_txt = $_last_ok === 0 ? 'Brak danych' : ($_stale ? 'Przeterminowany' : 'Aktualny');
+?>
+<div class="card shadow-sm mb-3 border-<?= $_health_cls ?>">
+  <div class="card-header py-2 d-flex align-items-center justify-content-between">
+    <span class="fw-semibold"><i class="bi bi-heart-pulse me-1 text-<?= $_health_cls ?>"></i>Kondycja kopii zapasowych</span>
+    <span class="badge bg-<?= $_health_cls ?>"><?= h($_health_txt) ?></span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3 small">
+      <div class="col-6 col-md-3">
+        <div class="text-muted">Ostatni udany backup</div>
+        <div class="fw-semibold"><?= $_last_ok ? date('d.m.Y H:i', $_last_ok) . ' (' . $_age_h . 'h temu)' : '—' ?></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-muted">Próg alertu (RPO)</div>
+        <div class="fw-semibold"><?= (int)$_max_h ?> h</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-muted">Kopie (baza / uploads / certs)</div>
+        <div class="fw-semibold"><?= $_counts['db'] ?> / <?= $_counts['uploads'] ?> / <?= $_counts['certs'] ?></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-muted">Szyfrowanie</div>
+        <div class="fw-semibold"><?= backup_encryption_enabled() ? '<span class="text-success"><i class="bi bi-lock-fill"></i> AES-256</span>' : '<span class="text-muted">wyłączone</span>' ?></div>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="verify">
+        <button class="btn btn-outline-primary btn-sm"><i class="bi bi-patch-check me-1"></i>Zweryfikuj integralność</button>
+      </form>
+      <form method="post" class="d-inline d-flex align-items-center gap-1">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="save_settings">
+        <label class="text-muted" style="font-size:.8rem">Alert gdy brak kopii przez</label>
+        <input type="number" name="max_hours" value="<?= (int)$_max_h ?>" min="1" max="168" class="form-control form-control-sm" style="width:80px">
+        <span class="text-muted" style="font-size:.8rem">h</span>
+        <button class="btn btn-outline-secondary btn-sm">Zapisz</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<?php if ($verify): ?>
+<div class="card shadow-sm mb-3 border-<?= $verify['problems'] ? 'danger' : 'success' ?>">
+  <div class="card-header py-2 fw-semibold">
+    <i class="bi bi-patch-check me-1"></i>Wynik weryfikacji — <?= $verify['checked'] ?> kopii, problemów: <?= $verify['problems'] ?>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle small">
+      <thead class="table-light"><tr><th>Plik</th><th>Typ</th><th>Status</th><th>Szczegóły</th></tr></thead>
+      <tbody>
+      <?php foreach ($verify['items'] as $v):
+        [$vc, $vl] = match($v['status']) {
+          'ok'            => ['success', 'OK'],
+          'unmanifested'  => ['secondary', 'Bez manifestu'],
+          'changed'       => ['danger', 'Suma się nie zgadza'],
+          'integrity_fail'=> ['danger', 'Błąd integralności'],
+          'missing'       => ['warning', 'Brak pliku'],
+          'unreadable'    => ['warning', 'Nieodczytany'],
+          default         => ['secondary', $v['status']],
+        }; ?>
+        <tr>
+          <td><code style="font-size:.78rem"><?= h($v['rel']) ?></code></td>
+          <td><?= h($v['kind'] ?? '—') ?></td>
+          <td><span class="badge bg-<?= $vc ?> bg-opacity-10 text-<?= $vc ?> border border-<?= $vc ?> border-opacity-25"><?= h($vl) ?></span></td>
+          <td class="text-muted"><?= h($v['detail']) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
 <?php endif; ?>
 
 <?php
@@ -289,6 +399,11 @@ $_openssl    = backup_openssl_available();
           <td>
             <i class="bi <?= $f['type']['icon'] ?> me-1 text-<?= $f['type']['cls'] ?>"></i>
             <code style="font-size:.8rem"><?= h($f['name']) ?></code>
+            <?php if ($f['sha']): ?>
+            <span class="badge bg-light text-muted border ms-1" style="font-size:.66rem;cursor:pointer" title="SHA-256: <?= h($f['sha']) ?> (kliknij, aby skopiować)" onclick="navigator.clipboard.writeText('<?= h($f['sha']) ?>')">
+              <i class="bi bi-patch-check"></i> <?= h(substr($f['sha'], 0, 10)) ?>…
+            </span>
+            <?php endif; ?>
           </td>
           <td>
             <span class="badge bg-<?= $f['type']['cls'] ?> bg-opacity-10 text-<?= $f['type']['cls'] ?> border border-<?= $f['type']['cls'] ?> border-opacity-25">
