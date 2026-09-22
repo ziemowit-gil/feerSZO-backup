@@ -123,6 +123,28 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="col-md-3"><label class="form-label mb-1" style="font-size:.74rem">Ważne do <span class="text-muted">(puste = bezterminowe)</span></label>
         <input type="date" name="data_waznosci" class="form-control form-control-sm" value="<?= h($edit['data_waznosci'] ?? '') ?>"></div>
 
+      <?php $_rodzaj = $edit['rodzaj'] ?? 'ogolne'; $_kor_tryb = $edit['kor_tryb'] ?? 'ogolne'; ?>
+      <div class="col-md-4"><label class="form-label mb-1" style="font-size:.74rem">Rodzaj pełnomocnictwa</label>
+        <select name="rodzaj" id="peln-rodzaj" class="form-select form-select-sm">
+          <?php foreach (pelnomocnictwa_rodzaje() as $k=>$lbl): ?>
+          <option value="<?= $k ?>" <?= $_rodzaj===$k?'selected':'' ?>><?= h($lbl) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-8 row g-2 m-0 p-0" id="peln-kor-block" style="display:none">
+        <div class="col-md-5 ps-0"><label class="form-label mb-1" style="font-size:.74rem">Zakres korespondencji</label>
+          <select name="kor_tryb" id="peln-kor-tryb" class="form-select form-select-sm">
+            <?php foreach (pelnomocnictwo_kor_tryby() as $k=>$lbl): ?>
+            <option value="<?= $k ?>" <?= $_kor_tryb===$k?'selected':'' ?>><?= h($lbl) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-7 pe-0" id="peln-kor-szczegoly-wrap">
+          <label class="form-label mb-1" style="font-size:.74rem" id="peln-kor-szczegoly-lbl">Szczegóły / wyłączenia</label>
+          <input type="text" name="kor_szczegoly" id="peln-kor-szczegoly" class="form-control form-control-sm" value="<?= h($edit['kor_szczegoly'] ?? '') ?>" placeholder="np. przesyłka awizowana nr… / korespondencja od…">
+        </div>
+      </div>
+
       <div class="col-md-5"><label class="form-label mb-1" style="font-size:.74rem">Mocodawca <span class="text-danger">*</span></label>
         <input type="text" name="mocodawca" class="form-control form-control-sm" value="<?= h($edit['mocodawca'] ?? '') ?>" required placeholder="kto udziela pełnomocnictwa"></div>
 
@@ -284,7 +306,14 @@ include dirname(__DIR__) . '/includes/header.php';
           <td class="fw-semibold text-nowrap"><?= h($r['numer']) ?></td>
           <td><?= h($r['mocodawca']) ?></td>
           <td><?= h($r['pelnomocnik']) ?></td>
-          <td><?= h(mb_substr($r['zakres'] ?: '—', 0, 70)) ?></td>
+          <td>
+            <?php if (($r['rodzaj'] ?? 'ogolne') === 'korespondencja'): ?>
+            <span class="badge bg-info bg-opacity-10 text-info border border-info" style="font-size:.68rem"><i class="bi bi-envelope me-1"></i>Korespondencja</span>
+            <span class="text-muted" style="font-size:.78rem"><?= h(mb_substr(pelnomocnictwo_kor_opis($r), 0, 60)) ?></span>
+            <?php else: ?>
+            <?= h(mb_substr($r['zakres'] ?: '—', 0, 70)) ?>
+            <?php endif; ?>
+          </td>
           <td class="text-nowrap text-muted" style="font-size:.78rem">
             <?= $r['data_udzielenia'] ? date_pl($r['data_udzielenia']) : '—' ?> – <?= $r['data_waznosci'] ? date_pl($r['data_waznosci']) : 'bezterminowo' ?>
           </td>
@@ -443,6 +472,28 @@ include dirname(__DIR__) . '/includes/header.php';
     },280);
   });
   document.addEventListener('click', function(e){ if(wrap && !wrap.contains(e.target)) closeList(); });
+})();
+
+// Rodzaj pełnomocnictwa → pokaż/ukryj pola korespondencji
+(function () {
+  var rodzaj = document.getElementById('peln-rodzaj');
+  var block  = document.getElementById('peln-kor-block');
+  var tryb   = document.getElementById('peln-kor-tryb');
+  var szWrap = document.getElementById('peln-kor-szczegoly-wrap');
+  var szLbl  = document.getElementById('peln-kor-szczegoly-lbl');
+  if (!rodzaj || !block) return;
+  function sync() {
+    var isKor = rodzaj.value === 'korespondencja';
+    block.style.display = isKor ? 'flex' : 'none';
+    if (isKor && tryb && szWrap) {
+      var needsDetail = tryb.value === 'konkretne' || tryb.value === 'wylaczenie';
+      szWrap.style.display = needsDetail ? '' : 'none';
+      if (szLbl) szLbl.textContent = tryb.value === 'wylaczenie' ? 'Co wyłączyć' : 'Jaką korespondencję';
+    }
+  }
+  rodzaj.addEventListener('change', sync);
+  if (tryb) tryb.addEventListener('change', sync);
+  sync();
 })();
 </script>
 

@@ -28,8 +28,13 @@ $data_dok_slow   = pelnomocnictwo_data_slownie($data_dok);
 $data_udz_slow   = pelnomocnictwo_data_slownie($row['data_udzielenia'] ?: null);
 $zakres_items    = pelnomocnictwo_zakres_items($row);
 $miejscowosc     = $org['miejscowosc'] ?: '_______________';
+$is_kor          = ($row['rodzaj'] ?? 'ogolne') === 'korespondencja';
+$kor_opis        = $is_kor ? pelnomocnictwo_kor_opis($row) : '';
 
-$PAGE_TITLE = ($typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa' : 'Pełnomocnictwo') . ' — ' . $row['numer'];
+$_tytul = $is_kor
+    ? ($typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa do odbioru korespondencji' : 'Pełnomocnictwo do odbioru korespondencji')
+    : ($typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa' : 'Pełnomocnictwo');
+$PAGE_TITLE = $_tytul . ' — ' . $row['numer'];
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -100,7 +105,7 @@ body {
 
 <div class="doc-date"><?= h($miejscowosc) ?>, dnia <?= h($data_dok_slow ?: date('d.m.Y')) ?></div>
 
-<div class="doc-title"><?= $typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa' : 'Pełnomocnictwo' ?></div>
+<div class="doc-title"><?= h($_tytul) ?></div>
 
 <div class="doc-body">
 <p>
@@ -121,6 +126,9 @@ posiadającej NIP: <?= h($org['nip'] ?: '_______________') ?>, uprawniony do jed
 <p>1) <span class="edit-field" contenteditable="true"><?= h($row['pelnomocnik']) ?></span><?php if ($row['pelnomocnik_pesel']): ?> (PESEL: <?= h($row['pelnomocnik_pesel']) ?>)<?php endif; ?></p>
 <?php endif; ?>
 
+<?php if ($is_kor): ?>
+<p>do odbioru w imieniu <span class="edit-field" contenteditable="true">Fundacji</span> <?= h($kor_opis) ?>.</p>
+<?php else: ?>
 <p>do działania w imieniu <span class="edit-field" contenteditable="true">Fundacji</span>, w sprawach:</p>
 <ol class="doc-list">
   <?php foreach ($zakres_items as $it): ?>
@@ -130,6 +138,7 @@ posiadającej NIP: <?= h($org['nip'] ?: '_______________') ?>, uprawniony do jed
   <li class="edit-field" contenteditable="true">(uzupełnij zakres pełnomocnictwa)</li>
   <?php endif; ?>
 </ol>
+<?php endif; ?>
 
 <?php if ($typ === 'pelnomocnictwo'): ?>
 <p>

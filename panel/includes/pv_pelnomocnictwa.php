@@ -28,10 +28,11 @@ if (!$_peln_moje) return;
           <div class="fw-semibold" style="font-size:.85rem"><?= h($_p['numer']) ?>
             <span class="text-muted fw-normal">· od <?= h($_p['mocodawca']) ?></span>
           </div>
-          <?php $_z = pelnomocnictwo_zakres_items($_p); ?>
-          <?php if ($_z): ?>
+          <?php if (($_p['rodzaj'] ?? 'ogolne') === 'korespondencja'): ?>
+          <div class="text-muted" style="font-size:.78rem"><i class="bi bi-envelope me-1"></i><?= h(mb_substr(pelnomocnictwo_kor_opis($_p), 0, 140)) ?></div>
+          <?php else: $_z = pelnomocnictwo_zakres_items($_p); if ($_z): ?>
           <div class="text-muted" style="font-size:.78rem"><?= h(mb_substr(implode('; ', $_z), 0, 140)) ?></div>
-          <?php endif; ?>
+          <?php endif; endif; ?>
           <div class="text-muted" style="font-size:.72rem">
             <i class="bi bi-calendar3 me-1"></i>ważne do <?= $_p['data_waznosci'] ? h(date_pl($_p['data_waznosci'])) : 'bezterminowo' ?>
           </div>
