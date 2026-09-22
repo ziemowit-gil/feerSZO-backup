@@ -30,6 +30,11 @@ if (!redmine_is_enabled()) {
 
 echo $ts() . " Start: redmine_sync\n";
 try {
+    // 1) Auto-push: dopchnij zaległe zgłoszenia bez powiązanego issue.
+    $push = hd_redmine_push_pending();
+    if ($push['pushed'] > 0) echo $ts() . " Dopchnięto do Redmine: {$push['pushed']}\n";
+
+    // 2) Pull: zmiany z Redmine (notatki, zamknięcia).
     $res = hd_redmine_pull_all();
     echo $ts() . " Zaktualizowano: {$res['synced']} | błędy: {$res['errors']}\n";
     exit($res['errors'] ? 1 : 0);

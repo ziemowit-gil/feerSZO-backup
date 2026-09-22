@@ -1500,6 +1500,34 @@ function hd_redmine_pull_ticket(array $ticket): bool {
 }
 
 /**
+ * Auto-push: dopycha do Redmine zgłoszenia jeszcze niepowiązane (redmine_issue_id
+ * puste/0) — np. utworzone przed włączeniem integracji lub gdy wcześniejszy push
+ * się nie powiódł. Best-effort. Zwraca ['pushed'=>int].
+ */
+function hd_redmine_push_pending(): array {
+    helpdesk_migrate();
+    $rm = __DIR__ . '/redmine.php';
+    if (!is_file($rm)) return ['pushed' => 0];
+    require_once $rm;
+    if (!function_exists('redmine_is_enabled') || !redmine_is_enabled()) return ['pushed' => 0];
+
+    $rows = db_all(
+        "SELECT id FROM helpdesk_tickets
+          WHERE (redmine_issue_id IS NULL OR redmine_issue_id = 0)
+            AND status <> 'zamknięte' AND merged_into IS NULL
+          ORDER BY id"
+    );
+    $pushed = 0;
+    foreach ($rows as $r) {
+        $before = db_one("SELECT redmine_issue_id FROM helpdesk_tickets WHERE id=?", [(int)$r['id']]);
+        hd_redmine_sync_ticket((int)$r['id']); // best-effort (sam sprawdza enabled/dedup)
+        $after = db_one("SELECT redmine_issue_id FROM helpdesk_tickets WHERE id=?", [(int)$r['id']]);
+        if ((int)($after['redmine_issue_id'] ?? 0) > 0 && (int)($before['redmine_issue_id'] ?? 0) === 0) $pushed++;
+    }
+    return ['pushed' => $pushed];
+}
+
+/**
  * Synchronizuje wszystkie zgłoszenia powiązane z Redmine (nie zamknięte).
  * Do crona. Zwraca ['synced'=>int, 'errors'=>int].
  */
