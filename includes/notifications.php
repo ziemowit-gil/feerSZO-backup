@@ -531,6 +531,7 @@ function notif_type_icon(string $type): string {
         'approval'     => 'bi-diagram-3-fill',
         'task'         => 'bi-kanban-fill',
         'reservation'  => 'bi-calendar-check-fill',
+        'pelnomocnictwo' => 'bi-person-badge-fill',
         default        => 'bi-info-circle-fill',   // 'system' i inne
     };
 }
@@ -542,6 +543,7 @@ function notif_type_color(string $type): string {
         'approval'     => '#16A34A',
         'task'         => '#8B5CF6',
         'reservation'  => '#6366F1',
+        'pelnomocnictwo' => '#0EA5E9',
         default        => '#6366F1',   // 'system'
     };
 }

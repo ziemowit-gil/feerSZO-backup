@@ -85,6 +85,23 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <?= flash_html() ?>
 
+<?php $expiring = pelnomocnictwa_expiring(30); if ($expiring): ?>
+<div class="alert alert-warning d-flex align-items-start gap-2 py-2" role="alert">
+  <i class="bi bi-bell-fill mt-1"></i>
+  <div style="font-size:.84rem">
+    <strong><?= count($expiring) ?></strong> pełnomocnictw wygasa w ciągu 30 dni:
+    <?php foreach (array_slice($expiring, 0, 6) as $ex):
+      $d = (int)round((strtotime($ex['data_waznosci']) - strtotime(date('Y-m-d'))) / 86400); ?>
+      <a href="?edit=<?= $ex['id'] ?>#form-peln" class="text-decoration-none">
+        <span class="badge bg-white text-warning-emphasis border border-warning me-1" style="font-size:.72rem">
+          <?= h($ex['numer']) ?> · <?= $d <= 0 ? 'dziś' : 'za '.$d.' dni' ?>
+        </span></a>
+    <?php endforeach; ?>
+    <?php if (count($expiring) > 6): ?><span class="text-muted">i <?= count($expiring)-6 ?> więcej…</span><?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- Formularz dodawania / edycji -->
 <div class="card shadow-sm mb-3 <?= $edit ? 'border-primary' : '' ?>" id="form-peln">
   <div class="card-header py-2 <?= $edit ? 'bg-primary bg-opacity-10' : '' ?>">

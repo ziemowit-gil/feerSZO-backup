@@ -358,6 +358,29 @@ function pelnomocnictwa_for_user(int $user_id, string $name = '', bool $only_act
     return $rows;
 }
 
+/**
+ * Ważne pełnomocnictwa wygasające w ciągu najbliższych $days dni (włącznie).
+ * Pomija bezterminowe (brak data_waznosci) i już odwołane/wygasłe.
+ * Zwraca posortowane rosnąco po dacie ważności (najpilniejsze pierwsze).
+ */
+function pelnomocnictwa_expiring(int $days = 30): array {
+    $today = date('Y-m-d');
+    $limit = date('Y-m-d', strtotime("+{$days} day"));
+    try {
+        $rows = db_all(
+            "SELECT p.*, u.name AS creator_name FROM pelnomocnictwa p
+             LEFT JOIN users u ON u.id = p.created_by
+             WHERE p.data_waznosci IS NOT NULL AND p.data_waznosci <> ''
+               AND (p.data_odwolania IS NULL OR p.data_odwolania = '' OR p.data_odwolania > ?)
+               AND date(p.data_waznosci) >= date(?) AND date(p.data_waznosci) <= date(?)
+             ORDER BY p.data_waznosci ASC, p.id ASC",
+            [$today, $today, $limit]
+        );
+    } catch (\Throwable $e) { return []; }
+    // Dodatkowe zabezpieczenie: status wyliczany (na wypadek odwołania z datą dzisiejszą).
+    return array_values(array_filter($rows, fn($r) => pelnomocnictwo_status($r) === 'wazne'));
+}
+
 /** Statystyki do widżetu/dashboardu: liczba wg statusu. */
 function pelnomocnictwa_stats(): array {
     $out = ['wazne' => 0, 'wygasle' => 0, 'odwolane' => 0, 'total' => 0];

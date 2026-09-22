@@ -116,6 +116,11 @@ $AGENTS = [
         'interval' => 86400,
         'schedule' => [8, 10],
     ],
+    'pelnomocnictwa_expiry' => [
+        'file'     => __DIR__ . '/pelnomocnictwa_expiry_reminder.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [8, 10],      // między 8:00 a 10:00
+    ],
     'termination_milestone_reminder' => [
         'file'     => __DIR__ . '/termination_milestone_reminder.php',
         'interval' => 86400,        // raz dziennie
