@@ -60,6 +60,11 @@ $status = trim($_GET['status'] ?? '');
 $rok    = (int)($_GET['rok'] ?? 0);
 $rows   = pelnomocnictwa_all(['q' => $q, 'status' => $status, 'rok' => $rok ?: null]);
 $edit   = !empty($_GET['edit']) ? pelnomocnictwo_get((int)$_GET['edit']) : null;
+$edit_user_name = '';
+if ($edit && !empty($edit['pelnomocnik_user_id'])) {
+    $lu = db_one("SELECT name, email FROM users WHERE id=?", [(int)$edit['pelnomocnik_user_id']]);
+    $edit_user_name = $lu ? trim(($lu['name'] ?? '') . ($lu['email'] ? ' · ' . $lu['email'] : '')) : ('#' . (int)$edit['pelnomocnik_user_id']);
+}
 $stats  = pelnomocnictwa_stats();
 $PAGE_TITLE = 'Rejestr pełnomocnictw';
 
@@ -113,6 +118,21 @@ include dirname(__DIR__) . '/includes/header.php';
         <input type="text" name="pelnomocnik" id="peln-pelnomocnik" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik'] ?? '') ?>" required placeholder="komu udzielono pełnomocnictwa"></div>
       <div class="col-md-2"><label class="form-label mb-1" style="font-size:.74rem">PESEL</label>
         <input type="text" name="pelnomocnik_pesel" id="peln-pesel" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik_pesel'] ?? '') ?>" maxlength="11" placeholder="opcjonalnie"></div>
+
+      <div class="col-12 position-relative" id="peln-user-search-wrap">
+        <label class="form-label mb-1" style="font-size:.74rem"><i class="bi bi-person-check me-1"></i>Powiąż z kontem użytkownika <span class="text-muted">(pełnomocnik zobaczy wpis w swoim panelu)</span></label>
+        <input type="hidden" name="pelnomocnik_user_id" id="peln-user-id" value="<?= (int)($edit['pelnomocnik_user_id'] ?? 0) ?>">
+        <div class="d-flex gap-2 align-items-center">
+          <div class="flex-grow-1 position-relative">
+            <input type="text" id="peln-user-search" class="form-control form-control-sm" autocomplete="off" placeholder="szukaj po nazwisku lub e-mailu…">
+            <ul id="peln-user-list" class="list-group shadow-sm" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1052;max-height:240px;overflow-y:auto"></ul>
+          </div>
+          <span id="peln-user-chip" class="badge bg-primary bg-opacity-10 text-primary border border-primary d-inline-flex align-items-center gap-1" style="font-size:.74rem;<?= $edit_user_name ? '' : 'display:none!important' ?>">
+            <i class="bi bi-person-check"></i><span id="peln-user-chip-name"><?= h($edit_user_name) ?></span>
+            <a href="#" id="peln-user-clear" class="text-primary" title="Odłącz konto" style="text-decoration:none"><i class="bi bi-x-lg"></i></a>
+          </span>
+        </div>
+      </div>
 
       <div class="col-12"><label class="form-label mb-1" style="font-size:.74rem">Zakres umocowania <span class="text-muted">(jedna pozycja na linię — w dokumencie zostanie ponumerowana)</span></label>
         <textarea name="zakres" class="form-control form-control-sm" rows="3" placeholder="np.&#10;wydawania zaświadczeń potwierdzających przeprowadzenie szkolenia lub instruktażu&#10;podpisywania dokumentacji związanej z realizacją szkoleń"><?= h($edit['zakres'] ?? '') ?></textarea></div>
@@ -353,6 +373,59 @@ include dirname(__DIR__) . '/includes/header.php';
   document.addEventListener('click', function (e) {
     if (wrap && !wrap.contains(e.target)) closeList();
   });
+})();
+
+// Powiązanie pełnomocnika z kontem użytkownika
+(function () {
+  var input = document.getElementById('peln-user-search');
+  var list  = document.getElementById('peln-user-list');
+  var wrap  = document.getElementById('peln-user-search-wrap');
+  var idFld = document.getElementById('peln-user-id');
+  var chip  = document.getElementById('peln-user-chip');
+  var chipN = document.getElementById('peln-user-chip-name');
+  var clear = document.getElementById('peln-user-clear');
+  var fName = document.getElementById('peln-pelnomocnik');
+  if (!input || !list) return;
+
+  var timer = null;
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function closeList(){list.style.display='none';list.innerHTML='';}
+  function setChip(name){ if(chipN) chipN.textContent=name; if(chip) chip.style.setProperty('display', name?'inline-flex':'none','important'); }
+
+  if (clear) clear.addEventListener('click', function(e){ e.preventDefault(); if(idFld) idFld.value='0'; setChip(''); });
+
+  function render(items, q){
+    list.innerHTML='';
+    if(!items.length){
+      var li=document.createElement('li'); li.className='list-group-item text-muted small py-2';
+      li.textContent='Brak kont dla „'+q+'”.'; list.appendChild(li);
+    } else {
+      items.forEach(function(u){
+        var li=document.createElement('li');
+        li.className='list-group-item list-group-item-action py-2'; li.style.cursor='pointer';
+        li.innerHTML='<span class="fw-semibold">'+esc(u.name)+'</span>'+(u.email?' <span class="text-muted small">'+esc(u.email)+'</span>':'');
+        li.addEventListener('click', function(){
+          if(idFld) idFld.value=u.id;
+          setChip(esc(u.name)+(u.email?' · '+esc(u.email):''));
+          if(fName && !fName.value.trim()) fName.value=u.name||'';
+          input.value=''; closeList();
+        });
+        list.appendChild(li);
+      });
+    }
+    list.style.display='';
+  }
+
+  input.addEventListener('input', function(){
+    clearTimeout(timer);
+    var q=input.value.trim();
+    if(q.length<2){closeList();return;}
+    timer=setTimeout(function(){
+      fetch('<?= APP_URL ?>/pelnomocnictwa/search_user.php?q='+encodeURIComponent(q))
+        .then(function(r){return r.json();}).then(function(d){render(d,q);}).catch(closeList);
+    },280);
+  });
+  document.addEventListener('click', function(e){ if(wrap && !wrap.contains(e.target)) closeList(); });
 })();
 </script>
 

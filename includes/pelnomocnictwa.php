@@ -19,6 +19,7 @@
         mocodawca              TEXT    NOT NULL DEFAULT '',
         pelnomocnik            TEXT    NOT NULL DEFAULT '',
         pelnomocnik_pesel      TEXT    NOT NULL DEFAULT '',
+        pelnomocnik_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
         zakres                 TEXT    NOT NULL DEFAULT '',
         forma                  TEXT    NOT NULL DEFAULT '',
         data_udzielenia        DATE,
@@ -55,6 +56,7 @@
     // modyfikuje już istniejącej tabeli) — ALTER TABLE jest no-op jeśli kolumna już istnieje.
     $cols = [
         "pelnomocnik_pesel       TEXT    NOT NULL DEFAULT ''",
+        "pelnomocnik_user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL",
         "podpisujacy             TEXT    NOT NULL DEFAULT ''",
         "podpisujacy_funkcja     TEXT    NOT NULL DEFAULT ''",
         "dokument_plik           TEXT    NOT NULL DEFAULT ''",
@@ -193,6 +195,7 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
     if ($pelnomocnik === '') throw new \RuntimeException('Pełnomocnik jest wymagany.');
 
     $pelnomocnik_pesel  = trim($d['pelnomocnik_pesel'] ?? '');
+    $pelnomocnik_user_id = (int)($d['pelnomocnik_user_id'] ?? 0) ?: null;
     $zakres             = trim($d['zakres'] ?? '');
     $forma              = trim($d['forma'] ?? '');
     $data_udzielenia    = ($d['data_udzielenia'] ?? '') ?: null;
@@ -216,19 +219,19 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
             $numer = $existing['numer'];
         }
         db()->prepare(
-            "UPDATE pelnomocnictwa SET numer=?,mocodawca=?,pelnomocnik=?,pelnomocnik_pesel=?,zakres=?,forma=?,
+            "UPDATE pelnomocnictwa SET numer=?,mocodawca=?,pelnomocnik=?,pelnomocnik_pesel=?,pelnomocnik_user_id=?,zakres=?,forma=?,
              data_udzielenia=?,data_waznosci=?,data_odwolania=?,uwagi=?,podpisujacy=?,podpisujacy_funkcja=?,
              updated_at=datetime('now') WHERE id=?"
-        )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $id]);
+        )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $id]);
         pelnomocnictwo_log($id, 'update', 'Zaktualizowano dane wpisu.', $user_id);
         return $id;
     }
 
     $numer = trim($d['numer'] ?? '') ?: pelnomocnictwa_suggest_numer();
     db()->prepare(
-        "INSERT INTO pelnomocnictwa (numer,mocodawca,pelnomocnik,pelnomocnik_pesel,zakres,forma,data_udzielenia,data_waznosci,data_odwolania,uwagi,podpisujacy,podpisujacy_funkcja,created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $user_id]);
+        "INSERT INTO pelnomocnictwa (numer,mocodawca,pelnomocnik,pelnomocnik_pesel,pelnomocnik_user_id,zakres,forma,data_udzielenia,data_waznosci,data_odwolania,uwagi,podpisujacy,podpisujacy_funkcja,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $user_id]);
     $newId = (int)db()->lastInsertId();
     pelnomocnictwo_log($newId, 'create', 'Dodano pełnomocnictwo ' . $numer . ' dla: ' . $pelnomocnik . '.', $user_id);
     return $newId;
@@ -328,6 +331,31 @@ function pelnomocnictwo_document_delete(int $id): void {
          dokument_uploaded_by=NULL, dokument_uploaded_at=NULL WHERE id=?"
     )->execute([$id]);
     pelnomocnictwo_log($id, 'doc_delete', 'Usunięto dołączony skan: ' . ($row['dokument_oryginal_nazwa'] ?: ''));
+}
+
+/**
+ * Pełnomocnictwa, w których dana osoba jest pełnomocnikiem — po powiązaniu z kontem
+ * (pelnomocnik_user_id) LUB, dla starszych wpisów bez powiązania, po dopasowaniu nazwiska.
+ * Do widżetu „Moje pełnomocnictwa" w panelu i widżetu Zastępstwa w EZD.
+ *
+ * @param bool $only_active tylko ważne (domyślnie true)
+ */
+function pelnomocnictwa_for_user(int $user_id, string $name = '', bool $only_active = true): array {
+    $where  = ['(p.pelnomocnik_user_id = ?'];
+    $params = [$user_id];
+    if (trim($name) !== '') { $where[0] .= ' OR p.pelnomocnik = ?'; $params[] = trim($name); }
+    $where[0] .= ')';
+    try {
+        $rows = db_all(
+            "SELECT p.* FROM pelnomocnictwa p WHERE " . implode(' AND ', $where) .
+            " ORDER BY p.data_udzielenia DESC, p.id DESC",
+            $params
+        );
+    } catch (\Throwable $e) { return []; }
+    if ($only_active) {
+        $rows = array_values(array_filter($rows, fn($r) => pelnomocnictwo_status($r) === 'wazne'));
+    }
+    return $rows;
 }
 
 /** Statystyki do widżetu/dashboardu: liczba wg statusu. */

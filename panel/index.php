@@ -543,6 +543,9 @@ $_quip = $_admin_quips[abs(crc32($user['name'])) % count($_admin_quips)];
 <!-- ── Zadania (gdy nie pokazano wyżej, np. widok edytora/admina) ──────────── -->
 <?php include __DIR__ . '/includes/pv_tasks_section.php'; ?>
 
+<!-- ── Moje pełnomocnictwa (widoczne dla każdego pełnomocnika) ─────────────── -->
+<?php include __DIR__ . '/includes/pv_pelnomocnictwa.php'; ?>
+
 <!-- ── Sekcje wspólne: u wolontariusza w zakładce „Narzędzia" (pv_home), tu tylko dla edytora/admina ── -->
 <?php if (!$_is_volunteer_only) include __DIR__ . '/includes/pv_extra_sections.php'; ?>
 

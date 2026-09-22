@@ -159,7 +159,10 @@ try {
     if ($cur_name && module_enabled('pelnomocnictwa_enabled')) {
         $wazne          = pelnomocnictwa_all(['status' => 'wazne']);
         $zastepuje      = array_slice(array_values(array_filter($wazne, fn($r) => $r['mocodawca']   === $cur_name)), 0, 5);
-        $zastepuje_mnie = array_slice(array_values(array_filter($wazne, fn($r) => $r['pelnomocnik'] === $cur_name)), 0, 5);
+        // Pełnomocnictwa udzielone bieżącemu użytkownikowi — po powiązaniu konta LUB nazwisku.
+        $zastepuje_mnie = function_exists('pelnomocnictwa_for_user')
+            ? array_slice(pelnomocnictwa_for_user($user_id, $cur_name, true), 0, 5)
+            : array_slice(array_values(array_filter($wazne, fn($r) => $r['pelnomocnik'] === $cur_name)), 0, 5);
     }
 } catch(\Throwable $e) {}
 
