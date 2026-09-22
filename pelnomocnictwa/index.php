@@ -24,6 +24,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', $id ? 'Zaktualizowano pełnomocnictwo.' : 'Dodano pełnomocnictwo do rejestru.');
             header('Location:'.APP_URL.'/pelnomocnictwa/index.php'); exit;
         }
+        if ($action === 'revoke') {
+            $id = (int)($_POST['id'] ?? 0);
+            pelnomocnictwo_revoke($id, $_POST['data_odwolania'] ?? null, $user_id);
+            flash_set('success', 'Pełnomocnictwo odwołane — możesz wygenerować dokument odwołania.');
+            header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
+        }
         if ($action === 'delete' && is_admin()) {
             pelnomocnictwo_delete((int)($_POST['id'] ?? 0));
             flash_set('success', 'Wpis usunięty.');
@@ -253,6 +259,14 @@ include dirname(__DIR__) . '/includes/header.php';
             <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $r['id'] ?>&typ=pelnomocnictwo" class="btn btn-xs btn-outline-secondary btn-sm" title="Generuj dokument" target="_blank"><i class="bi bi-file-earmark-richtext"></i></a>
             <a href="<?= APP_URL ?>/pelnomocnictwa/print.php?id=<?= $r['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm" title="Wydruk rejestru" target="_blank"><i class="bi bi-printer"></i></a>
             <a href="?edit=<?= $r['id'] ?>#form-peln" class="btn btn-xs btn-outline-secondary btn-sm" title="Edytuj"><i class="bi bi-pencil"></i></a>
+            <?php if (pelnomocnictwo_status($r) === 'wazne'): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Odwołać pełnomocnictwo <?= h($r['numer']) ?> ze skutkiem na dziś (<?= h(date_pl(date('Y-m-d'))) ?>)?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="revoke">
+              <input type="hidden" name="id" value="<?= $r['id'] ?>">
+              <button class="btn btn-xs btn-outline-warning btn-sm" title="Odwołaj (na dziś)"><i class="bi bi-x-octagon"></i></button>
+            </form>
+            <?php endif; ?>
             <?php if(is_admin()): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć wpis z rejestru?')">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">

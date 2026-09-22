@@ -234,6 +234,21 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
     return $newId;
 }
 
+/**
+ * Szybkie odwołanie pełnomocnictwa wprost z listy: ustawia datę odwołania
+ * (domyślnie dzisiaj) i loguje zdarzenie. Nie nadpisuje już odwołanego wpisu.
+ */
+function pelnomocnictwo_revoke(int $id, ?string $date, ?int $user_id): void {
+    $row = pelnomocnictwo_get($id);
+    if (!$row) throw new \RuntimeException('Wpis nie istnieje.');
+    if (!empty($row['data_odwolania'])) throw new \RuntimeException('Pełnomocnictwo jest już odwołane.');
+
+    $date = ($date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) ? $date : date('Y-m-d');
+    db()->prepare("UPDATE pelnomocnictwa SET data_odwolania=?, updated_at=datetime('now') WHERE id=?")
+        ->execute([$date, $id]);
+    pelnomocnictwo_log($id, 'revoke', 'Odwołano ze skutkiem na ' . pelnomocnictwo_data_slownie($date) . '.', $user_id);
+}
+
 function pelnomocnictwo_delete(int $id): void {
     $row = pelnomocnictwo_get($id);
     if ($row && $row['dokument_plik']) {
