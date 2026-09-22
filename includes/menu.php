@@ -494,6 +494,7 @@ function _menu_editor(): array {
             _mi('SharePoint','/admin/sharepoint_settings.php','bi-cloud-upload',['match'=>'/admin/sharepoint','kw'=>'sharepoint']),
             _mi('Szkolenia (TidyCal)','/admin/tidycal_settings.php','bi-calendar2-check',['match'=>'/admin/tidycal','kw'=>'tidycal szkolenia']),
             _mi('Zadania / Nozbe','/admin/nozbe_settings.php','bi-check2-square',['match'=>'/admin/nozbe_settings','kw'=>'nozbe zadania integracja']),
+            _mi('Faktury / Comarch Betterfly','/admin/comarch_settings.php','bi-receipt',['match'=>'/admin/comarch','kw'=>'comarch betterfly faktury api']),
             _mi('Płatności / Stripe','/admin/stripe_settings.php','bi-credit-card',['match'=>'/admin/stripe_settings','kw'=>'stripe płatności']),
             _mi('Płatności / PayU','/admin/payu_settings.php','bi-wallet2',['match'=>'/admin/payu_settings','kw'=>'payu płatności']),
             _mi('Płatności / Przelewy24','/admin/p24_settings.php','bi-wallet2',['match'=>'/admin/p24_settings','kw'=>'przelewy24 p24 płatności']),
