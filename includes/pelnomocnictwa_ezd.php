@@ -150,6 +150,42 @@ function pelnomocnictwo_ezd_register_signed(int $peln_id, ?int $user_id): ?int {
     }
 }
 
+/**
+ * Generuje dokument (PDF) i dołącza go jako plik do koszulki EZD.
+ * $typ = 'pelnomocnictwo'|'odwolanie'. Zakłada koszulkę, jeśli brak.
+ * @return int|null id załącznika EZD lub null.
+ */
+function pelnomocnictwo_ezd_attach_generated(int $peln_id, string $typ, ?int $user_id): ?int {
+    if (!pelnomocnictwo_ezd_active()) return null;
+    require_once __DIR__ . '/ezd.php';
+
+    $row = pelnomocnictwo_get($peln_id);
+    if (!$row) return null;
+    $sid = pelnomocnictwo_ensure_koszulka($peln_id, $user_id);
+    if (!$sid) return null;
+    $uid = (int)($user_id ?: ($row['created_by'] ?? 0));
+
+    $pdf = pelnomocnictwo_pdf_render($row, $typ);
+    if (!$pdf) return null;
+    [$bytes, $filename] = $pdf;
+
+    $tmp = tempnam(sys_get_temp_dir(), 'peln_pdf_');
+    if ($tmp === false) return null;
+    try {
+        file_put_contents($tmp, $bytes);
+        if (!function_exists('ezd_attach_path')) return null;
+        $att = ezd_attach_path($tmp, $filename, $sid, null, $uid);
+        if ($att) {
+            pelnomocnictwo_log($peln_id, 'ezd_pismo', 'Dołączono wygenerowany dokument (' . $filename . ') do koszulki.', $user_id);
+        }
+        return $att;
+    } catch (\Throwable $e) {
+        return null;
+    } finally {
+        @unlink($tmp);
+    }
+}
+
 /** Odnośnik do koszulki EZD wpisu (lub null). */
 function pelnomocnictwo_ezd_url(array $row): ?string {
     if (empty($row['ezd_sprawa_id'])) return null;

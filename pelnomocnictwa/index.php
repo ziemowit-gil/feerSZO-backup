@@ -35,6 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Pełnomocnictwo odwołane — możesz wygenerować dokument odwołania.');
             header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
         }
+        if ($action === 'attach_generated') {
+            $id  = (int)($_POST['id'] ?? 0);
+            $typ = ($_POST['typ'] ?? '') === 'odwolanie' ? 'odwolanie' : 'pelnomocnictwo';
+            $att = pelnomocnictwo_ezd_attach_generated($id, $typ, $user_id);
+            flash_set($att ? 'success' : 'error', $att ? 'Dołączono wygenerowany dokument do koszulki EZD.' : 'Nie udało się dołączyć (EZD wyłączone lub brak mPDF).');
+            header('Location:'.APP_URL.'/pelnomocnictwa/index.php?edit='.$id.'#form-peln'); exit;
+        }
         if ($action === 'make_koszulka') {
             $id  = (int)($_POST['id'] ?? 0);
             $sid = pelnomocnictwo_ensure_koszulka($id, $user_id);
@@ -241,6 +248,17 @@ include dirname(__DIR__) . '/includes/header.php';
       <span class="text-muted" style="font-size:.72rem"><i class="bi bi-file-earmark-richtext me-1"></i>Generuj dokument:</span>
       <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $edit['id'] ?>&typ=pelnomocnictwo" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-plus me-1"></i>Pełnomocnictwo</a>
       <a href="<?= APP_URL ?>/pelnomocnictwa/dokument.php?id=<?= $edit['id'] ?>&typ=odwolanie" target="_blank" class="btn btn-outline-danger btn-sm"><i class="bi bi-file-earmark-x me-1"></i>Odwołanie</a>
+      <span class="vr mx-1"></span>
+      <a href="<?= APP_URL ?>/pelnomocnictwa/pdf.php?id=<?= $edit['id'] ?>&typ=pelnomocnictwo&download=1" class="btn btn-outline-secondary btn-sm" title="Pobierz PDF"><i class="bi bi-filetype-pdf me-1"></i>Eksport PDF</a>
+      <?php if (module_enabled('ezd_enabled')): ?>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="attach_generated">
+        <input type="hidden" name="id" value="<?= $edit['id'] ?>">
+        <input type="hidden" name="typ" value="pelnomocnictwo">
+        <button class="btn btn-outline-primary btn-sm" title="Dołącz wygenerowany PDF do koszulki EZD"><i class="bi bi-folder-symlink me-1"></i>PDF → koszulka</button>
+      </form>
+      <?php endif; ?>
     </div>
 
     <?php if (module_enabled('ezd_enabled')): ?>

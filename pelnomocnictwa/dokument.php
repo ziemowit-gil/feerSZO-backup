@@ -99,6 +99,7 @@ body {
 
 <div class="toolbar" aria-hidden="true">
   <button onclick="window.print()">🖨 Drukuj / PDF</button>
+  <a href="<?= APP_URL ?>/pelnomocnictwa/pdf.php?id=<?= $id ?>&typ=<?= h($typ) ?>&download=1">⬇ Eksport PDF (plik)</a>
   <a href="<?= APP_URL ?>/pelnomocnictwa/index.php?edit=<?= $id ?>">← Wróć do rejestru</a>
   <span class="switch">
     <a class="<?= $typ==='pelnomocnictwo'?'on':'' ?>" href="?id=<?= $id ?>&typ=pelnomocnictwo">Pełnomocnictwo</a>

@@ -474,6 +474,108 @@ function pelnomocnictwa_missing_signature(): array {
     return array_values(array_filter($rows, 'pelnomocnictwo_needs_signature'));
 }
 
+/**
+ * Statyczny HTML dokumentu (do eksportu PDF i załączania do koszulki EZD).
+ * Odpowiada wizualnie widokowi ekranowemu (pelnomocnictwa/dokument.php), ale
+ * bez pól edytowalnych — zwrot Pan/Pani jest już rozstrzygnięty, „w imieniu”
+ * używa nazwy organizacji. $typ = 'pelnomocnictwo'|'odwolanie'.
+ */
+function pelnomocnictwo_pdf_html(array $row, string $typ = 'pelnomocnictwo'): string {
+    $typ = $typ === 'odwolanie' ? 'odwolanie' : 'pelnomocnictwo';
+    $org = pelnomocnictwa_org_ident();
+    $dzis = date('Y-m-d');
+    $is_kor   = ($row['rodzaj'] ?? 'ogolne') === 'korespondencja';
+    $kor_opis = $is_kor ? pelnomocnictwo_kor_opis($row) : '';
+    $zwrot_c  = pelnomocnictwo_zwrot_celownik($row['zwrot'] ?? '');
+    $data_dok = $typ === 'odwolanie' ? ($row['data_odwolania'] ?: $dzis) : ($row['data_udzielenia'] ?: $dzis);
+    $data_dok_slow = pelnomocnictwo_data_slownie($data_dok) ?: date('d.m.Y');
+    $data_udz_slow = pelnomocnictwo_data_slownie($row['data_udzielenia'] ?: null);
+    $miejsc   = $org['miejscowosc'] ?: '_______________';
+    $w_imieniu = $org['nazwa'] ?: 'Fundacji';
+    $items    = pelnomocnictwo_zakres_items($row);
+
+    $tytul = $is_kor
+        ? ($typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa do odbioru korespondencji' : 'Pełnomocnictwo do odbioru korespondencji')
+        : ($typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa' : 'Pełnomocnictwo');
+
+    $pesel = $row['pelnomocnik_pesel'] ? ' (PESEL: ' . h($row['pelnomocnik_pesel']) . ')' : '';
+
+    ob_start(); ?>
+<style>
+  body { font-family: 'DejaVu Serif', serif; font-size: 11pt; color:#000; line-height:1.55; }
+  .doc-date { text-align:right; margin-bottom:20pt; }
+  .doc-title { text-align:center; font-weight:bold; text-transform:uppercase; margin-bottom:16pt; }
+  .doc-body p { text-align:justify; margin:0 0 8pt; }
+  ol.doc-list { margin:2pt 0 10pt 18pt; }
+  ol.doc-list li { text-align:justify; margin-bottom:3pt; }
+  .doc-sign { margin-top:48pt; text-align:right; }
+  .doc-sign .line { border-top:1px solid #000; display:inline-block; width:220px; padding-top:3pt; font-weight:bold; }
+</style>
+<div class="doc-date"><?= h($miejsc) ?>, dnia <?= h($data_dok_slow) ?></div>
+<div class="doc-title"><?= h($tytul) ?></div>
+<div class="doc-body">
+<p>ja, niżej podpisany/a <strong><?= h($row['podpisujacy'] ?: '_______________') ?></strong>,
+jako <?= h($row['podpisujacy_funkcja'] ?: '_______________') ?> <strong><?= h($org['nazwa']) ?></strong>
+z siedzibą przy <?= h($org['adres'] ?: '_______________') ?>,
+wpisanej do rejestru stowarzyszeń Krajowego Rejestru Sądowego,
+<?= h($org['sad'] ?: '') ?> pod nr: <?= h($org['krs'] ?: '_______________') ?>,
+posiadającej NIP: <?= h($org['nip'] ?: '_______________') ?>, uprawniony do jednoosobowej reprezentacji;</p>
+
+<?php if ($typ === 'odwolanie'): ?>
+<p>odwołuję pełnomocnictwo udzielone <?= h($zwrot_c) ?></p>
+<p>1) <strong><?= h($row['pelnomocnik']) ?></strong><?= $pesel ?><?= $data_udz_slow ? ' w dniu ' . h($data_udz_slow) . 'r.' : '' ?></p>
+<?php else: ?>
+<p>udzielam pełnomocnictwa <?= h($zwrot_c) ?></p>
+<p>1) <strong><?= h($row['pelnomocnik']) ?></strong><?= $pesel ?></p>
+<?php endif; ?>
+
+<?php if ($is_kor): ?>
+<p>do odbioru w imieniu <?= h($w_imieniu) ?> <?= h($kor_opis) ?>.</p>
+<?php else: ?>
+<p>do działania w imieniu <?= h($w_imieniu) ?>, w sprawach:</p>
+<ol class="doc-list">
+  <?php foreach ($items as $it): ?><li><?= h($it) ?></li><?php endforeach; ?>
+  <?php if (!$items): ?><li>_______________</li><?php endif; ?>
+</ol>
+<?php endif; ?>
+
+<?php if ($typ === 'pelnomocnictwo'): ?>
+<p><?= $row['data_waznosci']
+      ? 'Pełnomocnictwo obowiązuje do dnia ' . h(pelnomocnictwo_data_slownie($row['data_waznosci'])) . 'r.'
+      : 'Pełnomocnictwo ma charakter bezterminowy, do czasu jego odwołania.' ?></p>
+<?php endif; ?>
+</div>
+<div class="doc-sign"><span class="line"><?= h($row['podpisujacy'] ?: '_______________') ?></span></div>
+<?php
+    return (string)ob_get_clean();
+}
+
+/** Renderuje dokument do bajtów PDF przez mPDF. Zwraca [bajty, nazwa_pliku] lub null. */
+function pelnomocnictwo_pdf_render(array $row, string $typ = 'pelnomocnictwo'): ?array {
+    $autoload = dirname(__DIR__) . '/vendor/autoload.php';
+    if (!is_file($autoload)) return null;
+    require_once $autoload;
+    if (!class_exists('\\Mpdf\\Mpdf')) return null;
+
+    $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
+    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+
+    try {
+        $mpdf = new \Mpdf\Mpdf([
+            'mode' => 'utf-8', 'format' => 'A4',
+            'margin_left' => 25, 'margin_right' => 25, 'margin_top' => 20, 'margin_bottom' => 18,
+            'default_font' => 'dejavuserif', 'tempDir' => $tmp,
+        ]);
+        $tytul = ($typ === 'odwolanie' ? 'Odwolanie pelnomocnictwa ' : 'Pelnomocnictwo ') . ($row['numer'] ?? '');
+        $mpdf->SetTitle($tytul);
+        $mpdf->WriteHTML(pelnomocnictwo_pdf_html($row, $typ));
+        $slug = preg_replace('/[^A-Za-z0-9\-_]/', '_', ($typ === 'odwolanie' ? 'Odwolanie_' : 'Pelnomocnictwo_') . ($row['numer'] ?? $row['id'] ?? ''));
+        return [$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN), $slug . '.pdf'];
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
 /** Statystyki do widżetu/dashboardu: liczba wg statusu. */
 function pelnomocnictwa_stats(): array {
     $out = ['wazne' => 0, 'wygasle' => 0, 'odwolane' => 0, 'total' => 0];
