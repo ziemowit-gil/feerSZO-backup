@@ -94,13 +94,15 @@ function _menu_counts(): array {
     try { $r = db_one("SELECT COUNT(*) AS c FROM user_applications WHERE status='nowy'"); $c['adm'] += (int)($r['c'] ?? 0); } catch (\Throwable $e) {}
     try {
         if (module_enabled('helpdesk_enabled') && ($u = current_user())) {
-            if (is_admin() || !empty($u['helpdesk_operator']))
+            // Tryb „tylko frontend": brak operatorów w SZO → każdy widzi własne zgłoszenia.
+            $hd_fe = org_setting('helpdesk_frontend_only') === '1';
+            if (!$hd_fe && (is_admin() || !empty($u['helpdesk_operator'])))
                 $c['hd'] = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE status NOT IN ('zamknięte')")['c'] ?? 0);
             else
                 $c['hd'] = (int)(db_one("SELECT COUNT(*) AS c FROM helpdesk_tickets WHERE requester_id=? AND status NOT IN ('zamknięte','rozwiązane')", [(int)$u['id']])['c'] ?? 0);
         }
     } catch (\Throwable $e) {}
-    $c['alias_op'] = is_admin() || !empty(current_user()['helpdesk_operator']);
+    $c['alias_op'] = (org_setting('helpdesk_frontend_only') !== '1') && (is_admin() || !empty(current_user()['helpdesk_operator']));
     if ($c['alias_op']) {
         try { $c['alias'] = (int)(db_one("SELECT COUNT(*) AS c FROM email_alias_requests WHERE status IN ('oczekuje','błąd')")['c'] ?? 0); } catch (\Throwable $e) {}
     }

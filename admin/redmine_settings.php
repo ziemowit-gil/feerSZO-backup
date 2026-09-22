@@ -14,6 +14,7 @@ $PAGE_TITLE = 'Ustawienia Redmine';
 $KEYS = [
     'redmine_enabled', 'redmine_url', 'redmine_api_key',
     'redmine_default_project_id', 'redmine_default_tracker_id',
+    'helpdesk_frontend_only',
 ];
 $settings = [];
 foreach ($KEYS as $k) { $settings[$k] = org_setting($k); }
@@ -26,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
         'redmine_default_project_id' => trim($_POST['redmine_default_project_id'] ?? ''),
         'redmine_default_tracker_id' => trim($_POST['redmine_default_tracker_id'] ?? ''),
     ];
+    $save['helpdesk_frontend_only'] = isset($_POST['helpdesk_frontend_only']) ? '1' : '0';
     // Klucz API — zachowaj stary, gdy pole puste.
     $key = trim($_POST['redmine_api_key'] ?? '');
     if ($key !== '') $save['redmine_api_key'] = $key;
@@ -99,6 +101,17 @@ include dirname(__DIR__) . '/includes/header.php';
       Wysyłaj nowe zgłoszenia Helpdesk do Redmine
     </label>
   </div>
+
+  <div class="form-check form-switch mb-3">
+    <input class="form-check-input" type="checkbox" role="switch" name="helpdesk_frontend_only"
+           id="helpdesk_frontend_only" value="1" <?= $settings['helpdesk_frontend_only'] === '1' ? 'checked' : '' ?>>
+    <label class="form-check-label" for="helpdesk_frontend_only">
+      Helpdesk w SZO tylko dla zgłaszających — obsługa operatorska w Redmine
+      <span class="d-block text-muted small">Ukrywa konsolę operatora w SZO; użytkownicy tylko zgłaszają i śledzą własne zgłoszenia.</span>
+    </label>
+  </div>
+
+  <hr>
 
   <div class="mb-3">
     <label class="form-label fw-semibold small">Adres Redmine <span class="text-danger">*</span></label>

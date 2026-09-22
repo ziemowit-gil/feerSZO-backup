@@ -311,7 +311,17 @@ function helpdesk_intro_banner_html(): string {
 
 // ── Autoryzacja ───────────────────────────────────────────────────────────────
 
+/**
+ * Tryb „tylko frontend dla zgłaszających" — obsługa operatorska odbywa się w
+ * zewnętrznym systemie (Redmine). W SZO nie ma wtedy konsoli operatora: każdy
+ * użytkownik może tylko zgłaszać i śledzić własne zgłoszenia.
+ */
+function hd_frontend_only(): bool {
+    return org_setting('helpdesk_frontend_only') === '1';
+}
+
 function hd_is_operator(): bool {
+    if (hd_frontend_only()) return false;   // brak operatorów w SZO — praca w Redmine
     if (is_admin()) return true;
     $u = current_user();
     return $u && !empty($u['helpdesk_operator']);
