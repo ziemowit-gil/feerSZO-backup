@@ -30,6 +30,10 @@ $zakres_items    = pelnomocnictwo_zakres_items($row);
 $miejscowosc     = $org['miejscowosc'] ?: '_______________';
 $is_kor          = ($row['rodzaj'] ?? 'ogolne') === 'korespondencja';
 $kor_opis        = $is_kor ? pelnomocnictwo_kor_opis($row) : '';
+$zwrot_set       = in_array($row['zwrot'] ?? '', ['pan','pani'], true);
+$zwrot_c         = pelnomocnictwo_zwrot_celownik($row['zwrot'] ?? '');
+// Zwrot wybrany na etapie wpisu → tekst stały; brak wyboru → pole do ręcznej odmiany.
+$zwrot_html      = $zwrot_set ? h($zwrot_c) : '<span class="edit-field" contenteditable="true">'.h($zwrot_c).'</span>';
 
 $_tytul = $is_kor
     ? ($typ === 'odwolanie' ? 'Odwołanie pełnomocnictwa do odbioru korespondencji' : 'Pełnomocnictwo do odbioru korespondencji')
@@ -119,10 +123,10 @@ posiadającej NIP: <?= h($org['nip'] ?: '_______________') ?>, uprawniony do jed
 </p>
 
 <?php if ($typ === 'odwolanie'): ?>
-<p>odwołuje pełnomocnictwo udzielone <span class="edit-field" contenteditable="true">Pani/Panu</span></p>
+<p>odwołuje pełnomocnictwo udzielone <?= $zwrot_html ?></p>
 <p>1) <span class="edit-field" contenteditable="true"><?= h($row['pelnomocnik']) ?></span><?php if ($row['pelnomocnik_pesel']): ?> (PESEL: <?= h($row['pelnomocnik_pesel']) ?>)<?php endif; ?><?php if ($data_udz_slow): ?> w dniu <?= h($data_udz_slow) ?>r.<?php endif; ?></p>
 <?php else: ?>
-<p>udzielam pełnomocnictwa <span class="edit-field" contenteditable="true">Pani/Panu</span></p>
+<p>udzielam pełnomocnictwa <?= $zwrot_html ?></p>
 <p>1) <span class="edit-field" contenteditable="true"><?= h($row['pelnomocnik']) ?></span><?php if ($row['pelnomocnik_pesel']): ?> (PESEL: <?= h($row['pelnomocnik_pesel']) ?>)<?php endif; ?></p>
 <?php endif; ?>
 

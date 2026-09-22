@@ -20,6 +20,7 @@
         pelnomocnik            TEXT    NOT NULL DEFAULT '',
         pelnomocnik_pesel      TEXT    NOT NULL DEFAULT '',
         pelnomocnik_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        zwrot                  TEXT    NOT NULL DEFAULT '',
         rodzaj                 TEXT    NOT NULL DEFAULT 'ogolne',
         kor_tryb               TEXT    NOT NULL DEFAULT '',
         kor_szczegoly          TEXT    NOT NULL DEFAULT '',
@@ -61,6 +62,7 @@
     $cols = [
         "pelnomocnik_pesel       TEXT    NOT NULL DEFAULT ''",
         "pelnomocnik_user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "zwrot                   TEXT    NOT NULL DEFAULT ''",
         "rodzaj                  TEXT    NOT NULL DEFAULT 'ogolne'",
         "kor_tryb                TEXT    NOT NULL DEFAULT ''",
         "kor_szczegoly           TEXT    NOT NULL DEFAULT ''",
@@ -77,6 +79,18 @@
         try { db()->exec("ALTER TABLE pelnomocnictwa ADD COLUMN $def"); } catch (\Throwable $e) {}
     }
 })();
+
+// ── Zwrot grzecznościowy ────────────────────────────────────────────────────────
+
+/** Opcje zwrotu grzecznościowego pełnomocnika (klucz => etykieta). */
+function pelnomocnictwo_zwroty(): array {
+    return ['' => '— (uzupełnisz w dokumencie)', 'pan' => 'Pan', 'pani' => 'Pani'];
+}
+
+/** Forma adresatywna w celowniku do dokumentu: „Panu” / „Pani” / (placeholder) „Pani/Panu”. */
+function pelnomocnictwo_zwrot_celownik(?string $z): string {
+    return match ($z) { 'pan' => 'Panu', 'pani' => 'Pani', default => 'Pani/Panu' };
+}
 
 // ── Rodzaje pełnomocnictw ──────────────────────────────────────────────────────
 
@@ -247,6 +261,7 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
 
     $pelnomocnik_pesel  = trim($d['pelnomocnik_pesel'] ?? '');
     $pelnomocnik_user_id = (int)($d['pelnomocnik_user_id'] ?? 0) ?: null;
+    $zwrot              = in_array(($d['zwrot'] ?? ''), ['pan','pani'], true) ? $d['zwrot'] : '';
     $rodzaj             = array_key_exists(($d['rodzaj'] ?? ''), pelnomocnictwa_rodzaje()) ? $d['rodzaj'] : 'ogolne';
     $kor_tryb           = '';
     $kor_szczegoly      = '';
@@ -277,19 +292,19 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
             $numer = $existing['numer'];
         }
         db()->prepare(
-            "UPDATE pelnomocnictwa SET numer=?,mocodawca=?,pelnomocnik=?,pelnomocnik_pesel=?,pelnomocnik_user_id=?,rodzaj=?,kor_tryb=?,kor_szczegoly=?,zakres=?,forma=?,
+            "UPDATE pelnomocnictwa SET numer=?,mocodawca=?,pelnomocnik=?,pelnomocnik_pesel=?,pelnomocnik_user_id=?,zwrot=?,rodzaj=?,kor_tryb=?,kor_szczegoly=?,zakres=?,forma=?,
              data_udzielenia=?,data_waznosci=?,data_odwolania=?,uwagi=?,podpisujacy=?,podpisujacy_funkcja=?,
              updated_at=datetime('now') WHERE id=?"
-        )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $id]);
+        )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $zwrot, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $id]);
         pelnomocnictwo_log($id, 'update', 'Zaktualizowano dane wpisu.', $user_id);
         return $id;
     }
 
     $numer = trim($d['numer'] ?? '') ?: pelnomocnictwa_suggest_numer();
     db()->prepare(
-        "INSERT INTO pelnomocnictwa (numer,mocodawca,pelnomocnik,pelnomocnik_pesel,pelnomocnik_user_id,rodzaj,kor_tryb,kor_szczegoly,zakres,forma,data_udzielenia,data_waznosci,data_odwolania,uwagi,podpisujacy,podpisujacy_funkcja,created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $user_id]);
+        "INSERT INTO pelnomocnictwa (numer,mocodawca,pelnomocnik,pelnomocnik_pesel,pelnomocnik_user_id,zwrot,rodzaj,kor_tryb,kor_szczegoly,zakres,forma,data_udzielenia,data_waznosci,data_odwolania,uwagi,podpisujacy,podpisujacy_funkcja,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $pelnomocnik_user_id, $zwrot, $rodzaj, $kor_tryb, $kor_szczegoly, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $user_id]);
     $newId = (int)db()->lastInsertId();
     pelnomocnictwo_log($newId, 'create', 'Dodano pełnomocnictwo ' . $numer . ' dla: ' . $pelnomocnik . '.', $user_id);
     return $newId;

@@ -186,6 +186,13 @@ include dirname(__DIR__) . '/includes/header.php';
         <input type="text" name="pelnomocnik" id="peln-pelnomocnik" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik'] ?? '') ?>" required placeholder="komu udzielono pełnomocnictwa"></div>
       <div class="col-md-2"><label class="form-label mb-1" style="font-size:.74rem">PESEL</label>
         <input type="text" name="pelnomocnik_pesel" id="peln-pesel" class="form-control form-control-sm" value="<?= h($edit['pelnomocnik_pesel'] ?? '') ?>" maxlength="11" placeholder="opcjonalnie"></div>
+      <div class="col-md-2"><label class="form-label mb-1" style="font-size:.74rem">Zwrot</label>
+        <select name="zwrot" class="form-select form-select-sm">
+          <?php foreach (pelnomocnictwo_zwroty() as $k=>$lbl): ?>
+          <option value="<?= $k ?>" <?= ($edit['zwrot'] ?? '')===$k?'selected':'' ?>><?= h($lbl) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
 
       <div class="col-12 position-relative" id="peln-user-search-wrap">
         <label class="form-label mb-1" style="font-size:.74rem"><i class="bi bi-person-check me-1"></i>Powiąż z kontem użytkownika <span class="text-muted">(pełnomocnik zobaczy wpis w swoim panelu)</span></label>

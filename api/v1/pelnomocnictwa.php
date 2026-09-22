@@ -66,6 +66,7 @@ function peln_api_row(array $r): array {
         'pelnomocnik'     => $r['pelnomocnik'],
         'pelnomocnik_pesel' => $r['pelnomocnik_pesel'],
         'pelnomocnik_user_id' => $r['pelnomocnik_user_id'] !== null ? (int)$r['pelnomocnik_user_id'] : null,
+        'zwrot'           => $r['zwrot'] ?? '',
         'rodzaj'          => $r['rodzaj'] ?? 'ogolne',
         'kor_tryb'        => $r['kor_tryb'] ?? '',
         'kor_szczegoly'   => $r['kor_szczegoly'] ?? '',
@@ -92,7 +93,7 @@ function peln_api_build(array $in, bool $require_fields): array {
     $errors = [];
     $data   = [];
 
-    $fields = ['numer','mocodawca','pelnomocnik','pelnomocnik_pesel','pelnomocnik_user_id','rodzaj','kor_tryb','kor_szczegoly','zakres','forma','data_udzielenia','data_waznosci','data_odwolania','uwagi','podpisujacy','podpisujacy_funkcja'];
+    $fields = ['numer','mocodawca','pelnomocnik','pelnomocnik_pesel','pelnomocnik_user_id','zwrot','rodzaj','kor_tryb','kor_szczegoly','zakres','forma','data_udzielenia','data_waznosci','data_odwolania','uwagi','podpisujacy','podpisujacy_funkcja'];
     foreach ($fields as $f) {
         if (array_key_exists($f, $in)) {
             $v = $in[$f];
