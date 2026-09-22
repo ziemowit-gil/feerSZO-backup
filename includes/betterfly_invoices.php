@@ -57,6 +57,21 @@ function betterfly_invoices_migrate(): void
     // Zapobiega dublowaniu faktury dla tego samego kursu/klienta/okresu.
     db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_betterfly_inv_scope
         ON betterfly_invoices (source, course_id, client_id, period_month, period_year)");
+
+    // Migracje (samonaprawa): powiązanie z obiegiem akceptacji EODoK i kierunek.
+    foreach ([
+        "ALTER TABLE betterfly_invoices ADD COLUMN direction       TEXT    NOT NULL DEFAULT 'sales'", // sales | purchase
+        "ALTER TABLE betterfly_invoices ADD COLUMN edok_doc_id      INTEGER NOT NULL DEFAULT 0",        // edok_documents.id
+        "ALTER TABLE betterfly_invoices ADD COLUMN approval_status  TEXT    NOT NULL DEFAULT ''",        // '' | pending | approved | rejected
+        "ALTER TABLE betterfly_invoices ADD COLUMN reference_number TEXT    NOT NULL DEFAULT ''",        // numer obcy (zakup)
+        "ALTER TABLE betterfly_invoices ADD COLUMN selling_party_id INTEGER NOT NULL DEFAULT 0",         // dostawca (zakup)
+        "ALTER TABLE betterfly_invoices ADD COLUMN confirmed_at     DATETIME",
+    ] as $sql) {
+        try { db()->exec($sql); } catch (\Throwable $e) { /* kolumna już istnieje */ }
+    }
+    db()->exec("CREATE INDEX IF NOT EXISTS ix_betterfly_inv_edok ON betterfly_invoices (edok_doc_id)");
+    // Faktury zakupu deduplikujemy po Id dokumentu Betterfly.
+    db()->exec("CREATE INDEX IF NOT EXISTS ix_betterfly_inv_bfid ON betterfly_invoices (betterfly_invoice_id)");
 }
 
 // ── Brama uprawnień: moduł TI włączony przez administratora ───────────────────
@@ -381,21 +396,41 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
 
         $invoiceId = $client->createInvoice($payload);
 
-        $docStatus = 0;
-        $number    = '';
-        if (!empty($opts['confirm'])) {
+        // Numer nadawany automatycznie — dociągnij z API.
+        $fetched   = $client->getInvoice($invoiceId);
+        $number    = (string)($fetched['Number'] ?? '');
+        $docStatus = (int)($fetched['Status'] ?? 0);
+
+        // Kierunek akceptacji: gdy włączona brama EODoK, faktura zostaje w buforze,
+        // a zatwierdzenie (confirm) nastąpi po finalnej akceptacji obiegu.
+        $viaEdok   = !empty($opts['via_edok']) || betterfly_edok_gate_sales();
+        $approval  = '';
+        $edokDocId = 0;
+
+        if ($viaEdok) {
+            $edokDocId = betterfly_edok_create_doc([
+                'number'      => $number,
+                'party_name'  => (string)($buyer['name'] ?? ''),
+                'party_nip'   => (string)($buyer['nip'] ?? ''),
+                'issue_date'  => date('Y-m-d'),
+                'net'         => round($unitNet * $billing['hours'], 2),
+                'gross'       => (float)($fetched['GrossTotal'] ?? 0),
+                'vat'         => (float)($fetched['VatTotal'] ?? 0),
+                'currency'    => (string)($fetched['CurrencyCode'] ?? 'PLN'),
+                'description' => 'Faktura sprzedaży za kurs TI: ' . $billing['course_name']
+                                 . sprintf(' (%02d/%d)', $month, $year),
+            ], 'sales');
+            $approval = 'pending';
+        } elseif (!empty($opts['confirm'])) {
             $client->confirmInvoice($invoiceId);
-            $docStatus = 1;
-        }
-        // Dociągnij numer/kwoty z API (numer nadawany automatycznie).
-        $fetched = $client->getInvoice($invoiceId);
-        if ($fetched) {
-            $number    = (string)($fetched['Number'] ?? '');
-            $docStatus = (int)($fetched['Status'] ?? $docStatus);
+            $fetched   = $client->getInvoice($invoiceId) ?: $fetched;
+            $number    = (string)($fetched['Number'] ?? $number);
+            $docStatus = (int)($fetched['Status'] ?? 1);
         }
 
         betterfly_upsert_local([
             'id'                    => $localId,
+            'direction'             => 'sales',
             'betterfly_customer_id' => $customerId,
             'betterfly_invoice_id'  => $invoiceId,
             'number'                => $number,
@@ -405,6 +440,8 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
             'currency'              => (string)($fetched['CurrencyCode'] ?? 'PLN'),
             'doc_status'            => $docStatus,
             'payment_status'        => (int)($fetched['PaymentStatus'] ?? 0),
+            'edok_doc_id'           => $edokDocId,
+            'approval_status'       => $approval,
             'last_error'            => '',
         ]);
 
@@ -414,6 +451,8 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
             'betterfly_invoice_id' => $invoiceId,
             'number'               => $number,
             'customer_id'          => $customerId,
+            'via_edok'             => $viaEdok,
+            'edok_doc_id'          => $edokDocId,
             'billing'              => $billing,
         ];
     } catch (BetterFlyException $e) {
@@ -547,6 +586,222 @@ function betterfly_sync_pending(): array
 function betterfly_payment_status_label(int $status): string
 {
     return [0 => 'Niezapłacona', 1 => 'Zapłacona', 2 => 'Częściowo zapłacona'][$status] ?? 'Nieznany';
+}
+
+// ── Integracja z obiegiem akceptacji EODoK ───────────────────────────────────
+
+/** Czy faktury sprzedaży mają przechodzić akceptację EODoK przed zatwierdzeniem. */
+function betterfly_edok_gate_sales(): bool
+{
+    return org_setting('betterfly_edok_gate_sales') === '1';
+}
+
+/** Czy pobrane faktury zakupu mają wchodzić do obiegu EODoK. */
+function betterfly_edok_gate_purchase(): bool
+{
+    return org_setting('betterfly_edok_gate_purchase') === '1';
+}
+
+/**
+ * Tworzy dokument w obiegu EODoK dla faktury Betterfly (wzorzec: edok_ksef_create_doc).
+ * Zwraca id dokumentu edok_documents (0, gdy moduł EODoK niedostępny).
+ *
+ * @param array  $inv        number, party_name, party_nip, issue_date, net, vat, gross,
+ *                          currency, description, file_path?, reference_number?
+ * @param string $direction 'sales' (przychód, faktura_sprzedazy) | 'purchase' (wydatek, faktura_vat)
+ */
+function betterfly_edok_create_doc(array $inv, string $direction): int
+{
+    $edok = __DIR__ . '/edok.php';
+    if (!is_file($edok)) {
+        error_log('[betterfly] Moduł EODoK niedostępny — pomijam utworzenie dokumentu obiegu.');
+        return 0;
+    }
+    require_once $edok;
+    if (!function_exists('edok_next_number') || !function_exists('edok_log')) {
+        error_log('[betterfly] EODoK: brak wymaganych funkcji — pomijam.');
+        return 0;
+    }
+    if (function_exists('edok_migrate')) edok_migrate();
+
+    $isPurchase = ($direction === 'purchase');
+    $kierunek   = $isPurchase ? 'wydatek' : 'przychod';
+    $typ        = $isPurchase ? 'faktura_vat' : 'faktura_sprzedazy';
+    $party      = trim((string)($inv['party_name'] ?? ''));
+    $title      = trim((string)($inv['number'] ?? '') . ($party !== '' ? ' — ' . $party : ''))
+                  ?: ('Faktura Betterfly ' . ($inv['reference_number'] ?? $inv['number'] ?? ''));
+
+    $doc_id = db_insert('edok_documents', [
+        'number'           => edok_next_number(),
+        'title'            => $title,
+        'typ_dokumentu'    => $typ,
+        'kierunek'         => $kierunek,
+        'description'      => (string)($inv['description'] ?? ('Faktura ' . ($isPurchase ? 'zakupu' : 'sprzedaży') . ' zaimportowana z Comarch Betterfly.')),
+        'kontrahent_nazwa' => $party,
+        'kontrahent_nip'   => (string)($inv['party_nip'] ?? ''),
+        'nr_faktury'       => (string)($inv['reference_number'] ?? $inv['number'] ?? ''),
+        'data_wystawienia' => ($inv['issue_date'] ?? '') ?: null,
+        'kwota_netto'      => (string)($inv['net']   ?? ''),
+        'kwota_vat'        => (string)($inv['vat']   ?? ''),
+        'kwota_brutto'     => (string)($inv['gross'] ?? ''),
+        'waluta'           => (string)($inv['currency'] ?? 'PLN') ?: 'PLN',
+        'file_path'        => (string)($inv['file_path'] ?? ''),
+        'status'           => 'w_obiegu',
+        'created_by'       => null,
+        'creator_name'     => 'Comarch Betterfly (auto-import)',
+        'created_at'       => date('Y-m-d H:i:s'),
+        'updated_at'       => date('Y-m-d H:i:s'),
+    ]);
+
+    edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu',
+        'Auto-import z Comarch Betterfly (' . ($isPurchase ? 'faktura zakupu' : 'faktura sprzedaży')
+        . '). Dokument oczekuje na akceptację obiegu; po finalnym zatwierdzeniu '
+        . ($isPurchase ? 'zostanie skierowany do zapłaty.' : 'faktura zostanie zatwierdzona w Betterfly.'));
+
+    return (int)$doc_id;
+}
+
+/**
+ * Hook wywoływany po finalnej akceptacji dokumentu w EODoK (edok.php, blok
+ * status='zaakceptowany'). Best-effort: NIE rzuca wyjątków (akceptacja obiegu
+ * jest już zapisana i nie może zostać cofnięta błędem integracji).
+ *
+ * Sprzedaż: zatwierdza (confirm) fakturę w Betterfly.
+ * Zakup:    oznacza jako zaakceptowaną do zapłaty (API zakupu jest tylko do odczytu).
+ */
+function betterfly_on_edok_approved(int $edok_doc_id): void
+{
+    try {
+        betterfly_invoices_migrate();
+        $row = db_one("SELECT * FROM betterfly_invoices WHERE edok_doc_id=?", [$edok_doc_id]);
+        if (!$row) return; // dokument EODoK niepowiązany z Betterfly
+
+        db_update('betterfly_invoices', ['approval_status' => 'approved'], (int)$row['id']);
+
+        if (($row['direction'] ?? 'sales') === 'sales' && (int)$row['doc_status'] !== 1 && (int)$row['betterfly_invoice_id'] > 0) {
+            _betterfly_confirm_sales_row($row);
+        }
+    } catch (\Throwable $e) {
+        error_log('[betterfly] Hook EODoK (dok #' . $edok_doc_id . ') nieudany: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Ręczne zatwierdzenie faktury sprzedaży powiązanej z dokumentem EODoK
+ * (przycisk „Zatwierdź w Betterfly"). W odróżnieniu od hooka — rzuca wyjątek,
+ * żeby UI mógł pokazać błąd.
+ *
+ * @return array zaktualizowany rekord betterfly_invoices
+ */
+function betterfly_confirm_from_edok(int $edok_doc_id): array
+{
+    betterfly_invoices_migrate();
+    $row = db_one("SELECT * FROM betterfly_invoices WHERE edok_doc_id=?", [$edok_doc_id]);
+    if (!$row) {
+        throw new BetterFlyException('Ten dokument EODoK nie jest powiązany z fakturą Betterfly.');
+    }
+    if (($row['direction'] ?? 'sales') !== 'sales') {
+        throw new BetterFlyException('Faktury zakupu nie zatwierdza się w Betterfly (API zakupu jest tylko do odczytu).');
+    }
+    if ((int)$row['betterfly_invoice_id'] <= 0) {
+        throw new BetterFlyException('Brak powiązanej faktury Betterfly do zatwierdzenia.');
+    }
+    if ((int)$row['doc_status'] === 1) {
+        return $row; // już zatwierdzona — idempotentnie
+    }
+    _betterfly_confirm_sales_row($row);
+    return db_one("SELECT * FROM betterfly_invoices WHERE id=?", [(int)$row['id']]) ?? [];
+}
+
+/** Wspólny rdzeń zatwierdzania faktury sprzedaży (hook + przycisk ręczny). */
+function _betterfly_confirm_sales_row(array $row): void
+{
+    $client = BetterFlyClient::fromSettings();
+    $client->confirmInvoice((int)$row['betterfly_invoice_id']);
+    $fetched = $client->getInvoice((int)$row['betterfly_invoice_id']);
+
+    betterfly_upsert_local([
+        'id'             => (int)$row['id'],
+        'number'         => (string)($fetched['Number']       ?? $row['number']),
+        'net_total'      => (float)($fetched['NetTotal']      ?? $row['net_total']),
+        'gross_total'    => (float)($fetched['GrossTotal']    ?? $row['gross_total']),
+        'vat_total'      => (float)($fetched['VatTotal']      ?? $row['vat_total']),
+        'currency'       => (string)($fetched['CurrencyCode'] ?? $row['currency']),
+        'doc_status'     => (int)($fetched['Status'] ?? 1),
+        'payment_status' => (int)($fetched['PaymentStatus'] ?? $row['payment_status']),
+        'approval_status'=> 'approved',
+        'confirmed_at'   => date('Y-m-d H:i:s'),
+        'last_error'     => '',
+    ]);
+}
+
+/**
+ * Pobiera faktury ZAKUPU z Betterfly i wprowadza nowe do obiegu EODoK.
+ * Deduplikacja po betterfly_invoice_id (direction='purchase').
+ *
+ * @param array $opts query (filtry API), limit
+ * @return array{imported:int, skipped:int, errors:array<int,string>}
+ */
+function betterfly_import_purchase_invoices(array $opts = []): array
+{
+    betterfly_invoices_migrate();
+    if (!BetterFlyClient::isEnabled()) {
+        throw new BetterFlyException('Integracja Comarch Betterfly nie jest włączona.');
+    }
+
+    $client   = BetterFlyClient::fromSettings();
+    $list     = $client->listPurchaseInvoices((array)($opts['query'] ?? []));
+    $imported = 0; $skipped = 0; $errors = [];
+
+    foreach ($list as $inv) {
+        $bfId = (int)($inv['Id'] ?? 0);
+        if ($bfId <= 0) { $skipped++; continue; }
+
+        $exists = db_one(
+            "SELECT id FROM betterfly_invoices WHERE direction='purchase' AND betterfly_invoice_id=?",
+            [$bfId]
+        );
+        if ($exists) { $skipped++; continue; }
+
+        try {
+            $localId = betterfly_upsert_local([
+                'source'               => 'crm',
+                'direction'            => 'purchase',
+                'betterfly_invoice_id' => $bfId,
+                'selling_party_id'     => (int)($inv['SellingPartyId'] ?? 0),
+                'number'               => (string)($inv['Number'] ?? ''),
+                'reference_number'     => (string)($inv['ReferenceNumber'] ?? ''),
+                'net_total'            => (float)($inv['NetTotal']   ?? 0),
+                'gross_total'          => (float)($inv['GrossTotal'] ?? 0),
+                'vat_total'            => (float)($inv['VatTotal']   ?? 0),
+                'currency'             => (string)($inv['CurrencyCode'] ?? 'PLN'),
+                'doc_status'           => (int)($inv['Status'] ?? 0),
+                'payment_status'       => (int)($inv['PaymentStatus'] ?? 0),
+                'approval_status'      => 'pending',
+            ]);
+
+            $edokDocId = betterfly_edok_create_doc([
+                'number'           => (string)($inv['Number'] ?? ''),
+                'reference_number' => (string)($inv['ReferenceNumber'] ?? ''),
+                'party_name'       => (string)($inv['SellingParty']['Name'] ?? ''),
+                'party_nip'        => (string)($inv['SellingParty']['CustomerTaxNumber'] ?? $inv['SellingParty']['Nip'] ?? ''),
+                'issue_date'       => substr((string)($inv['IssueDate'] ?? ''), 0, 10) ?: null,
+                'net'              => (float)($inv['NetTotal']   ?? 0),
+                'vat'              => (float)($inv['VatTotal']   ?? 0),
+                'gross'            => (float)($inv['GrossTotal'] ?? 0),
+                'currency'         => (string)($inv['CurrencyCode'] ?? 'PLN'),
+                'description'      => 'Faktura zakupu z Betterfly, nr obcy: ' . (string)($inv['ReferenceNumber'] ?? '—'),
+            ], 'purchase');
+
+            betterfly_upsert_local(['id' => $localId, 'edok_doc_id' => $edokDocId]);
+            $imported++;
+        } catch (\Throwable $e) {
+            $errors[$bfId] = $e->getMessage();
+            error_log('[betterfly] Import faktury zakupu #' . $bfId . ' nieudany: ' . $e->getMessage());
+        }
+    }
+
+    return ['imported' => $imported, 'skipped' => $skipped, 'errors' => $errors];
 }
 
 // ── Lokalny rejestr — upsert ─────────────────────────────────────────────────

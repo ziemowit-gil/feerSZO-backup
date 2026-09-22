@@ -62,6 +62,7 @@ class BetterFlyClient
     private int    $timeout;
     private string $verCustomers;
     private string $verInvoices;
+    private string $verPurchase;
 
     /** Cache tokenu w pamięci procesu (obok cache w tabeli settings). */
     private ?string $token = null;
@@ -88,6 +89,7 @@ class BetterFlyClient
         $this->timeout      = (int)($cfg['timeout'] ?? 20) ?: 20;
         $this->verCustomers = trim((string)($cfg['ver_customers'] ?? 'v1.2')) ?: 'v1.2';
         $this->verInvoices  = trim((string)($cfg['ver_invoices'] ?? 'v1.7')) ?: 'v1.7';
+        $this->verPurchase  = trim((string)($cfg['ver_purchase'] ?? 'v1.4')) ?: 'v1.4';
         $this->persistToken = (bool)($cfg['persist_token'] ?? true);
         $this->logger       = $cfg['logger'] ?? null;
 
@@ -109,6 +111,7 @@ class BetterFlyClient
             'timeout'       => (int)(org_setting('betterfly_timeout') ?: 20),
             'ver_customers' => org_setting('betterfly_api_ver_customers') ?: 'v1.2',
             'ver_invoices'  => org_setting('betterfly_api_ver_invoices') ?: 'v1.7',
+            'ver_purchase'  => org_setting('betterfly_api_ver_purchase') ?: 'v1.4',
             'persist_token' => true,
         ]);
     }
@@ -410,6 +413,46 @@ class BetterFlyClient
         $res = $this->request('GET', '/api2/public/' . $this->verInvoices . '/invoices', null, $query);
         if (is_array($res)) {
             return isset($res['Number']) ? [$res] : $res;
+        }
+        return [];
+    }
+
+    // ── Faktury zakupu (tylko odczyt) ─────────────────────────────────────────
+
+    /**
+     * Lista faktur zakupu. API Betterfly obsługuje TYLKO pobieranie faktur zakupu
+     * (brak POST). Filtry przez $query (np. OData $filter), jeśli wersja API wspiera.
+     * @return array lista rekordów faktur zakupu
+     */
+    public function listPurchaseInvoices(array $query = []): array
+    {
+        $res = $this->request('GET', '/api2/public/' . $this->verPurchase . '/purchaseinvoices', null, $query);
+        if (is_array($res)) {
+            return isset($res['Id']) ? [$res] : $res;
+        }
+        return [];
+    }
+
+    /** Pobiera fakturę zakupu po Id. */
+    public function getPurchaseInvoice(int $id): ?array
+    {
+        $res = $this->request('GET', '/api2/public/' . $this->verPurchase . '/purchaseinvoices/' . $id);
+        return is_array($res) ? $res : null;
+    }
+
+    // ── Produkty (słownik do wyboru pozycji) ──────────────────────────────────
+
+    /**
+     * Lista produktów (do wyboru domyślnego produktu TI w panelu admina).
+     * Endpoint produktów jest bez segmentu wersji: /api2/public/products.
+     * Zwraca rekordy z polami m.in.: Id, Name, ProductCode, SaleNetPrice, Rate, UnitOfMeasurment.
+     * @param array $query np. ['$filter' => "Name eq 'Szkolenie'"]
+     */
+    public function listProducts(array $query = []): array
+    {
+        $res = $this->request('GET', '/api2/public/products', null, $query);
+        if (is_array($res)) {
+            return isset($res['Id']) ? [$res] : $res;
         }
         return [];
     }

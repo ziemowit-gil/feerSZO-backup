@@ -793,6 +793,19 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
         } catch (\Throwable $e) {
             edok_log($id, 'generate_pdf_error', '', 'zaakceptowany', 'zaakceptowany', 'Nie udało się wygenerować dokumentu końcowego: ' . $e->getMessage());
         }
+        // Integracja Comarch Betterfly — po finalnej akceptacji zatwierdź powiązaną
+        // fakturę sprzedaży (lub oznacz zakup do zapłaty). Best-effort: błąd
+        // integracji nie może cofnąć zapisanej akceptacji obiegu.
+        try {
+            if (is_file(__DIR__ . '/betterfly_invoices.php')) {
+                require_once __DIR__ . '/betterfly_invoices.php';
+                if (function_exists('betterfly_on_edok_approved')) {
+                    betterfly_on_edok_approved($id);
+                }
+            }
+        } catch (\Throwable $e) {
+            edok_log($id, 'betterfly_error', '', 'zaakceptowany', 'zaakceptowany', 'Integracja Betterfly: ' . $e->getMessage());
+        }
     }
     return ['status' => $new_status, 'rejected' => false];
 }
