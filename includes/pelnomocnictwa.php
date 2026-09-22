@@ -38,6 +38,19 @@
     )");
     try { db()->exec("CREATE INDEX IF NOT EXISTS idx_pelnomocnictwa_numer ON pelnomocnictwa(numer)"); } catch (\Throwable $e) {}
 
+    // Historia zmian wpisu (audyt) — kto, kiedy, co. Osobna od globalnego admin_audit_log,
+    // bo tu potrzebujemy osi czasu przypiętej do konkretnego pełnomocnictwa (peln_id).
+    db()->exec("CREATE TABLE IF NOT EXISTS pelnomocnictwa_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        peln_id    INTEGER NOT NULL,
+        action     TEXT    NOT NULL DEFAULT '',
+        details    TEXT    NOT NULL DEFAULT '',
+        user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        user_name  TEXT    NOT NULL DEFAULT '',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    try { db()->exec("CREATE INDEX IF NOT EXISTS idx_pelnomocnictwa_log_peln ON pelnomocnictwa_log(peln_id)"); } catch (\Throwable $e) {}
+
     // Samonaprawa: kolumny dodane po pierwszym wdrożeniu (CREATE TABLE IF NOT EXISTS nie
     // modyfikuje już istniejącej tabeli) — ALTER TABLE jest no-op jeśli kolumna już istnieje.
     $cols = [
@@ -88,6 +101,49 @@ function pelnomocnictwa_suggest_numer(?int $year = null): string {
         [(string)$year]
     )['cnt'] ?? 0);
     return sprintf('P/%04d/%d', $cnt + 1, $year);
+}
+
+// ── Historia zmian (audyt) ─────────────────────────────────────────────────────
+
+/** Dopisuje wpis do historii pełnomocnictwa. Autora bierze z current_user() (UI) lub $user_id. */
+function pelnomocnictwo_log(int $peln_id, string $action, string $details = '', ?int $user_id = null): void {
+    if ($peln_id <= 0) return;
+    $uid = $user_id;
+    $uname = '';
+    if (function_exists('current_user') && ($u = current_user())) {
+        $uid   = $uid ?: (int)($u['id'] ?? 0);
+        $uname = (string)($u['name'] ?? '');
+    }
+    if ($uname === '' && $uid) {
+        $r = db_one("SELECT name FROM users WHERE id=?", [$uid]);
+        $uname = (string)($r['name'] ?? '');
+    }
+    try {
+        db()->prepare(
+            "INSERT INTO pelnomocnictwa_log (peln_id, action, details, user_id, user_name) VALUES (?,?,?,?,?)"
+        )->execute([$peln_id, $action, $details, $uid ?: null, $uname]);
+    } catch (\Throwable $e) {}
+}
+
+/** Oś czasu (od najnowszych) dla danego wpisu. */
+function pelnomocnictwo_history(int $peln_id): array {
+    try {
+        return db_all("SELECT * FROM pelnomocnictwa_log WHERE peln_id=? ORDER BY created_at DESC, id DESC", [$peln_id]);
+    } catch (\Throwable $e) { return []; }
+}
+
+/** @return array{0:string,1:string} [etykieta, klasa ikony bootstrap] dla akcji z historii. */
+function pelnomocnictwo_log_meta(string $action): array {
+    return match ($action) {
+        'create'      => ['Utworzenie wpisu',      'bi-plus-circle text-success'],
+        'update'      => ['Edycja danych',         'bi-pencil text-primary'],
+        'revoke'      => ['Odwołanie',             'bi-x-octagon text-danger'],
+        'doc_upload'  => ['Dołączono skan',        'bi-paperclip text-secondary'],
+        'doc_delete'  => ['Usunięto skan',         'bi-scissors text-warning'],
+        'doc_generate'=> ['Wygenerowano dokument', 'bi-file-earmark-richtext text-info'],
+        'reminder'    => ['Przypomnienie o wygasaniu', 'bi-bell text-warning'],
+        default       => [$action ?: 'Zmiana',     'bi-dot text-muted'],
+    };
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
@@ -164,6 +220,7 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
              data_udzielenia=?,data_waznosci=?,data_odwolania=?,uwagi=?,podpisujacy=?,podpisujacy_funkcja=?,
              updated_at=datetime('now') WHERE id=?"
         )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $id]);
+        pelnomocnictwo_log($id, 'update', 'Zaktualizowano dane wpisu.', $user_id);
         return $id;
     }
 
@@ -172,7 +229,9 @@ function pelnomocnictwo_save(int $id, array $d, ?int $user_id): int {
         "INSERT INTO pelnomocnictwa (numer,mocodawca,pelnomocnik,pelnomocnik_pesel,zakres,forma,data_udzielenia,data_waznosci,data_odwolania,uwagi,podpisujacy,podpisujacy_funkcja,created_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
     )->execute([$numer, $mocodawca, $pelnomocnik, $pelnomocnik_pesel, $zakres, $forma, $data_udzielenia, $data_waznosci, $data_odwolania, $uwagi, $podpisujacy, $podpisujacy_funkcja, $user_id]);
-    return (int)db()->lastInsertId();
+    $newId = (int)db()->lastInsertId();
+    pelnomocnictwo_log($newId, 'create', 'Dodano pełnomocnictwo ' . $numer . ' dla: ' . $pelnomocnik . '.', $user_id);
+    return $newId;
 }
 
 function pelnomocnictwo_delete(int $id): void {
@@ -240,6 +299,7 @@ function pelnomocnictwo_upload(int $id, int $user_id, string $typ = ''): ?string
         "UPDATE pelnomocnictwa SET dokument_plik=?, dokument_oryginal_nazwa=?, dokument_typ=?,
          dokument_uploaded_by=?, dokument_uploaded_at=datetime('now') WHERE id=?"
     )->execute([$stored, $f['name'], $typ, $user_id, $id]);
+    pelnomocnictwo_log($id, 'doc_upload', 'Dołączono skan (' . ($typ === 'odwolanie' ? 'odwołanie' : 'pełnomocnictwo') . '): ' . $f['name'], $user_id);
     return null;
 }
 
@@ -252,6 +312,7 @@ function pelnomocnictwo_document_delete(int $id): void {
         "UPDATE pelnomocnictwa SET dokument_plik='', dokument_oryginal_nazwa='', dokument_typ='',
          dokument_uploaded_by=NULL, dokument_uploaded_at=NULL WHERE id=?"
     )->execute([$id]);
+    pelnomocnictwo_log($id, 'doc_delete', 'Usunięto dołączony skan: ' . ($row['dokument_oryginal_nazwa'] ?: ''));
 }
 
 /** Statystyki do widżetu/dashboardu: liczba wg statusu. */

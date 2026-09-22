@@ -168,6 +168,28 @@ include dirname(__DIR__) . '/includes/header.php';
       </form>
       <?php endif; ?>
     </div>
+
+    <?php $history = pelnomocnictwo_history((int)$edit['id']); if ($history): ?>
+    <hr class="my-3">
+    <div>
+      <span class="text-muted" style="font-size:.72rem"><i class="bi bi-clock-history me-1"></i>Historia zmian:</span>
+      <ul class="list-unstyled mt-2 mb-0" style="font-size:.8rem">
+        <?php foreach ($history as $ev): [$lbl,$icon] = pelnomocnictwo_log_meta($ev['action']); ?>
+        <li class="d-flex align-items-start gap-2 mb-1">
+          <i class="bi <?= $icon ?>" style="line-height:1.4"></i>
+          <div>
+            <span class="fw-semibold"><?= h($lbl) ?></span>
+            <?php if ($ev['details']): ?><span class="text-muted"> — <?= h($ev['details']) ?></span><?php endif; ?>
+            <div class="text-muted" style="font-size:.72rem">
+              <?= h(date_pl(substr((string)$ev['created_at'], 0, 10))) ?> <?= h(substr((string)$ev['created_at'], 11, 5)) ?>
+              <?= $ev['user_name'] ? '· ' . h($ev['user_name']) : '' ?>
+            </div>
+          </div>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif; ?>
     <?php endif; ?>
   </div>
 </div>
