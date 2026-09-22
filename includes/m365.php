@@ -1539,6 +1539,22 @@ function sp_gzip_temp(string $src_path, string $tmp_prefix): string {
  * znaczników lokalnej rotacji przyrostowej (cron/agents/backup.php).
  * Folder na SP: sp_backup_folder / incremental / YYYY-MM / ...
  */
+/**
+ * Przygotowuje plik tymczasowy do wysyłki na SP: szyfruje go (AES-256), jeśli
+ * szyfrowanie kopii jest włączone (spójnie z backupem lokalnym, includes/backup.php).
+ * @return array{0:string,1:string} [ścieżka_do_wysłania, sufiks_nazwy_na_SP ('' lub '.enc')]
+ */
+function _sp_backup_prepare(string $tmpPath): array {
+    if (!function_exists('backup_encryption_enabled') && is_file(__DIR__ . '/backup.php')) {
+        require_once __DIR__ . '/backup.php';
+    }
+    if (function_exists('backup_encryption_enabled') && backup_encryption_enabled()) {
+        $enc = backup_encrypt_file($tmpPath, null, true); // usuwa plaintext po zaszyfrowaniu
+        if ($enc) return [$enc, '.enc'];
+    }
+    return [$tmpPath, ''];
+}
+
 function sp_backup_incremental(): array {
     try {
         [$graph, $site_id, $drive_id] = sp_backup_preflight();
@@ -1546,9 +1562,10 @@ function sp_backup_incremental(): array {
         return ['ok' => false, 'skipped' => true, 'error' => $e->getMessage()];
     }
 
-    $base       = dirname(__DIR__);
-    $marker_db  = $base . '/backups/.last_sp_db_mtime';
-    $marker_up  = $base . '/backups/.last_sp_uploads_ts';
+    $base        = dirname(__DIR__);
+    $marker_db   = $base . '/backups/.last_sp_db_mtime';
+    $marker_up   = $base . '/backups/.last_sp_uploads_ts';
+    $marker_cert = $base . '/backups/.last_sp_certs_ts';
     $bak_folder = trim(m365_setting('sp_backup_folder') ?: 'Backup', '/') . '/incremental';
     $stamp      = date('Ymd_His');
     $sent       = [];
@@ -1567,9 +1584,10 @@ function sp_backup_incremental(): array {
             $tmp_gz = sp_gzip_temp($tmp_db, 'feer_spinc_' . $stamp);
             @unlink($tmp_db);
 
-            $sp_path = $bak_folder . '/' . date('Y-m') . '/umowy_' . $stamp . '.db.gz';
-            $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_gz);
-            @unlink($tmp_gz);
+            [$send, $suf] = _sp_backup_prepare($tmp_gz);
+            $sp_path = $bak_folder . '/' . date('Y-m') . '/umowy_' . $stamp . '.db.gz' . $suf;
+            $graph->sp_upload_file($site_id, $drive_id, $sp_path, $send);
+            @unlink($send);
             file_put_contents($marker_db, $db_mtime);
             $sent[] = $sp_path;
         }
@@ -1610,14 +1628,41 @@ function sp_backup_incremental(): array {
             unlink($list_file);
 
             if ($ret === 0) {
-                $sp_path = $bak_folder . '/' . date('Y-m') . '/uploads_' . $stamp . '.tar.gz';
-                $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_tar);
-                @unlink($tmp_tar);
+                [$send, $suf] = _sp_backup_prepare($tmp_tar);
+                $sp_path = $bak_folder . '/' . date('Y-m') . '/uploads_' . $stamp . '.tar.gz' . $suf;
+                $graph->sp_upload_file($site_id, $drive_id, $sp_path, $send);
+                @unlink($send);
                 file_put_contents($marker_up, time());
                 $sent[] = $sp_path;
             } else {
                 @unlink($tmp_tar);
                 return ['ok' => false, 'error' => 'tar: ' . implode(' ', $output)];
+            }
+        }
+    }
+
+    // ── Certs — tylko gdy katalog zmienił się od ostatniej wysyłki na SP ──────
+    $certs_src  = $base . '/certs';
+    $last_ct_ts = file_exists($marker_cert) ? (int)file_get_contents($marker_cert) : 0;
+    if (is_dir($certs_src)) {
+        $certs_changed = false;
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($certs_src, FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file->isFile() && $file->getMTime() > $last_ct_ts) { $certs_changed = true; break; }
+        }
+        if ($certs_changed) {
+            $tmp_tar = sys_get_temp_dir() . '/feer_spinc_certs_' . $stamp . '.tar.gz';
+            $cmd = 'tar -czf ' . escapeshellarg($tmp_tar) . ' -C ' . escapeshellarg($base) . ' certs 2>&1';
+            $output = []; $ret = 0; exec($cmd, $output, $ret);
+            if ($ret === 0) {
+                [$send, $suf] = _sp_backup_prepare($tmp_tar);
+                $sp_path = $bak_folder . '/' . date('Y-m') . '/certs_' . $stamp . '.tar.gz' . $suf;
+                $graph->sp_upload_file($site_id, $drive_id, $sp_path, $send);
+                @unlink($send);
+                file_put_contents($marker_cert, time());
+                $sent[] = $sp_path;
+            } else {
+                @unlink($tmp_tar);
+                return ['ok' => false, 'error' => 'tar (certs): ' . implode(' ', $output)];
             }
         }
     }
@@ -1653,9 +1698,10 @@ function sp_backup_full(): array {
         $tmp_gz = sp_gzip_temp($tmp_db, 'feer_spfull_' . $stamp);
         @unlink($tmp_db);
 
-        $sp_path = $bak_folder . '/' . date('Y-m') . '/umowy_' . $stamp . '.db.gz';
-        $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_gz);
-        @unlink($tmp_gz);
+        [$send, $suf] = _sp_backup_prepare($tmp_gz);
+        $sp_path = $bak_folder . '/' . date('Y-m') . '/umowy_' . $stamp . '.db.gz' . $suf;
+        $graph->sp_upload_file($site_id, $drive_id, $sp_path, $send);
+        @unlink($send);
         $sent[] = $sp_path;
     }
 
@@ -1671,9 +1717,10 @@ function sp_backup_full(): array {
         $ret    = 0;
         exec($cmd, $output, $ret);
         if ($ret === 0) {
-            $sp_path = $bak_folder . '/' . date('Y-m') . '/uploads_' . $stamp . '.tar.gz';
-            $graph->sp_upload_file($site_id, $drive_id, $sp_path, $tmp_tar);
-            @unlink($tmp_tar);
+            [$send, $suf] = _sp_backup_prepare($tmp_tar);
+            $sp_path = $bak_folder . '/' . date('Y-m') . '/uploads_' . $stamp . '.tar.gz' . $suf;
+            $graph->sp_upload_file($site_id, $drive_id, $sp_path, $send);
+            @unlink($send);
             $sent[] = $sp_path;
         } else {
             @unlink($tmp_tar);
@@ -1681,10 +1728,29 @@ function sp_backup_full(): array {
         }
     }
 
+    // ── Certs — pełny tar całego katalogu (klucze prywatne) ────────────────
+    $certs_src = $base . '/certs';
+    if (is_dir($certs_src)) {
+        $tmp_tar = sys_get_temp_dir() . '/feer_spfull_certs_' . $stamp . '.tar.gz';
+        $cmd = 'tar -czf ' . escapeshellarg($tmp_tar) . ' -C ' . escapeshellarg($base) . ' certs 2>&1';
+        $output = []; $ret = 0; exec($cmd, $output, $ret);
+        if ($ret === 0) {
+            [$send, $suf] = _sp_backup_prepare($tmp_tar);
+            $sp_path = $bak_folder . '/' . date('Y-m') . '/certs_' . $stamp . '.tar.gz' . $suf;
+            $graph->sp_upload_file($site_id, $drive_id, $sp_path, $send);
+            @unlink($send);
+            $sent[] = $sp_path;
+        } else {
+            @unlink($tmp_tar);
+            return ['ok' => false, 'error' => 'tar (certs): ' . implode(' ', $output)];
+        }
+    }
+
     // Po pełnym backupie zresetuj znaczniki przyrostowe SP, żeby kolejny
     // przyrostowy backup wysyłał tylko zmiany od TEJ chwili.
     @file_put_contents($base . '/backups/.last_sp_db_mtime', file_exists($db_src) ? filemtime($db_src) : time());
     @file_put_contents($base . '/backups/.last_sp_uploads_ts', time());
+    @file_put_contents($base . '/backups/.last_sp_certs_ts', time());
 
     return ['ok' => true, 'sent' => $sent];
 }
