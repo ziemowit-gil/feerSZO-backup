@@ -271,6 +271,23 @@ $_health_txt = $_last_ok === 0 ? 'Brak danych' : ($_stale ? 'Przeterminowany' : 
         <div class="text-muted">Szyfrowanie</div>
         <div class="fw-semibold"><?= backup_encryption_enabled() ? '<span class="text-success"><i class="bi bi-lock-fill"></i> AES-256</span>' : '<span class="text-muted">wyłączone</span>' ?></div>
       </div>
+      <?php
+        $_sp_last   = function_exists('sp_backup_last_ok_ts') ? sp_backup_last_ok_ts() : 0;
+        $_sp_folder = m365_setting('sp_backup_folder') ?: 'Backup';
+        $_sp_cfg    = (new M365Graph())->is_configured() && m365_setting('sp_enabled') === '1';
+      ?>
+      <div class="col-6 col-md-3">
+        <div class="text-muted"><i class="bi bi-cloud-arrow-up me-1"></i>SharePoint — ostatnia wysyłka</div>
+        <div class="fw-semibold">
+          <?php if (!$_sp_cfg): ?><span class="text-muted">wyłączony</span>
+          <?php elseif ($_sp_last): ?><?= date('d.m.Y H:i', $_sp_last) ?> <span class="text-muted">(<?= round((time()-$_sp_last)/3600, 1) ?>h)</span>
+          <?php else: ?><span class="text-muted">brak danych</span><?php endif; ?>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-muted">SharePoint — folder / retencja</div>
+        <div class="fw-semibold"><code style="font-size:.78rem"><?= h($_sp_folder) ?></code> · <?= (int)(org_setting('sp_backup_retention_days') ?: 90) ?> dni</div>
+      </div>
     </div>
     <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
       <form method="post" class="d-inline">

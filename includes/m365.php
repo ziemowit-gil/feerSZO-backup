@@ -925,6 +925,21 @@ class M365Graph {
         return $resp['value'] ?? [];
     }
 
+    /** Listuje zawartość folderu wskazanego ŚCIEŻKĄ (względem korzenia biblioteki). Pusta lista, gdy brak folderu. */
+    public function sp_list_children_by_path(string $site_id, string $drive_id, string $path): array {
+        $path = trim($path, '/');
+        $enc  = $path === '' ? '' : implode('/', array_map('rawurlencode', explode('/', $path)));
+        $url  = $enc === ''
+            ? "https://graph.microsoft.com/v1.0/sites/{$site_id}/drives/{$drive_id}/root/children"
+            : "https://graph.microsoft.com/v1.0/sites/{$site_id}/drives/{$drive_id}/root:/{$enc}:/children";
+        $url .= '?' . http_build_query([
+            '$select' => 'id,name,size,file,folder,webUrl,lastModifiedDateTime',
+            '$top'    => 200,
+        ]);
+        $resp = $this->http_get($url);
+        return $resp['value'] ?? [];
+    }
+
     // ══ ONEDRIVE UŻYTKOWNIKA ═════════════════════════════════════════════════
     // Uprawnienie aplikacji: Files.Read.All (odczyt OneDrive wskazanego usera).
     // Pobieranie treści pliku idzie przez sp_download_file() — /drives/{id}/items/{id}/content.
@@ -1753,6 +1768,68 @@ function sp_backup_full(): array {
     @file_put_contents($base . '/backups/.last_sp_certs_ts', time());
 
     return ['ok' => true, 'sent' => $sent];
+}
+
+/**
+ * Retencja kopii na SharePoint — w folderach incremental/ i full/ zachowuje
+ * min. $keepMin najnowszych kopii KAŻDEGO typu (db/uploads/certs) w danym kanale,
+ * a starsze niż $maxDays dni usuwa. Cicho pomija, gdy SP wyłączony.
+ * @return array{ok:bool,skipped?:bool,deleted?:int,scanned?:int,error?:string}
+ */
+function sp_backup_retention(int $keepMin = 3, ?int $maxDays = null): array {
+    try {
+        [$graph, $site_id, $drive_id] = sp_backup_preflight();
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'skipped' => true, 'error' => $e->getMessage()];
+    }
+    if (!function_exists('backup_kind') && is_file(__DIR__ . '/backup.php')) require_once __DIR__ . '/backup.php';
+    $maxDays = $maxDays ?? (int)(org_setting('sp_backup_retention_days') ?: 90);
+    $root    = trim(m365_setting('sp_backup_folder') ?: 'Backup', '/');
+
+    $files = [];
+    foreach (['incremental', 'full'] as $chan) {
+        try { $months = $graph->sp_list_children_by_path($site_id, $drive_id, "{$root}/{$chan}"); }
+        catch (\Throwable $e) { continue; }
+        foreach ($months as $mf) {
+            if (empty($mf['folder'])) continue;
+            try { $items = $graph->sp_list_children_by_path($site_id, $drive_id, "{$root}/{$chan}/{$mf['name']}"); }
+            catch (\Throwable $e) { continue; }
+            foreach ($items as $it) {
+                if (empty($it['file'])) continue;
+                $kind = function_exists('backup_kind') ? backup_kind($it['name']) : null;
+                $files[] = [
+                    'id'   => $it['id'],
+                    'chan' => $chan,
+                    'kind' => $kind ?: 'other',
+                    'ts'   => strtotime($it['lastModifiedDateTime'] ?? '') ?: 0,
+                ];
+            }
+        }
+    }
+
+    // Grupuj po kanał+typ; zachowaj keepMin najnowszych, usuń starsze niż maxDays.
+    $groups = [];
+    foreach ($files as $f) $groups[$f['chan'] . '|' . $f['kind']][] = $f;
+    $deleted = 0; $now = time();
+    foreach ($groups as $g) {
+        usort($g, fn($a, $b) => $b['ts'] <=> $a['ts']);
+        foreach (array_slice($g, $keepMin) as $f) {
+            if ($maxDays > 0 && ($now - $f['ts']) > $maxDays * 86400) {
+                try { $graph->sp_delete_item($drive_id, $f['id']); $deleted++; } catch (\Throwable $e) {}
+            }
+        }
+    }
+    return ['ok' => true, 'deleted' => $deleted, 'scanned' => count($files)];
+}
+
+/** Znacznik ostatniej udanej wysyłki na SharePoint (unix ts) lub 0. */
+function sp_backup_last_ok_ts(): int {
+    $p = dirname(__DIR__) . '/backups/.last_sp_ok';
+    return is_file($p) ? (int)file_get_contents($p) : 0;
+}
+
+function sp_backup_mark_ok(): void {
+    @file_put_contents(dirname(__DIR__) . '/backups/.last_sp_ok', (string)time());
 }
 
 /**
