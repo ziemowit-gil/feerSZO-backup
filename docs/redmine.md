@@ -143,6 +143,56 @@ Dla zgłoszeń bez logowania (np. link na stronie WWW / w Redmine).
 | Redmine — OAuth apps | `https://feer.usermd.net/oauth/applications/new` |
 | Redmine — wtyczki | `https://feer.usermd.net/admin/plugins` |
 
+## Odwzorowanie starego Helpdesku SZO w Redmine
+
+Aby Redmine wiernie odzwierciedlał dotychczasowy Helpdesk, odtwórz w nim tę samą
+taksonomię (Redmine nie pozwala zakładać trackerów/statusów/pól przez API — robisz
+to raz w panelu Administracja), a potem zmapuj wartości w SZO (Admin → Redmine).
+
+### 1. Priorytety  (Administracja → Wyliczenia → Priorytety zagadnień)
+Utwórz i zmapuj (SZO → Redmine) w sekcji „Mapowanie priorytetów":
+
+| SZO | Redmine |
+|---|---|
+| Niski | Niski |
+| Normalny | Normalny (domyślny) |
+| Wysoki | Wysoki |
+| Krytyczny | Krytyczny / Pilny |
+
+### 2. Statusy  (Administracja → Statusy zagadnień)
+Odtwórz statusy dawnego Helpdesku (te „zamykające" oznacz jako *zamknięte*):
+Nowe, Otwarte, Oczekuje, Wymaga prac programistycznych, Przekazano do firmy
+zewnętrznej, **Rozwiązane** (zamknięty), **Zamknięte** (zamknięty).
+> SZO mapuje zwrotnie tylko zamknięcie issue → status „Rozwiązane"; pełne statusy
+> obsługujesz już w Redmine (backend).
+
+### 3. Trackery / kategorie  (Administracja → Typy zagadnień)
+Dwa podejścia — wybierz jedno:
+- **Prościej:** jeden tracker „Helpdesk” + pole niestandardowe **Kategoria** (patrz niżej),
+  a w SZO w „Mapowanie kategorii → tracker” wskaż ten sam tracker dla wszystkich.
+- **Rozdzielnie:** utwórz trackery np. `Zgłoszenie IT`, `Błąd`, `Propozycja` i zmapuj:
+
+| Kategoria SZO | Tracker Redmine (przykład) |
+|---|---|
+| Sprzęt IT, Oprogramowanie, Sieć/Internet, Dostęp, Konto, Microsoft 365, Drukarki, Kopia zapasowa, Inne IT | Zgłoszenie IT |
+| Błąd w systemie | Błąd |
+| Propozycja nowej funkcji, Sugestia | Propozycja |
+| Inne (spoza IT) | Zgłoszenie IT |
+
+### 4. Pola niestandardowe  (Administracja → Pola niestandardowe → dla Zagadnień)
+Utwórz i zmapuj w SZO (sekcja „Pola niestandardowe” + „Pole »Komentarze«”):
+
+| Pole w Redmine (format) | Źródło ze zgłoszenia SZO |
+|---|---|
+| Nr zgłoszenia SZO (Tekst) | Nr zgłoszenia SZO |
+| Zgłaszający (Tekst) | Zgłaszający — imię i nazwisko |
+| E-mail zgłaszającego (Tekst) | Zgłaszający — e-mail |
+| Kategoria (Lista / Tekst) | Kategoria |
+| **Komentarze (Długi tekst)** | (czytane z Redmine → SZO) |
+
+Dzięki temu każde zagadnienie w Redmine niesie komplet danych dawnego zgłoszenia,
+a treść pola **Komentarze** wraca do klienta w SZO.
+
 ## Jak to działa (skrót)
 
 - Nowe zgłoszenie w SZO (panel lub mini) → **issue w Redmine** (tracker wg kategorii,

@@ -8,8 +8,8 @@
 Redmine::Plugin.register :redmine_szo_sync do
   name        'SZO Sync'
   author      'FEER'
-  description 'Wysyła do SZO powiadomienie webhook po utworzeniu/zmianie zagadnienia (synchronizacja Helpdesku).'
-  version     '0.1.0'
+  description 'Synchronizacja Helpdesku SZO: webhook po zmianie zagadnienia + pole niestandardowe „Komentarze".'
+  version     '0.2.0'
   settings default: { 'szo_url' => '', 'secret' => '' },
            partial: 'settings/redmine_szo_sync'
 end
