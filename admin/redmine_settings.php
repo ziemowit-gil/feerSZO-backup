@@ -15,7 +15,7 @@ $PAGE_TITLE = 'Ustawienia Redmine';
 $KEYS = [
     'redmine_enabled', 'redmine_url', 'redmine_api_key',
     'redmine_default_project_id', 'redmine_default_tracker_id',
-    'helpdesk_frontend_only', 'redmine_minihelpdesk_enabled',
+    'helpdesk_frontend_only', 'redmine_minihelpdesk_enabled', 'redmine_webhook_secret',
 ];
 $settings = [];
 foreach ($KEYS as $k) { $settings[$k] = org_setting($k); }
@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
     ];
     $save['helpdesk_frontend_only']       = isset($_POST['helpdesk_frontend_only']) ? '1' : '0';
     $save['redmine_minihelpdesk_enabled'] = isset($_POST['redmine_minihelpdesk_enabled']) ? '1' : '0';
+    $save['redmine_webhook_secret']       = trim($_POST['redmine_webhook_secret'] ?? '');
     // Klucz API — zachowaj stary, gdy pole puste.
     $key = trim($_POST['redmine_api_key'] ?? '');
     if ($key !== '') $save['redmine_api_key'] = $key;
@@ -169,6 +170,19 @@ include dirname(__DIR__) . '/includes/header.php';
     <code><?= h(rtrim(APP_URL, '/')) ?>/helpdesk/mini.php</code>.
     Można wstawić w Redmine (menu/nagłówek) lub osadzić na stronie w <code>&lt;iframe&gt;</code>.
     Chroniony honeypotem i limitem na sesję — dla pełnej publiczności rozważ Cloudflare.
+  </div>
+
+  <hr>
+  <div class="fw-semibold small mb-2"><i class="bi bi-lightning-charge me-1"></i>Plugin Redmine (webhook — sync natychmiastowy)</div>
+  <div class="mb-2">
+    <label class="form-label small mb-1">Sekret webhooka (HMAC)</label>
+    <input type="text" name="redmine_webhook_secret" class="form-control form-control-sm font-monospace"
+           value="<?= h($settings['redmine_webhook_secret']) ?>" placeholder="długi losowy ciąg">
+  </div>
+  <div class="form-text mb-3">
+    Zainstaluj wtyczkę <code>redmine_szo_sync</code> w Redmine i w jej konfiguracji podaj:<br>
+    URL: <code><?= h(rtrim(APP_URL, '/')) ?>/api/redmine_webhook.php</code> oraz ten sam sekret.
+    Bez wtyczki sync i tak działa przez cron (co 10 min) — webhook tylko przyspiesza.
   </div>
 
   <hr>

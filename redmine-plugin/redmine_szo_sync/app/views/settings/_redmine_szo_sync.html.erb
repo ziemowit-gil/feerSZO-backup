@@ -1,0 +1,18 @@
+<table>
+  <tbody>
+    <tr>
+      <td><label for="settings_szo_url">URL webhooka SZO</label></td>
+      <td>
+        <%= text_field_tag 'settings[szo_url]', @settings['szo_url'], size: 60 %>
+        <br><em class="info">np. https://twoje-szo/api/redmine_webhook.php</em>
+      </td>
+    </tr>
+    <tr>
+      <td><label for="settings_secret">Sekret (HMAC)</label></td>
+      <td>
+        <%= text_field_tag 'settings[secret]', @settings['secret'], size: 60 %>
+        <br><em class="info">Ten sam ciąg wpisz w SZO → Ustawienia → Redmine → „Sekret webhooka".</em>
+      </td>
+    </tr>
+  </tbody>
+</table>
