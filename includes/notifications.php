@@ -532,6 +532,7 @@ function notif_type_icon(string $type): string {
         'task'         => 'bi-kanban-fill',
         'reservation'  => 'bi-calendar-check-fill',
         'pelnomocnictwo' => 'bi-person-badge-fill',
+        'backup'       => 'bi-shield-exclamation',
         default        => 'bi-info-circle-fill',   // 'system' i inne
     };
 }
@@ -544,6 +545,7 @@ function notif_type_color(string $type): string {
         'task'         => '#8B5CF6',
         'reservation'  => '#6366F1',
         'pelnomocnictwo' => '#0EA5E9',
+        'backup'       => '#DC2626',
         default        => '#6366F1',   // 'system'
     };
 }

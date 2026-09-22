@@ -35,6 +35,7 @@ if (!is_dir($bak_dir) && !mkdir($bak_dir, 0750, true)) {
 $now     = time();
 $stamp   = date('Ymd_His', $now);
 $ok      = true;
+$err_log = '';
 
 $marker_db      = $bak_root . '/.last_db_mtime';
 $marker_uploads = $bak_root . '/.last_uploads_ts';
@@ -55,14 +56,25 @@ if (file_exists($db_src)) {
             $pdo = new PDO('sqlite:' . $db_src);
             $pdo->exec("VACUUM INTO " . $pdo->quote($db_bak));
             file_put_contents($marker_db, $db_mtime);
+            // Kontrola integralności świeżej kopii (na plaintext, przed szyfrowaniem).
+            $db_integrity = 'unknown';
+            try {
+                $chk = new PDO('sqlite:' . $db_bak);
+                $r = $chk->query('PRAGMA integrity_check')->fetch(PDO::FETCH_NUM);
+                $chk = null;
+                $db_integrity = ($r && strtolower((string)$r[0]) === 'ok') ? 'ok' : 'fail';
+            } catch (\Throwable $e) { $db_integrity = 'fail'; }
+            if ($db_integrity !== 'ok') { echo "[ERROR] integrity_check świeżej kopii bazy: {$db_integrity}\n"; $err_log .= "integrity_check bazy: {$db_integrity}\n"; $ok = false; }
             if ($encrypt) {
                 $enc = backup_encrypt_file($db_bak);
                 if ($enc) { $db_bak = $enc; } else { echo "[WARN] Nie udało się zaszyfrować bazy — zostaje niezaszyfrowana.\n"; }
             }
+            backup_manifest_record($db_bak, ['db_integrity' => $db_integrity]);
             $size = round(filesize($db_bak) / 1024);
             echo "[OK] Baza → {$db_bak} ({$size} KB)\n";
         } catch (\Throwable $e) {
             echo "[ERROR] Backup bazy: " . $e->getMessage() . "\n";
+            $err_log .= 'Backup bazy: ' . $e->getMessage() . "\n";
             $ok = false;
         }
     }
@@ -115,10 +127,12 @@ if (is_dir($uploads_src)) {
                 $enc = backup_encrypt_file($tar_bak);
                 if ($enc) { $tar_bak = $enc; } else { echo "[WARN] Nie udało się zaszyfrować uploads — zostają niezaszyfrowane.\n"; }
             }
+            backup_manifest_record($tar_bak);
             $size = round(filesize($tar_bak) / 1024);
             echo "[OK] Uploads (przyrostowo, " . count($changed) . " plik(ów)) → {$tar_bak} ({$size} KB)\n";
         } else {
             echo "[ERROR] tar: " . implode(' ', $output) . "\n";
+            $err_log .= 'tar uploads: ' . implode(' ', $output) . "\n";
             $ok = false;
         }
     }
@@ -151,10 +165,12 @@ if (is_dir($certs_src)) {
                 $enc = backup_encrypt_file($certs_bak);
                 if ($enc) { $certs_bak = $enc; } else { echo "[WARN] Nie udało się zaszyfrować certs — zostają niezaszyfrowane.\n"; }
             }
+            backup_manifest_record($certs_bak);
             $size = round(filesize($certs_bak) / 1024);
             echo "[OK] Certs → {$certs_bak} ({$size} KB)\n";
         } else {
             echo "[ERROR] tar (certs): " . implode(' ', $output) . "\n";
+            $err_log .= 'tar certs: ' . implode(' ', $output) . "\n";
             $ok = false;
         }
     }
@@ -186,6 +202,26 @@ foreach ($groups as $files) {
     }
 }
 if ($deleted) echo "[OK] Usunięto {$deleted} starych backupów (zachowano min. 3 ostatnie każdego typu).\n";
+
+// Synchronizuj manifest z rzeczywistością (usuń wpisy po zrotowanych plikach).
+$pruned = backup_manifest_prune();
+if ($pruned) echo "[OK] Manifest: usunięto {$pruned} nieaktualnych wpisów.\n";
+
+// Stan przebiegu: znacznik sukcesu albo alert do administratorów.
+if ($ok) {
+    backup_mark_run_ok();
+} else {
+    try {
+        backup_alert(
+            'Backup nie powiódł się',
+            "Agent kopii zapasowych zgłosił błędy o " . date('Y-m-d H:i') . ":\n\n" . ($err_log ?: 'Szczegóły w logu CRON.'),
+            'backup_failed', 3
+        );
+        echo "[INFO] Wysłano alert o niepowodzeniu do administratorów.\n";
+    } catch (\Throwable $e) {
+        echo "[WARN] Nie udało się wysłać alertu: " . $e->getMessage() . "\n";
+    }
+}
 
 echo "[DONE] " . date('Y-m-d H:i:s') . " — " . ($ok ? 'sukces' : 'błędy (patrz wyżej)') . "\n";
 exit($ok ? 0 : 1);

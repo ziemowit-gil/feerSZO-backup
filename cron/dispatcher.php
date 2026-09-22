@@ -121,6 +121,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [8, 10],      // między 8:00 a 10:00
     ],
+    'backup_monitor' => [
+        'file'     => __DIR__ . '/backup_monitor.php',
+        'interval' => 86400,        // raz dziennie
+        'schedule' => [7, 9],       // rano — RPO + weryfikacja integralności kopii
+    ],
     'termination_milestone_reminder' => [
         'file'     => __DIR__ . '/termination_milestone_reminder.php',
         'interval' => 86400,        // raz dziennie
