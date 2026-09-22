@@ -76,9 +76,9 @@ if command -v bundle >/dev/null 2>&1; then
 else
   RAKE="rake"
 fi
+MIGRATED=1
 if ! $RAKE redmine:plugins:migrate NAME="$PLUGIN_NAME" RAILS_ENV=production; then
-  echo "UWAGA: migracja nie powiodła się. Sprawdź środowisko Ruby/bundler i uruchom ręcznie:" >&2
-  echo "  cd \"$REDMINE\" && $RAKE redmine:plugins:migrate NAME=$PLUGIN_NAME RAILS_ENV=production" >&2
+  MIGRATED=0
 fi
 
 # ── Restart (Passenger) ──────────────────────────────────────────────────────
@@ -87,6 +87,14 @@ touch "$REDMINE/tmp/restart.txt"
 echo "Restart zlecony (tmp/restart.txt)."
 
 echo
-echo "GOTOWE. Teraz w Redmine: Administracja → Wtyczki → SZO Sync → Konfiguruj"
-echo "  URL webhooka SZO: <SZO>/api/redmine_webhook.php"
-echo "  Sekret (HMAC):    ten sam co w SZO (Admin → Redmine)"
+if [ "$MIGRATED" -eq 1 ]; then
+  echo "GOTOWE. Teraz w Redmine: Administracja → Wtyczki → SZO Sync → Konfiguruj"
+  echo "  URL webhooka SZO: <SZO>/api/redmine_webhook.php"
+  echo "  Sekret (HMAC):    ten sam co w SZO (Admin → Redmine)"
+else
+  echo "UWAGA: migracja NIE przeszła — wtyczka podłączona, ale pole „Komentarze” nie powstało." >&2
+  echo "Najczęstsza przyczyna: błędny config/configuration.yml (Redmine nie startuje)." >&2
+  echo "Napraw configuration.yml, potem uruchom ręcznie:" >&2
+  echo "  cd \"$REDMINE\" && $RAKE redmine:plugins:migrate NAME=$PLUGIN_NAME RAILS_ENV=production && touch tmp/restart.txt" >&2
+  exit 1
+fi
