@@ -14,7 +14,7 @@ $PAGE_TITLE = 'Ustawienia Redmine';
 $KEYS = [
     'redmine_enabled', 'redmine_url', 'redmine_api_key',
     'redmine_default_project_id', 'redmine_default_tracker_id',
-    'helpdesk_frontend_only',
+    'helpdesk_frontend_only', 'redmine_minihelpdesk_enabled',
 ];
 $settings = [];
 foreach ($KEYS as $k) { $settings[$k] = org_setting($k); }
@@ -27,7 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
         'redmine_default_project_id' => trim($_POST['redmine_default_project_id'] ?? ''),
         'redmine_default_tracker_id' => trim($_POST['redmine_default_tracker_id'] ?? ''),
     ];
-    $save['helpdesk_frontend_only'] = isset($_POST['helpdesk_frontend_only']) ? '1' : '0';
+    $save['helpdesk_frontend_only']       = isset($_POST['helpdesk_frontend_only']) ? '1' : '0';
+    $save['redmine_minihelpdesk_enabled'] = isset($_POST['redmine_minihelpdesk_enabled']) ? '1' : '0';
     // Klucz API — zachowaj stary, gdy pole puste.
     $key = trim($_POST['redmine_api_key'] ?? '');
     if ($key !== '') $save['redmine_api_key'] = $key;
@@ -140,6 +141,22 @@ include dirname(__DIR__) . '/includes/header.php';
              value="<?= h($settings['redmine_default_tracker_id']) ?>" placeholder="np. 3 (Support)">
       <div class="form-text">Typ zagadnienia z Administracja → Typy zagadnień. Puste = domyślny.</div>
     </div>
+  </div>
+
+  <hr>
+  <div class="fw-semibold small mb-2"><i class="bi bi-window me-1"></i>Mini-helpdesk (publiczny formularz)</div>
+  <div class="form-check form-switch mb-2">
+    <input class="form-check-input" type="checkbox" role="switch" name="redmine_minihelpdesk_enabled"
+           id="redmine_minihelpdesk_enabled" value="1" <?= $settings['redmine_minihelpdesk_enabled'] === '1' ? 'checked' : '' ?>>
+    <label class="form-check-label" for="redmine_minihelpdesk_enabled">
+      Włącz publiczny formularz zgłoszeń (bez logowania) tworzący issue w Redmine
+    </label>
+  </div>
+  <div class="form-text mb-3">
+    Adres do podlinkowania/osadzenia:
+    <code><?= h(rtrim(APP_URL, '/')) ?>/helpdesk/mini.php</code>.
+    Można wstawić w Redmine (menu/nagłówek) lub osadzić na stronie w <code>&lt;iframe&gt;</code>.
+    Chroniony honeypotem i limitem na sesję — dla pełnej publiczności rozważ Cloudflare.
   </div>
 
   <div class="d-flex gap-2">
