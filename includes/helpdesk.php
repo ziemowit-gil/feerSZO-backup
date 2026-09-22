@@ -1434,6 +1434,14 @@ function hd_redmine_sync_ticket(int $ticket_id): void {
             $tid = redmine_tracker_for_category((string)$t['category']);
             if ($tid > 0) $issue['tracker_id'] = $tid;
         }
+        if (function_exists('redmine_priority_for')) {
+            $pid = redmine_priority_for((string)$t['priority']);
+            if ($pid > 0) $issue['priority_id'] = $pid;
+        }
+        if (function_exists('redmine_build_custom_fields')) {
+            $cf = redmine_build_custom_fields($t);
+            if ($cf) $issue['custom_fields'] = $cf;
+        }
         $res = redmine_create_issue($issue);
         db_update('helpdesk_tickets', ['redmine_issue_id' => (int)$res['id']], $ticket_id);
     } catch (\Throwable $e) {

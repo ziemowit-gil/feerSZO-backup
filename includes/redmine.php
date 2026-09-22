@@ -257,6 +257,9 @@ function redmine_create_issue(array $params): array
     $tracker = (int)($params['tracker_id'] ?? 0) ?: (int)org_setting('redmine_default_tracker_id');
     if ($tracker > 0)  $data['tracker_id']  = $tracker;
     if (!empty($params['priority_id'])) $data['priority_id'] = (int)$params['priority_id'];
+    if (!empty($params['custom_fields']) && is_array($params['custom_fields'])) {
+        $data['custom_fields'] = $params['custom_fields'];
+    }
 
     try {
         $res = $client->getApi('issue')->create($data);
@@ -340,6 +343,89 @@ function redmine_add_note(int $issue_id, string $note, bool $private = false): b
         error_log('[redmine] add_note #' . $issue_id . ': ' . $e->getMessage());
         throw new RedmineException('Błąd dodawania notatki do Redmine: ' . $e->getMessage(), 0, $e);
     }
+}
+
+// ── Priorytety ────────────────────────────────────────────────────────────────
+
+/** Lista priorytetów Redmine [id => nazwa]. */
+function redmine_priorities(): array
+{
+    try {
+        $client = redmine_client();
+        $res = $client->getApi('issue_priority')->all();
+        $out = [];
+        foreach ((array)($res['issue_priorities'] ?? []) as $p) {
+            if (isset($p['id'])) $out[(int)$p['id']] = (string)($p['name'] ?? $p['id']);
+        }
+        return $out;
+    } catch (\Throwable $e) {
+        error_log('[redmine] priorities: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** Mapa priorytet SZO → priority_id Redmine (settings JSON redmine_priority_map). */
+function redmine_priority_map(): array
+{
+    $raw = org_setting('redmine_priority_map');
+    $m = $raw ? json_decode($raw, true) : [];
+    return is_array($m) ? $m : [];
+}
+
+function redmine_priority_for(string $szo_priority): int
+{
+    return (int)(redmine_priority_map()[$szo_priority] ?? 0);
+}
+
+// ── Pola niestandardowe ─────────────────────────────────────────────────────
+
+/** Definicje pól niestandardowych Redmine [id => nazwa] (wymaga klucza admina). */
+function redmine_custom_field_defs(): array
+{
+    try {
+        $client = redmine_client();
+        $res = $client->getApi('custom_fields')->all();
+        $out = [];
+        foreach ((array)($res['custom_fields'] ?? []) as $cf) {
+            if (isset($cf['id'])) $out[(int)$cf['id']] = (string)($cf['name'] ?? $cf['id']);
+        }
+        return $out;
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/** Mapa pól: [ ['id'=>int, 'source'=>string], ... ] (settings JSON redmine_custom_fields). */
+function redmine_custom_fields_map(): array
+{
+    $raw = org_setting('redmine_custom_fields');
+    $m = $raw ? json_decode($raw, true) : [];
+    return is_array($m) ? $m : [];
+}
+
+/**
+ * Buduje tablicę custom_fields dla API na podstawie mapy i danych zgłoszenia.
+ * Źródła: number, title, requester_name, requester_email, category.
+ * @return array [ ['id'=>int,'value'=>string], ... ]
+ */
+function redmine_build_custom_fields(array $ticket): array
+{
+    $out = [];
+    foreach (redmine_custom_fields_map() as $row) {
+        $id  = (int)($row['id'] ?? 0);
+        $src = (string)($row['source'] ?? '');
+        if ($id <= 0 || $src === '') continue;
+        $val = match ($src) {
+            'number'          => (string)($ticket['number'] ?? ''),
+            'title'           => (string)($ticket['title'] ?? ''),
+            'requester_name'  => (string)($ticket['requester_name'] ?? ''),
+            'requester_email' => (string)($ticket['requester_email'] ?? ''),
+            'category'        => (string)($ticket['category'] ?? ''),
+            default           => '',
+        };
+        if ($val !== '') $out[] = ['id' => $id, 'value' => $val];
+    }
+    return $out;
 }
 
 /**
