@@ -9,10 +9,14 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
 require_once dirname(dirname(__DIR__)) . '/includes/ti_payments.php';
+$__bf = dirname(dirname(__DIR__)) . '/includes/betterfly_invoices.php';
+if (is_file($__bf)) require_once $__bf;
 
 k30_require_access();
 karty30_migrate();
 ti_payments_migrate();
+
+$bf_backend = function_exists('betterfly_is_ti_backend') && betterfly_is_ti_backend();
 
 $can_write  = can_write('karty30') || is_admin();
 $can_delete = is_admin();
@@ -58,6 +62,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         if ($can_delete) {
             ti_payment_delete((int)($_POST['payment_id'] ?? 0));
             flash_set('success', 'Wpłata usunięta, saldo przeliczone.');
+        }
+        header('Location: student_billing.php?client_id=' . $client_id); exit;
+    }
+
+    // Faktura zbiorcza Betterfly — jedna faktura, osobna pozycja na każdy kurs.
+    if ($op === 'make_invoice_betterfly_client' && $bf_backend) {
+        $bm = (int)($_POST['bf_month'] ?? date('n'));
+        $by = (int)($_POST['bf_year'] ?? date('Y'));
+        try {
+            $res = betterfly_issue_ti_client_invoice($client_id, $bm, $by, ['uid' => (int)(current_user()['id'] ?? 0)]);
+            if (!empty($res['via_edok'])) {
+                flash_set('success', 'Faktura zbiorcza utworzona w Betterfly i skierowana do obiegu EODoK (dokument #' . (int)$res['edok_doc_id'] . ').');
+            } else {
+                flash_set('success', 'Faktura zbiorcza wystawiona w Betterfly' . (!empty($res['number']) ? ' (nr ' . $res['number'] . ').' : '.'));
+            }
+        } catch (\Throwable $e) {
+            flash_set('danger', 'Betterfly: ' . $e->getMessage());
         }
         header('Location: student_billing.php?client_id=' . $client_id); exit;
     }
@@ -133,6 +154,25 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 </div>
 
 <?= flash_html() ?>
+
+<?php if ($bf_backend && $can_write): ?>
+<form method="post" class="d-flex align-items-end gap-2 flex-wrap mb-3 p-2 border rounded bg-light no-print">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="_op" value="make_invoice_betterfly_client">
+  <div>
+    <label class="form-label small mb-1">Miesiąc</label>
+    <input type="number" name="bf_month" min="1" max="12" value="<?= (int)date('n') ?>" class="form-control form-control-sm" style="width:5rem">
+  </div>
+  <div>
+    <label class="form-label small mb-1">Rok</label>
+    <input type="number" name="bf_year" min="2020" max="2100" value="<?= (int)date('Y') ?>" class="form-control form-control-sm" style="width:6rem">
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm">
+    <i class="bi bi-receipt me-1"></i>Wystaw fakturę zbiorczą (Betterfly)
+  </button>
+  <span class="text-muted small">Jedna faktura, osobna pozycja na każdy kurs kursanta.</span>
+</form>
+<?php endif; ?>
 
 <!-- ── Saldo ──────────────────────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
