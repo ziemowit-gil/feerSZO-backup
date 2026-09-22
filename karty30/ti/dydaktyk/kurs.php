@@ -276,6 +276,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $par[] = $id;
         db()->prepare("UPDATE k30_ti_courses SET " . implode(',', $set) . " WHERE id=?")->execute($par);
 
+        // Betterfly: ProductId dla pozycji tego kursu (nadpisuje domyślny produkt TI).
+        $bf_pid = (int)($_POST['betterfly_product_id'] ?? 0);
+        org_setting_set('betterfly_ti_product_course_' . $id, $bf_pid > 0 ? (string)$bf_pid : '');
+
         // Kurs jednorazowy ↔ sekcja Działania: dosync istniejącego działania,
         // a przy świeżym włączeniu bez działania — utwórz je.
         $extra = '';
@@ -1195,6 +1199,13 @@ foreach ($enrollments as $e): ?>
         <div class="form-check form-switch m-0">
           <input class="form-check-input" type="checkbox" name="no_invoice" id="ed_noinv" <?= !empty($course['no_invoice']) ? 'checked' : '' ?>>
           <label class="form-check-label small" for="ed_noinv">Bez fakturowania</label>
+        </div>
+        <?php $bf_course_pid = (int)org_setting('betterfly_ti_product_course_' . $id); ?>
+        <div class="m-0">
+          <label class="form-label small mb-1" for="ed_bf_pid">Betterfly ProductId <span class="text-body-secondary">(opcjonalnie)</span></label>
+          <input type="number" class="form-control form-control-sm" name="betterfly_product_id" id="ed_bf_pid"
+                 style="width:9rem" value="<?= $bf_course_pid > 0 ? $bf_course_pid : '' ?>" placeholder="domyślny">
+          <div class="form-text" style="font-size:.68rem">Nadpisuje domyślny produkt TI dla pozycji tego kursu na fakturze Betterfly.</div>
         </div>
         <div class="form-check form-switch m-0">
           <input class="form-check-input" type="checkbox" name="wup_exclude" id="ed_wup" <?= !empty($course['wup_exclude']) ? 'checked' : '' ?>>
