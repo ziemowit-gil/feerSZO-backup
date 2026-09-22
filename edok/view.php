@@ -153,7 +153,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Ręczne zatwierdzenie powiązanej faktury sprzedaży w Comarch Betterfly.
+    if ($action === 'betterfly_confirm') {
+        if (!(is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy'))) {
+            flash_set('danger', 'Brak uprawnień do zatwierdzania faktur Betterfly.');
+            header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+            exit;
+        }
+        try {
+            require_once __DIR__ . '/../includes/betterfly_invoices.php';
+            $row = betterfly_confirm_from_edok($id);
+            flash_set('success', 'Faktura zatwierdzona w Betterfly' . (!empty($row['number']) ? ' (nr ' . $row['number'] . ').' : '.'));
+        } catch (Throwable $e) {
+            flash_set('danger', 'Betterfly: ' . $e->getMessage());
+        }
+        header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+        exit;
+    }
+
     $doc = edok_get($id); // odśwież po ew. nieudanej próbie
+}
+
+// Powiązanie z fakturą Comarch Betterfly (jeśli dokument powstał z integracji).
+$bf_link = null;
+if (is_file(__DIR__ . '/../includes/betterfly_invoices.php')) {
+    require_once __DIR__ . '/../includes/betterfly_invoices.php';
+    if (function_exists('betterfly_invoices_migrate')) {
+        try {
+            betterfly_invoices_migrate();
+            $bf_link = db_one("SELECT * FROM betterfly_invoices WHERE edok_doc_id=?", [$id]);
+        } catch (\Throwable $e) { $bf_link = null; }
+    }
 }
 
 $PAGE_TITLE = $doc['number'] . ' — EODoK';
@@ -329,6 +359,43 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 <div class="edok-alert edok-alert-danger tw-mb-4">
   <i class="bi bi-exclamation-triangle-fill tw-mt-0.5"></i>
   <ul class="tw-mb-0 tw-pl-4"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+</div>
+<?php endif; ?>
+
+<?php if ($bf_link):
+  $bf_sales     = ($bf_link['direction'] ?? 'sales') === 'sales';
+  $bf_confirmed = (int)($bf_link['doc_status'] ?? 0) === 1;
+  $bf_can       = is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy');
+?>
+<div class="edok-card tw-mb-4">
+  <div class="edok-card__hd"><i class="bi bi-receipt"></i> Comarch Betterfly
+    <span class="edok-badge edok-badge-secondary"><?= $bf_sales ? 'Faktura sprzedaży' : 'Faktura zakupu' ?></span>
+  </div>
+  <div class="edok-card__bd tw-text-sm tw-flex tw-items-center tw-justify-between tw-flex-wrap tw-gap-2">
+    <div class="tw-text-slate-600">
+      <?php if (!empty($bf_link['number'])): ?>Numer: <strong><?= h($bf_link['number']) ?></strong> · <?php endif; ?>
+      Dokument:
+      <span class="edok-badge <?= $bf_confirmed ? 'edok-badge-success' : 'edok-badge-warning' ?>">
+        <?= $bf_confirmed ? 'zatwierdzona' : 'bufor' ?>
+      </span>
+      · Płatność: <?= h(betterfly_payment_status_label((int)($bf_link['payment_status'] ?? 0))) ?>
+    </div>
+    <?php if ($bf_sales && !$bf_confirmed): ?>
+      <?php if ($bf_can): ?>
+      <form method="post" onsubmit="return confirm('Zatwierdzić fakturę w Betterfly? Operacja jest nieodwracalna.');" class="tw-inline">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="action" value="betterfly_confirm">
+        <button class="edok-btn edok-btn-success" type="submit">
+          <i class="bi bi-check2-circle"></i> Zatwierdź w Betterfly
+        </button>
+      </form>
+      <?php else: ?>
+      <span class="tw-text-slate-400 tw-text-xs">Zatwierdzenie po akceptacji obiegu (rola: zatwierdzający / księgowy).</span>
+      <?php endif; ?>
+    <?php elseif ($bf_sales && $bf_confirmed): ?>
+      <span class="edok-badge edok-badge-success"><i class="bi bi-check2-all"></i> Zatwierdzona w Betterfly</span>
+    <?php endif; ?>
+  </div>
 </div>
 <?php endif; ?>
 

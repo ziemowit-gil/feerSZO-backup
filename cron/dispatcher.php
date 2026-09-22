@@ -323,7 +323,12 @@ $AGENTS = [
     ],
     'betterfly_sync' => [
         'file'     => __DIR__ . '/betterfly_sync.php',
-        'interval' => 10800,        // co 3 godziny — statusy płatności faktur Betterfly
+        'interval' => 10800,        // co 3 godziny — statusy płatności faktur Betterfly + dokończenie zatwierdzeń
+        'schedule' => [6, 23],      // w godzinach pracy
+    ],
+    'betterfly_purchase_import' => [
+        'file'     => __DIR__ . '/betterfly_purchase_import.php',
+        'interval' => 3600,         // co godzinę — nowe faktury zakupu do obiegu EODoK (jeśli włączone)
         'schedule' => [6, 23],      // w godzinach pracy
     ],
 ];

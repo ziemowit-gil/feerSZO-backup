@@ -582,6 +582,34 @@ function betterfly_sync_pending(): array
     return ['synced' => $synced, 'errors' => $errors];
 }
 
+/**
+ * Ponawia zatwierdzenie faktur sprzedaży zaakceptowanych w EODoK, które nie
+ * zostały jeszcze potwierdzone w Betterfly (np. gdy hook zawiódł na sieci).
+ * Sieć bezpieczeństwa dla crona.
+ *
+ * @return array{confirmed:int, errors:array<int,string>}
+ */
+function betterfly_confirm_approved_pending(): array
+{
+    betterfly_invoices_migrate();
+    $rows = db_all(
+        "SELECT * FROM betterfly_invoices
+          WHERE direction='sales' AND approval_status='approved'
+            AND doc_status<>1 AND betterfly_invoice_id>0"
+    );
+    $confirmed = 0; $errors = [];
+    foreach ($rows as $row) {
+        try {
+            _betterfly_confirm_sales_row($row);
+            $confirmed++;
+        } catch (\Throwable $e) {
+            $errors[(int)$row['id']] = $e->getMessage();
+            error_log('[betterfly] Ponowne zatwierdzenie faktury #' . $row['id'] . ' nieudane: ' . $e->getMessage());
+        }
+    }
+    return ['confirmed' => $confirmed, 'errors' => $errors];
+}
+
 /** Czytelny status płatności (Betterfly PaymentStatus 0/1/2). */
 function betterfly_payment_status_label(int $status): string
 {

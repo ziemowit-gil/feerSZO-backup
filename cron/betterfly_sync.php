@@ -31,13 +31,24 @@ if (!BetterFlyClient::isEnabled()) {
 echo $ts() . " Start: betterfly_sync\n";
 
 try {
+    // 1) Sieć bezpieczeństwa: dokończ zatwierdzenia zaakceptowane w EODoK,
+    //    które nie potwierdziły się w Betterfly (np. błąd sieci w hooku).
+    $conf = betterfly_confirm_approved_pending();
+    if ($conf['confirmed'] || $conf['errors']) {
+        echo $ts() . " Zatwierdzono zaległe: {$conf['confirmed']} | błędy: " . count($conf['errors']) . "\n";
+        foreach ($conf['errors'] as $localId => $msg) {
+            echo $ts() . "   [BŁĄD confirm] rekord #{$localId}: {$msg}\n";
+        }
+    }
+
+    // 2) Synchronizacja statusów płatności.
     $res = betterfly_sync_pending();
     echo $ts() . " Zsynchronizowano: {$res['synced']} | błędy: " . count($res['errors']) . "\n";
     foreach ($res['errors'] as $localId => $msg) {
         echo $ts() . "   [BŁĄD] rekord #{$localId}: {$msg}\n";
     }
     // Kod wyjścia 1, gdy były błędy (widoczne w logach/monitoringu crona).
-    exit($res['errors'] ? 1 : 0);
+    exit(($res['errors'] || $conf['errors']) ? 1 : 0);
 } catch (\Throwable $e) {
     fwrite(STDERR, $ts() . ' [KRYTYCZNY] ' . $e->getMessage() . "\n");
     error_log('[betterfly] cron betterfly_sync krytyczny błąd: ' . $e->getMessage());

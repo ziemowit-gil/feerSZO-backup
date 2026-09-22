@@ -20,6 +20,7 @@ $KEYS = [
     'betterfly_default_payment_type_id', 'betterfly_default_vat_rate_id',
     'betterfly_ti_product_id', 'betterfly_ti_price_is_gross', 'betterfly_default_vat_percent',
     'betterfly_api_ver_customers', 'betterfly_api_ver_invoices',
+    'betterfly_edok_gate_sales', 'betterfly_edok_gate_purchase',
 ];
 $settings = [];
 foreach ($KEYS as $k) { $settings[$k] = org_setting($k); }
@@ -36,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
         'betterfly_enabled'                 => isset($_POST['betterfly_enabled'])       ? '1' : '0',
         'betterfly_ti_enabled'              => isset($_POST['betterfly_ti_enabled'])    ? '1' : '0',
         'betterfly_ti_price_is_gross'       => isset($_POST['betterfly_ti_price_is_gross']) ? '1' : '0',
+        'betterfly_edok_gate_sales'         => isset($_POST['betterfly_edok_gate_sales'])    ? '1' : '0',
+        'betterfly_edok_gate_purchase'      => isset($_POST['betterfly_edok_gate_purchase']) ? '1' : '0',
         'betterfly_base_url'                => rtrim(trim($_POST['betterfly_base_url'] ?? ''), '/') ?: 'https://app.comarchbetterfly.pl',
         'betterfly_client_id'              => trim($_POST['betterfly_client_id'] ?? ''),
         'betterfly_default_payment_type_id' => trim($_POST['betterfly_default_payment_type_id'] ?? ''),
@@ -254,6 +257,25 @@ include dirname(__DIR__) . '/includes/header.php';
     <label class="form-label small">Procent VAT do przeliczenia brutto→netto</label>
     <input type="number" step="0.01" name="betterfly_default_vat_percent" class="form-control form-control-sm" style="max-width:140px"
            value="<?= h($settings['betterfly_default_vat_percent']) ?>">
+  </div>
+
+  <hr>
+  <div class="fw-semibold small mb-2"><i class="bi bi-diagram-3 me-1"></i>Obieg akceptacji EODoK</div>
+  <div class="form-check form-switch mb-2">
+    <input class="form-check-input" type="checkbox" role="switch" name="betterfly_edok_gate_sales"
+           id="betterfly_edok_gate_sales" value="1" <?= $settings['betterfly_edok_gate_sales'] === '1' ? 'checked' : '' ?>>
+    <label class="form-check-label" for="betterfly_edok_gate_sales">
+      Faktury <strong>sprzedaży</strong> wymagają akceptacji EODoK — tworzone w buforze,
+      zatwierdzane w Betterfly dopiero po finalnej akceptacji obiegu
+    </label>
+  </div>
+  <div class="form-check form-switch mb-3">
+    <input class="form-check-input" type="checkbox" role="switch" name="betterfly_edok_gate_purchase"
+           id="betterfly_edok_gate_purchase" value="1" <?= $settings['betterfly_edok_gate_purchase'] === '1' ? 'checked' : '' ?>>
+    <label class="form-check-label" for="betterfly_edok_gate_purchase">
+      Pobierane faktury <strong>zakupu</strong> trafiają do obiegu EODoK
+      (cron <code>betterfly_purchase_import.php</code>)
+    </label>
   </div>
 
   <details class="mb-3">
