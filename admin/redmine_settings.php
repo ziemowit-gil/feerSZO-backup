@@ -16,6 +16,7 @@ $KEYS = [
     'redmine_enabled', 'redmine_url', 'redmine_api_key',
     'redmine_default_project_id', 'redmine_default_tracker_id',
     'helpdesk_frontend_only', 'redmine_minihelpdesk_enabled', 'redmine_webhook_secret',
+    'redmine_oauth_client_id', 'redmine_oauth_client_secret',
 ];
 $settings = [];
 foreach ($KEYS as $k) { $settings[$k] = org_setting($k); }
@@ -31,6 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_save'])) {
     $save['helpdesk_frontend_only']       = isset($_POST['helpdesk_frontend_only']) ? '1' : '0';
     $save['redmine_minihelpdesk_enabled'] = isset($_POST['redmine_minihelpdesk_enabled']) ? '1' : '0';
     $save['redmine_webhook_secret']       = trim($_POST['redmine_webhook_secret'] ?? '');
+    $save['redmine_oauth_client_id']      = trim($_POST['redmine_oauth_client_id'] ?? '');
+    $osecret = trim($_POST['redmine_oauth_client_secret'] ?? '');
+    if ($osecret !== '') $save['redmine_oauth_client_secret'] = $osecret;
     // Klucz API — zachowaj stary, gdy pole puste.
     $key = trim($_POST['redmine_api_key'] ?? '');
     if ($key !== '') $save['redmine_api_key'] = $key;
@@ -184,6 +188,29 @@ include dirname(__DIR__) . '/includes/header.php';
     URL: <code><?= h(rtrim(APP_URL, '/')) ?>/api/redmine_webhook.php</code> oraz ten sam sekret.
     Bez wtyczki sync i tak działa przez cron (co 10 min) — webhook tylko przyspiesza.
   </div>
+
+  <hr>
+  <div class="fw-semibold small mb-2"><i class="bi bi-person-badge me-1"></i>OAuth per użytkownik (opcjonalnie)</div>
+  <div class="form-text mb-2">
+    Pozwala pracownikom łączyć swoje konto SZO z kontem Redmine — ich zgłoszenia i
+    komentarze są wtedy podpisane ich nazwiskiem. W Redmine: <em>Administracja → Applications
+    → New Application</em>, Redirect URI:
+    <code><?= h(rtrim(APP_URL, '/')) ?>/auth/redmine_callback.php</code>.
+  </div>
+  <div class="row g-2 mb-3">
+    <div class="col-sm-6">
+      <label class="form-label small">OAuth Client ID</label>
+      <input type="text" name="redmine_oauth_client_id" class="form-control form-control-sm font-monospace"
+             value="<?= h($settings['redmine_oauth_client_id']) ?>">
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label small">OAuth Client Secret</label>
+      <input type="password" name="redmine_oauth_client_secret" class="form-control form-control-sm font-monospace"
+             autocomplete="new-password"
+             placeholder="<?= $settings['redmine_oauth_client_secret'] ? '(zapisany — zostaw puste)' : 'Client Secret' ?>">
+    </div>
+  </div>
+  <div class="form-text mb-3">Użytkownicy łączą konto na stronie <code><?= h(rtrim(APP_URL, '/')) ?>/auth/redmine_account.php</code>.</div>
 
   <hr>
   <div class="fw-semibold small mb-2"><i class="bi bi-diagram-2 me-1"></i>Mapowanie kategorii → tracker Redmine</div>
