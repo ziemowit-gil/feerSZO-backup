@@ -463,6 +463,142 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
 }
 
 /**
+ * Wystawia JEDNĄ fakturę dla kursanta za dany miesiąc z OSOBNĄ POZYCJĄ na każdy
+ * kurs, na który jest zapisany (rozliczanie per kurs = osobna pozycja faktury).
+ *
+ * Kursy bez godzin w okresie oraz oznaczone „nie fakturuj" są pomijane.
+ *
+ * @param array $opts  buyer_override, confirm, payment_type_id, vat_rate_id,
+ *                     payment_deadline, uid, via_edok
+ * @return array{ok:bool, local_id:int, betterfly_invoice_id:int, number:string,
+ *               customer_id:int, via_edok:bool, edok_doc_id:int, courses:array, total_net:float}
+ */
+function betterfly_issue_ti_client_invoice(int $client_id, int $month, int $year, array $opts = []): array
+{
+    betterfly_invoices_migrate();
+    betterfly_ti_require();
+
+    $uid = (int)($opts['uid'] ?? (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 0));
+
+    // Kursy kursanta z policzonym rozliczeniem — po jednej pozycji na kurs.
+    $enrolled = db_all("SELECT course_id FROM k30_ti_enrollments WHERE client_id=? ORDER BY course_id", [$client_id]);
+    $lines    = [];
+    $courses  = [];
+    foreach ($enrolled as $e) {
+        $cid = (int)$e['course_id'];
+        try {
+            $b = betterfly_ti_course_billing($cid, $client_id, $month, $year);
+        } catch (BetterFlyException $ex) {
+            continue; // kurs wyłączony z fakturowania itp.
+        }
+        if ($b['hours'] <= 0) continue; // brak godzin w okresie — pomiń pozycję
+
+        $unitNet = betterfly_ti_unit_net((float)$b['hourly_rate']);
+        $hoursTxt = rtrim(rtrim(number_format($b['hours'], 2, '.', ''), '0'), '.');
+        $lines[] = [
+            'ProductId'            => betterfly_ti_product_id($cid),
+            'Quantity'             => (float)$b['hours'],
+            'ProductCurrencyPrice' => $unitNet,
+            'ProductDescription'   => sprintf('Zajęcia TI — %s, %02d/%d (%s godz.)', $b['course_name'], $month, $year, $hoursTxt),
+            'VatRateId'            => (int)($opts['vat_rate_id'] ?? 0) ?: (int)org_setting('betterfly_default_vat_rate_id'),
+        ];
+        $courses[] = $b;
+    }
+
+    if (!$lines) {
+        throw new BetterFlyException("Brak kursów z godzinami do zafakturowania dla kursanta #{$client_id} ({$month}/{$year}).");
+    }
+
+    $buyer  = betterfly_buyer_from_ti_client($client_id, (array)($opts['buyer_override'] ?? []));
+    $client = BetterFlyClient::fromSettings();
+
+    // Rekord zbiorczy: course_id=0 (rozliczenie łączne kursanta) — dedup per okres.
+    $localId = betterfly_upsert_local([
+        'source'       => 'ti_course',
+        'direction'    => 'sales',
+        'course_id'    => 0,
+        'client_id'    => $client_id,
+        'period_month' => $month,
+        'period_year'  => $year,
+        'created_by'   => $uid,
+    ]);
+
+    try {
+        $customerId = $client->ensureCustomer(betterfly_customer_payload($buyer));
+        $totalNet   = 0.0;
+        foreach ($lines as $l) $totalNet += $l['ProductCurrencyPrice'] * $l['Quantity'];
+
+        $payload = betterfly_invoice_payload($customerId, $lines, [
+            'payment_type_id'  => $opts['payment_type_id']  ?? null,
+            'payment_deadline' => $opts['payment_deadline'] ?? null,
+            'description'      => sprintf('Faktura za zajęcia TI (%d kurs%s), %02d/%d',
+                                          count($lines), count($lines) === 1 ? '' : 'y', $month, $year),
+        ]);
+        $invoiceId = $client->createInvoice($payload);
+        $fetched   = $client->getInvoice($invoiceId);
+        $number    = (string)($fetched['Number'] ?? '');
+        $docStatus = (int)($fetched['Status'] ?? 0);
+
+        $viaEdok   = !empty($opts['via_edok']) || betterfly_edok_gate_sales();
+        $approval  = '';
+        $edokDocId = 0;
+
+        if ($viaEdok) {
+            $courseNames = implode(', ', array_map(fn($c) => $c['course_name'], $courses));
+            $edokDocId = betterfly_edok_create_doc([
+                'number'      => $number,
+                'party_name'  => (string)($buyer['name'] ?? ''),
+                'party_nip'   => (string)($buyer['nip'] ?? ''),
+                'issue_date'  => date('Y-m-d'),
+                'net'         => round($totalNet, 2),
+                'gross'       => (float)($fetched['GrossTotal'] ?? 0),
+                'vat'         => (float)($fetched['VatTotal'] ?? 0),
+                'currency'    => (string)($fetched['CurrencyCode'] ?? 'PLN'),
+                'description' => sprintf('Faktura sprzedaży TI (%02d/%d) — kursy: %s', $month, $year, $courseNames),
+            ], 'sales');
+            $approval = 'pending';
+        } elseif (!empty($opts['confirm'])) {
+            $client->confirmInvoice($invoiceId);
+            $fetched   = $client->getInvoice($invoiceId) ?: $fetched;
+            $number    = (string)($fetched['Number'] ?? $number);
+            $docStatus = (int)($fetched['Status'] ?? 1);
+        }
+
+        betterfly_upsert_local([
+            'id'                    => $localId,
+            'betterfly_customer_id' => $customerId,
+            'betterfly_invoice_id'  => $invoiceId,
+            'number'                => $number,
+            'net_total'             => (float)($fetched['NetTotal']   ?? round($totalNet, 2)),
+            'gross_total'           => (float)($fetched['GrossTotal'] ?? 0),
+            'vat_total'             => (float)($fetched['VatTotal']   ?? 0),
+            'currency'              => (string)($fetched['CurrencyCode'] ?? 'PLN'),
+            'doc_status'            => $docStatus,
+            'payment_status'        => (int)($fetched['PaymentStatus'] ?? 0),
+            'edok_doc_id'           => $edokDocId,
+            'approval_status'       => $approval,
+            'last_error'            => '',
+        ]);
+
+        return [
+            'ok'                   => true,
+            'local_id'             => $localId,
+            'betterfly_invoice_id' => $invoiceId,
+            'number'               => $number,
+            'customer_id'          => $customerId,
+            'via_edok'             => $viaEdok,
+            'edok_doc_id'          => $edokDocId,
+            'courses'              => $courses,
+            'total_net'            => round($totalNet, 2),
+        ];
+    } catch (BetterFlyException $e) {
+        betterfly_upsert_local(['id' => $localId, 'last_error' => $e->getMessage()]);
+        error_log('[betterfly] Faktura zbiorcza TI (klient ' . $client_id . ') nieudana: ' . $e->getMessage());
+        throw $e;
+    }
+}
+
+/**
  * Wystawia fakturę CRM z dowolnych pozycji (np. z oferty/usługi).
  *
  * @param array $buyer  dane nabywcy (patrz betterfly_customer_payload / betterfly_buyer_from_crm_contact)
