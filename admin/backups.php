@@ -8,6 +8,9 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
+require_once dirname(__DIR__) . '/includes/backup.php';
+require_once dirname(__DIR__) . '/includes/admin_audit.php';
+admin_audit_migrate();
 
 require_role('admin');
 
@@ -63,6 +66,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($act === 'restore') {
+        $rel  = trim($_POST['file'] ?? '', '/');
+        $full = realpath($bak_root . '/' . $rel);
+        if (!$full || !str_starts_with($full, realpath($bak_root) . '/') || !is_file($full)) {
+            $flash = 'Plik kopii nie istnieje.'; $flash_type = 'danger';
+        } else {
+            $kind = backup_kind(basename($full));
+            if ($kind === 'db') {
+                $res = backup_restore_db($full);
+            } elseif ($kind === 'uploads' || $kind === 'certs') {
+                $res = backup_restore_archive($full);
+            } else {
+                $res = ['ok' => false, 'msg' => 'Nieznany typ kopii — nie można przywrócić.'];
+            }
+            $flash = ($res['ok'] ? 'Przywrócono: ' : 'Błąd przywracania: ') . h($res['msg']);
+            $flash_type = $res['ok'] ? 'success' : 'danger';
+            admin_audit(
+                $res['ok'] ? 'backup_restore' : 'backup_restore_failed',
+                'backups', basename($full) . ' [' . ($kind ?: '?') . '] — ' . $res['msg'], 0, basename($full)
+            );
+        }
+    }
+
+    if ($act === 'enc_enable' && !defined('BACKUP_ENCRYPT_KEY')) {
+        $key = trim($_POST['key'] ?? '');
+        if ($key === '') $key = backup_generate_key();
+        org_setting_set('backup_encrypt_key', $key);
+        admin_audit('backup_encrypt_enable', 'backups', 'Włączono szyfrowanie kopii zapasowych.');
+        $flash = 'Szyfrowanie włączone. ZAPISZ KLUCZ POZA SYSTEMEM — bez niego kopie są nie do odzyskania.';
+        $flash_type = 'warning';
+    }
+
+    if ($act === 'enc_disable' && !defined('BACKUP_ENCRYPT_KEY')) {
+        org_setting_set('backup_encrypt_key', '');
+        admin_audit('backup_encrypt_disable', 'backups', 'Wyłączono szyfrowanie kopii zapasowych (klucz usunięty z ustawień).');
+        $flash = 'Szyfrowanie wyłączone. Istniejące kopie .enc pozostają zaszyfrowane — potrzebują poprzedniego klucza.';
+        $flash_type = 'warning';
+    }
+
     if ($act === 'delete') {
         $rel  = trim($_POST['file'] ?? '', '/');
         $full = realpath($bak_root . '/' . $rel);
@@ -97,11 +139,13 @@ if (is_dir($bak_root)) {
             if (!is_file($fp)) continue;
             $sz = filesize($fp);
             $total_size += $sz;
-            $ext  = strtolower(pathinfo($fp, PATHINFO_EXTENSION));
-            $type = match($ext) {
-                'db'  => ['label' => 'Baza SQLite', 'icon' => 'bi-database',      'cls' => 'primary'],
-                'gz'  => ['label' => 'Archiwum',    'icon' => 'bi-file-zip',       'cls' => 'success'],
-                default => ['label' => strtoupper($ext), 'icon' => 'bi-file',       'cls' => 'secondary'],
+            $kind = backup_kind(basename($fp));
+            $enc  = backup_is_encrypted(basename($fp));
+            $type = match($kind) {
+                'db'      => ['label' => 'Baza SQLite', 'icon' => 'bi-database', 'cls' => 'primary', 'restore' => true],
+                'uploads' => ['label' => 'Uploads',     'icon' => 'bi-file-zip', 'cls' => 'success', 'restore' => true],
+                'certs'   => ['label' => 'Certyfikaty',  'icon' => 'bi-shield-lock', 'cls' => 'warning', 'restore' => true],
+                default   => ['label' => strtoupper(pathinfo($fp, PATHINFO_EXTENSION)), 'icon' => 'bi-file', 'cls' => 'secondary', 'restore' => false],
             };
             $files[] = [
                 'name'  => basename($fp),
@@ -110,6 +154,8 @@ if (is_dir($bak_root)) {
                 'size_h'=> $sz > 1048576 ? round($sz/1048576, 1).' MB' : round($sz/1024).' KB',
                 'mtime' => filemtime($fp),
                 'type'  => $type,
+                'enc'   => $enc,
+                'kind'  => $kind,
             ];
         }
         usort($files, fn($a,$b) => $b['mtime'] - $a['mtime']);
@@ -166,6 +212,46 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
 <div class="alert alert-<?= h($flash_type) ?> py-2 small"><?= $flash ?></div>
 <?php endif; ?>
 
+<?php
+$_enc_on     = backup_encryption_enabled();
+$_enc_const  = defined('BACKUP_ENCRYPT_KEY');
+$_enc_key    = backup_encrypt_key();
+$_openssl    = backup_openssl_available();
+?>
+<div class="card shadow-sm mb-3 border-<?= $_enc_on ? 'success' : 'secondary' ?>">
+  <div class="card-header py-2 d-flex align-items-center justify-content-between">
+    <span class="fw-semibold"><i class="bi bi-shield-lock me-1 text-<?= $_enc_on ? 'success' : 'muted' ?>"></i>Szyfrowanie kopii (AES-256)</span>
+    <span class="badge bg-<?= $_enc_on ? 'success' : 'secondary' ?>"><?= $_enc_on ? 'Włączone' : 'Wyłączone' ?></span>
+  </div>
+  <div class="card-body small">
+    <?php if (!$_openssl): ?>
+    <div class="alert alert-warning py-2 mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Brak narzędzia <code>openssl</code> na serwerze — szyfrowanie niedostępne.</div>
+    <?php endif; ?>
+    <?php if ($_enc_const): ?>
+    <p class="mb-1">Klucz skonfigurowany na sztywno w <code>config.php</code> (<code>BACKUP_ENCRYPT_KEY</code>). Zmieniaj go tam.</p>
+    <?php elseif ($_enc_on): ?>
+    <p class="mb-2">Nowe kopie (baza, uploads, certs) są szyfrowane AES-256. <strong class="text-danger">Zapisz klucz poza systemem</strong> — bez niego kopie są nie do odzyskania.</p>
+    <div class="input-group input-group-sm mb-2" style="max-width:640px">
+      <span class="input-group-text">Klucz</span>
+      <input type="text" class="form-control font-monospace" id="enc-key" value="<?= h($_enc_key) ?>" readonly>
+      <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('enc-key').value)"><i class="bi bi-clipboard"></i> Kopiuj</button>
+    </div>
+    <form method="post" class="d-inline" onsubmit="return confirm('Wyłączyć szyfrowanie? Istniejące kopie .enc pozostaną zaszyfrowane i będą wymagać TEGO klucza. Zapisałeś go?')">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="enc_disable">
+      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-shield-slash me-1"></i>Wyłącz szyfrowanie</button>
+    </form>
+    <?php else: ?>
+    <p class="mb-2">Kopie są zapisywane bez szyfrowania. Włącz, aby chronić bazę, uploads i klucze prywatne (certs/) w spoczynku.</p>
+    <form method="post" onsubmit="return confirm('Włączyć szyfrowanie i wygenerować klucz? Po włączeniu ZAPISZ klucz poza systemem.')">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="_action" value="enc_enable">
+      <button class="btn btn-success btn-sm" <?= $_openssl ? '' : 'disabled' ?>><i class="bi bi-shield-lock me-1"></i>Włącz szyfrowanie (wygeneruj klucz)</button>
+    </form>
+    <?php endif; ?>
+  </div>
+</div>
+
 <?php if (!$months): ?>
 <div class="alert alert-info">
   Brak kopii zapasowych. Uruchom backup ręcznie lub poczekaj na CRON (przyrostowo, co 4 godziny).
@@ -208,10 +294,28 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
             <span class="badge bg-<?= $f['type']['cls'] ?> bg-opacity-10 text-<?= $f['type']['cls'] ?> border border-<?= $f['type']['cls'] ?> border-opacity-25">
               <?= h($f['type']['label']) ?>
             </span>
+            <?php if ($f['enc']): ?>
+            <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-25" title="Zaszyfrowany AES-256"><i class="bi bi-lock-fill"></i></span>
+            <?php endif; ?>
           </td>
           <td class="text-muted small"><?= h($f['size_h']) ?></td>
           <td class="text-muted small"><?= date('d.m.Y H:i', $f['mtime']) ?></td>
           <td class="text-end">
+            <?php if (!empty($f['type']['restore'])): ?>
+            <?php
+              $_rmsg = $f['kind'] === 'db'
+                ? 'PRZYWRÓCIĆ BAZĘ z tej kopii? Bieżąca baza zostanie NADPISANA (utworzymy kopię pre-restore). Kontynuować?'
+                : 'PRZYWRÓCIĆ pliki z tej kopii? Bieżące pliki zostaną NADPISANE plikami z archiwum. Kontynuować?';
+            ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('<?= h($_rmsg) ?>')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_action" value="restore">
+              <input type="hidden" name="file" value="<?= h($f['rel']) ?>">
+              <button class="btn btn-outline-warning btn-sm py-0 px-2" title="Przywróć z tej kopii"<?= ($f['enc'] && !backup_encryption_enabled()) ? ' disabled title="Brak klucza — nie można odszyfrować"' : '' ?>>
+                <i class="bi bi-arrow-counterclockwise"></i>
+              </button>
+            </form>
+            <?php endif; ?>
             <a href="?dl=<?= urlencode($f['rel']) ?>"
                class="btn btn-outline-primary btn-sm py-0 px-2"
                title="Pobierz">
@@ -237,8 +341,10 @@ $_sp_enabled = (new M365Graph())->is_configured() && m365_setting('sp_enabled') 
 
 <div class="text-muted small mt-3">
   <i class="bi bi-info-circle me-1"></i>
-  Backupy lokalne w <code>backups/YYYY-MM/</code>, niedostępne przez HTTP. Backup przyrostowy co 4 godziny.
+  Backupy lokalne w <code>backups/YYYY-MM/</code>, niedostępne przez HTTP. Backup przyrostowy co 4 godziny — baza, uploads oraz katalog <code>certs/</code> (klucze prywatne).
   Rotacja: zawsze zachowywane min. 3 ostatnie kopie każdego typu, pozostałe starsze niż 30 dni usuwane przez CRON.
+  <?php if ($_enc_on): ?>&middot; <i class="bi bi-lock-fill"></i> Kopie szyfrowane AES-256.<?php endif; ?>
+  &middot; <i class="bi bi-arrow-counterclockwise"></i> Przywracanie: baza jest walidowana (integrity_check) i poprzedzana kopią pre-restore; archiwa nadpisują pliki.
   <?php if ($_sp_enabled): ?>
   &middot; <i class="bi bi-cloud-arrow-up text-primary"></i> SharePoint: przyrostowo co 6h, pełny backup systemu w nocy.
   <?php else: ?>
