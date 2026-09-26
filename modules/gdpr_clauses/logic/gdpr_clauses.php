@@ -9,6 +9,9 @@
  *  - gdpr_clauses      treść z tagami {{klucz}}, publiczna pod slugiem
  *                      (/klauzula/{slug} → modules/gdpr_clauses/public/clause.php).
  *  - gdpr_clause_history poprzednie wersje treści — przy każdym zapisie.
+ *  - gdpr_clause_acceptances + gdpr_clause_snapshots — rejestr akceptacji:
+ *                      kto, kiedy, w jakim formularzu i DOKŁADNIE jaki tekst
+ *                      (migawka HTML po podstawieniu zmiennych, dedup po sha256).
  *                      Rozliczalność (RODO art. 5 ust. 2): wiadomo, jaki
  *                      tekst obowiązywał w chwili zebrania danych.
  *
@@ -112,6 +115,34 @@ function gdpr_clauses_migrate(): void {
     }
     gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'approved_by', 'INTEGER');
     gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'approved_at', 'DATETIME');
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gdpr_clause_snapshots (
+        hash        CHAR(64) PRIMARY KEY,
+        clause_id   INTEGER NOT NULL,
+        version     INTEGER NOT NULL,
+        lang        VARCHAR(5) NOT NULL,
+        tytul       VARCHAR(255) NOT NULL,
+        html        TEXT NOT NULL,
+        created_at  DATETIME NOT NULL
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gdpr_clause_acceptances (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        clause_id     INTEGER NOT NULL,
+        slug          VARCHAR(64) NOT NULL,
+        lang          VARCHAR(5) NOT NULL,
+        version       INTEGER NOT NULL,
+        snapshot_hash CHAR(64) NOT NULL,
+        context       VARCHAR(40) NOT NULL,
+        ref_type      VARCHAR(40),
+        ref_id        INTEGER,
+        subject_name  VARCHAR(255) NOT NULL DEFAULT '',
+        subject_email VARCHAR(255) NOT NULL DEFAULT '',
+        accepted_at   DATETIME NOT NULL,
+        ip            VARCHAR(64) NOT NULL DEFAULT '',
+        user_agent    VARCHAR(255) NOT NULL DEFAULT ''
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_acc_clause ON gdpr_clause_acceptances(clause_id, accepted_at)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_acc_ref ON gdpr_clause_acceptances(ref_type, ref_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_acc_email ON gdpr_clause_acceptances(subject_email)");
     if (!$hadVersion) {
         // Uzupełnienie wstecz: kolejne wiersze historii = wersje 1..n, bieżąca = n+1.
         $pdo->exec("UPDATE gdpr_clause_history SET version = (
@@ -286,7 +317,12 @@ final class GdprClauseService
                                    JOIN gdpr_clauses c ON c.id = h.clause_id
                                    WHERE h.clause_id = ? AND h.version = ?");
         $st->execute([$clauseId, $version]);
-        return $st->fetch() ?: null;
+        $row = $st->fetch();
+        if (!$row) return null;
+        // Kształt jak wiersz gdpr_clauses (id, updated_at), żeby render/snapshot działały tak samo.
+        $row['id'] = (int)$row['clause_id'];
+        $row['updated_at'] = $row['valid_from'];
+        return $row;
     }
 
     public function history(int $clauseId): array
@@ -500,8 +536,99 @@ final class GdprClauseService
         }
     }
 
+    // ── Rejestr akceptacji ──────────────────────────────────────────────────
+
+    /** Konteksty akceptacji (skąd przyszła) → etykieta w panelu. */
+    public const CONTEXTS = [
+        'volunteer_offer' => 'Zgłoszenie na ofertę wolontariatu',
+        'event'           => 'Zapis na wydarzenie',
+        'crm_form'        => 'Formularz CRM',
+        'onboarding'      => 'Onboarding',
+        'api'             => 'API (system zewnętrzny)',
+        'manual'          => 'Wpis ręczny',
+    ];
+
+    /** Migawka dokładnie wyświetlonego tekstu (HTML) — zwraca hash; zapis tylko przy nowej treści. */
+    public function snapshot(array $clause): string
+    {
+        $html = $this->renderClause($clause);
+        $hash = hash('sha256', $clause['tytul'] . "\n" . $html);
+        $this->pdo->prepare("INSERT OR IGNORE INTO gdpr_clause_snapshots (hash, clause_id, version, lang, tytul, html, created_at)
+                             VALUES (?,?,?,?,?,?,datetime('now','localtime'))")
+            ->execute([$hash, (int)$clause['id'], (int)$clause['version'], $clause['lang'], $clause['tytul'], $html]);
+        return $hash;
+    }
+
+    /**
+     * Zapis akceptacji klauzuli. $subject: name, email; $ref: [typ, id] rekordu,
+     * do którego akceptacja należy (np. ['volunteer_application', 123]).
+     * IP i user-agent z bieżącego żądania (w CLI puste).
+     */
+    public function recordAcceptance(array $clause, string $context, array $subject = [], ?array $ref = null): int
+    {
+        $hash = $this->snapshot($clause);
+        $this->pdo->prepare("INSERT INTO gdpr_clause_acceptances
+                (clause_id, slug, lang, version, snapshot_hash, context, ref_type, ref_id, subject_name, subject_email, accepted_at, ip, user_agent)
+                VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),?,?)")
+            ->execute([
+                (int)$clause['id'], $clause['slug'], $clause['lang'], (int)$clause['version'], $hash,
+                mb_substr($context, 0, 40), $ref[0] ?? null, isset($ref[1]) ? (int)$ref[1] : null,
+                mb_substr(trim((string)($subject['name'] ?? '')), 0, 255),
+                mb_substr(mb_strtolower(trim((string)($subject['email'] ?? ''))), 0, 255),
+                mb_substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64),
+                mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+            ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /** Akceptacje z filtrami: clause_id, context, q (imię/e-mail), from, to (Y-m-d). */
+    public function acceptances(array $f = [], int $limit = 200, int $offset = 0): array
+    {
+        [$where, $params] = $this->acceptanceWhere($f);
+        $st = $this->pdo->prepare("SELECT a.*, c.tytul FROM gdpr_clause_acceptances a
+                                   LEFT JOIN gdpr_clauses c ON c.id = a.clause_id
+                                   WHERE {$where} ORDER BY a.accepted_at DESC, a.id DESC
+                                   LIMIT " . max(1, $limit) . " OFFSET " . max(0, $offset));
+        $st->execute($params);
+        return $st->fetchAll();
+    }
+
+    public function acceptanceCount(array $f = []): int
+    {
+        [$where, $params] = $this->acceptanceWhere($f);
+        $st = $this->pdo->prepare("SELECT COUNT(*) FROM gdpr_clause_acceptances a WHERE {$where}");
+        $st->execute($params);
+        return (int)$st->fetchColumn();
+    }
+
+    private function acceptanceWhere(array $f): array
+    {
+        $w = ['1=1']; $p = [];
+        if (!empty($f['clause_id'])) { $w[] = 'a.clause_id = CAST(? AS INTEGER)'; $p[] = (int)$f['clause_id']; }
+        if (!empty($f['slug']))      { $w[] = 'a.slug = ?'; $p[] = (string)$f['slug']; }
+        if (!empty($f['context']))   { $w[] = 'a.context = ?'; $p[] = (string)$f['context']; }
+        if (!empty($f['q']))         { $w[] = '(a.subject_email LIKE ? OR a.subject_name LIKE ?)'; $p[] = '%' . $f['q'] . '%'; $p[] = '%' . $f['q'] . '%'; }
+        if (!empty($f['from']))      { $w[] = 'a.accepted_at >= ?'; $p[] = $f['from'] . ' 00:00:00'; }
+        if (!empty($f['to']))        { $w[] = 'a.accepted_at <= ?'; $p[] = $f['to'] . ' 23:59:59'; }
+        if (!empty($f['ref_type']))  { $w[] = 'a.ref_type = ?'; $p[] = (string)$f['ref_type']; }
+        if (!empty($f['ref_id']))    { $w[] = 'a.ref_id = CAST(? AS INTEGER)'; $p[] = (int)$f['ref_id']; }
+        return [implode(' AND ', $w), $p];
+    }
+
+    public function acceptanceById(int $id): ?array
+    {
+        $st = $this->pdo->prepare("SELECT a.*, s.html, s.tytul AS snap_tytul FROM gdpr_clause_acceptances a
+                                   LEFT JOIN gdpr_clause_snapshots s ON s.hash = a.snapshot_hash WHERE a.id = ?");
+        $st->execute([$id]);
+        return $st->fetch() ?: null;
+    }
+
+    /** Usunięcie niszczyłoby dowód akceptacji — dozwolone tylko bez akceptacji. */
     public function deleteClause(int $id): void
     {
+        if ($this->acceptanceCount(['clause_id' => $id]) > 0) {
+            throw new InvalidArgumentException('Tej klauzuli nie można usunąć — ma zarejestrowane akceptacje (dowód dla RODO art. 7 ust. 1). Wycofaj ją z publikacji.');
+        }
         $this->pdo->prepare("DELETE FROM gdpr_clause_history WHERE clause_id = ?")->execute([$id]);
         $this->pdo->prepare("DELETE FROM gdpr_clauses WHERE id = ?")->execute([$id]);
     }
@@ -698,4 +825,51 @@ function gdpr_clauses_diff_html(string $old, string $new): string {
     }
     $flush();
     return $html . $e(implode('', array_slice($a, $n - $suf)));
+}
+
+// ── Integracja z formularzami ───────────────────────────────────────────────
+
+/**
+ * Klauzula do pokazania w formularzu: ['clause', 'html', 'url', 'field'] albo null
+ * (brak opublikowanej — formularz używa wtedy własnego tekstu). 'field' to ukryte
+ * pole z wersją, którą zobaczył użytkownik — zapis akceptacji wskaże tę wersję,
+ * nawet jeśli klauzula zmieniła się, zanim formularz został wysłany.
+ */
+function gdpr_clause_for_form(string $slug, ?string $lang = null): ?array {
+    try {
+        $svc = new GdprClauseService();
+        $c = $svc->getBySlug($slug, true, $lang);
+    } catch (\Throwable $e) {
+        return null;
+    }
+    if (!$c) return null;
+    return [
+        'clause' => $c,
+        'html'   => $svc->renderClause($c),
+        'url'    => gdpr_clauses_public_url($c['slug'], false, $c['lang']),
+        'field'  => '<input type="hidden" name="gdpr_shown[' . htmlspecialchars($c['slug'], ENT_QUOTES) . ']" value="'
+                    . (int)$c['id'] . ':' . (int)$c['version'] . '">',
+    ];
+}
+
+/**
+ * Zapis akceptacji po wysłaniu formularza — wersja z pola gdpr_shown (gdy nadal
+ * istnieje), inaczej bieżąca. Zwraca id akceptacji albo null (brak klauzuli).
+ * Nigdy nie rzuca: rejestr nie może zablokować zapisu zgłoszenia.
+ */
+function gdpr_clause_accept_from_post(string $slug, string $context, array $subject = [], ?array $ref = null, ?string $lang = null): ?int {
+    try {
+        $svc = new GdprClauseService();
+        $row = null;
+        $shown = (string)($_POST['gdpr_shown'][$slug] ?? '');
+        if (preg_match('/^(\d+):(\d+)$/', $shown, $m)) {
+            $row = $svc->version((int)$m[1], (int)$m[2]);
+            if ($row && $row['slug'] !== $slug) $row = null;
+        }
+        $row ??= $svc->getBySlug($slug, true, $lang);
+        return $row ? $svc->recordAcceptance($row, $context, $subject, $ref) : null;
+    } catch (\Throwable $e) {
+        error_log('gdpr_clause_accept_from_post: ' . $e->getMessage());
+        return null;
+    }
 }

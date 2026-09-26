@@ -117,6 +117,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $vars    = $svc->listVariables();
 $localVars = GdprClauseService::localVars($form);
 $history = $clause ? $svc->history($id) : [];
+// Akceptacje per wersja — widać, której wersji dotyczą zebrane zgody.
+$accByVer = $clause ? array_column(db_all("SELECT version, COUNT(*) n FROM gdpr_clause_acceptances WHERE clause_id = ? GROUP BY version", [$id]), 'n', 'version') : [];
+$accUrl = APP_URL . '/modules/gdpr_clauses/acceptances.php?clause_id=' . $id;
 $pubUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], false, $clause['lang']) : '';
 $embUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], true, $clause['lang']) : '';
 $siblings = $clause ? array_values(array_filter($svc->listClauses(), fn($c) => $c['slug'] === $clause['slug'] && (int)$c['id'] !== $id)) : [];
@@ -150,6 +153,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?translate_from=<?= (int)$id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-translate me-1"></i>Dodaj tłumaczenie</a>
     <?php endif; ?>
     <?php if ($clause): ?>
+      <a href="<?= h($accUrl) ?>" class="btn btn-sm btn-outline-secondary" title="Rejestr akceptacji tej klauzuli"><i class="bi bi-person-check me-1"></i><?= array_sum($accByVer) ?></a>
       <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?duplicate=<?= (int)$id ?>" class="btn btn-sm btn-outline-secondary" title="Nowa klauzula na wzór tej"><i class="bi bi-files me-1"></i>Duplikuj</a>
     <?php else: ?>
       <div class="dropdown">
@@ -356,6 +360,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
                 <span class="badge bg-light text-dark border">v<?= (int)$hv['version'] ?></span>
                 <?= $hv['valid_from'] ? h(date('d.m.Y H:i', strtotime($hv['valid_from']))) : '?' ?>
                 – <?= h(date('d.m.Y H:i', strtotime($hv['valid_to']))) ?>
+                <?php if (!empty($accByVer[$hv['version']])): ?>
+                  <span class="badge bg-success-subtle text-success-emphasis ms-1" title="Akceptacje tej wersji"><i class="bi bi-person-check"></i> <?= (int)$accByVer[$hv['version']] ?></span>
+                <?php endif; ?>
               </summary>
               <div class="small text-muted mt-2">Zmiany w v<?= (int)$next['version'] ?> względem v<?= (int)$hv['version'] ?>
                 (<del class="gdpr-d">usunięte</del> / <ins class="gdpr-i">dodane</ins>):</div>

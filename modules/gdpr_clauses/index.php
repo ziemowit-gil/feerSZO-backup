@@ -14,8 +14,12 @@ $svc = new GdprClauseService();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'delete') {
     csrf_check();
-    $svc->deleteClause((int)($_POST['id'] ?? 0));
-    flash_set('success', 'Klauzula usunięta (razem z historią wersji).');
+    try {
+        $svc->deleteClause((int)($_POST['id'] ?? 0));
+        flash_set('success', 'Klauzula usunięta (razem z historią wersji).');
+    } catch (InvalidArgumentException $e) {
+        flash_set('danger', $e->getMessage());
+    }
     header('Location: ' . APP_URL . '/modules/gdpr_clauses/index.php');
     exit;
 }
@@ -35,6 +39,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <?php if ($user['role'] === 'admin'): ?>
       <a href="<?= APP_URL ?>/modules/gdpr_clauses/settings.php" class="btn btn-sm btn-outline-secondary" title="Ustawienia (obieg akceptacji)"><i class="bi bi-gear"></i></a>
     <?php endif; ?>
+    <a href="<?= APP_URL ?>/modules/gdpr_clauses/acceptances.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-person-check me-1"></i>Rejestr akceptacji
+    </a>
     <a href="<?= APP_URL ?>/modules/gdpr_clauses/variables.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-braces me-1"></i>Zmienne globalne
     </a>
