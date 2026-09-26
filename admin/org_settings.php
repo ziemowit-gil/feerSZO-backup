@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/krs.php';
+require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Dane organizacji';
@@ -46,6 +47,23 @@ if (!$saved['sidebar_color']) $saved['sidebar_color'] = '#1e293b';
 if (!$saved['volunteer_color']) $saved['volunteer_color'] = '#2563eb';
 $rachunki = json_decode(org_setting('org_rachunki_bankowe') ?: '[]', true) ?: [];
 
+// Samonaprawa: adres/miejscowość zapisane WIELKIMI (KRS) lub małymi → pisownia wg zasad j. polskiego
+foreach (['org_adres', 'org_miejscowosc'] as $_ak) {
+    $_norm = normalizePlAddress($saved[$_ak]);
+    if ($_norm !== $saved[$_ak]) {
+        db()->prepare("UPDATE settings SET value=? WHERE key_=?")->execute([$_norm, $_ak]);
+        $saved[$_ak] = $_norm;
+    }
+}
+$_rach_changed = false;
+foreach ($rachunki as &$_r) {
+    if (!empty($_r['adres']) && ($_n = normalizePlAddress($_r['adres'])) !== $_r['adres']) {
+        $_r['adres'] = $_n; $_rach_changed = true;
+    }
+}
+unset($_r);
+if ($_rach_changed) org_setting_set('org_rachunki_bankowe', json_encode($rachunki, JSON_UNESCAPED_UNICODE));
+
 // Ensure logo directory exists
 $_logo_dir = dirname(__DIR__) . '/assets/logo';
 if (!is_dir($_logo_dir)) mkdir($_logo_dir, 0755, true);
@@ -64,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($data['error'])) {
                 $error = $data['error'];
             } else {
-                $adres = $data['adres'] ?? '';
+                $adres = normalizePlAddress($data['adres'] ?? '');
                 $miejscowosc = '';
                 if (preg_match('/\d{2}-\d{3}\s+(.+)$/', $adres, $m)) {
                     $miejscowosc = trim($m[1]);
@@ -73,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $update = [
                     'org_krs'         => $data['krs'],
-                    'org_miejscowosc' => $miejscowosc,
+                    'org_miejscowosc' => normalizePlPlace($miejscowosc),
                     'org_nip'         => $data['nip'] ?? '',
                     'org_regon'       => $data['regon'] ?? '',
                     'org_adres'       => $adres,
@@ -96,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = db()->prepare("INSERT INTO settings (key_, value) VALUES (?, ?) ON CONFLICT(key_) DO UPDATE SET value = excluded.value");
         foreach ($fields as $k) {
             $v = trim($_POST[$k] ?? '');
+            if ($k === 'org_adres' || $k === 'org_miejscowosc') $v = normalizePlAddress($v);
             $stmt->execute([$k, $v]);
             $saved[$k] = $v;
         }
@@ -300,7 +319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'nrb'           => $raw_nrb,
             'waluta'        => mb_substr(trim($_POST['rachunek_waluta'] ?? 'PLN'), 0, 10),
             'nazwa'         => mb_substr(trim($_POST['rachunek_nazwa'] ?? ''), 0, 140),
-            'adres'         => mb_substr(trim($_POST['rachunek_adres'] ?? ''), 0, 140),
+            'adres'         => mb_substr(normalizePlAddress($_POST['rachunek_adres'] ?? ''), 0, 140),
             'bank'          => mb_substr(trim($_POST['rachunek_bank']  ?? ''), 0, 100),
             'opis'          => mb_substr(trim($_POST['rachunek_opis']  ?? ''), 0, 100),
             'dla_ti'        => $ti_flag,
