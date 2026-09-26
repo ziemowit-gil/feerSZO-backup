@@ -104,6 +104,14 @@ function gdpr_clauses_migrate(): void {
     $hadVersion = in_array('version', array_column($pdo->query("PRAGMA table_info(gdpr_clause_history)")->fetchAll(), 'name'), true);
     gdpr_clauses_add_column($pdo, 'gdpr_clauses', 'version', "INTEGER NOT NULL DEFAULT 1");
     gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'version', "INTEGER NOT NULL DEFAULT 0");
+    // Obieg akceptacji: wersja robocza czekająca na zatwierdzenie (opublikowana
+    // treść zostaje bez zmian) + kto zatwierdził bieżącą/archiwalną wersję.
+    foreach (['draft_data' => 'TEXT', 'draft_status' => "VARCHAR(10) NOT NULL DEFAULT ''", 'draft_by' => 'INTEGER',
+              'draft_at' => 'DATETIME', 'draft_note' => 'TEXT', 'approved_by' => 'INTEGER', 'approved_at' => 'DATETIME'] as $c => $ddl) {
+        gdpr_clauses_add_column($pdo, 'gdpr_clauses', $c, $ddl);
+    }
+    gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'approved_by', 'INTEGER');
+    gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'approved_at', 'DATETIME');
     if (!$hadVersion) {
         // Uzupełnienie wstecz: kolejne wiersze historii = wersje 1..n, bieżąca = n+1.
         $pdo->exec("UPDATE gdpr_clause_history SET version = (
@@ -232,7 +240,7 @@ final class GdprClauseService
     /** Wiersze posortowane: slug, potem język domyślny jako pierwszy. */
     public function listClauses(): array
     {
-        return $this->pdo->query("SELECT id, slug, lang, tytul, is_published, updated_at, version,
+        return $this->pdo->query("SELECT id, slug, lang, tytul, is_published, updated_at, version, draft_status,
                     (SELECT COUNT(*) FROM gdpr_clause_history h WHERE h.clause_id = c.id) AS versions
                 FROM gdpr_clauses c
                 ORDER BY slug, CASE WHEN lang = '" . GDPR_DEFAULT_LANG . "' THEN 0 ELSE 1 END, lang")->fetchAll();
@@ -299,7 +307,11 @@ final class GdprClauseService
      * Zapis (id=0 → nowa). $d: slug, lang, tytul, content, is_published, local_vars (array).
      * Zwraca id. Rzuca InvalidArgumentException z komunikatem dla użytkownika.
      */
-    public function saveClause(int $id, array $d, ?int $userId): int
+    /**
+     * Walidacja i normalizacja pól klauzuli (wspólna dla zapisu i wersji roboczej).
+     * @return array{slug:string,lang:string,tytul:string,content:string,is_published:bool,local_vars:array,local_json:string}
+     */
+    private function normalize(int $id, array $d): array
     {
         $lang  = (string)($d['lang'] ?? GDPR_DEFAULT_LANG);
         $slug  = trim(mb_strtolower((string)($d['slug'] ?? '')));
@@ -328,16 +340,35 @@ final class GdprClauseService
         $dup->execute([$slug, $lang, $id]);
         if ($dup->fetchColumn()) throw new InvalidArgumentException("Klauzula „{$slug}\" w języku „" . GDPR_LANGS[$lang] . "\" już istnieje.");
 
+        return ['slug' => $slug, 'lang' => $lang, 'tytul' => $tytul, 'content' => $content,
+                'is_published' => $published, 'local_vars' => $local, 'local_json' => $localJson];
+    }
+
+    /**
+     * Bezpośredni zapis (id=0 → nowa). $d: slug, lang, tytul, content, is_published, local_vars (array).
+     * $approvedBy — kto zatwierdził tę wersję (obieg akceptacji); null = zapis bez obiegu.
+     */
+    public function saveClause(int $id, array $d, ?int $userId, ?int $approvedBy = null): int
+    {
+        ['slug' => $slug, 'lang' => $lang, 'tytul' => $tytul, 'content' => $content,
+         'is_published' => $published, 'local_json' => $localJson] = $this->normalize($id, $d);
+        $appr = $approvedBy !== null ? ", approved_by = " . (int)$approvedBy . ", approved_at = datetime('now','localtime')" : '';
+
         $this->pdo->beginTransaction();
         try {
             if ($id > 0) {
                 $old = $this->getById($id);
                 if (!$old) throw new InvalidArgumentException('Klauzula nie istnieje.');
                 if ($old['content'] !== $content || $old['tytul'] !== $tytul || ($old['local_vars'] ?? '{}') !== $localJson) {
-                    $this->pdo->prepare("INSERT INTO gdpr_clause_history (clause_id, version, tytul, content, local_vars, valid_from, valid_to, changed_by)
-                                         VALUES (?,?,?,?,?,?,datetime('now','localtime'),?)")
-                        ->execute([$id, (int)$old['version'], $old['tytul'], $old['content'], $old['local_vars'] ?? '{}', $old['updated_at'], $userId]);
-                    $touch = ", updated_at = datetime('now','localtime'), version = version + 1";
+                    $this->pdo->prepare("INSERT INTO gdpr_clause_history (clause_id, version, tytul, content, local_vars, valid_from, valid_to, changed_by, approved_by, approved_at)
+                                         VALUES (?,?,?,?,?,?,datetime('now','localtime'),?,?,?)")
+                        ->execute([$id, (int)$old['version'], $old['tytul'], $old['content'], $old['local_vars'] ?? '{}', $old['updated_at'], $userId,
+                                   $old['approved_by'] ?? null, $old['approved_at'] ?? null]);
+                    // Nowa wersja: zatwierdzenie poprzedniej już nie dotyczy.
+                    $touch = ", updated_at = datetime('now','localtime'), version = version + 1"
+                           . ($appr !== '' ? $appr : ", approved_by = NULL, approved_at = NULL");
+                } elseif ($appr !== '') {
+                    $touch = $appr;
                 } else {
                     $touch = '';
                 }
@@ -348,6 +379,7 @@ final class GdprClauseService
                                      VALUES (?,?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'),?)")
                     ->execute([$slug, $lang, $tytul, $content, $localJson, $published ? 1 : 0, $userId]);
                 $id = (int)$this->pdo->lastInsertId();
+                if ($appr !== '') $this->pdo->exec("UPDATE gdpr_clauses SET " . ltrim($appr, ', ') . " WHERE id = {$id}");
             }
             $this->pdo->commit();
         } catch (\Throwable $e) {
@@ -355,6 +387,117 @@ final class GdprClauseService
             throw $e;
         }
         return $id;
+    }
+
+    // ── Obieg akceptacji ────────────────────────────────────────────────────
+
+    /** Czy zmiany opublikowanych klauzul wymagają zatwierdzenia (settings.gdpr_require_approval). */
+    public static function approvalRequired(): bool
+    {
+        try { return (db_one("SELECT value FROM settings WHERE key_ = 'gdpr_require_approval'")['value'] ?? '') === '1'; }
+        catch (\Throwable $e) { return false; }
+    }
+
+    /** Zatwierdzający: lista z settings.gdpr_approvers (id po przecinku), pusta → wszyscy aktywni admini. */
+    public static function approverIds(): array
+    {
+        $raw = '';
+        try { $raw = (string)(db_one("SELECT value FROM settings WHERE key_ = 'gdpr_approvers'")['value'] ?? ''); } catch (\Throwable $e) {}
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $raw)))));
+        if ($ids) return $ids;
+        return array_map('intval', array_column(db_all("SELECT id FROM users WHERE role = 'admin' AND COALESCE(is_active,1) = 1"), 'id'));
+    }
+
+    public static function canApprove(int $userId): bool
+    {
+        return in_array($userId, self::approverIds(), true);
+    }
+
+    /**
+     * Czy ten zapis musi przejść przez akceptację. Bez obiegu, gdy obieg wyłączony,
+     * zapisuje zatwierdzający, albo zmiana dotyczy nieopublikowanego szkicu i nie
+     * prosi o publikację (szkic nie jest widoczny publicznie).
+     */
+    public function needsApproval(?array $current, array $d, int $userId): bool
+    {
+        if (!self::approvalRequired() || self::canApprove($userId)) return false;
+        $wasPublished = $current && (int)$current['is_published'] === 1;
+        return $wasPublished || !empty($d['is_published']);
+    }
+
+    /**
+     * Zapis jako wersja robocza do akceptacji. Nowa klauzula powstaje jako szkic
+     * (niepubliczny), a prośba o publikację czeka w draft_data. Zwraca id.
+     */
+    public function submitDraft(int $id, array $d, int $userId): int
+    {
+        $n = $this->normalize($id, $d);
+        if ($id === 0) {
+            $id = $this->saveClause(0, ['is_published' => 0] + $d, $userId);
+        }
+        $data = json_encode(['slug' => $n['slug'], 'lang' => $n['lang'], 'tytul' => $n['tytul'], 'content' => $n['content'],
+                             'local_vars' => $n['local_vars'], 'is_published' => $n['is_published']], JSON_UNESCAPED_UNICODE);
+        $this->pdo->prepare("UPDATE gdpr_clauses SET draft_data = ?, draft_status = 'pending', draft_by = ?,
+                             draft_at = datetime('now','localtime'), draft_note = NULL WHERE id = ?")
+            ->execute([$data, $userId, $id]);
+        $this->notify(self::approverIds(), $id, 'Klauzula RODO do akceptacji', 'Zmiana czeka na zatwierdzenie: ' . $n['tytul'], $userId);
+        return $id;
+    }
+
+    /** Wersja robocza jako tablica pól (jak $d w saveClause) albo null. */
+    public static function draft(?array $clause): ?array
+    {
+        if (!$clause || empty($clause['draft_data'])) return null;
+        $d = json_decode((string)$clause['draft_data'], true);
+        return is_array($d) ? $d : null;
+    }
+
+    public function approveDraft(int $id, int $approverId, string $note = ''): void
+    {
+        $c = $this->getById($id);
+        $d = self::draft($c);
+        if (!$d || $c['draft_status'] !== 'pending') throw new InvalidArgumentException('Brak zmiany oczekującej na akceptację.');
+        if (!self::canApprove($approverId)) throw new InvalidArgumentException('Nie masz uprawnień do zatwierdzania klauzul.');
+        $this->saveClause($id, $d, (int)$c['draft_by'], $approverId);
+        $this->pdo->prepare("UPDATE gdpr_clauses SET draft_data = NULL, draft_status = '', draft_note = ? WHERE id = ?")
+            ->execute([$note !== '' ? $note : null, $id]);
+        $this->notify([(int)$c['draft_by']], $id, 'Klauzula RODO zatwierdzona', $d['tytul'] . ($note !== '' ? ' — ' . $note : ''), $approverId);
+    }
+
+    public function rejectDraft(int $id, int $approverId, string $note): void
+    {
+        $c = $this->getById($id);
+        if (!$c || $c['draft_status'] !== 'pending') throw new InvalidArgumentException('Brak zmiany oczekującej na akceptację.');
+        if (!self::canApprove($approverId)) throw new InvalidArgumentException('Nie masz uprawnień do zatwierdzania klauzul.');
+        if (trim($note) === '') throw new InvalidArgumentException('Podaj powód odrzucenia — autor zobaczy go przy klauzuli.');
+        $this->pdo->prepare("UPDATE gdpr_clauses SET draft_status = 'rejected', draft_note = ? WHERE id = ?")->execute([trim($note), $id]);
+        $this->notify([(int)$c['draft_by']], $id, 'Klauzula RODO odrzucona', $c['tytul'] . ' — ' . trim($note), $approverId);
+    }
+
+    /** Wycofanie własnej wersji roboczej (lub przez zatwierdzającego). */
+    public function discardDraft(int $id): void
+    {
+        $this->pdo->prepare("UPDATE gdpr_clauses SET draft_data = NULL, draft_status = '', draft_note = NULL WHERE id = ?")->execute([$id]);
+    }
+
+    public function pendingCount(): int
+    {
+        return (int)$this->pdo->query("SELECT COUNT(*) FROM gdpr_clauses WHERE draft_status = 'pending'")->fetchColumn();
+    }
+
+    /** Powiadomienie w dzwonku (includes/notifications.php), bez autora zdarzenia. */
+    private function notify(array $userIds, int $clauseId, string $title, string $body, int $actorId): void
+    {
+        $f = dirname(__DIR__, 3) . '/includes/notifications.php';
+        if (!is_file($f)) return;
+        require_once $f;
+        if (!function_exists('notif_create')) return;
+        $url = (defined('APP_URL') ? rtrim(APP_URL, '/') : '') . '/modules/gdpr_clauses/edit.php?id=' . $clauseId;
+        foreach (array_unique($userIds) as $uid) {
+            if ($uid > 0 && $uid !== $actorId) {
+                try { notif_create($uid, 'gdpr_clause', $title, $body, $url); } catch (\Throwable $e) {}
+            }
+        }
     }
 
     public function deleteClause(int $id): void

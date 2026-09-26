@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'dele
 }
 
 $clauses = $svc->listClauses();
+$pendingCount = $svc->pendingCount();
+$user = current_user();
 $vars    = $svc->listVariables();
 
 $PAGE_TITLE = 'Klauzule RODO';
@@ -30,6 +32,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-shield-lock text-primary"></i> Klauzule RODO</h4>
   <div class="d-flex gap-2">
+    <?php if ($user['role'] === 'admin'): ?>
+      <a href="<?= APP_URL ?>/modules/gdpr_clauses/settings.php" class="btn btn-sm btn-outline-secondary" title="Ustawienia (obieg akceptacji)"><i class="bi bi-gear"></i></a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/modules/gdpr_clauses/variables.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-braces me-1"></i>Zmienne globalne
     </a>
@@ -40,6 +45,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+<?php if ($pendingCount && GdprClauseService::canApprove((int)$user['id'])): ?>
+  <div class="alert alert-warning small"><i class="bi bi-hourglass-split me-1"></i>Zmiany czekające na Twoją akceptację: <strong><?= $pendingCount ?></strong> — oznaczone na liście.</div>
+<?php endif; ?>
 
 <div class="row g-3">
   <div class="col-lg-8">
@@ -75,6 +83,11 @@ include dirname(__DIR__, 2) . '/includes/header.php';
                 <?= (int)$c['is_published'] === 1
                     ? '<span class="badge bg-success">opublikowana</span>'
                     : '<span class="badge bg-secondary">szkic</span>' ?>
+                <?php if ($c['draft_status'] === 'pending'): ?>
+                  <span class="badge bg-warning text-dark" title="Wersja robocza czeka na akceptację"><i class="bi bi-hourglass-split"></i> do akceptacji</span>
+                <?php elseif ($c['draft_status'] === 'rejected'): ?>
+                  <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle">zmiana odrzucona</span>
+                <?php endif; ?>
               </td>
               <td class="small text-muted text-nowrap"><?= $c['updated_at'] ? h(date('d.m.Y H:i', strtotime($c['updated_at']))) : '—' ?></td>
               <td class="text-end text-nowrap">

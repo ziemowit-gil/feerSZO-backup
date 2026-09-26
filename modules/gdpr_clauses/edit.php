@@ -50,6 +50,37 @@ if ($translateFrom) {
               'local_vars' => $translateFrom['local_vars'] ?? '{}'];
 }
 
+// Wersja robocza (obieg akceptacji) — edytujemy ją, nie opublikowaną treść.
+$draft = GdprClauseService::draft($clause);
+if ($draft && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $form = array_merge($form, $draft, ['local_vars' => json_encode($draft['local_vars'] ?? [], JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT),
+                                        'is_published' => !empty($draft['is_published']) ? 1 : 0]);
+}
+$canApprove = GdprClauseService::canApprove((int)$user['id']);
+$self = APP_URL . '/modules/gdpr_clauses/edit.php?id=' . $id;
+
+$wfAction = $_POST['_wf'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $clause && in_array($wfAction, ['approve', 'reject', 'discard'], true)) {
+    csrf_check();
+    try {
+        if ($wfAction === 'approve') {
+            $svc->approveDraft($id, (int)$user['id'], trim((string)($_POST['note'] ?? '')));
+            flash_set('success', 'Zmiana zatwierdzona i opublikowana.');
+        } elseif ($wfAction === 'reject') {
+            $svc->rejectDraft($id, (int)$user['id'], (string)($_POST['note'] ?? ''));
+            flash_set('warning', 'Zmiana odrzucona — autor dostał powiadomienie.');
+        } else {
+            if (!$canApprove && (int)$clause['draft_by'] !== (int)$user['id']) throw new InvalidArgumentException('Możesz wycofać tylko własną wersję roboczą.');
+            $svc->discardDraft($id);
+            flash_set('info', 'Wersja robocza wycofana.');
+        }
+    } catch (InvalidArgumentException $e) {
+        flash_set('danger', $e->getMessage());
+    }
+    header('Location: ' . $self);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $form['slug']         = (string)($_POST['slug'] ?? '');
@@ -63,9 +94,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $form['local_vars'] = json_encode($local, JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT);
     try {
-        $newId = $svc->saveClause($id, ['local_vars' => $local] + $form, (int)$user['id']);
+        $payload = ['local_vars' => $local] + $form;
+        if ($svc->needsApproval($clause, $payload, (int)$user['id'])) {
+            $newId = $svc->submitDraft($id, $payload, (int)$user['id']);
+            $msg = 'Zmiana zapisana jako wersja robocza i wysłana do akceptacji. Do czasu zatwierdzenia obowiązuje dotychczasowa treść.';
+        } else {
+            $newId = $svc->saveClause($id, $payload, (int)$user['id'],
+                                      GdprClauseService::approvalRequired() && $canApprove ? (int)$user['id'] : null);
+            if ($draft) $svc->discardDraft($newId);  // zapis bezpośredni zastępuje wersję roboczą
+            $msg = 'Klauzula zapisana.';
+        }
         $unknown = $svc->unknownTags($form['content'], $local);
-        flash_set($unknown ? 'warning' : 'success', 'Klauzula zapisana.'
+        flash_set($unknown ? 'warning' : 'success', $msg
             . ($unknown ? ' Uwaga: nieznane tagi (na stronie publicznej będą puste): {{' . implode('}}, {{', $unknown) . '}}.' : ''));
         header('Location: ' . APP_URL . '/modules/gdpr_clauses/edit.php?id=' . $newId);
         exit;
@@ -130,6 +170,49 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 
 <?= flash_html() ?>
 <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+<?php if ($clause && $draft):
+  $author = db_one("SELECT name FROM users WHERE id = ?", [(int)$clause['draft_by']]);
+  $pending = $clause['draft_status'] === 'pending'; ?>
+  <div class="card shadow-sm mb-3 border-<?= $pending ? 'warning' : 'danger' ?>">
+    <div class="card-header bg-<?= $pending ? 'warning' : 'danger' ?>-subtle small fw-semibold">
+      <i class="bi bi-<?= $pending ? 'hourglass-split' : 'x-octagon' ?> me-1"></i>
+      <?= $pending ? 'Wersja robocza czeka na akceptację' : 'Wersja robocza odrzucona' ?>
+      — <?= h($author['name'] ?? '?') ?>, <?= h(date('d.m.Y H:i', strtotime($clause['draft_at']))) ?>.
+      Publicznie obowiązuje nadal v<?= (int)$clause['version'] ?><?= (int)$clause['is_published'] === 1 ? '' : ' (szkic, niepubliczny)' ?>.
+    </div>
+    <div class="card-body small">
+      <?php if (!$pending && $clause['draft_note']): ?>
+        <div class="alert alert-danger py-2"><strong>Powód odrzucenia:</strong> <?= h($clause['draft_note']) ?></div>
+      <?php endif; ?>
+      <?php if ((int)$clause['is_published'] !== (int)!empty($draft['is_published'])): ?>
+        <div class="mb-2"><i class="bi bi-broadcast me-1"></i><?= !empty($draft['is_published']) ? 'Prośba o <strong>publikację</strong> klauzuli.' : 'Prośba o <strong>wycofanie z publikacji</strong>.' ?></div>
+      <?php endif; ?>
+      <div class="text-muted mb-1">Zmiany względem obowiązującej wersji:</div>
+      <div class="gdpr-diff bg-light p-2"><?= gdpr_clauses_diff_html(gdpr_clauses_diff_source($clause),
+          gdpr_clauses_diff_source(['tytul' => $draft['tytul'], 'content' => $draft['content'],
+                                    'local_vars' => json_encode($draft['local_vars'] ?? [], JSON_UNESCAPED_UNICODE)])) ?></div>
+      <div class="d-flex flex-wrap gap-2 mt-3 align-items-start">
+        <?php if ($pending && $canApprove): ?>
+          <form method="post" class="d-flex gap-2 flex-grow-1">
+            <?= csrf_field() ?>
+            <input type="text" name="note" class="form-control form-control-sm" placeholder="Komentarz (wymagany przy odrzuceniu)" aria-label="Komentarz do decyzji">
+            <button name="_wf" value="approve" class="btn btn-sm btn-success text-nowrap"><i class="bi bi-check2-circle me-1"></i>Zatwierdź i opublikuj</button>
+            <button name="_wf" value="reject" class="btn btn-sm btn-outline-danger text-nowrap"><i class="bi bi-x-circle me-1"></i>Odrzuć</button>
+          </form>
+        <?php endif; ?>
+        <?php if ($canApprove || (int)$clause['draft_by'] === (int)$user['id']): ?>
+          <form method="post" onsubmit="return confirm('Wycofać wersję roboczą? Zmiany przepadną.');">
+            <?= csrf_field() ?>
+            <button name="_wf" value="discard" class="btn btn-sm btn-outline-secondary text-nowrap">Wycofaj wersję roboczą</button>
+          </form>
+        <?php endif; ?>
+      </div>
+      <?php if ($pending && (int)$clause['draft_by'] === (int)$user['id'] && !$canApprove): ?>
+        <div class="text-muted mt-2">Możesz dalej poprawiać wersję roboczą w formularzu poniżej — zapis zaktualizuje prośbę.</div>
+      <?php endif; ?>
+    </div>
+  </div>
+<?php endif; ?>
 <?php if ($tplKey !== '' && isset($templates[$tplKey])): ?>
   <div class="alert alert-info small"><i class="bi bi-journal-text me-1"></i>Wypełniono szablonem <strong><?= h($templates[$tplKey]['tytul']) ?></strong>. To wzór do weryfikacji przez IOD — sprawdź cele, podstawy prawne i zmienne lokalne przed publikacją.</div>
 <?php endif; ?>
@@ -208,7 +291,12 @@ include dirname(__DIR__, 2) . '/includes/header.php';
             <input class="form-check-input" type="checkbox" role="switch" id="gdpr-pub" name="is_published" value="1" <?= (int)$form['is_published'] === 1 ? 'checked' : '' ?>>
             <label class="form-check-label small" for="gdpr-pub">Opublikowana (dostępna publicznie)</label>
           </div>
-          <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Zapisz</button>
+          <div class="text-end">
+            <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Zapisz</button>
+            <?php if (GdprClauseService::approvalRequired() && !$canApprove): ?>
+              <div class="small text-muted mt-1">Zmiana opublikowanej klauzuli lub publikacja trafi do akceptacji.</div>
+            <?php endif; ?>
+          </div>
         </div>
       </div>
     </div>
