@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/klauzule/variables.php — zmienne globalne klauzul RODO
+ * modules/gdpr_clauses/variables.php — zmienne globalne klauzul RODO
  * (tabela global_variables). Jeden formularz na wszystkie wartości —
  * szybka zmiana adresu/nazwy/IOD obowiązuje natychmiast w każdej klauzuli.
  */
@@ -8,11 +8,11 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
-require_once __DIR__ . '/logic/klauzule.php';
+require_once __DIR__ . '/logic/gdpr_clauses.php';
 
 require_role('admin', 'editor');
 $svc  = new GdprClauseService();
-$self = APP_URL . '/modules/klauzule/variables.php';
+$self = APP_URL . '/modules/gdpr_clauses/variables.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -62,7 +62,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-braces text-primary"></i> Zmienne globalne klauzul</h4>
-  <a href="<?= APP_URL ?>/modules/klauzule/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Klauzule</a>
+  <a href="<?= APP_URL ?>/modules/gdpr_clauses/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Klauzule</a>
 </div>
 
 <?= flash_html() ?>

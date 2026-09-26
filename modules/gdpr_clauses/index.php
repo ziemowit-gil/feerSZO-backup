@@ -1,13 +1,13 @@
 <?php
 /**
- * modules/klauzule/index.php — lista klauzul RODO (panel admina/edytora).
- * Logika i format treści: modules/klauzule/logic/klauzule.php.
+ * modules/gdpr_clauses/index.php — lista klauzul RODO (panel admina/edytora).
+ * Logika i format treści: modules/gdpr_clauses/logic/gdpr_clauses.php.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
-require_once __DIR__ . '/logic/klauzule.php';
+require_once __DIR__ . '/logic/gdpr_clauses.php';
 
 require_role('admin', 'editor');
 $svc = new GdprClauseService();
@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'dele
     csrf_check();
     $svc->deleteClause((int)($_POST['id'] ?? 0));
     flash_set('success', 'Klauzula usunięta (razem z historią wersji).');
-    header('Location: ' . APP_URL . '/modules/klauzule/index.php');
+    header('Location: ' . APP_URL . '/modules/gdpr_clauses/index.php');
     exit;
 }
 
@@ -30,10 +30,10 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-shield-lock text-primary"></i> Klauzule RODO</h4>
   <div class="d-flex gap-2">
-    <a href="<?= APP_URL ?>/modules/klauzule/variables.php" class="btn btn-sm btn-outline-secondary">
+    <a href="<?= APP_URL ?>/modules/gdpr_clauses/variables.php" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-braces me-1"></i>Zmienne globalne
     </a>
-    <a href="<?= APP_URL ?>/modules/klauzule/edit.php" class="btn btn-sm btn-primary">
+    <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php" class="btn btn-sm btn-primary">
       <i class="bi bi-plus-lg me-1"></i>Nowa klauzula
     </a>
   </div>
@@ -47,7 +47,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <?php if (!$clauses): ?>
         <div class="card-body text-center text-muted py-5">
           <i class="bi bi-shield-lock fs-1 d-block mb-2 opacity-25"></i>
-          Brak klauzul. <a href="<?= APP_URL ?>/modules/klauzule/edit.php">Dodaj pierwszą</a>.
+          Brak klauzul. <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php">Dodaj pierwszą</a>.
         </div>
       <?php else: ?>
       <div class="table-responsive">
@@ -56,10 +56,10 @@ include dirname(__DIR__, 2) . '/includes/header.php';
             <tr><th>Tytuł</th><th>Adres publiczny</th><th>Status</th><th>Zmieniono</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
-          <?php foreach ($clauses as $c): $url = klauzule_public_url($c['slug']); ?>
+          <?php foreach ($clauses as $c): $url = gdpr_clauses_public_url($c['slug']); ?>
             <tr>
               <td>
-                <a href="<?= APP_URL ?>/modules/klauzule/edit.php?id=<?= (int)$c['id'] ?>" class="fw-semibold text-decoration-none"><?= h($c['tytul']) ?></a>
+                <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?id=<?= (int)$c['id'] ?>" class="fw-semibold text-decoration-none"><?= h($c['tytul']) ?></a>
                 <?php if ((int)$c['versions'] > 0): ?>
                   <span class="badge bg-light text-muted border ms-1" title="Poprzednie wersje w historii"><?= (int)$c['versions'] ?> wer.</span>
                 <?php endif; ?>
@@ -78,7 +78,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
               </td>
               <td class="small text-muted text-nowrap"><?= $c['updated_at'] ? h(date('d.m.Y H:i', strtotime($c['updated_at']))) : '—' ?></td>
               <td class="text-end text-nowrap">
-                <a href="<?= APP_URL ?>/modules/klauzule/edit.php?id=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-primary" title="Edytuj"><i class="bi bi-pencil"></i></a>
+                <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?id=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-primary" title="Edytuj"><i class="bi bi-pencil"></i></a>
                 <form method="post" class="d-inline" onsubmit="return confirm('Usunąć klauzulę „<?= h(addslashes($c['tytul'])) ?>” wraz z historią? Osadzenia na innych stronach przestaną działać.');">
                   <?= csrf_field() ?>
                   <input type="hidden" name="_action" value="delete">
@@ -99,7 +99,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="card shadow-sm">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <span class="fw-semibold small"><i class="bi bi-braces me-1"></i>Zmienne globalne</span>
-        <a href="<?= APP_URL ?>/modules/klauzule/variables.php" class="small">Edytuj</a>
+        <a href="<?= APP_URL ?>/modules/gdpr_clauses/variables.php" class="small">Edytuj</a>
       </div>
       <ul class="list-group list-group-flush small">
         <?php foreach ($vars as $v): ?>

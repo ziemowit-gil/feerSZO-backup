@@ -1,13 +1,13 @@
 <?php
 /**
- * modules/klauzule/edit.php — dodawanie/edycja klauzuli RODO z podglądem
+ * modules/gdpr_clauses/edit.php — dodawanie/edycja klauzuli RODO z podglądem
  * na żywo (preview.php), kodem do osadzenia i historią wersji.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
-require_once __DIR__ . '/logic/klauzule.php';
+require_once __DIR__ . '/logic/gdpr_clauses.php';
 
 require_role('admin', 'editor');
 $user = current_user();
@@ -17,7 +17,7 @@ $id     = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 $clause = $id ? $svc->getById($id) : null;
 if ($id && !$clause) {
     flash_set('danger', 'Nie znaleziono klauzuli.');
-    header('Location: ' . APP_URL . '/modules/klauzule/index.php');
+    header('Location: ' . APP_URL . '/modules/gdpr_clauses/index.php');
     exit;
 }
 
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $unknown = $svc->unknownTags($form['content']);
         flash_set($unknown ? 'warning' : 'success', 'Klauzula zapisana.'
             . ($unknown ? ' Uwaga: nieznane tagi (na stronie publicznej będą puste): {{' . implode('}}, {{', $unknown) . '}}.' : ''));
-        header('Location: ' . APP_URL . '/modules/klauzule/edit.php?id=' . $newId);
+        header('Location: ' . APP_URL . '/modules/gdpr_clauses/edit.php?id=' . $newId);
         exit;
     } catch (InvalidArgumentException $e) {
         $error = $e->getMessage();
@@ -44,9 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $vars    = $svc->listVariables();
 $history = $clause ? $svc->history($id) : [];
-$pubUrl  = $clause ? klauzule_public_url($clause['slug']) : '';
-$embUrl  = $clause ? klauzule_public_url($clause['slug'], true) : '';
-$jsUrl   = rtrim(APP_URL, '/') . '/modules/klauzule/public/embed.js';
+$pubUrl  = $clause ? gdpr_clauses_public_url($clause['slug']) : '';
+$embUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], true) : '';
+$jsUrl   = rtrim(APP_URL, '/') . '/modules/gdpr_clauses/public/embed.js';
 
 $PAGE_TITLE = $clause ? 'Klauzula: ' . $clause['tytul'] : 'Nowa klauzula RODO';
 include dirname(__DIR__, 2) . '/includes/header.php';
@@ -67,7 +67,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <?php if ($clause && (int)$clause['is_published'] === 1): ?>
       <a href="<?= h($pubUrl) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-box-arrow-up-right me-1"></i>Strona publiczna</a>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/modules/klauzule/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Lista</a>
+    <a href="<?= APP_URL ?>/modules/gdpr_clauses/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Lista</a>
   </div>
 </div>
 
@@ -111,7 +111,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
             <?php foreach (GDPR_BUILTIN_VARS as $b): ?>
               <button type="button" class="btn btn-sm btn-light border py-0 px-1 mb-1 gdpr-ins" data-tag="{{<?= $b ?>}}"><code class="text-muted">{{<?= $b ?>}}</code></button>
             <?php endforeach; ?>
-            <a href="<?= APP_URL ?>/modules/klauzule/variables.php" class="small ms-1">zarządzaj zmiennymi</a>
+            <a href="<?= APP_URL ?>/modules/gdpr_clauses/variables.php" class="small ms-1">zarządzaj zmiennymi</a>
           </div>
         </div>
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
@@ -201,7 +201,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     const my = ++seq;
     status.textContent = 'odświeżanie…';
     const body = new URLSearchParams({ _csrf: csrf, content: ta.value, updated_at: updatedAt || '' });
-    fetch(<?= json_encode(APP_URL . '/modules/klauzule/preview.php') ?>, { method: 'POST', body, credentials: 'same-origin' })
+    fetch(<?= json_encode(APP_URL . '/modules/gdpr_clauses/preview.php') ?>, { method: 'POST', body, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
         if (my !== seq) return;

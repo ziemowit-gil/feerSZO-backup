@@ -1,8 +1,8 @@
 /*
- * modules/klauzule/public/embed.js — osadzanie klauzuli RODO na zewnętrznej stronie.
+ * modules/gdpr_clauses/public/embed.js — osadzanie klauzuli RODO na zewnętrznej stronie.
  *
  *   <div data-gdpr-clause="rekrutacja"></div>
- *   <script src="https://…/modules/klauzule/public/embed.js" async></script>
+ *   <script src="https://…/modules/gdpr_clauses/public/embed.js" async></script>
  *
  * Każdy element z data-gdpr-clause dostaje iframe z /klauzula/{slug}?embed=1,
  * którego wysokość dopasowuje się do treści (postMessage z clause.php).
@@ -12,10 +12,10 @@
 (function () {
   var script = document.currentScript;
   if (!script) {
-    var all = document.querySelectorAll('script[src*="klauzule/public/embed.js"]');
+    var all = document.querySelectorAll('script[src*="gdpr_clauses/public/embed.js"]');
     script = all[all.length - 1];
   }
-  var base = script.src.replace(/\/modules\/klauzule\/public\/embed\.js.*$/, '');
+  var base = script.src.replace(/\/modules\/gdpr_clauses\/public\/embed\.js.*$/, '');
   var origin = new URL(base, location.href).origin;
   var frames = [];
 

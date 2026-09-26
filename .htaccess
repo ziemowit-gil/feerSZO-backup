@@ -21,10 +21,10 @@ RewriteRule ^mobilna/(.+)$     /crm/mobile/$1 [L]
 # Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
 RewriteRule ^poczta/?$         /webmail/index.php [L]
 
-# ── Publiczne klauzule RODO: /klauzula/{slug} → modules/klauzule/public ─────
+# ── Publiczne klauzule RODO: /klauzula/{slug} → modules/gdpr_clauses/public ─────
 # Czysty adres do linkowania w formularzach/stopkach; ?embed=1 = wersja do iframe.
 # Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
-RewriteRule ^klauzula/([a-z0-9-]{1,64})/?$ /modules/klauzule/public/clause.php?slug=$1 [QSA,L]
+RewriteRule ^klauzula/([a-z0-9-]{1,64})/?$ /modules/gdpr_clauses/public/clause.php?slug=$1 [QSA,L]
 
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
@@ -240,7 +240,7 @@ RewriteCond %{REQUEST_FILENAME} !-d
     # Dla wszystkich pozostałych ścieżek obowiązuje SAMEORIGIN.
     SetEnvIf Request_URI "^/chatbot/" feer_chatbot_embed
     # Klauzule RODO (strona publiczna + embed.js) — osadzane w iframe na stronach zewnętrznych.
-    SetEnvIf Request_URI "^/(klauzula/|modules/klauzule/public/)" feer_chatbot_embed
+    SetEnvIf Request_URI "^/(klauzula/|modules/gdpr_clauses/public/)" feer_chatbot_embed
     Header always set X-Frame-Options "SAMEORIGIN" "env=!feer_chatbot_embed"
     Header always set Content-Security-Policy "frame-ancestors *" "env=feer_chatbot_embed"
 </IfModule>

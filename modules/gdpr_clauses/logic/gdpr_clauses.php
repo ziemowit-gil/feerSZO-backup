@@ -1,13 +1,13 @@
 <?php
 /**
- * modules/klauzule/logic/klauzule.php — Klauzule RODO (informacyjne).
+ * modules/gdpr_clauses/logic/gdpr_clauses.php — Klauzule RODO (informacyjne).
  *
  * Dwie tabele:
  *  - global_variables  klucz→wartość (company_name, address, dpo_email…);
  *                      zmiana w jednym miejscu aktualizuje WSZYSTKIE klauzule,
  *                      bo podstawienie odbywa się przy każdym renderowaniu,
  *  - gdpr_clauses      treść z tagami {{klucz}}, publiczna pod slugiem
- *                      (/klauzula/{slug} → modules/klauzule/public/clause.php).
+ *                      (/klauzula/{slug} → modules/gdpr_clauses/public/clause.php).
  *  - gdpr_clause_history poprzednie wersje treści — przy każdym zapisie.
  *                      Rozliczalność (RODO art. 5 ust. 2): wiadomo, jaki
  *                      tekst obowiązywał w chwili zebrania danych.
@@ -31,7 +31,7 @@ const GDPR_SLUG_RE = '/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/';
 const GDPR_VAR_KEY_RE = '/^[a-z][a-z0-9_]{0,63}$/';
 const GDPR_BUILTIN_VARS = ['updated_at', 'today'];
 
-function klauzule_migrate(): void {
+function gdpr_clauses_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
@@ -89,11 +89,11 @@ function klauzule_migrate(): void {
     if ((int)$pdo->query("SELECT COUNT(*) FROM gdpr_clauses")->fetchColumn() === 0) {
         $pdo->prepare("INSERT INTO gdpr_clauses (slug, tytul, content, is_published, created_at, updated_at)
                        VALUES (?,?,?,0,datetime('now','localtime'),datetime('now','localtime'))")
-            ->execute(['rekrutacja', 'Klauzula informacyjna — rekrutacja', klauzule_example_rekrutacja()]);
+            ->execute(['rekrutacja', 'Klauzula informacyjna — rekrutacja', gdpr_clauses_example_recruitment()]);
     }
 }
 
-function klauzule_example_rekrutacja(): string {
+function gdpr_clauses_example_recruitment(): string {
     return <<<TXT
 Zgodnie z art. 13 ust. 1 i 2 Rozporządzenia Parlamentu Europejskiego i Rady (UE) 2016/679 z dnia 27 kwietnia 2016 r. (RODO) informujemy, że:
 
@@ -130,7 +130,7 @@ final class GdprClauseService
 
     public function __construct(?PDO $pdo = null)
     {
-        klauzule_migrate();
+        gdpr_clauses_migrate();
         $this->pdo = $pdo ?? db();
     }
 
@@ -288,7 +288,7 @@ final class GdprClauseService
             $k = strtolower($m[1]);
             if (array_key_exists($k, $vars)) {
                 $v = $vars[$k];
-                $html = klauzule_h_multiline($v);
+                $html = gdpr_clauses_h_multiline($v);
                 if (filter_var(trim($v), FILTER_VALIDATE_EMAIL)) {
                     $html = '<a href="mailto:' . htmlspecialchars(trim($v), ENT_QUOTES) . '">' . $html . '</a>';
                 }
@@ -359,11 +359,11 @@ final class GdprClauseService
     }
 }
 
-function klauzule_h_multiline(string $v): string {
+function gdpr_clauses_h_multiline(string $v): string {
     return nl2br(htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false);
 }
 
 /** Publiczny adres klauzuli (czysty URL obsługiwany przez .htaccess). */
-function klauzule_public_url(string $slug, bool $embed = false): string {
+function gdpr_clauses_public_url(string $slug, bool $embed = false): string {
     return rtrim(APP_URL, '/') . '/klauzula/' . rawurlencode($slug) . ($embed ? '?embed=1' : '');
 }

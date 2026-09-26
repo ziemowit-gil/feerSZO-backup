@@ -1,6 +1,6 @@
 <?php
 /**
- * modules/klauzule/public/clause.php — publiczna strona klauzuli RODO.
+ * modules/gdpr_clauses/public/clause.php — publiczna strona klauzuli RODO.
  *
  * Adresy: /klauzula/{slug} (reguła w .htaccess) lub bezpośrednio
  * clause.php?slug={slug}. ?embed=1 — wersja do iframe: bez nagłówka
@@ -14,7 +14,7 @@
 require_once dirname(__DIR__, 3) . '/config.php';
 require_once dirname(__DIR__, 3) . '/includes/db.php';
 require_once dirname(__DIR__, 3) . '/includes/functions.php';
-require_once dirname(__DIR__) . '/logic/klauzule.php';
+require_once dirname(__DIR__) . '/logic/gdpr_clauses.php';
 
 $slug   = strtolower(trim((string)($_GET['slug'] ?? '')));
 $embed  = !empty($_GET['embed']);
