@@ -6,6 +6,7 @@
  *
  * Każdy element z data-gdpr-clause dostaje iframe z /klauzula/{slug}?embed=1,
  * którego wysokość dopasowuje się do treści (postMessage z clause.php).
+ * data-lang="en" — wersja językowa (brak → polska).
  * Iframe zamiast wstrzykiwania HTML — style strony-gospodarza nie psują
  * klauzuli i odwrotnie. Opcjonalnie data-height="400" = stała wysokość.
  */
@@ -25,7 +26,8 @@
       if (!/^[a-z0-9-]{1,64}$/.test(slug)) return;
       el.setAttribute('data-gdpr-mounted', '1');
       var f = document.createElement('iframe');
-      f.src = base + '/klauzula/' + slug + '?embed=1';
+      var lang = (el.getAttribute('data-lang') || '').toLowerCase();
+      f.src = base + '/klauzula/' + slug + (/^[a-z]{2}$/.test(lang) && lang !== 'pl' ? '/' + lang : '') + '?embed=1';
       f.title = 'Klauzula informacyjna RODO';
       f.loading = 'lazy';
       f.style.cssText = 'width:100%;border:0;display:block;height:' + (parseInt(el.getAttribute('data-height'), 10) || 400) + 'px';

@@ -21,17 +21,27 @@ if ($id && !$clause) {
     exit;
 }
 
-$form  = $clause ?? ['slug' => '', 'tytul' => '', 'content' => '', 'is_published' => 0, 'updated_at' => null];
+$form  = $clause ?? ['slug' => '', 'lang' => GDPR_DEFAULT_LANG, 'tytul' => '', 'content' => '', 'is_published' => 0, 'updated_at' => null];
 $error = null;
+
+// Nowe tłumaczenie istniejącej klauzuli: ten sam slug, treść źródłowa do przełożenia.
+$translateFrom = !$clause && !empty($_GET['translate_from']) ? $svc->getById((int)$_GET['translate_from']) : null;
+if ($translateFrom) {
+    $taken = array_column(array_filter($svc->listClauses(), fn($c) => $c['slug'] === $translateFrom['slug']), 'lang');
+    $free  = array_values(array_diff(array_keys(GDPR_LANGS), $taken));
+    $form  = ['slug' => $translateFrom['slug'], 'lang' => $free[0] ?? 'en', 'tytul' => $translateFrom['tytul'],
+              'content' => $translateFrom['content'], 'is_published' => 0, 'updated_at' => null];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $form['slug']         = (string)($_POST['slug'] ?? '');
+    $form['lang']         = (string)($_POST['lang'] ?? GDPR_DEFAULT_LANG);
     $form['tytul']        = (string)($_POST['tytul'] ?? '');
     $form['content']      = (string)($_POST['content'] ?? '');
     $form['is_published'] = !empty($_POST['is_published']) ? 1 : 0;
     try {
-        $newId = $svc->saveClause($id, $form['slug'], $form['tytul'], $form['content'], (bool)$form['is_published'], (int)$user['id']);
+        $newId = $svc->saveClause($id, $form['slug'], $form['tytul'], $form['content'], (bool)$form['is_published'], (int)$user['id'], $form['lang']);
         $unknown = $svc->unknownTags($form['content']);
         flash_set($unknown ? 'warning' : 'success', 'Klauzula zapisana.'
             . ($unknown ? ' Uwaga: nieznane tagi (na stronie publicznej będą puste): {{' . implode('}}, {{', $unknown) . '}}.' : ''));
@@ -44,8 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $vars    = $svc->listVariables();
 $history = $clause ? $svc->history($id) : [];
-$pubUrl  = $clause ? gdpr_clauses_public_url($clause['slug']) : '';
-$embUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], true) : '';
+$pubUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], false, $clause['lang']) : '';
+$embUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], true, $clause['lang']) : '';
+$siblings = $clause ? array_values(array_filter($svc->listClauses(), fn($c) => $c['slug'] === $clause['slug'] && (int)$c['id'] !== $id)) : [];
 $jsUrl   = rtrim(APP_URL, '/') . '/modules/gdpr_clauses/public/embed.js';
 
 $PAGE_TITLE = $clause ? 'Klauzula: ' . $clause['tytul'] : 'Nowa klauzula RODO';
@@ -64,6 +75,12 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-shield-lock text-primary"></i> <?= $clause ? h($clause['tytul']) : 'Nowa klauzula' ?></h4>
   <div class="d-flex gap-2">
+    <?php foreach ($siblings as $sb): ?>
+      <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?id=<?= (int)$sb['id'] ?>" class="btn btn-sm btn-outline-secondary text-uppercase" title="<?= h(GDPR_LANGS[$sb['lang']] ?? $sb['lang']) ?>"><?= h($sb['lang']) ?></a>
+    <?php endforeach; ?>
+    <?php if ($clause && count($siblings) + 1 < count(GDPR_LANGS)): ?>
+      <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?translate_from=<?= (int)$id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-translate me-1"></i>Dodaj tłumaczenie</a>
+    <?php endif; ?>
     <?php if ($clause && (int)$clause['is_published'] === 1): ?>
       <a href="<?= h($pubUrl) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-box-arrow-up-right me-1"></i>Strona publiczna</a>
     <?php endif; ?>
@@ -73,6 +90,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 
 <?= flash_html() ?>
 <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+<?php if ($translateFrom): ?>
+  <div class="alert alert-info small"><i class="bi bi-translate me-1"></i>Nowa wersja językowa klauzuli <strong><?= h($translateFrom['tytul']) ?></strong> — treść skopiowana z wersji <?= h(GDPR_LANGS[$translateFrom['lang']] ?? $translateFrom['lang']) ?> do przetłumaczenia. Tagi <code>{{…}}</code> zostaw bez zmian.</div>
+<?php endif; ?>
 
 <form method="post">
   <?= csrf_field() ?>
@@ -82,9 +102,17 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="row g-2 mb-2">
-            <div class="col-md-7">
+            <div class="col-md-5">
               <label class="form-label small mb-1" for="gdpr-title">Tytuł</label>
               <input type="text" id="gdpr-title" name="tytul" class="form-control" required maxlength="255" value="<?= h($form['tytul']) ?>">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1" for="gdpr-lang">Język</label>
+              <select id="gdpr-lang" name="lang" class="form-select">
+                <?php foreach (GDPR_LANGS as $code => $name): ?>
+                  <option value="<?= $code ?>" <?= $form['lang'] === $code ? 'selected' : '' ?>><?= h($name) ?></option>
+                <?php endforeach; ?>
+              </select>
             </div>
             <div class="col-md-5">
               <label class="form-label small mb-1" for="gdpr-slug">Slug (adres)</label>
@@ -150,7 +178,8 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         $snippets = [
             'Link bezpośredni' => $pubUrl,
             'Iframe (stała wysokość)' => '<iframe src="' . $embUrl . '" title="' . h($clause['tytul']) . '" style="width:100%;height:600px;border:0" loading="lazy"></iframe>',
-            'Skrypt (iframe dopasowujący wysokość)' => '<div data-gdpr-clause="' . h($clause['slug']) . '"></div>' . "\n" . '<script src="' . $jsUrl . '" async></script>',
+            'Skrypt (iframe dopasowujący wysokość)' => '<div data-gdpr-clause="' . h($clause['slug']) . '"'
+                . ($clause['lang'] !== GDPR_DEFAULT_LANG ? ' data-lang="' . h($clause['lang']) . '"' : '') . '></div>' . "\n" . '<script src="' . $jsUrl . '" async></script>',
         ];
         foreach ($snippets as $label => $code): $sid = 'snip-' . md5($label); ?>
           <label class="form-label mb-1 mt-2" for="<?= $sid ?>"><?= h($label) ?></label>

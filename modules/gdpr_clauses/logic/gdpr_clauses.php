@@ -30,6 +30,18 @@ require_once dirname(__DIR__, 3) . '/includes/db.php';
 const GDPR_SLUG_RE = '/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/';
 const GDPR_VAR_KEY_RE = '/^[a-z][a-z0-9_]{0,63}$/';
 const GDPR_BUILTIN_VARS = ['updated_at', 'today'];
+const GDPR_DEFAULT_LANG = 'pl';
+/** Obsługiwane wersje językowe (kod ISO 639-1 → nazwa w tym języku). */
+const GDPR_LANGS = [
+    'pl' => 'polski', 'en' => 'English', 'uk' => 'українська',
+    'de' => 'Deutsch', 'fr' => 'français', 'es' => 'español',
+];
+
+/** Dokłada kolumnę, jeśli jej brak (samonaprawa schematu). */
+function gdpr_clauses_add_column(PDO $pdo, string $table, string $col, string $ddl): void {
+    $cols = array_column($pdo->query("PRAGMA table_info({$table})")->fetchAll(), 'name');
+    if (!in_array($col, $cols, true)) $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$col} {$ddl}");
+}
 
 function gdpr_clauses_migrate(): void {
     static $done = false;
@@ -45,14 +57,32 @@ function gdpr_clauses_migrate(): void {
     )");
     $pdo->exec("CREATE TABLE IF NOT EXISTS gdpr_clauses (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        slug          VARCHAR(64) NOT NULL UNIQUE,
+        slug          VARCHAR(64) NOT NULL,
+        lang          VARCHAR(5) NOT NULL DEFAULT 'pl',
         tytul         VARCHAR(255) NOT NULL,
         content       TEXT NOT NULL DEFAULT '',
         is_published  INTEGER NOT NULL DEFAULT 1,
         created_at    DATETIME,
         updated_at    DATETIME,
-        updated_by    INTEGER
+        updated_by    INTEGER,
+        UNIQUE(slug, lang)
     )");
+    // Pierwsza wersja tabeli miała UNIQUE na samym slugu i nie miała lang —
+    // SQLite nie zdejmie ograniczenia przez ALTER, więc przebudowa tabeli.
+    $cols = array_column($pdo->query("PRAGMA table_info(gdpr_clauses)")->fetchAll(), 'name');
+    if (!in_array('lang', $cols, true)) {
+        $pdo->beginTransaction();
+        $pdo->exec("CREATE TABLE gdpr_clauses_v2 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, slug VARCHAR(64) NOT NULL,
+            lang VARCHAR(5) NOT NULL DEFAULT 'pl', tytul VARCHAR(255) NOT NULL,
+            content TEXT NOT NULL DEFAULT '', is_published INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME, updated_at DATETIME, updated_by INTEGER, UNIQUE(slug, lang))");
+        $pdo->exec("INSERT INTO gdpr_clauses_v2 (id, slug, lang, tytul, content, is_published, created_at, updated_at, updated_by)
+                    SELECT id, slug, 'pl', tytul, content, is_published, created_at, updated_at, updated_by FROM gdpr_clauses");
+        $pdo->exec("DROP TABLE gdpr_clauses");
+        $pdo->exec("ALTER TABLE gdpr_clauses_v2 RENAME TO gdpr_clauses");
+        $pdo->commit();
+    }
     $pdo->exec("CREATE TABLE IF NOT EXISTS gdpr_clause_history (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         clause_id   INTEGER NOT NULL,
@@ -181,11 +211,22 @@ final class GdprClauseService
 
     // ── Klauzule ────────────────────────────────────────────────────────────
 
+    /** Wiersze posortowane: slug, potem język domyślny jako pierwszy. */
     public function listClauses(): array
     {
-        return $this->pdo->query("SELECT id, slug, tytul, is_published, updated_at,
+        return $this->pdo->query("SELECT id, slug, lang, tytul, is_published, updated_at,
                     (SELECT COUNT(*) FROM gdpr_clause_history h WHERE h.clause_id = c.id) AS versions
-                FROM gdpr_clauses c ORDER BY tytul COLLATE NOCASE")->fetchAll();
+                FROM gdpr_clauses c
+                ORDER BY slug, CASE WHEN lang = '" . GDPR_DEFAULT_LANG . "' THEN 0 ELSE 1 END, lang")->fetchAll();
+    }
+
+    /** Opublikowane języki danego sluga: kod → tytuł. */
+    public function languagesFor(string $slug): array
+    {
+        $st = $this->pdo->prepare("SELECT lang, tytul FROM gdpr_clauses WHERE slug = ? AND is_published = 1
+                                   ORDER BY CASE WHEN lang = ? THEN 0 ELSE 1 END, lang");
+        $st->execute([$slug, GDPR_DEFAULT_LANG]);
+        return array_column($st->fetchAll(), 'tytul', 'lang');
     }
 
     public function getById(int $id): ?array
@@ -195,11 +236,18 @@ final class GdprClauseService
         return $st->fetch() ?: null;
     }
 
-    public function getBySlug(string $slug, bool $publishedOnly = true): ?array
+    /**
+     * Klauzula po slugu w żądanym języku; gdy tej wersji nie ma — język
+     * domyślny, a gdy i jego brak — dowolna opublikowana wersja.
+     */
+    public function getBySlug(string $slug, bool $publishedOnly = true, ?string $lang = null): ?array
     {
         if (!preg_match(GDPR_SLUG_RE, $slug)) return null;
-        $st = $this->pdo->prepare("SELECT * FROM gdpr_clauses WHERE slug = ?" . ($publishedOnly ? " AND is_published = 1" : ""));
-        $st->execute([$slug]);
+        $lang = isset(GDPR_LANGS[$lang ?? '']) ? $lang : GDPR_DEFAULT_LANG;
+        $st = $this->pdo->prepare("SELECT * FROM gdpr_clauses WHERE slug = ?"
+            . ($publishedOnly ? " AND is_published = 1" : "")
+            . " ORDER BY CASE WHEN lang = ? THEN 0 WHEN lang = ? THEN 1 ELSE 2 END, lang LIMIT 1");
+        $st->execute([$slug, $lang, GDPR_DEFAULT_LANG]);
         return $st->fetch() ?: null;
     }
 
@@ -211,8 +259,9 @@ final class GdprClauseService
     }
 
     /** Zapis (id=0 → nowa). Zwraca id. Rzuca InvalidArgumentException z komunikatem dla użytkownika. */
-    public function saveClause(int $id, string $slug, string $tytul, string $content, bool $published, ?int $userId): int
+    public function saveClause(int $id, string $slug, string $tytul, string $content, bool $published, ?int $userId, string $lang = GDPR_DEFAULT_LANG): int
     {
+        if (!isset(GDPR_LANGS[$lang])) throw new InvalidArgumentException('Nieobsługiwany język klauzuli.');
         $slug  = trim(mb_strtolower($slug));
         $tytul = trim($tytul);
         $content = str_replace("\r\n", "\n", $content);
@@ -221,9 +270,9 @@ final class GdprClauseService
         }
         if ($tytul === '') throw new InvalidArgumentException('Podaj tytuł klauzuli.');
 
-        $dup = $this->pdo->prepare("SELECT id FROM gdpr_clauses WHERE slug = ? AND id <> ?");
-        $dup->execute([$slug, $id]);
-        if ($dup->fetchColumn()) throw new InvalidArgumentException("Slug „{$slug}\" jest już zajęty przez inną klauzulę.");
+        $dup = $this->pdo->prepare("SELECT id FROM gdpr_clauses WHERE slug = ? AND lang = ? AND id <> ?");
+        $dup->execute([$slug, $lang, $id]);
+        if ($dup->fetchColumn()) throw new InvalidArgumentException("Klauzula „{$slug}\" w języku „" . GDPR_LANGS[$lang] . "\" już istnieje.");
 
         $this->pdo->beginTransaction();
         try {
@@ -238,12 +287,12 @@ final class GdprClauseService
                 } else {
                     $touch = '';
                 }
-                $this->pdo->prepare("UPDATE gdpr_clauses SET slug = ?, tytul = ?, content = ?, is_published = ?, updated_by = ? {$touch} WHERE id = ?")
-                    ->execute([$slug, $tytul, $content, $published ? 1 : 0, $userId, $id]);
+                $this->pdo->prepare("UPDATE gdpr_clauses SET slug = ?, lang = ?, tytul = ?, content = ?, is_published = ?, updated_by = ? {$touch} WHERE id = ?")
+                    ->execute([$slug, $lang, $tytul, $content, $published ? 1 : 0, $userId, $id]);
             } else {
-                $this->pdo->prepare("INSERT INTO gdpr_clauses (slug, tytul, content, is_published, created_at, updated_at, updated_by)
-                                     VALUES (?,?,?,?,datetime('now','localtime'),datetime('now','localtime'),?)")
-                    ->execute([$slug, $tytul, $content, $published ? 1 : 0, $userId]);
+                $this->pdo->prepare("INSERT INTO gdpr_clauses (slug, lang, tytul, content, is_published, created_at, updated_at, updated_by)
+                                     VALUES (?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'),?)")
+                    ->execute([$slug, $lang, $tytul, $content, $published ? 1 : 0, $userId]);
                 $id = (int)$this->pdo->lastInsertId();
             }
             $this->pdo->commit();
@@ -364,6 +413,33 @@ function gdpr_clauses_h_multiline(string $v): string {
 }
 
 /** Publiczny adres klauzuli (czysty URL obsługiwany przez .htaccess). */
-function gdpr_clauses_public_url(string $slug, bool $embed = false): string {
-    return rtrim(APP_URL, '/') . '/klauzula/' . rawurlencode($slug) . ($embed ? '?embed=1' : '');
+function gdpr_clauses_public_url(string $slug, bool $embed = false, string $lang = GDPR_DEFAULT_LANG): string {
+    return rtrim(APP_URL, '/') . '/klauzula/' . rawurlencode($slug)
+        . ($lang !== GDPR_DEFAULT_LANG && isset(GDPR_LANGS[$lang]) ? '/' . $lang : '')
+        . ($embed ? '?embed=1' : '');
+}
+
+/** Teksty interfejsu strony publicznej w danym języku (fallback: polski). */
+function gdpr_clauses_ui(string $lang): array {
+    static $t = [
+        'pl' => ['updated' => 'Ostatnia aktualizacja', 'print' => 'Drukuj', 'kicker' => 'Ochrona danych osobowych',
+                 'nf_title' => 'Nie znaleziono klauzuli', 'nf_body' => 'Adres jest nieprawidłowy lub klauzula nie jest już publikowana.',
+                 'unavailable' => 'Klauzula jest niedostępna.', 'lang' => 'Język', 'skip' => 'Przejdź do treści'],
+        'en' => ['updated' => 'Last updated', 'print' => 'Print', 'kicker' => 'Personal data protection',
+                 'nf_title' => 'Notice not found', 'nf_body' => 'The address is invalid or this notice is no longer published.',
+                 'unavailable' => 'This notice is unavailable.', 'lang' => 'Language', 'skip' => 'Skip to content'],
+        'uk' => ['updated' => 'Останнє оновлення', 'print' => 'Друкувати', 'kicker' => 'Захист персональних даних',
+                 'nf_title' => 'Клаузулу не знайдено', 'nf_body' => 'Адреса неправильна або клаузула більше не публікується.',
+                 'unavailable' => 'Клаузула недоступна.', 'lang' => 'Мова', 'skip' => 'Перейти до змісту'],
+        'de' => ['updated' => 'Zuletzt aktualisiert', 'print' => 'Drucken', 'kicker' => 'Datenschutz',
+                 'nf_title' => 'Hinweis nicht gefunden', 'nf_body' => 'Die Adresse ist ungültig oder der Hinweis wird nicht mehr veröffentlicht.',
+                 'unavailable' => 'Der Hinweis ist nicht verfügbar.', 'lang' => 'Sprache', 'skip' => 'Zum Inhalt springen'],
+        'fr' => ['updated' => 'Dernière mise à jour', 'print' => 'Imprimer', 'kicker' => 'Protection des données personnelles',
+                 'nf_title' => 'Clause introuvable', 'nf_body' => "L'adresse est invalide ou la clause n'est plus publiée.",
+                 'unavailable' => 'Clause indisponible.', 'lang' => 'Langue', 'skip' => 'Aller au contenu'],
+        'es' => ['updated' => 'Última actualización', 'print' => 'Imprimir', 'kicker' => 'Protección de datos personales',
+                 'nf_title' => 'Cláusula no encontrada', 'nf_body' => 'La dirección no es válida o la cláusula ya no está publicada.',
+                 'unavailable' => 'Cláusula no disponible.', 'lang' => 'Idioma', 'skip' => 'Ir al contenido'],
+    ];
+    return $t[$lang] ?? $t['pl'];
 }

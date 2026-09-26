@@ -56,9 +56,11 @@ include dirname(__DIR__, 2) . '/includes/header.php';
             <tr><th>Tytuł</th><th>Adres publiczny</th><th>Status</th><th>Zmieniono</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
-          <?php foreach ($clauses as $c): $url = gdpr_clauses_public_url($c['slug']); ?>
+          <?php foreach ($clauses as $c): $url = gdpr_clauses_public_url($c['slug'], false, $c['lang']);
+                $path = '/klauzula/' . $c['slug'] . ($c['lang'] !== GDPR_DEFAULT_LANG ? '/' . $c['lang'] : ''); ?>
             <tr>
               <td>
+                <span class="badge bg-light text-dark border text-uppercase me-1" title="<?= h(GDPR_LANGS[$c['lang']] ?? $c['lang']) ?>"><?= h($c['lang']) ?></span>
                 <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?id=<?= (int)$c['id'] ?>" class="fw-semibold text-decoration-none"><?= h($c['tytul']) ?></a>
                 <?php if ((int)$c['versions'] > 0): ?>
                   <span class="badge bg-light text-muted border ms-1" title="Poprzednie wersje w historii"><?= (int)$c['versions'] ?> wer.</span>
@@ -66,9 +68,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
               </td>
               <td class="small">
                 <?php if ((int)$c['is_published'] === 1): ?>
-                  <a href="<?= h($url) ?>" target="_blank" rel="noopener"><code>/klauzula/<?= h($c['slug']) ?></code> <i class="bi bi-box-arrow-up-right"></i></a>
+                  <a href="<?= h($url) ?>" target="_blank" rel="noopener"><code><?= h($path) ?></code> <i class="bi bi-box-arrow-up-right"></i></a>
                 <?php else: ?>
-                  <code class="text-muted">/klauzula/<?= h($c['slug']) ?></code>
+                  <code class="text-muted"><?= h($path) ?></code>
                 <?php endif; ?>
               </td>
               <td>
