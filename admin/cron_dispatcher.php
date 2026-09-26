@@ -215,7 +215,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <th style="width:1%">Wł.</th>
           <th>Agent</th>
           <th style="width:13rem">Interwał</th>
-          <th style="min-width:280px">Okno godzinowe <span class="fw-normal text-muted small">(kliknij lub przeciągnij)</span></th>
+          <th style="min-width:280px">Okno godzinowe <span class="fw-normal text-muted small">(kliknij lub przeciągnij; przez północ: „⇄ odwróć”)</span></th>
           <th class="text-nowrap">Ostatnio / następnie</th>
           <th class="text-end" style="width:1%">Akcje</th>
         </tr>
@@ -254,15 +254,16 @@ include dirname(__DIR__) . '/includes/header.php';
             <div class="cd-hours" aria-hidden="true"><?php for ($i = 0; $i < 24; $i++): ?><span><?= $i % 6 === 0 ? $i : '' ?></span><?php endfor; ?></div>
             <div class="cd-strip <?= $r['enabled'] ? '' : 'off' ?>" role="group" aria-label="Okno godzinowe <?= h($r['name']) ?>">
               <?php for ($i = 0; $i < 24; $i++): ?>
-                <span class="h <?= $i >= $w[0] && $i < $w[1] ? 'on' : '' ?> <?= $i === $nowHour ? 'now' : '' ?>" data-h="<?= $i ?>" tabindex="<?= $i === 0 ? 0 : -1 ?>"
+                <span class="h <?= cron_dispatcher_in_window(['schedule' => $w], $i) ? 'on' : '' ?> <?= $i === $nowHour ? 'now' : '' ?>" data-h="<?= $i ?>" tabindex="<?= $i === 0 ? 0 : -1 ?>"
                       title="<?= sprintf('%02d:00–%02d:00', $i, $i + 1) ?>"></span>
               <?php endfor; ?>
             </div>
             <div class="d-flex justify-content-between align-items-center mt-1 small">
               <span class="cd-wlabel text-muted"></span>
               <span>
-                <button type="button" class="btn btn-link btn-sm p-0 cd-w-all">cała doba</button>
-                <?php if ($r['def_window']): ?> · <button type="button" class="btn btn-link btn-sm p-0 cd-w-def">domyślne <?= sprintf('%02d–%02d', ...$r['def_window']) ?></button><?php endif; ?>
+                <button type="button" class="btn btn-link btn-sm p-0 cd-w-inv" title="Zamień zaznaczenie na jego dopełnienie — np. 06–22 → 22–06 (przez północ)">⇄ odwróć</button>
+                · <button type="button" class="btn btn-link btn-sm p-0 cd-w-all">cała doba</button>
+                <?php if ($r['def_window']): ?> · <button type="button" class="btn btn-link btn-sm p-0 cd-w-def">domyślne <?= h(cron_dispatcher_window_label($r['def_window'])) ?></button><?php endif; ?>
               </span>
             </div>
           </td>
@@ -351,10 +352,15 @@ include dirname(__DIR__) . '/includes/header.php';
     const orig = { enabled: a.enabled, iv: ivSel.value, win: a.window ? a.window.slice() : [0, 24], note: a.note };
     let win = orig.win.slice();
 
+    // Okno [od, do): od < do zwykłe, od > do przez północ (22–6 = 22..23 i 0..5), do ∈ 1..24.
+    const inW = h => win[0] < win[1] ? (h >= win[0] && h < win[1]) : (h >= win[0] || h < win[1]);
+    const wLen = () => win[0] < win[1] ? win[1] - win[0] : 24 - win[0] + win[1];
+    const isAll = () => win[0] === 0 && win[1] === 24;
+    const pad = n => String(n).padStart(2, '0');
     const paint = () => {
-      cells.forEach((c, i) => c.classList.toggle('on', i >= win[0] && i < win[1]));
-      const all = win[0] === 0 && win[1] === 24;
-      lbl.textContent = all ? 'cała doba' : String(win[0]).padStart(2, '0') + ':00–' + String(win[1]).padStart(2, '0') + ':00';
+      cells.forEach((c, i) => c.classList.toggle('on', inW(i)));
+      const all = isAll();
+      lbl.textContent = all ? 'cała doba' : pad(win[0]) + ':00–' + pad(win[1]) + ':00' + (win[0] > win[1] ? ' (przez północ)' : '');
       strip.setAttribute('aria-label', 'Okno godzinowe ' + a.name + ': ' + lbl.textContent);
     };
     const current = () => {
@@ -388,17 +394,21 @@ include dirname(__DIR__) . '/includes/header.php';
       win = [Math.min(dragFrom, h), Math.max(dragFrom, h) + 1]; paint();
     });
     strip.addEventListener('pointerup', () => { if (dragFrom !== null) { dragFrom = null; check(); } });
-    // Klawiatura: ←/→ przesuwa okno, Shift+←/→ zmienia koniec, Home/End = cała doba
+    // Klawiatura (z zawijaniem przez północ): ←/→ przesuwa okno, Shift+→ wydłuża,
+    // Shift+← skraca, I = odwróć, Home/End = cała doba.
+    const invert = () => { if (!isAll()) win = [win[1] % 24, win[0] === 0 ? 24 : win[0]]; };
     strip.addEventListener('keydown', e => {
-      const len = win[1] - win[0];
-      if (e.key === 'ArrowRight' && e.shiftKey) win[1] = Math.min(24, win[1] + 1);
-      else if (e.key === 'ArrowLeft' && e.shiftKey) win[1] = Math.max(win[0] + 1, win[1] - 1);
-      else if (e.key === 'ArrowRight') { if (win[1] < 24) win = [win[0] + 1, win[1] + 1]; }
-      else if (e.key === 'ArrowLeft') { if (win[0] > 0) win = [win[0] - 1, win[1] - 1]; }
+      const all = isAll();
+      if (e.key === 'ArrowRight' && e.shiftKey) { if (!all) win = wLen() >= 23 ? [0, 24] : [win[0], win[1] % 24 + 1]; }
+      else if (e.key === 'ArrowLeft' && e.shiftKey) { if (all) win = [0, 23]; else if (wLen() > 1) win = [win[0], win[1] === 1 ? 24 : win[1] - 1]; }
+      else if (e.key === 'ArrowRight') { if (!all) win = [(win[0] + 1) % 24, win[1] === 24 ? 1 : win[1] + 1]; }
+      else if (e.key === 'ArrowLeft') { if (!all) win = [(win[0] + 23) % 24, win[1] === 1 ? 24 : win[1] - 1]; }
+      else if (e.key === 'i' || e.key === 'I') invert();
       else if (e.key === 'Home' || e.key === 'End') win = [0, 24];
       else return;
       e.preventDefault(); paint(); check();
     });
+    row.querySelector('.cd-w-inv').addEventListener('click', () => { invert(); paint(); check(); });
     row.querySelector('.cd-w-all').addEventListener('click', () => { win = [0, 24]; paint(); check(); });
     const wd = row.querySelector('.cd-w-def');
     if (wd) wd.addEventListener('click', () => { win = a.def_window.slice(); paint(); check(); });

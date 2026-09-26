@@ -40,12 +40,9 @@ foreach ($AGENTS as $name => $cfg) {
         continue;
     }
 
-    // Sprawdź okno godzinowe
-    if (!$manual && isset($cfg['schedule'])) {
-        [$h_from, $h_to] = $cfg['schedule'];
-        if ($hour < $h_from || $hour >= $h_to) {
-            continue;
-        }
+    // Sprawdź okno godzinowe [od, do) — od > do = okno przez północ (np. 22–6)
+    if (!$manual && !cron_dispatcher_in_window($cfg, $hour)) {
+        continue;
     }
 
     // Sprawdź interwał — może być liczbą (sekundy) albo nazwą funkcji

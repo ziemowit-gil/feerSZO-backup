@@ -6,7 +6,8 @@
  * Z panelu (admin/cron_dispatcher.php) admin zmienia per agent:
  *  - włączony / wyłączony,
  *  - interwał (sekundy) — także dla agentów z interwałem dynamicznym (funkcja),
- *  - okno godzinowe: domyślne z rejestru / całą dobę / własne [od, do),
+ *  - okno godzinowe: domyślne z rejestru / całą dobę / własne [od, do);
+ *    od > do = okno przez północ (np. [22, 6] = 22:00–06:00),
  *  - „Uruchom teraz” — najbliższy przebieg dyspozytora pomija okno i interwał.
  * Nadpisania: cron_agent_overrides (brak wiersza = wartości z rejestru),
  * stan (ostatnie uruchomienie, prośba o uruchomienie): cron_agent_state,
@@ -120,11 +121,33 @@ function cron_dispatcher_interval_seconds(array $cfg): int {
     return (int)$i;
 }
 
-/** Czy godzina $hour mieści się w oknie agenta (te same zasady co dyspozytor: [od, do)). */
+/**
+ * Czy godzina $hour mieści się w oknie agenta [od, do). Jedyne miejsce z tą
+ * regułą — używa jej dyspozytor, szacowanie następnego startu i wykres.
+ * od < do: zwykłe okno; od > do: przez północ (od..23 oraz 0..do-1); od == do: puste.
+ */
 function cron_dispatcher_in_window(array $cfg, int $hour): bool {
     if (!isset($cfg['schedule'])) return true;
-    [$f, $t] = $cfg['schedule'];
-    return $hour >= $f && $hour < $t;
+    [$f, $t] = array_map('intval', $cfg['schedule']);
+    return $f < $t ? ($hour >= $f && $hour < $t) : ($f > $t && ($hour >= $f || $hour < $t));
+}
+
+/** Godziny okna w kolejności od jego początku (dla okna przez północ: 22, 23, 0, 1…). */
+function cron_dispatcher_window_hours(array $cfg): array {
+    $start = isset($cfg['schedule']) ? (int)$cfg['schedule'][0] : 0;
+    $out = [];
+    for ($i = 0; $i < 24; $i++) {
+        $h = ($start + $i) % 24;
+        if (cron_dispatcher_in_window($cfg, $h)) $out[] = $h;
+    }
+    return $out;
+}
+
+/** Etykieta okna: „cała doba”, „08–18”, „22–06 (przez północ)”. */
+function cron_dispatcher_window_label(?array $w): string {
+    if ($w === null) return 'cała doba';
+    [$f, $t] = array_map('intval', $w);
+    return sprintf('%02d–%02d', $f, $t) . ($f > $t ? ' (przez północ)' : '');
 }
 
 /** Zapis uruchomienia przez dyspozytor (i zdjęcie prośby „Uruchom teraz”). Nie rzuca. */
@@ -173,7 +196,7 @@ function cron_dispatcher_hour_load(array $cfg): array {
     $load = array_fill(0, 24, 0.0);
     if (empty($cfg['enabled'])) return $load;
     $interval = max(60, cron_dispatcher_interval_seconds($cfg));
-    $hours = array_values(array_filter(range(0, 23), fn($h) => cron_dispatcher_in_window($cfg, $h)));
+    $hours = cron_dispatcher_window_hours($cfg);
     if (!$hours) return $load;
     if ($interval <= 3600) {
         foreach ($hours as $h) $load[$h] = 3600 / $interval;
@@ -232,8 +255,9 @@ function cron_dispatcher_save(string $name, array $d, int $userId, string $userN
     if ($mode === 'custom') {
         $from = (int)($d['schedule_from'] ?? -1);
         $to   = (int)($d['schedule_to'] ?? -1);
-        if ($from < 0 || $from > 23 || $to < 1 || $to > 24 || $from >= $to) {
-            throw new InvalidArgumentException('Okno godzinowe: początek 0–23, koniec 1–24, początek przed końcem (dyspozytor nie obsługuje okien przez północ).');
+        if ($to === 0) $to = 24;                       // „do północy” = 24
+        if ($from < 0 || $from > 23 || $to < 1 || $to > 24 || $from === $to) {
+            throw new InvalidArgumentException('Okno godzinowe: początek 0–23, koniec 1–24, różne od siebie. Początek później niż koniec = okno przez północ (np. 22–6).');
         }
         if ($from === 0 && $to === 24) { $mode = 'none'; $from = $to = null; }
         elseif (isset($def['schedule']) && [$from, $to] === [(int)$def['schedule'][0], (int)$def['schedule'][1]]) { $mode = 'default'; $from = $to = null; }
@@ -260,7 +284,7 @@ function cron_dispatcher_save(string $name, array $d, int $userId, string $userN
     if ($before['enabled'] !== $after['enabled']) $desc[] = $after['enabled'] ? 'włączony' : 'WYŁĄCZONY';
     $bi = cron_dispatcher_interval_seconds($before); $ai = cron_dispatcher_interval_seconds($after);
     if ($bi !== $ai) $desc[] = 'interwał ' . cron_dispatcher_interval_label($bi) . ' → ' . cron_dispatcher_interval_label($ai);
-    $w = fn($c) => isset($c['schedule']) ? sprintf('%02d–%02d', $c['schedule'][0], $c['schedule'][1]) : 'cała doba';
+    $w = fn($c) => cron_dispatcher_window_label($c['schedule'] ?? null);
     if ($w($before) !== $w($after)) $desc[] = 'okno ' . $w($before) . ' → ' . $w($after);
     if ($isDefault && $before['overridden']) $desc[] = 'przywrócono domyślne';
     $summary = $desc ? implode('; ', $desc) : 'bez zmian';
