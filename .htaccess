@@ -21,6 +21,11 @@ RewriteRule ^mobilna/(.+)$     /crm/mobile/$1 [L]
 # Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
 RewriteRule ^poczta/?$         /webmail/index.php [L]
 
+# ── Publiczne klauzule RODO: /klauzula/{slug} → modules/klauzule/public ─────
+# Czysty adres do linkowania w formularzach/stopkach; ?embed=1 = wersja do iframe.
+# Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
+RewriteRule ^klauzula/([a-z0-9-]{1,64})/?$ /modules/klauzule/public/clause.php?slug=$1 [QSA,L]
+
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
 # (URL w przeglądarce zostaje czysty). Krótkie adresy:
@@ -234,6 +239,8 @@ RewriteCond %{REQUEST_FILENAME} !-d
     # Chatbot publiczny (/chatbot/*) może być osadzony w iframe na zewnętrznych stronach.
     # Dla wszystkich pozostałych ścieżek obowiązuje SAMEORIGIN.
     SetEnvIf Request_URI "^/chatbot/" feer_chatbot_embed
+    # Klauzule RODO (strona publiczna + embed.js) — osadzane w iframe na stronach zewnętrznych.
+    SetEnvIf Request_URI "^/(klauzula/|modules/klauzule/public/)" feer_chatbot_embed
     Header always set X-Frame-Options "SAMEORIGIN" "env=!feer_chatbot_embed"
     Header always set Content-Security-Policy "frame-ancestors *" "env=feer_chatbot_embed"
 </IfModule>

@@ -419,6 +419,8 @@ function _menu_editor(): array {
     if (module_enabled('org_documents_enabled'))
         $kanc[] = _mi('Dokumenty organizacji','/admin/org_documents.php','bi-folder2-open',['match'=>'/admin/org_documents','kw'=>'dokumenty organizacji']);
     $kanc[] = _mi('Uchwały','/resolutions/index.php','bi-file-ruled',['match'=>'/resolutions/','kw'=>'uchwały zarząd']);
+    if (in_array(current_user()['role'] ?? '', ['admin','editor'], true))
+        $kanc[] = _mi('Klauzule RODO','/modules/klauzule/index.php','bi-shield-lock',['match'=>'/modules/klauzule/','kw'=>'klauzule rodo gdpr klauzula informacyjna ochrona danych iod']);
 
     $forms = [];
     if (module_enabled('dostepnosc_ngo_enabled') && !is_viewer()) {
