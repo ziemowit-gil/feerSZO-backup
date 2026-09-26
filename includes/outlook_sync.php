@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
 /**
  * includes/outlook_sync.php — Synchronizacja Outlook / MS365 → CRM
  *
@@ -141,7 +142,7 @@ class OutlookSync
                         $phone,
                         trim($oc['jobTitle']    ?? ''),
                         trim($oc['companyName'] ?? ''),
-                        $addr,
+                        normalizePlAddress($addr),
                         $outlook_id,
                     ]);
                     $new_contact_id = (int)$this->pdo->lastInsertId();

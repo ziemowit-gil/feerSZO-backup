@@ -1,4 +1,6 @@
 <?php
+require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
@@ -21,6 +23,8 @@ function db(): PDO {
 }
 
 function db_insert(string $table, array $data): int {
+    // Adresy w CRM/osobach/umowach — pisownia wg zasad j. polskiego
+    $data = normalizeAddressColumns($table, $data);
     // Zamień puste stringi na NULL dla kolumn FK (*_id)
     foreach ($data as $k => &$v) {
         if ($v === '' && str_ends_with($k, '_id')) $v = null;
@@ -41,6 +45,7 @@ function db_nullify_ids(array &$data): void {
 }
 
 function db_update(string $table, array $data, int $id): void {
+    $data = normalizeAddressColumns($table, $data);
     // Dodaj updated_at tylko jeśli kolumna istnieje w tabeli
     static $has_updated_at = [];
     if (!isset($has_updated_at[$table])) {

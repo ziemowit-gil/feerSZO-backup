@@ -29,6 +29,11 @@ const ADDR_LOWER_WORDS = [
 ];
 
 function normalizePlAddress(string $text): string {
+    // Wielowierszowe pola (textarea) — każdy wiersz osobno, podział zostaje
+    if (preg_match('/\R/u', $text)) {
+        $lines = array_map('normalizePlAddress', preg_split('/\R/u', trim($text)));
+        return implode("\n", array_filter($lines, fn($l) => $l !== ''));
+    }
     $text = trim(preg_replace('/\s+/u', ' ', $text));
     if ($text === '') return '';
     // Przecinki: bez spacji przed, jedna spacja po
@@ -77,4 +82,75 @@ function normalizePlAddress(string $text): string {
 /** Nazwa miejscowości — te same reguły co adres. */
 function normalizePlPlace(string $text): string {
     return normalizePlAddress($text);
+}
+
+/**
+ * Kolumny adresowe w CRM (kontakty/kontrahenci), osobach i umowach — normalizowane
+ * przy każdym db_insert()/db_update() oraz jednorazowo migracją istniejących danych.
+ * Celowo POMINIĘTE: kody pocztowe, kraj, adresy e-Doręczeń (AE:PL-…), nazwy odbiorców.
+ */
+const ADDR_COLUMNS = [
+    'crm_contacts'       => ['adres', 'addr_street', 'addr_house', 'addr_flat', 'addr_city'],
+    'persons'            => ['adres', 'adres_korespondencyjny', 'addr_street', 'addr_house', 'addr_flat', 'addr_city'],
+    'umowy_dzielo'       => ['adres', 'addr_street', 'addr_house', 'addr_flat', 'addr_city'],
+    'umowy_zlecenie'     => ['adres', 'addr_street', 'addr_house', 'addr_flat', 'addr_city'],
+    'umowy_praca'        => ['adres', 'addr_street', 'addr_house', 'addr_flat', 'addr_city'],
+    'umowy_wolontariat'  => ['adres', 'addr_street', 'addr_house', 'addr_flat', 'addr_city',
+                             'adres_linia1', 'adres_linia2', 'adres_miasto', 'zgoda_przedstawiciela_adres'],
+    'umowy_inne'         => ['adres', 'addr_street', 'addr_house', 'addr_flat', 'addr_city'],
+    'umowy_uslugi'       => ['adres', 'addr_street', 'addr_house', 'addr_flat', 'addr_city'],
+    'umowy_powierzenie'  => ['organ_adres'],
+    'contract_letters'   => ['postivo_adres', 'postivo_miasto'],
+];
+
+/** Normalizuje kolumny adresowe w danych zapisu do tabeli (reszta bez zmian). */
+function normalizeAddressColumns(string $table, array $data): array {
+    $cols = ADDR_COLUMNS[trim($table, '`')] ?? null;
+    if (!$cols) return $data;
+    foreach ($cols as $c) {
+        if (isset($data[$c]) && is_string($data[$c]) && $data[$c] !== '') {
+            $data[$c] = normalizePlAddress($data[$c]);
+        }
+    }
+    return $data;
+}
+
+/**
+ * Przechodzi po istniejących rekordach i poprawia pisownię adresów.
+ * @return array<string,int> liczba zmienionych rekordów per tabela
+ */
+function normalizeAddressesInDb(PDO $pdo, bool $apply = true, ?callable $onChange = null): array {
+    $stats = [];
+    $isSqlite = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+    foreach (ADDR_COLUMNS as $table => $cols) {
+        try {
+            $existing = $isSqlite
+                ? $pdo->query("PRAGMA table_info({$table})")->fetchAll(PDO::FETCH_COLUMN, 1)
+                : $pdo->query("SHOW COLUMNS FROM `{$table}`")->fetchAll(PDO::FETCH_COLUMN, 0);
+        } catch (\Throwable $e) { continue; }
+        $cols = array_values(array_intersect($cols, $existing));
+        if (!$cols) continue;
+
+        $changed = 0;
+        $rows = $pdo->query("SELECT id, " . implode(', ', $cols) . " FROM {$table}")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) {
+            $diff = [];
+            foreach ($cols as $c) {
+                $v = $row[$c];
+                if (!is_string($v) || $v === '') continue;
+                $n = normalizePlAddress($v);
+                if ($n !== $v) $diff[$c] = $n;
+            }
+            if (!$diff) continue;
+            $changed++;
+            if ($onChange) $onChange($table, (int)$row['id'], array_intersect_key($row, $diff), $diff);
+            if ($apply) {
+                $set = implode(', ', array_map(fn($c) => "{$c} = ?", array_keys($diff)));
+                $pdo->prepare("UPDATE {$table} SET {$set} WHERE id = ?")
+                    ->execute([...array_values($diff), $row['id']]);
+            }
+        }
+        if ($changed) $stats[$table] = $changed;
+    }
+    return $stats;
 }

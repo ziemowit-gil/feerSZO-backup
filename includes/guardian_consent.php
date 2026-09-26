@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
 /**
  * includes/guardian_consent.php
  *
@@ -88,7 +89,7 @@ if (!function_exists('guardian_consent_save')) {
         )->execute([
             date('Y-m-d H:i:s'),
             $expires,
-            trim($d['adres'] ?? ''),
+            normalizePlAddress($d['adres'] ?? ''),
             trim($d['dowod_seria_nr'] ?? ''),
             trim($d['telefon'] ?? ''),
             $contract_id,

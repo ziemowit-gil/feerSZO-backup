@@ -1000,6 +1000,22 @@ function migrate_tenant_db(PDO $pdo): array {
     $run('moodle.drop_v1.k30_ti_student_accounts.moodle_created_at', "ALTER TABLE k30_ti_student_accounts DROP COLUMN moodle_created_at");
     $run('moodle.drop_v1.users.moodle_login',        "ALTER TABLE users DROP COLUMN moodle_login");
 
+    // ── Pisownia adresów (2026-09-26) — CRM, osoby, umowy: „UL. KOWALSKA 1" /
+    // „ul. kowalska 1" → „ul. Kowalska 1". Jednorazowo; nowe zapisy normalizuje db_insert/db_update.
+    if (empty($applied['addresses.normalize_pl_v1'])) {
+        try {
+            require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
+            $stats = normalizeAddressesInDb($pdo);
+            $detail = $stats ? implode(', ', array_map(fn($t, $n) => "{$t}: {$n}", array_keys($stats), $stats)) : 'bez zmian';
+            $results[] = ['ok', "addresses.normalize_pl_v1 ({$detail})"];
+            $record('addresses.normalize_pl_v1', 'ok', $detail);
+            $applied['addresses.normalize_pl_v1'] = true;
+        } catch (\Throwable $e) {
+            $results[] = ['err', 'addresses.normalize_pl_v1 — ' . $e->getMessage()];
+            $record('addresses.normalize_pl_v1', 'err', $e->getMessage());
+        }
+    }
+
     return $results;
 }
 
