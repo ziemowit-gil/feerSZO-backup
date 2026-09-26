@@ -32,7 +32,7 @@ if (!$clause) http_response_code(404);
 $vars    = $svc->variables();
 $org     = $vars['company_name'] ?? (defined('ORG_NAME') ? ORG_NAME : '');
 $title   = $clause['tytul'] ?? $ui['nf_title'];
-$bodyHtml = $clause ? $svc->render($clause['content'], $clause['updated_at']) : '';
+$bodyHtml = $clause ? $svc->renderClause($clause) : '';
 $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['updated_at'])) : '';
 ?><!doctype html>
 <html lang="<?= h($lang) ?>">

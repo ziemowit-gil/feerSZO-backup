@@ -19,6 +19,10 @@
  * ani wartość zmiennej nie wstrzyknie skryptu na stronę publiczną (która
  * bywa osadzana w iframe na obcych serwisach).
  *
+ * Zmienne lokalne (gdpr_clauses.local_vars, JSON klucz→wartość) — szczegóły
+ * jednej klauzuli (cel, okres przechowywania…); nadpisują globalne o tym
+ * samym kluczu. Szablony startowe: logic/templates.php.
+ *
  * Tagi wbudowane (nie trzeba ich definiować): {{updated_at}} — data
  * ostatniej zmiany klauzuli, {{today}} — dzisiejsza data.
  * Nieznany tag: na stronie publicznej znika (pusty tekst), w podglądzie
@@ -26,6 +30,7 @@
  */
 
 require_once dirname(__DIR__, 3) . '/includes/db.php';
+require_once __DIR__ . '/templates.php';
 
 const GDPR_SLUG_RE = '/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/';
 const GDPR_VAR_KEY_RE = '/^[a-z][a-z0-9_]{0,63}$/';
@@ -93,6 +98,8 @@ function gdpr_clauses_migrate(): void {
         changed_by  INTEGER
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_hist_clause ON gdpr_clause_history(clause_id, valid_to)");
+    gdpr_clauses_add_column($pdo, 'gdpr_clauses', 'local_vars', "TEXT NOT NULL DEFAULT '{}'");
+    gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'local_vars', "TEXT NOT NULL DEFAULT '{}'");
 
     // Pierwsze uruchomienie: zmienne z danych organizacji (settings), żeby
     // klauzule od razu miały poprawną nazwę/adres. Później to global_variables
@@ -258,13 +265,37 @@ final class GdprClauseService
         return $st->fetchAll();
     }
 
-    /** Zapis (id=0 → nowa). Zwraca id. Rzuca InvalidArgumentException z komunikatem dla użytkownika. */
-    public function saveClause(int $id, string $slug, string $tytul, string $content, bool $published, ?int $userId, string $lang = GDPR_DEFAULT_LANG): int
+    /** @return array<string,string> zmienne lokalne klauzuli (wiersz z bazy). */
+    public static function localVars(?array $clause): array
     {
+        $v = json_decode((string)($clause['local_vars'] ?? '{}'), true);
+        return is_array($v) ? array_map('strval', $v) : [];
+    }
+
+    /**
+     * Zapis (id=0 → nowa). $d: slug, lang, tytul, content, is_published, local_vars (array).
+     * Zwraca id. Rzuca InvalidArgumentException z komunikatem dla użytkownika.
+     */
+    public function saveClause(int $id, array $d, ?int $userId): int
+    {
+        $lang  = (string)($d['lang'] ?? GDPR_DEFAULT_LANG);
+        $slug  = trim(mb_strtolower((string)($d['slug'] ?? '')));
+        $tytul = trim((string)($d['tytul'] ?? ''));
+        $content = str_replace("\r\n", "\n", (string)($d['content'] ?? ''));
+        $published = !empty($d['is_published']);
+        $local = [];
+        foreach ((array)($d['local_vars'] ?? []) as $k => $v) {
+            $k = strtolower(trim((string)$k));
+            if ($k === '') continue;
+            if (!preg_match(GDPR_VAR_KEY_RE, $k) || in_array($k, GDPR_BUILTIN_VARS, true)) {
+                throw new InvalidArgumentException("Nieprawidłowy klucz zmiennej lokalnej: {$k} (małe litery, cyfry i „_”, zaczyna się od litery).");
+            }
+            $local[$k] = trim((string)$v);
+        }
+        ksort($local);
+        $localJson = json_encode($local, JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT);
+
         if (!isset(GDPR_LANGS[$lang])) throw new InvalidArgumentException('Nieobsługiwany język klauzuli.');
-        $slug  = trim(mb_strtolower($slug));
-        $tytul = trim($tytul);
-        $content = str_replace("\r\n", "\n", $content);
         if (!preg_match(GDPR_SLUG_RE, $slug)) {
             throw new InvalidArgumentException('Slug: tylko małe litery a–z, cyfry i myślniki (np. „rekrutacja", „newsletter-2026").');
         }
@@ -279,20 +310,20 @@ final class GdprClauseService
             if ($id > 0) {
                 $old = $this->getById($id);
                 if (!$old) throw new InvalidArgumentException('Klauzula nie istnieje.');
-                if ($old['content'] !== $content || $old['tytul'] !== $tytul) {
-                    $this->pdo->prepare("INSERT INTO gdpr_clause_history (clause_id, tytul, content, valid_from, valid_to, changed_by)
-                                         VALUES (?,?,?,?,datetime('now','localtime'),?)")
-                        ->execute([$id, $old['tytul'], $old['content'], $old['updated_at'], $userId]);
+                if ($old['content'] !== $content || $old['tytul'] !== $tytul || ($old['local_vars'] ?? '{}') !== $localJson) {
+                    $this->pdo->prepare("INSERT INTO gdpr_clause_history (clause_id, tytul, content, local_vars, valid_from, valid_to, changed_by)
+                                         VALUES (?,?,?,?,?,datetime('now','localtime'),?)")
+                        ->execute([$id, $old['tytul'], $old['content'], $old['local_vars'] ?? '{}', $old['updated_at'], $userId]);
                     $touch = ", updated_at = datetime('now','localtime')";
                 } else {
                     $touch = '';
                 }
-                $this->pdo->prepare("UPDATE gdpr_clauses SET slug = ?, lang = ?, tytul = ?, content = ?, is_published = ?, updated_by = ? {$touch} WHERE id = ?")
-                    ->execute([$slug, $lang, $tytul, $content, $published ? 1 : 0, $userId, $id]);
+                $this->pdo->prepare("UPDATE gdpr_clauses SET slug = ?, lang = ?, tytul = ?, content = ?, local_vars = ?, is_published = ?, updated_by = ? {$touch} WHERE id = ?")
+                    ->execute([$slug, $lang, $tytul, $content, $localJson, $published ? 1 : 0, $userId, $id]);
             } else {
-                $this->pdo->prepare("INSERT INTO gdpr_clauses (slug, lang, tytul, content, is_published, created_at, updated_at, updated_by)
-                                     VALUES (?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'),?)")
-                    ->execute([$slug, $lang, $tytul, $content, $published ? 1 : 0, $userId]);
+                $this->pdo->prepare("INSERT INTO gdpr_clauses (slug, lang, tytul, content, local_vars, is_published, created_at, updated_at, updated_by)
+                                     VALUES (?,?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'),?)")
+                    ->execute([$slug, $lang, $tytul, $content, $localJson, $published ? 1 : 0, $userId]);
                 $id = (int)$this->pdo->lastInsertId();
             }
             $this->pdo->commit();
@@ -312,20 +343,26 @@ final class GdprClauseService
     // ── Renderowanie ────────────────────────────────────────────────────────
 
     /** Tagi użyte w treści, których nie ma w zmiennych (do ostrzeżenia w panelu). */
-    public function unknownTags(string $content): array
+    public function unknownTags(string $content, array $localVars = []): array
     {
         preg_match_all('/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/i', $content, $m);
-        $known = array_merge(array_keys($this->variables()), GDPR_BUILTIN_VARS);
+        $known = array_merge(array_keys($this->variables()), array_keys($localVars), GDPR_BUILTIN_VARS);
         return array_values(array_unique(array_diff(array_map('strtolower', $m[1]), $known)));
+    }
+
+    /** Pełny render klauzuli z bazy (zmienne lokalne z wiersza). */
+    public function renderClause(array $clause, bool $highlightUnknown = false): string
+    {
+        return $this->render($clause['content'], $clause['updated_at'] ?? null, $highlightUnknown, self::localVars($clause));
     }
 
     /**
      * Treść → bezpieczny HTML z podstawionymi zmiennymi.
      * $highlightUnknown: w podglądzie admina nieznane tagi zostają widoczne (<mark>).
      */
-    public function render(string $content, ?string $updatedAt = null, bool $highlightUnknown = false): string
+    public function render(string $content, ?string $updatedAt = null, bool $highlightUnknown = false, array $localVars = []): string
     {
-        $vars = $this->variables() + [
+        $vars = array_merge($this->variables(), $localVars) + [
             'updated_at' => $updatedAt ? date('d.m.Y', strtotime($updatedAt)) : '',
             'today'      => date('d.m.Y'),
         ];
@@ -341,7 +378,10 @@ final class GdprClauseService
                 if (filter_var(trim($v), FILTER_VALIDATE_EMAIL)) {
                     $html = '<a href="mailto:' . htmlspecialchars(trim($v), ENT_QUOTES) . '">' . $html . '</a>';
                 }
-                if ($highlightUnknown) $html = '<span class="gdpr-var" title="{{' . $k . '}}">' . $html . '</span>';
+                if ($highlightUnknown) {
+                    $cls = array_key_exists($k, $localVars) ? 'gdpr-var gdpr-var-local' : 'gdpr-var';
+                    $html = '<span class="' . $cls . '" title="{{' . $k . '}}">' . $html . '</span>';
+                }
             } else {
                 $html = $highlightUnknown ? '<mark class="gdpr-unknown">{{' . htmlspecialchars($k) . '}}</mark>' : '';
             }

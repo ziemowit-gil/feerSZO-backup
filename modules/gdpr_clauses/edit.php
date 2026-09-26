@@ -1,7 +1,9 @@
 <?php
 /**
  * modules/gdpr_clauses/edit.php — dodawanie/edycja klauzuli RODO z podglądem
- * na żywo (preview.php), kodem do osadzenia i historią wersji.
+ * na żywo (preview.php), zmiennymi lokalnymi, kodem do osadzenia i historią
+ * wersji. Nowa klauzula: pusta, z szablonu (?template=, logic/templates.php),
+ * jako kopia (?duplicate=) albo tłumaczenie (?translate_from=).
  */
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/includes/db.php';
@@ -21,8 +23,22 @@ if ($id && !$clause) {
     exit;
 }
 
-$form  = $clause ?? ['slug' => '', 'lang' => GDPR_DEFAULT_LANG, 'tytul' => '', 'content' => '', 'is_published' => 0, 'updated_at' => null];
+$form  = $clause ?? ['slug' => '', 'lang' => GDPR_DEFAULT_LANG, 'tytul' => '', 'content' => '', 'is_published' => 0, 'updated_at' => null, 'local_vars' => '{}'];
 $error = null;
+$templates = gdpr_clauses_templates();
+
+$tplKey = !$clause ? (string)($_GET['template'] ?? '') : '';
+if (isset($templates[$tplKey])) {
+    $t = $templates[$tplKey];
+    $form = array_merge($form, ['slug' => $tplKey, 'tytul' => $t['tytul'], 'content' => $t['content'],
+                                'local_vars' => json_encode($t['local_vars'], JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT)]);
+}
+$duplicateOf = !$clause && !empty($_GET['duplicate']) ? $svc->getById((int)$_GET['duplicate']) : null;
+if ($duplicateOf) {
+    $form = array_merge($form, ['slug' => $duplicateOf['slug'] . '-kopia', 'lang' => $duplicateOf['lang'],
+                                'tytul' => $duplicateOf['tytul'] . ' (kopia)', 'content' => $duplicateOf['content'],
+                                'local_vars' => $duplicateOf['local_vars'] ?? '{}']);
+}
 
 // Nowe tłumaczenie istniejącej klauzuli: ten sam slug, treść źródłowa do przełożenia.
 $translateFrom = !$clause && !empty($_GET['translate_from']) ? $svc->getById((int)$_GET['translate_from']) : null;
@@ -30,7 +46,8 @@ if ($translateFrom) {
     $taken = array_column(array_filter($svc->listClauses(), fn($c) => $c['slug'] === $translateFrom['slug']), 'lang');
     $free  = array_values(array_diff(array_keys(GDPR_LANGS), $taken));
     $form  = ['slug' => $translateFrom['slug'], 'lang' => $free[0] ?? 'en', 'tytul' => $translateFrom['tytul'],
-              'content' => $translateFrom['content'], 'is_published' => 0, 'updated_at' => null];
+              'content' => $translateFrom['content'], 'is_published' => 0, 'updated_at' => null,
+              'local_vars' => $translateFrom['local_vars'] ?? '{}'];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -40,9 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form['tytul']        = (string)($_POST['tytul'] ?? '');
     $form['content']      = (string)($_POST['content'] ?? '');
     $form['is_published'] = !empty($_POST['is_published']) ? 1 : 0;
+    $local = [];
+    foreach ((array)($_POST['lv_key'] ?? []) as $i => $k) {
+        if (trim((string)$k) !== '') $local[(string)$k] = (string)($_POST['lv_val'][$i] ?? '');
+    }
+    $form['local_vars'] = json_encode($local, JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT);
     try {
-        $newId = $svc->saveClause($id, $form['slug'], $form['tytul'], $form['content'], (bool)$form['is_published'], (int)$user['id'], $form['lang']);
-        $unknown = $svc->unknownTags($form['content']);
+        $newId = $svc->saveClause($id, ['local_vars' => $local] + $form, (int)$user['id']);
+        $unknown = $svc->unknownTags($form['content'], $local);
         flash_set($unknown ? 'warning' : 'success', 'Klauzula zapisana.'
             . ($unknown ? ' Uwaga: nieznane tagi (na stronie publicznej będą puste): {{' . implode('}}, {{', $unknown) . '}}.' : ''));
         header('Location: ' . APP_URL . '/modules/gdpr_clauses/edit.php?id=' . $newId);
@@ -53,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $vars    = $svc->listVariables();
+$localVars = GdprClauseService::localVars($form);
 $history = $clause ? $svc->history($id) : [];
 $pubUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], false, $clause['lang']) : '';
 $embUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], true, $clause['lang']) : '';
@@ -68,6 +91,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   .gdpr-preview h3 { font-size: .98rem; font-weight: 600; margin: .9rem 0 .3rem; }
   .gdpr-preview ul, .gdpr-preview ol { padding-left: 1.3rem; }
   .gdpr-preview .gdpr-var { background: #e7f1ff; border-radius: 3px; padding: 0 2px; }
+  .gdpr-preview .gdpr-var-local { background: #e6f4ea; }
   .gdpr-preview .gdpr-unknown { background: #fde2e1; color: #b02a37; border-radius: 3px; }
   #gdpr-content { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
 </style>
@@ -81,6 +105,18 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <?php if ($clause && count($siblings) + 1 < count(GDPR_LANGS)): ?>
       <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?translate_from=<?= (int)$id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-translate me-1"></i>Dodaj tłumaczenie</a>
     <?php endif; ?>
+    <?php if ($clause): ?>
+      <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?duplicate=<?= (int)$id ?>" class="btn btn-sm btn-outline-secondary" title="Nowa klauzula na wzór tej"><i class="bi bi-files me-1"></i>Duplikuj</a>
+    <?php else: ?>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-journal-text me-1"></i>Z szablonu</button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <?php foreach ($templates as $tk => $t): ?>
+            <li><a class="dropdown-item small <?= $tplKey === $tk ? 'active' : '' ?>" href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?template=<?= h($tk) ?>"><?= h($t['tytul']) ?></a></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
     <?php if ($clause && (int)$clause['is_published'] === 1): ?>
       <a href="<?= h($pubUrl) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-box-arrow-up-right me-1"></i>Strona publiczna</a>
     <?php endif; ?>
@@ -90,6 +126,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 
 <?= flash_html() ?>
 <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+<?php if ($tplKey !== '' && isset($templates[$tplKey])): ?>
+  <div class="alert alert-info small"><i class="bi bi-journal-text me-1"></i>Wypełniono szablonem <strong><?= h($templates[$tplKey]['tytul']) ?></strong>. To wzór do weryfikacji przez IOD — sprawdź cele, podstawy prawne i zmienne lokalne przed publikacją.</div>
+<?php endif; ?>
 <?php if ($translateFrom): ?>
   <div class="alert alert-info small"><i class="bi bi-translate me-1"></i>Nowa wersja językowa klauzuli <strong><?= h($translateFrom['tytul']) ?></strong> — treść skopiowana z wersji <?= h(GDPR_LANGS[$translateFrom['lang']] ?? $translateFrom['lang']) ?> do przetłumaczenia. Tagi <code>{{…}}</code> zostaw bez zmian.</div>
 <?php endif; ?>
@@ -141,6 +180,24 @@ include dirname(__DIR__, 2) . '/includes/header.php';
             <?php endforeach; ?>
             <a href="<?= APP_URL ?>/modules/gdpr_clauses/variables.php" class="small ms-1">zarządzaj zmiennymi</a>
           </div>
+
+          <fieldset class="mt-3 border rounded p-2">
+            <legend class="float-none w-auto px-1 mb-0 small fw-semibold">Zmienne lokalne tej klauzuli</legend>
+            <p class="small text-muted mb-2">Szczegóły tylko tej klauzuli (np. okres przechowywania). Nadpisują zmienną globalną o tym samym kluczu. W treści: <code>{{klucz}}</code>.</p>
+            <div id="gdpr-lv">
+              <?php foreach ($localVars + ['' => ''] as $lk => $lv): ?>
+                <div class="input-group input-group-sm mb-1 gdpr-lv-row">
+                  <span class="input-group-text">{{</span>
+                  <input type="text" name="lv_key[]" class="form-control gdpr-lv-key" style="max-width:12rem" value="<?= h($lk) ?>" placeholder="klucz" pattern="[a-z][a-z0-9_]{0,63}" aria-label="Klucz zmiennej lokalnej">
+                  <span class="input-group-text">}}</span>
+                  <textarea name="lv_val[]" class="form-control gdpr-lv-val" rows="1" aria-label="Wartość zmiennej lokalnej"><?= h($lv) ?></textarea>
+                  <button type="button" class="btn btn-outline-secondary gdpr-lv-ins" title="Wstaw do treści"><i class="bi bi-arrow-bar-up"></i></button>
+                  <button type="button" class="btn btn-outline-danger gdpr-lv-del" title="Usuń"><i class="bi bi-x-lg"></i></button>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <button type="button" class="btn btn-sm btn-link px-0" id="gdpr-lv-add"><i class="bi bi-plus-lg"></i> Dodaj zmienną lokalną</button>
+          </fieldset>
         </div>
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
           <div class="form-check form-switch mb-0">
@@ -229,7 +286,12 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   function refresh() {
     const my = ++seq;
     status.textContent = 'odświeżanie…';
-    const body = new URLSearchParams({ _csrf: csrf, content: ta.value, updated_at: updatedAt || '' });
+    const lv = {};
+    document.querySelectorAll('.gdpr-lv-row').forEach(r => {
+      const k = r.querySelector('.gdpr-lv-key').value.trim();
+      if (k) lv[k] = r.querySelector('.gdpr-lv-val').value;
+    });
+    const body = new URLSearchParams({ _csrf: csrf, content: ta.value, updated_at: updatedAt || '', local_vars: JSON.stringify(lv) });
     fetch(<?= json_encode(APP_URL . '/modules/gdpr_clauses/preview.php') ?>, { method: 'POST', body, credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
@@ -245,7 +307,28 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       })
       .catch(() => { if (my === seq) status.textContent = 'błąd podglądu'; });
   }
-  ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(refresh, 300); });
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(refresh, 300); };
+  ta.addEventListener('input', schedule);
+  const lvBox = document.getElementById('gdpr-lv');
+  lvBox.addEventListener('input', schedule);
+  lvBox.addEventListener('click', e => {
+    const row = e.target.closest('.gdpr-lv-row');
+    if (!row) return;
+    if (e.target.closest('.gdpr-lv-del')) {
+      if (lvBox.querySelectorAll('.gdpr-lv-row').length > 1) row.remove();
+      else row.querySelectorAll('input,textarea').forEach(i => { i.value = ''; });
+      schedule();
+    } else if (e.target.closest('.gdpr-lv-ins')) {
+      const k = row.querySelector('.gdpr-lv-key').value.trim();
+      if (k) { ta.setRangeText('{{' + k + '}}', ta.selectionStart, ta.selectionEnd, 'end'); ta.focus(); schedule(); }
+    }
+  });
+  document.getElementById('gdpr-lv-add').addEventListener('click', () => {
+    const tpl = lvBox.querySelector('.gdpr-lv-row').cloneNode(true);
+    tpl.querySelectorAll('input,textarea').forEach(i => { i.value = ''; });
+    lvBox.appendChild(tpl);
+    tpl.querySelector('input').focus();
+  });
   refresh();
 
   document.querySelectorAll('.gdpr-ins').forEach(b => b.addEventListener('click', () => {

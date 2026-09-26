@@ -16,10 +16,12 @@ csrf_check();
 
 $svc     = new GdprClauseService();
 $content = (string)($_POST['content'] ?? '');
+$local   = json_decode((string)($_POST['local_vars'] ?? '{}'), true);
+$local   = is_array($local) ? array_map('strval', array_filter($local, fn($k) => preg_match(GDPR_VAR_KEY_RE, (string)$k), ARRAY_FILTER_USE_KEY)) : [];
 
 header('Content-Type: application/json; charset=utf-8');
 echo json_encode([
-    'html'    => $svc->render($content, $_POST['updated_at'] ?? null, true),
-    'unknown' => $svc->unknownTags($content),
+    'html'    => $svc->render($content, $_POST['updated_at'] ?? null, true, $local),
+    'unknown' => $svc->unknownTags($content, $local),
 ], JSON_UNESCAPED_UNICODE);
 exit;
