@@ -572,9 +572,10 @@ final class GdprClauseService
     /**
      * Zapis akceptacji klauzuli. $subject: name, email; $ref: [typ, id] rekordu,
      * do którego akceptacja należy (np. ['volunteer_application', 123]).
-     * IP i user-agent z bieżącego żądania (w CLI puste).
+     * IP i user-agent z bieżącego żądania (w CLI puste) — albo z $client (API:
+     * system zewnętrzny podaje adres osoby, bo żądanie przychodzi z jego serwera).
      */
-    public function recordAcceptance(array $clause, string $context, array $subject = [], ?array $ref = null): int
+    public function recordAcceptance(array $clause, string $context, array $subject = [], ?array $ref = null, array $client = []): int
     {
         $hash = $this->snapshot($clause);
         $this->pdo->prepare("INSERT INTO gdpr_clause_acceptances
@@ -585,8 +586,8 @@ final class GdprClauseService
                 mb_substr($context, 0, 40), $ref[0] ?? null, isset($ref[1]) ? (int)$ref[1] : null,
                 mb_substr(trim((string)($subject['name'] ?? '')), 0, 255),
                 mb_substr(mb_strtolower(trim((string)($subject['email'] ?? ''))), 0, 255),
-                mb_substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64),
-                mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+                mb_substr((string)($client['ip'] ?? $_SERVER['REMOTE_ADDR'] ?? ''), 0, 64),
+                mb_substr((string)($client['user_agent'] ?? $_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
             ]);
         return (int)$this->pdo->lastInsertId();
     }

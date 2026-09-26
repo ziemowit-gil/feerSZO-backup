@@ -34,6 +34,9 @@ const AM_API_PERMISSIONS = [
     'pelnomocnictwa:read'  => 'Rejestr pełnomocnictw — odczyt',
     'pelnomocnictwa:write' => 'Rejestr pełnomocnictw — zapis (twórz / edytuj / usuń)',
     'ext:read'         => 'Materiały zewnętrzne — odczyt katalogu i dziennika (bez treści plików)',
+    // Odczyt samych klauzul jest publiczny (bez klucza) — scope'y dotyczą rejestru akceptacji (dane osobowe).
+    'gdpr:read'        => 'Klauzule RODO — odczyt rejestru akceptacji',
+    'gdpr:write'       => 'Klauzule RODO — zapis akceptacji (formularze / aplikacje zewnętrzne)',
     // Osobne od crm:write — token dla zewnętrznego CMS-a ma móc TYLKO przyjmować
     // zgłoszenia z formularzy, a nie edytować i kasować kartotekę.
     'forms:read'       => 'Formularze — odczyt definicji (do mapowania w CMS)',
@@ -459,6 +462,15 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
       <pre class="bg-dark text-light p-2 rounded mb-3" style="white-space:pre-wrap;font-size:.8rem">curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"imie_nazwisko":"Anna Kowalska","email":"anna@example.pl"}' \
   "<?= h($api_base) ?>/crm.php"</pre>
+
+      <h6 class="fw-semibold"><i class="bi bi-shield-lock-fill text-primary me-1"></i>Klauzule RODO — <code><?= h($api_base) ?>/gdpr_clauses.php</code></h6>
+      <p class="mb-1">Odczyt opublikowanych klauzul <strong>bez klucza</strong> (CORS *): <code>GET</code> lista, <code>GET ?slug=X&amp;lang=en</code> — <code>html</code>, <code>text</code>, <code>version</code>, <code>pdf_url</code>.
+        Rejestr akceptacji: <code>POST ?resource=acceptances</code> (<code>gdpr:write</code>; body: <code>slug, version, subject_name, subject_email, ref_type, ref_id, subject_ip</code>),
+        <code>GET ?resource=acceptances&amp;email=…</code> (<code>gdpr:read</code>). Podaj <code>version</code> pobraną przy wyświetleniu — zapisze się dokładnie ta wersja.</p>
+      <pre class="bg-dark text-light p-2 rounded mb-3" style="white-space:pre-wrap;font-size:.8rem">curl "<?= h($api_base) ?>/gdpr_clauses.php?slug=rekrutacja"
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"slug":"rekrutacja","version":3,"subject_name":"Anna Kowalska","subject_email":"anna@example.pl"}' \
+  "<?= h($api_base) ?>/gdpr_clauses.php?resource=acceptances"</pre>
 
       <h6 class="fw-semibold"><i class="bi bi-calendar-event-fill text-primary me-1" style="color:#7c3aed"></i>Wydarzenia — <code><?= h($api_base) ?>/events.php</code></h6>
       <p class="mb-1">Routing <code>?id=N&amp;resource=registrations&amp;reg_id=M</code>; metody GET/POST/PATCH/DELETE. Scope: <code>events:read</code> / <code>events:write</code>.</p>
