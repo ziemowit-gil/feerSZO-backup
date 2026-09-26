@@ -60,6 +60,13 @@ $canApprove = GdprClauseService::canApprove((int)$user['id']);
 $self = APP_URL . '/modules/gdpr_clauses/edit.php?id=' . $id;
 
 $wfAction = $_POST['_wf'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $clause && $wfAction === 'reviewed') {
+    csrf_check();
+    $svc->markReviewed($id, (int)$user['id']);
+    flash_set('success', 'Potwierdzono aktualność klauzuli — kolejny przegląd za ' . GdprClauseService::reviewMonths() . ' mies.');
+    header('Location: ' . $self);
+    exit;
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $clause && in_array($wfAction, ['approve', 'reject', 'discard'], true)) {
     csrf_check();
     try {
@@ -219,6 +226,27 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <?php endif; ?>
     </div>
   </div>
+<?php endif; ?>
+<?php if ($clause && !$draft):
+  $due = GdprClauseService::reviewDue($clause);
+  $emptyTags = $svc->emptyTags($clause); ?>
+  <?php if ($emptyTags): ?>
+    <div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle me-1"></i>Puste wartości zmiennych używanych w treści (w klauzuli pojawi się pusty tekst):
+      <code>{{<?= implode('}}</code>, <code>{{', array_map('h', $emptyTags)) ?>}}</code> —
+      uzupełnij w <a href="<?= APP_URL ?>/modules/gdpr_clauses/variables.php">zmiennych globalnych</a> lub w zmiennych lokalnych poniżej.</div>
+  <?php endif; ?>
+  <?php if ($due !== null && (int)$clause['is_published'] === 1): ?>
+    <div class="alert alert-<?= GdprClauseService::isReviewDue($clause) ? 'info' : 'light border' ?> small py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span><i class="bi bi-calendar-check me-1"></i>
+        <?= GdprClauseService::isReviewDue($clause) ? '<strong>Termin przeglądu minął</strong> ' : 'Następny przegląd: ' ?><?= h(date('d.m.Y', strtotime($due))) ?>
+        <?php if ($clause['reviewed_at']): ?><span class="text-muted">· ostatnio potwierdzona <?= h(date('d.m.Y', strtotime($clause['reviewed_at']))) ?></span><?php endif; ?>
+      </span>
+      <form method="post" class="m-0">
+        <?= csrf_field() ?>
+        <button name="_wf" value="reviewed" class="btn btn-sm btn-outline-secondary py-0">Przejrzana — nadal aktualna</button>
+      </form>
+    </div>
+  <?php endif; ?>
 <?php endif; ?>
 <?php if ($tplKey !== '' && isset($templates[$tplKey])): ?>
   <div class="alert alert-info small"><i class="bi bi-journal-text me-1"></i>Wypełniono szablonem <strong><?= h($templates[$tplKey]['tytul']) ?></strong>. To wzór do weryfikacji przez IOD — sprawdź cele, podstawy prawne i zmienne lokalne przed publikacją.</div>

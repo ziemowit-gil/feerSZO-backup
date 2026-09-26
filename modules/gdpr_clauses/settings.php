@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     org_setting_set('gdpr_require_approval', !empty($_POST['require_approval']) ? '1' : '0');
     $ids = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['approvers'] ?? [])))));
     org_setting_set('gdpr_approvers', implode(',', $ids));
+    org_setting_set('gdpr_review_months', (string)max(0, min(60, (int)($_POST['review_months'] ?? 12))));
     foreach (array_keys(GDPR_INTEGRATION_CONTEXTS) as $ctx) {
         $v = (string)($_POST['default'][$ctx] ?? '');
         org_setting_set('gdpr_default_' . $ctx, preg_match(GDPR_SLUG_RE, $v) ? $v : '');
@@ -71,6 +72,16 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <?php endforeach; ?>
       </div>
     </fieldset>
+  </div>
+  <div class="card-header bg-white fw-semibold small border-top"><i class="bi bi-calendar-check me-1"></i>Okresowy przegląd</div>
+  <div class="card-body">
+    <div class="row g-2 align-items-center">
+      <label class="col-md-6 col-form-label col-form-label-sm" for="rev">Przegląd opublikowanych klauzul co (miesięcy)</label>
+      <div class="col-md-2"><input type="number" id="rev" name="review_months" min="0" max="60" class="form-control form-control-sm" value="<?= GdprClauseService::reviewMonths() ?>"></div>
+      <div class="col-md-4 small text-muted">0 = bez przypomnień</div>
+    </div>
+    <p class="small text-muted mb-0 mt-2">Liczone od ostatniej zmiany treści albo potwierdzenia „Przejrzana — aktualna”. Po terminie
+      zatwierdzający dostają powiadomienie i e-mail (cron <code>gdpr_clauses_review</code>, raz dziennie), a klauzula jest oznaczona na liście.</p>
   </div>
   <div class="card-header bg-white fw-semibold small border-top"><i class="bi bi-diagram-3 me-1"></i>Klauzule domyślne w innych modułach</div>
   <div class="card-body">

@@ -91,6 +91,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
                 <?= (int)$c['is_published'] === 1
                     ? '<span class="badge bg-success">opublikowana</span>'
                     : '<span class="badge bg-secondary">szkic</span>' ?>
+                <?php if (GdprClauseService::isReviewDue($c)): ?>
+                  <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Termin okresowego przeglądu minął <?= h(date('d.m.Y', strtotime(GdprClauseService::reviewDue($c)))) ?>"><i class="bi bi-calendar-check"></i> do przeglądu</span>
+                <?php endif; ?>
                 <?php if ($c['draft_status'] === 'pending'): ?>
                   <span class="badge bg-warning text-dark" title="Wersja robocza czeka na akceptację"><i class="bi bi-hourglass-split"></i> do akceptacji</span>
                 <?php elseif ($c['draft_status'] === 'rejected'): ?>

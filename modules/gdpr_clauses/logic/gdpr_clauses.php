@@ -114,6 +114,9 @@ function gdpr_clauses_migrate(): void {
         gdpr_clauses_add_column($pdo, 'gdpr_clauses', $c, $ddl);
     }
     gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'approved_by', 'INTEGER');
+    // Okresowy przegląd: potwierdzenie aktualności bez zmiany treści (cron/gdpr_clauses_review.php).
+    gdpr_clauses_add_column($pdo, 'gdpr_clauses', 'reviewed_at', 'DATETIME');
+    gdpr_clauses_add_column($pdo, 'gdpr_clauses', 'reviewed_by', 'INTEGER');
     gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'approved_at', 'DATETIME');
     $pdo->exec("CREATE TABLE IF NOT EXISTS gdpr_clause_snapshots (
         hash        CHAR(64) PRIMARY KEY,
@@ -281,7 +284,7 @@ final class GdprClauseService
     /** Wiersze posortowane: slug, potem język domyślny jako pierwszy. */
     public function listClauses(): array
     {
-        return $this->pdo->query("SELECT id, slug, lang, tytul, is_published, updated_at, version, draft_status,
+        return $this->pdo->query("SELECT id, slug, lang, tytul, is_published, updated_at, version, draft_status, reviewed_at,
                     (SELECT COUNT(*) FROM gdpr_clause_history h WHERE h.clause_id = c.id) AS versions
                 FROM gdpr_clauses c
                 ORDER BY slug, CASE WHEN lang = '" . GDPR_DEFAULT_LANG . "' THEN 0 ELSE 1 END, lang")->fetchAll();
@@ -632,6 +635,56 @@ final class GdprClauseService
                                    LEFT JOIN gdpr_clause_snapshots s ON s.hash = a.snapshot_hash WHERE a.id = ?");
         $st->execute([$id]);
         return $st->fetch() ?: null;
+    }
+
+    // ── Okresowy przegląd ───────────────────────────────────────────────────
+
+    /** Co ile miesięcy przegląd (settings.gdpr_review_months, domyślnie 12; 0 = wyłączony). */
+    public static function reviewMonths(): int
+    {
+        try { $v = db_one("SELECT value FROM settings WHERE key_ = 'gdpr_review_months'")['value'] ?? null; }
+        catch (\Throwable $e) { $v = null; }
+        return $v === null || $v === '' ? 12 : max(0, min(60, (int)$v));
+    }
+
+    /** Termin przeglądu (Y-m-d): później z ostatniej zmiany i ostatniego przeglądu + okres; null = wyłączony. */
+    public static function reviewDue(array $clause): ?string
+    {
+        $m = self::reviewMonths();
+        if ($m === 0) return null;
+        $base = max((string)($clause['updated_at'] ?? ''), (string)($clause['reviewed_at'] ?? ''));
+        if ($base === '') return null;
+        return date('Y-m-d', strtotime($base . " +{$m} months"));
+    }
+
+    public static function isReviewDue(array $clause): bool
+    {
+        $due = self::reviewDue($clause);
+        return $due !== null && (int)$clause['is_published'] === 1 && $due <= date('Y-m-d');
+    }
+
+    public function markReviewed(int $id, int $userId): void
+    {
+        $this->pdo->prepare("UPDATE gdpr_clauses SET reviewed_at = datetime('now','localtime'), reviewed_by = ? WHERE id = ?")
+            ->execute([$userId, $id]);
+    }
+
+    /** Opublikowane klauzule po terminie przeglądu. */
+    public function dueForReview(): array
+    {
+        return array_values(array_filter(
+            $this->pdo->query("SELECT * FROM gdpr_clauses WHERE is_published = 1 ORDER BY slug, lang")->fetchAll(),
+            [self::class, 'isReviewDue']
+        ));
+    }
+
+    /** Zmienne (globalne i lokalne) użyte w klauzuli, które mają pustą wartość. */
+    public function emptyTags(array $clause): array
+    {
+        preg_match_all('/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/i', (string)$clause['content'], $m);
+        $vals = array_merge($this->variables(), self::localVars($clause));
+        return array_values(array_unique(array_filter(array_map('strtolower', $m[1]),
+            fn($k) => array_key_exists($k, $vals) && trim($vals[$k]) === '')));
     }
 
     // ── Statystyki ──────────────────────────────────────────────────────────

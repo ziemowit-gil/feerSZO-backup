@@ -121,6 +121,11 @@ $AGENTS = [
         'interval' => 86400,        // raz dziennie
         'schedule' => [8, 10],      // między 8:00 a 10:00
     ],
+    'gdpr_clauses_review' => [
+        'file'     => __DIR__ . '/gdpr_clauses_review.php',
+        'interval' => 86400,        // raz dziennie (przypomnienie raz na termin przeglądu)
+        'schedule' => [8, 10],      // między 8:00 a 10:00
+    ],
     'backup_monitor' => [
         'file'     => __DIR__ . '/backup_monitor.php',
         'interval' => 86400,        // raz dziennie
