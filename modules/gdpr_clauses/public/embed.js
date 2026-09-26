@@ -40,7 +40,10 @@
   window.addEventListener('message', function (e) {
     if (e.origin !== origin || !e.data || e.data.type !== 'gdpr-clause-height') return;
     frames.forEach(function (f) {
-      if (f.contentWindow === e.source && !f.hasAttribute('data-fixed')) f.style.height = (e.data.height + 4) + 'px';
+      if (f.contentWindow !== e.source) return;
+      // Tytuł ramki = tytuł klauzuli (czytniki ekranu ogłaszają go przy wejściu w iframe).
+      if (typeof e.data.title === 'string' && e.data.title) f.title = e.data.title;
+      if (!f.hasAttribute('data-fixed')) f.style.height = (e.data.height + 4) + 'px';
     });
   });
 

@@ -8,6 +8,10 @@
  * odbiera ją public/embed.js). Ramkowanie z obcych domen dopuszcza
  * .htaccess (ta ścieżka jest wyjęta spod X-Frame-Options: SAMEORIGIN).
  *
+ * Dostępność (WCAG 2.1 AA): link „Przejdź do treści”, <html lang> wersji językowej,
+ * kontrast min. 4.5:1 (slate-500+ na jasnym tle), widoczny fokus, przełącznik
+ * języków z pełną nazwą języka w nazwie dostępnej, tytuł iframe = tytuł klauzuli.
+ *
  * Bez logowania; zmienne globalne czytane przy każdym żądaniu (brak cache),
  * więc zmiana adresu w panelu jest widoczna od razu wszędzie.
  */
@@ -50,13 +54,14 @@ $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['u
   .gdpr-body ol     { @apply list-decimal pl-6 mb-4 space-y-1; }
   .gdpr-body a      { @apply text-blue-700 underline underline-offset-2 break-words hover:text-blue-900; }
   .gdpr-body strong { @apply font-semibold text-slate-900; }
+  a:focus-visible, button:focus-visible { @apply outline-none ring-2 ring-blue-600 ring-offset-2 rounded-sm; }
 </style>
 <style>@media print { .no-print { display: none !important; } body { background: #fff !important; } }</style>
 </head>
 <body class="<?= $embed ? 'bg-transparent' : 'bg-slate-50' ?> text-slate-700 antialiased">
 
 <?php if ($embed): ?>
-  <main class="gdpr-body text-[15px] p-1">
+  <main class="gdpr-body text-[15px] p-1" id="tresc">
     <?php if ($clause): ?>
       <h1 class="text-xl font-bold text-slate-900 mb-4"><?= h($title) ?></h1>
       <?= $bodyHtml ?>
@@ -67,7 +72,7 @@ $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['u
   <script>
   (function () {
     var send = function () {
-      parent.postMessage({ type: 'gdpr-clause-height', slug: <?= json_encode($slug) ?>,
+      parent.postMessage({ type: 'gdpr-clause-height', slug: <?= json_encode($slug) ?>, title: <?= json_encode($title, JSON_UNESCAPED_UNICODE) ?>,
                            height: document.documentElement.scrollHeight }, '*');
     };
     window.addEventListener('load', send);
@@ -75,19 +80,20 @@ $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['u
   })();
   </script>
 <?php else: ?>
+  <a href="#tresc" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-slate-900 focus:px-3 focus:py-2 focus:rounded-md focus:shadow"><?= h($ui['skip']) ?></a>
   <div class="min-h-screen flex flex-col">
     <header class="bg-white border-b border-slate-200">
       <div class="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
         <span class="text-sm font-medium text-slate-900 truncate"><?= h($org) ?></span>
         <div class="flex items-center gap-3 shrink-0">
-          <span class="hidden sm:inline text-xs uppercase tracking-wide text-slate-400"><?= h($ui['kicker']) ?></span>
+          <span class="hidden sm:inline text-xs uppercase tracking-wide text-slate-500"><?= h($ui['kicker']) ?></span>
           <?php if (count($langs) > 1): ?>
             <nav aria-label="<?= h($ui['lang']) ?>" class="no-print">
               <ul class="flex gap-1 text-xs">
                 <?php foreach ($langs as $code => $_t): ?>
                   <li><a href="<?= h(gdpr_clauses_public_url($slug, false, $code)) ?>" hreflang="<?= h($code) ?>" lang="<?= h($code) ?>"
                          class="px-2 py-1 rounded-md uppercase <?= $code === $lang ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100' ?>"
-                         <?= $code === $lang ? 'aria-current="true"' : '' ?> title="<?= h(GDPR_LANGS[$code]) ?>"><?= h($code) ?></a></li>
+                         <?= $code === $lang ? 'aria-current="true"' : '' ?>><span aria-hidden="true"><?= h($code) ?></span><span class="sr-only"><?= h(GDPR_LANGS[$code]) ?></span></a></li>
                 <?php endforeach; ?>
               </ul>
             </nav>
@@ -96,7 +102,7 @@ $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['u
       </div>
     </header>
 
-    <main class="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12">
+    <main class="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12" id="tresc" tabindex="-1">
       <?php if ($clause): ?>
         <article class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 px-5 py-8 sm:px-10 sm:py-10">
           <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight mb-2"><?= h($title) ?></h1>
@@ -123,7 +129,7 @@ $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['u
       <?php endif; ?>
     </main>
 
-    <footer class="no-print text-center text-xs text-slate-400 pb-8 px-4">
+    <footer class="no-print text-center text-xs text-slate-600 pb-8 px-4">
       <?= h($org) ?><?= !empty($vars['address']) ? ' · ' . h($vars['address']) : '' ?>
     </footer>
   </div>
