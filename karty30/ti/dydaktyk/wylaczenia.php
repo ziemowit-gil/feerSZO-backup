@@ -67,6 +67,73 @@ $blackouts = ti_blackout_list();
 $bl_edit   = ti_blackout_get((int)($_GET['bl_edit'] ?? 0));
 $bl        = $bl_edit ?: ['id'=>0,'title'=>'','message'=>'','starts_at'=>'','ends_at'=>'','block_dydaktyk'=>1,'block_dziennik'=>0,'is_active'=>1];
 
+// ── Stan „tu i teraz" — to samo, co liczą bramki panelu i dziennika ─────────
+$now      = date('Y-m-d H:i:s');
+$win_dyd  = ti_blackout_active('dydaktyk');
+$win_dz   = ti_blackout_active('dziennik');
+$next_dyd = ti_blackout_next('dydaktyk');
+$next_dz  = ti_blackout_next('dziennik');
+
+/** Okresy podzielone: trwające i przyszłe osobno od zakończonych (archiwum). */
+$bl_open = $bl_past = [];
+foreach ($blackouts as $b) {
+    if ($b['ends_at'] < $now) $bl_past[] = $b; else $bl_open[] = $b;
+}
+// Bieżące chronologicznie — trwające na górze, dalej najbliższe zaplanowane.
+usort($bl_open, fn($a, $b) => strcmp($a['starts_at'], $b['starts_at']));
+
+/** Krótki zapis daty okna: „1.07.2026, 8:00". */
+function wyl_dt(string $v): string {
+    $t = strtotime($v);
+    return $t ? date('j.m.Y, G:i', $t) : '';
+}
+
+/**
+ * Stan okna jako [klucz, etykieta, ikona]. Stan nie jest niesiony samym kolorem:
+ * każda plakietka ma ikonę i słowo.
+ */
+function wyl_state(array $b, string $now): array {
+    if (!$b['is_active'])                                  return ['off',  'Nieaktywne', 'pause-circle'];
+    if ($b['ends_at'] < $now)                              return ['past', 'Zakończone', 'check2-circle'];
+    if ($b['starts_at'] <= $now && $b['ends_at'] >= $now)  return ['run',  'Trwa',       'moon-fill'];
+    return ['plan', 'Zaplanowane', 'calendar-event'];
+}
+
+/** Wiersz tabeli okresów — wspólny dla listy bieżącej i archiwum. */
+function wyl_row(array $b, string $now): void {
+    [$st, $st_label, $st_icon] = wyl_state($b, $now);
+    $range = ti_blackout_range_text($b);
+    ?>
+    <tr class="wyl-row-<?= $st ?>">
+      <td class="text-nowrap"><span class="wyl-pill wyl-pill-<?= $st ?>"><i class="bi bi-<?= $st_icon ?>" aria-hidden="true"></i><?= $st_label ?></span></td>
+      <td class="text-nowrap">
+        <?= h(wyl_dt($b['starts_at'])) ?>
+        <span class="text-body-secondary" aria-hidden="true">→</span><span class="visually-hidden">do</span>
+        <?= h(wyl_dt($b['ends_at'])) ?>
+      </td>
+      <td class="text-nowrap">
+        <?php if ($b['block_dydaktyk']): ?><span class="wyl-scope"><i class="bi bi-easel2" aria-hidden="true"></i>Panel</span><?php endif; ?>
+        <?php if ($b['block_dziennik']): ?><span class="wyl-scope"><i class="bi bi-journal-bookmark" aria-hidden="true"></i>Dziennik</span><?php endif; ?>
+      </td>
+      <td>
+        <?php if (trim((string)$b['title']) !== ''): ?><div class="fw-bold"><?= h($b['title']) ?></div><?php endif; ?>
+        <?php if (trim((string)$b['message']) !== ''): ?><?= h($b['message']) ?>
+        <?php else: ?><span class="text-body-secondary fst-italic">komunikat domyślny</span><?php endif; ?>
+      </td>
+      <td class="text-end text-nowrap">
+        <a href="?bl_edit=<?= (int)$b['id'] ?>#bl-form" class="btn btn-sm btn-outline-primary"
+           aria-label="Edytuj okres <?= h($range) ?>"><i class="bi bi-pencil" aria-hidden="true"></i><span class="d-none d-lg-inline ms-1">Edytuj</span></a>
+        <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ten okres wyłączenia?')">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="blackout_delete">
+          <input type="hidden" name="bl_id" value="<?= (int)$b['id'] ?>">
+          <button class="btn btn-sm btn-outline-danger" aria-label="Usuń okres <?= h($range) ?>"><i class="bi bi-trash" aria-hidden="true"></i></button>
+        </form>
+      </td>
+    </tr>
+    <?php
+}
+
 $KP_TITLE  = 'Dostępność panelu — Panel dydaktyka';
 $KP_TOPBAR = [
     'brand'  => 'Panel dydaktyka',
@@ -79,194 +146,282 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
+<style>
+  /* Ekran wyłączeń — kafle stanu i plakietki w języku skórki TI (płasko, ramki,
+     pasek po lewej). Stan zawsze niesie słowo + ikona, kolor tylko wspiera.
+     Kontrast (AA): #1d5c2e/#eaf4ec = 7,0:1, #8a1c1c/#fbecec = 7,5:1,
+     #6b4a00/#fff4d6 = 7,6:1, #45516b/#f2f5f8 = 7,2:1. */
+  .wyl-status { display:grid; gap:.6rem; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); margin-bottom:1rem; }
+  .wyl-tile { border:1px solid var(--ti-grid); border-left-width:5px; background:#fff; padding:.55rem .75rem; display:flex; gap:.65rem; align-items:flex-start; }
+  .wyl-tile > .bi { font-size:1.35rem; line-height:1; margin-top:.1rem; }
+  .wyl-tile-name { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#45516b; font-weight:700; }
+  .wyl-tile-state { font-size:.95rem; font-weight:700; margin:.05rem 0 .15rem; }
+  .wyl-tile-note { font-size:.74rem; color:#33415c; }
+  .wyl-tile.is-on  { border-left-color:#2e7d45; } .wyl-tile.is-on  > .bi, .wyl-tile.is-on  .wyl-tile-state { color:#1d5c2e; }
+  .wyl-tile.is-off { border-left-color:#b02a2a; background:#fdf6f6; } .wyl-tile.is-off > .bi, .wyl-tile.is-off .wyl-tile-state { color:#8a1c1c; }
+  .wyl-tile-next { margin-top:.3rem; padding-top:.3rem; border-top:1px dashed var(--ti-grid); font-size:.74rem; color:#6b4a00; }
+
+  .wyl-pill { display:inline-flex; align-items:center; gap:.3rem; padding:.05rem .45rem; border:1px solid; font-size:.72rem; font-weight:700; border-radius:2px; }
+  .wyl-pill-run  { color:#8a1c1c; background:#fbecec; border-color:#e3b3b3; }
+  .wyl-pill-plan { color:#6b4a00; background:#fff4d6; border-color:#e6cf8f; }
+  .wyl-pill-off  { color:#45516b; background:#f2f5f8; border-color:#c3ccd8; }
+  .wyl-pill-past { color:#45516b; background:#fff;    border-color:#c3ccd8; }
+  .wyl-scope { display:inline-flex; align-items:center; gap:.25rem; margin-right:.5rem; color:var(--ti-navy); }
+  body.ti-skin .table tbody tr.wyl-row-run > * { background-color:#fdf6f6; }
+
+  .wyl-help { font-size:.76rem; color:#33415c; background:#f7f9fb; border:1px solid #e2e6ea; padding:.45rem .6rem; margin-bottom:.6rem; }
+  .wyl-sub { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#45516b; font-weight:700; border-bottom:1px solid #e2e6ea; padding-bottom:.2rem; margin:.2rem 0 .5rem; }
+  .wyl-switch { display:flex; align-items:flex-start; gap:.6rem; padding:.5rem .6rem; border:1px solid var(--ti-grid); background:#fafbfc; margin-bottom:.75rem; }
+  .wyl-switch .form-check-input { width:2.6em; height:1.35em; margin:0; flex-shrink:0; cursor:pointer; }
+  .wyl-switch label { font-weight:700; color:var(--ti-navy); cursor:pointer; }
+  .wyl-check { border:1px solid var(--ti-grid); padding:.4rem .6rem .4rem 2.1rem; margin-bottom:.35rem; background:#fff; }
+  .wyl-check .form-check-label { font-weight:700; color:var(--ti-navy); }
+  .wyl-check small { display:block; font-weight:400; color:#45516b; }
+  #bl-form.is-edit { outline:2px solid #c8a11a; outline-offset:-1px; }
+  .wyl-archive summary { cursor:pointer; padding:.35rem .6rem; background:var(--ti-bar); border:1px solid var(--ti-bar-border); color:var(--ti-navy); font-weight:700; font-size:.82rem; }
+  .wyl-archive[open] summary { border-bottom:none; }
+  .wyl-archive summary:focus-visible { outline:2px solid var(--ti-blue); outline-offset:2px; }
+</style>
 
 <?php $KIER_CUR = 'wylaczenia.php'; $KIER_LABEL = 'Wyłączenia';
    include __DIR__ . '/_kierownik_bar.php'; ?>
 
 <main id="main" class="dyd-wrap">
-<h1 class="h4 fw-bold mb-3"><i class="bi bi-easel2 me-2 text-primary"></i>Panel dydaktyka i dziennik — dostępność</h1>
+<h1 class="h4 fw-bold mb-1"><i class="bi bi-moon me-2 text-primary" aria-hidden="true"></i>Wyłączenia panelu i dziennika</h1>
+<p class="text-body-secondary small mb-3">
+  Decyzja „czy dziś się pracuje": wyłącz panel od ręki albo zaplanuj okres, który włączy się i zgaśnie sam.
+  Administracja i pracownicy D3 zawsze mają dostęp — widzą tylko baner.
+</p>
 
 <?= flash_html() ?>
 
-<form method="post" action="">
-  <?= csrf_field() ?>
-  <input type="hidden" name="_op" value="save_settings">
-
-  <div class="card shadow-sm mb-4">
-    <div class="card-header fw-semibold d-flex align-items-center gap-2">
-      <i class="bi bi-toggle-on text-primary"></i> Dostępność panelu
-    </div>
-    <div class="card-body">
-      <div class="form-check form-switch mb-0">
-        <input class="form-check-input" type="checkbox" role="switch"
-               id="dyd_panel_enabled" name="dyd_panel_enabled"
-               <?= $enabled ? 'checked' : '' ?>>
-        <label class="form-check-label fw-semibold" for="dyd_panel_enabled">
-          Panel dydaktyka jest włączony
-        </label>
-        <div class="form-text mt-1">
-          Po wyłączeniu dydaktycy (prowadzący) widzą stronę przerwy z poniższym komunikatem.
-          Administratorzy i pracownicy D3 nadal mają pełny dostęp.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card shadow-sm mb-4">
-    <div class="card-header fw-semibold d-flex align-items-center gap-2">
-      <i class="bi bi-chat-square-text text-warning"></i> Komunikat dla dydaktyków
-    </div>
-    <div class="card-body">
-      <div class="mb-3">
-        <label for="dyd_panel_message" class="form-label">Treść komunikatu</label>
-        <textarea class="form-control" id="dyd_panel_message" name="dyd_panel_message"
-                  rows="3" maxlength="1000"
-                  placeholder="np. Przerwa techniczna — panel dydaktyka jest tymczasowo niedostępny. Zapraszamy ponownie wkrótce."><?= h($message) ?></textarea>
-        <div class="form-text">Pozostaw puste, aby wyświetlić domyślny komunikat.</div>
-      </div>
-      <div class="mb-0">
-        <label for="dyd_panel_resume" class="form-label">Planowany czas wznowienia <span class="text-body-secondary">(opcjonalnie)</span></label>
-        <input type="datetime-local" class="form-control" id="dyd_panel_resume" name="dyd_panel_resume"
-               value="<?= h($resume) ?>" style="max-width:260px">
-        <div class="form-text">Jeśli podasz datę i godzinę, wyświetli się ona na stronie przerwy.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="d-flex gap-2">
-    <button type="submit" class="btn btn-primary">
-      <i class="bi bi-floppy me-1"></i>Zapisz ustawienia
-    </button>
-  </div>
-</form>
-
-
-<hr class="my-4">
-
-<h2 class="h5 mb-2" id="wylaczenia"><i class="bi bi-calendar-x me-2"></i>Zaplanowane wyłączenia (okresowe)</h2>
-<p class="text-body-secondary small">
-  Okno działa samo: włącza się i wyłącza po podanych datach — nie trzeba nic przestawiać ręcznie.
-  Wyłączenie dotyczy prowadzących, kursantów i opiekunów; administracja i pracownicy D3 pracują
-  normalnie i widzą tylko baner. Komentarz (np. <em>„Trwają przygotowania do nowego roku dydaktycznego"</em>)
-  jest tym, co zobaczą użytkownicy zamiast panelu albo dziennika.
-</p>
-
-<div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-list-ul text-secondary"></i> Okresy
-    <span class="badge bg-secondary ms-1"><?= count($blackouts) ?></span>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-sm align-middle mb-0">
-      <caption class="visually-hidden">Zaplanowane okresy wyłączenia panelu dydaktyka i dziennika ocen</caption>
-      <thead class="table-light"><tr>
-        <th scope="col">Okres</th>
-        <th scope="col">Co wyłącza</th>
-        <th scope="col">Komentarz</th>
-        <th scope="col">Stan</th>
-        <th scope="col" class="text-end">Akcje</th>
-      </tr></thead>
-      <tbody>
-        <?php if (!$blackouts): ?>
-        <tr><td colspan="5" class="text-center text-muted py-3">Brak zaplanowanych wyłączeń.</td></tr>
+<!-- ── Stan teraz ─────────────────────────────────────────────────────────── -->
+<section aria-labelledby="wyl-now-h">
+  <h2 id="wyl-now-h" class="visually-hidden">Stan w tej chwili</h2>
+  <div class="wyl-status">
+    <?php
+      if (!$enabled) {
+          $p_on = false; $p_state = 'Wyłączony ręcznie';
+          $p_note = $resume !== '' ? 'Planowane wznowienie: ' . wyl_dt(str_replace('T', ' ', $resume)) : 'Bez daty wznowienia — włącz przełącznikiem poniżej.';
+      } elseif ($win_dyd) {
+          $p_on = false; $p_state = 'Wyłączony — trwa okres';
+          $p_note = 'Do ' . wyl_dt($win_dyd['ends_at']) . (trim((string)$win_dyd['title']) !== '' ? ' · ' . $win_dyd['title'] : '');
+      } else {
+          $p_on = true; $p_state = 'Dostępny';
+          $p_note = 'Prowadzący pracują normalnie.';
+      }
+    ?>
+    <div class="wyl-tile <?= $p_on ? 'is-on' : 'is-off' ?>">
+      <i class="bi bi-<?= $p_on ? 'check-circle-fill' : 'slash-circle-fill' ?>" aria-hidden="true"></i>
+      <div>
+        <div class="wyl-tile-name">Panel dydaktyka</div>
+        <div class="wyl-tile-state"><?= h($p_state) ?></div>
+        <div class="wyl-tile-note"><?= h($p_note) ?></div>
+        <?php if ($p_on && $next_dyd): ?>
+          <div class="wyl-tile-next"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Najbliższa przerwa: <?= h(ti_blackout_range_text($next_dyd)) ?></div>
         <?php endif; ?>
-        <?php foreach ($blackouts as $b):
-          $now      = date('Y-m-d H:i:s');
-          $running  = $b['is_active'] && $b['starts_at'] <= $now && $b['ends_at'] >= $now;
-          $finished = $b['ends_at'] < $now;
-        ?>
-        <tr<?= $finished ? ' class="text-muted"' : '' ?>>
-          <td class="text-nowrap">
-            <?= h(date('j.m.Y, G:i', strtotime($b['starts_at']))) ?><br>
-            <span class="small">→ <?= h(date('j.m.Y, G:i', strtotime($b['ends_at']))) ?></span>
-          </td>
-          <td class="small">
-            <?php if ($b['block_dydaktyk']): ?><span class="badge text-bg-primary">Panel dydaktyka</span><?php endif; ?>
-            <?php if ($b['block_dziennik']): ?><span class="badge text-bg-info">Dziennik ocen</span><?php endif; ?>
-          </td>
-          <td class="small">
-            <?php if (trim((string)$b['title']) !== ''): ?><div class="fw-semibold"><?= h($b['title']) ?></div><?php endif; ?>
-            <?= h($b['message'] !== '' ? $b['message'] : '(komunikat domyślny)') ?>
-          </td>
-          <td class="text-nowrap">
-            <?php if (!$b['is_active']): ?><span class="badge text-bg-secondary">nieaktywne</span>
-            <?php elseif ($running): ?><span class="badge text-bg-warning">trwa</span>
-            <?php elseif ($finished): ?><span class="badge text-bg-light border text-dark">zakończone</span>
-            <?php else: ?><span class="badge text-bg-success">zaplanowane</span><?php endif; ?>
-          </td>
-          <td class="text-end text-nowrap">
-            <a href="?bl_edit=<?= (int)$b['id'] ?>#bl-form" class="btn btn-sm btn-outline-primary py-0 px-2" aria-label="Edytuj okres <?= h(ti_blackout_range_text($b)) ?>"><i class="bi bi-pencil"></i></a>
-            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ten okres wyłączenia?')">
-              <?= csrf_field() ?>
-              <input type="hidden" name="_op" value="blackout_delete">
-              <input type="hidden" name="bl_id" value="<?= (int)$b['id'] ?>">
-              <button class="btn btn-sm btn-outline-danger py-0 px-2" aria-label="Usuń okres <?= h(ti_blackout_range_text($b)) ?>"><i class="bi bi-trash"></i></button>
-            </form>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
+      </div>
+    </div>
 
-<div class="card shadow-sm mb-4" id="bl-form">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-<?= $bl_edit ? 'pencil' : 'plus-lg' ?> text-primary"></i>
-    <?= $bl_edit ? 'Edytuj okres wyłączenia' : 'Nowy okres wyłączenia' ?>
+    <div class="wyl-tile <?= $win_dz ? 'is-off' : 'is-on' ?>">
+      <i class="bi bi-<?= $win_dz ? 'slash-circle-fill' : 'check-circle-fill' ?>" aria-hidden="true"></i>
+      <div>
+        <div class="wyl-tile-name">Dziennik ocen</div>
+        <div class="wyl-tile-state"><?= $win_dz ? 'Wyłączony — trwa okres' : 'Dostępny' ?></div>
+        <div class="wyl-tile-note">
+          <?= $win_dz
+              ? h('Do ' . wyl_dt($win_dz['ends_at']) . (trim((string)$win_dz['title']) !== '' ? ' · ' . $win_dz['title'] : ''))
+              : 'Oceny wpisywane i widoczne dla kursantów oraz opiekunów.' ?>
+        </div>
+        <?php if (!$win_dz && $next_dz): ?>
+          <div class="wyl-tile-next"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Najbliższa przerwa: <?= h(ti_blackout_range_text($next_dz)) ?></div>
+        <?php endif; ?>
+      </div>
+    </div>
   </div>
-  <div class="card-body">
-    <form method="post">
+</section>
+
+<!-- ── Lista okresów ──────────────────────────────────────────────────────── -->
+<section class="mb-4" aria-labelledby="wylaczenia">
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-calendar-x" aria-hidden="true"></i>
+      <h2 class="h6 m-0" id="wylaczenia">Zaplanowane i trwające okresy</h2>
+      <span class="badge text-bg-secondary ms-1"><?= count($bl_open) ?><span class="visually-hidden"> okresów</span></span>
+    </div>
+    <?php if (!$bl_open): ?>
+      <div class="card-body text-body-secondary">
+        <i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>Nic nie jest zaplanowane — panel i dziennik działają bez przerw.
+        Nowy okres dodasz w formularzu poniżej, <a href="#bl-form">„Zaplanuj okres wyłączenia"</a>.
+      </div>
+    <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <caption class="visually-hidden">Trwające i przyszłe okresy wyłączenia panelu dydaktyka i dziennika ocen</caption>
+          <thead><tr>
+            <th scope="col">Stan</th>
+            <th scope="col">Okres</th>
+            <th scope="col">Co wyłącza</th>
+            <th scope="col">Komentarz</th>
+            <th scope="col" class="text-end">Akcje</th>
+          </tr></thead>
+          <tbody>
+            <?php foreach ($bl_open as $b) wyl_row($b, $now); ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($bl_past): ?>
+  <details class="wyl-archive">
+    <summary>Zakończone okresy (<?= count($bl_past) ?>)</summary>
+    <div class="table-responsive border border-top-0" style="border-color:var(--ti-grid)!important">
+      <table class="table table-sm align-middle mb-0">
+        <caption class="visually-hidden">Zakończone okresy wyłączenia</caption>
+        <thead><tr>
+          <th scope="col">Stan</th>
+          <th scope="col">Okres</th>
+          <th scope="col">Co wyłączał</th>
+          <th scope="col">Komentarz</th>
+          <th scope="col" class="text-end">Akcje</th>
+        </tr></thead>
+        <tbody>
+          <?php foreach ($bl_past as $b) wyl_row($b, $now); ?>
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <?php endif; ?>
+</section>
+
+<div class="row g-3 align-items-start">
+
+  <!-- ── Wyłączenie ręczne ──────────────────────────────────────────────── -->
+  <div class="col-xl-5">
+    <form method="post" action="" class="card mb-0" aria-labelledby="wyl-manual-h">
       <?= csrf_field() ?>
-      <input type="hidden" name="_op" value="blackout_save">
-      <input type="hidden" name="bl_id" value="<?= (int)$bl['id'] ?>">
-      <div class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label" for="bl_from">Od <span class="text-danger" aria-hidden="true">*</span></label>
-          <input type="datetime-local" class="form-control" id="bl_from" name="bl_from" required
-                 value="<?= h($bl['starts_at'] !== '' ? date('Y-m-d\TH:i', strtotime($bl['starts_at'])) : '') ?>">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label" for="bl_to">Do <span class="text-danger" aria-hidden="true">*</span></label>
-          <input type="datetime-local" class="form-control" id="bl_to" name="bl_to" required
-                 value="<?= h($bl['ends_at'] !== '' ? date('Y-m-d\TH:i', strtotime($bl['ends_at'])) : '') ?>">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label" for="bl_title">Nazwa okresu <span class="text-body-secondary">(wewnętrzna, opcjonalnie)</span></label>
-          <input type="text" class="form-control" id="bl_title" name="bl_title" maxlength="200"
-                 value="<?= h($bl['title']) ?>" placeholder="np. Przygotowanie roku 2026/2027">
-        </div>
-        <div class="col-12">
-          <fieldset>
-            <legend class="form-label">Co wyłączyć <span class="text-danger" aria-hidden="true">*</span></legend>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="bl_dydaktyk" name="bl_dydaktyk" value="1" <?= !empty($bl['block_dydaktyk']) ? 'checked' : '' ?>>
-              <label class="form-check-label" for="bl_dydaktyk">Panel dydaktyka — prowadzący widzą stronę przerwy z komunikatem</label>
+      <input type="hidden" name="_op" value="save_settings">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-toggle-on" aria-hidden="true"></i>
+        <h2 id="wyl-manual-h" class="h6 m-0">Wyłączenie ręczne — od teraz</h2>
+      </div>
+      <div class="card-body">
+        <div class="wyl-switch form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="dyd_panel_enabled" name="dyd_panel_enabled"
+                 aria-describedby="dyd_panel_enabled_help"
+                 <?= $enabled ? 'checked' : '' ?>>
+          <div>
+            <label class="form-check-label" for="dyd_panel_enabled">Panel dydaktyka jest włączony</label>
+            <div id="dyd_panel_enabled_help" class="form-text mt-0">
+              Odznacz i zapisz, aby prowadzący zobaczyli stronę przerwy z komunikatem poniżej.
+              Działa do chwili, aż włączysz panel z powrotem.
             </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="bl_dziennik" name="bl_dziennik" value="1" <?= !empty($bl['block_dziennik']) ? 'checked' : '' ?>>
-              <label class="form-check-label" for="bl_dziennik">Dziennik ocen — brak wpisywania ocen i wglądu dla kursantów oraz opiekunów</label>
-            </div>
-          </fieldset>
-        </div>
-        <div class="col-12">
-          <label class="form-label" for="bl_message">Komentarz dla użytkowników</label>
-          <textarea class="form-control" id="bl_message" name="bl_message" rows="2" maxlength="1000"
-                    placeholder="np. Trwają przygotowania do nowego roku dydaktycznego"><?= h($bl['message']) ?></textarea>
-          <div class="form-text">Pozostaw puste, aby wyświetlić komunikat domyślny.</div>
-        </div>
-        <div class="col-12">
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="bl_active" name="bl_active" value="1" <?= !empty($bl['is_active']) ? 'checked' : '' ?>>
-            <label class="form-check-label" for="bl_active">Okres aktywny (odznacz, aby przygotować go bez uruchamiania)</label>
           </div>
         </div>
-      </div>
-      <div class="d-flex gap-2 mt-3">
-        <button class="btn btn-primary"><i class="bi bi-floppy me-1"></i><?= $bl_edit ? 'Zapisz okres' : 'Dodaj okres' ?></button>
-        <?php if ($bl_edit): ?><a href="wylaczenia.php#wylaczenia" class="btn btn-outline-secondary">Anuluj</a><?php endif; ?>
+
+        <div class="wyl-sub">Strona przerwy</div>
+        <div class="mb-2">
+          <label for="dyd_panel_message" class="form-label">Komunikat dla prowadzących</label>
+          <textarea class="form-control" id="dyd_panel_message" name="dyd_panel_message"
+                    rows="3" maxlength="1000" aria-describedby="dyd_panel_message_help"
+                    placeholder="np. Przerwa techniczna — panel dydaktyka jest tymczasowo niedostępny. Zapraszamy ponownie wkrótce."><?= h($message) ?></textarea>
+          <div id="dyd_panel_message_help" class="form-text">Puste pole = komunikat domyślny.</div>
+        </div>
+        <div class="mb-3">
+          <label for="dyd_panel_resume" class="form-label">Planowane wznowienie <span class="fw-normal text-body-secondary">(opcjonalnie)</span></label>
+          <input type="datetime-local" class="form-control" id="dyd_panel_resume" name="dyd_panel_resume"
+                 value="<?= h($resume) ?>" style="max-width:240px" aria-describedby="dyd_panel_resume_help">
+          <div id="dyd_panel_resume_help" class="form-text">Tylko informacja na stronie przerwy — panel nie włączy się sam. Do tego służy okres zaplanowany.</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz ustawienia
+        </button>
       </div>
     </form>
+  </div>
+
+  <!-- ── Nowy / edytowany okres ─────────────────────────────────────────── -->
+  <div class="col-xl-7">
+    <div class="card mb-0<?= $bl_edit ? ' is-edit' : '' ?>" id="bl-form">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-<?= $bl_edit ? 'pencil' : 'calendar-plus' ?>" aria-hidden="true"></i>
+        <h2 class="h6 m-0"><?= $bl_edit ? 'Edytuj okres wyłączenia' : 'Zaplanuj okres wyłączenia' ?></h2>
+        <?php if ($bl_edit): ?><span class="ms-auto small fw-normal"><?= h(ti_blackout_range_text($bl_edit)) ?></span><?php endif; ?>
+      </div>
+      <div class="card-body">
+        <p class="wyl-help mb-3">
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+          Okres włącza się i gaśnie sam, po podanych datach. Dotyczy prowadzących, kursantów i opiekunów;
+          komentarz jest tym, co zobaczą zamiast panelu albo dziennika.
+        </p>
+        <form method="post">
+          <?= csrf_field() ?>
+          <input type="hidden" name="_op" value="blackout_save">
+          <input type="hidden" name="bl_id" value="<?= (int)$bl['id'] ?>">
+
+          <div class="wyl-sub">Kiedy</div>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="bl_from">Od <span class="text-danger" aria-hidden="true">*</span></label>
+              <input type="datetime-local" class="form-control" id="bl_from" name="bl_from" required
+                     value="<?= h($bl['starts_at'] !== '' ? date('Y-m-d\TH:i', strtotime($bl['starts_at'])) : '') ?>">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="bl_to">Do <span class="text-danger" aria-hidden="true">*</span></label>
+              <input type="datetime-local" class="form-control" id="bl_to" name="bl_to" required
+                     value="<?= h($bl['ends_at'] !== '' ? date('Y-m-d\TH:i', strtotime($bl['ends_at'])) : '') ?>">
+            </div>
+          </div>
+
+          <fieldset class="mb-3">
+            <legend class="wyl-sub w-100 float-none">Co wyłączyć <span class="text-danger" aria-hidden="true">*</span><span class="visually-hidden">(wymagane, co najmniej jedno)</span></legend>
+            <div class="form-check wyl-check">
+              <input class="form-check-input" type="checkbox" id="bl_dydaktyk" name="bl_dydaktyk" value="1" <?= !empty($bl['block_dydaktyk']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="bl_dydaktyk">
+                <i class="bi bi-easel2 me-1" aria-hidden="true"></i>Panel dydaktyka
+                <small>Prowadzący widzą stronę przerwy z komentarzem.</small>
+              </label>
+            </div>
+            <div class="form-check wyl-check">
+              <input class="form-check-input" type="checkbox" id="bl_dziennik" name="bl_dziennik" value="1" <?= !empty($bl['block_dziennik']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="bl_dziennik">
+                <i class="bi bi-journal-bookmark me-1" aria-hidden="true"></i>Dziennik ocen
+                <small>Bez wpisywania ocen i bez wglądu dla kursantów oraz opiekunów.</small>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="wyl-sub">Opis</div>
+          <div class="mb-2">
+            <label class="form-label" for="bl_message">Komentarz dla użytkowników</label>
+            <textarea class="form-control" id="bl_message" name="bl_message" rows="2" maxlength="1000"
+                      aria-describedby="bl_message_help"
+                      placeholder="np. Trwają przygotowania do nowego roku dydaktycznego"><?= h($bl['message']) ?></textarea>
+            <div id="bl_message_help" class="form-text">Puste pole = komunikat domyślny.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="bl_title">Nazwa okresu <span class="fw-normal text-body-secondary">(wewnętrzna, opcjonalnie)</span></label>
+            <input type="text" class="form-control" id="bl_title" name="bl_title" maxlength="200"
+                   value="<?= h($bl['title']) ?>" placeholder="np. Przygotowanie roku 2026/2027">
+          </div>
+
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="bl_active" name="bl_active" value="1"
+                   aria-describedby="bl_active_help" <?= !empty($bl['is_active']) ? 'checked' : '' ?>>
+            <label class="form-check-label fw-bold" for="bl_active">Okres aktywny</label>
+            <div id="bl_active_help" class="form-text mt-0">Odznacz, aby przygotować okres bez uruchamiania.</div>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-primary"><i class="bi bi-floppy me-1" aria-hidden="true"></i><?= $bl_edit ? 'Zapisz okres' : 'Dodaj okres' ?></button>
+            <?php if ($bl_edit): ?><a href="wylaczenia.php#wylaczenia" class="btn btn-outline-secondary">Anuluj edycję</a><?php endif; ?>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
