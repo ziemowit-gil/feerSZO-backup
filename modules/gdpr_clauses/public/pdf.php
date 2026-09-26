@@ -18,6 +18,7 @@ if (!$clause) {
     echo 'Nie znaleziono klauzuli.';
     exit;
 }
+$svc->trackView((int)$clause['id'], 'pdf');
 $vars = $svc->variables();
 $org  = $vars['company_name'] ?? (defined('ORG_NAME') ? ORG_NAME : '');
 gdpr_clauses_send_pdf($clause['tytul'], $svc->renderClause($clause), [

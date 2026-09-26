@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'dele
 
 $clauses = $svc->listClauses();
 $pendingCount = $svc->pendingCount();
+$views30 = $svc->viewTotals(30);
 $user = current_user();
 $vars    = $svc->listVariables();
 
@@ -68,7 +69,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
-            <tr><th>Tytuł</th><th>Adres publiczny</th><th>Status</th><th>Zmieniono</th><th class="text-end">Akcje</th></tr>
+            <tr><th>Tytuł</th><th>Adres publiczny</th><th>Status</th><th>Zmieniono</th><th class="text-end" title="Wyświetlenia z ostatnich 30 dni (strona, iframe, PDF, API)">30 dni</th><th class="text-end">Akcje</th></tr>
           </thead>
           <tbody>
           <?php foreach ($clauses as $c): $url = gdpr_clauses_public_url($c['slug'], false, $c['lang']);
@@ -97,6 +98,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
                 <?php endif; ?>
               </td>
               <td class="small text-muted text-nowrap"><?= $c['updated_at'] ? h(date('d.m.Y H:i', strtotime($c['updated_at']))) : '—' ?></td>
+              <td class="small text-end text-muted"><?= (int)($views30[(int)$c['id']] ?? 0) ?></td>
               <td class="text-end text-nowrap">
                 <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?id=<?= (int)$c['id'] ?>" class="btn btn-sm btn-outline-primary" title="Edytuj"><i class="bi bi-pencil"></i></a>
                 <form method="post" class="d-inline" onsubmit="return confirm('Usunąć klauzulę „<?= h(addslashes($c['tytul'])) ?>” wraz z historią? Osadzenia na innych stronach przestaną działać.');">

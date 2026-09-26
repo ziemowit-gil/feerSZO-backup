@@ -143,6 +143,16 @@ function gdpr_clauses_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_acc_clause ON gdpr_clause_acceptances(clause_id, accepted_at)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_acc_ref ON gdpr_clause_acceptances(ref_type, ref_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_acc_email ON gdpr_clause_acceptances(subject_email)");
+    // Statystyki: zbiorczo per dzień i kanał, bez IP/UA (nie są danymi osobowymi).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gdpr_clause_views (
+        clause_id INTEGER NOT NULL, day DATE NOT NULL, channel VARCHAR(10) NOT NULL, cnt INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (clause_id, day, channel)
+    )");
+    // Domeny stron osadzających klauzulę (z nagłówka Referer iframe'a).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gdpr_clause_embed_hosts (
+        clause_id INTEGER NOT NULL, host VARCHAR(255) NOT NULL, cnt INTEGER NOT NULL DEFAULT 0,
+        first_seen DATETIME NOT NULL, last_seen DATETIME NOT NULL, PRIMARY KEY (clause_id, host)
+    )");
     if (!$hadVersion) {
         // Uzupełnienie wstecz: kolejne wiersze historii = wersje 1..n, bieżąca = n+1.
         $pdo->exec("UPDATE gdpr_clause_history SET version = (
@@ -623,6 +633,74 @@ final class GdprClauseService
         return $st->fetch() ?: null;
     }
 
+    // ── Statystyki ──────────────────────────────────────────────────────────
+
+    public const VIEW_CHANNELS = ['page' => 'Strona', 'embed' => 'Osadzenie (iframe)', 'pdf' => 'PDF', 'api' => 'API'];
+
+    /** Licznik wyświetleń; boty i żądania HEAD pomijane. Nigdy nie rzuca. */
+    public function trackView(int $clauseId, string $channel): void
+    {
+        if (!isset(self::VIEW_CHANNELS[$channel]) || ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') return;
+        if (preg_match('/bot|crawl|spider|slurp|preview|monitor|curl|wget|python|headless/i', (string)($_SERVER['HTTP_USER_AGENT'] ?? ''))) return;
+        try {
+            $this->pdo->prepare("INSERT INTO gdpr_clause_views (clause_id, day, channel, cnt) VALUES (?, date('now','localtime'), ?, 1)
+                                 ON CONFLICT(clause_id, day, channel) DO UPDATE SET cnt = cnt + 1")
+                ->execute([$clauseId, $channel]);
+            if ($channel === 'embed') {
+                $host = strtolower((string)parse_url((string)($_SERVER['HTTP_REFERER'] ?? ''), PHP_URL_HOST));
+                $own  = strtolower((string)parse_url(defined('APP_URL') ? APP_URL : '', PHP_URL_HOST));
+                if ($host !== '' && $host !== $own && preg_match('/^[a-z0-9.-]{1,255}$/', $host)) {
+                    $this->pdo->prepare("INSERT INTO gdpr_clause_embed_hosts (clause_id, host, cnt, first_seen, last_seen)
+                                         VALUES (?, ?, 1, datetime('now','localtime'), datetime('now','localtime'))
+                                         ON CONFLICT(clause_id, host) DO UPDATE SET cnt = cnt + 1, last_seen = excluded.last_seen")
+                        ->execute([$clauseId, $host]);
+                }
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    /** Suma wyświetleń z ostatnich $days dni: kanał → liczba (+ 'total'). */
+    public function viewStats(int $clauseId, int $days = 30): array
+    {
+        $st = $this->pdo->prepare("SELECT channel, SUM(cnt) n FROM gdpr_clause_views
+                                   WHERE clause_id = ? AND day >= date('now','localtime', ?) GROUP BY channel");
+        $st->execute([$clauseId, '-' . max(1, $days) . ' days']);
+        $out = array_fill_keys(array_keys(self::VIEW_CHANNELS), 0);
+        foreach ($st as $r) $out[$r['channel']] = (int)$r['n'];
+        $out['total'] = array_sum($out);
+        return $out;
+    }
+
+    /** Dzienna seria (wszystkie kanały) z ostatnich $days dni: Y-m-d → liczba, z zerami. */
+    public function viewSeries(int $clauseId, int $days = 30): array
+    {
+        $st = $this->pdo->prepare("SELECT day, SUM(cnt) n FROM gdpr_clause_views
+                                   WHERE clause_id = ? AND day >= date('now','localtime', ?) GROUP BY day");
+        $st->execute([$clauseId, '-' . ($days - 1) . ' days']);
+        $got = array_column($st->fetchAll(), 'n', 'day');
+        $out = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $d = date('Y-m-d', strtotime("-{$i} days"));
+            $out[$d] = (int)($got[$d] ?? 0);
+        }
+        return $out;
+    }
+
+    /** Sumy 30-dniowe dla wszystkich klauzul: id → liczba (lista w panelu). */
+    public function viewTotals(int $days = 30): array
+    {
+        $st = $this->pdo->prepare("SELECT clause_id, SUM(cnt) n FROM gdpr_clause_views WHERE day >= date('now','localtime', ?) GROUP BY clause_id");
+        $st->execute(['-' . max(1, $days) . ' days']);
+        return array_map('intval', array_column($st->fetchAll(), 'n', 'clause_id'));
+    }
+
+    public function embedHosts(int $clauseId): array
+    {
+        $st = $this->pdo->prepare("SELECT host, cnt, first_seen, last_seen FROM gdpr_clause_embed_hosts WHERE clause_id = ? ORDER BY last_seen DESC LIMIT 50");
+        $st->execute([$clauseId]);
+        return $st->fetchAll();
+    }
+
     /** Usunięcie niszczyłoby dowód akceptacji — dozwolone tylko bez akceptacji. */
     public function deleteClause(int $id): void
     {
@@ -630,6 +708,8 @@ final class GdprClauseService
             throw new InvalidArgumentException('Tej klauzuli nie można usunąć — ma zarejestrowane akceptacje (dowód dla RODO art. 7 ust. 1). Wycofaj ją z publikacji.');
         }
         $this->pdo->prepare("DELETE FROM gdpr_clause_history WHERE clause_id = ?")->execute([$id]);
+        $this->pdo->prepare("DELETE FROM gdpr_clause_views WHERE clause_id = ?")->execute([$id]);
+        $this->pdo->prepare("DELETE FROM gdpr_clause_embed_hosts WHERE clause_id = ?")->execute([$id]);
         $this->pdo->prepare("DELETE FROM gdpr_clauses WHERE id = ?")->execute([$id]);
     }
 

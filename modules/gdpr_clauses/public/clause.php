@@ -33,6 +33,7 @@ $vars    = $svc->variables();
 $org     = $vars['company_name'] ?? (defined('ORG_NAME') ? ORG_NAME : '');
 $title   = $clause['tytul'] ?? $ui['nf_title'];
 $bodyHtml = $clause ? $svc->renderClause($clause) : '';
+if ($clause) $svc->trackView((int)$clause['id'], $embed ? 'embed' : 'page');
 $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['updated_at'])) : '';
 ?><!doctype html>
 <html lang="<?= h($lang) ?>">

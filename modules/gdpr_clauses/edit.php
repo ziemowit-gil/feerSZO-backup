@@ -120,6 +120,9 @@ $history = $clause ? $svc->history($id) : [];
 // Akceptacje per wersja — widać, której wersji dotyczą zebrane zgody.
 $accByVer = $clause ? array_column(db_all("SELECT version, COUNT(*) n FROM gdpr_clause_acceptances WHERE clause_id = ? GROUP BY version", [$id]), 'n', 'version') : [];
 $accUrl = APP_URL . '/modules/gdpr_clauses/acceptances.php?clause_id=' . $id;
+$stats  = $clause ? $svc->viewStats($id, 30) : [];
+$series = $clause ? $svc->viewSeries($id, 30) : [];
+$hosts  = $clause ? $svc->embedHosts($id) : [];
 $pubUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], false, $clause['lang']) : '';
 $embUrl  = $clause ? gdpr_clauses_public_url($clause['slug'], true, $clause['lang']) : '';
 $siblings = $clause ? array_values(array_filter($svc->listClauses(), fn($c) => $c['slug'] === $clause['slug'] && (int)$c['id'] !== $id)) : [];
@@ -347,6 +350,33 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     </div>
   </div>
   <div class="col-lg-5">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white fw-semibold small"><i class="bi bi-graph-up me-1"></i>Wyświetlenia — ostatnie 30 dni</div>
+      <div class="card-body small">
+        <?php $max = max(1, max($series)); ?>
+        <svg viewBox="0 0 300 48" width="100%" height="48" role="img" aria-label="Wyświetlenia dziennie w ostatnich 30 dniach, razem <?= (int)$stats['total'] ?>" preserveAspectRatio="none">
+          <?php $i = 0; foreach ($series as $day => $n): $bh = $n ? max(2, round($n / $max * 44)) : 0; ?>
+            <rect x="<?= $i * 10 + 1 ?>" y="<?= 46 - $bh ?>" width="8" height="<?= $bh ?>" rx="1" fill="currentColor" class="text-primary" opacity=".75"><title><?= h(date('d.m', strtotime($day))) ?>: <?= $n ?></title></rect>
+          <?php $i++; endforeach; ?>
+          <line x1="0" y1="46.5" x2="300" y2="46.5" stroke="currentColor" class="text-secondary" opacity=".3"/>
+        </svg>
+        <div class="d-flex flex-wrap gap-3 mt-2">
+          <span><strong><?= (int)$stats['total'] ?></strong> razem</span>
+          <?php foreach (GdprClauseService::VIEW_CHANNELS as $ch => $lbl): ?>
+            <span class="text-muted"><?= h($lbl) ?>: <strong class="text-body"><?= (int)$stats[$ch] ?></strong></span>
+          <?php endforeach; ?>
+        </div>
+        <?php if ($hosts): ?>
+          <div class="mt-2 text-muted">Osadzona na:</div>
+          <ul class="list-unstyled mb-0">
+            <?php foreach ($hosts as $hh): ?>
+              <li><code><?= h($hh['host']) ?></code> <span class="text-muted">· <?= (int)$hh['cnt'] ?> wyśw., ostatnio <?= h(date('d.m.Y', strtotime($hh['last_seen']))) ?></span></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <div class="text-muted mt-2" style="font-size:.75rem">Liczone zbiorczo, bez adresów IP; ruch botów pomijany.</div>
+      </div>
+    </div>
     <div class="card shadow-sm">
       <div class="card-header bg-white fw-semibold small"><i class="bi bi-clock-history me-1"></i>Historia wersji</div>
       <?php if (!$history): ?>
