@@ -6,6 +6,10 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
 require_once dirname(__DIR__) . '/includes/onboarding_schema.php';
+require_once dirname(__DIR__) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
+// Klauzula domyślna dla onboardingu z modułu Klauzule RODO — pierwszeństwo przed
+// ustawieniem onboarding_klauzula; null = dotychczasowy tekst.
+$ob_gdpr = gdpr_clause_resolve('', 'onboarding');
 auth_start();
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -237,9 +241,16 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$accepted) {
             $errors[] = 'Musisz zaakceptować klauzulę informacyjną, aby kontynuować.';
         } else {
+            $kl_version = md5($klauzula_text);
+            if ($ob_gdpr) {
+                $ob_vol = db_one("SELECT imie_nazwisko, email FROM onboarding_volunteers WHERE id=?", [$ob_id]) ?? [];
+                $acc_id = gdpr_clause_accept_from_post($ob_gdpr['clause']['slug'], 'onboarding',
+                    ['name' => $ob_vol['imie_nazwisko'] ?? '', 'email' => $ob_vol['email'] ?? ''], ['onboarding_volunteer', $ob_id]);
+                $kl_version = 'gdpr:' . $ob_gdpr['clause']['slug'] . ':v' . (int)$ob_gdpr['clause']['version'] . ($acc_id ? ':acc' . $acc_id : '');
+            }
             db_update('onboarding_volunteers', [
                 'klauzula_accepted' => 1,
-                'klauzula_version'  => md5($klauzula_text),
+                'klauzula_version'  => $kl_version,
                 'updated_at'        => date('Y-m-d H:i:s'),
             ], $ob_id);
             $_SESSION['ob_step'] = 5;
@@ -716,6 +727,9 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
       white-space: pre-wrap;
     }
     .klauzula-box::-webkit-scrollbar { width: 5px; }
+    .klauzula-rich { white-space: normal; }
+    .klauzula-rich h2 { font-size: .9rem; font-weight: 700; margin: .7rem 0 .25rem; }
+    .klauzula-rich p, .klauzula-rich ul { margin-bottom: .45rem; }
     .klauzula-box::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
 
     /* ── Upload ──────────────────────────────────────────────── */
@@ -1219,9 +1233,15 @@ $page_title = h($ob_title) . ($org_name ? ' — ' . h($org_name) : '');
     </div>
     <div class="ob-card-body">
 
+      <?php if ($ob_gdpr): ?>
+      <div class="klauzula-box klauzula-rich mb-2" tabindex="0" aria-label="Treść klauzuli informacyjnej"><?= $ob_gdpr['html'] /* escapowany render modułu */ ?></div>
+      <p class="small mb-4"><a href="<?= h($ob_gdpr['url']) ?>" target="_blank" rel="noopener">Pełna treść klauzuli na osobnej stronie ↗</a></p>
+      <?php else: ?>
       <div class="klauzula-box mb-4"><?= h($klauzula_text) ?></div>
+      <?php endif; ?>
 
       <form method="post" action="?step=4">
+        <?= $ob_gdpr ? $ob_gdpr['field'] : '' ?>
         <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
         <label class="ob-check" for="klauzula_check">
           <input type="checkbox" id="klauzula_check" name="klauzula" value="1" required>
