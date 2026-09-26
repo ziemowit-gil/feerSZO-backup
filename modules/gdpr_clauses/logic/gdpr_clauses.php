@@ -929,3 +929,19 @@ function gdpr_clause_accept_from_post(string $slug, string $context, array $subj
         return null;
     }
 }
+
+/**
+ * Link „Klauzula informacyjna” do stopek publicznych formularzy (ustawienie
+ * „Stopki publicznych formularzy”). '' gdy nieustawione — stopka bez zmian.
+ */
+function gdpr_clauses_footer_link(string $prefix = ' · ', string $label = 'Klauzula informacyjna'): string {
+    $slug = gdpr_clauses_default_slug('public_footer');
+    if ($slug === '') return '';
+    try {
+        if (!(new GdprClauseService())->getBySlug($slug)) return '';
+    } catch (\Throwable $e) {
+        return '';
+    }
+    return $prefix . '<a href="' . htmlspecialchars(gdpr_clauses_public_url($slug), ENT_QUOTES) . '" target="_blank" rel="noopener">'
+         . htmlspecialchars($label) . '</a>';
+}

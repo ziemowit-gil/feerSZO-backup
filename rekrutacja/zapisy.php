@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/branding.php';
 require_once dirname(__DIR__) . '/includes/rekrutacja.php';
+require_once dirname(__DIR__) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
 
 rekr_migrate();
 if (!module_enabled('rekrutacja_enabled')) { http_response_code(404); die('Zapisy na zajęcia są obecnie zamknięte.'); }
@@ -349,7 +350,7 @@ label.f-label { display: block; font-weight: 500; font-size: .92rem; margin-bott
   </div>
 
   <footer class="page-footer">
-    <?= h($org_name) ?> · <a href="https://feer.org.pl" rel="noopener">feer.org.pl</a> · Administratorem danych osobowych jest <?= h($org_name) ?>.
+    <?= h($org_name) ?> · <a href="https://feer.org.pl" rel="noopener">feer.org.pl</a> · Administratorem danych osobowych jest <?= h($org_name) ?>.<?= gdpr_clauses_footer_link() ?>
   </footer>
 </main>
 

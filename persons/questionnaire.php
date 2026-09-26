@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/persons.php';
+require_once dirname(__DIR__) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
 
 $token  = trim($_GET['token'] ?? '');
 $person = $token ? person_by_questionnaire_token($token) : null;
@@ -359,7 +360,7 @@ body { background: #f1f5f9; font-family: system-ui,-apple-system,sans-serif; }
           na podstawie art. 6 ust. 1 lit. b RODO.
           Dane będą przechowywane przez okres niezbędny do realizacji umowy oraz
           wynikający z przepisów prawa.
-          Masz prawo dostępu do danych, ich sprostowania, usunięcia lub ograniczenia przetwarzania.
+          Masz prawo dostępu do danych, ich sprostowania, usunięcia lub ograniczenia przetwarzania.<?= gdpr_clauses_footer_link(' ', 'Pełna treść klauzuli informacyjnej') ?>
         </div>
 
         <div class="form-check mb-3">

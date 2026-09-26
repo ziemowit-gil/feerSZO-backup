@@ -18,6 +18,7 @@ require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once __DIR__ . '/logic/sprawdz_konto.php';
+require_once dirname(__DIR__) . '/gdpr_clauses/logic/gdpr_clauses.php';
 sprawdz_konto_migrate();
 
 $org   = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
@@ -90,7 +91,7 @@ if ($token !== '') {
     <p class="mb-0">
       Link jest ważny ograniczony czas i jednoznacznie przypisany do jednej osoby/umowy. Otwarcie
       linku jest logowane (adres IP, znacznik czasu) w celu bezpieczeństwa i przeciwdziałania
-      nadużyciom — logi przechowujemy przez 90 dni. Administratorem danych jest <?= h($org) ?>.
+      nadużyciom — logi przechowujemy przez 90 dni. Administratorem danych jest <?= h($org) ?>.<?= gdpr_clauses_footer_link(' ') ?>
     </p>
   </div>
 
