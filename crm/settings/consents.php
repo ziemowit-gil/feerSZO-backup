@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $channel  = array_key_exists($_POST['channel'] ?? '', CRM_CONSENT_CHANNELS) ? $_POST['channel'] : 'email';
         $sort     = (int)($_POST['sort_order'] ?? 0);
         $valid_m  = max(0, min(240, (int)($_POST['valid_months'] ?? 0)));
+        $gslug    = preg_match('/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/', $_POST['gdpr_clause_slug'] ?? '') ? $_POST['gdpr_clause_slug'] : null;
 
         // Kod służy do wskazywania celu z formularzy i kodu — stąd wąski zestaw znaków.
         if ($kod === '' && $nazwa !== '') {
@@ -50,8 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if ($id) {
                 crm_db()->prepare(
-                    "UPDATE crm_consent_purposes SET kod=?, nazwa=?, klauzula=?, channel=?, sort_order=?, valid_months=?, is_active=? WHERE id=?"
-                )->execute([$kod, $nazwa, $klauzula ?: null, $channel, $sort, $valid_m, isset($_POST['is_active']) ? 1 : 0, $id]);
+                    "UPDATE crm_consent_purposes SET kod=?, nazwa=?, klauzula=?, channel=?, sort_order=?, valid_months=?, is_active=?, gdpr_clause_slug=? WHERE id=?"
+                )->execute([$kod, $nazwa, $klauzula ?: null, $channel, $sort, $valid_m, isset($_POST['is_active']) ? 1 : 0, $gslug, $id]);
                 flash_set('success', 'Cel zgody zaktualizowany.');
             } else {
                 crm_insert('crm_consent_purposes', [
@@ -62,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'is_active'  => 1,
                     'sort_order' => $sort,
                     'valid_months' => $valid_m,
+                    'gdpr_clause_slug' => $gslug,
                     'created_by' => $uid,
                     'created_at' => date('Y-m-d H:i:s'),
                 ]);
@@ -249,6 +251,16 @@ require_once __DIR__ . '/_nav.php';
         <div class="form-text" style="font-size:.72rem">
           Kopia tej treści trafia do każdego zapisu zgody. Zmiana klauzuli nie zmienia
           brzmienia zgód udzielonych wcześniej — i o to chodzi.
+        </div>
+      </div>
+      <div class="col-md-6">
+        <?php require_once dirname(__DIR__, 2) . '/modules/gdpr_clauses/logic/gdpr_clauses.php'; $gdef = gdpr_clauses_default_slug('crm_form'); ?>
+        <label class="form-label small mb-1" for="cp_gdpr">Klauzula informacyjna z rejestru (art. 13)</label>
+        <?= str_replace('class="form-select"', 'class="form-select form-select-sm"', gdpr_clauses_select('gdpr_clause_slug', (string)($edit_row['gdpr_clause_slug'] ?? ''),
+                $gdef !== '' ? '— domyślna dla formularzy CRM (' . (gdpr_clauses_options()[$gdef] ?? $gdef) . ') —' : '— brak —', 'cp_gdpr')) ?>
+        <div class="form-text" style="font-size:.72rem">
+          Link do pełnej klauzuli przy zgodzie w formularzu; wersja, którą zobaczyła osoba, trafia do
+          <a href="<?= APP_URL ?>/modules/gdpr_clauses/acceptances.php">rejestru akceptacji</a>.
         </div>
       </div>
       <?php if ($edit_row): ?>

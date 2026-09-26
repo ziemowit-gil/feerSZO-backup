@@ -30,6 +30,18 @@ if (!$form) { http_response_code(404); die('Formularz nie istnieje lub jest niea
 
 $fields_config    = json_decode($form['fields_json'],      true) ?: [];
 $consents_config  = json_decode($form['consents_json']  ?? '[]', true) ?: [];
+
+// Klauzule informacyjne z rejestru (modules/gdpr_clauses) per cel zgody → link przy zgodzie.
+$consent_gdpr = [];
+try {
+    require_once dirname(dirname(__DIR__)) . '/includes/crm_consent.php';
+    foreach ($consents_config as $_con) {
+        $_pid = (int)($_con['purpose_id'] ?? 0);
+        if ($_pid <= 0) continue;
+        $_slug = crm_consent_gdpr_slug(crm_one("SELECT * FROM crm_consent_purposes WHERE id = ?", [$_pid]));
+        if ($_slug !== '' && ($_g = gdpr_clause_for_form($_slug))) $consent_gdpr[(string)$_con['id']] = $_g;
+    }
+} catch (\Throwable $_e) { $consent_gdpr = []; }
 $style            = json_decode($form['style_json']     ?? '{}', true) ?: [];
 $automations      = json_decode($form['automations_json'] ?? '[]', true) ?: [];
 
@@ -446,6 +458,13 @@ body { background:var(--bg); font-family:var(--font); min-height:100vh; margin:0
               <?php if (!empty($con['required'])): ?>
               <span class="required-star" aria-hidden="true">*</span>
               <?php endif; ?>
+              <?php if (empty($con['link']) && isset($consent_gdpr[(string)$con['id']])): $_g = $consent_gdpr[(string)$con['id']]; ?>
+              <a href="<?= h($_g['url']) ?>" target="_blank" rel="noopener"
+                 style="color:var(--accent);margin-left:.3rem;font-size:.78rem"
+                 aria-label="Klauzula informacyjna: <?= h($_g['clause']['tytul']) ?> (otwiera nowe okno)">
+                Klauzula informacyjna<span aria-hidden="true"> ↗</span>
+              </a>
+              <?php endif; ?>
               <?php if (!empty($con['link'])): ?>
               <a href="<?= h($con['link']) ?>" target="_blank" rel="noopener noreferrer"
                  style="color:var(--accent);margin-left:.3rem;font-size:.78rem"
@@ -463,6 +482,7 @@ body { background:var(--bg); font-family:var(--font); min-height:100vh; margin:0
           <?php endif; ?>
         </div>
         <?php endforeach; ?>
+        <?php foreach (array_unique(array_map(fn($g) => $g['field'], $consent_gdpr)) as $_f) echo $_f; ?>
       </fieldset>
       <?php endif; ?>
 

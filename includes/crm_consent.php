@@ -113,6 +113,11 @@ function crm_consent_migrate(): void
     // zgodę trzeba odnowić; po tym czasie przestaje uprawniać do wysyłki.
     try { $pdo->exec("ALTER TABLE crm_consent_purposes ADD COLUMN valid_months INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
+    // Klauzula informacyjna (art. 13) z modułu Klauzule RODO dla celu — `klauzula`
+    // wyżej to treść samej zgody; tu wskazujemy pełną informację o przetwarzaniu,
+    // a jej akceptacja trafia do rejestru akceptacji modułu (gdpr_clause_acceptances).
+    try { $pdo->exec("ALTER TABLE crm_consent_purposes ADD COLUMN gdpr_clause_slug TEXT"); } catch (\Throwable $e) {}
+
     // Cel wysyłki kampanii — bez niego kampania działa jak dotąd (patrz niżej).
     try { $pdo->exec("ALTER TABLE crm_campaigns ADD COLUMN purpose_id INTEGER REFERENCES crm_consent_purposes(id) ON DELETE SET NULL"); } catch (\Throwable $e) {}
 
@@ -380,4 +385,17 @@ function crm_consent_state_label(?array $state, ?array $purpose = null): array
 function crm_consent_source_label(?string $source): string
 {
     return CRM_CONSENT_SOURCES[(string)$source] ?? (string)$source;
+}
+
+/**
+ * Slug klauzuli informacyjnej z rejestru dla celu zgody: wskazana przy celu,
+ * a gdy brak — domyślna dla formularzy CRM (ustawienia modułu klauzul). '' = brak.
+ */
+function crm_consent_gdpr_slug(?array $purpose): string
+{
+    $f = dirname(__DIR__) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
+    if (!$purpose || !is_file($f)) return '';
+    require_once $f;
+    $slug = trim((string)($purpose['gdpr_clause_slug'] ?? ''));
+    return $slug !== '' ? $slug : gdpr_clauses_default_slug('crm_form');
 }

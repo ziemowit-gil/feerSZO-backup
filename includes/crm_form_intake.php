@@ -217,12 +217,19 @@ function crm_form_intake(array $form, array $data, array $opts = []): array
         $pid = (int)($con['purpose_id'] ?? 0);
         try {
             if ($pid > 0) {
-                crm_consent_record($contact_id, $pid, true, [
+                $consent_row_id = crm_consent_record($contact_id, $pid, true, [
                     'source'        => 'formularz',
                     'source_detail' => 'Formularz: ' . $form['title'],
                     'klauzula'      => (string)($con['text'] ?? ''),
                     'ip'            => $ip,
                 ]);
+                // Klauzula informacyjna z rejestru — dowód, którą wersję widziała osoba.
+                $gslug = crm_consent_gdpr_slug(crm_one("SELECT * FROM crm_consent_purposes WHERE id = ?", [$pid]));
+                if ($gslug !== '') {
+                    gdpr_clause_accept_from_post($gslug, 'crm_form',
+                        ['name' => (string)($fields['imie_nazwisko'] ?? ''), 'email' => (string)($fields['email'] ?? '')],
+                        ['crm_consent', (int)$consent_row_id]);
+                }
             } else {
                 crm_insert('crm_tags', ['contact_id' => $contact_id, 'tag' => 'zgoda:' . $cid,
                                         'created_at' => date('Y-m-d H:i:s')]);
