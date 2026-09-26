@@ -99,6 +99,8 @@
 
     // Kolumny dodane po pierwszym wdrożeniu
     $exec("ALTER TABLE ev_events ADD COLUMN rodo_clause       TEXT");
+    // Klauzula z modułu Klauzule RODO — pierwszeństwo przed rodo_clause (patrz ev_gdpr_clause()).
+    $exec("ALTER TABLE ev_events ADD COLUMN gdpr_clause_slug  VARCHAR(64)");
     $exec("ALTER TABLE ev_events ADD COLUMN notify_new_reg    INTEGER NOT NULL DEFAULT 1");
     $exec("ALTER TABLE ev_events ADD COLUMN notify_email      TEXT");
     $exec("ALTER TABLE ev_events ADD COLUMN crm_auto_sync     INTEGER NOT NULL DEFAULT 1");
@@ -504,4 +506,19 @@ function ev_api_registration(array $r): array {
         'created_at'    => $r['created_at'],
         'updated_at'    => $r['updated_at'],
     ];
+}
+
+/**
+ * Klauzula z rejestru (modules/gdpr_clauses) dla formularza zapisu:
+ * wybrana przy wydarzeniu → (gdy wydarzenie nie ma własnego tekstu) domyślna
+ * dla wydarzeń z ustawień modułu klauzul. null = zostaje dotychczasowy tekst
+ * (rodo_clause wydarzenia / ev_rodo_clause).
+ */
+function ev_gdpr_clause(array $event): ?array {
+    $f = dirname(__DIR__) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
+    if (!is_file($f)) return null;
+    require_once $f;
+    $slug = trim((string)($event['gdpr_clause_slug'] ?? ''));
+    if ($slug === '' && trim((string)($event['rodo_clause'] ?? '')) !== '') return null;
+    return gdpr_clause_resolve($slug, 'event');
 }

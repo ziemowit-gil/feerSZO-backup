@@ -40,6 +40,8 @@ try {
     $rodo = trim($event['rodo_clause'] ?? '') ?: org_setting('ev_rodo_clause');
     $org  = defined('ORG_NAME') ? ORG_NAME : '';
     $rodo = str_replace(['{org_name}', '{event_title}'], [$org, $event['title']], $rodo);
+    $gdpr = ev_gdpr_clause($event);
+    if ($gdpr) $rodo = trim(html_entity_decode(strip_tags(str_replace(['</p>', '</li>', '</h2>'], "\n", $gdpr['html'])), ENT_QUOTES, 'UTF-8'));
 } catch (\Throwable $e) {}
 
 $confirmed_count = 0;

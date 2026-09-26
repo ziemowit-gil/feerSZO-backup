@@ -11,6 +11,7 @@ require_module_enabled('events_enabled', 'Moduł wydarzeń');
 // Auto-migracja kolumn dodanych po pierwszym wdrożeniu
 foreach ([
     "ALTER TABLE ev_events ADD COLUMN rodo_clause      TEXT",
+    "ALTER TABLE ev_events ADD COLUMN gdpr_clause_slug VARCHAR(64)",
     "ALTER TABLE ev_events ADD COLUMN notify_new_reg   INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE ev_events ADD COLUMN notify_email     TEXT",
     "ALTER TABLE ev_events ADD COLUMN crm_auto_sync    INTEGER NOT NULL DEFAULT 1",
@@ -37,6 +38,19 @@ try { $form_fields = db_all("SELECT * FROM ev_form_fields WHERE event_id=? ORDER
 // Load CRM groups for selector
 $crm_groups = [];
 try { $crm_groups = db_all("SELECT id, name FROM crm_groups ORDER BY name ASC"); } catch (\Throwable $e) {}
+
+// Klauzula z rejestru (modules/gdpr_clauses) — osobna akcja, bo update_basic
+// przepisuje wszystkie pola z ukrytych inputów każdej zakładki.
+require_once dirname(__DIR__) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_gdpr_clause') {
+    csrf_check();
+    $gslug = (string)($_POST['gdpr_clause_slug'] ?? '');
+    db()->prepare("UPDATE ev_events SET gdpr_clause_slug=?, updated_at=? WHERE id=?")
+        ->execute([preg_match(GDPR_SLUG_RE, $gslug) ? $gslug : null, date('Y-m-d H:i:s'), $event_id]);
+    flash_set('success', 'Klauzula z rejestru zapisana.');
+    header('Location: ' . APP_URL . '/events/edit.php?id=' . $event_id . '&tab=rodo');
+    exit;
+}
 
 // Handle POST for basic data
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_basic') {
@@ -476,6 +490,26 @@ async function deleteField(id){
 
 <!-- RODO Tab -->
 <?php elseif ($tab === 'rodo'): ?>
+<?php $ev_gdpr = ev_gdpr_clause($event); $ev_def = gdpr_clauses_default_slug('event'); ?>
+<div class="card shadow-sm border-0 mb-3" style="max-width:760px">
+    <div class="card-body">
+        <form method="post" class="row g-2 align-items-end">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="update_gdpr_clause">
+            <div class="col-md-9">
+                <label for="gdpr_clause_slug" class="form-label fw-semibold">Klauzula z rejestru <a href="<?= APP_URL ?>/modules/gdpr_clauses/index.php" target="_blank" class="small fw-normal">Klauzule RODO</a></label>
+                <?= gdpr_clauses_select('gdpr_clause_slug', (string)($event['gdpr_clause_slug'] ?? ''),
+                        $ev_def !== '' ? '— domyślna dla wydarzeń (' . (gdpr_clauses_options()[$ev_def] ?? $ev_def) . ') —' : '— bez klauzuli z rejestru —', 'gdpr_clause_slug') ?>
+            </div>
+            <div class="col-md-3 d-grid"><button class="btn btn-outline-primary">Zapisz wybór</button></div>
+            <div class="col-12 form-text">
+                Klauzula z rejestru ma pierwszeństwo przed treścią poniżej, pokazuje aktualne dane administratora
+                i zapisuje w <a href="<?= APP_URL ?>/modules/gdpr_clauses/acceptances.php">rejestrze akceptacji</a>, którą wersję zaakceptował uczestnik.
+                <?php if ($ev_gdpr): ?><br><strong class="text-success">Formularz używa teraz: <?= h($ev_gdpr['clause']['tytul']) ?> (v<?= (int)$ev_gdpr['clause']['version'] ?>)</strong> — treść poniżej jest pomijana.<?php endif; ?>
+            </div>
+        </form>
+    </div>
+</div>
 <div class="card shadow-sm border-0" style="max-width:760px">
     <div class="card-body">
         <form method="post">

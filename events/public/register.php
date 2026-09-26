@@ -64,6 +64,9 @@ $rodo_text = str_replace(
     [$event['title'], defined('ORG_NAME') ? ORG_NAME : ''],
     $rodo_text
 );
+// Klauzula z rejestru (modules/gdpr_clauses) zastępuje tekst powyżej.
+$gdpr = ev_gdpr_clause($event);
+if ($gdpr) $rodo_text = strip_tags($gdpr['html']);
 
 $errors  = [];
 $success = false;
@@ -132,6 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_at'  => date('Y-m-d H:i:s'),
             'updated_at'  => date('Y-m-d H:i:s'),
         ]);
+        if ($gdpr) {
+            gdpr_clause_accept_from_post($gdpr['clause']['slug'], 'event',
+                ['name' => trim($first_name . ' ' . $last_name), 'email' => $email], ['ev_registration', (int)$reg_id]);
+        }
 
         // CRM sync
         try {
@@ -473,7 +480,14 @@ body { background:var(--ev-purple-bg); min-height:100vh; }
                 <p class="fw-semibold small mb-2">
                     <i class="bi bi-shield-check text-success me-1" aria-hidden="true"></i>Klauzula informacyjna RODO
                 </p>
+                <?php if ($gdpr): ?>
+                <div id="rodo-text" class="small reg-hint mb-2 gdpr-rich" style="max-height:180px;overflow-y:auto" tabindex="0" aria-label="Treść klauzuli informacyjnej"><?= $gdpr['html'] /* escapowany render modułu */ ?></div>
+                <p class="small mb-3"><a href="<?= h($gdpr['url']) ?>" target="_blank" rel="noopener">Pełna treść klauzuli <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="visually-hidden"> (otwiera się w nowej karcie)</span></a></p>
+                <?= $gdpr['field'] ?>
+                <style>.gdpr-rich h2{font-size:.85rem;font-weight:700;margin:.6rem 0 .2rem}.gdpr-rich p,.gdpr-rich ul{margin-bottom:.4rem}</style>
+                <?php else: ?>
                 <div id="rodo-text" class="small reg-hint mb-3" style="max-height:120px;overflow-y:auto;white-space:pre-wrap"><?= h($rodo_text) ?></div>
+                <?php endif; ?>
                 <div class="form-check">
                     <input class="form-check-input<?= isset($field_errors['rodo_consent']) ? ' is-invalid' : '' ?>"
                            type="checkbox" id="rodo_consent" name="rodo_consent" value="1"
