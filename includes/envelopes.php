@@ -81,13 +81,36 @@ function env_recipient_pt(string $size): float {
 }
 
 /* ── Dane nadawcy (organizacja) ───────────────────────────────────────────── */
+/**
+ * Sama nazwa miejscowości — bez doklejonego powiatu/gminy („Kraków, kraków”,
+ * „Kraków (pow. krakowski)”, „Kraków pow. krakowski”). Polskie nazwy miejscowości
+ * nie zawierają przecinka, więc wszystko od przecinka to dopisek jednostki.
+ */
+function env_city_only(string $city): string {
+    $c = trim($city);
+    $c = preg_replace('/\s*,.*$/u', '', $c);
+    $c = preg_replace('/\s*\((?:pow|powiat|gm|gmina|woj)\b[^)]*\)\s*$/iu', '', $c);
+    $c = preg_replace('/\s+(?:pow\.|powiat|gm\.|gmina)\s+\S.*$/iu', '', $c);
+    return trim((string)$c);
+}
+
+/**
+ * Wiersz adresu z kodem pocztowym („30-001 Kraków, kraków”, także na końcu
+ * „ul. Długa 5, 30-001 Kraków, kraków”) → sam kod + miasto. Inne wiersze bez zmian
+ * — przecinek w ulicy („ul. Długa 5, lok. 2”) jest poprawny.
+ */
+function env_clean_postal_line(string $line): string {
+    return (string)preg_replace_callback('/(\d{2}-\d{3})\s+(.+)$/u',
+        fn($m) => $m[1] . ' ' . env_city_only($m[2]), $line);
+}
+
 function env_sender_text(array $o): string {
     $custom = trim((string)($o['sender_text'] ?? ''));
     if ($custom !== '') return $custom;
 
     $org  = org_setting('org_name')        ?: (defined('ORG_NAME') ? ORG_NAME : '');
-    $adr  = org_setting('org_adres')       ?: '';
-    $city = org_setting('org_miejscowosc') ?: (org_setting('org_miasto') ?: '');
+    $adr  = env_clean_postal_line(org_setting('org_adres') ?: '');
+    $city = env_city_only(org_setting('org_miejscowosc') ?: (org_setting('org_miasto') ?: ''));
     return implode("\n", array_filter([$org, $adr, $city], fn($x) => trim((string)$x) !== ''));
 }
 
@@ -113,7 +136,7 @@ function env_addr_from_row(array $row): string {
     $house  = trim((string)($row['addr_house']   ?? ''));
     $flat   = trim((string)($row['addr_flat']    ?? ''));
     $postal = trim((string)($row['addr_postal']  ?? ''));
-    $city   = trim((string)($row['addr_city']    ?? ''));
+    $city   = env_city_only((string)($row['addr_city'] ?? ''));
     $country= trim((string)($row['addr_country'] ?? ''));
 
     $line1 = trim($street . ($house !== '' ? ' ' . $house : '') . ($flat !== '' ? '/' . $flat : ''));
@@ -141,7 +164,7 @@ function env_recipient_lines(array $ctx): array {
     $lines = [];
     if ($name !== '') $lines[] = $name;
     foreach (preg_split('/\r\n|\r|\n/', $addr) as $l) {
-        $l = trim($l);
+        $l = trim(env_clean_postal_line(trim($l)));
         if ($l !== '') $lines[] = $l;
     }
     return $lines;
