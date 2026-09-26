@@ -422,6 +422,27 @@ function crm_mailbox_notify_ezd_sender(int $comm_id): bool {
           . "w celu załatwienia sprawy oraz prowadzenia korespondencji. Pełna treść klauzuli informacyjnej znajduje "
           . "się na naszej stronie internetowej pod adresem: feer.org.pl/rodo.";
 
+    // Opcjonalnie: dane administratora i link z modułu Klauzule RODO (ustawienie
+    // „Stopka korespondencji CRM”). Bez niego zostaje uzgodniony tekst powyżej.
+    $gdpr_f = dirname(__DIR__) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
+    if (is_file($gdpr_f)) {
+        require_once $gdpr_f;
+        $gdpr_mail = gdpr_clause_resolve('', 'mail_footer');
+        if ($gdpr_mail) {
+            $gv   = (new GdprClauseService())->variables();
+            $name = $gv['company_name'] ?? 'Fundacja Edukacji Empatii Rozwoju "FEER"';
+            $addr = str_replace("\n", ', ', trim($gv['address'] ?? ''));
+            $nip  = trim($gv['nip'] ?? '');
+            $text = substr($text, 0, (int)strpos($text, 'Z poważaniem,'))
+                  . "Z poważaniem,\n\n{$name}\n" . ($addr !== '' ? str_replace(', ', "\n", $addr) . "\n" : '')
+                  . ($nip !== '' ? "NIP: {$nip}\n" : '') . "\n"
+                  . "Klauzula informacyjna RODO:\nAdministratorem Państwa danych osobowych jest {$name}"
+                  . ($addr !== '' || $nip !== '' ? ' (' . implode(', ', array_filter([$addr, $nip !== '' ? "NIP: {$nip}" : ''])) . ')' : '')
+                  . ". Dane są przetwarzane w celu załatwienia sprawy oraz prowadzenia korespondencji. "
+                  . "Pełna treść klauzuli informacyjnej: " . $gdpr_mail['url'];
+        }
+    }
+
     try {
         require_once __DIR__ . '/mail_queue.php';
         // Pusta wersja HTML = mail_queue wysyła czysty text/plain (Graph: contentType Text)
