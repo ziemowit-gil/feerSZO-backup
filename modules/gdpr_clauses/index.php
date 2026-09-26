@@ -62,9 +62,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
               <td>
                 <span class="badge bg-light text-dark border text-uppercase me-1" title="<?= h(GDPR_LANGS[$c['lang']] ?? $c['lang']) ?>"><?= h($c['lang']) ?></span>
                 <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?id=<?= (int)$c['id'] ?>" class="fw-semibold text-decoration-none"><?= h($c['tytul']) ?></a>
-                <?php if ((int)$c['versions'] > 0): ?>
-                  <span class="badge bg-light text-muted border ms-1" title="Poprzednie wersje w historii"><?= (int)$c['versions'] ?> wer.</span>
-                <?php endif; ?>
+                <span class="badge bg-light text-muted border ms-1" title="Bieżąca wersja (poprzednich w historii: <?= (int)$c['versions'] ?>)">v<?= (int)$c['version'] ?></span>
               </td>
               <td class="small">
                 <?php if ((int)$c['is_published'] === 1): ?>

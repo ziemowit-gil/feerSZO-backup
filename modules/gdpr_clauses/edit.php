@@ -93,11 +93,15 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   .gdpr-preview .gdpr-var { background: #e7f1ff; border-radius: 3px; padding: 0 2px; }
   .gdpr-preview .gdpr-var-local { background: #e6f4ea; }
   .gdpr-preview .gdpr-unknown { background: #fde2e1; color: #b02a37; border-radius: 3px; }
+  .gdpr-diff { white-space: normal; line-height: 1.5; max-height: 320px; overflow: auto; }
+  .gdpr-diff del, del.gdpr-d { background: #fde2e1; color: #842029; text-decoration: line-through; }
+  .gdpr-diff ins, ins.gdpr-i { background: #d1e7dd; color: #0f5132; text-decoration: none; }
   #gdpr-content { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h4 class="mb-0"><i class="bi bi-shield-lock text-primary"></i> <?= $clause ? h($clause['tytul']) : 'Nowa klauzula' ?></h4>
+  <h4 class="mb-0"><i class="bi bi-shield-lock text-primary"></i> <?= $clause ? h($clause['tytul']) : 'Nowa klauzula' ?>
+    <?php if ($clause): ?><span class="badge bg-light text-dark border fs-6 align-middle" title="Bieżąca wersja treści">v<?= (int)$clause['version'] ?></span><?php endif; ?></h4>
   <div class="d-flex gap-2">
     <?php foreach ($siblings as $sb): ?>
       <a href="<?= APP_URL ?>/modules/gdpr_clauses/edit.php?id=<?= (int)$sb['id'] ?>" class="btn btn-sm btn-outline-secondary text-uppercase" title="<?= h(GDPR_LANGS[$sb['lang']] ?? $sb['lang']) ?>"><?= h($sb['lang']) ?></a>
@@ -256,14 +260,22 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <div class="card-body small text-muted">Brak wcześniejszych wersji. Poprzednia treść zapisuje się tu przy każdej zmianie.</div>
       <?php else: ?>
         <div class="list-group list-group-flush small" style="max-height:340px;overflow:auto">
-          <?php foreach ($history as $hv): ?>
+          <?php foreach ($history as $hi => $hv):
+                // Następna wersja = poprzedni element listy (historia malejąco) albo bieżąca.
+                $next = $hi === 0 ? $clause : $history[$hi - 1]; ?>
             <details class="list-group-item">
               <summary>
-                obowiązywała <?= $hv['valid_from'] ? h(date('d.m.Y H:i', strtotime($hv['valid_from']))) : '?' ?>
+                <span class="badge bg-light text-dark border">v<?= (int)$hv['version'] ?></span>
+                <?= $hv['valid_from'] ? h(date('d.m.Y H:i', strtotime($hv['valid_from']))) : '?' ?>
                 – <?= h(date('d.m.Y H:i', strtotime($hv['valid_to']))) ?>
               </summary>
-              <div class="fw-semibold mt-2"><?= h($hv['tytul']) ?></div>
-              <pre class="small bg-light p-2 mt-1 mb-0" style="white-space:pre-wrap"><?= h($hv['content']) ?></pre>
+              <div class="small text-muted mt-2">Zmiany w v<?= (int)$next['version'] ?> względem v<?= (int)$hv['version'] ?>
+                (<del class="gdpr-d">usunięte</del> / <ins class="gdpr-i">dodane</ins>):</div>
+              <div class="gdpr-diff small bg-light p-2 mt-1"><?= gdpr_clauses_diff_html(gdpr_clauses_diff_source($hv), gdpr_clauses_diff_source($next)) ?></div>
+              <details class="mt-1">
+                <summary class="small text-muted">Pełna treść v<?= (int)$hv['version'] ?></summary>
+                <pre class="small bg-light p-2 mt-1 mb-0" style="white-space:pre-wrap"><?= h(gdpr_clauses_diff_source($hv)) ?></pre>
+              </details>
             </details>
           <?php endforeach; ?>
         </div>

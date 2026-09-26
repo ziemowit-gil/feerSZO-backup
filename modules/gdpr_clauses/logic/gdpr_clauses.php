@@ -100,6 +100,17 @@ function gdpr_clauses_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gdpr_hist_clause ON gdpr_clause_history(clause_id, valid_to)");
     gdpr_clauses_add_column($pdo, 'gdpr_clauses', 'local_vars', "TEXT NOT NULL DEFAULT '{}'");
     gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'local_vars', "TEXT NOT NULL DEFAULT '{}'");
+    // Numer wersji: klauzula ma bieżący, wiersz historii — numer wersji, którą archiwizuje.
+    $hadVersion = in_array('version', array_column($pdo->query("PRAGMA table_info(gdpr_clause_history)")->fetchAll(), 'name'), true);
+    gdpr_clauses_add_column($pdo, 'gdpr_clauses', 'version', "INTEGER NOT NULL DEFAULT 1");
+    gdpr_clauses_add_column($pdo, 'gdpr_clause_history', 'version', "INTEGER NOT NULL DEFAULT 0");
+    if (!$hadVersion) {
+        // Uzupełnienie wstecz: kolejne wiersze historii = wersje 1..n, bieżąca = n+1.
+        $pdo->exec("UPDATE gdpr_clause_history SET version = (
+                        SELECT COUNT(*) FROM gdpr_clause_history h2
+                        WHERE h2.clause_id = gdpr_clause_history.clause_id AND h2.id <= gdpr_clause_history.id)");
+        $pdo->exec("UPDATE gdpr_clauses SET version = 1 + (SELECT COUNT(*) FROM gdpr_clause_history h WHERE h.clause_id = gdpr_clauses.id)");
+    }
 
     // Pierwsze uruchomienie: zmienne z danych organizacji (settings), żeby
     // klauzule od razu miały poprawną nazwę/adres. Później to global_variables
@@ -221,7 +232,7 @@ final class GdprClauseService
     /** Wiersze posortowane: slug, potem język domyślny jako pierwszy. */
     public function listClauses(): array
     {
-        return $this->pdo->query("SELECT id, slug, lang, tytul, is_published, updated_at,
+        return $this->pdo->query("SELECT id, slug, lang, tytul, is_published, updated_at, version,
                     (SELECT COUNT(*) FROM gdpr_clause_history h WHERE h.clause_id = c.id) AS versions
                 FROM gdpr_clauses c
                 ORDER BY slug, CASE WHEN lang = '" . GDPR_DEFAULT_LANG . "' THEN 0 ELSE 1 END, lang")->fetchAll();
@@ -258,9 +269,21 @@ final class GdprClauseService
         return $st->fetch() ?: null;
     }
 
+    /** Konkretna wersja (bieżąca albo z historii) — do dowodu akceptacji i porównań. */
+    public function version(int $clauseId, int $version): ?array
+    {
+        $cur = $this->getById($clauseId);
+        if ($cur && (int)$cur['version'] === $version) return $cur;
+        $st = $this->pdo->prepare("SELECT h.*, c.slug, c.lang FROM gdpr_clause_history h
+                                   JOIN gdpr_clauses c ON c.id = h.clause_id
+                                   WHERE h.clause_id = ? AND h.version = ?");
+        $st->execute([$clauseId, $version]);
+        return $st->fetch() ?: null;
+    }
+
     public function history(int $clauseId): array
     {
-        $st = $this->pdo->prepare("SELECT * FROM gdpr_clause_history WHERE clause_id = ? ORDER BY valid_to DESC");
+        $st = $this->pdo->prepare("SELECT * FROM gdpr_clause_history WHERE clause_id = ? ORDER BY version DESC, valid_to DESC");
         $st->execute([$clauseId]);
         return $st->fetchAll();
     }
@@ -311,10 +334,10 @@ final class GdprClauseService
                 $old = $this->getById($id);
                 if (!$old) throw new InvalidArgumentException('Klauzula nie istnieje.');
                 if ($old['content'] !== $content || $old['tytul'] !== $tytul || ($old['local_vars'] ?? '{}') !== $localJson) {
-                    $this->pdo->prepare("INSERT INTO gdpr_clause_history (clause_id, tytul, content, local_vars, valid_from, valid_to, changed_by)
-                                         VALUES (?,?,?,?,?,datetime('now','localtime'),?)")
-                        ->execute([$id, $old['tytul'], $old['content'], $old['local_vars'] ?? '{}', $old['updated_at'], $userId]);
-                    $touch = ", updated_at = datetime('now','localtime')";
+                    $this->pdo->prepare("INSERT INTO gdpr_clause_history (clause_id, version, tytul, content, local_vars, valid_from, valid_to, changed_by)
+                                         VALUES (?,?,?,?,?,?,datetime('now','localtime'),?)")
+                        ->execute([$id, (int)$old['version'], $old['tytul'], $old['content'], $old['local_vars'] ?? '{}', $old['updated_at'], $userId]);
+                    $touch = ", updated_at = datetime('now','localtime'), version = version + 1";
                 } else {
                     $touch = '';
                 }
@@ -482,4 +505,54 @@ function gdpr_clauses_ui(string $lang): array {
                  'unavailable' => 'Cláusula no disponible.', 'lang' => 'Idioma', 'skip' => 'Ir al contenido'],
     ];
     return $t[$lang] ?? $t['pl'];
+}
+
+/**
+ * Tekst porównywalny wersji: tytuł + treść + zmienne lokalne (klucz: wartość),
+ * bo zmiana zmiennej lokalnej zmienia tekst widziany przez odbiorcę.
+ */
+function gdpr_clauses_diff_source(array $row): string {
+    $out = '# ' . $row['tytul'] . "\n\n" . $row['content'];
+    $lv = GdprClauseService::localVars($row);
+    if ($lv) {
+        $out .= "\n\n— zmienne lokalne —";
+        foreach ($lv as $k => $v) $out .= "\n{$k}: {$v}";
+    }
+    return $out;
+}
+
+/**
+ * Porównanie dwóch tekstów na poziomie słów (LCS) → HTML z <del>/<ins>.
+ * Dla bardzo długich tekstów (limit komórek tablicy) — porównanie wierszami.
+ */
+function gdpr_clauses_diff_html(string $old, string $new): string {
+    $tok = fn(string $t) => preg_split('/(\s+)/u', $t, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
+    $a = $tok($old); $b = $tok($new);
+    if (count($a) * count($b) > 4_000_000) {
+        $a = preg_split('/(?<=\n)/', $old) ?: []; $b = preg_split('/(?<=\n)/', $new) ?: [];
+    }
+    $n = count($a); $m = count($b);
+    // Wspólny początek/koniec poza tablicą LCS — zwykle zmiana dotyczy małego fragmentu.
+    $pre = 0; while ($pre < $n && $pre < $m && $a[$pre] === $b[$pre]) $pre++;
+    $suf = 0; while ($suf < $n - $pre && $suf < $m - $pre && $a[$n - 1 - $suf] === $b[$m - 1 - $suf]) $suf++;
+    $A = array_slice($a, $pre, $n - $pre - $suf); $B = array_slice($b, $pre, $m - $pre - $suf);
+    $x = count($A); $y = count($B);
+    $L = array_fill(0, $x + 1, array_fill(0, $y + 1, 0));
+    for ($i = $x - 1; $i >= 0; $i--) for ($j = $y - 1; $j >= 0; $j--)
+        $L[$i][$j] = $A[$i] === $B[$j] ? $L[$i + 1][$j + 1] + 1 : max($L[$i + 1][$j], $L[$i][$j + 1]);
+    $e = fn(string $t) => nl2br(htmlspecialchars($t, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false);
+    $html = $e(implode('', array_slice($a, 0, $pre)));
+    $i = $j = 0; $del = $ins = '';
+    $flush = function () use (&$del, &$ins, &$html, $e) {
+        if ($del !== '') $html .= '<del>' . $e($del) . '</del>';
+        if ($ins !== '') $html .= '<ins>' . $e($ins) . '</ins>';
+        $del = $ins = '';
+    };
+    while ($i < $x || $j < $y) {
+        if ($i < $x && $j < $y && $A[$i] === $B[$j]) { $flush(); $html .= $e($A[$i]); $i++; $j++; }
+        elseif ($j < $y && ($i >= $x || $L[$i][$j + 1] >= $L[$i + 1][$j])) { $ins .= $B[$j++]; }
+        else { $del .= $A[$i++]; }
+    }
+    $flush();
+    return $html . $e(implode('', array_slice($a, $n - $suf)));
 }
