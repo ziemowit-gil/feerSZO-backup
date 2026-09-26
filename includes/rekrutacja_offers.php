@@ -71,6 +71,8 @@ declare(strict_types=1);
         'avail_from' => "ALTER TABLE volunteer_offers ADD COLUMN avail_from DATE DEFAULT NULL",
         'avail_to'   => "ALTER TABLE volunteer_offers ADD COLUMN avail_to DATE DEFAULT NULL",
         'rodo_text'  => "ALTER TABLE volunteer_offers ADD COLUMN rodo_text TEXT DEFAULT NULL",
+        // Klauzula z modułu Klauzule RODO (modules/gdpr_clauses) — ma pierwszeństwo przed rodo_text.
+        'gdpr_clause_slug' => "ALTER TABLE volunteer_offers ADD COLUMN gdpr_clause_slug VARCHAR(64) DEFAULT NULL",
     ];
     foreach ($new_offer_cols as $col => $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) {}
@@ -133,6 +135,7 @@ class VolunteerModuleManager
             'avail_from'     => ($data['avail_from'] ?? '') ?: null,
             'avail_to'       => ($data['avail_to']   ?? '') ?: null,
             'rodo_text'      => ($data['rodo_text']  ?? '') ?: null,
+            'gdpr_clause_slug' => ($data['gdpr_clause_slug'] ?? '') ?: null,
             'published_at'   => ($data['status'] ?? 'draft') === 'active' ? $now : null,
             'created_by'     => $data['created_by'] ?? null,
             'created_at'     => $now,
@@ -189,6 +192,10 @@ class VolunteerModuleManager
         if (array_key_exists('rodo_text', $data)) {
             $cols[] = 'rodo_text = ?';
             $vals[] = ($data['rodo_text'] ?? '') ?: null;
+        }
+        if (array_key_exists('gdpr_clause_slug', $data)) {
+            $cols[] = 'gdpr_clause_slug = ?';
+            $vals[] = ($data['gdpr_clause_slug'] ?? '') ?: null;
         }
         $cols[] = 'updated_at = ?'; $vals[] = $now;
         $vals[] = $id;

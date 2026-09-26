@@ -18,6 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     org_setting_set('gdpr_require_approval', !empty($_POST['require_approval']) ? '1' : '0');
     $ids = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['approvers'] ?? [])))));
     org_setting_set('gdpr_approvers', implode(',', $ids));
+    foreach (array_keys(GDPR_INTEGRATION_CONTEXTS) as $ctx) {
+        $v = (string)($_POST['default'][$ctx] ?? '');
+        org_setting_set('gdpr_default_' . $ctx, preg_match(GDPR_SLUG_RE, $v) ? $v : '');
+    }
     flash_set('success', 'Ustawienia zapisane.');
     header('Location: ' . $self);
     exit;
@@ -67,6 +71,21 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <?php endforeach; ?>
       </div>
     </fieldset>
+  </div>
+  <div class="card-header bg-white fw-semibold small border-top"><i class="bi bi-diagram-3 me-1"></i>Klauzule domyślne w innych modułach</div>
+  <div class="card-body">
+    <p class="small text-muted">
+      Klauzula z rejestru, którą pokazują formularze systemu, gdy nie wybrano innej przy ofercie / wydarzeniu /
+      celu zgody. „Brak” = moduł zostaje przy swoim dotychczasowym tekście. Akceptacje klauzul z rejestru trafiają
+      do <a href="<?= APP_URL ?>/modules/gdpr_clauses/acceptances.php">rejestru akceptacji</a>.
+    </p>
+    <?php foreach (GDPR_INTEGRATION_CONTEXTS as $ctx => $label): ?>
+      <div class="row g-2 align-items-center mb-2">
+        <label class="col-md-6 col-form-label col-form-label-sm" for="def-<?= h($ctx) ?>"><?= h($label) ?></label>
+        <div class="col-md-6"><?= str_replace('class="form-select"', 'class="form-select form-select-sm"',
+            gdpr_clauses_select('default[' . $ctx . ']', gdpr_clauses_default_slug($ctx), '— brak (tekst wbudowany) —', 'def-' . $ctx)) ?></div>
+      </div>
+    <?php endforeach; ?>
   </div>
   <div class="card-footer bg-white text-end"><button class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Zapisz</button></div>
 </form>

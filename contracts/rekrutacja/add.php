@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rekrutacja.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rekrutacja_offers.php'; // klasa VolunteerModuleManager
+require_once dirname(dirname(__DIR__)) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
 
 require_role('admin', 'editor');
 
@@ -27,6 +28,7 @@ $vals = [
     'avail_from'     => $offer['avail_from']     ?? '',
     'avail_to'       => $offer['avail_to']       ?? '',
     'rodo_text'      => $offer['rodo_text']      ?? '',
+    'gdpr_clause_slug' => $offer['gdpr_clause_slug'] ?? '',
 ];
 $errors = [];
 
@@ -41,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vals['avail_from']     = trim($_POST['avail_from']     ?? '');
     $vals['avail_to']       = trim($_POST['avail_to']       ?? '');
     $vals['rodo_text']      = trim($_POST['rodo_text']      ?? '');
+    $vals['gdpr_clause_slug'] = preg_match(GDPR_SLUG_RE, $_POST['gdpr_clause_slug'] ?? '') ? $_POST['gdpr_clause_slug'] : '';
 
     // Pola dodatkowe (custom_fields) — format: [{label, type, required}]
     $raw_labels   = $_POST['cf_label']    ?? [];
@@ -139,7 +142,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <div class="form-text">Możesz używać prostego formatowania tekstowego.</div>
           </div>
           <div class="mt-3">
-            <label class="form-label fw-semibold">Klauzula RODO / informacja o danych osobowych</label>
+            <label class="form-label fw-semibold" for="gdpr_clause_slug">Klauzula RODO z rejestru</label>
+            <?= gdpr_clauses_select('gdpr_clause_slug', (string)$vals['gdpr_clause_slug'],
+                    gdpr_clauses_default_slug('volunteer_offer') !== '' ? '— domyślna („' . (gdpr_clauses_options()[gdpr_clauses_default_slug('volunteer_offer')] ?? gdpr_clauses_default_slug('volunteer_offer')) . '”) —' : '— bez klauzuli z rejestru —',
+                    'gdpr_clause_slug') ?>
+            <div class="form-text">Klauzula z modułu <a href="<?= APP_URL ?>/modules/gdpr_clauses/index.php" target="_blank">Klauzule RODO</a> — aktualne dane administratora i zapis, którą wersję zaakceptował kandydat. Ma pierwszeństwo przed tekstem poniżej.</div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label fw-semibold">Własny tekst klauzuli (gdy nie wybrano z rejestru)</label>
             <textarea name="rodo_text" class="form-control" rows="5"
                       placeholder="Administratorem danych osobowych jest… Pozostaw puste aby użyć tekstu domyślnego."><?= h($vals['rodo_text']) ?></textarea>
             <div class="form-text">Wyświetlana kandydatom w formularzu zgłoszeniowym. Puste = tekst ogólny systemu.</div>

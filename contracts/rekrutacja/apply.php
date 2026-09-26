@@ -9,11 +9,18 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rekrutacja.php';
 require_once dirname(dirname(__DIR__)) . '/includes/rekrutacja_offers.php'; // klasa VolunteerModuleManager
+require_once dirname(dirname(__DIR__)) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
 
 $rm     = new VolunteerModuleManager();
 $id     = (int)($_GET['id'] ?? 0);
 $offer  = $id ? $rm->getOffer($id) : null;
 $is_open = $offer && $offer['status'] === 'active';
+// Klauzula z rejestru: wybrana w ofercie, a gdy oferta nie ma też własnego tekstu —
+// domyślna dla ofert (ustawienia modułu). null = własny tekst oferty / wbudowany.
+$gdpr = null;
+if ($offer && (!empty($offer['gdpr_clause_slug']) || trim((string)($offer['rodo_text'] ?? '')) === '')) {
+    $gdpr = gdpr_clause_resolve($offer['gdpr_clause_slug'] ?? '', 'volunteer_offer');
+}
 
 $errors    = [];
 $submitted = false;
@@ -81,6 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_open) {
             ]);
             $submitted  = true;
             $new_app_id = $result['id'];
+            if ($gdpr) {
+                gdpr_clause_accept_from_post($gdpr['clause']['slug'], 'volunteer_offer',
+                    ['name' => $vals['candidate_name'], 'email' => $vals['candidate_email']],
+                    ['volunteer_application', (int)$new_app_id]);
+            }
         } catch (\Throwable $e) {
             $errors[] = $e->getMessage();
         }
@@ -129,6 +141,9 @@ $logo_url   = $org_logo ? APP_URL . '/assets/logo/' . h($org_logo) : null;
   .offer-hero .title { font-size: 1.25rem; font-weight: 700; margin: .25rem 0 .2rem; }
   .offer-hero .meta { opacity: .7; font-size: .82rem; }
   .section-title { font-size: .72rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #64748b; margin-bottom: .75rem; }
+  .rodo-rich { max-height: 260px; overflow: auto; }
+  .rodo-rich h2 { font-size: .9rem; font-weight: 700; margin: .8rem 0 .3rem; }
+  .rodo-rich p, .rodo-rich ul { margin-bottom: .5rem; }
   .rodo-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .9rem 1rem; font-size: .82rem; color: #475569; line-height: 1.5; }
   .required-star { color: #dc3545; }
   .field-hint { font-size: .78rem; color: #94a3b8; }
@@ -315,7 +330,15 @@ $logo_url   = $org_logo ? APP_URL . '/assets/logo/' . h($org_logo) : null;
     </div>
   </div>
 
+  <?php if ($gdpr): ?>
+    <div class="rodo-box rodo-rich mb-3">
+      <?= $gdpr['html'] /* GdprClauseService::render() — escapowany */ ?>
+      <div class="mt-2"><a href="<?= h($gdpr['url']) ?>" target="_blank" rel="noopener">Pełna treść klauzuli na osobnej stronie <i class="bi bi-box-arrow-up-right"></i></a></div>
+    </div>
+    <?= $gdpr['field'] ?>
+  <?php else: ?>
   <div class="rodo-box mb-3"><?= nl2br(h($rodo_text)) ?></div>
+  <?php endif; ?>
 
   <div class="mb-4">
     <div class="form-check">

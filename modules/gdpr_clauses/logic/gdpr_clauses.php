@@ -829,6 +829,62 @@ function gdpr_clauses_diff_html(string $old, string $new): string {
 
 // ── Integracja z formularzami ───────────────────────────────────────────────
 
+/** Miejsca w systemie, które mogą brać klauzulę z modułu (klucz = settings gdpr_default_{klucz}). */
+const GDPR_INTEGRATION_CONTEXTS = [
+    'volunteer_offer' => 'Oferty wolontariatu — formularz zgłoszeniowy',
+    'event'           => 'Zapisy na wydarzenia',
+    'onboarding'      => 'Onboarding (formularz danych)',
+    'crm_form'        => 'Formularze CRM (cele zgód bez własnej klauzuli)',
+    'mail_footer'     => 'Stopka korespondencji CRM — link do pełnej klauzuli',
+    'public_footer'   => 'Stopki publicznych formularzy — link „Klauzula informacyjna”',
+];
+
+/** Slug klauzuli domyślnej dla miejsca w systemie ('' = brak, zostaje tekst wbudowany). */
+function gdpr_clauses_default_slug(string $context): string {
+    try {
+        $v = (string)(db_one("SELECT value FROM settings WHERE key_ = ?", ['gdpr_default_' . $context])['value'] ?? '');
+        return preg_match(GDPR_SLUG_RE, $v) ? $v : '';
+    } catch (\Throwable $e) {
+        return '';
+    }
+}
+
+/** Opublikowane klauzule do wyboru w innych modułach: slug → tytuł (wersja domyślnego języka). */
+function gdpr_clauses_options(): array {
+    try {
+        $rows = db_all("SELECT slug, tytul, lang FROM gdpr_clauses WHERE is_published = 1
+                        ORDER BY slug, CASE WHEN lang = ? THEN 0 ELSE 1 END", [GDPR_DEFAULT_LANG]);
+    } catch (\Throwable $e) {
+        return [];
+    }
+    $out = [];
+    foreach ($rows as $r) $out[$r['slug']] ??= $r['tytul'];
+    return $out;
+}
+
+/** <select> klauzul do formularzy innych modułów. $emptyLabel — opis opcji „brak”. */
+function gdpr_clauses_select(string $name, string $selected, string $emptyLabel = '— bez klauzuli z rejestru —', string $idAttr = ''): string {
+    $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $out = '<select name="' . $h($name) . '"' . ($idAttr !== '' ? ' id="' . $h($idAttr) . '"' : '') . ' class="form-select">'
+         . '<option value="">' . $h($emptyLabel) . '</option>';
+    $opts = gdpr_clauses_options();
+    if ($selected !== '' && !isset($opts[$selected])) $opts[$selected] = $selected . ' (nieopublikowana!)';
+    foreach ($opts as $slug => $t) {
+        $out .= '<option value="' . $h($slug) . '"' . ($slug === $selected ? ' selected' : '') . '>' . $h($t) . '</option>';
+    }
+    return $out . '</select>';
+}
+
+/**
+ * Klauzula dla formularza: wskazany slug, a gdy pusty — domyślna dla miejsca.
+ * null = nic nie skonfigurowano / nieopublikowana → formularz zostaje przy swoim tekście.
+ */
+function gdpr_clause_resolve(?string $slug, string $context, ?string $lang = null): ?array {
+    $slug = trim((string)$slug);
+    if ($slug === '') $slug = gdpr_clauses_default_slug($context);
+    return $slug !== '' ? gdpr_clause_for_form($slug, $lang) : null;
+}
+
 /**
  * Klauzula do pokazania w formularzu: ['clause', 'html', 'url', 'field'] albo null
  * (brak opublikowanej — formularz używa wtedy własnego tekstu). 'field' to ukryte
