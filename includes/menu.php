@@ -492,6 +492,7 @@ function _menu_editor(): array {
         $adm_main = [
             _mi('Panel admina','/admin/index.php','bi-shield-shaded',['match'=>'/admin/index','kw'=>'admin panel ustawienia']),
             _mi('Wzory dokumentów','/admin/contract_templates.php','bi-file-earmark-text',['match'=>'/admin/contract_templates','kw'=>'wzory dokumentów szablony umów']),
+            _mi('Harmonogram CRON','/admin/cron_dispatcher.php','bi-calendar2-range',['match'=>'/admin/cron_dispatcher','kw'=>'cron dispatcher dyspozytor harmonogram agenci zadania automatyczne interwał']),
         ];
         $integ = [
             _mi('Microsoft 365','/admin/m365_settings.php','bi-microsoft',['match'=>'/admin/m365','kw'=>'m365 integracja graph']),

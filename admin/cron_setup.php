@@ -303,7 +303,10 @@ $crontab_block = $full_cmd;
 
 <!-- Agenty uruchamiane przez dispatcher -->
 <div class="card shadow-sm mb-4">
-  <div class="card-header fw-semibold py-2"><i class="bi bi-list-check me-1"></i>Zadania uruchamiane przez dispatcher</div>
+  <div class="card-header fw-semibold py-2 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-check me-1"></i>Zadania uruchamiane przez dispatcher</span>
+    <a href="<?= APP_URL ?>/admin/cron_dispatcher.php" class="btn btn-sm btn-primary"><i class="bi bi-calendar2-range me-1"></i>Edytor harmonogramu (wszyscy agenci)</a>
+  </div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0" style="font-size:.84rem">
       <thead class="table-light">
