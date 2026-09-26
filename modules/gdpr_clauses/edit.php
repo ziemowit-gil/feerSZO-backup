@@ -330,6 +330,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <?php
         $snippets = [
             'Link bezpośredni' => $pubUrl,
+            'PDF (bieżąca wersja)' => gdpr_clauses_pdf_url($clause['slug'], $clause['lang']),
             'Iframe (stała wysokość)' => '<iframe src="' . $embUrl . '" title="' . h($clause['tytul']) . '" style="width:100%;height:600px;border:0" loading="lazy"></iframe>',
             'Skrypt (iframe dopasowujący wysokość)' => '<div data-gdpr-clause="' . h($clause['slug']) . '"'
                 . ($clause['lang'] !== GDPR_DEFAULT_LANG ? ' data-lang="' . h($clause['lang']) . '"' : '') . '></div>' . "\n" . '<script src="' . $jsUrl . '" async></script>',

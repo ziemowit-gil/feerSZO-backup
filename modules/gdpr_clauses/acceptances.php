@@ -49,6 +49,24 @@ if (($_GET['export'] ?? '') === 'csv') {
 // ── Pojedynczy wpis ────────────────────────────────────────────────────────
 $one = !empty($_GET['id']) ? $svc->acceptanceById((int)$_GET['id']) : null;
 
+// PDF dowodowy: dokładny tekst + metryka akceptacji (do przekazania osobie lub UODO).
+if ($one && !empty($_GET['pdf']) && $one['html'] !== null) {
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $box = '<strong>Potwierdzenie akceptacji klauzuli nr ' . (int)$one['id'] . '</strong><br>'
+         . 'Data i godzina: ' . $e(date('d.m.Y H:i:s', strtotime($one['accepted_at']))) . '<br>'
+         . 'Osoba: ' . $e(trim($one['subject_name'] . ' ' . ($one['subject_email'] ? '<' . $one['subject_email'] . '>' : ''))) . '<br>'
+         . 'Źródło: ' . $e(GdprClauseService::CONTEXTS[$one['context']] ?? $one['context'])
+         . ($one['ref_type'] ? ' (' . $e($one['ref_type'] . '#' . $one['ref_id']) . ')' : '') . '<br>'
+         . 'Klauzula: ' . $e($one['slug']) . ' · ' . $e(strtoupper($one['lang'])) . ' · wersja ' . (int)$one['version'] . '<br>'
+         . 'IP: ' . $e($one['ip'] ?: '—') . '<br>'
+         . 'SHA-256 tekstu: ' . $e($one['snapshot_hash']);
+    $org = $svc->variables()['company_name'] ?? '';
+    gdpr_clauses_send_pdf($one['snap_tytul'], $one['html'], [
+        'lang' => $one['lang'], 'org' => $org, 'box' => $box,
+        'footer' => $org . ' · rejestr akceptacji klauzul · wygenerowano ' . date('d.m.Y H:i'),
+    ], 'akceptacja_' . (int)$one['id']);
+}
+
 $clauses = $svc->listClauses();
 $total   = $one ? 0 : $svc->acceptanceCount($f);
 $page    = max(1, (int)($_GET['p'] ?? 1));
@@ -71,6 +89,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <?php if (!$one): ?>
       <a href="<?= h($base . '?' . $qs . ($qs ? '&' : '') . 'export=csv') ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-csv me-1"></i>Eksport CSV</a>
     <?php else: ?>
+      <a href="<?= h($base . '?id=' . (int)$one['id'] . '&pdf=1') ?>" class="btn btn-sm btn-outline-primary" target="_blank"><i class="bi bi-filetype-pdf me-1"></i>PDF potwierdzenia</a>
       <a href="<?= h($base) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Rejestr</a>
     <?php endif; ?>
     <a href="<?= APP_URL ?>/modules/gdpr_clauses/index.php" class="btn btn-sm btn-outline-secondary">Klauzule</a>

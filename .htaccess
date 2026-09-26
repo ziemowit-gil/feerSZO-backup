@@ -27,6 +27,8 @@ RewriteRule ^poczta/?$         /webmail/index.php [L]
 # Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
 RewriteRule ^klauzula/([a-z0-9-]{1,64})/?$ /modules/gdpr_clauses/public/clause.php?slug=$1 [QSA,L]
 RewriteRule ^klauzula/([a-z0-9-]{1,64})/([a-z]{2})/?$ /modules/gdpr_clauses/public/clause.php?slug=$1&lang=$2 [QSA,L]
+RewriteRule ^klauzula/([a-z0-9-]{1,64})\.pdf$ /modules/gdpr_clauses/public/pdf.php?slug=$1 [QSA,L]
+RewriteRule ^klauzula/([a-z0-9-]{1,64})/([a-z]{2})\.pdf$ /modules/gdpr_clauses/public/pdf.php?slug=$1&lang=$2 [QSA,L]
 
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI

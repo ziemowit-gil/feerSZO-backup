@@ -103,7 +103,11 @@ $updated = $clause && $clause['updated_at'] ? date('d.m.Y', strtotime($clause['u
             <p class="text-sm text-slate-500 mb-8"><?= h($ui['updated']) ?>: <time datetime="<?= h(substr($clause['updated_at'], 0, 10)) ?>"><?= h($updated) ?></time></p>
           <?php endif; ?>
           <div class="gdpr-body text-[15px] sm:text-base"><?= $bodyHtml ?></div>
-          <div class="no-print mt-10 pt-6 border-t border-slate-100 flex justify-end">
+          <div class="no-print mt-10 pt-6 border-t border-slate-100 flex justify-end gap-6">
+            <a href="<?= h(gdpr_clauses_pdf_url($clause['slug'], $clause['lang'])) ?>" class="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+              <?= h($ui['pdf']) ?>
+            </a>
             <button type="button" onclick="window.print()" class="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1.5">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
               <?= h($ui['print']) ?>

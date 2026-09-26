@@ -752,25 +752,31 @@ function gdpr_clauses_public_url(string $slug, bool $embed = false, string $lang
         . ($embed ? '?embed=1' : '');
 }
 
+/** Publiczny adres PDF bieżącej wersji klauzuli. */
+function gdpr_clauses_pdf_url(string $slug, string $lang = GDPR_DEFAULT_LANG): string {
+    return rtrim(APP_URL, '/') . '/klauzula/' . rawurlencode($slug)
+        . ($lang !== GDPR_DEFAULT_LANG && isset(GDPR_LANGS[$lang]) ? '/' . $lang : '') . '.pdf';
+}
+
 /** Teksty interfejsu strony publicznej w danym języku (fallback: polski). */
 function gdpr_clauses_ui(string $lang): array {
     static $t = [
-        'pl' => ['updated' => 'Ostatnia aktualizacja', 'print' => 'Drukuj', 'kicker' => 'Ochrona danych osobowych',
+        'pl' => ['updated' => 'Ostatnia aktualizacja', 'print' => 'Drukuj', 'pdf' => 'Pobierz PDF', 'kicker' => 'Ochrona danych osobowych',
                  'nf_title' => 'Nie znaleziono klauzuli', 'nf_body' => 'Adres jest nieprawidłowy lub klauzula nie jest już publikowana.',
                  'unavailable' => 'Klauzula jest niedostępna.', 'lang' => 'Język', 'skip' => 'Przejdź do treści'],
-        'en' => ['updated' => 'Last updated', 'print' => 'Print', 'kicker' => 'Personal data protection',
+        'en' => ['updated' => 'Last updated', 'print' => 'Print', 'pdf' => 'Download PDF', 'kicker' => 'Personal data protection',
                  'nf_title' => 'Notice not found', 'nf_body' => 'The address is invalid or this notice is no longer published.',
                  'unavailable' => 'This notice is unavailable.', 'lang' => 'Language', 'skip' => 'Skip to content'],
-        'uk' => ['updated' => 'Останнє оновлення', 'print' => 'Друкувати', 'kicker' => 'Захист персональних даних',
+        'uk' => ['updated' => 'Останнє оновлення', 'print' => 'Друкувати', 'pdf' => 'Завантажити PDF', 'kicker' => 'Захист персональних даних',
                  'nf_title' => 'Клаузулу не знайдено', 'nf_body' => 'Адреса неправильна або клаузула більше не публікується.',
                  'unavailable' => 'Клаузула недоступна.', 'lang' => 'Мова', 'skip' => 'Перейти до змісту'],
-        'de' => ['updated' => 'Zuletzt aktualisiert', 'print' => 'Drucken', 'kicker' => 'Datenschutz',
+        'de' => ['updated' => 'Zuletzt aktualisiert', 'print' => 'Drucken', 'pdf' => 'PDF herunterladen', 'kicker' => 'Datenschutz',
                  'nf_title' => 'Hinweis nicht gefunden', 'nf_body' => 'Die Adresse ist ungültig oder der Hinweis wird nicht mehr veröffentlicht.',
                  'unavailable' => 'Der Hinweis ist nicht verfügbar.', 'lang' => 'Sprache', 'skip' => 'Zum Inhalt springen'],
-        'fr' => ['updated' => 'Dernière mise à jour', 'print' => 'Imprimer', 'kicker' => 'Protection des données personnelles',
+        'fr' => ['updated' => 'Dernière mise à jour', 'print' => 'Imprimer', 'pdf' => 'Télécharger le PDF', 'kicker' => 'Protection des données personnelles',
                  'nf_title' => 'Clause introuvable', 'nf_body' => "L'adresse est invalide ou la clause n'est plus publiée.",
                  'unavailable' => 'Clause indisponible.', 'lang' => 'Langue', 'skip' => 'Aller au contenu'],
-        'es' => ['updated' => 'Última actualización', 'print' => 'Imprimir', 'kicker' => 'Protección de datos personales',
+        'es' => ['updated' => 'Última actualización', 'print' => 'Imprimir', 'pdf' => 'Descargar PDF', 'kicker' => 'Protección de datos personales',
                  'nf_title' => 'Cláusula no encontrada', 'nf_body' => 'La dirección no es válida o la cláusula ya no está publicada.',
                  'unavailable' => 'Cláusula no disponible.', 'lang' => 'Idioma', 'skip' => 'Ir al contenido'],
     ];
@@ -944,4 +950,40 @@ function gdpr_clauses_footer_link(string $prefix = ' · ', string $label = 'Klau
     }
     return $prefix . '<a href="' . htmlspecialchars(gdpr_clauses_public_url($slug), ENT_QUOTES) . '" target="_blank" rel="noopener">'
          . htmlspecialchars($label) . '</a>';
+}
+
+// ── PDF ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Wysyła PDF z klauzulą (mPDF, jak ezd/zaswiadczenia/pdf.php) i kończy żądanie.
+ * $html — wynik render()/migawki (już escapowany). $meta: lang, updated, footer (tekst stopki).
+ */
+function gdpr_clauses_send_pdf(string $title, string $html, array $meta, string $filename): never {
+    require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
+    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+    $ui = gdpr_clauses_ui((string)($meta['lang'] ?? GDPR_DEFAULT_LANG));
+    $e  = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    $mpdf = new \Mpdf\Mpdf([
+        'mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans', 'tempDir' => $tmp,
+        'margin_left' => 22, 'margin_right' => 22, 'margin_top' => 22, 'margin_bottom' => 22,
+    ]);
+    $mpdf->SetTitle($title);
+    $mpdf->SetAuthor((string)($meta['org'] ?? ''));
+    $mpdf->SetHTMLFooter('<table width="100%" style="font-size:7.5pt;color:#64748b;border-top:0.3pt solid #cbd5e1"><tr>'
+        . '<td style="padding-top:3pt">' . $e($meta['footer'] ?? '') . '</td>'
+        . '<td style="padding-top:3pt;text-align:right;width:15%">{PAGENO} / {nbpg}</td></tr></table>');
+    $css = 'body{font-size:10pt;line-height:1.55;color:#1e293b}h1{font-size:15pt;margin:0 0 4pt}'
+         . 'h2{font-size:11pt;margin:12pt 0 4pt}h3{font-size:10pt;margin:10pt 0 3pt}p{margin:0 0 6pt;text-align:justify}'
+         . 'ul,ol{margin:0 0 6pt 14pt}li{margin-bottom:2pt}a{color:#1d4ed8}.meta{font-size:8.5pt;color:#64748b;margin-bottom:12pt}'
+         . '.box{border:0.5pt solid #cbd5e1;background:#f8fafc;padding:6pt 8pt;font-size:8.5pt;margin-bottom:12pt}';
+    $mpdf->WriteHTML('<style>' . $css . '</style>'
+        . (!empty($meta['box']) ? '<div class="box">' . $meta['box'] . '</div>' : '')
+        . '<h1>' . $e($title) . '</h1>'
+        . (!empty($meta['updated']) ? '<div class="meta">' . $e($ui['updated']) . ': ' . $e($meta['updated']) . '</div>' : '')
+        . $html);
+    $safe = preg_replace('/[^a-z0-9_-]+/i', '_', $filename) ?: 'klauzula';
+    $mpdf->Output($safe . '.pdf', \Mpdf\Output\Destination::INLINE);
+    exit;
 }
