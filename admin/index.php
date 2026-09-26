@@ -251,8 +251,31 @@ $groups = [
         'color' => 'slate',
         'items' => [
             ['icon'=>'bi-plug',                 'label'=>'Integracje',               'url'=>'/admin/integrations.php'],
+            ['icon'=>'bi-microsoft',            'label'=>'Microsoft 365',            'url'=>'/admin/m365_settings.php'],
+            ['icon'=>'bi-cloud-upload',         'label'=>'SharePoint',               'url'=>'/admin/sharepoint_settings.php'],
+            ['icon'=>'bi-calendar2-check',      'label'=>'Szkolenia (TidyCal)',      'url'=>'/admin/tidycal_settings.php'],
+            ['icon'=>'bi-check2-square',        'label'=>'Zadania / Nozbe',          'url'=>'/admin/nozbe_settings.php'],
             ['icon'=>'bi-receipt',              'label'=>'Comarch Betterfly',        'url'=>'/admin/betterfly_settings.php'],
+            ['icon'=>'bi-receipt',              'label'=>'Faktury / Comarch (API)',  'url'=>'/admin/comarch_settings.php'],
+            ['icon'=>'bi-credit-card',          'label'=>'Płatności / Stripe',       'url'=>'/admin/stripe_settings.php'],
+            ['icon'=>'bi-wallet2',              'label'=>'Płatności / PayU',         'url'=>'/admin/payu_settings.php'],
+            ['icon'=>'bi-wallet2',              'label'=>'Płatności / Przelewy24',   'url'=>'/admin/p24_settings.php'],
+            ['icon'=>'bi-cloud-arrow-up',       'label'=>'Magazyn plików / ownCloud','url'=>'/admin/owncloud_settings.php'],
+            ['icon'=>'bi-key',                  'label'=>'API i webhooki',           'url'=>'/admin/api_manage.php'],
             ['icon'=>'bi-kanban',               'label'=>'Redmine (Helpdesk)',       'url'=>'/admin/redmine_settings.php'],
+        ],
+    ],
+
+    // Pozycje TI przeniesione z listy rozwijanej „Admin” w menu (menu ma już tylko link do panelu).
+    'TI — panel dydaktyka' => [
+        'icon'  => 'bi-easel2',
+        'color' => 'purple',
+        'items' => [
+            ['icon'=>'bi-easel2',               'label'=>'Panel dydaktyka (TI) — wyłączenia', 'url'=>'/karty30/ti/dydaktyk/wylaczenia.php'],
+            ['icon'=>'bi-envelope-exclamation', 'label'=>'Wiad. od prowadzących',    'url'=>'/admin/ti_admin_msgs.php',
+             'badge'=>(function () { if (!function_exists('ti_admin_msg_unread_count')) { @require_once dirname(__DIR__) . '/includes/ti_messages.php'; }
+                                     return function_exists('ti_admin_msg_unread_count') ? (ti_admin_msg_unread_count() ?: null) : null; })(),
+             'badge_type'=>'danger'],
         ],
     ],
 

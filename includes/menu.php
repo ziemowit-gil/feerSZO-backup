@@ -511,13 +511,13 @@ function _menu_editor(): array {
         // aktywność (jak w header): /admin/ poza sekcjami przeniesionymi indziej
         $admin_active = _menu_hit('/admin/') && !_menu_hit('/admin/messages') && !_menu_hit('/admin/terminations')
             && !_menu_hit('/admin/certificates') && !_menu_hit('/admin/timesheets') && !_menu_hit('/admin/shipments') && !_menu_hit('/admin/onboarding');
+        // Zakładka-link do panelu admina — BEZ listy rozwijanej; wszystko jest na
+        // pulpicie admin/index.php. Pozycje zostają tylko w wyszukiwarce (Ctrl+K).
         $nodes[] = [
             'id'=>'admin','label'=>'Admin','icon'=>'bi-shield-shaded','badge'=>$cnt['adm'],'end'=>true,
+            'path'=>'/admin/index.php','kw'=>'admin panel ustawienia',
             'active'=>$admin_active,
-            'groups'=>[
-                ['label'=>null,'items'=>$adm_main],
-                ['label'=>'Integracje','items'=>$integ],
-            ],
+            'search'=>array_merge(array_slice($adm_main, 1), $integ),
         ];
     }
 
