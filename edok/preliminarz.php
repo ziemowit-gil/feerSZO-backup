@@ -53,16 +53,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pakie
     }
 }
 
-// Eksport przelewów zbiorczych do iPKO biznes (format ELIXIR-O) — tylko EODoK,
-// tylko dokumenty wydatkowe zaakceptowane z prawidłowym 26-cyfrowym rachunkiem
-// kontrahenta (edok_ipko_biznes_export() pomija resztę). Patrz includes/edok.php.
+// Eksport przelewów zbiorczych (ELIXIR-O: iPKO biznes albo Millenet, format
+// wybierany ręcznie lub „auto" wg banku rachunku nadawcy — edok_przelewy_export())
+// — tylko EODoK, tylko dokumenty wydatkowe zaakceptowane z prawidłowym 26-cyfrowym
+// rachunkiem kontrahenta (reszta pomijana). Patrz includes/edok.php. Ten sam POST
+// wysyła przycisk „Eksport przelewu" z karty dokumentu (edok/view.php).
 // Każdy dokument może iść z innego rachunku organizacji (rachunek_map: id => NRB,
 // brak wpisu = rachunek domyślny z paska) — jeden plik ELIXIR-O na rachunek
 // nadawcy, przy kilku rachunkach pakowane razem w ZIP.
 $ipko_error   = null;
 $ipko_confirm = null;
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'export_ipko') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['export_ipko', 'export_przelewy'], true)) {
     csrf_check();
+    $przelewy_format = (string)($_POST['format'] ?? 'auto');
+    if (!isset(EDOK_PRZELEWY_FORMATY[$przelewy_format])) $przelewy_format = 'auto';
     $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['pakiet_ids'] ?? '')))));
     $rachunek_zlecen = preg_replace('/\D/', '', $_POST['rachunek_zlecen'] ?? '');
     $rachunki_ok = [];
@@ -89,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'expor
         $confirmed  = array_flip((array)($_POST['confirm_pair'] ?? []));
         $missing    = array_diff_key($unverified, $confirmed);
         if ($missing) {
-            $ipko_confirm = ['pairs' => $unverified, 'ids' => $ids, 'rachunek' => $rachunek_zlecen, 'map' => $rachunek_map];
+            $ipko_confirm = ['pairs' => $unverified, 'ids' => $ids, 'rachunek' => $rachunek_zlecen, 'map' => $rachunek_map, 'format' => $przelewy_format];
             if (!empty($_POST['confirm_step'])) flash_set('warning', 'Potwierdź poprawność NIP i numeru rachunku dla każdego kontrahenta.');
         } else {
             foreach ($unverified as $p) edok_kontrahent_verify($p['nip'], $p['nrb'], $p['nazwa']);
@@ -100,17 +104,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'expor
             $stamp = date('Y-m-d_His');
             $pliki = [];
             foreach ($grupy as $nrb => $grupa) {
-                $content = edok_ipko_biznes_export($grupa, (string) $nrb);
-                if ($content === '') continue;
+                $plik = edok_przelewy_export($grupa, (string) $nrb, $przelewy_format);
+                if ($plik['content'] === '') continue;
                 $nazwa = $rachunki_ok[$nrb]['nazwa'] ?? '' ?: ($rachunki_ok[$nrb]['bank'] ?? '');
                 $slug  = trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $nazwa) ?: ''), '_');
-                $pliki['iPKO_biznes_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . '_' . $stamp . '.txt'] = $content;
+                $pliki[$plik['prefix'] . '_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . '_' . $stamp . '.' . $plik['ext']] = $plik['content'];
             }
             if (!$pliki) {
                 flash_set('warning', 'Żaden z zaznaczonych dokumentów nie nadaje się do eksportu (brak prawidłowego 26-cyfrowego rachunku kontrahenta).');
             } elseif (count($pliki) === 1) {
-                header('Content-Type: text/plain; charset=ISO-8859-2');
-                header('Content-Disposition: attachment; filename="' . array_key_first($pliki) . '"');
+                $fn = array_key_first($pliki);
+                header(str_starts_with($fn, 'Millenet') ? 'Content-Type: text/csv; charset=UTF-8' : 'Content-Type: text/plain; charset=ISO-8859-2');
+                header('Content-Disposition: attachment; filename="' . $fn . '"');
                 header('Content-Length: ' . strlen(reset($pliki)));
                 echo reset($pliki);
                 exit;
@@ -121,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'expor
                 foreach ($pliki as $fn => $c) $zip->addFromString($fn, $c);
                 $zip->close();
                 header('Content-Type: application/zip');
-                header('Content-Disposition: attachment; filename="iPKO_biznes_' . $stamp . '.zip"');
+                header('Content-Disposition: attachment; filename="Przelewy_' . $stamp . '.zip"');
                 header('Content-Length: ' . filesize($tmp));
                 readfile($tmp);
                 @unlink($tmp);
@@ -195,7 +200,8 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($ipko_confirm): ?>
 <form method="post" class="card border-warning shadow-sm mb-3">
   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-  <input type="hidden" name="action" value="export_ipko">
+  <input type="hidden" name="action" value="export_przelewy">
+  <input type="hidden" name="format" value="<?= h($ipko_confirm['format']) ?>">
   <input type="hidden" name="confirm_step" value="1">
   <input type="hidden" name="pakiet_ids" value="<?= h(implode(',', $ipko_confirm['ids'])) ?>">
   <input type="hidden" name="rachunek_zlecen" value="<?= h($ipko_confirm['rachunek']) ?>">
@@ -204,7 +210,7 @@ require_once __DIR__ . '/../includes/header.php';
     <i class="bi bi-shield-exclamation"></i> Pierwszy przelew — potwierdź dane kontrahenta
   </div>
   <div class="card-body">
-    <p class="small mb-2">Do poniższych kontrahentów (lub na poniższe rachunki) nie wygenerowano jeszcze żadnego przelewu. Porównaj NIP i numer rachunku z fakturą, a najlepiej także z białą listą VAT, zanim wygenerujesz plik dla iPKO biznes. Potwierdzenie zostaje zapisane, więc przy następnych eksportach tej pary nie trzeba go powtarzać.</p>
+    <p class="small mb-2">Do poniższych kontrahentów (lub na poniższe rachunki) nie wygenerowano jeszcze żadnego przelewu. Porównaj NIP i numer rachunku z fakturą, a najlepiej także z białą listą VAT, zanim wygenerujesz plik przelewów dla banku. Potwierdzenie zostaje zapisane, więc przy następnych eksportach tej pary nie trzeba go powtarzać.</p>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-2" style="font-size:.85rem">
         <thead><tr><th style="width:2rem"></th><th>Kontrahent</th><th>NIP</th><th>Nr rachunku</th><th>Dokumenty</th></tr></thead>
@@ -239,7 +245,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <form method="post" id="ipkoForm" class="d-none">
   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-  <input type="hidden" name="action" value="export_ipko">
+  <input type="hidden" name="action" value="export_przelewy">
+  <input type="hidden" name="format" id="ipko_format">
   <input type="hidden" name="pakiet_ids" id="ipko_pakiet_ids">
   <input type="hidden" name="rachunek_zlecen" id="ipko_rachunek_zlecen">
   <input type="hidden" name="rachunek_map" id="ipko_rachunek_map">
@@ -305,13 +312,18 @@ require_once __DIR__ . '/../includes/header.php';
     <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)</option>
     <?php endforeach; ?>
   </select>
-  <button type="button" class="btn btn-sm btn-outline-success" onclick="edokIpkoSubmit()">
-    <i class="bi bi-bank"></i> Eksportuj do iPKO biznes
+  <select id="ipko_format_select" class="form-select form-select-sm" style="width:auto" title="Format pliku przelewów">
+    <?php foreach (EDOK_PRZELEWY_FORMATY as $k => $label): ?>
+    <option value="<?= h($k) ?>"><?= h($label) ?></option>
+    <?php endforeach; ?>
+  </select>
+  <button type="button" class="btn btn-sm btn-success" onclick="edokIpkoSubmit()">
+    <i class="bi bi-bank"></i> Eksportuj przelewy
   </button>
   <?php endif; ?>
 </div>
 <?php if ($rachunki_org): ?>
-<p class="text-muted small">Eksport do iPKO biznes: plik przelewów zbiorczych (ELIXIR-O) — zaimportuj go w iPKO biznes i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
+<p class="text-muted small">Eksport przelewów: zaznacz dokumenty i pobierz plik przelewów zbiorczych (ELIXIR-O) dla iPKO biznes albo Millenet — przy „Automatycznie" format dobierany jest wg banku rachunku nadawcy. Zaimportuj plik w bankowości i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
 <?php endif; ?>
 
 <?php if ($sumy): ?>
@@ -459,6 +471,8 @@ function edokIpkoSubmit() {
   document.getElementById('ipko_pakiet_ids').value = ids.join(',');
   document.getElementById('ipko_rachunek_zlecen').value = rachunek ? rachunek.value : '';
   document.getElementById('ipko_rachunek_map').value = JSON.stringify(map);
+  var format = document.getElementById('ipko_format_select');
+  document.getElementById('ipko_format').value = format ? format.value : 'auto';
   document.getElementById('ipkoForm').submit();
 }
 </script>

@@ -113,6 +113,11 @@ require_once __DIR__ . '/../includes/header.php';
       <i class="bi bi-check2-all"></i> Do akceptacji
       <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
     </a>
+    <?php if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza'))): ?>
+    <a href="<?= APP_URL ?>/edok/preliminarz.php" class="btn btn-outline-success btn-sm" title="Zaznacz dokumenty w Preliminarzu i pobierz plik przelewów (iPKO biznes / Millenet)">
+      <i class="bi bi-bank"></i> Eksport przelewów
+    </a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
     <a href="<?= APP_URL ?>/edok/raport_analityczny.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a>
     <a href="<?= APP_URL ?>/edok/archiwum.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive"></i> Archiwum miesięczne</a>

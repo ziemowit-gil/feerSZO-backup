@@ -1434,6 +1434,36 @@ function edok_millenet_export(array $docs, string $rachunek_zlecen_nrb): string 
     return $rows ? implode("\r\n", $rows) . "\r\n" : '';
 }
 
+/** Formaty pliku przelewów zbiorczych dostępne w Preliminarzu i na karcie dokumentu. */
+const EDOK_PRZELEWY_FORMATY = [
+    'auto'     => 'Automatycznie (wg banku rachunku nadawcy)',
+    'ipko'     => 'iPKO biznes (PKO BP)',
+    'millenet' => 'Millenet (Bank Millennium)',
+];
+
+/**
+ * Format pliku dla rachunku nadawcy przy wyborze „auto": numer rozliczeniowy
+ * banku w NRB (cyfry 3–6) — 1020 = PKO BP, 1160 = Bank Millennium. Inne banki
+ * dostają iPKO biznes (czysty ELIXIR-O bez cudzysłowów, najszerzej akceptowany).
+ */
+function edok_przelewy_format_for_nrb(string $nrb, string $format = 'auto'): string {
+    if ($format !== 'auto' && isset(EDOK_PRZELEWY_FORMATY[$format])) return $format;
+    return substr(preg_replace('/\D/', '', $nrb), 2, 4) === '1160' ? 'millenet' : 'ipko';
+}
+
+/**
+ * Generuje plik przelewów dla jednego rachunku nadawcy w wybranym formacie.
+ * Zwraca ['content' => …, 'prefix' => część nazwy pliku, 'ext' => …] — content
+ * pusty, gdy żaden dokument nie nadaje się do eksportu.
+ */
+function edok_przelewy_export(array $docs, string $rachunek_zlecen_nrb, string $format = 'auto'): array {
+    $format = edok_przelewy_format_for_nrb($rachunek_zlecen_nrb, $format);
+    if ($format === 'millenet') {
+        return ['content' => edok_millenet_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'Millenet', 'ext' => 'csv'];
+    }
+    return ['content' => edok_ipko_biznes_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'iPKO_biznes', 'ext' => 'txt'];
+}
+
 // ── Import wyciągu bankowego — MT940 (iPKO biznes) ─────────────────────────────
 // Wg oficjalnej specyfikacji PKO BP „Struktura pliku wyjściowego – Raport MT940":
 // pole :61: (jedna operacja) + następujące po nim :86: z podpolami ~20..~63.

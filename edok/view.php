@@ -328,8 +328,23 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
     <code><?= h($doc['number']) ?></code>
     <?= edok_status_badge($doc['status']) ?>
   </div>
-  <?php $generated = edok_latest_generated_pdf($id); ?>
+  <?php
+  $generated = edok_latest_generated_pdf($id);
+  // Eksport przelewu — ten sam mechanizm co w Preliminarzu (POST na edok/preliminarz.php,
+  // tam potwierdzenie NIP/rachunku przy pierwszym przelewie i pobranie pliku).
+  $przelew_rachunki = edok_rachunki_list();
+  $can_export_przelew = $doc['status'] === 'zaakceptowany'
+      && ($doc['kierunek'] ?? 'wydatek') === 'wydatek'
+      && strlen(preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''))) === 26
+      && $przelew_rachunki
+      && (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')));
+  ?>
   <div class="edok-actions">
+    <?php if ($can_export_przelew): ?>
+    <button class="edok-btn edok-btn-success" type="button" data-bs-toggle="modal" data-bs-target="#przelewExportModal">
+      <i class="bi bi-bank"></i> Eksport przelewu
+    </button>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="edok-btn edok-btn-ghost" title="Twój PIN EODoK"><i class="bi bi-shield-lock"></i></a>
     <?php if ($generated): ?>
     <a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>&type=final" target="_blank" class="edok-btn edok-btn-primary">
@@ -686,6 +701,45 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
           <button type="submit" class="btn btn-warning">Cofnij decyzję</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($can_export_przelew): ?>
+<div class="modal fade" id="przelewExportModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="<?= APP_URL ?>/edok/preliminarz.php">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="action" value="export_przelewy">
+        <input type="hidden" name="pakiet_ids" value="<?= $id ?>">
+        <input type="hidden" name="rachunek_map" value="{}">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-bank"></i> Eksport przelewu</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            <?= h($doc['kontrahent_nazwa'] ?? '') ?> · <span class="font-monospace"><?= h(edok_nrb_format(preg_replace('/\D/', '', (string)$doc['rachunek_bankowy']))) ?></span>
+            · <strong><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta'] ?? 'PLN') ?></strong>
+          </p>
+          <label class="form-label small fw-semibold" for="przelew_rachunek">Z rachunku</label>
+          <select name="rachunek_zlecen" id="przelew_rachunek" class="form-select form-select-sm mb-3" required>
+            <?php foreach ($przelew_rachunki as $r): ?>
+            <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option>
+            <?php endforeach; ?>
+          </select>
+          <label class="form-label small fw-semibold" for="przelew_format">Format pliku</label>
+          <select name="format" id="przelew_format" class="form-select form-select-sm">
+            <?php foreach (EDOK_PRZELEWY_FORMATY as $k => $label): ?>
+            <option value="<?= h($k) ?>"><?= h($label) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <p class="small text-muted mt-2 mb-0">Plik ELIXIR-O do zaimportowania w bankowości — zweryfikuj przelew przed skierowaniem do realizacji. Przy pierwszym przelewie do kontrahenta pojawi się prośba o potwierdzenie NIP i rachunku.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-download"></i> Pobierz plik</button>
         </div>
       </form>
     </div>
