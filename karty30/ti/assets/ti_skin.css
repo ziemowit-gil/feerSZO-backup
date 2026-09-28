@@ -575,3 +575,67 @@ body.dyd-usos.ti-skin .skin-crumbs { padding: .35rem .75rem; border-bottom-color
   body.dyd-usos.ti-skin .skin-subnav a, body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn { white-space: nowrap; }
   body.dyd-usos.ti-skin .skin-subnav-tools { margin-left: 0; }
 }
+
+/* ── Przyciski panelu dydaktyka — nowocześniej (2026-09-29) ────────────────────
+   Tylko body.dyd-usos, w treści i oknach modalnych (:is(main, .modal)) — pasek
+   górny ma własny wygląd na granacie; poza btn-link.
+   Półgrube napisy, większe pole kliknięcia, promień 6 px,
+   pełne warianty z delikatnym cieniem, obrysowe z jasnym tłem po najechaniu,
+   równy odstęp ikona–tekst, czytelny stan wyłączony. Kolory marki bez zmian. */
+body.dyd-usos.ti-skin :is(main, .modal) .btn:not(.btn-link):not(.btn-close) {
+  --dyd-btn-shadow: 0 1px 2px rgba(16, 51, 92, .12);
+  display: inline-flex; align-items: center; justify-content: center; gap: .35rem;
+  font-weight: 600 !important; font-size: .78rem !important; line-height: 1.25;
+  padding: .32rem .8rem !important; border-radius: 6px !important;
+}
+body.dyd-usos.ti-skin :is(main, .modal) .btn-sm:not(.btn-link):not(.btn-close) {
+  font-size: .74rem !important; padding: .24rem .6rem !important; border-radius: 5px !important;
+}
+/* Przyciski-ikony (tylko <i>, bez tekstu) — kwadratowe, nie rozdmuchane */
+body.dyd-usos.ti-skin :is(main, .modal) .btn.py-0:not(.btn-link) { padding-top: .16rem !important; padding-bottom: .16rem !important; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn .bi { font-size: 1em; line-height: 1; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn .me-1 { margin-right: 0 !important; }   /* odstęp daje gap */
+
+/* Pełne — cień, ciemniejsze po najechaniu, lekkie wciśnięcie */
+body.dyd-usos.ti-skin :is(main, .modal) .btn-primary,
+body.dyd-usos.ti-skin :is(main, .modal) .btn-success,
+body.dyd-usos.ti-skin :is(main, .modal) .btn-danger,
+body.dyd-usos.ti-skin :is(main, .modal) .btn-warning,
+body.dyd-usos.ti-skin :is(main, .modal) .btn-secondary,
+body.dyd-usos.ti-skin :is(main, .modal) .btn-info { box-shadow: var(--dyd-btn-shadow) !important; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-primary { background: var(--ti-blue); border-color: var(--ti-blue); }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-primary:hover { background: #083a70; border-color: #083a70; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-success { background: #1f7a4d; border-color: #1f7a4d; color: #fff; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-success:hover { background: #17603c; border-color: #17603c; color: #fff; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-danger:hover { filter: brightness(.92); }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-warning { color: #3b2a00; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn:not(.btn-link):active { transform: translateY(1px); box-shadow: none !important; }
+
+/* Obrysowe — białe tło, jasny odcień koloru po najechaniu (zamiast pełnego zalania) */
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-secondary { background: #fff; color: #2b3f5c; border-color: #b9c6d6; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-secondary:hover { background: #eef3f8; color: var(--ti-navy); border-color: #8fa3ba; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-primary { background: #fff; color: var(--ti-blue); border-color: #9db7d6; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-primary:hover { background: #e8f0fa; color: #083a70; border-color: var(--ti-blue); }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-danger { background: #fff; color: #b02a37; border-color: #e3a1a8; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-danger:hover { background: #fcebec; color: #8f1f2a; border-color: #b02a37; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-success { background: #fff; color: #1f7a4d; border-color: #9fcdb4; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-success:hover { background: #e8f5ee; color: #17603c; border-color: #1f7a4d; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-warning { background: #fff; color: #8a5a00; border-color: #e8c774; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-warning:hover { background: #fff6dc; color: #6b4600; border-color: #c99a1e; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-dark,
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-info { background: #fff; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-dark:hover { background: #eef1f4; color: #1c1c1c; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-info:hover { background: #e7f6fa; color: #055160; }
+
+/* Stan aktywny w grupach przycisków (btn-check / .active) — jak zaznaczona zakładka */
+body.dyd-usos.ti-skin :is(main, .modal) .btn-check:checked + .btn-outline-secondary,
+body.dyd-usos.ti-skin :is(main, .modal) .btn-outline-secondary.active {
+  background: var(--ti-bar); color: var(--ti-navy); border-color: var(--ti-blue);
+}
+/* Grupy przycisków: promień tylko na zewnętrznych krawędziach */
+body.dyd-usos.ti-skin :is(main, .modal) .btn-group > .btn:not(:first-child) { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; }
+body.dyd-usos.ti-skin :is(main, .modal) .btn-group > .btn:not(:last-child):not(.dropdown-toggle) { border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+
+/* Wyłączone — wyraźnie nieaktywne, bez cienia */
+body.dyd-usos.ti-skin :is(main, .modal) .btn:disabled,
+body.dyd-usos.ti-skin :is(main, .modal) .btn.disabled { opacity: .5; box-shadow: none !important; cursor: not-allowed; }
