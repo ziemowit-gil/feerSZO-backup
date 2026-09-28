@@ -124,6 +124,7 @@ function instructor_public_profile(array $u): array {
         'id'    => (int)$u['id'],
         'name'  => (string)($u['name'] ?? $u['email'] ?? ''),
         'email' => (string)($u['email'] ?? ''),
+        'is_admin' => ($u['role'] ?? '') === 'admin',
     ];
 }
 
@@ -569,6 +570,11 @@ switch ($action) {
         $meet_url = in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true) ? trim((string)($body['meeting_url'] ?? '')) : '';
         $room_id  = max(0, (int)($body['room_id'] ?? 0));
         $status   = $sid && in_array($body['status'] ?? '', ['planned', 'held', 'individual_change', 'remote_material'], true) ? $body['status'] : 'planned';
+        // Status lekcji zmienia ręcznie tylko administrator — pozostali zachowują bieżący
+        // (odbyta wynika z zapisu obecności, patrz mark_attendance).
+        if ($sid && (string)(db_one("SELECT role FROM users WHERE id=?", [$instructor_id])['role'] ?? '') !== 'admin') {
+            $status = (string)(db_one("SELECT status FROM k30_ti_sessions WHERE id=?", [$sid])['status'] ?? 'planned');
+        }
 
         if ($date === '') json_err('Data lekcji jest wymagana.');
 

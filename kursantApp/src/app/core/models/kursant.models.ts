@@ -414,6 +414,8 @@ export interface Instructor {
   id: number;
   name: string;
   email: string;
+  /** users.role=admin — tylko wtedy wolno ręcznie zmienić status lekcji. */
+  is_admin?: boolean;
 }
 
 export interface InstructorTotpRequiredResponse {

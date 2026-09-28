@@ -271,6 +271,12 @@ function dyd_is_staff(): bool {
     return dyd_ctx_role() !== 'instructor';
 }
 
+/** Administrator systemu (users.role=admin) — jedyny, kto może ręcznie zmienić status lekcji w edycji. */
+function dyd_is_admin(): bool {
+    $s = dyd_current();
+    return $s && ($s['role'] ?? '') === 'admin' && dyd_ctx_role() !== 'instructor';
+}
+
 /** Czy dydaktyk może zarządzać kursem (własny kurs lub pracownik D3). */
 function dyd_owns_course(int $uid, int $course_id): bool {
     if (!$course_id) return false;

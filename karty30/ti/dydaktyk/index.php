@@ -698,9 +698,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($sid && dyd_owns_session($uid, $sid)) {
+            // Status lekcji zmienia ręcznie tylko administrator — pozostali zachowują
+            // bieżący (odbyta/zaplanowana wynika z zapisu obecności, nie z edycji).
+            $_cur_st = (string)(db_one("SELECT status FROM k30_ti_sessions WHERE id=?", [$sid])['status'] ?? 'planned');
             $st      = $is_reservation ? 'reserved'
                      : ($is_draft ? 'draft'
-                     : (in_array($_POST['status'] ?? '', ['planned','held','individual_change','remote_material'], true) ? $_POST['status'] : 'planned'));
+                     : (!dyd_is_admin() ? (in_array($_cur_st, ['reserved','draft'], true) ? 'planned' : $_cur_st)
+                     : (in_array($_POST['status'] ?? '', ['planned','held','individual_change','remote_material'], true) ? $_POST['status'] : 'planned')));
             $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
@@ -2180,7 +2184,12 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         <div class="form-text"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak zdefiniowanego planu nauczania dla tego kursu — punkty planu doda administrator.</div>
         <?php endif; ?>
       </div>
-      <?php if ($isEdit): ?>
+      <?php if ($isEdit && !dyd_is_admin()): ?>
+      <div class="mb-1 small text-body-secondary">
+        <i class="bi bi-lock me-1" aria-hidden="true"></i>Status lekcji zmienia tylko administrator — lekcja staje się odbyta po zapisaniu obecności.
+      </div>
+      <?php endif; ?>
+      <?php if ($isEdit && dyd_is_admin()): ?>
       <div class="mb-1">
         <label class="form-label" for="<?= $pfx ?>_status">Status</label>
         <select class="form-select" id="<?= $pfx ?>_status" name="status"
@@ -2200,7 +2209,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
                value="<?= h($r['material_url'] ?? '') ?>" placeholder="https://…">
         <div class="form-text">Link do dokumentu, pliku lub zasobu online — widoczny na liście lekcji.</div>
       </div>
-      <?php else: ?>
+      <?php elseif (!$isEdit): ?>
       <div class="form-check form-switch mb-1">
         <input class="form-check-input" type="checkbox" name="notify" id="<?= $pfx ?>_notify" value="1">
         <label class="form-check-label" for="<?= $pfx ?>_notify">Powiadom kursantów SMS o nowych zajęciach</label>

@@ -10,6 +10,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
+import { InstructorAuthService } from '../../../core/auth/instructor-auth.service';
 import { InstructorLessonRow, InstructorRoom } from '../../../core/models/kursant.models';
 import { QuickDateChipsComponent } from '../../../shared/components/quick-date-chips.component';
 
@@ -52,7 +53,7 @@ export interface LessonFormDialogData {
             </mat-select>
           </mat-form-field>
 
-          @if (data.mode === 'edit') {
+          @if (data.mode === 'edit' && isAdmin) {
             <mat-form-field appearance="fill">
               <mat-label>Status</mat-label>
               <mat-select formControlName="status">
@@ -152,6 +153,8 @@ export class LessonFormDialogComponent implements OnInit {
   private ref       = inject(MatDialogRef<LessonFormDialogComponent>);
   private courseCtx = inject(InstructorCourseContextService);
   data: LessonFormDialogData = inject(MAT_DIALOG_DATA);
+  /** Status lekcji zmienia ręcznie tylko administrator (serwer i tak to wymusza). */
+  readonly isAdmin = !!inject(InstructorAuthService).instructor()?.is_admin;
 
   readonly lessonMethods = LESSON_METHODS;
 
@@ -202,7 +205,7 @@ export class LessonFormDialogComponent implements OnInit {
       course_id: v.course_id!, lesson_date: v.lesson_date, time_from: v.time_from, time_to: v.time_to,
       topic: v.topic, notes: v.notes, has_homework: v.has_homework, self_prep_remote: v.self_prep_remote,
       lesson_method: v.lesson_method as '' | 'stacjonarna' | 'zdalna_zoom' | 'zdalna_inne', meeting_url: v.meeting_url,
-      room_id: v.room_id, status: this.data.mode === 'edit' ? v.status : undefined, notify: v.notify,
+      room_id: v.room_id, status: this.data.mode === 'edit' && this.isAdmin ? v.status : undefined, notify: v.notify,
     }).subscribe({
       next: res => {
         this.saving.set(false);
