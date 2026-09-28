@@ -4,7 +4,11 @@
  * (includes/ti_price_changes.php).
  *
  *   php cli/ti_price_changes.php list [--all]
- *       Zmiany cen (domyślnie aktywne).
+ *       Zmiany cen (domyślnie aktywne), jedna linia na zmianę.
+ *
+ *   php cli/ti_price_changes.php table [--all] [--course=ID]
+ *       Wszystkie zmiany cen jako tabela (--all = też anulowane): zakres,
+ *       wartość, daty, stan na dziś, powiadomienia, autor, uzasadnienie.
  *
  *   php cli/ti_price_changes.php show --client=ID --month=RRRR-MM [--course=ID]
  *       Rozliczenie miesiąca kursanta: per grupa kwota BAZOWA (bez zmian cen)
@@ -94,6 +98,50 @@ case 'list':
             $r['notified_at'] ? ' | powiadomiono ' . $r['notified_count'] : '',
             $r['reason']));
     }
+    break;
+
+case 'table':
+    $w = []; $pa = [];
+    if (!isset($opt['all'])) $w[] = "pc.status='active'";
+    if (!empty($opt['course'])) { $w[] = 'pc.course_id=?'; $pa[] = (int)$opt['course']; }
+    $rows = db_all(
+        "SELECT pc.*, c.name AS course_name, cl.name AS client_name, u.name AS author
+           FROM k30_ti_price_changes pc
+           JOIN k30_ti_courses c ON c.id=pc.course_id
+           LEFT JOIN k30_clients cl ON cl.id=pc.client_id
+           LEFT JOIN users u ON u.id=pc.created_by
+         " . ($w ? 'WHERE ' . implode(' AND ', $w) : '') . "
+          ORDER BY pc.date_from DESC, pc.id DESC", $pa
+    );
+    $today = date('Y-m-d');
+    $cols  = ['ID', 'Status', 'Stan dziś', 'Zakres', 'Grupa', 'Kursant', 'Zmiana', 'Od', 'Do', 'Powiadom.', 'Utworzono', 'Autor', 'Uzasadnienie'];
+    $data  = [];
+    foreach ($rows as $r) {
+        $state = $r['status'] !== 'active' ? '—'
+            : ($r['date_from'] > $today ? 'zaplanowana'
+            : (!empty($r['date_to']) && $r['date_to'] < $today ? 'zakończona' : 'obowiązuje'));
+        $data[] = [
+            '#' . $r['id'], $r['status'] === 'active' ? 'aktywna' : 'anulowana', $state,
+            $r['scope'] === 'client' ? 'indyw.' : 'grupa',
+            $r['course_name'] . ' (#' . $r['course_id'] . ')',
+            $r['client_name'] ? $r['client_name'] . ' (#' . $r['client_id'] . ')' : '—',
+            ti_price_change_value_label($r['change_type'], (float)$r['change_value']),
+            $r['date_from'], $r['date_to'] ?: 'bezterm.',
+            $r['notified_at'] ? (int)$r['notified_count'] . ' / ' . substr((string)$r['notified_at'], 0, 10) : 'nie',
+            substr((string)$r['created_at'], 0, 16), $r['author'] ?: '—',
+            mb_strimwidth(preg_replace('/\s+/', ' ', (string)$r['reason']), 0, 60, '…'),
+        ];
+    }
+    $wd = array_map('mb_strlen', $cols);
+    foreach ($data as $d) foreach ($d as $i => $v) $wd[$i] = max($wd[$i], mb_strlen((string)$v));
+    $line = fn(array $r) => '| ' . implode(' | ', array_map(fn($v, $i) => $v . str_repeat(' ', $wd[$i] - mb_strlen((string)$v)), $r, array_keys($r))) . ' |';
+    $sep  = '+' . implode('+', array_map(fn($n) => str_repeat('-', $n + 2), $wd)) . '+';
+    $out($sep); $out($line($cols)); $out($sep);
+    foreach ($data as $d) $out($line($d));
+    $out($sep);
+    $n_act = count(array_filter($rows, fn($r) => $r['status'] === 'active'));
+    $out(sprintf('Razem: %d (aktywne %d, anulowane %d)%s', count($rows), $n_act, count($rows) - $n_act,
+        isset($opt['all']) ? '' : ' — anulowane ukryte, dodaj --all'));
     break;
 
 case 'show':
@@ -214,5 +262,5 @@ case 'selftest':
     exit($fail ? 1 : 0);
 
 default:
-    $out("Użycie: php cli/ti_price_changes.php list|show|simulate|selftest — szczegóły w nagłówku pliku.");
+    $out("Użycie: php cli/ti_price_changes.php list|table|show|simulate|selftest — szczegóły w nagłówku pliku.");
 }
