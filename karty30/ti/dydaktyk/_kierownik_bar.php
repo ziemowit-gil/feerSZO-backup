@@ -52,6 +52,7 @@ if (!empty($KIER_ITEMS)) {
         ['Dni wolne',                 'dni_wolne.php',              'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
+        ['Testy',                     'testy.php',                  'bug'],
         ['Pełny panel TI',            '../index.php',               'box-arrow-up-right',  true],
     ];
     $_kier_norm = [];

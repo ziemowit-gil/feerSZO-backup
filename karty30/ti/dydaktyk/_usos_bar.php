@@ -116,6 +116,7 @@ if (dyd_is_staff()) {
             $_it('',             'Dni wolne',             'dni_wolne.php'),
             $_it('',             'Wyłączenia panelu',     'wylaczenia.php'),
             $_it('',             'Zespół i role',         'zespol.php'),
+            $_it('',             'Testy',                 'testy.php'),
             $_it('',             'Pełny panel TI',        '../index.php',   0, 'secondary', true),
         ],
     ];
