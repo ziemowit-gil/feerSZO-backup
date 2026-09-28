@@ -71,31 +71,37 @@ $_kier_sections = [
 ];
 ?>
 <style>
-  .kier-sidenav { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
-                  border-radius: .5rem; padding: .75rem; margin: .75rem 1rem 0; }
-  .kier-sidenav h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
-                     color: var(--bs-secondary-color); margin: .9rem 0 .35rem; }
+  /* Ten sam styl co pasek górny (ti_skin.css): granat, złota krawędź, białe
+     pozycje, aktywna jako biała „zakładka” z niebieskim napisem, bez zaokrągleń. */
+  .kier-sidenav { background: var(--ti-navy, #10335c); border: 0; border-top: 3px solid #c8a11a;
+                  border-radius: 0; padding: .5rem .5rem .75rem; margin: .75rem 1rem 0; color: #fff; }
+  .kier-sidenav h2 { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+                     color: #ffd863; margin: .9rem .5rem .3rem; }
   .kier-sidenav h2:first-of-type { margin-top: .25rem; }
-  .kier-sidenav a { display: flex; align-items: center; gap: .55rem; padding: .42rem .6rem;
-                    border-radius: .4rem; font-size: .88rem; font-weight: 500;
-                    color: var(--bs-body-color); text-decoration: none; min-height: 38px; }
-  .kier-sidenav a:hover { background: var(--bs-tertiary-bg); }
-  .kier-sidenav a.active { background: #dbeafe; color: #1d4ed8; font-weight: 700; }
-  .kier-sidenav a .bi { width: 1.1rem; text-align: center; flex-shrink: 0; }
-  .kier-sidenav a .badge { margin-left: auto; }
+  .kier-sidenav a { display: flex; align-items: center; gap: .55rem; padding: .36rem .6rem;
+                    border: 1px solid transparent; border-radius: 2px; font-size: .8rem; font-weight: 500;
+                    color: #fff; text-decoration: none; min-height: 34px; }
+  .kier-sidenav a:hover { background: rgba(255,255,255,.1); text-decoration: underline; }
+  .kier-sidenav a.active { background: #fff; border-color: #fff; color: var(--ti-blue, #1d4ed8); font-weight: 700; }
+  .kier-sidenav a .bi { width: 1.1rem; text-align: center; flex-shrink: 0; opacity: .9; }
+  .kier-sidenav a.active .bi { opacity: 1; }
+  .kier-sidenav a .badge { margin-left: auto; font-size: .62rem; }
+  /* Czerwień Bootstrapa na granacie ma za mały kontrast — jasne tło, ciemny napis */
+  .kier-sidenav a .badge.text-bg-danger { background: #ffd6d6 !important; color: #8a1c1c !important; }
   .kier-sidenav a .kier-ext { font-size: .62rem; margin-left: auto; width: auto; }
-  .kier-sidenav .kier-crumbs { font-size: .75rem; color: var(--bs-secondary-color);
-                               border-top: 1px solid var(--bs-border-color); margin-top: .8rem; padding-top: .6rem; }
-  .kier-sidenav .kier-crumbs a { display: inline; padding: 0; min-height: 0; font-size: inherit; }
-  .kier-sidenav details > summary { cursor: pointer; font-weight: 700; padding: .3rem .2rem;
+  .kier-sidenav .kier-crumbs { font-size: .75rem; color: rgba(255,255,255,.75);
+                               border-top: 1px solid rgba(255,255,255,.2); margin-top: .8rem; padding-top: .6rem; }
+  .kier-sidenav .kier-crumbs a { display: inline; padding: 0; min-height: 0; font-size: inherit; color: #fff; }
+  .kier-sidenav details > summary { cursor: pointer; font-weight: 700; padding: .3rem .2rem; color: #fff;
                                     list-style: none; display: flex; align-items: center; gap: .5rem; }
   .kier-sidenav details > summary::-webkit-details-marker { display: none; }
 
   @media (min-width: 992px) {
     .kier-sidenav { position: fixed; top: 4.2rem; left: .75rem; bottom: .75rem; width: 240px;
                     overflow-y: auto; margin: 0; z-index: 1030; }
-    /* Tryb osadzony (index.php): nad treścią jest jeszcze rząd sekcji USOS — zejdź niżej */
-    .kier-sidenav.kier-embed { top: 6.6rem; }
+    /* Tryb osadzony (index.php): sekcje stoją już w pasku górnym, nad treścią
+       zostaje tylko rząd okruszków — zejdź o jego wysokość. */
+    .kier-sidenav.kier-embed { top: 5.9rem; }
     .kier-sidenav details > summary { display: none; }   /* na desktopie lista zawsze otwarta */
     .kier-sidenav details { display: contents; }
     main.dyd-wrap { margin-left: 264px !important; }
@@ -120,10 +126,12 @@ $_kier_sections = [
       <?php endforeach; ?>
 
       <?php if (!$KIER_EMBED): ?>
+      <?php if (empty($GLOBALS['DYD_HEADER_NAV'])): // sekcje zwykle są już w pasku górnym (_nav.php) ?>
       <h2>Sekcje panelu</h2>
       <?php foreach ($_kier_sections as [$_lbl, $_href]): ?>
       <a href="<?= h($_href) ?>"><i class="bi bi-arrow-return-right" aria-hidden="true"></i><?= h($_lbl) ?></a>
       <?php endforeach; ?>
+      <?php endif; ?>
 
       <div class="kier-crumbs">
         <a href="index.php?tab=pulpit">Panel dydaktyka</a>
