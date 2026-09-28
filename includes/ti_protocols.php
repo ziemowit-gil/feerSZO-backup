@@ -56,8 +56,6 @@ function ti_protocols_migrate(): void {
             created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
             updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
         )");
-        db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_prot_course_period
-                    ON k30_ti_protocols(course_id, COALESCE(period_id, 0))");
 
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_protocol_entries (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,6 +100,22 @@ function ti_protocols_migrate(): void {
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_prot_course_month
              ON k30_ti_protocols(course_id, year_month) WHERE year_month != ''"
         );
+    } catch (\Throwable $e) {}
+    // Indeks "jeden protokół na kurs+okres" pierwotnie obejmował też protokoły
+    // miesięczne (period_id NULL → 0), więc drugi miesiąc tego samego kursu
+    // padał na UNIQUE. Zawężamy go do protokołów per-okres (year_month='').
+    try {
+        $idx = (string)(db_one("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_ti_prot_course_period'")['sql'] ?? '');
+        if ($idx !== '' && stripos($idx, 'year_month') === false) {
+            db()->exec("DROP INDEX idx_ti_prot_course_period");
+            $idx = '';
+        }
+        if ($idx === '') {
+            db()->exec(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_prot_course_period
+                 ON k30_ti_protocols(course_id, COALESCE(period_id, 0)) WHERE year_month = ''"
+            );
+        }
     } catch (\Throwable $e) {}
 }
 
@@ -306,7 +320,7 @@ function ti_protocol_ensure(int $course_id, int $period_id, ?int $by = null, str
     // wyrażeniem bez affinity kolumny — bez rzutowania '1' != 1 i SQLite
     // wpuściłby duplikat wprost na unikalny indeks.
     $existing = db_one(
-        "SELECT id FROM k30_ti_protocols WHERE course_id=? AND COALESCE(period_id,0)=CAST(? AS INTEGER)",
+        "SELECT id FROM k30_ti_protocols WHERE course_id=? AND COALESCE(period_id,0)=CAST(? AS INTEGER) AND year_month=''",
         [$course_id, $period_id]
     );
     if ($existing) return (int)$existing['id'];
@@ -331,7 +345,7 @@ function ti_protocol_ensure(int $course_id, int $period_id, ?int $by = null, str
         // próba trafia na unique index — dogrywamy SELECT zamiast wywalać 500.
         if (str_contains($e->getMessage(), 'idx_ti_prot_course_period')) {
             $existing = db_one(
-                "SELECT id FROM k30_ti_protocols WHERE course_id=? AND COALESCE(period_id,0)=CAST(? AS INTEGER)",
+                "SELECT id FROM k30_ti_protocols WHERE course_id=? AND COALESCE(period_id,0)=CAST(? AS INTEGER) AND year_month=''",
                 [$course_id, $period_id]
             );
             if ($existing) return (int)$existing['id'];
