@@ -32,6 +32,16 @@ if (!defined('TI_PROTOCOL_STATUSES')) {
     ]);
 }
 
+/**
+ * Zakres dat protokołu (period_name/date_from/date_to): okres nauczania albo —
+ * dla protokołu miesięcznego (year_month, bez okresu) — pierwszy i ostatni
+ * dzień tego miesiąca. Bez tego ewidencja godzin, wypłata i średnie z
+ * dziennika protokołu miesięcznego obejmowały całe życie kursu.
+ */
+const TI_PROTOCOL_RANGE_COLS = "COALESCE(per.name, CASE WHEN p.year_month != '' THEN 'miesiąc ' || p.year_month END) AS period_name,
+       COALESCE(per.date_from, CASE WHEN p.year_month != '' THEN p.year_month || '-01' END) AS date_from,
+       COALESCE(per.date_to,   CASE WHEN p.year_month != '' THEN date(p.year_month || '-01', '+1 month', '-1 day') END) AS date_to";
+
 /** Samonaprawa schematu — wołana z każdego punktu wejścia. */
 function ti_protocols_migrate(): void {
     static $done = false;
@@ -255,11 +265,11 @@ function ti_protocol_parse_value(string $raw): array {
 function ti_protocols_for_course(int $course_id): array {
     ti_protocols_migrate();
     return db_all(
-        "SELECT p.*, per.name AS period_name, per.date_from, per.date_to
+        "SELECT p.*, " . TI_PROTOCOL_RANGE_COLS . "
            FROM k30_ti_protocols p
            LEFT JOIN k30_ti_periods per ON per.id = p.period_id
           WHERE p.course_id = ?
-          ORDER BY COALESCE(per.date_from, p.created_at) DESC, p.id DESC",
+          ORDER BY COALESCE(per.date_from, NULLIF(p.year_month,'') || '-01', p.created_at) DESC, p.id DESC",
         [$course_id]
     );
 }
@@ -272,7 +282,7 @@ function ti_protocols_for_course(int $course_id): array {
 function ti_protocols_overdue(): array {
     ti_protocols_migrate();
     return db_all(
-        "SELECT p.*, per.name AS period_name, per.date_from, per.date_to,
+        "SELECT p.*, " . TI_PROTOCOL_RANGE_COLS . ",
                 c.name AS course_name, c.instructor_id,
                 u.name AS instructor_name,
                 CAST(julianday('now') - julianday(per.date_to) AS INTEGER) AS days_overdue
@@ -289,7 +299,7 @@ function ti_protocol_get(int $id): ?array {
     ti_protocols_migrate();
     if (!$id) return null;
     return db_one(
-        "SELECT p.*, per.name AS period_name, per.date_from, per.date_to, c.name AS course_name
+        "SELECT p.*, " . TI_PROTOCOL_RANGE_COLS . ", c.name AS course_name
            FROM k30_ti_protocols p
            LEFT JOIN k30_ti_periods per ON per.id = p.period_id
            LEFT JOIN k30_ti_courses c   ON c.id   = p.course_id
@@ -886,7 +896,7 @@ function ti_protocol_print_html(array $prot): string {
             . ' — powód: ' . $h($prot['unlock_reason']);
     }
 
-    return '<h1>Protokół zajęć kursu za okres</h1>'
+    return '<h1>Protokół zajęć kursu za ' . (!empty($prot['year_month']) ? 'miesiąc' : 'okres') . '</h1>'
         . '<table class="head"><tbody>'
         . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
         . '<tr><th>Protokół</th><td>' . $h($prot['title']) . '</td></tr>'
