@@ -333,6 +333,68 @@ function task_notify_address(int $user_id, ?string $account_email = ''): string 
     return trim($account_email);
 }
 
+/** Zdarzenia wysyłane od razu także w trybie podsumowania dziennego. */
+const TASK_NOTIFY_DIGEST_BYPASS = ['due_1day', 'due_today', 'notify_due_1day', 'notify_due_today'];
+
+/**
+ * Wysyła podsumowanie dzienne (cron/tasks_digest.php): per użytkownik jedna wiadomość
+ * z zdarzeniami z kolejki, pogrupowanymi po zadaniu. Zwraca [wysłane, błędy].
+ */
+function task_notify_send_digests(): array {
+    $sent = 0; $errs = 0;
+    $users = db_all("SELECT DISTINCT q.user_id, u.name, u.email FROM task_digest_queue q
+                     JOIN users u ON u.id = q.user_id AND u.is_active = 1
+                     WHERE q.sent_at IS NULL");
+    foreach ($users as $u) {
+        $uid   = (int)$u['user_id'];
+        $items = db_all(
+            "SELECT q.*, t.title AS task_title FROM task_digest_queue q
+             LEFT JOIN tasks t ON t.id = q.task_id
+             WHERE q.user_id = ? AND q.sent_at IS NULL ORDER BY q.task_id, q.created_at",
+            [$uid]
+        );
+        if (!$items) continue;
+        $to = task_notify_address($uid, (string)$u['email']);
+        $ids = array_map(fn($i) => (int)$i['id'], $items);
+        $mark = function () use ($ids) {
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            db()->prepare("UPDATE task_digest_queue SET sent_at=? WHERE id IN ($ph)")
+                ->execute(array_merge([date('Y-m-d H:i:s')], $ids));
+        };
+        if (!$to) { $mark(); continue; }
+
+        $by_task = [];
+        foreach ($items as $it) $by_task[(int)$it['task_id']][] = $it;
+        $html_list = '';
+        foreach ($by_task as $tid => $its) {
+            $title = $its[0]['task_title'] ?? '';
+            $html_list .= '<div style="margin:0 0 14px">'
+                . ($tid ? '<a href="' . htmlspecialchars(_tn_task_url($tid)) . '" style="font-weight:700;color:#1d4ed8;text-decoration:none">'
+                          . htmlspecialchars($title ?: 'Zadanie #' . $tid) . '</a>' : '<strong>Inne</strong>')
+                . '<ul style="margin:4px 0 0;padding-left:18px;color:#334155;font-size:14px">';
+            foreach ($its as $it) {
+                $html_list .= '<li>' . htmlspecialchars($it['subject'])
+                    . ' <span style="color:#94a3b8;font-size:12px">' . htmlspecialchars(substr($it['created_at'], 11, 5)) . '</span></li>';
+            }
+            $html_list .= '</ul></div>';
+        }
+        $n = count($items);
+        $subject = 'Podsumowanie dnia — Zadania (' . $n . ')';
+        $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+            . '<p>Oto co wydarzyło się w Twoich zadaniach od ostatniego podsumowania:</p>' . $html_list
+            . '<p style="color:#64748b;font-size:13px">Podsumowania zamiast pojedynczych wiadomości włączasz i wyłączasz w ustawieniach powiadomień.</p>';
+        $via = '';
+        try {
+            $ok = (bool)approval_send_email($to, $subject,
+                _tn_tpl('Podsumowanie dnia', $subject, $content, rtrim(APP_URL, '/') . '/tasks/index.php'),
+                'task_digest', $uid, 20, $via);
+        } catch (\Throwable $e) { $ok = false; _tn_log_error($uid, 'digest', 'email', $e->getMessage()); }
+        if ($ok) { $mark(); $sent++; } else { $errs++; }   // błąd → zostaje w kolejce na następny przebieg
+    }
+    try { db()->exec("DELETE FROM task_digest_queue WHERE sent_at < datetime('now','-30 days')"); } catch (\Throwable $e) {}
+    return [$sent, $errs];
+}
+
 const TASK_NOTIFY_EMAIL_TOKEN_TTL = 48 * 3600;   // ważność linku weryfikacyjnego
 const TASK_NOTIFY_EMAIL_RESEND_GAP = 60;         // min. odstęp między wysyłkami linku (s)
 
@@ -538,7 +600,7 @@ function task_notify_save_pref(int $user_id, array $data): void {
     }
     // Nowsze flagi zapisywane tylko, gdy wywołujący je przysłał — starsze formularze
     // (modal w liście zadań, api/notify_prefs.php) ich nie znają i nie mogą ich zerować.
-    foreach (['notify_file', 'notify_moved', 'notify_watched'] as $f) {
+    foreach (['notify_file', 'notify_moved', 'notify_watched', 'notify_digest'] as $f) {
         if (array_key_exists($f, $data)) $values[$f] = (int)(bool)$data[$f];
     }
     // notify_email celowo NIE jest tu zapisywany — tylko przez task_notify_request_email_change()
@@ -573,6 +635,7 @@ function _tn_default_prefs(): array {
         'notify_file'      => 1,
         'notify_moved'     => 1,
         'notify_watched'   => 1,
+        'notify_digest'    => 0,
         'notify_email'     => '',
         'notify_email_pending' => '',
     ];
@@ -592,6 +655,23 @@ function _tn_email(int $user_id, ?string $to, string $event, int $ref_id,
     $to = task_notify_address($user_id, (string)$to);
     if (!$to) return;
     if (!_tn_dedup_ok($user_id, $event, $ref_id, 'email')) return;
+
+    // Tryb „podsumowanie dzienne”: zdarzenia aktywności trafiają do kolejki
+    // (cron/tasks_digest.php), przypomnienia o terminach idą od razu.
+    if (!in_array($event, TASK_NOTIFY_DIGEST_BYPASS, true)
+        && !empty(task_notify_get_pref($user_id)['notify_digest'])) {
+        try {
+            preg_match('#/tasks/index\.php\?task=(\d+)#', $html, $m);
+            db()->prepare(
+                "INSERT INTO task_digest_queue (user_id, event_type, ref_id, task_id, subject, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            )->execute([$user_id, $event, $ref_id, (int)($m[1] ?? 0), mb_substr($subject, 0, 300), date('Y-m-d H:i:s')]);
+            _tn_dedup_mark($user_id, $event, $ref_id, 'email', 'digest');
+        } catch (\Throwable $e) {
+            _tn_log_error($user_id, $event, 'digest', $e->getMessage());
+        }
+        return;
+    }
 
     $via = '';
     try {
@@ -798,6 +878,17 @@ function _tn_schema_heal(): void {
             sent_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )");
+        db()->exec("CREATE TABLE IF NOT EXISTS task_digest_queue (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            event_type TEXT    NOT NULL,
+            ref_id     INTEGER NOT NULL DEFAULT 0,
+            task_id    INTEGER NOT NULL DEFAULT 0,
+            subject    TEXT    NOT NULL,
+            created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+            sent_at    TEXT
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_task_digest_pending ON task_digest_queue(user_id, sent_at)");
         db()->exec(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_log_dedup
              ON task_notification_log(user_id, event_type, ref_id, channel, date(sent_at))"
@@ -813,6 +904,7 @@ function _tn_schema_heal(): void {
             'notify_file      INTEGER NOT NULL DEFAULT 1',
             'notify_moved     INTEGER NOT NULL DEFAULT 1',
             'notify_watched   INTEGER NOT NULL DEFAULT 1',
+            'notify_digest    INTEGER NOT NULL DEFAULT 0',
             "notify_email     TEXT    NOT NULL DEFAULT ''",
             // Weryfikacja własnego adresu: notify_email ustawiany DOPIERO po kliknięciu linku
             "notify_email_pending    TEXT NOT NULL DEFAULT ''",

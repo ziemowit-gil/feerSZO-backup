@@ -72,6 +72,11 @@ function cron_dispatcher_registry(): array
             'interval' => 86400,        // raz dziennie
             'schedule' => [7, 9],       // między 7:00 a 9:00 — zanim ktoś zacznie dzwonić
         ],
+        'tasks_digest' => [
+            'file'     => $cronDir . '/tasks_digest.php',
+            'interval' => 86400,        // raz dziennie — podsumowanie zamiast pojedynczych maili
+            'schedule' => [16, 18],     // po południu, pod koniec dnia pracy
+        ],
         'tasks_recurring' => [
             'file'     => $cronDir . '/tasks_recurring.php',
             'interval' => 86400,

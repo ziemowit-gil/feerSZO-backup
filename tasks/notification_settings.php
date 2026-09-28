@@ -137,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'notify_file'      => isset($_POST['notify_file'])      ? 1 : 0,
                 'notify_moved'     => isset($_POST['notify_moved'])     ? 1 : 0,
                 'notify_watched'   => isset($_POST['notify_watched'])   ? 1 : 0,
+                'notify_digest'    => (int)(($_POST['notify_digest'] ?? '0') === '1'),
                 'notify_assigned'  => isset($_POST['notify_assigned'])  ? 1 : 0,
                 'notify_mentioned' => isset($_POST['notify_mentioned']) ? 1 : 0,
                 'notify_comment'   => isset($_POST['notify_comment'])   ? 1 : 0,
@@ -339,6 +340,33 @@ if (!$is_fragment) {
         </div>
       </div>
     </div>
+
+    <!-- ══ Sekcja: Tryb wysyłki ═════════════════════════════════════ -->
+    <fieldset class="ns-card mb-3">
+      <legend class="ns-card-header w-100 mb-0" style="float:none">
+        <i class="bi bi-inboxes-fill" style="color:#2563eb"></i>
+        Jak wysyłać powiadomienia o aktywności
+      </legend>
+      <?php $digest_on = !empty($pref['notify_digest']); ?>
+      <div class="ns-row">
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="radio" name="notify_digest" id="notify_digest_0" value="0" style="width:1.1em;height:1.1em" <?= $digest_on ? '' : 'checked' ?>>
+          <label class="form-check-label" for="notify_digest_0">
+            <span class="ns-label-title">Od razu</span>
+            <span class="ns-label-desc d-block">Osobny e-mail przy każdym zdarzeniu.</span>
+          </label>
+        </div>
+      </div>
+      <div class="ns-row">
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="radio" name="notify_digest" id="notify_digest_1" value="1" style="width:1.1em;height:1.1em" <?= $digest_on ? 'checked' : '' ?>>
+          <label class="form-check-label" for="notify_digest_1">
+            <span class="ns-label-title">Podsumowanie dzienne</span>
+            <span class="ns-label-desc d-block">Jeden e-mail po południu (16–18) ze wszystkimi zdarzeniami z dnia. Przypomnienia o terminach nadal przychodzą rano.</span>
+          </label>
+        </div>
+      </div>
+    </fieldset>
 
     <!-- ══ Sekcja: Aktywność ═══════════════════════════════════════ -->
     <div class="ns-card mb-3">
