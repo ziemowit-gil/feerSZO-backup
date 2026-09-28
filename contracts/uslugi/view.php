@@ -335,6 +335,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
   </div>
   <div class="col-lg-4">
+    <?php require_once dirname(dirname(__DIR__)) . '/includes/rodo.php'; rodo_contract_card($TYPE, (int)$id); ?>
 
     <div class="card shadow-sm mb-3">
     <div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>

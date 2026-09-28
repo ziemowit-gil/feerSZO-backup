@@ -72,13 +72,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'queue_pr
     header('Location: view.php?id=' . $id); exit;
 }
 
-// Oznacz podpis wolontariusza
+// Oznacz podpis oświadczenia osoby upoważnionej
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'vol_signed') {
     csrf_check();
     $dt = trim($_POST['vol_signed_at'] ?? date('Y-m-d'));
     db()->prepare("UPDATE rodo_authorizations SET vol_signed_at=?, updated_at=? WHERE id=?")
         ->execute([$dt, date('Y-m-d H:i:s'), $id]);
-    flash_set('success', 'Podpis wolontariusza odnotowany.');
+    flash_set('success', 'Podpis oświadczenia osoby upoważnionej odnotowany.');
     header('Location: view.php?id=' . $id); exit;
 }
 
@@ -152,6 +152,8 @@ $row       = db_one("SELECT * FROM rodo_authorizations WHERE id=?", [$id]);
 $trainings = db_all("SELECT * FROM rodo_trainings WHERE authorization_id=? ORDER BY training_date DESC", [$id]);
 $revocs    = db_all("SELECT * FROM rodo_revocations WHERE authorization_id=? ORDER BY revoked_at DESC", [$id]);
 $scope     = json_decode($row['scope_items'] ?? '[]', true) ?: [];
+$meta      = rodo_type_meta($row['contract_type']);
+$c_url     = rodo_contract_url((string)$row['contract_type'], (int)$row['contract_id']);
 
 $PAGE_TITLE = 'Upoważnienie ' . $row['number'];
 include dirname(__DIR__) . '/includes/header.php';
@@ -229,9 +231,11 @@ include dirname(__DIR__) . '/includes/header.php';
         <dd class="col-sm-8 fw-semibold"><?= h($row['person_name']) ?></dd>
         <dt class="col-sm-4 text-muted">PESEL</dt>
         <dd class="col-sm-8 font-monospace"><?= h($row['person_pesel'] ?: '—') ?></dd>
-        <dt class="col-sm-4 text-muted">Nr porozumienia</dt>
+        <dt class="col-sm-4 text-muted">Podstawa</dt>
+        <dd class="col-sm-8"><?= h($meta['label']) ?></dd>
+        <dt class="col-sm-4 text-muted">Nr umowy / podstawa</dt>
         <dd class="col-sm-8"><?= h($row['contract_number'] ?: '—') ?></dd>
-        <dt class="col-sm-4 text-muted">Data porozumienia</dt>
+        <dt class="col-sm-4 text-muted">Data umowy</dt>
         <dd class="col-sm-8"><?= $row['contract_date'] ? date('d.m.Y', strtotime($row['contract_date'])) : '—' ?></dd>
         <dt class="col-sm-4 text-muted fw-semibold">§ 2 Zakres</dt>
         <dd class="col-sm-8">
@@ -406,10 +410,10 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
 
-  <!-- Podpis wolontariusza -->
+  <!-- Podpis osoby upoważnionej -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header py-2 fw-semibold" style="font-size:.85rem">
-      <i class="bi bi-pen me-1"></i>Oświadczenie wolontariusza
+      <i class="bi bi-pen me-1" aria-hidden="true"></i>Oświadczenie osoby upoważnionej
     </div>
     <div class="card-body">
       <?php if ($row['vol_signed_at']): ?>
@@ -418,7 +422,7 @@ include dirname(__DIR__) . '/includes/header.php';
         Podpisane <?= date('d.m.Y', strtotime($row['vol_signed_at'])) ?>
       </div>
       <?php else: ?>
-      <p class="text-muted small mb-2">Wolontariusz jeszcze nie złożył oświadczenia.</p>
+      <p class="text-muted small mb-2">Osoba upoważniona jeszcze nie złożyła oświadczenia.</p>
       <form method="post">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="_op" value="vol_signed">
@@ -440,7 +444,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <?php
       $doc_slots = [
         ['col'=>'signed_doc_path',     'op'=>'upload_signed',     'label'=>'Upoważnienie (podpis adm.)', 'icon'=>'bi-shield-check'],
-        ['col'=>'vol_signed_doc_path', 'op'=>'upload_vol_signed', 'label'=>'Oświadczenie wolontariusza', 'icon'=>'bi-person-check'],
+        ['col'=>'vol_signed_doc_path', 'op'=>'upload_vol_signed', 'label'=>'Oświadczenie osoby upoważnionej', 'icon'=>'bi-person-check'],
         ['col'=>'revoke_doc_path',     'op'=>'upload_revoke',     'label'=>'Odwołanie upoważnienia',    'icon'=>'bi-file-earmark-x'],
       ];
       foreach ($doc_slots as $slot):
@@ -502,12 +506,12 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 
   <!-- Umowa powiązana -->
-  <?php if ($row['contract_id'] && $row['contract_type']): ?>
+  <?php if ($c_url): ?>
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-      <a href="<?= APP_URL ?>/contracts/<?= h($row['contract_type']) ?>/view.php?id=<?= $row['contract_id'] ?>&tab=rodo"
+      <a href="<?= h($c_url) ?>"
          class="btn btn-sm btn-outline-secondary w-100">
-        <i class="bi bi-file-text me-1"></i>Porozumienie <?= h($row['contract_number'] ?: '#' . $row['contract_id']) ?>
+        <i class="bi bi-file-text me-1" aria-hidden="true"></i><?= h($meta['doc_contract_short']) ?> <?= h($row['contract_number'] ?: '#' . $row['contract_id']) ?>
       </a>
     </div>
   </div>
@@ -566,7 +570,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <div class="mb-3">
             <label class="form-label fw-semibold small">Powód usunięcia <span class="text-danger">*</span></label>
             <textarea name="delete_reason" class="form-control form-control-sm" rows="3" required
-                      placeholder="np. Realizacja prawa do bycia zapomnianym (art. 17 RODO), zakończenie stosunku wolontariatu, …"></textarea>
+                      placeholder="np. Realizacja prawa do bycia zapomnianym (art. 17 RODO), zakończenie <?= h($meta['doc_relation']) ?>, …"></textarea>
             <div class="form-text">Odnotowane w logu — wymagane art. 5 ust. 2 RODO (rozliczalność).</div>
           </div>
         </form>

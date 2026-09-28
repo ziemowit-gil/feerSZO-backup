@@ -30,6 +30,7 @@ $reason          = $rev ? ($rev['reason'] ?? '') : '';
 $cof_number = $row['number'] . '/ODW';
 
 $contract_date_fmt = $row['contract_date'] ? date('d.m.Y', strtotime($row['contract_date'])) : '';
+$meta              = rodo_type_meta($row['contract_type']);
 $auth_from_fmt     = $row['authorized_from'] ? date('d.m.Y', strtotime($row['authorized_from'])) : $today;
 ?>
 <!DOCTYPE html>
@@ -222,7 +223,7 @@ body {
       <div class="party-val"><?= h($row['person_name']) ?></div>
       <div class="party-sub">
         <?php if ($row['person_pesel']): ?>PESEL: <strong><?= h($row['person_pesel']) ?></strong><br><?php endif; ?>
-        <?php if ($row['contract_number']): ?>Porozumienie nr: <strong><?= h($row['contract_number']) ?></strong><?php if ($contract_date_fmt): ?> z dnia <?= $contract_date_fmt ?><?php endif; ?><?php endif; ?>
+        <?php if ($row['contract_number']): ?><?= h($meta['doc_contract_short']) ?><?= $row['contract_type'] === 'bez_umowy' ? ':' : ' nr:' ?> <strong><?= h($row['contract_number']) ?></strong><?php if ($contract_date_fmt): ?> z dnia <?= $contract_date_fmt ?><?php endif; ?><?php endif; ?>
       </div>
     </td>
   </tr>
@@ -249,8 +250,8 @@ body {
     <?php if ($reason): ?>
     Odwołanie upoważnienia następuje z powodu: <strong><?= h($reason) ?></strong>.
     <?php else: ?>
-    Odwołanie upoważnienia następuje z powodu ustania stosunku wolontariatu lub zakończenia
-    porozumienia o wolontariacie<?php if ($row['contract_number']): ?> nr&nbsp;<strong><?= h($row['contract_number']) ?></strong><?php endif; ?>,
+    Odwołanie upoważnienia następuje z powodu ustania <?= h($meta['doc_relation']) ?> lub zakończenia
+    <?= h($meta['doc_contract']) ?><?php if ($row['contract_number']): ?> <?= $row['contract_type'] === 'bez_umowy' ? '—' : 'nr' ?>&nbsp;<strong><?= h($row['contract_number']) ?></strong><?php endif; ?>,
     w związku z którym zostało ono wydane.
     <?php endif; ?>
   </div>

@@ -211,6 +211,7 @@ include dirname(__DIR__) . '/includes/convert_to_powierzenie.php';
 </div><!-- /col-lg-8 -->
 
 <div class="col-lg-4">
+  <?php require_once dirname(dirname(__DIR__)) . '/includes/rodo.php'; rodo_contract_card($TYPE, (int)$id); ?>
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
 <div class="card-body">

@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/byli_check.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin', 'editor');
+require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
 require_module_enabled('contract_inne', 'Ten typ umowy');
 if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/inne/add.php');
 $PAGE_TITLE = 'Nowa inna umowa';
@@ -75,6 +76,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         contract_access_set($TYPE, $id, $_POST['access_users'] ?? [], (int)current_user()['id']);
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'create', 'Dodano: ' . ($data['numer_umowy'] ?? ''));
+        if (!empty($_POST['rodo_grant'])) {
+            try {
+                rodo_migrate();
+                rodo_quick_create($TYPE, (int)$id, [
+                    'numer_umowy'      => $data['numer_umowy']   ?? '',
+                    'data_zawarcia'    => $data['data_zawarcia'] ?? '',
+                    'imie_nazwisko'    => $data['strona_umowy'] ?? '',
+                    'pesel'            => (strlen(preg_replace('/\D/', '', $data['pesel_nip_krs'] ?? '')) === 11 ? preg_replace('/\D/', '', $data['pesel_nip_krs']) : ''),
+                    'scope_items'      => $_POST['scope_items']  ?? [],
+                    'scope_custom'     => $_POST['rodo_scope_custom']     ?? '',
+                    'authorized_until' => $_POST['rodo_authorized_until'] ?? '',
+                ]);
+            } catch (\Throwable $e) { error_log('[inne/add rodo] ' . $e->getMessage()); }
+        }
         if (isset($_POST['nie_mam_drukarki'])) {
             require_once dirname(dirname(__DIR__)) . '/contracts/includes/pdf_queue.php';
             pdf_queue_add($TYPE, $id, $data['numer_umowy'] ?? '', $data['strona_umowy'] ?? '', current_user()['id']);
@@ -359,6 +374,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div>
         <label for="uwagi" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Uwagi</label>
         <textarea id="uwagi" name="uwagi" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['uwagi'] ?? '') ?></textarea>
+      </div>
+
+      <div>
+        <?php rodo_grant_form_section(); ?>
       </div>
     </div>
 

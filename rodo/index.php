@@ -11,7 +11,7 @@ require_role('admin', 'editor');
 
 $f_status   = $_GET['status']   ?? '';
 $f_q        = trim($_GET['q']   ?? '');
-$f_type     = $_GET['type']     ?? '';
+$f_type     = rodo_clean_type($_GET['type'] ?? '');
 $f_training = $_GET['training'] ?? '';
 
 $where  = ['1=1'];
@@ -113,9 +113,9 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="col-sm-3 col-md-2">
     <select name="type" class="form-select form-select-sm">
       <option value="">Wszystkie typy</option>
-      <option value="wolontariat" <?= $f_type==='wolontariat'?'selected':'' ?>>Wolontariat</option>
-      <option value="zlecenie"    <?= $f_type==='zlecenie'   ?'selected':'' ?>>Zlecenie</option>
-      <option value="praca"       <?= $f_type==='praca'      ?'selected':'' ?>>Praca</option>
+      <?php foreach (RODO_CONTRACT_TYPES as $_tk => $_tm): ?>
+      <option value="<?= h($_tk) ?>" <?= $f_type===$_tk?'selected':'' ?>><?= h($_tm['label']) ?></option>
+      <?php endforeach; ?>
     </select>
   </div>
   <div class="col-sm-3 col-md-2">
@@ -165,7 +165,7 @@ include dirname(__DIR__) . '/includes/header.php';
             <?= $r['person_pesel'] ? substr($r['person_pesel'],0,2).'·····'.substr($r['person_pesel'],7) : '—' ?>
           </td>
           <td class="small">
-            <span class="badge bg-light text-dark border"><?= h($r['contract_type']) ?></span>
+            <span class="badge bg-light text-dark border"><?= h(rodo_type_meta($r['contract_type'])['label']) ?></span>
           </td>
           <td class="small text-muted"><?= h($r['contract_number'] ?: '—') ?></td>
           <td class="small text-nowrap"><?= $r['authorized_from'] ? date('d.m.Y', strtotime($r['authorized_from'])) : '—' ?></td>

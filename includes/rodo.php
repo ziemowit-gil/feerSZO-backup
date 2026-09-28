@@ -27,6 +27,179 @@ const RODO_TRAINING_TOPICS = [
     'tajemnica'     => 'Obowiązek zachowania tajemnicy danych',
 ];
 
+// ── Typy podstaw upoważnienia (umowy + osoby bez umowy) ───────────────────────
+// table/name/pesel/end/open — kolumny tabeli umowy; doc_* — sformułowania w dokumentach.
+const RODO_CONTRACT_TYPES = [
+    'wolontariat' => [
+        'label' => 'Wolontariat', 'table' => 'umowy_wolontariat',
+        'name' => 'imie_nazwisko', 'pesel' => 'pesel', 'end' => 'data_zakonczenia', 'open' => 'bezterminowa',
+        'doc_contract' => 'porozumienia o wolontariacie', 'doc_contract_short' => 'Porozumienie',
+        'doc_relation' => 'stosunku wolontariatu', 'person_role' => 'wolontariusza',
+    ],
+    'zlecenie' => [
+        'label' => 'Umowa zlecenia', 'table' => 'umowy_zlecenie',
+        'name' => 'imie_nazwisko', 'pesel' => 'pesel', 'end' => 'data_zakonczenia', 'open' => null,
+        'doc_contract' => 'umowy zlecenia', 'doc_contract_short' => 'Umowa zlecenia',
+        'doc_relation' => 'współpracy na podstawie umowy zlecenia', 'person_role' => 'zleceniobiorcy',
+    ],
+    'praca' => [
+        'label' => 'Umowa o pracę', 'table' => 'umowy_praca',
+        'name' => 'imie_nazwisko', 'pesel' => 'pesel', 'end' => 'data_zakonczenia', 'open' => null,
+        'doc_contract' => 'umowy o pracę', 'doc_contract_short' => 'Umowa o pracę',
+        'doc_relation' => 'stosunku pracy', 'person_role' => 'pracownika',
+    ],
+    'dzielo' => [
+        'label' => 'Umowa o dzieło', 'table' => 'umowy_dzielo',
+        'name' => 'imie_nazwisko', 'pesel' => 'pesel', 'end' => 'termin_oddania', 'open' => null,
+        'doc_contract' => 'umowy o dzieło', 'doc_contract_short' => 'Umowa o dzieło',
+        'doc_relation' => 'współpracy na podstawie umowy o dzieło', 'person_role' => 'wykonawcy',
+    ],
+    'uslugi' => [
+        'label' => 'Umowa o świadczenie usług', 'table' => 'umowy_uslugi',
+        'name' => 'nazwa_wykonawcy', 'pesel' => null, 'end' => 'data_zakonczenia', 'open' => 'czas_nieokreslony',
+        'doc_contract' => 'umowy o świadczenie usług', 'doc_contract_short' => 'Umowa o świadczenie usług',
+        'doc_relation' => 'współpracy na podstawie umowy o świadczenie usług', 'person_role' => 'wykonawcy',
+    ],
+    'inne' => [
+        'label' => 'Inna umowa', 'table' => 'umowy_inne',
+        'name' => 'strona_umowy', 'pesel' => null, 'end' => 'data_zakonczenia', 'open' => 'czas_nieokreslony',
+        'doc_contract' => 'umowy', 'doc_contract_short' => 'Umowa',
+        'doc_relation' => 'współpracy', 'person_role' => 'osoby upoważnionej',
+    ],
+    'bez_umowy' => [
+        'label' => 'Bez umowy (funkcja, członkostwo, staż)', 'table' => null,
+        'name' => null, 'pesel' => null, 'end' => null, 'open' => null,
+        'doc_contract' => 'pełnionej funkcji', 'doc_contract_short' => 'Podstawa',
+        'doc_relation' => 'współpracy z Administratorem', 'person_role' => 'osoby upoważnionej',
+    ],
+];
+
+/** Metadane typu podstawy; nieznany/pusty typ → wolontariat (zgodność wsteczna). */
+function rodo_type_meta(?string $type): array {
+    return RODO_CONTRACT_TYPES[$type ?? ''] ?? RODO_CONTRACT_TYPES['wolontariat'];
+}
+
+/** Walidacja typu z żądania — zwraca klucz z rejestru albo ''. */
+function rodo_clean_type(?string $type): string {
+    $type = (string)$type;
+    return isset(RODO_CONTRACT_TYPES[$type]) ? $type : '';
+}
+
+/**
+ * Wiersz umowy znormalizowany do pól używanych przez moduł RODO.
+ * Zwraca null gdy typ nie ma tabeli albo umowy nie ma.
+ */
+function rodo_contract_fetch(string $type, int $id): ?array {
+    $m = RODO_CONTRACT_TYPES[$type] ?? null;
+    if (!$m || !$m['table'] || !$id) return null;
+    try {
+        $c = db_one("SELECT * FROM {$m['table']} WHERE id=?", [$id]);
+    } catch (\Throwable $e) { return null; }
+    if (!$c) return null;
+    $pesel = $m['pesel'] ? ($c[$m['pesel']] ?? '') : '';
+    // uslugi/inne trzymają PESEL razem z NIP/KRS — bierzemy tylko 11 cyfr
+    if (!$pesel) {
+        $raw = preg_replace('/\D/', '', (string)($c['nip_pesel'] ?? $c['pesel_nip_krs'] ?? ''));
+        if (strlen($raw) === 11) $pesel = $raw;
+    }
+    return [
+        'person_name'     => (string)($c[$m['name']] ?? ''),
+        'person_pesel'    => (string)$pesel,
+        'contract_number' => (string)($c['numer_umowy'] ?? ''),
+        'contract_date'   => (string)($c['data_zawarcia'] ?? ''),
+        'start_date'      => (string)(($c['data_rozpoczecia'] ?? '') ?: ($c['data_zawarcia'] ?? '')),
+        'end_date'        => (string)($c[$m['end']] ?? ''),
+        'open_ended'      => $m['open'] ? !empty($c[$m['open']]) : false,
+        'status'          => (string)($c['status'] ?? ''),
+    ];
+}
+
+/**
+ * Umowy danej osoby (po e-mailu / loginie M365 / ID Microsoft) we wszystkich typach
+ * z RODO_CONTRACT_TYPES — dla samoobsługi (portal tożsamości, eksport RODO).
+ * Nie każda tabela ma kolumny m365_* — każde zapytanie osobno w try.
+ * @return array<string,int[]> typ => lista id
+ */
+function rodo_contract_ids_for_login(string $login, string $microsoft_id = ''): array {
+    $out = [];
+    foreach (RODO_CONTRACT_TYPES as $type => $m) {
+        if (!$m['table']) continue;
+        $ids = [];
+        $queries = [];
+        if ($login !== '') {
+            $queries[] = ["SELECT id FROM {$m['table']} WHERE email=?", [$login]];
+            $queries[] = ["SELECT id FROM {$m['table']} WHERE m365_login=?", [$login]];
+        }
+        if ($microsoft_id !== '') {
+            $queries[] = ["SELECT id FROM {$m['table']} WHERE m365_user_id=?", [$microsoft_id]];
+        }
+        foreach ($queries as [$sql, $params]) {
+            try {
+                foreach (db_all($sql, $params) as $r) $ids[(int)$r['id']] = true;
+            } catch (\Throwable $e) {} // brak kolumny w tej tabeli
+        }
+        if ($ids) $out[$type] = array_keys($ids);
+    }
+    return $out;
+}
+
+/** Link do widoku umowy powiązanej z upoważnieniem (null dla „bez umowy”). */
+function rodo_contract_url(string $type, int $id): ?string {
+    $m = RODO_CONTRACT_TYPES[$type] ?? null;
+    if (!$m || !$m['table'] || !$id) return null;
+    $url = APP_URL . "/contracts/{$type}/view.php?id={$id}";
+    return $type === 'wolontariat' ? $url . '&tab=rodo' : $url;
+}
+
+/**
+ * Karta „Upoważnienia RODO” do bocznej kolumny widoku umowy
+ * (lista upoważnień powiązanych z umową + nadanie nowego).
+ */
+function rodo_contract_card(string $type, int $id): void {
+    if (!isset(RODO_CONTRACT_TYPES[$type]) || !$id) return;
+    try {
+        rodo_migrate();
+        $rows = db_all(
+            "SELECT id, number, status, training_done FROM rodo_authorizations
+             WHERE contract_type=? AND contract_id=? ORDER BY created_at DESC",
+            [$type, $id]
+        );
+    } catch (\Throwable $e) { return; }
+    $can_edit = in_array(current_user()['role'] ?? '', ['admin', 'editor'], true);
+    ?>
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-shield-lock text-primary" aria-hidden="true"></i>
+        <span>Upoważnienia RODO</span>
+        <?php if ($rows): ?><span class="badge bg-secondary ms-auto"><?= count($rows) ?></span><?php endif; ?>
+      </div>
+      <div class="card-body small">
+        <?php if (!$rows): ?>
+        <p class="text-muted mb-2">Brak upoważnienia do przetwarzania danych osobowych dla tej umowy.</p>
+        <?php else: ?>
+        <ul class="list-unstyled mb-2">
+          <?php foreach ($rows as $r): ?>
+          <li class="d-flex flex-wrap align-items-center gap-2 py-1 border-bottom">
+            <a href="<?= APP_URL ?>/rodo/view.php?id=<?= (int)$r['id'] ?>" class="font-monospace text-decoration-none"><?= h($r['number']) ?></a>
+            <?= rodo_status_badge($r['status']) ?>
+            <?php if (!$r['training_done'] && $r['status'] === 'aktywne'): ?>
+            <span class="badge bg-warning text-dark">bez szkolenia</span>
+            <?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+        <?php if ($can_edit): ?>
+        <a href="<?= APP_URL ?>/rodo/new.php?contract_type=<?= h($type) ?>&amp;contract_id=<?= $id ?>"
+           class="btn btn-sm btn-outline-primary w-100">
+          <i class="bi bi-shield-plus me-1" aria-hidden="true"></i>Nadaj upoważnienie RODO
+        </a>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php
+}
+
 // ── Migracja ──────────────────────────────────────────────────────────────────
 function rodo_migrate(): void {
     static $done = false;
@@ -151,22 +324,18 @@ function rodo_next_number(string $contract_number = ''): string {
 
 // ── Walidacja okresu upoważnienia ─────────────────────────────────────────────
 /**
- * Dla wolontariatu: authorized_until nie może przekroczyć data_zakonczenia umowy.
+ * authorized_until nie może przekroczyć daty zakończenia powiązanej umowy
+ * (dowolny typ z RODO_CONTRACT_TYPES; umowy bezterminowe bez ograniczenia).
  * Zwraca null gdy OK, string z komunikatem błędu gdy naruszenie.
  */
 function rodo_validate_period(string $contract_type, int $contract_id, string $authorized_until): ?string {
-    if ($contract_type !== 'wolontariat' || !$contract_id || !$authorized_until) return null;
-    try {
-        $c = db_one("SELECT data_zakonczenia, bezterminowa FROM umowy_wolontariat WHERE id=?", [$contract_id]);
-        if (!$c) return null;
-        if (!empty($c['bezterminowa'])) return null; // bezterminowa — bez ograniczenia
-        $max = $c['data_zakonczenia'] ?? '';
-        if (!$max) return null;
-        if ($authorized_until > $max) {
-            return 'Upoważnienie RODO nie może być dłuższe niż porozumienie wolontariackie '
-                 . '(max. ' . date('d.m.Y', strtotime($max)) . ').';
-        }
-    } catch (\Throwable $e) {}
+    if (!$contract_id || !$authorized_until) return null;
+    $c = rodo_contract_fetch($contract_type, $contract_id);
+    if (!$c || $c['open_ended'] || !$c['end_date']) return null;
+    if ($authorized_until > $c['end_date']) {
+        return 'Upoważnienie RODO nie może być dłuższe niż okres ' . rodo_type_meta($contract_type)['doc_contract']
+             . ' (max. ' . date('d.m.Y', strtotime($c['end_date'])) . ').';
+    }
     return null;
 }
 
@@ -281,22 +450,27 @@ function rodo_status_badge(string $status): string {
 // ── Auto-cofnięcie przy zamkniętych umowach ───────────────────────────────────
 function rodo_auto_expire(): void {
     try {
+        // Upoważnienia z datą końcową (m.in. „bez umowy”) — wygasają po upływie terminu
+        db()->prepare("UPDATE rodo_authorizations SET status='wygasłe', updated_at=?
+                       WHERE status='aktywne' AND authorized_until IS NOT NULL AND authorized_until <> '' AND authorized_until < ?")
+            ->execute([date('Y-m-d H:i:s'), date('Y-m-d')]);
+
         $active = db_all(
             "SELECT r.id, r.contract_type, r.contract_id
              FROM rodo_authorizations r
              WHERE r.status = 'aktywne' AND r.contract_id IS NOT NULL"
         );
         $today = date('Y-m-d');
+        $ended_statuses = ['zakończona','rozwiązana','anulowana','wygasła'];
         foreach ($active as $a) {
-            $table  = 'umowy_' . $a['contract_type'];
-            $end_col = $a['contract_type'] === 'dzielo' ? 'termin_oddania' : 'data_zakonczenia';
+            $m = RODO_CONTRACT_TYPES[$a['contract_type']] ?? null;
+            if (!$m || !$m['table']) continue; // „bez umowy” — wygasa tylko datą authorized_until
             try {
-                $c = db_one("SELECT status, {$end_col} AS data_koniec FROM {$table} WHERE id=?", [(int)$a['contract_id']]);
+                $c = db_one("SELECT status, {$m['end']} AS data_koniec FROM {$m['table']} WHERE id=?", [(int)$a['contract_id']]);
             } catch (\Throwable $e) { continue; }
             if (!$c) continue;
-            $ended_statuses = ['zakończona','rozwiązana','anulowana'];
-            $date_passed    = !empty($c['data_koniec']) && $c['data_koniec'] < $today;
-            if (in_array($c['status'], $ended_statuses) || $date_passed) {
+            $date_passed = !empty($c['data_koniec']) && $c['data_koniec'] < $today;
+            if (in_array($c['status'], $ended_statuses, true) || $date_passed) {
                 db()->prepare("UPDATE rodo_authorizations SET status='wygasłe', updated_at=? WHERE id=?")
                     ->execute([date('Y-m-d H:i:s'), $a['id']]);
             }

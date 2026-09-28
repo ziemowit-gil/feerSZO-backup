@@ -344,6 +344,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 </div><!-- /col-lg-8 -->
 
 <div class="col-lg-4">
+  <?php require_once dirname(dirname(__DIR__)) . '/includes/rodo.php'; rodo_contract_card($TYPE, (int)$id); ?>
 
   <?php if ($person): ?>
   <div class="card shadow-sm mb-3 border-primary border-opacity-25">

@@ -22,6 +22,7 @@ $vol_signed_date = $row['vol_signed_at'] ? date('d.m.Y', strtotime($row['vol_sig
 $from_date       = $row['authorized_from']  ? date('d.m.Y', strtotime($row['authorized_from']))  : $today;
 $until_date      = $row['authorized_until'] ? date('d.m.Y', strtotime($row['authorized_until'])) : '';
 $contract_date_fmt = $row['contract_date'] ? date('d.m.Y', strtotime($row['contract_date'])) : '';
+$meta              = rodo_type_meta($row['contract_type']);
 ?>
 <!DOCTYPE html>
 <html lang="pl">
@@ -172,7 +173,7 @@ body {
 }
 .sign-label { font-size: .72rem; text-align: center; color: #333; line-height: 1.35; }
 
-/* ── Oświadczenie wolontariusza ───────────────────────── */
+/* ── Oświadczenie osoby upoważnionej ───────────────────────── */
 .statement-box {
   border: 1px solid #888;
   padding: .45rem .6rem;
@@ -262,7 +263,7 @@ body {
       <div class="party-val"><?= h($row['person_name']) ?></div>
       <div class="party-sub">
         <?php if ($row['person_pesel']): ?>PESEL: <strong><?= h($row['person_pesel']) ?></strong><br><?php endif; ?>
-        <?php if ($row['contract_number']): ?>Porozumienie nr: <strong><?= h($row['contract_number']) ?></strong><?php if ($contract_date_fmt): ?> z dnia <?= $contract_date_fmt ?><?php endif; ?><?php endif; ?>
+        <?php if ($row['contract_number']): ?><?= h($meta['doc_contract_short']) ?><?= $row['contract_type'] === 'bez_umowy' ? ':' : ' nr:' ?> <strong><?= h($row['contract_number']) ?></strong><?php if ($contract_date_fmt): ?> z dnia <?= $contract_date_fmt ?><?php endif; ?><?php endif; ?>
       </div>
     </td>
   </tr>
@@ -274,8 +275,8 @@ body {
   <div class="section-body">
     Z dniem <strong><?= $from_date ?></strong> upoważniam Pana/Panią <strong><?= h($row['person_name']) ?></strong>
     do przetwarzania danych osobowych w zbiorach prowadzonych przez <em><?= h($row['org_name']) ?></em>
-    w zakresie niezbędnym do realizacji zadań wynikających z porozumienia o wolontariacie
-    <?php if ($row['contract_number']): ?>nr <strong><?= h($row['contract_number']) ?></strong><?php endif; ?>
+    w zakresie niezbędnym do realizacji zadań wynikających z <?= h($meta['doc_contract']) ?>
+    <?php if ($row['contract_number']): ?><?= $row['contract_type'] === 'bez_umowy' ? '—' : 'nr' ?> <strong><?= h($row['contract_number']) ?></strong><?php endif; ?>
     <?php if ($contract_date_fmt): ?>z dnia <?= $contract_date_fmt ?><?php endif ?>.<?php
     if ($until_date): ?> Upoważnienie obowiązuje do dnia <strong><?= $until_date ?></strong>.<?php endif; ?>
   </div>
@@ -305,7 +306,7 @@ body {
     Osoba upoważniona jest zobowiązana do:
     <ol class="oblig-list">
       <li>Przetwarzania danych osobowych wyłącznie w zakresie i celu określonym w niniejszym upoważnieniu.</li>
-      <li>Zachowania w pełnej poufności przetwarzanych danych osobowych oraz sposobów ich zabezpieczenia, również po ustaniu stosunku wolontariatu.</li>
+      <li>Zachowania w pełnej poufności przetwarzanych danych osobowych oraz sposobów ich zabezpieczenia, również po ustaniu <?= h($meta['doc_relation']) ?>.</li>
       <li>Stosowania się do przepisów Rozporządzenia (UE) 2016/679 (RODO) oraz wewnętrznej polityki bezpieczeństwa <?= h($row['org_name']) ?>.</li>
       <li>Niezwłocznego zgłaszania Administratorowi każdego przypadku naruszenia ochrony danych lub podejrzenia takiego naruszenia.</li>
     </ol>
@@ -316,7 +317,7 @@ body {
 <div class="section">
   <div class="section-title"><span class="para-num">§ 4</span></div>
   <div class="section-body">
-    Upoważnienie wygasa z chwilą rozwiązania lub wygaśnięcia porozumienia o wolontariacie<?php
+    Upoważnienie wygasa z chwilą <?= $row['contract_type'] === 'bez_umowy' ? 'zakończenia pełnienia funkcji lub ustania ' . h($meta['doc_relation']) : 'rozwiązania lub wygaśnięcia ' . h($meta['doc_contract']) ?><?php
     if ($until_date): ?>, nie później jednak niż w dniu <?= $until_date ?>,<?php endif; ?>
     lub w przypadku cofnięcia upoważnienia przez Administratora danych.
   </div>
@@ -338,7 +339,7 @@ body {
   <div style="flex:.4"></div><!-- odstęp -->
 </div>
 
-<!-- Oświadczenie wolontariusza -->
+<!-- Oświadczenie osoby upoważnionej -->
 <div class="statement-box">
   <div class="statement-title">Oświadczenie osoby upoważnionej</div>
   <div class="statement-body">

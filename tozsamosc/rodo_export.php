@@ -64,13 +64,7 @@ foreach ([['wolontariat','Wolontariusz'],['zlecenie','Zleceniobiorca'],['praca',
 // ── RODO: upoważnienia + historia ─────────────────────────────────────────────
 $rodo_org  = function_exists('rodo_org_data') ? rodo_org_data() : ['name'=>'','address'=>'','city'=>'','nip'=>'','krs'=>''];
 $rodo_auth = []; $rodo_ids = [];
-foreach (['wolontariat','zlecenie'] as $ctype) {
-    $ids = [];
-    try {
-        foreach (db_all("SELECT id FROM umowy_{$ctype} WHERE email=? OR m365_login=?", [$panel_login,$panel_login]) as $r) $ids[] = (int)$r['id'];
-        if ($microsoft_id) foreach (db_all("SELECT id FROM umowy_{$ctype} WHERE m365_user_id=?", [$microsoft_id]) as $r) { if (!in_array((int)$r['id'],$ids,true)) $ids[] = (int)$r['id']; }
-    } catch (\Throwable $e) { $ids = []; }
-    if (!$ids) continue;
+foreach (rodo_contract_ids_for_login((string)$panel_login, (string)($microsoft_id ?? '')) as $ctype => $ids) {
     $rodo_ids[$ctype] = $ids;
     $ph = implode(',', array_fill(0, count($ids), '?'));
     try { foreach (db_all("SELECT * FROM rodo_authorizations WHERE contract_type=? AND contract_id IN ({$ph}) ORDER BY created_at DESC", array_merge([$ctype],$ids)) as $a) $rodo_auth[] = $a; } catch (\Throwable $e) {}
