@@ -983,7 +983,9 @@ echo '<main id="main" class="dyd-wrap">';
         ?>
         <tr>
           <td>
-            <div class="fw-semibold"><?= h($b['client_name']) ?></div>
+            <div class="fw-semibold"><?= h($b['client_name']) ?>
+              <a href="billing_view.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener" class="ms-1 fw-normal text-decoration-none"
+                 style="font-size:.74rem" title="Podgląd rozliczenia (zestawienie do wydruku)"><i class="bi bi-eye" aria-hidden="true"></i> Podgląd</a></div>
             <?php if ((int)$b['course_id'] > 0): ?>
             <div class="mt-1">
               <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" style="font-size:.75rem">
@@ -1847,7 +1849,7 @@ echo '<main id="main" class="dyd-wrap">';
       <tbody>
       <?php foreach ($withdrawn as $w): ?>
         <tr class="text-body-secondary">
-          <td><?= h($w['client_name']) ?></td>
+          <td><?= h($w['client_name']) ?> <a href="billing_view.php?id=<?= (int)$w['id'] ?>" target="_blank" rel="noopener" class="small text-decoration-none" title="Podgląd rozliczenia"><i class="bi bi-eye" aria-hidden="true"></i></a></td>
           <td class="text-end"><?= number_format((float)$w['amount'] + (float)($w['adjustment'] ?? 0), 2, ',', ' ') ?> zł</td>
           <td><?= h($w['cancelled_by_name'] ?: '—') ?></td>
           <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$w['cancelled_at']))) ?></td>
