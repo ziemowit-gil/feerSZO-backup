@@ -11,7 +11,12 @@
  *   available ─wydanie─▶ issued ─zwrot─▶ returned ─ponowne wydanie─▶ issued
  *        │                  │                │
  *        └──────────────────┴──uszkodzenie───┴──▶ damaged (stan końcowy)
+ *        └──────────────────┴──zagubienie────┴──▶ lost    (stan końcowy)
  *   returned ─przywrócenie do puli─▶ available
+ *
+ * Zagubienie i uszkodzenie wymagają opisu i rozliczają naklejkę przy umowie.
+ * Każda operacja trafia też do wspólnego dziennika audit_logs
+ * (modules/audit_logs) — w tej samej transakcji co zmiana.
  *
  * Powiązanie z umową (contract_type + contract_id, opcjonalne): naklejka wydana
  * w ramach umowy musi być rozliczona (zwrot albo uszkodzenie) zanim umowa
@@ -26,12 +31,14 @@
  */
 
 require_once dirname(__DIR__, 3) . '/includes/db.php';
+require_once dirname(__DIR__, 2) . '/audit_logs/logic/audit_logs.php';
 
 const HOLO_STATUSES = [
     'available' => ['label' => 'Dostępny',   'plural' => 'Dostępne',   'icon' => 'bi-check2-circle'],
     'issued'    => ['label' => 'Wydany',     'plural' => 'Wydane',     'icon' => 'bi-box-arrow-up-right'],
     'returned'  => ['label' => 'Zwrócony',   'plural' => 'Zwrócone',   'icon' => 'bi-arrow-return-left'],
     'damaged'   => ['label' => 'Uszkodzony', 'plural' => 'Uszkodzone', 'icon' => 'bi-x-octagon'],
+    'lost'      => ['label' => 'Zagubiony',  'plural' => 'Zagubione',  'icon' => 'bi-question-octagon'],
 ];
 
 /** Dozwolone przejścia: status docelowy => statusy, z których można przejść. */
@@ -39,8 +46,12 @@ const HOLO_TRANSITIONS = [
     'issued'    => ['available', 'returned'],
     'returned'  => ['issued'],
     'damaged'   => ['available', 'issued', 'returned'],
+    'lost'      => ['available', 'issued', 'returned'],
     'available' => ['returned'],
 ];
+
+/** Statusy końcowe — wymagają opisu okoliczności. */
+const HOLO_TERMINAL = ['damaged', 'lost'];
 
 const HOLO_MAX_SERIES   = 5000;   // limit jednej serii / jednego wydania zakresem
 const HOLO_PREFIX_RE    = '/^[A-Za-z0-9][A-Za-z0-9\-\/_.]{0,39}$/';
@@ -56,7 +67,7 @@ function holograms_migrate(): void {
         holo_number  TEXT NOT NULL UNIQUE,
         batch_number TEXT,
         status       TEXT NOT NULL DEFAULT 'available'
-                     CHECK (status IN ('available','issued','damaged','returned')),
+                     CHECK (status IN ('available','issued','damaged','returned','lost')),
         assigned_to  TEXT,
         issued_at    DATETIME,
         issued_by    TEXT,
@@ -82,6 +93,51 @@ function holograms_migrate(): void {
     if (!in_array('contract_type', $cols, true)) $pdo->exec("ALTER TABLE holograms ADD COLUMN contract_type TEXT");
     if (!in_array('contract_id', $cols, true))   $pdo->exec("ALTER TABLE holograms ADD COLUMN contract_id INTEGER");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_contract ON holograms(contract_type, contract_id)");
+    // v3: status 'lost' — SQLite nie zmienia CHECK przez ALTER, więc przebudowa tabeli
+    $ddl = (string)$pdo->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='holograms'")->fetchColumn();
+    if ($ddl !== '' && !str_contains($ddl, "'lost'") && !$pdo->inTransaction()) holograms_rebuild_with_lost($pdo);
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_assigned ON holograms(assigned_to)");
+    audit_logs_migrate();
+}
+
+/**
+ * Przebudowa tabeli holograms z nowym CHECK (dodany status 'lost').
+ * foreign_keys musi być wyłączone POZA transakcją — inaczej DROP TABLE
+ * skasowałby kaskadowo holograms_log. Po przebudowie sprawdzamy spójność kluczy.
+ */
+function holograms_rebuild_with_lost(PDO $pdo): void {
+    $pdo->exec('PRAGMA foreign_keys=OFF');
+    $pdo->beginTransaction();
+    try {
+        $pdo->exec("CREATE TABLE holograms_v3 (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            holo_number   TEXT NOT NULL UNIQUE,
+            batch_number  TEXT,
+            status        TEXT NOT NULL DEFAULT 'available'
+                          CHECK (status IN ('available','issued','damaged','returned','lost')),
+            assigned_to   TEXT,
+            issued_at     DATETIME,
+            issued_by     TEXT,
+            notes         TEXT,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            contract_type TEXT,
+            contract_id   INTEGER
+        )");
+        $pdo->exec("INSERT INTO holograms_v3 (id, holo_number, batch_number, status, assigned_to, issued_at, issued_by, notes, created_at, contract_type, contract_id)
+                    SELECT id, holo_number, batch_number, status, assigned_to, issued_at, issued_by, notes, created_at, contract_type, contract_id FROM holograms");
+        $pdo->exec("DROP TABLE holograms");
+        $pdo->exec("ALTER TABLE holograms_v3 RENAME TO holograms");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_status   ON holograms(status)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_batch    ON holograms(batch_number)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_contract ON holograms(contract_type, contract_id)");
+        if ($pdo->query("PRAGMA foreign_key_check")->fetch()) throw new RuntimeException('holograms v3: naruszenie kluczy obcych po przebudowie');
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        $pdo->exec('PRAGMA foreign_keys=ON');
+        throw $e;
+    }
+    $pdo->exec('PRAGMA foreign_keys=ON');
 }
 
 /** Typy umów, przy których można wydawać hologramy (umowy z osobą/wykonawcą). */
@@ -264,6 +320,14 @@ class HologramService
                 $log->execute([$id, 'created', null, 'available', $batch !== '' ? 'Seria: ' . $batch : null, $this->userId ?: null, $this->userName, $now]);
                 $added++;
             }
+            if ($added) {
+                $this->audit('holograms.series_added', [
+                    'added'   => $added,
+                    'skipped' => count($skipped),
+                    'range'   => $numbers[0] . ' – ' . end($numbers),
+                    'batch'   => $batch,
+                ]);
+            }
             $this->pdo->commit();
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
@@ -313,6 +377,13 @@ class HologramService
                 $log->execute([$r['id'], 'issued', $r['status'], 'issued',
                     'Przypisano: ' . $assignedTo . $cDesc . ($notes !== '' ? ' · ' . $notes : ''), $this->userId ?: null, $this->userName, $now]);
             }
+            $this->audit('holograms.issued', [
+                'count'       => count($rows),
+                'numbers'     => self::sample(array_column($rows, 'holo_number'), 50),
+                'assigned_to' => $assignedTo,
+                'issued_by'   => $issuedBy,
+                'contract'    => $c ? $c['type'] . '#' . $c['id'] : null,
+            ]);
             $this->pdo->commit();
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
@@ -340,9 +411,12 @@ class HologramService
         if ($to === 'damaged' && $note === '') {
             throw new HologramException('Opisz uszkodzenie (np. „rozdarta przy naklejaniu”) — to wymóg rozliczenia.');
         }
+        if ($to === 'lost' && $note === '') {
+            throw new HologramException('Opisz okoliczności zagubienia (kto, kiedy, gdzie) — to wymóg rozliczenia.');
+        }
 
         $now = date('Y-m-d H:i:s');
-        $action = ['returned' => 'returned', 'damaged' => 'damaged', 'available' => 'restocked'][$to];
+        $action = ['returned' => 'returned', 'damaged' => 'damaged', 'lost' => 'lost', 'available' => 'restocked'][$to];
         $this->pdo->beginTransaction();
         try {
             $ph   = implode(',', array_fill(0, count($ids), '?'));
@@ -369,6 +443,13 @@ class HologramService
                 }
                 $log->execute([$r['id'], $action, $r['status'], $to, $details !== '' ? $details : null, $this->userId ?: null, $this->userName, $now]);
             }
+            $this->audit('holograms.' . $action, [
+                'count'   => count($rows),
+                'numbers' => self::sample(array_column($rows, 'holo_number'), 50),
+                'from'    => implode(',', array_unique(array_column($rows, 'status'))),
+                'to'      => $to,
+                'note'    => $note,
+            ]);
             $this->pdo->commit();
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
@@ -431,7 +512,7 @@ class HologramService
         return $this->pdo->query(
             "SELECT COALESCE(batch_number,'') AS batch_number, COUNT(*) AS total,
                     SUM(status='available') AS available, SUM(status='issued') AS issued,
-                    SUM(status='returned') AS returned, SUM(status='damaged') AS damaged,
+                    SUM(status='returned') AS returned, SUM(status='damaged') AS damaged, SUM(status='lost') AS lost,
                     MIN(holo_number) AS first_no, MAX(holo_number) AS last_no, MIN(created_at) AS created_at
              FROM holograms GROUP BY COALESCE(batch_number,'') ORDER BY MIN(created_at) DESC"
         )->fetchAll(PDO::FETCH_ASSOC);
@@ -452,6 +533,12 @@ class HologramService
     }
 
     // ── Pomocnicze ────────────────────────────────────────────────────────────
+
+    /** Wpis do wspólnego audit_logs — wołany wewnątrz transakcji operacji. */
+    private function audit(string $action, array $details): void
+    {
+        audit_log($action, array_filter($details, fn($v) => $v !== null && $v !== ''), $this->userId ?: null);
+    }
 
     private function logStatement(): PDOStatement
     {
@@ -529,7 +616,7 @@ function holo_contract_card(string $type, int $id): void {
         $rows = (new HologramService($u))->forContract($type, $id);
     } catch (\Throwable $e) { return; }
     $open = array_values(array_filter($rows, fn($r) => $r['status'] === 'issued'));
-    $bs = ['available' => 'bg-success', 'issued' => 'bg-primary', 'returned' => 'bg-warning text-dark', 'damaged' => 'bg-danger'];
+    $bs = ['available' => 'bg-success', 'issued' => 'bg-primary', 'returned' => 'bg-warning text-dark', 'damaged' => 'bg-danger', 'lost' => 'bg-dark'];
     $base = APP_URL . '/modules/holograms';
     ?>
     <div class="card shadow-sm mb-3 <?= $open ? 'border-warning' : '' ?>" id="hologramy">

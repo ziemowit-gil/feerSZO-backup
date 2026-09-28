@@ -16,6 +16,7 @@
   --st-issued: #1d4ed8;    --st-issued-bg: #eff6ff;
   --st-returned: #b45309;  --st-returned-bg: #fffbeb;
   --st-damaged: #b91c1c;   --st-damaged-bg: #fef2f2;
+  --st-lost: #6d28d9;      --st-lost-bg: #f5f3ff;
   @apply tw-max-w-[1200px];
 }
 /* Preflight Tailwinda jest wyłączony (Bootstrap), więc tw-border nie miałby stylu
@@ -50,7 +51,7 @@
 .holo .tz-section-h { @apply tw-text-[.78rem] tw-font-bold tw-uppercase tw-tracking-[.05em] tw-mt-6 tw-mb-2; color: var(--tz-muted); }
 
 /* KPI */
-.holo .kpi-grid { @apply tw-grid tw-grid-cols-2 sm:tw-grid-cols-3 lg:tw-grid-cols-5 tw-gap-3; }
+.holo .kpi-grid { @apply tw-grid tw-grid-cols-2 sm:tw-grid-cols-3 lg:tw-grid-cols-6 tw-gap-3; }
 .holo .kpi-tile {
   @apply tw-relative tw-flex tw-flex-col tw-gap-[.15rem] tw-bg-white tw-border tw-rounded-2xl tw-py-4 tw-px-[1.05rem] tw-no-underline tw-min-h-[104px] tw-transition-all;
   border-color: var(--tz-line); color: inherit; --c: var(--holo-accent);
@@ -65,6 +66,7 @@
 .holo .kpi-tile.is-issued    { --c: var(--st-issued); }
 .holo .kpi-tile.is-returned  { --c: var(--st-returned); }
 .holo .kpi-tile.is-damaged   { --c: var(--st-damaged); }
+.holo .kpi-tile.is-lost      { --c: var(--st-lost); }
 
 /* Pasek struktury puli */
 .holo .pool-bar { @apply tw-flex tw-h-2.5 tw-rounded-full tw-overflow-hidden tw-mt-3; background: var(--tz-line); }
@@ -74,6 +76,7 @@
 .holo .bg-issued    { background: var(--st-issued); }
 .holo .bg-returned  { background: var(--st-returned); }
 .holo .bg-damaged   { background: var(--st-damaged); }
+.holo .bg-lost      { background: var(--st-lost); }
 
 /* Znacznik statusu */
 .holo-badge { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-px-2.5 tw-py-0.5 tw-text-xs tw-font-semibold tw-whitespace-nowrap; }
@@ -82,6 +85,7 @@
 .holo-badge.is-issued    { color: var(--st-issued);    background: var(--st-issued-bg); }
 .holo-badge.is-returned  { color: var(--st-returned);  background: var(--st-returned-bg); }
 .holo-badge.is-damaged   { color: var(--st-damaged);   background: var(--st-damaged-bg); }
+.holo-badge.is-lost      { color: var(--st-lost);      background: var(--st-lost-bg); }
 .holo-badge.is-unknown   { color: #334155; background: #f1f5f9; }
 
 /* Formularze */
@@ -147,6 +151,7 @@
 .holo .tl__ico.is-issued   { background: var(--st-issued); }
 .holo .tl__ico.is-returned { background: var(--st-returned); }
 .holo .tl__ico.is-damaged  { background: var(--st-damaged); }
+.holo .tl__ico.is-lost     { background: var(--st-lost); }
 .holo .facts { @apply tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-x-6 tw-gap-y-3 tw-m-0; }
 .holo .facts dt { @apply tw-text-[.72rem] tw-font-bold tw-uppercase tw-tracking-[.04em]; color: var(--tz-muted); }
 .holo .facts dd { @apply tw-m-0 tw-text-sm; color: var(--tz-ink); }

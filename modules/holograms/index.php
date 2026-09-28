@@ -463,13 +463,14 @@ include __DIR__ . '/partials/ui.php';
           <option value="">— wybierz —</option>
           <option value="returned">Zwrócony — zwrot wydanej</option>
           <option value="damaged">Uszkodzony</option>
+          <option value="lost">Zagubiony</option>
           <option value="available">Dostępny — przywróć zwróconą do puli</option>
         </select>
       </div>
       <div>
-        <label for="b_note" class="f-label">Opis <span x-show="to === 'damaged'">(wymagany)</span></label>
+        <label for="b_note" class="f-label">Opis <span x-show="to === 'damaged' || to === 'lost'">(wymagany)</span></label>
         <input id="b_note" name="note" value="<?= h($oB['note'] ?? '') ?>" maxlength="2000" class="f-input tw-w-72"
-               :required="to === 'damaged'" placeholder="np. rozdarta przy naklejaniu">
+               :required="to === 'damaged' || to === 'lost'" :placeholder="to === 'lost' ? 'kto, kiedy, gdzie zgubił' : 'np. rozdarta przy naklejaniu'">
       </div>
       <button type="submit" class="h-btn h-btn--primary" :disabled="!to">Zastosuj</button>
     </div>

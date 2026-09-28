@@ -50,18 +50,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $history = $svc->history($id);
 // Akcje dostępne z bieżącego statusu
 $actions = [];
-foreach (['issued' => 'Wydaj', 'returned' => 'Przyjmij zwrot', 'available' => 'Przywróć do puli', 'damaged' => 'Oznacz jako uszkodzony'] as $to => $lbl) {
+foreach (['issued' => 'Wydaj', 'returned' => 'Przyjmij zwrot', 'available' => 'Przywróć do puli', 'damaged' => 'Oznacz jako uszkodzony', 'lost' => 'Oznacz jako zagubiony'] as $to => $lbl) {
     if (in_array($row['status'], HOLO_TRANSITIONS[$to], true)) $actions[$to] = $lbl;
 }
-$ACTION_LABELS = ['created' => 'Dodano do ewidencji', 'issued' => 'Wydano', 'returned' => 'Zwrot', 'damaged' => 'Uszkodzenie', 'restocked' => 'Przywrócono do puli'];
+$ACTION_LABELS = ['created' => 'Dodano do ewidencji', 'issued' => 'Wydano', 'returned' => 'Zwrot', 'damaged' => 'Uszkodzenie', 'lost' => 'Zagubienie', 'restocked' => 'Przywrócono do puli'];
 
-$ACTION_ICONS  = ['created' => 'bi-plus-lg', 'issued' => 'bi-box-arrow-up-right', 'returned' => 'bi-arrow-return-left', 'damaged' => 'bi-x-lg', 'restocked' => 'bi-arrow-counterclockwise'];
-$ACTION_TONE   = ['created' => 'created', 'issued' => 'issued', 'returned' => 'returned', 'damaged' => 'damaged', 'restocked' => 'available'];
+$ACTION_ICONS  = ['created' => 'bi-plus-lg', 'issued' => 'bi-box-arrow-up-right', 'returned' => 'bi-arrow-return-left', 'damaged' => 'bi-x-lg', 'lost' => 'bi-question-lg', 'restocked' => 'bi-arrow-counterclockwise'];
+$ACTION_TONE   = ['created' => 'created', 'issued' => 'issued', 'returned' => 'returned', 'damaged' => 'damaged', 'lost' => 'lost', 'restocked' => 'available'];
 $ACTION_HINTS  = [
     'issued'    => 'Przypisz naklejkę osobie, dokumentowi lub sprzętowi.',
     'returned'  => 'Naklejka wraca nieużyta — przypisanie zostaje w historii.',
     'available' => 'Zwrócona naklejka wraca do puli i można ją wydać ponownie.',
     'damaged'   => 'Stan końcowy — naklejki nie będzie można już wydać.',
+    'lost'      => 'Stan końcowy — opisz okoliczności zagubienia (kto, kiedy, gdzie).',
 ];
 $fmtDt = fn(?string $d, string $f = 'd.m.Y H:i') => $d ? date($f, strtotime($d)) : '';
 
@@ -172,8 +173,8 @@ include __DIR__ . '/partials/ui.php';
           </div>
         </template>
         <div>
-          <label for="v_note" class="f-label">Opis <span x-show="to === 'damaged'">(wymagany)</span></label>
-          <textarea id="v_note" name="note" rows="2" maxlength="2000" class="f-input" :required="to === 'damaged'"><?= h($_POST['note'] ?? '') ?></textarea>
+          <label for="v_note" class="f-label">Opis <span x-show="to === 'damaged' || to === 'lost'">(wymagany)</span></label>
+          <textarea id="v_note" name="note" rows="2" maxlength="2000" class="f-input" :required="to === 'damaged' || to === 'lost'"><?= h($_POST['note'] ?? '') ?></textarea>
         </div>
         <button type="submit" class="h-btn h-btn--primary tw-w-full"><i class="bi bi-check-lg" aria-hidden="true"></i> Zapisz</button>
       </form>
