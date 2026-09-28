@@ -271,7 +271,7 @@ if (!$is_fragment) {
         <div class="ns-email-chip">
           <i class="bi bi-envelope-fill"></i>
           <?= h($notify_to) ?>
-          <span style="opacity:.7">· <?= ($pref['notify_email'] ?? '') !== '' ? 'własny adres powiadomień' : 'adres z konta' ?></span>
+          <span style="opacity:.7">· <?= ($pref['notify_email'] ?? '') !== '' && !empty($pref['notify_email_verified_at']) ? 'własny adres powiadomień' : 'adres z konta' ?></span>
         </div>
         <?php else: ?>
         <div class="ns-email-chip" style="background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.4)">
@@ -346,7 +346,7 @@ if (!$is_fragment) {
             wysłanej na ten adres. Do tego czasu powiadomienia idą na <strong><?= h($notify_to ?: '—') ?></strong>.
             Zapisz ponownie, aby wysłać link jeszcze raz.
           </span>
-          <?php elseif (($pref['notify_email'] ?? '') !== ''): ?>
+          <?php elseif (($pref['notify_email'] ?? '') !== '' && !empty($pref['notify_email_verified_at'])): ?>
           <span class="text-success">
             <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
             Adres <strong><?= h($pref['notify_email']) ?></strong> potwierdzony.

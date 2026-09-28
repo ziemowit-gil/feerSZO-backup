@@ -327,7 +327,7 @@ function task_notify_address(int $user_id, ?string $account_email = ''): string 
     $account_email = (string)$account_email;
     $pref   = task_notify_get_pref($user_id);
     $custom = trim((string)($pref['notify_email'] ?? ''));
-    if ($custom !== '' && filter_var($custom, FILTER_VALIDATE_EMAIL)) return $custom;
+    if ($custom !== '' && !empty($pref['notify_email_verified_at']) && filter_var($custom, FILTER_VALIDATE_EMAIL)) return $custom;
     if ($account_email === '' && $user_id) {
         $account_email = (string)(db_one("SELECT email FROM users WHERE id=?", [$user_id])['email'] ?? '');
     }
@@ -439,7 +439,7 @@ function task_notify_request_email_change(int $user_id, string $email, string $a
     $clear_pending = "notify_email_pending='', notify_email_token_hash='', notify_email_token_exp=NULL";
 
     if ($email === '' || strcasecmp($email, trim($account_email)) === 0) {
-        db()->prepare("UPDATE task_notification_prefs SET notify_email='', {$clear_pending} WHERE user_id=?")
+        db()->prepare("UPDATE task_notification_prefs SET notify_email='', notify_email_verified_at=NULL, {$clear_pending} WHERE user_id=?")
             ->execute([$user_id]);
         return ['status' => 'cleared', 'msg' => ''];
     }
@@ -510,7 +510,7 @@ function task_notify_confirm_email(string $raw_token): ?string {
     if (!$row) return null;
     $st = db()->prepare(
         "UPDATE task_notification_prefs
-         SET notify_email = notify_email_pending, notify_email_pending = '',
+         SET notify_email = notify_email_pending, notify_email_pending = '', notify_email_verified_at = datetime('now','localtime'),
              notify_email_token_hash = '', notify_email_token_exp = NULL, updated_at = ?
          WHERE user_id = ? AND notify_email_token_hash = ?"
     );
@@ -939,6 +939,8 @@ function _tn_schema_heal(): void {
             "notify_email_token_hash TEXT NOT NULL DEFAULT ''",
             "notify_email_token_exp  TEXT",
             "notify_email_sent_at    TEXT",
+            // Znacznik potwierdzenia linkiem — bez niego notify_email nie jest używany
+            "notify_email_verified_at TEXT",
         ],
         'task_notification_log' => [
             "channel  TEXT NOT NULL DEFAULT 'email'",
@@ -952,6 +954,14 @@ function _tn_schema_heal(): void {
                 $col = explode(' ', trim($def))[0];
                 if (!in_array($col, $existing, true)) {
                     try { db()->exec("ALTER TABLE {$tbl} ADD COLUMN {$def}"); } catch (\Throwable $e) {}
+                    // Jednorazowo (w chwili dodania kolumny): adresy zapisane, zanim wprowadzono
+                    // weryfikację linkiem, nie są potwierdzone — czyścimy je, wraca adres z konta.
+                    if ($col === 'notify_email_verified_at') {
+                        try {
+                            $n = db()->exec("UPDATE task_notification_prefs SET notify_email='' WHERE notify_email != ''");
+                            if ($n) error_log("[task_notify] wyczyszczono {$n} niepotwierdzonych adresów powiadomień");
+                        } catch (\Throwable $e) {}
+                    }
                 }
             }
         } catch (\Throwable $e) {}
@@ -1087,7 +1097,8 @@ function task_mail_reply_ingest(bool $dry_run = false): array {
         // Nadawca → użytkownik: e-mail z konta albo potwierdzony adres powiadomień; podpis musi pasować
         $cands = db_all(
             "SELECT u.id FROM users u LEFT JOIN task_notification_prefs p ON p.user_id = u.id
-             WHERE u.is_active = 1 AND (LOWER(u.email) = ? OR LOWER(p.notify_email) = ?)",
+             WHERE u.is_active = 1
+               AND (LOWER(u.email) = ? OR (LOWER(p.notify_email) = ? AND p.notify_email_verified_at IS NOT NULL))",
             [$from, $from]
         );
         $uid = null;
