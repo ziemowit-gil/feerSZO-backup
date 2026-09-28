@@ -363,6 +363,53 @@ function ti_price_change_rebill(int $change_id): array {
     return $out;
 }
 
+/**
+ * „Przelicz ceny” dla miesiąca: wszystkie wystawione rozliczenia okresu (opcjonalnie
+ * tylko kursanci grupy $course_id) przeliczone po aktualnych cenach i lekcjach —
+ * te same zasady co ti_price_change_rebill(): nieopłacone i bez faktury są
+ * przeliczane (korekta, uwagi i tryb dokumentu zostają), opłacone/zafakturowane
+ * trafiają do 'manual'. $dry = tylko podgląd, bez zapisu.
+ * @return array{updated: list<array>, manual: list<array>}
+ */
+function ti_price_reprice_month(int $month, int $year, int $course_id = 0, bool $dry = false): array {
+    require_once __DIR__ . '/karty30.php';
+    require_once __DIR__ . '/ti_payments.php';
+    $out  = ['updated' => [], 'manual' => []];
+    $rows = db_all(
+        "SELECT b.*, cl.name AS client_name FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
+          WHERE b.month=? AND b.year=? AND b.status IN ('issued','paid')"
+        . ($course_id ? " AND b.client_id IN (SELECT client_id FROM k30_ti_enrollments WHERE course_id=?)" : '') . "
+          ORDER BY cl.name, b.course_id",
+        $course_id ? [$month, $year, $course_id] : [$month, $year]
+    );
+    $touched = [];
+    foreach ($rows as $b) {
+        $calc  = k30_ti_calculate_billing((int)$b['client_id'], $month, $year, (int)$b['course_id']);
+        $new   = round((float)$calc['amount'], 2);
+        $old   = round((float)$b['amount'], 2);
+        $newh  = round((float)$calc['hours_billed'], 4);
+        if (abs($new - $old) < 0.005 && abs($newh - (float)$b['hours_billed']) < 0.0001) continue;
+        $label = sprintf('%s %02d/%d', $b['client_name'], $month, $year);
+        $invoiced = trim((string)($b['invoice_no'] ?? '')) !== '' || trim((string)($b['invoice_path'] ?? '')) !== '';
+        if (!$invoiced) {
+            try { $invoiced = (bool)db_one("SELECT 1 FROM invoices WHERE source='ti_billing' AND source_id=? AND is_test=0 AND deleted_at IS NULL", [(int)$b['id']]); }
+            catch (\Throwable $e) {}
+        }
+        if ($b['status'] === 'paid' || $invoiced || (float)($b['paid_amount'] ?? 0) > 0.005) {
+            $out['manual'][] = ['billing_id' => (int)$b['id'], 'label' => $label, 'old' => $old, 'new' => $new,
+                                'why' => $invoiced ? 'wystawiona faktura' : 'rozliczenie (częściowo) opłacone'];
+            continue;
+        }
+        if (!$dry) {
+            k30_ti_issue_billing((int)$b['client_id'], $month, $year, (string)($b['notes'] ?? ''), (int)$b['course_id']);
+            $touched[(int)$b['client_id']] = true;
+        }
+        $out['updated'][] = ['billing_id' => (int)$b['id'], 'label' => $label, 'old' => $old, 'new' => $new];
+    }
+    foreach (array_keys($touched) as $cid) ti_billing_recompute($cid);
+    return $out;
+}
+
 /** Krótki komunikat z wyniku ti_price_change_rebill() dla flash. */
 function ti_price_change_rebill_msg(array $r): string {
     $f = fn($x) => $x['label'] . ': ' . number_format($x['old'], 2, ',', ' ') . ' → ' . number_format($x['new'], 2, ',', ' ') . ' zł';

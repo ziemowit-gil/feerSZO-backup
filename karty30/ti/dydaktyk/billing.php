@@ -134,6 +134,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // „Przelicz ceny” — wystawione rozliczenia miesiąca po aktualnych cenach i lekcjach
+    if ($op === 'reprice_month') {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
+        $r   = ti_price_reprice_month($month, $year, $course_id);
+        $msg = ti_price_change_rebill_msg($r);
+        flash_set($r['manual'] ? 'warning' : 'success', $msg !== '' ? 'Przeliczono ceny.' . $msg : 'Przeliczono ceny — kwoty wszystkich rozliczeń są aktualne.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Zmiana trybu dokumentu jednego rozliczenia (z FVAT ↔ tylko zestawienie)
     if ($op === 'set_doc_mode') {
         $bid = (int)($_POST['billing_id'] ?? 0);
@@ -843,8 +852,18 @@ echo '<main id="main" class="dyd-wrap">';
   <a href="<?= $base ?>month=<?= $next_m ?>&year=<?= $next_y ?>" class="btn btn-outline-secondary btn-sm">
     <i class="bi bi-chevron-right"></i>
   </a>
+  <?php if ($billings && $can_write): ?>
+  <form method="post" class="ms-auto"
+        onsubmit="return confirm('Przeliczyć wystawione rozliczenia tego miesiąca po aktualnych cenach i lekcjach?\n\nPrzeliczane są tylko nieopłacone i bez faktury — pozostałe dostaniesz do ręcznej korekty. Korekty, uwagi i tryb dokumentu zostają.')">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <input type="hidden" name="_op"   value="reprice_month">
+    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Przelicz kwoty wystawionych rozliczeń po aktualnych cenach (także zmianach cen z datą)">
+      <i class="bi bi-calculator me-1" aria-hidden="true"></i>Przelicz ceny
+    </button>
+  </form>
+  <?php endif; ?>
   <?php if ($preview && $can_write): ?>
-  <form method="post" class="ms-auto" onsubmit="return confirm('Wystawić rozliczenia dla wszystkich klientów z lekcjami w tym miesiącu?')">
+  <form method="post" class="<?= $billings ? '' : 'ms-auto' ?>" onsubmit="return confirm('Wystawić rozliczenia dla wszystkich klientów z lekcjami w tym miesiącu?')">
     <input type="hidden" name="_csrf"  value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="_op"    value="issue_all">
     <div class="btn-group btn-group-sm" role="group" aria-label="Tryb wystawiania">

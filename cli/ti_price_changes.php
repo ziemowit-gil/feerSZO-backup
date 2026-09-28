@@ -20,6 +20,11 @@
  *       (i rozliczenia, które przeliczyłby rebill), po czym WYCOFUJE — nic
  *       nie zostaje w bazie i nie wychodzą e-maile.
  *
+ *   php cli/ti_price_changes.php reprice --month=RRRR-MM [--course=ID] [--apply]
+ *       „Przelicz ceny” miesiąca: wystawione rozliczenia po aktualnych cenach.
+ *       Domyślnie podgląd (nic nie zapisuje); --apply przelicza nieopłacone
+ *       i bez faktury, resztę wypisuje do ręcznej korekty.
+ *
  *   php cli/ti_price_changes.php selftest
  *       Automatyczny test na prawdziwych danych, w wycofywanej transakcji:
  *       zmiana od środka miesiąca zmienia stawkę TYLKO lekcji od tej daty.
@@ -184,6 +189,16 @@ case 'simulate':
     }
     break;
 
+case 'reprice':
+    if (!preg_match('/^(\d{4})-(\d{2})$/', (string)($opt['month'] ?? ''), $mm)) $die('Podaj --month=RRRR-MM.');
+    $apply = isset($opt['apply']);
+    $r = ti_price_reprice_month((int)$mm[2], (int)$mm[1], (int)($opt['course'] ?? 0), !$apply);
+    $out(($apply ? 'Przeliczono' : 'PODGLĄD (bez zapisu, --apply aby przeliczyć)') . ' — ' . $opt['month'] . (isset($opt['course']) ? ', grupa #' . (int)$opt['course'] : ''));
+    foreach ($r['updated'] as $x) $out(sprintf('  %s #%d  %s: %s → %s zł', $apply ? '✓' : '→', $x['billing_id'], $x['label'], $zl($x['old']), $zl($x['new'])));
+    foreach ($r['manual'] as $x)  $out(sprintf('  ! #%d  %s: %s → %s zł — ręcznie (%s)', $x['billing_id'], $x['label'], $zl($x['old']), $zl($x['new']), $x['why']));
+    if (!$r['updated'] && !$r['manual']) $out('  Wszystkie kwoty aktualne.');
+    break;
+
 case 'selftest':
     // Grupa godzinowa z odbytymi lekcjami kursanta w ≥2 różnych dniach tego samego miesiąca
     $cand = db_all(
@@ -249,5 +264,5 @@ case 'selftest':
     cli_exit($fail ? 1 : 0);
 
 default:
-    $out("Użycie: php cli/ti_price_changes.php list|table|show|simulate|selftest — szczegóły w nagłówku pliku.");
+    $out("Użycie: php cli/ti_price_changes.php list|table|show|simulate|reprice|selftest — szczegóły w nagłówku pliku.");
 }
