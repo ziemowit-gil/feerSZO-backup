@@ -10,6 +10,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
+require_once dirname(dirname(__DIR__)) . '/includes/task_notify.php';
 
 require_login();
 
@@ -46,18 +47,20 @@ $url   = rtrim(APP_URL, '/') . '/tasks/index.php';
 $from  = "noreply@" . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
 $leaders = db_all(
-    "SELECT u.email, u.name
+    "SELECT u.id, u.email, u.name
      FROM task_workspace_members twm
      JOIN users u ON u.id = twm.user_id
      WHERE twm.workspace_id = ? AND twm.role IN ('admin','editor') AND u.is_active = 1",
     [(int)$task['workspace_id']]
 );
-$sys_admins = db_all("SELECT email, name FROM users WHERE role = 'admin' AND is_active = 1");
+$sys_admins = db_all("SELECT id, email, name FROM users WHERE role = 'admin' AND is_active = 1");
 
 $seen = [];
 $recipients = [];
 foreach (array_merge($leaders, $sys_admins) as $r) {
-    $e = $r['email'] ?? '';
+    // Własny adres powiadomień z preferencji Zadań, inaczej adres z konta
+    $e = task_notify_address((int)$r['id'], (string)($r['email'] ?? ''));
+    $r['email'] = $e;
     if ($e && !isset($seen[$e])) { $seen[$e] = true; $recipients[] = $r; }
 }
 

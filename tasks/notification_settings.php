@@ -18,7 +18,9 @@ $error            = '';
 $test_result      = null;   // null | ['ok'=>bool, 'msg'=>string, 'channel'=>string]
 $admin_test_result = null;  // null | ['ok'=>bool, 'msg'=>string]
 
-$has_mail = !empty($user['email']);
+// Adres docelowy: własny adres powiadomień (preferencje) albo adres z konta
+$notify_to = task_notify_address($uid, (string)($user['email'] ?? ''));
+$has_mail  = $notify_to !== '';
 require_once dirname(__DIR__) . '/includes/sms.php';
 // phone_number nie jest w sesji — ładuj zawsze z DB
 $_db_phone = db_one("SELECT phone_number FROM users WHERE id=?", [$uid]);
@@ -78,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $admin_test_result = ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage()];
                 }
             } else {
+                $tu['email'] = task_notify_address((int)$tu['id'], (string)($tu['email'] ?? ''));
                 if (empty($tu['email'])) {
                     $admin_test_result = ['ok' => false, 'msg' => 'Użytkownik ' . $tu['name'] . ' nie ma adresu e-mail.'];
                 } else {
@@ -122,14 +125,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     APP_URL . '/tasks/notifications.php',
                     'Przejdź do powiadomień →'
                 );
-                $ok = (bool) approval_send_email($user['email'], 'Test powiadomień — Zadania', $html, 'task_test', $uid);
+                $ok = (bool) approval_send_email($notify_to, 'Test powiadomień — Zadania', $html, 'task_test', $uid);
                 $test_result = ['ok' => $ok, 'channel' => 'email',
-                    'msg' => $ok ? 'E-mail testowy wysłany na ' . $user['email'] : 'Nie udało się wysłać — sprawdź konfigurację M365/SMTP lub logi serwera.'];
+                    'msg' => $ok ? 'E-mail testowy wysłany na ' . $notify_to : 'Nie udało się wysłać — sprawdź konfigurację M365/SMTP lub logi serwera.'];
             }
         }
     } else {
-        try {
+        $notify_email_in = trim((string)($_POST['notify_email'] ?? ''));
+        if ($notify_email_in !== '' && !filter_var($notify_email_in, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Nieprawidłowy adres e-mail do powiadomień.';
+        } else try {
             task_notify_save_pref($uid, [
+                'notify_email'     => $notify_email_in,
+                'notify_file'      => isset($_POST['notify_file'])      ? 1 : 0,
+                'notify_moved'     => isset($_POST['notify_moved'])     ? 1 : 0,
                 'notify_assigned'  => isset($_POST['notify_assigned'])  ? 1 : 0,
                 'notify_mentioned' => isset($_POST['notify_mentioned']) ? 1 : 0,
                 'notify_comment'   => isset($_POST['notify_comment'])   ? 1 : 0,
@@ -172,6 +181,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pref = task_notify_get_pref($uid);
 $csrf = csrf_token();
+$notify_to = task_notify_address($uid, (string)($user['email'] ?? ''));
+$has_mail  = $notify_to !== '';
 
 if (!$is_fragment) {
     $page_title = 'Powiadomienia — Zadania';
@@ -237,8 +248,8 @@ if (!$is_fragment) {
         <?php if ($has_mail): ?>
         <div class="ns-email-chip">
           <i class="bi bi-envelope-fill"></i>
-          <?= h($user['email']) ?>
-          <span style="opacity:.7">· aktywny kanał</span>
+          <?= h($notify_to) ?>
+          <span style="opacity:.7">· <?= ($pref['notify_email'] ?? '') !== '' ? 'własny adres powiadomień' : 'adres z konta' ?></span>
         </div>
         <?php else: ?>
         <div class="ns-email-chip" style="background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.4)">
@@ -286,6 +297,28 @@ if (!$is_fragment) {
       </button>
     </div>
 
+    <!-- ══ Sekcja: Adres powiadomień ══════════════════════════════════ -->
+    <div class="ns-card mb-3">
+      <div class="ns-card-header">
+        <i class="bi bi-envelope-at-fill" style="color:#2563eb"></i>
+        Adres do powiadomień
+      </div>
+      <div class="ns-row" style="flex-wrap:wrap">
+        <div class="ns-label" style="min-width:14rem">
+          <label for="notify_email" class="ns-label-title">Inny adres e-mail (opcjonalnie)</label>
+          <div class="ns-label-desc" id="notify_email_desc">
+            Zostaw puste, aby powiadomienia trafiały na adres z konta:
+            <strong><?= h($user['email'] ?: '— brak —') ?></strong>.
+          </div>
+        </div>
+        <input type="email" class="form-control form-control-sm" style="max-width:20rem"
+               id="notify_email" name="notify_email" maxlength="254" autocomplete="email"
+               value="<?= h($pref['notify_email'] ?? '') ?>"
+               placeholder="<?= h($user['email'] ?: 'np. imie@example.org') ?>"
+               aria-describedby="notify_email_desc">
+      </div>
+    </div>
+
     <!-- ══ Sekcja: Aktywność ═══════════════════════════════════════ -->
     <div class="ns-card mb-3">
       <div class="ns-card-header">
@@ -324,6 +357,24 @@ if (!$is_fragment) {
               'ic'    => '#64748b',
               'title' => 'Nowy komentarz',
               'desc'  => 'Każdy komentarz do zadań, do których jesteś przypisany/a.',
+              'timing'=> 'od razu',
+          ],
+          [
+              'key'   => 'notify_file',
+              'icon'  => 'bi-paperclip',
+              'color' => '#ecfeff',
+              'ic'    => '#0891b2',
+              'title' => 'Nowy plik w zadaniu',
+              'desc'  => 'Gdy ktoś doda plik do zadania, do którego jesteś przypisany/a (max 1 e-mail na zadanie dziennie).',
+              'timing'=> 'od razu',
+          ],
+          [
+              'key'   => 'notify_moved',
+              'icon'  => 'bi-kanban-fill',
+              'color' => '#f0fdf4',
+              'ic'    => '#16a34a',
+              'title' => 'Zmiana statusu (kolumny)',
+              'desc'  => 'Gdy ktoś przeniesie Twoje zadanie do innej kolumny, np. „Do weryfikacji” (max 1 e-mail na zadanie dziennie).',
               'timing'=> 'od razu',
           ],
           [
@@ -792,7 +843,7 @@ if (!$is_fragment) {
     </div>
     <div class="ns-info-row">
       <i class="bi bi-envelope flex-shrink-0 mt-1"></i>
-      <div>Powiadomienia trafiają na adres <strong><?= h($user['email'] ?: '— brak adresu —') ?></strong>. Zmień go w profilu konta.</div>
+      <div>Powiadomienia trafiają na adres <strong><?= h($notify_to ?: '— brak adresu —') ?></strong>. Możesz podać inny w sekcji „Adres do powiadomień”.</div>
     </div>
   </div>
 
@@ -800,14 +851,14 @@ if (!$is_fragment) {
 
 <script>
 var PRESETS = {
-  all:       ['notify_assigned','notify_mentioned','notify_comment','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
-  important: ['notify_assigned','notify_mentioned','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
+  all:       ['notify_assigned','notify_mentioned','notify_comment','notify_file','notify_moved','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
+  important: ['notify_assigned','notify_mentioned','notify_file','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
   deadlines: ['notify_due_1day','notify_due_today'],
   none:      []
 };
 function setPreset(name) {
   var on = PRESETS[name] || [];
-  ['notify_assigned','notify_mentioned','notify_comment','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'].forEach(function(k) {
+  ['notify_assigned','notify_mentioned','notify_comment','notify_file','notify_moved','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'].forEach(function(k) {
     var el = document.getElementById(k);
     if (el) el.checked = on.indexOf(k) >= 0;
   });

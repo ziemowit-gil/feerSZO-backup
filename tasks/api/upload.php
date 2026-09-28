@@ -111,6 +111,10 @@ $fid = db_insert('task_files', [
 ]);
 
 task_log($task_id, $uid, 'uploaded_file', null, $f['name']);
+try {
+    require_once dirname(__DIR__, 2) . '/includes/task_notify.php';
+    task_notify_file_added($task_id, (string)$f['name'], $uid);
+} catch (\Throwable $e) {}
 task_api_ok([
     'file_id'       => $fid,
     'original_name' => $f['name'],

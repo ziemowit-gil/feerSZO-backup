@@ -9,6 +9,9 @@
  *   task_notify_due($task_id, $event)
  *   task_notify_confirmed($task_id, $by_uid)
  *   task_notify_rejected($task_id, $by_uid, $reason)
+ *   task_notify_file_added($task_id, $file_name, $by_uid)
+ *   task_notify_moved($task_id, $from_list, $to_list, $by_uid)
+ *   task_notify_address($user_id, $account_email) → adres docelowy (własny adres powiadomień lub konto)
  *   task_notify_get_pref($user_id)  → array
  *   task_notify_save_pref($user_id, $data)
  *
@@ -39,7 +42,7 @@ function task_notify_created(int $task_id, int $by_uid): void {
         "SELECT DISTINCT u.id, u.name, u.email
          FROM users u
          LEFT JOIN task_workspace_members m ON m.user_id=u.id AND m.workspace_id=?
-         WHERE u.is_active=1 AND u.email!=''
+         WHERE u.is_active=1
            AND (m.role IN ('admin','editor') OR u.is_admin=1)
          LIMIT 20",
         [$ws_id]
@@ -86,7 +89,7 @@ function task_notify_assigned(int $task_id, int $assigned_uid, int $by_uid): voi
     $pref = task_notify_get_pref($assigned_uid);
 
     // E-mail — niezależna ścieżka
-    if (($pref['notify_assigned'] ?? 1) && $user['email']) {
+    if (($pref['notify_assigned'] ?? 1)) {
         $subject = 'Przypisano Cię do zadania: ' . $task['title'];
         $content = '<p>Cześć <strong>' . htmlspecialchars($user['name']) . '</strong>,</p>'
             . '<p><strong>' . htmlspecialchars($by_name) . '</strong> przypisał(a) Cię do zadania'
@@ -129,7 +132,7 @@ function task_notify_new_comment(int $task_id, int $comment_id, string $body, in
 
         $pref = task_notify_get_pref($uid);
 
-        if (($pref['notify_comment'] ?? 0) && $u['email']) {
+        if (($pref['notify_comment'] ?? 0)) {
             $subject = htmlspecialchars($author_name) . ' skomentował: ' . $task['title'];
             $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
                 . '<p><strong>' . htmlspecialchars($author_name) . '</strong> dodał komentarz do zadania.</p>'
@@ -158,7 +161,7 @@ function task_notify_new_comment(int $task_id, int $comment_id, string $body, in
 
         $pref = task_notify_get_pref($uid);
 
-        if (($pref['notify_mentioned'] ?? 1) && $u['email']) {
+        if (($pref['notify_mentioned'] ?? 1)) {
             $subject = htmlspecialchars($author_name) . ' wspomniał Cię w zadaniu: ' . $task['title'];
             $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
                 . '<p><strong>' . htmlspecialchars($author_name) . '</strong> wspomniał Cię w komentarzu.</p>'
@@ -197,7 +200,7 @@ function task_notify_due(int $task_id, string $event): void {
         _tn_inapp($uid, 'Termin zadania ' . $due_label . ': ' . $task['title'],
             $due_str ? 'Termin: ' . $due_str : '', $task_id);
 
-        if (($pref[$event] ?? 1) && $u['email']) {
+        if (($pref[$event] ?? 1)) {
             $subject = 'Termin zadania ' . ($event === 'due_today' ? 'dzisiaj' : 'jutro') . ': ' . $task['title'];
             $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
                 . '<p>Termin poniższego zadania upływa <strong>' . $due_label . ($due_str ? ' (' . $due_str . ')' : '') . '</strong>.</p>'
@@ -235,7 +238,7 @@ function task_notify_confirmed(int $task_id, int $by_uid): void {
 
         $pref = task_notify_get_pref($uid);
 
-        if (($pref['notify_confirmed'] ?? 1) && $u['email']) {
+        if (($pref['notify_confirmed'] ?? 1)) {
             $subject = 'Potwierdzono wykonanie zadania: ' . $task['title'];
             $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
                 . '<p><strong>' . htmlspecialchars($by_name) . '</strong> potwierdził(a) wykonanie zadania.</p>'
@@ -273,7 +276,7 @@ function task_notify_rejected(int $task_id, int $by_uid, string $reason): void {
 
         $pref = task_notify_get_pref($uid);
 
-        if (($pref['notify_rejected'] ?? 1) && $u['email']) {
+        if (($pref['notify_rejected'] ?? 1)) {
             $subject = 'Odrzucono wykonanie zadania: ' . $task['title'];
             $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
                 . '<p><strong>' . htmlspecialchars($by_name) . '</strong> odrzucił(a) wykonanie — konieczna poprawa.</p>'
@@ -295,6 +298,79 @@ function task_notify_rejected(int $task_id, int $by_uid, string $reason): void {
 //  PREFERENCJE
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Adres, na który idą e-maile z modułu Zadań: własny adres powiadomień z preferencji
+ * (task_notification_prefs.notify_email), a gdy pusty/niepoprawny — adres z konta.
+ */
+function task_notify_address(int $user_id, ?string $account_email = ''): string {
+    $account_email = (string)$account_email;
+    $pref   = task_notify_get_pref($user_id);
+    $custom = trim((string)($pref['notify_email'] ?? ''));
+    if ($custom !== '' && filter_var($custom, FILTER_VALIDATE_EMAIL)) return $custom;
+    if ($account_email === '' && $user_id) {
+        $account_email = (string)(db_one("SELECT email FROM users WHERE id=?", [$user_id])['email'] ?? '');
+    }
+    return trim($account_email);
+}
+
+/** Przypisani do zadania (aktywni) poza autorem zdarzenia. */
+function _tn_assignees_except(int $task_id, int $except_uid): array {
+    return array_values(array_filter(db_all(
+        "SELECT u.id, u.name, u.email FROM task_assignments ta
+         JOIN users u ON u.id=ta.user_id
+         WHERE ta.task_id=? AND u.is_active=1",
+        [$task_id]
+    ), fn($u) => (int)$u['id'] !== $except_uid));
+}
+
+function task_notify_file_added(int $task_id, string $file_name, int $by_uid): void {
+    $task = _tn_task($task_id);
+    if (!$task) return;
+    $by_name = _tn_user_name($by_uid);
+
+    foreach (_tn_assignees_except($task_id, $by_uid) as $u) {
+        $uid = (int)$u['id'];
+        _tn_inapp($uid, 'Nowy plik w zadaniu: ' . $task['title'],
+            $by_name . ' dodał(a) plik „' . mb_substr($file_name, 0, 120) . '”.', $task_id);
+
+        $pref = task_notify_get_pref($uid);
+        if (!($pref['notify_file'] ?? 1)) continue;
+
+        $subject = 'Nowy plik w zadaniu: ' . $task['title'];
+        $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+            . '<p><strong>' . htmlspecialchars($by_name) . '</strong> dodał(a) plik '
+            . '<strong>' . htmlspecialchars($file_name) . '</strong> do zadania.</p>'
+            . _tn_task_card($task);
+        // ref_id = zadanie → najwyżej jeden taki e-mail na zadanie dziennie (seria uploadów ≠ seria maili)
+        _tn_email($uid, $u['email'], 'file_added', $task_id,
+            $subject, _tn_tpl('Nowy plik', $subject, $content, _tn_task_url($task_id)));
+    }
+}
+
+function task_notify_moved(int $task_id, string $from_list, string $to_list, int $by_uid): void {
+    if ($from_list === $to_list) return;
+    $task = _tn_task($task_id);
+    if (!$task) return;
+    $by_name = _tn_user_name($by_uid);
+
+    foreach (_tn_assignees_except($task_id, $by_uid) as $u) {
+        $uid = (int)$u['id'];
+        _tn_inapp($uid, 'Zmiana statusu: ' . $task['title'],
+            $by_name . ': ' . $from_list . ' → ' . $to_list, $task_id);
+
+        $pref = task_notify_get_pref($uid);
+        if (!($pref['notify_moved'] ?? 1)) continue;
+
+        $subject = 'Zadanie przeniesione do „' . $to_list . '”: ' . $task['title'];
+        $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+            . '<p><strong>' . htmlspecialchars($by_name) . '</strong> przeniósł/przeniosła zadanie z kolumny '
+            . '<strong>' . htmlspecialchars($from_list) . '</strong> do <strong>' . htmlspecialchars($to_list) . '</strong>.</p>'
+            . _tn_task_card($task);
+        _tn_email($uid, $u['email'], 'moved', $task_id,
+            $subject, _tn_tpl('Zmiana statusu', $subject, $content, _tn_task_url($task_id)));
+    }
+}
+
 function task_notify_get_pref(int $user_id): array {
     try {
         $row = db_one("SELECT * FROM task_notification_prefs WHERE user_id=?", [$user_id]);
@@ -311,6 +387,16 @@ function task_notify_save_pref(int $user_id, array $data): void {
     $values = ['user_id' => $user_id, 'updated_at' => date('Y-m-d H:i:s')];
     foreach ($fields as $f) {
         $values[$f] = isset($data[$f]) ? (int)(bool)$data[$f] : 0;
+    }
+    // Nowsze flagi zapisywane tylko, gdy wywołujący je przysłał — starsze formularze
+    // (modal w liście zadań, api/notify_prefs.php) ich nie znają i nie mogą ich zerować.
+    foreach (['notify_file', 'notify_moved'] as $f) {
+        if (array_key_exists($f, $data)) $values[$f] = (int)(bool)$data[$f];
+    }
+    // Własny adres powiadomień — pusty = adres z konta; niepoprawny odrzuca wywołujący
+    if (array_key_exists('notify_email', $data)) {
+        $em = trim((string)$data['notify_email']);
+        $values['notify_email'] = filter_var($em, FILTER_VALIDATE_EMAIL) ? mb_substr($em, 0, 254) : '';
     }
 
     $cols = implode(', ', array_keys($values));
@@ -339,6 +425,9 @@ function _tn_default_prefs(): array {
         'notify_sms'       => 0,
         'notify_confirmed' => 1,
         'notify_rejected'  => 1,
+        'notify_file'      => 1,
+        'notify_moved'     => 1,
+        'notify_email'     => '',
     ];
 }
 
@@ -351,8 +440,9 @@ function _tn_default_prefs(): array {
  * Dedup blokuje tylko e-mail — nie wpływa na SMS ani in-app.
  * Każda próba (sukces i błąd) jest zapisywana w task_notification_log.
  */
-function _tn_email(int $user_id, string $to, string $event, int $ref_id,
+function _tn_email(int $user_id, ?string $to, string $event, int $ref_id,
                    string $subject, string $html): void {
+    $to = task_notify_address($user_id, (string)$to);
     if (!$to) return;
     if (!_tn_dedup_ok($user_id, $event, $ref_id, 'email')) return;
 
@@ -573,6 +663,9 @@ function _tn_schema_heal(): void {
             'notify_sms       INTEGER NOT NULL DEFAULT 0',
             'notify_confirmed INTEGER NOT NULL DEFAULT 1',
             'notify_rejected  INTEGER NOT NULL DEFAULT 1',
+            'notify_file      INTEGER NOT NULL DEFAULT 1',
+            'notify_moved     INTEGER NOT NULL DEFAULT 1',
+            "notify_email     TEXT    NOT NULL DEFAULT ''",
         ],
         'task_notification_log' => [
             "channel  TEXT NOT NULL DEFAULT 'email'",

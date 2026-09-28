@@ -253,6 +253,14 @@ function task_move(int $task_id, int $new_list_id, float $new_pos, int $user_id)
         throw $e;
     }
 
+    // Powiadomienie o zmianie kolumny/statusu — po commicie, nie blokuje ruchu
+    if ($old_list_id !== $new_list_id) {
+        try {
+            require_once __DIR__ . '/task_notify.php';
+            task_notify_moved($task_id, (string)$task['list_name'], (string)$new_list['name'], $user_id);
+        } catch (\Throwable $e) {}
+    }
+
     return db_one("SELECT * FROM tasks WHERE id=?", [$task_id]);
 }
 
