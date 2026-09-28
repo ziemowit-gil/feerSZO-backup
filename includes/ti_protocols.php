@@ -102,6 +102,11 @@ function ti_protocols_migrate(): void {
         // protokół bez period_id, kluczowany (course_id, year_month) "RRRR-MM".
         // Stare protokoły per-okres zostają nietknięte; nowe zamykanie jest per-miesiąc.
         "ALTER TABLE k30_ti_protocols ADD COLUMN year_month TEXT NOT NULL DEFAULT ''",
+        // Stała kopia danych z chwili zatwierdzenia (ewidencja godzin, wypłata,
+        // uczestnicy, średnie z dziennika) — zatwierdzony protokół pokazuje ją
+        // zamiast liczenia na żywo, więc późniejsze zmiany lekcji go nie ruszają.
+        "ALTER TABLE k30_ti_protocols ADD COLUMN snapshot_json TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN snapshot_at   TEXT",
     ] as $sql) {
         try { db()->exec($sql); } catch (\Throwable $e) {}
     }
@@ -469,6 +474,63 @@ function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void 
                 updated_at=datetime('now')
           WHERE id=?"
     )->execute([$by, $by_name, $protocol_id]);
+
+    ti_protocol_snapshot_save($prot);
+}
+
+/**
+ * Zapisuje stałą kopię danych protokołu (z chwili zatwierdzenia). Liczone na
+ * żywo z lekcji/zapisów/dziennika — po zapisie zatwierdzony protokół czyta już
+ * tylko kopię (ti_protocol_hours_and_payout / _participants_for / _averages_for).
+ */
+function ti_protocol_snapshot_save(array $prot): void {
+    $snap = [
+        'v'            => 1,
+        'hours'        => ti_protocol_hours_and_payout_live($prot),
+        'participants' => array_map(fn($p) => ['client_id' => (int)$p['client_id'], 'name' => (string)$p['name']],
+                                    ti_protocol_participants((int)$prot['course_id'])),
+        'averages'     => ti_protocol_diary_averages((int)$prot['course_id'], $prot['date_from'] ?? null, $prot['date_to'] ?? null),
+    ];
+    db()->prepare("UPDATE k30_ti_protocols SET snapshot_json=?, snapshot_at=datetime('now') WHERE id=?")
+        ->execute([json_encode($snap, JSON_UNESCAPED_UNICODE), (int)$prot['id']]);
+}
+
+/** Kopia danych zatwierdzonego protokołu albo null (protokół otwarty / zatwierdzony przed wprowadzeniem kopii). */
+function ti_protocol_snapshot(array $prot): ?array {
+    if (!ti_protocol_is_locked($prot) || trim((string)($prot['snapshot_json'] ?? '')) === '') return null;
+    $s = json_decode((string)$prot['snapshot_json'], true);
+    return is_array($s) ? $s : null;
+}
+
+/** Uczestnicy protokołu: z kopii zatwierdzenia albo na żywo (aktywni zapisani). */
+function ti_protocol_participants_for(array $prot): array {
+    $snap = ti_protocol_snapshot($prot);
+    return $snap ? (array)($snap['participants'] ?? []) : ti_protocol_participants((int)$prot['course_id']);
+}
+
+/** Średnie z dziennika: z kopii zatwierdzenia albo na żywo za zakres protokołu. */
+function ti_protocol_averages_for(array $prot): array {
+    $snap = ti_protocol_snapshot($prot);
+    if ($snap) {
+        $out = [];
+        foreach ((array)($snap['averages'] ?? []) as $cid => $v) $out[(int)$cid] = (float)$v;
+        return $out;
+    }
+    return ti_protocol_diary_averages((int)$prot['course_id'], $prot['date_from'] ?? null, $prot['date_to'] ?? null);
+}
+
+/**
+ * Czy dane na żywo rozjechały się z kopią zatwierdzonego protokołu (ktoś
+ * zmienił/usunął lekcję po zatwierdzeniu) — do ostrzeżenia w panelu.
+ */
+function ti_protocol_snapshot_drift(array $prot): bool {
+    $snap = ti_protocol_snapshot($prot);
+    if (!$snap) return false;
+    $a = (array)($snap['hours'] ?? []);
+    $b = ti_protocol_hours_and_payout_live($prot);
+    return (int)($a['lessons'] ?? 0) !== (int)$b['lessons']
+        || (int)($a['total_min'] ?? 0) !== (int)$b['total_min']
+        || abs((float)($a['payout']['brutto_brutto'] ?? 0) - (float)($b['payout']['brutto_brutto'] ?? 0)) > 0.004;
 }
 
 /**
@@ -498,7 +560,7 @@ function ti_protocol_unlock(int $protocol_id, ?int $by, string $by_name, string 
     db()->prepare(
         "UPDATE k30_ti_protocols
             SET status='open', unlocked_by=?, unlocked_name=?, unlocked_at=datetime('now'),
-                unlock_reason=?, updated_at=datetime('now')
+                unlock_reason=?, snapshot_json='', snapshot_at=NULL, updated_at=datetime('now')
           WHERE id=?"
     )->execute([$by, $by_name, $reason, $protocol_id]);
 
@@ -685,6 +747,13 @@ function ti_protocol_diary_averages(int $course_id, ?string $from = null, ?strin
  *               bb:float, payout:array, instructor:string, form:string, has_rate:bool}
  */
 function ti_protocol_hours_and_payout(array $prot): array {
+    $snap = ti_protocol_snapshot($prot);
+    if ($snap && is_array($snap['hours'] ?? null)) return $snap['hours'] + ['frozen' => true];
+    return ti_protocol_hours_and_payout_live($prot);
+}
+
+/** Ewidencja i wypłata liczone na żywo z lekcji (bez kopii zatwierdzenia). */
+function ti_protocol_hours_and_payout_live(array $prot): array {
     $course_id = (int)$prot['course_id'];
 
     // Zakres: okres protokołu, a bez okresu — całe życie kursu
@@ -780,9 +849,9 @@ function ti_protocol_status_lesson(string $status, bool $own): string {
  */
 function ti_protocol_print_html(array $prot): string {
     $course_id = (int)$prot['course_id'];
-    $parts     = ti_protocol_participants($course_id);
+    $parts     = ti_protocol_participants_for($prot);
     $entries   = ti_protocol_entries((int)$prot['id']);
-    $avgs      = ti_protocol_diary_averages($course_id, $prot['date_from'] ?? null, $prot['date_to'] ?? null);
+    $avgs      = ti_protocol_averages_for($prot);
     $stats     = ti_protocol_stats((int)$prot['id'], $course_id);
     $h         = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
@@ -890,6 +959,10 @@ function ti_protocol_print_html(array $prot): string {
         ? 'Zatwierdził: ' . $h($prot['approved_name'] ?: '—')
           . ', ' . $h($prot['approved_at'] ? date('d.m.Y H:i', strtotime((string)$prot['approved_at'])) : '—')
         : 'Protokół niezatwierdzony — wydruk roboczy.';
+    if (!empty($prot['snapshot_at']) && ti_protocol_snapshot($prot)) {
+        $trace .= '<br>Dane ewidencji, wypłaty i uczestników utrwalone przy zatwierdzeniu: '
+            . $h(date('d.m.Y H:i', strtotime((string)$prot['snapshot_at']))) . '.';
+    }
     if (!empty($prot['unlocked_at'])) {
         $trace .= '<br>Odblokowany: ' . $h($prot['unlocked_name'] ?: '—') . ', '
             . $h(date('d.m.Y H:i', strtotime((string)$prot['unlocked_at'])))

@@ -21,9 +21,9 @@ $pr_periods = ti_periods_with_protocols_open();
 $pr_used = array_map(fn($r) => (int)($r['period_id'] ?? 0), $pr_list);
 $pr_free = array_values(array_filter($pr_periods, fn($p) => !in_array((int)$p['id'], $pr_used, true)));
 
-$pr_parts   = $pr ? ti_protocol_participants($cur_course) : [];
+$pr_parts   = $pr ? ti_protocol_participants_for($pr) : [];
 $pr_entries = $pr ? ti_protocol_entries((int)$pr['id']) : [];
-$pr_avgs    = $pr ? ti_protocol_diary_averages($cur_course, $pr['date_from'] ?? null, $pr['date_to'] ?? null) : [];
+$pr_avgs    = $pr ? ti_protocol_averages_for($pr) : [];
 $pr_stats   = $pr ? ti_protocol_stats((int)$pr['id'], $cur_course) : ['total'=>0,'filled'=>0,'pct'=>0];
 $pr_locked  = $pr ? ti_protocol_is_locked($pr) : false;
 $pr_empty   = $pr ? ti_protocol_is_empty($pr_stats) : false;
@@ -289,6 +289,13 @@ $pr_confirm = $pr_empty
             endif; ?>.
           Szczegóły są na wydruku PDF.
         </p>
+        <?php if (ti_protocol_snapshot_drift($pr)): ?>
+        <div class="alert alert-warning py-2 small" role="status">
+          <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+          Po zatwierdzeniu zmieniono lekcje z zakresu tego protokołu — protokół pokazuje dane utrwalone przy
+          zatwierdzeniu. Aby je zaktualizować, protokół trzeba odblokować i zatwierdzić ponownie.
+        </div>
+        <?php endif; ?>
         <?php if ($pr_acked): ?>
         <div class="alert alert-success py-2 small mb-0" role="status">
           <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>
