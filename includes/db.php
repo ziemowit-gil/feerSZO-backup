@@ -2,6 +2,8 @@
 require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
 // Samonaprawa bazy: bramka schematu + migracje jednorazowe (szo_schema_current, szo_selfrepair_run)
 require_once dirname(__DIR__) . '/modules/selfrepairDB/logic/selfRepairDB.php';
+// Opcjonalny cache Redis (szo_cache_remember…) — połączenie dopiero przy pierwszym użyciu
+require_once dirname(__DIR__) . '/modules/redis_cache/logic/redisCache.php';
 
 function db(): PDO {
     static $pdo = null;

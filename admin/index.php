@@ -304,6 +304,7 @@ $groups = [
             ['icon'=>'bi-git',                  'label'=>'Wersja i historia zmian',  'url'=>'/admin/version.php'],
             ['icon'=>'bi-clock-history',        'label'=>'Konfiguracja CRON',        'url'=>'/admin/cron_setup.php'],
             ['icon'=>'bi-calendar2-range',      'label'=>'Harmonogram CRON (edytor)','url'=>'/admin/cron_dispatcher.php'],
+            ['icon'=>'bi-lightning-charge',     'label'=>'Redis (cache)',            'url'=>'/admin/redis.php'],
             ['icon'=>'bi-info-circle',          'label'=>'Informacje o systemie',    'url'=>'/admin/system_info.php'],
             ['icon'=>'bi-archive',              'label'=>'Kopie zapasowe',           'url'=>'/admin/backups.php'],
             ['icon'=>'bi-database-fill-gear',   'label'=>'Narzędzia bazy danych',   'url'=>'/admin/db_tools.php'],
