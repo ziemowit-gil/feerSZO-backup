@@ -804,3 +804,58 @@ function task_apply_template(int $template_id, int $workspace_id, int $list_id, 
 
     return $created_ids;
 }
+
+// ── Załączniki zadań: wspólne reguły uploadu (dysk, OneDrive) ──────────────
+
+const TASK_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Dozwolone rozszerzenia → akceptowane typy MIME (wg finfo). */
+function task_upload_allowed(): array {
+    $ooxml = 'application/vnd.openxmlformats-officedocument.';
+    $odf   = 'application/vnd.oasis.opendocument.';
+    // finfo bywa ogólnikowy dla starych formatów Office — dopuszczamy wtedy octet-stream / CDF
+    $legacy_office = ['application/x-ole-storage', 'application/CDFV2', 'application/octet-stream'];
+    return [
+        'pdf'  => ['application/pdf'],
+        'jpg'  => ['image/jpeg'], 'jpeg' => ['image/jpeg'],
+        'png'  => ['image/png'],  'gif'  => ['image/gif'], 'webp' => ['image/webp'],
+        'txt'  => ['text/plain'], 'csv'  => ['text/csv', 'text/plain', 'application/csv'],
+        'zip'  => ['application/zip', 'application/x-zip-compressed'],
+        'docx' => [$ooxml . 'wordprocessingml.document', 'application/zip'],
+        'xlsx' => [$ooxml . 'spreadsheetml.sheet', 'application/zip'],
+        'pptx' => [$ooxml . 'presentationml.presentation', 'application/zip'],
+        'doc'  => array_merge(['application/msword'], $legacy_office),
+        'xls'  => array_merge(['application/vnd.ms-excel'], $legacy_office),
+        'ppt'  => array_merge(['application/vnd.ms-powerpoint'], $legacy_office),
+        'odt'  => [$odf . 'text', 'application/zip'],
+        'ods'  => [$odf . 'spreadsheet', 'application/zip'],
+        'odp'  => [$odf . 'presentation', 'application/zip'],
+    ];
+}
+
+/** Wartość atrybutu accept="" dla <input type="file">. */
+function task_upload_accept_attr(): string {
+    return implode(',', array_map(fn($e) => '.' . $e, array_keys(task_upload_allowed())));
+}
+
+/**
+ * Waliduje plik tymczasowy. Zwraca ['ext' => ..., 'mime' => ...] albo komunikat błędu (string).
+ * Rozszerzenie musi być na liście ORAZ faktyczny typ (finfo) musi mu odpowiadać — sama nazwa nie wystarcza.
+ */
+function task_upload_validate(string $tmp_path, string $original_name, int $size): array|string {
+    if ($size <= 0) return 'Plik jest pusty.';
+    if ($size > TASK_UPLOAD_MAX_BYTES) return 'Plik za duży (max ' . (TASK_UPLOAD_MAX_BYTES >> 20) . ' MB).';
+
+    $allowed = task_upload_allowed();
+    $ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+    if (!isset($allowed[$ext])) {
+        return 'Niedozwolony format „.' . $ext . '”. Dozwolone: ' . implode(', ', array_keys($allowed));
+    }
+
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp_path) ?: 'application/octet-stream';
+    $ok = in_array($mime, $allowed[$ext], true)
+        || (in_array($ext, ['txt', 'csv'], true) && str_starts_with($mime, 'text/'));
+    if (!$ok) return 'Zawartość pliku (' . $mime . ') nie pasuje do rozszerzenia .' . $ext . '.';
+
+    return ['ext' => $ext, 'mime' => $mime];
+}

@@ -84,29 +84,10 @@ if (empty($_FILES['file']['tmp_name']) || $_FILES['file']['error'] !== UPLOAD_ER
 }
 
 $f    = $_FILES['file'];
-$size = $f['size'];
-if ($size > 10 * 1024 * 1024) task_api_error('Plik za duży (max 10 MB).');
-
-$ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-$allowed = ['pdf','jpg','jpeg','png','gif','docx','doc','xlsx','xls','zip','txt','csv'];
-if (!in_array($ext, $allowed, true)) {
-    task_api_error('Niedozwolony format. Dozwolone: ' . implode(', ', $allowed));
-}
-
-// Finfo MIME check
-$finfo = new finfo(FILEINFO_MIME_TYPE);
-$mime  = $finfo->file($f['tmp_name']);
-$safe_mimes = [
-    'application/pdf','image/jpeg','image/png','image/gif',
-    'application/zip','text/plain','text/csv',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/msword','application/vnd.ms-excel',
-    'application/octet-stream', // ogólny — przepuść
-];
-if (!in_array($mime, $safe_mimes, true) && !str_starts_with($mime, 'text/')) {
-    task_api_error('Niedozwolony typ MIME: ' . $mime);
-}
+$size = (int)$f['size'];
+$chk  = task_upload_validate($f['tmp_name'], (string)$f['name'], $size);
+if (is_string($chk)) task_api_error($chk);
+['ext' => $ext, 'mime' => $mime] = $chk;
 
 // Zapis na dysku
 $dir = __DIR__ . '/../../uploads/tasks/';

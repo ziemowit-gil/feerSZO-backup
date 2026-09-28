@@ -185,6 +185,12 @@
 .td-comment-body   { font-size: .84rem; white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
 
 /* ── Pliki ──────────────────────────────────────────────────── */
+.td-drop-zone {
+  border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: .6rem .75rem;
+  font-size: .78rem; color: #475569; text-align: center; transition: background .12s, border-color .12s;
+}
+.td-drop-zone .bi { margin-right: .25rem; }
+.td-drop-zone.is-over { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
 .td-file-row {
   display: flex; align-items: center; gap: .5rem;
   padding: .48rem .65rem;

@@ -89,39 +89,14 @@ if (!$downloaded) {
     task_api_error('Nie udało się pobrać pliku z OneDrive.', 502);
 }
 
-// ── Walidacja rozmiaru i typu ─────────────────────────────────────────────
-$size = filesize($tmpfile);
-if ($size > 10 * 1024 * 1024) {
+// ── Walidacja rozmiaru i typu (wspólne reguły: task_upload_validate) ─────
+$size = (int)filesize($tmpfile);
+$chk  = task_upload_validate($tmpfile, $filename, $size);
+if (is_string($chk)) {
     @unlink($tmpfile);
-    task_api_error('Plik za duży (max 10 MB).', 413);
+    task_api_error($chk, 422);
 }
-if ($size === 0) {
-    @unlink($tmpfile);
-    task_api_error('Pobrany plik jest pusty.', 422);
-}
-
-$ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-$allowed_ext = ['pdf','jpg','jpeg','png','gif','docx','doc','xlsx','xls','zip','txt','csv','pptx','ppt'];
-if (!in_array($ext, $allowed_ext, true)) {
-    @unlink($tmpfile);
-    task_api_error('Nieobsługiwany format pliku: .' . $ext);
-}
-
-$finfo = new finfo(FILEINFO_MIME_TYPE);
-$mime  = $finfo->file($tmpfile);
-$safe_mimes = [
-    'application/pdf', 'image/jpeg', 'image/png', 'image/gif',
-    'application/zip', 'text/plain', 'text/csv',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
-    'application/octet-stream',
-];
-if (!in_array($mime, $safe_mimes, true) && !str_starts_with($mime, 'text/')) {
-    @unlink($tmpfile);
-    task_api_error('Niedozwolony typ MIME: ' . $mime);
-}
+['ext' => $ext, 'mime' => $mime] = $chk;
 
 // ── Zapis do uploads/tasks/ ───────────────────────────────────────────────
 $dir = __DIR__ . '/../../uploads/tasks/';

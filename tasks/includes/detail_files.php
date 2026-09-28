@@ -72,15 +72,21 @@ $td_show_ws_files     = (bool)$ws_for_task;
   </div>
 
   <?php if ($can_manage_files): ?>
+  <div id="td-drop-zone" class="td-drop-zone mt-2" data-max-bytes="<?= TASK_UPLOAD_MAX_BYTES ?>">
+    <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+    Upuść pliki tutaj
+    <span class="text-muted">— lub użyj przycisku „Z dysku” (max <?= TASK_UPLOAD_MAX_BYTES >> 20 ?> MB na plik)</span>
+  </div>
   <div class="d-flex flex-wrap gap-2 mt-2">
     <label class="btn btn-sm btn-outline-secondary" style="cursor:pointer">
       <i class="bi bi-upload me-1" aria-hidden="true"></i>Z dysku
-      <span class="text-muted fw-normal small">(max 10 MB)</span>
+      <span class="text-muted fw-normal small">(max <?= TASK_UPLOAD_MAX_BYTES >> 20 ?> MB)</span>
       <input type="file"
              id="td-file-input"
              class="visually-hidden"
-             accept=".pdf,.jpg,.jpeg,.png,.gif,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.zip,.txt,.csv"
-             aria-label="Wybierz plik do uploadu">
+             multiple
+             accept="<?= h(task_upload_accept_attr()) ?>"
+             aria-label="Wybierz pliki do uploadu">
     </label>
 
     <?php if ($ms_available && $has_ms): ?>
@@ -108,6 +114,10 @@ $td_show_ws_files     = (bool)$ws_for_task;
   <div id="td-upload-status" class="small text-muted mt-2 d-none" aria-live="polite">
     <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
     <span id="td-upload-msg">Wysyłanie…</span>
+    <div class="progress mt-1" style="height:4px">
+      <div id="td-upload-bar" class="progress-bar" role="progressbar" style="width:0%"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Postęp wysyłania"></div>
+    </div>
   </div>
   <?php endif; ?>
   <?php endif; // td_show_attachments ?>

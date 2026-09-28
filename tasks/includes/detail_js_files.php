@@ -6,33 +6,91 @@
    (const/let/function) współdzielą jeden "script scope" ze wszystkimi innymi
    detail_js_*.php tego fragmentu, doładowanymi jako kolejne <script> w tym samym
    dokumencie, dokładnie tak jak wcześniej działało jedno wspólne IIFE. */
-/* Upload pliku */
-const fileInput = document.getElementById('td-file-input');
-if (fileInput) {
-    fileInput.addEventListener('change', function() {
-        if (!this.files.length) return;
-        const f = this.files[0];
-        if (f.size > 10 * 1024 * 1024) {
-            alert('Plik za duży (max 10 MB).');
-            this.value = '';
-            return;
-        }
-        const st = document.getElementById('td-upload-status');
-        if (st) st.classList.remove('d-none');
+/* Upload plików — wiele naraz (input multiple lub przeciągnięcie na strefę), po kolei, z postępem */
+function tdUploadFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const zone   = document.getElementById('td-drop-zone');
+    const maxB   = parseInt(zone?.dataset.maxBytes || '10485760', 10);
+    const st     = document.getElementById('td-upload-status');
+    const msg    = document.getElementById('td-upload-msg');
+    const bar    = document.getElementById('td-upload-bar');
+    const errors = [];
+    let done = 0;
+
+    const tooBig = files.filter(f => f.size > maxB);
+    tooBig.forEach(f => errors.push(f.name + ': plik za duży (max ' + Math.round(maxB / 1048576) + ' MB)'));
+    const queue = files.filter(f => f.size <= maxB);
+
+    const setBar = pct => {
+        if (!bar) return;
+        bar.style.width = pct + '%';
+        bar.setAttribute('aria-valuenow', String(Math.round(pct)));
+    };
+
+    const finish = () => {
+        if (st) st.classList.add('d-none');
+        if (errors.length) alert('Nie wszystkie pliki zostały dodane:\n\n' + errors.join('\n'));
+        if (done) { srAnnounce(done === 1 ? 'Plik dodany.' : 'Dodano plików: ' + done + '.'); openTask(TID); }
+    };
+
+    const next = i => {
+        if (i >= queue.length) return finish();
+        const f = queue[i];
+        if (st)  st.classList.remove('d-none');
+        if (msg) msg.textContent = 'Wysyłanie ' + (i + 1) + '/' + queue.length + ': ' + f.name + '…';
+        setBar(0);
 
         const fd = new FormData();
         fd.append('_csrf', CSRF);
         fd.append('task_id', TID);
         fd.append('file', f);
 
-        fetch(BASE + '/tasks/api/upload.php', {method:'POST', body:fd})
-            .then(r => r.json())
-            .then(r => {
-                if (st) st.classList.add('d-none');
-                this.value = '';
-                if (r.ok) { srAnnounce('Plik dodany.'); openTask(TID); }
-                else alert('Błąd uploadu: ' + r.error);
-            });
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', BASE + '/tasks/api/upload.php');
+        xhr.upload.onprogress = e => { if (e.lengthComputable) setBar(e.loaded / e.total * 100); };
+        xhr.onload = () => {
+            let r = null;
+            try { r = JSON.parse(xhr.responseText); } catch (e) {}
+            if (r && r.ok) done++;
+            else errors.push(f.name + ': ' + ((r && r.error) || ('błąd serwera ' + xhr.status)));
+            next(i + 1);
+        };
+        xhr.onerror = () => { errors.push(f.name + ': błąd sieci'); next(i + 1); };
+        xhr.send(fd);
+    };
+
+    next(0);
+}
+
+const fileInput = document.getElementById('td-file-input');
+if (fileInput) {
+    fileInput.addEventListener('change', function() {
+        const list = Array.from(this.files);
+        this.value = '';
+        tdUploadFiles(list);
+    });
+}
+
+const tdDropZone = document.getElementById('td-drop-zone');
+if (tdDropZone) {
+    // Cała sekcja plików przyjmuje upuszczenie, strefa tylko podpowiada
+    const tdDropTarget = tdDropZone.closest('.td-section') || tdDropZone;
+    let tdDragDepth = 0;
+    tdDropTarget.addEventListener('dragenter', e => {
+        if (!e.dataTransfer?.types?.includes('Files')) return;
+        e.preventDefault(); tdDragDepth++; tdDropZone.classList.add('is-over');
+    });
+    tdDropTarget.addEventListener('dragover', e => {
+        if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
+    });
+    tdDropTarget.addEventListener('dragleave', () => {
+        if (--tdDragDepth <= 0) { tdDragDepth = 0; tdDropZone.classList.remove('is-over'); }
+    });
+    tdDropTarget.addEventListener('drop', e => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault(); tdDragDepth = 0; tdDropZone.classList.remove('is-over');
+        tdUploadFiles(e.dataTransfer.files);
     });
 }
 
