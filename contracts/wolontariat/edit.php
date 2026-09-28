@@ -53,6 +53,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($data['numer_umowy'])) $errors[] = 'Numer umowy jest wymagany.';
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
+    // Zakończenie/rozwiązanie umowy wymaga rozliczenia hologramów — jak przy szybkiej zmianie statusu
+    if (!empty($data['status']) && $data['status'] !== ($row['status'] ?? '')
+        && in_array($data['status'], ['zakończona', 'wygasła', 'rozwiązana', 'anulowana'], true)) {
+        require_once dirname(dirname(__DIR__)) . '/modules/holograms/logic/holograms.php';
+        try { holo_assert_contract_settled($TYPE, $id); } catch (\RuntimeException $e) { $errors[] = $e->getMessage(); }
+    }
 
     if (!$errors) {
         foreach (['niepelnoletni', 'bezterminowa', 'ubezpieczenie_nnw', 'ubezpieczenie_oc', 'szkolenie_bhp', 'zwrot_kosztow', 'm365_konto', 'm365_nie_wylaczaj', 'z_webngo', 'canva_access', 'email_consent', 'przetwarza_dane_osobowe', 'rpts_wymagana', 'rpts_zweryfikowano', 'otrzymano_dowod_ksiegowy', 'rozliczono_srodki'] as $f) {

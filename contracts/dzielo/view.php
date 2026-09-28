@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
             require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
             require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
             try {
-                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row);
+                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row, $TYPE);
             } catch (ContractTransitionException $e) {
                 flash_set('error', $e->getMessage());
                 header('Location: view.php?id=' . $id); exit;
@@ -343,6 +343,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
   </div>
   <?php endif; ?>
 
+<div class="row"><div class="col-lg-6">
+  <?php require_once dirname(dirname(__DIR__)) . '/modules/holograms/logic/holograms.php'; holo_contract_card($TYPE, (int)$id); ?>
+</div></div>
 </div><!-- /tab-umowa -->
 
 <!-- ═══════════════════ TAB 2 — WYKONAWCA ═══════════════════ -->

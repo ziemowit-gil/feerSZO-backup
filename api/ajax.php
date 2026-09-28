@@ -109,7 +109,7 @@ switch ($action) {
         // biznesowe (pełnoletność, rozliczenie zaliczki) — obowiązuje WSZYSTKICH,
         // także admina, w przeciwieństwie do miękkiej STATUS_TRANSITIONS wyżej.
         try {
-            ContractStatusTransitionValidator::assertAllowed($old_status, $value, $row);
+            ContractStatusTransitionValidator::assertAllowed($old_status, $value, $row, $type);
         } catch (ContractTransitionException $e) {
             ajax_err($e->getMessage(), 422);
         }

@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
             require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
             require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
             try {
-                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row);
+                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row, $TYPE);
             } catch (ContractTransitionException $e) {
                 flash_set('error', $e->getMessage());
                 header('Location: view.php?id=' . $id); exit;

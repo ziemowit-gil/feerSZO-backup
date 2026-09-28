@@ -141,8 +141,12 @@ final class ContractStatusTransitionValidator
         'cancelled' => [],
     ];
 
-    /** @throws ContractTransitionException */
-    public static function assertAllowed(string $from, string $to, array $row): void
+    /**
+     * @param string $type typ umowy (zlecenie, wolontariat…) — potrzebny do reguł
+     *                     spoza wiersza umowy, np. rozliczenia hologramów.
+     * @throws ContractTransitionException
+     */
+    public static function assertAllowed(string $from, string $to, array $row, string $type = ''): void
     {
         $fromGroup = self::GROUPS[$from] ?? null;
         $toGroup   = self::GROUPS[$to] ?? null;
@@ -154,6 +158,11 @@ final class ContractStatusTransitionValidator
 
         if (in_array($toGroup, ['closed', 'cancelled'], true)) {
             ContractSettlementGuard::assertSettled($row);
+            // Hologramy wydane w ramach umowy muszą być rozliczone (zwrot / uszkodzenie)
+            if ($type !== '' && !empty($row['id'])) {
+                require_once dirname(__DIR__) . '/modules/holograms/logic/holograms.php';
+                holo_assert_contract_settled($type, (int)$row['id'], ContractTransitionException::class);
+            }
         }
         if ($fromGroup === 'blocked' && $toGroup === 'active') {
             ContractMinorGuard::assertConsentValid($row);

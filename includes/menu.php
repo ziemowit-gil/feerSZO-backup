@@ -344,6 +344,8 @@ function _menu_editor(): array {
     if ($cnt['has_kdok'])
         $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
     $fin[] = _mi('Zasoby','/modules/srs/','bi-box-seam',['match'=>'/modules/srs/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt srs']);
+    if (module_enabled('holograms_enabled') && in_array(current_user()['role'] ?? '', ['admin','editor'], true))
+        $fin[] = _mi('Hologramy','/modules/holograms/index.php','bi-patch-check',['match'=>'/modules/holograms/','kw'=>'hologramy naklejki zabezpieczające plomby sprzęt dokumenty']);
     if ($cnt['has_shipping'])
         $fin[] = _mi('Przesyłki','/admin/shipments.php','bi-truck',['match'=>'/admin/shipments','badge'=>$cnt['ship'],'kw'=>'przesyłki kurier apaczka']);
     $nodes[] = [

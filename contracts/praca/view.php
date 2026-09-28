@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {
             require_once dirname(dirname(__DIR__)) . '/includes/guardian_consent.php';
             require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
             try {
-                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row);
+                ContractStatusTransitionValidator::assertAllowed($old_status, $new_status, $row, $TYPE);
             } catch (ContractTransitionException $e) {
                 flash_set('error', $e->getMessage());
                 header('Location: view.php?id=' . $id); exit;
@@ -345,6 +345,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 
 <div class="col-lg-4">
   <?php require_once dirname(dirname(__DIR__)) . '/includes/rodo.php'; rodo_contract_card($TYPE, (int)$id); ?>
+<?php require_once dirname(dirname(__DIR__)) . '/modules/holograms/logic/holograms.php'; holo_contract_card($TYPE, (int)$id); ?>
 
   <?php if ($person): ?>
   <div class="card shadow-sm mb-3 border-primary border-opacity-25">
