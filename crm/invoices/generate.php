@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'gene
 
         if (empty($r['ok'])) { $errors[] = '#' . $sid . ': ' . (string)$r['error']; continue; }
         if (!empty($r['existing'])) { $skipped++; continue; }
+        foreach (($r['warnings'] ?? []) as $w) $errors[] = '#' . $sid . ' (ostrzeżenie): ' . $w;
 
         $made++;
         if ($issue) {

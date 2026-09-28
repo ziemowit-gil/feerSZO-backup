@@ -986,7 +986,6 @@ function invoice_from_ti_billing(int $billing_id, int $uid, bool $demo = false):
 
     $cfg    = invoices_config();
     $okres  = str_pad((string)(int)$b['month'], 2, '0', STR_PAD_LEFT) . '/' . (int)$b['year'];
-    $hours  = (float)$b['hours_billed'];
 
     // Grupa (kurs) na pozycji faktury. W modelu kombinowanym rozliczenie dotyczy
     // JEDNEJ grupy (k30_ti_billing.course_id) — wtedy tylko ją nazywamy. Dopiero
@@ -1008,20 +1007,19 @@ function invoice_from_ti_billing(int $billing_id, int $uid, bool $demo = false):
     }
     $group_txt = $groups ? implode(', ', $groups) : '';
 
-    // Kwota rozliczenia TI jest kwotą do zapłaty (brutto dla nabywcy). Przy stawce
-    // VAT wyliczamy z niej netto, żeby suma faktury zgadzała się z rozliczeniem.
-    $rate = $cfg['vat'];
-    $net  = is_numeric($rate) ? round($amount / (1 + ((float)$rate / 100)), 2) : $amount;
-    $qty  = $hours > 0 ? $hours : 1;
+    // Pozycje z kalkulatora rozliczeń (per grupa, per stawka, ryczałt jako usługa)
+    // + korekta; suma = należność (amount + adjustment). Patrz invoice_ti_items().
+    $ti = invoice_ti_items($b, (string)$cfg['vat']);
+    if (!$ti['items']) return ['ok' => false, 'error' => 'Brak pozycji do zafakturowania.'];
+    $items = $ti['items'];
 
-    $items = [[
-        'name'     => 'Zajęcia' . ($group_txt !== '' ? ' — ' . $group_txt : '') . ', okres ' . $okres
-                      . ($hours > 0 ? ' (' . rtrim(rtrim(number_format($hours, 2, ',', ' '), '0'), ',') . ' godz.)' : ''),
-        'unit'     => $hours > 0 ? 'godz.' : 'usł.',
-        'qty'      => $qty,
-        'unit_net' => round($net / $qty, 2),
-        'vat_rate' => $rate,
-    ]];
+    // Termin zapłaty z rozliczenia — ale nie wcześniejszy niż data wystawienia
+    // faktury (rozliczenie mogło być wystawione dawno, np. faktura po terminie).
+    $pay_to = (string)($b['due_date'] ?? '');
+    if ($pay_to === '' || $pay_to < date('Y-m-d')) {
+        if ($pay_to !== '') $ti['warnings'][] = 'Termin płatności z rozliczenia (' . date('d.m.Y', strtotime($pay_to)) . ') już minął — na fakturze ustawiono ' . $cfg['days'] . ' dni od dziś.';
+        $pay_to = date('Y-m-d', strtotime('+' . $cfg['days'] . ' days'));
+    }
 
     $buyer_name = trim((string)$b['payer_name']) ?: (string)$b['client_name'];
 
@@ -1041,10 +1039,86 @@ function invoice_from_ti_billing(int $billing_id, int $uid, bool $demo = false):
         'source'     => 'ti_billing',
         'source_id'  => $billing_id,
         'is_test'    => $demo ? 1 : 0,
-        'payment_to' => (string)($b['due_date'] ?? '') ?: date('Y-m-d', strtotime('+' . $cfg['days'] . ' days')),
+        'payment_to' => $pay_to,
         'notes'      => 'Rozliczenie TI ' . $okres . ' — ' . $b['client_name']
                         . ($group_txt !== '' ? ' (' . $group_txt . ')' : ''),
     ];
 
-    return ['ok' => true, 'id' => invoice_create($data, $items, $uid)];
+    // Płatnik wyglądający na firmę/instytucję bez NIP → faktura poszłaby jak dla
+    // osoby fizycznej, poza KSeF (B2B w KSeF jest obowiązkowe). Nie blokujemy —
+    // NIP uzupełnia się w kartotece CRM płatnika — ale operator musi to zobaczyć.
+    if (trim((string)($data['buyer_tax_no'] ?? '')) === '' && invoice_name_looks_company((string)$data['buyer_name'])) {
+        $ti['warnings'][] = 'Nabywca „' . $data['buyer_name'] . '" wygląda na firmę/instytucję, a nie ma NIP (brak kartoteki CRM z NIP o tej nazwie) — faktura trafi poza KSeF jak dla osoby fizycznej.';
+    }
+
+    return ['ok' => true, 'id' => invoice_create($data, $items, $uid), 'warnings' => $ti['warnings']];
+}
+
+/** Heurystyka: nazwa nabywcy wskazuje na firmę/instytucję (nie osobę fizyczną). */
+function invoice_name_looks_company(string $name): bool
+{
+    return (bool)preg_match('/\b(sp\.?\s*z\s*o\.?\s*o\.?|spółka|s\.\s?a\.|sp\.\s?[jkp]\.|fundacja|stowarzyszenie|pfron|urząd|gmina|powiat|szkoła|przedszkole|zakład|instytut|uczelnia|uniwersytet|ośrodek|centrum|firma|ltd|gmbh|inc)\b/iu', $name);
+}
+
+/**
+ * Pozycje faktury z rozliczenia TI (wiersz k30_ti_billing).
+ *
+ * Źródło: k30_ti_billing_fv_positions() — to samo co pozycje FV i wydruk
+ * rozliczenia: osobno każda grupa, godzinowo z rozbiciem per stawka (zmiana
+ * ceny w trakcie miesiąca), ryczałt jako 1 usługa, korekta rozliczenia
+ * (adjustment: rabat z poleceń, ręczna korekta) jako osobna pozycja — należność
+ * kursanta to amount + adjustment i tyle musi wynosić faktura.
+ *
+ * Kwoty rozliczenia są BRUTTO dla nabywcy; przy stawce liczbowej netto
+ * liczone jest z brutto. Gdy przeliczenie „na żywo" nie zgadza się z kwotą
+ * zapisaną w rozliczeniu (np. obecność poprawiona po wystawieniu), faktura
+ * idzie wg ZAPISANEJ kwoty jedną pozycją, a warnings to zgłasza.
+ *
+ * @return array{items: list<array>, warnings: list<string>, positions_total: float, due: float}
+ */
+function invoice_ti_items(array $b, string $vat): array
+{
+    require_once __DIR__ . '/karty30.php';
+    $warnings = [];
+    $amount   = round((float)$b['amount'], 2);
+    $adj      = round((float)($b['adjustment'] ?? 0), 2);
+    $due      = round($amount + $adj, 2);
+    $to_net   = fn(float $gross) => is_numeric($vat) ? round($gross / (1 + ((float)$vat / 100)), 2) : round($gross, 2);
+
+    // Pozycje FV zawierają już korektę (Rabat / Opłata dodatkowa) — suma = należność
+    $pos   = k30_ti_billing_fv_positions($b);
+    $total = round(array_sum(array_column($pos, 'value')), 2);
+    $items = [];
+    if ($pos && abs($total - $due) < 0.01) {
+        foreach ($pos as $p) {
+            $qty = (float)$p['qty'] > 0 ? (float)$p['qty'] : 1.0;
+            $net = $to_net((float)$p['value']);
+            // qty × cena musi dać wartość pozycji; przy VAT liczbowym cena netto
+            // z zaokrągleniem mogłaby rozjechać sumę — wtedy pozycja jako 1 usługa.
+            $unit = round($net / $qty, 2);
+            $unit_lbl = (string)$p['unit'];
+            if (abs(round($unit * $qty, 2) - $net) >= 0.005) { $qty = 1.0; $unit = $net; $unit_lbl = 'usł.'; }
+            $items[] = ['name' => (string)$p['name'], 'unit' => $unit_lbl, 'qty' => $qty,
+                        'unit_net' => $unit, 'vat_rate' => $vat];
+        }
+    } else {
+        $live = round($total - $adj, 2);
+        if ($pos) $warnings[] = sprintf('Rozliczenie nieaktualne: zapisano %s zł, przeliczenie z obecności daje %s zł — faktura wg kwoty zapisanej (jedna pozycja). Przelicz rozliczenie, jeśli to błąd.',
+                                        number_format($amount, 2, ',', ' '), number_format($live, 2, ',', ' '));
+        $okres = str_pad((string)(int)$b['month'], 2, '0', STR_PAD_LEFT) . '/' . (int)$b['year'];
+        if ($amount > 0) $items[] = ['name' => 'Zajęcia TI, okres ' . $okres, 'unit' => 'usł.', 'qty' => 1.0,
+                                     'unit_net' => $to_net($amount), 'vat_rate' => $vat];
+        if (abs($adj) >= 0.005) {
+            $note = trim((string)($b['adjustment_note'] ?? ''));
+            $items[] = ['name' => ($adj < 0 ? 'Rabat' : 'Opłata dodatkowa') . ($note !== '' ? ' — ' . $note : ''),
+                        'unit' => 'usł.', 'qty' => 1.0, 'unit_net' => $to_net($adj), 'vat_rate' => $vat];
+        }
+    }
+    $gross = 0.0;
+    foreach ($items as $it) $gross += invoice_item_calc($it)['line_gross'];
+    if (abs(round($gross, 2) - $due) >= 0.01) {
+        $warnings[] = sprintf('Suma faktury %s zł różni się od należności %s zł (zaokrąglenia VAT).',
+                              number_format($gross, 2, ',', ' '), number_format($due, 2, ',', ' '));
+    }
+    return ['items' => $items, 'warnings' => $warnings, 'positions_total' => $total, 'due' => $due];
 }

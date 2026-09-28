@@ -322,6 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             if (empty($res['ok'])) {
                 flash_set('danger', 'Nie udało się przygotować faktury: ' . (string)$res['error']);
             } else {
+                if (!empty($res['warnings'])) flash_set('warning', 'Faktura TI: ' . implode(' ', $res['warnings']));
                 header('Location: ' . APP_URL . '/crm/invoices/view.php?id=' . (int)$res['id']);
                 exit;
             }
@@ -987,6 +988,10 @@ echo '<main id="main" class="dyd-wrap">';
                     <i class="bi bi-receipt me-1"></i>Wystaw fakturę<?= $bf_backend ? ' (Betterfly)' : '' ?>
                   </button>
                 </form>
+                <a href="faktura_podglad.php?billing_id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener"
+                   class="btn btn-link btn-sm p-0 ms-2" style="font-size:.72rem"
+                   title="Podgląd PDF faktury tak, jak zobaczy ją kursant/płatnik — bez tworzenia dokumentu i numeru">
+                  <i class="bi bi-eye me-1"></i>Podgląd FV</a>
               <?php endif; ?>
               <?php
                 // Demo dla tego uczestnika — obok, niezależnie od faktury prawdziwej.
