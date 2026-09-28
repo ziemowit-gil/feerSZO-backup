@@ -32,6 +32,12 @@ export interface ProtocolApproveDialogData { row: InstructorProtocolPending; mon
               <span>Bieżący miesiąc — zwykle zamyka się go po zakończeniu, ale możesz też teraz.</span>
             </div>
           }
+          @if ((s.planned_left ?? 0) > 0) {
+            <div class="k-alert warning">
+              <span class="material-symbols-outlined" aria-hidden="true">event_busy</span>
+              <span>W tym miesiącu są jeszcze <strong>{{ s.planned_left }}</strong> zaplanowane lekcje od dziś. Po zamknięciu protokołu nie wejdą do niego — zamknij miesiąc tylko, jeśli tych zajęć już nie będzie (np. odwołaj je wcześniej).</span>
+            </div>
+          }
           <dl class="summary-list">
             <div><dt>Lekcje odbyte</dt><dd>{{ s.lessons_held }} z {{ s.lessons_total }} zaplanowanych</dd></div>
             <div><dt>Średnia frekwencja</dt><dd>{{ s.attendance_pct !== null ? s.attendance_pct + '%' : '—' }}</dd></div>

@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'approve_month') {
         $cid = (int)($_POST['course_id'] ?? 0);
         $ym  = (string)($_POST['year_month'] ?? '');
-        if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || !dyd_owns_course($uid, $cid)) {
+        if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || $ym > date('Y-m') || !dyd_owns_course($uid, $cid)) {
             flash_set('danger', 'Nieprawidłowe dane protokołu.');
             header('Location: protokoly_moje.php'); exit;
         }
@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pending = ti_protocol_pending_months_for_instructor($uid);
 $closed  = ti_protocol_closed_months_for_instructor($uid);
+$months  = ti_protocol_months_for_instructor($uid);
 
 // Krok 2 kreatora: konkretny kurs+miesiąc wybrany z listy — pokaż podsumowanie.
 $open_cid = (int)($_GET['course'] ?? 0);
@@ -51,6 +52,16 @@ $open_row = null;
 if ($open_cid && preg_match('/^\d{4}-\d{2}$/', $open_ym)) {
     foreach ($pending as $p) {
         if ($p['course_id'] === $open_cid && $p['year_month'] === $open_ym) { $open_row = $p; break; }
+    }
+    // Z listy miesięcy: bieżący miesiąc można zamknąć wcześniej (np. 25., gdy
+    // nie ma już zajęć), nawet zanim trafi do „do zamknięcia”.
+    if (!$open_row) {
+        foreach ($months as $mr) {
+            if ($mr['course_id'] === $open_cid && $mr['year_month'] === $open_ym && $mr['state'] !== 'approved') {
+                $open_row = $mr + ['is_overdue' => $mr['state'] === 'overdue', 'is_current' => $mr['state'] === 'current'];
+                break;
+            }
+        }
     }
 }
 $open_summary = $open_row ? ti_protocol_month_summary($open_cid, $open_ym) : null;
@@ -97,6 +108,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <?php else: ?>
     <div class="alert alert-info py-2 small mb-3">
       <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Bieżący miesiąc — zwykle zamyka się go po zakończeniu, ale możesz też teraz.
+    </div>
+    <?php endif; ?>
+
+    <?php if ((int)($open_summary['planned_left'] ?? 0) > 0): ?>
+    <div class="alert alert-warning py-2 small mb-3" role="alert">
+      <i class="bi bi-calendar-x me-1" aria-hidden="true"></i>
+      W tym miesiącu są jeszcze <strong><?= (int)$open_summary['planned_left'] ?></strong> zaplanowane lekcje od dziś.
+      Po zamknięciu protokołu nie wejdą do niego — zamknij miesiąc tylko, jeśli tych zajęć już nie będzie
+      (np. odwołaj je wcześniej).
     </div>
     <?php endif; ?>
 
@@ -173,6 +193,52 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </li>
     <?php endforeach; ?>
   </ul>
+</div>
+<?php endif; ?>
+
+<?php if ($months): ?>
+<?php $_mstate = [
+    'approved' => ['success', 'zatwierdzony'],
+    'overdue'  => ['warning text-dark', 'zaległy'],
+    'current'  => ['primary', 'bieżący'],
+    'empty'    => ['light text-dark border', 'bez zajęć'],
+]; ?>
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header fw-semibold">Miesiące</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Miesiące i stan protokołów per grupa</caption>
+      <thead><tr>
+        <th scope="col">Miesiąc</th><th scope="col">Grupa</th><th scope="col">Stan</th>
+        <th scope="col" class="text-end">Zajęcia odbyte</th><th scope="col" class="text-end">Akcja</th>
+      </tr></thead>
+      <tbody>
+        <?php foreach ($months as $mr): [$_bc, $_bl] = $_mstate[$mr['state']]; ?>
+        <tr>
+          <td class="text-nowrap"><?= h($fmt_ym($mr['year_month'])) ?></td>
+          <td><?= h($mr['course_name']) ?></td>
+          <td><span class="badge bg-<?= $_bc ?>"><?= h($_bl) ?></span></td>
+          <td class="text-end"><?= (int)$mr['lessons_held'] ?><?php if ($mr['state'] === 'current' && $mr['planned_left'] > 0): ?>
+            <span class="text-body-secondary small">(+<?= (int)$mr['planned_left'] ?> zaplan.)</span><?php endif; ?></td>
+          <td class="text-end text-nowrap">
+            <?php if ($mr['state'] === 'approved'): ?>
+              <a href="protokol_pdf.php?id=<?= (int)$mr['protocol_id'] ?>" class="btn btn-sm btn-outline-secondary py-0"
+                 aria-label="PDF protokołu: <?= h($mr['course_name']) ?>, <?= h($fmt_ym($mr['year_month'])) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
+            <?php elseif ($mr['state'] === 'empty'): ?>
+              <span class="text-body-secondary small">niewymagany</span>
+            <?php elseif ($mr['can_approve'] || dyd_is_staff()): ?>
+              <a href="protokoly_moje.php?course=<?= (int)$mr['course_id'] ?>&ym=<?= h($mr['year_month']) ?>" class="btn btn-sm btn-primary py-0">
+                <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zamknij<?= $mr['state'] === 'current' ? ' teraz' : '' ?>
+              </a>
+            <?php else: ?>
+              <span class="text-body-secondary small"><i class="bi bi-lock" aria-hidden="true"></i> główny prowadzący</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 <?php endif; ?>
 

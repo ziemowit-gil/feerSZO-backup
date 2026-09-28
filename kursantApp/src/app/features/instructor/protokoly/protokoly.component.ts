@@ -6,7 +6,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
-import { InstructorProtocolPending, InstructorProtocolClosed } from '../../../core/models/kursant.models';
+import { InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolMonth } from '../../../core/models/kursant.models';
 import { ProtocolHoursCheckDialogComponent } from './protocol-hours-check-dialog.component';
 import { ProtocolApproveDialogComponent } from './protocol-approve-dialog.component';
 
@@ -168,6 +168,49 @@ const MONTHS_PL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
             }
           </div>
         </mat-tab>
+        <mat-tab label="Miesiące">
+          <div class="tab-card">
+            @if (monthsF().length === 0) {
+              <div class="k-card"><div class="empty-state"><p>Brak zajęć w ostatnich miesiącach.</p></div></div>
+            } @else {
+              <div class="k-card table-card">
+                <table class="k-table">
+                  <caption class="visually-hidden">Miesiące i stan protokołów per grupa</caption>
+                  <thead><tr>
+                    <th scope="col">Miesiąc</th><th scope="col">Grupa</th><th scope="col">Stan</th>
+                    <th scope="col">Zajęcia odbyte</th><th scope="col" class="actions-col">Akcja</th>
+                  </tr></thead>
+                  <tbody>
+                    @for (m of monthsF(); track m.course_id + m.year_month) {
+                      <tr [class.row-warn]="m.state === 'overdue'">
+                        <td>{{ monthLabel(m.year_month) }}</td>
+                        <td class="fw">{{ m.course_name }}</td>
+                        <td><span class="status-badge" [class.warn]="m.state === 'overdue'" [class.active]="m.state === 'approved'">{{ stateLabel(m.state) }}</span></td>
+                        <td>{{ m.lessons_held }}@if (m.state === 'current' && m.planned_left > 0) { <span class="text-muted text-sm">(+{{ m.planned_left }} zaplan.)</span> }</td>
+                        <td class="actions-col">
+                          @if (m.state === 'approved' && m.protocol_id) {
+                            <a mat-stroked-button [href]="pdfById(m.protocol_id)" target="_blank" rel="noopener"
+                               [attr.aria-label]="'PDF: ' + m.course_name + ', ' + monthLabel(m.year_month)">
+                              <span class="material-symbols-outlined btn-ico" aria-hidden="true">picture_as_pdf</span>PDF
+                            </a>
+                          } @else if (m.state === 'empty') {
+                            <span class="text-muted text-sm">niewymagany</span>
+                          } @else if (m.can_approve) {
+                            <button mat-flat-button color="primary" type="button" (click)="openApproveMonth(m)">
+                              <span class="material-symbols-outlined btn-ico" aria-hidden="true">task_alt</span>{{ m.state === 'current' ? 'Zamknij teraz' : 'Zamknij' }}
+                            </button>
+                          } @else {
+                            <span class="text-muted text-sm lock-note"><span class="material-symbols-outlined btn-ico" aria-hidden="true">lock</span>główny prowadzący</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        </mat-tab>
       </mat-tab-group>
     }
   `,
@@ -204,6 +247,7 @@ export class InstructorProtokolyComponent implements OnInit {
   acking  = signal<number | null>(null);
   pending = signal<InstructorProtocolPending[]>([]);
   closed  = signal<InstructorProtocolClosed[]>([]);
+  months  = signal<InstructorProtocolMonth[]>([]);
 
   /** Filtr wybranej grupy z panelu bocznego; zaległe najpierw. */
   pendingF = computed(() => {
@@ -216,6 +260,10 @@ export class InstructorProtokolyComponent implements OnInit {
     const cid = this.courseCtx.selectedId();
     return this.closed().filter(c => cid === null || c.course_id === cid);
   });
+  monthsF = computed(() => {
+    const cid = this.courseCtx.selectedId();
+    return this.months().filter(m => cid === null || m.course_id === cid);
+  });
   overdueCount = computed(() => this.pendingF().filter(p => p.is_overdue).length);
   toAckCount   = computed(() => this.closedF().filter(c => !c.hours_ack_at && c.can_ack).length);
 
@@ -225,10 +273,14 @@ export class InstructorProtokolyComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    let left = 2;
+    let left = 3;
     const done = () => { if (--left === 0) this.loading.set(false); };
     this.api.getProtocolsPending().subscribe({
       next: res => { if (res.success && res.data) this.pending.set(res.data); done(); },
+      error: () => done(),
+    });
+    this.api.getProtocolsMonths().subscribe({
+      next: res => { if (res.success && res.data) this.months.set(res.data); done(); },
       error: () => done(),
     });
     this.api.getProtocolsClosed().subscribe({
@@ -245,6 +297,23 @@ export class InstructorProtokolyComponent implements OnInit {
   dateLabel(dt: string): string {
     const d = new Date(dt.replace(' ', 'T'));
     return isNaN(d.getTime()) ? dt : d.toLocaleDateString('pl-PL');
+  }
+
+  stateLabel(st: InstructorProtocolMonth['state']): string {
+    return { approved: 'zatwierdzony', overdue: 'zaległy', current: 'bieżący', empty: 'bez zajęć' }[st];
+  }
+
+  pdfById(id: number): string {
+    return this.api.protocolPdfUrlById(id);
+  }
+
+  /** Zamknięcie z listy miesięcy — także bieżącego przed końcem miesiąca. */
+  openApproveMonth(m: InstructorProtocolMonth): void {
+    this.openApprove({
+      course_id: m.course_id, course_name: m.course_name, year_month: m.year_month,
+      protocol_id: m.protocol_id, is_current: m.state === 'current', is_overdue: m.state === 'overdue',
+      can_approve: m.can_approve,
+    });
   }
 
   draftPdfUrl(p: InstructorProtocolPending): string {

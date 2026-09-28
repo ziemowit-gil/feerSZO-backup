@@ -222,6 +222,69 @@ function ti_protocol_closed_months_for_instructor(int $instructor_uid): array {
     );
 }
 
+/**
+ * Lista miesięcy per kurs prowadzącego (ostatnie $months_back miesięcy do
+ * bieżącego włącznie, nie wcześniej niż pierwsza lekcja kursu) ze stanem
+ * protokołu miesięcznego:
+ *   approved — zatwierdzony; overdue — miniony z odbytymi zajęciami, niezatwierdzony;
+ *   current  — bieżący (można zamknąć wcześniej, np. 25., gdy nie ma już zajęć);
+ *   empty    — miniony bez odbytych zajęć (protokół niewymagany).
+ * planned_left — zaplanowane lekcje w miesiącu od dziś (ostrzeżenie przy
+ * wcześniejszym zamknięciu bieżącego miesiąca).
+ */
+function ti_protocol_months_for_instructor(int $instructor_uid, int $months_back = 12): array {
+    ti_protocols_migrate();
+    $courses = k30_ti_instructor_courses($instructor_uid, false);
+    $cur_ym  = date('Y-m');
+    $min_ym  = date('Y-m', strtotime(date('Y-m-01') . ' -' . max(0, $months_back - 1) . ' month'));
+    $today   = date('Y-m-d');
+    $out = [];
+    foreach ($courses as $c) {
+        $cid   = (int)$c['id'];
+        $first = (string)(db_one("SELECT MIN(strftime('%Y-%m', lesson_date)) AS m FROM k30_ti_sessions
+                                   WHERE course_id=? AND status NOT IN ('cancelled','draft')", [$cid])['m'] ?? '');
+        if ($first === '' || $first > $cur_ym) continue;
+        $stats = [];
+        foreach (db_all(
+            "SELECT strftime('%Y-%m', lesson_date) AS ym,
+                    SUM(CASE WHEN status IN ('held','individual_change','remote_material') THEN 1 ELSE 0 END) AS held,
+                    SUM(CASE WHEN status IN ('planned','reserved') AND lesson_date >= ? THEN 1 ELSE 0 END) AS planned_left,
+                    SUM(CASE WHEN status IN ('planned','reserved') AND lesson_date < ? THEN 1 ELSE 0 END) AS planned_past
+               FROM k30_ti_sessions WHERE course_id=? AND status NOT IN ('cancelled','draft')
+              GROUP BY ym", [$today, $today, $cid]) as $r) {
+            $stats[(string)$r['ym']] = $r;
+        }
+        $prots = [];
+        foreach (db_all("SELECT id, year_month, status, approved_name, approved_at FROM k30_ti_protocols
+                          WHERE course_id=? AND year_month != ''", [$cid]) as $p) {
+            $prots[(string)$p['year_month']] = $p;
+        }
+        $can = ti_protocol_can_approve($instructor_uid, $cid);
+        for ($ym = max($first, $min_ym); $ym <= $cur_ym; $ym = date('Y-m', strtotime($ym . '-01 +1 month'))) {
+            $st   = $stats[$ym] ?? ['held' => 0, 'planned_left' => 0, 'planned_past' => 0];
+            $p    = $prots[$ym] ?? null;
+            $held = (int)$st['held'];
+            $state = ($p && $p['status'] === 'approved') ? 'approved'
+                   : ($ym === $cur_ym ? 'current' : ($held > 0 ? 'overdue' : 'empty'));
+            $out[] = [
+                'course_id'     => $cid,
+                'course_name'   => (string)$c['name'],
+                'year_month'    => $ym,
+                'state'         => $state,
+                'protocol_id'   => $p ? (int)$p['id'] : null,
+                'lessons_held'  => $held,
+                'planned_left'  => (int)$st['planned_left'],
+                'planned_past'  => (int)$st['planned_past'],
+                'approved_name' => (string)($p['approved_name'] ?? ''),
+                'approved_at'   => $p['approved_at'] ?? null,
+                'can_approve'   => $can,
+            ];
+        }
+    }
+    usort($out, fn($a, $b) => strcmp($b['year_month'], $a['year_month']) ?: strcasecmp($a['course_name'], $b['course_name']));
+    return $out;
+}
+
 /** Podsumowanie miesiąca dla kreatora: liczba lekcji odbytych i średnia frekwencja (%). */
 function ti_protocol_month_summary(int $course_id, string $year_month): array {
     $sessions = db_all(
@@ -244,7 +307,13 @@ function ti_protocol_month_summary(int $course_id, string $year_month): array {
         $present = (int)($row['present'] ?? 0);
         $total   = (int)($row['total'] ?? 0);
     }
+    $planned_left = (int)(db_one(
+        "SELECT COUNT(*) AS n FROM k30_ti_sessions
+          WHERE course_id=? AND strftime('%Y-%m', lesson_date)=? AND status IN ('planned','reserved') AND lesson_date >= ?",
+        [$course_id, $year_month, date('Y-m-d')]
+    )['n'] ?? 0);
     return [
+        'planned_left'  => $planned_left,
         'lessons_total' => count($sessions),
         'lessons_held'  => count($held),
         'attendance_pct'=> $total > 0 ? round($present * 100 / $total) : null,

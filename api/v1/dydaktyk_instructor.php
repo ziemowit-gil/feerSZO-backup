@@ -1414,6 +1414,12 @@ switch ($action) {
         json_ok(ti_protocol_pending_months_for_instructor($instructor_id));
     }
 
+    // Lista miesięcy per grupa ze stanem protokołu (approved/overdue/current/empty)
+    // — bieżący miesiąc można zamknąć wcześniej, gdy nie ma już zajęć.
+    case 'protocols_months': {
+        json_ok(ti_protocol_months_for_instructor($instructor_id));
+    }
+
     case 'protocols_closed': {
         // Tylko protokoły miesięczne — per-okres (year_month='') to inny tor.
         json_ok(array_map(function ($r) use ($instructor_id) {
@@ -1514,7 +1520,7 @@ switch ($action) {
         $body = get_body();
         $cid = (int)($body['course_id'] ?? 0);
         $ym  = (string)($body['year_month'] ?? '');
-        if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || !k30_ti_instructor_owns_course($instructor_id, $cid)) {
+        if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || $ym > date('Y-m') || !k30_ti_instructor_owns_course($instructor_id, $cid)) {
             json_err('Nieprawidłowe dane protokołu.', 403);
         }
         if (!ti_protocol_can_approve($instructor_id, $cid)) json_err(TI_PROTOCOL_APPROVE_DENIED, 403);

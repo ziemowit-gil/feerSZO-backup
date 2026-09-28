@@ -749,6 +749,20 @@ export interface InstructorProtocolClosed {
   can_ack?: boolean;
 }
 
+export interface InstructorProtocolMonth {
+  course_id: number;
+  course_name: string;
+  year_month: string;
+  state: 'approved' | 'overdue' | 'current' | 'empty';
+  protocol_id: number | null;
+  lessons_held: number;
+  planned_left: number;
+  planned_past: number;
+  approved_name: string;
+  approved_at: string | null;
+  can_approve: boolean;
+}
+
 export interface InstructorProtocolHoursList {
   course_name: string;
   period_name: string;
@@ -757,6 +771,7 @@ export interface InstructorProtocolHoursList {
 }
 
 export interface InstructorProtocolSummary {
+  planned_left?: number;
   lessons_held: number;
   lessons_total: number;
   attendance_pct: number | null;
