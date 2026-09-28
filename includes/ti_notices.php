@@ -3,6 +3,14 @@
  * includes/ti_notices.php — Komunikaty placówki TI (tablica ogłoszeń dla kursantów).
  */
 
+/** Punkt komunikatu 14.1 o zmianach 14.1f (seed + jednorazowy dopisek w selfrepairDB). */
+const TI_NOTICE_141F = 'Wersja 14.1f: w Mój panel nowa zakładka „Wydruki” — Twój plan zajęć (PDF, DOCX, siatka, kalendarz .ics)'
+    . ' i wydruki grupy (plan dla ucznia, lista obecności, raport miesięczny). Wszystkie PDF-y mają poprawne polskie znaki'
+    . ' i odświeżony wygląd. Zakładka Zajęcia ma cztery widoki do wyboru: Sekcje (domyślny — Do uzupełnienia, Nadchodzące,'
+    . ' Odbyte, Odwołane), Tabela, Kalendarz i Oś czasu. Kierownik drukuje pełny dziennik zajęć grupy (Wydruki,'
+    . ' Zajęcia → Więcej), a w wyborze grupy widzi też grupy archiwalne. Panel ładuje się wyraźnie szybciej.'
+    . ' Plan cykliczny został wyłączony.';
+
 /** Punkt komunikatu 14.1 o nagłówku (seed + jednorazowy dopisek 14.1a w selfrepairDB). */
 const TI_NOTICE_141A_NAGLOWEK = 'Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl.';
 
@@ -212,6 +220,7 @@ function ti_notices_migrate(): void {
                 . "\n• Zespół i role: osoba, której nadano rolę w panelu, dostaje o tym e-mail."
                 . "\n• " . TI_NOTICE_141A_NAGLOWEK
                 . "\n• " . TI_NOTICE_141B_PULPIT
+                . "\n• " . TI_NOTICE_141F
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
         }
