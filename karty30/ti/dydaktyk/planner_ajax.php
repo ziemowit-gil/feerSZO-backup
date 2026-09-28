@@ -30,6 +30,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 dyd_token_check();
 
+if (!dyd_plan_cykliczny_enabled()) {   // plan cykliczny wyłączony (auth.php)
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'msg' => 'Plan cykliczny jest wyłączony.']);
+    exit;
+}
+
 $action = trim($_POST['action'] ?? '');
 if ($_cc_msg = ti_course_closed_guard($_POST)) {
     http_response_code(423);

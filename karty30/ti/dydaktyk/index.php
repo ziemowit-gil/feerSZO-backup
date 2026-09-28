@@ -176,6 +176,7 @@ if ($tab === 'testy' && empty($_GET['legacy'])) {
 }
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'egzaminy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
+if ($tab === 'cykliczne' && !dyd_plan_cykliczny_enabled()) $tab = 'pulpit';   // plan cykliczny wyłączony (auth.php)
 
 // Picker pełnoekranowy — pyta o grupę tylko przy pierwszym wejściu na pulpit
 // (brak zapamiętanego wyboru); poza tym wybór grupy przez dropdown w topbarze.
@@ -410,6 +411,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=dostepnosc'); exit;
     }
     if ($op === 'weekly_autoassign') {
+        if (!dyd_plan_cykliczny_enabled()) { flash_set('warning', 'Plan cykliczny jest wyłączony.'); header('Location: index.php?tab=pulpit'); exit; }
         $n = ti_weekly_autoassign($uid);
         flash_set($n ? 'success' : 'info', $n ? "Auto-rozkład: przypisano $n kursów." : 'Brak kursów do przypisania lub brak wolnych okien.');
         header('Location: index.php?tab=cykliczne'); exit;
@@ -3123,10 +3125,12 @@ if ($cur_course && dyd_is_staff()) {
     <span class="badge bg-secondary ms-auto" style="font-size:.6rem"><?= count($my_avail) ?></span>
     <?php endif; ?>
   </a>
+  <?php if (dyd_plan_cykliczny_enabled()): ?>
   <a class="dyd-sb-link <?= $tab==='cykliczne'?'active':'' ?>" href="index.php?tab=cykliczne"
      <?= $tab==='cykliczne'?'aria-current="page"':'' ?>>
     <i class="bi bi-calendar-week" aria-hidden="true"></i>Plan cykliczny
   </a>
+  <?php endif; ?>
   <a class="dyd-sb-link" href="protokoly_moje.php">
     <i class="bi bi-journal-check" aria-hidden="true"></i>Protokoły
     <?php if (!empty($_my_pending_protocols)): ?>

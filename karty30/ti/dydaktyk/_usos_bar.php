@@ -62,7 +62,6 @@ $_usos_sections = [
             $_it('frekwencja_grup',  'Frekwencja grup',   $_g('frekwencja_grup')),
             $_it('dostepnosc',       'Dostępność',        $_g('dostepnosc'), $_n_avail),
             $_it('',                 'Zapisy na zajęcia', 'rekrutacja.php'),
-            $_it('cykliczne',        'Plan cykliczny',    $_g('cykliczne')),
             $_it('',                 'Protokoły',         'protokoly_moje.php', $_n_protocols, 'warning'),
         ],
     ],
@@ -126,6 +125,11 @@ if (dyd_is_staff()) {
     $_usos_sections['kurs']['items'] = array_values(array_filter(
         $_usos_sections['kurs']['items'], fn($i) => $i['tab'] !== 'rozliczenia'
     ));
+}
+
+// Plan cykliczny — tylko gdy włączony (dyd_plan_cykliczny_enabled(), auth.php)
+if (dyd_plan_cykliczny_enabled()) {
+    $_usos_sections['start']['items'][] = $_it('cykliczne', 'Plan cykliczny', $_g('cykliczne'));
 }
 
 // Sekcja otwarta = ta, która zawiera bieżącą zakładkę

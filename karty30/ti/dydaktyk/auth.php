@@ -18,7 +18,18 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
-require_once __DIR__ . '/_nav.php';   // dyd_topbar_enrich() — sekcje w pasku + menu użytkownika
+require_once __DIR__ . '/_nav.php';
+
+/**
+ * Plan cykliczny (zakładka „cykliczne”, Planer IT: _tab_cykliczne.php +
+ * planner_ajax.php) — WYŁĄCZONY od 2026-09-29 decyzją kierownictwa.
+ * Dane (k30_ti_weekly_plan) zostają; ponowne włączenie: org_setting
+ * ti_plan_cykliczny = '1'. Wyłączenie chowa nawigację i blokuje zakładkę,
+ * operację weekly_autoassign oraz endpoint AJAX.
+ */
+function dyd_plan_cykliczny_enabled(): bool {
+    return function_exists('org_setting') && org_setting('ti_plan_cykliczny') === '1';
+}   // dyd_topbar_enrich() — sekcje w pasku + menu użytkownika
 // Equi Exams — moduł testów wiedzy i umiejętności (schemat samonaprawia się przy dołączeniu)
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_exams.php';
 
