@@ -89,6 +89,10 @@ require_once __DIR__ . '/db.php';
             'plik_podpisany_size'  => 'INTEGER',
             'signed_at'            => 'DATETIME',
             'signed_ip'            => 'TEXT',
+            // Obieg w EODoK (zastąpił KDOK dla rachunków od EDOK_CUTOFF_RACHUNEK) —
+            // pojedynczy dokument albo lista płac, na której rachunek został ujęty.
+            'edok_doc_id'          => 'INTEGER',
+            'edok_number'          => 'TEXT',
         ] as $col => $def) {
             try { db()->exec("ALTER TABLE zlecenie_rachunki ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
         }
@@ -182,6 +186,10 @@ function rachunek_set_test_mode(int $rid, bool $test): array {
     if (!$test && !empty($r['kdok_doc_id'])) {
         // Dokument jest już w obiegu księgowym — nie da się go „odtestować” wstecz.
         return ['ok' => false, 'msg' => 'Rachunek jest już w obiegu księgowym.'];
+    }
+    if ($test && !empty($r['edok_doc_id'])) {
+        return ['ok' => false, 'msg' => 'Nie można oznaczyć jako testowy — rachunek trafił już do EODoK ('
+              . ($r['edok_number'] ?: '#' . (int)$r['edok_doc_id']) . ').'];
     }
     if ($test && !empty($r['kdok_doc_id'])) {
         return ['ok' => false, 'msg' => 'Nie można oznaczyć jako testowy — rachunek trafił już do EOD ('
@@ -970,4 +978,93 @@ function rachunek_push_to_kdok(int $rid, ?int $user_id): array {
     } catch (\Throwable $e) {
         return ['ok' => false, 'msg' => 'Błąd EOD: ' . $e->getMessage()];
     }
+}
+
+// ── Przekazanie do EODoK (obieg akceptacji dokumentów księgowych) ────────────
+
+/**
+ * Przekazuje rachunek do właściwego obiegu: rachunki wystawione od
+ * EDOK_CUTOFF_RACHUNEK → EODoK, wcześniejsze → dotychczasowy KDOK (ta sama
+ * reguła co w edok/add.php, patrz edok_typ_data_graniczna()).
+ */
+function rachunek_push_to_obieg(int $rid, ?int $user_id): array {
+    require_once __DIR__ . '/edok.php';
+    $rach = get_rachunek($rid);
+    if (!$rach) return ['ok' => false, 'msg' => 'Nie znaleziono rachunku.'];
+    $data = substr((string)($rach['data_wystawienia'] ?: date('Y-m-d')), 0, 10);
+    return $data < EDOK_CUTOFF_RACHUNEK ? rachunek_push_to_kdok($rid, $user_id) : rachunek_push_to_edok($rid, $user_id);
+}
+
+/**
+ * Zakłada dokument EODoK (typ „rachunek”, wydatek) na podstawie rachunku do umowy
+ * zlecenie: zleceniobiorca jako kontrahent, rachunek bankowy z umowy, numer z Rejestru
+ * Umów do tytułu przelewu („WYNAGRODZENIE MM/RRRR RU/…”), okres z daty wystawienia.
+ * Kwotę do wypłaty (po potrąceniach PIT/ZUS) uzupełnia się na karcie dokumentu —
+ * domyślnie przelew idzie na kwotę brutto rachunku.
+ *
+ * @return array{ok:bool, msg:string, doc_id?:int, number?:string}
+ */
+function rachunek_push_to_edok(int $rid, ?int $user_id): array {
+    require_once __DIR__ . '/edok.php';
+    edok_migrate();
+    $rach = get_rachunek($rid);
+    if (!$rach)                  return ['ok' => false, 'msg' => 'Nie znaleziono rachunku.'];
+    if (rachunek_is_test($rach)) return ['ok' => false, 'msg' => 'Rachunek testowy nie trafia do obiegu księgowego.'];
+    if (!empty($rach['edok_doc_id'])) return ['ok' => false, 'msg' => 'Ten rachunek jest już w EODoK jako ' . ($rach['edok_number'] ?: '#' . (int)$rach['edok_doc_id']) . '.'];
+    if (!empty($rach['kdok_doc_id'])) return ['ok' => false, 'msg' => 'Ten rachunek jest już w obiegu KDOK jako ' . ($rach['kdok_number'] ?: '#' . (int)$rach['kdok_doc_id']) . '.'];
+    $src = rachunek_file_abs($rach['plik_podpisany'] ?? null) ?: rachunek_file_abs($rach['plik'] ?? null);
+    if (!$src) return ['ok' => false, 'msg' => 'Rachunek nie ma pliku — dodaj skan przed przekazaniem do EODoK.'];
+
+    $contract = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [(int)$rach['contract_id']]);
+    if (!$contract) return ['ok' => false, 'msg' => 'Nie znaleziono umowy.'];
+
+    $dir = rtrim(UPLOAD_DIR, '/') . '/edok_docs/';
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) return ['ok' => false, 'msg' => 'Nie można utworzyć katalogu edok_docs.'];
+    $ext  = strtolower(pathinfo($src, PATHINFO_EXTENSION)) ?: 'pdf';
+    $name = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!copy($src, $dir . $name)) return ['ok' => false, 'msg' => 'Nie można skopiować pliku do obiegu.'];
+
+    $user   = $user_id ? db_one("SELECT id, name FROM users WHERE id=?", [$user_id]) : null;
+    $osoba  = (string)($contract['imie_nazwisko'] ?? '');
+    $ru     = trim((string)($contract['nr_rejestru'] ?? '')) ?: (string)($contract['numer_umowy'] ?? '');
+    $data   = substr((string)($rach['data_wystawienia'] ?: date('Y-m-d')), 0, 10);
+    $okres  = substr($data, 0, 7);
+    $brutto = $rach['kwota_brutto'] !== null ? number_format((float)$rach['kwota_brutto'], 2, ',', '') : '';
+    $number = edok_next_number();
+    $doc = [
+        'number'           => $number,
+        'title'            => (string)($rach['numer'] ?: $number),
+        'kierunek'         => 'wydatek',
+        'typ_dokumentu'    => 'rachunek',
+        'description'      => 'Wynagrodzenie z umowy zlecenie ' . $ru . ' — ' . $osoba
+                              . ($rach['okres'] ? ', okres: ' . $rach['okres'] : '') . ($rach['uwagi'] ? '. ' . $rach['uwagi'] : ''),
+        'kontrahent_nazwa' => $osoba,
+        'nr_faktury'       => (string)($rach['numer'] ?? ''),
+        'data_wystawienia' => $data,
+        'data_wplywu'      => date('Y-m-d'),
+        'kwota_netto'      => $brutto,
+        'stawka_vat'       => 'np',
+        'kwota_vat'        => '0,00',
+        'kwota_brutto'     => $brutto,
+        'waluta'           => 'PLN',
+        'rachunek_bankowy' => preg_replace('/\s+/', '', (string)($contract['rachunek_bankowy'] ?? '')),
+        'contract_type'    => 'zlecenie',
+        'contract_id'      => (int)$rach['contract_id'],
+        'okres'            => $okres,
+        'umowa_numer'      => $ru,
+        'zlec_rachunek_id' => $rid,
+        'file_path'        => 'edok_docs/' . $name,
+        'file_size'        => filesize($dir . $name) ?: null,
+        'status'           => 'w_obiegu',
+        'created_by'       => $user_id,
+        'creator_name'     => (string)($user['name'] ?? ''),
+        'created_at'       => date('Y-m-d H:i:s'),
+        'updated_at'       => date('Y-m-d H:i:s'),
+    ];
+    $doc['tytul_przelewu'] = edok_generate_tytul_przelewu($doc);
+    $doc_id = db_insert('edok_documents', $doc);
+    edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Dokument ' . $number . ' złożony do obiegu z rejestru rachunków umowy zlecenie ' . $ru . ' (rachunek #' . $rid . ').');
+    update_rachunek($rid, ['edok_doc_id' => $doc_id, 'edok_number' => $number]);
+
+    return ['ok' => true, 'msg' => 'Przekazano do EODoK jako ' . $number, 'doc_id' => $doc_id, 'number' => $number];
 }

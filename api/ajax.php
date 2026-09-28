@@ -435,11 +435,12 @@ switch ($action) {
         $rach = get_rachunek($rid);
         if (!$rach) ajax_err('Nie znaleziono rachunku');
 
-        $res = rachunek_push_to_kdok($rid, (int)current_user()['id']);
+        // Od EDOK_CUTOFF_RACHUNEK rachunki idą do EODoK, wcześniejsze — do KDOK.
+        $res = rachunek_push_to_obieg($rid, (int)current_user()['id']);
         if (empty($res['ok'])) ajax_err($res['msg']);
 
         log_contract_action('zlecenie', (int)$rach['contract_id'], (int)current_user()['id'], 'rachunek_kdok',
-            'Rachunek #' . $rid . ' przekazany do EOD jako ' . $res['number']);
+            'Rachunek #' . $rid . ' przekazany do obiegu księgowego jako ' . $res['number']);
 
         ajax_ok(['doc_id' => $res['doc_id'], 'number' => $res['number']], $res['msg']);
     }

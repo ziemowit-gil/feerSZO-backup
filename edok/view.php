@@ -28,6 +28,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Edycja danych dokumentu — pola blokują się jedna po drugiej wraz z postępem obiegu,
     // żeby nie dało się zmienić danych na etapie już zdecydowanym (integralność decyzji).
+    // Pozycje listy płac — edycja jak danych dokumentu, blokowana razem z kwotami (etap „rachunkowa”).
+    $can_edit_wyplaty = $doc['typ_dokumentu'] === 'lista_plac' && !$is_terminal && !$locked_rachunkowa
+        && (is_admin() || edok_has_role('upload') || edok_has_role('dekretacja'));
+    if (in_array($action, ['wyplata_add', 'wyplata_delete', 'wyplaty_z_rachunkow'], true)) {
+        if (!$can_edit_wyplaty) {
+            flash_set('danger', 'Pozycji listy płac nie można już zmieniać.');
+        } elseif ($action === 'wyplata_add') {
+            [$wid, $werr] = edok_wyplata_add($id, $_POST);
+            if ($wid) {
+                edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Lista płac: dodano wypłatę — ' . trim($_POST['osoba'] ?? '') . ', ' . trim($_POST['kwota'] ?? '') . ' PLN.');
+                flash_set('success', 'Dodano pozycję listy płac.');
+            } else {
+                flash_set('danger', implode(' ', $werr));
+            }
+        } elseif ($action === 'wyplata_delete') {
+            $w = db_one("SELECT * FROM edok_wyplaty WHERE id=? AND doc_id=?", [(int)($_POST['wyplata_id'] ?? 0), $id]);
+            if ($w) {
+                edok_wyplata_delete((int)$w['id'], $id);
+                edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Lista płac: usunięto wypłatę — ' . $w['osoba'] . ', ' . $w['kwota'] . ' PLN.');
+                flash_set('success', 'Usunięto pozycję listy płac.');
+            }
+        } else {
+            [$n, $werr] = edok_wyplaty_z_rachunkow($doc, (array)($_POST['rachunek_ids'] ?? []));
+            if ($n) edok_log($id, 'edit', '', $doc['status'], $doc['status'], "Lista płac: ujęto rachunki do umów zlecenie ($n).");
+            if ($werr) flash_set('warning', implode(' ', $werr));
+            if ($n) flash_set('success', "Dodano $n wypłat z rachunków do umów.");
+        }
+        // Tytuł listy płac nie zależy od pozycji, ale kwota brutto dokumentu powinna się zgadzać z sumą — patrz ostrzeżenie w sekcji „Wypłaty”.
+        header('Location: ' . APP_URL . '/edok/view.php?id=' . $id . '#wyplaty');
+        exit;
+    }
+
     if ($action === 'update_meta' && (is_admin() || edok_has_role('upload') || edok_has_role('dekretacja')) && !$is_terminal) {
         $description      = $locked_meryt      ? $doc['description']      : trim($_POST['description'] ?? '');
         $kontrahent_nazwa = $locked_formal      ? $doc['kontrahent_nazwa'] : trim($_POST['kontrahent_nazwa'] ?? '');
@@ -42,6 +74,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $projekt          = $locked_dekretacja  ? $doc['projekt']         : trim($_POST['projekt'] ?? '');
         $mpk              = trim($_POST['mpk'] ?? '');
         $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
+        // Wynagrodzenia: okres, nr umowy z Rejestru Umów, kwota do wypłaty (po potrąceniach).
+        $jest_wynagrodzenie = in_array($doc['typ_dokumentu'], ['rachunek', 'lista_plac'], true) && $doc['kierunek'] === 'wydatek';
+        $okres            = $jest_wynagrodzenie && !$locked_rachunkowa && preg_match('/^\d{4}-\d{2}$/', $_POST['okres'] ?? '') ? $_POST['okres'] : ($jest_wynagrodzenie && !$locked_rachunkowa && ($_POST['okres'] ?? null) === '' ? '' : $doc['okres']);
+        $umowa_numer      = $jest_wynagrodzenie && !$locked_rachunkowa ? trim($_POST['umowa_numer'] ?? $doc['umowa_numer']) : $doc['umowa_numer'];
+        $kwota_do_wyplaty = $doc['typ_dokumentu'] === 'rachunek' && !$locked_rachunkowa ? trim($_POST['kwota_do_wyplaty'] ?? '') : $doc['kwota_do_wyplaty'];
+        if ($kwota_do_wyplaty !== '' && _edok_kwota_float($kwota_do_wyplaty) <= 0) $kwota_do_wyplaty = '';
+        if ($umowa_numer !== $doc['umowa_numer'] && $umowa_numer !== '') {
+            foreach (edok_umowy_do_wyplat() as $u) if ($u['nr_rejestru'] === $umowa_numer) {
+                db_exec("UPDATE edok_documents SET contract_type=?, contract_id=? WHERE id=?", [$u['contract_type'], (int)$u['id'], $id]);
+                break;
+            }
+        }
+        // Tytuł niezmieniony ręcznie (= zapisany wcześniej) przeliczamy dla wynagrodzeń na bieżąco.
+        if ($jest_wynagrodzenie && $tytul_przelewu === $doc['tytul_przelewu']) $tytul_przelewu = '';
         // Zapłata / proforma blokują się razem z kwotami (po etapie „rachunkowa”).
         $zaplata_keys = ['zaplacono_przed', 'data_zaplaty', 'forma_zaplaty', 'zaplacil', 'zwrot_osoba', 'zwrot_rachunek'];
         if ($locked_rachunkowa || $doc['kierunek'] !== 'wydatek') {
@@ -67,6 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($tytul_przelewu === '') {
             $tytul_przelewu = edok_generate_tytul_przelewu([
                 'typ_dokumentu'    => $doc['typ_dokumentu'],
+                'okres'            => $okres,
+                'umowa_numer'      => $umowa_numer,
+                'kwota_do_wyplaty' => $kwota_do_wyplaty,
                 'nr_faktury'       => $nr_faktury,
                 'number'           => $doc['number'],
                 'data_wystawienia' => $doc['data_wystawienia'],
@@ -80,10 +129,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db_exec(
             "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?, zrodlo_przychodu=?,
                 kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, tytul_przelewu=?,
-                zaplacono_przed=?, data_zaplaty=?, forma_zaplaty=?, zaplacil=?, zwrot_osoba=?, zwrot_rachunek=?, proforma_id=?, dowod_zaplaty_path=?, updated_at=datetime('now')
+                zaplacono_przed=?, data_zaplaty=?, forma_zaplaty=?, zaplacil=?, zwrot_osoba=?, zwrot_rachunek=?, proforma_id=?, dowod_zaplaty_path=?, okres=?, umowa_numer=?, kwota_do_wyplaty=?, updated_at=datetime('now')
              WHERE id=?",
             [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu,
-             (int)$zaplata['zaplacono_przed'], $zaplata['data_zaplaty'], $zaplata['forma_zaplaty'], $zaplata['zaplacil'], $zaplata['zwrot_osoba'], $zaplata['zwrot_rachunek'], $proforma_id, $zaplata['dowod_zaplaty_path'], $id]
+             (int)$zaplata['zaplacono_przed'], $zaplata['data_zaplaty'], $zaplata['forma_zaplaty'], $zaplata['zaplacil'], $zaplata['zwrot_osoba'], $zaplata['zwrot_rachunek'], $proforma_id, $zaplata['dowod_zaplaty_path'], $okres, $umowa_numer, $kwota_do_wyplaty, $id]
         );
         $nowa_zaplata = $zaplata + ['proforma_id' => $proforma_id];
         $zmiana_zaplaty = edok_zaplata_opis($nowa_zaplata) !== edok_zaplata_opis($doc) || (int)$proforma_id !== (int)$doc['proforma_id'];
@@ -470,6 +519,13 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <?php if ($doc['data_wystawienia']): ?><tr><td>Data wystawienia</td><td><?= date_pl($doc['data_wystawienia']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_sprzedazy']): ?><tr><td>Data sprzedaży/wykonania</td><td><?= date_pl($doc['data_sprzedazy']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_wplywu']): ?><tr><td>Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
+            <?php if ($doc['okres'] !== ''): ?><tr><td>Okres wynagrodzenia</td><td><?= h(edok_okres_label($doc['okres'])) ?></td></tr><?php endif; ?>
+            <?php if ($doc['umowa_numer'] !== ''): ?>
+            <tr><td>Umowa nr</td><td class="tw-font-mono">
+              <?php if ($doc['contract_type'] && $doc['contract_id']): ?><a href="<?= APP_URL ?>/contracts/<?= h($doc['contract_type']) ?>/view.php?id=<?= (int)$doc['contract_id'] ?>"><?= h($doc['umowa_numer']) ?></a><?php else: ?><?= h($doc['umowa_numer']) ?><?php endif; ?>
+            </td></tr>
+            <?php endif; ?>
+            <?php if ($doc['kwota_do_wyplaty'] !== ''): ?><tr><td>Kwota do wypłaty</td><td class="tw-font-mono"><?= h($doc['kwota_do_wyplaty']) ?> <?= h($doc['waluta']) ?> <span class="tw-text-xs tw-text-slate-500">(brutto <?= h($doc['kwota_brutto']) ?>)</span></td></tr><?php endif; ?>
             <?php if (!empty($doc['zaplacono_przed'])): ?>
             <tr><td>Zapłacono przed akceptacją</td><td><?= h(edok_zaplata_opis($doc)) ?>
               <?php if (edok_zaplata_do_zwrotu($doc)): ?><div class="tw-text-xs tw-font-mono"><?= h(edok_nrb_format($doc['zwrot_rachunek'])) ?></div><?php endif; ?>
@@ -630,6 +686,27 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <?php if ($doc['kierunek'] === 'wydatek'): ?>
         <?php $zp_vals = $doc; $zp_locked = $locked_rachunkowa; $zp_doc_id = $id; $zp_typ = $doc['typ_dokumentu']; include __DIR__ . '/_zaplata_fields.php'; ?>
         <?php endif; ?>
+        <?php if (in_array($doc['typ_dokumentu'], ['rachunek', 'lista_plac'], true) && $doc['kierunek'] === 'wydatek'): ?>
+        <div class="row g-2 mb-2">
+          <div class="col-sm-4">
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_okres">Okres wynagrodzenia <?= $locked_rachunkowa ? '<i class="bi bi-lock-fill tw-text-slate-400"></i>' : '' ?></label>
+            <?= edok_okres_select_html('okres', 'e_okres', (string)$doc['okres'], $locked_rachunkowa ? 'disabled' : '') ?>
+            <?php if ($locked_rachunkowa): ?><input type="hidden" name="okres" value="<?= h($doc['okres']) ?>"><?php endif; ?>
+          </div>
+          <?php if ($doc['typ_dokumentu'] === 'rachunek'): ?>
+          <div class="col-sm-4">
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_umowa">Umowa nr (Rejestr Umów)</label>
+            <?= edok_umowa_select_html('umowa_numer', 'e_umowa', (string)$doc['umowa_numer'], $locked_rachunkowa ? 'disabled' : '') ?>
+            <?php if ($locked_rachunkowa): ?><input type="hidden" name="umowa_numer" value="<?= h($doc['umowa_numer']) ?>"><?php endif; ?>
+          </div>
+          <div class="col-sm-4">
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_do_wyplaty">Kwota do wypłaty</label>
+            <input type="text" name="kwota_do_wyplaty" id="e_do_wyplaty" class="form-control form-control-sm font-monospace text-end" value="<?= h($doc['kwota_do_wyplaty']) ?>" placeholder="= brutto" <?= $locked_rachunkowa ? 'readonly' : '' ?>>
+          </div>
+          <div class="col-12 form-text mt-0">Kwota do wypłaty = brutto rachunku po potrąceniu zaliczki PIT i składek ZUS — na nią pójdzie przelew. Puste = brutto.</div>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
         <div class="tw-mb-2">
           <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">MPK</label>
           <input type="text" name="mpk" class="form-control form-control-sm" value="<?= h($doc['mpk']) ?>">
@@ -644,6 +721,116 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <button type="submit" class="edok-btn edok-btn-primary"><i class="bi bi-save"></i> Zapisz</button>
         </div>
       </form>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($doc['typ_dokumentu'] === 'lista_plac' && $doc['kierunek'] === 'wydatek'):
+      $wyplaty = edok_wyplaty($id);
+      $can_edit_wyplaty = !$is_terminal && !$locked_rachunkowa && (is_admin() || edok_has_role('upload') || edok_has_role('dekretacja'));
+      $suma_wyplat = array_sum(array_map(fn($w) => _edok_kwota_float($w['kwota']), $wyplaty));
+    ?>
+    <div class="edok-card tw-mt-4" id="wyplaty">
+      <div class="edok-card__hd"><i class="bi bi-people"></i> Wypłaty z listy płac (<?= count($wyplaty) ?>)</div>
+      <div class="edok-card__bd">
+        <p class="tw-text-xs tw-text-slate-500 tw-mb-2">Każda pozycja to osobny przelew z tytułem „WYNAGRODZENIE <?= h(edok_okres_label($doc['okres']) ?: 'MM/RRRR') ?> - umowa nr …”. Kwota = do wypłaty (po potrąceniach).</p>
+        <?php if ($wyplaty): ?>
+        <div class="table-responsive">
+        <table class="table table-sm align-middle mb-2" style="font-size:.82rem">
+          <thead><tr><th>Osoba</th><th>Umowa</th><th>Rachunek</th><th class="text-end">Kwota</th><?php if ($can_edit_wyplaty): ?><th></th><?php endif; ?></tr></thead>
+          <tbody>
+          <?php foreach ($wyplaty as $w): ?>
+            <tr>
+              <td><?= h($w['osoba']) ?><?php if ($w['opis']): ?><div class="tw-text-xs tw-text-slate-500"><?= h($w['opis']) ?></div><?php endif; ?></td>
+              <td class="tw-font-mono tw-text-xs">
+                <?php if ($w['contract_type'] && $w['contract_id']): ?><a href="<?= APP_URL ?>/contracts/<?= h($w['contract_type']) ?>/view.php?id=<?= (int)$w['contract_id'] ?>"><?= h($w['umowa_numer'] ?: '—') ?></a><?php else: ?><?= h($w['umowa_numer'] ?: '—') ?><?php endif; ?>
+              </td>
+              <td class="tw-font-mono tw-text-xs"><?= h(edok_nrb_format($w['rachunek'])) ?></td>
+              <td class="text-end tw-font-mono"><?= h($w['kwota']) ?></td>
+              <?php if ($can_edit_wyplaty): ?>
+              <td class="text-end">
+                <form method="post" class="tw-inline" onsubmit="return confirm('Usunąć tę pozycję?');">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="action" value="wyplata_delete">
+                  <input type="hidden" name="wyplata_id" value="<?= (int)$w['id'] ?>">
+                  <button class="btn btn-sm btn-link text-danger p-0" type="submit" aria-label="Usuń pozycję <?= h($w['osoba']) ?>"><i class="bi bi-trash"></i></button>
+                </form>
+              </td>
+              <?php endif; ?>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+          <tfoot><tr><th colspan="3">Razem do wypłaty</th><th class="text-end tw-font-mono"><?= number_format($suma_wyplat, 2, ',', ' ') ?></th><?php if ($can_edit_wyplaty): ?><th></th><?php endif; ?></tr></tfoot>
+        </table>
+        </div>
+        <?php else: ?>
+        <p class="tw-text-sm tw-text-amber-700"><i class="bi bi-exclamation-triangle"></i> Lista płac nie ma jeszcze pozycji — bez nich nie da się wyeksportować przelewów.</p>
+        <?php endif; ?>
+
+        <?php if ($can_edit_wyplaty):
+          $do_ujecia = edok_rachunki_umow_do_wyplaty($doc['okres']);
+        ?>
+        <?php if ($do_ujecia): ?>
+        <form method="post" class="tw-mt-3 tw-rounded-lg tw-border tw-border-solid tw-border-slate-200 tw-p-2">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="wyplaty_z_rachunkow">
+          <div class="tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Dodaj z rachunków do umów zlecenie<?= $doc['okres'] ? ' (' . h(edok_okres_label($doc['okres'])) . ')' : '' ?></div>
+          <?php foreach ($do_ujecia as $r): $cid = 'zr_' . (int)$r['id']; ?>
+          <div class="form-check tw-text-sm">
+            <input type="checkbox" class="form-check-input" name="rachunek_ids[]" value="<?= (int)$r['id'] ?>" id="<?= $cid ?>" <?= strlen(preg_replace('/\D/', '', (string)$r['umowa_rachunek'])) === 26 ? '' : 'disabled' ?>>
+            <label class="form-check-label" for="<?= $cid ?>">
+              <?= h($r['imie_nazwisko']) ?> · <span class="tw-font-mono tw-text-xs"><?= h($r['umowa_rejestr']) ?></span> · rach. <?= h($r['numer'] ?: '#' . $r['id']) ?>
+              · <?= $r['kwota_brutto'] !== null ? h(number_format((float)$r['kwota_brutto'], 2, ',', ' ')) : '—' ?> · <?= rachunek_status_badge($r['status']) ?>
+              <?php if (strlen(preg_replace('/\D/', '', (string)$r['umowa_rachunek'])) !== 26): ?><span class="badge bg-danger">brak rachunku w umowie</span><?php endif; ?>
+            </label>
+          </div>
+          <?php endforeach; ?>
+          <div class="form-text">Kwota pozycji = brutto rachunku — popraw ją na kwotę do wypłaty, jeśli są potrącenia (usuń i dodaj ręcznie).</div>
+          <button type="submit" class="btn btn-sm btn-outline-primary tw-mt-1"><i class="bi bi-plus-lg"></i> Dodaj zaznaczone</button>
+        </form>
+        <?php endif; ?>
+
+        <form method="post" class="tw-mt-3 tw-rounded-lg tw-border tw-border-solid tw-border-slate-200 tw-p-2">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="wyplata_add">
+          <input type="hidden" name="contract_type" id="w_ctype">
+          <input type="hidden" name="contract_id" id="w_cid">
+          <div class="tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Dodaj pozycję ręcznie</div>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label class="form-label small mb-1" for="w_umowa">Umowa nr (Rejestr Umów)</label>
+              <?= edok_umowa_select_html('umowa_numer', 'w_umowa', '', 'onchange="edokWyplataUmowa(this)"') ?>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small mb-1" for="w_osoba">Osoba</label>
+              <input type="text" name="osoba" id="w_osoba" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-sm-8">
+              <label class="form-label small mb-1" for="w_rachunek">Rachunek</label>
+              <input type="text" name="rachunek" id="w_rachunek" class="form-control form-control-sm font-monospace" required placeholder="26 cyfr">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small mb-1" for="w_kwota">Kwota do wypłaty</label>
+              <input type="text" name="kwota" id="w_kwota" class="form-control form-control-sm font-monospace text-end" required>
+            </div>
+            <div class="col-12">
+              <input type="text" name="opis" class="form-control form-control-sm" placeholder="Opis (opcjonalnie), np. wynagrodzenie zasadnicze">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary tw-mt-2"><i class="bi bi-plus-lg"></i> Dodaj</button>
+        </form>
+        <script>
+        function edokWyplataUmowa(sel) {
+          var o = sel.selectedOptions[0] || {dataset: {}};
+          document.getElementById('w_ctype').value = o.value ? o.dataset.type : '';
+          document.getElementById('w_cid').value = o.value ? o.dataset.id : '';
+          if (!o.value) return;
+          var os = document.getElementById('w_osoba'), r = document.getElementById('w_rachunek');
+          if (!os.value) os.value = o.dataset.osoba || '';
+          if (!r.value && o.dataset.rachunek) r.value = o.dataset.rachunek;
+        }
+        </script>
+        <?php endif; ?>
+      </div>
     </div>
     <?php endif; ?>
   </div>
@@ -800,10 +987,16 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <div class="modal-header"><h5 class="modal-title"><i class="bi bi-bank"></i> Eksport przelewu</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
           <p class="small text-muted mb-3">
-            <?php $pd = edok_przelew_doc($doc); ?>
+            <?php $pd = edok_przelew_rows($doc)[0] ?? edok_przelew_doc($doc); ?>
+            <?php if ($doc['typ_dokumentu'] === 'lista_plac'): $wr = edok_przelew_rows($doc); ?>
+            <span class="badge bg-info text-dark">Lista płac</span> <?= count($wr) ?> przelewów ·
+            <strong><?= number_format(array_sum(array_map(fn($x) => _edok_kwota_float((string)$x['kwota_brutto']), $wr)), 2, ',', ' ') ?> <?= h($doc['waluta'] ?? 'PLN') ?></strong>
+            <?php else: ?>
             <?= !empty($pd['_zwrot']) ? '<span class="badge bg-warning text-dark">Zwrot kosztów</span> ' : '' ?>
             <?= h($pd['kontrahent_nazwa'] ?? '') ?> · <span class="font-monospace"><?= h(edok_nrb_format(preg_replace('/\D/', '', (string)$pd['rachunek_bankowy']))) ?></span>
-            · <strong><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta'] ?? 'PLN') ?></strong>
+            · <strong><?= h($pd['kwota_brutto']) ?> <?= h($doc['waluta'] ?? 'PLN') ?></strong>
+            <div class="small">Tytuł: <span class="font-monospace"><?= h(edok_generate_tytul_przelewu($pd)) ?></span></div>
+            <?php endif; ?>
           </p>
           <label class="form-label small fw-semibold" for="przelew_rachunek">Z rachunku</label>
           <select name="rachunek_zlecen" id="przelew_rachunek" class="form-select form-select-sm mb-3" required>
@@ -969,6 +1162,15 @@ var EDOK_KIERUNEK_VIEW     = <?= json_encode($doc['kierunek'] ?? 'wydatek', JSON
 var EDOK_WALUTA_VIEW       = <?= json_encode($doc['waluta'] ?: 'PLN', JSON_UNESCAPED_UNICODE) ?>;
 var EDOK_FAKTURA_TYPES_VIEW = ['faktura_vat', 'faktura_korygujaca'];
 function edokViewSuggestTytul() {
+  if (EDOK_KIERUNEK_VIEW === 'wydatek' && (EDOK_TYP_KEY_VIEW === 'lista_plac' || (EDOK_TYP_KEY_VIEW === 'rachunek' && document.getElementById('e_umowa') && document.getElementById('e_umowa').value.trim()))) {
+    var ok = (document.getElementById('e_okres') || {}).value || '';
+    var okres = /^\d{4}-\d{2}$/.test(ok) ? ok.substring(5, 7) + '/' + ok.substring(0, 4) : '';
+    var um = document.getElementById('e_umowa') ? document.getElementById('e_umowa').value.trim() : '';
+    document.getElementById('e_tytul').value = EDOK_TYP_KEY_VIEW === 'lista_plac'
+      ? ('WYNAGRODZENIA ' + okres).trim()
+      : ('WYNAGRODZENIE ' + okres).trim() + ' - umowa nr ' + um;
+    return;
+  }
   var nrField = document.querySelector('#metaForm [name="nr_faktury"]');
   var opisField = document.querySelector('#metaForm [name="description"]');
   var bruttoField = document.getElementById('e_brutto');

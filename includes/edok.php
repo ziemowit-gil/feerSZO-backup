@@ -173,7 +173,30 @@ function edok_migrate(): void {
         // Dowód zapłaty (potwierdzenie z terminala, KP, wyciąg) — wymagany przy zwrocie
         // kosztów, opcjonalny przy zapłacie przez organizację. Doklejany do dokumentu końcowego.
         'dowod_zaplaty_path'     => "TEXT NOT NULL DEFAULT ''",
+        // Wynagrodzenia (rachunki do umów, listy płac): okres rozliczeniowy RRRR-MM,
+        // kwota do wypłaty po potrąceniach (przelew idzie na nią zamiast na brutto),
+        // numer umowy do tytułu przelewu i powiązanie z rejestrem rachunków umowy zlecenie.
+        'okres'                  => "TEXT NOT NULL DEFAULT ''",
+        'kwota_do_wyplaty'       => "TEXT NOT NULL DEFAULT ''",
+        'umowa_numer'            => "TEXT NOT NULL DEFAULT ''",
+        'zlec_rachunek_id'       => "INTEGER",
     ]);
+
+    // Pozycje listy płac — każda to osobny przelew (osoba, rachunek, kwota do wypłaty).
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_wyplaty (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        doc_id           INTEGER NOT NULL,
+        osoba            TEXT    NOT NULL DEFAULT '',
+        rachunek         TEXT    NOT NULL DEFAULT '',
+        kwota            TEXT    NOT NULL DEFAULT '',
+        contract_type    TEXT,
+        contract_id      INTEGER,
+        umowa_numer      TEXT    NOT NULL DEFAULT '',
+        zlec_rachunek_id INTEGER,
+        opis             TEXT    NOT NULL DEFAULT '',
+        created_at       TEXT
+    )");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_edok_wyplaty_doc ON edok_wyplaty(doc_id)");
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -534,6 +557,23 @@ function edok_generate_tytul_przelewu(array $doc): string {
     $kwota         = trim((string)($doc['kwota_brutto'] ?? ''));
     $waluta        = trim((string)($doc['waluta'] ?? '')) ?: 'PLN';
 
+    // Kwota przelewu: pozycja listy płac albo kwota do wypłaty (po potrąceniach), jeśli podana.
+    if (!$jest_przychod && empty($doc['_zwrot']) && trim((string)($doc['kwota_do_wyplaty'] ?? '')) !== '') {
+        $kwota = trim((string)$doc['kwota_do_wyplaty']);
+    }
+    $okres = edok_okres_label((string)($doc['okres'] ?? ''));
+    $umowa = trim((string)($doc['umowa_numer'] ?? ''));
+
+    // Wynagrodzenia (pozycja listy płac / rachunek do umowy / lista płac) — format ustalony
+    // z użytkownikiem: „WYNAGRODZENIE MM/RRRR - umowa nr {nr z Rejestru Umów}” (umowa_numer = nr_rejestru,
+    // awaryjnie numer umowy). Lista płac jako całość (bez pozycji): „WYNAGRODZENIA MM/RRRR”.
+    if (!$jest_przychod && empty($doc['_zwrot']) && (!empty($doc['_wyplata']) || ($typ_dokumentu === 'rachunek' && $umowa !== '') || $typ_dokumentu === 'lista_plac')) {
+        $cala_lista = $typ_dokumentu === 'lista_plac' && empty($doc['_wyplata']);
+        $t = trim(($cala_lista ? 'WYNAGRODZENIA' : 'WYNAGRODZENIE') . ' ' . $okres)
+            . (!$cala_lista && $umowa !== '' ? ' - umowa nr ' . $umowa : '');
+        return mb_substr(preg_replace('/\s+/', ' ', $t), 0, 140);
+    }
+
     $opis = preg_replace('/\s+/', ' ', trim((string)($doc['description'] ?? '')));
     $opis_krotki = $typ_label;
     if ($opis !== '') {
@@ -835,7 +875,9 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
             db_exec("UPDATE edok_documents SET status_platnosci='oplacony', updated_at=datetime('now') WHERE id=?", [$id]);
             edok_log($id, 'status_platnosci', '', $fresh['status_platnosci'] ?: 'nowy', 'oplacony',
                 'Status płatności: Opłacony — faktura zapłacona przed akceptacją (' . edok_zaplata_opis($fresh) . ').');
-        } elseif (edok_zaplata_do_zwrotu($fresh)) {
+        }
+        edok_sync_rachunki_umow($id);
+        if (edok_zaplata_do_zwrotu($fresh)) {
             edok_log($id, 'status_platnosci', '', $fresh['status_platnosci'] ?: 'nowy', $fresh['status_platnosci'] ?: 'nowy',
                 'Do zwrotu kosztów: ' . $fresh['zwrot_osoba'] . ', rachunek ' . edok_nrb_format($fresh['zwrot_rachunek']) . '.');
         }
@@ -1637,8 +1679,218 @@ function edok_przelew_exportable(array $d): bool {
     if (($d['status'] ?? '') !== 'zaakceptowany' || ($d['kierunek'] ?? 'wydatek') !== 'wydatek') return false;
     if (($d['status_platnosci'] ?? 'nowy') === 'oplacony') return false;
     if (!empty($d['zaplacono_przed']) && !edok_zaplata_do_zwrotu($d)) return false;
+    if (($d['typ_dokumentu'] ?? '') === 'lista_plac') {
+        $w = edok_wyplaty((int)$d['id']);
+        return $w && !array_filter($w, fn($x) => strlen(preg_replace('/\D/', '', (string)$x['rachunek'])) !== 26);
+    }
     $d = edok_przelew_doc($d);
     return strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
+}
+
+// ── Wynagrodzenia: rachunki do umów i listy płac ─────────────────────────────
+
+/** „2026-09” → „09/2026” (pusty, gdy brak/niepoprawny). */
+function edok_okres_label(string $okres): string {
+    return preg_match('/^(\d{4})-(\d{2})$/', $okres, $m) ? $m[2] . '/' . $m[1] : '';
+}
+
+/**
+ * Umowy osobowe z Rejestru Umów (zlecenie, dzieło, praca) do podpowiedzi przy pozycjach
+ * listy płac: nr rejestru, osoba, rachunek bankowy (jeśli tabela go ma).
+ */
+function edok_umowy_do_wyplat(): array {
+    $out = [];
+    foreach (['zlecenie', 'dzielo', 'praca'] as $typ) {
+        $table = function_exists('table_for_type') ? table_for_type($typ) : 'umowy_' . $typ;
+        try {
+            $rows = db_all("SELECT id, nr_rejestru, numer_umowy, imie_nazwisko, rachunek_bankowy FROM {$table}
+                             WHERE nr_rejestru IS NOT NULL AND nr_rejestru != '' ORDER BY nr_rejestru DESC LIMIT 500");
+        } catch (\Throwable $e) {
+            try {
+                $rows = db_all("SELECT id, nr_rejestru, numer_umowy, imie_nazwisko, '' AS rachunek_bankowy FROM {$table}
+                                 WHERE nr_rejestru IS NOT NULL AND nr_rejestru != '' ORDER BY nr_rejestru DESC LIMIT 500");
+            } catch (\Throwable $e2) { continue; }
+        }
+        foreach ($rows as $r) $out[] = $r + ['contract_type' => $typ];
+    }
+    return $out;
+}
+
+/** Lista okresów wynagrodzenia do wyboru: od następnego miesiąca 24 miesiące wstecz (+ bieżąca wartość, gdyby była spoza zakresu). */
+function edok_okres_options(string $current = ''): array {
+    $out = [];
+    $t = strtotime(date('Y-m-01') . ' +1 month');
+    for ($i = 0; $i < 26; $i++) {
+        $ym = date('Y-m', strtotime("-$i month", $t));
+        $out[$ym] = edok_okres_label($ym);
+    }
+    if ($current !== '' && !isset($out[$current]) && edok_okres_label($current) !== '') $out[$current] = edok_okres_label($current);
+    return $out;
+}
+
+/** <select> okresu wynagrodzenia (MM/RRRR). */
+function edok_okres_select_html(string $name, string $id, string $value, string $attrs = ''): string {
+    $h = '<select name="' . h($name) . '" id="' . h($id) . '" class="form-select form-select-sm" ' . $attrs . '><option value="">— wybierz —</option>';
+    foreach (edok_okres_options($value) as $ym => $label) {
+        $h .= '<option value="' . h($ym) . '"' . ($ym === $value ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    return $h . '</select>';
+}
+
+/**
+ * <select> umowy z Rejestru Umów (zlecenie/dzieło/praca): wartość = nr rejestru, opcje
+ * niosą osobę, rachunek i id umowy w data-* (JS może podpowiedzieć odbiorcę przelewu).
+ */
+function edok_umowa_select_html(string $name, string $id, string $value, string $attrs = ''): string {
+    $labels = ['zlecenie' => 'zlecenie', 'dzielo' => 'dzieło', 'praca' => 'praca'];
+    $h = '<select name="' . h($name) . '" id="' . h($id) . '" class="form-select form-select-sm" ' . $attrs . '><option value="">— wybierz umowę —</option>';
+    $found = false;
+    foreach (edok_umowy_do_wyplat() as $u) {
+        $sel = $u['nr_rejestru'] === $value;
+        $found = $found || $sel;
+        $h .= '<option value="' . h($u['nr_rejestru']) . '"' . ($sel ? ' selected' : '')
+            . ' data-osoba="' . h($u['imie_nazwisko']) . '" data-rachunek="' . h(preg_replace('/\s+/', '', (string)$u['rachunek_bankowy'])) . '"'
+            . ' data-type="' . h($u['contract_type']) . '" data-id="' . (int)$u['id'] . '">'
+            . h($u['nr_rejestru'] . ' — ' . $u['imie_nazwisko'] . ' (' . ($labels[$u['contract_type']] ?? $u['contract_type']) . ')') . '</option>';
+    }
+    if ($value !== '' && !$found) $h .= '<option value="' . h($value) . '" selected>' . h($value) . '</option>';
+    return $h . '</select>';
+}
+
+/** Pozycje listy płac dokumentu. */
+function edok_wyplaty(int $doc_id): array {
+    return db_all("SELECT * FROM edok_wyplaty WHERE doc_id = ? ORDER BY id", [$doc_id]);
+}
+
+/** Dodaje pozycję listy płac. Zwraca [id|null, błędy]. */
+function edok_wyplata_add(int $doc_id, array $d): array {
+    $osoba = trim((string)($d['osoba'] ?? ''));
+    $nrb   = preg_replace('/\D/', '', (string)($d['rachunek'] ?? ''));
+    $kwota = trim((string)($d['kwota'] ?? ''));
+    $errors = [];
+    if ($osoba === '')                  $errors[] = 'Podaj osobę (odbiorcę wypłaty).';
+    if (!edok_nrb_valid($nrb))          $errors[] = 'Nieprawidłowy numer rachunku odbiorcy (' . ($osoba ?: 'pozycja') . ').';
+    if (_edok_kwota_float($kwota) <= 0) $errors[] = 'Podaj kwotę do wypłaty większą od zera (' . ($osoba ?: 'pozycja') . ').';
+    if ($errors) return [null, $errors];
+    $id = db_insert('edok_wyplaty', [
+        'doc_id'           => $doc_id,
+        'osoba'            => $osoba,
+        'rachunek'         => $nrb,
+        'kwota'            => number_format(_edok_kwota_float($kwota), 2, ',', ''),
+        'contract_type'    => $d['contract_type'] ?? null,
+        'contract_id'      => !empty($d['contract_id']) ? (int)$d['contract_id'] : null,
+        'umowa_numer'      => trim((string)($d['umowa_numer'] ?? '')),
+        'zlec_rachunek_id' => !empty($d['zlec_rachunek_id']) ? (int)$d['zlec_rachunek_id'] : null,
+        'opis'             => trim((string)($d['opis'] ?? '')),
+        'created_at'       => date('Y-m-d H:i:s'),
+    ]);
+    return [$id, []];
+}
+
+/** Usuwa pozycję listy płac (i zwalnia powiązany rachunek umowy, żeby można go było ująć ponownie). */
+function edok_wyplata_delete(int $id, int $doc_id): void {
+    $w = db_one("SELECT * FROM edok_wyplaty WHERE id = ? AND doc_id = ?", [$id, $doc_id]);
+    if (!$w) return;
+    db_exec("DELETE FROM edok_wyplaty WHERE id = ?", [$id]);
+    if (!empty($w['zlec_rachunek_id'])) {
+        try { db_exec("UPDATE zlecenie_rachunki SET edok_doc_id = NULL, edok_number = NULL WHERE id = ? AND edok_doc_id = ?", [(int)$w['zlec_rachunek_id'], $doc_id]); } catch (\Throwable $e) {}
+    }
+}
+
+/**
+ * Rachunki do umów zlecenie, które można ująć na liście płac: nietestowe, nieodrzucone,
+ * niezapłacone i jeszcze w żadnym obiegu (EODoK ani KDOK). $okres = RRRR-MM (opcjonalnie).
+ */
+function edok_rachunki_umow_do_wyplaty(string $okres = ''): array {
+    if (!function_exists('get_rachunek')) require_once __DIR__ . '/zlecenie_rachunki.php';
+    $where  = ["COALESCE(r.test_mode,0) = 0", "r.status NOT IN ('odrzucony','zaplacony')", "r.edok_doc_id IS NULL", "r.kdok_doc_id IS NULL", "r.contract_type = 'zlecenie'"];
+    $params = [];
+    if (preg_match('/^(\d{4})-(\d{2})$/', $okres, $m)) {
+        // Pole okres w rejestrze rachunków jest opisowe — dopasuj po dacie wystawienia albo po wpisanym miesiącu.
+        $where[] = "(substr(r.data_wystawienia,1,7) = ? OR r.okres LIKE ? OR r.okres LIKE ?)";
+        array_push($params, $okres, '%' . $m[2] . '/' . $m[1] . '%', '%' . $okres . '%');
+    }
+    return db_all(
+        "SELECT r.*, u.imie_nazwisko, COALESCE(NULLIF(u.nr_rejestru,''), u.numer_umowy) AS umowa_rejestr, u.rachunek_bankowy AS umowa_rachunek
+           FROM zlecenie_rachunki r JOIN umowy_zlecenie u ON u.id = r.contract_id
+          WHERE " . implode(' AND ', $where) . " ORDER BY u.imie_nazwisko, r.id",
+        $params
+    );
+}
+
+/** Ujmuje wskazane rachunki umów na liście płac. Zwraca [liczba dodanych, błędy]. */
+function edok_wyplaty_z_rachunkow(array $doc, array $rids): array {
+    $dostepne = [];
+    foreach (edok_rachunki_umow_do_wyplaty() as $r) $dostepne[(int)$r['id']] = $r;
+    $n = 0; $errors = [];
+    foreach (array_unique(array_map('intval', $rids)) as $rid) {
+        $r = $dostepne[$rid] ?? null;
+        if (!$r) { $errors[] = "Rachunek #$rid nie jest dostępny (już w obiegu, zapłacony albo testowy)."; continue; }
+        [$id, $e] = edok_wyplata_add((int)$doc['id'], [
+            'osoba'            => $r['imie_nazwisko'],
+            'rachunek'         => $r['umowa_rachunek'],
+            'kwota'            => (string)($r['kwota_brutto'] ?? ''),
+            'contract_type'    => 'zlecenie',
+            'contract_id'      => $r['contract_id'],
+            'umowa_numer'      => $r['umowa_rejestr'],
+            'zlec_rachunek_id' => $rid,
+            'opis'             => trim('Rachunek ' . ($r['numer'] ?? '') . ($r['okres'] ? ' za ' . $r['okres'] : '')),
+        ]);
+        if (!$id) { $errors = array_merge($errors, $e); continue; }
+        db_exec("UPDATE zlecenie_rachunki SET edok_doc_id = ?, edok_number = ?, updated_at = datetime('now') WHERE id = ?", [(int)$doc['id'], $doc['number'], $rid]);
+        $n++;
+    }
+    return [$n, $errors];
+}
+
+/**
+ * Wiersze przelewów dla dokumentu: lista płac → jeden przelew na pozycję; zwrot kosztów
+ * → przelew do osoby; pozostałe → jeden przelew do kontrahenta, na kwotę do wypłaty,
+ * jeśli podana (rachunek do umowy po potrąceniach), inaczej na brutto.
+ */
+function edok_przelew_rows(array $doc): array {
+    if (($doc['typ_dokumentu'] ?? '') === 'lista_plac') {
+        $rows = [];
+        foreach (edok_wyplaty((int)$doc['id']) as $w) {
+            $rows[] = array_merge($doc, [
+                'rachunek_bankowy' => $w['rachunek'],
+                'kontrahent_nazwa' => $w['osoba'],
+                'kontrahent_nip'   => '',
+                'kwota_brutto'     => $w['kwota'],
+                'kwota_do_wyplaty' => '',
+                'umowa_numer'      => $w['umowa_numer'],
+                '_wyplata'         => $w,
+            ]);
+        }
+        return $rows;
+    }
+    $d = edok_przelew_doc($doc);
+    if (empty($d['_zwrot']) && trim((string)($d['kwota_do_wyplaty'] ?? '')) !== '') $d['kwota_brutto'] = $d['kwota_do_wyplaty'];
+    return [$d];
+}
+
+/**
+ * Synchronizacja z rejestrem rachunków umowy zlecenie: akceptacja obiegu → rachunek
+ * „Zaakceptowany”, status płatności „Opłacony” → „Zapłacony”. Best-effort.
+ */
+function edok_sync_rachunki_umow(int $doc_id): void {
+    try {
+        $doc = db_one("SELECT * FROM edok_documents WHERE id = ?", [$doc_id]);
+        if (!$doc) return;
+        $rids = array_values(array_filter(array_merge(
+            [(int)($doc['zlec_rachunek_id'] ?? 0)],
+            array_map('intval', array_column(edok_wyplaty($doc_id), 'zlec_rachunek_id'))
+        )));
+        if (!$rids) return;
+        $ph = implode(',', array_fill(0, count($rids), '?'));
+        if (($doc['status_platnosci'] ?: 'nowy') === 'oplacony') {
+            db_exec("UPDATE zlecenie_rachunki SET status='zaplacony', paid_at=COALESCE(paid_at, datetime('now')), updated_at=datetime('now') WHERE id IN ($ph) AND status <> 'zaplacony'", $rids);
+        } elseif ($doc['status'] === 'zaakceptowany') {
+            db_exec("UPDATE zlecenie_rachunki SET status='zaakceptowany', accepted_at=COALESCE(accepted_at, datetime('now')), updated_at=datetime('now') WHERE id IN ($ph) AND status NOT IN ('zaakceptowany','zaplacony')", $rids);
+        }
+    } catch (\Throwable $e) {
+        error_log('[edok_sync_rachunki_umow] ' . $e->getMessage());
+    }
 }
 
 // ── Proformy ──────────────────────────────────────────────────────────────────

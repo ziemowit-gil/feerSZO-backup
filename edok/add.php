@@ -39,6 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rachunek_bankowy = preg_replace('/\s+/', '', trim($_POST['rachunek_bankowy'] ?? ''));
     $termin_platnosci = trim($_POST['termin_platnosci'] ?? '');
     $wymaga_mpp       = !empty($_POST['wymaga_mpp']) ? 1 : 0;
+    // Wynagrodzenia (rachunek do umowy / lista płac): okres RRRR-MM i nr umowy z Rejestru Umów — do tytułu przelewu.
+    $jest_wynagrodzenie = $kierunek === 'wydatek' && in_array($typ_dokumentu, ['rachunek', 'lista_plac'], true);
+    $okres       = $jest_wynagrodzenie && preg_match('/^\d{4}-\d{2}$/', $_POST['okres'] ?? '') ? $_POST['okres'] : '';
+    $umowa_numer = $jest_wynagrodzenie && $typ_dokumentu === 'rachunek' ? trim($_POST['umowa_numer'] ?? '') : '';
+    // Powiązanie z umową z rejestru (link na karcie dokumentu).
+    $umowa_ref = null;
+    if ($umowa_numer !== '') foreach (edok_umowy_do_wyplat() as $u) if ($u['nr_rejestru'] === $umowa_numer) { $umowa_ref = $u; break; }
     [$proforma_id, $proforma_errors] = $kierunek === 'wydatek' ? edok_proforma_from_post($_POST, $typ_dokumentu) : [null, []];
     [$zaplata, $zaplata_errors]      = $kierunek === 'wydatek' ? edok_zaplata_from_post($_POST, $proforma_id) : edok_zaplata_from_post([]);
     $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
@@ -112,6 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'description'      => $description,
                 'kwota_brutto'     => $kwota_brutto,
                 'waluta'           => $waluta,
+                'okres'            => $okres,
+                'umowa_numer'      => $umowa_numer,
             ]);
         }
         $doc_id = db_insert('edok_documents', [
@@ -146,6 +155,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'zwrot_rachunek'      => $zaplata['zwrot_rachunek'],
             'proforma_id'         => $proforma_id,
             'dowod_zaplaty_path'  => $dowod_zaplaty_path,
+            'okres'               => $okres,
+            'umowa_numer'         => $umowa_numer,
+            'contract_type'       => $umowa_ref['contract_type'] ?? null,
+            'contract_id'         => isset($umowa_ref['id']) ? (int)$umowa_ref['id'] : null,
             'tytul_przelewu'      => $tytul_przelewu,
             'file_path'           => $file_path,
             'file_size'           => is_file(UPLOAD_DIR . $file_path) ? filesize(UPLOAD_DIR . $file_path) : null,
@@ -354,6 +367,45 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
         </div>
       </div>
+      <div id="wynagrodzenie_wrap" class="row g-2 mb-3" style="display:none">
+        <div class="col-sm-4">
+          <label class="form-label" for="okres">Okres wynagrodzenia</label>
+          <?= edok_okres_select_html('okres', 'okres', $_POST['okres'] ?? date('Y-m'), 'onchange="if (window.edokSuggestTytul) edokSuggestTytul()"') ?>
+        </div>
+        <div class="col-sm-8" id="umowa_numer_wrap">
+          <label class="form-label" for="umowa_numer">Umowa nr (Rejestr Umów)</label>
+          <?= edok_umowa_select_html('umowa_numer', 'umowa_numer', $_POST['umowa_numer'] ?? '', 'onchange="edokAddUmowa(this)"') ?>
+        </div>
+        <div class="col-12 form-text mt-0" id="wynagrodzenie_hint">Tytuł przelewu: „WYNAGRODZENIE MM/RRRR - umowa nr …”. Rachunki z rejestru umów zlecenie najwygodniej przekazać przyciskiem w umowie (zakładka Rachunki).</div>
+        <div class="col-12 form-text mt-0" id="lista_plac_hint">Pozycje listy płac (osoby, rachunki, kwoty do wypłaty) dodasz na karcie dokumentu po zapisaniu — każda to osobny przelew.</div>
+      </div>
+      <script>
+      (function () {
+        // Wybór umowy podpowiada kontrahenta (zleceniobiorcę) i jego rachunek, jeśli pola są puste.
+        window.edokAddUmowa = function (sel) {
+          var o = sel.selectedOptions[0];
+          if (o && o.value) {
+            [['kontrahent_nazwa', o.dataset.osoba], ['rachunek_bankowy', o.dataset.rachunek]].forEach(function (p) {
+              var f = document.querySelector('[name="' + p[0] + '"]');
+              if (f && !f.value && p[1]) f.value = p[1];
+            });
+          }
+          if (window.edokSuggestTytul) edokSuggestTytul();
+        };
+        var typ = document.getElementById('typ_dokumentu');
+        function sync() {
+          var t = typ.value, kier = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek';
+          var on = kier === 'wydatek' && (t === 'rachunek' || t === 'lista_plac');
+          document.getElementById('wynagrodzenie_wrap').style.display = on ? '' : 'none';
+          document.getElementById('umowa_numer_wrap').style.display = t === 'rachunek' ? '' : 'none';
+          document.getElementById('wynagrodzenie_hint').style.display = t === 'rachunek' ? '' : 'none';
+          document.getElementById('lista_plac_hint').style.display = t === 'lista_plac' ? '' : 'none';
+        }
+        typ.addEventListener('change', sync);
+        document.querySelectorAll('input[name="kierunek"]').forEach(function (r) { r.addEventListener('change', sync); });
+        sync();
+      })();
+      </script>
       <div id="zaplacono_wrap">
         <?php $zp_vals = $_POST; $zp_typ_el = 'typ_dokumentu'; include __DIR__ . '/_zaplata_fields.php'; ?>
       </div>
@@ -529,6 +581,14 @@ function edokSuggestTytul(force) {
   var field = document.getElementById('tytul_przelewu');
   if (!field || (edokTytulDirty && !force)) return;
   var typKey = document.getElementById('typ_dokumentu').value;
+  var kierunekW = (document.querySelector('input[name="kierunek"]:checked') || {}).value || 'wydatek';
+  var umowaEl = document.getElementById('umowa_numer');
+  if (kierunekW === 'wydatek' && (typKey === 'lista_plac' || (typKey === 'rachunek' && umowaEl && umowaEl.value.trim()))) {
+    var ok = (document.getElementById('okres') || {}).value || '';
+    var okres = /^\d{4}-\d{2}$/.test(ok) ? ok.substring(5, 7) + '/' + ok.substring(0, 4) : '';
+    field.value = typKey === 'lista_plac' ? ('WYNAGRODZENIA ' + okres).trim() : (('WYNAGRODZENIE ' + okres).trim() + ' - umowa nr ' + umowaEl.value.trim());
+    return;
+  }
   var typ = EDOK_TYPE_LABELS[typKey] || 'Dokument księgowy';
   var nr = document.getElementById('nr_faktury').value.trim();
   var opisEl = document.querySelector('[name="description"]');

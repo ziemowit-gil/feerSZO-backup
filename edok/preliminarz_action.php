@@ -41,6 +41,7 @@ if ($source === 'edok') {
         } else {
             db_exec("UPDATE edok_documents SET status_platnosci=?, updated_at=datetime('now') WHERE id=?", [$status, $id]);
             edok_log($id, 'status_platnosci', '', $prev, $status, 'Status płatności: ' . (EDOK_STATUS_PLATNOSCI[$prev]['label'] ?? $prev) . ' → ' . EDOK_STATUS_PLATNOSCI[$status]['label']);
+            edok_sync_rachunki_umow($id); // rachunek do umowy zlecenie → „Zapłacony”
             flash_set('success', 'Status płatności zaktualizowany.');
         }
     }

@@ -1125,7 +1125,12 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
           <?php endif; ?>
         </div>
         <div>
-          <?php if (!empty($rr['kdok_doc_id'])): ?>
+          <?php if (!empty($rr['edok_doc_id'])): ?>
+          <a href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$rr['edok_doc_id'] ?>" target="_blank" title="Dokument w EODoK">
+            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+            <code><?= h($rr['edok_number'] ?: '#' . (int)$rr['edok_doc_id']) ?></code>
+          </a>
+          <?php elseif (!empty($rr['kdok_doc_id'])): ?>
           <a href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= (int)$rr['kdok_doc_id'] ?>" target="_blank"
              title="Dokument w EOD Dok. Księgowych">
             <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
@@ -1179,14 +1184,14 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             </li>
             <?php endforeach; ?>
             <li><hr class="dropdown-divider"></li>
-            <?php if (empty($rr['kdok_doc_id']) && !empty($rr['plik']) && !$_test): ?>
+            <?php if (empty($rr['kdok_doc_id']) && empty($rr['edok_doc_id']) && !empty($rr['plik']) && !$_test): ?>
             <li>
               <button type="button" class="dropdown-item small" onclick="rachToKdok(<?= $_rid ?>, this)">
-                <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przekaż do EOD
+                <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przekaż do obiegu (EODoK)
               </button>
             </li>
             <?php endif; ?>
-            <?php if (empty($rr['kdok_doc_id'])): ?>
+            <?php if (empty($rr['kdok_doc_id']) && empty($rr['edok_doc_id'])): ?>
             <li>
               <button type="button" class="dropdown-item small" onclick="rachTestToggle(<?= $_rid ?>, <?= $_test ? 0 : 1 ?>, this)">
                 <i class="bi bi-flask me-1" aria-hidden="true"></i>
@@ -1959,7 +1964,7 @@ window.CVTabsConfig = {
   };
 
   window.rachToKdok = function (rid, btn) {
-    if (!confirm('Przekazać rachunek do EOD Dokumentów Księgowych?')) return;
+    if (!confirm('Przekazać rachunek do obiegu akceptacji (EODoK)?')) return;
     post('rachunek_kdok', {rachunek_id: rid}, btn, function () {
       setTimeout(function () { location.reload(); }, 800);
     });

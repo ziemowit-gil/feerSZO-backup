@@ -87,8 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
             "SELECT * FROM edok_documents WHERE id IN ($placeholders) AND status='zaakceptowany' AND COALESCE(kierunek,'wydatek')='wydatek'",
             $ids
         );
-        // Tylko nieopłacone; zwrot kosztów idzie na rachunek osoby, która zapłaciła.
-        $docs = array_map('edok_przelew_doc', array_values(array_filter($docs, 'edok_przelew_exportable')));
+        // Tylko nieopłacone. Jeden dokument może dać kilka przelewów (lista płac — po
+        // jednym na pozycję); zwrot kosztów idzie na rachunek osoby, która zapłaciła.
+        $docs = array_merge([], ...array_map('edok_przelew_rows', array_values(array_filter($docs, 'edok_przelew_exportable'))));
         // Pierwszy przelew na daną parę NIP + rachunek wymaga potwierdzenia, że
         // obie wartości zgadzają się z fakturą — zanim plik trafi do banku.
         $unverified = edok_ipko_unverified_pairs($docs);
@@ -96,7 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
         $missing    = array_diff_key($unverified, $confirmed);
         // Dokumenty już przekazane do banku (wcześniejszy eksport) — ponowny eksport
         // grozi podwójną płatnością, więc wymaga osobnego, świadomego potwierdzenia.
-        $reexport = array_values(array_filter($docs, fn($d) => ($d['status_platnosci'] ?: 'nowy') === 'zlecony'));
+        $reexport = [];
+        foreach ($docs as $d) if (($d['status_platnosci'] ?: 'nowy') === 'zlecony') $reexport[(int)$d['id']] = $d;
+        $reexport = array_values($reexport);
         $reexport_missing = $reexport && empty($_POST['confirm_reexport']);
         if ($missing || $reexport_missing) {
             $ipko_confirm = ['pairs' => $missing ? $unverified : [], 'reexport' => $reexport_missing ? $reexport : [],
@@ -122,13 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
             }
             if ($pliki) {
                 // Po wygenerowaniu pliku status płatności = „Zlecony do banku” (zapis w audycie).
+                $zrobione = [];
                 foreach ($wyeksportowane as $w) {
                     $d = $w['doc'];
+                    if (isset($zrobione[(int)$d['id']])) continue; // lista płac: kilka przelewów, jeden wpis
+                    $zrobione[(int)$d['id']] = true;
                     $prev = $d['status_platnosci'] ?: 'nowy';
                     db_exec("UPDATE edok_documents SET status_platnosci='zlecony', updated_at=datetime('now') WHERE id=?", [(int)$d['id']]);
                     edok_log((int)$d['id'], 'status_platnosci', '', $prev, 'zlecony',
                         ($prev === 'zlecony' ? 'Ponowny eksport' : 'Eksport') . ' do pliku przelewów (' . str_replace('_', ' ', $w['format'])
-                        . ', z rachunku …' . substr($w['nrb'], -4) . (!empty($d['_zwrot']) ? ', zwrot kosztów' : '') . ') — status płatności: Zlecony do banku.');
+                        . ', z rachunku …' . substr($w['nrb'], -4) . (!empty($d['_zwrot']) ? ', zwrot kosztów' : '')
+                        . (!empty($d['_wyplata']) ? ', lista płac: ' . count(array_filter($wyeksportowane, fn($x) => (int)$x['doc']['id'] === (int)$d['id'])) . ' przelewów' : '')
+                        . ') — status płatności: Zlecony do banku.');
                 }
             }
             if (!$pliki) {
