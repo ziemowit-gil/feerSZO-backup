@@ -700,7 +700,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($sid && dyd_owns_session($uid, $sid)) {
             $st      = $is_reservation ? 'reserved'
                      : ($is_draft ? 'draft'
-                     : (in_array($_POST['status'] ?? '', ['planned','held','remote_material'], true) ? $_POST['status'] : 'planned'));
+                     : (in_array($_POST['status'] ?? '', ['planned','held','individual_change','remote_material'], true) ? $_POST['status'] : 'planned'));
             $mat_url = trim($_POST['material_url'] ?? '');
             db()->prepare(
                 "UPDATE k30_ti_sessions
@@ -2187,6 +2187,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
                 onchange="document.getElementById('<?= $pfx ?>_maturl_wrap').style.display=(this.value==='remote_material')?'':'none'">
           <option value="planned" <?= ($r['status']??'')==='planned'?'selected':'' ?>>Zaplanowana</option>
           <option value="held" <?= ($r['status']??'')==='held'?'selected':'' ?>>Odbyła się</option>
+          <option value="individual_change" <?= ($r['status']??'')==='individual_change'?'selected':'' ?>>Odbyła się (zmieniony skład / indywidualnie)</option>
           <option value="remote_material" <?= ($r['status']??'')==='remote_material'?'selected':'' ?>>Praca prowadzącego (materiał zdalny)</option>
         </select>
         <?php if (($r['status']??'')==='cancelled'): ?><div class="form-text text-warning">Lekcja odwołana — zapis zmieni status.</div><?php endif; ?>

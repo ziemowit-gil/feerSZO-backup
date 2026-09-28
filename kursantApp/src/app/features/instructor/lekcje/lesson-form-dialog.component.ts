@@ -58,6 +58,7 @@ export interface LessonFormDialogData {
               <mat-select formControlName="status">
                 <mat-option value="planned">Zaplanowana</mat-option>
                 <mat-option value="held">Odbyta</mat-option>
+                <mat-option value="individual_change">Odbyta (zmieniony skład / indywidualnie)</mat-option>
                 <mat-option value="remote_material">Praca własna</mat-option>
               </mat-select>
             </mat-form-field>
