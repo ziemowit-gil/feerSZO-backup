@@ -103,6 +103,20 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         } elseif (!empty($s['is_staff'])) {
             $items[] = ['Zmień rolę / kontekst', 'choose_context.php', 'arrow-left-right'];
         }
+        // „Pracujesz jako: …” widoczne wprost w pasku (dawniej akapit w treści
+        // index.php); link do zmiany roli — gdy kierownik ma własne grupy albo
+        // pracuje w zastępstwie (choose_context.php).
+        $own = function_exists('k30_ti_instructor_courses') ? k30_ti_instructor_courses((int)$s['user_id'], false) : [];
+        $ctx = function_exists('dyd_ctx_role') ? dyd_ctx_role() : '';
+        if ($acting) {
+            $work_as = ['label' => 'Prowadzący — w zastępstwie: ' . (string)($tb['user'] ?? ''), 'icon' => 'person-video2',
+                        'acting' => true, 'change_href' => 'choose_context.php', 'change_label' => 'Zakończ / zmień rolę'];
+        } elseif ($own && $ctx !== '') {
+            $work_as = ['label' => $ctx === 'instructor' ? 'Prowadzący' : 'Kierownik Instytucji', 'icon' => 'person-gear',
+                        'change_href' => 'choose_context.php', 'change_label' => 'Zmień rolę'];
+        } else {
+            $work_as = ['label' => $role, 'icon' => $icon];
+        }
         $items[] = ['Komunikaty', 'index.php?tab=komunikaty', 'megaphone'];
         $items[] = ['Gdzie co jest', 'index.php?tab=pomoc', 'signpost-split'];
         $tb['user_menu'] = [
@@ -110,6 +124,7 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
             'role'  => $role,
             'icon'  => $icon,
             'note'  => $acting ? 'Pełne wejście na konto prowadzącego' : '',
+            'work_as' => $work_as,
             'items' => $items,
         ];
     }

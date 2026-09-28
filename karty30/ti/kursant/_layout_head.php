@@ -254,6 +254,12 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
         <?php endif; ?>
         <?php if (!empty($KP_TOPBAR['extra'])): ?><?= $KP_TOPBAR['extra'] ?><?php endif; ?>
         <?php if (!empty($KP_TOPBAR['user_menu'])): $_um = $KP_TOPBAR['user_menu']; ?>
+        <?php if (!empty($_um['work_as'])): $_wa = $_um['work_as']; ?>
+        <span class="kp-work-as d-none d-md-inline-flex align-items-center gap-1<?= !empty($_wa['acting']) ? ' kp-acting' : '' ?>">
+          <i class="bi bi-<?= h($_wa['icon'] ?? 'person-gear') ?>" aria-hidden="true"></i>Pracujesz jako: <strong><?= h($_wa['label']) ?></strong>
+          <?php if (!empty($_wa['change_href'])): ?>&middot; <a href="<?= h($_wa['change_href']) ?>"><?= h($_wa['change_label']) ?></a><?php endif; ?>
+        </span>
+        <?php endif; ?>
         <div class="dropdown kp-user-menu">
           <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-2 py-1"
                   data-bs-toggle="dropdown" aria-expanded="false" title="<?= h($_um['name']) ?> — <?= h($_um['role']) ?>">

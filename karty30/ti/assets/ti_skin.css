@@ -443,3 +443,11 @@ body.ti-skin header .navbar .dyd-course-select .form-select:focus {
   border-color: #ffd863; box-shadow: 0 0 0 .2rem rgba(255,216,99,.45);
 }
 @media (max-width: 767.98px) { body.ti-skin header .navbar .dyd-course-select .form-select { max-width: 11rem; } }
+
+/* „Pracujesz jako: …” w pasku (obok menu użytkownika); wariant zastępstwa — pomarańczowy */
+body.ti-skin header .navbar .kp-work-as { font-size: .74rem; color: rgba(255,255,255,.85); white-space: nowrap; }
+body.ti-skin header .navbar .kp-work-as strong { color: #fff; }
+body.ti-skin header .navbar .kp-work-as a { color: #ffd863; }
+body.ti-skin header .navbar .kp-work-as.kp-acting { background: #fdba74; color: #7c2d12; padding: .15rem .5rem; border-radius: 2px; }
+body.ti-skin header .navbar .kp-work-as.kp-acting strong,
+body.ti-skin header .navbar .kp-work-as.kp-acting a { color: #7c2d12; }
