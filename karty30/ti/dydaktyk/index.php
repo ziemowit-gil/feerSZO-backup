@@ -123,6 +123,15 @@ if (isset($_GET['dl'])) {
 
 // ── Bieżący kurs i zakładka ───────────────────────────────────────────────────
 $course_ids = array_map(fn($c) => (int)$c['id'], $courses);
+// Grupy archiwalne (status 'archived', także „Zamknij i archiwizuj”): do OTWARCIA
+// z selektora, ale poza $courses/$course_ids — Pulpit, zaległości i liczniki ich
+// nie liczą. Kierownik: k30_ti_courses() je pomija, więc dobieramy osobno;
+// prowadzący ma je w k30_ti_instructor_courses() — tylko je wydzielamy.
+ti_course_close_migrate();
+$courses_archived = dyd_is_staff()
+    ? array_values(array_filter(k30_ti_courses(false, true), fn($c) => ($c['status'] ?? '') === 'archived'))
+    : array_values(array_filter($courses, fn($c) => ($c['status'] ?? '') === 'archived'));
+$_open_ids = array_values(array_unique(array_merge($course_ids, array_map(fn($c) => (int)$c['id'], $courses_archived))));
 $_sess_key  = 'dyd_course_' . $uid;
 $_pref_key  = 'dyd_last_course';
 
@@ -134,19 +143,19 @@ $_had_remembered  = !empty($_SESSION[$_sess_key]) || ($_pref_course && in_array(
 // Pobierz kurs: URL → sesja → zapamiętana preferencja (poprzednie logowanie) → pierwszy z listy
 if (isset($_GET['course'])) {
     $cur_course = (int)$_GET['course'];
-    if (in_array($cur_course, $course_ids, true)) {
+    if (in_array($cur_course, $_open_ids, true)) {
         $_SESSION[$_sess_key] = $cur_course;                    // zapamiętaj wybór (ta sesja)
         dyd_pref_set($uid, $_pref_key, (string)$cur_course);    // i na przyszłe logowania
     }
-} elseif (!empty($_SESSION[$_sess_key]) && in_array((int)$_SESSION[$_sess_key], $course_ids, true)) {
+} elseif (!empty($_SESSION[$_sess_key]) && in_array((int)$_SESSION[$_sess_key], $_open_ids, true)) {
     $cur_course = (int)$_SESSION[$_sess_key];
-} elseif ($_pref_course && in_array($_pref_course, $course_ids, true)) {
+} elseif ($_pref_course && in_array($_pref_course, $_open_ids, true)) {
     $cur_course = $_pref_course;
     $_SESSION[$_sess_key] = $cur_course;
 } else {
     $cur_course = 0;  // nie ustawiony — pokaż picker (jeśli >1 kurs) lub wybierz jedyny
 }
-if (!in_array($cur_course, $course_ids, true)) $cur_course = $course_ids[0] ?? 0;
+if (!in_array($cur_course, $_open_ids, true)) $cur_course = $course_ids[0] ?? 0;
 
 // Pytaj o grupę TYLKO przy wejściu na pulpit bez wcześniejszego wyboru (pierwsze
 // logowanie / brak zapamiętanej preferencji) — na innych zakładkach cicho używamy
@@ -1846,7 +1855,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Dane do widoku ──────────────────────────────────────────────────────────
 $course   = null;
-foreach ($courses as $c) { if ((int)$c['id'] === $cur_course) { $course = $c; break; } }
+foreach (array_merge($courses, $courses_archived) as $c) { if ((int)$c['id'] === $cur_course) { $course = $c; break; } }
 $dtv      = fn($v) => $v ? h(str_replace(' ', 'T', substr($v, 0, 16))) : '';
 
 $sessions = $materials = $homeworks = [];
@@ -2610,23 +2619,28 @@ $KP_TITLE  = 'Panel dydaktyka';
 
 // Selektor grupy w pasku górnym (tylko gdy >1 kurs)
 $_dyd_course_switcher = '';
-if (count($courses) > 1) {
+if (count($courses) + count($courses_archived) > 1) {
     // Selektor grupy w stylu paska: przycisk „GRUPA ▾ nazwa” na granacie,
     // panel z wyszukiwarką (nazwa grupy / prowadzący) i listą linków — zmiana =
     // ta sama zakładka w wybranej grupie. Kierownik z własnymi grupami: podział
     // Twoje / innych. Klawiatura: ↓/↑ po liście, Enter, Esc (Bootstrap dropdown).
     $split_view = dyd_is_staff() && !empty($my_course_ids_set);
     $cur_c = null;
-    foreach ($courses as $_c) if ((int)$_c['id'] === $cur_course) { $cur_c = $_c; break; }
+    foreach (array_merge($courses, $courses_archived) as $_c) if ((int)$_c['id'] === $cur_course) { $cur_c = $_c; break; }
+    $_arch_ids = array_flip(array_map(fn($c) => (int)$c['id'], $courses_archived));
+    $_live     = array_values(array_filter($courses, fn($c) => !isset($_arch_ids[(int)$c['id']])));
     $_item = function (array $c, bool $with_instructor) use ($cur_course, $tab): string {
         $act      = (int)$c['id'] === $cur_course;
-        $inactive = ($c['status'] ?? '') === 'cancelled' || empty($c['is_active']);
-        $meta     = $inactive ? 'nieaktywna'
+        $archived = ($c['status'] ?? '') === 'archived';
+        $closed   = $archived && !empty($c['closed_at']);
+        $inactive = $archived || ($c['status'] ?? '') === 'cancelled' || empty($c['is_active']);
+        $meta     = $closed ? 'zamknięta' : ($archived ? 'archiwum' : ($inactive ? 'nieaktywna' : ''));
+        $meta     = $meta !== '' ? $meta
                   : ($with_instructor ? (string)($c['instructor_name'] ?: '—') : (int)($c['enrolled_count'] ?? 0) . ' os.');
         $search   = mb_strtolower((string)$c['name'] . ' ' . (string)($c['instructor_name'] ?? ''));
-        return '<li><a class="dropdown-item dyd-cs-item d-flex align-items-center gap-2' . ($act ? ' active' : '') . ($inactive ? ' dyd-cs-off' : '') . '"'
+        return '<li' . ($archived ? ' class="dyd-cs-arch" hidden' : '') . '><a class="dropdown-item dyd-cs-item d-flex align-items-center gap-2' . ($act ? ' active' : '') . ($inactive ? ' dyd-cs-off' : '') . '"'
              . ' href="index.php?course=' . (int)$c['id'] . '&amp;tab=' . h($tab) . '" data-search="' . h($search) . '"' . ($act ? ' aria-current="true"' : '') . '>'
-             . '<i class="bi bi-' . ($act ? 'check2' : ($inactive ? 'archive' : 'people')) . ' flex-shrink-0" aria-hidden="true"></i>'
+             . '<i class="bi bi-' . ($act ? 'check2' : ($closed ? 'lock' : ($inactive ? 'archive' : 'people'))) . ' flex-shrink-0" aria-hidden="true"></i>'
              . '<span class="text-truncate">' . h((string)$c['name']) . '</span>'
              . '<span class="ms-auto small dyd-cs-meta flex-shrink-0">' . h($meta) . '</span></a></li>';
     };
@@ -2646,10 +2660,16 @@ if (count($courses) > 1) {
     <ul class="list-unstyled mb-0 dyd-cs-list" role="list">
       <?php if ($split_view): ?>
       <li><h6 class="dropdown-header">Twoje grupy</h6></li>
-      <?php foreach ($courses as $_c) if (isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, false); ?>
+      <?php foreach ($_live as $_c) if (isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, false); ?>
       <li><h6 class="dropdown-header">Grupy innych prowadzących</h6></li>
-      <?php foreach ($courses as $_c) if (!isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, true); ?>
-      <?php else: foreach ($courses as $_c) echo $_item($_c, dyd_is_staff()); endif; ?>
+      <?php foreach ($_live as $_c) if (!isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, true); ?>
+      <?php else: foreach ($_live as $_c) echo $_item($_c, dyd_is_staff()); endif; ?>
+      <?php if ($courses_archived): $_arch_open = isset($_arch_ids[$cur_course]); ?>
+      <li class="dyd-cs-arch-toggle-li"><button type="button" class="dropdown-item dyd-cs-arch-toggle d-flex align-items-center gap-2" aria-expanded="false">
+        <i class="bi bi-archive" aria-hidden="true"></i>Archiwum <span class="badge text-bg-secondary"><?= count($courses_archived) ?></span>
+        <i class="bi bi-chevron-down ms-auto" aria-hidden="true"></i></button></li>
+      <?php foreach ($courses_archived as $_c) echo $_item($_c, dyd_is_staff()); ?>
+      <?php endif; ?>
       <li class="dyd-cs-empty px-3 py-2 small text-body-secondary" hidden>Brak grup pasujących do wyszukiwania.</li>
     </ul>
   </div>
@@ -2658,14 +2678,28 @@ if (count($courses) > 1) {
 (function () {
   var root = document.currentScript.previousElementSibling;
   var q = root.querySelector('#dydCsSearch'), items = root.querySelectorAll('.dyd-cs-item'),
-      empty = root.querySelector('.dyd-cs-empty'), heads = root.querySelectorAll('.dropdown-header');
+      empty = root.querySelector('.dyd-cs-empty'), heads = root.querySelectorAll('.dropdown-header'),
+      tog = root.querySelector('.dyd-cs-arch-toggle'), arch = root.querySelectorAll('.dyd-cs-arch'), archOpen = false;
+  function setArch(open) {
+    archOpen = open; arch.forEach(function (li) { li.hidden = !open; });
+    if (tog) { tog.setAttribute('aria-expanded', open ? 'true' : 'false'); tog.querySelector('.bi-chevron-down, .bi-chevron-up').className = 'bi bi-chevron-' + (open ? 'up' : 'down') + ' ms-auto'; }
+  }
+  if (tog) {
+    tog.addEventListener('click', function (e) { e.preventDefault(); setArch(!archOpen); });
+    if (root.querySelector('.dyd-cs-arch .dyd-cs-item.active')) setArch(true);   // bieżąca grupa jest w archiwum
+  }
   root.addEventListener('shown.bs.dropdown', function () {
     q.focus(); var a = root.querySelector('.dyd-cs-item.active'); if (a) a.scrollIntoView({block: 'nearest'});
   });
   q.addEventListener('input', function () {
     var t = q.value.trim().toLowerCase(), n = 0;
-    items.forEach(function (a) { var ok = !t || a.dataset.search.indexOf(t) !== -1; a.parentElement.hidden = !ok; if (ok) n++; });
+    items.forEach(function (a) {
+      var li = a.parentElement, inArch = li.classList.contains('dyd-cs-arch');
+      var ok = t ? a.dataset.search.indexOf(t) !== -1 : (!inArch || archOpen);   // szukanie obejmuje też archiwum
+      li.hidden = !ok; if (ok) n++;
+    });
     heads.forEach(function (h) { h.parentElement.hidden = !!t; });
+    if (tog) tog.parentElement.hidden = !!t;
     empty.hidden = n > 0;
   });
   q.addEventListener('keydown', function (e) {
