@@ -182,6 +182,21 @@ function edok_migrate(): void {
         'zlec_rachunek_id'       => "INTEGER",
     ]);
 
+    // Rejestr przelewów składek ZUS (bez obiegu akceptacji — kwota wynika z rozliczonych
+    // rachunków i umów). Historia + ostrzeżenie przed drugim przelewem za ten sam okres.
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_zus_przelewy (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        okres       TEXT    NOT NULL,
+        kwota       TEXT    NOT NULL,
+        nrs         TEXT    NOT NULL,
+        rachunek_z  TEXT    NOT NULL DEFAULT '',
+        format      TEXT    NOT NULL DEFAULT '',
+        tytul       TEXT    NOT NULL DEFAULT '',
+        user_id     INTEGER,
+        user_name   TEXT    NOT NULL DEFAULT '',
+        created_at  TEXT
+    )");
+
     // Pozycje listy płac — każda to osobny przelew (osoba, rachunek, kwota do wypłaty).
     $db->exec("CREATE TABLE IF NOT EXISTS edok_wyplaty (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -547,6 +562,8 @@ function edok_tytul_jest_faktura(string $typ_dokumentu): bool {
  * więc traktowana jest jako równie zbywalna przy braku miejsca).
  */
 function edok_generate_tytul_przelewu(array $doc): string {
+    // Tytuł narzucony z zewnątrz (np. przelew składek ZUS) — bez generowania.
+    if (!empty($doc['_tytul'])) return mb_substr((string)$doc['_tytul'], 0, 140);
     $jest_przychod = ($doc['kierunek'] ?? 'wydatek') === 'przychod';
 
     $numer         = trim((string)($doc['number'] ?? ''));
@@ -1891,6 +1908,89 @@ function edok_sync_rachunki_umow(int $doc_id): void {
     } catch (\Throwable $e) {
         error_log('[edok_sync_rachunki_umow] ' . $e->getMessage());
     }
+}
+
+// ── Składki ZUS ───────────────────────────────────────────────────────────────
+// Przelew na numer rachunku składkowego (NRS — jeden, indywidualny rachunek płatnika
+// dla wszystkich składek). Bez obiegu akceptacji: kwota wynika z rozliczonych rachunków
+// i umów (deklaracja DRA). NRS w konfiguracji organizacji (org_setting 'zus_nrs');
+// dopóki jej nie ma, używany jest numer domyślny podany przez użytkownika, ale przed
+// pierwszym przelewem trzeba go potwierdzić — potwierdzenie zapisuje go w konfiguracji.
+
+const EDOK_ZUS_ODBIORCA    = 'ZAKŁAD UBEZPIECZEŃ SPOŁECZNYCH';
+const EDOK_ZUS_NRS_DOMYSLNY = '90600000020260017343570539';
+
+/** NRS z konfiguracji ('' = nieskonfigurowany). */
+function edok_zus_nrs_config(): string {
+    return preg_replace('/\D/', '', (string) org_setting('zus_nrs'));
+}
+
+/** NRS do użycia: z konfiguracji, a gdy brak — domyślny (wymaga potwierdzenia). */
+function edok_zus_nrs(): string {
+    return edok_zus_nrs_config() ?: EDOK_ZUS_NRS_DOMYSLNY;
+}
+
+/** Okres składek domyślnie: poprzedni miesiąc (RRRR-MM). */
+function edok_zus_okres_domyslny(): string {
+    return date('Y-m', strtotime(date('Y-m-01') . ' -1 month'));
+}
+
+/** Tytuł przelewu składek: „Składki ZUS za MM/RRRR”. */
+function edok_zus_tytul(string $okres): string {
+    return 'Składki ZUS za ' . edok_okres_label($okres);
+}
+
+/** Wiersz przelewu ZUS w kształcie dokumentu EODoK (dla edok_przelewy_export()). */
+function edok_zus_row(string $okres, string $kwota, string $nrs): array {
+    return [
+        'id'               => 0,
+        'number'           => 'ZUS-' . str_replace('-', '', $okres),
+        'kierunek'         => 'wydatek',
+        'typ_dokumentu'    => 'skladki_zus',
+        'kontrahent_nazwa' => EDOK_ZUS_ODBIORCA,
+        'kontrahent_nip'   => '',
+        'rachunek_bankowy' => preg_replace('/\D/', '', $nrs),
+        'kwota_brutto'     => number_format(_edok_kwota_float($kwota), 2, ',', ''),
+        'waluta'           => 'PLN',
+        '_tytul'           => edok_zus_tytul($okres),
+    ];
+}
+
+/**
+ * Wysyła przeglądarce wygenerowane pliki przelewów: jeden plik bezpośrednio
+ * (z kodowaniem wg formatu), kilka — spakowane w ZIP. Kończy żądanie (exit).
+ */
+function edok_send_przelew_files(array $pliki, string $zip_name): void {
+    if (count($pliki) === 1) {
+        $fn = array_key_first($pliki);
+        header(match (true) {
+            str_starts_with($fn, 'Millenet') => 'Content-Type: text/csv; charset=UTF-8',
+            str_starts_with($fn, 'ELIXIR-O') => 'Content-Type: text/plain; charset=windows-1250',
+            default                          => 'Content-Type: text/plain; charset=ISO-8859-2',
+        });
+        header('Content-Disposition: attachment; filename="' . $fn . '"');
+        header('Content-Length: ' . strlen(reset($pliki)));
+        echo reset($pliki);
+        exit;
+    }
+    $tmp = tempnam(sys_get_temp_dir(), 'przel');
+    $zip = new ZipArchive();
+    if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) throw new RuntimeException('Nie udało się utworzyć archiwum ZIP.');
+    foreach ($pliki as $fn => $c) $zip->addFromString($fn, $c);
+    $zip->close();
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $zip_name . '"');
+    header('Content-Length: ' . filesize($tmp));
+    readfile($tmp);
+    @unlink($tmp);
+    exit;
+}
+
+/** Przelewy ZUS wygenerowane za dany okres (albo ostatnie 12). */
+function edok_zus_przelewy(string $okres = ''): array {
+    return $okres !== ''
+        ? db_all("SELECT * FROM edok_zus_przelewy WHERE okres = ? ORDER BY id DESC", [$okres])
+        : db_all("SELECT * FROM edok_zus_przelewy ORDER BY id DESC LIMIT 12");
 }
 
 // ── Proformy ──────────────────────────────────────────────────────────────────

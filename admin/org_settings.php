@@ -294,6 +294,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Ustawienia VPN dla Wirtualnego biurka zapisane.');
         }
         header('Location: ' . APP_URL . '/admin/org_settings.php?tab=security'); exit;
+    } elseif (isset($_POST['save_zus_nrs'])) {
+        // Numer rachunku składkowego ZUS (NRS) — do przelewów składek z Preliminarza EODoK.
+        $nrs = strtoupper(preg_replace('/[\s\-]/', '', trim($_POST['zus_nrs'] ?? '')));
+        if (str_starts_with($nrs, 'PL')) $nrs = substr($nrs, 2);
+        $nrs = preg_replace('/\D/', '', $nrs);
+        require_once __DIR__ . '/../includes/edok.php';
+        if ($nrs !== '' && !edok_nrb_valid($nrs)) {
+            flash_set('error', 'Nieprawidłowy numer rachunku składkowego — sprawdź 26 cyfr (suma kontrolna się nie zgadza).');
+        } else {
+            org_setting_set('zus_nrs', $nrs);
+            flash_set('success', $nrs !== '' ? 'Zapisano rachunek składkowy ZUS ' . format_iban_pl($nrs) . '.' : 'Usunięto rachunek składkowy ZUS (przelewy użyją numeru domyślnego po potwierdzeniu).');
+        }
+        header('Location: ' . APP_URL . '/admin/org_settings.php?tab=rachunki'); exit;
+
     } elseif (isset($_POST['add_rachunek'])) {
         $raw_nrb = strtoupper(preg_replace('/[\s\-]/', '', trim($_POST['rachunek_nrb'] ?? '')));
         if (str_starts_with($raw_nrb, 'PL')) $raw_nrb = substr($raw_nrb, 2);
@@ -1159,6 +1173,31 @@ include dirname(__DIR__) . '/includes/header.php';
      TAB: Rachunki bankowe organizacji
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-pane fade" id="tab-rachunki" role="tabpanel">
+
+  <?php require_once __DIR__ . '/../includes/edok.php'; $zus_nrs_cfg = preg_replace('/\D/', '', (string) org_setting('zus_nrs')); ?>
+  <div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold"><i class="bi bi-shield-check text-primary me-1"></i> Rachunek składkowy ZUS (NRS)</div>
+  <div class="card-body">
+    <p class="text-muted small mb-2">
+      Indywidualny numer rachunku składkowego organizacji (PUE ZUS / eZUS) — na niego idą wszystkie składki.
+      Używany w szablonie „Przelew do ZUS” w Preliminarzu płatności EODoK (tytuł: „Składki ZUS za MM/RRRR”).
+      <?php if ($zus_nrs_cfg === ''): ?>
+      <br><span class="text-warning-emphasis">Nie skonfigurowano — przelewy użyją numeru domyślnego <code><?= h(format_iban_pl(EDOK_ZUS_NRS_DOMYSLNY)) ?></code>, ale przed pierwszym przelewem trzeba go potwierdzić.</span>
+      <?php endif; ?>
+    </p>
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="col-md-6">
+        <label class="form-label small fw-semibold" for="zus_nrs">Numer rachunku składkowego</label>
+        <input type="text" name="zus_nrs" id="zus_nrs" class="form-control form-control-sm font-monospace" maxlength="40"
+               value="<?= h($zus_nrs_cfg !== '' ? format_iban_pl($zus_nrs_cfg) : '') ?>" placeholder="<?= h(format_iban_pl(EDOK_ZUS_NRS_DOMYSLNY)) ?>" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="submit" name="save_zus_nrs" value="1" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Zapisz</button>
+      </div>
+    </form>
+  </div>
+  </div>
 
   <div class="card shadow-sm mb-3">
   <div class="card-header fw-semibold"><i class="bi bi-bank text-primary me-1"></i> Numery rachunków organizacji</div>
