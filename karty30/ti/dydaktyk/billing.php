@@ -1020,16 +1020,27 @@ echo '<main id="main" class="dyd-wrap">';
             <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($bpay['account'] ?: '—') ?><?php if (!empty($bpay['title'])): ?> · „<?= h($bpay['title']) ?>"<?php endif; ?></div>
             <?php endif; ?>
             <?php
-              // Saldo TEJ grupy (model kombinowany) — obok salda całego konta
-              $gb = (int)$b['course_id'] > 0 ? ti_group_balance((int)$b['client_id'], (int)$b['course_id']) : null;
-              if ($gb && ($gb['credit'] > 0.005 || $gb['debt'] > 0.005)): ?>
-            <div class="small mt-1">
-              <?php if ($gb['credit'] > 0.005): ?>
+              // Saldo w jednej linii: stan TEJ grupy + ile kursant jest winien w innych
+              // grupach (zamiast dwóch plakietek z tą samą kwotą).
+              $gb   = (int)$b['course_id'] > 0 ? ti_group_balance((int)$b['client_id'], (int)$b['course_id']) : null;
+              $bbal = $balances[(int)$b['client_id']] ?? null;
+              $acc_debt   = $bbal ? (float)$bbal['debt'] : 0.0;
+              $grp_debt   = $gb ? (float)$gb['debt'] : $acc_debt;       // rozliczenie łączne = całe konto
+              $grp_credit = $gb ? (float)$gb['credit'] : 0.0;
+              $other_debt = round(max(0, $acc_debt - $grp_debt), 2);
+              if ($grp_credit > 0.005 || $grp_debt > 0.005 || $other_debt > 0.005): ?>
+            <div class="mt-1 d-flex flex-wrap align-items-center gap-1" style="font-size:.74rem">
+              <?php if ($grp_credit > 0.005): ?>
               <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Nadpłata przypisana do tej grupy">
-                <i class="bi bi-piggy-bank me-1"></i>nadpłata grupy <?= number_format($gb['credit'],2,',',' ') ?> zł</span>
-              <?php else: ?>
-              <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Niedopłata w tej grupie">
-                <i class="bi bi-exclamation-triangle me-1"></i>niedopłata grupy <?= number_format($gb['debt'],2,',',' ') ?> zł</span>
+                <i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>Nadpłata <?= number_format($grp_credit,2,',',' ') ?> zł</span>
+              <?php elseif ($grp_debt > 0.005): ?>
+              <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"
+                    title="<?= $gb ? 'Do zapłaty w tej grupie' : 'Do zapłaty na koncie kursanta' ?>">
+                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Do zapłaty <?= number_format($grp_debt,2,',',' ') ?> zł</span>
+              <?php endif; ?>
+              <?php if ($other_debt > 0.005): ?>
+              <span class="text-danger-emphasis" title="Niedopłata kursanta w pozostałych grupach / okresach">
+                <?= ($grp_credit > 0.005 || $grp_debt > 0.005) ? '+ ' : 'Do zapłaty w innych grupach: ' ?><?= number_format($other_debt,2,',',' ') ?> zł<?= ($grp_credit > 0.005 || $grp_debt > 0.005) ? ' w innych grupach' : '' ?></span>
               <?php endif; ?>
             </div>
             <?php endif; ?>
@@ -1067,10 +1078,6 @@ echo '<main id="main" class="dyd-wrap">';
                 <button type="submit" class="btn btn-sm btn-outline-primary py-0">Przenieś</button>
               </form>
             </details>
-            <?php endif; ?>
-            <?php // Nadpłatę pokazujemy tylko przy grupie (wyżej) — plakietka konta tylko przy niedopłacie
-            $bbal = $balances[(int)$b['client_id']] ?? null; if ($bbal && $bbal['debt'] > 0.005): ?>
-            <div class="small mt-1"><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Niedopłata na całym koncie kursanta (wszystkie grupy)"><i class="bi bi-exclamation-triangle me-1"></i>niedopłata <?= number_format($bbal['debt'],2,',',' ') ?> zł</span></div>
             <?php endif; ?>
             <div class="text-muted" style="font-size:.72rem">
               <i class="bi bi-person-badge me-1"></i>Płatnik: <?= h(k30_ti_billing_payer_label($b)) ?>
