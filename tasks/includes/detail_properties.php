@@ -15,12 +15,20 @@
         <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Termin
       </label>
       <?php if (task_field_editable('due_date', $my_role)): ?>
-      <input type="date" id="td-due" class="form-control form-control-sm"
-             value="<?= h($task['due_date'] ?? '') ?>"
-             onchange="tdPatch({due_date:this.value||null})"
-             aria-label="Data terminu zadania">
+      <div class="d-flex gap-1">
+        <input type="date" id="td-due" class="form-control form-control-sm"
+               value="<?= h($task['due_date'] ?? '') ?>"
+               onchange="tdPatch({due_date:this.value||null}); document.getElementById('td-due-time').disabled = !this.value"
+               aria-label="Data terminu zadania">
+        <input type="time" id="td-due-time" class="form-control form-control-sm" style="max-width:7rem"
+               value="<?= h(task_normalize_due_time($task['due_time'] ?? '') ?? '') ?>"
+               <?= empty($task['due_date']) ? 'disabled' : '' ?>
+               onchange="tdPatch({due_time:this.value||null})"
+               title="Godzina (opcjonalnie) — bez godziny termin mija z końcem dnia"
+               aria-label="Godzina terminu (opcjonalnie)">
+      </div>
       <?php else: ?>
-      <div class="small text-muted"><?= $task['due_date'] ? date_pl($task['due_date']) : '—' ?></div>
+      <div class="small text-muted"><?= $task['due_date'] ? date_pl($task['due_date']) . (($dt = task_normalize_due_time($task['due_time'] ?? '')) ? ', ' . h($dt) : '') : '—' ?></div>
       <?php endif; ?>
     </div>
     <?php endif; ?>

@@ -140,8 +140,7 @@ if ($ws_id) {
             }
             $t['_mine']   = in_array($uid, array_column($t['assignees'], 'id'), true)
                          || (!empty($t['unit_id']) && in_array((int)$t['unit_id'], $uid_units, true));
-            $t['_overdue']= $t['due_date'] && !$t['completed_at']
-                            && strtotime($t['due_date']) < strtotime('today');
+            $t['_overdue']= task_is_overdue($t);
         }
         unset($t);
     }

@@ -74,7 +74,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
             <div class="d-flex align-items-center gap-1">
               <?php if ($t['due_date']): ?>
               <span class="tk-card-due <?= $t['_overdue'] ? 'overdue' : '' ?>">
-                <i class="bi bi-calendar3" aria-hidden="true"></i> <?= h(date('d.m', strtotime($t['due_date']))) ?>
+                <i class="bi bi-calendar3" aria-hidden="true"></i> <?= h(task_due_label($t)) ?>
               </span>
               <?php endif; ?>
               <?php if ($t['st_total'] > 0): ?>
@@ -352,7 +352,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
             <?php else: ?>
             <i class="bi bi-calendar3 me-1 text-muted" aria-hidden="true"></i>
             <?php endif; ?>
-            <?= h(date('d.m.Y', strtotime($task['due_date']))) ?>
+            <?= h(task_due_label($task, 'd.m.Y')) ?>
           </span>
           <?php else: ?>
           <span class="text-muted" style="font-size:.75rem">—</span>

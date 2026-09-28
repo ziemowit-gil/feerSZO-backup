@@ -97,8 +97,8 @@ $lists_in_ws = db_all(
 
 $csrf    = csrf_token();
 $is_done = (bool)$task['completed_at'];
-$overdue = $task['due_date'] && !$is_done
-           && strtotime($task['due_date']) < strtotime('today');
+task_extras_schema_heal();   // kolumna due_time
+$overdue = !$is_done && task_is_overdue($task);
 
 // ── Potwierdzenie / odrzucenie wykonania przez lidera ─────────────────────
 $is_confirmed = !empty($task['confirmed_at'] ?? null);

@@ -205,6 +205,17 @@ if ($action === 'update') {
         $changes[$f] = $val;
     }
 
+    // Godzina terminu — rządzi nią to samo uprawnienie co due_date
+    if (array_key_exists('due_time', $body) && task_field_editable('due_date', $ws_role)) {
+        task_extras_schema_heal();
+        $new_time = task_normalize_due_time($body['due_time']);
+        if ((string)($task['due_time'] ?? '') !== (string)($new_time ?? '')) {
+            task_log($id, $uid, 'due_changed', task_due_label($task, 'Y-m-d'),
+                task_due_label(['due_date' => $changes['due_date'] ?? $task['due_date'], 'due_time' => $new_time], 'Y-m-d'));
+        }
+        $changes['due_time'] = $new_time;
+    }
+
     if ($changes) {
         $changes['updated_at'] = date('Y-m-d H:i:s');
         $changes['id'] = $id;

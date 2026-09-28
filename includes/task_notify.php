@@ -335,7 +335,26 @@ function task_notify_address(int $user_id, ?string $account_email = ''): string 
 }
 
 /** Zdarzenia wysyłane od razu także w trybie podsumowania dziennego. */
-const TASK_NOTIFY_DIGEST_BYPASS = ['due_1day', 'due_today', 'notify_due_1day', 'notify_due_today'];
+const TASK_NOTIFY_DIGEST_BYPASS = ['due_1day', 'due_today', 'due_soon', 'notify_due_1day', 'notify_due_today'];
+
+/** Przypomnienie ~1 h przed godziną terminu (cron/tasks_due_soon.php co 15 min). */
+function task_notify_due_soon(int $task_id): void {
+    $task = _tn_task($task_id);
+    if (!$task || $task['completed_at'] || empty($task['due_time'])) return;
+    $when = date('H:i', strtotime($task['due_date'] . ' ' . $task['due_time']));
+    foreach (_tn_assignees_except($task_id, 0) as $u) {
+        $uid  = (int)$u['id'];
+        $pref = task_notify_get_pref($uid);
+        _tn_inapp($uid, 'Termin o ' . $when . ': ' . $task['title'], 'Zostało mniej niż godzinę.', $task_id);
+        if (!($pref['notify_due_soon'] ?? 1)) continue;
+        $subject = 'Termin za mniej niż godzinę (' . $when . '): ' . $task['title'];
+        $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+            . '<p>Termin poniższego zadania mija dziś o <strong>' . $when . '</strong>.</p>'
+            . _tn_task_card($task);
+        _tn_email($uid, $u['email'], 'due_soon', $task_id,
+            $subject, _tn_tpl('Termin za chwilę', $subject, $content, _tn_task_url($task_id)));
+    }
+}
 
 /**
  * Wysyła podsumowanie dzienne (cron/tasks_digest.php): per użytkownik jedna wiadomość
@@ -601,7 +620,7 @@ function task_notify_save_pref(int $user_id, array $data): void {
     }
     // Nowsze flagi zapisywane tylko, gdy wywołujący je przysłał — starsze formularze
     // (modal w liście zadań, api/notify_prefs.php) ich nie znają i nie mogą ich zerować.
-    foreach (['notify_file', 'notify_moved', 'notify_watched', 'notify_digest'] as $f) {
+    foreach (['notify_file', 'notify_moved', 'notify_watched', 'notify_digest', 'notify_due_soon'] as $f) {
         if (array_key_exists($f, $data)) $values[$f] = (int)(bool)$data[$f];
     }
     // notify_email celowo NIE jest tu zapisywany — tylko przez task_notify_request_email_change()
@@ -637,6 +656,7 @@ function _tn_default_prefs(): array {
         'notify_moved'     => 1,
         'notify_watched'   => 1,
         'notify_digest'    => 0,
+        'notify_due_soon'  => 1,
         'notify_email'     => '',
         'notify_email_pending' => '',
     ];
@@ -821,7 +841,9 @@ function _tn_task_card(array $task): string {
     $p  = (int)($task['priority'] ?? 2);
     $due = $task['due_date']
         ? '<br><span style="color:#64748b;font-size:12px">Termin: <strong>'
-          . date('d.m.Y', strtotime($task['due_date'])) . '</strong></span>'
+          . date('d.m.Y', strtotime($task['due_date']))
+          . (function_exists('task_normalize_due_time') && ($tm = task_normalize_due_time($task['due_time'] ?? '')) ? ', godz. ' . $tm : '')
+          . '</strong></span>'
         : '';
     return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin:14px 0">'
         . '<div style="font-size:15px;font-weight:600;color:#1e293b;margin-bottom:6px">'
@@ -906,6 +928,7 @@ function _tn_schema_heal(): void {
             'notify_moved     INTEGER NOT NULL DEFAULT 1',
             'notify_watched   INTEGER NOT NULL DEFAULT 1',
             'notify_digest    INTEGER NOT NULL DEFAULT 0',
+            'notify_due_soon  INTEGER NOT NULL DEFAULT 1',
             "notify_email     TEXT    NOT NULL DEFAULT ''",
             // Weryfikacja własnego adresu: notify_email ustawiany DOPIERO po kliknięciu linku
             "notify_email_pending    TEXT NOT NULL DEFAULT ''",

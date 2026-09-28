@@ -1002,6 +1002,8 @@ function task_extras_schema_heal(): void {
         $cols = array_column(db_all("PRAGMA table_info(tasks)"), 'name');
         // Okładka karty: NULL = automatycznie pierwszy obrazek, -1 = bez okładki, >0 = task_files.id
         if (!in_array('cover_file_id', $cols, true)) $pdo->exec("ALTER TABLE tasks ADD COLUMN cover_file_id INTEGER");
+        // Godzina terminu 'HH:MM' (NULL = do końca dnia); uprawnienia jak pole due_date
+        if (!in_array('due_time', $cols, true)) $pdo->exec("ALTER TABLE tasks ADD COLUMN due_time TEXT");
     } catch (\Throwable $e) { error_log('[task_extras_schema_heal] ' . $e->getMessage()); }
 }
 
@@ -1127,4 +1129,31 @@ function task_file_thumb(string $src_path, string $stored_name, string $mime): ?
     $ok = @imagejpeg($thumb, $dest, 78);
     unset($img, $thumb);   // imagedestroy() zbędne od PHP 8.0 (deprecated w 8.5)
     return $ok ? $dest : null;
+}
+
+/** Normalizuje godzinę terminu do 'HH:MM' albo null. */
+function task_normalize_due_time(mixed $v): ?string {
+    $v = trim((string)$v);
+    return preg_match('/^([01]\d|2[0-3]):([0-5]\d)/', $v, $m) ? $m[1] . ':' . $m[2] : null;
+}
+
+/** Moment terminu: data + godzina (bez godziny = koniec dnia). */
+function task_due_timestamp(array $t): ?int {
+    if (empty($t['due_date'])) return null;
+    $time = task_normalize_due_time($t['due_time'] ?? '') ?? '23:59:59';
+    return strtotime($t['due_date'] . ' ' . $time) ?: null;
+}
+
+/** Po terminie: nieukończone, a moment terminu minął (dzień, a przy godzinie — godzina). */
+function task_is_overdue(array $t): bool {
+    if (!empty($t['completed_at'])) return false;
+    $ts = task_due_timestamp($t);
+    return $ts !== null && $ts < time();
+}
+
+/** Etykieta terminu: „28.09” / „28.09 14:30” (format daty jak w miejscu użycia). */
+function task_due_label(array $t, string $date_fmt = 'd.m'): string {
+    if (empty($t['due_date'])) return '';
+    $time = task_normalize_due_time($t['due_time'] ?? '');
+    return date($date_fmt, strtotime($t['due_date'])) . ($time ? ' ' . $time : '');
 }
