@@ -79,6 +79,14 @@ foreach ($docs as &$d) {
 }
 unset($d);
 
+// Zaznaczanie + eksport przelewów z listy — ten sam handler co w Preliminarzu
+// (POST export_przelewy na edok/preliminarz.php: potwierdzenie NIP/NRB, pliki ELIXIR-O).
+$przelew_rachunki = edok_rachunki_list();
+$can_export = $przelew_rachunki && (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')));
+$exportable = fn(array $d): bool => $d['status'] === 'zaakceptowany'
+    && ($d['kierunek'] ?? 'wydatek') === 'wydatek'
+    && strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
+
 if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="EODoK_dokumenty_' . date('Y-m-d') . '.csv"');
@@ -113,11 +121,6 @@ require_once __DIR__ . '/../includes/header.php';
       <i class="bi bi-check2-all"></i> Do akceptacji
       <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
     </a>
-    <?php if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza'))): ?>
-    <a href="<?= APP_URL ?>/edok/preliminarz.php" class="btn btn-outline-success btn-sm" title="Zaznacz dokumenty w Preliminarzu i pobierz plik przelewów (ELIXIR-O)">
-      <i class="bi bi-bank"></i> Eksport przelewów
-    </a>
-    <?php endif; ?>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
     <a href="<?= APP_URL ?>/edok/raport_analityczny.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a>
     <a href="<?= APP_URL ?>/edok/archiwum.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive"></i> Archiwum miesięczne</a>
@@ -191,10 +194,36 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </form>
 
+<?php if ($can_export): ?>
+<form method="post" action="<?= APP_URL ?>/edok/preliminarz.php" id="edokExportForm"
+      class="d-none align-items-center gap-2 mb-2 flex-wrap p-2 border rounded bg-light">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="action" value="export_przelewy">
+  <input type="hidden" name="pakiet_ids" id="edokExportIds">
+  <input type="hidden" name="rachunek_map" value="{}">
+  <span class="small"><strong id="edokExportCount">0</strong> zaznaczonych</span>
+  <select name="rachunek_zlecen" class="form-select form-select-sm" style="width:auto" title="Rachunek, z którego mają pójść przelewy" required>
+    <?php foreach ($przelew_rachunki as $r): ?>
+    <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option>
+    <?php endforeach; ?>
+  </select>
+  <select name="format" class="form-select form-select-sm" style="width:auto" title="Format pliku przelewów">
+    <?php foreach (EDOK_PRZELEWY_FORMATY as $k => $label): ?>
+    <option value="<?= h($k) ?>"><?= h($label) ?></option>
+    <?php endforeach; ?>
+  </select>
+  <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-bank"></i> Eksportuj przelewy</button>
+</form>
+<p class="text-muted small mb-2">Zaznaczyć do eksportu przelewów można zaakceptowane wydatki z prawidłowym 26-cyfrowym rachunkiem kontrahenta.</p>
+<?php endif; ?>
+
 <div class="table-responsive">
   <table class="table table-sm table-hover align-middle">
     <thead class="table-light">
       <tr>
+        <?php if ($can_export): ?>
+        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="edokExportAll" title="Zaznacz wszystkie do eksportu" aria-label="Zaznacz wszystkie do eksportu"></th>
+        <?php endif; ?>
         <th>Numer</th>
         <th>Kierunek</th>
         <th>Kontrahent</th>
@@ -211,10 +240,13 @@ require_once __DIR__ . '/../includes/header.php';
     </thead>
     <tbody>
       <?php if (!$docs): ?>
-      <tr><td colspan="13" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
+      <tr><td colspan="<?= $can_export ? 14 : 13 ?>" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
       <?php endif; ?>
       <?php foreach ($docs as $doc): ?>
       <tr>
+        <?php if ($can_export): ?>
+        <td><?php if ($exportable($doc)): ?><input type="checkbox" class="form-check-input edok-export-check" value="<?= (int)$doc['id'] ?>" aria-label="Zaznacz <?= h($doc['number']) ?> do eksportu"><?php endif; ?></td>
+        <?php endif; ?>
         <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?></td>
         <td><?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? '<span class="badge bg-info text-dark">Przychód</span>' : '<span class="badge bg-secondary">Wydatek</span>' ?></td>
         <td><?= h($doc['kontrahent_nazwa']) ?></td>
@@ -244,5 +276,28 @@ require_once __DIR__ . '/../includes/header.php';
     </tbody>
   </table>
 </div>
+
+<?php if ($can_export): ?>
+<script>
+(function () {
+  var boxes = Array.from(document.querySelectorAll('.edok-export-check'));
+  var all   = document.getElementById('edokExportAll');
+  var form  = document.getElementById('edokExportForm');
+  function sync() {
+    var ids = boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+    document.getElementById('edokExportIds').value = ids.join(',');
+    document.getElementById('edokExportCount').textContent = ids.length;
+    form.classList.toggle('d-none', !ids.length);
+    form.classList.toggle('d-flex', ids.length > 0);
+    all.checked = boxes.length > 0 && ids.length === boxes.length;
+    all.indeterminate = ids.length > 0 && ids.length < boxes.length;
+  }
+  all.disabled = !boxes.length;
+  all.addEventListener('change', function () { boxes.forEach(function (b) { b.checked = all.checked; }); sync(); });
+  boxes.forEach(function (b) { b.addEventListener('change', sync); });
+  sync();
+})();
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
