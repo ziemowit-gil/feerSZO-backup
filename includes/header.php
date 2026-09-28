@@ -240,14 +240,21 @@ body { background: #fff; }
 #content { padding: 1.5rem 1.5rem 5rem; }
 [x-cloak] { display: none !important; }
 
-/* ── Navbar (Tailwind @apply — tylko warstwa wizualna; struktura HTML,
-   dropdowny Bootstrapa i offcanvas mobilny zostają nietknięte) ──────── */
-#navbar {
-    @apply tw-sticky tw-top-0 tw-z-[100] tw-px-4 tw-py-1.5 tw-border-b tw-border-black/10 tw-shadow-sm;
+/* ── Nagłówek dwupoziomowy ─────────────────────────────────────────────
+   1) .nb-top  — pasek marki w kolorze organizacji: logo, wyszukiwarka
+                 (Ctrl+K), launcher modułów, dzwonki, pomoc, użytkownik;
+   2) .nb-nav  — biały pasek zakładek z rejestru includes/menu.php
+                 (mega-menu dla zakładek z kilkoma grupami) + tytuł strony.
+   Dropdowny to nadal Bootstrap (bez klas .navbar — pozycjonuje je Popper,
+   więc menu wystające poza ekran samo się przesuwa). ────────────────── */
+#navbar { @apply tw-sticky tw-top-0 tw-z-[100] tw-shadow-sm; }
+.nb-top {
+    @apply tw-flex tw-items-center tw-gap-3 tw-px-4;
+    height: 50px;
     background: <?= h($_sb_color) ?>;
 }
 .nb-brand {
-    @apply tw-flex tw-items-center tw-gap-2 tw-no-underline tw-shrink-0;
+    @apply tw-flex tw-items-center tw-gap-2 tw-no-underline tw-shrink-0 tw-min-w-0;
     color: <?= h($_sb_brand_color) ?>;
 }
 .nb-brand:hover { color: <?= h($_sb_brand_color) ?>; opacity: .88; }
@@ -258,104 +265,140 @@ body { background: #fff; }
 }
 .nb-logo-img { @apply tw-h-[30px] tw-w-auto tw-max-w-[38px] tw-object-contain tw-rounded; }
 .nb-brand-name { @apply tw-font-bold tw-text-sm tw-whitespace-nowrap tw-leading-tight; }
-.nb-brand-sub { @apply tw-text-[.59rem] tw-opacity-60 tw-font-normal tw-block; }
+.nb-brand-sub { @apply tw-text-[.59rem] tw-opacity-60 tw-font-normal tw-block tw-whitespace-nowrap; }
 
-/* Nav links */
-#navbar .navbar-nav .nav-link {
-    @apply tw-text-[.82rem] tw-font-medium tw-rounded-md tw-whitespace-nowrap tw-flex tw-items-center tw-gap-1.5 tw-transition-colors;
-    color: <?= h($_sb_text) ?> !important;
-    padding: .3rem .55rem !important;
+/* Wyszukiwarka (wyzwalacz palety Ctrl+K) — na środku paska marki */
+.nb-center { @apply tw-flex-1 tw-justify-center tw-min-w-0 tw-px-2; }
+.nb-search-wrap { position: relative; width: 100%; max-width: 460px; }
+.nb-search-wrap input {
+    width: 100%; height: 34px;
+    border: 1px solid rgba(255,255,255,.22); border-radius: 9px;
+    background: rgba(255,255,255,.12); padding: 0 4.4rem 0 2.1rem;
+    font-size: .84rem; outline: none; color: <?= h($_sb_text) ?>; cursor: pointer;
+    transition: background .15s, border-color .15s;
 }
-#navbar .navbar-nav .nav-link:hover,
-#navbar .navbar-nav .nav-link.show {
-    background: <?= h($_sb_hover_bg) ?>;
-    color: <?= h($_sb_hover_text) ?> !important;
+.nb-search-wrap input::placeholder { color: <?= h($_sb_text_muted) ?>; }
+.nb-search-wrap input:hover, .nb-search-wrap input:focus {
+    background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.45);
 }
-#navbar .navbar-nav .nav-link.active {
-    @apply tw-font-semibold;
-    background: <?= h($_sb_hover_bg) ?>;
-    color: <?= h($_sb_hover_text) ?> !important;
+.nb-search-icon {
+    position: absolute; left: .7rem; top: 50%; transform: translateY(-50%);
+    color: <?= h($_sb_text_muted) ?>; font-size: .82rem; pointer-events: none;
 }
-#navbar .navbar-nav .nav-link .badge { @apply tw-text-[.58rem] tw-ml-1; }
-#navbar .navbar-nav .nb-ezd-link { color: #dc2626 !important; }
-#navbar .navbar-nav .nb-ezd-link:hover,
-#navbar .navbar-nav .nb-ezd-link.show,
-#navbar .navbar-nav .nb-ezd-link.active { background: rgba(220,38,38,.12) !important; color: #b91c1c !important; }
-
-/* Dropdowns */
-#navbar .dropdown-menu {
-    min-width: 220px; border: 1px solid #e2e8f0; border-radius: 10px;
-    box-shadow: 0 8px 32px rgba(2,6,23,.14); padding: .3rem .25rem; margin-top: 5px !important;
-    font-size: .83rem;
-}
-#navbar .dropdown-item {
-    border-radius: 7px; padding: .37rem .7rem; color: #334155;
-    display: flex; align-items: center; gap: .5rem;
-}
-#navbar .dropdown-item i { font-size: .82rem; width: 16px; text-align: center; color: #94a3b8; flex-shrink: 0; }
-#navbar .dropdown-item:hover,
-#navbar .dropdown-item:focus { background: #eff6ff; color: #2563eb; }
-#navbar .dropdown-item:hover i { color: #2563eb; }
-#navbar .dropdown-item.active,
-#navbar .dropdown-item:active { background: #eff6ff; color: #2563eb; font-weight: 600; }
-#navbar .dropdown-item.active i { color: #2563eb; }
-#navbar .dropdown-item .badge { font-size: .58rem; margin-left: auto; }
-#navbar .dropdown-divider { margin: .3rem .4rem; }
-.nb-section-label {
-    font-size: .61rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
-    color: #94a3b8; padding: .45rem .7rem .1rem; display: block;
+.nb-search-kbd {
+    position: absolute; right: .55rem; top: 50%; transform: translateY(-50%);
+    font-size: .6rem; font-weight: 700; letter-spacing: .03em; pointer-events: none;
+    color: <?= h($_sb_text_muted) ?>; border: 1px solid rgba(255,255,255,.28);
+    border-radius: 5px; padding: .06rem .35rem; line-height: 1.2;
 }
 
-/* Right side */
+/* Prawa strona paska marki */
 #nb-right { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; margin-left: auto; }
-
-/* User chip */
+.nb-icon-btn {
+    @apply tw-rounded-lg tw-text-[.9rem] tw-cursor-pointer tw-inline-flex tw-items-center tw-justify-center tw-relative tw-transition-colors tw-no-underline;
+    width: 34px; height: 34px;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+    color: <?= h($_sb_text) ?>;
+}
+.nb-icon-btn:hover, .nb-icon-btn[aria-expanded="true"] { background: rgba(255,255,255,.22); color: <?= h($_sb_hover_text) ?>; }
+.nb-icon-btn .badge { font-size: .55rem; }
 .nb-user-chip {
     @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-cursor-pointer tw-no-underline tw-transition-colors;
     background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
-    padding: .2rem .6rem .2rem .32rem;
+    padding: .2rem .6rem .2rem .3rem; height: 34px;
     font-size: .8rem; font-weight: 500; color: <?= h($_sb_text) ?>;
 }
-.nb-user-chip:hover { background: rgba(255,255,255,.22); color: <?= h($_sb_hover_text) ?>; }
+.nb-user-chip:hover, .nb-user-chip[aria-expanded="true"] { background: rgba(255,255,255,.22); color: <?= h($_sb_hover_text) ?>; }
 .nb-user-chip .avatar {
-    @apply tw-w-[22px] tw-h-[22px] tw-rounded-full tw-text-white tw-text-[.6rem] tw-font-bold tw-flex tw-items-center tw-justify-center tw-shrink-0;
+    @apply tw-w-[24px] tw-h-[24px] tw-rounded-full tw-text-white tw-text-[.62rem] tw-font-bold tw-flex tw-items-center tw-justify-center tw-shrink-0;
     background: linear-gradient(135deg, #2563eb, #6610f2);
 }
-/* Bell / icon buttons in navbar */
-.nb-icon-btn {
-    @apply tw-rounded-md tw-text-[.88rem] tw-cursor-pointer tw-inline-flex tw-items-center tw-relative tw-transition-colors;
-    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+.nb-toggler {
+    @apply tw-inline-flex tw-items-center tw-justify-center tw-rounded-lg tw-cursor-pointer;
+    width: 34px; height: 34px; border: 0; background: none; font-size: 1.35rem;
     color: <?= h($_sb_text) ?>;
-    padding: .25rem .45rem;
-}
-.nb-icon-btn:hover { background: rgba(255,255,255,.22); color: <?= h($_sb_hover_text) ?>; }
-
-/* Search */
-.nb-search-wrap { position: relative; }
-.nb-search-wrap input {
-    width: 32px; height: 28px;
-    border: 1px solid rgba(255,255,255,.22); border-radius: 7px;
-    background: rgba(255,255,255,.1); padding: 0 .5rem 0 1.7rem;
-    font-size: .8rem; outline: none; color: <?= h($_sb_text) ?>; cursor: pointer;
-    transition: width .2s, border-color .2s, background .2s;
-}
-.nb-search-wrap input::placeholder { color: <?= h($_sb_text_muted) ?>; }
-.nb-search-wrap input:focus,
-.nb-search-wrap input.expanded {
-    width: 180px; border-color: rgba(255,255,255,.45);
-    background: rgba(255,255,255,.15); cursor: text;
-}
-.nb-search-icon {
-    position: absolute; left: .48rem; top: 50%; transform: translateY(-50%);
-    color: <?= h($_sb_text_muted) ?>; font-size: .78rem; pointer-events: none;
 }
 
-/* Page title bar */
-#page-title-bar {
+/* Pasek zakładek */
+.nb-nav {
+    @apply tw-bg-white tw-border-b tw-border-slate-200 tw-items-center tw-gap-1 tw-px-3;
+    height: 40px;
+}
+.nb-home {
+    @apply tw-inline-flex tw-items-center tw-justify-center tw-rounded-lg tw-no-underline tw-shrink-0 tw-transition-colors;
+    width: 30px; height: 30px; color: #64748b; font-size: .95rem;
+}
+.nb-home:hover { background: #f1f5f9; color: #0f172a; }
+.nb-home.active { background: #eff6ff; color: #1d4ed8; }
+.nb-tabs { @apply tw-flex tw-items-center tw-gap-0.5 tw-list-none tw-m-0 tw-p-0 tw-min-w-0; }
+.nb-tabs > li { position: relative; }
+.nb-tab {
+    @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-no-underline tw-whitespace-nowrap tw-transition-colors tw-cursor-pointer;
+    font-size: .83rem; font-weight: 500; color: #334155; padding: .32rem .62rem; line-height: 1.2;
+    background: none; border: 0;
+}
+.nb-tab > .bi:first-child { color: #94a3b8; font-size: .85rem; }
+.nb-tab:hover, .nb-tab.show { background: #f1f5f9; color: #0f172a; }
+.nb-tab:hover > .bi:first-child, .nb-tab.show > .bi:first-child { color: #475569; }
+.nb-tab.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+.nb-tab.active > .bi:first-child { color: #1d4ed8; }
+.nb-tab .badge { font-size: .58rem; padding: .22em .45em; }
+.nb-tab.dropdown-toggle::after { margin-left: .1rem; opacity: .45; vertical-align: .12em; }
+.nb-tab.nb-ezd-link { color: #b91c1c; }
+.nb-tab.nb-ezd-link > .bi:first-child { color: #dc2626; }
+.nb-tab.nb-ezd-link:hover, .nb-tab.nb-ezd-link.show, .nb-tab.nb-ezd-link.active { background: #fef2f2; color: #991b1b; }
+@media (max-width: 1279.98px) { .nb-tab > .bi:first-child { display: none; } }
+
+/* Tytuł strony — prawy koniec paska zakładek (desktop) / cienki pasek (mobile) */
+.nb-ptitle {
+    @apply tw-items-center tw-gap-1.5 tw-min-w-0 tw-ml-auto tw-pl-3 tw-shrink;
+    border-left: 1px solid #e2e8f0; font-size: .8rem; font-weight: 600; color: #475569; max-width: 36vw;
+}
+.nb-ptitle .ptb-title { @apply tw-min-w-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap; }
+.nb-ptitle-m {
+    @apply tw-bg-white tw-border-b tw-border-slate-200 tw-text-[.85rem] tw-font-semibold tw-text-slate-800;
+    padding: .4rem 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#page-title-bar.nb-ptitle-fallback {
     @apply tw-bg-white tw-border-b tw-border-slate-200 tw-flex tw-items-center tw-gap-2.5 tw-text-[.92rem] tw-font-semibold tw-text-slate-800;
     padding: .45rem 1.5rem;
 }
-#page-title-bar .ptb-title { @apply tw-flex-1 tw-min-w-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap; }
+
+/* Dropdowny (zakładki, dzwonki, pomoc, użytkownik) */
+#navbar .dropdown-menu {
+    min-width: 230px; border: 1px solid #e2e8f0; border-radius: 12px;
+    box-shadow: 0 12px 36px rgba(2,6,23,.16); padding: .35rem .3rem; margin-top: 6px !important;
+    font-size: .83rem;
+}
+#navbar .dropdown-item {
+    border-radius: 8px; padding: .4rem .7rem; color: #334155;
+    display: flex; align-items: center; gap: .55rem; background: none; border: 0; width: 100%; text-align: left;
+}
+#navbar .dropdown-item > i { font-size: .85rem; width: 16px; text-align: center; color: #94a3b8; flex-shrink: 0; }
+#navbar .dropdown-item:hover,
+#navbar .dropdown-item:focus { background: #eff6ff; color: #2563eb; }
+#navbar .dropdown-item:hover > i { color: #2563eb; }
+#navbar .dropdown-item.active,
+#navbar .dropdown-item:active { background: #eff6ff; color: #2563eb; font-weight: 600; }
+#navbar .dropdown-item.active > i { color: #2563eb; }
+#navbar .dropdown-item .badge { font-size: .58rem; margin-left: auto; }
+#navbar .dropdown-item kbd {
+    margin-left: auto; font-size: .62rem; font-weight: 700; color: #64748b; background: #f1f5f9;
+    border: 1px solid #e2e8f0; border-radius: 5px; padding: .05rem .35rem; font-family: inherit;
+}
+#navbar .dropdown-divider { margin: .3rem .4rem; }
+.nb-section-label {
+    font-size: .61rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    color: #94a3b8; padding: .45rem .7rem .15rem; display: flex; align-items: center; gap: .35rem;
+}
+.nb-section-label .badge { font-size: .55rem; }
+
+/* Mega-menu — zakładka z kilkoma grupami rozkłada je w kolumny */
+#navbar .dropdown-menu.nb-mega { width: max-content; max-width: min(900px, calc(100vw - 1.5rem)); padding: .5rem .55rem .55rem; }
+.nb-mega-grid { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(200px, 1fr)); gap: .1rem .7rem; }
+.nb-mega-col { min-width: 0; }
+.nb-mega-col + .nb-mega-col { border-left: 1px solid #f1f5f9; padding-left: .7rem; }
+@media (max-width: 991.98px) { .nb-mega-grid { grid-template-columns: 1fr; } .nb-mega-col + .nb-mega-col { border: 0; padding: 0; } }
 
 /* SaaS / impersonate bars */
 #saas-bar {
@@ -397,35 +440,50 @@ body { background: #fff; }
 }
 @keyframes _ajaxSpin { to { transform: rotate(360deg); } }
 
-/* Offcanvas nav (mobile) */
+/* Offcanvas nav (mobile) — białe menu z sekcjami rejestru + moduły + konto */
+#navOffcanvas { width: 300px; background: #fff; color: #0f172a; }
+#navOffcanvas .offcanvas-header { padding: .75rem 1rem; border-bottom: 1px solid #e2e8f0; }
+#navOffcanvas .offcanvas-body { padding: .4rem .5rem 1.5rem; overflow-y: auto; }
+.oc-user { display: flex; align-items: center; gap: .6rem; padding: .5rem .6rem .7rem; }
+.oc-user .avatar {
+    width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: .72rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    background: linear-gradient(135deg, #2563eb, #6610f2);
+}
+.oc-user-name { font-size: .86rem; font-weight: 600; line-height: 1.2; }
+.oc-user-mail { font-size: .7rem; color: #94a3b8; }
 .oc-link {
-    display: flex; align-items: center; gap: .5rem;
-    padding: .38rem .85rem; color: #334155; text-decoration: none;
-    font-size: .84rem; font-weight: 500; border-radius: 7px;
+    display: flex; align-items: center; gap: .55rem;
+    padding: .42rem .7rem; color: #334155; text-decoration: none;
+    font-size: .86rem; font-weight: 500; border-radius: 8px;
     transition: background .1s;
 }
-.oc-link i { font-size: .85rem; width: 17px; text-align: center; color: #94a3b8; flex-shrink: 0; }
-.oc-link:hover { background: #eff6ff; color: #2563eb; }
-.oc-link:hover i { color: #2563eb; }
-.oc-link.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
-.oc-link.active i { color: #2563eb; }
+.oc-link i { font-size: .88rem; width: 18px; text-align: center; color: #94a3b8; flex-shrink: 0; }
+.oc-link:hover { background: #f1f5f9; color: #0f172a; }
+.oc-link:hover i { color: #475569; }
+.oc-link.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+.oc-link.active i { color: #1d4ed8; }
 .oc-link .badge { font-size: .6rem; margin-left: auto; }
-.oc-section { font-size: .61rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; padding: .55rem .85rem .15rem; display: block; }
-.oc-sep { height: 1px; background: #f1f5f9; margin: .3rem .6rem; }
-.oc-acc-btn {
-    display: flex; align-items: center; gap: .5rem; width: 100%;
-    padding: .38rem .85rem; color: #334155; font-size: .84rem; font-weight: 500;
-    background: none; border: none; border-radius: 7px; text-align: left; cursor: pointer;
-    transition: background .1s;
+.oc-section {
+    font-size: .61rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    color: #94a3b8; padding: .7rem .7rem .2rem; display: flex; align-items: center; gap: .4rem;
 }
-.oc-acc-btn i:first-child { font-size: .85rem; width: 17px; text-align: center; color: #94a3b8; flex-shrink: 0; }
-.oc-acc-btn:hover { background: #eff6ff; color: #2563eb; }
-.oc-acc-btn:not(.collapsed) { color: #2563eb; font-weight: 600; }
-.oc-acc-btn .oc-chev { margin-left: auto; font-size: .65rem; opacity: .45; transition: transform .18s; flex-shrink: 0; }
-.oc-acc-btn:not(.collapsed) .oc-chev { transform: rotate(90deg); opacity: .8; }
-.oc-sub { padding: 0 0 2px 0; }
-.oc-sub .oc-link { padding-left: 2.3rem; }
+.oc-section i { font-size: .75rem; }
+.oc-sep { height: 1px; background: #f1f5f9; margin: .45rem .5rem; }
+.oc-mods { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem; padding: .2rem .4rem; }
+.oc-mod {
+    display: flex; flex-direction: column; align-items: center; gap: .3rem; text-decoration: none;
+    padding: .55rem .2rem; border-radius: 10px; border: 1px solid #eef2f7; color: #334155;
+    font-size: .68rem; font-weight: 600; text-align: center; line-height: 1.15;
+}
+.oc-mod .oc-mod-ic {
+    width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; background: var(--mb, #f8fafc); color: var(--mc, #64748b);
+}
+.oc-mod:hover { background: #f8fafc; color: #0f172a; }
+.oc-mod.on { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 </style>
+
 <?php
 require_once __DIR__ . '/app_bg.php';
 /* EZD ma gęste tabele i podglądy dokumentów — tam geometria ledwie zaznaczona */
@@ -447,75 +505,44 @@ if ($_user) {
         array_slice(explode(' ', $_user['name']), 0, 2)
     ));
 }
+// ── Nawigacja z rejestru menu (includes/menu.php) — jedno źródło prawdy ──
+require_once __DIR__ . '/menu.php';
+$_menu = $_user ? menu_build() : ['mode' => 'guest', 'tree' => []];
+$_nb_nav_rendered = $_user && !empty($_menu['tree']);
+$_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/[a-z0-9_]+/index\.php#i', $_uri);
 ?>
-<nav id="navbar" class="navbar navbar-expand-lg">
+<div id="navbar">
 
-<div class="container-fluid px-3 gap-2">
+<!-- Pasek marki -->
+<div class="nb-top">
 
-  <!-- Brand -->
-  <a class="nb-brand" href="<?= APP_URL ?>/index.php">
+  <a class="nb-brand" href="<?= APP_URL ?>/index.php" title="Strona główna">
     <?php if ($_org_logo && file_exists(dirname(__DIR__) . '/assets/logo/' . $_org_logo)): ?>
     <img src="<?= APP_URL ?>/assets/logo/<?= h($_org_logo) ?>" alt="Logo" class="nb-logo-img">
     <?php else: ?>
     <span class="nb-brand-icon"><i class="bi bi-building"></i></span>
     <?php endif; ?>
-    <span>
+    <span class="tw-min-w-0">
       <span class="nb-brand-name"><?= h(org_setting('org_short_name') ?: ORG_NAME) ?></span>
-      <span class="nb-brand-sub">System Wspomagania Zarządzania Organizacją</span>
+      <span class="nb-brand-sub d-none d-sm-block">System Wspomagania Zarządzania Organizacją</span>
     </span>
   </a>
 
-  <!-- Mobile toggle -->
-  <button class="navbar-toggler ms-auto border-0 d-lg-none" type="button"
-          data-bs-toggle="offcanvas" data-bs-target="#navOffcanvas"
-          aria-controls="navOffcanvas" aria-label="Menu"
-          style="color:<?= h($_sb_text) ?>;background:none;padding:.28rem .5rem">
-    <i class="bi bi-list" style="font-size:1.4rem"></i>
-  </button>
-
-  <!-- Desktop nav -->
-  <div class="collapse navbar-collapse">
-    <ul class="navbar-nav me-auto align-items-center flex-wrap">
-
-  <?php
-  // ── Nawigacja z rejestru menu (includes/menu.php) ─────────────────────────
-  require_once __DIR__ . '/menu.php';
-  $_menu = $_user ? menu_build() : ['mode' => 'guest', 'tree' => []];
-  foreach ($_menu['tree'] as $_n):
-      $_n_cls = (!empty($_n['active']) ? ' active' : '') . (!empty($_n['ezd']) ? ' nb-ezd-link' : '');
-      if (!empty($_n['path']) && empty($_n['groups'])): // zakładka-link (np. RODO)
-  ?>
-  <li class="nav-item">
-    <a class="nav-link<?= $_n_cls ?>" href="<?= APP_URL . h($_n['path']) ?>">
-      <i class="bi <?= h($_n['icon']) ?>"></i> <?= h($_n['label']) ?>
-      <?php if (!empty($_n['badge'])): ?><span class="badge bg-danger ms-1" style="font-size:.6rem"><?= (int)$_n['badge'] ?></span><?php endif; ?>
-    </a>
-  </li>
-  <?php else: ?>
-  <li class="nav-item dropdown">
-    <a class="nav-link dropdown-toggle<?= $_n_cls ?>" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-      <i class="bi <?= h($_n['icon']) ?>"></i> <?= h($_n['label']) ?>
-      <?php if (!empty($_n['badge'])): ?><span class="badge bg-warning text-dark ms-1" style="font-size:.6rem"><?= (int)$_n['badge'] ?></span><?php endif; ?>
-    </a>
-    <ul class="dropdown-menu<?= !empty($_n['end']) ? ' dropdown-menu-end' : '' ?>">
-      <?php foreach ($_n['groups'] as $_gi => $_g): ?>
-        <?php if ($_gi > 0): ?><li><hr class="dropdown-divider"></li><?php endif; ?>
-        <?php if (!empty($_g['label'])): ?>
-        <li><h6 class="dropdown-header nb-section-label"><?= h($_g['label']) ?><?php if (!empty($_g['badge'])): ?> <span class="badge bg-primary ms-1"><?= (int)$_g['badge'] ?></span><?php endif; ?></h6></li>
-        <?php endif; ?>
-        <?php foreach ($_g['items'] as $_it): ?>
-        <li><a class="dropdown-item<?= !empty($_it['active']) ? ' active' : '' ?><?= !empty($_it['danger']) ? ' text-danger' : '' ?>" href="<?= APP_URL . h($_it['path']) ?>"><i class="bi <?= h($_it['icon']) ?> me-2"></i><?= h($_it['label']) ?><?php if (!empty($_it['badge'])): ?><span class="badge bg-warning text-dark ms-2"<?= !empty($_it['attr']) ? ' ' . $_it['attr'] : '' ?>><?= (int)$_it['badge'] ?></span><?php endif; ?></a></li>
-        <?php endforeach; ?>
-      <?php endforeach; ?>
-    </ul>
-  </li>
+  <?php if ($_user): ?>
+  <!-- Wyszukiwarka menu i danych — otwiera paletę poleceń (Ctrl+K) -->
+  <div class="nb-center d-none d-md-flex">
+    <div class="nb-search-wrap">
+      <i class="nb-search-icon bi bi-search" aria-hidden="true"></i>
+      <input type="search" id="cmdk-trigger" readonly
+             placeholder="Szukaj w menu i danych…"
+             aria-label="Otwórz wyszukiwarkę menu i danych (Ctrl+K)">
+      <span class="nb-search-kbd" aria-hidden="true">Ctrl K</span>
+    </div>
+  </div>
   <?php endif; ?>
-  <?php endforeach; ?>
 
-    </ul><!-- /.navbar-nav -->
-
-    <div id="nb-right">
-      <span id="ajax-spinner" aria-hidden="true" title="Ładowanie…"></span>
+  <div id="nb-right">
+    <span id="ajax-spinner" aria-hidden="true" title="Ładowanie…"></span>
 
     <?php if ($_user && can_edit()): ?>
     <?php
@@ -618,7 +645,7 @@ if ($_user) {
       border:1px solid rgba(255,255,255,.22);
       border-bottom:2px solid <?= h($_sb_icon_color) ?>;
       border-radius:8px 8px 4px 4px;
-      padding:.28rem .6rem .22rem;font-size:.8rem;font-weight:600;color:<?= h($_sb_text) ?>;
+      height:34px;padding:0 .6rem;font-size:.8rem;font-weight:600;color:<?= h($_sb_text) ?>;
       cursor:pointer;line-height:1.4;transition:all .12s;white-space:nowrap;flex-shrink:0;
     }
     .mod-sw-btn:hover,.mod-sw-btn[aria-expanded="true"] {
@@ -757,52 +784,12 @@ if ($_user) {
       trigger.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();isOpen?close():openL();});
     })();
     </script>
-      <!-- Wyszukiwarka menu — otwiera paletę poleceń (Ctrl+K) -->
-      <div class="nb-search-wrap d-none d-md-block">
-        <i class="nb-search-icon bi bi-search" aria-hidden="true"></i>
-        <input type="search" id="cmdk-trigger" readonly
-               class="expanded"
-               placeholder="Szukaj w menu… (Ctrl+K)"
-               aria-label="Otwórz wyszukiwarkę menu (Ctrl+K)"
-               style="padding-left:1.75rem;cursor:pointer">
-      </div>
-    <button type="button"
-            id="shortcuts-hint"
-            onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}))"
-            title="Skróty klawiaturowe (?)"
-            aria-label="Skróty klawiaturowe"
-            class="nb-icon-btn">
-      <kbd style="background:none;border:none;padding:0;font-size:.72rem;color:inherit;font-family:inherit">?</kbd>
-    </button>
     <?php endif; // can_edit ?>
 
     <?php if (str_contains($_uri, '/ezd/')): ?>
     <button type="button" id="ezd-fs-btn" class="nb-icon-btn"
             title="Ukryj menu górne — EZD na całą stronę" aria-label="Ukryj menu górne">
       <i class="bi bi-arrows-fullscreen"></i>
-    </button>
-    <?php endif; ?>
-
-    <?php
-    // Przycisk zgłoszenia błędu — widoczny dla wszystkich zalogowanych, gdy moduł aktywny
-    $_bug_report_on = false;
-    if ($_user) {
-        try {
-            require_once __DIR__ . '/helpdesk.php';
-            helpdesk_migrate();
-            $_bug_report_on = org_setting('bug_report_enabled') !== '0';
-        } catch (\Throwable $e) {}
-    }
-    ?>
-    <?php if ($_user && $_bug_report_on): ?>
-    <button type="button"
-            data-bs-toggle="modal" data-bs-target="#bugReportModal"
-            title="Zgłoś błąd na tej stronie"
-            aria-label="Zgłoś błąd"
-            class="nb-icon-btn"
-            style="border-color:#fca5a5;color:#dc2626">
-      <i class="bi bi-bug-fill"></i>
-      <span class="d-none d-sm-inline" style="font-size:.78rem">Zgłoś błąd</span>
     </button>
     <?php endif; ?>
 
@@ -944,6 +931,46 @@ if ($_user) {
     <?php endif; ?>
 
     <?php if ($_user): ?>
+    <!-- Pomoc: zgłoszenie błędu, skróty, procedury -->
+    <div class="dropdown" id="nb-help">
+      <button type="button" class="nb-icon-btn" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+              title="Pomoc" aria-label="Pomoc">
+        <i class="bi bi-question-lg"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow">
+        <li><h6 class="dropdown-header nb-section-label">Pomoc</h6></li>
+        <?php if ($_bug_report_on): ?>
+        <li>
+          <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#bugReportModal">
+            <i class="bi bi-bug-fill" style="color:#dc2626"></i>Zgłoś błąd na tej stronie
+          </button>
+        </li>
+        <?php endif; ?>
+        <li>
+          <button type="button" class="dropdown-item" id="shortcuts-hint"
+                  onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}))">
+            <i class="bi bi-keyboard"></i>Skróty klawiaturowe <kbd>?</kbd>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="dropdown-item" data-cmdk-open>
+            <i class="bi bi-search"></i>Wyszukiwarka <kbd>Ctrl K</kbd>
+          </button>
+        </li>
+        <?php if (can_edit()): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/procedures/index.php"><i class="bi bi-list-task"></i>Procedury i instrukcje</a></li>
+        <?php if (function_exists('asai_enabled') && asai_enabled()): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/procedures/asystent.php"><i class="bi bi-stars"></i>Asystent AI</a></li>
+        <?php endif; ?>
+        <?php endif; ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/portal.php"><i class="bi bi-grid-3x3-gap"></i>Portal modułów</a></li>
+      </ul>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($_user): ?>
     <!-- Chip użytkownika z dropdown -->
     <div class="dropdown">
       <button class="nb-user-chip" type="button" data-bs-toggle="dropdown">
@@ -1021,10 +1048,87 @@ if ($_user) {
       </ul>
     </div>
     <?php endif; ?>
-    </div><!-- /#nb-right -->
-  </div><!-- /.navbar-collapse -->
-</div><!-- /.container-fluid -->
-</nav><!-- /#navbar -->
+    <?php if ($_nb_nav_rendered): ?>
+    <!-- Mobile toggle -->
+    <button class="nb-toggler d-lg-none" type="button"
+            data-bs-toggle="offcanvas" data-bs-target="#navOffcanvas"
+            aria-controls="navOffcanvas" aria-label="Menu">
+      <i class="bi bi-list"></i>
+    </button>
+    <?php endif; ?>
+  </div><!-- /#nb-right -->
+</div><!-- /.nb-top -->
+
+<?php if ($_nb_nav_rendered): ?>
+<!-- Pasek zakładek (desktop) -->
+<nav class="nb-nav d-none d-lg-flex" aria-label="Menu główne">
+  <a class="nb-home<?= $_nb_on_home ? ' active' : '' ?>" href="<?= APP_URL ?>/index.php" title="Strona główna" aria-label="Strona główna">
+    <i class="bi bi-house-door-fill"></i>
+  </a>
+  <ul class="nb-tabs">
+  <?php foreach ($_menu['tree'] as $_n):
+      $_n_cls = (!empty($_n['active']) ? ' active' : '') . (!empty($_n['ezd']) ? ' nb-ezd-link' : '');
+      if (!empty($_n['path']) && empty($_n['groups'])): // zakładka-link (np. RODO, Admin, Wirtualne biurko)
+  ?>
+    <li>
+      <a class="nb-tab<?= $_n_cls ?>" href="<?= APP_URL . h($_n['path']) ?>">
+        <i class="bi <?= h($_n['icon']) ?>"></i><?= h($_n['label']) ?>
+        <?php if (!empty($_n['badge'])): ?><span class="badge bg-danger"><?= (int)$_n['badge'] ?></span><?php endif; ?>
+      </a>
+    </li>
+  <?php else:
+      $_mega = count($_n['groups']) > 1;
+  ?>
+    <li class="dropdown">
+      <button type="button" class="nb-tab dropdown-toggle<?= $_n_cls ?>" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi <?= h($_n['icon']) ?>"></i><?= h($_n['label']) ?>
+        <?php if (!empty($_n['badge'])): ?><span class="badge bg-warning text-dark"><?= (int)$_n['badge'] ?></span><?php endif; ?>
+      </button>
+      <?php if ($_mega): ?>
+      <div class="dropdown-menu nb-mega<?= !empty($_n['end']) ? ' dropdown-menu-end' : '' ?>">
+        <div class="nb-mega-grid" style="--cols:<?= min(4, count($_n['groups'])) ?>">
+          <?php foreach ($_n['groups'] as $_g): ?>
+          <div class="nb-mega-col">
+            <?php if (!empty($_g['label'])): ?>
+            <h6 class="dropdown-header nb-section-label"><?= h($_g['label']) ?><?php if (!empty($_g['badge'])): ?><span class="badge bg-primary"><?= (int)$_g['badge'] ?></span><?php endif; ?></h6>
+            <?php endif; ?>
+            <?php foreach ($_g['items'] as $_it): ?>
+            <a class="dropdown-item<?= !empty($_it['active']) ? ' active' : '' ?><?= !empty($_it['danger']) ? ' text-danger' : '' ?>" href="<?= APP_URL . h($_it['path']) ?>"><i class="bi <?= h($_it['icon']) ?>"></i><?= h($_it['label']) ?><?php if (!empty($_it['badge'])): ?><span class="badge bg-warning text-dark"<?= !empty($_it['attr']) ? ' ' . $_it['attr'] : '' ?>><?= (int)$_it['badge'] ?></span><?php endif; ?></a>
+            <?php endforeach; ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php else: ?>
+      <ul class="dropdown-menu<?= !empty($_n['end']) ? ' dropdown-menu-end' : '' ?>">
+        <?php foreach ($_n['groups'] as $_g): ?>
+          <?php if (!empty($_g['label'])): ?>
+          <li><h6 class="dropdown-header nb-section-label"><?= h($_g['label']) ?><?php if (!empty($_g['badge'])): ?><span class="badge bg-primary"><?= (int)$_g['badge'] ?></span><?php endif; ?></h6></li>
+          <?php endif; ?>
+          <?php foreach ($_g['items'] as $_it): ?>
+          <li><a class="dropdown-item<?= !empty($_it['active']) ? ' active' : '' ?><?= !empty($_it['danger']) ? ' text-danger' : '' ?>" href="<?= APP_URL . h($_it['path']) ?>"><i class="bi <?= h($_it['icon']) ?>"></i><?= h($_it['label']) ?><?php if (!empty($_it['badge'])): ?><span class="badge bg-warning text-dark"<?= !empty($_it['attr']) ? ' ' . $_it['attr'] : '' ?>><?= (int)$_it['badge'] ?></span><?php endif; ?></a></li>
+          <?php endforeach; ?>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
+    </li>
+  <?php endif; ?>
+  <?php endforeach; ?>
+  </ul>
+  <?php if (!empty($_page_title)): ?>
+  <span class="nb-ptitle d-none d-xl-flex" id="page-title-bar" aria-label="Bieżąca strona">
+    <i class="bi bi-chevron-right" style="font-size:.6rem;color:#cbd5e1" aria-hidden="true"></i>
+    <span class="ptb-title"><?= h($_page_title) ?></span>
+  </span>
+  <?php endif; ?>
+</nav>
+<?php if (!empty($_page_title)): ?>
+<div class="nb-ptitle-m d-lg-none"><?= h($_page_title) ?></div>
+<?php endif; ?>
+<?php endif; ?>
+
+</div><!-- /#navbar -->
+
 
 <?php /* ── Command palette (Ctrl+K) — wyszukiwarka menu + danych ─────────────── */ ?>
 <?php if ($_user):
@@ -1197,7 +1301,7 @@ if ($_user) {
 <?php if (str_contains($_uri, '/ezd/')): ?>
 <!-- Tryb pełnoekranowy EZD — chowa menu górne, stan zapamiętany w localStorage -->
 <style>
-body.ezd-fs #navbar, body.ezd-fs #page-title-bar,
+body.ezd-fs #navbar, body.ezd-fs #page-title-bar, body.ezd-fs .nb-ptitle-m,
 body.ezd-fs #saas-bar, body.ezd-fs .saas-tenant-bar { display:none !important; }
 #ezd-fs-exit {
   display:none; position:fixed; top:.6rem; right:.9rem; z-index:1080;
@@ -1226,30 +1330,52 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
 <?php endif; ?>
 
 <!-- Mobile offcanvas -->
-<div class="offcanvas offcanvas-start" tabindex="-1" id="navOffcanvas"
-     aria-labelledby="navOffcanvasLabel"
-     style="background:<?= h($_sb_color) ?>;color:<?= h($_sb_text) ?>">
-  <div class="offcanvas-header border-bottom" style="border-color:<?= $_sb_dark ? 'rgba(255,255,255,.15)' : 'rgba(0,0,0,.12)' ?>!important">
-    <span id="navOffcanvasLabel" class="nb-brand-name" style="color:<?= h($_sb_text) ?>"><?= h(org_setting('org_short_name') ?: ORG_NAME) ?></span>
-    <button type="button" class="btn-close<?= $_sb_dark ? ' btn-close-white' : '' ?>" data-bs-dismiss="offcanvas" aria-label="Zamknij"></button>
+<?php if ($_nb_nav_rendered): ?>
+<div class="offcanvas offcanvas-start" tabindex="-1" id="navOffcanvas" aria-labelledby="navOffcanvasLabel">
+  <div class="offcanvas-header">
+    <span id="navOffcanvasLabel" class="nb-brand-name" style="color:#0f172a"><?= h(org_setting('org_short_name') ?: ORG_NAME) ?></span>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Zamknij"></button>
   </div>
-  <div class="offcanvas-body p-2" style="overflow-y:auto">
-    <?php if ($_user): ?>
-    <div class="px-2 py-2 mb-1" style="font-size:.8rem;opacity:.7"><?= h($_user['name']) ?> · <a href="<?= APP_URL ?>/auth/logout.php" style="color:inherit">Wyloguj</a></div>
-    <?php endif; ?>
-    <a class="oc-link<?= _nav_active('/index') ?>" href="<?= APP_URL ?>/index.php"><i class="bi bi-house me-2"></i>Strona główna</a>
-    <?php if ($_user): foreach (($_menu['tree'] ?? []) as $_n): ?>
+  <div class="offcanvas-body">
+    <div class="oc-user">
+      <span class="avatar"><?= h($_nb_initials ?: mb_strtoupper(mb_substr($_user['name'],0,1))) ?></span>
+      <div class="tw-min-w-0">
+        <div class="oc-user-name"><?= h($_user['name']) ?></div>
+        <div class="oc-user-mail"><?= h($_user['email']) ?></div>
+      </div>
+    </div>
+    <a class="oc-link<?= $_nb_on_home ? ' active' : '' ?>" href="<?= APP_URL ?>/index.php"><i class="bi bi-house-door"></i>Strona główna</a>
+    <button type="button" class="oc-link tw-w-full tw-text-left" style="background:none;border:0" data-cmdk-open data-bs-dismiss="offcanvas"><i class="bi bi-search"></i>Szukaj w menu i danych</button>
+    <?php foreach (($_menu['tree'] ?? []) as $_n): ?>
       <?php if (!empty($_n['path']) && empty($_n['groups'])): ?>
-    <a class="oc-link<?= !empty($_n['active']) ? ' active' : '' ?>" href="<?= APP_URL . h($_n['path']) ?>"><i class="bi <?= h($_n['icon']) ?> me-2"></i><?= h($_n['label']) ?></a>
+    <a class="oc-link<?= !empty($_n['active']) ? ' active' : '' ?>" href="<?= APP_URL . h($_n['path']) ?>"><i class="bi <?= h($_n['icon']) ?>"></i><?= h($_n['label']) ?><?php if (!empty($_n['badge'])): ?><span class="badge bg-danger"><?= (int)$_n['badge'] ?></span><?php endif; ?></a>
       <?php else: ?>
-    <div class="oc-section"><?= h($_n['label']) ?></div>
+    <div class="oc-section"><i class="bi <?= h($_n['icon']) ?>"></i><?= h($_n['label']) ?></div>
         <?php foreach ($_n['groups'] as $_g): foreach ($_g['items'] as $_it): ?>
-    <a class="oc-link<?= !empty($_it['active']) ? ' active' : '' ?>" href="<?= APP_URL . h($_it['path']) ?>"><i class="bi <?= h($_it['icon']) ?> me-2"></i><?= h($_it['label']) ?><?php if (!empty($_it['badge'])): ?><span class="badge bg-warning text-dark"><?= (int)$_it['badge'] ?></span><?php endif; ?></a>
+    <a class="oc-link<?= !empty($_it['active']) ? ' active' : '' ?>" href="<?= APP_URL . h($_it['path']) ?>"><i class="bi <?= h($_it['icon']) ?>"></i><?= h($_it['label']) ?><?php if (!empty($_it['badge'])): ?><span class="badge bg-warning text-dark"><?= (int)$_it['badge'] ?></span><?php endif; ?></a>
         <?php endforeach; endforeach; ?>
       <?php endif; ?>
-    <?php endforeach; endif; ?>
+    <?php endforeach; ?>
+    <?php if (!empty($_sw_items)): ?>
+    <div class="oc-sep"></div>
+    <div class="oc-section"><i class="bi bi-grid-3x3-gap-fill"></i>Moduły</div>
+    <div class="oc-mods">
+      <?php foreach ($_sw_items as $_m): ?>
+      <a class="oc-mod<?= !empty($_m['on']) ? ' on' : '' ?>" href="<?= h($_m['url']) ?>" style="--mc:<?= h($_m['mc']) ?>;--mb:<?= h($_m['mb']) ?>">
+        <span class="oc-mod-ic"><i class="bi <?= h($_m['icon']) ?>"></i></span><?= h($_m['label']) ?>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <div class="oc-sep"></div>
+    <div class="oc-section"><i class="bi bi-person-circle"></i>Konto</div>
+    <a class="oc-link" href="<?= APP_URL ?>/panel/index.php"><i class="bi bi-person-circle"></i>Mój panel</a>
+    <a class="oc-link" href="<?= APP_URL ?>/panel/password.php"><i class="bi bi-gear"></i>Ustawienia konta</a>
+    <a class="oc-link" href="<?= APP_URL ?>/portal.php"><i class="bi bi-grid-3x3-gap"></i>Portal modułów</a>
+    <a class="oc-link text-danger" href="<?= APP_URL ?>/auth/logout.php"><i class="bi bi-box-arrow-right" style="color:#dc2626"></i>Wyloguj się</a>
   </div>
 </div>
+<?php endif; ?>
 
 <?php if ($_is_saas_admin): ?>
 <div id="saas-bar">
@@ -1282,11 +1408,9 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
 </div>
 <?php endif; ?>
 
-<div id="page-title-bar">
-  <?php if (!empty($_page_title)): ?>
-  <span class="ptb-title"><?= h($_page_title) ?></span>
-  <?php endif; ?>
-</div>
+<?php if (empty($_nb_nav_rendered) && !empty($_page_title)): // tytuł strony bez paska zakładek (gość / brak menu) ?>
+<div id="page-title-bar" class="nb-ptitle-fallback"><span class="ptb-title"><?= h($_page_title) ?></span></div>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/bug_report_widget.php'; ?>
 <?php // Pływający czat admina (includes/chat_widget.php) siedzi w tym samym
