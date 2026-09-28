@@ -35,14 +35,36 @@ export interface ProtocolApproveDialogData { row: InstructorProtocolPending; mon
           <dl class="summary-list">
             <div><dt>Lekcje odbyte</dt><dd>{{ s.lessons_held }} z {{ s.lessons_total }} zaplanowanych</dd></div>
             <div><dt>Średnia frekwencja</dt><dd>{{ s.attendance_pct !== null ? s.attendance_pct + '%' : '—' }}</dd></div>
+            @if (s.total_min !== undefined) {
+              <div><dt>Czas zajęć</dt><dd>{{ hm(s.total_min) }}</dd></div>
+            }
+            @if (s.has_rate) {
+              <div><dt>Twoja wypłata netto</dt><dd>{{ money(s.netto ?? 0) }} <span class="text-muted">({{ s.own_lessons }} zaj.)</span></dd></div>
+            }
           </dl>
-          <p class="text-muted text-sm">Zatwierdzenie zamyka protokół za ten miesiąc — nie da się go już cofnąć samodzielnie (odblokować może administrator, z podaniem powodu).</p>
+          @if (s.subs?.length) {
+            <div class="k-alert info">
+              <span class="material-symbols-outlined" aria-hidden="true">swap_horiz</span>
+              <span>Zastępstwa — wypłata dla zastępcy, poza Twoją kwotą:
+                @for (x of s.subs; track x.name; let last = $last) {
+                  <strong>{{ x.name || '—' }}</strong> ({{ x.lessons }} zaj.@if (s.has_rate) {, netto {{ money(x.netto) }}}){{ last ? '.' : ';' }}
+                }
+              </span>
+            </div>
+          }
+          @if (s.can_approve === false) {
+            <div class="k-alert warning">
+              <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+              <span>Protokół zatwierdza główny prowadzący kursu albo kierownik.</span>
+            </div>
+          }
+          <p class="text-muted text-sm">Zatwierdzenie zamyka protokół za ten miesiąc i utrwala ewidencję godzin i wypłaty — późniejsze zmiany lekcji jej nie zmienią. Nie da się tego cofnąć samodzielnie (odblokować może administrator, z podaniem powodu). Po zatwierdzeniu potwierdź ewidencję w zakładce „Zatwierdzone”.</p>
         }
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-stroked-button type="button" mat-dialog-close>Wstecz</button>
-      <button mat-flat-button type="button" [disabled]="loading() || approving()" (click)="approve()">Zatwierdź protokół</button>
+      <button mat-flat-button type="button" [disabled]="loading() || approving() || summary()?.can_approve === false" (click)="approve()">Zatwierdź protokół</button>
     </mat-dialog-actions>
   `,
   styles: [`
@@ -61,6 +83,15 @@ export class ProtocolApproveDialogComponent implements OnInit {
   loading   = signal(true);
   approving = signal(false);
   summary   = signal<InstructorProtocolSummary | null>(null);
+
+  hm(min: number): string {
+    const h = Math.floor(min / 60), m = min % 60;
+    return min <= 0 ? '0 h' : [h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
+  }
+
+  money(v: number): string {
+    return v.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' zł';
+  }
 
   ngOnInit(): void {
     this.api.getProtocolSummary(this.data.row.course_id, this.data.row.year_month).subscribe({

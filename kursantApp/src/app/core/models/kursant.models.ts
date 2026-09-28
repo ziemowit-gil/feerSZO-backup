@@ -728,6 +728,8 @@ export interface InstructorProtocolPending {
   protocol_id: number | null;
   is_current: boolean;
   is_overdue: boolean;
+  /** Główny prowadzący kursu — tylko on (i kierownik) zatwierdza protokół. */
+  can_approve?: boolean;
 }
 
 export interface InstructorProtocolClosed {
@@ -735,12 +737,29 @@ export interface InstructorProtocolClosed {
   course_name: string;
   year_month: string;
   protocol_id: number;
+  approved_name?: string;
+  approved_at?: string | null;
+  hours_ack_at?: string | null;
+  hours_ack_label?: string;
+  org_ack_at?: string | null;
+  org_ack_name?: string;
+  /** Lekcje zmieniono po zatwierdzeniu — protokół pokazuje dane utrwalone. */
+  drift?: boolean;
+  /** Główny prowadzący — może potwierdzić ewidencję godzin. */
+  can_ack?: boolean;
 }
 
 export interface InstructorProtocolSummary {
   lessons_held: number;
   lessons_total: number;
   attendance_pct: number | null;
+  total_min?: number;
+  has_rate?: boolean;
+  netto?: number;
+  brutto_brutto?: number;
+  own_lessons?: number;
+  subs?: { name: string; lessons: number; netto: number }[];
+  can_approve?: boolean;
 }
 
 export interface InstructorAttendanceTrendPoint {

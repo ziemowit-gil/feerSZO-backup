@@ -1416,10 +1416,21 @@ switch ($action) {
 
     case 'protocols_closed': {
         // Tylko protokoły miesięczne — per-okres (year_month='') to inny tor.
-        json_ok(array_map(fn($r) => [
-            'course_id' => (int)$r['course_id'], 'course_name' => (string)$r['course_name'],
-            'year_month' => (string)$r['year_month'], 'protocol_id' => (int)$r['protocol_id'],
-        ], ti_protocol_closed_months_for_instructor($instructor_id)));
+        json_ok(array_map(function ($r) use ($instructor_id) {
+            $p = ti_protocol_get((int)$r['protocol_id']) ?: [];
+            return [
+                'course_id'     => (int)$r['course_id'], 'course_name' => (string)$r['course_name'],
+                'year_month'    => (string)$r['year_month'], 'protocol_id' => (int)$r['protocol_id'],
+                'approved_name' => (string)($r['approved_name'] ?? ''),
+                'approved_at'   => $r['approved_at'] ?? null,
+                'hours_ack_at'  => $p['hours_ack_at'] ?? null,
+                'hours_ack_label' => $p ? ti_protocol_hours_ack_label($p) : '',
+                'org_ack_at'    => $p['org_ack_at'] ?? null,
+                'org_ack_name'  => (string)($p['org_ack_name'] ?? ''),
+                'drift'         => $p ? ti_protocol_snapshot_drift($p) : false,
+                'can_ack'       => ti_protocol_can_approve($instructor_id, (int)$r['course_id']),
+            ];
+        }, ti_protocol_closed_months_for_instructor($instructor_id)));
     }
 
     case 'protocol_summary': {
@@ -1428,7 +1439,43 @@ switch ($action) {
         if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || !k30_ti_instructor_owns_course($instructor_id, $cid)) {
             json_err('Nieprawidłowe dane protokołu.', 403);
         }
-        json_ok(ti_protocol_month_summary($cid, $ym));
+        // Ewidencja i wypłata za miesiąc — liczone na żywo jak w PDF (protokół
+        // jeszcze nie zatwierdzony). Bez get-or-create: tylko zakres miesiąca.
+        $hp = ti_protocol_hours_and_payout_live([
+            'course_id' => $cid,
+            'date_from' => $ym . '-01',
+            'date_to'   => date('Y-m-t', strtotime($ym . '-01')),
+        ]);
+        json_ok(ti_protocol_month_summary($cid, $ym) + [
+            'total_min'   => (int)$hp['total_min'],
+            'has_rate'    => (bool)$hp['has_rate'],
+            'netto'       => round((float)$hp['payout']['netto'], 2),
+            'brutto_brutto' => round((float)$hp['payout']['brutto_brutto'], 2),
+            'own_lessons' => (int)$hp['payout']['lessons'],
+            'subs'        => array_map(fn($s) => [
+                'name' => (string)$s['name'], 'lessons' => (int)$s['lessons'], 'netto' => round((float)$s['netto'], 2),
+            ], $hp['subs']),
+            'can_approve' => ti_protocol_can_approve($instructor_id, $cid),
+        ]);
+    }
+
+    // Potwierdzenie ewidencji godzin i wypłaty (podpis prowadzącego) na
+    // ZATWIERDZONYM protokole — jak op=protocol_hours_ack w klasycznym panelu.
+    case 'protocol_hours_ack': {
+        if ($method !== 'POST') json_err('Method not allowed', 405);
+        $body = get_body();
+        $pid  = (int)($body['protocol_id'] ?? 0);
+        $pr   = $pid ? ti_protocol_get($pid) : null;
+        if (!$pr || !k30_ti_instructor_owns_course($instructor_id, (int)$pr['course_id'])) json_err('Brak dostępu do tego protokołu.', 403);
+        // Oświadczenie składa główny prowadzący (jego ewidencja i wypłata), nie współprowadzący.
+        if (!ti_protocol_can_approve($instructor_id, (int)$pr['course_id'])) json_err('Ewidencję potwierdza główny prowadzący kursu.', 403);
+        $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
+        try {
+            ti_protocol_hours_ack($pid, $instructor_id, (string)($u['name'] ?? ''), (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        } catch (\Throwable $e) {
+            json_err($e->getMessage());
+        }
+        json_ok(null, 'Ewidencja godzin i naliczenie wypłaty potwierdzone.');
     }
 
     case 'protocol_approve': {

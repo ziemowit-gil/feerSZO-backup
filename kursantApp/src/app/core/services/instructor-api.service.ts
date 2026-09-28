@@ -182,6 +182,9 @@ export class InstructorApiService {
   approveProtocol(courseId: number, yearMonth: string) {
     return this.post<void>('protocol_approve', { course_id: courseId, year_month: yearMonth });
   }
+  ackProtocolHours(protocolId: number) {
+    return this.post<void>('protocol_hours_ack', { protocol_id: protocolId });
+  }
 
   getAttendanceTrend(months = 6, courseId?: number | null) {
     return this.get<InstructorAttendanceTrendPoint[]>('attendance_trend', {
