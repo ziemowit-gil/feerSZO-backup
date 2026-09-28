@@ -308,6 +308,7 @@ $groups = [
             ['icon'=>'bi-archive',              'label'=>'Kopie zapasowe',           'url'=>'/admin/backups.php'],
             ['icon'=>'bi-database-fill-gear',   'label'=>'Narzędzia bazy danych',   'url'=>'/admin/db_tools.php'],
             ['icon'=>'bi-journal-text',         'label'=>'Przeglądarka logów',       'url'=>'/admin/logs_global.php'],
+            ['icon'=>'bi-shield-check',         'label'=>'Dziennik audytu (hologramy, karty)','url'=>'/modules/audit_logs/index.php'],
             ['icon'=>'bi-database-gear',        'label'=>'Zarządzanie migracjami',   'url'=>'/admin/migrations.php'],
             ['icon'=>'bi-link-45deg',           'label'=>'Krótkie linki',            'url'=>'/admin/short_urls.php'],
             ['icon'=>'bi-rocket-takeoff',       'label'=>'Czyszczenie przed wdrożeniem','url'=>'/admin/clean_for_prod.php','danger'=>true],
