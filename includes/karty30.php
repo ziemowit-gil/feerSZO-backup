@@ -5295,6 +5295,11 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
             'hours_billed' => round($ch, 4),
             'amount'       => round($course_amount, 2),
             'model'        => $eff['model'],
+            // Jedno źródło prawdy dla wydruków (faktura, pozycje FV): czy model jest
+            // godzinowy i stawka PO zmianie ceny (ti_price_change_apply_to_effective).
+            'hourly'       => !in_array((int)$eff['model'], [1, 3], true),
+            'hourly_rate'  => (float)$eff['hourly_rate'],
+            'price_change_id' => (int)($eff['price_change_id'] ?? 0),
         ];
     }
 
@@ -5465,7 +5470,7 @@ function k30_ti_billing_fv_positions(array $b): array {
     $pos = [];
     foreach ($calc['courses'] as $c) {
         if ((float)$c['amount'] <= 0.005 && (float)$c['hours_billed'] <= 0.005) continue;
-        $hourly = ((int)$c['model'] === 2);
+        $hourly = !empty($c['hourly']);
         $qty    = $hourly ? round((float)$c['hours_billed'], 2) : 1.0;
         $val    = round((float)$c['amount'], 2);
         $pos[] = [

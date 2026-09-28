@@ -697,10 +697,10 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
     $per_course = [];
     foreach (($calc['courses'] ?? []) as $c) $per_course[(int)$c['course_id']] = $c;
 
+    // Stawka PO zmianie ceny — z kalkulatora (nie surowe enrollments.hourly_rate),
+    // żeby kwoty per lekcja sumowały się do kwoty rozliczenia.
     $rates = [];
-    foreach (db_all("SELECT course_id, hourly_rate FROM k30_ti_enrollments WHERE client_id=?", [$client_id]) as $e) {
-        $rates[(int)$e['course_id']] = (float)$e['hourly_rate'];
-    }
+    foreach ($per_course as $pc_cid => $pc) $rates[$pc_cid] = (float)($pc['hourly_rate'] ?? 0);
 
     $params = [$client_id, $from, $to];
     $course_sql = '';
@@ -752,7 +752,7 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
       $h = $l['no_show'] && $l['no_show_billing'] === '1h'
           ? 1.0
           : (float)ceil((int)$l['duration_min'] / 60);
-      $hourly = $model !== 1 && $model !== 3;
+      $hourly = isset($per_course[$cid]['hourly']) ? (bool)$per_course[$cid]['hourly'] : ($model !== 1 && $model !== 3);
       $rate   = $rates[$cid] ?? 0.0;
       $amt    = $hourly ? $h * $rate : 0.0;
       $sum_h   += $h;

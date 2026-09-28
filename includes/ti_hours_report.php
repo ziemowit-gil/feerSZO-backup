@@ -56,7 +56,11 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             'pay_title'      => $e['course_pay_title'],
             'pay_due_days'   => $e['course_pay_due_days'],
         ]);
-        $hourly = ((int)$eff['model'] === 2);
+        // Zaplanowana zmiana ceny — tak samo jak w k30_ti_calculate_billing(), inaczej
+        // rozpiska pokazywałaby starą stawkę i kwotę inną niż rozliczenie.
+        require_once __DIR__ . '/ti_price_changes.php';
+        $eff = ti_price_change_apply_to_effective($eff, ti_price_change_effective_for($cid, $client_id, $from, $to));
+        $hourly = !in_array((int)$eff['model'], [1, 3], true);
 
         $rows = db_all(
             "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic,
