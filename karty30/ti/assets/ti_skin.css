@@ -540,3 +540,38 @@ body.dyd-usos.ti-skin .skin-subnav a, body.dyd-usos.ti-skin .skin-subnav .skin-s
 @media (prefers-reduced-motion: reduce) {
   body.dyd-usos * { transition: none !important; }
 }
+
+/* ── Podmenu sekcji (drugi rząd, _usos_bar.php) — zakładki zamiast linków ─────
+   Bez podkreśleń; aktywna pozycja: niebieska kreska u dołu + pogrubienie
+   (zamiast „pudełka”); liczniki jako pigułki; narzędzia (Powiadomienia, Tour)
+   z ikonami, dosunięte do prawej i wyciszone. */
+body.dyd-usos.ti-skin .skin-subnav {
+  padding: 0 .75rem; gap: .15rem; align-items: stretch;
+  border-bottom: 1px solid #d3dce7; box-shadow: 0 1px 0 rgba(16, 51, 92, .03);
+}
+body.dyd-usos.ti-skin .skin-subnav a,
+body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn {
+  text-decoration: none !important; color: #2b3f5c;
+  padding: .5rem .7rem .42rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  font-size: .8rem; background: none;
+}
+body.dyd-usos.ti-skin .skin-subnav a:hover { background: #f2f6fa; color: var(--ti-navy); border-bottom-color: #b9c9db; }
+body.dyd-usos.ti-skin .skin-subnav a.active {
+  background: none; color: var(--ti-navy); font-weight: 700; border-bottom-color: var(--ti-blue);
+}
+body.dyd-usos.ti-skin .skin-subnav a:focus-visible,
+body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn:focus-visible { outline: 2px solid var(--ti-blue); outline-offset: -2px; }
+body.dyd-usos.ti-skin .skin-subnav .badge {
+  border-radius: 999px !important; font-size: .62rem; padding: .18em .5em; font-weight: 700;
+}
+body.dyd-usos.ti-skin .skin-subnav-tools { margin-left: auto; display: inline-flex; align-items: stretch; gap: .1rem; }
+body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn { color: #5b6677; display: inline-flex; align-items: center; gap: .35rem; }
+body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn:hover { color: var(--ti-navy); background: #f2f6fa; text-decoration: none; }
+body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn .bi { font-size: .85rem; }
+body.dyd-usos.ti-skin .skin-crumbs { padding: .35rem .75rem; border-bottom-color: #e3e9f0; }
+@media (max-width: 767.98px) {
+  /* Telefon: jeden przewijany rząd zamiast zawijania na kilka linii */
+  body.dyd-usos.ti-skin .skin-subnav { flex-wrap: nowrap; overflow-x: auto; }
+  body.dyd-usos.ti-skin .skin-subnav a, body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn { white-space: nowrap; }
+  body.dyd-usos.ti-skin .skin-subnav-tools { margin-left: 0; }
+}

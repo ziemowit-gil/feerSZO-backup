@@ -203,12 +203,16 @@ else: ?>
   </a>
   <?php endforeach; ?>
   <?php if ($_usos_cur === 'start'): ?>
-  <button type="button" class="skin-subnav-btn" onclick="window.dydShowFlashPref && window.dydShowFlashPref()">Powiadomienia</button>
-  <button type="button" class="skin-subnav-btn" onclick="window.dydStartTour && window.dydStartTour()">Tour powitalny</button>
+  <span class="skin-subnav-tools">
+    <button type="button" class="skin-subnav-btn" onclick="window.dydShowFlashPref && window.dydShowFlashPref()"><i class="bi bi-bell" aria-hidden="true"></i>Powiadomienia</button>
+    <button type="button" class="skin-subnav-btn" onclick="window.dydStartTour && window.dydStartTour()"><i class="bi bi-signpost" aria-hidden="true"></i>Tour powitalny</button>
+  </span>
   <?php endif; ?>
 </nav>
 <?php endif; ?>
 
+<?php // Okruszki tylko gdy coś mówią — na Pulpicie byłoby samo „Panel dydaktyka”
+if ($tab !== 'pulpit'): ?>
 <div class="skin-crumbs">
   <a href="index.php?tab=pulpit">Panel dydaktyka</a>
   <?php if ($_usos_cur !== 'start'): ?>
@@ -223,3 +227,4 @@ else: ?>
     &rsaquo; <strong><?= h($_cur_label) ?></strong>
   <?php endif; ?>
 </div>
+<?php endif; ?>
