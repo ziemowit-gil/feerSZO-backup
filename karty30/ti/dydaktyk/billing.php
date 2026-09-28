@@ -551,11 +551,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     // Fakturę DEMO usuwamy razem z rozliczeniem — nie jest dokumentem.
     if ($op === 'purge_billing') {
         $bid = (int)($_POST['billing_id'] ?? 0);
-        http_response_code(403); die('Operacja administracyjna — niedostępna w panelu.');
-
-        $bill = $bid ? db_one("SELECT id, client_id, month, year FROM k30_ti_billing WHERE id=?", [$bid]) : null;
+        // Kierownik usuwa trwale TYLKO rozliczenie wcześniej wycofane (z powodem,
+        // bez faktury — pilnuje tego wycofanie); żywe rozliczenie najpierw „Wycofaj”.
+        $bill = $bid ? db_one("SELECT id, client_id, month, year, invoice_no, invoice_path FROM k30_ti_billing WHERE id=? AND status='cancelled' AND cancelled_at IS NOT NULL", [$bid]) : null;
+        if ($bill && ti_billing_has_invoice($bill)) $bill = null;
         if (!$bill) {
-            flash_set('danger', 'Nie znaleziono rozliczenia.');
+            flash_set('danger', 'Trwale usunąć można tylko wycofane rozliczenie bez faktury — najpierw użyj „Wycofaj”.');
             header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
         }
 
@@ -1850,6 +1851,12 @@ echo '<main id="main" class="dyd-wrap">';
               <input type="hidden" name="_op" value="restore_billing">
               <input type="hidden" name="billing_id" value="<?= (int)$w['id'] ?>">
               <button class="btn btn-sm btn-outline-secondary py-0">Przywróć</button>
+            </form>
+            <form method="post" class="d-inline ms-1" onsubmit="return confirm('TRWALE usunąć to wycofane rozliczenie? Tej operacji nie można cofnąć (zostaje wpis w historii kursanta).')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_op" value="purge_billing">
+              <input type="hidden" name="billing_id" value="<?= (int)$w['id'] ?>">
+              <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń</button>
             </form>
           </td>
         </tr>
