@@ -11,6 +11,11 @@ $KP_ORG        = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
 $KP_TITLE      = $KP_TITLE      ?? 'Panel kursanta';
 $KP_TOPBAR     = $KP_TOPBAR     ?? null;
 $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
+// Panel dydaktyka: sekcje w pasku + menu użytkownika (dydaktyk/_nav.php).
+// Panel kursanta nie ładuje tej funkcji — jego pasek zostaje jak był.
+if ($KP_TOPBAR && function_exists('dyd_topbar_enrich') && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka') {
+    $KP_TOPBAR = dyd_topbar_enrich($KP_TOPBAR, str_contains((string)$KP_BODY_CLASS, 'ti-skin'));
+}
 $KP_EXTRA_CSS  = $KP_EXTRA_CSS  ?? [];
 ?><!DOCTYPE html>
 <html lang="pl" data-bs-theme="light">
@@ -236,7 +241,8 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
         <i class="bi bi-<?= h($KP_TOPBAR['icon'] ?? 'pc-display') ?>" aria-hidden="true"></i>
         <span><?= h($KP_TOPBAR['brand'] ?? $KP_ORG) ?></span>
       </span>
-      <div class="d-flex align-items-center flex-wrap gap-2 gap-lg-3">
+      <?php if (!empty($KP_TOPBAR['nav'])): ?><?= $KP_TOPBAR['nav'] ?><?php endif; ?>
+      <div class="d-flex align-items-center flex-wrap gap-2 gap-lg-3 ms-auto">
         <?php if (!empty($KP_TOPBAR['notifications'])): ?><?= $KP_TOPBAR['notifications'] ?><?php endif; ?>
         <?php if (defined('KURSANT_NEW_UI_ENABLED') && KURSANT_NEW_UI_ENABLED && defined('KURSANT_NEW_UI_URL')): ?>
         <a href="<?= h(rtrim(KURSANT_NEW_UI_URL, '/') . '/') ?>"
@@ -247,6 +253,34 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
         </a>
         <?php endif; ?>
         <?php if (!empty($KP_TOPBAR['extra'])): ?><?= $KP_TOPBAR['extra'] ?><?php endif; ?>
+        <?php if (!empty($KP_TOPBAR['user_menu'])): $_um = $KP_TOPBAR['user_menu']; ?>
+        <div class="dropdown kp-user-menu">
+          <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-2 py-1"
+                  data-bs-toggle="dropdown" aria-expanded="false" title="<?= h($_um['name']) ?> — <?= h($_um['role']) ?>">
+            <i class="bi bi-<?= h($_um['icon'] ?? 'person-circle') ?>" aria-hidden="true"></i>
+            <span class="d-none d-md-flex flex-column align-items-start lh-sm text-start">
+              <span class="fw-semibold text-truncate" style="max-width:11rem"><?= h($_um['name']) ?></span>
+              <span class="kp-user-role"><?= h($_um['role']) ?></span>
+            </span>
+            <span class="visually-hidden">Menu użytkownika</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" style="min-width:15rem">
+            <li class="px-3 py-2 lh-sm">
+              <div class="fw-semibold text-truncate"><?= h($_um['name']) ?></div>
+              <div class="small text-body-secondary"><i class="bi bi-<?= h($_um['icon'] ?? 'person') ?> me-1" aria-hidden="true"></i><?= h($_um['role']) ?></div>
+              <?php if (!empty($_um['note'])): ?><div class="small text-warning-emphasis"><?= h($_um['note']) ?></div><?php endif; ?>
+            </li>
+            <li><hr class="dropdown-divider my-1"></li>
+            <?php foreach (($_um['items'] ?? []) as [$_l, $_h, $_i]): ?>
+            <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= h($_h) ?>"><i class="bi bi-<?= h($_i) ?>" aria-hidden="true"></i><?= h($_l) ?></a></li>
+            <?php endforeach; ?>
+            <?php if (!empty($KP_TOPBAR['logout'])): ?>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li><a class="dropdown-item d-flex align-items-center gap-2 text-danger" href="<?= h($KP_TOPBAR['logout']) ?>"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>Wyloguj</a></li>
+            <?php endif; ?>
+          </ul>
+        </div>
+        <?php else: ?>
         <?php if (!empty($KP_TOPBAR['user'])): ?>
         <span class="text-body-secondary small d-flex align-items-center gap-1">
           <i class="bi bi-person-circle" aria-hidden="true"></i><?= h($KP_TOPBAR['user']) ?>
@@ -256,6 +290,7 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
         <a href="<?= h($KP_TOPBAR['logout']) ?>" class="btn btn-outline-secondary btn-sm">
           <i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>Wyloguj
         </a>
+        <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>

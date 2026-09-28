@@ -18,6 +18,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
+require_once __DIR__ . '/_nav.php';   // dyd_topbar_enrich() — sekcje w pasku + menu użytkownika
 // Equi Exams — moduł testów wiedzy i umiejętności (schemat samonaprawia się przy dołączeniu)
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_exams.php';
 

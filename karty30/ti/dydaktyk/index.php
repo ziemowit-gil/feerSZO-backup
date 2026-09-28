@@ -2687,19 +2687,8 @@ if (count($courses) > 1) {
 <?php $_dyd_course_switcher = ob_get_clean();
 }
 
-// Odznaka roli — zawsze widoczna, żeby było jasne w jakiej roli ktoś pracuje
-// (nie tylko dla kierownika). Trzy stany: kierownik / prowadzący / prowadzący
-// w zastępstwie (patrz choose_context.php, dyd_require()).
-if (!empty($me['acting_as_other'])) {
-    $_dyd_staff_badge = '<span class="badge ms-2 flex-shrink-0" style="background:#fdba74;color:#7c2d12;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Pełne wejście na konto tego prowadzącego">'
-      . '<i class="bi bi-person-video2 me-1" aria-hidden="true"></i>W zastępstwie</span>';
-} elseif (dyd_is_staff()) {
-    $_dyd_staff_badge = '<span class="badge ms-2 flex-shrink-0" style="background:#f59e0b;color:#1c1917;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Widzisz wszystkie grupy">'
-      . '<i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Kierownik Instytucji</span>';
-} else {
-    $_dyd_staff_badge = '<span class="badge ms-2 flex-shrink-0" style="background:#dbeafe;color:#1e3a8a;font-size:.68rem;letter-spacing:.03em;vertical-align:middle" title="Widzisz tylko swoje grupy">'
-      . '<i class="bi bi-mortarboard-fill me-1" aria-hidden="true"></i>Prowadzący</span>';
-}
+// Rola (kierownik / prowadzący / w zastępstwie) pokazuje się w menu użytkownika
+// w pasku górnym — patrz dyd_topbar_enrich() w _nav.php.
 
 // ── Pełnoekranowe potwierdzenie nieprzeczytanych komunikatów ─────────────────
 // Komunikat placówki, którego prowadzący nie odczytał, zatrzymuje wejście do
@@ -2780,7 +2769,7 @@ $KP_TOPBAR = [
     'icon'          => 'easel2',
     'user'          => $me['name'] ?? '',
     'logout'        => 'logout.php',
-    'notifications' => $_dyd_course_switcher . $_dyd_staff_badge,
+    'notifications' => $_dyd_course_switcher,   // rola/kontekst — w menu użytkownika (_nav.php)
 ];
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>

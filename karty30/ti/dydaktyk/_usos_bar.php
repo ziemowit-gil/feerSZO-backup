@@ -4,7 +4,9 @@
  *
  * Cała nawigacja siedzi w pasku nad treścią: pierwszy rząd to sekcje
  * (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik), drugi —
- * pozycje sekcji otwartej. Wcześniej te grupy stały w menu bocznym; po
+ * pozycje sekcji otwartej. Od 2026-09-28 rząd sekcji stoi w granatowym pasku
+ * użytkownika (_nav.php, DYD_HEADER_NAV) — tu rysowany tylko awaryjnie, gdy
+ * nagłówek go nie dostał; podmenu sekcji i okruszki zawsze stąd. Wcześniej te grupy stały w menu bocznym; po
  * przeniesieniu do góry treść ma całą szerokość, a widać wprost, gdzie jesteśmy.
  * Menu boczne jest w tym widoku ukryte (usos.css), a nie usunięte — układ
  * klasyczny nadal go używa.
@@ -140,11 +142,13 @@ foreach ($_cur_sec['items'] as $_i) {
     if ($_i['tab'] === $tab) { $_cur_label = $_i['label']; break; }
 }
 ?>
+<?php if (empty($GLOBALS['DYD_HEADER_NAV'])): // sekcje zwykle stoją już w pasku górnym (_nav.php) ?>
 <nav class="skin-sections" aria-label="Sekcje panelu">
   <?php foreach ($_usos_sections as $_k => $_s): ?>
   <a href="<?= h($_s['href']) ?>" <?= $_usos_cur === $_k ? 'aria-current="page"' : '' ?>><?= h($_s['label']) ?></a>
   <?php endforeach; ?>
 </nav>
+<?php endif; ?>
 
 <?php if ($_usos_cur === 'kierownik'):
   // Pozycje sekcji Kierownik idą do MENU BOCZNEGO (jak na stronach zetony/okresy/
