@@ -632,6 +632,14 @@ function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void 
     )->execute([$by, $by_name, $protocol_id]);
 
     ti_protocol_snapshot_save($prot);
+
+    // EZD: zatwierdzony protokół → nowa koszulka w klasie JRWA 384 (no-op bez EZD)
+    try {
+        require_once dirname(__DIR__) . '/modules/ti_protokoly_ezd/logic/ti_protokoly_ezd.php';
+        ti_prot_ezd_register($protocol_id, $by);
+    } catch (\Throwable $e) {
+        error_log('ti_protocol_approve → EZD: ' . $e->getMessage());
+    }
 }
 
 /**
