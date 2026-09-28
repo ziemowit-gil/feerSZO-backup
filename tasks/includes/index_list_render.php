@@ -54,6 +54,16 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
             <i class="bi bi-diagram-3" aria-hidden="true"></i> <?= h($k_unit_name) ?>
           </div>
           <?php endif; ?>
+          <?php if (!empty($t['tags'])): ?>
+          <div class="tk-card-tags">
+            <?php foreach (array_slice($t['tags'], 0, 4) as $tag): ?>
+            <span class="tk-tag" style="background:<?= h($tag['color']) ?>;color:<?= h($tag['text_color']) ?>"><?= h($tag['name']) ?></span>
+            <?php endforeach; ?>
+            <?php if (count($t['tags']) > 4): ?>
+            <span class="tk-tag" style="background:#f1f5f9;color:#64748b">+<?= count($t['tags']) - 4 ?></span>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
           <div class="tk-card-footer">
             <div class="d-flex align-items-center gap-1">
               <?php if ($t['due_date']): ?>
@@ -64,6 +74,16 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
               <?php if ($t['st_total'] > 0): ?>
               <span class="tk-card-st" title="Podzadania">
                 <i class="bi bi-check2-square" aria-hidden="true"></i> <?= (int)$t['st_done'] ?>/<?= (int)$t['st_total'] ?>
+              </span>
+              <?php endif; ?>
+              <?php if ((int)($t['file_count'] ?? 0) > 0): ?>
+              <span class="tk-card-st" title="Pliki" aria-label="<?= (int)$t['file_count'] ?> plików">
+                <i class="bi bi-paperclip" aria-hidden="true"></i> <?= (int)$t['file_count'] ?>
+              </span>
+              <?php endif; ?>
+              <?php if ((int)($t['comment_count'] ?? 0) > 0): ?>
+              <span class="tk-card-st" title="Komentarze" aria-label="<?= (int)$t['comment_count'] ?> komentarzy">
+                <i class="bi bi-chat-left-text" aria-hidden="true"></i> <?= (int)$t['comment_count'] ?>
               </span>
               <?php endif; ?>
             </div>

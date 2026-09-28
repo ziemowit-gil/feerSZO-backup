@@ -79,6 +79,13 @@ if ($ws_id) {
             $lists_map[$l['id']] = $l;
         }
 
+        // Pliki z Koszulek (ws_task_files) liczone tylko, gdy tabela istnieje — powstaje
+        // leniwie przy pierwszym użyciu modułu Koszulek, więc nie w każdej bazie.
+        $has_ws_task_files = (bool)db_one("SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name='ws_task_files'");
+        $ws_files_sql = $has_ws_task_files
+            ? "(SELECT COUNT(*) FROM ws_task_files wtf WHERE wtf.task_id = t.id)"
+            : "0";
+
         // Wszystkie zadania płasko
         $tasks_raw = db_all(
             "SELECT t.*,
@@ -89,7 +96,9 @@ if ($ws_id) {
                     ou.short_name AS unit_short,
                     (SELECT COUNT(*) FROM task_assignments ta WHERE ta.task_id = t.id)            AS assignee_count,
                     (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id)             AS st_total,
-                    (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id AND ts.is_done=1) AS st_done
+                    (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id AND ts.is_done=1) AS st_done,
+                    (SELECT COUNT(*) FROM task_files      tf WHERE tf.task_id = t.id) + {$ws_files_sql}  AS file_count,
+                    (SELECT COUNT(*) FROM task_comments   tc WHERE tc.task_id = t.id AND tc.deleted_at IS NULL) AS comment_count
              FROM tasks t
              JOIN task_lists tl ON tl.id = t.list_id
              LEFT JOIN org_units ou ON ou.id = t.unit_id
