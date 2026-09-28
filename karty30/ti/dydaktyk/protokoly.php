@@ -34,6 +34,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: protokoly.php'); exit;
     }
 
+    if ($op === 'approve_month') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        $ym  = (string)($_POST['year_month'] ?? '');
+        try {
+            if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym)) throw new \RuntimeException('Nieprawidłowe dane protokołu.');
+            $prot = ti_protocol_get_or_create_for_month($cid, $ym);
+            ti_protocol_approve((int)$prot['id'], $uid, $me_name);
+            flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: protokoly.php'); exit;
+    }
+
     if ($op === 'approve_all') {
         // Świeża lista — nie ufamy temu, co przeglądarka wysłała w POST,
         // bo od otwarcia strony ktoś inny mógł już część protokołów zatwierdzić.
@@ -48,6 +62,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $reasons[] = $r['course_name'] . ': ' . $e->getMessage();
             }
         }
+        foreach (ti_protocols_overdue_months() as $r) {
+            try {
+                $prot = ti_protocol_get_or_create_for_month((int)$r['course_id'], (string)$r['year_month']);
+                ti_protocol_approve((int)$prot['id'], $uid, $me_name);
+                $ok++;
+            } catch (\Throwable $e) {
+                $skip++;
+                $reasons[] = $r['course_name'] . ' (' . $r['year_month'] . '): ' . $e->getMessage();
+            }
+        }
         $msg = $ok > 0 ? "Zatwierdzono {$ok} " . ($ok === 1 ? 'protokół' : 'protokołów') . '.' : 'Nie zatwierdzono żadnego protokołu.';
         if ($skip) $msg .= " Pominięto {$skip}: " . implode('; ', array_slice($reasons, 0, 5));
         flash_set($skip && !$ok ? 'danger' : ($skip ? 'warning' : 'success'), $msg);
@@ -55,7 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$overdue = ti_protocols_overdue();
+$overdue    = ti_protocols_overdue();
+$overdue_m  = ti_protocols_overdue_months();
+$overdue_n  = count($overdue) + count($overdue_m);
 
 $KP_TITLE  = 'Zaległe protokoły — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $me_name, 'logout' => 'logout.php'];
@@ -74,30 +100,32 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h1 class="h4 mb-0 fw-bold"><i class="bi bi-exclamation-octagon text-danger me-2" aria-hidden="true"></i>Zaległe protokoły</h1>
-  <span class="badge bg-danger"><?= count($overdue) ?></span>
+  <span class="badge bg-danger"><?= $overdue_n ?></span>
 </div>
 
 <p class="text-body-secondary small mb-3">
-  Protokoły, których okres nauczania już się skończył, a prowadzący nie zdążył ich zatwierdzić.
+  Protokoły, których okres nauczania lub miesiąc już się skończył, a prowadzący nie zdążył ich zatwierdzić.
   Zatwierdzenie tutaj zapisuje w protokole, że zrobił to kierownik/pracownik D3, nie prowadzący.
 </p>
 
-<?php if (!$overdue): ?>
+<?php if (!$overdue_n): ?>
 <div class="alert alert-success d-flex align-items-center gap-2" role="status">
   <i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i>
   <span>Brak zaległych protokołów — wszystkie za zakończone okresy są zatwierdzone.</span>
 </div>
 <?php else: ?>
 
-<form method="post" class="mb-2" onsubmit="return confirm('Zatwierdzić wszystkie <?= count($overdue) ?> zaległe protokoły naraz? Tej operacji nie można cofnąć.')">
+<form method="post" class="mb-2" onsubmit="return confirm('Zatwierdzić wszystkie <?= $overdue_n ?> zaległe protokoły naraz? Tej operacji nie można cofnąć.')">
   <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
   <input type="hidden" name="_op" value="approve_all">
   <button type="submit" class="btn btn-danger btn-sm">
-    <i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź wszystkie zaległe (<?= count($overdue) ?>)
+    <i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź wszystkie zaległe (<?= $overdue_n ?>)
   </button>
 </form>
 
-<div class="card border-0 shadow-sm">
+<?php if ($overdue): ?>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header fw-semibold">Protokoły za okresy nauczania</div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
       <thead>
@@ -135,6 +163,47 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </table>
   </div>
 </div>
+<?php endif; ?>
+
+<?php if ($overdue_m): ?>
+<div class="card border-0 shadow-sm">
+  <div class="card-header fw-semibold">Protokoły miesięczne</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Kurs</th>
+          <th>Prowadzący</th>
+          <th>Miesiąc</th>
+          <th>Zaległość</th>
+          <th class="text-end">Akcja</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($overdue_m as $r): ?>
+        <tr>
+          <td><?= h($r['course_name']) ?></td>
+          <td><?= h($r['instructor_name'] ?: '—') ?></td>
+          <td class="text-nowrap"><?= h($r['year_month']) ?><?php if (!$r['protocol_id']): ?> <span class="text-body-secondary small">(nieotwarty)</span><?php endif; ?></td>
+          <td><span class="badge text-bg-warning"><?= (int)$r['days_overdue'] ?> dni</span></td>
+          <td class="text-end">
+            <form method="post" class="d-inline" onsubmit="return confirm('Zatwierdzić protokół „<?= h(addslashes($r['course_name'])) ?>” za <?= h($r['year_month']) ?>?')">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="approve_month">
+              <input type="hidden" name="course_id" value="<?= (int)$r['course_id'] ?>">
+              <input type="hidden" name="year_month" value="<?= h($r['year_month']) ?>">
+              <button type="submit" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-check2 me-1" aria-hidden="true"></i>Zatwierdź
+              </button>
+            </form>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
 <?php endif; ?>
 
 </div>

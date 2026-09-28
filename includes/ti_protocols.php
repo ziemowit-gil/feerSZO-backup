@@ -320,6 +320,45 @@ function ti_protocols_overdue(): array {
     );
 }
 
+/**
+ * Zaległe protokoły MIESIĘCZNE (widok kierownika): kurs × zakończony miesiąc
+ * z odbytą lekcją, bez zatwierdzonego protokołu miesięcznego. protocol_id jest
+ * null, gdy prowadzący nawet nie otworzył protokołu (zakładany przy zatwierdzeniu).
+ *
+ * Liczymy od najwcześniejszego miesiąca, dla którego w systemie w ogóle istnieje
+ * protokół miesięczny (start trybu miesięcznego) — wcześniejsza historia była
+ * rozliczana protokołami per okres. Miesiąc objęty w całości zatwierdzonym
+ * protokołem za okres też nie jest zaległy.
+ */
+function ti_protocols_overdue_months(): array {
+    ti_protocols_migrate();
+    $start = (string)(db_one("SELECT MIN(year_month) AS m FROM k30_ti_protocols WHERE year_month != ''")['m'] ?? '');
+    if ($start === '') return [];
+    return db_all(
+        "SELECT x.course_id, x.course_name, x.instructor_name, x.year_month, p.id AS protocol_id,
+                x.year_month || '-01' AS date_from,
+                date(x.year_month || '-01', '+1 month', '-1 day') AS date_to,
+                CAST(julianday('now','localtime') - julianday(date(x.year_month || '-01', '+1 month', '-1 day')) AS INTEGER) AS days_overdue
+           FROM (SELECT s.course_id, c.name AS course_name, COALESCE(u.name,'') AS instructor_name,
+                        strftime('%Y-%m', s.lesson_date) AS year_month
+                   FROM k30_ti_sessions s
+                   JOIN k30_ti_courses c ON c.id = s.course_id
+                   LEFT JOIN users u     ON u.id = c.instructor_id
+                  WHERE s.status IN ('held','individual_change','remote_material')
+                  GROUP BY s.course_id, strftime('%Y-%m', s.lesson_date)) x
+           LEFT JOIN k30_ti_protocols p ON p.course_id = x.course_id AND p.year_month = x.year_month
+          WHERE x.year_month >= ? AND x.year_month < strftime('%Y-%m', 'now', 'localtime')
+            AND (p.id IS NULL OR p.status = 'open')
+            AND NOT EXISTS (
+                SELECT 1 FROM k30_ti_protocols pp JOIN k30_ti_periods per ON per.id = pp.period_id
+                 WHERE pp.course_id = x.course_id AND pp.status = 'approved'
+                   AND per.date_from <= x.year_month || '-01'
+                   AND per.date_to   >= date(x.year_month || '-01', '+1 month', '-1 day'))
+          ORDER BY x.year_month, x.course_name",
+        [$start]
+    );
+}
+
 function ti_protocol_get(int $id): ?array {
     ti_protocols_migrate();
     if (!$id) return null;
