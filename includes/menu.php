@@ -250,6 +250,8 @@ function _menu_viewer(): array {
         $search[] = _mi('Rozwiązanie umowy','/panel/terminations.php','bi-file-earmark-x',['match'=>'/panel/terminations']);
     if (module_enabled('timesheets_enabled') && panel_visible('godziny'))
         $search[] = _mi('Ewidencja godzin','/panel/timesheets.php','bi-clock-history',['match'=>'/panel/timesheets','kw'=>'godziny czas']);
+    if (module_enabled('smart_cards_enabled'))
+        $search[] = _mi('Moja karta dostępu','/modules/smart_cards/my.php','bi-person-badge',['match'=>'/modules/smart_cards/my','kw'=>'karta dostępu identyfikator nfc wniosek biuro']);
     $search[] = _mi('Microsoft 365','/panel/m365.php','bi-microsoft',['match'=>'/panel/m365','kw'=>'m365 office']);
     $search[] = _mi('Sesje i bezpieczeństwo','/panel/sessions.php','bi-shield-lock',['match'=>'/panel/sessions']);
     $search[] = _mi('Ustawienia konta','/panel/password.php','bi-gear',['match'=>'/panel/password','kw'=>'hasło 2fa ustawienia']);
@@ -346,6 +348,8 @@ function _menu_editor(): array {
     $fin[] = _mi('Zasoby','/modules/srs/','bi-box-seam',['match'=>'/modules/srs/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt srs']);
     if (module_enabled('holograms_enabled') && in_array(current_user()['role'] ?? '', ['admin','editor'], true))
         $fin[] = _mi('Hologramy','/modules/holograms/index.php','bi-patch-check',['match'=>'/modules/holograms/','kw'=>'hologramy naklejki zabezpieczające plomby sprzęt dokumenty']);
+    if (module_enabled('smart_cards_enabled') && in_array(current_user()['role'] ?? '', ['admin','editor'], true))
+        $fin[] = _mi('Karty dostępu','/modules/smart_cards/index.php','bi-credit-card-2-front',['match'=>'/modules/smart_cards/','kw'=>'karty dostępu nfc identyfikatory strefy biuro wnioski programator']);
     if ($cnt['has_shipping'])
         $fin[] = _mi('Przesyłki','/admin/shipments.php','bi-truck',['match'=>'/admin/shipments','badge'=>$cnt['ship'],'kw'=>'przesyłki kurier apaczka']);
     $nodes[] = [
