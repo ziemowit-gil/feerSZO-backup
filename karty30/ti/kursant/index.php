@@ -1047,10 +1047,15 @@ $sms_phone      = trim((string)($client['phone'] ?? ''));
 $sms_global_on  = function_exists('sms_channel_ready') && sms_channel_ready();
 
 // Komunikaty placówki — licznik nieprzeczytanych
-$notices_unread = ti_notices_unread_count((int)$student['id']);
+// Plakietki paska — cache Redis 1 min w grupie 'ti' (unieważniana po każdym
+// zapisie w TI); na zakładkach Komunikaty/Wiadomości zawsze na świeżo.
+$_kp_tab_now   = (string)($_GET['tab'] ?? '');
+$notices_unread = (int)szo_cache_remember(szo_cache_gkey('ti', 'kp_notices_unread:s' . (int)$student['id']), 60,
+    fn() => ti_notices_unread_count((int)$student['id']), $_kp_tab_now === 'komunikaty');
 
 // Wiadomości — licznik nieprzeczytanych + ustawienia powiadomień
-$msg_unread     = ti_msg_unread_for_student((int)$student['id']);
+$msg_unread     = (int)szo_cache_remember(szo_cache_gkey('ti', 'kp_msg_unread:s' . (int)$student['id']), 60,
+    fn() => ti_msg_unread_for_student((int)$student['id']), $_kp_tab_now === 'wiadomosci');
 $msg_pref_email = (int)($account['notify_email_messages'] ?? 1);
 $msg_pref_sms   = (int)($account['notify_sms_messages'] ?? 0);
 $msg_blocked    = (bool)($account['msg_blocked'] ?? false);
@@ -1072,7 +1077,9 @@ $months_pl  = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',
 $KP_TITLE  = 'Panel kursanta';
 
 // Centrum powiadomień — feed na żywo + dzwonek w pasku
-$notif_items  = k30_ti_notifications_for_client((int)$student['client_id'], (int)$student['id']);
+$notif_items  = szo_cache_remember(szo_cache_gkey('ti', 'kp_notif:c' . (int)$student['client_id'] . ':s' . (int)$student['id']), 60,
+    fn() => k30_ti_notifications_for_client((int)$student['client_id'], (int)$student['id']));
+if (!is_array($notif_items)) $notif_items = [];
 $notif_seen   = k30_ti_notif_seen_at((int)$student['id']);
 $notif_unread = k30_ti_notif_unread_count($notif_items, $notif_seen);
 ob_start(); ?>
@@ -1131,7 +1138,8 @@ $KP_TOPBAR = [
     'extra'  => $kur_ui_switch,
 ];
 // VAPID public key — przekazywany do JS przez data-atrybut na <body>
-$_vapid = push_vapid_keys();
+// Klucze VAPID są stałe — cache 1 h (2 odczyty ustawień M365 mniej na stronę).
+$_vapid = szo_cache_remember('push_vapid_public', 3600, fn() => ['public' => push_vapid_keys()['public'] ?? '']);
 $vapid_public_key = $_vapid['public'];
 $KP_BODY_CLASS = ($KP_BODY_CLASS ?? '');
 // Ekran wymuszonej zmiany hasła to wąska karta na środku — skórki tam nie

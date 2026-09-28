@@ -149,11 +149,14 @@ function _k30_active(string $path): bool {
 
   <!-- ══ Menu modułu (panel boczny — układ jak w panelu dydaktyka) ═════════ -->
   <?php
-  $_k30_wait_count = 0;
-  try {
-      $r = db_one("SELECT COUNT(*) AS c FROM k30_waiting_list WHERE status IN ('waiting','contacted')");
-      $_k30_wait_count = (int)($r['c'] ?? 0);
-  } catch (\Throwable $e) {}
+  // Licznik listy oczekujących — globalny; cache Redis 1 min w grupie 'ti'
+  // (unieważniana po każdym zapisie w TI).
+  $_k30_wait_count = (int)szo_cache_remember(szo_cache_gkey('ti', 'k30_wait_count'), 60, function (): int {
+      try {
+          $r = db_one("SELECT COUNT(*) AS c FROM k30_waiting_list WHERE status IN ('waiting','contacted')");
+          return (int)($r['c'] ?? 0);
+      } catch (\Throwable $e) { return 0; }
+  });
 
   /**
    * Spec menu bocznego: 'section' (nagłówek), 'sep' (linia), 'link' (pozycja).

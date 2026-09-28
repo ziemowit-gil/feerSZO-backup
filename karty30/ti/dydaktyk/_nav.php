@@ -106,7 +106,8 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         // „Pracujesz jako: …” widoczne wprost w pasku (dawniej akapit w treści
         // index.php); link do zmiany roli — gdy kierownik ma własne grupy albo
         // pracuje w zastępstwie (choose_context.php).
-        $own = function_exists('k30_ti_instructor_courses') ? k30_ti_instructor_courses((int)$s['user_id'], false) : [];
+        $own = function_exists('dyd_own_courses_cached') ? dyd_own_courses_cached((int)$s['user_id'])
+             : (function_exists('k30_ti_instructor_courses') ? k30_ti_instructor_courses((int)$s['user_id'], false) : []);
         $ctx = function_exists('dyd_ctx_role') ? dyd_ctx_role() : '';
         if ($acting) {
             $work_as = ['label' => 'Prowadzący — w zastępstwie: ' . (string)($tb['user'] ?? ''), 'icon' => 'person-video2',

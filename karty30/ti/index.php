@@ -25,7 +25,8 @@ karty30_migrate();
 
 $PAGE_TITLE = 'Zajęcia TI — Dydaktyka 3';
 $can_write  = can_write('karty30') || is_admin();
-$msg_unread_staff = ti_msg_unread_for_staff();
+// Globalny licznik nieprzeczytanych od kursantów — cache Redis 1 min w grupie 'ti'.
+$msg_unread_staff = (int)szo_cache_remember(szo_cache_gkey('ti', 'msg_unread_staff'), 60, fn() => ti_msg_unread_for_staff());
 $can_delete = is_admin(); // usuwanie kursów — tylko administrator (globalnie)
 
 // Miękkie usuwanie kursu (status='cancelled') — tylko admin

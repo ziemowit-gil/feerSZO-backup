@@ -307,6 +307,19 @@ function dyd_courses(int $uid): array {
 }
 
 /**
+ * Własne grupy prowadzącego (także współprowadzone) dla paska i przełącznika —
+ * raz na żądanie, między żądaniami cache Redis 2 min w grupie 'ti'.
+ */
+function dyd_own_courses_cached(int $uid): array {
+    static $memo = [];
+    if (isset($memo[$uid])) return $memo[$uid];
+    $r = function_exists('szo_cache_remember')
+        ? szo_cache_remember(szo_cache_gkey('ti', 'dyd_own_courses:u' . $uid), 120, fn() => k30_ti_instructor_courses($uid, false))
+        : k30_ti_instructor_courses($uid, false);
+    return $memo[$uid] = is_array($r) ? $r : [];
+}
+
+/**
  * Czy panel dydaktyka jest włączony (domyślnie tak).
  * Dwa niezależne mechanizmy: ręczny przełącznik oraz zaplanowane okno
  * wyłączenia ([[includes/ti_blackout.php]]), które działa samo po datach.

@@ -37,6 +37,21 @@ function app_version(): array {
 
     $base = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__);
 
+    // Cache Redis (stopka każdej strony = 5 wywołań gita). Klucz zmienia się
+    // z commitem, nowym tagiem i min_version.txt, więc TTL może być długi.
+    if (function_exists('szo_cache_remember')) {
+        $gh  = app_git_head($base);
+        $key = 'app_version:' . md5($gh['hash'] . '|' . @filemtime($base . '/.git/packed-refs') . '|'
+             . @filemtime($base . '/.git/refs/tags') . '|' . @filemtime($base . '/min_version.txt'));
+        $c = szo_cache_remember($key, 86400, fn() => _app_version_compute($base));
+        if (is_array($c) && isset($c['label'])) return $v = $c;
+    }
+    return $v = _app_version_compute($base);
+}
+
+/** Właściwe odczytanie wersji z gita / plików (bez cache). */
+function _app_version_compute(string $base): array {
+
     // Główne źródło prawdy: ostatni git tag pasujący do v* (np. v12.1b → 12.1b).
     // Fallback: APP_VERSION z config.php / min_version.txt.
     $git_tag = trim(szo_shell("cd " . escapeshellarg($base) . " && git describe --tags --match 'v*' --abbrev=0 2>/dev/null") ?: '');
@@ -67,7 +82,7 @@ function app_version(): array {
         if ($branch === '') $branch = $gh['branch'];
     }
 
-    $v = [
+    return [
         'main'      => $main_ver  ?: '1.0',           // z min_version.txt
         'hash'      => $hash      ?: 'unknown',        // short git hash
         'hash_full' => $hash_full ?: '',
@@ -76,7 +91,6 @@ function app_version(): array {
         'label'     => ($main_ver ? 'v' . $main_ver . ' ' : '') . ($hash ?: 'unknown'),
         'full'      => ($main_ver ? 'v' . $main_ver : '') . ($hash ? ' (' . $hash . ')' : ''),
     ];
-    return $v;
 }
 
 /**

@@ -159,13 +159,78 @@ function szo_cache_del(string $key): void {
     try { _szo_redis_cmd($c, 'DEL', [$c['prefix'] . $key]); } catch (\Throwable $e) {}
 }
 
-/** Wartość z cache albo policzona przez $fn (i zapisana na $ttl sekund). */
-function szo_cache_remember(string $key, int $ttl, callable $fn) {
+/**
+ * Wartość z cache albo policzona przez $fn (i zapisana na $ttl sekund).
+ * $fresh = true — policz na świeżo i USUŃ klucz (np. strona, która sama zmienia
+ * te dane, jak otwarcie wątku oznaczające wiadomości jako przeczytane).
+ */
+function szo_cache_remember(string $key, int $ttl, callable $fn, bool $fresh = false) {
+    if ($fresh) { $v = $fn(); szo_cache_del($key); return $v; }
     $v = szo_cache_get($key, $hit);
     if ($hit) return $v;
     $v = $fn();
     szo_cache_set($key, $v, $ttl);
     return $v;
+}
+
+/* ── Grupy kluczy unieważniane hurtem ───────────────────────────────────────
+ * Klucz grupowy zawiera numer „pokolenia” grupy (gen:<grupa> w Redisie).
+ * szo_cache_bump() podbija numer — wszystkie stare klucze grupy przestają być
+ * czytane i same wygasają po TTL. Bez SCAN, bez listy kluczy.
+ *
+ * Automatycznie (na końcu żądania zapisującego: POST/PUT/PATCH/DELETE):
+ *   • 'menu' — każde żądanie zapisujące (liczniki w menu/launcherze),
+ *   • 'ti'   — zapisy w TI (panel admina, prowadzącego, kursanta, API kursanta,
+ *              rozliczenia) — paski i przełączniki grup w TI.
+ * Dzięki temu po zapisie + przekierowaniu nagłówek jest od razu aktualny,
+ * a TTL zabezpiecza zmiany spoza WWW (cron, CLI).
+ */
+const SZO_CACHE_WRITE_GROUPS = [
+    'menu' => [''],
+    'ti'   => ['/karty30/', '/api/v1/kursant', '/api/v1/karty30', '/rozliczenia/'],
+];
+
+function _szo_cache_gen(string $group, ?string $set = null): string {
+    static $gen = [];
+    if ($set !== null) return $gen[$group] = $set;
+    if (isset($gen[$group])) return $gen[$group];
+    $gen[$group] = '0';
+    if ($c = szo_redis()) {
+        try {
+            $v = _szo_redis_cmd($c, 'GET', [$c['prefix'] . 'gen:' . $group]);
+            if ($v !== null && $v !== false) $gen[$group] = (string)$v;
+        } catch (\Throwable $e) {}
+    }
+    return $gen[$group];
+}
+
+/** Klucz w grupie: g:<grupa>:<pokolenie>:<nazwa>. */
+function szo_cache_gkey(string $group, string $name): string {
+    return 'g:' . $group . ':' . _szo_cache_gen($group) . ':' . $name;
+}
+
+/** Unieważnia wszystkie klucze grupy (podbija pokolenie). */
+function szo_cache_bump(string $group): void {
+    $c = szo_redis(); if (!$c) return;
+    try {
+        $n = _szo_redis_cmd($c, 'INCR', [$c['prefix'] . 'gen:' . $group]);
+        _szo_cache_gen($group, (string)$n);
+    } catch (\Throwable $e) {}
+}
+
+if (PHP_SAPI !== 'cli' && in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+    // Adres i fizyczny plik — domena panelu kursanta może przepisywać ścieżki.
+    $_szo_uri = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH)
+              . '|' . str_replace('\\', '/', (string)($_SERVER['SCRIPT_FILENAME'] ?? ''));
+    foreach (SZO_CACHE_WRITE_GROUPS as $_szo_g => $_szo_paths) {
+        foreach ($_szo_paths as $_szo_p) {
+            if ($_szo_p === '' || str_contains($_szo_uri, $_szo_p)) {
+                register_shutdown_function('szo_cache_bump', $_szo_g);
+                break;
+            }
+        }
+    }
+    unset($_szo_uri, $_szo_g, $_szo_paths, $_szo_p);
 }
 
 /** Usuwa klucze z prefiksem tej instalacji (SCAN, bez KEYS). Zwraca liczbę usuniętych. */

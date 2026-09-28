@@ -69,6 +69,21 @@ function _mi(string $label, string $path, string $icon, array $opts = []): array
 function _menu_counts(): array {
     static $c = null;
     if ($c !== null) return $c;
+    // Cache Redis ~45 s na użytkownika i jego rolę (z nakładką kontekstu).
+    // Grupa 'menu' jest unieważniana po każdym zapisie (POST…), więc po akcji
+    // i przekierowaniu liczniki są od razu aktualne.
+    if (function_exists('szo_cache_remember')) {
+        $u   = function_exists('current_user') ? (current_user() ?: []) : [];
+        $key = szo_cache_gkey('menu', 'counts:u' . (int)($u['id'] ?? 0) . ':' . md5(
+            (string)($u['role'] ?? '') . '|' . (is_admin() ? 1 : 0) . '|' . (int)!empty($u['helpdesk_operator'])));
+        $r = szo_cache_remember($key, 45, '_menu_counts_compute');
+        if (is_array($r) && isset($r['pending'])) return $c = $r;
+    }
+    return $c = _menu_counts_compute();
+}
+
+/** Liczniki policzone na świeżo (bez cache). */
+function _menu_counts_compute(): array {
     $c = [
         'pending'=>0,'msg'=>0,'term'=>0,'cert'=>0,'ts'=>0,'ship'=>0,'has_shipping'=>false,
         'zwr'=>0,'rek'=>0,'ob'=>0,'res'=>0,'adm'=>0,'hd'=>0,'alias'=>0,'alias_op'=>false,

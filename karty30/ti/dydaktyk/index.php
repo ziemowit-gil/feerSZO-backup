@@ -86,16 +86,23 @@ const ZOOM_BUSY_HINT = ' Wolne terminy i wyjaśnienie pokazuje zakładka „Zaj�
 // Okno wyłączenia dziennika ocen — staff/admin prowadzą prace, więc ich nie dotyczy
 $dziennik_off = empty($me['is_staff']) ? dyd_dziennik_blackout() : null;
 
-$courses   = dyd_courses($uid);
+// Lista grup (przełącznik w pasku + dane zakładek) — cache Redis 2 min w grupie
+// 'ti' (unieważniana po każdym zapisie w TI, np. przypisaniu prowadzącego).
+$_dyd_staff = dyd_is_staff();
+$courses   = szo_cache_remember(szo_cache_gkey('ti', 'dyd_courses:u' . $uid . ':s' . (int)$_dyd_staff), 120,
+                                fn() => dyd_courses($uid));
 // Dla admina/staff: zestaw ID kursów gdzie sam jest prowadzącym lub co-prowadzącym
-$my_course_ids_set = dyd_is_staff()
-    ? array_flip(array_column(k30_ti_instructor_courses($uid, false), 'id'))
+$my_course_ids_set = $_dyd_staff
+    ? array_flip(array_column(dyd_own_courses_cached($uid), 'id'))
     : [];
 $my_leaves = ti_leaves_for_instructor($uid);   // własne urlopy: trwające + nadchodzące
 $my_avail  = ti_instructor_availability($uid);  // własne okna dostępności w tygodniu
 $_my_pending_protocols = ti_protocol_pending_months_for_instructor($uid); // protokoły miesięczne do zamknięcia
-$dyd_notices        = ti_notices_list_active_for_instructor($uid);
-$dyd_notices_unread = ti_notices_unread_count_instructor($uid);
+// Komunikaty placówki (plakietka w pasku + bramka nieprzeczytanych) — cache 1 min;
+// na zakładce Komunikaty zawsze na świeżo.
+$_dyd_fresh_notices = (($_GET['tab'] ?? '') === 'komunikaty');
+[$dyd_notices, $dyd_notices_unread] = szo_cache_remember(szo_cache_gkey('ti', 'dyd_notices:u' . $uid), 60,
+    fn() => [ti_notices_list_active_for_instructor($uid), ti_notices_unread_count_instructor($uid)], $_dyd_fresh_notices);
 $dyd_notices_admin  = dyd_is_staff() ? ti_notices_list_admin() : null;
 
 // ── Pobieranie załączników (zadania / materiały) — tylko z własnych kursów ────
@@ -1935,7 +1942,12 @@ $dyd_wizard_sessions = array_values(array_filter($dash_today, fn($s) => $s['stat
 // ── Dane dla zakładki Wiadomości ─────────────────────────────────────────────
 $dyd_msg_student_id = (int)($_GET['student'] ?? 0);
 // Wątki: tylko kursanci z kursów tego prowadzącego
-$dyd_msg_threads = $course_ids ? db_all(
+// Na zakładce Wiadomości na świeżo (otwarcie wątku oznacza przeczytane i zmienia
+// licznik); na pozostałych zakładkach wątki służą tylko plakietce — cache 1 min.
+$_dyd_fresh_msg = ($tab === 'wiadomosci');
+$dyd_msg_threads = szo_cache_remember(
+    szo_cache_gkey('ti', 'dyd_msg_threads:u' . $uid . ':' . md5(implode(',', $course_ids))), 60,
+    fn() => $course_ids ? db_all(
     "SELECT a.id, COALESCE(cl.name, a.login) AS name, a.login,
             MAX(m.created_at) AS last_at,
             SUM(CASE WHEN m.sender='student' AND m.is_read=0 THEN 1 ELSE 0 END) AS unread
@@ -1948,7 +1960,7 @@ $dyd_msg_threads = $course_ids ? db_all(
          WHERE e.course_id IN (" . implode(',', array_map('intval', $course_ids)) . ") AND e.status='active'
      )
      GROUP BY a.id ORDER BY last_at DESC"
-) : [];
+) : [], $_dyd_fresh_msg);
 $dyd_msg_unread_total = array_sum(array_column($dyd_msg_threads, 'unread'));
 // Kursanci tego prowadzącego (do selecta nowej wiadomości)
 $dyd_msg_accounts = $course_ids ? db_all(
@@ -1975,7 +1987,8 @@ $dyd_admin_to_raw     = (string)($_GET['to_admin'] ?? '');
 $dyd_admin_active_id  = ($dyd_admin_to_raw === '-1') ? -1 : (int)$dyd_admin_to_raw; // aktywny wątek
 $dyd_admin_users      = ti_admin_users();
 $dyd_admin_threads    = ti_admin_msg_thread_list($uid);  // istniejące wątki (po jednym na to_admin_id)
-$dyd_admin_unseen     = ti_admin_msg_unseen_total($uid); // łączna liczba niewidzianych
+$dyd_admin_unseen     = (int)szo_cache_remember(szo_cache_gkey('ti', 'dyd_admin_unseen:u' . $uid), 60,
+                           fn() => ti_admin_msg_unseen_total($uid), $_dyd_fresh_msg); // łączna liczba niewidzianych
 $dyd_admin_thread     = ($dyd_thread_is_admin)
     ? ti_admin_msg_list_for_thread($uid, $dyd_admin_active_id) : [];
 if ($dyd_thread_is_admin) ti_admin_msg_mark_instructor_seen($uid, $dyd_admin_active_id);
