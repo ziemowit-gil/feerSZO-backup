@@ -220,7 +220,8 @@ function task_notify_due(int $task_id, string $event): void {
         _tn_inapp($uid, 'Termin zadania ' . $due_label . ': ' . $task['title'],
             $due_str ? 'Termin: ' . $due_str : '', $task_id);
 
-        if (($pref[$event] ?? 1)) {
+        // Preferencje mają klucze notify_due_1day / notify_due_today, zdarzenie to due_1day / due_today
+        if (($pref['notify_' . $event] ?? 1)) {
             $subject = 'Termin zadania ' . ($event === 'due_today' ? 'dzisiaj' : 'jutro') . ': ' . $task['title'];
             $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
                 . '<p>Termin poniższego zadania upływa <strong>' . $due_label . ($due_str ? ' (' . $due_str . ')' : '') . '</strong>.</p>'
