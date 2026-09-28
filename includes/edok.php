@@ -1333,7 +1333,7 @@ function edok_ipko_biznes_export(array $docs, string $rachunek_zlecen_nrb): stri
     $bank_z = substr($nrb_z, 2, 8);
 
     $konto = null;
-    foreach (edok_rachunki_list() as $r) if ($r['nrb'] === $nrb_z) { $konto = $r; break; }
+    foreach (edok_rachunki_list() as $r) if (preg_replace('/\D/', '', (string) $r['nrb']) === $nrb_z) { $konto = $r; break; }
     $nazwa_zlec = (($konto['nazwa'] ?? '') !== '') ? $konto['nazwa'] : (defined('ORG_NAME') ? ORG_NAME : '');
     $adres_zlec = (($konto['adres'] ?? '') !== '') ? $konto['adres'] : (string) org_setting('org_adres');
 
@@ -1397,7 +1397,7 @@ function edok_millenet_export(array $docs, string $rachunek_zlecen_nrb): string 
     $bank_z = substr($nrb_z, 2, 8);
 
     $konto = null;
-    foreach (edok_rachunki_list() as $r) if ($r['nrb'] === $nrb_z) { $konto = $r; break; }
+    foreach (edok_rachunki_list() as $r) if (preg_replace('/\D/', '', (string) $r['nrb']) === $nrb_z) { $konto = $r; break; }
     $nazwa_zlec = (($konto['nazwa'] ?? '') !== '') ? $konto['nazwa'] : (defined('ORG_NAME') ? ORG_NAME : '');
     $adres_zlec = (($konto['adres'] ?? '') !== '') ? $konto['adres'] : (string) org_setting('org_adres');
     $q = fn(string $s): string => '"' . $s . '"';

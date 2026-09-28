@@ -56,16 +56,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pakie
 // Eksport przelewów zbiorczych do iPKO biznes (format ELIXIR-O) — tylko EODoK,
 // tylko dokumenty wydatkowe zaakceptowane z prawidłowym 26-cyfrowym rachunkiem
 // kontrahenta (edok_ipko_biznes_export() pomija resztę). Patrz includes/edok.php.
+// Każdy dokument może iść z innego rachunku organizacji (rachunek_map: id => NRB,
+// brak wpisu = rachunek domyślny z paska) — jeden plik ELIXIR-O na rachunek
+// nadawcy, przy kilku rachunkach pakowane razem w ZIP.
 $ipko_error   = null;
 $ipko_confirm = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'export_ipko') {
     csrf_check();
     $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['pakiet_ids'] ?? '')))));
-    $rachunek_zlecen = trim($_POST['rachunek_zlecen'] ?? '');
+    $rachunek_zlecen = preg_replace('/\D/', '', $_POST['rachunek_zlecen'] ?? '');
+    $rachunki_ok = [];
+    foreach (edok_rachunki_list() as $r) $rachunki_ok[preg_replace('/\D/', '', $r['nrb'])] = $r;
+    $rachunek_map = [];
+    foreach ((array) json_decode($_POST['rachunek_map'] ?? '{}', true) as $doc_id => $nrb) {
+        $nrb = preg_replace('/\D/', '', (string) $nrb);
+        if ($nrb !== '' && isset($rachunki_ok[$nrb])) $rachunek_map[(int) $doc_id] = $nrb;
+    }
+    $bez_rachunku = array_filter($ids, fn($id) => !isset($rachunek_map[$id]));
     if (!$ids) {
         flash_set('warning', 'Zaznacz co najmniej jeden dokument do eksportu.');
-    } elseif ($rachunek_zlecen === '') {
-        flash_set('warning', 'Wybierz rachunek, z którego mają pójść przelewy.');
+    } elseif ($bez_rachunku && !isset($rachunki_ok[$rachunek_zlecen])) {
+        flash_set('warning', 'Wybierz rachunek, z którego mają pójść przelewy (domyślny albo przy każdym dokumencie).');
     } else {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $docs = db_all(
@@ -78,20 +89,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'expor
         $confirmed  = array_flip((array)($_POST['confirm_pair'] ?? []));
         $missing    = array_diff_key($unverified, $confirmed);
         if ($missing) {
-            $ipko_confirm = ['pairs' => $unverified, 'ids' => $ids, 'rachunek' => $rachunek_zlecen];
+            $ipko_confirm = ['pairs' => $unverified, 'ids' => $ids, 'rachunek' => $rachunek_zlecen, 'map' => $rachunek_map];
             if (!empty($_POST['confirm_step'])) flash_set('warning', 'Potwierdź poprawność NIP i numeru rachunku dla każdego kontrahenta.');
         } else {
             foreach ($unverified as $p) edok_kontrahent_verify($p['nip'], $p['nrb'], $p['nazwa']);
         }
         if (!$missing) try {
-            $content = edok_ipko_biznes_export($docs, $rachunek_zlecen);
-            if ($content === '') {
+            $grupy = [];
+            foreach ($docs as $doc) $grupy[$rachunek_map[(int) $doc['id']] ?? $rachunek_zlecen][] = $doc;
+            $stamp = date('Y-m-d_His');
+            $pliki = [];
+            foreach ($grupy as $nrb => $grupa) {
+                $content = edok_ipko_biznes_export($grupa, (string) $nrb);
+                if ($content === '') continue;
+                $nazwa = $rachunki_ok[$nrb]['nazwa'] ?? '' ?: ($rachunki_ok[$nrb]['bank'] ?? '');
+                $slug  = trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $nazwa) ?: ''), '_');
+                $pliki['iPKO_biznes_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . '_' . $stamp . '.txt'] = $content;
+            }
+            if (!$pliki) {
                 flash_set('warning', 'Żaden z zaznaczonych dokumentów nie nadaje się do eksportu (brak prawidłowego 26-cyfrowego rachunku kontrahenta).');
-            } else {
+            } elseif (count($pliki) === 1) {
                 header('Content-Type: text/plain; charset=ISO-8859-2');
-                header('Content-Disposition: attachment; filename="iPKO_biznes_' . date('Y-m-d_His') . '.txt"');
-                header('Content-Length: ' . strlen($content));
-                echo $content;
+                header('Content-Disposition: attachment; filename="' . array_key_first($pliki) . '"');
+                header('Content-Length: ' . strlen(reset($pliki)));
+                echo reset($pliki);
+                exit;
+            } else {
+                $tmp = tempnam(sys_get_temp_dir(), 'ipko');
+                $zip = new ZipArchive();
+                if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) throw new RuntimeException('Nie udało się utworzyć archiwum ZIP.');
+                foreach ($pliki as $fn => $c) $zip->addFromString($fn, $c);
+                $zip->close();
+                header('Content-Type: application/zip');
+                header('Content-Disposition: attachment; filename="iPKO_biznes_' . $stamp . '.zip"');
+                header('Content-Length: ' . filesize($tmp));
+                readfile($tmp);
+                @unlink($tmp);
                 exit;
             }
         } catch (\Throwable $e) {
@@ -166,6 +199,7 @@ require_once __DIR__ . '/../includes/header.php';
   <input type="hidden" name="confirm_step" value="1">
   <input type="hidden" name="pakiet_ids" value="<?= h(implode(',', $ipko_confirm['ids'])) ?>">
   <input type="hidden" name="rachunek_zlecen" value="<?= h($ipko_confirm['rachunek']) ?>">
+  <input type="hidden" name="rachunek_map" value="<?= h(json_encode((object) $ipko_confirm['map'])) ?>">
   <div class="card-header bg-warning-subtle fw-semibold">
     <i class="bi bi-shield-exclamation"></i> Pierwszy przelew — potwierdź dane kontrahenta
   </div>
@@ -208,6 +242,7 @@ require_once __DIR__ . '/../includes/header.php';
   <input type="hidden" name="action" value="export_ipko">
   <input type="hidden" name="pakiet_ids" id="ipko_pakiet_ids">
   <input type="hidden" name="rachunek_zlecen" id="ipko_rachunek_zlecen">
+  <input type="hidden" name="rachunek_map" id="ipko_rachunek_map">
 </form>
 
 <form method="get" class="card shadow-sm mb-3">
@@ -265,7 +300,7 @@ require_once __DIR__ . '/../includes/header.php';
   <?php if ($rachunki_org): ?>
   <span class="text-muted">·</span>
   <select id="ipko_rachunek_select" class="form-select form-select-sm" style="width:auto" title="Rachunek, z którego mają pójść przelewy">
-    <option value="">— rachunek nadawcy —</option>
+    <option value="">— domyślny rachunek nadawcy —</option>
     <?php foreach ($rachunki_org as $r): ?>
     <option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr($r['nrb'], -4)) ?>)</option>
     <?php endforeach; ?>
@@ -276,7 +311,7 @@ require_once __DIR__ . '/../includes/header.php';
   <?php endif; ?>
 </div>
 <?php if ($rachunki_org): ?>
-<p class="text-muted small">Eksport do iPKO biznes: plik przelewów zbiorczych (ELIXIR-O) — zaimportuj go w iPKO biznes i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta.</p>
+<p class="text-muted small">Eksport do iPKO biznes: plik przelewów zbiorczych (ELIXIR-O) — zaimportuj go w iPKO biznes i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
 <?php endif; ?>
 
 <?php if ($sumy): ?>
@@ -316,6 +351,7 @@ require_once __DIR__ . '/../includes/header.php';
           <th class="text-center">MPP</th>
           <th>Klasyfikacja</th>
           <th>Status płatności</th>
+          <?php if ($rachunki_org): ?><th>Z rachunku</th><?php endif; ?>
           <th></th>
         </tr>
       </thead>
@@ -369,6 +405,18 @@ require_once __DIR__ . '/../includes/header.php';
               </select>
             </form>
           </td>
+          <?php if ($rachunki_org): ?>
+          <td>
+            <?php if ($r['source'] === 'edok'): ?>
+            <select class="form-select form-select-sm ipko-row-rachunek" data-id="<?= (int)$r['id'] ?>" style="width:auto" title="Rachunek nadawcy dla tego dokumentu">
+              <option value="">domyślny</option>
+              <?php foreach ($rachunki_org as $ro): ?>
+              <option value="<?= h($ro['nrb']) ?>"><?= h($ro['nazwa'] ?: $ro['bank']) ?> (…<?= h(substr($ro['nrb'], -4)) ?>)</option>
+              <?php endforeach; ?>
+            </select>
+            <?php endif; ?>
+          </td>
+          <?php endif; ?>
         </tr>
       <?php endforeach; ?>
       </tbody>
@@ -402,9 +450,15 @@ function edokPakietSubmit() {
 }
 function edokIpkoSubmit() {
   var rachunek = document.getElementById('ipko_rachunek_select');
-  if (!rachunek || !rachunek.value) { alert('Wybierz rachunek, z którego mają pójść przelewy.'); return; }
-  document.getElementById('ipko_pakiet_ids').value = edokSelectedIds().join(',');
-  document.getElementById('ipko_rachunek_zlecen').value = rachunek.value;
+  var ids = edokSelectedIds(), map = {}, bezRachunku = false;
+  ids.forEach(function (id) {
+    var sel = document.querySelector('.ipko-row-rachunek[data-id="' + id + '"]');
+    if (sel && sel.value) map[id] = sel.value; else bezRachunku = true;
+  });
+  if (bezRachunku && (!rachunek || !rachunek.value)) { alert('Wybierz domyślny rachunek nadawcy albo rachunek przy każdym zaznaczonym dokumencie.'); return; }
+  document.getElementById('ipko_pakiet_ids').value = ids.join(',');
+  document.getElementById('ipko_rachunek_zlecen').value = rachunek ? rachunek.value : '';
+  document.getElementById('ipko_rachunek_map').value = JSON.stringify(map);
   document.getElementById('ipkoForm').submit();
 }
 </script>
