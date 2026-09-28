@@ -919,9 +919,8 @@ echo '<main id="main" class="dyd-wrap">';
               <?php endif; ?>
             </div>
             <?php endif; ?>
-            <?php $bbal = $balances[(int)$b['client_id']] ?? null; if ($bbal && $bbal['credit'] > 0.005): ?>
-            <div class="small mt-1"><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" title="Nadpłata na całym koncie kursanta (wszystkie grupy)"><i class="bi bi-piggy-bank me-1"></i>nadpłata <?= number_format($bbal['credit'],2,',',' ') ?> zł</span></div>
-            <?php elseif ($bbal && $bbal['debt'] > 0.005): ?>
+            <?php // Nadpłatę pokazujemy tylko przy grupie (wyżej) — plakietka konta tylko przy niedopłacie
+            $bbal = $balances[(int)$b['client_id']] ?? null; if ($bbal && $bbal['debt'] > 0.005): ?>
             <div class="small mt-1"><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Niedopłata na całym koncie kursanta (wszystkie grupy)"><i class="bi bi-exclamation-triangle me-1"></i>niedopłata <?= number_format($bbal['debt'],2,',',' ') ?> zł</span></div>
             <?php endif; ?>
             <div class="text-muted" style="font-size:.72rem">
