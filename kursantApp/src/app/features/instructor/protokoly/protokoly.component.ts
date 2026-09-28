@@ -7,7 +7,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorCourseContextService } from '../../../core/services/instructor-course-context.service';
 import { InstructorProtocolPending, InstructorProtocolClosed } from '../../../core/models/kursant.models';
-import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
+import { ProtocolHoursCheckDialogComponent } from './protocol-hours-check-dialog.component';
 import { ProtocolApproveDialogComponent } from './protocol-approve-dialog.component';
 
 const MONTHS_PL = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
@@ -263,12 +263,12 @@ export class InstructorProtokolyComponent implements OnInit {
   }
 
   ackHours(c: InstructorProtocolClosed): void {
-    this.dialog.open(ConfirmDialogComponent, {
-      width: '460px', maxWidth: '95vw',
+    this.dialog.open(ProtocolHoursCheckDialogComponent, {
+      width: '520px', maxWidth: '95vw',
       data: {
-        title: 'Potwierdź ewidencję godzin',
-        confirmLabel: 'Potwierdzam zgodność',
-        message: `Potwierdzam, że ewidencja godzin i naliczenie wypłaty w protokole „${c.course_name}” za ${this.monthLabel(c.year_month)} są zgodne ze stanem faktycznym. Zapisane zostanie kto, kiedy i z jakiego adresu IP.`,
+        ref: { protocolId: c.protocol_id },
+        title: `Potwierdź ewidencję — ${c.course_name}, ${this.monthLabel(c.year_month)}`,
+        acceptLabel: 'Akceptuję i potwierdzam ewidencję',
       },
     }).afterClosed().subscribe(ok => {
       if (!ok) return;

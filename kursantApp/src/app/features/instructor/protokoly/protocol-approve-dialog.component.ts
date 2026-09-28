@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { InstructorApiService } from '../../../core/services/instructor-api.service';
 import { InstructorProtocolPending, InstructorProtocolSummary } from '../../../core/models/kursant.models';
-import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
+import { ProtocolHoursCheckDialogComponent } from './protocol-hours-check-dialog.component';
 
 export interface ProtocolApproveDialogData { row: InstructorProtocolPending; monthLabel: string }
 
@@ -104,9 +104,14 @@ export class ProtocolApproveDialogComponent implements OnInit {
   }
 
   approve(): void {
-    this.dialog.open(ConfirmDialogComponent, {
-      width: '420px', maxWidth: '95vw',
-      data: { title: 'Zatwierdź protokół', confirmLabel: 'Zatwierdź', message: `Zatwierdzić protokół za ${this.data.monthLabel}? Tej operacji nie można cofnąć samodzielnie.` },
+    // Przed zatwierdzeniem: lista godzin (data — liczba godzin) + PDF + „sprawdziłem/am”.
+    this.dialog.open(ProtocolHoursCheckDialogComponent, {
+      width: '520px', maxWidth: '95vw',
+      data: {
+        ref: { courseId: this.data.row.course_id, yearMonth: this.data.row.year_month },
+        title: `Sprawdź listę godzin — ${this.data.monthLabel}`,
+        acceptLabel: 'Akceptuję i zatwierdzam protokół',
+      },
     }).afterClosed().subscribe(confirmed => {
       if (!confirmed) return;
       this.approving.set(true);
