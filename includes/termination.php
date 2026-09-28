@@ -167,6 +167,14 @@ function decide_termination(int $req_id, int $admin_id, string $decision, string
     );
     if (!$req || $req['status'] !== 'oczekuje') return false;
 
+    // Rozwiązanie = zamknięcie umowy: najpierw rozliczenie (zaliczka, hologramy).
+    // Wyjątek przed jakimkolwiek zapisem — wniosek zostaje „oczekuje”.
+    if ($decision === 'zaakceptowany') {
+        require_once __DIR__ . '/contract_transitions.php';
+        $contract = db_one("SELECT * FROM " . table_for_type($req['contract_type']) . " WHERE id=?", [$req['contract_id']]);
+        if ($contract) ContractSettlementGuard::assertClosable($req['contract_type'], $contract);
+    }
+
     db()->prepare(
         "UPDATE contract_termination_requests
          SET status=?, decided_by=?, decided_at=?, decision_note=? WHERE id=?"

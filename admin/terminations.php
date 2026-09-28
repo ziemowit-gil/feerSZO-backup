@@ -18,7 +18,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user     = current_user();
 
     if (in_array($decision, ['zaakceptowany', 'odrzucony'], true) && $req_id) {
-        if (decide_termination($req_id, $user['id'], $decision, $note)) {
+        try {
+            $decided = decide_termination($req_id, $user['id'], $decision, $note);
+        } catch (ContractTransitionException $e) {
+            $decided = null;
+            flash_set('danger', 'Wniosek czeka na rozliczenie umowy. ' . $e->getMessage());
+        }
+        if ($decided === null) {
+            // komunikat już ustawiony
+        } elseif ($decided) {
             $msg = $decision === 'zaakceptowany'
                 ? 'Wniosek zaakceptowany. Status umowy zmieniony na „Rozwiązana". Wnioskujący otrzymał powiadomienie.'
                 : 'Wniosek odrzucony. Wnioskujący otrzymał powiadomienie.';

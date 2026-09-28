@@ -45,11 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($data['numer_umowy'])) $errors[] = 'Numer umowy jest wymagany.';
     if (empty($data['status']))      $errors[] = 'Status jest wymagany.';
-    // Zakończenie/rozwiązanie umowy wymaga rozliczenia hologramów — jak przy szybkiej zmianie statusu
-    if (!empty($data['status']) && $data['status'] !== ($row['status'] ?? '')
-        && in_array($data['status'], ['zakończona', 'wygasła', 'rozwiązana', 'anulowana'], true)) {
-        require_once dirname(dirname(__DIR__)) . '/modules/holograms/logic/holograms.php';
-        try { holo_assert_contract_settled($TYPE, $id); } catch (\RuntimeException $e) { $errors[] = $e->getMessage(); }
+    // Zamknięcie/rozwiązanie wymaga rozliczenia (zaliczka + hologramy) — jak przy szybkiej zmianie statusu.
+    // Wiersz scalony z formularzem, żeby potwierdzenie rozliczenia zaliczki w tym samym zapisie się liczyło.
+    if (!empty($data['status']) && $data['status'] !== ($row['status'] ?? '')) {
+        require_once dirname(dirname(__DIR__)) . '/includes/contract_transitions.php';
+        if (in_array($data['status'], ContractSettlementGuard::CLOSING_STATUSES, true)
+            && ($why = ContractSettlementGuard::closeBlocker($TYPE, array_merge($row, $data, ['id' => $id])))) {
+            $errors[] = $why;
+        }
     }
 
     if (!$errors) {

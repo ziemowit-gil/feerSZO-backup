@@ -113,6 +113,32 @@ final class ContractSettlementGuard
             );
         }
     }
+
+    /**
+     * Pełne rozliczenie przed zamknięciem/rozwiązaniem: zaliczka + hologramy
+     * wydane w ramach umowy. Jedno miejsce dla wszystkich ścieżek zmiany statusu:
+     * szybka zmiana i ajax (przez ContractStatusTransitionValidator), formularze
+     * edycji, akceptacja wniosku o rozwiązanie, kanban, cron auto-zakończenia.
+     * @throws ContractTransitionException
+     */
+    public static function assertClosable(string $type, array $row): void
+    {
+        self::assertSettled($row);
+        if ($type !== '' && !empty($row['id'])) {
+            require_once dirname(__DIR__) . '/modules/holograms/logic/holograms.php';
+            holo_assert_contract_settled($type, (int)$row['id'], ContractTransitionException::class);
+        }
+    }
+
+    /** Wersja bez wyjątku: null gdy można zamknąć, inaczej powód. */
+    public static function closeBlocker(string $type, array $row): ?string
+    {
+        try { self::assertClosable($type, $row); return null; }
+        catch (ContractTransitionException $e) { return $e->getMessage(); }
+    }
+
+    /** Statusy zamykające umowę (grupy closed + cancelled). */
+    public const CLOSING_STATUSES = ['zakończona', 'wygasła', 'rozwiązana', 'anulowana'];
 }
 
 /**
@@ -157,12 +183,7 @@ final class ContractStatusTransitionValidator
         }
 
         if (in_array($toGroup, ['closed', 'cancelled'], true)) {
-            ContractSettlementGuard::assertSettled($row);
-            // Hologramy wydane w ramach umowy muszą być rozliczone (zwrot / uszkodzenie)
-            if ($type !== '' && !empty($row['id'])) {
-                require_once dirname(__DIR__) . '/modules/holograms/logic/holograms.php';
-                holo_assert_contract_settled($type, (int)$row['id'], ContractTransitionException::class);
-            }
+            ContractSettlementGuard::assertClosable($type, $row);
         }
         if ($fromGroup === 'blocked' && $toGroup === 'active') {
             ContractMinorGuard::assertConsentValid($row);

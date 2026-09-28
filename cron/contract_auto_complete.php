@@ -11,6 +11,10 @@
  * Wyjątek: dla umów zlecenia i wolontariackich (patrz $ROZLICZENIE_TYPES) minięcie
  * terminu przenosi status do "do rozliczenia" (nie od razu "zakończona") —
  * ostateczne zamknięcie po rozliczeniu jest już czynnością ręczną.
+ *
+ * Pozostałe typy też trafiają do "do rozliczenia" zamiast "zakończona", jeśli
+ * umowa nie jest rozliczona (zaliczka, hologramy wydane w ramach umowy) —
+ * ContractSettlementGuard::closeBlocker(). Zamknięcie następuje wtedy ręcznie.
  */
 
 if (php_sapi_name() !== 'cli') {
@@ -23,6 +27,7 @@ require_once $base_dir . '/includes/db.php';
 require_once $base_dir . '/includes/functions.php';
 require_once $base_dir . '/includes/approval.php';
 require_once $base_dir . '/includes/termination.php';
+require_once $base_dir . '/includes/contract_transitions.php';
 
 $today = date('Y-m-d');
 $ts    = date('Y-m-d H:i:s');
@@ -91,6 +96,17 @@ foreach ($TYPES as $type => [$table, $date_col, $flag_col]) {
         $comment       = $is_rozliczenie_type
             ? 'Automatyczne przejście do rozliczenia — minął termin (' . $row[$date_col] . ')'
             : 'Automatyczne zakończenie — minął termin (' . $row[$date_col] . ')';
+
+        // Nierozliczona umowa nie zamyka się sama — czeka w "do rozliczenia"
+        if ($target_status === 'zakończona' && ($why = ContractSettlementGuard::closeBlocker($type, $row))) {
+            if ($row['status'] === 'do rozliczenia') {
+                $skipped++; // już czeka na rozliczenie — bez ponownego wpisu w historii
+                continue;
+            }
+            $target_status = 'do rozliczenia';
+            $action        = 'auto_do_rozliczenia';
+            $comment       = 'Minął termin (' . $row[$date_col] . '), ale umowa nie jest rozliczona — przeniesiono do rozliczenia. ' . $why;
+        }
 
         try {
             db()->prepare("UPDATE {$table} SET status=?, updated_at=? WHERE id=?")
