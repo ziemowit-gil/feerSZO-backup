@@ -181,6 +181,8 @@
 .td-comment:hover { box-shadow: var(--c-shadow-xs); }
 .td-comment-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: .25rem; }
 .td-comment-author { font-weight: 700; font-size: .79rem; }
+.td-comment-edit { border: 0; background: none; padding: 0 .15rem; color: var(--c-muted); font-size: .72rem; line-height: 1; }
+.td-comment-edit:hover, .td-comment-edit:focus-visible { color: #2563eb; }
 .td-comment-date   { font-size: .69rem; color: var(--c-muted); }
 .td-comment-body   { font-size: .84rem; white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
 

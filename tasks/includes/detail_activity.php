@@ -19,7 +19,18 @@
         <div>
           <span class="td-comment-author"><?= h($c['author_name']) ?></span>
           <span class="td-comment-date ms-2"><?= h(substr($c['created_at'],0,16)) ?></span>
+          <?php if (!empty($c['is_edited'])): ?>
+          <span class="td-comment-date" title="Edytowano <?= h(substr($c['updated_at'] ?? '', 0, 16)) ?>">(edytowany)</span>
+          <?php endif; ?>
         </div>
+        <div class="d-flex align-items-center gap-1">
+        <?php if ((int)$c['author_id'] === $uid && task_field_editable('comments', $my_role)): ?>
+        <button type="button" class="td-comment-edit"
+                onclick="tdEditComment(<?= (int)$c['id'] ?>)"
+                aria-label="Edytuj swój komentarz" title="Edytuj">
+          <i class="bi bi-pencil" aria-hidden="true"></i>
+        </button>
+        <?php endif; ?>
         <?php if ($can_edit || (int)$c['author_id'] === $uid): ?>
         <button type="button"
                 class="btn-close"
@@ -27,8 +38,9 @@
                 aria-label="Usuń komentarz od <?= h($c['author_name']) ?>"
                 style="font-size:.55rem"></button>
         <?php endif; ?>
+        </div>
       </div>
-      <div class="td-comment-body"><?= td_render_mentions($c['body'], $all_users) ?></div>
+      <div class="td-comment-body" data-raw="<?= h($c['body']) ?>"><?= td_render_mentions($c['body'], $all_users) ?></div>
     </div>
     <?php endforeach; ?>
     <?php if (!$comments): ?>
@@ -157,6 +169,13 @@ $ev_defs = [
     'badge_bg'    => '#fef2f2', 'badge_color' => '#dc2626',
     'label'       => 'Tag usunięty',
     'desc'        => fn($e) => $e['from_value'] ? '<span class="td-hi-from">#' . h($e['from_value']) . '</span>' : '',
+  ],
+  'comment_edited' => [
+    'icon'        => 'bi-pencil',
+    'bg'          => '#f1f5f9', 'color' => '#64748b',
+    'badge_bg'    => '#f8fafc', 'badge_color' => '#64748b',
+    'label'       => 'Komentarz edytowany',
+    'desc'        => fn($e) => '',
   ],
   'comment_added' => [
     'icon'        => 'bi-chat-fill',

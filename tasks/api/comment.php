@@ -61,6 +61,35 @@ if ($action === 'add') {
     task_api_ok($comment);
 }
 
+// ── Edytuj komentarz (tylko autor) ─────────────────────────────────────────
+if ($action === 'edit') {
+    $cid  = (int)($body['comment_id'] ?? 0);
+    $text = trim($body['body'] ?? '');
+    if (!$cid || $text === '') task_api_error('Brak comment_id lub treści komentarza.');
+
+    $comment = db_one("SELECT * FROM task_comments WHERE id=? AND deleted_at IS NULL", [$cid]);
+    if (!$comment) task_api_error('Komentarz nie istnieje.', 404);
+    // Cudzych słów nie poprawia nikt — także admin (może tylko usunąć)
+    if ((int)$comment['author_id'] !== $uid) task_api_error('Możesz edytować tylko własne komentarze.', 403);
+
+    $task = db_one(
+        "SELECT t.id, tl.workspace_id FROM tasks t JOIN task_lists tl ON tl.id = t.list_id
+         WHERE t.id=? AND t.deleted_at IS NULL",
+        [(int)$comment['task_id']]
+    );
+    if (!$task) task_api_error('Zadanie nie istnieje.', 404);
+    if (!task_field_editable('comments', task_workspace_role((int)$task['workspace_id']))) {
+        task_api_error('Brak uprawnień do komentarzy w tym obszarze.', 403);
+    }
+
+    if ($text !== $comment['body']) {
+        db()->prepare("UPDATE task_comments SET body=?, is_edited=1, updated_at=? WHERE id=?")
+            ->execute([$text, date('Y-m-d H:i:s'), $cid]);
+        task_log((int)$comment['task_id'], $uid, 'comment_edited');
+    }
+    task_api_ok(['comment_id' => $cid]);
+}
+
 // ── Usuń komentarz (soft) ──────────────────────────────────────────────────
 if ($action === 'delete') {
     $cid = (int)($body['comment_id'] ?? 0);

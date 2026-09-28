@@ -277,6 +277,41 @@ window.tdCmtKeydown = function(e) {
     if (oc) oc.addEventListener('scroll', tdMentionHide, {passive: true});
 })();
 
+window.tdEditComment = function(cid) {
+    const bodyEl = document.querySelector('#cmt-' + cid + ' .td-comment-body');
+    if (!bodyEl || bodyEl.querySelector('textarea')) return;
+    const raw = bodyEl.dataset.raw || '';
+    const prevHtml = bodyEl.innerHTML;
+    bodyEl.innerHTML =
+        '<label class="visually-hidden" for="td-edit-cmt-' + cid + '">Edycja komentarza</label>'
+        + '<textarea id="td-edit-cmt-' + cid + '" class="form-control form-control-sm" rows="3"></textarea>'
+        + '<div class="d-flex gap-1 mt-1">'
+        + '<button type="button" class="btn btn-sm btn-primary py-0" data-act="save">Zapisz</button>'
+        + '<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-act="cancel">Anuluj</button>'
+        + '</div>';
+    const ta = bodyEl.querySelector('textarea');
+    ta.value = raw;
+    ta.focus();
+    const cancel = () => { bodyEl.innerHTML = prevHtml; };
+    const save = () => {
+        const text = ta.value.trim();
+        if (!text) { ta.focus(); return; }
+        if (text === raw) return cancel();
+        bodyEl.querySelectorAll('button, textarea').forEach(el => el.disabled = true);
+        api('/tasks/api/comment.php', {action:'edit', task_id:TID, comment_id:cid, body:text})
+            .then(r => {
+                if (r.ok) { srAnnounce('Komentarz zapisany.'); openTask(TID); }
+                else { alert(r.error); bodyEl.querySelectorAll('button, textarea').forEach(el => el.disabled = false); }
+            });
+    };
+    bodyEl.querySelector('[data-act="save"]').addEventListener('click', save);
+    bodyEl.querySelector('[data-act="cancel"]').addEventListener('click', cancel);
+    ta.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+    });
+};
+
 window.tdDeleteComment = function(cid) {
     if (!confirm('Usunąć ten komentarz?')) return;
     api('/tasks/api/comment.php', {action:'delete', task_id:TID, comment_id:cid})
