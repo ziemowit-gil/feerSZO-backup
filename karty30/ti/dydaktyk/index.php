@@ -2611,33 +2611,69 @@ $KP_TITLE  = 'Panel dydaktyka';
 // Selektor grupy w pasku górnym (tylko gdy >1 kurs)
 $_dyd_course_switcher = '';
 if (count($courses) > 1) {
-    // Selektor grupy: zwykły <select> (przewijalny, wyszukiwanie klawiaturą,
-    // znośny przy kilkudziesięciu grupach) zamiast rozwijanej listy Bootstrapa.
-    // Zmiana = przejście na TĘ SAMĄ zakładkę w wybranej grupie (formularz GET).
-    // Kierownik z własnymi grupami widzi podział Twoje grupy / Grupy innych.
+    // Selektor grupy w stylu paska: przycisk „GRUPA ▾ nazwa” na granacie,
+    // panel z wyszukiwarką (nazwa grupy / prowadzący) i listą linków — zmiana =
+    // ta sama zakładka w wybranej grupie. Kierownik z własnymi grupami: podział
+    // Twoje / innych. Klawiatura: ↓/↑ po liście, Enter, Esc (Bootstrap dropdown).
     $split_view = dyd_is_staff() && !empty($my_course_ids_set);
-    $_opt = function (array $c, bool $with_instructor = false) use ($cur_course): string {
+    $cur_c = null;
+    foreach ($courses as $_c) if ((int)$_c['id'] === $cur_course) { $cur_c = $_c; break; }
+    $_item = function (array $c, bool $with_instructor) use ($cur_course, $tab): string {
+        $act      = (int)$c['id'] === $cur_course;
         $inactive = ($c['status'] ?? '') === 'cancelled' || empty($c['is_active']);
-        $lbl = (string)$c['name']
-             . ($inactive ? ' — nieaktywna'
-                : ($with_instructor ? ' · ' . (string)($c['instructor_name'] ?: '—')
-                : (!empty($c['enrolled_count']) ? ' (' . (int)$c['enrolled_count'] . ' os.)' : '')));
-        return '<option value="' . (int)$c['id'] . '"' . ((int)$c['id'] === $cur_course ? ' selected' : '') . '>' . h($lbl) . '</option>';
+        $meta     = $inactive ? 'nieaktywna'
+                  : ($with_instructor ? (string)($c['instructor_name'] ?: '—') : (int)($c['enrolled_count'] ?? 0) . ' os.');
+        $search   = mb_strtolower((string)$c['name'] . ' ' . (string)($c['instructor_name'] ?? ''));
+        return '<li><a class="dropdown-item dyd-cs-item d-flex align-items-center gap-2' . ($act ? ' active' : '') . ($inactive ? ' dyd-cs-off' : '') . '"'
+             . ' href="index.php?course=' . (int)$c['id'] . '&amp;tab=' . h($tab) . '" data-search="' . h($search) . '"' . ($act ? ' aria-current="true"' : '') . '>'
+             . '<i class="bi bi-' . ($act ? 'check2' : ($inactive ? 'archive' : 'people')) . ' flex-shrink-0" aria-hidden="true"></i>'
+             . '<span class="text-truncate">' . h((string)$c['name']) . '</span>'
+             . '<span class="ms-auto small dyd-cs-meta flex-shrink-0">' . h($meta) . '</span></a></li>';
     };
     ob_start(); ?>
-<form method="get" action="index.php" class="dyd-course-select d-flex align-items-center gap-1" title="Zmień grupę">
-  <input type="hidden" name="tab" value="<?= h($tab) ?>">
-  <i class="bi bi-people-fill" aria-hidden="true"></i>
-  <label for="dydCourseSel" class="visually-hidden">Grupa</label>
-  <select id="dydCourseSel" name="course" class="form-select form-select-sm" onchange="this.form.submit()">
-    <?php if (!$cur_course): ?><option value="" selected>— wybierz grupę —</option><?php endif; ?>
-    <?php if ($split_view): ?>
-    <optgroup label="Twoje grupy"><?php foreach ($courses as $_c) if (isset($my_course_ids_set[(int)$_c['id']])) echo $_opt($_c); ?></optgroup>
-    <optgroup label="Grupy innych"><?php foreach ($courses as $_c) if (!isset($my_course_ids_set[(int)$_c['id']])) echo $_opt($_c, true); ?></optgroup>
-    <?php else: foreach ($courses as $_c) echo $_opt($_c); endif; ?>
-  </select>
-  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Przejdź</button></noscript>
-</form>
+<div class="dropdown dyd-cs">
+  <button type="button" class="dyd-cs-btn dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+          aria-expanded="false" aria-haspopup="true" title="Zmień grupę">
+    <span class="dyd-cs-lbl">Grupa</span>
+    <span class="dyd-cs-name text-truncate"><?= h($cur_c ? (string)$cur_c['name'] : 'wybierz grupę') ?></span>
+    <span class="visually-hidden">— zmień grupę</span>
+  </button>
+  <div class="dropdown-menu dropdown-menu-end dyd-cs-menu p-0">
+    <div class="p-2 border-bottom">
+      <label for="dydCsSearch" class="visually-hidden">Szukaj grupy</label>
+      <input type="search" id="dydCsSearch" class="form-control form-control-sm" placeholder="Szukaj grupy lub prowadzącego…" autocomplete="off">
+    </div>
+    <ul class="list-unstyled mb-0 dyd-cs-list" role="list">
+      <?php if ($split_view): ?>
+      <li><h6 class="dropdown-header">Twoje grupy</h6></li>
+      <?php foreach ($courses as $_c) if (isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, false); ?>
+      <li><h6 class="dropdown-header">Grupy innych prowadzących</h6></li>
+      <?php foreach ($courses as $_c) if (!isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, true); ?>
+      <?php else: foreach ($courses as $_c) echo $_item($_c, dyd_is_staff()); endif; ?>
+      <li class="dyd-cs-empty px-3 py-2 small text-body-secondary" hidden>Brak grup pasujących do wyszukiwania.</li>
+    </ul>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.currentScript.previousElementSibling;
+  var q = root.querySelector('#dydCsSearch'), items = root.querySelectorAll('.dyd-cs-item'),
+      empty = root.querySelector('.dyd-cs-empty'), heads = root.querySelectorAll('.dropdown-header');
+  root.addEventListener('shown.bs.dropdown', function () {
+    q.focus(); var a = root.querySelector('.dyd-cs-item.active'); if (a) a.scrollIntoView({block: 'nearest'});
+  });
+  q.addEventListener('input', function () {
+    var t = q.value.trim().toLowerCase(), n = 0;
+    items.forEach(function (a) { var ok = !t || a.dataset.search.indexOf(t) !== -1; a.parentElement.hidden = !ok; if (ok) n++; });
+    heads.forEach(function (h) { h.parentElement.hidden = !!t; });
+    empty.hidden = n > 0;
+  });
+  q.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { var f = root.querySelector('.dyd-cs-list li:not([hidden]) .dyd-cs-item'); if (f) { e.preventDefault(); f.focus(); } }
+    if (e.key === 'Enter') { var v = root.querySelectorAll('.dyd-cs-list li:not([hidden]) .dyd-cs-item'); if (v.length === 1) { e.preventDefault(); location.href = v[0].href; } }
+  });
+})();
+</script>
 <?php $_dyd_course_switcher = ob_get_clean();
 }
 
