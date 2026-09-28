@@ -294,21 +294,6 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 /* ── Section nav — boczny układ (jak w podglądzie) ─────── */
 .edit-layout { display: flex; gap: 1rem; align-items: flex-start; }
 .edit-main   { flex: 1 1 auto; min-width: 0; }
-#sec-nav {
-  flex: 0 0 208px; max-width: 208px;
-  display: flex; flex-direction: column; gap: .18rem;
-  margin-bottom: 0; padding: .5rem;
-  background: #f8fafc; border-radius: .6rem; border: 1px solid #e2e8f0;
-  position: sticky; top: 64px;
-}
-#sec-nav a {
-  font-size: .8rem; font-weight: 600; padding: .45rem .7rem;
-  border-radius: 8px; text-decoration: none;
-  color: #475569; background: transparent; border: none;
-  white-space: normal; transition: all .12s; display: block;
-}
-#sec-nav a:hover  { background: #eef2f7; color: #1e293b; }
-#sec-nav a.active { background: #2563eb; color: #fff; }
 
 /* ── Section headers ───────────────────────────────────── */
 .esec {
@@ -384,12 +369,7 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   .edit-sidebar { position: static; }
   #edit-topbar  { margin: -.75rem -.75rem .5rem; padding: .5rem .75rem; }
   .edit-layout  { flex-direction: column; }
-  #sec-nav {
-    flex-basis: auto; max-width: none; width: 100%;
-    flex-direction: row; flex-wrap: wrap; position: static; margin-bottom: 1rem;
-  }
-  #sec-nav a { width: auto; }
-}
+    }
 </style>
 
 <!-- ── Sticky topbar ──────────────────────────────────── -->
@@ -449,23 +429,12 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 </div>
 <?php endif; ?>
 
-<!-- ── Boczny układ: nawigacja sekcji + formularz ─────────── -->
+<?php require_once dirname(__DIR__) . '/includes/cv_ui.php'; cv_ui_assets(); ?>
+<!-- ── Układ: formularz z zakładkami + panel zapisu ─────────── -->
 <div class="edit-layout">
 
-<!-- ── Section jump nav (boczna, przyklejona) ─────────────── -->
-<nav id="sec-nav" aria-label="Sekcje formularza">
-  <a href="#sec-podstawowe">📋 Porozumienie</a>
-  <a href="#sec-wolontariusz">👤 Wolontariusz</a>
-  <a href="#sec-profil">🗂 Profil</a>
-  <a href="#sec-szczegoly">📍 Szczegóły</a>
-  <a href="#sec-bhp">🛡 BHP &amp; Ubezpieczenia</a>
-  <a href="#sec-podpisanie">✍ Podpisanie</a>
-  <a href="#sec-powiazania">🔗 Powiązania</a>
-  <a href="#sec-it">🔐 Dostęp IT</a>
-  <a href="#sec-zaawansowane">⚙ Zaawansowane</a>
-</nav>
 
-<div class="edit-main">
+<div class="edit-main cv-v2" data-cc-key="wolontariat-edit">
 <form method="post" enctype="multipart/form-data" id="editForm"
       data-cpc="<?= in_array(current_user()['role'] ?? '', ['admin','editor']) ? '1' : '0' ?>"
       data-cpc-meta=''
@@ -475,13 +444,21 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 
 <div class="row g-4 align-items-start">
 <div class="col-lg-8">
+<ul class="nav cv-tabbar no-print" id="editTabs" data-remember="wol-edit-<?= (int)$id ?>" role="tablist" aria-label="Sekcje formularza porozumienia">
+  <li class="nav-item" role="presentation"><button class="nav-link active" id="etab-porozumienie-btn" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#etab-porozumienie" aria-controls="etab-porozumienie" aria-selected="true">Porozumienie</button></li>
+  <li class="nav-item" role="presentation"><button class="nav-link" id="etab-wolontariusz-btn" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#etab-wolontariusz" aria-controls="etab-wolontariusz" aria-selected="false">Wolontariusz</button></li>
+  <li class="nav-item" role="presentation"><button class="nav-link" id="etab-realizacja-btn" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#etab-realizacja" aria-controls="etab-realizacja" aria-selected="false">Realizacja</button></li>
+  <li class="nav-item" role="presentation"><button class="nav-link" id="etab-podpisanie-btn" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#etab-podpisanie" aria-controls="etab-podpisanie" aria-selected="false">Podpisanie</button></li>
+  <li class="nav-item" role="presentation"><button class="nav-link" id="etab-dostep-btn" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#etab-dostep" aria-controls="etab-dostep" aria-selected="false">Powiązania i IT</button></li>
+</ul>
+<div class="tab-content">
 
+<div class="tab-pane fade show active" id="etab-porozumienie" role="tabpanel" aria-labelledby="etab-porozumienie-btn" tabindex="0">
 <!-- ══════════════════════════════════════════════════════════
      SEKCJA 1 — POROZUMIENIE
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-podstawowe" class="esec">
   <div class="esec-head">
-    <i class="bi bi-file-earmark-text"></i>
     <h6>Porozumienie <span class="esec-sub">numer, status, daty</span></h6>
   </div>
 
@@ -587,12 +564,13 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   </div>
 </section>
 
+</div><!-- /pane -->
+<div class="tab-pane fade" id="etab-wolontariusz" role="tabpanel" aria-labelledby="etab-wolontariusz-btn" tabindex="0">
 <!-- ══════════════════════════════════════════════════════════
      SEKCJA 2 — WOLONTARIUSZ
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-wolontariusz" class="esec">
   <div class="esec-head">
-    <i class="bi bi-person-circle"></i>
     <h6>Wolontariusz <span class="esec-sub">dane osobowe</span></h6>
   </div>
 
@@ -748,7 +726,6 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-profil" class="esec">
   <div class="esec-head">
-    <i class="bi bi-person-lines-fill"></i>
     <h6>Profil wolontariusza <span class="esec-sub">segmentacja, terytorium, dostępność</span></h6>
   </div>
 
@@ -1081,12 +1058,13 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
 
 </section>
 
+</div><!-- /pane -->
+<div class="tab-pane fade" id="etab-realizacja" role="tabpanel" aria-labelledby="etab-realizacja-btn" tabindex="0">
 <!-- ══════════════════════════════════════════════════════════
      SEKCJA 3 — SZCZEGÓŁY
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-szczegoly" class="esec">
   <div class="esec-head">
-    <i class="bi bi-geo-alt"></i>
     <h6>Szczegóły <span class="esec-sub">zakres, miejsce, godziny</span></h6>
   </div>
 
@@ -1184,7 +1162,6 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-bhp" class="esec">
   <div class="esec-head">
-    <i class="bi bi-shield-check"></i>
     <h6>BHP &amp; Ubezpieczenia</h6>
   </div>
 
@@ -1234,7 +1211,6 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-rpts" class="esec">
   <div class="esec-head">
-    <i class="bi bi-shield-exclamation"></i>
     <h6>Weryfikacja RPTS <span class="esec-sub">Rejestr Sprawców Przestępstw na Tle Seksualnym</span></h6>
   </div>
 
@@ -1303,12 +1279,13 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   </div>
 </section>
 
+</div><!-- /pane -->
+<div class="tab-pane fade" id="etab-podpisanie" role="tabpanel" aria-labelledby="etab-podpisanie-btn" tabindex="0">
 <!-- ══════════════════════════════════════════════════════════
      SEKCJA 5 — PODPISANIE
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-podpisanie" class="esec">
   <div class="esec-head">
-    <i class="bi bi-pen"></i>
     <h6>Podpisanie <span class="esec-sub">forma i pliki</span></h6>
   </div>
 
@@ -1418,12 +1395,13 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   </div>
 </section>
 
+</div><!-- /pane -->
+<div class="tab-pane fade" id="etab-dostep" role="tabpanel" aria-labelledby="etab-dostep-btn" tabindex="0">
 <!-- ══════════════════════════════════════════════════════════
      SEKCJA 6 — POWIĄZANIA
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-powiazania" class="esec">
   <div class="esec-head">
-    <i class="bi bi-diagram-3"></i>
     <h6>Powiązania <span class="esec-sub">działanie, grant, adres pocztowy</span></h6>
   </div>
 
@@ -1581,7 +1559,6 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
      ══════════════════════════════════════════════════════════ -->
 <section id="sec-zaawansowane" class="esec">
   <div class="esec-head">
-    <i class="bi bi-gear"></i>
     <h6>Zaawansowane <span class="esec-sub">webNGO</span></h6>
   </div>
 
@@ -1605,6 +1582,8 @@ $__st = STATUS_LABELS[$row['status']] ?? ['label' => $row['status'], 'class' => 
   </div>
 </section>
 
+</div><!-- /pane -->
+</div><!-- /tab-content -->
 </div><!-- /col-lg-8 -->
 
 <!-- ══════════════════════════════════════════════════════════
@@ -1898,21 +1877,6 @@ document.getElementById('z_webngo').addEventListener('change', function () {
   });
 })();
 
-// ── Section nav — highlight active ───────────────────────
-(function(){
-  var links = document.querySelectorAll('#sec-nav a');
-  var secs  = Array.from(links).map(function(l){
-    return document.querySelector(l.getAttribute('href'));
-  });
-  function onScroll(){
-    var scrollY = window.scrollY + 90;
-    var active = null;
-    secs.forEach(function(s,i){ if(s && s.offsetTop <= scrollY) active=i; });
-    links.forEach(function(l,i){ l.classList.toggle('active', i===active); });
-  }
-  window.addEventListener('scroll', onScroll, {passive:true});
-  onScroll();
-})();
 </script>
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">

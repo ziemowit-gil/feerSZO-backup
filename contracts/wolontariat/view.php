@@ -832,34 +832,11 @@ if (!empty($_GET['show_aneks'])): ?>
 </div>
 <?php endif; ?>
 
+<?php require_once dirname(__DIR__) . '/includes/cv_ui.php'; cv_ui_assets(); ?>
 <!-- ── Styles widoku umowy ──────────────────────────────────────────────────── -->
 <style>
 /* Zakładki poziome nad treścią (świadomie bez sidebara — zob. contracts/includes/cv_layout.php) */
 .cv-tabs-layout { display: block; }
-#wolontariatTabs {
-  display: flex; flex-direction: row; flex-wrap: wrap; gap: .2rem;
-  width: 100%; margin: 0 0 1rem; border: none;
-  background: #fff;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: .35rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
-}
-#wolontariatTabs .nav-link {
-  border: none !important; border-radius: 8px !important;
-  padding: .5rem .9rem; font-size: .83rem; font-weight: 500;
-  color: #64748B; text-align: center; white-space: nowrap;
-  background: transparent !important; width: auto;
-  display: inline-flex; align-items: center; gap: .45rem;
-  transition: color .15s ease, background .15s ease;
-}
-#wolontariatTabs .nav-link:hover { color: #1E3A5F; background: #F1F5F9 !important; }
-#wolontariatTabs .nav-link.active,
-#wolontariatTabs .nav-link[aria-selected="true"] {
-  color: #1E6DFF !important; background: #EFF5FF !important; font-weight: 700 !important;
-}
-#wolontariatTabs .nav-link .bi { font-size: .95rem; flex-shrink: 0; }
-
 /* Zawartość zakładek */
 #wolontariatTabsContent {
   width: 100%;
@@ -871,11 +848,6 @@ if (!empty($_GET['show_aneks'])): ?>
 /* Animacja przełączania — NIE nadpisujemy Bootstrap fade/show (to psuje przełączanie) */
 #wolontariatTabsContent .tab-pane.fade.show.active { opacity: 1; }
 
-/* Na wąskich ekranach: pasek zakładek przewija się w poziomie zamiast zawijać */
-@media (max-width: 860px) {
-  #wolontariatTabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  #wolontariatTabs .nav-link { flex-shrink: 0; }
-}
 
 /* Sekcja */
 .cv-section { padding: 1.2rem 0; border-bottom: 1px solid #F1F5F9; }
@@ -955,9 +927,9 @@ $_tabs_def['docs']         = ['Dokumenty',    'bi-folder2-open',
 $_tabs_def['obieg']        = ['Obieg',        'bi-arrow-repeat',
     $_badge_obieg ? '<span class="badge bg-danger ms-1">'.$_badge_obieg.'</span>' : ''];
 $_tabs_def['profil']       = ['Profil',       'bi-person-lines-fill',
-    (!empty($row['wojewodztwo'])||!empty($row['wolontariat_typ'])) ? '<span class="badge bg-secondary ms-1" style="font-size:.6rem">●</span>' : ''];
-$_tabs_def['m365']         = ['M365',         'bi-microsoft',
-    $row['m365_konto'] ? '<span class="badge '.($row['m365_konto_aktywne']?'bg-success':'bg-secondary').' ms-1">'.($row['m365_konto_aktywne']?'●':'○').'</span>' : ''];
+    ''];
+$_tabs_def['m365']         = ['Microsoft 365',         'bi-microsoft',
+    $row['m365_konto'] ? '<span class="badge '.($row['m365_konto_aktywne']?'bg-success':'bg-secondary').' ms-1">'.($row['m365_konto_aktywne']?'aktywne':'nieaktywne').'</span>' : ''];
 // Zakładka RODO
 try {
     require_once dirname(dirname(__DIR__)) . '/includes/rodo.php';
@@ -968,7 +940,7 @@ try {
 } catch (\Throwable $e) { $_rodo_rows = []; $_rodo_active = 0; $_rodo_no_training = 0; }
 if (can_edit()) {
     $rodo_badge = '';
-    if ($_rodo_no_training) $rodo_badge = '<span class="badge bg-warning text-dark ms-1"><i class="bi bi-exclamation-triangle"></i></span>';
+    if ($_rodo_no_training) $rodo_badge = '<span class="badge bg-warning text-dark ms-1">bez szkolenia</span>';
     elseif ($_rodo_active)  $rodo_badge = '<span class="badge bg-success ms-1">' . $_rodo_active . '</span>';
     $_tabs_def['rodo'] = ['RODO', 'bi-shield-lock', $rodo_badge];
 }
@@ -1003,33 +975,44 @@ $_tabs_def['messages']     = ['Wiadomości',   'bi-chat-dots',
 $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key_first($_tabs_def);
 ?>
 
-<div class="cv-tabs-layout">
-<ul class="nav nav-pills mb-0 no-print" id="wolontariatTabs" role="tablist">
-  <?php foreach ($_tabs_def as $tkey => [$tlabel, $ticon, $tbadge]): ?>
+<div class="cv-tabs-layout cv-v2" data-cc-key="wolontariat">
+<?php
+// Główne zakładki w pasku, pozostałe w „Więcej” (kolejność jak w $_tabs_def)
+$_primary_keys = ['umowa', 'wolontariusz', 'profil', 'docs', 'godziny', 'obieg'];
+$_tabs_more    = array_diff_key($_tabs_def, array_flip($_primary_keys));
+$_tabs_main    = array_intersect_key($_tabs_def, array_flip($_primary_keys));
+$_more_active  = $_tab !== 'all' && isset($_tabs_more[$_active_tab]) && $_tab === $_active_tab;
+$_more_attn    = (int)$_msg_unread;
+$_tab_attrs = function (string $tkey) use ($_active_tab, $_tab): string {
+    $on = $tkey === $_active_tab && $_tab !== 'all';
+    return ($on ? ' active' : '') . '" id="tab-btn-' . $tkey . '" data-bs-toggle="tab" data-bs-target="#tab-' . $tkey
+         . '" href="#tab-' . $tkey . '" role="tab" aria-controls="tab-' . $tkey . '" aria-selected="' . ($on ? 'true' : 'false')
+         . '" data-tab-key="' . $tkey . '"';
+};
+?>
+<ul class="nav cv-tabbar no-print" id="wolontariatTabs" role="tablist" aria-label="Sekcje porozumienia">
+  <?php foreach ($_tabs_main as $tkey => [$tlabel, $ticon, $tbadge]): ?>
   <li class="nav-item" role="presentation">
-    <a class="nav-link <?= ($tkey === $_active_tab && $_tab !== 'all') ? 'active' : '' ?>"
-       id="tab-btn-<?= $tkey ?>"
-       data-bs-toggle="tab"
-       data-bs-target="#tab-<?= $tkey ?>"
-       href="#tab-<?= $tkey ?>"
-       role="tab"
-       aria-controls="tab-<?= $tkey ?>"
-       aria-selected="<?= ($tkey === $_active_tab && $_tab !== 'all') ? 'true' : 'false' ?>"
-       data-tab-key="<?= $tkey ?>">
-      <i class="bi <?= $ticon ?>"></i> <?= $tlabel ?><?= $tbadge ?>
-    </a>
+    <a class="nav-link<?= $_tab_attrs($tkey) ?>><?= h($tlabel) ?><?= $tbadge ?></a>
   </li>
   <?php endforeach; ?>
-  <li class="nav-item mt-2 pt-2 border-top" role="presentation">
-    <?php if ($_tab === 'all'): ?>
-    <a class="nav-link text-secondary" href="<?= $_turl ?>umowa" title="Wróć do widoku zakładek">
-      <i class="bi bi-layout-tabs"></i> Zakładki
-    </a>
-    <?php else: ?>
-    <a class="nav-link text-secondary" href="<?= $_turl ?>all" title="Pokaż wszystkie sekcje na jednej stronie">
-      <i class="bi bi-layout-text-window-reverse"></i> Wszystko
-    </a>
-    <?php endif; ?>
+  <li class="nav-item dropdown cv-tab-more" role="presentation">
+    <button class="nav-link dropdown-toggle<?= $_more_active ? ' active' : '' ?>" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      Więcej<?php if ($_more_attn): ?><span class="badge bg-danger" aria-label="<?= $_more_attn ?> nieprzeczytanych"><?= $_more_attn ?></span><?php endif; ?>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+      <?php foreach ($_tabs_more as $tkey => [$tlabel, $ticon, $tbadge]): ?>
+      <li><a class="dropdown-item<?= $_tab_attrs($tkey) ?>><?= h($tlabel) ?><?= $tbadge ?></a></li>
+      <?php endforeach; ?>
+      <li><hr class="dropdown-divider"></li>
+      <li>
+        <?php if ($_tab === 'all'): ?>
+        <a class="dropdown-item" href="<?= $_turl ?>umowa">Wróć do zakładek</a>
+        <?php else: ?>
+        <a class="dropdown-item" href="<?= $_turl ?>all">Wszystkie sekcje na jednej stronie</a>
+        <?php endif; ?>
+      </li>
+    </ul>
   </li>
 </ul>
 
@@ -1072,7 +1055,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Dane podstawowe -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
       <span class="cv-section-title">Dane umowy</span>
     </div>
     <div class="cv-fields">
@@ -1112,7 +1094,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Szczegóły wolontariatu -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-heart-fill"></i></div>
       <span class="cv-section-title">Szczegóły wolontariatu</span>
     </div>
     <div class="cv-fields">
@@ -1210,7 +1191,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- BHP i ubezpieczenia -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-shield-check"></i></div>
       <span class="cv-section-title">BHP i ubezpieczenia</span>
     </div>
     <div class="cv-fields">
@@ -1247,7 +1227,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#FEF2F2;color:#DC2626"><i class="bi bi-shield-exclamation"></i></div>
       <span class="cv-section-title">Weryfikacja RPTS</span>
     </div>
     <?php if (!$_rpts_visible): ?>
@@ -1356,7 +1335,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Podpisanie -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
       <span class="cv-section-title">Podpisanie</span>
     </div>
     <div class="cv-fields">
@@ -1443,11 +1421,11 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
         <?php $__ds = $row['docusign_status'] ?? ''; ?>
         <i class="bi bi-pen-fill me-1"></i>DocuSign
         <?php if (in_array($__ds, ['sent','delivered'])): ?>
-        <span class="badge bg-warning text-dark ms-1">●</span>
+        <span class="badge bg-warning text-dark ms-1">w toku</span>
         <?php elseif ($__ds === 'completed'): ?>
-        <span class="badge bg-success ms-1">✓</span>
+        <span class="badge bg-success ms-1">podpisano</span>
         <?php elseif (in_array($__ds, ['declined','voided'])): ?>
-        <span class="badge bg-danger ms-1">✗</span>
+        <span class="badge bg-danger ms-1">odrzucono</span>
         <?php endif; ?>
       </button>
       <?php endif; ?>
@@ -1456,11 +1434,11 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
         <?php $__at = $row['autenti_status'] ?? ''; ?>
         <i class="bi bi-pen-fill me-1"></i>Autenti
         <?php if ($__at === 'IN_PROGRESS'): ?>
-        <span class="badge bg-warning text-dark ms-1">●</span>
+        <span class="badge bg-warning text-dark ms-1">w toku</span>
         <?php elseif ($__at === 'COMPLETED'): ?>
-        <span class="badge bg-success ms-1">✓</span>
+        <span class="badge bg-success ms-1">podpisano</span>
         <?php elseif (in_array($__at, ['DECLINED','CANCELLED','EXPIRED'])): ?>
-        <span class="badge bg-danger ms-1">✗</span>
+        <span class="badge bg-danger ms-1">odrzucono</span>
         <?php endif; ?>
       </button>
       <?php endif; ?>
@@ -1520,7 +1498,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <?php if ($all_reps || $rep): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0FDF4;color:#16a34a"><i class="bi bi-person-badge-fill"></i></div>
       <span class="cv-section-title">Podpisujący</span>
     </div>
     <div class="cv-fields">
@@ -1550,7 +1527,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <?php if ($row['uwagi']): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
       <span class="cv-section-title">Uwagi</span>
     </div>
     <div class="cv-value" style="font-size:.88rem;color:#374151"><?= nl2br(h($row['uwagi'])) ?></div>
@@ -1560,7 +1536,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
       <span class="cv-section-title">Numery referencyjne</span>
     </div>
     <div class="cv-fields">
@@ -1600,7 +1575,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Dane osobowe -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
       <span class="cv-section-title">Dane osobowe</span>
     </div>
     <div class="cv-fields">
@@ -1729,7 +1703,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Godziny pracy -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-clock-history"></i></div>
       <span class="cv-section-title">Godziny pracy</span>
     </div>
     <div class="d-flex flex-wrap gap-3">
@@ -1762,7 +1735,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Karta osoby -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
       <span class="cv-section-title">Karta osoby</span>
     </div>
     <div class="small">
@@ -1786,7 +1758,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Komórka organizacyjna -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-diagram-3"></i></div>
       <span class="cv-section-title">Komórka organizacyjna</span>
     </div>
     <span class="badge bg-secondary"><?= h($unit_name) ?></span>
@@ -1797,7 +1768,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Powiązania -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-link-45deg"></i></div>
       <span class="cv-section-title">Powiązania</span>
     </div>
     <div class="small">
@@ -1826,7 +1796,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Pliki -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-paperclip"></i></div>
       <span class="cv-section-title">Pliki</span>
     </div>
     <div class="cv-fields">
@@ -1853,7 +1822,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <?php $sup = supervisor_get($TYPE, $id); ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-person-check"></i></div>
       <span class="cv-section-title">Opiekun umowy</span>
     </div>
     <?php if ($sup): ?>
@@ -1881,7 +1849,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Metadata -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-info-circle"></i></div>
       <span class="cv-section-title">Metadata</span>
     </div>
     <div class="small text-muted">
@@ -1894,7 +1861,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <?php if (!empty($row['z_webngo']) || !empty($row['webngo_id']) || !empty($row['webngo_numer_umowy'])): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#FFF7ED;color:#D97706"><i class="bi bi-arrow-left-right"></i></div>
       <span class="cv-section-title">Migracja z webNGO</span>
       <?php if (can_edit()): ?>
       <div class="cv-section-action">
@@ -1971,7 +1937,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <?php $_cte_templates = cte_list($TYPE); // wzory dokumentów dostępne dla tego typu umowy ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-earmark-text"></i></div>
       <span class="cv-section-title">Dokumenty umowy i osoby</span>
       <div class="cv-section-action d-flex gap-1 flex-wrap">
         <?php if ($_cte_templates): ?>
@@ -2276,7 +2241,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- ── Pisma -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-envelope-paper"></i></div>
       <span class="cv-section-title">Pisma</span>
       <?php if (can_edit()): ?>
       <div class="cv-section-action">
@@ -2330,7 +2294,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Zaświadczenia (EZD) -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-award"></i></div>
       <span class="cv-section-title">Zaświadczenia</span>
       <?php if (module_enabled('ezd_enabled') && (is_admin() || can_read('ezd') || can_write('ezd'))): ?>
       <div class="cv-section-action">
@@ -2381,7 +2344,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Akceptacja -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-check2-circle"></i></div>
       <span class="cv-section-title">Akceptacja</span>
       <div class="cv-section-action">
         <?php if ($approval): echo approval_badge($approval['status']); else: ?>
@@ -2452,7 +2414,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Aneksy -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-earmark-diff"></i></div>
       <span class="cv-section-title">Aneksy</span>
       <?php if (can_edit()): ?>
       <div class="cv-section-action">
@@ -2517,7 +2478,6 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
   <!-- Wnioski o edycję -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-pencil-square"></i></div>
       <span class="cv-section-title">Wnioski o edycję</span>
       <?php if (can_edit() && !$has_pending_edit): ?>
       <div class="cv-section-action">
@@ -2587,7 +2547,6 @@ $_dyspo_urlopy    = urlop_list($id);
 
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#fff3e0;color:#fd7e14"><i class="bi bi-person-lines-fill"></i></div>
       <span class="cv-section-title">Profil wolontariusza</span>
       <div class="cv-section-action">
         <?php if (can_edit()): ?>
@@ -2654,7 +2613,6 @@ $_dyspo_urlopy    = urlop_list($id);
   <?php if (!empty($row['wojewodztwo']) || !empty($row['powiat']) || !empty($row['gmina'])): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#f0fdf4;color:#16a34a"><i class="bi bi-map"></i></div>
       <span class="cv-section-title">Terytorium</span>
     </div>
     <div class="row g-3">
@@ -2690,7 +2648,6 @@ $_dyspo_urlopy    = urlop_list($id);
   <?php if (!empty($_profil_dni) || !empty($_profil_pora)): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#eff6ff;color:#2563eb"><i class="bi bi-calendar-week"></i></div>
       <span class="cv-section-title">Dostępność</span>
     </div>
     <div class="row g-3">
@@ -2722,7 +2679,6 @@ $_dyspo_urlopy    = urlop_list($id);
   <?php if (module_enabled('dyspozycyjnosc_enabled') && !empty($_dyspo_slots)): ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#eff6ff;color:#2563eb"><i class="bi bi-clock"></i></div>
       <span class="cv-section-title">Konkretne terminy dostępności</span>
     </div>
     <div class="d-flex flex-column gap-1">
@@ -2744,7 +2700,6 @@ $_dyspo_urlopy    = urlop_list($id);
   ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#fff7ed;color:#d97706"><i class="bi bi-airplane"></i></div>
       <span class="cv-section-title">Urlopy / niedostępność</span>
       <?php $_url_pend = count(array_filter($_dyspo_urlopy, fn($u) => $u['status']==='oczekuje')); ?>
       <?php if ($_url_pend): ?>
@@ -2858,7 +2813,6 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <!-- ── Dostępy (MS365 + panel) — zarządzane w Systemie Tożsamości ─────────── -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#1E6DFF"><i class="bi bi-shield-lock"></i></div>
       <span class="cv-section-title">Dostępy — Microsoft 365 i panel</span>
       <?php if (can_edit()): ?>
       <div class="cv-section-action">
@@ -2883,7 +2837,6 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <?php if (false): // Sekcje przeniesione do /tozsamosc/access.php (zachowane wyłączone) ?>
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-microsoft"></i></div>
       <span class="cv-section-title">Microsoft 365</span>
       <div class="cv-section-action">
         <?php if ($row['m365_konto']): ?>
@@ -3021,7 +2974,7 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
         <?php foreach ($_local_users as $_lu): ?>
         <option value="<?= intval($_lu['id']) ?>" <?= ($linked_local && $linked_local['id'] === $_lu['id']) ? 'selected' : '' ?>>
           <?= h($_lu['name']) ?> &lt;<?= h($_lu['email']) ?>&gt;
-          <?= $_lu['microsoft_id'] ? '✓' : '' ?>
+          <?= $_lu['microsoft_id'] ? '(M365)' : '' ?>
         </option>
         <?php endforeach; ?>
       </select>
@@ -3190,7 +3143,6 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <!-- ── Sekcja Portal i Dostęp IT ─────────────────────────────────────────── -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-display"></i></div>
       <span class="cv-section-title">Portal i Dostęp IT</span>
       <?php if (can_edit() && $row['email']): ?>
       <div class="cv-section-action">
@@ -3542,7 +3494,6 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <!-- Dodaj na tablicę -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-plus-circle"></i></div>
       <span class="cv-section-title">Dodaj na tablicę</span>
     </div>
     <?php if (!$_contract_workspaces): ?>
@@ -3608,7 +3559,6 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <!-- WhatsApp -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-whatsapp"></i></div>
       <span class="cv-section-title">Wyślij na WhatsApp</span>
     </div>
     <form method="post">
@@ -3642,7 +3592,6 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   <!-- Lista zadań powiązanych z umową -->
   <div class="cv-section">
     <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-list-task"></i></div>
       <span class="cv-section-title">Powiązane zadania</span>
       <div class="cv-section-action">
         <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-sm btn-outline-secondary">
