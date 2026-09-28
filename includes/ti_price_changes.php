@@ -372,3 +372,39 @@ function ti_price_change_rebill_msg(array $r): string {
         . implode('; ', array_map(fn($x) => $f($x) . ' — ' . $x['why'], array_slice($r['manual'], 0, 5))) . '.';
     return $msg;
 }
+
+/**
+ * Wyciąg zmian cen (raport/wydruk PDF i XLS, CLI `table`). Filtry:
+ * status: 'active' | 'all'; course_id; from/to — zmiany, których zakres dat
+ * nachodzi na okres (puste = bez ograniczenia). Wiersz ma pola wyliczone:
+ * state (zaplanowana/obowiązuje/zakończona/—), value_label, scope_label, author.
+ */
+function ti_price_changes_report(array $f = []): array {
+    ti_price_changes_migrate();
+    $w = []; $p = [];
+    if (($f['status'] ?? 'all') === 'active') $w[] = "pc.status='active'";
+    if (!empty($f['course_id'])) { $w[] = 'pc.course_id=CAST(? AS INTEGER)'; $p[] = (int)$f['course_id']; }
+    if (!empty($f['to']))   { $w[] = 'pc.date_from <= ?'; $p[] = (string)$f['to']; }
+    if (!empty($f['from'])) { $w[] = "(pc.date_to IS NULL OR pc.date_to = '' OR pc.date_to >= ?)"; $p[] = (string)$f['from']; }
+    $rows = db_all(
+        "SELECT pc.*, c.name AS course_name, cl.name AS client_name, u.name AS author
+           FROM k30_ti_price_changes pc
+           JOIN k30_ti_courses c ON c.id=pc.course_id
+           LEFT JOIN k30_clients cl ON cl.id=pc.client_id
+           LEFT JOIN users u ON u.id=pc.created_by
+         " . ($w ? 'WHERE ' . implode(' AND ', $w) : '') . "
+          ORDER BY pc.date_from DESC, pc.id DESC", $p
+    );
+    $today = date('Y-m-d');
+    foreach ($rows as &$r) {
+        $r['state'] = $r['status'] !== 'active' ? '—'
+            : ($r['date_from'] > $today ? 'zaplanowana'
+            : (!empty($r['date_to']) && $r['date_to'] < $today ? 'zakończona' : 'obowiązuje'));
+        $r['status_label'] = $r['status'] === 'active' ? 'aktywna' : 'anulowana';
+        $r['scope_label']  = $r['scope'] === 'client' ? 'indywidualna' : 'grupa';
+        $r['value_label']  = ti_price_change_value_label((string)$r['change_type'], (float)$r['change_value']);
+        $r['author']       = (string)($r['author'] ?? '');
+    }
+    unset($r);
+    return $rows;
+}

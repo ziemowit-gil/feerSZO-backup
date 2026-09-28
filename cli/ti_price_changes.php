@@ -101,32 +101,18 @@ case 'list':
     break;
 
 case 'table':
-    $w = []; $pa = [];
-    if (!isset($opt['all'])) $w[] = "pc.status='active'";
-    if (!empty($opt['course'])) { $w[] = 'pc.course_id=?'; $pa[] = (int)$opt['course']; }
-    $rows = db_all(
-        "SELECT pc.*, c.name AS course_name, cl.name AS client_name, u.name AS author
-           FROM k30_ti_price_changes pc
-           JOIN k30_ti_courses c ON c.id=pc.course_id
-           LEFT JOIN k30_clients cl ON cl.id=pc.client_id
-           LEFT JOIN users u ON u.id=pc.created_by
-         " . ($w ? 'WHERE ' . implode(' AND ', $w) : '') . "
-          ORDER BY pc.date_from DESC, pc.id DESC", $pa
-    );
-    $today = date('Y-m-d');
+    $rows = ti_price_changes_report([
+        'status'    => isset($opt['all']) ? 'all' : 'active',
+        'course_id' => (int)($opt['course'] ?? 0),
+    ]);
     $cols  = ['ID', 'Status', 'Stan dziś', 'Zakres', 'Grupa', 'Kursant', 'Zmiana', 'Od', 'Do', 'Powiadom.', 'Utworzono', 'Autor', 'Uzasadnienie'];
     $data  = [];
     foreach ($rows as $r) {
-        $state = $r['status'] !== 'active' ? '—'
-            : ($r['date_from'] > $today ? 'zaplanowana'
-            : (!empty($r['date_to']) && $r['date_to'] < $today ? 'zakończona' : 'obowiązuje'));
         $data[] = [
-            '#' . $r['id'], $r['status'] === 'active' ? 'aktywna' : 'anulowana', $state,
-            $r['scope'] === 'client' ? 'indyw.' : 'grupa',
+            '#' . $r['id'], $r['status_label'], $r['state'], $r['scope_label'],
             $r['course_name'] . ' (#' . $r['course_id'] . ')',
             $r['client_name'] ? $r['client_name'] . ' (#' . $r['client_id'] . ')' : '—',
-            ti_price_change_value_label($r['change_type'], (float)$r['change_value']),
-            $r['date_from'], $r['date_to'] ?: 'bezterm.',
+            $r['value_label'], $r['date_from'], $r['date_to'] ?: 'bezterm.',
             $r['notified_at'] ? (int)$r['notified_count'] . ' / ' . substr((string)$r['notified_at'], 0, 10) : 'nie',
             substr((string)$r['created_at'], 0, 16), $r['author'] ?: '—',
             mb_strimwidth(preg_replace('/\s+/', ' ', (string)$r['reason']), 0, 60, '…'),

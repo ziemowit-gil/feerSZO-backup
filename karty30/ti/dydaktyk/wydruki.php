@@ -451,6 +451,20 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           </td>
         </tr>
 
+        <tr>
+          <td>
+            <div class="fw-semibold"><i class="bi bi-cash-coin me-1 text-primary" aria-hidden="true"></i>Wyciąg zmian cen</div>
+            <div class="small text-body-secondary">Wszystkie zmiany cen (grupowe i indywidualne) z datami, stanem i uzasadnieniem.</div>
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-2">
+              <a class="btn btn-sm btn-primary" href="zmiany_cen_export.php?format=pdf" target="_blank"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+              <a class="btn btn-sm btn-outline-success" href="zmiany_cen_export.php?format=xlsx"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>XLS</a>
+              <a class="btn btn-sm btn-outline-secondary" href="#raport-zmiany-cen">Filtry…</a>
+            </div>
+          </td>
+        </tr>
+
         </tbody>
       </table>
     </div>
@@ -529,6 +543,47 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             'instructor_monthly.php', 'instructor_annual.php', 'instructor_id', 'Wszyscy prowadzący', $ti_instructors);
         ?>
       </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3" id="raport-zmiany-cen">
+    <div class="card-header bg-white d-flex align-items-center">
+      <i class="bi bi-cash-coin me-2 text-primary" aria-hidden="true"></i>
+      <span class="fw-semibold">Wyciąg zmian cen</span>
+      <span class="ms-2 small text-body-secondary">PDF · XLS — wszystkie zmiany cen wprowadzone w systemie</span>
+    </div>
+    <div class="card-body">
+      <form action="zmiany_cen_export.php" target="_blank" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small mb-1" for="zc-course">Grupa</label>
+          <select id="zc-course" name="course_id" class="form-select form-select-sm">
+            <option value="0">Wszystkie grupy</option>
+            <?php foreach ($courses_all as $co): ?>
+            <option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-1" for="zc-status">Status</label>
+          <select id="zc-status" name="status" class="form-select form-select-sm">
+            <option value="all">Aktywne i anulowane</option>
+            <option value="active">Tylko aktywne</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-1" for="zc-from">Obowiązujące od</label>
+          <input type="date" id="zc-from" name="from" class="form-control form-control-sm">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-1" for="zc-to">do</label>
+          <input type="date" id="zc-to" name="to" class="form-control form-control-sm">
+        </div>
+        <div class="col-auto d-flex gap-2">
+          <button type="submit" name="format" value="pdf" class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+          <button type="submit" name="format" value="xlsx" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>XLS</button>
+        </div>
+        <div class="col-12 small text-body-secondary">Puste daty = bez ograniczenia; z datami — zmiany, których okres obowiązywania nachodzi na wybrany zakres.</div>
+      </form>
     </div>
   </div>
 
