@@ -121,12 +121,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <i class="bi bi-lock me-1" aria-hidden="true"></i>Protokół zatwierdza główny prowadzący kursu albo kierownik.
       </p>
       <?php else: ?>
-            <form method="post" class="ms-auto" onsubmit="return confirm('Zatwierdzić protokół za <?= h(addslashes($fmt_ym($open_ym))) ?>? Tej operacji nie można cofnąć samodzielnie.')">
+            <form method="post" class="ms-auto" id="pmApproveForm">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="approve_month">
         <input type="hidden" name="course_id" value="<?= (int)$open_row['course_id'] ?>">
         <input type="hidden" name="year_month" value="<?= h($open_ym) ?>">
-        <button type="submit" class="btn btn-success">
+        <!-- Przed zatwierdzeniem: okno z listą godzin (data — liczba godzin), wydruk PDF
+             i obowiązkowe „sprawdziłem/am” → Akceptuję wysyła ten formularz. -->
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck">
           <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
         </button>
       </form>
@@ -134,6 +136,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </div>
   </div>
 </div>
+
+<?= ti_protocol_hours_check_modal(
+    'pmHoursCheck',
+    ti_protocol_month_stub((int)$open_row['course_id'], $open_ym),
+    'protokol_pdf.php?hours=1&course=' . (int)$open_row['course_id'] . '&ym=' . urlencode($open_ym),
+    'pmApproveForm',
+    'Akceptuję i zatwierdzam protokół'
+) ?>
 
 <?php else: ?>
 <!-- ═══ KROK 1: lista miesięcy do zamknięcia ═══════════════════════════ -->

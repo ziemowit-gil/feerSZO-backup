@@ -28,10 +28,6 @@ $pr_stats   = $pr ? ti_protocol_stats((int)$pr['id'], $cur_course) : ['total'=>0
 $pr_locked  = $pr ? ti_protocol_is_locked($pr) : false;
 $pr_empty   = $pr ? ti_protocol_is_empty($pr_stats) : false;
 
-// Pusty protokół wolno zatwierdzić — wydruk dostaje wtedy adnotację o braku ocen
-$pr_confirm = $pr_empty
-    ? 'W protokole nie ma ani jednej oceny. Zatwierdzić go jako PUSTY? Wydruk będzie zawierał adnotację, że nie wystawiono żadnej oceny. Po zatwierdzeniu zmiana wymaga pracownika D3 lub administratora.'
-    : 'Zatwierdzić protokół? Po zatwierdzeniu nie będzie można zmieniać ocen — odblokowanie wymaga pracownika D3 lub administratora.';
 ?>
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
@@ -205,7 +201,7 @@ $pr_confirm = $pr_empty
       </div>
       <?php endif; ?>
 
-      <form method="post">
+      <form method="post" id="prGradesForm">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
         <input type="hidden" name="protocol_id" value="<?= (int)$pr['id'] ?>">
@@ -262,8 +258,10 @@ $pr_confirm = $pr_empty
             <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz protokół
           </button>
           <?php if (ti_protocol_can_approve($uid, (int)$cur_course, dyd_is_staff())): ?>
-          <button class="btn <?= $pr_empty ? 'btn-outline-success' : 'btn-success' ?> btn-sm" name="_op" value="protocol_approve"
-                  onclick="return confirm('<?= h(addslashes($pr_confirm)) ?>')">
+          <?php /* Zatwierdzenie przez okno „Sprawdź listę godzin” (Akceptuję wysyła
+                   ten formularz z _op=protocol_approve — oceny zapisują się razem). */ ?>
+          <button type="button" class="btn <?= $pr_empty ? 'btn-outline-success' : 'btn-success' ?> btn-sm"
+                  data-bs-toggle="modal" data-bs-target="#prApproveCheck">
             <i class="bi bi-check2-square me-1" aria-hidden="true"></i><?= $pr_empty ? 'Zatwierdź pusty protokół' : 'Zatwierdź protokół' ?>
           </button>
           <?php else: ?>
@@ -280,6 +278,11 @@ $pr_confirm = $pr_empty
           <?php endif; ?>
         </div>
       </form>
+      <?php if (!$pr_locked && $pr_period_open && ti_protocol_can_approve($uid, (int)$cur_course, dyd_is_staff())): ?>
+      <?= ti_protocol_hours_check_modal('prApproveCheck', $pr, 'protokol_pdf.php?hours=1&id=' . (int)$pr['id'],
+              'prGradesForm', $pr_empty ? 'Akceptuję i zatwierdzam pusty protokół' : 'Akceptuję i zatwierdzam protokół',
+              'name="_op" value="protocol_approve"') ?>
+      <?php endif; ?>
 
       <?php $pr_acked = ti_protocol_hours_acked($pr); $pr_hp = ti_protocol_hours_and_payout($pr); ?>
       <div class="card-header border-top">Oświadczenie o zgodności ewidencji godzin i wypłaty</div>
@@ -326,10 +329,7 @@ $pr_confirm = $pr_empty
           moich zastrzeżeń. Potwierdzenie zapisuje kto, kiedy i z jakiego adresu IP je złożył;
           odblokowanie protokołu je unieważnia.
         </p>
-        <form method="post" class="usos-noprint" id="prHoursAckForm"
-              onsubmit="return confirm(document.getElementById('pr_on_behalf') && document.getElementById('pr_on_behalf').checked
-                ? 'Uzupełnić ewidencję godzin i naliczenie wypłaty w zastępstwie prowadzącego?'
-                : 'Potwierdzić zgodność ewidencji godzin i naliczenia wypłaty?')">
+        <form method="post" class="usos-noprint" id="prHoursAckForm">
           <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
           <input type="hidden" name="_op" value="protocol_hours_ack">
           <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
@@ -344,10 +344,12 @@ $pr_confirm = $pr_empty
             </label>
           </div>
           <?php endif; ?>
-          <button class="btn btn-sm btn-success">
+          <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#prHoursAckCheck">
             <i class="bi bi-pen me-1" aria-hidden="true"></i>Potwierdzam zgodność
           </button>
         </form>
+        <?= ti_protocol_hours_check_modal('prHoursAckCheck', $pr, 'protokol_pdf.php?hours=1&id=' . (int)$pr['id'],
+                'prHoursAckForm', 'Akceptuję i potwierdzam ewidencję') ?>
         <?php endif; ?>
       </div>
 

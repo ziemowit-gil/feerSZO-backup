@@ -1153,6 +1153,156 @@ function ti_protocol_pdf(array $prot): ?string {
 }
 
 /**
+ * Protokół "roboczy" dla kursu i miesiąca bez zakładania wiersza w bazie —
+ * do podglądu/wydruku listy godzin przed zatwierdzeniem (get-or-create
+ * zostawiamy samemu zatwierdzeniu).
+ */
+function ti_protocol_month_stub(int $course_id, string $year_month): array {
+    $existing = db_one("SELECT id FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$course_id, $year_month]);
+    if ($existing) return ti_protocol_get((int)$existing['id']) ?: [];
+    $c = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id]);
+    return [
+        'id' => 0, 'course_id' => $course_id, 'course_name' => (string)($c['name'] ?? ''),
+        'year_month' => $year_month, 'status' => 'open', 'title' => 'Protokół ' . $year_month,
+        'period_name' => 'miesiąc ' . $year_month,
+        'date_from' => $year_month . '-01', 'date_to' => date('Y-m-t', strtotime($year_month . '-01')),
+    ];
+}
+
+/**
+ * Lista godzin do sprawdzenia przed podpisem: jeden wiersz na zajęcia —
+ * data i liczba godzin (zegarowych, z minut; np. 1,5). Z kopii zatwierdzenia,
+ * gdy protokół jest zatwierdzony, inaczej na żywo.
+ *
+ * @return array{rows: array<int, array{date:string, from:string, to:string, min:int, hours:float, sub:string}>, total_min:int, total_hours:float}
+ */
+function ti_protocol_hours_list(array $prot): array {
+    $hp   = ti_protocol_hours_and_payout($prot);
+    $rows = [];
+    foreach ((array)$hp['rows'] as $r) {
+        $min = (int)$r['min'];
+        $rows[] = [
+            'date' => (string)$r['date'], 'from' => (string)$r['from'], 'to' => (string)$r['to'],
+            'min' => $min, 'hours' => round($min / 60, 2), 'sub' => (string)($r['sub'] ?? ''),
+        ];
+    }
+    return ['rows' => $rows, 'total_min' => (int)$hp['total_min'], 'total_hours' => round((int)$hp['total_min'] / 60, 2),
+            'instructor' => (string)($hp['instructor'] ?? '')];
+}
+
+/** Liczba godzin po polsku: 1,5 / 2 / 0,75. */
+function ti_protocol_hours_fmt(float $h): string {
+    return rtrim(rtrim(number_format($h, 2, ',', ''), '0'), ',');
+}
+
+/** HTML listy godzin (data — liczba godzin) — do okna sprawdzenia i PDF. */
+function ti_protocol_hours_list_html(array $prot): string {
+    $h  = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $hl = ti_protocol_hours_list($prot);
+    $out = '<h1>Lista godzin zajęć</h1>'
+         . '<table class="head"><tbody>'
+         . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
+         . '<tr><th>Okres</th><td>' . $h($prot['period_name'] ?? '') . '</td></tr>'
+         . '<tr><th>Prowadzący</th><td>' . $h($hl['instructor'] !== '' ? $hl['instructor'] : '—') . '</td></tr>'
+         . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
+         . '</tbody></table>';
+    if (!$hl['rows']) return $out . '<p class="empty-note">W tym okresie nie ma zajęć odbytych.</p>';
+    $out .= '<table class="items"><thead><tr><th style="width:8%">#</th><th>Data</th><th style="width:30%" class="r">Liczba godzin</th></tr></thead><tbody>';
+    $i = 0;
+    foreach ($hl['rows'] as $r) {
+        $i++;
+        $out .= '<tr><td>' . $i . '.</td><td>' . $h(date('d.m.Y', strtotime($r['date'])))
+              . ($r['sub'] !== '' ? ' <em>(zastępstwo: ' . $h($r['sub']) . ')</em>' : '') . '</td>'
+              . '<td class="r">' . $h(ti_protocol_hours_fmt($r['hours'])) . '</td></tr>';
+    }
+    $out .= '<tr class="sum"><td colspan="2">Razem (' . count($hl['rows']) . ' zaj.)</td><td class="r">'
+          . $h(ti_protocol_hours_fmt($hl['total_hours'])) . '</td></tr></tbody></table>'
+          . '<p class="trace">Sprawdziłem/am listę godzin: ............................................. (data i podpis)</p>';
+    return $out;
+}
+
+/**
+ * Okno modalne (Bootstrap) „Sprawdź listę godzin”: tabela data — liczba godzin,
+ * wydruk PDF i obowiązkowe zaznaczenie „sprawdziłem/am” przed przyciskiem
+ * Akceptuję, który wysyła formularz $form_id (albo sam jest jego submitem).
+ * $submit_attrs — atrybuty przycisku (np. name/value dla _op wspólnego formularza).
+ */
+function ti_protocol_hours_check_modal(string $modal_id, array $prot, string $pdf_url, string $form_id, string $accept_label, string $submit_attrs = ''): string {
+    $h  = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $hl = ti_protocol_hours_list($prot);
+    $rows = '';
+    foreach ($hl['rows'] as $i => $r) {
+        $rows .= '<tr><td class="text-body-secondary">' . ($i + 1) . '.</td><td>' . $h(date('d.m.Y', strtotime($r['date'])))
+               . ($r['sub'] !== '' ? ' <span class="small text-body-secondary">(zastępstwo: ' . $h($r['sub']) . ')</span>' : '')
+               . '</td><td class="text-end">' . $h(ti_protocol_hours_fmt($r['hours'])) . '</td></tr>';
+    }
+    $cb = $modal_id . '_ok';
+    return '<div class="modal fade" id="' . $h($modal_id) . '" tabindex="-1" aria-labelledby="' . $h($modal_id) . '_t" aria-hidden="true">'
+        . '<div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">'
+        . '<div class="modal-header"><h5 class="modal-title" id="' . $h($modal_id) . '_t"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Sprawdź listę godzin</h5>'
+        . '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>'
+        . '<div class="modal-body">'
+        . '<p class="small mb-2"><strong>' . $h($prot['course_name'] ?? '') . '</strong> — ' . $h($prot['period_name'] ?? '') . '</p>'
+        . ($hl['rows']
+            ? '<table class="table table-sm align-middle mb-2"><caption class="visually-hidden">Lista godzin zajęć</caption>'
+              . '<thead><tr><th scope="col" style="width:3rem">#</th><th scope="col">Data</th><th scope="col" class="text-end">Liczba godzin</th></tr></thead>'
+              . '<tbody>' . $rows . '</tbody><tfoot><tr class="fw-semibold"><td colspan="2">Razem (' . count($hl['rows']) . ' zaj.)</td>'
+              . '<td class="text-end">' . $h(ti_protocol_hours_fmt($hl['total_hours'])) . '</td></tr></tfoot></table>'
+            : '<p class="text-body-secondary">W tym okresie nie ma zajęć odbytych.</p>')
+        . '<a href="' . $h($pdf_url) . '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary mb-3">'
+        . '<i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj listę godzin (PDF)</a>'
+        . '<div class="form-check"><input class="form-check-input" type="checkbox" id="' . $h($cb) . '" '
+        . 'onchange="document.getElementById(\'' . $h($modal_id) . '_btn\').disabled=!this.checked">'
+        . '<label class="form-check-label small" for="' . $h($cb) . '">Sprawdziłem/am listę godzin — daty i liczba godzin są zgodne ze stanem faktycznym.</label></div>'
+        . '</div>'
+        . '<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>'
+        . '<button type="submit" class="btn btn-success" id="' . $h($modal_id) . '_btn" form="' . $h($form_id) . '" disabled ' . $submit_attrs . '>'
+        . '<i class="bi bi-check2-circle me-1" aria-hidden="true"></i>' . $h($accept_label) . '</button></div>'
+        . '</div></div></div>';
+}
+
+/** Lista godzin jako PDF (mPDF) albo null przy błędzie. */
+function ti_protocol_hours_list_pdf(array $prot): ?string {
+    try {
+        require_once dirname(__DIR__) . '/vendor/autoload.php';
+        $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
+        if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
+        $mpdf = new \Mpdf\Mpdf([
+            'mode' => 'utf-8', 'format' => 'A4',
+            'margin_left' => 18, 'margin_right' => 16, 'margin_top' => 16, 'margin_bottom' => 16,
+            'default_font' => 'dejavuserif', 'tempDir' => $mpdf_tmp,
+        ]);
+        $mpdf->SetTitle('Lista godzin — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['period_name'] ?? ''));
+        $mpdf->WriteHTML(
+            'body { font-family:"DejaVu Serif",serif; font-size:10pt; color:#000; }
+             h1 { font-size:14pt; margin:0 0 3mm; }
+             table { border-collapse:collapse; width:100%; }
+             table.head th { text-align:left; width:30%; background:#f4f6f8; }
+             table.head th, table.head td { border:.2mm solid #ccc; padding:1.3mm 2mm; font-size:9.5pt; }
+             table.items { margin-top:5mm; }
+             table.items th { background:#eef1f4; border:.2mm solid #999; padding:1.3mm 2mm; font-size:9pt; text-align:left; }
+             table.items td { border:.2mm solid #999; padding:1.3mm 2mm; font-size:10pt; }
+             .r { text-align:right; }
+             tr.sum td { background:#f2f2f2; font-weight:bold; }
+             p.empty-note { margin-top:5mm; font-weight:bold; }
+             p.trace { margin-top:10mm; font-size:9.5pt; }',
+            \Mpdf\HTMLParserMode::HEADER_CSS
+        );
+        $mpdf->WriteHTML(ti_protocol_hours_list_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
+        return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+/** Nazwa pliku listy godzin, np. lista_godzin_Grupa_A_2026-09.pdf */
+function ti_protocol_hours_list_filename(array $prot): string {
+    $slug = preg_replace('/[^A-Za-z0-9_-]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string)($prot['course_name'] ?? 'kurs')) ?: 'kurs');
+    $when = (string)($prot['year_month'] ?? '') !== '' ? (string)$prot['year_month'] : (string)($prot['date_from'] ?? date('Y-m-d'));
+    return 'lista_godzin_' . trim($slug, '_') . '_' . $when . '.pdf';
+}
+
+/**
  * Oceny końcowe kursanta z ZATWIERDZONYCH protokołów — dla panelu kursanta
  * i opiekuna. Protokół w toku nie jest deklaracją, więc go nie pokazujemy:
  * ocena pojawia się dopiero po zatwierdzeniu.
