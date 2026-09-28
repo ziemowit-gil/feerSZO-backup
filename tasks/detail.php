@@ -46,6 +46,7 @@ require_once __DIR__ . '/includes/detail_load.php';
 
 <?php require_once __DIR__ . '/includes/detail_header.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_properties.php'; ?>
+<?php require_once __DIR__ . '/includes/detail_dependencies.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_fields.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_subtasks_time.php'; ?>
 <?php require_once __DIR__ . '/includes/detail_files.php'; ?>

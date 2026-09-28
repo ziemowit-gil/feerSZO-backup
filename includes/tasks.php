@@ -989,6 +989,16 @@ function task_extras_schema_heal(): void {
             PRIMARY KEY (task_id, user_id)
         )");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_task_watchers_user ON task_watchers(user_id)");
+        // Zależności: task_id jest blokowane przez blocked_by_id (musi być ukończone wcześniej)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS task_dependencies (
+            task_id       INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            blocked_by_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            created_by    INTEGER,
+            created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+            PRIMARY KEY (task_id, blocked_by_id),
+            CHECK (task_id <> blocked_by_id)
+        )");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_task_deps_blocker ON task_dependencies(blocked_by_id)");
     } catch (\Throwable $e) { error_log('[task_extras_schema_heal] ' . $e->getMessage()); }
 }
 
@@ -1010,4 +1020,68 @@ function task_watch_set(int $task_id, int $user_id, bool $on): void {
     } else {
         db()->prepare("DELETE FROM task_watchers WHERE task_id=? AND user_id=?")->execute([$task_id, $user_id]);
     }
+}
+
+/** Zadania blokujące $task_id (z informacją, czy są już ukończone). */
+function task_blockers(int $task_id): array {
+    task_extras_schema_heal();
+    return db_all(
+        "SELECT t.id, t.title, t.completed_at, tl.name AS list_name, tl.is_done_state
+         FROM task_dependencies d
+         JOIN tasks t ON t.id = d.blocked_by_id AND t.deleted_at IS NULL
+         JOIN task_lists tl ON tl.id = t.list_id
+         WHERE d.task_id = ? ORDER BY t.title",
+        [$task_id]
+    );
+}
+
+/** Zadania, które czekają na $task_id. */
+function task_blocking(int $task_id): array {
+    task_extras_schema_heal();
+    return db_all(
+        "SELECT t.id, t.title, t.completed_at, tl.name AS list_name
+         FROM task_dependencies d
+         JOIN tasks t ON t.id = d.task_id AND t.deleted_at IS NULL
+         JOIN task_lists tl ON tl.id = t.list_id
+         WHERE d.blocked_by_id = ? ORDER BY t.title",
+        [$task_id]
+    );
+}
+
+/** Nieukończone blokery — niepusta lista = zadania nie należy jeszcze kończyć. */
+function task_open_blockers(int $task_id): array {
+    return array_values(array_filter(task_blockers($task_id),
+        fn($b) => !$b['completed_at'] && !$b['is_done_state']));
+}
+
+/** Czy dodanie krawędzi task → blocker utworzyłoby cykl (blocker pośrednio czeka na task). */
+function task_dependency_creates_cycle(int $task_id, int $blocker_id): bool {
+    $seen = [];
+    $stack = [$blocker_id];
+    while ($stack) {
+        $cur = array_pop($stack);
+        if ($cur === $task_id) return true;
+        if (isset($seen[$cur])) continue;
+        $seen[$cur] = true;
+        foreach (db_all("SELECT blocked_by_id FROM task_dependencies WHERE task_id=?", [$cur]) as $r) {
+            $stack[] = (int)$r['blocked_by_id'];
+        }
+    }
+    return false;
+}
+
+/**
+ * Odmowa ukończenia zadania z otwartymi blokerami (409), chyba że klient potwierdził ($force).
+ * Klient pokazuje listę i może ponowić z force=true.
+ */
+function task_guard_blockers(int $task_id, bool $force): void {
+    if ($force) return;
+    $open = task_open_blockers($task_id);
+    if (!$open) return;
+    task_api_json([
+        'ok'       => false,
+        'blocked'  => true,
+        'error'    => 'Zadanie czeka na: ' . implode(', ', array_map(fn($b) => '„' . $b['title'] . '”', $open)) . '.',
+        'blockers' => array_map(fn($b) => ['id' => (int)$b['id'], 'title' => $b['title']], $open),
+    ], 409);
 }

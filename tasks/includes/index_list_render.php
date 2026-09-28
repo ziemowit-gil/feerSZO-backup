@@ -76,6 +76,12 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                 <i class="bi bi-check2-square" aria-hidden="true"></i> <?= (int)$t['st_done'] ?>/<?= (int)$t['st_total'] ?>
               </span>
               <?php endif; ?>
+              <?php if ((int)($t['blocked_count'] ?? 0) > 0): ?>
+              <span class="tk-card-st tk-card-blocked" title="Czeka na nieukończone zadania"
+                    aria-label="Czeka na <?= (int)$t['blocked_count'] ?> nieukończone zadania">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i> <?= (int)$t['blocked_count'] ?>
+              </span>
+              <?php endif; ?>
               <?php if ((int)($t['file_count'] ?? 0) > 0): ?>
               <span class="tk-card-st" title="Pliki" aria-label="<?= (int)$t['file_count'] ?> plików">
                 <i class="bi bi-paperclip" aria-hidden="true"></i> <?= (int)$t['file_count'] ?>

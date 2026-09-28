@@ -39,6 +39,18 @@ $assignees  = db_all(
      JOIN users u ON u.id=ta.user_id WHERE ta.task_id=? ORDER BY u.name", [$id]);
 $assign_ids = array_column($assignees, 'id');
 $watchers    = task_watchers($id);
+$blockers    = task_blockers($id);
+$blocking    = task_blocking($id);
+$dep_candidates = [];
+if ($can_edit) {
+    $dep_exclude = array_merge([$id], array_map(fn($b) => (int)$b['id'], $blockers));
+    $dep_candidates = array_values(array_filter(db_all(
+        "SELECT t.id, t.title, t.completed_at FROM tasks t
+         WHERE t.workspace_id=? AND t.deleted_at IS NULL AND t.archived_at IS NULL
+         ORDER BY (t.completed_at IS NOT NULL), t.title LIMIT 400",
+        [(int)$task['workspace_id']]
+    ), fn($c) => !in_array((int)$c['id'], $dep_exclude, true)));
+}
 $i_watch     = in_array($uid, array_map('intval', array_column($watchers, 'id')), true);
 // Uprawnienie do plików wymaga też przypisania do zadania (dla ról poza admin/editor) —
 // tak samo jak sprawdza to tasks/api/upload.php.

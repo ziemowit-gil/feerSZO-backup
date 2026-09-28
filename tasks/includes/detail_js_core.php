@@ -77,9 +77,13 @@ window.tdSetUnit = function(sel) {
     }
 };
 
-window.tdMoveToList = function(listId) {
-    api('/tasks/api/move.php', {task_id:TID, list_id:listId, position:9999, ordered_ids:[]})
-        .then(r => { if (r.ok) openTask(TID); else alert(r.error); });
+window.tdMoveToList = function(listId, force) {
+    api('/tasks/api/move.php', {task_id:TID, list_id:listId, position:9999, ordered_ids:[], force:!!force})
+        .then(r => {
+            if (r.ok) return openTask(TID);
+            if (r.blocked && !force && confirm(r.error + '\n\nMimo to przenieść?')) return tdMoveToList(listId, true);
+            if (!r.blocked) alert(r.error);
+        });
 };
 
 window.tdToggleTag = function(tagId, btn) {
@@ -276,6 +280,18 @@ window.tdCmtKeydown = function(e) {
     const oc = document.querySelector('.offcanvas-body');
     if (oc) oc.addEventListener('scroll', tdMentionHide, {passive: true});
 })();
+
+window.tdDepAdd = function() {
+    const sel = document.getElementById('td-dep-add');
+    const bid = parseInt(sel?.value || '0', 10);
+    if (!bid) { sel?.focus(); return; }
+    api('/tasks/api/dependency.php', {action:'add', task_id:TID, blocked_by_id:bid})
+        .then(r => { if (r.ok) { srAnnounce('Dodano zależność.'); openTask(TID); } else alert(r.error); });
+};
+window.tdDepRemove = function(bid) {
+    api('/tasks/api/dependency.php', {action:'remove', task_id:TID, blocked_by_id:bid})
+        .then(r => { if (r.ok) { srAnnounce('Usunięto zależność.'); openTask(TID); } else alert(r.error); });
+};
 
 window.tdToggleWatch = function() {
     const btn = document.getElementById('td-watch-btn');

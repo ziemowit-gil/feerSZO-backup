@@ -57,7 +57,9 @@ window.tdMarkDone = function() {
     if (!confirm('Oznaczyć zadanie jako ukończone?')) return;
     const btn = document.getElementById('td-btn-done');
     if (btn) { btn.disabled = true; btn.textContent = 'Zapisuję…'; }
-    api('/tasks/api/task.php', {action:'complete', id:TID})
+    const send = force => api('/tasks/api/task.php', {action:'complete', id:TID, force:!!force})
+        .then(r => (!r.ok && r.blocked && !force && confirm(r.error + '\n\nMimo to oznaczyć jako ukończone?')) ? send(true) : r);
+    send(false)
         .then(r => {
             if (r.ok) {
                 srAnnounce('Zadanie oznaczone jako ukończone.');
@@ -72,7 +74,7 @@ window.tdMarkDone = function() {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zakończ';
                 }
-                alert(r.error);
+                if (!r.blocked) alert(r.error);   // blocked = użytkownik anulował ostrzeżenie o zależnościach
             }
         });
 };

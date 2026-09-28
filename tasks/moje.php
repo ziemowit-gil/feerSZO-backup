@@ -447,12 +447,19 @@ $pri_labels = [4 => 'Krytyczny', 3 => 'Wysoki', 2 => 'Normalny', 1 => 'Niski'];
       const csrf   = btn.dataset.csrf;
       btn.disabled = true;
 
-      fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'complete', id: parseInt(taskId, 10), _csrf: csrf })
-      })
-      .then(function (r) { return r.json(); })
+      var send = function (force) {
+        return fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'complete', id: parseInt(taskId, 10), _csrf: csrf, force: !!force })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          // Otwarte zależności — potwierdź i ponów z force
+          return (!d.ok && d.blocked && !force && confirm(d.error + '\n\nMimo to oznaczyć jako ukończone?')) ? send(true) : d;
+        });
+      };
+      send(false)
       .then(function (d) {
         if (d.ok) {
           btn.classList.add('done-ok');
@@ -464,7 +471,7 @@ $pri_labels = [4 => 'Krytyczny', 3 => 'Wysoki', 2 => 'Normalny', 1 => 'Niski'];
           }
         } else {
           btn.disabled = false;
-          alert(d.msg || 'Błąd — spróbuj ponownie.');
+          if (!d.blocked) alert(d.error || d.msg || 'Błąd — spróbuj ponownie.');  // blocked = anulowane przez użytkownika
         }
       })
       .catch(function () { btn.disabled = false; });

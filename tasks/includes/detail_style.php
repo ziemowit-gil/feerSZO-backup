@@ -187,6 +187,11 @@
 .td-comment-body   { font-size: .84rem; white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
 
 /* ── Pliki ──────────────────────────────────────────────────── */
+.td-dep-list { list-style: none; padding: 0; margin: 0; }
+.td-dep-row { display: flex; align-items: center; gap: .4rem; padding: .2rem 0; font-size: .82rem; }
+.td-dep-link { border: 0; background: none; padding: 0; color: #1d4ed8; text-align: left; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-dep-link:hover, .td-dep-link:focus-visible { text-decoration: underline; }
 .td-watch { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .td-drop-zone {
   border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: .6rem .75rem;

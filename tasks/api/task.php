@@ -259,6 +259,8 @@ if ($action === 'complete') {
         }
     }
 
+    task_guard_blockers($id, !empty($body['force']));
+
     $done_list = db_one(
         "SELECT id, name FROM task_lists WHERE workspace_id=? AND is_done_state=1 ORDER BY position LIMIT 1",
         [$task['workspace_id']]

@@ -41,6 +41,11 @@ $new_list = db_one(
 );
 if (!$new_list) task_api_error('Lista nie istnieje w tym obszarze.', 404);
 
+// Przeniesienie do kolumny „ukończone” przy otwartych zależnościach wymaga potwierdzenia
+if (!empty($new_list['is_done_state']) && (int)$task['list_id'] !== $new_list_id) {
+    task_guard_blockers($task_id, !empty($body['force']));
+}
+
 // Przenumeruj zadania w nowej kolumnie
 $new_pos = (float)($body['position'] ?? 1);
 

@@ -170,6 +170,20 @@ $ev_defs = [
     'label'       => 'Tag usunięty',
     'desc'        => fn($e) => $e['from_value'] ? '<span class="td-hi-from">#' . h($e['from_value']) . '</span>' : '',
   ],
+  'dependency_added' => [
+    'icon'        => 'bi-diagram-2',
+    'bg'          => '#fef3c7', 'color' => '#b45309',
+    'badge_bg'    => '#fffbeb', 'badge_color' => '#b45309',
+    'label'       => 'Czeka na',
+    'desc'        => fn($e) => $e['to_value'] ? '<span class="td-hi-to">' . h($e['to_value']) . '</span>' : '',
+  ],
+  'dependency_removed' => [
+    'icon'        => 'bi-diagram-2',
+    'bg'          => '#f1f5f9', 'color' => '#64748b',
+    'badge_bg'    => '#f8fafc', 'badge_color' => '#64748b',
+    'label'       => 'Usunięto zależność',
+    'desc'        => fn($e) => $e['from_value'] ? '<span class="td-hi-from">' . h($e['from_value']) . '</span>' : '',
+  ],
   'comment_edited' => [
     'icon'        => 'bi-pencil',
     'bg'          => '#f1f5f9', 'color' => '#64748b',

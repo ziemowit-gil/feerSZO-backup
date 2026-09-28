@@ -297,6 +297,7 @@
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tk-card-unit{font-size:.68rem;color:#6d28d9;margin-bottom:.25rem;
   display:flex;align-items:center;gap:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-card-blocked{color:#b45309;font-weight:600}
 .tk-card-tags{display:flex;flex-wrap:wrap;gap:.2rem;margin-bottom:.3rem}
 .tk-card-footer{display:flex;justify-content:space-between;align-items:center;gap:.3rem}
 .tk-card-due{font-size:.7rem;color:#64748b;display:flex;align-items:center;gap:.2rem;white-space:nowrap}

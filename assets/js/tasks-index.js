@@ -208,12 +208,17 @@
         const isDone = btn.classList.contains('s-done');
         const action = isDone ? 'reopen' : 'complete';
         if (action === 'complete' && !confirm('Oznaczyć zadanie jako ukończone?')) return;
-        fetch(BASE + '/tasks/api/task.php', {
+        const send = force => fetch(BASE + '/tasks/api/task.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({_csrf: CSRF, action: action, id: taskId})
-        }).then(r => r.json()).then(d => { if (d.ok) window.tkAjaxLoad(); else alert(d.error || 'Błąd.'); })
-          .catch(() => alert('Błąd połączenia.'));
+            body: JSON.stringify({_csrf: CSRF, action: action, id: taskId, force: !!force})
+        }).then(r => r.json()).then(d => {
+            if (d.ok) return window.tkAjaxLoad();
+            // Otwarte zależności — potwierdź i ponów z force
+            if (d.blocked && !force) { if (confirm(d.error + '\n\nMimo to oznaczyć jako ukończone?')) send(true); return; }
+            alert(d.error || 'Błąd.');
+        });
+        send(false).catch(() => alert('Błąd połączenia.'));
     };
 
     /* Inline zmiana priorytetu */
@@ -445,7 +450,7 @@
                     if (!taskId || !newListId) return;
                     if (evt.from === evt.to && evt.oldIndex === evt.newIndex) return; // upuszczone w tym samym miejscu
 
-                    fetch(BASE + '/tasks/api/move.php', {
+                    const sendMove = force => fetch(BASE + '/tasks/api/move.php', {
                         method:  'POST',
                         headers: {'Content-Type': 'application/json'},
                         body:    JSON.stringify({
@@ -453,10 +458,15 @@
                             task_id:     taskId,
                             list_id:     newListId,
                             position:    evt.newIndex + 1,
-                            ordered_ids: orderedIds
+                            ordered_ids: orderedIds,
+                            force:       !!force
                         })
                     })
                     .then(r => r.json())
+                    // Kolumna „ukończone” przy otwartych zależnościach — potwierdź i ponów z force
+                    .then(r => (!r.ok && r.blocked && !force && confirm(r.error + '\n\nMimo to przenieść?')) ? sendMove(true) : r);
+
+                    sendMove(false)
                     .then(r => {
                         if (!r.ok) {
                             tkAnnounce('Błąd przenoszenia: ' + (r.error || ''));

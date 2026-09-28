@@ -86,6 +86,8 @@ if ($ws_id) {
             ? "(SELECT COUNT(*) FROM ws_task_files wtf WHERE wtf.task_id = t.id)"
             : "0";
 
+        task_extras_schema_heal();   // task_dependencies (licznik „czeka na” na kartach)
+
         // Wszystkie zadania płasko
         $tasks_raw = db_all(
             "SELECT t.*,
@@ -98,7 +100,11 @@ if ($ws_id) {
                     (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id)             AS st_total,
                     (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id AND ts.is_done=1) AS st_done,
                     (SELECT COUNT(*) FROM task_files      tf WHERE tf.task_id = t.id) + {$ws_files_sql}  AS file_count,
-                    (SELECT COUNT(*) FROM task_comments   tc WHERE tc.task_id = t.id AND tc.deleted_at IS NULL) AS comment_count
+                    (SELECT COUNT(*) FROM task_comments   tc WHERE tc.task_id = t.id AND tc.deleted_at IS NULL) AS comment_count,
+                    (SELECT COUNT(*) FROM task_dependencies td
+                       JOIN tasks bt ON bt.id = td.blocked_by_id AND bt.deleted_at IS NULL AND bt.completed_at IS NULL
+                       JOIN task_lists bl ON bl.id = bt.list_id AND bl.is_done_state = 0
+                     WHERE td.task_id = t.id) AS blocked_count
              FROM tasks t
              JOIN task_lists tl ON tl.id = t.list_id
              LEFT JOIN org_units ou ON ou.id = t.unit_id
