@@ -211,7 +211,7 @@ function ti_notices_migrate(): void {
             db()->prepare(
                 "UPDATE k30_ti_notices SET body = body || ?, updated_at = datetime('now')
                   WHERE title LIKE 'Aktualizacja SZO 14.1%' AND body NOT LIKE '%Nagłówek panelu:%'"
-            )->execute(["\n\n(Uzupełnienie 14.1a)"\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl.]);
+            )->execute(["\n\n(Uzupełnienie 14.1a)" . "\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl."]);
         }
     } catch (\Throwable $e) {}
 
