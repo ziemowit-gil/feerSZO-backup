@@ -19,6 +19,13 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_periods.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
 
+// Bufor całej strony: zakładki _tab_kursy / _tab_uczestnicy / _tab_billing /
+// _tab_rozliczenia obsługują POST dopiero w miejscu dołączenia — PO nagłówku
+// strony — i kończą header('Location'). Bez bufora, gdy hosting ma wyłączone
+// output_buffering, leci „headers already sent” i przekierowanie ginie
+// (operacja i tak się wykonała). Treść wysłana razem z 302 jest ignorowana.
+ob_start();
+
 karty30_migrate();
 k30_ti_reschedule_migrate();
 ti_notices_migrate();
