@@ -1492,7 +1492,14 @@ switch ($action) {
         if ($pid) {
             $pr = ti_protocol_get($pid);
         } elseif ($cid && preg_match('/^\d{4}-\d{2}$/', $ym)) {
-            $created = ti_protocol_get_or_create_for_month($cid, $ym);
+            // Najpierw uprawnienie do kursu, dopiero potem get-or-create — inaczej
+            // dowolny prowadzący zakładałby GET-em protokoły cudzych kursów.
+            if (!k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Brak dostępu do tego protokołu.', 403);
+            try {
+                $created = ti_protocol_get_or_create_for_month($cid, $ym);
+            } catch (\Throwable $e) {
+                json_err('Nie udało się przygotować protokołu: ' . $e->getMessage(), 500);
+            }
             $pr = ti_protocol_get((int)$created['id']);
         }
         if (!$pr || !k30_ti_instructor_owns_course($instructor_id, (int)$pr['course_id'])) {
