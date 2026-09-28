@@ -25,7 +25,7 @@ function szo_redis_config(): array {
     $tenant = defined('TENANT_SLUG') && TENANT_SLUG !== '' ? TENANT_SLUG : 'main';
     return [
         'enabled'  => $g('redis_enabled') === '1',
-        'socket'   => $g('redis_socket'),
+        'socket'   => preg_replace('#^unix://#i', '', $g('redis_socket')),
         'host'     => $g('redis_host') ?: '127.0.0.1',
         'port'     => (int)($g('redis_port') ?: 6379),
         'password' => $g('redis_password'),
@@ -100,9 +100,33 @@ function szo_redis(bool $force = false, ?array $cfg = null, ?string &$error = nu
         return $c;
     } catch (\Throwable $e) {
         $error = $e->getMessage();
+        if ($cfg['socket'] !== '' && ($why = _szo_redis_socket_problem($cfg['socket']))) $error = $why;
         if (!$force) $failed = true;
         return null;
     }
+}
+
+/**
+ * Czytelna przyczyna, gdy połączenie po gnieździe się nie udało. Liczone
+ * dopiero po porażce (open_basedir może zafałszować file_exists — wtedy null
+ * i zostaje oryginalny komunikat). Na FreeBSD (MyDevil) „Socket operation on
+ * non-socket” = ścieżka istnieje, ale to katalog albo zwykły plik.
+ */
+function _szo_redis_socket_problem(string $p): ?string {
+    $dir = dirname($p);
+    if (!@file_exists($p)) {
+        if (!@is_dir($dir)) return "Katalog {$dir} nie istnieje albo PHP nie ma do niego dostępu — sprawdź ścieżkę gniazda.";
+        return "Brak gniazda {$p} — Redis nie działa (uruchom go: cli/mydevil_redis_setup.sh albo screen redis-server redis.conf) "
+             . "albo w redis.conf linia unixsocket wskazuje inną ścieżkę.";
+    }
+    if (@is_dir($p)) return "{$p} to katalog, a nie gniazdo — podaj pełną ścieżkę pliku, np. " . rtrim($p, '/') . '/redis.sock.';
+    $t = @filetype($p);
+    if ($t !== false && $t !== 'socket') {
+        return "{$p} to zwykły plik ({$t}), a nie gniazdo Redisa — wpisz ścieżkę z linii unixsocket w redis.conf "
+             . "(np. /usr/home/LOGIN/domains/DOMENA/redis.sock), nie plik konfiguracyjny.";
+    }
+    if ($t === 'socket') return "Gniazdo {$p} istnieje, ale Redis nie przyjmuje połączeń — prawdopodobnie został po zatrzymanym serwerze; uruchom Redis ponownie.";
+    return null;
 }
 
 /** Wykonuje polecenie niezależnie od klienta. */

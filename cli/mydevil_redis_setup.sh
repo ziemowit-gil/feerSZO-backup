@@ -134,14 +134,10 @@ Gotowe.
   Screen:      screen -r $SCREEN_NAME
   Test:        redis-cli -s $SOCK -a "\$(cat $PASS_FILE)" ping
 
-Do config.php (PHP na MyDevil ma moduł redis):
-
-  define('REDIS_SOCK', '$SOCK');
-  define('REDIS_PASS', trim(file_get_contents('$PASS_FILE')));
-
-  \$r = new Redis();
-  \$r->connect(REDIS_SOCK);
-  \$r->auth(REDIS_PASS);
+W SZO: Panel admina → „Redis (cache)” (admin/redis.php):
+  • Gniazdo unix:  $SOCK
+  • Hasło:         wklej wynik:  cat $PASS_FILE
+  • zaznacz „Włączony”, kliknij „Testuj”, potem „Zapisz”.
 
 Persystencja: domyślnie RDB (save 900 1 / 300 10 / 60 10000) do $WORK_DIR/dump.rdb.
 Aby włączyć AOF: w $CONF zmień 'appendonly no' na 'appendonly yes' i zrestartuj

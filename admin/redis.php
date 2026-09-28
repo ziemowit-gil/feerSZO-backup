@@ -134,7 +134,12 @@ include dirname(__DIR__) . '/includes/header.php';
   <details class="card">
     <summary class="card-header" style="cursor:pointer">Jak uruchomić Redis na MyDevil</summary>
     <div class="card-body small">
-      <p class="mb-1">Konfiguracja tylko na gnieździe unix w katalogu domowym (bez portu TCP, bez zapisu na dysk):</p>
+      <p class="mb-1"><strong>Najprościej:</strong> na serwerze uruchom <code>sh cli/mydevil_redis_setup.sh</code> — zapyta o login i domenę
+      (domyślnie szo.feer.org.pl), ustawi gniazdo <code>/usr/home/LOGIN/domains/DOMENA/redis.sock</code>, wygeneruje hasło,
+      uruchomi Redis w <code>screen</code> i doda autostart <code>@reboot</code>. Na końcu wypisze, co wpisać poniżej.</p>
+      <p class="mb-1">Komunikat „Socket operation on non-socket” oznacza, że w polu „Gniazdo unix” wpisano katalog albo zwykły plik
+      (np. <code>redis.conf</code>) zamiast ścieżki z linii <code>unixsocket</code>.</p>
+      <p class="mb-1">Ręcznie — konfiguracja tylko na gnieździe unix w katalogu domowym (bez portu TCP, bez zapisu na dysk):</p>
 <pre class="bg-body-tertiary p-2 border small mb-2">mkdir -p ~/redis && cat > ~/redis/redis.conf &lt;&lt;'EOF'
 port 0
 unixsocket /usr/home/feer/redis/redis.sock
