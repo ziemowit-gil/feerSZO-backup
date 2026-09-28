@@ -432,3 +432,14 @@ body.ti-skin header .navbar .kp-user-menu .dropdown-toggle::after { margin-left:
   body.ti-skin header .navbar .dyd-topnav { margin-left: 0; width: 100%; order: 3; overflow-x: auto; flex-wrap: nowrap; }
   body.ti-skin header .navbar .dyd-topnav a { padding: .25rem .55rem; white-space: nowrap; }
 }
+
+/* Selektor grupy w pasku: zwykły select na granacie (biały, kanciasty) */
+body.ti-skin header .navbar .dyd-course-select { color: #fff; }
+body.ti-skin header .navbar .dyd-course-select .form-select {
+  max-width: 17rem; border-radius: 2px; font-size: .78rem; padding: .2rem 1.6rem .2rem .5rem;
+  background-color: #fff; color: var(--ti-navy); border: 1px solid rgba(255,255,255,.6);
+}
+body.ti-skin header .navbar .dyd-course-select .form-select:focus {
+  border-color: #ffd863; box-shadow: 0 0 0 .2rem rgba(255,216,99,.45);
+}
+@media (max-width: 767.98px) { body.ti-skin header .navbar .dyd-course-select .form-select { max-width: 11rem; } }

@@ -2608,82 +2608,36 @@ $matFormHtml = function(?array $r, string $pfx) use ($cur_course, $TYPES, $dtv, 
 
 $KP_TITLE  = 'Panel dydaktyka';
 
-// Selektor grupy w navbarze (tylko gdy >1 kurs)
+// Selektor grupy w pasku górnym (tylko gdy >1 kurs)
 $_dyd_course_switcher = '';
 if (count($courses) > 1) {
-    $cur_course_name = '';
-    foreach ($courses as $_c) { if ((int)$_c['id'] === $cur_course) { $cur_course_name = $_c['name']; break; } }
+    // Selektor grupy: zwykły <select> (przewijalny, wyszukiwanie klawiaturą,
+    // znośny przy kilkudziesięciu grupach) zamiast rozwijanej listy Bootstrapa.
+    // Zmiana = przejście na TĘ SAMĄ zakładkę w wybranej grupie (formularz GET).
+    // Kierownik z własnymi grupami widzi podział Twoje grupy / Grupy innych.
+    $split_view = dyd_is_staff() && !empty($my_course_ids_set);
+    $_opt = function (array $c, bool $with_instructor = false) use ($cur_course): string {
+        $inactive = ($c['status'] ?? '') === 'cancelled' || empty($c['is_active']);
+        $lbl = (string)$c['name']
+             . ($inactive ? ' — nieaktywna'
+                : ($with_instructor ? ' · ' . (string)($c['instructor_name'] ?: '—')
+                : (!empty($c['enrolled_count']) ? ' (' . (int)$c['enrolled_count'] . ' os.)' : '')));
+        return '<option value="' . (int)$c['id'] . '"' . ((int)$c['id'] === $cur_course ? ' selected' : '') . '>' . h($lbl) . '</option>';
+    };
     ob_start(); ?>
-<div class="dropdown">
-  <button class="btn btn-light border dropdown-toggle d-flex align-items-center gap-2 py-1"
-          type="button" data-bs-toggle="dropdown" aria-expanded="false"
-          style="max-width:240px" title="Zmień grupę">
-    <i class="bi bi-people-fill flex-shrink-0 text-primary" aria-hidden="true"></i>
-    <span class="d-flex flex-column align-items-start lh-sm overflow-hidden">
-      <span class="text-uppercase text-body-secondary" style="font-size:.62rem;letter-spacing:.04em">Grupa</span>
-      <span class="text-truncate fw-semibold" style="max-width:180px"><?= h($cur_course_name) ?></span>
-    </span>
-  </button>
-  <ul class="dropdown-menu dropdown-menu-end" style="min-width:220px">
-    <li><h6 class="dropdown-header"><i class="bi bi-arrow-left-right me-1"></i>Zmień grupę</h6></li>
-    <?php
-    $has_mine   = !empty($my_course_ids_set);
-    $split_view = dyd_is_staff() && $has_mine;
-    if ($split_view): ?>
-    <li><h6 class="dropdown-header text-primary" style="font-size:.7rem">Twoje grupy</h6></li>
-    <?php
-      foreach ($courses as $_c):
-        if (!isset($my_course_ids_set[(int)$_c['id']])) continue;
-        $isActive = ((int)$_c['id'] === $cur_course);
-        $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
-    ?>
-    <li>
-      <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive ? 'active' : '' ?> <?= $inactive ? 'text-body-secondary' : '' ?>"
-         href="index.php?course=<?= (int)$_c['id'] ?>&tab=<?= h($tab) ?>"
-         <?= $isActive ? 'aria-current="true"' : '' ?>>
-        <i class="bi bi-<?= $isActive ? 'check2' : ($inactive ? 'archive' : 'circle') ?> flex-shrink-0" aria-hidden="true"></i>
-        <span class="text-truncate"><?= h($_c['name']) ?></span>
-        <?php if (!$isActive && !$inactive): ?><span class="ms-auto small text-body-secondary flex-shrink-0"><?= (int)($_c['enrolled_count'] ?? 0) ?> os.</span><?php endif; ?>
-      </a>
-    </li>
-    <?php endforeach; ?>
-    <li><hr class="dropdown-divider my-1"></li>
-    <li><h6 class="dropdown-header text-body-secondary" style="font-size:.7rem">Grupy innych</h6></li>
-    <?php
-      foreach ($courses as $_c):
-        if (isset($my_course_ids_set[(int)$_c['id']])) continue;
-        $isActive = ((int)$_c['id'] === $cur_course);
-        $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
-    ?>
-    <li>
-      <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive ? 'active' : '' ?> <?= $inactive ? 'text-body-secondary' : '' ?>"
-         href="index.php?course=<?= (int)$_c['id'] ?>&tab=<?= h($tab) ?>"
-         <?= $isActive ? 'aria-current="true"' : '' ?>>
-        <i class="bi bi-<?= $isActive ? 'check2' : ($inactive ? 'archive' : 'circle') ?> flex-shrink-0" aria-hidden="true"></i>
-        <span class="text-truncate"><?= h($_c['name']) ?></span>
-        <span class="ms-auto small text-body-secondary flex-shrink-0"><?= h($_c['instructor_name'] ?? '—') ?></span>
-      </a>
-    </li>
-    <?php endforeach; ?>
-    <?php else: ?>
-    <?php
-      foreach ($courses as $_c):
-        $isActive = ((int)$_c['id'] === $cur_course);
-        $inactive = ($_c['status'] ?? '') === 'cancelled' || empty($_c['is_active']);
-    ?>
-    <li>
-      <a class="dropdown-item d-flex align-items-center gap-2 <?= $isActive ? 'active' : '' ?> <?= $inactive ? 'text-body-secondary' : '' ?>"
-         href="index.php?course=<?= (int)$_c['id'] ?>&tab=<?= h($tab) ?>"
-         <?= $isActive ? 'aria-current="true"' : '' ?>>
-        <i class="bi bi-<?= $isActive ? 'check2' : ($inactive ? 'archive' : 'circle') ?> flex-shrink-0" aria-hidden="true"></i>
-        <span class="text-truncate"><?= h($_c['name']) ?></span>
-        <?php if (!$isActive && !$inactive): ?><span class="ms-auto small text-body-secondary flex-shrink-0"><?= (int)($_c['enrolled_count'] ?? 0) ?> os.</span><?php endif; ?>
-      </a>
-    </li>
-    <?php endforeach; ?>
-    <?php endif; ?>
-  </ul>
-</div>
+<form method="get" action="index.php" class="dyd-course-select d-flex align-items-center gap-1" title="Zmień grupę">
+  <input type="hidden" name="tab" value="<?= h($tab) ?>">
+  <i class="bi bi-people-fill" aria-hidden="true"></i>
+  <label for="dydCourseSel" class="visually-hidden">Grupa</label>
+  <select id="dydCourseSel" name="course" class="form-select form-select-sm" onchange="this.form.submit()">
+    <?php if (!$cur_course): ?><option value="" selected>— wybierz grupę —</option><?php endif; ?>
+    <?php if ($split_view): ?>
+    <optgroup label="Twoje grupy"><?php foreach ($courses as $_c) if (isset($my_course_ids_set[(int)$_c['id']])) echo $_opt($_c); ?></optgroup>
+    <optgroup label="Grupy innych"><?php foreach ($courses as $_c) if (!isset($my_course_ids_set[(int)$_c['id']])) echo $_opt($_c, true); ?></optgroup>
+    <?php else: foreach ($courses as $_c) echo $_opt($_c); endif; ?>
+  </select>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Przejdź</button></noscript>
+</form>
 <?php $_dyd_course_switcher = ob_get_clean();
 }
 
