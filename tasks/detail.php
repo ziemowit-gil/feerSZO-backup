@@ -53,11 +53,19 @@ require_once __DIR__ . '/includes/detail_load.php';
 <?php require_once __DIR__ . '/includes/detail_modals.php'; ?>
 </div><!-- /td-root -->
 
-<?php require_once __DIR__ . '/includes/detail_js_core.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_js_files.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_js_review.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_js_subtasks.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_js_time.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_js_newws.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_js_takeover.php'; ?>
-<?php require_once __DIR__ . '/includes/detail_js_notify.php'; ?>
+<?php
+// Wszystkie detail_js_*.php sklejone w JEDEN <script> z blokiem { … }.
+// Fragment jest wstrzykiwany do offcanvas przy KAŻDYM otwarciu zadania w tym samym
+// dokumencie — top-level `const TID/CSRF/…` w osobnych <script> przy drugim otwarciu
+// rzucały SyntaxError („already declared”) i cały JS szczegółów przestawał działać.
+// W bloku const/let są świeże per otwarcie, a deklaracje `function` (tryb nie-strict,
+// Annex B) nadal trafiają do window — inline onclick="…" działają jak dotąd.
+ob_start();
+foreach (['core', 'files', 'review', 'subtasks', 'time', 'newws', 'takeover', 'notify'] as $_td_js) {
+    require __DIR__ . '/includes/detail_js_' . $_td_js . '.php';
+}
+$_td_js_src = preg_replace(['#^\s*<script>#', '#</script>\s*$#'], '', ob_get_clean());
+$_td_js_src = preg_replace('#</script>\s*<script>#', "\n", $_td_js_src);
+echo "<script>\n{\n", $_td_js_src, "\n}\n</script>\n";
+unset($_td_js, $_td_js_src);
+?>
