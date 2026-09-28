@@ -26,26 +26,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('danger', 'Nieprawidłowe dane protokołu.');
             header('Location: protokoly_moje.php'); exit;
         }
-        // Najpierw przez API panelu (api_protocols.php) — przygotowanie pod przyszłe
-        // wydzielenie panelu jako osobnej aplikacji. Fallback: prosto na bazie.
-        $api = ti_protocols_api_call('approve', ['course_id' => $cid, 'year_month' => $ym], 'POST');
-        if ($api !== null) {
+        // Wprost na bazie. Wcześniejsze samo-wywołanie api_protocols.php przez HTTP
+        // zawsze kończyło się 403 (brak tokenu CSRF) i blokowało się na zamku pliku
+        // sesji tego samego żądania — dawało tylko 3 s opóźnienia przed fallbackiem.
+        try {
+            $prot = ti_protocol_get_or_create_for_month($cid, $ym);
+            ti_protocol_approve((int)$prot['id'], $uid, $me_name);
             flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony.');
-        } else {
-            try {
-                $prot = ti_protocol_get_or_create_for_month($cid, $ym);
-                ti_protocol_approve((int)$prot['id'], $uid, $me_name);
-                flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony.');
-            } catch (\Throwable $e) {
-                flash_set('danger', $e->getMessage());
-            }
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
         }
         header('Location: protokoly_moje.php'); exit;
     }
 }
 
-$_api_pending = ti_protocols_api_call('pending');
-$pending = $_api_pending['data'] ?? ti_protocol_pending_months_for_instructor($uid);
+$pending = ti_protocol_pending_months_for_instructor($uid);
+$closed  = ti_protocol_closed_months_for_instructor($uid);
 
 // Krok 2 kreatora: konkretny kurs+miesiąc wybrany z listy — pokaż podsumowanie.
 $open_cid = (int)($_GET['course'] ?? 0);
@@ -156,6 +152,30 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <?php endif; ?>
       <a href="protokoly_moje.php?course=<?= (int)$p['course_id'] ?>&ym=<?= h($p['year_month']) ?>" class="btn btn-sm btn-primary">
         <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zamknij protokół
+      </a>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+</div>
+<?php endif; ?>
+
+<?php if ($closed): ?>
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header fw-semibold">Zatwierdzone protokoły</div>
+  <ul class="list-group list-group-flush">
+    <?php foreach ($closed as $c): ?>
+    <li class="list-group-item d-flex align-items-center gap-3 flex-wrap">
+      <div class="flex-grow-1">
+        <div class="fw-semibold"><?= h($c['course_name']) ?></div>
+        <div class="text-body-secondary small">
+          <?= h($fmt_ym($c['year_month'])) ?>
+          <?php if (!empty($c['approved_at'])): ?> · zatwierdził <?= h($c['approved_name'] ?: '—') ?>, <?= h(date('d.m.Y', strtotime((string)$c['approved_at']))) ?><?php endif; ?>
+        </div>
+      </div>
+      <span class="badge bg-success">zatwierdzony</span>
+      <a href="protokol_pdf.php?id=<?= (int)$c['protocol_id'] ?>" class="btn btn-sm btn-outline-secondary"
+         aria-label="Pobierz PDF protokołu: <?= h($c['course_name']) ?>, <?= h($fmt_ym($c['year_month'])) ?>">
+        <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
       </a>
     </li>
     <?php endforeach; ?>

@@ -151,7 +151,8 @@ function ti_protocol_get_or_create_for_month(int $course_id, string $year_month)
 
 /**
  * Miesiące (kurs + "RRRR-MM") które prowadzący powinien zamknąć: każdy
- * miesiąc, w którym kurs miał choć jedną nieodwołaną lekcję, a protokół
+ * miesiąc, w którym kurs miał choć jedną ODBYTĄ lekcję (same zaplanowane /
+ * rezerwacje nie wymagają protokołu — najpierw trzeba uzupełnić obecność), a protokół
  * miesięczny nie jest jeszcze zatwierdzony. Miesiąc bieżący liczy się jako
  * "w toku" (można zamknąć wcześniej, ale nie jest jeszcze zaległy);
  * wcześniejsze niezamknięte miesiące są "zaległe".
@@ -167,7 +168,8 @@ function ti_protocol_pending_months_for_instructor(int $instructor_uid): array {
         $months = db_all(
             "SELECT DISTINCT strftime('%Y-%m', lesson_date) AS ym
                FROM k30_ti_sessions
-              WHERE course_id=? AND status NOT IN ('cancelled','draft') AND lesson_date <= date('now')
+              WHERE course_id=? AND status IN ('held','individual_change','remote_material')
+                AND lesson_date <= date('now','localtime')
               ORDER BY ym",
             [$cid]
         );
@@ -188,6 +190,22 @@ function ti_protocol_pending_months_for_instructor(int $instructor_uid): array {
     }
     usort($out, fn($a, $b) => $a['year_month'] <=> $b['year_month']);
     return $out;
+}
+
+/** Zatwierdzone protokoły MIESIĘCZNE własnych kursów prowadzącego (najnowsze najpierw). */
+function ti_protocol_closed_months_for_instructor(int $instructor_uid): array {
+    ti_protocols_migrate();
+    $ids = array_map(fn($c) => (int)$c['id'], k30_ti_instructor_courses($instructor_uid, false));
+    if (!$ids) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    return db_all(
+        "SELECT p.id AS protocol_id, p.course_id, c.name AS course_name, p.year_month,
+                p.approved_name, p.approved_at
+           FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id = p.course_id
+          WHERE p.course_id IN ($ph) AND p.status = 'approved' AND p.year_month != ''
+          ORDER BY p.year_month DESC, c.name",
+        $ids
+    );
 }
 
 /** Podsumowanie miesiąca dla kreatora: liczba lekcji odbytych i średnia frekwencja (%). */

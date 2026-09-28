@@ -1401,16 +1401,11 @@ switch ($action) {
     }
 
     case 'protocols_closed': {
-        $course_ids = instructor_course_ids($instructor_id);
-        if (!$course_ids) json_ok([]);
-        $in = implode(',', $course_ids);
-        $rows = db_all(
-            "SELECT p.course_id, c.name AS course_name, p.year_month, p.id AS protocol_id
-             FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id=p.course_id
-             WHERE p.course_id IN ($in) AND p.status='approved'
-             ORDER BY p.year_month DESC"
-        );
-        json_ok($rows);
+        // Tylko protokoły miesięczne — per-okres (year_month='') to inny tor.
+        json_ok(array_map(fn($r) => [
+            'course_id' => (int)$r['course_id'], 'course_name' => (string)$r['course_name'],
+            'year_month' => (string)$r['year_month'], 'protocol_id' => (int)$r['protocol_id'],
+        ], ti_protocol_closed_months_for_instructor($instructor_id)));
     }
 
     case 'protocol_summary': {
