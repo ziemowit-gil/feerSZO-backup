@@ -3119,6 +3119,7 @@ function ti_course_close_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('ti_course_close_migrate', __FILE__)) return;   // raz na wersję pliku (modules/selfrepairDB)
     foreach ([
         "ALTER TABLE k30_ti_courses ADD COLUMN closed_at   TEXT",
         "ALTER TABLE k30_ti_courses ADD COLUMN closed_by   INTEGER",

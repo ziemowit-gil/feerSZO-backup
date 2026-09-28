@@ -451,6 +451,7 @@ function ti_sekretariat_users(): array {
 
 function ti_admin_msg_migrate(): void {
     static $done = false; if ($done) return; $done = true;
+    if (szo_schema_current('ti_admin_msg_migrate', __FILE__)) return;   // raz na wersję pliku (modules/selfrepairDB)
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_admin_msgs (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

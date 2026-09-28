@@ -697,6 +697,7 @@ function ms_get_user(string $access_token): ?array {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('auth_login_code', __FILE__)) return;   // raz na wersję pliku (modules/selfrepairDB)
     try { db()->exec("ALTER TABLE users ADD COLUMN login_code TEXT DEFAULT NULL"); } catch (\Throwable $e) {}
     try { db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login_code ON users(login_code) WHERE login_code IS NOT NULL"); } catch (\Throwable $e) {}
 })();

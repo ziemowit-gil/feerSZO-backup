@@ -25,8 +25,14 @@ $KP_EXTRA_CSS  = $KP_EXTRA_CSS  ?? [];
 <title><?= h($KP_TITLE) ?> — <?= h($KP_ORG) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<!-- FullCalendar v6 — duży kalendarz przy wyborze terminu (zmiana terminu lekcji) -->
+<?php
+// FullCalendar v6 (~270 KB) — duży kalendarz przy wyborze terminu (zmiana terminu lekcji).
+// Panel kursanta: jak dotąd zawsze. Panel dydaktyka: tylko gdy strona go zamówi
+// ($KP_FULLCALENDAR = true — index.php na zakładce Zajęcia), inaczej ładował się na próżno.
+$KP_FULLCALENDAR = $KP_FULLCALENDAR ?? (($KP_TOPBAR['brand'] ?? '') !== 'Panel dydaktyka');
+if ($KP_FULLCALENDAR): ?>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<?php endif; ?>
 <style>
 :root {
   --bs-primary:#2563eb; --bs-primary-rgb:37,99,235; --bs-link-color-rgb:96,165,250;

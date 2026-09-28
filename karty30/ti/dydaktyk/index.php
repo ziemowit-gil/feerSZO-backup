@@ -2797,6 +2797,7 @@ $KP_TOPBAR = [
     'logout'        => 'logout.php',
     'notifications' => $_dyd_course_switcher,   // rola/kontekst — w menu użytkownika (_nav.php)
 ];
+$KP_FULLCALENDAR = ($tab === 'lekcje');   // kalendarz zmiany terminu — tylko w Zajęciach (_tab_lekcje.php)
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
 <style>
@@ -3048,9 +3049,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   }
   [data-bs-theme="dark"] .dyd-wrap *:focus-visible { outline-color: #93c5fd !important; }
 </style>
-<!-- MDUI 2 (MD3) — wymagany dla zakładki Pulpit -->
-<link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css">
-<script type="module" src="https://unpkg.com/mdui@2/mdui.esm.js"></script>
+<?php /* MDUI 2 (MD3) usunięte 2026-09-29: Pulpit przebudowany na tabele skórki,
+         żaden element <mdui-…> nie został — biblioteka ładowała się na próżno. */ ?>
 
 <!-- ── Sidebar dydaktyka ── -->
 <?php
@@ -3812,8 +3812,7 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
 })();
 </script>
 <?php include __DIR__ . '/_wizard.php'; ?>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@14/dist/css/shepherd.css">
-<script src="https://cdn.jsdelivr.net/npm/shepherd.js@14/dist/js/shepherd.min.js"></script>
+<?php /* Shepherd.js (tour powitalny) doładowywany dopiero przy starcie touru — patrz loadShepherd() niżej */ ?>
 <style>
 .shepherd-element { font-size:.9rem; }
 .shepherd-text { font-size:.875rem; color:var(--bs-body-color); }
@@ -3831,8 +3830,18 @@ document.getElementById('dyd-sms-week-trigger')?.addEventListener('click', funct
   // sessionStorage: reset automatycznie przy każdym nowym logowaniu (nowa sesja przeglądarki)
   var SESSION_KEY = 'dydTourShown';
 
+  // Biblioteka touru ładowana na żądanie (nie przy każdym wejściu na stronę)
+  function loadShepherd(cb) {
+    if (typeof Shepherd !== 'undefined') return cb();
+    var base = 'https://cdn.jsdelivr.net/npm/shepherd.js@14/dist/';
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = base + 'css/shepherd.css';
+    document.head.appendChild(css);
+    var js = document.createElement('script'); js.src = base + 'js/shepherd.min.js'; js.onload = cb;
+    document.head.appendChild(js);
+  }
+
   function startTour() {
-    if (typeof Shepherd === 'undefined') return;
+    if (typeof Shepherd === 'undefined') return loadShepherd(startTour);
     var tour = new Shepherd.Tour({
       useModalOverlay: true,
       defaultStepOptions: {

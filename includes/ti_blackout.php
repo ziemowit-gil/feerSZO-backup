@@ -34,6 +34,7 @@ function ti_blackout_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('ti_blackout_migrate', __FILE__)) return;   // raz na wersję pliku (modules/selfrepairDB)
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_blackouts (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
