@@ -4946,6 +4946,13 @@ function k30_ti_mark_no_show(int $session_id, int $client_id, string $billing, s
             'cancelled_at'      => date('Y-m-d H:i:s'),
         ]);
     }
+    // No-show oznacza, że lekcja SIĘ ODBYŁA (beneficjent nie przyszedł). Zaplanowana
+    // lekcja z przeszłości/dziś przechodzi w „zmianę indywidualną” — inaczej żaden
+    // kalkulator (rozliczenie, rozpiska, faktura) jej nie widzi i no-show przepada.
+    db()->prepare(
+        "UPDATE k30_ti_sessions SET status='individual_change', updated_at=datetime('now')
+          WHERE id=? AND status='planned' AND lesson_date <= date('now','localtime')"
+    )->execute([$session_id]);
     k30_ti_notify_no_show($session_id, $client_id, $billing, $reason, $attachment);
 }
 
