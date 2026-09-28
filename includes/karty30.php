@@ -2687,7 +2687,7 @@ function _k30_ti_payout_accumulate(array &$acc, array $b): void {
 
 /**
  * Miesięczne sumy wypłat per prowadzący. $ym = 'YYYY-MM'.
- * Liczy tylko lekcje odbyte (status='held') z kursów o stawce > 0.
+ * Liczy lekcje odbyte (K30_TI_HELD_STATUSES) z kursów o stawce > 0.
  * Zwraca wiersze posortowane wg nazwiska, z agregatem składowych + listą kursów.
  */
 function k30_ti_payouts_by_instructor(string $ym): array {
@@ -2732,29 +2732,29 @@ function k30_ti_payouts_by_instructor(string $ym): array {
     return array_values($by);
 }
 
-/** Miesięczna suma wypłat dla jednego kursu (status='held'). $ym = 'YYYY-MM'. */
+/**
+ * Miesięczna suma wypłat dla jednego kursu (K30_TI_HELD_STATUSES). $ym = 'YYYY-MM'.
+ * Forma rozliczenia wg faktycznego prowadzącego lekcji (zastępca — s.instructor_id),
+ * spójnie z k30_ti_payouts_by_instructor().
+ */
 function k30_ti_payout_month_for_course(int $course_id, string $ym): array {
-    $course = db_one(
-        "SELECT c.lesson_payout_bb,
-                COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form
-         FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id
-         WHERE c.id=?",
-        [$course_id]
-    );
-    $bb = (float)($course['lesson_payout_bb'] ?? 0);
+    $bb = (float)(db_one("SELECT lesson_payout_bb FROM k30_ti_courses WHERE id=?", [$course_id])['lesson_payout_bb'] ?? 0);
     $acc = _k30_ti_payout_zero();
     if ($bb <= 0) return $acc;
-    $form_exempt = in_array($course['payout_form'] ?? 'zlecenie', ['student','b2b'], true);
     // Lekcje regularne i praca własna (self_prep_remote) rozliczane osobno
     $counts = db_all(
-        "SELECT COALESCE(self_prep_remote,0) AS spr, COUNT(*) AS n
-         FROM k30_ti_sessions
-         WHERE course_id=? AND status IN ('held','individual_change','remote_material') AND strftime('%Y-%m', lesson_date)=?
-         GROUP BY spr",
+        "SELECT COALESCE(s.self_prep_remote,0) AS spr,
+                COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form,
+                COUNT(*) AS n
+         FROM k30_ti_sessions s
+         JOIN k30_ti_courses c ON c.id = s.course_id
+         LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)
+         WHERE s.course_id=? AND s.status IN ('held','individual_change','remote_material') AND strftime('%Y-%m', s.lesson_date)=?
+         GROUP BY spr, payout_form",
         [$course_id, $ym]
     );
     foreach ($counts as $row) {
-        $eff_student = $form_exempt || (bool)$row['spr'];
+        $eff_student = in_array($row['payout_form'], ['student','b2b'], true) || (bool)$row['spr'];
         $b = k30_ti_payout_breakdown($bb, $eff_student);
         for ($i = 0; $i < (int)$row['n']; $i++) _k30_ti_payout_accumulate($acc, $b);
     }

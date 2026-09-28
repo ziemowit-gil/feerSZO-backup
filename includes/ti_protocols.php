@@ -766,7 +766,7 @@ function ti_protocol_hours_and_payout_live(array $prot): array {
     }
 
     $c = db_one(
-        "SELECT c.lesson_payout_bb, COALESCE(u.name,'') AS iname,
+        "SELECT c.lesson_payout_bb, c.instructor_id, COALESCE(u.name,'') AS iname,
                 COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form
            FROM k30_ti_courses c
            LEFT JOIN users u ON u.id = c.instructor_id
@@ -775,17 +775,25 @@ function ti_protocol_hours_and_payout_live(array $prot): array {
     ) ?: [];
     $bb          = (float)($c['lesson_payout_bb'] ?? 0);
     $form        = (string)($c['payout_form'] ?? 'zlecenie');
-    $form_exempt = in_array($form, ['student', 'b2b'], true);
+    $main_iid    = (int)($c['instructor_id'] ?? 0);
 
+    // Zastępstwo (s.instructor_id ≠ prowadzący kursu) płacone jest ZASTĘPCY, wg jego
+    // formy rozliczenia — tak samo jak k30_ti_payouts_by_instructor() (zakładka Wypłaty).
+    // Ewidencja godzin kursu obejmuje wszystkie zajęcia, ale naliczenie wypłaty
+    // prowadzącego tylko jego własne; zastępstwa idą osobnym zestawieniem.
     $sessions = db_all(
-        "SELECT * FROM k30_ti_sessions
-          WHERE course_id=? AND lesson_date BETWEEN ? AND ?
-            AND status IN ('held','individual_change','remote_material')
-          ORDER BY lesson_date, time_from",
+        "SELECT s.*, COALESCE(s.instructor_id, c.instructor_id) AS eff_iid, COALESCE(u.name,'') AS eff_name,
+                COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS eff_form
+           FROM k30_ti_sessions s
+           JOIN k30_ti_courses c ON c.id = s.course_id
+           LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)
+          WHERE s.course_id=? AND s.lesson_date BETWEEN ? AND ?
+            AND s.status IN ('held','individual_change','remote_material')
+          ORDER BY s.lesson_date, s.time_from",
         [$course_id, $from, $to]
     );
 
-    $rows = []; $total_min = 0; $acc = _k30_ti_payout_zero();
+    $rows = []; $total_min = 0; $acc = _k30_ti_payout_zero(); $subs = [];
     foreach ($sessions as $s) {
         $min = (int)($s['duration_min'] ?? 0);
         if ($min <= 0 && $s['time_from'] && $s['time_to']) {
@@ -793,10 +801,20 @@ function ti_protocol_hours_and_payout_live(array $prot): array {
         }
         $total_min += $min;
 
+        $eff_iid = (int)($s['eff_iid'] ?? 0);
+        $is_sub  = $eff_iid !== $main_iid;
         $b = null;
         if ($bb > 0) {
-            $b = k30_ti_payout_breakdown($bb, $form_exempt || !empty($s['self_prep_remote']));
-            _k30_ti_payout_accumulate($acc, $b);
+            $exempt = in_array((string)$s['eff_form'], ['student', 'b2b'], true) || !empty($s['self_prep_remote']);
+            $b = k30_ti_payout_breakdown($bb, $exempt);
+            if ($is_sub) {
+                if (!isset($subs[$eff_iid])) {
+                    $subs[$eff_iid] = _k30_ti_payout_zero() + ['name' => (string)$s['eff_name'], 'form' => (string)$s['eff_form']];
+                }
+                _k30_ti_payout_accumulate($subs[$eff_iid], $b);
+            } else {
+                _k30_ti_payout_accumulate($acc, $b);
+            }
         }
         $rows[] = [
             'date'    => (string)$s['lesson_date'],
@@ -806,6 +824,7 @@ function ti_protocol_hours_and_payout_live(array $prot): array {
             'topic'   => (string)($s['topic'] ?? ''),
             'status'  => (string)$s['status'],
             'own'     => !empty($s['self_prep_remote']),
+            'sub'     => $is_sub ? (string)$s['eff_name'] : '',
             'bb'      => $b ? (float)$b['brutto_brutto'] : 0.0,
             'netto'   => $b ? (float)$b['netto'] : 0.0,
         ];
@@ -814,7 +833,7 @@ function ti_protocol_hours_and_payout_live(array $prot): array {
     return [
         'from' => $from, 'to' => $to, 'rows' => $rows,
         'lessons' => count($rows), 'total_min' => $total_min,
-        'bb' => $bb, 'payout' => $acc,
+        'bb' => $bb, 'payout' => $acc, 'subs' => array_values($subs),
         'instructor' => (string)($c['iname'] ?? ''), 'form' => $form,
         'has_rate' => $bb > 0,
     ];
@@ -894,7 +913,8 @@ function ti_protocol_print_html(array $prot): string {
                 . '<td>' . $h($r['from'] !== '' ? $r['from'] . '–' . $r['to'] : '—') . '</td>'
                 . '<td>' . $h(ti_protocol_hm((int)$r['min'])) . '</td>'
                 . '<td>' . $h($r['topic']) . '</td>'
-                . '<td>' . $h(ti_protocol_status_lesson((string)$r['status'], (bool)$r['own'])) . '</td>'
+                . '<td>' . $h(ti_protocol_status_lesson((string)$r['status'], (bool)$r['own']))
+                    . (($r['sub'] ?? '') !== '' ? '<br><em>zastępstwo: ' . $h($r['sub']) . '</em>' : '') . '</td>'
                 . ($hp['has_rate'] ? '<td class="r">' . $h(ti_protocol_money((float)$r['bb'])) . '</td>' : '')
                 . '</tr>';
         }
@@ -924,6 +944,21 @@ function ti_protocol_print_html(array $prot): string {
             . '</tbody></table>';
         $pay .= '<p class="sub">Forma rozliczenia: ' . $h($hp['form'])
               . '. Praca własna prowadzącego liczona jest bezskładkowo.</p>';
+        if (!empty($hp['subs'])) {
+            $pay .= '<p class="sub"><strong>Zastępstwa</strong> — wypłata należy się zastępcy (wg jego formy rozliczenia) '
+                  . 'i nie wchodzi do naliczenia prowadzącego powyżej:</p>'
+                  . '<table class="items"><thead><tr><th>Zastępca</th><th style="width:14%">Forma</th>'
+                  . '<th style="width:12%">Zajęcia</th><th style="width:20%">Brutto-brutto</th><th style="width:20%">Netto</th>'
+                  . '</tr></thead><tbody>';
+            foreach ($hp['subs'] as $sb) {
+                $pay .= '<tr><td>' . $h($sb['name'] !== '' ? $sb['name'] : '—') . '</td>'
+                      . '<td>' . $h($sb['form']) . '</td>'
+                      . '<td class="c">' . (int)$sb['lessons'] . '</td>'
+                      . '<td class="r">' . $h(ti_protocol_money((float)$sb['brutto_brutto'])) . '</td>'
+                      . '<td class="r">' . $h(ti_protocol_money((float)$sb['netto'])) . '</td></tr>';
+            }
+            $pay .= '</tbody></table>';
+        }
     }
 
     $acked = ti_protocol_hours_acked($prot);

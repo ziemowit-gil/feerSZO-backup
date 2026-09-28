@@ -289,6 +289,12 @@ $pr_confirm = $pr_empty
             endif; ?>.
           Szczegóły są na wydruku PDF.
         </p>
+        <?php if (!empty($pr_hp['subs'])): ?>
+        <p class="small text-body-secondary mb-2">
+          <i class="bi bi-person-fill-gear me-1" aria-hidden="true"></i>Zastępstwa (wypłata dla zastępcy, poza kwotą powyżej):
+          <?php foreach ($pr_hp['subs'] as $_i => $_sb): ?><?= $_i ? '; ' : '' ?><strong><?= h($_sb['name'] ?: '—') ?></strong> — <?= (int)$_sb['lessons'] ?> <?= (int)$_sb['lessons'] === 1 ? 'zajęcie' : 'zajęć' ?>, netto <?= h(ti_protocol_money((float)$_sb['netto'])) ?><?php endforeach; ?>.
+        </p>
+        <?php endif; ?>
         <?php if (ti_protocol_snapshot_drift($pr)): ?>
         <div class="alert alert-warning py-2 small" role="status">
           <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
