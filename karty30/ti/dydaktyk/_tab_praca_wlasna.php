@@ -15,16 +15,16 @@ $sw_instr_f = (int)($_GET['instructor_id'] ?? 0);
 
 $sw_where  = "s.status='remote_material' AND strftime('%Y-%m', s.lesson_date)=?";
 $sw_params = [$sw_ym];
-if ($sw_instr_f) { $sw_where .= " AND c.instructor_id=?"; $sw_params[] = $sw_instr_f; }
+if ($sw_instr_f) { $sw_where .= " AND COALESCE(s.instructor_id, c.instructor_id)=?"; $sw_params[] = $sw_instr_f; }
 
 $sw_rows = db_all(
-    "SELECT s.id, s.lesson_date, s.time_from, s.duration_min, s.topic,
+    "SELECT s.id, s.lesson_date, s.time_from, s.duration_min, s.topic, COALESCE(s.self_prep_remote,0) AS self_prep_remote,
             c.id AS course_id, c.name AS course_name, c.lesson_payout_bb,
             COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form,
             COALESCE(NULLIF(TRIM(COALESCE(u.first_name,'')||' '||COALESCE(u.last_name,'')),''), u.name, '—') AS instructor_name
      FROM k30_ti_sessions s
      JOIN k30_ti_courses c ON c.id=s.course_id
-     LEFT JOIN users u ON u.id=c.instructor_id
+     LEFT JOIN users u ON u.id=COALESCE(s.instructor_id, c.instructor_id)
      WHERE $sw_where
      ORDER BY instructor_name COLLATE NOCASE, s.lesson_date, s.time_from",
     $sw_params
@@ -35,16 +35,16 @@ $sw_instructors = k30_ti_instructors();
 // Przygotowanie materiałów (self_prep_remote=1, dowolny status odbytej lekcji)
 $spr_where  = "s.self_prep_remote=1 AND s.status IN ('held','individual_change','remote_material') AND strftime('%Y-%m', s.lesson_date)=?";
 $spr_params = [$sw_ym];
-if ($sw_instr_f) { $spr_where .= " AND c.instructor_id=?"; $spr_params[] = $sw_instr_f; }
+if ($sw_instr_f) { $spr_where .= " AND COALESCE(s.instructor_id, c.instructor_id)=?"; $spr_params[] = $sw_instr_f; }
 
 $spr_rows = db_all(
-    "SELECT s.id, s.lesson_date, s.time_from, s.duration_min, s.topic,
+    "SELECT s.id, s.lesson_date, s.time_from, s.duration_min, s.topic, COALESCE(s.self_prep_remote,0) AS self_prep_remote,
             c.id AS course_id, c.name AS course_name, c.lesson_payout_bb,
             COALESCE(u.ti_payout_form, CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END) AS payout_form,
             COALESCE(NULLIF(TRIM(COALESCE(u.first_name,'')||' '||COALESCE(u.last_name,'')),''), u.name, '—') AS instructor_name
      FROM k30_ti_sessions s
      JOIN k30_ti_courses c ON c.id=s.course_id
-     LEFT JOIN users u ON u.id=c.instructor_id
+     LEFT JOIN users u ON u.id=COALESCE(s.instructor_id, c.instructor_id)
      WHERE $spr_where
      ORDER BY instructor_name COLLATE NOCASE, s.lesson_date, s.time_from",
     $spr_params
@@ -70,7 +70,7 @@ $sw_tot_count = 0; $sw_tot_min = 0; $sw_tot_net = 0.0;
 foreach ($sw_rows as $r) {
     $key = $r['instructor_name'];
     $net = ((float)$r['lesson_payout_bb'] > 0)
-        ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], in_array($r['payout_form'] ?? 'zlecenie', ['student','b2b'], true))['netto'] : 0.0;
+        ? (float)k30_ti_payout_breakdown((float)$r['lesson_payout_bb'], in_array($r['payout_form'] ?? 'zlecenie', ['student','b2b'], true) || !empty($r['self_prep_remote']))['netto'] : 0.0;
     $r['_net'] = $net;
     $sw_groups[$key]['rows'][]  = $r;
     $sw_groups[$key]['count']   = ($sw_groups[$key]['count']  ?? 0) + 1;

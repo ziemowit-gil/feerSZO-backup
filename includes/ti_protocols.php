@@ -853,11 +853,13 @@ function ti_protocol_money(float $v): string {
 
 /** Etykieta statusu zajęć na ewidencji. */
 function ti_protocol_status_lesson(string $status, bool $own): string {
-    if ($own) return 'praca własna';
+    if ($own) return 'praca własna (bez składek)';
     return [
         'held'              => 'odbyte',
         'individual_change' => 'zmiana indywidualna',
-        'remote_material'   => 'praca własna',
+        // Status remote_material NIE zwalnia ze składek — zwalnia tylko flaga
+        // self_prep_remote ($own), tak samo jak w zakładce Wypłaty.
+        'remote_material'   => 'materiał zdalny',
     ][$status] ?? $status;
 }
 
@@ -943,7 +945,8 @@ function ti_protocol_print_html(array $prot): string {
             . '<tr><th>Do wypłaty netto</th><td><strong>' . $h(ti_protocol_money((float)$P['netto'])) . '</strong></td></tr>'
             . '</tbody></table>';
         $pay .= '<p class="sub">Forma rozliczenia: ' . $h($hp['form'])
-              . '. Praca własna prowadzącego liczona jest bezskładkowo.</p>';
+              . '. Zajęcia oznaczone jako „praca własna (bez składek)” liczone są bezskładkowo; '
+              . 'materiał zdalny — wg formy rozliczenia prowadzącego.</p>';
         if (!empty($hp['subs'])) {
             $pay .= '<p class="sub"><strong>Zastępstwa</strong> — wypłata należy się zastępcy (wg jego formy rozliczenia) '
                   . 'i nie wchodzi do naliczenia prowadzącego powyżej:</p>'

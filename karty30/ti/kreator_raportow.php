@@ -224,7 +224,7 @@ if ($report === 'lekcje') {
     $les_params = [$date_from, $date_to];
     $les_where  = "s.lesson_date BETWEEN ? AND ?";
     if ($course_id > 0)       { $les_where .= " AND s.course_id=?";      $les_params[] = $course_id; }
-    if ($instructor_id > 0)   { $les_where .= " AND c.instructor_id=?";  $les_params[] = $instructor_id; }
+    if ($instructor_id > 0)   { $les_where .= " AND COALESCE(s.instructor_id, c.instructor_id)=?";  $les_params[] = $instructor_id; }
     if ($status_filter !== '') { $les_where .= " AND s.status=?";         $les_params[] = $status_filter; }
 
     $les_raw = db_all(
@@ -240,7 +240,7 @@ if ($report === 'lekcje') {
                 (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id) AS att_total
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
-         LEFT JOIN users u ON u.id=c.instructor_id
+         LEFT JOIN users u ON u.id=COALESCE(s.instructor_id, c.instructor_id)
          WHERE $les_where
          ORDER BY s.lesson_date DESC, s.time_from",
         $les_params
@@ -281,11 +281,11 @@ $prow_totals = _k30_ti_payout_zero() + ['held'=>0,'ind'=>0,'remote'=>0,'min'=>0]
 if ($report === 'prowadzacy') {
     $prow_params = [$date_from, $date_to];
     $prow_where  = "s.status IN ('held','individual_change','remote_material') AND s.lesson_date BETWEEN ? AND ?";
-    if ($instructor_id > 0) { $prow_where .= " AND c.instructor_id=?"; $prow_params[] = $instructor_id; }
+    if ($instructor_id > 0) { $prow_where .= " AND COALESCE(s.instructor_id, c.instructor_id)=?"; $prow_params[] = $instructor_id; }
     if ($course_id > 0)     { $prow_where .= " AND s.course_id=?";     $prow_params[] = $course_id; }
 
     $prow_raw = db_all(
-        "SELECT c.instructor_id,
+        "SELECT COALESCE(s.instructor_id, c.instructor_id) AS instructor_id,
                 COALESCE(u.name,'(brak prowadzącego)') AS iname,
                 COALESCE(u.ti_payout_form,
                     CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END
@@ -295,7 +295,7 @@ if ($report === 'prowadzacy') {
                 COALESCE(c.lesson_payout_bb,0.0) AS bb
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
-         LEFT JOIN users u ON u.id=c.instructor_id
+         LEFT JOIN users u ON u.id=COALESCE(s.instructor_id, c.instructor_id)
          WHERE $prow_where
          ORDER BY iname COLLATE NOCASE",
         $prow_params
@@ -339,10 +339,10 @@ if ($report === 'wynagrodzenia') {
     $wyn_where  = "s.status IN ('held','individual_change','remote_material')
                    AND c.lesson_payout_bb > 0
                    AND s.lesson_date BETWEEN ? AND ?";
-    if ($instructor_id > 0) { $wyn_where .= " AND c.instructor_id=?"; $wyn_params[] = $instructor_id; }
+    if ($instructor_id > 0) { $wyn_where .= " AND COALESCE(s.instructor_id, c.instructor_id)=?"; $wyn_params[] = $instructor_id; }
 
     $wyn_raw = db_all(
-        "SELECT c.instructor_id,
+        "SELECT COALESCE(s.instructor_id, c.instructor_id) AS instructor_id,
                 COALESCE(u.name,'(brak prowadzącego)') AS iname,
                 COALESCE(u.ti_payout_form,
                     CASE WHEN COALESCE(u.ti_is_student,0)=1 THEN 'student' ELSE 'zlecenie' END
@@ -352,7 +352,7 @@ if ($report === 'wynagrodzenia') {
                 COALESCE(c.lesson_payout_bb,0.0) AS bb
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
-         LEFT JOIN users u ON u.id=c.instructor_id
+         LEFT JOIN users u ON u.id=COALESCE(s.instructor_id, c.instructor_id)
          WHERE $wyn_where
          ORDER BY iname COLLATE NOCASE, ym",
         $wyn_params
