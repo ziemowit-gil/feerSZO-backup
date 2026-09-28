@@ -884,7 +884,7 @@ function dydKuMoveOpen(fromId, fromName) {
               <i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Przenieś zajęcia/link</span>
             </button>
             <?php endif; ?>
-            <?php if ($ku_can_write && $c['_active'] && !$cancelled): ?>
+            <?php if ($ku_can_write && !$cancelled && !$archived): /* także nieaktywne — zakończoną grupę zwykle najpierw się dezaktywuje */ ?>
             <form method="post" class="d-inline"
                   onsubmit="return confirm('Zarchiwizować grupę „<?= h(addslashes($c['name'])) ?>&quot;?\n\nDla grup, które zakończyły działanie normalnie — historia zostaje, znika z bieżących list. Odwracalne przyciskiem „Przywróć z archiwum”.')">
               <input type="hidden" name="_token" value="<?= dyd_token() ?>">
@@ -1118,6 +1118,26 @@ function dydKuMoveOpen(fromId, fromName) {
        class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ustawienia kursu">
       <i class="bi bi-gear" aria-hidden="true"></i>
     </a>
+    <?php if ($ku_can_write && !$cancelled): /* zakończona grupa po dezaktywacji — archiwizacja stąd */ ?>
+    <form method="post" class="flex-shrink-0"
+          onsubmit="return confirm('Zarchiwizować grupę „<?= h(addslashes($c['name'])) ?>"?\n\nDla grup, które zakończyły działanie normalnie — historia zostaje, znika z bieżących list. Odwracalne przyciskiem „Przywróć z archiwum”.')">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_op" value="archive_course">
+      <input type="hidden" name="course_id" value="<?= $cid ?>">
+      <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Archiwizuj grupę">
+        <i class="bi bi-archive" aria-hidden="true"></i><span class="visually-hidden">Archiwizuj</span>
+      </button>
+    </form>
+    <form method="post" class="flex-shrink-0"
+          onsubmit="return confirm('Zamknąć i zarchiwizować grupę „<?= h(addslashes($c['name'])) ?>"?\n\nGrupa trafi do Zarchiwizowanych, a protokoły i wszelkie zmiany (lekcje, obecności, oceny, zadania, uczestnicy) zostaną zablokowane. Odblokowuje tylko „Przywróć z archiwum”.')">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_op" value="close_course">
+      <input type="hidden" name="course_id" value="<?= $cid ?>">
+      <button class="btn btn-sm btn-outline-dark py-0 px-2" title="Zamknij i archiwizuj (blokuje protokoły i zmiany)">
+        <i class="bi bi-lock" aria-hidden="true"></i><span class="visually-hidden">Zamknij i archiwizuj</span>
+      </button>
+    </form>
+    <?php endif; ?>
     <?php if ($ku_can_del && !$cancelled): ?>
     <form method="post" class="flex-shrink-0"
           onsubmit="return confirm('Wyłączyć i usunąć grupę „<?= h(addslashes($c['name'])) ?>"?\n\nOdwracalne — status wraca do aktywnego po kliknięciu Aktywuj.')">
