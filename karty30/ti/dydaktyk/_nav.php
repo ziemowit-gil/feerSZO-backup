@@ -21,7 +21,7 @@
 
 /** Zakładki index.php należące do sekcji (reszta zakładek kursu → 'kurs'). */
 const DYD_NAV_TABS = [
-    'start'       => ['pulpit', 'pomoc', 'frekwencja_grup', 'dostepnosc', 'cykliczne'],
+    'start'       => ['pulpit', 'pomoc', 'frekwencja_grup', 'dostepnosc', 'cykliczne', 'wydruki'],
     'komunikacja' => ['wiadomosci', 'komunikaty'],
     'zasoby'      => ['dysk', 'zoom'],
     'kierownik'   => ['grupy', 'kursy', 'wypłaty', 'praca_wlasna', 'komunikacja', 'rozliczenia'],

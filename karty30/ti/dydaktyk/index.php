@@ -174,7 +174,7 @@ if ($tab === 'testy' && empty($_GET['legacy'])) {
     header('Location: index.php?' . ($cur_course ? 'course=' . (int)$cur_course . '&' : '') . 'tab=egzaminy');
     exit;
 }
-if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'egzaminy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
+if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'egzaminy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'wydruki', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 if ($tab === 'cykliczne' && !dyd_plan_cykliczny_enabled()) $tab = 'pulpit';   // plan cykliczny wyłączony (auth.php)
 
@@ -3563,6 +3563,10 @@ if ($cur_course && dyd_is_staff()) {
 
   <?php if ($tab === 'frekwencja_grup'): ?>
   <?php include __DIR__ . '/_tab_frekwencja_grup.php'; ?>
+  <?php endif; ?>
+
+  <?php if ($tab === 'wydruki'): ?>
+  <?php include __DIR__ . '/_tab_wydruki.php'; ?>
   <?php endif; ?>
 
   <?php if ($tab === 'cykliczne'): ?>

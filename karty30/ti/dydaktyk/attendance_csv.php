@@ -92,7 +92,7 @@ foreach ($course_ids as $cid) {
     foreach ($my_courses as $mc) { if ((int)$mc['id'] === $cid) { $cname = $mc['name']; break; } }
 
     // Nagłówek kursu
-    fputcsv($f, ['Kurs: ' . $cname, 'Miesiąc: ' . $month]);
+    fputcsv($f, ['Kurs: ' . $cname, 'Miesiąc: ' . $month], ",", "\"", "");
 
     // Nagłówek kolumn: Kursant | Data1 | Data2 | ... | Razem | %
     $header = ['Kursant'];
@@ -104,7 +104,7 @@ foreach ($course_ids as $cid) {
     $header[] = 'Obecności';
     $header[] = 'Lekcji';
     $header[] = 'Frekwencja %';
-    fputcsv($f, $header);
+    fputcsv($f, $header, ",", "\"", "");
 
     // Wiersze — kursanci
     foreach ($students as $st) {
@@ -127,10 +127,10 @@ foreach ($course_ids as $cid) {
         $row[] = $present;
         $row[] = $total;
         $row[] = $total > 0 ? round($present / $total * 100) . '%' : '—';
-        fputcsv($f, $row);
+        fputcsv($f, $row, ",", "\"", "");
     }
 
-    fputcsv($f, []); // pusta linia między kursami
+    fputcsv($f, [], ",", "\"", ""); // pusta linia między kursami
 }
 
 fclose($f);

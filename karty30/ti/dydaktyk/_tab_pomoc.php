@@ -20,6 +20,7 @@ $_guide = [
         ['Frekwencja grup', $_g('frekwencja_grup'), 'Zestawienie frekwencji we wszystkich Twoich grupach.', 'Dawniej w sekcji „Planowanie” — sekcja zniknęła, pozycja została.'],
         ['Dostępność',      $_g('dostepnosc'),      'Twoje okna godzinowe w tygodniu — zajęcia można ustawiać tylko w nich.', 'Dawniej siedem kafelków dni; teraz jedna tabela z sumą godzin.'],
         ['Zapisy na zajęcia', 'rekrutacja.php',      'Zapisy kursantów na wolne terminy i tury zajęć.', ''],
+        ['Wydruki',         $_g('wydruki'),         'Twój plan zajęć (PDF, DOCX, siatka, kalendarz .ics) i wydruki grupy: plan dla ucznia, lista obecności, raport miesięczny.', ''],
         ...(dyd_plan_cykliczny_enabled() ? [['Plan cykliczny', $_g('cykliczne'), 'Zajęcia stałe: reguły powtarzania i generowanie terminów.', '']] : []),
     ],
     'Kurs — praca z grupą' => [
