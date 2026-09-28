@@ -565,6 +565,19 @@ function ti_billing_has_invoice(array $b): bool {
     } catch (\Throwable $e) { return false; }
 }
 
+/** Stawka godzinowa rozliczenia: hourly_rate, a gdy brak (model indywidualny) — kwota / godziny. */
+function ti_billing_rate(array $b): float {
+    if ((float)($b['hourly_rate'] ?? 0) > 0.005) return round((float)$b['hourly_rate'], 2);
+    $h = (float)($b['hours_billed'] ?? 0);
+    return $h > 0.005 ? round((float)$b['amount'] / $h, 2) : 0.0;
+}
+
+/** Dopisek „≈ 2,5 h po 80,00 zł/h” do opisu przeniesienia (pusty, gdy nie znamy stawki). */
+function ti_transfer_hours_note(float $amount, float $rate): string {
+    if ($rate <= 0.005) return '';
+    return ' ≈ ' . rtrim(rtrim(number_format($amount / $rate, 2, ',', ''), '0'), ',') . ' h po ' . number_format($rate, 2, ',', ' ') . ' zł/h';
+}
+
 /** Nazwa grupy do opisu (0 = konto ogólne / rozliczenie łączne). */
 function ti_transfer_group_label(int $course_id): string {
     if ($course_id <= 0) return 'konto ogólne';
@@ -575,19 +588,22 @@ function ti_transfer_group_label(int $course_id): string {
 /**
  * Co można przenieść na rozliczenie $billing_id: nadpłaty innych grup (i
  * ogólną) oraz niedopłaty innych rozliczeń tego kursanta.
- * @return array{credits:list<array{course_id:int,label:string,amount:float}>,debts:list<array{billing_id:int,label:string,amount:float}>}
+ * rate = stawka do przeliczenia na godziny: dla nadpłaty stawka rozliczenia docelowego
+ * (ile jego godzin pokryje), dla niedopłaty stawka rozliczenia źródłowego (ile godzin nieopłaconych).
+ * @return array{credits:list<array{course_id:int,label:string,amount:float,rate:float}>,debts:list<array{billing_id:int,label:string,amount:float,rate:float}>}
  */
 function ti_balance_transfer_sources(int $billing_id): array {
     $out = ['credits' => [], 'debts' => []];
     $b = db_one("SELECT * FROM k30_ti_billing WHERE id=? AND status IN ('issued','paid')", [$billing_id]);
     if (!$b) return $out;
     $client = (int)$b['client_id']; $to_course = (int)$b['course_id'];
+    $to_rate = ti_billing_rate($b);
     $a = ti_client_allocation($client);
     if ($to_course > 0 && $a['general_credit'] > 0.005)
-        $out['credits'][] = ['course_id' => 0, 'label' => 'nadpłata ogólna (konto)', 'amount' => $a['general_credit']];
+        $out['credits'][] = ['course_id' => 0, 'label' => 'nadpłata ogólna (konto)', 'amount' => $a['general_credit'], 'rate' => $to_rate];
     foreach ($a['groups'] as $cid => $g) {
         if ((int)$cid === $to_course || $cid <= 0 || $g['credit'] <= 0.005) continue;
-        $out['credits'][] = ['course_id' => (int)$cid, 'label' => ti_transfer_group_label((int)$cid), 'amount' => $g['credit']];
+        $out['credits'][] = ['course_id' => (int)$cid, 'label' => ti_transfer_group_label((int)$cid), 'amount' => $g['credit'], 'rate' => $to_rate];
     }
     if (!ti_billing_has_invoice($b)) {
         $pl = [1=>'sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
@@ -595,7 +611,7 @@ function ti_balance_transfer_sources(int $billing_id): array {
         foreach (db_all("SELECT * FROM k30_ti_billing WHERE client_id=? AND id!=? AND status='issued' ORDER BY year, month, id", [$client, $billing_id]) as $o) {
             $debt = round((float)$o['amount'] + (float)$o['adjustment'] - ($paid[(int)$o['id']] ?? 0), 2);
             if ($debt <= 0.005 || ti_billing_has_invoice($o)) continue;
-            $out['debts'][] = ['billing_id' => (int)$o['id'], 'amount' => $debt,
+            $out['debts'][] = ['billing_id' => (int)$o['id'], 'amount' => $debt, 'rate' => ti_billing_rate($o),
                 'label' => ($pl[(int)$o['month']] ?? $o['month']) . ' ' . $o['year'] . ' · ' . ti_transfer_group_label((int)$o['course_id'])];
         }
     }
@@ -612,7 +628,8 @@ function ti_transfer_credit(int $to_billing_id, int $from_course, float $amount,
     if (!$src) return 'W tej grupie nie ma nadpłaty do przeniesienia.';
     if ($amount <= 0 || $amount > $src['amount'] + 0.001) return 'Kwota musi być większa od zera i nie większa niż nadpłata (' . number_format($src['amount'], 2, ',', ' ') . ' zł).';
     $client = (int)$b['client_id']; $to_course = (int)$b['course_id'];
-    $note = 'Przeniesienie nadpłaty: ' . ti_transfer_group_label($from_course) . ' → ' . ti_transfer_group_label($to_course) . ($by !== '' ? ' (' . $by . ')' : '');
+    $note = 'Przeniesienie nadpłaty: ' . ti_transfer_group_label($from_course) . ' → ' . ti_transfer_group_label($to_course)
+          . ti_transfer_hours_note($amount, (float)$src['rate']) . ($by !== '' ? ' (' . $by . ')' : '');
     $pdo = db(); $pdo->beginTransaction();
     try {
         foreach ([[$from_course, -$amount], [$to_course, $amount]] as [$cid, $amt]) {
@@ -636,7 +653,7 @@ function ti_transfer_debt(int $to_billing_id, int $from_billing_id, float $amoun
     $from = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$from_billing_id]);
     $pl = [1=>'sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
     $lbl = fn(array $x) => ($pl[(int)$x['month']] ?? $x['month']) . ' ' . $x['year'] . ' · ' . ti_transfer_group_label((int)$x['course_id']);
-    $sfx = $by !== '' ? ' (' . $by . ')' : '';
+    $sfx = ti_transfer_hours_note($amount, (float)$src['rate']) . ($by !== '' ? ' (' . $by . ')' : '');
     $up  = db()->prepare("UPDATE k30_ti_billing SET adjustment=ROUND(COALESCE(adjustment,0)+?,2),
             adjustment_note=CASE WHEN COALESCE(adjustment_note,'')='' THEN ? ELSE substr(adjustment_note || ' · ' || ?, 1, 500) END WHERE id=?");
     $pdo = db(); $pdo->beginTransaction();

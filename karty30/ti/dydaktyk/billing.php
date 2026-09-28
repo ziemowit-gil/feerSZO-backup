@@ -115,6 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $bid = (int)($_POST['billing_id'] ?? 0);
         $amt = (float)str_replace([',', ' '], ['.', ''], (string)($_POST['amount'] ?? '0'));
         [$kind, $src] = array_pad(explode(':', (string)($_POST['source'] ?? ''), 2), 2, '');
+        $hrs = (float)str_replace([',', ' '], ['.', ''], (string)($_POST['hours'] ?? '0'));
+        if ($amt <= 0 && $hrs > 0) {   // podano tylko godziny — przelicz po stawce źródła
+            foreach (ti_balance_transfer_sources($bid)[$kind === 'credit' ? 'credits' : 'debts'] as $_s)
+                if ((int)($_s[$kind === 'credit' ? 'course_id' : 'billing_id']) === (int)$src) $amt = round($hrs * (float)$_s['rate'], 2);
+        }
         $err = $kind === 'credit' ? ti_transfer_credit($bid, (int)$src, $amt, $dyd_name)
              : ($kind === 'debt' ? ti_transfer_debt($bid, (int)$src, $amt, $dyd_name) : 'Wybierz, co przenieść.');
         flash_set($err ? 'danger' : 'success', $err ?? ($kind === 'credit'
@@ -1038,20 +1043,26 @@ echo '<main id="main" class="dyd-wrap">';
                 <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                 <label class="visually-hidden" for="<?= $tf ?>-s">Źródło</label>
                 <select id="<?= $tf ?>-s" name="source" class="form-select form-select-sm" style="max-width:260px"
-                        onchange="var o=this.selectedOptions[0]; this.form.amount.value=o.dataset.max||''; this.form.amount.max=o.dataset.max||'';">
+                        onchange="var o=this.selectedOptions[0], f=this.form, r=parseFloat(o.dataset.rate)||0; f.amount.value=o.dataset.max||''; f.amount.max=o.dataset.max||''; f.hours.disabled=!r; f.hours.value=r?(Math.round(parseFloat(o.dataset.max)/r*100)/100):''; f.hours.dataset.rate=r;">
                   <?php if ($tsrc['credits']): ?><optgroup label="Nadpłata → do tej grupy">
                     <?php foreach ($tsrc['credits'] as $tc): ?>
-                    <option value="credit:<?= $tc['course_id'] ?>" data-max="<?= number_format($tc['amount'], 2, '.', '') ?>"><?= h($tc['label']) ?> — <?= number_format($tc['amount'], 2, ',', ' ') ?> zł</option>
+                    <option value="credit:<?= $tc['course_id'] ?>" data-max="<?= number_format($tc['amount'], 2, '.', '') ?>" data-rate="<?= number_format($tc['rate'], 2, '.', '') ?>"><?= h($tc['label']) ?> — <?= number_format($tc['amount'], 2, ',', ' ') ?> zł<?= h(ti_transfer_hours_note($tc['amount'], $tc['rate'])) ?></option>
                     <?php endforeach; ?></optgroup><?php endif; ?>
                   <?php if ($tsrc['debts']): ?><optgroup label="Niedopłata → na to rozliczenie">
                     <?php foreach ($tsrc['debts'] as $td): ?>
-                    <option value="debt:<?= $td['billing_id'] ?>" data-max="<?= number_format($td['amount'], 2, '.', '') ?>"><?= h($td['label']) ?> — <?= number_format($td['amount'], 2, ',', ' ') ?> zł</option>
+                    <option value="debt:<?= $td['billing_id'] ?>" data-max="<?= number_format($td['amount'], 2, '.', '') ?>" data-rate="<?= number_format($td['rate'], 2, '.', '') ?>"><?= h($td['label']) ?> — <?= number_format($td['amount'], 2, ',', ' ') ?> zł<?= h(ti_transfer_hours_note($td['amount'], $td['rate'])) ?></option>
                     <?php endforeach; ?></optgroup><?php endif; ?>
                 </select>
-                <?php $tfirst = $tsrc['credits'][0]['amount'] ?? $tsrc['debts'][0]['amount']; ?>
-                <label class="visually-hidden" for="<?= $tf ?>-a">Kwota (zł)</label>
-                <input id="<?= $tf ?>-a" type="number" name="amount" step="0.01" min="0.01" max="<?= number_format($tfirst, 2, '.', '') ?>"
-                       value="<?= number_format($tfirst, 2, '.', '') ?>" class="form-control form-control-sm" style="width:100px">
+                <?php $tfirst = $tsrc['credits'][0] ?? $tsrc['debts'][0]; $trate = (float)$tfirst['rate']; ?>
+                <label class="small mb-0" for="<?= $tf ?>-h">godz.</label>
+                <input id="<?= $tf ?>-h" type="number" name="hours" step="0.25" min="0.25" data-rate="<?= number_format($trate, 2, '.', '') ?>"
+                       value="<?= $trate > 0 ? round($tfirst['amount'] / $trate, 2) : '' ?>"<?= $trate > 0 ? '' : ' disabled' ?>
+                       title="Liczba godzin — przeliczana na zł po stawce" class="form-control form-control-sm" style="width:80px"
+                       oninput="var r=parseFloat(this.dataset.rate)||0; if (r && this.value) this.form.amount.value=(Math.round(parseFloat(this.value)*r*100)/100).toFixed(2);">
+                <label class="small mb-0" for="<?= $tf ?>-a">zł</label>
+                <input id="<?= $tf ?>-a" type="number" name="amount" step="0.01" min="0.01" max="<?= number_format($tfirst['amount'], 2, '.', '') ?>"
+                       value="<?= number_format($tfirst['amount'], 2, '.', '') ?>" class="form-control form-control-sm" style="width:100px"
+                       oninput="var h=this.form.hours, r=parseFloat(h.dataset.rate)||0; if (r && this.value) h.value=Math.round(parseFloat(this.value)/r*100)/100;">
                 <button type="submit" class="btn btn-sm btn-outline-primary py-0">Przenieś</button>
               </form>
             </details>
