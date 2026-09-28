@@ -50,11 +50,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $op = $_POST['_op'] ?? '';
 
+    // Tryb wystawiania: '' = z FVAT (jak dotąd — rozliczenie czeka na fakturę),
+    // 'statement' = tylko zestawienie, bez FVAT (bez przycisków faktury, poza
+    // listą brakujących faktur i „Podsumowaniem do FVAT”).
+    $doc_mode = ($_POST['doc_mode'] ?? '') === 'statement' ? 'statement' : '';
+    $set_mode = static function (array $bids, string $mode): void {
+        if (!$bids) return;
+        $ph = implode(',', array_fill(0, count($bids), '?'));
+        db()->prepare("UPDATE k30_ti_billing SET doc_mode=? WHERE id IN ($ph) AND COALESCE(invoice_no,'')='' AND COALESCE(invoice_path,'')=''")
+            ->execute(array_merge([$mode], array_map('intval', $bids)));
+    };
+
     if ($op === 'issue') {
         $client_id = (int)($_POST['client_id'] ?? 0);
         $notes     = trim($_POST['notes'] ?? '');
         if ($client_id) {
             $bids  = k30_ti_issue_billing_split($client_id, $month, $year, $notes);
+            $set_mode($bids, $doc_mode);
             ti_billing_recompute($client_id);
             $sms_c = 0; $eml_c = 0;
             foreach ($bids as $bid) {
@@ -66,7 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $extra = ($sms_c || $eml_c)
                 ? ' Wysłano: ' . ($sms_c ? "SMS ({$sms_c})" : '') . ($sms_c && $eml_c ? ' i ' : '') . ($eml_c ? "e-mail ({$eml_c})" : '') . '.'
                 : ' (brak danych kontaktowych do powiadomień).';
-            flash_set('success', ($cnt > 1 ? "Wystawiono {$cnt} rozliczeń (osobno per kurs)." : 'Rozliczenie wystawione.') . $extra);
+            flash_set('success', ($cnt > 1 ? "Wystawiono {$cnt} rozliczeń (osobno per kurs)" : 'Rozliczenie wystawione')
+                . ($doc_mode === 'statement' ? ' — tylko zestawienie, bez FVAT.' : '.') . $extra);
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -82,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $sms = 0; $eml = 0; $bill_cnt = 0;
         foreach ($clients_with_sessions as $c) {
             $bids = k30_ti_issue_billing_split((int)$c['client_id'], $month, $year);
+            $set_mode($bids, $doc_mode);
             ti_billing_recompute((int)$c['client_id']);
             $bill_cnt += count($bids);
             foreach ($bids as $bid) {
@@ -90,7 +104,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 if (!empty($n['email'])) $eml++;
             }
         }
-        flash_set('success', "Wystawiono {$bill_cnt} rozliczeń (dla " . count($clients_with_sessions) . " kursantów). Powiadomienia: SMS {$sms}, e-mail {$eml}.");
+        flash_set('success', "Wystawiono {$bill_cnt} rozliczeń (dla " . count($clients_with_sessions) . " kursantów)"
+            . ($doc_mode === 'statement' ? ' — tylko zestawienia, bez FVAT' : '') . ". Powiadomienia: SMS {$sms}, e-mail {$eml}.");
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Zmiana trybu dokumentu jednego rozliczenia (z FVAT ↔ tylko zestawienie)
+    if ($op === 'set_doc_mode') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $b0  = $bid ? db_one("SELECT id, invoice_no, invoice_path FROM k30_ti_billing WHERE id=?", [$bid]) : null;
+        if (!$b0) flash_set('danger', 'Nie znaleziono rozliczenia.');
+        elseif ($doc_mode === 'statement' && (trim((string)$b0['invoice_no']) !== '' || trim((string)$b0['invoice_path']) !== ''))
+            flash_set('danger', 'Rozliczenie ma już zarejestrowaną fakturę — najpierw ją usuń, potem zmień na samo zestawienie.');
+        else {
+            db()->prepare("UPDATE k30_ti_billing SET doc_mode=? WHERE id=?")->execute([$doc_mode, $bid]);
+            flash_set('success', $doc_mode === 'statement' ? 'Rozliczenie: tylko zestawienie, bez FVAT.' : 'Rozliczenie: z fakturą VAT.');
+        }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
@@ -302,6 +331,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     }
 
     if ($op === 'make_invoice') {
+        $_dm = db_one("SELECT doc_mode FROM k30_ti_billing WHERE id=?", [(int)($_POST['billing_id'] ?? 0)]);
+        if (($_dm['doc_mode'] ?? '') === 'statement') {
+            flash_set('warning', 'To rozliczenie jest w trybie „tylko zestawienie, bez FVAT” — przełącz je na FVAT, żeby wystawić lub zarejestrować fakturę.');
+            header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+        }
         $bid = (int)($_POST['billing_id'] ?? 0);
         if (!module_enabled('invoices_enabled')) {
             flash_set('warning', 'Moduł Faktury jest wyłączony.');
@@ -333,6 +367,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     // Faktura (FVAT) wystawiona poza panelem — numer, data, rodzaj + WYMAGANY skan PDF.
     // Faktury wystawiamy w zewnętrznym systemie (domyślnie Comarch ERP Optima); tu trzymamy skan.
     if ($op === 'upload_invoice') {
+        $_dm = db_one("SELECT doc_mode FROM k30_ti_billing WHERE id=?", [(int)($_POST['billing_id'] ?? 0)]);
+        if (($_dm['doc_mode'] ?? '') === 'statement') {
+            flash_set('warning', 'To rozliczenie jest w trybie „tylko zestawienie, bez FVAT” — przełącz je na FVAT, żeby wystawić lub zarejestrować fakturę.');
+            header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+        }
         $bid = (int)($_POST['billing_id'] ?? 0);
         $b   = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$bid]) : null;
         if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
@@ -728,9 +767,15 @@ echo '<main id="main" class="dyd-wrap">';
   <form method="post" class="ms-auto" onsubmit="return confirm('Wystawić rozliczenia dla wszystkich klientów z lekcjami w tym miesiącu?')">
     <input type="hidden" name="_csrf"  value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="_op"    value="issue_all">
-    <button type="submit" class="btn btn-primary btn-sm">
-      <i class="bi bi-receipt-cutoff me-1"></i>Wystaw wszystkie (<?= count($preview) ?>)
-    </button>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Tryb wystawiania">
+      <button type="submit" name="doc_mode" value="" class="btn btn-primary">
+        <i class="bi bi-receipt-cutoff me-1"></i>Wystaw wszystkie (<?= count($preview) ?>) — z FVAT
+      </button>
+      <button type="submit" name="doc_mode" value="statement" class="btn btn-outline-primary"
+              title="Same zestawienia godzin i należności — bez faktur VAT">
+        <i class="bi bi-file-earmark-text me-1"></i>Tylko zestawienia
+      </button>
+    </div>
   </form>
   <?php endif; ?>
 </div>
@@ -978,6 +1023,15 @@ echo '<main id="main" class="dyd-wrap">';
                 <span class="text-body-secondary" title="Grupa oznaczona jako niefakturowana (ustawienie grupy)">
                   <i class="bi bi-slash-circle me-1"></i>grupa nie fakturowana
                 </span>
+              <?php elseif (($b['doc_mode'] ?? '') === 'statement'): ?>
+                <span class="badge text-bg-light border" title="Wystawione jako samo zestawienie — faktura VAT nie jest wymagana">
+                  <i class="bi bi-file-earmark-text me-1"></i>tylko zestawienie, bez FVAT</span>
+                <form method="post" class="d-inline ms-1">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="_op" value="set_doc_mode">
+                  <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                  <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem">przełącz na FVAT</button>
+                </form>
               <?php elseif ((float)$b['amount'] > 0): ?>
                 <form method="post" class="d-inline">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -991,6 +1045,14 @@ echo '<main id="main" class="dyd-wrap">';
                    class="btn btn-link btn-sm p-0 ms-2" style="font-size:.72rem"
                    title="Podgląd PDF faktury tak, jak zobaczy ją kursant/płatnik — bez tworzenia dokumentu i numeru">
                   <i class="bi bi-eye me-1"></i>Podgląd FV</a>
+                <form method="post" class="d-inline ms-2">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="_op" value="set_doc_mode">
+                  <input type="hidden" name="doc_mode" value="statement">
+                  <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                  <button type="submit" class="btn btn-link btn-sm p-0 text-body-secondary" style="font-size:.72rem"
+                          title="Bez faktury VAT — samo zestawienie godzin i należności">tylko zestawienie</button>
+                </form>
               <?php endif; ?>
               <?php
                 // Demo dla tego uczestnika — obok, niezależnie od faktury prawdziwej.
@@ -1633,9 +1695,11 @@ echo '<main id="main" class="dyd-wrap">';
               <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"        value="issue">
               <input type="hidden" name="client_id"  value="<?= $cid ?>">
-              <button type="submit" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2">
+              <button type="submit" name="doc_mode" value="" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2">
                 <i class="bi bi-receipt me-1"></i>Wystaw
               </button>
+              <button type="submit" name="doc_mode" value="statement" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
+                      title="Tylko zestawienie, bez FVAT">zestawienie</button>
             </form>
             <?php endif; ?>
           </td>

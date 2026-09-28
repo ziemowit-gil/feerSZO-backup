@@ -29,7 +29,7 @@ function ti_fv_summary_output(int $bid, int $course_id, int $client_id, int $mon
             FROM k30_ti_billing b
             JOIN k30_clients cl ON cl.id=b.client_id
             LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
-            WHERE b.status IN ('issued','paid') ";
+            WHERE b.status IN ('issued','paid') AND COALESCE(b.doc_mode,'')!='statement' ";
     if ($bid) {
         $rows     = db_all($sql . "AND b.id=?", [$bid]);
         $subtitle = 'rozliczenie #' . $bid;

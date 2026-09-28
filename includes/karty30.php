@@ -1515,6 +1515,8 @@ HTML;
         "ALTER TABLE k30_ti_billing ADD COLUMN invoice_no        TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_billing ADD COLUMN invoice_system    TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_billing ADD COLUMN invoice_issued_on DATE",
+        // Tryb dokumentu: '' = z FVAT (czeka na fakturę), 'statement' = tylko zestawienie (bez FVAT)
+        "ALTER TABLE k30_ti_billing ADD COLUMN doc_mode          TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

@@ -14,7 +14,7 @@ $rows = db_all(
      FROM k30_ti_billing b
      JOIN k30_clients cl ON cl.id=b.client_id
      LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
-     WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid')"
+     WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid') AND COALESCE(b.doc_mode,'')!='statement'"
     . ($only_missing ? " AND COALESCE(b.invoice_path,'')=''" : '') . "
      ORDER BY cl.name, c.name", [$rz_year, $rz_month]
 );
