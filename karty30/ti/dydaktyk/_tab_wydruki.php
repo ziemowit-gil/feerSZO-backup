@@ -108,6 +108,9 @@ $_lnk = function (string $href, string $label, string $icon, string $kind = 'out
         <div class="small text-body-secondary mb-1">Dokumenty zajęć:</div>
         <div class="d-flex flex-wrap gap-1">
           <?= $_lnk('protokoly_moje.php', 'Protokoły (PDF w kreatorze)', 'journal-check', 'outline-secondary', false) ?>
+          <?php if (dyd_is_staff()): ?>
+          <?= $_lnk('dziennik_pdf.php?' . $_q(['course_id' => $_wd_cid]), 'Dziennik zajęć (PDF)', 'journal-bookmark', 'primary') ?>
+          <?php endif; ?>
           <?= $_lnk('index.php?' . $_q(['course' => $_wd_cid, 'tab' => 'lekcje']), 'Karta lekcji — z listy zajęć', 'card-text', 'outline-secondary', false) ?>
         </div>
         <?php endif; ?>

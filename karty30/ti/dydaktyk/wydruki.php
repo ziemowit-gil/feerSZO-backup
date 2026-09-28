@@ -453,6 +453,24 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
         <tr>
           <td>
+            <div class="fw-semibold"><i class="bi bi-journal-bookmark me-1 text-primary" aria-hidden="true"></i>Dziennik zajęć grupy</div>
+            <div class="small text-body-secondary">Pełny dziennik do druku: rozkład, uczestnicy, program, wykaz uczęszczania, realizacja programu (tematy), oceny, hospitacje, sprawozdanie z kursu.</div>
+          </td>
+          <td>
+            <form action="dziennik_pdf.php" target="_blank" class="d-flex flex-wrap gap-2 align-items-center">
+              <label for="dz-course" class="visually-hidden">Grupa</label>
+              <select id="dz-course" name="course_id" class="form-select form-select-sm w-auto" style="min-width:14rem" required>
+                <option value="">— wybierz grupę —</option>
+                <?php foreach ($courses_all as $co): ?><option value="<?= (int)$co['id'] ?>"><?= h($co['name']) ?></option><?php endforeach; ?>
+              </select>
+              <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="dane" value="1" id="dz-dane"><label class="form-check-label small" for="dz-dane">z danymi osobowymi (PESEL, data ur., opiekun)</label></div>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+            </form>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
             <div class="fw-semibold"><i class="bi bi-cash-coin me-1 text-primary" aria-hidden="true"></i>Wyciąg zmian cen</div>
             <div class="small text-body-secondary">Wszystkie zmiany cen (grupowe i indywidualne) z datami, stanem i uzasadnieniem.</div>
           </td>

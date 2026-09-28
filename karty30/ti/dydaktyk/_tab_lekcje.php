@@ -66,6 +66,11 @@ if ($_sms_enabled && $cur_course) {
           <li><a class="dropdown-item" href="attendance_pdf.php?course_id=<?= $cur_course ?>">
             <i class="bi bi-table me-2"></i>Lista obecności (cały kurs)
           </a></li>
+          <?php if (dyd_is_staff()): ?>
+          <li><a class="dropdown-item" href="dziennik_pdf.php?course_id=<?= $cur_course ?>" target="_blank">
+            <i class="bi bi-journal-bookmark me-2"></i>Dziennik zajęć (PDF)
+          </a></li>
+          <?php endif; ?>
           <?php
             $prev  = date('Y-m', strtotime('-1 month'));
             $prev2 = date('Y-m', strtotime('-2 months'));
