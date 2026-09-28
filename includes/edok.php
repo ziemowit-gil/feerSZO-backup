@@ -1434,21 +1434,76 @@ function edok_millenet_export(array $docs, string $rachunek_zlecen_nrb): string 
     return $rows ? implode("\r\n", $rows) . "\r\n" : '';
 }
 
+/**
+ * Uniwersalny plik przelewów ELIXIR-O (standard KIR / Rady Bankowości
+ * Elektronicznej) dla banków bez dedykowanej funkcji — typowy układ
+ * akceptowany m.in. przez mBank, ING, Santander, Pekao: 16 pól, pola
+ * tekstowe (rachunki, nazwa/adres, tytuł, klasyfikacja, referencja)
+ * w cudzysłowach, podpola łączone "|", CRLF, kodowanie Windows-1250.
+ * Różni się od edok_millenet_export() tylko referencją (zwykły tekst zamiast
+ * "$$$...$$$") i kodowaniem.
+ */
+function edok_elixir_export(array $docs, string $rachunek_zlecen_nrb): string {
+    $nrb_z = preg_replace('/\D/', '', $rachunek_zlecen_nrb);
+    if (strlen($nrb_z) !== 26) throw new RuntimeException('Rachunek zleceniodawcy musi mieć 26 cyfr (NRB).');
+    $bank_z = substr($nrb_z, 2, 8);
+
+    $konto = null;
+    foreach (edok_rachunki_list() as $r) if (preg_replace('/\D/', '', (string) $r['nrb']) === $nrb_z) { $konto = $r; break; }
+    $nazwa_zlec = (($konto['nazwa'] ?? '') !== '') ? $konto['nazwa'] : (defined('ORG_NAME') ? ORG_NAME : '');
+    $adres_zlec = (($konto['adres'] ?? '') !== '') ? $konto['adres'] : (string) org_setting('org_adres');
+    $q = fn(string $s): string => '"' . str_replace('"', '', $s) . '"';
+
+    $rows = [];
+    foreach ($docs as $doc) {
+        if (($doc['kierunek'] ?? 'wydatek') !== 'wydatek') continue;
+        $nrb_k = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
+        if (strlen($nrb_k) !== 26) continue;
+
+        // Data realizacji i tytuł przelewu liczone na bieżąco w momencie eksportu — patrz komentarz w edok_ipko_biznes_export().
+        $data_fmt     = date('Ymd');
+        $kwota_groszy = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
+        $tytul        = implode('|', edok_ipko_wrap_lines(edok_ipko_sanitize(edok_generate_tytul_przelewu($doc)), 35, 4));
+        $referencja   = mb_substr(preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? '')), 0, 16);
+
+        $rows[] = implode(',', [
+            '110', $data_fmt, (string)$kwota_groszy, $bank_z, '0',
+            $q($nrb_z), $q($nrb_k),
+            $q(edok_ipko_name_address_field($nazwa_zlec, $adres_zlec)),
+            $q(edok_ipko_name_address_field((string)($doc['kontrahent_nazwa'] ?? ''), '')),
+            '0', substr($nrb_k, 2, 8),
+            $q($tytul),
+            $q(''), $q(''),
+            $q('51'),
+            $q($referencja),
+        ]);
+    }
+
+    $content = $rows ? implode("\r\n", $rows) . "\r\n" : '';
+    $encoded = @iconv('UTF-8', 'CP1250//TRANSLIT', $content);
+    return $encoded !== false ? $encoded : $content;
+}
+
 /** Formaty pliku przelewów zbiorczych dostępne w Preliminarzu i na karcie dokumentu. */
 const EDOK_PRZELEWY_FORMATY = [
     'auto'     => 'Automatycznie (wg banku rachunku nadawcy)',
-    'ipko'     => 'iPKO biznes (PKO BP)',
-    'millenet' => 'Millenet (Bank Millennium)',
+    'elixir'   => 'ELIXIR-O — uniwersalny (inne banki)',
+    'ipko'     => 'ELIXIR-O — iPKO biznes (PKO BP)',
+    'millenet' => 'ELIXIR-O — Millenet (Bank Millennium)',
 ];
 
 /**
  * Format pliku dla rachunku nadawcy przy wyborze „auto": numer rozliczeniowy
  * banku w NRB (cyfry 3–6) — 1020 = PKO BP, 1160 = Bank Millennium. Inne banki
- * dostają iPKO biznes (czysty ELIXIR-O bez cudzysłowów, najszerzej akceptowany).
+ * dostają uniwersalny ELIXIR-O (edok_elixir_export()).
  */
 function edok_przelewy_format_for_nrb(string $nrb, string $format = 'auto'): string {
     if ($format !== 'auto' && isset(EDOK_PRZELEWY_FORMATY[$format])) return $format;
-    return substr(preg_replace('/\D/', '', $nrb), 2, 4) === '1160' ? 'millenet' : 'ipko';
+    return match (substr(preg_replace('/\D/', '', $nrb), 2, 4)) {
+        '1020'  => 'ipko',
+        '1160'  => 'millenet',
+        default => 'elixir',
+    };
 }
 
 /**
@@ -1460,6 +1515,9 @@ function edok_przelewy_export(array $docs, string $rachunek_zlecen_nrb, string $
     $format = edok_przelewy_format_for_nrb($rachunek_zlecen_nrb, $format);
     if ($format === 'millenet') {
         return ['content' => edok_millenet_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'Millenet', 'ext' => 'csv'];
+    }
+    if ($format === 'elixir') {
+        return ['content' => edok_elixir_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'ELIXIR-O', 'ext' => 'pli'];
     }
     return ['content' => edok_ipko_biznes_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'iPKO_biznes', 'ext' => 'txt'];
 }

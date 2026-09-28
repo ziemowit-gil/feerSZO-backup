@@ -114,7 +114,7 @@ require_once __DIR__ . '/../includes/header.php';
       <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
     </a>
     <?php if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza'))): ?>
-    <a href="<?= APP_URL ?>/edok/preliminarz.php" class="btn btn-outline-success btn-sm" title="Zaznacz dokumenty w Preliminarzu i pobierz plik przelewów (iPKO biznes / Millenet)">
+    <a href="<?= APP_URL ?>/edok/preliminarz.php" class="btn btn-outline-success btn-sm" title="Zaznacz dokumenty w Preliminarzu i pobierz plik przelewów (ELIXIR-O)">
       <i class="bi bi-bank"></i> Eksport przelewów
     </a>
     <?php endif; ?>

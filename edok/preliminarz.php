@@ -114,7 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
                 flash_set('warning', 'Żaden z zaznaczonych dokumentów nie nadaje się do eksportu (brak prawidłowego 26-cyfrowego rachunku kontrahenta).');
             } elseif (count($pliki) === 1) {
                 $fn = array_key_first($pliki);
-                header(str_starts_with($fn, 'Millenet') ? 'Content-Type: text/csv; charset=UTF-8' : 'Content-Type: text/plain; charset=ISO-8859-2');
+                header(match (true) {
+                    str_starts_with($fn, 'Millenet') => 'Content-Type: text/csv; charset=UTF-8',
+                    str_starts_with($fn, 'ELIXIR-O') => 'Content-Type: text/plain; charset=windows-1250',
+                    default                          => 'Content-Type: text/plain; charset=ISO-8859-2',
+                });
                 header('Content-Disposition: attachment; filename="' . $fn . '"');
                 header('Content-Length: ' . strlen(reset($pliki)));
                 echo reset($pliki);
@@ -323,7 +327,7 @@ require_once __DIR__ . '/../includes/header.php';
   <?php endif; ?>
 </div>
 <?php if ($rachunki_org): ?>
-<p class="text-muted small">Eksport przelewów: zaznacz dokumenty i pobierz plik przelewów zbiorczych (ELIXIR-O) dla iPKO biznes albo Millenet — przy „Automatycznie" format dobierany jest wg banku rachunku nadawcy. Zaimportuj plik w bankowości i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
+<p class="text-muted small">Eksport przelewów: zaznacz dokumenty i pobierz plik przelewów zbiorczych (ELIXIR-O) ELIXIR-O (uniwersalny, iPKO biznes albo Millenet) — przy „Automatycznie" format dobierany jest wg banku rachunku nadawcy (PKO BP → iPKO, Millennium → Millenet, inne → uniwersalny). Zaimportuj plik w bankowości i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
 <?php endif; ?>
 
 <?php if ($sumy): ?>
