@@ -72,6 +72,22 @@ function ti_payments_migrate(): void {
     // zatwierdzeniu leci e-mail do adminów o FV, tak jak przy bramkach online.
     try { $pdo->exec("ALTER TABLE k30_ti_wallet_requests ADD COLUMN is_year_end INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
+    // Przeniesienia niedopłaty między rozliczeniami (ti_transfer_debt) — rejestr,
+    // żeby nie dało się wycofać żadnej ze stron i zgubić kwoty; cofnięcie = reversed_at
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_debt_transfers (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id       INTEGER NOT NULL,
+        from_billing_id INTEGER NOT NULL,
+        to_billing_id   INTEGER NOT NULL,
+        amount          REAL    NOT NULL DEFAULT 0,
+        created_by_name TEXT    NOT NULL DEFAULT '',
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        reversed_at     DATETIME,
+        reversed_by_name TEXT   NOT NULL DEFAULT ''
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_debt_tr_from ON k30_ti_debt_transfers(from_billing_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_debt_tr_to ON k30_ti_debt_transfers(to_billing_id)");
+
     // Wnioski o przeniesienie płatności na następny miesiąc
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_payment_deferrals (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -662,9 +678,58 @@ function ti_transfer_debt(int $to_billing_id, int $from_billing_id, float $amoun
         $n2 = 'Niedopłata ' . number_format($amount, 2, ',', ' ') . ' zł przeniesiona z ' . $lbl($from) . $sfx;
         $up->execute([-$amount, $n1, $n1, $from_billing_id]);
         $up->execute([$amount, $n2, $n2, $to_billing_id]);
+        db_insert('k30_ti_debt_transfers', ['client_id' => (int)$to['client_id'], 'from_billing_id' => $from_billing_id,
+            'to_billing_id' => $to_billing_id, 'amount' => $amount, 'created_by_name' => $by]);
         $pdo->commit();
     } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd zapisu: ' . $e->getMessage(); }
     ti_billing_recompute((int)$to['client_id']);
+    return null;
+}
+
+/**
+ * Aktywne (niecofnięte) przeniesienia niedopłaty, w których rozliczenie jest
+ * źródłem albo celem — z opisem drugiej strony. Blokują wycofanie rozliczenia.
+ * @return list<array{id:int,amount:float,dir:string,other_id:int,other_label:string,created_at:string,created_by_name:string}>
+ */
+function ti_debt_transfers_active(int $billing_id): array {
+    ti_payments_migrate();
+    $pl  = [1=>'sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+    $out = [];
+    foreach (db_all("SELECT * FROM k30_ti_debt_transfers WHERE reversed_at IS NULL AND (from_billing_id=? OR to_billing_id=?) ORDER BY id",
+                    [$billing_id, $billing_id]) as $t) {
+        $in    = (int)$t['to_billing_id'] === $billing_id;
+        $other = (int)($in ? $t['from_billing_id'] : $t['to_billing_id']);
+        $o     = db_one("SELECT month, year, course_id FROM k30_ti_billing WHERE id=?", [$other]);
+        $out[] = ['id' => (int)$t['id'], 'amount' => (float)$t['amount'], 'dir' => $in ? 'in' : 'out', 'other_id' => $other,
+                  'other_label' => $o ? (($pl[(int)$o['month']] ?? $o['month']) . ' ' . $o['year'] . ' · ' . ti_transfer_group_label((int)$o['course_id'])) : ('#' . $other),
+                  'created_at' => (string)$t['created_at'], 'created_by_name' => (string)$t['created_by_name']];
+    }
+    return $out;
+}
+
+/** Cofa przeniesienie niedopłaty (korekta odwrotna na obu rozliczeniach). Zwraca komunikat błędu albo null. */
+function ti_transfer_debt_reverse(int $transfer_id, string $by = ''): ?string {
+    ti_payments_migrate();
+    $t = db_one("SELECT * FROM k30_ti_debt_transfers WHERE id=? AND reversed_at IS NULL", [$transfer_id]);
+    if (!$t) return 'Nie znaleziono przeniesienia (albo zostało już cofnięte).';
+    $from = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [(int)$t['from_billing_id']]);
+    $to   = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [(int)$t['to_billing_id']]);
+    foreach ([$from, $to] as $x) {
+        if (!$x) return 'Jedno z rozliczeń przeniesienia już nie istnieje.';
+        if (ti_billing_has_invoice($x)) return 'Z jednego z rozliczeń wystawiono już fakturę — przeniesienia nie można cofnąć (potrzebna korekta faktury).';
+    }
+    $amount = round((float)$t['amount'], 2);
+    $note   = 'Cofnięto przeniesienie niedopłaty ' . number_format($amount, 2, ',', ' ') . ' zł' . ($by !== '' ? ' (' . $by . ')' : '');
+    $up  = db()->prepare("UPDATE k30_ti_billing SET adjustment=ROUND(COALESCE(adjustment,0)+?,2),
+            adjustment_note=CASE WHEN COALESCE(adjustment_note,'')='' THEN ? ELSE substr(adjustment_note || ' · ' || ?, 1, 500) END WHERE id=?");
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        $up->execute([$amount, $note, $note, (int)$from['id']]);
+        $up->execute([-$amount, $note, $note, (int)$to['id']]);
+        db()->prepare("UPDATE k30_ti_debt_transfers SET reversed_at=datetime('now'), reversed_by_name=? WHERE id=?")->execute([$by, $transfer_id]);
+        $pdo->commit();
+    } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd zapisu: ' . $e->getMessage(); }
+    ti_billing_recompute((int)$t['client_id']);
     return null;
 }
 

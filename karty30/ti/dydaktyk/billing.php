@@ -128,6 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    if ($op === 'reverse_debt_transfer') {
+        $err = ti_transfer_debt_reverse((int)($_POST['transfer_id'] ?? 0), $dyd_name);
+        flash_set($err ? 'danger' : 'success', $err ?? 'Przeniesienie niedopłaty cofnięte — kwoty wróciły na pierwotne rozliczenia.');
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Zmiana trybu dokumentu jednego rozliczenia (z FVAT ↔ tylko zestawienie)
     if ($op === 'set_doc_mode') {
         $bid = (int)($_POST['billing_id'] ?? 0);
@@ -158,6 +164,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('danger', 'Nie znaleziono rozliczenia (albo jest już wycofane).');
         } elseif ($reason === '') {
             flash_set('danger', 'Podaj powód wycofania rozliczenia.');
+        } elseif ($_dt = ti_debt_transfers_active($bid)) {
+            // Wycofanie jednej strony przeniesienia zgubiłoby kwotę (druga strona ma −/+)
+            flash_set('danger', 'Nie można wycofać: rozliczenie bierze udział w przeniesieniu niedopłaty ('
+                . implode('; ', array_map(fn($t) => number_format($t['amount'], 2, ',', ' ') . ' zł ' . ($t['dir'] === 'in' ? 'z ' : 'na ') . $t['other_label'], $_dt))
+                . '). Najpierw cofnij przeniesienie („Cofnij” przy rozliczeniu).');
         } elseif ($inv || trim((string)$b0['invoice_no']) !== '' || trim((string)$b0['invoice_path']) !== '') {
             flash_set('danger', 'Z tego rozliczenia wystawiono fakturę' . ($inv ? ' ' . (string)($inv['number'] ?: '#' . $inv['id']) : (trim((string)$b0['invoice_no']) !== '' ? ' ' . (string)$b0['invoice_no'] : ''))
                 . ' — nie można go wycofać. Potrzebna jest korekta faktury (albo usuń zarejestrowany skan, jeśli był błędny).');
@@ -1046,6 +1057,18 @@ echo '<main id="main" class="dyd-wrap">';
               <?php endif; ?>
             </div>
             <?php endif; ?>
+            <?php $b_dt = ti_debt_transfers_active((int)$b['id']); foreach ($b_dt as $dt): ?>
+            <div class="mt-1 text-body-secondary d-flex flex-wrap align-items-center gap-1" style="font-size:.72rem">
+              <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+              Niedopłata <?= number_format($dt['amount'], 2, ',', ' ') ?> zł przeniesiona <?= $dt['dir'] === 'in' ? 'z' : 'na' ?> <?= h($dt['other_label']) ?>
+              <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć to przeniesienie niedopłaty? Kwota wróci na pierwotne rozliczenie.')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_op" value="reverse_debt_transfer">
+                <input type="hidden" name="transfer_id" value="<?= $dt['id'] ?>">
+                <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem">Cofnij</button>
+              </form>
+            </div>
+            <?php endforeach; ?>
             <?php $tsrc = $can_write && $b['status'] !== 'cancelled' ? ti_balance_transfer_sources((int)$b['id']) : ['credits'=>[], 'debts'=>[]];
             if ($tsrc['credits'] || $tsrc['debts']): $tf = 'tf-' . (int)$b['id']; ?>
             <details class="small mt-1">
@@ -1167,7 +1190,10 @@ echo '<main id="main" class="dyd-wrap">';
                           title="Bez faktury VAT — samo zestawienie godzin i należności">tylko zestawienie</button>
                 </form>
               <?php endif; ?>
-              <?php if (empty($_fv) && empty($_bf) && empty($b['invoice_no']) && empty($b['invoice_path'])): ?>
+              <?php if (!empty($b_dt)): ?>
+                <span class="ms-2 text-body-secondary" style="font-size:.72rem" title="Rozliczenie bierze udział w przeniesieniu niedopłaty — najpierw je cofnij">
+                  <i class="bi bi-lock me-1" aria-hidden="true"></i>Wycofaj — najpierw cofnij przeniesienie</span>
+              <?php elseif (empty($_fv) && empty($_bf) && empty($b['invoice_no']) && empty($b['invoice_path'])): ?>
                 <form method="post" class="d-inline ms-2"
                       onsubmit="var r = prompt('Powód wycofania rozliczenia (widoczny w historii):'); if (!r || !r.trim()) return false; this.reason.value = r.trim(); return true;">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
