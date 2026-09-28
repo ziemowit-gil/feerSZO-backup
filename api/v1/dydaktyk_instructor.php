@@ -443,7 +443,7 @@ switch ($action) {
         $ph = implode(',', array_fill(0, count($scope_ids), '?'));
         $rows = db_all(
             "SELECT s.id, s.course_id, c.name AS course_name, s.lesson_date, s.time_from, s.time_to,
-                    s.status, s.topic, s.notes, s.meeting_url, c.default_meeting_url, s.docs_complete,
+                    s.status, s.topic, s.notes, s.meeting_url, c.default_meeting_url, " . k30_ti_docs_complete_sql() . " AS docs_complete,
                     s.lesson_method, s.room_id, s.has_homework, s.self_prep_remote,
                     s.rescheduled_from_date, s.instructor_id,
                     (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id AND a.attended=1) AS attended_count,

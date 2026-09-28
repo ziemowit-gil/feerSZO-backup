@@ -24,7 +24,7 @@ function ti_audit_gaps_by_instructor(): array {
         "SELECT c.instructor_id, c.id AS course_id, c.name AS course_name, COUNT(*) AS n
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
           WHERE s.status IN ('held','individual_change','remote_material')
-            AND COALESCE(s.docs_complete,0) = 0
+            AND " . k30_ti_docs_complete_sql() . " = 0
             AND c.instructor_id IS NOT NULL
           GROUP BY c.instructor_id, c.id
           ORDER BY c.name COLLATE NOCASE"

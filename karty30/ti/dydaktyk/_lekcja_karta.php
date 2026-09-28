@@ -7,7 +7,8 @@ $open_id  = (int)($_GET['lesson'] ?? 0);
 $open_ses = null;
 if ($open_id && dyd_owns_session($uid, $open_id)) {
     $open_ses = db_one(
-        "SELECT s.*, c.name AS course_name, c.default_meeting_url, c.instructor_id AS course_instructor_id
+        "SELECT s.*, c.name AS course_name, c.default_meeting_url, c.instructor_id AS course_instructor_id,
+                s.docs_complete AS docs_manual, " . k30_ti_docs_complete_sql() . " AS docs_complete
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
           WHERE s.id = ?",
         [$open_id]
@@ -66,6 +67,7 @@ if ($open_ses):
       <dd class="col-sm-9">
         <?php if (!empty($open_ses['docs_complete'])): ?>
         <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-check-square-fill me-1" aria-hidden="true"></i>uzupełniona</span>
+        <?php if (empty($open_ses['docs_manual'])): ?><span class="small text-body-secondary ms-1">(obecność i temat wpisane)</span><?php endif; ?>
         <?php else: ?>
         <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>niekompletna</span>
         <?php endif; ?>
@@ -110,7 +112,8 @@ if ($open_ses):
         <i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj kartę lekcji
       </a>
       <?php endif; ?>
-      <?php if (dyd_is_staff() && in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)): ?>
+      <?php if (dyd_is_staff() && in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)
+                && (empty($open_ses['docs_complete']) || !empty($open_ses['docs_manual']))): // uzupełniona automatycznie (obecność + temat) — ręczna flaga nic nie zmienia ?>
       <form method="post" class="d-inline">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="toggle_docs_complete">

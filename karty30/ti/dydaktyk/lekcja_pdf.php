@@ -15,7 +15,7 @@ $id = (int)($_GET['id'] ?? 0);
 if (!$id || !dyd_is_staff() || !dyd_owns_session($uid, $id)) { http_response_code(403); exit('Brak uprawnień do tej lekcji.'); }
 
 $s = db_one(
-    "SELECT s.*, c.name AS course_name FROM k30_ti_sessions s
+    "SELECT s.*, c.name AS course_name, " . k30_ti_docs_complete_sql() . " AS docs_complete FROM k30_ti_sessions s
      JOIN k30_ti_courses c ON c.id = s.course_id WHERE s.id=?",
     [$id]
 );

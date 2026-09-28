@@ -437,7 +437,7 @@ if ($_sms_enabled && $cur_course) {
               }
               if (in_array($s['status'], K30_TI_HELD_STATUSES, true) && empty($s['docs_complete'])) {
                   $_flags[] = ['icon' => 'exclamation-triangle-fill', 'cls' => 'text-danger-emphasis bg-danger-subtle border-danger-subtle',
-                               'title' => 'Dokumentacja niekompletna — zaznacz w menu „Więcej”'];
+                               'title' => 'Dokumentacja niekompletna — wpisz temat i obecność albo zaznacz w menu „Więcej”'];
               }
               if (!empty($s['rescheduled_from_date'])) {
                   $_flags[] = ['icon' => 'calendar2-range', 'cls' => 'text-info-emphasis bg-info-subtle border-info-subtle',
@@ -533,7 +533,8 @@ if ($_sms_enabled && $cur_course) {
                     </form>
                   </li>
                   <?php endif; ?>
-                  <?php if (dyd_is_staff() && in_array($s['status'], K30_TI_HELD_STATUSES, true)): ?>
+                  <?php if (dyd_is_staff() && in_array($s['status'], K30_TI_HELD_STATUSES, true)
+                            && (empty($s['docs_complete']) || !empty($s['docs_manual']))): // uzupełniona automatycznie (obecność + temat) ?>
                   <li>
                     <form method="post">
                       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">

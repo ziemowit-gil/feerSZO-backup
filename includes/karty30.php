@@ -4156,12 +4156,28 @@ function k30_ti_instructor_calendar_ics(int $user_id, string $cal_name = 'Lekcje
 }
 
 // Lekcje
+/**
+ * Wyrażenie SQL "dokumentacja lekcji uzupełniona": ręczna flaga docs_complete
+ * ALBO odbyta lekcja z wpisanym tematem i zapisaną obecnością (dla "pracy
+ * własnej" i kursów bez śledzenia frekwencji wystarczy temat). $s/$c — aliasy
+ * k30_ti_sessions / k30_ti_courses w zapytaniu. Zwraca 0/1.
+ */
+function k30_ti_docs_complete_sql(string $s = 's', string $c = 'c'): string {
+    $held = "'" . implode("','", K30_TI_HELD_STATUSES) . "'";
+    return "(CASE WHEN COALESCE($s.docs_complete,0) = 1 THEN 1
+                  WHEN $s.status IN ($held) AND TRIM(COALESCE($s.topic,'')) <> ''
+                       AND ($s.status = 'remote_material' OR COALESCE($c.track_attendance,1) = 0
+                            OR EXISTS (SELECT 1 FROM k30_ti_attendance da WHERE da.session_id = $s.id))
+                  THEN 1 ELSE 0 END)";
+}
+
 function k30_ti_sessions(int $course_id, string $from='', string $to=''): array {
     $where = ['s.course_id=?']; $params = [$course_id];
     if ($from) { $where[] = 's.lesson_date>=?'; $params[] = $from; }
     if ($to)   { $where[] = 's.lesson_date<=?'; $params[] = $to; }
     return db_all(
         "SELECT s.*, c.default_meeting_url,
+                s.docs_complete AS docs_manual, " . k30_ti_docs_complete_sql() . " AS docs_complete,
                 (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id AND a.attended=1) AS attended_count,
                 (SELECT COUNT(*) FROM k30_ti_attendance a WHERE a.session_id=s.id) AS total_count
          FROM k30_ti_sessions s
