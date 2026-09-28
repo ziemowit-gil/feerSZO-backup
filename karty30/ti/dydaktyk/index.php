@@ -344,6 +344,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $course_id = (int)($_POST['course_id'] ?? 0);
     $back_tab  = in_array($_POST['_tab'] ?? '', ['lekcje','zadania','materialy'], true) ? $_POST['_tab'] : 'lekcje';
 
+    // Zamknięty okres nauczania: operacje na ISTNIEJĄCEJ lekcji z tego okresu
+    // (edycja, przeniesienie, usunięcie, obecność, odwołania, no-show) są
+    // zablokowane — okres jest rozliczony protokołami. Sprawdzamy obecną datę
+    // lekcji; data docelowa jest sprawdzana osobno w save_lesson/reschedule.
+    $_closed_ops = ['save_lesson', 'delete_lesson', 'wizard_save', 'save_attendance',
+                    'confirm_cancel', 'reject_cancel', 'cancel_attendee', 'restore_attendee',
+                    'mark_no_show', 'cancel_session', 'uncancel_session', 'reschedule_session',
+                    'reschedule_accept', 'excuse_absence', 'unexcuse_absence', 'confirm_reservation'];
+    if (in_array($op, $_closed_ops, true) && ($_pc_s = ti_period_closed_for_session((int)($_POST['session_id'] ?? 0)))) {
+        flash_set('danger', ti_period_closed_msg($_pc_s));
+        header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
     // ── Dostępność prowadzącego (własna, niezależna od kursu) ───────────────────
     if ($op === 'avail_add') {
         $dw       = (int)($_POST['day_of_week'] ?? -1);
@@ -610,7 +623,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ids  = array_unique(array_map('intval', (array)($_POST['session_ids'] ?? [])));
         $done = 0;
         foreach ($ids as $sid) {
-            if ($sid && dyd_owns_session($uid, $sid) && ti_session_bulk_mark_present($sid)) {
+            if ($sid && dyd_owns_session($uid, $sid) && !ti_period_closed_for_session($sid) && ti_session_bulk_mark_present($sid)) {
                 ti_session_note_on_behalf($sid, $uid, (string)($me['name'] ?? ''));
                 $done++;
             }
@@ -1289,6 +1302,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'reschedule_accept' || $op === 'reschedule_reject') {
         $rid = (int)($_POST['request_id'] ?? 0);
         $req = $rid ? k30_ti_reschedule_get($rid) : null;
+        if ($req && ($_pc_r = ti_period_closed_for_session((int)$req['session_id']))) {
+            flash_set('danger', ti_period_closed_msg($_pc_r));
+            header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+        }
         if ($req && dyd_owns_session($uid, (int)$req['session_id'])) {
             $accept = $op === 'reschedule_accept';
             if ($accept) {

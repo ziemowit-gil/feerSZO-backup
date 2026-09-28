@@ -253,6 +253,20 @@ if ($action === 'logout' && $method === 'POST') {
 $instructor_id = verify_instructor_token();
 if (!$instructor_id) json_err('Nieautoryzowany dostęp.', 401);
 
+// Zamknięty okres nauczania: operacje na ISTNIEJĄCEJ lekcji z tego okresu są
+// zablokowane (jak w index.php — okres jest rozliczony protokołami). Data
+// docelowa (nowa lekcja / nowy termin) jest sprawdzana osobno w danej akcji.
+if ($method === 'POST' && in_array($action, ['mark_attendance', 'cancel_lesson', 'uncancel_lesson', 'cancel_attendee',
+        'restore_attendee', 'save_lesson', 'reschedule_lesson', 'reschedule_decide'], true)) {
+    $_gb  = get_body();
+    $_gsid = (int)($_gb['session_id'] ?? 0);
+    if (!$_gsid && !empty($_gb['request_id'])) {
+        $_greq = k30_ti_reschedule_get((int)$_gb['request_id']);
+        $_gsid = (int)($_greq['session_id'] ?? 0);
+    }
+    if ($_gsid && ($_gpc = ti_period_closed_for_session($_gsid))) json_err(ti_period_closed_msg($_gpc));
+}
+
 // ── Route dispatch ────────────────────────────────────────────────────────────
 switch ($action) {
     // Lista własnych kursów (id+nazwa) — dla wspólnego selektora grupy w

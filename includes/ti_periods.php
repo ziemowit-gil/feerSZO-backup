@@ -277,6 +277,18 @@ function ti_period_reopen(int $period_id, ?int $by, string $by_name, string $rea
  * Zamknięty okres obejmujący datę (albo null) — bramka dla ustawiania zajęć.
  * Cache w obrębie requestu: seria lekcji pyta o wiele dat.
  */
+/**
+ * Zamknięty okres, do którego należy lekcja (wg jej OBECNEJ daty) — albo null.
+ * Bramka dla operacji na istniejącej lekcji (edycja, usunięcie, obecność,
+ * odwołania, no-show): ti_period_closed_for_date() na dacie docelowej nie
+ * chroni lekcji, która już leży w zamkniętym okresie.
+ */
+function ti_period_closed_for_session(int $session_id): ?array {
+    if ($session_id <= 0) return null;
+    $d = (string)(db_one("SELECT lesson_date FROM k30_ti_sessions WHERE id=?", [$session_id])['lesson_date'] ?? '');
+    return $d !== '' ? ti_period_closed_for_date($d) : null;
+}
+
 function ti_period_closed_for_date(string $date): ?array {
     static $cache = [];
     $date = trim($date);
