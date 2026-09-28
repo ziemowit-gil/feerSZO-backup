@@ -548,12 +548,122 @@ function ti_payment_add(int $client_id, float $amount, string $paid_at = '', str
     return ['payment_id' => $pid, 'credit' => $credit, 'debt' => $res['debt'], 'emailed' => $emailed];
 }
 
+// ── Przenoszenie salda między grupami i okresami (kierownik) ─────────────────
+//
+// Nadpłata: para wpisów wewnętrznych w k30_ti_payments (method='internal',
+// source_type='transfer') — minus w grupie źródłowej, plus w docelowej; suma
+// wpłat kursanta się nie zmienia, zmienia się tylko przypisanie do grupy.
+// Niedopłata: korekta (adjustment) — minus na rozliczeniu źródłowym (inny
+// okres / grupa), plus na docelowym; należność łączna bez zmian. Rozliczeń
+// z fakturą nie ruszamy (kwota dokumentu księgowego musi zostać).
+
+/** Czy z rozliczenia jest faktura (produkcyjna, zarejestrowany numer albo skan). */
+function ti_billing_has_invoice(array $b): bool {
+    if (trim((string)($b['invoice_no'] ?? '')) !== '' || trim((string)($b['invoice_path'] ?? '')) !== '') return true;
+    try {
+        return (bool)db_one("SELECT 1 FROM invoices WHERE source='ti_billing' AND source_id=? AND is_test=0 AND deleted_at IS NULL", [(int)$b['id']]);
+    } catch (\Throwable $e) { return false; }
+}
+
+/** Nazwa grupy do opisu (0 = konto ogólne / rozliczenie łączne). */
+function ti_transfer_group_label(int $course_id): string {
+    if ($course_id <= 0) return 'konto ogólne';
+    $r = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id]);
+    return (string)($r['name'] ?? ('grupa #' . $course_id));
+}
+
+/**
+ * Co można przenieść na rozliczenie $billing_id: nadpłaty innych grup (i
+ * ogólną) oraz niedopłaty innych rozliczeń tego kursanta.
+ * @return array{credits:list<array{course_id:int,label:string,amount:float}>,debts:list<array{billing_id:int,label:string,amount:float}>}
+ */
+function ti_balance_transfer_sources(int $billing_id): array {
+    $out = ['credits' => [], 'debts' => []];
+    $b = db_one("SELECT * FROM k30_ti_billing WHERE id=? AND status IN ('issued','paid')", [$billing_id]);
+    if (!$b) return $out;
+    $client = (int)$b['client_id']; $to_course = (int)$b['course_id'];
+    $a = ti_client_allocation($client);
+    if ($to_course > 0 && $a['general_credit'] > 0.005)
+        $out['credits'][] = ['course_id' => 0, 'label' => 'nadpłata ogólna (konto)', 'amount' => $a['general_credit']];
+    foreach ($a['groups'] as $cid => $g) {
+        if ((int)$cid === $to_course || $cid <= 0 || $g['credit'] <= 0.005) continue;
+        $out['credits'][] = ['course_id' => (int)$cid, 'label' => ti_transfer_group_label((int)$cid), 'amount' => $g['credit']];
+    }
+    if (!ti_billing_has_invoice($b)) {
+        $pl = [1=>'sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+        $paid = []; foreach ($a['rows'] as $r) $paid[$r['id']] = $r['paid'];
+        foreach (db_all("SELECT * FROM k30_ti_billing WHERE client_id=? AND id!=? AND status='issued' ORDER BY year, month, id", [$client, $billing_id]) as $o) {
+            $debt = round((float)$o['amount'] + (float)$o['adjustment'] - ($paid[(int)$o['id']] ?? 0), 2);
+            if ($debt <= 0.005 || ti_billing_has_invoice($o)) continue;
+            $out['debts'][] = ['billing_id' => (int)$o['id'], 'amount' => $debt,
+                'label' => ($pl[(int)$o['month']] ?? $o['month']) . ' ' . $o['year'] . ' · ' . ti_transfer_group_label((int)$o['course_id'])];
+        }
+    }
+    return $out;
+}
+
+/** Przenosi nadpłatę z grupy $from_course (0 = ogólna) na grupę rozliczenia $to_billing_id. Zwraca komunikat błędu albo null. */
+function ti_transfer_credit(int $to_billing_id, int $from_course, float $amount, string $by = ''): ?string {
+    $amount = round($amount, 2);
+    $b = db_one("SELECT * FROM k30_ti_billing WHERE id=? AND status IN ('issued','paid')", [$to_billing_id]);
+    if (!$b) return 'Nie znaleziono rozliczenia.';
+    $src = null;
+    foreach (ti_balance_transfer_sources($to_billing_id)['credits'] as $c) if ($c['course_id'] === $from_course) $src = $c;
+    if (!$src) return 'W tej grupie nie ma nadpłaty do przeniesienia.';
+    if ($amount <= 0 || $amount > $src['amount'] + 0.001) return 'Kwota musi być większa od zera i nie większa niż nadpłata (' . number_format($src['amount'], 2, ',', ' ') . ' zł).';
+    $client = (int)$b['client_id']; $to_course = (int)$b['course_id'];
+    $note = 'Przeniesienie nadpłaty: ' . ti_transfer_group_label($from_course) . ' → ' . ti_transfer_group_label($to_course) . ($by !== '' ? ' (' . $by . ')' : '');
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        foreach ([[$from_course, -$amount], [$to_course, $amount]] as [$cid, $amt]) {
+            db_insert('k30_ti_payments', ['client_id' => $client, 'course_id' => $cid, 'amount' => $amt, 'paid_at' => date('Y-m-d'),
+                'method' => 'internal', 'note' => mb_substr($note, 0, 500), 'source_type' => 'transfer', 'source_id' => $to_billing_id]);
+        }
+        $pdo->commit();
+    } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd zapisu: ' . $e->getMessage(); }
+    ti_billing_recompute($client);
+    return null;
+}
+
+/** Przenosi niedopłatę z rozliczenia $from_billing_id (inny okres / grupa) na $to_billing_id. Zwraca komunikat błędu albo null. */
+function ti_transfer_debt(int $to_billing_id, int $from_billing_id, float $amount, string $by = ''): ?string {
+    $amount = round($amount, 2);
+    $src = null;
+    foreach (ti_balance_transfer_sources($to_billing_id)['debts'] as $d) if ($d['billing_id'] === $from_billing_id) $src = $d;
+    if (!$src) return 'Tej niedopłaty nie można przenieść (rozliczenie opłacone, wycofane albo z fakturą — także docelowe nie może mieć faktury).';
+    if ($amount <= 0 || $amount > $src['amount'] + 0.001) return 'Kwota musi być większa od zera i nie większa niż niedopłata (' . number_format($src['amount'], 2, ',', ' ') . ' zł).';
+    $to   = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$to_billing_id]);
+    $from = db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$from_billing_id]);
+    $pl = [1=>'sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+    $lbl = fn(array $x) => ($pl[(int)$x['month']] ?? $x['month']) . ' ' . $x['year'] . ' · ' . ti_transfer_group_label((int)$x['course_id']);
+    $sfx = $by !== '' ? ' (' . $by . ')' : '';
+    $up  = db()->prepare("UPDATE k30_ti_billing SET adjustment=ROUND(COALESCE(adjustment,0)+?,2),
+            adjustment_note=CASE WHEN COALESCE(adjustment_note,'')='' THEN ? ELSE substr(adjustment_note || ' · ' || ?, 1, 500) END WHERE id=?");
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        $n1 = 'Niedopłata ' . number_format($amount, 2, ',', ' ') . ' zł przeniesiona na ' . $lbl($to) . $sfx;
+        $n2 = 'Niedopłata ' . number_format($amount, 2, ',', ' ') . ' zł przeniesiona z ' . $lbl($from) . $sfx;
+        $up->execute([-$amount, $n1, $n1, $from_billing_id]);
+        $up->execute([$amount, $n2, $n2, $to_billing_id]);
+        $pdo->commit();
+    } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd zapisu: ' . $e->getMessage(); }
+    ti_billing_recompute((int)$to['client_id']);
+    return null;
+}
+
 /** Usuwa wpłatę i przelicza saldo (korekta admina). */
 function ti_payment_delete(int $payment_id): void {
     ti_payments_migrate();
-    $p = db_one("SELECT client_id FROM k30_ti_payments WHERE id=?", [$payment_id]);
+    $p = db_one("SELECT * FROM k30_ti_payments WHERE id=?", [$payment_id]);
     if (!$p) return;
     db()->prepare("DELETE FROM k30_ti_payments WHERE id=?")->execute([$payment_id]);
+    // Przeniesienie nadpłaty to para wpisów — usuwamy też drugą nogę, żeby suma się zgadzała
+    if (($p['source_type'] ?? '') === 'transfer') {
+        db()->prepare("DELETE FROM k30_ti_payments WHERE id=(SELECT id FROM k30_ti_payments
+                        WHERE client_id=? AND source_type='transfer' AND source_id=? AND ABS(amount + ?) < 0.001
+                          AND created_at=? AND id!=? LIMIT 1)")
+            ->execute([(int)$p['client_id'], (int)$p['source_id'], (float)$p['amount'], (string)$p['created_at'], $payment_id]);
+    }
     ti_billing_recompute((int)$p['client_id']);
 }
 

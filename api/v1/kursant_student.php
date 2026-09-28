@@ -1132,10 +1132,11 @@ switch ($action) {
                 $c = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [(int)$p['course_id']]);
                 $label = 'Wpłata na grupę: ' . (string)($c['name'] ?? ('#' . (int)$p['course_id']));
             }
+            if (($p['source_type'] ?? '') === 'transfer') $label = (float)$p['amount'] < 0 ? 'Przeniesienie nadpłaty — z grupy' : 'Przeniesienie nadpłaty — do grupy';
             $ops[] = [
                 'date'   => (string)($p['paid_at'] ?: substr((string)$p['created_at'], 0, 10)),
-                'kind'   => 'in',
-                'amount' => (float)$p['amount'],
+                'kind'   => (float)$p['amount'] < 0 ? 'out' : 'in',   // przeniesienie nadpłaty — noga ujemna
+                'amount' => abs((float)$p['amount']),
                 'label'  => $label,
                 'note'   => trim(($method_labels[$p['method']] ?? (string)$p['method']) . ((string)$p['note'] !== '' ? ' · ' . (string)$p['note'] : '')),
                 'status' => '',

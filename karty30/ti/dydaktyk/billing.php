@@ -109,6 +109,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // Przeniesienie salda na to rozliczenie: nadpłata innej grupy albo
+    // niedopłata z innego okresu / grupy (ti_transfer_credit / ti_transfer_debt)
+    if ($op === 'transfer_balance') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $amt = (float)str_replace([',', ' '], ['.', ''], (string)($_POST['amount'] ?? '0'));
+        [$kind, $src] = array_pad(explode(':', (string)($_POST['source'] ?? ''), 2), 2, '');
+        $err = $kind === 'credit' ? ti_transfer_credit($bid, (int)$src, $amt, $dyd_name)
+             : ($kind === 'debt' ? ti_transfer_debt($bid, (int)$src, $amt, $dyd_name) : 'Wybierz, co przenieść.');
+        flash_set($err ? 'danger' : 'success', $err ?? ($kind === 'credit'
+            ? 'Nadpłata przeniesiona do grupy tego rozliczenia (' . number_format($amt, 2, ',', ' ') . ' zł).'
+            : 'Niedopłata przeniesiona na to rozliczenie (' . number_format($amt, 2, ',', ' ') . ' zł).'));
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Zmiana trybu dokumentu jednego rozliczenia (z FVAT ↔ tylko zestawienie)
     if ($op === 'set_doc_mode') {
         $bid = (int)($_POST['billing_id'] ?? 0);
@@ -1013,6 +1027,35 @@ echo '<main id="main" class="dyd-wrap">';
               <?php endif; ?>
             </div>
             <?php endif; ?>
+            <?php $tsrc = $can_write && $b['status'] !== 'cancelled' ? ti_balance_transfer_sources((int)$b['id']) : ['credits'=>[], 'debts'=>[]];
+            if ($tsrc['credits'] || $tsrc['debts']): $tf = 'tf-' . (int)$b['id']; ?>
+            <details class="small mt-1">
+              <summary class="text-primary" style="cursor:pointer;font-size:.74rem"><i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Przenieś saldo z innej grupy / okresu</summary>
+              <form method="post" class="d-flex flex-wrap align-items-end gap-1 mt-1"
+                    onsubmit="return confirm('Przenieść wskazaną kwotę na to rozliczenie?')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="_op" value="transfer_balance">
+                <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                <label class="visually-hidden" for="<?= $tf ?>-s">Źródło</label>
+                <select id="<?= $tf ?>-s" name="source" class="form-select form-select-sm" style="max-width:260px"
+                        onchange="var o=this.selectedOptions[0]; this.form.amount.value=o.dataset.max||''; this.form.amount.max=o.dataset.max||'';">
+                  <?php if ($tsrc['credits']): ?><optgroup label="Nadpłata → do tej grupy">
+                    <?php foreach ($tsrc['credits'] as $tc): ?>
+                    <option value="credit:<?= $tc['course_id'] ?>" data-max="<?= number_format($tc['amount'], 2, '.', '') ?>"><?= h($tc['label']) ?> — <?= number_format($tc['amount'], 2, ',', ' ') ?> zł</option>
+                    <?php endforeach; ?></optgroup><?php endif; ?>
+                  <?php if ($tsrc['debts']): ?><optgroup label="Niedopłata → na to rozliczenie">
+                    <?php foreach ($tsrc['debts'] as $td): ?>
+                    <option value="debt:<?= $td['billing_id'] ?>" data-max="<?= number_format($td['amount'], 2, '.', '') ?>"><?= h($td['label']) ?> — <?= number_format($td['amount'], 2, ',', ' ') ?> zł</option>
+                    <?php endforeach; ?></optgroup><?php endif; ?>
+                </select>
+                <?php $tfirst = $tsrc['credits'][0]['amount'] ?? $tsrc['debts'][0]['amount']; ?>
+                <label class="visually-hidden" for="<?= $tf ?>-a">Kwota (zł)</label>
+                <input id="<?= $tf ?>-a" type="number" name="amount" step="0.01" min="0.01" max="<?= number_format($tfirst, 2, '.', '') ?>"
+                       value="<?= number_format($tfirst, 2, '.', '') ?>" class="form-control form-control-sm" style="width:100px">
+                <button type="submit" class="btn btn-sm btn-outline-primary py-0">Przenieś</button>
+              </form>
+            </details>
+            <?php endif; ?>
             <?php // Nadpłatę pokazujemy tylko przy grupie (wyżej) — plakietka konta tylko przy niedopłacie
             $bbal = $balances[(int)$b['client_id']] ?? null; if ($bbal && $bbal['debt'] > 0.005): ?>
             <div class="small mt-1"><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Niedopłata na całym koncie kursanta (wszystkie grupy)"><i class="bi bi-exclamation-triangle me-1"></i>niedopłata <?= number_format($bbal['debt'],2,',',' ') ?> zł</span></div>
@@ -1450,10 +1493,10 @@ echo '<main id="main" class="dyd-wrap">';
               <thead class="table-light"><tr><th>Data</th><th>Kwota</th><th>Grupa</th><th>Metoda</th><th>Notatka</th><th class="text-end">Akcje</th></tr></thead>
               <tbody>
                 <?php foreach ($cpayments as $pm):
-                  $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','p24'=>'Przelewy24','other'=>'Inna'][$pm['method']] ?? $pm['method']; ?>
+                  $mlabel = ['transfer'=>'Przelew','cash'=>'Gotówka','stripe'=>'Stripe','payu'=>'PayU','p24'=>'Przelewy24','other'=>'Inna','internal'=>'Przeniesienie'][$pm['method']] ?? $pm['method']; ?>
                 <tr>
                   <td class="text-nowrap"><?= h(substr($pm['paid_at'] ?: $pm['created_at'], 0, 10)) ?></td>
-                  <td class="fw-semibold text-success">+<?= number_format((float)$pm['amount'],2,',',' ') ?> zł</td>
+                  <td class="fw-semibold <?= (float)$pm['amount'] < 0 ? 'text-body-secondary' : 'text-success' ?>"><?= (float)$pm['amount'] < 0 ? '−' : '+' ?><?= number_format(abs((float)$pm['amount']),2,',',' ') ?> zł</td>
                   <td><?php $pmc = (int)($pm['course_id'] ?? 0); ?>
                     <?php if ($pmc > 0): ?>
                       <span class="badge bg-light text-secondary border"><?= h($cnames[$pmc] ?? ('Grupa #'.$pmc)) ?></span>
