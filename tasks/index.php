@@ -240,6 +240,6 @@ require_once __DIR__ . '/includes/header_tasks.php';
     wsName: <?= json_encode($workspace['name'] ?? '') ?>
   };
 </script>
-<script src="<?= APP_URL ?>/assets/js/tasks-index.js" defer></script>
+<script src="<?= APP_URL ?>/assets/js/tasks-index.js?v=<?= (int)@filemtime(dirname(__DIR__) . "/assets/js/tasks-index.js") ?>" defer></script>
 
 <?php require_once __DIR__ . '/includes/footer_tasks.php'; ?>

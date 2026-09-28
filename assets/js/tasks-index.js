@@ -152,7 +152,7 @@
         tkUpdateFiltersBadge();
         const params = new URLSearchParams(new FormData(form));
         params.set('_ajax', '1');
-        fetch(BASE + '/tasks/index.php?' + params.toString())
+        return fetch(BASE + '/tasks/index.php?' + params.toString())
             .then(r => r.json())
             .then(d => {
                 if (d.ok) {
@@ -426,7 +426,9 @@
         if (!bodies.length || typeof Sortable === 'undefined') return;
 
         bodies.forEach(col => {
+            if (Sortable.get(col)) return; // już zainicjowana (region nie był podmieniony)
             Sortable.create(col, {
+                disabled:  !CAN_EDIT,
                 group:     'tk-kanban',
                 animation: 150,
                 ghostClass:'tk-card-ghost',
@@ -441,6 +443,7 @@
                                            .map(c => parseInt(c.dataset.taskId));
 
                     if (!taskId || !newListId) return;
+                    if (evt.from === evt.to && evt.oldIndex === evt.newIndex) return; // upuszczone w tym samym miejscu
 
                     fetch(BASE + '/tasks/api/move.php', {
                         method:  'POST',
@@ -486,9 +489,9 @@
 
     // Po przeładowaniu AJAX — reinicjuj kanban
     window.tkAjaxLoad = function (e) {
-        tkAjaxLoadImpl(e);
-        // Krótkie opóźnienie — daj czas na podmianę DOM
-        setTimeout(tkInitKanban, 250);
+        // Inicjuj po faktycznej podmianie DOM (sztywny timeout przegrywał z wolną odpowiedzią)
+        const p = tkAjaxLoadImpl(e);
+        if (p) p.then(tkInitKanban);
     };
 
     // ── Dynamiczne odświeżanie co 30 sekund ────────────────────────────────────
