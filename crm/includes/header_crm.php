@@ -143,7 +143,7 @@ body {
   border-bottom: 1px solid #E5E7EB;
   display: flex;
   align-items: center;
-  padding: 0 1.25rem 0 0;
+  padding: 0 1rem 0 0;
   gap: 0;
   position: fixed;
   top: 0; left: 0; right: 0;
@@ -153,19 +153,11 @@ body {
 
 /* Brand w topbarze */
 .crm-topbar-brand {
-  width: auto;
-  display: flex;
-  align-items: center;
-  gap: .6rem;
-  padding: 0 1.1rem;
-  flex-shrink: 0;
-  text-decoration: none;
-  color: var(--crm-primary-dark);
-  font-weight: 800;
-  font-size: 1rem;
-  letter-spacing: .3px;
+  display: flex; align-items: center; gap: .6rem;
+  padding: 0 1.1rem; flex-shrink: 0; height: 100%;
+  text-decoration: none; color: var(--crm-primary-dark);
+  font-weight: 800; font-size: 1rem; letter-spacing: .3px;
   border-right: 1px solid #E5E7EB;
-  height: 100%;
 }
 .crm-topbar-brand-icon {
   width: 30px; height: 30px;
@@ -181,51 +173,51 @@ body {
   max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* Breadcrumb w topbarze */
-/* Tytuł strony bierze całe wolne miejsce; to prawa strona ma się kurczyć,
-   nie on — wcześniej „Skrzynka CRM" zwijała się do „CR…". */
-.crm-topbar-breadcrumb {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0 1.25rem;
-  font-size: .9rem;
-  color: #6B7280;
-  display: flex; align-items: center; gap: .4rem;
-  overflow: hidden;
+/* Wyszukiwarka kontaktów na środku paska — „/” ustawia w niej kursor */
+.crm-topbar-search { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; padding: 0 1rem; }
+.crm-topbar-search form { position: relative; width: 100%; max-width: 460px; }
+.crm-topbar-search input {
+  width: 100%; height: 34px; border: 1px solid #E5E7EB; border-radius: 9px; background: #F9FAFB;
+  padding: 0 4.2rem 0 2.1rem; font-size: .84rem; color: #111827; outline: none;
+  transition: border-color .12s, background .12s, box-shadow .12s;
 }
-.crm-topbar-breadcrumb a { color: var(--crm-primary); text-decoration: none; }
-.crm-topbar-breadcrumb a:hover { text-decoration: underline; }
-.crm-topbar-breadcrumb .sep { color: #D1D5DB; font-size: .75rem; }
-.crm-topbar-page { font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crm-topbar-search input::placeholder { color: #9CA3AF; }
+.crm-topbar-search input:hover { background: #fff; border-color: #D1D5DB; }
+.crm-topbar-search input:focus { background: #fff; border-color: var(--crm-primary); box-shadow: 0 0 0 3px rgba(46,132,74,.15); }
+.crm-topbar-search .bi { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: #9CA3AF; font-size: .82rem; pointer-events: none; }
+.crm-topbar-search kbd {
+  position: absolute; right: .55rem; top: 50%; transform: translateY(-50%); pointer-events: none;
+  font-size: .6rem; font-weight: 700; color: #9CA3AF; border: 1px solid #E5E7EB; border-radius: 5px;
+  padding: .06rem .35rem; line-height: 1.2; font-family: inherit; background: #fff;
+}
 
 /* User area w topbarze */
 .crm-topbar-user {
   display: flex; align-items: center; gap: .4rem;
-  padding-left: .75rem;
+  padding-left: .5rem; margin-left: auto;
   flex-shrink: 0;
 }
-/* Okrągły przycisk ikonowy (menu „⋯") — spójny z awatarem */
 .crm-topbar-icon {
-  width: 32px; height: 32px; border-radius: 8px; border: 1px solid #E5E7EB;
+  width: 34px; height: 34px; border-radius: 9px; border: 1px solid #E5E7EB;
   background: #fff; color: #6B7280; display: inline-flex; align-items: center; justify-content: center;
   font-size: .95rem; cursor: pointer; transition: background .12s, color .12s, border-color .12s;
 }
-.crm-topbar-icon:hover { background: #F3F4F6; color: #111827; border-color: #D1D5DB; }
+.crm-topbar-icon:hover, .crm-topbar-icon[aria-expanded="true"] { background: #F3F4F6; color: #111827; border-color: #D1D5DB; }
 .crm-topbar-icon:focus-visible { outline: 2px solid var(--crm-primary); outline-offset: 1px; }
 .crm-topbar-avatar {
-  width: 32px; height: 32px;
-  border-radius: 50%;
+  width: 34px; height: 34px; border-radius: 50%;
   background: linear-gradient(135deg, #194E31 0%, #2E844A 100%);
-  color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .75rem; font-weight: 700;
-  cursor: pointer;
-  border: 2px solid #E5E7EB;
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; font-weight: 700; cursor: pointer; border: 2px solid #E5E7EB;
 }
-/* Nazwa użytkownika i wylogowanie żyją w menu awatara — pasek pokazuje samą
-   inicjałową plakietkę, bo to ona jest celem kliknięcia. */
+.crm-topbar .dropdown-menu {
+  font-size: .85rem; border: 1px solid #E5E7EB; border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(2,6,23,.14); padding: .35rem .3rem; margin-top: 6px !important;
+}
+.crm-topbar .dropdown-item { padding: .42rem .75rem; border-radius: 8px; }
+.crm-topbar .dropdown-item:hover { background: #F1F5F9; color: var(--crm-primary); }
 
-/* ══ TOP NAVBAR (poziome menu — pod topbarem) ════════════════════════ */
+/* ══ PASEK ZAKŁADEK (pod topbarem) — rejestr $_crm_nav, mega-menu dla grup ═ */
 .crm-navbar {
   position: fixed;
   top: var(--crm-topbar-h);
@@ -236,45 +228,77 @@ body {
   border-bottom: 1px solid #E5E7EB;
   display: flex;
   align-items: center;
-  gap: .25rem;
-  padding: 0 1rem;
+  gap: .5rem;
+  padding: 0 .85rem;
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
 }
 .crm-navbar-scroll {
-  display: flex; align-items: center; gap: .1rem;
-  flex: 1; height: 100%;
+  display: flex; align-items: center; gap: .15rem;
+  flex: 0 1 auto; min-width: 0; height: 100%;
   overflow-x: auto; overflow-y: hidden;
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .crm-navbar-scroll::-webkit-scrollbar { display: none; }
 .crm-navlink {
-  display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap;
-  padding: .4rem .7rem; border-radius: 7px;
-  font-size: .83rem; font-weight: 500; color: #374151;
+  display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap;
+  padding: .36rem .7rem; border-radius: 8px;
+  font-size: .84rem; font-weight: 500; color: #374151;
   text-decoration: none; flex-shrink: 0; transition: background .1s, color .1s;
+  background: none; border: 0; cursor: pointer; line-height: 1.2;
 }
-.crm-navlink i { font-size: .95rem; color: #9CA3AF; transition: color .1s; }
-.crm-navlink:hover { background: #F9FAFB; color: var(--crm-primary); }
-.crm-navlink:hover i { color: var(--crm-primary); }
+.crm-navlink > i { font-size: .92rem; color: #9CA3AF; transition: color .1s; }
+.crm-navlink:hover, .crm-navlink.show { background: #F3F4F6; color: #111827; }
+.crm-navlink:hover > i, .crm-navlink.show > i { color: #4B5563; }
 .crm-navlink.active { background: var(--crm-primary-bg); color: var(--crm-primary); font-weight: 600; }
-.crm-navlink.active i { color: var(--crm-primary); }
+.crm-navlink.active > i { color: var(--crm-primary); }
+.crm-navlink:focus-visible { outline: 2px solid var(--crm-primary); outline-offset: -2px; }
+.crm-navlink.dropdown-toggle::after { margin-left: .05rem; opacity: .45; vertical-align: .12em; }
 .crm-navlink .crm-nav-badge {
   background: #E5E7EB; color: #6B7280; font-size: .65rem; font-weight: 700;
-  padding: .1rem .4rem; border-radius: 10px; min-width: 18px; text-align: center;
+  padding: .1rem .4rem; border-radius: 10px; min-width: 18px; text-align: center; line-height: 1.3;
 }
+.crm-navlink .crm-nav-badge.hot { background: #FEE2E2; color: #B91C1C; }
 .crm-navlink.active .crm-nav-badge { background: var(--crm-primary); color: #fff; }
+@media (max-width: 1199.98px) { .crm-navlink > i { display: none; } }
+
+/* Tytuł strony — prawy koniec paska zakładek */
+.crm-navbar-title {
+  margin-left: auto; min-width: 0; flex: 0 1 auto;
+  display: flex; align-items: center; gap: .4rem;
+  padding-left: .75rem; border-left: 1px solid #E5E7EB;
+  font-size: .8rem; font-weight: 600; color: #4B5563;
+}
+.crm-navbar-title .sep { color: #D1D5DB; font-size: .6rem; }
+.crm-navbar-title .crm-topbar-page { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crm-navbar-actions {
-  display: flex; align-items: center; gap: .4rem; flex-shrink: 0;
+  display: flex; align-items: center; gap: .35rem; flex-shrink: 0;
   padding-left: .6rem; margin-left: .25rem; border-left: 1px solid #E5E7EB;
 }
+
+/* Rozwijane menu zakładek */
 .crm-navbar .dropdown-menu {
-  font-size: .85rem; border-color: #E5E7EB; border-radius: 9px;
-  box-shadow: 0 6px 24px rgba(0,0,0,.12); padding: .3rem;
+  font-size: .84rem; border: 1px solid #E5E7EB; border-radius: 12px; min-width: 240px;
+  box-shadow: 0 12px 36px rgba(2,6,23,.14); padding: .4rem .35rem; margin-top: 6px !important;
 }
-.crm-navbar .dropdown-item { padding: .45rem .8rem; border-radius: 6px; }
-.crm-navbar .dropdown-item i { color: #9CA3AF; }
-.crm-navbar .dropdown-item:hover { background: #F1F5F9; color: var(--crm-primary); }
-.crm-navbar .dropdown-item:hover i { color: var(--crm-primary); }
+.crm-navbar .dropdown-header {
+  font-size: .61rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: #9CA3AF; padding: .45rem .7rem .15rem; display: flex; align-items: center; gap: .35rem;
+}
+.crm-navbar .dropdown-item {
+  padding: .4rem .7rem; border-radius: 8px; color: #374151;
+  display: flex; align-items: center; gap: .55rem; width: 100%;
+}
+.crm-navbar .dropdown-item > i { color: #9CA3AF; width: 16px; text-align: center; font-size: .85rem; flex-shrink: 0; }
+.crm-navbar .dropdown-item:hover, .crm-navbar .dropdown-item:focus { background: var(--crm-primary-bg); color: var(--crm-primary); }
+.crm-navbar .dropdown-item:hover > i { color: var(--crm-primary); }
+.crm-navbar .dropdown-item.active { background: var(--crm-primary-bg); color: var(--crm-primary); font-weight: 600; }
+.crm-navbar .dropdown-item .badge { margin-left: auto; font-size: .6rem; }
+.crm-navbar .dropdown-item.text-warning-emphasis > i { color: inherit; }
+.crm-navbar .dropdown-menu.crm-mega { width: max-content; max-width: min(900px, calc(100vw - 1.5rem)); padding: .5rem .55rem .55rem; }
+.crm-mega-grid { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(200px, 1fr)); gap: .1rem .7rem; }
+.crm-mega-col { min-width: 0; }
+.crm-mega-col + .crm-mega-col { border-left: 1px solid #F3F4F6; padding-left: .7rem; }
+@media (max-width: 767.98px) { .crm-mega-grid { grid-template-columns: 1fr; } .crm-mega-col + .crm-mega-col { border: 0; padding: 0; } }
 
 /* ══ MAIN CONTENT ═══════════════════════════════════════════════════ */
 .crm-shell {
@@ -331,7 +355,6 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
 @media (max-width: 768px) {
   .crm-topbar-brand { border-right: none; padding: 0 .75rem; }
   .crm-topbar-brand-org { display: none; }
-  .crm-topbar-breadcrumb { padding: 0 .6rem; font-size: .84rem; }
   #mod-sw { display: none; }
   .crm-content { padding: 1rem .75rem; }
   /* Na telefonie skróć przyciski akcji do samych ikon */
@@ -463,14 +486,17 @@ window.openCommModal = function(contactId, channel, opts) {
     </div>
   </a>
 
-  <!-- Tytuł strony: dostaje całe wolne miejsce, bo to on mówi, gdzie jesteś -->
-  <div class="crm-topbar-breadcrumb">
-    <span class="crm-topbar-page" title="<?= h($_crm_title) ?>"><?= h($_crm_title) ?></span>
+  <!-- Wyszukiwarka kontaktów — jedno pole na środku, „/” ustawia w nim kursor -->
+  <div class="crm-topbar-search d-none d-md-flex">
+    <form action="<?= APP_URL ?>/crm/index.php" method="get" role="search">
+      <i class="bi bi-search" aria-hidden="true"></i>
+      <input type="search" name="q" data-search-input autocomplete="off"
+             placeholder="Szukaj kontaktu, firmy, e-maila…" aria-label="Szukaj w kontaktach CRM">
+      <kbd aria-hidden="true">/</kbd>
+    </form>
   </div>
 
-  <!-- Prawa strona: szybkie akcje → przełącznik modułów → konto.
-       Rzadziej używane linki (Outlook, ustawienia, zgłoszenie błędu) siedzą
-       w menu „⋯", żeby pasek nie zjadał tytułu strony. -->
+  <!-- Prawa strona: szybkie akcje → „⋯" → launcher modułów → konto -->
   <div class="crm-topbar-user">
 
     <?php /* Szybkie akcje: przypięte makra + menu „Nowe". Zestaw przypiętych
@@ -550,6 +576,12 @@ window.openCommModal = function(contactId, channel, opts) {
         <i class="bi bi-three-dots" aria-hidden="true"></i>
       </button>
       <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:240px;font-size:.85rem">
+        <li>
+          <button type="button" class="dropdown-item d-flex align-items-center gap-2 d-md-none"
+                  onclick="var i=document.querySelector('.crm-topbar-search input');if(i){i.closest('.crm-topbar-search').classList.remove('d-none');i.focus();}">
+            <i class="bi bi-search text-secondary"></i>Szukaj kontaktu
+          </button>
+        </li>
         <?php $_crm_has_ms = !empty($_cu['microsoft_id'] ?? ''); if ($_crm_has_ms): ?>
         <li>
           <a class="dropdown-item d-flex align-items-center gap-2<?= _crm_nav_active('/crm/calendar_settings') ? ' active' : '' ?>"
@@ -613,215 +645,189 @@ window.openCommModal = function(contactId, channel, opts) {
 <?php $ASAI_WIDGET_SCOPE = 'crm';
       require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
-<!-- ══ TOP NAVBAR (poziome menu) ════════════════════════════════════════════════ -->
+<?php
+/*
+ * ══ REJESTR MENU CRM ═══════════════════════════════════════════════════════
+ * Menu ułożone WEDŁUG OBSZARÓW pracy (nie kolejności powstawania modułów):
+ *   Pulpit · Skrzynka · Praca · Relacje · Komunikacja · Finanse · Porządek
+ * Skrzynka jest osobnym odnośnikiem mimo że pasuje do „Pracy" — to najczęściej
+ * otwierany ekran w module i ma żywy licznik nieprzeczytanych.
+ *
+ * Zakładka = ['label','icon', 'path' (link) ALBO 'groups'=>[['label','items'=>[…]]],
+ *   'active'=>bool, 'badge'=>int, 'badge_hot'=>bool, 'title'=>string]
+ * Pozycja  = ['label','path','icon', 'badge'=>int, 'badge_cls'=>'bg-…', 'cls'=>'…']
+ * Zakładka z >1 grupą rozwija się jako mega-menu w kolumnach.
+ */
+$_stale_n = 0;
+try {
+    $_stale_n = (int)(db_one(
+        "SELECT COUNT(*) AS c FROM crm_cases
+          WHERE status NOT IN ('closed','cancelled') AND created_by = ?
+            AND COALESCE(stale_ack_at, updated_at, created_at)
+                < datetime('now', '-' || ? || ' days')",
+        [(int)($_cu['id'] ?? 0), CRM_CASE_STALE_DAYS]
+    )['c'] ?? 0);
+} catch (\Throwable $e) {}
+$_crm_queue_due = (int)$_crm_acts_due + (int)($_crm_tasks_mine ?? 0);
+$_g_praca_n     = (int)$_crm_acts_due + $_stale_n;   // działania po terminie + sprawy bez ruchu
+
+$_hit = fn(string ...$frags) => (bool)array_filter($frags, fn($f) => str_contains($_uri, $f));
+$_crm_nav = [];
+
+$_crm_nav[] = ['label'=>'Pulpit', 'icon'=>'bi-grid-1x2-fill', 'path'=>'/crm/dashboard.php', 'active'=>$_hit('/crm/dashboard')];
+$_crm_nav[] = ['label'=>'Skrzynka', 'icon'=>'bi-inbox-fill', 'path'=>'/crm/inbox.php', 'active'=>$_hit('/crm/inbox'),
+               'badge'=>(int)$_crm_inbox_unread, 'badge_hot'=>true, 'title'=>'Nieprzeczytane wiadomości w skrzynce'];
+
+$_crm_nav[] = ['label'=>'Praca', 'icon'=>'bi-check2-square',
+    'active'=>$_hit('/crm/activities','/crm/cases','/crm/calendar'),
+    'badge'=>$_g_praca_n, 'badge_hot'=>true, 'title'=>'Działania po terminie i sprawy bez ruchu',
+    'groups'=>[
+        ['label'=>'Moja kolejka', 'items'=>[
+            ['label'=>'Moja kolejka', 'path'=>'/crm/activities.php', 'icon'=>'bi-list-check', 'badge'=>$_crm_queue_due, 'badge_cls'=>'bg-danger'],
+            ['label'=>'Kalendarz', 'path'=>'/crm/calendar.php', 'icon'=>'bi-calendar3-fill'],
+        ]],
+        ['label'=>'Sprawy', 'items'=>[
+            ['label'=>'Rejestr spraw', 'path'=>'/crm/cases/index.php', 'icon'=>'bi-briefcase-fill'],
+            ['label'=>'Do zamknięcia', 'path'=>'/crm/cases/stale.php', 'icon'=>'bi-clock-history', 'badge'=>$_stale_n, 'badge_cls'=>'bg-warning text-dark'],
+        ]],
+    ]];
+
+$_rel_add = [];
+if ($_crm_can_write) $_rel_add = [
+    ['label'=>'Nowy kontakt — szybko', 'path'=>'/crm/contact/quick_add.php', 'icon'=>'bi-lightning-fill'],
+    ['label'=>'Nowa osoba fizyczna', 'path'=>'/crm/contact/add_person.php', 'icon'=>'bi-person-plus'],
+    ['label'=>'Nowa firma / organizacja', 'path'=>'/crm/contact/add_org.php', 'icon'=>'bi-building-add'],
+    ['label'=>'Import CSV', 'path'=>'/crm/import.php', 'icon'=>'bi-file-earmark-arrow-up'],
+    ['label'=>'Import podmiotów (NIP/REGON)', 'path'=>'/crm/contact/import_podmioty.php', 'icon'=>'bi-building-add'],
+    ['label'=>'Kartoteki bez pochodzenia', 'path'=>'/crm/contact/orphans.php', 'icon'=>'bi-question-diamond'],
+];
+$_crm_nav[] = ['label'=>'Relacje', 'icon'=>'bi-people-fill',
+    'active'=>$_hit('/crm/index','/crm/groups','/crm/group/','/crm/tags','/crm/contact/'),
+    'badge'=>(int)$_crm_total, 'title'=>'Aktywne kartoteki',
+    'groups'=>array_values(array_filter([
+        ['label'=>'Kartoteki', 'items'=>[
+            ['label'=>'Wszystkie kontakty', 'path'=>'/crm/index.php', 'icon'=>'bi-people-fill'],
+            ['label'=>'Grupy', 'path'=>'/crm/groups.php', 'icon'=>'bi-collection-fill'],
+            ['label'=>'Tagi', 'path'=>'/crm/tags.php', 'icon'=>'bi-tags-fill'],
+            ['label'=>'Szybkie dzwonienie (mobile)', 'path'=>'/mobilna/', 'icon'=>'bi-telephone-outbound-fill'],
+        ]],
+        $_rel_add ? ['label'=>'Dodawanie', 'items'=>$_rel_add] : null,
+    ]))];
+
+$_kom_prep = [];
+if ($_crm_can_write) $_kom_prep = [
+    ['label'=>'Szablony wiadomości', 'path'=>'/crm/templates.php', 'icon'=>'bi-file-earmark-text-fill'],
+    ['label'=>'Przepływy (szablony akcji)', 'path'=>'/crm/workflows.php', 'icon'=>'bi-diagram-3'],
+    ['label'=>'Szablony spraw', 'path'=>'/crm/cases/templates.php', 'icon'=>'bi-journal-text'],
+    ['label'=>'Typy spraw i SLA', 'path'=>'/crm/cases/types.php', 'icon'=>'bi-tags'],
+    ['label'=>'Formularze', 'path'=>'/crm/form/manage.php', 'icon'=>'bi-window-split'],
+];
+$_kom_send = [
+    ['label'=>'Wyślij wiadomość', 'path'=>'/crm/communicate.php', 'icon'=>'bi-send-fill'],
+    ['label'=>'Wysyłka masowa', 'path'=>'/crm/mass_send.php', 'icon'=>'bi-megaphone-fill'],
+    ['label'=>'Kampanie mailowe', 'path'=>'/crm/campaign/index.php', 'icon'=>'bi-graph-up-arrow'],
+];
+if (crm_setting('roundcube_url')) $_kom_send[] = ['label'=>'Webmail (Roundcube)', 'path'=>'/crm/webmail.php', 'icon'=>'bi-envelope-at-fill'];
+$_crm_nav[] = ['label'=>'Komunikacja', 'icon'=>'bi-send-fill',
+    'active'=>$_hit('/crm/communicate','/crm/mass_send','/crm/templates','/crm/campaign','/crm/form/','/crm/webmail','/crm/workflows'),
+    'groups'=>array_values(array_filter([
+        ['label'=>'Wysyłka', 'items'=>$_kom_send],
+        $_kom_prep ? ['label'=>'Przygotowanie', 'items'=>$_kom_prep] : null,
+    ]))];
+
+$_fin_off = [['label'=>'Rejestr ofert', 'path'=>'/crm/offers/index.php', 'icon'=>'bi-file-earmark-ruled-fill']];
+if ($_crm_can_write) $_fin_off[] = ['label'=>'Nowa oferta', 'path'=>'/crm/offers/form.php', 'icon'=>'bi-plus-lg'];
+$_fin_off[] = ['label'=>'Katalog usług odpłatnych', 'path'=>'/crm/offers/catalog.php', 'icon'=>'bi-list-columns'];
+if (!empty($_crm_offers_noconf))
+    $_fin_off[] = ['label'=>'Bez potwierdzenia', 'path'=>'/crm/offers/index.php?noconf=1', 'icon'=>'bi-exclamation-triangle-fill', 'cls'=>'text-warning-emphasis', 'badge'=>(int)$_crm_offers_noconf, 'badge_cls'=>'bg-warning text-dark'];
+$_fin_groups = [['label'=>'Oferty — działalność odpłatna', 'items'=>$_fin_off]];
+if (module_enabled('invoices_enabled')) {
+    $_fin_inv = [['label'=>'Rejestr faktur', 'path'=>'/crm/invoices/index.php', 'icon'=>'bi-receipt']];
+    if ($_crm_can_write) {
+        $_fin_inv[] = ['label'=>'Generuj zbiorczo', 'path'=>'/crm/invoices/generate.php', 'icon'=>'bi-layer-forward'];
+        $_fin_inv[] = ['label'=>'Nowa faktura', 'path'=>'/crm/invoices/form.php', 'icon'=>'bi-plus-lg'];
+    }
+    $_fin_groups[] = ['label'=>'Faktury', 'items'=>$_fin_inv];
+}
+if (module_enabled('donations_enabled'))
+    $_fin_groups[] = ['label'=>'Darowizny', 'items'=>[['label'=>'Rejestr darowizn', 'path'=>'/crm/donations/index.php', 'icon'=>'bi-gift']]];
+$_crm_nav[] = ['label'=>'Finanse', 'icon'=>'bi-cash-coin',
+    'active'=>$_hit('/crm/offers','/crm/invoices','/crm/donations'),
+    'badge'=>(int)$_crm_offers_pending, 'title'=>'Oferty w toku', 'groups'=>$_fin_groups];
+
+if ($_crm_can_write)
+    $_crm_nav[] = ['label'=>'Porządek', 'icon'=>'bi-tools',
+        'active'=>$_hit('/crm/janitor','/crm/triage','/crm/settings','/crm/contact/merge','/crm/contact/domains','/crm/contact/analyze','/crm/export'),
+        'badge'=>(int)$_crm_janitor_open, 'badge_hot'=>true, 'title'=>'Znaleziska bota czekające na decyzję',
+        'groups'=>[
+            ['label'=>'Higiena kartoteki', 'items'=>[
+                ['label'=>'Bot sprzątający', 'path'=>'/crm/janitor.php', 'icon'=>'bi-stars', 'badge'=>(int)$_crm_janitor_open, 'badge_cls'=>'bg-warning text-dark'],
+                ['label'=>'Duplikaty kartotek', 'path'=>'/crm/contact/merge.php', 'icon'=>'bi-intersect'],
+                ['label'=>'Kartoteki wg domen', 'path'=>'/crm/contact/domains.php', 'icon'=>'bi-diagram-3'],
+            ]],
+            ['label'=>'Napływ z poczty', 'items'=>[
+                ['label'=>'Analiza kartotek z poczty', 'path'=>'/crm/contact/analyze.php', 'icon'=>'bi-funnel'],
+                ['label'=>'Segregacja AI', 'path'=>'/crm/triage.php', 'icon'=>'bi-robot'],
+            ]],
+            ['label'=>'Narzędzia', 'items'=>[
+                ['label'=>'Ustawienia CRM', 'path'=>'/crm/settings/index.php', 'icon'=>'bi-sliders'],
+                ['label'=>'Eksport danych', 'path'=>'/crm/export.php', 'icon'=>'bi-download'],
+            ]],
+        ]];
+
+/** Jedna pozycja rozwijanego menu. */
+$_crm_item = function (array $it) {
+    $cls = 'dropdown-item' . (!empty($it['cls']) ? ' ' . $it['cls'] : '') . (str_contains($_SERVER['REQUEST_URI'] ?? '', preg_replace('/\?.*/', '', $it['path'])) ? ' active' : '');
+    $html = '<a class="' . $cls . '" href="' . APP_URL . h($it['path']) . '"><i class="bi ' . h($it['icon']) . '"></i>' . h($it['label']);
+    if (!empty($it['badge'])) $html .= '<span class="badge ' . h($it['badge_cls'] ?? 'bg-secondary') . '">' . (int)$it['badge'] . '</span>';
+    return $html . '</a>';
+};
+?>
+<!-- ══ PASEK ZAKŁADEK ═══════════════════════════════════════════════════════════ -->
 <nav class="crm-navbar" role="navigation" aria-label="Nawigacja CRM">
-
-  <?php
-  /*
-   * Menu ułożone WEDŁUG OBSZARÓW, nie według kolejności powstawania modułów.
-   *
-   * Wcześniej w pasku stało dziesięć pozycji najwyższego poziomu wymieszanych
-   * kontekstowo: „Skrzynka" (praca bieżąca) sąsiadowała z „Fakturami" (rozliczenia)
-   * i „Kontaktami" (dane), a narzędzia utrzymaniowe — analiza kartotek, duplikaty,
-   * domeny — siedziały w rozwijanym menu „Kontakty" obok Grup i Tagów, czyli
-   * pomiędzy codzienną nawigacją. Pasek nie mieścił się na ekranie i trzeba go
-   * było przewijać w poziomie.
-   *
-   * Teraz siedem pozycji, każda to jeden obszar pracy:
-   *   Pulpit · Skrzynka · Praca · Relacje · Komunikacja · Finanse · Porządek
-   *
-   * Skrzynka została osobnym odnośnikiem mimo że pasuje do „Pracy" — to
-   * najczęściej otwierany ekran w module i ma żywy licznik nieprzeczytanych.
-   * Schowanie go o jedno kliknięcie głębiej kosztowałoby więcej, niż zyskuje
-   * porządek w pasku.
-   */
-  $_g_praca  = (str_contains($_uri,'/crm/activities') || str_contains($_uri,'/crm/cases')
-                || str_contains($_uri,'/crm/calendar')) ? ' active' : '';
-  $_g_relacje= (str_contains($_uri,'/crm/index') || str_contains($_uri,'/crm/groups')
-                || str_contains($_uri,'/crm/group/') || str_contains($_uri,'/crm/tags')
-                || str_contains($_uri,'/crm/contact/')) ? ' active' : '';
-  $_g_komun  = (str_contains($_uri,'/crm/communicate') || str_contains($_uri,'/crm/mass_send')
-                || str_contains($_uri,'/crm/templates') || str_contains($_uri,'/crm/campaign')
-                || str_contains($_uri,'/crm/form/') || str_contains($_uri,'/crm/webmail')) ? ' active' : '';
-  $_g_finanse= (str_contains($_uri,'/crm/offers') || str_contains($_uri,'/crm/invoices')
-                || str_contains($_uri,'/crm/donations')) ? ' active' : '';
-  $_g_porzad = (str_contains($_uri,'/crm/janitor') || str_contains($_uri,'/crm/triage')
-                || str_contains($_uri,'/crm/settings')) ? ' active' : '';
-
-  // Licznik spraw zalegających — tylko własne, żeby nie straszyć liczbą z całej
-  // organizacji. Próg z CRM_CASE_STALE_DAYS, nie wpisany na sztywno: inaczej
-  // licznik rozjeżdża się z listą po każdej zmianie progu.
-  $_stale_n = 0;
-  try {
-      $_stale_n = (int)(db_one(
-          "SELECT COUNT(*) AS c FROM crm_cases
-            WHERE status NOT IN ('closed','cancelled') AND created_by = ?
-              AND COALESCE(stale_ack_at, updated_at, created_at)
-                  < datetime('now', '-' || ? || ' days')",
-          [(int)($_cu['id'] ?? 0), CRM_CASE_STALE_DAYS]
-      )['c'] ?? 0);
-  } catch (\Throwable $e) {}
-
-  // Plakietka „Pracy" sumuje to, co WYMAGA REAKCJI — działania po terminie
-  // i sprawy bez ruchu. Suma, bo w zwiniętej kategorii i tak nie widać, skąd
-  // pochodzi liczba; chodzi o sygnał „zajrzyj tu", nie o statystykę.
-  $_g_praca_n = (int)($_crm_acts_due ?? 0) + $_stale_n;
-  ?>
   <div class="crm-navbar-scroll">
-
-    <a href="<?= APP_URL ?>/crm/dashboard.php" class="crm-navlink<?= _crm_nav_active('/crm/dashboard') ?>"<?= _crm_nav_active('/crm/dashboard') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-grid-1x2-fill"></i><span>Pulpit</span>
+    <?php foreach ($_crm_nav as $_n):
+      $_act = !empty($_n['active']);
+      $_badge = '';
+      if (!empty($_n['badge']))
+          $_badge = '<span class="crm-nav-badge' . (!empty($_n['badge_hot']) ? ' hot' : '') . '"' . (!empty($_n['title']) ? ' title="' . h($_n['title']) . '"' : '') . '>' . ($_n['badge'] > 999 ? '999+' : (int)$_n['badge']) . '</span>';
+      if (!empty($_n['path'])): ?>
+    <a href="<?= APP_URL . h($_n['path']) ?>" class="crm-navlink<?= $_act ? ' active' : '' ?>"<?= $_act ? ' aria-current="page"' : '' ?>>
+      <i class="bi <?= h($_n['icon']) ?>"></i><span><?= h($_n['label']) ?></span><?= $_badge ?>
     </a>
-
-    <a href="<?= APP_URL ?>/crm/inbox.php" class="crm-navlink<?= str_contains($_uri,'/crm/inbox') ? ' active' : '' ?>"<?= str_contains($_uri,'/crm/inbox') ? ' aria-current="page"' : '' ?>>
-      <i class="bi bi-inbox-fill"></i><span>Skrzynka</span>
-      <?php if (!empty($_crm_inbox_unread)): ?><span class="crm-nav-badge"><?= $_crm_inbox_unread > 99 ? '99+' : (int)$_crm_inbox_unread ?></span><?php endif; ?>
-    </a>
-
-    <!-- ── PRACA: co mam do zrobienia ──────────────────────────────────── -->
+    <?php else: $_mega = count($_n['groups']) > 1; ?>
     <div class="dropdown">
-      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= $_g_praca ?>">
-        <i class="bi bi-check2-square"></i><span>Praca</span>
-        <?php if ($_g_praca_n): ?><span class="crm-nav-badge" title="Działania po terminie i sprawy bez ruchu"><?= $_g_praca_n > 99 ? '99+' : $_g_praca_n ?></span><?php endif; ?>
-      </a>
+      <button type="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
+              class="crm-navlink dropdown-toggle<?= $_act ? ' active' : '' ?>">
+        <i class="bi <?= h($_n['icon']) ?>"></i><span><?= h($_n['label']) ?></span><?= $_badge ?>
+      </button>
+      <?php if ($_mega): ?>
+      <div class="dropdown-menu crm-mega">
+        <div class="crm-mega-grid" style="--cols:<?= min(3, count($_n['groups'])) ?>">
+          <?php foreach ($_n['groups'] as $_g): ?>
+          <div class="crm-mega-col">
+            <?php if (!empty($_g['label'])): ?><h6 class="dropdown-header"><?= h($_g['label']) ?></h6><?php endif; ?>
+            <?php foreach ($_g['items'] as $_it) echo $_crm_item($_it); ?>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php else: ?>
       <ul class="dropdown-menu">
-        <li><h6 class="dropdown-header">Moja kolejka</h6></li>
-        <?php /* Jedna pozycja: działania i zadania CRM to ta sama kolejka.
-                 Zadania CRM ≠ moduł Zadań — to przypomnienia przy kartotece. */ ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/activities.php">
-          <i class="bi bi-list-check me-2"></i>Moja kolejka
-          <?php $_crm_queue_due = (int)$_crm_acts_due + (int)($_crm_tasks_mine ?? 0); ?>
-          <?php if ($_crm_queue_due): ?><span class="badge bg-danger ms-1"><?= $_crm_queue_due ?></span><?php endif; ?>
-        </a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/calendar.php"><i class="bi bi-calendar3-fill me-2"></i>Kalendarz</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><h6 class="dropdown-header">Sprawy</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/index.php"><i class="bi bi-briefcase-fill me-2"></i>Rejestr spraw</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/stale.php">
-          <i class="bi bi-clock-history me-2"></i>Do zamknięcia
-          <?php if ($_stale_n): ?><span class="badge bg-warning text-dark ms-1"><?= $_stale_n ?></span><?php endif; ?>
-        </a></li>
+        <?php foreach ($_n['groups'] as $_g): ?>
+          <?php if (!empty($_g['label'])): ?><li><h6 class="dropdown-header"><?= h($_g['label']) ?></h6></li><?php endif; ?>
+          <?php foreach ($_g['items'] as $_it): ?><li><?= $_crm_item($_it) ?></li><?php endforeach; ?>
+        <?php endforeach; ?>
       </ul>
+      <?php endif; ?>
     </div>
+    <?php endif; endforeach; ?>
+  </div>
 
-    <!-- ── RELACJE: kto jest w bazie ───────────────────────────────────── -->
-    <div class="dropdown">
-      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= $_g_relacje ?>">
-        <i class="bi bi-people-fill"></i><span>Relacje</span>
-        <?php if ($_crm_total): ?><span class="crm-nav-badge"><?= $_crm_total > 999 ? '999+' : $_crm_total ?></span><?php endif; ?>
-      </a>
-      <ul class="dropdown-menu">
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/index.php"><i class="bi bi-people-fill me-2"></i>Wszystkie kontakty</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/groups.php"><i class="bi bi-collection-fill me-2"></i>Grupy</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/tags.php"><i class="bi bi-tags-fill me-2"></i>Tagi</a></li>
-        <?php if ($_crm_can_write): ?>
-        <li><hr class="dropdown-divider"></li>
-        <li><h6 class="dropdown-header">Dodawanie</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/quick_add.php"><i class="bi bi-lightning-fill me-2"></i>Nowy kontakt — szybko</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_person.php"><i class="bi bi-person-plus me-2"></i>Nowa osoba fizyczna</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/add_org.php"><i class="bi bi-building-add me-2"></i>Nowa firma / organizacja</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/import.php"><i class="bi bi-file-earmark-arrow-up me-2"></i>Import CSV</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/import_podmioty.php"><i class="bi bi-building-add me-2"></i>Import podmiotów (NIP/REGON)</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/orphans.php"><i class="bi bi-question-diamond me-2"></i>Kartoteki bez pochodzenia</a></li>
-        <?php endif; ?>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/mobilna/"><i class="bi bi-telephone-outbound-fill me-2"></i>Szybkie dzwonienie <span class="text-body-secondary small">(mobile)</span></a></li>
-      </ul>
-    </div>
-
-    <!-- ── KOMUNIKACJA: co wychodzi na zewnątrz ────────────────────────── -->
-    <div class="dropdown">
-      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= $_g_komun ?>">
-        <i class="bi bi-send-fill"></i><span>Komunikacja</span>
-      </a>
-      <ul class="dropdown-menu">
-        <li><h6 class="dropdown-header">Wysyłka</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/communicate.php"><i class="bi bi-send-fill me-2"></i>Wyślij wiadomość</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/mass_send.php"><i class="bi bi-megaphone-fill me-2"></i>Wysyłka masowa</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/campaign/index.php"><i class="bi bi-graph-up-arrow me-2"></i>Kampanie mailowe</a></li>
-        <?php if ($_crm_can_write): ?>
-        <li><hr class="dropdown-divider"></li>
-        <li><h6 class="dropdown-header">Przygotowanie</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/templates.php"><i class="bi bi-file-earmark-text-fill me-2"></i>Szablony wiadomości</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/workflows.php"><i class="bi bi-diagram-3 me-2"></i>Przepływy (szablony akcji)</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/templates.php"><i class="bi bi-journal-text me-2"></i>Szablony spraw</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/cases/types.php"><i class="bi bi-tags me-2"></i>Typy spraw i SLA</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/form/manage.php"><i class="bi bi-window-split me-2"></i>Formularze</a></li>
-        <?php endif; ?>
-        <?php if (crm_setting('roundcube_url')): ?>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/webmail.php"><i class="bi bi-envelope-at-fill me-2"></i>Webmail (Roundcube)</a></li>
-        <?php endif; ?>
-      </ul>
-    </div>
-
-    <!-- ── FINANSE: oferty, faktury, darowizny ─────────────────────────── -->
-    <div class="dropdown">
-      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= $_g_finanse ?>">
-        <i class="bi bi-cash-coin"></i><span>Finanse</span>
-        <?php if (!empty($_crm_offers_pending)): ?><span class="crm-nav-badge"><?= (int)$_crm_offers_pending ?></span><?php endif; ?>
-      </a>
-      <ul class="dropdown-menu">
-        <li><h6 class="dropdown-header">Oferty — działalność odpłatna</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/index.php"><i class="bi bi-file-earmark-ruled-fill me-2"></i>Rejestr ofert</a></li>
-        <?php if ($_crm_can_write): ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/form.php"><i class="bi bi-plus-lg me-2"></i>Nowa oferta</a></li>
-        <?php endif; ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/offers/catalog.php"><i class="bi bi-list-columns me-2"></i>Katalog usług odpłatnych</a></li>
-        <?php if (!empty($_crm_offers_noconf)): ?>
-        <li><a class="dropdown-item text-warning-emphasis" href="<?= APP_URL ?>/crm/offers/index.php?noconf=1">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>Bez potwierdzenia (<?= (int)$_crm_offers_noconf ?>)</a></li>
-        <?php endif; ?>
-
-        <?php if (module_enabled('invoices_enabled')): ?>
-        <li><hr class="dropdown-divider"></li>
-        <li><h6 class="dropdown-header">Faktury</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/index.php"><i class="bi bi-receipt me-2"></i>Rejestr faktur</a></li>
-        <?php if ($_crm_can_write): ?>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/generate.php"><i class="bi bi-layer-forward me-2"></i>Generuj zbiorczo</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/invoices/form.php"><i class="bi bi-plus-lg me-2"></i>Nowa faktura</a></li>
-        <?php endif; ?>
-        <?php endif; ?>
-
-        <?php if (module_enabled('donations_enabled')): ?>
-        <li><hr class="dropdown-divider"></li>
-        <li><h6 class="dropdown-header">Darowizny</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/donations/index.php"><i class="bi bi-gift me-2"></i>Rejestr darowizn</a></li>
-        <?php endif; ?>
-      </ul>
-    </div>
-
-    <!-- ── PORZĄDEK: utrzymanie danych, nie codzienna nawigacja ────────── -->
-    <?php if ($_crm_can_write): ?>
-    <div class="dropdown">
-      <a href="#" role="button" data-crm-dd data-bs-toggle="dropdown" aria-expanded="false"
-         class="crm-navlink dropdown-toggle<?= $_g_porzad ?>">
-        <i class="bi bi-tools"></i><span>Porządek</span>
-        <?php if (!empty($_crm_janitor_open)): ?><span class="crm-nav-badge" title="Znaleziska bota czekające na decyzję"><?= $_crm_janitor_open > 99 ? '99+' : (int)$_crm_janitor_open ?></span><?php endif; ?>
-      </a>
-      <ul class="dropdown-menu">
-        <li><h6 class="dropdown-header">Higiena kartoteki</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/janitor.php">
-          <i class="bi bi-stars me-2"></i>Bot sprzątający
-          <?php if (!empty($_crm_janitor_open)): ?><span class="badge bg-warning text-dark ms-1"><?= (int)$_crm_janitor_open ?></span><?php endif; ?>
-        </a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/merge.php"><i class="bi bi-intersect me-2"></i>Duplikaty kartotek</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/domains.php"><i class="bi bi-diagram-3 me-2"></i>Kartoteki wg domen</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><h6 class="dropdown-header">Napływ z poczty</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/contact/analyze.php"><i class="bi bi-funnel me-2"></i>Analiza kartotek z poczty</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/triage.php"><i class="bi bi-robot me-2"></i>Segregacja AI</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/settings/index.php"><i class="bi bi-sliders me-2"></i>Ustawienia CRM</a></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/crm/export.php"><i class="bi bi-download me-2"></i>Eksport danych</a></li>
-      </ul>
-    </div>
-    <?php endif; ?>
-
+  <!-- Tytuł strony: mówi, gdzie jesteś -->
+  <div class="crm-navbar-title d-none d-lg-flex">
+    <i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="crm-topbar-page" title="<?= h($_crm_title) ?>"><?= h($_crm_title) ?></span>
   </div>
 
   <?php if ($_crm_can_write): ?>
@@ -832,9 +838,6 @@ window.openCommModal = function(contactId, channel, opts) {
     </a>
     <a href="<?= APP_URL ?>/crm/contact/add_org.php" class="btn btn-crm-outline btn-sm" title="Dodaj nową firmę / organizację">
       <i class="bi bi-building-add"></i> <span class="crm-act-label">Dodaj firmę</span>
-    </a>
-    <a href="<?= APP_URL ?>/crm/contact/import.php" class="btn btn-crm-ghost btn-sm" title="Import CSV">
-      <i class="bi bi-upload"></i>
     </a>
   </div>
   <?php endif; ?>
