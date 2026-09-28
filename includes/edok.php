@@ -922,6 +922,73 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
     return ['status' => $new_status, 'rejected' => false];
 }
 
+/**
+ * „Weryfikuj i podpisz wszystkie etapy” — plan: kolejne etapy od bieżącego, które $user_id
+ * może zaakceptować (ma rolę). Zatrzymuje się na pierwszym etapie bez roli. Każda pozycja:
+ * ['key', 'label', 'errors' => walidacje blokujące „Tak/OK”]. Etap z błędami kończy plan
+ * (dalsze i tak byłyby zablokowane sekwencją).
+ */
+function edok_sign_all_plan(array $doc, int $user_id): array {
+    if (in_array($doc['status'] ?? '', ['zaakceptowany', 'odrzucony', 'wycofany', 'draft'], true)) return [];
+    $plan = [];
+    foreach (edok_step_order() as $sk) {
+        $st = $doc['steps'][$sk]['status'] ?? null;
+        if (in_array($st, ['ok', 'uwagi', 'odrzucono'], true)) {
+            if ($st === 'ok') continue;
+            break;                      // „Z uwagami” / „Odrzucono” — dalej tylko pojedyncza decyzja
+        }
+        if (!edok_has_role($sk, $user_id)) break;
+        $errors = edok_step_validation_errors($doc, $sk);
+        $plan[] = ['key' => $sk, 'label' => edok_step_label($sk, $doc), 'errors' => $errors];
+        if ($errors) break;
+    }
+    return $plan;
+}
+
+/**
+ * Akceptuje („Tak/OK”) po kolei wszystkie etapy z edok_sign_all_plan() — tożsamość
+ * weryfikowana JEDNYM PIN-em (Uchwała 5/2026 §1 pkt 4), każdy etap zapisany osobno
+ * przez edok_decide_step() z verify_method='pin' (osobne wpisy w historii i na karcie).
+ * Przed każdym etapem ponownie: blokada sekwencji, rola, walidacja — na pierwszym
+ * problemie przerywa. Zwraca ['signed' => [etykiety], 'stopped' => ?powód, 'error' => ?błąd PIN].
+ */
+function edok_sign_all(int $doc_id, int $user_id, string $pin, string $notes = ''): array {
+    $doc  = edok_get($doc_id);
+    $out  = ['signed' => [], 'stopped' => null, 'error' => null];
+    $plan = $doc ? edok_sign_all_plan($doc, $user_id) : [];
+    if (!$plan) { $out['error'] = 'Brak etapów, które możesz teraz zaakceptować.'; return $out; }
+    if ($plan[0]['errors']) { $out['error'] = implode(' ', $plan[0]['errors']); return $out; }
+
+    $pin_error = edok_pin_verify_for_decision($user_id, $pin, $doc_id, $plan[0]['key']);
+    if ($pin_error !== null) { $out['error'] = $pin_error; return $out; }
+
+    foreach ($plan as $p) {
+        $doc = edok_get($doc_id);
+        // Dokument zmienił stan w międzyczasie (np. wycofany) — nie kontynuujemy
+        if (in_array($doc['status'], ['zaakceptowany', 'odrzucony', 'wycofany', 'draft'], true)) break;
+        $st = $doc['steps'][$p['key']]['status'] ?? null;
+        if (in_array($st, ['ok', 'uwagi', 'odrzucono'], true)) {
+            $out['stopped'] = 'Etap „' . $p['label'] . '” ma już decyzję (podjętą w międzyczasie).';
+            break;
+        }
+        $reason = edok_step_blocked_reason($doc, $p['key'])
+            ?? (!edok_has_role($p['key'], $user_id) ? 'Brak uprawnienia do etapu „' . $p['label'] . '”.' : null);
+        $errors = $reason ? [] : edok_step_validation_errors($doc, $p['key']);
+        if ($reason || $errors) {
+            $out['stopped'] = $reason ?? implode(' ', $errors);
+            break;
+        }
+        edok_decide_step($doc, $p['key'], 'ok', $user_id,
+            trim($notes . ($notes !== '' ? ' ' : '') . '[Weryfikacja zbiorcza: ' . count($plan) . ' etapy jednym PIN-em]'), true);
+        $out['signed'][] = $p['label'];
+    }
+    if (count($out['signed']) > 1) {
+        edok_log($doc_id, 'sign_all', '', '', '',
+            'Weryfikacja i podpis zbiorczy (' . count($out['signed']) . ' etapy, jeden PIN): ' . implode(' → ', $out['signed']) . '.');
+    }
+    return $out;
+}
+
 /** Cofnięcie decyzji (tylko admin/ksiegowy) — resetuje wszystkie etapy, wznawia obieg od etapu 1. */
 function edok_unlock(int $doc_id, string $reason): void {
     $doc = edok_get($doc_id);

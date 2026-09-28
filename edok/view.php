@@ -144,6 +144,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Weryfikuj i podpisz wszystkie etapy — kolejne etapy z rolą użytkownika, jeden PIN
+    if ($action === 'sign_all') {
+        if ($is_terminal) {
+            $errors[] = 'Dokument jest już zamknięty — decyzja jest zablokowana.';
+        } elseif (empty($_POST['sign_all_confirm'])) {
+            $errors[] = 'Potwierdź, że zweryfikowałeś(-aś) dokument dla wszystkich podpisywanych etapów.';
+        } else {
+            $res = edok_sign_all($id, (int)$user['id'], trim($_POST['step_pin'] ?? ''), trim($_POST['step_notes'] ?? ''));
+            if ($res['error'] !== null) {
+                $errors[] = $res['error'];
+            } else {
+                $msg = 'Zaakceptowano i podpisano PIN-em: ' . implode(' → ', $res['signed']) . '.';
+                if ($res['stopped']) $msg .= ' Zatrzymano: ' . $res['stopped'];
+                flash_set($res['stopped'] ? 'warning' : 'success', $msg);
+                header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+                exit;
+            }
+        }
+    }
+
     // Krok akceptacji: meryt / formal / rachunkowa / dekretacja / zatwierdza
     if (in_array($action, edok_step_order(), true)) {
         edok_require_role($action);
@@ -288,6 +308,10 @@ $current_cfg     = $current_key ? $steps_config[$current_key] : null;
 $current_blocked = $current_key ? edok_step_blocked_reason($doc, $current_key) : null;
 $current_can_act = $current_key && !$current_blocked && edok_has_role($current_key) && !$is_terminal;
 $current_pending = ($current_key && !$current_blocked) ? edok_step_validation_errors($doc, $current_key) : [];
+// „Weryfikuj i podpisz wszystkie etapy” — pokazywane, gdy użytkownik może podpisać ≥ 2 kolejne etapy
+$sign_all_plan   = ($current_can_act && edok_pin_is_set((int)$user['id'])) ? edok_sign_all_plan($doc, (int)$user['id']) : [];
+$sign_all_ok     = array_values(array_filter($sign_all_plan, fn($p) => !$p['errors']));
+$show_sign_all   = count($sign_all_plan) >= 2 && !$sign_all_plan[0]['errors'];
 
 /**
  * Pola "typowe" dla danego etapu/obszaru kontroli — to, co akceptujący
@@ -894,9 +918,16 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         </div>
 
         <?php else: ?>
-        <button type="button" class="edok-btn edok-btn-primary" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
-          <i class="bi bi-ui-checks"></i> Podejmij decyzję
-        </button>
+        <div class="tw-flex tw-flex-wrap tw-gap-2">
+          <button type="button" class="edok-btn edok-btn-primary" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
+            <i class="bi bi-ui-checks"></i> Podejmij decyzję
+          </button>
+          <?php if ($show_sign_all): ?>
+          <button type="button" class="edok-btn edok-btn-ghost" data-bs-toggle="modal" data-bs-target="#signAllModal">
+            <i class="bi bi-check2-all"></i> Weryfikuj i podpisz wszystkie etapy (<?= count($sign_all_ok) ?>)
+          </button>
+          <?php endif; ?>
+        </div>
         <?php endif; ?>
       </div>
     </div>
@@ -1091,6 +1122,61 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <div class="tw-flex tw-justify-end tw-gap-2 tw-px-4 tw-pb-4">
           <button type="button" class="edok-btn edok-btn-ghost" data-bs-dismiss="modal">Anuluj</button>
           <button type="submit" class="edok-btn edok-btn-primary" id="wizardNextBtn"><i class="bi bi-arrow-right"></i> Dalej</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if ($show_sign_all): ?>
+<!-- Weryfikuj i podpisz wszystkie etapy: lista etapów + oświadczenie + jeden PIN -->
+<div class="modal fade edok-wizard" id="signAllModal" tabindex="-1" aria-hidden="true" aria-labelledby="signAllTitle">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header edok-wizard-hd">
+        <h6 class="modal-title tw-font-bold" id="signAllTitle"><i class="bi bi-check2-all"></i> Weryfikuj i podpisz wszystkie etapy</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <form method="post" id="signAllForm" class="tw-px-4 tw-pt-3 tw-pb-4">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="action" value="sign_all">
+
+        <p class="tw-text-sm tw-text-slate-600 tw-mb-2">Zostaną zaakceptowane („Tak/OK”) i podpisane Twoim PIN-em — każdy osobno, w tej kolejności:</p>
+        <ol class="tw-text-sm tw-mb-3 tw-pl-5">
+          <?php foreach ($sign_all_plan as $p): ?>
+          <li class="tw-mb-1">
+            <?php if ($p['errors']): ?>
+            <span class="tw-text-slate-400"><?= h($p['label']) ?> — <strong>nie zostanie podpisany</strong>:</span>
+            <ul class="tw-text-amber-700 tw-pl-4"><?php foreach ($p['errors'] as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
+            <?php else: ?>
+            <i class="bi bi-check-circle-fill tw-text-emerald-600" aria-hidden="true"></i> <?= h($p['label']) ?>
+            <?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+        </ol>
+        <?php
+          $sa_last = end($sign_all_plan);
+          $sa_rest = array_slice(edok_step_order(), array_search($sa_last['key'], edok_step_order(), true) + ($sa_last['errors'] ? 0 : 1));
+        ?>
+        <?php if ($sa_rest): ?>
+        <p class="tw-text-xs tw-text-slate-500 tw-mb-3">Pozostałe etapy (<?= h(implode(', ', array_map(fn($k) => edok_step_label($k, $doc), $sa_rest))) ?>) — decyzja innej osoby lub po uzupełnieniu danych.</p>
+        <?php endif; ?>
+
+        <label class="tw-flex tw-gap-2 tw-items-start tw-text-sm tw-mb-3">
+          <input type="checkbox" name="sign_all_confirm" value="1" required class="tw-mt-1">
+          <span>Oświadczam, że zweryfikowałem(-am) dokument w zakresie każdego z wymienionych etapów.</span>
+        </label>
+        <label for="signAllNotes" class="tw-text-xs tw-text-slate-500">Uwagi (opcjonalnie, trafią do każdego etapu)</label>
+        <textarea name="step_notes" id="signAllNotes" class="form-control form-control-sm tw-mb-3" rows="2"></textarea>
+
+        <label for="signAllPin" class="tw-text-sm tw-text-slate-600">PIN EODoK</label>
+        <input type="password" name="step_pin" id="signAllPin" class="edok-pin-input tw-mb-3" inputmode="numeric"
+               pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••" required>
+
+        <div class="tw-flex tw-justify-end tw-gap-2">
+          <button type="button" class="edok-btn edok-btn-ghost" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="edok-btn edok-btn-primary"><i class="bi bi-pen"></i> Podpisz <?= count($sign_all_ok) ?> <?= count($sign_all_ok) >= 5 ? 'etapów' : 'etapy' ?></button>
         </div>
       </form>
     </div>
