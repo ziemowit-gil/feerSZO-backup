@@ -5,17 +5,17 @@
  *
  * Bezpieczeństwo: uruchamiane są WYŁĄCZNIE pozycje z białej listy $TESTS
  * (stały skrypt + stałe argumenty); jedyne parametry od użytkownika (miesiąc,
- * nr rozliczenia) są walidowane wzorcem i przekazywane jako osobne argv przez
- * proc_open(array) — bez powłoki. Wszystkie pozycje są tylko do odczytu albo
- * działają w transakcji, którą same wycofują (selftest/preview/--dry-run).
- * Test trzyma blokadę zapisu SQLite przez kilka sekund — inne zapisy w tym
- * czasie czekają.
+ * nr rozliczenia) są walidowane wzorcem. Wszystkie pozycje są tylko do odczytu
+ * albo działają w transakcji, którą same wycofują (selftest/preview/--dry-run).
+ * Test trzyma blokadę zapisu SQLite przez kilka sekund — inne zapisy czekają.
  *
- * Proces potomny dostaje TENANT_SLUG z bieżącego żądania, więc testuje tę
- * samą bazę co panel. Binarka PHP CLI: org_setting('php_cli_binary') albo
- * autodetekcja (PHP_BINARY z FPM wskazuje php-fpm, nie CLI).
+ * Skrypty biegną W PROCESIE strony (includes/cli_inproc.php → szo_cli_run),
+ * a nie przez proc_open + binarkę PHP CLI — na hostingu z open_basedir
+ * (MyDevil) strona nie widzi /usr/local/bin/php, a proc_open bywa wyłączone.
+ * Dzięki temu test działa na tej samej bazie (i tenancie) co panel.
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(__DIR__, 3) . '/includes/cli_inproc.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }   // ekran kierownika
@@ -36,23 +36,13 @@ $TESTS = [
                          'ti_invoices.php', ['selftest'], null, 'receipt'],
     'invoice_preview' => ['Faktury — podgląd dla kursanta', 'Pozycje faktury, jaka powstałaby z rozliczenia (bez zapisu). PDF: przycisk „Podgląd FV” w Rozliczeniach kursantów.',
                          'ti_invoices.php', ['preview'], 'billing', 'eye'],
+    'protocols_selftest' => ['Protokoły — autotest', 'Zatwierdzenie otwiera następny miesiąc (bez duplikatów po odblokowaniu), „Zamknij i archiwizuj” blokuje protokoły i zapisy, „Przywróć” zdejmuje blokadę. Transakcja wycofywana, bez EZD.',
+                         'ti_protocols.php', ['selftest'], null, 'journal-check'],
+    'ezd_selftest'   => ['EZD — protokoły jako koszulki', 'Zatwierdzony protokół → koszulka w klasie JRWA 384 z pismem i PDF; ponowne zatwierdzenie → ta sama koszulka. Bez SharePoint, pliki testowe usuwane, transakcja wycofywana.',
+                         'ti_protocols.php', ['ezd-selftest'], null, 'archive'],
     'protocols_next' => ['Protokoły — następny miesiąc (podgląd)', 'Które zatwierdzone protokoły miesięczne nie mają jeszcze otwartego następnego miesiąca. --dry-run, nic nie zapisuje.',
-                         'ti_protocols_next_month.php', ['--dry-run'], null, 'journal-check'],
+                         'ti_protocols_next_month.php', ['--dry-run'], null, 'calendar-plus'],
 ];
-
-/** Ścieżka do PHP CLI albo '' gdy nie znaleziono. */
-function testy_php_cli(): string {
-    $cands = array_filter([
-        trim((string)org_setting('php_cli_binary')),
-        PHP_SAPI === 'cli' || PHP_SAPI === 'cli-server' ? PHP_BINARY : '',
-        PHP_BINDIR . '/php',
-        '/usr/local/bin/php', '/usr/bin/php', '/opt/homebrew/bin/php',
-    ]);
-    foreach ($cands as $c) {
-        if (is_file($c) && is_executable($c) && !str_contains(basename($c), 'fpm')) return $c;
-    }
-    return '';
-}
 
 $result = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -72,39 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $args[] = '--out=' . sys_get_temp_dir() . '/szo_testy_preview_' . $bid . '.pdf';
         } else { $ok_param = false; }
     }
-    $php = testy_php_cli();
     if (!$ok_param) {
         $result = ['label' => $label, 'code' => -1, 'out' => 'Niepoprawny parametr.', 'ms' => 0, 'cmd' => ''];
-    } elseif ($php === '') {
-        $result = ['label' => $label, 'code' => -1, 'ms' => 0, 'cmd' => '',
-                   'out' => 'Nie znaleziono PHP CLI na serwerze. Ustaw ścieżkę w ustawieniu organizacji „php_cli_binary” (np. /usr/local/bin/php).'];
     } else {
-        $argv = array_merge([$php, $ROOT . '/cli/' . $script], $args);
-        $env  = ['PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin'];
-        if (defined('TENANT_SLUG') && TENANT_SLUG !== '') $env['TENANT_SLUG'] = TENANT_SLUG;
-        $t0   = microtime(true);
-        $proc = proc_open($argv, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $ROOT, $env);
-        $out  = ''; $code = -1;
-        if (is_resource($proc)) {
-            stream_set_blocking($pipes[1], false); stream_set_blocking($pipes[2], false);
-            $deadline = $t0 + 120;
-            while (true) {
-                $out .= stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
-                $st = proc_get_status($proc);
-                if (!$st['running']) { $code = (int)$st['exitcode']; break; }
-                if (microtime(true) > $deadline) { proc_terminate($proc); $out .= "\n[przerwano po 120 s]"; break; }
-                usleep(100000);
-            }
-            $out .= stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
-            fclose($pipes[1]); fclose($pipes[2]);
-            $c2 = proc_close($proc);
-            if ($code === -1 && $c2 !== -1) $code = $c2;
-        } else {
-            $out = 'Nie udało się uruchomić procesu.';
-        }
-        $result = ['label' => $label, 'code' => $code, 'out' => $out, 'ms' => (int)round((microtime(true) - $t0) * 1000),
+        $r = szo_cli_run($ROOT . '/cli/' . $script, $args);
+        $result = ['label' => $label, 'code' => $r['code'], 'out' => $r['out'], 'ms' => $r['ms'],
                    'cmd' => 'php cli/' . $script . ' ' . implode(' ', array_map(fn($a) => str_starts_with($a, '--out=') ? '--out=…' : $a, $args))];
-        error_log('[testy.php] ' . $dyd_name . ' uruchomił: ' . $result['cmd'] . ' → kod ' . $code);
+        error_log('[testy.php] ' . $dyd_name . ' uruchomił: ' . $result['cmd'] . ' → kod ' . $r['code']);
         foreach ($args as $a) if (str_starts_with($a, '--out=')) @unlink(substr($a, 6));   // PDF podglądu — tylko tekst na ekranie
     }
     $result['key'] = $key;
@@ -129,7 +93,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <h1 class="h4 mb-0 fw-bold"><i class="bi bi-bug me-2 text-primary" aria-hidden="true"></i>Testy</h1>
 </div>
 <p class="text-body-secondary small mb-3">
-  Kontrole i autotesty modułu TI uruchamiane jednym kliknięciem (te same co w terminalu, <code>cli/</code>).
+  Kontrole i autotesty modułu TI uruchamiane jednym kliknięciem — te same skrypty co w terminalu (<code>cli/</code>), wykonywane bezpośrednio przez stronę (bez PHP CLI na serwerze).
   Wszystkie tylko czytają dane albo działają w transakcji, którą same wycofują — nic nie zostaje w bazie
   i nie wychodzą żadne e-maile. Test trwa kilka sekund; w tym czasie inne zapisy w systemie czekają.
 </p>

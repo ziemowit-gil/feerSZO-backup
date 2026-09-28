@@ -24,6 +24,7 @@ const TI_PROT_EZD_JRWA_TITLE  = 'Protokoły zajęć kursów TI';
 const TI_PROT_EZD_REF_TYPE    = 'ti_protocol';
 
 function ti_prot_ezd_active(): bool {
+    if (defined('TI_PROT_EZD_OFF')) return false;   // autotest protokołów bez EZD (cli/ti_protocols.php)
     return function_exists('module_enabled')
         && module_enabled('ezd_enabled')
         && org_setting('ti_protocols_ezd_auto') !== '0';

@@ -22,12 +22,13 @@
  *       Kod wyjścia 0 = OK, 1 = błąd, 2 = brak danych.
  */
 
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit("Tylko CLI.\n"); }
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit("Tylko CLI.\n"); }
 
 $base = dirname(__DIR__);
-define('BOOTSTRAP_CHECKED', true);
-define('APP_INSTALLED', true);
+defined('BOOTSTRAP_CHECKED') || define('BOOTSTRAP_CHECKED', true);
+defined('APP_INSTALLED') || define('APP_INSTALLED', true);
 require_once $base . '/config.php';
+require_once $base . '/includes/cli_inproc.php';   // cli_exit() — też tryb in-process (zakładka Testy)
 require_once $base . '/includes/db.php';
 require_once $base . '/includes/functions.php';
 require_once $base . '/includes/karty30.php';
@@ -44,8 +45,8 @@ foreach (array_slice($argv, 2) as $a) {
     if (preg_match('/^--([a-z_]+)(?:=(.*))?$/', $a, $m)) $opt[$m[1]] = $m[2] ?? '1';
 }
 $zl  = fn($v) => number_format((float)$v, 2, ',', ' ');
-$out = fn(string $s = '') => fwrite(STDOUT, $s . "\n");
-$die = function (string $s, int $code = 1) { fwrite(STDERR, $s . "\n"); exit($code); };
+$out = function (string $s = '') { echo $s, "\n"; };
+$die = function (string $s, int $code = 1) { echo $s, "\n"; cli_exit($code); };
 $uid = (int)(db_one("SELECT id FROM users WHERE role='admin' AND is_active=1 ORDER BY id LIMIT 1")['id'] ?? 0);
 
 /** Tabela tekstowa z wyrównaniem (UTF-8). */
@@ -105,7 +106,7 @@ case 'check':
     if (!$data) { $out('Brak rozliczeń dla filtrów.'); break; }
     $table(['ID', 'Kursant', 'Okres', 'Grupa', 'Zapisane', 'Korekta', 'Należność', 'Przeliczone', 'Poz. FV', 'Faktura (brutto)', 'Stan'], $data);
     $out(sprintf('Rozliczeń: %d · z rozbieżnością: %d · VAT domyślny: %s', count($data), $bad, $cfg['vat']));
-    exit($bad ? 1 : 0);
+    cli_exit($bad ? 1 : 0);
 
 case 'preview':
     $bid = (int)($opt['billing'] ?? 0);
@@ -197,7 +198,7 @@ case 'selftest':
         db()->rollBack();
     }
     $out($fail ? "BŁĘDY: {$fail}" : 'OK — wszystkie testy przeszły (transakcja wycofana).');
-    exit($fail ? 1 : 0);
+    cli_exit($fail ? 1 : 0);
 
 default:
     $out('Użycie: php cli/ti_invoices.php check|preview|selftest — szczegóły w nagłówku pliku.');

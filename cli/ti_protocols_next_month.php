@@ -8,12 +8,13 @@
  *   php cli/ti_protocols_next_month.php --dry-run   # tylko pokaż
  *   php cli/ti_protocols_next_month.php             # otwórz
  */
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit("Tylko CLI.\n"); }
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit("Tylko CLI.\n"); }
 $base = dirname(__DIR__);
-define('BOOTSTRAP_CHECKED', true);
-define('APP_INSTALLED', true);
-define('TI_PROTOCOLS_NO_AUTO_BACKFILL', true);   // CLI robi to jawnie (i umie --dry-run)
+defined('BOOTSTRAP_CHECKED') || define('BOOTSTRAP_CHECKED', true);
+defined('APP_INSTALLED') || define('APP_INSTALLED', true);
+defined('TI_PROTOCOLS_NO_AUTO_BACKFILL') || define('TI_PROTOCOLS_NO_AUTO_BACKFILL', true);   // CLI robi to jawnie (i umie --dry-run)
 require_once $base . '/config.php';
+require_once $base . '/includes/cli_inproc.php';   // cli_exit() — też tryb in-process (zakładka Testy)
 require_once $base . '/includes/db.php';
 require_once $base . '/includes/functions.php';
 require_once $base . '/includes/karty30.php';

@@ -26,12 +26,13 @@
  *       Kod wyjścia 0 = OK, 1 = błąd, 2 = brak danych do testu.
  */
 
-if (PHP_SAPI !== 'cli') { http_response_code(403); exit("Tylko CLI.\n"); }
+if (PHP_SAPI !== 'cli' && !defined('SZO_CLI_INPROC')) { http_response_code(403); exit("Tylko CLI.\n"); }
 
 $base = dirname(__DIR__);
-define('BOOTSTRAP_CHECKED', true);
-define('APP_INSTALLED', true);
+defined('BOOTSTRAP_CHECKED') || define('BOOTSTRAP_CHECKED', true);
+defined('APP_INSTALLED') || define('APP_INSTALLED', true);
 require_once $base . '/config.php';
+require_once $base . '/includes/cli_inproc.php';   // cli_exit() — też tryb in-process (zakładka Testy)
 require_once $base . '/includes/db.php';
 require_once $base . '/includes/functions.php';
 require_once $base . '/includes/karty30.php';
@@ -47,8 +48,8 @@ foreach (array_slice($argv, 2) as $a) {
     if (preg_match('/^--([a-z_]+)(?:=(.*))?$/', $a, $m)) $opt[$m[1]] = $m[2] ?? '1';
 }
 $zl  = fn($v) => number_format((float)$v, 2, ',', ' ');
-$out = fn(string $s = '') => fwrite(STDOUT, $s . "\n");
-$die = function (string $s, int $code = 1) { fwrite(STDERR, $s . "\n"); exit($code); };
+$out = function (string $s = '') { echo $s, "\n"; };
+$die = function (string $s, int $code = 1) { echo $s, "\n"; cli_exit($code); };
 
 /** Rozliczenie z wyłączonymi zmianami cen (baza porównania). */
 $calc_base = function (int $client, int $m, int $y, int $course): array {
@@ -245,7 +246,7 @@ case 'selftest':
         ti_price_change_cache_clear();
     }
     $out($fail ? "BŁĘDY: {$fail}" : 'OK — wszystkie testy przeszły (transakcja wycofana).');
-    exit($fail ? 1 : 0);
+    cli_exit($fail ? 1 : 0);
 
 default:
     $out("Użycie: php cli/ti_price_changes.php list|table|show|simulate|selftest — szczegóły w nagłówku pliku.");

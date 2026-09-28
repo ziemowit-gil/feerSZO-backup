@@ -3586,6 +3586,9 @@ function ezd_sprawa_sp_folder(int $sprawa_id): ?string {
  * @return array{ok:bool,error:?string,url:?string}
  */
 function ezd_sp_sync_attachment(int $zal_id): array {
+    // EZD_NO_SP_SYNC — autotesty w wycofywanej transakcji (cli/ti_protocols.php
+    // ezd-selftest): pliku wysłanego do SharePointa nie da się „wycofać”.
+    if (defined('EZD_NO_SP_SYNC')) return ['ok' => false, 'error' => 'Synchronizacja wyłączona (tryb testu).', 'url' => null];
     $z = ezd_zal_get($zal_id);
     if (!$z) return ['ok' => false, 'error' => 'Nie znaleziono pliku.', 'url' => null];
 
