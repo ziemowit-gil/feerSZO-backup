@@ -194,6 +194,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'created_by' => $uid,
             ]);
             $msg = 'Zmiana ceny zapisana.';
+            // Zmiana obejmująca miesiące już rozliczone → przelicz wystawione rozliczenia
+            try { $msg .= ti_price_change_rebill_msg(ti_price_change_rebill($pc_id)); }
+            catch (\Throwable $ex) { $msg .= ' Nie udało się przeliczyć wystawionych rozliczeń: ' . $ex->getMessage(); }
             if ($send_now) {
                 $n = ti_price_change_notify($pc_id);
                 $msg .= $n > 0 ? " Wysłano powiadomienie e-mail ({$n})." : ' Nie znaleziono adresów e-mail do powiadomienia.';
@@ -206,7 +209,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'price_change_cancel') {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
         ti_price_change_cancel((int)($_POST['pc_id'] ?? 0));
-        flash_set('success', 'Zmiana ceny anulowana.');
+        $msg = 'Zmiana ceny anulowana.';
+        try { $msg .= ti_price_change_rebill_msg(ti_price_change_rebill((int)($_POST['pc_id'] ?? 0))); }
+        catch (\Throwable $ex) { $msg .= ' Nie udało się przeliczyć wystawionych rozliczeń: ' . $ex->getMessage(); }
+        flash_set('success', $msg);
         header('Location: kurs.php?id=' . $id . '&pc=1'); exit;
     }
 
@@ -629,7 +635,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </thead>
       <tbody>
         <?php foreach ($enrollments as $e):
-          $eff = k30_ti_effective_billing($e, $course); ?>
+          $eff = k30_ti_effective_billing($e, $course);
+          // Cena obowiązująca DZIŚ (po zaplanowanej zmianie ceny, jeśli trwa)
+          $eff_base = $eff; $eff = ti_price_eff_on($eff, (int)$course['id'], (int)$e['client_id'], date('Y-m-d')); ?>
         <tr class="<?= $e['status'] !== 'active' ? 'text-muted opacity-75' : '' ?>">
           <th scope="row" class="fw-semibold"><?= h($e['client_name']) ?></th>
           <td>
@@ -643,6 +651,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <?php if ($eff['model'] === 2): ?><?= number_format($eff['hourly_rate'], 2, ',', '') ?> zł/h
               <?php else: ?><?= number_format($eff['amount'], 2, ',', '') ?> zł<?php endif; ?>
             </span>
+            <?php if (!empty($eff['price_change_id'])): ?>
+            <span class="badge text-bg-info" style="font-size:.62rem" title="Zmiana ceny #<?= (int)$eff['price_change_id'] ?> — cena bazowa <?= $eff_base['model'] === 2 ? number_format($eff_base['hourly_rate'], 2, ',', '') . ' zł/h' : number_format($eff_base['amount'], 2, ',', '') . ' zł' ?>">po zmianie ceny</span>
+            <?php endif; ?>
             <button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline" data-bs-toggle="modal"
                     data-bs-target="#bill<?= (int)$e['client_id'] ?>" title="Zmień rozliczanie">
               <i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Zmień rozliczanie</span></button>

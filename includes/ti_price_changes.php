@@ -52,20 +52,69 @@ function ti_price_change_value_label(string $type, float $value): string {
 }
 
 /**
- * Zmiana obowiązująca dla kursu/kursanta w danym okresie rozliczeniowym
- * (najpierw indywidualna, potem grupowa) — albo null.
+ * Zmiana obowiązująca W DANYM DNIU (najpierw indywidualna, potem grupowa;
+ * przy kilku — najpóźniej rozpoczęta). Podstawa naliczania: stawka godzinowa
+ * wg daty lekcji, ryczałt wg stanu na 1. dzień miesiąca. Cache per żądanie.
  */
-function ti_price_change_effective_for(int $course_id, int $client_id, string $period_from, string $period_to): ?array {
-    ti_price_changes_migrate();
-    return db_one(
-        "SELECT * FROM k30_ti_price_changes
-          WHERE status='active' AND course_id=?
-            AND date_from <= ? AND (date_to IS NULL OR date_to >= ?)
-            AND (client_id = ? OR client_id IS NULL)
-          ORDER BY (client_id IS NOT NULL) DESC, date_from DESC
-          LIMIT 1",
-        [$course_id, $period_to, $period_from, $client_id]
-    );
+function &_ti_price_change_cache(): array { static $c = []; return $c; }
+
+/** Czyści cache ti_price_change_effective_on() — po dodaniu/anulowaniu zmiany. */
+function ti_price_change_cache_clear(): void { $c = &_ti_price_change_cache(); $c = []; }
+
+function ti_price_change_effective_on(int $course_id, int $client_id, string $date): ?array {
+    $cache = &_ti_price_change_cache();
+    $key = $course_id . ':' . $client_id . ':' . $date;
+    if (!array_key_exists($key, $cache)) {
+        ti_price_changes_migrate();
+        $cache[$key] = db_one(
+            "SELECT * FROM k30_ti_price_changes
+              WHERE status='active' AND course_id=?
+                AND date_from <= ? AND (date_to IS NULL OR date_to = '' OR date_to >= ?)
+                AND (client_id = ? OR client_id IS NULL)
+              ORDER BY (client_id IS NOT NULL) DESC, date_from DESC, id DESC
+              LIMIT 1",
+            [$course_id, $date, $date, $client_id]
+        ) ?: null;
+    }
+    return $cache[$key];
+}
+
+/** Wynik k30_ti_effective_billing() po zmianie ceny obowiązującej w dniu $date. */
+function ti_price_eff_on(array $eff, int $course_id, int $client_id, string $date): array {
+    return ti_price_change_apply_to_effective($eff, ti_price_change_effective_on($course_id, $client_id, $date));
+}
+
+/**
+ * Rozliczenie godzinowe z lekcji o różnych datach: każda lekcja po stawce
+ * obowiązującej w jej dniu. $lessons = [['date'=>'Y-m-d','hours'=>float], …].
+ * Zwraca parts (stawka → godziny, kolejność chronologiczna), amount, hours,
+ * rate (jedna stawka albo średnia ważona, gdy było ich kilka), rate_by_date
+ * i price_change_ids.
+ */
+function ti_price_hourly_breakdown(array $eff, int $course_id, int $client_id, array $lessons): array {
+    $parts = []; $by_date = []; $ids = []; $amount = 0.0; $hours = 0.0;
+    foreach ($lessons as $l) {
+        $d = (string)$l['date']; $h = (float)$l['hours'];
+        if (!isset($by_date[$d])) {
+            $e = ti_price_eff_on($eff, $course_id, $client_id, $d);
+            $by_date[$d] = (float)$e['hourly_rate'];
+            if (!empty($e['price_change_id'])) $ids[(int)$e['price_change_id']] = true;
+        }
+        $r = $by_date[$d];
+        $k = number_format($r, 2, '.', '');
+        $parts[$k] = ($parts[$k] ?? 0.0) + $h;
+        $amount += $h * $r;
+        $hours  += $h;
+    }
+    $list = [];
+    foreach ($parts as $k => $h) $list[] = ['rate' => (float)$k, 'hours' => $h, 'amount' => round($h * (float)$k, 2)];
+    $rate = count($list) === 1 ? $list[0]['rate']
+          : ($hours > 0 ? round($amount / $hours, 2) : (float)$eff['hourly_rate']);
+    if (!$list) $rate = (float)ti_price_eff_on($eff, $course_id, $client_id, date('Y-m-d'))['hourly_rate'];
+    return [
+        'parts' => $list, 'amount' => round($amount, 2), 'hours' => $hours, 'rate' => $rate,
+        'rate_by_date' => $by_date, 'price_change_ids' => array_keys($ids),
+    ];
 }
 
 /** Nakłada dopasowaną zmianę na wynik k30_ti_effective_billing() — bez zmiany, gdy $change=null. */
@@ -120,6 +169,7 @@ function ti_price_change_create(array $data): int {
         if ($subject === '') $subject = $draft['subject'];
         if ($body === '')    $body    = $draft['body'];
     }
+    ti_price_change_cache_clear();
     return db_insert('k30_ti_price_changes', [
         'scope'         => $data['scope'],
         'course_id'     => (int)$data['course_id'],
@@ -153,6 +203,7 @@ function ti_price_changes_for_course(int $course_id): array {
 function ti_price_change_cancel(int $id): void {
     ti_price_changes_migrate();
     db()->prepare("UPDATE k30_ti_price_changes SET status='cancelled' WHERE id=?")->execute([$id]);
+    ti_price_change_cache_clear();
 }
 
 /** Odbiorcy powiadomienia: kursant(ci) objęci zmianą + opiekunowie małoletnich. */
@@ -256,4 +307,68 @@ function ti_price_change_notify(int $id): int {
     db()->prepare("UPDATE k30_ti_price_changes SET notified_at=datetime('now'), notified_count=notified_count+? WHERE id=?")
         ->execute([$sent, $id]);
     return $sent;
+}
+
+/**
+ * Po dodaniu/anulowaniu zmiany ceny przelicza JUŻ WYSTAWIONE rozliczenia z jej
+ * zakresu dat (bez tego zmiana wstecz działała dopiero po ręcznym ponownym
+ * wystawieniu). Przeliczane są tylko rozliczenia nieopłacone i bez faktury —
+ * opłacone/zafakturowane wracają w 'manual' do ręcznej korekty, bo zmiana
+ * kwoty rozjechałaby się z dokumentem księgowym i przypisanymi wpłatami.
+ * Na końcu ponowna alokacja wpłat (ti_billing_recompute) dla dotkniętych kursantów.
+ *
+ * @return array{updated: list<array>, manual: list<array>}
+ */
+function ti_price_change_rebill(int $change_id): array {
+    require_once __DIR__ . '/karty30.php';
+    require_once __DIR__ . '/ti_payments.php';
+    $ch = ti_price_change_get($change_id);
+    $out = ['updated' => [], 'manual' => []];
+    if (!$ch) return $out;
+
+    $ym_from = substr((string)$ch['date_from'], 0, 7);
+    $ym_to   = !empty($ch['date_to']) ? substr((string)$ch['date_to'], 0, 7) : date('Y-m');
+    $clients = $ch['scope'] === 'client'
+        ? [(int)$ch['client_id']]
+        : array_map('intval', array_column(db_all("SELECT DISTINCT client_id FROM k30_ti_enrollments WHERE course_id=?", [(int)$ch['course_id']]), 'client_id'));
+    if (!$clients) return $out;
+
+    $ph   = implode(',', array_fill(0, count($clients), '?'));
+    $rows = db_all(
+        "SELECT b.*, cl.name AS client_name FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
+          WHERE b.client_id IN ($ph) AND COALESCE(b.course_id,0) IN (0, CAST(? AS INTEGER))
+            AND printf('%04d-%02d', b.year, b.month) BETWEEN ? AND ?
+            AND b.status != 'cancelled'
+          ORDER BY b.year, b.month, b.client_id",
+        array_merge($clients, [(int)$ch['course_id'], $ym_from, $ym_to])
+    );
+    $touched = [];
+    foreach ($rows as $b) {
+        $label = sprintf('%s %02d/%d', $b['client_name'], (int)$b['month'], (int)$b['year']);
+        $calc  = k30_ti_calculate_billing((int)$b['client_id'], (int)$b['month'], (int)$b['year'], (int)$b['course_id']);
+        $new   = round((float)$calc['amount'], 2);
+        $old   = round((float)$b['amount'], 2);
+        if (abs($new - $old) < 0.005) continue;
+        $invoiced = trim((string)($b['invoice_no'] ?? '')) !== '' || trim((string)($b['invoice_path'] ?? '')) !== '';
+        if ($b['status'] === 'paid' || $invoiced || (float)($b['paid_amount'] ?? 0) > 0.005) {
+            $out['manual'][] = ['billing_id' => (int)$b['id'], 'label' => $label, 'old' => $old, 'new' => $new,
+                                'why' => $invoiced ? 'wystawiona faktura' : 'rozliczenie (częściowo) opłacone'];
+            continue;
+        }
+        k30_ti_issue_billing((int)$b['client_id'], (int)$b['month'], (int)$b['year'], (string)($b['notes'] ?? ''), (int)$b['course_id']);
+        $out['updated'][] = ['billing_id' => (int)$b['id'], 'label' => $label, 'old' => $old, 'new' => $new];
+        $touched[(int)$b['client_id']] = true;
+    }
+    foreach (array_keys($touched) as $cid) ti_billing_recompute($cid);
+    return $out;
+}
+
+/** Krótki komunikat z wyniku ti_price_change_rebill() dla flash. */
+function ti_price_change_rebill_msg(array $r): string {
+    $f = fn($x) => $x['label'] . ': ' . number_format($x['old'], 2, ',', ' ') . ' → ' . number_format($x['new'], 2, ',', ' ') . ' zł';
+    $msg = '';
+    if ($r['updated']) $msg .= ' Przeliczono wystawione rozliczenia (' . count($r['updated']) . '): ' . implode('; ', array_map($f, array_slice($r['updated'], 0, 5))) . '.';
+    if ($r['manual'])  $msg .= ' Do ręcznej korekty (' . count($r['manual']) . '): '
+        . implode('; ', array_map(fn($x) => $f($x) . ' — ' . $x['why'], array_slice($r['manual'], 0, 5))) . '.';
+    return $msg;
 }

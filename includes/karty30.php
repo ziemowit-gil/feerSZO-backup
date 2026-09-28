@@ -5356,20 +5356,20 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
     $models  = [];
     $courses = [];
     foreach ($enrs as $e) {
-        // Godziny obecności w tym kursie w danym miesiącu
+        // Godziny obecności w tym kursie w danym miesiącu (z datą — stawka per lekcja)
         $rows = db_all(
-            "SELECT s.duration_min
+            "SELECT s.duration_min, s.lesson_date
              FROM k30_ti_attendance a
              JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
              WHERE a.client_id=? AND a.attended=1 AND COALESCE(a.cancelled,0)=0",
             [(int)$e['course_id'], $from, $to, $client_id]
         );
-        $ch = 0.0;
-        foreach ($rows as $r) $ch += (float)ceil((int)$r['duration_min'] / 60);
+        $lessons = [];
+        foreach ($rows as $r) $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil((int)$r['duration_min'] / 60)];
         // No-show: nalicz wg wybranego modelu (pełna lekcja lub 1h)
         $ns_rows = db_all(
-            "SELECT s.duration_min, a.no_show_billing
+            "SELECT s.duration_min, s.lesson_date, a.no_show_billing
              FROM k30_ti_attendance a
              JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
@@ -5378,28 +5378,37 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
             [(int)$e['course_id'], $from, $to, $client_id]
         );
         foreach ($ns_rows as $nr) {
-            $ch += ($nr['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$nr['duration_min'] / 60);
+            $lessons[] = ['date' => (string)$nr['lesson_date'],
+                          'hours' => ($nr['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$nr['duration_min'] / 60)];
         }
+        $ch = 0.0;
+        foreach ($lessons as $l) $ch += $l['hours'];
         $hours += $ch;
 
         $eff = k30_ti_effective_billing($e, [
             'billing_model'  => $e['course_billing_model'],
             'billing_amount' => $e['course_billing_amount'],
         ]);
-        // Zaplanowana zmiana ceny (kwota/procent, z zakresem dat) — patrz
-        // includes/ti_price_changes.php. Nie zmienia k30_ti_courses/k30_ti_enrollments,
-        // tylko wynik dla okresów objętych zakresem dat zmiany.
+        // Zaplanowane zmiany ceny (kwota/procent, z zakresem dat) — patrz
+        // includes/ti_price_changes.php. Nie zmieniają k30_ti_courses/k30_ti_enrollments.
+        // Godzinowo: każda lekcja po stawce z JEJ dnia (zmiana od 15. nie rusza
+        // lekcji z 1–14.). Ryczałt: stan na 1. dzień miesiąca.
         require_once __DIR__ . '/ti_price_changes.php';
-        $price_change = ti_price_change_effective_for((int)$e['course_id'], $client_id, $from, $to);
-        $eff = ti_price_change_apply_to_effective($eff, $price_change);
         $models[$eff['code']] = true;
-        $course_amount = 0.0;
-        if ($eff['model'] === 1 || $eff['model'] === 3) {
+        $hourly = !in_array((int)$eff['model'], [1, 3], true);
+        $rate_parts = []; $rate_by_date = []; $pc_ids = [];
+        if (!$hourly) {
+            $eff = ti_price_eff_on($eff, (int)$e['course_id'], $client_id, $from);
             // miesięczny / stały — kwota niezależna od godzin (naliczana gdy zapis aktywny)
             $course_amount = ($e['status'] ?? '') === 'active' ? $eff['amount'] : 0.0;
+            if (!empty($eff['price_change_id'])) $pc_ids[] = (int)$eff['price_change_id'];
         } else {
-            // godzinowy
-            $course_amount = $ch * $eff['hourly_rate'];
+            $bd = ti_price_hourly_breakdown($eff, (int)$e['course_id'], $client_id, $lessons);
+            $course_amount      = $bd['amount'];
+            $eff['hourly_rate'] = $bd['rate'];
+            $rate_parts   = $bd['parts'];
+            $rate_by_date = $bd['rate_by_date'];
+            $pc_ids       = $bd['price_change_ids'];
         }
         $amount += $course_amount;
 
@@ -5411,10 +5420,15 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
             'amount'       => round($course_amount, 2),
             'model'        => $eff['model'],
             // Jedno źródło prawdy dla wydruków (faktura, pozycje FV): czy model jest
-            // godzinowy i stawka PO zmianie ceny (ti_price_change_apply_to_effective).
-            'hourly'       => !in_array((int)$eff['model'], [1, 3], true),
+            // godzinowy i stawka PO zmianie ceny. Przy kilku stawkach w miesiącu
+            // hourly_rate = średnia ważona, a dokładne rozbicie w rate_parts
+            // (stawka → godziny) i rate_by_date (data lekcji → stawka).
+            'hourly'       => $hourly,
             'hourly_rate'  => (float)$eff['hourly_rate'],
-            'price_change_id' => (int)($eff['price_change_id'] ?? 0),
+            'rate_parts'   => $rate_parts,
+            'rate_by_date' => $rate_by_date,
+            'price_change_id'  => (int)($pc_ids[0] ?? 0),
+            'price_change_ids' => $pc_ids,
         ];
     }
 
@@ -5586,6 +5600,21 @@ function k30_ti_billing_fv_positions(array $b): array {
     foreach ($calc['courses'] as $c) {
         if ((float)$c['amount'] <= 0.005 && (float)$c['hours_billed'] <= 0.005) continue;
         $hourly = !empty($c['hourly']);
+        // Kilka stawek w miesiącu (zmiana ceny w trakcie) → osobna pozycja na
+        // każdą stawkę, żeby cena jednostkowa × ilość = wartość bez zaokrągleń.
+        if ($hourly && count($c['rate_parts'] ?? []) > 1) {
+            foreach ($c['rate_parts'] as $rp) {
+                $pos[] = [
+                    'name'       => 'Zajęcia TI — ' . $c['course_name'] . ' (' . $period . ', stawka '
+                                  . number_format((float)$rp['rate'], 2, ',', ' ') . ' zł/godz.)',
+                    'unit'       => 'godz.',
+                    'qty'        => round((float)$rp['hours'], 2),
+                    'unit_price' => round((float)$rp['rate'], 2),
+                    'value'      => round((float)$rp['amount'], 2),
+                ];
+            }
+            continue;
+        }
         $qty    = $hourly ? round((float)$c['hours_billed'], 2) : 1.0;
         $val    = round((float)$c['amount'], 2);
         $pos[] = [

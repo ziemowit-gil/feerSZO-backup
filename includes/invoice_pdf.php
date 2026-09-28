@@ -753,7 +753,8 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
           ? 1.0
           : (float)ceil((int)$l['duration_min'] / 60);
       $hourly = isset($per_course[$cid]['hourly']) ? (bool)$per_course[$cid]['hourly'] : ($model !== 1 && $model !== 3);
-      $rate   = $rates[$cid] ?? 0.0;
+      // Stawka z dnia tej lekcji (zmiana ceny w trakcie miesiąca) — z kalkulatora
+      $rate   = (float)($per_course[$cid]['rate_by_date'][(string)$l['lesson_date']] ?? ($rates[$cid] ?? 0.0));
       $amt    = $hourly ? $h * $rate : 0.0;
       $sum_h   += $h;
       $sum_amt += $amt;

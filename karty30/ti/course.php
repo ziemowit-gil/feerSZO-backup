@@ -7,6 +7,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/karty30.php';
+require_once dirname(dirname(__DIR__)) . '/includes/ti_price_changes.php';
 require_once dirname(dirname(__DIR__)) . '/includes/zoom.php';
 require_once dirname(dirname(__DIR__)) . '/includes/sms_templates.php';
 
@@ -603,7 +604,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
           </thead>
           <tbody>
             <?php foreach ($enrollments as $e):
-              $eff = k30_ti_effective_billing($e, $course); ?>
+              $eff = k30_ti_effective_billing($e, $course);
+          // Cena obowiązująca DZIŚ (po zaplanowanej zmianie ceny, jeśli trwa)
+          $eff_base = $eff; $eff = ti_price_eff_on($eff, (int)$course['id'], (int)$e['client_id'], date('Y-m-d')); ?>
             <tr class="<?= $e['status']!=='active'?'text-muted opacity-75':'' ?>">
               <td><a href="<?= APP_URL ?>/karty30/clients/view.php?id=<?= (int)$e['client_id'] ?>"><?= h($e['client_name']) ?></a></td>
               <td>
@@ -617,6 +620,9 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                   <?php if ($eff['model'] === 2): ?><?= number_format($eff['hourly_rate'],2,',','') ?> zł/h
                   <?php else: ?><?= number_format($eff['amount'],2,',','') ?> zł<?php endif; ?>
                 </span>
+                <?php if (!empty($eff['price_change_id'])): ?>
+                <span class="badge text-bg-info" style="font-size:.62rem" title="Zmiana ceny #<?= (int)$eff['price_change_id'] ?> — cena bazowa <?= $eff_base['model'] === 2 ? number_format($eff_base['hourly_rate'], 2, ',', '') . ' zł/h' : number_format($eff_base['amount'], 2, ',', '') . ' zł' ?>">po zmianie ceny</span>
+                <?php endif; ?>
                 <?php if (!empty($eff['pay_account']) || !empty($eff['pay_title'])): ?>
                 <div class="text-muted" style="font-size:.72rem"><i class="bi bi-bank me-1"></i><?= h($eff['pay_account'] ?: '—') ?><?php if (!empty($eff['pay_title'])): ?> · „<?= h($eff['pay_title']) ?>"<?php endif; ?></div>
                 <?php endif; ?>

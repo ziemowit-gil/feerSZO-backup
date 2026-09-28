@@ -63,8 +63,10 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
         // Zaplanowana zmiana ceny — tak samo jak w k30_ti_calculate_billing(), inaczej
         // rozpiska pokazywałaby starą stawkę i kwotę inną niż rozliczenie.
         require_once __DIR__ . '/ti_price_changes.php';
-        $eff = ti_price_change_apply_to_effective($eff, ti_price_change_effective_for($cid, $client_id, $from, $to));
+        // Godzinowo stawka z dnia lekcji; ryczałt wg stanu na 1. dzień miesiąca.
+        $base_eff = $eff;
         $hourly = !in_array((int)$eff['model'], [1, 3], true);
+        $eff = ti_price_eff_on($eff, $cid, $client_id, $from);
 
         $rows = db_all(
             "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic,
@@ -77,7 +79,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             [$client_id, $cid, $from, $to]
         );
 
-        $lessons = []; $g_hours = 0.0; $g_present = 0;
+        $lessons = []; $g_hours = 0.0; $g_present = 0; $g_hourly_amt = 0.0; $bill_lessons = []; $g_bd = null;
         foreach ($rows as $r) {
             $dur      = (int)$r['duration_min'];
             $attended = !empty($r['attended']) && empty($r['att_cancelled']);
@@ -87,6 +89,9 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             elseif ($noshow)    $hrs = ($r['no_show_billing'] === '1h') ? 1.0 : (float)ceil($dur / 60);
             $g_hours = round($g_hours + $hrs, 2);
             if ($attended) $g_present++;
+            $l_rate  = $hourly ? (float)ti_price_eff_on($base_eff, $cid, $client_id, (string)$r['lesson_date'])['hourly_rate'] : 0.0;
+            $g_hourly_amt += $hrs * $l_rate;
+            if ($hrs > 0) $bill_lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => $hrs];
 
             $lessons[] = [
                 'date'     => (string)$r['lesson_date'],
@@ -96,12 +101,18 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
                 'hours'    => $hrs,
                 'status'   => $attended ? 'obecny' : ($noshow ? 'nieobecność płatna' : (empty($r['attended']) && !empty($r['att_cancelled']) ? 'odwołana' : 'nieobecny')),
                 'billed'   => $hrs > 0,
-                'amount'   => $hourly ? round($hrs * (float)$eff['hourly_rate'], 2) : 0.0,
+                'amount'   => $hourly ? round($hrs * $l_rate, 2) : 0.0,
+                'rate'     => $l_rate,
                 'remote'   => $r['status'] === 'remote_material',
             ];
         }
 
-        $g_amount = $hourly ? round($g_hours * (float)$eff['hourly_rate'], 2)
+        if ($hourly) {
+            // Jedna stawka albo średnia ważona, gdy w miesiącu obowiązywało kilka
+            $g_bd = ti_price_hourly_breakdown($base_eff, $cid, $client_id, $bill_lessons);
+            $eff['hourly_rate'] = $g_bd['rate'];
+        }
+        $g_amount = $hourly ? round($g_hourly_amt, 2)
                   : (($e['status'] ?? '') === 'active' ? round((float)$eff['amount'], 2) : 0.0);
         // Ryczałt naliczany tylko gdy jest za co (kwota ustawiona) - zgodnie z k30_ti_calculate_billing
         if (!$hourly && $g_amount <= 0) $g_amount = 0.0;
@@ -117,6 +128,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             'model_label' => (string)$eff['label'],
             'hourly'      => $hourly,
             'hourly_rate' => (float)$eff['hourly_rate'],
+            'rate_mixed'  => $hourly && count($g_bd['parts'] ?? []) > 1,
             'flat_amount' => (float)$eff['amount'],
             'lessons'     => $lessons,
             'hours'       => $g_hours,
@@ -191,7 +203,9 @@ function ti_hours_pdf(array $d, array $opts = []): string {
         $pdf->Cell($W, 7, $pl($g['course_name'] . ($g['instructor'] ? '   |   prowadzący: ' . $g['instructor'] : '')), 0, 1, 'L', true);
         $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(80, 80, 80);
         $basis = $g['hourly']
-            ? 'rozliczenie godzinowe - stawka ' . $zl($g['hourly_rate']) . ' zł/godz.'
+            ? (!empty($g['rate_mixed'])
+                ? 'rozliczenie godzinowe - stawka wg daty lekcji (zmiana ceny w trakcie miesiąca)'
+                : 'rozliczenie godzinowe - stawka ' . $zl($g['hourly_rate']) . ' zł/godz.')
             : 'rozliczenie ' . mb_strtolower($g['model_label']) . ' - kwota ' . $zl($g['flat_amount']) . ' zł za okres';
         $pdf->Cell($W, 5, $pl($basis . '   |   obecności: ' . (int)$g['present'] . '/' . count($g['lessons'])
                               . '   |   godziny rozliczane: ' . $zl($g['hours'])), 0, 1);

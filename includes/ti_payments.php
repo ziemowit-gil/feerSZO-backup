@@ -798,19 +798,28 @@ function ti_year_end_projection(int $client_id): array {
             'billing_amount' => $e['course_billing_amount'],
         ]);
 
+        // Zaplanowane zmiany cen (includes/ti_price_changes.php) liczone tak jak
+        // w rozliczeniu: ryczałt wg stanu na 1. dzień każdego miesiąca, godzinowo
+        // wg daty lekcji — prognoza uwzględnia zapowiedziane podwyżki/obniżki.
+        require_once __DIR__ . '/ti_price_changes.php';
+        $cid_e = (int)$e['course_id'];
         if ($eff['model'] === 1 || $eff['model'] === 3) {
-            // miesięczny / stały — kwota × liczba pozostałych miesięcy (od bieżącego)
-            $course_amount = $eff['amount'] * $months_left;
+            // miesięczny / stały — kwota za każdy pozostały miesiąc (od bieżącego)
+            $course_amount = 0.0;
+            for ($mi = 0; $mi < $months_left; $mi++) {
+                $m1 = date('Y-m-01', strtotime(date('Y-m-01') . " +{$mi} month"));
+                $course_amount += (float)ti_price_eff_on($eff, $cid_e, $client_id, $m1)['amount'];
+            }
         } else {
-            // godzinowy — suma godzin zaplanowanych (nieodbytych) sesji do końca roku
+            // godzinowy — zaplanowane (nieodbyte) sesje do końca roku, po stawce z ich dnia
             $rows = db_all(
-                "SELECT duration_min FROM k30_ti_sessions
+                "SELECT duration_min, lesson_date FROM k30_ti_sessions
                  WHERE course_id=? AND status='planned' AND lesson_date BETWEEN ? AND ?",
-                [(int)$e['course_id'], $today, $year_end]
+                [$cid_e, $today, $year_end]
             );
-            $hrs = 0.0;
-            foreach ($rows as $r) $hrs += (float)ceil((int)$r['duration_min'] / 60);
-            $course_amount = $hrs * $eff['hourly_rate'];
+            $lessons = [];
+            foreach ($rows as $r) $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil((int)$r['duration_min'] / 60)];
+            $course_amount = ti_price_hourly_breakdown($eff, $cid_e, $client_id, $lessons)['amount'];
         }
 
         if ($course_amount > 0.005) {

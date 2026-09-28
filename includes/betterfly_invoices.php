@@ -133,7 +133,7 @@ function betterfly_ti_course_billing(int $course_id, int $client_id, int $month,
 
     // Lekcje kursu w danym miesiącu, na których klient był obecny.
     $rows = db_all(
-        "SELECT s.duration_min
+        "SELECT s.duration_min, s.lesson_date
            FROM k30_ti_sessions s
            JOIN k30_ti_attendance a ON a.session_id = s.id AND a.client_id = ?
           WHERE s.course_id = ?
@@ -143,10 +143,15 @@ function betterfly_ti_course_billing(int $course_id, int $client_id, int $month,
         [$client_id, $course_id, $month, $year]
     );
 
-    $hours = 0.0;
+    $lessons = [];
     foreach ($rows as $r) {
-        $hours += (float)ceil(((int)$r['duration_min']) / 60); // ceil per lekcja
+        $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil(((int)$r['duration_min']) / 60)]; // ceil per lekcja
     }
+    // Zmiany cen (includes/ti_price_changes.php) — stawka z dnia każdej lekcji,
+    // przy kilku stawkach w miesiącu osobne pozycje (rate_parts).
+    require_once __DIR__ . '/ti_price_changes.php';
+    $bd    = ti_price_hourly_breakdown(['model' => 2, 'hourly_rate' => $rate, 'amount' => 0.0], $course_id, $client_id, $lessons);
+    $hours = (float)$bd['hours'];
 
     return [
         'course_id'   => $course_id,
@@ -155,10 +160,34 @@ function betterfly_ti_course_billing(int $course_id, int $client_id, int $month,
         'month'       => $month,
         'year'        => $year,
         'hours'       => $hours,
-        'hourly_rate' => $rate,
-        'amount'      => round($hours * $rate, 2),
+        'hourly_rate' => (float)$bd['rate'],
+        'rate_parts'  => $bd['parts'] ?: [['rate' => (float)$bd['rate'], 'hours' => 0.0, 'amount' => 0.0]],
+        'amount'      => (float)$bd['amount'],
         'lessons'     => count($rows),
     ];
+}
+
+/**
+ * Pozycje faktury z rozliczenia kursu — jedna na każdą stawkę w miesiącu
+ * (zmiana ceny w trakcie miesiąca daje dwie pozycje z różnymi cenami).
+ */
+function betterfly_ti_rate_lines(array $b, int $course_id, int $month, int $year, array $opts): array
+{
+    $parts = $b['rate_parts'] ?? [['rate' => (float)$b['hourly_rate'], 'hours' => (float)$b['hours']]];
+    $multi = count($parts) > 1;
+    $out   = [];
+    foreach ($parts as $p) {
+        $hoursTxt = rtrim(rtrim(number_format((float)$p['hours'], 2, '.', ''), '0'), '.');
+        $out[] = [
+            'ProductId'            => betterfly_ti_product_id($course_id),
+            'Quantity'             => (float)$p['hours'],
+            'ProductCurrencyPrice' => betterfly_ti_unit_net((float)$p['rate']),
+            'ProductDescription'   => sprintf('Zajęcia TI — %s, %02d/%d (%s godz.%s)', $b['course_name'], $month, $year, $hoursTxt,
+                                        $multi ? ', stawka ' . number_format((float)$p['rate'], 2, ',', ' ') . ' zł/godz.' : ''),
+            'VatRateId'            => (int)($opts['vat_rate_id'] ?? 0) ?: (int)org_setting('betterfly_default_vat_rate_id'),
+        ];
+    }
+    return $out;
 }
 
 // ── Mapowanie danych nabywcy ─────────────────────────────────────────────────
@@ -446,17 +475,9 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
     try {
         $customerId = $client->ensureCustomer(betterfly_customer_payload($buyer));
 
-        $unitNet = betterfly_ti_unit_net((float)$billing['hourly_rate']);
-        $desc    = sprintf('Zajęcia TI — %s, %02d/%d (%s godz.)',
-            $billing['course_name'], $month, $year, rtrim(rtrim(number_format($billing['hours'], 2, '.', ''), '0'), '.'));
-
-        $items = [[
-            'ProductId'            => betterfly_ti_product_id($course_id),
-            'Quantity'             => (float)$billing['hours'],
-            'ProductCurrencyPrice' => $unitNet,
-            'ProductDescription'   => $desc,
-            'VatRateId'            => (int)($opts['vat_rate_id'] ?? 0) ?: (int)org_setting('betterfly_default_vat_rate_id'),
-        ]];
+        $items = betterfly_ti_rate_lines($billing, $course_id, $month, $year, $opts);
+        $itemsNet = 0.0;
+        foreach ($items as $it) $itemsNet += $it['ProductCurrencyPrice'] * $it['Quantity'];
 
         $payload = betterfly_invoice_payload($customerId, $items, [
             'payment_type_id'     => $opts['payment_type_id']  ?? null,
@@ -484,7 +505,7 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
                 'party_name'  => (string)($buyer['name'] ?? ''),
                 'party_nip'   => (string)($buyer['nip'] ?? ''),
                 'issue_date'  => date('Y-m-d'),
-                'net'         => round($unitNet * $billing['hours'], 2),
+                'net'         => round($itemsNet, 2),
                 'gross'       => (float)($fetched['GrossTotal'] ?? 0),
                 'vat'         => (float)($fetched['VatTotal'] ?? 0),
                 'currency'    => (string)($fetched['CurrencyCode'] ?? 'PLN'),
@@ -505,7 +526,7 @@ function betterfly_issue_ti_course_invoice(int $course_id, int $client_id, int $
             'betterfly_customer_id' => $customerId,
             'betterfly_invoice_id'  => $invoiceId,
             'number'                => $number,
-            'net_total'             => (float)($fetched['NetTotal']   ?? round($unitNet * $billing['hours'], 2)),
+            'net_total'             => (float)($fetched['NetTotal']   ?? round($itemsNet, 2)),
             'gross_total'           => (float)($fetched['GrossTotal'] ?? 0),
             'vat_total'             => (float)($fetched['VatTotal']   ?? 0),
             'currency'              => (string)($fetched['CurrencyCode'] ?? 'PLN'),
@@ -564,15 +585,7 @@ function betterfly_issue_ti_client_invoice(int $client_id, int $month, int $year
         }
         if ($b['hours'] <= 0) continue; // brak godzin w okresie — pomiń pozycję
 
-        $unitNet = betterfly_ti_unit_net((float)$b['hourly_rate']);
-        $hoursTxt = rtrim(rtrim(number_format($b['hours'], 2, '.', ''), '0'), '.');
-        $lines[] = [
-            'ProductId'            => betterfly_ti_product_id($cid),
-            'Quantity'             => (float)$b['hours'],
-            'ProductCurrencyPrice' => $unitNet,
-            'ProductDescription'   => sprintf('Zajęcia TI — %s, %02d/%d (%s godz.)', $b['course_name'], $month, $year, $hoursTxt),
-            'VatRateId'            => (int)($opts['vat_rate_id'] ?? 0) ?: (int)org_setting('betterfly_default_vat_rate_id'),
-        ];
+        foreach (betterfly_ti_rate_lines($b, $cid, $month, $year, $opts) as $ln) $lines[] = $ln;
         $courses[] = $b;
     }
 
