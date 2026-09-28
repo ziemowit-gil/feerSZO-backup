@@ -303,17 +303,20 @@ if ($all_ids) {
         array_keys($all_ids))['c'] ?? 0);
 }
 
-// Frekwencja % — obecności na zajęciach odbytych (grupy z track_attendance, bez Test/WUP-exclude)
+// Frekwencja % — obecności na zajęciach odbytych (grupy z track_attendance, bez Test/WUP-exclude).
+// Bez materiału zdalnego (tam wszyscy są automatycznie obecni — K30_TI_ATTENDANCE_STATUSES)
+// i bez odwołanych udziałów; no-show liczy się jako nieobecność.
 $frRow = db_one(
     "SELECT COUNT(*) AS total, COALESCE(SUM(a.attended),0) AS present
      FROM k30_ti_attendance a
      JOIN k30_ti_sessions s ON s.id=a.session_id
      JOIN k30_ti_courses  c ON c.id=s.course_id
      JOIN k30_clients     cl ON cl.id=a.client_id
-     WHERE s.lesson_date BETWEEN ? AND ? AND s.status IN ('held','individual_change','remote_material')
+     WHERE s.lesson_date BETWEEN ? AND ? AND s.status IN ('held','individual_change')
+       AND COALESCE(a.cancelled,0)=0
        AND c.track_attendance=1 AND c.wup_exclude=0 AND LOWER(c.name) NOT LIKE '%test%'
        AND LOWER(cl.name) NOT LIKE '%test%'"
-    . ($instr_filter ? " AND c.instructor_id=?" : ''),
+    . ($instr_filter ? " AND COALESCE(s.instructor_id, c.instructor_id)=?" : ''),
     $instr_filter ? [$from, $to, $instr_filter] : [$from, $to]);
 $fr_total = (int)($frRow['total'] ?? 0);
 $fr_pres  = (int)($frRow['present'] ?? 0);

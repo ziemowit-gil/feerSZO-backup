@@ -198,7 +198,9 @@ function ti_protocol_month_summary(int $course_id, string $year_month): array {
         [$course_id, $year_month]
     );
     $held = array_values(array_filter($sessions, fn($s) => in_array($s['status'], K30_TI_HELD_STATUSES, true)));
-    $session_ids = array_column($held, 'id');
+    // Frekwencja tylko z zajęć ze sprawdzaną obecnością — materiał zdalny oznacza
+    // wszystkich jako obecnych i sztucznie by ją zawyżał.
+    $session_ids = array_column(array_filter($held, fn($s) => in_array($s['status'], K30_TI_ATTENDANCE_STATUSES, true)), 'id');
     $present = 0; $total = 0;
     if ($session_ids) {
         $ph  = implode(',', array_fill(0, count($session_ids), '?'));
