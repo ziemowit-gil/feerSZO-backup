@@ -173,6 +173,37 @@ function ti_notices_migrate(): void {
         }
     } catch (\Throwable $e) {}
 
+    // Seed jednorazowy — komunikat o wersji SZO 14.1 (28.09.2026) dla prowadzących
+    // i kierowników ('staff' — kursanci go nie widzą, patrz seed protokołów wyżej).
+    try {
+        $seeded_141 = db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_szo141_seeded'");
+        if (!$seeded_141) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_szo141_seeded','1')")->execute();
+            db()->prepare(
+                "INSERT INTO k30_ti_notices (title, body, audience, is_pinned, is_active, expires_at, author_name, created_at, updated_at)
+                 VALUES (?, ?, 'staff', 1, 1, NULL, 'System', datetime('now'), datetime('now'))"
+            )->execute([
+                'Aktualizacja SZO 14.1 — zmiany w panelu dydaktyka',
+                'Zaktualizowaliśmy system do wersji SZO 14.1. Najważniejsze zmiany w module TI:'
+                . "\n\n• Grupy: nowa akcja „Zamknij i archiwizuj” (ikona kłódki w zakładce Kursy). Zamknięta grupa trafia do"
+                . ' Zarchiwizowanych, a protokoły i wszelkie zmiany (lekcje, obecności, oceny, zadania, uczestnicy) są zablokowane.'
+                . ' Blokadę zdejmuje tylko „Przywróć z archiwum”. Zwykłe „Archiwizuj” działa jak dotąd.'
+                . "\n• Protokoły: po zatwierdzeniu protokołu miesięcznego automatycznie otwiera się protokół na następny miesiąc."
+                . ' Kierownik może zamknąć naraz protokoły z poprzednich miesięcy (Zaległe protokoły → „Zamknij protokoły do…”).'
+                . ' Zatwierdzone protokoły trafiają do EZD jako koszulki w klasie JRWA 384 „Protokoły zajęć kursów TI”.'
+                . "\n• Zmiany cen: nowa cena liczy się od daty każdej lekcji, a nie od całego miesiąca (ryczałt — od 1. dnia miesiąca)."
+                . ' Dodanie lub anulowanie zmiany przelicza już wystawione, nieopłacone rozliczenia.'
+                . ' Wyciąg wszystkich zmian cen do PDF i XLS znajdziesz w Wydrukach → Raporty.'
+                . "\n• Faktury: kwota faktury zawsze równa się należności (z rabatem lub korektą), ryczałt jako usługa,"
+                . ' kilka grup i stawek jako osobne pozycje. W rozliczeniach nowy przycisk „Podgląd FV” pokazuje fakturę tak,'
+                . ' jak zobaczy ją kursant — bez jej wystawiania.'
+                . "\n• Wydruki planów i harmonogramów pokazują stan na dzień wydruku (z adnotacją „Stan na dzień”)."
+                . "\n• Zespół i role: osoba, której nadano rolę w panelu, dostaje o tym e-mail."
+                . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
+            ]);
+        }
+    } catch (\Throwable $e) {}
+
     // Seed jednorazowy — jak zgłaszać problemy techniczne (Helpdesk przez Nową wiadomość).
     try {
         $seeded7 = db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_helpdesk_howto_seeded'");
