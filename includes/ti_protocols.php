@@ -985,6 +985,22 @@ function ti_protocol_hours_and_payout_live(array $prot): array {
     ];
 }
 
+/**
+ * Godziny do ewidencji/listy: każda rozpoczęta godzina = pełna, PER LEKCJA
+ * (45 min → 1, 90 min → 2) — ta sama zasada co rozliczenie kursanta
+ * (k30_ti_calculate_billing: ceil(duration_min/60)).
+ */
+function ti_protocol_hours_ceil(int $min): int {
+    return $min > 0 ? (int)ceil($min / 60) : 0;
+}
+
+/** Suma godzin (każda rozpoczęta = pełna) z wierszy ewidencji. */
+function ti_protocol_rows_hours(array $rows): int {
+    $t = 0;
+    foreach ($rows as $r) $t += ti_protocol_hours_ceil((int)($r['min'] ?? 0));
+    return $t;
+}
+
 /** Minuty → „12 h 30 min” (na wydruk ewidencji). */
 function ti_protocol_hm(int $min): string {
     if ($min <= 0) return '0 h';
@@ -1044,12 +1060,13 @@ function ti_protocol_print_html(array $prot): string {
     $ev .= '<p class="sub">Prowadzący: <strong>' . $h($hp['instructor'] !== '' ? $hp['instructor'] : '—')
         . '</strong> · zakres: ' . $h(date('d.m.Y', strtotime($hp['from'])))
         . '–' . $h(date('d.m.Y', strtotime($hp['to']))) . '</p>';
+    $ev .= '<p class="sub">Liczba godzin: każda rozpoczęta godzina zajęć liczona jako pełna (w nawiasie faktyczny czas).</p>';
     if (!$hp['rows']) {
         $ev .= '<p class="empty">W tym zakresie nie ma zajęć odbytych — ewidencja jest pusta.</p>';
     } else {
         $ev .= '<table class="items"><thead><tr>'
             . '<th style="width:6%">#</th><th style="width:14%">Data</th><th style="width:16%">Godziny</th>'
-            . '<th style="width:12%">Czas</th><th>Temat</th><th style="width:18%">Rodzaj</th>'
+            . '<th style="width:14%">Liczba godzin</th><th>Temat</th><th style="width:18%">Rodzaj</th>'
             . ($hp['has_rate'] ? '<th style="width:16%">Wypłata brutto-brutto</th>' : '')
             . '</tr></thead><tbody>';
         $i = 0;
@@ -1059,7 +1076,8 @@ function ti_protocol_print_html(array $prot): string {
                 . '<td>' . $i . '.</td>'
                 . '<td>' . $h(date('d.m.Y', strtotime($r['date']))) . '</td>'
                 . '<td>' . $h($r['from'] !== '' ? $r['from'] . '–' . $r['to'] : '—') . '</td>'
-                . '<td>' . $h(ti_protocol_hm((int)$r['min'])) . '</td>'
+                . '<td>' . ti_protocol_hours_ceil((int)$r['min'])
+                    . ' <span style="font-size:8pt;color:#555">(' . $h(ti_protocol_hm((int)$r['min'])) . ')</span></td>'
                 . '<td>' . $h($r['topic']) . '</td>'
                 . '<td>' . $h(ti_protocol_status_lesson((string)$r['status'], (bool)$r['own']))
                     . (($r['sub'] ?? '') !== '' ? '<br><em>zastępstwo: ' . $h($r['sub']) . '</em>' : '') . '</td>'
@@ -1067,7 +1085,7 @@ function ti_protocol_print_html(array $prot): string {
                 . '</tr>';
         }
         $ev .= '<tr class="sum"><td colspan="3">Razem</td>'
-            . '<td>' . $h(ti_protocol_hm((int)$hp['total_min'])) . '</td>'
+            . '<td>' . ti_protocol_rows_hours($hp['rows']) . ' h</td>'
             . '<td colspan="2">' . (int)$hp['lessons'] . ' ' . ($hp['lessons'] === 1 ? 'zajęcie' : 'zajęć') . '</td>'
             . ($hp['has_rate'] ? '<td class="r">' . $h(ti_protocol_money((float)$hp['payout']['brutto_brutto'])) . '</td>' : '')
             . '</tr>';
@@ -1240,7 +1258,7 @@ function ti_protocol_month_stub(int $course_id, string $year_month): array {
 
 /**
  * Lista godzin do sprawdzenia przed podpisem: jeden wiersz na zajęcia —
- * data i liczba godzin (zegarowych, z minut; np. 1,5). Z kopii zatwierdzenia,
+ * data i liczba godzin (każda rozpoczęta godzina = pełna: 45 min → 1, 90 min → 2). Z kopii zatwierdzenia,
  * gdy protokół jest zatwierdzony, inaczej na żywo.
  *
  * @return array{rows: array<int, array{date:string, from:string, to:string, min:int, hours:float, sub:string}>, total_min:int, total_hours:float}
@@ -1252,10 +1270,10 @@ function ti_protocol_hours_list(array $prot): array {
         $min = (int)$r['min'];
         $rows[] = [
             'date' => (string)$r['date'], 'from' => (string)$r['from'], 'to' => (string)$r['to'],
-            'min' => $min, 'hours' => round($min / 60, 2), 'sub' => (string)($r['sub'] ?? ''),
+            'min' => $min, 'hours' => (float)ti_protocol_hours_ceil($min), 'sub' => (string)($r['sub'] ?? ''),
         ];
     }
-    return ['rows' => $rows, 'total_min' => (int)$hp['total_min'], 'total_hours' => round((int)$hp['total_min'] / 60, 2),
+    return ['rows' => $rows, 'total_min' => (int)$hp['total_min'], 'total_hours' => (float)ti_protocol_rows_hours($rows),
             'instructor' => (string)($hp['instructor'] ?? '')];
 }
 
@@ -1286,6 +1304,7 @@ function ti_protocol_hours_list_html(array $prot): string {
     }
     $out .= '<tr class="sum"><td colspan="2">Razem (' . count($hl['rows']) . ' zaj.)</td><td class="r">'
           . $h(ti_protocol_hours_fmt($hl['total_hours'])) . '</td></tr></tbody></table>'
+          . '<p style="font-size:8.5pt;color:#444">Każda rozpoczęta godzina zajęć liczona jako pełna.</p>'
           . '<p class="trace">Sprawdziłem/am listę godzin: ............................................. (data i podpis)</p>';
     return $out;
 }
@@ -1318,6 +1337,7 @@ function ti_protocol_hours_check_modal(string $modal_id, array $prot, string $pd
               . '<tbody>' . $rows . '</tbody><tfoot><tr class="fw-semibold"><td colspan="2">Razem (' . count($hl['rows']) . ' zaj.)</td>'
               . '<td class="text-end">' . $h(ti_protocol_hours_fmt($hl['total_hours'])) . '</td></tr></tfoot></table>'
             : '<p class="text-body-secondary">W tym okresie nie ma zajęć odbytych.</p>')
+        . '<p class="small text-body-secondary mb-2">Każda rozpoczęta godzina zajęć liczona jako pełna (45 min = 1 h, 90 min = 2 h).</p>'
         . '<a href="' . $h($pdf_url) . '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary mb-3">'
         . '<i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj listę godzin (PDF)</a>'
         . '<div class="form-check"><input class="form-check-input" type="checkbox" id="' . $h($cb) . '" '

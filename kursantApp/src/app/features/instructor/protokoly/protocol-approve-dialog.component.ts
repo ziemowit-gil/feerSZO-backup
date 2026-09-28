@@ -42,7 +42,7 @@ export interface ProtocolApproveDialogData { row: InstructorProtocolPending; mon
             <div><dt>Lekcje odbyte</dt><dd>{{ s.lessons_held }} z {{ s.lessons_total }} zaplanowanych</dd></div>
             <div><dt>Średnia frekwencja</dt><dd>{{ s.attendance_pct !== null ? s.attendance_pct + '%' : '—' }}</dd></div>
             @if (s.total_min !== undefined) {
-              <div><dt>Czas zajęć</dt><dd>{{ hm(s.total_min) }}</dd></div>
+              <div><dt>Liczba godzin</dt><dd>{{ s.total_hours ?? '—' }} h <span class="text-muted">({{ hm(s.total_min) }}; każda rozpoczęta = pełna)</span></dd></div>
             }
             @if (s.has_rate) {
               <div><dt>Twoja wypłata netto</dt><dd>{{ money(s.netto ?? 0) }} <span class="text-muted">({{ s.own_lessons }} zaj.)</span></dd></div>

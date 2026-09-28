@@ -290,7 +290,7 @@ $pr_empty   = $pr ? ti_protocol_is_empty($pr_stats) : false;
         <p class="small mb-2">
           Za okres protokołu wykazano <strong><?= (int)$pr_hp['lessons'] ?></strong>
           <?= $pr_hp['lessons'] === 1 ? 'zajęcie' : 'zajęć' ?>
-          (<?= h(ti_protocol_hm((int)$pr_hp['total_min'])) ?>)<?php
+          (<?= ti_protocol_rows_hours($pr_hp['rows']) ?> h — każda rozpoczęta godzina liczona jako pełna)<?php
             if ($pr_hp['has_rate']): ?>, do wypłaty netto
             <strong><?= h(ti_protocol_money((float)$pr_hp['payout']['netto'])) ?></strong><?php
             endif; ?>.

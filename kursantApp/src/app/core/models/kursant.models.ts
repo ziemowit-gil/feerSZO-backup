@@ -776,6 +776,8 @@ export interface InstructorProtocolSummary {
   lessons_total: number;
   attendance_pct: number | null;
   total_min?: number;
+  /** Suma godzin — każda rozpoczęta godzina per lekcja = pełna. */
+  total_hours?: number;
   has_rate?: boolean;
   netto?: number;
   brutto_brutto?: number;

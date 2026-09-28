@@ -1454,6 +1454,7 @@ switch ($action) {
         ]);
         json_ok(ti_protocol_month_summary($cid, $ym) + [
             'total_min'   => (int)$hp['total_min'],
+            'total_hours' => ti_protocol_rows_hours($hp['rows']),
             'has_rate'    => (bool)$hp['has_rate'],
             'netto'       => round((float)$hp['payout']['netto'], 2),
             'brutto_brutto' => round((float)$hp['payout']['brutto_brutto'], 2),

@@ -49,6 +49,7 @@ export interface ProtocolHoursCheckData {
         } @else {
           <p class="text-muted">W tym okresie nie ma zajęć odbytych.</p>
         }
+        <p class="text-muted text-sm">Każda rozpoczęta godzina zajęć liczona jako pełna (45 min = 1 h, 90 min = 2 h).</p>
         <a mat-stroked-button [href]="pdfUrl" target="_blank" rel="noopener" class="print-btn">
           <span class="material-symbols-outlined" aria-hidden="true" style="font-size:1rem;vertical-align:-3px">print</span>
           Drukuj listę godzin (PDF)
