@@ -48,6 +48,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: protokoly.php'); exit;
     }
 
+    // Zamknięcie protokołów MIESIĘCZNYCH z poprzednich miesięcy — wszystkich
+    // kursów, do wskazanego miesiąca włącznie (domyślnie poprzedni miesiąc).
+    // Bieżący miesiąc nigdy tu nie wchodzi (ti_protocols_overdue_months()).
+    if ($op === 'close_months') {
+        $until = (string)($_POST['until_ym'] ?? '');
+        if (!preg_match('/^\d{4}-\d{2}$/', $until) || $until >= date('Y-m')) $until = date('Y-m', strtotime(date('Y-m-01') . ' -1 month'));
+        $ok = 0; $skip = 0; $reasons = [];
+        foreach (ti_protocols_overdue_months() as $r) {
+            if ((string)$r['year_month'] > $until) continue;
+            try {
+                $prot = ti_protocol_get_or_create_for_month((int)$r['course_id'], (string)$r['year_month']);
+                ti_protocol_approve((int)$prot['id'], $uid, $me_name);
+                $ok++;
+            } catch (\Throwable $e) {
+                $skip++;
+                $reasons[] = $r['course_name'] . ' (' . $r['year_month'] . '): ' . $e->getMessage();
+            }
+        }
+        $msg = $ok > 0
+            ? "Zamknięto {$ok} " . ($ok === 1 ? 'protokół miesięczny' : 'protokołów miesięcznych') . " (do {$until} włącznie)."
+            : "Brak protokołów miesięcznych do zamknięcia do {$until}.";
+        if ($skip) $msg .= " Pominięto {$skip}: " . implode('; ', array_slice($reasons, 0, 5));
+        flash_set($skip && !$ok ? 'danger' : ($skip ? 'warning' : 'success'), $msg);
+        header('Location: protokoly.php'); exit;
+    }
+
     if ($op === 'approve_all') {
         // Świeża lista — nie ufamy temu, co przeglądarka wysłała w POST,
         // bo od otwarcia strony ktoś inny mógł już część protokołów zatwierdzić.
@@ -165,7 +191,33 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 <?php endif; ?>
 
-<?php if ($overdue_m): ?>
+<?php if ($overdue_m):
+    $om_months = [];
+    foreach ($overdue_m as $r) $om_months[(string)$r['year_month']] = ($om_months[(string)$r['year_month']] ?? 0) + 1;
+    krsort($om_months);
+    $om_cum = 0; $om_opts = [];
+    foreach (array_reverse($om_months, true) as $ym => $n) { $om_cum += $n; $om_opts[$ym] = $om_cum; }
+    krsort($om_opts);
+?>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="post" class="d-flex align-items-center gap-2 flex-wrap"
+          onsubmit="var s=this.until_ym; return confirm('Zamknąć (zatwierdzić) ' + s.options[s.selectedIndex].dataset.n + ' protokołów miesięcznych do ' + s.value + ' włącznie? Tej operacji nie można cofnąć hurtowo.')">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="close_months">
+      <label for="om-until" class="fw-semibold small mb-0"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Zamknij protokoły z poprzednich miesięcy do</label>
+      <select id="om-until" name="until_ym" class="form-select form-select-sm w-auto">
+        <?php foreach ($om_opts as $ym => $n): ?>
+        <option value="<?= h($ym) ?>" data-n="<?= (int)$n ?>"><?= h($ym) ?> włącznie (<?= (int)$n ?>)</option>
+        <?php endforeach; ?>
+      </select>
+      <button type="submit" class="btn btn-sm btn-warning">
+        <i class="bi bi-lock me-1" aria-hidden="true"></i>Zamknij
+      </button>
+      <span class="text-body-secondary small">Zatwierdza protokoły miesięczne wszystkich kursów jako kierownik; bieżący miesiąc zostaje otwarty.</span>
+    </form>
+  </div>
+</div>
 <div class="card border-0 shadow-sm">
   <div class="card-header fw-semibold">Protokoły miesięczne</div>
   <div class="table-responsive">
