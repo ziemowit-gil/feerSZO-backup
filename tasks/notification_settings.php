@@ -15,6 +15,7 @@ $user = current_user();
 
 $saved            = false;
 $error            = '';
+$email_msg        = '';     // komunikat o weryfikacji własnego adresu powiadomień
 $test_result      = null;   // null | ['ok'=>bool, 'msg'=>string, 'channel'=>string]
 $admin_test_result = null;  // null | ['ok'=>bool, 'msg'=>string]
 
@@ -131,12 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } else {
-        $notify_email_in = trim((string)($_POST['notify_email'] ?? ''));
-        if ($notify_email_in !== '' && !filter_var($notify_email_in, FILTER_VALIDATE_EMAIL)) {
-            $error = 'Nieprawidłowy adres e-mail do powiadomień.';
-        } else try {
+        try {
             task_notify_save_pref($uid, [
-                'notify_email'     => $notify_email_in,
                 'notify_file'      => isset($_POST['notify_file'])      ? 1 : 0,
                 'notify_moved'     => isset($_POST['notify_moved'])     ? 1 : 0,
                 'notify_assigned'  => isset($_POST['notify_assigned'])  ? 1 : 0,
@@ -148,7 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'notify_rejected'  => isset($_POST['notify_rejected'])  ? 1 : 0,
                 'notify_sms'       => isset($_POST['notify_sms'])       ? 1 : 0,
             ]);
-            $saved = true;
+            // Własny adres: aktywny dopiero po kliknięciu linku wysłanego na ten adres
+            if (array_key_exists('notify_email', $_POST)) {
+                $chg = task_notify_request_email_change($uid, (string)$_POST['notify_email'], (string)($user['email'] ?? ''));
+                if ($chg['status'] === 'error') $error = $chg['msg'];
+                else $email_msg = $chg['msg'];
+            }
+            $saved = $error === '';
         } catch (\Throwable $e) {
             $error = 'Błąd zapisu: ' . $e->getMessage();
         }
@@ -169,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($saved) {
             $is_phone_save = ($_POST['_action'] ?? '') === 'save_phone';
             echo json_encode(['ok' => true,
-                'msg'    => $is_phone_save ? 'Numer telefonu zapisany.' : 'Ustawienia zapisane pomyślnie.',
+                'msg'    => $is_phone_save ? 'Numer telefonu zapisany.' : trim('Ustawienia zapisane pomyślnie. ' . $email_msg),
                 'reload' => $is_phone_save,
             ], JSON_UNESCAPED_UNICODE);
         } else {
@@ -265,7 +268,7 @@ if (!$is_fragment) {
   <?php if ($saved && !$is_fragment): ?>
   <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 mb-4" role="alert">
     <i class="bi bi-check-circle-fill"></i>
-    <span>Ustawienia zapisane pomyślnie.</span>
+    <span>Ustawienia zapisane pomyślnie.<?= $email_msg !== '' ? ' ' . h($email_msg) : '' ?></span>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
   <?php elseif ($error && !$is_fragment): ?>
@@ -313,9 +316,26 @@ if (!$is_fragment) {
         </div>
         <input type="email" class="form-control form-control-sm" style="max-width:20rem"
                id="notify_email" name="notify_email" maxlength="254" autocomplete="email"
-               value="<?= h($pref['notify_email'] ?? '') ?>"
+               value="<?= h(($pref['notify_email_pending'] ?? '') !== '' ? $pref['notify_email_pending'] : ($pref['notify_email'] ?? '')) ?>"
                placeholder="<?= h($user['email'] ?: 'np. imie@example.org') ?>"
-               aria-describedby="notify_email_desc">
+               aria-describedby="notify_email_desc notify_email_state">
+        <div id="notify_email_state" class="w-100 small" style="flex-basis:100%">
+          <?php if (($pref['notify_email_pending'] ?? '') !== ''): ?>
+          <span class="text-warning-emphasis">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+            Oczekuje na potwierdzenie: <strong><?= h($pref['notify_email_pending']) ?></strong> — kliknij link w wiadomości
+            wysłanej na ten adres. Do tego czasu powiadomienia idą na <strong><?= h($notify_to ?: '—') ?></strong>.
+            Zapisz ponownie, aby wysłać link jeszcze raz.
+          </span>
+          <?php elseif (($pref['notify_email'] ?? '') !== ''): ?>
+          <span class="text-success">
+            <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+            Adres <strong><?= h($pref['notify_email']) ?></strong> potwierdzony.
+          </span>
+          <?php else: ?>
+          <span class="text-muted">Nowy adres trzeba będzie potwierdzić linkiem wysłanym na tę skrzynkę.</span>
+          <?php endif; ?>
+        </div>
       </div>
     </div>
 

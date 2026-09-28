@@ -12,6 +12,8 @@
  *   task_notify_file_added($task_id, $file_name, $by_uid)
  *   task_notify_moved($task_id, $from_list, $to_list, $by_uid)
  *   task_notify_address($user_id, $account_email) → adres docelowy (własny adres powiadomień lub konto)
+ *   task_notify_request_email_change($user_id, $email, $account_email) → wysyła link weryfikacyjny
+ *   task_notify_confirm_email($raw_token) → aktywuje oczekujący adres
  *   task_notify_get_pref($user_id)  → array
  *   task_notify_save_pref($user_id, $data)
  *
@@ -313,6 +315,109 @@ function task_notify_address(int $user_id, ?string $account_email = ''): string 
     return trim($account_email);
 }
 
+const TASK_NOTIFY_EMAIL_TOKEN_TTL = 48 * 3600;   // ważność linku weryfikacyjnego
+const TASK_NOTIFY_EMAIL_RESEND_GAP = 60;         // min. odstęp między wysyłkami linku (s)
+
+/** Zapewnia wiersz preferencji (domyślne wartości), żeby UPDATE-y weryfikacji miały na czym działać. */
+function _tn_pref_row_ensure(int $user_id): void {
+    db()->prepare("INSERT OR IGNORE INTO task_notification_prefs (user_id) VALUES (?)")->execute([$user_id]);
+}
+
+/**
+ * Zmiana własnego adresu powiadomień. Adres NIE zaczyna działać od razu — trafia do
+ * notify_email_pending, a na niego idzie jednorazowy link (48 h). Do czasu potwierdzenia
+ * powiadomienia idą na dotychczasowy adres.
+ *   ''              → usuwa własny adres i oczekującą zmianę (wraca adres z konta)
+ *   = adres z konta → j.w. (nie ma czego weryfikować)
+ *   = obecny własny → bez zmian (anuluje oczekującą zmianę)
+ * Zwraca ['status' => cleared|unchanged|pending|throttled|error, 'msg' => string].
+ */
+function task_notify_request_email_change(int $user_id, string $email, string $account_email = ''): array {
+    $email = trim($email);
+    _tn_pref_row_ensure($user_id);
+    $pref = task_notify_get_pref($user_id);
+    $clear_pending = "notify_email_pending='', notify_email_token_hash='', notify_email_token_exp=NULL";
+
+    if ($email === '' || strcasecmp($email, trim($account_email)) === 0) {
+        db()->prepare("UPDATE task_notification_prefs SET notify_email='', {$clear_pending} WHERE user_id=?")
+            ->execute([$user_id]);
+        return ['status' => 'cleared', 'msg' => ''];
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 254) {
+        return ['status' => 'error', 'msg' => 'Nieprawidłowy adres e-mail do powiadomień.'];
+    }
+    if (strcasecmp($email, (string)($pref['notify_email'] ?? '')) === 0) {
+        db()->prepare("UPDATE task_notification_prefs SET {$clear_pending} WHERE user_id=?")->execute([$user_id]);
+        return ['status' => 'unchanged', 'msg' => ''];
+    }
+
+    // Limit na użytkownika (nie na adres) — inaczej zmienianie adresów pozwalałoby
+    // zasypywać linkami cudze skrzynki
+    $sent_at = strtotime((string)($pref['notify_email_sent_at'] ?? '')) ?: 0;
+    if (time() - $sent_at < TASK_NOTIFY_EMAIL_RESEND_GAP) {
+        return ['status' => 'throttled',
+                'msg'    => 'Link weryfikacyjny wysłano przed chwilą — sprawdź skrzynkę lub spróbuj ponownie za minutę.'];
+    }
+
+    $raw  = bin2hex(random_bytes(32));
+    $link = rtrim(APP_URL, '/') . '/tasks/verify_notify_email.php?t=' . $raw;
+    $now  = date('Y-m-d H:i:s');
+    db()->prepare(
+        "UPDATE task_notification_prefs
+         SET notify_email_pending=?, notify_email_token_hash=?, notify_email_token_exp=?, notify_email_sent_at=?
+         WHERE user_id=?"
+    )->execute([$email, hash('sha256', $raw), date('Y-m-d H:i:s', time() + TASK_NOTIFY_EMAIL_TOKEN_TTL), $now, $user_id]);
+
+    $name = _tn_user_name($user_id);
+    $org  = defined('ORG_NAME') ? ORG_NAME : '';
+    $html = _feer_email_tpl(
+        '<p>Cześć <strong>' . htmlspecialchars($name) . '</strong>,</p>'
+        . '<p>Ten adres został podany jako adres do powiadomień z modułu <strong>Zadania</strong>'
+        . ($org !== '' ? ' w systemie <strong>' . htmlspecialchars($org) . '</strong>' : '') . '.</p>'
+        . '<p>Kliknij przycisk poniżej i potwierdź zmianę. Link jest ważny 48 godzin.</p>'
+        . '<p style="color:#64748b;font-size:13px">Jeśli to nie Ty — zignoruj tę wiadomość; adres nie zostanie użyty.</p>',
+        'Potwierdź adres do powiadomień',
+        $link,
+        'Potwierdź adres →'
+    );
+    $ok = (bool)approval_send_email($email, 'Potwierdź adres do powiadomień — Zadania', $html, 'task_email_verify', $user_id);
+    if (!$ok) {
+        return ['status' => 'error', 'msg' => 'Nie udało się wysłać linku weryfikacyjnego na ' . $email . '. Spróbuj ponownie później.'];
+    }
+    return ['status' => 'pending',
+            'msg'    => 'Wysłaliśmy link weryfikacyjny na ' . $email . '. Adres zacznie działać po potwierdzeniu.'];
+}
+
+/**
+ * Szuka oczekującej zmiany po tokenie (bez aktywacji) — do wyświetlenia strony potwierdzenia.
+ * Zwraca wiersz preferencji albo null (zły / wygasły / zużyty token).
+ */
+function task_notify_email_token_lookup(string $raw_token): ?array {
+    if (!preg_match('/^[0-9a-f]{64}$/', $raw_token)) return null;
+    $row = db_one(
+        "SELECT p.*, u.name AS user_name FROM task_notification_prefs p
+         JOIN users u ON u.id = p.user_id
+         WHERE p.notify_email_token_hash = ? AND p.notify_email_pending != ''",
+        [hash('sha256', $raw_token)]
+    );
+    if (!$row || strtotime((string)$row['notify_email_token_exp']) < time()) return null;
+    return $row;
+}
+
+/** Aktywuje oczekujący adres (token jednorazowy). Zwraca aktywowany adres albo null. */
+function task_notify_confirm_email(string $raw_token): ?string {
+    $row = task_notify_email_token_lookup($raw_token);
+    if (!$row) return null;
+    $st = db()->prepare(
+        "UPDATE task_notification_prefs
+         SET notify_email = notify_email_pending, notify_email_pending = '',
+             notify_email_token_hash = '', notify_email_token_exp = NULL, updated_at = ?
+         WHERE user_id = ? AND notify_email_token_hash = ?"
+    );
+    $st->execute([date('Y-m-d H:i:s'), (int)$row['user_id'], hash('sha256', $raw_token)]);
+    return $st->rowCount() ? (string)$row['notify_email_pending'] : null;
+}
+
 /** Przypisani do zadania (aktywni) poza autorem zdarzenia. */
 function _tn_assignees_except(int $task_id, int $except_uid): array {
     return array_values(array_filter(db_all(
@@ -393,11 +498,8 @@ function task_notify_save_pref(int $user_id, array $data): void {
     foreach (['notify_file', 'notify_moved'] as $f) {
         if (array_key_exists($f, $data)) $values[$f] = (int)(bool)$data[$f];
     }
-    // Własny adres powiadomień — pusty = adres z konta; niepoprawny odrzuca wywołujący
-    if (array_key_exists('notify_email', $data)) {
-        $em = trim((string)$data['notify_email']);
-        $values['notify_email'] = filter_var($em, FILTER_VALIDATE_EMAIL) ? mb_substr($em, 0, 254) : '';
-    }
+    // notify_email celowo NIE jest tu zapisywany — tylko przez task_notify_request_email_change()
+    // + potwierdzenie linkiem (task_notify_confirm_email), żeby nie dało się podpiąć cudzej skrzynki.
 
     $cols = implode(', ', array_keys($values));
     $phs  = implode(', ', array_fill(0, count($values), '?'));
@@ -428,6 +530,7 @@ function _tn_default_prefs(): array {
         'notify_file'      => 1,
         'notify_moved'     => 1,
         'notify_email'     => '',
+        'notify_email_pending' => '',
     ];
 }
 
@@ -666,6 +769,11 @@ function _tn_schema_heal(): void {
             'notify_file      INTEGER NOT NULL DEFAULT 1',
             'notify_moved     INTEGER NOT NULL DEFAULT 1',
             "notify_email     TEXT    NOT NULL DEFAULT ''",
+            // Weryfikacja własnego adresu: notify_email ustawiany DOPIERO po kliknięciu linku
+            "notify_email_pending    TEXT NOT NULL DEFAULT ''",
+            "notify_email_token_hash TEXT NOT NULL DEFAULT ''",
+            "notify_email_token_exp  TEXT",
+            "notify_email_sent_at    TEXT",
         ],
         'task_notification_log' => [
             "channel  TEXT NOT NULL DEFAULT 'email'",
