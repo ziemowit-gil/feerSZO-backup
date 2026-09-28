@@ -1,4 +1,4 @@
-<?php
+<?php require_once __DIR__ . '/shell_safe.php';
 /**
  * includes/rekrutacja.php — Moduł Rekrutacja (wolontariusze + pracownicy)
  *
@@ -494,9 +494,9 @@ function rekr_extract_text(string $path, string $mime): string {
             }
         }
         if ($mime === 'application/pdf') {
-            $bin = trim((string)@shell_exec('command -v pdftotext 2>/dev/null'));
+            $bin = trim(szo_shell('command -v pdftotext 2>/dev/null'));
             if ($bin !== '') {
-                $out = @shell_exec($bin . ' -q ' . escapeshellarg($path) . ' - 2>/dev/null');
+                $out = szo_shell($bin . ' -q ' . escapeshellarg($path) . ' - 2>/dev/null');
                 return mb_substr(trim((string)$out), 0, 200000);
             }
         }

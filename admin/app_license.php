@@ -1,4 +1,4 @@
-<?php
+<?php require_once __DIR__ . '/../includes/shell_safe.php';
 /**
  * admin/app_license.php — Zarządzanie certyfikatem instalacyjnym i kluczem APP_KEY.
  */
@@ -367,7 +367,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="card-body p-0">
     <?php
     $app_path = rtrim(str_replace('\\', '/', realpath(dirname(__DIR__))), '/');
-    $php_bin  = trim(@shell_exec('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
+    $php_bin  = trim(szo_shell('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
     $cli_cmd  = $php_bin . ' ' . $app_path . '/cli/generatorCertyfikatu.php';
     ?>
     <pre class="mb-0 p-3" style="background:#1e293b;color:#7dd3fc;font-size:.78rem;border-radius:0 0 .4rem .4rem;overflow-x:auto"><?= h($cli_cmd) ?></pre>

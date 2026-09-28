@@ -1,4 +1,4 @@
-<?php
+<?php require_once __DIR__ . '/../includes/shell_safe.php';
 /**
  * admin/cron_setup.php — Konfiguracja zadań CRON.
  * Wyświetla gotowe polecenia do wklejenia w crontab.
@@ -26,7 +26,7 @@ $cron_token = trim(db_one("SELECT value FROM settings WHERE key_='cron_token'")[
 $cron_url   = preg_replace('/\s+/', '', rtrim(APP_URL, '/')) . '/cron.php' . ($cron_token ? '?token=' . $cron_token : '');
 
 // Wykryj ścieżkę do PHP i do katalogu aplikacji
-$php_bin  = preg_replace('/\s+/', '', @shell_exec('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
+$php_bin  = preg_replace('/\s+/', '', szo_shell('which php8.2 || which php8.1 || which php 2>/dev/null') ?: 'php');
 $app_path = rtrim(preg_replace('/\s+/', '', str_replace('\\', '/', (string)realpath(dirname(__DIR__)))), '/');
 $log_dir  = $app_path . '/logs';
 

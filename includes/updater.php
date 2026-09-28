@@ -1,4 +1,4 @@
-<?php
+<?php require_once __DIR__ . '/shell_safe.php';
 /**
  * includes/updater.php
  * Wspólna logika aktualizacji KODU aplikacji (git) — używana przez:
@@ -37,7 +37,7 @@ function upd_git(string $args): array {
         return ['code' => $code, 'out' => trim(implode("\n", $out))];
     }
     // Fallback: shell_exec (bez kodu wyjścia — heurystyka po treści).
-    $raw = @shell_exec($full);
+    $raw = szo_shell($full);
     return ['code' => ($raw === null ? 127 : 0), 'out' => trim((string)$raw)];
 }
 

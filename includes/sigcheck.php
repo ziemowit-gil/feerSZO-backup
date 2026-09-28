@@ -1,4 +1,4 @@
-<?php
+<?php require_once __DIR__ . '/shell_safe.php';
 /**
  * Wykrywanie i kryptograficzna walidacja podpisu elektronicznego plików.
  * Wydzielone z ezd.php, by używać w module umów (contracts/) bez migracji EZD.
@@ -179,9 +179,9 @@ function ezd_validate_signature(string $path, string $name): array {
 
     // Z CMS → wyciągnij certyfikaty (CLI openssl pkcs7 -print_certs)
     if ($cmsTmp && $cli) {
-        $pem = @shell_exec($cli . ' pkcs7 -inform ' . $cmsInform . ' -in ' . escapeshellarg($cmsTmp) . ' -print_certs 2>/dev/null');
+        $pem = szo_shell($cli . ' pkcs7 -inform ' . $cmsInform . ' -in ' . escapeshellarg($cmsTmp) . ' -print_certs 2>/dev/null');
         if (!$pem) { // może to CMS (nie PKCS7 SignedData wrapper) — spróbuj cms
-            $pem = @shell_exec($cli . ' cms -inform ' . $cmsInform . ' -in ' . escapeshellarg($cmsTmp) . ' -cmsout -print 2>/dev/null');
+            $pem = szo_shell($cli . ' cms -inform ' . $cmsInform . ' -in ' . escapeshellarg($cmsTmp) . ' -cmsout -print 2>/dev/null');
         }
         if (is_string($pem) && preg_match_all('/-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----/s', $pem, $cm)) {
             foreach ($cm[0] as $c) $certPems[] = $c;
