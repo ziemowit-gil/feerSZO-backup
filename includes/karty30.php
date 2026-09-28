@@ -5233,14 +5233,20 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
     $from = sprintf('%04d-%02d-01', $year, $month);
     $to   = date('Y-m-t', strtotime($from));
 
-    // Aktywne zapisy klienta wraz z modelem rozliczania kursu
+    // Zapisy klienta wraz z modelem rozliczania kursu: aktywne oraz nieaktywne,
+    // jeśli w tym miesiącu mają rozliczalne lekcje (wypisany w trakcie miesiąca
+    // płaci za zajęcia, na które chodził — ryczałtu już nie, patrz niżej).
     $enrs = db_all(
         "SELECT e.*, c.billing_model AS course_billing_model, c.billing_amount AS course_billing_amount
          FROM k30_ti_enrollments e
          JOIN k30_ti_courses c ON c.id=e.course_id
-         WHERE e.client_id=? AND e.status='active'"
+         WHERE e.client_id=? AND (e.status='active' OR EXISTS (SELECT 1 FROM k30_ti_attendance xa JOIN k30_ti_sessions xs ON xs.id=xa.session_id
+                                 WHERE xa.client_id=e.client_id AND xs.course_id=e.course_id
+                                   AND xs.status IN ('held','individual_change','remote_material')
+                                   AND xs.lesson_date BETWEEN ? AND ? AND COALESCE(xa.cancelled,0)=0
+                                   AND (xa.attended=1 OR COALESCE(xa.no_show,0)=1)))"
         . ($course_id_filter > 0 ? ' AND e.course_id=?' : ''),
-        $course_id_filter > 0 ? [$client_id, $course_id_filter] : [$client_id]
+        $course_id_filter > 0 ? [$client_id, $from, $to, $course_id_filter] : [$client_id, $from, $to]
     );
 
     $hours   = 0.0;
@@ -5288,7 +5294,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
         $course_amount = 0.0;
         if ($eff['model'] === 1 || $eff['model'] === 3) {
             // miesięczny / stały — kwota niezależna od godzin (naliczana gdy zapis aktywny)
-            $course_amount = $eff['amount'];
+            $course_amount = ($e['status'] ?? '') === 'active' ? $eff['amount'] : 0.0;
         } else {
             // godzinowy
             $course_amount = $ch * $eff['hourly_rate'];
@@ -5386,7 +5392,7 @@ function k30_ti_issue_billing_split(int $client_id, int $month, int $year, strin
          JOIN k30_ti_sessions s ON s.id=a.session_id
               AND s.status IN ('held','individual_change','remote_material')
               AND s.lesson_date BETWEEN ? AND ?
-         JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id AND e.status='active'
+         JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id
          WHERE a.client_id=? AND COALESCE(a.cancelled,0)=0 AND (a.attended=1 OR COALESCE(a.no_show,0)=1)",
         [$from, $to, $client_id]
     );

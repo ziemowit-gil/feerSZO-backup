@@ -38,10 +38,14 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
          FROM k30_ti_enrollments e
          JOIN k30_ti_courses c ON c.id=e.course_id
          LEFT JOIN users u ON u.id=c.instructor_id
-         WHERE e.client_id=? AND e.status='active'"
+         WHERE e.client_id=? AND (e.status='active' OR EXISTS (SELECT 1 FROM k30_ti_attendance xa JOIN k30_ti_sessions xs ON xs.id=xa.session_id
+                                 WHERE xa.client_id=e.client_id AND xs.course_id=e.course_id
+                                   AND xs.status IN ('held','individual_change','remote_material')
+                                   AND xs.lesson_date BETWEEN ? AND ? AND COALESCE(xa.cancelled,0)=0
+                                   AND (xa.attended=1 OR COALESCE(xa.no_show,0)=1)))"
         . ($course_id > 0 ? " AND e.course_id=?" : "") . "
          ORDER BY c.name",
-        $course_id > 0 ? [$client_id, $course_id] : [$client_id]
+        $course_id > 0 ? [$client_id, $from, $to, $course_id] : [$client_id, $from, $to]
     );
 
     $groups = [];
@@ -97,7 +101,8 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             ];
         }
 
-        $g_amount = $hourly ? round($g_hours * (float)$eff['hourly_rate'], 2) : round((float)$eff['amount'], 2);
+        $g_amount = $hourly ? round($g_hours * (float)$eff['hourly_rate'], 2)
+                  : (($e['status'] ?? '') === 'active' ? round((float)$eff['amount'], 2) : 0.0);
         // Ryczałt naliczany tylko gdy jest za co (kwota ustawiona) - zgodnie z k30_ti_calculate_billing
         if (!$hourly && $g_amount <= 0) $g_amount = 0.0;
 
