@@ -51,6 +51,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Numer telefonu zapisany.');
             header('Location: notification_settings.php'); exit;
         }
+    } elseif (($_POST['_action'] ?? '') === 'save_mail_reply') {
+        // ── Admin systemu: odpowiedzi e-mailem → komentarze (globalnie) ──────
+        if (!is_admin()) {
+            $error = 'Brak uprawnień.';
+        } else {
+            require_once dirname(__DIR__) . '/includes/m365.php';
+            $on = !empty($_POST['tasks_mail_reply_enabled']);
+            if ($on && m365_setting('tasks_mail_reply_enabled') !== '1') {
+                // Świeży start: bez przetwarzania poczty sprzed włączenia, nowa delta
+                m365_save_setting('tasks_mail_reply_since', date('Y-m-d H:i:s'));
+                m365_save_setting('tasks_mail_reply_delta', '');
+            }
+            m365_save_setting('tasks_mail_reply_enabled', $on ? '1' : '0');
+            $saved = true;
+            $email_msg = $on ? 'Odpowiedzi e-mailem włączone.' : 'Odpowiedzi e-mailem wyłączone.';
+        }
     } elseif (($_POST['_action'] ?? '') === 'admin_test_notif') {
         // ── Admin: test per user ──────────────────────────────────────────
         $_is_leader_check = (int)(db_one("SELECT COUNT(*) AS n FROM task_workspace_members WHERE user_id = ? AND role IN ('admin','editor')", [$uid])['n'] ?? 0) > 0;
@@ -709,6 +725,43 @@ if (!$is_fragment) {
         JOIN task_workspace_members twm ON twm.user_id = u.id
         ORDER BY u.name");
   ?>
+  <?php if (is_admin()):
+    require_once dirname(__DIR__) . '/includes/m365.php';
+    $mr_on     = m365_setting('tasks_mail_reply_enabled') === '1';
+    $mr_sender = m365_setting('m365_sender_user_id');
+    $mr_m365   = m365_setting('m365_enabled') === '1' && $mr_sender !== '';
+  ?>
+  <!-- ══ Admin: odpowiedzi e-mailem → komentarze ═════════════════════ -->
+  <div class="ns-card mb-3 mt-4">
+    <div class="ns-card-header">
+      <i class="bi bi-reply-fill" style="color:#2563eb"></i>
+      Odpowiedź e-mailem jako komentarz
+      <span class="sec-badge ms-auto" style="background:#fee2e2;color:#b91c1c">Admin systemu</span>
+    </div>
+    <form method="post" class="p-3">
+      <input type="hidden" name="_csrf"   value="<?= h($csrf) ?>">
+      <input type="hidden" name="_action" value="save_mail_reply">
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="tasks_mail_reply_enabled"
+               name="tasks_mail_reply_enabled" value="1" <?= $mr_on ? 'checked' : '' ?> <?= $mr_m365 ? '' : 'disabled' ?>>
+        <label class="form-check-label" for="tasks_mail_reply_enabled">
+          Odpowiedź na powiadomienie o zadaniu dodaje komentarz
+        </label>
+      </div>
+      <p class="small text-muted mb-2">
+        Temat powiadomień dostaje znacznik <code>[ZAD-123-…]</code>. Odpowiedzi trafiają do skrzynki nadawcy
+        <strong><?= h($mr_sender ?: '— nieustawiony —') ?></strong>, a cron co 5 min zamienia je w komentarze —
+        tylko gdy nadawca to adresat powiadomienia (e-mail z konta lub potwierdzony adres powiadomień)
+        i nadal może komentować. Wymaga uprawnienia Graph <strong>Mail.Read (Application)</strong> dla tej skrzynki.
+      </p>
+      <?php if (!$mr_m365): ?>
+      <p class="small text-warning-emphasis mb-2">Niedostępne: wysyłka przez Microsoft 365 nie jest skonfigurowana.</p>
+      <?php endif; ?>
+      <button type="submit" class="btn btn-sm btn-primary" <?= $mr_m365 ? '' : 'disabled' ?>>Zapisz</button>
+    </form>
+  </div>
+  <?php endif; ?>
+
   <!-- ══ Admin: Test per user ════════════════════════════════════ -->
   <div class="ns-card mb-3 mt-4">
     <div class="ns-card-header">

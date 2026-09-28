@@ -694,6 +694,10 @@ function _tn_email(int $user_id, ?string $to, string $event, int $ref_id,
         return;
     }
 
+    // Odpowiedź e-mailem → komentarz: znacznik [ZAD-…] w temacie (gdy włączone przez admina);
+    // po gałęzi podsumowania — w podsumowaniu dziennym znacznika nie ma
+    try { _tn_reply_decorate($user_id, $event, $subject, $html); } catch (\Throwable $e) {}
+
     $via = '';
     try {
         $ok = (bool) approval_send_email($to, $subject, $html, 'task', $ref_id, 20, $via);
@@ -952,4 +956,171 @@ function _tn_schema_heal(): void {
             }
         } catch (\Throwable $e) {}
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ODPOWIEDŹ E-MAILEM → KOMENTARZ (opcja admina: settings.tasks_mail_reply_enabled)
+// ─────────────────────────────────────────────────────────────────────────────
+//  Wychodzące powiadomienia o zadaniu dostają w temacie znacznik [ZAD-{id}-{podpis}],
+//  podpis = HMAC(zadanie, odbiorca). Odpowiedzi trafiają do skrzynki nadawcy systemowego
+//  (m365_sender_user_id); cron/tasks_mail_reply.php czyta ją przez Graph (delta) i dodaje
+//  komentarz TYLKO gdy nadawca (e-mail z konta lub potwierdzony adres powiadomień) pasuje
+//  do podpisu i nadal może komentować w obszarze. Wymaga Mail.Read (Application).
+
+/** Zdarzenia, pod którymi zachęcamy do odpowiedzi (przypomnienia i zmiany — też). */
+const TASK_MAIL_REPLY_EVENTS = ['created', 'assigned', 'comment', 'mention', 'file_added', 'moved',
+                                'confirmed', 'rejected', 'due_1day', 'due_today', 'due_soon'];
+
+function task_mail_reply_enabled(): bool {
+    require_once __DIR__ . '/m365.php';
+    return m365_setting('tasks_mail_reply_enabled') === '1'
+        && m365_setting('m365_enabled') === '1'
+        && m365_setting('m365_sender_user_id') !== '';
+}
+
+function _tn_reply_sig(int $task_id, int $user_id): string {
+    return substr(hash_hmac('sha256', "task-mail-reply|{$task_id}|{$user_id}", APP_KEY), 0, 10);
+}
+
+function _tn_reply_tag(int $task_id, int $user_id): string {
+    return '[ZAD-' . $task_id . '-' . _tn_reply_sig($task_id, $user_id) . ']';
+}
+
+/** Dokleja znacznik do tematu i dopisek do treści — wywoływane z _tn_email(). */
+function _tn_reply_decorate(int $user_id, string $event, string &$subject, string &$html): void {
+    if (!in_array($event, TASK_MAIL_REPLY_EVENTS, true) || !task_mail_reply_enabled()) return;
+    if (!preg_match('#/tasks/index\.php\?task=(\d+)#', $html, $m)) return;
+    $subject .= ' ' . _tn_reply_tag((int)$m[1], $user_id);
+    $note = '<p style="color:#64748b;font-size:12px;margin:16px 0 0">'
+          . '↩ Odpowiedz na tę wiadomość, aby dodać komentarz do zadania. Nie zmieniaj znacznika w temacie.</p>';
+    $html = stripos($html, '</body>') !== false
+        ? preg_replace('#</body>#i', $note . '</body>', $html, 1)
+        : $html . $note;
+}
+
+/** Treść odpowiedzi bez cytatu poprzedniej wiadomości i podpisu. */
+function task_mail_reply_extract(string $content, string $content_type = 'html'): string {
+    if (strtolower($content_type) === 'html') {
+        // Outlook: cytat zaczyna się od divRplyFwdMsg / appendonsend / <hr>; Gmail: gmail_quote
+        $content = preg_split('#<div[^>]+id="(?:divRplyFwdMsg|appendonsend)"|<div[^>]+class="[^"]*gmail_quote|<blockquote|<hr[^>]*>#i', $content)[0];
+        $content = preg_replace('#<(br|/p|/div|/li|/tr)[^>]*>#i', "\n", $content);
+        $content = html_entity_decode(strip_tags($content), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    $content = str_replace(["\r\n", "\r", "\u{00A0}"], ["\n", "\n", ' '], $content);
+    $out = [];
+    foreach (explode("\n", $content) as $line) {
+        $t = trim($line);
+        // Początek cytatu / stopki w typowych klientach (PL/EN)
+        if (preg_match('/^(-{2,}\s*(Original Message|Wiadomość oryginalna|Oryginalna wiadomość)|_{5,}|(From|Od|Sent|Wysłano):\s|W dniu .+ napisał|On .+ wrote:|Wysłane z (mojego|aplikacji))/iu', $t)) break;
+        if (str_starts_with($t, '>')) continue;
+        $out[] = rtrim($line);
+    }
+    $text = trim(preg_replace("/\n{3,}/", "\n\n", implode("\n", $out)));
+    return mb_substr($text, 0, 5000);
+}
+
+function _tn_reply_schema(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    db()->exec("CREATE TABLE IF NOT EXISTS task_mail_replies (
+        message_id TEXT PRIMARY KEY,
+        task_id    INTEGER,
+        user_id    INTEGER,
+        comment_id INTEGER,
+        status     TEXT NOT NULL,
+        detail     TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )");
+}
+
+/**
+ * Przetwarza nowe wiadomości w skrzynce nadawcy. Zwraca statystyki.
+ * Pierwsze uruchomienie po włączeniu pomija pocztę sprzed momentu włączenia (tasks_mail_reply_since).
+ */
+function task_mail_reply_ingest(bool $dry_run = false): array {
+    $stats = ['seen' => 0, 'added' => 0, 'skipped' => 0, 'error' => ''];
+    if (!task_mail_reply_enabled()) { $stats['error'] = 'wyłączone'; return $stats; }
+    _tn_reply_schema();
+
+    $graph   = new M365Graph();
+    $mailbox = m365_setting('m365_sender_user_id');
+    $delta   = m365_setting('tasks_mail_reply_delta') ?: null;
+    $since   = strtotime(m365_setting('tasks_mail_reply_since') ?: 'now');
+
+    try {
+        $res = $graph->get_messages_delta($mailbox, 'inbox', $delta);
+    } catch (\Throwable $e) {
+        $stats['error'] = $e->getMessage();
+        return $stats;
+    }
+    if (empty($res['delta_link']) && empty($res['messages'])) {
+        $stats['error'] = 'Graph nie zwrócił delty — sprawdź uprawnienie Mail.Read (Application) dla skrzynki nadawcy.';
+        return $stats;
+    }
+
+    foreach ($res['messages'] as $msg) {
+        if (!empty($msg['@removed'])) continue;
+        $stats['seen']++;
+        $mid     = (string)($msg['internetMessageId'] ?? $msg['id'] ?? '');
+        $subject = (string)($msg['subject'] ?? '');
+        if ($mid === '' || !preg_match('/\[ZAD-(\d+)-([0-9a-f]{10})\]/i', $subject, $m)) continue;
+        if (strtotime((string)($msg['receivedDateTime'] ?? '')) < $since) continue;
+        if (db_one("SELECT 1 AS x FROM task_mail_replies WHERE message_id=?", [$mid])) continue;
+
+        $log = function (string $status, string $detail = '', ?int $uid = null, ?int $cid = null) use ($mid, $m, $dry_run, &$stats) {
+            if ($status === 'added') $stats['added']++; else $stats['skipped']++;
+            if ($dry_run) { echo "  [{$status}] ZAD-{$m[1]} {$detail}\n"; return; }
+            db()->prepare("INSERT OR IGNORE INTO task_mail_replies (message_id, task_id, user_id, comment_id, status, detail) VALUES (?,?,?,?,?,?)")
+                ->execute([$mid, (int)$m[1], $uid, $cid, $status, mb_substr($detail, 0, 500)]);
+        };
+
+        // Autoodpowiedzi (urlop itp.) nie są komentarzami
+        if (preg_match('/^(Automatic reply|Autoreply|Out of Office|Automatyczna odpowiedź|Odpowiedź automatyczna|Nieobecność)/iu', $subject)) {
+            $log('auto_reply'); continue;
+        }
+
+        $task_id = (int)$m[1];
+        $sig     = strtolower($m[2]);
+        $from    = strtolower(trim((string)($msg['from']['emailAddress']['address'] ?? '')));
+
+        // Nadawca → użytkownik: e-mail z konta albo potwierdzony adres powiadomień; podpis musi pasować
+        $cands = db_all(
+            "SELECT u.id FROM users u LEFT JOIN task_notification_prefs p ON p.user_id = u.id
+             WHERE u.is_active = 1 AND (LOWER(u.email) = ? OR LOWER(p.notify_email) = ?)",
+            [$from, $from]
+        );
+        $uid = null;
+        foreach ($cands as $c) {
+            if (hash_equals(_tn_reply_sig($task_id, (int)$c['id']), $sig)) { $uid = (int)$c['id']; break; }
+        }
+        if (!$uid) { $log('sender_mismatch', $from); continue; }
+
+        $task = db_one(
+            "SELECT t.id, tl.workspace_id FROM tasks t JOIN task_lists tl ON tl.id = t.list_id
+             WHERE t.id=? AND t.deleted_at IS NULL",
+            [$task_id]
+        );
+        if (!$task) { $log('no_task', '', $uid); continue; }
+        $role = task_workspace_role((int)$task['workspace_id'], $uid);
+        if (!$role || !task_field_editable('comments', $role)) { $log('no_permission', (string)$role, $uid); continue; }
+
+        $body = task_mail_reply_extract((string)($msg['body']['content'] ?? $msg['bodyPreview'] ?? ''),
+                                        (string)($msg['body']['contentType'] ?? 'text'));
+        if ($body === '') { $log('empty', '', $uid); continue; }
+
+        if ($dry_run) { $log('added', mb_substr($body, 0, 80), $uid); continue; }
+
+        $now = date('Y-m-d H:i:s');
+        $cid = db_insert('task_comments', [
+            'task_id' => $task_id, 'author_id' => $uid, 'body' => $body,
+            'created_at' => $now, 'updated_at' => $now,
+        ]);
+        task_log($task_id, $uid, 'comment_added', null, null, ['via' => 'email']);
+        try { task_notify_new_comment($task_id, (int)$cid, $body, $uid); } catch (\Throwable $e) {}
+        $log('added', '', $uid, (int)$cid);
+    }
+
+    if (!$dry_run && !empty($res['delta_link'])) m365_save_setting('tasks_mail_reply_delta', $res['delta_link']);
+    return $stats;
 }
