@@ -65,6 +65,10 @@ function exam_flash_warnings(?array $issues): void {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = (string)($_POST['_op'] ?? '');
+    if ($_cc_msg = ti_course_closed_guard($_POST + $_GET)) {
+        flash_set('danger', $_cc_msg);
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'index.php')); exit;
+    }
 
     if ($op === 'save_exam') {
         $cid = (int)($_POST['course_id'] ?? 0);

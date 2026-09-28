@@ -2524,6 +2524,7 @@ const K30_TI_COURSE_LOG_ACTIONS = [
     'delete'     => ['label' => 'Wyłączono i usunięto',      'icon' => 'trash3',                'color' => 'danger'],
     'restore'    => ['label' => 'Przywrócono',               'icon' => 'arrow-counterclockwise','color' => 'success'],
     'archive'    => ['label' => 'Zarchiwizowano',            'icon' => 'archive',               'color' => 'secondary'],
+    'close'      => ['label' => 'Zamknięto i zarchiwizowano', 'icon' => 'lock',                 'color' => 'dark'],
     'transfer_out' => ['label' => 'Przeniesiono zajęcia/link', 'icon' => 'box-arrow-right',   'color' => 'info'],
     'transfer_in'  => ['label' => 'Przyjęto zajęcia/link',     'icon' => 'box-arrow-in-left', 'color' => 'info'],
     'clear_sessions' => ['label' => 'Wyczyszczono terminy',    'icon' => 'calendar-x',        'color' => 'warning'],
@@ -3106,6 +3107,107 @@ function k30_ti_course_get(int $id): ?array {
          LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id
          WHERE c.id=?", [$id]
     ) ?: null;
+}
+
+/* ── Zamknięcie grupy („Zamknij i archiwizuj") ─────────────────────────────────
+ * Mocniejsza wersja archiwizacji: grupa trafia do Zarchiwizowanych ORAZ zostaje
+ * zablokowana do zapisu — protokoły (edycja, zatwierdzanie, odblokowanie,
+ * podpisy) i wszelkie modyfikacje grupy (lekcje, obecności, oceny, zadania,
+ * materiały, testy, zapisy uczestników, ustawienia). Zwykłe „Archiwizuj"
+ * działa jak dotąd (bez blokady). Zdejmuje ją tylko „Przywróć z archiwum".
+ */
+function ti_course_close_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    foreach ([
+        "ALTER TABLE k30_ti_courses ADD COLUMN closed_at   TEXT",
+        "ALTER TABLE k30_ti_courses ADD COLUMN closed_by   INTEGER",
+        "ALTER TABLE k30_ti_courses ADD COLUMN closed_name TEXT NOT NULL DEFAULT ''",
+    ] as $sql) {
+        try { db()->exec($sql); } catch (\Throwable $e) {}
+    }
+}
+
+/** Wiersz zamkniętej grupy (id, name, closed_at, closed_name) albo null. */
+function ti_course_closed(int $course_id, bool $refresh = false): ?array {
+    static $cache = [];
+    if ($course_id <= 0) return null;
+    if ($refresh || !array_key_exists($course_id, $cache)) {
+        ti_course_close_migrate();
+        $cache[$course_id] = db_one(
+            "SELECT id, name, closed_at, closed_name FROM k30_ti_courses
+             WHERE id=? AND closed_at IS NOT NULL AND closed_at != ''", [$course_id]
+        ) ?: null;
+    }
+    return $cache[$course_id];
+}
+
+function ti_course_closed_msg(array $c): string {
+    return 'Grupa „' . $c['name'] . '" jest zamknięta i zarchiwizowana'
+        . ($c['closed_at'] ? ' (' . substr((string)$c['closed_at'], 0, 10)
+            . ($c['closed_name'] !== '' ? ', ' . $c['closed_name'] : '') . ')' : '')
+        . ' — protokoły i zmiany są zablokowane. Aby coś poprawić, kierownik musi ją najpierw przywrócić z archiwum.';
+}
+
+function ti_course_close(int $course_id, int $by, string $by_name): void {
+    ti_course_close_migrate();
+    db()->prepare(
+        "UPDATE k30_ti_courses SET status='archived', is_active=0,
+                closed_at=datetime('now'), closed_by=?, closed_name=? WHERE id=?"
+    )->execute([$by ?: null, $by_name, $course_id]);
+    ti_course_log($course_id, 'close', '', $by, $by_name);
+    ti_course_closed($course_id, true);
+}
+
+/** Zdjęcie blokady — wołane przy „Przywróć z archiwum". */
+function ti_course_reopen(int $course_id): void {
+    ti_course_close_migrate();
+    db()->prepare("UPDATE k30_ti_courses SET closed_at=NULL, closed_by=NULL, closed_name='' WHERE id=?")
+        ->execute([$course_id]);
+    ti_course_closed($course_id, true);
+}
+
+/**
+ * Grupa, której dotyczy żądanie zapisu — z typowych parametrów formularzy
+ * i endpointów TI (course_id, session_id, protocol_id, homework_id, …).
+ * Zwraca wszystkie znalezione id (np. przeniesienie między grupami).
+ */
+function ti_course_ids_from_request(array $in): array {
+    $ids = [];
+    foreach (['course_id', 'pay_course_id', 'to_course_id', 'from_course_id'] as $k) {
+        if (!empty($in[$k]) && is_scalar($in[$k])) $ids[] = (int)$in[$k];
+    }
+    $map = [
+        'session_id'    => "SELECT course_id FROM k30_ti_sessions WHERE id=?",
+        'protocol_id'   => "SELECT course_id FROM k30_ti_protocols WHERE id=?",
+        'homework_id'   => "SELECT course_id FROM k30_ti_homework WHERE id=?",
+        'material_id'   => "SELECT course_id FROM k30_ti_materials WHERE id=?",
+        'grade_id'      => "SELECT course_id FROM k30_ti_grades WHERE id=?",
+        'test_id'       => "SELECT course_id FROM k30_ti_tests WHERE id=?",
+        'exam_id'       => "SELECT course_id FROM k30_ti_exams WHERE id=?",
+        'attempt_id'    => "SELECT e.course_id FROM k30_ti_exam_attempts a JOIN k30_ti_exams e ON e.id=a.exam_id WHERE a.id=?",
+        'submission_id' => "SELECT h.course_id FROM k30_ti_homework_submissions s JOIN k30_ti_homework h ON h.id=s.homework_id WHERE s.id=?",
+    ];
+    foreach ($map as $k => $sql) {
+        if (empty($in[$k]) || !is_scalar($in[$k])) continue;
+        try {
+            $cid = (int)(db_one($sql, [(int)$in[$k]])['course_id'] ?? 0);
+            if ($cid) $ids[] = $cid;
+        } catch (\Throwable $e) {}
+    }
+    return array_values(array_unique(array_filter($ids)));
+}
+
+/**
+ * Strażnik zapisu: komunikat blokady, gdy żądanie dotyczy zamkniętej grupy,
+ * albo null. $extra_ids — grupy znane z kontekstu strony (np. ?id= w kurs.php).
+ */
+function ti_course_closed_guard(array $in, array $extra_ids = []): ?string {
+    foreach (array_unique(array_merge(ti_course_ids_from_request($in), array_map('intval', $extra_ids))) as $cid) {
+        if ($c = ti_course_closed((int)$cid)) return ti_course_closed_msg($c);
+    }
+    return null;
 }
 
 /**

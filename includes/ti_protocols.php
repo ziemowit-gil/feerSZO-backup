@@ -143,6 +143,7 @@ function ti_protocol_get_or_create_for_month(int $course_id, string $year_month)
     ti_protocols_migrate();
     $row = db_one("SELECT * FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$course_id, $year_month]);
     if ($row) return $row;
+    ti_protocol_require_course_open($course_id);
     db()->prepare(
         "INSERT INTO k30_ti_protocols (course_id, year_month, title, status) VALUES (?,?,?,'open')"
     )->execute([$course_id, $year_month, 'Protokół ' . $year_month]);
@@ -165,6 +166,7 @@ function ti_protocol_pending_months_for_instructor(int $instructor_uid): array {
     $out = [];
     foreach ($courses as $c) {
         $cid = (int)$c['id'];
+        if (ti_course_closed($cid)) continue;   // zamknięta grupa — nic do zamykania
         $months = db_all(
             "SELECT DISTINCT strftime('%Y-%m', lesson_date) AS ym
                FROM k30_ti_sessions
@@ -341,6 +343,11 @@ function ti_protocol_require_period_open(array $prot): void {
     }
 }
 
+/** Zamknięta grupa („Zamknij i archiwizuj") blokuje każdy zapis protokołu. */
+function ti_protocol_require_course_open(int $course_id): void {
+    if ($c = ti_course_closed($course_id)) throw new \RuntimeException(ti_course_closed_msg($c));
+}
+
 /** Czy protokół jest zamknięty do edycji. */
 function ti_protocol_is_locked(array $protocol): bool {
     return (string)($protocol['status'] ?? 'open') === 'approved';
@@ -389,6 +396,7 @@ function ti_protocols_for_course(int $course_id): array {
  */
 function ti_protocols_overdue(): array {
     ti_protocols_migrate();
+    ti_course_close_migrate();
     return db_all(
         "SELECT p.*, " . TI_PROTOCOL_RANGE_COLS . ",
                 c.name AS course_name, c.instructor_id,
@@ -399,6 +407,7 @@ function ti_protocols_overdue(): array {
            JOIN k30_ti_courses c   ON c.id   = p.course_id
            LEFT JOIN users u       ON u.id   = c.instructor_id
           WHERE p.status = 'open' AND per.date_to < date('now')
+            AND (c.closed_at IS NULL OR c.closed_at = '')
           ORDER BY per.date_to ASC, c.name ASC"
     );
 }
@@ -415,6 +424,7 @@ function ti_protocols_overdue(): array {
  */
 function ti_protocols_overdue_months(): array {
     ti_protocols_migrate();
+    ti_course_close_migrate();
     $start = (string)(db_one("SELECT MIN(year_month) AS m FROM k30_ti_protocols WHERE year_month != ''")['m'] ?? '');
     if ($start === '') return [];
     return db_all(
@@ -428,6 +438,7 @@ function ti_protocols_overdue_months(): array {
                    JOIN k30_ti_courses c ON c.id = s.course_id
                    LEFT JOIN users u     ON u.id = c.instructor_id
                   WHERE s.status IN ('held','individual_change','remote_material')
+                    AND (c.closed_at IS NULL OR c.closed_at = '')
                   GROUP BY s.course_id, strftime('%Y-%m', s.lesson_date)) x
            LEFT JOIN k30_ti_protocols p ON p.course_id = x.course_id AND p.year_month = x.year_month
           WHERE x.year_month >= ? AND x.year_month < strftime('%Y-%m', 'now', 'localtime')
@@ -463,6 +474,7 @@ function ti_protocol_ensure(int $course_id, int $period_id, ?int $by = null, str
     ti_protocols_migrate();
     require_once __DIR__ . '/ti_periods.php';
     if (!$course_id) throw new \RuntimeException('Brak kursu.');
+    ti_protocol_require_course_open($course_id);
 
     // Protokół zajęć dotyczy zawsze okresu, a okres do rozliczenia otwiera
     // administracja — bez tego prowadzący nie zakłada protokołu.
@@ -546,6 +558,7 @@ function ti_protocol_save_entries(int $protocol_id, array $values, array $notes 
     ti_protocols_migrate();
     $prot = ti_protocol_get($protocol_id);
     if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
+    ti_protocol_require_course_open((int)$prot['course_id']);
     if (ti_protocol_is_locked($prot)) {
         throw new \RuntimeException('Protokół jest zatwierdzony — ocen nie można już zmieniać.');
     }
@@ -607,6 +620,7 @@ function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void 
     ti_protocols_migrate();
     $prot = ti_protocol_get($protocol_id);
     if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
+    ti_protocol_require_course_open((int)$prot['course_id']);
     if (ti_protocol_is_locked($prot)) throw new \RuntimeException('Protokół jest już zatwierdzony.');
     ti_protocol_require_period_open($prot);
 
@@ -683,6 +697,7 @@ function ti_protocol_unlock(int $protocol_id, ?int $by, string $by_name, string 
     ti_protocols_migrate();
     $prot = ti_protocol_get($protocol_id);
     if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
+    ti_protocol_require_course_open((int)$prot['course_id']);
     if (!ti_protocol_is_locked($prot)) throw new \RuntimeException('Ten protokół nie jest zatwierdzony.');
     $reason = trim($reason);
     if ($reason === '') throw new \RuntimeException('Podaj powód odblokowania protokołu.');
@@ -736,6 +751,7 @@ function ti_protocol_hours_ack(int $protocol_id, ?int $by, string $by_name, stri
     ti_protocols_migrate();
     $prot = ti_protocol_get($protocol_id);
     if (!$prot)                            throw new \RuntimeException('Protokół nie istnieje.');
+    ti_protocol_require_course_open((int)$prot['course_id']);
     if (ti_protocol_hours_acked($prot))    throw new \RuntimeException('Ewidencja godzin jest już potwierdzona.');
     // Potwierdza się dokument zamknięty — dopiero zatwierdzenie utrwala ewidencję
     // (snapshot_json); potwierdzenie otwartego protokołu dotyczyłoby danych,
@@ -783,6 +799,7 @@ function ti_protocol_org_ack(int $protocol_id, ?int $by, string $by_name, string
     ti_protocols_migrate();
     $prot = ti_protocol_get($protocol_id);
     if (!$prot)                          throw new \RuntimeException('Protokół nie istnieje.');
+    ti_protocol_require_course_open((int)$prot['course_id']);
     if (!ti_protocol_is_locked($prot))   throw new \RuntimeException('Najpierw zatwierdź protokół — podpisuje się dokument zamknięty.');
     if (ti_protocol_org_acked($prot))    throw new \RuntimeException('Protokół jest już podpisany za organizatora.');
 

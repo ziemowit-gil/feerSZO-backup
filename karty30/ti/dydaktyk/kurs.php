@@ -47,6 +47,10 @@ if (!$course) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $op = $_POST['_op'] ?? '';
+    if ($_cc_msg = ti_course_closed_guard($_POST, [(int)($_GET['id'] ?? 0)])) {
+        flash_set('danger', $_cc_msg);
+        header('Location: kurs.php?id=' . (int)($_GET['id'] ?? 0)); exit;
+    }
 
     if ($op === 'enroll') {
         $cid  = (int)($_POST['client_id'] ?? 0);

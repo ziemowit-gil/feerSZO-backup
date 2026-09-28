@@ -342,6 +342,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op        = $_POST['_op'] ?? '';
     $course_id = (int)($_POST['course_id'] ?? 0);
+
+    // Grupa zamknięta („Zamknij i archiwizuj"): żadnych zmian ani protokołów.
+    // Wyjątek — przywrócenie z archiwum, które zdejmuje blokadę.
+    if ($op !== 'unarchive_course' && ($_cc_msg = ti_course_closed_guard($_POST))) {
+        flash_set('danger', $_cc_msg);
+        header('Location: ' . ($course_id ? dyd_back($course_id, $back_tab) : 'index.php?tab=kursy')); exit;
+    }
     $back_tab  = in_array($_POST['_tab'] ?? '', ['lekcje','zadania','materialy'], true) ? $_POST['_tab'] : 'lekcje';
 
     // Zamknięty okres nauczania: operacje na ISTNIEJĄCEJ lekcji z tego okresu
@@ -3303,6 +3310,13 @@ if ($cur_course && dyd_is_staff()) {
   <?php /* h1 przeniesiony do info-bar; widok zachowuje semantykę przez nagłówki sekcji w zakładkach */ ?>
 
   <?= flash_html() ?>
+
+  <?php if (!empty($cur_course) && ($_cc_row = ti_course_closed((int)$cur_course))): ?>
+  <div class="alert alert-dark d-flex align-items-start gap-2" role="status">
+    <i class="bi bi-lock-fill fs-5 mt-1 flex-shrink-0" aria-hidden="true"></i>
+    <div><?= h(ti_course_closed_msg($_cc_row)) ?></div>
+  </div>
+  <?php endif; ?>
 
   <?php if (defined('KURSANT_NEW_UI_ENABLED') && KURSANT_NEW_UI_ENABLED && defined('KURSANT_NEW_UI_URL')): ?>
   <div class="alert alert-info d-flex align-items-start gap-2" role="status" id="dydNewUiBanner">

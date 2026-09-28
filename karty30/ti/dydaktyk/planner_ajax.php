@@ -31,6 +31,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 dyd_token_check();
 
 $action = trim($_POST['action'] ?? '');
+if ($_cc_msg = ti_course_closed_guard($_POST)) {
+    http_response_code(423);
+    echo json_encode(['ok' => false, 'msg' => $_cc_msg]);
+    exit;
+}
 
 function planner_ok(array $data = [], string $msg = ''): never {
     echo json_encode(['ok' => true, 'msg' => $msg] + $data);

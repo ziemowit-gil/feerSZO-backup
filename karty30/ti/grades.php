@@ -28,6 +28,10 @@ if (isset($_GET['pdf']) && $course_id) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
+    if ($_cc_msg = ti_course_closed_guard($_POST)) {
+        flash_set('danger', $_cc_msg);
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'index.php')); exit;
+    }
     $op = $_POST['_op'] ?? '';
 
     if ($op === 'save_grade') {

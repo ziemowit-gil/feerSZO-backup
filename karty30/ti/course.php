@@ -72,6 +72,10 @@ $PAGE_TITLE= 'TI: ' . $course['name'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     csrf_check();
     $op = $_POST['_op'] ?? '';
+    if ($_cc_msg = ti_course_closed_guard($_POST, [(int)$course['id']])) {
+        flash_set('danger', $_cc_msg);
+        header('Location: course.php?id=' . (int)$course['id']); exit;
+    }
 
     if ($op === 'enroll') {
         $cid  = (int)($_POST['client_id'] ?? 0);
