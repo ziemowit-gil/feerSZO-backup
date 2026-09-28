@@ -42,8 +42,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $projekt          = $locked_dekretacja  ? $doc['projekt']         : trim($_POST['projekt'] ?? '');
         $mpk              = trim($_POST['mpk'] ?? '');
         $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
-        [$zaplacono_przed, $data_zaplaty, $forma_zaplaty, $zaplata_errors] = $doc['kierunek'] === 'wydatek'
-            ? edok_zaplata_from_post($_POST) : [0, null, '', []];
+        // Zapłata / proforma blokują się razem z kwotami (po etapie „rachunkowa”).
+        $zaplata_keys = ['zaplacono_przed', 'data_zaplaty', 'forma_zaplaty', 'zaplacil', 'zwrot_osoba', 'zwrot_rachunek'];
+        if ($locked_rachunkowa || $doc['kierunek'] !== 'wydatek') {
+            $proforma_id = $doc['proforma_id'] !== null ? (int)$doc['proforma_id'] : null;
+            $zaplata = array_intersect_key($doc, array_flip($zaplata_keys));
+            $zaplata_errors = [];
+        } else {
+            [$proforma_id, $zaplata_errors] = edok_proforma_from_post($_POST, $doc['typ_dokumentu'], $id);
+            [$zaplata, $e2] = edok_zaplata_from_post($_POST, $proforma_id);
+            $zaplata_errors = array_merge($zaplata_errors, $e2);
+        }
         if ($zaplata_errors) {
             flash_set('danger', implode(' ', $zaplata_errors));
             header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
@@ -65,15 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db_exec(
             "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?, zrodlo_przychodu=?,
                 kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, tytul_przelewu=?,
-                zaplacono_przed=?, data_zaplaty=?, forma_zaplaty=?, updated_at=datetime('now')
+                zaplacono_przed=?, data_zaplaty=?, forma_zaplaty=?, zaplacil=?, zwrot_osoba=?, zwrot_rachunek=?, proforma_id=?, updated_at=datetime('now')
              WHERE id=?",
             [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu,
-             $zaplacono_przed, $data_zaplaty, $forma_zaplaty, $id]
+             (int)$zaplata['zaplacono_przed'], $zaplata['data_zaplaty'], $zaplata['forma_zaplaty'], $zaplata['zaplacil'], $zaplata['zwrot_osoba'], $zaplata['zwrot_rachunek'], $proforma_id, $id]
         );
+        $nowa_zaplata = $zaplata + ['proforma_id' => $proforma_id];
+        $zmiana_zaplaty = edok_zaplata_opis($nowa_zaplata) !== edok_zaplata_opis($doc) || (int)$proforma_id !== (int)$doc['proforma_id'];
         edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Zaktualizowano dane dokumentu.'
-            . ($zaplacono_przed !== (int)$doc['zaplacono_przed'] || $data_zaplaty !== $doc['data_zaplaty'] || $forma_zaplaty !== $doc['forma_zaplaty']
-                ? ' Zapłacono przed akceptacją: ' . ($zaplacono_przed ? edok_zaplata_opis(['zaplacono_przed' => 1, 'data_zaplaty' => $data_zaplaty, 'forma_zaplaty' => $forma_zaplaty]) : 'nie') . '.'
-                : ''));
+            . ($zmiana_zaplaty ? ' Zapłacono przed akceptacją: ' . (edok_zaplata_opis($nowa_zaplata) ?: 'nie') . '.' : ''));
         flash_set('success', 'Dane zaktualizowane.');
         header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
         exit;
@@ -260,11 +269,19 @@ function edok_step_review_fields(string $step_key, array $doc): array {
                 ['Projekt / MPK', ($doc['projekt'] ?: $doc['mpk']) !== '' ? h($doc['projekt'] ?: $doc['mpk']) : '—'],
             ];
         case 'zatwierdza':
-            return [
+            $zap = [];
+            if ($doc['typ_dokumentu'] === 'proforma') {
+                $zap[] = ['Proforma', '<span class="tw-text-amber-700">podstawa przedpłaty — faktura końcowa zostanie dołączona później</span>'];
+            }
+            if (!empty($doc['zaplacono_przed'])) {
+                $zap[] = ['Zapłacono przed akceptacją', '<strong class="tw-text-amber-700">' . h(edok_zaplata_opis($doc)) . '</strong>'
+                    . (edok_zaplata_do_zwrotu($doc) ? '<br><span class="tw-text-xs">Zwrot na rachunek ' . h(edok_nrb_format($doc['zwrot_rachunek'])) . '</span>' : '')];
+            }
+            return array_merge($zap, [
                 ['Kontrahent', h($doc['kontrahent_nazwa']) ?: '—'],
                 ['Kwota brutto', h($doc['kwota_brutto']) . ' ' . h($doc['waluta'])],
                 [$doc['kierunek'] === 'przychod' ? 'Sugerowana referencja' : 'Tytuł przelewu', $doc['tytul_przelewu'] !== '' ? h($doc['tytul_przelewu']) : '—'],
-            ];
+            ]);
         default:
             return [];
     }
@@ -338,7 +355,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
   <div class="edok-topbar__title">
     <a href="<?= APP_URL ?>/edok/index.php" class="edok-btn edok-btn-ghost edok-btn-sm" aria-label="Wróć"><i class="bi bi-arrow-left"></i></a>
     <code><?= h($doc['number']) ?></code>
-    <?= edok_status_badge($doc['status']) ?>
+    <?= edok_status_badge($doc['status'], $doc) ?>
     <?php if (!empty($doc['zaplacono_przed'])): ?>
     <span class="edok-badge edok-badge-success" title="Faktura zapłacona przed akceptacją"><i class="bi bi-cash-coin"></i> Zapłacona <?= h(edok_zaplata_opis($doc)) ?></span>
     <?php endif; ?>
@@ -442,7 +459,30 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <?php if ($doc['data_sprzedazy']): ?><tr><td>Data sprzedaży/wykonania</td><td><?= date_pl($doc['data_sprzedazy']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_wplywu']): ?><tr><td>Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
             <?php if (!empty($doc['zaplacono_przed'])): ?>
-            <tr><td>Zapłacono przed akceptacją</td><td><?= h(edok_zaplata_opis($doc)) ?></td></tr>
+            <tr><td>Zapłacono przed akceptacją</td><td><?= h(edok_zaplata_opis($doc)) ?>
+              <?php if (edok_zaplata_do_zwrotu($doc)): ?><div class="tw-text-xs tw-font-mono"><?= h(edok_nrb_format($doc['zwrot_rachunek'])) ?></div><?php endif; ?>
+            </td></tr>
+            <?php endif; ?>
+            <?php if (!empty($doc['proforma_id']) && ($pf = edok_get((int)$doc['proforma_id']))): ?>
+            <tr><td>Rozlicza proformę</td><td>
+              <a href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$pf['id'] ?>"><?= h($pf['number']) ?></a> · nr <?= h($pf['nr_faktury']) ?> · <?= h($pf['kwota_brutto']) ?> <?= h($pf['waluta']) ?>
+              <?php if (($pf['status_platnosci'] ?: 'nowy') !== 'oplacony'): ?>
+              <div class="tw-text-xs tw-text-amber-700"><i class="bi bi-exclamation-triangle"></i> Proforma nie ma jeszcze statusu „Opłacony”.</div>
+              <?php endif; ?>
+              <?php if (abs(_edok_kwota_float((string)$pf['kwota_brutto']) - _edok_kwota_float((string)$doc['kwota_brutto'])) >= 0.01): ?>
+              <div class="tw-text-xs tw-text-red-700"><i class="bi bi-exclamation-triangle"></i> Kwota różni się od proformy o <?= number_format(_edok_kwota_float((string)$doc['kwota_brutto']) - _edok_kwota_float((string)$pf['kwota_brutto']), 2, ',', ' ') ?> — dopłatę lub nadpłatę rozlicz osobno.</div>
+              <?php endif; ?>
+            </td></tr>
+            <?php endif; ?>
+            <?php if ($doc['typ_dokumentu'] === 'proforma'): $pf_fak = edok_proforma_faktura($id); ?>
+            <tr><td>Faktura końcowa</td><td>
+              <?php if ($pf_fak): ?>
+              <a href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$pf_fak['id'] ?>"><?= h($pf_fak['number']) ?></a> · nr <?= h($pf_fak['nr_faktury']) ?>
+              <?php else: ?>
+              <span class="tw-text-amber-700"><i class="bi bi-hourglass-split"></i> jeszcze nie dołączona</span>
+              <?php if (is_admin() || edok_has_role('upload')): ?> · <a href="<?= APP_URL ?>/edok/add.php">dodaj fakturę</a> i wskaż tę proformę<?php endif; ?>
+              <?php endif; ?>
+            </td></tr>
             <?php endif; ?>
             <?php if ($doc['kierunek'] === 'przychod' && $doc['zrodlo_przychodu']): ?>
             <tr><td>Źródło przychodu</td><td><?= h($doc['zrodlo_przychodu']) ?></td></tr>
@@ -566,29 +606,8 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <input type="text" name="projekt" class="form-control form-control-sm" value="<?= h($doc['projekt']) ?>" <?= $locked_dekretacja ? 'readonly' : '' ?>>
           </div>
         </div>
-        <?php if ($doc['kierunek'] === 'wydatek'): $zp = !empty($doc['zaplacono_przed']); ?>
-        <div class="tw-mb-2 tw-rounded-lg tw-border tw-border-solid tw-border-slate-200 tw-p-2">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" name="zaplacono_przed" id="e_zaplacono" value="1" <?= $zp ? 'checked' : '' ?>
-              onchange="document.getElementById('e_zaplacono_fields').style.display = this.checked ? '' : 'none'">
-            <label class="form-check-label tw-text-sm" for="e_zaplacono">Faktura już zapłacona — akceptacja po zapłacie</label>
-          </div>
-          <div class="row g-2 mt-1" id="e_zaplacono_fields" style="<?= $zp ? '' : 'display:none' ?>">
-            <div class="col-sm-6">
-              <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_data_zaplaty">Data zapłaty</label>
-              <input type="date" name="data_zaplaty" id="e_data_zaplaty" class="form-control form-control-sm" max="<?= date('Y-m-d') ?>" value="<?= h($doc['data_zaplaty'] ?? '') ?>">
-            </div>
-            <div class="col-sm-6">
-              <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_forma_zaplaty">Forma zapłaty</label>
-              <select name="forma_zaplaty" id="e_forma_zaplaty" class="form-select form-select-sm">
-                <option value="">— wybierz —</option>
-                <?php foreach (EDOK_FORMY_ZAPLATY as $k => $l): ?>
-                <option value="<?= h($k) ?>" <?= ($doc['forma_zaplaty'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-          </div>
-        </div>
+        <?php if ($doc['kierunek'] === 'wydatek'): ?>
+        <?php $zp_vals = $doc; $zp_locked = $locked_rachunkowa; $zp_doc_id = $id; $zp_typ = $doc['typ_dokumentu']; include __DIR__ . '/_zaplata_fields.php'; ?>
         <?php endif; ?>
         <div class="tw-mb-2">
           <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">MPK</label>
@@ -760,7 +779,9 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <div class="modal-header"><h5 class="modal-title"><i class="bi bi-bank"></i> Eksport przelewu</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
           <p class="small text-muted mb-3">
-            <?= h($doc['kontrahent_nazwa'] ?? '') ?> · <span class="font-monospace"><?= h(edok_nrb_format(preg_replace('/\D/', '', (string)$doc['rachunek_bankowy']))) ?></span>
+            <?php $pd = edok_przelew_doc($doc); ?>
+            <?= !empty($pd['_zwrot']) ? '<span class="badge bg-warning text-dark">Zwrot kosztów</span> ' : '' ?>
+            <?= h($pd['kontrahent_nazwa'] ?? '') ?> · <span class="font-monospace"><?= h(edok_nrb_format(preg_replace('/\D/', '', (string)$pd['rachunek_bankowy']))) ?></span>
             · <strong><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta'] ?? 'PLN') ?></strong>
           </p>
           <label class="form-label small fw-semibold" for="przelew_rachunek">Z rachunku</label>

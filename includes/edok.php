@@ -35,6 +35,10 @@ const EDOK_TYPES = [
     // Wydatki / dokumenty kosztowe
     'faktura_vat'        => 'Faktura VAT',
     'faktura_korygujaca' => 'Faktura korygująca',
+    // Proforma nie jest dokumentem księgowym — przechodzi obieg jako podstawa zapłaty
+    // (przedpłaty), a faktura końcowa wskazuje ją w proforma_id i jest wtedy traktowana
+    // jako zapłacona przed akceptacją (patrz edok_proforma_*).
+    'proforma'           => 'Faktura proforma',
     'rachunek'           => 'Rachunek',
     'nota_ksiegowa'      => 'Nota księgowa',
     'lista_plac'         => 'Lista płac',
@@ -158,6 +162,14 @@ function edok_migrate(): void {
         'zaplacono_przed'        => "INTEGER NOT NULL DEFAULT 0",
         'data_zaplaty'           => "TEXT",
         'forma_zaplaty'          => "TEXT NOT NULL DEFAULT ''",
+        // Kto zapłacił: 'organizacja' (rachunek/karta służbowa → od razu „Opłacony”)
+        // albo 'osoba' (z prywatnych środków → po akceptacji zwrot przelewem na
+        // zwrot_rachunek, eksportowany zamiast przelewu do kontrahenta).
+        'zaplacil'               => "TEXT NOT NULL DEFAULT 'organizacja'",
+        'zwrot_osoba'            => "TEXT NOT NULL DEFAULT ''",
+        'zwrot_rachunek'         => "TEXT NOT NULL DEFAULT ''",
+        // Faktura końcowa rozliczająca zapłaconą proformę (edok_documents.id proformy).
+        'proforma_id'            => "INTEGER",
     ]);
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
@@ -526,11 +538,13 @@ function edok_generate_tytul_przelewu(array $doc): string {
         if (mb_strlen($opis) > 60) $opis_krotki .= '...';
     }
 
+    $jest_proforma = $typ_dokumentu === 'proforma' && $nr_dok !== '';
     $ident = $jest_faktura
         ? 'FAK: ' . $nr_dok
-        : 'DOK: ' . trim($typ_label . ($nr_dok !== '' ? ' ' . $nr_dok : ''));
+        : ($jest_proforma ? 'PROFORMA: ' . $nr_dok : 'DOK: ' . trim($typ_label . ($nr_dok !== '' ? ' ' . $nr_dok : '')));
 
-    $parts = [($jest_przychod ? 'PRZYCHÓD: ' : 'PŁATNOŚĆ: ') . $opis_krotki, $ident];
+    $prefix = $jest_przychod ? 'PRZYCHÓD: ' : (!empty($doc['_zwrot']) ? 'ZWROT KOSZTÓW: ' : 'PŁATNOŚĆ: ');
+    $parts = [$prefix . $opis_krotki, $ident];
     if ($numer !== '') $parts[] = 'AKC: ' . $numer;
     if ($kwota !== '') $parts[] = $kwota . ' ' . $waluta;
     $t = implode(' - ', $parts);
@@ -540,8 +554,8 @@ function edok_generate_tytul_przelewu(array $doc): string {
     // Format skrócony (§2 pkt 11): zachowuje numer akceptacji i identyfikator
     // dokumentu, odrzuca opis celu płatności jako pierwszy.
     $short_akc   = $numer !== '' ? 'AKC:' . $numer : '';
-    $short_ident = $jest_faktura ? 'FAK:' . $nr_dok : 'DOK:' . ($nr_dok !== '' ? $nr_dok : $numer);
-    $short = trim($short_akc . ' ' . $short_ident);
+    $short_ident = $jest_faktura ? 'FAK:' . $nr_dok : ($jest_proforma ? 'PROFORMA:' . $nr_dok : 'DOK:' . ($nr_dok !== '' ? $nr_dok : $numer));
+    $short = trim((!empty($doc['_zwrot']) ? 'ZWROT ' : '') . $short_akc . ' ' . $short_ident);
     return mb_substr($short, 0, 140);
 }
 
@@ -806,11 +820,15 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
             ? 'Obieg zakończony — przychód zaakceptowany do ujęcia w ewidencji (5/5 etapów).'
             : 'Obieg zakończony — dokument zaakceptowany do zapłaty i księgowania (5/5 etapów).';
         edok_log($id, 'status_change', '', $doc['status'], 'zaakceptowany', $koncowy_opis, $doc);
-        // Faktura zapłacona przed akceptacją — od razu „Opłacony”, bez przechodzenia przez przelew.
-        if (!empty($fresh['zaplacono_przed']) && ($fresh['status_platnosci'] ?: 'nowy') !== 'oplacony') {
+        // Faktura zapłacona przed akceptacją przez organizację (albo na podstawie proformy)
+        // — od razu „Opłacony”. Zapłacona prywatnie — zostaje do zapłaty jako zwrot kosztów.
+        if (!empty($fresh['zaplacono_przed']) && !edok_zaplata_do_zwrotu($fresh) && ($fresh['status_platnosci'] ?: 'nowy') !== 'oplacony') {
             db_exec("UPDATE edok_documents SET status_platnosci='oplacony', updated_at=datetime('now') WHERE id=?", [$id]);
             edok_log($id, 'status_platnosci', '', $fresh['status_platnosci'] ?: 'nowy', 'oplacony',
                 'Status płatności: Opłacony — faktura zapłacona przed akceptacją (' . edok_zaplata_opis($fresh) . ').');
+        } elseif (edok_zaplata_do_zwrotu($fresh)) {
+            edok_log($id, 'status_platnosci', '', $fresh['status_platnosci'] ?: 'nowy', $fresh['status_platnosci'] ?: 'nowy',
+                'Do zwrotu kosztów: ' . $fresh['zwrot_osoba'] . ', rachunek ' . edok_nrb_format($fresh['zwrot_rachunek']) . '.');
         }
         // Dokument końcowy (źródło + karta akceptacji) — best-effort, błąd generowania
         // PDF nie może cofnąć już zapisanej akceptacji.
@@ -896,9 +914,9 @@ function edok_transfer_label_klasyfikacja(string $rodzaj, string $projekt): stri
 
 // ── Helpery UI ────────────────────────────────────────────────────────────────
 
-function edok_status_badge(string $status): string {
+function edok_status_badge(string $status, ?array $doc = null): string {
     $s = EDOK_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
-    return '<span class="badge bg-' . $s['class'] . '">' . h($s['label']) . '</span>';
+    return '<span class="badge bg-' . $s['class'] . '">' . h($doc ? edok_status_label($doc) : $s['label']) . '</span>';
 }
 
 // ── Karta akceptacji — HTML współdzielony między edok/print.php (przeglądarka) ─
@@ -949,7 +967,7 @@ function edok_print_html(array $doc): string {
     $html .= '<h1>' . h($org ?: 'EODoK') . ' — Karta akceptacji dokumentu' . ($jest_przychod ? ' przychodowego' : '') . '</h1>';
     $html .= '<div class="sub">Dokument <strong>' . h($doc['number']) . '</strong> · '
         . h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) . ' · nr ' . h($doc['nr_faktury'])
-        . ' · status: ' . h(EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status']) . '</div>';
+        . ' · status: ' . h(edok_status_label($doc)) . '</div>';
 
     $html .= '<table class="head-table"><tr><td class="l">' . ($jest_przychod ? 'Kontrahent / darczyńca' : 'Kontrahent') . '</td><td>' . h($doc['kontrahent_nazwa'])
         . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr>'
@@ -1506,39 +1524,131 @@ const EDOK_FORMY_ZAPLATY = [
     'potracenie' => 'Kompensata / potrącenie',
     'inna'       => 'Inna',
 ];
+/** forma_zaplaty ustawiana automatycznie dla faktury końcowej rozliczającej proformę (nie do ręcznego wyboru). */
+const EDOK_FORMA_PROFORMA = 'proforma';
 
-/** Opis zapłaty przed akceptacją do wydruków/widoków, np. „12.09.2026, karta płatnicza”. */
+/** NRB: 26 cyfr + suma kontrolna IBAN (mod 97) dla prefiksu PL. */
+function edok_nrb_valid(string $nrb): bool {
+    $d = preg_replace('/\D/', '', $nrb);
+    if (strlen($d) !== 26) return false;
+    $num = substr($d, 2) . '2521' . substr($d, 0, 2); // PL = 25 21
+    $mod = 0;
+    foreach (str_split($num, 7) as $chunk) $mod = (int)(($mod . $chunk) % 97);
+    return $mod === 1;
+}
+
+/** Czy dokument był zapłacony z prywatnych środków i czeka na zwrot kosztów. */
+function edok_zaplata_do_zwrotu(array $doc): bool {
+    return !empty($doc['zaplacono_przed']) && ($doc['zaplacil'] ?? 'organizacja') === 'osoba';
+}
+
+/** Opis zapłaty przed akceptacją do wydruków/widoków, np. „12.09.2026, karta płatnicza — Jan Kowalski (do zwrotu)”. */
 function edok_zaplata_opis(array $doc): string {
     if (empty($doc['zaplacono_przed'])) return '';
+    if (($doc['forma_zaplaty'] ?? '') === EDOK_FORMA_PROFORMA) {
+        $pf = !empty($doc['proforma_id']) ? db_one("SELECT number FROM edok_documents WHERE id=?", [(int)$doc['proforma_id']]) : null;
+        return 'na podstawie proformy' . ($pf ? ' ' . $pf['number'] : '');
+    }
     $parts = [];
     if (!empty($doc['data_zaplaty'])) $parts[] = date('d.m.Y', strtotime($doc['data_zaplaty']));
     if (!empty($doc['forma_zaplaty'])) $parts[] = mb_strtolower(EDOK_FORMY_ZAPLATY[$doc['forma_zaplaty']] ?? $doc['forma_zaplaty']);
-    return $parts ? implode(', ', $parts) : 'tak';
+    $opis = $parts ? implode(', ', $parts) : 'tak';
+    if (edok_zaplata_do_zwrotu($doc)) $opis .= ' — ' . ($doc['zwrot_osoba'] ?: 'osoba prywatna') . ' (do zwrotu)';
+    return $opis;
 }
 
 /**
- * Walidacja pól „zapłacono przed akceptacją” z formularza. Zwraca [zaplacono, data, forma, błędy].
+ * Walidacja pól „zapłacono przed akceptacją” z formularza. Zwraca [pola do zapisu, błędy].
+ * Faktura rozliczająca proformę ($proforma_id) jest zawsze „zapłacona na podstawie
+ * proformy” — pozostałe pola zapłaty są wtedy ignorowane.
  */
-function edok_zaplata_from_post(array $post): array {
-    $zaplacono = !empty($post['zaplacono_przed']) ? 1 : 0;
-    $data      = $zaplacono ? trim((string)($post['data_zaplaty'] ?? '')) : '';
-    $forma     = $zaplacono ? (string)($post['forma_zaplaty'] ?? '') : '';
-    $errors    = [];
-    if ($zaplacono) {
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) $errors[] = 'Podaj datę zapłaty faktury.';
-        elseif ($data > date('Y-m-d'))                       $errors[] = 'Data zapłaty nie może być z przyszłości.';
-        if (!isset(EDOK_FORMY_ZAPLATY[$forma]))              $errors[] = 'Wybierz formę zapłaty.';
+function edok_zaplata_from_post(array $post, ?int $proforma_id = null): array {
+    $f = ['zaplacono_przed' => 0, 'data_zaplaty' => null, 'forma_zaplaty' => '', 'zaplacil' => 'organizacja', 'zwrot_osoba' => '', 'zwrot_rachunek' => ''];
+    if ($proforma_id) {
+        $pf = db_one("SELECT data_zaplaty FROM edok_documents WHERE id=?", [$proforma_id]);
+        return [array_merge($f, ['zaplacono_przed' => 1, 'forma_zaplaty' => EDOK_FORMA_PROFORMA, 'data_zaplaty' => $pf['data_zaplaty'] ?? null]), []];
     }
-    return [$zaplacono, $data ?: null, $forma, $errors];
+    if (empty($post['zaplacono_przed'])) return [$f, []];
+
+    $errors = [];
+    $f['zaplacono_przed'] = 1;
+    $f['data_zaplaty']    = trim((string)($post['data_zaplaty'] ?? '')) ?: null;
+    $f['forma_zaplaty']   = (string)($post['forma_zaplaty'] ?? '');
+    $f['zaplacil']        = ($post['zaplacil'] ?? '') === 'osoba' ? 'osoba' : 'organizacja';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$f['data_zaplaty'])) $errors[] = 'Podaj datę zapłaty faktury.';
+    elseif ($f['data_zaplaty'] > date('Y-m-d'))                            $errors[] = 'Data zapłaty nie może być z przyszłości.';
+    if (!isset(EDOK_FORMY_ZAPLATY[$f['forma_zaplaty']]))                   $errors[] = 'Wybierz formę zapłaty.';
+    if ($f['zaplacil'] === 'osoba') {
+        $f['zwrot_osoba']    = trim((string)($post['zwrot_osoba'] ?? ''));
+        $f['zwrot_rachunek'] = preg_replace('/\D/', '', (string)($post['zwrot_rachunek'] ?? ''));
+        if ($f['zwrot_osoba'] === '')               $errors[] = 'Podaj, kto zapłacił z prywatnych środków (odbiorca zwrotu).';
+        if (!edok_nrb_valid($f['zwrot_rachunek']))  $errors[] = 'Podaj prawidłowy 26-cyfrowy numer rachunku do zwrotu kosztów.';
+    }
+    return [$f, $errors];
 }
 
-/** Czy dokument można wyeksportować do pliku przelewów (zaakceptowany, nieopłacony wydatek z prawidłowym NRB). */
+/**
+ * Dokument w postaci „do przelewu”: przy zwrocie kosztów odbiorcą jest osoba, która
+ * zapłaciła (jej rachunek i nazwisko zamiast kontrahenta), a tytuł dostaje prefiks
+ * ZWROT KOSZTÓW. Używane przez eksport przelewów, potwierdzanie rachunków i Preliminarz.
+ */
+function edok_przelew_doc(array $doc): array {
+    if (!edok_zaplata_do_zwrotu($doc)) return $doc;
+    $doc['rachunek_bankowy'] = $doc['zwrot_rachunek'];
+    $doc['kontrahent_nazwa'] = $doc['zwrot_osoba'];
+    $doc['kontrahent_nip']   = '';
+    $doc['_zwrot']           = true;
+    return $doc;
+}
+
+/** Czy dokument można wyeksportować do pliku przelewów (zaakceptowany, nieopłacony wydatek — do kontrahenta albo zwrot kosztów). */
 function edok_przelew_exportable(array $d): bool {
-    return ($d['status'] ?? '') === 'zaakceptowany'
-        && ($d['kierunek'] ?? 'wydatek') === 'wydatek'
-        && empty($d['zaplacono_przed'])
-        && ($d['status_platnosci'] ?? 'nowy') !== 'oplacony'
-        && strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
+    if (($d['status'] ?? '') !== 'zaakceptowany' || ($d['kierunek'] ?? 'wydatek') !== 'wydatek') return false;
+    if (($d['status_platnosci'] ?? 'nowy') === 'oplacony') return false;
+    if (!empty($d['zaplacono_przed']) && !edok_zaplata_do_zwrotu($d)) return false;
+    $d = edok_przelew_doc($d);
+    return strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
+}
+
+// ── Proformy ──────────────────────────────────────────────────────────────────
+
+/** Proformy, które można wskazać w fakturze końcowej (nieodrzucone, jeszcze bez faktury). $keep_id — aktualnie wybrana, zawsze na liście. */
+function edok_proformy_do_rozliczenia(?int $keep_id = null, ?int $exclude_doc_id = null): array {
+    return db_all(
+        "SELECT p.id, p.number, p.nr_faktury, p.kontrahent_nazwa, p.kontrahent_nip, p.kwota_brutto, p.waluta, p.status, p.status_platnosci
+           FROM edok_documents p
+          WHERE p.typ_dokumentu = 'proforma' AND p.status NOT IN ('odrzucony','wycofany')
+            AND (p.id = ? OR NOT EXISTS (
+                SELECT 1 FROM edok_documents f WHERE f.proforma_id = p.id AND f.status NOT IN ('odrzucony','wycofany') AND f.id <> ?))
+          ORDER BY p.id DESC LIMIT 300",
+        [$keep_id ?? 0, $exclude_doc_id ?? 0]
+    );
+}
+
+/** Faktura końcowa powiązana z proformą (albo null). */
+function edok_proforma_faktura(int $proforma_id): ?array {
+    return db_one("SELECT * FROM edok_documents WHERE proforma_id = ? AND status NOT IN ('odrzucony','wycofany') ORDER BY id DESC LIMIT 1", [$proforma_id]) ?: null;
+}
+
+/** Walidacja wskazanej proformy dla faktury końcowej — zwraca [id|null, błędy]. */
+function edok_proforma_from_post(array $post, string $typ_dokumentu, ?int $doc_id = null): array {
+    $id = (int)($post['proforma_id'] ?? 0);
+    if (!$id) return [null, []];
+    if (!in_array($typ_dokumentu, ['faktura_vat', 'rachunek'], true)) return [null, ['Proformę może rozliczać tylko faktura VAT lub rachunek.']];
+    foreach (edok_proformy_do_rozliczenia(null, $doc_id) as $p) if ((int)$p['id'] === $id) return [$id, []];
+    return [null, ['Wybrana proforma nie istnieje albo ma już fakturę końcową.']];
+}
+
+/** Etykieta statusu z uwzględnieniem proformy i zapłaty przed akceptacją. */
+function edok_status_label(array $doc): string {
+    $label = EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status'];
+    if (($doc['status'] ?? '') !== 'zaakceptowany' || ($doc['kierunek'] ?? 'wydatek') !== 'wydatek') return $label;
+    if (($doc['typ_dokumentu'] ?? '') === 'proforma') {
+        return edok_proforma_faktura((int)$doc['id']) ? 'Zaakceptowana do zapłaty (proforma rozliczona fakturą)' : 'Zaakceptowana do zapłaty (proforma — czeka na fakturę końcową)';
+    }
+    if (edok_zaplata_do_zwrotu($doc))     return 'Zaakceptowany do zwrotu kosztów i księgowania';
+    if (!empty($doc['zaplacono_przed']))  return 'Zaakceptowany do księgowania (zapłacony przed akceptacją)';
+    return $label;
 }
 
 /** Formaty pliku przelewów zbiorczych dostępne w Preliminarzu i na karcie dokumentu. */
@@ -1855,12 +1965,17 @@ function edok_preliminarz_query(array $f = []): array {
 
     $out = [];
     foreach ($edok_rows as $r) {
+        // Zapłacone przed akceptacją przez organizację nie są „do zapłaty” — pomijamy,
+        // chyba że filtr pyta wprost o opłacone. Zwrot kosztów: odbiorcą jest osoba.
+        if (!empty($r['zaplacono_przed']) && !edok_zaplata_do_zwrotu($r) && empty($f['status_platnosci'])) continue;
+        $zwrot = edok_zaplata_do_zwrotu($r);
+        $r = edok_przelew_doc($r);
         $out[] = [
             'source'            => 'edok',
             'id'                => (int)$r['id'],
             'number'            => $r['number'],
             'title'             => $r['title'],
-            'kontrahent'        => $r['kontrahent_nazwa'],
+            'kontrahent'        => $r['kontrahent_nazwa'] . ($zwrot ? ' (zwrot kosztów)' : ''),
             'nip'               => $r['kontrahent_nip'],
             'rachunek_bankowy'  => $r['rachunek_bankowy'],
             'kwota_netto'       => $r['kwota_netto'],
@@ -1873,7 +1988,7 @@ function edok_preliminarz_query(array $f = []): array {
             'wymaga_mpp'        => (int)$r['wymaga_mpp'],
             // Dokumenty sprzed dodania pola mają puste tytul_przelewu — dogeneruj w locie,
             // żeby Preliminarz zawsze pokazywał gotowy tytuł do wklejenia w przelewie.
-            'tytul_przelewu'    => $r['tytul_przelewu'] ?: edok_generate_tytul_przelewu($r),
+            'tytul_przelewu'    => ($zwrot ? '' : $r['tytul_przelewu']) ?: edok_generate_tytul_przelewu($r),
             'view_url'          => APP_URL . '/edok/view.php?id=' . $r['id'],
         ];
     }

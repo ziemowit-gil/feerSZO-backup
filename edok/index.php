@@ -61,6 +61,11 @@ if (in_array($filter_kierunek, ['wydatek', 'przychod'], true)) {
     $where[]  = "COALESCE(kierunek,'wydatek') = ?";
     $params[] = $filter_kierunek;
 }
+$filter_proformy = !empty($_GET['proformy_bez_faktury']);
+if ($filter_proformy) {
+    $where[] = "typ_dokumentu = 'proforma' AND status NOT IN ('odrzucony','wycofany')
+        AND NOT EXISTS (SELECT 1 FROM edok_documents f WHERE f.proforma_id = edok_documents.id AND f.status NOT IN ('odrzucony','wycofany'))";
+}
 if ($filter_q !== '') {
     $where[]  = '(number LIKE ? OR title LIKE ? OR kontrahent_nazwa LIKE ? OR nr_faktury LIKE ?)';
     $q = '%' . $filter_q . '%';
@@ -78,6 +83,15 @@ foreach ($docs as &$d) {
     }
 }
 unset($d);
+// Proformy z listy, które mają już fakturę końcową (znaczek „proforma ✓”).
+$proforma_z_faktura = [];
+$pf_ids = array_column(array_filter($docs, fn($d) => $d['typ_dokumentu'] === 'proforma'), 'id');
+if ($pf_ids) {
+    $ph = implode(',', array_fill(0, count($pf_ids), '?'));
+    foreach (db_all("SELECT DISTINCT proforma_id FROM edok_documents WHERE proforma_id IN ($ph) AND status NOT IN ('odrzucony','wycofany')", $pf_ids) as $r) {
+        $proforma_z_faktura[(int)$r['proforma_id']] = true;
+    }
+}
 
 // Zaznaczanie + eksport przelewów z listy — ten sam handler co w Preliminarzu
 // (POST export_przelewy na edok/preliminarz.php: potwierdzenie NIP/NRB, pliki ELIXIR-O).
@@ -183,6 +197,12 @@ require_once __DIR__ . '/../includes/header.php';
     </select>
   </div>
   <div class="col-auto">
+    <div class="form-check mb-1">
+      <input type="checkbox" class="form-check-input" name="proformy_bez_faktury" id="f_proformy" value="1" <?= $filter_proformy ? 'checked' : '' ?> onchange="this.form.submit()">
+      <label class="form-check-label small" for="f_proformy">Proformy bez faktury końcowej</label>
+    </div>
+  </div>
+  <div class="col-auto">
     <label class="form-label small mb-1">Szukaj</label>
     <input type="text" name="q" class="form-control form-control-sm" value="<?= h($filter_q) ?>" placeholder="numer, kontrahent, tytuł…">
   </div>
@@ -245,12 +265,14 @@ require_once __DIR__ . '/../includes/header.php';
         <td><?php if (edok_przelew_exportable($doc)): ?><input type="checkbox" class="form-check-input edok-export-check" value="<?= (int)$doc['id'] ?>" aria-label="Zaznacz <?= h($doc['number']) ?> do eksportu"><?php endif; ?></td>
         <?php endif; ?>
         <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?>
-          <?php if (!empty($doc['zaplacono_przed'])): ?> <span class="badge bg-success-subtle text-success-emphasis" title="Zapłacona przed akceptacją: <?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-cash-coin"></i> zapłacona</span><?php endif; ?></td>
+          <?php if (edok_zaplata_do_zwrotu($doc)): ?> <span class="badge bg-warning text-dark" title="<?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-person-check"></i> do zwrotu</span>
+          <?php elseif (!empty($doc['zaplacono_przed'])): ?> <span class="badge bg-success-subtle text-success-emphasis" title="Zapłacona przed akceptacją: <?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-cash-coin"></i> zapłacona</span><?php endif; ?>
+          <?php if ($doc['typ_dokumentu'] === 'proforma'): ?> <span class="badge bg-info-subtle text-info-emphasis" title="<?= isset($proforma_z_faktura[$doc['id']]) ? 'Rozliczona fakturą końcową' : 'Czeka na fakturę końcową' ?>">proforma<?= isset($proforma_z_faktura[$doc['id']]) ? ' ✓' : ' · bez faktury' ?></span><?php endif; ?></td>
         <td><?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? '<span class="badge bg-info text-dark">Przychód</span>' : '<span class="badge bg-secondary">Wydatek</span>' ?></td>
         <td><?= h($doc['kontrahent_nazwa']) ?></td>
         <td><?= h($doc['title']) ?></td>
         <td class="text-end font-monospace"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td>
-        <td><?= edok_status_badge($doc['status']) ?></td>
+        <td><?= edok_status_badge($doc['status'], $doc) ?></td>
         <?php foreach (array_keys(EDOK_STEPS) as $sk): ?>
         <td class="text-center">
           <?php $st = $doc['steps'][$sk] ?? null; ?>

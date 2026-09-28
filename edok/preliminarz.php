@@ -84,10 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     } else {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $docs = db_all(
-            "SELECT * FROM edok_documents WHERE id IN ($placeholders) AND status='zaakceptowany' AND COALESCE(kierunek,'wydatek')='wydatek'
-               AND COALESCE(zaplacono_przed,0)=0 AND COALESCE(status_platnosci,'nowy')<>'oplacony'",
+            "SELECT * FROM edok_documents WHERE id IN ($placeholders) AND status='zaakceptowany' AND COALESCE(kierunek,'wydatek')='wydatek'",
             $ids
         );
+        // Tylko nieopłacone; zwrot kosztów idzie na rachunek osoby, która zapłaciła.
+        $docs = array_map('edok_przelew_doc', array_values(array_filter($docs, 'edok_przelew_exportable')));
         // Pierwszy przelew na daną parę NIP + rachunek wymaga potwierdzenia, że
         // obie wartości zgadzają się z fakturą — zanim plik trafi do banku.
         $unverified = edok_ipko_unverified_pairs($docs);
