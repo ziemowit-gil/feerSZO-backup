@@ -11,6 +11,17 @@ const TI_NOTICE_141F = 'Wersja 14.1f: w Mój panel nowa zakładka „Wydruki” 
     . ' Zajęcia → Więcej), a w wyborze grupy widzi też grupy archiwalne. Panel ładuje się wyraźnie szybciej.'
     . ' Plan cykliczny został wyłączony.';
 
+/** Punkt komunikatu 14.1 o zmianach 14.1g — rozliczenia (seed + jednorazowy dopisek w selfrepairDB). */
+const TI_NOTICE_141G = 'Wersja 14.1g — Rozliczenia kursantów: przy wystawianiu wybierasz „z FVAT” albo „tylko zestawienie”'
+    . ' (bez faktury VAT, można później przełączyć). Rozliczenie bez faktury da się wycofać z podaniem powodu —'
+    . ' wpłaty wracają jako nadpłata, a wycofane widać pod listą z przyciskami Przywróć i Usuń. Nadpłatę lub'
+    . ' niedopłatę można przenieść z innej grupy lub okresu, w złotówkach albo w godzinach po stawce (z możliwością'
+    . ' cofnięcia; rozliczenia z przeniesieniem nie da się wycofać, dopóki go nie cofniesz). Saldo w wierszu to jedna'
+    . ' linia „Do zapłaty”, a po najechaniu widać, z których grup i miesięcy (także archiwalnych) jest zaległość.'
+    . ' Nowe podglądy: „Podgląd” przy kursancie w Rozliczeniach (lekcje, stawki, korekty, wpłaty — do wydruku) oraz'
+    . ' „Rozliczenia” na liście Kursanci (wszystkie okresy i grupy, saldo, wpłaty). Przycisk „Przelicz ceny”'
+    . ' przelicza wystawione rozliczenia miesiąca po aktualnych cenach (nieopłacone i bez faktury).';
+
 /** Punkt komunikatu 14.1 o nagłówku (seed + jednorazowy dopisek 14.1a w selfrepairDB). */
 const TI_NOTICE_141A_NAGLOWEK = 'Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl.';
 
@@ -221,6 +232,7 @@ function ti_notices_migrate(): void {
                 . "\n• " . TI_NOTICE_141A_NAGLOWEK
                 . "\n• " . TI_NOTICE_141B_PULPIT
                 . "\n• " . TI_NOTICE_141F
+                . "\n• " . TI_NOTICE_141G
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
         }
