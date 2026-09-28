@@ -331,6 +331,33 @@ $color_map = [
     'red'    => ['bg'=>'#FFF1F2','border'=>'#FECDD3','icon_bg'=>'#DC2626','icon_text'=>'#fff','head'=>'#991B1B'],
 ];
 
+/**
+ * Tokeny kolorów karty grupy. 'color' grupy może być nazwą z $color_map
+ * (blue, purple, …) ALBO dowolnym kolorem hex (#RGB / #RRGGBB) — wtedy odcienie
+ * tła, obramowania i nagłówka są wyliczane z podanej barwy.
+ */
+$adm_color_tokens = function (string $color) use ($color_map): array {
+    $color = trim($color);
+    if (isset($color_map[$color])) return $color_map[$color];
+    if (!preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $color)) return $color_map['slate'];
+    $hex = ltrim($color, '#');
+    if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+    $rgb = [hexdec(substr($hex,0,2)), hexdec(substr($hex,2,2)), hexdec(substr($hex,4,2))];
+    // mieszanie z bielą (t>0) lub czernią (t<0); $t = udział barwy docelowej
+    $mix = function (float $t) use ($rgb): string {
+        $target = $t >= 0 ? 255 : 0; $t = abs($t);
+        return sprintf('#%02X%02X%02X', ...array_map(fn($c) => (int)round($c + ($target - $c) * $t), $rgb));
+    };
+    $lum = (0.299*$rgb[0] + 0.587*$rgb[1] + 0.114*$rgb[2]) / 255;
+    return [
+        'bg'        => $mix(0.92),
+        'border'    => $mix(0.72),
+        'icon_bg'   => '#'.strtoupper($hex),
+        'icon_text' => $lum > 0.6 ? '#111827' : '#fff',
+        'head'      => $mix(-0.35),
+    ];
+};
+
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
@@ -636,7 +663,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <!-- ── Siatka kart ───────────────────────────────────────────────────────── -->
   <div class="adm-grid" id="admGrid">
   <?php foreach ($groups as $group_name => $group): ?>
-    <?php $c = $color_map[$group['color']]; ?>
+    <?php $c = $adm_color_tokens((string)($group['color'] ?? 'slate')); ?>
     <div class="adm-card" data-group="<?= h($group_name) ?>">
 
       <div class="adm-card-head" style="background:<?= $c['bg'] ?>;border-bottom-color:<?= $c['border'] ?>">
