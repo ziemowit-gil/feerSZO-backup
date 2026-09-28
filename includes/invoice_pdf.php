@@ -709,6 +709,7 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
     $lessons = db_all(
         "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status,
                 s.course_id, co.name AS course_name,
+                COALESCE(a.attended,0) AS attended,
                 COALESCE(a.no_show,0) AS no_show, COALESCE(a.no_show_billing,'') AS no_show_billing
            FROM k30_ti_attendance a
            JOIN k30_ti_sessions   s  ON s.id = a.session_id
@@ -716,7 +717,7 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
           WHERE a.client_id = ?
             AND s.status IN ('held','individual_change','remote_material')
             AND s.lesson_date BETWEEN ? AND ?
-            AND ((a.attended = 1 AND COALESCE(a.cancelled,0) = 0) OR COALESCE(a.no_show,0) = 1)
+            AND COALESCE(a.cancelled,0) = 0 AND (a.attended = 1 OR COALESCE(a.no_show,0) = 1)
             {$course_sql}
        ORDER BY s.lesson_date, s.time_from",
         $params
@@ -745,8 +746,10 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
   <?php foreach ($lessons as $l):
       $cid   = (int)$l['course_id'];
       $model = (int)($per_course[$cid]['model'] ?? 2);
-      // No-show rozliczany wg modelu: pełna lekcja albo 1 godzina.
-      $h = !empty($l['no_show']) && $l['no_show_billing'] === '1h'
+      // No-show rozliczany wg modelu: pełna lekcja albo 1 godzina. Obecność ma
+      // pierwszeństwo — wiersz obecny+no_show (dane sprzed poprawki) to zwykła lekcja.
+      $l['no_show'] = !empty($l['no_show']) && empty($l['attended']);
+      $h = $l['no_show'] && $l['no_show_billing'] === '1h'
           ? 1.0
           : (float)ceil((int)$l['duration_min'] / 60);
       $hourly = $model !== 1 && $model !== 3;

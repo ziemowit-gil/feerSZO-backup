@@ -4787,7 +4787,9 @@ function k30_ti_session_attendance(int $session_id): array {
     return $enrolled;
 }
 
-// Zapis obecności (bulk — tablica [client_id => attended])
+// Zapis obecności (bulk — tablica [client_id => attended]). Obecność kasuje
+// wcześniejsze „nie pojawił się" (no_show) — inaczej kursant byłby rozliczany
+// podwójnie: raz za obecność i drugi raz za płatną nieobecność.
 function k30_ti_save_attendance(int $session_id, array $attended_ids): void {
     $s = db_one("SELECT course_id FROM k30_ti_sessions WHERE id=?", [$session_id]);
     if (!$s) return;
@@ -4803,11 +4805,12 @@ function k30_ti_save_attendance(int $session_id, array $attended_ids): void {
         try {
             db()->prepare(
                 "INSERT INTO k30_ti_attendance (session_id, client_id, attended) VALUES (?,?,?)
-                 ON CONFLICT(session_id, client_id) DO UPDATE SET attended=excluded.attended"
+                 ON CONFLICT(session_id, client_id) DO UPDATE SET attended=excluded.attended,
+                    no_show=CASE WHEN excluded.attended=1 THEN 0 ELSE COALESCE(no_show,0) END"
             )->execute([$session_id, $cid, $attended]);
         } catch (\Throwable $ex) {
             $ex2 = db_one("SELECT id FROM k30_ti_attendance WHERE session_id=? AND client_id=?", [$session_id, $cid]);
-            if ($ex2) db()->prepare("UPDATE k30_ti_attendance SET attended=? WHERE session_id=? AND client_id=?")->execute([$attended, $session_id, $cid]);
+            if ($ex2) db()->prepare("UPDATE k30_ti_attendance SET attended=?, no_show=CASE WHEN ?=1 THEN 0 ELSE COALESCE(no_show,0) END WHERE session_id=? AND client_id=?")->execute([$attended, $attended, $session_id, $cid]);
             else      db_insert('k30_ti_attendance', ['session_id'=>$session_id,'client_id'=>$cid,'attended'=>$attended]);
         }
     }
@@ -4884,7 +4887,7 @@ function k30_ti_cancel_attendance(int $session_id, int $client_id, string $reaso
     if ($ex) {
         db()->prepare(
             "UPDATE k30_ti_attendance
-             SET attended=0, cancelled=1, cancel_pending=0, cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now')
+             SET attended=0, cancelled=1, cancel_pending=0, no_show=0, cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now')
              WHERE id=?"
         )->execute([$reason, $role, $by_label, (int)$ex['id']]);
     } else {
@@ -5255,7 +5258,8 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
              FROM k30_ti_attendance a
              JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
-             WHERE a.client_id=? AND COALESCE(a.no_show,0)=1",
+             WHERE a.client_id=? AND COALESCE(a.no_show,0)=1
+               AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancelled,0)=0",
             [(int)$e['course_id'], $from, $to, $client_id]
         );
         foreach ($ns_rows as $nr) {
@@ -5371,7 +5375,7 @@ function k30_ti_issue_billing_split(int $client_id, int $month, int $year, strin
               AND s.status IN ('held','individual_change','remote_material')
               AND s.lesson_date BETWEEN ? AND ?
          JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id AND e.status='active'
-         WHERE a.client_id=? AND (a.attended=1 OR COALESCE(a.no_show,0)=1)",
+         WHERE a.client_id=? AND COALESCE(a.cancelled,0)=0 AND (a.attended=1 OR COALESCE(a.no_show,0)=1)",
         [$from, $to, $client_id]
     );
     foreach ($with_sessions as $c) $ids[(int)$c['course_id']] = true;

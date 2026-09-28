@@ -171,7 +171,7 @@ if ($report === 'frekwencja') {
                 SUM(CASE WHEN COALESCE(a.attended,0)=0 AND COALESCE(a.cancelled,0)=0
                                AND COALESCE(a.cancel_pending,0)=0 AND COALESCE(a.no_show,0)=0
                          THEN 1 ELSE 0 END) AS nieobecny_n,
-                SUM(CASE WHEN COALESCE(a.no_show,0)=1 THEN 1 ELSE 0 END) AS no_show
+                SUM(CASE WHEN COALESCE(a.no_show,0)=1 AND COALESCE(a.attended,0)=0 AND COALESCE(a.cancelled,0)=0 THEN 1 ELSE 0 END) AS no_show
          FROM k30_ti_sessions s
          JOIN k30_ti_courses c ON c.id=s.course_id
          JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.status IN ('active','inactive')

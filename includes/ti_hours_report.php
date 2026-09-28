@@ -73,7 +73,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
         foreach ($rows as $r) {
             $dur      = (int)$r['duration_min'];
             $attended = !empty($r['attended']) && empty($r['att_cancelled']);
-            $noshow   = !empty($r['no_show']);
+            $noshow   = !empty($r['no_show']) && empty($r['att_cancelled']);
             $hrs      = 0.0;
             if ($attended)      $hrs = (float)ceil($dur / 60);
             elseif ($noshow)    $hrs = ($r['no_show_billing'] === '1h') ? 1.0 : (float)ceil($dur / 60);
