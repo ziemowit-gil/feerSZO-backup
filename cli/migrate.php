@@ -43,6 +43,11 @@ try {
     exit(2);
 }
 
+// Bramka samonaprawy (szo_schema_current w includes/db.php): po jawnej migracji
+// wszystkie *_migrate() mają się wykonać ponownie przy najbliższym żądaniu.
+szo_schema_reset();
+foreach (szo_selfrepair_run() as $_id => $_st) cli_line("  samonaprawa {$_id}: {$_st}");
+
 try {
     $results = migrate_tenant_db($pdo);
 } catch (\Throwable $e) {

@@ -8,6 +8,7 @@ function karty30_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('karty30_migrate', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
     $pdo = db();
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_clients (
@@ -198,10 +199,8 @@ function karty30_migrate(): void {
     // PESEL (do dokumentów PFRON)
     try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN pesel TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
-    // Migracja statusów beneficjentów: stare wartości → nowe klucze
-    try { $pdo->exec("UPDATE k30_clients SET status='learning'  WHERE status='ready'"); }     catch (\Throwable $e) {}
-    try { $pdo->exec("UPDATE k30_clients SET status='graduated' WHERE status='to_settle'"); } catch (\Throwable $e) {}
-    try { $pdo->exec("UPDATE k30_clients SET status='enrolled'  WHERE status='other'"); }     catch (\Throwable $e) {}
+    // Migracja statusów beneficjentów (ready/to_settle/other) — jednorazowa, przeniesiona do
+    // modules/selfrepairDB/logic/migrations.php ('2026-06_k30_client_status_keys').
 
     // ── Umowy PFRON ───────────────────────────────────────────────────────────
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_pfron_contracts (

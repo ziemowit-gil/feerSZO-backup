@@ -21,6 +21,7 @@
     static $done = false;
     if ($done) return;
     $done = true;
+    if (function_exists('szo_schema_current') && szo_schema_current('ti_exams_schema', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
 
     $driver = '';
     try { $driver = db()->getAttribute(PDO::ATTR_DRIVER_NAME); } catch (\Throwable $e) { return; }

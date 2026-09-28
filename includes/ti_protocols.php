@@ -47,6 +47,7 @@ function ti_protocols_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('ti_protocols_migrate', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_protocols (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,15 +134,8 @@ function ti_protocols_migrate(): void {
         }
     } catch (\Throwable $e) {}
 
-    // Jednorazowo: protokoły miesięczne zatwierdzone ZANIM zatwierdzenie zaczęło
-    // otwierać następny miesiąc — dostają go wstecz (cli/ti_protocols_next_month.php
-    // robi to samo ręcznie, z podglądem --dry-run).
-    if (!defined('TI_PROTOCOLS_NO_AUTO_BACKFILL')
-        && function_exists('org_setting') && function_exists('org_setting_set')
-        && org_setting('ti_protocols_next_month_backfill') !== '1') {
-        org_setting_set('ti_protocols_next_month_backfill', '1');
-        try { ti_protocols_backfill_next_months(); } catch (\Throwable $e) {}
-    }
+    // Uzupełnienie „następnego miesiąca” dla starych protokołów — jednorazowe, w
+    // modules/selfrepairDB/logic/migrations.php ('2026-09_ti_protocols_next_month_backfill').
 }
 
 /**

@@ -1,5 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/modules/address_format/logic/addressFormat.php';
+// Samonaprawa bazy: bramka schematu + migracje jednorazowe (szo_schema_current, szo_selfrepair_run)
+require_once dirname(__DIR__) . '/modules/selfrepairDB/logic/selfRepairDB.php';
 
 function db(): PDO {
     static $pdo = null;
@@ -84,3 +86,4 @@ function db_all(string $sql, array $params = []): array {
 function db_exec(string $sql, array $params = []): void {
     db()->prepare($sql)->execute($params);
 }
+

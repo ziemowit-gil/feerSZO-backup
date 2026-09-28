@@ -35,6 +35,7 @@ function ti_planner_ext_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('ti_planner_ext_migrate', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
 
     $pdo = db();
 

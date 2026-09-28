@@ -106,6 +106,7 @@ function upg_run_migrations(bool $do_backup = true): array {
     $backup  = $do_backup ? upd_backup_db() : ['ok' => false];
     $results = [];
     $err     = '';
+    szo_schema_reset();   // po aktualizacji: *_migrate() raz ponownie (bramka w includes/db.php)
     try {
         $results = migrate_tenant_db(db());
     } catch (\Throwable $e) {

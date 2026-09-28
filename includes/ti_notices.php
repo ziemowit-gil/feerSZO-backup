@@ -3,6 +3,9 @@
  * includes/ti_notices.php — Komunikaty placówki TI (tablica ogłoszeń dla kursantów).
  */
 
+/** Punkt komunikatu 14.1 o nagłówku (seed + jednorazowy dopisek 14.1a w selfrepairDB). */
+const TI_NOTICE_141A_NAGLOWEK = 'Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl.';
+
 /** Punkt komunikatu 14.1 o nowym Pulpicie (seed + jednorazowy dopisek 14.1b). */
 const TI_NOTICE_141B_PULPIT = 'Pulpit: układ w dwóch kolumnach — po lewej Do zrobienia, Dziś i Najbliższe zajęcia, po prawej'
     . ' Komunikaty, Frekwencja i Trend; zamiast dużych kafli jedna linia podsumowania. Kierownik widzi nad tym'
@@ -12,6 +15,7 @@ const TI_NOTICE_141B_PULPIT = 'Pulpit: układ w dwóch kolumnach — po lewej Do
 
 function ti_notices_migrate(): void {
     static $done = false; if ($done) return; $done = true;
+    if (szo_schema_current('ti_notices_migrate', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_notices (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -206,33 +210,14 @@ function ti_notices_migrate(): void {
                 . ' jak zobaczy ją kursant — bez jej wystawiania.'
                 . "\n• Wydruki planów i harmonogramów pokazują stan na dzień wydruku (z adnotacją „Stan na dzień”)."
                 . "\n• Zespół i role: osoba, której nadano rolę w panelu, dostaje o tym e-mail."
-                . "\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl."
+                . "\n• " . TI_NOTICE_141A_NAGLOWEK
                 . "\n• " . TI_NOTICE_141B_PULPIT
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
         }
     } catch (\Throwable $e) {}
-    // 14.1a: komunikat 14.1 mógł być już zasiany bez punktu o nagłówku — dopisz go raz.
-    try {
-        if (!db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_szo141_v2'")) {
-            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_szo141_v2','1')")->execute();
-            db()->prepare(
-                "UPDATE k30_ti_notices SET body = body || ?, updated_at = datetime('now')
-                  WHERE title LIKE 'Aktualizacja SZO 14.1%' AND body NOT LIKE '%Nagłówek panelu:%'"
-            )->execute(["\n\n(Uzupełnienie 14.1a)" . "\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl."]);
-        }
-    } catch (\Throwable $e) {}
-    // 14.1b: punkt o nowym Pulpicie — dopisywany raz do już zasianego komunikatu
-    // (świeży seed ma go w treści; znacznik „Pulpit:” chroni przed dublem).
-    try {
-        if (!db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_szo141_v3'")) {
-            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_szo141_v3','1')")->execute();
-            db()->prepare(
-                "UPDATE k30_ti_notices SET body = body || ?, updated_at = datetime('now')
-                  WHERE title LIKE 'Aktualizacja SZO 14.1%' AND body NOT LIKE '%Pulpit:%'"
-            )->execute(["\n\n(Uzupełnienie 14.1b)\n• " . TI_NOTICE_141B_PULPIT]);
-        }
-    } catch (\Throwable $e) {}
+    // Dopiski 14.1a/14.1b do już zasianego komunikatu — jednorazowe, w
+    // modules/selfrepairDB/logic/migrations.php ('2026-09_ti_notice_141a_naglowek', '…_141b_pulpit').
 
     // Seed jednorazowy — jak zgłaszać problemy techniczne (Helpdesk przez Nową wiadomość).
     try {

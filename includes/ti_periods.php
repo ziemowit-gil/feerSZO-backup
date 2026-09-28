@@ -23,6 +23,7 @@ function ti_periods_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    if (szo_schema_current('ti_periods_migrate', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_periods (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
