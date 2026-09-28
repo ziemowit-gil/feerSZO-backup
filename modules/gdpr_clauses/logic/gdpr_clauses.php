@@ -180,7 +180,6 @@ function gdpr_clauses_migrate(): void {
             ['nip',          $s('org_nip'),    'NIP'],
             ['krs',          $s('org_krs'),    'KRS'],
             ['contact_email', '',              'E-mail kontaktowy administratora'],
-            ['dpo_email',    '',               'E-mail Inspektora Ochrony Danych (IOD)'],
         ];
         $st = $pdo->prepare("INSERT INTO global_variables (key_, value, label, sort_order, updated_at) VALUES (?,?,?,?,datetime('now','localtime'))");
         foreach ($defaults as $i => [$k, $v, $l]) $st->execute([$k, $v, $l, ($i + 1) * 10]);
@@ -201,7 +200,7 @@ Zgodnie z art. 13 ust. 1 i 2 Rozporządzenia Parlamentu Europejskiego i Rady (UE
 Administratorem Pani/Pana danych osobowych jest **{{company_name}}** z siedzibą: {{address}}, NIP {{nip}}, KRS {{krs}}. Kontakt: {{contact_email}}.
 
 ## Inspektor Ochrony Danych
-We wszystkich sprawach dotyczących przetwarzania danych osobowych można kontaktować się z Inspektorem Ochrony Danych: {{dpo_email}}.
+Administrator nie wyznaczył Inspektora Ochrony Danych. We wszystkich sprawach dotyczących przetwarzania danych osobowych można kontaktować się bezpośrednio z administratorem: {{contact_email}}.
 
 ## Cele i podstawy przetwarzania
 - przeprowadzenie bieżącego procesu rekrutacji — art. 6 ust. 1 lit. b RODO oraz art. 22¹ Kodeksu pracy (art. 6 ust. 1 lit. c RODO),

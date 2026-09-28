@@ -16,7 +16,7 @@ function gdpr_clauses_templates(): array {
     $admin = "## Administrator danych\n"
         . "Administratorem Pani/Pana danych osobowych jest **{{company_name}}** z siedzibą: {{address}}, NIP {{nip}}, KRS {{krs}}. Kontakt z administratorem: {{contact_email}}.\n\n"
         . "## Inspektor Ochrony Danych\n"
-        . "W sprawach dotyczących przetwarzania danych osobowych można kontaktować się z Inspektorem Ochrony Danych: {{dpo_email}}.";
+        . "Administrator nie wyznaczył Inspektora Ochrony Danych. W sprawach dotyczących przetwarzania danych osobowych można kontaktować się bezpośrednio z administratorem: {{contact_email}}.";
     $rights = "## Przysługujące prawa\n"
         . "Ma Pani/Pan prawo dostępu do swoich danych, ich sprostowania, usunięcia lub ograniczenia przetwarzania, prawo do przenoszenia danych oraz prawo wniesienia sprzeciwu wobec przetwarzania. Jeżeli przetwarzanie odbywa się na podstawie zgody — prawo do jej cofnięcia w dowolnym momencie bez wpływu na zgodność z prawem przetwarzania dokonanego przed cofnięciem.\n\n"
         . "Przysługuje Pani/Panu prawo wniesienia skargi do Prezesa Urzędu Ochrony Danych Osobowych (ul. Stawki 2, 00-193 Warszawa).";
