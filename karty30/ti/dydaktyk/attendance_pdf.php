@@ -55,16 +55,17 @@ foreach ($att_raw as $r) $att[(int)$r['session_id']][(int)$r['client_id']] = $r;
 
 // ── PDF ──────────────────────────────────────────────────────────────────────
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
 
 function _att_txt(string $s): string {
-    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+    return TiPdf::pl($s);
 }
 
 // Generowanie PDF w try/catch — zamiast gołego 500 pokaż czytelny powód
 // (błąd fontu FPDF, brak biblioteki itp.) i zaloguj.
 try {
 
-$pdf = new FPDF('L', 'mm', 'A4'); // landscape — więcej kolumn
+$pdf = new TiPdf('L', 'mm', 'A4'); // landscape — więcej kolumn
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
 $pdf->AddPage();

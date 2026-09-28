@@ -32,10 +32,11 @@ if ($WP['first_lesson'] !== '') $_meta[] = 'Zajęcia od: ' . date('d.m.Y', strto
 if ($_contact) $_meta[] = 'Kontakt: ' . implode(' · ', $_contact);
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
-$pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
+$pl = fn(string $s): string => TiPdf::pl($s);
 
 try {
-    $pdf = new FPDF('L', 'mm', 'A4');
+    $pdf = new TiPdf('L', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(12, 12, 12);
     $pdf->AddPage();

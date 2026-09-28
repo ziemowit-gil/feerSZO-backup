@@ -22,11 +22,12 @@ if (!$backup || !is_array($backup) || !$profile) {
 }
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
-$pl  = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
+$pl  = fn(string $s): string => TiPdf::pl($s);
 $org = defined('ORG_NAME') ? ORG_NAME : '';
 
 try {
-    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf = new TiPdf('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(18, 18, 18);
     $pdf->AddPage();

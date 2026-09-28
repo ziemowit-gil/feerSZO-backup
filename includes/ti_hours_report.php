@@ -161,12 +161,13 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
  */
 function ti_hours_pdf(array $d, array $opts = []): string {
     require_once __DIR__ . '/fpdf/fpdf.php';
+    require_once __DIR__ . '/../modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
     // Font z pełnym zestawem polskich znaków (DejaVu, kodowanie ISO-8859-2)
-    $pl = fn(string $s): string => iconv('UTF-8', 'ISO-8859-2//TRANSLIT//IGNORE', $s) ?: $s;
+    $pl = fn(string $s): string => TiPdf::pl($s);
     $zl = fn($x): string => number_format((float)$x, 2, ',', ' ');
     $org = defined('ORG_NAME') ? ORG_NAME : '';
 
-    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf = new TiPdf('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 16);
     $pdf->SetMargins(12, 12, 12);
     $fdir = __DIR__ . '/fpdf/font/';

@@ -14,10 +14,14 @@ karty30_migrate();
 $year = (int)($_GET['year'] ?? date('Y'));
 $year = max(2020, min(2035, $year));
 
-$items = db_all(
+// Tabelę zakłada dopiero ekran dni_wolne.php — bez jego odwiedzin eksport kończył się
+// błędem krytycznym „no such table”; brak tabeli = pusty wykaz.
+try {
+    $items = db_all(
     "SELECT * FROM k30_ti_holidays WHERE strftime('%Y', date_from)=? OR strftime('%Y', date_to)=? ORDER BY date_from",
     [(string)$year, (string)$year]
-);
+    );
+} catch (\Throwable $e) { $items = []; }
 
 $type_labels = ['holiday' => 'Dzień wolny / święto', 'break' => 'Przerwa w działalności', 'other' => 'Inne'];
 

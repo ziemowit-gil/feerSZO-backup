@@ -95,10 +95,11 @@ foreach ($sessions as $s) $sessions_by_course[(int)$s['course_id']][] = $s;
 
 // PDF
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
 $FONT_DIR = dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/font/';
 
 function _mr(string $s): string {
-    return iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+    return TiPdf::pl($s);
 }
 
 $MONTHS_PL_FULL = ['','Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
@@ -107,7 +108,7 @@ $ORG = defined('ORG_NAME') ? ORG_NAME : '';
 
 // Generowanie PDF w try/catch — czytelny powód zamiast gołego 500
 try {
-$pdf = new FPDF('L', 'mm', 'A4');
+$pdf = new TiPdf('L', 'mm', 'A4');
 $pdf->SetAutoPageBreak(true, 15);
 $pdf->SetMargins(10, 10, 10);
 
@@ -137,7 +138,7 @@ foreach ($sessions_by_course as $cid => $c_sessions) {
     $held_s  = $total_s - $canc_s;
     $pdf->SetFont('Helvetica', '', 7.5);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->Cell($PW, 5, _mr("Lekcje w miesiącu: $total_s   |   Odbyłe się: $held_s   |   Odwołane: $canc_s   |   Aktywnych kursantów: " . count($c_enrollees)), 0, 1, 'C');
+    $pdf->Cell($PW, 5, _mr("Lekcje w miesiącu: $total_s   |   Odbyły się: $held_s   |   Odwołane: $canc_s   |   Aktywnych kursantów: " . count($c_enrollees)), 0, 1, 'C');
     $pdf->SetTextColor(0, 0, 0);
     $pdf->Ln(2);
 

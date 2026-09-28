@@ -24,10 +24,11 @@ if (!$instructor) { http_response_code(404); exit('Nie znaleziono prowadzącego.
 $org = defined('APP_ORG') ? APP_ORG : (defined('ORG_NAME') ? ORG_NAME : '');
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
-$pl = fn(string $s): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $s) ?: $s;
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
+$pl = fn(string $s): string => TiPdf::pl($s);
 
 try {
-    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf = new TiPdf('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(12, 12, 12);
     $pdf->AddPage();

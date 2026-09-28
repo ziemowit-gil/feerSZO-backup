@@ -31,11 +31,12 @@ $s_instr = (int)($s['instructor_id'] ?? 0);
 if ($s_instr) { $instr_name = (string)(db_one("SELECT name FROM users WHERE id=?", [$s_instr])['name'] ?? ''); }
 
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
-$pl = fn(string $t): string => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $t) ?: $t;
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
+$pl = fn(string $t): string => TiPdf::pl($t);
 $org = defined('ORG_NAME') ? ORG_NAME : '';
 
 try {
-    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf = new TiPdf('P', 'mm', 'A4');
     $pdf->SetAutoPageBreak(true, 15);
     $pdf->SetMargins(14, 14, 14);
     $pdf->AddPage();

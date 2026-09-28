@@ -576,9 +576,10 @@ function ti_librus_grid_instructor(int $instructor_id, int $weeks = 8): array {
  */
 function ti_librus_grid_pdf(array $L, array $dow_lbl, array $opts = []): string {
     require_once __DIR__ . '/fpdf/fpdf.php';
-    $pl = fn($s) => iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', (string)$s) ?: (string)$s;
+    require_once __DIR__ . '/../modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
+    $pl = fn($s) => TiPdf::pl((string)$s);
 
-    $pdf = new \FPDF('L', 'mm', 'A4');
+    $pdf = new \TiPdf('L', 'mm', 'A4');
     $pdf->SetAutoPageBreak(false);
     $pdf->SetMargins(10, 10, 10);
     $pdf->AddPage();
