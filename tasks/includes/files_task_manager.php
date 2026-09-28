@@ -90,8 +90,14 @@ $tfm_kinds  = task_file_kinds();
        class="btn btn-sm btn-link text-decoration-none">Wyczyść</a>
     <?php endif; ?>
 
+    <?php if ($tfm_task && $tfm['rows']): ?>
+    <a href="<?= h(APP_URL . '/tasks/api/files_zip.php?task=' . (int)$tfm_task['id']) ?>"
+       class="btn btn-sm btn-outline-secondary ms-auto">
+      <i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>Pobierz ZIP
+    </a>
+    <?php endif; ?>
     <?php if ($tfm_can_attach): ?>
-    <label class="btn btn-sm btn-primary ms-auto mb-0" style="cursor:pointer">
+    <label class="btn btn-sm btn-primary <?= $tfm['rows'] ? '' : 'ms-auto' ?> mb-0" style="cursor:pointer">
       <i class="bi bi-upload me-1" aria-hidden="true"></i>Dodaj pliki do zadania
       <input type="file" id="tfm-upload" class="visually-hidden" multiple
              accept="<?= h(task_upload_accept_attr()) ?>"

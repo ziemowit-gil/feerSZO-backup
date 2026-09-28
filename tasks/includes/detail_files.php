@@ -26,6 +26,13 @@ $td_show_ws_files     = (bool)$ws_for_task;
        title="Menedżer plików: pliki tego zadania (w nowej karcie)">
       Menedżer plików <i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>
     </a>
+    <?php if ($td_files_total > 1): ?>
+    <a href="<?= APP_URL ?>/tasks/api/files_zip.php?task=<?= (int)$id ?>"
+       class="ms-2 text-decoration-none small" style="font-size:.75rem"
+       title="Pobierz wszystkie załączniki zadania jako archiwum ZIP">
+      <i class="bi bi-file-earmark-zip me-1" aria-hidden="true"></i>ZIP
+    </a>
+    <?php endif; ?>
   </div>
 
   <!-- ── Załączniki (lokalne, uploads/tasks/) ──────────────────────────────── -->
