@@ -1459,6 +1459,37 @@ switch ($action) {
         ]);
     }
 
+    // Lista godzin (data — liczba godzin) do okna „Sprawdź listę godzin” przed
+    // zatwierdzeniem/podpisem, oraz jej wydruk PDF (?pdf=1, zwykły <a href>).
+    // Po id protokołu albo course_id+year_month (bez zakładania protokołu).
+    case 'protocol_hours_list': {
+        $pid = (int)($_GET['id'] ?? 0);
+        $cid = (int)($_GET['course_id'] ?? 0);
+        $ym  = (string)($_GET['year_month'] ?? '');
+        if (!$pid && $cid && !k30_ti_instructor_owns_course($instructor_id, $cid)) json_err('Brak dostępu do tego protokołu.', 403);
+        $pr = $pid ? ti_protocol_get($pid)
+            : (($cid && preg_match('/^\d{4}-\d{2}$/', $ym)) ? ti_protocol_month_stub($cid, $ym) : null);
+        if (!$pr || !k30_ti_instructor_owns_course($instructor_id, (int)$pr['course_id'])) json_err('Brak dostępu do tego protokołu.', 403);
+
+        if (!empty($_GET['pdf'])) {
+            $pdf = ti_protocol_hours_list_pdf($pr);
+            if ($pdf === null) json_err('Nie udało się wygenerować PDF listy godzin.', 500);
+            while (ob_get_level() > 0) ob_end_clean();
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: inline; filename="' . ti_protocol_hours_list_filename($pr) . '"');
+            header('Content-Length: ' . strlen($pdf));
+            echo $pdf;
+            exit;
+        }
+        $hl = ti_protocol_hours_list($pr);
+        json_ok([
+            'course_name' => (string)($pr['course_name'] ?? ''),
+            'period_name' => (string)($pr['period_name'] ?? ''),
+            'rows'        => $hl['rows'],
+            'total_hours' => $hl['total_hours'],
+        ]);
+    }
+
     // Potwierdzenie ewidencji godzin i wypłaty (podpis prowadzącego) na
     // ZATWIERDZONYM protokole — jak op=protocol_hours_ack w klasycznym panelu.
     case 'protocol_hours_ack': {

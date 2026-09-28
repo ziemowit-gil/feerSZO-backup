@@ -8,7 +8,7 @@ import {
   InstructorMessageThreads, InstructorAdminMessage, Message,
   InstructorFormalnosci, InstructorHelpdeskTicket,
   InstructorOwnCloudStatus, InstructorOwnCloudReveal, InstructorZoomBusy,
-  InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary,
+  InstructorProtocolPending, InstructorProtocolClosed, InstructorProtocolSummary, InstructorProtocolHoursList,
   InstructorAttendanceTrendPoint, InstructorAbsence, InstructorCurriculumItem,
   InstructorRecurringRule, InstructorSyllabusRef, InstructorCurriculumImportResult,
 } from '../models/kursant.models';
@@ -181,6 +181,16 @@ export class InstructorApiService {
   }
   approveProtocol(courseId: number, yearMonth: string) {
     return this.post<void>('protocol_approve', { course_id: courseId, year_month: yearMonth });
+  }
+  /** Lista godzin do sprawdzenia przed podpisem — po protocol_id albo kurs+miesiąc. */
+  getProtocolHoursList(ref: { protocolId?: number; courseId?: number; yearMonth?: string }) {
+    return this.get<InstructorProtocolHoursList>('protocol_hours_list', this.protocolRefParams(ref));
+  }
+  protocolHoursPdfUrl(ref: { protocolId?: number; courseId?: number; yearMonth?: string }): string {
+    return this.downloadUrl('protocol_hours_list', { ...this.protocolRefParams(ref), pdf: '1' });
+  }
+  private protocolRefParams(ref: { protocolId?: number; courseId?: number; yearMonth?: string }): Record<string, string> {
+    return ref.protocolId ? { id: String(ref.protocolId) } : { course_id: String(ref.courseId ?? 0), year_month: ref.yearMonth ?? '' };
   }
   ackProtocolHours(protocolId: number) {
     return this.post<void>('protocol_hours_ack', { protocol_id: protocolId });

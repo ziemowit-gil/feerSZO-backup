@@ -749,6 +749,13 @@ export interface InstructorProtocolClosed {
   can_ack?: boolean;
 }
 
+export interface InstructorProtocolHoursList {
+  course_name: string;
+  period_name: string;
+  rows: { date: string; from: string; to: string; min: number; hours: number; sub: string }[];
+  total_hours: number;
+}
+
 export interface InstructorProtocolSummary {
   lessons_held: number;
   lessons_total: number;
