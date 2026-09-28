@@ -465,3 +465,78 @@ body.ti-skin header .navbar .kp-work-as a { color: #ffd863; }
 body.ti-skin header .navbar .kp-work-as.kp-acting { background: #fdba74; color: #7c2d12; padding: .15rem .5rem; border-radius: 2px; }
 body.ti-skin header .navbar .kp-work-as.kp-acting strong,
 body.ti-skin header .navbar .kp-work-as.kp-acting a { color: #7c2d12; }
+
+/* ══ Delikatne unowocześnienie panelu dydaktyka (2026-09-29) ══════════════════
+   Tylko body.dyd-usos (panel prowadzącego/kierownika); panel kursanta i Equi
+   Exams bez zmian. Charakter USOS zostaje (granat, złoto, gęste tabele,
+   rejestrowy układ) — zmieniają się detale: krój systemowy zamiast Verdany,
+   lekkie zaokrąglenia 4 px, subtelne cienie kart, miękkie przejścia i wyraźny
+   fokus z klawiatury. Wartości z !important tam, gdzie bazowa skórka ich używa. */
+body.dyd-usos {
+  --ti-radius: 4px;
+  --ti-shadow: 0 1px 2px rgba(16, 51, 92, .06), 0 1px 1px rgba(16, 51, 92, .04);
+  --ti-focus: 0 0 0 .2rem rgba(11, 74, 143, .28);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "DejaVu Sans", Arial, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+body.dyd-usos h1, body.dyd-usos h2, body.dyd-usos h3,
+body.dyd-usos .h1, body.dyd-usos .h2, body.dyd-usos .h3,
+body.dyd-usos .h4, body.dyd-usos .h5, body.dyd-usos .h6,
+body.dyd-usos .btn { font-family: inherit; letter-spacing: -.005em; }
+
+/* Karty: miękka ramka, lekki cień, zaokrąglone rogi (nagłówek i stopka z nimi) */
+body.dyd-usos .dyd-wrap .card, body.dyd-usos.ti-skin .card {
+  border-color: #d3dce7 !important; border-radius: var(--ti-radius) !important;
+  box-shadow: var(--ti-shadow) !important;   /* bez overflow:hidden — przycinałby listy rozwijane w kartach */
+}
+body.dyd-usos .dyd-wrap .card-header, body.dyd-usos.ti-skin .card-header {
+  border-radius: calc(var(--ti-radius) - 1px) calc(var(--ti-radius) - 1px) 0 0 !important; padding: .4rem .7rem !important;
+  background: linear-gradient(#e6edf5, var(--ti-bar)) !important;
+}
+body.dyd-usos.ti-skin .card-body { padding: .7rem !important; }
+body.dyd-usos.ti-skin .card-footer { border-radius: 0 0 calc(var(--ti-radius) - 1px) calc(var(--ti-radius) - 1px) !important; }
+
+/* Tabele: odrobinę więcej powietrza, płynne podświetlenie wiersza */
+body.dyd-usos .dyd-wrap .table > :not(caption) > * > *, body.dyd-usos.ti-skin .table > :not(caption) > * > * {
+  padding: .26rem .5rem !important; transition: background-color .12s ease;
+}
+body.dyd-usos.ti-skin .table thead th { letter-spacing: .01em; }
+
+/* Przyciski, pola, listy rozwijane — 4 px, przejścia, czytelny fokus */
+body.dyd-usos.ti-skin .btn {
+  border-radius: var(--ti-radius) !important; padding: .22rem .65rem !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+body.dyd-usos.ti-skin .btn:focus-visible { box-shadow: var(--ti-focus) !important; }
+body.dyd-usos.ti-skin .form-control, body.dyd-usos.ti-skin .form-select {
+  border-radius: var(--ti-radius) !important; padding: .25rem .45rem;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+body.dyd-usos.ti-skin .form-control:focus, body.dyd-usos.ti-skin .form-select:focus {
+  border-color: var(--ti-blue); box-shadow: var(--ti-focus);
+}
+body.dyd-usos.ti-skin .dropdown-menu { border-radius: var(--ti-radius); box-shadow: 0 6px 18px rgba(16, 51, 92, .14); border-color: #d3dce7; }
+body.dyd-usos.ti-skin .badge { border-radius: 3px !important; }
+body.dyd-usos.ti-skin .alert { border-radius: var(--ti-radius); }
+body.dyd-usos.ti-skin .modal-content { border-radius: 6px; }
+
+/* Linki: podkreślenie odsunięte od tekstu (czytelniej przy polskich znakach) */
+body.dyd-usos.ti-skin a:not(.btn) { text-underline-offset: 2px; text-decoration-thickness: 1px; }
+
+/* Pasek i menu kierownika: przejścia; wyraźny fokus z klawiatury na granacie */
+body.dyd-usos.ti-skin header .navbar .dyd-topnav a,
+body.dyd-usos .kier-sidenav a { transition: background-color .12s ease, color .12s ease; }
+body.dyd-usos.ti-skin header .navbar .dyd-topnav a { border-radius: var(--ti-radius) var(--ti-radius) 0 0; }
+body.dyd-usos.ti-skin header .navbar a:focus-visible,
+body.dyd-usos.ti-skin header .navbar button:focus-visible,
+body.dyd-usos .kier-sidenav a:focus-visible { outline: 2px solid #ffd863; outline-offset: 1px; }
+body.dyd-usos.ti-skin header .navbar .dyd-cs-btn,
+body.dyd-usos.ti-skin header .navbar .dyd-cs-menu { border-radius: var(--ti-radius); }
+
+/* Podmenu sekcji: aktywna pozycja jako „pigułka” z tym samym promieniem */
+body.dyd-usos.ti-skin .skin-subnav a, body.dyd-usos.ti-skin .skin-subnav .skin-subnav-btn { border-radius: var(--ti-radius); transition: background-color .12s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  body.dyd-usos * { transition: none !important; }
+}
