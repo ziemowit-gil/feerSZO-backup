@@ -1041,6 +1041,30 @@ echo '<main id="main" class="dyd-wrap">';
               $grp_debt   = $gb ? (float)$gb['debt'] : $acc_debt;       // rozliczenie łączne = całe konto
               $grp_credit = $gb ? (float)$gb['credit'] : 0.0;
               $other_debt = round(max(0, $acc_debt - $grp_debt), 2);
+              // Podpowiedź po najechaniu: z których rozliczeń (grupa, okres) jest zaległość —
+              // także z grup archiwalnych/zamkniętych. Liczone raz na kursanta.
+              if (!isset($debt_detail[(int)$b['client_id']])) {
+                  $debt_detail[(int)$b['client_id']] = [];
+                  $_al = ti_client_allocation((int)$b['client_id']);
+                  $_ids = array_column(array_filter($_al['rows'], fn($r) => $r['due'] - $r['paid'] > 0.005), null, 'id');
+                  if ($_ids) {
+                      $_ph = implode(',', array_fill(0, count($_ids), '?'));
+                      foreach (db_all("SELECT b.id, b.month, b.year, COALESCE(b.course_id,0) AS course_id, c.name, c.status
+                                         FROM k30_ti_billing b LEFT JOIN k30_ti_courses c ON c.id=b.course_id
+                                        WHERE b.id IN ($_ph) ORDER BY b.year, b.month", array_keys($_ids)) as $_r) {
+                          $_arch = in_array((string)($_r['status'] ?? ''), ['archived', 'cancelled'], true);
+                          $debt_detail[(int)$b['client_id']][] = [
+                              'course_id' => (int)$_r['course_id'],
+                              'text' => ((int)$_r['course_id'] > 0 ? (string)($_r['name'] ?? '?') : 'rozliczenie łączne') . ($_arch ? ' (archiwum)' : '')
+                                      . ' — ' . ($months_pl[(int)$_r['month']] ?? $_r['month']) . ' ' . $_r['year'] . ': '
+                                      . number_format($_ids[(int)$_r['id']]['due'] - $_ids[(int)$_r['id']]['paid'], 2, ',', ' ') . ' zł',
+                          ];
+                      }
+                  }
+              }
+              $_dd = $debt_detail[(int)$b['client_id']];
+              $tip_grp   = implode("\n", array_column(array_filter($_dd, fn($d) => !$gb || $d['course_id'] === (int)$b['course_id']), 'text'));
+              $tip_other = implode("\n", array_column(array_filter($_dd, fn($d) => $gb && $d['course_id'] !== (int)$b['course_id']), 'text'));
               if ($grp_credit > 0.005 || $grp_debt > 0.005 || $other_debt > 0.005): ?>
             <div class="mt-1 d-flex flex-wrap align-items-center gap-1" style="font-size:.74rem">
               <?php if ($grp_credit > 0.005): ?>
@@ -1048,11 +1072,11 @@ echo '<main id="main" class="dyd-wrap">';
                 <i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>Nadpłata <?= number_format($grp_credit,2,',',' ') ?> zł</span>
               <?php elseif ($grp_debt > 0.005): ?>
               <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"
-                    title="<?= $gb ? 'Do zapłaty w tej grupie' : 'Do zapłaty na koncie kursanta' ?>">
+                    style="cursor:help" title="<?= h(($gb ? 'Do zapłaty w tej grupie' : 'Do zapłaty na koncie kursanta') . ($tip_grp !== '' ? ":\n" . $tip_grp : '')) ?>">
                 <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Do zapłaty <?= number_format($grp_debt,2,',',' ') ?> zł</span>
               <?php endif; ?>
               <?php if ($other_debt > 0.005): ?>
-              <span class="text-danger-emphasis" title="Niedopłata kursanta w pozostałych grupach / okresach">
+              <span class="text-danger-emphasis" style="cursor:help;text-decoration:underline dotted" title="<?= h('Niedopłata w pozostałych grupach / okresach' . ($tip_other !== '' ? ":\n" . $tip_other : '')) ?>">
                 <?= ($grp_credit > 0.005 || $grp_debt > 0.005) ? '+ ' : 'Do zapłaty w innych grupach: ' ?><?= number_format($other_debt,2,',',' ') ?> zł<?= ($grp_credit > 0.005 || $grp_debt > 0.005) ? ' w innych grupach' : '' ?></span>
               <?php endif; ?>
             </div>
