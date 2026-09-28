@@ -610,8 +610,14 @@ function edok_get(int $id): ?array {
     return $doc;
 }
 
-function edok_events(int $doc_id): array {
-    return db_all("SELECT * FROM edok_events WHERE doc_id = ? ORDER BY id ASC", [$doc_id]);
+/**
+ * Historia obiegu dokumentu. Wpisy techniczne (migracje danych: „migracja”, „migracje”…)
+ * są domyślnie ukryte — zostają w bazie (audyt insert-only), ale nie zaśmiecają historii.
+ */
+function edok_events(int $doc_id, bool $z_technicznymi = false): array {
+    $rows = db_all("SELECT * FROM edok_events WHERE doc_id = ? ORDER BY id ASC", [$doc_id]);
+    if ($z_technicznymi) return $rows;
+    return array_values(array_filter($rows, fn($e) => !preg_match('/migracj/iu', (string)($e['comment'] ?? '') . ' ' . (string)($e['event_type'] ?? ''))));
 }
 
 // ── Kolejność i walidacje etapów ───────────────────────────────────────────────
