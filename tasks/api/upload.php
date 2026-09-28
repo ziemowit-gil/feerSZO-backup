@@ -43,6 +43,9 @@ if (str_contains($content_type, 'application/json')) {
         // Usuń fizyczny plik
         $path = __DIR__ . '/../../uploads/tasks/' . $file['stored_name'];
         if (file_exists($path)) @unlink($path);
+        // Miniatura okładki (task_file_thumb) — sprzątamy razem z plikiem
+        $thumb = __DIR__ . '/../../uploads/tasks/thumbs/' . pathinfo(basename($file['stored_name']), PATHINFO_FILENAME) . '_w480.jpg';
+        if (is_file($thumb)) @unlink($thumb);
 
         db()->prepare("DELETE FROM task_files WHERE id=?")->execute([$file_id]);
         task_log((int)$file['task_id'], $uid, 'deleted_file', $file['original_name']);

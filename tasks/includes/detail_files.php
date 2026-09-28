@@ -57,6 +57,20 @@ $td_show_ws_files     = (bool)$ws_for_task;
          title="Pobierz" aria-label="Pobierz <?= h($f['original_name']) ?>">
         <i class="bi bi-download" aria-hidden="true"></i>
       </a>
+      <?php if (in_array($f['mime_type'] ?? '', TASK_COVER_MIMES, true)):
+        $is_cover = (int)$f['id'] === $cover_id; ?>
+      <?php if ($can_manage_files): ?>
+      <button type="button" class="td-file-dl <?= $is_cover ? 'text-warning' : '' ?>"
+              onclick="tdSetCover(<?= $is_cover && $cover_mode === 'manual' ? 0 : (int)$f['id'] ?>)"
+              title="<?= $is_cover ? 'Okładka karty' . ($cover_mode === 'auto' ? ' (automatycznie)' : '') : 'Ustaw jako okładkę karty' ?>"
+              aria-pressed="<?= $is_cover ? 'true' : 'false' ?>"
+              aria-label="<?= $is_cover ? 'Okładka karty: ' : 'Ustaw jako okładkę: ' ?><?= h($f['original_name']) ?>">
+        <i class="bi <?= $is_cover ? 'bi-image-fill' : 'bi-image' ?>" aria-hidden="true"></i>
+      </button>
+      <?php elseif ($is_cover): ?>
+      <span class="td-file-dl text-warning" title="Okładka karty"><i class="bi bi-image-fill" aria-hidden="true"></i><span class="visually-hidden">Okładka karty</span></span>
+      <?php endif; ?>
+      <?php endif; ?>
       <?php if ($can_manage_files): ?>
       <button type="button"
               class="btn-close flex-shrink-0"
@@ -68,6 +82,16 @@ $td_show_ws_files     = (bool)$ws_for_task;
     <?php endforeach; ?>
     <?php if (empty($files)): ?>
     <p class="text-muted small mb-0">Brak załączników.</p>
+    <?php endif; ?>
+    <?php if ($can_manage_files && ($cover_id || $cover_mode === 'none')): ?>
+    <div class="small mt-1">
+      <?php if ($cover_mode === 'none'): ?>
+      <span class="text-muted">Karta bez okładki.</span>
+      <button type="button" class="btn btn-link btn-sm p-0 align-baseline" onclick="tdSetCover(0)">Włącz automatyczną okładkę</button>
+      <?php else: ?>
+      <button type="button" class="btn btn-link btn-sm p-0 align-baseline text-muted" onclick="tdSetCover(-1)">Bez okładki na karcie</button>
+      <?php endif; ?>
+    </div>
     <?php endif; ?>
   </div>
 

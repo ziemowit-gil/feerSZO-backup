@@ -104,7 +104,8 @@ if ($ws_id) {
                     (SELECT COUNT(*) FROM task_dependencies td
                        JOIN tasks bt ON bt.id = td.blocked_by_id AND bt.deleted_at IS NULL AND bt.completed_at IS NULL
                        JOIN task_lists bl ON bl.id = bt.list_id AND bl.is_done_state = 0
-                     WHERE td.task_id = t.id) AS blocked_count
+                     WHERE td.task_id = t.id) AS blocked_count,
+                    " . task_cover_sql() . " AS cover_id
              FROM tasks t
              JOIN task_lists tl ON tl.id = t.list_id
              LEFT JOIN org_units ou ON ou.id = t.unit_id

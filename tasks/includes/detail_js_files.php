@@ -161,6 +161,17 @@ window.tdImportFromUrl = function(url, filename, onDone) {
     });
 };
 
+/* Okładka karty: >0 plik, 0 = automatycznie, -1 = bez okładki */
+window.tdSetCover = function(fileId) {
+    api('/tasks/api/cover.php', {task_id: TID, file_id: fileId})
+        .then(r => {
+            if (!r.ok) { alert(r.error); return; }
+            srAnnounce(fileId === -1 ? 'Karta bez okładki.' : 'Okładka ustawiona.');
+            openTask(TID);
+            if (typeof tkAjaxLoad === 'function') tkAjaxLoad();
+        });
+};
+
 window.tdDeleteFile = function(fid) {
     if (!confirm('Usunąć ten plik?')) return;
     api('/tasks/api/upload.php', {action:'delete', file_id:fid, task_id:TID})

@@ -39,6 +39,9 @@ $assignees  = db_all(
      JOIN users u ON u.id=ta.user_id WHERE ta.task_id=? ORDER BY u.name", [$id]);
 $assign_ids = array_column($assignees, 'id');
 $watchers    = task_watchers($id);
+$cover_row   = db_one("SELECT " . task_cover_sql() . " AS cover_id, t.cover_file_id FROM tasks t WHERE t.id=?", [$id]);
+$cover_id    = (int)($cover_row['cover_id'] ?? 0);
+$cover_mode  = $cover_row['cover_file_id'] === null ? 'auto' : ((int)$cover_row['cover_file_id'] === -1 ? 'none' : 'manual');
 $blockers    = task_blockers($id);
 $blocking    = task_blocking($id);
 $dep_candidates = [];

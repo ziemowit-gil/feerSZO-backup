@@ -999,6 +999,9 @@ function task_extras_schema_heal(): void {
             CHECK (task_id <> blocked_by_id)
         )");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_task_deps_blocker ON task_dependencies(blocked_by_id)");
+        $cols = array_column(db_all("PRAGMA table_info(tasks)"), 'name');
+        // Okładka karty: NULL = automatycznie pierwszy obrazek, -1 = bez okładki, >0 = task_files.id
+        if (!in_array('cover_file_id', $cols, true)) $pdo->exec("ALTER TABLE tasks ADD COLUMN cover_file_id INTEGER");
     } catch (\Throwable $e) { error_log('[task_extras_schema_heal] ' . $e->getMessage()); }
 }
 
@@ -1084,4 +1087,44 @@ function task_guard_blockers(int $task_id, bool $force): void {
         'error'    => 'Zadanie czeka na: ' . implode(', ', array_map(fn($b) => '„' . $b['title'] . '”', $open)) . '.',
         'blockers' => array_map(fn($b) => ['id' => (int)$b['id'], 'title' => $b['title']], $open),
     ], 409);
+}
+
+const TASK_COVER_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+/** SQL-owe wyrażenie zwracające id pliku okładki dla aliasu zadania `t` (albo NULL). */
+function task_cover_sql(): string {
+    $mimes = "'" . implode("','", TASK_COVER_MIMES) . "'";
+    return "CASE WHEN t.cover_file_id = -1 THEN NULL ELSE COALESCE(
+        (SELECT cf.id FROM task_files cf WHERE cf.id = t.cover_file_id AND cf.task_id = t.id AND cf.mime_type IN ($mimes)),
+        (SELECT cf.id FROM task_files cf WHERE cf.task_id = t.id AND cf.mime_type IN ($mimes) ORDER BY cf.created_at, cf.id LIMIT 1)
+    ) END";
+}
+
+/**
+ * Miniatura obrazka (max 480 px szerokości, JPEG) w uploads/tasks/thumbs/ — generowana raz.
+ * Zwraca ścieżkę albo null (brak GD / nieobsługiwany format → wywołujący podaje oryginał).
+ */
+function task_file_thumb(string $src_path, string $stored_name, string $mime): ?string {
+    if (!extension_loaded('gd')) return null;
+    $dir  = dirname(__DIR__) . '/uploads/tasks/thumbs/';
+    $dest = $dir . pathinfo(basename($stored_name), PATHINFO_FILENAME) . '_w480.jpg';
+    if (is_file($dest) && filemtime($dest) >= filemtime($src_path)) return $dest;
+
+    $img = match ($mime) {
+        'image/jpeg' => @imagecreatefromjpeg($src_path),
+        'image/png'  => @imagecreatefrompng($src_path),
+        'image/gif'  => @imagecreatefromgif($src_path),
+        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($src_path) : false,
+        default      => false,
+    };
+    if (!$img) return null;
+    $w = imagesx($img); $h = imagesy($img);
+    $nw = min(480, $w); $nh = max(1, (int)round($h * $nw / max(1, $w)));
+    $thumb = imagecreatetruecolor($nw, $nh);
+    imagefill($thumb, 0, 0, imagecolorallocate($thumb, 255, 255, 255));   // przezroczystość PNG/GIF → białe tło
+    imagecopyresampled($thumb, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $ok = @imagejpeg($thumb, $dest, 78);
+    unset($img, $thumb);   // imagedestroy() zbędne od PHP 8.0 (deprecated w 8.5)
+    return $ok ? $dest : null;
 }

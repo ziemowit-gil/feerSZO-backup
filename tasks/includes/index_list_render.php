@@ -8,6 +8,8 @@
 
 function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id, string $view_mode, ?array $workspace, bool $can_add, bool $is_admin, array $all_org_units = []): string
 {
+    // Okładki kart widoczne tylko dla ról, które widzą pliki (inaczej file.php zwróci 403)
+    $show_covers = $view_mode === 'kanban' && task_field_visible('files', task_workspace_role($ws_id));
     ob_start(); ?>
 <?php if ($view_mode === 'kanban'): ?>
 <!-- ── Widok Kanban ──────────────────────────────────────────────────────── -->
@@ -48,6 +50,10 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTask(<?= (int)$t['id'] ?>)}">
         <div class="tk-card-pri-bar" style="background:<?= $k_pri_color ?>" aria-hidden="true"></div>
         <div class="tk-card-inner">
+          <?php if ($show_covers && !empty($t['cover_id'])): ?>
+          <img class="tk-card-cover" loading="lazy" alt=""
+               src="<?= h(APP_URL . '/tasks/api/file.php?id=' . (int)$t['cover_id'] . '&thumb=1') ?>">
+          <?php endif; ?>
           <div class="tk-card-title"><?= h($t['title']) ?></div>
           <?php if ($k_unit_name): ?>
           <div class="tk-card-unit">

@@ -45,6 +45,20 @@ $path   = dirname(__DIR__, 2) . '/uploads/tasks/' . $stored;
 if ($stored === '' || !is_file($path)) _tf_fail(404, 'Plik nie istnieje na serwerze.');
 
 $mime = (string)($file['mime_type'] ?: 'application/octet-stream');
+
+// Miniatura (okładka karty na Kanbanie) — tylko obrazy, fallback na oryginał
+if (!empty($_GET['thumb']) && in_array($mime, TASK_COVER_MIMES, true)) {
+    $thumb = task_file_thumb($path, $stored, $mime);
+    if ($thumb) {
+        while (ob_get_level()) ob_end_clean();
+        header('Content-Type: image/jpeg');
+        header('Content-Length: ' . filesize($thumb));
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, max-age=86400');
+        readfile($thumb);
+        exit;
+    }
+}
 // Inline tylko dla typów bezpiecznych do wyświetlenia (bez SVG/HTML — ryzyko XSS)
 $inline_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain', 'text/csv'];
 $inline = empty($_GET['dl']) && in_array($mime, $inline_mimes, true);
