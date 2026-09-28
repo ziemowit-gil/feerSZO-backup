@@ -19,12 +19,12 @@ $td_show_ws_files     = (bool)$ws_for_task;
     ?>
     <span class="badge bg-secondary ms-1" style="font-size:.6rem"><?= $td_files_total ?></span>
     <?php endif; ?>
-    <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= (int)$task['workspace_id'] ?>"
+    <a href="<?= APP_URL ?>/tasks/files.php?ws=<?= (int)$task['workspace_id'] ?>&task=<?= (int)$id ?>#task-files"
        target="_blank" rel="noopener"
        class="ms-auto text-decoration-none small"
        style="font-size:.75rem"
-       title="Otwórz pełny widok plików tego obszaru w nowej karcie">
-      Wszystkie pliki obszaru <i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>
+       title="Menedżer plików: pliki tego zadania (w nowej karcie)">
+      Menedżer plików <i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>
     </a>
   </div>
 

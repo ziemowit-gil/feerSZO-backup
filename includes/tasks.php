@@ -859,3 +859,108 @@ function task_upload_validate(string $tmp_path, string $original_name, int $size
 
     return ['ext' => $ext, 'mime' => $mime];
 }
+
+// ── Menedżer plików obszaru / zadania (tasks/files.php) ────────────────────
+
+/** Kategoria pliku po rozszerzeniu — filtr „Typ” i ikona w menedżerze. */
+function task_file_kind(string $name): string {
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    return match (true) {
+        in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'], true) => 'image',
+        $ext === 'pdf'                                                           => 'pdf',
+        in_array($ext, ['doc', 'docx', 'odt', 'rtf', 'txt', 'md'], true)          => 'doc',
+        in_array($ext, ['xls', 'xlsx', 'ods', 'csv'], true)                       => 'sheet',
+        in_array($ext, ['ppt', 'pptx', 'odp'], true)                              => 'slides',
+        in_array($ext, ['zip', '7z', 'rar', 'tar', 'gz'], true)                   => 'archive',
+        default                                                                  => 'other',
+    };
+}
+
+function task_file_kinds(): array {
+    return ['image' => 'Obrazy', 'pdf' => 'PDF', 'doc' => 'Dokumenty', 'sheet' => 'Arkusze',
+            'slides' => 'Prezentacje', 'archive' => 'Archiwa', 'other' => 'Inne'];
+}
+
+function task_file_kind_icon(string $kind): string {
+    return [
+        'image'   => 'bi-file-earmark-image text-info',
+        'pdf'     => 'bi-file-earmark-pdf text-danger',
+        'doc'     => 'bi-file-earmark-word text-primary',
+        'sheet'   => 'bi-file-earmark-excel text-success',
+        'slides'  => 'bi-file-earmark-ppt text-warning',
+        'archive' => 'bi-file-earmark-zip text-secondary',
+    ][$kind] ?? 'bi-file-earmark text-muted';
+}
+
+/**
+ * Pliki zadań obszaru: załączniki (task_files) + pliki z Koszulek powiązane z zadaniami
+ * (ws_task_files), jedna lista. Filtry: task (id), q (nazwa/tytuł zadania), kind, sort.
+ * Zwraca ['rows' => [...], 'total_size' => int, 'tasks' => [id => tytuł] (do selecta)].
+ */
+function task_files_manager(int $ws_id, array $f = []): array {
+    $task_id = (int)($f['task'] ?? 0);
+    $q       = mb_strtolower(trim((string)($f['q'] ?? '')));
+    $kind    = (string)($f['kind'] ?? '');
+    $sort    = (string)($f['sort'] ?? 'new');
+
+    $rows = [];
+    foreach (db_all(
+        "SELECT tf.id, tf.original_name AS name, tf.file_size, tf.created_at, tf.uploaded_by,
+                t.id AS task_id, t.title AS task_title, u.name AS uploader_name
+         FROM task_files tf
+         JOIN tasks t ON t.id = tf.task_id
+         LEFT JOIN users u ON u.id = tf.uploaded_by
+         WHERE t.workspace_id = ? AND t.deleted_at IS NULL",
+        [$ws_id]
+    ) as $r) {
+        $r['source'] = 'attach';
+        $r['dl_url'] = APP_URL . '/tasks/api/file.php?id=' . (int)$r['id'] . '&dl=1';
+        $r['pv_url'] = APP_URL . '/tasks/api/file.php?id=' . (int)$r['id'];
+        $rows[] = $r;
+    }
+
+    $has_ws = (bool)db_one("SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name='ws_task_files'");
+    if ($has_ws) {
+        $csrf = urlencode(csrf_token());
+        foreach (db_all(
+            "SELECT wf.id, COALESCE(NULLIF(wf.original_name, ''), wf.name) AS name, wf.file_size,
+                    wtf.linked_at AS created_at, wtf.linked_by AS uploaded_by,
+                    t.id AS task_id, t.title AS task_title, u.name AS uploader_name
+             FROM ws_task_files wtf
+             JOIN ws_files wf ON wf.id = wtf.file_id AND wf.deleted_at IS NULL
+             JOIN tasks t ON t.id = wtf.task_id
+             LEFT JOIN users u ON u.id = wtf.linked_by
+             WHERE t.workspace_id = ? AND t.deleted_at IS NULL",
+            [$ws_id]
+        ) as $r) {
+            $r['source'] = 'ws';
+            $r['dl_url'] = APP_URL . '/workspaces/api.php?action=download&id=' . (int)$r['id'] . '&_csrf=' . $csrf;
+            $r['pv_url'] = APP_URL . '/workspaces/api.php?action=preview&id='  . (int)$r['id'] . '&_csrf=' . $csrf;
+            $rows[] = $r;
+        }
+    }
+
+    $tasks = [];
+    foreach ($rows as $r) $tasks[(int)$r['task_id']] = $r['task_title'];
+    asort($tasks, SORT_NATURAL | SORT_FLAG_CASE);
+
+    $rows = array_values(array_filter($rows, function ($r) use ($task_id, $q, $kind) {
+        if ($task_id && (int)$r['task_id'] !== $task_id) return false;
+        if ($kind !== '' && task_file_kind($r['name']) !== $kind) return false;
+        if ($q !== '' && !str_contains(mb_strtolower($r['name'] . ' ' . $r['task_title']), $q)) return false;
+        return true;
+    }));
+
+    usort($rows, match ($sort) {
+        'old'  => fn($a, $b) => strcmp($a['created_at'], $b['created_at']),
+        'name' => fn($a, $b) => strnatcasecmp($a['name'], $b['name']),
+        'size' => fn($a, $b) => (int)$b['file_size'] <=> (int)$a['file_size'],
+        default => fn($a, $b) => strcmp($b['created_at'], $a['created_at']),
+    });
+
+    return [
+        'rows'       => $rows,
+        'total_size' => array_sum(array_map(fn($r) => (int)$r['file_size'], $rows)),
+        'tasks'      => $tasks,
+    ];
+}
