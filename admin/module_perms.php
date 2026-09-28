@@ -26,25 +26,9 @@ try {
     )");
 } catch (\Throwable $e) {}
 
-/* ── Lista modułów (identyczna z module_switcher.php) ─────────────── */
-$ALL_MODS = [
-    ['key'=>'szo',       'label'=>'SZO',           'icon'=>'bi-building',           'mc'=>'#2563eb'],
-    ['key'=>'crm',       'label'=>'CRM',           'icon'=>'bi-diagram-2-fill',     'mc'=>'#16a34a'],
-    ['key'=>'tasks',     'label'=>'Zadania',        'icon'=>'bi-kanban',             'mc'=>'#ea580c'],
-    ['key'=>'wol',       'label'=>'Wolontariusze',  'icon'=>'bi-heart-fill',         'mc'=>'#e11d48'],
-    ['key'=>'actions',   'label'=>'Działania',      'icon'=>'bi-calendar-event',     'mc'=>'#0891b2'],
-    ['key'=>'grants',    'label'=>'Granty',         'icon'=>'bi-cash-coin',          'mc'=>'#15803d'],
-    ['key'=>'events',    'label'=>'Wydarzenia',     'icon'=>'bi-calendar-star-fill', 'mc'=>'#7c3aed'],
-    ['key'=>'poczta',    'label'=>'Poczta',         'icon'=>'bi-envelope-fill',      'mc'=>'#1d4ed8'],
-    ['key'=>'directory', 'label'=>'Katalog',        'icon'=>'bi-person-lines-fill',  'mc'=>'#4338ca'],
-    ['key'=>'strategy',  'label'=>'Strategia',      'icon'=>'bi-bullseye',           'mc'=>'#6d28d9'],
-    ['key'=>'reports',   'label'=>'Raporty',        'icon'=>'bi-bar-chart-line',     'mc'=>'#0284c7'],
-    ['key'=>'k30',       'label'=>'Dydaktyka',      'icon'=>'bi-card-checklist',     'mc'=>'#c2410c'],
-    ['key'=>'helpdesk',  'label'=>'Helpdesk',       'icon'=>'bi-ticket-perforated',  'mc'=>'#b45309'],
-    ['key'=>'szkolenia', 'label'=>'Szkolenia',      'icon'=>'bi-calendar2-check',    'mc'=>'#7c3aed'],
-    ['key'=>'rodo',      'label'=>'RODO',           'icon'=>'bi-shield-lock',        'mc'=>'#475569'],
-    ['key'=>'admin',     'label'=>'Admin',          'icon'=>'bi-gear-fill',          'mc'=>'#1e293b'],
-];
+/* ── Lista modułów — z rejestru launchera (jedno źródło prawdy) ───── */
+require_once dirname(__DIR__) . '/modules/launcher/logic/registry.php';
+$ALL_MODS = array_map(fn($m) => ['key'=>$m['key'], 'label'=>$m['label'], 'icon'=>$m['icon'], 'mc'=>$m['mc'], 'sec'=>$m['sec']], launcherCatalog());
 
 /* ── Edytowalne role (admin zawsze widzi wszystko) ────────────────── */
 $EDIT_ROLES = [
