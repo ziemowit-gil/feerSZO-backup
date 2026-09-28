@@ -17,6 +17,39 @@ $dyd_name = (string)($me['name'] ?? '');
 karty30_migrate();
 ti_panel_roles_migrate();
 
+/**
+ * Powiadomienie (plain text) o nadaniu roli panelu. Bez hasła — to osoba
+ * nadająca przekazuje je osobno (pokazywane raz na ekranie).
+ */
+function zespol_notify_role(string $email, string $name, string $role, string $granted_by, bool $new_account): void {
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+    require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+    $label = K30_TI_PANEL_ROLES[$role] ?? $role;
+    $login = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/logowanie.php';
+    $lines = [
+        'Dzień dobry' . ($name !== '' ? ' ' . $name : '') . ',',
+        '',
+        'w panelu dydaktyka TI nadano Ci nową rolę: ' . $label . '.',
+        $granted_by !== '' ? 'Rolę nadał(a): ' . $granted_by . '.' : '',
+        '',
+        $new_account
+            ? 'Utworzono dla Ciebie konto panelowe. Login: ' . $email . '. Hasło przekaże Ci osoba, która założyła konto.'
+            : 'Zaloguj się jak dotąd swoim kontem. Nowe uprawnienia zadziałają od najbliższego logowania do panelu.',
+        '',
+        'Logowanie: ' . $login,
+        '',
+        '-- ',
+        'Wiadomość wysłana automatycznie, prosimy na nią nie odpowiadać.',
+    ];
+    $text = implode("\n", $lines);
+    $text = preg_replace("/\n{3,}/", "\n\n", $text);
+    try {
+        mail_queue_add($email, $name, 'Nowa rola w panelu TI: ' . $label, '', $text, 'ti_panel_role', null);
+    } catch (\Throwable $e) {
+        error_log('zespol_notify_role: ' . $e->getMessage());
+    }
+}
+
 /* ── POST ──────────────────────────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -25,13 +58,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'role_set') {
         $zu_id   = (int)($_POST['user_id'] ?? 0);
         $zu_role = (string)($_POST['role'] ?? '');
-        $zu_user = $zu_id ? db_one("SELECT id, name FROM users WHERE id=? AND is_active=1", [$zu_id]) : null;
+        $zu_user = $zu_id ? db_one("SELECT id, name, email FROM users WHERE id=? AND is_active=1", [$zu_id]) : null;
         if (!$zu_user) {
             flash_set('danger', 'Wybierz aktywnego użytkownika SZO.');
         } elseif (!array_key_exists($zu_role, K30_TI_PANEL_ROLES)) {
             flash_set('danger', 'Wybierz rolę panelu.');
         } else {
+            $zu_prev = ti_panel_role($zu_id);
             ti_panel_role_set($zu_id, $zu_role, $uid);
+            if ($zu_prev !== $zu_role) {
+                zespol_notify_role((string)$zu_user['email'], (string)$zu_user['name'], $zu_role, $dyd_name, false);
+            }
             flash_set('success', 'Nadano rolę: ' . $zu_user['name'] . ' → ' . K30_TI_PANEL_ROLES[$zu_role]
                 . '. Uprawnienia zadziałają od najbliższego logowania tej osoby do panelu.');
         }
@@ -88,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $zc_id = (int)db()->lastInsertId();
             ti_panel_role_set($zc_id, $zc_role, $uid);
+            zespol_notify_role($zc_email, $zc_name, $zc_role, $dyd_name, true);
             $_SESSION['zespol_newpass'] = ['email' => $zc_email, 'pass' => $zc_pass];
             flash_set('success', 'Utworzono konto panelowe: ' . $zc_name . ' (' . K30_TI_PANEL_ROLES[$zc_role]
                 . '). Loguje się e-mailem i hasłem na stronie logowania panelu dydaktyka — do systemu SZO to konto nie wejdzie.');
