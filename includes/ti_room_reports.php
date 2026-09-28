@@ -759,8 +759,9 @@ function ti_librus_grid_pdf(array $L, array $dow_lbl, array $opts = []): string 
     }
 
     if (!empty($opts['footer'])) {
-        if ($pdf->GetY() > $pdf->GetPageHeight() - 12) { $pdf->AddPage(); }
-        $pdf->SetY($pdf->GetPageHeight() - 12);
+        // „Wygenerowano…” nad stopką TiPdf (linia na −10 mm) — jak w pozostałych wydrukach
+        if ($pdf->GetY() > $pdf->GetPageHeight() - 16) { $pdf->AddPage(); }
+        $pdf->SetY($pdf->GetPageHeight() - 15);
         $pdf->SetFont('Helvetica', '', 7);
         $pdf->SetTextColor(130, 130, 130);
         $pdf->Cell($W, 4, $pl((string)$opts['footer']), 0, 0, 'L');
