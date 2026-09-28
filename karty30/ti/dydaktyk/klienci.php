@@ -328,7 +328,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#topup<?= $c['id'] ?>">
                 <i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Doładuj
               </button>
-              <a class="btn btn-sm btn-outline-primary" href="billing.php<?= $c['courses'] ? '?course_id=' . (int)$c['courses'][0]['course_id'] : '' ?>">
+              <a class="btn btn-sm btn-outline-secondary" href="client_billings_view.php?client_id=<?= (int)$c['id'] ?>" target="_blank" rel="noopener"
+                 title="Podgląd rozliczeń kursanta — wszystkie okresy i grupy, saldo, wpłaty">
+                <i class="bi bi-eye me-1" aria-hidden="true"></i>Rozliczenia
+              </a>
+              <a class="btn btn-sm btn-outline-primary" title="Rozliczenia grupy (lista kierownika)" aria-label="Rozliczenia grupy" href="billing.php<?= $c['courses'] ? '?course_id=' . (int)$c['courses'][0]['course_id'] : '' ?>">
                 <i class="bi bi-receipt" aria-hidden="true"></i>
               </a>
             </td>
