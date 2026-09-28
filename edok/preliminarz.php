@@ -94,26 +94,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
         $unverified = edok_ipko_unverified_pairs($docs);
         $confirmed  = array_flip((array)($_POST['confirm_pair'] ?? []));
         $missing    = array_diff_key($unverified, $confirmed);
-        if ($missing) {
-            $ipko_confirm = ['pairs' => $unverified, 'ids' => $ids, 'rachunek' => $rachunek_zlecen, 'map' => $rachunek_map, 'format' => $przelewy_format];
-            if (!empty($_POST['confirm_step'])) flash_set('warning', 'Potwierdź poprawność NIP i numeru rachunku dla każdego kontrahenta.');
-        } else {
+        // Dokumenty już przekazane do banku (wcześniejszy eksport) — ponowny eksport
+        // grozi podwójną płatnością, więc wymaga osobnego, świadomego potwierdzenia.
+        $reexport = array_values(array_filter($docs, fn($d) => ($d['status_platnosci'] ?: 'nowy') === 'zlecony'));
+        $reexport_missing = $reexport && empty($_POST['confirm_reexport']);
+        if ($missing || $reexport_missing) {
+            $ipko_confirm = ['pairs' => $missing ? $unverified : [], 'reexport' => $reexport_missing ? $reexport : [],
+                'ids' => $ids, 'rachunek' => $rachunek_zlecen, 'map' => $rachunek_map, 'format' => $przelewy_format];
+            if (!empty($_POST['confirm_step'])) flash_set('warning', 'Zaznacz wszystkie wymagane potwierdzenia.');
+        }
+        if (!$missing) {
             foreach ($unverified as $p) edok_kontrahent_verify($p['nip'], $p['nrb'], $p['nazwa']);
         }
-        if (!$missing) try {
+        if (!$missing && !$reexport_missing) try {
             $grupy = [];
             foreach ($docs as $doc) $grupy[$rachunek_map[(int) $doc['id']] ?? $rachunek_zlecen][] = $doc;
             $stamp = date('Y-m-d_His');
             $pliki = [];
+            $wyeksportowane = [];
             foreach ($grupy as $nrb => $grupa) {
                 $plik = edok_przelewy_export($grupa, (string) $nrb, $przelewy_format);
                 if ($plik['content'] === '') continue;
+                foreach ($grupa as $d) $wyeksportowane[] = ['doc' => $d, 'nrb' => (string) $nrb, 'format' => $plik['prefix']];
                 $nazwa = $rachunki_ok[$nrb]['nazwa'] ?? '' ?: ($rachunki_ok[$nrb]['bank'] ?? '');
                 $slug  = trim(preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $nazwa) ?: ''), '_');
                 $pliki[$plik['prefix'] . '_' . ($slug !== '' ? $slug . '_' : '') . substr((string) $nrb, -4) . '_' . $stamp . '.' . $plik['ext']] = $plik['content'];
             }
+            if ($pliki) {
+                // Po wygenerowaniu pliku status płatności = „Zlecony do banku” (zapis w audycie).
+                foreach ($wyeksportowane as $w) {
+                    $d = $w['doc'];
+                    $prev = $d['status_platnosci'] ?: 'nowy';
+                    db_exec("UPDATE edok_documents SET status_platnosci='zlecony', updated_at=datetime('now') WHERE id=?", [(int)$d['id']]);
+                    edok_log((int)$d['id'], 'status_platnosci', '', $prev, 'zlecony',
+                        ($prev === 'zlecony' ? 'Ponowny eksport' : 'Eksport') . ' do pliku przelewów (' . str_replace('_', ' ', $w['format'])
+                        . ', z rachunku …' . substr($w['nrb'], -4) . (!empty($d['_zwrot']) ? ', zwrot kosztów' : '') . ') — status płatności: Zlecony do banku.');
+                }
+            }
             if (!$pliki) {
-                flash_set('warning', 'Żaden z zaznaczonych dokumentów nie nadaje się do eksportu (brak prawidłowego 26-cyfrowego rachunku kontrahenta).');
+                flash_set('warning', 'Żaden z zaznaczonych dokumentów nie nadaje się do eksportu (opłacony, zapłacony przed akceptacją albo bez prawidłowego 26-cyfrowego rachunku).');
             } elseif (count($pliki) === 1) {
                 $fn = array_key_first($pliki);
                 header(match (true) {
@@ -213,9 +232,28 @@ require_once __DIR__ . '/../includes/header.php';
   <input type="hidden" name="rachunek_zlecen" value="<?= h($ipko_confirm['rachunek']) ?>">
   <input type="hidden" name="rachunek_map" value="<?= h(json_encode((object) $ipko_confirm['map'])) ?>">
   <div class="card-header bg-warning-subtle fw-semibold">
-    <i class="bi bi-shield-exclamation"></i> Pierwszy przelew — potwierdź dane kontrahenta
+    <i class="bi bi-shield-exclamation"></i> Potwierdź przed eksportem przelewów
   </div>
   <div class="card-body">
+    <?php if ($ipko_confirm['reexport']): ?>
+    <div class="alert alert-danger py-2 small">
+      <strong><i class="bi bi-exclamation-octagon"></i> Te dokumenty były już przekazane do banku:</strong>
+      <ul class="mb-2 mt-1">
+        <?php foreach ($ipko_confirm['reexport'] as $d): ?>
+        <li><?= h($d['number']) ?> — <?= h($d['kontrahent_nazwa']) ?>, <?= h($d['kwota_brutto']) ?> <?= h($d['waluta'] ?: 'PLN') ?></li>
+        <?php endforeach; ?>
+      </ul>
+      Sprawdź w bankowości, czy przelewy nie zostały już zrealizowane lub nie czekają na podpis — ponowny import pliku może spowodować podwójną płatność.
+      <div class="form-check mt-2">
+        <input type="checkbox" class="form-check-input" name="confirm_reexport" value="1" id="confirm_reexport" required>
+        <label class="form-check-label fw-semibold" for="confirm_reexport">Sprawdziłem — eksportuj te dokumenty ponownie</label>
+      </div>
+    </div>
+    <?php else: ?>
+    <input type="hidden" name="confirm_reexport" value="<?= !empty($_POST['confirm_reexport']) ? '1' : '' ?>">
+    <?php endif; ?>
+    <?php if ($ipko_confirm['pairs']): ?>
+    <p class="small mb-2 fw-semibold">Pierwszy przelew — potwierdź dane kontrahenta</p>
     <p class="small mb-2">Do poniższych kontrahentów (lub na poniższe rachunki) nie wygenerowano jeszcze żadnego przelewu. Porównaj NIP i numer rachunku z fakturą, a najlepiej także z białą listą VAT, zanim wygenerujesz plik przelewów dla banku. Potwierdzenie zostaje zapisane, więc przy następnych eksportach tej pary nie trzeba go powtarzać.</p>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-2" style="font-size:.85rem">
@@ -235,8 +273,9 @@ require_once __DIR__ . '/../includes/header.php';
         </tbody>
       </table>
     </div>
+    <?php endif; ?>
     <div class="d-flex gap-2">
-      <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check2-square"></i> Potwierdzam poprawność i eksportuję</button>
+      <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check2-square"></i> Potwierdzam i eksportuję</button>
       <a href="<?= APP_URL ?>/edok/preliminarz.php" class="btn btn-sm btn-outline-secondary">Anuluj</a>
     </div>
   </div>
@@ -329,7 +368,7 @@ require_once __DIR__ . '/../includes/header.php';
   <?php endif; ?>
 </div>
 <?php if ($rachunki_org): ?>
-<p class="text-muted small">Eksport przelewów: zaznacz dokumenty i pobierz plik przelewów zbiorczych (ELIXIR-O) ELIXIR-O (uniwersalny, iPKO biznes albo Millenet) — przy „Automatycznie" format dobierany jest wg banku rachunku nadawcy (PKO BP → iPKO, Millennium → Millenet, inne → uniwersalny). Zaimportuj plik w bankowości i zweryfikuj przed skierowaniem do realizacji. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
+<p class="text-muted small">Eksport przelewów: zaznacz dokumenty i pobierz plik przelewów zbiorczych ELIXIR-O (uniwersalny, iPKO biznes albo Millenet) — przy „Automatycznie" format dobierany jest wg banku rachunku nadawcy (PKO BP → iPKO, Millennium → Millenet, inne → uniwersalny). Zaimportuj plik w bankowości i zweryfikuj przed skierowaniem do realizacji. Wyeksportowane dokumenty dostają status płatności „Zlecony do banku” — ponowny eksport wymaga potwierdzenia, a „Opłacony” ustaw po realizacji przelewu. Obejmuje tylko zaznaczone dokumenty wydatkowe z prawidłowym 26-cyfrowym rachunkiem kontrahenta. Rachunek nadawcy można zmienić przy każdym dokumencie (kolumna „Z rachunku”). Każdy rachunek dostaje osobny plik, a przy kilku rachunkach pliki są spakowane w ZIP.</p>
 <?php endif; ?>
 
 <?php if ($sumy): ?>
