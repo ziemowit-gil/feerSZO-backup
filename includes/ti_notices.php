@@ -199,8 +199,19 @@ function ti_notices_migrate(): void {
                 . ' jak zobaczy ją kursant — bez jej wystawiania.'
                 . "\n• Wydruki planów i harmonogramów pokazują stan na dzień wydruku (z adnotacją „Stan na dzień”)."
                 . "\n• Zespół i role: osoba, której nadano rolę w panelu, dostaje o tym e-mail."
+                . "\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl."
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
+        }
+    } catch (\Throwable $e) {}
+    // 14.1a: komunikat 14.1 mógł być już zasiany bez punktu o nagłówku — dopisz go raz.
+    try {
+        if (!db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_szo141_v2'")) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_szo141_v2','1')")->execute();
+            db()->prepare(
+                "UPDATE k30_ti_notices SET body = body || ?, updated_at = datetime('now')
+                  WHERE title LIKE 'Aktualizacja SZO 14.1%' AND body NOT LIKE '%Nagłówek panelu:%'"
+            )->execute(["\n\n(Uzupełnienie 14.1a)"\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl.]);
         }
     } catch (\Throwable $e) {}
 
