@@ -223,6 +223,20 @@ function edok_migrate(): void {
         created_at             TEXT    NOT NULL DEFAULT ''
     )");
 
+    // Potwierdzone pary NIP + rachunek kontrahenta — przy PIERWSZYM eksporcie
+    // przelewu na daną parę (w tym na nowy rachunek znanego NIP-u) eksport
+    // wymaga ręcznego potwierdzenia poprawności. Patrz edok_ipko_unverified_pairs().
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_kontrahent_verified (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        nip              TEXT    NOT NULL DEFAULT '',
+        nrb              TEXT    NOT NULL DEFAULT '',
+        kontrahent_nazwa TEXT    NOT NULL DEFAULT '',
+        verified_by      INTEGER,
+        verifier_name    TEXT    NOT NULL DEFAULT '',
+        verified_at      TEXT    NOT NULL DEFAULT ''
+    )");
+    try { $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_edok_kontrahent_verified ON edok_kontrahent_verified(nip, nrb)"); } catch (\Throwable $e) {}
+
     $db->exec("CREATE TABLE IF NOT EXISTS edok_user_roles (
         id      INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -1257,6 +1271,51 @@ function edok_ipko_name_address_field(string $nazwa, string $adres): string {
         edok_ipko_wrap_lines(edok_ipko_sanitize($nazwa), 35, 2),
         edok_ipko_wrap_lines(edok_ipko_sanitize($adres), 35, 2)
     ));
+}
+
+/**
+ * Pary NIP + rachunek z dokumentów do eksportu, których nikt jeszcze nie
+ * potwierdził — pierwszy przelew do kontrahenta albo NOWY rachunek znanego
+ * kontrahenta (typowy scenariusz podmiany rachunku na fakturze).
+ * Zwraca [klucz => [nip, nrb, nazwa, known_nip, docs[]]]; dokumenty bez
+ * 26-cyfrowego rachunku pomija (i tak nie trafią do pliku).
+ */
+function edok_ipko_unverified_pairs(array $docs): array {
+    $out = [];
+    foreach ($docs as $doc) {
+        if (($doc['kierunek'] ?? 'wydatek') !== 'wydatek') continue;
+        $nrb = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
+        if (strlen($nrb) !== 26) continue;
+        $nip = preg_replace('/\D/', '', (string)($doc['kontrahent_nip'] ?? ''));
+        $key = $nip . ':' . $nrb;
+        if (!isset($out[$key])) {
+            if (db_one("SELECT id FROM edok_kontrahent_verified WHERE nip = ? AND nrb = ?", [$nip, $nrb])) continue;
+            $out[$key] = [
+                'nip'       => $nip,
+                'nrb'       => $nrb,
+                'nazwa'     => (string)($doc['kontrahent_nazwa'] ?? ''),
+                'known_nip' => $nip !== '' && (bool) db_one("SELECT id FROM edok_kontrahent_verified WHERE nip = ?", [$nip]),
+                'docs'      => [],
+            ];
+        }
+        $out[$key]['docs'][] = (string)($doc['number'] ?? ('#' . $doc['id']));
+    }
+    return $out;
+}
+
+/** Zapisuje potwierdzenie poprawności pary NIP + rachunek. */
+function edok_kontrahent_verify(string $nip, string $nrb, string $nazwa): void {
+    $user = current_user();
+    db_exec(
+        "INSERT OR IGNORE INTO edok_kontrahent_verified (nip, nrb, kontrahent_nazwa, verified_by, verifier_name, verified_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [preg_replace('/\D/', '', $nip), preg_replace('/\D/', '', $nrb), $nazwa, (int)($user['id'] ?? 0) ?: null, $user['name'] ?? '', date('Y-m-d H:i:s')]
+    );
+}
+
+/** Formatuje NRB w grupach 2+4×6 (czytelne do porównania z fakturą). */
+function edok_nrb_format(string $nrb): string {
+    $d = preg_replace('/\D/', '', $nrb);
+    return strlen($d) === 26 ? substr($d, 0, 2) . ' ' . trim(chunk_split(substr($d, 2), 4, ' ')) : $nrb;
 }
 
 /**

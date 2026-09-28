@@ -56,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pakie
 // Eksport przelewów zbiorczych do iPKO biznes (format ELIXIR-O) — tylko EODoK,
 // tylko dokumenty wydatkowe zaakceptowane z prawidłowym 26-cyfrowym rachunkiem
 // kontrahenta (edok_ipko_biznes_export() pomija resztę). Patrz includes/edok.php.
-$ipko_error = null;
+$ipko_error   = null;
+$ipko_confirm = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'export_ipko') {
     csrf_check();
     $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['pakiet_ids'] ?? '')))));
@@ -71,7 +72,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'expor
             "SELECT * FROM edok_documents WHERE id IN ($placeholders) AND status='zaakceptowany' AND COALESCE(kierunek,'wydatek')='wydatek'",
             $ids
         );
-        try {
+        // Pierwszy przelew na daną parę NIP + rachunek wymaga potwierdzenia, że
+        // obie wartości zgadzają się z fakturą — zanim plik trafi do banku.
+        $unverified = edok_ipko_unverified_pairs($docs);
+        $confirmed  = array_flip((array)($_POST['confirm_pair'] ?? []));
+        $missing    = array_diff_key($unverified, $confirmed);
+        if ($missing) {
+            $ipko_confirm = ['pairs' => $unverified, 'ids' => $ids, 'rachunek' => $rachunek_zlecen];
+            if (!empty($_POST['confirm_step'])) flash_set('warning', 'Potwierdź poprawność NIP i numeru rachunku dla każdego kontrahenta.');
+        } else {
+            foreach ($unverified as $p) edok_kontrahent_verify($p['nip'], $p['nrb'], $p['nazwa']);
+        }
+        if (!$missing) try {
             $content = edok_ipko_biznes_export($docs, $rachunek_zlecen);
             if ($content === '') {
                 flash_set('warning', 'Żaden z zaznaczonych dokumentów nie nadaje się do eksportu (brak prawidłowego 26-cyfrowego rachunku kontrahenta).');
@@ -145,6 +157,44 @@ require_once __DIR__ . '/../includes/header.php';
   </button>
 </div>
 <p class="text-muted small">Pełna lista dokumentów objętych tą płatnością pozostaje w danych poszczególnych dokumentów EODoK — wklej powyższy tytuł w banku i odnotuj wykonany przelew na każdym z nich.</p>
+<?php endif; ?>
+
+<?php if ($ipko_confirm): ?>
+<form method="post" class="card border-warning shadow-sm mb-3">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="action" value="export_ipko">
+  <input type="hidden" name="confirm_step" value="1">
+  <input type="hidden" name="pakiet_ids" value="<?= h(implode(',', $ipko_confirm['ids'])) ?>">
+  <input type="hidden" name="rachunek_zlecen" value="<?= h($ipko_confirm['rachunek']) ?>">
+  <div class="card-header bg-warning-subtle fw-semibold">
+    <i class="bi bi-shield-exclamation"></i> Pierwszy przelew — potwierdź dane kontrahenta
+  </div>
+  <div class="card-body">
+    <p class="small mb-2">Do poniższych kontrahentów (lub na poniższe rachunki) nie wygenerowano jeszcze żadnego przelewu. Porównaj NIP i numer rachunku z fakturą, a najlepiej także z białą listą VAT, zanim wygenerujesz plik dla iPKO biznes. Potwierdzenie zostaje zapisane, więc przy następnych eksportach tej pary nie trzeba go powtarzać.</p>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-2" style="font-size:.85rem">
+        <thead><tr><th style="width:2rem"></th><th>Kontrahent</th><th>NIP</th><th>Nr rachunku</th><th>Dokumenty</th></tr></thead>
+        <tbody>
+        <?php foreach ($ipko_confirm['pairs'] as $key => $p): $cid = 'cp_' . md5($key); ?>
+          <tr>
+            <td><input type="checkbox" class="form-check-input" name="confirm_pair[]" value="<?= h($key) ?>" id="<?= $cid ?>" required></td>
+            <td><label for="<?= $cid ?>"><?= h($p['nazwa'] ?: '—') ?></label>
+              <?php if ($p['known_nip']): ?><div><span class="badge bg-danger">Nowy rachunek znanego kontrahenta</span></div><?php endif; ?>
+            </td>
+            <td class="font-monospace"><?= $p['nip'] !== '' ? h($p['nip']) : '<span class="badge bg-danger">brak NIP</span>' ?></td>
+            <td class="font-monospace fw-semibold"><?= h(edok_nrb_format($p['nrb'])) ?></td>
+            <td class="small"><?= h(implode(', ', $p['docs'])) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check2-square"></i> Potwierdzam poprawność i eksportuję</button>
+      <a href="<?= APP_URL ?>/edok/preliminarz.php" class="btn btn-sm btn-outline-secondary">Anuluj</a>
+    </div>
+  </div>
+</form>
 <?php endif; ?>
 
 <form method="post" id="pakietForm" class="d-none">
