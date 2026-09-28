@@ -122,10 +122,14 @@ if ($_sms_enabled && $cur_course) {
         </ul>
       </div>
       <div class="btn-group btn-group-sm" role="group" aria-label="Widok lekcji">
-        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokKal" autocomplete="off" checked>
+        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokSek" value="sekcje" autocomplete="off" checked>
+        <label class="btn btn-outline-primary" for="lekWidokSek"><i class="bi bi-list-nested me-1" aria-hidden="true"></i>Sekcje</label>
+        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokLista" value="lista" autocomplete="off">
+        <label class="btn btn-outline-primary" for="lekWidokLista"><i class="bi bi-table me-1" aria-hidden="true"></i>Tabela</label>
+        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokKal" value="kalendarz" autocomplete="off">
         <label class="btn btn-outline-primary" for="lekWidokKal"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Kalendarz</label>
-        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokLista" autocomplete="off">
-        <label class="btn btn-outline-primary" for="lekWidokLista"><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista</label>
+        <input type="radio" class="btn-check" name="lekWidok" id="lekWidokOs" value="os" autocomplete="off">
+        <label class="btn btn-outline-primary" for="lekWidokOs"><i class="bi bi-card-list me-1" aria-hidden="true"></i>Oś czasu</label>
       </div>
       <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addL">
         <i class="bi bi-plus-lg me-1"></i>Dodaj lekcję
@@ -302,6 +306,46 @@ if ($_sms_enabled && $cur_course) {
   <?php endif; ?>
 
 
+  <style>
+  /* ── Widok „Sekcje”: nagłówki sekcji w tabeli ─────────────────────────── */
+  #dyd-table-lekcje .dyd-lek-sec > th { background: #f3f6fa; border-top: 2px solid #d3dce7; padding: 0 !important; }
+  #dyd-table-lekcje .dyd-lek-sec-btn { all: unset; box-sizing: border-box; width: 100%; cursor: pointer;
+      display: flex; align-items: baseline; gap: .5rem; padding: .45rem .6rem; font-weight: 700; color: #10335c; }
+  #dyd-table-lekcje .dyd-lek-sec-btn:focus-visible { outline: 2px solid #0b4a8f; outline-offset: -2px; }
+  #dyd-table-lekcje .dyd-lek-sec-btn .badge { background: #10335c; color: #fff; font-size: .66rem; border-radius: 999px; }
+  #dyd-table-lekcje .dyd-lek-sec-d { font-weight: 400; font-size: .74rem; color: #5b6677; margin-left: auto; }
+  #dyd-table-lekcje .dyd-lek-sec-todo > th { background: #fff7e6; border-top-color: #e8c774; }
+  #dyd-table-lekcje .dyd-lek-sec-todo .badge { background: #8a5a00; }
+  #dyd-table-lekcje .dyd-lek-sec-cancelled .dyd-lek-sec-btn { color: #6c757d; }
+  #dyd-table-lekcje .dyd-lek-more td { text-align: center; padding: .4rem !important; }
+
+  /* ── Widok „Oś czasu”: te same wiersze jako karty pod nagłówkami miesięcy ── */
+  #dyd-table-lekcje.dyd-lek-os thead { display: none; }
+  #dyd-table-lekcje.dyd-lek-os table, #dyd-table-lekcje.dyd-lek-os tbody { display: block; width: 100%; }
+  #dyd-table-lekcje.dyd-lek-os .table-responsive { overflow: visible; }
+  #dyd-table-lekcje.dyd-lek-os tr.dyd-lek-month { display: block; background: none !important; }
+  #dyd-table-lekcje.dyd-lek-os tr.dyd-lek-month th { display: block; border: 0; padding: .9rem .25rem .3rem !important;
+      color: #10335c; font-size: .78rem; letter-spacing: .04em; background: none !important; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] {
+      display: grid; grid-template-columns: 5.5rem 1fr auto; grid-template-areas: "date topic att" "time status actions";
+      column-gap: .75rem; row-gap: .2rem; align-items: center; margin: 0 0 .5rem; padding: .55rem .7rem;
+      background: #fff !important; border: 1px solid #d3dce7; border-left-width: 4px; border-radius: 6px;
+      box-shadow: 0 1px 2px rgba(16,51,92,.06); }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item][hidden], #dyd-table-lekcje.dyd-lek-os tr[style*="display: none"] { display: none; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td { display: block; border: 0 !important; padding: 0 !important; background: none !important; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(1) { grid-area: date; font-size: 1rem !important; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(2) { grid-area: time; color: #5b6677; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(3) { grid-area: status; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(4) { grid-area: topic; font-weight: 600; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(5) { grid-area: att; text-align: right !important; }
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(6) { grid-area: actions; text-align: right !important; }
+  @media (max-width: 575.98px) {
+    #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] { grid-template-columns: 1fr auto;
+        grid-template-areas: "date att" "topic topic" "time status" "actions actions"; }
+    #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(6) { text-align: left !important; }
+  }
+  </style>
+
   <!-- ── Widok: tabela kompaktowa ──────────────────────────────── -->
   <div id="dyd-table-lekcje">
     <div class="dyd-filter-empty text-body-secondary py-3 px-3" style="display:none">Brak lekcji pasujących do wyszukiwania.</div>
@@ -335,7 +379,7 @@ if ($_sms_enabled && $cur_course) {
           if ($_mkey !== $_last_month):
             $_last_month = $_mkey;
         ?>
-        <tr class="table-light">
+        <tr class="table-light dyd-lek-month">
           <th colspan="6" scope="colgroup" class="fw-bold text-uppercase small py-1">
             <?= h(($_mon_names[(int)date('n', $sdate)] ?? '') . ' ' . date('Y', $sdate)) ?>
           </th>
@@ -350,7 +394,15 @@ if ($_sms_enabled && $cur_course) {
           $_mat_url   = trim((string)($s['material_url'] ?? ''));
           $_meet_url  = trim((string)($s['meeting_url'] ?: ($s['default_meeting_url'] ?? '')));
         ?>
-        <tr data-filter-item="1" data-date="<?= h($s['lesson_date']) ?>"
+        <?php
+          // Sekcja w widoku „Sekcje”: odwołane / do uzupełnienia (minione zaplanowane
+          // albo odbyte bez kompletnej dokumentacji) / nadchodzące / odbyte.
+          $_held = in_array($s['status'], K30_TI_HELD_STATUSES, true);
+          $_sec  = $s['status'] === 'cancelled' ? 'cancelled'
+                 : (($_held && empty($s['docs_complete'])) || (!$_held && $is_past) ? 'todo'
+                 : ($_held ? 'done' : 'upcoming'));
+        ?>
+        <tr data-filter-item="1" data-date="<?= h($s['lesson_date']) ?>" data-time="<?= h(substr((string)$s['time_from'], 0, 5)) ?>" data-section="<?= $_sec ?>"
             style="border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
             class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
           <td style="font-size:.82rem;line-height:1.3">
@@ -540,34 +592,78 @@ if ($_sms_enabled && $cur_course) {
 </div>
 <script>
 (function(){
-  // Przełącznik widoku: Kalendarz (domyślny) / Lista — zapamiętany w localStorage.
+  // Przełącznik widoku: Sekcje (domyślny) / Tabela / Kalendarz / Oś czasu — wybór
+  // w localStorage (nowy klucz: każdy raz zaczyna od Sekcji). Widoki listowe to
+  // TE SAME wiersze tabeli (z akcjami) — Sekcje je przegrupowują, Oś czasu
+  // zamienia w karty (CSS .dyd-lek-os), Tabela przywraca kolejność z miesiącami.
   var calWrap  = document.getElementById('dyd-cal-lekcje');
   var listWrap = document.getElementById('dyd-list-lekcje');
+  var tblWrap  = document.getElementById('dyd-table-lekcje');
   var filters  = document.getElementById('dyd-lekcje-filters');
-  var rKal     = document.getElementById('lekWidokKal');
-  var rLista   = document.getElementById('lekWidokLista');
-  var calRendered = false;
-
-  function showCalendar() {
-    if (calWrap) calWrap.style.display = '';
-    if (listWrap) listWrap.style.display = 'none';
-    if (filters) filters.style.display = 'none';
-    if (!calRendered && window.dydLekcjeCalendarInit) { window.dydLekcjeCalendarInit(); calRendered = true; }
-    try { localStorage.setItem('dydLekcjeWidok', 'kalendarz'); } catch (e) {}
+  var tbody    = tblWrap ? tblWrap.querySelector('tbody') : null;
+  var original = tbody ? Array.prototype.slice.call(tbody.children) : [];
+  var calRendered = false, KEY = 'dydLekcjeWidok2';
+  var SEC = [
+    ['todo',      'Do uzupełnienia', 'Minione bez obecności albo odbyte bez kompletnej dokumentacji', 'asc',  0],
+    ['upcoming',  'Nadchodzące',     'Od dziś, najbliższe na górze',                                   'asc',  0],
+    ['done',      'Odbyte',          'Najnowsze na górze',                                             'desc', 10],
+    ['cancelled', 'Odwołane',        'Nie liczą się do rozliczenia',                                   'desc', -1]
+  ];
+  function key(r) { return (r.dataset.date || '') + ' ' + (r.dataset.time || ''); }
+  function restore() { if (tbody) original.forEach(function (r) { tbody.appendChild(r); }); tbody && tbody.querySelectorAll('.dyd-lek-sec').forEach(function (h) { h.remove(); }); }
+  function buildSections() {
+    if (!tbody) return;
+    restore();
+    var rows = original.filter(function (r) { return r.dataset.section; });
+    original.forEach(function (r) { if (!r.dataset.section) r.hidden = true; });   // nagłówki miesięcy
+    SEC.forEach(function (sd) {
+      var list = rows.filter(function (r) { return r.dataset.section === sd[0]; })
+                     .sort(function (a, b) { return sd[3] === 'asc' ? key(a).localeCompare(key(b)) : key(b).localeCompare(key(a)); });
+      if (!list.length) return;
+      var h = document.createElement('tr'); h.className = 'dyd-lek-sec dyd-lek-sec-' + sd[0];
+      var collapsed = sd[4] === -1, limit = sd[4] > 0 ? sd[4] : 0;
+      h.innerHTML = '<th colspan="6" scope="colgroup"><button type="button" class="dyd-lek-sec-btn" aria-expanded="' + (!collapsed) + '">'
+        + '<i class="bi bi-chevron-' + (collapsed ? 'right' : 'down') + '" aria-hidden="true"></i>'
+        + '<span class="dyd-lek-sec-t">' + sd[1] + '</span> <span class="badge">' + list.length + '</span>'
+        + '<span class="dyd-lek-sec-d">' + sd[2] + '</span></button></th>';
+      tbody.appendChild(h);
+      list.forEach(function (r, i) { r.hidden = collapsed || (limit && i >= limit); tbody.appendChild(r); });
+      var more = null;
+      if (limit && list.length > limit) {
+        more = document.createElement('tr'); more.className = 'dyd-lek-sec dyd-lek-more';
+        more.innerHTML = '<td colspan="6"><button type="button" class="btn btn-sm btn-outline-secondary">Pokaż wszystkie (' + list.length + ')</button></td>';
+        more.querySelector('button').addEventListener('click', function () { list.forEach(function (r) { r.hidden = false; }); more.remove(); });
+        tbody.appendChild(more);
+      }
+      h.querySelector('button').addEventListener('click', function () {
+        var open = this.getAttribute('aria-expanded') !== 'true';
+        this.setAttribute('aria-expanded', open); this.querySelector('.bi').className = 'bi bi-chevron-' + (open ? 'down' : 'right');
+        list.forEach(function (r, i) { r.hidden = !open || (limit && more && more.isConnected && i >= limit); });
+        if (more && more.isConnected) more.hidden = !open;
+      });
+    });
   }
-  function showList() {
-    if (calWrap) calWrap.style.display = 'none';
-    if (listWrap) listWrap.style.display = '';
-    if (filters) filters.style.display = '';
-    try { localStorage.setItem('dydLekcjeWidok', 'lista'); } catch (e) {}
+  function show(v) {
+    var cal = v === 'kalendarz';
+    if (calWrap) calWrap.style.display = cal ? '' : 'none';
+    if (listWrap) listWrap.style.display = cal ? 'none' : '';
+    if (filters) filters.style.display = cal ? 'none' : '';
+    if (tblWrap) tblWrap.classList.toggle('dyd-lek-os', v === 'os');
+    if (tblWrap) tblWrap.classList.toggle('dyd-lek-sekcje', v === 'sekcje');
+    if (v === 'sekcje') buildSections();
+    else { restore(); original.forEach(function (r) { r.hidden = false; }); }
+    if (cal && !calRendered && window.dydLekcjeCalendarInit) { window.dydLekcjeCalendarInit(); calRendered = true; }
+    try { localStorage.setItem(KEY, v); } catch (e) {}
   }
-  if (rKal)   rKal.addEventListener('change', function () { if (rKal.checked) showCalendar(); });
-  if (rLista) rLista.addEventListener('change', function () { if (rLista.checked) showList(); });
-
+  document.querySelectorAll('input[name="lekWidok"]').forEach(function (r) {
+    r.addEventListener('change', function () { if (r.checked) show(r.value); });
+  });
   var saved = null;
-  try { saved = localStorage.getItem('dydLekcjeWidok'); } catch (e) {}
-  if (saved === 'lista' && rLista) { rLista.checked = true; showList(); }
-  else { showCalendar(); }
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  if (!/^(sekcje|lista|kalendarz|os)$/.test(saved || '')) saved = 'sekcje';
+  var radio = document.querySelector('input[name="lekWidok"][value="' + saved + '"]');
+  if (radio) radio.checked = true;
+  show(saved);
 })();
 </script>
 <script>
