@@ -1,5 +1,11 @@
-Options -ExecCGI
+# Załączniki zadań serwowane WYŁĄCZNIE przez tasks/api/file.php (kontrola dostępu do obszaru).
+# Bezpośredni dostęp z przeglądarki zablokowany.
+Options -ExecCGI -Indexes
 AddHandler cgi-script .php .pl .py
-<FilesMatch "\.php$">
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order Deny,Allow
   Deny from all
-</FilesMatch>
+</IfModule>

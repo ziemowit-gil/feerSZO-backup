@@ -327,7 +327,7 @@ if ($overview_mode) {
             'zip','7z','tar','gz'           => 'bi-file-earmark-zip text-secondary',
             default      => 'bi-file-earmark text-muted',
         };
-        $tf_dl_url = APP_URL . '/uploads/tasks/' . $tf['stored_name'];
+        $tf_dl_url = APP_URL . '/tasks/api/file.php?id=' . (int)$tf['id'] . '&dl=1';
       ?>
       <tr>
         <td class="ps-3"><i class="bi <?= $icon ?> tf-file-icon"></i></td>
@@ -1176,7 +1176,7 @@ require_once __DIR__ . '/includes/header_tasks.php';
             'zip','7z','tar','gz'           => 'bi-file-earmark-zip text-secondary',
             default      => 'bi-file-earmark text-muted',
         };
-        $tf_dl_url  = APP_URL . '/uploads/tasks/' . $tf['stored_name'];
+        $tf_dl_url  = APP_URL . '/tasks/api/file.php?id=' . (int)$tf['id'] . '&dl=1';
         $can_delete = $can_manage || (int)$tf['uploaded_by'] === $uid;
       ?>
       <tr id="tattach-<?= (int)$tf['id'] ?>">

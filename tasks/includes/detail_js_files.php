@@ -116,6 +116,8 @@ window.tdPreviewFile = function(url, name, ext) {
     const TXT = ['txt','csv','log','md','json'];
 
     tdClosePreview();
+    // Załączniki z tasks/api/file.php: podgląd inline, pobranie z &dl=1
+    const dlUrl = url.includes('/tasks/api/file.php') ? url + '&dl=1' : url;
 
     const ov = document.createElement('div');
     ov.className = 'td-preview-overlay';
@@ -127,7 +129,7 @@ window.tdPreviewFile = function(url, name, ext) {
     ov.innerHTML =
         '<div class="td-preview-bar">'
         + '<span class="td-preview-title">' + escHtml(name) + '</span>'
-        + '<a href="' + escHtml(url) + '" download title="Pobierz"><i class="bi bi-download" aria-hidden="true"></i>Pobierz</a>'
+        + '<a href="' + escHtml(dlUrl) + '" download title="Pobierz"><i class="bi bi-download" aria-hidden="true"></i>Pobierz</a>'
         + '<button type="button" onclick="tdClosePreview()" aria-label="Zamknij podgląd"><i class="bi bi-x-lg" aria-hidden="true"></i>Zamknij</button>'
         + '</div>'
         + '<div class="td-preview-body" id="td-preview-body"></div>';

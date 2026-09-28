@@ -42,7 +42,7 @@ $td_show_ws_files     = (bool)$ws_for_task;
         $ext === 'zip'                                                      => 'zip',
         default                                                             => 'text',
       };
-      $file_url = APP_URL . '/uploads/tasks/' . $f['stored_name'];
+      $file_url = APP_URL . '/tasks/api/file.php?id=' . (int)$f['id'];
     ?>
     <div class="td-file-row" id="file-<?= $f['id'] ?>">
       <i class="bi bi-file-earmark-<?= $icon ?> text-primary flex-shrink-0" aria-hidden="true"></i>
@@ -52,7 +52,7 @@ $td_show_ws_files     = (bool)$ws_for_task;
         <?= h($f['original_name']) ?>
       </button>
       <span class="text-muted flex-shrink-0" style="font-size:.7rem"><?= round($f['file_size']/1024) ?> KB</span>
-      <a href="<?= h($file_url) ?>" download
+      <a href="<?= h($file_url . '&dl=1') ?>" download
          class="td-file-dl"
          title="Pobierz" aria-label="Pobierz <?= h($f['original_name']) ?>">
         <i class="bi bi-download" aria-hidden="true"></i>
