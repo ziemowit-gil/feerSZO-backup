@@ -27,8 +27,8 @@ interface NavItem {
  * harmonogram/wiadomosci/vlab/dostep) i authorized_person.php (tylko
  * lekcje/rozliczenia, do odczytu — patrz gating w api/v1/kursant_student.php).
  */
-const PARENT_VISIBLE = new Set(['dane', 'lekcje', 'oceny', 'plan', 'licencje', 'wiadomosci', 'rozliczenia', 'portfel', 'vlab', 'dostep']);
-const AUTHP_VISIBLE  = new Set(['dane', 'lekcje', 'rozliczenia']);
+const PARENT_VISIBLE = new Set(['dane', 'lekcje', 'statystyki', 'oceny', 'plan', 'licencje', 'wiadomosci', 'rozliczenia', 'portfel', 'vlab', 'dostep']);
+const AUTHP_VISIBLE  = new Set(['dane', 'lekcje', 'statystyki', 'rozliczenia']);
 
 interface Badges { msg: number; notices: number; terms: number; hw: number; }
 
@@ -367,6 +367,7 @@ export class ShellComponent implements OnInit {
   private readonly NAV_ITEMS: NavItem[] = [
     { path: 'dane',       label: 'Dane kursanta',      icon: 'person' },
     { path: 'lekcje',     label: 'Moje lekcje',        icon: 'calendar_month',  section: 'Nauka' },
+    { path: 'statystyki', label: 'Statystyki',         icon: 'bar_chart' },
     { path: 'zadania',    label: 'Materiały i zadania', icon: 'assignment',      badgeKey: 'hw' },
     { path: 'oceny',      label: 'Oceny',              icon: 'grade' },
     { path: 'plan',       label: 'Plan nauczania',      icon: 'list_alt' },

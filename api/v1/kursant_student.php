@@ -56,6 +56,25 @@ foreach ([
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
+/** Godziny lekcji: każda rozpoczęta godzina = pełna (45 min → 1, 90 min → 2). */
+function kursant_lesson_hours(int $min): int {
+    return $min > 0 ? (int)ceil($min / 60) : 0;
+}
+
+/**
+ * Godziny, które lekcja wnosi do rozliczenia — ta sama reguła co
+ * k30_ti_calculate_billing(): odbyta, nieodwołana; obecność → pełne godziny,
+ * no-show → 1 h albo pełne (no_show_billing), nieobecność → 0.
+ */
+function kursant_lesson_hours_counted(array $r): int {
+    if (!in_array($r['status'] ?? '', ['held', 'individual_change', 'remote_material'], true)) return 0;
+    if ((int)($r['att_cancelled'] ?? 0) === 1) return 0;
+    $h = kursant_lesson_hours((int)($r['duration_min'] ?? 60));
+    if ((int)($r['att_attended'] ?? 0) === 1) return $h;
+    if ((int)($r['att_no_show'] ?? 0) === 1) return ($r['att_no_show_billing'] ?? 'full') === '1h' ? 1 : $h;
+    return 0;
+}
+
 /** Wystawia token API dla danej roli (student/rodzic/upoważniony/impersonacja admina). */
 function issue_token(int $studentId, string $role = 'student', ?int $actorId = null, string $actorName = '', bool $remember = false, ?int $ttlSeconds = null): string {
     global $pdo;
@@ -567,7 +586,9 @@ switch ($action) {
         ti_planner_ext_migrate();
         $stmt = $pdo->prepare("
             SELECT s.id, s.course_id, s.lesson_date AS date, s.time_from, s.time_to,
-                   s.status, s.notes, s.mode,
+                   s.status, s.notes, s.mode, COALESCE(s.duration_min, 60) AS duration_min,
+                   COALESCE(a.attended,0) AS att_attended, COALESCE(a.no_show,0) AS att_no_show,
+                   COALESCE(a.no_show_billing,'full') AS att_no_show_billing, COALESCE(a.cancelled,0) AS att_cancelled,
                    COALESCE(s.meeting_url, e.zoom_meeting_url, c.default_meeting_url) AS meeting_url,
                    c.name AS course_name,
                    (u.first_name || ' ' || u.last_name) AS instructor_name,
@@ -617,8 +638,55 @@ switch ($action) {
                 'cancel_requested'    => (bool)($r['cancel_requested'] ?? 0),
                 'reschedule_proposed' => (bool)($r['reschedule_proposed'] ?? 0),
                 'meeting_url'         => $r['meeting_url'],
+                // Każda rozpoczęta godzina = pełna (per lekcja), jak w rozliczeniu.
+                'hours'               => kursant_lesson_hours((int)$r['duration_min']),
+                'hours_counted'       => kursant_lesson_hours_counted($r),
             ];
         }, $rows));
+    }
+
+    // ── statystyki (widok statystyczny kursanta) ──────────────────────────────
+    // Per miesiąc × grupa za ostatnie N miesięcy: obecności, nieobecności,
+    // no-show, odwołania i godziny rozliczone (każda rozpoczęta = pełna, ta sama
+    // reguła co k30_ti_calculate_billing). Bez kwot — widok także dla małoletnich.
+    case 'stats': {
+        $cid    = (int)($pdo->query("SELECT client_id FROM k30_ti_student_accounts WHERE id = {$student_id}")->fetchColumn());
+        $months = max(1, min(24, (int)($_GET['months'] ?? 12)));
+        $from   = date('Y-m-01', strtotime(date('Y-m-01') . ' -' . ($months - 1) . ' month'));
+        $stmt = $pdo->prepare(
+            "SELECT strftime('%Y-%m', s.lesson_date) AS ym, s.course_id, c.name AS course_name, s.status,
+                    COALESCE(s.duration_min, 60) AS duration_min,
+                    COALESCE(a.attended,0) AS att_attended, COALESCE(a.no_show,0) AS att_no_show,
+                    COALESCE(a.no_show_billing,'full') AS att_no_show_billing, COALESCE(a.cancelled,0) AS att_cancelled
+               FROM k30_ti_attendance a
+               JOIN k30_ti_sessions s ON s.id = a.session_id
+               JOIN k30_ti_courses  c ON c.id = s.course_id
+              WHERE a.client_id = ? AND s.lesson_date BETWEEN ? AND date('now','localtime')
+                AND s.status IN ('held','individual_change','remote_material','cancelled')
+              ORDER BY s.lesson_date"
+        );
+        $stmt->execute([$cid, $from]);
+        $by = []; $tot = ['lessons' => 0, 'present' => 0, 'absent' => 0, 'no_show' => 0, 'cancelled' => 0, 'hours' => 0];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $k = $r['ym'] . '|' . $r['course_id'];
+            $by[$k] ??= ['year_month' => $r['ym'], 'course_id' => (int)$r['course_id'], 'course_name' => $r['course_name'],
+                         'lessons' => 0, 'present' => 0, 'absent' => 0, 'no_show' => 0, 'cancelled' => 0, 'hours' => 0];
+            $g = &$by[$k];
+            if ($r['status'] === 'cancelled' || (int)$r['att_cancelled'] === 1) { $g['cancelled']++; $tot['cancelled']++; unset($g); continue; }
+            $g['lessons']++; $tot['lessons']++;
+            if ((int)$r['att_attended'] === 1)      { $g['present']++; $tot['present']++; }
+            elseif ((int)$r['att_no_show'] === 1)   { $g['no_show']++; $tot['no_show']++; }
+            elseif ($r['status'] !== 'remote_material') { $g['absent']++; $tot['absent']++; }
+            $h = kursant_lesson_hours_counted($r);
+            $g['hours'] += $h; $tot['hours'] += $h;
+            unset($g);
+        }
+        $den = $tot['present'] + $tot['absent'] + $tot['no_show'];
+        json_ok([
+            'from'   => $from,
+            'rows'   => array_values($by),
+            'totals' => $tot + ['attendance_pct' => $den > 0 ? (int)round($tot['present'] * 100 / $den) : null],
+        ]);
     }
 
     // ── homework / materiały ───────────────────────────────────────────────────

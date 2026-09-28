@@ -146,6 +146,12 @@ export const routes: Routes = [
         title: 'Moje lekcje',
       },
       {
+        path: 'statystyki',
+        loadComponent: () =>
+          import('./features/statystyki/statystyki.component').then(m => m.StatystykiComponent),
+        title: 'Statystyki',
+      },
+      {
         path: 'zadania',
         loadComponent: () =>
           import('./features/zadania/zadania.component').then(m => m.ZadaniaComponent),

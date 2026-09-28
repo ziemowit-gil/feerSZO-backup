@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
-  ApiResponse, DashboardData, Lesson, DydGroup, GradesByCourse,
+  ApiResponse, DashboardData, Lesson, DydGroup, GradesByCourse, KursantStats,
   CurriculumItem, TestItem, Notice, Message, BillingData, WalletData,
   OnlineState, OwnCloudState, VlabServer, License, ActivityLogEntry,
   Term, AuthorizedPerson, YearEndOverpayInfo, GuardianNotifyPrefs,
@@ -27,6 +27,7 @@ export class KursantApiService {
   // ── Read endpoints ─────────────────────────────────────
   getDashboard()  { return this.get<DashboardData>('dashboard'); }
   getLessons(page = '1') { return this.get<Lesson[]>('lessons', { page }); }
+  getStats(months = 12) { return this.get<KursantStats>('stats', { months: String(months) }); }
   getHomework()   { return this.get<DydGroup[]>('homework'); }
   getGrades()     { return this.get<GradesByCourse[]>('grades'); }
   getGuardianNotifyPrefs() { return this.get<GuardianNotifyPrefs>('guardian_notify_prefs'); }

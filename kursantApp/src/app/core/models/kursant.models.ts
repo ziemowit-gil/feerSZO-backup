@@ -97,6 +97,28 @@ export interface Lesson {
   cancel_requested: boolean;
   reschedule_proposed: boolean;
   meeting_url: string | null;
+  /** Godziny lekcji — każda rozpoczęta godzina = pełna. */
+  hours?: number;
+  /** Godziny wliczone do rozliczenia (obecność / płatna nieobecność), 0 gdy nie. */
+  hours_counted?: number;
+}
+
+export interface KursantStatsRow {
+  year_month: string;
+  course_id: number;
+  course_name: string;
+  lessons: number;
+  present: number;
+  absent: number;
+  no_show: number;
+  cancelled: number;
+  hours: number;
+}
+
+export interface KursantStats {
+  from: string;
+  rows: KursantStatsRow[];
+  totals: { lessons: number; present: number; absent: number; no_show: number; cancelled: number; hours: number; attendance_pct: number | null };
 }
 
 export interface Homework {

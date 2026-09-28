@@ -114,6 +114,7 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
         <th scope="col">Data</th>
         <th scope="col">Kurs</th>
         <th scope="col">Godzina</th>
+        <th scope="col"><abbr title="Liczba godzin — każda rozpoczęta godzina liczona jako pełna">Godz.</abbr></th>
         <th scope="col">Prowadzący</th>
         <th scope="col">Sala</th>
         <th scope="col">Status</th>
@@ -137,6 +138,12 @@ const STATUS_LABELS: Record<LessonStatus, string> = {
         </td>
         <td>{{ lesson.course_name }}</td>
         <td>{{ lesson.time_from }}–{{ lesson.time_to }}</td>
+        <td>
+          {{ lesson.hours ?? '—' }}
+          @if (lesson.hours_counted === 0 && isPastHeld(lesson)) {
+            <span class="text-muted text-sm" title="Nie wliczona do rozliczenia (nieobecność lub odwołanie)">(0)</span>
+          }
+        </td>
         <td>{{ lesson.instructor_name }}</td>
         <td>{{ lesson.room_name ?? '—' }}</td>
         <td>
@@ -373,6 +380,11 @@ export class LekcjeComponent implements OnInit {
       },
       error: () => this.loading.set(false),
     });
+  }
+
+  /** Lekcja odbyta — wtedy 0 godzin do rozliczenia jest warte pokazania. */
+  isPastHeld(lesson: Lesson): boolean {
+    return ['held', 'individual_change', 'remote_material'].includes(lesson.status as string);
   }
 
   statusLabel(s: LessonStatus): string { return STATUS_LABELS[s] ?? s; }
