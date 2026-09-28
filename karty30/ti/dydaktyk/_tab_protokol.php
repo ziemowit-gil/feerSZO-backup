@@ -261,10 +261,14 @@ $pr_confirm = $pr_empty
           <button class="btn btn-primary btn-sm" name="_op" value="protocol_save">
             <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz protokół
           </button>
+          <?php if (ti_protocol_can_approve($uid, (int)$cur_course, dyd_is_staff())): ?>
           <button class="btn <?= $pr_empty ? 'btn-outline-success' : 'btn-success' ?> btn-sm" name="_op" value="protocol_approve"
                   onclick="return confirm('<?= h(addslashes($pr_confirm)) ?>')">
             <i class="bi bi-check2-square me-1" aria-hidden="true"></i><?= $pr_empty ? 'Zatwierdź pusty protokół' : 'Zatwierdź protokół' ?>
           </button>
+          <?php else: ?>
+          <span class="small text-body-secondary"><i class="bi bi-lock me-1" aria-hidden="true"></i>Zatwierdza główny prowadzący kursu albo kierownik.</span>
+          <?php endif; ?>
           <span class="form-text mb-0">
             Dozwolone wpisy: <strong>1–6</strong> (można z „+” lub „-”), albo
             <?= h(implode(', ', array_keys(TI_PROTOCOL_SPECIAL))) ?>. Puste pole = brak oceny.

@@ -184,6 +184,7 @@ function ti_protocol_pending_months_for_instructor(int $instructor_uid): array {
                 'year_month'  => $ym,
                 'protocol_id' => $prot['id'] ?? null,
                 'is_current'  => $ym === $cur_ym,
+                'can_approve' => ti_protocol_can_approve($instructor_uid, $cid),
                 'is_overdue'  => $ym < $cur_ym,
             ];
         }
@@ -191,6 +192,19 @@ function ti_protocol_pending_months_for_instructor(int $instructor_uid): array {
     usort($out, fn($a, $b) => $a['year_month'] <=> $b['year_month']);
     return $out;
 }
+
+/**
+ * Czy użytkownik może ZATWIERDZIĆ protokół kursu: tylko główny prowadzący
+ * (k30_ti_courses.instructor_id) albo kierownik/pracownik D3 ($is_staff).
+ * Współprowadzący może protokół oglądać i wypełniać, ale nie zatwierdza.
+ */
+function ti_protocol_can_approve(int $uid, int $course_id, bool $is_staff = false): bool {
+    if ($is_staff) return true;
+    if ($uid <= 0 || $course_id <= 0) return false;
+    return (int)(db_one("SELECT instructor_id FROM k30_ti_courses WHERE id=?", [$course_id])['instructor_id'] ?? 0) === $uid;
+}
+
+const TI_PROTOCOL_APPROVE_DENIED = 'Protokół zatwierdza główny prowadzący kursu albo kierownik — współprowadzący nie może go zatwierdzić.';
 
 /** Zatwierdzone protokoły MIESIĘCZNE własnych kursów prowadzącego (najnowsze najpierw). */
 function ti_protocol_closed_months_for_instructor(int $instructor_uid): array {

@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // zawsze kończyło się 403 (brak tokenu CSRF) i blokowało się na zamku pliku
         // sesji tego samego żądania — dawało tylko 3 s opóźnienia przed fallbackiem.
         try {
+            if (!ti_protocol_can_approve($uid, $cid, dyd_is_staff())) throw new \RuntimeException(TI_PROTOCOL_APPROVE_DENIED);
             $prot = ti_protocol_get_or_create_for_month($cid, $ym);
             ti_protocol_approve((int)$prot['id'], $uid, $me_name);
             flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony.');
@@ -115,7 +116,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <a href="protokoly_moje.php" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wstecz
       </a>
-      <form method="post" class="ms-auto" onsubmit="return confirm('Zatwierdzić protokół za <?= h(addslashes($fmt_ym($open_ym))) ?>? Tej operacji nie można cofnąć samodzielnie.')">
+<?php if (empty($open_row['can_approve']) && !dyd_is_staff()): ?>
+      <p class="ms-auto small text-body-secondary mb-0 align-self-center">
+        <i class="bi bi-lock me-1" aria-hidden="true"></i>Protokół zatwierdza główny prowadzący kursu albo kierownik.
+      </p>
+      <?php else: ?>
+            <form method="post" class="ms-auto" onsubmit="return confirm('Zatwierdzić protokół za <?= h(addslashes($fmt_ym($open_ym))) ?>? Tej operacji nie można cofnąć samodzielnie.')">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="approve_month">
         <input type="hidden" name="course_id" value="<?= (int)$open_row['course_id'] ?>">
@@ -124,6 +130,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
         </button>
       </form>
+      <?php endif; ?>
     </div>
   </div>
 </div>

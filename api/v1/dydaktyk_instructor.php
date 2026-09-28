@@ -1439,6 +1439,7 @@ switch ($action) {
         if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || !k30_ti_instructor_owns_course($instructor_id, $cid)) {
             json_err('Nieprawidłowe dane protokołu.', 403);
         }
+        if (!ti_protocol_can_approve($instructor_id, $cid)) json_err(TI_PROTOCOL_APPROVE_DENIED, 403);
         $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
         try {
             $prot = ti_protocol_get_or_create_for_month($cid, $ym);

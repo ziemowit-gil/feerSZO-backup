@@ -1469,6 +1469,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($r['errors']) $msg .= ' Pominięto: ' . implode(' ', array_slice($r['errors'], 0, 3));
                 flash_set($r['errors'] ? 'warning' : 'success', $msg);
             } elseif ($op === 'protocol_approve') {
+                if (!ti_protocol_can_approve($uid, (int)$prot['course_id'], dyd_is_staff())) throw new \RuntimeException(TI_PROTOCOL_APPROVE_DENIED);
                 ti_protocol_approve($pid, $uid, $me_name);
                 flash_set('success', 'Protokół zatwierdzony — ocen nie można już zmieniać.');
             } elseif ($op === 'protocol_hours_ack') {
