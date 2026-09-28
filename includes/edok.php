@@ -1986,6 +1986,83 @@ function edok_send_przelew_files(array $pliki, string $zip_name): void {
     exit;
 }
 
+/**
+ * Obsługa formularza „Przelew składek ZUS” (edok/add.php?tryb=zus): walidacja,
+ * potwierdzenie NRS przy pierwszym przelewie (zapis do konfiguracji), ostrzeżenie
+ * o drugim przelewie za ten sam okres, płatność mieszana (plik na rachunek), wpis
+ * do rejestru edok_zus_przelewy i pobranie pliku (exit). Przy błędach zwraca stan
+ * formularza do ponownego wyświetlenia (komunikat we flash).
+ */
+function edok_zus_handle_post(): array {
+    $rachunki_ok = [];
+    foreach (edok_rachunki_list() as $r) $rachunki_ok[preg_replace('/\D/', '', $r['nrb'])] = $r;
+    $okres    = (string)($_POST['okres'] ?? '');
+    $mieszana = !empty($_POST['mieszana']);
+    $format   = isset(EDOK_PRZELEWY_FORMATY[$_POST['format'] ?? '']) ? $_POST['format'] : 'auto';
+    $czesci   = [];
+    $rach_in  = $mieszana ? (array)($_POST['m_rachunek'] ?? []) : [(string)($_POST['rachunek'] ?? '')];
+    $kw_in    = $mieszana ? (array)($_POST['m_kwota'] ?? [])    : [(string)($_POST['kwota'] ?? '')];
+    foreach ($rach_in as $i => $nrb) {
+        $nrb = preg_replace('/\D/', '', (string)$nrb);
+        $kw  = trim((string)($kw_in[$i] ?? ''));
+        if ($nrb === '' && $kw === '') continue;
+        $czesci[] = ['nrb' => $nrb, 'kwota' => $kw];
+    }
+    $zus_form = ['okres' => $okres, 'mieszana' => $mieszana, 'format' => $format, 'czesci' => $czesci,
+                 'kwota' => (string)($_POST['kwota'] ?? ''), 'rachunek' => (string)($_POST['rachunek'] ?? ''),
+                 'zus_nrs' => (string)($_POST['zus_nrs'] ?? ''), 'dup' => []];
+
+    $errors = [];
+    if (edok_okres_label($okres) === '') $errors[] = 'Wybierz okres składek.';
+    if (!$czesci) $errors[] = 'Podaj kwotę i rachunek, z którego ma pójść przelew.';
+    foreach ($czesci as $c) {
+        if (!isset($rachunki_ok[$c['nrb']]))   $errors[] = 'Wybierz rachunek organizacji dla każdej części płatności.';
+        if (_edok_kwota_float($c['kwota']) <= 0) $errors[] = 'Każda część płatności musi mieć kwotę większą od zera.';
+    }
+    // NRS: z konfiguracji albo potwierdzony w formularzu (i wtedy zapisywany).
+    $nrs = edok_zus_nrs_config();
+    if ($nrs === '') {
+        $nrs = preg_replace('/\D/', '', (string)($_POST['zus_nrs'] ?? ''));
+        if (!edok_nrb_valid($nrs))           $errors[] = 'Podaj prawidłowy numer rachunku składkowego ZUS.';
+        elseif (empty($_POST['nrs_confirm'])) $errors[] = 'Potwierdź numer rachunku składkowego ZUS przed pierwszym przelewem.';
+    }
+    $zus_form['dup'] = edok_okres_label($okres) !== '' ? edok_zus_przelewy($okres) : [];
+    if (!$errors && $zus_form['dup'] && empty($_POST['confirm_dup'])) {
+        $errors[] = 'Przelew składek za ten okres był już generowany — sprawdź w banku i potwierdź, że to kolejna (np. wyrównująca) wpłata.';
+    }
+    if ($errors) {
+        flash_set('warning', implode(' ', array_unique($errors)));
+    } else {
+        try {
+            if (!edok_zus_nrs_config()) {
+                org_setting_set('zus_nrs', $nrs);
+            }
+            $grupy = [];
+            foreach ($czesci as $c) $grupy[$c['nrb']] = ($grupy[$c['nrb']] ?? 0) + _edok_kwota_float($c['kwota']);
+            $stamp = date('Y-m-d_His');
+            $pliki = [];
+            $user  = current_user();
+            foreach ($grupy as $nrb => $kw) {
+                $kwota = number_format($kw, 2, ',', '');
+                $plik  = edok_przelewy_export([edok_zus_row($okres, $kwota, $nrs)], (string)$nrb, $format);
+                if ($plik['content'] === '') continue;
+                $pliki['ZUS_' . str_replace('-', '', $okres) . '_' . $plik['prefix'] . '_' . substr((string)$nrb, -4) . '_' . $stamp . '.' . $plik['ext']] = $plik['content'];
+                db_insert('edok_zus_przelewy', [
+                    'okres' => $okres, 'kwota' => $kwota, 'nrs' => $nrs, 'rachunek_z' => (string)$nrb,
+                    'format' => $plik['prefix'], 'tytul' => edok_zus_tytul($okres),
+                    'user_id' => (int)($user['id'] ?? 0) ?: null, 'user_name' => (string)($user['name'] ?? ''),
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+            if (!$pliki) throw new RuntimeException('Nie udało się wygenerować pliku przelewu.');
+            edok_send_przelew_files($pliki, 'ZUS_' . str_replace('-', '', $okres) . '_' . $stamp . '.zip');
+        } catch (\Throwable $e) {
+            flash_set('danger', 'Błąd eksportu przelewu ZUS: ' . $e->getMessage());
+        }
+    }
+    return $zus_form;
+}
+
 /** Przelewy ZUS wygenerowane za dany okres (albo ostatnie 12). */
 function edok_zus_przelewy(string $okres = ''): array {
     return $okres !== ''

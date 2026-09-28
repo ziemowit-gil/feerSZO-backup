@@ -15,7 +15,16 @@ $edok_templates = edok_get_templates(true);
 
 $errors = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Tryb „Przelew składek ZUS” — bez obiegu akceptacji (składki wynikają z rozliczonych
+// rachunków i umów): formularz od razu generuje plik przelewu. Patrz edok_zus_handle_post().
+$tryb = ($_GET['tryb'] ?? '') === 'zus' || ($_POST['action'] ?? '') === 'export_zus' ? 'zus' : 'dokument';
+$zus_form = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'zus') {
+    csrf_check();
+    $zus_form = edok_zus_handle_post(); // przy sukcesie wysyła plik i kończy żądanie
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     csrf_check();
 
     $kierunek         = in_array($_POST['kierunek'] ?? '', ['wydatek', 'przychod'], true) ? $_POST['kierunek'] : 'wydatek';
@@ -190,6 +199,31 @@ require_once __DIR__ . '/../includes/header.php';
   <a href="<?= APP_URL ?>/edok/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h4 class="mb-0"><i class="bi bi-journal-plus"></i> Nowy dokument księgowy — EODoK</h4>
 </div>
+
+<ul class="nav nav-tabs mb-3" style="max-width:760px">
+  <li class="nav-item">
+    <a class="nav-link<?= $tryb === 'dokument' ? ' active' : '' ?>" <?= $tryb === 'dokument' ? 'aria-current="page"' : '' ?> href="<?= APP_URL ?>/edok/add.php">
+      <i class="bi bi-journal-plus"></i> Dokument do obiegu
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link<?= $tryb === 'zus' ? ' active' : '' ?>" <?= $tryb === 'zus' ? 'aria-current="page"' : '' ?> href="<?= APP_URL ?>/edok/add.php?tryb=zus">
+      <i class="bi bi-shield-check"></i> Przelew składek ZUS <span class="small text-muted">(bez obiegu)</span>
+    </a>
+  </li>
+</ul>
+
+<?php if ($tryb === 'zus'): ?>
+<div style="max-width:760px">
+  <?php $rachunki_org = edok_rachunki_list(); ?>
+  <?php if ($rachunki_org): ?>
+  <?php include __DIR__ . '/_zus_form.php'; ?>
+  <?php else: ?>
+  <div class="alert alert-warning">Brak rachunków organizacji — dodaj je w konfiguracji organizacji (zakładka Rachunki), żeby wygenerować przelew.</div>
+  <?php endif; ?>
+</div>
+<?php require_once __DIR__ . '/../includes/footer.php'; exit; ?>
+<?php endif; ?>
 
 <?php if ($errors): ?>
 <div class="alert alert-danger">
