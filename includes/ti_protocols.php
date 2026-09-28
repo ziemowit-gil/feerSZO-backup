@@ -132,6 +132,16 @@ function ti_protocols_migrate(): void {
             );
         }
     } catch (\Throwable $e) {}
+
+    // Jednorazowo: protokoły miesięczne zatwierdzone ZANIM zatwierdzenie zaczęło
+    // otwierać następny miesiąc — dostają go wstecz (cli/ti_protocols_next_month.php
+    // robi to samo ręcznie, z podglądem --dry-run).
+    if (!defined('TI_PROTOCOLS_NO_AUTO_BACKFILL')
+        && function_exists('org_setting') && function_exists('org_setting_set')
+        && org_setting('ti_protocols_next_month_backfill') !== '1') {
+        org_setting_set('ti_protocols_next_month_backfill', '1');
+        try { ti_protocols_backfill_next_months(); } catch (\Throwable $e) {}
+    }
 }
 
 /**
@@ -148,6 +158,57 @@ function ti_protocol_get_or_create_for_month(int $course_id, string $year_month)
         "INSERT INTO k30_ti_protocols (course_id, year_month, title, status) VALUES (?,?,?,'open')"
     )->execute([$course_id, $year_month, 'Protokół ' . $year_month]);
     return db_one("SELECT * FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$course_id, $year_month]);
+}
+
+/**
+ * Po zatwierdzeniu protokołu MIESIĘCZNEGO otwiera protokół na następny miesiąc
+ * (idempotentnie). Pomija zamknięte grupy („Zamknij i archiwizuj") oraz grupy
+ * nieaktywne bez lekcji w tym miesiącu — żeby nie mnożyć pustych protokołów
+ * po zakończonych kursach. Zwraca id otwartego/istniejącego protokołu albo null.
+ */
+function ti_protocol_open_next_month(array $prot): ?int {
+    $ym = (string)($prot['year_month'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}$/', $ym)) return null;
+    $cid  = (int)$prot['course_id'];
+    $next = date('Y-m', strtotime($ym . '-01 +1 month'));
+    if (ti_course_closed($cid)) return null;
+    $c = db_one("SELECT is_active, status FROM k30_ti_courses WHERE id=?", [$cid]);
+    if (!$c) return null;
+    $active = !empty($c['is_active']) && !in_array((string)$c['status'], ['cancelled', 'archived'], true);
+    if (!$active) {
+        $has = db_one("SELECT 1 AS x FROM k30_ti_sessions WHERE course_id=? AND strftime('%Y-%m', lesson_date)=? LIMIT 1", [$cid, $next]);
+        if (!$has) return null;
+    }
+    return (int)ti_protocol_get_or_create_for_month($cid, $next)['id'];
+}
+
+/**
+ * Uzupełnienie wstecz: dla każdego zatwierdzonego protokołu miesięcznego
+ * otwiera protokół na następny miesiąc, jeśli go brak. $dry_run — tylko liczy.
+ * @return list<array{course_id:int, year_month:string}> otwarte (lub do otwarcia)
+ */
+function ti_protocols_backfill_next_months(bool $dry_run = false): array {
+    ti_protocols_migrate();
+    $rows = db_all(
+        "SELECT p.* FROM k30_ti_protocols p
+          WHERE p.status='approved' AND p.year_month != ''
+            AND NOT EXISTS (SELECT 1 FROM k30_ti_protocols n
+                             WHERE n.course_id=p.course_id
+                               AND n.year_month = strftime('%Y-%m', date(p.year_month || '-01', '+1 month')))
+          ORDER BY p.course_id, p.year_month"
+    );
+    $out = [];
+    foreach ($rows as $p) {
+        $next = date('Y-m', strtotime($p['year_month'] . '-01 +1 month'));
+        if ($dry_run) {
+            if (!ti_course_closed((int)$p['course_id'])) $out[] = ['course_id' => (int)$p['course_id'], 'year_month' => $next];
+            continue;
+        }
+        try {
+            if (ti_protocol_open_next_month($p)) $out[] = ['course_id' => (int)$p['course_id'], 'year_month' => $next];
+        } catch (\Throwable $e) {}
+    }
+    return $out;
 }
 
 /**
@@ -632,6 +693,10 @@ function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void 
     )->execute([$by, $by_name, $protocol_id]);
 
     ti_protocol_snapshot_save($prot);
+
+    // Protokół miesięczny → od razu otwórz protokół na następny miesiąc
+    try { ti_protocol_open_next_month($prot); }
+    catch (\Throwable $e) { error_log('ti_protocol_open_next_month: ' . $e->getMessage()); }
 
     // EZD: zatwierdzony protokół → nowa koszulka w klasie JRWA 384 (no-op bez EZD)
     try {
