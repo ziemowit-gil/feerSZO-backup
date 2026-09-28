@@ -277,6 +277,28 @@ window.tdCmtKeydown = function(e) {
     if (oc) oc.addEventListener('scroll', tdMentionHide, {passive: true});
 })();
 
+window.tdToggleWatch = function() {
+    const btn = document.getElementById('td-watch-btn');
+    if (!btn) return;
+    const on = btn.getAttribute('aria-pressed') !== 'true';
+    btn.disabled = true;
+    api('/tasks/api/watch.php', {task_id: TID, watch: on})
+        .then(r => {
+            btn.disabled = false;
+            if (!r.ok) { alert(r.error); return; }
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            btn.classList.toggle('btn-secondary', on);
+            btn.classList.toggle('btn-outline-secondary', !on);
+            btn.querySelector('i').className = 'bi ' + (on ? 'bi-eye-fill' : 'bi-eye') + ' me-1';
+            btn.querySelector('span').textContent = on ? 'Obserwujesz' : 'Obserwuj';
+            const list = document.getElementById('td-watch-list');
+            if (list) list.textContent = r.watchers.length
+                ? 'Obserwują: ' + r.watchers.map(w => w.name).join(', ')
+                : 'Nikt nie obserwuje — obserwujący dostają powiadomienia o komentarzach, plikach i zmianie statusu.';
+            srAnnounce(on ? 'Obserwujesz to zadanie.' : 'Przestałeś/aś obserwować zadanie.');
+        });
+};
+
 window.tdEditComment = function(cid) {
     const bodyEl = document.querySelector('#cmt-' + cid + ' .td-comment-body');
     if (!bodyEl || bodyEl.querySelector('textarea')) return;

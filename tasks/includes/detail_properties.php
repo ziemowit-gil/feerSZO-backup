@@ -116,5 +116,22 @@
   <?php else: ?>
   <p class="text-muted small mb-0">Brak użytkowników w systemie.</p>
   <?php endif; ?>
+
+  <!-- Obserwujący: powiadomienia o zadaniu bez przypisania -->
+  <div class="td-watch mt-2" id="td-watch">
+    <button type="button" id="td-watch-btn"
+            class="btn btn-sm <?= $i_watch ? 'btn-secondary' : 'btn-outline-secondary' ?> py-0"
+            aria-pressed="<?= $i_watch ? 'true' : 'false' ?>"
+            onclick="tdToggleWatch()">
+      <i class="bi <?= $i_watch ? 'bi-eye-fill' : 'bi-eye' ?> me-1" aria-hidden="true"></i><span><?= $i_watch ? 'Obserwujesz' : 'Obserwuj' ?></span>
+    </button>
+    <span class="small text-muted" id="td-watch-list">
+      <?php if ($watchers): ?>
+      Obserwują: <?= h(implode(', ', array_column($watchers, 'name'))) ?>
+      <?php else: ?>
+      Nikt nie obserwuje — obserwujący dostają powiadomienia o komentarzach, plikach i zmianie statusu.
+      <?php endif; ?>
+    </span>
+  </div>
 </div>
 

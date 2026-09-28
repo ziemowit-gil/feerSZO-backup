@@ -38,6 +38,8 @@ $assignees  = db_all(
     "SELECT u.id, u.name FROM task_assignments ta
      JOIN users u ON u.id=ta.user_id WHERE ta.task_id=? ORDER BY u.name", [$id]);
 $assign_ids = array_column($assignees, 'id');
+$watchers    = task_watchers($id);
+$i_watch     = in_array($uid, array_map('intval', array_column($watchers, 'id')), true);
 // Uprawnienie do plików wymaga też przypisania do zadania (dla ról poza admin/editor) —
 // tak samo jak sprawdza to tasks/api/upload.php.
 $can_manage_files = $can_edit || (task_field_editable('files', $my_role) && in_array($uid, $assign_ids, true));

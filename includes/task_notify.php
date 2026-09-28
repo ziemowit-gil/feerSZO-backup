@@ -154,6 +154,24 @@ function task_notify_new_comment(int $task_id, int $comment_id, string $body, in
     // @wzmianki (notify_mentioned)
     $all_users = db_all("SELECT id, name, email FROM users WHERE is_active=1");
     $mentioned = _tn_parse_mentions($body, $all_users, $author_uid);
+    $mentioned_ids = array_map(fn($m) => (int)$m['id'], $mentioned);
+
+    // Obserwujący (nieprzypisani) — notify_watched; wspomniani dostaną mail o wzmiance, nie dublujemy
+    foreach (_tn_audience($task_id, $author_uid) as $u) {
+        if (!$u['is_watcher'] || in_array((int)$u['id'], $mentioned_ids, true)) continue;
+        $uid = (int)$u['id'];
+        _tn_inapp($uid, $author_name . ' skomentował: ' . $task['title'], mb_substr($snippet, 0, 200), $task_id);
+        $pref = task_notify_get_pref($uid);
+        if (!_tn_audience_wants($u, $pref, 'notify_comment', 0)) continue;
+        $subject = $author_name . ' skomentował obserwowane zadanie: ' . $task['title'];
+        $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
+            . '<p><strong>' . htmlspecialchars($author_name) . '</strong> dodał komentarz do zadania, które obserwujesz.</p>'
+            . _tn_task_card($task)
+            . '<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0;font-size:14px">'
+            . nl2br(htmlspecialchars($snippet)) . '</div>';
+        _tn_email($uid, $u['email'], 'comment', $comment_id,
+            $subject, _tn_tpl('Nowy komentarz', $subject, $content, $task_url));
+    }
 
     foreach ($mentioned as $u) {
         $uid = (int)$u['id'];
@@ -418,6 +436,31 @@ function task_notify_confirm_email(string $raw_token): ?string {
     return $st->rowCount() ? (string)$row['notify_email_pending'] : null;
 }
 
+/**
+ * Odbiorcy zdarzeń zadania: przypisani + obserwujący (task_watchers), bez autora zdarzenia.
+ * Obserwujący, który jest też przypisany, występuje raz — jako przypisany.
+ * 'is_watcher' decyduje, którą flagą preferencji sterujemy e-mailem (notify_watched).
+ */
+function _tn_audience(int $task_id, int $except_uid): array {
+    $out = [];
+    foreach (_tn_assignees_except($task_id, $except_uid) as $u) {
+        $out[(int)$u['id']] = $u + ['is_watcher' => false];
+    }
+    if (function_exists('task_watchers')) {
+        foreach (task_watchers($task_id) as $w) {
+            $wid = (int)$w['id'];
+            if ($wid === $except_uid || isset($out[$wid])) continue;
+            $out[$wid] = $w + ['is_watcher' => true];
+        }
+    }
+    return array_values($out);
+}
+
+/** Czy wysłać e-mail: przypisany → własna flaga zdarzenia; obserwujący → notify_watched. */
+function _tn_audience_wants(array $u, array $pref, string $flag, int $flag_default = 1): bool {
+    return $u['is_watcher'] ? (bool)($pref['notify_watched'] ?? 1) : (bool)($pref[$flag] ?? $flag_default);
+}
+
 /** Przypisani do zadania (aktywni) poza autorem zdarzenia. */
 function _tn_assignees_except(int $task_id, int $except_uid): array {
     return array_values(array_filter(db_all(
@@ -433,13 +476,13 @@ function task_notify_file_added(int $task_id, string $file_name, int $by_uid): v
     if (!$task) return;
     $by_name = _tn_user_name($by_uid);
 
-    foreach (_tn_assignees_except($task_id, $by_uid) as $u) {
+    foreach (_tn_audience($task_id, $by_uid) as $u) {
         $uid = (int)$u['id'];
         _tn_inapp($uid, 'Nowy plik w zadaniu: ' . $task['title'],
             $by_name . ' dodał(a) plik „' . mb_substr($file_name, 0, 120) . '”.', $task_id);
 
         $pref = task_notify_get_pref($uid);
-        if (!($pref['notify_file'] ?? 1)) continue;
+        if (!_tn_audience_wants($u, $pref, 'notify_file')) continue;
 
         $subject = 'Nowy plik w zadaniu: ' . $task['title'];
         $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
@@ -458,13 +501,13 @@ function task_notify_moved(int $task_id, string $from_list, string $to_list, int
     if (!$task) return;
     $by_name = _tn_user_name($by_uid);
 
-    foreach (_tn_assignees_except($task_id, $by_uid) as $u) {
+    foreach (_tn_audience($task_id, $by_uid) as $u) {
         $uid = (int)$u['id'];
         _tn_inapp($uid, 'Zmiana statusu: ' . $task['title'],
             $by_name . ': ' . $from_list . ' → ' . $to_list, $task_id);
 
         $pref = task_notify_get_pref($uid);
-        if (!($pref['notify_moved'] ?? 1)) continue;
+        if (!_tn_audience_wants($u, $pref, 'notify_moved')) continue;
 
         $subject = 'Zadanie przeniesione do „' . $to_list . '”: ' . $task['title'];
         $content = '<p>Cześć <strong>' . htmlspecialchars($u['name']) . '</strong>,</p>'
@@ -495,7 +538,7 @@ function task_notify_save_pref(int $user_id, array $data): void {
     }
     // Nowsze flagi zapisywane tylko, gdy wywołujący je przysłał — starsze formularze
     // (modal w liście zadań, api/notify_prefs.php) ich nie znają i nie mogą ich zerować.
-    foreach (['notify_file', 'notify_moved'] as $f) {
+    foreach (['notify_file', 'notify_moved', 'notify_watched'] as $f) {
         if (array_key_exists($f, $data)) $values[$f] = (int)(bool)$data[$f];
     }
     // notify_email celowo NIE jest tu zapisywany — tylko przez task_notify_request_email_change()
@@ -529,6 +572,7 @@ function _tn_default_prefs(): array {
         'notify_rejected'  => 1,
         'notify_file'      => 1,
         'notify_moved'     => 1,
+        'notify_watched'   => 1,
         'notify_email'     => '',
         'notify_email_pending' => '',
     ];
@@ -768,6 +812,7 @@ function _tn_schema_heal(): void {
             'notify_rejected  INTEGER NOT NULL DEFAULT 1',
             'notify_file      INTEGER NOT NULL DEFAULT 1',
             'notify_moved     INTEGER NOT NULL DEFAULT 1',
+            'notify_watched   INTEGER NOT NULL DEFAULT 1',
             "notify_email     TEXT    NOT NULL DEFAULT ''",
             // Weryfikacja własnego adresu: notify_email ustawiany DOPIERO po kliknięciu linku
             "notify_email_pending    TEXT NOT NULL DEFAULT ''",

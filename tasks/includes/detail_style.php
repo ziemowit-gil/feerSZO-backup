@@ -187,6 +187,7 @@
 .td-comment-body   { font-size: .84rem; white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
 
 /* ── Pliki ──────────────────────────────────────────────────── */
+.td-watch { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .td-drop-zone {
   border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: .6rem .75rem;
   font-size: .78rem; color: #475569; text-align: center; transition: background .12s, border-color .12s;

@@ -972,3 +972,42 @@ function task_files_manager(int $ws_id, array $f = []): array {
         'tasks'      => $tasks,
     ];
 }
+
+// ── Rozszerzenia 2026-09: obserwujący, zależności, godzina terminu, okładka ──
+
+/** Samonaprawa schematu dla rozszerzeń modułu (idempotentna, raz na żądanie). */
+function task_extras_schema_heal(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $pdo = db();
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS task_watchers (
+            task_id    INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+            PRIMARY KEY (task_id, user_id)
+        )");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_task_watchers_user ON task_watchers(user_id)");
+    } catch (\Throwable $e) { error_log('[task_extras_schema_heal] ' . $e->getMessage()); }
+}
+
+/** Obserwujący zadania (aktywni użytkownicy). */
+function task_watchers(int $task_id): array {
+    task_extras_schema_heal();
+    return db_all(
+        "SELECT u.id, u.name, u.email FROM task_watchers w
+         JOIN users u ON u.id = w.user_id
+         WHERE w.task_id = ? AND u.is_active = 1 ORDER BY u.name",
+        [$task_id]
+    );
+}
+
+function task_watch_set(int $task_id, int $user_id, bool $on): void {
+    task_extras_schema_heal();
+    if ($on) {
+        db()->prepare("INSERT OR IGNORE INTO task_watchers (task_id, user_id) VALUES (?, ?)")->execute([$task_id, $user_id]);
+    } else {
+        db()->prepare("DELETE FROM task_watchers WHERE task_id=? AND user_id=?")->execute([$task_id, $user_id]);
+    }
+}

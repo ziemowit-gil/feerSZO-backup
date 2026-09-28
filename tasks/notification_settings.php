@@ -136,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             task_notify_save_pref($uid, [
                 'notify_file'      => isset($_POST['notify_file'])      ? 1 : 0,
                 'notify_moved'     => isset($_POST['notify_moved'])     ? 1 : 0,
+                'notify_watched'   => isset($_POST['notify_watched'])   ? 1 : 0,
                 'notify_assigned'  => isset($_POST['notify_assigned'])  ? 1 : 0,
                 'notify_mentioned' => isset($_POST['notify_mentioned']) ? 1 : 0,
                 'notify_comment'   => isset($_POST['notify_comment'])   ? 1 : 0,
@@ -395,6 +396,15 @@ if (!$is_fragment) {
               'ic'    => '#16a34a',
               'title' => 'Zmiana statusu (kolumny)',
               'desc'  => 'Gdy ktoś przeniesie Twoje zadanie do innej kolumny, np. „Do weryfikacji” (max 1 e-mail na zadanie dziennie).',
+              'timing'=> 'od razu',
+          ],
+          [
+              'key'   => 'notify_watched',
+              'icon'  => 'bi-eye-fill',
+              'color' => '#f5f3ff',
+              'ic'    => '#6d28d9',
+              'title' => 'Obserwowane zadania',
+              'desc'  => 'Komentarze, nowe pliki i zmiana statusu w zadaniach, które obserwujesz (bez przypisania).',
               'timing'=> 'od razu',
           ],
           [
@@ -871,14 +881,14 @@ if (!$is_fragment) {
 
 <script>
 var PRESETS = {
-  all:       ['notify_assigned','notify_mentioned','notify_comment','notify_file','notify_moved','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
-  important: ['notify_assigned','notify_mentioned','notify_file','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
+  all:       ['notify_assigned','notify_mentioned','notify_comment','notify_file','notify_moved','notify_watched','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
+  important: ['notify_assigned','notify_mentioned','notify_file','notify_watched','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'],
   deadlines: ['notify_due_1day','notify_due_today'],
   none:      []
 };
 function setPreset(name) {
   var on = PRESETS[name] || [];
-  ['notify_assigned','notify_mentioned','notify_comment','notify_file','notify_moved','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'].forEach(function(k) {
+  ['notify_assigned','notify_mentioned','notify_comment','notify_file','notify_moved','notify_watched','notify_confirmed','notify_rejected','notify_due_1day','notify_due_today'].forEach(function(k) {
     var el = document.getElementById(k);
     if (el) el.checked = on.indexOf(k) >= 0;
   });
