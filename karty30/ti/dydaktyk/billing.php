@@ -123,6 +123,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
 
+    // Wycofanie rozliczenia (kierownik): status 'cancelled' + kto/kiedy/dlaczego;
+    // przypisane wpłaty wracają jako nadpłata (ponowna alokacja). Zablokowane,
+    // gdy z rozliczenia jest faktura — dokument księgowy wymaga korekty, nie
+    // wycofania podstawy. Odwracalne przyciskiem „Przywróć”.
+    if ($op === 'withdraw_billing') {
+        $bid    = (int)($_POST['billing_id'] ?? 0);
+        $reason = mb_substr(trim((string)($_POST['reason'] ?? '')), 0, 500);
+        $b0     = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=? AND status!='cancelled'", [$bid]) : null;
+        $inv    = null;
+        if ($b0 && module_enabled('invoices_enabled')) {
+            try { $inv = db_one("SELECT id, number FROM invoices WHERE source='ti_billing' AND source_id=? AND is_test=0 AND deleted_at IS NULL", [$bid]); } catch (\Throwable $e) {}
+        }
+        if (!$b0) {
+            flash_set('danger', 'Nie znaleziono rozliczenia (albo jest już wycofane).');
+        } elseif ($reason === '') {
+            flash_set('danger', 'Podaj powód wycofania rozliczenia.');
+        } elseif ($inv || trim((string)$b0['invoice_no']) !== '' || trim((string)$b0['invoice_path']) !== '') {
+            flash_set('danger', 'Z tego rozliczenia wystawiono fakturę' . ($inv ? ' ' . (string)($inv['number'] ?: '#' . $inv['id']) : (trim((string)$b0['invoice_no']) !== '' ? ' ' . (string)$b0['invoice_no'] : ''))
+                . ' — nie można go wycofać. Potrzebna jest korekta faktury (albo usuń zarejestrowany skan, jeśli był błędny).');
+        } else {
+            db()->prepare("UPDATE k30_ti_billing SET status='cancelled', paid_amount=0, cancelled_at=datetime('now'), cancelled_by_name=?, cancel_reason=? WHERE id=?")
+                ->execute([$dyd_name, $reason, $bid]);
+            $r = ti_billing_recompute((int)$b0['client_id']);
+            flash_set('success', 'Rozliczenie wycofane.' . ((float)$b0['paid_amount'] > 0.005
+                ? ' Przypisane wpłaty (' . number_format((float)$b0['paid_amount'], 2, ',', ' ') . ' zł) wróciły na konto jako nadpłata.' : ''));
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+    if ($op === 'restore_billing') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $b0  = $bid ? db_one("SELECT id, client_id FROM k30_ti_billing WHERE id=? AND status='cancelled' AND cancelled_at IS NOT NULL", [$bid]) : null;
+        if (!$b0) {
+            flash_set('danger', 'Nie znaleziono wycofanego rozliczenia.');
+        } else {
+            db()->prepare("UPDATE k30_ti_billing SET status='issued', cancelled_at=NULL, cancelled_by_name='', cancel_reason='' WHERE id=?")->execute([$bid]);
+            ti_billing_recompute((int)$b0['client_id']);
+            flash_set('success', 'Rozliczenie przywrócone.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
     // Ponowne wysłanie powiadomienia o rozliczeniu (SMS + e-mail)
     if ($op === 'notify') {
         $bid = (int)($_POST['billing_id'] ?? 0);
@@ -600,6 +641,14 @@ $billings = db_all(
     $params
 );
 
+// Wycofane w tym miesiącu (ze śladem kto/kiedy/dlaczego) — do wglądu i przywrócenia
+$withdrawn = db_all(
+    "SELECT b.*, cl.name AS client_name FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
+      WHERE b.month=? AND b.year=? AND b.status='cancelled' AND b.cancelled_at IS NOT NULL"
+    . ($course_id ? " AND b.client_id IN (SELECT client_id FROM k30_ti_enrollments WHERE course_id=?)" : '') . "
+      ORDER BY b.cancelled_at DESC", $course_id ? [$month, $year, $course_id] : [$month, $year]
+);
+
 // Podgląd nieopłaconych (kalkulacja bez zapisu)
 $preview_where = []; $prev_params = [];
 if ($course_id) {
@@ -1052,6 +1101,18 @@ echo '<main id="main" class="dyd-wrap">';
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
                   <button type="submit" class="btn btn-link btn-sm p-0 text-body-secondary" style="font-size:.72rem"
                           title="Bez faktury VAT — samo zestawienie godzin i należności">tylko zestawienie</button>
+                </form>
+              <?php endif; ?>
+              <?php if (empty($_fv) && empty($_bf) && empty($b['invoice_no']) && empty($b['invoice_path'])): ?>
+                <form method="post" class="d-inline ms-2"
+                      onsubmit="var r = prompt('Powód wycofania rozliczenia (widoczny w historii):'); if (!r || !r.trim()) return false; this.reason.value = r.trim(); return true;">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <input type="hidden" name="_op" value="withdraw_billing">
+                  <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+                  <input type="hidden" name="reason" value="">
+                  <button type="submit" class="btn btn-link btn-sm p-0 text-danger" style="font-size:.72rem"
+                          title="Wycofaj rozliczenie — przypisane wpłaty wrócą jako nadpłata; można przywrócić">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Wycofaj</button>
                 </form>
               <?php endif; ?>
               <?php
@@ -1711,6 +1772,40 @@ echo '<main id="main" class="dyd-wrap">';
 </div>
 <?php elseif (!$billings): ?>
 <div class="alert alert-info">Brak lekcji odbyłych w <?= $months_pl[$month] ?> <?= $year ?>.</div>
+<?php endif; ?>
+<?php if (!empty($withdrawn)): ?>
+<details class="card border-0 shadow-sm mt-3">
+  <summary class="card-header d-flex align-items-center gap-2" style="cursor:pointer">
+    <i class="bi bi-arrow-counterclockwise text-danger" aria-hidden="true"></i>Wycofane rozliczenia
+    <span class="badge text-bg-secondary"><?= count($withdrawn) ?></span>
+  </summary>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Kursant</th><th class="text-end">Kwota</th><th>Wycofał(a)</th><th>Kiedy</th><th>Powód</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($withdrawn as $w): ?>
+        <tr class="text-body-secondary">
+          <td><?= h($w['client_name']) ?></td>
+          <td class="text-end"><?= number_format((float)$w['amount'] + (float)($w['adjustment'] ?? 0), 2, ',', ' ') ?> zł</td>
+          <td><?= h($w['cancelled_by_name'] ?: '—') ?></td>
+          <td class="text-nowrap"><?= h(date('d.m.Y H:i', strtotime((string)$w['cancelled_at']))) ?></td>
+          <td class="small"><?= h($w['cancel_reason']) ?></td>
+          <td class="text-end">
+            <form method="post" class="d-inline" onsubmit="return confirm('Przywrócić to rozliczenie? Wpłaty zostaną ponownie przypisane.')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_op" value="restore_billing">
+              <input type="hidden" name="billing_id" value="<?= (int)$w['id'] ?>">
+              <button class="btn btn-sm btn-outline-secondary py-0">Przywróć</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</details>
+<?php endif; ?>
+<?php if (false): ?>
 <?php endif; ?>
 
 </main>

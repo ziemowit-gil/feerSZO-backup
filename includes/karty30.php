@@ -1517,6 +1517,10 @@ HTML;
         "ALTER TABLE k30_ti_billing ADD COLUMN invoice_issued_on DATE",
         // Tryb dokumentu: '' = z FVAT (czeka na fakturę), 'statement' = tylko zestawienie (bez FVAT)
         "ALTER TABLE k30_ti_billing ADD COLUMN doc_mode          TEXT NOT NULL DEFAULT ''",
+        // Wycofanie rozliczenia (status='cancelled') — kto, kiedy, dlaczego
+        "ALTER TABLE k30_ti_billing ADD COLUMN cancelled_at      TEXT",
+        "ALTER TABLE k30_ti_billing ADD COLUMN cancelled_by_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
