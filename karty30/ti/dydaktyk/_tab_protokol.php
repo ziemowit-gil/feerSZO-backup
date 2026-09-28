@@ -310,6 +310,11 @@ $pr_confirm = $pr_empty
             if (trim((string)$pr['hours_ack_ip']) !== ''): ?>, IP <?= h($pr['hours_ack_ip']) ?><?php endif; ?>.
           Na wydruku zamiast miejsca na podpis widnieje ten ślad.
         </div>
+        <?php elseif (!$pr_locked): ?>
+        <p class="small text-body-secondary mb-0">
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+          Potwierdza się ewidencję zamkniętego dokumentu — najpierw zatwierdź protokół, potem pojawi się tu przycisk.
+        </p>
         <?php else: ?>
         <p class="small text-body-secondary">
           Potwierdzam, że ewidencja godzin oraz naliczenie wypłaty są zgodne ze stanem faktycznym —
@@ -337,50 +342,6 @@ $pr_confirm = $pr_empty
           <?php endif; ?>
           <button class="btn btn-sm btn-success">
             <i class="bi bi-pen me-1" aria-hidden="true"></i>Potwierdzam zgodność
-          </button>
-        </form>
-        <?php endif; ?>
-      </div>
-
-      <?php $pr_org_acked = ti_protocol_org_acked($pr); ?>
-      <div class="card-header border-top">Podpis za organizatora</div>
-      <div class="card-body">
-        <?php if ($pr_org_acked): ?>
-        <div class="alert alert-success py-2 small mb-0" role="status">
-          <i class="bi bi-patch-check me-1" aria-hidden="true"></i>
-          Podpisane elektronicznie za organizatora: <strong><?= h($pr['org_ack_name'] ?: '—') ?></strong>,
-          <?= h(date('d.m.Y H:i', strtotime((string)$pr['org_ack_at']))) ?><?php
-            if (trim((string)$pr['org_ack_ip']) !== ''): ?>, IP <?= h($pr['org_ack_ip']) ?><?php endif; ?>.
-        </div>
-        <?php elseif (!dyd_is_staff()): ?>
-        <p class="small text-body-secondary mb-0">
-          Kontrasygnatę składa kierownik albo pracownik D3 — po Twoim potwierdzeniu ewidencji.
-        </p>
-        <?php elseif (!$pr_locked): ?>
-        <p class="small text-body-secondary mb-0">
-          Podpisuje się dokument zamknięty — najpierw protokół musi być zatwierdzony.
-        </p>
-        <?php else: ?>
-        <?php if (!$pr_acked): ?>
-        <div class="alert alert-warning py-2 small" role="status">
-          <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-          Prowadzący nie potwierdził jeszcze ewidencji godzin i wypłaty. Możesz podpisać,
-          ale kontrasygnujesz dokument bez jego oświadczenia.
-        </div>
-        <?php endif; ?>
-        <p class="small text-body-secondary">
-          Podpisem za organizatora potwierdzasz przyjęcie protokołu: ocen końcowych, ewidencji
-          godzin i naliczenia wypłaty. Zapisywane jest kto, kiedy i z jakiego adresu IP;
-          odblokowanie protokołu unieważnia oba podpisy.
-        </p>
-        <form method="post" class="usos-noprint"
-              onsubmit="return confirm('Podpisać protokół za organizatora?')">
-          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-          <input type="hidden" name="_op" value="protocol_org_ack">
-          <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
-          <input type="hidden" name="protocol_id" value="<?= (int)$pr['id'] ?>">
-          <button class="btn btn-sm btn-primary">
-            <i class="bi bi-patch-check me-1" aria-hidden="true"></i>Podpisuję za organizatora
           </button>
         </form>
         <?php endif; ?>

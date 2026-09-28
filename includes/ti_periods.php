@@ -315,9 +315,11 @@ function ti_period_protocols_open(int $period_id): bool {
     if (!$period_id) return false;          // protokół zawsze dotyczy okresu
     ti_periods_migrate();
     try {
-        $r = db_one("SELECT protocols_open FROM k30_ti_periods WHERE id=?", [$period_id]);
+        $r = db_one("SELECT protocols_open, closed_at FROM k30_ti_periods WHERE id=?", [$period_id]);
     } catch (\Throwable $e) { return false; }
-    return $r !== null && (int)($r['protocols_open'] ?? 0) === 1;
+    // Zamknięty okres zamyka też protokoły — flaga protocols_open mogła zostać
+    // ustawiona sprzed zamknięcia (ti_period_close jej nie zeruje).
+    return $r !== null && (int)($r['protocols_open'] ?? 0) === 1 && empty($r['closed_at']);
 }
 
 /** Otwiera albo zamyka protokoły za okres (ślad: kto i kiedy). */
@@ -350,6 +352,9 @@ function ti_periods_with_protocols_open(): array {
 
 /** Komunikat dla prowadzącego, gdy protokoły za okres nie są otwarte. */
 function ti_period_protocols_closed_msg(?array $period = null): string {
+    if ($period && !empty($period['closed_at'])) {
+        return 'Okres „' . (string)$period['name'] . '” jest zamknięty — protokołów za ten okres nie można już zakładać ani zmieniać.';
+    }
     if ($period) {
         return 'Administracja nie otworzyła protokołów za okres „' . (string)$period['name'] . '”. '
              . 'Do tego czasu protokołu za ten okres nie można zakładać ani zmieniać.';

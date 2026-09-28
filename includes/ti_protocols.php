@@ -654,6 +654,10 @@ function ti_protocol_hours_ack(int $protocol_id, ?int $by, string $by_name, stri
     $prot = ti_protocol_get($protocol_id);
     if (!$prot)                            throw new \RuntimeException('Protokół nie istnieje.');
     if (ti_protocol_hours_acked($prot))    throw new \RuntimeException('Ewidencja godzin jest już potwierdzona.');
+    // Potwierdza się dokument zamknięty — dopiero zatwierdzenie utrwala ewidencję
+    // (snapshot_json); potwierdzenie otwartego protokołu dotyczyłoby danych,
+    // które mogą się jeszcze zmienić.
+    if (!ti_protocol_is_locked($prot))     throw new \RuntimeException('Najpierw zatwierdź protokół — potwierdza się ewidencję zamkniętego dokumentu.');
 
     $ip = trim($ip) !== '' ? trim($ip) : (string)($_SERVER['REMOTE_ADDR'] ?? '');
     db()->prepare(
