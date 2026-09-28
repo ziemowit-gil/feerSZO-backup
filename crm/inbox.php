@@ -253,6 +253,16 @@ $qs = static function (array $over = []) use ($view, $mbox_f, $search, $sel_id):
 };
 
 /** Nagłówek grupy dat na liście — „Dziś", „Wczoraj", inaczej data. */
+/* Awatar z inicjałów: odcień liczony z nazwy (crc32 → hue), więc ten sam nadawca
+   ma zawsze ten sam kolor — także po odświeżeniu listy. */
+$ib_avatar = static function (string $name): array {
+    $name = trim($name);
+    $words = preg_split('/\s+/u', preg_replace('/^(Do:|Re:)\s*/iu', '', $name)) ?: [];
+    $ini = '';
+    foreach ($words as $w) { $c = mb_substr($w, 0, 1, 'UTF-8'); if ($c !== '' && preg_match('/[\p{L}\p{N}]/u', $c)) $ini .= mb_strtoupper($c, 'UTF-8'); if (mb_strlen($ini) >= 2) break; }
+    if ($ini === '') $ini = '@';
+    return [$ini, crc32(mb_strtolower($name, 'UTF-8')) % 360];
+};
 $day_label = static function (string $ts): string {
     $d = date('Y-m-d', strtotime($ts));
     if ($d === date('Y-m-d')) return 'Dziś';
@@ -263,310 +273,343 @@ $day_label = static function (string $ts): string {
 include __DIR__ . '/includes/header_crm.php';
 ?>
 <style>
-.ib-wrap { display:grid; grid-template-columns:minmax(280px, 340px) minmax(0, 1fr); gap:1.1rem;
-  align-items:start; min-height:26rem }
-/* Trzecia szpalta (sprawy/oferty/wątek) tylko tam, gdzie jest na nią miejsce —
-   niżej ląduje pod wiadomością, a nie obok listy. */
+/* ══ Skrzynka CRM — odświeżony wygląd (2026-09-29) ══════════════════════════
+   Tokeny: jeden kolor wiodący (zielony CRM) zamiast resztek błękitu z dawnej
+   palety; lista przewija się we własnym oknie (dzień jako przyklejony nagłówek),
+   wiadomość ma nagłówek z awatarem nadawcy. Klasy i identyfikatory bez zmian —
+   JS (odświeżanie listy, masowe akcje, asystent) pracuje jak dotąd. */
+.ib-wrap { --ib-ring: rgba(46,132,74,.18); --ib-hover: #F6F8F7; --ib-line: #EDEFF2; --ib-radius: 14px;
+  display:grid; grid-template-columns:minmax(300px, 360px) minmax(0, 1fr); gap:1rem; align-items:start; min-height:26rem }
 @media (min-width:1400px) {
-  .ib-wrap.has-rail { grid-template-columns:minmax(280px, 330px) minmax(0, 1fr) minmax(230px, 270px) }
+  .ib-wrap.has-rail { grid-template-columns:minmax(300px, 340px) minmax(0, 1fr) minmax(230px, 270px) }
 }
 @media (max-width:1099px) { .ib-wrap { grid-template-columns:1fr; min-height:0 } }
-/* Panel bez wybranej wiadomości: treść wyśrodkowana, a nie przyklejona do góry
-   cienkiego paska — inaczej obok wysokiej listy wygląda jak błąd układu. */
-.ib-empty { display:flex; align-items:center; justify-content:center; padding:2.5rem 1.15rem }
-/* Lista ma się rozciągać na wysokość kolumny, żeby ramki obu paneli kończyły
-   się na tej samej linii. */
 .ib-wrap > div { min-width:0 }
-.ib-wrap > div > .ib-list { height:100% }
+
+/* Kolumna listy: przyklejona, przewija się sama — wiadomość obok nie ucieka
+   przy długiej liście, a nagłówki dni zostają w polu widzenia. */
+.ib-col-list { position:sticky; top:calc(var(--crm-topbar-h) + var(--crm-navbar-h) + .75rem);
+  max-height:calc(100vh - var(--crm-topbar-h) - var(--crm-navbar-h) - 1.5rem);
+  display:flex; flex-direction:column; min-height:0 }
+#ibListWrap { display:flex; flex-direction:column; flex:1; min-height:0 }
+@media (max-width:1099px) { .ib-col-list { position:static; max-height:none } #ibListWrap { display:block } }
 
 /* ── Lista ─────────────────────────────────────────────────────────────── */
-.ib-list { background:#fff; border:1px solid #E5E7EB; border-radius:12px; overflow:hidden }
-.ib-day { padding:.35rem .85rem; background:#F9FAFB; border-bottom:1px solid #F1F2F4;
-  font-size:.68rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#9CA3AF }
-/* Wiersz listy: dwie linie zamiast kafla z awatarem — więcej wiadomości na ekran,
-   temat i początek treści w jednej linii, stan czytania jako kropka. */
-.ib-item { display:flex; flex-direction:column; gap:.1rem; padding:.5rem .75rem;
-  text-decoration:none; color:#111827; min-width:0 }
-.ib-item:hover { background:#FAFBFC }
-.ib-item.active { background:#F2F7FF; box-shadow:inset 3px 0 0 var(--crm-primary) }
+.ib-list { background:#fff; border:1px solid var(--ib-line); border-radius:var(--ib-radius); overflow:auto; flex:1; min-height:0;
+  scrollbar-width:thin; box-shadow:0 1px 2px rgba(16,24,40,.04) }
+.ib-day { position:sticky; top:0; z-index:2; padding:.32rem .85rem; background:#F9FAFB; border-bottom:1px solid var(--ib-line);
+  font-size:.66rem; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#8B93A1;
+  backdrop-filter:saturate(1.2) blur(4px) }
+.ib-row { display:flex; align-items:stretch; border-bottom:1px solid #F3F4F6; transition:background .1s }
+.ib-row:last-child { border-bottom:none }
+.ib-row:hover { background:var(--ib-hover) }
+.ib-row.is-checked { background:#F9FAFB }
+.ib-row .ib-item { flex:1; min-width:0 }
+.ib-item { position:relative; display:grid; grid-template-columns:30px minmax(0,1fr); column-gap:.6rem; row-gap:.12rem;
+  align-items:start; padding:.55rem .75rem .55rem .5rem; text-decoration:none; color:#111827; min-width:0 }
+.ib-item:hover { color:#111827 }
+.ib-item.active { background:var(--crm-primary-bg); box-shadow:inset 3px 0 0 var(--crm-primary) }
+.ib-item:focus-visible { outline:2px solid var(--crm-primary); outline-offset:-2px }
+/* Awatar nadawcy: inicjały w kolorze wyliczonym z nazwy — ta sama osoba ma
+   zawsze ten sam odcień, więc wzrok łapie „kto" szybciej niż po tekście. */
+.ib-av { grid-row:1 / span 3; align-self:start; margin-top:.05rem; width:30px; height:30px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; font-size:.66rem; font-weight:700; letter-spacing:.02em;
+  color:hsl(var(--h,150) 45% 32%); background:hsl(var(--h,150) 60% 92%); flex-shrink:0; position:relative }
+.ib-item.unread .ib-av::after { content:''; position:absolute; right:-2px; top:-2px; width:9px; height:9px; border-radius:50%;
+  background:var(--crm-primary); border:2px solid #fff }
+.ib-av--lg { width:44px; height:44px; font-size:.9rem; margin:0 }
+.ib-av--out { color:#4B5563; background:#F3F4F6 }
 .ib-l1 { display:flex; align-items:center; gap:.4rem; min-width:0 }
-.ib-l2 { display:flex; align-items:baseline; gap:.4rem; min-width:0 }
-.ib-udot { width:7px; height:7px; border-radius:50%; background:transparent; flex-shrink:0 }
-.ib-item.unread .ib-udot { background:var(--crm-primary) }
-.ib-who { font-size:.78rem; color:#4B5563; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
-.ib-item.unread .ib-who { color:#111827; font-weight:600 }
+.ib-l2 { display:flex; align-items:baseline; gap:.4rem; min-width:0; padding-right:1.6rem }
+.ib-udot { display:none }
+.ib-who { font-size:.8rem; color:#4B5563; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
+.ib-item.unread .ib-who { color:#111827; font-weight:700 }
 .ib-clip { font-size:.72rem; color:#9CA3AF; flex-shrink:0 }
-.ib-time { font-size:.7rem; color:#9CA3AF; white-space:nowrap; flex-shrink:0 }
-.ib-subj { font-size:.84rem; color:#111827; white-space:nowrap; flex-shrink:0; max-width:60%;
-  overflow:hidden; text-overflow:ellipsis }
+.ib-time { font-size:.68rem; color:#9CA3AF; white-space:nowrap; flex-shrink:0; font-variant-numeric:tabular-nums }
+.ib-item.unread .ib-time { color:var(--crm-primary); font-weight:700 }
+.ib-subj { font-size:.83rem; color:#111827; white-space:nowrap; flex-shrink:0; max-width:62%; overflow:hidden; text-overflow:ellipsis }
 .ib-item.unread .ib-subj { font-weight:700 }
-.ib-snip { font-size:.76rem; color:#9CA3AF; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
-.ib-tags { display:flex; gap:.3rem; margin-top:.2rem; flex-wrap:wrap }
-.ib-tag { font-size:.66rem; font-weight:700; letter-spacing:.03em; padding:.05rem .4rem; border-radius:3px }
+.ib-snip { font-size:.75rem; color:#9CA3AF; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 }
+.ib-tags { display:flex; gap:.3rem; margin-top:.1rem; flex-wrap:wrap }
+.ib-tag { font-size:.64rem; font-weight:700; letter-spacing:.03em; padding:.08rem .45rem; border-radius:2rem }
+.ib-stripe { flex-shrink:0; width:4px; align-self:stretch; border:none; padding:0; display:block; cursor:pointer; transition:width .12s }
+.ib-stripe:hover, .ib-stripe:focus-visible { width:7px; outline:none }
+.ib-check { flex-shrink:0; margin:.95rem .1rem .75rem .5rem; width:.9rem; height:.9rem; cursor:pointer; opacity:.35; transition:opacity .12s;
+  accent-color:var(--crm-primary) }
+.ib-row:hover .ib-check, .ib-check:checked, .ib-check:focus-visible { opacity:1 }
+.ib-list-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:22rem; padding:1.5rem; text-align:center; color:#6B7280 }
+.ib-list-empty .ib-empty-ic { width:56px; height:56px; border-radius:16px; background:#F3F4F6; color:#9CA3AF; display:flex; align-items:center;
+  justify-content:center; font-size:1.5rem; margin-bottom:.75rem }
+.ib-list-empty strong { color:#111827; font-size:.92rem }
+.ib-list-empty span { font-size:.78rem; color:#9CA3AF; margin-top:.2rem }
+.ib-pager { display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.5rem .15rem 0; flex-shrink:0; font-size:.75rem; color:#9CA3AF }
+.ib-pager .ib-pg { display:flex; gap:.2rem; flex-wrap:wrap }
+.ib-pager a { min-width:26px; height:26px; padding:0 .4rem; border-radius:7px; display:inline-flex; align-items:center; justify-content:center;
+  font-size:.75rem; font-weight:600; text-decoration:none; color:#4B5563; border:1px solid var(--ib-line); background:#fff }
+.ib-pager a:hover { background:var(--ib-hover); color:#111827 }
+.ib-pager a.is-on { background:var(--crm-primary); border-color:var(--crm-primary); color:#fff }
+
+/* Numer wiadomości — ikonka w rogu, cyfry po najechaniu (i zawsze w title). */
+.ib-id { position:absolute; right:.55rem; bottom:.45rem; display:inline-flex; align-items:center; gap:.25rem;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.64rem; font-weight:700;
+  color:#C3C8D0; border-radius:4px; padding:.05rem .25rem; pointer-events:none; transition:color .12s, background .12s }
+.ib-id-no { max-width:0; overflow:hidden; white-space:nowrap; opacity:0; transition:max-width .16s, opacity .12s }
+.ib-item:hover .ib-id, .ib-item:focus-visible .ib-id, .ib-item.active .ib-id { color:#6B7280; background:#F3F4F6 }
+.ib-item:hover .ib-id-no, .ib-item:focus-visible .ib-id-no, .ib-item.active .ib-id-no { max-width:6rem; opacity:1 }
+.ib-no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.7rem; font-weight:700; color:#6B7280; background:#F3F4F6;
+  border-radius:4px; padding:.05rem .3rem; letter-spacing:.02em }
+.ib-h1-no { font-size:.7rem; color:#9CA3AF; font-weight:700; letter-spacing:.06em }
 
 /* ── Panel wiadomości ──────────────────────────────────────────────────── */
-.ib-pane { background:#fff; border:1px solid #E5E7EB; border-radius:12px }
-.ib-head { padding:1rem 1.15rem .8rem }
-.ib-h1 { font-size:1.08rem; font-weight:700; line-height:1.3; margin:0 0 .3rem }
-.ib-meta { font-size:.8rem; color:#6B7280 }
-.ib-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.25rem .6rem; border-radius:2rem;
-  background:#F3F4F6; font-size:.78rem; color:#374151; text-decoration:none }
-.ib-chip:hover { background:#E9EDF3; color:#111827 }
+.ib-pane { background:#fff; border:1px solid var(--ib-line); border-radius:var(--ib-radius); box-shadow:0 1px 2px rgba(16,24,40,.04); overflow:hidden }
+.ib-empty { display:flex; align-items:center; justify-content:center; padding:3rem 1.15rem; min-height:26rem; background:
+  linear-gradient(180deg,#fff,#FAFBFA) }
+.ib-empty .ib-empty-ic { width:64px; height:64px; border-radius:20px; background:var(--crm-primary-bg); color:var(--crm-primary);
+  display:flex; align-items:center; justify-content:center; font-size:1.7rem; margin:0 auto .8rem }
+.ib-head { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:.85rem; padding:1.05rem 1.15rem .9rem; align-items:start }
+.ib-head-main { min-width:0 }
+.ib-h1 { font-size:1.12rem; font-weight:700; line-height:1.3; margin:0 0 .25rem; overflow-wrap:anywhere; color:#111827 }
+.ib-meta { font-size:.8rem; color:#6B7280; display:flex; flex-wrap:wrap; align-items:center; gap:.2rem .35rem }
+.ib-meta strong { color:#111827 }
+.ib-chips { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.55rem; grid-column:1 / -1 }
+.ib-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.22rem .6rem; border-radius:2rem;
+  background:#F3F4F6; font-size:.76rem; font-weight:500; color:#374151; text-decoration:none; border:1px solid transparent }
+a.ib-chip:hover { background:#E9EDF3; color:#111827; border-color:#D1D5DB }
 .ib-bar { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; padding:.5rem 1.15rem;
-  background:#FAFBFC; border-top:1px solid #F1F2F4; border-bottom:1px solid #F1F2F4 }
+  background:#FAFBFA; border-top:1px solid var(--ib-line); border-bottom:1px solid var(--ib-line) }
 .ib-bar form { margin:0 }
-/* Ten sam język co pasek narzędzi nad listą: 30 px wysokości, 8 px promienia. */
 .ib-act { height:30px; display:inline-flex; align-items:center; gap:.35rem; white-space:nowrap;
   padding:0 .65rem; border-radius:8px; border:1px solid #E5E7EB; background:#fff; color:#374151;
-  font-size:.78rem; font-weight:500; cursor:pointer; transition:background .12s, border-color .12s, color .12s }
+  font-size:.78rem; font-weight:500; cursor:pointer; text-decoration:none; transition:background .12s, border-color .12s, color .12s }
 .ib-act:hover { background:#F3F4F6; border-color:#D1D5DB; color:#111827 }
 .ib-act:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
-.ib-act--primary { border-color:var(--crm-primary); background:var(--crm-primary-bg); color:var(--crm-primary) }
-.ib-act--primary:hover { background:#DCEBFA; color:var(--crm-primary) }
+.ib-act--primary { border-color:var(--crm-primary); background:var(--crm-primary); color:#fff; font-weight:600 }
+.ib-act--primary:hover { background:#256E3C; border-color:#256E3C; color:#fff }
 .ib-act--danger { color:#B91C1C }
 .ib-act--danger:hover { background:#FEF2F2; border-color:#FCA5A5; color:#991B1B }
-/* Żadnych pól „jak z przeglądarki" — selecty i inputy w panelu wiadomości
-   (przypisanie, formularze w oknach) mają ten sam język co przyciski. */
 .ib-bar .ib-field { height:30px }
 .ib-pane .form-select, .ib-pane .form-control, .ib-pane .ib-field,
 .modal .ib-dbody .form-select, .modal .ib-dbody .form-control {
-  height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px;
-  background-color:#fff; color:#111827; padding:0 .6rem; box-shadow:none }
+  height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px; background-color:#fff; color:#111827; padding:0 .6rem; box-shadow:none }
 .ib-pane .form-select:focus, .ib-pane .form-control:focus, .ib-pane .ib-field:focus,
 .modal .ib-dbody .form-select:focus, .modal .ib-dbody .form-control:focus {
-  border-color:var(--crm-primary); box-shadow:0 0 0 3px rgba(1,118,211,.12); outline:none }
+  border-color:var(--crm-primary); box-shadow:0 0 0 3px rgba(46,132,74,.18); outline:none }
 .modal .ib-dbody .input-group > .form-select { border-top-right-radius:0; border-bottom-right-radius:0 }
 .modal .ib-dbody .input-group > .btn { border-radius:0 8px 8px 0 }
 .ib-att-cloud { font-size:.72rem; color:#6B7280; margin-left:.15rem }
-.ib-body { padding:1.15rem; font-size:.9rem; line-height:1.6; overflow-wrap:anywhere }
+.ib-body { padding:1.25rem 1.35rem 1.5rem; font-size:.92rem; line-height:1.65; overflow-wrap:anywhere; color:#1F2937 }
 .ib-body img { max-width:100%; height:auto }
+.ib-body blockquote { border-left:3px solid #E5E7EB; margin:.6rem 0; padding:.2rem .8rem; color:#6B7280 }
 .ib-sep { width:1px; align-self:stretch; background:#E5E7EB; margin:0 .15rem }
-/* ── Pasek akcji wiadomości: pięć kontrolek zamiast czternastu ────────────
-   Pasek nie ma się już łamać na kolejne wiersze, więc jest jednorzędowy
-   z poziomym przewijaniem na wąskim ekranie — treść wiadomości zostaje
-   tam, gdzie była. */
 .ib-bar--msg { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin }
 .ib-bar--msg::-webkit-scrollbar { height:4px }
 .ib-bar--msg::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:2px }
-/* Przycisk dzielony: „Odpowiedz" plus strzałka do szablonów i asystenta */
 .ib-split { display:inline-flex }
 .ib-split > .ib-act { border-top-right-radius:0; border-bottom-right-radius:0 }
-.ib-split .dropdown > .ib-act--caret {
-  border-top-left-radius:0; border-bottom-left-radius:0; border-left:none; padding:0 .4rem }
+.ib-split .dropdown > .ib-act--caret { border-top-left-radius:0; border-bottom-left-radius:0; border-left:none; padding:0 .4rem }
 .ib-act-caret { font-size:.62rem; opacity:.6; margin-left:.1rem }
 .ib-act[aria-expanded="true"] { background:#F3F4F6; border-color:#D1D5DB; color:#111827 }
-/* Menu akcji — pozycje w jednym rytmie z przyciskami paska */
-.ib-menu { min-width:250px; font-size:.82rem; padding:.25rem; border-color:#E5E7EB }
-.ib-menu .dropdown-item { border-radius:6px; padding:.35rem .55rem; display:flex; align-items:center }
+.ib-menu { min-width:250px; font-size:.82rem; padding:.3rem; border:1px solid var(--ib-line); border-radius:12px; box-shadow:0 12px 36px rgba(2,6,23,.14) }
+.ib-menu .dropdown-item { border-radius:8px; padding:.38rem .6rem; display:flex; align-items:center }
+.ib-menu .dropdown-item:hover { background:var(--ib-hover) }
 .ib-menu .dropdown-item:active { background:var(--crm-primary-bg); color:var(--crm-primary) }
-.ib-menu .dropdown-header { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; padding:.3rem .55rem }
+.ib-menu .dropdown-header { font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; padding:.35rem .6rem .15rem; color:#9CA3AF }
 .ib-menu form { margin:0 }
 .ib-menu .form-label { font-size:.7rem; font-weight:600; color:#6B7280 }
-/* Formularze akcji przeniesione do modali — z dawnych szuflad zostaje tylko
-   wypełnienie treści, używane w oknach. */
 .ib-dbody { padding:.2rem 0 0 }
-.ib-ctx { padding:.9rem 1.15rem; border-top:1px solid #F1F2F4; font-size:.82rem }
+.ib-ctx { padding:.85rem 1.15rem; border-top:1px solid var(--ib-line); font-size:.82rem }
 .ib-ctx a { text-decoration:none }
-.ib-lbl { font-size:.68rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#9CA3AF; margin-bottom:.25rem }
-.ib-pill { display:inline-flex; align-items:center; gap:.4rem; padding:.32rem .55rem .32rem .8rem; border-radius:10px;
-  font-size:.78rem; font-weight:600; text-decoration:none; border:1.5px solid transparent;
-  transition:background .12s, border-color .12s, box-shadow .12s }
-.ib-pill:hover { box-shadow:0 1px 2px rgba(16,24,40,.06) }
-/* Licznik jako osobna plakietka — inaczej „Nowe 23" czyta się jak jedno wyrażenie. */
-.ib-cnt { display:inline-block; min-width:1.5rem; padding:0 .35rem; border-radius:2rem;
-  font-size:.72rem; font-weight:700; line-height:1.4; text-align:center }
+.ib-lbl { font-size:.66rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#9CA3AF; margin-bottom:.35rem }
+.ib-cnt { display:inline-block; min-width:1.45rem; padding:0 .35rem; border-radius:2rem; font-size:.68rem; font-weight:700; line-height:1.5; text-align:center;
+  background:#E5E7EB; color:#4B5563; font-variant-numeric:tabular-nums }
+.ib-cnt.is-zero { background:transparent; color:#B0B7C3; border:1px solid var(--ib-line) }
 
-/* ── Nagłówek strony (lokalny, jednowierszowy) ─────────────────────────────
-   Karta zamiast gołego tekstu na tle strony — odróżnia „chrome" skrzynki
-   od listy wiadomości pod spodem, bez odbierania miejsca na pasek widoków. */
-.ib-header { display:flex; align-items:center; justify-content:space-between;
-  gap:1rem; flex-wrap:wrap; margin-bottom:.7rem;
-  background:#fff; border:1px solid #EDEFF2; border-radius:14px;
-  padding:.85rem 1.1rem; box-shadow:0 1px 2px rgba(16,24,40,.04) }
-.ib-header-title { display:flex; align-items:center; gap:.6rem;
-  font-size:1.24rem; font-weight:700; color:#111827; line-height:1.2; letter-spacing:-.01em }
-.ib-header-icon { display:inline-flex; align-items:center; justify-content:center;
-  width:2.15rem; height:2.15rem; border-radius:10px; flex-shrink:0;
-  background:var(--crm-accent-bg, #EEF4FF); color:var(--crm-accent, #0176D3); font-size:1.05rem }
+/* ── Chrome skrzynki: nagłówek + widoki + narzędzia jako jedna karta ────── */
+.ib-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+  background:#fff; border:1px solid var(--ib-line); border-bottom:0; border-radius:var(--ib-radius) var(--ib-radius) 0 0;
+  padding:.85rem 1.1rem .7rem; box-shadow:0 1px 2px rgba(16,24,40,.04) }
+.ib-header-title { display:flex; align-items:center; gap:.65rem; font-size:1.2rem; font-weight:800; color:#111827; line-height:1.2; letter-spacing:-.015em }
+.ib-header-icon { display:inline-flex; align-items:center; justify-content:center; width:2.2rem; height:2.2rem; border-radius:11px; flex-shrink:0;
+  background:linear-gradient(135deg,#194E31,#2E844A); color:#fff; font-size:1rem; box-shadow:0 4px 10px rgba(46,132,74,.25) }
+.ib-header-sub { font-size:.74rem; font-weight:500; color:#9CA3AF; display:block; margin-top:.1rem; letter-spacing:0 }
 .ib-header-actions { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; flex-shrink:0 }
 .ib-header-sep { width:1px; align-self:stretch; min-height:22px; background:#E5E7EB; margin:0 .15rem }
 .ib-help { color:#9CA3AF; font-size:.9rem; cursor:help; display:inline-flex }
 .ib-help:hover, .ib-help:focus-visible { color:var(--crm-primary) }
-
-/* ── Pasek narzędzi (widoki + filtry) ───────────────────────────────────
-   Wcześniej pola i przyciski miały różne wysokości i „Sprawdź teraz" łamał
-   się na dwie linie. Teraz jedna wysokość (32 px) i wspólny promień.
-   Ta sama karta co nagłówek, żeby oba paski czytały się jako jedna „chrome"
-   skrzynki, a nie dwa osobne, gołe rzędy nad listą. */
-.ib-toolbar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem;
-  background:#fff; border:1px solid #EDEFF2; border-radius:14px;
-  padding:.6rem .75rem; box-shadow:0 1px 2px rgba(16,24,40,.04) }
-.ib-views { display:flex; gap:.4rem; flex-wrap:wrap; min-width:0 }
+.ib-toolbar { display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; margin-bottom:1rem;
+  background:#fff; border:1px solid var(--ib-line); border-radius:0 0 var(--ib-radius) var(--ib-radius);
+  padding:.45rem .6rem .45rem .5rem; box-shadow:0 1px 2px rgba(16,24,40,.04); position:relative }
+.ib-toolbar::before { content:''; position:absolute; left:1.1rem; right:1.1rem; top:0; height:1px; background:var(--ib-line) }
+/* Widoki jako segmenty: aktywny = wypełniony, reszta „goła” — czytelniej niż
+   siedem pastylek w jednym kolorze. */
+.ib-views { display:flex; gap:.15rem; flex-wrap:wrap; min-width:0; background:#F3F4F6; border-radius:10px; padding:3px }
+.ib-pill { display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .65rem; border-radius:8px; font-size:.78rem; font-weight:600;
+  color:#4B5563; text-decoration:none; border:1px solid transparent; transition:background .12s, color .12s, box-shadow .12s; white-space:nowrap }
+.ib-pill > .bi { color:#9CA3AF; font-size:.82rem }
+.ib-pill:hover { color:#111827; background:#fff }
+.ib-pill.is-on { background:#fff; color:var(--crm-primary); box-shadow:0 1px 3px rgba(16,24,40,.12) }
+.ib-pill.is-on > .bi { color:var(--crm-primary) }
+.ib-pill.is-on .ib-cnt { background:var(--crm-primary); color:#fff }
+.ib-pill.is-on .ib-cnt.is-zero { background:transparent; color:#B0B7C3 }
 .ib-field, .ib-toolbar .form-select, .ib-toolbar .form-control {
-  height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px;
-  background:#fff; color:#111827; padding:0 .6rem }
+  height:32px; font-size:.8rem; border:1px solid #E5E7EB; border-radius:8px; background:#fff; color:#111827; padding:0 .6rem }
 .ib-field:focus, .ib-toolbar .form-select:focus, .ib-toolbar .form-control:focus {
-  border-color:var(--crm-primary); box-shadow:0 0 0 3px rgba(1,118,211,.12); outline:none }
+  border-color:var(--crm-primary); box-shadow:0 0 0 3px var(--ib-ring, rgba(46,132,74,.18)); outline:none }
 .ib-search { position:relative; min-width:200px }
 .ib-search input { width:100%; padding-left:2rem }
 .ib-search i { position:absolute; left:.6rem; top:50%; transform:translateY(-50%); color:#9CA3AF; font-size:.85rem }
-.ib-tbtn { height:32px; display:inline-flex; align-items:center; gap:.35rem; white-space:nowrap;
-  padding:0 .7rem; border-radius:8px; border:1px solid #E5E7EB; background:#fff; color:#374151;
-  font-size:.8rem; font-weight:500; text-decoration:none; cursor:pointer; transition:background .12s,border-color .12s }
+.ib-tbtn { height:32px; display:inline-flex; align-items:center; gap:.35rem; white-space:nowrap; padding:0 .7rem; border-radius:8px;
+  border:1px solid #E5E7EB; background:#fff; color:#374151; font-size:.78rem; font-weight:500; text-decoration:none; cursor:pointer;
+  transition:background .12s, border-color .12s, color .12s }
+.ib-tbtn > .bi { color:#9CA3AF }
 .ib-tbtn:hover { background:#F3F4F6; border-color:#D1D5DB; color:#111827 }
+.ib-tbtn:hover > .bi { color:#4B5563 }
 .ib-tbtn:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
 .ib-tbtn[disabled] { opacity:.5; cursor:not-allowed }
-.ib-tbtn--primary { border-color:var(--crm-primary); color:var(--crm-primary); background:var(--crm-primary-bg) }
-.ib-tbtn--primary:hover { background:#DCEBFA; color:var(--crm-primary) }
-/* Wariant wypełniony — jedyna akcja tworząca coś nowego, ma wygrywać z „Sprawdź teraz”. */
-.ib-tbtn--cta { border-color:var(--crm-primary); background:var(--crm-primary); color:#fff; font-weight:600 }
-.ib-tbtn--cta:hover { background:#0165B8; border-color:#0165B8; color:#fff }
+.ib-tbtn--primary { border-color:#CDE8C6; color:var(--crm-primary); background:var(--crm-primary-bg) }
+.ib-tbtn--primary > .bi { color:var(--crm-primary) }
+.ib-tbtn--primary:hover { background:#DFF0DA; color:var(--crm-primary-dark) }
+.ib-tbtn--cta { border-color:var(--crm-primary); background:var(--crm-primary); color:#fff; font-weight:600; box-shadow:0 2px 6px rgba(46,132,74,.25) }
+.ib-tbtn--cta > .bi { color:#fff }
+.ib-tbtn--cta:hover { background:#256E3C; border-color:#256E3C; color:#fff }
 .ib-tbtn--on { border-color:var(--crm-primary); color:var(--crm-primary) }
+.ib-tbtn--on > .bi { color:var(--crm-primary) }
+.ib-tbtn .ib-cnt { font-size:.64rem }
 
 /* ── Załączniki ──────────────────────────────────────────────────────────── */
-.ib-atts { display:flex; flex-wrap:wrap; gap:.4rem }
-.ib-att { display:inline-flex; align-items:center; gap:.4rem; max-width:100%;
-  padding:.3rem .6rem; border:1px solid #E5E7EB; border-radius:8px; background:#fff;
-  font-size:.8rem; color:#111827; cursor:pointer; text-align:left;
-  transition:background .12s, border-color .12s }
-.ib-att:hover { background:#F9FAFB; border-color:#D1D5DB }
+.ib-atts { display:flex; flex-wrap:wrap; gap:.45rem }
+.ib-att { display:inline-flex; align-items:center; gap:.5rem; max-width:100%; padding:.4rem .7rem .4rem .5rem; border:1px solid #E5E7EB; border-radius:10px;
+  background:#fff; font-size:.8rem; color:#111827; cursor:pointer; text-align:left; transition:background .12s, border-color .12s, box-shadow .12s }
+.ib-att > .bi:first-child { font-size:1.15rem }
+.ib-att:hover { background:#F9FAFB; border-color:#D1D5DB; box-shadow:0 2px 6px rgba(16,24,40,.06) }
 .ib-att:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
 .ib-att--missing { cursor:default; color:#9CA3AF; background:#F9FAFB }
-.ib-att--missing:hover { background:#F9FAFB; border-color:#E5E7EB }
-.ib-att-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:22rem }
-.ib-att-size { font-size:.72rem; color:#9CA3AF; white-space:nowrap }
+.ib-att--missing:hover { background:#F9FAFB; border-color:#E5E7EB; box-shadow:none }
+.ib-att-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:22rem; font-weight:500 }
+.ib-att-size { font-size:.7rem; color:#9CA3AF; white-space:nowrap }
 
 /* ── Asystent AI ─────────────────────────────────────────────────────────── */
-.ib-assist { margin:.6rem 1.15rem 0; border:1px solid #E9D5FF; border-radius:10px;
-  background:linear-gradient(180deg,#FAF5FF,#fff); overflow:hidden }
-.ib-assist-head { display:flex; align-items:center; gap:.45rem; padding:.5rem .8rem;
-  border-bottom:1px solid #F3E8FF; font-size:.85rem; color:#6B21A8 }
+.ib-assist { margin:.7rem 1.15rem 0; border:1px solid #E9D5FF; border-radius:12px; background:linear-gradient(180deg,#FAF5FF,#fff); overflow:hidden }
+.ib-assist-head { display:flex; align-items:center; gap:.45rem; padding:.55rem .85rem; border-bottom:1px solid #F3E8FF; font-size:.85rem; color:#6B21A8 }
 .ib-assist-note { font-size:.73rem; color:#9CA3AF; font-weight:400 }
-.ib-assist-body { padding:.7rem .8rem }
+.ib-assist-body { padding:.7rem .85rem }
 .ib-assist-row  { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; margin-bottom:.5rem }
-.ib-assist-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.15rem .55rem;
-  border-radius:2rem; font-size:.74rem; font-weight:700 }
-.ib-assist-draft { border:1px solid #E5E7EB; border-radius:8px; background:#fff;
-  padding:.6rem .7rem; font-size:.86rem; white-space:pre-wrap; line-height:1.5 }
-.ib-assist-lbl { font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
-  color:#9CA3AF; margin:.6rem 0 .25rem }
+.ib-assist-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.15rem .55rem; border-radius:2rem; font-size:.74rem; font-weight:700 }
+.ib-assist-draft { border:1px solid #E5E7EB; border-radius:10px; background:#fff; padding:.65rem .75rem; font-size:.86rem; white-space:pre-wrap; line-height:1.5 }
+.ib-assist-lbl { font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#9CA3AF; margin:.6rem 0 .25rem }
 
-/* ── Filtry w rozwijanym panelu ─────────────────────────────────────────── */
+/* ── Filtry / skrzynki w rozwijanym panelu ──────────────────────────────── */
 .ib-filter { position:relative; margin-left:auto }
 .ib-filter > summary { list-style:none; user-select:none }
 .ib-filter > summary::-webkit-details-marker { display:none }
 .ib-filter-dot { width:6px; height:6px; border-radius:50%; background:var(--crm-primary) }
-.ib-filter-panel { position:absolute; right:0; top:calc(100% + .4rem); z-index:20; width:min(320px, 90vw);
-  display:flex; flex-direction:column; gap:.45rem; padding:.7rem; background:#fff;
-  border:1px solid #E5E7EB; border-radius:10px; box-shadow:0 8px 24px rgba(16,24,40,.12) }
+.ib-filter-panel { position:absolute; right:0; top:calc(100% + .4rem); z-index:20; width:min(320px, 90vw); display:flex; flex-direction:column; gap:.45rem;
+  padding:.7rem; background:#fff; border:1px solid var(--ib-line); border-radius:12px; box-shadow:0 12px 36px rgba(2,6,23,.14) }
 .ib-filter-panel .ib-field { width:100% }
 @media (max-width:575px) { .ib-filter { margin-left:0; width:100% } .ib-filter-panel { right:auto; left:0 } }
+.ib-mboxsel { margin-left:auto }
+.ib-mboxsel ~ .ib-filter { margin-left:0 }
+.ib-mboxsel > summary .ib-mbox-name { max-width:11rem }
+.ib-mbox-list { padding:.35rem; gap:1px; width:min(300px, 90vw) }
+.ib-mbox-opt { --c:#9CA3AF; display:flex; align-items:center; gap:.45rem; padding:.38rem .55rem; border-radius:8px; font-size:.78rem; color:#374151;
+  text-decoration:none; transition:background .12s, color .12s }
+.ib-mbox-opt:hover { background:#F3F4F6; color:#111827 }
+.ib-mbox-opt:focus-visible { outline:2px solid var(--crm-primary); outline-offset:-2px }
+.ib-mbox-opt.is-on { background:#F9FAFB; color:#111827; font-weight:600; box-shadow:inset 2px 0 0 var(--c) }
+.ib-mbox-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.ib-mbox-n { font-size:.66rem; font-weight:700; color:#6B7280; background:#E5E7EB; border-radius:2rem; padding:0 .35rem; min-width:1.3rem; text-align:center; flex-shrink:0 }
+.ib-mbox-opt.is-on .ib-mbox-n, .ib-tbtn--on .ib-mbox-n { color:#fff; background:var(--c, var(--crm-primary)) }
+.ib-mbox-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; background:var(--c) }
 
 /* ── Okno „Zarejestruj w dzienniku" (EZD) ──────────────────────────────── */
-.ib-ezd-subject { padding:.1rem 0 .7rem; border-bottom:1px solid #F1F2F4; margin-bottom:.8rem }
-.ib-ezd-h2 { font-size:1.15rem; font-weight:700; line-height:1.35; margin:.15rem 0 .25rem; color:#111827;
-  overflow-wrap:anywhere }
-.ib-ezd-note { display:flex; gap:.6rem; align-items:flex-start; background:#ECFDF5; border:1px solid #A7F3D0;
-  border-radius:10px; padding:.7rem .85rem; font-size:.82rem; line-height:1.5; color:#065F46; margin-bottom:1rem }
+.ib-ezd-subject { padding:.1rem 0 .7rem; border-bottom:1px solid var(--ib-line); margin-bottom:.8rem }
+.ib-ezd-h2 { font-size:1.15rem; font-weight:700; line-height:1.35; margin:.15rem 0 .25rem; color:#111827; overflow-wrap:anywhere }
+.ib-ezd-note { display:flex; gap:.6rem; align-items:flex-start; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px;
+  padding:.7rem .85rem; font-size:.82rem; line-height:1.5; color:#065F46; margin-bottom:1rem }
 .ib-ezd-note i { font-size:1rem; color:#0F766E; flex-shrink:0; margin-top:.1rem }
 
 /* ── Masowe działania na liście ─────────────────────────────────────────── */
-.ib-bulk { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; padding:0 .2rem .35rem;
-  font-size:.73rem; color:#9CA3AF }
+.ib-bulk { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; padding:0 .3rem .4rem; font-size:.73rem; color:#9CA3AF; flex-shrink:0 }
 .ib-bulk label { display:inline-flex; align-items:center; gap:.3rem; margin:0; cursor:pointer; color:#9CA3AF }
 .ib-bulk label:hover { color:#4B5563 }
-.ib-bulk input[type=checkbox] { width:.85rem; height:.85rem; cursor:pointer }
+.ib-bulk input[type=checkbox] { width:.85rem; height:.85rem; cursor:pointer; accent-color:var(--crm-primary) }
 .ib-bulk-n { color:#4B5563; font-weight:600 }
-/* Przycisk akcji chowa się, dopóki nic nie jest zaznaczone — pasek ma nie krzyczeć. */
-.ib-bulk-act { display:none; margin-left:auto; align-items:center; gap:.25rem; border:none; background:transparent;
-  padding:.1rem .35rem; border-radius:5px; font-size:.73rem; font-weight:600; color:#B91C1C; cursor:pointer }
+.ib-bulk-act { display:none; margin-left:auto; align-items:center; gap:.25rem; border:none; background:transparent; padding:.15rem .4rem;
+  border-radius:6px; font-size:.73rem; font-weight:600; color:#B91C1C; cursor:pointer }
+.ib-bulk-act + .ib-bulk-act { margin-left:0 }
 .ib-bulk-act:hover { background:#FEF2F2 }
 .ib-bulk-act:focus-visible { outline:2px solid var(--crm-primary); outline-offset:1px }
 .ib-bulk.is-armed .ib-bulk-act { display:inline-flex }
 .ib-bulk.is-armed { color:#4B5563 }
 .ib-bulk--restore .ib-bulk-act { color:#0F766E }
 .ib-bulk--restore .ib-bulk-act:hover { background:#ECFDF5 }
-/* ── Pasek skrzynki (kolor = skrzynka, klik = filtr) ───────────────────── */
-.ib-stripe { flex-shrink:0; width:4px; align-self:stretch; border:none; padding:0; display:block;
-  cursor:pointer; transition:width .12s }
-.ib-stripe:hover, .ib-stripe:focus-visible { width:7px; outline:none }
-/* Skrzynka jako rozwijana lista w pasku narzędzi — pasek zakładek przy kilku
-   adresach zajmował cały wiersz i pokazywał poziomy suwak. */
-.ib-mboxsel { margin-left:auto }
-.ib-mboxsel ~ .ib-filter { margin-left:0 }
-.ib-mboxsel > summary .ib-mbox-name { max-width:11rem }
-.ib-mbox-list { padding:.35rem; gap:1px; width:min(300px, 90vw) }
-.ib-mbox-opt { --c:#9CA3AF; display:flex; align-items:center; gap:.45rem;
-  padding:.35rem .5rem; border-radius:7px; font-size:.78rem; color:#374151; text-decoration:none;
-  transition:background .12s, color .12s }
-.ib-mbox-opt:hover { background:#F3F4F6; color:#111827 }
-.ib-mbox-opt:focus-visible { outline:2px solid var(--crm-primary); outline-offset:-2px }
-.ib-mbox-opt.is-on { background:#F9FAFB; color:#111827; font-weight:600; box-shadow:inset 2px 0 0 var(--c) }
-.ib-mbox-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.ib-mbox-n { font-size:.68rem; font-weight:700; color:#6B7280; background:#E5E7EB;
-  border-radius:2rem; padding:0 .35rem; min-width:1.3rem; text-align:center; flex-shrink:0 }
-.ib-mbox-opt.is-on .ib-mbox-n, .ib-tbtn--on .ib-mbox-n { color:#fff; background:var(--c, var(--crm-primary)) }
-.ib-mbox-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; background:var(--c) }
-
-.ib-row { display:flex; align-items:stretch; border-bottom:1px solid #F3F4F6 }
-.ib-row:last-child { border-bottom:none }
-.ib-row .ib-item { flex:1; min-width:0; border-bottom:none }
-.ib-row.is-checked { background:#FAFAFA }
-.ib-check { flex-shrink:0; margin:.75rem .15rem .75rem .55rem; width:.9rem; height:.9rem; cursor:pointer;
-  opacity:.4; transition:opacity .12s }
-.ib-row:hover .ib-check, .ib-check:checked, .ib-check:focus-visible { opacity:1 }
 
 /* ── Autoryzowany nadawca ───────────────────────────────────────────────── */
-/* Podpowiedź dla człowieka, nie zabezpieczenie — From da się podrobić. */
 .ib-trust { display:inline-flex; align-items:center; gap:.25rem; flex-shrink:0; font-size:.72rem; line-height:1 }
 .ib-trust--int { color:#2E844A }
 .ib-trust--doc { color:#1D4ED8 }
-.ib-trust--lg { padding:.25rem .6rem; border-radius:2rem; font-size:.75rem; font-weight:600 }
+.ib-trust--lg { padding:.22rem .6rem; border-radius:2rem; font-size:.75rem; font-weight:600 }
 .ib-trust--lg.ib-trust--int { background:#EFF7ED; border:1px solid #CDE8C6 }
 .ib-trust--lg.ib-trust--doc { background:#EFF6FF; border:1px solid #BFDBFE }
 
 /* ── Pasek „przyszło coś nowego" ────────────────────────────────────────── */
-.ib-new { display:none; align-items:center; gap:.45rem; width:100%; margin-bottom:.5rem;
-  padding:.4rem .7rem; border-radius:10px; font-size:.78rem; font-weight:600;
-  background:var(--crm-primary-bg); color:var(--crm-primary); border:1px solid #BFDBFE;
-  cursor:pointer; text-align:left }
+.ib-new { display:none; align-items:center; gap:.45rem; width:100%; margin-bottom:.5rem; padding:.45rem .75rem; border-radius:10px;
+  font-size:.78rem; font-weight:600; background:var(--crm-primary-bg); color:var(--crm-primary); border:1px solid #CDE8C6; cursor:pointer;
+  text-align:left; flex-shrink:0 }
 .ib-new.is-on { display:flex }
-.ib-new:hover { background:#DCEBFA }
+.ib-new:hover { background:#DFF0DA }
 
-/* ── Numer wiadomości ───────────────────────────────────────────────────── */
-/* Na liście numer nie walczy o miejsce z tematem: w rogu siedzi sama ikonka,
-   cyfry pokazują się dopiero po najechaniu (i zawsze są w title dla czytników). */
-.ib-item { position:relative }
-.ib-id { position:absolute; right:.55rem; bottom:.4rem; display:inline-flex; align-items:center; gap:.25rem;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.66rem; font-weight:700;
-  color:#C3C8D0; background:transparent; border-radius:4px; padding:.05rem .25rem; pointer-events:none;
-  transition:color .12s, background .12s }
-.ib-id-no { max-width:0; overflow:hidden; white-space:nowrap; opacity:0; transition:max-width .16s, opacity .12s }
-.ib-item .ib-l2 { padding-right:1.8rem }   /* miejsce na ikonkę numeru */
-.ib-item:hover .ib-id, .ib-item:focus-visible .ib-id, .ib-item.active .ib-id { color:#6B7280; background:#F3F4F6 }
-.ib-item:hover .ib-id-no, .ib-item:focus-visible .ib-id-no, .ib-item.active .ib-id-no { max-width:6rem; opacity:1 }
-.ib-no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.7rem; font-weight:700;
-  color:#6B7280; background:#F3F4F6; border-radius:4px; padding:.05rem .3rem; letter-spacing:.02em }
-.ib-h1-no { font-size:.75rem; color:#9CA3AF; font-weight:600; letter-spacing:.04em }
-
-/* ── Prawa szpalta: sprawy, oferty, wątek (rozwijane) ───────────────────── */
+/* ── Prawa szpalta: sprawy, oferty, wątek ──────────────────────────────── */
 .ib-rail { display:flex; flex-direction:column; gap:.6rem; min-width:0 }
-.ib-card { background:#fff; border:1px solid #E5E7EB; border-radius:12px; overflow:hidden }
-.ib-card > summary { list-style:none; cursor:pointer; padding:.6rem .8rem; display:flex; align-items:center;
-  gap:.45rem; font-size:.76rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#6B7280 }
+.ib-card { background:#fff; border:1px solid var(--ib-line); border-radius:var(--ib-radius); overflow:hidden; box-shadow:0 1px 2px rgba(16,24,40,.04) }
+.ib-card > summary { list-style:none; cursor:pointer; padding:.6rem .85rem; display:flex; align-items:center; gap:.45rem;
+  font-size:.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#6B7280 }
 .ib-card > summary::-webkit-details-marker { display:none }
-.ib-card > summary:hover { background:#FAFBFC; color:#374151 }
+.ib-card > summary:hover { background:var(--ib-hover); color:#374151 }
 .ib-card > summary:focus-visible { outline:2px solid var(--crm-primary); outline-offset:-2px }
 .ib-card > summary .ib-caret { margin-left:auto; transition:transform .15s; color:#9CA3AF }
 .ib-card[open] > summary .ib-caret { transform:rotate(90deg) }
-.ib-card > summary .ib-cnt2 { font-size:.7rem; font-weight:700; color:#374151; background:#F3F4F6;
-  border-radius:2rem; padding:0 .4rem; text-transform:none; letter-spacing:0 }
-.ib-card-body { padding:.2rem .8rem .7rem; font-size:.82rem }
+.ib-card > summary .ib-cnt2 { font-size:.68rem; font-weight:700; color:#374151; background:#F3F4F6; border-radius:2rem; padding:0 .4rem; text-transform:none; letter-spacing:0 }
+.ib-card-body { padding:.2rem .85rem .7rem; font-size:.82rem }
 .ib-card-body a { text-decoration:none }
-.ib-rail-item { display:block; padding:.3rem 0; border-top:1px solid #F3F4F6; overflow-wrap:anywhere }
+.ib-rail-item { display:block; padding:.35rem 0; border-top:1px solid #F3F4F6; overflow-wrap:anywhere; color:#1F2937 }
+.ib-rail-item:hover { color:var(--crm-primary) }
 .ib-rail-item:first-child { border-top:none }
 @media (max-width:1399px) { .ib-wrap.has-rail > .ib-rail { grid-column:1 / -1 } }
 </style>
+
+<?php if (!$ready): ?>
+<div class="alert alert-warning">
+  <strong>Moduł poczty nie jest gotowy.</strong> Skrzynka CRM czyta wiadomości pobierane przez moduł poczty.
+  Skonfiguruj skrzynkę w <a href="<?= APP_URL ?>/poczta/index.php">module Poczta</a>.
+</div>
+<?php elseif (!$boxes): ?>
+<?php $any_mailbox = 0; try { $any_mailbox = (int)(db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes")['n'] ?? 0); } catch (\Throwable $e) {} ?>
+<div class="alert alert-info">
+  <?php if ($any_mailbox && !is_admin()): ?>
+  <strong>Nie masz dostępu do żadnej skrzynki.</strong>
+  Skrzynki współdzielone przydziela administrator (Poczta → Skrzynki → Edytuj → „Kto ma dostęp"),
+  a skrzynka osobista jest widoczna dla swojego właściciela.
+  <?php else: ?>
+  Nie dodano jeszcze żadnej skrzynki — dodaj ją w <a href="<?= APP_URL ?>/poczta/index.php">module Poczta</a>.
+  Wiadomości pojawią się tu po pierwszym skanowaniu.
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php if (is_admin() && !crm_mailbox_autocreate()): ?>
+<form method="post" class="alert alert-light border d-flex align-items-center gap-2 flex-wrap py-2">
+  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+  <input type="hidden" name="_op" value="autocreate">
+  <input type="hidden" name="view" value="<?= h($view) ?>">
+  <input type="hidden" name="on" value="1">
+  <i class="bi bi-info-circle" aria-hidden="true"></i>
+  <div class="flex-grow-1" style="font-size:.85rem">
+    Wiadomości od nadawców spoza kartoteki są <strong>pomijane</strong> — zapytania nowych klientów nie trafiają do CRM.
+  </div>
+  <button class="btn btn-sm btn-outline-dark">Zakładaj kartotekę dla nieznanych nadawców</button>
+</form>
+<?php endif; ?>
 
 <?php /* Nagłówek LOKALNY, jednowierszowy — .crm-page-header jest komponentem
          współdzielonym przez 16 stron CRM i układa tytuł nad podtytułem, co na tym
@@ -575,7 +618,7 @@ include __DIR__ . '/includes/header_crm.php';
 <div class="ib-header">
   <div class="ib-header-title">
     <span class="ib-header-icon"><i class="bi bi-inbox-fill" aria-hidden="true"></i></span>
-    <span>Skrzynka CRM</span>
+    <span>Skrzynka CRM<span class="ib-header-sub">Wspólna skrzynka odbiorcza — obsłuż w CRM, zarejestruj w EZD albo przekaż dalej</span></span>
     <span class="ib-help" tabindex="0" role="note"
           aria-label="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, zarejestruj w dzienniku EZD albo przekaż e-mailem"
           title="Wspólna skrzynka odbiorcza — obsłuż wiadomość w CRM, zarejestruj w dzienniku EZD albo przekaż e-mailem">
@@ -631,58 +674,18 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
-<?php if (!$ready): ?>
-<div class="alert alert-warning">
-  <strong>Moduł poczty nie jest gotowy.</strong> Skrzynka CRM czyta wiadomości pobierane przez moduł poczty.
-  Skonfiguruj skrzynkę w <a href="<?= APP_URL ?>/poczta/index.php">module Poczta</a>.
-</div>
-<?php elseif (!$boxes): ?>
-<?php $any_mailbox = 0; try { $any_mailbox = (int)(db_one("SELECT COUNT(*) AS n FROM poczta_mailboxes")['n'] ?? 0); } catch (\Throwable $e) {} ?>
-<div class="alert alert-info">
-  <?php if ($any_mailbox && !is_admin()): ?>
-  <strong>Nie masz dostępu do żadnej skrzynki.</strong>
-  Skrzynki współdzielone przydziela administrator (Poczta → Skrzynki → Edytuj → „Kto ma dostęp"),
-  a skrzynka osobista jest widoczna dla swojego właściciela.
-  <?php else: ?>
-  Nie dodano jeszcze żadnej skrzynki — dodaj ją w <a href="<?= APP_URL ?>/poczta/index.php">module Poczta</a>.
-  Wiadomości pojawią się tu po pierwszym skanowaniu.
-  <?php endif; ?>
-</div>
-<?php endif; ?>
-
-<?php if (is_admin() && !crm_mailbox_autocreate()): ?>
-<form method="post" class="alert alert-light border d-flex align-items-center gap-2 flex-wrap py-2">
-  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-  <input type="hidden" name="_op" value="autocreate">
-  <input type="hidden" name="view" value="<?= h($view) ?>">
-  <input type="hidden" name="on" value="1">
-  <i class="bi bi-info-circle" aria-hidden="true"></i>
-  <div class="flex-grow-1" style="font-size:.85rem">
-    Wiadomości od nadawców spoza kartoteki są <strong>pomijane</strong> — zapytania nowych klientów nie trafiają do CRM.
-  </div>
-  <button class="btn btn-sm btn-outline-dark">Zakładaj kartotekę dla nieznanych nadawców</button>
-</form>
-<?php endif; ?>
-
 <!-- Widoki + filtry (jeden pasek, pola tej samej wysokości) -->
 <div class="ib-toolbar">
   <div class="ib-views">
   <?php foreach (CRM_MAILBOX_VIEWS as $vk => $vv): $n = (int)($counts[$vk] ?? 0);
         // Puste widoki pomocnicze („Ukryte", „Kopie robocze") nie zajmują miejsca w pasku
         if (in_array($vk, ['hidden', 'drafts'], true) && !$n && $view !== $vk) continue; ?>
-  <a href="?<?= $qs(['view' => $vk, 'msg' => null, 'page' => null]) ?>" class="ib-pill"
-     style="background:<?= $view === $vk ? 'var(--crm-primary-bg)' : '#F3F4F6' ?>;
-            color:<?= $view === $vk ? 'var(--crm-primary)' : '#374151' ?>;
-            border-color:<?= $view === $vk ? 'var(--crm-primary)' : 'transparent' ?>">
+  <a href="?<?= $qs(['view' => $vk, 'msg' => null, 'page' => null]) ?>" class="ib-pill<?= $view === $vk ? ' is-on' : '' ?>"
+     <?= $view === $vk ? 'aria-current="page"' : '' ?>>
     <i class="bi <?= $vv['icon'] ?>" aria-hidden="true"></i><?= h($vv['label']) ?>
-    <?php
-      // Licznik pokazujemy ZAWSZE, wyszarzony przy zerze. Ukrywanie zera sprawiało,
-      // że „Spam" wyglądał na widok bez licznika, a nie na widok pusty.
-      $cnt_style = $n
-        ? ($view === $vk ? 'background:var(--crm-primary);color:#fff' : 'background:#E5E7EB;color:#374151')
-        : 'background:transparent;color:#9CA3AF;border:1px solid #E5E7EB';
-    ?>
-    <span class="ib-cnt" style="<?= $cnt_style ?>"><?= $n ?></span>
+    <?php // Licznik pokazujemy ZAWSZE, wyszarzony przy zerze — inaczej „Spam" wyglądał
+          // na widok bez licznika, a nie na widok pusty. ?>
+    <span class="ib-cnt<?= $n ? '' : ' is-zero' ?>"><?= $n ?></span>
   </a>
   <?php endforeach; ?>
   </div>
@@ -819,7 +822,7 @@ include __DIR__ . '/includes/header_crm.php';
 <div class="ib-wrap<?= $has_rail ? ' has-rail' : '' ?>">
 
   <!-- ══ LISTA ═══════════════════════════════════════════════════════════ -->
-  <div>
+  <div class="ib-col-list">
     <?php $bulk_view = $view === 'hidden';
           $abandon_days = (int)(crm_setting('crm_inbox_abandon_days') ?: 90); ?>
     <?php if ($bulk_view && $abandon_days > 0): ?>
@@ -870,12 +873,10 @@ include __DIR__ . '/includes/header_crm.php';
     <div id="ibListWrap">
     <div class="ib-list" role="list" aria-label="Wiadomości">
       <?php if (!$inbox['rows']): ?>
-      <div class="text-center text-muted d-flex flex-column justify-content-center" style="min-height:22rem;padding:1.15rem">
-        <div>
-          <i class="bi bi-inbox display-6 d-block mb-2 opacity-25" aria-hidden="true"></i>
-          <div style="font-size:.9rem">Brak wiadomości w tym widoku</div>
-          <div style="font-size:.78rem" class="mt-1">Zmień filtr albo sprawdź skrzynkę ponownie.</div>
-        </div>
+      <div class="ib-list-empty">
+        <span class="ib-empty-ic"><i class="bi bi-inbox" aria-hidden="true"></i></span>
+        <strong>Brak wiadomości w tym widoku</strong>
+        <span>Zmień filtr albo sprawdź skrzynkę ponownie.</span>
       </div>
       <?php else: $last_day = ''; foreach ($inbox['rows'] as $r):
         $day = $day_label((string)$r['sent_at']);
@@ -903,8 +904,10 @@ include __DIR__ . '/includes/header_crm.php';
       <input type="checkbox" class="ib-check" form="ibBulkForm" name="msg_ids[]" value="<?= (int)$r['id'] ?>"
              aria-label="Zaznacz wiadomość: <?= h($r['subject'] ?: '(bez tematu)') ?>">
       <?php endif; ?>
+      <?php [$av_ini, $av_h] = $ib_avatar($who); ?>
       <a role="listitem" class="ib-item<?= $act ? ' active' : '' ?><?= $unread ? ' unread' : '' ?>"
          href="?<?= $qs(['msg' => (int)$r['id']]) ?>" aria-current="<?= $act ? 'true' : 'false' ?>">
+        <span class="ib-av<?= $outgoing ? ' ib-av--out' : '' ?>" style="--h:<?= (int)$av_h ?>" aria-hidden="true"><?= h($av_ini) ?></span>
         <span class="ib-l1">
           <span class="ib-udot" aria-hidden="true" title="<?= $unread ? 'Nieprzeczytana' : '' ?>"></span>
           <span class="ib-who"><?= h($who) ?></span>
@@ -962,12 +965,12 @@ include __DIR__ . '/includes/header_crm.php';
     </div>
 
     <?php $pages = (int)ceil($inbox['total'] / max(1, $inbox['per_page'])); if ($pages > 1): ?>
-    <div class="d-flex justify-content-between align-items-center mt-2">
-      <small class="text-muted">Łącznie: <strong><?= (int)$inbox['total'] ?></strong></small>
-      <div class="d-flex gap-1 flex-wrap">
+    <div class="ib-pager">
+      <span>Łącznie: <strong><?= (int)$inbox['total'] ?></strong></span>
+      <div class="ib-pg">
         <?php for ($p = 1; $p <= min($pages, 12); $p++): ?>
-        <a href="?<?= $qs(['page' => $p, 'msg' => null]) ?>"
-           class="btn btn-sm <?= $p === (int)$inbox['page'] ? 'btn-primary' : 'btn-outline-secondary' ?>"><?= $p ?></a>
+        <a href="?<?= $qs(['page' => $p, 'msg' => null]) ?>" class="<?= $p === (int)$inbox['page'] ? 'is-on' : '' ?>"
+           <?= $p === (int)$inbox['page'] ? 'aria-current="page"' : '' ?>><?= $p ?></a>
         <?php endfor; ?>
       </div>
     </div>
@@ -976,12 +979,12 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 
   <!-- ══ WIADOMOŚĆ ═══════════════════════════════════════════════════════ -->
-  <div>
+  <div class="ib-col-msg">
   <?php if (!$msg): ?>
     <div class="ib-pane ib-empty">
       <div class="text-center text-muted">
-        <i class="bi bi-envelope-open display-6 d-block mb-2 opacity-25" aria-hidden="true"></i>
-        <div style="font-size:.9rem">Wybierz wiadomość z listy</div>
+        <span class="ib-empty-ic"><i class="bi bi-envelope-open" aria-hidden="true"></i></span>
+        <div style="font-size:.95rem;font-weight:600;color:#111827">Wybierz wiadomość z listy</div>
         <div style="font-size:.78rem" class="mt-1">
           <?= $inbox['rows'] ? 'Treść, załączniki i akcje pokażą się tutaj.' : 'W tym widoku nie ma wiadomości.' ?>
         </div>
@@ -1002,11 +1005,15 @@ include __DIR__ . '/includes/header_crm.php';
 
       <div class="ib-head">
         <?php $msg_no = crm_msg_no((int)$msg['id'], $msg['msg_no'] ?? null); ?>
+        <?php $msg_out = ($msg['direction'] ?? 'in') === 'out'; ?>
+        <?php [$mav_ini, $mav_h] = $ib_avatar($msg_out ? (string)($msg['contact_name'] ?: $msg['from_email'] ?: '—')
+                                                       : (string)($msg['from_name'] ?: $msg['from_email'] ?: $msg['contact_name'] ?: '—')); ?>
+        <span class="ib-av ib-av--lg<?= $msg_out ? ' ib-av--out' : '' ?>" style="--h:<?= (int)$mav_h ?>;grid-row:auto" aria-hidden="true"><?= h($mav_ini) ?></span>
+        <div class="ib-head-main">
         <?php if ($msg_no !== ''): ?>
         <div class="ib-h1-no">WIADOMOŚĆ NR <span class="ib-no">#<?= h($msg_no) ?></span></div>
         <?php endif; ?>
         <h1 class="ib-h1"><?= h($msg['subject'] ?: '(bez tematu)') ?></h1>
-        <?php $msg_out = ($msg['direction'] ?? 'in') === 'out'; ?>
         <div class="ib-meta">
           <?php if ($msg_out): ?>
           <span class="text-muted">Do:</span>
@@ -1025,7 +1032,8 @@ include __DIR__ . '/includes/header_crm.php';
           <?= h($msg['mailbox_name']) ?>
           <?php endif; ?>
         </div>
-        <div class="d-flex gap-2 flex-wrap mt-2">
+        </div><!-- /.ib-head-main -->
+        <div class="ib-chips">
           <?php if (!empty($msg['contact_id'])): ?>
           <a class="ib-chip" href="<?= APP_URL ?>/crm/contact/view.php?id=<?= (int)$msg['contact_id'] ?>">
             <i class="bi <?= h(CRM_CONTACT_TYPES[$msg['contact_type']]['icon'] ?? 'bi-person') ?>"></i>
@@ -1751,7 +1759,7 @@ ibWireContactSearch('ezdStronaName', 'ezdStronaCrmId', 'ezdStronaSuggestions');
         if (oldPills.length === newPills.length) {
           oldPills.forEach(function (el, i) {
             el.textContent = newPills[i].textContent;
-            el.setAttribute('style', newPills[i].getAttribute('style') || '');
+            el.className   = newPills[i].className;
           });
         }
         busy = false;
