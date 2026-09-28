@@ -3,6 +3,13 @@
  * includes/ti_notices.php — Komunikaty placówki TI (tablica ogłoszeń dla kursantów).
  */
 
+/** Punkt komunikatu 14.1 o nowym Pulpicie (seed + jednorazowy dopisek 14.1b). */
+const TI_NOTICE_141B_PULPIT = 'Pulpit: układ w dwóch kolumnach — po lewej Do zrobienia, Dziś i Najbliższe zajęcia, po prawej'
+    . ' Komunikaty, Frekwencja i Trend; zamiast dużych kafli jedna linia podsumowania. Kierownik widzi nad tym'
+    . ' stan instytucji: listę „Wymaga uwagi” (zaległe protokoły, rozliczenia po terminie, odroczenia płatności,'
+    . ' wypisy, braki w dziennikach, niezamknięte lekcje, grupy bez terminów) z przejściem prosto do ekranu,'
+    . ' gdzie się to załatwia, oraz prowadzących nieobecnych dziś i skróty.';
+
 function ti_notices_migrate(): void {
     static $done = false; if ($done) return; $done = true;
     try {
@@ -200,6 +207,7 @@ function ti_notices_migrate(): void {
                 . "\n• Wydruki planów i harmonogramów pokazują stan na dzień wydruku (z adnotacją „Stan na dzień”)."
                 . "\n• Zespół i role: osoba, której nadano rolę w panelu, dostaje o tym e-mail."
                 . "\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl."
+                . "\n• " . TI_NOTICE_141B_PULPIT
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
         }
@@ -212,6 +220,17 @@ function ti_notices_migrate(): void {
                 "UPDATE k30_ti_notices SET body = body || ?, updated_at = datetime('now')
                   WHERE title LIKE 'Aktualizacja SZO 14.1%' AND body NOT LIKE '%Nagłówek panelu:%'"
             )->execute(["\n\n(Uzupełnienie 14.1a)" . "\n• Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl."]);
+        }
+    } catch (\Throwable $e) {}
+    // 14.1b: punkt o nowym Pulpicie — dopisywany raz do już zasianego komunikatu
+    // (świeży seed ma go w treści; znacznik „Pulpit:” chroni przed dublem).
+    try {
+        if (!db_one("SELECT value FROM settings WHERE key_='ti_notice_2026_09_szo141_v3'")) {
+            db()->prepare("INSERT OR IGNORE INTO settings (key_, value) VALUES ('ti_notice_2026_09_szo141_v3','1')")->execute();
+            db()->prepare(
+                "UPDATE k30_ti_notices SET body = body || ?, updated_at = datetime('now')
+                  WHERE title LIKE 'Aktualizacja SZO 14.1%' AND body NOT LIKE '%Pulpit:%'"
+            )->execute(["\n\n(Uzupełnienie 14.1b)\n• " . TI_NOTICE_141B_PULPIT]);
         }
     } catch (\Throwable $e) {}
 
