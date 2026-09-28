@@ -3,7 +3,10 @@
  * _tab_pulpit.php — Pulpit prowadzącego (tab=pulpit).
  *
  * Przebudowany na układ rejestrowy: wszystko w tabelach o szerokości kolumny
- * treści. Poprzednia wersja (kafelki MD3, własna szerokość 920 px, wykresy SVG
+ * treści. Od 2026-09-29 dwie kolumny (USOS): lewa — Do zrobienia, zaległe,
+ * Dziś, Najbliższe; prawa — Komunikaty, Frekwencja, Trend. Kafle z liczbami
+ * zastąpiła jedna linia podsumowania. Kierownik dostaje nad tym stan
+ * instytucji (_tab_pulpit_kierownik.php). Poprzednia wersja (kafelki MD3, własna szerokość 920 px, wykresy SVG
  * o stałych wymiarach) rozjeżdżała się w panelu i nie mieściła na stronie —
  * trend miesięczny jest teraz tabelą, bo tabela skaluje się zawsze.
  *
@@ -133,9 +136,8 @@ if (!empty($course_ids)) {
    poprzedniej, rozjeżdżającej się wersji (patrz komentarz na górze pliku). */
 .dyd-bar { background: var(--bs-secondary-bg, #e9ecef); border-radius: 99px; height: 6px; overflow: hidden; min-width: 3rem; }
 .dyd-bar-fill { height: 100%; border-radius: 99px; }
-.dyd-stat-card { border: 0; border-radius: .6rem; }
-.dyd-stat-num { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
-.dyd-stat-label { font-size: .74rem; }
+/* Dwie kolumny od lg; karty w kolumnie bez podwójnego odstępu na dole */
+.dyd-pulpit-cols > [class*="col-"] > .card:last-child { margin-bottom: 0; }
 .dyd-card-accent { border-left: 4px solid transparent; }
 </style>
 
@@ -170,6 +172,9 @@ if ($_prot_prev):
 </div>
 <?php endif; ?>
 
+<?php // Kierownik (rola „Kierownik Instytucji”): stan instytucji nad częścią wspólną
+if (function_exists('dyd_is_staff') && dyd_is_staff()) include __DIR__ . '/_tab_pulpit_kierownik.php'; ?>
+
 <?php /* ── Pasek szybkich statystyk: fluid Bootstrap grid, bez stałych szerokości ── */
   $_stat_pct_all = null;
   if (!empty($_att_rows)) {
@@ -178,44 +183,19 @@ if ($_prot_prev):
       if ($_sp + $_sa > 0) $_stat_pct_all = (int)round($_sp / ($_sp + $_sa) * 100);
   }
 ?>
-<div class="row row-cols-2 row-cols-md-4 g-2 mb-3">
-  <div class="col">
-    <div class="card dyd-stat-card h-100 <?= $_todo ? 'text-bg-warning-subtle' : 'text-bg-light' ?>">
-      <div class="card-body py-2 px-3">
-        <div class="dyd-stat-num"><?= count($_todo) ?></div>
-        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Do zrobienia</div>
-      </div>
-    </div>
-  </div>
-  <div class="col">
-    <div class="card dyd-stat-card h-100 <?= $dash_today ? 'text-bg-primary-subtle' : 'text-bg-light' ?>">
-      <div class="card-body py-2 px-3">
-        <div class="dyd-stat-num"><?= count($dash_today) ?></div>
-        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-calendar-day me-1" aria-hidden="true"></i>Dziś</div>
-      </div>
-    </div>
-  </div>
-  <div class="col">
-    <div class="card dyd-stat-card h-100 text-bg-light">
-      <div class="card-body py-2 px-3">
-        <div class="dyd-stat-num"><?= count($dash_upcoming) ?></div>
-        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Następne 7 dni</div>
-      </div>
-    </div>
-  </div>
-  <div class="col">
-    <div class="card dyd-stat-card h-100 text-bg-light">
-      <div class="card-body py-2 px-3">
-        <div class="dyd-stat-num">
-          <?php if ($_stat_pct_all === null): ?><span class="text-muted fs-6">—</span>
-          <?php else: ?><?= $_stat_pct_all ?>%<?php endif; ?>
-        </div>
-        <div class="dyd-stat-label text-body-secondary"><i class="bi bi-graph-up me-1" aria-hidden="true"></i>Frekwencja <?= h(date('m.Y')) ?></div>
-      </div>
-    </div>
-  </div>
-</div>
+<?php /* Zamiast kafli z dużymi liczbami — jedna linia podsumowania (styl USOS) */ ?>
+<p class="dyd-pulpit-sum small mb-2" aria-label="Podsumowanie">
+  <span class="<?= $_todo ? 'fw-semibold text-warning-emphasis' : 'text-body-secondary' ?>"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Do zrobienia: <?= count($_todo) ?></span>
+  <span class="text-body-secondary"> · </span>
+  <span><i class="bi bi-calendar-day me-1" aria-hidden="true"></i>Dziś: <?= count($dash_today) ?></span>
+  <span class="text-body-secondary"> · </span>
+  <span><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Następne 7 dni: <?= count($dash_upcoming) ?></span>
+  <span class="text-body-secondary"> · </span>
+  <span><i class="bi bi-graph-up me-1" aria-hidden="true"></i>Frekwencja <?= h(date('m.Y')) ?>: <?= $_stat_pct_all === null ? '—' : $_stat_pct_all . '%' ?></span>
+</p>
 
+<div class="row g-3 dyd-pulpit-cols">
+<div class="col-lg-7">
 <?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
 <div class="card dyd-card-accent <?= $_todo ? 'border-warning' : '' ?>">
   <div class="card-header d-flex align-items-center gap-2">
@@ -380,6 +360,47 @@ function dydBulkOverdue(n) {
   <?php endif; ?>
 </div>
 
+</div><?php /* /lewa kolumna */ ?>
+<div class="col-lg-5">
+
+<?php /* ── Ostatnie komunikaty ───────────────────────────────────────────── */ ?>
+<?php $_notices = array_slice($dyd_notices ?? [], 0, 5); ?>
+<?php if ($_notices): ?>
+<div class="card">
+  <div class="card-header d-flex align-items-center">
+    <span><i class="bi bi-megaphone text-warning me-1" aria-hidden="true"></i>Komunikaty placówki</span>
+    <a href="index.php?tab=komunikaty" class="btn btn-sm btn-outline-secondary ms-auto">Wszystkie</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <caption class="visually-hidden">Ostatnie komunikaty placówki</caption>
+      <thead><tr>
+        <th scope="col" style="width:7rem">Data</th>
+        <th scope="col">Tytuł</th>
+        <th scope="col" style="width:10rem">Autor</th>
+        <th scope="col" style="width:7rem">Stan</th>
+      </tr></thead>
+      <tbody>
+        <?php foreach ($_notices as $_n): $_unread = empty($_n['is_read']); ?>
+        <tr>
+          <td class="text-nowrap small"><?= h(date('d.m.Y', strtotime((string)$_n['created_at']))) ?></td>
+          <td class="small">
+            <a href="index.php?tab=komunikaty" class="<?= $_unread ? 'fw-semibold' : '' ?>"><?= h($_n['title']) ?></a>
+            <?php if (!empty($_n['is_pinned'])): ?><span class="badge text-bg-warning ms-1">przypięty</span><?php endif; ?>
+          </td>
+          <td class="small text-body-secondary"><?= h($_n['author_name'] ?? '') ?></td>
+          <td class="small">
+            <?php if ($_unread): ?><span class="badge text-bg-primary">nowy</span>
+            <?php else: ?><span class="text-body-secondary">przeczytany</span><?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php /* ── Frekwencja: bieżący miesiąc ($_att_rows policzone wyżej) ───────── */ ?>
 <?php if ($_att_rows): ?>
 <div class="card">
@@ -489,43 +510,8 @@ if (!empty($course_ids)) {
 </div>
 <?php endif; ?>
 
-<?php /* ── Ostatnie komunikaty ───────────────────────────────────────────── */ ?>
-<?php $_notices = array_slice($dyd_notices ?? [], 0, 5); ?>
-<?php if ($_notices): ?>
-<div class="card">
-  <div class="card-header d-flex align-items-center">
-    <span><i class="bi bi-megaphone text-warning me-1" aria-hidden="true"></i>Komunikaty placówki</span>
-    <a href="index.php?tab=komunikaty" class="btn btn-sm btn-outline-secondary ms-auto">Wszystkie</a>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
-      <caption class="visually-hidden">Ostatnie komunikaty placówki</caption>
-      <thead><tr>
-        <th scope="col" style="width:7rem">Data</th>
-        <th scope="col">Tytuł</th>
-        <th scope="col" style="width:10rem">Autor</th>
-        <th scope="col" style="width:7rem">Stan</th>
-      </tr></thead>
-      <tbody>
-        <?php foreach ($_notices as $_n): $_unread = empty($_n['is_read']); ?>
-        <tr>
-          <td class="text-nowrap small"><?= h(date('d.m.Y', strtotime((string)$_n['created_at']))) ?></td>
-          <td class="small">
-            <a href="index.php?tab=komunikaty" class="<?= $_unread ? 'fw-semibold' : '' ?>"><?= h($_n['title']) ?></a>
-            <?php if (!empty($_n['is_pinned'])): ?><span class="badge text-bg-warning ms-1">przypięty</span><?php endif; ?>
-          </td>
-          <td class="small text-body-secondary"><?= h($_n['author_name'] ?? '') ?></td>
-          <td class="small">
-            <?php if ($_unread): ?><span class="badge text-bg-primary">nowy</span>
-            <?php else: ?><span class="text-body-secondary">przeczytany</span><?php endif; ?>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
-<?php endif; ?>
+</div><?php /* /prawa kolumna */ ?>
+</div><?php /* /row */ ?>
 
 <?php /* ── Okna obecności — POZA tabelami, żeby overflow ich nie ucinał ──── */ ?>
 <?php foreach ($dash_today as $_s):
