@@ -39,6 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rachunek_bankowy = preg_replace('/\s+/', '', trim($_POST['rachunek_bankowy'] ?? ''));
     $termin_platnosci = trim($_POST['termin_platnosci'] ?? '');
     $wymaga_mpp       = !empty($_POST['wymaga_mpp']) ? 1 : 0;
+    [$zaplacono_przed, $data_zaplaty, $forma_zaplaty, $zaplata_errors] = $kierunek === 'wydatek'
+        ? edok_zaplata_from_post($_POST) : [0, null, '', []];
     $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
     // Numer EODoK nie istnieje jeszcze w momencie renderowania formularza (nadawany
     // dopiero przy zapisie) — dopóki user ręcznie nie tknie pola, tytuł jest zawsze
@@ -51,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $is_test = is_admin() && !empty($_POST['is_test']);
 
     if (!isset(EDOK_TYPES[$typ_dokumentu]))               $errors[] = 'Wybierz typ dokumentu.';
+    array_push($errors, ...$zaplata_errors);
     if (isset(EDOK_TYPES[$typ_dokumentu]) && in_array($typ_dokumentu, EDOK_TYPES_PRZYCHOD, true) !== ($kierunek === 'przychod')) {
         $errors[] = 'Wybrany typ dokumentu nie pasuje do zaznaczonego kierunku (wydatek/przychód).';
     }
@@ -130,6 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'rachunek_bankowy'    => $rachunek_bankowy,
             'termin_platnosci'    => $termin_platnosci ?: null,
             'wymaga_mpp'          => $wymaga_mpp,
+            'zaplacono_przed'     => $zaplacono_przed,
+            'data_zaplaty'        => $data_zaplaty,
+            'forma_zaplaty'       => $forma_zaplaty,
             'tytul_przelewu'      => $tytul_przelewu,
             'file_path'           => $file_path,
             'file_size'           => is_file(UPLOAD_DIR . $file_path) ? filesize(UPLOAD_DIR . $file_path) : null,
@@ -338,6 +344,29 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
         </div>
       </div>
+      <div id="zaplacono_wrap" class="border rounded p-2 mb-3 bg-light">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" name="zaplacono_przed" id="zaplacono_przed" value="1" <?= !empty($_POST['zaplacono_przed']) ? 'checked' : '' ?>
+            onchange="document.getElementById('zaplacono_fields').style.display = this.checked ? '' : 'none'">
+          <label class="form-check-label" for="zaplacono_przed">Faktura już zapłacona (np. kartą, gotówką) — akceptacja po zapłacie</label>
+        </div>
+        <div class="row g-2 mt-1" id="zaplacono_fields" style="<?= !empty($_POST['zaplacono_przed']) ? '' : 'display:none' ?>">
+          <div class="col-sm-4">
+            <label class="form-label small mb-1" for="data_zaplaty">Data zapłaty</label>
+            <input type="date" name="data_zaplaty" id="data_zaplaty" class="form-control form-control-sm" max="<?= date('Y-m-d') ?>" value="<?= h($_POST['data_zaplaty'] ?? '') ?>">
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label small mb-1" for="forma_zaplaty">Forma zapłaty</label>
+            <select name="forma_zaplaty" id="forma_zaplaty" class="form-select form-select-sm">
+              <option value="">— wybierz —</option>
+              <?php foreach (EDOK_FORMY_ZAPLATY as $k => $l): ?>
+              <option value="<?= h($k) ?>" <?= ($_POST['forma_zaplaty'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-12 form-text mt-0">Dokument przejdzie pełny obieg akceptacji, a po nim dostanie status płatności „Opłacony” — nie trafi do eksportu przelewów.</div>
+        </div>
+      </div>
       <div id="mpp-alert" class="alert alert-warning py-2 small mb-3" style="display:none">
         <i class="bi bi-exclamation-triangle-fill"></i> Kwota brutto ≥ 15 000 PLN — zwykle wymagany MPP.
       </div>
@@ -466,6 +495,7 @@ function edokToggleKierunek() {
   });
   document.getElementById('description_label').firstChild.textContent = kierunek === 'przychod' ? 'Opis przychodu ' : 'Opis wydatku ';
   document.getElementById('zrodlo_przychodu_wrap').style.display = kierunek === 'przychod' ? '' : 'none';
+  document.getElementById('zaplacono_wrap').style.display = kierunek === 'przychod' ? 'none' : '';
   document.getElementById('tytul_przelewu_label').textContent = kierunek === 'przychod' ? 'Sugerowana referencja wpłaty' : 'Tytuł przelewu';
   edokCheckDataGraniczna();
 }

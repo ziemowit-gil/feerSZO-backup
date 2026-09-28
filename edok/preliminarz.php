@@ -84,7 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     } else {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $docs = db_all(
-            "SELECT * FROM edok_documents WHERE id IN ($placeholders) AND status='zaakceptowany' AND COALESCE(kierunek,'wydatek')='wydatek'",
+            "SELECT * FROM edok_documents WHERE id IN ($placeholders) AND status='zaakceptowany' AND COALESCE(kierunek,'wydatek')='wydatek'
+               AND COALESCE(zaplacono_przed,0)=0 AND COALESCE(status_platnosci,'nowy')<>'oplacony'",
             $ids
         );
         // Pierwszy przelew na daną parę NIP + rachunek wymaga potwierdzenia, że

@@ -152,6 +152,12 @@ function edok_migrate(): void {
         // i Preliminarzu Płatności — patrz edok_step_label()/edok_preliminarz_query()).
         'kierunek'               => "TEXT NOT NULL DEFAULT 'wydatek'",
         'zrodlo_przychodu'       => "TEXT NOT NULL DEFAULT ''",
+        // Faktura zapłacona PRZED akceptacją (karta, gotówka, pilny przelew…) — obieg
+        // przebiega normalnie, ale po akceptacji status płatności od razu = 'oplacony'
+        // i dokument nie trafia do eksportu przelewów. Patrz edok_decide_step().
+        'zaplacono_przed'        => "INTEGER NOT NULL DEFAULT 0",
+        'data_zaplaty'           => "TEXT",
+        'forma_zaplaty'          => "TEXT NOT NULL DEFAULT ''",
     ]);
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
@@ -800,6 +806,12 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
             ? 'Obieg zakończony — przychód zaakceptowany do ujęcia w ewidencji (5/5 etapów).'
             : 'Obieg zakończony — dokument zaakceptowany do zapłaty i księgowania (5/5 etapów).';
         edok_log($id, 'status_change', '', $doc['status'], 'zaakceptowany', $koncowy_opis, $doc);
+        // Faktura zapłacona przed akceptacją — od razu „Opłacony”, bez przechodzenia przez przelew.
+        if (!empty($fresh['zaplacono_przed']) && ($fresh['status_platnosci'] ?: 'nowy') !== 'oplacony') {
+            db_exec("UPDATE edok_documents SET status_platnosci='oplacony', updated_at=datetime('now') WHERE id=?", [$id]);
+            edok_log($id, 'status_platnosci', '', $fresh['status_platnosci'] ?: 'nowy', 'oplacony',
+                'Status płatności: Opłacony — faktura zapłacona przed akceptacją (' . edok_zaplata_opis($fresh) . ').');
+        }
         // Dokument końcowy (źródło + karta akceptacji) — best-effort, błąd generowania
         // PDF nie może cofnąć już zapisanej akceptacji.
         try {
@@ -940,7 +952,9 @@ function edok_print_html(array $doc): string {
         . ' · status: ' . h(EDOK_STATUSES[$doc['status']]['label'] ?? $doc['status']) . '</div>';
 
     $html .= '<table class="head-table"><tr><td class="l">' . ($jest_przychod ? 'Kontrahent / darczyńca' : 'Kontrahent') . '</td><td>' . h($doc['kontrahent_nazwa'])
-        . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr></table>';
+        . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr>'
+        . (!empty($doc['zaplacono_przed']) ? '<tr><td class="l">Zapłacono przed akceptacją</td><td colspan="3">' . h(edok_zaplata_opis($doc)) . '</td></tr>' : '')
+        . '</table>';
 
     $html .= '<table class="kwoty"><tr>'
         . '<td class="lbl">Netto</td><td>' . h($doc['kwota_netto'] ?: '—') . '</td>'
@@ -1482,6 +1496,49 @@ function edok_elixir_export(array $docs, string $rachunek_zlecen_nrb): string {
     $content = $rows ? implode("\r\n", $rows) . "\r\n" : '';
     $encoded = @iconv('UTF-8', 'CP1250//TRANSLIT', $content);
     return $encoded !== false ? $encoded : $content;
+}
+
+/** Formy zapłaty faktury opłaconej przed akceptacją (edok_documents.forma_zaplaty). */
+const EDOK_FORMY_ZAPLATY = [
+    'przelew'    => 'Przelew',
+    'karta'      => 'Karta płatnicza',
+    'gotowka'    => 'Gotówka',
+    'potracenie' => 'Kompensata / potrącenie',
+    'inna'       => 'Inna',
+];
+
+/** Opis zapłaty przed akceptacją do wydruków/widoków, np. „12.09.2026, karta płatnicza”. */
+function edok_zaplata_opis(array $doc): string {
+    if (empty($doc['zaplacono_przed'])) return '';
+    $parts = [];
+    if (!empty($doc['data_zaplaty'])) $parts[] = date('d.m.Y', strtotime($doc['data_zaplaty']));
+    if (!empty($doc['forma_zaplaty'])) $parts[] = mb_strtolower(EDOK_FORMY_ZAPLATY[$doc['forma_zaplaty']] ?? $doc['forma_zaplaty']);
+    return $parts ? implode(', ', $parts) : 'tak';
+}
+
+/**
+ * Walidacja pól „zapłacono przed akceptacją” z formularza. Zwraca [zaplacono, data, forma, błędy].
+ */
+function edok_zaplata_from_post(array $post): array {
+    $zaplacono = !empty($post['zaplacono_przed']) ? 1 : 0;
+    $data      = $zaplacono ? trim((string)($post['data_zaplaty'] ?? '')) : '';
+    $forma     = $zaplacono ? (string)($post['forma_zaplaty'] ?? '') : '';
+    $errors    = [];
+    if ($zaplacono) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) $errors[] = 'Podaj datę zapłaty faktury.';
+        elseif ($data > date('Y-m-d'))                       $errors[] = 'Data zapłaty nie może być z przyszłości.';
+        if (!isset(EDOK_FORMY_ZAPLATY[$forma]))              $errors[] = 'Wybierz formę zapłaty.';
+    }
+    return [$zaplacono, $data ?: null, $forma, $errors];
+}
+
+/** Czy dokument można wyeksportować do pliku przelewów (zaakceptowany, nieopłacony wydatek z prawidłowym NRB). */
+function edok_przelew_exportable(array $d): bool {
+    return ($d['status'] ?? '') === 'zaakceptowany'
+        && ($d['kierunek'] ?? 'wydatek') === 'wydatek'
+        && empty($d['zaplacono_przed'])
+        && ($d['status_platnosci'] ?? 'nowy') !== 'oplacony'
+        && strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
 }
 
 /** Formaty pliku przelewów zbiorczych dostępne w Preliminarzu i na karcie dokumentu. */

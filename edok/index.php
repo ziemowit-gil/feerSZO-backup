@@ -83,9 +83,6 @@ unset($d);
 // (POST export_przelewy na edok/preliminarz.php: potwierdzenie NIP/NRB, pliki ELIXIR-O).
 $przelew_rachunki = edok_rachunki_list();
 $can_export = $przelew_rachunki && (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')));
-$exportable = fn(array $d): bool => $d['status'] === 'zaakceptowany'
-    && ($d['kierunek'] ?? 'wydatek') === 'wydatek'
-    && strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
 
 if (!empty($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
@@ -214,7 +211,7 @@ require_once __DIR__ . '/../includes/header.php';
   </select>
   <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-bank"></i> Eksportuj przelewy</button>
 </form>
-<p class="text-muted small mb-2">Zaznaczyć do eksportu przelewów można zaakceptowane wydatki z prawidłowym 26-cyfrowym rachunkiem kontrahenta.</p>
+<p class="text-muted small mb-2">Zaznaczyć do eksportu przelewów można zaakceptowane, jeszcze nieopłacone wydatki z prawidłowym 26-cyfrowym rachunkiem kontrahenta.</p>
 <?php endif; ?>
 
 <div class="table-responsive">
@@ -245,9 +242,10 @@ require_once __DIR__ . '/../includes/header.php';
       <?php foreach ($docs as $doc): ?>
       <tr>
         <?php if ($can_export): ?>
-        <td><?php if ($exportable($doc)): ?><input type="checkbox" class="form-check-input edok-export-check" value="<?= (int)$doc['id'] ?>" aria-label="Zaznacz <?= h($doc['number']) ?> do eksportu"><?php endif; ?></td>
+        <td><?php if (edok_przelew_exportable($doc)): ?><input type="checkbox" class="form-check-input edok-export-check" value="<?= (int)$doc['id'] ?>" aria-label="Zaznacz <?= h($doc['number']) ?> do eksportu"><?php endif; ?></td>
         <?php endif; ?>
-        <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?></td>
+        <td><code><?= h($doc['number']) ?></code><?php if (edok_is_test_number($doc['number'])): ?> <span class="badge bg-warning text-dark">TEST</span><?php endif; ?>
+          <?php if (!empty($doc['zaplacono_przed'])): ?> <span class="badge bg-success-subtle text-success-emphasis" title="Zapłacona przed akceptacją: <?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-cash-coin"></i> zapłacona</span><?php endif; ?></td>
         <td><?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? '<span class="badge bg-info text-dark">Przychód</span>' : '<span class="badge bg-secondary">Wydatek</span>' ?></td>
         <td><?= h($doc['kontrahent_nazwa']) ?></td>
         <td><?= h($doc['title']) ?></td>

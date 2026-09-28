@@ -42,6 +42,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $projekt          = $locked_dekretacja  ? $doc['projekt']         : trim($_POST['projekt'] ?? '');
         $mpk              = trim($_POST['mpk'] ?? '');
         $tytul_przelewu   = trim($_POST['tytul_przelewu'] ?? '');
+        [$zaplacono_przed, $data_zaplaty, $forma_zaplaty, $zaplata_errors] = $doc['kierunek'] === 'wydatek'
+            ? edok_zaplata_from_post($_POST) : [0, null, '', []];
+        if ($zaplata_errors) {
+            flash_set('danger', implode(' ', $zaplata_errors));
+            header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+            exit;
+        }
         if ($tytul_przelewu === '') {
             $tytul_przelewu = edok_generate_tytul_przelewu([
                 'typ_dokumentu'    => $doc['typ_dokumentu'],
@@ -57,11 +64,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         db_exec(
             "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?, zrodlo_przychodu=?,
-                kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, tytul_przelewu=?, updated_at=datetime('now')
+                kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, tytul_przelewu=?,
+                zaplacono_przed=?, data_zaplaty=?, forma_zaplaty=?, updated_at=datetime('now')
              WHERE id=?",
-            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu, $id]
+            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu,
+             $zaplacono_przed, $data_zaplaty, $forma_zaplaty, $id]
         );
-        edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Zaktualizowano dane dokumentu.');
+        edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Zaktualizowano dane dokumentu.'
+            . ($zaplacono_przed !== (int)$doc['zaplacono_przed'] || $data_zaplaty !== $doc['data_zaplaty'] || $forma_zaplaty !== $doc['forma_zaplaty']
+                ? ' Zapłacono przed akceptacją: ' . ($zaplacono_przed ? edok_zaplata_opis(['zaplacono_przed' => 1, 'data_zaplaty' => $data_zaplaty, 'forma_zaplaty' => $forma_zaplaty]) : 'nie') . '.'
+                : ''));
         flash_set('success', 'Dane zaktualizowane.');
         header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
         exit;
@@ -327,15 +339,16 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
     <a href="<?= APP_URL ?>/edok/index.php" class="edok-btn edok-btn-ghost edok-btn-sm" aria-label="Wróć"><i class="bi bi-arrow-left"></i></a>
     <code><?= h($doc['number']) ?></code>
     <?= edok_status_badge($doc['status']) ?>
+    <?php if (!empty($doc['zaplacono_przed'])): ?>
+    <span class="edok-badge edok-badge-success" title="Faktura zapłacona przed akceptacją"><i class="bi bi-cash-coin"></i> Zapłacona <?= h(edok_zaplata_opis($doc)) ?></span>
+    <?php endif; ?>
   </div>
   <?php
   $generated = edok_latest_generated_pdf($id);
   // Eksport przelewu — ten sam mechanizm co w Preliminarzu (POST na edok/preliminarz.php,
   // tam potwierdzenie NIP/rachunku przy pierwszym przelewie i pobranie pliku).
   $przelew_rachunki = edok_rachunki_list();
-  $can_export_przelew = $doc['status'] === 'zaakceptowany'
-      && ($doc['kierunek'] ?? 'wydatek') === 'wydatek'
-      && strlen(preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''))) === 26
+  $can_export_przelew = edok_przelew_exportable($doc)
       && $przelew_rachunki
       && (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')));
   ?>
@@ -428,6 +441,9 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <?php if ($doc['data_wystawienia']): ?><tr><td>Data wystawienia</td><td><?= date_pl($doc['data_wystawienia']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_sprzedazy']): ?><tr><td>Data sprzedaży/wykonania</td><td><?= date_pl($doc['data_sprzedazy']) ?></td></tr><?php endif; ?>
             <?php if ($doc['data_wplywu']): ?><tr><td>Data wpływu</td><td><?= date_pl($doc['data_wplywu']) ?></td></tr><?php endif; ?>
+            <?php if (!empty($doc['zaplacono_przed'])): ?>
+            <tr><td>Zapłacono przed akceptacją</td><td><?= h(edok_zaplata_opis($doc)) ?></td></tr>
+            <?php endif; ?>
             <?php if ($doc['kierunek'] === 'przychod' && $doc['zrodlo_przychodu']): ?>
             <tr><td>Źródło przychodu</td><td><?= h($doc['zrodlo_przychodu']) ?></td></tr>
             <?php endif; ?>
@@ -550,6 +566,30 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <input type="text" name="projekt" class="form-control form-control-sm" value="<?= h($doc['projekt']) ?>" <?= $locked_dekretacja ? 'readonly' : '' ?>>
           </div>
         </div>
+        <?php if ($doc['kierunek'] === 'wydatek'): $zp = !empty($doc['zaplacono_przed']); ?>
+        <div class="tw-mb-2 tw-rounded-lg tw-border tw-border-solid tw-border-slate-200 tw-p-2">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" name="zaplacono_przed" id="e_zaplacono" value="1" <?= $zp ? 'checked' : '' ?>
+              onchange="document.getElementById('e_zaplacono_fields').style.display = this.checked ? '' : 'none'">
+            <label class="form-check-label tw-text-sm" for="e_zaplacono">Faktura już zapłacona — akceptacja po zapłacie</label>
+          </div>
+          <div class="row g-2 mt-1" id="e_zaplacono_fields" style="<?= $zp ? '' : 'display:none' ?>">
+            <div class="col-sm-6">
+              <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_data_zaplaty">Data zapłaty</label>
+              <input type="date" name="data_zaplaty" id="e_data_zaplaty" class="form-control form-control-sm" max="<?= date('Y-m-d') ?>" value="<?= h($doc['data_zaplaty'] ?? '') ?>">
+            </div>
+            <div class="col-sm-6">
+              <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_forma_zaplaty">Forma zapłaty</label>
+              <select name="forma_zaplaty" id="e_forma_zaplaty" class="form-select form-select-sm">
+                <option value="">— wybierz —</option>
+                <?php foreach (EDOK_FORMY_ZAPLATY as $k => $l): ?>
+                <option value="<?= h($k) ?>" <?= ($doc['forma_zaplaty'] ?? '') === $k ? 'selected' : '' ?>><?= h($l) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
         <div class="tw-mb-2">
           <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">MPK</label>
           <input type="text" name="mpk" class="form-control form-control-sm" value="<?= h($doc['mpk']) ?>">
