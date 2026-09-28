@@ -90,6 +90,14 @@ $zp_pfs    = edok_proformy_do_rozliczenia($zp_pf_id ?: null, $zp_doc_id);
           <input type="text" name="zwrot_rachunek" id="zp_zwrot_rachunek" class="form-control form-control-sm font-monospace" maxlength="40" value="<?= h(edok_nrb_format((string)($zp_vals['zwrot_rachunek'] ?? ''))) ?>" placeholder="26 cyfr" <?= $zp_dis ?>>
         </div>
       </div>
+      <div class="mt-2">
+        <label class="form-label small mb-1" for="zp_dowod">Dowód zapłaty <span class="text-muted" id="zp_dowod_req">(opcjonalnie)</span></label>
+        <?php if (!empty($zp_vals['dowod_zaplaty_path']) && $zp_doc_id): ?>
+        <div class="small mb-1"><i class="bi bi-paperclip"></i> <a href="<?= APP_URL ?>/edok/file.php?id=<?= (int)$zp_doc_id ?>&type=dowod" target="_blank">obecny plik</a><?= $zp_locked ? '' : ' — wybierz nowy, żeby go zastąpić' ?></div>
+        <?php endif; ?>
+        <input type="file" name="dowod_zaplaty" id="zp_dowod" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.docx" <?= $zp_dis ?>>
+        <div class="form-text">Potwierdzenie z terminala, paragon, KP albo wyciąg. Zostanie doklejony do dokumentu końcowego.</div>
+      </div>
       <div class="form-text mt-1" id="zp_hint_org">Po akceptacji dokument dostanie status płatności „Opłacony” i nie trafi do eksportu przelewów.</div>
       <div class="form-text mt-1" id="zp_hint_osoba" style="display:none">Po akceptacji dokument trafi do eksportu przelewów jako <strong>zwrot kosztów</strong> na rachunek osoby, która zapłaciła.</div>
     </div>
@@ -119,6 +127,7 @@ function edokZpSync(fromProforma) {
   document.getElementById('zp_zwrot_fields').style.display = osoba ? '' : 'none';
   document.getElementById('zp_hint_org').style.display = osoba ? 'none' : '';
   document.getElementById('zp_hint_osoba').style.display = osoba ? '' : 'none';
+  document.getElementById('zp_dowod_req').textContent = osoba ? '(wymagany przy zwrocie kosztów)' : '(opcjonalnie)';
   // Wybór proformy podpowiada kontrahenta, jeśli pola są jeszcze puste.
   if (fromProforma && zProformy) {
     var o = pfSel.selectedOptions[0];

@@ -170,6 +170,9 @@ function edok_migrate(): void {
         'zwrot_rachunek'         => "TEXT NOT NULL DEFAULT ''",
         // Faktura końcowa rozliczająca zapłaconą proformę (edok_documents.id proformy).
         'proforma_id'            => "INTEGER",
+        // Dowód zapłaty (potwierdzenie z terminala, KP, wyciąg) — wymagany przy zwrocie
+        // kosztów, opcjonalny przy zapłacie przez organizację. Doklejany do dokumentu końcowego.
+        'dowod_zaplaty_path'     => "TEXT NOT NULL DEFAULT ''",
     ]);
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
@@ -971,7 +974,8 @@ function edok_print_html(array $doc): string {
 
     $html .= '<table class="head-table"><tr><td class="l">' . ($jest_przychod ? 'Kontrahent / darczyńca' : 'Kontrahent') . '</td><td>' . h($doc['kontrahent_nazwa'])
         . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr>'
-        . (!empty($doc['zaplacono_przed']) ? '<tr><td class="l">Zapłacono przed akceptacją</td><td colspan="3">' . h(edok_zaplata_opis($doc)) . '</td></tr>' : '')
+        . (!empty($doc['zaplacono_przed']) ? '<tr><td class="l">Zapłacono przed akceptacją</td><td colspan="3">' . h(edok_zaplata_opis($doc))
+            . (($doc['forma_zaplaty'] ?? '') !== EDOK_FORMA_PROFORMA ? ' · dowód zapłaty: ' . (!empty($doc['dowod_zaplaty_path']) ? 'dołączony' : 'brak') : '') . '</td></tr>' : '')
         . '</table>';
 
     $html .= '<table class="kwoty"><tr>'
@@ -1054,13 +1058,13 @@ function edok_generate_final_pdf(int $doc_id): string {
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 10);
 
-    $orig_path = $doc['file_path'] ? UPLOAD_DIR . ltrim($doc['file_path'], '/') : '';
-    $ext = $orig_path ? strtolower(pathinfo($orig_path, PATHINFO_EXTENSION)) : '';
-
-    if ($orig_path && is_file($orig_path)) {
+    $import = function (string $rel) use ($pdf): void {
+        $path = $rel !== '' ? UPLOAD_DIR . ltrim($rel, '/') : '';
+        if ($path === '' || !is_file($path)) return;
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         if ($ext === 'pdf') {
             try {
-                $count = $pdf->setSourceFile($orig_path);
+                $count = $pdf->setSourceFile($path);
                 for ($i = 1; $i <= $count; $i++) {
                     $tpl  = $pdf->importPage($i);
                     $size = $pdf->getTemplateSize($tpl);
@@ -1071,11 +1075,14 @@ function edok_generate_final_pdf(int $doc_id): string {
         } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
             $pdf->AddPage('P', 'A4');
             try {
-                $pdf->Image($orig_path, 10, 10, 190);
+                $pdf->Image($path, 10, 10, 190);
             } catch (\Throwable $e) {}
         }
         // XML (KSeF) / DOCX — nie da się zaimportować jako strony PDF, pomijane.
-    }
+    };
+    $import((string)$doc['file_path']);
+    // Dowód zapłaty przed akceptacją — zaraz za dokumentem źródłowym, przed kartą.
+    if (!empty($doc['zaplacono_przed'])) $import((string)($doc['dowod_zaplaty_path'] ?? ''));
 
     $card_count = $pdf->setSourceFile($card_path);
     for ($i = 1; $i <= $card_count; $i++) {
@@ -1535,6 +1542,24 @@ function edok_nrb_valid(string $nrb): bool {
     $mod = 0;
     foreach (str_split($num, 7) as $chunk) $mod = (int)(($mod . $chunk) % 97);
     return $mod === 1;
+}
+
+/**
+ * Obsługa pliku „dowód zapłaty” z formularza (pole dowod_zaplaty). Zwraca
+ * [ścieżka|'' , błędy]. $obecna — już zapisany plik (edycja); zwrot kosztów
+ * wymaga dowodu, zapłata przez organizację — nie. Proforma go nie potrzebuje.
+ */
+function edok_dowod_zaplaty_upload(array $zaplata, string $obecna = ''): array {
+    if (empty($zaplata['zaplacono_przed']) || $zaplata['forma_zaplaty'] === EDOK_FORMA_PROFORMA) return ['', []];
+    if (!empty($_FILES['dowod_zaplaty']['tmp_name'])) {
+        $path = handle_upload('dowod_zaplaty', 'edok_docs');
+        if (!$path) return [$obecna, ['Nie udało się zapisać dowodu zapłaty (dozwolone: PDF, JPG, PNG, DOCX, max 20 MB).']];
+        return [$path, []];
+    }
+    if ($obecna === '' && ($zaplata['zaplacil'] ?? '') === 'osoba') {
+        return ['', ['Dołącz dowód zapłaty — przy zwrocie kosztów jest wymagany (potwierdzenie z terminala, paragon, wyciąg).']];
+    }
+    return [$obecna, []];
 }
 
 /** Czy dokument był zapłacony z prywatnych środków i czeka na zwrot kosztów. */

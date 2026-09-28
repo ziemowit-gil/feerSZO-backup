@@ -134,6 +134,9 @@ require_once __DIR__ . '/../includes/header.php';
     </a>
     <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
     <a href="<?= APP_URL ?>/edok/raport_analityczny.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a>
+    <?php if (is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy')): ?>
+    <a href="<?= APP_URL ?>/edok/zaplacone_przed.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cash-coin"></i> Zapłacone przed akceptacją</a>
+    <?php endif; ?>
     <a href="<?= APP_URL ?>/edok/archiwum.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive"></i> Archiwum miesięczne</a>
     <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
     <?php if (is_admin() || edok_has_role('ksiegowy')): ?>

@@ -89,6 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($stawka_vat !== '' && !isset(CRM_OFFER_VAT_RATES[$stawka_vat])) $errors[] = 'Nieprawidłowa stawka VAT.';
 
     $file_path = null;
+    $dowod_zaplaty_path = '';
+    if (!$errors && $kierunek === 'wydatek') {
+        [$dowod_zaplaty_path, $dowod_errors] = edok_dowod_zaplaty_upload($zaplata);
+        array_push($errors, ...$dowod_errors);
+    }
     if (!$errors) {
         $file_path = $ksef_file_path !== '' ? $ksef_file_path : handle_upload('file', 'edok_docs');
         if (!$file_path) $errors[] = 'Nie udało się zapisać pliku (dozwolone: PDF, JPG, PNG, DOCX, max 20 MB).';
@@ -140,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'zwrot_osoba'         => $zaplata['zwrot_osoba'],
             'zwrot_rachunek'      => $zaplata['zwrot_rachunek'],
             'proforma_id'         => $proforma_id,
+            'dowod_zaplaty_path'  => $dowod_zaplaty_path,
             'tytul_przelewu'      => $tytul_przelewu,
             'file_path'           => $file_path,
             'file_size'           => is_file(UPLOAD_DIR . $file_path) ? filesize(UPLOAD_DIR . $file_path) : null,
