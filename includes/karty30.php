@@ -3212,10 +3212,13 @@ function ti_course_closed_guard(array $in, array $extra_ids = []): ?string {
 
 /**
  * Wzorzec tygodniowy zajęć grupy — do wydruku "Plan zajęć" (PDF/XLS/DOCX) dla
- * ucznia/rodzica, jak siatka lekcji w dzienniku elektronicznym. Wyznaczany z
- * odrębnych kombinacji dzień tygodnia/godziny widocznych w sesjach z ostatnich
- * ~90 dni (obejmuje wygenerowane przyszłe i niedawne odbyte lekcje) — nie
- * zależy od istnienia reguły cyklicznej (k30_ti_series). Dorzuca też dane
+ * ucznia/rodzica, jak siatka lekcji w dzienniku elektronicznym. Stan NA DZIEŃ
+ * WYDRUKU: z nieodwołanych terminów od dziś (okno 8 tygodni), a lekcje
+ * przeniesione jednorazowo liczą się wg PIERWOTNEGO slotu (jak ti_librus_grid),
+ * więc stary termin grupy po zmianie planu ani pojedyncze przeniesienie nie
+ * dokładają fałszywych slotów. Gdy grupa nie ma już przyszłych terminów
+ * (zakończona) — ostatnie 90 dni, oznaczone source='recent'. Nie zależy od
+ * istnienia reguły cyklicznej (k30_ti_series). Dorzuca też dane
  * kursu (kontakt prowadzącego) i datę pierwszej lekcji — wspólne dla wszystkich
  * trzech formatów wydruku.
  * @return array{
@@ -3235,13 +3238,24 @@ function ti_course_weekly_slots(int $course_id): array {
         [$course_id]
     )['d'] ?? '');
 
-    $slots = db_all(
-        "SELECT DISTINCT CAST(strftime('%w', lesson_date) AS INTEGER) AS dow, time_from, time_to, lesson_method
+    require_once __DIR__ . '/ti_reschedule.php';
+    k30_ti_reschedule_migrate();   // kolumny rescheduled_from_*
+    // Przeniesiona lekcja → jej pierwotny slot (dzień/godziny sprzed przeniesienia)
+    $slot_sql =
+        "SELECT CAST(strftime('%w', COALESCE(NULLIF(rescheduled_from_date,''), lesson_date)) AS INTEGER) AS dow,
+                COALESCE(NULLIF(rescheduled_from_time_from,''), time_from) AS time_from,
+                COALESCE(NULLIF(rescheduled_from_time_to,''),   time_to)   AS time_to,
+                MAX(lesson_method) AS lesson_method, COUNT(*) AS n
          FROM k30_ti_sessions
-         WHERE course_id=? AND status != 'cancelled' AND time_from != '' AND lesson_date >= date('now','-90 days')
-         ORDER BY time_from",
-        [$course_id]
-    );
+         WHERE course_id=? AND status != 'cancelled' AND time_from != '' AND lesson_date BETWEEN ? AND ?
+         GROUP BY 1, 2, 3 ORDER BY 2";
+    $as_of  = date('Y-m-d');
+    $source = 'upcoming';
+    $slots  = db_all($slot_sql, [$course_id, $as_of, date('Y-m-d', strtotime('+8 weeks'))]);
+    if (!$slots) {
+        $source = 'recent';
+        $slots  = db_all($slot_sql, [$course_id, date('Y-m-d', strtotime('-90 days')), $as_of]);
+    }
     $rows_time = [];
     $grid = [];
     foreach ($slots as $s) {
@@ -3253,6 +3267,8 @@ function ti_course_weekly_slots(int $course_id): array {
     return [
         'course'       => $course,
         'first_lesson' => $first_lesson,
+        'as_of'        => $as_of,
+        'source'       => $source,   // upcoming = od dziś; recent = grupa bez przyszłych terminów
         'rows_time'    => $rows_time,
         'grid'         => $grid,
         'dow_cols'     => [1 => 'Poniedziałek', 2 => 'Wtorek', 3 => 'Środa', 4 => 'Czwartek', 5 => 'Piątek', 6 => 'Sobota', 0 => 'Niedziela'],
@@ -3287,7 +3303,7 @@ function ti_instructor_plan_grouped(int $target_uid, int $weeks): array {
                GROUP_CONCAT(cl.name, ', ') AS student_names
         FROM k30_ti_sessions s
         JOIN k30_ti_courses c ON c.id = s.course_id
-        LEFT JOIN k30_ti_attendance a ON a.session_id = s.id
+        LEFT JOIN k30_ti_attendance a ON a.session_id = s.id AND COALESCE(a.cancelled,0) = 0   -- stan na dziś: bez odwołanych
         LEFT JOIN k30_clients cl ON cl.id = a.client_id
         WHERE COALESCE(s.instructor_id, c.instructor_id) = CAST(? AS INTEGER)
           AND s.lesson_date BETWEEN ? AND ?

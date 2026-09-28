@@ -32,6 +32,7 @@ $x = new XlsxWriter();
 $x->addSheet('Plan zajęć');
 $x->writeRow(['Plan zajęć — ' . $course['name']], ['header']);
 $x->writeRow(['Prowadzący: ' . ($course['instructor_name'] ?: '—')]);
+$x->writeRow(['Stan na dzień: ' . date('d.m.Y', strtotime($WP['as_of'])) . ($WP['source'] === 'recent' ? ' (brak nadchodzących terminów — plan wg ostatnich zajęć)' : '')]);
 if ($WP['first_lesson'] !== '') $x->writeRow(['Zajęcia od: ' . date('d.m.Y', strtotime($WP['first_lesson']))]);
 if ($_contact) $x->writeRow(['Kontakt do prowadzącego: ' . implode(' · ', $_contact)]);
 $x->writeRow([]);

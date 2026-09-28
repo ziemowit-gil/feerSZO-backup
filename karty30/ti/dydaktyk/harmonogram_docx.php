@@ -39,6 +39,7 @@ $section->addText(
     ($org !== '' ? $org . '   ·   ' : '') . 'Prowadzący: ' . ($course['instructor_name'] ?: '—'),
     ['size' => 9, 'color' => '555555']
 );
+$section->addText('Stan na dzień: ' . date('d.m.Y', strtotime($WP['as_of'])) . ($WP['source'] === 'recent' ? ' (brak nadchodzących terminów — plan wg ostatnich zajęć)' : ''), ['size' => 9, 'bold' => true]);
 if ($WP['first_lesson'] !== '') {
     $section->addText('Zajęcia od: ' . date('d.m.Y', strtotime($WP['first_lesson'])), ['size' => 9, 'bold' => true]);
 }

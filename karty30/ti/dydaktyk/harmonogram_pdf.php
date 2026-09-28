@@ -27,6 +27,7 @@ $org = defined('ORG_NAME') ? ORG_NAME : '';
 
 $_contact = array_filter([$course['instructor_email'] ?? '', $course['instructor_phone'] ?? '']);
 $_meta = [];
+$_meta[] = 'Stan na dzień: ' . date('d.m.Y', strtotime($WP['as_of'])) . ($WP['source'] === 'recent' ? ' (brak nadchodzących terminów — plan wg ostatnich zajęć)' : '');
 if ($WP['first_lesson'] !== '') $_meta[] = 'Zajęcia od: ' . date('d.m.Y', strtotime($WP['first_lesson']));
 if ($_contact) $_meta[] = 'Kontakt: ' . implode(' · ', $_contact);
 
