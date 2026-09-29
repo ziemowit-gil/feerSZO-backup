@@ -5,10 +5,12 @@
  *
  * Saldo konta i per grupa (także archiwalne), wszystkie rozliczenia ze
  * wszystkich okresów (z wycofanymi), historia wpłat. Każde rozliczenie
- * otwiera szczegóły w billing_view.php. Tylko odczyt, do wydruku.
+ * otwiera szczegóły w billing_view.php. Do wydruku; jedyna akcja zapisu to
+ * „Przelicz ceny” (ti_price_reprice_client — te same zasady co w Rozliczeniach).
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { http_response_code(403); die('Brak uprawnień.'); }
@@ -16,6 +18,20 @@ if (!dyd_is_staff()) { http_response_code(403); die('Brak uprawnień.'); }
 $client_id = (int)($_GET['client_id'] ?? 0);
 $cl = $client_id ? db_one("SELECT id, name FROM k30_clients WHERE id=?", [$client_id]) : null;
 if (!$cl) { http_response_code(404); die('Nie znaleziono kursanta.'); }
+
+// „Przelicz ceny” — wszystkie rozliczenia kursanta albo jedno (PRG)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'reprice') {
+    csrf_check();
+    $r   = ti_price_reprice_client($client_id, false, (int)($_POST['billing_id'] ?? 0));
+    $msg = ti_price_change_rebill_msg($r);
+    flash_set($r['manual'] ? 'warning' : 'success', $msg !== '' ? 'Przeliczono ceny.' . $msg : 'Kwoty są aktualne — nic do przeliczenia.');
+    header('Location: client_billings_view.php?client_id=' . $client_id); exit;
+}
+$flash = flash_get();
+$rp = ti_price_reprice_client($client_id, true);   // podgląd: co zmieniłoby przeliczenie
+$rp_map = [];
+foreach ($rp['updated'] as $x) $rp_map[$x['billing_id']] = $x + ['ok' => true];
+foreach ($rp['manual'] as $x)  $rp_map[$x['billing_id']] = $x + ['ok' => false];
 
 $months_pl = [1=>'styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
 $zl  = fn(float $v): string => number_format($v, 2, ',', ' ') . ' zł';
@@ -66,6 +82,12 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
   .bar { display:flex; gap:8px; justify-content:flex-end; max-width:980px; margin:16px auto -8px; padding:0 4px; }
   .bar a, .bar button { font:inherit; font-size:13px; border:1px solid var(--line); background:#fff; border-radius:6px; padding:5px 12px; color:var(--ink); text-decoration:none; cursor:pointer; }
   .bar button { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .msg { border-radius:8px; padding:8px 12px; margin-bottom:14px; border:1px solid #86efac; background:#f0fdf4; }
+  .msg.warning { border-color:#fcd34d; background:#fffbeb; } .msg.danger { border-color:#fca5a5; background:#fef2f2; }
+  .rp { background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:8px 12px; margin:14px 0 0; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .btn { font:inherit; font-size:12.5px; border:1px solid var(--acc); background:#fff; color:var(--acc); border-radius:6px; padding:3px 10px; cursor:pointer; }
+  .btn.pri { background:var(--acc); color:#fff; }
+  @media print { .rp, .btn, .msg { display:none !important; } }
   @media (max-width:600px) { .sheet { margin:12px; padding:18px 16px; } }
   @media print { body { background:#fff; } .bar { display:none; } .sheet { border:0; margin:0; padding:0; max-width:none; } a { color:inherit; text-decoration:none; } }
 </style>
@@ -77,6 +99,7 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
 </div>
 <main class="sheet">
   <h1>Rozliczenia — <?= h($cl['name']) ?></h1>
+  <?php if ($flash): ?><div class="msg <?= h($flash['type']) ?>" role="status"><?= h($flash['msg']) ?></div><?php endif; ?>
 
   <div class="grid">
     <div class="kpi"><div class="l">Należności razem</div><div class="v"><?= $zl($alloc['charges']) ?></div></div>
@@ -84,6 +107,20 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
     <div class="kpi"><div class="l">Do zapłaty</div><div class="v <?= $alloc['debt'] > 0.005 ? 'bad' : '' ?>"><?= $zl($alloc['debt']) ?></div></div>
     <div class="kpi"><div class="l">Nadpłata</div><div class="v <?= $alloc['credit'] > 0.005 ? 'ok' : '' ?>"><?= $zl($alloc['credit']) ?></div></div>
   </div>
+
+  <?php if ($rp['updated'] || $rp['manual']): ?>
+  <div class="rp">
+    <span>Po aktualnych cenach zmieniłoby się <?= count($rp['updated']) + count($rp['manual']) ?> rozliczeń
+      <?= $rp['manual'] ? '(' . count($rp['manual']) . ' do ręcznej korekty — opłacone lub z fakturą)' : '' ?> — zob. kolumna „Wg cen”.</span>
+    <?php if ($rp['updated']): ?>
+    <form method="post" style="margin-left:auto" onsubmit="return confirm('Przeliczyć <?= count($rp['updated']) ?> rozliczeń po aktualnych cenach?')">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="reprice">
+      <button class="btn pri">Przelicz ceny (<?= count($rp['updated']) ?>)</button>
+    </form>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
   <h2>Saldo w grupach</h2>
   <div class="wrap"><table>
@@ -109,7 +146,7 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
 
   <h2>Rozliczenia</h2>
   <div class="wrap"><table>
-    <thead><tr><th>Okres</th><th>Grupa</th><th class="r">Godz.</th><th class="r">Należność</th><th class="r">Zapłacono</th><th class="r">Do zapłaty</th><th>Termin</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Okres</th><th>Grupa</th><th class="r">Godz.</th><th class="r">Należność</th><th class="r">Zapłacono</th><th class="r">Do zapłaty</th><th class="r">Wg cen</th><th>Termin</th><th>Status</th><th></th></tr></thead>
     <tbody>
     <?php foreach ($billings as $b):
         $x    = $b['status'] === 'cancelled';
@@ -124,13 +161,28 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
         <td class="r"><?= $zl($due) ?><?= abs((float)($b['adjustment'] ?? 0)) > 0.005 ? '<div class="mut" style="font-size:11.5px" title="' . h((string)$b['adjustment_note']) . '">w tym korekta ' . $zl((float)$b['adjustment']) . '</div>' : '' ?></td>
         <td class="r"><?= $zl($p) ?></td>
         <td class="r <?= $left > 0.005 ? 'bad' : '' ?>"><?= $zl($left) ?></td>
+        <td class="r keep">
+          <?php if (($b['manual_amount'] ?? null) !== null): ?>
+            <span class="tag" title="<?= h('Kwota ręczna (indywidualne): ' . ($b['manual_note'] ?? '')) ?>">kwota ręczna</span>
+          <?php elseif (isset($rp_map[(int)$b['id']])): $rx = $rp_map[(int)$b['id']]; ?>
+            <strong><?= $zl($rx['new']) ?></strong>
+            <?php if ($rx['ok']): ?>
+            <form method="post" style="display:inline">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_op" value="reprice">
+              <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+              <button class="btn" title="Przelicz to rozliczenie">Przelicz</button>
+            </form>
+            <?php else: ?><div class="mut" style="font-size:11.5px">ręcznie: <?= h($rx['why']) ?></div><?php endif; ?>
+          <?php elseif (!$x): ?><span class="mut">aktualna</span><?php endif; ?>
+        </td>
         <td class="keep" style="white-space:nowrap"><?= !empty($b['due_date']) ? h(date('d.m.Y', strtotime((string)$b['due_date']))) : '—' ?></td>
         <td class="keep"><?= h($status_l[$b['status']] ?? $b['status']) ?><?= ($b['doc_mode'] ?? '') === 'statement' ? '<span class="tag">bez FVAT</span>' : '' ?><?= trim((string)($b['invoice_no'] ?? '')) !== '' ? '<span class="tag">FV ' . h($b['invoice_no']) . '</span>' : '' ?>
           <?php if ($x && ($b['cancel_reason'] ?? '') !== ''): ?><div class="mut" style="font-size:11.5px"><?= h($b['cancel_reason']) ?></div><?php endif; ?></td>
         <td class="keep r"><a href="billing_view.php?id=<?= (int)$b['id'] ?>">Podgląd</a></td>
       </tr>
     <?php endforeach; ?>
-    <?php if (!$billings): ?><tr><td colspan="9" class="mut">Brak wystawionych rozliczeń.</td></tr><?php endif; ?>
+    <?php if (!$billings): ?><tr><td colspan="10" class="mut">Brak wystawionych rozliczeń.</td></tr><?php endif; ?>
     </tbody>
   </table></div>
 
