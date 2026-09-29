@@ -345,6 +345,7 @@ function ti_price_change_rebill(int $change_id): array {
     $touched = [];
     foreach ($rows as $b) {
         $label = sprintf('%s %02d/%d', $b['client_name'], (int)$b['month'], (int)$b['year']);
+        if (isset($b['manual_amount']) && $b['manual_amount'] !== null) continue;   // kwota ręczna — nie ruszamy
         $calc  = k30_ti_calculate_billing((int)$b['client_id'], (int)$b['month'], (int)$b['year'], (int)$b['course_id']);
         $new   = round((float)$calc['amount'], 2);
         $old   = round((float)$b['amount'], 2);
@@ -374,7 +375,6 @@ function ti_price_change_rebill(int $change_id): array {
 function ti_price_reprice_month(int $month, int $year, int $course_id = 0, bool $dry = false): array {
     require_once __DIR__ . '/karty30.php';
     require_once __DIR__ . '/ti_payments.php';
-    $out  = ['updated' => [], 'manual' => []];
     $rows = db_all(
         "SELECT b.*, cl.name AS client_name FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
           WHERE b.month=? AND b.year=? AND b.status IN ('issued','paid')"
@@ -382,8 +382,33 @@ function ti_price_reprice_month(int $month, int $year, int $course_id = 0, bool 
           ORDER BY cl.name, b.course_id",
         $course_id ? [$month, $year, $course_id] : [$month, $year]
     );
+    return ti_price_reprice_rows($rows, $dry);
+}
+
+/** „Przelicz ceny” dla wszystkich rozliczeń kursanta (wszystkie okresy); $only_id = tylko jedno. */
+function ti_price_reprice_client(int $client_id, bool $dry = false, int $only_id = 0): array {
+    require_once __DIR__ . '/karty30.php';
+    require_once __DIR__ . '/ti_payments.php';
+    $rows = db_all(
+        "SELECT b.*, cl.name AS client_name FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
+          WHERE b.client_id=? AND b.status IN ('issued','paid')" . ($only_id ? " AND b.id=?" : '') . "
+          ORDER BY b.year, b.month, b.course_id",
+        $only_id ? [$client_id, $only_id] : [$client_id]
+    );
+    return ti_price_reprice_rows($rows, $dry);
+}
+
+/**
+ * Wspólny rdzeń „Przelicz ceny”: dla każdego rozliczenia kwota z kalkulatora
+ * (aktualne ceny i lekcje). Kwoty ręczne pomijane; opłacone/zafakturowane → manual.
+ * @return array{updated: list<array>, manual: list<array>}
+ */
+function ti_price_reprice_rows(array $rows, bool $dry): array {
+    $out = ['updated' => [], 'manual' => []];
     $touched = [];
     foreach ($rows as $b) {
+        if (isset($b['manual_amount']) && $b['manual_amount'] !== null) continue;   // kwota ręczna (indywidualne)
+        $month = (int)$b['month']; $year = (int)$b['year'];
         $calc  = k30_ti_calculate_billing((int)$b['client_id'], $month, $year, (int)$b['course_id']);
         $new   = round((float)$calc['amount'], 2);
         $old   = round((float)$b['amount'], 2);

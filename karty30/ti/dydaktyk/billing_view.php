@@ -27,6 +27,7 @@ $zl   = fn(float $v): string => number_format($v, 2, ',', ' ') . ' zł';
 
 // Stawki z dnia lekcji — z kalkulatora rozliczeń (jedno źródło prawdy)
 $calc  = k30_ti_calculate_billing($client_id, $m, $y);
+$calc_one = $bcourse > 0 ? k30_ti_calculate_billing($client_id, $m, $y, $bcourse) : $calc;
 $rates = [];
 foreach ($calc['courses'] as $cc) $rates[(int)$cc['course_id']] = $cc;
 
@@ -144,7 +145,8 @@ $transfers = db_all("SELECT amount, paid_at, note FROM k30_ti_payments WHERE cli
   <h2>Kwota rozliczenia</h2>
   <table>
     <tbody>
-      <tr><td>Zajęcia (<?= rtrim(rtrim(number_format((float)$b['hours_billed'], 2, ',', ''), '0'), ',') ?> h)</td><td class="r"><?= $zl((float)$b['amount']) ?></td></tr>
+      <tr><td>Zajęcia (<?= rtrim(rtrim(number_format((float)$b['hours_billed'], 2, ',', ''), '0'), ',') ?> h)<?php if (($b['manual_amount'] ?? null) !== null): ?>
+        <div class="note">Kwota ręczna (rozliczenie indywidualne)<?= ($b['manual_note'] ?? '') !== '' ? ': ' . h($b['manual_note']) : '' ?><?= ($b['manual_by_name'] ?? '') !== '' ? ' — ' . h($b['manual_by_name']) : '' ?>; z cennika <?= $zl((float)$calc_one['amount']) ?></div><?php endif; ?></td><td class="r"><?= $zl((float)$b['amount']) ?></td></tr>
       <?php if (abs((float)($b['adjustment'] ?? 0)) > 0.005): ?>
       <tr><td>Korekta<?= ($b['adjustment_note'] ?? '') !== '' ? '<div class="note">' . h($b['adjustment_note']) . '</div>' : '' ?></td><td class="r"><?= ((float)$b['adjustment'] > 0 ? '+' : '') . $zl((float)$b['adjustment']) ?></td></tr>
       <?php endif; ?>

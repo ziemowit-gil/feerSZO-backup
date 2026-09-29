@@ -352,10 +352,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $val  = abs($val);
         $adj  = $kind === 'discount' ? -$val : $val;
         $note = trim($_POST['adj_note'] ?? '');
-        if ($bid) {
+        if ($bid && ti_debt_transfers_active($bid)) {
+            // Korekta nadpisałaby kwotę przeniesionej niedopłaty (ta też siedzi w adjustment)
+            flash_set('danger', 'Rozliczenie ma przeniesioną niedopłatę — najpierw cofnij przeniesienie, potem zmień korektę.');
+        } elseif ($bid) {
             db()->prepare("UPDATE k30_ti_billing SET adjustment=?, adjustment_note=? WHERE id=?")
                ->execute([$adj, $note, $bid]);
             flash_set('success', $adj == 0 ? 'Korekta usunięta.' : 'Korekta zapisana.');
+        }
+        header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
+    }
+
+    // Kwota ręczna — rozliczenie indywidualne (kod 9999): kierownik wpisuje należność
+    // za zajęcia zamiast kwoty z kalkulatora; puste pole = wróć do wyliczenia.
+    if ($op === 'set_manual_amount') {
+        $bid = (int)($_POST['billing_id'] ?? 0);
+        $raw = trim(str_replace([' ', ','], ['', '.'], (string)($_POST['manual_amount'] ?? '')));
+        $b0  = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=? AND status IN ('issued','paid')", [$bid]) : null;
+        $note = mb_substr(trim((string)($_POST['manual_note'] ?? '')), 0, 300);
+        if (!$b0) {
+            flash_set('danger', 'Nie znaleziono rozliczenia.');
+        } elseif (!k30_ti_billing_is_individual($b0)) {
+            flash_set('danger', 'Kwotę ręczną można ustawić tylko przy rozliczeniu indywidualnym (kod 9999).');
+        } elseif (ti_billing_has_invoice($b0)) {
+            flash_set('danger', 'Z rozliczenia wystawiono fakturę — zmiana kwoty wymaga korekty faktury.');
+        } elseif ($raw === '') {
+            db()->prepare("UPDATE k30_ti_billing SET manual_amount=NULL, manual_note='', manual_by_name=?, manual_at=datetime('now') WHERE id=?")
+                ->execute([$dyd_name, $bid]);
+            k30_ti_issue_billing((int)$b0['client_id'], (int)$b0['month'], (int)$b0['year'], (string)($b0['notes'] ?? ''), (int)$b0['course_id']);
+            ti_billing_recompute((int)$b0['client_id']);
+            flash_set('success', 'Kwota ręczna usunięta — rozliczenie liczone z cennika.');
+        } elseif (!is_numeric($raw) || (float)$raw < 0) {
+            flash_set('danger', 'Podaj kwotę w złotych (np. 350,00).');
+        } elseif ($note === '') {
+            flash_set('danger', 'Podaj uzasadnienie kwoty ręcznej (np. ustalenia z opiekunem).');
+        } else {
+            $val = round((float)$raw, 2);
+            db()->prepare("UPDATE k30_ti_billing SET manual_amount=?, amount=?, manual_note=?, manual_by_name=?, manual_at=datetime('now') WHERE id=?")
+                ->execute([$val, $val, $note, $dyd_name, $bid]);
+            ti_billing_recompute((int)$b0['client_id']);
+            flash_set('success', 'Ustawiono kwotę ręczną ' . number_format($val, 2, ',', ' ') . ' zł (wcześniej ' . number_format((float)$b0['amount'], 2, ',', ' ') . ' zł).');
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -1046,6 +1082,11 @@ echo '<main id="main" class="dyd-wrap">';
               <?php foreach ($bpay['codes'] as $code): ?>
               <span class="badge <?= $code===9999 ? 'bg-warning text-dark' : 'bg-light text-secondary border' ?>" title="Kod modelu rozliczania"><?= $code===9999 ? '9999 · indyw.' : 'kod '.(int)$code ?></span>
               <?php endforeach; ?>
+              <?php if (($b['manual_amount'] ?? null) !== null): ?>
+              <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="cursor:help"
+                    title="<?= h('Kwota ręczna ' . number_format((float)$b['manual_amount'], 2, ',', ' ') . ' zł — ' . ($b['manual_note'] ?? '') . (($b['manual_by_name'] ?? '') !== '' ? ' (' . $b['manual_by_name'] . ')' : '')) ?>">
+                <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>kwota ręczna</span>
+              <?php endif; ?>
             </div>
             <?php endif; ?>
             <?php if (!empty($bpay['account']) || !empty($bpay['title'])): ?>
@@ -1613,6 +1654,34 @@ echo '<main id="main" class="dyd-wrap">';
           <p class="text-body-secondary small mb-0">Brak zarejestrowanych wpłat.</p>
           <?php endif; ?>
         </section>
+
+        <?php if (k30_ti_billing_is_individual($b)): $man = $b['manual_amount'] ?? null; ?>
+        <!-- Kwota ręczna (rozliczenie indywidualne) -->
+        <section class="border border-warning-subtle rounded p-3 mb-3">
+          <h3 class="h6 fw-semibold mb-1"><i class="bi bi-pencil-square text-warning me-2" aria-hidden="true"></i>Kwota ręczna — rozliczenie indywidualne</h3>
+          <p class="small text-body-secondary mb-2">
+            Z cennika: <?= number_format((float)(k30_ti_calculate_billing((int)$b['client_id'], (int)$b['month'], (int)$b['year'], (int)$b['course_id'])['amount']), 2, ',', ' ') ?> zł.
+            Wpisana kwota zastępuje wyliczenie (ponowne wystawienie ani „Przelicz ceny” jej nie zmienią). Puste pole = powrót do cennika.
+            <?php if ($man !== null): ?><br>Ustawił(a): <?= h($b['manual_by_name'] ?: '—') ?><?= !empty($b['manual_at']) ? ', ' . h(date('d.m.Y H:i', strtotime((string)$b['manual_at']))) : '' ?><?php endif; ?>
+          </p>
+          <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op"        value="set_manual_amount">
+            <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
+            <div class="col-sm-3">
+              <label class="form-label small mb-0" for="manamt<?= (int)$b['id'] ?>">Kwota za zajęcia (zł)</label>
+              <input type="text" inputmode="decimal" name="manual_amount" id="manamt<?= (int)$b['id'] ?>" class="form-control form-control-sm"
+                     value="<?= $man !== null ? number_format((float)$man, 2, ',', '') : '' ?>" placeholder="z cennika">
+            </div>
+            <div class="col-sm-9">
+              <label class="form-label small mb-0" for="mannote<?= (int)$b['id'] ?>">Uzasadnienie <span class="text-danger">*</span></label>
+              <input type="text" name="manual_note" id="mannote<?= (int)$b['id'] ?>" class="form-control form-control-sm" maxlength="300"
+                     value="<?= h($b['manual_note'] ?? '') ?>" placeholder="np. ustalenia z opiekunem z 12.09">
+            </div>
+            <div class="col-12"><button class="btn btn-sm btn-warning"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz kwotę</button></div>
+          </form>
+        </section>
+        <?php endif; ?>
 
         <!-- Korekta -->
         <section class="border rounded p-3 mb-3">

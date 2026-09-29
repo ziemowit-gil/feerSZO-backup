@@ -1521,6 +1521,12 @@ HTML;
         "ALTER TABLE k30_ti_billing ADD COLUMN cancelled_at      TEXT",
         "ALTER TABLE k30_ti_billing ADD COLUMN cancelled_by_name TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_billing ADD COLUMN cancel_reason     TEXT NOT NULL DEFAULT ''",
+        // Kwota ręczna (rozliczenie indywidualne, kod 9999): NULL = z kalkulatora;
+        // ustawiona — ponowne wystawienie / „Przelicz ceny” jej nie nadpisują
+        "ALTER TABLE k30_ti_billing ADD COLUMN manual_amount     REAL",
+        "ALTER TABLE k30_ti_billing ADD COLUMN manual_note       TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN manual_by_name    TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN manual_at         TEXT",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
@@ -2862,6 +2868,15 @@ function k30_ti_effective_due_days(array $enr, array $course): int {
     $c = (int)($course['pay_due_days'] ?? 0);
     if ($c > 0) return $c;
     return K30_TI_PAY_DUE_DAYS_DEFAULT;
+}
+
+/** Czy rozliczenie dotyczy zapisu z indywidualnym modelem (kod 9999 — override na kursancie). */
+function k30_ti_billing_is_individual(array $b): bool {
+    $cid = (int)($b['course_id'] ?? 0);
+    return (bool)db_one(
+        "SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND COALESCE(billing_model,0)>0" . ($cid > 0 ? " AND course_id=?" : ''),
+        $cid > 0 ? [(int)$b['client_id'], $cid] : [(int)$b['client_id']]
+    );
 }
 
 /**
@@ -5487,7 +5502,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
  */
 function k30_ti_issue_billing(int $client_id, int $month, int $year, string $notes = '', int $course_id = 0): int {
     $calc = k30_ti_calculate_billing($client_id, $month, $year, $course_id);
-    $ex = db_one("SELECT id, due_date FROM k30_ti_billing WHERE client_id=? AND month=? AND year=? AND course_id=?",
+    $ex = db_one("SELECT * FROM k30_ti_billing WHERE client_id=? AND month=? AND year=? AND course_id=?",
                  [$client_id, $month, $year, $course_id]);
     $pay      = k30_ti_client_payment($client_id);
     $due_days = (int)($pay['due_days'] ?? K30_TI_PAY_DUE_DAYS_DEFAULT) ?: K30_TI_PAY_DUE_DAYS_DEFAULT;
@@ -5501,6 +5516,8 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
     ];
     if ($ex) {
         if (empty($ex['due_date'])) $data['due_date'] = $due_date;
+        // Kwota ręczna (rozliczenie indywidualne) wygrywa z kalkulatorem — godziny się aktualizują
+        if (isset($ex['manual_amount']) && $ex['manual_amount'] !== null) $data['amount'] = round((float)$ex['manual_amount'], 2);
         $set = []; $p = [];
         foreach ($data as $k => $v) { $set[] = "$k=?"; $p[] = $v; }
         $p[] = $ex['id'];
