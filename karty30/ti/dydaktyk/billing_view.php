@@ -10,6 +10,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { http_response_code(403); die('Brak uprawnień.'); }
@@ -19,6 +20,35 @@ $b  = $id ? db_one(
     "SELECT b.*, cl.name AS client_name FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$id]
 ) : null;
 if (!$b) { http_response_code(404); die('Nie znaleziono rozliczenia.'); }
+
+// Korekta ceny lekcji (kierownik) — zapis jako zmiana ceny na jeden dzień (kind='lesson')
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
+    $op = (string)($_POST['_op'] ?? '');
+    if ($op === 'lesson_price') {
+        $cid  = (int)($_POST['course_id'] ?? 0);
+        $date = (string)($_POST['lesson_date'] ?? '');
+        $hrs  = max(0.01, (float)($_POST['hours'] ?? 1));
+        $val  = (float)str_replace([' ', ','], ['', '.'], (string)($_POST['value'] ?? ''));
+        $rate = ($_POST['unit'] ?? 'h') === 'lesson' ? $val / $hrs : $val;
+        $ok_course = (bool)db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND course_id=?", [(int)$b['client_id'], $cid]);
+        $r = !$ok_course ? ['error' => 'Kursant nie należy do tej grupy.']
+           : ti_lesson_price_correction($cid, ($_POST['scope'] ?? 'client') === 'course' ? null : (int)$b['client_id'],
+                                        $date, $rate, (string)($_POST['reason'] ?? ''), (int)($me['user_id'] ?? 0) ?: null);
+        flash_set(isset($r['error']) ? 'danger' : 'success', $r['error'] ?? $r['msg']);
+    } elseif ($op === 'lesson_price_cancel') {
+        $pc = ti_price_change_get((int)($_POST['pc_id'] ?? 0));
+        if ($pc && ($pc['kind'] ?? '') === 'lesson') {
+            ti_price_change_cancel((int)$pc['id']);
+            $msg = 'Korekta ceny lekcji anulowana.';
+            try { $msg .= ti_price_change_rebill_msg(ti_price_change_rebill((int)$pc['id'])); } catch (\Throwable $e) {}
+            flash_set('success', $msg);
+        } else flash_set('danger', 'Nie znaleziono korekty ceny lekcji.');
+    }
+    header('Location: billing_view.php?id=' . $id); exit;
+}
+$flash = flash_get();
+$b = db_one("SELECT b.*, cl.name AS client_name FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$id]);
 
 $months_pl = [1=>'styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
 $client_id = (int)$b['client_id']; $m = (int)$b['month']; $y = (int)$b['year']; $bcourse = (int)$b['course_id'];
@@ -81,6 +111,14 @@ $transfers = db_all("SELECT amount, paid_at, note FROM k30_ti_payments WHERE cli
   .bar { display:flex; gap:8px; justify-content:flex-end; max-width:860px; margin:16px auto -8px; padding:0 4px; }
   .bar a, .bar button { font:inherit; font-size:13px; border:1px solid var(--line); background:#fff; border-radius:6px; padding:5px 12px; color:var(--ink); text-decoration:none; cursor:pointer; }
   .bar button { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .msg { border-radius:8px; padding:8px 12px; margin-bottom:14px; border:1px solid #86efac; background:#f0fdf4; }
+  .msg.warning { border-color:#fcd34d; background:#fffbeb; } .msg.danger { border-color:#fca5a5; background:#fef2f2; }
+  details.lp summary { cursor:pointer; color:var(--acc); font-size:12px; list-style:none; }
+  details.lp form { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:6px; font-size:12.5px; }
+  details.lp input, details.lp select { font:inherit; font-size:12.5px; padding:2px 6px; border:1px solid var(--line); border-radius:5px; }
+  .btn { font:inherit; font-size:12px; border:1px solid var(--acc); background:#fff; color:var(--acc); border-radius:6px; padding:2px 9px; cursor:pointer; }
+  .btn.pri { background:var(--acc); color:#fff; }
+  @media print { details.lp, .btn, .msg, form { display:none !important; } }
   @media (max-width:600px) { .sheet { margin:12px; padding:18px 16px; } }
   @media print { body { background:#fff; } .bar { display:none; } .sheet { border:0; margin:0; padding:0; max-width:none; } }
 </style>
@@ -91,6 +129,7 @@ $transfers = db_all("SELECT amount, paid_at, note FROM k30_ti_payments WHERE cli
   <button type="button" onclick="window.print()">Drukuj</button>
 </div>
 <main class="sheet">
+  <?php if ($flash): ?><div class="msg <?= h($flash['type']) ?>" role="status"><?= h($flash['msg']) ?></div><?php endif; ?>
   <h1><?= h($b['client_name']) ?></h1>
   <div class="sub">
     Rozliczenie za <?= h($months_pl[$m] ?? $m) ?> <?= $y ?> · <?= h($cname) ?>
@@ -133,9 +172,37 @@ $transfers = db_all("SELECT amount, paid_at, note FROM k30_ti_payments WHERE cli
         <?php if ($bcourse === 0): ?><td><?= h($l['course_name']) ?></td><?php endif; ?>
         <td><?= h((string)$l['topic']) ?><?= (int)$l['attended'] === 0 ? ' <span class="note">(nieobecność nieusprawiedliwiona)</span>' : '' ?></td>
         <td class="r"><?= rtrim(rtrim(number_format($hrs, 2, ',', ''), '0'), ',') ?></td>
-        <td class="r"><?= $hourly ? $zl($rate) : 'ryczałt' ?></td>
+        <td class="r"><?= $hourly ? $zl($rate) : 'ryczałt' ?>
+          <?php $lpc = $hourly ? ti_price_change_effective_on((int)$l['course_id'], $client_id, (string)$l['lesson_date']) : null;
+          if ($lpc && ($lpc['kind'] ?? '') === 'lesson'): ?>
+          <div class="note" title="<?= h($lpc['reason']) ?>">korekta<?= $lpc['client_id'] ? '' : ' (grupa)' ?>
+            <form method="post" style="display:inline" onsubmit="return confirm('Anulować korektę ceny tej lekcji?')">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_op" value="lesson_price_cancel">
+              <input type="hidden" name="pc_id" value="<?= (int)$lpc['id'] ?>"><button class="btn" style="padding:0 6px">anuluj</button>
+            </form></div>
+          <?php endif; ?></td>
         <td class="r"><?= $hourly ? $zl($amt) : '—' ?></td>
       </tr>
+      <?php if ($hourly && $b['status'] !== 'cancelled'): $lk = 'lp' . md5($l['course_id'] . $l['lesson_date'] . $l['time_from']); ?>
+      <tr><td colspan="<?= $bcourse === 0 ? 6 : 5 ?>" style="border-bottom:1px solid var(--line);padding-top:0">
+        <details class="lp"><summary>Korekta ceny lekcji <?= h(date('d.m', strtotime((string)$l['lesson_date']))) ?></summary>
+          <form method="post">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+            <input type="hidden" name="_op" value="lesson_price">
+            <input type="hidden" name="course_id" value="<?= (int)$l['course_id'] ?>">
+            <input type="hidden" name="lesson_date" value="<?= h((string)$l['lesson_date']) ?>">
+            <input type="hidden" name="hours" value="<?= h((string)$hrs) ?>">
+            <label for="<?= $lk ?>v">Nowa cena</label>
+            <input id="<?= $lk ?>v" name="value" inputmode="decimal" size="7" value="<?= number_format($rate, 2, ',', '') ?>" required>
+            <select name="unit" aria-label="Jednostka"><option value="h">zł/h</option><option value="lesson">zł za lekcję (<?= h((string)$hrs) ?> h)</option></select>
+            <select name="scope" aria-label="Zakres"><option value="client">tylko ten kursant</option><option value="course">cała grupa tego dnia</option></select>
+            <label for="<?= $lk ?>r">Uzasadnienie</label>
+            <input id="<?= $lk ?>r" name="reason" size="28" maxlength="300" required minlength="5" placeholder="np. lekcja skrócona — ustalenie z opiekunem">
+            <button class="btn pri">Zapisz</button>
+          </form>
+        </details>
+      </td></tr>
+      <?php endif; ?>
     <?php endforeach; ?>
     </tbody>
     <tfoot><tr><td colspan="<?= $bcourse === 0 ? 3 : 2 ?>">Razem</td><td class="r"><?= rtrim(rtrim(number_format($sum_h, 2, ',', ''), '0'), ',') ?></td><td></td><td class="r"><?= $sum_a > 0 ? $zl($sum_a) : '' ?></td></tr></tfoot>

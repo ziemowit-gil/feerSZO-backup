@@ -39,6 +39,8 @@ function ti_price_changes_migrate(): void {
         db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_price_ch_course ON k30_ti_price_changes(course_id, status)");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_price_ch_client ON k30_ti_price_changes(client_id, status)");
     } catch (\Throwable $e) {}
+    // kind: '' = zmiana ceny, 'lesson' = korekta ceny pojedynczej lekcji (date_from = date_to = dzień lekcji)
+    try { db()->exec("ALTER TABLE k30_ti_price_changes ADD COLUMN kind TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 }
 
 const TI_PRICE_CHANGE_TYPES = ['amount' => 'Nowa kwota (zł)', 'percent' => 'Zmiana procentowa (%)'];
@@ -182,7 +184,31 @@ function ti_price_change_create(array $data): int {
         'email_subject' => $subject,
         'email_body'    => $body,
         'created_by'    => $data['created_by'] ?? null,
+        'kind'          => (string)($data['kind'] ?? ''),
     ]);
+}
+
+/**
+ * Korekta ceny lekcji (kierownik): stawka godzinowa na JEDEN dzień lekcji —
+ * dla jednego kursanta albo całej grupy. Zapis jako zmiana ceny kind='lesson'
+ * (ślad, uzasadnienie, anulowanie jak przy zmianach cen), bez e-maila; od razu
+ * przelicza wystawione, nieopłacone rozliczenia. Tylko model godzinowy.
+ * Uwaga: dwie lekcje tej grupy tego samego dnia dostaną tę samą stawkę.
+ * @return array{id:int, msg:string}|array{error:string}
+ */
+function ti_lesson_price_correction(int $course_id, ?int $client_id, string $date, float $rate, string $reason, ?int $by = null): array {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return ['error' => 'Nieprawidłowa data lekcji.'];
+    if ($rate < 0) return ['error' => 'Stawka nie może być ujemna.'];
+    if (mb_strlen(trim($reason)) < 5) return ['error' => 'Podaj uzasadnienie korekty ceny lekcji.'];
+    $id = ti_price_change_create([
+        'scope' => $client_id ? 'client' : 'course', 'course_id' => $course_id, 'client_id' => $client_id,
+        'change_type' => 'amount', 'change_value' => round($rate, 2), 'date_from' => $date, 'date_to' => $date,
+        'reason' => trim($reason), 'email_subject' => '-', 'email_body' => '-', 'created_by' => $by, 'kind' => 'lesson',
+    ]);
+    $msg = 'Korekta ceny lekcji ' . date('d.m.Y', strtotime($date)) . ': ' . number_format($rate, 2, ',', ' ') . ' zł/h.';
+    try { $msg .= ti_price_change_rebill_msg(ti_price_change_rebill($id)); }
+    catch (\Throwable $e) { $msg .= ' Nie udało się przeliczyć wystawionych rozliczeń: ' . $e->getMessage(); }
+    return ['id' => $id, 'msg' => $msg];
 }
 
 function ti_price_change_get(int $id): ?array {
@@ -473,7 +499,7 @@ function ti_price_changes_report(array $f = []): array {
             : ($r['date_from'] > $today ? 'zaplanowana'
             : (!empty($r['date_to']) && $r['date_to'] < $today ? 'zakończona' : 'obowiązuje'));
         $r['status_label'] = $r['status'] === 'active' ? 'aktywna' : 'anulowana';
-        $r['scope_label']  = $r['scope'] === 'client' ? 'indywidualna' : 'grupa';
+        $r['scope_label']  = ($r['scope'] === 'client' ? 'indywidualna' : 'grupa') . (($r['kind'] ?? '') === 'lesson' ? ' · korekta lekcji' : '');
         $r['value_label']  = ti_price_change_value_label((string)$r['change_type'], (float)$r['change_value']);
         $r['author']       = (string)($r['author'] ?? '');
     }
