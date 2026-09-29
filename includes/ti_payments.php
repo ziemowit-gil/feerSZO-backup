@@ -807,6 +807,9 @@ function ti_payment_delete(int $payment_id): void {
     ti_payments_migrate();
     $p = db_one("SELECT * FROM k30_ti_payments WHERE id=?", [$payment_id]);
     if (!$p) return;
+    // Zwroty / zaliczenia / przeksięgowania z modułu nadpłat (modules/ti_overpayments) —
+    // powiązane z rejestrem overpayment_transactions; usunięcie jednego wpisu rozjechałoby rejestr
+    if (in_array((string)($p['source_type'] ?? ''), ['overpay_refund', 'overpay_settle', 'overpay_transfer'], true)) return;
     db()->prepare("DELETE FROM k30_ti_payments WHERE id=?")->execute([$payment_id]);
     // Przeniesienie nadpłaty to para wpisów — usuwamy też drugą nogę, żeby suma się zgadzała
     if (($p['source_type'] ?? '') === 'transfer') {

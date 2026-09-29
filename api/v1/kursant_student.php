@@ -1132,7 +1132,9 @@ switch ($action) {
                 $c = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [(int)$p['course_id']]);
                 $label = 'Wpłata na grupę: ' . (string)($c['name'] ?? ('#' . (int)$p['course_id']));
             }
-            if (($p['source_type'] ?? '') === 'transfer') $label = (float)$p['amount'] < 0 ? 'Przeniesienie nadpłaty — z grupy' : 'Przeniesienie nadpłaty — do grupy';
+            if (in_array(($p['source_type'] ?? ''), ['transfer', 'overpay_settle'], true)) $label = (float)$p['amount'] < 0 ? 'Przeniesienie nadpłaty — z grupy' : 'Przeniesienie nadpłaty — do grupy';
+    if (($p['source_type'] ?? '') === 'overpay_refund')   $label = 'Zwrot nadpłaty na rachunek';
+    if (($p['source_type'] ?? '') === 'overpay_transfer') $label = (float)$p['amount'] < 0 ? 'Przeksięgowanie nadpłaty na inne konto' : 'Przeksięgowanie nadpłaty z innego konta';
             $ops[] = [
                 'date'   => (string)($p['paid_at'] ?: substr((string)$p['created_at'], 0, 10)),
                 'kind'   => (float)$p['amount'] < 0 ? 'out' : 'in',   // przeniesienie nadpłaty — noga ujemna

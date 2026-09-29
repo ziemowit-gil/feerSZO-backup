@@ -33,6 +33,7 @@ if (!empty($KIER_ITEMS)) {
         ['Licencje',                  'licencje.php',               'key'],
         ['Rozliczenia grupy',         'index.php?tab=rozliczenia',  'receipt-cutoff'],
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
+        ['Nadpłaty uczestników',      'overpayments.php',           'piggy-bank'],
         ['Zaległe protokoły',         'protokoly.php',              'exclamation-octagon'],
         ['Audyt dzienników',          'audyt_dziennikow.php',       'clipboard2-check'],
         ['Program poleceń',          'polecenia.php',               'gift'],

@@ -44,9 +44,12 @@ function ti_lesson_ledger(int $client_id, string $from = '', string $to = ''): a
     $ev = [];   // [date, ord, kind, label, amount(+/-), meta]
 
     // Wpłaty (przeniesienia wewnętrzne między grupami nie zmieniają salda konta — pomijamy)
-    foreach (db_all("SELECT * FROM k30_ti_payments WHERE client_id=? AND COALESCE(source_type,'')!='transfer'", [$client_id]) as $p) {
+    foreach (db_all("SELECT * FROM k30_ti_payments WHERE client_id=? AND COALESCE(source_type,'') NOT IN ('transfer','overpay_settle')", [$client_id]) as $p) {
+        $st  = (string)$p['source_type'];
+        $lbl = $st === 'overpay_refund' ? 'Zwrot nadpłaty' : ($st === 'overpay_transfer' ? 'Przeksięgowanie nadpłaty' : ((float)$p['amount'] < 0 ? 'Korekta wpłaty' : 'Wpłata'));
         $ev[] = ['date' => (string)($p['paid_at'] ?: substr((string)$p['created_at'], 0, 10)), 'ord' => 0, 'kind' => 'in',
-                 'label' => 'Wpłata' . ((string)$p['note'] !== '' ? ' — ' . $p['note'] : ''), 'amount' => round((float)$p['amount'], 2),
+                 'label' => $lbl . ((string)$p['note'] !== '' ? ' — ' . $p['note'] : ''),
+                 'amount' => round((float)$p['amount'], 2),
                  'course' => (int)$p['course_id'] > 0 ? ti_transfer_group_label((int)$p['course_id']) : '', 'hours' => null, 'rate' => null, 'unbilled' => false];
     }
 

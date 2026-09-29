@@ -116,7 +116,9 @@ foreach (ti_payments_for_client($pw_cid) as $p) {
         $c   = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [(int)$p['course_id']]);
         $lbl = 'Wpłata na grupę: ' . (string)($c['name'] ?? ('#' . (int)$p['course_id']));
     }
-    if (($p['source_type'] ?? '') === 'transfer') $lbl = (float)$p['amount'] < 0 ? 'Przeniesienie nadpłaty — z grupy' : 'Przeniesienie nadpłaty — do grupy';
+    if (in_array(($p['source_type'] ?? ''), ['transfer', 'overpay_settle'], true)) $lbl = (float)$p['amount'] < 0 ? 'Przeniesienie nadpłaty — z grupy' : 'Przeniesienie nadpłaty — do grupy';
+    if (($p['source_type'] ?? '') === 'overpay_refund')   $lbl = 'Zwrot nadpłaty na rachunek';
+    if (($p['source_type'] ?? '') === 'overpay_transfer') $lbl = (float)$p['amount'] < 0 ? 'Przeksięgowanie nadpłaty na inne konto' : 'Przeksięgowanie nadpłaty z innego konta';
     $pw_ops[] = [
         'date'   => (string)($p['paid_at'] ?: substr((string)$p['created_at'], 0, 10)),
         'kind'   => (float)$p['amount'] < 0 ? 'out' : 'in',   // przeniesienie nadpłaty — noga ujemna
