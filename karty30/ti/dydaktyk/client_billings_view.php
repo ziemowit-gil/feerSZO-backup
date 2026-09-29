@@ -108,6 +108,7 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
 <body>
 <div class="bar">
   <a href="klienci.php">← Kursanci</a>
+  <a href="client_ledger.php?client_id=<?= $client_id ?>">Historia pobrań za lekcje</a>
   <button type="button" onclick="window.print()">Drukuj</button>
 </div>
 <main class="sheet">

@@ -332,6 +332,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                  title="Podgląd rozliczeń kursanta — wszystkie okresy i grupy, saldo, wpłaty">
                 <i class="bi bi-eye me-1" aria-hidden="true"></i>Rozliczenia
               </a>
+              <a class="btn btn-sm btn-outline-secondary" href="client_ledger.php?client_id=<?= (int)$c['id'] ?>" target="_blank" rel="noopener"
+                 title="Historia pobrań za lekcje z salda — PDF i wysyłka do kursanta">
+                <i class="bi bi-journal-text" aria-hidden="true"></i><span class="visually-hidden">Historia pobrań</span>
+              </a>
               <a class="btn btn-sm btn-outline-primary" title="Rozliczenia grupy (lista kierownika)" aria-label="Rozliczenia grupy" href="billing.php<?= $c['courses'] ? '?course_id=' . (int)$c['courses'][0]['course_id'] : '' ?>">
                 <i class="bi bi-receipt" aria-hidden="true"></i>
               </a>
