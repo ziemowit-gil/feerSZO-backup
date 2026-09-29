@@ -88,6 +88,19 @@ function ti_payments_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_debt_tr_from ON k30_ti_debt_transfers(from_billing_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_debt_tr_to ON k30_ti_debt_transfers(to_billing_id)");
 
+    // Wyczyszczenie rozliczeń kursanta (ti_client_billing_purge) — kopia usuniętych
+    // wierszy (JSON), żeby pomyłkę dało się odtworzyć; kto/kiedy/dlaczego
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_billing_purge_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id   INTEGER NOT NULL,
+        reason      TEXT    NOT NULL DEFAULT '',
+        by_name     TEXT    NOT NULL DEFAULT '',
+        billings    INTEGER NOT NULL DEFAULT 0,
+        payments    INTEGER NOT NULL DEFAULT 0,
+        snapshot    TEXT    NOT NULL DEFAULT '',
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Wnioski o przeniesienie płatności na następny miesiąc
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_payment_deferrals (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -730,6 +743,62 @@ function ti_transfer_debt_reverse(int $transfer_id, string $by = ''): ?string {
         $pdo->commit();
     } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd zapisu: ' . $e->getMessage(); }
     ti_billing_recompute((int)$t['client_id']);
+    return null;
+}
+
+/**
+ * Co obejmie wyczyszczenie rozliczeń kursanta + blokady. Rozliczeń z fakturą
+ * (produkcyjna, numer, skan) nie usuwamy nigdy — dokument księgowy musi mieć
+ * podstawę; wpłaty z bramek online (Stripe/PayU/P24) tylko na wyraźne życzenie.
+ * @return array{billings:list<array>, payments:list<array>, gateway:list<array>, invoiced:list<array>}
+ */
+function ti_client_billing_purge_scope(int $client_id): array {
+    ti_payments_migrate();
+    $bills = db_all("SELECT * FROM k30_ti_billing WHERE client_id=? ORDER BY year, month, id", [$client_id]);
+    $inv = [];
+    foreach ($bills as $b) if (ti_billing_has_invoice($b)) $inv[] = $b;
+    $pays = db_all("SELECT * FROM k30_ti_payments WHERE client_id=? ORDER BY id", [$client_id]);
+    $gw   = array_values(array_filter($pays, fn($p) => in_array((string)$p['method'], ['stripe', 'payu', 'p24'], true)
+                                               || in_array((string)$p['source_type'], ['stripe', 'payu', 'p24'], true)));
+    return ['billings' => $bills, 'payments' => $pays, 'gateway' => $gw, 'invoiced' => $inv];
+}
+
+/**
+ * Czyści rozliczenia kursanta: wszystkie należności (k30_ti_billing z wnioskami
+ * o przeniesienie, przeniesieniami niedopłaty, fakturami demo i skanami) i —
+ * gdy $with_payments — wpłaty (bez bramek online, chyba że $with_gateway).
+ * Przed usunięciem kopia wierszy do k30_ti_billing_purge_log. Zwraca błąd albo null.
+ */
+function ti_client_billing_purge(int $client_id, bool $with_payments, bool $with_gateway, string $reason, string $by): ?string {
+    $sc = ti_client_billing_purge_scope($client_id);
+    if ($sc['invoiced']) return 'Nie można wyczyścić: ' . count($sc['invoiced']) . ' rozliczeń ma fakturę (np. '
+        . sprintf('%02d/%d', (int)$sc['invoiced'][0]['month'], (int)$sc['invoiced'][0]['year']) . ') — faktura wymaga korekty, nie usunięcia podstawy.';
+    if (mb_strlen(trim($reason)) < 5) return 'Podaj powód wyczyszczenia rozliczeń.';
+    $gw_ids = array_map(fn($p) => (int)$p['id'], $sc['gateway']);
+    $pays   = $with_payments ? array_values(array_filter($sc['payments'], fn($p) => $with_gateway || !in_array((int)$p['id'], $gw_ids, true))) : [];
+    $bids   = array_map(fn($b) => (int)$b['id'], $sc['billings']);
+    $pids   = array_map(fn($p) => (int)$p['id'], $pays);
+    $in     = fn(array $ids) => implode(',', array_fill(0, count($ids), '?'));
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        $snap = ['billings' => $sc['billings'], 'payments' => $pays,
+                 'deferrals' => $bids ? db_all("SELECT * FROM k30_ti_payment_deferrals WHERE billing_id IN (" . $in($bids) . ")", $bids) : [],
+                 'debt_transfers' => db_all("SELECT * FROM k30_ti_debt_transfers WHERE client_id=?", [$client_id])];
+        db_insert('k30_ti_billing_purge_log', ['client_id' => $client_id, 'reason' => trim($reason), 'by_name' => $by,
+            'billings' => count($bids), 'payments' => count($pids), 'snapshot' => json_encode($snap, JSON_UNESCAPED_UNICODE)]);
+        if ($bids) {
+            try {
+                db()->prepare("DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE source='ti_billing' AND is_test=1 AND source_id IN (" . $in($bids) . "))")->execute($bids);
+                db()->prepare("DELETE FROM invoices WHERE source='ti_billing' AND is_test=1 AND source_id IN (" . $in($bids) . ")")->execute($bids);
+            } catch (\Throwable $e) {}   // moduł faktur wyłączony — brak tabel
+            db()->prepare("DELETE FROM k30_ti_payment_deferrals WHERE billing_id IN (" . $in($bids) . ")")->execute($bids);
+            db()->prepare("DELETE FROM k30_ti_billing WHERE id IN (" . $in($bids) . ")")->execute($bids);
+        }
+        db()->prepare("DELETE FROM k30_ti_debt_transfers WHERE client_id=?")->execute([$client_id]);
+        if ($pids) db()->prepare("DELETE FROM k30_ti_payments WHERE id IN (" . $in($pids) . ")")->execute($pids);
+        $pdo->commit();
+    } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd: ' . $e->getMessage(); }
+    ti_billing_recompute($client_id);
     return null;
 }
 

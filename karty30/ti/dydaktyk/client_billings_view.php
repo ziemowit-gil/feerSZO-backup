@@ -27,6 +27,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'reprice'
     flash_set($r['manual'] ? 'warning' : 'success', $msg !== '' ? 'Przeliczono ceny.' . $msg : 'Kwoty są aktualne — nic do przeliczenia.');
     header('Location: client_billings_view.php?client_id=' . $client_id); exit;
 }
+// Wyczyść rozliczenia kursanta (należności + opcjonalnie wpłaty) — potwierdzenie nazwiskiem
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'purge_client') {
+    csrf_check();
+    if (mb_strtolower(trim((string)($_POST['confirm_name'] ?? ''))) !== mb_strtolower(trim((string)$cl['name']))) {
+        flash_set('danger', 'Potwierdzenie się nie zgadza — wpisz dokładnie imię i nazwisko kursanta.');
+    } else {
+        $err = ti_client_billing_purge($client_id, !empty($_POST['with_payments']), !empty($_POST['with_gateway']),
+                                       (string)($_POST['reason'] ?? ''), (string)($me['name'] ?? ''));
+        flash_set($err ? 'danger' : 'success', $err ?? 'Rozliczenia kursanta wyczyszczone. Kopia usuniętych danych jest w dzienniku czyszczeń (k30_ti_billing_purge_log).');
+    }
+    header('Location: client_billings_view.php?client_id=' . $client_id); exit;
+}
+$purge = ti_client_billing_purge_scope($client_id);
 $flash = flash_get();
 $rp = ti_price_reprice_client($client_id, true);   // podgląd: co zmieniłoby przeliczenie
 $rp_map = [];
@@ -87,7 +100,7 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
   .rp { background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:8px 12px; margin:14px 0 0; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .btn { font:inherit; font-size:12.5px; border:1px solid var(--acc); background:#fff; color:var(--acc); border-radius:6px; padding:3px 10px; cursor:pointer; }
   .btn.pri { background:var(--acc); color:#fff; }
-  @media print { .rp, .btn, .msg { display:none !important; } }
+  @media print { .rp, .btn, .msg, .purge { display:none !important; } }
   @media (max-width:600px) { .sheet { margin:12px; padding:18px 16px; } }
   @media print { body { background:#fff; } .bar { display:none; } .sheet { border:0; margin:0; padding:0; max-width:none; } a { color:inherit; text-decoration:none; } }
 </style>
@@ -202,6 +215,34 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
     <?php if (!$payments): ?><tr><td colspan="5" class="mut">Brak wpłat.</td></tr><?php endif; ?>
     </tbody>
   </table></div>
+  <?php if ($purge['billings'] || $purge['payments']): ?>
+  <details class="purge" style="margin-top:22px;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px">
+    <summary style="cursor:pointer;color:var(--bad);font-weight:600">Wyczyść rozliczenia kursanta</summary>
+    <?php if ($purge['invoiced']): ?>
+    <p class="bad" style="font-size:13px">Niedostępne: <?= count($purge['invoiced']) ?> rozliczeń ma fakturę
+      (<?= h(implode(', ', array_map(fn($b) => sprintf('%02d/%d', (int)$b['month'], (int)$b['year']), array_slice($purge['invoiced'], 0, 6)))) ?>).
+      Faktura wymaga korekty, nie usunięcia podstawy.</p>
+    <?php else: ?>
+    <p style="font-size:13px">Usuwa <strong>wszystkie należności</strong> kursanta (<?= count($purge['billings']) ?> rozliczeń ze wszystkich okresów i grup,
+      z wycofanymi, wnioskami o przeniesienie i przeniesieniami niedopłaty) i — jeśli zaznaczysz — <strong>wpłaty</strong> (<?= count($purge['payments']) ?>).
+      Lekcje i obecności zostają, więc rozliczenia można potem wystawić od nowa. Przed usunięciem zapisuje się kopia danych.</p>
+    <form method="post" style="display:grid;gap:6px;font-size:13px;max-width:560px"
+          onsubmit="return confirm('Na pewno wyczyścić rozliczenia kursanta <?= h(addslashes($cl['name'])) ?>?')">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="purge_client">
+      <label><input type="checkbox" name="with_payments" value="1" checked> także wpłaty (<?= count($purge['payments']) - count($purge['gateway']) ?>)</label>
+      <?php if ($purge['gateway']): ?>
+      <label><input type="checkbox" name="with_gateway" value="1"> także wpłaty z bramek online — Stripe/PayU/P24 (<?= count($purge['gateway']) ?>); zwykle zostawiamy, bo to realnie otrzymane pieniądze</label>
+      <?php endif; ?>
+      <label>Powód <span class="bad">*</span><br><input name="reason" required minlength="5" maxlength="300" style="width:100%;font:inherit;padding:3px 6px" placeholder="np. błędny import — rozliczenia do wystawienia od nowa"></label>
+      <label>Wpisz imię i nazwisko kursanta, aby potwierdzić: <strong><?= h($cl['name']) ?></strong><br>
+        <input name="confirm_name" required autocomplete="off" style="width:100%;font:inherit;padding:3px 6px"></label>
+      <div><button class="btn pri" style="background:var(--bad);border-color:var(--bad)">Wyczyść rozliczenia</button></div>
+    </form>
+    <?php endif; ?>
+  </details>
+  <?php endif; ?>
+
   <p class="mut" style="font-size:12px;margin-top:18px">Wygenerowano <?= date('d.m.Y H:i') ?> · <?= h((string)($me['name'] ?? '')) ?></p>
 </main>
 </body>
