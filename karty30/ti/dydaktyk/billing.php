@@ -1406,6 +1406,11 @@ echo '<main id="main" class="dyd-wrap">';
                     data-bs-toggle="modal" data-bs-target="#editBill<?= (int)$b['id'] ?>">
               <i class="bi bi-pencil-square me-1"></i>Edytuj
             </button>
+            <button type="button" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2"
+                    title="Korekta rozliczenia — opłata dodatkowa lub rabat (z uzasadnieniem)"
+                    data-bs-toggle="modal" data-bs-target="#editBill<?= (int)$b['id'] ?>" data-focus="adjval<?= (int)$b['id'] ?>">
+              <i class="bi bi-percent me-1" aria-hidden="true"></i>Korekta
+            </button>
             <?php endif; ?>
             <?php if ($b['status'] === 'issued' && $can_write):
               $sp = $stripe_pay[(int)$b['id']] ?? null; ?>
@@ -2028,6 +2033,16 @@ echo '<main id="main" class="dyd-wrap">';
 <?php endif; ?>
 <?php if (false): ?>
 <?php endif; ?>
+<script>
+// „Korekta” w wierszu otwiera okno edycji i od razu przewija do sekcji korekty
+document.addEventListener('shown.bs.modal', function (e) {
+  var t = e.relatedTarget, el = t && t.dataset.focus ? document.getElementById(t.dataset.focus) : null;
+  if (!el) return;
+  var sec = el.closest('section');
+  if (sec) { sec.scrollIntoView({ block: 'start', behavior: 'smooth' }); sec.classList.add('border-primary'); setTimeout(function () { sec.classList.remove('border-primary'); }, 1600); }
+  el.focus({ preventScroll: true });
+});
+</script>
 
 </main>
 <?php $PRINT_TITLE = 'Rozliczenia kursantów TI'; include __DIR__ . '/_print_page.php'; ?>
