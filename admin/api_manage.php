@@ -41,6 +41,9 @@ const AM_API_PERMISSIONS = [
     // zgłoszenia z formularzy, a nie edytować i kasować kartotekę.
     'forms:read'       => 'Formularze — odczyt definicji (do mapowania w CMS)',
     'forms:submit'     => 'Formularze — przyjmowanie zgłoszeń z zewnątrz (CMS)',
+    // Wpłaty online przyjęte przez stronę (Przelewy24) — tylko dopisywanie do
+    // rejestru darowizn, bez odczytu i edycji (api/v1/donations.php).
+    'donations:submit' => 'Darowizny — dopisywanie wpłat online ze strony (CMS)',
     // Warstwa hybrydowa SZO/TI/Dydaktyka (hybrid/) — po jednym uprawnieniu per
     // domena, żeby klucz dla jednego serwisu nie mógł wołać pozostałych.
     'hybrid:ti'         => 'Hybrid — TI: profil dostępności (api/v1/hybrid_ti.php)',
