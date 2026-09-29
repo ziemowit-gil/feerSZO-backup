@@ -351,14 +351,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $val  = (float)str_replace(',', '.', (string)($_POST['adj_value'] ?? '0'));
         $val  = abs($val);
         $adj  = $kind === 'discount' ? -$val : $val;
-        $note = trim($_POST['adj_note'] ?? '');
-        if ($bid && ti_debt_transfers_active($bid)) {
+        $note = mb_substr(trim($_POST['adj_note'] ?? ''), 0, 500);
+        $b0   = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$bid]) : null;
+        if (!$b0) {
+            flash_set('danger', 'Nie znaleziono rozliczenia.');
+        } elseif (ti_debt_transfers_active($bid)) {
             // Korekta nadpisałaby kwotę przeniesionej niedopłaty (ta też siedzi w adjustment)
             flash_set('danger', 'Rozliczenie ma przeniesioną niedopłatę — najpierw cofnij przeniesienie, potem zmień korektę.');
-        } elseif ($bid) {
-            db()->prepare("UPDATE k30_ti_billing SET adjustment=?, adjustment_note=? WHERE id=?")
-               ->execute([$adj, $note, $bid]);
-            flash_set('success', $adj == 0 ? 'Korekta usunięta.' : 'Korekta zapisana.');
+        } elseif (ti_billing_has_invoice($b0) && abs($adj - (float)$b0['adjustment']) > 0.005) {
+            flash_set('danger', 'Z rozliczenia wystawiono fakturę — zmiana kwoty wymaga korekty faktury.');
+        } elseif (abs($adj) > 0.005 && mb_strlen($note) < 5) {
+            // Ręczna korekta kierownika zawsze z uzasadnieniem (widać je w rozliczeniu, podglądzie i u kursanta)
+            flash_set('danger', 'Podaj uzasadnienie korekty (co najmniej kilka słów, np. „rabat rodzeństwo — decyzja z 12.09”).');
+        } else {
+            db()->prepare("UPDATE k30_ti_billing SET adjustment=?, adjustment_note=?, adjustment_by_name=?, adjustment_at=datetime('now') WHERE id=?")
+               ->execute([$adj, abs($adj) > 0.005 ? $note : '', $dyd_name, $bid]);
+            ti_billing_recompute((int)$b0['client_id']);
+            flash_set('success', abs($adj) <= 0.005 ? 'Korekta usunięta.' : 'Korekta zapisana ('
+                . ($adj > 0 ? '+' : '−') . number_format(abs($adj), 2, ',', ' ') . ' zł, uzasadnienie: ' . $note . ').');
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -1347,7 +1357,7 @@ echo '<main id="main" class="dyd-wrap">';
               <span class="fw-semibold <?= $adj > 0 ? 'text-danger' : 'text-success' ?>">
                 <?= ($adj > 0 ? '+' : '−') . number_format(abs($adj),2,',','') ?> zł
               </span>
-              <div class="text-muted small"><?= $adj > 0 ? 'opłata dod.' : 'rabat' ?><?= $b['adjustment_note'] ? ': '.h($b['adjustment_note']) : '' ?></div>
+              <div class="text-muted small"<?= ($b['adjustment_by_name'] ?? '') !== '' ? ' title="' . h('Korektę wprowadził(a): ' . $b['adjustment_by_name'] . (!empty($b['adjustment_at']) ? ', ' . date('d.m.Y H:i', strtotime((string)$b['adjustment_at'])) : '')) . '"' : '' ?>><?= $adj > 0 ? 'opłata dod.' : 'rabat' ?><?= $b['adjustment_note'] ? ': '.h($b['adjustment_note']) : ' <span class="text-danger">(bez uzasadnienia)</span>' ?></div>
             <?php else: ?>
               <span class="text-muted">—</span>
             <?php endif; ?>
@@ -1703,13 +1713,16 @@ echo '<main id="main" class="dyd-wrap">';
                      value="<?= $adj != 0 ? number_format(abs($adj),2,',','') : '' ?>" placeholder="0,00">
             </div>
             <div class="col-sm-5">
-              <label class="form-label small mb-0" for="adjnote<?= (int)$b['id'] ?>">Opis (opcjonalnie)</label>
-              <input type="text" name="adj_note" id="adjnote<?= (int)$b['id'] ?>" class="form-control form-control-sm"
-                     value="<?= h($b['adjustment_note'] ?? '') ?>" placeholder="np. materiały, rabat">
+              <label class="form-label small mb-0" for="adjnote<?= (int)$b['id'] ?>">Uzasadnienie <span class="text-danger">*</span></label>
+              <input type="text" name="adj_note" id="adjnote<?= (int)$b['id'] ?>" class="form-control form-control-sm" maxlength="500"
+                     value="<?= h($b['adjustment_note'] ?? '') ?>" placeholder="np. rabat rodzeństwo — decyzja z 12.09"
+                     oninput="this.setCustomValidity('')"
+                     onblur="var v=parseFloat((this.form.adj_value.value||'0').replace(',','.'))||0; this.setCustomValidity(v && this.value.trim().length<5 ? 'Podaj uzasadnienie korekty' : '')">
             </div>
             <div class="col-12 d-flex align-items-center gap-2">
               <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz korektę</button>
-              <span class="form-text mb-0">Wpisz 0, aby usunąć korektę.</span>
+              <span class="form-text mb-0">Wpisz 0, aby usunąć korektę. Korekta wymaga uzasadnienia.<?php if (($b['adjustment_by_name'] ?? '') !== ''): ?>
+                Ostatnio: <?= h($b['adjustment_by_name']) ?><?= !empty($b['adjustment_at']) ? ', ' . h(date('d.m.Y H:i', strtotime((string)$b['adjustment_at']))) : '' ?>.<?php endif; ?></span>
             </div>
           </form>
         </section>

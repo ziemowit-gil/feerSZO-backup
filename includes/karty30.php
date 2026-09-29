@@ -1527,6 +1527,9 @@ HTML;
         "ALTER TABLE k30_ti_billing ADD COLUMN manual_note       TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_billing ADD COLUMN manual_by_name    TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_billing ADD COLUMN manual_at         TEXT",
+        // Kto i kiedy ostatnio zmienił korektę (opłata dodatkowa / rabat) — uzasadnienie w adjustment_note
+        "ALTER TABLE k30_ti_billing ADD COLUMN adjustment_by_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_billing ADD COLUMN adjustment_at      TEXT",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
