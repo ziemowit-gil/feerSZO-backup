@@ -46,6 +46,9 @@ function pp_migrate(): void {
         nrb TEXT PRIMARY KEY, grp TEXT NOT NULL DEFAULT 'ti', participant_id INTEGER,
         imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
     try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}   // kursant wirtualny: bez rachunku z puli
+    try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN crm_contact_id INTEGER"); } catch (\Throwable $e) {}   // numer przypisany kontrahentowi CRM
+    try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN notified_at DATETIME"); } catch (\Throwable $e) {}     // kiedy admin wysłał powiadomienie o numerze
+    db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_crm (contact_id INTEGER PRIMARY KEY, nrb TEXT NOT NULL UNIQUE, assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN batch TEXT"); } catch (\Throwable $e) {}   // paczka importu (ostatnio zaimportowane)
 }
 function pp_gr(float|int|string $v): int { return (int)round((float)$v * 100); }
@@ -193,6 +196,8 @@ function pp_vnrb_for_ti(int $client_id): ?string {
 }
 /** Rachunek wirtualny kontrahenta CRM: z NIP-em (10 cyfr) grupa nip, inaczej ID kontaktu. */
 function pp_vnrb_for_crm(int $contact_id, ?string $nip): ?string {
+    try { $a = db_one("SELECT nrb FROM pp_vnrb_crm WHERE contact_id=?", [$contact_id]); } catch (\Throwable $e) { $a = null; }
+    if ($a) return pp_nrb_format((string)$a['nrb']);   // numer z puli banku ma pierwszeństwo
     $nip = preg_replace('/\D/', '', (string)$nip);
     $part = strlen($nip) === 10 ? pp_vnrb_part('nip', $nip) : pp_vnrb_part('crm', (string)$contact_id);
     $n = $part[0] === '!' ? null : pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $part);
@@ -810,4 +815,62 @@ function pp_vnrb_report_print(string $scope, string $by): never {
 <?php endforeach; if (!$rows): ?><tr><td colspan="6">Brak danych.</td></tr><?php endif; ?>
 </tbody></table></body></html><?php
     exit;
+}
+
+
+/** Powiadomienie (SMS + e-mail) o numerze rachunku — zlecane ręcznie przez admina. Wirtualni kursanci są pomijani centralnie. @return array{students:int, sms:int, email:int, left:int} */
+function pp_vnrb_pool_notify(?string $batch, string $by, ?int $uid): array {
+    pp_migrate();
+    $r = ['students' => 0, 'sms' => 0, 'email' => 0, 'left' => 0];
+    $rows = db_all("SELECT nrb, participant_id FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL"
+                   . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb", $batch !== null ? [$batch] : []);
+    foreach ($rows as $row) {
+        $x = pp_ti_notify_nrb((int)$row['participant_id'], (string)$row['nrb'], false);
+        db()->prepare("UPDATE pp_vnrb_pool SET notified_at=datetime('now') WHERE nrb=?")->execute([$row['nrb']]);
+        $r['students']++; $r['sms'] += (int)$x['sms']; $r['email'] += (int)$x['email'];
+    }
+    $r['left'] = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL")['c'] ?? 0);
+    audit_log('payments.vnrb_pool_notify', $r + ['batch' => $batch, 'by' => $by], $uid);
+    return $r;
+}
+
+/** Przypisuje wolne numery serii „inni” kontrahentom CRM bez numeru z puli. @return array{assigned:int, left:int, nopool:int} */
+function pp_vnrb_pool_assign_crm(string $by, ?int $uid, ?string $batch = null): array {
+    pp_migrate();
+    $r = ['assigned' => 0, 'left' => 0, 'nopool' => 0];
+    $have = array_column(db_all("SELECT contact_id FROM pp_vnrb_crm"), 'contact_id', 'contact_id');
+    foreach (crm_all("SELECT id FROM crm_contacts WHERE crm_active=1 ORDER BY id") as $c) {
+        $cid = (int)$c['id']; if (isset($have[$cid])) continue;
+        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='inni' AND participant_id IS NULL AND crm_contact_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb LIMIT 1", $batch !== null ? [$batch] : []);
+        if (!$p) { $r['nopool']++; continue; }
+        db()->beginTransaction();
+        try {
+            db()->prepare("INSERT INTO pp_vnrb_crm (contact_id, nrb) VALUES (?,?)")->execute([$cid, $p['nrb']]);
+            db()->prepare("UPDATE pp_vnrb_pool SET crm_contact_id=?, assigned_at=datetime('now') WHERE nrb=?")->execute([$cid, $p['nrb']]);
+            db()->commit(); $r['assigned']++;
+        } catch (\Throwable $e) { db()->rollBack(); }
+    }
+    $r['left'] = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='inni' AND participant_id IS NULL AND crm_contact_id IS NULL")['c'] ?? 0);
+    audit_log('payments.vnrb_pool_assign_crm', $r + ['batch' => $batch, 'by' => $by], $uid);
+    return $r;
+}
+
+/** Przypisuje wolne numery serii „spoza_ti” uczestnikom z dostępem do portalu, którzy nie mają konta TI ani numeru. */
+function pp_vnrb_pool_assign_other(string $by, ?int $uid, ?string $batch = null): array {
+    pp_migrate();
+    $r = ['assigned' => 0, 'left' => 0, 'nopool' => 0];
+    $rows = db_all("SELECT u.participant_id FROM payment_portal_users u
+                     WHERE (u.individual_nrb IS NULL OR u.individual_nrb='')
+                       AND NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=u.participant_id) ORDER BY u.participant_id");
+    foreach ($rows as $row) {
+        $pid = (int)$row['participant_id'];
+        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='spoza_ti' AND participant_id IS NULL AND crm_contact_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb LIMIT 1", $batch !== null ? [$batch] : []);
+        if (!$p) { $r['nopool']++; continue; }
+        if (pp_set_nrb($pid, $p['nrb'], $by, $uid) !== null) continue;
+        db()->prepare("UPDATE pp_vnrb_pool SET participant_id=?, assigned_at=datetime('now') WHERE nrb=?")->execute([$pid, $p['nrb']]);
+        $r['assigned']++;
+    }
+    $r['left'] = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='spoza_ti' AND participant_id IS NULL AND crm_contact_id IS NULL")['c'] ?? 0);
+    audit_log('payments.vnrb_pool_assign_other', $r + ['batch' => $batch, 'by' => $by], $uid);
+    return $r;
 }
