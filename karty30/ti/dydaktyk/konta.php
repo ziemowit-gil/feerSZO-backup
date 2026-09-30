@@ -318,6 +318,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $n = pp_ti_sync_nrb($cid, $by_name, $uid_n);
                     flash_set($n ? 'success' : 'warning', $n ? 'Nadano numer z puli: ' . pp_nrb_format($n) : 'Brak wolnych numerów w puli TI (albo kursant jest wirtualny).');
                 }
+            } elseif (($cur0 = pp_user($cid)) && trim((string)$cur0['individual_nrb']) !== '') {
+                flash_set('danger', 'Numer rachunku został nadany w Płatnościach — edycja zablokowana. Zmień go w panelu płatności (/platnosci/admin.php).');
             } else {
                 $raw = trim((string)($_POST['vnrb'] ?? ''));
                 if ($raw !== '' && is_string($u = pp_user_ensure($cid, $by_name, $uid_n))) { flash_set('danger', $u); }
@@ -1235,11 +1237,13 @@ function printBulk(){
                 <label class="form-label small mb-0" for="vn<?= (int)$sa['id'] ?>">Numer rachunku do wpłat <?= $stored !== '' ? '<span class="badge text-bg-success">nadany</span>' : '<span class="badge text-bg-secondary">brak</span>' ?></label>
                 <div class="d-flex gap-1">
                   <input type="text" id="vn<?= (int)$sa['id'] ?>" name="vnrb" value="<?= h($stored !== '' ? pp_nrb_format($stored) : '') ?>"
-                         class="form-control form-control-sm font-monospace user-select-all" style="width:330px" placeholder="26 cyfr — pusty = brak">
-                  <button type="submit" name="_op" value="set_vnrb" class="btn btn-sm btn-outline-secondary" title="Zapisz numer" aria-label="Zapisz numer rachunku"><i class="bi bi-save" aria-hidden="true"></i></button>
+                         class="form-control form-control-sm font-monospace user-select-all" style="width:330px" placeholder="26 cyfr" <?= $stored !== '' ? 'readonly aria-readonly="true"' : '' ?>>
+                  <?php if ($stored !== ''): ?><span class="input-group-text border-0 bg-transparent px-1" title="Numer nadany w Płatnościach — edycja zablokowana"><i class="bi bi-lock-fill text-secondary" aria-hidden="true"></i></span>
+                  <?php else: ?><button type="submit" name="_op" value="set_vnrb" class="btn btn-sm btn-outline-secondary" title="Zapisz numer" aria-label="Zapisz numer rachunku"><i class="bi bi-save" aria-hidden="true"></i></button><?php endif; ?>
                   <?php if ($stored === ''): ?><button type="submit" name="_op" value="assign_vnrb_pool" class="btn btn-sm btn-outline-primary" title="Nadaj kolejny wolny numer z puli TI">Z puli</button><?php endif; ?>
                 </div>
-                <?php if ($stored === ''): ?><div class="small text-muted">Bez numeru kursant płaci na rachunek grupy/organizacji.</div><?php endif; ?>
+                <?php if ($stored === ''): ?><div class="small text-muted">Bez numeru kursant płaci na rachunek grupy/organizacji.</div>
+                <?php else: ?><div class="small text-muted"><i class="bi bi-lock" aria-hidden="true"></i> Nadany w Płatnościach — zmiana tylko w <a href="../../../platnosci/admin.php?q=<?= urlencode((string)$sa['client_name']) ?>">panelu płatności</a>.</div><?php endif; ?>
               </form>
             </div>
             <div class="col-auto">
