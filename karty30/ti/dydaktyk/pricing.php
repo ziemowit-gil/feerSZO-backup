@@ -533,7 +533,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
       <table class="min-w-full text-sm"><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3 text-right">Należności</th><th class="pr-3 text-right">Wpłacono</th><th class="text-right">Do zapłaty</th></tr></thead>
         <tbody class="divide-y divide-slate-100">
         <?php foreach ($st_debtors as $d): ?>
-          <tr><td class="py-2 pr-3"><a class="hover:underline" href="../../../rozliczenia/uczestnik.php?id=<?= (int)$d['client_id'] ?>"><?= h($d['client_name']) ?></a></td>
+          <tr><td class="py-2 pr-3"><a class="hover:underline" href="../../../rozliczenia/uczestnik.php?client_id=<?= (int)$d['client_id'] ?>"><?= h($d['client_name']) ?></a></td>
             <td class="pr-3 text-right tabular-nums"><?= $fmt($d['charges']) ?></td><td class="pr-3 text-right tabular-nums"><?= $fmt($d['paid']) ?></td>
             <td class="text-right tabular-nums font-semibold text-red-700"><?= $fmt($d['debt']) ?></td></tr>
         <?php endforeach; ?>
@@ -547,7 +547,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
         <?php foreach (array_slice($st_op, 0, 50) as $o): ?>
           <tr><td class="py-2 pr-3"><?= h($o['participant_name']) ?></td><td class="pr-3 text-xs text-slate-600"><?= h(ti_op_bucket_label((int)$o['course_id'])) ?></td>
             <td class="pr-3 text-right tabular-nums font-semibold text-sky-700"><?= $fmt($o['amount']) ?></td>
-            <td class="text-right"><a class="text-sm font-medium text-navy-700 hover:underline" href="overpayments.php?q=<?= urlencode((string)$o['participant_name']) ?>">Rozlicz →</a></td></tr>
+            <td class="text-right"><a class="text-sm font-medium text-navy-700 hover:underline" href="overpayments.php">Rozlicz →</a></td></tr>
         <?php endforeach; ?>
         <?php if (!$st_op): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak nadpłat do rozdysponowania.</td></tr><?php endif; ?>
         </tbody></table>
