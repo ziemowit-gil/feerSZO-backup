@@ -13,6 +13,7 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pricing/logic/pricingEngine.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_overpayments/logic/overpayments.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_price_changes.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { http_response_code(403); die('Brak uprawnień.'); }
@@ -88,6 +89,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rp = ti_payment_add($cl, $amt, trim((string)($_POST['paid_at'] ?? '')), $pm, trim((string)($_POST['note'] ?? '')), 'manual', 0, $pc);
             audit_log('pricing.settle_payment', ['client_id' => $cl, 'amount' => $amt, 'course_id' => $pc, 'by' => $by], $uid);
             $res = 0; $ok = 'Wpłata ' . number_format($amt, 2, ',', ' ') . ' zł zapisana' . ($pc ? ' na grupę' : ' (ogólna)') . '.' . (($rp['credit'] ?? 0) > 0 ? ' Nadpłata: ' . number_format($rp['credit'], 2, ',', ' ') . ' zł.' : ''); break;
+        case 'zero_rates':
+            $zr = ti_course_zero_rates((int)($_POST['course_id'] ?? 0), trim((string)($_POST['from'] ?? '')), (string)($_POST['reason'] ?? ''), (int)($me['user_id'] ?? 0), !empty($_POST['rebill']));
+            if (isset($zr['error'])) { $res = $zr['error']; break; }
+            $res = 0; $ok = $zr['msg']; break;
         case 'close_phase_out':
             $rr = ti_course_close_phase_out((int)($me['user_id'] ?? 0), $by, !empty($_POST['include_future']));
             $res = 0; $ok = 'Zamknięto grup „Planowana do wygaszenia”: ' . $rr['closed'] . ($rr['skipped'] ? '. Pominięto (mają przyszłe lekcje): ' . implode('; ', $rr['skipped']) : '') . '.'; break;
@@ -623,6 +628,18 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
           <div class="text-right"><button class="btn-sec">Zapisz typy</button></div>
         </form>
         <?php if ((int)$c['n']): ?>
+        <details class="rounded-lg border border-amber-200 bg-amber-50/40 open:bg-white">
+          <summary class="cursor-pointer select-none px-3 py-2 text-sm font-medium text-amber-900"><i class="bi bi-slash-circle mr-1" aria-hidden="true"></i>Zeruj stawki w grupie (od daty)</summary>
+          <form method="post" class="grid gap-2 border-t border-amber-200 p-3 sm:grid-cols-2" onsubmit="if(this.reason.value.trim().length<5){alert('Podaj uzasadnienie (min. 5 znaków).');return false;} return confirm('Wyzerować stawki w grupie od ' + this.from.value + '? Lekcje od tego dnia będą po 0 zł; wcześniejsze zostają.')">
+            <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="zero_rates"><input type="hidden" name="_tab" value="groups">
+            <input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="_course" value="<?= $sel_course ?>">
+            <div><label class="lbl" for="zf-<?= (int)$c['id'] ?>">Od dnia (domyślnie pierwszy dzień po ostatnim rozliczeniu)</label><input id="zf-<?= (int)$c['id'] ?>" type="date" name="from" class="inp" value="<?= h(ti_course_zero_default_date((int)$c['id'])) ?>" required></div>
+            <div><label class="lbl" for="zr-<?= (int)$c['id'] ?>">Uzasadnienie (wymagane)</label><input id="zr-<?= (int)$c['id'] ?>" name="reason" class="inp" maxlength="300" placeholder="np. grupa wygaszana"></div>
+            <label class="flex items-center gap-2 text-xs sm:col-span-2"><input type="checkbox" name="rebill" value="1"> od razu przelicz wystawione, nieopłacone rozliczenia od tej daty</label>
+            <div class="text-xs text-slate-500 sm:col-span-2">Zapisuje zmianę ceny grupy na 0 zł od wskazanej daty (bez e-maila). Kursanci z własną zmianą ceny ją zachowują. Wycofasz ją w historii zmian cen.</div>
+            <div class="sm:col-span-2 text-right"><button class="btn-sec">Zeruj stawki od daty</button></div>
+          </form>
+        </details>
         <details class="rounded-lg border border-slate-200 bg-slate-50/60 open:bg-white">
           <summary class="cursor-pointer select-none px-3 py-2 text-sm font-medium text-navy-700"><i class="bi bi-cash-coin mr-1" aria-hidden="true"></i>Zmień stawkę całej grupy</summary>
           <form method="post" class="grid gap-2 border-t border-slate-200 p-3 sm:grid-cols-2" onsubmit="if(!this.reason.value.trim() || this.reason.value.trim().length<5){alert('Podaj uzasadnienie zmiany ceny (min. 5 znaków).');return false;} return confirm('Ustawić tę stawkę wszystkim aktywnym uczestnikom grupy?');">

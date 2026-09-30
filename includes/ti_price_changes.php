@@ -234,6 +234,37 @@ function ti_price_change_create(array $data): int {
 }
 
 /**
+ * Domyślna data „zerowania” stawek grupy: pierwszy dzień po ostatnim okresie, w którym wystawiono rozliczenie
+ * (pierwszy dzień następnego miesiąca); gdy nic nie wystawiono — jutro.
+ */
+function ti_course_zero_default_date(int $course_id): string {
+    $r = db_one("SELECT year, month FROM k30_ti_billing WHERE COALESCE(course_id,0)=CAST(? AS INTEGER) AND status IN ('issued','paid') ORDER BY year DESC, month DESC LIMIT 1", [$course_id]);
+    if (!$r) return date('Y-m-d', strtotime('+1 day'));
+    return date('Y-m-d', mktime(0, 0, 0, (int)$r['month'] + 1, 1, (int)$r['year']));
+}
+
+/**
+ * „Zeruj stawki w grupie”: zmiana ceny grupy na 0 zł od podanej daty (zakres 'course', kwota 0, bez końca) —
+ * obowiązuje lekcje od tego dnia, wcześniejsze zostają po starych stawkach. Kursanci z własną zmianą ceny
+ * (zakres 'client') zachowują ją. Bez e-maila do kursantów. $rebill: przelicz wystawione, nieopłacone rozliczenia.
+ * @return array{id:int, msg:string}|array{error:string}
+ */
+function ti_course_zero_rates(int $course_id, string $from, string $reason, int $by = 0, bool $rebill = false): array {
+    ti_price_changes_migrate();
+    if (!db_one("SELECT 1 FROM k30_ti_courses WHERE id=?", [$course_id])) return ['error' => 'Nie znaleziono grupy.'];
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) return ['error' => 'Podaj datę w formacie RRRR-MM-DD.'];
+    if (mb_strlen(trim($reason)) < 5) return ['error' => 'Podaj uzasadnienie (min. 5 znaków).'];
+    if (db_one("SELECT 1 FROM k30_ti_price_changes WHERE course_id=? AND scope='course' AND status='active' AND change_type='amount' AND change_value=0 AND date_from=? AND COALESCE(date_to,'')=''", [$course_id, $from]))
+        return ['error' => 'Zerowanie stawek od ' . $from . ' jest już zapisane dla tej grupy.'];
+    $id = ti_price_change_create(['scope' => 'course', 'course_id' => $course_id, 'change_type' => 'amount', 'change_value' => 0,
+        'date_from' => $from, 'date_to' => null, 'reason' => trim($reason), 'created_by' => $by ?: null]);
+    $msg = 'Stawki w grupie wyzerowane od ' . $from . ' (zmiana ceny #' . $id . ').';
+    if ($rebill) { $rb = ti_price_change_rebill($id); $msg .= ' Przeliczone rozliczenia: ' . count($rb['updated'] ?? []) . (!empty($rb['manual']) ? ', do ręcznej korekty: ' . count($rb['manual']) : '') . '.'; }
+    if (function_exists('audit_log')) audit_log('pricing.zero_rates', ['course_id' => $course_id, 'price_change_id' => $id, 'from' => $from, 'rebill' => $rebill, 'reason' => trim($reason)], $by ?: null);
+    return ['id' => $id, 'msg' => $msg];
+}
+
+/**
  * Korekta ceny lekcji (kierownik): stawka godzinowa na JEDEN dzień lekcji —
  * dla jednego kursanta albo całej grupy. Zapis jako zmiana ceny kind='lesson'
  * (ślad, uzasadnienie, anulowanie jak przy zmianach cen), bez e-maila; od razu
