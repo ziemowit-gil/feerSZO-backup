@@ -346,8 +346,6 @@ $_cvh_list_url   = APP_URL . '/contracts/zlecenie/list.php';
 $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 require_once dirname(__DIR__) . '/includes/cv_layout.php';
-require_once dirname(__DIR__) . '/includes/cv_ui.php';
-cv_ui_assets();
 ?>
 
 <?php if (rachunek_banner_needed($row)): ?>
@@ -381,65 +379,162 @@ cv_ui_assets();
 </div>
 <?php endif; ?>
 
-<?php
-// ── Zakładki: główne w pasku, rzadziej używane w „Więcej” ─────────────────────
-// [etykieta, badge HTML, czy wymaga uwagi (licznik na „Więcej”)]
-$_b = fn(string $cls, $txt) => '<span class="badge ' . $cls . '">' . h((string)$txt) . '</span>';
-$_sign_badge = function (string $st, array $ok, array $wait, array $bad): string {
-    if (in_array($st, $ok, true))   return '<span class="badge bg-success">podpisano</span>';
-    if (in_array($st, $wait, true)) return '<span class="badge bg-warning text-dark">w toku</span>';
-    if (in_array($st, $bad, true))  return '<span class="badge bg-danger">odrzucono</span>';
-    return '';
-};
-$_zl_tabs = [
-    'umowa'          => ['Umowa', '', 0],
-    'zleceniobiorca' => ['Zleceniobiorca', '', 0],
-    'docs'           => ['Dokumenty', $_badge_docs ? $_b('bg-warning text-dark', $_badge_docs) : '', 0],
-    'rozliczenia'    => ['Rozliczenia', $_rozl_open ? $_b('bg-info text-dark', $_rozl_open) : '', 0],
-    'rachunki'       => ['Rachunki', $_rach_open ? $_b('bg-primary', $_rach_open) : '', 0],
-    'godziny'        => ['Godziny', $_ts_pending_tab ? $_b('bg-warning text-dark', $_ts_pending_tab) : (!empty($_ts_rows) ? $_b('bg-secondary', count($_ts_rows)) : ''), 0],
-    'obieg'          => ['Obieg', $_badge_obieg ? $_b('bg-danger', $_badge_obieg) : '', 0],
-];
-$_zl_more = [
-    'messages' => ['Wiadomości', $_msg_unread ? $_b('bg-danger', $_msg_unread) : '', (int)$_msg_unread],
-    'historia' => ['Historia', $audit_log ? $_b('bg-secondary', count($audit_log)) : '', 0],
-    'm365'     => ['Microsoft 365', $row['m365_konto'] ? ($row['m365_konto_aktywne'] ? '<span class="badge bg-success">aktywne</span>' : '<span class="badge bg-secondary">nieaktywne</span>') : '', 0],
-];
-if ($_tasks_enabled && can_edit()) {
-    $_zl_more['tasks'] = ['Zadania', !empty($_contract_tasks) ? $_b('bg-primary', count($_contract_tasks)) : '', 0];
-}
-if (!empty($row['w_ramach_is'])) {
-    $_zl_more['formalnosci'] = ['Formalności IS', '', 0];
-}
-if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (docusign_is_enabled() || current_user()['role'] === 'admin')) {
-    $_zl_more['docusign'] = ['DocuSign', $_sign_badge($row['docusign_status'] ?? '', ['completed'], ['sent', 'delivered'], ['declined', 'voided']), 0];
-}
-if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (autenti_is_enabled() || current_user()['role'] === 'admin')) {
-    $_zl_more['autenti'] = ['Autenti', $_sign_badge($row['autenti_status'] ?? '', ['COMPLETED'], ['IN_PROGRESS'], ['DECLINED', 'CANCELLED', 'EXPIRED']), 0];
-}
-$_more_active = isset($_zl_more[$_tab]);
-$_more_attn   = array_sum(array_column($_zl_more, 2));
-?>
-<div class="cv-tabs-layout cv-v2" data-cc-key="zlecenie">
-<ul class="nav cv-tabbar no-print" id="zlecenieTabs" role="tablist" aria-label="Sekcje umowy">
-  <?php foreach ($_zl_tabs as $_k => [$_lbl, $_badge]): ?>
+<div class="cv-tabs-layout">
+<ul class="nav nav-pills cv-side-tabs mb-0 no-print" id="zlecenieTabs" role="tablist">
+
   <li class="nav-item" role="presentation">
-    <button class="nav-link<?= $_tab === $_k ? ' active' : '' ?>" id="tab-<?= $_k ?>-btn" data-bs-toggle="tab"
-            data-bs-target="#tab-<?= $_k ?>" type="button" role="tab" aria-controls="tab-<?= $_k ?>"
-            aria-selected="<?= $_tab === $_k ? 'true' : 'false' ?>"><?= h($_lbl) ?><?= $_badge ?></button>
+    <button class="nav-link<?php if($_tab==='umowa') echo ' active'; ?>" id="tab-umowa-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-umowa" type="button" role="tab">
+      <i class="bi bi-file-text"></i> Umowa
+    </button>
   </li>
-  <?php endforeach; ?>
-  <li class="nav-item dropdown cv-tab-more" role="presentation">
-    <button class="nav-link dropdown-toggle<?= $_more_active ? ' active' : '' ?>" type="button" data-bs-toggle="dropdown"
-            aria-expanded="false">Więcej<?php if ($_more_attn): ?><span class="badge bg-danger" aria-label="<?= $_more_attn ?> wymaga uwagi"><?= $_more_attn ?></span><?php endif; ?></button>
-    <ul class="dropdown-menu dropdown-menu-end">
-      <?php foreach ($_zl_more as $_k => [$_lbl, $_badge]): ?>
-      <li><button class="dropdown-item<?= $_tab === $_k ? ' active' : '' ?>" id="tab-<?= $_k ?>-btn" data-bs-toggle="tab"
-                  data-bs-target="#tab-<?= $_k ?>" type="button" role="tab" aria-controls="tab-<?= $_k ?>"
-                  aria-selected="<?= $_tab === $_k ? 'true' : 'false' ?>"><?= h($_lbl) ?><?= $_badge ?></button></li>
-      <?php endforeach; ?>
-    </ul>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='zleceniobiorca') echo ' active'; ?>" id="tab-zleceniobiorca-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-zleceniobiorca" type="button" role="tab">
+      <i class="bi bi-person"></i> Zleceniobiorca
+    </button>
   </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='docs') echo ' active'; ?>" id="tab-docs-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-docs" type="button" role="tab">
+      <i class="bi bi-folder2-open"></i> Dokumenty
+      <?php if ($_badge_docs): ?>
+      <span class="badge bg-warning text-dark ms-1"><?= $_badge_docs ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='rozliczenia') echo ' active'; ?>" id="tab-rozliczenia-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-rozliczenia" type="button" role="tab">
+      <i class="bi bi-cash-coin"></i> Rozliczenia
+      <?php if ($_rozl_open): ?>
+      <span class="badge bg-info text-dark ms-1"><?= $_rozl_open ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='rachunki') echo ' active'; ?>" id="tab-rachunki-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-rachunki" type="button" role="tab">
+      <i class="bi bi-receipt"></i> Rachunki
+      <?php if ($_rach_open): ?>
+      <span class="badge bg-primary ms-1"><?= $_rach_open ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='obieg') echo ' active'; ?>" id="tab-obieg-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-obieg" type="button" role="tab">
+      <i class="bi bi-arrow-repeat"></i> Obieg
+      <?php if ($_badge_obieg): ?>
+      <span class="badge bg-danger ms-1"><?= $_badge_obieg ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='m365') echo ' active'; ?>" id="tab-m365-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-m365" type="button" role="tab">
+      <i class="bi bi-microsoft"></i> M365
+      <?php if ($row['m365_konto']): ?>
+      <span class="badge <?= $row['m365_konto_aktywne'] ? 'bg-success' : 'bg-secondary' ?> ms-1">
+        <?= $row['m365_konto_aktywne'] ? '●' : '○' ?>
+      </span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='historia') echo ' active'; ?>" id="tab-historia-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-historia" type="button" role="tab">
+      <i class="bi bi-journal-text"></i> Historia
+      <?php if ($audit_log): ?>
+      <span class="badge bg-secondary ms-1"><?= count($audit_log) ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <?php if ($_tasks_enabled && can_edit()): ?>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='tasks') echo ' active'; ?>" id="tab-tasks-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-tasks" type="button" role="tab">
+      <i class="bi bi-kanban"></i> Zadania
+      <?php if (!empty($_contract_tasks)): ?>
+      <span class="badge bg-primary ms-1"><?= count($_contract_tasks) ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+  <?php endif; ?>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='godziny') echo ' active'; ?>" id="tab-godziny-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-godziny" type="button" role="tab">
+      <i class="bi bi-clock-history"></i> Godziny
+      <?php if ($_ts_pending_tab): ?>
+      <span class="badge bg-warning text-dark ms-1"><?= $_ts_pending_tab ?></span>
+      <?php elseif (!empty($_ts_rows)): ?>
+      <span class="badge bg-secondary ms-1"><?= count($_ts_rows) ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='messages') echo ' active'; ?>" id="tab-messages-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-messages" type="button" role="tab">
+      <i class="bi bi-chat-dots"></i> Wiadomości
+      <?php if ($_msg_unread): ?>
+      <span class="badge bg-danger ms-1"><?= $_msg_unread ?></span>
+      <?php endif; ?>
+    </button>
+  </li>
+
+  <?php if (!empty($row['w_ramach_is'])): ?>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link<?php if($_tab==='formalnosci') echo ' active'; ?>" id="tab-formalnosci-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-formalnosci" type="button" role="tab">
+      <i class="bi bi-building-check"></i> Formalności IS
+    </button>
+  </li>
+  <?php endif; ?>
+
+  <?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (docusign_is_enabled() || current_user()['role'] === 'admin')): ?>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-docusign-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-docusign" type="button" role="tab">
+      <i class="bi bi-pen-fill"></i> DocuSign
+      <?php $__ds = $row['docusign_status'] ?? ''; ?>
+      <?php if (in_array($__ds, ['sent','delivered'])): ?>
+      <span class="badge bg-warning text-dark ms-1">●</span>
+      <?php elseif ($__ds === 'completed'): ?>
+      <span class="badge bg-success ms-1">✓</span>
+      <?php elseif (in_array($__ds, ['declined','voided'])): ?>
+      <span class="badge bg-danger ms-1">✗</span>
+      <?php endif; ?>
+    </button>
+  </li>
+  <?php endif; ?>
+
+  <?php if (($row['forma_podpisania'] ?? '') === 'elektroniczna' && (autenti_is_enabled() || current_user()['role'] === 'admin')): ?>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-autenti-btn" data-bs-toggle="tab"
+            data-bs-target="#tab-autenti" type="button" role="tab">
+      <i class="bi bi-pen-fill"></i> Autenti
+      <?php $__at = $row['autenti_status'] ?? ''; ?>
+      <?php if ($__at === 'IN_PROGRESS'): ?>
+      <span class="badge bg-warning text-dark ms-1">●</span>
+      <?php elseif ($__at === 'COMPLETED'): ?>
+      <span class="badge bg-success ms-1">✓</span>
+      <?php elseif (in_array($__at, ['DECLINED','CANCELLED','EXPIRED'])): ?>
+      <span class="badge bg-danger ms-1">✗</span>
+      <?php endif; ?>
+    </button>
+  </li>
+  <?php endif; ?>
+
 </ul>
 
 <div class="tab-content cv-side-tabs-content" id="zlecenieTabsContent">
@@ -449,6 +544,7 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
 
   <div class="cv-section">
     <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-file-text-fill"></i></div>
       <span class="cv-section-title">Dane podstawowe</span>
     </div>
     <div class="cv-fields">
@@ -463,6 +559,7 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
 
   <div class="cv-section">
     <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-cash-coin"></i></div>
       <span class="cv-section-title">Wynagrodzenie i podatek</span>
     </div>
     <div class="cv-fields">
@@ -504,6 +601,7 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
   ?>
   <div class="cv-section">
     <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-shield-check"></i></div>
       <span class="cv-section-title">ZUS — rejestracja i wyrejestrowanie</span>
     </div>
     <div class="cv-fields">
@@ -517,6 +615,7 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
 
   <div class="cv-section">
     <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F5F3FF;color:#7C3AED"><i class="bi bi-pen-fill"></i></div>
       <span class="cv-section-title">Rachunek i podpisanie</span>
     </div>
     <div class="cv-fields">
@@ -549,6 +648,7 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
   <?php if ($row['uwagi']): ?>
   <div class="cv-section">
     <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#64748B"><i class="bi bi-chat-left-text"></i></div>
       <span class="cv-section-title">Uwagi</span>
     </div>
     <div class="cv-value"><?= nl2br(h($row['uwagi'])) ?></div>
@@ -556,8 +656,9 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
   <?php endif; ?>
 
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
-  <div class="cv-section" data-cc-collapsed>
+  <div class="cv-section">
     <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F8FAFC;color:#94A3B8"><i class="bi bi-hash"></i></div>
       <span class="cv-section-title">Numery referencyjne</span>
     </div>
     <div class="cv-fields">
@@ -587,6 +688,7 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
 
     <div class="cv-section">
       <div class="cv-section-head">
+        <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-person-vcard"></i></div>
         <span class="cv-section-title">Dane osobowe</span>
       </div>
       <div class="cv-fields">
@@ -1540,323 +1642,6 @@ $_more_attn   = array_sum(array_column($_zl_more, 2));
 <?php include __DIR__ . '/_tab_formalnosci.php'; ?>
 <?php endif; ?>
 
-<!-- ══ TAB: Zadania ════════════════════════════════════════════════════════════ -->
-<?php if ($_tasks_enabled && can_edit()): ?>
-<div class="tab-pane fade<?php if($_tab==='tasks') echo ' show active'; ?>" id="tab-tasks" role="tabpanel">
-  <a id="tab-tasks-anchor"></a>
-
-  <!-- Dodaj na tablicę -->
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <span class="cv-section-title">Dodaj na tablicę</span>
-    </div>
-    <?php if (!$_contract_workspaces): ?>
-    <div class="alert alert-warning small py-2 mb-0">
-      <i class="bi bi-exclamation-triangle"></i>
-      Brak aktywnych obszarów. Utwórz obszar w
-      <a href="<?= APP_URL ?>/admin/tasks_workspaces.php">Zarządzaniu zadaniami</a>.
-    </div>
-    <?php else: ?>
-    <form method="post" id="addTaskFormZl">
-      <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
-      <input type="hidden" name="_add_task" value="1">
-      <div class="row g-2">
-        <div class="col-12">
-          <label class="form-label fw-semibold small">Tytuł zadania <span class="text-danger">*</span></label>
-          <input type="text" name="task_title" class="form-control form-control-sm" required
-                 value="<?= h($row['imie_nazwisko']) ?>" placeholder="np. Rozliczenie umowy zlecenie">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold small">Obszar (workspace) <span class="text-danger">*</span></label>
-          <select name="task_ws_id" id="wsSelectZl" class="form-select form-select-sm" required
-                  onchange="zlLoadLists(this.value)">
-            <option value="">— wybierz —</option>
-            <?php foreach ($_contract_workspaces as $ws): ?>
-            <option value="<?= (int)$ws['id'] ?>"><?= h($ws['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold small">Kolumna (lista) <span class="text-danger">*</span></label>
-          <select name="task_list_id" id="listSelectZl" class="form-select form-select-sm" required>
-            <option value="">— najpierw wybierz obszar —</option>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold small">Priorytet</label>
-          <select name="task_priority" class="form-select form-select-sm">
-            <?php foreach ([1=>'Niski',2=>'Normalny',3=>'Wysoki',4=>'Krytyczny'] as $pv => $pl): ?>
-            <option value="<?= $pv ?>" <?= $pv === 2 ? 'selected' : '' ?>><?= $pl ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold small">Termin</label>
-          <input type="date" name="task_due" class="form-control form-control-sm">
-        </div>
-        <div class="col-12">
-          <label class="form-label fw-semibold small">Opis <span class="text-muted fw-normal">(opcjonalny)</span></label>
-          <textarea name="task_desc" class="form-control form-control-sm" rows="2"
-                    placeholder="Zleceniobiorca: <?= h($row['imie_nazwisko']) ?> · Umowa: <?= h($row['numer_umowy']) ?>"></textarea>
-        </div>
-        <div class="col-12">
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-circle"></i> Dodaj na tablicę
-          </button>
-        </div>
-      </div>
-    </form>
-    <?php endif; ?>
-  </div>
-
-  <!-- Lista zadań powiązanych z umową -->
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <span class="cv-section-title">Powiązane zadania</span>
-      <div class="cv-section-action">
-        <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-kanban"></i> Otwórz tablicę
-        </a>
-      </div>
-    </div>
-    <?php if (!$_contract_tasks): ?>
-    <div class="text-center text-muted py-4 small">
-      <i class="bi bi-kanban display-6 opacity-25"></i><br>
-      Brak zadań powiązanych z tą umową.
-    </div>
-    <?php else: ?>
-    <div class="list-group list-group-flush">
-      <?php foreach ($_contract_tasks as $ct):
-        $p = TASK_PRIORITIES[$ct['priority']] ?? TASK_PRIORITIES[2];
-      ?>
-      <a href="<?= APP_URL ?>/tasks/detail.php?id=<?= (int)$ct['id'] ?>"
-         class="list-group-item list-group-item-action py-2 px-0 <?= $ct['completed_at'] ? 'text-muted' : '' ?>"
-         style="border-left:none;border-right:none">
-        <div class="d-flex align-items-center gap-2">
-          <?php if ($ct['completed_at']): ?>
-          <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
-          <?php else: ?>
-          <i class="bi bi-circle text-muted flex-shrink-0"></i>
-          <?php endif; ?>
-          <div class="flex-grow-1 min-w-0">
-            <div class="fw-semibold small text-truncate <?= $ct['completed_at'] ? 'text-decoration-line-through' : '' ?>">
-              <?= h($ct['title']) ?>
-            </div>
-            <div class="d-flex align-items-center gap-2 mt-1">
-              <span class="badge bg-<?= $p['class'] ?> small" style="font-size:.65rem">
-                <i class="bi <?= $p['icon'] ?> me-1"></i><?= $p['label'] ?>
-              </span>
-              <span class="text-muted" style="font-size:.75rem">
-                <?= h($ct['workspace_name']) ?> › <?= h($ct['list_name']) ?>
-              </span>
-              <?php if ($ct['due_date']): ?>
-              <span class="text-muted" style="font-size:.75rem">
-                <i class="bi bi-calendar2"></i> <?= date_pl($ct['due_date']) ?>
-              </span>
-              <?php endif; ?>
-            </div>
-          </div>
-          <i class="bi bi-arrow-right text-muted flex-shrink-0"></i>
-        </div>
-      </a>
-      <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-  </div>
-
-</div><!-- /tab-tasks -->
-<?php endif; ?>
-
-<!-- ══ TAB: Godziny ═══════════════════════════════════════════════════════════ -->
-<div class="tab-pane fade<?php if($_tab==='godziny') echo ' show active'; ?>" id="tab-godziny" role="tabpanel">
-
-  <!-- Statsy -->
-  <div class="row g-3 mb-3">
-    <div class="col-6 col-md-3">
-      <div class="border rounded p-3 text-center">
-        <div class="fs-3 fw-bold text-success"><?= number_format($_ts_approved, 1, ',', ' ') ?></div>
-        <div class="text-muted small">godz. zatwierdzonych</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="border rounded p-3 text-center">
-        <div class="fs-3 fw-bold"><?= number_format($_ts_total_h, 1, ',', ' ') ?></div>
-        <div class="text-muted small">godz. łącznie</div>
-      </div>
-    </div>
-    <?php if ($row['liczba_godzin_planowana']): ?>
-    <div class="col-6 col-md-3">
-      <div class="border rounded p-3 text-center">
-        <div class="fs-3 fw-bold text-primary"><?= h($row['liczba_godzin_planowana']) ?></div>
-        <div class="text-muted small">godz. planowanych (umowa)</div>
-      </div>
-    </div>
-    <?php endif; ?>
-    <div class="col-6 col-md-3">
-      <div class="border rounded p-3 text-center">
-        <div class="fs-3 fw-bold text-secondary"><?= count($_ts_rows) ?></div>
-        <div class="text-muted small">wpisów miesięcznych</div>
-      </div>
-    </div>
-  </div>
-
-  <?php if ($_ts_rows): ?>
-  <!-- Tabela wpisów -->
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <span class="cv-section-title">Ewidencja godzin</span>
-    </div>
-    <table class="cv-table">
-      <thead>
-        <tr>
-          <th>Miesiąc</th>
-          <th class="text-end">Godziny</th>
-          <th>Status</th>
-          <th>Opis działań</th>
-          <?php if (can_edit()): ?>
-          <th>Akcja</th>
-          <?php endif; ?>
-        </tr>
-      </thead>
-      <tbody>
-      <?php foreach ($_ts_rows as $_tsrow):
-        $ts_class = $_tsrow['status'] === 'złożone' ? 'table-warning' :
-                   ($_tsrow['status'] === 'zatwierdzone' ? 'table-success bg-opacity-25' :
-                   ($_tsrow['status'] === 'odrzucone'    ? 'table-danger bg-opacity-25' : ''));
-      ?>
-      <tr class="<?= $ts_class ?>">
-        <td class="fw-semibold small"><?= ts_month_label((int)$_tsrow['rok'], (int)$_tsrow['miesiac']) ?></td>
-        <td class="text-end fw-bold"><?= number_format((float)$_tsrow['godziny'], 1, ',', ' ') ?> h</td>
-        <td><?= ts_badge($_tsrow['status']) ?></td>
-        <td class="text-muted small">
-          <?= $_tsrow['opis'] ? h(mb_strimwidth($_tsrow['opis'], 0, 80, '…')) : '—' ?>
-          <?php if ($_tsrow['status'] === 'odrzucone' && $_tsrow['uwagi_admin']): ?>
-          <div class="text-danger small"><i class="bi bi-x-circle"></i> <?= h($_tsrow['uwagi_admin']) ?></div>
-          <?php endif; ?>
-        </td>
-        <?php if (can_edit()): ?>
-        <td>
-          <?php if ($_tsrow['status'] === 'złożone'): ?>
-          <div class="d-flex gap-1">
-            <form method="post" class="d-inline">
-              <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
-              <input type="hidden" name="_ts_approve" value="1">
-              <input type="hidden" name="ts_id"       value="<?= (int)$_tsrow['id'] ?>">
-              <button type="submit" class="btn btn-xs btn-success" style="font-size:.72rem;padding:.2rem .55rem">
-                <i class="bi bi-check-lg"></i> Zatwierdź
-              </button>
-            </form>
-            <button type="button" class="btn btn-xs btn-outline-danger"
-                    style="font-size:.72rem;padding:.2rem .5rem"
-                    onclick="document.getElementById('ts-reject-<?= (int)$_tsrow['id'] ?>').classList.toggle('d-none')">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
-          <div id="ts-reject-<?= (int)$_tsrow['id'] ?>" class="d-none mt-1">
-            <form method="post">
-              <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
-              <input type="hidden" name="_ts_reject" value="1">
-              <input type="hidden" name="ts_id"      value="<?= (int)$_tsrow['id'] ?>">
-              <div class="input-group input-group-sm">
-                <input name="uwagi_admin" class="form-control" placeholder="Powód (opcjonalnie)">
-                <button type="submit" class="btn btn-danger">Odrzuć</button>
-              </div>
-            </form>
-          </div>
-          <?php endif; ?>
-        </td>
-        <?php endif; ?>
-      </tr>
-      <?php endforeach; ?>
-      </tbody>
-      <?php
-      $ts_zatw = array_filter($_ts_rows, fn($r) => $r['status'] === 'zatwierdzone');
-      if (count($ts_zatw) > 1): ?>
-      <tfoot style="border-top:1px solid #E2E8F0">
-        <tr>
-          <td class="fw-bold" style="padding:.55rem 0">Razem zatwierdzonych</td>
-          <td class="text-end text-success fw-bold" style="padding:.55rem 0"><?= number_format($_ts_approved, 1, ',', ' ') ?> h</td>
-          <td colspan="<?= can_edit() ? 3 : 2 ?>"></td>
-        </tr>
-      </tfoot>
-      <?php endif; ?>
-    </table>
-  </div>
-  <?php endif; ?>
-
-  <?php if (can_edit()): ?>
-  <!-- Formularz dodania wpisu -->
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <span class="cv-section-title">Dodaj wpis godzin</span>
-    </div>
-    <form method="post" class="row g-2 align-items-end">
-      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-      <input type="hidden" name="_ts_add" value="1">
-      <div class="col-md-2">
-        <label class="form-label fw-semibold small">Rok</label>
-        <input type="number" name="ts_rok" class="form-control form-control-sm"
-               value="<?= date('Y') ?>" min="2020" max="<?= date('Y') + 1 ?>">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label fw-semibold small">Miesiąc</label>
-        <select name="ts_miesiac" class="form-select form-select-sm">
-          <?php foreach (MIESIAC_PL as $mn => $ml): ?>
-          <option value="<?= $mn ?>" <?= $mn == date('n') ? 'selected' : '' ?>><?= $ml ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label fw-semibold small">Godziny <span class="text-danger">*</span></label>
-        <input type="number" name="ts_godziny" class="form-control form-control-sm"
-               min="0.5" max="744" step="0.5" required placeholder="np. 40">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label fw-semibold small">Status</label>
-        <select name="ts_status" class="form-select form-select-sm">
-          <option value="złożone">Złożone</option>
-          <option value="zatwierdzone">Zatwierdzone</option>
-          <option value="szkic">Szkic</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label fw-semibold small">Opis działań</label>
-        <input type="text" name="ts_opis" class="form-control form-control-sm" placeholder="np. Realizacja przedmiotu zlecenia">
-      </div>
-      <div class="col-md-1">
-        <button type="submit" class="btn btn-success btn-sm w-100">
-          <i class="bi bi-plus-lg"></i>
-        </button>
-      </div>
-    </form>
-  </div>
-  <?php endif; ?>
-
-  <?php if (!$_ts_rows && !can_edit()): ?>
-  <div class="text-center py-4 text-muted">
-    <i class="bi bi-clock" style="font-size:2rem;opacity:.3"></i>
-    <div class="mt-2">Brak wpisów ewidencji godzin dla tej umowy.</div>
-  </div>
-  <?php endif; ?>
-
-</div><!-- /tab-godziny -->
-
-<!-- ══ TAB: Wiadomości ════════════════════════════════════════════════════════ -->
-<div class="tab-pane fade<?php if($_tab==='messages') echo ' show active'; ?>" id="tab-messages" role="tabpanel">
-  <a id="tab-messages-anchor"></a>
-  <?php
-    $u = current_user();
-    $msg_ctx_type      = 'contract';
-    $msg_ctx_id        = $id;
-    $msg_contract_type = $TYPE;
-    $msg_viewer        = can_edit() ? 'admin' : 'user';
-    $msg_viewer_name   = $u['name'];
-    $msg_viewer_id     = (int)$u['id'];
-    $msg_post_url      = APP_URL . "/contracts/{$TYPE}/view.php?id={$id}";
-    include dirname(dirname(__DIR__)) . '/includes/messages_widget.php';
-  ?>
-</div><!-- /tab-messages -->
-
 </div><!-- /tab-content -->
 </div><!-- /cv-tabs-layout -->
 
@@ -2502,6 +2287,326 @@ window.CVTabsConfig = {
 </script>
 <?php endif; ?>
 
+<!-- ══ TAB: Zadania ════════════════════════════════════════════════════════════ -->
+<?php if ($_tasks_enabled && can_edit()): ?>
+<div class="tab-pane fade<?php if($_tab==='tasks') echo ' show active'; ?>" id="tab-tasks" role="tabpanel">
+  <a id="tab-tasks-anchor"></a>
+
+  <!-- Dodaj na tablicę -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-plus-circle"></i></div>
+      <span class="cv-section-title">Dodaj na tablicę</span>
+    </div>
+    <?php if (!$_contract_workspaces): ?>
+    <div class="alert alert-warning small py-2 mb-0">
+      <i class="bi bi-exclamation-triangle"></i>
+      Brak aktywnych obszarów. Utwórz obszar w
+      <a href="<?= APP_URL ?>/admin/tasks_workspaces.php">Zarządzaniu zadaniami</a>.
+    </div>
+    <?php else: ?>
+    <form method="post" id="addTaskFormZl">
+      <input type="hidden" name="_csrf"     value="<?= csrf_token() ?>">
+      <input type="hidden" name="_add_task" value="1">
+      <div class="row g-2">
+        <div class="col-12">
+          <label class="form-label fw-semibold small">Tytuł zadania <span class="text-danger">*</span></label>
+          <input type="text" name="task_title" class="form-control form-control-sm" required
+                 value="<?= h($row['imie_nazwisko']) ?>" placeholder="np. Rozliczenie umowy zlecenie">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Obszar (workspace) <span class="text-danger">*</span></label>
+          <select name="task_ws_id" id="wsSelectZl" class="form-select form-select-sm" required
+                  onchange="zlLoadLists(this.value)">
+            <option value="">— wybierz —</option>
+            <?php foreach ($_contract_workspaces as $ws): ?>
+            <option value="<?= (int)$ws['id'] ?>"><?= h($ws['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Kolumna (lista) <span class="text-danger">*</span></label>
+          <select name="task_list_id" id="listSelectZl" class="form-select form-select-sm" required>
+            <option value="">— najpierw wybierz obszar —</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Priorytet</label>
+          <select name="task_priority" class="form-select form-select-sm">
+            <?php foreach ([1=>'Niski',2=>'Normalny',3=>'Wysoki',4=>'Krytyczny'] as $pv => $pl): ?>
+            <option value="<?= $pv ?>" <?= $pv === 2 ? 'selected' : '' ?>><?= $pl ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold small">Termin</label>
+          <input type="date" name="task_due" class="form-control form-control-sm">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold small">Opis <span class="text-muted fw-normal">(opcjonalny)</span></label>
+          <textarea name="task_desc" class="form-control form-control-sm" rows="2"
+                    placeholder="Zleceniobiorca: <?= h($row['imie_nazwisko']) ?> · Umowa: <?= h($row['numer_umowy']) ?>"></textarea>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle"></i> Dodaj na tablicę
+          </button>
+        </div>
+      </div>
+    </form>
+    <?php endif; ?>
+  </div>
+
+  <!-- Lista zadań powiązanych z umową -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-list-task"></i></div>
+      <span class="cv-section-title">Powiązane zadania</span>
+      <div class="cv-section-action">
+        <a href="<?= APP_URL ?>/tasks/index.php" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-kanban"></i> Otwórz tablicę
+        </a>
+      </div>
+    </div>
+    <?php if (!$_contract_tasks): ?>
+    <div class="text-center text-muted py-4 small">
+      <i class="bi bi-kanban display-6 opacity-25"></i><br>
+      Brak zadań powiązanych z tą umową.
+    </div>
+    <?php else: ?>
+    <div class="list-group list-group-flush">
+      <?php foreach ($_contract_tasks as $ct):
+        $p = TASK_PRIORITIES[$ct['priority']] ?? TASK_PRIORITIES[2];
+      ?>
+      <a href="<?= APP_URL ?>/tasks/detail.php?id=<?= (int)$ct['id'] ?>"
+         class="list-group-item list-group-item-action py-2 px-0 <?= $ct['completed_at'] ? 'text-muted' : '' ?>"
+         style="border-left:none;border-right:none">
+        <div class="d-flex align-items-center gap-2">
+          <?php if ($ct['completed_at']): ?>
+          <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
+          <?php else: ?>
+          <i class="bi bi-circle text-muted flex-shrink-0"></i>
+          <?php endif; ?>
+          <div class="flex-grow-1 min-w-0">
+            <div class="fw-semibold small text-truncate <?= $ct['completed_at'] ? 'text-decoration-line-through' : '' ?>">
+              <?= h($ct['title']) ?>
+            </div>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <span class="badge bg-<?= $p['class'] ?> small" style="font-size:.65rem">
+                <i class="bi <?= $p['icon'] ?> me-1"></i><?= $p['label'] ?>
+              </span>
+              <span class="text-muted" style="font-size:.75rem">
+                <?= h($ct['workspace_name']) ?> › <?= h($ct['list_name']) ?>
+              </span>
+              <?php if ($ct['due_date']): ?>
+              <span class="text-muted" style="font-size:.75rem">
+                <i class="bi bi-calendar2"></i> <?= date_pl($ct['due_date']) ?>
+              </span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <i class="bi bi-arrow-right text-muted flex-shrink-0"></i>
+        </div>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+
+</div><!-- /tab-tasks -->
+<?php endif; ?>
+
+<!-- ══ TAB: Godziny ═══════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade<?php if($_tab==='godziny') echo ' show active'; ?>" id="tab-godziny" role="tabpanel">
+
+  <!-- Statsy -->
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="border rounded p-3 text-center">
+        <div class="fs-3 fw-bold text-success"><?= number_format($_ts_approved, 1, ',', ' ') ?></div>
+        <div class="text-muted small">godz. zatwierdzonych</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="border rounded p-3 text-center">
+        <div class="fs-3 fw-bold"><?= number_format($_ts_total_h, 1, ',', ' ') ?></div>
+        <div class="text-muted small">godz. łącznie</div>
+      </div>
+    </div>
+    <?php if ($row['liczba_godzin_planowana']): ?>
+    <div class="col-6 col-md-3">
+      <div class="border rounded p-3 text-center">
+        <div class="fs-3 fw-bold text-primary"><?= h($row['liczba_godzin_planowana']) ?></div>
+        <div class="text-muted small">godz. planowanych (umowa)</div>
+      </div>
+    </div>
+    <?php endif; ?>
+    <div class="col-6 col-md-3">
+      <div class="border rounded p-3 text-center">
+        <div class="fs-3 fw-bold text-secondary"><?= count($_ts_rows) ?></div>
+        <div class="text-muted small">wpisów miesięcznych</div>
+      </div>
+    </div>
+  </div>
+
+  <?php if ($_ts_rows): ?>
+  <!-- Tabela wpisów -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-table"></i></div>
+      <span class="cv-section-title">Ewidencja godzin</span>
+    </div>
+    <table class="cv-table">
+      <thead>
+        <tr>
+          <th>Miesiąc</th>
+          <th class="text-end">Godziny</th>
+          <th>Status</th>
+          <th>Opis działań</th>
+          <?php if (can_edit()): ?>
+          <th>Akcja</th>
+          <?php endif; ?>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($_ts_rows as $_tsrow):
+        $ts_class = $_tsrow['status'] === 'złożone' ? 'table-warning' :
+                   ($_tsrow['status'] === 'zatwierdzone' ? 'table-success bg-opacity-25' :
+                   ($_tsrow['status'] === 'odrzucone'    ? 'table-danger bg-opacity-25' : ''));
+      ?>
+      <tr class="<?= $ts_class ?>">
+        <td class="fw-semibold small"><?= ts_month_label((int)$_tsrow['rok'], (int)$_tsrow['miesiac']) ?></td>
+        <td class="text-end fw-bold"><?= number_format((float)$_tsrow['godziny'], 1, ',', ' ') ?> h</td>
+        <td><?= ts_badge($_tsrow['status']) ?></td>
+        <td class="text-muted small">
+          <?= $_tsrow['opis'] ? h(mb_strimwidth($_tsrow['opis'], 0, 80, '…')) : '—' ?>
+          <?php if ($_tsrow['status'] === 'odrzucone' && $_tsrow['uwagi_admin']): ?>
+          <div class="text-danger small"><i class="bi bi-x-circle"></i> <?= h($_tsrow['uwagi_admin']) ?></div>
+          <?php endif; ?>
+        </td>
+        <?php if (can_edit()): ?>
+        <td>
+          <?php if ($_tsrow['status'] === 'złożone'): ?>
+          <div class="d-flex gap-1">
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
+              <input type="hidden" name="_ts_approve" value="1">
+              <input type="hidden" name="ts_id"       value="<?= (int)$_tsrow['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-success" style="font-size:.72rem;padding:.2rem .55rem">
+                <i class="bi bi-check-lg"></i> Zatwierdź
+              </button>
+            </form>
+            <button type="button" class="btn btn-xs btn-outline-danger"
+                    style="font-size:.72rem;padding:.2rem .5rem"
+                    onclick="document.getElementById('ts-reject-<?= (int)$_tsrow['id'] ?>').classList.toggle('d-none')">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <div id="ts-reject-<?= (int)$_tsrow['id'] ?>" class="d-none mt-1">
+            <form method="post">
+              <input type="hidden" name="_csrf"      value="<?= csrf_token() ?>">
+              <input type="hidden" name="_ts_reject" value="1">
+              <input type="hidden" name="ts_id"      value="<?= (int)$_tsrow['id'] ?>">
+              <div class="input-group input-group-sm">
+                <input name="uwagi_admin" class="form-control" placeholder="Powód (opcjonalnie)">
+                <button type="submit" class="btn btn-danger">Odrzuć</button>
+              </div>
+            </form>
+          </div>
+          <?php endif; ?>
+        </td>
+        <?php endif; ?>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+      <?php
+      $ts_zatw = array_filter($_ts_rows, fn($r) => $r['status'] === 'zatwierdzone');
+      if (count($ts_zatw) > 1): ?>
+      <tfoot style="border-top:1px solid #E2E8F0">
+        <tr>
+          <td class="fw-bold" style="padding:.55rem 0">Razem zatwierdzonych</td>
+          <td class="text-end text-success fw-bold" style="padding:.55rem 0"><?= number_format($_ts_approved, 1, ',', ' ') ?> h</td>
+          <td colspan="<?= can_edit() ? 3 : 2 ?>"></td>
+        </tr>
+      </tfoot>
+      <?php endif; ?>
+    </table>
+  </div>
+  <?php endif; ?>
+
+  <?php if (can_edit()): ?>
+  <!-- Formularz dodania wpisu -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#F0FDF4;color:#16A34A"><i class="bi bi-plus-circle"></i></div>
+      <span class="cv-section-title">Dodaj wpis godzin</span>
+    </div>
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+      <input type="hidden" name="_ts_add" value="1">
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small">Rok</label>
+        <input type="number" name="ts_rok" class="form-control form-control-sm"
+               value="<?= date('Y') ?>" min="2020" max="<?= date('Y') + 1 ?>">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small">Miesiąc</label>
+        <select name="ts_miesiac" class="form-select form-select-sm">
+          <?php foreach (MIESIAC_PL as $mn => $ml): ?>
+          <option value="<?= $mn ?>" <?= $mn == date('n') ? 'selected' : '' ?>><?= $ml ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small">Godziny <span class="text-danger">*</span></label>
+        <input type="number" name="ts_godziny" class="form-control form-control-sm"
+               min="0.5" max="744" step="0.5" required placeholder="np. 40">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small">Status</label>
+        <select name="ts_status" class="form-select form-select-sm">
+          <option value="złożone">Złożone</option>
+          <option value="zatwierdzone">Zatwierdzone</option>
+          <option value="szkic">Szkic</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold small">Opis działań</label>
+        <input type="text" name="ts_opis" class="form-control form-control-sm" placeholder="np. Realizacja przedmiotu zlecenia">
+      </div>
+      <div class="col-md-1">
+        <button type="submit" class="btn btn-success btn-sm w-100">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+      </div>
+    </form>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!$_ts_rows && !can_edit()): ?>
+  <div class="text-center py-4 text-muted">
+    <i class="bi bi-clock" style="font-size:2rem;opacity:.3"></i>
+    <div class="mt-2">Brak wpisów ewidencji godzin dla tej umowy.</div>
+  </div>
+  <?php endif; ?>
+
+</div><!-- /tab-godziny -->
+
+<!-- ══ TAB: Wiadomości ════════════════════════════════════════════════════════ -->
+<div class="tab-pane fade<?php if($_tab==='messages') echo ' show active'; ?>" id="tab-messages" role="tabpanel">
+  <a id="tab-messages-anchor"></a>
+  <?php
+    $u = current_user();
+    $msg_ctx_type      = 'contract';
+    $msg_ctx_id        = $id;
+    $msg_contract_type = $TYPE;
+    $msg_viewer        = can_edit() ? 'admin' : 'user';
+    $msg_viewer_name   = $u['name'];
+    $msg_viewer_id     = (int)$u['id'];
+    $msg_post_url      = APP_URL . "/contracts/{$TYPE}/view.php?id={$id}";
+    include dirname(dirname(__DIR__)) . '/includes/messages_widget.php';
+  ?>
+</div><!-- /tab-messages -->
 
 <script>
 (function () {

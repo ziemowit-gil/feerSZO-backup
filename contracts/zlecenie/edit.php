@@ -141,26 +141,26 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php require_once dirname(__DIR__) . '/includes/cv_ui.php'; cv_ui_assets(); ?>
 <form method="post" enctype="multipart/form-data" novalidate x-data="tabbedContractForm(4)" @submit="onSubmit($event)"
-      data-cc-key="zlecenie-edit" class="cv-v2 tw-bg-white tw-rounded-2xl tw-border tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
+      class="tw-bg-white tw-rounded-2xl tw-border tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
 <!-- Zakładki -->
-<div class="cv-tabbar cv-formtabs" role="tablist" aria-label="Sekcje formularza umowy">
+<div class="tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
   <?php $_tabs = ['Strony i podstawy', 'Podpisanie', 'Wykonanie', 'Rozliczenie']; ?>
   <?php foreach ($_tabs as $_ti => $_tlabel): $_tn = $_ti + 1; ?>
-  <button type="button" role="tab" class="nav-link" :class="tab===<?= $_tn ?> && 'active'"
-          :aria-selected="(tab===<?= $_tn ?>).toString()" @click="goTab(<?= $_tn ?>)"><?= h($_tlabel) ?></button>
+  <button type="button" role="tab" :aria-selected="(tab===<?= $_tn ?>).toString()" @click="goTab(<?= $_tn ?>)"
+          class="tw-inline-flex tw-items-center tw-whitespace-nowrap tw-rounded-t-lg tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-transition"
+          :class="tab===<?= $_tn ?> ? 'tw-bg-white tw-text-blue-600 tw-border tw-border-b-0 tw-border-slate-200' : 'tw-text-slate-500 hover:tw-text-slate-700'">
+    <?= h($_tlabel) ?>
+  </button>
   <?php endforeach; ?>
 </div>
 
 <!-- TAB 1: Strony i podstawy -->
 <div data-tab-pane="1" x-show="tab===1" x-cloak class="tw-p-6">
 
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">Dane podstawowe</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-info-circle"></i> Dane podstawowe</h2>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
     <div>
       <label for="numer_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Numer umowy <span class="tw-text-red-500">*</span></label>
@@ -253,10 +253,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  </div></section>
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">Zleceniobiorca</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-person"></i> Zleceniobiorca</h2>
 
   <div class="tw-mb-4">
     <?= person_picker($row, [
@@ -344,10 +341,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  </div></section>
-  <section class="esec" data-cc-collapsed>
-  <div class="esec-head"><h3 class="esec-title">Numery referencyjne <span class="esec-sub">opcjonalne</span></h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3 tw-mt-6"><i class="bi bi-hash"></i> Numery referencyjne <span class="tw-text-slate-400 tw-font-normal tw-normal-case">— opcjonalne</span></h2>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4">
     <div>
       <label for="nr_roboczy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Nr roboczy umowy</label>
@@ -363,15 +357,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
              value="<?= h($row['nr_rejestru']??'') ?>" placeholder="<?= h(suggest_nr_rejestru($row['opiekun']??'')) ?>">
     </div>
   </div>
-  </div></section>
 </div>
 
 <!-- TAB 2: Podpisanie -->
 <div data-tab-pane="2" x-show="tab===2" x-cloak class="tw-p-6">
 
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">Podpisanie</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-pen"></i> Podpisanie</h2>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
     <div>
       <label for="data_zawarcia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data zawarcia</label>
@@ -430,10 +421,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  </div></section>
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">Plik umowy</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3 tw-mt-6"><i class="bi bi-paperclip"></i> Plik umowy</h2>
   <div>
     <?php if ($row['plik_umowy']): ?>
     <div class="tw-mb-2 tw-text-sm"><?= upload_link($row['plik_umowy']) ?></div>
@@ -444,15 +432,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
            class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
   </div>
-  </div></section>
 </div>
 
 <!-- TAB 3: Wykonanie -->
 <div data-tab-pane="3" x-show="tab===3" x-cloak class="tw-p-6">
 
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">Wykonanie / realizacja</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-play-circle"></i> Wykonanie / realizacja</h2>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-6">
     <div>
       <label for="data_rozpoczecia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Data rozpoczęcia</label>
@@ -484,10 +469,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
-  </div></section>
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">ZUS / Ubezpieczenie</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-shield-check"></i> ZUS / Ubezpieczenie</h2>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4">
     <div class="tw-flex tw-flex-col tw-gap-2 tw-pt-1">
       <label for="zus_skladki" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700">
@@ -516,15 +498,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
   </div>
-  </div></section>
 </div>
 
 <!-- TAB 4: Rozliczenie -->
 <div data-tab-pane="4" x-show="tab===4" x-cloak class="tw-p-6">
 
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">Rozliczenie i rachunek</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-cash-coin"></i> Rozliczenie i rachunek</h2>
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4">
     <div class="tw-pt-1">
       <label for="wymagany_rachunek" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700">
@@ -563,18 +542,12 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
   <p class="tw-text-xs tw-text-slate-500 tw-mb-6">Pełny proces rozliczeń (rachunki, wysyłka do księgowego) prowadzisz z widoku umowy.</p>
 
-  </div></section>
-  <section class="esec">
-  <div class="esec-head"><h3 class="esec-title">Uwagi</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-chat-left-text"></i> Uwagi</h2>
   <div class="tw-mb-6">
     <textarea id="uwagi" name="uwagi" rows="3" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"><?= h($row['uwagi']) ?></textarea>
   </div>
 
-  </div></section>
-  <section class="esec" data-cc-collapsed>
-  <div class="esec-head"><h3 class="esec-title">Microsoft 365</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-microsoft"></i> Microsoft 365</h2>
   <label for="m365_konto" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700 tw-mb-2">
     <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="m365_konto" id="m365_konto" value="1" <?= !empty($row['m365_konto'])?'checked':'' ?>>
     Konto M365 zostało utworzone
@@ -587,14 +560,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   </div>
   <script>document.getElementById('m365_konto').addEventListener('change',function(){document.getElementById('m365_manual_fields').style.display=this.checked?'':'none'});</script>
 
-  </div></section>
-  <section class="esec" data-cc-collapsed>
-  <div class="esec-head"><h3 class="esec-title">Dostęp</h3></div>
-  <div class="esec-body">
+  <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-shield-lock"></i> Dostęp</h2>
   <div>
     <?= contract_access_field_html(contract_access_user_ids($TYPE, $id)) ?>
   </div>
-  </div></section>
 </div>
 
 <!-- Pasek akcji — zawsze widoczny, niezależnie od aktywnej zakładki -->
