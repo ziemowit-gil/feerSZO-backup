@@ -309,11 +309,12 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   <section class="card space-y-3" aria-labelledby="vg-h">
     <h2 id="vg-h" class="font-semibold">Serie rachunków wirtualnych — numery startowe dla banku</h2>
     <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">kod serii (4) + numer (8)</span>. Przekaż bankowi po jednym numerze z każdej serii — kolejne numery wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
-    <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer startowy</th><th>W puli</th></tr></thead><tbody>
-    <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); ?>
+    <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer startowy</th><th>Następny z puli (12 cyfr)</th><th>W puli / nadane</th></tr></thead><tbody>
+    <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY nrb LIMIT 1", [$sk]); ?>
       <tr class="border-t"><td><?= h($se['label']) ?></td><td class="font-mono"><?= h($se['code']) ?></td>
         <td class="font-mono"><?= $st ? h(pp_nrb_format($st)) : 'ustaw bank i RRRR' ?></td>
-        <td class="text-xs"><?= (int)($pc['n'] ?? 0) ?> (wolnych <?= (int)($pc['f'] ?? 0) ?>)</td></tr>
+        <td class="font-mono"><?= $nx ? h(trim(chunk_split(substr($nx['nrb'], 14, 12), 4, ' '))) : '—' ?></td>
+        <td class="text-xs">w puli <?= (int)($pc['n'] ?? 0) ?> · nadane <?= (int)($pc['n'] ?? 0) - (int)($pc['f'] ?? 0) ?> · wolne <?= (int)($pc['f'] ?? 0) ?></td></tr>
     <?php endforeach; ?></tbody></table></div>
     <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
     <form method="post" enctype="multipart/form-data" class="rounded-lg border border-slate-200 p-3 space-y-2">
