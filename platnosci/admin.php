@@ -13,6 +13,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php';
+require_once dirname(__DIR__) . '/includes/payu.php';
 
 require_role('admin');
 pp_migrate();
@@ -134,6 +135,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $blk = !empty($_POST['block']);
             $err = pp_vnrb_block((string)($_POST['nrb'] ?? ''), $blk, (string)($_POST['reason'] ?? ''), $by, $uid);
             $ok = $blk ? 'Numer zablokowany — wpłaty na niego nie będą księgowane automatycznie.' : 'Numer odblokowany.'; break;
+        case 'payu_save':
+            payu_migrate();
+            payu_save_setting('enabled', !empty($_POST['payu_enabled']) ? '1' : '0');
+            payu_save_setting('environment', ($_POST['payu_env'] ?? 'sandbox') === 'prod' ? 'prod' : 'sandbox');
+            payu_save_setting('currency', strtoupper(trim((string)($_POST['payu_currency'] ?? 'PLN'))) ?: 'PLN');
+            payu_save_setting('pos_id', trim((string)($_POST['payu_pos'] ?? '')));
+            payu_save_setting('client_id', trim((string)($_POST['payu_client'] ?? '')));
+            if (trim((string)($_POST['payu_secret'] ?? '')) !== '') payu_save_setting('client_secret', trim((string)$_POST['payu_secret']));
+            if (trim((string)($_POST['payu_md5'] ?? '')) !== '')    payu_save_setting('md5_key', trim((string)$_POST['payu_md5']));
+            audit_log('payments.payu_settings', ['enabled' => !empty($_POST['payu_enabled']), 'env' => $_POST['payu_env'] ?? '', 'by' => $by], $uid);
+            $ok = 'Ustawienia PayU zapisane.'; break;
+        case 'payu_test':
+            payu_migrate(); $tr = payu_test_connection();
+            if ($tr['ok']) $ok = $tr['msg']; else $err = $tr['msg']; break;
+        case 'payu_refresh':
+            payu_migrate();
+            $one = (int)($_POST['payu_id'] ?? 0);
+            $ids = $one ? [$one] : array_map(fn($r) => (int)$r['id'], db_all("SELECT id FROM payu_payments WHERE status='pending' AND order_id!='' ORDER BY id DESC LIMIT 100"));
+            $chg = 0;
+            foreach ($ids as $pi) { $before = (string)(db_one("SELECT status FROM payu_payments WHERE id=?", [$pi])['status'] ?? ''); if (payu_reconcile_payment($pi) !== $before) $chg++; }
+            audit_log('payments.payu_refresh', ['checked' => count($ids), 'changed' => $chg, 'by' => $by], $uid);
+            $ok = 'Sprawdzono w PayU ' . count($ids) . ' płatności; zmieniło się: ' . $chg . '.'; break;
         case 'notice_save':
             $nid = pp_notice_save((int)($_POST['notice_id'] ?? 0), (string)($_POST['scope'] ?? 'unnotified'), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['sms_text'] ?? ''), $by);
             if (is_string($nid)) { $err = $nid; break; }
@@ -256,7 +279,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <span class="rounded-lg bg-amber-400/90 px-3 py-1 text-navy-700">przelewy do potwierdzenia <strong><?= count($nrb_pending) ?></strong></span>
   </div>
 </div></header>
-<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','korespondencja','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
+<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','korespondencja','payu','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
   <?php if ($flash): ?><div role="status" class="rounded-lg px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' ?>"><?= h((string)$flash['msg']) ?></div><?php endif; ?>
   <?php if ($link_once): ?>
   <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm ring-1 ring-amber-300" x-data="{ c: false }">
@@ -276,7 +299,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endforeach; ?>
   <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
-    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
+    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'payu' => ['PayU', 'bi-credit-card-2-front', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
     <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"
             class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?>
       <?php if ($tb): ?><span class="rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-navy-700"><?= $tb ?></span><?php endif; ?></button>
@@ -492,6 +515,60 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         </div>
       <?php endforeach; ?>
       </div>
+    </section>
+  </div>
+
+  <div x-show="tab === 'payu'" x-cloak class="space-y-5">
+    <?php payu_migrate();
+      $pu_filter = 'all';
+      $pu_rows = db_all("SELECT * FROM payu_payments ORDER BY id DESC LIMIT 120");
+      $pu_names = [];
+      foreach ($pu_rows as $pr0) if (in_array($pr0['source_type'], ['k30_ti_wallet', 'k30_ti_wallet_year_end', 'payment_portal'], true) && (int)$pr0['source_id'] > 0 && $pr0['source_type'] !== 'payment_portal')
+          $pu_names[(int)$pr0['source_id']] = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [(int)$pr0['source_id']])['name'] ?? '');
+      $pu_st = ['pending' => ['oczekuje', 'bg-amber-100 text-amber-900'], 'paid' => ['opłacona', 'bg-emerald-100 text-emerald-900'], 'failed' => ['nieudana', 'bg-red-100 text-red-900'], 'canceled' => ['anulowana', 'bg-slate-100 text-slate-600'], 'expired' => ['wygasła', 'bg-slate-100 text-slate-600']];
+      $pu_cnt = array_fill_keys(array_keys($pu_st), 0); foreach ($pu_rows as $pr0) { if (isset($pu_cnt[$pr0['status']])) $pu_cnt[$pr0['status']]++; } ?>
+    <section class="card space-y-3" aria-labelledby="pu-h">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="pu-h" class="font-semibold">PayU — stan i konfiguracja</h2>
+        <div class="flex flex-wrap gap-2">
+          <form method="post"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="payu_test"><input type="hidden" name="participant_id" value="0"><button class="bs"><i class="bi bi-plug" aria-hidden="true"></i>Test połączenia</button></form>
+          <form method="post"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="payu_refresh"><input type="hidden" name="participant_id" value="0"><button class="bp"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Odśwież statusy z API PayU (<?= (int)$pu_cnt['pending'] ?>)</button></form>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 text-sm">
+        <span class="rounded-lg px-3 py-1 <?= payu_enabled() ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800' ?>"><?= payu_enabled() ? 'włączone' : (payu_configured() ? 'skonfigurowane, wyłączone' : 'nieskonfigurowane') ?></span>
+        <span class="rounded-lg bg-slate-100 px-3 py-1">środowisko: <strong><?= h(payu_environment() === 'prod' ? 'produkcja' : 'sandbox') ?></strong></span>
+        <span class="rounded-lg bg-slate-100 px-3 py-1">waluta: <strong><?= h(payu_currency()) ?></strong></span>
+        <span class="rounded-lg bg-slate-100 px-3 py-1">powiadomienia: <span class="font-mono text-xs"><?= h(rtrim(APP_URL, '/') . '/api/payu_webhook.php') ?></span></span>
+      </div>
+      <details class="rounded-lg border border-slate-200 p-3"><summary class="cursor-pointer text-sm font-semibold">Ustawienia PayU</summary>
+        <form method="post" class="mt-3 grid gap-3 md:grid-cols-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="payu_save"><input type="hidden" name="participant_id" value="0">
+          <label class="flex items-center gap-2 text-sm md:col-span-3"><input type="checkbox" name="payu_enabled" value="1"<?= payu_setting('enabled') === '1' ? ' checked' : '' ?>> PayU włączone (uczestnicy mogą płacić przez PayU)</label>
+          <div><label class="lbl" for="pu-env">Środowisko</label><select id="pu-env" name="payu_env" class="inp"><option value="sandbox"<?= payu_environment() !== 'prod' ? ' selected' : '' ?>>sandbox (test)</option><option value="prod"<?= payu_environment() === 'prod' ? ' selected' : '' ?>>produkcja</option></select></div>
+          <div><label class="lbl" for="pu-cur">Waluta</label><input id="pu-cur" name="payu_currency" class="inp" maxlength="3" value="<?= h(payu_currency()) ?>"></div>
+          <div><label class="lbl" for="pu-pos">POS ID</label><input id="pu-pos" name="payu_pos" class="inp font-mono" value="<?= h(payu_setting('pos_id')) ?>"></div>
+          <div><label class="lbl" for="pu-cl">Client ID (OAuth)</label><input id="pu-cl" name="payu_client" class="inp font-mono" value="<?= h(payu_setting('client_id')) ?>"></div>
+          <div><label class="lbl" for="pu-se">Client secret <?= payu_setting('client_secret') !== '' ? '(zapisany — puste = bez zmiany)' : '' ?></label><input id="pu-se" name="payu_secret" type="password" autocomplete="new-password" class="inp font-mono"></div>
+          <div><label class="lbl" for="pu-md">Drugi klucz MD5 <?= payu_setting('md5_key') !== '' ? '(zapisany — puste = bez zmiany)' : '' ?></label><input id="pu-md" name="payu_md5" type="password" autocomplete="new-password" class="inp font-mono"></div>
+          <div class="md:col-span-3"><button class="bp">Zapisz ustawienia PayU</button></div>
+        </form></details>
+    </section>
+    <section class="card space-y-3" aria-labelledby="pl-h" x-data="{ f: '' }">
+      <div class="flex flex-wrap items-center justify-between gap-2"><h2 id="pl-h" class="font-semibold">Lista wpłat PayU (ostatnie <?= count($pu_rows) ?>)</h2>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Filtr statusu">
+          <button type="button" @click="f = ''" :class="f === '' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium">Wszystkie (<?= count($pu_rows) ?>)</button>
+          <?php foreach ($pu_st as $k => [$l, $c]): ?><button type="button" @click="f = '<?= $k ?>'" :class="f === '<?= $k ?>' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium"><?= $l ?> (<?= (int)$pu_cnt[$k] ?>)</button><?php endforeach; ?>
+        </div></div>
+      <div class="max-h-[32rem] overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Data</th><th class="pr-3">Za co / kto</th><th class="pr-3 text-right">Kwota</th><th class="pr-3">Status</th><th class="pr-3">Zamówienie PayU</th><th class="pr-3 text-right">API</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach ($pu_rows as $pr): [$sl, $sc] = $pu_st[$pr['status']] ?? [$pr['status'], 'bg-slate-100 text-slate-600']; $who = $pu_names[(int)$pr['source_id']] ?? ''; ?>
+        <tr x-show="f === '' || f === '<?= h($pr['status']) ?>'"><td class="whitespace-nowrap py-1.5 pr-3 text-xs"><?= h(substr((string)$pr['created_at'], 0, 16)) ?><?= $pr['paid_at'] ? '<div class="text-emerald-700">zapł. ' . h(substr((string)$pr['paid_at'], 0, 16)) . '</div>' : '' ?></td>
+          <td class="pr-3 text-xs"><div class="font-medium"><?= h($pr['description'] ?: $pr['source_type']) ?></div><div class="text-slate-500"><?= h($who !== '' ? $who : $pr['source_type'] . ' #' . (int)$pr['source_id']) ?></div></td>
+          <td class="pr-3 text-right tabular-nums"><?= h(pp_fmt(((int)$pr['amount_grosze']) / 100)) ?></td>
+          <td class="pr-3"><span class="rounded-full px-2 py-0.5 text-xs <?= $sc ?>"><?= h($sl) ?></span></td>
+          <td class="pr-3 font-mono text-[11px] text-slate-500"><?= h((string)$pr['order_id']) ?></td>
+          <td class="pr-3 text-right"><?php if ($pr['status'] === 'pending' && $pr['order_id'] !== ''): ?><form method="post" class="inline"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="payu_refresh"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="payu_id" value="<?= (int)$pr['id'] ?>"><button class="text-xs text-navy-700 hover:underline">sprawdź w PayU</button></form><?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td></tr>
+      <?php endforeach; if (!$pu_rows): ?><tr><td colspan="6" class="py-6 text-center text-slate-500">Brak płatności PayU.</td></tr><?php endif; ?>
+      </tbody></table></div>
     </section>
   </div>
 
