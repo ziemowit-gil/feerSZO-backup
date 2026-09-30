@@ -29,6 +29,8 @@ RewriteRule ^klauzula/([a-z0-9-]{1,64})/?$ /modules/gdpr_clauses/public/clause.p
 RewriteRule ^klauzula/([a-z0-9-]{1,64})/([a-z]{2})/?$ /modules/gdpr_clauses/public/clause.php?slug=$1&lang=$2 [QSA,L]
 RewriteRule ^klauzula/([a-z0-9-]{1,64})\.pdf$ /modules/gdpr_clauses/public/pdf.php?slug=$1 [QSA,L]
 RewriteRule ^klauzula/([a-z0-9-]{1,64})/([a-z]{2})\.pdf$ /modules/gdpr_clauses/public/pdf.php?slug=$1&lang=$2 [QSA,L]
+# Lista opublikowanych klauzul (JSON) — import na stronę feer.org.pl/rodo
+RewriteRule ^klauzule\.json$ /modules/gdpr_clauses/public/list.php [QSA,L]
 
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
