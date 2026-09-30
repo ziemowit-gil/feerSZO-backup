@@ -55,12 +55,23 @@ function _gen_service_password(): string {
     return $pass;
 }
 
+/**
+ * Czy 12-cyfrowy numer jest już częścią NNNN rachunku wirtualnego (portal płatności)
+ * innego uczestnika — wtedy nie wolno go nadać kursantowi (pomyłka przy księgowaniu wpłat).
+ */
+function _student_no_nrb_conflict(string $no, int $client_id = 0): bool {
+    if (!preg_match('/^\d{12}$/', $no)) return false;
+    try {
+        return (bool)db_one("SELECT 1 FROM payment_portal_users WHERE substr(individual_nrb,15,12)=? AND participant_id!=?", [$no, $client_id]);
+    } catch (\Throwable $e) { return false; }   // tabela portalu jeszcze nie istnieje
+}
+
 /** Generuje unikalny 12-cyfrowy numer identyfikacyjny kursanta */
-function _gen_student_no(): string {
+function _gen_student_no(int $client_id = 0): string {
     do {
         $no = '';
         for ($i = 0; $i < 12; $i++) $no .= random_int(0, 9);
-    } while (db_one("SELECT id FROM k30_ti_student_accounts WHERE student_no=?", [$no]));
+    } while (db_one("SELECT id FROM k30_ti_student_accounts WHERE student_no=?", [$no]) || _student_no_nrb_conflict($no, $client_id));
     return $no;
 }
 
@@ -262,7 +273,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'set_no') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $no  = trim($_POST['student_no'] ?? '');
-        if ($aid) {
+        $cid = (int)(db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid])['client_id'] ?? 0);
+        if ($aid && _student_no_nrb_conflict($no, $cid)) {
+            flash_set('danger', 'Ten numer jest już użyty w rachunku wirtualnym innego uczestnika (portal płatności) — wybierz inny.');
+        } elseif ($aid) {
             db()->prepare("UPDATE k30_ti_student_accounts SET student_no=?, updated_at=datetime('now') WHERE id=?")
                ->execute([mb_substr($no, 0, 40), $aid]);
             flash_set('success', $no !== '' ? 'Numer kursanta zapisany.' : 'Numer kursanta usunięty.');
