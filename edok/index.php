@@ -123,48 +123,81 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-journal-check"></i> EODoK — Elektroniczny Obieg Dokumentów Księgowych</h4>
-  <div class="d-flex gap-2">
-    <a href="<?= APP_URL ?>/edok/index.php?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" class="btn btn-outline-success btn-sm">
-      <i class="bi bi-filetype-csv"></i> Eksport CSV
-    </a>
-    <?php $pending_count = array_sum(array_map('count', edok_pending_for_user((int)current_user()['id']))); ?>
+  <?php
+    $can_upload = is_admin() || edok_has_role('upload');
+    $can_fin    = is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy');
+    $can_ksieg  = is_admin() || edok_has_role('ksiegowy');
+    $pending_count = array_sum(array_map('count', edok_pending_for_user((int)current_user()['id'])));
+    if ($can_upload) { require_once __DIR__ . '/../includes/edok_bank.php'; $bank_open = edok_bank_unassigned_count(); $queue_count = edok_queue_count(); } else { $bank_open = 0; $queue_count = 0; }
+    $ksef_on = org_setting('kdok_ksef_enabled') === '1';
+  ?>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
     <a href="<?= APP_URL ?>/edok/pending.php" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-check2-all"></i> Do akceptacji
       <?php if ($pending_count): ?><span class="badge bg-primary ms-1"><?= $pending_count ?></span><?php endif; ?>
     </a>
-    <a href="<?= APP_URL ?>/edok/transfers.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a>
-    <a href="<?= APP_URL ?>/edok/raport_analityczny.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a>
-    <?php if (is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy')): ?>
-    <a href="<?= APP_URL ?>/edok/zaplacone_przed.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cash-coin"></i> Zapłacone przed akceptacją</a>
-    <?php endif; ?>
-    <a href="<?= APP_URL ?>/edok/dla_ksiegowego.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet"></i> Dla księgowego (PDF/Excel)</a>
-    <a href="<?= APP_URL ?>/edok/archiwum.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive"></i> Archiwum miesięczne</a>
-    <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
-    <?php if (is_admin() || edok_has_role('ksiegowy')): ?>
-    <form method="post" class="d-inline" onsubmit="return confirm('Przeliczyć tytuły przelewów wszystkich niezaakceptowanych dokumentów do aktualnego formatu?');">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="action" value="update_titles">
-      <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-repeat"></i> Aktualizuj tytuły</button>
-    </form>
-    <?php endif; ?>
-    <?php if (is_admin()): ?>
-    <form method="post" class="d-inline" onsubmit="return confirm('Usunąć wszystkie dokumenty testowe (numer EODoK-TEST/…) wraz z etapami, audytem i wygenerowanymi PDF-ami? Tej operacji nie można cofnąć.');">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="action" value="delete_test_docs">
-      <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3"></i> Usuń testowe</button>
-    </form>
-    <?php endif; ?>
-    <?php if (is_admin() || edok_has_role('upload')): ?>
-    <?php require_once __DIR__ . '/../includes/edok_bank.php'; $bank_open = edok_bank_unassigned_count(); ?>
-    <a href="<?= APP_URL ?>/edok/wyciag.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bank2"></i> Wyciągi bankowe<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></a>
-    <a href="<?= APP_URL ?>/edok/mt940_import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Import wyciągu (MT940)</a>
-    <a href="<?= APP_URL ?>/edok/szablony.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-richtext"></i> Szablony</a>
-    <?php if (org_setting('kdok_ksef_enabled') === '1'): ?>
-    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#salesSyncModal"><i class="bi bi-cloud-download"></i> Pobierz sprzedaż z KSeF</button>
-    <?php endif; ?>
-    <?php $queue_count = edok_queue_count(); ?>
+    <?php if ($can_upload): ?>
     <a href="<?= APP_URL ?>/edok/queue.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-inboxes"></i> Kolejka do opisu
       <?php if ($queue_count): ?><span class="badge bg-primary ms-1"><?= $queue_count ?></span><?php endif; ?></a>
+    <?php endif; ?>
+
+    <?php if ($can_upload): ?>
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-box-arrow-in-down"></i> Import</button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <?php if ($ksef_on): ?>
+        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#salesSyncModal"><i class="bi bi-cloud-download"></i> Pobierz sprzedaż z KSeF</button></li>
+        <?php endif; ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/ksef_sync.php"><i class="bi bi-cloud-arrow-down"></i> Synchronizacja KSeF (zakupy)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/mt940_import.php"><i class="bi bi-upload"></i> Import wyciągu (MT940)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/szablony.php"><i class="bi bi-file-earmark-richtext"></i> Szablony</a></li>
+      </ul>
+    </div>
+    <?php endif; ?>
+
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-bank2"></i> Bank i płatności<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <?php if ($can_upload): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/wyciag.php"><i class="bi bi-bank2"></i> Wyciągi bankowe<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></a></li>
+        <?php endif; ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/preliminarz.php"><i class="bi bi-calendar-check"></i> Preliminarz płatności</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/transfers.php"><i class="bi bi-arrow-left-right"></i> Przelewy własne</a></li>
+        <?php if ($can_fin): ?>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/zaplacone_przed.php"><i class="bi bi-cash-coin"></i> Zapłacone przed akceptacją</a></li>
+        <?php endif; ?>
+      </ul>
+    </div>
+
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-file-earmark-bar-graph"></i> Raporty i eksport</button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/index.php?<?= h(http_build_query(array_merge($_GET, ['export' => 'csv']))) ?>"><i class="bi bi-filetype-csv"></i> Eksport listy (CSV)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/dla_ksiegowego.php"><i class="bi bi-file-earmark-spreadsheet"></i> Dla księgowego (PDF/Excel)</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/raport_analityczny.php"><i class="bi bi-bar-chart-line"></i> Tabela analityczna</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/archiwum.php"><i class="bi bi-archive"></i> Archiwum miesięczne</a></li>
+      </ul>
+    </div>
+
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Więcej"><i class="bi bi-three-dots"></i></button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/ustaw_pin.php"><i class="bi bi-shield-lock"></i> Twój PIN</a></li>
+        <?php if ($can_ksieg): ?>
+        <li><form method="post" onsubmit="return confirm('Przeliczyć tytuły przelewów wszystkich niezaakceptowanych dokumentów do aktualnego formatu?');">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="update_titles">
+          <button type="submit" class="dropdown-item"><i class="bi bi-arrow-repeat"></i> Aktualizuj tytuły przelewów</button></form></li>
+        <?php endif; ?>
+        <?php if (is_admin()): ?>
+        <li><hr class="dropdown-divider"></li>
+        <li><form method="post" onsubmit="return confirm('Usunąć wszystkie dokumenty testowe (numer EODoK-TEST/…) wraz z etapami, audytem i wygenerowanymi PDF-ami? Tej operacji nie można cofnąć.');">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="delete_test_docs">
+          <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash3"></i> Usuń dokumenty testowe</button></form></li>
+        <?php endif; ?>
+      </ul>
+    </div>
+
+    <?php if ($can_upload): ?>
     <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy dokument</a>
     <?php endif; ?>
   </div>
