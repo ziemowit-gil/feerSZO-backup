@@ -43,6 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $back = (string)($_POST['_tab'] ?? 'sym');
     $res = null; $ok = null;
     switch ($op) {
+        case 'sync_types':
+            $x = ti_pricing_sync_from_subject_types($by, $uid);
+            $ok = "Pobrano z rodzajów zajęć TI: nowe typy {$x['created']}, odświeżone {$x['updated']}, ceny ustawione {$x['priced']}, grupy przypięte {$x['linked']}."; break;
         case 'save_type':  $res = ti_pricing_save_type($_POST, $by, $uid); $ok = 'Typ zajęć zapisany.'; break;
         case 'save_rule':  $res = ti_pricing_save_rule($_POST, $by, $uid); $ok = 'Reguła zapisana.'; break;
         case 'delete_rule': $res = ti_pricing_delete_rule((int)($_POST['id'] ?? 0), $by, $uid) ?? 0; $ok = 'Reguła usunięta.'; break;
@@ -68,6 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Dane widoku ─────────────────────────────────────────────────────────────
 $flash   = flash_get();
+// Pierwsze wejście (brak typów): automatycznie pobieramy rodzaje zajęć TI
+try { if (!(int)(db_one("SELECT COUNT(*) c FROM lesson_types")['c'] ?? 0)) ti_pricing_sync_from_subject_types($by, $uid); } catch (\Throwable $e) {}
 $types   = db_all("SELECT * FROM lesson_types ORDER BY is_active DESC, name COLLATE NOCASE");
 $rules   = db_all("SELECT r.*, t.name AS type_name FROM discount_rules r LEFT JOIN lesson_types t ON t.id=r.target_lesson_type_id ORDER BY r.is_active DESC, r.priority, r.id");
 $courses = db_all("SELECT c.id, c.name, c.is_online, pct.lesson_type_id, pct.online_lesson_type_id,
@@ -249,6 +254,11 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
   <!-- ═══ Typy zajęć ═══ -->
   <div class="grid gap-5 lg:grid-cols-3">
     <section class="card lg:col-span-2 overflow-x-auto">
+      <form method="post" class="mb-3 flex flex-wrap items-center gap-3">
+        <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="sync_types"><input type="hidden" name="_tab" value="types">
+        <button class="btn-pri">Pobierz z rodzajów zajęć TI</button>
+        <span class="text-xs text-slate-500">Tworzy typy z rodzajów zajęć (skrót, nazwa, aktywność), ustawia cenę z najczęstszej stawki zapisów i przypina grupy bez typu.</span>
+      </form>
       <table class="min-w-full text-sm">
         <thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Nazwa</th><th class="pr-3">Slug</th><th class="pr-3">Tryb</th><th class="pr-3 text-right">Cena bazowa</th><th class="pr-3">Status</th><th></th></tr></thead>
         <tbody class="divide-y divide-slate-100">
