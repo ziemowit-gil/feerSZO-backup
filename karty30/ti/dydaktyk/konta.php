@@ -303,6 +303,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    if ($op === 'toggle_virtual') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
+        if ($acc) {
+            $v = empty($acc['is_virtual']) ? 1 : 0;
+            db()->prepare("UPDATE k30_ti_student_accounts SET is_virtual=?, updated_at=datetime('now') WHERE id=?")->execute([$v, $aid]);
+            flash_set('success', $v ? 'Kursant oznaczony jako wirtualny — nie dostanie rachunku wirtualnego (nadany wcześniej numer zostaje bez zmian).'
+                                    : 'Kursant nie jest już wirtualny — może dostać rachunek z puli.');
+        }
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     if ($op === 'delete') {
         $aid = (int)($_POST['account_id'] ?? 0);
         db()->prepare("DELETE FROM k30_ti_student_accounts WHERE id=?")->execute([$aid]);
@@ -1240,6 +1252,14 @@ function printBulk(){
               <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
               <button type="submit" class="btn btn-sm btn-outline-secondary">
                 <i class="bi <?= $sa['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-1" aria-hidden="true"></i><?= $sa['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
+              </button>
+            </form>
+            <form method="post">
+              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op"        value="toggle_virtual">
+              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary" title="Kursant wirtualny nie dostaje rachunku wirtualnego z puli; już nadany numer zostaje">
+                <i class="bi bi-person-badge me-1" aria-hidden="true"></i><?= !empty($sa['is_virtual']) ? 'Kursant wirtualny: TAK (wyłącz)' : 'Oznacz jako kursanta wirtualnego' ?>
               </button>
             </form>
             <?php if (!empty($sa['child_access_blocked'])): ?>

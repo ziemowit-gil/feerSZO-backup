@@ -487,6 +487,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone2_otp_expires TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_phone3_otp_expires TEXT NOT NULL DEFAULT ''",
         // Powiadomienia o zmianach w dydaktyce/eLearningu (nowe materiały, zadania, terminy)
+        // „Kursant wirtualny” — wyłączony z nadawania rachunków wirtualnych (nadany już numer zostaje)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_dydaktyka INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_dydaktyka   INTEGER NOT NULL DEFAULT 0",
         // Numer rachunku bankowego do wpłat za zajęcia — wpisywany ręcznie przez

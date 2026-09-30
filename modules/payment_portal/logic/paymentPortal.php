@@ -45,6 +45,7 @@ function pp_migrate(): void {
     db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_pool (
         nrb TEXT PRIMARY KEY, grp TEXT NOT NULL DEFAULT 'ti', participant_id INTEGER,
         imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
+    try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}   // kursant wirtualny: bez rachunku z puli
     try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN batch TEXT"); } catch (\Throwable $e) {}   // paczka importu (ostatnio zaimportowane)
 }
 function pp_gr(float|int|string $v): int { return (int)round((float)$v * 100); }
@@ -307,12 +308,19 @@ function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
     // Numery nadaje bank: kursant bez rachunku dostaje kolejny wolny z puli TI; istniejącego nie ruszamy
     $cur = pp_user($client_id);
     if ($cur && pp_nrb_normalize((string)$cur['individual_nrb']) !== '') return null;
+    if (pp_ti_is_virtual($client_id)) return null;
     $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL ORDER BY nrb LIMIT 1");
     if (!$p) return null;
     if (!$cur && is_string(pp_user_ensure($client_id, $by, $uid))) return null;
     if (pp_set_nrb($client_id, $p['nrb'], $by, $uid) !== null) return null;
     db()->prepare("UPDATE pp_vnrb_pool SET participant_id=?, assigned_at=datetime('now') WHERE nrb=? AND participant_id IS NULL")->execute([$client_id, $p['nrb']]);
     return $p['nrb'];
+}
+
+/** Czy uczestnik ma wyłącznie konta TI oznaczone jako „kursant wirtualny” (nie nadajemy mu rachunku). */
+function pp_ti_is_virtual(int $client_id): bool {
+    $r = db_one("SELECT COUNT(*) n, SUM(COALESCE(is_virtual,0)) v FROM k30_ti_student_accounts WHERE client_id=?", [$client_id]);
+    return (int)($r['n'] ?? 0) > 0 && (int)($r['n']) === (int)($r['v'] ?? 0);
 }
 
 /**
@@ -734,7 +742,7 @@ function pp_vnrb_pool_assign_ti(string $by, ?int $uid, ?string $batch = null): a
     $r = ['assigned' => 0, 'left' => 0, 'nopool' => 0];
     $rows = db_all("SELECT DISTINCT a.client_id FROM k30_ti_student_accounts a
                       LEFT JOIN payment_portal_users u ON u.participant_id=a.client_id
-                     WHERE u.individual_nrb IS NULL OR u.individual_nrb='' ORDER BY a.client_id");
+                     WHERE (u.individual_nrb IS NULL OR u.individual_nrb='') AND COALESCE(a.is_virtual,0)=0 ORDER BY a.client_id");
     foreach ($rows as $row) {
         $cid = (int)$row['client_id'];
         $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb LIMIT 1", $batch !== null ? [$batch] : []);
@@ -766,7 +774,8 @@ function pp_vnrb_report_rows(string $scope = 'all'): array {
                           FROM k30_clients c
                           LEFT JOIN payment_portal_users u ON u.participant_id=c.id
                           LEFT JOIN pp_vnrb_pool p ON p.nrb=u.individual_nrb
-                         WHERE EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=c.id)
+                         WHERE EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=c.id
+                                        AND (COALESCE(a.is_virtual,0)=0 OR COALESCE(u.individual_nrb,'')!=''))
                          ORDER BY c.name COLLATE NOCASE");
     }
     return array_map(fn($r) => ['client_id' => (int)$r['client_id'], 'name' => (string)($r['name'] ?? ''), 'nrb' => (string)$r['nrb'],

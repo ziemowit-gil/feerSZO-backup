@@ -351,7 +351,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <?php
       $gsel = $genres['grp'] ?? (string)($_POST['gen_grp'] ?? 'ti'); if (!isset(pp_series()[$gsel])) $gsel = 'ti';
       $glast = []; foreach (pp_series() as $k => $_se) $glast[$k] = pp_gen_last($k);
-      $need = (int)(db_one("SELECT COUNT(*) c FROM k30_ti_student_accounts a LEFT JOIN payment_portal_users u ON u.participant_id=a.client_id WHERE u.individual_nrb IS NULL OR u.individual_nrb=''")['c'] ?? 0);
+      $need = (int)(db_one("SELECT COUNT(*) c FROM k30_ti_student_accounts a LEFT JOIN payment_portal_users u ON u.participant_id=a.client_id WHERE (u.individual_nrb IS NULL OR u.individual_nrb='') AND COALESCE(a.is_virtual,0)=0")['c'] ?? 0);
       $free = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL")['c'] ?? 0);
     ?>
     <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2" x-data='{ last: <?= h(json_encode($glast)) ?>, g: "<?= h($gsel) ?>", s: "<?= h($genres['start'] ?? $glast[$gsel][0]) ?>", n: <?= (int)($genres['count'] ?? $glast[$gsel][1]) ?> }'>
