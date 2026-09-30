@@ -1111,6 +1111,11 @@ function printBulk(){
 <!-- ── Prawa kolumna (detail) — order-2: na mobile DRUGA (pod listą), na
      desktopie po PRAWEJ (bo col-lg-* układa się w rząd dopiero od lg) ── -->
 <div class="col-12 col-lg-7 col-xxl-8 order-2">
+<?php foreach (pp_pool_alarms() as $_al): if ($_al['grp'] !== 'ti') continue; ?>
+<div class="alert <?= $_al['level'] === 'crit' ? 'alert-danger' : 'alert-warning' ?> py-2 small" role="alert">
+  <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i><strong>Pula rachunków TI:</strong> <?= h($_al['msg']) ?> Nowi kursanci mogą zostać bez numeru — zgłoś administratorowi zamówienie numerów w banku.
+</div>
+<?php endforeach; ?>
 <?php if ($selected_acc): $sa = $selected_acc; $sa_has_ms = !empty($sa['ms_user_id']); ?>
 <div class="card border-0 shadow-sm mb-4" id="detail-panel">
   <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2">

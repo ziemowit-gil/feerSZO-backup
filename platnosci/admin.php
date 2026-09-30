@@ -238,6 +238,14 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endif; ?>
 
+  <?php foreach (pp_pool_alarms() as $al): $crit = $al['level'] === 'crit'; ?>
+  <div role="alert" class="flex flex-wrap items-center gap-3 rounded-lg px-4 py-3 text-sm ring-1 <?= $crit ? 'bg-red-50 text-red-900 ring-red-300' : 'bg-amber-50 text-amber-900 ring-amber-300' ?>">
+    <i class="bi <?= $crit ? 'bi-exclamation-octagon-fill' : 'bi-exclamation-triangle-fill' ?>" aria-hidden="true"></i>
+    <div class="min-w-0 flex-1"><strong>Pula numerów — <?= h($al['label']) ?>:</strong> <?= h($al['msg']) ?>
+      <span class="text-xs">Zamów w banku: numer kontrahenta <span class="font-mono"><?= h($al['order_start']) ?></span>, liczba następnych <strong><?= (int)$al['order_count'] ?></strong>.</span></div>
+    <button type="button" class="bs" @click="go('rachunki')">Przejdź do rachunków</button>
+  </div>
+  <?php endforeach; ?>
   <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
     <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
     <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"

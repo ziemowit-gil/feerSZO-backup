@@ -949,3 +949,38 @@ function pp_vnrb_status_print(string $cat, string $by): never {
 </tbody></table></body></html><?php
     exit;
 }
+
+/** Próg ostrzeżenia o kończącej się puli (org_setting pp_pool_min, domyślnie 10 wolnych numerów). */
+function pp_pool_min(): int { $v = (int)org_setting('pp_pool_min'); return $v > 0 ? $v : 10; }
+
+/**
+ * Alarm kończącej się puli numerów. Dla serii TI porównuje wolne numery z liczbą kursantów bez rachunku,
+ * dla pozostałych serii (używanych, tzn. z numerami w puli) — z progiem.
+ * @return list<array{grp:string,label:string,level:string,free:int,need:int,missing:int,order_start:string,order_count:int,msg:string}>
+ */
+function pp_pool_alarms(): array {
+    pp_migrate();
+    $min = pp_pool_min(); $out = [];
+    $need_ti = (int)(db_one("SELECT COUNT(DISTINCT a.client_id) c FROM k30_ti_student_accounts a
+                              LEFT JOIN payment_portal_users u ON u.participant_id=a.client_id
+                             WHERE (u.individual_nrb IS NULL OR u.individual_nrb='') AND COALESCE(a.is_virtual,0)=0 AND COALESCE(a.no_billing,0)=0")['c'] ?? 0);
+    foreach (pp_series() as $k => $se) {
+        $r = db_one("SELECT COUNT(*) n, COALESCE(SUM(participant_id IS NULL AND crm_contact_id IS NULL),0) f, MAX(substr(nrb,15,12)) mx FROM pp_vnrb_pool WHERE grp=?", [$k]);
+        $n = (int)$r['n']; $free = (int)$r['f'];
+        $need = $k === 'ti' ? $need_ti : 0;
+        if ($k !== 'ti' && $n === 0) continue;                 // seria jeszcze nieużywana
+        $missing = max(0, $need - $free);
+        $level = $missing > 0 ? 'crit' : ($free < $min ? 'warn' : '');
+        if ($level === '') continue;
+        // Propozycja zamówienia w banku: kolejny numer po ostatnim w puli (albo numer startowy serii) + brakujące + zapas 20
+        $last = $r['mx'] ? (string)$r['mx'] : ($se['code'] . '0000');   // mx = największa końcówka 12 cyfr (nie cały NRB — cyfry kontrolne są z przodu)
+        $start = str_pad((string)((int)substr($last, 0, 8) * 10000 + (int)substr($last, -4) + 1), 12, '0', STR_PAD_LEFT);
+        $count = max($missing, 0) + 20;
+        $msg = $level === 'crit'
+            ? "Brakuje {$missing} numerów: wolnych {$free}, kursantów bez rachunku {$need}."
+            : "Kończy się pula: wolnych tylko {$free} (próg {$min}).";
+        $out[] = ['grp' => $k, 'label' => $se['label'], 'level' => $level, 'free' => $free, 'need' => $need, 'missing' => $missing,
+                  'order_start' => $start, 'order_count' => $count, 'msg' => $msg];
+    }
+    return $out;
+}
