@@ -154,7 +154,7 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
 <?php elseif ($view === 'status' && $stx): ?>
   <!-- ═══ Status transakcji ═══ -->
   <section class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200" aria-labelledby="st-h"
-           x-data="{ st: <?= $J($stx['status']) ?>, label: <?= $J(PP_TX_STATUS[$stx['status']] ?? $stx['status']) ?>, n: 0,
+           x-data="{ st: <?= h($J($stx['status'])) ?>, label: <?= h($J(PP_TX_STATUS[$stx['status']] ?? $stx['status'])) ?>, n: 0,
                      poll() { if (this.st !== 'pending' || this.n++ > 60) return;
                               fetch('./?json=status&tx=<?= h(urlencode($stx['transaction_uuid'])) ?>', { credentials: 'same-origin' }).then(r => r.json())
                                 .then(d => { this.st = d.status; this.label = d.label || d.status; if (this.st === 'pending') setTimeout(() => this.poll(), <?= $stx['payment_method'] === 'p24' ? 3000 : 15000 ?>); })
