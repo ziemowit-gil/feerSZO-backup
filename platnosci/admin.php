@@ -458,7 +458,14 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   <section class="card space-y-3" aria-labelledby="vr-h" x-data="{ f: '' }" x-show="sub === 'stan'">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
-      <a class="bs" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj raport</a>
+      <div class="flex flex-wrap items-center gap-2">
+        <a class="bs" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj raport</a>
+        <span class="text-xs text-slate-400">|</span>
+        <span class="text-xs font-medium text-slate-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF „nadano numer”:</span>
+        <a class="bp" href="admin.php?pdf=notice&scope=all" target="_blank" rel="noopener">Wszyscy z numerem</a>
+        <a class="bs" href="admin.php?pdf=notice&scope=unnotified" target="_blank" rel="noopener">Bez powiadomienia</a>
+        <a class="bs" href="admin.php?pdf=notice&scope=last" target="_blank" rel="noopener">Ostatni import</a>
+      </div>
     </div>
     <div class="flex flex-wrap gap-2" role="group" aria-label="Filtr stanu">
       <button type="button" @click="f = ''" :class="f === '' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium">Wszyscy (<?= count($vs) ?>)</button>
@@ -468,15 +475,16 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <a class="ml-auto text-xs text-slate-500 hover:underline" :href="'admin.php?report=status&cat=' + f" target="_blank" rel="noopener" x-show="f !== ''">drukuj tylko ten stan →</a>
     </div>
     <div class="max-h-96 overflow-auto"><table class="min-w-full text-sm">
-      <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th></tr></thead>
+      <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th><th class="pr-3 text-right">PDF</th></tr></thead>
       <tbody class="divide-y divide-slate-100">
       <?php foreach ($vs as $r0): ?>
         <tr x-show="f === '' || f === '<?= $r0['cat'] ?>'"><td class="py-1.5 pr-3 font-medium"><a class="hover:underline" href="admin.php?q=<?= urlencode($r0['name']) ?>"><?= h($r0['name']) ?></a></td>
           <td class="pr-3 text-xs"><span class="rounded-full px-2 py-0.5 <?= ['brak' => 'bg-red-50 text-red-800', 'nie_powiad' => 'bg-amber-50 text-amber-800', 'powiad' => 'bg-emerald-50 text-emerald-800', 'reczny' => 'bg-sky-50 text-sky-800', 'wirtualny' => 'bg-slate-100 text-slate-700', 'bez_rozl' => 'bg-slate-100 text-slate-700'][$r0['cat']] ?>"><?= h(PP_VSTATUS[$r0['cat']]) ?></span></td>
           <td class="pr-3 font-mono text-xs"><?= $r0['nrb'] !== '' ? h(pp_nrb_format($r0['nrb'])) : '—' ?></td>
-          <td class="pr-3 text-xs text-slate-500"><?= h($r0['notified_at'] ?: '—') ?></td></tr>
+          <td class="pr-3 text-xs text-slate-500"><?= h($r0['notified_at'] ?: '—') ?></td>
+          <td class="pr-3 text-right"><?php if ($r0['nrb'] !== ''): ?><a class="text-xs text-navy-700 hover:underline" href="admin.php?pdf=notice&scope=client&client=<?= (int)$r0['client_id'] ?>" target="_blank" rel="noopener" title="PDF z informacją o numerze — <?= h($r0['name']) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a><?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td></tr>
       <?php endforeach; ?>
-      <?php if (!$vs): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak kursantów TI.</td></tr><?php endif; ?>
+      <?php if (!$vs): ?><tr><td colspan="5" class="py-6 text-center text-slate-500">Brak kursantów TI.</td></tr><?php endif; ?>
       </tbody></table></div>
   </section>
 
