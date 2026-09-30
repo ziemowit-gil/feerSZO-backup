@@ -212,6 +212,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   .bp { @apply inline-flex items-center gap-1 rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600; }
   .bs { @apply inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50; }
   .card { @apply rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200; }
+  [x-cloak] { display: none !important; }
 </style>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
@@ -219,9 +220,13 @@ $sim  = org_setting('pp_p24_simulation') === '1';
 <header class="bg-navy-700 text-white"><div class="mx-auto max-w-7xl px-4 py-4 flex flex-wrap items-center gap-3">
   <a href="../index.php" class="text-sm text-white/70 hover:text-white"><i class="bi bi-arrow-left"></i> SZO</a>
   <h1 class="text-lg font-semibold">Portal płatności — obsługa</h1>
-  <span class="text-sm text-white/70">do zapłaty <?= h(pp_fmt((float)$stats['p'])) ?> · w trakcie <?= h(pp_fmt((float)$stats['pr'])) ?> · przelewy do potwierdzenia: <?= count($nrb_pending) ?></span>
+  <div class="ml-auto flex flex-wrap gap-2 text-sm">
+    <span class="rounded-lg bg-white/10 px-3 py-1">do zapłaty <strong><?= h(pp_fmt((float)$stats['p'])) ?></strong></span>
+    <span class="rounded-lg bg-white/10 px-3 py-1">w trakcie <strong><?= h(pp_fmt((float)$stats['pr'])) ?></strong></span>
+    <span class="rounded-lg bg-amber-400/90 px-3 py-1 text-navy-700">przelewy do potwierdzenia <strong><?= count($nrb_pending) ?></strong></span>
+  </div>
 </div></header>
-<main class="mx-auto max-w-7xl px-4 py-5 space-y-5">
+<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','uczestnicy','rachunki','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
   <?php if ($flash): ?><div role="status" class="rounded-lg px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' ?>"><?= h((string)$flash['msg']) ?></div><?php endif; ?>
   <?php if ($link_once): ?>
   <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm ring-1 ring-amber-300" x-data="{ c: false }">
@@ -232,6 +237,15 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endif; ?>
 
+  <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
+    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
+    <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"
+            class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?>
+      <?php if ($tb): ?><span class="rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-navy-700"><?= $tb ?></span><?php endif; ?></button>
+    <?php endforeach; ?>
+  </nav>
+
+  <div x-show="tab === 'przeglad'" x-cloak class="space-y-5">
   <!-- Przelewy do potwierdzenia -->
   <section class="card" aria-labelledby="nrb-h">
     <h2 id="nrb-h" class="font-semibold mb-2">Przelewy na NRB do potwierdzenia</h2>
@@ -276,9 +290,11 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <?php endforeach; ?>
   </section>
 
-  <div class="grid gap-5 lg:grid-cols-3">
+  </div>
+
+  <div x-show="tab === 'uczestnicy'" x-cloak>
     <!-- Uczestnik -->
-    <section class="card lg:col-span-2 space-y-4" aria-labelledby="u-h">
+    <section class="card space-y-4" aria-labelledby="u-h">
       <h2 id="u-h" class="font-semibold">Uczestnik</h2>
       <form method="get" class="flex gap-2"><label class="sr-only" for="q">Szukaj uczestnika</label>
         <input id="q" name="q" class="inp" placeholder="Imię, nazwisko lub e-mail" value="<?= h($q) ?>"><button class="bs">Szukaj</button></form>
@@ -339,7 +355,9 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       </table>
       <?php endif; ?>
     </section>
+  </div>
 
+  <div x-show="tab === 'ustawienia'" x-cloak class="max-w-2xl">
     <!-- Ustawienia -->
     <section class="card space-y-3" aria-labelledby="s-h">
       <h2 id="s-h" class="font-semibold">Ustawienia</h2>
@@ -356,7 +374,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     </section>
   </div>
 
-
+  <div x-show="tab === 'rachunki'" x-cloak class="space-y-5">
   <!-- Serie rachunków wirtualnych: SZO podaje bankowi tylko 1 numer startowy na serię -->
   <section class="card space-y-3" aria-labelledby="vg-h">
     <h2 id="vg-h" class="font-semibold">Serie rachunków wirtualnych — numery startowe dla banku</h2>
@@ -447,7 +465,9 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <form method="post" onsubmit="return confirm('Przypisać wolne rachunki z puli TI kursantom bez rachunku?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_ti">
       <button class="bs">Przypisz wolne rachunki z puli kursantom TI bez numeru</button></form>
   </section>
+  </div>
 
+  <div x-show="tab === 'przeglad'" x-cloak>
   <!-- Transakcje -->
   <section class="card overflow-x-auto" aria-labelledby="t-h">
     <h2 id="t-h" class="font-semibold mb-2">Ostatnie transakcje</h2>
@@ -463,6 +483,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       </tbody>
     </table>
   </section>
+  </div>
 </main>
 </body>
 </html>
