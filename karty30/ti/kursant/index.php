@@ -1883,29 +1883,55 @@ document.addEventListener('DOMContentLoaded', function() {
         );
     } catch (\Throwable $e) { $instructors_for_quick = []; }
   ?>
-  <div class="row g-3 mb-4">
+  <?php
+    // Pulpit: dzień lekcji po ludzku („dziś”, „jutro”, „czw 02.10”) + saldo dla pełnoletnich
+    $kp_dow = ['nd', 'pn', 'wt', 'śr', 'czw', 'pt', 'sob'];
+    $kp_day = function (string $d) use ($kp_dow): string {
+        $ts = strtotime($d); $diff = (int)round((strtotime(date('Y-m-d', $ts)) - strtotime(date('Y-m-d'))) / 86400);
+        if ($diff === 0) return 'dziś';
+        if ($diff === 1) return 'jutro';
+        return $kp_dow[(int)date('w', $ts)] . ' ' . date('d.m', $ts);
+    };
+    try {
+        $kp_upcoming = db_all(
+            "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name
+               FROM k30_ti_sessions s
+               JOIN k30_ti_courses c ON c.id=s.course_id
+               JOIN k30_ti_enrollments e ON e.course_id=c.id AND e.client_id=? AND e.status='active'
+              WHERE s.lesson_date >= date('now') AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed','reserved'))
+                AND NOT EXISTS (SELECT 1 FROM k30_ti_attendance a WHERE a.session_id=s.id AND a.client_id=e.client_id AND COALESCE(a.cancelled,0)=1)
+              ORDER BY s.lesson_date, s.time_from LIMIT 4",
+            [(int)$student['client_id']]
+        );
+    } catch (\Throwable $e) { $kp_upcoming = []; }
+    $kp_bal = null;
+    if (!$is_minor) {
+        try {
+            require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+            $kp_bal = ti_client_balance((int)$student['client_id']);
+        } catch (\Throwable $e) { $kp_bal = null; }
+    }
+  ?>
+  <div class="row g-3 mb-4 row-cols-1 row-cols-sm-2 <?= $kp_bal ? 'row-cols-xl-5' : 'row-cols-lg-4' ?>">
     <!-- Następna lekcja -->
-    <div class="col-sm-6 col-lg-3">
-      <div class="card h-100 border-0 shadow-sm kp-dash-card">
+    <div class="col">
+      <a href="?tab=lekcje" class="card h-100 border-0 shadow-sm text-decoration-none text-body kp-dash-card">
         <div class="card-body">
-          <div class="text-body-secondary small mb-1"><i class="bi bi-calendar-check me-1"></i>Następna lekcja</div>
+          <div class="text-body-secondary small mb-1"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Następna lekcja</div>
           <?php if ($next_lesson): ?>
-            <div class="fw-bold"><?= date('d.m', strtotime($next_lesson['lesson_date'])) ?></div>
+            <div class="fw-bold fs-5"><?= h($kp_day((string)$next_lesson['lesson_date'])) ?><?= !empty($next_lesson['time_from']) ? ', ' . substr((string)$next_lesson['time_from'], 0, 5) : '' ?></div>
             <div class="small text-body-secondary"><?= h($next_lesson['course_name']) ?></div>
             <?php if (!empty($next_lesson['instructor_name'])): ?>
             <div class="small text-body-secondary"><i class="bi bi-person me-1" aria-hidden="true"></i><?= h($next_lesson['instructor_name']) ?></div>
-            <?php endif; ?>
-            <?php if (!empty($next_lesson['time_from'])): ?>
-            <div class="small text-body-secondary"><?= substr((string)$next_lesson['time_from'], 0, 5) ?><?= !empty($next_lesson['time_to']) ? '–'.substr((string)$next_lesson['time_to'], 0, 5) : '' ?></div>
             <?php endif; ?>
           <?php else: ?>
             <div class="small text-body-secondary">Brak zaplanowanych</div>
           <?php endif; ?>
         </div>
-      </div>
+      </a>
     </div>
     <!-- Zadania do oddania -->
-    <div class="col-sm-6 col-lg-3">
+    <div class="col">
       <a href="?tab=zadania" class="card h-100 border-0 shadow-sm text-decoration-none text-body kp-dash-card">
         <div class="card-body">
           <div class="text-body-secondary small mb-1"><i class="bi bi-journal-check me-1"></i>Zadania do oddania</div>
@@ -1915,7 +1941,7 @@ document.addEventListener('DOMContentLoaded', function() {
       </a>
     </div>
     <!-- Wiadomości -->
-    <div class="col-sm-6 col-lg-3">
+    <div class="col">
       <a href="?tab=wiadomosci" class="card h-100 border-0 shadow-sm text-decoration-none text-body kp-dash-card">
         <div class="card-body">
           <div class="text-body-secondary small mb-1"><i class="bi bi-envelope me-1"></i>Nowe wiadomości</div>
@@ -1924,8 +1950,28 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </a>
     </div>
+    <?php if ($kp_bal): ?>
+    <!-- Saldo konta (pełnoletni — małoletnich rozlicza opiekun) -->
+    <div class="col">
+      <a href="?tab=portfel" class="card h-100 border-0 shadow-sm text-decoration-none text-body kp-dash-card">
+        <div class="card-body">
+          <div class="text-body-secondary small mb-1"><i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Saldo konta</div>
+          <?php if ($kp_bal['debt'] > 0.005): ?>
+            <div class="fw-bold fs-4 text-danger"><?= number_format($kp_bal['debt'], 2, ',', ' ') ?> zł</div>
+            <div class="small text-body-secondary">do zapłaty</div>
+          <?php elseif ($kp_bal['credit'] > 0.005): ?>
+            <div class="fw-bold fs-4 text-success"><?= number_format($kp_bal['credit'], 2, ',', ' ') ?> zł</div>
+            <div class="small text-body-secondary">do wykorzystania na kolejne zajęcia</div>
+          <?php else: ?>
+            <div class="fw-bold fs-4">0,00 zł</div>
+            <div class="small text-body-secondary">wszystko rozliczone</div>
+          <?php endif; ?>
+        </div>
+      </a>
+    </div>
+    <?php endif; ?>
     <!-- Streak aktywności -->
-    <div class="col-sm-6 col-lg-3">
+    <div class="col">
       <div class="card h-100 border-0 shadow-sm kp-dash-card">
         <div class="card-body">
           <div class="text-body-secondary small mb-1"><i class="bi bi-fire me-1"></i>Streak aktywności</div>
@@ -1935,6 +1981,22 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
     </div>
   </div>
+  <?php if (count($kp_upcoming) > 1): ?>
+  <section class="card border-0 shadow-sm mb-4" aria-labelledby="kp-upc-h">
+    <div class="card-body pb-2">
+      <h2 id="kp-upc-h" class="h6 fw-bold mb-2"><i class="bi bi-calendar-week text-primary me-1" aria-hidden="true"></i>Najbliższe zajęcia</h2>
+      <ul class="list-unstyled mb-0">
+        <?php foreach ($kp_upcoming as $u): ?>
+        <li class="d-flex align-items-baseline gap-3 py-1 border-bottom border-light-subtle">
+          <span class="fw-semibold text-nowrap" style="min-width:7.5rem"><?= h($kp_day((string)$u['lesson_date'])) ?><?= !empty($u['time_from']) ? ', ' . substr((string)$u['time_from'], 0, 5) : '' ?></span>
+          <span class="flex-grow-1"><?= h($u['course_name']) ?><?php if (trim((string)$u['topic']) !== ''): ?><span class="text-body-secondary small"> — <?= h($u['topic']) ?></span><?php endif; ?></span>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <a href="?tab=lekcje" class="small d-inline-block mt-2">Wszystkie lekcje <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </div>
+  </section>
+  <?php endif; ?>
   <?php if ($instructors_for_quick): ?>
   <div class="mb-4">
     <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalQuickMsg">
