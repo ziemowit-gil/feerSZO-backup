@@ -20,6 +20,8 @@ function edok_ksiegowy_rows(string $od, string $do, string $kierunek): array {
     foreach ($rows as $d) {
         $bank = edok_bank_for_doc((int)$d['id']);
         $out[] = [
+            'id'       => (int)$d['id'],
+            'przelew'  => $kierunek === 'wydatek' && edok_przelew_exportable($d), // czeka na przelew (nieopłacony, ma rachunek)
             'number'   => $d['number'],
             'data'     => substr((string)($d['data_wplywu'] ?: $d['data_wystawienia'] ?: $d['created_at']), 0, 10),
             'wystaw'   => (string)$d['data_wystawienia'],

@@ -46,7 +46,10 @@ if (in_array($format, ['pdf', 'xlsx'], true)) {
     exit;
 }
 
-$cnt_w = count(edok_ksiegowy_rows($od, $do, 'wydatek'));
+$rows_w = edok_ksiegowy_rows($od, $do, 'wydatek');
+$do_przelewu = array_values(array_map(fn($r) => $r['id'], array_filter($rows_w, fn($r) => $r['przelew'])));
+$rachunki = edok_rachunki_list();
+$cnt_w = count($rows_w);
 $cnt_p = count(edok_ksiegowy_rows($od, $do, 'przychod'));
 $PAGE_TITLE = 'Zestawienie dla księgowego — EODoK';
 require_once __DIR__ . '/../includes/header.php';
@@ -72,6 +75,27 @@ $q = fn($fmt) => '?' . http_build_query(['od' => $od, 'do' => $do, 'zakres' => $
   <a href="<?= h($q('pdf')) ?>" class="btn btn-danger"><i class="bi bi-file-earmark-pdf"></i> Pobierz PDF</a>
   <a href="<?= h($q('xlsx')) ?>" class="btn btn-success"><i class="bi bi-file-earmark-excel"></i> Pobierz Excel</a>
 </div></div>
+<?php if ($do_przelewu && $rachunki && (is_admin() || edok_has_role('upload') || edok_has_role('ksiegowy'))): ?>
+<div class="card shadow-sm mt-3" style="max-width:560px"><div class="card-body">
+  <h6 class="card-title"><i class="bi bi-bank"></i> Eksport przelewów do banku (ISO 20022)</h6>
+  <p class="small text-muted mb-2">Zaakceptowane wydatki z tego okresu, które czekają na przelew: <strong><?= count($do_przelewu) ?></strong>. Plik powstaje tym samym mechanizmem co w Preliminarzu — przy pierwszym przelewie do kontrahenta poprosimy o potwierdzenie NIP i rachunku.</p>
+  <form method="post" action="<?= APP_URL ?>/edok/preliminarz.php" class="row g-2 align-items-end">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="action" value="export_przelewy">
+    <input type="hidden" name="pakiet_ids" value="<?= h(implode(',', $do_przelewu)) ?>">
+    <div class="col-12"><label class="form-label small mb-1" for="ex_rach">Z rachunku</label>
+      <select name="rachunek_zlecen" id="ex_rach" class="form-select form-select-sm" required>
+        <?php foreach ($rachunki as $r): ?><option value="<?= h($r['nrb']) ?>"><?= h($r['nazwa'] ?: $r['bank']) ?> (…<?= h(substr(preg_replace('/\D/', '', $r['nrb']), -4)) ?>)</option><?php endforeach; ?>
+      </select></div>
+    <div class="col-12"><label class="form-label small mb-1" for="ex_fmt">Format</label>
+      <select name="format" id="ex_fmt" class="form-select form-select-sm">
+        <?php foreach (['ipko_xml', 'millennium_xml', 'iso20022'] as $k): ?><option value="<?= h($k) ?>"><?= h(EDOK_PRZELEWY_FORMATY[$k]) ?></option><?php endforeach; ?>
+      </select></div>
+    <div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-download"></i> Pobierz plik przelewów (XML)</button></div>
+  </form>
+</div></div>
+<?php endif; ?>
+
 <?php $hist = db_all("SELECT * FROM edok_exports ORDER BY id DESC LIMIT 30"); if ($hist): ?>
 <h6 class="mt-4">Zapisane eksporty</h6>
 <div class="table-responsive"><table class="table table-sm small">
