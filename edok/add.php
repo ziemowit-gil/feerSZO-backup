@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/edok.php';
+require_once __DIR__ . '/../includes/edok_queue.php';
 require_once __DIR__ . '/../includes/crm_offers.php';
 require_once __DIR__ . '/../includes/ksiegowosc.php';
 
@@ -22,6 +23,16 @@ if ($queue_id && !$queue_item && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     flash_set('warning', 'Ten plik nie znajduje się już w kolejce (został opisany lub usunięty).');
     header('Location: ' . APP_URL . '/edok/queue.php');
     exit;
+}
+
+// Plik XML (faktura z KSeF) w kolejce — dane formularza wczytujemy z niego (formularz czyta $_POST).
+$queue_xml = false;
+if ($queue_item && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $xml_data = edok_parse_invoice_xml_file($queue_item['file_path']);
+    if ($xml_data) {
+        $_POST = $xml_data + ['data_wplywu' => date('Y-m-d')];
+        $queue_xml = true;
+    }
 }
 
 // Tryb „Przelew składek ZUS” — bez obiegu akceptacji (składki wynikają z rozliczonych
@@ -256,6 +267,15 @@ require_once __DIR__ . '/../includes/header.php';
           Dokument testowy — numer <code>EODoK-TEST/…</code> zamiast realnej sekwencji, łatwy do zbiorczego usunięcia z listy EODoK.
         </label>
       </div>
+      <?php endif; ?>
+
+      <?php if (!$queue_item): ?>
+      <div class="mb-3 p-2 rounded border bg-light">
+        <label class="form-label small fw-semibold mb-1" for="xml_file"><i class="bi bi-file-earmark-code"></i> Wczytaj z pliku XML (faktura z KSeF)</label>
+        <input type="file" id="xml_file" class="form-control form-control-sm" accept=".xml" onchange="edokXmlLoad(this)">
+        <div id="xml_status" class="form-text"></div>
+      </div>
+
       <?php endif; ?>
 
       <?php if (org_setting('kdok_ksef_enabled') === '1'): ?>
@@ -497,6 +517,8 @@ require_once __DIR__ . '/../includes/header.php';
         <i class="bi bi-inboxes"></i> Plik z kolejki do opisu:
         <a href="<?= APP_URL ?>/uploads/<?= h($queue_item['file_path']) ?>" target="_blank"><?= h($queue_item['orig_name']) ?></a>
         <?php if ($queue_item['note'] !== ''): ?><span class="text-muted">— <?= h($queue_item['note']) ?></span><?php endif; ?>
+        <?php if ($queue_xml): ?><div class="small mt-1"><i class="bi bi-file-earmark-code"></i> Dane faktury wczytano z pliku XML — sprawdź je i uzupełnij dekretację.</div>
+        <?php elseif (strtolower(pathinfo($queue_item['file_path'], PATHINFO_EXTENSION)) === 'xml'): ?><div class="small mt-1 text-danger">Nie udało się odczytać danych z tego XML (to nie faktura KSeF?) — uzupełnij ręcznie.</div><?php endif; ?>
       </div>
       <?php endif; ?>
       <div class="mb-3" id="file_upload_wrap"<?= $queue_item ? ' style="display:none"' : '' ?>>
@@ -712,6 +734,31 @@ function edokSuggestTytul(force) {
   });
 })();
 
+function edokXmlLoad(input) {
+  var status = document.getElementById('xml_status');
+  if (!input.files.length) return;
+  status.textContent = 'Wczytywanie…'; status.className = 'form-text text-muted';
+  var fd = new FormData();
+  fd.append('_csrf', document.querySelector('#edok-add-form input[name="_csrf"]').value);
+  fd.append('file', input.files[0]);
+  fetch('<?= APP_URL ?>/edok/xml_parse.php', { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (!res.ok) { status.textContent = res.error || 'Błąd wczytywania.'; status.className = 'form-text text-danger'; return; }
+      var d = res.data;
+      ['typ_dokumentu','nr_faktury','kontrahent_nazwa','kontrahent_nip','data_wystawienia','data_sprzedazy','kwota_netto','stawka_vat','kwota_vat','kwota_brutto','waluta','termin_platnosci','rachunek_bankowy','description'].forEach(function (k) {
+        var el = document.querySelector('[name="' + k + '"]');
+        if (el && d[k] !== undefined && d[k] !== '') el.value = d[k];
+      });
+      document.getElementById('ksef_file_path').value = res.file_path || '';
+      document.getElementById('file_input').required = false;
+      document.getElementById('file_upload_wrap').style.display = 'none';
+      document.getElementById('ksef_file_attached').style.display = '';
+      edokMppCheck(); edokSuggestTytul();
+      status.textContent = 'Uzupełniono dane z XML. Sprawdź je i uzupełnij dekretację.'; status.className = 'form-text text-success';
+    })
+    .catch(function () { status.textContent = 'Błąd sieci.'; status.className = 'form-text text-danger'; });
+}
 function edokKsefFetch() {
   var ref = document.getElementById('ksef_ref').value.trim();
   var status = document.getElementById('ksef_fetch_status');

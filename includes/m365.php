@@ -496,6 +496,31 @@ class M365Graph {
         return $resp['value'] ?? [];
     }
 
+    /**
+     * Nieprzeczytane wiadomości ze skrzynki odbiorczej (opcjonalnie od daty) — do automatycznego
+     * przyjmowania załączników (np. kolejka EODoK). Wymaga Mail.Read (Application).
+     *
+     * @param string $since ISO 8601 UTC, '' = bez filtra daty
+     */
+    public function unread_inbox_messages(string $mailbox, string $since = '', int $top = 50): array {
+        $filter = 'isRead eq false' . ($since !== '' ? " and receivedDateTime ge {$since}" : '');
+        $url = "https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox)
+             . "/mailFolders/inbox/messages?\$select=" . rawurlencode('id,subject,from,receivedDateTime,hasAttachments')
+             . "&\$top=" . max(1, min(100, $top))
+             . "&\$filter=" . rawurlencode($filter);
+        $resp = $this->http_get($url);
+        if (isset($resp['error'])) {
+            $msg = $resp['error']['message'] ?? json_encode($resp['error']);
+            throw new \RuntimeException("Graph API (unread_inbox_messages): {$msg}");
+        }
+        return $resp['value'] ?? [];
+    }
+
+    /** Oznacza wiadomość jako przeczytaną (wymaga Mail.ReadWrite; brak uprawnienia = cichy brak efektu). */
+    public function mark_message_read(string $mailbox, string $message_id): void {
+        $this->http_patch("https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox) . "/messages/" . urlencode($message_id), ['isRead' => true]);
+    }
+
     private function http_get(string $url): array {
         $ctx = stream_context_create(['http' => [
             'method' => 'GET',

@@ -274,6 +274,14 @@ function edok_migrate(): void {
         created_at    TEXT    NOT NULL DEFAULT ''
     )");
 
+    _edok_add_columns($db, 'edok_queue', [
+        'source'       => "TEXT NOT NULL DEFAULT 'upload'",  // upload | mail
+        'mail_from'    => "TEXT NOT NULL DEFAULT ''",
+        'mail_subject' => "TEXT NOT NULL DEFAULT ''",
+        'mail_msg_id'  => "TEXT NOT NULL DEFAULT ''",
+        'mail_att_id'  => "TEXT NOT NULL DEFAULT ''",
+    ]);
+
     // Przelewy własne / przesunięcia między rachunkami bankowymi organizacji —
     // "z jakiego na jakie i dlaczego", razem z klasyfikacją (rodzaj działalności/projekt)
     // źródłową i docelową. To zestawienie, nie obieg akceptacji — jeden wpis = jeden fakt.
@@ -2705,22 +2713,37 @@ function edok_template_delete(int $id): void {
 }
 
 
+const EDOK_QUEUE_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'docx', 'xml'];
+
 /** Zapisuje jeden plik z tablicy $_FILES[$field] (wersja multi) w uploads/edok_docs/. Zwraca [ścieżka|null, błąd|null]. */
 function edok_queue_store_upload(array $f): array {
     if (($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return [null, 'błąd przesyłania'];
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'docx'], true)) return [null, 'niedozwolony typ (PDF, JPG, PNG, DOCX)'];
+    if (!in_array($ext, EDOK_QUEUE_EXT, true)) return [null, 'niedozwolony typ (PDF, JPG, PNG, DOCX, XML)'];
     if ($f['size'] > 20 * 1024 * 1024) return [null, 'większy niż 20 MB'];
     $dir = UPLOAD_DIR . 'edok_docs/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $name = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     if (!move_uploaded_file($f['tmp_name'], $dir . $name)) return [null, 'nie udało się zapisać'];
-    $rel = 'edok_docs/' . $name;
+    return ['edok_docs/' . edok_queue_after_save($name), null];
+}
+
+/** Zapis surowych bajtów (np. załącznik z e-maila) w uploads/edok_docs/ — zwraca ścieżkę względną. */
+function edok_queue_save_bytes(string $bytes, string $ext): string {
+    $dir = UPLOAD_DIR . 'edok_docs/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $name = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    file_put_contents($dir . $name, $bytes);
+    return 'edok_docs/' . edok_queue_after_save($name);
+}
+
+/** Synchronizacja z SharePointem (best-effort) po zapisaniu pliku; zwraca nazwę pliku bez katalogu. */
+function edok_queue_after_save(string $name): string {
     if (!function_exists('sp_sync_upload')) @require_once __DIR__ . '/m365.php';
     if (function_exists('sp_sync_upload')) {
-        try { sp_sync_upload($rel); } catch (\Throwable $e) { error_log('[SP sync] ' . $e->getMessage()); }
+        try { sp_sync_upload('edok_docs/' . $name); } catch (\Throwable $e) { error_log('[SP sync] ' . $e->getMessage()); }
     }
-    return [$rel, null];
+    return $name;
 }
 
 function edok_queue_list(): array {

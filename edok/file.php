@@ -34,6 +34,7 @@ $mime = match($ext) {
     'pdf'          => 'application/pdf',
     'jpg', 'jpeg'  => 'image/jpeg',
     'png'          => 'image/png',
+    'xml'          => 'application/xml',
     'docx'         => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     default        => 'application/octet-stream',
 };

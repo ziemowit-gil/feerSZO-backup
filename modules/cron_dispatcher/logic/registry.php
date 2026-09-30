@@ -223,6 +223,11 @@ function cron_dispatcher_registry(): array
             'interval' => 86400,        // raz dziennie (skrypt działa tylko w pierwszy dzień miesiąca, za miesiąc poprzedni — Uchwała 5/2026 §7)
             'schedule' => [21, 23],     // wieczorem pierwszego dnia miesiąca
         ],
+        'edok_queue_mail' => [
+            'file'     => $cronDir . '/edok_queue_mail.php',
+            'interval' => 300,          // co 5 min — załączniki z e-maili do Kolejki do opisu EODoK
+            'schedule' => [6, 23],
+        ],
         'ti_lesson_reminders' => [
             'file'     => $cronDir . '/ti_lesson_reminders.php',
             'interval' => 86400,        // raz dziennie — SMS o zajęciach zaplanowanych na jutro

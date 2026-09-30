@@ -10,6 +10,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/edok.php';
+require_once __DIR__ . '/../includes/edok_queue.php';
 
 edok_require_role('upload');
 edok_migrate();
@@ -65,11 +66,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif (!$errors) $errors[] = 'Nie wybrano żadnych plików.';
         if ($ok && !$errors) { header('Location: ' . APP_URL . '/edok/queue.php'); exit; }
         if ($ok) { $flash_errors = $errors; }
+    } elseif ($action === 'mail_settings' && is_admin()) {
+        org_setting_set('edok_queue_mailbox', trim($_POST['mailbox'] ?? ''));
+        org_setting_set('edok_queue_mail_enabled', !empty($_POST['enabled']) ? '1' : '0');
+        org_setting_set('edok_queue_mail_allowed', trim($_POST['allowed'] ?? ''));
+        flash_set('success', 'Zapisano ustawienia przyjmowania plików z e-maila.');
+        header('Location: ' . APP_URL . '/edok/queue.php');
+        exit;
+    } elseif ($action === 'mail_run' && is_admin()) {
+        $r = edok_queue_mail_ingest();
+        flash_set($r['errors'] ? 'warning' : 'success',
+            "Sprawdzono skrzynkę: wiadomości {$r['messages']}, dodano plików {$r['added']}, pominięto nadawców " . count($r['skipped_senders'])
+            . ($r['errors'] ? '. Błędy: ' . implode(' | ', array_slice($r['errors'], 0, 3)) : '.'));
+        header('Location: ' . APP_URL . '/edok/queue.php');
+        exit;
     } elseif ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
         $row = db_one("SELECT * FROM edok_queue WHERE id = ?", [$id]);
         // Usuwać może dodający albo admin — plik jest wspólny dla całej kolejki.
-        if ($row && (is_admin() || (int)$row['uploaded_by'] === (int)$user['id'])) {
+        if ($row && (is_admin() || $row['source'] === 'mail' || (int)$row['uploaded_by'] === (int)$user['id'])) {
             @unlink(UPLOAD_DIR . $row['file_path']);
             db_exec("DELETE FROM edok_queue WHERE id = ?", [$id]);
             flash_set('success', 'Usunięto plik z kolejki.');
@@ -103,14 +118,46 @@ require_once __DIR__ . '/../includes/header.php';
          aria-label="Upuść pliki tutaj lub kliknij, aby wybrać" style="border-style:dashed!important;cursor:pointer">
       <i class="bi bi-cloud-arrow-up fs-1 text-primary"></i>
       <div class="fw-semibold">Przeciągnij i upuść pliki tutaj</div>
-      <div class="small text-muted">albo kliknij, aby wybrać · PDF, JPG, PNG, DOCX · max 20 MB każdy</div>
-      <input type="file" id="dz_input" class="d-none" accept=".pdf,.jpg,.jpeg,.png,.docx" multiple>
+      <div class="small text-muted">albo kliknij, aby wybrać · PDF, JPG, PNG, DOCX, XML (faktura z KSeF) · max 20 MB każdy</div>
+      <input type="file" id="dz_input" class="d-none" accept=".pdf,.jpg,.jpeg,.png,.docx,.xml" multiple>
     </div>
     <div class="mb-3">
       <label class="form-label" for="note">Notatka do partii <span class="text-muted fw-normal">(opcjonalnie)</span></label>
       <input type="text" name="note" id="note" class="form-control" maxlength="200" placeholder="np. faktury z poczty, wrzesień">
     </div>
     <ul id="dz_list" class="list-group mb-0" aria-live="polite"></ul>
+  </div>
+</div>
+
+<?php $mail_addr = trim(org_setting('edok_queue_mailbox')); ?>
+<div class="card shadow-sm mb-4" style="max-width:760px">
+  <div class="card-body">
+    <h6 class="card-title"><i class="bi bi-envelope-at"></i> Wysyłanie plików e-mailem</h6>
+    <?php if ($mail_addr !== '' && org_setting('edok_queue_mail_enabled') === '1'): ?>
+    <p class="small mb-1">Prześlij faktury jako załączniki na adres <strong><?= h($mail_addr) ?></strong> — trafią do tej kolejki (co ok. 5 minut).
+      Przyjmujemy PDF, JPG, PNG, DOCX i XML z adresów użytkowników z uprawnieniem „dodawanie dokumentów” oraz z listy dozwolonych nadawców.</p>
+    <?php else: ?>
+    <p class="small text-muted mb-1">Przyjmowanie plików z e-maila jest wyłączone<?= is_admin() ? ' — ustaw skrzynkę poniżej.' : '.' ?></p>
+    <?php endif; ?>
+    <?php if (org_setting('edok_queue_mail_last_run') !== ''): ?><p class="small text-muted mb-1">Ostatnie sprawdzenie: <?= h(org_setting('edok_queue_mail_last_run')) ?></p><?php endif; ?>
+    <?php if (is_admin()): ?>
+    <details class="mt-2"><summary class="small">Ustawienia (admin)</summary>
+      <form method="post" class="mt-2">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="action" value="mail_settings">
+        <div class="mb-2"><label class="form-label small mb-1" for="mb">Skrzynka M365 (adres)</label>
+          <input type="email" name="mailbox" id="mb" class="form-control form-control-sm" value="<?= h($mail_addr) ?>" placeholder="faktury@feer.org.pl"></div>
+        <div class="mb-2"><label class="form-label small mb-1" for="al">Dodatkowi dozwoleni nadawcy <span class="text-muted">(adresy lub @domena, oddzielone przecinkami)</span></label>
+          <input type="text" name="allowed" id="al" class="form-control form-control-sm" value="<?= h(org_setting('edok_queue_mail_allowed')) ?>" placeholder="ksiegowa@biuro.pl, @biuro.pl"></div>
+        <div class="form-check mb-2"><input type="checkbox" class="form-check-input" name="enabled" id="en" value="1" <?= org_setting('edok_queue_mail_enabled') === '1' ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="en">Przyjmuj pliki z e-maila</label></div>
+        <div class="small text-muted mb-2">Wymaga uprawnienia Mail.Read (aplikacja) w Entra ID; z Mail.ReadWrite wiadomości są dodatkowo oznaczane jako przeczytane.</div>
+        <button class="btn btn-sm btn-primary">Zapisz</button>
+      </form>
+      <form method="post" class="mt-2"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="mail_run">
+        <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Sprawdź skrzynkę teraz</button></form>
+    </details>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -125,12 +172,13 @@ require_once __DIR__ . '/../includes/header.php';
     <tr>
       <td><a href="<?= APP_URL ?>/uploads/<?= h($it['file_path']) ?>" target="_blank"><i class="bi bi-file-earmark"></i> <?= h($it['orig_name']) ?></a></td>
       <td class="small"><?= h($it['note']) ?></td>
-      <td class="small"><?= h($it['uploader_name']) ?></td>
+      <td class="small"><?php if ($it['source'] === 'mail'): ?><i class="bi bi-envelope-at" title="Przyjęte z e-maila"></i> <?= h($it['mail_from']) ?><?php else: ?><?= h($it['uploader_name']) ?><?php endif; ?>
+        <?php if (strtolower(pathinfo($it['file_path'], PATHINFO_EXTENSION)) === 'xml'): ?><span class="badge text-bg-info" title="Dane faktury zostaną wczytane z XML">XML</span><?php endif; ?></td>
       <td class="small"><?= h(substr($it['created_at'], 0, 16)) ?></td>
       <td class="small text-end"><?= $it['file_size'] ? h(number_format($it['file_size'] / 1024, 0, ',', ' ')) . ' KB' : '—' ?></td>
       <td class="text-end text-nowrap">
         <a href="<?= APP_URL ?>/edok/add.php?queue=<?= (int)$it['id'] ?>" class="btn btn-sm btn-primary"><i class="bi bi-pencil-square"></i> Opisz</a>
-        <?php if (is_admin() || (int)$it['uploaded_by'] === (int)$user['id']): ?>
+        <?php if (is_admin() || $it['source'] === 'mail' || (int)$it['uploaded_by'] === (int)$user['id']): ?>
         <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ten plik z kolejki?');">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="action" value="delete">
@@ -148,7 +196,7 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 (function () {
   var dz = document.getElementById('dz'), input = document.getElementById('dz_input'), list = document.getElementById('dz_list');
-  var csrf = <?= json_encode(csrf_token()) ?>, ok = 0, pending = 0, ext = /\.(pdf|jpe?g|png|docx)$/i;
+  var csrf = <?= json_encode(csrf_token()) ?>, ok = 0, pending = 0, ext = /\.(pdf|jpe?g|png|docx|xml)$/i;
   dz.addEventListener('click', function () { input.click(); });
   dz.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
   ['dragenter', 'dragover'].forEach(function (t) { dz.addEventListener(t, function (e) { e.preventDefault(); dz.classList.add('bg-primary-subtle'); }); });
