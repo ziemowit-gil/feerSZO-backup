@@ -12,6 +12,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/edok.php';
 require_once __DIR__ . '/../includes/kdok_ksef.php';
+require_once __DIR__ . '/../includes/edok_queue.php';
 
 edok_require_role('upload');
 edok_migrate();
@@ -71,6 +72,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (\Throwable $e) {
                 if ($jwt) { try { kdok_ksef_session_terminate($jwt); } catch (\Throwable $_) {} }
                 flash_set('error', 'Błąd KSeF: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . APP_URL . '/edok/ksef_sync.php');
+        exit;
+    }
+
+    if ($action === 'sync_sales') {
+        if (!$ksef_enabled) {
+            flash_set('error', 'Integracja KSeF jest wyłączona.');
+        } else {
+            $from = trim($_POST['sales_from'] ?? '') ?: date('Y-m-01');
+            $to   = trim($_POST['sales_to'] ?? '') ?: date('Y-m-d');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $from > $to) {
+                flash_set('error', 'Nieprawidłowy zakres dat.');
+            } else {
+                try {
+                    $r = edok_ksef_sales_sync($from, $to);
+                    $msg = "Faktury sprzedaży {$from} – {$to}: zaimportowano {$r['imported']}, pominięto (już w systemie) {$r['skipped']}.";
+                    flash_set($r['errors'] ? 'warning' : 'success', $msg . ($r['errors'] ? ' Błędy: ' . count($r['errors']) . ' — ' . implode('; ', array_slice($r['errors'], 0, 3)) : ''));
+                } catch (\Throwable $e) { flash_set('error', 'Błąd KSeF: ' . $e->getMessage()); }
             }
         }
         header('Location: ' . APP_URL . '/edok/ksef_sync.php');
@@ -141,6 +162,19 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="row g-3">
   <div class="col-lg-6">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header py-2"><strong>Pobierz przychodowe — faktury sprzedaży i korekty</strong></div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">Faktury wystawione przez organizację (sprzedawca) oraz ich korekty. Powstają jako dokumenty przychodowe EODoK („Faktura sprzedaży” / „Faktura korygująca sprzedaży”) z XML z KSeF jako dokumentem źródłowym.</p>
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="sync_sales">
+          <div class="col-auto"><label class="form-label small mb-1" for="sf">Od</label><input type="date" id="sf" name="sales_from" class="form-control form-control-sm" value="<?= date('Y-m-01') ?>"></div>
+          <div class="col-auto"><label class="form-label small mb-1" for="st">Do</label><input type="date" id="st" name="sales_to" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>"></div>
+          <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-cloud-download"></i> Pobierz sprzedaż z KSeF</button></div>
+        </form>
+      </div>
+    </div>
     <div class="card shadow-sm mb-3">
       <div class="card-header py-2"><strong>Import po numerze referencyjnym</strong></div>
       <div class="card-body">

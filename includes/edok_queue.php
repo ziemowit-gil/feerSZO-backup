@@ -16,7 +16,7 @@ function _edok_xml_money(float $v): string {
  * Zwraca [] gdy to nie jest faktura KSeF. Stawka VAT jest ustawiana tylko, gdy faktura
  * ma jedną stawkę — przy mieszanych zostaje puste, a suma VAT trafia do kwoty VAT.
  */
-function edok_parse_invoice_xml(string $xml): array {
+function edok_parse_invoice_xml(string $xml, string $kontrahent = 'Podmiot1'): array {
     libxml_use_internal_errors(true);
     $sx = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
     if (!$sx || $sx->getName() !== 'Faktura') return [];
@@ -70,8 +70,8 @@ function edok_parse_invoice_xml(string $xml): array {
     return [
         'typ_dokumentu'    => str_starts_with($typ, 'KOR') ? 'faktura_korygujaca' : 'faktura_vat',
         'nr_faktury'       => $one($fa . '/*[local-name()="P_2"]'),
-        'kontrahent_nazwa' => $one('//*[local-name()="Podmiot1"]//*[local-name()="Nazwa"]') ?: $one('//*[local-name()="Podmiot1"]//*[local-name()="PelnaNazwa"]'),
-        'kontrahent_nip'   => $one('//*[local-name()="Podmiot1"]//*[local-name()="NIP"]'),
+        'kontrahent_nazwa' => $one('//*[local-name()="' . $kontrahent . '"]//*[local-name()="Nazwa"]') ?: $one('//*[local-name()="' . $kontrahent . '"]//*[local-name()="PelnaNazwa"]'),
+        'kontrahent_nip'   => $one('//*[local-name()="' . $kontrahent . '"]//*[local-name()="NIP"]'),
         'data_wystawienia' => $one($fa . '/*[local-name()="P_1"]'),
         'data_sprzedazy'   => $one($fa . '/*[local-name()="P_6"]'),
         'kwota_netto'      => $brutto ? _edok_xml_money($netto) : '',
@@ -161,4 +161,55 @@ function edok_queue_mail_ingest(): array {
         } catch (\Throwable $e) { $out['errors'][] = $subject . ': ' . $e->getMessage(); }
     }
     return $out;
+}
+
+/**
+ * Pobiera z KSeF faktury sprzedaży (organizacja jako sprzedawca) i korekty z zakresu dat i zakłada z nich
+ * dokumenty PRZYCHODOWE EODoK (faktura_sprzedazy / korekta_sprzedazy), z XML jako dokumentem źródłowym.
+ * Dedup po numerze KSeF (edok_ksef_queue + edok_documents.ksef_reference).
+ * @return array ['imported'=>int, 'skipped'=>int, 'errors'=>string[], 'new_doc_ids'=>int[]]
+ */
+function edok_ksef_sales_sync(string $from, string $to): array {
+    require_once __DIR__ . '/kdok_ksef.php';
+    edok_migrate();
+    $st = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'new_doc_ids' => []];
+    if (!org_setting('kdok_ksef_nip')) throw new RuntimeException('Brak NIP w konfiguracji KSeF.');
+    foreach (kdok_ksef_date_chunks($from, $to, 3) as [$cf, $ct]) {
+        try { $refs = kdok_ksef_query_by_date(null, $cf, $ct, 'Issue', 'seller'); }
+        catch (\Throwable $e) {
+            if (str_contains($e->getMessage(), '429')) { sleep(5); try { $refs = kdok_ksef_query_by_date(null, $cf, $ct, 'Issue', 'seller'); } catch (\Throwable $e2) { $st['errors'][] = "{$cf}–{$ct}: " . $e2->getMessage(); continue; } }
+            else { $st['errors'][] = "{$cf}–{$ct}: " . $e->getMessage(); continue; }
+        }
+        foreach ($refs as $ref) {
+            if ($ref === '') continue;
+            if (db_one("SELECT 1 FROM edok_ksef_queue WHERE ksef_reference = ?", [$ref]) || db_one("SELECT 1 FROM edok_documents WHERE ksef_reference = ?", [$ref])) { $st['skipped']++; continue; }
+            try {
+                $xml = kdok_ksef_get_invoice_xml(null, $ref);
+                $d = edok_parse_invoice_xml($xml, 'Podmiot2'); // kontrahent = nabywca
+                if (!$d) throw new RuntimeException('nie udało się odczytać XML');
+                $rel = edok_queue_save_bytes($xml, 'xml');
+                $kor = $d['typ_dokumentu'] === 'faktura_korygujaca';
+                $typ = $kor ? 'korekta_sprzedazy' : 'faktura_sprzedazy';
+                $nabywca = $d['kontrahent_nazwa'] !== '' ? $d['kontrahent_nazwa'] : '(nabywca bez nazwy)';
+                $now = date('Y-m-d H:i:s');
+                $doc_id = db_insert('edok_documents', [
+                    'number' => edok_next_number(), 'title' => $d['nr_faktury'] ?: $ref, 'kierunek' => 'przychod', 'typ_dokumentu' => $typ,
+                    'description' => ($d['description'] !== '' ? $d['description'] . '. ' : '') . 'Faktura sprzedaży pobrana z KSeF, nr ref.: ' . $ref,
+                    'kontrahent_nazwa' => $nabywca, 'kontrahent_nip' => $d['kontrahent_nip'], 'zrodlo_przychodu' => $nabywca,
+                    'nr_faktury' => $d['nr_faktury'], 'data_wystawienia' => $d['data_wystawienia'] ?: null, 'data_sprzedazy' => $d['data_sprzedazy'] ?: null,
+                    'data_wplywu' => $d['data_wystawienia'] ?: date('Y-m-d'), 'kwota_netto' => $d['kwota_netto'], 'stawka_vat' => $d['stawka_vat'],
+                    'kwota_vat' => $d['kwota_vat'], 'kwota_brutto' => $d['kwota_brutto'], 'waluta' => $d['waluta'],
+                    'termin_platnosci' => $d['termin_platnosci'] ?: null, 'file_path' => $rel,
+                    'file_size' => is_file(UPLOAD_DIR . $rel) ? filesize(UPLOAD_DIR . $rel) : null,
+                    'ksef_reference' => $ref, 'status' => 'w_obiegu', 'created_by' => null, 'creator_name' => 'KSeF (import faktur sprzedaży)',
+                    'created_at' => $now, 'updated_at' => $now,
+                ]);
+                db_insert('edok_ksef_queue', ['ksef_reference' => $ref, 'invoice_number' => $d['nr_faktury'], 'seller_name' => $nabywca, 'seller_nip' => $d['kontrahent_nip'],
+                    'gross_value' => $d['kwota_brutto'], 'currency' => $d['waluta'], 'issue_date' => $d['data_wystawienia'], 'ksef_date' => date('Y-m-d'), 'created_at' => $now, 'doc_id' => $doc_id]);
+                edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Import z KSeF (faktura sprzedaży), nr ref.: ' . $ref . '. Uzupełnij klasyfikację przychodu (rodzaj działalności) przed kontrolą.');
+                $st['imported']++; $st['new_doc_ids'][] = $doc_id;
+            } catch (\Throwable $e) { $st['errors'][] = "Ref {$ref}: " . $e->getMessage(); }
+        }
+    }
+    return $st;
 }

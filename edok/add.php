@@ -106,8 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
         }
     }
     $brutto_num = (float) str_replace([' ', ','], ['', '.'], $kwota_brutto);
-    if ($typ_dokumentu === 'faktura_korygujaca' ? abs($brutto_num) < 0.005 : $brutto_num <= 0) {
-        $errors[] = $typ_dokumentu === 'faktura_korygujaca' ? 'Podaj niezerową kwotę korekty brutto (ujemną, jeśli korekta obniża należność).' : 'Podaj kwotę brutto większą od zera.';
+    if (edok_typ_korekta($typ_dokumentu) ? abs($brutto_num) < 0.005 : $brutto_num <= 0) {
+        $errors[] = edok_typ_korekta($typ_dokumentu) ? 'Podaj niezerową kwotę korekty brutto (ujemną, jeśli korekta obniża należność).' : 'Podaj kwotę brutto większą od zera.';
     }
 
     // Dokument źródłowy: albo ręczny upload, albo XML pobrany z KSeF (edok/ksef_fetch.php)

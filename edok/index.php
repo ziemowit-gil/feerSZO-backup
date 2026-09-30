@@ -137,6 +137,7 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (is_admin() || edok_has_role('zatwierdza') || edok_has_role('ksiegowy')): ?>
     <a href="<?= APP_URL ?>/edok/zaplacone_przed.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cash-coin"></i> Zapłacone przed akceptacją</a>
     <?php endif; ?>
+    <a href="<?= APP_URL ?>/edok/dla_ksiegowego.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet"></i> Dla księgowego (PDF/Excel)</a>
     <a href="<?= APP_URL ?>/edok/archiwum.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-archive"></i> Archiwum miesięczne</a>
     <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Twój PIN</a>
     <?php if (is_admin() || edok_has_role('ksiegowy')): ?>
@@ -154,7 +155,9 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
     <?php endif; ?>
     <?php if (is_admin() || edok_has_role('upload')): ?>
-    <a href="<?= APP_URL ?>/edok/mt940_import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bank2"></i> Import wyciągu (MT940)</a>
+    <?php require_once __DIR__ . '/../includes/edok_bank.php'; $bank_open = edok_bank_unassigned_count(); ?>
+    <a href="<?= APP_URL ?>/edok/wyciag.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bank2"></i> Wyciągi bankowe<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></a>
+    <a href="<?= APP_URL ?>/edok/mt940_import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Import wyciągu (MT940)</a>
     <a href="<?= APP_URL ?>/edok/szablony.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-richtext"></i> Szablony</a>
     <?php $queue_count = edok_queue_count(); ?>
     <a href="<?= APP_URL ?>/edok/queue.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-inboxes"></i> Kolejka do opisu

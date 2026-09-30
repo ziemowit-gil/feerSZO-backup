@@ -10,7 +10,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
-require_once __DIR__ . '/../includes/edok.php';
+require_once __DIR__ . '/../includes/edok_bank.php';
 
 edok_require_role('upload');
 edok_migrate();
@@ -42,15 +42,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
     csrf_check();
     $raw = base64_decode((string)($_POST['raw_b64'] ?? ''), true);
     $selected = array_map('intval', $_POST['idx'] ?? []);
+    if ($raw !== false && ($_POST['do'] ?? '') === 'save') {
+        // Zapis WSZYSTKICH operacji (wpływy i wypływy) do przypisywania do dokumentów — bez tworzenia dokumentów.
+        $saved = edok_bank_import(edok_mt940_parse($raw), (int)$user['id']);
+        $auto  = edok_bank_auto_match();
+        flash_set('success', "Zapisano operacji: {$saved['added']}" . ($saved['duplicates'] ? ", pominięto już zaimportowane: {$saved['duplicates']}" : '') . ". Dopasowano automatycznie: {$auto}.");
+        header('Location: ' . APP_URL . '/edok/wyciag.php');
+        exit;
+    }
     if ($raw === false || !$selected) {
         flash_set('warning', 'Nie zaznaczono żadnych operacji do importu.');
     } else {
         $parsed_import = edok_mt940_parse($raw);
+        $saved_ids = edok_bank_import($parsed_import, (int)$user['id'])['ids']; // transakcje trafiają też na ekran przypisywania
         $n = 0;
         foreach ($selected as $idx) {
             $tx = $parsed_import['transactions'][$idx] ?? null;
             if (!$tx || $tx['znak'] !== 'C') continue;
-            edok_mt940_create_doc($tx, (int)$user['id']);
+            $new_id = edok_mt940_create_doc($tx, (int)$user['id']);
+            if (!empty($saved_ids[$idx])) edok_bank_assign((int)$saved_ids[$idx], $new_id, 'auto');
             $n++;
         }
         flash_set('success', "Utworzono dokumentów przychodowych: {$n}. Uzupełnij każdy o skan wyciągu i dekretację przed kontrolą merytoryczną.");
@@ -66,7 +76,7 @@ require_once __DIR__ . '/../includes/header.php';
   <a href="<?= APP_URL ?>/edok/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h4 class="mb-0"><i class="bi bi-bank2"></i> Import wyciągu bankowego (MT940)</h4>
 </div>
-<p class="text-muted small">Wgraj plik MT940 wyeksportowany z iPKO biznes — z operacji uznaniowych (wpływów) można od razu utworzyć dokumenty przychodowe EODoK. Każdy z nich trzeba potem uzupełnić o skan wyciągu i dekretację, zanim przejdzie kontrolę merytoryczną.</p>
+<p class="text-muted small">Wgraj plik MT940 wyeksportowany z iPKO biznes (PKO BP). Możesz zapisać cały wyciąg i przypisać każdą transakcję do dokumentu EODoK (<a href="<?= APP_URL ?>/edok/wyciag.php">ekran przypisywania</a>) albo — z operacji uznaniowych (wpływów) można od razu utworzyć dokumenty przychodowe EODoK. Każdy z nich trzeba potem uzupełnić o skan wyciągu i dekretację, zanim przejdzie kontrolę merytoryczną.</p>
 
 <?php if ($errors): ?>
 <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
@@ -131,6 +141,7 @@ require_once __DIR__ . '/../includes/header.php';
     </table>
   </div>
   <p class="text-muted small">Tylko operacje uznaniowe (wpływy) można zaimportować jako dokumenty przychodowe — wypływy nie są zaznaczalne (EODoK dla wydatków zaczyna się od faktury/rachunku, nie od wyciągu).</p>
+  <button type="submit" name="do" value="save" class="btn btn-primary"><i class="bi bi-link-45deg"></i> Zapisz wyciąg i przypisz transakcje do dokumentów</button>
   <button type="submit" class="btn btn-success"><i class="bi bi-check2-all"></i> Importuj zaznaczone jako dokumenty przychodowe (projekty)</button>
   <a href="<?= APP_URL ?>/edok/mt940_import.php" class="btn btn-outline-secondary">Wgraj inny plik</a>
 </form>

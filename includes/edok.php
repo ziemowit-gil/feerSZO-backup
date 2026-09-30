@@ -47,13 +47,17 @@ const EDOK_TYPES = [
     'wyciag_bankowy'      => 'Wyciąg bankowy',
     'potwierdzenie_wplaty' => 'Potwierdzenie wpłaty',
     'faktura_sprzedazy'   => 'Faktura sprzedaży',
+    'korekta_sprzedazy'   => 'Faktura korygująca sprzedaży',
     'darowizna'           => 'Darowizna',
     'dotacja_grant'       => 'Dotacja / grant',
     'inny_przychod'       => 'Inny dokument przychodowy',
 ];
 
 /** Typy dokumentów klasyfikowane jako przychodowe (edok_documents.kierunek = 'przychod'). */
-const EDOK_TYPES_PRZYCHOD = ['wyciag_bankowy', 'potwierdzenie_wplaty', 'faktura_sprzedazy', 'darowizna', 'dotacja_grant', 'inny_przychod'];
+const EDOK_TYPES_PRZYCHOD = ['wyciag_bankowy', 'potwierdzenie_wplaty', 'faktura_sprzedazy', 'korekta_sprzedazy', 'darowizna', 'dotacja_grant', 'inny_przychod'];
+
+/** Faktura korygująca (kosztowa lub sprzedaży) — kwoty mogą być ujemne. */
+function edok_typ_korekta(string $typ): bool { return in_array($typ, ['faktura_korygujaca', 'korekta_sprzedazy'], true); }
 
 // Daty graniczne wprowadzenia EODoK dla dokumentów historycznych — faktury
 // i rachunki wystawione przed tymi datami idą dotychczasowym obiegiem (KDOK),
@@ -259,6 +263,35 @@ function edok_migrate(): void {
         comment     TEXT    NOT NULL DEFAULT '',
         created_at  TEXT    NOT NULL DEFAULT ''
     )");
+
+    // Transakcje z wyciągów bankowych (MT940 PKO BP) — każda może zostać przypisana do dokumentu EODoK
+    // (edok/wyciag.php, includes/edok_bank.php). dedup_key chroni przed ponownym importem tego samego wyciągu.
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_bank_tx (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedup_key        TEXT    NOT NULL UNIQUE,
+        account_nrb      TEXT    NOT NULL DEFAULT '',
+        statement_no     TEXT    NOT NULL DEFAULT '',
+        data_waluty      TEXT    NOT NULL DEFAULT '',
+        znak             TEXT    NOT NULL DEFAULT 'D',
+        kwota            REAL    NOT NULL DEFAULT 0,
+        waluta           TEXT    NOT NULL DEFAULT 'PLN',
+        kontrahent_nazwa TEXT    NOT NULL DEFAULT '',
+        kontrahent_konto TEXT    NOT NULL DEFAULT '',
+        tytul            TEXT    NOT NULL DEFAULT '',
+        referencja       TEXT    NOT NULL DEFAULT '',
+        numer_operacji   TEXT    NOT NULL DEFAULT '',
+        doc_id           INTEGER,
+        matched_how      TEXT    NOT NULL DEFAULT '',
+        matched_by       INTEGER,
+        matched_by_name  TEXT    NOT NULL DEFAULT '',
+        matched_at       TEXT,
+        paid_prev        TEXT,
+        ignored          INTEGER NOT NULL DEFAULT 0,
+        ignore_note      TEXT    NOT NULL DEFAULT '',
+        imported_by      INTEGER,
+        imported_at      TEXT    NOT NULL DEFAULT ''
+    )");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_edok_bank_tx_doc ON edok_bank_tx(doc_id)");
 
     // Kolejka do opisu — pliki wgrane zbiorczo (edok/bulk_upload.php), czekające na opisanie
     // i złożenie do obiegu (edok/add.php?queue=ID). To NIE są dokumenty EODoK: numer dostają
@@ -749,8 +782,8 @@ function edok_step_validation_errors(array $doc, string $step_key): array {
         if (trim((string)($doc['file_path']   ?? '')) === '') $errors[] = 'Kontrola merytoryczna: dołącz skan dokumentu źródłowego.';
         $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)($doc['kwota_brutto'] ?? '')));
         // Faktura korygująca może mieć kwotę ujemną (obniżenie) — wymagamy tylko, by była niezerowa.
-        if (($doc['typ_dokumentu'] ?? '') === 'faktura_korygujaca' ? abs($brutto) < 0.005 : $brutto <= 0) {
-            $errors[] = 'Kontrola merytoryczna: podaj ' . (($doc['typ_dokumentu'] ?? '') === 'faktura_korygujaca' ? 'niezerową kwotę korekty brutto (ujemną przy obniżeniu).' : 'kwotę brutto większą od zera.');
+        if (edok_typ_korekta((string)($doc['typ_dokumentu'] ?? '')) ? abs($brutto) < 0.005 : $brutto <= 0) {
+            $errors[] = 'Kontrola merytoryczna: podaj ' . (edok_typ_korekta((string)($doc['typ_dokumentu'] ?? '')) ? 'niezerową kwotę korekty brutto (ujemną przy obniżeniu).' : 'kwotę brutto większą od zera.');
         }
     }
 
@@ -1182,6 +1215,94 @@ function edok_print_html(array $doc): string {
 // ── Dokument końcowy (źródłowy + karta obiegu) — FPDI (import) + mPDF (karta) ──
 
 /**
+ * Dokleja plik źródłowy (ścieżka względna w uploads/) do PDF-a składanego przez FPDI: PDF stronami,
+ * obraz całostronicowo, faktura XML (KSeF) jako strona z podsumowaniem danych faktury. DOCX pomijany.
+ */
+function edok_fpdi_import_file(\setasign\Fpdi\Fpdi $pdf, string $rel): void {
+    $path = $rel !== '' ? UPLOAD_DIR . ltrim($rel, '/') : '';
+    if ($path === '' || !is_file($path)) return;
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    if ($ext === 'pdf') {
+        try {
+            $count = $pdf->setSourceFile($path);
+            for ($i = 1; $i <= $count; $i++) {
+                $tpl  = $pdf->importPage($i);
+                $size = $pdf->getTemplateSize($tpl);
+                $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
+                $pdf->useTemplate($tpl);
+            }
+        } catch (\Throwable $e) {}
+    } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+        $pdf->AddPage('P', 'A4');
+        try { $pdf->Image($path, 10, 10, 190); } catch (\Throwable $e) {}
+    } elseif ($ext === 'xml') {
+        require_once __DIR__ . '/edok_queue.php';
+        $d = edok_parse_invoice_xml_file($rel);
+        if (!$d) return;
+        $tmp_dir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
+        if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
+        $rows = ['Numer faktury' => $d['nr_faktury'], 'Sprzedawca' => $d['kontrahent_nazwa'], 'NIP sprzedawcy' => $d['kontrahent_nip'],
+            'Data wystawienia' => $d['data_wystawienia'], 'Data sprzedaży' => $d['data_sprzedazy'], 'Netto' => $d['kwota_netto'], 'VAT' => $d['kwota_vat'],
+            'Brutto' => $d['kwota_brutto'] . ' ' . $d['waluta'], 'Termin płatności' => $d['termin_platnosci'], 'Rachunek' => $d['rachunek_bankowy'], 'Opis' => $d['description']];
+        $html = '<h3>Faktura ustrukturyzowana (KSeF) — dane z pliku XML</h3><table border="1" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:10pt">';
+        foreach ($rows as $k => $v) if ($v !== '' && $v !== null) $html .= '<tr><td style="width:30%;background:#eee"><b>' . h($k) . '</b></td><td>' . h((string)$v) . '</td></tr>';
+        $mp = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans', 'tempDir' => $tmp_dir]);
+        $mp->WriteHTML($html . '</table>');
+        $xp = $tmp_dir . '/xml_' . bin2hex(random_bytes(4)) . '.pdf';
+        $mp->Output($xp, \Mpdf\Output\Destination::FILE);
+        try {
+            $count = $pdf->setSourceFile($xp);
+            for ($i = 1; $i <= $count; $i++) { $pdf->AddPage('P', [210, 297]); $pdf->useTemplate($pdf->importPage($i)); }
+        } catch (\Throwable $e) {}
+        @unlink($xp);
+    }
+    // DOCX — nie da się zaimportować jako strony PDF, pomijany.
+}
+
+/**
+ * Składa jeden PDF z dokumentów EODoK dodanych w miesiącu: dla każdego dokumentu źródło (faktura),
+ * dowód zapłaty (jeśli był) i karta akceptacji — jak w dokumencie końcowym. Zapisuje do $dest,
+ * zwraca liczbę dokumentów.
+ */
+function edok_build_monthly_combined(int $year, int $month, string $dest): int {
+    require_once dirname(__DIR__) . '/vendor/autoload.php';
+    require_once __DIR__ . '/fpdf/fpdf.php';
+    require_once __DIR__ . '/fpdi/autoload_fpdi.php';
+    $rows = db_all(
+        "SELECT id FROM edok_documents
+         WHERE CAST(SUBSTR(created_at, 6, 2) AS INTEGER) = ? AND CAST(SUBSTR(created_at, 1, 4) AS INTEGER) = ?
+         ORDER BY id ASC",
+        [$month, $year]
+    );
+    $tmp_dir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
+    if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
+    $pdf = new \setasign\Fpdi\Fpdi();
+    $pdf->SetAutoPageBreak(true, 10);
+    $n = 0;
+    foreach ($rows as $r) {
+        $doc = edok_get((int)$r['id']);
+        if (!$doc) continue;
+        $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 8, 'margin_bottom' => 8,
+            'default_font' => 'dejavusans', 'tempDir' => $tmp_dir]);
+        $mpdf->WriteHTML('<style>' . edok_print_css() . '</style>' . edok_print_html($doc));
+        $card = $tmp_dir . '/mkarta_' . (int)$doc['id'] . '_' . bin2hex(random_bytes(4)) . '.pdf';
+        $mpdf->Output($card, \Mpdf\Output\Destination::FILE);
+        edok_fpdi_import_file($pdf, (string)$doc['file_path']);
+        if (!empty($doc['zaplacono_przed'])) edok_fpdi_import_file($pdf, (string)($doc['dowod_zaplaty_path'] ?? ''));
+        $cnt = $pdf->setSourceFile($card);
+        for ($i = 1; $i <= $cnt; $i++) {
+            $tpl = $pdf->importPage($i); $size = $pdf->getTemplateSize($tpl);
+            $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
+            $pdf->useTemplate($tpl);
+        }
+        @unlink($card);
+        $n++;
+    }
+    if ($n) $pdf->Output($dest, 'F');
+    return $n;
+}
+
+/**
  * Składa jeden PDF: oryginalny dokument źródłowy (PDF-y strona po stronie,
  * albo obraz JPG/PNG na całej stronie; XML/DOCX pomijane — nie da się ich
  * "zaimportować" jako strony) + doklejona karta akceptacji (edok_print_html(),
@@ -1215,28 +1336,7 @@ function edok_generate_final_pdf(int $doc_id): string {
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 10);
 
-    $import = function (string $rel) use ($pdf): void {
-        $path = $rel !== '' ? UPLOAD_DIR . ltrim($rel, '/') : '';
-        if ($path === '' || !is_file($path)) return;
-        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        if ($ext === 'pdf') {
-            try {
-                $count = $pdf->setSourceFile($path);
-                for ($i = 1; $i <= $count; $i++) {
-                    $tpl  = $pdf->importPage($i);
-                    $size = $pdf->getTemplateSize($tpl);
-                    $pdf->AddPage($size['width'] > $size['height'] ? 'L' : 'P', [$size['width'], $size['height']]);
-                    $pdf->useTemplate($tpl);
-                }
-            } catch (\Throwable $e) {}
-        } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
-            $pdf->AddPage('P', 'A4');
-            try {
-                $pdf->Image($path, 10, 10, 190);
-            } catch (\Throwable $e) {}
-        }
-        // XML (KSeF) / DOCX — nie da się zaimportować jako strony PDF, pomijane.
-    };
+    $import = fn(string $rel) => edok_fpdi_import_file($pdf, $rel);
     $import((string)$doc['file_path']);
     // Dowód zapłaty przed akceptacją — zaraz za dokumentem źródłowym, przed kartą.
     if (!empty($doc['zaplacono_przed'])) $import((string)($doc['dowod_zaplaty_path'] ?? ''));
@@ -1307,24 +1407,11 @@ const EDOK_MONTHS_PL = ['', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'C
 
 /** Buduje i zapisuje na dysk PDF kart akceptacji za dany miesiąc. Zwraca ścieżkę względną albo null, gdy brak dokumentów. */
 function edok_build_monthly_pdf_file(int $year, int $month): ?string {
-    $cards = edok_monthly_cards_html($year, $month);
-    if ($cards['count'] === 0) return null;
-
-    require_once dirname(__DIR__) . '/vendor/autoload.php';
-    $tmp_dir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
-    if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
-    $mpdf = new \Mpdf\Mpdf([
-        'mode' => 'utf-8', 'format' => 'A4',
-        'margin_left' => 10, 'margin_right' => 10, 'margin_top' => 8, 'margin_bottom' => 8,
-        'default_font' => 'dejavusans', 'tempDir' => $tmp_dir,
-    ]);
-    $mpdf->SetTitle('EODoK — dokumenty ' . (EDOK_MONTHS_PL[$month] ?? $month) . ' ' . $year);
-    $mpdf->WriteHTML($cards['html']);
-
     $out_dir = UPLOAD_DIR . 'edok_generated/monthly/';
     if (!is_dir($out_dir)) mkdir($out_dir, 0755, true);
     $filename = sprintf('EODoK_%04d_%02d.pdf', $year, $month);
-    $mpdf->Output($out_dir . $filename, \Mpdf\Output\Destination::FILE);
+    // Faktury (źródła) + karty akceptacji — jak w dokumencie końcowym.
+    if (edok_build_monthly_combined($year, $month, $out_dir . $filename) === 0) return null;
     return 'edok_generated/monthly/' . $filename;
 }
 

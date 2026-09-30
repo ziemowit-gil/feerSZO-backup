@@ -60,6 +60,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (in_array($action, ['bank_link', 'bank_unlink'], true) && (is_admin() || edok_has_role('upload') || edok_has_role('ksiegowy'))) {
+        require_once __DIR__ . '/../includes/edok_bank.php';
+        $err = $action === 'bank_link' ? edok_bank_assign((int)($_POST['tx_id'] ?? 0), $id) : edok_bank_unlink_from_doc((int)($_POST['tx_id'] ?? 0), $id);
+        flash_set($err ? 'danger' : 'success', $err ?: ($action === 'bank_link' ? 'Powiązano transakcję z wyciągu z dokumentem.' : 'Odpięto transakcję.'));
+        header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+        exit;
+    }
+
     if ($action === 'update_meta' && (is_admin() || edok_has_role('upload') || edok_has_role('dekretacja')) && !$is_terminal) {
         $description      = $locked_meryt      ? $doc['description']      : trim($_POST['description'] ?? '');
         $kontrahent_nazwa = $locked_formal      ? $doc['kontrahent_nazwa'] : trim($_POST['kontrahent_nazwa'] ?? '');
@@ -956,6 +964,34 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
           </div>
         </div>
         <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php require_once __DIR__ . '/../includes/edok_bank.php';
+      $bank_tx = edok_bank_for_doc($id); $can_bank = is_admin() || edok_has_role('upload') || edok_has_role('ksiegowy');
+      $bank_cand = $can_bank && $doc['status'] !== 'odrzucony' && $doc['status'] !== 'wycofany' ? edok_bank_for_doc_candidates($doc) : []; ?>
+    <?php if ($bank_tx || $bank_cand): ?>
+    <div class="edok-card">
+      <div class="edok-card__hd"><i class="bi bi-bank2"></i> Powiązanie z wyciągiem bankowym</div>
+      <div class="edok-card__bd small">
+        <?php foreach ($bank_tx as $bt): ?>
+        <div class="d-flex align-items-center gap-2 mb-1"><span><?= h(date_pl($bt['data_waluty'])) ?> · <strong><?= $bt['znak'] === 'C' ? '+' : '−' ?><?= h(number_format((float)$bt['kwota'], 2, ',', ' ')) ?> <?= h($bt['waluta']) ?></strong>
+          · <?= h($bt['kontrahent_nazwa'] ?: '—') ?> · wyciąg <?= h($bt['statement_no'] ?: '—') ?>, operacja <?= h($bt['numer_operacji']) ?></span>
+          <?php if ($can_bank): ?><form method="post" onsubmit="return confirm('Odpiąć transakcję od dokumentu?');"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="bank_unlink"><input type="hidden" name="tx_id" value="<?= (int)$bt['id'] ?>"><button class="btn btn-sm btn-link text-danger p-0">odepnij</button></form><?php endif; ?></div>
+        <?php endforeach; ?>
+        <?php if ($bank_cand): ?>
+        <form method="post" class="d-flex gap-2 align-items-center mt-2"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="bank_link">
+          <select name="tx_id" class="form-select form-select-sm" style="max-width:520px" aria-label="Transakcja z wyciągu">
+            <?php foreach ($bank_cand as $c): $t = $c['tx']; ?>
+            <option value="<?= (int)$t['id'] ?>"><?= h(date_pl($t['data_waluty'])) ?> · <?= h(number_format((float)$t['kwota'], 2, ',', ' ')) ?> · <?= h(mb_substr($t['kontrahent_nazwa'] ?: '—', 0, 30)) ?> · <?= h(mb_substr($t['tytul'], 0, 50)) ?><?= $c['score'] >= 50 ? ' ★' : '' ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-link-45deg"></i> Powiąż z wyciągiem</button>
+        </form>
+        <div class="form-text">Lista niepowiązanych transakcji z zaimportowanych wyciągów (★ = pasuje kwota / numer). <a href="<?= APP_URL ?>/edok/mt940_import.php">Wgraj wyciąg</a></div>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
