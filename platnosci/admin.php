@@ -230,7 +230,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <span class="rounded-lg bg-amber-400/90 px-3 py-1 text-navy-700">przelewy do potwierdzenia <strong><?= count($nrb_pending) ?></strong></span>
   </div>
 </div></header>
-<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','uczestnicy','rachunki','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
+<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
   <?php if ($flash): ?><div role="status" class="rounded-lg px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' ?>"><?= h((string)$flash['msg']) ?></div><?php endif; ?>
   <?php if ($link_once): ?>
   <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm ring-1 ring-amber-300" x-data="{ c: false }">
@@ -250,14 +250,44 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endforeach; ?>
   <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
-    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
+    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
     <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"
             class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?>
       <?php if ($tb): ?><span class="rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-navy-700"><?= $tb ?></span><?php endif; ?></button>
     <?php endforeach; ?>
   </nav>
 
+  <!-- Główna: tylko to, co wymaga działania -->
+  <?php $ap0 = pp_bank_autopost('', null, true); $nb0 = count(array_filter(pp_vnrb_status_rows(), fn($r0) => $r0['cat'] === 'brak')); $unn0 = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL")['c'] ?? 0);
+        $todo = [
+          ['Przelewy do potwierdzenia', count($nrb_pending), 'bi-hourglass-split', 'przelewy', 'Uczestnicy zgłosili przelew — potwierdź wpływ.'],
+          ['Wpływy na numery wirtualne', (int)$ap0['posted'], 'bi-cash-coin', 'przelewy', 'Wpłaty czekają na zaksięgowanie (' . pp_fmt($ap0['amount']) . ').'],
+          ['Wpływy do dopasowania', count($bank_c), 'bi-link-45deg', 'przelewy', 'Wpływy z wyciągów pasujące do płatności.'],
+          ['Kursanci bez numeru rachunku', $nb0, 'bi-person-x', 'rachunki', 'Nadaj numer z puli albo zamów w banku.'],
+          ['Numery bez powiadomienia', $unn0, 'bi-envelope', 'rachunki', 'Nadane numery, o których kursant nie wie.'],
+        ]; ?>
   <div x-show="tab === 'przeglad'" x-cloak class="space-y-5">
+    <section aria-labelledby="todo-h">
+      <h2 id="todo-h" class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Do zrobienia</h2>
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <?php foreach ($todo as [$tl, $tn, $ti, $tt, $td]): ?>
+        <button type="button" @click="go('<?= $tt ?>')" class="card text-left transition hover:shadow-md <?= $tn ? 'ring-2 ring-amber-300' : 'opacity-70' ?>">
+          <div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full <?= $tn ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500' ?>"><i class="bi <?= $ti ?> text-lg" aria-hidden="true"></i></span>
+            <div class="min-w-0"><div class="text-2xl font-semibold tabular-nums"><?= (int)$tn ?></div><div class="text-sm font-medium"><?= h($tl) ?></div></div></div>
+          <div class="mt-1 text-xs text-slate-500"><?= h($td) ?></div>
+        </button>
+      <?php endforeach; ?>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="find-h">
+      <h2 id="find-h" class="mb-2 font-semibold">Znajdź uczestnika</h2>
+      <form method="get" class="flex gap-2"><label class="sr-only" for="qq">Szukaj uczestnika</label>
+        <input id="qq" name="q" class="inp" placeholder="imię, nazwisko lub e-mail" value="<?= h($q) ?>"><button class="bp">Szukaj</button></form>
+      <p class="mt-2 text-xs text-slate-500">Pozostałe narzędzia: <button type="button" class="underline" @click="go('przelewy')">przelewy i wpływy</button> · <button type="button" class="underline" @click="go('rachunki')">rachunki wirtualne</button> · <button type="button" class="underline" @click="go('ustawienia')">ustawienia</button>.</p>
+    </section>
+  </div>
+
+  <div x-show="tab === 'przelewy'" x-cloak class="space-y-5">
   <!-- Przelewy do potwierdzenia -->
   <section class="card" aria-labelledby="nrb-h">
     <h2 id="nrb-h" class="font-semibold mb-2">Przelewy na NRB do potwierdzenia</h2>
@@ -406,10 +436,15 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     </section>
   </div>
 
-  <div x-show="tab === 'rachunki'" x-cloak class="space-y-5">
+  <div x-show="tab === 'rachunki'" x-cloak class="space-y-5" x-data="{ sub: 'stan' }">
+  <div class="flex flex-wrap gap-2" role="tablist" aria-label="Rachunki wirtualne">
+    <?php foreach (['stan' => 'Stan kursantów', 'zamow' => 'Zamów w banku', 'import' => 'Import i przypisanie'] as $sk => $sl): ?>
+    <button type="button" role="tab" @click="sub = '<?= $sk ?>'" :aria-selected="sub === '<?= $sk ?>'" :class="sub === '<?= $sk ?>' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50'" class="rounded-full px-4 py-1.5 text-sm font-medium"><?= $sl ?></button>
+    <?php endforeach; ?>
+  </div>
   <!-- Raport stanu: kto bez numeru / bez powiadomienia / wirtualny -->
   <?php $vs = pp_vnrb_status_rows(); $vsc = array_fill_keys(array_keys(PP_VSTATUS), 0); foreach ($vs as $r0) $vsc[$r0['cat']]++; ?>
-  <section class="card space-y-3" aria-labelledby="vr-h" x-data="{ f: '' }">
+  <section class="card space-y-3" aria-labelledby="vr-h" x-data="{ f: '' }" x-show="sub === 'stan'">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
       <a class="bs" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj raport</a>
@@ -435,8 +470,9 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </section>
 
   <!-- Serie rachunków wirtualnych: SZO podaje bankowi tylko 1 numer startowy na serię -->
-  <section class="card space-y-3" aria-labelledby="vg-h">
-    <h2 id="vg-h" class="font-semibold">Serie rachunków wirtualnych — numery startowe dla banku</h2>
+  <section class="card space-y-3" aria-labelledby="vg-h" x-show="sub !== 'stan'">
+    <h2 id="vg-h" class="font-semibold" x-text="sub === 'zamow' ? 'Serie rachunków — numery startowe i zamówienie w banku' : 'Import listy z banku i przypisanie numerów'">Rachunki wirtualne</h2>
+    <div x-show="sub === 'zamow'" class="space-y-3">
     <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">kod serii (8) + numer od banku (4)</span>. Przekaż bankowi po jednym numerze startowym z każdej serii (końcówka 12 cyfr = kod serii 8 cyfr + 0001) — kolejne numery, rosnąco, wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
     <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer kontrahenta (dla banku)</th><th>Numer startowy</th><th>Następny z puli (12 cyfr)</th><th>W puli / nadane</th></tr></thead><tbody>
     <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL AND crm_contact_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY nrb LIMIT 1", [$sk]); ?>
@@ -474,6 +510,8 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <textarea readonly rows="8" class="inp font-mono text-xs" aria-label="Wygenerowane numery" onclick="this.select()"><?= h(implode("\n", array_map('pp_nrb_format', $gl))) ?></textarea>
       <?php endif; ?>
     </form>
+    </div>
+    <div x-show="sub === 'import'" class="space-y-3">
     <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL AND crm_contact_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
     <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2">
       <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_import">
@@ -523,10 +561,11 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <?php endif; ?>
     <form method="post" onsubmit="return confirm('Przypisać wolne rachunki z puli TI kursantom bez rachunku?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_ti">
       <button class="bs">Przypisz wolne rachunki z puli kursantom TI bez numeru</button></form>
+    </div>
   </section>
   </div>
 
-  <div x-show="tab === 'przeglad'" x-cloak>
+  <div x-show="tab === 'przelewy'" x-cloak>
   <!-- Transakcje -->
   <section class="card overflow-x-auto" aria-labelledby="t-h">
     <h2 id="t-h" class="font-semibold mb-2">Ostatnie transakcje</h2>
