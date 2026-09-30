@@ -161,6 +161,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         }
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
     }
+    // Masowe przywracanie nieaktywnych / zarchiwizowanych / usuniętych (anulowanych) grup
+    if ($ku_op === 'restore_groups' && $ku_can_write) {
+        $n = 0;
+        foreach (array_filter(array_map('intval', (array)($_POST['ids'] ?? []))) as $cid) {
+            $g = db_one("SELECT id, status, is_active FROM k30_ti_courses WHERE id=?", [$cid]);
+            if (!$g) continue;
+            ti_course_reopen($cid);
+            db()->prepare("UPDATE k30_ti_courses SET status='active', is_active=1 WHERE id=?")->execute([$cid]);
+            ti_course_log($cid, 'restore', '', $uid ?? 0, (string)($me['name'] ?? ''));
+            $n++;
+        }
+        $_SESSION['dyd_flash'] = ['type' => $n ? 'success' : 'warning', 'msg' => $n ? "Przywrócono grup: {$n} (aktywne, odblokowane)." : 'Nie zaznaczono żadnej grupy.'];
+        header('Location: index.php?tab=grupy&f=all'); exit;
+    }
     if ($ku_op === 'unarchive_course' && $ku_can_write) {
         $cid = (int)($_POST['course_id'] ?? 0);
         if ($cid) {

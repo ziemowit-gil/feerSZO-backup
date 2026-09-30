@@ -337,14 +337,24 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
 
 <?php /* ── Nieaktywne grupy ── */ ?>
 <?php if ($gr_inactive && $gr_filter === 'all'): ?>
-<div class="dyd-gr-section-head" aria-label="Sekcja Nieaktywne">
-  Nieaktywne / archiwum (<?= count($gr_inactive) ?>)
+<div class="dyd-gr-section-head d-flex flex-wrap align-items-center gap-2" aria-label="Sekcja Nieaktywne">
+  <span>Nieaktywne / archiwum (<?= count($gr_inactive) ?>)</span>
+  <?php if (dyd_is_staff()): ?>
+  <form method="post" action="index.php?tab=kursy" id="gr-restore" class="d-inline-flex align-items-center gap-2 ms-auto"
+        onsubmit="return confirm('Przywrócić zaznaczone grupy (aktywne i odblokowane)?')">
+    <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+    <input type="hidden" name="_op" value="restore_groups">
+    <label class="form-check small mb-0"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=&quot;ids[]&quot;][form=gr-restore]').forEach(function(x){x.checked=this.checked}.bind(this))"> <span class="form-check-label">zaznacz wszystkie</span></label>
+    <button class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Przywróć zaznaczone</button>
+  </form>
+  <?php endif; ?>
 </div>
 <?php foreach ($gr_inactive as $c):
   $cid  = (int)$c['id'];
   $debt = $gr_debt_map[$cid] ?? 0;
 ?>
 <div class="dyd-gr-card inactive">
+  <?php if (dyd_is_staff()): ?><input type="checkbox" name="ids[]" value="<?= $cid ?>" form="gr-restore" class="form-check-input flex-shrink-0 mt-0" aria-label="Zaznacz grupę <?= h($c['name']) ?>"><?php endif; ?>
   <div class="dyd-gr-icon" aria-hidden="true"><i class="bi bi-archive"></i></div>
   <div class="dyd-gr-body">
     <div class="dyd-gr-name"><?= h($c['name']) ?></div>
