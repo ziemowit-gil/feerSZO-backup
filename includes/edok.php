@@ -1261,6 +1261,7 @@ function edok_fpdi_import_file(\setasign\Fpdi\Fpdi $pdf, string $rel): void {
         if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
         $mp = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 10, 'margin_bottom' => 10,
                                'default_font' => 'dejavusans', 'tempDir' => $tmp_dir]);
+        $mp->SetHTMLFooter('<div style="text-align:right;font-size:7px;color:#444">{PAGENO} z {nbpg}</div>');
         $mp->WriteHTML('<style>' . edok_ksef_css() . '</style>' . $html);
         $xp = $tmp_dir . '/xml_' . bin2hex(random_bytes(4)) . '.pdf';
         $mp->Output($xp, \Mpdf\Output\Destination::FILE);
