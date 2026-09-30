@@ -876,3 +876,76 @@ function pp_vnrb_pool_assign_other(string $by, ?int $uid, ?string $batch = null)
     audit_log('payments.vnrb_pool_assign_other', $r + ['batch' => $batch, 'by' => $by], $uid);
     return $r;
 }
+
+/** Kategorie raportu stanu rachunków wirtualnych kursantów TI. */
+const PP_VSTATUS = [
+    'brak'       => 'Bez numeru',
+    'nie_powiad' => 'Nadany, bez powiadomienia',
+    'powiad'     => 'Nadany i powiadomiony',
+    'reczny'     => 'Nadany ręcznie (brak danych o powiadomieniu)',
+    'wirtualny'  => 'Kursant wirtualny',
+    'bez_rozl'   => 'Bez rozliczeń i powiadomień',
+];
+
+/**
+ * Jedna lista kursantów TI ze stanem rachunku i powiadomienia.
+ * @return list<array{client_id:int,name:string,nrb:string,cat:string,assigned_at:string,notified_at:string,flags:string}>
+ */
+function pp_vnrb_status_rows(): array {
+    pp_migrate();
+    $rows = db_all("SELECT c.id client_id, c.name,
+                           MAX(COALESCE(a.is_virtual,0)) virt_any, MIN(COALESCE(a.is_virtual,0)) virt_all,
+                           MAX(COALESCE(a.no_billing,0)) nb_any, MIN(COALESCE(a.no_billing,0)) nb_all,
+                           COALESCE(u.individual_nrb,'') nrb, p.assigned_at, p.notified_at, (p.nrb IS NOT NULL) in_pool
+                      FROM k30_clients c
+                      JOIN k30_ti_student_accounts a ON a.client_id=c.id
+                      LEFT JOIN payment_portal_users u ON u.participant_id=c.id
+                      LEFT JOIN pp_vnrb_pool p ON p.nrb=u.individual_nrb
+                     GROUP BY c.id ORDER BY c.name COLLATE NOCASE");
+    $out = [];
+    foreach ($rows as $r) {
+        $nrb = preg_replace('/\D/', '', (string)$r['nrb']);
+        $flags = [];
+        if ((int)$r['virt_all']) $flags[] = 'wirtualny';
+        if ((int)$r['nb_all'])   $flags[] = 'bez rozliczeń';
+        if ($nrb === '') {
+            $cat = (int)$r['virt_all'] ? 'wirtualny' : ((int)$r['nb_all'] ? 'bez_rozl' : 'brak');
+        } elseif (!(int)$r['in_pool']) {
+            $cat = 'reczny';
+        } else {
+            $cat = empty($r['notified_at']) ? 'nie_powiad' : 'powiad';
+        }
+        $out[] = ['client_id' => (int)$r['client_id'], 'name' => (string)$r['name'], 'nrb' => $nrb, 'cat' => $cat,
+                  'assigned_at' => (string)($r['assigned_at'] ?? ''), 'notified_at' => (string)($r['notified_at'] ?? ''), 'flags' => implode(', ', $flags)];
+    }
+    return $out;
+}
+
+/** Wydruk raportu stanu (samodzielny dokument HTML). $cat: '' = wszystkie kategorie albo klucz z PP_VSTATUS. Kończy skrypt. */
+function pp_vnrb_status_print(string $cat, string $by): never {
+    $all = pp_vnrb_status_rows();
+    $counts = array_fill_keys(array_keys(PP_VSTATUS), 0);
+    foreach ($all as $r) $counts[$r['cat']]++;
+    $rows = isset(PP_VSTATUS[$cat]) ? array_values(array_filter($all, fn($r) => $r['cat'] === $cat)) : $all;
+    $title = 'Raport rachunków wirtualnych — stan kursantów TI' . (isset(PP_VSTATUS[$cat]) ? ': ' . PP_VSTATUS[$cat] : '');
+    audit_log('payments.vnrb_status_print', ['cat' => $cat, 'rows' => count($rows), 'by' => $by], null);
+    header('Content-Type: text/html; charset=utf-8');
+    ?><!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?= h($title) ?></title>
+<style>
+  body{font:12px/1.4 Arial,sans-serif;color:#000;margin:16px} h1{font-size:16px;margin:0 0 2px} .meta{color:#444;margin-bottom:8px}
+  .chips span{display:inline-block;border:1px solid #999;border-radius:10px;padding:1px 8px;margin:0 4px 4px 0}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:3px 6px;text-align:left} thead th{background:#eee}
+  td.n{font-family:monospace;white-space:nowrap} tr{break-inside:avoid} .pbtn{margin-bottom:10px;padding:6px 12px;font-size:13px} @media print{.pbtn{display:none}}
+</style></head><body>
+<button class="pbtn" onclick="window.print()">Drukuj</button>
+<h1><?= h($title) ?></h1>
+<div class="meta"><?= h(defined('ORG_NAME') ? ORG_NAME : '') ?> · wydruk: <?= date('d.m.Y H:i') ?> · wystawił: <?= h($by) ?> · pozycji: <?= count($rows) ?> z <?= count($all) ?></div>
+<div class="chips"><?php foreach (PP_VSTATUS as $k => $l): ?><span><?= h($l) ?>: <strong><?= $counts[$k] ?></strong></span><?php endforeach; ?></div>
+<table><thead><tr><th>Lp.</th><th>Kursant</th><th>ID</th><th>Stan</th><th>Rachunek</th><th>Nadano</th><th>Powiadomiono</th><th>Uwagi</th></tr></thead><tbody>
+<?php foreach ($rows as $i => $r): ?>
+<tr><td><?= $i + 1 ?></td><td><?= h($r['name']) ?></td><td><?= $r['client_id'] ?></td><td><?= h(PP_VSTATUS[$r['cat']]) ?></td>
+<td class="n"><?= $r['nrb'] !== '' ? h(pp_nrb_format($r['nrb'])) : '—' ?></td><td><?= h($r['assigned_at'] ?: '—') ?></td><td><?= h($r['notified_at'] ?: '—') ?></td><td><?= h($r['flags']) ?></td></tr>
+<?php endforeach; if (!$rows): ?><tr><td colspan="8">Brak pozycji.</td></tr><?php endif; ?>
+</tbody></table></body></html><?php
+    exit;
+}

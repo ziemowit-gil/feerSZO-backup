@@ -35,7 +35,9 @@ $_lnk = function (string $href, string $label, string $icon, string $kind = 'out
   <div class="card-body d-flex flex-wrap gap-2 align-items-center">
     <a class="btn btn-sm btn-outline-primary" href="rachunki_wirtualne.php?scope=last" target="_blank" rel="noopener"><i class="bi bi-printer me-1" aria-hidden="true"></i>Raport: ostatni import z banku</a>
     <a class="btn btn-sm btn-outline-secondary" href="rachunki_wirtualne.php?scope=all" target="_blank" rel="noopener"><i class="bi bi-printer me-1" aria-hidden="true"></i>Raport: wszyscy kursanci</a>
-    <span class="small text-body-secondary">Kursant, ID, numer rachunku do wpłat, seria i data przypisania.</span>
+    <a class="btn btn-sm btn-outline-secondary" href="rachunki_wirtualne.php?scope=status" target="_blank" rel="noopener"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Raport: stan rachunków i powiadomień</a>
+    <a class="btn btn-sm btn-outline-danger" href="rachunki_wirtualne.php?scope=status&amp;cat=brak" target="_blank" rel="noopener">Tylko bez numeru</a>
+    <span class="small text-body-secondary">Kursant, ID, numer rachunku do wpłat, seria i data przypisania; stan: bez numeru / bez powiadomienia / wirtualny.</span>
   </div>
 </section>
 

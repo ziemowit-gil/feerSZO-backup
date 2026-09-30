@@ -66,6 +66,7 @@ if (($_GET['export'] ?? '') === 'gen') {
     echo implode("\r\n", $l), "\r\n"; exit;
 }
 
+if (($_GET['report'] ?? '') === 'status') pp_vnrb_status_print((string)($_GET['cat'] ?? ''), $by);
 if (($_GET['report'] ?? '') === 'print') pp_vnrb_report_print(($_GET['scope'] ?? 'all') === 'last' ? 'last' : 'all', $by);
 
 $genres = null;
@@ -375,6 +376,33 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
 
   <div x-show="tab === 'rachunki'" x-cloak class="space-y-5">
+  <!-- Raport stanu: kto bez numeru / bez powiadomienia / wirtualny -->
+  <?php $vs = pp_vnrb_status_rows(); $vsc = array_fill_keys(array_keys(PP_VSTATUS), 0); foreach ($vs as $r0) $vsc[$r0['cat']]++; ?>
+  <section class="card space-y-3" aria-labelledby="vr-h" x-data="{ f: '' }">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
+      <a class="bs" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj raport</a>
+    </div>
+    <div class="flex flex-wrap gap-2" role="group" aria-label="Filtr stanu">
+      <button type="button" @click="f = ''" :class="f === '' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium">Wszyscy (<?= count($vs) ?>)</button>
+      <?php foreach (PP_VSTATUS as $k => $l): ?>
+      <button type="button" @click="f = '<?= $k ?>'" :class="f === '<?= $k ?>' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium"><?= h($l) ?> (<?= $vsc[$k] ?>)</button>
+      <?php endforeach; ?>
+      <a class="ml-auto text-xs text-slate-500 hover:underline" :href="'admin.php?report=status&cat=' + f" target="_blank" rel="noopener" x-show="f !== ''">drukuj tylko ten stan →</a>
+    </div>
+    <div class="max-h-96 overflow-auto"><table class="min-w-full text-sm">
+      <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+      <?php foreach ($vs as $r0): ?>
+        <tr x-show="f === '' || f === '<?= $r0['cat'] ?>'"><td class="py-1.5 pr-3 font-medium"><a class="hover:underline" href="admin.php?q=<?= urlencode($r0['name']) ?>"><?= h($r0['name']) ?></a></td>
+          <td class="pr-3 text-xs"><span class="rounded-full px-2 py-0.5 <?= ['brak' => 'bg-red-50 text-red-800', 'nie_powiad' => 'bg-amber-50 text-amber-800', 'powiad' => 'bg-emerald-50 text-emerald-800', 'reczny' => 'bg-sky-50 text-sky-800', 'wirtualny' => 'bg-slate-100 text-slate-700', 'bez_rozl' => 'bg-slate-100 text-slate-700'][$r0['cat']] ?>"><?= h(PP_VSTATUS[$r0['cat']]) ?></span></td>
+          <td class="pr-3 font-mono text-xs"><?= $r0['nrb'] !== '' ? h(pp_nrb_format($r0['nrb'])) : '—' ?></td>
+          <td class="pr-3 text-xs text-slate-500"><?= h($r0['notified_at'] ?: '—') ?></td></tr>
+      <?php endforeach; ?>
+      <?php if (!$vs): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak kursantów TI.</td></tr><?php endif; ?>
+      </tbody></table></div>
+  </section>
+
   <!-- Serie rachunków wirtualnych: SZO podaje bankowi tylko 1 numer startowy na serię -->
   <section class="card space-y-3" aria-labelledby="vg-h">
     <h2 id="vg-h" class="font-semibold">Serie rachunków wirtualnych — numery startowe dla banku</h2>
