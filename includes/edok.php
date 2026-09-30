@@ -1784,6 +1784,76 @@ function edok_elixir_export(array $docs, string $rachunek_zlecen_nrb): string {
     return $encoded !== false ? $encoded : $content;
 }
 
+/**
+ * Eksport przelewów krajowych w PLN do XML ISO 20022 — komunikat pain.001.001.03 (Customer Credit Transfer
+ * Initiation), jeden PmtInf z rachunku zleceniodawcy. Dokumenty w innej walucie niż PLN i bez poprawnego
+ * NRB kontrahenta są pomijane (jak w pozostałych formatach). Tytuł jak w ELIXIR-O (max 140 znaków wg pain.001).
+ * Uwaga: przelewy z mechanizmem podzielonej płatności (MPP) wymagają w bankowości oznaczenia ręcznie — plik
+ * tego nie koduje (wymagałoby rozszerzenia specyficznego dla banku).
+ */
+function edok_iso20022_export(array $docs, string $rachunek_zlecen_nrb): string {
+    $nrb_z = preg_replace('/\D/', '', $rachunek_zlecen_nrb);
+    if (strlen($nrb_z) !== 26) throw new RuntimeException('Rachunek zleceniodawcy musi mieć 26 cyfr (NRB).');
+    $konto = null;
+    foreach (edok_rachunki_list() as $r) if (preg_replace('/\D/', '', (string) $r['nrb']) === $nrb_z) { $konto = $r; break; }
+    $nazwa_zlec = (($konto['nazwa'] ?? '') !== '') ? $konto['nazwa'] : (defined('ORG_NAME') ? ORG_NAME : 'Zleceniodawca');
+    $adres_zlec = (($konto['adres'] ?? '') !== '') ? $konto['adres'] : (string) org_setting('org_adres');
+    // Tekst do XML: bez znaków sterujących, przycięty do limitu pola.
+    $t = fn(string $s, int $max): string => mb_substr(trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/u', '', preg_replace('/\s+/u', ' ', $s))), 0, $max);
+
+    $tx = []; $sum = 0;
+    foreach ($docs as $doc) {
+        if (($doc['kierunek'] ?? 'wydatek') !== 'wydatek' || strtoupper((string)($doc['waluta'] ?: 'PLN')) !== 'PLN') continue;
+        $nrb_k = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
+        if (strlen($nrb_k) !== 26) continue;
+        $kwota = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
+        if ($kwota <= 0) continue;
+        $sum += $kwota;
+        $tx[] = ['nazwa' => $t((string)($doc['kontrahent_nazwa'] ?? ''), 70) ?: 'Odbiorca', 'nrb' => $nrb_k, 'kwota' => $kwota,
+                 'tytul' => $t(edok_generate_tytul_przelewu($doc), 140),
+                 'ref' => preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? '')) ?: 'NOTPROVIDED'];
+    }
+    if (!$tx) return '';
+
+    $fmt = fn(int $g): string => sprintf('%d.%02d', intdiv($g, 100), $g % 100);
+    $w = new XMLWriter();
+    $w->openMemory(); $w->setIndent(true); $w->setIndentString('  ');
+    $w->startDocument('1.0', 'UTF-8');
+    $w->startElementNs(null, 'Document', 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.03');
+    $w->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
+    $w->startElement('CstmrCdtTrfInitn');
+      $msg = 'EDOK' . date('YmdHis') . bin2hex(random_bytes(2));
+      $w->startElement('GrpHdr');
+        $w->writeElement('MsgId', $msg); $w->writeElement('CreDtTm', date('Y-m-d\TH:i:s'));
+        $w->writeElement('NbOfTxs', (string)count($tx)); $w->writeElement('CtrlSum', $fmt($sum));
+        $w->startElement('InitgPty'); $w->writeElement('Nm', $t($nazwa_zlec, 70)); $w->endElement();
+      $w->endElement();
+      $w->startElement('PmtInf');
+        $w->writeElement('PmtInfId', $msg . '-1'); $w->writeElement('PmtMtd', 'TRF'); $w->writeElement('BtchBookg', 'true');
+        $w->writeElement('NbOfTxs', (string)count($tx)); $w->writeElement('CtrlSum', $fmt($sum));
+        $w->writeElement('ReqdExctnDt', date('Y-m-d'));
+        $w->startElement('Dbtr'); $w->writeElement('Nm', $t($nazwa_zlec, 70));
+          if (trim($adres_zlec) !== '') { $w->startElement('PstlAdr'); $w->writeElement('Ctry', 'PL'); $w->writeElement('AdrLine', $t($adres_zlec, 70)); $w->endElement(); }
+        $w->endElement();
+        $w->startElement('DbtrAcct'); $w->startElement('Id'); $w->writeElement('IBAN', 'PL' . $nrb_z); $w->endElement(); $w->writeElement('Ccy', 'PLN'); $w->endElement();
+        $w->startElement('DbtrAgt'); $w->startElement('FinInstnId'); $w->startElement('Othr'); $w->writeElement('Id', 'NOTPROVIDED'); $w->endElement(); $w->endElement(); $w->endElement();
+        $w->writeElement('ChrgBr', 'SLEV');
+        foreach ($tx as $i => $x) {
+            $w->startElement('CdtTrfTxInf');
+              $w->startElement('PmtId'); $w->writeElement('InstrId', $msg . '-' . ($i + 1)); $w->writeElement('EndToEndId', mb_substr($x['ref'], 0, 35)); $w->endElement();
+              $w->startElement('Amt'); $w->startElement('InstdAmt'); $w->writeAttribute('Ccy', 'PLN'); $w->text($fmt($x['kwota'])); $w->endElement(); $w->endElement();
+              $w->startElement('Cdtr'); $w->writeElement('Nm', $x['nazwa']); $w->endElement();
+              $w->startElement('CdtrAcct'); $w->startElement('Id'); $w->writeElement('IBAN', 'PL' . $x['nrb']); $w->endElement(); $w->endElement();
+              if ($x['tytul'] !== '') { $w->startElement('RmtInf'); $w->writeElement('Ustrd', $x['tytul']); $w->endElement(); }
+            $w->endElement();
+        }
+      $w->endElement();
+    $w->endElement();
+    $w->endElement();
+    $w->endDocument();
+    return $w->outputMemory();
+}
+
 /** Formy zapłaty faktury opłaconej przed akceptacją (edok_documents.forma_zaplaty). */
 const EDOK_FORMY_ZAPLATY = [
     'przelew'    => 'Przelew',
@@ -2321,6 +2391,7 @@ function edok_status_label(array $doc): string {
 const EDOK_PRZELEWY_FORMATY = [
     'auto'     => 'Automatycznie (wg banku rachunku nadawcy)',
     'elixir'   => 'ELIXIR-O — uniwersalny (inne banki)',
+    'iso20022' => 'XML ISO 20022 (pain.001.001.03)',
     'ipko'     => 'ELIXIR-O — iPKO biznes (PKO BP)',
     'millenet' => 'ELIXIR-O — Millenet (Bank Millennium)',
 ];
@@ -2348,6 +2419,9 @@ function edok_przelewy_export(array $docs, string $rachunek_zlecen_nrb, string $
     $format = edok_przelewy_format_for_nrb($rachunek_zlecen_nrb, $format);
     if ($format === 'millenet') {
         return ['content' => edok_millenet_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'Millenet', 'ext' => 'csv'];
+    }
+    if ($format === 'iso20022') {
+        return ['content' => edok_iso20022_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'ISO20022', 'ext' => 'xml'];
     }
     if ($format === 'elixir') {
         return ['content' => edok_elixir_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'ELIXIR-O', 'ext' => 'pli'];
