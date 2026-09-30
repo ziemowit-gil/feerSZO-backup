@@ -141,6 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'notice_approve':
             $err = pp_notice_approve((int)($_POST['notice_id'] ?? 0), $by, $uid);
             $ok = 'Treść zatwierdzona. Wiadomości (e-mail i SMS) wyślą się automatycznie o 08:00 następnego dnia.'; break;
+        case 'notice_reschedule':
+            $err = pp_notice_reschedule((int)($_POST['notice_id'] ?? 0), (string)($_POST['send_at'] ?? ''), $by, $uid);
+            $ok = 'Termin wysyłki zmieniony.'; break;
         case 'notice_cancel':
             $err = pp_notice_cancel((int)($_POST['notice_id'] ?? 0), $by, $uid);
             $ok = 'Wysyłka anulowana.'; break;
@@ -249,7 +252,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <span class="rounded-lg bg-amber-400/90 px-3 py-1 text-navy-700">przelewy do potwierdzenia <strong><?= count($nrb_pending) ?></strong></span>
   </div>
 </div></header>
-<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
+<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','korespondencja','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
   <?php if ($flash): ?><div role="status" class="rounded-lg px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' ?>"><?= h((string)$flash['msg']) ?></div><?php endif; ?>
   <?php if ($link_once): ?>
   <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm ring-1 ring-amber-300" x-data="{ c: false }">
@@ -269,7 +272,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endforeach; ?>
   <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
-    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
+    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
     <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"
             class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?>
       <?php if ($tb): ?><span class="rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-navy-700"><?= $tb ?></span><?php endif; ?></button>
@@ -435,6 +438,48 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         </tbody>
       </table>
       <?php endif; ?>
+    </section>
+  </div>
+
+  <div x-show="tab === 'korespondencja'" x-cloak class="space-y-5">
+    <?php $kb = db_all("SELECT * FROM pp_notice_batches ORDER BY CASE status WHEN 'approved' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, COALESCE(send_at, created_at) DESC LIMIT 60");
+          $kn = ['draft' => 'bg-slate-100 text-slate-700', 'approved' => 'bg-amber-100 text-amber-900', 'sent' => 'bg-emerald-100 text-emerald-900', 'cancelled' => 'bg-slate-100 text-slate-500 line-through']; ?>
+    <section class="card space-y-3" aria-labelledby="kr-h">
+      <div class="flex flex-wrap items-center justify-between gap-2"><h2 id="kr-h" class="font-semibold">Zaplanowana korespondencja — powiadomienia o numerach rachunków</h2>
+        <button type="button" class="bs" @click="go('rachunki'); $nextTick(() => { var e = document.getElementById('powiadomienia'); if (e) e.scrollIntoView({behavior: 'smooth'}); })"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nowa wysyłka</button></div>
+      <p class="text-xs text-slate-500">Treść zatwierdza admin; wysyłka rusza automatycznie o wyznaczonej godzinie (domyślnie 08:00 następnego dnia po zatwierdzeniu). Terminu zatwierdzonej wysyłki nie trzeba zmieniać — możesz to zrobić poniżej (06:00–22:00).</p>
+      <?php if (!$kb): ?><p class="text-sm text-slate-500">Brak wysyłek. Przygotuj pierwszą w zakładce Rachunki wirtualne → Import i przypisanie.</p><?php endif; ?>
+      <div class="divide-y divide-slate-100">
+      <?php foreach ($kb as $b): $st0 = json_decode((string)$b['stats'], true) ?: []; $rc = in_array($b['status'], ['draft', 'approved'], true) ? count(pp_notice_recipients($b['scope'], $b['batch'])) : (int)($st0['students'] ?? 0); ?>
+        <div class="py-3 text-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <strong>#<?= (int)$b['id'] ?></strong><span class="rounded-full px-2 py-0.5 text-xs <?= $kn[$b['status']] ?? '' ?>"><?= h(PP_NOTICE_STATUSES[$b['status']] ?? $b['status']) ?></span>
+            <span class="font-medium"><?= h($b['subject']) ?></span>
+            <span class="text-xs text-slate-500">odbiorców: <?= $rc ?><?= $b['send_at'] ? ' · termin: ' . h(date('d.m.Y H:i', strtotime($b['send_at']))) : '' ?><?= $b['sent_at'] ? ' · wysłano: ' . h(date('d.m.Y H:i', strtotime($b['sent_at']))) : '' ?> · autor: <?= h($b['created_by']) ?><?= $b['approved_by'] ? ' · zatwierdził: ' . h($b['approved_by']) : '' ?><?= $b['status'] === 'sent' ? ' · SMS ' . (int)($st0['sms'] ?? 0) . ', e-mail ' . (int)($st0['email'] ?? 0) : '' ?></span>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <?php if ($b['status'] === 'approved'): ?>
+            <form method="post" class="flex flex-wrap items-center gap-1"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_reschedule"><input type="hidden" name="notice_id" value="<?= (int)$b['id'] ?>">
+              <label class="sr-only" for="rs-<?= (int)$b['id'] ?>">Nowy termin wysyłki</label><input id="rs-<?= (int)$b['id'] ?>" type="datetime-local" name="send_at" class="inp !w-52 !py-1" value="<?= h(date('Y-m-d\TH:i', strtotime((string)$b['send_at']))) ?>" required>
+              <button class="bs !py-1">Zmień termin</button></form>
+            <?php endif; ?>
+            <?php if ($b['status'] === 'draft'): ?><a class="bs !py-1" href="admin.php?pn=<?= (int)$b['id'] ?>#powiadomienia">Edytuj szkic</a><?php endif; ?>
+            <?php if (in_array($b['status'], ['draft', 'approved'], true)): ?>
+            <form method="post" onsubmit="return confirm('Anulować tę wysyłkę?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_cancel"><input type="hidden" name="notice_id" value="<?= (int)$b['id'] ?>"><button class="bs !py-1">Anuluj</button></form>
+            <?php endif; ?>
+            <details class="text-xs"><summary class="cursor-pointer text-navy-700">Treść<?= $b['status'] === 'sent' ? ' i odbiorcy' : '' ?></summary>
+              <div class="mt-2 max-w-2xl space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+                <div><strong>Temat:</strong> <?= h($b['subject']) ?></div>
+                <pre class="whitespace-pre-wrap font-sans"><?= h($b['body']) ?></pre>
+                <?php if (trim($b['sms_text']) !== ''): ?><div><strong>SMS:</strong> <?= h($b['sms_text']) ?></div><?php endif; ?>
+                <?php $ids = $b['status'] === 'sent' ? array_map('intval', $st0['clients'] ?? []) : pp_notice_recipients($b['scope'], $b['batch']);
+                      if ($ids): $nm = array_column(db_all("SELECT id, name FROM k30_clients WHERE id IN (" . implode(',', array_map('intval', $ids)) . ") ORDER BY name COLLATE NOCASE"), 'name'); ?>
+                <div><strong>Odbiorcy (<?= count($nm) ?>):</strong> <?= h(implode(', ', $nm)) ?></div><?php endif; ?>
+              </div></details>
+          </div>
+        </div>
+      <?php endforeach; ?>
+      </div>
     </section>
   </div>
 

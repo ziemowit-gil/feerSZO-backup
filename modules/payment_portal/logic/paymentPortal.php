@@ -1207,7 +1207,7 @@ function pp_notice_process(): array {
     pp_migrate();
     $r = ['batches' => 0, 'students' => 0, 'sms' => 0, 'email' => 0];
     foreach (db_all("SELECT * FROM pp_notice_batches WHERE status='approved' AND send_at<=datetime('now','localtime') ORDER BY id") as $b) {
-        $st = ['students' => 0, 'sms' => 0, 'email' => 0];
+        $st = ['students' => 0, 'sms' => 0, 'email' => 0, 'clients' => []];
         foreach (pp_notice_recipients($b['scope'], $b['batch']) as $cid) {
             $v = pp_notice_vars($cid); if (!$v) continue;
             $nrb = $v['nrb'];
@@ -1225,11 +1225,11 @@ function pp_notice_process(): array {
                 } catch (\Throwable $e) {}
             }
             db()->prepare("UPDATE pp_vnrb_pool SET notified_at=datetime('now') WHERE nrb=?")->execute([$nrb]);
-            $st['students']++;
+            $st['students']++; $st['clients'][] = $cid;
         }
         db()->prepare("UPDATE pp_notice_batches SET status='sent', sent_at=datetime('now'), stats=? WHERE id=?")->execute([json_encode($st), (int)$b['id']]);
-        audit_log('payments.notice_sent', $st + ['batch_id' => (int)$b['id']], null);
-        $r['batches']++; foreach ($st as $k => $n) $r[$k] += $n;
+        audit_log('payments.notice_sent', array_diff_key($st, ['clients' => 1]) + ['batch_id' => (int)$b['id']], null);
+        $r['batches']++; foreach (['students', 'sms', 'email'] as $k) $r[$k] += $st[$k];
     }
     return $r;
 }
@@ -1318,4 +1318,21 @@ function pp_vnrb_export_csv(string $by): never {
     fputcsv($out, ['typ', 'id', 'nazwa', 'numer_rachunku', 'seria', 'nadano', 'powiadomiono', 'zablokowany'], ';');
     foreach ($rows as $r) { $n = preg_replace('/\D/', '', (string)$r[3]); fputcsv($out, [$r[0], $r[1], $r[2], pp_nrb_format($n), $r[4], $r[5], $r[6], isset($blocked[$n]) ? 'tak' : 'nie'], ';'); }
     fclose($out); exit;
+}
+
+
+/** Zmiana terminu zatwierdzonej wysyłki (tylko przyszły termin, w godzinach 06:00–22:00). Treść pozostaje zatwierdzona. */
+function pp_notice_reschedule(int $id, string $when, string $by, ?int $uid): ?string {
+    pp_migrate();
+    $b = db_one("SELECT status FROM pp_notice_batches WHERE id=?", [$id]);
+    if (!$b || $b['status'] !== 'approved') return 'Termin można zmienić tylko dla zatwierdzonej, niewysłanej wysyłki.';
+    $t = strtotime(str_replace('T', ' ', $when));
+    if (!$t) return 'Podaj poprawną datę i godzinę.';
+    if ($t <= time() + 300) return 'Termin musi być w przyszłości.';
+    $h = (int)date('G', $t);
+    if ($h < 6 || $h >= 22) return 'Wysyłka tylko w godzinach 06:00–22:00.';
+    $at = date('Y-m-d H:i:00', $t);
+    db()->prepare("UPDATE pp_notice_batches SET send_at=? WHERE id=?")->execute([$at, $id]);
+    audit_log('payments.notice_rescheduled', ['batch_id' => $id, 'send_at' => $at, 'by' => $by], $uid);
+    return null;
 }
