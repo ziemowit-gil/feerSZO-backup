@@ -1565,6 +1565,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $crm_can_write) {
         }
         $affected_section = 'consents';
     }
+    if ($action === 'assign_vnrb') {
+        $av = pp_vnrb_assign_crm_one($id, (string)(current_user()['name'] ?? ''), $user_id);
+        if (is_string($av)) flash_set('danger', $av);
+        else {
+            CrmManager::addNote($id, 'Nadano indywidualny numer rachunku do wpłat: ' . $av['fmt'] . ' (z puli banku).', $user_id);
+            flash_set('success', 'Nadano numer rachunku: ' . $av['fmt']);
+        }
+        $contact = CrmManager::getContact($id);
+    }
     if ($action === 'clear_opt_out') {
         // Cofnięcie globalnego wypisania NIE tworzy zgody — te są per cel.
         // Zostawiamy ślad w notatkach, bo to decyzja operatora o cudzej woli.
@@ -1943,10 +1952,18 @@ include __DIR__ . '/../includes/header_crm.php';
       <i class="bi bi-hash" aria-hidden="true"></i><span>NIP: <?= h($contact['nip']) ?></span>
     </span>
     <?php endif; ?>
-    <?php if ($_vnrb = pp_vnrb_for_crm((int)$id, (string)($contact['nip'] ?? ''))): ?>
-    <span class="cv-chip" title="Rachunek wirtualny do wpłat od tego kontrahenta">
+    <?php if ($_vnrb = pp_vnrb_for_crm((int)$id)): ?>
+    <span class="cv-chip" title="Indywidualny rachunek do wpłat od tego kontrahenta (nadany z puli banku)">
       <i class="bi bi-bank" aria-hidden="true"></i><span class="font-monospace user-select-all"><?= h($_vnrb) ?></span>
     </span>
+    <?php elseif ($crm_can_write): ?>
+    <form method="post" class="d-inline" onsubmit="return confirm('Nadać temu kontrahentowi kolejny wolny numer rachunku z puli banku?')">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_action" value="assign_vnrb">
+      <button class="cv-chip border-0" style="cursor:pointer" title="Przypisz indywidualny numer rachunku do wpłat z puli banku (seria „inni”)">
+        <i class="bi bi-bank" aria-hidden="true"></i><span>Przypisz numer rachunku</span>
+      </button>
+    </form>
     <?php endif; ?>
     <?php
       // Stan zgód trzymamy w pasku pod ręką: przy pisaniu do kogoś to pierwsza

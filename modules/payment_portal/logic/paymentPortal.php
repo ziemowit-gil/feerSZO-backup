@@ -202,13 +202,10 @@ function pp_vnrb_for_ti(int $client_id): ?string {
     return $n ? pp_nrb_format($n) : null;
 }
 /** Rachunek wirtualny kontrahenta CRM: z NIP-em (10 cyfr) grupa nip, inaczej ID kontaktu. */
-function pp_vnrb_for_crm(int $contact_id, ?string $nip): ?string {
+function pp_vnrb_for_crm(int $contact_id, ?string $nip = null): ?string {
+    // Numery pochodzą z puli banku — pokazujemy tylko faktycznie przypisany (bez dawnego wyliczenia z NIP/ID)
     try { $a = db_one("SELECT nrb FROM pp_vnrb_crm WHERE contact_id=?", [$contact_id]); } catch (\Throwable $e) { $a = null; }
-    if ($a) return pp_nrb_format((string)$a['nrb']);   // numer z puli banku ma pierwszeństwo
-    $nip = preg_replace('/\D/', '', (string)$nip);
-    $part = strlen($nip) === 10 ? pp_vnrb_part('nip', $nip) : pp_vnrb_part('crm', (string)$contact_id);
-    $n = $part[0] === '!' ? null : pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $part);
-    return $n ? pp_nrb_format($n) : null;
+    return $a ? pp_nrb_format((string)$a['nrb']) : null;
 }
 
 /**
@@ -321,7 +318,7 @@ function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
     $cur = pp_user($client_id);
     if ($cur && pp_nrb_normalize((string)$cur['individual_nrb']) !== '') return null;
     if (pp_ti_is_virtual($client_id)) return null;
-    $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL ORDER BY nrb LIMIT 1");
+    $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL ORDER BY substr(nrb,15,12) LIMIT 1");
     if (!$p) return null;
     if (!$cur && is_string(pp_user_ensure($client_id, $by, $uid))) return null;
     if (pp_set_nrb($client_id, $p['nrb'], $by, $uid) !== null) return null;
@@ -759,7 +756,7 @@ function pp_vnrb_pool_assign_ti(string $by, ?int $uid, ?string $batch = null): a
                      WHERE (u.individual_nrb IS NULL OR u.individual_nrb='') AND COALESCE(a.is_virtual,0)=0 ORDER BY a.client_id");
     foreach ($rows as $row) {
         $cid = (int)$row['client_id'];
-        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb LIMIT 1", $batch !== null ? [$batch] : []);
+        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY substr(nrb,15,12) LIMIT 1", $batch !== null ? [$batch] : []);
         if (!$p) { $r['nopool']++; continue; }
         if (is_string(pp_user_ensure($cid, $by, $uid))) continue;
         if (pp_set_nrb($cid, $p['nrb'], $by, $uid) !== null) continue;
@@ -782,7 +779,7 @@ function pp_vnrb_report_rows(string $scope = 'all'): array {
         $b = (string)org_setting('pp_pool_last_batch');
         if ($b === '') return [];
         $rows = db_all("SELECT p.participant_id client_id, c.name, p.nrb, p.grp, p.assigned_at FROM pp_vnrb_pool p
-                          LEFT JOIN k30_clients c ON c.id=p.participant_id WHERE p.batch=? ORDER BY p.nrb", [$b]);
+                          LEFT JOIN k30_clients c ON c.id=p.participant_id WHERE p.batch=? ORDER BY substr(p.nrb,15,12)", [$b]);
     } else {
         $rows = db_all("SELECT c.id client_id, c.name, COALESCE(u.individual_nrb,'') nrb, COALESCE(p.grp,'') grp, COALESCE(p.assigned_at,'') assigned_at
                           FROM k30_clients c
@@ -832,7 +829,7 @@ function pp_vnrb_pool_notify(?string $batch, string $by, ?int $uid): array {
     pp_migrate();
     $r = ['students' => 0, 'sms' => 0, 'email' => 0, 'left' => 0];
     $rows = db_all("SELECT nrb, participant_id FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL"
-                   . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb", $batch !== null ? [$batch] : []);
+                   . ($batch !== null ? " AND batch=?" : "") . " ORDER BY substr(nrb,15,12)", $batch !== null ? [$batch] : []);
     foreach ($rows as $row) {
         $x = pp_ti_notify_nrb((int)$row['participant_id'], (string)$row['nrb'], false);
         db()->prepare("UPDATE pp_vnrb_pool SET notified_at=datetime('now') WHERE nrb=?")->execute([$row['nrb']]);
@@ -850,7 +847,7 @@ function pp_vnrb_pool_assign_crm(string $by, ?int $uid, ?string $batch = null): 
     $have = array_column(db_all("SELECT contact_id FROM pp_vnrb_crm"), 'contact_id', 'contact_id');
     foreach (crm_all("SELECT id FROM crm_contacts WHERE crm_active=1 ORDER BY id") as $c) {
         $cid = (int)$c['id']; if (isset($have[$cid])) continue;
-        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='inni' AND participant_id IS NULL AND crm_contact_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb LIMIT 1", $batch !== null ? [$batch] : []);
+        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='inni' AND participant_id IS NULL AND crm_contact_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY substr(nrb,15,12) LIMIT 1", $batch !== null ? [$batch] : []);
         if (!$p) { $r['nopool']++; continue; }
         db()->beginTransaction();
         try {
@@ -873,7 +870,7 @@ function pp_vnrb_pool_assign_other(string $by, ?int $uid, ?string $batch = null)
                        AND NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=u.participant_id) ORDER BY u.participant_id");
     foreach ($rows as $row) {
         $pid = (int)$row['participant_id'];
-        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='spoza_ti' AND participant_id IS NULL AND crm_contact_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb LIMIT 1", $batch !== null ? [$batch] : []);
+        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='spoza_ti' AND participant_id IS NULL AND crm_contact_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY substr(nrb,15,12) LIMIT 1", $batch !== null ? [$batch] : []);
         if (!$p) { $r['nopool']++; continue; }
         if (pp_set_nrb($pid, $p['nrb'], $by, $uid) !== null) continue;
         db()->prepare("UPDATE pp_vnrb_pool SET participant_id=?, assigned_at=datetime('now') WHERE nrb=?")->execute([$pid, $p['nrb']]);
@@ -1335,4 +1332,21 @@ function pp_notice_reschedule(int $id, string $when, string $by, ?int $uid): ?st
     db()->prepare("UPDATE pp_notice_batches SET send_at=? WHERE id=?")->execute([$at, $id]);
     audit_log('payments.notice_rescheduled', ['batch_id' => $id, 'send_at' => $at, 'by' => $by], $uid);
     return null;
+}
+
+
+/** Przypisuje kontrahentowi CRM kolejny wolny numer z puli serii „inni” (na jego kartotece w CRM). */
+function pp_vnrb_assign_crm_one(int $contact_id, string $by, ?int $uid): string|array {
+    pp_migrate();
+    if (db_one("SELECT 1 FROM pp_vnrb_crm WHERE contact_id=?", [$contact_id])) return 'Ten kontrahent ma już nadany numer rachunku.';
+    $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='inni' AND participant_id IS NULL AND crm_contact_id IS NULL ORDER BY substr(nrb,15,12) LIMIT 1");
+    if (!$p) return 'Brak wolnych numerów w puli serii „inni” — zamów numery w banku (panel płatności → Rachunki wirtualne).';
+    db()->beginTransaction();
+    try {
+        db()->prepare("INSERT INTO pp_vnrb_crm (contact_id, nrb) VALUES (?,?)")->execute([$contact_id, $p['nrb']]);
+        db()->prepare("UPDATE pp_vnrb_pool SET crm_contact_id=?, assigned_at=datetime('now') WHERE nrb=?")->execute([$contact_id, $p['nrb']]);
+        audit_log('payments.vnrb_assigned_crm', ['contact_id' => $contact_id, 'nrb' => $p['nrb'], 'by' => $by], $uid);
+        db()->commit();
+    } catch (\Throwable $e) { db()->rollBack(); return 'Błąd: ' . $e->getMessage(); }
+    return ['nrb' => $p['nrb'], 'fmt' => pp_nrb_format($p['nrb'])];
 }

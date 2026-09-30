@@ -588,7 +588,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <div x-show="sub === 'zamow'" class="space-y-3">
     <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">kod serii (8) + numer od banku (4)</span>. Przekaż bankowi po jednym numerze startowym z każdej serii (końcówka 12 cyfr = kod serii 8 cyfr + 0001) — kolejne numery, rosnąco, wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
     <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer kontrahenta (dla banku)</th><th>Numer startowy</th><th>Następny z puli (12 cyfr)</th><th>W puli / nadane</th></tr></thead><tbody>
-    <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL AND crm_contact_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY nrb LIMIT 1", [$sk]); ?>
+    <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL AND crm_contact_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY substr(nrb,15,12) LIMIT 1", [$sk]); ?>
       <tr class="border-t"><td><?= h($se['label']) ?></td><td class="font-mono"><?= h($se['code']) ?></td>
         <td class="font-mono font-semibold"><?= h($se['code'] . '0001') ?></td>
         <td class="font-mono"><?= $st ? h(pp_nrb_format($st)) : 'ustaw bank i RRRR' ?></td>
@@ -640,7 +640,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <span class="text-xs text-slate-500">W puli: <?php foreach ($pool as $pl): ?><?= h($pl['grp']) ?> <?= (int)$pl['n'] ?> (wolnych <?= (int)$pl['free'] ?>) · <?php endforeach; if (!$pool) echo 'pusta'; ?></span></div>
     </form>
     <?php $lastb = (string)org_setting('pp_pool_last_batch');
-      $lrows = $lastb !== '' ? db_all("SELECT p.nrb, p.grp, p.participant_id, p.assigned_at, c.name FROM pp_vnrb_pool p LEFT JOIN k30_clients c ON c.id=p.participant_id WHERE p.batch=? ORDER BY p.nrb", [$lastb]) : [];
+      $lrows = $lastb !== '' ? db_all("SELECT p.nrb, p.grp, p.participant_id, p.assigned_at, c.name FROM pp_vnrb_pool p LEFT JOIN k30_clients c ON c.id=p.participant_id WHERE p.batch=? ORDER BY substr(p.nrb,15,12)", [$lastb]) : [];
       $lfree = count(array_filter($lrows, fn($r) => !$r['participant_id'])); ?>
     <form method="post" class="flex flex-wrap items-center gap-3" onsubmit="return confirm('Przypisać numery z ostatniego importu kursantom TI bez rachunku (od pierwszego z puli)?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_last">
       <button class="bp"<?= $lfree ? '' : ' disabled' ?>>Przypisz ostatnio zaimportowane numery kursantom bez rachunku</button>
