@@ -5,6 +5,7 @@
  * w includes/edok.php; tu jest to, co dokłada się do niej „z zewnątrz”.
  */
 require_once __DIR__ . '/edok.php';
+require_once __DIR__ . '/crm_offers.php'; // CRM_OFFER_VAT_RATES (stawki VAT w parserze XML)
 
 /** Kwota z XML (kropka) → format formularza EODoK („1234,50”). */
 function _edok_xml_money(float $v): string {
