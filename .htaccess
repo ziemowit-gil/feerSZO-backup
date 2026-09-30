@@ -67,6 +67,8 @@ RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI)/ [NC]
+# Moduł Rozliczenia (kierownik/dydaktyk) — własny katalog, nie ścieżka panelu kursanta
+RewriteCond %{REQUEST_URI} !^/rozliczenia(/|$) [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
