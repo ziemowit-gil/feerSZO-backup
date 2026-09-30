@@ -212,7 +212,7 @@ function pp_ti_notify_nrb(int $client_id, string $nrb): array {
     $cl = db_one("SELECT name, email, phone FROM k30_clients WHERE id=?", [$client_id]);
     if (!$cl) return $res;
     $org = defined('ORG_NAME') ? ORG_NAME : 'FEER';
-    $fmt = 'PL ' . pp_nrb_format($nrb);
+    $fmt = pp_nrb_format($nrb);
     $phone = trim((string)($cl['phone'] ?? ''));
     if ($phone !== '') {
         if (!function_exists('sms_send')) require_once dirname(__DIR__, 3) . '/includes/sms.php';

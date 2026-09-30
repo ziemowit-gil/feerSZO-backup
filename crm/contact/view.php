@@ -1945,7 +1945,7 @@ include __DIR__ . '/../includes/header_crm.php';
     <?php endif; ?>
     <?php if ($_vnrb = pp_vnrb_for_crm((int)$id, (string)($contact['nip'] ?? ''))): ?>
     <span class="cv-chip" title="Rachunek wirtualny do wpłat od tego kontrahenta">
-      <i class="bi bi-bank" aria-hidden="true"></i><span class="font-monospace user-select-all">PL <?= h($_vnrb) ?></span>
+      <i class="bi bi-bank" aria-hidden="true"></i><span class="font-monospace user-select-all"><?= h($_vnrb) ?></span>
     </span>
     <?php endif; ?>
     <?php

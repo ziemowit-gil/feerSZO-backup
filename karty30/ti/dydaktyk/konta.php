@@ -1169,7 +1169,7 @@ function printBulk(){
                     <button type="submit" class="btn btn-sm btn-outline-secondary" title="Zapisz numer kursanta" aria-label="Zapisz numer kursanta"><i class="bi bi-save" aria-hidden="true"></i></button>
                   </div>
                   <?php if ($vn = pp_vnrb_for_ti((int)$sa['client_id'])): ?>
-                  <div class="small text-muted mt-1">Rachunek do wpłat: <span class="font-monospace user-select-all">PL <?= h($vn) ?></span></div>
+                  <div class="small text-muted mt-1">Rachunek do wpłat: <span class="font-monospace user-select-all"><?= h($vn) ?></span></div>
                   <?php endif; ?>
                 </div>
               </form>

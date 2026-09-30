@@ -28,13 +28,13 @@ if (($_GET['export'] ?? '') === 'txt') {
     if ($g === 'ti' || $g === 'all') {
         foreach (db_all("SELECT a.client_id, a.student_no, c.name FROM k30_ti_student_accounts a JOIN k30_clients c ON c.id=a.client_id ORDER BY c.name") as $r) {
             $n = preg_match('/^\d{12}$/', (string)$r['student_no']) ? pp_vnrb_build($bank, $rrrr, $r['student_no']) : null;
-            if ($n) $lines[] = 'PL' . $n . "\tTI\t" . $r['client_id'] . "\t" . str_replace(["\t", "\r", "\n"], ' ', (string)$r['name']);
+            if ($n) $lines[] = $n . "\tTI\t" . $r['client_id'] . "\t" . str_replace(["\t", "\r", "\n"], ' ', (string)$r['name']);
         }
     }
     if ($g === 'crm' || $g === 'all') {
         foreach (crm_all("SELECT id, imie_nazwisko, nip FROM crm_contacts WHERE crm_active=1 ORDER BY imie_nazwisko") as $r) {
             $n = pp_nrb_normalize((string)pp_vnrb_for_crm((int)$r['id'], $r['nip']));
-            if ($n !== '') $lines[] = 'PL' . $n . "\tCRM\t" . $r['id'] . "\t" . str_replace(["\t", "\r", "\n"], ' ', (string)$r['imie_nazwisko']);
+            if ($n !== '') $lines[] = $n . "\tCRM\t" . $r['id'] . "\t" . str_replace(["\t", "\r", "\n"], ' ', (string)$r['imie_nazwisko']);
         }
     }
     audit_log('payments.vnrb_export', ['group' => $g, 'rows' => count($lines) - 1, 'by' => $by], $uid);
@@ -309,7 +309,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   <!-- Generator rachunków wirtualnych -->
   <section class="card space-y-3" aria-labelledby="vg-h" x-data="{ g: '<?= h($vgen['group'] ?? 'ti') ?>', hints: <?= h(json_encode(array_map(fn($x) => $x['hint'], PP_VGROUPS))) ?> }">
     <h2 id="vg-h" class="font-semibold">Generator numerów rachunków wirtualnych</h2>
-    <p class="text-xs text-slate-500">Struktura: <span class="font-mono">PL</span> + 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">NNNN NNNN NNNN (12)</span>. Część NNNN zależy od grupy kontrahenta.</p>
+    <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">NNNN NNNN NNNN (12)</span>. Część NNNN zależy od grupy kontrahenta.</p>
     <form method="post" class="grid gap-3 md:grid-cols-6 items-end"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vgen">
       <div><label class="lbl" for="vg-b">Bank (8 cyfr)</label><input id="vg-b" name="bank" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['bank'] ?? pp_vnrb_bank()) ?>"></div>
       <div><label class="lbl" for="vg-r">RRRR (4 cyfry)</label><input id="vg-r" name="rrrr" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['rrrr'] ?? pp_vnrb_rrrr()) ?>"></div>
@@ -332,8 +332,8 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <a class="bs" href="admin.php?export=txt&g=all">Wszystko</a></p>
     <?php if ($vgen): ?>
     <div class="rounded-lg bg-slate-50 p-4 space-y-1" aria-live="polite">
-      <div class="font-mono text-lg tracking-wide">PL<?= h(substr($vgen['nrb'], 0, 2)) ?> <span class="text-red-600"><?= h(substr($vgen['nrb'], 2, 4)) ?> <?= h(substr($vgen['nrb'], 6, 4)) ?></span> <span class="text-purple-700"><?= h($vgen['rrrr']) ?></span> <span class="text-emerald-700"><?= h(trim(chunk_split($vgen['part'], 4, ' '))) ?></span></div>
-      <div class="text-xs text-slate-500">Grupa: <?= h(PP_VGROUPS[$vgen['group']]['label'] ?? '') ?> · bez spacji: <span class="font-mono">PL<?= h($vgen['nrb']) ?></span></div>
+      <div class="font-mono text-lg tracking-wide"><?= h(substr($vgen['nrb'], 0, 2)) ?> <span class="text-red-600"><?= h(substr($vgen['nrb'], 2, 4)) ?> <?= h(substr($vgen['nrb'], 6, 4)) ?></span> <span class="text-purple-700"><?= h($vgen['rrrr']) ?></span> <span class="text-emerald-700"><?= h(trim(chunk_split($vgen['part'], 4, ' '))) ?></span></div>
+      <div class="text-xs text-slate-500">Grupa: <?= h(PP_VGROUPS[$vgen['group']]['label'] ?? '') ?> · bez spacji: <span class="font-mono"><?= h($vgen['nrb']) ?></span></div>
       <?php if ($vgen['conflict']): ?><div class="text-sm text-red-700"><?= h($vgen['conflict']) ?></div><?php else: ?><div class="text-sm text-emerald-700">Numer wolny.</div><?php endif; ?>
     </div>
     <?php endif; ?>
