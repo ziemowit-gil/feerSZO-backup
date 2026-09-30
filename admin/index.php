@@ -260,6 +260,7 @@ $groups = [
             ['icon'=>'bi-credit-card',          'label'=>'Płatności / Stripe',       'url'=>'/admin/stripe_settings.php'],
             ['icon'=>'bi-wallet2',              'label'=>'Płatności / PayU',         'url'=>'/admin/payu_settings.php'],
             ['icon'=>'bi-wallet2',              'label'=>'Płatności / Przelewy24',   'url'=>'/admin/p24_settings.php'],
+            ['icon'=>'bi-credit-card-2-front',  'label'=>'Portal płatności (/platnosci)', 'url'=>'/platnosci/admin.php'],
             ['icon'=>'bi-cloud-arrow-up',       'label'=>'Magazyn plików / ownCloud','url'=>'/admin/owncloud_settings.php'],
             ['icon'=>'bi-key',                  'label'=>'API i webhooki',           'url'=>'/admin/api_manage.php'],
             ['icon'=>'bi-kanban',               'label'=>'Redmine (Helpdesk)',       'url'=>'/admin/redmine_settings.php'],

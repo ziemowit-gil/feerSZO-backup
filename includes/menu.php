@@ -527,6 +527,7 @@ function _menu_editor(): array {
             _mi('Płatności / Stripe','/admin/stripe_settings.php','bi-credit-card',['match'=>'/admin/stripe_settings','kw'=>'stripe płatności']),
             _mi('Płatności / PayU','/admin/payu_settings.php','bi-wallet2',['match'=>'/admin/payu_settings','kw'=>'payu płatności']),
             _mi('Płatności / Przelewy24','/admin/p24_settings.php','bi-wallet2',['match'=>'/admin/p24_settings','kw'=>'przelewy24 p24 płatności']),
+            _mi('Portal płatności','/platnosci/admin.php','bi-credit-card-2-front',['match'=>'/platnosci/admin','kw'=>'portal płatności nrb rachunek wirtualny przelew koszyk']),
             _mi('Magazyn plików / ownCloud','/admin/owncloud_settings.php','bi-cloud-arrow-up',['match'=>'/admin/owncloud_settings','kw'=>'owncloud magazyn']),
             _mi('API i webhooki','/admin/api_manage.php','bi-key',['match'=>'/admin/api_manage','kw'=>'api webhooki klucze']),
             _mi('Panel dydaktyka (TI)','/karty30/ti/dydaktyk/wylaczenia.php','bi-easel2',['match'=>'/karty30/ti/dydaktyk/wylaczenia','kw'=>'panel dydaktyka ti przerwa komunikat wyłączenia']),

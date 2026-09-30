@@ -295,6 +295,12 @@ function p24_mark_paid(int $payment_id): void {
                            'p24', 'Nadpłata do końca roku (Przelewy24)', 'p24', $payment_id, 0);
             ti_year_end_overpay_notify_admin((int)$p['source_id'], (float)$p['amount_grosze'] / 100, 'p24');
         }
+        // Portal płatności SZO (/platnosci) — source_id = portal_transactions.id;
+        // rozliczenie koszyka (pozycje, wpłaty TI, faktury) w modules/payment_portal.
+        if ($p['source_type'] === 'payment_portal' && (int)$p['source_id'] > 0) {
+            require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php';
+            pp_settle_from_p24((int)$p['source_id'], db_one("SELECT * FROM p24_payments WHERE id=?", [$payment_id]) ?: $p);
+        }
         // Kolejne źródła można dodać tutaj.
     } catch (\Throwable $e) {}
 }
