@@ -76,7 +76,11 @@ try { if (!(int)(db_one("SELECT COUNT(*) c FROM lesson_types")['c'] ?? 0)) ti_pr
 $types   = db_all("SELECT * FROM lesson_types ORDER BY is_active DESC, name COLLATE NOCASE");
 $rules   = db_all("SELECT r.*, t.name AS type_name FROM discount_rules r LEFT JOIN lesson_types t ON t.id=r.target_lesson_type_id ORDER BY r.is_active DESC, r.priority, r.id");
 $courses = db_all("SELECT c.id, c.name, c.is_online, pct.lesson_type_id, pct.online_lesson_type_id,
-                          (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS n
+                          (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS n,
+                          (SELECT MIN(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_min,
+                          (SELECT MAX(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_max,
+                          (SELECT MIN(e.hourly_rate_online) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS ro_min,
+                          (SELECT MAX(e.hourly_rate_online) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS ro_max
                      FROM k30_ti_courses c LEFT JOIN ti_pricing_course_types pct ON pct.course_id=c.id
                     WHERE c.status NOT IN ('archived','cancelled') ORDER BY c.name COLLATE NOCASE");
 $parts   = db_all("SELECT cl.id, cl.name, COALESCE(ps.statuses,'') AS statuses FROM k30_clients cl
@@ -368,12 +372,15 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
   <section class="card overflow-x-auto">
     <h2 class="font-semibold mb-2">Typ zajęć grupy</h2>
     <table class="min-w-full text-sm">
-      <thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Grupa</th><th class="pr-3">Uczestn.</th><th class="pr-3">Typ (stacjonarne)</th><th class="pr-3">Typ dla lekcji online</th><th></th></tr></thead>
+      <thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Grupa</th><th class="pr-3">Uczestn.</th><th class="pr-3 text-right">Stawki w zapisach (zł/h)</th><th class="pr-3">Typ (stacjonarne)</th><th class="pr-3">Typ dla lekcji online</th><th></th></tr></thead>
       <tbody class="divide-y divide-slate-100">
       <?php foreach ($courses as $c): ?>
         <tr class="<?= $sel_course === (int)$c['id'] ? 'bg-amber-50' : '' ?>">
           <td class="py-2 pr-3 font-medium"><?= h($c['name']) ?><?= $c['is_online'] ? ' <span class="text-xs text-sky-700">online</span>' : '' ?></td>
           <td class="pr-3"><?= (int)$c['n'] ?></td>
+          <?php $rng = fn($a, $b) => $a === null ? '—' : (abs((float)$a - (float)$b) < 0.005 ? $fmt($a) : $fmt($a) . '–' . $fmt($b)); ?>
+          <td class="pr-3 text-right tabular-nums whitespace-nowrap"><?= (int)$c['n'] ? $rng($c['r_min'], $c['r_max']) : '—' ?><?php if ((int)$c['n'] && (float)$c['ro_max'] > 0): ?><div class="text-xs text-slate-500">online <?= $rng($c['ro_min'], $c['ro_max']) ?></div><?php endif; ?>
+            <?php if ((int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005): ?><div class="text-xs text-amber-700">zróżnicowane</div><?php endif; ?></td>
           <td colspan="2" class="pr-3">
             <form method="post" class="flex flex-wrap gap-2 items-center">
               <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="course_types"><input type="hidden" name="_tab" value="groups">
