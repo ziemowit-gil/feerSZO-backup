@@ -189,29 +189,74 @@ function edok_ksef_sales_sync(string $from, string $to): array {
                 $xml = kdok_ksef_get_invoice_xml(null, $ref);
                 $d = edok_parse_invoice_xml($xml, 'Podmiot2'); // kontrahent = nabywca
                 if (!$d) throw new RuntimeException('nie udało się odczytać XML');
-                $rel = edok_queue_save_bytes($xml, 'xml');
-                $kor = $d['typ_dokumentu'] === 'faktura_korygujaca';
-                $typ = $kor ? 'korekta_sprzedazy' : 'faktura_sprzedazy';
-                $nabywca = $d['kontrahent_nazwa'] !== '' ? $d['kontrahent_nazwa'] : '(nabywca bez nazwy)';
-                $now = date('Y-m-d H:i:s');
-                $doc_id = db_insert('edok_documents', [
-                    'number' => edok_next_number(), 'title' => $d['nr_faktury'] ?: $ref, 'kierunek' => 'przychod', 'typ_dokumentu' => $typ,
-                    'description' => ($d['description'] !== '' ? $d['description'] . '. ' : '') . 'Faktura sprzedaży pobrana z KSeF, nr ref.: ' . $ref,
-                    'kontrahent_nazwa' => $nabywca, 'kontrahent_nip' => $d['kontrahent_nip'], 'zrodlo_przychodu' => $nabywca,
-                    'nr_faktury' => $d['nr_faktury'], 'data_wystawienia' => $d['data_wystawienia'] ?: null, 'data_sprzedazy' => $d['data_sprzedazy'] ?: null,
-                    'data_wplywu' => $d['data_wystawienia'] ?: date('Y-m-d'), 'kwota_netto' => $d['kwota_netto'], 'stawka_vat' => $d['stawka_vat'],
-                    'kwota_vat' => $d['kwota_vat'], 'kwota_brutto' => $d['kwota_brutto'], 'waluta' => $d['waluta'],
-                    'termin_platnosci' => $d['termin_platnosci'] ?: null, 'file_path' => $rel,
-                    'file_size' => is_file(UPLOAD_DIR . $rel) ? filesize(UPLOAD_DIR . $rel) : null,
-                    'ksef_reference' => $ref, 'status' => 'w_obiegu', 'created_by' => null, 'creator_name' => 'KSeF (import faktur sprzedaży)',
-                    'created_at' => $now, 'updated_at' => $now,
-                ]);
-                db_insert('edok_ksef_queue', ['ksef_reference' => $ref, 'invoice_number' => $d['nr_faktury'], 'seller_name' => $nabywca, 'seller_nip' => $d['kontrahent_nip'],
-                    'gross_value' => $d['kwota_brutto'], 'currency' => $d['waluta'], 'issue_date' => $d['data_wystawienia'], 'ksef_date' => date('Y-m-d'), 'created_at' => $now, 'doc_id' => $doc_id]);
-                edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Import z KSeF (faktura sprzedaży), nr ref.: ' . $ref . '. Uzupełnij klasyfikację przychodu (rodzaj działalności) przed kontrolą.');
+                $doc_id = edok_create_sales_doc($d, edok_queue_save_bytes($xml, 'xml'), $ref, 'KSeF (import faktur sprzedaży)');
                 $st['imported']++; $st['new_doc_ids'][] = $doc_id;
             } catch (\Throwable $e) { $st['errors'][] = "Ref {$ref}: " . $e->getMessage(); }
         }
+    }
+    return $st;
+}
+
+/** Cyfry NIP-ów organizacji (do rozpoznania, czy faktura z XML jest naszą sprzedażą). */
+function edok_org_nips(): array {
+    $out = [];
+    foreach (['org_nip', 'kdok_ksef_nip', 'ksef_nip'] as $k) { $n = preg_replace('/\D/', '', org_setting($k)); if (strlen($n) === 10) $out[$n] = true; }
+    return array_map('strval', array_keys($out)); // klucze-liczby → z powrotem na tekst (porównania ścisłe)
+}
+
+/** Czy XML to faktura wystawiona przez organizację (sprzedawca Podmiot1 = nasz NIP). */
+function edok_xml_is_sales(string $xml): bool {
+    $d = edok_parse_invoice_xml($xml, 'Podmiot1');
+    return $d && in_array(preg_replace('/\D/', '', $d['kontrahent_nip']), edok_org_nips(), true);
+}
+
+/**
+ * Zakłada dokument PRZYCHODOWY (faktura_sprzedazy / korekta_sprzedazy) z danych sprzedaży
+ * (edok_parse_invoice_xml($xml, 'Podmiot2') — kontrahent = nabywca). $rel = plik XML w uploads/.
+ */
+function edok_create_sales_doc(array $d, string $rel, string $ref, string $creator): int {
+    $typ = $d['typ_dokumentu'] === 'faktura_korygujaca' ? 'korekta_sprzedazy' : 'faktura_sprzedazy';
+    $nabywca = $d['kontrahent_nazwa'] !== '' ? $d['kontrahent_nazwa'] : '(nabywca bez nazwy)';
+    $now = date('Y-m-d H:i:s');
+    $doc_id = db_insert('edok_documents', [
+        'number' => edok_next_number(), 'title' => $d['nr_faktury'] ?: ($ref ?: 'faktura sprzedaży'), 'kierunek' => 'przychod', 'typ_dokumentu' => $typ,
+        'description' => ($d['description'] !== '' ? $d['description'] . '. ' : '') . 'Faktura sprzedaży' . ($ref !== '' ? ' pobrana z KSeF, nr ref.: ' . $ref : ' zaimportowana z pliku XML'),
+        'kontrahent_nazwa' => $nabywca, 'kontrahent_nip' => $d['kontrahent_nip'], 'zrodlo_przychodu' => $nabywca,
+        'nr_faktury' => $d['nr_faktury'], 'data_wystawienia' => $d['data_wystawienia'] ?: null, 'data_sprzedazy' => $d['data_sprzedazy'] ?: null,
+        'data_wplywu' => $d['data_wystawienia'] ?: date('Y-m-d'), 'kwota_netto' => $d['kwota_netto'], 'stawka_vat' => $d['stawka_vat'],
+        'kwota_vat' => $d['kwota_vat'], 'kwota_brutto' => $d['kwota_brutto'], 'waluta' => $d['waluta'],
+        'termin_platnosci' => $d['termin_platnosci'] ?: null, 'file_path' => $rel,
+        'file_size' => is_file(UPLOAD_DIR . $rel) ? filesize(UPLOAD_DIR . $rel) : null,
+        'ksef_reference' => $ref, 'status' => 'w_obiegu', 'created_by' => current_user()['id'] ?? null, 'creator_name' => $creator,
+        'created_at' => $now, 'updated_at' => $now,
+    ]);
+    if ($ref !== '') {
+        db_insert('edok_ksef_queue', ['ksef_reference' => $ref, 'invoice_number' => $d['nr_faktury'], 'seller_name' => $nabywca, 'seller_nip' => $d['kontrahent_nip'],
+            'gross_value' => $d['kwota_brutto'], 'currency' => $d['waluta'], 'issue_date' => $d['data_wystawienia'], 'ksef_date' => date('Y-m-d'), 'created_at' => $now, 'doc_id' => $doc_id]);
+    }
+    edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', ($ref !== '' ? 'Import z KSeF (faktura sprzedaży), nr ref.: ' . $ref : 'Import faktury sprzedaży z pliku XML') . '. Uzupełnij klasyfikację przychodu (rodzaj działalności) przed kontrolą.');
+    return $doc_id;
+}
+
+/**
+ * Import faktur sprzedaży z wgranych plików XML ($_FILES[$field] w wersji multi). Pliki, które nie są
+ * naszą sprzedażą (sprzedawca ≠ NIP organizacji), są odrzucane — zakupy idą przez kolejkę/formularz.
+ * @return array ['imported'=>int, 'skipped'=>int, 'errors'=>string[], 'new_doc_ids'=>int[]]
+ */
+function edok_sales_xml_import(array $files): array {
+    edok_migrate();
+    $st = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'new_doc_ids' => []];
+    foreach ($files['name'] ?? [] as $i => $name) {
+        if ($name === '' || ($files['error'][$i] ?? 0) === UPLOAD_ERR_NO_FILE) continue;
+        if (($files['error'][$i] ?? 1) !== UPLOAD_ERR_OK || strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'xml' || $files['size'][$i] > 5 * 1024 * 1024) { $st['errors'][] = "{$name}: nie jest plikiem XML (max 5 MB)"; continue; }
+        $xml = (string)file_get_contents($files['tmp_name'][$i]);
+        $mine = edok_parse_invoice_xml($xml, 'Podmiot1');
+        if (!$mine) { $st['errors'][] = "{$name}: to nie jest faktura ustrukturyzowana (FA)"; continue; }
+        if (!in_array(preg_replace('/\D/', '', $mine['kontrahent_nip']), edok_org_nips(), true)) { $st['errors'][] = "{$name}: sprzedawcą nie jest organizacja (to zakup — użyj kolejki lub „Nowy dokument”)"; continue; }
+        $d = edok_parse_invoice_xml($xml, 'Podmiot2');
+        if ($d['nr_faktury'] !== '' && db_one("SELECT 1 FROM edok_documents WHERE kierunek = 'przychod' AND nr_faktury = ? AND typ_dokumentu IN ('faktura_sprzedazy','korekta_sprzedazy')", [$d['nr_faktury']])) { $st['skipped']++; continue; }
+        $st['new_doc_ids'][] = edok_create_sales_doc($d, edok_queue_save_bytes($xml, 'xml'), '', (current_user()['name'] ?? '') . ' (import XML sprzedaży)');
+        $st['imported']++;
     }
     return $st;
 }

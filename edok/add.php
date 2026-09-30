@@ -30,6 +30,15 @@ $queue_xml = false;
 if ($queue_item && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     $xml_data = edok_parse_invoice_xml_file($queue_item['file_path']);
     if ($xml_data) {
+        // Sprzedawca = organizacja → to nasza sprzedaż: kontrahentem jest nabywca, dokument przychodowy.
+        if (in_array(preg_replace('/\D/', '', $xml_data['kontrahent_nip']), edok_org_nips(), true)) {
+            $sales = edok_parse_invoice_xml(file_get_contents(UPLOAD_DIR . $queue_item['file_path']), 'Podmiot2');
+            $xml_data = $sales + [
+                'kierunek' => 'przychod', 'zrodlo_przychodu' => $sales['kontrahent_nazwa'],
+            ];
+            $xml_data['typ_dokumentu'] = $sales['typ_dokumentu'] === 'faktura_korygujaca' ? 'korekta_sprzedazy' : 'faktura_sprzedazy';
+            $xml_data['zaplacono_przed'] = ''; // dla przychodu pola zapłaty kosztów nie dotyczą
+        }
         $_POST = $xml_data + ['data_wplywu' => date('Y-m-d')];
         $queue_xml = true;
     }

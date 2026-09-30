@@ -148,6 +148,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if ($ksef_on): ?>
         <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#salesSyncModal"><i class="bi bi-cloud-download"></i> Pobierz sprzedaż z KSeF</button></li>
         <?php endif; ?>
+        <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#salesXmlModal"><i class="bi bi-file-earmark-code"></i> Import sprzedaży z plików XML</button></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/ksef_sync.php"><i class="bi bi-cloud-arrow-down"></i> Synchronizacja KSeF (zakupy)</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/mt940_import.php"><i class="bi bi-upload"></i> Import wyciągu (MT940)</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/edok/szablony.php"><i class="bi bi-file-earmark-richtext"></i> Szablony</a></li>
@@ -380,6 +381,20 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button><button class="btn btn-primary"><i class="bi bi-cloud-download"></i> Pobierz</button></div>
+  </form></div>
+</div>
+<?php endif; ?>
+<?php if (is_admin() || edok_has_role('upload')): ?>
+<div class="modal fade" id="salesXmlModal" tabindex="-1" aria-labelledby="salesXmlLabel" aria-hidden="true">
+  <div class="modal-dialog"><form method="post" action="<?= APP_URL ?>/edok/ksef_sync.php" enctype="multipart/form-data" class="modal-content">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="sales_xml"><input type="hidden" name="return" value="index">
+    <div class="modal-header"><h5 class="modal-title" id="salesXmlLabel">Import sprzedaży z plików XML</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
+    <div class="modal-body">
+      <p class="small text-muted">Faktury sprzedaży i korekty wystawione przez organizację (FA z KSeF lub z systemu fakturowego). Powstają jako dokumenty przychodowe; faktury o tym samym numerze są pomijane.</p>
+      <label class="form-label small mb-1" for="sx_files">Pliki XML</label>
+      <input type="file" id="sx_files" name="xml_files[]" class="form-control" accept=".xml" multiple required>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button><button class="btn btn-primary"><i class="bi bi-upload"></i> Importuj</button></div>
   </form></div>
 </div>
 <?php endif; ?>

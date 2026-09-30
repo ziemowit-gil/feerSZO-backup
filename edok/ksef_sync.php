@@ -78,6 +78,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'sales_xml') {
+        $r = edok_sales_xml_import($_FILES['xml_files'] ?? []);
+        $msg = "Import sprzedaży z XML: zaimportowano {$r['imported']}, pominięto (już w systemie) {$r['skipped']}.";
+        flash_set($r['errors'] ? 'warning' : ($r['imported'] ? 'success' : 'info'), $msg . ($r['errors'] ? ' Odrzucono: ' . implode('; ', array_slice($r['errors'], 0, 4)) : ''));
+        header('Location: ' . APP_URL . (($_POST['return'] ?? '') === 'index' ? '/edok/index.php' : '/edok/ksef_sync.php'));
+        exit;
+    }
+
     if ($action === 'sync_sales') {
         if (!$ksef_enabled) {
             flash_set('error', 'Integracja KSeF jest wyłączona.');
@@ -153,6 +161,18 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<div class="card shadow-sm mb-3" style="max-width:760px">
+  <div class="card-header py-2"><strong>Import sprzedaży z plików XML</strong></div>
+  <div class="card-body">
+    <p class="small text-muted mb-2">Faktury sprzedaży i korekty wystawione przez organizację (plik FA z KSeF lub z systemu fakturowego). Nie wymaga włączonej integracji KSeF. Można wybrać wiele plików.</p>
+    <form method="post" enctype="multipart/form-data" class="d-flex gap-2">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="sales_xml">
+      <input type="file" name="xml_files[]" class="form-control form-control-sm" accept=".xml" multiple required>
+      <button class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-upload"></i> Importuj sprzedaż</button>
+    </form>
+  </div>
+</div>
 
 <?php if (!$ksef_enabled): ?>
 <div class="alert alert-warning">
