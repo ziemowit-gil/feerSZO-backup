@@ -140,6 +140,19 @@ function edok_bank_candidates(array $tx, int $limit = 5): array {
         if (strlen($rach) === 26 && str_ends_with((string)$tx['kontrahent_konto'], $rach)) { $score += 40; $why[] = 'rachunek kontrahenta'; }
         $nip = preg_replace('/\D/', '', (string)$d['kontrahent_nip']);
         if (strlen($nip) === 10 && str_contains(preg_replace('/\D/', '', $tx['tytul']), $nip)) { $score += 20; $why[] = 'NIP w tytule'; }
+        // bramki płatności: numer transakcji z dokumentu w tytule/referencji operacji (najsilniejszy sygnał po numerze EODoK)
+        $gw = _edok_bank_norm((string)($d['nr_transakcji_bramki'] ?? ''));
+        if (strlen($gw) >= 6 && (str_contains($title, $gw) || str_contains(_edok_bank_norm((string)($tx['referencja'] ?? '') . ' ' . (string)($tx['numer_operacji'] ?? '')), $gw))) {
+            $score += 120; $why[] = 'nr transakcji bramki';
+        }
+        // faktura zapłacona z góry (karta/bramka): data operacji zbliżona do daty zapłaty/wystawienia + kwota
+        if ($amount_ok) {
+            $dref = (string)(($d['data_zaplaty'] ?? '') ?: ($d['data_wystawienia'] ?? ''));
+            if ($dref !== '' && $tx['data_waluty'] !== '' && abs((strtotime($tx['data_waluty']) - strtotime($dref)) / 86400) <= 3) {
+                $score += 30; $why[] = 'data zgodna z zapłatą';
+                if (!empty($d['zaplacono_przed'])) { $score += 20; $why[] = 'zapłacona z góry'; }
+            }
+        }
         // nazwa kontrahenta: udział znaczących słów nazwy z dokumentu znalezionych w nazwie/tytule operacji
         $nm = _edok_bank_name_score((string)$d['kontrahent_nazwa'], $name . ' ' . mb_strtoupper((string)$tx['tytul']));
         if ($nm === 2) { $score += 40; $why[] = 'nazwa kontrahenta (pełna)'; }
@@ -255,7 +268,9 @@ function edok_bank_auto_match(): int {
         if (!$c || !$c[0]['amount_ok']) continue;
         // pewne: numer EODoK w tytule (score ≥ 150) albo zgodna kwota + pełna nazwa kontrahenta
         $by_name = in_array('nazwa kontrahenta (pełna)', $c[0]['reasons'], true) && $c[0]['score'] >= 90;
-        if ($c[0]['score'] < 150 && !$by_name) continue;
+        // faktura zapłacona z góry przez bramkę: kwota + data zapłaty w oknie ±3 dni + jedyny taki kandydat
+        $by_paid = in_array('zapłacona z góry', $c[0]['reasons'], true) && in_array('data zgodna z zapłatą', $c[0]['reasons'], true);
+        if ($c[0]['score'] < 150 && !$by_name && !$by_paid) continue;
         if (isset($c[1]) && $c[1]['score'] >= $c[0]['score']) continue; // niejednoznaczne
         if (edok_bank_assign((int)$tx['id'], (int)$c[0]['doc']['id'], 'auto') === null) $n++;
     }

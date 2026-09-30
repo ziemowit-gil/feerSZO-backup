@@ -63,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     $kontrahent_nazwa = trim($_POST['kontrahent_nazwa'] ?? '');
     $kontrahent_nip   = preg_replace('/\D/', '', trim($_POST['kontrahent_nip'] ?? ''));
     $nr_faktury       = trim($_POST['nr_faktury'] ?? '');
+    $nr_bramki        = trim($_POST['nr_transakcji_bramki'] ?? '');
     $data_wystawienia = trim($_POST['data_wystawienia'] ?? '');
     $data_sprzedazy   = trim($_POST['data_sprzedazy'] ?? '');
     $data_wplywu      = trim($_POST['data_wplywu'] ?? '') ?: date('Y-m-d');
@@ -172,6 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
             'kontrahent_nazwa'    => $kontrahent_nazwa,
             'kontrahent_nip'      => $kontrahent_nip,
             'nr_faktury'          => $nr_faktury,
+            'nr_transakcji_bramki' => mb_substr($nr_bramki, 0, 80),
             'zrodlo_przychodu'    => $zrodlo_przychodu,
             'data_wystawienia'    => $data_wystawienia ?: null,
             'data_sprzedazy'      => $data_sprzedazy ?: null,
@@ -340,6 +342,12 @@ require_once __DIR__ . '/../includes/header.php';
           <label class="form-label">Numer dokumentu</label>
           <input type="text" name="nr_faktury" id="nr_faktury" class="form-control" maxlength="100"
             value="<?= h($_POST['nr_faktury'] ?? '') ?>" placeholder="np. FV/2026/01/001" required oninput="edokSuggestTytul()">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label" for="nr_transakcji_bramki">Nr transakcji z bramki płatności <span class="text-muted small">(opcjonalnie)</span></label>
+          <input type="text" name="nr_transakcji_bramki" id="nr_transakcji_bramki" class="form-control font-monospace" maxlength="80"
+            value="<?= h($_POST['nr_transakcji_bramki'] ?? '') ?>" placeholder="np. DotPay M03991-27250, PayU, Przelewy24">
+          <div class="form-text">Numer z potwierdzenia/faktury zapłaconej przez bramkę — ułatwia powiązanie z wyciągiem.</div>
         </div>
       </div>
 
@@ -770,7 +778,7 @@ function edokOcr(queueId) {
       btn.disabled = false;
       if (!res.ok) { status.textContent = res.error || 'Błąd odczytu.'; status.className = 'form-text ms-2 text-danger'; return; }
       var d = res.data;
-      ['typ_dokumentu','nr_faktury','kontrahent_nazwa','kontrahent_nip','data_wystawienia','data_sprzedazy','kwota_netto','stawka_vat','kwota_vat','kwota_brutto','waluta','termin_platnosci','rachunek_bankowy','description'].forEach(function (k) {
+      ['typ_dokumentu','nr_faktury','kontrahent_nazwa','kontrahent_nip','data_wystawienia','data_sprzedazy','kwota_netto','stawka_vat','kwota_vat','kwota_brutto','waluta','termin_platnosci','rachunek_bankowy','description','nr_transakcji_bramki'].forEach(function (k) {
         var el = document.querySelector('[name="' + k + '"]');
         if (el && d[k] !== undefined && d[k] !== '') el.value = d[k];
       });
@@ -801,7 +809,7 @@ function edokXmlLoad(input) {
     .then(function (res) {
       if (!res.ok) { status.textContent = res.error || 'Błąd wczytywania.'; status.className = 'form-text text-danger'; return; }
       var d = res.data;
-      ['typ_dokumentu','nr_faktury','kontrahent_nazwa','kontrahent_nip','data_wystawienia','data_sprzedazy','kwota_netto','stawka_vat','kwota_vat','kwota_brutto','waluta','termin_platnosci','rachunek_bankowy','description'].forEach(function (k) {
+      ['typ_dokumentu','nr_faktury','kontrahent_nazwa','kontrahent_nip','data_wystawienia','data_sprzedazy','kwota_netto','stawka_vat','kwota_vat','kwota_brutto','waluta','termin_platnosci','rachunek_bankowy','description','nr_transakcji_bramki'].forEach(function (k) {
         var el = document.querySelector('[name="' + k + '"]');
         if (el && d[k] !== undefined && d[k] !== '') el.value = d[k];
       });

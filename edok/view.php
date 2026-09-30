@@ -82,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $kontrahent_nazwa = $locked_formal      ? $doc['kontrahent_nazwa'] : trim($_POST['kontrahent_nazwa'] ?? '');
         $kontrahent_nip   = $locked_formal      ? $doc['kontrahent_nip']   : preg_replace('/\D/', '', trim($_POST['kontrahent_nip'] ?? ''));
         $nr_faktury       = $locked_formal      ? $doc['nr_faktury']       : trim($_POST['nr_faktury'] ?? '');
+        $nr_bramki        = mb_substr(trim($_POST['nr_transakcji_bramki'] ?? ''), 0, 80);
         $zrodlo_przychodu = $locked_formal      ? $doc['zrodlo_przychodu'] : trim($_POST['zrodlo_przychodu'] ?? '');
         $kwota_netto      = $locked_rachunkowa  ? $doc['kwota_netto']      : trim($_POST['kwota_netto'] ?? '');
         $kwota_vat        = $locked_rachunkowa  ? $doc['kwota_vat']        : trim($_POST['kwota_vat'] ?? '');
@@ -144,11 +145,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         db_exec(
-            "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?, zrodlo_przychodu=?,
+            "UPDATE edok_documents SET description=?, kontrahent_nazwa=?, kontrahent_nip=?, nr_faktury=?, nr_transakcji_bramki=?, zrodlo_przychodu=?,
                 kwota_netto=?, kwota_vat=?, kwota_brutto=?, rodzaj_dzialalnosci=?, projekt=?, mpk=?, tytul_przelewu=?,
                 zaplacono_przed=?, data_zaplaty=?, forma_zaplaty=?, zaplacil=?, zwrot_osoba=?, zwrot_rachunek=?, proforma_id=?, dowod_zaplaty_path=?, okres=?, umowa_numer=?, kwota_do_wyplaty=?, updated_at=datetime('now')
              WHERE id=?",
-            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu,
+            [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $nr_bramki, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu,
              (int)$zaplata['zaplacono_przed'], $zaplata['data_zaplaty'], $zaplata['forma_zaplaty'], $zaplata['zaplacil'], $zaplata['zwrot_osoba'], $zaplata['zwrot_rachunek'], $proforma_id, $zaplata['dowod_zaplaty_path'], $okres, $umowa_numer, $kwota_do_wyplaty, $id]
         );
         $nowa_zaplata = $zaplata + ['proforma_id' => $proforma_id];
@@ -356,6 +357,7 @@ function edok_step_review_fields(string $step_key, array $doc): array {
                     ? h($nip) . ' ' . ($nip_ok ? '<span class="tw-text-emerald-600"><i class="bi bi-check-circle-fill"></i></span>' : '<span class="tw-text-red-600"><i class="bi bi-x-circle-fill"></i> błędna suma kontrolna</span>')
                     : '—'],
                 ['Numer dokumentu', $doc['nr_faktury'] !== '' ? h($doc['nr_faktury']) : '—'],
+                ['Nr transakcji z bramki', ($doc['nr_transakcji_bramki'] ?? '') !== '' ? '<span class="tw-font-mono">' . h($doc['nr_transakcji_bramki']) . '</span>' : '—'],
                 ['Data wystawienia', $doc['data_wystawienia'] ? date_pl($doc['data_wystawienia']) : '—'],
             ];
         case 'dekretacja':
@@ -690,6 +692,10 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <div class="tw-mb-2">
           <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Numer dokumentu</label>
           <input type="text" name="nr_faktury" class="form-control form-control-sm" value="<?= h($doc['nr_faktury']) ?>" <?= $locked_formal ? 'readonly' : '' ?>>
+        </div>
+        <div class="tw-mb-2">
+          <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Nr transakcji z bramki płatności</label>
+          <input type="text" name="nr_transakcji_bramki" class="form-control form-control-sm font-monospace" maxlength="80" value="<?= h($doc['nr_transakcji_bramki'] ?? '') ?>" placeholder="DotPay / PayU / Przelewy24">
         </div>
         <?php if ($doc['kierunek'] === 'przychod'): ?>
         <div class="tw-mb-2">

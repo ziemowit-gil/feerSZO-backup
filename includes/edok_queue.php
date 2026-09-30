@@ -17,6 +17,19 @@ function _edok_xml_money(float $v): string {
  * Zwraca [] gdy to nie jest faktura KSeF. Stawka VAT jest ustawiana tylko, gdy faktura
  * ma jedną stawkę — przy mieszanych zostaje puste, a suma VAT trafia do kwoty VAT.
  */
+/**
+ * Wyłuskuje numer transakcji z bramki płatności z tekstu (opis płatności innej, dodatkowy opis faktury, pole z OCR).
+ * Rozpoznaje m.in.: DotPay (M12345-67890), PayU (kod w nawiasie), Przelewy24 / P24 / Tpay / PayPal z numerem po nazwie.
+ */
+function edok_gateway_txn_from_text(string $text): string {
+    $text = trim($text);
+    if ($text === '') return '';
+    if (preg_match('/\b(M\d{4,6}-\d{3,8})\b/', $text, $m)) return $m[1];                                        // DotPay
+    if (preg_match('/(?:payu|p24|przelewy\s*24|tpay|paypal|blue\s*media|paynow|stripe|hotpay)[^A-Za-z0-9]{0,12}\(?([A-Za-z0-9][A-Za-z0-9\-_]{7,39})\)?/i', $text, $m)) return $m[1];
+    if (preg_match('/\(([A-Z0-9]{10,40})\)/', $text, $m) && preg_match('/pay|p24|przelew|bramk|internet/i', $text)) return $m[1];   // PayU: „(KSV8N68TCP…)"
+    return '';
+}
+
 function edok_parse_invoice_xml(string $xml, string $kontrahent = 'Podmiot1'): array {
     libxml_use_internal_errors(true);
     $sx = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
@@ -84,6 +97,11 @@ function edok_parse_invoice_xml(string $xml, string $kontrahent = 'Podmiot1'): a
         'termin_platnosci' => $one($fa . '/*[local-name()="Platnosc"]/*[local-name()="TerminPlatnosci"]/*[local-name()="Termin"]'),
         'rachunek_bankowy' => preg_replace('/\s+/', '', $one($fa . '/*[local-name()="Platnosc"]/*[local-name()="RachunekBankowy"]/*[local-name()="NrRB"]')),
         'description'      => $opis,
+        'nr_transakcji_bramki' => (function () use ($sx) {
+            $t = [];
+            foreach (['OpisPlatnosci', 'Wartosc', 'Klucz', 'Tresc'] as $tag) foreach ($sx->xpath('//*[local-name()="' . $tag . '"]') ?: [] as $n) $t[] = trim((string)$n);
+            return edok_gateway_txn_from_text(implode(' | ', $t));
+        })(),
         'zaplacono_przed'  => $zaplacona ? '1' : '',
         'data_zaplaty'     => $zaplacona ? $one($pl . '/*[local-name()="DataZaplaty"]') : '',
         'forma_zaplaty'    => $zaplacona ? $forma : '',

@@ -164,6 +164,8 @@ function edok_migrate(): void {
         // przebiega normalnie, ale po akceptacji status płatności od razu = 'oplacony'
         // i dokument nie trafia do eksportu przelewów. Patrz edok_decide_step().
         'zaplacono_przed'        => "INTEGER NOT NULL DEFAULT 0",
+        // Numer transakcji z bramki płatności (DotPay/PayU/Przelewy24…) — do wiązania z wyciągiem i kontroli zapłaty
+        'nr_transakcji_bramki'   => "TEXT NOT NULL DEFAULT ''",
         'data_zaplaty'           => "TEXT",
         'forma_zaplaty'          => "TEXT NOT NULL DEFAULT ''",
         // Kto zapłacił: 'organizacja' (rachunek/karta służbowa → od razu „Opłacony”)
@@ -2992,6 +2994,11 @@ function edok_ksef_create_doc(array $invoice_data): int {
         'kwota_brutto'        => $invoice_data['gross_value'] ?? '',
         'waluta'              => $invoice_data['currency'] ?: 'PLN',
         'ksef_reference'      => $invoice_data['ksef_reference'] ?? '',
+        'nr_transakcji_bramki' => (function () use ($invoice_data) {
+            if (empty($invoice_data['xml'])) return '';
+            require_once __DIR__ . '/edok_queue.php';
+            return edok_parse_invoice_xml((string)$invoice_data['xml'])['nr_transakcji_bramki'] ?? '';
+        })(),
         // plik XML faktury (źródło) — potrzebny do wizualizacji KSeF na wydrukach; błąd zapisu nie blokuje importu
         'file_path'           => (function () use ($invoice_data) {
             try { return !empty($invoice_data['xml']) ? edok_queue_save_bytes((string)$invoice_data['xml'], 'xml') : null; } catch (\Throwable $e) { return null; }
