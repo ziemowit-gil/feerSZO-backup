@@ -14,6 +14,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php';
 require_once dirname(__DIR__) . '/includes/payu.php';
+require_once dirname(__DIR__) . '/includes/p24.php';
 
 require_role('admin');
 pp_migrate();
@@ -157,6 +158,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($ids as $pi) { $before = (string)(db_one("SELECT status FROM payu_payments WHERE id=?", [$pi])['status'] ?? ''); if (payu_reconcile_payment($pi) !== $before) $chg++; }
             audit_log('payments.payu_refresh', ['checked' => count($ids), 'changed' => $chg, 'by' => $by], $uid);
             $ok = 'Sprawdzono w PayU ' . count($ids) . ' płatności; zmieniło się: ' . $chg . '.'; break;
+        case 'p24_save':
+            p24_migrate();
+            p24_save_setting('enabled', !empty($_POST['p24_enabled']) ? '1' : '0');
+            p24_save_setting('environment', ($_POST['p24_env'] ?? 'sandbox') === 'prod' ? 'prod' : 'sandbox');
+            p24_save_setting('currency', strtoupper(trim((string)($_POST['p24_currency'] ?? 'PLN'))) ?: 'PLN');
+            p24_save_setting('merchant_id', trim((string)($_POST['p24_merchant'] ?? '')));
+            p24_save_setting('pos_id', trim((string)($_POST['p24_pos'] ?? '')));
+            if (trim((string)($_POST['p24_apikey'] ?? '')) !== '') p24_save_setting('api_key', trim((string)$_POST['p24_apikey']));
+            if (trim((string)($_POST['p24_crc'] ?? '')) !== '')    p24_save_setting('crc', trim((string)$_POST['p24_crc']));
+            audit_log('payments.p24_settings', ['enabled' => !empty($_POST['p24_enabled']), 'env' => $_POST['p24_env'] ?? '', 'by' => $by], $uid);
+            $ok = 'Ustawienia Przelewy24 zapisane.'; break;
+        case 'p24_test':
+            p24_migrate(); $tr = p24_test_connection();
+            if ($tr['ok']) $ok = $tr['msg']; else $err = $tr['msg']; break;
+        case 'p24_refresh':
+            p24_migrate();
+            $one = (int)($_POST['p24_id'] ?? 0);
+            $ids = $one ? [$one] : array_map(fn($r) => (int)$r['id'], db_all("SELECT id FROM p24_payments WHERE status='pending' AND order_id!='' ORDER BY id DESC LIMIT 100"));
+            $chg = 0;
+            foreach ($ids as $pi) { $before = (string)(db_one("SELECT status FROM p24_payments WHERE id=?", [$pi])['status'] ?? ''); if (p24_reconcile_payment($pi) !== $before) $chg++; }
+            audit_log('payments.p24_refresh', ['checked' => count($ids), 'changed' => $chg, 'by' => $by], $uid);
+            $ok = 'Sprawdzono w Przelewy24 ' . count($ids) . ' płatności; zmieniło się: ' . $chg . '.'; break;
         case 'notice_save':
             $nid = pp_notice_save((int)($_POST['notice_id'] ?? 0), (string)($_POST['scope'] ?? 'unnotified'), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['sms_text'] ?? ''), $by);
             if (is_string($nid)) { $err = $nid; break; }
@@ -279,7 +302,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <span class="rounded-lg bg-amber-400/90 px-3 py-1 text-navy-700">przelewy do potwierdzenia <strong><?= count($nrb_pending) ?></strong></span>
   </div>
 </div></header>
-<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','korespondencja','payu','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
+<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','korespondencja','payu','p24','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
   <?php if ($flash): ?><div role="status" class="rounded-lg px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' ?>"><?= h((string)$flash['msg']) ?></div><?php endif; ?>
   <?php if ($link_once): ?>
   <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm ring-1 ring-amber-300" x-data="{ c: false }">
@@ -299,7 +322,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endforeach; ?>
   <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
-    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'payu' => ['PayU', 'bi-credit-card-2-front', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
+    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'payu' => ['PayU', 'bi-credit-card-2-front', 0], 'p24' => ['Przelewy24', 'bi-credit-card', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
     <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"
             class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?>
       <?php if ($tb): ?><span class="rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-navy-700"><?= $tb ?></span><?php endif; ?></button>
@@ -568,6 +591,60 @@ $sim  = org_setting('pp_p24_simulation') === '1';
           <td class="pr-3 font-mono text-[11px] text-slate-500"><?= h((string)$pr['order_id']) ?></td>
           <td class="pr-3 text-right"><?php if ($pr['status'] === 'pending' && $pr['order_id'] !== ''): ?><form method="post" class="inline"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="payu_refresh"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="payu_id" value="<?= (int)$pr['id'] ?>"><button class="text-xs text-navy-700 hover:underline">sprawdź w PayU</button></form><?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td></tr>
       <?php endforeach; if (!$pu_rows): ?><tr><td colspan="6" class="py-6 text-center text-slate-500">Brak płatności PayU.</td></tr><?php endif; ?>
+      </tbody></table></div>
+    </section>
+  </div>
+
+  <div x-show="tab === 'p24'" x-cloak class="space-y-5">
+    <?php p24_migrate();
+      $p2_filter = 'all';
+      $p2_rows = db_all("SELECT * FROM p24_payments ORDER BY id DESC LIMIT 120");
+      $p2_names = [];
+      foreach ($p2_rows as $pq0) if (in_array($pq0['source_type'], ['k30_ti_wallet', 'k30_ti_wallet_year_end'], true) && (int)$pq0['source_id'] > 0 && $pq0['source_type'] !== 'payment_portal')
+          $p2_names[(int)$pq0['source_id']] = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [(int)$pq0['source_id']])['name'] ?? '');
+      $p2_st = ['pending' => ['oczekuje', 'bg-amber-100 text-amber-900'], 'paid' => ['opłacona', 'bg-emerald-100 text-emerald-900'], 'failed' => ['nieudana', 'bg-red-100 text-red-900'], 'expired' => ['wygasła', 'bg-slate-100 text-slate-600']];
+      $p2_cnt = array_fill_keys(array_keys($p2_st), 0); foreach ($p2_rows as $pq0) { if (isset($p2_cnt[$pq0['status']])) $p2_cnt[$pq0['status']]++; } ?>
+    <section class="card space-y-3" aria-labelledby="p2-h">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="p2-h" class="font-semibold">Przelewy24 — stan i konfiguracja</h2>
+        <div class="flex flex-wrap gap-2">
+          <form method="post"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="p24_test"><input type="hidden" name="participant_id" value="0"><button class="bs"><i class="bi bi-plug" aria-hidden="true"></i>Test połączenia</button></form>
+          <form method="post"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="p24_refresh"><input type="hidden" name="participant_id" value="0"><button class="bp"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Odśwież statusy z API Przelewy24 (<?= (int)$p2_cnt['pending'] ?>)</button></form>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 text-sm">
+        <span class="rounded-lg px-3 py-1 <?= p24_enabled() ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800' ?>"><?= p24_enabled() ? 'włączone' : (p24_configured() ? 'skonfigurowane, wyłączone' : 'nieskonfigurowane') ?></span>
+        <span class="rounded-lg bg-slate-100 px-3 py-1">środowisko: <strong><?= h(p24_environment() === 'prod' ? 'produkcja' : 'sandbox') ?></strong></span>
+        <span class="rounded-lg bg-slate-100 px-3 py-1">waluta: <strong><?= h(p24_currency()) ?></strong></span>
+        <span class="rounded-lg bg-slate-100 px-3 py-1">powiadomienia: <span class="font-mono text-xs"><?= h(rtrim(APP_URL, '/') . '/api/p24_webhook.php') ?></span></span>
+      </div>
+      <details class="rounded-lg border border-slate-200 p-3"><summary class="cursor-pointer text-sm font-semibold">Ustawienia Przelewy24</summary>
+        <form method="post" class="mt-3 grid gap-3 md:grid-cols-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="p24_save"><input type="hidden" name="participant_id" value="0">
+          <label class="flex items-center gap-2 text-sm md:col-span-3"><input type="checkbox" name="p24_enabled" value="1"<?= p24_setting('enabled') === '1' ? ' checked' : '' ?>> Przelewy24 włączone (uczestnicy mogą płacić przez Przelewy24)</label>
+          <div><label class="lbl" for="p2-env">Środowisko</label><select id="p2-env" name="p24_env" class="inp"><option value="sandbox"<?= p24_environment() !== 'prod' ? ' selected' : '' ?>>sandbox (test)</option><option value="prod"<?= p24_environment() === 'prod' ? ' selected' : '' ?>>produkcja</option></select></div>
+          <div><label class="lbl" for="p2-cur">Waluta</label><input id="p2-cur" name="p24_currency" class="inp" maxlength="3" value="<?= h(p24_currency()) ?>"></div>
+          <div><label class="lbl" for="p2-pos">POS ID</label><input id="p2-pos" name="p24_pos" class="inp font-mono" value="<?= h(p24_setting('pos_id')) ?>"></div>
+          <div><label class="lbl" for="p2-cl">Merchant ID</label><input id="p2-cl" name="p24_merchant" class="inp font-mono" value="<?= h(p24_setting('client_id')) ?>"></div>
+          <div><label class="lbl" for="p2-se">Klucz API (REST) <?= p24_setting('client_secret') !== '' ? '(zapisany — puste = bez zmiany)' : '' ?></label><input id="p2-se" name="p24_apikey" type="password" autocomplete="new-password" class="inp font-mono"></div>
+          <div><label class="lbl" for="p2-md">Klucz CRC <?= p24_setting('md5_key') !== '' ? '(zapisany — puste = bez zmiany)' : '' ?></label><input id="p2-md" name="p24_crc" type="password" autocomplete="new-password" class="inp font-mono"></div>
+          <div class="md:col-span-3"><button class="bp">Zapisz ustawienia Przelewy24</button></div>
+        </form></details>
+    </section>
+    <section class="card space-y-3" aria-labelledby="p2l-h" x-data="{ f: '' }">
+      <div class="flex flex-wrap items-center justify-between gap-2"><h2 id="p2l-h" class="font-semibold">Lista wpłat Przelewy24 (ostatnie <?= count($p2_rows) ?>)</h2>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Filtr statusu">
+          <button type="button" @click="f = ''" :class="f === '' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium">Wszystkie (<?= count($p2_rows) ?>)</button>
+          <?php foreach ($p2_st as $k => [$l, $c]): ?><button type="button" @click="f = '<?= $k ?>'" :class="f === '<?= $k ?>' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium"><?= $l ?> (<?= (int)$p2_cnt[$k] ?>)</button><?php endforeach; ?>
+        </div></div>
+      <div class="max-h-[32rem] overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Data</th><th class="pr-3">Za co / kto</th><th class="pr-3 text-right">Kwota</th><th class="pr-3">Status</th><th class="pr-3">Zamówienie Przelewy24</th><th class="pr-3 text-right">API</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach ($p2_rows as $pq): [$sl, $sc] = $p2_st[$pq['status']] ?? [$pq['status'], 'bg-slate-100 text-slate-600']; $who = $p2_names[(int)$pq['source_id']] ?? ''; ?>
+        <tr x-show="f === '' || f === '<?= h($pq['status']) ?>'"><td class="whitespace-nowrap py-1.5 pr-3 text-xs"><?= h(substr((string)$pq['created_at'], 0, 16)) ?><?= $pq['paid_at'] ? '<div class="text-emerald-700">zapł. ' . h(substr((string)$pq['paid_at'], 0, 16)) . '</div>' : '' ?></td>
+          <td class="pr-3 text-xs"><div class="font-medium"><?= h($pq['description'] ?: $pq['source_type']) ?></div><div class="text-slate-500"><?= h($who !== '' ? $who : $pq['source_type'] . ' #' . (int)$pq['source_id']) ?></div></td>
+          <td class="pr-3 text-right tabular-nums"><?= h(pp_fmt(((int)$pq['amount_grosze']) / 100)) ?></td>
+          <td class="pr-3"><span class="rounded-full px-2 py-0.5 text-xs <?= $sc ?>"><?= h($sl) ?></span></td>
+          <td class="pr-3 font-mono text-[11px] text-slate-500"><?= h((string)$pq['order_id']) ?></td>
+          <td class="pr-3 text-right"><?php if ($pq['status'] === 'pending' && $pq['order_id'] !== ''): ?><form method="post" class="inline"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="p24_refresh"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="p24_id" value="<?= (int)$pq['id'] ?>"><button class="text-xs text-navy-700 hover:underline">sprawdź w Przelewy24</button></form><?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td></tr>
+      <?php endforeach; if (!$p2_rows): ?><tr><td colspan="6" class="py-6 text-center text-slate-500">Brak płatności Przelewy24.</td></tr><?php endif; ?>
       </tbody></table></div>
     </section>
   </div>
