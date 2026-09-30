@@ -101,7 +101,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (trim($txt) === '') { $err = 'Wklej listę numerów albo wybierz plik TXT.'; break; }
             $x = pp_vnrb_pool_import($txt, $grp, $by, $uid);
             $ok = "Import: dodano {$x['added']}, duplikaty {$x['dup']}, błędne " . count($x['bad'])
-                . ($x['bad'] ? ' (np. ' . implode('; ', array_slice($x['bad'], 0, 5)) . ')' : '') . '.'; break;
+                . ($x['bad'] ? ' (np. ' . implode('; ', array_slice($x['bad'], 0, 5)) . ')' : '') . '.';
+            if (!empty($_POST['pool_assign'])) {
+                $y = pp_vnrb_pool_assign_ti($by, $uid);
+                $ok .= " Przypisano kursantom TI: {$y['assigned']}; wolnych w puli TI: {$y['left']}" . ($y['nopool'] ? "; bez numeru z braku puli: {$y['nopool']}" : '') . '.';
+            }
+            break;
         case 'pool_assign_ti':
             $x = pp_vnrb_pool_assign_ti($by, $uid);
             $ok = "Przypisano kursantom TI: {$x['assigned']}; wolnych w puli: {$x['left']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
@@ -362,13 +367,15 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
     <form method="post" enctype="multipart/form-data" class="rounded-lg border border-slate-200 p-3 space-y-2">
       <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_import">
-      <h3 class="font-semibold text-sm">Import listy rachunków z banku (TXT)</h3>
+      <h3 class="font-semibold text-sm">Krok 2: import listy wygenerowanej przez bank (TXT)</h3>
+      <p class="text-sm text-amber-800">Zamów w banku numery wg generatora powyżej (numer kontrahenta + liczba następnych), a gdy bank je wygeneruje, wklej tu listę — SZO rozpozna serię i nada numery.</p>
       <p class="text-xs text-slate-500">Jeden numer w linii (26 cyfr, „PL" i spacje dozwolone). Sprawdzamy sumę kontrolną i duplikaty; numery trafiają do puli danej grupy.</p>
       <div class="grid gap-2 md:grid-cols-4">
         <div><label class="lbl" for="pl-g">Grupa</label><select id="pl-g" name="pool_grp" class="inp"><option value="auto">Wykryj po numerze (zalecane)</option><option value="ti">TI (kursanci)</option><option value="inni">Kontrahenci inni</option><option value="spoza_ti">Uczestnicy spoza TI</option><option value="reczny">Ręczne</option></select></div>
         <div class="md:col-span-3"><label class="lbl" for="pl-f">Plik TXT (opcjonalnie)</label><input id="pl-f" type="file" name="pool_file" accept=".txt,text/plain" class="inp"></div>
       </div>
       <label class="lbl" for="pl-t">Lista numerów</label><textarea id="pl-t" name="pool_text" rows="5" class="inp font-mono" placeholder="76102029063286111100000001"></textarea>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="pool_assign" value="1" checked> Po wczytaniu od razu przypisz numery serii TI kursantom bez rachunku</label>
       <div class="flex flex-wrap items-center gap-3"><button class="bp">Wczytaj do puli</button>
         <span class="text-xs text-slate-500">W puli: <?php foreach ($pool as $pl): ?><?= h($pl['grp']) ?> <?= (int)$pl['n'] ?> (wolnych <?= (int)$pl['free'] ?>) · <?php endforeach; if (!$pool) echo 'pusta'; ?></span></div>
     </form>
