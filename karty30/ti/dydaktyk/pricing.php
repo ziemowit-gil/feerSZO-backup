@@ -382,47 +382,65 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
   </div>
 
 <?php elseif ($tab === 'groups'): ?>
-  <!-- ═══ Grupy i zapisy ═══ -->
-  <section class="card overflow-x-auto">
-    <h2 class="font-semibold mb-2">Typ zajęć grupy</h2>
-    <table class="min-w-full text-sm">
-      <thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Grupa</th><th class="pr-3">Uczestn.</th><th class="pr-3 text-right">Stawki w zapisach (zł/h)</th><th class="pr-3">Typ (stacjonarne)</th><th class="pr-3">Typ dla lekcji online</th><th></th></tr></thead>
-      <tbody class="divide-y divide-slate-100">
-      <?php foreach ($courses as $c): ?>
-        <tr class="<?= $sel_course === (int)$c['id'] ? 'bg-amber-50' : '' ?>">
-          <td class="py-2 pr-3 font-medium"><?php if (trim((string)$c['group_code']) !== ''): ?><span class="mr-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700" title="Kod grupy"><?= h($c['group_code']) ?></span><?php endif; ?><?= h($c['name']) ?><?= $c['is_online'] ? ' <span class="text-xs text-sky-700">online</span>' : '' ?></td>
-          <td class="pr-3"><?= (int)$c['n'] ?></td>
-          <?php $rng = fn($a, $b) => $a === null ? '—' : (abs((float)$a - (float)$b) < 0.005 ? $fmt($a) : $fmt($a) . '–' . $fmt($b)); ?>
-          <td class="pr-3 text-right tabular-nums whitespace-nowrap"><?= (int)$c['n'] ? $rng($c['r_min'], $c['r_max']) : '—' ?><?php if ((int)$c['n'] && (float)$c['ro_max'] > 0): ?><div class="text-xs text-slate-500">online <?= $rng($c['ro_min'], $c['ro_max']) ?></div><?php endif; ?>
-            <?php if ((int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005): ?><div class="text-xs text-amber-700">zróżnicowane</div><?php endif; ?></td>
-          <td colspan="2" class="pr-3">
-            <form method="post" class="flex flex-wrap gap-2 items-center">
-              <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="course_types"><input type="hidden" name="_tab" value="groups">
-              <input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="_course" value="<?= $sel_course ?>">
-              <select name="lesson_type_id" class="inp !w-56" aria-label="Typ zajęć — <?= h($c['name']) ?>"><option value="">— brak —</option>
-                <?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"<?= (int)$c['lesson_type_id'] === (int)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?></option><?php endforeach; ?></select>
-              <select name="online_lesson_type_id" class="inp !w-56" aria-label="Typ online — <?= h($c['name']) ?>"><option value="">— jak stacjonarne —</option>
-                <?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"<?= (int)$c['online_lesson_type_id'] === (int)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?></option><?php endforeach; ?></select>
-              <button class="btn-sec">Zapisz</button>
-            </form></td>
-          <td class="text-right"><a class="btn-sec" href="pricing.php?tab=groups&amp;course=<?= (int)$c['id'] ?>#zapisy">Zapisy</a></td>
-        </tr>
+  <?php $rng = fn($a, $b) => $a === null ? '—' : (abs((float)$a - (float)$b) < 0.005 ? $fmt($a) : $fmt($a) . '–' . $fmt($b)); ?>
+  <div class="flex items-end justify-between gap-3">
+    <div><h2 class="text-lg font-semibold text-slate-800">Grupy i stawki</h2>
+      <p class="text-sm text-slate-500">Typ zajęć grupy, aktualne stawki w zapisach i szybka zmiana ceny całej grupy.</p></div>
+    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"><?= count($courses) ?> <?= count($courses) === 1 ? 'grupa' : 'grup' ?></span>
+  </div>
+  <div class="grid gap-4 lg:grid-cols-2">
+  <?php foreach ($courses as $c): $sel = $sel_course === (int)$c['id']; $varied = (int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005; ?>
+    <article class="card !p-0 overflow-hidden <?= $sel ? 'ring-2 ring-amber-400' : '' ?>" aria-label="Grupa <?= h($c['name']) ?>">
+      <header class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3">
+        <?php if (trim((string)$c['group_code']) !== ''): ?><span class="rounded-md bg-navy-700 px-2 py-0.5 font-mono text-xs font-semibold text-white" title="Kod grupy"><?= h($c['group_code']) ?></span><?php endif; ?>
+        <h3 class="min-w-0 flex-1 truncate font-semibold text-slate-800"><?= h($c['name']) ?></h3>
+        <?php if ($c['is_online']): ?><span class="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"><i class="bi bi-camera-video mr-1" aria-hidden="true"></i>online</span><?php endif; ?>
+        <span class="rounded-full bg-white px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-200"><i class="bi bi-people mr-1" aria-hidden="true"></i><?= (int)$c['n'] ?></span>
+      </header>
+      <div class="space-y-3 px-4 py-3">
+        <form method="post" class="space-y-2">
+          <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="course_types"><input type="hidden" name="_tab" value="groups">
+          <input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="_course" value="<?= $sel_course ?>">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <section class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3" aria-label="Stacjonarnie">
+              <div class="mb-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-emerald-800"><span><i class="bi bi-building mr-1" aria-hidden="true"></i>Stacjonarnie</span>
+                <span class="tabular-nums text-sm normal-case text-emerald-900"><?= (int)$c['n'] ? $rng($c['r_min'], $c['r_max']) : '—' ?> <span class="text-xs font-normal">zł/h</span></span></div>
+              <?php if ($varied): ?><div class="mb-1 text-xs text-amber-700"><i class="bi bi-exclamation-triangle mr-1" aria-hidden="true"></i>stawki zróżnicowane</div><?php endif; ?>
+              <label class="lbl" for="lt-<?= (int)$c['id'] ?>">Typ zajęć</label>
+              <select id="lt-<?= (int)$c['id'] ?>" name="lesson_type_id" class="inp"><option value="">— brak —</option>
+                <?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"<?= (int)$c['lesson_type_id'] === (int)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?> · <?= $fmt($t['base_price']) ?> zł</option><?php endforeach; ?></select>
+            </section>
+            <section class="rounded-lg border border-sky-200 bg-sky-50/50 p-3" aria-label="Online">
+              <div class="mb-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-sky-800"><span><i class="bi bi-camera-video mr-1" aria-hidden="true"></i>Online</span>
+                <span class="tabular-nums text-sm normal-case text-sky-900"><?= (int)$c['n'] && (float)$c['ro_max'] > 0 ? $rng($c['ro_min'], $c['ro_max']) : '—' ?> <span class="text-xs font-normal">zł/h</span></span></div>
+              <label class="lbl" for="lo-<?= (int)$c['id'] ?>">Typ zajęć</label>
+              <select id="lo-<?= (int)$c['id'] ?>" name="online_lesson_type_id" class="inp"><option value="">— jak stacjonarne —</option>
+                <?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"<?= (int)$c['online_lesson_type_id'] === (int)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?> · <?= $fmt($t['base_price']) ?> zł</option><?php endforeach; ?></select>
+            </section>
+          </div>
+          <div class="text-right"><button class="btn-sec">Zapisz typy</button></div>
+        </form>
         <?php if ((int)$c['n']): ?>
-        <tr class="<?= $sel_course === (int)$c['id'] ? 'bg-amber-50' : '' ?>"><td colspan="6" class="pb-3">
-          <form method="post" class="flex flex-wrap items-center gap-2 text-xs" onsubmit="if(!this.reason.value.trim() || this.reason.value.trim().length<5){alert('Podaj uzasadnienie zmiany ceny (min. 5 znaków).');return false;} return confirm('Ustawić tę stawkę wszystkim aktywnym uczestnikom grupy?');">
+        <details class="rounded-lg border border-slate-200 bg-slate-50/60 open:bg-white">
+          <summary class="cursor-pointer select-none px-3 py-2 text-sm font-medium text-navy-700"><i class="bi bi-cash-coin mr-1" aria-hidden="true"></i>Zmień stawkę całej grupy</summary>
+          <form method="post" class="grid gap-2 border-t border-slate-200 p-3 sm:grid-cols-2" onsubmit="if(!this.reason.value.trim() || this.reason.value.trim().length<5){alert('Podaj uzasadnienie zmiany ceny (min. 5 znaków).');return false;} return confirm('Ustawić tę stawkę wszystkim aktywnym uczestnikom grupy?');">
             <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="group_rate"><input type="hidden" name="_tab" value="groups">
             <input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="_course" value="<?= $sel_course ?>">
-            <span class="text-slate-500">Zmień stawkę całej grupy:</span>
-            <input name="g_stacjonarna" class="inp !w-24" inputmode="decimal" placeholder="zł/h" aria-label="Nowa stawka stacjonarna — <?= h($c['name']) ?>">
-            <input name="g_online" class="inp !w-24" inputmode="decimal" placeholder="online zł/h" aria-label="Nowa stawka online — <?= h($c['name']) ?>">
-            <input name="reason" class="inp !w-56" maxlength="300" placeholder="uzasadnienie (wymagane)" aria-label="Uzasadnienie zmiany ceny">
-            <button class="btn-pri">Ustaw dla grupy</button>
-          </form></td></tr>
+            <div><label class="lbl" for="gs-<?= (int)$c['id'] ?>"><i class="bi bi-building mr-1 text-emerald-700" aria-hidden="true"></i>Stacjonarnie (zł/h)</label><input id="gs-<?= (int)$c['id'] ?>" name="g_stacjonarna" class="inp" inputmode="decimal" placeholder="np. 45,00"></div>
+            <div><label class="lbl" for="go-<?= (int)$c['id'] ?>"><i class="bi bi-camera-video mr-1 text-sky-700" aria-hidden="true"></i>Online (zł/h)</label><input id="go-<?= (int)$c['id'] ?>" name="g_online" class="inp" inputmode="decimal" placeholder="puste = bez zmiany"></div>
+            <div class="sm:col-span-2"><label class="lbl" for="gr-<?= (int)$c['id'] ?>">Uzasadnienie (wymagane, trafia do audytu)</label><input id="gr-<?= (int)$c['id'] ?>" name="reason" class="inp" maxlength="300"></div>
+            <div class="sm:col-span-2 text-right"><button class="btn-pri">Ustaw dla grupy</button></div>
+          </form>
+        </details>
         <?php endif; ?>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-  </section>
+      </div>
+      <footer class="border-t border-slate-100 px-4 py-2 text-right">
+        <a class="text-sm font-medium text-navy-700 hover:underline" href="pricing.php?tab=groups&amp;course=<?= (int)$c['id'] ?>#zapisy">Zapisy i stawki uczestników <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </footer>
+    </article>
+  <?php endforeach; ?>
+  <?php if (!$courses): ?><p class="card text-sm text-slate-500 lg:col-span-2">Brak aktywnych grup.</p><?php endif; ?>
+  </div>
   <?php if ($sel_course): $sc = array_values(array_filter($courses, fn($c) => (int)$c['id'] === $sel_course))[0] ?? null; ?>
   <section id="zapisy" class="card overflow-x-auto">
     <h2 class="font-semibold mb-1">Zapisy — <?= !empty($sc['group_code']) ? '<span class="font-mono text-sm">' . h($sc['group_code']) . '</span> · ' : '' ?><?= h($sc['name'] ?? ('#' . $sel_course)) ?></h2>
