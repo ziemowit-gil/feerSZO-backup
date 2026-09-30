@@ -47,6 +47,8 @@ function pp_migrate(): void {
         imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
     try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}   // kursant wirtualny: bez rachunku z puli
     db()->exec("CREATE TABLE IF NOT EXISTS pp_notice_exclusions (batch_id INTEGER NOT NULL, client_id INTEGER NOT NULL, by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (batch_id, client_id))");
+    db()->exec("CREATE TABLE IF NOT EXISTS pp_item_invoices (item_id INTEGER PRIMARY KEY, local_id INTEGER, betterfly_invoice_id INTEGER,
+        number TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_blocks (nrb TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     db()->exec("CREATE TABLE IF NOT EXISTS pp_bank_autopost (bank_tx_id INTEGER PRIMARY KEY, participant_id INTEGER NOT NULL, payment_id INTEGER,
         amount REAL NOT NULL, nrb TEXT NOT NULL, by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -480,9 +482,22 @@ function pp_uuid(): string {
     $b = random_bytes(16); $b[6] = chr(ord($b[6]) & 0x0f | 0x40); $b[8] = chr(ord($b[8]) & 0x3f | 0x80);
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($b), 4));
 }
-/** Tytuł przelewu: stały format, który księgowość dopasowuje do transakcji. */
-function pp_transfer_title(string $uuid, array $cl): string {
-    return 'SZO ' . strtoupper(substr(str_replace('-', '', $uuid), 0, 10)) . ' ' . mb_substr(preg_replace('/\s+/', ' ', (string)$cl['name']), 0, 40);
+/**
+ * Tytuł przelewu transakcji: „SZO {kod} ZOB/{id,id…} {nazwa zobowiązania…} — {uczestnik}” (do 140 znaków).
+ * Kod SZO… zostaje na początku (księgowość dopasowuje po nim wpływ), a kody ZOB/{id} wskazują zobowiązania,
+ * które ta wpłata pokrywa — każde zobowiązanie ma też własny tytuł (pp_item_transfer_title).
+ */
+function pp_transfer_title(string $uuid, array $cl, array $items = []): string {
+    $head = 'SZO ' . strtoupper(substr(str_replace('-', '', $uuid), 0, 10));
+    $name = mb_substr(preg_replace('/\s+/', ' ', (string)($cl['name'] ?? '')), 0, 40);
+    if (!$items) return $head . ' ' . $name;
+    $codes = 'ZOB/' . implode(',', array_map(fn($i) => (int)$i['id'], $items));
+    $tail  = $name !== '' ? ' — ' . $name : '';
+    $room  = 140 - mb_strlen($head . ' ' . $codes . ' ') - mb_strlen($tail);
+    $titles = preg_replace('/\s+/', ' ', trim(implode('; ', array_map(fn($i) => (string)$i['title'], $items))));
+    if ($room < 10) $titles = '';
+    elseif (mb_strlen($titles) > $room) $titles = rtrim(mb_substr($titles, 0, $room - 1)) . '…';
+    return trim($head . ' ' . $codes . ' ' . $titles) . $tail;
 }
 
 /**
@@ -509,7 +524,7 @@ function pp_create_transaction(int $participant_id, array $item_ids, string $met
         if ($total <= 0) { $pdo->rollBack(); return 'Kwota do zapłaty musi być większa od zera.'; }
         $uuid = pp_uuid();
         $tid  = db_insert('portal_transactions', ['participant_id' => $participant_id, 'transaction_uuid' => $uuid, 'total_amount' => pp_zl($total),
-            'payment_method' => $method, 'status' => 'pending', 'transfer_title' => pp_transfer_title($uuid, ['name' => $u['participant_name']]),
+            'payment_method' => $method, 'status' => 'pending', 'transfer_title' => pp_transfer_title($uuid, ['name' => $u['participant_name']], $items),
             'target_nrb' => $method === 'individual_nrb' ? $acct['nrb'] : '']);
         $st = db()->prepare("UPDATE payable_items SET status='processing' WHERE id=? AND status='pending'");
         foreach ($items as $it) {
@@ -1396,4 +1411,60 @@ function pp_portal_login_participant(int $participant_id, string $via): bool {
     db()->prepare("UPDATE payment_portal_users SET last_login_at=datetime('now') WHERE participant_id=?")->execute([$participant_id]);
     audit_log('payments.portal_login', ['participant_id' => $participant_id, 'via' => $via], null);
     return true;
+}
+
+
+/**
+ * Faktura w Comarch Betterfly do pozycji „do zapłaty” (ręcznej / dowolnej): nabywca = uczestnik, jedna pozycja
+ * (domyślny produkt TI, cena netto z kwoty pozycji wg ustawienia brutto/netto), termin płatności = termin pozycji,
+ * rachunek = numer do wpłat uczestnika. Faktura zostaje w buforze Betterfly (bez zatwierdzenia) — zatwierdza się ją
+ * w Betterfly albo w obiegu akceptacji. @return string komunikat błędu albo array{number:string, local_id:int}
+ */
+function pp_item_betterfly_invoice(int $item_id, string $by, ?int $uid): string|array {
+    pp_migrate();
+    require_once dirname(__DIR__, 3) . '/includes/betterfly.php';
+    require_once dirname(__DIR__, 3) . '/includes/betterfly_invoices.php';
+    $it = db_one("SELECT * FROM payable_items WHERE id=?", [$item_id]);
+    if (!$it) return 'Nie znaleziono pozycji.';
+    if ($it['status'] === 'cancelled') return 'Pozycja jest anulowana.';
+    if (db_one("SELECT 1 FROM pp_item_invoices WHERE item_id=?", [$item_id])) return 'Do tej pozycji wystawiono już fakturę.';
+    if (!BetterFlyClient::isEnabled()) return 'Integracja Comarch Betterfly nie jest włączona.';
+    try {
+        $pid = (int)$it['participant_id'];
+        $buyer = betterfly_buyer_from_ti_client($pid);
+        $items = [[
+            'ProductId'            => betterfly_ti_product_id(0),
+            'Quantity'             => 1.0,
+            'ProductCurrencyPrice' => betterfly_ti_unit_net((float)$it['amount']),
+            'ProductDescription'   => mb_substr((string)$it['title'], 0, 200),
+            'VatRateId'            => (int)org_setting('betterfly_default_vat_rate_id'),
+        ]];
+        $r = betterfly_issue_crm_invoice($buyer, $items, [
+            'payment_deadline'    => $it['due_date'] ?: date('Y-m-d', strtotime('+7 days')),
+            'bank_account_number' => betterfly_ti_bank_account($pid),
+            'description'         => 'Do zapłaty: ' . $it['title'] . ' · tytuł przelewu: ' . pp_item_transfer_title($it),
+            'uid'                 => (int)$uid,
+        ]);
+    } catch (\Throwable $e) { return 'Betterfly: ' . $e->getMessage(); }
+    db()->prepare("INSERT OR REPLACE INTO pp_item_invoices (item_id, local_id, betterfly_invoice_id, number, by_name) VALUES (?,?,?,?,?)")
+        ->execute([$item_id, (int)$r['local_id'], (int)$r['betterfly_invoice_id'], (string)$r['number'], $by]);
+    audit_log('payments.item_invoice', ['item_id' => $item_id, 'participant_id' => (int)$it['participant_id'], 'number' => (string)$r['number'], 'betterfly_invoice_id' => (int)$r['betterfly_invoice_id'], 'by' => $by], $uid);
+    return ['number' => (string)$r['number'], 'local_id' => (int)$r['local_id']];
+}
+
+
+/**
+ * Tytuł przelewu przypisany do KAŻDEGO zobowiązania (pozycji „do zapłaty”): „ZOB/{id} {nazwa pozycji} — {uczestnik}”
+ * (do 140 znaków). Kod ZOB/{id} jednoznacznie wskazuje pozycję przy ręcznym dopasowaniu wpływu z wyciągu.
+ */
+function pp_item_transfer_title(array $item, string $participant_name = ''): string {
+    if ($participant_name === '' && !empty($item['participant_id'])) {
+        $participant_name = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [(int)$item['participant_id']])['name'] ?? '');
+    }
+    $head = 'ZOB/' . (int)$item['id'] . ' ';
+    $tail = $participant_name !== '' ? ' — ' . $participant_name : '';
+    $room = 140 - mb_strlen($head) - mb_strlen($tail);
+    $t = preg_replace('/\s+/', ' ', trim((string)$item['title']));
+    if (mb_strlen($t) > $room) $t = rtrim(mb_substr($t, 0, max(10, $room - 1))) . '…';
+    return $head . $t . $tail;
 }

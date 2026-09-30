@@ -230,6 +230,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $r = pp_add_item($pid, (string)($_POST['title'] ?? ''), $amt, (string)($_POST['reference_type'] ?? 'manual'),
                              (int)($_POST['reference_id'] ?? 0) ?: null, trim((string)($_POST['due_date'] ?? '')) ?: null, $by, $uid);
             $err = is_string($r) ? $r : null; $ok = 'Pozycja dodana.'; break;
+        case 'item_invoice':
+            $ri = pp_item_betterfly_invoice((int)($_POST['item_id'] ?? 0), $by, $uid);
+            if (is_string($ri)) { $err = $ri; break; }
+            $ok = 'Faktura wystawiona w Betterfly' . ($ri['number'] !== '' ? ' (nr ' . $ri['number'] . ')' : '') . ' — w buforze, do zatwierdzenia.'; break;
+        case 'issue_due':   // „Wystaw do zapłaty” (+ opcjonalnie faktura Betterfly) z zakładki Przelewy i wpływy
+            $dpid = (int)($_POST['participant_id'] ?? 0);
+            $dam = (float)str_replace([' ', ','], ['', '.'], (string)($_POST['amount'] ?? ''));
+            $rr = pp_add_item($dpid, (string)($_POST['title'] ?? ''), $dam, 'manual', null, trim((string)($_POST['due_date'] ?? '')) ?: null, $by, $uid);
+            if (is_string($rr)) { $err = $rr; break; }
+            $ok = 'Wystawiono do zapłaty — uczestnik zobaczy pozycję w portalu i zapłaci przelewem na swój numer lub przez Przelewy24.';
+            if (!empty($_POST['invoice'])) {
+                $ri = pp_item_betterfly_invoice((int)$rr, $by, $uid);
+                if (is_string($ri)) { $ok .= ' Faktury nie wystawiono: ' . $ri; }
+                else $ok .= ' Faktura w Betterfly' . ($ri['number'] !== '' ? ' nr ' . $ri['number'] : '') . ' (bufor).';
+            }
+            break;
         case 'cancel_item':
             $err = pp_cancel_item((int)($_POST['item_id'] ?? 0), $by, $uid); $ok = 'Pozycja anulowana.'; break;
         case 'import_ti':
@@ -360,6 +376,22 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
 
   <div x-show="tab === 'przelewy'" x-cloak class="space-y-5">
+  <!-- Wystaw do zapłaty (+ faktura Betterfly) -->
+  <?php $due_clients = db_all("SELECT DISTINCT c.id, c.name FROM k30_clients c JOIN k30_ti_student_accounts a ON a.client_id=c.id ORDER BY c.name COLLATE NOCASE LIMIT 800");
+        $bf_on = false; try { require_once dirname(__DIR__) . '/includes/betterfly.php'; $bf_on = BetterFlyClient::isEnabled(); } catch (\Throwable $e) {} ?>
+  <section class="card space-y-3" aria-labelledby="dd-h">
+    <h2 id="dd-h" class="font-semibold"><i class="bi bi-plus-circle text-navy-700" aria-hidden="true"></i> Wystaw do zapłaty</h2>
+    <p class="text-xs text-slate-500">Zobowiązanie trafia do portalu uczestnika z własnym tytułem przelewu (<span class="font-mono">ZOB/…</span>). Uczestnik płaci przelewem na swój numer rachunku albo przez Przelewy24. Opcjonalnie wystawiamy od razu fakturę w Comarch Betterfly (zostaje w buforze do zatwierdzenia).</p>
+    <form method="post" class="grid gap-2 md:grid-cols-6 items-end"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="issue_due">
+      <div class="md:col-span-2"><label class="lbl" for="dd-p">Uczestnik</label><select id="dd-p" name="participant_id" class="inp" required><option value="">— wybierz —</option>
+        <?php foreach ($due_clients as $dc): ?><option value="<?= (int)$dc['id'] ?>"><?= h($dc['name']) ?></option><?php endforeach; ?></select></div>
+      <div class="md:col-span-2"><label class="lbl" for="dd-t">Nazwa zobowiązania</label><input id="dd-t" name="title" class="inp" maxlength="200" required placeholder="np. Warsztat stacjonarny — październik"></div>
+      <div><label class="lbl" for="dd-a">Kwota brutto (zł)</label><input id="dd-a" name="amount" class="inp" inputmode="decimal" required></div>
+      <div><label class="lbl" for="dd-d">Termin</label><input id="dd-d" name="due_date" type="date" class="inp"></div>
+      <label class="md:col-span-4 flex items-center gap-2 text-sm"><input type="checkbox" name="invoice" value="1"<?= $bf_on ? '' : ' disabled' ?>> Wystaw też fakturę w Betterfly<?= $bf_on ? '' : ' <span class="text-xs text-slate-400">(integracja Betterfly wyłączona)</span>' ?></label>
+      <div class="md:col-span-2 text-right"><button class="bp">Wystaw do zapłaty</button></div>
+    </form>
+  </section>
   <!-- Przelewy do potwierdzenia -->
   <section class="card" aria-labelledby="nrb-h">
     <h2 id="nrb-h" class="font-semibold mb-2">Przelewy na NRB do potwierdzenia</h2>
@@ -479,10 +511,13 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-2">Pozycja</th><th class="pr-2">Rodzaj</th><th class="pr-2 text-right">Kwota</th><th class="pr-2">Termin</th><th class="pr-2">Status</th><th></th></tr></thead>
         <tbody class="divide-y divide-slate-100">
         <?php foreach ($sel_items as $it): ?>
-          <tr><td class="py-1.5 pr-2"><?= h($it['title']) ?></td><td class="pr-2 text-xs"><?= h(PP_REF_TYPES[$it['reference_type']] ?? $it['reference_type']) ?><?= $it['reference_id'] ? ' #' . (int)$it['reference_id'] : '' ?></td>
+          <tr><td class="py-1.5 pr-2"><?= h($it['title']) ?><div class="font-mono text-[11px] text-slate-500" title="Tytuł przelewu tego zobowiązania"><?= h(pp_item_transfer_title($it, (string)($sel['name'] ?? ''))) ?></div></td><td class="pr-2 text-xs"><?= h(PP_REF_TYPES[$it['reference_type']] ?? $it['reference_type']) ?><?= $it['reference_id'] ? ' #' . (int)$it['reference_id'] : '' ?></td>
             <td class="pr-2 text-right tabular-nums"><?= h(pp_fmt((float)$it['amount'])) ?></td><td class="pr-2 text-xs"><?= $it['due_date'] ? h(date('d.m.Y', strtotime((string)$it['due_date']))) : '—' ?></td>
             <td class="pr-2 text-xs"><?= h(PP_ITEM_STATUS[$it['status']] ?? $it['status']) ?></td>
-            <td class="text-right"><?php if ($it['status'] === 'pending'): ?><form method="post" onsubmit="return confirm('Anulować pozycję?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="cancel_item"><input type="hidden" name="participant_id" value="<?= $pid ?>"><input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>"><button class="text-xs text-red-700 hover:underline">anuluj</button></form><?php endif; ?></td></tr>
+            <td class="text-right whitespace-nowrap"><?php $iv = db_one("SELECT number FROM pp_item_invoices WHERE item_id=?", [(int)$it['id']]); ?>
+              <?php if ($iv): ?><span class="mr-2 text-xs text-emerald-700" title="Faktura w Betterfly"><i class="bi bi-receipt" aria-hidden="true"></i> FV <?= h($iv['number'] ?: 'w buforze') ?></span>
+              <?php elseif ($it['status'] !== 'cancelled'): ?><form method="post" class="mr-2 inline" onsubmit="return confirm('Wystawić fakturę w Betterfly do tej pozycji?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="item_invoice"><input type="hidden" name="participant_id" value="<?= $pid ?>"><input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>"><button class="text-xs text-navy-700 hover:underline">wystaw FV</button></form><?php endif; ?>
+              <?php if ($it['status'] === 'pending'): ?><form method="post" class="inline" onsubmit="return confirm('Anulować pozycję?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="cancel_item"><input type="hidden" name="participant_id" value="<?= $pid ?>"><input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>"><button class="text-xs text-red-700 hover:underline">anuluj</button></form><?php endif; ?></td></tr>
         <?php endforeach; ?>
         <?php if (!$sel_items): ?><tr><td colspan="6" class="py-4 text-center text-slate-500">Brak pozycji.</td></tr><?php endif; ?>
         </tbody>

@@ -281,6 +281,7 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
                    class="h-5 w-5 rounded border-slate-400 text-navy-700">
             <label :for="'it' + it.id" class="flex-1 min-w-0 cursor-pointer">
               <span class="block font-medium" x-text="it.title"></span>
+              <span class="block font-mono text-[11px] text-slate-500" title="Tytuł przelewu tego zobowiązania" x-text="'Tytuł przelewu: ' + it.pay_title"></span>
               <span class="block text-xs text-slate-500">
                 <span x-text="it.type_label"></span>
                 <template x-if="it.due_date"><span> · termin <span x-text="it.due_label"></span>
@@ -441,7 +442,7 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
 <script>
 function cart() {
   return {
-    items: <?= $J(array_map(fn($i) => ['id' => (int)$i['id'], 'title' => $i['title'], 'amount' => (float)$i['amount'], 'status' => $i['status'],
+    items: <?= $J(array_map(fn($i) => ['id' => (int)$i['id'], 'title' => $i['title'], 'pay_title' => pp_item_transfer_title($i, (string)($cl['name'] ?? '')), 'amount' => (float)$i['amount'], 'status' => $i['status'],
                                      'type_label' => PP_REF_TYPES[$i['reference_type']] ?? $i['reference_type'], 'due_date' => $i['due_date'],
                                      'due_label' => $i['due_date'] ? date('d.m.Y', strtotime((string)$i['due_date'])) : '', 'overdue' => $i['due_date'] && $i['due_date'] < $today], $items)) ?>,
     sel: [], method: <?= $J($p24_on ? 'p24' : ($nrb !== '' ? 'individual_nrb' : '')) ?>,
