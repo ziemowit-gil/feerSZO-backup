@@ -55,6 +55,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (is_string($x)) { $res = $x; break; }
             $ed = db_one("SELECT edok_doc_id FROM overpayment_transactions WHERE id=?", [$x]);
             $res = 0; $ok = 'Zwrot zarejestrowany' . (!empty($ed['edok_doc_id']) ? ' i przekazany do obiegu akceptacji EODoK (dokument #' . (int)$ed['edok_doc_id'] . ').' : '. Dokument w EODoK nie powstał — sprawdź audyt.'); break;
+        case 'settle_issue':
+        case 'settle_issue_all':
+            $mm = preg_match('/^(\d{4})-(\d{2})$/', (string)($_POST['_m'] ?? ''), $mx) ? [(int)$mx[1], max(1, min(12, (int)$mx[2]))] : [(int)date('Y'), (int)date('n')];
+            [$by_y, $by_m] = $mm;
+            $clients = $op === 'settle_issue' ? [(int)($_POST['client_id'] ?? 0)]
+                : array_map(fn($r) => (int)$r['client_id'], db_all(
+                    "SELECT DISTINCT e.client_id FROM k30_ti_attendance a
+                       JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
+                       JOIN k30_ti_enrollments e ON e.course_id=s.course_id AND e.client_id=a.client_id
+                      WHERE a.attended=1 AND strftime('%m',s.lesson_date)=? AND strftime('%Y',s.lesson_date)=?", [sprintf('%02d', $by_m), (string)$by_y]));
+            $cnt = 0; $sms = 0; $eml = 0;
+            foreach (array_filter($clients) as $cl) {
+                $bids = array_filter(k30_ti_issue_billing_split($cl, $by_m, $by_y, ''));
+                ti_billing_recompute($cl);
+                $cnt += count($bids);
+                if (!empty($_POST['notify'])) foreach ($bids as $bid) { $n = k30_ti_billing_notify($bid); $sms += !empty($n['sms']) ? 1 : 0; $eml += !empty($n['email']) ? 1 : 0; }
+            }
+            audit_log('pricing.settle_issue', ['month' => sprintf('%04d-%02d', $by_y, $by_m), 'clients' => count(array_filter($clients)), 'billings' => $cnt, 'notify' => !empty($_POST['notify']), 'by' => $by], $uid);
+            $res = 0; $ok = "Wystawiono rozliczeń: {$cnt} (kursantów: " . count(array_filter($clients)) . ') za ' . sprintf('%02d.%04d', $by_m, $by_y) . (!empty($_POST['notify']) ? ". Powiadomienia: SMS {$sms}, e-mail {$eml}." : '. Bez wysyłki powiadomień.'); break;
+        case 'settle_payment':
+            $cl = (int)($_POST['client_id'] ?? 0);
+            $amt = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+            $pc = (int)($_POST['pay_course_id'] ?? 0);
+            if ($pc > 0 && !db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND course_id=?", [$cl, $pc])) $pc = 0;
+            if (!$cl || $amt <= 0) { $res = 'Podaj kursanta i kwotę wpłaty.'; break; }
+            $pm = in_array($_POST['method'] ?? '', ['transfer', 'cash', 'other'], true) ? $_POST['method'] : 'transfer';
+            $rp = ti_payment_add($cl, $amt, trim((string)($_POST['paid_at'] ?? '')), $pm, trim((string)($_POST['note'] ?? '')), 'manual', 0, $pc);
+            audit_log('pricing.settle_payment', ['client_id' => $cl, 'amount' => $amt, 'course_id' => $pc, 'by' => $by], $uid);
+            $res = 0; $ok = 'Wpłata ' . number_format($amt, 2, ',', ' ') . ' zł zapisana' . ($pc ? ' na grupę' : ' (ogólna)') . '.' . (($rp['credit'] ?? 0) > 0 ? ' Nadpłata: ' . number_format($rp['credit'], 2, ',', ' ') . ' zł.' : ''); break;
         case 'close_group':
         case 'close_candidates':
             $ids = $op === 'close_group' ? [(int)($_POST['course_id'] ?? 0)] : array_map('intval', (array)($_POST['ids'] ?? []));
@@ -108,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $res = $r['ok'] ? 0 : $r['msg']; $ok = $r['msg']; break;
     }
     if (is_string($res)) flash_set('danger', $res); elseif ($ok) flash_set('success', $ok);
-    header('Location: pricing.php?tab=' . urlencode($back) . (!empty($_POST['_course']) ? '&course=' . (int)$_POST['_course'] : '')); exit;
+    header('Location: pricing.php?tab=' . urlencode($back) . (!empty($_POST['_course']) ? '&course=' . (int)$_POST['_course'] : '') . (preg_match('/^\d{4}-\d{2}$/', (string)($_POST['_m'] ?? '')) ? '&m=' . $_POST['_m'] : '')); exit;
 }
 
 // ── Dane widoku ─────────────────────────────────────────────────────────────
@@ -156,10 +185,12 @@ $tab   = in_array($_GET['tab'] ?? '', ['sym', 'types', 'rules', 'groups', 'settl
 
 // Rozliczenia: należności i wpłaty per grupa, dłużnicy, nadpłaty (tylko na tej zakładce)
 $st_groups = []; $st_tot = ['charges' => 0.0, 'paid' => 0.0, 'debt' => 0.0, 'credit' => 0.0]; $st_debtors = []; $st_op = []; $st_opsum = null;
+$st_ym = preg_match('/^\d{4}-\d{2}$/', (string)($_GET['m'] ?? '')) ? $_GET['m'] : date('Y-m');
+[$st_y, $st_m] = array_map('intval', explode('-', $st_ym));
 if ($tab === 'settle') {
     ti_op_migrate();
     foreach ($courses as $c) {
-        $sm = ti_course_billing_summary((int)$c['id']);
+        $sm = ti_course_billing_summary((int)$c['id'], $st_y, $st_m);
         if (!$sm['participants']) continue;
         $st_groups[] = ['c' => $c, 't' => $sm['totals'], 'p' => $sm['participants']];
         foreach (['charges', 'paid', 'debt', 'credit'] as $k) $st_tot[$k] = round($st_tot[$k] + $sm['totals'][$k], 2);
@@ -557,6 +588,19 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
       <?php if (!empty($st_opsum['unreconciled'])): ?><div class="text-xs text-amber-700">niezgodne salda: <?= (int)$st_opsum['unreconciled'] ?></div><?php endif; ?></div>
   </div>
 
+  <section class="card">
+    <div class="flex flex-wrap items-end gap-3">
+      <form method="get" class="flex items-end gap-2"><input type="hidden" name="tab" value="settle">
+        <div><label class="lbl" for="st-m">Miesiąc rozliczenia</label><input id="st-m" type="month" name="m" value="<?= h($st_ym) ?>" class="inp"></div>
+        <button class="btn-sec">Pokaż</button></form>
+      <form method="post" class="ml-auto flex flex-wrap items-center gap-3" onsubmit="return confirm('Wystawić rozliczenia za <?= h($st_ym) ?> wszystkim kursantom z obecnościami? <?= 'Przy zaznaczonym powiadomieniu wyślemy SMS i e-mail.' ?>')">
+        <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="settle_issue_all"><input type="hidden" name="_tab" value="settle"><input type="hidden" name="_m" value="<?= h($st_ym) ?>">
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="notify" value="1"> wyślij powiadomienia (SMS + e-mail)</label>
+        <button class="btn-pri"><i class="bi bi-receipt" aria-hidden="true"></i>Wystaw rozliczenia za miesiąc</button>
+      </form>
+    </div>
+  </section>
+
   <section class="card overflow-x-auto">
     <h3 class="font-semibold mb-2">Grupy</h3>
     <table class="min-w-full text-sm">
@@ -569,6 +613,26 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
           <td class="pr-3 text-right tabular-nums <?= $t['debt'] > 0.005 ? 'font-semibold text-red-700' : 'text-slate-400' ?>"><?= $fmt($t['debt']) ?></td>
           <td class="pr-3 text-right tabular-nums <?= $t['credit'] > 0.005 ? 'font-semibold text-sky-700' : 'text-slate-400' ?>"><?= $fmt($t['credit']) ?></td>
           <td class="text-right"><a class="text-sm font-medium text-navy-700 hover:underline" href="../../../rozliczenia/grupa.php?id=<?= (int)$g['c']['id'] ?>">Szczegóły →</a></td></tr>
+        <tr><td colspan="7" class="pb-3">
+          <details class="rounded-lg border border-slate-200"><summary class="cursor-pointer px-3 py-1.5 text-xs font-medium text-navy-700">Uczestnicy i akcje (<?= count($g['p']) ?>)</summary>
+            <div class="divide-y divide-slate-100 border-t border-slate-200">
+            <?php foreach ($g['p'] as $pr): $gid = (int)$g['c']['id']; $cid = (int)$pr['client_id']; ?>
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 text-sm">
+                <div class="min-w-[10rem] flex-1 font-medium"><?= h($pr['client_name']) ?>
+                  <div class="text-xs font-normal text-slate-500">nal. <?= $fmt($pr['m_charges']) ?> · wpł. <?= $fmt($pr['m_paid']) ?> w <?= h($st_ym) ?></div></div>
+                <div class="tabular-nums text-xs"><?= $pr['debt'] > 0.005 ? '<span class="font-semibold text-red-700">−' . $fmt($pr['debt']) . '</span>' : ($pr['credit'] > 0.005 ? '<span class="font-semibold text-sky-700">+' . $fmt($pr['credit']) . '</span>' : '<span class="text-slate-400">0,00</span>') ?></div>
+                <form method="post" class="flex items-center gap-1" onsubmit="return confirm('Wystawić rozliczenie za <?= h($st_ym) ?> dla: <?= h(addslashes($pr['client_name'])) ?>?')">
+                  <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="settle_issue"><input type="hidden" name="_tab" value="settle"><input type="hidden" name="_m" value="<?= h($st_ym) ?>"><input type="hidden" name="client_id" value="<?= $cid ?>">
+                  <label class="flex items-center gap-1 text-xs"><input type="checkbox" name="notify" value="1">powiadom</label>
+                  <button class="btn-sec !py-1 text-xs">Wystaw</button></form>
+                <form method="post" class="flex items-center gap-1">
+                  <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="settle_payment"><input type="hidden" name="_tab" value="settle"><input type="hidden" name="_m" value="<?= h($st_ym) ?>"><input type="hidden" name="client_id" value="<?= $cid ?>"><input type="hidden" name="pay_course_id" value="<?= $gid ?>">
+                  <input name="amount" class="inp !w-24 !py-1" inputmode="decimal" placeholder="wpłata zł" aria-label="Kwota wpłaty — <?= h($pr['client_name']) ?>" required>
+                  <input name="paid_at" type="date" class="inp !w-36 !py-1" value="<?= date('Y-m-d') ?>" aria-label="Data wpłaty">
+                  <button class="btn-pri !py-1 text-xs">Zaksięguj</button></form>
+              </div>
+            <?php endforeach; ?></div></details>
+        </td></tr>
       <?php endforeach; ?>
       <?php if (!$st_groups): ?><tr><td colspan="7" class="py-6 text-center text-slate-500">Brak rozliczeń w grupach.</td></tr><?php endif; ?>
       </tbody>
