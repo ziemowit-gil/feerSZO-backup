@@ -355,6 +355,8 @@ function _menu_editor(): array {
     $fin[] = _mi('Zwroty kosztów','/contracts/zwroty/index.php','bi-receipt-cutoff',['match'=>'/contracts/zwroty/','badge'=>$cnt['zwr'],'kw'=>'zwrot koszty refundacja']);
     if ($cnt['has_edok']) {
         $fin[] = _mi('EODoK — Dok. Księgowe','/edok/index.php','bi-journal-check',['match'=>'/edok/index','kw'=>'edok eodok akceptacja dekretacja kontrola merytoryczna formalna rachunkowa dokumenty księgowe']);
+        if (is_admin() || edok_has_role('upload'))
+            $fin[] = _mi('EODoK — Kolejka do opisu','/edok/queue.php','bi-inboxes',['match'=>'/edok/queue','kw'=>'kolejka do opisu zbiorczy upload wgraj pliki edok eodok']);
         if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')))
             $fin[] = _mi('Preliminarz Płatności','/edok/preliminarz.php','bi-calendar-check',['match'=>'/edok/preliminarz','kw'=>'preliminarz płatności przelew']);
     }
