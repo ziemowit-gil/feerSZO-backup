@@ -17,6 +17,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_overpayments/logi
 $me = dyd_require();
 if (!dyd_is_staff()) { http_response_code(403); die('Brak uprawnień.'); }
 ti_pricing_migrate();
+ti_course_close_migrate();   // kolumna closed_at (zamykanie grup)
 $by  = (string)($me['name'] ?? '');
 $uid = (int)($me['user_id'] ?? 0) ?: null;
 
@@ -54,6 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (is_string($x)) { $res = $x; break; }
             $ed = db_one("SELECT edok_doc_id FROM overpayment_transactions WHERE id=?", [$x]);
             $res = 0; $ok = 'Zwrot zarejestrowany' . (!empty($ed['edok_doc_id']) ? ' i przekazany do obiegu akceptacji EODoK (dokument #' . (int)$ed['edok_doc_id'] . ').' : '. Dokument w EODoK nie powstał — sprawdź audyt.'); break;
+        case 'close_group':
+        case 'close_candidates':
+            $ids = $op === 'close_group' ? [(int)($_POST['course_id'] ?? 0)] : array_map('intval', (array)($_POST['ids'] ?? []));
+            $closed = 0; $skip = [];
+            foreach (array_filter($ids) as $cid) {
+                $g = db_one("SELECT c.id, c.name, c.closed_at,
+                                    (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.course_id=c.id AND s.lesson_date>=date('now') AND s.status!='cancelled') AS fut
+                               FROM k30_ti_courses c WHERE c.id=?", [$cid]);
+                if (!$g) continue;
+                if (!empty($g['closed_at'])) { $skip[] = $g['name'] . ' (już zamknięta)'; continue; }
+                if ((int)$g['fut'] > 0) { $skip[] = $g['name'] . ' (ma ' . (int)$g['fut'] . ' przyszłych lekcji)'; continue; }
+                ti_course_close($cid, (int)($me['user_id'] ?? 0), $by);
+                audit_log('pricing.group_closed', ['course_id' => $cid, 'name' => $g['name'], 'by' => $by], $uid);
+                $closed++;
+            }
+            $res = 0; $ok = "Zamknięto grup: {$closed}" . ($skip ? '. Pominięto: ' . implode('; ', $skip) : '') . '. Zamknięta grupa jest zablokowana — odblokowuje ją „Przywróć z archiwum” w panelu grup.'; break;
         case 'sync_types':
             $x = ti_pricing_sync_from_subject_types($by, $uid);
             $ok = "Pobrano z rodzajów zajęć TI: nowe typy {$x['created']}, odświeżone {$x['updated']}, ceny ustawione {$x['priced']}, grupy przypięte {$x['linked']}."; break;
@@ -100,14 +117,17 @@ $flash   = flash_get();
 try { if (!(int)(db_one("SELECT COUNT(*) c FROM lesson_types")['c'] ?? 0)) ti_pricing_sync_from_subject_types($by, $uid); } catch (\Throwable $e) {}
 $types   = db_all("SELECT * FROM lesson_types ORDER BY is_active DESC, name COLLATE NOCASE");
 $rules   = db_all("SELECT r.*, t.name AS type_name FROM discount_rules r LEFT JOIN lesson_types t ON t.id=r.target_lesson_type_id ORDER BY r.is_active DESC, r.priority, r.id");
-$courses = db_all("SELECT c.id, c.name, c.group_code, c.is_online, pct.lesson_type_id, pct.online_lesson_type_id,
+$courses = db_all("SELECT c.id, c.name, c.group_code, c.is_online, c.closed_at, pct.lesson_type_id, pct.online_lesson_type_id,
                           (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS n,
                           (SELECT MIN(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_min,
                           (SELECT MAX(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_max,
                           (SELECT MIN(e.hourly_rate_online) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS ro_min,
-                          (SELECT MAX(e.hourly_rate_online) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS ro_max
+                          (SELECT MAX(e.hourly_rate_online) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS ro_max,
+                          (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.course_id=c.id AND s.lesson_date>=date('now') AND s.status!='cancelled') AS fut,
+                          (SELECT MAX(s.lesson_date) FROM k30_ti_sessions s WHERE s.course_id=c.id) AS last_lesson
                      FROM k30_ti_courses c LEFT JOIN ti_pricing_course_types pct ON pct.course_id=c.id
                     WHERE c.status NOT IN ('archived','cancelled') ORDER BY c.name COLLATE NOCASE");
+$wyg = array_values(array_filter($courses, fn($c) => empty($c['closed_at'] ?? null) && (int)$c['fut'] === 0 && ($c['last_lesson'] === null || $c['last_lesson'] < date('Y-m-d', strtotime('-14 days')))));
 $parts   = db_all("SELECT cl.id, cl.name, COALESCE(ps.statuses,'') AS statuses FROM k30_clients cl
                      JOIN k30_ti_student_accounts a ON a.client_id=cl.id LEFT JOIN ti_pricing_participant_status ps ON ps.participant_id=cl.id
                     WHERE a.is_active=1 ORDER BY cl.name COLLATE NOCASE");
@@ -412,7 +432,16 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
   <div class="flex items-end justify-between gap-3">
     <div><h2 class="text-lg font-semibold text-slate-800">Grupy i stawki</h2>
       <p class="text-sm text-slate-500">Typ zajęć grupy, aktualne stawki w zapisach i szybka zmiana ceny całej grupy.</p></div>
-    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"><?= count($courses) ?> <?= count($courses) === 1 ? 'grupa' : 'grup' ?></span>
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"><?= count($courses) ?> <?= count($courses) === 1 ? 'grupa' : 'grup' ?></span>
+      <?php if ($wyg): ?>
+      <form method="post" onsubmit="return confirm('Zamknąć <?= count($wyg) ?> grup do wygaszenia (bez przyszłych lekcji, ostatnia lekcja > 14 dni temu)? Grupy zostaną zarchiwizowane i zablokowane.')">
+        <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="close_candidates"><input type="hidden" name="_tab" value="groups">
+        <?php foreach ($wyg as $w): ?><input type="hidden" name="ids[]" value="<?= (int)$w['id'] ?>"><?php endforeach; ?>
+        <button class="btn-sec"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij grupy do wygaszenia (<?= count($wyg) ?>)</button>
+      </form>
+      <?php endif; ?>
+    </div>
   </div>
   <div class="grid gap-4 lg:grid-cols-2">
   <?php foreach ($courses as $c): $sel = $sel_course === (int)$c['id']; $varied = (int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005; ?>
@@ -460,7 +489,16 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
         </details>
         <?php endif; ?>
       </div>
-      <footer class="border-t border-slate-100 px-4 py-2 text-right">
+      <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-2">
+        <div class="flex items-center gap-2 text-xs">
+          <?php if ((int)$c['fut'] === 0 && ($c['last_lesson'] === null || $c['last_lesson'] < date('Y-m-d', strtotime('-14 days')))): ?>
+            <span class="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800" title="Brak przyszłych lekcji, ostatnia: <?= h((string)($c['last_lesson'] ?? '—')) ?>">do wygaszenia</span>
+            <form method="post" onsubmit="return confirm('Zamknąć grupę „<?= h(addslashes($c['name'])) ?>”? Zostanie zarchiwizowana i zablokowana (protokoły, lekcje, uczestnicy). Odblokowuje tylko „Przywróć z archiwum”.')">
+              <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="close_group"><input type="hidden" name="_tab" value="groups"><input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>">
+              <button class="rounded px-2 py-0.5 ring-1 ring-slate-300 hover:bg-slate-50"><i class="bi bi-lock mr-1" aria-hidden="true"></i>Zamknij grupę</button>
+            </form>
+          <?php else: ?><span class="text-slate-500"><?= (int)$c['fut'] ?> przyszłych lekcji</span><?php endif; ?>
+        </div>
         <a class="text-sm font-medium text-navy-700 hover:underline" href="pricing.php?tab=groups&amp;course=<?= (int)$c['id'] ?>#zapisy">Zapisy i stawki uczestników <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </footer>
     </article>
