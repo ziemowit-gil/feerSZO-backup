@@ -106,7 +106,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
         }
     }
     $brutto_num = (float) str_replace([' ', ','], ['', '.'], $kwota_brutto);
-    if ($brutto_num <= 0)                                  $errors[] = 'Podaj kwotę brutto większą od zera.';
+    if ($typ_dokumentu === 'faktura_korygujaca' ? abs($brutto_num) < 0.005 : $brutto_num <= 0) {
+        $errors[] = $typ_dokumentu === 'faktura_korygujaca' ? 'Podaj niezerową kwotę korekty brutto (ujemną, jeśli korekta obniża należność).' : 'Podaj kwotę brutto większą od zera.';
+    }
 
     // Dokument źródłowy: albo ręczny upload, albo XML pobrany z KSeF (edok/ksef_fetch.php)
     // i wskazany w ukrytym polu ksef_file_path — walidujemy, że wskazuje na plik faktycznie
@@ -579,7 +581,7 @@ function edokRecalc() {
   }
   var vat = parseFloat((vatField.value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
   var brutto = document.getElementById('kwota_brutto');
-  if (netto + vat > 0) brutto.value = (netto + vat).toFixed(2).replace('.', ',');
+  if (netto + vat !== 0) brutto.value = (netto + vat).toFixed(2).replace('.', ',');
   edokMppCheck();
 }
 function edokMppCheck() {

@@ -49,6 +49,15 @@ function edok_parse_invoice_xml(string $xml): array {
     $wiersze = $sx->xpath($fa . '/*[local-name()="FaWiersz"]/*[local-name()="P_7"]') ?: [];
     $opis = $wiersze ? trim((string)$wiersze[0]) : '';
     if (count($wiersze) > 1) $opis .= ' (+' . (count($wiersze) - 1) . ' poz.)';
+    // Faktura korygująca (KOR, KOR_ZAL, KOR_ROZ): kwoty w XML to różnica względem korygowanej (może być ujemna).
+    $kor = str_starts_with($typ, 'KOR');
+    if ($kor) {
+        $nr_kor = $one($fa . '/*[local-name()="DaneFaKorygowanej"]/*[local-name()="NrFaKorygowanej"]');
+        $data_kor = $one($fa . '/*[local-name()="DaneFaKorygowanej"]/*[local-name()="DataWystFaKorygowanej"]');
+        $przyczyna = $one($fa . '/*[local-name()="PrzyczynaKorekty"]');
+        $opis = trim('Korekta faktury' . ($nr_kor !== '' ? " nr {$nr_kor}" : '') . ($data_kor !== '' ? " z dnia {$data_kor}" : '')
+            . ($przyczyna !== '' ? " — {$przyczyna}" : '') . ($opis !== '' ? ". {$opis}" : ''));
+    }
 
     // Płatność (FA(3): Platnosc) — Zaplacono=1 → faktura zapłacona przed wystawieniem; FormaPlatnosci: 1 gotówka, 2 karta,
     // 3 bon, 4 czek, 5 kredyt, 6 przelew, 7 płatność mobilna.

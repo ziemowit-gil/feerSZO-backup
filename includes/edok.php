@@ -748,7 +748,10 @@ function edok_step_validation_errors(array $doc, string $step_key): array {
         if (trim((string)($doc['description'] ?? '')) === '') $errors[] = 'Kontrola merytoryczna: uzupełnij opis wydatku (cel, powiązanie z zamówieniem/umową).';
         if (trim((string)($doc['file_path']   ?? '')) === '') $errors[] = 'Kontrola merytoryczna: dołącz skan dokumentu źródłowego.';
         $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)($doc['kwota_brutto'] ?? '')));
-        if ($brutto <= 0) $errors[] = 'Kontrola merytoryczna: podaj kwotę brutto większą od zera.';
+        // Faktura korygująca może mieć kwotę ujemną (obniżenie) — wymagamy tylko, by była niezerowa.
+        if (($doc['typ_dokumentu'] ?? '') === 'faktura_korygujaca' ? abs($brutto) < 0.005 : $brutto <= 0) {
+            $errors[] = 'Kontrola merytoryczna: podaj ' . (($doc['typ_dokumentu'] ?? '') === 'faktura_korygujaca' ? 'niezerową kwotę korekty brutto (ujemną przy obniżeniu).' : 'kwotę brutto większą od zera.');
+        }
     }
 
     if ($step_key === 'formal') {
@@ -767,7 +770,7 @@ function edok_step_validation_errors(array $doc, string $step_key): array {
         $netto  = (float) str_replace(',', '.', str_replace(' ', '', (string)($doc['kwota_netto']  ?? '')));
         $vat    = (float) str_replace(',', '.', str_replace(' ', '', (string)($doc['kwota_vat']    ?? '')));
         $brutto = (float) str_replace(',', '.', str_replace(' ', '', (string)($doc['kwota_brutto'] ?? '')));
-        if ($brutto > 0 && abs(($netto + $vat) - $brutto) > 0.01) {
+        if (abs($brutto) >= 0.005 && abs(($netto + $vat) - $brutto) > 0.01) {
             $errors[] = 'Kontrola rachunkowa: suma netto + VAT (' . number_format($netto + $vat, 2, ',', ' ')
                       . ' PLN) nie zgadza się z kwotą brutto (' . number_format($brutto, 2, ',', ' ') . ' PLN). Popraw dane finansowe dokumentu.';
         }
@@ -1716,6 +1719,12 @@ function edok_dowod_zaplaty_upload(array $zaplata, string $obecna = ''): array {
     return [$obecna, []];
 }
 
+/** Faktura korygująca o kwocie ujemnej lub zerowej — brak dopłaty, więc nie generuje przelewu. */
+function edok_korekta_bez_doplaty(array $d): bool {
+    if (($d['typ_dokumentu'] ?? '') !== 'faktura_korygujaca') return false;
+    return (float) str_replace(',', '.', str_replace(' ', '', (string)($d['kwota_brutto'] ?? ''))) <= 0;
+}
+
 /** Czy dokument był zapłacony z prywatnych środków i czeka na zwrot kosztów. */
 function edok_zaplata_do_zwrotu(array $doc): bool {
     return !empty($doc['zaplacono_przed']) && ($doc['zaplacil'] ?? 'organizacja') === 'osoba';
@@ -1784,6 +1793,7 @@ function edok_przelew_doc(array $doc): array {
 
 /** Czy dokument można wyeksportować do pliku przelewów (zaakceptowany, nieopłacony wydatek — do kontrahenta albo zwrot kosztów). */
 function edok_przelew_exportable(array $d): bool {
+    if (edok_korekta_bez_doplaty($d)) return false;
     if (($d['status'] ?? '') !== 'zaakceptowany' || ($d['kierunek'] ?? 'wydatek') !== 'wydatek') return false;
     if (($d['status_platnosci'] ?? 'nowy') === 'oplacony') return false;
     if (!empty($d['zaplacono_przed']) && !edok_zaplata_do_zwrotu($d)) return false;
@@ -2520,6 +2530,8 @@ function edok_preliminarz_query(array $f = []): array {
         // Zapłacone przed akceptacją przez organizację nie są „do zapłaty” — pomijamy,
         // chyba że filtr pyta wprost o opłacone. Zwrot kosztów: odbiorcą jest osoba.
         if (!empty($r['zaplacono_przed']) && !edok_zaplata_do_zwrotu($r) && empty($f['status_platnosci'])) continue;
+        // Korekta obniżająca (kwota ujemna) nie jest do zapłaty — rozliczana notą/zwrotem od kontrahenta.
+        if (edok_korekta_bez_doplaty($r) && empty($f['status_platnosci'])) continue;
         $zwrot = edok_zaplata_do_zwrotu($r);
         $r = edok_przelew_doc($r);
         $out[] = [

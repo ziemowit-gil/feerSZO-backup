@@ -1235,7 +1235,7 @@ function edokViewRecalc() {
   if (!n || !v || !b) return;
   var netto = parseFloat((n.value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
   var vat   = parseFloat((v.value || '0').replace(',', '.').replace(/\s/g, '')) || 0;
-  if (netto + vat > 0) b.value = (netto + vat).toFixed(2).replace('.', ',');
+  if (netto + vat !== 0) b.value = (netto + vat).toFixed(2).replace('.', ',');
 }
 
 // Ten sam wzorzec co edok_generate_tytul_przelewu() w PHP (Uchwała 5/2026 §2 pkt 8-9) —
