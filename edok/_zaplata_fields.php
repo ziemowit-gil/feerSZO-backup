@@ -21,6 +21,7 @@ $zp_dis    = $zp_locked ? 'disabled' : '';
 $zp_on     = !empty($zp_vals['zaplacono_przed']) && ($zp_vals['forma_zaplaty'] ?? '') !== EDOK_FORMA_PROFORMA;
 $zp_osoba  = ($zp_vals['zaplacil'] ?? '') === 'osoba';
 $zp_pf_id  = (int)($zp_vals['proforma_id'] ?? 0);
+$zp_na_pf  = $zp_pf_id > 0 || ($zp_vals['forma_zaplaty'] ?? '') === EDOK_FORMA_PROFORMA || !empty($zp_vals['na_proformie']);
 $zp_pfs    = edok_proformy_do_rozliczenia($zp_pf_id ?: null, $zp_doc_id);
 ?>
 <div id="zp_wrap" class="mb-3">
@@ -34,9 +35,14 @@ $zp_pfs    = edok_proformy_do_rozliczenia($zp_pf_id ?: null, $zp_doc_id);
   </div>
 
   <div id="zp_proforma_wrap" class="border rounded p-2 mb-2" style="display:none">
-    <label class="form-label small fw-semibold mb-1" for="zp_proforma_id">Rozlicza proformę (zapłaconą wcześniej)</label>
+    <div class="form-check">
+      <input type="checkbox" class="form-check-input" name="na_proformie" id="zp_na_pf" value="1" <?= $zp_na_pf ? 'checked' : '' ?> <?= $zp_dis ?> onchange="edokZpSync(true)">
+      <label class="form-check-label fw-semibold" for="zp_na_pf">Już opłacona na podstawie proformy</label>
+    </div>
+    <div id="zp_pf_select_wrap" class="mt-2" style="<?= $zp_na_pf ? '' : 'display:none' ?>">
+    <label class="form-label small mb-1" for="zp_proforma_id">Proforma (zapłacona wcześniej)</label>
     <select name="proforma_id" id="zp_proforma_id" class="form-select form-select-sm" <?= $zp_dis ?> onchange="edokZpSync(true)">
-      <option value="">— nie dotyczy —</option>
+      <option value="">— proforma spoza EODoK / nie wskazuję —</option>
       <?php foreach ($zp_pfs as $p): ?>
       <option value="<?= (int)$p['id'] ?>" <?= $zp_pf_id === (int)$p['id'] ? 'selected' : '' ?>
         data-nazwa="<?= h($p['kontrahent_nazwa']) ?>" data-nip="<?= h($p['kontrahent_nip']) ?>">
@@ -45,7 +51,8 @@ $zp_pfs    = edok_proformy_do_rozliczenia($zp_pf_id ?: null, $zp_doc_id);
       </option>
       <?php endforeach; ?>
     </select>
-    <div class="form-text">Faktura końcowa do proformy zostanie oznaczona jako zapłacona na podstawie proformy — nie trafi do eksportu przelewów.</div>
+    <div class="form-text">Faktura końcowa do proformy zostanie oznaczona jako zapłacona na podstawie proformy — nie trafi do paczki przelewów.</div>
+    </div>
   </div>
 
   <div id="zp_zaplata_wrap" class="border rounded p-2 bg-light">
@@ -119,7 +126,11 @@ function edokZpSync(fromProforma) {
   document.getElementById('zp_proforma_info').style.display = typ === 'proforma' ? '' : 'none';
   document.getElementById('zp_proforma_wrap').style.display = mozeRozliczac ? '' : 'none';
   if (!mozeRozliczac) pfSel.value = '';
-  var zProformy = !!pfSel.value;
+  var naPf = mozeRozliczac && document.getElementById('zp_na_pf').checked;
+  if (!mozeRozliczac) document.getElementById('zp_na_pf').checked = false;
+  document.getElementById('zp_pf_select_wrap').style.display = naPf ? '' : 'none';
+  if (!naPf) pfSel.value = '';
+  var zProformy = naPf;
   document.getElementById('zp_zaplata_wrap').style.display = zProformy ? 'none' : '';
   var on = document.getElementById('zp_zaplacono').checked;
   var osoba = document.getElementById('zp_osoba').checked;
@@ -129,7 +140,7 @@ function edokZpSync(fromProforma) {
   document.getElementById('zp_hint_osoba').style.display = osoba ? '' : 'none';
   document.getElementById('zp_dowod_req').textContent = osoba ? '(wymagany przy zwrocie kosztów)' : '(opcjonalnie)';
   // Wybór proformy podpowiada kontrahenta, jeśli pola są jeszcze puste.
-  if (fromProforma && zProformy) {
+  if (fromProforma && zProformy && pfSel.value) {
     var o = pfSel.selectedOptions[0];
     [['kontrahent_nazwa', o.dataset.nazwa], ['kontrahent_nip', o.dataset.nip]].forEach(function (p) {
       var f = document.querySelector('[name="' + p[0] + '"]');

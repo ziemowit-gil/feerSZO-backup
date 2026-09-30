@@ -1735,8 +1735,10 @@ function edok_zaplata_opis(array $doc): string {
  */
 function edok_zaplata_from_post(array $post, ?int $proforma_id = null): array {
     $f = ['zaplacono_przed' => 0, 'data_zaplaty' => null, 'forma_zaplaty' => '', 'zaplacil' => 'organizacja', 'zwrot_osoba' => '', 'zwrot_rachunek' => ''];
-    if ($proforma_id) {
-        $pf = db_one("SELECT data_zaplaty FROM edok_documents WHERE id=?", [$proforma_id]);
+    // Bez wskazanej proformy (np. proforma opłacona poza EODoK) opcja też oznacza „zapłacona
+    // na podstawie proformy” — w obu wariantach dokument NIE trafia do paczki przelewów.
+    if ($proforma_id || !empty($post['na_proformie'])) {
+        $pf = $proforma_id ? db_one("SELECT data_zaplaty FROM edok_documents WHERE id=?", [$proforma_id]) : null;
         return [array_merge($f, ['zaplacono_przed' => 1, 'forma_zaplaty' => EDOK_FORMA_PROFORMA, 'data_zaplaty' => $pf['data_zaplaty'] ?? null]), []];
     }
     if (empty($post['zaplacono_przed'])) return [$f, []];
@@ -2173,6 +2175,7 @@ function edok_proforma_faktura(int $proforma_id): ?array {
 
 /** Walidacja wskazanej proformy dla faktury końcowej — zwraca [id|null, błędy]. */
 function edok_proforma_from_post(array $post, string $typ_dokumentu, ?int $doc_id = null): array {
+    if (empty($post['na_proformie'])) return [null, []]; // opcja „Już opłacona na podstawie proformy” niezaznaczona
     $id = (int)($post['proforma_id'] ?? 0);
     if (!$id) return [null, []];
     if (!in_array($typ_dokumentu, ['faktura_vat', 'rachunek'], true)) return [null, ['Proformę może rozliczać tylko faktura VAT lub rachunek.']];
