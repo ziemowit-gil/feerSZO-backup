@@ -58,7 +58,8 @@ include __DIR__ . '/_head.php';
   <div><div class="small text-body-secondary">Numer rachunku do wpłat <span class="badge text-bg-light border"><?= h($rz_acct_kind) ?></span></div>
     <div class="font-monospace fs-5 fw-semibold" id="rz-acct"><?= h($rz_acct_fmt) ?></div>
     <?php if ($rz_title !== ''): ?><div class="small text-body-secondary">Tytuł przelewu: <span class="font-monospace"><?= h($rz_title) ?></span></div><?php endif; ?></div>
-  <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" onclick="navigator.clipboard.writeText('<?= h($rz_acct) ?>').then(function(){this.textContent='Skopiowano'}.bind(this))"><i class="bi bi-clipboard" aria-hidden="true"></i> Kopiuj numer</button>
+  <?php if ($rz_acct_kind === 'rachunek indywidualny (wirtualny)'): ?><a class="btn btn-sm btn-outline-primary ms-auto" href="<?= APP_URL ?>/platnosci/admin.php?pdf=notice&amp;scope=client&amp;client=<?= $client_id ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF z informacją</a><?php endif; ?>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('<?= h($rz_acct) ?>').then(function(){this.textContent='Skopiowano'}.bind(this))"><i class="bi bi-clipboard" aria-hidden="true"></i> Kopiuj numer</button>
 </div></div>
 <?php endif; ?>
 <?= rz_month_bar('uczestnik.php', $rz_year, $rz_month, $rz_month_label, 'client_id=' . $client_id) ?>

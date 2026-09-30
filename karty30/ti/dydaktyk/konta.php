@@ -1248,7 +1248,7 @@ function printBulk(){
                   <?php if ($stored === ''): ?><button type="submit" name="_op" value="assign_vnrb_pool" class="btn btn-sm btn-outline-primary" title="Nadaj kolejny wolny numer z puli TI">Z puli</button><?php endif; ?>
                 </div>
                 <?php if ($stored === ''): ?><div class="small text-muted">Bez numeru kursant płaci na rachunek grupy/organizacji.</div>
-                <?php else: ?><div class="small text-muted"><i class="bi bi-lock" aria-hidden="true"></i> Nadany w Płatnościach — zmiana tylko w <a href="../../../platnosci/admin.php?q=<?= urlencode((string)$sa['client_name']) ?>">panelu płatności</a>.</div><?php endif; ?>
+                <?php else: ?><div class="small text-muted"><a class="me-2" href="rachunki_wirtualne.php?scope=notice&amp;kind=client&amp;client=<?= (int)$sa['client_id'] ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF z informacją</a><i class="bi bi-lock" aria-hidden="true"></i> Nadany w Płatnościach — zmiana tylko w <a href="../../../platnosci/admin.php?q=<?= urlencode((string)$sa['client_name']) ?>">panelu płatności</a>.</div><?php endif; ?>
               </form>
             </div>
             <div class="col-auto">

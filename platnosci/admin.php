@@ -66,6 +66,7 @@ if (($_GET['export'] ?? '') === 'gen') {
     echo implode("\r\n", $l), "\r\n"; exit;
 }
 
+if (($_GET['pdf'] ?? '') === 'notice') pp_vnrb_notice_send(in_array($_GET['scope'] ?? '', ['client', 'last', 'unnotified', 'all'], true) ? $_GET['scope'] : 'client', (int)($_GET['client'] ?? 0), $by);
 if (($_GET['report'] ?? '') === 'status') pp_vnrb_status_print((string)($_GET['cat'] ?? ''), $by);
 if (($_GET['report'] ?? '') === 'print') pp_vnrb_report_print(($_GET['scope'] ?? 'all') === 'last' ? 'last' : 'all', $by);
 
@@ -534,6 +535,13 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <span class="text-xs text-slate-500">Z ostatniego importu wolnych: <?= $lfree ?> z <?= count($lrows) ?></span>
       <a class="bs" href="admin.php?report=print&scope=last" target="_blank" rel="noopener">Drukuj raport (ostatni import)</a>
       <a class="bs" href="admin.php?report=print&scope=all" target="_blank" rel="noopener">Drukuj raport (wszyscy kursanci)</a></form>
+    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-3">
+      <span class="text-sm font-semibold"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF „nadano numer rachunku”</span>
+      <a class="bs" href="admin.php?pdf=notice&scope=last" target="_blank" rel="noopener">Ostatni import</a>
+      <a class="bs" href="admin.php?pdf=notice&scope=unnotified" target="_blank" rel="noopener">Bez powiadomienia</a>
+      <a class="bs" href="admin.php?pdf=notice&scope=all" target="_blank" rel="noopener">Wszyscy z numerem</a>
+      <span class="text-xs text-slate-500">Jedna strona na kursanta: numer, informacja, że wpłaca tu wszystkie należności z tytułu szkoleń.</span>
+    </div>
     <?php $unn = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL")['c'] ?? 0); ?>
     <div class="grid gap-3 md:grid-cols-3">
       <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2" onsubmit="return confirm('Wysłać SMS i e-mail z numerem rachunku kursantom, którzy jeszcze go nie dostali?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_notify">

@@ -37,6 +37,8 @@ $_lnk = function (string $href, string $label, string $icon, string $kind = 'out
     <a class="btn btn-sm btn-outline-secondary" href="rachunki_wirtualne.php?scope=all" target="_blank" rel="noopener"><i class="bi bi-printer me-1" aria-hidden="true"></i>Raport: wszyscy kursanci</a>
     <a class="btn btn-sm btn-outline-secondary" href="rachunki_wirtualne.php?scope=status" target="_blank" rel="noopener"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Raport: stan rachunków i powiadomień</a>
     <a class="btn btn-sm btn-outline-danger" href="rachunki_wirtualne.php?scope=status&amp;cat=brak" target="_blank" rel="noopener">Tylko bez numeru</a>
+    <a class="btn btn-sm btn-outline-primary" href="rachunki_wirtualne.php?scope=notice&amp;kind=unnotified" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF „nadano numer” — bez powiadomienia</a>
+    <a class="btn btn-sm btn-outline-primary" href="rachunki_wirtualne.php?scope=notice&amp;kind=all" target="_blank" rel="noopener">PDF — wszyscy z numerem</a>
     <span class="small text-body-secondary">Kursant, ID, numer rachunku do wpłat, seria i data przypisania; stan: bez numeru / bez powiadomienia / wirtualny.</span>
   </div>
 </section>

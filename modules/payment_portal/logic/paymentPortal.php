@@ -1036,3 +1036,70 @@ function pp_bank_autopost(string $by = 'automat', ?int $uid = null, bool $dry = 
     }
     return $r;
 }
+
+/** Jedna strona informacji dla kursanta: nadano numer rachunku, wpłacasz tam wszystkie należności z tytułu szkoleń (HTML do mPDF). */
+function pp_vnrb_notice_html(int $client_id): ?string {
+    $cl = db_one("SELECT id, name FROM k30_clients WHERE id=?", [$client_id]);
+    $u  = pp_user($client_id);
+    $nrb = preg_replace('/\D/', '', (string)($u['individual_nrb'] ?? ''));
+    if (!$cl || strlen($nrb) !== 26) return null;
+    $org = defined('ORG_NAME') ? ORG_NAME : '';
+    $fmt = pp_nrb_format($nrb);
+    $title = function_exists('k30_ti_payment_title') ? (string)k30_ti_payment_title($client_id) : ('TI/' . $client_id . ' ' . $cl['name']);
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    return '<div style="font-family:dejavusans;font-size:11pt;color:#111">'
+        . '<table width="100%"><tr><td style="font-size:10pt;color:#444">' . $e($org) . '</td><td align="right" style="font-size:10pt;color:#444">' . date('d.m.Y') . '</td></tr></table>'
+        . '<h1 style="font-size:17pt;margin:26px 0 4px">Informacja o numerze rachunku do wpłat</h1>'
+        . '<p style="margin:0 0 18px;color:#444">Szkolenia i zajęcia — rozliczenia</p>'
+        . '<p>Uczestnik: <strong>' . $e($cl['name']) . '</strong></p>'
+        . '<p>Informujemy, że <strong>nadano Ci indywidualny numer rachunku bankowego</strong> do wpłat:</p>'
+        . '<div style="border:2px solid #10335c;border-radius:6px;padding:14px 10px;margin:14px 0;text-align:center;font-size:18pt;letter-spacing:1px;font-family:dejavusansmono"><strong>' . $e($fmt) . '</strong></div>'
+        . '<p style="font-size:12.5pt"><strong>Na ten rachunek wpłacasz wszystkie należności z tytułu szkoleń</strong> — opłaty za zajęcia, szkolenia i związane z nimi rozliczenia. Nie musisz sprawdzać osobnych numerów dla poszczególnych grup.</p>'
+        . '<ul style="margin:8px 0 14px;line-height:1.6"><li>Numer jest przypisany wyłącznie do Ciebie — wpłata zostanie przypisana automatycznie.</li>'
+        . '<li>Odbiorca przelewu: <strong>' . $e($org) . '</strong>.</li>'
+        . '<li>Tytuł przelewu (zalecany): <strong>' . $e($title) . '</strong>.</li>'
+        . '<li>Zachowaj ten dokument — numer będzie obowiązywał w kolejnych okresach rozliczeniowych.</li></ul>'
+        . '<p style="margin-top:26px;font-size:9.5pt;color:#555">W razie pytań skontaktuj się z prowadzącym lub biurem. Dokument ma charakter informacyjny; wygenerowano ' . date('d.m.Y H:i') . '.</p>'
+        . '</div>';
+}
+
+/** PDF z informacjami (jedna strona na kursanta z nadanym numerem). Zwraca bajty PDF albo null, gdy nikt nie ma numeru. */
+function pp_vnrb_notice_pdf(array $client_ids): ?string {
+    $pages = [];
+    foreach (array_unique(array_map('intval', $client_ids)) as $cid) { $h = pp_vnrb_notice_html($cid); if ($h !== null) $pages[] = $h; }
+    if (!$pages) return null;
+    require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $tmp = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp'; if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+    $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 22, 'margin_right' => 22, 'margin_top' => 18, 'margin_bottom' => 18, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+    $mpdf->SetTitle('Informacja o numerze rachunku do wpłat');
+    foreach ($pages as $i => $h) { if ($i) $mpdf->AddPage(); $mpdf->WriteHTML($h); }
+    return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+}
+
+/**
+ * Zestaw kursantów do PDF: 'client' = jeden, 'last' = z ostatniego importu, 'unnotified' = nadany bez powiadomienia,
+ * 'all' = wszyscy z numerem (kursanci TI).
+ * @return list<int>
+ */
+function pp_vnrb_notice_clients(string $scope, int $client_id = 0): array {
+    pp_migrate();
+    if ($scope === 'client') return $client_id ? [$client_id] : [];
+    $sql = "SELECT DISTINCT p.participant_id id FROM pp_vnrb_pool p JOIN k30_clients c ON c.id=p.participant_id WHERE p.grp='ti' AND p.participant_id IS NOT NULL";
+    $par = [];
+    if ($scope === 'last') { $sql .= " AND p.batch=?"; $par[] = (string)org_setting('pp_pool_last_batch'); }
+    elseif ($scope === 'unnotified') $sql .= " AND p.notified_at IS NULL";
+    elseif ($scope === 'all') $sql = "SELECT DISTINCT u.participant_id id FROM payment_portal_users u WHERE u.individual_nrb IS NOT NULL AND u.individual_nrb!='' AND EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=u.participant_id)";
+    return array_map(fn($r) => (int)$r['id'], db_all($sql . ' ORDER BY 1', $par));
+}
+
+/** Wysyła PDF z informacjami do przeglądarki (inline) i kończy skrypt. */
+function pp_vnrb_notice_send(string $scope, int $client_id, string $by): never {
+    $ids = pp_vnrb_notice_clients($scope, $client_id);
+    $pdf = pp_vnrb_notice_pdf($ids);
+    if ($pdf === null) { http_response_code(404); header('Content-Type: text/plain; charset=utf-8'); echo 'Brak kursantów z nadanym numerem rachunku.'; exit; }
+    audit_log('payments.vnrb_notice_pdf', ['scope' => $scope, 'client_id' => $client_id, 'clients' => count($ids), 'by' => $by], null);
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="informacja_rachunek_' . ($scope === 'client' ? $client_id : $scope) . '_' . date('Ymd') . '.pdf"');
+    header('Content-Length: ' . strlen($pdf));
+    echo $pdf; exit;
+}
