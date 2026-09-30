@@ -88,6 +88,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rp = ti_payment_add($cl, $amt, trim((string)($_POST['paid_at'] ?? '')), $pm, trim((string)($_POST['note'] ?? '')), 'manual', 0, $pc);
             audit_log('pricing.settle_payment', ['client_id' => $cl, 'amount' => $amt, 'course_id' => $pc, 'by' => $by], $uid);
             $res = 0; $ok = 'Wpłata ' . number_format($amt, 2, ',', ' ') . ' zł zapisana' . ($pc ? ' na grupę' : ' (ogólna)') . '.' . (($rp['credit'] ?? 0) > 0 ? ' Nadpłata: ' . number_format($rp['credit'], 2, ',', ' ') . ' zł.' : ''); break;
+        case 'open_groups':
+            $opened = 0;
+            foreach (array_filter(array_map('intval', (array)($_POST['ids'] ?? []))) as $cid) {
+                $g = db_one("SELECT id, name, status, closed_at FROM k30_ti_courses WHERE id=?", [$cid]);
+                if (!$g || ($g['status'] !== 'archived' && empty($g['closed_at']))) continue;
+                ti_course_reopen($cid);
+                db()->prepare("UPDATE k30_ti_courses SET status='active', is_active=1 WHERE id=?")->execute([$cid]);
+                ti_course_log($cid, 'restore', '', (int)($me['user_id'] ?? 0), $by);
+                audit_log('pricing.group_opened', ['course_id' => $cid, 'name' => $g['name'], 'by' => $by], $uid);
+                $opened++;
+            }
+            $res = 0; $ok = $opened ? "Uruchomiono grup: {$opened} (przywrócone z archiwum, odblokowane)." : 'Nie zaznaczono żadnej zamkniętej grupy.'; break;
         case 'close_group':
         case 'close_candidates':
             $ids = $op === 'close_group' ? [(int)($_POST['course_id'] ?? 0)] : array_map('intval', (array)($_POST['ids'] ?? []));
@@ -160,6 +172,8 @@ $courses = db_all("SELECT c.id, c.name, c.group_code, c.is_online, c.closed_at, 
                           (SELECT MAX(s.lesson_date) FROM k30_ti_sessions s WHERE s.course_id=c.id) AS last_lesson
                      FROM k30_ti_courses c LEFT JOIN ti_pricing_course_types pct ON pct.course_id=c.id
                     WHERE c.status NOT IN ('archived','cancelled') ORDER BY c.name COLLATE NOCASE");
+$closed_groups = db_all("SELECT c.id, c.name, c.group_code, c.status, c.closed_at, c.closed_name FROM k30_ti_courses c
+                          WHERE (c.status='archived' OR c.closed_at IS NOT NULL) AND c.status!='cancelled' ORDER BY c.name COLLATE NOCASE");
 $wyg = array_values(array_filter($courses, fn($c) => empty($c['closed_at'] ?? null) && (int)$c['fut'] === 0 && ($c['last_lesson'] === null || $c['last_lesson'] < date('Y-m-d', strtotime('-14 days')))));
 $parts   = db_all("SELECT cl.id, cl.name, COALESCE(ps.statuses,'') AS statuses FROM k30_clients cl
                      JOIN k30_ti_student_accounts a ON a.client_id=cl.id LEFT JOIN ti_pricing_participant_status ps ON ps.participant_id=cl.id
@@ -518,10 +532,18 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
       <?php endif; ?>
     </div>
   </div>
+  <form method="post" id="bulkform" class="card flex flex-wrap items-center gap-3 !py-3">
+    <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_tab" value="groups">
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="bulk-all" onclick="document.querySelectorAll('input[name=&quot;ids[]&quot;][form=bulkform]').forEach(function(x){x.checked=this.checked}.bind(this))"> zaznacz wszystkie</label>
+    <span class="text-xs text-slate-500">Zaznacz grupy na kartach (aktywne) lub w sekcji „Zamknięte”, potem wybierz akcję:</span>
+    <button type="submit" name="_op" value="close_candidates" class="btn-sec" onclick="return confirm('Zamknąć zaznaczone grupy? Grupy z przyszłymi lekcjami zostaną pominięte. Zostaną zarchiwizowane i zablokowane.')"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij zaznaczone</button>
+    <button type="submit" name="_op" value="open_groups" class="btn-pri" onclick="return confirm('Uruchomić ponownie zaznaczone zamknięte grupy (przywrócić z archiwum i odblokować)?')"><i class="bi bi-unlock" aria-hidden="true"></i>Uruchom zaznaczone</button>
+  </form>
   <div class="grid gap-4 lg:grid-cols-2">
   <?php foreach ($courses as $c): $sel = $sel_course === (int)$c['id']; $varied = (int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005; ?>
     <article class="card !p-0 overflow-hidden <?= $sel ? 'ring-2 ring-amber-400' : '' ?>" aria-label="Grupa <?= h($c['name']) ?>">
       <header class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3">
+        <input type="checkbox" name="ids[]" value="<?= (int)$c['id'] ?>" form="bulkform" class="h-4 w-4" aria-label="Zaznacz grupę <?= h($c['name']) ?>">
         <?php if (trim((string)$c['group_code']) !== ''): ?><span class="rounded-md bg-navy-700 px-2 py-0.5 font-mono text-xs font-semibold text-white" title="Kod grupy"><?= h($c['group_code']) ?></span><?php endif; ?>
         <h3 class="min-w-0 flex-1 truncate font-semibold text-slate-800"><?= h($c['name']) ?></h3>
         <?php if ($c['is_online']): ?><span class="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"><i class="bi bi-camera-video mr-1" aria-hidden="true"></i>online</span><?php endif; ?>
@@ -581,6 +603,17 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
   <?php endforeach; ?>
   <?php if (!$courses): ?><p class="card text-sm text-slate-500 lg:col-span-2">Brak aktywnych grup.</p><?php endif; ?>
   </div>
+  <details class="card" <?= $closed_groups ? '' : 'open' ?>>
+    <summary class="cursor-pointer select-none font-semibold">Zamknięte i zarchiwizowane (<?= count($closed_groups) ?>)</summary>
+    <?php if (!$closed_groups): ?><p class="mt-2 text-sm text-slate-500">Brak zamkniętych grup.</p><?php else: ?>
+    <table class="mt-2 min-w-full text-sm"><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="w-8 py-2"></th><th>Kod</th><th>Grupa</th><th>Stan</th><th>Zamknął</th></tr></thead><tbody class="divide-y divide-slate-100">
+    <?php foreach ($closed_groups as $cg): ?>
+      <tr><td class="py-2"><input type="checkbox" name="ids[]" value="<?= (int)$cg['id'] ?>" form="bulkform" class="h-4 w-4" aria-label="Zaznacz grupę <?= h($cg['name']) ?>"></td>
+        <td class="font-mono text-xs"><?= h((string)$cg['group_code']) ?></td><td class="font-medium"><?= h($cg['name']) ?></td>
+        <td class="text-xs"><?= !empty($cg['closed_at']) ? 'zamknięta ' . h(date('d.m.Y', strtotime((string)$cg['closed_at']))) : 'zarchiwizowana' ?></td>
+        <td class="text-xs text-slate-500"><?= h((string)($cg['closed_name'] ?? '')) ?></td></tr>
+    <?php endforeach; ?></tbody></table><?php endif; ?>
+  </details>
   <?php if ($sel_course): $sc = array_values(array_filter($courses, fn($c) => (int)$c['id'] === $sel_course))[0] ?? null; ?>
   <section id="zapisy" class="card overflow-x-auto">
     <h2 class="font-semibold mb-1">Zapisy — <?= !empty($sc['group_code']) ? '<span class="font-mono text-sm">' . h($sc['group_code']) . '</span> · ' : '' ?><?= h($sc['name'] ?? ('#' . $sel_course)) ?></h2>
