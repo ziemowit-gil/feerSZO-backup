@@ -437,7 +437,7 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
     <?php endif; ?>
     <?php if (payu_enabled()): ?><span class="inline-flex items-center gap-1 font-semibold text-slate-700" title="Płatności online PayU"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i>PayU</span><?php endif; ?>
     <?php if (stripe_enabled()): ?><span class="inline-flex items-center gap-1 font-semibold text-slate-700" title="Płatności kartą Stripe"><i class="bi bi-credit-card" aria-hidden="true"></i>Stripe</span><?php endif; ?>
-    <span class="inline-flex items-center gap-1" title="Bank prowadzący rachunki do wpłat"><i class="bi bi-bank2" aria-hidden="true"></i>Rachunki: <strong class="ml-1 text-slate-700">PKO Bank Polski S.A.</strong></span>
+    <span class="inline-flex items-center gap-2" title="Bank prowadzący rachunki do wpłat"><span>Rachunki prowadzi:</span><img src="/assets/logo/p24/pko-bp.png" alt="PKO Bank Polski S.A." class="h-7 w-auto" width="98" height="28"></span>
   </div>
   <?php if (p24_enabled() || org_setting('pp_p24_simulation') === '1'): ?>
   <div class="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2" aria-label="Metody płatności dostępne przez Przelewy24">

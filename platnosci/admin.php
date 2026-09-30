@@ -232,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                              (int)($_POST['reference_id'] ?? 0) ?: null, trim((string)($_POST['due_date'] ?? '')) ?: null, $by, $uid);
             $err = is_string($r) ? $r : null; $ok = 'Pozycja dodana.'; break;
         case 'item_invoice':
-            $ri = pp_item_betterfly_invoice((int)($_POST['item_id'] ?? 0), $by, $uid);
+            $ri = pp_item_betterfly_invoice((int)($_POST['item_id'] ?? 0), $by, $uid, (int)($_POST['bf_product'] ?? 0));
             if (is_string($ri)) { $err = $ri; break; }
             $ok = 'Faktura wystawiona w Betterfly' . ($ri['number'] !== '' ? ' (nr ' . $ri['number'] . ')' : '') . ' — w buforze, do zatwierdzenia.'; break;
         case 'issue_due':   // „Wystaw do zapłaty” (+ opcjonalnie faktura Betterfly) z zakładki Przelewy i wpływy
@@ -242,7 +242,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (is_string($rr)) { $err = $rr; break; }
             $ok = 'Wystawiono do zapłaty — uczestnik zobaczy pozycję w portalu i zapłaci przelewem na swój numer lub przez Przelewy24.';
             if (!empty($_POST['invoice'])) {
-                $ri = pp_item_betterfly_invoice((int)$rr, $by, $uid);
+                $bfp = (int)($_POST['bf_product'] ?? 0);
+                if ($bfp > 0 && (int)org_setting('betterfly_ti_product_id') <= 0) { org_setting_set('betterfly_ti_product_id', (string)$bfp); audit_log('payments.bf_product_default', ['product_id' => $bfp, 'by' => $by], $uid); }
+                $ri = pp_item_betterfly_invoice((int)$rr, $by, $uid, $bfp);
                 if (is_string($ri)) { $ok .= ' Faktury nie wystawiono: ' . $ri; }
                 else $ok .= ' Faktura w Betterfly' . ($ri['number'] !== '' ? ' nr ' . $ri['number'] : '') . ' (bufor).';
             }
@@ -389,7 +391,20 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <div class="md:col-span-2"><label class="lbl" for="dd-t">Nazwa zobowiązania</label><input id="dd-t" name="title" class="inp" maxlength="200" required placeholder="np. Warsztat stacjonarny — październik"></div>
       <div><label class="lbl" for="dd-a">Kwota brutto (zł)</label><input id="dd-a" name="amount" class="inp" inputmode="decimal" required></div>
       <div><label class="lbl" for="dd-d">Termin</label><input id="dd-d" name="due_date" type="date" class="inp"></div>
-      <label class="md:col-span-4 flex items-center gap-2 text-sm"><input type="checkbox" name="invoice" value="1"<?= $bf_on ? '' : ' disabled' ?>> Wystaw też fakturę w Betterfly<?= $bf_on ? '' : ' <span class="text-xs text-slate-400">(integracja Betterfly wyłączona)</span>' ?></label>
+      <?php $bf_cfg = (int)org_setting('betterfly_ti_product_id'); $bf_pr = $bf_on ? pp_bf_products(!empty($_GET['bfr'])) : ['list' => [], 'error' => '']; ?>
+      <div class="md:col-span-4" x-data="{ inv: false }">
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="invoice" value="1" x-model="inv"<?= $bf_on ? '' : ' disabled' ?>> Wystaw też fakturę w Betterfly<?= $bf_on ? '' : ' <span class="text-xs text-slate-400">(integracja Betterfly wyłączona)</span>' ?></label>
+        <?php if ($bf_on): ?>
+        <div x-show="inv" x-cloak class="mt-2 max-w-xl">
+          <label class="lbl" for="dd-bf">Produkt w Betterfly (pobrany z Betterfly)</label>
+          <?php if ($bf_pr['list']): ?>
+          <select id="dd-bf" name="bf_product" class="inp"><option value=""><?= $bf_cfg > 0 ? '— domyślny (ustawiony: #' . $bf_cfg . ') —' : '— wybierz produkt —' ?></option>
+            <?php foreach ($bf_pr['list'] as $bp0): ?><option value="<?= (int)$bp0['id'] ?>"<?= $bf_cfg === $bp0['id'] ? ' selected' : '' ?>><?= h($bp0['name']) ?><?= $bp0['code'] !== '' ? ' [' . h($bp0['code']) . ']' : '' ?><?= $bp0['net'] !== null ? ' · ' . h(pp_fmt($bp0['net'])) . ' netto' : '' ?></option><?php endforeach; ?></select>
+          <p class="mt-1 text-xs text-slate-500"><?= $bf_cfg > 0 ? 'Wybór nadpisuje produkt tylko dla tej faktury.' : 'Wybrany produkt zostanie zapamiętany jako domyślny dla faktur TI.' ?> <a class="underline" href="admin.php?bfr=1#przelewy">odśwież listę z Betterfly</a></p>
+          <?php else: ?><p class="text-xs text-amber-800">Nie udało się pobrać produktów z Betterfly<?= $bf_pr['error'] !== '' ? ': ' . h($bf_pr['error']) : '' ?>. <a class="underline" href="admin.php?bfr=1#przelewy">spróbuj ponownie</a> albo ustaw produkt w <a class="underline" href="../admin/betterfly_settings.php">ustawieniach Betterfly</a>.</p><?php endif; ?>
+        </div>
+        <?php endif; ?>
+      </div>
       <div class="md:col-span-2 text-right"><button class="bp">Wystaw do zapłaty</button></div>
     </form>
   </section>

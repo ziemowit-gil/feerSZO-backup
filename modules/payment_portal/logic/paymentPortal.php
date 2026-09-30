@@ -1420,7 +1420,7 @@ function pp_portal_login_participant(int $participant_id, string $via): bool {
  * rachunek = numer do wpłat uczestnika. Faktura zostaje w buforze Betterfly (bez zatwierdzenia) — zatwierdza się ją
  * w Betterfly albo w obiegu akceptacji. @return string komunikat błędu albo array{number:string, local_id:int}
  */
-function pp_item_betterfly_invoice(int $item_id, string $by, ?int $uid): string|array {
+function pp_item_betterfly_invoice(int $item_id, string $by, ?int $uid, int $product_id = 0): string|array {
     pp_migrate();
     require_once dirname(__DIR__, 3) . '/includes/betterfly.php';
     require_once dirname(__DIR__, 3) . '/includes/betterfly_invoices.php';
@@ -1433,7 +1433,7 @@ function pp_item_betterfly_invoice(int $item_id, string $by, ?int $uid): string|
         $pid = (int)$it['participant_id'];
         $buyer = betterfly_buyer_from_ti_client($pid);
         $items = [[
-            'ProductId'            => betterfly_ti_product_id(0),
+            'ProductId'            => $product_id > 0 ? $product_id : betterfly_ti_product_id(0),
             'Quantity'             => 1.0,
             'ProductCurrencyPrice' => betterfly_ti_unit_net((float)$it['amount']),
             'ProductDescription'   => mb_substr((string)$it['title'], 0, 200),
@@ -1467,4 +1467,21 @@ function pp_item_transfer_title(array $item, string $participant_name = ''): str
     $t = preg_replace('/\s+/', ' ', trim((string)$item['title']));
     if (mb_strlen($t) > $room) $t = rtrim(mb_substr($t, 0, max(10, $room - 1))) . '…';
     return $head . $t . $tail;
+}
+
+
+/** Lista produktów z Betterfly (do wyboru przy fakturze), z krótką pamięcią podręczną w sesji. @return array{list:list<array>, error:string} */
+function pp_bf_products(bool $refresh = false): array {
+    if (session_status() === PHP_SESSION_ACTIVE && !$refresh && !empty($_SESSION['pp_bf_products']) && time() - (int)$_SESSION['pp_bf_products']['ts'] < 600)
+        return ['list' => $_SESSION['pp_bf_products']['list'], 'error' => ''];
+    try {
+        require_once dirname(__DIR__, 3) . '/includes/betterfly.php';
+        if (!BetterFlyClient::isEnabled()) return ['list' => [], 'error' => 'Integracja Betterfly jest wyłączona.'];
+        $raw = BetterFlyClient::fromSettings()->listProducts();
+        $list = [];
+        foreach ($raw as $p) if (isset($p['Id'])) $list[] = ['id' => (int)$p['Id'], 'name' => (string)($p['Name'] ?? ('#' . $p['Id'])), 'code' => (string)($p['ProductCode'] ?? ''), 'net' => isset($p['SaleNetPrice']) ? (float)$p['SaleNetPrice'] : null];
+        usort($list, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+        if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['pp_bf_products'] = ['ts' => time(), 'list' => $list];
+        return ['list' => $list, 'error' => ''];
+    } catch (\Throwable $e) { return ['list' => [], 'error' => $e->getMessage()]; }
 }
