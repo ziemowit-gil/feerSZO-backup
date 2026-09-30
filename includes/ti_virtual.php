@@ -12,7 +12,7 @@ function ti_virtual_contacts(bool $refresh = false): array {
     if ($cache !== null && !$refresh) return $cache;
     $cache = ['emails' => [], 'phones' => []];
     try {
-        $rows = db_all("SELECT c.id, c.email, c.phone, a.notify_phone2 p2, a.notify_phone3 p3, a.is_virtual v
+        $rows = db_all("SELECT c.id, c.email, c.phone, a.notify_phone2 p2, a.notify_phone3 p3, (COALESCE(a.is_virtual,0) OR COALESCE(a.no_billing,0)) v
                           FROM k30_clients c JOIN k30_ti_student_accounts a ON a.client_id=c.id");
     } catch (\Throwable $e) { return $cache; }   // brak kolumny / tabeli — nic nie blokujemy
     $virt = []; $real = [];
@@ -35,4 +35,12 @@ function ti_virtual_blocked(string $email = '', string $phone = ''): bool {
     if ($e !== '' && isset($c['emails'][$e])) return true;
     $p = substr(preg_replace('/\D/', '', $phone), -9);
     return strlen($p) === 9 && isset($c['phones'][$p]);
+}
+
+/** Czy wszystkie konta TI tej osoby są oznaczone „bez rozliczeń” (nie naliczamy jej należności). */
+function ti_client_no_billing(int $client_id): bool {
+    try {
+        $r = db_one("SELECT COUNT(*) n, SUM(COALESCE(no_billing,0)) v FROM k30_ti_student_accounts WHERE client_id=?", [$client_id]);
+    } catch (\Throwable $e) { return false; }
+    return (int)($r['n'] ?? 0) > 0 && (int)$r['n'] === (int)($r['v'] ?? 0);
 }

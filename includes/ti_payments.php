@@ -1010,6 +1010,7 @@ function ti_clients_with_debt(): array {
                 SUM(COALESCE(b.paid_amount,0)) AS paid
          FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
          WHERE b.status IN ('issued','paid')
+           AND NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts na WHERE na.client_id=b.client_id AND COALESCE(na.no_billing,0)=1)
          GROUP BY b.client_id
          HAVING charges - paid > 0.005
          ORDER BY (charges - paid) DESC"

@@ -437,12 +437,14 @@ function pp_ti_billing_debt_gr(int $billing_id): int {
 /** Import nieopłaconych rozliczeń TI jako pozycji portalu (jedna otwarta pozycja na rozliczenie). */
 function pp_import_ti(?int $participant_id, string $by, ?int $uid): int {
     pp_migrate();
+    require_once dirname(__DIR__, 3) . '/includes/ti_virtual.php';
     $pl = [1=>'styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
     $rows = db_all("SELECT b.*, c.name AS course_name FROM k30_ti_billing b LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
                      WHERE b.status='issued'" . ($participant_id ? " AND b.client_id=?" : '') . " ORDER BY b.year, b.month",
                    $participant_id ? [$participant_id] : []);
     $n = 0;
     foreach ($rows as $b) {
+        if (ti_client_no_billing((int)$b['client_id'])) continue;   // „bez rozliczeń”
         if (db_one("SELECT 1 FROM payable_items WHERE reference_type='ti_billing' AND reference_id=? AND status IN ('pending','processing')", [(int)$b['id']])) continue;
         $debt = pp_ti_billing_debt_gr((int)$b['id']);
         if ($debt <= 0) continue;

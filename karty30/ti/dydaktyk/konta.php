@@ -303,6 +303,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    if ($op === 'toggle_no_billing') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
+        if ($acc) {
+            $v = empty($acc['no_billing']) ? 1 : 0;
+            db()->prepare("UPDATE k30_ti_student_accounts SET no_billing=?, updated_at=datetime('now') WHERE id=?")->execute([$v, $aid]);
+            flash_set('success', $v ? 'Kursant „bez rozliczeń”: nie naliczamy należności i nie wysyłamy SMS ani e-maili (istniejące rozliczenia i numer rachunku zostają).'
+                                    : 'Kursant znów rozliczany i powiadamiany.');
+        }
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     if ($op === 'toggle_virtual') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
@@ -1260,6 +1272,14 @@ function printBulk(){
               <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
               <button type="submit" class="btn btn-sm btn-outline-secondary" title="Kursant wirtualny nie dostaje rachunku wirtualnego z puli; już nadany numer zostaje">
                 <i class="bi bi-person-badge me-1" aria-hidden="true"></i><?= !empty($sa['is_virtual']) ? 'Kursant wirtualny: TAK (wyłącz)' : 'Oznacz jako kursanta wirtualnego' ?>
+              </button>
+            </form>
+            <form method="post" onsubmit="return confirm('<?= !empty($sa['no_billing']) ? 'Włączyć z powrotem rozliczenia i powiadomienia dla tego kursanta?' : 'Wyłączyć rozliczenia oraz SMS i e-mail dla tego kursanta? Istniejące rozliczenia zostają.' ?>')">
+              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op"        value="toggle_no_billing">
+              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary" title="Nie naliczamy należności, nie wysyłamy SMS ani e-maili">
+                <i class="bi bi-slash-circle me-1" aria-hidden="true"></i><?= !empty($sa['no_billing']) ? 'Bez rozliczeń i powiadomień: TAK (wyłącz)' : 'Wyłącz rozliczenia i powiadomienia' ?>
               </button>
             </form>
             <?php if (!empty($sa['child_access_blocked'])): ?>

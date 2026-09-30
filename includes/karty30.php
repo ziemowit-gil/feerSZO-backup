@@ -489,6 +489,8 @@ function karty30_migrate(): void {
         // Powiadomienia o zmianach w dydaktyce/eLearningu (nowe materiały, zadania, terminy)
         // „Kursant wirtualny” — wyłączony z nadawania rachunków wirtualnych (nadany już numer zostaje)
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0",
+        // „Bez rozliczeń” — nie naliczamy należności, nie wysyłamy SMS/e-mail (rachunek nadany zostaje)
+        "ALTER TABLE k30_ti_student_accounts ADD COLUMN no_billing INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_email_dydaktyka INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE k30_ti_student_accounts ADD COLUMN notify_sms_dydaktyka   INTEGER NOT NULL DEFAULT 0",
         // Numer rachunku bankowego do wpłat za zajęcia — wpisywany ręcznie przez
@@ -5518,6 +5520,8 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
  * $course_id=0 → łączne (wszystkie kursy), >0 → tylko dany kurs.
  */
 function k30_ti_issue_billing(int $client_id, int $month, int $year, string $notes = '', int $course_id = 0): int {
+    require_once __DIR__ . '/ti_virtual.php';
+    if (ti_client_no_billing($client_id)) return 0;   // kursant „bez rozliczeń”
     $calc = k30_ti_calculate_billing($client_id, $month, $year, $course_id);
     $ex = db_one("SELECT * FROM k30_ti_billing WHERE client_id=? AND month=? AND year=? AND course_id=?",
                  [$client_id, $month, $year, $course_id]);
