@@ -22,6 +22,18 @@ const TI_NOTICE_141G = 'Wersja 14.1g — Rozliczenia kursantów: przy wystawiani
     . ' „Rozliczenia” na liście Kursanci (wszystkie okresy i grupy, saldo, wpłaty). Przycisk „Przelicz ceny”'
     . ' przelicza wystawione rozliczenia miesiąca po aktualnych cenach (nieopłacone i bez faktury).';
 
+/** Punkt komunikatu 14.1 o zmianach 14.1h — stawki, cenniki, nadpłaty, panel kursanta (seed + dopisek w selfrepairDB). */
+const TI_NOTICE_141H = 'Wersja 14.1h — Stawki i cenniki: kursant może mieć osobną stawkę za lekcje online i stacjonarne'
+    . ' (online = lekcja Zoom/zdalna albo grupa online). Nowe „Cenniki i rabaty” (Kierownik): typy zajęć z ceną bazową,'
+    . ' reguły rabatowe (status uczestnika, early bird, pakiet, nadpłata), symulator ceny i „Zastosuj do zapisu”.'
+    . ' Kierownik koryguje cenę pojedynczej lekcji, a przy rozliczeniu indywidualnym wpisuje kwotę ręczną — zawsze'
+    . ' z uzasadnieniem (przycisk „Korekta” w wierszu rozliczenia). Nowe „Nadpłaty uczestników”: wykrywanie, zwrot na'
+    . ' rachunek (polecenie zwrotu), zaliczenie na inną fakturę lub grupę, przeksięgowanie — z pełną historią.'
+    . ' Historia pobrań za lekcje z salda (PDF i wysyłka do kursanta), podgląd rozliczeń kursanta z przeliczaniem cen,'
+    . ' wyczyszczenie rozliczeń kursanta. Prowadzący może sam zapisać kursanta do swojej grupy (stawka jak w grupie).'
+    . ' Panel kursanta: Biblioteka materiałów w obu panelach, nowa strona startowa (najbliższe zajęcia, saldo),'
+    . ' pobrania za lekcje w portfelu, wygodne menu „Więcej” na telefonie.';
+
 /** Punkt komunikatu 14.1 o nagłówku (seed + jednorazowy dopisek 14.1a w selfrepairDB). */
 const TI_NOTICE_141A_NAGLOWEK = 'Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl.';
 
@@ -233,6 +245,7 @@ function ti_notices_migrate(): void {
                 . "\n• " . TI_NOTICE_141B_PULPIT
                 . "\n• " . TI_NOTICE_141F
                 . "\n• " . TI_NOTICE_141G
+                . "\n• " . TI_NOTICE_141H
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
         }
