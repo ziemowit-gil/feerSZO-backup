@@ -31,6 +31,18 @@ $bills = db_all(
      ORDER BY b.year DESC, b.month DESC, c.name", [$client_id]
 );
 
+// Numer rachunku do wpłat: indywidualny (wirtualny) z portalu płatności, a gdy go brak — rachunek kursu/organizacji
+$rz_acct = ''; $rz_acct_kind = ''; $rz_title = '';
+try {
+    $vn = db_one("SELECT individual_nrb FROM payment_portal_users WHERE participant_id=?", [$client_id]);
+    $vn = preg_replace('/\D/', '', (string)($vn['individual_nrb'] ?? ''));
+    if (strlen($vn) === 26) { $rz_acct = $vn; $rz_acct_kind = 'rachunek indywidualny (wirtualny)'; }
+} catch (\Throwable $e) {}
+$rz_pay = k30_ti_client_payment($client_id);
+if ($rz_acct === '') { $rz_acct = preg_replace('/\s+/', '', preg_replace('/^PL/i', '', (string)($rz_pay['account'] ?? ''))); $rz_acct_kind = 'rachunek grupy / organizacji'; }
+$rz_title = (string)($rz_pay['title'] ?? '');
+$rz_acct_fmt = strlen($rz_acct) === 26 ? substr($rz_acct, 0, 2) . ' ' . trim(chunk_split(substr($rz_acct, 2), 4, ' ')) : $rz_acct;
+
 $PAGE_TITLE = $client['name'];
 $RZ_ACTIVE  = 'uczestnicy';
 include __DIR__ . '/_head.php';
@@ -41,6 +53,14 @@ include __DIR__ . '/_head.php';
      <a href="<?= APP_URL ?>/karty30/ti/student_billing.php?client_id=<?= $client_id ?>">widok klasyczny</a></p>
 </div>
 
+<?php if ($rz_acct !== ''): ?>
+<div class="card mb-3"><div class="card-body py-2 d-flex flex-wrap align-items-center gap-3">
+  <div><div class="small text-body-secondary">Numer rachunku do wpłat <span class="badge text-bg-light border"><?= h($rz_acct_kind) ?></span></div>
+    <div class="font-monospace fs-5 fw-semibold" id="rz-acct"><?= h($rz_acct_fmt) ?></div>
+    <?php if ($rz_title !== ''): ?><div class="small text-body-secondary">Tytuł przelewu: <span class="font-monospace"><?= h($rz_title) ?></span></div><?php endif; ?></div>
+  <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" onclick="navigator.clipboard.writeText('<?= h($rz_acct) ?>').then(function(){this.textContent='Skopiowano'}.bind(this))"><i class="bi bi-clipboard" aria-hidden="true"></i> Kopiuj numer</button>
+</div></div>
+<?php endif; ?>
 <?= rz_month_bar('uczestnik.php', $rz_year, $rz_month, $rz_month_label, 'client_id=' . $client_id) ?>
 <?= flash_html() ?>
 
