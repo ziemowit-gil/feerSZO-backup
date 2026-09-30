@@ -69,12 +69,20 @@ function pp_nrb_format(string $nrb): string {
  * Część NNNN (12 cyfr) zależy od grupy — dzięki temu z samego numeru wiadomo, kto płaci:
  *   ti    — nr kursanta TI (k30_ti_student_accounts.student_no, już 12 cyfr) bez zmian
  *   nip   — „00" + NIP (10 cyfr)            — firma / kontrahent
+ *   crm   — „8" + ID kontaktu CRM (11 cyfr) — kontrahent bez NIP (z NIP-em: grupa nip)
  *   id    — „9" + ID uczestnika (11 cyfr)   — uczestnik spoza TI (bez numeru kursanta)
  *   reczny— dowolne do 12 cyfr, dopełnione zerami z lewej
  */
+/** Domyślny prefiks banku (PKO BP): 1020 2906 = nr rozliczeniowy, 3286 = RRRR Klienta. Nadpisują go ustawienia. */
+const PP_VNRB_BANK = '10202906';
+const PP_VNRB_RRRR = '3286';
+function pp_vnrb_bank(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank')); return $v !== '' ? $v : PP_VNRB_BANK; }
+function pp_vnrb_rrrr(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_prefix')); return $v !== '' ? $v : PP_VNRB_RRRR; }
+
 const PP_VGROUPS = [
     'ti'     => ['label' => 'Kursant TI (nr kursanta)',       'hint' => 'ID uczestnika — numer weźmiemy z konta kursanta'],
     'nip'    => ['label' => 'Firma / kontrahent (NIP)',       'hint' => 'NIP, 10 cyfr'],
+    'crm'    => ['label' => 'Kontrahent CRM (ID kontaktu)',   'hint' => 'ID kontaktu w CRM'],
     'id'     => ['label' => 'Uczestnik spoza TI (ID w SZO)',  'hint' => 'ID uczestnika (k30_clients)'],
     'reczny' => ['label' => 'Numer ręczny',                   'hint' => 'do 12 cyfr'],
 ];
@@ -96,6 +104,7 @@ function pp_vnrb_part(string $group, string $value): string {
             if ($d === '') return '!Podaj ID uczestnika.';
             return pp_ti_student_no((int)$d) ?? '!Uczestnik nie ma konta kursanta TI z 12-cyfrowym numerem.';
         case 'nip':   return strlen($d) === 10 ? '00' . $d : '!NIP ma 10 cyfr.';
+        case 'crm':   return $d !== '' && strlen($d) <= 11 ? '8' . str_pad($d, 11, '0', STR_PAD_LEFT) : '!Podaj ID kontaktu CRM (do 11 cyfr).';
         case 'id':    return $d !== '' && strlen($d) <= 11 ? '9' . str_pad($d, 11, '0', STR_PAD_LEFT) : '!Podaj ID uczestnika (do 11 cyfr).';
         case 'reczny':return $d !== '' && strlen($d) <= 12 ? str_pad($d, 12, '0', STR_PAD_LEFT) : '!Podaj od 1 do 12 cyfr.';
     }
@@ -120,14 +129,28 @@ function pp_vnrb_conflict(string $nrb, int $participant_id): ?string {
     return null;
 }
 
+/** Rachunek wirtualny kursanta TI do pokazania (nie zapisuje); null = brak numeru kursanta. */
+function pp_vnrb_for_ti(int $client_id): ?string {
+    $no = pp_ti_student_no($client_id);
+    $n = $no ? pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $no) : null;
+    return $n ? pp_nrb_format($n) : null;
+}
+/** Rachunek wirtualny kontrahenta CRM: z NIP-em (10 cyfr) grupa nip, inaczej ID kontaktu. */
+function pp_vnrb_for_crm(int $contact_id, ?string $nip): ?string {
+    $nip = preg_replace('/\D/', '', (string)$nip);
+    $part = strlen($nip) === 10 ? pp_vnrb_part('nip', $nip) : pp_vnrb_part('crm', (string)$contact_id);
+    $n = $part[0] === '!' ? null : pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $part);
+    return $n ? pp_nrb_format($n) : null;
+}
+
 /**
  * NRB wirtualny dla uczestnika z ustawień: bank (8) + RRRR (pp_nrb_prefix, 4) + NNNN.
  * Kursant z kontem TI → jego nr kursanta; pozostali → grupa „id". null = nie skonfigurowano
  * albo konflikt numerów.
  */
 function pp_nrb_generate(int $participant_id): ?string {
-    $bank = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank'));
-    $rrrr = preg_replace('/\D/', '', (string)org_setting('pp_nrb_prefix'));
+    $bank = pp_vnrb_bank();
+    $rrrr = pp_vnrb_rrrr();
     $part = pp_ti_student_no($participant_id) ?? pp_vnrb_part('id', (string)$participant_id);
     if ($part[0] === '!') return null;
     $nrb = pp_vnrb_build($bank, $rrrr, $part);

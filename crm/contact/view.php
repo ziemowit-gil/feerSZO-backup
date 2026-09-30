@@ -20,6 +20,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/crm_beneficiary.php';
 if (module_enabled('donations_enabled')) require_once dirname(dirname(__DIR__)) . '/includes/donations.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_offers.php';
+require_once dirname(dirname(__DIR__)) . '/modules/payment_portal/logic/paymentPortal.php'; // pp_vnrb_for_crm()
 require_once dirname(dirname(__DIR__)) . '/includes/crm_office.php';
 
 require_login();
@@ -1940,6 +1941,11 @@ include __DIR__ . '/../includes/header_crm.php';
     <?php if ($_sfv['nip'] && $contact['nip']): ?>
     <span class="cv-chip">
       <i class="bi bi-hash" aria-hidden="true"></i><span>NIP: <?= h($contact['nip']) ?></span>
+    </span>
+    <?php endif; ?>
+    <?php if ($_vnrb = pp_vnrb_for_crm((int)$id, (string)($contact['nip'] ?? ''))): ?>
+    <span class="cv-chip" title="Rachunek wirtualny do wpłat od tego kontrahenta">
+      <i class="bi bi-bank" aria-hidden="true"></i><span class="font-monospace user-select-all">PL <?= h($_vnrb) ?></span>
     </span>
     <?php endif; ?>
     <?php

@@ -14,6 +14,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // 
 require_once dirname(__DIR__) . '/kursant/auth.php'; // parent_make_token(), student_impersonate()
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_referrals.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payment_account_schema.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/payment_portal/logic/paymentPortal.php'; // rachunek wirtualny z nr kursanta
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/sprawdz_konto/logic/sprawdz_konto.php';
 
 $me       = dyd_require();
@@ -1159,6 +1160,9 @@ function printBulk(){
                            class="form-control form-control-sm font-monospace" style="width:110px" placeholder="—">
                     <button type="submit" class="btn btn-sm btn-outline-secondary" title="Zapisz numer kursanta" aria-label="Zapisz numer kursanta"><i class="bi bi-save" aria-hidden="true"></i></button>
                   </div>
+                  <?php if ($vn = pp_vnrb_for_ti((int)$sa['client_id'])): ?>
+                  <div class="small text-muted mt-1">Rachunek do wpłat: <span class="font-monospace user-select-all">PL <?= h($vn) ?></span></div>
+                  <?php endif; ?>
                 </div>
               </form>
             </div>

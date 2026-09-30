@@ -264,8 +264,8 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <section class="card space-y-3" aria-labelledby="s-h">
       <h2 id="s-h" class="font-semibold">Ustawienia</h2>
       <form method="post" class="space-y-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="settings">
-        <div><label class="lbl" for="sb">Numer rozliczeniowy banku (8 cyfr)</label><input id="sb" name="pp_nrb_bank" class="inp font-mono" value="<?= h(org_setting('pp_nrb_bank')) ?>" inputmode="numeric"></div>
-        <div><label class="lbl" for="sp">Identyfikator Klienta RRRR (4 cyfry, z dokumentu Aktywacji)</label><input id="sp" name="pp_nrb_prefix" class="inp font-mono" value="<?= h(org_setting('pp_nrb_prefix')) ?>" inputmode="numeric"></div>
+        <div><label class="lbl" for="sb">Numer rozliczeniowy banku (8 cyfr)</label><input id="sb" name="pp_nrb_bank" class="inp font-mono" value="<?= h(pp_vnrb_bank()) ?>" inputmode="numeric"></div>
+        <div><label class="lbl" for="sp">Identyfikator Klienta RRRR (4 cyfry, z dokumentu Aktywacji)</label><input id="sp" name="pp_nrb_prefix" class="inp font-mono" value="<?= h(pp_vnrb_rrrr()) ?>" inputmode="numeric"></div>
         <p class="text-xs text-slate-500">NRB = cyfry kontrolne + bank (8) + RRRR (4) + NNNN (12: nr kursanta TI albo ID uczestnika) — suma kontrolna liczona automatycznie. Pozostałe grupy: generator poniżej.</p>
         <div><label class="lbl" for="sg">Rachunek ogólny do wpłat (gdy uczestnik nie ma rachunku wirtualnego)</label>
           <input id="sg" name="pp_general_nrb" class="inp font-mono" value="<?= h(pp_nrb_format((string)org_setting('pp_general_nrb'))) ?>" placeholder="26 cyfr"></div>
@@ -282,8 +282,8 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <h2 id="vg-h" class="font-semibold">Generator numerów rachunków wirtualnych</h2>
     <p class="text-xs text-slate-500">Struktura: <span class="font-mono">PL</span> + 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">NNNN NNNN NNNN (12)</span>. Część NNNN zależy od grupy kontrahenta.</p>
     <form method="post" class="grid gap-3 md:grid-cols-6 items-end"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vgen">
-      <div><label class="lbl" for="vg-b">Bank (8 cyfr)</label><input id="vg-b" name="bank" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['bank'] ?? org_setting('pp_nrb_bank')) ?>"></div>
-      <div><label class="lbl" for="vg-r">RRRR (4 cyfry)</label><input id="vg-r" name="rrrr" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['rrrr'] ?? org_setting('pp_nrb_prefix')) ?>"></div>
+      <div><label class="lbl" for="vg-b">Bank (8 cyfr)</label><input id="vg-b" name="bank" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['bank'] ?? pp_vnrb_bank()) ?>"></div>
+      <div><label class="lbl" for="vg-r">RRRR (4 cyfry)</label><input id="vg-r" name="rrrr" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['rrrr'] ?? pp_vnrb_rrrr()) ?>"></div>
       <div class="md:col-span-2"><label class="lbl" for="vg-g">Grupa kontrahenta</label>
         <select id="vg-g" name="group" class="inp" x-model="g"><?php foreach (PP_VGROUPS as $k => $gr): ?><option value="<?= $k ?>"><?= h($gr['label']) ?></option><?php endforeach; ?></select></div>
       <div><label class="lbl" for="vg-v" x-text="hints[g]"></label><input id="vg-v" name="value" class="inp font-mono" inputmode="numeric" required></div>
