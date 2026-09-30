@@ -83,20 +83,29 @@ const PP_VNRB_RRRR = '3286';
 function pp_vnrb_bank(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank')); return $v !== '' ? $v : PP_VNRB_BANK; }
 function pp_vnrb_rrrr(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_prefix')); return $v !== '' ? $v : PP_VNRB_RRRR; }
 
-/** Serie rachunków: klucz = grupa puli, kod = 4 cyfry początku serii (nadpisywalny org_setting pp_series_{klucz}). */
+/**
+ * Serie rachunków: końcówka NNNN (12 cyfr) = kod serii (8 cyfr) + numer kolejny nadawany przez bank (4 cyfry).
+ * Klucz = grupa puli; kod nadpisywalny org_setting pp_series_{klucz}. Z numeru od banku da się więc rozpoznać serię.
+ */
 function pp_series(): array {
-    $def = ['ti' => ['Kursanci TI', '1111'], 'inni' => ['Kontrahenci inni', '2222'], 'spoza_ti' => ['Uczestnicy spoza TI', '3333'], 'reczny' => ['Ręczne', '4444']];
+    $def = ['ti' => ['Kursanci TI', '00000001'], 'inni' => ['Kontrahenci inni', '00000002'], 'spoza_ti' => ['Uczestnicy spoza TI', '00000003'], 'reczny' => ['Ręczne', '00000004']];
     $out = [];
     foreach ($def as $k => [$label, $code]) {
         $c = preg_replace('/\D/', '', (string)org_setting('pp_series_' . $k));
-        $out[$k] = ['label' => $label, 'code' => strlen($c) === 4 ? $c : $code];
+        $out[$k] = ['label' => $label, 'code' => strlen($c) === 8 ? $c : $code];
     }
     return $out;
 }
-/** Jedyny numer startowy serii (końcówka 12 cyfr = 00000000 + kod, np. 000000001111), który SZO podaje bankowi; bank numeruje dalej rosnąco. */
+/** Jedyny numer startowy serii (kod 8 cyfr + 0001), który SZO podaje bankowi; bank numeruje dalej ostatnie 4 cyfry. */
 function pp_series_start(string $grp): ?string {
     $se = pp_series()[$grp] ?? null;
-    return $se ? pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), '00000000' . $se['code']) : null;
+    return $se ? pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $se['code'] . '0001') : null;
+}
+/** Seria (klucz grupy) rozpoznana po kodzie w numerze od banku albo null. */
+function pp_series_detect(string $nrb): ?string {
+    $code = substr(pp_nrb_normalize($nrb), 14, 8);
+    foreach (pp_series() as $k => $se) if ($se['code'] === $code) return $k;
+    return null;
 }
 
 const PP_VGROUPS = [
@@ -680,8 +689,10 @@ function pp_vnrb_pool_import(string $text, string $grp, string $by, ?int $uid): 
             $line = trim($line); if ($line === '') continue;
             $n = pp_nrb_normalize($line);
             if (!pp_nrb_valid($n)) { $r['bad'][] = mb_substr($line, 0, 40); continue; }
+            $g = $grp === 'auto' ? pp_series_detect($n) : $grp;
+            if ($g === null) { $r['bad'][] = mb_substr($line, 0, 40) . ' (nieznana seria)'; continue; }
             $owner = db_one("SELECT participant_id FROM payment_portal_users WHERE individual_nrb=?", [$n]);
-            $ins->execute([$n, $grp, $owner ? (int)$owner['participant_id'] : null, $by, $owner ? date('Y-m-d H:i:s') : null]);
+            $ins->execute([$n, $g, $owner ? (int)$owner['participant_id'] : null, $by, $owner ? date('Y-m-d H:i:s') : null]);
             if ($ins->rowCount()) $r['added']++; else $r['dup']++;
         }
         db()->commit();

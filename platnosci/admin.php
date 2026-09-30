@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             audit_log('payments.settings', ['bank' => $bank, 'prefix' => $pref, 'general_nrb' => $gen, 'simulation' => !empty($_POST['pp_p24_simulation']), 'by' => $by], $uid);
             $ok = 'Ustawienia zapisane.'; break;
         case 'pool_import':
-            $grp = in_array($_POST['pool_grp'] ?? '', ['ti', 'inni', 'spoza_ti', 'reczny'], true) ? $_POST['pool_grp'] : 'ti';
+            $grp = in_array($_POST['pool_grp'] ?? '', ['auto', 'ti', 'inni', 'spoza_ti', 'reczny'], true) ? $_POST['pool_grp'] : 'auto';
             $txt = (string)($_POST['pool_text'] ?? '');
             if (!empty($_FILES['pool_file']['tmp_name']) && is_uploaded_file($_FILES['pool_file']['tmp_name'])) $txt .= "\n" . file_get_contents($_FILES['pool_file']['tmp_name']);
             if (trim($txt) === '') { $err = 'Wklej listę numerów albo wybierz plik TXT.'; break; }
@@ -308,7 +308,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   <!-- Serie rachunków wirtualnych: SZO podaje bankowi tylko 1 numer startowy na serię -->
   <section class="card space-y-3" aria-labelledby="vg-h">
     <h2 id="vg-h" class="font-semibold">Serie rachunków wirtualnych — numery startowe dla banku</h2>
-    <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">numer kolejny (12)</span>. Przekaż bankowi po jednym numerze startowym z każdej serii (końcówka 12 cyfr = 00000000 + kod serii) — kolejne numery, rosnąco, wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
+    <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">kod serii (8) + numer od banku (4)</span>. Przekaż bankowi po jednym numerze startowym z każdej serii (końcówka 12 cyfr = kod serii 8 cyfr + 0001) — kolejne numery, rosnąco, wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
     <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer startowy</th><th>Następny z puli (12 cyfr)</th><th>W puli / nadane</th></tr></thead><tbody>
     <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY nrb LIMIT 1", [$sk]); ?>
       <tr class="border-t"><td><?= h($se['label']) ?></td><td class="font-mono"><?= h($se['code']) ?></td>
@@ -322,7 +322,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <h3 class="font-semibold text-sm">Import listy rachunków z banku (TXT)</h3>
       <p class="text-xs text-slate-500">Jeden numer w linii (26 cyfr, „PL" i spacje dozwolone). Sprawdzamy sumę kontrolną i duplikaty; numery trafiają do puli danej grupy.</p>
       <div class="grid gap-2 md:grid-cols-4">
-        <div><label class="lbl" for="pl-g">Grupa</label><select id="pl-g" name="pool_grp" class="inp"><option value="ti">TI (kursanci)</option><option value="inni">Kontrahenci inni</option><option value="spoza_ti">Uczestnicy spoza TI</option><option value="reczny">Ręczne</option></select></div>
+        <div><label class="lbl" for="pl-g">Grupa</label><select id="pl-g" name="pool_grp" class="inp"><option value="auto">Wykryj po numerze (zalecane)</option><option value="ti">TI (kursanci)</option><option value="inni">Kontrahenci inni</option><option value="spoza_ti">Uczestnicy spoza TI</option><option value="reczny">Ręczne</option></select></div>
         <div class="md:col-span-3"><label class="lbl" for="pl-f">Plik TXT (opcjonalnie)</label><input id="pl-f" type="file" name="pool_file" accept=".txt,text/plain" class="inp"></div>
       </div>
       <label class="lbl" for="pl-t">Lista numerów</label><textarea id="pl-t" name="pool_text" rows="5" class="inp font-mono" placeholder="76102029063286111100000001"></textarea>
