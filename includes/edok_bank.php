@@ -90,6 +90,25 @@ function edok_bank_parse_any(string $raw): array {
     return preg_match('/^\d{3},\d{8},/', $first) ? edok_elixir_parse($raw) : edok_mt940_parse($raw);
 }
 
+/** Słowa nazwy bez form prawnych i krótkich spójników. */
+function _edok_bank_name_tokens(string $s): array {
+    $s = mb_strtoupper($s);
+    $s = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $s);
+    $stop = ['SP', 'ZOO', 'SPOLKA', 'SPÓŁKA', 'Z', 'O', 'SA', 'S', 'A', 'OO', 'SK', 'KOMANDYTOWA', 'JAWNA', 'POLSKA', 'FIRMA', 'USLUGOWE', 'HANDLOWE', 'PHU', 'FUNDACJA', 'STOWARZYSZENIE'];
+    $t = [];
+    foreach (preg_split('/\s+/u', trim($s)) as $w) if (mb_strlen($w) >= 3 && !in_array($w, $stop, true)) $t[$w] = true;
+    return array_keys($t);
+}
+/** 2 = wszystkie znaczące słowa nazwy dokumentu występują w nazwie/tytule operacji, 1 = co najmniej połowa (min. jedno), 0 = brak. */
+function _edok_bank_name_score(string $doc_name, string $haystack): int {
+    $tok = _edok_bank_name_tokens($doc_name);
+    if (!$tok) return 0;
+    $h = mb_strtoupper(preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $haystack));
+    $hit = 0; foreach ($tok as $w) if (str_contains($h, $w)) $hit++;
+    if ($hit === count($tok)) return 2;
+    return $hit >= max(1, (int)ceil(count($tok) / 2)) ? 1 : 0;
+}
+
 /**
  * Podpowiedzi dokumentów dla transakcji, od najlepszej. Wynik: [['doc'=>wiersz, 'score'=>int, 'reasons'=>[...], 'amount_ok'=>bool]].
  * Wypływ (D) → wydatki, wpływ (C) → przychody i korekty. Numer EODoK w tytule (tytuł przelewu z Preliminarza
@@ -120,9 +139,10 @@ function edok_bank_candidates(array $tx, int $limit = 5): array {
         if (strlen($rach) === 26 && str_ends_with((string)$tx['kontrahent_konto'], $rach)) { $score += 40; $why[] = 'rachunek kontrahenta'; }
         $nip = preg_replace('/\D/', '', (string)$d['kontrahent_nip']);
         if (strlen($nip) === 10 && str_contains(preg_replace('/\D/', '', $tx['tytul']), $nip)) { $score += 20; $why[] = 'NIP w tytule'; }
-        foreach (preg_split('/\s+/', mb_strtoupper((string)$d['kontrahent_nazwa'])) as $w) {
-            if (mb_strlen($w) >= 5 && str_contains($name, $w)) { $score += 10; $why[] = 'nazwa'; break; }
-        }
+        // nazwa kontrahenta: udział znaczących słów nazwy z dokumentu znalezionych w nazwie/tytule operacji
+        $nm = _edok_bank_name_score((string)$d['kontrahent_nazwa'], $name . ' ' . mb_strtoupper((string)$tx['tytul']));
+        if ($nm === 2) { $score += 40; $why[] = 'nazwa kontrahenta (pełna)'; }
+        elseif ($nm === 1) { $score += 15; $why[] = 'nazwa kontrahenta (część)'; }
         if ($score >= 50 && ($amount_ok || $score >= 100)) $out[] = ['doc' => $d, 'score' => $score, 'reasons' => array_values(array_unique($why)), 'amount_ok' => $amount_ok];
     }
     usort($out, fn($a, $b) => $b['score'] <=> $a['score']);
@@ -165,12 +185,59 @@ function edok_bank_unassign(int $tx_id): ?string {
     return null;
 }
 
-/** Przypisuje automatycznie transakcje, dla których jest jednoznaczny kandydat (numer EODoK w tytule + zgodna kwota). */
+/** Cyfry rachunku (bez PL i spacji). */
+function _edok_nrb_digits(string $s): string { return preg_replace('/^PL/i', '', preg_replace('/\s+/', '', $s)); }
+
+/** Rachunek własny organizacji (z listy rachunków) rozpoznany po rachunku kontrahenta operacji; null = to nie przelew własny. */
+function edok_bank_detect_own_counter(array $tx): ?string {
+    $k = _edok_nrb_digits((string)($tx['kontrahent_konto'] ?? ''));
+    if (strlen($k) < 26) return null;
+    foreach (edok_rachunki_list() as $r) {
+        $n = _edok_nrb_digits((string)($r['nrb'] ?? ''));
+        if (strlen($n) === 26 && str_ends_with($k, $n) && $n !== _edok_nrb_digits((string)($tx['account_nrb'] ?? ''))) return (string)$r['nrb'];
+    }
+    return null;
+}
+
+/**
+ * Rejestruje operację z wyciągu jako przelew własny (edok_transfers) i wyłącza ją z przypisywania do dokumentów.
+ * Kierunek z znaku: wpływ = z rachunku kontrahenta na rachunek wyciągu, wypływ = odwrotnie.
+ * Ten sam przelew widoczny na dwóch wyciągach (wypływ + wpływ) tworzy jeden wpis. Zwraca komunikat błędu albo null.
+ */
+function edok_bank_register_own_transfer(int $tx_id, string $counter_nrb, string $uzasadnienie, int $user_id): ?string {
+    $tx = db_one("SELECT * FROM edok_bank_tx WHERE id = ?", [$tx_id]);
+    if (!$tx) return 'Nie ma takiej operacji.';
+    if ($tx['doc_id']) return 'Operacja jest już przypisana do dokumentu.';
+    $own = _edok_nrb_digits((string)$tx['account_nrb']); $cnt = _edok_nrb_digits($counter_nrb);
+    if (strlen($cnt) !== 26 || strlen($own) !== 26) return 'Brak rachunku własnego lub kontrahenta (26 cyfr).';
+    if ($cnt === $own) return 'Rachunek źródłowy i docelowy muszą się różnić.';
+    [$z, $do] = $tx['znak'] === 'C' ? [$cnt, $own] : [$own, $cnt];
+    $kw = number_format((float)$tx['kwota'], 2, ',', '');
+    $nazwa = function (string $n): string { foreach (edok_rachunki_list() as $r) if (_edok_nrb_digits((string)$r['nrb']) === $n) return ($r['nazwa'] ?: $r['bank']) . ' (' . substr($n, -4) . ')'; return ''; };
+    $ex = null;
+    foreach (db_all("SELECT id, rachunek_z_nrb, rachunek_do_nrb FROM edok_transfers WHERE data_przelewu=? AND kwota=?", [$tx['data_waluty'], $kw]) as $t) {
+        if (_edok_nrb_digits($t['rachunek_z_nrb']) === $z && _edok_nrb_digits($t['rachunek_do_nrb']) === $do) { $ex = (int)$t['id']; break; }
+    }
+    $tid = $ex ?? edok_transfer_add([
+        'data_przelewu' => $tx['data_waluty'], 'rachunek_z_nrb' => $z, 'rachunek_z_nazwa' => $nazwa($z),
+        'rachunek_do_nrb' => $do, 'rachunek_do_nazwa' => $nazwa($do), 'kwota' => $kw, 'waluta' => $tx['waluta'] ?: 'PLN',
+        'rodzaj_dzialalnosci_z' => '', 'projekt_z' => '', 'rodzaj_dzialalnosci_do' => '', 'projekt_do' => '',
+        'uzasadnienie' => $uzasadnienie !== '' ? $uzasadnienie : 'Przelew własny między rachunkami organizacji (import wyciągu)',
+    ], $user_id);
+    db()->prepare("UPDATE edok_bank_tx SET transfer_id=?, ignored=1, ignore_note=? WHERE id=?")
+        ->execute([$tid, 'Przelew własny #' . $tid, $tx_id]);
+    return null;
+}
+
+/** Przypisuje automatycznie transakcje z jednoznacznym kandydatem (numer EODoK w tytule + kwota albo kwota + pełna nazwa kontrahenta). */
 function edok_bank_auto_match(): int {
     $n = 0;
     foreach (db_all("SELECT * FROM edok_bank_tx WHERE doc_id IS NULL AND ignored = 0") as $tx) {
         $c = edok_bank_candidates($tx, 2);
-        if (!$c || !$c[0]['amount_ok'] || $c[0]['score'] < 150) continue;
+        if (!$c || !$c[0]['amount_ok']) continue;
+        // pewne: numer EODoK w tytule (score ≥ 150) albo zgodna kwota + pełna nazwa kontrahenta
+        $by_name = in_array('nazwa kontrahenta (pełna)', $c[0]['reasons'], true) && $c[0]['score'] >= 90;
+        if ($c[0]['score'] < 150 && !$by_name) continue;
         if (isset($c[1]) && $c[1]['score'] >= $c[0]['score']) continue; // niejednoznaczne
         if (edok_bank_assign((int)$tx['id'], (int)$c[0]['doc']['id'], 'auto') === null) $n++;
     }

@@ -292,6 +292,7 @@ function edok_migrate(): void {
         imported_at      TEXT    NOT NULL DEFAULT ''
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_edok_bank_tx_doc ON edok_bank_tx(doc_id)");
+    _edok_add_columns($db, 'edok_bank_tx', ['transfer_id' => 'INTEGER']);   // przelew własny (edok_transfers.id)
 
     // Kolejka do opisu — pliki wgrane zbiorczo (edok/bulk_upload.php), czekające na opisanie
     // i złożenie do obiegu (edok/add.php?queue=ID). To NIE są dokumenty EODoK: numer dostają

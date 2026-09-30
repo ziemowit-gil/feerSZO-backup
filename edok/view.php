@@ -62,8 +62,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (in_array($action, ['bank_link', 'bank_unlink'], true) && (is_admin() || edok_has_role('upload') || edok_has_role('ksiegowy'))) {
         require_once __DIR__ . '/../includes/edok_bank.php';
-        $err = $action === 'bank_link' ? edok_bank_assign((int)($_POST['tx_id'] ?? 0), $id) : edok_bank_unlink_from_doc((int)($_POST['tx_id'] ?? 0), $id);
-        flash_set($err ? 'danger' : 'success', $err ?: ($action === 'bank_link' ? 'Powiązano transakcję z wyciągu z dokumentem.' : 'Odpięto transakcję.'));
+        if ($action === 'bank_link') {
+            // jedna lub kilka transakcji naraz (np. płatność ratalna / zaliczka + dopłata)
+            $ids = array_unique(array_map('intval', array_merge((array)($_POST['tx_ids'] ?? []), isset($_POST['tx_id']) ? [(int)$_POST['tx_id']] : [])));
+            $ok_n = 0; $err = null;
+            foreach ($ids as $tid) { if ($tid <= 0) continue; $e = edok_bank_assign($tid, $id); if ($e === null) $ok_n++; else $err = $e; }
+            if ($ok_n === 0 && !$err) $err = 'Zaznacz transakcje do powiązania.';
+            flash_set($err && !$ok_n ? 'danger' : 'success', $err && !$ok_n ? $err : "Powiązano transakcji z wyciągu: {$ok_n}." . ($err ? " Błąd: {$err}" : ''));
+        } else {
+            $err = edok_bank_unlink_from_doc((int)($_POST['tx_id'] ?? 0), $id);
+            flash_set($err ? 'danger' : 'success', $err ?: 'Odpięto transakcję.');
+        }
         header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
         exit;
     }
@@ -985,15 +994,18 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <input type="hidden" name="action" value="bank_unlink"><input type="hidden" name="tx_id" value="<?= (int)$bt['id'] ?>"><button class="btn btn-sm btn-link text-danger p-0">odepnij</button></form><?php endif; ?></div>
         <?php endforeach; ?>
         <?php if ($bank_cand): ?>
-        <form method="post" class="d-flex gap-2 align-items-center mt-2"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="bank_link">
-          <select name="tx_id" class="form-select form-select-sm" style="max-width:520px" aria-label="Transakcja z wyciągu">
+        <form method="post" class="mt-2"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="bank_link">
+          <div class="border rounded p-2" style="max-height:240px;overflow:auto" role="group" aria-label="Transakcje z wyciągu do powiązania">
             <?php foreach ($bank_cand as $c): $t = $c['tx']; ?>
-            <option value="<?= (int)$t['id'] ?>"><?= h(date_pl($t['data_waluty'])) ?> · <?= h(number_format((float)$t['kwota'], 2, ',', ' ')) ?> · <?= h(mb_substr($t['kontrahent_nazwa'] ?: '—', 0, 30)) ?> · <?= h(mb_substr($t['tytul'], 0, 50)) ?><?= $c['score'] >= 50 ? ' ★' : '' ?></option>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="tx_ids[]" value="<?= (int)$t['id'] ?>" id="btx<?= (int)$t['id'] ?>"<?= $c['score'] >= 150 ? ' checked' : '' ?>>
+              <label class="form-check-label" for="btx<?= (int)$t['id'] ?>"><?= h(date_pl($t['data_waluty'])) ?> · <strong><?= $t['znak'] === 'C' ? '+' : '−' ?><?= h(number_format((float)$t['kwota'], 2, ',', ' ')) ?></strong> · <?= h(mb_substr($t['kontrahent_nazwa'] ?: '—', 0, 30)) ?> · <?= h(mb_substr($t['tytul'], 0, 50)) ?><?= $c['score'] >= 50 ? ' ★' : '' ?></label>
+            </div>
             <?php endforeach; ?>
-          </select>
-          <button class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-link-45deg"></i> Powiąż z wyciągiem</button>
+          </div>
+          <button class="btn btn-sm btn-outline-primary text-nowrap mt-2"><i class="bi bi-link-45deg"></i> Powiąż zaznaczone z dokumentem</button>
         </form>
-        <div class="form-text">Lista niepowiązanych transakcji z zaimportowanych wyciągów (★ = pasuje kwota / numer). <a href="<?= APP_URL ?>/edok/mt940_import.php">Wgraj wyciąg</a></div>
+        <div class="form-text">Niepowiązane transakcje z zaimportowanych wyciągów — możesz zaznaczyć kilka (★ = pasuje kwota / numer; wstępnie zaznaczone są pewne dopasowania). <a href="<?= APP_URL ?>/edok/mt940_import.php">Wgraj wyciąg</a></div>
         <?php endif; ?>
       </div>
     </div>
