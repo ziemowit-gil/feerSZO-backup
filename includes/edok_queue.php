@@ -32,13 +32,16 @@ function edok_parse_invoice_xml(string $xml): array {
     $netto = 0.0; $vat = 0.0; $used = [];
     foreach ($rates as $code => [$n, $v]) {
         $nv = $num($n);
-        if ($nv != 0.0) { $used[] = $code; }
+        if ($nv != 0.0) { $used[] = (string)$code; }
         $netto += $nv; $vat += $num($v);
     }
     // P_13_4/5 (taksówki, procedura szczególna), P_13_6_1..3 (0%), P_13_7 (zw.)
     $x = $num('P_13_4'); $netto += $x; $vat += $num('P_14_4'); if ($x) $used[] = 'x';
     foreach (['P_13_6_1', 'P_13_6_2', 'P_13_6_3'] as $t) { $x = $num($t); $netto += $x; if ($x) $used[] = '0'; }
     $zw = $num('P_13_7'); $netto += $zw; if ($zw) $used[] = 'zw';
+    // P_13_8/9 (poza terytorium kraju / art. 100 ust. 1 pkt 4), P_13_10 (odwrotne obciążenie) → „np.”; P_13_11 (marża) — bez stawki.
+    foreach (['P_13_8', 'P_13_9', 'P_13_10'] as $t) { $x = $num($t); $netto += $x; if ($x) $used[] = 'np'; }
+    $x = $num('P_13_11'); $netto += $x; if ($x) $used[] = 'x';
     $used = array_values(array_unique($used));
 
     $brutto = $num('P_15');
@@ -46,6 +49,14 @@ function edok_parse_invoice_xml(string $xml): array {
     $wiersze = $sx->xpath($fa . '/*[local-name()="FaWiersz"]/*[local-name()="P_7"]') ?: [];
     $opis = $wiersze ? trim((string)$wiersze[0]) : '';
     if (count($wiersze) > 1) $opis .= ' (+' . (count($wiersze) - 1) . ' poz.)';
+
+    // Płatność (FA(3): Platnosc) — Zaplacono=1 → faktura zapłacona przed wystawieniem; FormaPlatnosci: 1 gotówka, 2 karta,
+    // 3 bon, 4 czek, 5 kredyt, 6 przelew, 7 płatność mobilna.
+    $pl = $fa . '/*[local-name()="Platnosc"]';
+    $zaplacona = $one($pl . '/*[local-name()="Zaplacono"]') === '1';
+    $forma = match ($one($pl . '/*[local-name()="FormaPlatnosci"]')) {
+        '1' => 'gotowka', '2', '7' => 'karta', '6' => 'przelew', '' => '', default => 'inna',
+    };
 
     return [
         'typ_dokumentu'    => str_starts_with($typ, 'KOR') ? 'faktura_korygujaca' : 'faktura_vat',
@@ -62,6 +73,9 @@ function edok_parse_invoice_xml(string $xml): array {
         'termin_platnosci' => $one($fa . '/*[local-name()="Platnosc"]/*[local-name()="TerminPlatnosci"]/*[local-name()="Termin"]'),
         'rachunek_bankowy' => preg_replace('/\s+/', '', $one($fa . '/*[local-name()="Platnosc"]/*[local-name()="RachunekBankowy"]/*[local-name()="NrRB"]')),
         'description'      => $opis,
+        'zaplacono_przed'  => $zaplacona ? '1' : '',
+        'data_zaplaty'     => $zaplacona ? $one($pl . '/*[local-name()="DataZaplaty"]') : '',
+        'forma_zaplaty'    => $zaplacona ? $forma : '',
     ];
 }
 

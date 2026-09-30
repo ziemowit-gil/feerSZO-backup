@@ -396,7 +396,7 @@ require_once __DIR__ . '/../includes/header.php';
           <select id="stawka_vat" name="stawka_vat" class="form-select" onchange="edokRecalc()">
             <option value="">— podaj VAT ręcznie —</option>
             <?php foreach (CRM_OFFER_VAT_RATES as $k => $r): ?>
-            <option value="<?= h($k) ?>" data-rate="<?= h($r['rate']) ?>" <?= ($_POST['stawka_vat'] ?? '') === $k ? 'selected' : '' ?>><?= h($r['label']) ?></option>
+            <option value="<?= h($k) ?>" data-rate="<?= h($r['rate']) ?>" <?= (string)($_POST['stawka_vat'] ?? '') === (string)$k ? 'selected' : '' ?>><?= h($r['label']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -754,6 +754,12 @@ function edokXmlLoad(input) {
       document.getElementById('file_input').required = false;
       document.getElementById('file_upload_wrap').style.display = 'none';
       document.getElementById('ksef_file_attached').style.display = '';
+      if (d.zaplacono_przed) {
+        document.getElementById('zp_zaplacono').checked = true;
+        if (d.data_zaplaty) document.getElementById('zp_data').value = d.data_zaplaty;
+        if (d.forma_zaplaty) document.getElementById('zp_forma').value = d.forma_zaplaty;
+        if (typeof edokZpSync === 'function') edokZpSync();
+      }
       edokMppCheck(); edokSuggestTytul();
       status.textContent = 'Uzupełniono dane z XML. Sprawdź je i uzupełnij dekretację.'; status.className = 'form-text text-success';
     })
