@@ -126,6 +126,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($lb === '') { $err = 'Brak ostatniego importu.'; break; }
             $x = pp_vnrb_pool_assign_ti($by, $uid, $lb);
             $ok = "Ostatni import: przypisano kursantom TI {$x['assigned']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
+        case 'notice_save':
+            $nid = pp_notice_save((int)($_POST['notice_id'] ?? 0), (string)($_POST['scope'] ?? 'unnotified'), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['sms_text'] ?? ''), $by);
+            if (is_string($nid)) { $err = $nid; break; }
+            $ok = 'Szkic zapisany (#' . $nid . '). Sprawdź podgląd i zatwierdź treść, aby zaplanować wysyłkę.'; break;
+        case 'notice_approve':
+            $err = pp_notice_approve((int)($_POST['notice_id'] ?? 0), $by, $uid);
+            $ok = 'Treść zatwierdzona. Wiadomości (e-mail i SMS) wyślą się automatycznie o 08:00 następnego dnia.'; break;
+        case 'notice_cancel':
+            $err = pp_notice_cancel((int)($_POST['notice_id'] ?? 0), $by, $uid);
+            $ok = 'Wysyłka anulowana.'; break;
         case 'pool_notify':
             $lb = (string)org_setting('pp_pool_last_batch');
             $x = pp_vnrb_pool_notify(!empty($_POST['only_last']) && $lb !== '' ? $lb : null, $by, $uid);
@@ -544,11 +554,10 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     </div>
     <?php $unn = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL")['c'] ?? 0); ?>
     <div class="grid gap-3 md:grid-cols-3">
-      <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2" onsubmit="return confirm('Wysłać SMS i e-mail z numerem rachunku kursantom, którzy jeszcze go nie dostali?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_notify">
+      <div class="rounded-lg border border-slate-200 p-3 space-y-2">
         <div class="text-sm font-semibold">Powiadom kursantów TI</div>
-        <div class="text-xs text-slate-500">Bez powiadomienia: <strong><?= $unn ?></strong>. Wysyła tylko admin, wirtualni kursanci są pomijani.</div>
-        <label class="flex items-center gap-2 text-xs"><input type="checkbox" name="only_last" value="1"> tylko z ostatniego importu</label>
-        <button class="bp"<?= $unn ? '' : ' disabled' ?>>Wyślij powiadomienia</button></form>
+        <div class="text-xs text-slate-500">Bez powiadomienia: <strong><?= $unn ?></strong>. Treść zatwierdza admin, wysyłka rusza o 08:00 następnego dnia — sekcja poniżej.</div>
+        <a class="bs" href="#powiadomienia">Przejdź do powiadomień</a></div>
       <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_crm">
         <div class="text-sm font-semibold">Kontrahenci CRM (seria „inni")</div>
         <div class="text-xs text-slate-500">Przypisuje wolne numery serii „inni" aktywnym kontaktom CRM bez numeru.</div>
@@ -558,6 +567,41 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <div class="text-xs text-slate-500">Przypisuje numery serii „spoza TI" uczestnikom z dostępem do portalu, bez konta TI.</div>
         <button class="bs">Przypisz uczestnikom</button></form>
     </div>
+    <section id="powiadomienia" class="rounded-lg border border-slate-200 p-3 space-y-3" aria-labelledby="pn-h">
+      <?php $pn = pp_notice_default(); $pn_list = db_all("SELECT * FROM pp_notice_batches ORDER BY id DESC LIMIT 6");
+            $pn_edit = (int)($_GET['pn'] ?? 0) ? db_one("SELECT * FROM pp_notice_batches WHERE id=? AND status='draft'", [(int)$_GET['pn']]) : null; ?>
+      <h3 id="pn-h" class="font-semibold text-sm"><i class="bi bi-send-check" aria-hidden="true"></i> Powiadomienia o numerze rachunku — zatwierdzanie i wysyłka</h3>
+      <p class="text-xs text-slate-500">Przygotuj treść (znaczniki: <code>{imie_nazwisko}</code> <code>{numer}</code> <code>{numer_cyfry}</code> <code>{tytul}</code> <code>{organizacja}</code>), zapisz szkic, sprawdź podgląd i <strong>zatwierdź</strong>. Zatwierdzona wiadomość (e-mail i SMS) wyśle się automatycznie o <strong>08:00 następnego dnia</strong>. Wirtualni kursanci są pomijani.</p>
+      <?php foreach ($pn_list as $b): $rc = count(pp_notice_recipients($b['scope'], $b['batch'])); $pv = null; foreach (pp_notice_recipients($b['scope'], $b['batch']) as $c0) { $pv = pp_notice_vars($c0); if ($pv) break; } ?>
+      <div class="rounded-lg bg-slate-50 p-3 text-sm">
+        <div class="flex flex-wrap items-center gap-2"><strong>#<?= (int)$b['id'] ?></strong> <span class="rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-slate-200"><?= h(PP_NOTICE_STATUSES[$b['status']] ?? $b['status']) ?></span>
+          <span class="text-xs text-slate-500"><?= $b['scope'] === 'last' ? 'ostatni import' : 'wszyscy bez powiadomienia' ?> · odbiorców teraz: <?= $rc ?><?= $b['send_at'] ? ' · wysyłka: ' . h(date('d.m.Y H:i', strtotime($b['send_at']))) : '' ?><?= $b['approved_by'] ? ' · zatwierdził: ' . h($b['approved_by']) : '' ?></span>
+          <span class="ml-auto flex gap-2">
+            <?php if ($b['status'] === 'draft'): ?>
+            <a class="bs" href="admin.php?pn=<?= (int)$b['id'] ?>#powiadomienia">Edytuj</a>
+            <form method="post" onsubmit="return confirm('Zatwierdzić treść? Wiadomości wyślą się o 08:00 następnego dnia (<?= $rc ?> odbiorców).')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_approve"><input type="hidden" name="notice_id" value="<?= (int)$b['id'] ?>"><button class="bp">Zatwierdź treść</button></form>
+            <?php endif; ?>
+            <?php if (in_array($b['status'], ['draft', 'approved'], true)): ?>
+            <form method="post" onsubmit="return confirm('Anulować tę wysyłkę?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_cancel"><input type="hidden" name="notice_id" value="<?= (int)$b['id'] ?>"><button class="bs">Anuluj</button></form>
+            <?php endif; ?></span></div>
+        <?php if ($pv && in_array($b['status'], ['draft', 'approved'], true)): ?>
+        <details class="mt-2"><summary class="cursor-pointer text-xs text-navy-700">Podgląd (dla: <?= h($pv['name']) ?>)</summary>
+          <div class="mt-2 rounded border border-slate-200 bg-white p-3 text-sm"><div class="mb-1 text-xs text-slate-500">Temat: <?= h(pp_notice_render($b['subject'], $pv)) ?></div><div><?= pp_notice_render($b['body'], $pv, true) ?></div>
+            <?php if (trim($b['sms_text']) !== ''): ?><div class="mt-2 border-t pt-2 text-xs text-slate-600">SMS: <?= h(pp_notice_render($b['sms_text'], $pv)) ?></div><?php endif; ?></div></details>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+      <form method="post" class="space-y-2 rounded-lg border border-slate-200 p-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_save"><input type="hidden" name="notice_id" value="<?= (int)($pn_edit['id'] ?? 0) ?>">
+        <div class="text-sm font-semibold"><?= $pn_edit ? 'Edycja szkicu #' . (int)$pn_edit['id'] : 'Nowa wysyłka (szkic)' ?></div>
+        <div class="grid gap-2 md:grid-cols-3">
+          <div><label class="lbl" for="pn-sc">Odbiorcy</label><select id="pn-sc" name="scope" class="inp"><option value="unnotified"<?= ($pn_edit['scope'] ?? '') !== 'last' ? ' selected' : '' ?>>Wszyscy z numerem, bez powiadomienia</option><option value="last"<?= ($pn_edit['scope'] ?? '') === 'last' ? ' selected' : '' ?>>Tylko z ostatniego importu</option></select></div>
+          <div class="md:col-span-2"><label class="lbl" for="pn-su">Temat e-maila</label><input id="pn-su" name="subject" class="inp" maxlength="200" required value="<?= h($pn_edit['subject'] ?? $pn['subject']) ?>"></div>
+        </div>
+        <div><label class="lbl" for="pn-bo">Treść e-maila</label><textarea id="pn-bo" name="body" rows="9" class="inp" required><?= h($pn_edit['body'] ?? $pn['body']) ?></textarea></div>
+        <div><label class="lbl" for="pn-sm">Treść SMS (puste = bez SMS; bez polskich znaków jest bezpieczniej)</label><textarea id="pn-sm" name="sms_text" rows="2" class="inp" maxlength="320"><?= h($pn_edit['sms_text'] ?? $pn['sms']) ?></textarea></div>
+        <button class="bp">Zapisz szkic</button>
+      </form>
+    </section>
     <?php if ($lrows): ?>
     <div class="overflow-x-auto"><table class="w-full text-sm"><caption class="text-left font-semibold text-sm mb-1">Ostatni import — przypisania</caption>
       <thead><tr class="text-left"><th>Lp.</th><th>Rachunek</th><th>Seria</th><th>Kursant</th><th>Przypisano</th></tr></thead><tbody>
