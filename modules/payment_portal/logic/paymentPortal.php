@@ -202,6 +202,79 @@ function pp_set_nrb(int $participant_id, string $nrb, string $by, ?int $uid): ?s
         return null;
     } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd: ' . $e->getMessage(); }
 }
+
+/**
+ * Powiadamia kursanta TI (SMS + e-mail) o nowym numerze rachunku do wpłat.
+ * Każdy kanał niezależnie; zwraca ['sms' => bool, 'email' => bool].
+ */
+function pp_ti_notify_nrb(int $client_id, string $nrb): array {
+    $res = ['sms' => false, 'email' => false];
+    $cl = db_one("SELECT name, email, phone FROM k30_clients WHERE id=?", [$client_id]);
+    if (!$cl) return $res;
+    $org = defined('ORG_NAME') ? ORG_NAME : 'FEER';
+    $fmt = 'PL ' . pp_nrb_format($nrb);
+    $phone = trim((string)($cl['phone'] ?? ''));
+    if ($phone !== '') {
+        if (!function_exists('sms_send')) require_once dirname(__DIR__, 3) . '/includes/sms.php';
+        try {
+            if (sms_channel_ready()) { sms_send($phone, "{$org}: Twoj nowy numer rachunku do wplat za zajecia: " . preg_replace('/\D/', '', $nrb) . ". W tytule przelewu wpisz imie i nazwisko."); $res['sms'] = true; }
+        } catch (\Throwable $e) {}
+    }
+    $email = trim((string)($cl['email'] ?? ''));
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+        try {
+            $n = htmlspecialchars((string)$cl['name'], ENT_QUOTES);
+            $body = '<p>Dzień dobry' . ($n !== '' ? ', ' . $n : '') . ',</p>'
+                  . '<p>nadaliśmy Ci nowy, indywidualny numer rachunku do wpłat za zajęcia:</p>'
+                  . '<p style="font-size:1.2em"><strong>' . htmlspecialchars($fmt, ENT_QUOTES) . '</strong></p>'
+                  . '<p>Od teraz wpłaty kieruj wyłącznie na ten rachunek. W tytule przelewu wpisz imię i nazwisko kursanta. '
+                  . 'Wpłaty na poprzedni numer nie będą już przypisywane automatycznie — w razie wątpliwości skontaktuj się z biurem.</p>'
+                  . '<p>' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
+            mail_queue_add($email, (string)$cl['name'], "[{$org}] Nowy numer rachunku do wpłat", $body, '', 'ti_vnrb', $client_id);
+            $res['email'] = true;
+        } catch (\Throwable $e) {}
+    }
+    return $res;
+}
+
+/**
+ * Ustawia rachunek wirtualny kursanta TI z jego numeru kursanta (idempotentnie).
+ * Zwraca nowy NRB, gdy się zmienił; null gdy bez zmian / brak numeru / konflikt.
+ */
+function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
+    $n = pp_nrb_generate($client_id);
+    if ($n === null) return null;
+    $u = pp_user($client_id);
+    if ($u && pp_nrb_normalize((string)$u['individual_nrb']) === $n) return null;
+    if (!$u && is_string(pp_user_ensure($client_id, $by, $uid))) return null;
+    if (pp_user($client_id) && pp_nrb_normalize((string)pp_user($client_id)['individual_nrb']) === $n) return $n;
+    return pp_set_nrb($client_id, $n, $by, $uid) === null ? $n : null;
+}
+
+/**
+ * Masowo: nowe rachunki dla kursantów TI, którzy mają już dostęp do portalu.
+ * Pomija tych z oczekującym przelewem na stary NRB. $notify → SMS + e-mail.
+ * @return array{changed:int, same:int, skipped:list<string>, sms:int, email:int}
+ */
+function pp_ti_regenerate_all(bool $notify, string $by, ?int $uid): array {
+    $r = ['changed' => 0, 'same' => 0, 'skipped' => [], 'sms' => 0, 'email' => 0];
+    $rows = db_all("SELECT u.participant_id, c.name FROM payment_portal_users u JOIN k30_clients c ON c.id=u.participant_id
+                     WHERE EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=u.participant_id) ORDER BY c.name");
+    foreach ($rows as $row) {
+        $pid = (int)$row['participant_id'];
+        if (db_one("SELECT 1 FROM portal_transactions WHERE participant_id=? AND status='pending' AND payment_method='individual_nrb'", [$pid])) {
+            $r['skipped'][] = $row['name'] . ' (oczekujący przelew na stary numer)'; continue;
+        }
+        if (pp_ti_student_no($pid) === null) { $r['skipped'][] = $row['name'] . ' (brak 12-cyfrowego nr kursanta)'; continue; }
+        $n = pp_ti_sync_nrb($pid, $by, $uid);
+        if ($n === null) { $r['same']++; continue; }
+        $r['changed']++;
+        if ($notify) { $x = pp_ti_notify_nrb($pid, $n); $r['sms'] += (int)$x['sms']; $r['email'] += (int)$x['email']; }
+    }
+    audit_log('payments.vnrb_regenerate_ti', $r + ['notify' => $notify, 'by' => $by], $uid);
+    return $r;
+}
 /** Nowy link dostępu (poprzedni przestaje działać). Zwraca URL z tokenem — pokazywany raz. */
 function pp_issue_link(int $participant_id, string $by, ?int $uid): string {
     pp_migrate();

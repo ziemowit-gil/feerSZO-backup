@@ -67,6 +67,11 @@ function _student_no_nrb_conflict(string $no, int $client_id = 0): bool {
     } catch (\Throwable $e) { return false; }   // tabela portalu jeszcze nie istnieje
 }
 
+/** Zapisuje rachunek wirtualny kursanta w portalu płatności (bez powiadomień; błąd nie blokuje). */
+function _student_sync_portal_nrb(int $client_id): void {
+    try { pp_ti_sync_nrb($client_id, 'konta TI', null); } catch (\Throwable $e) {}
+}
+
 /** Generuje unikalny 12-cyfrowy numer identyfikacyjny kursanta */
 function _gen_student_no(int $client_id = 0): string {
     do {
@@ -170,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_at'    => date('Y-m-d H:i:s'),
             'updated_at'    => date('Y-m-d H:i:s'),
         ]);
+        _student_sync_portal_nrb((int)$cid);
 
         // Kod polecający (opcjonalnie) — rabat dla obu stron, patrz ti_referrals.php
         $ref_code = trim((string)($_POST['referral_code'] ?? ''));
@@ -217,6 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'created_at'    => date('Y-m-d H:i:s'),
                 'updated_at'    => date('Y-m-d H:i:s'),
             ]);
+            _student_sync_portal_nrb((int)$cid);
             $existing[] = $cid;
             $sms = $send_sms ? _student_send_login_sms($c['phone'] ?? '', $login, $pass) : '';
             $rows[] = ['name' => $c['name'], 'login' => $login, 'password' => $pass, 'sms' => trim($sms)];
@@ -280,6 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($aid) {
             db()->prepare("UPDATE k30_ti_student_accounts SET student_no=?, updated_at=datetime('now') WHERE id=?")
                ->execute([mb_substr($no, 0, 40), $aid]);
+            if ($no !== '' && $cid && pp_user($cid)) _student_sync_portal_nrb($cid);   // portal ma już dostęp → nowy rachunek
             flash_set('success', $no !== '' ? 'Numer kursanta zapisany.' : 'Numer kursanta usunięty.');
         }
         header('Location: konta.php?selected=' . $aid); exit;

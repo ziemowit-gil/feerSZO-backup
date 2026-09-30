@@ -80,6 +80,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ok = 'Numer wygenerowany i przypisany uczestnikowi.'; break;
             }
             $ok = 'Numer wygenerowany.'; break;
+        case 'regen_ti':
+            $r = pp_ti_regenerate_all(!empty($_POST['notify']), $by, $uid);
+            $ok = "Nowe rachunki: {$r['changed']}, bez zmian: {$r['same']}, pominięto: " . count($r['skipped'])
+                . (!empty($_POST['notify']) ? ". Powiadomienia: SMS {$r['sms']}, e-mail {$r['email']}." : '.')
+                . ($r['skipped'] ? ' Pominięci: ' . implode('; ', array_slice($r['skipped'], 0, 10)) . (count($r['skipped']) > 10 ? '…' : '') : ''); break;
         case 'user':
             $u = pp_user_ensure($pid, $by, $uid);
             $err = is_string($u) ? $u : null; $ok = 'Dostęp uczestnika utworzony.'; break;
@@ -314,6 +319,12 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <div><label class="lbl" for="vg-p">Przypisz uczestnikowi (ID)</label><input id="vg-p" name="assign_pid" type="number" min="1" class="inp" value="<?= $pid ?: '' ?>"></div>
       <label class="md:col-span-4 flex items-center gap-2 text-sm"><input type="checkbox" name="do_assign" value="1"> Zapisz wynik jako indywidualny NRB tego uczestnika (utworzy dostęp, jeśli go nie ma)</label>
       <div class="md:col-span-2 text-right"><button class="bp">Generuj</button></div>
+    </form>
+    <form method="post" class="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2" onsubmit="return confirm('Przeliczyć rachunki kursantów TI z dostępem do portalu? Dotychczasowe numery zostaną zastąpione.')">
+      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="regen_ti">
+      <p class="text-sm"><strong>Kursanci TI z dostępem do portalu:</strong> przelicz rachunki z numeru kursanta i bieżącego prefiksu. Pomijamy osoby z oczekującym przelewem na stary numer.</p>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="notify" value="1"> Powiadom kursantów o nowym numerze (SMS + e-mail; tylko TI)</label>
+      <button class="bp">Wygeneruj nowe rachunki</button>
     </form>
     <p class="text-sm">Eksport do TXT (NRB, grupa, ID, nazwa):
       <a class="bs" href="admin.php?export=txt&g=ti">Kursanci TI</a>
