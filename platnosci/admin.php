@@ -191,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             audit_log('payments.p24_refresh', ['checked' => count($ids), 'changed' => $chg, 'by' => $by], $uid);
             $ok = 'Sprawdzono w Przelewy24 ' . count($ids) . ' płatności; zmieniło się: ' . $chg . '.'; break;
         case 'notice_save':
-            $nid = pp_notice_save((int)($_POST['notice_id'] ?? 0), (string)($_POST['scope'] ?? 'unnotified'), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['sms_text'] ?? ''), $by);
+            $nid = pp_notice_save((int)($_POST['notice_id'] ?? 0), (string)($_POST['scope'] ?? 'unnotified'), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['sms_text'] ?? ''), $by, (string)($_POST['kind'] ?? 'numer'));
             if (is_string($nid)) { $err = $nid; break; }
             $ok = 'Szkic zapisany (#' . $nid . '). Sprawdź podgląd i zatwierdź treść, aby zaplanować wysyłkę.'; break;
         case 'notice_approve':
@@ -599,10 +599,10 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <p class="text-xs text-slate-500">Treść zatwierdza admin; wysyłka rusza automatycznie o wyznaczonej godzinie (domyślnie 08:00 następnego dnia po zatwierdzeniu). Terminu zatwierdzonej wysyłki nie trzeba zmieniać — możesz to zrobić poniżej (06:00–22:00).</p>
       <?php if (!$kb): ?><p class="text-sm text-slate-500">Brak wysyłek. Przygotuj pierwszą w zakładce Rachunki wirtualne → Import i przypisanie.</p><?php endif; ?>
       <div class="divide-y divide-slate-100">
-      <?php foreach ($kb as $b): $st0 = json_decode((string)$b['stats'], true) ?: []; $rc = in_array($b['status'], ['draft', 'approved'], true) ? count(pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'])) : (int)($st0['students'] ?? 0); ?>
+      <?php foreach ($kb as $b): $st0 = json_decode((string)$b['stats'], true) ?: []; $rc = in_array($b['status'], ['draft', 'approved'], true) ? count(pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'], (string)($b['kind'] ?? 'numer'))) : (int)($st0['students'] ?? 0); ?>
         <div class="py-3 text-sm">
           <div class="flex flex-wrap items-center gap-2">
-            <strong>#<?= (int)$b['id'] ?></strong><span class="rounded-full px-2 py-0.5 text-xs <?= $kn[$b['status']] ?? '' ?>"><?= h(PP_NOTICE_STATUSES[$b['status']] ?? $b['status']) ?></span>
+            <strong>#<?= (int)$b['id'] ?></strong><span class="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-800"><?= ($b['kind'] ?? 'numer') === 'zaleglosc' ? 'przypomnienie o zaległości' : 'numer rachunku' ?></span><span class="rounded-full px-2 py-0.5 text-xs <?= $kn[$b['status']] ?? '' ?>"><?= h(PP_NOTICE_STATUSES[$b['status']] ?? $b['status']) ?></span>
             <span class="font-medium"><?= h($b['subject']) ?></span>
             <span class="text-xs text-slate-500">odbiorców: <?= $rc ?><?= $b['send_at'] ? ' · termin: ' . h(date('d.m.Y H:i', strtotime($b['send_at']))) : '' ?><?= $b['sent_at'] ? ' · wysłano: ' . h(date('d.m.Y H:i', strtotime($b['sent_at']))) : '' ?> · autor: <?= h($b['created_by']) ?><?= $b['approved_by'] ? ' · zatwierdził: ' . h($b['approved_by']) : '' ?><?= $b['status'] === 'sent' ? ' · SMS ' . (int)($st0['sms'] ?? 0) . ', e-mail ' . (int)($st0['email'] ?? 0) : '' ?></span>
           </div>
@@ -622,7 +622,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
                 <pre class="whitespace-pre-wrap font-sans"><?= h($b['body']) ?></pre>
                 <?php if (trim($b['sms_text']) !== ''): ?><div><strong>SMS:</strong> <?= h($b['sms_text']) ?></div><?php endif; ?>
                 <?php $live = in_array($b['status'], ['draft', 'approved'], true);
-                      $ids = $b['status'] === 'sent' ? array_map('intval', $st0['clients'] ?? []) : pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id']);
+                      $ids = $b['status'] === 'sent' ? array_map('intval', $st0['clients'] ?? []) : pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'], (string)($b['kind'] ?? 'numer'));
                       $exc_ids = $live ? array_map('intval', array_column(db_all("SELECT client_id FROM pp_notice_exclusions WHERE batch_id=?", [(int)$b['id']]), 'client_id')) : [];
                       $all_ids = array_values(array_unique(array_merge($ids, $exc_ids)));
                       if ($all_ids): $nm = array_column(db_all("SELECT id, name FROM k30_clients WHERE id IN (" . implode(',', array_map('intval', $all_ids)) . ") ORDER BY name COLLATE NOCASE"), 'name', 'id'); ?>
@@ -637,6 +637,20 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         </div>
       <?php endforeach; ?>
       </div>
+    </section>
+    <section class="card space-y-3" aria-labelledby="pr-h" x-data='{ tpl: <?= h(json_encode(pp_reminder_templates(), JSON_UNESCAPED_UNICODE)) ?> }'>
+      <h2 id="pr-h" class="font-semibold"><i class="bi bi-bell text-amber-600" aria-hidden="true"></i> Nowe przypomnienie o zaległościach</h2>
+      <?php $zl = pp_notice_recipients('unnotified', '', 0, 'zaleglosc'); ?>
+      <p class="text-xs text-slate-500">Odbiorcy: kursanci z niedopłatą (<strong><?= count($zl) ?></strong> teraz; bez „bez rozliczeń”, wirtualni pomijani). Znaczniki: <code>{imie_nazwisko}</code> <code>{kwota}</code> <code>{numer}</code> <code>{numer_cyfry}</code> <code>{tytul}</code> <code>{organizacja}</code>. Zapisz szkic, sprawdź podgląd, zatwierdź (wysyłka o 08:00 następnego dnia) — pojedyncze osoby możesz wykluczyć na liście wysyłki powyżej.</p>
+      <?php $rt = pp_reminder_templates()['r1']; ?>
+      <form method="post" class="space-y-2"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_save"><input type="hidden" name="notice_id" value="0"><input type="hidden" name="kind" value="zaleglosc"><input type="hidden" name="scope" value="unnotified">
+        <div class="flex flex-wrap items-center gap-2 text-xs"><span class="text-slate-500">Wybierz wersję treści:</span>
+          <?php foreach (pp_reminder_templates() as $rk => $rtt): ?><button type="button" class="bs" @click="document.getElementById('pr-su').value = tpl['<?= $rk ?>'].subject; document.getElementById('pr-bo').value = tpl['<?= $rk ?>'].body; document.getElementById('pr-sm').value = tpl['<?= $rk ?>'].sms;"><?= h($rtt['label']) ?></button><?php endforeach; ?></div>
+        <div><label class="lbl" for="pr-su">Temat e-maila</label><input id="pr-su" name="subject" class="inp" maxlength="200" required value="<?= h($rt['subject']) ?>"></div>
+        <div><label class="lbl" for="pr-bo">Treść e-maila</label><textarea id="pr-bo" name="body" rows="9" class="inp" required><?= h($rt['body']) ?></textarea></div>
+        <div><label class="lbl" for="pr-sm">Treść SMS (puste = bez SMS)</label><textarea id="pr-sm" name="sms_text" rows="2" class="inp" maxlength="320"><?= h($rt['sms']) ?></textarea></div>
+        <button class="bp">Zapisz szkic przypomnienia</button>
+      </form>
     </section>
   </div>
 
@@ -962,7 +976,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
             $pn_edit = (int)($_GET['pn'] ?? 0) ? db_one("SELECT * FROM pp_notice_batches WHERE id=? AND status='draft'", [(int)$_GET['pn']]) : null; ?>
       <h3 id="pn-h" class="font-semibold text-sm"><i class="bi bi-send-check" aria-hidden="true"></i> Powiadomienia o numerze rachunku — zatwierdzanie i wysyłka</h3>
       <p class="text-xs text-slate-500">Przygotuj treść (znaczniki: <code>{imie_nazwisko}</code> <code>{numer}</code> <code>{numer_cyfry}</code> <code>{tytul}</code> <code>{organizacja}</code>), zapisz szkic, sprawdź podgląd i <strong>zatwierdź</strong>. Zatwierdzona wiadomość (e-mail i SMS) wyśle się automatycznie o <strong>08:00 następnego dnia</strong>. Wirtualni kursanci są pomijani.</p>
-      <?php foreach ($pn_list as $b): $rc = count(pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'])); $pv = null; foreach (pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id']) as $c0) { $pv = pp_notice_vars($c0); if ($pv) break; } ?>
+      <?php foreach ($pn_list as $b): $rc = count(pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'], (string)($b['kind'] ?? 'numer'))); $pv = null; foreach (pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'], (string)($b['kind'] ?? 'numer')) as $c0) { $pv = pp_notice_vars($c0, (string)($b['kind'] ?? 'numer')); if ($pv) break; } ?>
       <div class="rounded-lg bg-slate-50 p-3 text-sm">
         <div class="flex flex-wrap items-center gap-2"><strong>#<?= (int)$b['id'] ?></strong> <span class="rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-slate-200"><?= h(PP_NOTICE_STATUSES[$b['status']] ?? $b['status']) ?></span>
           <span class="text-xs text-slate-500"><?= $b['scope'] === 'last' ? 'ostatni import' : 'wszyscy bez powiadomienia' ?> · odbiorców teraz: <?= $rc ?><?= $b['send_at'] ? ' · wysyłka: ' . h(date('d.m.Y H:i', strtotime($b['send_at']))) : '' ?><?= $b['approved_by'] ? ' · zatwierdził: ' . h($b['approved_by']) : '' ?></span>

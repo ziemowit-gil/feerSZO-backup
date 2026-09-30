@@ -56,6 +56,7 @@ function pp_migrate(): void {
         id INTEGER PRIMARY KEY AUTOINCREMENT, status TEXT NOT NULL DEFAULT 'draft', scope TEXT NOT NULL DEFAULT 'unnotified', batch TEXT NOT NULL DEFAULT '',
         subject TEXT NOT NULL, body TEXT NOT NULL, sms_text TEXT NOT NULL DEFAULT '', send_at DATETIME, approved_by TEXT, approved_at DATETIME,
         created_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, sent_at DATETIME, stats TEXT NOT NULL DEFAULT '')");
+    try { db()->exec("ALTER TABLE pp_notice_batches ADD COLUMN kind TEXT NOT NULL DEFAULT 'numer'"); } catch (\Throwable $e) {}   // numer | zaleglosc (przypomnienia o niedopłacie)
     try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN crm_contact_id INTEGER"); } catch (\Throwable $e) {}   // numer przypisany kontrahentowi CRM
     try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN notified_at DATETIME"); } catch (\Throwable $e) {}     // kiedy admin wysłał powiadomienie o numerze
     db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_crm (contact_id INTEGER PRIMARY KEY, nrb TEXT NOT NULL UNIQUE, assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -1155,24 +1156,35 @@ function pp_notice_templates(): array {
 function pp_notice_default(): array { $t = pp_notice_templates()['v1']; return ['subject' => $t['subject'], 'body' => $t['body'], 'sms' => $t['sms']]; }
 
 function pp_notice_render(string $tpl, array $v, bool $html = false): string {
-    $map = ['{imie_nazwisko}' => $v['name'], '{numer}' => $v['nrb_fmt'], '{numer_cyfry}' => $v['nrb'], '{tytul}' => $v['title'], '{organizacja}' => $v['org']];
+    $map = ['{imie_nazwisko}' => $v['name'], '{numer}' => $v['nrb_fmt'], '{numer_cyfry}' => $v['nrb'], '{tytul}' => $v['title'], '{organizacja}' => $v['org'], '{kwota}' => $v['debt_fmt'] ?? ''];
     $out = strtr($tpl, $html ? array_map(fn($x) => htmlspecialchars((string)$x, ENT_QUOTES, 'UTF-8'), $map) : $map);
     return $html ? nl2br($out, false) : $out;
 }
 
 /** Dane do podstawienia dla kursanta (null = brak numeru). */
-function pp_notice_vars(int $client_id): ?array {
+function pp_notice_vars(int $client_id, string $kind = 'numer'): ?array {
     $cl = db_one("SELECT id, name, email, phone FROM k30_clients WHERE id=?", [$client_id]);
     $u = pp_user($client_id);
     $nrb = preg_replace('/\D/', '', (string)($u['individual_nrb'] ?? ''));
-    if (!$cl || strlen($nrb) !== 26) return null;
-    return ['name' => (string)$cl['name'], 'email' => (string)$cl['email'], 'phone' => (string)$cl['phone'], 'nrb' => $nrb, 'nrb_fmt' => pp_nrb_format($nrb),
+    if (!$cl) return null;
+    if ($kind !== 'zaleglosc' && strlen($nrb) !== 26) return null;
+    $debt = $kind === 'zaleglosc' ? round((float)(ti_client_balance($client_id)['debt'] ?? 0), 2) : 0.0;
+    if ($kind === 'zaleglosc') {   // numer do wpłaty: indywidualny albo rachunek grupy/organizacji
+        $acc = function_exists('k30_ti_client_payment') ? (string)(k30_ti_client_payment($client_id)['account'] ?? '') : '';
+        $nrb_fmt = strlen($nrb) === 26 ? pp_nrb_format($nrb) : $acc; $nrb = $nrb !== '' ? $nrb : preg_replace('/\D/', '', $acc);
+    } else { $nrb_fmt = pp_nrb_format($nrb); }
+    return ['name' => (string)$cl['name'], 'email' => (string)$cl['email'], 'phone' => (string)$cl['phone'], 'nrb' => $nrb, 'nrb_fmt' => $nrb_fmt, 'debt' => $debt, 'debt_fmt' => number_format($debt, 2, ',', ' ') . ' zł',
             'title' => function_exists('k30_ti_payment_title') ? (string)k30_ti_payment_title($client_id) : ('TI/' . $client_id . ' ' . $cl['name']),
             'org' => defined('ORG_NAME') ? ORG_NAME : ''];
 }
 
 /** @return list<int> kursanci, do których wyśle się wiadomość z danej paczki (numer z puli TI, bez powiadomienia). */
-function pp_notice_recipients(string $scope, string $batch = '', int $batch_id = 0): array {
+function pp_notice_recipients(string $scope, string $batch = '', int $batch_id = 0, string $kind = 'numer'): array {
+    if ($kind === 'zaleglosc') {   // kursanci z niedopłatą (bez „bez rozliczeń”; wirtualnych pomija blokada wysyłki)
+        $ids = array_map(fn($r) => (int)$r['client_id'], ti_clients_with_debt());
+        if ($batch_id > 0) { $ex = array_map('intval', array_column(db_all("SELECT client_id FROM pp_notice_exclusions WHERE batch_id=?", [$batch_id]), 'client_id')); $ids = array_values(array_diff($ids, $ex)); }
+        sort($ids); return $ids;
+    }
     $sql = "SELECT DISTINCT participant_id id FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL";
     $par = [];
     if ($batch_id > 0) { $sql .= " AND participant_id NOT IN (SELECT client_id FROM pp_notice_exclusions WHERE batch_id=?)"; $par[] = $batch_id; }
@@ -1180,11 +1192,13 @@ function pp_notice_recipients(string $scope, string $batch = '', int $batch_id =
     return array_map(fn($r) => (int)$r['id'], db_all($sql . ' ORDER BY 1', $par));
 }
 
-function pp_notice_save(int $id, string $scope, string $subject, string $body, string $sms, string $by): int|string {
+function pp_notice_save(int $id, string $scope, string $subject, string $body, string $sms, string $by, string $kind = 'numer'): int|string {
     pp_migrate();
     if (mb_strlen(trim($subject)) < 3 || mb_strlen(trim($body)) < 20) return 'Podaj temat i treść wiadomości.';
-    if (!str_contains($body, '{numer}')) return 'Treść musi zawierać znacznik {numer} (numer rachunku).';
-    $scope = $scope === 'last' ? 'last' : 'unnotified';
+    $kind = $kind === 'zaleglosc' ? 'zaleglosc' : 'numer';
+    if ($kind === 'numer' && !str_contains($body, '{numer}')) return 'Treść musi zawierać znacznik {numer} (numer rachunku).';
+    if ($kind === 'zaleglosc' && !str_contains($body, '{kwota}')) return 'Treść przypomnienia musi zawierać znacznik {kwota} (kwota do zapłaty).';
+    $scope = $kind === 'zaleglosc' ? 'unnotified' : ($scope === 'last' ? 'last' : 'unnotified');
     $batch = $scope === 'last' ? (string)org_setting('pp_pool_last_batch') : '';
     if ($id > 0) {
         $b = db_one("SELECT status FROM pp_notice_batches WHERE id=?", [$id]);
@@ -1192,7 +1206,7 @@ function pp_notice_save(int $id, string $scope, string $subject, string $body, s
         db()->prepare("UPDATE pp_notice_batches SET scope=?, batch=?, subject=?, body=?, sms_text=? WHERE id=?")->execute([$scope, $batch, trim($subject), trim($body), trim($sms), $id]);
         return $id;
     }
-    return db_insert('pp_notice_batches', ['status' => 'draft', 'scope' => $scope, 'batch' => $batch, 'subject' => trim($subject), 'body' => trim($body), 'sms_text' => trim($sms), 'created_by' => $by]);
+    return db_insert('pp_notice_batches', ['status' => 'draft', 'kind' => $kind, 'scope' => $scope, 'batch' => $batch, 'subject' => trim($subject), 'body' => trim($body), 'sms_text' => trim($sms), 'created_by' => $by]);
 }
 
 /** Zatwierdzenie treści → wysyłka zaplanowana na 08:00 następnego dnia. */
@@ -1200,10 +1214,10 @@ function pp_notice_approve(int $id, string $by, ?int $uid): ?string {
     pp_migrate();
     $b = db_one("SELECT * FROM pp_notice_batches WHERE id=?", [$id]);
     if (!$b || $b['status'] !== 'draft') return 'Zatwierdzić można tylko szkic.';
-    if (!pp_notice_recipients($b['scope'], $b['batch'], $id)) return 'Brak odbiorców (nikt z nadanym numerem nie czeka na powiadomienie).';
+    if (!pp_notice_recipients($b['scope'], $b['batch'], $id, (string)($b['kind'] ?? 'numer'))) return (($b['kind'] ?? 'numer') === 'zaleglosc') ? 'Brak odbiorców (nikt nie ma niedopłaty).' : 'Brak odbiorców (nikt z nadanym numerem nie czeka na powiadomienie).';
     $at = date('Y-m-d 08:00:00', strtotime('+1 day'));
     db()->prepare("UPDATE pp_notice_batches SET status='approved', approved_by=?, approved_at=datetime('now'), send_at=? WHERE id=?")->execute([$by, $at, $id]);
-    audit_log('payments.notice_approved', ['batch_id' => $id, 'send_at' => $at, 'recipients' => count(pp_notice_recipients($b['scope'], $b['batch'], $id)), 'by' => $by], $uid);
+    audit_log('payments.notice_approved', ['batch_id' => $id, 'send_at' => $at, 'recipients' => count(pp_notice_recipients($b['scope'], $b['batch'], $id, (string)($b['kind'] ?? 'numer'))), 'by' => $by], $uid);
     return null;
 }
 
@@ -1222,14 +1236,16 @@ function pp_notice_process(): array {
     $r = ['batches' => 0, 'students' => 0, 'sms' => 0, 'email' => 0];
     foreach (db_all("SELECT * FROM pp_notice_batches WHERE status='approved' AND send_at<=datetime('now','localtime') ORDER BY id") as $b) {
         $st = ['students' => 0, 'sms' => 0, 'email' => 0, 'clients' => []];
-        foreach (pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id']) as $cid) {
-            $v = pp_notice_vars($cid); if (!$v) continue;
+        $kind = (string)($b['kind'] ?? 'numer');
+        foreach (pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'], $kind) as $cid) {
+            $v = pp_notice_vars($cid, $kind); if (!$v) continue;
+            if ($kind === 'zaleglosc' && $v['debt'] <= 0.005) continue;   // w międzyczasie uregulowane
             $nrb = $v['nrb'];
             if ($v['email'] !== '') {
                 try {
                     if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
                     $html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">' . pp_notice_render($b['body'], $v, true) . '</div>';
-                    if (mail_queue_add($v['email'], $v['name'], pp_notice_render($b['subject'], $v), $html, pp_notice_render($b['body'], $v), 'pp_notice', $cid, '', false) > 0) $st['email']++;
+                    if (mail_queue_add($v['email'], $v['name'], pp_notice_render($b['subject'], $v), $html, pp_notice_render($b['body'], $v), $kind === 'zaleglosc' ? 'pp_reminder' : 'pp_notice', $cid, '', false) > 0) $st['email']++;
                 } catch (\Throwable $e) {}
             }
             if (trim($b['sms_text']) !== '' && trim($v['phone']) !== '') {
@@ -1238,7 +1254,7 @@ function pp_notice_process(): array {
                     if (sms_channel_ready()) { sms_send($v['phone'], pp_notice_render($b['sms_text'], $v)); $st['sms']++; }
                 } catch (\Throwable $e) {}
             }
-            db()->prepare("UPDATE pp_vnrb_pool SET notified_at=datetime('now') WHERE nrb=?")->execute([$nrb]);
+            if ($kind !== 'zaleglosc') db()->prepare("UPDATE pp_vnrb_pool SET notified_at=datetime('now') WHERE nrb=?")->execute([$nrb]);
             $st['students']++; $st['clients'][] = $cid;
         }
         db()->prepare("UPDATE pp_notice_batches SET status='sent', sent_at=datetime('now'), stats=? WHERE id=?")->execute([json_encode($st), (int)$b['id']]);
@@ -1574,4 +1590,23 @@ function pp_bank_autopost_undo(int $bank_tx_id, string $reason, string $by, ?int
         db()->commit();
     } catch (\Throwable $e) { db()->rollBack(); return 'Błąd: ' . $e->getMessage(); }
     return null;
+}
+
+
+/** Gotowe treści przypomnień o niedopłacie (znaczniki: {imie_nazwisko} {kwota} {numer} {tytul} {organizacja}). */
+function pp_reminder_templates(): array {
+    return [
+        'r1' => [
+            'label'   => 'Wersja 1 — uprzejme przypomnienie',
+            'subject' => 'Przypomnienie o niedopłacie za szkolenia',
+            'body'    => "Dzień dobry,\n\nprzypominamy o niedopłacie za zajęcia i szkolenia w kwocie {kwota}.\n\nWpłaty prosimy kierować na numer rachunku:\n\n{numer}\n\nTytuł przelewu (zalecany): {tytul}\n\nWpłaty są księgowane zawsze na koniec dnia, o godzinie 20:00. Jeśli wpłata została już dokonana, prosimy potraktować tę wiadomość jako nieaktualną.\n\nPozdrawiamy,\n{organizacja}",
+            'sms'     => '{organizacja}: przypominamy o niedoplacie {kwota} za szkolenia. Numer rachunku: {numer_cyfry}. Wplaty ksiegujemy o 20:00.',
+        ],
+        'r2' => [
+            'label'   => 'Wersja 2 — krótka',
+            'subject' => 'Niedopłata: {kwota}',
+            'body'    => "Dzień dobry,\n\nna Twoim koncie widnieje niedopłata {kwota}. Numer rachunku do wpłat: {numer}.\n\nPozdrawiamy,\n{organizacja}",
+            'sms'     => '{organizacja}: niedoplata {kwota}. Rachunek: {numer_cyfry}.',
+        ],
+    ];
 }
