@@ -74,25 +74,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             org_setting_set('pp_p24_simulation', !empty($_POST['pp_p24_simulation']) ? '1' : '0');
             audit_log('payments.settings', ['bank' => $bank, 'prefix' => $pref, 'general_nrb' => $gen, 'simulation' => !empty($_POST['pp_p24_simulation']), 'by' => $by], $uid);
             $ok = 'Ustawienia zapisane.'; break;
-        case 'vgen':
-            $bank = preg_replace('/\D/', '', (string)($_POST['bank'] ?? ''));
-            $rrrr = preg_replace('/\D/', '', (string)($_POST['rrrr'] ?? ''));
-            $grp  = (string)($_POST['group'] ?? '');
-            $part = pp_vnrb_part($grp, (string)($_POST['value'] ?? ''));
-            if ($part[0] === '!') { $err = substr($part, 1); break; }
-            $nrb = pp_vnrb_build($bank, $rrrr, $part);
-            if ($nrb === null) { $err = 'Podaj numer rozliczeniowy banku (8 cyfr) i RRRR (4 cyfry) — np. w Ustawieniach.'; break; }
-            $assign = (int)($_POST['assign_pid'] ?? 0);
-            $_SESSION['pp_vgen'] = ['nrb' => $nrb, 'bank' => $bank, 'rrrr' => $rrrr, 'part' => $part, 'group' => $grp, 'pid' => $assign,
-                                    'conflict' => pp_vnrb_conflict($nrb, $assign)];
-            if ($assign && !empty($_POST['do_assign'])) {
-                if ($_SESSION['pp_vgen']['conflict']) { $err = $_SESSION['pp_vgen']['conflict']; break; }
-                $u = pp_user_ensure($assign, $by, $uid);
-                if (is_string($u)) { $err = $u; break; }
-                $err = pp_set_nrb($assign, $nrb, $by, $uid);
-                $ok = 'Numer wygenerowany i przypisany uczestnikowi.'; break;
-            }
-            $ok = 'Numer wygenerowany.'; break;
         case 'pool_import':
             $grp = in_array($_POST['pool_grp'] ?? '', ['ti', 'inni', 'spoza_ti', 'reczny'], true) ? $_POST['pool_grp'] : 'ti';
             $txt = (string)($_POST['pool_text'] ?? '');
@@ -104,11 +85,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'pool_assign_ti':
             $x = pp_vnrb_pool_assign_ti($by, $uid);
             $ok = "Przypisano kursantom TI: {$x['assigned']}; wolnych w puli: {$x['left']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
-        case 'regen_ti':
-            $r = pp_ti_regenerate_all(!empty($_POST['notify']), $by, $uid, !empty($_POST['correction']));
-            $ok = "Nowe rachunki: {$r['changed']}, bez zmian: {$r['same']}, pominięto: " . count($r['skipped'])
-                . (!empty($_POST['notify']) ? ". Powiadomienia: SMS {$r['sms']}, e-mail {$r['email']}." : '.')
-                . ($r['skipped'] ? ' Pominięci: ' . implode('; ', array_slice($r['skipped'], 0, 10)) . (count($r['skipped']) > 10 ? '…' : '') : ''); break;
         case 'user':
             $u = pp_user_ensure($pid, $by, $uid);
             $err = is_string($u) ? $u : null; $ok = 'Dostęp uczestnika utworzony.'; break;
@@ -152,7 +128,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     flash_set($err ? 'danger' : 'success', $err ?? $ok);
     header('Location: admin.php' . ($pid ? '?p=' . $pid : '')); exit;
 }
-$vgen = $_SESSION['pp_vgen'] ?? null; unset($_SESSION['pp_vgen']);
 $link_once = $_SESSION['pp_link_once'] ?? null; unset($_SESSION['pp_link_once']);
 $flash = flash_get();
 
@@ -330,33 +305,16 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
 
 
-  <!-- Generator rachunków wirtualnych -->
-  <section class="card space-y-3" aria-labelledby="vg-h" x-data="{ g: '<?= h($vgen['group'] ?? 'ti') ?>', hints: <?= h(json_encode(array_map(fn($x) => $x['hint'], PP_VGROUPS))) ?> }">
-    <h2 id="vg-h" class="font-semibold">Generator numerów rachunków wirtualnych</h2>
-    <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">NNNN NNNN NNNN (12)</span>. Część NNNN zależy od grupy kontrahenta.</p>
-    <form method="post" class="grid gap-3 md:grid-cols-6 items-end"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vgen">
-      <div><label class="lbl" for="vg-b">Bank (8 cyfr)</label><input id="vg-b" name="bank" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['bank'] ?? pp_vnrb_bank()) ?>"></div>
-      <div><label class="lbl" for="vg-r">RRRR (4 cyfry)</label><input id="vg-r" name="rrrr" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['rrrr'] ?? pp_vnrb_rrrr()) ?>"></div>
-      <div class="md:col-span-2"><label class="lbl" for="vg-g">Grupa kontrahenta</label>
-        <select id="vg-g" name="group" class="inp" x-model="g"><?php foreach (PP_VGROUPS as $k => $gr): ?><option value="<?= $k ?>"><?= h($gr['label']) ?></option><?php endforeach; ?></select></div>
-      <div><label class="lbl" for="vg-v" x-text="hints[g]"></label><input id="vg-v" name="value" class="inp font-mono" inputmode="numeric" required></div>
-      <div><label class="lbl" for="vg-p">Przypisz uczestnikowi (ID)</label><input id="vg-p" name="assign_pid" type="number" min="1" class="inp" value="<?= $pid ?: '' ?>"></div>
-      <label class="md:col-span-4 flex items-center gap-2 text-sm"><input type="checkbox" name="do_assign" value="1"> Zapisz wynik jako indywidualny NRB tego uczestnika (utworzy dostęp, jeśli go nie ma)</label>
-      <div class="md:col-span-2 text-right"><button class="bp">Generuj</button></div>
-    </form>
-    <form method="post" class="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2" onsubmit="return confirm('Przeliczyć rachunki kursantów TI z dostępem do portalu? Dotychczasowe numery zostaną zastąpione.')">
-      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="regen_ti">
-      <p class="text-sm"><strong>Kursanci TI z dostępem do portalu:</strong> przelicz rachunki z numeru kursanta i bieżącego prefiksu. Pomijamy osoby z oczekującym przelewem na stary numer.</p>
-      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="notify" value="1"> Powiadom kursantów o nowym numerze (SMS + e-mail; tylko TI)</label>
-      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="correction" value="1"> Treść „korekta": poprzednio wysłany numer był błędny, przesyłamy prawidłowy</label>
-      <button class="bp">Wygeneruj nowe rachunki</button>
-    </form>
-    <p class="text-sm">Eksport do TXT (NRB, grupa, ID, nazwa):
-      <a class="bs" href="admin.php?export=txt&g=ti_n12" title="Same cyfry: 12-cyfrowy numer kursanta (część NNNN), jedna liczba w linii">Kursanci TI — 12 cyfr</a>
-      <a class="bs" href="admin.php?export=txt&g=ti_nrb" title="Same cyfry: pełny 26-cyfrowy rachunek, jedna liczba w linii">Kursanci TI — rachunek 26 cyfr</a>
-      <a class="bs" href="admin.php?export=txt&g=ti">Kursanci TI (z nazwą)</a>
-      <a class="bs" href="admin.php?export=txt&g=crm">Kontrahenci CRM</a>
-      <a class="bs" href="admin.php?export=txt&g=all">Wszystko</a></p>
+  <!-- Serie rachunków wirtualnych: SZO podaje bankowi tylko 1 numer startowy na serię -->
+  <section class="card space-y-3" aria-labelledby="vg-h">
+    <h2 id="vg-h" class="font-semibold">Serie rachunków wirtualnych — numery startowe dla banku</h2>
+    <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">kod serii (4) + numer (8)</span>. Przekaż bankowi po jednym numerze z każdej serii — kolejne numery wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
+    <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer startowy</th><th>W puli</th></tr></thead><tbody>
+    <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); ?>
+      <tr class="border-t"><td><?= h($se['label']) ?></td><td class="font-mono"><?= h($se['code']) ?></td>
+        <td class="font-mono"><?= $st ? h(pp_nrb_format($st)) : 'ustaw bank i RRRR' ?></td>
+        <td class="text-xs"><?= (int)($pc['n'] ?? 0) ?> (wolnych <?= (int)($pc['f'] ?? 0) ?>)</td></tr>
+    <?php endforeach; ?></tbody></table></div>
     <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
     <form method="post" enctype="multipart/form-data" class="rounded-lg border border-slate-200 p-3 space-y-2">
       <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_import">
@@ -372,13 +330,6 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     </form>
     <form method="post" onsubmit="return confirm('Przypisać wolne rachunki z puli TI kursantom bez rachunku?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_ti">
       <button class="bs">Przypisz wolne rachunki z puli kursantom TI bez numeru</button></form>
-    <?php if ($vgen): ?>
-    <div class="rounded-lg bg-slate-50 p-4 space-y-1" aria-live="polite">
-      <div class="font-mono text-lg tracking-wide"><?= h(substr($vgen['nrb'], 0, 2)) ?> <span class="text-red-600"><?= h(substr($vgen['nrb'], 2, 4)) ?> <?= h(substr($vgen['nrb'], 6, 4)) ?></span> <span class="text-purple-700"><?= h($vgen['rrrr']) ?></span> <span class="text-emerald-700"><?= h(trim(chunk_split($vgen['part'], 4, ' '))) ?></span></div>
-      <div class="text-xs text-slate-500">Grupa: <?= h(PP_VGROUPS[$vgen['group']]['label'] ?? '') ?> · bez spacji: <span class="font-mono"><?= h($vgen['nrb']) ?></span></div>
-      <?php if ($vgen['conflict']): ?><div class="text-sm text-red-700"><?= h($vgen['conflict']) ?></div><?php else: ?><div class="text-sm text-emerald-700">Numer wolny.</div><?php endif; ?>
-    </div>
-    <?php endif; ?>
   </section>
 
   <!-- Transakcje -->

@@ -83,6 +83,22 @@ const PP_VNRB_RRRR = '3286';
 function pp_vnrb_bank(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank')); return $v !== '' ? $v : PP_VNRB_BANK; }
 function pp_vnrb_rrrr(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_prefix')); return $v !== '' ? $v : PP_VNRB_RRRR; }
 
+/** Serie rachunków: klucz = grupa puli, kod = 4 cyfry (nadpisywalny org_setting pp_series_{klucz}). */
+function pp_series(): array {
+    $def = ['ti' => ['Kursanci TI', '1111'], 'inni' => ['Kontrahenci inni', '2222'], 'spoza_ti' => ['Uczestnicy spoza TI', '3333'], 'reczny' => ['Ręczne', '4444']];
+    $out = [];
+    foreach ($def as $k => [$label, $code]) {
+        $c = preg_replace('/\D/', '', (string)org_setting('pp_series_' . $k));
+        $out[$k] = ['label' => $label, 'code' => strlen($c) === 4 ? $c : $code];
+    }
+    return $out;
+}
+/** Jedyny numer startowy serii (kod + 00000001), który SZO podaje bankowi. */
+function pp_series_start(string $grp): ?string {
+    $se = pp_series()[$grp] ?? null;
+    return $se ? pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $se['code'] . '00000001') : null;
+}
+
 const PP_VGROUPS = [
     'ti'     => ['label' => 'Kursant TI (nr kursanta)',       'hint' => 'ID uczestnika — numer weźmiemy z konta kursanta'],
     'nip'    => ['label' => 'Firma / kontrahent (NIP)',       'hint' => 'NIP, 10 cyfr'],
@@ -153,6 +169,10 @@ function pp_vnrb_for_crm(int $contact_id, ?string $nip): ?string {
  * albo konflikt numerów.
  */
 function pp_nrb_generate(int $participant_id): ?string {
+    return null;   // numery nadaje bank (lista TXT → pula), SZO nie generuje ich samodzielnie
+}
+/** @deprecated dawny generator z numeru kursanta — nieużywany, zostawiony dla wstecznej zgodności. */
+function pp_nrb_generate_legacy(int $participant_id): ?string {
     $bank = pp_vnrb_bank();
     $rrrr = pp_vnrb_rrrr();
     $part = pp_ti_student_no($participant_id) ?? pp_vnrb_part('id', (string)$participant_id);
@@ -249,16 +269,15 @@ function pp_ti_notify_nrb(int $client_id, string $nrb, bool $correction = false)
  * Zwraca nowy NRB, gdy się zmienił; null gdy bez zmian / brak numeru / konflikt.
  */
 function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
-    // Rachunek z puli banku (import TXT) jest nadrzędny — nie przeliczamy go z numeru kursanta
+    // Numery nadaje bank: kursant bez rachunku dostaje kolejny wolny z puli TI; istniejącego nie ruszamy
     $cur = pp_user($client_id);
-    if ($cur && db_one("SELECT 1 FROM pp_vnrb_pool WHERE nrb=? AND participant_id=?", [pp_nrb_normalize((string)$cur['individual_nrb']), $client_id])) return null;
-    $n = pp_nrb_generate($client_id);
-    if ($n === null) return null;
-    $u = pp_user($client_id);
-    if ($u && pp_nrb_normalize((string)$u['individual_nrb']) === $n) return null;
-    if (!$u && is_string(pp_user_ensure($client_id, $by, $uid))) return null;
-    if (pp_user($client_id) && pp_nrb_normalize((string)pp_user($client_id)['individual_nrb']) === $n) return $n;
-    return pp_set_nrb($client_id, $n, $by, $uid) === null ? $n : null;
+    if ($cur && pp_nrb_normalize((string)$cur['individual_nrb']) !== '') return null;
+    $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL ORDER BY nrb LIMIT 1");
+    if (!$p) return null;
+    if (!$cur && is_string(pp_user_ensure($client_id, $by, $uid))) return null;
+    if (pp_set_nrb($client_id, $p['nrb'], $by, $uid) !== null) return null;
+    db()->prepare("UPDATE pp_vnrb_pool SET participant_id=?, assigned_at=datetime('now') WHERE nrb=? AND participant_id IS NULL")->execute([$client_id, $p['nrb']]);
+    return $p['nrb'];
 }
 
 /**
