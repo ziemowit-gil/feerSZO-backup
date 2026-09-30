@@ -97,8 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'pool_import':
             $grp = in_array($_POST['pool_grp'] ?? '', ['auto', 'ti', 'inni', 'spoza_ti', 'reczny'], true) ? $_POST['pool_grp'] : 'auto';
             $txt = (string)($_POST['pool_text'] ?? '');
-            if (!empty($_FILES['pool_file']['tmp_name']) && is_uploaded_file($_FILES['pool_file']['tmp_name'])) $txt .= "\n" . file_get_contents($_FILES['pool_file']['tmp_name']);
-            if (trim($txt) === '') { $err = 'Wklej listę numerów albo wybierz plik TXT.'; break; }
+            if (trim($txt) === '') { $err = 'Wklej listę numerów w pole tekstowe.'; break; }
             $x = pp_vnrb_pool_import($txt, $grp, $by, $uid);
             $ok = "Import: dodano {$x['added']}, duplikaty {$x['dup']}, błędne " . count($x['bad'])
                 . ($x['bad'] ? ' (np. ' . implode('; ', array_slice($x['bad'], 0, 5)) . ')' : '') . '.';
@@ -359,22 +358,20 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <div><button class="bp">Generuj</button></div>
       </div>
       <?php if ($genres): $gl = $genres['list']; $cnt = count($gl); ?>
-      <div class="text-sm" aria-live="polite">Wygenerowano <strong><?= $cnt ?></strong> numerów, od <span class="font-mono"><?= h(pp_nrb_format($gl[0])) ?></span> do <span class="font-mono"><?= h(pp_nrb_format($gl[$cnt - 1])) ?></span>.
-        <a class="bs" href="admin.php?export=gen&s=<?= h($genres['start']) ?>&n=<?= (int)$genres['count'] ?>">Pobierz TXT</a></div>
-      <textarea readonly rows="6" class="inp font-mono text-xs" aria-label="Wygenerowane numery"><?= h(implode("\n", array_map('pp_nrb_format', array_slice($gl, 0, 200)))) ?><?= $cnt > 200 ? "\n… (pełna lista w pliku TXT)" : '' ?></textarea>
+      <div class="text-sm" aria-live="polite">Wygenerowano <strong><?= $cnt ?></strong> numerów, od <span class="font-mono"><?= h(pp_nrb_format($gl[0])) ?></span> do <span class="font-mono"><?= h(pp_nrb_format($gl[$cnt - 1])) ?></span>. Kliknij w pole, aby zaznaczyć całość.</div>
+      <textarea readonly rows="8" class="inp font-mono text-xs" aria-label="Wygenerowane numery" onclick="this.select()"><?= h(implode("\n", array_map('pp_nrb_format', $gl))) ?></textarea>
       <?php endif; ?>
     </form>
     <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
-    <form method="post" enctype="multipart/form-data" class="rounded-lg border border-slate-200 p-3 space-y-2">
+    <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2">
       <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_import">
       <h3 class="font-semibold text-sm">Krok 2: import listy wygenerowanej przez bank (TXT)</h3>
       <p class="text-sm text-amber-800">Zamów w banku numery wg generatora powyżej (numer kontrahenta + liczba następnych), a gdy bank je wygeneruje, wklej tu listę — SZO rozpozna serię i nada numery.</p>
       <p class="text-xs text-slate-500">Jeden numer w linii (26 cyfr, „PL" i spacje dozwolone). Sprawdzamy sumę kontrolną i duplikaty; numery trafiają do puli danej grupy.</p>
       <div class="grid gap-2 md:grid-cols-4">
         <div><label class="lbl" for="pl-g">Grupa</label><select id="pl-g" name="pool_grp" class="inp"><option value="auto">Wykryj po numerze (zalecane)</option><option value="ti">TI (kursanci)</option><option value="inni">Kontrahenci inni</option><option value="spoza_ti">Uczestnicy spoza TI</option><option value="reczny">Ręczne</option></select></div>
-        <div class="md:col-span-3"><label class="lbl" for="pl-f">Plik TXT (opcjonalnie)</label><input id="pl-f" type="file" name="pool_file" accept=".txt,text/plain" class="inp"></div>
       </div>
-      <label class="lbl" for="pl-t">Lista numerów</label><textarea id="pl-t" name="pool_text" rows="5" class="inp font-mono" placeholder="76102029063286111100000001"></textarea>
+      <label class="lbl" for="pl-t">Wklej listę numerów (jeden w linii)</label><textarea id="pl-t" name="pool_text" rows="10" required class="inp font-mono" placeholder="76102029063286111100000001"></textarea>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="pool_assign" value="1" checked> Po wczytaniu od razu przypisz numery serii TI kursantom bez rachunku</label>
       <div class="flex flex-wrap items-center gap-3"><button class="bp">Wczytaj do puli</button>
         <span class="text-xs text-slate-500">W puli: <?php foreach ($pool as $pl): ?><?= h($pl['grp']) ?> <?= (int)$pl['n'] ?> (wolnych <?= (int)$pl['free'] ?>) · <?php endforeach; if (!$pool) echo 'pusta'; ?></span></div>
