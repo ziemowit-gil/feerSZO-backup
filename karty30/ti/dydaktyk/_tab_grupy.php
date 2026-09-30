@@ -15,6 +15,7 @@ $gr_view = ($_GET['v'] ?? 'karty') === 'tabela' ? 'tabela' : 'karty';
 $gr_all_courses = k30_ti_courses($gr_filter !== 'all');  // false = wszystkie; true = tylko aktywne
 
 // Pobierz liczbę kursantów z niedopłatą per kurs (jedno zapytanie)
+ti_course_close_migrate();   // kolumna closed_at (status „Wygaszona”)
 $gr_debt_map = [];
 if ($gr_all_courses) {
     $ids = array_column($gr_all_courses, 'id');
@@ -363,7 +364,9 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
       <span><i class="bi bi-person me-1"></i><?= h($c['instructor_name']) ?></span>
       <?php endif; ?>
       <span><i class="bi bi-people me-1"></i><?= (int)$c['enrolled_count'] ?> kursantów</span>
-      <span class="badge bg-secondary" style="font-size:.62rem">Nieaktywny</span>
+      <?php $gr_st = !empty($c['closed_at']) ? 'Wygaszona (zamknięta ' . date('d.m.Y', strtotime((string)$c['closed_at'])) . ')'
+                  : (($c['status'] ?? '') === 'cancelled' ? 'Wyłączona (usunięta)' : ((($c['status'] ?? '') === 'archived') ? 'Zarchiwizowana' : 'Nieaktywny')); ?>
+      <span class="badge bg-secondary" style="font-size:.62rem"><?= h($gr_st) ?></span>
     </div>
   </div>
   <div class="dyd-gr-side">
@@ -374,6 +377,14 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
     <?php endif; ?>
   </div>
   <div class="dyd-gr-actions">
+    <?php if (dyd_is_staff()): ?>
+    <form method="post" action="index.php?tab=kursy" class="d-inline" onsubmit="return confirm('Przywrócić grupę „<?= h(addslashes($c['name'])) ?>” (aktywna i odblokowana)?')">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_op" value="restore_groups">
+      <input type="hidden" name="ids[]" value="<?= $cid ?>">
+      <button class="btn btn-sm btn-outline-success py-0 px-2" title="Przywróć grupę"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Przywróć</button>
+    </form>
+    <?php endif; ?>
     <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-outline-secondary py-0 px-2"
        title="Zarządzaj kursem">
