@@ -88,6 +88,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rp = ti_payment_add($cl, $amt, trim((string)($_POST['paid_at'] ?? '')), $pm, trim((string)($_POST['note'] ?? '')), 'manual', 0, $pc);
             audit_log('pricing.settle_payment', ['client_id' => $cl, 'amount' => $amt, 'course_id' => $pc, 'by' => $by], $uid);
             $res = 0; $ok = 'Wpłata ' . number_format($amt, 2, ',', ' ') . ' zł zapisana' . ($pc ? ' na grupę' : ' (ogólna)') . '.' . (($rp['credit'] ?? 0) > 0 ? ' Nadpłata: ' . number_format($rp['credit'], 2, ',', ' ') . ' zł.' : ''); break;
+        case 'bulk_types':
+            $ids = array_filter(array_map('intval', (array)($_POST['ids'] ?? [])));
+            $t1 = (int)($_POST['bt_type'] ?? 0) ?: null; $t2 = (int)($_POST['bt_online'] ?? 0) ?: null;
+            if (!$ids) { $res = 'Zaznacz grupy.'; break; }
+            if (!$t1 && !$t2) { $res = 'Wybierz typ stacjonarny i/lub online.'; break; }
+            $n = 0; $errs = [];
+            foreach ($ids as $cid) {
+                $cur = ti_pricing_course_types($cid);
+                $e = ti_pricing_set_course_types($cid, $t1 ?: ($cur['lesson_type_id'] ?: null), $t2 ?: ($cur['online_lesson_type_id'] ?: null), $by, $uid);
+                if ($e) $errs[$e] = true; else $n++;
+            }
+            $res = 0; $ok = "Typy zajęć przypisane w {$n} grupach" . ($errs ? '. Uwagi: ' . implode(' ', array_keys($errs)) : '') . '.'; break;
+        case 'bulk_rate':
+            $ids = array_filter(array_map('intval', (array)($_POST['ids'] ?? [])));
+            if (!$ids) { $res = 'Zaznacz grupy.'; break; }
+            $ovr = [];
+            foreach (['stacjonarna' => 'br_stac', 'online' => 'br_online'] as $m => $fld) {
+                $raw = trim((string)($_POST[$fld] ?? ''));
+                if ($raw !== '') { $v = ti_pricing_num($raw); if ($v === null) { $res = 'Cena musi być liczbą ≥ 0.'; break 2; } $ovr[$m] = $v; }
+            }
+            if (!$ovr) { $res = 'Podaj cenę stacjonarną i/lub online.'; break; }
+            $okc = 0; $errs = [];
+            foreach ($ids as $cid) foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid]) as $e) {
+                $r = ti_pricing_apply_to_enrollment($cid, (int)$e['client_id'], $by, $uid, $ovr, (string)($_POST['reason'] ?? ''));
+                if ($r['ok']) $okc++; else { $errs[$r['msg']] = true; if (str_contains($r['msg'], 'uzasadnienia')) break 2; }
+            }
+            if (!$okc && $errs) { $res = implode(' ', array_keys($errs)); break; }
+            $res = 0; $ok = "Stawka ustawiona w zaznaczonych grupach: zapisów zaktualizowano {$okc}" . ($errs ? '. Uwagi: ' . implode(' ', array_keys($errs)) : '') . '.'; break;
         case 'open_groups':
             $opened = 0;
             foreach (array_filter(array_map('intval', (array)($_POST['ids'] ?? []))) as $cid) {
@@ -538,6 +566,24 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
     <span class="text-xs text-slate-500">Zaznacz grupy na kartach (aktywne) lub w sekcji „Zamknięte”, potem wybierz akcję:</span>
     <button type="submit" name="_op" value="close_candidates" class="btn-sec" onclick="return confirm('Zamknąć zaznaczone grupy? Grupy z przyszłymi lekcjami zostaną pominięte. Zostaną zarchiwizowane i zablokowane.')"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij zaznaczone</button>
     <button type="submit" name="_op" value="open_groups" class="btn-pri" onclick="return confirm('Uruchomić ponownie zaznaczone zamknięte grupy (przywrócić z archiwum i odblokować)?')"><i class="bi bi-unlock" aria-hidden="true"></i>Uruchom zaznaczone</button>
+    <details class="w-full rounded-lg border border-slate-200 bg-slate-50/60">
+      <summary class="cursor-pointer select-none px-3 py-2 text-sm font-medium text-navy-700"><i class="bi bi-sliders mr-1" aria-hidden="true"></i>Więcej akcji masowych (typy zajęć, stawki)</summary>
+      <div class="grid gap-3 border-t border-slate-200 p-3 md:grid-cols-2">
+        <div class="space-y-2"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Przypisz typy zajęć</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="lbl" for="bt1">Stacjonarnie</label><select id="bt1" name="bt_type" class="inp"><option value="">— bez zmian —</option><?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"><?= h($t['name']) ?></option><?php endforeach; ?></select></div>
+            <div><label class="lbl" for="bt2">Online</label><select id="bt2" name="bt_online" class="inp"><option value="">— bez zmian —</option><?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"><?= h($t['name']) ?></option><?php endforeach; ?></select></div>
+          </div>
+          <button type="submit" name="_op" value="bulk_types" class="btn-sec" onclick="return confirm('Przypisać wybrane typy zajęć zaznaczonym grupom?')">Przypisz typy zaznaczonym</button></div>
+        <div class="space-y-2"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ustaw stawkę w zapisach</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="lbl" for="br1"><i class="bi bi-building mr-1 text-emerald-700" aria-hidden="true"></i>Stacjonarnie (zł/h)</label><input id="br1" name="br_stac" class="inp" inputmode="decimal"></div>
+            <div><label class="lbl" for="br2"><i class="bi bi-camera-video mr-1 text-sky-700" aria-hidden="true"></i>Online (zł/h)</label><input id="br2" name="br_online" class="inp" inputmode="decimal" placeholder="puste = bez zmiany"></div>
+          </div>
+          <div><label class="lbl" for="br3">Uzasadnienie (wymagane, audyt)</label><input id="br3" name="reason" class="inp" maxlength="300"></div>
+          <button type="submit" name="_op" value="bulk_rate" class="btn-pri" onclick="var r=document.getElementById('br3').value.trim(); if(r.length<5){alert('Podaj uzasadnienie (min. 5 znaków).');return false;} return confirm('Ustawić stawkę wszystkim aktywnym uczestnikom zaznaczonych grup?')">Ustaw stawkę zaznaczonym</button></div>
+      </div>
+    </details>
   </form>
   <div class="grid gap-4 lg:grid-cols-2">
   <?php foreach ($courses as $c): $sel = $sel_course === (int)$c['id']; $varied = (int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005; ?>
