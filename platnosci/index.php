@@ -235,97 +235,33 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
   </section>
 
 <?php else: ?>
-  <!-- ═══ Dane do wpłaty, saldo, portfel, historia wpłat ═══ -->
-  <div class="grid gap-6 lg:grid-cols-3">
-    <section class="lg:col-span-2 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dw-h" x-data="{ c: false }">
-      <h2 id="dw-h" class="font-semibold"><i class="bi bi-bank2 text-navy-700" aria-hidden="true"></i> Dane do wpłaty</h2>
-      <?php $acc_txt = (string)($pay_info['account'] ?? ''); $acc_d = preg_replace('/\D/', '', $acc_txt); ?>
-      <?php if ($acc_txt !== ''): ?>
-      <div class="mt-3 rounded-xl border-2 border-navy-700 bg-navy-50 px-4 py-3 text-center">
-        <div class="text-xs text-slate-600"><?= !empty($pay_info['virtual']) ? 'Twój indywidualny numer rachunku' : 'Rachunek do wpłat (grupy / organizacji)' ?></div>
-        <div class="font-mono text-xl font-semibold tracking-wide"><?= h($acc_txt) ?></div>
+  <!-- ═══ Układ: podsumowanie + zakładki (Do zapłaty / Wpłać / Historia / Informacje) ═══ -->
+  <?php $bd = (float)($bal_ti['debt'] ?? 0); $bc = (float)($bal_ti['credit'] ?? 0); $due_sum = 0.0; foreach ($items as $it0) { if ($it0['status'] === 'pending') $due_sum += (float)$it0['amount']; }
+        $acc_txt = (string)($pay_info['account'] ?? ''); $acc_d = preg_replace('/\D/', '', $acc_txt); ?>
+  <div x-data="{ tab: location.hash.slice(1) || '<?= $items ? 'zaplac' : 'wplac' ?>', go(t) { this.tab = t; try { history.replaceState(null, '', '#' + t); } catch (e) {} } }" class="space-y-6">
+    <div class="grid gap-4 md:grid-cols-3" aria-label="Podsumowanie">
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Saldo</div>
+        <div class="mt-1 text-3xl font-semibold tabular-nums <?= $bd > 0.005 ? 'text-red-700' : ($bc > 0.005 ? 'text-emerald-700' : 'text-slate-700') ?>"><?= $bd > 0.005 ? '−' . h(pp_fmt($bd)) : ($bc > 0.005 ? '+' . h(pp_fmt($bc)) : h(pp_fmt(0))) ?></div>
+        <div class="text-xs text-slate-500"><?= $bd > 0.005 ? 'niedopłata' : ($bc > 0.005 ? 'nadpłata — zaliczana na kolejne zajęcia' : 'rozliczone') ?> · należności <?= h(pp_fmt((float)($bal_ti['charges'] ?? 0))) ?>, wpłaty <?= h(pp_fmt((float)($bal_ti['payments'] ?? 0))) ?></div>
       </div>
-      <dl class="mt-3 grid gap-1 text-sm sm:grid-cols-[8rem_1fr]">
-        <?php if (trim((string)($pay_info['title'] ?? '')) !== ''): ?><dt class="text-slate-500">Tytuł przelewu</dt><dd class="font-mono"><?= h($pay_info['title']) ?></dd><?php endif; ?>
-        <dt class="text-slate-500">Odbiorca</dt><dd><?= h($org) ?></dd>
-        <?php if (!empty($pay_info['virtual'])): ?><dt class="text-slate-500">Uwaga</dt><dd>Na ten numer wpłacasz wszystkie należności z tytułu szkoleń. Wpłaty są księgowane na koniec dnia, o 20:00.</dd><?php endif; ?>
-      </dl>
-      <div class="mt-3 flex flex-wrap gap-2">
-        <button type="button" class="rounded-md px-3 py-1.5 text-sm ring-1 ring-slate-300 hover:bg-slate-50" @click="navigator.clipboard.writeText(<?= h($J($acc_d)) ?>); c = true" x-text="c ? 'Skopiowano' : 'Kopiuj numer'"></button>
-        <?php if (!empty($pay_info['virtual'])): ?><a href="rachunek_pdf.php" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Drukuj PDF z informacją o numerze</a><?php endif; ?>
+      <button type="button" @click="go('zaplac')" class="rounded-2xl bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 hover:ring-navy-600">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Do zapłaty</div>
+        <div class="mt-1 text-3xl font-semibold tabular-nums <?= $due_sum > 0.005 ? 'text-amber-700' : 'text-emerald-700' ?>"><?= h(pp_fmt($due_sum)) ?></div>
+        <div class="text-xs text-slate-500"><?= count(array_filter($items, fn($i0) => $i0['status'] === 'pending')) ?> pozycji · kliknij, aby zapłacić</div>
+      </button>
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" x-data="{ c: false }">
+        <div class="text-xs uppercase tracking-wide text-slate-500"><?= !empty($pay_info['virtual']) ? 'Twój numer rachunku' : 'Rachunek do wpłat' ?></div>
+        <div class="mt-1 font-mono text-base font-semibold tracking-wide break-words"><?= $acc_txt !== '' ? h($acc_txt) : '—' ?></div>
+        <?php if ($acc_txt !== ''): ?><button type="button" class="mt-1 text-xs text-navy-700 hover:underline" @click="navigator.clipboard.writeText(<?= h($J($acc_d)) ?>); c = true" x-text="c ? 'Skopiowano' : 'Kopiuj numer'"></button><?php endif; ?>
       </div>
-      <?php else: ?><p class="mt-2 text-sm text-slate-500">Numer rachunku nie został jeszcze ustawiony — skontaktuj się z biurem.</p><?php endif; ?>
-    </section>
-    <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="sd-h">
-      <h2 id="sd-h" class="font-semibold"><i class="bi bi-wallet2 text-navy-700" aria-hidden="true"></i> Saldo</h2>
-      <?php $bd = (float)($bal_ti['debt'] ?? 0); $bc = (float)($bal_ti['credit'] ?? 0); ?>
-      <div class="mt-2 text-3xl font-semibold tabular-nums <?= $bd > 0.005 ? 'text-red-700' : ($bc > 0.005 ? 'text-emerald-700' : 'text-slate-700') ?>"><?= $bd > 0.005 ? '−' . h(pp_fmt($bd)) : ($bc > 0.005 ? '+' . h(pp_fmt($bc)) : h(pp_fmt(0))) ?></div>
-      <div class="text-xs text-slate-500"><?= $bd > 0.005 ? 'niedopłata' : ($bc > 0.005 ? 'nadpłata (zaliczana na kolejne zajęcia)' : 'rozliczone') ?></div>
-      <dl class="mt-3 space-y-1 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Należności</dt><dd class="tabular-nums"><?= h(pp_fmt((float)($bal_ti['charges'] ?? 0))) ?></dd></div>
-        <div class="flex justify-between"><dt class="text-slate-500">Wpłaty</dt><dd class="tabular-nums"><?= h(pp_fmt((float)($bal_ti['payments'] ?? 0))) ?></dd></div></dl>
-    </section>
-  </div>
-  <?php if (array_filter($pp_gw)): ?>
-  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dl-h">
-    <h2 id="dl-h" class="font-semibold"><i class="bi bi-plus-circle text-navy-700" aria-hidden="true"></i> Doładuj portfel</h2>
-    <p class="mt-1 text-xs text-slate-500">Wpłata trafia na Twoje konto i pokrywa kolejne należności za zajęcia.</p>
-    <form method="post" class="mt-3 flex flex-wrap items-end gap-2">
-      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="topup">
-      <div><label class="block text-xs text-slate-600" for="tu-a">Kwota (zł)</label><input id="tu-a" name="amount" inputmode="decimal" required placeholder="np. 200" class="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm"></div>
-      <?php foreach (['payu' => 'Zapłać przez PayU', 'p24' => 'Zapłać przez Przelewy24', 'stripe' => 'Zapłać kartą (Stripe)'] as $gk => $gl): if (empty($pp_gw[$gk])) continue; ?>
-      <button name="provider" value="<?= $gk ?>" class="rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600"><?= h($gl) ?></button>
+    </div>
+    <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje portalu płatności">
+      <?php foreach (['zaplac' => ['Do zapłaty', 'bi-cart-check'], 'wplac' => ['Wpłać', 'bi-bank2'], 'hist' => ['Historia i rozliczenia', 'bi-clock-history'], 'info' => ['Informacje', 'bi-info-circle']] as $tk => [$tl, $ti]): ?>
+      <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?></button>
       <?php endforeach; ?>
-    </form>
-  </section>
-  <?php endif; ?>
-  <?php if ($pay_hist): ?>
-  <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="hw-h">
-    <h2 id="hw-h" class="border-b border-slate-200 px-5 py-3 font-semibold"><i class="bi bi-clock-history text-navy-700" aria-hidden="true"></i> Historia wpłat</h2>
-    <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Ostatnie wpłaty</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Data</th><th class="px-2">Metoda</th><th class="px-2">Opis</th><th class="px-5 text-right">Kwota</th></tr></thead><tbody class="divide-y divide-slate-100">
-      <?php $mlab = ['transfer' => 'przelew', 'cash' => 'gotówka', 'stripe' => 'Stripe', 'payu' => 'PayU', 'p24' => 'Przelewy24', 'other' => 'inna', 'internal' => 'korekta']; foreach ($pay_hist as $ph): ?>
-      <tr><td class="whitespace-nowrap px-5 py-2"><?= h(date('d.m.Y', strtotime((string)$ph['paid_at']))) ?></td><td class="px-2"><?= h($mlab[$ph['method']] ?? $ph['method']) ?></td><td class="px-2 text-xs text-slate-600"><?= h(mb_strimwidth((string)$ph['note'], 0, 70, '…')) ?></td><td class="px-5 text-right tabular-nums <?= (float)$ph['amount'] < 0 ? 'text-red-700' : '' ?>"><?= h(pp_fmt((float)$ph['amount'])) ?></td></tr>
-      <?php endforeach; ?></tbody></table></div>
-  </section>
-  <?php endif; ?>
-
-  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="zw-h">
-    <h2 id="zw-h" class="font-semibold"><i class="bi bi-send-check text-navy-700" aria-hidden="true"></i> Zgłoś wpłatę przelewem</h2>
-    <p class="mt-1 text-xs text-slate-500">Zrobiłeś przelew na swój numer rachunku? Zgłoś kwotę — biuro zaksięguje ją po potwierdzeniu wpływu. (Wpłaty są księgowane na koniec dnia, o 20:00.)</p>
-    <form method="post" class="mt-3 flex flex-wrap items-end gap-2">
-      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="declare">
-      <div><label class="block text-xs text-slate-600" for="dc-a">Kwota (zł)</label><input id="dc-a" name="amount" inputmode="decimal" required class="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm"></div>
-      <div class="min-w-[12rem] flex-1"><label class="block text-xs text-slate-600" for="dc-n">Uwagi (opcjonalnie)</label><input id="dc-n" name="note" maxlength="300" class="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm" placeholder="np. data przelewu"></div>
-      <button class="rounded-md bg-white px-3 py-1.5 text-sm font-medium ring-1 ring-slate-300 hover:bg-slate-50">Zgłoś wpłatę</button>
-    </form>
-    <?php if ($wreqs): ?><ul class="mt-3 space-y-1 text-xs text-slate-600"><?php $wst = ['pending' => 'czeka na potwierdzenie', 'approved' => 'zaksięgowana', 'rejected' => 'odrzucona']; foreach ($wreqs as $wr): ?>
-      <li><?= h(date('d.m.Y', strtotime((string)$wr['created_at']))) ?> · <strong><?= h(pp_fmt((float)$wr['amount'])) ?></strong> · <?= h($wst[$wr['status']] ?? $wr['status']) ?></li><?php endforeach; ?></ul><?php endif; ?>
-  </section>
-  <?php if ($bills_all): $mn = [1=>'styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień']; ?>
-  <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="rz-h">
-    <h2 id="rz-h" class="border-b border-slate-200 px-5 py-3 font-semibold"><i class="bi bi-receipt text-navy-700" aria-hidden="true"></i> Rozliczenia zajęć</h2>
-    <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Rozliczenia miesięczne</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Okres</th><th class="px-2">Grupa</th><th class="px-2 text-right">Należność</th><th class="px-2 text-right">Pokryto</th><th class="px-2">Termin</th><th class="px-5 text-right">Dokumenty</th></tr></thead><tbody class="divide-y divide-slate-100">
-      <?php foreach (array_slice($bills_all, 0, 24) as $bl): $amt = (float)$bl['amount'] + (float)($bl['adjustment'] ?? 0); ?>
-      <tr><td class="whitespace-nowrap px-5 py-2"><?= h(($mn[(int)$bl['month']] ?? $bl['month']) . ' ' . $bl['year']) ?></td><td class="px-2 text-xs"><?= h($bl['course_name'] ?: 'rozliczenie łączne') ?></td>
-        <td class="px-2 text-right tabular-nums"><?= h(pp_fmt($amt)) ?></td><td class="px-2 text-right tabular-nums"><?= h(pp_fmt((float)($bl['paid_amount'] ?? 0))) ?></td>
-        <td class="px-2 text-xs"><?= !empty($bl['due_date']) ? h(date('d.m.Y', strtotime((string)$bl['due_date']))) : '—' ?></td>
-        <td class="px-5 text-right text-xs whitespace-nowrap"><a class="text-navy-700 hover:underline" href="dokument.php?type=hours&amp;month=<?= (int)$bl['month'] ?>&amp;year=<?= (int)$bl['year'] ?><?= (int)$bl['course_id'] > 0 ? '&amp;course_id=' . (int)$bl['course_id'] : '' ?>" target="_blank" rel="noopener">rozpiska</a>
-          <?php if (!empty($bl['invoice_path'])): ?> · <a class="text-navy-700 hover:underline" href="dokument.php?type=invoice&amp;id=<?= (int)$bl['id'] ?>" target="_blank" rel="noopener">faktura</a><?php endif; ?></td></tr>
-      <?php endforeach; ?></tbody></table></div>
-  </section>
-  <?php endif; ?>
-  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="in-h">
-    <h2 id="in-h" class="font-semibold"><i class="bi bi-info-circle text-navy-700" aria-hidden="true"></i> Informacje o płatnościach</h2>
-    <ul class="mt-2 space-y-2 text-sm text-slate-700">
-      <li><strong>Gdzie płacić.</strong> Wszystkie należności z tytułu szkoleń i zajęć wpłacasz na <strong>swój indywidualny numer rachunku</strong> (u góry strony). Jeśli jeszcze go nie masz, płacisz na rachunek grupy lub organizacji — zobacz „Dane do wpłaty".</li>
-      <li><strong>Tytuł przelewu.</strong> Wpisz zalecany tytuł z sekcji „Dane do wpłaty". Przy rachunku indywidualnym wpłata przypisuje się do Ciebie automatycznie, także przy innym tytule.</li>
-      <li><strong>Księgowanie.</strong> Wpłaty są księgowane zawsze na koniec dnia, o godzinie 20:00 — saldo po wpłacie zobaczysz po tej godzinie. Płatność online (PayU, Przelewy24, karta) księguje się od razu po potwierdzeniu przez bramkę.</li>
-      <li><strong>Bank.</strong> Rachunki obsługuje PKO Bank Polski S.A.</li>
-      <li><strong>Nadpłata</strong> jest zaliczana na kolejne zajęcia; niedopłatę widzisz w saldzie i w „Do zapłaty". Zwrot nadpłaty ustal z biurem.</li>
-      <li><strong>Dokumenty.</strong> Rozpiskę godzin i fakturę pobierzesz w tabeli „Rozliczenia zajęć". PDF z informacją o numerze rachunku — przycisk w „Dane do wpłaty".</li>
-      <li><strong>Pytania.</strong> Skontaktuj się z prowadzącym lub biurem <?= h($org) ?>.</li>
-    </ul>
-  </section>
-
+    </nav>
+    <div x-show="tab === 'zaplac'" x-cloak class="space-y-6">
   <!-- ═══ Koszyk ═══ -->
   <form method="post" x-data="cart()" @submit="submit($event)" class="grid gap-6 lg:grid-cols-3">
     <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pay">
@@ -381,7 +317,76 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
       </section>
     </aside>
   </form>
-
+    </div>
+    <div x-show="tab === 'wplac'" x-cloak class="space-y-6">
+    <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dw-h" x-data="{ c: false }">
+      <h2 id="dw-h" class="font-semibold"><i class="bi bi-bank2 text-navy-700" aria-hidden="true"></i> Dane do wpłaty</h2>
+      <?php $acc_txt = (string)($pay_info['account'] ?? ''); $acc_d = preg_replace('/\D/', '', $acc_txt); ?>
+      <?php if ($acc_txt !== ''): ?>
+      <div class="mt-3 rounded-xl border-2 border-navy-700 bg-navy-50 px-4 py-3 text-center">
+        <div class="text-xs text-slate-600"><?= !empty($pay_info['virtual']) ? 'Twój indywidualny numer rachunku' : 'Rachunek do wpłat (grupy / organizacji)' ?></div>
+        <div class="font-mono text-xl font-semibold tracking-wide"><?= h($acc_txt) ?></div>
+      </div>
+      <dl class="mt-3 grid gap-1 text-sm sm:grid-cols-[8rem_1fr]">
+        <?php if (trim((string)($pay_info['title'] ?? '')) !== ''): ?><dt class="text-slate-500">Tytuł przelewu</dt><dd class="font-mono"><?= h($pay_info['title']) ?></dd><?php endif; ?>
+        <dt class="text-slate-500">Odbiorca</dt><dd><?= h($org) ?></dd>
+        <?php if (!empty($pay_info['virtual'])): ?><dt class="text-slate-500">Uwaga</dt><dd>Na ten numer wpłacasz wszystkie należności z tytułu szkoleń. Wpłaty są księgowane na koniec dnia, o 20:00.</dd><?php endif; ?>
+      </dl>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" class="rounded-md px-3 py-1.5 text-sm ring-1 ring-slate-300 hover:bg-slate-50" @click="navigator.clipboard.writeText(<?= h($J($acc_d)) ?>); c = true" x-text="c ? 'Skopiowano' : 'Kopiuj numer'"></button>
+        <?php if (!empty($pay_info['virtual'])): ?><a href="rachunek_pdf.php" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Drukuj PDF z informacją o numerze</a><?php endif; ?>
+      </div>
+      <?php else: ?><p class="mt-2 text-sm text-slate-500">Numer rachunku nie został jeszcze ustawiony — skontaktuj się z biurem.</p><?php endif; ?>
+    </section>
+  <?php if (array_filter($pp_gw)): ?>
+  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dl-h">
+    <h2 id="dl-h" class="font-semibold"><i class="bi bi-plus-circle text-navy-700" aria-hidden="true"></i> Doładuj portfel</h2>
+    <p class="mt-1 text-xs text-slate-500">Wpłata trafia na Twoje konto i pokrywa kolejne należności za zajęcia.</p>
+    <form method="post" class="mt-3 flex flex-wrap items-end gap-2">
+      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="topup">
+      <div><label class="block text-xs text-slate-600" for="tu-a">Kwota (zł)</label><input id="tu-a" name="amount" inputmode="decimal" required placeholder="np. 200" class="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm"></div>
+      <?php foreach (['payu' => 'Zapłać przez PayU', 'p24' => 'Zapłać przez Przelewy24', 'stripe' => 'Zapłać kartą (Stripe)'] as $gk => $gl): if (empty($pp_gw[$gk])) continue; ?>
+      <button name="provider" value="<?= $gk ?>" class="rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600"><?= h($gl) ?></button>
+      <?php endforeach; ?>
+    </form>
+  </section>
+  <?php endif; ?>
+  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="zw-h">
+    <h2 id="zw-h" class="font-semibold"><i class="bi bi-send-check text-navy-700" aria-hidden="true"></i> Zgłoś wpłatę przelewem</h2>
+    <p class="mt-1 text-xs text-slate-500">Zrobiłeś przelew na swój numer rachunku? Zgłoś kwotę — biuro zaksięguje ją po potwierdzeniu wpływu. (Wpłaty są księgowane na koniec dnia, o 20:00.)</p>
+    <form method="post" class="mt-3 flex flex-wrap items-end gap-2">
+      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="declare">
+      <div><label class="block text-xs text-slate-600" for="dc-a">Kwota (zł)</label><input id="dc-a" name="amount" inputmode="decimal" required class="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm"></div>
+      <div class="min-w-[12rem] flex-1"><label class="block text-xs text-slate-600" for="dc-n">Uwagi (opcjonalnie)</label><input id="dc-n" name="note" maxlength="300" class="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm" placeholder="np. data przelewu"></div>
+      <button class="rounded-md bg-white px-3 py-1.5 text-sm font-medium ring-1 ring-slate-300 hover:bg-slate-50">Zgłoś wpłatę</button>
+    </form>
+    <?php if ($wreqs): ?><ul class="mt-3 space-y-1 text-xs text-slate-600"><?php $wst = ['pending' => 'czeka na potwierdzenie', 'approved' => 'zaksięgowana', 'rejected' => 'odrzucona']; foreach ($wreqs as $wr): ?>
+      <li><?= h(date('d.m.Y', strtotime((string)$wr['created_at']))) ?> · <strong><?= h(pp_fmt((float)$wr['amount'])) ?></strong> · <?= h($wst[$wr['status']] ?? $wr['status']) ?></li><?php endforeach; ?></ul><?php endif; ?>
+  </section>
+    </div>
+    <div x-show="tab === 'hist'" x-cloak class="space-y-6">
+  <?php if ($pay_hist): ?>
+  <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="hw-h">
+    <h2 id="hw-h" class="border-b border-slate-200 px-5 py-3 font-semibold"><i class="bi bi-clock-history text-navy-700" aria-hidden="true"></i> Historia wpłat</h2>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Ostatnie wpłaty</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Data</th><th class="px-2">Metoda</th><th class="px-2">Opis</th><th class="px-5 text-right">Kwota</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php $mlab = ['transfer' => 'przelew', 'cash' => 'gotówka', 'stripe' => 'Stripe', 'payu' => 'PayU', 'p24' => 'Przelewy24', 'other' => 'inna', 'internal' => 'korekta']; foreach ($pay_hist as $ph): ?>
+      <tr><td class="whitespace-nowrap px-5 py-2"><?= h(date('d.m.Y', strtotime((string)$ph['paid_at']))) ?></td><td class="px-2"><?= h($mlab[$ph['method']] ?? $ph['method']) ?></td><td class="px-2 text-xs text-slate-600"><?= h(mb_strimwidth((string)$ph['note'], 0, 70, '…')) ?></td><td class="px-5 text-right tabular-nums <?= (float)$ph['amount'] < 0 ? 'text-red-700' : '' ?>"><?= h(pp_fmt((float)$ph['amount'])) ?></td></tr>
+      <?php endforeach; ?></tbody></table></div>
+  </section>
+  <?php endif; ?>
+  <?php if ($bills_all): $mn = [1=>'styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień']; ?>
+  <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="rz-h">
+    <h2 id="rz-h" class="border-b border-slate-200 px-5 py-3 font-semibold"><i class="bi bi-receipt text-navy-700" aria-hidden="true"></i> Rozliczenia zajęć</h2>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Rozliczenia miesięczne</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Okres</th><th class="px-2">Grupa</th><th class="px-2 text-right">Należność</th><th class="px-2 text-right">Pokryto</th><th class="px-2">Termin</th><th class="px-5 text-right">Dokumenty</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach (array_slice($bills_all, 0, 24) as $bl): $amt = (float)$bl['amount'] + (float)($bl['adjustment'] ?? 0); ?>
+      <tr><td class="whitespace-nowrap px-5 py-2"><?= h(($mn[(int)$bl['month']] ?? $bl['month']) . ' ' . $bl['year']) ?></td><td class="px-2 text-xs"><?= h($bl['course_name'] ?: 'rozliczenie łączne') ?></td>
+        <td class="px-2 text-right tabular-nums"><?= h(pp_fmt($amt)) ?></td><td class="px-2 text-right tabular-nums"><?= h(pp_fmt((float)($bl['paid_amount'] ?? 0))) ?></td>
+        <td class="px-2 text-xs"><?= !empty($bl['due_date']) ? h(date('d.m.Y', strtotime((string)$bl['due_date']))) : '—' ?></td>
+        <td class="px-5 text-right text-xs whitespace-nowrap"><a class="text-navy-700 hover:underline" href="dokument.php?type=hours&amp;month=<?= (int)$bl['month'] ?>&amp;year=<?= (int)$bl['year'] ?><?= (int)$bl['course_id'] > 0 ? '&amp;course_id=' . (int)$bl['course_id'] : '' ?>" target="_blank" rel="noopener">rozpiska</a>
+          <?php if (!empty($bl['invoice_path'])): ?> · <a class="text-navy-700 hover:underline" href="dokument.php?type=invoice&amp;id=<?= (int)$bl['id'] ?>" target="_blank" rel="noopener">faktura</a><?php endif; ?></td></tr>
+      <?php endforeach; ?></tbody></table></div>
+  </section>
+  <?php endif; ?>
   <!-- ═══ Historia ═══ -->
   <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="h-h">
     <h2 id="h-h" class="border-b border-slate-200 px-5 py-3 font-semibold">Historia płatności</h2>
@@ -401,6 +406,22 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
       <?php endforeach; ?>
     </ul>
   </section>
+    </div>
+    <div x-show="tab === 'info'" x-cloak class="space-y-6">
+  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="in-h">
+    <h2 id="in-h" class="font-semibold"><i class="bi bi-info-circle text-navy-700" aria-hidden="true"></i> Informacje o płatnościach</h2>
+    <ul class="mt-2 space-y-2 text-sm text-slate-700">
+      <li><strong>Gdzie płacić.</strong> Wszystkie należności z tytułu szkoleń i zajęć wpłacasz na <strong>swój indywidualny numer rachunku</strong> (u góry strony). Jeśli jeszcze go nie masz, płacisz na rachunek grupy lub organizacji — zobacz „Dane do wpłaty".</li>
+      <li><strong>Tytuł przelewu.</strong> Wpisz zalecany tytuł z sekcji „Dane do wpłaty". Przy rachunku indywidualnym wpłata przypisuje się do Ciebie automatycznie, także przy innym tytule.</li>
+      <li><strong>Księgowanie.</strong> Wpłaty są księgowane zawsze na koniec dnia, o godzinie 20:00 — saldo po wpłacie zobaczysz po tej godzinie. Płatność online (PayU, Przelewy24, karta) księguje się od razu po potwierdzeniu przez bramkę.</li>
+      <li><strong>Bank.</strong> Rachunki obsługuje PKO Bank Polski S.A.</li>
+      <li><strong>Nadpłata</strong> jest zaliczana na kolejne zajęcia; niedopłatę widzisz w saldzie i w „Do zapłaty". Zwrot nadpłaty ustal z biurem.</li>
+      <li><strong>Dokumenty.</strong> Rozpiskę godzin i fakturę pobierzesz w tabeli „Rozliczenia zajęć". PDF z informacją o numerze rachunku — przycisk w „Dane do wpłaty".</li>
+      <li><strong>Pytania.</strong> Skontaktuj się z prowadzącym lub biurem <?= h($org) ?>.</li>
+    </ul>
+  </section>
+    </div>
+  </div>
 <?php endif; ?>
 </main>
 
