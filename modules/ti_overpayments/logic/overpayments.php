@@ -439,3 +439,41 @@ function ti_op_summary(): array {
     return ['by_status' => $by, 'accounts' => (int)$bal['n'], 'ledger_overpayment' => round((float)$bal['op'], 2),
             'registered' => round((float)$bal['reg'], 2), 'debt' => round((float)$bal['debt'], 2), 'unreconciled' => (int)$bal['diff']];
 }
+
+
+/**
+ * Zerowanie stanu konta: niedopłata → wpis „umorzenie” (wpłata 'other', source 'writeoff'), nadpłata → wpis
+ * rozchodowy (ujemna wpłata 'internal', source 'writeoff'). Historia zostaje; nic nie jest kasowane.
+ * $course_id: >0 = jedna grupa, 0 = rozliczenie łączne/konto ogólne, -1 = wszystkie grupy i konto ogólne kursanta.
+ * @return array{ok:bool, msg:string, rows:list<array{course_id:int,name:string,debt:float,credit:float}>}
+ */
+function ti_balance_zero_out(int $client_id, int $course_id, string $reason, string $by, ?int $user_id = null, bool $dry = true): array {
+    ti_op_migrate();
+    if (!$dry && mb_strlen(trim($reason)) < 5) return ['ok' => false, 'msg' => 'Podaj powód (min. 5 znaków).', 'rows' => []];
+    ti_billing_recompute($client_id);
+    $gb = ti_client_group_balances($client_id);
+    $rows = [];
+    foreach ($gb['groups'] as $cid => $g) {
+        if ($course_id >= 0 && (int)$cid !== $course_id) continue;
+        if ((float)$g['debt'] > 0.005 || (float)$g['credit'] > 0.005)
+            $rows[] = ['course_id' => (int)$cid, 'name' => (string)$g['course_name'], 'debt' => round((float)$g['debt'], 2), 'credit' => round((float)$g['credit'], 2)];
+    }
+    if (($course_id === -1 || $course_id === 0) && (float)$gb['general_credit'] > 0.005 && !array_filter($rows, fn($r) => $r['course_id'] === 0))
+        $rows[] = ['course_id' => 0, 'name' => 'Konto ogólne (nadpłata)', 'debt' => 0.0, 'credit' => round((float)$gb['general_credit'], 2)];
+    if (!$rows) return ['ok' => true, 'msg' => 'Stan konta jest już zerowy.', 'rows' => []];
+    if ($dry) return ['ok' => true, 'msg' => 'Podgląd.', 'rows' => $rows];
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        $note = trim($reason) . ' (' . $by . ')';
+        foreach ($rows as $r) {
+            if ($r['debt'] > 0.005)   ti_payment_add($client_id, $r['debt'], date('Y-m-d'), 'other', 'Umorzenie niedopłaty: ' . $note, 'writeoff', 0, $r['course_id']);
+            if ($r['credit'] > 0.005) ti_payment_add($client_id, -$r['credit'], date('Y-m-d'), 'internal', 'Wyzerowanie nadpłaty: ' . $note, 'writeoff', 0, $r['course_id']);
+        }
+        ti_billing_recompute($client_id);
+        ti_op_reconcile($client_id, $by, $user_id);
+        audit_log('overpayments.zero_out', ['participant_id' => $client_id, 'course_id' => $course_id, 'rows' => $rows, 'reason' => trim($reason), 'by' => $by], $user_id);
+        $pdo->commit();
+    } catch (\Throwable $e) { $pdo->rollBack(); return ['ok' => false, 'msg' => 'Błąd: ' . $e->getMessage(), 'rows' => $rows]; }
+    $d = array_sum(array_column($rows, 'debt')); $c = array_sum(array_column($rows, 'credit'));
+    return ['ok' => true, 'msg' => 'Wyzerowano: niedopłaty ' . number_format($d, 2, ',', ' ') . ' zł, nadpłaty ' . number_format($c, 2, ',', ' ') . ' zł.', 'rows' => $rows];
+}

@@ -79,6 +79,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             audit_log('pricing.settle_issue', ['month' => sprintf('%04d-%02d', $by_y, $by_m), 'clients' => count(array_filter($clients)), 'billings' => $cnt, 'notify' => !empty($_POST['notify']), 'by' => $by], $uid);
             $res = 0; $ok = "Wystawiono rozliczeń: {$cnt} (kursantów: " . count(array_filter($clients)) . ') za ' . sprintf('%02d.%04d', $by_m, $by_y) . (!empty($_POST['notify']) ? ". Powiadomienia: SMS {$sms}, e-mail {$eml}." : '. Bez wysyłki powiadomień.'); break;
+        case 'zero_balance':
+            $zb = ti_balance_zero_out((int)($_POST['client_id'] ?? 0), (int)($_POST['course_id'] ?? -1), (string)($_POST['reason'] ?? ''), $by, $uid, false);
+            if (!$zb['ok']) { $res = $zb['msg']; break; }
+            $res = 0; $ok = $zb['msg']; break;
+        case 'zero_balance_group':
+            $zc = (int)($_POST['course_id'] ?? 0); $zn = 0; $zd = 0.0; $zcr = 0.0; $zerr = '';
+            foreach (array_keys(ti_course_billing_summary($zc)['participants']) as $zcl) {
+                $zb = ti_balance_zero_out((int)$zcl, $zc, (string)($_POST['reason'] ?? ''), $by, $uid, false);
+                if (!$zb['ok']) { $zerr = $zb['msg']; break; }
+                foreach ($zb['rows'] as $zr0) { $zd += $zr0['debt']; $zcr += $zr0['credit']; $zn++; }
+            }
+            if ($zerr !== '') { $res = $zerr; break; }
+            $res = 0; $ok = "Wyzerowano salda grupy: pozycji {$zn}, niedopłaty " . number_format($zd, 2, ',', ' ') . ' zł, nadpłaty ' . number_format($zcr, 2, ',', ' ') . ' zł.'; break;
         case 'settle_payment':
             $cl = (int)($_POST['client_id'] ?? 0);
             $amt = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
@@ -761,6 +774,13 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
           <td class="text-right"><a class="text-sm font-medium text-navy-700 hover:underline" href="../../../rozliczenia/grupa.php?id=<?= (int)$g['c']['id'] ?>">Szczegóły →</a></td></tr>
         <tr><td colspan="7" class="pb-3">
           <details class="rounded-lg border border-slate-200"><summary class="cursor-pointer px-3 py-1.5 text-xs font-medium text-navy-700">Uczestnicy i akcje (<?= count($g['p']) ?>)</summary>
+            <?php if ($g['t']['debt'] > 0.005 || $g['t']['credit'] > 0.005): ?>
+            <form method="post" class="flex flex-wrap items-end gap-2 border-t border-slate-200 bg-amber-50/50 px-3 py-2" onsubmit="if(this.reason.value.trim().length<5){alert('Podaj powód (min. 5 znaków).');return false;} return confirm('Wyzerować salda (niedopłaty i nadpłaty) wszystkich uczestników tej grupy? Dopiszemy wpisy korygujące, historia zostaje.')">
+              <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="zero_balance_group"><input type="hidden" name="_tab" value="settle"><input type="hidden" name="_m" value="<?= h($st_ym) ?>"><input type="hidden" name="course_id" value="<?= (int)$g['c']['id'] ?>">
+              <div class="min-w-[12rem] flex-1"><label class="lbl" for="zg-<?= (int)$g['c']['id'] ?>">Powód zerowania sald grupy (wymagany)</label><input id="zg-<?= (int)$g['c']['id'] ?>" name="reason" class="inp !py-1" maxlength="300" placeholder="np. zamknięcie grupy"></div>
+              <button class="btn-sec !py-1 text-xs"><i class="bi bi-slash-circle" aria-hidden="true"></i>Zeruj salda grupy (−<?= $fmt($g['t']['debt']) ?> / +<?= $fmt($g['t']['credit']) ?>)</button>
+            </form>
+            <?php endif; ?>
             <div class="divide-y divide-slate-100 border-t border-slate-200">
             <?php foreach ($g['p'] as $pr): $gid = (int)$g['c']['id']; $cid = (int)$pr['client_id']; ?>
               <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 text-sm">
@@ -776,6 +796,12 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
                   <input name="amount" class="inp !w-24 !py-1" inputmode="decimal" placeholder="wpłata zł" aria-label="Kwota wpłaty — <?= h($pr['client_name']) ?>" required>
                   <input name="paid_at" type="date" class="inp !w-36 !py-1" value="<?= date('Y-m-d') ?>" aria-label="Data wpłaty">
                   <button class="btn-pri !py-1 text-xs">Zaksięguj</button></form>
+                <?php if ($pr['debt'] > 0.005 || $pr['credit'] > 0.005): ?>
+                <form method="post" class="flex items-center gap-1" onsubmit="if(this.reason.value.trim().length<5){alert('Podaj powód (min. 5 znaków).');return false;} return confirm('Wyzerować saldo w tej grupie dla: <?= h(addslashes($pr['client_name'])) ?>? Dopiszemy wpis korygujący.')">
+                  <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="zero_balance"><input type="hidden" name="_tab" value="settle"><input type="hidden" name="_m" value="<?= h($st_ym) ?>"><input type="hidden" name="client_id" value="<?= $cid ?>"><input type="hidden" name="course_id" value="<?= $gid ?>">
+                  <input name="reason" class="inp !w-44 !py-1" maxlength="300" placeholder="powód zerowania" aria-label="Powód zerowania salda — <?= h($pr['client_name']) ?>">
+                  <button class="btn-sec !py-1 text-xs" title="Niedopłata → umorzenie, nadpłata → wpis rozchodowy">Zeruj saldo</button></form>
+                <?php endif; ?>
               </div>
             <?php endforeach; ?></div></details>
         </td></tr>
