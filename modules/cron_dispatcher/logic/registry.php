@@ -57,6 +57,11 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/ext_agent.php',
             'interval' => 120,          // co 2 min — kolejka stempli i sprzątanie
         ],
+        'pp_bank_autopost' => [
+            'file'     => $cronDir . '/pp_bank_autopost.php',
+            'interval' => 86400,        // raz dziennie — księgowanie wpłat na numery wirtualne na koniec dnia
+            'schedule' => [20, 22],     // od 20:00
+        ],
         'pp_notice_send' => [
             'file'     => $cronDir . '/pp_notice_send.php',
             'interval' => 600,          // co 10 min — wysyła zatwierdzone powiadomienia o numerze rachunku po terminie (08:00)

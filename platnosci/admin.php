@@ -602,6 +602,12 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <?php endforeach; ?>
       <form method="post" class="space-y-2 rounded-lg border border-slate-200 p-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_save"><input type="hidden" name="notice_id" value="<?= (int)($pn_edit['id'] ?? 0) ?>">
         <div class="text-sm font-semibold"><?= $pn_edit ? 'Edycja szkicu #' . (int)$pn_edit['id'] : 'Nowa wysyłka (szkic)' ?></div>
+        <div class="flex flex-wrap items-center gap-2 text-xs" x-data='{ tpl: <?= h(json_encode(pp_notice_templates(), JSON_UNESCAPED_UNICODE)) ?> }'>
+          <span class="text-slate-500">Wybierz wersję treści (podmienia pola poniżej):</span>
+          <?php foreach (pp_notice_templates() as $tk => $tt): ?>
+          <button type="button" class="bs" @click="if (confirm('Podmienić temat, treść e-maila i SMS na: <?= h(addslashes($tt['label'])) ?>?')) { document.getElementById('pn-su').value = tpl['<?= $tk ?>'].subject; document.getElementById('pn-bo').value = tpl['<?= $tk ?>'].body; document.getElementById('pn-sm').value = tpl['<?= $tk ?>'].sms; }"><?= h($tt['label']) ?></button>
+          <?php endforeach; ?>
+        </div>
         <div class="grid gap-2 md:grid-cols-3">
           <div><label class="lbl" for="pn-sc">Odbiorcy</label><select id="pn-sc" name="scope" class="inp"><option value="unnotified"<?= ($pn_edit['scope'] ?? '') !== 'last' ? ' selected' : '' ?>>Wszyscy z numerem, bez powiadomienia</option><option value="last"<?= ($pn_edit['scope'] ?? '') === 'last' ? ' selected' : '' ?>>Tylko z ostatniego importu</option></select></div>
           <div class="md:col-span-2"><label class="lbl" for="pn-su">Temat e-maila</label><input id="pn-su" name="subject" class="inp" maxlength="200" required value="<?= h($pn_edit['subject'] ?? $pn['subject']) ?>"></div>

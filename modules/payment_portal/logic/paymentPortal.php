@@ -1060,7 +1060,8 @@ function pp_vnrb_notice_html(int $client_id): ?string {
         . '<div style="border:2px solid #10335c;border-radius:6px;padding:14px 10px;margin:14px 0;text-align:center;font-size:18pt;letter-spacing:1px;font-family:dejavusansmono"><strong>' . $e($fmt) . '</strong></div>'
         . '<p style="font-size:12.5pt"><strong>Na ten rachunek wpłacasz wszystkie należności z tytułu szkoleń</strong> — opłaty za zajęcia, szkolenia i związane z nimi rozliczenia. Nie musisz sprawdzać osobnych numerów dla poszczególnych grup.</p>'
         . '<ul style="margin:8px 0 14px;line-height:1.6"><li>Numer jest przypisany wyłącznie do Ciebie — wpłata zostanie przypisana automatycznie.</li>'
-        . '<li>Odbiorca przelewu: <strong>' . $e($org) . '</strong>.</li>'
+        . '<li>Odbiorca przelewu: <strong>' . $e($org) . '</strong>. Rachunek obsługuje <strong>PKO Bank Polski S.A.</strong></li>'
+        . '<li>Wpłaty są księgowane na koniec dnia, o godzinie 20:00.</li>'
         . '<li>Tytuł przelewu (zalecany): <strong>' . $e($title) . '</strong>.</li>'
         . '<li>Zachowaj ten dokument — numer będzie obowiązywał w kolejnych okresach rozliczeniowych.</li></ul>'
         . '<p style="margin-top:26px;font-size:9.5pt;color:#555">W razie pytań skontaktuj się z prowadzącym lub biurem. Dokument ma charakter informacyjny; wygenerowano ' . date('d.m.Y H:i') . '.</p>'
@@ -1113,15 +1114,30 @@ function pp_vnrb_notice_send(string $scope, int $client_id, string $by): never {
 
 const PP_NOTICE_STATUSES = ['draft' => 'szkic (czeka na zatwierdzenie)', 'approved' => 'zatwierdzona — zaplanowana', 'sent' => 'wysłana', 'cancelled' => 'anulowana'];
 
-/** Domyślna treść: znaczniki {imie_nazwisko} {numer} {tytul} {organizacja}. */
-function pp_notice_default(): array {
+/** Gotowe wersje treści do wyboru (znaczniki {imie_nazwisko} {numer} {numer_cyfry} {tytul} {organizacja}). */
+function pp_notice_templates(): array {
     return [
-        'subject' => 'Twój indywidualny numer rachunku do wpłat za szkolenia',
-        'body'    => "Dzień dobry,\n\nnadaliśmy Ci indywidualny numer rachunku bankowego do wpłat:\n\n{numer}\n\nNa ten rachunek wpłacasz wszystkie należności z tytułu szkoleń i zajęć. "
-                   . "Numer jest przypisany wyłącznie do Ciebie, a wpłata zostanie przypisana automatycznie.\n\nTytuł przelewu (zalecany): {tytul}\n\nPozdrawiamy,\n{organizacja}",
-        'sms'     => '{organizacja}: Twoj indywidualny numer rachunku do wplat za szkolenia: {numer_cyfry}. Wplacasz tu wszystkie naleznosci z tytulu szkolen.',
+        'v1' => [
+            'label'   => 'Wersja 1 — krótka',
+            'subject' => 'Twój indywidualny numer rachunku do wpłat za szkolenia',
+            'body'    => "Dzień dobry,\n\nnadaliśmy Ci indywidualny numer rachunku bankowego do wpłat:\n\n{numer}\n\nNa ten rachunek wpłacasz wszystkie należności z tytułu szkoleń i zajęć. "
+                       . "Numer jest przypisany wyłącznie do Ciebie, a wpłata zostanie przypisana automatycznie.\n\nTytuł przelewu (zalecany): {tytul}\n\nPozdrawiamy,\n{organizacja}",
+            'sms'     => '{organizacja}: Twoj indywidualny numer rachunku do wplat za szkolenia: {numer_cyfry}. Wplacasz tu wszystkie naleznosci z tytulu szkolen.',
+        ],
+        'v2' => [
+            'label'   => 'Wersja 2 — zakończenie wdrożenia + księgowanie o 20:00',
+            'subject' => 'Zakończyliśmy wdrażanie indywidualnych numerów rachunków — Twój numer do wpłat',
+            'body'    => "Dzień dobry,\n\nzakończyliśmy proces wdrażania indywidualnych numerów rachunków bankowych. Twój numer do wpłat (rachunek obsługuje PKO Bank Polski):\n\n{numer}\n\n"
+                       . "Na ten rachunek wpłacasz wszystkie należności z tytułu szkoleń i zajęć. Numer jest przypisany wyłącznie do Ciebie, a wpłata zostanie przypisana automatycznie.\n\n"
+                       . "Ważne: wpłaty są księgowane zawsze na koniec dnia, o godzinie 20:00 — saldo po wpłacie zobaczysz po tej godzinie.\n\n"
+                       . "Tytuł przelewu (zalecany): {tytul}\n\nPozdrawiamy,\n{organizacja}",
+            'sms'     => '{organizacja}: zakonczylismy wdrazanie indywidualnych numerow. Twoj numer do wplat za szkolenia: {numer_cyfry}. Wplaty ksiegujemy codziennie o 20:00.',
+        ],
     ];
 }
+
+/** Domyślna treść = wersja 1. */
+function pp_notice_default(): array { $t = pp_notice_templates()['v1']; return ['subject' => $t['subject'], 'body' => $t['body'], 'sms' => $t['sms']]; }
 
 function pp_notice_render(string $tpl, array $v, bool $html = false): string {
     $map = ['{imie_nazwisko}' => $v['name'], '{numer}' => $v['nrb_fmt'], '{numer_cyfry}' => $v['nrb'], '{tytul}' => $v['title'], '{organizacja}' => $v['org']];
