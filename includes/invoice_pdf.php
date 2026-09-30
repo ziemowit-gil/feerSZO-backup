@@ -196,6 +196,16 @@ function invoice_pdf_html(array $inv, array $opts = []): string
 {
     $s     = invoice_seller((string)($inv['currency'] ?: 'PLN'));
     $items = $inv['items'] ?? [];
+    // Faktura z rozliczenia TI: rachunek indywidualny (wirtualny) kursanta nadany w Płatnościach idzie na pierwsze miejsce
+    if (($inv['source'] ?? '') === 'ti_billing' && !empty($inv['source_id'])) {
+        try {
+            $vb = db_one("SELECT u.individual_nrb n FROM k30_ti_billing b JOIN payment_portal_users u ON u.participant_id=b.client_id WHERE b.id=?", [(int)$inv['source_id']]);
+            $vn = preg_replace('/\D/', '', (string)($vb['n'] ?? ''));
+            if (strlen($vn) === 26) {
+                array_unshift($s['accounts'], ['nrb' => $vn, 'bank' => 'rachunek indywidualny uczestnika', 'opis' => 'Wpłacaj na ten rachunek wszystkie należności z tytułu szkoleń.']);
+            }
+        } catch (\Throwable $e) { /* portal płatności jeszcze nie istnieje */ }
+    }
 
     // Fakturę wystawia zawsze konkretny użytkownik — imiennie na dokumencie,
     // żeby było wiadomo, kto ją sporządził (created_by z chwili utworzenia).
