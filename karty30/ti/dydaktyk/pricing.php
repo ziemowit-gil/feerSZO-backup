@@ -56,6 +56,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'statuses':
             $res = ti_pricing_set_participant_status((int)($_POST['client_id'] ?? 0), (array)($_POST['statuses'] ?? []), $by, $uid) ?? 0;
             $ok = 'Statusy uczestnika zapisane.'; break;
+        case 'group_rate':
+            $cid = (int)($_POST['course_id'] ?? 0); $ovr = [];
+            foreach (['stacjonarna', 'online'] as $m) {
+                $raw = trim((string)($_POST['g_' . $m] ?? ''));
+                if ($raw !== '') { $v = ti_pricing_num($raw); if ($v === null) { $res = 'Cena musi być liczbą ≥ 0.'; break 2; } $ovr[$m] = $v; }
+            }
+            if (!$ovr) { $res = 'Podaj cenę stacjonarną i/lub online.'; break; }
+            $okc = 0; $errs = [];
+            foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$cid]) as $e) {
+                $r = ti_pricing_apply_to_enrollment($cid, (int)$e['client_id'], $by, $uid, $ovr, (string)($_POST['reason'] ?? ''));
+                if ($r['ok']) $okc++; else { $errs[$r['msg']] = true; if (str_contains($r['msg'], 'uzasadnienia') || str_contains($r['msg'], 'typu zajęć') || str_contains($r['msg'], 'zamkni')) break; }
+            }
+            if (!$okc && $errs) { $res = implode(' ', array_keys($errs)); break; }
+            $res = 0; $ok = "Stawka ustawiona dla grupy: zapisów zaktualizowano {$okc}" . ($errs ? '; uwagi: ' . implode(' ', array_keys($errs)) : '') . '.'; break;
         case 'apply':
             $ovr = [];
             foreach (['stacjonarna', 'online'] as $m) {
@@ -393,6 +407,18 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
             </form></td>
           <td class="text-right"><a class="btn-sec" href="pricing.php?tab=groups&amp;course=<?= (int)$c['id'] ?>#zapisy">Zapisy</a></td>
         </tr>
+        <?php if ((int)$c['n']): ?>
+        <tr class="<?= $sel_course === (int)$c['id'] ? 'bg-amber-50' : '' ?>"><td colspan="6" class="pb-3">
+          <form method="post" class="flex flex-wrap items-center gap-2 text-xs" onsubmit="if(!this.reason.value.trim() || this.reason.value.trim().length<5){alert('Podaj uzasadnienie zmiany ceny (min. 5 znaków).');return false;} return confirm('Ustawić tę stawkę wszystkim aktywnym uczestnikom grupy?');">
+            <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="group_rate"><input type="hidden" name="_tab" value="groups">
+            <input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="_course" value="<?= $sel_course ?>">
+            <span class="text-slate-500">Zmień stawkę całej grupy:</span>
+            <input name="g_stacjonarna" class="inp !w-24" inputmode="decimal" placeholder="zł/h" aria-label="Nowa stawka stacjonarna — <?= h($c['name']) ?>">
+            <input name="g_online" class="inp !w-24" inputmode="decimal" placeholder="online zł/h" aria-label="Nowa stawka online — <?= h($c['name']) ?>">
+            <input name="reason" class="inp !w-56" maxlength="300" placeholder="uzasadnienie (wymagane)" aria-label="Uzasadnienie zmiany ceny">
+            <button class="btn-pri">Ustaw dla grupy</button>
+          </form></td></tr>
+        <?php endif; ?>
       <?php endforeach; ?>
       </tbody>
     </table>
