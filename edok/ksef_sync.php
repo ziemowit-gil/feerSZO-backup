@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (\Throwable $e) { flash_set('error', 'Błąd KSeF: ' . $e->getMessage()); }
             }
         }
-        header('Location: ' . APP_URL . '/edok/ksef_sync.php');
+        header('Location: ' . APP_URL . (($_POST['return'] ?? '') === 'index' ? '/edok/index.php' : '/edok/ksef_sync.php'));
         exit;
     }
 

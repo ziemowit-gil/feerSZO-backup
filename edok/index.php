@@ -159,6 +159,9 @@ require_once __DIR__ . '/../includes/header.php';
     <a href="<?= APP_URL ?>/edok/wyciag.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bank2"></i> Wyciągi bankowe<?php if ($bank_open): ?> <span class="badge bg-warning text-dark"><?= $bank_open ?></span><?php endif; ?></a>
     <a href="<?= APP_URL ?>/edok/mt940_import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Import wyciągu (MT940)</a>
     <a href="<?= APP_URL ?>/edok/szablony.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-richtext"></i> Szablony</a>
+    <?php if (org_setting('kdok_ksef_enabled') === '1'): ?>
+    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#salesSyncModal"><i class="bi bi-cloud-download"></i> Pobierz sprzedaż z KSeF</button>
+    <?php endif; ?>
     <?php $queue_count = edok_queue_count(); ?>
     <a href="<?= APP_URL ?>/edok/queue.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-inboxes"></i> Kolejka do opisu
       <?php if ($queue_count): ?><span class="badge bg-primary ms-1"><?= $queue_count ?></span><?php endif; ?></a>
@@ -329,4 +332,22 @@ require_once __DIR__ . '/../includes/header.php';
 </script>
 <?php endif; ?>
 
+<?php if ((is_admin() || edok_has_role('upload')) && org_setting('kdok_ksef_enabled') === '1'): ?>
+<div class="modal fade" id="salesSyncModal" tabindex="-1" aria-labelledby="salesSyncLabel" aria-hidden="true">
+  <div class="modal-dialog"><form method="post" action="<?= APP_URL ?>/edok/ksef_sync.php" class="modal-content">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="action" value="sync_sales">
+    <input type="hidden" name="return" value="index">
+    <div class="modal-header"><h5 class="modal-title" id="salesSyncLabel">Pobierz faktury sprzedaży z KSeF</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
+    <div class="modal-body">
+      <p class="small text-muted">Faktury wystawione przez organizację (sprzedawca) i ich korekty. Powstają jako dokumenty przychodowe EODoK; już pobrane są pomijane.</p>
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label small mb-1" for="ss_from">Od</label><input type="date" id="ss_from" name="sales_from" class="form-control" value="<?= date('Y-m-01') ?>"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="ss_to">Do</label><input type="date" id="ss_to" name="sales_to" class="form-control" value="<?= date('Y-m-d') ?>"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button><button class="btn btn-primary"><i class="bi bi-cloud-download"></i> Pobierz</button></div>
+  </form></div>
+</div>
+<?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
