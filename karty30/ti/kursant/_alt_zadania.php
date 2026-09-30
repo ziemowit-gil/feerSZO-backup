@@ -81,6 +81,7 @@ if ($sel_row) {
 <p class="text-body-secondary small mb-3">
   Zadania od prowadzącego uszeregowane według pilności. Wybierz zadanie z listy — szczegóły,
   materiały i oddawanie pokażą się obok. Oceny znajdziesz w zakładce <a href="?tab=oceny">Oceny</a>.
+  Książki i materiały zewnętrzne: <a href="../ext/index.php?as=student">Biblioteka materiałów</a>.
 </p>
 <?= $ti_ctx_switch_html ?? '' ?>
 

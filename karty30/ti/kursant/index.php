@@ -1244,6 +1244,9 @@ include __DIR__ . '/_layout_head.php';
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='zadania'?'active':'' ?>" href="?tab=zadania" <?= $tab==='zadania'?'aria-current="page"':'' ?>>
           <i class="bi bi-journal-check me-2" aria-hidden="true"></i>Dydaktyka / eLearning
           <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-2"><?= $hw_pending_total ?></span><?php endif; ?></a></li>
+        <?php /* Biblioteka to osobny moduł (karty30/ti/ext) — ten sam link co w „Dostępach”, tu tam, gdzie kursant szuka materiałów */ ?>
+        <li><a class="dropdown-item <?= $mc() ?>" href="../ext/index.php?as=student">
+          <i class="bi bi-book me-2" aria-hidden="true"></i>Biblioteka materiałów</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='zapisy'?'active':'' ?>" href="?tab=zapisy" <?= $tab==='zapisy'?'aria-current="page"':'' ?>>
           <i class="bi bi-ticket-perforated me-2" aria-hidden="true"></i>Zapisy na zajęcia</a></li>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='oceny'?'active':'' ?>" href="?tab=oceny" <?= $tab==='oceny'?'aria-current="page"':'' ?>>
@@ -3244,7 +3247,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php elseif ($tab === 'zadania'): ?>
 
   <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
-  <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".</p>
+  <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".
+    Książki i materiały zewnętrzne: <a href="../ext/index.php?as=student"><i class="bi bi-book me-1" aria-hidden="true"></i>Biblioteka materiałów</a>.</p>
   <?= $ti_ctx_switch_html ?>
 
   <?php

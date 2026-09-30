@@ -50,6 +50,7 @@ $_alt_sections = [
         'items' => [
             $_it('lekcje',   'Moje lekcje',           $_g('lekcje')),
             $_it('zadania',  'Dydaktyka / eLearning', $_g('zadania'), $_n_hw, 'warning'),
+            $_it('',         'Biblioteka materiałów', '../ext/index.php?as=student'),
             $_it('zapisy',   'Zapisy na zajęcia',     $_g('zapisy')),
             $_it('oceny',    'Oceny',                 $_g('oceny')),
             $_it('plan',     'Plan nauczania',        $_g('plan')),
