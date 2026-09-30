@@ -478,6 +478,9 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       <i class="bi bi-printer"></i> Wydruk
     </a>
     <?php endif; ?>
+    <a href="<?= APP_URL ?>/edok/print_pdf.php?id=<?= $id ?>" target="_blank" class="edok-btn edok-btn-ghost" title="PDF: dokument źródłowy + karta akceptacji, do wydruku">
+      <i class="bi bi-file-earmark-pdf"></i> PDF do druku
+    </a>
     <?php if (edok_has_unlock_perm() && $is_terminal): ?>
     <button class="edok-btn edok-btn-ghost" type="button" data-bs-toggle="modal" data-bs-target="#unlockModal">
       <i class="bi bi-arrow-counterclockwise"></i> Cofnij decyzję

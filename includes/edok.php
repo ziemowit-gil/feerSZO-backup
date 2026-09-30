@@ -1310,10 +1310,11 @@ function edok_build_monthly_combined(int $year, int $month, string $dest): int {
  * Zapisuje do uploads/edok_generated/, rejestruje w edok_generated_pdf.
  * Zwraca względną ścieżkę pliku.
  */
-function edok_generate_final_pdf(int $doc_id): string {
-    $doc = edok_get($doc_id);
-    if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
-
+/**
+ * Składa PDF „dokument źródłowy + dowód zapłaty + karta akceptacji” do pliku $dest.
+ * Wspólne dla dokumentu końcowego (edok_generate_final_pdf) i wydruku na żądanie (edok/print_pdf.php).
+ */
+function edok_build_source_card_pdf(array $doc, string $dest): void {
     require_once dirname(__DIR__) . '/vendor/autoload.php';
 
     // 1) Karta akceptacji jako osobny PDF (mPDF, z gotowego HTML-a).
@@ -1326,21 +1327,16 @@ function edok_generate_final_pdf(int $doc_id): string {
     ]);
     $mpdf->SetTitle('Karta akceptacji ' . $doc['number']);
     $mpdf->WriteHTML('<style>' . edok_print_css() . '</style>' . edok_print_html($doc));
-    $card_path = $tmp_dir . '/karta_' . $doc_id . '_' . bin2hex(random_bytes(4)) . '.pdf';
+    $card_path = $tmp_dir . '/karta_' . (int)$doc['id'] . '_' . bin2hex(random_bytes(4)) . '.pdf';
     $mpdf->Output($card_path, \Mpdf\Output\Destination::FILE);
 
-    // 2) Złożenie finalnego PDF: źródło (jeśli PDF/obraz) + karta (import stron przez FPDI).
+    // 2) Złożenie: źródło (PDF/obraz/XML) + dowód zapłaty + karta (import stron przez FPDI).
     require_once __DIR__ . '/fpdf/fpdf.php';
     require_once __DIR__ . '/fpdi/autoload_fpdi.php';
-
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 10);
-
-    $import = fn(string $rel) => edok_fpdi_import_file($pdf, $rel);
-    $import((string)$doc['file_path']);
-    // Dowód zapłaty przed akceptacją — zaraz za dokumentem źródłowym, przed kartą.
-    if (!empty($doc['zaplacono_przed'])) $import((string)($doc['dowod_zaplaty_path'] ?? ''));
-
+    edok_fpdi_import_file($pdf, (string)$doc['file_path']);
+    if (!empty($doc['zaplacono_przed'])) edok_fpdi_import_file($pdf, (string)($doc['dowod_zaplaty_path'] ?? ''));
     $card_count = $pdf->setSourceFile($card_path);
     for ($i = 1; $i <= $card_count; $i++) {
         $tpl  = $pdf->importPage($i);
@@ -1349,12 +1345,18 @@ function edok_generate_final_pdf(int $doc_id): string {
         $pdf->useTemplate($tpl);
     }
     @unlink($card_path);
+    $pdf->Output($dest, 'F');
+}
+
+function edok_generate_final_pdf(int $doc_id): string {
+    $doc = edok_get($doc_id);
+    if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
 
     $out_dir = UPLOAD_DIR . 'edok_generated/';
     if (!is_dir($out_dir)) mkdir($out_dir, 0755, true);
     $filename = preg_replace('/[^a-zA-Z0-9_.\-]/', '_', 'final_' . $doc['number'] . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf');
     $full_path = $out_dir . $filename;
-    $pdf->Output($full_path, 'F');
+    edok_build_source_card_pdf($doc, $full_path);
 
     $rel   = 'edok_generated/' . $filename;
     $user  = current_user();
