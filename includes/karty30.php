@@ -3081,8 +3081,16 @@ function k30_ti_client_payment(int $client_id): array {
     $account = trim((string)($pick['pay_account'] ?? ''));
     $title   = trim((string)($pick['pay_title'] ?? ''));
     if ($account === '') $account = k30_ti_org_account()['iban'];   // konto organizacji „dla TI"
+    // Rachunek indywidualny nadany w Płatnościach (z puli banku) ma pierwszeństwo — to faktycznie używany numer
+    $virtual = false;
+    try {
+        $vn = db_one("SELECT individual_nrb FROM payment_portal_users WHERE participant_id=?", [$client_id]);
+        $vn = preg_replace('/\D/', '', (string)($vn['individual_nrb'] ?? ''));
+        if (strlen($vn) === 26) { $account = substr($vn, 0, 2) . ' ' . trim(chunk_split(substr($vn, 2), 4, ' ')); $virtual = true; }   // format jak rachunek organizacji
+    } catch (\Throwable $e) { /* portal płatności jeszcze nie istnieje */ }
     if ($title === '')   $title   = k30_ti_payment_title($client_id);
     return [
+        'virtual'  => $virtual,
         'account'  => $account,
         'title'    => $title,
         'codes'    => array_keys($codes),
