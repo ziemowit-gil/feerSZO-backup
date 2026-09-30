@@ -62,7 +62,8 @@ unset($_mg);
     <dl class="row small mb-0">
       <?php if ($rv_pay['account'] !== ''): ?>
       <dt class="col-sm-3 text-body-secondary fw-normal">Nr konta</dt>
-      <dd class="col-sm-9 font-monospace mb-1"><?= h($rv_pay['account']) ?></dd>
+      <dd class="col-sm-9 font-monospace mb-1"><?= h($rv_pay['account']) ?>
+        <?php if (!empty($rv_pay['virtual'])): ?><a class="btn btn-sm btn-outline-primary ms-2 font-sans-serif" style="font-family:var(--bs-body-font-family)" href="rachunek_pdf.php" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Drukuj PDF z informacją o numerze</a><?php endif; ?></dd>
       <?php endif; ?>
       <?php if ($rv_pay['title'] !== ''): ?>
       <dt class="col-sm-3 text-body-secondary fw-normal">Tytuł wpłaty</dt>

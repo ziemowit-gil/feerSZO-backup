@@ -1073,6 +1073,9 @@ switch ($action) {
             'pay_title'      => $pay['title'],
             'pay_codes'      => $pay['codes'],
             'pay_refs'       => $pay_refs,
+            'pay_virtual'    => !empty($pay['virtual']),
+            // PDF „nadano numer rachunku” — tylko gdy kursant ma indywidualny numer (token jak przy rozpisce godzin)
+            'pay_info_pdf'   => !empty($pay['virtual']) ? '/karty30/ti/kursant/rachunek_pdf.php?token=' . $tok : null,
         ]);
     }
 
