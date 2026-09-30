@@ -41,6 +41,10 @@ function pp_migrate(): void {
     db()->exec("CREATE TABLE IF NOT EXISTS pp_bank_matches (
         id INTEGER PRIMARY KEY AUTOINCREMENT, bank_tx_id INTEGER NOT NULL UNIQUE, portal_transaction_id INTEGER NOT NULL,
         how TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+    // Pula rachunków wirtualnych wygenerowanych przez bank (import z listy TXT); grp = ti / inni / ...
+    db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_pool (
+        nrb TEXT PRIMARY KEY, grp TEXT NOT NULL DEFAULT 'ti', participant_id INTEGER,
+        imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
 }
 function pp_gr(float|int|string $v): int { return (int)round((float)$v * 100); }
 function pp_zl(int $gr): float { return round($gr / 100, 2); }
@@ -245,6 +249,9 @@ function pp_ti_notify_nrb(int $client_id, string $nrb, bool $correction = false)
  * Zwraca nowy NRB, gdy się zmienił; null gdy bez zmian / brak numeru / konflikt.
  */
 function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
+    // Rachunek z puli banku (import TXT) jest nadrzędny — nie przeliczamy go z numeru kursanta
+    $cur = pp_user($client_id);
+    if ($cur && db_one("SELECT 1 FROM pp_vnrb_pool WHERE nrb=? AND participant_id=?", [pp_nrb_normalize((string)$cur['individual_nrb']), $client_id])) return null;
     $n = pp_nrb_generate($client_id);
     if ($n === null) return null;
     $u = pp_user($client_id);
@@ -637,4 +644,50 @@ function pp_expire_stale(int $participant_id): void {
         if ((int)$t['p24_payment_id'] > 0 && p24_reconcile_payment((int)$t['p24_payment_id']) === 'paid') continue;
         pp_fail((int)$t['id'], 'Brak potwierdzenia płatności Przelewy24 w ciągu 24 h', 'system', null);
     }
+}
+
+
+/**
+ * Import listy rachunków wirtualnych z banku (TXT, jeden numer w linii; PL/spacje dozwolone).
+ * Odrzuca niepoprawne (26 cyfr + suma kontrolna) i duplikaty. @return array{added:int, dup:int, bad:list<string>}
+ */
+function pp_vnrb_pool_import(string $text, string $grp, string $by, ?int $uid): array {
+    pp_migrate();
+    $r = ['added' => 0, 'dup' => 0, 'bad' => []];
+    $ins = db()->prepare("INSERT OR IGNORE INTO pp_vnrb_pool (nrb, grp, participant_id, imported_by, assigned_at) VALUES (?,?,?,?,?)");
+    db()->beginTransaction();
+    try {
+        foreach (preg_split('/\R/u', $text) as $line) {
+            $line = trim($line); if ($line === '') continue;
+            $n = pp_nrb_normalize($line);
+            if (!pp_nrb_valid($n)) { $r['bad'][] = mb_substr($line, 0, 40); continue; }
+            $owner = db_one("SELECT participant_id FROM payment_portal_users WHERE individual_nrb=?", [$n]);
+            $ins->execute([$n, $grp, $owner ? (int)$owner['participant_id'] : null, $by, $owner ? date('Y-m-d H:i:s') : null]);
+            if ($ins->rowCount()) $r['added']++; else $r['dup']++;
+        }
+        db()->commit();
+    } catch (\Throwable $e) { db()->rollBack(); throw $e; }
+    audit_log('payments.vnrb_pool_import', ['group' => $grp, 'added' => $r['added'], 'dup' => $r['dup'], 'bad' => count($r['bad']), 'by' => $by], $uid);
+    return $r;
+}
+
+/** Przypisuje wolne rachunki z puli (grp='ti') kursantom TI bez indywidualnego NRB, wg kolejności numerów. @return array{assigned:int, left:int, nopool:int} */
+function pp_vnrb_pool_assign_ti(string $by, ?int $uid): array {
+    pp_migrate();
+    $r = ['assigned' => 0, 'left' => 0, 'nopool' => 0];
+    $rows = db_all("SELECT DISTINCT a.client_id FROM k30_ti_student_accounts a
+                      LEFT JOIN payment_portal_users u ON u.participant_id=a.client_id
+                     WHERE u.individual_nrb IS NULL OR u.individual_nrb='' ORDER BY a.client_id");
+    foreach ($rows as $row) {
+        $cid = (int)$row['client_id'];
+        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL ORDER BY nrb LIMIT 1");
+        if (!$p) { $r['nopool']++; continue; }
+        if (is_string(pp_user_ensure($cid, $by, $uid))) continue;
+        if (pp_set_nrb($cid, $p['nrb'], $by, $uid) !== null) continue;
+        db()->prepare("UPDATE pp_vnrb_pool SET participant_id=?, assigned_at=datetime('now') WHERE nrb=?")->execute([$cid, $p['nrb']]);
+        $r['assigned']++;
+    }
+    $r['left'] = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL")['c'] ?? 0);
+    audit_log('payments.vnrb_pool_assign_ti', $r + ['by' => $by], $uid);
+    return $r;
 }

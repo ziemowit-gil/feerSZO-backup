@@ -93,6 +93,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ok = 'Numer wygenerowany i przypisany uczestnikowi.'; break;
             }
             $ok = 'Numer wygenerowany.'; break;
+        case 'pool_import':
+            $grp = in_array($_POST['pool_grp'] ?? '', ['ti', 'inni', 'spoza_ti', 'reczny'], true) ? $_POST['pool_grp'] : 'ti';
+            $txt = (string)($_POST['pool_text'] ?? '');
+            if (!empty($_FILES['pool_file']['tmp_name']) && is_uploaded_file($_FILES['pool_file']['tmp_name'])) $txt .= "\n" . file_get_contents($_FILES['pool_file']['tmp_name']);
+            if (trim($txt) === '') { $err = 'Wklej listę numerów albo wybierz plik TXT.'; break; }
+            $x = pp_vnrb_pool_import($txt, $grp, $by, $uid);
+            $ok = "Import: dodano {$x['added']}, duplikaty {$x['dup']}, błędne " . count($x['bad'])
+                . ($x['bad'] ? ' (np. ' . implode('; ', array_slice($x['bad'], 0, 5)) . ')' : '') . '.'; break;
+        case 'pool_assign_ti':
+            $x = pp_vnrb_pool_assign_ti($by, $uid);
+            $ok = "Przypisano kursantom TI: {$x['assigned']}; wolnych w puli: {$x['left']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
         case 'regen_ti':
             $r = pp_ti_regenerate_all(!empty($_POST['notify']), $by, $uid, !empty($_POST['correction']));
             $ok = "Nowe rachunki: {$r['changed']}, bez zmian: {$r['same']}, pominięto: " . count($r['skipped'])
@@ -346,6 +357,21 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <a class="bs" href="admin.php?export=txt&g=ti">Kursanci TI (z nazwą)</a>
       <a class="bs" href="admin.php?export=txt&g=crm">Kontrahenci CRM</a>
       <a class="bs" href="admin.php?export=txt&g=all">Wszystko</a></p>
+    <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
+    <form method="post" enctype="multipart/form-data" class="rounded-lg border border-slate-200 p-3 space-y-2">
+      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_import">
+      <h3 class="font-semibold text-sm">Import listy rachunków z banku (TXT)</h3>
+      <p class="text-xs text-slate-500">Jeden numer w linii (26 cyfr, „PL" i spacje dozwolone). Sprawdzamy sumę kontrolną i duplikaty; numery trafiają do puli danej grupy.</p>
+      <div class="grid gap-2 md:grid-cols-4">
+        <div><label class="lbl" for="pl-g">Grupa</label><select id="pl-g" name="pool_grp" class="inp"><option value="ti">TI (kursanci)</option><option value="inni">Kontrahenci inni</option><option value="spoza_ti">Uczestnicy spoza TI</option><option value="reczny">Ręczne</option></select></div>
+        <div class="md:col-span-3"><label class="lbl" for="pl-f">Plik TXT (opcjonalnie)</label><input id="pl-f" type="file" name="pool_file" accept=".txt,text/plain" class="inp"></div>
+      </div>
+      <label class="lbl" for="pl-t">Lista numerów</label><textarea id="pl-t" name="pool_text" rows="5" class="inp font-mono" placeholder="76102029063286111100000001"></textarea>
+      <div class="flex flex-wrap items-center gap-3"><button class="bp">Wczytaj do puli</button>
+        <span class="text-xs text-slate-500">W puli: <?php foreach ($pool as $pl): ?><?= h($pl['grp']) ?> <?= (int)$pl['n'] ?> (wolnych <?= (int)$pl['free'] ?>) · <?php endforeach; if (!$pool) echo 'pusta'; ?></span></div>
+    </form>
+    <form method="post" onsubmit="return confirm('Przypisać wolne rachunki z puli TI kursantom bez rachunku?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_ti">
+      <button class="bs">Przypisz wolne rachunki z puli kursantom TI bez numeru</button></form>
     <?php if ($vgen): ?>
     <div class="rounded-lg bg-slate-50 p-4 space-y-1" aria-live="polite">
       <div class="font-mono text-lg tracking-wide"><?= h(substr($vgen['nrb'], 0, 2)) ?> <span class="text-red-600"><?= h(substr($vgen['nrb'], 2, 4)) ?> <?= h(substr($vgen['nrb'], 6, 4)) ?></span> <span class="text-purple-700"><?= h($vgen['rrrr']) ?></span> <span class="text-emerald-700"><?= h(trim(chunk_split($vgen['part'], 4, ' '))) ?></span></div>
