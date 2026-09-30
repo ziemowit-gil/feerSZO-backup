@@ -24,6 +24,11 @@ function edok_bank_import(array $parsed, int $user_id): array {
     foreach ($parsed['transactions'] as $i => $t) {
         $key = sha1(implode('|', [$parsed['account_nrb'], $t['numer_operacji'], $t['data_waluty'], $t['znak'], $t['kwota'], $t['tytul']]));
         $ex = db_one("SELECT id FROM edok_bank_tx WHERE dedup_key = ?", [$key]);
+        // ta sama operacja wgrana w innym formacie (MT940 ↔ Elixir): rachunek + data + znak + kwota + numer operacji
+        if (!$ex && $t['numer_operacji'] !== '') {
+            $ex = db_one("SELECT id FROM edok_bank_tx WHERE replace(account_nrb,'PL','')=? AND data_waluty=? AND znak=? AND kwota=? AND numer_operacji=?",
+                         [preg_replace('/^PL/i', '', (string)$parsed['account_nrb']), $t['data_waluty'], $t['znak'], (float)$t['kwota'], $t['numer_operacji']]);
+        }
         if ($ex) { $out['duplicates']++; $out['ids'][$i] = (int)$ex['id']; continue; }
         $out['ids'][$i] = db_insert('edok_bank_tx', [
             'dedup_key' => $key, 'account_nrb' => $parsed['account_nrb'], 'statement_no' => $parsed['statement_no'],
@@ -35,6 +40,54 @@ function edok_bank_import(array $parsed, int $user_id): array {
         $out['added']++;
     }
     return $out;
+}
+
+/**
+ * Parser pliku Elixir-0 (eksport wyciągu z iPKO biznes) do tej samej struktury co edok_mt940_parse().
+ * Jedna operacja = jedna linia CSV: typ, data RRRRMMDD, kwota w groszach, …, rachunek, nazwy (pola
+ * rozdzielane „|"), tytuł (4 × 35 znaków rozdzielone „|"), numer operacji. Typ 2xx = obciążenie (D),
+ * pozostałe = uznanie (C) — kierunek sprawdź na ekranie podglądu przed zapisem.
+ */
+function edok_elixir_parse(string $raw): array {
+    if (!mb_check_encoding($raw, 'UTF-8')) {
+        $conv = @iconv('CP1250', 'UTF-8//TRANSLIT', $raw);
+        if ($conv !== false) $raw = $conv;
+    }
+    $out = ['account_nrb' => '', 'statement_no' => '', 'opening' => null, 'closing' => null, 'transactions' => []];
+    foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
+        if (trim($line) === '') continue;
+        $f = str_getcsv($line, ',', '"', '');
+        if (count($f) < 12 || !preg_match('/^\d{3}$/', $f[0]) || !preg_match('/^\d{8}$/', $f[1])) continue;
+        $own = '';
+        foreach ([$f[6] ?? '', $f[5] ?? ''] as $c) { $d = preg_replace('/\D/', '', $c); if (strlen($d) === 26) { $own = $d; break; } }
+        if ($out['account_nrb'] === '' && $own !== '') $out['account_nrb'] = $own;
+        $names = array_filter(array_map(fn($x) => trim($x), array_merge(explode('|', (string)($f[7] ?? '')), explode('|', (string)($f[8] ?? '')))), fn($x) => $x !== '');
+        $title = trim(preg_replace('/\s+/', ' ', str_replace('|', '', (string)($f[11] ?? ''))));
+        $opnr  = preg_replace('/\D/', '', (string)($f[13] ?? ''));
+        $out['transactions'][] = [
+            'data_waluty'    => substr($f[1], 0, 4) . '-' . substr($f[1], 4, 2) . '-' . substr($f[1], 6, 2),
+            'znak'           => $f[0][0] === '2' ? 'D' : 'C',
+            'kwota'          => number_format(((int)$f[2]) / 100, 2, '.', ''),
+            'kod_ozsi'       => $f[0],
+            'referencja'     => null,
+            'numer_operacji' => $opnr,
+            'tytul'          => $title,
+            'kontrahent_bank' => preg_replace('/\D/', '', (string)($f[10] ?? '')),
+            'kontrahent_konto' => '',
+            'kontrahent_nazwa' => implode(' ', $names),
+            'kontrahent_iban' => '',
+            'data_dokumentu' => '',
+            'swrk'           => '',
+        ];
+    }
+    return $out;
+}
+
+/** Rozpoznaje format (Elixir-0 vs MT940) i parsuje do wspólnej struktury. */
+function edok_bank_parse_any(string $raw): array {
+    $first = '';
+    foreach (preg_split('/\r\n|\r|\n/', $raw) as $l) { if (trim($l) !== '') { $first = trim($l); break; } }
+    return preg_match('/^\d{3},\d{8},/', $first) ? edok_elixir_parse($raw) : edok_mt940_parse($raw);
 }
 
 /**

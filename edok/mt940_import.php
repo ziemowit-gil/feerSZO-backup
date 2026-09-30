@@ -23,14 +23,14 @@ $raw_b64 = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'parse') {
     csrf_check();
     if (empty($_FILES['file']['tmp_name']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
-        $errors[] = 'Wybierz plik MT940 (.txt/.sta) do wgrania.';
+        $errors[] = 'Wybierz plik wyciągu (MT940 lub Elixir, .txt/.sta) do wgrania.';
     } elseif ($_FILES['file']['size'] > 5 * 1024 * 1024) {
         $errors[] = 'Plik jest za duży (max 5 MB).';
     } else {
         $raw = file_get_contents($_FILES['file']['tmp_name']);
-        $parsed = edok_mt940_parse($raw);
+        $parsed = edok_bank_parse_any($raw);
         if (!$parsed['transactions']) {
-            $errors[] = 'Nie znaleziono żadnych operacji (:61:) w pliku — sprawdź, czy to prawidłowy plik MT940.';
+            $errors[] = 'Nie znaleziono żadnych operacji (:61:) w pliku — sprawdź, czy to prawidłowy plik MT940 albo Elixir-0.';
             $parsed = null;
         } else {
             $raw_b64 = base64_encode($raw);
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
     $selected = array_map('intval', $_POST['idx'] ?? []);
     if ($raw !== false && ($_POST['do'] ?? '') === 'save') {
         // Zapis WSZYSTKICH operacji (wpływy i wypływy) do przypisywania do dokumentów — bez tworzenia dokumentów.
-        $saved = edok_bank_import(edok_mt940_parse($raw), (int)$user['id']);
+        $saved = edok_bank_import(edok_bank_parse_any($raw), (int)$user['id']);
         $auto  = edok_bank_auto_match();
         // Wpływy za płatności z portalu /platnosci (kod w tytule / rachunek wirtualny) — rozliczane od razu
         $pp = ['matched' => 0];
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
     if ($raw === false || !$selected) {
         flash_set('warning', 'Nie zaznaczono żadnych operacji do importu.');
     } else {
-        $parsed_import = edok_mt940_parse($raw);
+        $parsed_import = edok_bank_parse_any($raw);
         $saved_ids = edok_bank_import($parsed_import, (int)$user['id'])['ids']; // transakcje trafiają też na ekran przypisywania
         $n = 0;
         foreach ($selected as $idx) {
@@ -81,7 +81,7 @@ require_once __DIR__ . '/../includes/header.php';
   <a href="<?= APP_URL ?>/edok/index.php" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   <h4 class="mb-0"><i class="bi bi-bank2"></i> Import wyciągu bankowego (MT940)</h4>
 </div>
-<p class="text-muted small">Wgraj plik MT940 wyeksportowany z iPKO biznes (PKO BP). Możesz zapisać cały wyciąg i przypisać każdą transakcję do dokumentu EODoK (<a href="<?= APP_URL ?>/edok/wyciag.php">ekran przypisywania</a>) albo — z operacji uznaniowych (wpływów) można od razu utworzyć dokumenty przychodowe EODoK. Każdy z nich trzeba potem uzupełnić o skan wyciągu i dekretację, zanim przejdzie kontrolę merytoryczną.</p>
+<p class="text-muted small">Wgraj plik MT940 lub Elixir-0 wyeksportowany z iPKO biznes (PKO BP); format jest rozpoznawany automatycznie, a ta sama operacja z obu formatów nie zostanie zapisana dwa razy. Możesz zapisać cały wyciąg i przypisać każdą transakcję do dokumentu EODoK (<a href="<?= APP_URL ?>/edok/wyciag.php">ekran przypisywania</a>) albo — z operacji uznaniowych (wpływów) można od razu utworzyć dokumenty przychodowe EODoK. Każdy z nich trzeba potem uzupełnić o skan wyciągu i dekretację, zanim przejdzie kontrolę merytoryczną.</p>
 
 <?php if ($errors): ?>
 <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
@@ -94,7 +94,7 @@ require_once __DIR__ . '/../includes/header.php';
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="action" value="parse">
       <div class="mb-3">
-        <label class="form-label">Plik MT940</label>
+        <label class="form-label">Plik wyciągu (MT940 lub Elixir-0)</label>
         <input type="file" name="file" class="form-control" accept=".txt,.sta" required>
       </div>
       <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i> Wczytaj i pokaż operacje</button>
