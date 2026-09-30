@@ -1077,12 +1077,13 @@ function ti_year_end_projection(int $client_id): array {
         } else {
             // godzinowy — zaplanowane (nieodbyte) sesje do końca roku, po stawce z ich dnia
             $rows = db_all(
-                "SELECT duration_min, lesson_date FROM k30_ti_sessions
+                "SELECT id, duration_min, lesson_date, lesson_method FROM k30_ti_sessions
                  WHERE course_id=? AND status='planned' AND lesson_date BETWEEN ? AND ?",
                 [$cid_e, $today, $year_end]
             );
             $lessons = [];
-            foreach ($rows as $r) $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil((int)$r['duration_min'] / 60)];
+            foreach ($rows as $r) $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil((int)$r['duration_min'] / 60),
+                                                'session_id' => (int)$r['id'], 'online' => ti_session_is_online((string)$r['lesson_method'], $cid_e)];
             $course_amount = ti_price_hourly_breakdown($eff, $cid_e, $client_id, $lessons)['amount'];
         }
 

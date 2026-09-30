@@ -36,10 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') =
             try {
                 db()->prepare(
                     "INSERT INTO k30_ti_enrollments
-                       (course_id, client_id, hourly_rate, start_date, status,
+                       (course_id, client_id, hourly_rate, hourly_rate_online, start_date, status,
                         billing_model, billing_amount, pay_account, pay_title, pay_due_days)
-                     VALUES (?,?,?,?,'active',?,?,?,?,?)"
-                )->execute([$mv_to, $mv_cid, $mv_src['hourly_rate'] ?? 0, date('Y-m-d'),
+                     VALUES (?,?,?,?,?,'active',?,?,?,?,?)"
+                )->execute([$mv_to, $mv_cid, $mv_src['hourly_rate'] ?? 0, $mv_src['hourly_rate_online'] ?? 0, date('Y-m-d'),
                             $mv_src['billing_model'] ?? null, $mv_src['billing_amount'] ?? 0,
                             $mv_src['pay_account'] ?? '', $mv_src['pay_title'] ?? '', $mv_src['pay_due_days'] ?? null]);
             } catch (\Throwable $e) {   // starszy schemat bez pól rozliczeniowych
@@ -69,13 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') =
     dyd_token_check();
     $en_cid  = (int)($_POST['client_id'] ?? 0);
     $en_rate = max(0, (float)str_replace(',', '.', $_POST['hourly_rate'] ?? '0'));
+    $en_rate_on = max(0, (float)str_replace(',', '.', $_POST['hourly_rate_online'] ?? '0'));   // 0 = jak stacjonarna
     if ($en_cid) {
         try {
             db()->prepare(
-                "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,start_date,status)
-                 VALUES (?,?,?,?,'active')
-                 ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, status='active', start_date=excluded.start_date"
-            )->execute([$cur_course, $en_cid, $en_rate, date('Y-m-d')]);
+                "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,hourly_rate_online,start_date,status)
+                 VALUES (?,?,?,?,?,'active')
+                 ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, hourly_rate_online=excluded.hourly_rate_online,
+                     status='active', start_date=excluded.start_date"
+            )->execute([$cur_course, $en_cid, $en_rate, $en_rate_on, date('Y-m-d')]);
             $_SESSION['dyd_flash'] = ['type' => 'success', 'msg' => 'Uczestnik zapisany.'];
         } catch (\Throwable $e) {
             $_SESSION['dyd_flash'] = ['type' => 'danger', 'msg' => 'Nie udało się zapisać uczestnika.'];
@@ -188,8 +190,13 @@ $u_not_enrolled = $u_staff
         </select>
       </div>
       <div>
-        <label class="form-label small fw-semibold mb-1" for="u_en_rate">Stawka (zł/h)</label>
+        <label class="form-label small fw-semibold mb-1" for="u_en_rate">Stawka stacjonarna (zł/h)</label>
         <input type="number" class="form-control form-control-sm" id="u_en_rate" name="hourly_rate" step="0.01" min="0" value="0" style="width:90px">
+      </div>
+      <div>
+        <label class="form-label small fw-semibold mb-1" for="u_en_rate_on">Stawka online (zł/h)</label>
+        <input type="number" class="form-control form-control-sm" id="u_en_rate_on" name="hourly_rate_online" step="0.01" min="0" value="0" style="width:90px"
+               title="0 = taka sama jak stacjonarna">
       </div>
       <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Zapisz</button>
     </form>

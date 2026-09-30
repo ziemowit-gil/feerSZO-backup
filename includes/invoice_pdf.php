@@ -707,7 +707,7 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
     if ($course_id > 0) { $course_sql = ' AND s.course_id = ?'; $params[] = $course_id; }
 
     $lessons = db_all(
-        "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status,
+        "SELECT s.id AS session_id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status,
                 s.course_id, co.name AS course_name,
                 COALESCE(a.attended,0) AS attended,
                 COALESCE(a.no_show,0) AS no_show, COALESCE(a.no_show_billing,'') AS no_show_billing
@@ -754,7 +754,8 @@ function invoice_pdf_ti_lessons(int $client_id, int $month, int $year, int $cour
           : (float)ceil((int)$l['duration_min'] / 60);
       $hourly = isset($per_course[$cid]['hourly']) ? (bool)$per_course[$cid]['hourly'] : ($model !== 1 && $model !== 3);
       // Stawka z dnia tej lekcji (zmiana ceny w trakcie miesiąca) — z kalkulatora
-      $rate   = (float)($per_course[$cid]['rate_by_date'][(string)$l['lesson_date']] ?? ($rates[$cid] ?? 0.0));
+      $rate   = (float)($per_course[$cid]['rate_by_session'][(int)$l['session_id']]
+                ?? $per_course[$cid]['rate_by_date'][(string)$l['lesson_date']] ?? ($rates[$cid] ?? 0.0));
       $amt    = $hourly ? $h * $rate : 0.0;
       $sum_h   += $h;
       $sum_amt += $amt;

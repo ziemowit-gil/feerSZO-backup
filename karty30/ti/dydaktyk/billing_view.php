@@ -62,7 +62,7 @@ $rates = [];
 foreach ($calc['courses'] as $cc) $rates[(int)$cc['course_id']] = $cc;
 
 $lessons = db_all(
-    "SELECT s.course_id, c.name AS course_name, s.lesson_date, s.time_from, s.duration_min, s.topic,
+    "SELECT s.id AS session_id, s.course_id, c.name AS course_name, s.lesson_date, s.time_from, s.duration_min, s.topic, s.lesson_method,
             a.attended, COALESCE(a.no_show,0) AS no_show, a.no_show_billing
        FROM k30_ti_attendance a
        JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
@@ -164,13 +164,14 @@ $transfers = db_all("SELECT amount, paid_at, note FROM k30_ti_payments WHERE cli
         $cc     = $rates[(int)$l['course_id']] ?? null;
         $hourly = $cc ? !empty($cc['hourly']) : true;
         $hrs    = ((int)$l['attended'] === 0 && (int)$l['no_show'] === 1 && $l['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$l['duration_min'] / 60);
-        $rate   = $hourly ? (float)($cc['rate_by_date'][$l['lesson_date']] ?? $cc['hourly_rate'] ?? 0) : 0.0;
+        $rate   = $hourly ? (float)($cc['rate_by_session'][(int)$l['session_id']] ?? $cc['rate_by_date'][$l['lesson_date']] ?? $cc['hourly_rate'] ?? 0) : 0.0;
+        $l_on   = ti_session_is_online((string)$l['lesson_method'], (int)$l['course_id']);
         $amt    = $hourly ? round($hrs * $rate, 2) : 0.0;
         $sum_h += $hrs; $sum_a += $amt; ?>
       <tr>
         <td class="r" style="text-align:left"><?= h(date('d.m.Y', strtotime((string)$l['lesson_date']))) ?><?= $l['time_from'] ? ' ' . h(substr((string)$l['time_from'], 0, 5)) : '' ?></td>
         <?php if ($bcourse === 0): ?><td><?= h($l['course_name']) ?></td><?php endif; ?>
-        <td><?= h((string)$l['topic']) ?><?= (int)$l['attended'] === 0 ? ' <span class="note">(nieobecność nieusprawiedliwiona)</span>' : '' ?></td>
+        <td><?= h((string)$l['topic']) ?><?= $l_on ? ' <span class="tag">online</span>' : '' ?><?= (int)$l['attended'] === 0 ? ' <span class="note">(nieobecność nieusprawiedliwiona)</span>' : '' ?></td>
         <td class="r"><?= rtrim(rtrim(number_format($hrs, 2, ',', ''), '0'), ',') ?></td>
         <td class="r"><?= $hourly ? $zl($rate) : 'ryczałt' ?>
           <?php $lpc = $hourly ? ti_price_change_effective_on((int)$l['course_id'], $client_id, (string)$l['lesson_date']) : null;

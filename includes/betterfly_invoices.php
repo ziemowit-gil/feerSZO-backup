@@ -123,7 +123,7 @@ function betterfly_ti_course_billing(int $course_id, int $client_id, int $month,
     }
 
     $enr = db_one(
-        "SELECT hourly_rate FROM k30_ti_enrollments WHERE course_id=? AND client_id=?",
+        "SELECT hourly_rate, hourly_rate_online FROM k30_ti_enrollments WHERE course_id=? AND client_id=?",
         [$course_id, $client_id]
     );
     if (!$enr) {
@@ -133,7 +133,7 @@ function betterfly_ti_course_billing(int $course_id, int $client_id, int $month,
 
     // Lekcje kursu w danym miesiącu, na których klient był obecny.
     $rows = db_all(
-        "SELECT s.duration_min, s.lesson_date
+        "SELECT s.id, s.duration_min, s.lesson_date, s.lesson_method
            FROM k30_ti_sessions s
            JOIN k30_ti_attendance a ON a.session_id = s.id AND a.client_id = ?
           WHERE s.course_id = ?
@@ -143,14 +143,16 @@ function betterfly_ti_course_billing(int $course_id, int $client_id, int $month,
         [$client_id, $course_id, $month, $year]
     );
 
+    // Zmiany cen (includes/ti_price_changes.php) — stawka z dnia każdej lekcji i jej
+    // trybu (online / stacjonarna), przy kilku stawkach w miesiącu osobne pozycje (rate_parts).
+    require_once __DIR__ . '/ti_price_changes.php';
     $lessons = [];
     foreach ($rows as $r) {
-        $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil(((int)$r['duration_min']) / 60)]; // ceil per lekcja
+        $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil(((int)$r['duration_min']) / 60), // ceil per lekcja
+                      'session_id' => (int)$r['id'], 'online' => ti_session_is_online((string)$r['lesson_method'], $course_id)];
     }
-    // Zmiany cen (includes/ti_price_changes.php) — stawka z dnia każdej lekcji,
-    // przy kilku stawkach w miesiącu osobne pozycje (rate_parts).
-    require_once __DIR__ . '/ti_price_changes.php';
-    $bd    = ti_price_hourly_breakdown(['model' => 2, 'hourly_rate' => $rate, 'amount' => 0.0], $course_id, $client_id, $lessons);
+    $bd    = ti_price_hourly_breakdown(['model' => 2, 'hourly_rate' => $rate, 'hourly_rate_online' => (float)($enr['hourly_rate_online'] ?? 0), 'amount' => 0.0],
+                                       $course_id, $client_id, $lessons);
     $hours = (float)$bd['hours'];
 
     return [

@@ -436,6 +436,9 @@ function karty30_migrate(): void {
         // Override modelu na kursancie (zapisie): 0=dziedziczy z kursu, >0=indywidualny (kod 9999)
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE k30_ti_enrollments ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
+        // Stawka za lekcję online (zł/h); 0 = jak stacjonarna (hourly_rate). Online = metoda
+        // lekcji zdalna_zoom/zdalna_inne, a bez metody — kurs oznaczony is_online (ti_session_is_online)
+        "ALTER TABLE k30_ti_enrollments ADD COLUMN hourly_rate_online REAL NOT NULL DEFAULT 0",
         // Dane do wpłat: domyślne na kursie + indywidualne na kursancie (używane gdy kod 9999)
         "ALTER TABLE k30_ti_courses ADD COLUMN pay_account  TEXT    NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_courses ADD COLUMN pay_title    TEXT    NOT NULL DEFAULT ''",
@@ -2901,6 +2904,7 @@ function k30_ti_effective_billing(array $enr, array $course): array {
             'individual'  => true,
             'amount'      => (float)($enr['billing_amount'] ?? 0),
             'hourly_rate' => (float)($enr['hourly_rate'] ?? 0),
+            'hourly_rate_online' => (float)($enr['hourly_rate_online'] ?? 0),
             'label'       => 'Indywidualny',
             'pay_account' => $acct,
             'pay_title'   => $title,
@@ -2915,6 +2919,7 @@ function k30_ti_effective_billing(array $enr, array $course): array {
         'individual'  => false,
         'amount'      => (float)($course['billing_amount'] ?? 0),
         'hourly_rate' => (float)($enr['hourly_rate'] ?? 0),
+        'hourly_rate_online' => (float)($enr['hourly_rate_online'] ?? 0),
         'label'       => k30_ti_billing_model_label($cmodel),
         'pay_account' => $course_acct,
         'pay_title'   => $course_title,
@@ -5414,18 +5419,20 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
     foreach ($enrs as $e) {
         // Godziny obecności w tym kursie w danym miesiącu (z datą — stawka per lekcja)
         $rows = db_all(
-            "SELECT s.duration_min, s.lesson_date
+            "SELECT s.id, s.duration_min, s.lesson_date, s.lesson_method
              FROM k30_ti_attendance a
              JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
              WHERE a.client_id=? AND a.attended=1 AND COALESCE(a.cancelled,0)=0",
             [(int)$e['course_id'], $from, $to, $client_id]
         );
+        require_once __DIR__ . '/ti_price_changes.php';
         $lessons = [];
-        foreach ($rows as $r) $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil((int)$r['duration_min'] / 60)];
+        foreach ($rows as $r) $lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => (float)ceil((int)$r['duration_min'] / 60),
+            'session_id' => (int)$r['id'], 'online' => ti_session_is_online((string)$r['lesson_method'], (int)$e['course_id'])];
         // No-show: nalicz wg wybranego modelu (pełna lekcja lub 1h)
         $ns_rows = db_all(
-            "SELECT s.duration_min, s.lesson_date, a.no_show_billing
+            "SELECT s.id, s.duration_min, s.lesson_date, s.lesson_method, a.no_show_billing
              FROM k30_ti_attendance a
              JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   AND s.course_id=? AND s.lesson_date BETWEEN ? AND ?
@@ -5435,7 +5442,8 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
         );
         foreach ($ns_rows as $nr) {
             $lessons[] = ['date' => (string)$nr['lesson_date'],
-                          'hours' => ($nr['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$nr['duration_min'] / 60)];
+                          'hours' => ($nr['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$nr['duration_min'] / 60),
+                          'session_id' => (int)$nr['id'], 'online' => ti_session_is_online((string)$nr['lesson_method'], (int)$e['course_id'])];
         }
         $ch = 0.0;
         foreach ($lessons as $l) $ch += $l['hours'];
@@ -5452,7 +5460,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
         require_once __DIR__ . '/ti_price_changes.php';
         $models[$eff['code']] = true;
         $hourly = !in_array((int)$eff['model'], [1, 3], true);
-        $rate_parts = []; $rate_by_date = []; $pc_ids = [];
+        $rate_parts = []; $rate_by_date = []; $rate_by_session = []; $pc_ids = [];
         if (!$hourly) {
             $eff = ti_price_eff_on($eff, (int)$e['course_id'], $client_id, $from);
             // miesięczny / stały — kwota niezależna od godzin (naliczana gdy zapis aktywny)
@@ -5464,6 +5472,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
             $eff['hourly_rate'] = $bd['rate'];
             $rate_parts   = $bd['parts'];
             $rate_by_date = $bd['rate_by_date'];
+            $rate_by_session = $bd['rate_by_session'];
             $pc_ids       = $bd['price_change_ids'];
         }
         $amount += $course_amount;
@@ -5483,6 +5492,8 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
             'hourly_rate'  => (float)$eff['hourly_rate'],
             'rate_parts'   => $rate_parts,
             'rate_by_date' => $rate_by_date,
+            'rate_by_session' => $rate_by_session,   // id sesji → stawka (online/stacjonarna tego samego dnia)
+            'hourly_rate_online' => (float)($eff['hourly_rate_online'] ?? 0),
             'price_change_id'  => (int)($pc_ids[0] ?? 0),
             'price_change_ids' => $pc_ids,
         ];

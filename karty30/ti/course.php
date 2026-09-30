@@ -81,13 +81,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'enroll') {
         $cid  = (int)($_POST['client_id'] ?? 0);
         $rate = max(0, (float)str_replace(',','.', $_POST['hourly_rate'] ?? '0'));
+        $rate_on = max(0, (float)str_replace(',','.', $_POST['hourly_rate_online'] ?? '0'));   // 0 = jak stacjonarna
         if ($cid) {
             try {
                 db()->prepare(
-                    "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,start_date,status)
-                     VALUES (?,?,?,?,?)
-                     ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, status='active', start_date=excluded.start_date"
-                )->execute([$id, $cid, $rate, date('Y-m-d'), 'active']);
+                    "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,hourly_rate_online,start_date,status)
+                     VALUES (?,?,?,?,?,?)
+                     ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, hourly_rate_online=excluded.hourly_rate_online,
+                         status='active', start_date=excluded.start_date"
+                )->execute([$id, $cid, $rate, $rate_on, date('Y-m-d'), 'active']);
             } catch (\Throwable $e) { /* fallback */ }
             flash_set('success','Uczestnik zapisany.');
         }
@@ -201,12 +203,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         if (!in_array($model, [0,1,2,3], true)) $model = 0;
         $amount = max(0, (float)str_replace(',','.', (string)($_POST['billing_amount'] ?? '0')));
         $rate   = max(0, (float)str_replace(',','.', (string)($_POST['hourly_rate'] ?? '0')));
+        $rate_on = max(0, (float)str_replace(',','.', (string)($_POST['hourly_rate_online'] ?? '0')));
         $pay_account = trim($_POST['pay_account'] ?? '');
         $pay_title   = trim($_POST['pay_title'] ?? '');
         $due_days    = ((int)($_POST['pay_due_days'] ?? 0)) ?: null;
         if ($cid) {
-            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=?, pay_account=?, pay_title=?, pay_due_days=? WHERE course_id=? AND client_id=?")
-               ->execute([$model, $amount, $rate, $pay_account, $pay_title, $due_days, $id, $cid]);
+            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=?, hourly_rate_online=?, pay_account=?, pay_title=?, pay_due_days=? WHERE course_id=? AND client_id=?")
+               ->execute([$model, $amount, $rate, $rate_on, $pay_account, $pay_title, $due_days, $id, $cid]);
             flash_set('success', $model > 0 ? 'Ustawiono indywidualny model rozliczania (kod 9999).' : 'Przywrócono model rozliczania kursu.');
         }
         header('Location: course.php?id='.$id.'#uczestnicy'); exit;
@@ -688,8 +691,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
                 </div>
                 <div class="row g-2 mb-3">
                   <div class="col-6 bill-rate" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'display:none':'' ?>">
-                    <label class="form-label small mb-0">Stawka (zł/h)</label>
+                    <label class="form-label small mb-0">Stawka stacjonarna (zł/h)</label>
                     <input type="number" name="hourly_rate" class="form-control form-control-sm" step="0.01" min="0" value="<?= h(number_format((float)$e['hourly_rate'],2,'.','')) ?>">
+                  </div>
+                  <div class="col-6 bill-rate" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'display:none':'' ?>">
+                    <label class="form-label small mb-0">Stawka online (zł/h)</label>
+                    <input type="number" name="hourly_rate_online" class="form-control form-control-sm" step="0.01" min="0" value="<?= h(number_format((float)($e['hourly_rate_online'] ?? 0),2,'.','')) ?>" title="0 = jak stacjonarna">
                   </div>
                   <div class="col-6 bill-amount" style="<?= in_array((int)$e['billing_model'],[1,3],true)?'':'display:none' ?>">
                     <label class="form-label small mb-0">Kwota (zł)</label>
@@ -787,8 +794,12 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             </select>
           </div>
           <div>
-            <label class="form-label small fw-semibold mb-1">Stawka (zł/h)</label>
+            <label class="form-label small fw-semibold mb-1">Stawka stacjonarna (zł/h)</label>
             <input type="number" class="form-control form-control-sm" name="hourly_rate" step="0.01" min="0" value="0" style="width:90px">
+          </div>
+          <div>
+            <label class="form-label small fw-semibold mb-1">Stawka online (zł/h)</label>
+            <input type="number" class="form-control form-control-sm" name="hourly_rate_online" step="0.01" min="0" value="0" style="width:90px" title="0 = jak stacjonarna">
           </div>
           <button type="submit" class="btn btn-sm btn-primary">
             <i class="bi bi-person-plus me-1"></i>Zapisz

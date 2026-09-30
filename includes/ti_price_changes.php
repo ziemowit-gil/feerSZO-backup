@@ -87,6 +87,46 @@ function ti_price_eff_on(array $eff, int $course_id, int $client_id, string $dat
 }
 
 /**
+ * Czy lekcja jest online: metoda zdalna_zoom / zdalna_inne; stacjonarna — nie;
+ * bez wybranej metody — tryb grupy (k30_ti_courses.is_online). Cache per żądanie.
+ */
+function ti_session_is_online(string $lesson_method, int $course_id): bool {
+    if (in_array($lesson_method, ['zdalna_zoom', 'zdalna_inne'], true)) return true;
+    if ($lesson_method === 'stacjonarna') return false;
+    static $c = [];
+    if (!array_key_exists($course_id, $c)) {
+        try { $c[$course_id] = (bool)(db_one("SELECT is_online FROM k30_ti_courses WHERE id=?", [$course_id])['is_online'] ?? 0); }
+        catch (\Throwable $e) { $c[$course_id] = false; }
+    }
+    return $c[$course_id];
+}
+
+/**
+ * Stawka godzinowa JEDNEJ lekcji: stacjonarna (hourly_rate) albo online
+ * (hourly_rate_online, gdy > 0), z nałożoną zmianą ceny z dnia lekcji.
+ * Zmiana procentowa działa na obie stawki. Zmiana „nowa kwota” ustawia stawkę
+ * stacjonarną, a online przelicza proporcjonalnie (zachowuje różnicę trybów);
+ * korekta ceny lekcji (kind='lesson') ustawia wprost podaną kwotę.
+ * @return array{rate:float, change_id:int}
+ */
+function ti_lesson_rate(array $eff, int $course_id, int $client_id, string $date, bool $online): array {
+    $base    = (float)($eff['hourly_rate'] ?? 0);
+    $on_rate = (float)($eff['hourly_rate_online'] ?? 0);
+    $use_on  = $online && $on_rate > 0.005;
+    $ch      = ti_price_change_effective_on($course_id, $client_id, $date);
+    if (!$ch) return ['rate' => $use_on ? $on_rate : $base, 'change_id' => 0];
+    $val = (float)$ch['change_value'];
+    if ($ch['change_type'] === 'percent') {
+        $r = round(($use_on ? $on_rate : $base) * (1 + $val / 100), 2);
+    } elseif (!$use_on || ($ch['kind'] ?? '') === 'lesson') {
+        $r = max(0, $val);
+    } else {
+        $r = $base > 0.005 ? round($on_rate * max(0, $val) / $base, 2) : max(0, $val);
+    }
+    return ['rate' => $r, 'change_id' => (int)$ch['id']];
+}
+
+/**
  * Rozliczenie godzinowe z lekcji o różnych datach: każda lekcja po stawce
  * obowiązującej w jej dniu. $lessons = [['date'=>'Y-m-d','hours'=>float], …].
  * Zwraca parts (stawka → godziny, kolejność chronologiczna), amount, hours,
@@ -94,15 +134,20 @@ function ti_price_eff_on(array $eff, int $course_id, int $client_id, string $dat
  * i price_change_ids.
  */
 function ti_price_hourly_breakdown(array $eff, int $course_id, int $client_id, array $lessons): array {
-    $parts = []; $by_date = []; $ids = []; $amount = 0.0; $hours = 0.0;
+    $parts = []; $by_date = []; $by_sess = []; $memo = []; $ids = []; $amount = 0.0; $hours = 0.0;
     foreach ($lessons as $l) {
         $d = (string)$l['date']; $h = (float)$l['hours'];
-        if (!isset($by_date[$d])) {
-            $e = ti_price_eff_on($eff, $course_id, $client_id, $d);
-            $by_date[$d] = (float)$e['hourly_rate'];
-            if (!empty($e['price_change_id'])) $ids[(int)$e['price_change_id']] = true;
+        // Tryb lekcji: 'online' w wierszu (kalkulator, raporty); brak = stacjonarna
+        $on = !empty($l['online']);
+        $k  = $d . ($on ? ':on' : ':st');
+        if (!isset($memo[$k])) {
+            $lr = ti_lesson_rate($eff, $course_id, $client_id, $d, $on);
+            $memo[$k] = $lr['rate'];
+            if ($lr['change_id']) $ids[$lr['change_id']] = true;
         }
-        $r = $by_date[$d];
+        $r = $memo[$k];
+        if (!isset($by_date[$d]) || !$on) $by_date[$d] = $r;   // dzień → stawka (stacjonarna ma pierwszeństwo)
+        if (!empty($l['session_id'])) $by_sess[(int)$l['session_id']] = $r;
         $k = number_format($r, 2, '.', '');
         $parts[$k] = ($parts[$k] ?? 0.0) + $h;
         $amount += $h * $r;
@@ -115,7 +160,7 @@ function ti_price_hourly_breakdown(array $eff, int $course_id, int $client_id, a
     if (!$list) $rate = (float)ti_price_eff_on($eff, $course_id, $client_id, date('Y-m-d'))['hourly_rate'];
     return [
         'parts' => $list, 'amount' => round($amount, 2), 'hours' => $hours, 'rate' => $rate,
-        'rate_by_date' => $by_date, 'price_change_ids' => array_keys($ids),
+        'rate_by_date' => $by_date, 'rate_by_session' => $by_sess, 'price_change_ids' => array_keys($ids),
     ];
 }
 

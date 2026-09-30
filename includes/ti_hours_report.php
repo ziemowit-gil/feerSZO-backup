@@ -69,7 +69,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
         $eff = ti_price_eff_on($eff, $cid, $client_id, $from);
 
         $rows = db_all(
-            "SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic,
+            "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic, s.lesson_method,
                     a.attended, a.no_show, a.no_show_billing, COALESCE(a.cancelled,0) AS att_cancelled
              FROM k30_ti_sessions s
              LEFT JOIN k30_ti_attendance a ON a.session_id=s.id AND a.client_id=?
@@ -89,9 +89,10 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             elseif ($noshow)    $hrs = ($r['no_show_billing'] === '1h') ? 1.0 : (float)ceil($dur / 60);
             $g_hours = round($g_hours + $hrs, 2);
             if ($attended) $g_present++;
-            $l_rate  = $hourly ? (float)ti_price_eff_on($base_eff, $cid, $client_id, (string)$r['lesson_date'])['hourly_rate'] : 0.0;
+            $l_on    = ti_session_is_online((string)$r['lesson_method'], $cid);   // stawka online / stacjonarna
+            $l_rate  = $hourly ? ti_lesson_rate($base_eff, $cid, $client_id, (string)$r['lesson_date'], $l_on)['rate'] : 0.0;
             $g_hourly_amt += $hrs * $l_rate;
-            if ($hrs > 0) $bill_lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => $hrs];
+            if ($hrs > 0) $bill_lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => $hrs, 'online' => $l_on, 'session_id' => (int)$r['id']];
 
             $lessons[] = [
                 'date'     => (string)$r['lesson_date'],
@@ -104,6 +105,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
                 'amount'   => $hourly ? round($hrs * $l_rate, 2) : 0.0,
                 'rate'     => $l_rate,
                 'remote'   => $r['status'] === 'remote_material',
+                'online'   => $l_on,
             ];
         }
 

@@ -17,6 +17,7 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/karty30.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_payments.php';
+require_once dirname(__DIR__, 3) . '/includes/ti_price_changes.php';
 
 function ti_ledger_migrate(): void {
     static $done = false; if ($done) return; $done = true;
@@ -85,7 +86,7 @@ function ti_lesson_ledger(int $client_id, string $from = '', string $to = ''): a
                 continue;
             }
             $ls = db_all(
-                "SELECT s.lesson_date, s.time_from, s.duration_min, s.topic, a.attended, COALESCE(a.no_show,0) AS no_show, a.no_show_billing
+                "SELECT s.id AS session_id, s.lesson_date, s.time_from, s.duration_min, s.topic, s.lesson_method, a.attended, COALESCE(a.no_show,0) AS no_show, a.no_show_billing
                    FROM k30_ti_attendance a JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
                   WHERE a.client_id=? AND s.course_id=? AND s.lesson_date BETWEEN ? AND ? AND COALESCE(a.cancelled,0)=0
                     AND (a.attended=1 OR COALESCE(a.no_show,0)=1) ORDER BY s.lesson_date, s.time_from",
@@ -94,10 +95,11 @@ function ti_lesson_ledger(int $client_id, string $from = '', string $to = ''): a
             foreach ($ls as $l) {
                 $ns  = (int)$l['attended'] === 0;
                 $h   = ($ns && $l['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$l['duration_min'] / 60);
-                $r   = (float)($cc['rate_by_date'][$l['lesson_date']] ?? $cc['hourly_rate']);
+                $r   = (float)($cc['rate_by_session'][(int)$l['session_id']] ?? $cc['rate_by_date'][$l['lesson_date']] ?? $cc['hourly_rate']);
+                $lon = ti_session_is_online((string)$l['lesson_method'], $cid);
                 $amt = round($h * $r, 2);
                 $ev[] = ['date' => (string)$l['lesson_date'], 'ord' => 2, 'kind' => 'lesson',
-                         'label' => ($ns ? 'Nieobecność nieusprawiedliwiona' : 'Lekcja') . ($l['time_from'] ? ' ' . substr((string)$l['time_from'], 0, 5) : '')
+                         'label' => ($ns ? 'Nieobecność nieusprawiedliwiona' : ($lon ? 'Lekcja online' : 'Lekcja')) . ($l['time_from'] ? ' ' . substr((string)$l['time_from'], 0, 5) : '')
                                     . ((string)$l['topic'] !== '' ? ' — ' . $l['topic'] : ''),
                          'amount' => -$amt, 'course' => (string)$cc['course_name'], 'hours' => $h, 'rate' => $r, 'unbilled' => $unb];
                 $sum_by[$cid] += $amt;

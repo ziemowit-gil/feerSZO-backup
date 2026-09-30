@@ -55,13 +55,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'enroll') {
         $cid  = (int)($_POST['client_id'] ?? 0);
         $rate = max(0, (float)str_replace(',', '.', $_POST['hourly_rate'] ?? '0'));
+        $rate_on = max(0, (float)str_replace(',', '.', $_POST['hourly_rate_online'] ?? '0'));   // 0 = jak stacjonarna
         if ($cid) {
             try {
                 db()->prepare(
-                    "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,start_date,status)
-                     VALUES (?,?,?,?,?)
-                     ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, status='active', start_date=excluded.start_date"
-                )->execute([$id, $cid, $rate, date('Y-m-d'), 'active']);
+                    "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,hourly_rate_online,start_date,status)
+                     VALUES (?,?,?,?,?,?)
+                     ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, hourly_rate_online=excluded.hourly_rate_online,
+                         status='active', start_date=excluded.start_date"
+                )->execute([$id, $cid, $rate, $rate_on, date('Y-m-d'), 'active']);
             } catch (\Throwable $e) {}
             flash_set('success', 'Uczestnik zapisany.');
         }
@@ -152,9 +154,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($model, [0, 1, 2, 3], true)) $model = 0;
         $amount = max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0')));
         $rate   = max(0, (float)str_replace(',', '.', (string)($_POST['hourly_rate'] ?? '0')));
+        $rate_on = max(0, (float)str_replace(',', '.', (string)($_POST['hourly_rate_online'] ?? '0')));
         if ($cid) {
-            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=?, pay_account=?, pay_title=?, pay_due_days=? WHERE course_id=? AND client_id=?")
-               ->execute([$model, $amount, $rate, trim($_POST['pay_account'] ?? ''), trim($_POST['pay_title'] ?? ''),
+            db()->prepare("UPDATE k30_ti_enrollments SET billing_model=?, billing_amount=?, hourly_rate=?, hourly_rate_online=?, pay_account=?, pay_title=?, pay_due_days=? WHERE course_id=? AND client_id=?")
+               ->execute([$model, $amount, $rate, $rate_on, trim($_POST['pay_account'] ?? ''), trim($_POST['pay_title'] ?? ''),
                           ((int)($_POST['pay_due_days'] ?? 0)) ?: null, $id, $cid]);
             flash_set('success', $model > 0 ? 'Ustawiono indywidualny model rozliczania (kod 9999).' : 'Przywrócono model rozliczania kursu.');
         }
@@ -649,6 +652,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <span class="small"><?= h($eff['label']) ?>:</span>
             <span class="fw-semibold small">
               <?php if ($eff['model'] === 2): ?><?= number_format($eff['hourly_rate'], 2, ',', '') ?> zł/h
+                <?php if ((float)($e['hourly_rate_online'] ?? 0) > 0.005): ?><span class="text-body-secondary fw-normal" title="Stawka za lekcje online">· online <?= number_format((float)$e['hourly_rate_online'], 2, ',', '') ?> zł/h</span><?php endif; ?>
               <?php else: ?><?= number_format($eff['amount'], 2, ',', '') ?> zł<?php endif; ?>
             </span>
             <?php if (!empty($eff['price_change_id'])): ?>
@@ -703,8 +707,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </select>
       </div>
       <div>
-        <label class="form-label small fw-semibold mb-1" for="enroll-rate">Stawka (zł/h)</label>
+        <label class="form-label small fw-semibold mb-1" for="enroll-rate">Stawka stacjonarna (zł/h)</label>
         <input type="number" class="form-control form-control-sm" id="enroll-rate" name="hourly_rate" step="0.01" min="0" value="0" style="width:90px">
+      </div>
+      <div>
+        <label class="form-label small fw-semibold mb-1" for="enroll-rate-on">Stawka online (zł/h)</label>
+        <input type="number" class="form-control form-control-sm" id="enroll-rate-on" name="hourly_rate_online" step="0.01" min="0" value="0" style="width:90px"
+               title="0 = taka sama jak stacjonarna" aria-describedby="enroll-rate-on-help">
+        <div id="enroll-rate-on-help" class="visually-hidden">Zero oznacza taką samą stawkę jak stacjonarna.</div>
       </div>
       <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Zapisz</button>
       <span class="text-body-secondary small align-self-center">Przenosiny między grupami: zakładka
@@ -993,8 +1003,14 @@ foreach ($enrollments as $e): ?>
           </div>
           <div class="row g-2 mb-3">
             <div class="col-6 bill-rate" style="<?= in_array((int)$e['billing_model'], [1, 3], true) ? 'display:none' : '' ?>">
-              <label class="form-label small mb-0">Stawka (zł/h)</label>
-              <input type="number" name="hourly_rate" class="form-control form-control-sm" step="0.01" min="0" value="<?= h(number_format((float)$e['hourly_rate'], 2, '.', '')) ?>">
+              <label class="form-label small mb-0" for="hr<?= (int)$e['client_id'] ?>">Stawka stacjonarna (zł/h)</label>
+              <input type="number" name="hourly_rate" id="hr<?= (int)$e['client_id'] ?>" class="form-control form-control-sm" step="0.01" min="0" value="<?= h(number_format((float)$e['hourly_rate'], 2, '.', '')) ?>">
+            </div>
+            <div class="col-6 bill-rate" style="<?= in_array((int)$e['billing_model'], [1, 3], true) ? 'display:none' : '' ?>">
+              <label class="form-label small mb-0" for="hro<?= (int)$e['client_id'] ?>">Stawka online (zł/h)</label>
+              <input type="number" name="hourly_rate_online" id="hro<?= (int)$e['client_id'] ?>" class="form-control form-control-sm" step="0.01" min="0"
+                     value="<?= h(number_format((float)($e['hourly_rate_online'] ?? 0), 2, '.', '')) ?>" aria-describedby="hro-help<?= (int)$e['client_id'] ?>">
+              <div class="form-text" id="hro-help<?= (int)$e['client_id'] ?>">0 = jak stacjonarna. Online: lekcja Zoom / zdalna, a bez wybranej metody — gdy grupa jest online.</div>
             </div>
             <div class="col-6 bill-amount" style="<?= in_array((int)$e['billing_model'], [1, 3], true) ? '' : 'display:none' ?>">
               <label class="form-label small mb-0">Kwota (zł)</label>
