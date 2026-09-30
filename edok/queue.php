@@ -21,6 +21,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'upload' && !empty($_POST['_ajax'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        $f = $_FILES['file'] ?? null;
+        if (!$f) { echo json_encode(['ok' => false, 'error' => 'brak pliku']); exit; }
+        [$rel, $err] = edok_queue_store_upload($f);
+        if ($rel === null) { echo json_encode(['ok' => false, 'error' => $err]); exit; }
+        db_insert('edok_queue', [
+            'file_path' => $rel, 'orig_name' => $f['name'],
+            'file_size' => is_file(UPLOAD_DIR . $rel) ? filesize(UPLOAD_DIR . $rel) : null,
+            'note' => trim($_POST['note'] ?? ''),
+            'uploaded_by' => (int)$user['id'], 'uploader_name' => $user['name'] ?? '',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
     if ($action === 'upload') {
         $files = $_FILES['files'] ?? null;
         $note  = trim($_POST['note'] ?? '');
@@ -82,19 +99,18 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="card-body">
     <h6 class="card-title">Wgraj wiele plików naraz</h6>
     <p class="small text-muted">Pliki trafią do kolejki. Każdy opiszesz osobno przyciskiem „Opisz” — dopiero wtedy dostanie numer EODoK i wejdzie do obiegu akceptacji.</p>
-    <form method="post" enctype="multipart/form-data">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="action" value="upload">
-      <div class="mb-3">
-        <label class="form-label" for="files">Pliki (PDF, JPG, PNG, DOCX, max 20 MB każdy)</label>
-        <input type="file" name="files[]" id="files" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx" multiple required>
-      </div>
-      <div class="mb-3">
-        <label class="form-label" for="note">Notatka do partii <span class="text-muted fw-normal">(opcjonalnie)</span></label>
-        <input type="text" name="note" id="note" class="form-control" maxlength="200" placeholder="np. faktury z poczty, wrzesień">
-      </div>
-      <button class="btn btn-primary"><i class="bi bi-upload"></i> Wgraj do kolejki</button>
-    </form>
+    <div id="dz" class="border border-2 border-dashed rounded p-4 text-center mb-3" tabindex="0" role="button"
+         aria-label="Upuść pliki tutaj lub kliknij, aby wybrać" style="border-style:dashed!important;cursor:pointer">
+      <i class="bi bi-cloud-arrow-up fs-1 text-primary"></i>
+      <div class="fw-semibold">Przeciągnij i upuść pliki tutaj</div>
+      <div class="small text-muted">albo kliknij, aby wybrać · PDF, JPG, PNG, DOCX · max 20 MB każdy</div>
+      <input type="file" id="dz_input" class="d-none" accept=".pdf,.jpg,.jpeg,.png,.docx" multiple>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="note">Notatka do partii <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+      <input type="text" name="note" id="note" class="form-control" maxlength="200" placeholder="np. faktury z poczty, wrzesień">
+    </div>
+    <ul id="dz_list" class="list-group mb-0" aria-live="polite"></ul>
   </div>
 </div>
 
@@ -129,4 +145,42 @@ require_once __DIR__ . '/../includes/header.php';
 </table>
 </div>
 <?php endif; ?>
+<script>
+(function () {
+  var dz = document.getElementById('dz'), input = document.getElementById('dz_input'), list = document.getElementById('dz_list');
+  var csrf = <?= json_encode(csrf_token()) ?>, ok = 0, pending = 0, ext = /\.(pdf|jpe?g|png|docx)$/i;
+  dz.addEventListener('click', function () { input.click(); });
+  dz.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+  ['dragenter', 'dragover'].forEach(function (t) { dz.addEventListener(t, function (e) { e.preventDefault(); dz.classList.add('bg-primary-subtle'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { dz.addEventListener(t, function (e) { e.preventDefault(); dz.classList.remove('bg-primary-subtle'); }); });
+  dz.addEventListener('drop', function (e) { add(e.dataTransfer.files); });
+  input.addEventListener('change', function () { add(input.files); input.value = ''; });
+  // Upuszczenie pliku obok strefy nie może otworzyć go w karcie.
+  ['dragover', 'drop'].forEach(function (t) { window.addEventListener(t, function (e) { e.preventDefault(); }); });
+
+  function add(files) { Array.prototype.forEach.call(files, send); }
+  function send(f) {
+    var li = document.createElement('li'); li.className = 'list-group-item d-flex justify-content-between align-items-center small';
+    var name = document.createElement('span'); name.textContent = f.name;
+    var st = document.createElement('span'); st.className = 'text-muted'; li.append(name, st); list.appendChild(li);
+    if (!ext.test(f.name)) return fail('niedozwolony typ pliku');
+    if (f.size > 20 * 1024 * 1024) return fail('większy niż 20 MB');
+    function fail(m) { st.textContent = m; st.className = 'text-danger'; }
+    pending++;
+    var fd = new FormData();
+    fd.append('_csrf', csrf); fd.append('action', 'upload'); fd.append('_ajax', '1');
+    fd.append('note', document.getElementById('note').value); fd.append('file', f);
+    var x = new XMLHttpRequest(); x.open('POST', location.href);
+    x.upload.onprogress = function (e) { if (e.lengthComputable) st.textContent = Math.round(e.loaded / e.total * 100) + '%'; };
+    x.onload = function () {
+      var r = {}; try { r = JSON.parse(x.responseText); } catch (e) {}
+      if (r.ok) { st.textContent = 'dodano'; st.className = 'text-success'; ok++; } else fail(r.error || 'błąd serwera');
+      done();
+    };
+    x.onerror = function () { fail('błąd sieci'); done(); };
+    x.send(fd);
+  }
+  function done() { if (--pending === 0 && ok) setTimeout(function () { location.reload(); }, 1200); }
+})();
+</script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
