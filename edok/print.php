@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/edok.php';
+require_once __DIR__ . '/../includes/edok_ksef_view.php';
 
 edok_require_access();
 edok_migrate();
@@ -22,6 +23,8 @@ if (!$doc) { http_response_code(404); die('Dokument nie istnieje.'); }
   @page { size: A4; margin: 10mm 12mm; }
   <?= edok_print_css() ?>
   .noprint { margin: 10px auto; max-width: 700px; text-align: right; }
+  <?= edok_ksef_css() ?>
+  .ksefpage { page-break-before: always; }
   @media print { .noprint { display: none; } body { padding: 0; } }
 </style>
 </head>
@@ -32,6 +35,10 @@ if (!$doc) { http_response_code(404); die('Dokument nie istnieje.'); }
 </div>
 
 <?= edok_print_html($doc) ?>
+
+<?php if ($ksef_vis = edok_ksef_visualization_for_doc($doc)): ?>
+<div class="ksefpage"><?= $ksef_vis ?></div>
+<?php endif; ?>
 
 </body>
 </html>

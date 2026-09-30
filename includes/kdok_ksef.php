@@ -549,7 +549,7 @@ function kdok_ksef_sync_export(string $from, string $to, string $queue_table = '
                         'issue_date'     => $data['issue_date']      ?? '',
                         'ksef_date'      => date('Y-m-d'),
                     ]);
-                    $doc_id = call_user_func($create_doc_fn, array_merge($data, ['ksef_reference' => $ref]));
+                    $doc_id = call_user_func($create_doc_fn, array_merge($data, ['ksef_reference' => $ref, 'xml' => $fileContent]));
                     kdok_exec("UPDATE {$queue_table} SET doc_id=? WHERE ksef_reference=?", [$doc_id, $ref]);
                     $stats['imported']++;
                     $stats['new_doc_ids'][] = $doc_id;
@@ -638,7 +638,7 @@ function kdok_ksef_sync_range(string $from, string $to, string $role = 'buyer', 
                     'ksef_date'      => date('Y-m-d'),
                 ]);
 
-                $doc_id = call_user_func($create_doc_fn, array_merge($data, ['ksef_reference' => $ref]));
+                $doc_id = call_user_func($create_doc_fn, array_merge($data, ['ksef_reference' => $ref, 'xml' => $xml]));
                 kdok_exec("UPDATE {$queue_table} SET doc_id=? WHERE ksef_reference=?", [$doc_id, $ref]);
 
                 $stats['imported']++;

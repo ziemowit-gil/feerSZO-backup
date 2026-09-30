@@ -35,8 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'ignore') {
         db_exec("UPDATE edok_bank_tx SET ignored=1, ignore_note=? WHERE id=? AND doc_id IS NULL", [trim($_POST['note'] ?? ''), $tx_id]);
         flash_set('success', 'Transakcja pominięta (nie wymaga dokumentu).');
+    } elseif ($action === 'own') {
+        // operacja, której nie da się rozpoznać automatycznie → ręcznie jako przelew własny (rejestr „Przelewy własne")
+        $err = edok_bank_register_own_transfer($tx_id, trim((string)($_POST['counter_nrb'] ?? '')), trim((string)($_POST['reason'] ?? '')), (int)(current_user()['id'] ?? 0));
+        flash_set($err ? 'danger' : 'success', $err ?: 'Zarejestrowano jako przelew własny.');
     } elseif ($action === 'unignore') {
-        db_exec("UPDATE edok_bank_tx SET ignored=0, ignore_note='' WHERE id=?", [$tx_id]);
+        db_exec("UPDATE edok_bank_tx SET ignored=0, ignore_note='', transfer_id=NULL WHERE id=?", [$tx_id]);
     } elseif ($action === 'auto') {
         $pp = ['matched' => 0];
         try { require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php'; $__u = current_user(); $pp = pp_bank_auto_match((string)($__u["name"] ?? "EODoK"), (int)($__u["id"] ?? 0) ?: null); }
@@ -130,6 +134,17 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="hidden" name="action" value="assign"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">
           <input type="text" name="doc_number" class="form-control form-control-sm" placeholder="Nr EODoK, np. EODoK/0012/2026" style="max-width:220px">
           <button class="btn btn-sm btn-outline-primary">Przypisz</button>
+        </form>
+        <form method="post" class="d-flex gap-1 mt-1 flex-wrap"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="own"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">
+          <select name="counter_nrb" class="form-select form-select-sm" style="max-width:220px" required aria-label="Przelew własny — rachunek drugiej strony">
+            <option value=""><?= $wplyw ? 'Przelew własny z rachunku…' : 'Przelew własny na rachunek…' ?></option>
+            <?php foreach (edok_rachunki_list() as $r): if (_edok_nrb_digits((string)$r['nrb']) === _edok_nrb_digits((string)$t['account_nrb'])) continue; ?>
+            <option value="<?= h($r['nrb']) ?>"><?= h(($r['nazwa'] ?: $r['bank']) . ' …' . substr(_edok_nrb_digits((string)$r['nrb']), -4)) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <input type="text" name="reason" class="form-control form-control-sm" placeholder="Uzasadnienie (opcjonalnie)" style="max-width:200px">
+          <button class="btn btn-sm btn-outline-info">Jako przelew własny</button>
         </form>
         <form method="post" class="d-flex gap-1 mt-1" onsubmit="return confirm('Pominąć tę transakcję (np. opłata bankowa)?');"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="action" value="ignore"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">

@@ -1252,18 +1252,14 @@ function edok_fpdi_import_file(\setasign\Fpdi\Fpdi $pdf, string $rel): void {
         $pdf->AddPage('P', 'A4');
         try { $pdf->Image($path, 10, 10, 190); } catch (\Throwable $e) {}
     } elseif ($ext === 'xml') {
-        require_once __DIR__ . '/edok_queue.php';
-        $d = edok_parse_invoice_xml_file($rel);
-        if (!$d) return;
+        require_once __DIR__ . '/edok_ksef_view.php';
+        $html = edok_ksef_visualization_html((string)file_get_contents($path));
+        if ($html === '') return;
         $tmp_dir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
         if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
-        $rows = ['Numer faktury' => $d['nr_faktury'], 'Sprzedawca' => $d['kontrahent_nazwa'], 'NIP sprzedawcy' => $d['kontrahent_nip'],
-            'Data wystawienia' => $d['data_wystawienia'], 'Data sprzedaży' => $d['data_sprzedazy'], 'Netto' => $d['kwota_netto'], 'VAT' => $d['kwota_vat'],
-            'Brutto' => $d['kwota_brutto'] . ' ' . $d['waluta'], 'Termin płatności' => $d['termin_platnosci'], 'Rachunek' => $d['rachunek_bankowy'], 'Opis' => $d['description']];
-        $html = '<h3>Faktura ustrukturyzowana (KSeF) — dane z pliku XML</h3><table border="1" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:10pt">';
-        foreach ($rows as $k => $v) if ($v !== '' && $v !== null) $html .= '<tr><td style="width:30%;background:#eee"><b>' . h($k) . '</b></td><td>' . h((string)$v) . '</td></tr>';
-        $mp = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans', 'tempDir' => $tmp_dir]);
-        $mp->WriteHTML($html . '</table>');
+        $mp = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 10, 'margin_bottom' => 10,
+                               'default_font' => 'dejavusans', 'tempDir' => $tmp_dir]);
+        $mp->WriteHTML('<style>' . edok_ksef_css() . '</style>' . $html);
         $xp = $tmp_dir . '/xml_' . bin2hex(random_bytes(4)) . '.pdf';
         $mp->Output($xp, \Mpdf\Output\Destination::FILE);
         try {
@@ -2996,6 +2992,10 @@ function edok_ksef_create_doc(array $invoice_data): int {
         'kwota_brutto'        => $invoice_data['gross_value'] ?? '',
         'waluta'              => $invoice_data['currency'] ?: 'PLN',
         'ksef_reference'      => $invoice_data['ksef_reference'] ?? '',
+        // plik XML faktury (źródło) — potrzebny do wizualizacji KSeF na wydrukach; błąd zapisu nie blokuje importu
+        'file_path'           => (function () use ($invoice_data) {
+            try { return !empty($invoice_data['xml']) ? edok_queue_save_bytes((string)$invoice_data['xml'], 'xml') : null; } catch (\Throwable $e) { return null; }
+        })(),
         'status'              => 'w_obiegu',
         'created_by'          => null,
         'creator_name'        => 'KSeF (auto-import)',
