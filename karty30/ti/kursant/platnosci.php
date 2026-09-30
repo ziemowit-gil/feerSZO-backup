@@ -22,5 +22,5 @@ if ($parent) {
     $pid = (int)$student['client_id']; $via = 'panel kursanta';
 }
 if (!pp_portal_login_participant($pid, $via)) { http_response_code(403); exit('Portal płatności jest dla tego konta niedostępny. Skontaktuj się z biurem.'); }
-header('Location: ' . rtrim(APP_URL, '/') . '/platnosci/');
+header('Location: /platnosci/');   // ten sam host, na którym działa panel — ciasteczko sesji portalu zostaje po tej stronie
 exit;

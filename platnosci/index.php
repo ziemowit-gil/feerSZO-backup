@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'topup') {   // doładowanie portfela (wpłata ogólna na konto kursanta) przez PayU / Stripe / Przelewy24
         $amt = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
         $prov = (string)($_POST['provider'] ?? '');
-        $back = rtrim(APP_URL, '/') . '/platnosci/';
+        $back = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? parse_url(APP_URL, PHP_URL_HOST)) . '/platnosci/';   // powrót na ten sam host (sesja portalu)
         if ($amt < 1 || $amt > 20000) { $_SESSION['pp_flash'] = ['danger', 'Podaj kwotę doładowania od 1 do 20 000 zł.']; header('Location: ./'); exit; }
         $desc = 'Doładowanie portfela TI — ' . (string)($cl['name'] ?? '');
         $mail = (string)($user['email'] ?? $cl['email'] ?? '');
