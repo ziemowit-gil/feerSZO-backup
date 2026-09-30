@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $ok = 'Numer wygenerowany.'; break;
         case 'regen_ti':
-            $r = pp_ti_regenerate_all(!empty($_POST['notify']), $by, $uid);
+            $r = pp_ti_regenerate_all(!empty($_POST['notify']), $by, $uid, !empty($_POST['correction']));
             $ok = "Nowe rachunki: {$r['changed']}, bez zmian: {$r['same']}, pominięto: " . count($r['skipped'])
                 . (!empty($_POST['notify']) ? ". Powiadomienia: SMS {$r['sms']}, e-mail {$r['email']}." : '.')
                 . ($r['skipped'] ? ' Pominięci: ' . implode('; ', array_slice($r['skipped'], 0, 10)) . (count($r['skipped']) > 10 ? '…' : '') : ''); break;
@@ -324,6 +324,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="regen_ti">
       <p class="text-sm"><strong>Kursanci TI z dostępem do portalu:</strong> przelicz rachunki z numeru kursanta i bieżącego prefiksu. Pomijamy osoby z oczekującym przelewem na stary numer.</p>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="notify" value="1"> Powiadom kursantów o nowym numerze (SMS + e-mail; tylko TI)</label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="correction" value="1"> Treść „korekta": poprzednio wysłany numer był błędny, przesyłamy prawidłowy</label>
       <button class="bp">Wygeneruj nowe rachunki</button>
     </form>
     <p class="text-sm">Eksport do TXT (NRB, grupa, ID, nazwa):

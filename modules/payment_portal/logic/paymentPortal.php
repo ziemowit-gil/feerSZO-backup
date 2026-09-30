@@ -207,7 +207,7 @@ function pp_set_nrb(int $participant_id, string $nrb, string $by, ?int $uid): ?s
  * Powiadamia kursanta TI (SMS + e-mail) o nowym numerze rachunku do wpłat.
  * Każdy kanał niezależnie; zwraca ['sms' => bool, 'email' => bool].
  */
-function pp_ti_notify_nrb(int $client_id, string $nrb): array {
+function pp_ti_notify_nrb(int $client_id, string $nrb, bool $correction = false): array {
     $res = ['sms' => false, 'email' => false];
     $cl = db_one("SELECT name, email, phone FROM k30_clients WHERE id=?", [$client_id]);
     if (!$cl) return $res;
@@ -217,7 +217,8 @@ function pp_ti_notify_nrb(int $client_id, string $nrb): array {
     if ($phone !== '') {
         if (!function_exists('sms_send')) require_once dirname(__DIR__, 3) . '/includes/sms.php';
         try {
-            if (sms_channel_ready()) { sms_send($phone, "{$org}: Twoj nowy numer rachunku do wplat za zajecia: " . preg_replace('/\D/', '', $nrb) . ". W tytule przelewu wpisz imie i nazwisko."); $res['sms'] = true; }
+            if (sms_channel_ready()) { sms_send($phone, ($correction ? "{$org}: poprzednio wyslany numer rachunku zostal wygenerowany blednie. Prosimy nie uzywac go. Prawidlowy numer do wplat: "
+                                            : "{$org}: Twoj nowy numer rachunku do wplat za zajecia: ") . preg_replace('/\D/', '', $nrb) . ". W tytule przelewu wpisz imie i nazwisko."); $res['sms'] = true; }
         } catch (\Throwable $e) {}
     }
     $email = trim((string)($cl['email'] ?? ''));
@@ -226,12 +227,13 @@ function pp_ti_notify_nrb(int $client_id, string $nrb): array {
         try {
             $n = htmlspecialchars((string)$cl['name'], ENT_QUOTES);
             $body = '<p>Dzień dobry' . ($n !== '' ? ', ' . $n : '') . ',</p>'
-                  . '<p>nadaliśmy Ci nowy, indywidualny numer rachunku do wpłat za zajęcia:</p>'
+                  . ($correction ? '<p>Poprzednio przesłany numer rachunku do wpłat został wygenerowany <strong>błędnie</strong> — przepraszamy za pomyłkę i przesyłamy prawidłowy numer. Prosimy nie używać poprzedniego.</p>'
+                                 : '<p>nadaliśmy Ci nowy, indywidualny numer rachunku do wpłat za zajęcia:</p>')
                   . '<p style="font-size:1.2em"><strong>' . htmlspecialchars($fmt, ENT_QUOTES) . '</strong></p>'
                   . '<p>Od teraz wpłaty kieruj wyłącznie na ten rachunek. W tytule przelewu wpisz imię i nazwisko kursanta. '
                   . 'Wpłaty na poprzedni numer nie będą już przypisywane automatycznie — w razie wątpliwości skontaktuj się z biurem.</p>'
                   . '<p>' . htmlspecialchars($org, ENT_QUOTES) . '</p>';
-            mail_queue_add($email, (string)$cl['name'], "[{$org}] Nowy numer rachunku do wpłat", $body, '', 'ti_vnrb', $client_id);
+            mail_queue_add($email, (string)$cl['name'], ($correction ? "[{$org}] Korekta: prawidłowy numer rachunku do wpłat" : "[{$org}] Nowy numer rachunku do wpłat"), $body, '', 'ti_vnrb', $client_id);
             $res['email'] = true;
         } catch (\Throwable $e) {}
     }
@@ -257,7 +259,7 @@ function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
  * Pomija tych z oczekującym przelewem na stary NRB. $notify → SMS + e-mail.
  * @return array{changed:int, same:int, skipped:list<string>, sms:int, email:int}
  */
-function pp_ti_regenerate_all(bool $notify, string $by, ?int $uid): array {
+function pp_ti_regenerate_all(bool $notify, string $by, ?int $uid, bool $correction = false): array {
     $r = ['changed' => 0, 'same' => 0, 'skipped' => [], 'sms' => 0, 'email' => 0];
     $rows = db_all("SELECT u.participant_id, c.name FROM payment_portal_users u JOIN k30_clients c ON c.id=u.participant_id
                      WHERE EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=u.participant_id) ORDER BY c.name");
@@ -270,7 +272,7 @@ function pp_ti_regenerate_all(bool $notify, string $by, ?int $uid): array {
         $n = pp_ti_sync_nrb($pid, $by, $uid);
         if ($n === null) { $r['same']++; continue; }
         $r['changed']++;
-        if ($notify) { $x = pp_ti_notify_nrb($pid, $n); $r['sms'] += (int)$x['sms']; $r['email'] += (int)$x['email']; }
+        if ($notify) { $x = pp_ti_notify_nrb($pid, $n, $correction); $r['sms'] += (int)$x['sms']; $r['email'] += (int)$x['email']; }
     }
     audit_log('payments.vnrb_regenerate_ti', $r + ['notify' => $notify, 'by' => $by], $uid);
     return $r;
