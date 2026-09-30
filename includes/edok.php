@@ -386,6 +386,21 @@ function edok_migrate(): void {
         gen_name      TEXT    NOT NULL DEFAULT '',
         created_at    TEXT    NOT NULL DEFAULT ''
     )");
+    // kind: 'final' = dokument końcowy po 5/5 (edok_latest_generated_pdf), 'print' = wydruk PDF na żądanie (edok/print_pdf.php).
+    _edok_add_columns($db, 'edok_generated_pdf', ['kind' => "TEXT NOT NULL DEFAULT 'final'"]);
+
+    // Rejestr zapisanych eksportów zbiorczych (zestawienie dla księgowego PDF/Excel, PDF miesięczny) — z sumą SHA-256.
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_exports (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind       TEXT    NOT NULL DEFAULT '',
+        label      TEXT    NOT NULL DEFAULT '',
+        file_path  TEXT    NOT NULL DEFAULT '',
+        file_sha256 TEXT   NOT NULL DEFAULT '',
+        file_size  INTEGER,
+        created_by INTEGER,
+        creator_name TEXT  NOT NULL DEFAULT '',
+        created_at TEXT    NOT NULL DEFAULT ''
+    )");
 
     // Archiwum miesięczne (Uchwała 5/2026 §7) — wydruk kart akceptacji + automatyczne
     // zestawienie dokument→karta→akceptant za dany miesiąc. generated_by NULL = cron.
@@ -1376,7 +1391,7 @@ function edok_generate_final_pdf(int $doc_id): string {
 }
 
 function edok_latest_generated_pdf(int $doc_id): ?array {
-    return db_one("SELECT * FROM edok_generated_pdf WHERE doc_id = ? ORDER BY id DESC LIMIT 1", [$doc_id]);
+    return db_one("SELECT * FROM edok_generated_pdf WHERE doc_id = ? AND kind = 'final' ORDER BY id DESC LIMIT 1", [$doc_id]);
 }
 
 // ── Archiwizacja miesięczna (Uchwała 5/2026 §7) ────────────────────────────────
@@ -1432,7 +1447,7 @@ function edok_build_monthly_zestawienie_csv(int $year, int $month): ?string {
                 g.id AS karta_id
          FROM edok_documents d
          JOIN edok_steps s ON s.doc_id = d.id
-         LEFT JOIN edok_generated_pdf g ON g.doc_id = d.id
+         LEFT JOIN edok_generated_pdf g ON g.doc_id = d.id AND g.kind = 'final'
          WHERE CAST(SUBSTR(d.created_at, 6, 2) AS INTEGER) = ? AND CAST(SUBSTR(d.created_at, 1, 4) AS INTEGER) = ?
          ORDER BY d.id, CASE s.step_key WHEN 'meryt' THEN 1 WHEN 'formal' THEN 2 WHEN 'rachunkowa' THEN 3 WHEN 'dekretacja' THEN 4 WHEN 'zatwierdza' THEN 5 END",
         [$month, $year]
@@ -2853,4 +2868,39 @@ function edok_queue_list(): array {
 
 function edok_queue_count(): int {
     try { return (int)db_one("SELECT COUNT(*) c FROM edok_queue")['c']; } catch (\Throwable $e) { return 0; }
+}
+
+
+/** Zapisuje wydruk PDF „źródło + karta” dokumentu w EODoK (kind='print'), loguje w audycie. Zwraca wiersz z edok_generated_pdf. */
+function edok_save_print_pdf(array $doc): array {
+    $dir = UPLOAD_DIR . 'edok_generated/print/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $name = preg_replace('/[^a-zA-Z0-9_.\-]/', '_', 'wydruk_' . $doc['number'] . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(3)) . '.pdf');
+    edok_build_source_card_pdf($doc, $dir . $name);
+    $user = current_user();
+    $id = db_insert('edok_generated_pdf', [
+        'doc_id' => (int)$doc['id'], 'file_path' => 'edok_generated/print/' . $name, 'file_sha256' => hash_file('sha256', $dir . $name),
+        'file_size' => filesize($dir . $name), 'generated_by' => $user['id'] ?? null, 'gen_name' => $user['name'] ?? '',
+        'created_at' => date('Y-m-d H:i:s'), 'kind' => 'print',
+    ]);
+    edok_log((int)$doc['id'], 'export_pdf', '', $doc['status'], $doc['status'], 'Zapisano eksport PDF do druku (dokument źródłowy + karta akceptacji), stan obiegu z chwili eksportu.', $doc);
+    return db_one("SELECT * FROM edok_generated_pdf WHERE id = ?", [$id]);
+}
+
+/** Zapisane wydruki PDF dokumentu (najnowsze pierwsze). */
+function edok_print_pdfs(int $doc_id): array {
+    try { return db_all("SELECT * FROM edok_generated_pdf WHERE doc_id = ? AND kind = 'print' ORDER BY id DESC", [$doc_id]); } catch (\Throwable $e) { return []; }
+}
+
+/** Zapisuje eksport zbiorczy (zawartość pliku) w uploads/edok_generated/exports/ i rejestruje go. Zwraca id wpisu. */
+function edok_export_save(string $kind, string $label, string $bytes, string $ext): int {
+    $dir = UPLOAD_DIR . 'edok_generated/exports/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $name = preg_replace('/[^a-zA-Z0-9_.\-]/', '_', $kind . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(3)) . '.' . $ext);
+    file_put_contents($dir . $name, $bytes);
+    $user = current_user();
+    return db_insert('edok_exports', [
+        'kind' => $kind, 'label' => $label, 'file_path' => 'edok_generated/exports/' . $name, 'file_sha256' => hash('sha256', $bytes),
+        'file_size' => strlen($bytes), 'created_by' => $user['id'] ?? null, 'creator_name' => $user['name'] ?? '', 'created_at' => date('Y-m-d H:i:s'),
+    ]);
 }

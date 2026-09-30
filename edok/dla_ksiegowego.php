@@ -39,6 +39,8 @@ if (in_array($format, ['pdf', 'xlsx'], true)) {
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="' . $base . '.xlsx"');
     }
+    // Zapis eksportu w EODoK (historia poniżej) — z sumą SHA-256.
+    edok_export_save('ksiegowy_' . $format, "Do zaksięgowania {$od} – {$do} (" . ($zakres === 'oba' ? 'wydatki i przychody' : $zakres) . ')', $bin, $format);
     header('Content-Length: ' . strlen($bin));
     echo $bin;
     exit;
@@ -70,4 +72,15 @@ $q = fn($fmt) => '?' . http_build_query(['od' => $od, 'do' => $do, 'zakres' => $
   <a href="<?= h($q('pdf')) ?>" class="btn btn-danger"><i class="bi bi-file-earmark-pdf"></i> Pobierz PDF</a>
   <a href="<?= h($q('xlsx')) ?>" class="btn btn-success"><i class="bi bi-file-earmark-excel"></i> Pobierz Excel</a>
 </div></div>
+<?php $hist = db_all("SELECT * FROM edok_exports ORDER BY id DESC LIMIT 30"); if ($hist): ?>
+<h6 class="mt-4">Zapisane eksporty</h6>
+<div class="table-responsive"><table class="table table-sm small">
+  <thead><tr><th>Kiedy</th><th>Eksport</th><th>Kto</th><th class="text-end">Rozmiar</th><th>SHA-256</th></tr></thead><tbody>
+  <?php foreach ($hist as $e): ?>
+  <tr><td class="text-nowrap"><?= h(date_pl($e['created_at'])) ?> <?= h(date('H:i', strtotime($e['created_at']))) ?></td>
+    <td><a href="<?= APP_URL ?>/edok/export_file.php?id=<?= (int)$e['id'] ?>"><?= h($e['label']) ?></a> <span class="badge text-bg-light"><?= h(strtoupper(pathinfo($e['file_path'], PATHINFO_EXTENSION))) ?></span></td>
+    <td><?= h($e['creator_name']) ?></td><td class="text-end"><?= h(number_format($e['file_size'] / 1024, 0, ',', ' ')) ?> KB</td>
+    <td class="font-monospace text-muted"><?= h(substr($e['file_sha256'], 0, 12)) ?>…</td></tr>
+  <?php endforeach; ?></tbody></table></div>
+<?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

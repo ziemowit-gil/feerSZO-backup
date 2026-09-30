@@ -28,6 +28,7 @@ if ($count === 0) {
     header('Location: ' . APP_URL . '/edok/index.php');
     exit;
 }
+edok_export_save('miesieczny_pdf', 'PDF miesięczny ' . (EDOK_MONTHS_PL[$miesiac] ?? $miesiac) . ' ' . $rok . ' (faktury + karty, ' . $count . ' dok.)', (string)file_get_contents($tmp), 'pdf');
 $filename = 'EODoK_' . sprintf('%04d_%02d', $rok, $miesiac) . '.pdf';
 header('Content-Type: application/pdf');
 header('Content-Disposition: inline; filename="' . $filename . '"');

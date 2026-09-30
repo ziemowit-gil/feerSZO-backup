@@ -999,6 +999,18 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
     </div>
     <?php endif; ?>
 
+    <?php if ($prints = edok_print_pdfs($id)): ?>
+    <div class="edok-card">
+      <div class="edok-card__hd"><i class="bi bi-file-earmark-pdf"></i> Zapisane eksporty PDF</div>
+      <div class="edok-card__bd small">
+        <?php foreach ($prints as $pr): ?>
+        <div><a href="<?= APP_URL ?>/edok/file.php?id=<?= $id ?>&type=print&gid=<?= (int)$pr['id'] ?>" target="_blank"><?= h(date_pl($pr['created_at'])) ?> <?= h(date('H:i', strtotime($pr['created_at']))) ?></a>
+          · <?= h($pr['gen_name']) ?> · <?= h(number_format($pr['file_size'] / 1024, 0, ',', ' ')) ?> KB · <span class="font-monospace text-muted" title="SHA-256"><?= h(substr($pr['file_sha256'], 0, 12)) ?>…</span></div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Historia / audyt -->
     <div class="edok-card">
       <div class="edok-card__hd"><i class="bi bi-clock-history"></i> Historia obiegu (audyt)</div>
