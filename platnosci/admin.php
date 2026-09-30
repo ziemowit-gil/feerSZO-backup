@@ -678,37 +678,49 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         $um_cnt = []; foreach ($vs as $r0) if ($r0['nrb'] !== '') { $k0 = substr($r0['nrb'], 10, 4); $um_cnt[$k0] = ($um_cnt[$k0] ?? 0) + 1; }
         foreach (db_all("SELECT nrb FROM pp_vnrb_crm") as $r0) { $k0 = substr((string)$r0['nrb'], 10, 4); $um_cnt[$k0] = ($um_cnt[$k0] ?? 0) + 1; }
         ksort($um_cnt); ?>
-  <section class="card space-y-3" aria-labelledby="vr-h" x-data="{ f: '' }" x-show="sub === 'stan'">
+  <section class="card space-y-4" aria-labelledby="vr-h" x-data="{ f: '', qs: '' }" x-show="sub === 'stan'">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
+      <div><h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
+        <p class="text-xs text-slate-500">Kto ma numer, komu go nadano i kto już o nim wie. Kliknij kafelek, aby zawęzić listę.</p></div>
       <div class="flex flex-wrap items-center gap-2">
-        <a class="bs" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj raport</a>
-        <a class="bs" href="admin.php?export=csv"><i class="bi bi-filetype-csv" aria-hidden="true"></i>Eksport CSV numerów</a>
-        <button type="button" class="bp" @click="sub = 'import'; $nextTick(() => { var e = document.getElementById('powiadomienia'); if (e) e.scrollIntoView({behavior: 'smooth', block: 'start'}); })"><i class="bi bi-envelope-paper" aria-hidden="true"></i>Wyślij masowo e-mail i SMS z numerem</button>
-        <span class="text-xs text-slate-400">|</span>
-        <span class="text-xs font-medium text-slate-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF „nadano numer”:</span>
-        <a class="bp" href="admin.php?pdf=notice&scope=all" target="_blank" rel="noopener">Wszyscy z numerem</a>
-        <a class="bs" href="admin.php?pdf=notice&scope=unnotified" target="_blank" rel="noopener">Bez powiadomienia</a>
-        <a class="bs" href="admin.php?pdf=notice&scope=last" target="_blank" rel="noopener">Ostatni import</a>
+        <button type="button" class="bp" @click="sub = 'import'; $nextTick(() => { var e = document.getElementById('powiadomienia'); if (e) e.scrollIntoView({behavior: 'smooth', block: 'start'}); })"><i class="bi bi-envelope-paper" aria-hidden="true"></i>Powiadom kursantów</button>
+        <details class="relative">
+          <summary class="bs cursor-pointer list-none"><i class="bi bi-three-dots" aria-hidden="true"></i>Drukuj i eksport</summary>
+          <div class="absolute right-0 z-10 mt-1 w-64 space-y-0.5 rounded-lg bg-white p-2 text-sm shadow-lg ring-1 ring-slate-200">
+            <a class="block rounded px-2 py-1.5 hover:bg-slate-50" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> Raport stanu (wydruk)</a>
+            <a class="block rounded px-2 py-1.5 hover:bg-slate-50" href="admin.php?export=csv"><i class="bi bi-filetype-csv" aria-hidden="true"></i> Eksport CSV numerów</a>
+            <div class="px-2 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">PDF „nadano numer”</div>
+            <a class="block rounded px-2 py-1.5 hover:bg-slate-50" href="admin.php?pdf=notice&scope=all" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Wszyscy z numerem</a>
+            <a class="block rounded px-2 py-1.5 hover:bg-slate-50" href="admin.php?pdf=notice&scope=unnotified" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Bez powiadomienia</a>
+            <a class="block rounded px-2 py-1.5 hover:bg-slate-50" href="admin.php?pdf=notice&scope=last" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Ostatni import</a>
+          </div>
+        </details>
       </div>
     </div>
-    <div class="flex flex-wrap gap-2" role="group" aria-label="Filtr stanu">
-      <button type="button" @click="f = ''" :class="f === '' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium">Wszyscy (<?= count($vs) ?>)</button>
-      <?php foreach (PP_VSTATUS as $k => $l): ?>
-      <button type="button" @click="f = '<?= $k ?>'" :class="f === '<?= $k ?>' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium"><?= h($l) ?> (<?= $vsc[$k] ?>)</button>
+    <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="Filtr stanu">
+      <?php $vk = ['' => ['Wszyscy', count($vs), 'bi-people', 'slate'], 'brak' => ['Bez numeru', $vsc['brak'], 'bi-person-x', 'red'], 'nie_powiad' => ['Bez powiadomienia', $vsc['nie_powiad'], 'bi-envelope', 'amber'],
+                   'powiad' => ['Powiadomieni', $vsc['powiad'], 'bi-envelope-check', 'emerald'], 'reczny' => ['Numer ręczny', $vsc['reczny'], 'bi-pencil', 'sky'], 'wirtualny' => ['Wirtualni / bez rozl.', $vsc['wirtualny'] + $vsc['bez_rozl'], 'bi-slash-circle', 'slate']]; ?>
+      <?php foreach ($vk as $vkey => [$vl, $vn, $vi, $vc]): ?>
+      <button type="button" @click="f = '<?= $vkey ?>'" :class="f === '<?= $vkey ?>' ? 'ring-2 ring-navy-700 bg-navy-50' : 'ring-1 ring-slate-200 bg-white hover:bg-slate-50'" class="rounded-xl p-3 text-left transition" :aria-pressed="f === '<?= $vkey ?>'">
+        <div class="flex items-center gap-2 text-xs text-slate-500"><i class="bi <?= $vi ?> text-<?= $vc === 'slate' ? 'slate-500' : $vc . '-600' ?>" aria-hidden="true"></i><?= h($vl) ?></div>
+        <div class="text-2xl font-semibold tabular-nums"><?= (int)$vn ?></div>
+      </button>
       <?php endforeach; ?>
-      <a class="ml-auto text-xs text-slate-500 hover:underline" :href="'admin.php?report=status&cat=' + f" target="_blank" rel="noopener" x-show="f !== ''">drukuj tylko ten stan →</a>
-      <label class="ml-2 flex items-center gap-2 text-xs text-slate-600">Numer umowy (RRRR)
-        <select x-model="um" class="inp !w-44 !py-1" aria-label="Filtr po numerze umowy">
+    </div>
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="min-w-[12rem] flex-1"><label class="lbl" for="vq">Szukaj kursanta</label><input id="vq" type="search" x-model="qs" placeholder="imię lub nazwisko" class="inp"></div>
+      <div><label class="lbl" for="vum">Numer umowy (RRRR)</label>
+        <select id="vum" x-model="um" class="inp !w-48">
           <option value="">wszystkie</option>
           <?php foreach ($um_cnt as $uk => $un): ?><option value="<?= h($uk) ?>"><?= h($uk) ?> (<?= (int)$un ?>)<?= $uk === pp_vnrb_rrrr() ? ' — bieżąca' : '' ?></option><?php endforeach; ?>
-        </select></label>
+        </select></div>
+      <a class="text-xs text-slate-500 hover:underline" :href="'admin.php?report=status&cat=' + f" target="_blank" rel="noopener" x-show="f !== ''">drukuj tylko ten stan →</a>
     </div>
     <div class="max-h-96 overflow-auto"><table class="min-w-full text-sm">
       <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Umowa</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th><th class="pr-3 text-right">PDF</th><th class="pr-3 text-right">Opcje numeru</th></tr></thead>
       <tbody class="divide-y divide-slate-100">
       <?php foreach ($vs as $r0): ?>
-        <tr x-show="(f === '' || f === '<?= $r0['cat'] ?>') && (um === '' || um === '<?= $r0['nrb'] !== '' ? h(substr($r0['nrb'], 10, 4)) : '-' ?>')"><td class="py-1.5 pr-3 font-medium"><a class="hover:underline" href="admin.php?q=<?= urlencode($r0['name']) ?>"><?= h($r0['name']) ?></a></td>
+        <tr x-show="(f === '' || f === '<?= $r0['cat'] ?>' || (f === 'wirtualny' && '<?= $r0['cat'] ?>' === 'bez_rozl')) && (um === '' || um === '<?= $r0['nrb'] !== '' ? h(substr($r0['nrb'], 10, 4)) : '-' ?>') && (qs === '' || <?= h(json_encode(mb_strtolower($r0['name']), JSON_UNESCAPED_UNICODE)) ?>.includes(qs.toLowerCase()))"><td class="py-1.5 pr-3 font-medium"><a class="hover:underline" href="admin.php?q=<?= urlencode($r0['name']) ?>"><?= h($r0['name']) ?></a></td>
           <td class="pr-3 text-xs"><span class="rounded-full px-2 py-0.5 <?= ['brak' => 'bg-red-50 text-red-800', 'nie_powiad' => 'bg-amber-50 text-amber-800', 'powiad' => 'bg-emerald-50 text-emerald-800', 'reczny' => 'bg-sky-50 text-sky-800', 'wirtualny' => 'bg-slate-100 text-slate-700', 'bez_rozl' => 'bg-slate-100 text-slate-700'][$r0['cat']] ?>"><?= h(PP_VSTATUS[$r0['cat']]) ?></span></td>
           <td class="pr-3 font-mono text-xs text-purple-700"><?= $r0['nrb'] !== '' ? h(substr($r0['nrb'], 10, 4)) : '—' ?></td>
           <td class="pr-3 font-mono text-xs"><?= $r0['nrb'] !== '' ? h(pp_nrb_format($r0['nrb'])) : '—' ?></td>
