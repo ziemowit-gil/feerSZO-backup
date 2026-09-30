@@ -46,6 +46,7 @@ function pp_migrate(): void {
         nrb TEXT PRIMARY KEY, grp TEXT NOT NULL DEFAULT 'ti', participant_id INTEGER,
         imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
     try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}   // kursant wirtualny: bez rachunku z puli
+    db()->exec("CREATE TABLE IF NOT EXISTS pp_notice_exclusions (batch_id INTEGER NOT NULL, client_id INTEGER NOT NULL, by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (batch_id, client_id))");
     db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_blocks (nrb TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     db()->exec("CREATE TABLE IF NOT EXISTS pp_bank_autopost (bank_tx_id INTEGER PRIMARY KEY, participant_id INTEGER NOT NULL, payment_id INTEGER,
         amount REAL NOT NULL, nrb TEXT NOT NULL, by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -1156,9 +1157,10 @@ function pp_notice_vars(int $client_id): ?array {
 }
 
 /** @return list<int> kursanci, do których wyśle się wiadomość z danej paczki (numer z puli TI, bez powiadomienia). */
-function pp_notice_recipients(string $scope, string $batch = ''): array {
+function pp_notice_recipients(string $scope, string $batch = '', int $batch_id = 0): array {
     $sql = "SELECT DISTINCT participant_id id FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL";
     $par = [];
+    if ($batch_id > 0) { $sql .= " AND participant_id NOT IN (SELECT client_id FROM pp_notice_exclusions WHERE batch_id=?)"; $par[] = $batch_id; }
     if ($scope === 'last' && $batch !== '') { $sql .= " AND batch=?"; $par[] = $batch; }
     return array_map(fn($r) => (int)$r['id'], db_all($sql . ' ORDER BY 1', $par));
 }
@@ -1183,10 +1185,10 @@ function pp_notice_approve(int $id, string $by, ?int $uid): ?string {
     pp_migrate();
     $b = db_one("SELECT * FROM pp_notice_batches WHERE id=?", [$id]);
     if (!$b || $b['status'] !== 'draft') return 'Zatwierdzić można tylko szkic.';
-    if (!pp_notice_recipients($b['scope'], $b['batch'])) return 'Brak odbiorców (nikt z nadanym numerem nie czeka na powiadomienie).';
+    if (!pp_notice_recipients($b['scope'], $b['batch'], $id)) return 'Brak odbiorców (nikt z nadanym numerem nie czeka na powiadomienie).';
     $at = date('Y-m-d 08:00:00', strtotime('+1 day'));
     db()->prepare("UPDATE pp_notice_batches SET status='approved', approved_by=?, approved_at=datetime('now'), send_at=? WHERE id=?")->execute([$by, $at, $id]);
-    audit_log('payments.notice_approved', ['batch_id' => $id, 'send_at' => $at, 'recipients' => count(pp_notice_recipients($b['scope'], $b['batch'])), 'by' => $by], $uid);
+    audit_log('payments.notice_approved', ['batch_id' => $id, 'send_at' => $at, 'recipients' => count(pp_notice_recipients($b['scope'], $b['batch'], $id)), 'by' => $by], $uid);
     return null;
 }
 
@@ -1205,7 +1207,7 @@ function pp_notice_process(): array {
     $r = ['batches' => 0, 'students' => 0, 'sms' => 0, 'email' => 0];
     foreach (db_all("SELECT * FROM pp_notice_batches WHERE status='approved' AND send_at<=datetime('now','localtime') ORDER BY id") as $b) {
         $st = ['students' => 0, 'sms' => 0, 'email' => 0, 'clients' => []];
-        foreach (pp_notice_recipients($b['scope'], $b['batch']) as $cid) {
+        foreach (pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id']) as $cid) {
             $v = pp_notice_vars($cid); if (!$v) continue;
             $nrb = $v['nrb'];
             if ($v['email'] !== '') {
@@ -1349,4 +1351,16 @@ function pp_vnrb_assign_crm_one(int $contact_id, string $by, ?int $uid): string|
         db()->commit();
     } catch (\Throwable $e) { db()->rollBack(); return 'Błąd: ' . $e->getMessage(); }
     return ['nrb' => $p['nrb'], 'fmt' => pp_nrb_format($p['nrb'])];
+}
+
+
+/** Wyklucza (lub przywraca) jedną osobę z niewysłanej wysyłki — wiadomość do niej nie wyjdzie, a numer zostaje „bez powiadomienia”. */
+function pp_notice_exclude(int $batch_id, int $client_id, bool $exclude, string $by, ?int $uid): ?string {
+    pp_migrate();
+    $b = db_one("SELECT status FROM pp_notice_batches WHERE id=?", [$batch_id]);
+    if (!$b || !in_array($b['status'], ['draft', 'approved'], true)) return 'Odbiorców można zmieniać tylko w szkicu lub zatwierdzonej, niewysłanej wysyłce.';
+    if ($exclude) db()->prepare("INSERT OR IGNORE INTO pp_notice_exclusions (batch_id, client_id, by_name) VALUES (?,?,?)")->execute([$batch_id, $client_id, $by]);
+    else db()->prepare("DELETE FROM pp_notice_exclusions WHERE batch_id=? AND client_id=?")->execute([$batch_id, $client_id]);
+    audit_log($exclude ? 'payments.notice_excluded' : 'payments.notice_included', ['batch_id' => $batch_id, 'participant_id' => $client_id, 'by' => $by], $uid);
+    return null;
 }

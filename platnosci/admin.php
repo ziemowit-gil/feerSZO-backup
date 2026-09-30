@@ -144,6 +144,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'notice_reschedule':
             $err = pp_notice_reschedule((int)($_POST['notice_id'] ?? 0), (string)($_POST['send_at'] ?? ''), $by, $uid);
             $ok = 'Termin wysyłki zmieniony.'; break;
+        case 'notice_exclude':
+            $exc = !empty($_POST['exclude']);
+            $err = pp_notice_exclude((int)($_POST['notice_id'] ?? 0), (int)($_POST['client_id'] ?? 0), $exc, $by, $uid);
+            $ok = $exc ? 'Osoba wykluczona z tej wysyłki — wiadomość do niej nie wyjdzie.' : 'Osoba przywrócona do wysyłki.'; break;
         case 'notice_cancel':
             $err = pp_notice_cancel((int)($_POST['notice_id'] ?? 0), $by, $uid);
             $ok = 'Wysyłka anulowana.'; break;
@@ -450,7 +454,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <p class="text-xs text-slate-500">Treść zatwierdza admin; wysyłka rusza automatycznie o wyznaczonej godzinie (domyślnie 08:00 następnego dnia po zatwierdzeniu). Terminu zatwierdzonej wysyłki nie trzeba zmieniać — możesz to zrobić poniżej (06:00–22:00).</p>
       <?php if (!$kb): ?><p class="text-sm text-slate-500">Brak wysyłek. Przygotuj pierwszą w zakładce Rachunki wirtualne → Import i przypisanie.</p><?php endif; ?>
       <div class="divide-y divide-slate-100">
-      <?php foreach ($kb as $b): $st0 = json_decode((string)$b['stats'], true) ?: []; $rc = in_array($b['status'], ['draft', 'approved'], true) ? count(pp_notice_recipients($b['scope'], $b['batch'])) : (int)($st0['students'] ?? 0); ?>
+      <?php foreach ($kb as $b): $st0 = json_decode((string)$b['stats'], true) ?: []; $rc = in_array($b['status'], ['draft', 'approved'], true) ? count(pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'])) : (int)($st0['students'] ?? 0); ?>
         <div class="py-3 text-sm">
           <div class="flex flex-wrap items-center gap-2">
             <strong>#<?= (int)$b['id'] ?></strong><span class="rounded-full px-2 py-0.5 text-xs <?= $kn[$b['status']] ?? '' ?>"><?= h(PP_NOTICE_STATUSES[$b['status']] ?? $b['status']) ?></span>
@@ -472,9 +476,17 @@ $sim  = org_setting('pp_p24_simulation') === '1';
                 <div><strong>Temat:</strong> <?= h($b['subject']) ?></div>
                 <pre class="whitespace-pre-wrap font-sans"><?= h($b['body']) ?></pre>
                 <?php if (trim($b['sms_text']) !== ''): ?><div><strong>SMS:</strong> <?= h($b['sms_text']) ?></div><?php endif; ?>
-                <?php $ids = $b['status'] === 'sent' ? array_map('intval', $st0['clients'] ?? []) : pp_notice_recipients($b['scope'], $b['batch']);
-                      if ($ids): $nm = array_column(db_all("SELECT id, name FROM k30_clients WHERE id IN (" . implode(',', array_map('intval', $ids)) . ") ORDER BY name COLLATE NOCASE"), 'name'); ?>
-                <div><strong>Odbiorcy (<?= count($nm) ?>):</strong> <?= h(implode(', ', $nm)) ?></div><?php endif; ?>
+                <?php $live = in_array($b['status'], ['draft', 'approved'], true);
+                      $ids = $b['status'] === 'sent' ? array_map('intval', $st0['clients'] ?? []) : pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id']);
+                      $exc_ids = $live ? array_map('intval', array_column(db_all("SELECT client_id FROM pp_notice_exclusions WHERE batch_id=?", [(int)$b['id']]), 'client_id')) : [];
+                      $all_ids = array_values(array_unique(array_merge($ids, $exc_ids)));
+                      if ($all_ids): $nm = array_column(db_all("SELECT id, name FROM k30_clients WHERE id IN (" . implode(',', array_map('intval', $all_ids)) . ") ORDER BY name COLLATE NOCASE"), 'name', 'id'); ?>
+                <div><strong>Odbiorcy (<?= count($ids) ?><?= $exc_ids ? ', wykluczeni: ' . count($exc_ids) : '' ?>):</strong>
+                  <ul class="mt-1 space-y-1"><?php foreach ($nm as $cid0 => $nm0): $is_ex = in_array((int)$cid0, $exc_ids, true); ?>
+                    <li class="flex items-center gap-2"><span class="<?= $is_ex ? 'text-slate-400 line-through' : '' ?>"><?= h($nm0) ?></span>
+                      <?php if ($live): ?><form method="post" class="inline"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="notice_exclude"><input type="hidden" name="notice_id" value="<?= (int)$b['id'] ?>"><input type="hidden" name="client_id" value="<?= (int)$cid0 ?>"><?php if (!$is_ex): ?><input type="hidden" name="exclude" value="1"><?php endif; ?>
+                        <button class="rounded px-2 py-0.5 text-[11px] ring-1 <?= $is_ex ? 'text-emerald-700 ring-emerald-300' : 'text-red-700 ring-red-300' ?>"><?= $is_ex ? 'przywróć' : 'anuluj wysyłkę do tej osoby' ?></button></form><?php endif; ?></li>
+                  <?php endforeach; ?></ul></div><?php endif; ?>
               </div></details>
           </div>
         </div>
@@ -674,7 +686,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
             $pn_edit = (int)($_GET['pn'] ?? 0) ? db_one("SELECT * FROM pp_notice_batches WHERE id=? AND status='draft'", [(int)$_GET['pn']]) : null; ?>
       <h3 id="pn-h" class="font-semibold text-sm"><i class="bi bi-send-check" aria-hidden="true"></i> Powiadomienia o numerze rachunku — zatwierdzanie i wysyłka</h3>
       <p class="text-xs text-slate-500">Przygotuj treść (znaczniki: <code>{imie_nazwisko}</code> <code>{numer}</code> <code>{numer_cyfry}</code> <code>{tytul}</code> <code>{organizacja}</code>), zapisz szkic, sprawdź podgląd i <strong>zatwierdź</strong>. Zatwierdzona wiadomość (e-mail i SMS) wyśle się automatycznie o <strong>08:00 następnego dnia</strong>. Wirtualni kursanci są pomijani.</p>
-      <?php foreach ($pn_list as $b): $rc = count(pp_notice_recipients($b['scope'], $b['batch'])); $pv = null; foreach (pp_notice_recipients($b['scope'], $b['batch']) as $c0) { $pv = pp_notice_vars($c0); if ($pv) break; } ?>
+      <?php foreach ($pn_list as $b): $rc = count(pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id'])); $pv = null; foreach (pp_notice_recipients($b['scope'], $b['batch'], (int)$b['id']) as $c0) { $pv = pp_notice_vars($c0); if ($pv) break; } ?>
       <div class="rounded-lg bg-slate-50 p-3 text-sm">
         <div class="flex flex-wrap items-center gap-2"><strong>#<?= (int)$b['id'] ?></strong> <span class="rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-slate-200"><?= h(PP_NOTICE_STATUSES[$b['status']] ?? $b['status']) ?></span>
           <span class="text-xs text-slate-500"><?= $b['scope'] === 'last' ? 'ostatni import' : 'wszyscy bez powiadomienia' ?> · odbiorców teraz: <?= $rc ?><?= $b['send_at'] ? ' · wysyłka: ' . h(date('d.m.Y H:i', strtotime($b['send_at']))) : '' ?><?= $b['approved_by'] ? ' · zatwierdził: ' . h($b['approved_by']) : '' ?></span>
