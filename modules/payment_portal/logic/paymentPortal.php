@@ -1610,3 +1610,83 @@ function pp_reminder_templates(): array {
         ],
     ];
 }
+
+
+// ── Raport miesięczny i dziennik audytu płatności ────────────────────────────────────────────────────────
+
+/** Podsumowanie miesiąca (RRRR-MM): wpływy wg metody, umorzenia/korekty, kanały online, stan niedopłat i nadpłat. */
+function pp_month_report(string $ym): array {
+    pp_migrate();
+    $from = $ym . '-01'; $to = date('Y-m-d', strtotime($from . ' +1 month'));
+    $ml = ['transfer' => 'przelew', 'cash' => 'gotówka', 'stripe' => 'Stripe (karta)', 'payu' => 'PayU', 'p24' => 'Przelewy24', 'other' => 'inna', 'internal' => 'przeksięgowanie wewnętrzne', 'refund' => 'zwrot', 'manual' => 'wpis ręczny'];
+    $rows = db_all("SELECT method, COUNT(*) n, ROUND(SUM(amount),2) sum FROM k30_ti_payments
+                     WHERE amount>0 AND COALESCE(source_type,'') NOT IN ('writeoff','transfer','overpay_refund','overpay_settle','overpay_transfer')
+                       AND substr(COALESCE(paid_at, created_at),1,10) >= ? AND substr(COALESCE(paid_at, created_at),1,10) < ? GROUP BY method ORDER BY sum DESC", [$from, $to]);
+    $by = []; $tot = 0.0; $cnt = 0;
+    foreach ($rows as $r) { $by[] = ['label' => $ml[$r['method']] ?? $r['method'], 'n' => (int)$r['n'], 'sum' => (float)$r['sum']]; $tot += (float)$r['sum']; $cnt += (int)$r['n']; }
+    $adj = db_one("SELECT COUNT(*) n, ROUND(COALESCE(SUM(amount),0),2) s FROM k30_ti_payments WHERE COALESCE(source_type,'')='writeoff' AND substr(COALESCE(paid_at, created_at),1,10) >= ? AND substr(COALESCE(paid_at, created_at),1,10) < ?", [$from, $to]);
+    $ch = [];
+    $one = function (string $label, string $sql, array $par) use (&$ch) { try { $r = db_one($sql, $par); $ch[] = ['label' => $label, 'n' => (int)($r['n'] ?? 0), 'sum' => (float)($r['s'] ?? 0)]; } catch (\Throwable $e) {} };
+    $one('Księgowanie po numerze wirtualnym (wyciąg)', "SELECT COUNT(*) n, ROUND(COALESCE(SUM(amount),0),2) s FROM pp_bank_autopost WHERE substr(created_at,1,10) >= ? AND substr(created_at,1,10) < ?", [$from, $to]);
+    $one('Przelewy24 — opłacone', "SELECT COUNT(*) n, ROUND(COALESCE(SUM(amount_grosze),0)/100.0,2) s FROM p24_payments WHERE status='paid' AND substr(COALESCE(paid_at,created_at),1,10) >= ? AND substr(COALESCE(paid_at,created_at),1,10) < ?", [$from, $to]);
+    $one('PayU — opłacone', "SELECT COUNT(*) n, ROUND(COALESCE(SUM(amount_grosze),0)/100.0,2) s FROM payu_payments WHERE status='paid' AND substr(COALESCE(paid_at,created_at),1,10) >= ? AND substr(COALESCE(paid_at,created_at),1,10) < ?", [$from, $to]);
+    $one('Portal: zgłoszone przelewy zaksięgowane', "SELECT COUNT(*) n, ROUND(COALESCE(SUM(total_amount),0),2) s FROM portal_transactions WHERE status='success' AND payment_method='individual_nrb' AND substr(COALESCE(completed_at,created_at),1,10) >= ? AND substr(COALESCE(completed_at,created_at),1,10) < ?", [$from, $to]);
+    $deb = ti_clients_with_debt();
+    $op = 0.0; try { $op = (float)(db_one("SELECT ROUND(COALESCE(SUM(amount),0),2) s FROM overpayment_transactions WHERE status='available'")['s'] ?? 0); } catch (\Throwable $e) {}
+    return ['month' => $ym, 'in_total' => round($tot, 2), 'in_count' => $cnt, 'by_method' => $by, 'adj_total' => (float)($adj['s'] ?? 0), 'adj_count' => (int)($adj['n'] ?? 0), 'channels' => $ch,
+            'debt' => round(array_sum(array_map(fn($d) => (float)$d['debt'], $deb)), 2), 'debtors' => count($deb), 'overpay' => $op];
+}
+
+function pp_month_report_csv(string $ym, string $by): never {
+    $ym = preg_match('/^\d{4}-\d{2}$/', $ym) ? $ym : date('Y-m'); $r = pp_month_report($ym);
+    audit_log('payments.report_csv', ['month' => $ym, 'by' => $by], null);
+    header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="raport_platnosci_' . $ym . '.csv"');
+    $o = fopen('php://output', 'w'); fwrite($o, "\xEF\xBB\xBF");
+    fputcsv($o, ['sekcja', 'pozycja', 'liczba', 'kwota'], ';');
+    foreach ($r['by_method'] as $m) fputcsv($o, ['wpływy wg metody', $m['label'], $m['n'], number_format($m['sum'], 2, ',', '')], ';');
+    fputcsv($o, ['wpływy razem', '', $r['in_count'], number_format($r['in_total'], 2, ',', '')], ';');
+    fputcsv($o, ['umorzenia/korekty', '', $r['adj_count'], number_format($r['adj_total'], 2, ',', '')], ';');
+    foreach ($r['channels'] as $c) fputcsv($o, ['kanały', $c['label'], $c['n'], number_format($c['sum'], 2, ',', '')], ';');
+    fputcsv($o, ['niedopłaty (stan na dziś)', '', $r['debtors'], number_format($r['debt'], 2, ',', '')], ';');
+    fputcsv($o, ['nadpłaty do rozdysponowania (stan na dziś)', '', '', number_format($r['overpay'], 2, ',', '')], ';');
+    fclose($o); exit;
+}
+
+/** Filtry dziennika: al_a (prefiks akcji), al_q (tekst), al_from/al_to (daty). @return array{sql:string, par:array} */
+function _pp_audit_where(array $q): array {
+    $w = ["(action LIKE 'payments.%' OR action LIKE 'overpayments.%' OR action LIKE 'pricing.%')"]; $par = [];
+    $a = (string)($q['al_a'] ?? '');
+    if (in_array($a, ['payments.', 'overpayments.', 'pricing.'], true)) { $w = ["action LIKE ?"]; $par[] = $a . '%'; }
+    $t = trim((string)($q['al_q'] ?? ''));
+    if ($t !== '') { $w[] = "(action LIKE ? OR details LIKE ?)"; $par[] = '%' . $t . '%'; $par[] = '%' . $t . '%'; }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($q['al_from'] ?? ''))) { $w[] = "substr(created_at,1,10) >= ?"; $par[] = $q['al_from']; }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($q['al_to'] ?? ''))) { $w[] = "substr(created_at,1,10) <= ?"; $par[] = $q['al_to']; }
+    return ['sql' => implode(' AND ', $w), 'par' => $par];
+}
+
+function _pp_audit_row(array $r, array &$names): array {
+    $d = json_decode((string)$r['details'], true) ?: [];
+    $who = (string)($d['by'] ?? '');
+    if ($who === '' && !empty($r['user_id'])) { $uid = (int)$r['user_id']; $names[$uid] ??= (string)(db_one("SELECT name FROM users WHERE id=?", [$uid])['name'] ?? ('użytkownik #' . $uid)); $who = $names[$uid]; }
+    $sum = []; foreach (array_diff_key($d, ['by' => 1, 'row' => 1]) as $k => $v) $sum[] = $k . ': ' . (is_scalar($v) ? (string)$v : json_encode($v, JSON_UNESCAPED_UNICODE));
+    return $r + ['who' => $who !== '' ? $who : '—', 'summary' => mb_strimwidth(implode(' · ', $sum), 0, 240, '…')];
+}
+
+/** @return array{rows:list<array>, total:int} najnowsze 200 wpisów dla filtrów */
+function pp_audit_query(array $q): array {
+    $w = _pp_audit_where($q); $names = [];
+    try {
+        $total = (int)(db_one("SELECT COUNT(*) c FROM audit_logs WHERE " . $w['sql'], $w['par'])['c'] ?? 0);
+        $rows = db_all("SELECT * FROM audit_logs WHERE " . $w['sql'] . " ORDER BY id DESC LIMIT 200", $w['par']);
+    } catch (\Throwable $e) { return ['rows' => [], 'total' => 0]; }
+    return ['rows' => array_map(function ($r) use (&$names) { return _pp_audit_row($r, $names); }, $rows), 'total' => $total];
+}
+
+function pp_audit_csv(array $q, string $by): never {
+    $w = _pp_audit_where($q); $names = [];
+    audit_log('payments.audit_csv', ['filters' => array_intersect_key($q, array_flip(['al_a', 'al_q', 'al_from', 'al_to'])), 'by' => $by], null);
+    header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="dziennik_platnosci_' . date('Ymd') . '.csv"');
+    $o = fopen('php://output', 'w'); fwrite($o, "\xEF\xBB\xBF"); fputcsv($o, ['kiedy', 'akcja', 'kto', 'szczegoly', 'ip'], ';');
+    foreach (db_all("SELECT * FROM audit_logs WHERE " . $w['sql'] . " ORDER BY id DESC LIMIT 20000", $w['par']) as $r) { $x = _pp_audit_row($r, $names); fputcsv($o, [$r['created_at'], $r['action'], $x['who'], $x['summary'], $r['ip_address'] ?? ''], ';'); }
+    fclose($o); exit;
+}

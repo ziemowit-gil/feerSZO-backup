@@ -68,6 +68,8 @@ if (($_GET['export'] ?? '') === 'gen') {
     echo implode("\r\n", $l), "\r\n"; exit;
 }
 
+if (($_GET['export'] ?? '') === 'audit') { pp_audit_csv($_GET, $by); }
+if (($_GET['export'] ?? '') === 'report') { pp_month_report_csv((string)($_GET['rm'] ?? date('Y-m')), $by); }
 if (($_GET['export'] ?? '') === 'csv') pp_vnrb_export_csv($by);
 if (($_GET['pdf'] ?? '') === 'notice') pp_vnrb_notice_send(in_array($_GET['scope'] ?? '', ['client', 'last', 'unnotified', 'all'], true) ? $_GET['scope'] : 'client', (int)($_GET['client'] ?? 0), $by);
 if (($_GET['report'] ?? '') === 'status') pp_vnrb_status_print((string)($_GET['cat'] ?? ''), $by);
@@ -331,7 +333,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <span class="rounded-lg bg-amber-400/90 px-3 py-1 text-navy-700">przelewy do potwierdzenia <strong><?= count($nrb_pending) ?></strong></span>
   </div>
 </div></header>
-<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','korespondencja','payu','p24','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
+<main class="mx-auto max-w-7xl px-4 py-5 space-y-5" x-data="{ tab: 'przeglad', init() { try { var t = location.hash.slice(1) || localStorage.getItem('pp_tab'); if (['przeglad','przelewy','uczestnicy','rachunki','korespondencja','raport','dziennik','payu','p24','ustawienia'].includes(t)) this.tab = t; <?= ($q !== '' || $pid) ? "this.tab = 'uczestnicy';" : '' ?> } catch (e) {} }, go(t) { this.tab = t; try { localStorage.setItem('pp_tab', t); history.replaceState(null, '', '#' + t); } catch (e) {} } }">
   <?php if ($flash): ?><div role="status" class="rounded-lg px-4 py-3 text-sm <?= $flash['type'] === 'danger' ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' ?>"><?= h((string)$flash['msg']) ?></div><?php endif; ?>
   <?php if ($link_once): ?>
   <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm ring-1 ring-amber-300" x-data="{ c: false }">
@@ -351,7 +353,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endforeach; ?>
   <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
-    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c) + count($unres)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'payu' => ['PayU', 'bi-credit-card-2-front', 0], 'p24' => ['Przelewy24', 'bi-credit-card', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
+    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c) + count($unres)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'raport' => ['Raport', 'bi-bar-chart', 0], 'dziennik' => ['Dziennik', 'bi-journal-text', 0], 'payu' => ['PayU', 'bi-credit-card-2-front', 0], 'p24' => ['Przelewy24', 'bi-credit-card', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
     <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"
             class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?>
       <?php if ($tb): ?><span class="rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-navy-700"><?= $tb ?></span><?php endif; ?></button>
@@ -651,6 +653,54 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <div><label class="lbl" for="pr-sm">Treść SMS (puste = bez SMS)</label><textarea id="pr-sm" name="sms_text" rows="2" class="inp" maxlength="320"><?= h($rt['sms']) ?></textarea></div>
         <button class="bp">Zapisz szkic przypomnienia</button>
       </form>
+    </section>
+  </div>
+
+  <div x-show="tab === 'raport'" x-cloak class="space-y-5">
+    <?php $rm = preg_match('/^\d{4}-\d{2}$/', (string)($_GET['rm'] ?? '')) ? (string)$_GET['rm'] : date('Y-m'); $rep = pp_month_report($rm); ?>
+    <section class="card space-y-3" aria-labelledby="rp-h">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <h2 id="rp-h" class="font-semibold"><i class="bi bi-bar-chart text-navy-700" aria-hidden="true"></i> Raport miesięczny płatności</h2>
+        <form method="get" action="admin.php#raport" class="flex items-end gap-2"><div><label class="lbl" for="rm">Miesiąc</label><input id="rm" type="month" name="rm" value="<?= h($rm) ?>" class="inp"></div><button class="bs">Pokaż</button>
+          <a class="bs" href="admin.php?export=report&rm=<?= h($rm) ?>"><i class="bi bi-filetype-csv" aria-hidden="true"></i>Eksport CSV</a></form>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl bg-slate-50 p-3"><div class="text-xs text-slate-500">Wpływy (wpłaty)</div><div class="text-2xl font-semibold tabular-nums text-emerald-700"><?= h(pp_fmt($rep['in_total'])) ?></div><div class="text-xs text-slate-500"><?= (int)$rep['in_count'] ?> wpłat</div></div>
+        <div class="rounded-xl bg-slate-50 p-3"><div class="text-xs text-slate-500">Umorzenia / korekty</div><div class="text-2xl font-semibold tabular-nums"><?= h(pp_fmt($rep['adj_total'])) ?></div><div class="text-xs text-slate-500"><?= (int)$rep['adj_count'] ?> wpisów</div></div>
+        <div class="rounded-xl bg-slate-50 p-3"><div class="text-xs text-slate-500">Niedopłaty (stan na dziś)</div><div class="text-2xl font-semibold tabular-nums text-red-700"><?= h(pp_fmt($rep['debt'])) ?></div><div class="text-xs text-slate-500"><?= (int)$rep['debtors'] ?> osób</div></div>
+        <div class="rounded-xl bg-slate-50 p-3"><div class="text-xs text-slate-500">Nadpłaty do rozdysponowania</div><div class="text-2xl font-semibold tabular-nums text-sky-700"><?= h(pp_fmt($rep['overpay'])) ?></div><div class="text-xs text-slate-500">stan na dziś</div></div>
+      </div>
+      <div class="grid gap-5 lg:grid-cols-2">
+        <div><h3 class="mb-1 text-sm font-semibold">Wpływy wg metody</h3>
+          <table class="min-w-full text-sm"><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-1 pr-3">Metoda</th><th class="pr-3 text-right">Wpłat</th><th class="text-right">Kwota</th></tr></thead><tbody class="divide-y divide-slate-100">
+            <?php foreach ($rep['by_method'] as $m): ?><tr><td class="py-1 pr-3"><?= h($m['label']) ?></td><td class="pr-3 text-right tabular-nums"><?= (int)$m['n'] ?></td><td class="text-right tabular-nums"><?= h(pp_fmt($m['sum'])) ?></td></tr><?php endforeach; ?>
+            <?php if (!$rep['by_method']): ?><tr><td colspan="3" class="py-3 text-slate-500">Brak wpłat w tym miesiącu.</td></tr><?php endif; ?></tbody></table></div>
+        <div><h3 class="mb-1 text-sm font-semibold">Kanały online i numery wirtualne</h3>
+          <table class="min-w-full text-sm"><tbody class="divide-y divide-slate-100">
+            <?php foreach ($rep['channels'] as $c): ?><tr><td class="py-1 pr-3"><?= h($c['label']) ?></td><td class="pr-3 text-right tabular-nums"><?= (int)$c['n'] ?></td><td class="text-right tabular-nums"><?= h(pp_fmt($c['sum'])) ?></td></tr><?php endforeach; ?></tbody></table>
+          <p class="mt-1 text-xs text-slate-500">Kwoty z bramek i z automatycznego księgowania po numerze wirtualnym wchodzą też do wpływów wg metody.</p></div>
+      </div>
+    </section>
+  </div>
+
+  <div x-show="tab === 'dziennik'" x-cloak class="space-y-5">
+    <?php $al = pp_audit_query($_GET); ?>
+    <section class="card space-y-3" aria-labelledby="dz-h">
+      <h2 id="dz-h" class="font-semibold"><i class="bi bi-journal-text text-navy-700" aria-hidden="true"></i> Dziennik audytu płatności <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"><?= (int)$al['total'] ?></span></h2>
+      <form method="get" action="admin.php#dziennik" class="grid gap-2 md:grid-cols-6 items-end">
+        <div><label class="lbl" for="al-a">Obszar</label><select id="al-a" name="al_a" class="inp"><?php foreach (['' => 'wszystkie (płatności)', 'payments.' => 'payments.* (płatności)', 'overpayments.' => 'overpayments.* (nadpłaty)', 'pricing.' => 'pricing.* (cennik)'] as $ak => $alab): ?><option value="<?= h($ak) ?>"<?= ($_GET['al_a'] ?? '') === $ak ? ' selected' : '' ?>><?= h($alab) ?></option><?php endforeach; ?></select></div>
+        <div class="md:col-span-2"><label class="lbl" for="al-q">Szukaj (osoba, akcja, treść)</label><input id="al-q" name="al_q" class="inp" value="<?= h($_GET['al_q'] ?? '') ?>" placeholder="np. nazwisko, nrb, blokada"></div>
+        <div><label class="lbl" for="al-f">Od</label><input id="al-f" type="date" name="al_from" class="inp" value="<?= h($_GET['al_from'] ?? '') ?>"></div>
+        <div><label class="lbl" for="al-t">Do</label><input id="al-t" type="date" name="al_to" class="inp" value="<?= h($_GET['al_to'] ?? '') ?>"></div>
+        <div class="flex gap-2"><button class="bp">Filtruj</button><a class="bs" href="admin.php?export=audit&<?= h(http_build_query(array_intersect_key($_GET, array_flip(['al_a', 'al_q', 'al_from', 'al_to'])))) ?>" title="Eksport CSV"><i class="bi bi-filetype-csv" aria-hidden="true"></i></a></div>
+      </form>
+      <div class="max-h-[34rem] overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kiedy</th><th class="pr-3">Akcja</th><th class="pr-3">Kto</th><th class="pr-3">Szczegóły</th></tr></thead><tbody class="divide-y divide-slate-100">
+        <?php foreach ($al['rows'] as $ar): ?>
+        <tr class="align-top"><td class="whitespace-nowrap py-1.5 pr-3 text-xs"><?= h(substr((string)$ar['created_at'], 0, 16)) ?></td><td class="pr-3 font-mono text-xs"><?= h((string)$ar['action']) ?></td><td class="pr-3 text-xs"><?= h($ar['who']) ?></td>
+          <td class="pr-3 text-xs text-slate-600"><?= h($ar['summary']) ?></td></tr>
+        <?php endforeach; ?>
+        <?php if (!$al['rows']): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak wpisów dla tych filtrów.</td></tr><?php endif; ?></tbody></table></div>
+      <?php if ($al['total'] > count($al['rows'])): ?><p class="text-xs text-slate-500">Pokazano <?= count($al['rows']) ?> najnowszych z <?= (int)$al['total'] ?>. Zawęź filtry albo pobierz CSV (pełna lista).</p><?php endif; ?>
     </section>
   </div>
 
