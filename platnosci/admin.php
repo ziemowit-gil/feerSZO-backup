@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/crm.php';
 require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php';
 
 require_role('admin');
@@ -18,6 +19,29 @@ pp_migrate();
 $me  = current_user();
 $by  = (string)($me['name'] ?? $me['email'] ?? 'admin');
 $uid = (int)($me['id'] ?? 0) ?: null;
+
+// Eksport numerów rachunków wirtualnych do pliku TXT (TI = kursanci z numerem, CRM = aktywne kontakty)
+if (($_GET['export'] ?? '') === 'txt') {
+    $g = (string)($_GET['g'] ?? 'all');
+    $bank = pp_vnrb_bank(); $rrrr = pp_vnrb_rrrr();
+    $lines = ["NRB\tgrupa\tid\tnazwa"];
+    if ($g === 'ti' || $g === 'all') {
+        foreach (db_all("SELECT a.client_id, a.student_no, c.name FROM k30_ti_student_accounts a JOIN k30_clients c ON c.id=a.client_id ORDER BY c.name") as $r) {
+            $n = preg_match('/^\d{12}$/', (string)$r['student_no']) ? pp_vnrb_build($bank, $rrrr, $r['student_no']) : null;
+            if ($n) $lines[] = 'PL' . $n . "\tTI\t" . $r['client_id'] . "\t" . str_replace(["\t", "\r", "\n"], ' ', (string)$r['name']);
+        }
+    }
+    if ($g === 'crm' || $g === 'all') {
+        foreach (crm_all("SELECT id, imie_nazwisko, nip FROM crm_contacts WHERE crm_active=1 ORDER BY imie_nazwisko") as $r) {
+            $n = pp_nrb_normalize((string)pp_vnrb_for_crm((int)$r['id'], $r['nip']));
+            if ($n !== '') $lines[] = 'PL' . $n . "\tCRM\t" . $r['id'] . "\t" . str_replace(["\t", "\r", "\n"], ' ', (string)$r['imie_nazwisko']);
+        }
+    }
+    audit_log('payments.vnrb_export', ['group' => $g, 'rows' => count($lines) - 1, 'by' => $by], $uid);
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="rachunki_wirtualne_' . preg_replace('/\W/', '', $g) . '_' . date('Ymd') . '.txt"');
+    echo implode("\r\n", $lines), "\r\n"; exit;
+}
 
 $link_once = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -291,6 +315,10 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <label class="md:col-span-4 flex items-center gap-2 text-sm"><input type="checkbox" name="do_assign" value="1"> Zapisz wynik jako indywidualny NRB tego uczestnika (utworzy dostęp, jeśli go nie ma)</label>
       <div class="md:col-span-2 text-right"><button class="bp">Generuj</button></div>
     </form>
+    <p class="text-sm">Eksport do TXT (NRB, grupa, ID, nazwa):
+      <a class="bs" href="admin.php?export=txt&g=ti">Kursanci TI</a>
+      <a class="bs" href="admin.php?export=txt&g=crm">Kontrahenci CRM</a>
+      <a class="bs" href="admin.php?export=txt&g=all">Wszystko</a></p>
     <?php if ($vgen): ?>
     <div class="rounded-lg bg-slate-50 p-4 space-y-1" aria-live="polite">
       <div class="font-mono text-lg tracking-wide">PL<?= h(substr($vgen['nrb'], 0, 2)) ?> <span class="text-red-600"><?= h(substr($vgen['nrb'], 2, 4)) ?> <?= h(substr($vgen['nrb'], 6, 4)) ?></span> <span class="text-purple-700"><?= h($vgen['rrrr']) ?></span> <span class="text-emerald-700"><?= h(trim(chunk_split($vgen['part'], 4, ' '))) ?></span></div>
