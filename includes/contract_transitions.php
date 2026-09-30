@@ -68,7 +68,19 @@ function contract_block_alert(string $type, array $row): string
 {
     if (empty($row['is_blocked'])) return '';
 
-    $reasons = ['missing_parental_consent' => 'brak aktualnej zgody przedstawiciela ustawowego (niepełnoletni wolontariusz)'];
+    $reasons = [
+        'missing_parental_consent' => 'brak aktualnej zgody przedstawiciela ustawowego (niepełnoletni wolontariusz)',
+        'outside_szo_settlement'   => 'umowa rozliczona poza SZO (zawarta przed 01.08.2026)',
+    ];
+    if (($row['block_reason'] ?? '') === 'outside_szo_settlement') {
+        ob_start(); ?>
+    <div class="alert alert-secondary no-print mb-2 py-2">
+      <strong><i class="bi bi-lock-fill"></i> Umowa zablokowana.</strong>
+      Powód: <?= h($reasons['outside_szo_settlement']) ?> — rozliczeń nie prowadzi się w SZO.
+      <div class="text-muted small mt-1">Zablokowano: <?= date_pl($row['blocked_at'] ?? null) ?></div>
+    </div>
+    <?php return ob_get_clean();
+    }
     $reason  = $reasons[$row['block_reason'] ?? ''] ?? ($row['block_reason'] ?? 'nieznany powód');
     $consentOk = function_exists('guardian_consent_is_valid') && guardian_consent_is_valid($row);
 
