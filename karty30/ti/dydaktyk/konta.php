@@ -303,6 +303,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    // Numer rachunku wirtualnego kursanta — fizycznie zapisany (payment_portal_users.individual_nrb)
+    if ($op === 'set_vnrb' || $op === 'assign_vnrb_pool') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
+        if ($acc) {
+            $cid = (int)$acc['client_id'];
+            $by_name = (string)($me['name'] ?? '');
+            $uid_n = (int)($me['user_id'] ?? 0) ?: null;
+            if ($op === 'assign_vnrb_pool') {
+                $cur = pp_user($cid);
+                if ($cur && trim((string)$cur['individual_nrb']) !== '') flash_set('warning', 'Kursant ma już numer rachunku — użyj pola poniżej, aby go zmienić.');
+                else {
+                    $n = pp_ti_sync_nrb($cid, $by_name, $uid_n);
+                    flash_set($n ? 'success' : 'warning', $n ? 'Nadano numer z puli: ' . pp_nrb_format($n) : 'Brak wolnych numerów w puli TI (albo kursant jest wirtualny).');
+                }
+            } else {
+                $raw = trim((string)($_POST['vnrb'] ?? ''));
+                if ($raw !== '' && is_string($u = pp_user_ensure($cid, $by_name, $uid_n))) { flash_set('danger', $u); }
+                else {
+                    $err = pp_set_nrb($cid, $raw, $by_name, $uid_n);
+                    if ($err) flash_set('danger', $err);
+                    else {
+                        if ($raw !== '') db()->prepare("UPDATE pp_vnrb_pool SET participant_id=?, assigned_at=datetime('now') WHERE nrb=? AND participant_id IS NULL AND crm_contact_id IS NULL")
+                                           ->execute([$cid, pp_nrb_normalize($raw)]);
+                        flash_set('success', $raw === '' ? 'Numer rachunku usunięty.' : 'Numer rachunku zapisany: ' . pp_nrb_format($raw));
+                    }
+                }
+            }
+        }
+        header('Location: konta.php?selected=' . $aid . '#detail-panel'); exit;
+    }
+
     if ($op === 'toggle_no_billing') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
@@ -1192,10 +1224,22 @@ function printBulk(){
                            class="form-control form-control-sm font-monospace" style="width:110px" placeholder="—">
                     <button type="submit" class="btn btn-sm btn-outline-secondary" title="Zapisz numer kursanta" aria-label="Zapisz numer kursanta"><i class="bi bi-save" aria-hidden="true"></i></button>
                   </div>
-                  <?php if ($vn = pp_vnrb_for_ti((int)$sa['client_id'])): ?>
-                  <div class="small text-muted mt-1">Rachunek do wpłat: <span class="font-monospace user-select-all"><?= h($vn) ?></span></div>
-                  <?php endif; ?>
                 </div>
+              </form>
+            </div>
+            <div class="col-auto">
+              <?php $pu = pp_user((int)$sa['client_id']); $stored = preg_replace('/\D/', '', (string)($pu['individual_nrb'] ?? '')); ?>
+              <form method="post" class="d-flex flex-column gap-1">
+                <input type="hidden" name="_token"      value="<?= h(dyd_token()) ?>">
+                <input type="hidden" name="account_id"  value="<?= (int)$sa['id'] ?>">
+                <label class="form-label small mb-0" for="vn<?= (int)$sa['id'] ?>">Numer rachunku do wpłat <?= $stored !== '' ? '<span class="badge text-bg-success">nadany</span>' : '<span class="badge text-bg-secondary">brak</span>' ?></label>
+                <div class="d-flex gap-1">
+                  <input type="text" id="vn<?= (int)$sa['id'] ?>" name="vnrb" value="<?= h($stored !== '' ? pp_nrb_format($stored) : '') ?>"
+                         class="form-control form-control-sm font-monospace user-select-all" style="width:330px" placeholder="26 cyfr — pusty = brak">
+                  <button type="submit" name="_op" value="set_vnrb" class="btn btn-sm btn-outline-secondary" title="Zapisz numer" aria-label="Zapisz numer rachunku"><i class="bi bi-save" aria-hidden="true"></i></button>
+                  <?php if ($stored === ''): ?><button type="submit" name="_op" value="assign_vnrb_pool" class="btn btn-sm btn-outline-primary" title="Nadaj kolejny wolny numer z puli TI">Z puli</button><?php endif; ?>
+                </div>
+                <?php if ($stored === ''): ?><div class="small text-muted">Bez numeru kursant płaci na rachunek grupy/organizacji.</div><?php endif; ?>
               </form>
             </div>
             <div class="col-auto">
