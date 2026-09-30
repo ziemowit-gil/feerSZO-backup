@@ -83,7 +83,7 @@ const PP_VNRB_RRRR = '3286';
 function pp_vnrb_bank(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank')); return $v !== '' ? $v : PP_VNRB_BANK; }
 function pp_vnrb_rrrr(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_prefix')); return $v !== '' ? $v : PP_VNRB_RRRR; }
 
-/** Serie rachunków: klucz = grupa puli, kod = 4 cyfry (nadpisywalny org_setting pp_series_{klucz}). */
+/** Serie rachunków: klucz = grupa puli, kod = 4 cyfry początku serii (nadpisywalny org_setting pp_series_{klucz}). */
 function pp_series(): array {
     $def = ['ti' => ['Kursanci TI', '1111'], 'inni' => ['Kontrahenci inni', '2222'], 'spoza_ti' => ['Uczestnicy spoza TI', '3333'], 'reczny' => ['Ręczne', '4444']];
     $out = [];
@@ -93,10 +93,10 @@ function pp_series(): array {
     }
     return $out;
 }
-/** Jedyny numer startowy serii (kod + 00000001), który SZO podaje bankowi. */
+/** Jedyny numer startowy serii (końcówka 12 cyfr = 00000000 + kod, np. 000000001111), który SZO podaje bankowi; bank numeruje dalej rosnąco. */
 function pp_series_start(string $grp): ?string {
     $se = pp_series()[$grp] ?? null;
-    return $se ? pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $se['code'] . '00000001') : null;
+    return $se ? pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), '00000000' . $se['code']) : null;
 }
 
 const PP_VGROUPS = [
