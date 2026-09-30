@@ -1205,6 +1205,23 @@ include __DIR__ . '/_layout_head.php';
   $konto_tabs     = ['platnosci','rozliczenia','portfel','upowaznieni','ustawienia'];
   $dostepy_tabs   = ['online','vlab','dysk','licencje','pfron'];
   $inne_tabs      = ['problem','aktywnosc','regulaminy'];
+  // Menu w grupach — źródło dla etykiety otwartej podstrony przy aktywnej grupie
+  // (np. „Konto: Portfel”) i dla mobilnego panelu „Więcej” (offcanvas #kpMore).
+  $kp_menu = [
+      'Szkolenia' => [['lekcje','calendar-check','Moje lekcje'], ['zadania','journal-check','Dydaktyka / eLearning'],
+                      ['','book','Biblioteka materiałów','../ext/index.php?as=student'], ['zapisy','ticket-perforated','Zapisy na zajęcia'],
+                      ['oceny','table','Oceny'], ['plan','list-check','Plan nauczania'], ['egzaminy','card-checklist','Testy'], ['testy','clock-history','Testy (starsze)']],
+      'Komunikacja' => [['komunikaty','megaphone','Komunikaty'], ['wiadomosci','envelope','Wiadomości']],
+      'Konto' => array_merge($is_minor ? [] : [['platnosci','cash-coin','Płatności'], ['rozliczenia','receipt','Rozliczenia'],
+                      ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['ustawienia','gear','Ustawienia']]),
+      'Dostępy' => [['online','camera-video','Szkolenia online'], ['vlab','code-square','VLab'], ['dysk','hdd-network','Mój dysk'],
+                    ['licencje','key','Licencje'], ['pfron','shield-lock','PFRON (konsultacje)']],
+      'Inne' => [['problem','life-preserver','Pomoc'], ['aktywnosc','clock-history','Aktywność konta'], ['regulaminy','file-earmark-text','Regulaminy']],
+  ];
+  $kp_tab_label = [];
+  foreach ($kp_menu as $_g) foreach ($_g as $_i) if ($_i[0] !== '') $kp_tab_label[$_i[0]] = $_i[2];
+  $kp_cur = fn(bool $active) => $active && isset($kp_tab_label[$tab])
+      ? '<span class="d-none d-xl-inline fw-normal">: ' . h($kp_tab_label[$tab]) . '</span>' : '';
   $nauka_active   = in_array($tab, $nauka_tabs, true);
   $konto_active   = in_array($tab, $konto_tabs, true);
   $dostepy_active = in_array($tab, $dostepy_tabs, true);
@@ -1222,7 +1239,7 @@ include __DIR__ . '/_layout_head.php';
          renderujemy wcale — nie chcemy dwóch nawigacji „Sekcje panelu”
          w drzewie dostępności. */ ?>
 <?php if ($KUR_UI !== 'alt'): ?>
-<nav class="container-xl px-3 pt-3 <?= $tab === 'dane' ? 'kp-nav-startpage' : '' ?>" aria-label="Sekcje panelu">
+<nav class="container-xl px-3 pt-3 d-none d-lg-block <?= $tab === 'dane' ? 'kp-nav-startpage' : '' ?>" aria-label="Sekcje panelu">
   <ul class="nav nav-tabs">
 
     <li class="nav-item">
@@ -1235,7 +1252,7 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $nauka_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Szkolenia
+        <i class="bi bi-mortarboard me-1" aria-hidden="true"></i>Szkolenia<?= $kp_cur($nauka_active) ?>
         <?php if ($hw_pending_total > 0): ?><span class="badge text-bg-warning ms-1"><?= $hw_pending_total ?><span class="visually-hidden"> zadań do oddania</span></span><?php endif; ?>
       </a>
       <ul class="dropdown-menu">
@@ -1280,7 +1297,7 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $konto_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Konto
+        <i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Konto<?= $kp_cur($konto_active) ?>
       </a>
       <ul class="dropdown-menu">
         <?php if (!$is_minor): ?>
@@ -1303,7 +1320,7 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $dostepy_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-grid me-1" aria-hidden="true"></i>Dostępy
+        <i class="bi bi-grid me-1" aria-hidden="true"></i>Dostępy<?= $kp_cur($dostepy_active) ?>
       </a>
       <ul class="dropdown-menu">
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='online'?'active':'' ?>" href="?tab=online" <?= $tab==='online'?'aria-current="page"':'' ?>>
@@ -1328,7 +1345,7 @@ include __DIR__ . '/_layout_head.php';
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle <?= $mc() ?> <?= $inne_active?'active':'' ?>" href="#" role="button"
          data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-three-dots me-1" aria-hidden="true"></i>Inne
+        <i class="bi bi-three-dots me-1" aria-hidden="true"></i>Inne<?= $kp_cur($inne_active) ?>
         <?php if (!empty($terms_pending)): ?><span class="badge text-bg-danger ms-1"><?= count($terms_pending) ?><span class="visually-hidden"> spraw do załatwienia</span></span><?php endif; ?>
       </a>
       <ul class="dropdown-menu dropdown-menu-end">
@@ -5935,32 +5952,58 @@ $authp_list = db_all(
 </div>
 <?php endif; ?>
 
-<!-- ── Bottom nav — widoczny tylko na mobile (<= lg) ────────────────────── -->
-<nav class="d-lg-none fixed-bottom bg-body border-top" style="padding-bottom:env(safe-area-inset-bottom)" aria-label="Nawigacja główna (mobile)">
+<!-- ── Dolny pasek — tylko na telefonie/tablecie (< lg). Górny pasek zakładek jest tam
+     ukryty, więc „Więcej” otwiera pełne menu (offcanvas #kpMore) zamiast Ustawień. ── -->
+<?php
+  $kp_bn = [
+      ['dane',       'house',          'house-fill',          'Start',    0,                  ''],
+      ['lekcje',     'calendar-check', 'calendar-check-fill', 'Lekcje',   0,                  ''],
+      ['zadania',    'journal',        'journal-check',       'Zadania',  $hw_pending_total,  'bg-warning text-dark'],
+      ['wiadomosci', 'envelope',       'envelope-fill',       'Wiadomości', (int)$msg_unread, 'bg-primary'],
+  ];
+  $kp_more_badge = (int)$notices_unread + (!empty($terms_pending) ? count($terms_pending) : 0);
+?>
+<nav class="d-lg-none fixed-bottom bg-body border-top kp-bottomnav" style="padding-bottom:env(safe-area-inset-bottom)" aria-label="Nawigacja główna (telefon)">
   <div class="d-flex justify-content-around py-1">
-    <a href="?tab=dane" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 <?= $tab==='dane' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
-      <i class="bi bi-house<?= $tab==='dane' ? '-fill' : '' ?>" style="font-size:1.3rem"></i>
-      <span style="font-size:.65rem">Dane</span>
+    <?php foreach ($kp_bn as [$t, $ic, $ic_on, $lbl, $bdg, $bcls]): $on = $tab === $t; ?>
+    <a href="?tab=<?= $t ?>" class="kp-bn-item position-relative <?= $on ? 'text-primary' : 'text-body-secondary' ?>"<?= $on ? ' aria-current="page"' : '' ?>>
+      <i class="bi bi-<?= $on ? $ic_on : $ic ?>" aria-hidden="true"></i>
+      <?php if ($bdg > 0): ?><span class="kp-bn-badge badge rounded-pill <?= $bcls ?>"><?= (int)$bdg ?><span class="visually-hidden"> nowych</span></span><?php endif; ?>
+      <span class="kp-bn-label"><?= h($lbl) ?></span>
     </a>
-    <a href="?tab=lekcje" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 <?= $tab==='lekcje' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
-      <i class="bi bi-calendar<?= $tab==='lekcje' ? '-check-fill' : '-check' ?>" style="font-size:1.3rem"></i>
-      <span style="font-size:.65rem">Lekcje</span>
-    </a>
-    <a href="?tab=zadania" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 position-relative <?= $tab==='zadania' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
-      <i class="bi bi-journal<?= $tab==='zadania' ? '-check' : '' ?>" style="font-size:1.3rem"></i>
-      <?php if ($hw_pending_total > 0): ?><span class="position-absolute badge rounded-pill bg-warning text-dark" style="top:0;right:4px;font-size:.55rem;padding:.2em .4em"><?= $hw_pending_total ?></span><?php endif; ?>
-      <span style="font-size:.65rem">Zadania</span>
-    </a>
-    <a href="?tab=wiadomosci" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 position-relative <?= $tab==='wiadomosci' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
-      <i class="bi bi-envelope<?= $tab==='wiadomosci' ? '-fill' : '' ?>" style="font-size:1.3rem"></i>
-      <?php if ($msg_unread > 0): ?><span class="position-absolute badge rounded-pill bg-primary" style="top:0;right:4px;font-size:.55rem;padding:.2em .4em"><?= $msg_unread ?></span><?php endif; ?>
-      <span style="font-size:.65rem">Wiad.</span>
-    </a>
-    <a href="?tab=ustawienia" class="d-flex flex-column align-items-center text-decoration-none px-2 py-1 <?= $tab==='ustawienia' ? 'text-primary' : 'text-body-secondary' ?>" style="min-width:56px">
-      <i class="bi bi-gear<?= $tab==='ustawienia' ? '-fill' : '' ?>" style="font-size:1.3rem"></i>
-      <span style="font-size:.65rem">Więcej</span>
-    </a>
+    <?php endforeach; ?>
+    <button type="button" class="kp-bn-item position-relative btn btn-link text-decoration-none <?= in_array($tab, array_column($kp_bn, 0), true) ? 'text-body-secondary' : 'text-primary' ?>"
+            data-bs-toggle="offcanvas" data-bs-target="#kpMore" aria-controls="kpMore">
+      <i class="bi bi-grid-3x3-gap<?= in_array($tab, array_column($kp_bn, 0), true) ? '' : '-fill' ?>" aria-hidden="true"></i>
+      <?php if ($kp_more_badge > 0): ?><span class="kp-bn-badge badge rounded-pill bg-danger"><?= $kp_more_badge ?><span class="visually-hidden"> spraw w menu</span></span><?php endif; ?>
+      <span class="kp-bn-label">Więcej</span>
+    </button>
   </div>
 </nav>
+
+<div class="offcanvas offcanvas-bottom kp-more d-lg-none" tabindex="-1" id="kpMore" aria-labelledby="kpMoreTitle">
+  <div class="offcanvas-header pb-1">
+    <h2 class="offcanvas-title h6 fw-bold" id="kpMoreTitle">Menu panelu</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Zamknij menu"></button>
+  </div>
+  <div class="offcanvas-body pt-1">
+    <?php foreach ($kp_menu as $grp => $items): ?>
+    <div class="text-uppercase text-body-secondary fw-semibold small mt-2 mb-1" style="letter-spacing:.04em"><?= h($grp) ?></div>
+    <div class="kp-more-grid mb-2">
+      <?php foreach ($items as $it):
+        $href = $it[3] ?? ('?tab=' . $it[0]);
+        $on   = $it[0] !== '' && $tab === $it[0];
+        $b    = match ($it[0]) { 'zadania' => $hw_pending_total, 'komunikaty' => (int)$notices_unread, 'wiadomosci' => (int)$msg_unread,
+                                 'regulaminy' => !empty($terms_pending) ? count($terms_pending) : 0, default => 0 }; ?>
+      <a href="<?= h($href) ?>" class="kp-more-item <?= $on ? 'active' : '' ?>"<?= $on ? ' aria-current="page"' : '' ?>>
+        <i class="bi bi-<?= h($it[1]) ?>" aria-hidden="true"></i><span><?= h($it[2]) ?></span>
+        <?php if ($b > 0): ?><span class="badge rounded-pill text-bg-danger ms-auto"><?= (int)$b ?></span><?php endif; ?>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endforeach; ?>
+    <a href="index.php?logout=1" class="kp-more-item text-danger mt-2"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Wyloguj się</span></a>
+  </div>
+</div>
 
 <?php include __DIR__ . '/_layout_foot.php'; ?>

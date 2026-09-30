@@ -199,6 +199,22 @@ html.kp-hidemenu nav[aria-label="Sekcje panelu"] { display:none !important; }
 .kp-progress { height:8px; border-radius:4px; }
 .kp-dash-card { transition:box-shadow .15s; }
 .kp-dash-card:hover { box-shadow:0 .25rem .75rem rgba(0,0,0,.12) !important; }
+a.kp-dash-card:focus-visible { outline:3px solid rgba(var(--bs-primary-rgb),.55); outline-offset:2px; }
+/* Dolny pasek (telefon) i panel „Więcej” — index.php */
+.kp-bottomnav { z-index:1030; box-shadow:0 -.25rem .75rem rgba(0,0,0,.06); }
+.kp-bn-item { display:flex; flex-direction:column; align-items:center; min-width:60px; min-height:48px; padding:.25rem .4rem; text-decoration:none; border:0; background:none; }
+.kp-bn-item .bi { font-size:1.35rem; line-height:1.1; }
+.kp-bn-label { font-size:.72rem; line-height:1.2; }
+.kp-bn-badge { position:absolute; top:0; right:6px; font-size:.62rem; padding:.2em .45em; }
+.kp-bn-item:focus-visible, .kp-more-item:focus-visible { outline:3px solid rgba(var(--bs-primary-rgb),.55); outline-offset:1px; border-radius:.4rem; }
+.kp-more { height:auto; max-height:85vh; border-top-left-radius:1rem; border-top-right-radius:1rem; }
+.kp-more-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.35rem; }
+@media (min-width:576px) { .kp-more-grid { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+.kp-more-item { display:flex; align-items:center; gap:.5rem; min-height:44px; padding:.45rem .6rem; border-radius:.5rem;
+  text-decoration:none; color:var(--bs-body-color); background:var(--bs-tertiary-bg); font-size:.9rem; }
+.kp-more-item .bi { font-size:1.1rem; color:var(--bs-primary); flex-shrink:0; }
+.kp-more-item.active { background:rgba(var(--bs-primary-rgb),.12); color:var(--bs-primary); font-weight:600; }
+.kp-more-item:hover { background:rgba(var(--bs-primary-rgb),.08); }
 .kp-mini-cal { width:100%; table-layout:fixed; font-size:.82rem; }
 .kp-mini-cal th { text-align:center; padding:.25rem; color:var(--bs-secondary-color); font-weight:600; }
 .kp-mini-cal td { text-align:center; padding:.3rem .1rem; vertical-align:top; }
