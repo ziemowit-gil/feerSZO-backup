@@ -460,6 +460,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
       <div class="flex flex-wrap items-center gap-2">
         <a class="bs" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj raport</a>
+        <button type="button" class="bp" @click="sub = 'import'; $nextTick(() => { var e = document.getElementById('powiadomienia'); if (e) e.scrollIntoView({behavior: 'smooth', block: 'start'}); })"><i class="bi bi-envelope-paper" aria-hidden="true"></i>Wyślij masowo e-mail i SMS z numerem</button>
         <span class="text-xs text-slate-400">|</span>
         <span class="text-xs font-medium text-slate-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF „nadano numer”:</span>
         <a class="bp" href="admin.php?pdf=notice&scope=all" target="_blank" rel="noopener">Wszyscy z numerem</a>
