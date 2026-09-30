@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth/auth.service';
 import { AppDataService } from '../../core/services/app-data.service';
 import { PushService } from '../../core/services/push.service';
+import { KursantApiService } from '../../core/services/kursant-api.service';
 
 interface NavItem {
   path: string;
@@ -19,6 +20,8 @@ interface NavItem {
   hideMinor?: boolean;
   /** Widoczne tylko dla tych ról; brak = widoczne dla wszystkich (w tym parent/authp). */
   onlyRoles?: ('student' | 'parent' | 'authp')[];
+  /** Pozycja prowadzi poza aplikację (osobny moduł) — otwierana przez openExternal(). */
+  external?: 'ext';
 }
 
 /**
@@ -150,6 +153,16 @@ interface Badges { msg: number; notices: number; terms: number; hw: number; }
                   <span class="nav-section-label">{{ item.section }}</span>
                 </li>
               }
+              @if (item.external) {
+              <li role="presentation">
+                <a href="#" class="nav-item" (click)="openExternal(item, $event)"
+                   [attr.aria-label]="item.label + ' (otwiera się w nowej karcie)'">
+                  <span class="material-symbols-outlined" aria-hidden="true">{{ item.icon }}</span>
+                  <span>{{ item.label }}</span>
+                  <span class="material-symbols-outlined ms-auto" aria-hidden="true" style="font-size:1rem;opacity:.6">open_in_new</span>
+                </a>
+              </li>
+              } @else {
               <li role="presentation">
                 <a [routerLink]="'/' + item.path"
                    routerLinkActive="active"
@@ -165,6 +178,7 @@ interface Badges { msg: number; notices: number; terms: number; hw: number; }
                   }
                 </a>
               </li>
+              }
             }
           </ul>
 
@@ -380,6 +394,7 @@ export class ShellComponent implements OnInit {
     { path: 'online',     label: 'Szkolenia online',   icon: 'video_call',      section: 'Dostępy' },
     { path: 'vlab',       label: 'VLab',               icon: 'terminal' },
     { path: 'dysk',       label: 'Mój dysk',           icon: 'cloud' },
+    { path: 'biblioteka', label: 'Biblioteka materiałów', icon: 'menu_book',   onlyRoles: ['student'], external: 'ext' },
     { path: 'licencje',   label: 'Licencje',           icon: 'key' },
     { path: 'pfron',      label: 'PFRON',              icon: 'accessibility' },
     { path: 'problem',    label: 'Pomoc',              icon: 'help',            section: 'Inne', onlyRoles: ['student'] },
@@ -421,6 +436,29 @@ export class ShellComponent implements OnInit {
 
   @HostListener('document:keydown.escape')
   onEscape() { this.closeSidebar(); }
+
+  private api = inject(KursantApiService);
+
+  /**
+   * Biblioteka materiałów to osobny moduł (karty30/ti/ext) na sesji PHP — po
+   * jednorazowy bilet z API i przejście przez handoff.php. Kartę otwieramy od
+   * razu (w obsłudze kliknięcia), żeby blokada wyskakujących okien jej nie ucięła.
+   */
+  openExternal(item: NavItem, ev: Event) {
+    ev.preventDefault();
+    this.closeSidebar();
+    const win = window.open('', '_blank');
+    this.api.extHandoff().subscribe({
+      next: res => {
+        const url = res.success && res.data?.url ? res.data.url : '/karty30/ti/ext/index.php?as=student';
+        if (win) { win.opener = null; win.location.href = url; } else { window.location.href = url; }
+      },
+      error: () => {
+        const url = '/karty30/ti/ext/index.php?as=student';
+        if (win) { win.location.href = url; } else { window.location.href = url; }
+      },
+    });
+  }
 
   logout() { this.auth.logout(); }
 }

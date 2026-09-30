@@ -357,7 +357,7 @@ if ($auth_role === 'authp') {
         'change_password', 'set_alias', 'change_email', 'update_settings',
         'owncloud_create', 'owncloud_reset', 'order_dedicated_server', 'cancel_dedicated_server',
         'push_subscribe', 'push_unsubscribe', 'cal_token_reset', 'report_issue', 'submit_homework',
-        'cancel_lesson', 'uncancel_lesson', 'rate_lesson',
+        'cancel_lesson', 'uncancel_lesson', 'rate_lesson', 'ext_handoff',
     ];
     if (in_array($action, $parent_blocked, true)) {
         json_err('Brak uprawnień do tej operacji z poziomu konta opiekuna.', 403);
@@ -1796,6 +1796,22 @@ switch ($action) {
         $pdo->prepare("DELETE FROM k30_ti_vlab_containers WHERE id = ? AND student_id = ?")
             ->execute([$cid_srv, $student_id]);
         json_ok(null, 'Serwer anulowany.');
+    }
+
+    // Bilet przejścia do Biblioteki materiałów (karty30/ti/ext — osobny moduł na
+    // sesji PHP k30_student, a nowy panel ma tylko token API): jednorazowy, 60 s,
+    // w bazie tylko skrót. Konsumuje go karty30/ti/ext/handoff.php.
+    case 'ext_handoff': {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_ext_handoff (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, token_hash TEXT NOT NULL UNIQUE,
+            role TEXT NOT NULL DEFAULT 'student', actor_id INTEGER, actor_name TEXT NOT NULL DEFAULT '',
+            expires_at DATETIME NOT NULL, used_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+        $pdo->exec("DELETE FROM k30_ti_ext_handoff WHERE expires_at < datetime('now', '-1 day')");
+        $t = bin2hex(random_bytes(24));
+        $pdo->prepare("INSERT INTO k30_ti_ext_handoff (account_id, token_hash, role, actor_id, actor_name, expires_at)
+                       VALUES (?, ?, ?, ?, ?, datetime('now', '+60 seconds'))")
+            ->execute([$student_id, hash('sha256', $t), $auth_role, $auth_ctx['actor_id'], (string)$auth_actor_name]);
+        json_ok(['url' => '/karty30/ti/ext/handoff.php?t=' . $t]);
     }
 
     case 'cal_token_reset': {

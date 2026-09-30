@@ -85,6 +85,8 @@ export class KursantApiService {
   reportIssue(subject: string, body: string) {
     return this.post<void>('report_issue', { subject, body });
   }
+  /** Jednorazowy link do Biblioteki materiałów (moduł ext na sesji PHP — patrz karty30/ti/ext/handoff.php). */
+  extHandoff() { return this.post<{ url: string }>('ext_handoff'); }
   resetCalendarToken() { return this.post<{ ical: string; gcal: string }>('cal_token_reset'); }
   provisionOwnCloud()  { return this.post<void>('owncloud_create'); }
   resetOwnCloud()      { return this.post<void>('owncloud_reset'); }
