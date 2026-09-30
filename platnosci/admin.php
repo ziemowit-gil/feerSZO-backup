@@ -167,6 +167,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) { $err = 'Podaj datę zaksięgowania z wyciągu.'; break; }
             $err = pp_settle((int)($_POST['tx_id'] ?? 0), ['gateway' => 'nrb', 'bank_date' => $date, 'note' => mb_substr(trim((string)($_POST['note'] ?? '')), 0, 300), 'confirmed_by' => $by], $by, $uid);
             $ok = 'Wpłata potwierdzona — pozycje opłacone.'; break;
+        case 'bank_autopost':
+            $x = pp_bank_autopost($by, $uid, false);
+            $ok = "Zaksięgowano wpłat na numery wirtualne: {$x['posted']} na kwotę " . pp_fmt($x['amount']) . ($x['skipped'] ? ". Pominięto (bez dopasowania): {$x['skipped']}" : '') . '.'; break;
         case 'bank_auto':
             $r = pp_bank_auto_match($by, $uid);
             $ok = "Rozliczono z wyciągów EODoK: {$r['matched']}." . ($r['review'] ? " Do decyzji: {$r['review']}." : ''); break;
@@ -272,6 +275,26 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       </form>
     </div>
     <?php endforeach; ?>
+  </section>
+
+  <!-- Wpływy na numery wirtualne — automatyczne księgowanie -->
+  <?php $ap = pp_bank_autopost('', null, true); ?>
+  <section class="card" aria-labelledby="ap-h">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 id="ap-h" class="font-semibold">Wpływy na numery wirtualne do zaksięgowania <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"><?= (int)$ap['posted'] ?></span></h2>
+      <?php if ($ap['posted']): ?>
+      <form method="post" onsubmit="return confirm('Zaksięgować <?= (int)$ap['posted'] ?> wpłat na kwotę <?= h(pp_fmt($ap['amount'])) ?> w księdze TI? Każda wpłata trafi do salda kursanta (FIFO).')">
+        <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="bank_autopost"><input type="hidden" name="participant_id" value="0">
+        <button class="bp"><i class="bi bi-cash-coin" aria-hidden="true"></i>Zaksięguj wszystkie (<?= h(pp_fmt($ap['amount'])) ?>)</button></form>
+      <?php endif; ?>
+    </div>
+    <p class="mt-1 text-xs text-slate-500">Wpływy z wyciągów EODoK, w których rachunek docelowy (albo numer w tytule) to indywidualny rachunek kursanta. Każdy wpływ księgujemy raz; bez potwierdzania pojedynczych przelewów.</p>
+    <?php if ($ap['rows']): ?>
+    <div class="mt-2 max-h-72 overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Data</th><th class="pr-3">Kursant</th><th class="pr-3">Wpłacający / tytuł</th><th class="pr-3 text-right">Kwota</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach ($ap['rows'] as $ar): ?><tr><td class="py-1.5 pr-3 whitespace-nowrap text-xs"><?= h(substr($ar['date'], 0, 10)) ?></td><td class="pr-3 font-medium"><?= h($ar['name']) ?></td>
+        <td class="pr-3 text-xs text-slate-600"><?= h(mb_strimwidth(trim($ar['payer'] . ' — ' . $ar['title']), 0, 80, '…')) ?></td><td class="pr-3 text-right tabular-nums"><?= h(pp_fmt($ar['amount'])) ?></td></tr><?php endforeach; ?>
+    </tbody></table></div>
+    <?php else: ?><p class="mt-2 text-sm text-slate-500">Brak nowych wpływów na numery wirtualne.</p><?php endif; ?>
   </section>
 
   <!-- Wpływy z wyciągów EODoK -->

@@ -46,6 +46,8 @@ function pp_migrate(): void {
         nrb TEXT PRIMARY KEY, grp TEXT NOT NULL DEFAULT 'ti', participant_id INTEGER,
         imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
     try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}   // kursant wirtualny: bez rachunku z puli
+    db()->exec("CREATE TABLE IF NOT EXISTS pp_bank_autopost (bank_tx_id INTEGER PRIMARY KEY, participant_id INTEGER NOT NULL, payment_id INTEGER,
+        amount REAL NOT NULL, nrb TEXT NOT NULL, by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN crm_contact_id INTEGER"); } catch (\Throwable $e) {}   // numer przypisany kontrahentowi CRM
     try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN notified_at DATETIME"); } catch (\Throwable $e) {}     // kiedy admin wysłał powiadomienie o numerze
     db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_crm (contact_id INTEGER PRIMARY KEY, nrb TEXT NOT NULL UNIQUE, assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -983,4 +985,54 @@ function pp_pool_alarms(): array {
                   'order_start' => $start, 'order_count' => $count, 'msg' => $msg];
     }
     return $out;
+}
+
+
+/**
+ * Automatyczne księgowanie wpłat po numerze wirtualnym: wpływy z wyciągów EODoK (znak C), których rachunek docelowy
+ * (albo 26 cyfr w tytule/referencji) to indywidualny NRB uczestnika, księgujemy w księdze TI (ti_payment_add) — bez
+ * oczekującej płatności w portalu. Każdy wpływ tylko raz (pp_bank_autopost); pomijamy wpływy rozliczone w portalu,
+ * zignorowane i przypięte do dokumentów EODoK.
+ * @return array{posted:int, amount:float, rows:list<array>, skipped:int}
+ */
+function pp_bank_autopost(string $by = 'automat', ?int $uid = null, bool $dry = false): array {
+    pp_migrate();
+    $r = ['posted' => 0, 'amount' => 0.0, 'rows' => [], 'skipped' => 0];
+    try {
+        $bank = db_all("SELECT b.* FROM edok_bank_tx b
+                         LEFT JOIN pp_bank_matches m ON m.bank_tx_id=b.id LEFT JOIN pp_bank_autopost a ON a.bank_tx_id=b.id
+                        WHERE b.znak='C' AND b.ignored=0 AND b.doc_id IS NULL AND m.id IS NULL AND a.bank_tx_id IS NULL
+                        ORDER BY b.data_waluty, b.id LIMIT 1000");
+    } catch (\Throwable $e) { return $r; }   // EODoK bez tabeli wyciągów
+    $ind = [];
+    foreach (db_all("SELECT participant_id, individual_nrb FROM payment_portal_users WHERE individual_nrb IS NOT NULL AND individual_nrb!=''") as $u)
+        $ind[pp_nrb_normalize((string)$u['individual_nrb'])] = (int)$u['participant_id'];
+    if (!$ind) return $r;
+    foreach ($bank as $b) {
+        $acc = pp_nrb_normalize((string)$b['account_nrb']);
+        $pid = $ind[$acc] ?? null; $nrb = $acc;
+        if ($pid === null) {
+            $digits = preg_replace('/\D/', '', $b['tytul'] . ' ' . $b['referencja']);
+            foreach ($ind as $n => $p) if (strlen($digits) >= 26 && str_contains($digits, $n)) { $pid = $p; $nrb = $n; break; }
+        }
+        if ($pid === null || (float)$b['kwota'] <= 0) { $r['skipped']++; continue; }
+        $name = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [$pid])['name'] ?? ('#' . $pid));
+        $row = ['bank_tx_id' => (int)$b['id'], 'participant_id' => $pid, 'name' => $name, 'amount' => (float)$b['kwota'], 'date' => (string)$b['data_waluty'],
+                'payer' => (string)$b['kontrahent_nazwa'], 'title' => (string)$b['tytul'], 'nrb' => $nrb];
+        if (!$dry) {
+            $pdo = db(); $pdo->beginTransaction();
+            try {
+                $pay = ti_payment_add($pid, (float)$b['kwota'], substr((string)$b['data_waluty'], 0, 10), 'transfer',
+                    'Wpływ z wyciągu na numer wirtualny — ' . trim($b['kontrahent_nazwa'] . ' ' . $b['tytul']), 'bank_tx', (int)$b['id']);
+                db_insert('pp_bank_autopost', ['bank_tx_id' => (int)$b['id'], 'participant_id' => $pid, 'payment_id' => (int)($pay['payment_id'] ?? 0),
+                                               'amount' => (float)$b['kwota'], 'nrb' => $nrb, 'by_name' => $by]);
+                db()->prepare("UPDATE edok_bank_tx SET matched_how=?, matched_by_name=?, matched_at=datetime('now') WHERE id=? AND doc_id IS NULL AND matched_how=''")
+                    ->execute(['platnosci:nrb', $by, (int)$b['id']]);
+                audit_log('payments.bank_autopost', ['bank_tx_id' => (int)$b['id'], 'participant_id' => $pid, 'amount' => (float)$b['kwota'], 'nrb_last4' => substr($nrb, -4), 'by' => $by], $uid);
+                $pdo->commit();
+            } catch (\Throwable $e) { $pdo->rollBack(); $r['skipped']++; continue; }
+        }
+        $r['posted']++; $r['amount'] = round($r['amount'] + (float)$b['kwota'], 2); $r['rows'][] = $row;
+    }
+    return $r;
 }
