@@ -72,10 +72,18 @@ if ($filter_q !== '') {
     array_push($params, $q, $q, $q, $q);
 }
 
+// Stronicowanie: licznik całości przy tych samych filtrach; eksport CSV bierze wszystkie pasujące, nie tylko stronę.
+$per_page   = 50;
+$is_csv     = ($_GET['export'] ?? '') === 'csv';
+$total_docs = (int)(db_one("SELECT COUNT(*) AS n FROM edok_documents WHERE " . implode(' AND ', $where), $params)['n'] ?? 0);
+$pages      = max(1, (int)ceil($total_docs / $per_page));
+$page       = min(max(1, (int)($_GET['page'] ?? 1)), $pages);
 $docs = db_all(
-    "SELECT * FROM edok_documents WHERE " . implode(' AND ', $where) . " ORDER BY id DESC LIMIT 200",
+    "SELECT * FROM edok_documents WHERE " . implode(' AND ', $where) . " ORDER BY id DESC"
+    . ($is_csv ? '' : " LIMIT {$per_page} OFFSET " . (($page - 1) * $per_page)),
     $params
 );
+$page_url = fn(int $n): string => APP_URL . '/edok/index.php?' . http_build_query(array_merge(array_diff_key($_GET, ['export' => 1]), ['page' => $n]));
 foreach ($docs as &$d) {
     $d['steps'] = [];
     foreach (db_all("SELECT step_key, status FROM edok_steps WHERE doc_id = ?", [$d['id']]) as $s) {
@@ -280,6 +288,12 @@ require_once __DIR__ . '/../includes/header.php';
 <p class="text-muted small mb-2">Zaznaczyć do eksportu przelewów można zaakceptowane, jeszcze nieopłacone wydatki z prawidłowym 26-cyfrowym rachunkiem kontrahenta.</p>
 <?php endif; ?>
 
+<?php $from_n = $total_docs ? ($page - 1) * $per_page + 1 : 0; $to_n = min($page * $per_page, $total_docs); ?>
+<div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
+  <span role="status">Dokumenty <strong><?= $from_n ?>–<?= $to_n ?></strong> z <strong><?= $total_docs ?></strong><?= ($filter_status || $filter_kierunek || $filter_q !== '' || $filter_proformy) ? ' (po filtrach)' : '' ?></span>
+  <?php if ($pages > 1): ?><span>Strona <?= $page ?> z <?= $pages ?></span><?php endif; ?>
+</div>
+
 <div class="table-responsive">
   <table class="table table-sm table-hover align-middle">
     <thead class="table-light">
@@ -342,6 +356,19 @@ require_once __DIR__ . '/../includes/header.php';
     </tbody>
   </table>
 </div>
+
+<?php if ($pages > 1): ?>
+<nav aria-label="Stronicowanie dokumentów" class="mt-2">
+  <ul class="pagination pagination-sm justify-content-center flex-wrap mb-0">
+    <li class="page-item<?= $page <= 1 ? ' disabled' : '' ?>"><a class="page-link" href="<?= h($page_url(max(1, $page - 1))) ?>" rel="prev">« Poprzednia</a></li>
+    <?php for ($n = 1; $n <= $pages; $n++):
+      if ($n !== 1 && $n !== $pages && abs($n - $page) > 2) { if ($n === 2 || $n === $pages - 1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>'; continue; } ?>
+    <li class="page-item<?= $n === $page ? ' active' : '' ?>"><a class="page-link" href="<?= h($page_url($n)) ?>"<?= $n === $page ? ' aria-current="page"' : '' ?>><?= $n ?></a></li>
+    <?php endfor; ?>
+    <li class="page-item<?= $page >= $pages ? ' disabled' : '' ?>"><a class="page-link" href="<?= h($page_url(min($pages, $page + 1))) ?>" rel="next">Następna »</a></li>
+  </ul>
+</nav>
+<?php endif; ?>
 
 <?php if ($can_export): ?>
 <script>
