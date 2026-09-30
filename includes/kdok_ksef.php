@@ -351,7 +351,7 @@ function kdok_ksef_get_visualisation(mixed $jwt_unused, string $reference_number
 function kdok_ksef_parse_xml(string $xml): array {
     libxml_use_internal_errors(true);
     $sx = @simplexml_load_string($xml);
-    if (!$sx) return [];
+    if ($sx === false) return []; // ścisłe: XML z prefiksem (ns0:) jest dla SimpleXML „pusty” w bool
 
     // Usuń namespace problemy używając local-name()
     $result = [];

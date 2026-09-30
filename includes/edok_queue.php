@@ -19,7 +19,8 @@ function _edok_xml_money(float $v): string {
 function edok_parse_invoice_xml(string $xml, string $kontrahent = 'Podmiot1'): array {
     libxml_use_internal_errors(true);
     $sx = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
-    if (!$sx || $sx->getName() !== 'Faktura') return [];
+    // Uwaga: dokument z prefiksem przestrzeni nazw (ns0:Faktura) jest dla SimpleXML „pusty” w bool — porównujemy ściśle.
+    if ($sx === false || $sx->getName() !== 'Faktura') return [];
     $one = function (string $path) use ($sx): string {
         $n = $sx->xpath($path);
         return $n ? trim((string)$n[0]) : '';
