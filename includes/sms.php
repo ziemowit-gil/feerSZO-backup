@@ -91,6 +91,8 @@ function sms_normalize_phone(string $phone): string {
  * Rzuca RuntimeException dopiero gdy obaj zawiodą (lub brak zapasowego).
  */
 function sms_send(string $phone, string $message): void {
+    require_once __DIR__ . '/ti_virtual.php';
+    if (ti_virtual_blocked('', $phone)) return;   // kursant wirtualny — bez SMS
     $phone   = sms_normalize_phone($phone);
     $primary = sms_provider();
 

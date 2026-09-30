@@ -123,6 +123,8 @@ function mail_queue_add(
     array  $bcc_emails   = [],  // UDW — Ukryta Do Wiadomości
     array  $headers      = []   // dodatkowe nagłówki, np. List-Unsubscribe
 ): int {
+    require_once __DIR__ . '/ti_virtual.php';
+    if (ti_virtual_blocked($to_email)) return 0;   // kursant wirtualny — bez e-maili
     if (!$body_text) {
         // Linki przed strip_tags: „tekst” → „tekst: URL”, inaczej adres z href
         // znika i wersja tekstowa maila (klienci text/plain) zostaje bez linku.
