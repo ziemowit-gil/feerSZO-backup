@@ -64,17 +64,77 @@ function pp_nrb_format(string $nrb): string {
     return strlen($n) === 26 ? substr($n, 0, 2) . ' ' . trim(chunk_split(substr($n, 2), 4, ' ')) : $nrb;
 }
 /**
- * NRB wirtualny z ustawień: 8 cyfr rozliczeniowych banku + prefiks klienta
- * + identyfikator uczestnika dopełniony zerami do 24 cyfr BBAN. null = nie skonfigurowano.
+ * Grupy kontrahentów rachunków wirtualnych. Struktura BBAN (24 cyfry) wg banku:
+ *   8 cyfr nr rozliczeniowy banku + 4 cyfry RRRR (identyfikator Klienta) + 12 cyfr NNNN
+ * Część NNNN (12 cyfr) zależy od grupy — dzięki temu z samego numeru wiadomo, kto płaci:
+ *   ti    — nr kursanta TI (k30_ti_student_accounts.student_no, już 12 cyfr) bez zmian
+ *   nip   — „00" + NIP (10 cyfr)            — firma / kontrahent
+ *   pesel — „0" + PESEL (11 cyfr)           — osoba fizyczna
+ *   id    — „9" + ID uczestnika (11 cyfr)   — uczestnik spoza TI (bez numeru kursanta)
+ *   reczny— dowolne do 12 cyfr, dopełnione zerami z lewej
+ */
+const PP_VGROUPS = [
+    'ti'     => ['label' => 'Kursant TI (nr kursanta)',       'hint' => 'ID uczestnika — numer weźmiemy z konta kursanta'],
+    'nip'    => ['label' => 'Firma / kontrahent (NIP)',       'hint' => 'NIP, 10 cyfr'],
+    'pesel'  => ['label' => 'Osoba fizyczna (PESEL)',         'hint' => 'PESEL, 11 cyfr'],
+    'id'     => ['label' => 'Uczestnik spoza TI (ID w SZO)',  'hint' => 'ID uczestnika (k30_clients)'],
+    'reczny' => ['label' => 'Numer ręczny',                   'hint' => 'do 12 cyfr'],
+];
+
+/** Numer kursanta TI (12 cyfr) uczestnika albo null, gdy nie ma konta / numer niepoprawny. */
+function pp_ti_student_no(int $participant_id): ?string {
+    try {
+        $r = db_one("SELECT student_no FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [$participant_id]);
+    } catch (\Throwable $e) { return null; }
+    $no = (string)($r['student_no'] ?? '');
+    return preg_match('/^\d{12}$/', $no) ? $no : null;
+}
+
+/** Część NNNN (12 cyfr) dla grupy i wartości; string z błędem zaczyna się od "!". */
+function pp_vnrb_part(string $group, string $value): string {
+    $d = preg_replace('/\D/', '', $value);
+    switch ($group) {
+        case 'ti':
+            if ($d === '') return '!Podaj ID uczestnika.';
+            return pp_ti_student_no((int)$d) ?? '!Uczestnik nie ma konta kursanta TI z 12-cyfrowym numerem.';
+        case 'nip':   return strlen($d) === 10 ? '00' . $d : '!NIP ma 10 cyfr.';
+        case 'pesel': return strlen($d) === 11 ? '0' . $d : '!PESEL ma 11 cyfr.';
+        case 'id':    return $d !== '' && strlen($d) <= 11 ? '9' . str_pad($d, 11, '0', STR_PAD_LEFT) : '!Podaj ID uczestnika (do 11 cyfr).';
+        case 'reczny':return $d !== '' && strlen($d) <= 12 ? str_pad($d, 12, '0', STR_PAD_LEFT) : '!Podaj od 1 do 12 cyfr.';
+    }
+    return '!Nieznana grupa.';
+}
+
+/** Składa NRB: cyfry kontrolne + bank(8) + RRRR(4) + NNNN(12). null przy złych danych. */
+function pp_vnrb_build(string $bank, string $rrrr, string $n12): ?string {
+    if (!preg_match('/^\d{8}$/', $bank) || !preg_match('/^\d{4}$/', $rrrr) || !preg_match('/^\d{12}$/', $n12)) return null;
+    $bban = $bank . $rrrr . $n12;
+    return pp_nrb_check($bban) . $bban;
+}
+
+/** Czy ten NRB jest wolny (nie ma go inny uczestnik ani inny kursant jako swojego numeru). */
+function pp_vnrb_conflict(string $nrb, int $participant_id): ?string {
+    $n = pp_nrb_normalize($nrb);
+    if (db_one("SELECT 1 FROM payment_portal_users WHERE individual_nrb=? AND participant_id!=?", [$n, $participant_id])) return 'Ten numer ma już inny uczestnik.';
+    $part = substr($n, 14);
+    try {
+        if (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE student_no=? AND client_id!=?", [$part, $participant_id])) return 'Ta część numeru jest numerem kursanta TI innej osoby.';
+    } catch (\Throwable $e) {}
+    return null;
+}
+
+/**
+ * NRB wirtualny dla uczestnika z ustawień: bank (8) + RRRR (pp_nrb_prefix, 4) + NNNN.
+ * Kursant z kontem TI → jego nr kursanta; pozostali → grupa „id". null = nie skonfigurowano
+ * albo konflikt numerów.
  */
 function pp_nrb_generate(int $participant_id): ?string {
-    $bank   = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank'));
-    $prefix = preg_replace('/\D/', '', (string)org_setting('pp_nrb_prefix'));
-    if (strlen($bank) !== 8) return null;
-    $room = 16 - strlen($prefix);
-    if ($room < 4 || strlen((string)$participant_id) > $room) return null;
-    $bban = $bank . $prefix . str_pad((string)$participant_id, $room, '0', STR_PAD_LEFT);
-    return pp_nrb_check($bban) . $bban;
+    $bank = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank'));
+    $rrrr = preg_replace('/\D/', '', (string)org_setting('pp_nrb_prefix'));
+    $part = pp_ti_student_no($participant_id) ?? pp_vnrb_part('id', (string)$participant_id);
+    if ($part[0] === '!') return null;
+    $nrb = pp_vnrb_build($bank, $rrrr, $part);
+    return $nrb !== null && pp_vnrb_conflict($nrb, $participant_id) === null ? $nrb : null;
 }
 
 /**

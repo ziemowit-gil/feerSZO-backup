@@ -30,13 +30,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $bank = preg_replace('/\D/', '', (string)($_POST['pp_nrb_bank'] ?? ''));
             $pref = preg_replace('/\D/', '', (string)($_POST['pp_nrb_prefix'] ?? ''));
             if ($bank !== '' && strlen($bank) !== 8) { $err = 'Numer rozliczeniowy banku ma 8 cyfr.'; break; }
-            if (strlen($pref) > 12) { $err = 'Prefiks może mieć najwyżej 12 cyfr (zostają min. 4 na numer uczestnika).'; break; }
+            if ($pref !== '' && strlen($pref) !== 4) { $err = 'Identyfikator Klienta (RRRR) z dokumentu aktywacji ma 4 cyfry.'; break; }
             $gen = pp_nrb_normalize((string)($_POST['pp_general_nrb'] ?? ''));
             if ($gen !== '' && !pp_nrb_valid($gen)) { $err = 'Rachunek ogólny: nieprawidłowy numer (26 cyfr, suma kontrolna).'; break; }
             org_setting_set('pp_nrb_bank', $bank); org_setting_set('pp_nrb_prefix', $pref); org_setting_set('pp_general_nrb', $gen);
             org_setting_set('pp_p24_simulation', !empty($_POST['pp_p24_simulation']) ? '1' : '0');
             audit_log('payments.settings', ['bank' => $bank, 'prefix' => $pref, 'general_nrb' => $gen, 'simulation' => !empty($_POST['pp_p24_simulation']), 'by' => $by], $uid);
             $ok = 'Ustawienia zapisane.'; break;
+        case 'vgen':
+            $bank = preg_replace('/\D/', '', (string)($_POST['bank'] ?? ''));
+            $rrrr = preg_replace('/\D/', '', (string)($_POST['rrrr'] ?? ''));
+            $grp  = (string)($_POST['group'] ?? '');
+            $part = pp_vnrb_part($grp, (string)($_POST['value'] ?? ''));
+            if ($part[0] === '!') { $err = substr($part, 1); break; }
+            $nrb = pp_vnrb_build($bank, $rrrr, $part);
+            if ($nrb === null) { $err = 'Podaj numer rozliczeniowy banku (8 cyfr) i RRRR (4 cyfry) — np. w Ustawieniach.'; break; }
+            $assign = (int)($_POST['assign_pid'] ?? 0);
+            $_SESSION['pp_vgen'] = ['nrb' => $nrb, 'bank' => $bank, 'rrrr' => $rrrr, 'part' => $part, 'group' => $grp, 'pid' => $assign,
+                                    'conflict' => pp_vnrb_conflict($nrb, $assign)];
+            if ($assign && !empty($_POST['do_assign'])) {
+                if ($_SESSION['pp_vgen']['conflict']) { $err = $_SESSION['pp_vgen']['conflict']; break; }
+                $u = pp_user_ensure($assign, $by, $uid);
+                if (is_string($u)) { $err = $u; break; }
+                $err = pp_set_nrb($assign, $nrb, $by, $uid);
+                $ok = 'Numer wygenerowany i przypisany uczestnikowi.'; break;
+            }
+            $ok = 'Numer wygenerowany.'; break;
         case 'user':
             $u = pp_user_ensure($pid, $by, $uid);
             $err = is_string($u) ? $u : null; $ok = 'Dostęp uczestnika utworzony.'; break;
@@ -80,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     flash_set($err ? 'danger' : 'success', $err ?? $ok);
     header('Location: admin.php' . ($pid ? '?p=' . $pid : '')); exit;
 }
+$vgen = $_SESSION['pp_vgen'] ?? null; unset($_SESSION['pp_vgen']);
 $link_once = $_SESSION['pp_link_once'] ?? null; unset($_SESSION['pp_link_once']);
 $flash = flash_get();
 
@@ -245,8 +265,8 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <h2 id="s-h" class="font-semibold">Ustawienia</h2>
       <form method="post" class="space-y-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="settings">
         <div><label class="lbl" for="sb">Numer rozliczeniowy banku (8 cyfr)</label><input id="sb" name="pp_nrb_bank" class="inp font-mono" value="<?= h(org_setting('pp_nrb_bank')) ?>" inputmode="numeric"></div>
-        <div><label class="lbl" for="sp">Prefiks rachunków wirtualnych (z umowy z bankiem)</label><input id="sp" name="pp_nrb_prefix" class="inp font-mono" value="<?= h(org_setting('pp_nrb_prefix')) ?>" inputmode="numeric"></div>
-        <p class="text-xs text-slate-500">NRB = cyfry kontrolne + bank + prefiks + ID uczestnika (dopełnione zerami) — suma kontrolna IBAN liczona automatycznie.</p>
+        <div><label class="lbl" for="sp">Identyfikator Klienta RRRR (4 cyfry, z dokumentu Aktywacji)</label><input id="sp" name="pp_nrb_prefix" class="inp font-mono" value="<?= h(org_setting('pp_nrb_prefix')) ?>" inputmode="numeric"></div>
+        <p class="text-xs text-slate-500">NRB = cyfry kontrolne + bank (8) + RRRR (4) + NNNN (12: nr kursanta TI albo ID uczestnika) — suma kontrolna liczona automatycznie. Pozostałe grupy: generator poniżej.</p>
         <div><label class="lbl" for="sg">Rachunek ogólny do wpłat (gdy uczestnik nie ma rachunku wirtualnego)</label>
           <input id="sg" name="pp_general_nrb" class="inp font-mono" value="<?= h(pp_nrb_format((string)org_setting('pp_general_nrb'))) ?>" placeholder="26 cyfr"></div>
         <p class="text-xs text-slate-500">Na rachunku ogólnym wpłatę rozpoznajemy po kodzie w tytule przelewu — uczestnik widzi wyraźne ostrzeżenie, żeby go nie zmieniać.</p>
@@ -255,6 +275,30 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <button class="bp">Zapisz</button></form>
     </section>
   </div>
+
+
+  <!-- Generator rachunków wirtualnych -->
+  <section class="card space-y-3" aria-labelledby="vg-h" x-data="{ g: '<?= h($vgen['group'] ?? 'ti') ?>', hints: <?= h(json_encode(array_map(fn($x) => $x['hint'], PP_VGROUPS))) ?> }">
+    <h2 id="vg-h" class="font-semibold">Generator numerów rachunków wirtualnych</h2>
+    <p class="text-xs text-slate-500">Struktura: <span class="font-mono">PL</span> + 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">NNNN NNNN NNNN (12)</span>. Część NNNN zależy od grupy kontrahenta.</p>
+    <form method="post" class="grid gap-3 md:grid-cols-6 items-end"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vgen">
+      <div><label class="lbl" for="vg-b">Bank (8 cyfr)</label><input id="vg-b" name="bank" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['bank'] ?? org_setting('pp_nrb_bank')) ?>"></div>
+      <div><label class="lbl" for="vg-r">RRRR (4 cyfry)</label><input id="vg-r" name="rrrr" class="inp font-mono" inputmode="numeric" value="<?= h($vgen['rrrr'] ?? org_setting('pp_nrb_prefix')) ?>"></div>
+      <div class="md:col-span-2"><label class="lbl" for="vg-g">Grupa kontrahenta</label>
+        <select id="vg-g" name="group" class="inp" x-model="g"><?php foreach (PP_VGROUPS as $k => $gr): ?><option value="<?= $k ?>"><?= h($gr['label']) ?></option><?php endforeach; ?></select></div>
+      <div><label class="lbl" for="vg-v" x-text="hints[g]"></label><input id="vg-v" name="value" class="inp font-mono" inputmode="numeric" required></div>
+      <div><label class="lbl" for="vg-p">Przypisz uczestnikowi (ID)</label><input id="vg-p" name="assign_pid" type="number" min="1" class="inp" value="<?= $pid ?: '' ?>"></div>
+      <label class="md:col-span-4 flex items-center gap-2 text-sm"><input type="checkbox" name="do_assign" value="1"> Zapisz wynik jako indywidualny NRB tego uczestnika (utworzy dostęp, jeśli go nie ma)</label>
+      <div class="md:col-span-2 text-right"><button class="bp">Generuj</button></div>
+    </form>
+    <?php if ($vgen): ?>
+    <div class="rounded-lg bg-slate-50 p-4 space-y-1" aria-live="polite">
+      <div class="font-mono text-lg tracking-wide">PL<?= h(substr($vgen['nrb'], 0, 2)) ?> <span class="text-red-600"><?= h(substr($vgen['nrb'], 2, 4)) ?> <?= h(substr($vgen['nrb'], 6, 4)) ?></span> <span class="text-purple-700"><?= h($vgen['rrrr']) ?></span> <span class="text-emerald-700"><?= h(trim(chunk_split($vgen['part'], 4, ' '))) ?></span></div>
+      <div class="text-xs text-slate-500">Grupa: <?= h(PP_VGROUPS[$vgen['group']]['label'] ?? '') ?> · bez spacji: <span class="font-mono">PL<?= h($vgen['nrb']) ?></span></div>
+      <?php if ($vgen['conflict']): ?><div class="text-sm text-red-700"><?= h($vgen['conflict']) ?></div><?php else: ?><div class="text-sm text-emerald-700">Numer wolny.</div><?php endif; ?>
+    </div>
+    <?php endif; ?>
+  </section>
 
   <!-- Transakcje -->
   <section class="card overflow-x-auto" aria-labelledby="t-h">
