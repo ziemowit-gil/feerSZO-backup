@@ -194,9 +194,9 @@ function ti_pricing_save_type(array $in, string $by, ?int $uid): int|string {
 }
 
 /**
- * Pobiera dane z „Rodzajów zajęć TI” (k30_ti_subject_types) do typów zajęć cennika: tworzy brakujące typy
- * (slug = skrót), odświeża nazwę/aktywność istniejących, ustawia cenę bazową z najczęstszej stawki
- * zapisów w grupach danego rodzaju (tylko gdy cena typu = 0) i przypina do typu grupy bez przypisania.
+ * Pobiera dane z „Rodzajów zajęć TI” (k30_ti_subject_types) do typów zajęć cennika: dla każdego rodzaju dwa typy
+ * (stacjonarnie / online; slug = skrót-stacjonarnie|online), odświeża nazwy, ustawia cenę bazową z najczęstszej
+ * stawki zapisów (tylko gdy cena typu = 0) i przypina do grup brakujące typy (stacjonarny i online).
  * @return array{created:int, updated:int, priced:int, linked:int}
  */
 function ti_pricing_sync_from_subject_types(string $by, ?int $uid): array {
@@ -204,32 +204,35 @@ function ti_pricing_sync_from_subject_types(string $by, ?int $uid): array {
     $r = ['created' => 0, 'updated' => 0, 'priced' => 0, 'linked' => 0];
     $pdo = db(); $pdo->beginTransaction();
     try {
+        $upsert = function (string $slug, string $name, string $mode, float $price, string $desc, int $active) use (&$r): int {
+            $lt = db_one("SELECT * FROM lesson_types WHERE slug=?", [$slug]);
+            if (!$lt) {
+                $id = db_insert('lesson_types', ['name' => $name, 'slug' => $slug, 'base_price' => $price, 'mode' => $mode, 'description' => $desc, 'is_active' => $active]);
+                $r['created']++; if ($price > 0) $r['priced']++;
+                return $id;
+            }
+            $id = (int)$lt['id'];
+            db()->prepare("UPDATE lesson_types SET name=?, is_active=?, mode=?, description=CASE WHEN COALESCE(description,'')='' THEN ? ELSE description END, updated_at=datetime('now') WHERE id=?")
+                ->execute([$name, $active, $mode, $desc, $id]);
+            $r['updated']++;
+            if ((float)$lt['base_price'] == 0.0 && $price > 0) { db()->prepare("UPDATE lesson_types SET base_price=? WHERE id=?")->execute([$price, $id]); $r['priced']++; }
+            return $id;
+        };
+        $common = fn(int $stId, string $col) => db_one("SELECT e.$col rate FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+                             WHERE c.subject_type_id=? AND e.$col>0 GROUP BY e.$col ORDER BY COUNT(*) DESC, e.$col DESC LIMIT 1", [$stId]);
         foreach (db_all("SELECT * FROM k30_ti_subject_types ORDER BY sort_order, name") as $st) {
             $slug = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower((string)$st['abbreviation'])), '-');
             if ($slug === '') continue;
-            $rate = db_one("SELECT e.hourly_rate rate FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
-                             WHERE c.subject_type_id=? AND e.hourly_rate>0 GROUP BY e.hourly_rate ORDER BY COUNT(*) DESC, e.hourly_rate DESC LIMIT 1", [(int)$st['id']]);
-            $price = $rate ? (float)$rate['rate'] : 0.0;
-            $desc  = 'Rodzaj zajęć TI: ' . $st['abbreviation'];
-            $lt = db_one("SELECT * FROM lesson_types WHERE slug=?", [$slug]);
-            if (!$lt) {
-                $id = db_insert('lesson_types', ['name' => (string)$st['name'], 'slug' => $slug, 'base_price' => $price, 'mode' => 'dowolna',
-                                                 'description' => $desc, 'is_active' => (int)$st['is_active']]);
-                $r['created']++; if ($price > 0) $r['priced']++;
-            } else {
-                $id = (int)$lt['id'];
-                db()->prepare("UPDATE lesson_types SET name=?, is_active=?, description=CASE WHEN COALESCE(description,'')='' THEN ? ELSE description END, updated_at=datetime('now') WHERE id=?")
-                    ->execute([(string)$st['name'], (int)$st['is_active'], $desc, $id]);
-                $r['updated']++;
-                if ((float)$lt['base_price'] == 0.0 && $price > 0) {
-                    db()->prepare("UPDATE lesson_types SET base_price=? WHERE id=?")->execute([$price, $id]); $r['priced']++;
-                }
-            }
+            $rs = $common((int)$st['id'], 'hourly_rate');  $ro = $common((int)$st['id'], 'hourly_rate_online');
+            $desc = 'Rodzaj zajęć TI: ' . $st['abbreviation'];
+            $idS = $upsert($slug . '-stacjonarnie', $st['name'] . ' — stacjonarnie', 'stacjonarna', $rs ? (float)$rs['rate'] : 0.0, $desc, (int)$st['is_active']);
+            $idO = $upsert($slug . '-online',       $st['name'] . ' — online',       'online',      $ro ? (float)$ro['rate'] : 0.0, $desc, (int)$st['is_active']);
             foreach (db_all("SELECT c.id FROM k30_ti_courses c LEFT JOIN ti_pricing_course_types t ON t.course_id=c.id
-                              WHERE c.subject_type_id=? AND t.lesson_type_id IS NULL", [(int)$st['id']]) as $c) {
-                db()->prepare("INSERT INTO ti_pricing_course_types (course_id, lesson_type_id, updated_at) VALUES (?,?,datetime('now'))
-                               ON CONFLICT(course_id) DO UPDATE SET lesson_type_id=excluded.lesson_type_id, updated_at=excluded.updated_at")
-                    ->execute([(int)$c['id'], $id]);
+                              WHERE c.subject_type_id=? AND (t.lesson_type_id IS NULL OR t.online_lesson_type_id IS NULL)", [(int)$st['id']]) as $c) {
+                db()->prepare("INSERT INTO ti_pricing_course_types (course_id, lesson_type_id, online_lesson_type_id, updated_at) VALUES (?,?,?,datetime('now'))
+                               ON CONFLICT(course_id) DO UPDATE SET lesson_type_id=COALESCE(ti_pricing_course_types.lesson_type_id, excluded.lesson_type_id),
+                                 online_lesson_type_id=COALESCE(ti_pricing_course_types.online_lesson_type_id, excluded.online_lesson_type_id), updated_at=excluded.updated_at")
+                    ->execute([(int)$c['id'], $idS, $ro ? $idO : null]);   // typ online tylko, gdy są stawki online w zapisach
                 $r['linked']++;
             }
         }
