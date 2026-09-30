@@ -7,6 +7,8 @@
  * Zmienne z index.php: $cur_course, $course, $uid.
  */
 $u_staff = dyd_is_staff();
+// Zapis do grupy: kierownik — każdej; prowadzący — do własnej (bez ustawiania stawek)
+$u_can_enroll = $u_staff || dyd_owns_course((int)$uid, (int)$cur_course);
 
 // ── Przeniesienie kursanta do innej grupy (kierownik) ────────────────────────
 // Zapis w tej grupie zostaje zamknięty (historia frekwencji i rozliczeń bez zmian),
@@ -65,12 +67,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') =
 
 // ── Zapisanie nowego uczestnika do grupy (kierownik) — przeniesione z
 // admina (karty30/ti/course.php), które wymagało osobnego logowania SZO.
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') === 'enroll') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_can_enroll && ($_POST['_op'] ?? '') === 'enroll') {
     dyd_token_check();
     $en_cid  = (int)($_POST['client_id'] ?? 0);
     $en_rate = max(0, (float)str_replace(',', '.', $_POST['hourly_rate'] ?? '0'));
     $en_rate_on = max(0, (float)str_replace(',', '.', $_POST['hourly_rate_online'] ?? '0'));   // 0 = jak stacjonarna
-    if ($en_cid) {
+    if (!$u_staff) {
+        // Prowadzący nie ustala cen: stawki jak u większości aktywnych uczestników grupy
+        $_r = db_one("SELECT hourly_rate, hourly_rate_online, COUNT(*) n FROM k30_ti_enrollments
+                       WHERE course_id=? AND status='active' GROUP BY hourly_rate, hourly_rate_online ORDER BY n DESC LIMIT 1", [(int)$cur_course]);
+        $en_rate = (float)($_r['hourly_rate'] ?? 0); $en_rate_on = (float)($_r['hourly_rate_online'] ?? 0);
+        // …i zapisuje tylko kursantów TI (z kontem panelu), nie dowolnego klienta z bazy
+        if ($en_cid && !db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=?", [$en_cid])) $en_cid = 0;
+    }
+    $en_closed = ti_course_closed_guard(['course_id' => (int)$cur_course]);
+    if ($en_closed) {
+        $_SESSION['dyd_flash'] = ['type' => 'danger', 'msg' => $en_closed];
+    } elseif ($en_cid) {
         try {
             db()->prepare(
                 "INSERT INTO k30_ti_enrollments (course_id,client_id,hourly_rate,hourly_rate_online,start_date,status)
@@ -78,7 +91,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $u_staff && ($_POST['_op'] ?? '') =
                  ON CONFLICT(course_id,client_id) DO UPDATE SET hourly_rate=excluded.hourly_rate, hourly_rate_online=excluded.hourly_rate_online,
                      status='active', start_date=excluded.start_date"
             )->execute([$cur_course, $en_cid, $en_rate, $en_rate_on, date('Y-m-d')]);
-            $_SESSION['dyd_flash'] = ['type' => 'success', 'msg' => 'Uczestnik zapisany.'];
+            $_en_who = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [$en_cid])['name'] ?? ('#' . $en_cid));
+            $_en_me  = dyd_current();
+            ti_course_log((int)$cur_course, 'enroll', $_en_who . ($u_staff ? '' : ' (zapisał prowadzący; stawka ' . number_format($en_rate, 2, ',', '') . ' zł/h jak w grupie)'),
+                          (int)$uid, (string)($_en_me['name'] ?? ''));
+            $_SESSION['dyd_flash'] = ['type' => 'success', 'msg' => 'Uczestnik zapisany: ' . $_en_who
+                . ($u_staff ? '.' : '. Stawkę ustawiono jak u pozostałych uczestników grupy (' . number_format($en_rate, 2, ',', '') . ' zł/h) — w razie potrzeby zmieni ją kierownik.')];
         } catch (\Throwable $e) {
             $_SESSION['dyd_flash'] = ['type' => 'danger', 'msg' => 'Nie udało się zapisać uczestnika.'];
         }
@@ -146,9 +164,11 @@ $u_active = count(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'acti
 // Klienci możliwi do dopisania — wszyscy poza już AKTYWNYMI w tej grupie
 // (kogoś wypisanego można zapisać ponownie — ON CONFLICT wyżej to obsłuży).
 $u_active_ids   = array_map('intval', array_column(array_filter($u_parts, fn($p) => $p['enroll_status'] === 'active'), 'client_id'));
-$u_not_enrolled = $u_staff
+$u_not_enrolled = $u_can_enroll
     ? array_values(array_filter(
-        db_all("SELECT id, name FROM k30_clients ORDER BY name COLLATE NOCASE"),
+        db_all($u_staff ? "SELECT id, name FROM k30_clients ORDER BY name COLLATE NOCASE"
+                        : "SELECT cl.id, cl.name FROM k30_clients cl JOIN k30_ti_student_accounts a ON a.client_id=cl.id
+                            WHERE a.is_active=1 ORDER BY cl.name COLLATE NOCASE"),
         fn($c) => !in_array((int)$c['id'], $u_active_ids, true)
     ))
     : [];
@@ -174,12 +194,13 @@ $u_not_enrolled = $u_staff
 </div>
 <?php endif; ?>
 
-<?php if ($u_staff && $u_not_enrolled): ?>
+<?php if ($u_can_enroll && $u_not_enrolled): ?>
 <div class="card mb-3 usos-noprint">
   <div class="card-body">
     <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
       <input type="hidden" name="_op" value="enroll">
+      <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>"><?php /* index.php sprawdza własność kursu po course_id */ ?>
       <div>
         <label class="form-label small fw-semibold mb-1" for="u_en_cid">Zapisz uczestnika</label>
         <select name="client_id" id="u_en_cid" class="form-select form-select-sm" required>
@@ -189,6 +210,7 @@ $u_not_enrolled = $u_staff
           <?php endforeach; ?>
         </select>
       </div>
+<?php if ($u_staff): ?>
       <div>
         <label class="form-label small fw-semibold mb-1" for="u_en_rate">Stawka stacjonarna (zł/h)</label>
         <input type="number" class="form-control form-control-sm" id="u_en_rate" name="hourly_rate" step="0.01" min="0" value="0" style="width:90px">
@@ -198,6 +220,9 @@ $u_not_enrolled = $u_staff
         <input type="number" class="form-control form-control-sm" id="u_en_rate_on" name="hourly_rate_online" step="0.01" min="0" value="0" style="width:90px"
                title="0 = taka sama jak stacjonarna">
       </div>
+      <?php else: ?>
+      <span class="small text-body-secondary align-self-center">Stawka jak u pozostałych uczestników grupy — zmienia ją kierownik.</span>
+      <?php endif; ?>
       <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Zapisz</button>
     </form>
   </div>
