@@ -606,7 +606,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       $p2_cnt = array_fill_keys(array_keys($p2_st), 0); foreach ($p2_rows as $pq0) { if (isset($p2_cnt[$pq0['status']])) $p2_cnt[$pq0['status']]++; } ?>
     <section class="card space-y-3" aria-labelledby="p2-h">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="p2-h" class="font-semibold">Przelewy24 — stan i konfiguracja</h2>
+        <h2 id="p2-h" class="flex items-center gap-3 font-semibold"><img src="/assets/logo/przelewy24.svg" alt="Przelewy24" class="h-7 w-auto" width="80" height="28"><span>stan i konfiguracja</span></h2>
         <div class="flex flex-wrap gap-2">
           <form method="post"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="p24_test"><input type="hidden" name="participant_id" value="0"><button class="bs"><i class="bi bi-plug" aria-hidden="true"></i>Test połączenia</button></form>
           <form method="post"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="p24_refresh"><input type="hidden" name="participant_id" value="0"><button class="bp"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Odśwież statusy z API Przelewy24 (<?= (int)$p2_cnt['pending'] ?>)</button></form>

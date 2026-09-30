@@ -425,6 +425,18 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
 <?php endif; ?>
 </main>
 
+<footer class="mx-auto max-w-5xl px-4 pb-8 pt-2">
+  <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 rounded-2xl bg-white px-5 py-4 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
+    <span class="font-medium text-slate-700">Płatności obsługują:</span>
+    <?php if (p24_enabled() || org_setting('pp_p24_simulation') === '1'): ?>
+    <a href="https://www.przelewy24.pl" target="_blank" rel="noopener" class="inline-flex items-center" title="Przelewy24 — płatności online"><img src="/assets/logo/przelewy24.svg" alt="Przelewy24" class="h-8 w-auto" width="91" height="32"></a>
+    <?php endif; ?>
+    <?php if (payu_enabled()): ?><span class="inline-flex items-center gap-1 font-semibold text-slate-700" title="Płatności online PayU"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i>PayU</span><?php endif; ?>
+    <?php if (stripe_enabled()): ?><span class="inline-flex items-center gap-1 font-semibold text-slate-700" title="Płatności kartą Stripe"><i class="bi bi-credit-card" aria-hidden="true"></i>Stripe</span><?php endif; ?>
+    <span class="inline-flex items-center gap-1" title="Bank prowadzący rachunki do wpłat"><i class="bi bi-bank2" aria-hidden="true"></i>Rachunki: <strong class="ml-1 text-slate-700">PKO Bank Polski S.A.</strong></span>
+  </div>
+</footer>
+
 <?php if (!in_array($view, ['status', 'sim'], true)): ?>
 <script>
 function cart() {
