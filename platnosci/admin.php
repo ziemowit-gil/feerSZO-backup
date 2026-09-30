@@ -24,6 +24,19 @@ $uid = (int)($me['id'] ?? 0) ?: null;
 if (($_GET['export'] ?? '') === 'txt') {
     $g = (string)($_GET['g'] ?? 'all');
     $bank = pp_vnrb_bank(); $rrrr = pp_vnrb_rrrr();
+    // TI w trybie „cyfry": same cyfry, jedna liczba w linii, bez nagłówka — n12 = część NNNN (nr kursanta), nrb = pełny 26-cyfrowy NRB
+    $digits = in_array($g, ['ti_n12', 'ti_nrb'], true);
+    if ($digits) {
+        $lines = [];
+        foreach (db_all("SELECT a.student_no FROM k30_ti_student_accounts a JOIN k30_clients c ON c.id=a.client_id ORDER BY c.name") as $r) {
+            if (!preg_match('/^\d{12}$/', (string)$r['student_no'])) continue;
+            $lines[] = $g === 'ti_n12' ? $r['student_no'] : (string)pp_vnrb_build($bank, $rrrr, $r['student_no']);
+        }
+        audit_log('payments.vnrb_export', ['group' => $g, 'rows' => count($lines), 'by' => $by], $uid);
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $g . '_' . date('Ymd') . '.txt"');
+        echo implode("\r\n", $lines), $lines ? "\r\n" : ''; exit;
+    }
     $lines = ["NRB\tgrupa\tid\tnazwa"];
     if ($g === 'ti' || $g === 'all') {
         foreach (db_all("SELECT a.client_id, a.student_no, c.name FROM k30_ti_student_accounts a JOIN k30_clients c ON c.id=a.client_id ORDER BY c.name") as $r) {
@@ -328,7 +341,9 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <button class="bp">Wygeneruj nowe rachunki</button>
     </form>
     <p class="text-sm">Eksport do TXT (NRB, grupa, ID, nazwa):
-      <a class="bs" href="admin.php?export=txt&g=ti">Kursanci TI</a>
+      <a class="bs" href="admin.php?export=txt&g=ti_n12" title="Same cyfry: 12-cyfrowy numer kursanta (część NNNN), jedna liczba w linii">Kursanci TI — 12 cyfr</a>
+      <a class="bs" href="admin.php?export=txt&g=ti_nrb" title="Same cyfry: pełny 26-cyfrowy rachunek, jedna liczba w linii">Kursanci TI — rachunek 26 cyfr</a>
+      <a class="bs" href="admin.php?export=txt&g=ti">Kursanci TI (z nazwą)</a>
       <a class="bs" href="admin.php?export=txt&g=crm">Kontrahenci CRM</a>
       <a class="bs" href="admin.php?export=txt&g=all">Wszystko</a></p>
     <?php if ($vgen): ?>
