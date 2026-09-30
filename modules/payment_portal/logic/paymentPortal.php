@@ -101,6 +101,31 @@ function pp_series_start(string $grp): ?string {
     $se = pp_series()[$grp] ?? null;
     return $se ? pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), $se['code'] . '0001') : null;
 }
+/**
+ * Generator numerów jak w banku: numer kontrahenta (12 cyfr) + liczba następnych → lista pełnych NRB
+ * (numer początkowy + $count kolejnych). Do podglądu, kontroli listy z banku i pobrania TXT.
+ * @return list<string>|string lista 26-cyfrowych NRB albo komunikat błędu
+ */
+function pp_gen_list(string $start12, int $count): array|string {
+    $start12 = preg_replace('/\D/', '', $start12);
+    if (strlen($start12) !== 12) return 'Numer kontrahenta ma 12 cyfr.';
+    if ($count < 0 || $count > 9999) return 'Liczba następnych numerów: 0–9999.';
+    if ((int)substr($start12, -4) + $count > 9999) return 'Przekroczono zakres serii: ostatnie 4 cyfry dochodzą do 9999 (numer kontrahenta ' . $start12 . ' + ' . $count . ').';
+    $out = [];
+    for ($i = 0; $i <= $count; $i++) {
+        $n = pp_vnrb_build(pp_vnrb_bank(), pp_vnrb_rrrr(), str_pad((string)((int)substr($start12, 0, 8) * 10000 + (int)substr($start12, -4) + $i), 12, '0', STR_PAD_LEFT));
+        if ($n === null) return 'Uzupełnij bank (8 cyfr) i RRRR (4 cyfry) w ustawieniach.';
+        $out[] = $n;
+    }
+    return $out;
+}
+/** Ostatnio użyte wartości generatora dla serii: [numer_kontrahenta, liczba]. */
+function pp_gen_last(string $grp): array {
+    $v = explode('|', (string)org_setting('pp_gen_last_' . $grp));
+    $se = pp_series()[$grp] ?? ['code' => '00000000'];
+    return [preg_match('/^\d{12}$/', $v[0] ?? '') ? $v[0] : $se['code'] . '0001', (int)($v[1] ?? 0) ?: 100];
+}
+
 /** Seria (klucz grupy) rozpoznana po kodzie w numerze od banku albo null. */
 function pp_series_detect(string $nrb): ?string {
     $code = substr(pp_nrb_normalize($nrb), 14, 8);

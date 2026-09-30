@@ -56,6 +56,17 @@ if (($_GET['export'] ?? '') === 'txt') {
     echo implode("\r\n", $lines), "\r\n"; exit;
 }
 
+// Pobranie listy z generatora (TXT, jeden NRB w linii)
+if (($_GET['export'] ?? '') === 'gen') {
+    $l = pp_gen_list((string)($_GET['s'] ?? ''), (int)($_GET['n'] ?? 0));
+    if (is_string($l)) { http_response_code(400); header('Content-Type: text/plain; charset=utf-8'); echo $l; exit; }
+    audit_log('payments.vnrb_gen_download', ['start' => preg_replace('/\D/', '', (string)$_GET['s']), 'count' => (int)$_GET['n'], 'by' => $by], $uid);
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="nrb_' . preg_replace('/\D/', '', (string)$_GET['s']) . '_+' . (int)$_GET['n'] . '.txt"');
+    echo implode("\r\n", $l), "\r\n"; exit;
+}
+
+$genres = null;
 $link_once = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -74,6 +85,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             org_setting_set('pp_p24_simulation', !empty($_POST['pp_p24_simulation']) ? '1' : '0');
             audit_log('payments.settings', ['bank' => $bank, 'prefix' => $pref, 'general_nrb' => $gen, 'simulation' => !empty($_POST['pp_p24_simulation']), 'by' => $by], $uid);
             $ok = 'Ustawienia zapisane.'; break;
+        case 'gen_series':
+            $gk = (string)($_POST['gen_grp'] ?? '');
+            if (!isset(pp_series()[$gk])) { $err = 'Wybierz serię.'; break; }
+            $gs = preg_replace('/\D/', '', (string)($_POST['gen_start'] ?? '')); $gn = (int)($_POST['gen_count'] ?? 0);
+            $l = pp_gen_list($gs, $gn);
+            if (is_string($l)) { $err = $l; break; }
+            org_setting_set('pp_gen_last_' . $gk, $gs . '|' . $gn);
+            $genres = ['grp' => $gk, 'start' => $gs, 'count' => $gn, 'list' => $l];
+            $ok = 'Wygenerowano ' . count($l) . ' numerów (zapamiętano wartości dla serii).'; break;
         case 'pool_import':
             $grp = in_array($_POST['pool_grp'] ?? '', ['auto', 'ti', 'inni', 'spoza_ti', 'reczny'], true) ? $_POST['pool_grp'] : 'auto';
             $txt = (string)($_POST['pool_text'] ?? '');
@@ -317,6 +337,28 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <td class="font-mono"><?= $nx ? h(trim(chunk_split(substr($nx['nrb'], 14, 12), 4, ' '))) : '—' ?></td>
         <td class="text-xs">w puli <?= (int)($pc['n'] ?? 0) ?> · nadane <?= (int)($pc['n'] ?? 0) - (int)($pc['f'] ?? 0) ?> · wolne <?= (int)($pc['f'] ?? 0) ?></td></tr>
     <?php endforeach; ?></tbody></table></div>
+    <?php
+      $gsel = $genres['grp'] ?? (string)($_POST['gen_grp'] ?? 'ti'); if (!isset(pp_series()[$gsel])) $gsel = 'ti';
+      $glast = []; foreach (pp_series() as $k => $_se) $glast[$k] = pp_gen_last($k);
+      $need = (int)(db_one("SELECT COUNT(*) c FROM k30_ti_student_accounts a LEFT JOIN payment_portal_users u ON u.participant_id=a.client_id WHERE u.individual_nrb IS NULL OR u.individual_nrb=''")['c'] ?? 0);
+      $free = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL")['c'] ?? 0);
+    ?>
+    <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2" x-data='{ last: <?= h(json_encode($glast)) ?>, g: "<?= h($gsel) ?>", s: "<?= h($genres['start'] ?? $glast[$gsel][0]) ?>", n: <?= (int)($genres['count'] ?? $glast[$gsel][1]) ?> }'>
+      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="gen_series">
+      <h3 class="font-semibold text-sm">Generator numerów (numer kontrahenta + liczba następnych)</h3>
+      <p class="text-xs text-slate-500">Działa jak formularz banku. Ostatnie wartości każdej serii są zapamiętywane. Kursantów TI bez rachunku: <strong><?= $need ?></strong>, wolnych w puli TI: <strong><?= $free ?></strong> → brakuje <strong><?= max(0, $need - $free) ?></strong>.</p>
+      <div class="grid gap-2 md:grid-cols-4 items-end">
+        <div><label class="lbl" for="gg">Seria</label><select id="gg" name="gen_grp" class="inp" x-model="g" @change="s = last[g][0]; n = last[g][1]"><?php foreach (pp_series() as $k => $se): ?><option value="<?= h($k) ?>"><?= h($se['label']) ?></option><?php endforeach; ?></select></div>
+        <div><label class="lbl" for="gs">Numer kontrahenta (12 cyfr)</label><input id="gs" name="gen_start" class="inp font-mono" inputmode="numeric" maxlength="12" x-model="s"></div>
+        <div><label class="lbl" for="gc">Liczba następnych numerów</label><input id="gc" name="gen_count" type="number" min="0" max="9999" class="inp" x-model="n"></div>
+        <div><button class="bp">Generuj</button></div>
+      </div>
+      <?php if ($genres): $gl = $genres['list']; $cnt = count($gl); ?>
+      <div class="text-sm" aria-live="polite">Wygenerowano <strong><?= $cnt ?></strong> numerów, od <span class="font-mono"><?= h(pp_nrb_format($gl[0])) ?></span> do <span class="font-mono"><?= h(pp_nrb_format($gl[$cnt - 1])) ?></span>.
+        <a class="bs" href="admin.php?export=gen&s=<?= h($genres['start']) ?>&n=<?= (int)$genres['count'] ?>">Pobierz TXT</a></div>
+      <textarea readonly rows="6" class="inp font-mono text-xs" aria-label="Wygenerowane numery"><?= h(implode("\n", array_map('pp_nrb_format', array_slice($gl, 0, 200)))) ?><?= $cnt > 200 ? "\n… (pełna lista w pliku TXT)" : '' ?></textarea>
+      <?php endif; ?>
+    </form>
     <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
     <form method="post" enctype="multipart/form-data" class="rounded-lg border border-slate-200 p-3 space-y-2">
       <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_import">
