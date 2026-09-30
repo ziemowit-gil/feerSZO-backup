@@ -68,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
             if (!empty($saved_ids[$idx])) edok_bank_assign((int)$saved_ids[$idx], $new_id, 'auto');
             $n++;
         }
-        flash_set('success', "Utworzono dokumentów przychodowych: {$n}. Uzupełnij każdy o skan wyciągu i dekretację przed kontrolą merytoryczną.");
+        $auto_rest = edok_bank_auto_match();   // pozostałe zapisane operacje (np. wypływy) — też wiązane automatycznie
+        flash_set('success', "Utworzono dokumentów przychodowych: {$n}" . ($auto_rest ? ", dopasowano automatycznie pozostałych operacji: {$auto_rest}" : '') . ". Uzupełnij każdy o skan wyciągu i dekretację przed kontrolą merytoryczną.");
         header('Location: ' . APP_URL . '/edok/index.php?kierunek=przychod');
         exit;
     }

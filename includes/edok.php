@@ -2658,7 +2658,7 @@ function edok_mt940_parse_saldo(string $s): array {
  * od stałej długości numeru operacji, bez zgadywania czy referencja jest pełna).
  */
 function edok_mt940_parse_61(string $line): ?array {
-    if (!preg_match('/^(\d{6})(\d{4})([CD])([\d,]+)N(\d{3})(.*)$/', trim($line), $m)) return null;
+    if (!preg_match('/^(\d{6})(\d{4})([CD])([\d,]+)N([A-Z0-9]{3})(.*)$/', trim($line), $m)) return null;
     $rest           = $m[6];
     $numer_operacji = mb_substr($rest, -16);
     $referencja_raw = rtrim(mb_substr($rest, 0, -16), '/');
