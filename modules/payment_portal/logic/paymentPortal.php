@@ -45,6 +45,7 @@ function pp_migrate(): void {
     db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_pool (
         nrb TEXT PRIMARY KEY, grp TEXT NOT NULL DEFAULT 'ti', participant_id INTEGER,
         imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
+    try { db()->exec("ALTER TABLE pp_vnrb_pool ADD COLUMN batch TEXT"); } catch (\Throwable $e) {}   // paczka importu (ostatnio zaimportowane)
 }
 function pp_gr(float|int|string $v): int { return (int)round((float)$v * 100); }
 function pp_zl(int $gr): float { return round($gr / 100, 2); }
@@ -702,12 +703,12 @@ function pp_expire_stale(int $participant_id): void {
 
 /**
  * Import listy rachunków wirtualnych z banku (TXT, jeden numer w linii; PL/spacje dozwolone).
- * Odrzuca niepoprawne (26 cyfr + suma kontrolna) i duplikaty. @return array{added:int, dup:int, bad:list<string>}
+ * Odrzuca niepoprawne (26 cyfr + suma kontrolna) i duplikaty. @return array{added:int, dup:int, bad:list<string>, batch:string}
  */
 function pp_vnrb_pool_import(string $text, string $grp, string $by, ?int $uid): array {
     pp_migrate();
-    $r = ['added' => 0, 'dup' => 0, 'bad' => []];
-    $ins = db()->prepare("INSERT OR IGNORE INTO pp_vnrb_pool (nrb, grp, participant_id, imported_by, assigned_at) VALUES (?,?,?,?,?)");
+    $r = ['added' => 0, 'dup' => 0, 'bad' => [], 'batch' => date('YmdHis') . '-' . bin2hex(random_bytes(2))];
+    $ins = db()->prepare("INSERT OR IGNORE INTO pp_vnrb_pool (nrb, grp, participant_id, imported_by, assigned_at, batch) VALUES (?,?,?,?,?,?)");
     db()->beginTransaction();
     try {
         foreach (preg_split('/\R/u', $text) as $line) {
@@ -717,17 +718,18 @@ function pp_vnrb_pool_import(string $text, string $grp, string $by, ?int $uid): 
             $g = $grp === 'auto' ? pp_series_detect($n) : $grp;
             if ($g === null) { $r['bad'][] = mb_substr($line, 0, 40) . ' (nieznana seria)'; continue; }
             $owner = db_one("SELECT participant_id FROM payment_portal_users WHERE individual_nrb=?", [$n]);
-            $ins->execute([$n, $g, $owner ? (int)$owner['participant_id'] : null, $by, $owner ? date('Y-m-d H:i:s') : null]);
+            $ins->execute([$n, $g, $owner ? (int)$owner['participant_id'] : null, $by, $owner ? date('Y-m-d H:i:s') : null, $r['batch']]);
             if ($ins->rowCount()) $r['added']++; else $r['dup']++;
         }
         db()->commit();
     } catch (\Throwable $e) { db()->rollBack(); throw $e; }
+    if ($r['added']) org_setting_set('pp_pool_last_batch', $r['batch']);
     audit_log('payments.vnrb_pool_import', ['group' => $grp, 'added' => $r['added'], 'dup' => $r['dup'], 'bad' => count($r['bad']), 'by' => $by], $uid);
     return $r;
 }
 
 /** Przypisuje wolne rachunki z puli (grp='ti') kursantom TI bez indywidualnego NRB, wg kolejności numerów. @return array{assigned:int, left:int, nopool:int} */
-function pp_vnrb_pool_assign_ti(string $by, ?int $uid): array {
+function pp_vnrb_pool_assign_ti(string $by, ?int $uid, ?string $batch = null): array {
     pp_migrate();
     $r = ['assigned' => 0, 'left' => 0, 'nopool' => 0];
     $rows = db_all("SELECT DISTINCT a.client_id FROM k30_ti_student_accounts a
@@ -735,7 +737,7 @@ function pp_vnrb_pool_assign_ti(string $by, ?int $uid): array {
                      WHERE u.individual_nrb IS NULL OR u.individual_nrb='' ORDER BY a.client_id");
     foreach ($rows as $row) {
         $cid = (int)$row['client_id'];
-        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL ORDER BY nrb LIMIT 1");
+        $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY nrb LIMIT 1", $batch !== null ? [$batch] : []);
         if (!$p) { $r['nopool']++; continue; }
         if (is_string(pp_user_ensure($cid, $by, $uid))) continue;
         if (pp_set_nrb($cid, $p['nrb'], $by, $uid) !== null) continue;
@@ -743,6 +745,60 @@ function pp_vnrb_pool_assign_ti(string $by, ?int $uid): array {
         $r['assigned']++;
     }
     $r['left'] = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL")['c'] ?? 0);
-    audit_log('payments.vnrb_pool_assign_ti', $r + ['by' => $by], $uid);
+    audit_log('payments.vnrb_pool_assign_ti', $r + ['batch' => $batch, 'by' => $by], $uid);
     return $r;
+}
+
+/**
+ * Raport rachunków wirtualnych kursantów TI. $scope: 'all' = wszyscy kursanci z kontem TI (także bez rachunku),
+ * 'last' = tylko numery z ostatniego importu od banku.
+ * @return list<array{client_id:int,name:string,nrb:string,grp:string,assigned_at:string}>
+ */
+function pp_vnrb_report_rows(string $scope = 'all'): array {
+    pp_migrate();
+    if ($scope === 'last') {
+        $b = (string)org_setting('pp_pool_last_batch');
+        if ($b === '') return [];
+        $rows = db_all("SELECT p.participant_id client_id, c.name, p.nrb, p.grp, p.assigned_at FROM pp_vnrb_pool p
+                          LEFT JOIN k30_clients c ON c.id=p.participant_id WHERE p.batch=? ORDER BY p.nrb", [$b]);
+    } else {
+        $rows = db_all("SELECT c.id client_id, c.name, COALESCE(u.individual_nrb,'') nrb, COALESCE(p.grp,'') grp, COALESCE(p.assigned_at,'') assigned_at
+                          FROM k30_clients c
+                          LEFT JOIN payment_portal_users u ON u.participant_id=c.id
+                          LEFT JOIN pp_vnrb_pool p ON p.nrb=u.individual_nrb
+                         WHERE EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id=c.id)
+                         ORDER BY c.name COLLATE NOCASE");
+    }
+    return array_map(fn($r) => ['client_id' => (int)$r['client_id'], 'name' => (string)($r['name'] ?? ''), 'nrb' => (string)$r['nrb'],
+                                'grp' => (string)$r['grp'], 'assigned_at' => (string)$r['assigned_at']], $rows);
+}
+
+/** Samodzielny dokument HTML do wydruku raportu (oba ekrany: płatności i kierownik TI). Kończy skrypt. */
+function pp_vnrb_report_print(string $scope, string $by): never {
+    $rows = pp_vnrb_report_rows($scope);
+    $series = array_column(pp_series(), 'label');
+    $title = 'Raport rachunków wirtualnych kursantów TI' . ($scope === 'last' ? ' — ostatni import' : '');
+    $with = count(array_filter($rows, fn($r) => $r['nrb'] !== ''));
+    header('Content-Type: text/html; charset=utf-8');
+    audit_log('payments.vnrb_report_print', ['scope' => $scope, 'rows' => count($rows), 'by' => $by], null);
+    ?><!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title><?= h($title) ?></title>
+<style>
+  body{font:12px/1.4 Arial,sans-serif;color:#000;margin:16px}
+  h1{font-size:16px;margin:0 0 2px} .meta{color:#444;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:3px 6px;text-align:left} thead th{background:#eee}
+  td.n{font-family:monospace;white-space:nowrap} tr{break-inside:avoid} .no{color:#666}
+  .pbtn{margin-bottom:10px;padding:6px 12px;font-size:13px} @media print{.pbtn{display:none}}
+</style></head><body>
+<button class="pbtn" onclick="window.print()">Drukuj</button>
+<h1><?= h($title) ?></h1>
+<div class="meta"><?= h(defined('ORG_NAME') ? ORG_NAME : '') ?> · wydruk: <?= date('d.m.Y H:i') ?> · wystawił: <?= h($by) ?> · pozycji: <?= count($rows) ?>, z rachunkiem: <?= $with ?></div>
+<table><thead><tr><th>Lp.</th><th>Kursant</th><th>ID</th><th>Rachunek wirtualny</th><th>Seria</th><th>Przypisano</th></tr></thead><tbody>
+<?php foreach ($rows as $i => $r): ?>
+<tr><td><?= $i + 1 ?></td><td><?= h($r['name'] !== '' ? $r['name'] : '—') ?></td><td><?= $r['client_id'] ?: '' ?></td>
+<td class="n"><?= $r['nrb'] !== '' ? h(pp_nrb_format($r['nrb'])) : '<span class="no">brak</span>' ?></td>
+<td><?= h($r['grp']) ?></td><td><?= h($r['assigned_at']) ?></td></tr>
+<?php endforeach; if (!$rows): ?><tr><td colspan="6">Brak danych.</td></tr><?php endif; ?>
+</tbody></table></body></html><?php
+    exit;
 }

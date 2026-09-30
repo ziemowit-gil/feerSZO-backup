@@ -66,6 +66,8 @@ if (($_GET['export'] ?? '') === 'gen') {
     echo implode("\r\n", $l), "\r\n"; exit;
 }
 
+if (($_GET['report'] ?? '') === 'print') pp_vnrb_report_print(($_GET['scope'] ?? 'all') === 'last' ? 'last' : 'all', $by);
+
 $genres = null;
 $link_once = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -102,10 +104,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ok = "Import: dodano {$x['added']}, duplikaty {$x['dup']}, błędne " . count($x['bad'])
                 . ($x['bad'] ? ' (np. ' . implode('; ', array_slice($x['bad'], 0, 5)) . ')' : '') . '.';
             if (!empty($_POST['pool_assign'])) {
-                $y = pp_vnrb_pool_assign_ti($by, $uid);
+                $y = pp_vnrb_pool_assign_ti($by, $uid, $x['added'] ? $x['batch'] : null);
                 $ok .= " Przypisano kursantom TI: {$y['assigned']}; wolnych w puli TI: {$y['left']}" . ($y['nopool'] ? "; bez numeru z braku puli: {$y['nopool']}" : '') . '.';
             }
             break;
+        case 'pool_assign_last':
+            $lb = (string)org_setting('pp_pool_last_batch');
+            if ($lb === '') { $err = 'Brak ostatniego importu.'; break; }
+            $x = pp_vnrb_pool_assign_ti($by, $uid, $lb);
+            $ok = "Ostatni import: przypisano kursantom TI {$x['assigned']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
         case 'pool_assign_ti':
             $x = pp_vnrb_pool_assign_ti($by, $uid);
             $ok = "Przypisano kursantom TI: {$x['assigned']}; wolnych w puli: {$x['left']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
@@ -376,6 +383,23 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <div class="flex flex-wrap items-center gap-3"><button class="bp">Wczytaj do puli</button>
         <span class="text-xs text-slate-500">W puli: <?php foreach ($pool as $pl): ?><?= h($pl['grp']) ?> <?= (int)$pl['n'] ?> (wolnych <?= (int)$pl['free'] ?>) · <?php endforeach; if (!$pool) echo 'pusta'; ?></span></div>
     </form>
+    <?php $lastb = (string)org_setting('pp_pool_last_batch');
+      $lrows = $lastb !== '' ? db_all("SELECT p.nrb, p.grp, p.participant_id, p.assigned_at, c.name FROM pp_vnrb_pool p LEFT JOIN k30_clients c ON c.id=p.participant_id WHERE p.batch=? ORDER BY p.nrb", [$lastb]) : [];
+      $lfree = count(array_filter($lrows, fn($r) => !$r['participant_id'])); ?>
+    <form method="post" class="flex flex-wrap items-center gap-3" onsubmit="return confirm('Przypisać numery z ostatniego importu kursantom TI bez rachunku (od pierwszego z puli)?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_last">
+      <button class="bp"<?= $lfree ? '' : ' disabled' ?>>Przypisz ostatnio zaimportowane numery kursantom bez rachunku</button>
+      <span class="text-xs text-slate-500">Z ostatniego importu wolnych: <?= $lfree ?> z <?= count($lrows) ?></span>
+      <a class="bs" href="admin.php?report=print&scope=last" target="_blank" rel="noopener">Drukuj raport (ostatni import)</a>
+      <a class="bs" href="admin.php?report=print&scope=all" target="_blank" rel="noopener">Drukuj raport (wszyscy kursanci)</a></form>
+    <?php if ($lrows): ?>
+    <div class="overflow-x-auto"><table class="w-full text-sm"><caption class="text-left font-semibold text-sm mb-1">Ostatni import — przypisania</caption>
+      <thead><tr class="text-left"><th>Lp.</th><th>Rachunek</th><th>Seria</th><th>Kursant</th><th>Przypisano</th></tr></thead><tbody>
+      <?php foreach ($lrows as $i => $lr): ?>
+      <tr class="border-t"><td><?= $i + 1 ?></td><td class="font-mono"><?= h(pp_nrb_format($lr['nrb'])) ?></td><td><?= h($lr['grp']) ?></td>
+        <td><?= $lr['participant_id'] ? '<a class="underline" href="admin.php?q=' . urlencode((string)($lr['name'] ?? '')) . '">' . h($lr['name'] ?? ('#' . $lr['participant_id'])) . '</a>' : '<span class="text-slate-500">wolny</span>' ?></td>
+        <td class="text-xs"><?= h((string)$lr['assigned_at']) ?></td></tr>
+      <?php endforeach; ?></tbody></table></div>
+    <?php endif; ?>
     <form method="post" onsubmit="return confirm('Przypisać wolne rachunki z puli TI kursantom bez rachunku?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_ti">
       <button class="bs">Przypisz wolne rachunki z puli kursantom TI bez numeru</button></form>
   </section>

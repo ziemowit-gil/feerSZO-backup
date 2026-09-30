@@ -30,6 +30,15 @@ $_lnk = function (string $href, string $label, string $icon, string $kind = 'out
   <span class="small text-body-secondary">Wszystko, co możesz wydrukować lub pobrać dla siebie i swoich grup.</span>
 </div>
 
+<section class="card mb-3" aria-labelledby="wd-rw">
+  <div class="card-header" id="wd-rw"><i class="bi bi-bank me-1" aria-hidden="true"></i>Rachunki wirtualne kursantów</div>
+  <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+    <a class="btn btn-sm btn-outline-primary" href="rachunki_wirtualne.php?scope=last" target="_blank" rel="noopener"><i class="bi bi-printer me-1" aria-hidden="true"></i>Raport: ostatni import z banku</a>
+    <a class="btn btn-sm btn-outline-secondary" href="rachunki_wirtualne.php?scope=all" target="_blank" rel="noopener"><i class="bi bi-printer me-1" aria-hidden="true"></i>Raport: wszyscy kursanci</a>
+    <span class="small text-body-secondary">Kursant, ID, numer rachunku do wpłat, seria i data przypisania.</span>
+  </div>
+</section>
+
 <div class="row g-3">
   <div class="col-lg-6">
     <section class="card mb-0 h-100" aria-labelledby="wd-plan">
