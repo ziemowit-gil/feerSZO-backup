@@ -96,6 +96,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             org_setting_set('pp_gen_last_' . $gk, $gs . '|' . $gn);
             $genres = ['grp' => $gk, 'start' => $gs, 'count' => $gn, 'list' => $l];
             $ok = 'Wygenerowano ' . count($l) . ' numerów (zapamiętano wartości dla serii).'; break;
+        case 'series':
+            $new = []; 
+            foreach (array_keys(pp_series()) as $k) {
+                $c = preg_replace('/\D/', '', (string)($_POST['series_' . $k] ?? ''));
+                if (strlen($c) !== 8) { $err = 'Kod serii ma 8 cyfr (seria: ' . pp_series()[$k]['label'] . ').'; break 2; }
+                $new[$k] = $c;
+            }
+            if (count(array_unique($new)) !== count($new)) { $err = 'Kody serii muszą być różne.'; break; }
+            foreach ($new as $k => $c) org_setting_set('pp_series_' . $k, $c);
+            audit_log('payments.series_codes', $new + ['by' => $by], $uid);
+            $ok = 'Kody serii zapisane. Numery już w puli zostają bez zmian — nowy kod dotyczy numerów startowych dla banku i rozpoznawania przy imporcie.'; break;
         case 'pool_import':
             $grp = in_array($_POST['pool_grp'] ?? '', ['auto', 'ti', 'inni', 'spoza_ti', 'reczny'], true) ? $_POST['pool_grp'] : 'auto';
             $txt = (string)($_POST['pool_text'] ?? '');
@@ -358,6 +369,13 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <td class="font-mono"><?= $nx ? h(trim(chunk_split(substr($nx['nrb'], 14, 12), 4, ' '))) : '—' ?></td>
         <td class="text-xs">w puli <?= (int)($pc['n'] ?? 0) ?> · nadane <?= (int)($pc['n'] ?? 0) - (int)($pc['f'] ?? 0) ?> · wolne <?= (int)($pc['f'] ?? 0) ?></td></tr>
     <?php endforeach; ?></tbody></table></div>
+    <details class="rounded-lg border border-slate-200 p-3">
+      <summary class="cursor-pointer text-sm font-semibold">Kody serii (8 cyfr)</summary>
+      <form method="post" class="mt-2 grid gap-2 md:grid-cols-5 items-end"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="series">
+        <?php foreach (pp_series() as $sk => $se): ?><div><label class="lbl" for="sc-<?= h($sk) ?>"><?= h($se['label']) ?></label><input id="sc-<?= h($sk) ?>" name="series_<?= h($sk) ?>" class="inp font-mono" inputmode="numeric" maxlength="8" value="<?= h($se['code']) ?>"></div><?php endforeach; ?>
+        <div><button class="bp">Zapisz kody</button></div>
+        <p class="md:col-span-5 text-xs text-slate-500">Zmień tylko przed zamówieniem numerów w banku. Kod służy do rozpoznania serii przy imporcie listy.</p>
+      </form></details>
     <?php
       $gsel = $genres['grp'] ?? (string)($_POST['gen_grp'] ?? 'ti'); if (!isset(pp_series()[$gsel])) $gsel = 'ti';
       $glast = []; foreach (pp_series() as $k => $_se) $glast[$k] = pp_gen_last($k);
