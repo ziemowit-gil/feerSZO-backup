@@ -82,7 +82,7 @@ function pp_nrb_format(string $nrb): string {
 }
 /**
  * Grupy kontrahentów rachunków wirtualnych. Struktura BBAN (24 cyfry) wg banku:
- *   8 cyfr nr rozliczeniowy banku + 4 cyfry RRRR (identyfikator Klienta) + 12 cyfr NNNN
+ *   8 cyfr nr rozliczeniowy banku (PKO BP, np. 1020 2906) + 4 cyfry RRRR = ID USŁUGI (UMOWY) w banku + 12 cyfr NNNN
  * Część NNNN (12 cyfr) zależy od grupy — dzięki temu z samego numeru wiadomo, kto płaci:
  *   ti    — nr kursanta TI (k30_ti_student_accounts.student_no, już 12 cyfr) bez zmian
  *   nip   — „00" + NIP (10 cyfr)            — firma / kontrahent
@@ -90,7 +90,7 @@ function pp_nrb_format(string $nrb): string {
  *   id    — „9" + ID uczestnika (11 cyfr)   — uczestnik spoza TI (bez numeru kursanta)
  *   reczny— dowolne do 12 cyfr, dopełnione zerami z lewej
  */
-/** Domyślny prefiks banku (PKO BP): 1020 2906 = nr rozliczeniowy, 3286 = RRRR Klienta. Nadpisują go ustawienia. */
+/** Domyślny prefiks banku (PKO BP): 1020 2906 = nr rozliczeniowy, RRRR = ID usługi (umowy) w banku (domyślnie 3286). Nadpisują go ustawienia. */
 const PP_VNRB_BANK = '10202906';
 const PP_VNRB_RRRR = '3286';
 function pp_vnrb_bank(): string { $v = preg_replace('/\D/', '', (string)org_setting('pp_nrb_bank')); return $v !== '' ? $v : PP_VNRB_BANK; }
@@ -1371,4 +1371,29 @@ function pp_notice_exclude(int $batch_id, int $client_id, bool $exclude, string 
 function pp_crm_is_client(int $contact_id): bool {
     try { $r = crm_all("SELECT status FROM crm_contacts WHERE id=? AND COALESCE(crm_active,1)=1", [$contact_id]); } catch (\Throwable $e) { return false; }
     return $r && mb_strtolower(trim((string)$r[0]['status'])) === 'klient';
+}
+
+
+/**
+ * Logowanie uczestnika do portalu /platnosci z panelu kursanta/rodzica (bez osobnego linku): zamyka bieżącą sesję PHP
+ * panelu i zakłada sesję portalu. @return bool false gdy konto portalu jest zablokowane albo nie da się go założyć.
+ */
+function pp_portal_login_participant(int $participant_id, string $via): bool {
+    pp_migrate();
+    if (!db_one("SELECT 1 FROM k30_clients WHERE id=?", [$participant_id])) return false;
+    $u = pp_user_ensure($participant_id, $via, null);
+    if (is_string($u)) return false;
+    $row = pp_user($participant_id);
+    if (!$row || !(int)$row['is_active']) return false;
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    session_name('szo_platnosci');
+    session_id(bin2hex(random_bytes(16)));
+    session_set_cookie_params(['lifetime' => 0, 'path' => '/platnosci', 'httponly' => true, 'samesite' => 'Lax',
+                               'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+    session_start();
+    $_SESSION['pp_participant'] = ['participant_id' => $participant_id, 'ts' => time()];
+    $_SESSION['pp_csrf'] = bin2hex(random_bytes(16));
+    db()->prepare("UPDATE payment_portal_users SET last_login_at=datetime('now') WHERE participant_id=?")->execute([$participant_id]);
+    audit_log('payments.portal_login', ['participant_id' => $participant_id, 'via' => $via], null);
+    return true;
 }

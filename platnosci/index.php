@@ -15,6 +15,9 @@
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/karty30.php';
+require_once dirname(__DIR__) . '/includes/stripe.php';
+require_once dirname(__DIR__) . '/includes/payu.php';
 require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php';
 
 pp_migrate();
@@ -65,6 +68,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ./?view=status&tx=' . urlencode($tx['transaction_uuid'])); exit;
     }
+    if ($op === 'topup') {   // doładowanie portfela (wpłata ogólna na konto kursanta) przez PayU / Stripe / Przelewy24
+        $amt = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        $prov = (string)($_POST['provider'] ?? '');
+        $back = rtrim(APP_URL, '/') . '/platnosci/';
+        if ($amt < 1 || $amt > 20000) { $_SESSION['pp_flash'] = ['danger', 'Podaj kwotę doładowania od 1 do 20 000 zł.']; header('Location: ./'); exit; }
+        $desc = 'Doładowanie portfela TI — ' . (string)($cl['name'] ?? '');
+        $mail = (string)($user['email'] ?? $cl['email'] ?? '');
+        try {
+            if ($prov === 'payu' && payu_enabled()) { $o = payu_create_order('k30_ti_wallet', $pid, $amt, $desc, $back . '?wpay=payu', rtrim(APP_URL, '/') . '/api/payu_webhook.php', $mail); audit_log('payments.portal_topup', ['participant_id' => $pid, 'provider' => 'payu', 'amount' => $amt], null); header('Location: ' . $o['url']); exit; }
+            if ($prov === 'stripe' && stripe_enabled()) { $o = stripe_create_checkout('k30_ti_wallet', $pid, $amt, $desc, $back . '?wpay=stripe', $back . '?wcancel=1', $mail); audit_log('payments.portal_topup', ['participant_id' => $pid, 'provider' => 'stripe', 'amount' => $amt], null); header('Location: ' . $o['url']); exit; }
+            if ($prov === 'p24' && p24_enabled()) { $o = p24_create_order('k30_ti_wallet', $pid, $amt, $desc, $back . '?wpay=p24', rtrim(APP_URL, '/') . '/api/p24_webhook.php', $mail); audit_log('payments.portal_topup', ['participant_id' => $pid, 'provider' => 'p24', 'amount' => $amt], null); header('Location: ' . $o['url']); exit; }
+            $_SESSION['pp_flash'] = ['danger', 'Wybrana metoda płatności nie jest teraz dostępna.'];
+        } catch (\Throwable $e) { $_SESSION['pp_flash'] = ['danger', 'Nie udało się rozpocząć płatności: ' . $e->getMessage()]; }
+        header('Location: ./'); exit;
+    }
     if ($op === 'cancel_nrb') {   // uczestnik rezygnuje ze zgłoszonego, niezaksięgowanego przelewu
         $tx = db_one("SELECT * FROM portal_transactions WHERE transaction_uuid=? AND participant_id=? AND status='pending' AND payment_method='individual_nrb'", [(string)($_POST['tx'] ?? ''), $pid]);
         $err = $tx ? pp_fail((int)$tx['id'], 'Anulowane przez uczestnika przed zaksięgowaniem', 'uczestnik', null) : 'Nie znaleziono oczekującej płatności.';
@@ -93,6 +111,10 @@ $hist  = db_all("SELECT * FROM portal_transactions WHERE participant_id=? ORDER 
 $hist_items = [];
 foreach (db_all("SELECT ti.portal_transaction_id, pi.title, ti.amount FROM portal_transaction_items ti JOIN payable_items pi ON pi.id=ti.payable_item_id
                   JOIN portal_transactions t ON t.id=ti.portal_transaction_id WHERE t.participant_id=?", [$pid]) as $r) $hist_items[(int)$r['portal_transaction_id']][] = $r;
+$bal_ti  = ti_client_balance($pid);
+$pay_hist = array_slice(ti_payments_for_client($pid), 0, 15);
+$pay_info = k30_ti_client_payment($pid);
+$pp_gw    = ['payu' => payu_enabled(), 'stripe' => stripe_enabled(), 'p24' => p24_enabled()];
 $p24_on  = p24_enabled() || org_setting('pp_p24_simulation') === '1';
 $acct    = pp_payment_account($user);            // indywidualny (wirtualny) albo ogólny rachunek organizacji
 $nrb     = (string)($acct['nrb'] ?? '');
@@ -203,6 +225,59 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
   </section>
 
 <?php else: ?>
+  <!-- ═══ Dane do wpłaty, saldo, portfel, historia wpłat ═══ -->
+  <div class="grid gap-6 lg:grid-cols-3">
+    <section class="lg:col-span-2 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dw-h" x-data="{ c: false }">
+      <h2 id="dw-h" class="font-semibold"><i class="bi bi-bank2 text-navy-700" aria-hidden="true"></i> Dane do wpłaty</h2>
+      <?php $acc_txt = (string)($pay_info['account'] ?? ''); $acc_d = preg_replace('/\D/', '', $acc_txt); ?>
+      <?php if ($acc_txt !== ''): ?>
+      <div class="mt-3 rounded-xl border-2 border-navy-700 bg-navy-50 px-4 py-3 text-center">
+        <div class="text-xs text-slate-600"><?= !empty($pay_info['virtual']) ? 'Twój indywidualny numer rachunku' : 'Rachunek do wpłat (grupy / organizacji)' ?></div>
+        <div class="font-mono text-xl font-semibold tracking-wide"><?= h($acc_txt) ?></div>
+      </div>
+      <dl class="mt-3 grid gap-1 text-sm sm:grid-cols-[8rem_1fr]">
+        <?php if (trim((string)($pay_info['title'] ?? '')) !== ''): ?><dt class="text-slate-500">Tytuł przelewu</dt><dd class="font-mono"><?= h($pay_info['title']) ?></dd><?php endif; ?>
+        <dt class="text-slate-500">Odbiorca</dt><dd><?= h($org) ?></dd>
+        <?php if (!empty($pay_info['virtual'])): ?><dt class="text-slate-500">Uwaga</dt><dd>Na ten numer wpłacasz wszystkie należności z tytułu szkoleń. Wpłaty są księgowane na koniec dnia, o 20:00.</dd><?php endif; ?>
+      </dl>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" class="rounded-md px-3 py-1.5 text-sm ring-1 ring-slate-300 hover:bg-slate-50" @click="navigator.clipboard.writeText(<?= h($J($acc_d)) ?>); c = true" x-text="c ? 'Skopiowano' : 'Kopiuj numer'"></button>
+        <?php if (!empty($pay_info['virtual'])): ?><a href="rachunek_pdf.php" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Drukuj PDF z informacją o numerze</a><?php endif; ?>
+      </div>
+      <?php else: ?><p class="mt-2 text-sm text-slate-500">Numer rachunku nie został jeszcze ustawiony — skontaktuj się z biurem.</p><?php endif; ?>
+    </section>
+    <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="sd-h">
+      <h2 id="sd-h" class="font-semibold"><i class="bi bi-wallet2 text-navy-700" aria-hidden="true"></i> Saldo</h2>
+      <?php $bd = (float)($bal_ti['debt'] ?? 0); $bc = (float)($bal_ti['credit'] ?? 0); ?>
+      <div class="mt-2 text-3xl font-semibold tabular-nums <?= $bd > 0.005 ? 'text-red-700' : ($bc > 0.005 ? 'text-emerald-700' : 'text-slate-700') ?>"><?= $bd > 0.005 ? '−' . h(pp_fmt($bd)) : ($bc > 0.005 ? '+' . h(pp_fmt($bc)) : h(pp_fmt(0))) ?></div>
+      <div class="text-xs text-slate-500"><?= $bd > 0.005 ? 'niedopłata' : ($bc > 0.005 ? 'nadpłata (zaliczana na kolejne zajęcia)' : 'rozliczone') ?></div>
+      <dl class="mt-3 space-y-1 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Należności</dt><dd class="tabular-nums"><?= h(pp_fmt((float)($bal_ti['charges'] ?? 0))) ?></dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Wpłaty</dt><dd class="tabular-nums"><?= h(pp_fmt((float)($bal_ti['payments'] ?? 0))) ?></dd></div></dl>
+    </section>
+  </div>
+  <?php if (array_filter($pp_gw)): ?>
+  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dl-h">
+    <h2 id="dl-h" class="font-semibold"><i class="bi bi-plus-circle text-navy-700" aria-hidden="true"></i> Doładuj portfel</h2>
+    <p class="mt-1 text-xs text-slate-500">Wpłata trafia na Twoje konto i pokrywa kolejne należności za zajęcia.</p>
+    <form method="post" class="mt-3 flex flex-wrap items-end gap-2">
+      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="topup">
+      <div><label class="block text-xs text-slate-600" for="tu-a">Kwota (zł)</label><input id="tu-a" name="amount" inputmode="decimal" required placeholder="np. 200" class="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm"></div>
+      <?php foreach (['payu' => 'Zapłać przez PayU', 'p24' => 'Zapłać przez Przelewy24', 'stripe' => 'Zapłać kartą (Stripe)'] as $gk => $gl): if (empty($pp_gw[$gk])) continue; ?>
+      <button name="provider" value="<?= $gk ?>" class="rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600"><?= h($gl) ?></button>
+      <?php endforeach; ?>
+    </form>
+  </section>
+  <?php endif; ?>
+  <?php if ($pay_hist): ?>
+  <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="hw-h">
+    <h2 id="hw-h" class="border-b border-slate-200 px-5 py-3 font-semibold"><i class="bi bi-clock-history text-navy-700" aria-hidden="true"></i> Historia wpłat</h2>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Ostatnie wpłaty</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Data</th><th class="px-2">Metoda</th><th class="px-2">Opis</th><th class="px-5 text-right">Kwota</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php $mlab = ['transfer' => 'przelew', 'cash' => 'gotówka', 'stripe' => 'Stripe', 'payu' => 'PayU', 'p24' => 'Przelewy24', 'other' => 'inna', 'internal' => 'korekta']; foreach ($pay_hist as $ph): ?>
+      <tr><td class="whitespace-nowrap px-5 py-2"><?= h(date('d.m.Y', strtotime((string)$ph['paid_at']))) ?></td><td class="px-2"><?= h($mlab[$ph['method']] ?? $ph['method']) ?></td><td class="px-2 text-xs text-slate-600"><?= h(mb_strimwidth((string)$ph['note'], 0, 70, '…')) ?></td><td class="px-5 text-right tabular-nums <?= (float)$ph['amount'] < 0 ? 'text-red-700' : '' ?>"><?= h(pp_fmt((float)$ph['amount'])) ?></td></tr>
+      <?php endforeach; ?></tbody></table></div>
+  </section>
+  <?php endif; ?>
+
   <!-- ═══ Koszyk ═══ -->
   <form method="post" x-data="cart()" @submit="submit($event)" class="grid gap-6 lg:grid-cols-3">
     <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pay">

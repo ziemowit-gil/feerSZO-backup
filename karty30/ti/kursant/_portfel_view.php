@@ -10,6 +10,26 @@
  * pobiera z niej opłaty za kolejne zajęcia. „Dostępne środki” = nadpłata
  * (credit), „Do zapłaty” = niedopłata (debt).
  */
+?>
+<?php
+// Płatności i rozliczenia obsługuje teraz portal płatności (/platnosci) — logowanie jednym kliknięciem z panelu.
+// Tylko dla panelu kursanta i rodzica ($rv_portal_redirect); osoba upoważniona nie ma konta w portalu.
+if (!empty($rv_portal_redirect)):
+?>
+<div class="card border-primary-subtle mb-4">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-grow-1">
+      <div class="fw-semibold"><i class="bi bi-credit-card-2-front text-primary me-1" aria-hidden="true"></i>Płatności i rozliczenia są w portalu płatności</div>
+      <div class="small text-body-secondary">Numer rachunku do wpłat (także PDF z informacją), saldo, doładowanie portfela (PayU, Przelewy24, karta), historia wpłat i należności — w jednym miejscu.</div>
+    </div>
+    <a class="btn btn-primary" href="platnosci.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Przejdź do płatności</a>
+  </div>
+</div>
+<?php
+return;   // dotychczasowy widok jest wyłączony w panelu kursanta/rodzica
+endif;
+?>
+<?php
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/stripe.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/payu.php';

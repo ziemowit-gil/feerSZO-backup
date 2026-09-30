@@ -727,7 +727,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php if ($ptab === 'rozliczenia'):
     $rv_client_id    = $parent['client_id'];
-    $rv_show_lessons = false;
+    $rv_show_lessons = false; $rv_portal_redirect = true;
     include __DIR__ . '/_rozliczenia_view.php';
 ?>
 
@@ -757,6 +757,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $pw_student_id      = (int)$parent['student_id'];
     $pw_form_action     = 'parent.php?ptab=portfel';
     $pw_rozliczenia_url = 'parent.php?ptab=rozliczenia';
+    $rv_portal_redirect = true;
     include __DIR__ . '/_portfel_view.php';
 ?>
 

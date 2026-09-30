@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $bank = preg_replace('/\D/', '', (string)($_POST['pp_nrb_bank'] ?? ''));
             $pref = preg_replace('/\D/', '', (string)($_POST['pp_nrb_prefix'] ?? ''));
             if ($bank !== '' && strlen($bank) !== 8) { $err = 'Numer rozliczeniowy banku ma 8 cyfr.'; break; }
-            if ($pref !== '' && strlen($pref) !== 4) { $err = 'Identyfikator Klienta (RRRR) z dokumentu aktywacji ma 4 cyfry.'; break; }
+            if ($pref !== '' && strlen($pref) !== 4) { $err = 'RRRR — ID usługi (umowy) z dokumentu aktywacji banku — ma 4 cyfry.'; break; }
             $gen = pp_nrb_normalize((string)($_POST['pp_general_nrb'] ?? ''));
             if ($gen !== '' && !pp_nrb_valid($gen)) { $err = 'Rachunek ogólny: nieprawidłowy numer (26 cyfr, suma kontrolna).'; break; }
             org_setting_set('pp_nrb_bank', $bank); org_setting_set('pp_nrb_prefix', $pref); org_setting_set('pp_general_nrb', $gen);
@@ -578,8 +578,8 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <h2 id="s-h" class="font-semibold">Ustawienia</h2>
       <form method="post" class="space-y-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="settings">
         <div><label class="lbl" for="sb">Numer rozliczeniowy banku (8 cyfr)</label><input id="sb" name="pp_nrb_bank" class="inp font-mono" value="<?= h(pp_vnrb_bank()) ?>" inputmode="numeric"></div>
-        <div><label class="lbl" for="sp">Identyfikator Klienta RRRR (4 cyfry, z dokumentu Aktywacji)</label><input id="sp" name="pp_nrb_prefix" class="inp font-mono" value="<?= h(pp_vnrb_rrrr()) ?>" inputmode="numeric"></div>
-        <p class="text-xs text-slate-500">NRB = cyfry kontrolne + bank (8) + RRRR (4) + NNNN (12: nr kursanta TI albo ID uczestnika) — suma kontrolna liczona automatycznie. Pozostałe grupy: generator poniżej.</p>
+        <div><label class="lbl" for="sp">RRRR — ID usługi (umowy) w banku, 4 cyfry (z dokumentu Aktywacji)</label><input id="sp" name="pp_nrb_prefix" class="inp font-mono" value="<?= h(pp_vnrb_rrrr()) ?>" inputmode="numeric"></div>
+        <p class="text-xs text-slate-500">NRB = cyfry kontrolne + bank (8) + RRRR (4 — ID usługi/umowy w banku) + NNNN (12) — suma kontrolna liczona automatycznie. Pozostałe grupy: generator poniżej.</p>
         <div><label class="lbl" for="sg">Rachunek ogólny do wpłat (gdy uczestnik nie ma rachunku wirtualnego)</label>
           <input id="sg" name="pp_general_nrb" class="inp font-mono" value="<?= h(pp_nrb_format((string)org_setting('pp_general_nrb'))) ?>" placeholder="26 cyfr"></div>
         <p class="text-xs text-slate-500">Na rachunku ogólnym wpłatę rozpoznajemy po kodzie w tytule przelewu — uczestnik widzi wyraźne ostrzeżenie, żeby go nie zmieniać.</p>
@@ -675,7 +675,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   <section class="card space-y-3" aria-labelledby="vg-h" x-show="sub !== 'stan'">
     <h2 id="vg-h" class="font-semibold" x-text="sub === 'zamow' ? 'Serie rachunków — numery startowe i zamówienie w banku' : 'Import listy z banku i przypisanie numerów'">Rachunki wirtualne</h2>
     <div x-show="sub === 'zamow'" class="space-y-3">
-    <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">kod serii (8) + numer od banku (4)</span>. Przekaż bankowi po jednym numerze startowym z każdej serii (końcówka 12 cyfr = kod serii 8 cyfr + 0001) — kolejne numery, rosnąco, wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
+    <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700" title="ID usługi (umowy) w banku">RRRR (4) — ID usługi (umowy)</span> + <span class="font-mono text-emerald-700">kod serii (8) + numer od banku (4)</span>. Przekaż bankowi po jednym numerze startowym z każdej serii (końcówka 12 cyfr = kod serii 8 cyfr + 0001) — kolejne numery, rosnąco, wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
     <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer kontrahenta (dla banku)</th><th>Numer startowy</th><th>Następny z puli (12 cyfr)</th><th>W puli / nadane</th></tr></thead><tbody>
     <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL AND crm_contact_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY substr(nrb,15,12) LIMIT 1", [$sk]); ?>
       <tr class="border-t"><td><?= h($se['label']) ?></td><td class="font-mono"><?= h($se['code']) ?></td>

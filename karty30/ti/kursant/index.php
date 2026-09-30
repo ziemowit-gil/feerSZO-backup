@@ -3642,13 +3642,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php elseif ($tab === 'rozliczenia' && !$is_minor):
   $rv_client_id    = $student['client_id'];
-  $rv_show_lessons = false;
+  $rv_show_lessons = false; $rv_portal_redirect = true;
   include __DIR__ . '/_rozliczenia_view.php';
 ?>
 
 <?php elseif ($tab === 'portfel' && !$is_minor):
   $pw_client_id  = $student['client_id'];
   $pw_student_id = (int)$student['id'];
+  $rv_portal_redirect = true;
   include __DIR__ . '/_portfel_view.php';
 ?>
 
