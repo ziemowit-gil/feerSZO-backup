@@ -11,6 +11,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_overpayments/logic/overpayments.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -21,6 +22,15 @@ ti_payments_migrate();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = $_POST['_op'] ?? '';
+
+    // Zerowanie stanu konta (niedopłaty → umorzenie, nadpłaty → wpis rozchodowy), wszystkie grupy kursanta
+    if ($op === 'zero_balance') {
+        $zc = (int)($_POST['client_id'] ?? 0);
+        $zr = $zc ? ti_balance_zero_out($zc, -1, (string)($_POST['reason'] ?? ''), $dyd_name, (int)($me['user_id'] ?? 0) ?: null, false)
+                  : ['ok' => false, 'msg' => 'Nie wskazano kursanta.'];
+        flash_set($zr['ok'] ? 'success' : 'danger', $zr['msg']);
+        header('Location: klienci.php'); exit;
+    }
 
     if ($op === 'wallet_topup') {
         $client_id = (int)($_POST['client_id'] ?? 0);
@@ -328,6 +338,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#topup<?= $c['id'] ?>">
                 <i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Doładuj
               </button>
+              <?php if ($b['credit'] > 0.005 || $b['debt'] > 0.005): ?>
+              <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#zero<?= $c['id'] ?>" title="Zeruj należności i wpłaty (saldo) kursanta">
+                <i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Zeruj
+              </button>
+              <?php endif; ?>
               <a class="btn btn-sm btn-outline-secondary" href="client_billings_view.php?client_id=<?= (int)$c['id'] ?>" target="_blank" rel="noopener"
                  title="Podgląd rozliczeń kursanta — wszystkie okresy i grupy, saldo, wpłaty">
                 <i class="bi bi-eye me-1" aria-hidden="true"></i>Rozliczenia
@@ -399,6 +414,36 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 
 <!-- Modale doładowania portfela -->
+<?php foreach ($clients as $c): $zb = $c['balance']; if ($zb['credit'] > 0.005 || $zb['debt'] > 0.005): ?>
+<div class="modal fade" id="zero<?= $c['id'] ?>" tabindex="-1" aria-labelledby="zeroLbl<?= $c['id'] ?>" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" onsubmit="if(this.reason.value.trim().length<5){alert('Podaj powód (min. 5 znaków).');return false;}">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="_op" value="zero_balance">
+        <input type="hidden" name="client_id" value="<?= $c['id'] ?>">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="zeroLbl<?= $c['id'] ?>"><i class="bi bi-slash-circle text-warning me-2" aria-hidden="true"></i>Zeruj należności i wpłaty — <?= h($c['name']) ?></h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Aktualne saldo:
+            <?php if ($zb['credit'] > 0.005): ?><strong class="text-success">nadpłata +<?= number_format($zb['credit'], 2, ',', ' ') ?> zł</strong>
+            <?php else: ?><strong class="text-danger">niedopłata −<?= number_format($zb['debt'], 2, ',', ' ') ?> zł</strong><?php endif; ?></p>
+          <p class="small text-body-secondary">Dopiszemy wpisy korygujące we wszystkich grupach kursanta: niedopłata → <em>umorzenie</em>, nadpłata → wpis rozchodowy. Nic nie jest kasowane — historia wpłat i rozliczeń zostaje, a operacja trafia do audytu.</p>
+          <label class="form-label" for="zr<?= $c['id'] ?>">Powód (wymagany)</label>
+          <input type="text" class="form-control" id="zr<?= $c['id'] ?>" name="reason" maxlength="300" required minlength="5" placeholder="np. rezygnacja, rozliczone poza systemem">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Zeruj saldo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; endforeach; ?>
+
 <?php foreach ($clients as $c): ?>
 <div class="modal fade" id="topup<?= $c['id'] ?>" tabindex="-1" aria-labelledby="topupLbl<?= $c['id'] ?>" aria-hidden="true">
   <div class="modal-dialog">
