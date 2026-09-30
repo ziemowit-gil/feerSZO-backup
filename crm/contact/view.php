@@ -1956,12 +1956,12 @@ include __DIR__ . '/../includes/header_crm.php';
     <span class="cv-chip" title="Indywidualny rachunek do wpłat od tego kontrahenta (nadany z puli banku)">
       <i class="bi bi-bank" aria-hidden="true"></i><span class="font-monospace user-select-all"><?= h($_vnrb) ?></span>
     </span>
-    <?php elseif ($crm_can_write): ?>
-    <form method="post" class="d-inline" onsubmit="return confirm('Nadać temu kontrahentowi kolejny wolny numer rachunku z puli banku?')">
+    <?php elseif ($crm_can_write && mb_strtolower(trim((string)($contact['status'] ?? ''))) === 'klient'): ?>
+    <form method="post" class="d-inline" onsubmit="return confirm('Wygenerować rachunek do wpłat — nadać temu klientowi kolejny wolny numer z puli banku?')">
       <?= csrf_field() ?>
       <input type="hidden" name="_action" value="assign_vnrb">
-      <button class="cv-chip border-0" style="cursor:pointer" title="Przypisz indywidualny numer rachunku do wpłat z puli banku (seria „inni”)">
-        <i class="bi bi-bank" aria-hidden="true"></i><span>Przypisz numer rachunku</span>
+      <button class="cv-chip border-0" style="cursor:pointer" title="Generuje indywidualny numer rachunku do wpłat z puli banku (seria „inni”) — dostępne tylko dla statusu Klient">
+        <i class="bi bi-bank" aria-hidden="true"></i><span>Generuj rachunek do wpłat</span>
       </button>
     </form>
     <?php endif; ?>

@@ -846,7 +846,7 @@ function pp_vnrb_pool_assign_crm(string $by, ?int $uid, ?string $batch = null): 
     pp_migrate();
     $r = ['assigned' => 0, 'left' => 0, 'nopool' => 0];
     $have = array_column(db_all("SELECT contact_id FROM pp_vnrb_crm"), 'contact_id', 'contact_id');
-    foreach (crm_all("SELECT id FROM crm_contacts WHERE crm_active=1 ORDER BY id") as $c) {
+    foreach (crm_all("SELECT id FROM crm_contacts WHERE crm_active=1 AND status='klient' ORDER BY id") as $c) {
         $cid = (int)$c['id']; if (isset($have[$cid])) continue;
         $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='inni' AND participant_id IS NULL AND crm_contact_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY substr(nrb,15,12) LIMIT 1", $batch !== null ? [$batch] : []);
         if (!$p) { $r['nopool']++; continue; }
@@ -1341,6 +1341,7 @@ function pp_notice_reschedule(int $id, string $when, string $by, ?int $uid): ?st
 function pp_vnrb_assign_crm_one(int $contact_id, string $by, ?int $uid): string|array {
     pp_migrate();
     if (db_one("SELECT 1 FROM pp_vnrb_crm WHERE contact_id=?", [$contact_id])) return 'Ten kontrahent ma już nadany numer rachunku.';
+    if (!pp_crm_is_client($contact_id)) return 'Rachunek do wpłat można wygenerować tylko dla kontrahenta ze statusem „Klient”.';
     $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='inni' AND participant_id IS NULL AND crm_contact_id IS NULL ORDER BY substr(nrb,15,12) LIMIT 1");
     if (!$p) return 'Brak wolnych numerów w puli serii „inni” — zamów numery w banku (panel płatności → Rachunki wirtualne).';
     db()->beginTransaction();
@@ -1363,4 +1364,11 @@ function pp_notice_exclude(int $batch_id, int $client_id, bool $exclude, string 
     else db()->prepare("DELETE FROM pp_notice_exclusions WHERE batch_id=? AND client_id=?")->execute([$batch_id, $client_id]);
     audit_log($exclude ? 'payments.notice_excluded' : 'payments.notice_included', ['batch_id' => $batch_id, 'participant_id' => $client_id, 'by' => $by], $uid);
     return null;
+}
+
+
+/** Czy kontakt CRM ma status „Klient” (klucz statusu 'klient') — tylko takim generujemy rachunek do wpłat. */
+function pp_crm_is_client(int $contact_id): bool {
+    try { $r = crm_all("SELECT status FROM crm_contacts WHERE id=? AND COALESCE(crm_active,1)=1", [$contact_id]); } catch (\Throwable $e) { return false; }
+    return $r && mb_strtolower(trim((string)$r[0]['status'])) === 'klient';
 }

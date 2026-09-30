@@ -674,7 +674,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <a class="bs" href="#powiadomienia">Przejdź do powiadomień</a></div>
       <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_crm">
         <div class="text-sm font-semibold">Kontrahenci CRM (seria „inni")</div>
-        <div class="text-xs text-slate-500">Przypisuje wolne numery serii „inni" aktywnym kontaktom CRM bez numeru.</div>
+        <div class="text-xs text-slate-500">Przypisuje wolne numery serii „inni" aktywnym kontaktom CRM ze statusem „Klient", którzy nie mają numeru.</div>
         <button class="bs">Przypisz kontrahentom</button></form>
       <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_other">
         <div class="text-sm font-semibold">Uczestnicy spoza TI</div>
