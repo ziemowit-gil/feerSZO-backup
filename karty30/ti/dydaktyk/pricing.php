@@ -88,6 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rp = ti_payment_add($cl, $amt, trim((string)($_POST['paid_at'] ?? '')), $pm, trim((string)($_POST['note'] ?? '')), 'manual', 0, $pc);
             audit_log('pricing.settle_payment', ['client_id' => $cl, 'amount' => $amt, 'course_id' => $pc, 'by' => $by], $uid);
             $res = 0; $ok = 'Wpłata ' . number_format($amt, 2, ',', ' ') . ' zł zapisana' . ($pc ? ' na grupę' : ' (ogólna)') . '.' . (($rp['credit'] ?? 0) > 0 ? ' Nadpłata: ' . number_format($rp['credit'], 2, ',', ' ') . ' zł.' : ''); break;
+        case 'close_phase_out':
+            $rr = ti_course_close_phase_out((int)($me['user_id'] ?? 0), $by, !empty($_POST['include_future']));
+            $res = 0; $ok = 'Zamknięto grup „Planowana do wygaszenia”: ' . $rr['closed'] . ($rr['skipped'] ? '. Pominięto (mają przyszłe lekcje): ' . implode('; ', $rr['skipped']) : '') . '.'; break;
         case 'bulk_types':
             $ids = array_filter(array_map('intval', (array)($_POST['ids'] ?? [])));
             $t1 = (int)($_POST['bt_type'] ?? 0) ?: null; $t2 = (int)($_POST['bt_online'] ?? 0) ?: null;
@@ -565,6 +568,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="bulk-all" onclick="document.querySelectorAll('input[name=&quot;ids[]&quot;][form=bulkform]').forEach(function(x){x.checked=this.checked}.bind(this))"> zaznacz wszystkie</label>
     <span class="text-xs text-slate-500">Zaznacz grupy na kartach (aktywne) lub w sekcji „Zamknięte”, potem wybierz akcję:</span>
     <button type="submit" name="_op" value="close_candidates" class="btn-sec" onclick="return confirm('Zamknąć zaznaczone grupy? Grupy z przyszłymi lekcjami zostaną pominięte. Zostaną zarchiwizowane i zablokowane.')"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij zaznaczone</button>
+    <?php $po_n = ti_course_phase_out_count(); if ($po_n): ?><button type="submit" name="_op" value="close_phase_out" class="btn-sec" onclick="return confirm('Zamknąć wszystkie grupy ze statusem „Planowana do wygaszenia” (<?= $po_n ?>)? Grupy z przyszłymi lekcjami zostaną pominięte.')"><i class="bi bi-hourglass-split" aria-hidden="true"></i>Zamknij „Planowana do wygaszenia” (<?= $po_n ?>)</button><?php endif; ?>
     <button type="submit" name="_op" value="open_groups" class="btn-pri" onclick="return confirm('Uruchomić ponownie zaznaczone zamknięte grupy (przywrócić z archiwum i odblokować)?')"><i class="bi bi-unlock" aria-hidden="true"></i>Uruchom zaznaczone</button>
     <details class="w-full rounded-lg border border-slate-200 bg-slate-50/60">
       <summary class="cursor-pointer select-none px-3 py-2 text-sm font-medium text-navy-700"><i class="bi bi-sliders mr-1" aria-hidden="true"></i>Więcej akcji masowych (typy zajęć, stawki)</summary>

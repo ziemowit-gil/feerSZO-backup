@@ -146,6 +146,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
     // „Zamknij i archiwizuj" — archiwizacja + blokada protokołów i wszelkich
     // modyfikacji grupy (ti_course_closed_guard() w punktach zapisu,
     // ti_protocol_require_course_open() w bibliotece protokołów).
+    if ($ku_op === 'close_phase_out' && $ku_can_write) {
+        $rr = ti_course_close_phase_out((int)($uid ?? 0), (string)($me['name'] ?? ''), !empty($_POST['include_future']));
+        $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Zamknięto grup „Planowana do wygaszenia”: ' . $rr['closed']
+            . ($rr['skipped'] ? '. Pominięto (mają przyszłe lekcje): ' . implode('; ', $rr['skipped']) : '')
+            . '. Zamknięte grupy są zarchiwizowane i zablokowane — odblokowuje je „Przywróć z archiwum”.'];
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+    }
     if ($ku_op === 'close_course' && $ku_can_write) {
         $cid = (int)($_POST['course_id'] ?? 0);
         if ($cid) {
@@ -399,6 +406,17 @@ unset($_SESSION['dyd_flash']);
       <i class="bi bi-table me-1" aria-hidden="true"></i>Tabela
     </a>
   </div>
+  <?php $ku_po = $ku_can_write ? ti_course_phase_out_count() : 0; if ($ku_po > 0): ?>
+  <form method="post" class="d-inline-flex align-items-center gap-2"
+        onsubmit="return confirm('Zamknąć wszystkie grupy ze statusem „Planowana do wygaszenia” (<?= $ku_po ?>)?\n\nGrupy zostaną zarchiwizowane, a protokoły i wszelkie zmiany zablokowane. Odblokowuje tylko „Przywróć z archiwum”.' + (this.include_future.checked ? '\n\nUWAGA: zamkniesz także grupy z przyszłymi lekcjami.' : ''))">
+    <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+    <input type="hidden" name="_op" value="close_phase_out">
+    <button class="btn btn-sm btn-outline-warning" title="Zamknij i zarchiwizuj grupy ze statusem planowania „Planowana do wygaszenia”">
+      <i class="bi bi-lock me-1" aria-hidden="true"></i>Zamknij grupy „Planowana do wygaszenia” <span class="badge text-bg-warning"><?= $ku_po ?></span>
+    </button>
+    <label class="form-check small mb-0"><input type="checkbox" name="include_future" value="1" class="form-check-input"> <span class="form-check-label">także z przyszłymi lekcjami</span></label>
+  </form>
+  <?php endif; ?>
   <?php if ($ku_can_write): ?>
   <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#kuNewModal">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy kurs

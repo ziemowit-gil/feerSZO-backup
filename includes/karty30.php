@@ -3202,6 +3202,32 @@ function ti_course_close(int $course_id, int $by, string $by_name): void {
     ti_course_closed($course_id, true);
 }
 
+/** Liczba grup ze statusem planowania „Planowana do wygaszenia” (plan_status='to_phase_out'), jeszcze nie zamkniętych. */
+function ti_course_phase_out_count(): int {
+    ti_course_close_migrate();
+    return (int)(db_one("SELECT COUNT(*) c FROM k30_ti_courses WHERE plan_status='to_phase_out' AND closed_at IS NULL AND status NOT IN ('archived','cancelled')")['c'] ?? 0);
+}
+
+/**
+ * Zamyka (ti_course_close: archiwizacja + blokada) wszystkie grupy ze statusem „Planowana do wygaszenia”.
+ * Domyślnie pomija grupy z przyszłymi lekcjami (lista w wyniku); $include_future=true zamyka także je.
+ * @return array{closed:int, skipped:list<string>}
+ */
+function ti_course_close_phase_out(int $by, string $by_name, bool $include_future = false): array {
+    ti_course_close_migrate();
+    $r = ['closed' => 0, 'skipped' => []];
+    foreach (db_all("SELECT c.id, c.name,
+                            (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.course_id=c.id AND s.lesson_date>=date('now') AND s.status!='cancelled') AS fut
+                       FROM k30_ti_courses c
+                      WHERE c.plan_status='to_phase_out' AND c.closed_at IS NULL AND c.status NOT IN ('archived','cancelled') ORDER BY c.name") as $g) {
+        if (!$include_future && (int)$g['fut'] > 0) { $r['skipped'][] = $g['name'] . ' (' . (int)$g['fut'] . ' przyszłych lekcji)'; continue; }
+        ti_course_close((int)$g['id'], $by, $by_name);
+        if (function_exists('audit_log')) audit_log('ti.course_closed_phase_out', ['course_id' => (int)$g['id'], 'name' => $g['name'], 'include_future' => $include_future, 'by' => $by_name], $by ?: null);
+        $r['closed']++;
+    }
+    return $r;
+}
+
 /** Zdjęcie blokady — wołane przy „Przywróć z archiwum". */
 function ti_course_reopen(int $course_id): void {
     ti_course_close_migrate();
