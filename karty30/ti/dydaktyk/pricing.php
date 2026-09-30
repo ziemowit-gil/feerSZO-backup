@@ -45,6 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $back = (string)($_POST['_tab'] ?? 'sym');
     $res = null; $ok = null;
     switch ($op) {
+        case 'op_delete':
+            $er = ti_op_delete((int)($_POST['op_id'] ?? 0), (string)($_POST['reason'] ?? ''), $by, $uid);
+            if ($er !== null) { $res = $er; break; }
+            $res = 0; $ok = 'Nadpłata usunięta (ślad w dzienniku audytu).'; break;
         case 'op_refund':
             $oid = (int)($_POST['op_id'] ?? 0);
             $orow = db_one("SELECT * FROM overpayment_transactions WHERE id=?", [$oid]);
@@ -710,6 +714,13 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
                 <div><label class="lbl" for="oq-<?= (int)$o['id'] ?>">Kwota (puste = cała <?= $fmt($o['amount']) ?>)</label><input id="oq-<?= (int)$o['id'] ?>" name="amount" class="inp" inputmode="decimal"></div>
                 <div class="sm:col-span-2"><label class="lbl" for="ot-<?= (int)$o['id'] ?>">Tytuł przelewu</label><input id="ot-<?= (int)$o['id'] ?>" name="title" class="inp" required maxlength="140" value="Zwrot nadpłaty za zajęcia — <?= h($o['participant_name']) ?>"></div>
                 <div class="sm:col-span-2 text-right"><button class="btn-pri">Zwróć i wyślij do EODoK</button></div>
+              </form></details>
+            <details class="mt-1 rounded border border-red-200"><summary class="cursor-pointer px-2 py-1 text-xs font-medium text-red-700">Usuń nadpłatę</summary>
+              <form method="post" class="flex flex-wrap items-end gap-2 border-t border-red-200 p-2" onsubmit="return confirm('Usunąć wpis nadpłaty <?= h(addslashes($o['participant_name'])) ?> (<?= $fmt($o['amount']) ?> zł) bezpowrotnie? Ślad zostanie tylko w audycie.')">
+                <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="op_delete"><input type="hidden" name="_tab" value="settle"><input type="hidden" name="op_id" value="<?= (int)$o['id'] ?>">
+                <div class="min-w-[12rem] flex-1"><label class="lbl" for="od-<?= (int)$o['id'] ?>">Powód usunięcia (wymagany)</label><input id="od-<?= (int)$o['id'] ?>" name="reason" class="inp" required minlength="5" maxlength="300"></div>
+                <button class="btn-sec !text-red-700">Usuń trwale</button>
+                <p class="w-full text-xs text-slate-500">Nie usuwa wpłat w księdze — jeśli saldo nadal ma nadpłatę, „Wykryj nadpłaty" może utworzyć wpis ponownie.</p>
               </form></details></td></tr>
         <?php endforeach; ?>
         <?php if (!$st_op): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak nadpłat do rozdysponowania.</td></tr><?php endif; ?>

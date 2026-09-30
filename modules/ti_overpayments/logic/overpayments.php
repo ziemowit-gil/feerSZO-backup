@@ -225,6 +225,31 @@ function _ti_op_check(int $id, int $gr): array|string {
 
 /** 1) Zwrot na rachunek bankowy — polecenie zwrotu + wpis ujemny w księdze. Zwraca id wpisu zwrotu albo błąd. */
 /**
+ * Fizyczne usunięcie wpisu nadpłaty (tylko „do dyspozycji”, bez wpisów w księdze i bez powiązanych części).
+ * Ślad zostaje wyłącznie w audycie. Uwaga: jeśli saldo w księdze nadal ma nadpłatę, „Wykryj nadpłaty”
+ * może utworzyć wpis ponownie — wtedy trzeba skorygować wpłatę źródłową.
+ * @return string|null komunikat błędu albo null przy sukcesie
+ */
+function ti_op_delete(int $id, string $reason, string $by, ?int $user_id = null): ?string {
+    ti_op_migrate();
+    if (mb_strlen(trim($reason)) < 5) return 'Podaj powód usunięcia (min. 5 znaków).';
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        $row = db_one("SELECT * FROM overpayment_transactions WHERE id=?", [$id]);
+        if (!$row) { $pdo->rollBack(); return 'Nie znaleziono nadpłaty.'; }
+        if ($row['status'] !== 'available') { $pdo->rollBack(); return 'Usunąć można tylko nadpłatę „do dyspozycji” (ta jest: ' . (TI_OP_STATUSES[$row['status']] ?? $row['status']) . ').'; }
+        if (trim((string)($row['ledger_payment_ids'] ?? '')) !== '' && $row['ledger_payment_ids'] !== '[]') { $pdo->rollBack(); return 'Wpis ma powiązane wpisy w księdze wpłat — nie można go usunąć.'; }
+        if (db_one("SELECT 1 FROM overpayment_transactions WHERE parent_id=?", [$id])) { $pdo->rollBack(); return 'Z tego wpisu wydzielono części (rozliczone) — nie można go usunąć.'; }
+        db()->prepare("DELETE FROM overpayment_transactions WHERE id=?")->execute([$id]);
+        audit_log('overpayments.deleted', ['overpayment_id' => $id, 'participant_id' => (int)$row['participant_id'], 'course_id' => (int)$row['course_id'],
+            'amount' => (float)$row['amount'], 'source_type' => $row['source_type'], 'reason' => trim($reason), 'by' => $by, 'row' => $row], $user_id);
+        ti_op_refresh_balance((int)$row['participant_id']);
+        $pdo->commit();
+        return null;
+    } catch (\Throwable $e) { $pdo->rollBack(); return 'Błąd: ' . $e->getMessage(); }
+}
+
+/**
  * Zwrot nadpłaty → od razu dokument w obiegu akceptacji EODoK (wydatek / przelew na rachunek kursanta).
  * Błąd tu nie cofa zwrotu w księdze — zwraca id dokumentu EODoK albo null (ślad w audycie).
  */
