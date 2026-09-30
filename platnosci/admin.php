@@ -129,6 +129,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($lb === '') { $err = 'Brak ostatniego importu.'; break; }
             $x = pp_vnrb_pool_assign_ti($by, $uid, $lb);
             $ok = "Ostatni import: przypisano kursantom TI {$x['assigned']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
+        case 'bank_manual':
+            $err = pp_bank_post_manual((int)($_POST['bank_tx_id'] ?? 0), (int)($_POST['to_pid'] ?? 0), (string)($_POST['reason'] ?? ''), $by, $uid);
+            $ok = 'Wpływ zaksięgowany na wskazanego uczestnika.'; break;
+        case 'bank_dismiss':
+            $err = pp_bank_dismiss((int)($_POST['bank_tx_id'] ?? 0), (string)($_POST['reason'] ?? ''), $by, $uid);
+            $ok = 'Wpływ pominięty — zniknął z listy do wyjaśnienia.'; break;
+        case 'bank_undo':
+            $err = pp_bank_autopost_undo((int)($_POST['bank_tx_id'] ?? 0), (string)($_POST['reason'] ?? ''), $by, $uid);
+            $ok = 'Zaksięgowanie cofnięte — wpłata usunięta z księgi, wpływ wrócił do wyjaśnienia.'; break;
         case 'vnrb_release':
             $err = pp_vnrb_release((string)($_POST['kind'] ?? 'ti'), (int)($_POST['rid'] ?? 0), (string)($_POST['reason'] ?? ''), $by, $uid);
             $ok = 'Numer odpięty i zwrócony do puli.'; break;
@@ -289,6 +298,7 @@ $sel_items = $sel ? db_all("SELECT * FROM payable_items WHERE participant_id=? O
 $nrb_pending = db_all("SELECT t.*, c.name FROM portal_transactions t JOIN k30_clients c ON c.id=t.participant_id
                         WHERE t.status='pending' AND t.payment_method='individual_nrb' ORDER BY t.id");
 $bank_c = pp_bank_candidates();
+$unres = pp_bank_unresolved();
 $txs = db_all("SELECT t.*, c.name FROM portal_transactions t JOIN k30_clients c ON c.id=t.participant_id ORDER BY t.id DESC LIMIT 50");
 $stats = db_one("SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN status='pending' THEN amount END),0) p, COALESCE(SUM(CASE WHEN status='processing' THEN amount END),0) pr FROM payable_items");
 $csrf = h(csrf_token());
@@ -341,7 +351,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
   </div>
   <?php endforeach; ?>
   <nav class="flex flex-wrap gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" aria-label="Sekcje obsługi płatności">
-    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'payu' => ['PayU', 'bi-credit-card-2-front', 0], 'p24' => ['Przelewy24', 'bi-credit-card', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
+    <?php foreach (['przeglad' => ['Przegląd', 'bi-speedometer2', 0], 'przelewy' => ['Przelewy i wpływy', 'bi-cash-coin', count($nrb_pending) + count($bank_c) + count($unres)], 'uczestnicy' => ['Uczestnicy', 'bi-people', 0], 'rachunki' => ['Rachunki wirtualne', 'bi-bank', 0], 'korespondencja' => ['Korespondencja', 'bi-envelope-paper', (int)(db_one("SELECT COUNT(*) c FROM pp_notice_batches WHERE status IN ('draft','approved')")['c'] ?? 0)], 'payu' => ['PayU', 'bi-credit-card-2-front', 0], 'p24' => ['Przelewy24', 'bi-credit-card', 0], 'ustawienia' => ['Ustawienia', 'bi-gear', 0]] as $tk => [$tl, $ti, $tb]): ?>
     <button type="button" @click="go('<?= $tk ?>')" :class="tab === '<?= $tk ?>' ? 'bg-navy-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" :aria-current="tab === '<?= $tk ?>' ? 'page' : null"
             class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"><i class="bi <?= $ti ?>" aria-hidden="true"></i><?= $tl ?>
       <?php if ($tb): ?><span class="rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-navy-700"><?= $tb ?></span><?php endif; ?></button>
@@ -354,6 +364,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
           ['Przelewy do potwierdzenia', count($nrb_pending), 'bi-hourglass-split', 'przelewy', 'Uczestnicy zgłosili przelew — potwierdź wpływ.'],
           ['Wpływy na numery wirtualne', (int)$ap0['posted'], 'bi-cash-coin', 'przelewy', 'Wpłaty czekają na zaksięgowanie (' . pp_fmt($ap0['amount']) . ').'],
           ['Wpływy do dopasowania', count($bank_c), 'bi-link-45deg', 'przelewy', 'Wpływy z wyciągów pasujące do płatności.'],
+          ['Wpływy do wyjaśnienia', count($unres), 'bi-question-circle', 'przelewy', 'Wpłaty na zablokowany numer albo numer bez właściciela.'],
           ['Kursanci bez numeru rachunku', $nb0, 'bi-person-x', 'rachunki', 'Nadaj numer z puli albo zamów w banku.'],
           ['Numery bez powiadomienia', $unn0, 'bi-envelope', 'rachunki', 'Nadane numery, o których kursant nie wie.'],
         ]; ?>
@@ -445,6 +456,43 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <td class="pr-3 text-xs text-slate-600"><?= h(mb_strimwidth(trim($ar['payer'] . ' — ' . $ar['title']), 0, 80, '…')) ?></td><td class="pr-3 text-right tabular-nums"><?= h(pp_fmt($ar['amount'])) ?></td></tr><?php endforeach; ?>
     </tbody></table></div>
     <?php else: ?><p class="mt-2 text-sm text-slate-500">Brak nowych wpływów na numery wirtualne.</p><?php endif; ?>
+  </section>
+
+  <!-- Wpływy do wyjaśnienia -->
+  <section class="card space-y-3" aria-labelledby="uw-h">
+    <h2 id="uw-h" class="font-semibold"><i class="bi bi-question-circle text-amber-600" aria-hidden="true"></i> Wpływy do wyjaśnienia <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"><?= count($unres) ?></span></h2>
+    <p class="text-xs text-slate-500">Wpłaty na nasze numery wirtualne, których nie księgujemy automatycznie: na numer <strong>zablokowany</strong> albo numer, którego <strong>nikt nie ma</strong>. Zaksięguj na właściwego uczestnika albo pomiń.</p>
+    <?php if (!$unres): ?><p class="text-sm text-slate-500">Nic do wyjaśnienia.</p><?php else: ?>
+    <div class="max-h-96 overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Data</th><th class="pr-3">Wpłacający / tytuł</th><th class="pr-3 text-right">Kwota</th><th class="pr-3">Powód</th><th class="pr-3">Decyzja</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach ($unres as $ux): $ub = $ux['bank']; ?>
+      <tr class="align-top"><td class="whitespace-nowrap py-2 pr-3 text-xs"><?= h(substr((string)$ub['data_waluty'], 0, 10)) ?></td>
+        <td class="pr-3 text-xs"><div class="font-medium"><?= h((string)$ub['kontrahent_nazwa']) ?></div><div class="text-slate-500"><?= h(mb_strimwidth((string)$ub['tytul'], 0, 80, '…')) ?></div><div class="font-mono text-[11px] text-slate-400"><?= h(pp_nrb_format($ux['nrb'])) ?></div></td>
+        <td class="pr-3 text-right tabular-nums"><?= h(pp_fmt((float)$ub['kwota'])) ?></td>
+        <td class="pr-3 text-xs"><span class="rounded-full px-2 py-0.5 <?= $ux['reason'] === 'blocked' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800' ?>"><?= $ux['reason'] === 'blocked' ? 'numer zablokowany' : 'numer bez właściciela' ?></span></td>
+        <td class="pr-3"><details class="text-xs"><summary class="cursor-pointer text-navy-700">rozstrzygnij</summary>
+          <div class="mt-2 w-80 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+            <form method="post" class="space-y-1"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="bank_manual"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="bank_tx_id" value="<?= (int)$ub['id'] ?>">
+              <label class="lbl" for="um-<?= (int)$ub['id'] ?>">Zaksięguj na uczestnika</label><select id="um-<?= (int)$ub['id'] ?>" name="to_pid" class="inp !py-1" required><option value="">— wybierz —</option><?php foreach ($due_clients as $dc): ?><option value="<?= (int)$dc['id'] ?>"><?= h($dc['name']) ?></option><?php endforeach; ?></select>
+              <input name="reason" class="inp !py-1" placeholder="powód / ustalenie" maxlength="300" required minlength="5" aria-label="Powód"><button class="bp !py-1">Zaksięguj</button></form>
+            <form method="post" class="space-y-1 border-t border-slate-100 pt-2" onsubmit="return confirm('Pominąć ten wpływ? Zniknie z listy.')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="bank_dismiss"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="bank_tx_id" value="<?= (int)$ub['id'] ?>">
+              <input name="reason" class="inp !py-1" placeholder="powód pominięcia" maxlength="300" required minlength="5" aria-label="Powód pominięcia"><button class="bs !py-1">Pomiń wpływ</button></form>
+          </div></details></td></tr>
+      <?php endforeach; ?></tbody></table></div><?php endif; ?>
+  </section>
+
+  <!-- Zaksięgowane po numerze wirtualnym — z możliwością cofnięcia -->
+  <?php $posted = db_all("SELECT a.*, c.name, b.tytul, b.kontrahent_nazwa, b.data_waluty FROM pp_bank_autopost a LEFT JOIN k30_clients c ON c.id=a.participant_id LEFT JOIN edok_bank_tx b ON b.id=a.bank_tx_id ORDER BY a.created_at DESC LIMIT 40"); ?>
+  <section class="card space-y-3" aria-labelledby="zp-h">
+    <h2 id="zp-h" class="font-semibold"><i class="bi bi-check2-circle text-emerald-600" aria-hidden="true"></i> Zaksięgowane po numerze wirtualnym (ostatnie <?= count($posted) ?>)</h2>
+    <?php if (!$posted): ?><p class="text-sm text-slate-500">Brak.</p><?php else: ?>
+    <div class="max-h-80 overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Zaksięgowano</th><th class="pr-3">Kursant</th><th class="pr-3">Wpłata</th><th class="pr-3 text-right">Kwota</th><th class="pr-3 text-right">Cofnięcie</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach ($posted as $pz): ?>
+      <tr><td class="whitespace-nowrap py-1.5 pr-3 text-xs"><?= h(substr((string)$pz['created_at'], 0, 16)) ?><div class="text-slate-400"><?= h((string)$pz['by_name']) ?></div></td><td class="pr-3 font-medium"><?= h((string)($pz['name'] ?? '#' . $pz['participant_id'])) ?></td>
+        <td class="pr-3 text-xs text-slate-600"><?= h(mb_strimwidth(trim((string)$pz['kontrahent_nazwa'] . ' — ' . (string)$pz['tytul']), 0, 70, '…')) ?></td><td class="pr-3 text-right tabular-nums"><?= h(pp_fmt((float)$pz['amount'])) ?></td>
+        <td class="pr-3 text-right"><details class="relative inline-block text-left text-xs"><summary class="cursor-pointer text-red-700">cofnij</summary>
+          <form method="post" class="absolute right-0 z-10 mt-1 w-72 space-y-1 rounded-lg bg-white p-3 shadow-lg ring-1 ring-slate-200" onsubmit="return confirm('Cofnąć zaksięgowanie? Wpłata zniknie z księgi kursanta, a saldo się przeliczy.')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="bank_undo"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="bank_tx_id" value="<?= (int)$pz['bank_tx_id'] ?>">
+            <input name="reason" class="inp !py-1" placeholder="powód cofnięcia" maxlength="300" required minlength="5" aria-label="Powód cofnięcia"><button class="bs !py-1 !text-red-700">Cofnij zaksięgowanie</button></form></details></td></tr>
+      <?php endforeach; ?></tbody></table></div><?php endif; ?>
   </section>
 
   <!-- Wpływy z wyciągów EODoK -->

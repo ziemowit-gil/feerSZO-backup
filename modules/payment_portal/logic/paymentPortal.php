@@ -1485,3 +1485,93 @@ function pp_bf_products(bool $refresh = false): array {
         return ['list' => $list, 'error' => ''];
     } catch (\Throwable $e) { return ['list' => [], 'error' => $e->getMessage()]; }
 }
+
+
+// ── Wpływy do wyjaśnienia i cofanie księgowań (wpłaty po numerze wirtualnym) ─────────────────────────────
+
+/** 26-cyfrowe numery rachunków z tekstu (tytuł/referencja): ciągi cyfr ze spacjami co 4, opcjonalnie z „PL”. @return list<string> */
+function pp_extract_nrbs(string $text): array {
+    $out = [];
+    if (preg_match_all('/(?:PL)?\s?(\d{2}(?:\s?\d{4}){6})/i', $text, $m)) foreach ($m[1] as $x) { $d = preg_replace('/\D/', '', $x); if (strlen($d) === 26 && pp_nrb_valid($d)) $out[] = $d; }
+    return array_values(array_unique($out));
+}
+
+/** Czy numer należy do naszej puli rachunków (ten sam bank + RRRR). */
+function pp_nrb_is_ours(string $nrb): bool { return strlen($nrb) === 26 && substr($nrb, 2, 12) === pp_vnrb_bank() . pp_vnrb_rrrr(); }
+
+/**
+ * Wpływy z wyciągów na nasze numery wirtualne, których autopost nie zaksięguje i które wymagają decyzji:
+ * 'blocked' (numer zablokowany) albo 'unassigned' (numer z naszej puli, którego nikt nie ma).
+ * @return list<array{bank:array, nrb:string, reason:string}>
+ */
+function pp_bank_unresolved(): array {
+    pp_migrate();
+    try {
+        $bank = db_all("SELECT b.* FROM edok_bank_tx b LEFT JOIN pp_bank_matches m ON m.bank_tx_id=b.id LEFT JOIN pp_bank_autopost a ON a.bank_tx_id=b.id
+                         WHERE b.znak='C' AND b.ignored=0 AND b.doc_id IS NULL AND m.id IS NULL AND a.bank_tx_id IS NULL ORDER BY b.data_waluty DESC, b.id DESC LIMIT 1000");
+    } catch (\Throwable $e) { return []; }
+    $owners = [];
+    foreach (db_all("SELECT individual_nrb n FROM payment_portal_users WHERE individual_nrb IS NOT NULL AND individual_nrb!=''") as $u) $owners[pp_nrb_normalize((string)$u['n'])] = true;
+    $out = [];
+    foreach ($bank as $b) {
+        $cands = array_filter(array_merge([pp_nrb_normalize((string)$b['account_nrb'])], pp_extract_nrbs((string)$b['tytul'] . ' ' . (string)$b['referencja'])), 'pp_nrb_is_ours');
+        foreach ($cands as $n) {
+            if (isset($owners[$n])) { if (pp_vnrb_is_blocked($n)) { $out[] = ['bank' => $b, 'nrb' => $n, 'reason' => 'blocked']; } break; }   // z właścicielem i nie zablokowany — księguje autopost
+            $out[] = ['bank' => $b, 'nrb' => $n, 'reason' => 'unassigned']; break;
+        }
+    }
+    return $out;
+}
+
+/** Ręczne zaksięgowanie wpływu na wskazanego uczestnika (wpływ „do wyjaśnienia”). */
+function pp_bank_post_manual(int $bank_tx_id, int $participant_id, string $reason, string $by, ?int $uid): ?string {
+    pp_migrate();
+    if (mb_strlen(trim($reason)) < 5) return 'Podaj powód księgowania (min. 5 znaków).';
+    $b = db_one("SELECT * FROM edok_bank_tx WHERE id=? AND znak='C' AND ignored=0 AND doc_id IS NULL", [$bank_tx_id]);
+    if (!$b) return 'Nie znaleziono wpływu do zaksięgowania.';
+    if (db_one("SELECT 1 FROM pp_bank_autopost WHERE bank_tx_id=?", [$bank_tx_id]) || db_one("SELECT 1 FROM pp_bank_matches WHERE bank_tx_id=?", [$bank_tx_id])) return 'Ten wpływ jest już zaksięgowany.';
+    $cl = db_one("SELECT name FROM k30_clients WHERE id=?", [$participant_id]);
+    if (!$cl) return 'Wybierz uczestnika.';
+    $nrbs = array_merge([pp_nrb_normalize((string)$b['account_nrb'])], pp_extract_nrbs((string)$b['tytul'] . ' ' . (string)$b['referencja']));
+    $nrb = ''; foreach ($nrbs as $n) if (pp_nrb_is_ours($n)) { $nrb = $n; break; }
+    db()->beginTransaction();
+    try {
+        $pay = ti_payment_add($participant_id, (float)$b['kwota'], substr((string)$b['data_waluty'], 0, 10), 'transfer',
+            'Wpływ z wyciągu (wyjaśniony ręcznie: ' . trim($reason) . ') — ' . trim($b['kontrahent_nazwa'] . ' ' . $b['tytul']), 'bank_tx', (int)$b['id']);
+        db_insert('pp_bank_autopost', ['bank_tx_id' => (int)$b['id'], 'participant_id' => $participant_id, 'payment_id' => (int)($pay['payment_id'] ?? 0),
+                                       'amount' => (float)$b['kwota'], 'nrb' => $nrb, 'by_name' => $by . ' (ręcznie)']);
+        db()->prepare("UPDATE edok_bank_tx SET matched_how=?, matched_by_name=?, matched_at=datetime('now') WHERE id=? AND doc_id IS NULL AND matched_how=''")->execute(['platnosci:reczne', $by, (int)$b['id']]);
+        audit_log('payments.bank_post_manual', ['bank_tx_id' => (int)$b['id'], 'participant_id' => $participant_id, 'amount' => (float)$b['kwota'], 'reason' => trim($reason), 'by' => $by], $uid);
+        db()->commit();
+    } catch (\Throwable $e) { db()->rollBack(); return 'Błąd: ' . $e->getMessage(); }
+    return null;
+}
+
+/** „Pomiń” wpływ (nie dotyczy uczestników — np. wpłata obca): znika z listy do wyjaśnienia. */
+function pp_bank_dismiss(int $bank_tx_id, string $reason, string $by, ?int $uid): ?string {
+    if (mb_strlen(trim($reason)) < 5) return 'Podaj powód (min. 5 znaków).';
+    $b = db_one("SELECT kwota FROM edok_bank_tx WHERE id=? AND znak='C' AND ignored=0 AND doc_id IS NULL", [$bank_tx_id]);
+    if (!$b) return 'Nie znaleziono wpływu.';
+    db()->prepare("UPDATE edok_bank_tx SET ignored=1 WHERE id=?")->execute([$bank_tx_id]);
+    audit_log('payments.bank_dismissed', ['bank_tx_id' => $bank_tx_id, 'amount' => (float)$b['kwota'], 'reason' => trim($reason), 'by' => $by], $uid);
+    return null;
+}
+
+/** Cofnięcie zaksięgowania wpłaty po numerze wirtualnym (automatycznego albo ręcznego): usuwa wpłatę z księgi i wpływ wraca do wyjaśnienia. */
+function pp_bank_autopost_undo(int $bank_tx_id, string $reason, string $by, ?int $uid): ?string {
+    pp_migrate();
+    if (mb_strlen(trim($reason)) < 5) return 'Podaj powód cofnięcia (min. 5 znaków).';
+    $a = db_one("SELECT * FROM pp_bank_autopost WHERE bank_tx_id=?", [$bank_tx_id]);
+    if (!$a) return 'Ten wpływ nie został zaksięgowany automatycznie.';
+    db()->beginTransaction();
+    try {
+        $pid = (int)$a['payment_id'];
+        if ($pid <= 0) { $r = db_one("SELECT id FROM k30_ti_payments WHERE source_type='bank_tx' AND source_id=? AND client_id=? ORDER BY id DESC LIMIT 1", [$bank_tx_id, (int)$a['participant_id']]); $pid = (int)($r['id'] ?? 0); }
+        if ($pid > 0) ti_payment_delete($pid);
+        db()->prepare("DELETE FROM pp_bank_autopost WHERE bank_tx_id=?")->execute([$bank_tx_id]);
+        db()->prepare("UPDATE edok_bank_tx SET matched_how='', matched_by_name=NULL, matched_at=NULL WHERE id=? AND matched_how LIKE 'platnosci:%'")->execute([$bank_tx_id]);
+        audit_log('payments.bank_autopost_undo', ['bank_tx_id' => $bank_tx_id, 'participant_id' => (int)$a['participant_id'], 'amount' => (float)$a['amount'], 'payment_id' => $pid, 'reason' => trim($reason), 'by' => $by], $uid);
+        db()->commit();
+    } catch (\Throwable $e) { db()->rollBack(); return 'Błąd: ' . $e->getMessage(); }
+    return null;
+}
