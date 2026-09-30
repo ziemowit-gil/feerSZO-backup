@@ -44,6 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $back = (string)($_POST['_tab'] ?? 'sym');
     $res = null; $ok = null;
     switch ($op) {
+        case 'op_refund':
+            $oid = (int)($_POST['op_id'] ?? 0);
+            $orow = db_one("SELECT * FROM overpayment_transactions WHERE id=?", [$oid]);
+            if (!$orow) { $res = 'Nie znaleziono nadpłaty.'; break; }
+            $gr = trim((string)($_POST['amount'] ?? '')) === '' ? ti_op_gr($orow['amount']) : ti_op_parse_amount((string)$_POST['amount']);
+            if ($gr === null) { $res = 'Kwota zwrotu: liczba, np. 120,50.'; break; }
+            $x = ti_op_refund($oid, $gr, (string)($_POST['account'] ?? ''), (string)($_POST['title'] ?? ''), '', $by, $uid);
+            if (is_string($x)) { $res = $x; break; }
+            $ed = db_one("SELECT edok_doc_id FROM overpayment_transactions WHERE id=?", [$x]);
+            $res = 0; $ok = 'Zwrot zarejestrowany' . (!empty($ed['edok_doc_id']) ? ' i przekazany do obiegu akceptacji EODoK (dokument #' . (int)$ed['edok_doc_id'] . ').' : '. Dokument w EODoK nie powstał — sprawdź audyt.'); break;
         case 'sync_types':
             $x = ti_pricing_sync_from_subject_types($by, $uid);
             $ok = "Pobrano z rodzajów zajęć TI: nowe typy {$x['created']}, odświeżone {$x['updated']}, ceny ustawione {$x['priced']}, grupy przypięte {$x['linked']}."; break;
@@ -547,7 +557,16 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
         <?php foreach (array_slice($st_op, 0, 50) as $o): ?>
           <tr><td class="py-2 pr-3"><?= h($o['participant_name']) ?></td><td class="pr-3 text-xs text-slate-600"><?= h(ti_op_bucket_label((int)$o['course_id'])) ?></td>
             <td class="pr-3 text-right tabular-nums font-semibold text-sky-700"><?= $fmt($o['amount']) ?></td>
-            <td class="text-right"><a class="text-sm font-medium text-navy-700 hover:underline" href="overpayments.php">Rozlicz →</a></td></tr>
+            <td class="text-right whitespace-nowrap"><a class="text-xs text-slate-500 hover:underline" href="overpayments.php" title="Zaliczenie na FVAT/grupę, przeksięgowanie, historia">więcej</a></td></tr>
+          <tr><td colspan="4" class="pb-2">
+            <details class="rounded border border-slate-200"><summary class="cursor-pointer px-2 py-1 text-xs font-medium text-navy-700">Zwrot na rachunek (→ EODoK)</summary>
+              <form method="post" class="grid gap-2 border-t border-slate-200 p-2 sm:grid-cols-2" onsubmit="return confirm('Zarejestrować zwrot i przekazać go do obiegu akceptacji EODoK?')">
+                <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="op_refund"><input type="hidden" name="_tab" value="settle"><input type="hidden" name="op_id" value="<?= (int)$o['id'] ?>">
+                <div><label class="lbl" for="oa-<?= (int)$o['id'] ?>">Rachunek do zwrotu (26 cyfr)</label><input id="oa-<?= (int)$o['id'] ?>" name="account" class="inp font-mono" required placeholder="PL…"></div>
+                <div><label class="lbl" for="oq-<?= (int)$o['id'] ?>">Kwota (puste = cała <?= $fmt($o['amount']) ?>)</label><input id="oq-<?= (int)$o['id'] ?>" name="amount" class="inp" inputmode="decimal"></div>
+                <div class="sm:col-span-2"><label class="lbl" for="ot-<?= (int)$o['id'] ?>">Tytuł przelewu</label><input id="ot-<?= (int)$o['id'] ?>" name="title" class="inp" required maxlength="140" value="Zwrot nadpłaty za zajęcia — <?= h($o['participant_name']) ?>"></div>
+                <div class="sm:col-span-2 text-right"><button class="btn-pri">Zwróć i wyślij do EODoK</button></div>
+              </form></details></td></tr>
         <?php endforeach; ?>
         <?php if (!$st_op): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak nadpłat do rozdysponowania.</td></tr><?php endif; ?>
         </tbody></table>
