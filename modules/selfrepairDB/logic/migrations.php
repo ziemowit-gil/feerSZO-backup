@@ -101,4 +101,16 @@ return [
         },
     ],
 
+    '2026-09_ti_notice_141i' => [
+        'desc' => 'Komunikat 14.1: dopisek o zmianach 14.1i (portal płatności /platnosci, dopasowanie wpłat z wyciągów EODoK)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/ti_notices.php';
+            ti_notices_migrate();
+            db()->prepare(
+                "UPDATE k30_ti_notices SET body = body || ?, updated_at = datetime('now')
+                  WHERE title LIKE 'Aktualizacja SZO 14.1%' AND body NOT LIKE '%Wersja 14.1i%'"
+            )->execute(["\n\n(Uzupełnienie 14.1i)\n• " . TI_NOTICE_141I]);
+        },
+    ],
+
 ];

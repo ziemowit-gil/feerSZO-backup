@@ -34,6 +34,14 @@ const TI_NOTICE_141H = 'Wersja 14.1h — Stawki i cenniki: kursant może mieć o
     . ' Panel kursanta: Biblioteka materiałów w obu panelach, nowa strona startowa (najbliższe zajęcia, saldo),'
     . ' pobrania za lekcje w portfelu, wygodne menu „Więcej” na telefonie.';
 
+/** Punkt komunikatu 14.1 o zmianach 14.1i — portal płatności /platnosci (seed + dopisek w selfrepairDB). */
+const TI_NOTICE_141I = 'Wersja 14.1i — Portal płatności (szo.feer.org.pl/platnosci): uczestnik wchodzi osobistym linkiem od biura,'
+    . ' zaznacza pozycje do zapłaty (m.in. nieopłacone rozliczenia zajęć TI) i płaci przez Przelewy24 (BLIK, szybki'
+    . ' przelew, karta) albo przelewem tradycyjnym — na indywidualny rachunek wirtualny lub rachunek ogólny z kodem'
+    . ' w tytule. Wpłaty z wyciągów bankowych w EODoK dopasowują się same (po kodzie płatności albo rachunku'
+    . ' wirtualnym), a opłacone rozliczenia TI od razu trafiają do księgi kursanta. Biuro obsługuje portal w'
+    . ' /platnosci/admin.php (dostęp i link uczestnika, pozycje, potwierdzanie przelewów, wpływy do decyzji).';
+
 /** Punkt komunikatu 14.1 o nagłówku (seed + jednorazowy dopisek 14.1a w selfrepairDB). */
 const TI_NOTICE_141A_NAGLOWEK = 'Nagłówek panelu: sekcje (Mój panel, Kurs, Komunikacja, Zasoby, Kierownik) są teraz w górnym pasku. Obok — wybór grupy jako zwykła lista rozwijana (u kierownika z podziałem Twoje grupy / Grupy innych) i menu użytkownika z rolą („Pracujesz jako”), zmianą roli i wylogowaniem. Menu boczne kierownika ma ten sam granatowy styl.';
 
@@ -246,6 +254,7 @@ function ti_notices_migrate(): void {
                 . "\n• " . TI_NOTICE_141F
                 . "\n• " . TI_NOTICE_141G
                 . "\n• " . TI_NOTICE_141H
+                . "\n• " . TI_NOTICE_141I
                 . "\n\nW razie pytań — jak zwykle, śmiało pytaj administratora.",
             ]);
         }
