@@ -149,6 +149,17 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
      title="Pełny panel zarządzania kursami">
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
   </a>
+  <?php $gr_po = dyd_is_staff() ? ti_course_phase_out_count() : 0; if ($gr_po > 0): ?>
+  <form method="post" action="index.php?tab=kursy" class="d-inline-flex align-items-center gap-2"
+        onsubmit="return confirm('Zamknąć wszystkie grupy ze statusem „Planowana do wygaszenia” (<?= $gr_po ?>)?\n\nGrupy zostaną zarchiwizowane, a protokoły i wszelkie zmiany zablokowane. Odblokowuje tylko „Przywróć z archiwum”.' + (this.include_future.checked ? '\n\nUWAGA: zamkniesz także grupy z przyszłymi lekcjami.' : ''))">
+    <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+    <input type="hidden" name="_op" value="close_phase_out">
+    <button class="btn btn-outline-warning btn-sm" title="Zamknij i zarchiwizuj grupy ze statusem „Planowana do wygaszenia”">
+      <i class="bi bi-lock me-1" aria-hidden="true"></i>Zamknij „Planowana do wygaszenia” <span class="badge text-bg-warning"><?= $gr_po ?></span>
+    </button>
+    <label class="form-check small mb-0"><input type="checkbox" name="include_future" value="1" class="form-check-input"> <span class="form-check-label">także z przyszłymi lekcjami</span></label>
+  </form>
+  <?php endif; ?>
   <a href="index.php?tab=kursy&amp;new_course=1" class="btn btn-primary btn-sm">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy kurs
   </a>
