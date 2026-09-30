@@ -225,8 +225,8 @@ function ti_pricing_sync_from_subject_types(string $by, ?int $uid): array {
             if ($slug === '') continue;
             $rs = $common((int)$st['id'], 'hourly_rate');  $ro = $common((int)$st['id'], 'hourly_rate_online');
             $desc = 'Rodzaj zajęć TI: ' . $st['abbreviation'];
-            $idS = $upsert($slug . '-stacjonarnie', $st['name'] . ' — stacjonarnie', 'stacjonarna', $rs ? (float)$rs['rate'] : 0.0, $desc, (int)$st['is_active']);
-            $idO = $upsert($slug . '-online',       $st['name'] . ' — online',       'online',      $ro ? (float)$ro['rate'] : 0.0, $desc, (int)$st['is_active']);
+            $idS = $upsert($slug . '-stacjonarnie', (string)$st['name'], 'stacjonarna', $rs ? (float)$rs['rate'] : 0.0, $desc, (int)$st['is_active']);
+            $idO = $upsert($slug . '-online',       $st['name'] . ' online',       'online',      $ro ? (float)$ro['rate'] : 0.0, $desc, (int)$st['is_active']);
             foreach (db_all("SELECT c.id FROM k30_ti_courses c LEFT JOIN ti_pricing_course_types t ON t.course_id=c.id
                               WHERE c.subject_type_id=? AND (t.lesson_type_id IS NULL OR t.online_lesson_type_id IS NULL)", [(int)$st['id']]) as $c) {
                 db()->prepare("INSERT INTO ti_pricing_course_types (course_id, lesson_type_id, online_lesson_type_id, updated_at) VALUES (?,?,?,datetime('now'))
