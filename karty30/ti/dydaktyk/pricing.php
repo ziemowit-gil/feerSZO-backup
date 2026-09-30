@@ -199,6 +199,45 @@ if ($tab === 'settle') {
     $st_op = array_values(array_filter(ti_op_list(), fn($o) => $o['status'] === 'available'));
     $st_opsum = ti_op_summary();
 }
+// ── Wydruk: grupy ze stawkami i rozliczeniami (?print=groups[&course=ID]) ──────────────
+if (($_GET['print'] ?? '') === 'groups') {
+    $only = (int)($_GET['course'] ?? 0);
+    $fm = fn($v) => number_format((float)$v, 2, ',', ' ');
+    $typeName = []; foreach ($types as $t) $typeName[(int)$t['id']] = $t['name'];
+    header('Content-Type: text/html; charset=utf-8');
+    audit_log('pricing.print_groups', ['course' => $only, 'by' => $by], $uid);
+    ?><!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Grupy — stawki i rozliczenia</title>
+<style>
+  body{font:12px/1.4 Arial,sans-serif;color:#000;margin:16px} h1{font-size:16px;margin:0 0 2px} .meta{color:#444;margin-bottom:12px}
+  h2{font-size:13px;margin:14px 0 4px;padding-bottom:2px;border-bottom:2px solid #000} h2 small{font-weight:400;color:#444}
+  table{border-collapse:collapse;width:100%;margin-bottom:6px} th,td{border:1px solid #999;padding:3px 6px;text-align:left} thead th{background:#eee}
+  td.r,th.r{text-align:right;font-variant-numeric:tabular-nums} .neg{font-weight:700} .group{break-inside:avoid}
+  .pbtn{margin-bottom:10px;padding:6px 12px;font-size:13px} @media print{.pbtn{display:none}}
+</style></head><body>
+<button class="pbtn" onclick="window.print()">Drukuj</button>
+<h1>Grupy — stawki i rozliczenia</h1>
+<div class="meta"><?= h(defined('ORG_NAME') ? ORG_NAME : '') ?> · wydruk: <?= date('d.m.Y H:i') ?> · wystawił: <?= h($by) ?></div>
+<?php foreach ($courses as $c):
+    if ($only && (int)$c['id'] !== $only) continue;
+    $enr = array_filter(k30_ti_enrollments((int)$c['id']), fn($e) => $e['status'] === 'active');
+    if (!$enr && !$only) continue; ?>
+<section class="group">
+  <h2><?= trim((string)$c['group_code']) !== '' ? h($c['group_code']) . ' · ' : '' ?><?= h($c['name']) ?> <small>
+    typ: <?= h($typeName[(int)$c['lesson_type_id']] ?? '—') ?><?= $c['online_lesson_type_id'] ? ' / online: ' . h($typeName[(int)$c['online_lesson_type_id']] ?? '—') : '' ?>
+    · <?= $c['is_online'] ? 'online' : 'stacjonarnie' ?> · uczestników: <?= count($enr) ?></small></h2>
+  <table><thead><tr><th>Uczestnik</th><th class="r">Stawka zł/h</th><th class="r">Stawka online</th><th class="r">Należności</th><th class="r">Wpłacono</th><th class="r">Saldo</th></tr></thead><tbody>
+  <?php $tot = ['c' => 0.0, 'p' => 0.0]; foreach ($enr as $e): $g = ti_group_balance((int)$e['client_id'], (int)$c['id']); $tot['c'] += $g['charges']; $tot['p'] += $g['paid']; ?>
+    <tr><td><?= h($e['client_name']) ?></td><td class="r"><?= $fm($e['hourly_rate']) ?></td><td class="r"><?= (float)($e['hourly_rate_online'] ?? 0) > 0 ? $fm($e['hourly_rate_online']) : '—' ?></td>
+      <td class="r"><?= $fm($g['charges']) ?></td><td class="r"><?= $fm($g['paid']) ?></td>
+      <td class="r <?= $g['debt'] > 0.005 ? 'neg' : '' ?>"><?= $g['debt'] > 0.005 ? '−' . $fm($g['debt']) : ($g['credit'] > 0.005 ? '+' . $fm($g['credit']) : '0,00') ?></td></tr>
+  <?php endforeach; if (!$enr): ?><tr><td colspan="6">Brak aktywnych uczestników.</td></tr>
+  <?php else: ?><tr><th colspan="3" class="r">Razem</th><th class="r"><?= $fm($tot['c']) ?></th><th class="r"><?= $fm($tot['p']) ?></th><th></th></tr><?php endif; ?>
+  </tbody></table>
+</section>
+<?php endforeach; ?></body></html><?php
+    exit;
+}
+
 $J = fn($v) => json_encode($v, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 $csrf = h(csrf_token());
 $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
@@ -465,6 +504,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
       <p class="text-sm text-slate-500">Typ zajęć grupy, aktualne stawki w zapisach i szybka zmiana ceny całej grupy.</p></div>
     <div class="flex flex-wrap items-center gap-2">
       <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"><?= count($courses) ?> <?= count($courses) === 1 ? 'grupa' : 'grup' ?></span>
+      <a class="btn-sec" href="pricing.php?print=groups" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj grupy</a>
       <?php if ($wyg): ?>
       <form method="post" onsubmit="return confirm('Zamknąć <?= count($wyg) ?> grup do wygaszenia (bez przyszłych lekcji, ostatnia lekcja > 14 dni temu)? Grupy zostaną zarchiwizowane i zablokowane.')">
         <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="close_candidates"><input type="hidden" name="_tab" value="groups">
@@ -530,6 +570,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
             </form>
           <?php else: ?><span class="text-slate-500"><?= (int)$c['fut'] ?> przyszłych lekcji</span><?php endif; ?>
         </div>
+        <a class="text-xs text-slate-500 hover:underline" href="pricing.php?print=groups&amp;course=<?= (int)$c['id'] ?>" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> wydruk</a>
         <a class="text-sm font-medium text-navy-700 hover:underline" href="pricing.php?tab=groups&amp;course=<?= (int)$c['id'] ?>#zapisy">Zapisy i stawki uczestników <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </footer>
     </article>
@@ -576,6 +617,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
     <div><h2 class="text-lg font-semibold text-slate-800">Rozliczenia i nadpłaty</h2>
       <p class="text-sm text-slate-500">Należności, wpłaty i salda kursantów per grupa oraz nadpłaty do rozdysponowania — w jednym miejscu, obok stawek.</p></div>
     <div class="flex flex-wrap gap-2">
+      <a class="btn-sec" href="pricing.php?print=groups" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj grupy</a>
       <a class="btn-sec" href="overpayments.php"><i class="bi bi-cash-stack" aria-hidden="true"></i>Nadpłaty — rozliczanie</a>
       <a class="btn-sec" href="../../../rozliczenia/"><i class="bi bi-receipt" aria-hidden="true"></i>Moduł rozliczeń</a>
     </div>
