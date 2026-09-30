@@ -512,6 +512,23 @@ function edok_pin_set(int $user_id, string $pin): void {
  * Każda próba (udana i nieudana) o wyniku negatywnym trafia do audytu (edok_events).
  * Zwraca null przy sukcesie, albo komunikat błędu do pokazania użytkownikowi.
  */
+/** Domyślny czas sesji PIN w minutach (0 = wyłączona; ustawienie org: edok_pin_session_min, max 30). */
+const EDOK_PIN_SESSION_DEFAULT_MIN = 10;
+function edok_pin_session_minutes(): int {
+    $v = trim((string)org_setting('edok_pin_session_min'));
+    return max(0, min(30, $v === '' ? EDOK_PIN_SESSION_DEFAULT_MIN : (int)$v));
+}
+/** Do kiedy (timestamp) trwa sesja PIN tego użytkownika w bieżącej sesji przeglądarki; 0 = brak/wygasła. Czas stały od ostatniego wpisania PIN-u (nie przesuwa się). */
+function edok_pin_session_until(int $user_id): int {
+    $s = $_SESSION['edok_pin_session'] ?? null;
+    return (is_array($s) && (int)($s['uid'] ?? 0) === $user_id && (int)($s['until'] ?? 0) > time() && edok_pin_session_minutes() > 0) ? (int)$s['until'] : 0;
+}
+function edok_pin_session_start(int $user_id): void {
+    $m = edok_pin_session_minutes();
+    if ($m > 0 && isset($_SESSION)) $_SESSION['edok_pin_session'] = ['uid' => $user_id, 'until' => time() + $m * 60];
+}
+function edok_pin_session_end(): void { unset($_SESSION['edok_pin_session']); }
+
 function edok_pin_verify_for_decision(int $user_id, string $pin, int $doc_id, string $step_key): ?string {
     $row = db_one("SELECT * FROM edok_user_pins WHERE user_id = ?", [$user_id]);
     if (!$row || $row['pin_hash'] === '') {
@@ -534,6 +551,7 @@ function edok_pin_verify_for_decision(int $user_id, string $pin, int $doc_id, st
             : 'Błędny PIN.';
     }
     db_exec("UPDATE edok_user_pins SET failed_attempts=0, locked_until=NULL WHERE user_id=?", [$user_id]);
+    edok_pin_session_start($user_id);   // poprawny PIN otwiera krótką sesję PIN (kolejne akceptacje bez ponownego PIN-u)
     return null;
 }
 
@@ -911,7 +929,7 @@ function edok_pending_for_user(int $user_id): array {
  * Zapisuje decyzję jednego etapu obiegu dla dokumentu.
  * Zwraca ['status' => string edok_documents.status po zapisie, 'rejected' => bool].
  */
-function edok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes, bool $pin_verified = false): array {
+function edok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes, bool $pin_verified = false, string $verify_kind = 'pin'): array {
     $id    = (int)$doc['id'];
     $user  = current_user();
     $who   = $user['name'] ?? ('uid:' . $user_id);
@@ -921,7 +939,7 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
 
     // Weryfikacja PIN wymagana i sprawdzona wcześniej (edok_pin_verify_for_decision) tylko
     // dla decyzji "Tak/OK" — to jedyna, którą uchwała nazywa "akceptacją dokumentu".
-    $verify_method = ($status === 'ok' && $pin_verified) ? 'pin' : '';
+    $verify_method = ($status === 'ok' && $pin_verified) ? ($verify_kind === 'pin_session' ? 'pin_session' : 'pin') : '';
     $verify_result = ($status === 'ok' && $pin_verified) ? 'ok'  : '';
     $verified_at   = ($status === 'ok' && $pin_verified) ? date('Y-m-d H:i:s') : null;
 
@@ -946,7 +964,7 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
         ]);
     }
 
-    edok_log($id, 'decision', $step_key, $doc['status'], $doc['status'], edok_step_label($step_key, $doc) . ' → ' . $dec_label . ($notes !== '' ? (': ' . $notes) : '') . ($verify_method === 'pin' ? ' (tożsamość zweryfikowana PIN-em)' : ''), $doc);
+    edok_log($id, 'decision', $step_key, $doc['status'], $doc['status'], edok_step_label($step_key, $doc) . ' → ' . $dec_label . ($notes !== '' ? (': ' . $notes) : '') . ($verify_method === 'pin' ? ' (tożsamość zweryfikowana PIN-em)' : ($verify_method === 'pin_session' ? ' (tożsamość: sesja PIN — PIN wpisany wcześniej w tej sesji)' : '')), $doc);
 
     if ($status === 'odrzucono') {
         db_exec("UPDATE edok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
@@ -1035,8 +1053,11 @@ function edok_sign_all(int $doc_id, int $user_id, string $pin, string $notes = '
     if (!$plan) { $out['error'] = 'Brak etapów, które możesz teraz zaakceptować.'; return $out; }
     if ($plan[0]['errors']) { $out['error'] = implode(' ', $plan[0]['errors']); return $out; }
 
-    $pin_error = edok_pin_verify_for_decision($user_id, $pin, $doc_id, $plan[0]['key']);
-    if ($pin_error !== null) { $out['error'] = $pin_error; return $out; }
+    $use_session = ($pin === '' && edok_pin_session_until($user_id) > 0);
+    if (!$use_session) {
+        $pin_error = edok_pin_verify_for_decision($user_id, $pin, $doc_id, $plan[0]['key']);
+        if ($pin_error !== null) { $out['error'] = $pin_error; return $out; }
+    }
 
     foreach ($plan as $p) {
         $doc = edok_get($doc_id);
@@ -1055,7 +1076,7 @@ function edok_sign_all(int $doc_id, int $user_id, string $pin, string $notes = '
             break;
         }
         edok_decide_step($doc, $p['key'], 'ok', $user_id,
-            trim($notes . ($notes !== '' ? ' ' : '') . '[Weryfikacja zbiorcza: ' . count($plan) . ' etapy jednym PIN-em]'), true);
+            trim($notes . ($notes !== '' ? ' ' : '') . '[Weryfikacja zbiorcza: ' . count($plan) . ' etapy jednym PIN-em]'), true, $use_session ? 'pin_session' : 'pin');
         $out['signed'][] = $p['label'];
     }
     if (count($out['signed']) > 1) {
@@ -1140,8 +1161,9 @@ function edok_print_decision_label(?array $step): string {
 
 function edok_print_who(?array $step): string {
     if (!$step || !$step['decided_at']) return '—';
-    $verify = ($step['verify_method'] ?? '') === 'pin' && ($step['verify_result'] ?? '') === 'ok'
-        ? '<br><span style="font-size:8.5px">Tożsamość zweryfikowana: PIN</span>' : '';
+    $vm = (string)($step['verify_method'] ?? '');
+    $verify = in_array($vm, ['pin', 'pin_session'], true) && ($step['verify_result'] ?? '') === 'ok'
+        ? '<br><span style="font-size:8.5px">Tożsamość zweryfikowana: PIN' . ($vm === 'pin_session' ? ' (sesja PIN)' : '') . '</span>' : '';
     return h($step['user_name']) . ($step['user_role'] ? ' (' . h($step['user_role']) . ')' : '')
         . '<br>' . date_pl($step['decided_at']) . ' ' . date('H:i', strtotime($step['decided_at'])) . $verify;
 }

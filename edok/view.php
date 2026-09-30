@@ -163,6 +163,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Weryfikuj i podpisz wszystkie etapy — kolejne etapy z rolą użytkownika, jeden PIN
+    if ($action === 'pin_session_end') {
+        edok_pin_session_end();
+        flash_set('success', 'Sesja PIN zakończona — kolejna akceptacja wymaga PIN-u.');
+        header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+        exit;
+    }
+
     if ($action === 'sign_all') {
         if ($is_terminal) {
             $errors[] = 'Dokument jest już zamknięty — decyzja jest zablokowana.';
@@ -203,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = $_POST['step_status'] ?? '';
         $notes  = trim($_POST['step_notes'] ?? '');
         $pin    = trim($_POST['step_pin'] ?? '');
-        $pin_verified = false;
+        $pin_verified = false; $verify_kind = 'pin';
 
         if (!$errors) {
             if (!in_array($status, ['ok', 'uwagi', 'odrzucono'], true)) {
@@ -213,11 +220,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Weryfikacja tożsamości PIN-em — wymagana wyłącznie przy akceptacji
                 // ("Tak/OK"), zgodnie z Uchwałą 5/2026 §1 pkt 4.
                 if (!$errors) {
-                    $pin_error = edok_pin_verify_for_decision((int)$user['id'], $pin, $id, $action);
-                    if ($pin_error !== null) {
-                        $errors[] = $pin_error;
+                    if ($pin === '' && edok_pin_session_until((int)$user['id']) > 0) {
+                        // sesja PIN: PIN wpisany chwilę wcześniej w tej sesji (limit czasu z ustawień) — zapis w audycie jako 'pin_session'
+                        $pin_verified = true; $verify_kind = 'pin_session';
                     } else {
-                        $pin_verified = true;
+                        $pin_error = edok_pin_verify_for_decision((int)$user['id'], $pin, $id, $action);
+                        if ($pin_error !== null) {
+                            $errors[] = $pin_error;
+                        } else {
+                            $pin_verified = true;
+                        }
                     }
                 }
             } elseif ($status === 'odrzucono' && $notes === '') {
@@ -226,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$errors) {
-            $result = edok_decide_step($doc, $action, $status, (int)$user['id'], $notes, $pin_verified);
+            $result = edok_decide_step($doc, $action, $status, (int)$user['id'], $notes, $pin_verified, $verify_kind);
             flash_set($result['rejected'] ? 'warning' : 'success', $result['rejected'] ? 'Dokument odrzucony.' : 'Decyzja zapisana.');
             header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
             exit;
@@ -301,6 +313,8 @@ if (is_file(__DIR__ . '/../includes/betterfly_invoices.php')) {
     }
 }
 
+$pin_session_until = edok_pin_session_until((int)$user['id']);
+$pin_session_min   = edok_pin_session_minutes();
 $PAGE_TITLE = $doc['number'] . ' — EODoK';
 require_once __DIR__ . '/../includes/header.php';
 
@@ -979,6 +993,16 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <span>Nie masz ustawionego PIN-u EODoK — jest wymagany do akceptacji. <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="tw-font-semibold tw-underline">Ustaw PIN</a></span>
           </div>
           <?php else: ?>
+          <?php if ($pin_session_until): ?>
+          <div class="edok-alert tw-bg-emerald-50 tw-border-emerald-200 tw-text-emerald-800 tw-mb-3 tw-items-center">
+            <i class="bi bi-shield-check"></i>
+            <span>Sesja PIN aktywna do <strong><?= date('H:i', $pin_session_until) ?></strong> — „Tak / OK" nie wymaga ponownego PIN-u.</span>
+            <form method="post" class="tw-ml-auto"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="pin_session_end">
+              <button class="edok-btn edok-btn-ghost edok-btn-sm">Zakończ sesję</button></form>
+          </div>
+          <?php elseif ($pin_session_min > 0): ?>
+          <p class="tw-text-xs tw-text-slate-500 tw-mb-2"><i class="bi bi-info-circle"></i> Po wpisaniu PIN-u kolejne akceptacje przez <?= $pin_session_min ?> min nie będą go wymagać.</p>
+          <?php endif; ?>
           <div class="tw-flex tw-flex-wrap tw-gap-2">
             <button type="button" class="edok-btn edok-btn-primary tw-px-4 tw-py-2 tw-text-base" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
               <i class="bi bi-ui-checks"></i> Podejmij decyzję
@@ -1281,7 +1305,8 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 
         <label for="signAllPin" class="tw-text-sm tw-text-slate-600">PIN EODoK</label>
         <input type="password" name="step_pin" id="signAllPin" class="edok-pin-input tw-mb-3" inputmode="numeric"
-               pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••" required>
+               pattern="\d{6}" maxlength="6" autocomplete="off" placeholder="••••••"<?= $pin_session_until ? '' : ' required' ?>>
+        <?php if ($pin_session_until): ?><p class="tw-text-xs tw-text-emerald-700 tw-mb-3"><i class="bi bi-shield-check"></i> Sesja PIN aktywna do <?= date('H:i', $pin_session_until) ?> — PIN możesz pominąć.</p><?php endif; ?>
 
         <div class="tw-flex tw-justify-end tw-gap-2">
           <button type="button" class="edok-btn edok-btn-ghost" data-bs-dismiss="modal">Anuluj</button>
@@ -1331,6 +1356,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       return false;
     }
     if (status !== 'ok') return true; // "Z uwagami"/"Odrzuć" — bez PIN, wysyła się normalnie
+    if (<?= $pin_session_until ? 'true' : 'false' ?> && <?= (int)$pin_session_until ?> * 1000 > Date.now()) return true; // aktywna sesja PIN — serwer zweryfikuje ją sam
 
     var onPinPane = !panePin.classList.contains('tw-hidden');
     if (!onPinPane) {

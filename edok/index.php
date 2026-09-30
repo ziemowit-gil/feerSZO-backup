@@ -72,6 +72,27 @@ if ($filter_q !== '') {
     array_push($params, $q, $q, $q, $q);
 }
 
+// Filtry w nagłówkach kolumn (c_*): tekst = LIKE, etapy M/F/R/D/Z = decyzja lub „oczekuje", daty = zakres dodania.
+$col_text = ['c_numer' => 'number', 'c_kontrahent' => 'kontrahent_nazwa', 'c_tytul' => 'title', 'c_kwota' => 'kwota_brutto'];
+$cf = [];
+foreach (array_merge(array_keys($col_text), ['c_od', 'c_do'], array_map(fn($k) => 'c_' . $k, array_keys(EDOK_STEPS))) as $k) $cf[$k] = trim((string)($_GET[$k] ?? ''));
+foreach ($col_text as $k => $col) {
+    if ($cf[$k] !== '') { $where[] = "{$col} LIKE ?"; $params[] = '%' . $cf[$k] . '%'; }
+}
+foreach (array_keys(EDOK_STEPS) as $sk) {
+    $v = $cf['c_' . $sk];
+    if ($v === 'oczekuje') {
+        $where[] = "NOT EXISTS (SELECT 1 FROM edok_steps st WHERE st.doc_id = edok_documents.id AND st.step_key = ? AND st.status IN ('ok','uwagi','odrzucono'))";
+        $params[] = $sk;
+    } elseif (in_array($v, ['ok', 'uwagi', 'odrzucono'], true)) {
+        $where[] = "EXISTS (SELECT 1 FROM edok_steps st WHERE st.doc_id = edok_documents.id AND st.step_key = ? AND st.status = ?)";
+        array_push($params, $sk, $v);
+    }
+}
+if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $cf['c_od'])) { $where[] = "date(created_at) >= ?"; $params[] = $cf['c_od']; }
+if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $cf['c_do'])) { $where[] = "date(created_at) <= ?"; $params[] = $cf['c_do']; }
+$cf_active = count(array_filter($cf, fn($v) => $v !== '')) > 0;
+
 // Stronicowanie: licznik całości przy tych samych filtrach; eksport CSV bierze wszystkie pasujące, nie tylko stronę.
 $per_page   = 50;
 $is_csv     = ($_GET['export'] ?? '') === 'csv';
@@ -86,8 +107,10 @@ $docs = db_all(
 $page_url = fn(int $n): string => APP_URL . '/edok/index.php?' . http_build_query(array_merge(array_diff_key($_GET, ['export' => 1]), ['page' => $n]));
 foreach ($docs as &$d) {
     $d['steps'] = [];
-    foreach (db_all("SELECT step_key, status FROM edok_steps WHERE doc_id = ?", [$d['id']]) as $s) {
+    $d['step_meta'] = [];
+    foreach (db_all("SELECT step_key, status, user_name, decided_at FROM edok_steps WHERE doc_id = ?", [$d['id']]) as $s) {
         $d['steps'][$s['step_key']] = $s['status'];
+        $d['step_meta'][$s['step_key']] = $s;
     }
 }
 unset($d);
@@ -290,10 +313,14 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php $from_n = $total_docs ? ($page - 1) * $per_page + 1 : 0; $to_n = min($page * $per_page, $total_docs); ?>
 <div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
-  <span role="status">Dokumenty <strong><?= $from_n ?>–<?= $to_n ?></strong> z <strong><?= $total_docs ?></strong><?= ($filter_status || $filter_kierunek || $filter_q !== '' || $filter_proformy) ? ' (po filtrach)' : '' ?></span>
+  <span role="status">Dokumenty <strong><?= $from_n ?>–<?= $to_n ?></strong> z <strong><?= $total_docs ?></strong><?= ($filter_status || $filter_kierunek || $filter_q !== '' || $filter_proformy || $cf_active) ? ' (po filtrach)' : '' ?></span>
   <?php if ($pages > 1): ?><span>Strona <?= $page ?> z <?= $pages ?></span><?php endif; ?>
 </div>
 
+<form id="colFilters" method="get" action="<?= APP_URL ?>/edok/index.php">
+  <?php if ($filter_q !== ''): ?><input type="hidden" name="q" value="<?= h($filter_q) ?>"><?php endif; ?>
+  <?php if ($filter_proformy): ?><input type="hidden" name="proformy_bez_faktury" value="1"><?php endif; ?>
+</form>
 <div class="table-responsive">
   <table class="table table-sm table-hover align-middle">
     <thead class="table-light">
@@ -301,18 +328,37 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if ($can_export): ?>
         <th style="width:2rem"><input type="checkbox" class="form-check-input" id="edokExportAll" title="Zaznacz wszystkie do eksportu" aria-label="Zaznacz wszystkie do eksportu"></th>
         <?php endif; ?>
-        <th>Numer</th>
-        <th>Kierunek</th>
-        <th>Kontrahent</th>
-        <th>Tytuł</th>
-        <th class="text-end">Kwota brutto</th>
-        <th>Status</th>
-        <?php $step_abbr = ['meryt' => 'M', 'formal' => 'F', 'rachunkowa' => 'R', 'dekretacja' => 'D', 'zatwierdza' => 'Z']; ?>
-        <?php foreach (EDOK_STEPS as $sk => $sl): ?>
-        <th class="text-center" title="<?= h($sl) ?>"><?= h($step_abbr[$sk] ?? '?') ?>.</th>
+        <th title="Numer dokumentu nadany w EODoK (EODoK/nr/rok). Oznaczenie TEST = dokument testowy.">Numer</th>
+        <th title="Wydatek = koszt do zapłaty; Przychód = wpływ / sprzedaż.">Kierunek</th>
+        <th title="Dostawca lub sprzedawca (wydatek) albo płatnik / źródło wpływu (przychód).">Kontrahent</th>
+        <th title="Tytuł dokumentu — zwykle numer faktury lub opis operacji.">Tytuł</th>
+        <th class="text-end" title="Kwota brutto w walucie dokumentu.">Kwota brutto</th>
+        <th title="Stan obiegu: projekt, w obiegu, zaakceptowany, odrzucony, wycofany.">Status</th>
+        <?php $step_abbr = ['meryt' => 'M', 'formal' => 'F', 'rachunkowa' => 'R', 'dekretacja' => 'D', 'zatwierdza' => 'Z']; $step_no = 0; ?>
+        <?php foreach (EDOK_STEPS as $sk => $sl): $step_no++; ?>
+        <th class="text-center" title="Etap <?= $step_no ?> z 5: <?= h($sl) ?>. Ikona w wierszu: zielona = zaakceptowano, żółta = z uwagami, czerwona = odrzucono, szara = oczekuje."><abbr title="" style="text-decoration:none"><?= h($step_abbr[$sk] ?? '?') ?>.</abbr></th>
         <?php endforeach; ?>
-        <th>Dodano</th>
+        <th title="Data dodania dokumentu do EODoK.">Dodano</th>
         <th></th>
+      </tr>
+      <tr class="edok-colfilter">
+        <?php if ($can_export): ?><th></th><?php endif; ?>
+        <th><input form="colFilters" name="c_numer" value="<?= h($cf['c_numer']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: numer" style="min-width:90px"></th>
+        <th><select form="colFilters" name="kierunek" class="form-select form-select-sm" aria-label="Filtr: kierunek" onchange="this.form.submit()">
+          <option value="">Wszystkie</option><option value="wydatek"<?= $filter_kierunek === 'wydatek' ? ' selected' : '' ?>>Wydatek</option><option value="przychod"<?= $filter_kierunek === 'przychod' ? ' selected' : '' ?>>Przychód</option></select></th>
+        <th><input form="colFilters" name="c_kontrahent" value="<?= h($cf['c_kontrahent']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: kontrahent"></th>
+        <th><input form="colFilters" name="c_tytul" value="<?= h($cf['c_tytul']) ?>" class="form-control form-control-sm" placeholder="Filtruj…" aria-label="Filtr: tytuł"></th>
+        <th><input form="colFilters" name="c_kwota" value="<?= h($cf['c_kwota']) ?>" class="form-control form-control-sm text-end" placeholder="np. 220" aria-label="Filtr: kwota brutto" style="min-width:80px"></th>
+        <th><select form="colFilters" name="status" class="form-select form-select-sm" aria-label="Filtr: status" onchange="this.form.submit()">
+          <option value="">Wszystkie</option><?php foreach (EDOK_STATUSES as $k => $st_): ?><option value="<?= h($k) ?>"<?= $filter_status === $k ? ' selected' : '' ?>><?= h($st_['label']) ?></option><?php endforeach; ?></select></th>
+        <?php foreach (array_keys(EDOK_STEPS) as $sk): $cv = $cf['c_' . $sk]; ?>
+        <th><select form="colFilters" name="c_<?= h($sk) ?>" class="form-select form-select-sm px-1" aria-label="Filtr: etap <?= h($step_abbr[$sk] ?? $sk) ?>" onchange="this.form.submit()" style="min-width:52px">
+          <option value="">—</option><option value="ok"<?= $cv === 'ok' ? ' selected' : '' ?>>✓ zatwierdzone</option><option value="uwagi"<?= $cv === 'uwagi' ? ' selected' : '' ?>>! z uwagami</option>
+          <option value="odrzucono"<?= $cv === 'odrzucono' ? ' selected' : '' ?>>✗ odrzucone</option><option value="oczekuje"<?= $cv === 'oczekuje' ? ' selected' : '' ?>>○ oczekuje</option></select></th>
+        <?php endforeach; ?>
+        <th><div class="d-flex gap-1"><input form="colFilters" type="date" name="c_od" value="<?= h($cf['c_od']) ?>" class="form-control form-control-sm" aria-label="Dodano od" title="Dodano od"><input form="colFilters" type="date" name="c_do" value="<?= h($cf['c_do']) ?>" class="form-control form-control-sm" aria-label="Dodano do" title="Dodano do"></div></th>
+        <th class="text-nowrap"><button form="colFilters" class="btn btn-sm btn-outline-primary" title="Zastosuj filtry"><i class="bi bi-funnel"></i></button>
+          <?php if ($cf_active || $filter_status || $filter_kierunek): ?><a href="<?= APP_URL ?>/edok/index.php<?= $filter_q !== '' ? '?q=' . urlencode($filter_q) : '' ?>" class="btn btn-sm btn-outline-secondary" title="Wyczyść filtry kolumn"><i class="bi bi-x-lg"></i></a><?php endif; ?></th>
       </tr>
     </thead>
     <tbody>
@@ -328,26 +374,28 @@ require_once __DIR__ . '/../includes/header.php';
           <?php if (edok_zaplata_do_zwrotu($doc)): ?> <span class="badge bg-warning text-dark" title="<?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-person-check"></i> do zwrotu</span>
           <?php elseif (!empty($doc['zaplacono_przed'])): ?> <span class="badge bg-success-subtle text-success-emphasis" title="Zapłacona przed akceptacją: <?= h(edok_zaplata_opis($doc)) ?>"><i class="bi bi-cash-coin"></i> zapłacona</span><?php endif; ?>
           <?php if ($doc['typ_dokumentu'] === 'proforma'): ?> <span class="badge bg-info-subtle text-info-emphasis" title="<?= isset($proforma_z_faktura[$doc['id']]) ? 'Rozliczona fakturą końcową' : 'Czeka na fakturę końcową' ?>">proforma<?= isset($proforma_z_faktura[$doc['id']]) ? ' ✓' : ' · bez faktury' ?></span><?php endif; ?></td>
-        <td><?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? '<span class="badge bg-info text-dark">Przychód</span>' : '<span class="badge bg-secondary">Wydatek</span>' ?></td>
-        <td><?= h($doc['kontrahent_nazwa']) ?></td>
-        <td><?= h($doc['title']) ?></td>
+        <td><?= ($doc['kierunek'] ?? 'wydatek') === 'przychod' ? '<span class="badge bg-info text-dark" title="Przychód — wpływ lub sprzedaż">Przychód</span>' : '<span class="badge bg-secondary" title="Wydatek — koszt do zapłaty">Wydatek</span>' ?></td>
+        <td title="<?= h($doc['kontrahent_nazwa']) ?><?= !empty($doc['kontrahent_nip']) ? ' · NIP ' . h($doc['kontrahent_nip']) : '' ?>"><?= h($doc['kontrahent_nazwa']) ?></td>
+        <td title="<?= h($doc['title']) ?>"><?= h($doc['title']) ?></td>
         <td class="text-end font-monospace"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td>
         <td><?= edok_status_badge($doc['status'], $doc) ?></td>
         <?php foreach (array_keys(EDOK_STEPS) as $sk): ?>
         <td class="text-center">
-          <?php $st = $doc['steps'][$sk] ?? null; ?>
+          <?php $st = $doc['steps'][$sk] ?? null; $m_ = $doc['step_meta'][$sk] ?? null;
+            $who_ = ($m_ && $m_['decided_at']) ? ' — ' . $m_['user_name'] . ', ' . date('d.m.Y H:i', strtotime($m_['decided_at'])) : '';
+            $lbl_ = edok_step_label($sk, $doc); ?>
           <?php if ($st === 'ok'): ?>
-          <i class="bi bi-check-circle-fill text-success" title="Zatwierdzone"></i>
+          <i class="bi bi-check-circle-fill text-success" title="<?= h($lbl_ . ': zatwierdzone' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': zatwierdzone') ?>"></i>
           <?php elseif ($st === 'uwagi'): ?>
-          <i class="bi bi-exclamation-circle-fill text-warning" title="Z uwagami"></i>
+          <i class="bi bi-exclamation-circle-fill text-warning" title="<?= h($lbl_ . ': z uwagami' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': z uwagami') ?>"></i>
           <?php elseif ($st === 'odrzucono'): ?>
-          <i class="bi bi-x-circle-fill text-danger" title="Odrzucono"></i>
+          <i class="bi bi-x-circle-fill text-danger" title="<?= h($lbl_ . ': odrzucono' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': odrzucono') ?>"></i>
           <?php else: ?>
-          <i class="bi bi-circle text-muted" title="Oczekuje"></i>
+          <i class="bi bi-circle text-muted" title="<?= h($lbl_ . ': oczekuje na decyzję') ?>" role="img" aria-label="<?= h($lbl_ . ': oczekuje') ?>"></i>
           <?php endif; ?>
         </td>
         <?php endforeach; ?>
-        <td><?= date_pl($doc['created_at']) ?></td>
+        <td title="Dodano <?= h(date('d.m.Y H:i', strtotime((string)$doc['created_at']))) ?><?= !empty($doc['creator_name']) ? ' — ' . h($doc['creator_name']) : '' ?>"><?= date_pl($doc['created_at']) ?></td>
         <td class="text-nowrap">
           <a href="<?= APP_URL ?>/edok/view.php?id=<?= $doc['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
         </td>

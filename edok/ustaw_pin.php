@@ -27,6 +27,16 @@ $success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
+    if (($_POST['action'] ?? '') === 'pin_session_setting') {
+        if (!is_admin()) { flash_set('danger', 'Brak uprawnień.'); }
+        else {
+            $m = max(0, min(30, (int)($_POST['pin_session_min'] ?? 0)));
+            org_setting_set('edok_pin_session_min', (string)$m);
+            audit_log('edok.pin_session_setting', ['minutes' => $m, 'by' => $user['name'] ?? ''], $uid);
+            flash_set('success', $m > 0 ? "Sesja PIN: {$m} min." : 'Sesja PIN wyłączona — PIN przy każdej akceptacji.');
+        }
+        header('Location: ' . APP_URL . '/edok/ustaw_pin.php'); exit;
+    }
     $current_password = $_POST['current_password'] ?? '';
     $new_pin          = trim($_POST['new_pin'] ?? '');
     $confirm_pin      = trim($_POST['confirm_pin'] ?? '');
@@ -99,5 +109,22 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
   </div>
 </div>
+
+<?php if (is_admin()): ?>
+<div class="row"><div class="col-lg-6">
+  <div class="card shadow-sm mb-3">
+    <div class="card-header py-2"><strong>Sesja PIN (ustawienie organizacji)</strong></div>
+    <div class="card-body">
+      <p class="small text-muted">Po poprawnym wpisaniu PIN-u kolejne akceptacje („Tak/OK") tego użytkownika w tej samej sesji przeglądarki nie wymagają PIN-u przez podany czas (liczony od ostatniego wpisania PIN-u, nie przesuwa się). Każda takie decyzja jest w audycie i na karcie akceptacji oznaczona jako „sesja PIN". Wylogowanie lub przycisk „Zakończ sesję" kończy ją od razu. 0 = PIN przy każdej akceptacji.</p>
+      <form method="post" class="d-flex gap-2 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="action" value="pin_session_setting">
+        <div><label class="form-label small fw-semibold" for="pin_session_min">Czas sesji (minuty, 0–30)</label>
+          <input type="number" id="pin_session_min" name="pin_session_min" min="0" max="30" class="form-control form-control-sm" style="width:110px" value="<?= (int)edok_pin_session_minutes() ?>"></div>
+        <button class="btn btn-sm btn-primary">Zapisz</button>
+      </form>
+    </div>
+  </div>
+</div></div>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
