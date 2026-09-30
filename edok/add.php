@@ -537,6 +537,14 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="file" name="file" id="file_input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx"<?= $queue_item ? '' : ' required' ?>>
         <div class="form-text">PDF, JPG, PNG lub DOCX, max 20 MB.</div>
       </div>
+      <?php $ocr_ok = !$queue_item || in_array(strtolower(pathinfo($queue_item['file_path'], PATHINFO_EXTENSION)), ['pdf', 'jpg', 'jpeg', 'png'], true); ?>
+      <?php if ($ocr_ok && trim((string)(db_one("SELECT value FROM settings WHERE key_='anthropic_api_key'")['value'] ?? '')) !== ''): ?>
+      <div class="mb-3">
+        <button type="button" class="btn btn-outline-primary btn-sm" id="ocr_btn" onclick="edokOcr(<?= $queue_item ? (int)$queue_item['id'] : 0 ?>)"><i class="bi bi-stars"></i> Odczytaj dane z pliku (AI)</button>
+        <span class="form-text ms-2" id="ocr_status" aria-live="polite"></span>
+        <div class="form-text">Dane z faktury (PDF/skan/zdjęcie) zostaną wpisane do formularza jako podpowiedź — zawsze je sprawdź. Plik jest wysyłany do usługi AI (Anthropic).</div>
+      </div>
+      <?php endif; ?>
       <div class="mb-3 alert alert-success py-2" id="ksef_file_attached" style="display:none">
         <i class="bi bi-check-circle-fill"></i> Dokument źródłowy pobrany z KSeF (XML) — nie trzeba wgrywać skanu.
       </div>
@@ -745,6 +753,42 @@ function edokSuggestTytul(force) {
   });
 })();
 
+function edokOcr(queueId) {
+  var status = document.getElementById('ocr_status'), btn = document.getElementById('ocr_btn');
+  var fd = new FormData();
+  fd.append('_csrf', document.querySelector('#edok-add-form input[name="_csrf"]').value);
+  if (queueId) { fd.append('queue_id', queueId); }
+  else {
+    var fi = document.getElementById('file_input');
+    if (!fi || !fi.files.length) { status.textContent = 'Najpierw wybierz plik.'; status.className = 'form-text ms-2 text-danger'; return; }
+    fd.append('file', fi.files[0]);
+  }
+  btn.disabled = true; status.textContent = 'Odczytuję dokument…'; status.className = 'form-text ms-2 text-muted';
+  fetch('<?= APP_URL ?>/edok/ocr_invoice.php', { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { status.textContent = res.error || 'Błąd odczytu.'; status.className = 'form-text ms-2 text-danger'; return; }
+      var d = res.data;
+      ['typ_dokumentu','nr_faktury','kontrahent_nazwa','kontrahent_nip','data_wystawienia','data_sprzedazy','kwota_netto','stawka_vat','kwota_vat','kwota_brutto','waluta','termin_platnosci','rachunek_bankowy','description'].forEach(function (k) {
+        var el = document.querySelector('[name="' + k + '"]');
+        if (el && d[k] !== undefined && d[k] !== '') el.value = d[k];
+      });
+      if (res.file_path) {
+        document.getElementById('ksef_file_path').value = res.file_path;
+        document.getElementById('file_input').required = false;
+        document.getElementById('file_upload_wrap').style.display = 'none';
+        var att = document.getElementById('ksef_file_attached');
+        att.innerHTML = '<i class="bi bi-check-circle-fill"></i> Plik źródłowy zapisany — nie trzeba wgrywać ponownie.'; att.style.display = '';
+      }
+      if (typeof edokRecalc === 'function') edokRecalc();
+      edokMppCheck(); edokSuggestTytul();
+      var w = res.warnings || [];
+      status.textContent = 'Uzupełniono z dokumentu (AI) — sprawdź dane.' + (w.length ? ' Uwaga: ' + w.join(' ') : '');
+      status.className = 'form-text ms-2 ' + (w.length ? 'text-warning-emphasis' : 'text-success');
+    })
+    .catch(function () { btn.disabled = false; status.textContent = 'Błąd sieci.'; status.className = 'form-text ms-2 text-danger'; });
+}
 function edokXmlLoad(input) {
   var status = document.getElementById('xml_status');
   if (!input.files.length) return;
