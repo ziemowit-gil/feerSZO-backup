@@ -47,7 +47,12 @@ foreach ($_rv_grouped as &$_mg) {
 }
 unset($_mg);
 ?>
-<h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3"><i class="bi bi-receipt text-primary" aria-hidden="true"></i>Rozliczenia</h2>
+<div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-0"><i class="bi bi-receipt text-primary" aria-hidden="true"></i>Rozliczenia</h2>
+  <a class="btn btn-sm btn-outline-primary ms-auto" href="<?= h($rz_ledger_pdf ?? 'ledger_pdf.php') ?>" target="_blank" rel="noopener"
+     title="Każda lekcja jako pobranie z salda, z wpłatami i saldem po każdej operacji">
+    <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Historia pobrań za lekcje (PDF)</a>
+</div>
 
 <?php $rv_pay = k30_ti_client_payment((int)$rv_client_id); ?>
 <?php if ($rv_pay['account'] !== '' || $rv_pay['title'] !== '' || $rv_pay['codes']): ?>

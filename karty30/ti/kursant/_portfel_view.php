@@ -126,7 +126,7 @@ foreach (ti_payments_for_client($pw_cid) as $p) {
         'label'  => $lbl,
         'note'   => trim(($pw_mlabels[$p['method']] ?? (string)$p['method'])
                     . ((string)$p['note'] !== '' ? ' · ' . (string)$p['note'] : '')),
-        'status' => '',
+        'status' => 'booked',   // wpis księgi — także ujemny (zwrot, przeniesienie), nie „do pokrycia”
     ];
 }
 foreach (k30_ti_client_billing($pw_cid) as $b) {
@@ -496,6 +496,60 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
 </div>
 <?php endif; ?>
 
+<?php
+// ── Pobrania za lekcje (modules/ti_lesson_ledger): każda lekcja jako pobranie z salda ──
+$pw_ledger_pdf = $pw_ledger_pdf ?? 'ledger_pdf.php';
+try {
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_lesson_ledger/logic/lessonLedger.php';
+    $pw_sy  = (int)date('Y') - ((int)date('n') < 9 ? 1 : 0);
+    $pw_L   = ti_lesson_ledger($pw_cid, sprintf('%04d-09-01', $pw_sy));
+    $pw_led = array_reverse(array_slice($pw_L['rows'], -12));
+    $pw_zl  = fn(float $v): string => ($v < -0.005 ? '−' : '') . number_format(abs($v), 2, ',', ' ') . ' zł';
+} catch (\Throwable $e) { $pw_L = null; $pw_led = []; }
+?>
+<?php if ($pw_L && ($pw_L['rows'] || abs($pw_L['opening']) > 0.005)): ?>
+<div class="card mb-4">
+  <div class="card-header fw-semibold bg-white d-flex align-items-center flex-wrap gap-2">
+    <span><i class="bi bi-journal-text text-primary me-1" aria-hidden="true"></i>Pobrania za lekcje</span>
+    <span class="small text-body-secondary fw-normal">od 1 września <?= $pw_sy ?></span>
+    <a class="btn btn-sm btn-outline-primary ms-auto" href="<?= h($pw_ledger_pdf) ?>" target="_blank" rel="noopener">
+      <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pełna historia (PDF)</a>
+  </div>
+  <div class="card-body pb-2">
+    <div class="row g-2 small mb-2">
+      <div class="col-6 col-md-3"><div class="text-body-secondary">Saldo 1 września</div><div class="fw-semibold"><?= $pw_zl($pw_L['opening']) ?></div></div>
+      <div class="col-6 col-md-3"><div class="text-body-secondary">Wpłaty</div><div class="fw-semibold text-success">+<?= number_format($pw_L['paid_in'], 2, ',', ' ') ?> zł</div></div>
+      <div class="col-6 col-md-3"><div class="text-body-secondary">Pobrania za lekcje</div><div class="fw-semibold">−<?= number_format($pw_L['charged'], 2, ',', ' ') ?> zł</div></div>
+      <div class="col-6 col-md-3"><div class="text-body-secondary">Saldo teraz</div>
+        <div class="fw-semibold <?= $pw_L['closing'] < -0.005 ? 'text-danger' : 'text-success' ?>"><?= $pw_L['closing'] < -0.005 ? 'do zapłaty ' . number_format(-$pw_L['closing'], 2, ',', ' ') : number_format($pw_L['closing'], 2, ',', ' ') ?> zł</div></div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Ostatnie pobrania za lekcje i wpłaty z saldem po każdej operacji</caption>
+      <thead><tr><th scope="col">Data</th><th scope="col">Pozycja</th><th scope="col" class="text-end">Kwota</th><th scope="col" class="text-end">Saldo</th></tr></thead>
+      <tbody>
+      <?php if (!$pw_led): ?>
+        <tr><td colspan="4" class="text-center text-body-secondary py-3">W tym roku szkolnym nie było jeszcze lekcji ani wpłat — saldo przeniesione z poprzedniego okresu.</td></tr>
+      <?php endif; ?>
+      <?php foreach ($pw_led as $r): ?>
+        <tr<?= $r['unbilled'] ? ' class="table-warning"' : '' ?>>
+          <td class="text-nowrap"><?= h(date('d.m.Y', strtotime($r['date']))) ?></td>
+          <td><?= h($r['label']) ?>
+            <?php if ($r['course'] !== '' || $r['rate'] !== null): ?><div class="text-body-secondary" style="font-size:.78rem"><?= h($r['course']) ?><?= $r['rate'] !== null ? ' · ' . h(rtrim(rtrim(number_format((float)$r['hours'], 2, ',', ''), '0'), ',')) . ' h × ' . number_format((float)$r['rate'], 2, ',', ' ') . ' zł' : '' ?><?= $r['unbilled'] ? ' · jeszcze nierozliczone' : '' ?></div><?php endif; ?></td>
+          <td class="text-end text-nowrap fw-semibold <?= $r['amount'] < 0 ? '' : 'text-success' ?>"><?= $r['amount'] < 0 ? '−' : '+' ?><?= number_format(abs($r['amount']), 2, ',', ' ') ?> zł</td>
+          <td class="text-end text-nowrap"><?= $pw_zl($r['balance']) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white small text-body-secondary">
+    Każda odbyta lekcja jest pobierana z salda po stawce z dnia lekcji. Pokazujemy 12 ostatnich operacji — pełna historia w PDF.
+  </div>
+</div>
+<?php endif; ?>
+
 <div class="card">
   <div class="card-header fw-semibold bg-white">
     <i class="bi bi-clock-history text-primary me-1" aria-hidden="true"></i>Historia operacji
@@ -534,7 +588,7 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
           <td>
             <?php if ($op['kind'] === 'declared'): ?>
             <span class="badge text-bg-warning">oczekuje na zatwierdzenie</span>
-            <?php elseif ($op['kind'] === 'in'): ?>
+            <?php elseif ($op['kind'] === 'in' || $op['status'] === 'booked'): ?>
             <span class="badge text-bg-success">zaksięgowana</span>
             <?php elseif ($op['status'] === 'paid'): ?>
             <span class="badge text-bg-success">pokryta z portfela</span>
