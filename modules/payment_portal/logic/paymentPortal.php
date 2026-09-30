@@ -69,14 +69,12 @@ function pp_nrb_format(string $nrb): string {
  * Część NNNN (12 cyfr) zależy od grupy — dzięki temu z samego numeru wiadomo, kto płaci:
  *   ti    — nr kursanta TI (k30_ti_student_accounts.student_no, już 12 cyfr) bez zmian
  *   nip   — „00" + NIP (10 cyfr)            — firma / kontrahent
- *   pesel — „0" + PESEL (11 cyfr)           — osoba fizyczna
  *   id    — „9" + ID uczestnika (11 cyfr)   — uczestnik spoza TI (bez numeru kursanta)
  *   reczny— dowolne do 12 cyfr, dopełnione zerami z lewej
  */
 const PP_VGROUPS = [
     'ti'     => ['label' => 'Kursant TI (nr kursanta)',       'hint' => 'ID uczestnika — numer weźmiemy z konta kursanta'],
     'nip'    => ['label' => 'Firma / kontrahent (NIP)',       'hint' => 'NIP, 10 cyfr'],
-    'pesel'  => ['label' => 'Osoba fizyczna (PESEL)',         'hint' => 'PESEL, 11 cyfr'],
     'id'     => ['label' => 'Uczestnik spoza TI (ID w SZO)',  'hint' => 'ID uczestnika (k30_clients)'],
     'reczny' => ['label' => 'Numer ręczny',                   'hint' => 'do 12 cyfr'],
 ];
@@ -98,7 +96,6 @@ function pp_vnrb_part(string $group, string $value): string {
             if ($d === '') return '!Podaj ID uczestnika.';
             return pp_ti_student_no((int)$d) ?? '!Uczestnik nie ma konta kursanta TI z 12-cyfrowym numerem.';
         case 'nip':   return strlen($d) === 10 ? '00' . $d : '!NIP ma 10 cyfr.';
-        case 'pesel': return strlen($d) === 11 ? '0' . $d : '!PESEL ma 11 cyfr.';
         case 'id':    return $d !== '' && strlen($d) <= 11 ? '9' . str_pad($d, 11, '0', STR_PAD_LEFT) : '!Podaj ID uczestnika (do 11 cyfr).';
         case 'reczny':return $d !== '' && strlen($d) <= 12 ? str_pad($d, 12, '0', STR_PAD_LEFT) : '!Podaj od 1 do 12 cyfr.';
     }
