@@ -113,6 +113,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($lb === '') { $err = 'Brak ostatniego importu.'; break; }
             $x = pp_vnrb_pool_assign_ti($by, $uid, $lb);
             $ok = "Ostatni import: przypisano kursantom TI {$x['assigned']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
+        case 'pool_notify':
+            $lb = (string)org_setting('pp_pool_last_batch');
+            $x = pp_vnrb_pool_notify(!empty($_POST['only_last']) && $lb !== '' ? $lb : null, $by, $uid);
+            $ok = "Wysłano powiadomienia o rachunkach: kursantów {$x['students']} (SMS {$x['sms']}, e-mail {$x['email']}); bez powiadomienia zostało: {$x['left']}."; break;
+        case 'pool_assign_crm':
+            $x = pp_vnrb_pool_assign_crm($by, $uid);
+            $ok = "Serii „inni”: przypisano kontrahentom CRM {$x['assigned']}; wolnych w puli: {$x['left']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
+        case 'pool_assign_other':
+            $x = pp_vnrb_pool_assign_other($by, $uid);
+            $ok = "Serii „spoza TI”: przypisano uczestnikom {$x['assigned']}; wolnych w puli: {$x['left']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
         case 'pool_assign_ti':
             $x = pp_vnrb_pool_assign_ti($by, $uid);
             $ok = "Przypisano kursantom TI: {$x['assigned']}; wolnych w puli: {$x['left']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
@@ -341,7 +351,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <h2 id="vg-h" class="font-semibold">Serie rachunków wirtualnych — numery startowe dla banku</h2>
     <p class="text-xs text-slate-500">Struktura: 2 cyfry kontrolne + <span class="font-mono text-red-600">bank (8)</span> + <span class="font-mono text-purple-700">RRRR (4)</span> + <span class="font-mono text-emerald-700">kod serii (8) + numer od banku (4)</span>. Przekaż bankowi po jednym numerze startowym z każdej serii (końcówka 12 cyfr = kod serii 8 cyfr + 0001) — kolejne numery, rosnąco, wygeneruje bank. Gdy wkleisz listę od banku (niżej), SZO nada numery kursantom i uczestnikom. Numerów nie generujemy samodzielnie.</p>
     <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left"><th>Seria</th><th>Kod</th><th>Numer kontrahenta (dla banku)</th><th>Numer startowy</th><th>Następny z puli (12 cyfr)</th><th>W puli / nadane</th></tr></thead><tbody>
-    <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY nrb LIMIT 1", [$sk]); ?>
+    <?php foreach (pp_series() as $sk => $se): $st = pp_series_start($sk); $pc = db_one("SELECT COUNT(*) n, SUM(participant_id IS NULL AND crm_contact_id IS NULL) f FROM pp_vnrb_pool WHERE grp=?", [$sk]); $nx = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp=? AND participant_id IS NULL ORDER BY nrb LIMIT 1", [$sk]); ?>
       <tr class="border-t"><td><?= h($se['label']) ?></td><td class="font-mono"><?= h($se['code']) ?></td>
         <td class="font-mono font-semibold"><?= h($se['code'] . '0001') ?></td>
         <td class="font-mono"><?= $st ? h(pp_nrb_format($st)) : 'ustaw bank i RRRR' ?></td>
@@ -369,7 +379,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <textarea readonly rows="8" class="inp font-mono text-xs" aria-label="Wygenerowane numery" onclick="this.select()"><?= h(implode("\n", array_map('pp_nrb_format', $gl))) ?></textarea>
       <?php endif; ?>
     </form>
-    <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
+    <?php $pool = db_all("SELECT grp, COUNT(*) n, SUM(participant_id IS NULL AND crm_contact_id IS NULL) free FROM pp_vnrb_pool GROUP BY grp"); ?>
     <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2">
       <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_import">
       <h3 class="font-semibold text-sm">Krok 2: import listy wygenerowanej przez bank (TXT)</h3>
@@ -391,6 +401,22 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <span class="text-xs text-slate-500">Z ostatniego importu wolnych: <?= $lfree ?> z <?= count($lrows) ?></span>
       <a class="bs" href="admin.php?report=print&scope=last" target="_blank" rel="noopener">Drukuj raport (ostatni import)</a>
       <a class="bs" href="admin.php?report=print&scope=all" target="_blank" rel="noopener">Drukuj raport (wszyscy kursanci)</a></form>
+    <?php $unn = (int)(db_one("SELECT COUNT(*) c FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NOT NULL AND notified_at IS NULL")['c'] ?? 0); ?>
+    <div class="grid gap-3 md:grid-cols-3">
+      <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2" onsubmit="return confirm('Wysłać SMS i e-mail z numerem rachunku kursantom, którzy jeszcze go nie dostali?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_notify">
+        <div class="text-sm font-semibold">Powiadom kursantów TI</div>
+        <div class="text-xs text-slate-500">Bez powiadomienia: <strong><?= $unn ?></strong>. Wysyła tylko admin, wirtualni kursanci są pomijani.</div>
+        <label class="flex items-center gap-2 text-xs"><input type="checkbox" name="only_last" value="1"> tylko z ostatniego importu</label>
+        <button class="bp"<?= $unn ? '' : ' disabled' ?>>Wyślij powiadomienia</button></form>
+      <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_crm">
+        <div class="text-sm font-semibold">Kontrahenci CRM (seria „inni")</div>
+        <div class="text-xs text-slate-500">Przypisuje wolne numery serii „inni" aktywnym kontaktom CRM bez numeru.</div>
+        <button class="bs">Przypisz kontrahentom</button></form>
+      <form method="post" class="rounded-lg border border-slate-200 p-3 space-y-2"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="pool_assign_other">
+        <div class="text-sm font-semibold">Uczestnicy spoza TI</div>
+        <div class="text-xs text-slate-500">Przypisuje numery serii „spoza TI" uczestnikom z dostępem do portalu, bez konta TI.</div>
+        <button class="bs">Przypisz uczestnikom</button></form>
+    </div>
     <?php if ($lrows): ?>
     <div class="overflow-x-auto"><table class="w-full text-sm"><caption class="text-left font-semibold text-sm mb-1">Ostatni import — przypisania</caption>
       <thead><tr class="text-left"><th>Lp.</th><th>Rachunek</th><th>Seria</th><th>Kursant</th><th>Przypisano</th></tr></thead><tbody>
