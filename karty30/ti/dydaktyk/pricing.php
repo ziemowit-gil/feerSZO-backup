@@ -12,6 +12,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pricing/logic/pricingEngine.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_overpayments/logic/overpayments.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { http_response_code(403); die('Brak uprawnień.'); }
@@ -121,7 +122,22 @@ $log = db_all("SELECT l.*, cl.name AS participant_name, t.name AS type_name, c.n
                 LEFT JOIN k30_clients cl ON cl.id=l.participant_id LEFT JOIN lesson_types t ON t.id=l.lesson_type_id
                 LEFT JOIN k30_ti_courses c ON c.id=l.course_id ORDER BY l.id DESC LIMIT 200");
 $audit = db_all("SELECT * FROM audit_logs WHERE action LIKE 'pricing.%' ORDER BY id DESC LIMIT 100");
-$tab   = in_array($_GET['tab'] ?? '', ['sym', 'types', 'rules', 'groups', 'log'], true) ? $_GET['tab'] : 'sym';
+$tab   = in_array($_GET['tab'] ?? '', ['sym', 'types', 'rules', 'groups', 'settle', 'log'], true) ? $_GET['tab'] : 'sym';
+
+// Rozliczenia: należności i wpłaty per grupa, dłużnicy, nadpłaty (tylko na tej zakładce)
+$st_groups = []; $st_tot = ['charges' => 0.0, 'paid' => 0.0, 'debt' => 0.0, 'credit' => 0.0]; $st_debtors = []; $st_op = []; $st_opsum = null;
+if ($tab === 'settle') {
+    ti_op_migrate();
+    foreach ($courses as $c) {
+        $sm = ti_course_billing_summary((int)$c['id']);
+        if (!$sm['participants']) continue;
+        $st_groups[] = ['c' => $c, 't' => $sm['totals'], 'p' => $sm['participants']];
+        foreach (['charges', 'paid', 'debt', 'credit'] as $k) $st_tot[$k] = round($st_tot[$k] + $sm['totals'][$k], 2);
+    }
+    $st_debtors = array_slice(ti_clients_with_debt(), 0, 50);
+    $st_op = array_values(array_filter(ti_op_list(), fn($o) => $o['status'] === 'available'));
+    $st_opsum = ti_op_summary();
+}
 $J = fn($v) => json_encode($v, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 $csrf = h(csrf_token());
 $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
@@ -160,7 +176,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
     <span class="text-white/60 text-sm">cena = stawka godzinowa zapisu kursanta (zł/h)</span>
   </div>
   <nav class="mx-auto max-w-7xl px-4 flex gap-4 overflow-x-auto" aria-label="Zakładki">
-    <?php foreach (['sym' => 'Symulator', 'types' => 'Typy zajęć', 'rules' => 'Reguły rabatowe', 'groups' => 'Grupy i zapisy', 'log' => 'Historia'] as $k => $l): ?>
+    <?php foreach (['sym' => 'Symulator', 'types' => 'Typy zajęć', 'rules' => 'Reguły rabatowe', 'groups' => 'Grupy i zapisy', 'settle' => 'Rozliczenia', 'log' => 'Historia'] as $k => $l): ?>
     <a href="pricing.php?tab=<?= $k ?>" class="whitespace-nowrap border-b-2 pb-2 text-sm <?= $tab === $k ? 'border-amber-400 text-white font-semibold' : 'border-transparent text-white/70 hover:text-white' ?>"<?= $tab === $k ? ' aria-current="page"' : '' ?>><?= $l ?></a>
     <?php endforeach; ?>
   </nav>
@@ -474,6 +490,69 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
     <?php endif; ?>
   </section>
   <?php endif; ?>
+
+<?php elseif ($tab === 'settle'): ?>
+  <!-- ═══ Rozliczenia ═══ -->
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div><h2 class="text-lg font-semibold text-slate-800">Rozliczenia i nadpłaty</h2>
+      <p class="text-sm text-slate-500">Należności, wpłaty i salda kursantów per grupa oraz nadpłaty do rozdysponowania — w jednym miejscu, obok stawek.</p></div>
+    <div class="flex flex-wrap gap-2">
+      <a class="btn-sec" href="overpayments.php"><i class="bi bi-cash-stack" aria-hidden="true"></i>Nadpłaty — rozliczanie</a>
+      <a class="btn-sec" href="../../../rozliczenia/"><i class="bi bi-receipt" aria-hidden="true"></i>Moduł rozliczeń</a>
+    </div>
+  </div>
+  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="card"><div class="text-xs uppercase tracking-wide text-slate-500">Należności</div><div class="text-2xl font-semibold tabular-nums"><?= $fmt($st_tot['charges']) ?> <span class="text-sm font-normal">zł</span></div></div>
+    <div class="card"><div class="text-xs uppercase tracking-wide text-slate-500">Wpłacono</div><div class="text-2xl font-semibold tabular-nums text-emerald-700"><?= $fmt($st_tot['paid']) ?> <span class="text-sm font-normal">zł</span></div></div>
+    <div class="card"><div class="text-xs uppercase tracking-wide text-slate-500">Niedopłaty</div><div class="text-2xl font-semibold tabular-nums text-red-700"><?= $fmt($st_tot['debt']) ?> <span class="text-sm font-normal">zł</span></div></div>
+    <div class="card"><div class="text-xs uppercase tracking-wide text-slate-500">Nadpłaty (do dyspozycji)</div><div class="text-2xl font-semibold tabular-nums text-sky-700"><?= $fmt($st_opsum['by_status']['available'] ?? 0) ?> <span class="text-sm font-normal">zł</span></div>
+      <?php if (!empty($st_opsum['unreconciled'])): ?><div class="text-xs text-amber-700">niezgodne salda: <?= (int)$st_opsum['unreconciled'] ?></div><?php endif; ?></div>
+  </div>
+
+  <section class="card overflow-x-auto">
+    <h3 class="font-semibold mb-2">Grupy</h3>
+    <table class="min-w-full text-sm">
+      <thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Grupa</th><th class="pr-3 text-right">Uczestn.</th><th class="pr-3 text-right">Należności</th><th class="pr-3 text-right">Wpłacono</th><th class="pr-3 text-right">Niedopłata</th><th class="pr-3 text-right">Nadpłata</th><th></th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+      <?php foreach ($st_groups as $g): $t = $g['t']; ?>
+        <tr><td class="py-2 pr-3 font-medium"><?php if (trim((string)$g['c']['group_code']) !== ''): ?><span class="mr-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs"><?= h($g['c']['group_code']) ?></span><?php endif; ?><?= h($g['c']['name']) ?></td>
+          <td class="pr-3 text-right"><?= count($g['p']) ?></td>
+          <td class="pr-3 text-right tabular-nums"><?= $fmt($t['charges']) ?></td><td class="pr-3 text-right tabular-nums text-emerald-700"><?= $fmt($t['paid']) ?></td>
+          <td class="pr-3 text-right tabular-nums <?= $t['debt'] > 0.005 ? 'font-semibold text-red-700' : 'text-slate-400' ?>"><?= $fmt($t['debt']) ?></td>
+          <td class="pr-3 text-right tabular-nums <?= $t['credit'] > 0.005 ? 'font-semibold text-sky-700' : 'text-slate-400' ?>"><?= $fmt($t['credit']) ?></td>
+          <td class="text-right"><a class="text-sm font-medium text-navy-700 hover:underline" href="../../../rozliczenia/grupa.php?id=<?= (int)$g['c']['id'] ?>">Szczegóły →</a></td></tr>
+      <?php endforeach; ?>
+      <?php if (!$st_groups): ?><tr><td colspan="7" class="py-6 text-center text-slate-500">Brak rozliczeń w grupach.</td></tr><?php endif; ?>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="grid gap-5 lg:grid-cols-2">
+    <section class="card overflow-x-auto">
+      <h3 class="font-semibold mb-2">Niedopłaty — kursanci (max 50)</h3>
+      <table class="min-w-full text-sm"><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3 text-right">Należności</th><th class="pr-3 text-right">Wpłacono</th><th class="text-right">Do zapłaty</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+        <?php foreach ($st_debtors as $d): ?>
+          <tr><td class="py-2 pr-3"><a class="hover:underline" href="../../../rozliczenia/uczestnik.php?id=<?= (int)$d['client_id'] ?>"><?= h($d['client_name']) ?></a></td>
+            <td class="pr-3 text-right tabular-nums"><?= $fmt($d['charges']) ?></td><td class="pr-3 text-right tabular-nums"><?= $fmt($d['paid']) ?></td>
+            <td class="text-right tabular-nums font-semibold text-red-700"><?= $fmt($d['debt']) ?></td></tr>
+        <?php endforeach; ?>
+        <?php if (!$st_debtors): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak niedopłat.</td></tr><?php endif; ?>
+        </tbody></table>
+    </section>
+    <section class="card overflow-x-auto">
+      <h3 class="font-semibold mb-2">Nadpłaty do rozdysponowania</h3>
+      <table class="min-w-full text-sm"><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Koszyk</th><th class="pr-3 text-right">Kwota</th><th></th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+        <?php foreach (array_slice($st_op, 0, 50) as $o): ?>
+          <tr><td class="py-2 pr-3"><?= h($o['participant_name']) ?></td><td class="pr-3 text-xs text-slate-600"><?= h(ti_op_bucket_label((int)$o['course_id'])) ?></td>
+            <td class="pr-3 text-right tabular-nums font-semibold text-sky-700"><?= $fmt($o['amount']) ?></td>
+            <td class="text-right"><a class="text-sm font-medium text-navy-700 hover:underline" href="overpayments.php?q=<?= urlencode((string)$o['participant_name']) ?>">Rozlicz →</a></td></tr>
+        <?php endforeach; ?>
+        <?php if (!$st_op): ?><tr><td colspan="4" class="py-6 text-center text-slate-500">Brak nadpłat do rozdysponowania.</td></tr><?php endif; ?>
+        </tbody></table>
+    </section>
+  </div>
 
 <?php else: ?>
   <!-- ═══ Historia ═══ -->
