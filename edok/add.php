@@ -15,6 +15,15 @@ $edok_templates = edok_get_templates(true);
 
 $errors = [];
 
+// Plik z „Kolejki do opisu” (edok/queue.php) — skan jest już wgrany, formularz go tylko opisuje.
+$queue_id   = (int)($_GET['queue'] ?? $_POST['queue_id'] ?? 0);
+$queue_item = $queue_id ? db_one("SELECT * FROM edok_queue WHERE id = ?", [$queue_id]) : null;
+if ($queue_id && !$queue_item && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    flash_set('warning', 'Ten plik nie znajduje się już w kolejce (został opisany lub usunięty).');
+    header('Location: ' . APP_URL . '/edok/queue.php');
+    exit;
+}
+
 // Tryb „Przelew składek ZUS” — bez obiegu akceptacji (składki wynikają z rozliczonych
 // rachunków i umów): formularz od razu generuje plik przelewu. Patrz edok_zus_handle_post().
 $tryb = ($_GET['tryb'] ?? '') === 'zus' || ($_POST['action'] ?? '') === 'export_zus' ? 'zus' : 'dokument';
@@ -91,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
     // Dokument źródłowy: albo ręczny upload, albo XML pobrany z KSeF (edok/ksef_fetch.php)
     // i wskazany w ukrytym polu ksef_file_path — walidujemy, że wskazuje na plik faktycznie
     // zapisany w uploads/edok_docs/ (bez wychodzenia poza ten katalog).
-    $ksef_file_path = trim($_POST['ksef_file_path'] ?? '');
+    $ksef_file_path = $queue_item ? $queue_item['file_path'] : trim($_POST['ksef_file_path'] ?? '');
     if ($ksef_file_path !== '') {
         $abs = realpath(UPLOAD_DIR . $ksef_file_path);
         $base = realpath(UPLOAD_DIR . 'edok_docs');
@@ -183,6 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
         if ($kontrahent_nip && $rachunek_bankowy) {
             try { kdok_migrate(); kdok_dostawcy_upsert($kontrahent_nip, $kontrahent_nazwa, $rachunek_bankowy); } catch (\Throwable $e) {}
         }
+
+        if ($queue_item) db_exec("DELETE FROM edok_queue WHERE id = ?", [(int)$queue_item['id']]);
 
         edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Dokument ' . $number . ' złożony do obiegu akceptacji przez ' . ($user['name'] ?? '—') . '.');
 
@@ -480,9 +491,17 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="text" name="mpk" class="form-control" maxlength="100" value="<?= h($_POST['mpk'] ?? '') ?>">
       </div>
 
-      <div class="mb-3" id="file_upload_wrap">
+      <?php if ($queue_item): ?>
+      <input type="hidden" name="queue_id" value="<?= (int)$queue_item['id'] ?>">
+      <div class="mb-3 alert alert-info py-2">
+        <i class="bi bi-inboxes"></i> Plik z kolejki do opisu:
+        <a href="<?= APP_URL ?>/uploads/<?= h($queue_item['file_path']) ?>" target="_blank"><?= h($queue_item['orig_name']) ?></a>
+        <?php if ($queue_item['note'] !== ''): ?><span class="text-muted">— <?= h($queue_item['note']) ?></span><?php endif; ?>
+      </div>
+      <?php endif; ?>
+      <div class="mb-3" id="file_upload_wrap"<?= $queue_item ? ' style="display:none"' : '' ?>>
         <label class="form-label">Skan dokumentu źródłowego</label>
-        <input type="file" name="file" id="file_input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx" required>
+        <input type="file" name="file" id="file_input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx"<?= $queue_item ? '' : ' required' ?>>
         <div class="form-text">PDF, JPG, PNG lub DOCX, max 20 MB.</div>
       </div>
       <div class="mb-3 alert alert-success py-2" id="ksef_file_attached" style="display:none">

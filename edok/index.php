@@ -156,6 +156,9 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (is_admin() || edok_has_role('upload')): ?>
     <a href="<?= APP_URL ?>/edok/mt940_import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bank2"></i> Import wyciągu (MT940)</a>
     <a href="<?= APP_URL ?>/edok/szablony.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-richtext"></i> Szablony</a>
+    <?php $queue_count = edok_queue_count(); ?>
+    <a href="<?= APP_URL ?>/edok/queue.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-inboxes"></i> Kolejka do opisu
+      <?php if ($queue_count): ?><span class="badge bg-primary ms-1"><?= $queue_count ?></span><?php endif; ?></a>
     <a href="<?= APP_URL ?>/edok/add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nowy dokument</a>
     <?php endif; ?>
   </div>

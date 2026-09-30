@@ -260,6 +260,20 @@ function edok_migrate(): void {
         created_at  TEXT    NOT NULL DEFAULT ''
     )");
 
+    // Kolejka do opisu — pliki wgrane zbiorczo (edok/bulk_upload.php), czekające na opisanie
+    // i złożenie do obiegu (edok/add.php?queue=ID). To NIE są dokumenty EODoK: numer dostają
+    // dopiero po opisaniu, a wpis znika z kolejki w momencie złożenia dokumentu.
+    $db->exec("CREATE TABLE IF NOT EXISTS edok_queue (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_path     TEXT    NOT NULL DEFAULT '',
+        orig_name     TEXT    NOT NULL DEFAULT '',
+        file_size     INTEGER,
+        note          TEXT    NOT NULL DEFAULT '',
+        uploaded_by   INTEGER NOT NULL DEFAULT 0,
+        uploader_name TEXT    NOT NULL DEFAULT '',
+        created_at    TEXT    NOT NULL DEFAULT ''
+    )");
+
     // Przelewy własne / przesunięcia między rachunkami bankowymi organizacji —
     // "z jakiego na jakie i dlaczego", razem z klasyfikacją (rodzaj działalności/projekt)
     // źródłową i docelową. To zestawienie, nie obieg akceptacji — jeden wpis = jeden fakt.
@@ -2685,4 +2699,31 @@ function edok_template_set_active(int $id, bool $active): void {
 function edok_template_delete(int $id): void {
     edok_templates_migrate();
     db()->prepare("DELETE FROM edok_templates WHERE id = ?")->execute([$id]);
+}
+
+
+/** Zapisuje jeden plik z tablicy $_FILES[$field] (wersja multi) w uploads/edok_docs/. Zwraca [ścieżka|null, błąd|null]. */
+function edok_queue_store_upload(array $f): array {
+    if (($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return [null, 'błąd przesyłania'];
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'docx'], true)) return [null, 'niedozwolony typ (PDF, JPG, PNG, DOCX)'];
+    if ($f['size'] > 20 * 1024 * 1024) return [null, 'większy niż 20 MB'];
+    $dir = UPLOAD_DIR . 'edok_docs/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $name = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!move_uploaded_file($f['tmp_name'], $dir . $name)) return [null, 'nie udało się zapisać'];
+    $rel = 'edok_docs/' . $name;
+    if (!function_exists('sp_sync_upload')) @require_once __DIR__ . '/m365.php';
+    if (function_exists('sp_sync_upload')) {
+        try { sp_sync_upload($rel); } catch (\Throwable $e) { error_log('[SP sync] ' . $e->getMessage()); }
+    }
+    return [$rel, null];
+}
+
+function edok_queue_list(): array {
+    return db_all("SELECT * FROM edok_queue ORDER BY id ASC");
+}
+
+function edok_queue_count(): int {
+    try { return (int)db_one("SELECT COUNT(*) c FROM edok_queue")['c']; } catch (\Throwable $e) { return 0; }
 }
