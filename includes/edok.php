@@ -1948,6 +1948,93 @@ function edok_millennium_iso20022_export(array $docs, string $rachunek_zlecen_nr
     return $w->outputMemory();
 }
 
+/**
+ * Rozbija polski adres „ul. Przykładowa 28/18, 33-300 Nowy Sącz” na pola strukturalne ISO 20022
+ * (StrtNm, BldgNb, PstCd, TwnNm). Zwraca [] gdy adres nie pasuje do wzorca — wtedy używamy AdrLine.
+ */
+function edok_iso_split_address(string $adres): array {
+    if (!preg_match('/^\s*(.+?)\s+(\d+[A-Za-z]?(?:\/\d+[A-Za-z]?)?)\s*,\s*(\d{2}-\d{3})\s+(.+?)\s*$/u', $adres, $m)) return [];
+    return ['StrtNm' => mb_substr($m[1], 0, 70), 'BldgNb' => mb_substr($m[2], 0, 16), 'PstCd' => $m[3], 'TwnNm' => mb_substr($m[4], 0, 35)];
+}
+
+/**
+ * Eksport przelewów krajowych PLN do XML ISO 20022 pain.001.001.09 — format zalecany przez PKO BP
+ * dla importu w iPKO biznes (pain.001.001.07 i starsze są wygaszane). Różnice względem .03:
+ * ReqdExctnDt/Dt, adres strukturalny (StrtNm/BldgNb/PstCd/TwnNm/Ctry), unikalny InstrId (1–35 znaków,
+ * potrzebny do zapytań o status transakcji). Dbtr Agt bez BIC (Othr/NOTPROVIDED), ChrgBr SLEV.
+ * UWAGA: pełna specyfikacja iPKO leży za logowaniem (Pomoc → Przewodniki) — plik jest zgodny ze standardem
+ * ISO 20022 i tym, co PKO publikuje; szczegóły specyficzne dla banku trzeba potwierdzić próbnym importem.
+ */
+function edok_ipko_iso20022_export(array $docs, string $rachunek_zlecen_nrb): string {
+    $nrb_z = preg_replace('/\D/', '', $rachunek_zlecen_nrb);
+    if (strlen($nrb_z) !== 26) throw new RuntimeException('Rachunek zleceniodawcy musi mieć 26 cyfr (NRB).');
+    $konto = null;
+    foreach (edok_rachunki_list() as $r) if (preg_replace('/\D/', '', (string) $r['nrb']) === $nrb_z) { $konto = $r; break; }
+    $nazwa_zlec = (($konto['nazwa'] ?? '') !== '') ? $konto['nazwa'] : (defined('ORG_NAME') ? ORG_NAME : 'Zleceniodawca');
+    $adres_zlec = (($konto['adres'] ?? '') !== '') ? $konto['adres'] : (string) org_setting('org_adres');
+    $t = fn(string $s, int $max): string => mb_substr(trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/u', '', preg_replace('/\s+/u', ' ', $s))), 0, $max);
+    $fmt = fn(int $g): string => sprintf('%d.%02d', intdiv($g, 100), $g % 100);
+
+    $tx = []; $sum = 0;
+    foreach ($docs as $doc) {
+        if (($doc['kierunek'] ?? 'wydatek') !== 'wydatek' || strtoupper((string)($doc['waluta'] ?: 'PLN')) !== 'PLN') continue;
+        $nrb_k = preg_replace('/\D/', '', (string)($doc['rachunek_bankowy'] ?? ''));
+        if (strlen($nrb_k) !== 26) continue;
+        $kwota = (int) round(_edok_kwota_float((string)($doc['kwota_brutto'] ?? '0')) * 100);
+        if ($kwota <= 0) continue;
+        $sum += $kwota;
+        $num = preg_replace('/[^A-Za-z0-9\/\-?:().,\'+ ]/', '', (string)($doc['number'] ?? ''));
+        $tx[] = ['nazwa' => $t((string)($doc['kontrahent_nazwa'] ?? ''), 70) ?: 'Odbiorca', 'nrb' => $nrb_k, 'kwota' => $kwota,
+                 'tytul' => $t(edok_generate_tytul_przelewu($doc), 140), 'e2e' => mb_substr($num, 0, 35) ?: 'NOTPROVIDED',
+                 'instr' => mb_substr(($num !== '' ? $num : 'DOC' . (int)($doc['id'] ?? 0)) . '-' . (int)($doc['id'] ?? 0) . '-' . count($tx), 0, 35)];
+    }
+    if (!$tx) return '';
+
+    $today = date('Y-m-d');
+    $msg = mb_substr('EDOK' . date('YmdHis') . bin2hex(random_bytes(2)), 0, 35);
+    $addr = edok_iso_split_address($adres_zlec);
+    $w = new XMLWriter();
+    $w->openMemory(); $w->setIndent(true); $w->setIndentString('  ');
+    $w->startDocument('1.0', 'UTF-8');
+    $w->startElementNs(null, 'Document', 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.09');
+    $w->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
+    $w->startElement('CstmrCdtTrfInitn');
+      $w->startElement('GrpHdr');
+        $w->writeElement('MsgId', $msg); $w->writeElement('CreDtTm', date('Y-m-d\TH:i:s'));
+        $w->writeElement('NbOfTxs', (string)count($tx)); $w->writeElement('CtrlSum', $fmt($sum));
+        $w->startElement('InitgPty'); $w->writeElement('Nm', $t($nazwa_zlec, 140)); $w->endElement();
+      $w->endElement();
+      $w->startElement('PmtInf');
+        $w->writeElement('PmtInfId', $msg . '-1'); $w->writeElement('PmtMtd', 'TRF'); $w->writeElement('BtchBookg', 'true');
+        $w->writeElement('NbOfTxs', (string)count($tx)); $w->writeElement('CtrlSum', $fmt($sum));
+        $w->startElement('ReqdExctnDt'); $w->writeElement('Dt', $today); $w->endElement();
+        $w->startElement('Dbtr'); $w->writeElement('Nm', $t($nazwa_zlec, 140));
+          if ($addr || trim($adres_zlec) !== '') {
+              $w->startElement('PstlAdr');
+              if ($addr) { foreach ($addr as $k => $v) $w->writeElement($k, $v); $w->writeElement('Ctry', 'PL'); }
+              else { $w->writeElement('Ctry', 'PL'); $w->writeElement('AdrLine', $t($adres_zlec, 70)); }
+              $w->endElement();
+          }
+        $w->endElement();
+        $w->startElement('DbtrAcct'); $w->startElement('Id'); $w->writeElement('IBAN', 'PL' . $nrb_z); $w->endElement(); $w->writeElement('Ccy', 'PLN'); $w->endElement();
+        $w->startElement('DbtrAgt'); $w->startElement('FinInstnId'); $w->startElement('Othr'); $w->writeElement('Id', 'NOTPROVIDED'); $w->endElement(); $w->endElement(); $w->endElement();
+        $w->writeElement('ChrgBr', 'SLEV');
+        foreach ($tx as $x) {
+            $w->startElement('CdtTrfTxInf');
+              $w->startElement('PmtId'); $w->writeElement('InstrId', $x['instr']); $w->writeElement('EndToEndId', $x['e2e']); $w->endElement();
+              $w->startElement('Amt'); $w->startElement('InstdAmt'); $w->writeAttribute('Ccy', 'PLN'); $w->text($fmt($x['kwota'])); $w->endElement(); $w->endElement();
+              $w->startElement('Cdtr'); $w->writeElement('Nm', $x['nazwa']); $w->endElement();
+              $w->startElement('CdtrAcct'); $w->startElement('Id'); $w->writeElement('IBAN', 'PL' . $x['nrb']); $w->endElement(); $w->endElement();
+              if ($x['tytul'] !== '') { $w->startElement('RmtInf'); $w->writeElement('Ustrd', $x['tytul']); $w->endElement(); }
+            $w->endElement();
+        }
+      $w->endElement();
+    $w->endElement();
+    $w->endElement();
+    $w->endDocument();
+    return $w->outputMemory();
+}
+
 /** Formy zapłaty faktury opłaconej przed akceptacją (edok_documents.forma_zaplaty). */
 const EDOK_FORMY_ZAPLATY = [
     'przelew'    => 'Przelew',
@@ -2486,6 +2573,7 @@ const EDOK_PRZELEWY_FORMATY = [
     'auto'     => 'Automatycznie (wg banku rachunku nadawcy)',
     'elixir'   => 'ELIXIR-O — uniwersalny (inne banki)',
     'iso20022' => 'XML ISO 20022 (pain.001.001.03)',
+    'ipko_xml' => 'XML ISO 20022 — iPKO biznes (pain.001.001.09)',
     'millennium_xml' => 'XML ISO 20022 — Millennium (Millenet dla Przedsiębiorstw)',
     'ipko'     => 'ELIXIR-O — iPKO biznes (PKO BP)',
     'millenet' => 'ELIXIR-O — Millenet (Bank Millennium)',
@@ -2514,6 +2602,9 @@ function edok_przelewy_export(array $docs, string $rachunek_zlecen_nrb, string $
     $format = edok_przelewy_format_for_nrb($rachunek_zlecen_nrb, $format);
     if ($format === 'millenet') {
         return ['content' => edok_millenet_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'Millenet', 'ext' => 'csv'];
+    }
+    if ($format === 'ipko_xml') {
+        return ['content' => edok_ipko_iso20022_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'iPKO_ISO20022', 'ext' => 'xml'];
     }
     if ($format === 'millennium_xml') {
         return ['content' => edok_millennium_iso20022_export($docs, $rachunek_zlecen_nrb), 'prefix' => 'Millennium_ISO20022', 'ext' => 'xml'];
