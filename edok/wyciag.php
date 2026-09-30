@@ -38,7 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'unignore') {
         db_exec("UPDATE edok_bank_tx SET ignored=0, ignore_note='' WHERE id=?", [$tx_id]);
     } elseif ($action === 'auto') {
-        flash_set('success', 'Dopasowano automatycznie: ' . edok_bank_auto_match() . '.');
+        $pp = ['matched' => 0];
+        try { require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php'; $__u = current_user(); $pp = pp_bank_auto_match((string)($__u["name"] ?? "EODoK"), (int)($__u["id"] ?? 0) ?: null); }
+        catch (\Throwable $e) { error_log('[platnosci] ' . $e->getMessage()); }
+        flash_set('success', 'Dopasowano automatycznie: ' . edok_bank_auto_match() . '.' . ($pp['matched'] ? ' Płatności z portalu /platnosci: ' . $pp['matched'] . '.' : ''));
     }
     header('Location: ' . APP_URL . '/edok/wyciag.php?' . http_build_query(array_intersect_key($_GET, array_flip(['f', 'q', 'znak']))));
     exit;

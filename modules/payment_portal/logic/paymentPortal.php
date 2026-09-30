@@ -35,6 +35,12 @@ function pp_migrate(): void {
     audit_logs_migrate();
     p24_migrate();
     db()->exec((string)file_get_contents(dirname(__DIR__) . '/schema.sql'));
+    // Rachunek, na który miał iść przelew (indywidualny albo ogólny) — do dopasowania z wyciągów
+    try { db()->exec("ALTER TABLE portal_transactions ADD COLUMN target_nrb TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // Wpływy z wyciągów EODoK (edok_bank_tx) rozliczone w portalu — jeden wpływ = jedna płatność
+    db()->exec("CREATE TABLE IF NOT EXISTS pp_bank_matches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, bank_tx_id INTEGER NOT NULL UNIQUE, portal_transaction_id INTEGER NOT NULL,
+        how TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 }
 function pp_gr(float|int|string $v): int { return (int)round((float)$v * 100); }
 function pp_zl(int $gr): float { return round($gr / 100, 2); }
@@ -69,6 +75,19 @@ function pp_nrb_generate(int $participant_id): ?string {
     if ($room < 4 || strlen((string)$participant_id) > $room) return null;
     $bban = $bank . $prefix . str_pad((string)$participant_id, $room, '0', STR_PAD_LEFT);
     return pp_nrb_check($bban) . $bban;
+}
+
+/**
+ * Rachunek do przelewu tradycyjnego: indywidualny NRB uczestnika (rachunek wirtualny)
+ * albo — gdy go nie ma — rachunek ogólny organizacji (pp_general_nrb). Przy rachunku
+ * ogólnym płatność rozpoznajemy wyłącznie po tytule przelewu.
+ * @return array{nrb:string, kind:string}|null
+ */
+function pp_payment_account(?array $user): ?array {
+    $ind = pp_nrb_normalize((string)($user['individual_nrb'] ?? ''));
+    if ($ind !== '' && pp_nrb_valid($ind)) return ['nrb' => $ind, 'kind' => 'individual'];
+    $gen = pp_nrb_normalize((string)org_setting('pp_general_nrb'));
+    return $gen !== '' && pp_nrb_valid($gen) ? ['nrb' => $gen, 'kind' => 'general'] : null;
 }
 
 // ── Użytkownicy i dostęp ────────────────────────────────────────────────────
@@ -241,7 +260,8 @@ function pp_create_transaction(int $participant_id, array $item_ids, string $met
     if (!$ids) return 'Zaznacz co najmniej jedną pozycję.';
     $u = pp_user($participant_id);
     if (!$u) return 'Brak dostępu do portalu.';
-    if ($method === 'individual_nrb' && empty($u['individual_nrb'])) return 'Nie masz jeszcze przypisanego indywidualnego numeru rachunku — skontaktuj się z biurem.';
+    $acct = pp_payment_account($u);
+    if ($method === 'individual_nrb' && !$acct) return 'Przelew tradycyjny jest chwilowo niedostępny (brak numeru rachunku) — skontaktuj się z biurem.';
     if ($method === 'p24' && !p24_enabled() && org_setting('pp_p24_simulation') !== '1') return 'Płatność Przelewy24 jest chwilowo niedostępna.';
     pp_sync_ti_items($participant_id);
     $pdo = db(); $pdo->beginTransaction();
@@ -253,7 +273,8 @@ function pp_create_transaction(int $participant_id, array $item_ids, string $met
         if ($total <= 0) { $pdo->rollBack(); return 'Kwota do zapłaty musi być większa od zera.'; }
         $uuid = pp_uuid();
         $tid  = db_insert('portal_transactions', ['participant_id' => $participant_id, 'transaction_uuid' => $uuid, 'total_amount' => pp_zl($total),
-            'payment_method' => $method, 'status' => 'pending', 'transfer_title' => pp_transfer_title($uuid, ['name' => $u['participant_name']])]);
+            'payment_method' => $method, 'status' => 'pending', 'transfer_title' => pp_transfer_title($uuid, ['name' => $u['participant_name']]),
+            'target_nrb' => $method === 'individual_nrb' ? $acct['nrb'] : '']);
         $st = db()->prepare("UPDATE payable_items SET status='processing' WHERE id=? AND status='pending'");
         foreach ($items as $it) {
             $st->execute([(int)$it['id']]);
@@ -364,6 +385,94 @@ function pp_transaction_view(string $uuid, int $participant_id): ?array {
     $tx['items'] = db_all("SELECT pi.title, pi.reference_type, ti.amount, pi.status FROM portal_transaction_items ti JOIN payable_items pi ON pi.id=ti.payable_item_id
                             WHERE ti.portal_transaction_id=? ORDER BY pi.id", [(int)$tx['id']]);
     return $tx;
+}
+
+// ── Dopasowanie wpływów z wyciągów EODoK (edok_bank_tx, MT940) ───────────────
+/** Kod płatności z tytułu: „SZO” + 10 znaków z identyfikatora transakcji. */
+function pp_title_code(string $uuid): string { return 'SZO' . strtoupper(substr(str_replace('-', '', $uuid), 0, 10)); }
+function _pp_norm(string $s): string { return preg_replace('/[^A-Z0-9]/', '', mb_strtoupper($s)); }
+
+/**
+ * Propozycje dopasowania: dla każdego nierozliczonego wpływu (znak C) oczekujące
+ * płatności przelewem, z oceną. Sygnały: kod płatności w tytule (najmocniejszy,
+ * działa też na rachunku ogólnym), wpływ na indywidualny NRB uczestnika (rachunek
+ * wyciągu albo numer w tytule/referencji), zgodność kwoty.
+ * @return list<array{bank:array, tx:array, score:int, amount_ok:bool, reasons:list<string>}>
+ */
+function pp_bank_candidates(): array {
+    pp_migrate();
+    try { $bank = db_all("SELECT b.* FROM edok_bank_tx b LEFT JOIN pp_bank_matches m ON m.bank_tx_id=b.id
+                           WHERE b.znak='C' AND b.ignored=0 AND b.doc_id IS NULL AND m.id IS NULL ORDER BY b.data_waluty DESC LIMIT 1000"); }
+    catch (\Throwable $e) { return []; }   // EODoK bez tabeli wyciągów
+    $pend = db_all("SELECT t.*, c.name FROM portal_transactions t JOIN k30_clients c ON c.id=t.participant_id
+                     WHERE t.status='pending' AND t.payment_method='individual_nrb'");
+    if (!$bank || !$pend) return [];
+    $ind = [];   // NRB indywidualne uczestników → participant_id
+    foreach (db_all("SELECT participant_id, individual_nrb FROM payment_portal_users WHERE individual_nrb IS NOT NULL AND individual_nrb!=''") as $u)
+        $ind[pp_nrb_normalize((string)$u['individual_nrb'])] = (int)$u['participant_id'];
+    $out = [];
+    foreach ($bank as $b) {
+        $title = _pp_norm($b['tytul'] . ' ' . $b['referencja']);
+        $digits = preg_replace('/\D/', '', $b['tytul'] . ' ' . $b['referencja']);
+        $acc = pp_nrb_normalize((string)$b['account_nrb']);
+        $to_pid = $ind[$acc] ?? null;
+        if ($to_pid === null) foreach ($ind as $nrb => $p) if (strlen($digits) >= 26 && str_contains($digits, $nrb)) { $to_pid = $p; break; }
+        foreach ($pend as $t) {
+            $score = 0; $why = [];
+            if (str_contains($title, pp_title_code((string)$t['transaction_uuid']))) { $score += 200; $why[] = 'kod płatności w tytule'; }
+            if ($to_pid !== null && $to_pid === (int)$t['participant_id']) { $score += 120; $why[] = 'wpływ na indywidualny rachunek uczestnika'; }
+            if (!$score) continue;
+            $ok = pp_gr($b['kwota']) === pp_gr($t['total_amount']);
+            $why[] = $ok ? 'kwota zgodna' : 'kwota ' . pp_fmt((float)$b['kwota']) . ' ≠ ' . pp_fmt((float)$t['total_amount']);
+            $out[] = ['bank' => $b, 'tx' => $t, 'score' => $score + ($ok ? 50 : 0), 'amount_ok' => $ok, 'reasons' => $why];
+        }
+    }
+    usort($out, fn($a, $b) => $b['score'] <=> $a['score']);
+    return $out;
+}
+
+/** Rozlicza płatność wpływem z wyciągu (automatycznie albo ręcznie przez biuro). */
+function pp_bank_assign(int $bank_tx_id, int $tx_id, string $how, string $by, ?int $uid): ?string {
+    pp_migrate();
+    $b = db_one("SELECT * FROM edok_bank_tx WHERE id=? AND znak='C'", [$bank_tx_id]);
+    if (!$b) return 'Nie znaleziono wpływu z wyciągu.';
+    if (db_one("SELECT 1 FROM pp_bank_matches WHERE bank_tx_id=?", [$bank_tx_id])) return 'Ten wpływ jest już rozliczony w portalu.';
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        db_insert('pp_bank_matches', ['bank_tx_id' => $bank_tx_id, 'portal_transaction_id' => $tx_id, 'how' => $how, 'by_name' => $by]);
+        $err = pp_settle($tx_id, ['gateway' => 'nrb', 'how' => $how, 'bank_tx_id' => $bank_tx_id, 'bank_date' => $b['data_waluty'],
+            'bank_amount' => (float)$b['kwota'], 'payer' => $b['kontrahent_nazwa'], 'bank_title' => $b['tytul']], $by, $uid);
+        if ($err) throw new \RuntimeException($err);
+        // Ślad w EODoK: wpływ obsłużony w portalu płatności (bez dokumentu EODoK)
+        db()->prepare("UPDATE edok_bank_tx SET matched_how=?, matched_by_name=?, matched_at=datetime('now') WHERE id=? AND doc_id IS NULL AND matched_how=''")
+            ->execute(['platnosci:' . $tx_id, $by, $bank_tx_id]);
+        audit_log('payments.bank_matched', ['bank_tx_id' => $bank_tx_id, 'transaction_id' => $tx_id, 'how' => $how, 'amount' => (float)$b['kwota'], 'by' => $by], $uid);
+        $pdo->commit();
+        return null;
+    } catch (\Throwable $e) { $pdo->rollBack(); return $e->getMessage(); }
+}
+
+/**
+ * Automatyczne dopasowanie: tylko jednoznaczne pary ze zgodną kwotą — kod płatności
+ * w tytule, albo wpływ na indywidualny NRB, gdy uczestnik ma dokładnie jedną
+ * oczekującą płatność z tą kwotą. Rozbieżności kwot zostają do decyzji biura.
+ * @return array{matched:int, review:int}
+ */
+function pp_bank_auto_match(string $by = 'automat', ?int $uid = null): array {
+    $c = pp_bank_candidates();
+    $by_bank = []; $by_tx = [];
+    foreach ($c as $x) { $by_bank[(int)$x['bank']['id']][] = $x; $by_tx[(int)$x['tx']['id']][] = $x; }
+    $n = 0; $used_tx = [];
+    foreach ($by_bank as $bid => $list) {
+        $good = array_values(array_filter($list, fn($x) => $x['amount_ok']));
+        if (count($good) !== 1) continue;                         // brak albo niejednoznaczne
+        $x = $good[0]; $tid = (int)$x['tx']['id'];
+        if (isset($used_tx[$tid])) continue;
+        $rivals = array_filter($by_tx[$tid], fn($y) => $y['amount_ok'] && (int)$y['bank']['id'] !== $bid);
+        if ($rivals && $x['score'] < 250) continue;               // bez kodu w tytule i kilka pasujących wpływów
+        if (pp_bank_assign($bid, $tid, 'auto: ' . implode(', ', $x['reasons']), $by, $uid) === null) { $n++; $used_tx[$tid] = true; }
+    }
+    return ['matched' => $n, 'review' => count(pp_bank_candidates())];
 }
 
 /** Porzucone płatności P24 (> 24 h bez potwierdzenia) wracają do koszyka. */

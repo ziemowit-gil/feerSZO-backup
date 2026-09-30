@@ -46,7 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
         // Zapis WSZYSTKICH operacji (wpływy i wypływy) do przypisywania do dokumentów — bez tworzenia dokumentów.
         $saved = edok_bank_import(edok_mt940_parse($raw), (int)$user['id']);
         $auto  = edok_bank_auto_match();
-        flash_set('success', "Zapisano operacji: {$saved['added']}" . ($saved['duplicates'] ? ", pominięto już zaimportowane: {$saved['duplicates']}" : '') . ". Dopasowano automatycznie: {$auto}.");
+        // Wpływy za płatności z portalu /platnosci (kod w tytule / rachunek wirtualny) — rozliczane od razu
+        $pp = ['matched' => 0];
+        try { require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php'; $pp = pp_bank_auto_match((string)($user['name'] ?? 'EODoK'), (int)$user['id']); }
+        catch (\Throwable $e) { error_log('[platnosci] ' . $e->getMessage()); }
+        flash_set('success', "Zapisano operacji: {$saved['added']}" . ($saved['duplicates'] ? ", pominięto już zaimportowane: {$saved['duplicates']}" : '') . ". Dopasowano automatycznie: {$auto}."
+            . ($pp['matched'] ? " Rozliczono płatności z portalu /platnosci: {$pp['matched']}." : ''));
         header('Location: ' . APP_URL . '/edok/wyciag.php');
         exit;
     }

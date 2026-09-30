@@ -31,9 +31,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pref = preg_replace('/\D/', '', (string)($_POST['pp_nrb_prefix'] ?? ''));
             if ($bank !== '' && strlen($bank) !== 8) { $err = 'Numer rozliczeniowy banku ma 8 cyfr.'; break; }
             if (strlen($pref) > 12) { $err = 'Prefiks może mieć najwyżej 12 cyfr (zostają min. 4 na numer uczestnika).'; break; }
-            org_setting_set('pp_nrb_bank', $bank); org_setting_set('pp_nrb_prefix', $pref);
+            $gen = pp_nrb_normalize((string)($_POST['pp_general_nrb'] ?? ''));
+            if ($gen !== '' && !pp_nrb_valid($gen)) { $err = 'Rachunek ogólny: nieprawidłowy numer (26 cyfr, suma kontrolna).'; break; }
+            org_setting_set('pp_nrb_bank', $bank); org_setting_set('pp_nrb_prefix', $pref); org_setting_set('pp_general_nrb', $gen);
             org_setting_set('pp_p24_simulation', !empty($_POST['pp_p24_simulation']) ? '1' : '0');
-            audit_log('payments.settings', ['bank' => $bank, 'prefix' => $pref, 'simulation' => !empty($_POST['pp_p24_simulation']), 'by' => $by], $uid);
+            audit_log('payments.settings', ['bank' => $bank, 'prefix' => $pref, 'general_nrb' => $gen, 'simulation' => !empty($_POST['pp_p24_simulation']), 'by' => $by], $uid);
             $ok = 'Ustawienia zapisane.'; break;
         case 'user':
             $u = pp_user_ensure($pid, $by, $uid);
@@ -64,6 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) { $err = 'Podaj datę zaksięgowania z wyciągu.'; break; }
             $err = pp_settle((int)($_POST['tx_id'] ?? 0), ['gateway' => 'nrb', 'bank_date' => $date, 'note' => mb_substr(trim((string)($_POST['note'] ?? '')), 0, 300), 'confirmed_by' => $by], $by, $uid);
             $ok = 'Wpłata potwierdzona — pozycje opłacone.'; break;
+        case 'bank_auto':
+            $r = pp_bank_auto_match($by, $uid);
+            $ok = "Rozliczono z wyciągów EODoK: {$r['matched']}." . ($r['review'] ? " Do decyzji: {$r['review']}." : ''); break;
+        case 'bank_assign':
+            $err = pp_bank_assign((int)($_POST['bank_tx_id'] ?? 0), (int)($_POST['tx_id'] ?? 0), 'ręcznie', $by, $uid);
+            $ok = 'Wpływ z wyciągu przypisany — płatność rozliczona.'; break;
         case 'reject':
             $reason = mb_substr(trim((string)($_POST['note'] ?? '')), 0, 300);
             if (mb_strlen($reason) < 5) { $err = 'Podaj powód odrzucenia.'; break; }
@@ -85,6 +93,7 @@ if ($sel) pp_sync_ti_items($pid);
 $sel_items = $sel ? db_all("SELECT * FROM payable_items WHERE participant_id=? ORDER BY status='pending' DESC, status='processing' DESC, id DESC LIMIT 100", [$pid]) : [];
 $nrb_pending = db_all("SELECT t.*, c.name FROM portal_transactions t JOIN k30_clients c ON c.id=t.participant_id
                         WHERE t.status='pending' AND t.payment_method='individual_nrb' ORDER BY t.id");
+$bank_c = pp_bank_candidates();
 $txs = db_all("SELECT t.*, c.name FROM portal_transactions t JOIN k30_clients c ON c.id=t.participant_id ORDER BY t.id DESC LIMIT 50");
 $stats = db_one("SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN status='pending' THEN amount END),0) p, COALESCE(SUM(CASE WHEN status='processing' THEN amount END),0) pr FROM payable_items");
 $csrf = h(csrf_token());
@@ -142,6 +151,31 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <?php endforeach; ?>
   </section>
 
+  <!-- Wpływy z wyciągów EODoK -->
+  <section class="card" aria-labelledby="bk-h">
+    <div class="flex flex-wrap items-center gap-2 mb-2">
+      <h2 id="bk-h" class="font-semibold">Wpływy z wyciągów EODoK</h2>
+      <span class="text-xs text-slate-500">dopasowanie po kodzie płatności w tytule („SZO…”) albo po rachunku wirtualnym uczestnika; uruchamia się też przy imporcie wyciągu MT940</span>
+      <form method="post" class="ml-auto"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="bank_auto"><input type="hidden" name="participant_id" value="0">
+        <button class="bp"><i class="bi bi-magic"></i> Dopasuj teraz</button></form>
+    </div>
+    <?php if (!$bank_c): ?><p class="text-sm text-slate-500">Brak wpływów do dopasowania — wszystko rozliczone albo nie ma pasujących operacji.</p><?php endif; ?>
+    <?php foreach (array_slice($bank_c, 0, 40) as $c): $b = $c['bank']; $t = $c['tx']; ?>
+    <div class="flex flex-wrap items-center gap-3 border-t border-slate-100 py-2 first:border-0 text-sm">
+      <div class="min-w-[14rem] flex-1">
+        <div><span class="font-medium"><?= h(date('d.m.Y', strtotime((string)$b['data_waluty']))) ?> · <?= h(pp_fmt((float)$b['kwota'])) ?></span> · <?= h($b['kontrahent_nazwa']) ?></div>
+        <div class="text-xs text-slate-500 break-all">„<?= h($b['tytul']) ?>”</div>
+      </div>
+      <div class="min-w-[14rem] flex-1"><div>→ <?= h($t['name']) ?> · <?= h(pp_fmt((float)$t['total_amount'])) ?> · <span class="font-mono text-xs"><?= h($t['transfer_title']) ?></span></div>
+        <div class="text-xs <?= $c['amount_ok'] ? 'text-emerald-700' : 'text-amber-700' ?>"><?= h(implode(' · ', $c['reasons'])) ?></div></div>
+      <form method="post" onsubmit="return confirm('Rozliczyć płatność tym wpływem<?= $c['amount_ok'] ? '' : ' mimo różnej kwoty' ?>?')">
+        <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="bank_assign"><input type="hidden" name="participant_id" value="0">
+        <input type="hidden" name="bank_tx_id" value="<?= (int)$b['id'] ?>"><input type="hidden" name="tx_id" value="<?= (int)$t['id'] ?>">
+        <button class="bs">Przypisz</button></form>
+    </div>
+    <?php endforeach; ?>
+  </section>
+
   <div class="grid gap-5 lg:grid-cols-3">
     <!-- Uczestnik -->
     <section class="card lg:col-span-2 space-y-4" aria-labelledby="u-h">
@@ -163,7 +197,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <div class="grid gap-3 md:grid-cols-2">
           <form method="post" class="space-y-2"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="nrb"><input type="hidden" name="participant_id" value="<?= $pid ?>">
             <label class="lbl" for="nrb">Indywidualny NRB</label>
-            <input id="nrb" name="nrb" class="inp font-mono" value="<?= h(pp_nrb_format((string)$pu['individual_nrb'])) ?>" placeholder="26 cyfr">
+            <input id="nrb" name="nrb" class="inp font-mono" value="<?= h(pp_nrb_format((string)$pu['individual_nrb'])) ?>" placeholder="puste = rachunek ogólny">
             <div class="flex gap-2"><button class="bs">Zapisz</button><button class="bs" name="generate" value="1" title="Z prefiksu rachunków wirtualnych">Wygeneruj</button></div></form>
           <div class="space-y-2">
             <form method="post"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="link"><input type="hidden" name="participant_id" value="<?= $pid ?>">
@@ -213,6 +247,9 @@ $sim  = org_setting('pp_p24_simulation') === '1';
         <div><label class="lbl" for="sb">Numer rozliczeniowy banku (8 cyfr)</label><input id="sb" name="pp_nrb_bank" class="inp font-mono" value="<?= h(org_setting('pp_nrb_bank')) ?>" inputmode="numeric"></div>
         <div><label class="lbl" for="sp">Prefiks rachunków wirtualnych (z umowy z bankiem)</label><input id="sp" name="pp_nrb_prefix" class="inp font-mono" value="<?= h(org_setting('pp_nrb_prefix')) ?>" inputmode="numeric"></div>
         <p class="text-xs text-slate-500">NRB = cyfry kontrolne + bank + prefiks + ID uczestnika (dopełnione zerami) — suma kontrolna IBAN liczona automatycznie.</p>
+        <div><label class="lbl" for="sg">Rachunek ogólny do wpłat (gdy uczestnik nie ma rachunku wirtualnego)</label>
+          <input id="sg" name="pp_general_nrb" class="inp font-mono" value="<?= h(pp_nrb_format((string)org_setting('pp_general_nrb'))) ?>" placeholder="26 cyfr"></div>
+        <p class="text-xs text-slate-500">Na rachunku ogólnym wpłatę rozpoznajemy po kodzie w tytule przelewu — uczestnik widzi wyraźne ostrzeżenie, żeby go nie zmieniać.</p>
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="pp_p24_simulation" value="1"<?= $sim ? ' checked' : '' ?>> Symulacja Przelewy24 (gdy bramka nie jest skonfigurowana)</label>
         <p class="text-xs text-slate-500">Przelewy24: <?= p24_enabled() ? '<span class="text-emerald-700">skonfigurowane (' . h(p24_environment()) . ')</span>' : '<span class="text-amber-700">nieskonfigurowane</span>' ?> — dane w <a class="underline" href="../admin/p24_settings.php">ustawieniach P24</a>.</p>
         <button class="bp">Zapisz</button></form>

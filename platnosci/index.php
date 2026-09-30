@@ -94,7 +94,8 @@ $hist_items = [];
 foreach (db_all("SELECT ti.portal_transaction_id, pi.title, ti.amount FROM portal_transaction_items ti JOIN payable_items pi ON pi.id=ti.payable_item_id
                   JOIN portal_transactions t ON t.id=ti.portal_transaction_id WHERE t.participant_id=?", [$pid]) as $r) $hist_items[(int)$r['portal_transaction_id']][] = $r;
 $p24_on  = p24_enabled() || org_setting('pp_p24_simulation') === '1';
-$nrb     = (string)($user['individual_nrb'] ?? '');
+$acct    = pp_payment_account($user);            // indywidualny (wirtualny) albo ogólny rachunek organizacji
+$nrb     = (string)($acct['nrb'] ?? '');
 $today   = date('Y-m-d');
 $J = fn($v) => json_encode($v, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 $csrf = h(pp_csrf());
@@ -163,14 +164,15 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
       <h1 id="st-h" class="text-lg font-semibold">Płatność <?= h(strtoupper(substr(str_replace('-', '', $stx['transaction_uuid']), 0, 10))) ?></h1>
       <span class="rounded-full px-3 py-1 text-sm font-medium" :class="'st-' + st" role="status" aria-live="polite" x-text="label"></span>
     </div>
-    <p class="mt-1 text-slate-600"><?= $stx['payment_method'] === 'p24' ? 'Przelewy24' : 'Przelew na indywidualny rachunek' ?> · <?= h(pp_fmt((float)$stx['total_amount'])) ?> · <?= h(date('d.m.Y H:i', strtotime((string)$stx['created_at']))) ?></p>
+    <p class="mt-1 text-slate-600"><?= $stx['payment_method'] === 'p24' ? 'Przelewy24' : 'Przelew tradycyjny' ?> · <?= h(pp_fmt((float)$stx['total_amount'])) ?> · <?= h(date('d.m.Y H:i', strtotime((string)$stx['created_at']))) ?></p>
     <ul class="mt-3 divide-y divide-slate-100 text-sm">
       <?php foreach ($stx['items'] as $it): ?><li class="flex justify-between py-1.5"><span><?= h($it['title']) ?></span><span class="tabular-nums"><?= h(pp_fmt((float)$it['amount'])) ?></span></li><?php endforeach; ?>
     </ul>
     <?php if ($stx['payment_method'] === 'individual_nrb'): ?>
     <div x-show="st === 'pending'" class="mt-4 rounded-xl bg-navy-50 p-4 ring-1 ring-navy-600/20">
       <h2 class="font-semibold mb-2">Dane do przelewu</h2>
-      <?php $rows = [['Numer rachunku', pp_nrb_format($nrb), $nrb], ['Kwota', pp_fmt((float)$stx['total_amount']), number_format((float)$stx['total_amount'], 2, ',', '')], ['Tytuł przelewu', $stx['transfer_title'], $stx['transfer_title']], ['Odbiorca', $org, $org]]; ?>
+      <?php $t_nrb = (string)($stx['target_nrb'] ?: $nrb); $t_gen = $t_nrb !== '' && $t_nrb === pp_nrb_normalize((string)org_setting('pp_general_nrb'));
+            $rows = [['Numer rachunku', pp_nrb_format($t_nrb), $t_nrb], ['Kwota', pp_fmt((float)$stx['total_amount']), number_format((float)$stx['total_amount'], 2, ',', '')], ['Tytuł przelewu', $stx['transfer_title'], $stx['transfer_title']], ['Odbiorca', $org, $org]]; ?>
       <dl class="grid gap-2 sm:grid-cols-[10rem_1fr]">
         <?php foreach ($rows as [$l, $v, $copy]): ?>
         <dt class="text-sm text-slate-500"><?= h($l) ?></dt>
@@ -179,9 +181,13 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
                   :aria-label="c ? 'Skopiowano' : 'Kopiuj: <?= h($l) ?>'"><span x-text="c ? 'skopiowano' : 'kopiuj'"></span></button></dd>
         <?php endforeach; ?>
       </dl>
+      <?php if ($t_gen): ?>
+      <p role="note" class="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-300">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> To wspólny rachunek organizacji — wpłatę rozpoznajemy <strong>wyłącznie po tytule</strong>. Przepisz go bez zmian (najważniejszy jest kod <span class="font-mono font-semibold"><?= h(pp_title_code((string)$stx['transaction_uuid'])) ?></span>).</p>
+      <?php endif; ?>
       <ol class="mt-3 list-decimal pl-5 text-sm text-slate-600 space-y-1">
         <li>Zrób przelew z dokładnie tą kwotą i <strong>tytułem</strong> — po nim rozpoznajemy płatność.</li>
-        <li>Zaksięgowanie trwa zwykle 1–2 dni robocze. Status zmieni się tutaj sam, gdy biuro potwierdzi wpłatę.</li>
+        <li>Zaksięgowanie trwa zwykle 1–2 dni robocze. Status zmieni się tutaj sam, gdy wpłata pojawi się na wyciągu bankowym.</li>
         <li>Do tego czasu wybrane pozycje są oznaczone jako „w trakcie opłacania”.</li>
       </ol>
       <form method="post" class="mt-3" onsubmit="return confirm('Anulować tę płatność? Zrób to tylko, jeśli NIE wysłałeś przelewu.')">
@@ -242,8 +248,8 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
           </label>
           <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3" :class="method === 'individual_nrb' ? 'm-on' : 'm-off'">
             <input type="radio" name="method" value="individual_nrb" x-model="method" class="mt-1"<?= $nrb !== '' ? '' : ' disabled' ?>>
-            <span><span class="block font-medium">Przelew na indywidualny rachunek</span>
-              <span class="block text-xs text-slate-500"><?= $nrb !== '' ? h(pp_nrb_format($nrb)) . ' — księgowanie 1–2 dni' : 'rachunek nie został jeszcze przypisany' ?></span></span>
+            <span><span class="block font-medium"><?= ($acct['kind'] ?? '') === 'individual' ? 'Przelew na indywidualny rachunek' : 'Przelew tradycyjny' ?></span>
+              <span class="block text-xs text-slate-500"><?= $nrb !== '' ? h(pp_nrb_format($nrb)) . (($acct['kind'] ?? '') === 'general' ? ' — rachunek ogólny, liczy się tytuł przelewu' : '') . ' — księgowanie 1–2 dni' : 'chwilowo niedostępny' ?></span></span>
           </label>
         </fieldset>
         <button class="mt-4 w-full rounded-lg bg-navy-700 px-4 py-2.5 font-semibold text-white hover:bg-navy-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -262,7 +268,7 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
       <li class="px-5 py-3">
         <div class="flex flex-wrap items-center gap-2">
           <span class="font-medium"><?= h(date('d.m.Y H:i', strtotime((string)$t['created_at']))) ?></span>
-          <span class="text-sm text-slate-500"><?= $t['payment_method'] === 'p24' ? 'Przelewy24' : 'Przelew (NRB)' ?> · <?= h(strtoupper(substr(str_replace('-', '', $t['transaction_uuid']), 0, 10))) ?></span>
+          <span class="text-sm text-slate-500"><?= $t['payment_method'] === 'p24' ? 'Przelewy24' : 'Przelew' ?> · <?= h(strtoupper(substr(str_replace('-', '', $t['transaction_uuid']), 0, 10))) ?></span>
           <span class="rounded-full px-2.5 py-0.5 text-xs st-<?= h($t['status']) ?>"><?= h(PP_TX_STATUS[$t['status']] ?? $t['status']) ?></span>
           <span class="ml-auto tabular-nums font-semibold"><?= h(pp_fmt((float)$t['total_amount'])) ?></span>
           <?php if ($t['status'] === 'pending'): ?><a class="text-sm text-navy-700 hover:underline" href="./?view=status&amp;tx=<?= h(urlencode($t['transaction_uuid'])) ?>">szczegóły</a><?php endif; ?>
