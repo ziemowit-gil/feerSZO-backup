@@ -161,6 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'p24_save':
             p24_migrate();
             p24_save_setting('enabled', !empty($_POST['p24_enabled']) ? '1' : '0');
+            org_setting_set('pp_p24_raty', !empty($_POST['p24_raty']) ? '1' : '0');
             p24_save_setting('environment', ($_POST['p24_env'] ?? 'sandbox') === 'prod' ? 'prod' : 'sandbox');
             p24_save_setting('currency', strtoupper(trim((string)($_POST['p24_currency'] ?? 'PLN'))) ?: 'PLN');
             p24_save_setting('merchant_id', trim((string)($_POST['p24_merchant'] ?? '')));
@@ -656,6 +657,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <details class="rounded-lg border border-slate-200 p-3"><summary class="cursor-pointer text-sm font-semibold">Ustawienia Przelewy24</summary>
         <form method="post" class="mt-3 grid gap-3 md:grid-cols-3"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="p24_save"><input type="hidden" name="participant_id" value="0">
           <label class="flex items-center gap-2 text-sm md:col-span-3"><input type="checkbox" name="p24_enabled" value="1"<?= p24_setting('enabled') === '1' ? ' checked' : '' ?>> Przelewy24 włączone (uczestnicy mogą płacić przez Przelewy24)</label>
+          <label class="flex items-center gap-2 text-sm md:col-span-3"><input type="checkbox" name="p24_raty" value="1"<?= org_setting('pp_p24_raty') === '1' ? ' checked' : '' ?>> Pokaż logo „Przelewy24 Raty” w stopce portalu (tylko jeśli Raty są aktywne w Twoim koncie P24)</label>
           <div><label class="lbl" for="p2-env">Środowisko</label><select id="p2-env" name="p24_env" class="inp"><option value="sandbox"<?= p24_environment() !== 'prod' ? ' selected' : '' ?>>sandbox (test)</option><option value="prod"<?= p24_environment() === 'prod' ? ' selected' : '' ?>>produkcja</option></select></div>
           <div><label class="lbl" for="p2-cur">Waluta</label><input id="p2-cur" name="p24_currency" class="inp" maxlength="3" value="<?= h(p24_currency()) ?>"></div>
           <div><label class="lbl" for="p2-pos">POS ID</label><input id="p2-pos" name="p24_pos" class="inp font-mono" value="<?= h(p24_setting('pos_id')) ?>"></div>

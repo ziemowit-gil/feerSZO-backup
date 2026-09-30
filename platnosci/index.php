@@ -432,10 +432,22 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
     <?php if (p24_enabled() || org_setting('pp_p24_simulation') === '1'): ?>
     <a href="https://www.przelewy24.pl" target="_blank" rel="noopener" class="inline-flex items-center" title="Przelewy24 — płatności online"><img src="/assets/logo/przelewy24.svg" alt="Przelewy24" class="h-8 w-auto" width="91" height="32"></a>
     <?php endif; ?>
+    <?php if ((p24_enabled() || org_setting('pp_p24_simulation') === '1') && org_setting('pp_p24_raty') === '1'): ?>
+    <span class="inline-flex items-center" title="Przelewy24 Raty"><img src="/assets/logo/p24/przelewy24-raty.svg" alt="Przelewy24 Raty" class="h-9 w-auto" width="72" height="36"></span>
+    <?php endif; ?>
     <?php if (payu_enabled()): ?><span class="inline-flex items-center gap-1 font-semibold text-slate-700" title="Płatności online PayU"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i>PayU</span><?php endif; ?>
     <?php if (stripe_enabled()): ?><span class="inline-flex items-center gap-1 font-semibold text-slate-700" title="Płatności kartą Stripe"><i class="bi bi-credit-card" aria-hidden="true"></i>Stripe</span><?php endif; ?>
     <span class="inline-flex items-center gap-1" title="Bank prowadzący rachunki do wpłat"><i class="bi bi-bank2" aria-hidden="true"></i>Rachunki: <strong class="ml-1 text-slate-700">PKO Bank Polski S.A.</strong></span>
   </div>
+  <?php if (p24_enabled() || org_setting('pp_p24_simulation') === '1'): ?>
+  <div class="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2" aria-label="Metody płatności dostępne przez Przelewy24">
+    <span class="text-xs text-slate-500">Zapłacisz przez Przelewy24:</span>
+    <?php foreach (['blik' => 'BLIK', 'visa' => 'Visa', 'mastercard' => 'Mastercard', 'apple-pay' => 'Apple Pay', 'google-pay' => 'Google Pay', 'pko-bp' => 'PKO Bank Polski', 'mbank' => 'mBank', 'ing' => 'ING Bank Śląski', 'pekao' => 'Bank Pekao', 'bnp-paribas' => 'BNP Paribas', 'credit-agricole' => 'Credit Agricole', 'millennium' => 'Bank Millennium'] as $lk => $ll): ?>
+    <img src="/assets/logo/p24/<?= $lk ?>.png" alt="<?= h($ll) ?>" title="<?= h($ll) ?>" class="h-6 w-auto max-w-[5.5rem] object-contain" loading="lazy">
+    <?php endforeach; ?>
+    <span class="text-xs text-slate-400">i inne banki</span>
+  </div>
+  <?php endif; ?>
 </footer>
 
 <?php if (!in_array($view, ['status', 'sim'], true)): ?>
