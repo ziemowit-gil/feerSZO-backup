@@ -66,6 +66,7 @@ if (($_GET['export'] ?? '') === 'gen') {
     echo implode("\r\n", $l), "\r\n"; exit;
 }
 
+if (($_GET['export'] ?? '') === 'csv') pp_vnrb_export_csv($by);
 if (($_GET['pdf'] ?? '') === 'notice') pp_vnrb_notice_send(in_array($_GET['scope'] ?? '', ['client', 'last', 'unnotified', 'all'], true) ? $_GET['scope'] : 'client', (int)($_GET['client'] ?? 0), $by);
 if (($_GET['report'] ?? '') === 'status') pp_vnrb_status_print((string)($_GET['cat'] ?? ''), $by);
 if (($_GET['report'] ?? '') === 'print') pp_vnrb_report_print(($_GET['scope'] ?? 'all') === 'last' ? 'last' : 'all', $by);
@@ -126,6 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($lb === '') { $err = 'Brak ostatniego importu.'; break; }
             $x = pp_vnrb_pool_assign_ti($by, $uid, $lb);
             $ok = "Ostatni import: przypisano kursantom TI {$x['assigned']}" . ($x['nopool'] ? "; bez numeru z braku puli: {$x['nopool']}" : '') . '.'; break;
+        case 'vnrb_release':
+            $err = pp_vnrb_release((string)($_POST['kind'] ?? 'ti'), (int)($_POST['rid'] ?? 0), (string)($_POST['reason'] ?? ''), $by, $uid);
+            $ok = 'Numer odpięty i zwrócony do puli.'; break;
+        case 'vnrb_block':
+            $blk = !empty($_POST['block']);
+            $err = pp_vnrb_block((string)($_POST['nrb'] ?? ''), $blk, (string)($_POST['reason'] ?? ''), $by, $uid);
+            $ok = $blk ? 'Numer zablokowany — wpłaty na niego nie będą księgowane automatycznie.' : 'Numer odblokowany.'; break;
         case 'notice_save':
             $nid = pp_notice_save((int)($_POST['notice_id'] ?? 0), (string)($_POST['scope'] ?? 'unnotified'), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['sms_text'] ?? ''), $by);
             if (is_string($nid)) { $err = $nid; break; }
@@ -460,6 +468,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
       <div class="flex flex-wrap items-center gap-2">
         <a class="bs" href="admin.php?report=status" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj raport</a>
+        <a class="bs" href="admin.php?export=csv"><i class="bi bi-filetype-csv" aria-hidden="true"></i>Eksport CSV numerów</a>
         <button type="button" class="bp" @click="sub = 'import'; $nextTick(() => { var e = document.getElementById('powiadomienia'); if (e) e.scrollIntoView({behavior: 'smooth', block: 'start'}); })"><i class="bi bi-envelope-paper" aria-hidden="true"></i>Wyślij masowo e-mail i SMS z numerem</button>
         <span class="text-xs text-slate-400">|</span>
         <span class="text-xs font-medium text-slate-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF „nadano numer”:</span>
@@ -476,17 +485,56 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <a class="ml-auto text-xs text-slate-500 hover:underline" :href="'admin.php?report=status&cat=' + f" target="_blank" rel="noopener" x-show="f !== ''">drukuj tylko ten stan →</a>
     </div>
     <div class="max-h-96 overflow-auto"><table class="min-w-full text-sm">
-      <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th><th class="pr-3 text-right">PDF</th></tr></thead>
+      <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th><th class="pr-3 text-right">PDF</th><th class="pr-3 text-right">Opcje numeru</th></tr></thead>
       <tbody class="divide-y divide-slate-100">
       <?php foreach ($vs as $r0): ?>
         <tr x-show="f === '' || f === '<?= $r0['cat'] ?>'"><td class="py-1.5 pr-3 font-medium"><a class="hover:underline" href="admin.php?q=<?= urlencode($r0['name']) ?>"><?= h($r0['name']) ?></a></td>
           <td class="pr-3 text-xs"><span class="rounded-full px-2 py-0.5 <?= ['brak' => 'bg-red-50 text-red-800', 'nie_powiad' => 'bg-amber-50 text-amber-800', 'powiad' => 'bg-emerald-50 text-emerald-800', 'reczny' => 'bg-sky-50 text-sky-800', 'wirtualny' => 'bg-slate-100 text-slate-700', 'bez_rozl' => 'bg-slate-100 text-slate-700'][$r0['cat']] ?>"><?= h(PP_VSTATUS[$r0['cat']]) ?></span></td>
           <td class="pr-3 font-mono text-xs"><?= $r0['nrb'] !== '' ? h(pp_nrb_format($r0['nrb'])) : '—' ?></td>
           <td class="pr-3 text-xs text-slate-500"><?= h($r0['notified_at'] ?: '—') ?></td>
-          <td class="pr-3 text-right"><?php if ($r0['nrb'] !== ''): ?><a class="text-xs text-navy-700 hover:underline" href="admin.php?pdf=notice&scope=client&client=<?= (int)$r0['client_id'] ?>" target="_blank" rel="noopener" title="PDF z informacją o numerze — <?= h($r0['name']) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a><?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td></tr>
+          <td class="pr-3 text-right"><?php if ($r0['nrb'] !== ''): ?><a class="text-xs text-navy-700 hover:underline" href="admin.php?pdf=notice&scope=client&client=<?= (int)$r0['client_id'] ?>" target="_blank" rel="noopener" title="PDF z informacją o numerze — <?= h($r0['name']) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a><?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td>
+          <td class="pr-3 text-right text-xs">
+            <?php if ($r0['nrb'] !== ''): $blk0 = pp_vnrb_is_blocked($r0['nrb']); ?>
+            <a class="text-slate-500 hover:underline" href="admin.php?hist=<?= (int)$r0['client_id'] ?>#rachunki">historia</a>
+            <details class="relative inline-block text-left"><summary class="cursor-pointer text-navy-700"><?= $blk0 ? '<i class="bi bi-lock-fill text-red-700" title="zablokowany"></i> ' : '' ?>opcje</summary>
+              <div class="absolute right-0 z-10 mt-1 w-72 space-y-2 rounded-lg bg-white p-3 text-left shadow-lg ring-1 ring-slate-200">
+                <form method="post" class="space-y-1"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vnrb_block"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="nrb" value="<?= h($r0['nrb']) ?>"><?php if (!$blk0): ?><input type="hidden" name="block" value="1"><?php endif; ?>
+                  <?php if (!$blk0): ?><input name="reason" class="inp !py-1" placeholder="powód blokady" maxlength="300" required minlength="5" aria-label="Powód blokady"><?php endif; ?>
+                  <button class="bs !py-1"><?= $blk0 ? 'Odblokuj numer' : 'Zablokuj numer' ?></button>
+                  <div class="text-[11px] text-slate-500">Zablokowany numer: wpłaty nie są księgowane automatycznie o 20:00.</div></form>
+                <form method="post" class="space-y-1" onsubmit="return confirm('Odpiąć numer od kursanta <?= h(addslashes($r0['name'])) ?> i zwrócić go do puli?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vnrb_release"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="kind" value="ti"><input type="hidden" name="rid" value="<?= (int)$r0['client_id'] ?>">
+                  <input name="reason" class="inp !py-1" placeholder="powód odpięcia" maxlength="300" required minlength="5" aria-label="Powód odpięcia">
+                  <button class="bs !py-1 !text-red-700" <?= $blk0 ? 'disabled title="najpierw odblokuj"' : '' ?>>Odepnij numer (do puli)</button></form>
+              </div></details>
+            <?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td></tr>
       <?php endforeach; ?>
-      <?php if (!$vs): ?><tr><td colspan="5" class="py-6 text-center text-slate-500">Brak kursantów TI.</td></tr><?php endif; ?>
+      <?php if (!$vs): ?><tr><td colspan="6" class="py-6 text-center text-slate-500">Brak kursantów TI.</td></tr><?php endif; ?>
       </tbody></table></div>
+  </section>
+
+  <?php $hist_id = (int)($_GET['hist'] ?? 0); if ($hist_id): $hn = db_one("SELECT name FROM k30_clients WHERE id=?", [$hist_id]); $hh = pp_vnrb_history($hist_id); ?>
+  <section class="card space-y-2" x-show="sub === 'stan'" aria-labelledby="hi-h">
+    <div class="flex items-center justify-between"><h2 id="hi-h" class="font-semibold">Historia numeru — <?= h($hn['name'] ?? ('#' . $hist_id)) ?></h2><a class="bs" href="admin.php#rachunki">Zamknij</a></div>
+    <?php if (!$hh): ?><p class="text-sm text-slate-500">Brak wpisów w audycie dla tego uczestnika.</p><?php endif; ?>
+    <ul class="space-y-1 text-xs"><?php foreach ($hh as $he): $hd = json_decode((string)$he['details'], true) ?: []; ?>
+      <li class="border-l-2 border-slate-200 pl-3"><span class="font-medium"><?= h($he['action']) ?></span> · <?= h($he['created_at']) ?> · <?= h($hd['by'] ?? '') ?>
+        <span class="text-slate-500"><?= h(mb_strimwidth(json_encode(array_diff_key($hd, ['by' => 1, 'row' => 1]), JSON_UNESCAPED_UNICODE), 0, 200, '…')) ?></span></li><?php endforeach; ?></ul>
+  </section>
+  <?php endif; ?>
+  <?php $crm_nums = db_all("SELECT contact_id, nrb, assigned_at FROM pp_vnrb_crm ORDER BY assigned_at DESC LIMIT 200"); $crm_names = [];
+        if ($crm_nums) { try { foreach (crm_all("SELECT id, imie_nazwisko FROM crm_contacts WHERE id IN (" . implode(',', array_map('intval', array_column($crm_nums, 'contact_id'))) . ")") as $cn) $crm_names[(int)$cn['id']] = $cn['imie_nazwisko']; } catch (\Throwable $e) {} } ?>
+  <section class="card space-y-2" x-show="sub === 'stan'" aria-labelledby="crm-h">
+    <h2 id="crm-h" class="font-semibold">Kontrahenci CRM z numerem <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"><?= count($crm_nums) ?></span></h2>
+    <?php if (!$crm_nums): ?><p class="text-sm text-slate-500">Żaden kontrahent CRM nie ma jeszcze nadanego numeru (przycisk „Przypisz kontrahentom” w podzakładce Import i przypisanie).</p><?php else: ?>
+    <div class="max-h-72 overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kontrahent</th><th class="pr-3">Rachunek</th><th class="pr-3">Nadano</th><th class="pr-3 text-right">Opcje numeru</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach ($crm_nums as $cr): $cb = pp_vnrb_is_blocked($cr['nrb']); ?>
+      <tr><td class="py-1.5 pr-3 font-medium"><?= h($crm_names[(int)$cr['contact_id']] ?? ('kontakt #' . (int)$cr['contact_id'])) ?></td><td class="pr-3 font-mono text-xs"><?= h(pp_nrb_format($cr['nrb'])) ?><?= $cb ? ' <i class="bi bi-lock-fill text-red-700" title="zablokowany"></i>' : '' ?></td><td class="pr-3 text-xs text-slate-500"><?= h((string)$cr['assigned_at']) ?></td>
+        <td class="pr-3 text-right text-xs"><details class="relative inline-block text-left"><summary class="cursor-pointer text-navy-700">opcje</summary>
+          <div class="absolute right-0 z-10 mt-1 w-72 space-y-2 rounded-lg bg-white p-3 text-left shadow-lg ring-1 ring-slate-200">
+            <form method="post" class="space-y-1"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vnrb_block"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="nrb" value="<?= h($cr['nrb']) ?>"><?php if (!$cb): ?><input type="hidden" name="block" value="1"><input name="reason" class="inp !py-1" placeholder="powód blokady" maxlength="300" required minlength="5" aria-label="Powód blokady"><?php endif; ?><button class="bs !py-1"><?= $cb ? 'Odblokuj numer' : 'Zablokuj numer' ?></button></form>
+            <form method="post" class="space-y-1" onsubmit="return confirm('Odpiąć numer od kontrahenta i zwrócić go do puli?')"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vnrb_release"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="kind" value="crm"><input type="hidden" name="rid" value="<?= (int)$cr['contact_id'] ?>"><input name="reason" class="inp !py-1" placeholder="powód odpięcia" maxlength="300" required minlength="5" aria-label="Powód odpięcia"><button class="bs !py-1 !text-red-700" <?= $cb ? 'disabled title="najpierw odblokuj"' : '' ?>>Odepnij numer (do puli)</button></form>
+          </div></details></td></tr>
+      <?php endforeach; ?></tbody></table></div><?php endif; ?>
   </section>
 
   <!-- Serie rachunków wirtualnych: SZO podaje bankowi tylko 1 numer startowy na serię -->

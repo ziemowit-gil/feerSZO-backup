@@ -46,6 +46,7 @@ function pp_migrate(): void {
         nrb TEXT PRIMARY KEY, grp TEXT NOT NULL DEFAULT 'ti', participant_id INTEGER,
         imported_by TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, assigned_at DATETIME)");
     try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}   // kursant wirtualny: bez rachunku z puli
+    db()->exec("CREATE TABLE IF NOT EXISTS pp_vnrb_blocks (nrb TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     db()->exec("CREATE TABLE IF NOT EXISTS pp_bank_autopost (bank_tx_id INTEGER PRIMARY KEY, participant_id INTEGER NOT NULL, payment_id INTEGER,
         amount REAL NOT NULL, nrb TEXT NOT NULL, by_name TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     db()->exec("CREATE TABLE IF NOT EXISTS pp_notice_batches (
@@ -1020,6 +1021,7 @@ function pp_bank_autopost(string $by = 'automat', ?int $uid = null, bool $dry = 
             foreach ($ind as $n => $p) if (strlen($digits) >= 26 && str_contains($digits, $n)) { $pid = $p; $nrb = $n; break; }
         }
         if ($pid === null || (float)$b['kwota'] <= 0) { $r['skipped']++; continue; }
+        if (db_one("SELECT 1 FROM pp_vnrb_blocks WHERE nrb=?", [$nrb])) { $r['blocked'] = ($r['blocked'] ?? 0) + 1; continue; }   // zablokowany numer — wpłata czeka na decyzję
         $name = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [$pid])['name'] ?? ('#' . $pid));
         $row = ['bank_tx_id' => (int)$b['id'], 'participant_id' => $pid, 'name' => $name, 'amount' => (float)$b['kwota'], 'date' => (string)$b['data_waluty'],
                 'payer' => (string)$b['kontrahent_nazwa'], 'title' => (string)$b['tytul'], 'nrb' => $nrb];
@@ -1230,4 +1232,90 @@ function pp_notice_process(): array {
         $r['batches']++; foreach ($st as $k => $n) $r[$k] += $n;
     }
     return $r;
+}
+
+
+// ── Dodatkowe opcje dla rachunków: odepnij / zablokuj / historia / eksport (kursanci i kontrahenci CRM) ─────────
+
+function pp_vnrb_is_blocked(string $nrb): bool {
+    pp_migrate();
+    return (bool)db_one("SELECT 1 FROM pp_vnrb_blocks WHERE nrb=?", [pp_nrb_normalize($nrb)]);
+}
+
+/** Blokada numeru: wpłaty na niego nie są księgowane automatycznie; zablokowanego numeru nie można odpiąć. */
+function pp_vnrb_block(string $nrb, bool $block, string $reason, string $by, ?int $uid): ?string {
+    pp_migrate();
+    $n = pp_nrb_normalize($nrb);
+    if (!pp_nrb_valid($n)) return 'Nieprawidłowy numer rachunku.';
+    if ($block) {
+        if (mb_strlen(trim($reason)) < 5) return 'Podaj powód blokady (min. 5 znaków).';
+        db()->prepare("INSERT OR REPLACE INTO pp_vnrb_blocks (nrb, reason, by_name) VALUES (?,?,?)")->execute([$n, trim($reason), $by]);
+    } else {
+        db()->prepare("DELETE FROM pp_vnrb_blocks WHERE nrb=?")->execute([$n]);
+    }
+    audit_log($block ? 'payments.vnrb_blocked' : 'payments.vnrb_unblocked', ['nrb_last4' => substr($n, -4), 'nrb' => $n, 'reason' => trim($reason), 'by' => $by], $uid);
+    return null;
+}
+
+/**
+ * Odpięcie numeru od kursanta ($kind='ti', $id=client_id) albo kontrahenta CRM ($kind='crm', $id=contact_id) — numer wraca
+ * do puli (jako wolny, bez daty powiadomienia). Odmowa: numer zablokowany albo oczekujący przelew na ten numer.
+ */
+function pp_vnrb_release(string $kind, int $id, string $reason, string $by, ?int $uid): ?string {
+    pp_migrate();
+    if (mb_strlen(trim($reason)) < 5) return 'Podaj powód odpięcia (min. 5 znaków).';
+    if ($kind === 'crm') {
+        $r = db_one("SELECT nrb FROM pp_vnrb_crm WHERE contact_id=?", [$id]);
+        if (!$r) return 'Kontrahent nie ma nadanego numeru.';
+        if (pp_vnrb_is_blocked($r['nrb'])) return 'Numer jest zablokowany — najpierw go odblokuj.';
+        db()->beginTransaction();
+        try {
+            db()->prepare("DELETE FROM pp_vnrb_crm WHERE contact_id=?")->execute([$id]);
+            db()->prepare("UPDATE pp_vnrb_pool SET crm_contact_id=NULL, assigned_at=NULL WHERE nrb=?")->execute([$r['nrb']]);
+            audit_log('payments.vnrb_released', ['kind' => 'crm', 'contact_id' => $id, 'nrb' => $r['nrb'], 'reason' => trim($reason), 'by' => $by], $uid);
+            db()->commit();
+        } catch (\Throwable $e) { db()->rollBack(); return 'Błąd: ' . $e->getMessage(); }
+        return null;
+    }
+    $u = pp_user($id);
+    $nrb = preg_replace('/\D/', '', (string)($u['individual_nrb'] ?? ''));
+    if (strlen($nrb) !== 26) return 'Kursant nie ma nadanego numeru.';
+    if (pp_vnrb_is_blocked($nrb)) return 'Numer jest zablokowany — najpierw go odblokuj.';
+    if (db_one("SELECT 1 FROM portal_transactions WHERE participant_id=? AND status='pending' AND payment_method='individual_nrb'", [$id]))
+        return 'Kursant ma oczekujący przelew na ten numer — potwierdź lub anuluj go przed odpięciem.';
+    $err = pp_set_nrb($id, '', $by, $uid);   // własna transakcja + audyt zmiany numeru
+    if ($err) return $err;
+    db()->prepare("UPDATE pp_vnrb_pool SET participant_id=NULL, assigned_at=NULL, notified_at=NULL WHERE nrb=?")->execute([$nrb]);
+    audit_log('payments.vnrb_released', ['kind' => 'ti', 'participant_id' => $id, 'nrb' => $nrb, 'reason' => trim($reason), 'by' => $by], $uid);
+    return null;
+}
+
+/** Historia numeru kursanta: wpisy audytu płatności dotyczące uczestnika (najnowsze pierwsze). */
+function pp_vnrb_history(int $client_id, int $limit = 40): array {
+    pp_migrate();
+    return db_all("SELECT created_at, action, details FROM audit_logs WHERE action LIKE 'payments.%'
+                     AND (details LIKE ? OR details LIKE ?) ORDER BY id DESC LIMIT " . (int)$limit,
+                  ['%"participant_id":' . $client_id . ',%', '%"participant_id":' . $client_id . '}%']);
+}
+
+/** Eksport CSV wszystkich numerów (kursanci TI z numerem + kontrahenci CRM). Kończy skrypt. */
+function pp_vnrb_export_csv(string $by): never {
+    pp_migrate();
+    $rows = [];
+    foreach (db_all("SELECT c.id, c.name, u.individual_nrb nrb, p.grp, p.assigned_at, p.notified_at FROM payment_portal_users u
+                       JOIN k30_clients c ON c.id=u.participant_id LEFT JOIN pp_vnrb_pool p ON p.nrb=u.individual_nrb
+                      WHERE u.individual_nrb IS NOT NULL AND u.individual_nrb!='' ORDER BY c.name COLLATE NOCASE") as $r)
+        $rows[] = ['kursant/uczestnik', $r['id'], $r['name'], $r['nrb'], $r['grp'] ?? '', $r['assigned_at'] ?? '', $r['notified_at'] ?? ''];
+    $crm = db_all("SELECT contact_id id, nrb, assigned_at FROM pp_vnrb_crm ORDER BY contact_id");
+    $names = [];
+    if ($crm) { try { foreach (crm_all("SELECT id, imie_nazwisko FROM crm_contacts WHERE id IN (" . implode(',', array_map('intval', array_column($crm, 'id'))) . ")") as $n) $names[(int)$n['id']] = $n['imie_nazwisko']; } catch (\Throwable $e) {} }
+    foreach ($crm as $r) $rows[] = ['kontrahent CRM', $r['id'], $names[(int)$r['id']] ?? '', $r['nrb'], 'inni', $r['assigned_at'], ''];
+    $blocked = array_column(db_all("SELECT nrb FROM pp_vnrb_blocks"), 'nrb', 'nrb');
+    audit_log('payments.vnrb_export_csv', ['rows' => count($rows), 'by' => $by], null);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="rachunki_wirtualne_' . date('Ymd') . '.csv"');
+    $out = fopen('php://output', 'w'); fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['typ', 'id', 'nazwa', 'numer_rachunku', 'seria', 'nadano', 'powiadomiono', 'zablokowany'], ';');
+    foreach ($rows as $r) { $n = preg_replace('/\D/', '', (string)$r[3]); fputcsv($out, [$r[0], $r[1], $r[2], pp_nrb_format($n), $r[4], $r[5], $r[6], isset($blocked[$n]) ? 'tak' : 'nie'], ';'); }
+    fclose($out); exit;
 }
