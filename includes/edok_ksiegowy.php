@@ -35,6 +35,11 @@ function edok_ksiegowy_rows(string $od, string $do, string $kierunek): array {
             'mpk'      => $d['mpk'],
             'opis'     => $d['description'],
             'platnosc' => $kierunek === 'wydatek' ? edok_ksiegowy_platnosc($d, $bank) : '',
+            'rejestr'  => edok_ksiegowy_rejestr($d, $kierunek),
+            'sprzedaz' => (string)$d['data_sprzedazy'],
+            'termin'   => (string)$d['termin_platnosci'],
+            'rachunek' => $kierunek === 'wydatek' ? (edok_zaplata_do_zwrotu($d) ? (string)$d['zwrot_rachunek'] : (string)$d['rachunek_bankowy']) : '',
+            'wskazowka' => edok_ksiegowy_wskazowka($d, $kierunek, $bank),
             'bank'     => $bank ? implode('; ', array_map(fn($b) => date_pl($b['data_waluty']) . ' ' . number_format((float)$b['kwota'], 2, ',', ' '), $bank)) : '',
         ];
     }
@@ -47,10 +52,42 @@ function edok_ksiegowy_platnosc(array $d, array $bank): string {
     return match ($d['status_platnosci'] ?: 'nowy') { 'oplacony' => 'opłacona', 'zlecony' => 'przekazana do banku', 'anulowany' => 'anulowana', default => 'do zapłaty' };
 }
 
+/** Do którego rejestru wpisać dokument (wg typu i obecności VAT). */
+function edok_ksiegowy_rejestr(array $d, string $kierunek): string {
+    $vat = abs(_edok_kwota_float((string)$d['kwota_vat'])) >= 0.005 || in_array((string)$d['stawka_vat'], ['23', '8', '5', '0', 'zw', 'np'], true);
+    if ($kierunek === 'przychod') {
+        return in_array($d['typ_dokumentu'], ['faktura_sprzedazy', 'korekta_sprzedazy'], true) ? 'Rejestr sprzedaży VAT' : 'Przychód bez rejestru VAT';
+    }
+    return match ($d['typ_dokumentu']) {
+        'faktura_vat', 'faktura_korygujaca' => $vat ? 'Rejestr zakupów VAT' : 'Zakup bez VAT',
+        'rachunek'      => 'Rachunek (bez rejestru VAT)',
+        'lista_plac'    => 'Lista płac / wynagrodzenia',
+        'nota_ksiegowa' => 'Nota księgowa',
+        default         => 'Ewidencja pozostałych kosztów',
+    };
+}
+
+/** Jednozdaniowa wskazówka ujęcia: co, na jaką działalność/MPK, jak rozliczone (zapłata/rozrachunek). */
+function edok_ksiegowy_wskazowka(array $d, string $kierunek, array $bank): string {
+    $klas = edok_transfer_label_klasyfikacja($d['rodzaj_dzialalnosci'], $d['projekt']);
+    $parts = [($kierunek === 'przychod' ? 'Przychód: ' : 'Koszt: ') . ($klas !== '' && $klas !== '—' ? $klas : 'brak klasyfikacji') . ($d['mpk'] !== '' ? ', MPK ' . $d['mpk'] : '')];
+    if ($kierunek === 'wydatek') {
+        if (edok_zaplata_do_zwrotu($d)) $parts[] = 'rozrachunek z osobą (zwrot kosztów: ' . ($d['zwrot_osoba'] ?: '—') . ')';
+        elseif (!empty($d['zaplacono_przed'])) $parts[] = 'zapłacona przed księgowaniem — ' . (edok_zaplata_opis($d) ?: 'zapłata');
+        elseif (($d['status_platnosci'] ?: 'nowy') === 'oplacony') $parts[] = 'opłacona' . ($bank ? ' (potwierdzone wyciągiem)' : '');
+        else $parts[] = 'zobowiązanie wobec kontrahenta, termin ' . ($d['termin_platnosci'] ? date_pl($d['termin_platnosci']) : 'brak');
+    } elseif ($bank) {
+        $parts[] = 'wpływ potwierdzony wyciągiem';
+    }
+    return implode('; ', $parts);
+}
+
 const EDOK_KSIEGOWY_COLS = [
     'number' => 'Nr EODoK', 'data' => 'Data', 'typ' => 'Typ', 'nr' => 'Nr dokumentu', 'kontr' => 'Kontrahent', 'nip' => 'NIP',
     'netto' => 'Netto', 'vat' => 'VAT', 'brutto' => 'Brutto', 'waluta' => 'Waluta', 'klasyf' => 'Klasyfikacja', 'mpk' => 'MPK',
     'opis' => 'Opis', 'platnosc' => 'Płatność', 'bank' => 'Transakcja bankowa',
+    'rejestr' => 'Rejestr', 'sprzedaz' => 'Data sprzedaży', 'termin' => 'Termin płatności', 'rachunek' => 'Rachunek do zapłaty/zwrotu',
+    'wskazowka' => 'Jak zaksięgować',
 ];
 
 // ── Excel ──────────────────────────────────────────────────────────────────────
@@ -115,7 +152,7 @@ function edok_ksiegowy_sheet(array $rows, bool $wydatek): array {
     if (!$wydatek) $keys = array_values(array_diff($keys, ['platnosc']));
     $cols = array_map(fn($k) => EDOK_KSIEGOWY_COLS[$k], $keys);
     $num = [array_search('netto', $keys), array_search('vat', $keys), array_search('brutto', $keys)];
-    return ['cols' => $cols, 'num' => $num, 'sum' => true, 'widths' => array_map(fn($k) => in_array($k, ['kontr', 'opis', 'klasyf', 'bank', 'platnosc']) ? 34 : 16, $keys),
+    return ['cols' => $cols, 'num' => $num, 'sum' => true, 'widths' => array_map(fn($k) => in_array($k, ['kontr', 'opis', 'klasyf', 'bank', 'platnosc', 'wskazowka', 'rachunek']) ? 34 : 16, $keys),
         'rows' => array_map(fn($r) => array_map(fn($k) => $r[$k], $keys), $rows)];
 }
 
@@ -126,16 +163,17 @@ function edok_ksiegowy_pdf(string $od, string $do, array $wydatki, array $przych
     $table = function (string $title, array $rows, bool $wydatek) use ($fmt) {
         $h = '<h2>' . h($title) . ' (' . count($rows) . ')</h2>';
         if (!$rows) return $h . '<p>Brak dokumentów w okresie.</p>';
-        $h .= '<table><thead><tr><th>Nr EODoK</th><th>Data</th><th>Dokument</th><th>Kontrahent</th><th class="r">Netto</th><th class="r">VAT</th><th class="r">Brutto</th><th>Klasyfikacja</th>'
-            . ($wydatek ? '<th>Płatność</th>' : '') . '</tr></thead><tbody>';
+        $h .= '<table><thead><tr><th>Nr EODoK</th><th>Data</th><th>Dokument</th><th>Kontrahent</th><th class="r">Netto</th><th class="r">VAT</th><th class="r">Brutto</th><th>Rejestr / klasyfikacja</th>'
+            . '<th>Jak zaksięgować</th>' . ($wydatek ? '<th>Płatność</th>' : '') . '</tr></thead><tbody>';
         $sn = $sv = $sb = 0;
         foreach ($rows as $r) {
             $sn += $r['netto']; $sv += $r['vat']; $sb += $r['brutto'];
             $h .= '<tr><td>' . h($r['number']) . '</td><td>' . h(date_pl($r['data'])) . '</td><td>' . h($r['typ']) . '<br>' . h($r['nr']) . '</td><td>' . h($r['kontr']) . ($r['nip'] ? '<br>NIP ' . h($r['nip']) : '') . '</td>'
-                . '<td class="r">' . $fmt($r['netto']) . '</td><td class="r">' . $fmt($r['vat']) . '</td><td class="r">' . $fmt($r['brutto']) . ' ' . h($r['waluta']) . '</td><td>' . h($r['klasyf']) . ($r['mpk'] ? '<br>MPK: ' . h($r['mpk']) : '') . '</td>'
+                . '<td class="r">' . $fmt($r['netto']) . '</td><td class="r">' . $fmt($r['vat']) . '</td><td class="r">' . $fmt($r['brutto']) . ' ' . h($r['waluta']) . '</td><td><strong>' . h($r['rejestr']) . '</strong><br>' . h($r['klasyf']) . ($r['mpk'] ? '<br>MPK: ' . h($r['mpk']) : '') . ($r['sprzedaz'] ? '<br>sprzedaż: ' . h(date_pl($r['sprzedaz'])) : '') . '</td>'
+                . '<td>' . h($r['wskazowka']) . ($r['rachunek'] ? '<br>rachunek: ' . h($r['rachunek']) : '') . '</td>'
                 . ($wydatek ? '<td>' . h($r['platnosc']) . ($r['bank'] ? '<br>bank: ' . h($r['bank']) : '') . '</td>' : '') . '</tr>';
         }
-        return $h . '<tr class="sum"><td colspan="4">Razem</td><td class="r">' . $fmt($sn) . '</td><td class="r">' . $fmt($sv) . '</td><td class="r">' . $fmt($sb) . '</td><td' . ($wydatek ? ' colspan="2"' : '') . '></td></tr></tbody></table>';
+        return $h . '<tr class="sum"><td colspan="4">Razem</td><td class="r">' . $fmt($sn) . '</td><td class="r">' . $fmt($sv) . '</td><td class="r">' . $fmt($sb) . '</td><td colspan="' . ($wydatek ? 3 : 2) . '"></td></tr></tbody></table>';
     };
     $html = '<style>body{font-family:dejavusans;font-size:8pt} h1{font-size:13pt;margin:0} h2{font-size:11pt;margin:14px 0 4px} table{border-collapse:collapse;width:100%} th,td{border:.5px solid #999;padding:2px 4px;vertical-align:top} th{background:#e5e7eb} .r{text-align:right;white-space:nowrap} .sum td{font-weight:bold;background:#f3f4f6}</style>'
         . '<h1>EODoK — dokumenty do zaksięgowania</h1><p>Okres: ' . h(date_pl($od)) . ' – ' . h(date_pl($do)) . ' · wygenerowano ' . date('d.m.Y H:i') . '</p>'
