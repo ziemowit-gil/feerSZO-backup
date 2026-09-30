@@ -83,6 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (\Throwable $e) { $_SESSION['pp_flash'] = ['danger', 'Nie udało się rozpocząć płatności: ' . $e->getMessage()]; }
         header('Location: ./'); exit;
     }
+    if ($op === 'declare') {   // zgłoszenie wpłaty przelewem (do potwierdzenia przez biuro) — jak „Zgłoś wpłatę” w panelu kursanta
+        $amt = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+        if ($amt < 1 || $amt > 100000) { $_SESSION['pp_flash'] = ['danger', 'Podaj kwotę wpłaty od 1 do 100 000 zł.']; header('Location: ./'); exit; }
+        ti_wallet_request_add($pid, $amt, (string)($_POST['note'] ?? ''), 'uczestnik');
+        audit_log('payments.portal_declare', ['participant_id' => $pid, 'amount' => $amt], null);
+        $_SESSION['pp_flash'] = ['success', 'Zgłoszenie wpłaty ' . number_format($amt, 2, ',', ' ') . ' zł przekazane — biuro zaksięguje ją po potwierdzeniu wpływu.'];
+        header('Location: ./'); exit;
+    }
     if ($op === 'cancel_nrb') {   // uczestnik rezygnuje ze zgłoszonego, niezaksięgowanego przelewu
         $tx = db_one("SELECT * FROM portal_transactions WHERE transaction_uuid=? AND participant_id=? AND status='pending' AND payment_method='individual_nrb'", [(string)($_POST['tx'] ?? ''), $pid]);
         $err = $tx ? pp_fail((int)$tx['id'], 'Anulowane przez uczestnika przed zaksięgowaniem', 'uczestnik', null) : 'Nie znaleziono oczekującej płatności.';
@@ -112,6 +120,8 @@ $hist_items = [];
 foreach (db_all("SELECT ti.portal_transaction_id, pi.title, ti.amount FROM portal_transaction_items ti JOIN payable_items pi ON pi.id=ti.payable_item_id
                   JOIN portal_transactions t ON t.id=ti.portal_transaction_id WHERE t.participant_id=?", [$pid]) as $r) $hist_items[(int)$r['portal_transaction_id']][] = $r;
 $bal_ti  = ti_client_balance($pid);
+$bills_all = k30_ti_client_billing($pid);
+$wreqs = array_slice(ti_wallet_requests_for_client($pid), 0, 8);
 $pay_hist = array_slice(ti_payments_for_client($pid), 0, 15);
 $pay_info = k30_ti_client_payment($pid);
 $pp_gw    = ['payu' => payu_enabled(), 'stripe' => stripe_enabled(), 'p24' => p24_enabled()];
@@ -277,6 +287,44 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
       <?php endforeach; ?></tbody></table></div>
   </section>
   <?php endif; ?>
+
+  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="zw-h">
+    <h2 id="zw-h" class="font-semibold"><i class="bi bi-send-check text-navy-700" aria-hidden="true"></i> Zgłoś wpłatę przelewem</h2>
+    <p class="mt-1 text-xs text-slate-500">Zrobiłeś przelew na swój numer rachunku? Zgłoś kwotę — biuro zaksięguje ją po potwierdzeniu wpływu. (Wpłaty są księgowane na koniec dnia, o 20:00.)</p>
+    <form method="post" class="mt-3 flex flex-wrap items-end gap-2">
+      <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="declare">
+      <div><label class="block text-xs text-slate-600" for="dc-a">Kwota (zł)</label><input id="dc-a" name="amount" inputmode="decimal" required class="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm"></div>
+      <div class="min-w-[12rem] flex-1"><label class="block text-xs text-slate-600" for="dc-n">Uwagi (opcjonalnie)</label><input id="dc-n" name="note" maxlength="300" class="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm" placeholder="np. data przelewu"></div>
+      <button class="rounded-md bg-white px-3 py-1.5 text-sm font-medium ring-1 ring-slate-300 hover:bg-slate-50">Zgłoś wpłatę</button>
+    </form>
+    <?php if ($wreqs): ?><ul class="mt-3 space-y-1 text-xs text-slate-600"><?php $wst = ['pending' => 'czeka na potwierdzenie', 'approved' => 'zaksięgowana', 'rejected' => 'odrzucona']; foreach ($wreqs as $wr): ?>
+      <li><?= h(date('d.m.Y', strtotime((string)$wr['created_at']))) ?> · <strong><?= h(pp_fmt((float)$wr['amount'])) ?></strong> · <?= h($wst[$wr['status']] ?? $wr['status']) ?></li><?php endforeach; ?></ul><?php endif; ?>
+  </section>
+  <?php if ($bills_all): $mn = [1=>'styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień']; ?>
+  <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="rz-h">
+    <h2 id="rz-h" class="border-b border-slate-200 px-5 py-3 font-semibold"><i class="bi bi-receipt text-navy-700" aria-hidden="true"></i> Rozliczenia zajęć</h2>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Rozliczenia miesięczne</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Okres</th><th class="px-2">Grupa</th><th class="px-2 text-right">Należność</th><th class="px-2 text-right">Pokryto</th><th class="px-2">Termin</th><th class="px-5 text-right">Dokumenty</th></tr></thead><tbody class="divide-y divide-slate-100">
+      <?php foreach (array_slice($bills_all, 0, 24) as $bl): $amt = (float)$bl['amount'] + (float)($bl['adjustment'] ?? 0); ?>
+      <tr><td class="whitespace-nowrap px-5 py-2"><?= h(($mn[(int)$bl['month']] ?? $bl['month']) . ' ' . $bl['year']) ?></td><td class="px-2 text-xs"><?= h($bl['course_name'] ?: 'rozliczenie łączne') ?></td>
+        <td class="px-2 text-right tabular-nums"><?= h(pp_fmt($amt)) ?></td><td class="px-2 text-right tabular-nums"><?= h(pp_fmt((float)($bl['paid_amount'] ?? 0))) ?></td>
+        <td class="px-2 text-xs"><?= !empty($bl['due_date']) ? h(date('d.m.Y', strtotime((string)$bl['due_date']))) : '—' ?></td>
+        <td class="px-5 text-right text-xs whitespace-nowrap"><a class="text-navy-700 hover:underline" href="dokument.php?type=hours&amp;month=<?= (int)$bl['month'] ?>&amp;year=<?= (int)$bl['year'] ?><?= (int)$bl['course_id'] > 0 ? '&amp;course_id=' . (int)$bl['course_id'] : '' ?>" target="_blank" rel="noopener">rozpiska</a>
+          <?php if (!empty($bl['invoice_path'])): ?> · <a class="text-navy-700 hover:underline" href="dokument.php?type=invoice&amp;id=<?= (int)$bl['id'] ?>" target="_blank" rel="noopener">faktura</a><?php endif; ?></td></tr>
+      <?php endforeach; ?></tbody></table></div>
+  </section>
+  <?php endif; ?>
+  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="in-h">
+    <h2 id="in-h" class="font-semibold"><i class="bi bi-info-circle text-navy-700" aria-hidden="true"></i> Informacje o płatnościach</h2>
+    <ul class="mt-2 space-y-2 text-sm text-slate-700">
+      <li><strong>Gdzie płacić.</strong> Wszystkie należności z tytułu szkoleń i zajęć wpłacasz na <strong>swój indywidualny numer rachunku</strong> (u góry strony). Jeśli jeszcze go nie masz, płacisz na rachunek grupy lub organizacji — zobacz „Dane do wpłaty".</li>
+      <li><strong>Tytuł przelewu.</strong> Wpisz zalecany tytuł z sekcji „Dane do wpłaty". Przy rachunku indywidualnym wpłata przypisuje się do Ciebie automatycznie, także przy innym tytule.</li>
+      <li><strong>Księgowanie.</strong> Wpłaty są księgowane zawsze na koniec dnia, o godzinie 20:00 — saldo po wpłacie zobaczysz po tej godzinie. Płatność online (PayU, Przelewy24, karta) księguje się od razu po potwierdzeniu przez bramkę.</li>
+      <li><strong>Bank.</strong> Rachunki obsługuje PKO Bank Polski S.A.</li>
+      <li><strong>Nadpłata</strong> jest zaliczana na kolejne zajęcia; niedopłatę widzisz w saldzie i w „Do zapłaty". Zwrot nadpłaty ustal z biurem.</li>
+      <li><strong>Dokumenty.</strong> Rozpiskę godzin i fakturę pobierzesz w tabeli „Rozliczenia zajęć". PDF z informacją o numerze rachunku — przycisk w „Dane do wpłaty".</li>
+      <li><strong>Pytania.</strong> Skontaktuj się z prowadzącym lub biurem <?= h($org) ?>.</li>
+    </ul>
+  </section>
 
   <!-- ═══ Koszyk ═══ -->
   <form method="post" x-data="cart()" @submit="submit($event)" class="grid gap-6 lg:grid-cols-3">
