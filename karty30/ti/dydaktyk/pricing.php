@@ -137,6 +137,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (!$okc && $errs) { $res = implode(' ', array_keys($errs)); break; }
             $res = 0; $ok = "Stawka ustawiona w zaznaczonych grupach: zapisów zaktualizowano {$okc}" . ($errs ? '. Uwagi: ' . implode(' ', array_keys($errs)) : '') . '.'; break;
+        case 'disable_groups':
+            $dn = 0;
+            foreach (array_filter(array_map('intval', (array)($_POST['ids'] ?? []))) as $cid) {
+                $g = db_one("SELECT id, name, status, is_active FROM k30_ti_courses WHERE id=?", [$cid]);
+                if (!$g || $g['status'] === 'cancelled') continue;
+                db()->prepare("UPDATE k30_ti_courses SET status='cancelled', is_active=0 WHERE id=?")->execute([$cid]);   // jak „Wyłącz i usuń grupę” — odwracalne
+                ti_course_log($cid, 'delete', '', (int)($me['user_id'] ?? 0), $by);
+                audit_log('pricing.group_disabled', ['course_id' => $cid, 'name' => $g['name'], 'by' => $by], $uid);
+                $dn++;
+            }
+            $res = 0; $ok = $dn ? "Wyłączono grup: {$dn} (znikają z aktywnych list; przywrócisz je przyciskiem „Uruchom zaznaczone” w sekcji Zamknięte i wyłączone)." : 'Nie zaznaczono żadnej grupy.'; break;
         case 'open_groups':
             $opened = 0;
             foreach (array_filter(array_map('intval', (array)($_POST['ids'] ?? []))) as $cid) {
@@ -211,7 +222,7 @@ $flash   = flash_get();
 try { if (!(int)(db_one("SELECT COUNT(*) c FROM lesson_types")['c'] ?? 0)) ti_pricing_sync_from_subject_types($by, $uid); } catch (\Throwable $e) {}
 $types   = db_all("SELECT * FROM lesson_types ORDER BY is_active DESC, name COLLATE NOCASE");
 $rules   = db_all("SELECT r.*, t.name AS type_name FROM discount_rules r LEFT JOIN lesson_types t ON t.id=r.target_lesson_type_id ORDER BY r.is_active DESC, r.priority, r.id");
-$courses = db_all("SELECT c.id, c.name, c.group_code, c.is_online, c.closed_at, pct.lesson_type_id, pct.online_lesson_type_id,
+$courses = db_all("SELECT c.id, c.name, c.group_code, c.is_online, c.closed_at, c.plan_status, pct.lesson_type_id, pct.online_lesson_type_id,
                           (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS n,
                           (SELECT MIN(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_min,
                           (SELECT MAX(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_max,
@@ -308,6 +319,7 @@ if (($_GET['print'] ?? '') === 'groups') {
 $J = fn($v) => json_encode($v, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 $csrf = h(csrf_token());
 $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
+$gv = ($_GET['v'] ?? 'tabela') === 'karty' ? 'karty' : 'tabela';
 ?><!doctype html>
 <html lang="pl" class="h-full">
 <head>
@@ -572,6 +584,10 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
     <div class="flex flex-wrap items-center gap-2">
       <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"><?= count($courses) ?> <?= count($courses) === 1 ? 'grupa' : 'grup' ?></span>
       <a class="btn-sec" href="pricing.php?print=groups" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj grupy</a>
+      <span class="inline-flex overflow-hidden rounded-md ring-1 ring-slate-300" role="group" aria-label="Widok grup">
+        <a href="pricing.php?tab=groups&amp;v=tabela" class="px-3 py-1.5 text-sm <?= $gv === 'tabela' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 hover:bg-slate-50' ?>"<?= $gv === 'tabela' ? ' aria-current="true"' : '' ?>><i class="bi bi-table" aria-hidden="true"></i> Tabela</a>
+        <a href="pricing.php?tab=groups&amp;v=karty" class="px-3 py-1.5 text-sm <?= $gv === 'karty' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 hover:bg-slate-50' ?>"<?= $gv === 'karty' ? ' aria-current="true"' : '' ?>><i class="bi bi-grid-1x2" aria-hidden="true"></i> Karty</a>
+      </span>
       <?php if ($wyg): ?>
       <form method="post" onsubmit="return confirm('Zamknąć <?= count($wyg) ?> grup do wygaszenia (bez przyszłych lekcji, ostatnia lekcja > 14 dni temu)? Grupy zostaną zarchiwizowane i zablokowane.')">
         <input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="close_candidates"><input type="hidden" name="_tab" value="groups">
@@ -586,6 +602,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="bulk-all" onclick="document.querySelectorAll('input[name=&quot;ids[]&quot;][form=bulkform]').forEach(function(x){x.checked=this.checked}.bind(this))"> zaznacz wszystkie</label>
     <span class="text-xs text-slate-500">Zaznacz grupy na kartach (aktywne) lub w sekcji „Zamknięte”, potem wybierz akcję:</span>
     <button type="submit" name="_op" value="close_candidates" class="btn-sec" onclick="return confirm('Zamknąć zaznaczone grupy? Grupy z przyszłymi lekcjami zostaną pominięte. Zostaną zarchiwizowane i zablokowane.')"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij zaznaczone</button>
+    <button type="submit" name="_op" value="disable_groups" class="btn-sec" onclick="return confirm('Wyłączyć zaznaczone grupy (znikną z aktywnych list, odwracalne przez „Uruchom zaznaczone”)?')"><i class="bi bi-power" aria-hidden="true"></i>Wyłącz zaznaczone</button>
     <?php $po_n = ti_course_phase_out_count(); if ($po_n): ?><button type="submit" name="_op" value="close_phase_out" class="btn-sec" onclick="return confirm('Zamknąć wszystkie grupy ze statusem „Planowana do wygaszenia” (<?= $po_n ?>)? Grupy z przyszłymi lekcjami zostaną pominięte.')"><i class="bi bi-hourglass-split" aria-hidden="true"></i>Zamknij „Planowana do wygaszenia” (<?= $po_n ?>)</button><?php endif; ?>
     <button type="submit" name="_op" value="open_groups" class="btn-pri" onclick="return confirm('Uruchomić ponownie zaznaczone zamknięte grupy (przywrócić z archiwum i odblokować)?')"><i class="bi bi-unlock" aria-hidden="true"></i>Uruchom zaznaczone</button>
     <details class="w-full rounded-lg border border-slate-200 bg-slate-50/60">
@@ -607,9 +624,50 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
       </div>
     </details>
   </form>
+  <?php if ($gv === 'tabela'): ?>
+  <section class="card !p-0 overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"><tr>
+        <th class="w-8 py-2 pl-3"><span class="sr-only">Zaznacz</span></th><th class="px-2">Kod</th><th class="px-2">Grupa</th><th class="px-2 text-right">Uczestn.</th>
+        <th class="px-2 text-right"><i class="bi bi-building text-emerald-700" aria-hidden="true"></i> zł/h</th><th class="px-2 text-right"><i class="bi bi-camera-video text-sky-700" aria-hidden="true"></i> online</th>
+        <th class="px-2">Typ stacjonarny</th><th class="px-2">Typ online</th><th class="px-2">Stan</th><th class="px-2 pr-3 text-right">Akcje</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+      <?php foreach ($courses as $c):
+        $varied = (int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005;
+        $wyg_c = (int)$c['fut'] === 0 && ($c['last_lesson'] === null || $c['last_lesson'] < date('Y-m-d', strtotime('-14 days'))); ?>
+        <tr class="<?= $sel_course === (int)$c['id'] ? 'bg-amber-50' : 'hover:bg-slate-50' ?>">
+          <td class="py-2 pl-3"><input type="checkbox" name="ids[]" value="<?= (int)$c['id'] ?>" form="bulkform" class="h-4 w-4" aria-label="Zaznacz grupę <?= h($c['name']) ?>"></td>
+          <td class="px-2 font-mono text-xs text-slate-600"><?= h((string)$c['group_code']) ?></td>
+          <td class="px-2 font-medium"><?= h($c['name']) ?><?= $c['is_online'] ? ' <span class="ml-1 rounded-full bg-sky-100 px-1.5 text-[11px] text-sky-800">online</span>' : '' ?></td>
+          <td class="px-2 text-right tabular-nums"><?= (int)$c['n'] ?></td>
+          <td class="px-2 text-right tabular-nums"><?= (int)$c['n'] ? $rng($c['r_min'], $c['r_max']) : '—' ?><?= $varied ? ' <i class="bi bi-exclamation-triangle text-amber-600" title="stawki zróżnicowane" aria-label="stawki zróżnicowane"></i>' : '' ?></td>
+          <td class="px-2 text-right tabular-nums"><?= (int)$c['n'] && (float)$c['ro_max'] > 0 ? $rng($c['ro_min'], $c['ro_max']) : '—' ?></td>
+          <td class="px-2"><select name="lesson_type_id" form="ct-<?= (int)$c['id'] ?>" class="inp !w-44 !py-1" aria-label="Typ stacjonarny — <?= h($c['name']) ?>" onchange="this.form.submit()"><option value="">— brak —</option>
+            <?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"<?= (int)$c['lesson_type_id'] === (int)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?></option><?php endforeach; ?></select></td>
+          <td class="px-2"><select name="online_lesson_type_id" form="ct-<?= (int)$c['id'] ?>" class="inp !w-44 !py-1" aria-label="Typ online — <?= h($c['name']) ?>" onchange="this.form.submit()"><option value="">— jak stacjonarne —</option>
+            <?php foreach ($types as $t): ?><option value="<?= (int)$t['id'] ?>"<?= (int)$c['online_lesson_type_id'] === (int)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?></option><?php endforeach; ?></select></td>
+          <td class="px-2 text-xs">
+            <?php if (!empty($c['plan_status']) && isset(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']])): ?><span class="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800"><?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['label']) ?></span>
+            <?php elseif ($wyg_c): ?><span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600" title="Brak przyszłych lekcji">bez lekcji</span>
+            <?php else: ?><span class="text-slate-500"><?= (int)$c['fut'] ?> przyszłych lekcji</span><?php endif; ?></td>
+          <td class="px-2 pr-3 text-right whitespace-nowrap text-xs">
+            <a class="font-medium text-navy-700 hover:underline" href="pricing.php?tab=groups&amp;course=<?= (int)$c['id'] ?>#zapisy">Zapisy</a> ·
+            <a class="text-slate-500 hover:underline" href="pricing.php?print=groups&amp;course=<?= (int)$c['id'] ?>" target="_blank" rel="noopener">wydruk</a> ·
+            <a class="text-slate-500 hover:underline" href="pricing.php?tab=groups&amp;v=karty#g<?= (int)$c['id'] ?>" title="Zmiana stawki, zerowanie — w widoku kart">więcej</a>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      <?php if (!$courses): ?><tr><td colspan="10" class="py-6 text-center text-slate-500">Brak aktywnych grup.</td></tr><?php endif; ?>
+      </tbody>
+    </table>
+  </section>
+  <?php foreach ($courses as $c): ?>
+  <form id="ct-<?= (int)$c['id'] ?>" method="post" class="hidden"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="course_types"><input type="hidden" name="_tab" value="groups"><input type="hidden" name="course_id" value="<?= (int)$c['id'] ?>"><input type="hidden" name="_course" value="<?= $sel_course ?>"></form>
+  <?php endforeach; ?>
+  <?php else: ?>
   <div class="grid gap-4 lg:grid-cols-2">
   <?php foreach ($courses as $c): $sel = $sel_course === (int)$c['id']; $varied = (int)$c['n'] && $c['r_min'] !== null && abs((float)$c['r_min'] - (float)$c['r_max']) >= 0.005; ?>
-    <article class="card !p-0 overflow-hidden <?= $sel ? 'ring-2 ring-amber-400' : '' ?>" aria-label="Grupa <?= h($c['name']) ?>">
+    <article id="g<?= (int)$c['id'] ?>" class="card !p-0 overflow-hidden <?= $sel ? 'ring-2 ring-amber-400' : '' ?>" aria-label="Grupa <?= h($c['name']) ?>">
       <header class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3">
         <input type="checkbox" name="ids[]" value="<?= (int)$c['id'] ?>" form="bulkform" class="h-4 w-4" aria-label="Zaznacz grupę <?= h($c['name']) ?>">
         <?php if (trim((string)$c['group_code']) !== ''): ?><span class="rounded-md bg-navy-700 px-2 py-0.5 font-mono text-xs font-semibold text-white" title="Kod grupy"><?= h($c['group_code']) ?></span><?php endif; ?>
@@ -683,8 +741,9 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
   <?php endforeach; ?>
   <?php if (!$courses): ?><p class="card text-sm text-slate-500 lg:col-span-2">Brak aktywnych grup.</p><?php endif; ?>
   </div>
+  <?php endif; ?>
   <details class="card" <?= $closed_groups ? '' : 'open' ?>>
-    <summary class="cursor-pointer select-none font-semibold">Zamknięte i zarchiwizowane (<?= count($closed_groups) ?>)</summary>
+    <summary class="cursor-pointer select-none font-semibold">Zamknięte i wyłączone (<?= count($closed_groups) ?>)</summary>
     <?php if (!$closed_groups): ?><p class="mt-2 text-sm text-slate-500">Brak zamkniętych grup.</p><?php else: ?>
     <table class="mt-2 min-w-full text-sm"><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="w-8 py-2"></th><th>Kod</th><th>Grupa</th><th>Stan</th><th>Zamknął</th></tr></thead><tbody class="divide-y divide-slate-100">
     <?php foreach ($closed_groups as $cg): ?>
