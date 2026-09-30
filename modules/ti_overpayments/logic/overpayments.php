@@ -39,6 +39,7 @@ function ti_op_migrate(): void {
     ti_payments_migrate();
     audit_logs_migrate();
     db()->exec((string)file_get_contents(dirname(__DIR__) . '/schema.sql'));
+    try { db()->exec("ALTER TABLE overpayment_transactions ADD COLUMN edok_doc_id INTEGER"); } catch (\Throwable $e) {}   // zwrot → dokument EODoK
 }
 
 // ── Kwoty ────────────────────────────────────────────────────────────────────
@@ -223,6 +224,39 @@ function _ti_op_check(int $id, int $gr): array|string {
 }
 
 /** 1) Zwrot na rachunek bankowy — polecenie zwrotu + wpis ujemny w księdze. Zwraca id wpisu zwrotu albo błąd. */
+/**
+ * Zwrot nadpłaty → od razu dokument w obiegu akceptacji EODoK (wydatek / przelew na rachunek kursanta).
+ * Błąd tu nie cofa zwrotu w księdze — zwraca id dokumentu EODoK albo null (ślad w audycie).
+ */
+function ti_op_refund_to_edok(int $overpayment_id, int $participant_id, float $amount, string $account, string $title, string $by, ?int $user_id): ?int {
+    try {
+        require_once dirname(__DIR__, 3) . '/includes/edok.php';
+        $uid = $user_id ?: (int)(db_one("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1")['id'] ?? 0);
+        if (!$uid) throw new \RuntimeException('Brak użytkownika do przypisania dokumentu EODoK.');
+        $cl = db_one("SELECT name FROM k30_clients WHERE id=?", [$participant_id]);
+        $kw = number_format($amount, 2, ',', '');
+        $opis = 'Zwrot nadpłaty za zajęcia TI — ' . ($cl['name'] ?? ('uczestnik #' . $participant_id)) . ' (nadpłata #' . $overpayment_id . ')';
+        $doc = [
+            'number' => edok_next_number(), 'title' => $opis, 'kierunek' => 'wydatek', 'typ_dokumentu' => 'inny', 'description' => $opis,
+            'kontrahent_nazwa' => (string)($cl['name'] ?? 'Kursant TI'), 'kontrahent_nip' => '', 'nr_faktury' => 'NADPLATA-' . $overpayment_id,
+            'data_wystawienia' => date('Y-m-d'), 'termin_platnosci' => date('Y-m-d', strtotime('+3 days')),
+            'kwota_netto' => $kw, 'kwota_vat' => '0,00', 'kwota_brutto' => $kw, 'waluta' => 'PLN', 'rodzaj_dzialalnosci' => '',
+            'rachunek_bankowy' => preg_replace('/\D/', '', preg_replace('/^PL/i', '', $account)),
+            'status' => 'w_obiegu', 'created_by' => $uid, 'creator_name' => $by . ' (zwrot nadpłaty TI)',
+            'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        $doc['tytul_przelewu'] = mb_substr(trim($title) !== '' ? trim($title) : $opis, 0, 140);
+        $doc_id = db_insert('edok_documents', $doc);
+        edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Utworzono automatycznie ze zwrotu nadpłaty TI #' . $overpayment_id . ' (' . $by . '). Uzupełnij dekretację przed kontrolą merytoryczną.', $doc);
+        try { db()->prepare("UPDATE overpayment_transactions SET edok_doc_id=? WHERE id=?")->execute([$doc_id, $overpayment_id]); } catch (\Throwable $e) {}
+        audit_log('overpayments.refund_edok', ['overpayment_id' => $overpayment_id, 'edok_doc_id' => $doc_id, 'number' => $doc['number']], $user_id);
+        return $doc_id;
+    } catch (\Throwable $e) {
+        audit_log('overpayments.refund_edok_failed', ['overpayment_id' => $overpayment_id, 'error' => $e->getMessage()], $user_id);
+        return null;
+    }
+}
+
 function ti_op_refund(int $id, int $gr, string $account, string $title, string $notes, string $by, ?int $user_id = null): int|string {
     ti_op_migrate();
     $acct = preg_replace('/\s+/', '', $account);
