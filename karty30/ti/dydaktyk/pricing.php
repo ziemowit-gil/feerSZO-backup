@@ -75,7 +75,7 @@ $flash   = flash_get();
 try { if (!(int)(db_one("SELECT COUNT(*) c FROM lesson_types")['c'] ?? 0)) ti_pricing_sync_from_subject_types($by, $uid); } catch (\Throwable $e) {}
 $types   = db_all("SELECT * FROM lesson_types ORDER BY is_active DESC, name COLLATE NOCASE");
 $rules   = db_all("SELECT r.*, t.name AS type_name FROM discount_rules r LEFT JOIN lesson_types t ON t.id=r.target_lesson_type_id ORDER BY r.is_active DESC, r.priority, r.id");
-$courses = db_all("SELECT c.id, c.name, c.is_online, pct.lesson_type_id, pct.online_lesson_type_id,
+$courses = db_all("SELECT c.id, c.name, c.group_code, c.is_online, pct.lesson_type_id, pct.online_lesson_type_id,
                           (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS n,
                           (SELECT MIN(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_min,
                           (SELECT MAX(e.hourly_rate) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS r_max,
@@ -376,7 +376,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
       <tbody class="divide-y divide-slate-100">
       <?php foreach ($courses as $c): ?>
         <tr class="<?= $sel_course === (int)$c['id'] ? 'bg-amber-50' : '' ?>">
-          <td class="py-2 pr-3 font-medium"><?= h($c['name']) ?><?= $c['is_online'] ? ' <span class="text-xs text-sky-700">online</span>' : '' ?></td>
+          <td class="py-2 pr-3 font-medium"><?php if (trim((string)$c['group_code']) !== ''): ?><span class="mr-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700" title="Kod grupy"><?= h($c['group_code']) ?></span><?php endif; ?><?= h($c['name']) ?><?= $c['is_online'] ? ' <span class="text-xs text-sky-700">online</span>' : '' ?></td>
           <td class="pr-3"><?= (int)$c['n'] ?></td>
           <?php $rng = fn($a, $b) => $a === null ? '—' : (abs((float)$a - (float)$b) < 0.005 ? $fmt($a) : $fmt($a) . '–' . $fmt($b)); ?>
           <td class="pr-3 text-right tabular-nums whitespace-nowrap"><?= (int)$c['n'] ? $rng($c['r_min'], $c['r_max']) : '—' ?><?php if ((int)$c['n'] && (float)$c['ro_max'] > 0): ?><div class="text-xs text-slate-500">online <?= $rng($c['ro_min'], $c['ro_max']) ?></div><?php endif; ?>
@@ -399,7 +399,7 @@ $fmt = fn($v) => number_format((float)$v, 2, ',', ' ');
   </section>
   <?php if ($sel_course): $sc = array_values(array_filter($courses, fn($c) => (int)$c['id'] === $sel_course))[0] ?? null; ?>
   <section id="zapisy" class="card overflow-x-auto">
-    <h2 class="font-semibold mb-1">Zapisy — <?= h($sc['name'] ?? ('#' . $sel_course)) ?></h2>
+    <h2 class="font-semibold mb-1">Zapisy — <?= !empty($sc['group_code']) ? '<span class="font-mono text-sm">' . h($sc['group_code']) . '</span> · ' : '' ?><?= h($sc['name'] ?? ('#' . $sel_course)) ?></h2>
     <p class="text-xs text-slate-500 mb-3">Cena z cennika wyliczona dla profilu każdego uczestnika. „Zastosuj” ustawia stawkę zapisu; wpisana cena nadpisuje cennik (wymaga uzasadnienia, trafia do audytu).</p>
     <?php if (!$sel_rows): ?><p class="text-sm text-slate-500">Brak aktywnych uczestników.</p><?php endif; ?>
     <?php if ($sel_rows && empty($sc['lesson_type_id'])): ?><p class="text-sm text-amber-800">Najpierw przypisz grupie typ zajęć.</p><?php endif; ?>
