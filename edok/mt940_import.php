@@ -63,11 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'impor
             if ($e === null) $own_n++; else $own_err[] = $e;
         }
         $auto  = edok_bank_auto_match();
+        $auto_docs = !empty($_POST['auto_docs']) ? edok_bank_auto_create_docs($saved['new_ids'], (int)$user['id']) : 0;
         // Wpływy za płatności z portalu /platnosci (kod w tytule / rachunek wirtualny) — rozliczane od razu
         $pp = ['matched' => 0];
         try { require_once dirname(__DIR__) . '/modules/payment_portal/logic/paymentPortal.php'; $pp = pp_bank_auto_match((string)($user['name'] ?? 'EODoK'), (int)$user['id']); }
         catch (\Throwable $e) { error_log('[platnosci] ' . $e->getMessage()); }
-        flash_set('success', "Zapisano operacji: {$saved['added']}" . ($lnk_n ? ", powiązano z dokumentami: {$lnk_n}" : '') . ($lnk_err ? ' [' . implode('; ', array_unique($lnk_err)) . ']' : '') . ($own_n ? ", zarejestrowano przelewów własnych: {$own_n}" : '') . ($own_err ? ' (błędy: ' . implode('; ', array_unique($own_err)) . ')' : '') . ($saved['duplicates'] ? ", pominięto już zaimportowane: {$saved['duplicates']}" : '') . ". Dopasowano automatycznie: {$auto}."
+        flash_set('success', "Zapisano operacji: {$saved['added']}" . ($lnk_n ? ", powiązano z dokumentami: {$lnk_n}" : '') . ($lnk_err ? ' [' . implode('; ', array_unique($lnk_err)) . ']' : '') . ($own_n ? ", zarejestrowano przelewów własnych: {$own_n}" : '') . ($own_err ? ' (błędy: ' . implode('; ', array_unique($own_err)) . ')' : '') . ($saved['duplicates'] ? ", pominięto już zaimportowane: {$saved['duplicates']}" : '') . ". Dopasowano automatycznie: {$auto}." . ($auto_docs ? " Utworzono dokumentów do opisania: {$auto_docs}." : '')
             . ($pp['matched'] ? " Rozliczono płatności z portalu /platnosci: {$pp['matched']}." : ''));
         header('Location: ' . APP_URL . '/edok/wyciag.php');
         exit;
@@ -189,6 +190,11 @@ require_once __DIR__ . '/../includes/header.php';
     <label class="form-label small mb-1" for="own_reason">Uzasadnienie przelewów własnych (dla operacji oznaczonych w ostatniej kolumnie)</label>
     <input id="own_reason" name="own_reason" class="form-control form-control-sm" value="Przelew własny między rachunkami organizacji (import wyciągu)">
     <div class="form-text">Oznaczona operacja trafia do rejestru „Przelewy własne" (jedna para wypływ+wpływ = jeden wpis) i nie wymaga przypisania do dokumentu. Rozpoznane automatycznie po rachunku kontrahenta są już zaznaczone.</div>
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="auto_docs" value="1" id="auto_docs" checked>
+    <label class="form-check-label" for="auto_docs">Nierozpoznane operacje (bez dokumentu, nie pominięte, nie przelew własny) dodaj automatycznie do EODoK jako dokumenty <strong>do opisania</strong></label>
+    <div class="form-text">Wpływ → dokument przychodowy, wypływ → dokument wydatkowy „Inny". Każdy trafia do obiegu z przypisaną operacją i wymaga uzupełnienia opisu, skanu i dekretacji. Odznacz, jeśli chcesz przypisać część operacji ręcznie (np. opłaty bankowe → „Pomiń").</div>
   </div>
   <p class="text-muted small">Tylko operacje uznaniowe (wpływy) można zaimportować jako dokumenty przychodowe — wypływy nie są zaznaczalne (EODoK dla wydatków zaczyna się od faktury/rachunku, nie od wyciągu).</p>
   <button type="submit" name="do" value="save" class="btn btn-primary"><i class="bi bi-link-45deg"></i> Zapisz wyciąg i przypisz transakcje do dokumentów</button>

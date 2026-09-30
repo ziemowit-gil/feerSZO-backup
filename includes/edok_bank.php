@@ -20,7 +20,7 @@ function _edok_bank_norm(string $s): string {
  */
 function edok_bank_import(array $parsed, int $user_id): array {
     edok_migrate();
-    $out = ['added' => 0, 'duplicates' => 0, 'ids' => []];
+    $out = ['added' => 0, 'duplicates' => 0, 'ids' => [], 'new_ids' => []];
     foreach ($parsed['transactions'] as $i => $t) {
         $key = sha1(implode('|', [$parsed['account_nrb'], $t['numer_operacji'], $t['data_waluty'], $t['znak'], $t['kwota'], $t['tytul']]));
         $ex = db_one("SELECT id FROM edok_bank_tx WHERE dedup_key = ?", [$key]);
@@ -37,6 +37,7 @@ function edok_bank_import(array $parsed, int $user_id): array {
             'tytul' => $t['tytul'], 'referencja' => (string)($t['referencja'] ?? ''), 'numer_operacji' => $t['numer_operacji'],
             'imported_by' => $user_id, 'imported_at' => date('Y-m-d H:i:s'),
         ]);
+        $out['new_ids'][] = $out['ids'][$i];
         $out['added']++;
     }
     return $out;
@@ -227,6 +228,23 @@ function edok_bank_register_own_transfer(int $tx_id, string $counter_nrb, string
     db()->prepare("UPDATE edok_bank_tx SET transfer_id=?, ignored=1, ignore_note=? WHERE id=?")
         ->execute([$tid, 'Przelew własny #' . $tid, $tx_id]);
     return null;
+}
+
+/**
+ * Nierozpoznane operacje z importu (bez dokumentu, nie pominięte, nie przelew własny) → automatycznie
+ * nowe dokumenty EODoK „w obiegu" do opisania (wpływ = przychód, wypływ = wydatek typu „inny"),
+ * z od razu przypisaną operacją. Dokument trzeba uzupełnić o skan i dekretację.
+ * @param int[] $tx_ids id z edok_bank_import()['ids']
+ */
+function edok_bank_auto_create_docs(array $tx_ids, int $user_id): int {
+    $n = 0;
+    foreach (array_unique(array_map('intval', $tx_ids)) as $tid) {
+        $t = db_one("SELECT * FROM edok_bank_tx WHERE id=? AND doc_id IS NULL AND ignored=0 AND COALESCE(transfer_id,0)=0", [$tid]);
+        if (!$t) continue;
+        $doc_id = edok_mt940_create_doc($t, $user_id);
+        if (edok_bank_assign($tid, $doc_id, 'auto') === null) $n++;
+    }
+    return $n;
 }
 
 /** Przypisuje automatycznie transakcje z jednoznacznym kandydatem (numer EODoK w tytule + kwota albo kwota + pełna nazwa kontrahenta). */

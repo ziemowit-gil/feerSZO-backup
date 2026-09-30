@@ -2727,14 +2727,14 @@ function edok_mt940_parse(string $raw): array {
 function edok_mt940_create_doc(array $tx, int $user_id): int {
     $user  = current_user();
     $number = edok_next_number();
-    $opis   = $tx['tytul'] !== '' ? $tx['tytul'] : 'Wpływ na rachunek bankowy';
+    $opis   = $tx['tytul'] !== '' ? $tx['tytul'] : ($tx['znak'] === 'D' ? 'Wypływ z rachunku bankowego' : 'Wpływ na rachunek bankowy');
     $doc = [
         'number'              => $number,
         'title'               => $opis,
-        'kierunek'            => 'przychod',
-        'typ_dokumentu'       => 'wyciag_bankowy',
+        'kierunek'            => $tx['znak'] === 'D' ? 'wydatek' : 'przychod',
+        'typ_dokumentu'       => $tx['znak'] === 'D' ? 'inny' : 'wyciag_bankowy',
         'description'         => $opis,
-        'kontrahent_nazwa'    => $tx['kontrahent_nazwa'] !== '' ? $tx['kontrahent_nazwa'] : '(nieznany wpłacający)',
+        'kontrahent_nazwa'    => $tx['kontrahent_nazwa'] !== '' ? $tx['kontrahent_nazwa'] : ($tx['znak'] === 'D' ? '(nieznany odbiorca)' : '(nieznany wpłacający)'),
         'kontrahent_nip'      => '',
         'nr_faktury'          => $tx['referencja'] ?: $tx['numer_operacji'],
         'zrodlo_przychodu'    => trim($tx['kontrahent_nazwa'] . ($tx['kontrahent_iban'] !== '' ? ' (' . $tx['kontrahent_iban'] . ')' : '')),
