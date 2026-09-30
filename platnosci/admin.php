@@ -666,14 +666,18 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     </section>
   </div>
 
-  <div x-show="tab === 'rachunki'" x-cloak class="space-y-5" x-data="{ sub: 'stan' }">
+  <div x-show="tab === 'rachunki'" x-cloak class="space-y-5" x-data="{ sub: 'stan', um: '' }">
   <div class="flex flex-wrap gap-2" role="tablist" aria-label="Rachunki wirtualne">
     <?php foreach (['stan' => 'Stan kursantów', 'zamow' => 'Zamów w banku', 'import' => 'Import i przypisanie'] as $sk => $sl): ?>
     <button type="button" role="tab" @click="sub = '<?= $sk ?>'" :aria-selected="sub === '<?= $sk ?>'" :class="sub === '<?= $sk ?>' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50'" class="rounded-full px-4 py-1.5 text-sm font-medium"><?= $sl ?></button>
     <?php endforeach; ?>
   </div>
   <!-- Raport stanu: kto bez numeru / bez powiadomienia / wirtualny -->
-  <?php $vs = pp_vnrb_status_rows(); $vsc = array_fill_keys(array_keys(PP_VSTATUS), 0); foreach ($vs as $r0) $vsc[$r0['cat']]++; ?>
+  <?php $vs = pp_vnrb_status_rows(); $vsc = array_fill_keys(array_keys(PP_VSTATUS), 0); foreach ($vs as $r0) $vsc[$r0['cat']]++;
+        // Numer umowy = RRRR (ID usługi w banku) — cyfry 11–14 numeru NRB
+        $um_cnt = []; foreach ($vs as $r0) if ($r0['nrb'] !== '') { $k0 = substr($r0['nrb'], 10, 4); $um_cnt[$k0] = ($um_cnt[$k0] ?? 0) + 1; }
+        foreach (db_all("SELECT nrb FROM pp_vnrb_crm") as $r0) { $k0 = substr((string)$r0['nrb'], 10, 4); $um_cnt[$k0] = ($um_cnt[$k0] ?? 0) + 1; }
+        ksort($um_cnt); ?>
   <section class="card space-y-3" aria-labelledby="vr-h" x-data="{ f: '' }" x-show="sub === 'stan'">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 id="vr-h" class="font-semibold">Stan rachunków kursantów TI</h2>
@@ -694,13 +698,19 @@ $sim  = org_setting('pp_p24_simulation') === '1';
       <button type="button" @click="f = '<?= $k ?>'" :class="f === '<?= $k ?>' ? 'bg-navy-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'" class="rounded-full px-3 py-1 text-xs font-medium"><?= h($l) ?> (<?= $vsc[$k] ?>)</button>
       <?php endforeach; ?>
       <a class="ml-auto text-xs text-slate-500 hover:underline" :href="'admin.php?report=status&cat=' + f" target="_blank" rel="noopener" x-show="f !== ''">drukuj tylko ten stan →</a>
+      <label class="ml-2 flex items-center gap-2 text-xs text-slate-600">Numer umowy (RRRR)
+        <select x-model="um" class="inp !w-44 !py-1" aria-label="Filtr po numerze umowy">
+          <option value="">wszystkie</option>
+          <?php foreach ($um_cnt as $uk => $un): ?><option value="<?= h($uk) ?>"><?= h($uk) ?> (<?= (int)$un ?>)<?= $uk === pp_vnrb_rrrr() ? ' — bieżąca' : '' ?></option><?php endforeach; ?>
+        </select></label>
     </div>
     <div class="max-h-96 overflow-auto"><table class="min-w-full text-sm">
-      <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th><th class="pr-3 text-right">PDF</th><th class="pr-3 text-right">Opcje numeru</th></tr></thead>
+      <thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kursant</th><th class="pr-3">Stan</th><th class="pr-3">Umowa</th><th class="pr-3">Rachunek</th><th class="pr-3">Powiadomiono</th><th class="pr-3 text-right">PDF</th><th class="pr-3 text-right">Opcje numeru</th></tr></thead>
       <tbody class="divide-y divide-slate-100">
       <?php foreach ($vs as $r0): ?>
-        <tr x-show="f === '' || f === '<?= $r0['cat'] ?>'"><td class="py-1.5 pr-3 font-medium"><a class="hover:underline" href="admin.php?q=<?= urlencode($r0['name']) ?>"><?= h($r0['name']) ?></a></td>
+        <tr x-show="(f === '' || f === '<?= $r0['cat'] ?>') && (um === '' || um === '<?= $r0['nrb'] !== '' ? h(substr($r0['nrb'], 10, 4)) : '-' ?>')"><td class="py-1.5 pr-3 font-medium"><a class="hover:underline" href="admin.php?q=<?= urlencode($r0['name']) ?>"><?= h($r0['name']) ?></a></td>
           <td class="pr-3 text-xs"><span class="rounded-full px-2 py-0.5 <?= ['brak' => 'bg-red-50 text-red-800', 'nie_powiad' => 'bg-amber-50 text-amber-800', 'powiad' => 'bg-emerald-50 text-emerald-800', 'reczny' => 'bg-sky-50 text-sky-800', 'wirtualny' => 'bg-slate-100 text-slate-700', 'bez_rozl' => 'bg-slate-100 text-slate-700'][$r0['cat']] ?>"><?= h(PP_VSTATUS[$r0['cat']]) ?></span></td>
+          <td class="pr-3 font-mono text-xs text-purple-700"><?= $r0['nrb'] !== '' ? h(substr($r0['nrb'], 10, 4)) : '—' ?></td>
           <td class="pr-3 font-mono text-xs"><?= $r0['nrb'] !== '' ? h(pp_nrb_format($r0['nrb'])) : '—' ?></td>
           <td class="pr-3 text-xs text-slate-500"><?= h($r0['notified_at'] ?: '—') ?></td>
           <td class="pr-3 text-right"><?php if ($r0['nrb'] !== ''): ?><a class="text-xs text-navy-700 hover:underline" href="admin.php?pdf=notice&scope=client&client=<?= (int)$r0['client_id'] ?>" target="_blank" rel="noopener" title="PDF z informacją o numerze — <?= h($r0['name']) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a><?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td>
@@ -719,7 +729,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
               </div></details>
             <?php else: ?><span class="text-slate-300">—</span><?php endif; ?></td></tr>
       <?php endforeach; ?>
-      <?php if (!$vs): ?><tr><td colspan="6" class="py-6 text-center text-slate-500">Brak kursantów TI.</td></tr><?php endif; ?>
+      <?php if (!$vs): ?><tr><td colspan="7" class="py-6 text-center text-slate-500">Brak kursantów TI.</td></tr><?php endif; ?>
       </tbody></table></div>
   </section>
 
@@ -739,7 +749,7 @@ $sim  = org_setting('pp_p24_simulation') === '1';
     <?php if (!$crm_nums): ?><p class="text-sm text-slate-500">Żaden kontrahent CRM nie ma jeszcze nadanego numeru (przycisk „Przypisz kontrahentom” w podzakładce Import i przypisanie).</p><?php else: ?>
     <div class="max-h-72 overflow-auto"><table class="min-w-full text-sm"><thead class="sticky top-0 bg-white text-left text-xs uppercase text-slate-500"><tr><th class="py-2 pr-3">Kontrahent</th><th class="pr-3">Rachunek</th><th class="pr-3">Nadano</th><th class="pr-3 text-right">Opcje numeru</th></tr></thead><tbody class="divide-y divide-slate-100">
       <?php foreach ($crm_nums as $cr): $cb = pp_vnrb_is_blocked($cr['nrb']); ?>
-      <tr><td class="py-1.5 pr-3 font-medium"><?= h($crm_names[(int)$cr['contact_id']] ?? ('kontakt #' . (int)$cr['contact_id'])) ?></td><td class="pr-3 font-mono text-xs"><?= h(pp_nrb_format($cr['nrb'])) ?><?= $cb ? ' <i class="bi bi-lock-fill text-red-700" title="zablokowany"></i>' : '' ?></td><td class="pr-3 text-xs text-slate-500"><?= h((string)$cr['assigned_at']) ?></td>
+      <tr x-show="um === '' || um === '<?= h(substr((string)$cr['nrb'], 10, 4)) ?>'"><td class="py-1.5 pr-3 font-medium"><?= h($crm_names[(int)$cr['contact_id']] ?? ('kontakt #' . (int)$cr['contact_id'])) ?></td><td class="pr-3 font-mono text-xs"><?= h(pp_nrb_format($cr['nrb'])) ?><?= $cb ? ' <i class="bi bi-lock-fill text-red-700" title="zablokowany"></i>' : '' ?></td><td class="pr-3 text-xs text-slate-500"><?= h((string)$cr['assigned_at']) ?></td>
         <td class="pr-3 text-right text-xs"><details class="relative inline-block text-left"><summary class="cursor-pointer text-navy-700">opcje</summary>
           <div class="absolute right-0 z-10 mt-1 w-72 space-y-2 rounded-lg bg-white p-3 text-left shadow-lg ring-1 ring-slate-200">
             <form method="post" class="space-y-1"><input type="hidden" name="_csrf" value="<?= $csrf ?>"><input type="hidden" name="_op" value="vnrb_block"><input type="hidden" name="participant_id" value="0"><input type="hidden" name="nrb" value="<?= h($cr['nrb']) ?>"><?php if (!$cb): ?><input type="hidden" name="block" value="1"><input name="reason" class="inp !py-1" placeholder="powód blokady" maxlength="300" required minlength="5" aria-label="Powód blokady"><?php endif; ?><button class="bs !py-1"><?= $cb ? 'Odblokuj numer' : 'Zablokuj numer' ?></button></form>
