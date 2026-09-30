@@ -28,4 +28,7 @@ $data = edok_parse_invoice_xml($xml);
 if (!$data) xml_err('To nie jest faktura ustrukturyzowana (KSeF FA) — nie można odczytać danych.');
 
 edok_migrate();
-echo json_encode(['ok' => true, 'data' => $data, 'file_path' => edok_queue_save_bytes($xml, 'xml')]);
+// Pliki pobrane z KSeF są nazwane numerem KSeF (NIP-RRRRMMDD-…-CRC) — zachowujemy go dla wizualizacji faktur zakupu.
+$base = pathinfo($f['name'], PATHINFO_FILENAME);
+$ksef_no = preg_match('/^\d{10}-\d{8}-[0-9A-Fa-f]{12}-[0-9A-Fa-f]{2}$/', $base) ? strtoupper($base) : '';
+echo json_encode(['ok' => true, 'data' => $data, 'file_path' => edok_queue_save_bytes($xml, 'xml'), 'ksef_number' => $ksef_no]);

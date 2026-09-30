@@ -42,10 +42,12 @@ function edok_ksef_verify_url(string $xml, string $nip, string $issue_date): str
 /**
  * @param string $xml       treść FA(3) (dokładnie w postaci z KSeF — od niej liczony jest skrót do linku QR)
  * @param string $ksef_ref  numer KSeF, jeśli znany
+ * @param bool   $ksef      false = faktura sprzedaży wczytana z pliku XML: bez jakichkolwiek dopisków o KSeF (nagłówek, numer, QR, stopka)
  * @return string HTML (fragment) albo '' gdy XML nie jest fakturą
  */
-function edok_ksef_visualization_html(string $xml, string $ksef_ref = ''): string {
+function edok_ksef_visualization_html(string $xml, string $ksef_ref = '', bool $ksef = true): string {
     if (!edok_ksef_is_invoice_xml($xml)) return '';
+    if (!$ksef) $ksef_ref = '';
     libxml_use_internal_errors(true);
     $sx = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
     if ($sx === false) return '';
@@ -66,8 +68,8 @@ function edok_ksef_visualization_html(string $xml, string $ksef_ref = ''): strin
     $seller_nip = preg_replace('/\D/', '', $one('//' . $ln('Podmiot1') . '//' . $ln('NIP')));
 
     // ── Nagłówek ──
-    $h = '<div class="ksef"><table><tr><td class="logo">Krajowy System <b>e-</b>Faktur</td>'
-       . '<td class="r"><span class="muted">Numer Faktury:</span><br><span class="nr">' . $e($nr) . '</span><br><span class="muted">' . $e($typ_l) . '</span>'
+    $h = '<div class="ksef"><table><tr><td class="logo">' . ($ksef ? 'Krajowy System <b>e-</b>Faktur' : $e($typ_l)) . '</td>'
+       . '<td class="r"><span class="muted">Numer Faktury:</span><br><span class="nr">' . $e($nr) . '</span><br><span class="muted">' . ($ksef ? $e($typ_l) : '') . '</span>'
        . ($ksef_ref !== '' ? '<br><span class="b">Numer KSeF:</span> ' . $e($ksef_ref) : '') . '</td></tr></table><hr>';
 
     // ── Strona (Sprzedawca / Nabywca) ──
@@ -222,7 +224,7 @@ function edok_ksef_visualization_html(string $xml, string $ksef_ref = ''): strin
     }
 
     // ── Weryfikacja w KSeF + QR ──
-    $url = edok_ksef_verify_url($xml, $seller_nip, $issue);
+    $url = $ksef ? edok_ksef_verify_url($xml, $seller_nip, $issue) : '';
     if ($url !== '') {
         $qr = '';
         try {
@@ -235,7 +237,7 @@ function edok_ksef_visualization_html(string $xml, string $ksef_ref = ''): strin
             . 'Nie możesz zeskanować kodu z obrazka? Kliknij w link weryfikacyjny i przejdź do weryfikacji faktury!<br><br>'
             . '<span style="color:#0645ad">' . $e($url) . '</span></td></tr></table>';
     }
-    $h .= '<div class="foot">Wytworzona w: SZO (EODoK) — wizualizacja wygenerowana z pliku XML faktury ustrukturyzowanej.</div></div>';
+    $h .= '<div class="foot">' . ($ksef ? 'Wytworzona w: SZO (EODoK) — wizualizacja wygenerowana z pliku XML faktury ustrukturyzowanej.' : 'Wizualizacja wygenerowana z pliku XML faktury.') . '</div></div>';
     return $h;
 }
 
@@ -245,5 +247,5 @@ function edok_ksef_visualization_for_doc(array $doc): string {
     if ($rel === '' || strtolower(pathinfo($rel, PATHINFO_EXTENSION)) !== 'xml') return '';
     $abs = UPLOAD_DIR . ltrim($rel, '/');
     if (!is_file($abs)) return '';
-    return edok_ksef_visualization_html((string)file_get_contents($abs), (string)($doc['ksef_reference'] ?? ''));
+    return edok_ksef_visualization_html((string)file_get_contents($abs), (string)($doc['ksef_reference'] ?? ''), edok_ksef_show_ksef($doc));
 }

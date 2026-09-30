@@ -429,23 +429,35 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 .edok-amounts { @apply tw-rounded-lg tw-bg-slate-100 tw-p-3 tw-mb-3; }
 .edok-amounts .total { @apply tw-border-t tw-border-solid tw-border-slate-300 tw-pt-1.5 tw-mt-1.5 tw-font-bold; }
 
-.edok-tracker { @apply tw-flex tw-items-stretch tw-gap-1 sm:tw-gap-2 tw-mb-4; }
-.edok-tracker__step { @apply tw-flex-1 tw-rounded-lg tw-border tw-border-solid tw-px-2 tw-py-2 tw-text-center tw-bg-white tw-border-slate-300; }
-.edok-tracker__step.is-done    { @apply tw-bg-emerald-50 tw-border-emerald-300; }
-.edok-tracker__step.is-current { @apply tw-bg-blue-50 tw-border-blue-400 tw-ring-2 tw-ring-blue-200; }
-.edok-tracker__step.is-blocked { @apply tw-bg-slate-100 tw-border-slate-300 tw-opacity-70; }
-.edok-tracker__step.is-rejected{ @apply tw-bg-red-50 tw-border-red-300; }
-.edok-tracker__step.is-uwagi   { @apply tw-bg-amber-50 tw-border-amber-300; }
-.edok-tracker__num { @apply tw-text-[.65rem] tw-font-bold tw-text-slate-500 tw-block; }
-.edok-tracker__label { @apply tw-text-[.72rem] tw-font-semibold tw-text-slate-800 tw-block tw-leading-tight tw-mt-0.5; }
-.edok-tracker__icon { @apply tw-text-base tw-block tw-mt-1; }
+/* Przebieg obiegu: pionowy stepper — stan każdego etapu zapisany słowami, nie samym kolorem */
+.edok-stepper { @apply tw-list-none tw-p-0 tw-m-0 tw-mb-4 tw-bg-white tw-rounded-xl tw-border tw-border-solid tw-border-slate-300 tw-shadow-sm tw-px-4 tw-py-3; }
+.edok-stepper__item { @apply tw-relative tw-flex tw-gap-3 tw-pb-4 last:tw-pb-0; }
+.edok-stepper__item:not(:last-child)::before { content: ""; @apply tw-absolute tw-left-[.95rem] tw-top-8 tw-bottom-0 tw-w-0.5 tw-bg-slate-200; }
+.edok-stepper__item.is-done:not(:last-child)::before { @apply tw-bg-emerald-300; }
+.edok-stepper__dot { @apply tw-flex-none tw-flex tw-items-center tw-justify-center tw-w-8 tw-h-8 tw-rounded-full tw-border-2 tw-border-solid tw-border-slate-300 tw-bg-white tw-text-slate-400 tw-text-base tw-z-10; }
+.is-done .edok-stepper__dot     { @apply tw-bg-emerald-500 tw-border-emerald-500 tw-text-white; }
+.is-uwagi .edok-stepper__dot    { @apply tw-bg-amber-400 tw-border-amber-400 tw-text-white; }
+.is-rejected .edok-stepper__dot { @apply tw-bg-red-500 tw-border-red-500 tw-text-white; }
+.is-current .edok-stepper__dot  { @apply tw-border-blue-500 tw-text-blue-600 tw-ring-4 tw-ring-blue-100; }
+.edok-stepper__name  { @apply tw-block tw-text-sm tw-font-semibold tw-text-slate-800 tw-leading-snug; }
+.is-blocked .edok-stepper__name { @apply tw-text-slate-500 tw-font-medium; }
+.edok-stepper__state { @apply tw-block tw-text-xs tw-text-slate-600 tw-mt-0.5; }
+.edok-stepper__note  { @apply tw-block tw-text-xs tw-text-slate-700 tw-mt-1 tw-bg-slate-50 tw-rounded tw-px-2 tw-py-1; }
+.is-current .edok-stepper__state { @apply tw-text-blue-700 tw-font-semibold; }
+.edok-progress { @apply tw-h-1.5 tw-rounded-full tw-bg-slate-200 tw-overflow-hidden; }
+.edok-progress > span { @apply tw-block tw-h-full tw-bg-blue-500; }
+.edok-review { @apply tw-rounded-lg tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-200 tw-p-3 tw-mb-3; }
+.edok-review__hd { @apply tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-slate-500 tw-mb-1.5; }
 
 .edok-history-item { @apply tw-flex tw-items-start tw-gap-2 tw-py-2 tw-border-b tw-border-solid tw-border-slate-200 last:tw-border-0 tw-text-sm; }
 
 .edok-wizard .modal-content { @apply tw-rounded-xl tw-border-0 tw-shadow-lg; }
 .edok-wizard-hd { @apply tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-200; }
 .edok-wizard-pane { @apply tw-p-4; }
-.edok-choice { @apply tw-flex-1 tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border-2 tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2.5 tw-cursor-pointer tw-transition-colors tw-text-sm tw-font-semibold tw-text-slate-600; }
+.edok-choice { @apply tw-flex-1 tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border-2 tw-border-solid tw-border-slate-300 tw-px-2 tw-py-3 tw-cursor-pointer tw-transition-colors tw-text-sm tw-font-semibold tw-text-slate-700 tw-text-center hover:tw-bg-slate-50 focus-within:tw-ring-2 focus-within:tw-ring-blue-300; }
+.edok-choice small { @apply tw-block tw-text-[.7rem] tw-font-normal tw-text-slate-500 tw-leading-tight; }
+.edok-wizard-steps { @apply tw-flex tw-items-center tw-gap-2 tw-text-xs tw-text-slate-500 tw-px-4 tw-pt-3; }
+.edok-wizard-steps .is-active { @apply tw-text-blue-700 tw-font-bold; }
 .edok-choice input { @apply tw-sr-only; }
 .edok-choice:has(input:checked).choice-ok      { @apply tw-border-emerald-500 tw-bg-emerald-50 tw-text-emerald-700; }
 .edok-choice:has(input:checked).choice-uwagi   { @apply tw-border-amber-500 tw-bg-amber-50 tw-text-amber-700; }
@@ -886,25 +898,28 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
   </div>
 
   <div class="lg:tw-col-span-7">
-    <!-- Śledzik postępu obiegu -->
-    <div class="edok-tracker">
+    <!-- Przebieg obiegu (stepper pionowy) -->
+    <ol class="edok-stepper" aria-label="Przebieg obiegu akceptacji">
       <?php $n = 0; foreach ($steps_config as $sk => $cfg): $n++;
         $s = $doc['steps'][$sk] ?? null;
-        $cls = 'is-pending';
-        $icon = 'bi-circle';
-        if ($s && $s['status'] === 'ok')        { $cls = 'is-done';     $icon = 'bi-check-circle-fill'; }
-        elseif ($s && $s['status'] === 'odrzucono') { $cls = 'is-rejected'; $icon = 'bi-x-circle-fill'; }
-        elseif ($s && $s['status'] === 'uwagi') { $cls = 'is-uwagi';    $icon = 'bi-exclamation-circle-fill'; }
-        elseif ($sk === $current_key)           { $cls = 'is-current'; $icon = $cfg['icon']; }
-        elseif (!$s)                            { $cls = 'is-blocked'; $icon = 'bi-lock-fill'; }
+        $decided = $s && in_array($s['status'], ['ok', 'uwagi', 'odrzucono'], true);
+        if ($s && $s['status'] === 'ok')            { $cls = 'is-done';     $icon = 'bi-check-lg';           $state = 'Zaakceptowano'; }
+        elseif ($s && $s['status'] === 'odrzucono') { $cls = 'is-rejected'; $icon = 'bi-x-lg';               $state = 'Odrzucono — obieg zatrzymany'; }
+        elseif ($s && $s['status'] === 'uwagi')     { $cls = 'is-uwagi';    $icon = 'bi-exclamation-lg';     $state = 'Zaakceptowano z uwagami'; }
+        elseif ($sk === $current_key && !$is_terminal) { $cls = 'is-current'; $icon = (string)$n;            $state = 'Bieżący etap — oczekuje na decyzję'; }
+        else                                        { $cls = 'is-blocked';  $icon = (string)$n;              $state = $is_terminal ? 'Nie dotyczy' : 'Czeka na poprzednie etapy'; }
+        $who = $decided ? trim(($s['user_name'] ?? '') . ($s['decided_at'] ? ' · ' . date('d.m.Y H:i', strtotime($s['decided_at'])) : '')) : '';
       ?>
-      <div class="edok-tracker__step <?= $cls ?>" title="<?= h(edok_step_label($sk, $doc)) ?>">
-        <span class="edok-tracker__num">ETAP <?= $n ?></span>
-        <i class="bi <?= $icon ?> edok-tracker__icon"></i>
-        <span class="edok-tracker__label tw-hidden sm:tw-block"><?= h(edok_step_label($sk, $doc)) ?></span>
-      </div>
+      <li class="edok-stepper__item <?= $cls ?>"<?= $cls === 'is-current' ? ' aria-current="step"' : '' ?>>
+        <span class="edok-stepper__dot" aria-hidden="true"><?php if (str_starts_with($icon, 'bi-')): ?><i class="bi <?= $icon ?>"></i><?php else: ?><?= h($icon) ?><?php endif; ?></span>
+        <span>
+          <span class="edok-stepper__name">Etap <?= $n ?>: <?= h(edok_step_label($sk, $doc)) ?></span>
+          <span class="edok-stepper__state"><?= h($state) ?><?= $who !== '' ? ' — ' . h($who) : '' ?></span>
+          <?php if ($decided && trim((string)($s['notes'] ?? '')) !== ''): ?><span class="edok-stepper__note"><?= nl2br(h($s['notes'])) ?></span><?php endif; ?>
+        </span>
+      </li>
       <?php endforeach; ?>
-    </div>
+    </ol>
 
     <!-- Bieżący etap -->
     <?php if ($is_terminal): ?>
@@ -923,37 +938,58 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       </div>
     </div>
     <?php elseif ($current_key): ?>
-    <div class="edok-card">
-      <div class="edok-card__hd">
-        <i class="bi <?= $current_cfg['icon'] ?>"></i> Bieżący etap: <?= h(edok_step_label($current_key, $doc)) ?>
-        <span class="edok-badge edok-badge-secondary tw-ml-auto">Etap <?= array_search($current_key, array_keys($steps_config), true) + 1 ?>/5</span>
-      </div>
+    <?php $cur_no = array_search($current_key, array_keys($steps_config), true) + 1; ?>
+    <div class="edok-card" style="border-color:#93c5fd">
       <div class="edok-card__bd">
-        <p class="tw-text-sm tw-text-slate-500 tw-mb-3"><?= h($current_cfg['sub']) ?></p>
+        <div class="tw-flex tw-items-center tw-gap-2 tw-mb-1">
+          <span class="edok-badge edok-badge-secondary">Etap <?= $cur_no ?> z <?= count($steps_config) ?></span>
+          <span class="tw-text-xs tw-text-slate-500">Twoja decyzja jest teraz potrzebna</span>
+        </div>
+        <h2 class="tw-text-lg tw-font-bold tw-text-slate-900 tw-mb-0"><i class="bi <?= $current_cfg['icon'] ?>"></i> <?= h(edok_step_label($current_key, $doc)) ?></h2>
+        <p class="tw-text-sm tw-text-slate-600 tw-mt-1 tw-mb-3"><?= h($current_cfg['sub']) ?></p>
+        <div class="edok-progress tw-mb-4" role="progressbar" aria-valuemin="0" aria-valuemax="<?= count($steps_config) ?>" aria-valuenow="<?= $cur_no - 1 ?>" aria-label="Postęp obiegu"><span style="width:<?= (int)round(($cur_no - 1) / count($steps_config) * 100) ?>%"></span></div>
 
         <?php if ($current_blocked): ?>
-        <div class="edok-alert edok-alert-warning"><i class="bi bi-lock-fill tw-mt-0.5"></i> <?= h($current_blocked) ?></div>
+        <div class="edok-alert edok-alert-warning"><i class="bi bi-lock-fill tw-mt-0.5"></i> <span><strong>Etap zablokowany.</strong> <?= h($current_blocked) ?></span></div>
 
         <?php elseif (!edok_has_role($current_key)): ?>
-        <div class="edok-alert edok-alert-warning"><i class="bi bi-person-x tw-mt-0.5"></i> Oczekuje na decyzję osoby z uprawnieniem do tego etapu.</div>
-
-        <?php elseif (!edok_pin_is_set((int)$user['id'])): ?>
-        <div class="edok-alert edok-alert-warning tw-mb-3">
-          <i class="bi bi-shield-exclamation tw-mt-0.5"></i>
-          Nie masz jeszcze ustawionego PIN-u EODoK — wymagany do zaakceptowania. <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="tw-font-semibold tw-underline">Ustaw PIN</a>.
-        </div>
+        <div class="edok-alert edok-alert-warning"><i class="bi bi-person-x tw-mt-0.5"></i> <span><strong>Czeka na inną osobę.</strong> Ten etap może zatwierdzić tylko użytkownik z odpowiednim uprawnieniem.</span></div>
 
         <?php else: ?>
-        <div class="tw-flex tw-flex-wrap tw-gap-2">
-          <button type="button" class="edok-btn edok-btn-primary" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
-            <i class="bi bi-ui-checks"></i> Podejmij decyzję
-          </button>
-          <?php if ($show_sign_all): ?>
-          <button type="button" class="edok-btn edok-btn-ghost" data-bs-toggle="modal" data-bs-target="#signAllModal">
-            <i class="bi bi-check2-all"></i> Weryfikuj i podpisz wszystkie etapy (<?= count($sign_all_ok) ?>)
-          </button>
+          <?php if ($current_review): ?>
+          <div class="edok-review">
+            <div class="edok-review__hd">Co sprawdzasz na tym etapie</div>
+            <table class="edok-kv"><tbody>
+              <?php foreach ($current_review as [$label, $value]): ?><tr><td><?= h($label) ?></td><td><?= $value ?></td></tr><?php endforeach; ?>
+            </tbody></table>
+          </div>
           <?php endif; ?>
-        </div>
+
+          <?php if ($current_pending): ?>
+          <div class="edok-alert edok-alert-warning tw-mb-3">
+            <i class="bi bi-exclamation-triangle tw-mt-0.5"></i>
+            <div><strong>Do uzupełnienia przed akceptacją:</strong>
+              <ul class="tw-mb-0 tw-mt-1 tw-pl-4"><?php foreach ($current_pending as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
+          </div>
+          <?php endif; ?>
+
+          <?php if (!edok_pin_is_set((int)$user['id'])): ?>
+          <div class="edok-alert edok-alert-warning tw-mb-3">
+            <i class="bi bi-shield-exclamation tw-mt-0.5"></i>
+            <span>Nie masz ustawionego PIN-u EODoK — jest wymagany do akceptacji. <a href="<?= APP_URL ?>/edok/ustaw_pin.php" class="tw-font-semibold tw-underline">Ustaw PIN</a></span>
+          </div>
+          <?php else: ?>
+          <div class="tw-flex tw-flex-wrap tw-gap-2">
+            <button type="button" class="edok-btn edok-btn-primary tw-px-4 tw-py-2 tw-text-base" data-bs-toggle="modal" data-bs-target="#stepWizardModal">
+              <i class="bi bi-ui-checks"></i> Podejmij decyzję
+            </button>
+            <?php if ($show_sign_all): ?>
+            <button type="button" class="edok-btn edok-btn-ghost" data-bs-toggle="modal" data-bs-target="#signAllModal">
+              <i class="bi bi-check2-all"></i> Podpisz wszystkie etapy naraz (<?= count($sign_all_ok) ?>)
+            </button>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
         <?php endif; ?>
       </div>
     </div>
@@ -1131,6 +1167,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <h6 class="modal-title tw-font-bold"><i class="bi <?= $current_cfg['icon'] ?>"></i> <?= h(edok_step_label($current_key, $doc)) ?></h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
+      <div class="edok-wizard-steps" aria-hidden="true"><span id="wzStep1" class="is-active">1. Decyzja</span><i class="bi bi-chevron-right"></i><span id="wzStep2">2. Potwierdzenie PIN-em <em class="tw-not-italic tw-font-normal">(tylko przy „Tak")</em></span></div>
       <form method="post" id="wizardForm" onsubmit="return edokWizardSubmit(event, this)">
         <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="action" value="<?= h($current_key) ?>">
@@ -1138,13 +1175,14 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 
         <div class="edok-wizard-pane" id="wizardPaneDecision">
           <?php if ($current_review): ?>
-          <table class="edok-kv tw-mb-3">
-            <tbody>
+          <div class="edok-review">
+            <div class="edok-review__hd">Sprawdź przed decyzją</div>
+            <table class="edok-kv"><tbody>
               <?php foreach ($current_review as [$label, $value]): ?>
               <tr><td><?= h($label) ?></td><td><?= $value ?></td></tr>
               <?php endforeach; ?>
-            </tbody>
-          </table>
+            </tbody></table>
+          </div>
           <?php endif; ?>
 
           <?php if ($current_key === 'rachunkowa'):
@@ -1169,18 +1207,20 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
           <div class="tw-flex tw-gap-2 tw-mb-3">
             <label class="edok-choice choice-ok">
               <input type="radio" name="step_status" value="ok" required>
-              <i class="bi bi-check-circle-fill tw-text-xl"></i> Tak / OK
+              <i class="bi bi-check-circle-fill tw-text-2xl"></i> Tak / OK<small>Akceptuję — wymaga PIN-u</small>
             </label>
             <label class="edok-choice choice-uwagi">
               <input type="radio" name="step_status" value="uwagi">
-              <i class="bi bi-exclamation-circle-fill tw-text-xl"></i> Z uwagami
+              <i class="bi bi-exclamation-circle-fill tw-text-2xl"></i> Z uwagami<small>Przechodzi dalej, uwagi zostają w historii</small>
             </label>
             <label class="edok-choice choice-odrzuc">
               <input type="radio" name="step_status" value="odrzucono">
-              <i class="bi bi-x-circle-fill tw-text-xl"></i> Odrzuć
+              <i class="bi bi-x-circle-fill tw-text-2xl"></i> Odrzuć<small>Zatrzymuje obieg — wymaga powodu</small>
             </label>
           </div>
-          <textarea name="step_notes" class="form-control form-control-sm" rows="2" placeholder="Ewentualne uwagi lub powód odrzucenia…"></textarea>
+          <label class="form-label small mb-1" for="wizardNotes">Uwagi <span id="wzNotesReq" class="text-danger d-none">(wymagany powód odrzucenia)</span></label>
+          <textarea name="step_notes" id="wizardNotes" class="form-control form-control-sm" rows="3" placeholder="Uwagi do decyzji lub powód odrzucenia…"></textarea>
+          <div class="text-danger small mt-1 d-none" id="wzNotesErr" role="alert">Podaj powód odrzucenia.</div>
         </div>
 
         <div class="edok-wizard-pane tw-hidden" id="wizardPanePin">
@@ -1269,13 +1309,27 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
     paneDecision.classList.remove('tw-hidden');
     panePin.classList.add('tw-hidden');
     nextBtn.innerHTML = '<i class="bi bi-arrow-right"></i> Dalej';
+    document.getElementById('wzStep1').classList.add('is-active'); document.getElementById('wzStep2').classList.remove('is-active');
     if (pinInput) { pinInput.value = ''; pinInput.classList.remove('is-invalid'); }
   }
   modalEl.addEventListener('shown.bs.modal', resetWizard);
+  // wymóg powodu widoczny od razu po wybraniu „Odrzuć"
+  modalEl.querySelectorAll('input[name="step_status"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      document.getElementById('wzNotesReq').classList.toggle('d-none', r.value !== 'odrzucono' || !r.checked);
+      document.getElementById('wzNotesErr').classList.add('d-none');
+    });
+  });
 
   window.edokWizardSubmit = function (event, f) {
     var status = (f.querySelector('input[name="step_status"]:checked') || {}).value;
     if (!status) { event.preventDefault(); return false; }
+    if (status === 'odrzucono' && !document.getElementById('wizardNotes').value.trim()) {
+      event.preventDefault();
+      document.getElementById('wzNotesErr').classList.remove('d-none');
+      document.getElementById('wizardNotes').focus();
+      return false;
+    }
     if (status !== 'ok') return true; // "Z uwagami"/"Odrzuć" — bez PIN, wysyła się normalnie
 
     var onPinPane = !panePin.classList.contains('tw-hidden');
@@ -1284,6 +1338,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       paneDecision.classList.add('tw-hidden');
       panePin.classList.remove('tw-hidden');
       nextBtn.innerHTML = '<i class="bi bi-check2"></i> Potwierdź';
+      document.getElementById('wzStep1').classList.remove('is-active'); document.getElementById('wzStep2').classList.add('is-active');
       setTimeout(function () { pinInput.focus(); }, 80);
       return false;
     }

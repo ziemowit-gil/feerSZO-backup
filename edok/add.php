@@ -173,6 +173,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tryb === 'dokument') {
             'kontrahent_nazwa'    => $kontrahent_nazwa,
             'kontrahent_nip'      => $kontrahent_nip,
             'nr_faktury'          => $nr_faktury,
+            // numer KSeF tylko dla faktur zakupu z pliku XML; sprzedaż (przychód) nie ma dopisków o KSeF
+            'ksef_reference'      => ($kierunek === 'wydatek' && preg_match('/^\d{10}-\d{8}-[0-9A-F]{12}-[0-9A-F]{2}$/', trim($_POST['ksef_number'] ?? ''))) ? trim($_POST['ksef_number']) : '',
             'nr_transakcji_bramki' => mb_substr($nr_bramki, 0, 80),
             'zrodlo_przychodu'    => $zrodlo_przychodu,
             'data_wystawienia'    => $data_wystawienia ?: null,
@@ -271,6 +273,7 @@ require_once __DIR__ . '/../includes/header.php';
     <form method="post" enctype="multipart/form-data" id="edok-add-form">
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="ksef_file_path" id="ksef_file_path" value="">
+      <input type="hidden" name="ksef_number" id="ksef_number" value="<?= h($queue_item && preg_match('/^\d{10}-\d{8}-[0-9A-Fa-f]{12}-[0-9A-Fa-f]{2}$/', pathinfo((string)$queue_item['orig_name'], PATHINFO_FILENAME)) ? strtoupper(pathinfo((string)$queue_item['orig_name'], PATHINFO_FILENAME)) : '') ?>">
       <input type="hidden" name="tytul_przelewu_auto" id="tytul_przelewu_auto" value="<?= ($_POST['tytul_przelewu_auto'] ?? '1') === '0' ? '0' : '1' ?>">
 
       <?php if (is_admin()): ?>
@@ -814,6 +817,7 @@ function edokXmlLoad(input) {
         if (el && d[k] !== undefined && d[k] !== '') el.value = d[k];
       });
       document.getElementById('ksef_file_path').value = res.file_path || '';
+      document.getElementById('ksef_number').value = res.ksef_number || '';
       document.getElementById('file_input').required = false;
       document.getElementById('file_upload_wrap').style.display = 'none';
       document.getElementById('ksef_file_attached').style.display = '';
@@ -860,6 +864,7 @@ function edokKsefFetch() {
       document.querySelector('[name="description"]').value = d.description || '';
 
       document.getElementById('ksef_file_path').value = res.file_path || '';
+      document.getElementById('ksef_number').value = ref.toUpperCase();
       document.getElementById('file_input').required = false;
       document.getElementById('file_upload_wrap').style.display = 'none';
       document.getElementById('ksef_file_attached').style.display = '';

@@ -1236,7 +1236,10 @@ function edok_print_html(array $doc): string {
  * Dokleja plik źródłowy (ścieżka względna w uploads/) do PDF-a składanego przez FPDI: PDF stronami,
  * obraz całostronicowo, faktura XML (KSeF) jako strona z podsumowaniem danych faktury. DOCX pomijany.
  */
-function edok_fpdi_import_file(\setasign\Fpdi\Fpdi $pdf, string $rel): void {
+/** Dopiski o KSeF (nagłówek, numer, QR) tylko przy fakturach zakupu; sprzedaż wczytana z pliku XML jest pokazywana bez nich. */
+function edok_ksef_show_ksef(array $doc): bool { return ($doc['kierunek'] ?? 'wydatek') !== 'przychod'; }
+
+function edok_fpdi_import_file(\setasign\Fpdi\Fpdi $pdf, string $rel, bool $ksef = true, string $ksef_ref = ''): void {
     $path = $rel !== '' ? UPLOAD_DIR . ltrim($rel, '/') : '';
     if ($path === '' || !is_file($path)) return;
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
@@ -1255,7 +1258,7 @@ function edok_fpdi_import_file(\setasign\Fpdi\Fpdi $pdf, string $rel): void {
         try { $pdf->Image($path, 10, 10, 190); } catch (\Throwable $e) {}
     } elseif ($ext === 'xml') {
         require_once __DIR__ . '/edok_ksef_view.php';
-        $html = edok_ksef_visualization_html((string)file_get_contents($path));
+        $html = edok_ksef_visualization_html((string)file_get_contents($path), $ksef_ref, $ksef);
         if ($html === '') return;
         $tmp_dir = rtrim(UPLOAD_DIR, '/') . '/mpdf_tmp';
         if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
@@ -1302,7 +1305,7 @@ function edok_build_monthly_combined(int $year, int $month, string $dest): int {
         $mpdf->WriteHTML('<style>' . edok_print_css() . '</style>' . edok_print_html($doc));
         $card = $tmp_dir . '/mkarta_' . (int)$doc['id'] . '_' . bin2hex(random_bytes(4)) . '.pdf';
         $mpdf->Output($card, \Mpdf\Output\Destination::FILE);
-        edok_fpdi_import_file($pdf, (string)$doc['file_path']);
+        edok_fpdi_import_file($pdf, (string)$doc['file_path'], edok_ksef_show_ksef($doc), (string)($doc['ksef_reference'] ?? ''));
         if (!empty($doc['zaplacono_przed'])) edok_fpdi_import_file($pdf, (string)($doc['dowod_zaplaty_path'] ?? ''));
         $cnt = $pdf->setSourceFile($card);
         for ($i = 1; $i <= $cnt; $i++) {
@@ -1350,7 +1353,7 @@ function edok_build_source_card_pdf(array $doc, string $dest): void {
     require_once __DIR__ . '/fpdi/autoload_fpdi.php';
     $pdf = new \setasign\Fpdi\Fpdi();
     $pdf->SetAutoPageBreak(true, 10);
-    edok_fpdi_import_file($pdf, (string)$doc['file_path']);
+    edok_fpdi_import_file($pdf, (string)$doc['file_path'], edok_ksef_show_ksef($doc), (string)($doc['ksef_reference'] ?? ''));
     if (!empty($doc['zaplacono_przed'])) edok_fpdi_import_file($pdf, (string)($doc['dowod_zaplaty_path'] ?? ''));
     $card_count = $pdf->setSourceFile($card_path);
     for ($i = 1; $i <= $card_count; $i++) {
