@@ -46,7 +46,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 $tok = '<input type="hidden" name="_token" value="' . h(dyd_token()) . '">';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
-<?php $KIER_CUR = 'zgloszenia.php'; $KIER_LABEL = 'Zgłoszenia trenerów'; include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php $PL_CUR = 'zgloszenia.php'; $PL_LABEL = 'Zgłoszenia trenerów'; include __DIR__ . '/_planista_bar.php'; ?>
 <main id="main" class="dyd-wrap">
 <?= flash_html() ?>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">

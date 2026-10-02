@@ -65,7 +65,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .sc-issue.h { color:#b91c1c; } .sc-issue.s { color:#b45309; }
 </style>
 
-<?php $KIER_CUR = 'planista.php'; $KIER_LABEL = 'Planista zajęć'; include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php $PL_CUR = 'planista.php'; $PL_LABEL = 'Planista zajęć'; include __DIR__ . '/_planista_bar.php'; ?>
 
 <main id="main" class="dyd-wrap">
 <?= flash_html() ?>

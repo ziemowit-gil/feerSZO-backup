@@ -29,7 +29,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
-<?php $KIER_CUR = 'raportyPlanisty.php'; $KIER_LABEL = 'Raporty planisty'; include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php $PL_CUR = 'raportyPlanisty.php'; $PL_LABEL = 'Raporty planisty'; include __DIR__ . '/_planista_bar.php'; ?>
 <style>@media print{.dyd-sb,.dyd-topnav,.skin-sections,.skin-subnav,nav,.btn,.btn-group,form{display:none!important}main.dyd-wrap{margin:0!important}}</style>
 <main id="main" class="dyd-wrap">
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">

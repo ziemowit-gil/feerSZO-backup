@@ -78,7 +78,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
-<?php $KIER_CUR = 'kadraLimity.php'; $KIER_LABEL = 'Limity i kwalifikacje'; include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php $PL_CUR = 'kadraLimity.php'; $PL_LABEL = 'Limity i kwalifikacje'; include __DIR__ . '/_planista_bar.php'; ?>
 <main id="main" class="dyd-wrap">
 <?= flash_html() ?>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">

@@ -20,6 +20,8 @@
 $KIER_CUR   = $KIER_CUR   ?? '';
 $KIER_LABEL = $KIER_LABEL ?? '';
 $KIER_EMBED = !empty($KIER_EMBED);
+$KIER_TITLE = $KIER_TITLE ?? 'Kierownik';                       // nazwa menu (np. „Planista”)
+$KIER_CRUMB = $KIER_CRUMB ?? ['Kierownik', 'index.php?tab=grupy']; // drugi okruszek
 
 if (!empty($KIER_ITEMS)) {
     $_kier_norm = $KIER_ITEMS;
@@ -122,11 +124,11 @@ $_kier_sections = [
   }
 </style>
 
-<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" aria-label="Menu kierownika">
+<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" aria-label="Menu: <?= h($KIER_TITLE) ?>">
   <details open>
-    <summary aria-hidden="true"><i class="bi bi-list"></i> Menu kierownika</summary>
+    <summary aria-hidden="true"><i class="bi bi-list"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
     <div>
-      <h2>Kierownik</h2>
+      <h2><?= h($KIER_TITLE) ?></h2>
       <?php foreach ($_kier_norm as $_i): ?>
       <a href="<?= h($_i['href']) ?>"<?= $_i['active'] ? ' class="active" aria-current="page"' : '' ?><?= !empty($_i['blank']) ? ' target="_blank" rel="noopener"' : '' ?>>
         <i class="bi bi-<?= h($_i['icon']) ?>" aria-hidden="true"></i><?= h($_i['label']) ?>
@@ -145,7 +147,7 @@ $_kier_sections = [
 
       <div class="kier-crumbs">
         <a href="index.php?tab=pulpit">Panel dydaktyka</a>
-        &rsaquo; <a href="index.php?tab=grupy">Kierownik</a>
+        &rsaquo; <a href="<?= h($KIER_CRUMB[1]) ?>"><?= h($KIER_CRUMB[0]) ?></a>
         <?php if ($KIER_LABEL !== ''): ?>&rsaquo; <strong><?= h($KIER_LABEL) ?></strong><?php endif; ?>
       </div>
       <?php endif; ?>
