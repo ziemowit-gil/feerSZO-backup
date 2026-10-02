@@ -2113,6 +2113,9 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
     </div>
     <div class="modal-body">
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <h6 class="text-uppercase text-body-secondary small fw-bold mb-2"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Termin i forma zajęć</h6>
       <?php if ($isPast || $_hyb_lock): ?>
       <div class="alert alert-secondary py-2 mb-3 small d-flex align-items-center gap-2">
         <i class="bi bi-lock-fill"></i>
@@ -2189,18 +2192,6 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         </div>
       </div>
       <?php endif; ?>
-      <div class="mb-2">
-        <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
-        <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" list="ti_topic_options"
-               value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML — zacznij pisać, aby wybrać z planu nauczania">
-        <?php if ($_curr): ?>
-        <div class="form-text">Podpowiedzi z <a href="index.php?course=<?= $cur_course ?>&tab=program" target="_blank">planu nauczania</a> kursu — można też wpisać własny temat.</div>
-        <?php endif; ?>
-      </div>
-      <div class="mb-2">
-        <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
-        <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
-      </div>
       <?php $_lm_val = $r['lesson_method'] ?? ''; $_lm_zdalna = in_array($_lm_val, ['zdalna_zoom','zdalna_inne'], true); ?>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_method">Metoda lekcji</label>
@@ -2245,6 +2236,21 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         <div class="form-text mb-0">Puste = stawka z zapisu wg trybu (stacjonarna lub online). Wpisana kwota liczy się za każdą rozliczaną godzinę tej lekcji w rozliczeniach, fakturach i saldzie.</div>
       </div>
       <?php endif; ?>
+        </div>
+        <div class="col-lg-6">
+          <h6 class="text-uppercase text-body-secondary small fw-bold mb-2"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>Treść, prowadzący i rozliczenie</h6>
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
+        <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" list="ti_topic_options"
+               value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML — zacznij pisać, aby wybrać z planu nauczania">
+        <?php if ($_curr): ?>
+        <div class="form-text">Podpowiedzi z <a href="index.php?course=<?= $cur_course ?>&tab=program" target="_blank">planu nauczania</a> kursu — można też wpisać własny temat.</div>
+        <?php endif; ?>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
+        <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
+      </div>
       <div class="border rounded p-2 mb-2 bg-body-tertiary">
         <div class="form-check form-switch mb-1">
           <input class="form-check-input" type="checkbox" role="switch"
@@ -2347,6 +2353,8 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         <label class="form-check-label" for="<?= $pfx ?>_notify">Powiadom kursantów SMS o nowych zajęciach</label>
       </div>
       <?php endif; ?>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <?php if (!$isEdit): ?>
