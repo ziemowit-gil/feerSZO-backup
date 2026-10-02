@@ -49,6 +49,7 @@ if (!empty($KIER_ITEMS)) {
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],
         ['Urlopy prowadzących',       'urlopy.php',                 'airplane'],
         ['Planista zajęć',            'planista.php',               'calendar3-range'],
+        ['Raporty planisty',          'raportyPlanisty.php',        'bar-chart-line'],
         ['Generator ciągów zajęć',    'generatorCiagow.php',        'magic'],
         ['Zgłoszenia trenerów',       'zgloszenia.php',             'inbox'],
         ['Limity i kwalifikacje kadry','kadraLimity.php',           'person-gear'],

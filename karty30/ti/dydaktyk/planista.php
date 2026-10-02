@@ -72,6 +72,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <h1 class="h4 mb-0"><i class="bi bi-calendar3-range me-2 text-primary"></i>Planista zajęć</h1>
   <a class="btn btn-outline-secondary btn-sm ms-auto" href="zgloszenia.php"><i class="bi bi-inbox me-1"></i>Zgłoszenia trenerów</a>
+  <a class="btn btn-outline-secondary btn-sm" href="raportyPlanisty.php"><i class="bi bi-bar-chart-line me-1"></i>Raporty</a>
   <a class="btn btn-outline-secondary btn-sm" href="generatorCiagow.php"><i class="bi bi-magic me-1"></i>Generator ciągów</a>
   <a class="btn btn-outline-secondary btn-sm" href="kadraLimity.php"><i class="bi bi-person-gear me-1"></i>Limity i kwalifikacje kadry</a>
 </div>
