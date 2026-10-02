@@ -48,6 +48,8 @@ if (!empty($KIER_ITEMS)) {
         ['Zapisy na zajęcia',         'rekrutacja.php',             'ticket-perforated'],
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],
         ['Urlopy prowadzących',       'urlopy.php',                 'airplane'],
+        ['Planista zajęć',            'planista.php',               'calendar3-range'],
+        ['Limity i kwalifikacje kadry','kadraLimity.php',           'person-gear'],
         ['Sale / lokalizacje',        'sale.php',                   'geo-alt'],
         ['Okresy nauczania',          'okresy.php',                 'calendar-range'],
         ['Rodzaje zajęć',             'przedmioty.php',             'tags'],
