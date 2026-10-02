@@ -388,6 +388,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 
+    // Kursy HYBRYDOWE (inna stawka online / stacjonarnie): zmiany wpływające na rozliczenie
+    // (dodawanie, termin, metoda, odwołanie, usunięcie lekcji) wykonuje tylko kierownik.
+    // Prowadzący dalej uzupełnia temat, notatki, materiały i obecność.
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_scheduler/logic/schedulerValidator.php';
+    $_hl_ops = ['save_lesson_series', 'save_recurring_rule', 'reschedule_session', 'cancel_session', 'uncancel_session', 'delete_lesson', 'confirm_reservation'];
+    if (!dyd_is_staff() && in_array($op, $_hl_ops, true)) {
+        foreach (ti_course_ids_from_request($_POST) as $_hcid) {
+            if (ti_course_is_hybrid((int)$_hcid)) {
+                flash_set('danger', 'Kurs hybrydowy: terminy, metodę i odwołania lekcji zmienia tylko kierownik (od tego zależy rozliczenie). Zgłoś zmianę w „Moje zgłoszenia”.');
+                header('Location: ' . dyd_back($course_id ?: (int)$_hcid, 'lekcje')); exit;
+            }
+        }
+    }
+
     // ── Dostępność prowadzącego (własna, niezależna od kursu) ───────────────────
     if ($op === 'avail_add') {
         $dw       = (int)($_POST['day_of_week'] ?? -1);
@@ -693,8 +707,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $is_draft       = !$is_reservation && !empty($_POST['is_draft']);
         // Kurs hybrydowy: metoda lekcji jest obowiązkowa (od niej zależy stawka), stacjonarna wymaga sali
         // (albo zapisu jako rezerwacja terminu), a lekcja zdalna nie trzyma sali.
-        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_scheduler/logic/schedulerValidator.php';
         $_cid_h = (int)($_POST['course_id'] ?? $course_id ?? 0);
+        // Hybryda: prowadzący nie dodaje lekcji ani nie zmienia terminu / godzin / metody (rozliczenie) — robi to kierownik
+        if ($_cid_h && !dyd_is_staff() && ti_course_is_hybrid($_cid_h)) {
+            $_old_l = $sid ? db_one("SELECT lesson_date, time_from, time_to, lesson_method FROM k30_ti_sessions WHERE id=? AND course_id=?", [$sid, $_cid_h]) : null;
+            if (!$_old_l) { flash_set('danger', 'Kurs hybrydowy: lekcje dodaje tylko kierownik (od metody i godzin zależy rozliczenie).'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            if ($date !== (string)$_old_l['lesson_date'] || $tf !== (string)$_old_l['time_from'] || $tt !== (string)$_old_l['time_to'] || $lm !== (string)$_old_l['lesson_method']) {
+                flash_set('info', 'Kurs hybrydowy: termin, godziny i metodę lekcji zmienia kierownik — pozostałe zmiany zapisano.');
+            }
+            $date = (string)$_old_l['lesson_date']; $tf = (string)$_old_l['time_from']; $tt = (string)$_old_l['time_to']; $lm = (string)$_old_l['lesson_method'];
+            $meet_url = in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true) ? trim($_POST['meeting_url'] ?? '') : '';
+        }
         if (in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true) && $room_id) { $room_id = 0; flash_set('info', 'Lekcja zdalna nie ma sali — usunięto wybraną salę.'); }
         if ($_cid_h && !$is_draft && ti_course_is_hybrid($_cid_h)) {
             if ($lm === '') { flash_set('danger', 'Kurs hybrydowy: wybierz metodę lekcji (stacjonarna / zdalna) — od niej zależy stawka.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
@@ -2073,6 +2096,8 @@ $sessionPicker = function (string $pfx, int $selId) use ($session_label_by_id, $
 $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
     $isEdit  = (bool)$r;
     $isPast  = $isEdit && isset($r['lesson_date']) && $r['lesson_date'] < date('Y-m-d');
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_scheduler/logic/schedulerValidator.php';
+    $_hyb_lock = !dyd_is_staff() && ti_course_is_hybrid((int)$cur_course);   // hybryda: termin/metoda tylko kierownik
     // Plan nauczania kursu (= sylabus zrealizowany w tym kursie, patrz curriculum.php)
     // — źródło podpowiedzi dla tematu lekcji, żeby nie wpisywać go ręcznie za każdym razem.
     $_curr = k30_ti_curriculum_list($cur_course, true);
@@ -2088,10 +2113,10 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
     </div>
     <div class="modal-body">
-      <?php if ($isPast): ?>
+      <?php if ($isPast || $_hyb_lock): ?>
       <div class="alert alert-secondary py-2 mb-3 small d-flex align-items-center gap-2">
         <i class="bi bi-lock-fill"></i>
-        <span>Lekcja z przeszłości — zmiana terminu niedostępna.</span>
+        <span><?= $isPast ? 'Lekcja z przeszłości — zmiana terminu niedostępna.' : 'Kurs hybrydowy — termin, godziny i metodę lekcji zmienia kierownik (od nich zależy rozliczenie).' ?></span>
         <input type="hidden" name="lesson_date" value="<?= h($r['lesson_date']) ?>">
         <input type="hidden" name="time_from" value="<?= h($r['time_from'] ?? '') ?>">
         <input type="hidden" name="time_to" value="<?= h($r['time_to'] ?? '') ?>">
@@ -2179,7 +2204,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       <?php $_lm_val = $r['lesson_method'] ?? ''; $_lm_zdalna = in_array($_lm_val, ['zdalna_zoom','zdalna_inne'], true); ?>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_method">Metoda lekcji</label>
-        <select class="form-select" id="<?= $pfx ?>_method" name="lesson_method"
+        <select class="form-select" id="<?= $pfx ?>_method" name="lesson_method"<?= $_hyb_lock ? ' disabled aria-disabled="true"' : '' ?>
                 onchange="(function(v){var w=document.getElementById('<?= $pfx ?>_meeturl_wrap');w.style.display=(v==='zdalna_zoom'||v==='zdalna_inne')?'':'none';})(this.value)">
           <option value="" <?= $_lm_val===''?'selected':'' ?>>— nie wybrano —</option>
           <option value="stacjonarna" <?= $_lm_val==='stacjonarna'?'selected':'' ?>>Stacjonarna</option>

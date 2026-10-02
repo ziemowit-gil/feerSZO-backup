@@ -125,6 +125,13 @@ switch ($action) {
         if ($course_id && !db_one("SELECT id FROM k30_ti_courses WHERE id=? AND instructor_id=?", [$course_id, $uid])) {
             planner_err('Kurs nie należy do Ciebie.', 403);
         }
+        // Hybryda: terminy i metodę ustala kierownik (rozliczenie zależy od trybu lekcji)
+        if (!dyd_is_staff()) {
+            require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerValidator.php';
+            foreach (db_all("SELECT DISTINCT course_id FROM k30_ti_weekly_plan WHERE instructor_id=?" . ($course_id ? " AND course_id=?" : ''), $course_id ? [$uid, $course_id] : [$uid]) as $_w) {
+                if (ti_course_is_hybrid((int)$_w['course_id'])) planner_err('Plan zawiera grupę hybrydową — lekcje takich grup generuje kierownik (od trybu zajęć zależy rozliczenie).', 403);
+            }
+        }
         try {
             $r = ti_weekly_plan_generate($uid, $from, $to, [
                 'only_approved' => $only_appr,
