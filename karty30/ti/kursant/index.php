@@ -4412,6 +4412,8 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2">
       <span><i class="bi bi-mortarboard me-2" aria-hidden="true"></i><?= h($c['course_name']) ?></span>
       <span class="badge text-bg-secondary ms-auto"><?= $done ?>/<?= count($plan) ?> zrealizowane</span>
+      <a class="btn btn-sm btn-outline-secondary" href="plan_nauczania_export.php?course=<?= $cid_p ?>&amp;format=docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word<span class="visually-hidden"> — pobierz plan nauczania kursu <?= h($c['course_name']) ?></span></a>
+      <a class="btn btn-sm btn-outline-secondary" href="plan_nauczania_export.php?course=<?= $cid_p ?>&amp;format=xlsx"><i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Excel<span class="visually-hidden"> — pobierz plan nauczania kursu <?= h($c['course_name']) ?></span></a>
     </div>
     <div class="card-body py-2 border-bottom">
       <div class="progress" role="progressbar" aria-label="Postęp realizacji planu: <?= h($c['course_name']) ?>"

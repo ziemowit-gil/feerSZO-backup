@@ -94,7 +94,11 @@
     <span>Tematy w tym kursie</span>
     <span class="badge bg-secondary"><?= count($curr_items) ?> pozycji</span>
     <?php if ($curr_total_min > 0): ?><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= round($curr_total_min/60,1) ?> h łącznie</span><?php endif; ?>
-    <div class="ms-auto d-flex gap-2">
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <?php if ($curr_items): ?>
+      <a class="btn btn-outline-secondary btn-sm" href="plan_nauczania_export.php?course=<?= (int)$cur_course ?>&amp;format=docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Pobierz plan (Word)</a>
+      <a class="btn btn-outline-secondary btn-sm" href="plan_nauczania_export.php?course=<?= (int)$cur_course ?>&amp;format=xlsx"><i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Pobierz plan (Excel)</a>
+      <?php endif; ?>
       <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#currImport"><i class="bi bi-upload me-1"></i>Wgraj sylabus (CSV)</button>
       <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#currAdd"><i class="bi bi-plus-lg me-1"></i>Dodaj pozycję</button>
     </div>
