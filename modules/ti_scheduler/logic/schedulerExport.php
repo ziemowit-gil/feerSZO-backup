@@ -103,3 +103,48 @@ function sc_export_csv(array $ds, string $name): void {
     fputcsv($o, $ds['headers'], ';'); foreach ($ds['rows'] as $r) fputcsv($o, $r, ';');
     fclose($o);
 }
+
+/** Wersje robocze (szkice) lekcji grupy jako tabela do wydruku — z typem kursu i formą każdej lekcji. */
+function sc_drafts_dataset(int $course_id): array {
+    require_once __DIR__ . '/schedulerValidator.php';
+    $c = db_one("SELECT c.name, c.class_type, COALESCE(u.name,'—') AS iname, COALESCE(st.name,'') AS subject
+                   FROM k30_ti_courses c LEFT JOIN users u ON u.id=c.instructor_id LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id WHERE c.id=?", [$course_id])
+        ?: ['name' => '', 'class_type' => '', 'iname' => '—', 'subject' => ''];
+    $hybrid = ti_course_is_hybrid($course_id);
+    $TYPE = ['individual' => 'Indywidualny', 'group' => 'Grupowy', 'hybrid' => 'Hybryda (online + stacjonarnie)'];
+    $DN = [1 => 'Pn', 2 => 'Wt', 3 => 'Śr', 4 => 'Czw', 5 => 'Pt', 6 => 'Sb', 7 => 'Nd'];
+    $M = ['stacjonarna' => 'stacjonarnie', 'zdalna_zoom' => 'online (Zoom)', 'zdalna_inne' => 'online (inne)'];
+    $rows = []; $n = 0; $min = 0; $by_mode = ['stacjonarnie' => 0, 'online' => 0, 'bez metody' => 0];
+    foreach (db_all("SELECT s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic, s.notes, s.lesson_method, s.rate_override, COALESCE(r.name,'') AS room, COALESCE(u.name,'') AS iname
+                       FROM k30_ti_sessions s LEFT JOIN k30_pl_rooms r ON r.id=s.room_id LEFT JOIN users u ON u.id=s.instructor_id
+                      WHERE s.course_id=? AND s.status='draft' AND s.draft_id IS NULL ORDER BY s.lesson_date, s.time_from", [$course_id]) as $r) {
+        $n++; $dur = (int)$r['duration_min'] ?: max(0, ti_hm2min((string)$r['time_to']) - ti_hm2min((string)$r['time_from'])); $min += $dur;
+        $lm = (string)$r['lesson_method'];
+        $mode = $lm === 'stacjonarna' ? 'stacjonarnie' : (in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true) ? 'online' : 'bez metody');
+        $by_mode[$mode] += $dur;
+        $form = $M[$lm] ?? ($hybrid ? '⚠ BRAK METODY' : '—');
+        $room = $r['room'] !== '' ? $r['room'] : ($lm === 'stacjonarna' ? '⚠ bez sali' : '');
+        $rate = ((float)($r['rate_override'] ?? 0) > 0.005) ? number_format((float)$r['rate_override'], 2, ',', '') . ' zł' : '';
+        $rows[] = [(string)$n, date('d.m.Y', strtotime($r['lesson_date'])), $DN[(int)date('N', strtotime($r['lesson_date']))] ?? '',
+            $r['time_from'] !== '' ? substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5) : '—',
+            number_format($dur / 60, 1, ',', ''), $form, $room, $r['iname'], $rate, (string)$r['topic'], (string)$r['notes']];
+    }
+    $h = fn(int $m) => number_format($m / 60, 1, ',', '');
+    $sum = 'stacjonarnie ' . $h($by_mode['stacjonarnie']) . ' h · online ' . $h($by_mode['online']) . ' h' . ($by_mode['bez metody'] ? ' · bez metody ' . $h($by_mode['bez metody']) . ' h' : '');
+    return ['title' => 'Wersje robocze lekcji — ' . $c['name'],
+        'subtitle' => 'Typ kursu: ' . ($TYPE[$c['class_type']] ?? 'Indywidualny') . ($hybrid && $c['class_type'] !== 'hybrid' ? ' (hybrydowy)' : '') . ($c['subject'] !== '' ? ' · rodzaj zajęć: ' . $c['subject'] : '')
+            . ' · prowadzący: ' . $c['iname'] . ' · stan na ' . date('d.m.Y H:i') . ' · ' . $n . ' lekcji, razem ' . $h($min) . ' h (' . $sum . ') · niewidoczne dla kursantów, nie liczą się do rozliczeń',
+        'headers' => ['Lp.', 'Data', 'Dzień', 'Godziny', 'Godz.', 'Forma zajęć', 'Sala', 'Trener (zastępstwo)', 'Stawka ind.', 'Temat', 'Notatki'], 'rows' => $rows,
+        'w' => [0.8, 1.6, 1, 1.8, 1, 2, 1.8, 2, 1.4, 3, 3], 'num' => [4, 8]];
+}
+
+function sc_export_xlsx(array $ds, string $by, string $filename): void {
+    require_once dirname(__DIR__, 3) . '/includes/xlsx.php';
+    $x = new XlsxWriter(); $x->addSheet('Robocze');
+    $x->writeRow([$ds['title']], ['header']); $x->writeRow([$ds['subtitle']]); $x->writeRow([]);
+    $x->writeRow($ds['headers'], ['header']);
+    foreach ($ds['rows'] as $r) $x->writeRow($r);
+    if (!$ds['rows']) $x->writeRow(['Brak wersji roboczych.']);
+    $x->writeRow([]); $x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . $by]);
+    $x->output($filename);
+}

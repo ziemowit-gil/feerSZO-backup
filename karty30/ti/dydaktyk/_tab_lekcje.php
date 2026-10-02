@@ -45,6 +45,16 @@ if ($_sms_enabled && $cur_course) {
   <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
     <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
     <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
+    <?php
+      $_n_drafts = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='draft' AND draft_id IS NULL", [(int)$cur_course])['n'] ?? 0);
+      if ($_n_drafts > 0): ?>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Drukuj wersje robocze">
+      <span class="btn btn-outline-secondary disabled text-body" title="Wersje robocze nie są widoczne dla kursantów i nie liczą się do rozliczeń"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Robocze: <?= $_n_drafts ?></span>
+      <a class="btn btn-outline-secondary" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=pdf" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+      <a class="btn btn-outline-secondary" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</a>
+      <a class="btn btn-outline-secondary" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=xlsx"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Excel</a>
+    </div>
+    <?php endif; ?>
     <div class="ms-auto d-flex align-items-center gap-2">
       <div class="dropdown">
         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
