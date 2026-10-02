@@ -2098,13 +2098,15 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       </div>
       <?php endif; ?>
       <?php if (!$isPast): $isReserved = $isEdit && ($r['status'] ?? '') === 'reserved'; ?>
-      <div class="form-check form-switch mb-2 p-2 rounded" style="background:#EFF6FF">
+      <div class="mb-2 p-2 rounded" style="background:#EFF6FF">
+        <div class="form-check form-switch mb-0">
         <input class="form-check-input" type="checkbox" role="switch"
                id="<?= $pfx ?>_reservation" name="is_reservation" value="1" <?= $isReserved ? 'checked' : '' ?>
                onchange="document.getElementById('<?= $pfx ?>_pesel_wrap').style.display=this.checked?'':'none'; if(this.checked){var d=document.getElementById('<?= $pfx ?>_draft'); if(d) d.checked=false;}">
         <label class="form-check-label" for="<?= $pfx ?>_reservation">
           <i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>To jest rezerwacja terminu (nie ostateczna lekcja)
         </label>
+        </div>
         <div class="form-text mb-0">
           Termin zostaje zablokowany tak samo jak zwykła lekcja (nikt inny go nie zajmie), ale kursanci jej
           nie zobaczą, dopóki nie zostanie potwierdzona przyciskiem „Potwierdź rezerwację” na liście lekcji.
@@ -2121,13 +2123,15 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         </div>
       </div>
       <?php $isDraft = $isEdit && ($r['status'] ?? '') === 'draft'; ?>
-      <div class="form-check form-switch mb-2 p-2 rounded" style="background:#F9FAFB">
+      <div class="mb-2 p-2 rounded" style="background:#F9FAFB">
+        <div class="form-check form-switch mb-0">
         <input class="form-check-input" type="checkbox" role="switch"
                id="<?= $pfx ?>_draft" name="is_draft" value="1" <?= $isDraft ? 'checked' : '' ?>
                onchange="if(this.checked){var rv=document.getElementById('<?= $pfx ?>_reservation'); if(rv && rv.checked){rv.checked=false; document.getElementById('<?= $pfx ?>_pesel_wrap').style.display='none';}}">
         <label class="form-check-label" for="<?= $pfx ?>_draft">
           <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Zapisz jako wersję roboczą (szkic)
         </label>
+        </div>
         <div class="form-text mb-0">
           Termin widoczny tylko w panelu, nie liczy się do frekwencji ani rozliczeń — do czasu, aż ktoś
           zmieni status na „Zaplanowana".

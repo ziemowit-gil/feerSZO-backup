@@ -838,24 +838,28 @@ foreach ($_ext_for_wiz as $_we) {
           </select>
           <div class="form-text">Ta sama adnotacja dla wszystkich lekcji serii — niezależna od statusu.</div>
         </div>
-        <div class="form-check form-switch mb-2 p-2 rounded" style="background:#EFF6FF">
+        <div class="mb-2 p-2 rounded" style="background:#EFF6FF">
+          <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" role="switch" id="series_reservation" name="is_reservation" value="1"
                  onchange="document.getElementById('series_pesel_wrap').style.display=this.checked?'':'none'; if(this.checked){var d=document.getElementById('series_draft'); if(d) d.checked=false;}">
           <label class="form-check-label" for="series_reservation">
             <i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>Cała seria to rezerwacja terminu (nie ostateczne lekcje)
           </label>
+          </div>
           <div class="mt-2" id="series_pesel_wrap" style="display:none">
             <label class="form-label small mb-1" for="series_pesel">PESEL beneficjenta PFRON (opcjonalnie)</label>
             <input type="text" class="form-control form-control-sm" id="series_pesel" name="pfron_pesel" maxlength="11" inputmode="numeric" placeholder="11 cyfr">
             <div class="form-text mb-0">Temat każdej lekcji serii ustawi się jako „PFRON-XXX", pełny PESEL trafi do notatek.</div>
           </div>
         </div>
-        <div class="form-check form-switch mb-2 p-2 rounded" style="background:#F9FAFB">
+        <div class="mb-2 p-2 rounded" style="background:#F9FAFB">
+          <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" role="switch" id="series_draft" name="is_draft" value="1"
                  onchange="if(this.checked){var rv=document.getElementById('series_reservation'); if(rv && rv.checked){rv.checked=false; document.getElementById('series_pesel_wrap').style.display='none';}}">
           <label class="form-check-label" for="series_draft">
             <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Cała seria jako wersja robocza (szkic)
           </label>
+          </div>
         </div>
         <div class="mb-2">
           <label class="form-label" for="series_topic">Temat <span class="text-body-secondary small">(opc., wspólny)</span></label>
@@ -1222,11 +1226,13 @@ function dydSeriesEndToggle(){
           </select>
           <div class="form-text">Wspólna sala dla całego cyklu — dziedziczona przez wszystkie generowane lekcje.</div>
         </div>
-        <div class="form-check form-switch mb-2 p-2 rounded" style="background:#F9FAFB">
+        <div class="mb-2 p-2 rounded" style="background:#F9FAFB">
+          <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" role="switch" id="rec_draft" name="is_draft" value="1">
           <label class="form-check-label" for="rec_draft">
             <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Cały cykl jako wersja robocza (szkic)
           </label>
+          </div>
         </div>
       </div>
       <div class="modal-footer">

@@ -125,6 +125,23 @@ if (dyd_is_staff()) {
             $_it('',             'Pełny panel TI',        '../index.php',   0, 'secondary', true),
         ],
     ];
+    // Planowanie zajęć (planista) — osobna sekcja w pasku górnym
+    $_sc_pending = 0;
+    try { require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerWorkflow.php'; $_sc_pending = sc_pending_count(); } catch (\Throwable $e) {}
+    $_usos_sections['planowanie'] = [
+        'label' => 'Planowanie',
+        'href'  => 'planista.php',
+        'items' => [
+            $_it('', 'Planista (kalendarz i Gantt)', 'planista.php'),
+            $_it('', 'Zgłoszenia trenerów',          'zgloszenia.php', $_sc_pending, 'warning'),
+            $_it('', 'Generator ciągów zajęć',       'generatorCiagow.php'),
+            $_it('', 'Raporty planisty',             'raportyPlanisty.php'),
+            $_it('', 'Limity i kwalifikacje kadry',  'kadraLimity.php'),
+            $_it('', 'Urlopy prowadzących',          'urlopy.php'),
+            $_it('', 'Dostępności prowadzących',     'dostepnosci.php'),
+            $_it('', 'Dni wolne',                    'dni_wolne.php'),
+        ],
+    ];
     // „Rozliczenia” grupy stoi w sekcji Kierownik — nie dublujemy go w sekcji Kurs
     $_usos_sections['kurs']['items'] = array_values(array_filter(
         $_usos_sections['kurs']['items'], fn($i) => $i['tab'] !== 'rozliczenia'
