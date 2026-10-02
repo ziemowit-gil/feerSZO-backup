@@ -16,7 +16,7 @@ $tot = sc_report_totals($pay); $missing = sc_rooms_missing_count($ym);
 $weeksN = max(2, min(26, (int)($_GET['weeks'] ?? 8))); $cyc = sc_report_cycles(); $wl = sc_report_week_load($weeksN);
 $exp = function (string $k) use ($ym, $weeksN): string {
     $q = 'raportyPlanistyExport.php?r=' . $k . '&ym=' . urlencode($ym) . '&weeks=' . $weeksN;
-    return '<span class="ms-auto btn-group btn-group-sm"><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=pdf" target="_blank" rel="noopener">PDF</a><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=docx">Word</a><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=csv">CSV</a></span>';
+    return '<span class="ms-auto btn-group btn-group-sm"><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=pdf" target="_blank" rel="noopener">PDF</a><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=docx">Word</a><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=csv">CSV</a><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=html" target="_blank" rel="noopener" title="Wersja tekstowa bez tabel — dla czytników ekranu">Tekst</a><a class="btn btn-outline-secondary py-0" href="' . $q . '&fmt=txt" title="Plik TXT bez tabel">TXT</a></span>';
 };
 
 $money = fn($x) => number_format((float)$x, 2, ',', ' ') . ' zł';

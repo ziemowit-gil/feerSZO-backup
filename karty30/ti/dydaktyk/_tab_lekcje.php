@@ -45,44 +45,11 @@ if ($_sms_enabled && $cur_course) {
   <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
     <span class="fw-semibold"><i class="bi bi-calendar-week me-2"></i>Lekcje</span>
     <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
-    <?php
-      $_n_drafts = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='draft' AND draft_id IS NULL", [(int)$cur_course])['n'] ?? 0);
-      if ($_n_drafts > 0): ?>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Drukuj wersje robocze" id="dydDraftPrint" data-course="<?= (int)$cur_course ?>">
-      <span class="btn btn-outline-secondary disabled text-body" title="Wersje robocze nie są widoczne dla kursantów i nie liczą się do rozliczeń"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Robocze: <?= $_n_drafts ?></span>
-      <div class="btn-group btn-group-sm" role="group">
-        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Wybierz kolumny wydruku"><i class="bi bi-layout-three-columns me-1" aria-hidden="true"></i>Kolumny</button>
-        <div class="dropdown-menu p-2" style="min-width:16rem">
-          <?php require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerExport.php'; foreach (SC_DRAFT_COLS as $_ck => $_cl): ?>
-          <div class="form-check"><input class="form-check-input dyd-dcol" type="checkbox" id="dcol_<?= h($_ck) ?>" value="<?= h($_ck) ?>" checked><label class="form-check-label small" for="dcol_<?= h($_ck) ?>"><?= h($_cl) ?></label></div>
-          <?php endforeach; ?>
-          <div class="d-flex gap-2 mt-2"><button type="button" class="btn btn-sm btn-outline-secondary py-0" id="dcolAll">Wszystkie</button><button type="button" class="btn btn-sm btn-outline-secondary py-0" id="dcolNone">Żadne</button></div>
-        </div>
-      </div>
-      <a class="btn btn-outline-secondary dyd-dlink" data-fmt="pdf" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=pdf" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
-      <a class="btn btn-outline-secondary dyd-dlink" data-fmt="docx" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</a>
-      <a class="btn btn-outline-secondary dyd-dlink" data-fmt="xlsx" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=xlsx"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Excel</a>
-    </div>
-    <script>
-    (function () {
-      var root = document.getElementById('dydDraftPrint'); if (!root) return;
-      var boxes = root.querySelectorAll('.dyd-dcol'), key = 'dydDraftCols';
-      try { var saved = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(saved)) boxes.forEach(function (b) { b.checked = saved.indexOf(b.value) !== -1; }); } catch (e) {}
-      function sync() {
-        var on = []; boxes.forEach(function (b) { if (b.checked) on.push(b.value); });
-        try { localStorage.setItem(key, JSON.stringify(on)); } catch (e) {}
-        root.querySelectorAll('.dyd-dlink').forEach(function (a) {
-          a.href = 'roboczeExport.php?course_id=' + root.dataset.course + '&fmt=' + a.dataset.fmt + (on.length && on.length < boxes.length ? '&cols=' + encodeURIComponent(on.join(',')) : '');
-        });
-      }
-      boxes.forEach(function (b) { b.addEventListener('change', sync); });
-      document.getElementById('dcolAll').onclick = function () { boxes.forEach(function (b) { b.checked = true; }); sync(); };
-      document.getElementById('dcolNone').onclick = function () { boxes.forEach(function (b) { b.checked = false; }); sync(); };
-      sync();
-    })();
-    </script>
-    <?php endif; ?>
+    <?php $_n_drafts = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='draft' AND draft_id IS NULL", [(int)$cur_course])['n'] ?? 0); ?>
     <div class="ms-auto d-flex align-items-center gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydPrintModal">
+        <i class="bi bi-printer me-1" aria-hidden="true"></i>Wydruki<?php if ($_n_drafts > 0): ?> <span class="badge text-bg-secondary" title="Wersje robocze"><?= $_n_drafts ?></span><?php endif; ?>
+      </button>
       <div class="dropdown">
         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="bi bi-three-dots me-1"></i>Więcej
@@ -99,55 +66,13 @@ if ($_sms_enabled && $cur_course) {
           </a></li>
           <?php if ($all_sessions): ?>
           <li><hr class="dropdown-divider"></li>
-          <li><h6 class="dropdown-header">Raporty PDF</h6></li>
-          <li><a class="dropdown-item" href="attendance_pdf.php?course_id=<?= $cur_course ?>">
-            <i class="bi bi-table me-2"></i>Lista obecności (cały kurs)
+          <li><h6 class="dropdown-header">Wydruki i kalendarz</h6></li>
+          <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydPrintModal">
+            <i class="bi bi-printer me-2"></i>Wydruki… (plan, frekwencja, raporty, robocze)
           </a></li>
-          <?php if (dyd_is_staff()): ?>
-          <li><a class="dropdown-item" href="dziennik_pdf.php?course_id=<?= $cur_course ?>" target="_blank">
-            <i class="bi bi-journal-bookmark me-2"></i>Dziennik zajęć (PDF)
-          </a></li>
-          <?php endif; ?>
-          <?php
-            $prev  = date('Y-m', strtotime('-1 month'));
-            $prev2 = date('Y-m', strtotime('-2 months'));
-          ?>
-          <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= date('Y-m') ?>">
-            <i class="bi bi-calendar-month me-2"></i>Raport bieżący (<?= date('Y-m') ?>)
-          </a></li>
-          <li><a class="dropdown-item" href="attendance_monthly.php?course_id=<?= $cur_course ?>&month=<?= $prev ?>">
-            <i class="bi bi-calendar-month me-2"></i>Raport <?= $prev ?>
-          </a></li>
-          <li><a class="dropdown-item" href="self_work.php?month=<?= date('Y-m') ?>">
-            <i class="bi bi-person-workspace me-2"></i>Praca własna (bieżący)
-          </a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><h6 class="dropdown-header">Plan zajęć (dla ucznia/rodzica)</h6></li>
-          <li><a class="dropdown-item" href="harmonogram_pdf.php?course_id=<?= $cur_course ?>" target="_blank">
-            <i class="bi bi-file-earmark-pdf me-2"></i>Plan zajęć — PDF
-          </a></li>
-          <li><a class="dropdown-item" href="harmonogram_xlsx.php?course_id=<?= $cur_course ?>">
-            <i class="bi bi-file-earmark-spreadsheet me-2"></i>Plan zajęć — Excel (XLSX)
-          </a></li>
-          <li><a class="dropdown-item" href="harmonogram_docx.php?course_id=<?= $cur_course ?>">
-            <i class="bi bi-file-earmark-word me-2"></i>Plan zajęć — Word (DOCX)
-          </a></li>
-          <li><a class="dropdown-item" href="plan_librus.php?course_id=<?= $cur_course ?>" target="_blank">
-            <i class="bi bi-grid-3x3 me-2"></i>Plan zajęć — siatka
-          </a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><h6 class="dropdown-header">Kalendarz</h6></li>
           <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#dydCalSubModal">
-            <i class="bi bi-calendar-check me-2"></i>Subskrybuj / pobierz
+            <i class="bi bi-calendar-check me-2"></i>Subskrybuj / pobierz kalendarz
           </a></li>
-          <li><a class="dropdown-item" href="plan_print.php?instructor_id=<?= $uid ?>" target="_blank">
-            <i class="bi bi-printer me-2"></i>Wydruk mojego planu tygodniowego
-          </a></li>
-          <?php if (dyd_is_staff() && !empty($course['instructor_id']) && (int)$course['instructor_id'] !== $uid): ?>
-          <li><a class="dropdown-item" href="plan_print.php?instructor_id=<?= (int)$course['instructor_id'] ?>" target="_blank">
-            <i class="bi bi-printer me-2"></i>Wydruk planu — <?= h($course['instructor_name'] ?? '') ?>
-          </a></li>
-          <?php endif; ?>
           <?php endif; ?>
           <li><hr class="dropdown-divider"></li>
           <li>
@@ -1308,6 +1233,7 @@ function dydRecurringModeToggle(){
               . '/karty30/ti/dydaktyk/ical.php?uid=' . $uid . '&t=' . $cal_tok;
   $cal_webcal = preg_replace('#^https?://#i', 'webcal://', $cal_base);
 ?>
+<?php include __DIR__ . '/_wydruki_modal.php'; ?>
 <div class="modal fade" id="dydCalSubModal" tabindex="-1" aria-labelledby="dydCalSubTitle" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
     <div class="modal-header">

@@ -73,7 +73,7 @@ function sc_export_pdf(array $ds, string $by): string {
     return $pdf->Output('S');
 }
 
-function sc_export_docx(array $ds, string $by): void {
+function sc_export_docx(array $ds, string $by, string $filename = 'raport_planisty.docx'): void {
     require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
     $w = new \PhpOffice\PhpWord\PhpWord();
     $w->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
@@ -92,7 +92,7 @@ function sc_export_docx(array $ds, string $by): void {
     if (!$ds['rows']) $sec->addText('Brak danych dla wybranego okresu.');
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    header('Content-Disposition: attachment; filename="raport_planisty.docx"');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
     \PhpOffice\PhpWord\IOFactory::createWriter($w, 'Word2007')->save('php://output');
 }
 
@@ -164,4 +164,62 @@ function sc_export_xlsx(array $ds, string $by, string $filename): void {
     if (!$ds['rows']) $x->writeRow(['Brak wersji roboczych.']);
     $x->writeRow([]); $x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . $by]);
     $x->output($filename);
+}
+
+/* ───────── Wersja tekstowa bez tabel (czytniki ekranu) ───────── */
+
+/** Pozycje tabeli jako pełne zdania: „1. Data: …. Godziny: …." (puste pola pomijane). @return list<string> */
+function sc_text_items(array $ds): array {
+    $out = [];
+    foreach ($ds['rows'] as $i => $r) {
+        $parts = [];
+        foreach ($ds['headers'] as $k => $h) {
+            $v = trim((string)($r[$k] ?? ''));
+            if ($v === '' || $v === '—' || ($h === 'Lp.')) continue;
+            $parts[] = rtrim($h, '.:') . ': ' . str_replace(['⚠ ', '⚠'], 'uwaga: ', $v);
+        }
+        $out[] = ($i + 1) . '. ' . ($parts ? implode('. ', $parts) . '.' : 'brak danych.');
+    }
+    return $out;
+}
+
+/** Dostępna strona HTML: nagłówki, lista numerowana, bez tabel; gotowa do druku. */
+function sc_export_text_html(array $ds, string $by): string {
+    $e = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+    $items = sc_text_items($ds);
+    $h = '<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . $e($ds['title']) . '</title>'
+       . '<style>body{font:1.1rem/1.6 system-ui,Arial,sans-serif;max-width:50rem;margin:1.5rem auto;padding:0 1rem;color:#111}h1{font-size:1.6rem}h2{font-size:1.25rem;margin-top:1.5rem}'
+       . 'li{margin:.6rem 0}.meta{color:#333}.skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:#fff;padding:.4rem}@media print{.noprint{display:none}body{font-size:12pt}}</style></head><body>'
+       . '<a class="skip noprint" href="#lista">Przejdź do listy</a><main><h1>' . $e($ds['title']) . '</h1><p class="meta">' . $e($ds['subtitle']) . '</p>'
+       . '<p class="noprint"><button onclick="window.print()">Drukuj</button></p>'
+       . '<h2 id="lista">Pozycje: ' . count($items) . '</h2>';
+    $h .= $items ? '<ol>' . implode('', array_map(fn($t) => '<li>' . $e(preg_replace('/^\d+\.\s*/', '', $t)) . '</li>', $items)) . '</ol>' : '<p>Brak danych.</p>';
+    return $h . '<footer><p class="meta">Wygenerowano: ' . $e(date('d.m.Y H:i')) . ' przez ' . $e($by) . '.</p></footer></main></body></html>';
+}
+
+function sc_export_text_plain(array $ds, string $by): string {
+    $t = $ds['title'] . "\n" . str_repeat('=', min(60, mb_strlen($ds['title']))) . "\n" . $ds['subtitle'] . "\n\n";
+    $items = sc_text_items($ds);
+    $t .= $items ? implode("\n", $items) . "\n" : "Brak danych.\n";
+    return $t . "\nWygenerowano: " . date('d.m.Y H:i') . ' przez ' . $by . ".\n";
+}
+
+/** Wysyła wersję tekstową: html (strona dostępna) albo txt (plik). */
+function sc_export_text_send(array $ds, string $by, string $fmt, string $basename): void {
+    while (ob_get_level() > 0) ob_end_clean();
+    if ($fmt === 'txt') {
+        header('Content-Type: text/plain; charset=UTF-8'); header('Content-Disposition: attachment; filename="' . $basename . '.txt"');
+        echo sc_export_text_plain($ds, $by); return;
+    }
+    header('Content-Type: text/html; charset=UTF-8'); header('Cache-Control: private, no-store');
+    echo sc_export_text_html($ds, $by);
+}
+
+/** Lista wszystkich lekcji grupy (odbyte, zaplanowane, odwołane) jako tabela — dla planu zajęć w wersji tekstowej. */
+function sc_lesson_list_dataset(int $course_id): array {
+    require_once dirname(__DIR__, 2) . '/ti_pdf/logic/lessonList.php';
+    $c = db_one("SELECT c.name, c.class_type, COALESCE(u.name,'—') AS iname FROM k30_ti_courses c LEFT JOIN users u ON u.id=c.instructor_id WHERE c.id=?", [$course_id]) ?: ['name' => '', 'class_type' => '', 'iname' => '—'];
+    $rows = []; foreach (ti_course_lesson_list($course_id) as $r) $rows[] = [(string)$r['n'], $r['date'], $r['dow'], $r['time'], $r['method'], $r['topic'], $r['status_label'] . ($r['upcoming'] ? ' (nadchodząca)' : '')];
+    return ['title' => 'Lista zajęć — ' . $c['name'], 'subtitle' => 'Prowadzący: ' . $c['iname'] . ' · stan na ' . date('d.m.Y H:i') . ' · odbyte, zaplanowane i odwołane lekcje',
+        'headers' => ['Lp.', 'Data', 'Dzień', 'Godziny', 'Forma', 'Temat', 'Status'], 'rows' => $rows, 'keys' => [], 'w' => [1, 1, 1, 1, 1, 1, 1], 'num' => []];
 }
