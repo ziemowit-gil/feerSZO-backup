@@ -213,6 +213,11 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
             <span class="badge ms-1" style="font-size:.6rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
                   title="Nauczanie indywidualne — to też grupa">NI</span>
             <?php endif; ?>
+            <?php if (($c['class_type'] ?? '') === 'hybrid'): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"
+                  title="Kurs hybrydowy — lekcje online i stacjonarnie, inna stawka za tryb">Hybryda</span>
+            <?php endif; ?>
+
             <?php if (!empty($c['is_subgroup'])): ?>
             <span class="badge ms-1" style="font-size:.6rem;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe">1I</span>
             <?php endif; ?>

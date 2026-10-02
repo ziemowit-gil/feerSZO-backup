@@ -27,10 +27,11 @@ function ti_course_is_hybrid(int $course_id): bool {
     if (!$course_id) return false;
     if (!isset($c[$course_id])) {
         $r = db_one("SELECT
+            (SELECT COUNT(*) FROM k30_ti_courses WHERE id=? AND class_type='hybrid') AS typed,
             (SELECT COUNT(*) FROM k30_ti_enrollments WHERE course_id=? AND status='active' AND COALESCE(hourly_rate_online,0)>0.005) AS online_rate,
             (SELECT COUNT(DISTINCT CASE WHEN lesson_method='stacjonarna' THEN 's' WHEN lesson_method IN ('zdalna_zoom','zdalna_inne') THEN 'r' END)
-               FROM k30_ti_sessions WHERE course_id=? AND status!='cancelled' AND lesson_method!='') AS kinds", [$course_id, $course_id]);
-        $c[$course_id] = (int)($r['online_rate'] ?? 0) > 0 || (int)($r['kinds'] ?? 0) >= 2;
+               FROM k30_ti_sessions WHERE course_id=? AND status!='cancelled' AND lesson_method!='') AS kinds", [$course_id, $course_id, $course_id]);
+        $c[$course_id] = (int)($r['typed'] ?? 0) > 0 || (int)($r['online_rate'] ?? 0) > 0 || (int)($r['kinds'] ?? 0) >= 2;
     }
     return $c[$course_id];
 }

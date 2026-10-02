@@ -2552,6 +2552,7 @@ const K30_TI_COURSE_LOG_ACTIONS = [
     'close'      => ['label' => 'Zamknięto i zarchiwizowano', 'icon' => 'lock',                 'color' => 'dark'],
     'transfer_out' => ['label' => 'Przeniesiono zajęcia/link', 'icon' => 'box-arrow-right',   'color' => 'info'],
     'transfer_in'  => ['label' => 'Przyjęto zajęcia/link',     'icon' => 'box-arrow-in-left', 'color' => 'info'],
+    'convert_type' => ['label' => 'Zmieniono typ kursu',        'icon' => 'arrow-left-right',  'color' => 'warning'],
     'clear_sessions' => ['label' => 'Wyczyszczono terminy',    'icon' => 'calendar-x',        'color' => 'warning'],
     'enroll'       => ['label' => 'Zapisano uczestnika',       'icon' => 'person-plus',       'color' => 'success'],
 ];

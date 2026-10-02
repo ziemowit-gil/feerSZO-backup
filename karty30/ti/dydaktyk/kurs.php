@@ -226,6 +226,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: kurs.php?id=' . $id . '&pc=1'); exit;
     }
 
+    // ── Konwerter typu kursu (indywidualny / grupowy / hybryda) — TYLKO kierownik ──
+    if ($op === 'convert_type') {
+        if (!dyd_is_staff()) { flash_set('danger', 'Typ kursu zmienia tylko kierownik.'); header('Location: kurs.php?id=' . $id); exit; }
+        $types = ['individual' => 'Indywidualny', 'group' => 'Grupowy', 'hybrid' => 'Hybryda'];
+        $new = (string)($_POST['new_type'] ?? '');
+        $old = (string)(db_one("SELECT class_type FROM k30_ti_courses WHERE id=?", [$id])['class_type'] ?? 'individual');
+        if (!isset($types[$new]) || $new === $old) { flash_set('warning', 'Wybierz inny typ kursu.'); header('Location: kurs.php?id=' . $id); exit; }
+        db()->prepare("UPDATE k30_ti_courses SET class_type=? WHERE id=?")->execute([$new, $id]);
+        $fm = (string)($_POST['fill_method'] ?? ''); $filled = 0;
+        if ($new === 'hybrid' && in_array($fm, ['stacjonarna', 'zdalna_zoom', 'zdalna_inne'], true)) {
+            // Tylko przyszłe, nieodbyte lekcje bez metody — lekcje odbyte i rozliczone zostają nietknięte
+            $st = db()->prepare("UPDATE k30_ti_sessions SET lesson_method=?, updated_at=datetime('now')
+                                  WHERE course_id=? AND lesson_method='' AND lesson_date>=? AND status IN ('planned','reserved','draft')");
+            $st->execute([$fm, $id, date('Y-m-d')]); $filled = $st->rowCount();
+        }
+        ti_course_log($id, 'convert_type', $types[$old] . ' → ' . $types[$new] . ($filled ? " (ustawiono metodę w $filled przyszłych lekcjach)" : ''), $uid, $dyd_name);
+        flash_set('success', 'Typ kursu zmieniony: ' . $types[$old] . ' → ' . $types[$new] . '.' . ($filled ? " Ustawiono metodę w $filled przyszłych lekcjach." : ''));
+        header('Location: kurs.php?id=' . $id); exit;
+    }
+
     // ── Edycja metadanych kursu przez kierownika (pełny zestaw pól admina) ───
     if ($op === 'update_course') {
         $name = trim($_POST['name'] ?? '');
@@ -278,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'no_invoice'          => isset($_POST['no_invoice']) ? 1 : 0,
             'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
             'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
-            'class_type'          => in_array($_POST['class_type'] ?? '', ['individual', 'group'], true) ? $_POST['class_type'] : 'individual',
+            // class_type NIE jest tu zmieniany — typ kursu zmienia wyłącznie Konwerter typu (op convert_type)
             'is_oneoff'           => $up_oneoff,
             'oneoff_date'         => $up_oneoff ? $up_oneoff_date : null,
             'plan_status'         => $up_plan_status,
@@ -386,7 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($ku_f === 'billing_model') {
                 $ku_changes[] = "$ku_lbl: " . k30_ti_billing_model_label((int)$ku_new);
             } elseif ($ku_f === 'class_type') {
-                $ku_changes[] = "$ku_lbl: " . ($ku_new === 'group' ? 'Grupowy' : 'Indywidualny');
+                $ku_changes[] = "$ku_lbl: " . ($ku_new === 'group' ? 'Grupowy' : ($ku_new === 'hybrid' ? 'Hybryda' : 'Indywidualny'));
             } elseif ($ku_f === 'description') {
                 $ku_changes[] = "$ku_lbl zmieniony";   // pełna treść bez sensu w jednowierszowym logu
             } else {
@@ -527,6 +547,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia grupy</a>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#courseEditModal">
       <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj kurs</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#convertTypeModal">
+      <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwerter typu</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#priceChangeModal">
       <i class="bi bi-tag me-1" aria-hidden="true"></i>Zmiana ceny
       <?php if ($price_changes): ?><span class="badge bg-secondary ms-1"><?= count($price_changes) ?></span><?php endif; ?>
@@ -1092,6 +1114,41 @@ foreach ($enrollments as $e): ?>
 <?php endforeach; endif; ?>
 
 <!-- Modal: edycja metadanych kursu przez kierownika -->
+<?php
+$_ct_labels = ['individual' => 'Indywidualny', 'group' => 'Grupowy', 'hybrid' => 'Hybryda (online + stacjonarnie)'];
+$_ct_cur = (string)($course['class_type'] ?? 'individual');
+$_ct_nomethod = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND lesson_method='' AND lesson_date>=? AND status IN ('planned','reserved','draft')", [$id, date('Y-m-d')])['n'] ?? 0);
+$_ct_enr = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$id])['n'] ?? 0);
+?>
+<div class="modal fade" id="convertTypeModal" tabindex="-1" aria-labelledby="convertTypeLbl" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_op" value="convert_type">
+      <div class="modal-header"><h2 class="modal-title h5" id="convertTypeLbl"><i class="bi bi-arrow-left-right me-2"></i>Konwerter typu kursu</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
+      <div class="modal-body">
+        <p class="small text-body-secondary">Typ kursu zmienia wyłącznie kierownik. Zmiana nie rusza lekcji odbytych ani rozliczeń z przeszłości.</p>
+        <p class="mb-2">Obecny typ: <strong><?= h($_ct_labels[$_ct_cur] ?? $_ct_cur) ?></strong> · uczestników: <?= $_ct_enr ?></p>
+        <label class="form-label small fw-semibold mb-1" for="ct_new">Nowy typ</label>
+        <select id="ct_new" name="new_type" class="form-select form-select-sm mb-2" required>
+          <?php foreach ($_ct_labels as $k => $l): if ($k === $_ct_cur) continue; ?><option value="<?= h($k) ?>"><?= h($l) ?></option><?php endforeach; ?>
+        </select>
+        <div id="ct_hybrid_opts">
+          <div class="alert alert-info py-2 small mb-2">Hybryda: każda lekcja musi mieć metodę (stacjonarna lub zdalna), stacjonarna wymaga sali (albo rezerwacji), a terminy, metodę i odwołania zmienia tylko kierownik. Stawki online i stacjonarne ustawisz przy uczestnikach.</div>
+          <label class="form-label small fw-semibold mb-1" for="ct_fill">Przyszłe lekcje bez metody (<?= $_ct_nomethod ?>)</label>
+          <select id="ct_fill" name="fill_method" class="form-select form-select-sm">
+            <option value="">nie zmieniaj — uzupełnię ręcznie</option>
+            <option value="stacjonarna">ustaw: stacjonarna</option>
+            <option value="zdalna_zoom">ustaw: zdalna — Zoom</option>
+            <option value="zdalna_inne">ustaw: zdalna — inne</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button><button type="submit" class="btn btn-primary" onclick="return confirm('Zmienić typ kursu?')">Zmień typ</button></div>
+    </form>
+  </div></div>
+</div>
+<script>(function(){var s=document.getElementById('ct_new'),o=document.getElementById('ct_hybrid_opts');if(!s||!o)return;function f(){o.style.display=s.value==='hybrid'?'':'none';}s.addEventListener('change',f);f();})();</script>
+
 <div class="modal fade" id="courseEditModal" tabindex="-1" aria-labelledby="courseEditLbl" aria-hidden="true">
  <div class="modal-dialog modal-lg modal-dialog-scrollable">
   <div class="modal-content">
@@ -1122,10 +1179,9 @@ foreach ($enrollments as $e): ?>
       </div>
       <div class="col-sm-4">
         <label class="form-label small fw-semibold mb-1" for="ed_class">Typ</label>
-        <select id="ed_class" name="class_type" class="form-select form-select-sm">
-          <option value="individual" <?= ($course['class_type'] ?? 'individual') === 'individual' ? 'selected' : '' ?>>Indywidualny</option>
-          <option value="group" <?= ($course['class_type'] ?? '') === 'group' ? 'selected' : '' ?>>Grupowy</option>
-        </select>
+        <input type="text" id="ed_class" class="form-control form-control-sm" readonly aria-readonly="true"
+               value="<?= h(['individual' => 'Indywidualny', 'group' => 'Grupowy', 'hybrid' => 'Hybryda'][$course['class_type'] ?? 'individual'] ?? 'Indywidualny') ?>">
+        <div class="form-text mt-0">Zmiana typu: przycisk „Konwerter typu”.</div>
       </div>
 
       <div class="col-sm-4">

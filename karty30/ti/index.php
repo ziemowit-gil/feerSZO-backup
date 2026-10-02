@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         // dalej, blokujemy wyłącznie wystawianie faktur (np. zajęcia z dotacji).
         'no_invoice'          => isset($_POST['no_invoice']) ? 1 : 0,
         'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
-        'class_type'          => in_array($_POST['class_type'] ?? '', ['individual','group'], true) ? $_POST['class_type'] : 'individual',
+        'class_type'          => in_array($_POST['class_type'] ?? '', ['individual','group','hybrid'], true) ? $_POST['class_type'] : 'individual',
     ];
     if (!$data['name']) { flash_set('danger','Nazwa kursu jest wymagana.'); header('Location: index.php'); exit; }
 
@@ -441,6 +441,11 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <input class="form-check-input" type="radio" name="class_type" id="ct_group" value="group"
                    <?= ($f['class_type']??'')==='group'?'checked':'' ?>>
             <label class="form-check-label" for="ct_group"><i class="bi bi-people me-1"></i>Grupowe</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="class_type" id="ct_hybrid" value="hybrid"
+                   <?= ($f['class_type']??'')==='hybrid'?'checked':'' ?>>
+            <label class="form-check-label" for="ct_hybrid"><i class="bi bi-layers-half me-1"></i>Hybryda (online + stacjonarnie)</label>
           </div>
         </div>
       </div>

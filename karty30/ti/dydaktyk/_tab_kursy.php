@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                 'pay_due_days'        => ((int)($_POST['pay_due_days'] ?? 0)) ?: null,
                 'lesson_payout_bb'    => max(0, (float)str_replace(',', '.', (string)($_POST['lesson_payout_bb'] ?? '0'))),
                 'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
-                'class_type'          => in_array($_POST['class_type'] ?? '', ['individual','group'], true) ? $_POST['class_type'] : 'individual',
+                'class_type'          => in_array($_POST['class_type'] ?? '', ['individual','group','hybrid'], true) ? $_POST['class_type'] : 'individual',
                 // Sesja panelu dydaktyka: current_user() jest tu puste — tożsamość z dyd_require()
                 'created_by'          => $uid ?? null,
                 'created_at'          => date('Y-m-d H:i:s'),
@@ -554,7 +554,7 @@ unset($_SESSION['dyd_flash']);
         var lv = document.getElementById('kug_level');
         if (!lv) return;
         if (this.value === 'individual') lv.value = 'NI';
-        else if (lv.value === 'NI')      lv.value = 'P';
+        else if (this.value === 'group' && lv.value === 'NI') lv.value = 'P';
       });
       </script>
     </div>
@@ -563,6 +563,7 @@ unset($_SESSION['dyd_flash']);
       <select id="ku_class_type" name="class_type" class="form-select form-select-sm">
         <option value="individual">Indywidualny</option>
         <option value="group">Grupowy</option>
+        <option value="hybrid">Hybryda (online + stacjonarnie)</option>
       </select>
     </div>
 
@@ -840,6 +841,11 @@ function dydKuMoveOpen(fromId, fromName) {
             <span class="badge ms-1" style="font-size:.6rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
                   title="Nauczanie indywidualne — to też grupa">NI</span>
             <?php endif; ?>
+            <?php if (($c['class_type'] ?? '') === 'hybrid'): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"
+                  title="Kurs hybrydowy — lekcje online i stacjonarnie, inna stawka za tryb">Hybryda</span>
+            <?php endif; ?>
+
             <?php if (!empty($c['is_online'])): ?>
             <span class="badge ms-1" style="font-size:.6rem;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd">Online</span>
             <?php endif; ?>
@@ -978,9 +984,9 @@ function dydKuMoveOpen(fromId, fromName) {
   $cid = (int)$c['id'];
 ?>
 <div class="dyd-ku-card">
-  <div class="dyd-ku-icon" title="<?= ($c['class_type']??'') === 'group' ? 'Zajęcia grupowe' : 'Nauczanie indywidualne' ?>">
-    <i class="bi bi-<?= ($c['class_type']??'') === 'group' ? 'people' : 'person-workspace' ?>" aria-hidden="true"></i>
-    <span class="visually-hidden"><?= ($c['class_type']??'') === 'group' ? 'Zajęcia grupowe' : 'Nauczanie indywidualne' ?></span>
+  <div class="dyd-ku-icon" title="<?= ($c['class_type']??'') === 'group' ? 'Zajęcia grupowe' : (($c['class_type']??'') === 'hybrid' ? 'Kurs hybrydowy (online + stacjonarnie)' : 'Nauczanie indywidualne') ?>">
+    <i class="bi bi-<?= ($c['class_type']??'') === 'group' ? 'people' : (($c['class_type']??'') === 'hybrid' ? 'layers-half' : 'person-workspace') ?>" aria-hidden="true"></i>
+    <span class="visually-hidden"><?= ($c['class_type']??'') === 'group' ? 'Zajęcia grupowe' : (($c['class_type']??'') === 'hybrid' ? 'Kurs hybrydowy' : 'Nauczanie indywidualne') ?></span>
   </div>
   <div class="dyd-ku-body">
     <div class="dyd-ku-name"><?= h($c['name']) ?></div>
