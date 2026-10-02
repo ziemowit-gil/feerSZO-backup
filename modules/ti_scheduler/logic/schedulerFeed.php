@@ -38,8 +38,10 @@ function sc_session_movable(string $status): bool {
 }
 
 /** @return array{sessions:list<array>, instructors:list<array>, rooms:list<array>, courses:list<array>, avail:array, leaves:array, holidays:list<string>} */
-function sc_feed(string $from, string $to): array {
+function sc_feed(string $from, string $to, int $scenario = 0): array {
     ti_sched_migrate();
+    $changes = [];
+    if ($scenario) foreach (db_all("SELECT * FROM k30_sc_scenario_changes WHERE scenario_id=?", [$scenario]) as $c) $changes[(int)$c['session_id']] = $c;
     $rows = db_all(
         "SELECT s.id, s.course_id, s.lesson_date, s.time_from, s.time_to, s.status, s.topic, s.lesson_method,
                 s.instructor_id AS s_instr, c.instructor_id AS c_instr, s.room_id, s.series_id, s.rescheduled_from_date,
@@ -50,10 +52,12 @@ function sc_feed(string $from, string $to): array {
            LEFT JOIN users u ON u.id=COALESCE(s.instructor_id,c.instructor_id)
            LEFT JOIN k30_pl_rooms r ON r.id=s.room_id
            LEFT JOIN k30_sc_session_state st ON st.session_id=s.id
-          WHERE s.lesson_date BETWEEN ? AND ? AND s.draft_id IS NULL
+          WHERE (s.lesson_date BETWEEN ? AND ?
+                 OR s.id IN (SELECT session_id FROM k30_sc_scenario_changes WHERE scenario_id=? AND new_date BETWEEN ? AND ?))
+            AND s.draft_id IS NULL
             AND COALESCE(c.closed_at,'')='' AND COALESCE(c.status,'active')!='cancelled'
           ORDER BY s.lesson_date, s.time_from",
-        [$from, $to]
+        [$from, $to, $scenario, $from, $to]
     );
     $sessions = [];
     foreach ($rows as $r) {
@@ -70,9 +74,20 @@ function sc_feed(string $from, string $to): array {
             'topic' => (string)($r['topic'] ?? ''), 'method' => (string)($r['lesson_method'] ?? ''),
             'moved' => !empty($r['rescheduled_from_date']), 'series' => (int)$r['series_id'],
             'client_ok' => !empty($r['client_confirmed_at']), 'instr_ok' => !empty($r['instr_confirmed_at']),
-            'conflicts' => [],
+            'conflicts' => [], 'changed' => false,
         ];
+        if (isset($changes[(int)$r['id']])) {
+            $c = $changes[(int)$r['id']]; $k = count($sessions) - 1;
+            $sessions[$k]['orig'] = ['date' => $sessions[$k]['date'], 'from' => $sessions[$k]['from'], 'to' => $sessions[$k]['to'],
+                                     'instructor_id' => $sessions[$k]['instructor_id'], 'instructor' => $sessions[$k]['instructor'], 'room_id' => $sessions[$k]['room_id'], 'room' => $sessions[$k]['room']];
+            $sessions[$k]['date'] = (string)$c['new_date']; $sessions[$k]['from'] = (string)$c['new_from']; $sessions[$k]['to'] = (string)$c['new_to'];
+            $sessions[$k]['instructor_id'] = (int)$c['new_instructor_id']; $sessions[$k]['room_id'] = (int)$c['new_room_id'];
+            $sessions[$k]['instructor'] = $c['new_instructor_id'] ? (string)(db_one("SELECT COALESCE(NULLIF(TRIM(first_name||' '||last_name),''), name) AS n FROM users WHERE id=?", [(int)$c['new_instructor_id']])['n'] ?? '') : '';
+            $sessions[$k]['room'] = $c['new_room_id'] ? (string)(db_one("SELECT name FROM k30_pl_rooms WHERE id=?", [(int)$c['new_room_id']])['name'] ?? '') : '';
+            $sessions[$k]['changed'] = true;
+        }
     }
+    $sessions = array_values(array_filter($sessions, fn($x) => $x['date'] >= $from && $x['date'] <= $to));
     // Nakładania w obrębie pobranego zakresu (trener / sala / grupa)
     $groups = [];
     foreach ($sessions as $i => $s) {
@@ -101,6 +116,7 @@ function sc_feed(string $from, string $to): array {
           WHERE u.id IN (SELECT instructor_id FROM k30_ti_courses WHERE instructor_id IS NOT NULL
                           AND COALESCE(closed_at,'')='' AND COALESCE(status,'active')!='cancelled')
              OR u.id IN (SELECT instructor_id FROM k30_ti_sessions WHERE instructor_id IS NOT NULL AND lesson_date BETWEEN ? AND ?)
+             OR (u.k30_consultant=1 AND u.is_active=1)
           ORDER BY u.name", [$from, $to]) as $u) $instr[] = ['id' => (int)$u['id'], 'name' => (string)$u['name']];
     $rooms = [];
     foreach (db_all("SELECT id, name, capacity FROM k30_pl_rooms WHERE is_active=1 ORDER BY name") as $r) $rooms[] = ['id' => (int)$r['id'], 'name' => (string)$r['name'], 'capacity' => (int)$r['capacity']];

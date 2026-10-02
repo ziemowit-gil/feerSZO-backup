@@ -101,4 +101,29 @@ function ti_sched_migrate(): void {
         resolved_at   TEXT,
         UNIQUE(request_id, session_id)
     )");
+
+    // Scenariusze „co jeśli": nakładka zmian na oficjalny plan — k30_ti_sessions pozostaje nietknięte
+    // do momentu publikacji, więc wypłaty, billing i plany kursantów nie widzą wersji roboczych.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_sc_scenarios (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        title        TEXT    NOT NULL,
+        note         TEXT    NOT NULL DEFAULT '',
+        status       TEXT    NOT NULL DEFAULT 'open',
+        created_by   INTEGER,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        published_by INTEGER,
+        published_at TEXT
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_sc_scenario_changes (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        scenario_id   INTEGER NOT NULL,
+        session_id    INTEGER NOT NULL,
+        new_date      TEXT    NOT NULL,
+        new_from      TEXT    NOT NULL,
+        new_to        TEXT    NOT NULL,
+        new_instructor_id INTEGER NOT NULL DEFAULT 0,
+        new_room_id   INTEGER NOT NULL DEFAULT 0,
+        updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(scenario_id, session_id)
+    )");
 }

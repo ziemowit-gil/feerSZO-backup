@@ -59,6 +59,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .sc-chip.sc-conf { box-shadow:inset 0 0 0 2px #b91c1c; }
   .sc-chip.sc-dragging { opacity:.4; }
   .sc-cell.sc-drop { outline:2px solid #2563eb; outline-offset:-2px; background:#eff6ff; }
+  .sc-chg { border-style:dashed !important; outline:2px solid #2563eb; outline-offset:1px; }
   .sc-toast { position:fixed; right:1rem; bottom:1rem; z-index:2000; max-width:420px; }
   .sc-issue { font-size:.85rem; margin:.15rem 0; }
   .sc-issue.h { color:#b91c1c; } .sc-issue.s { color:#b45309; }
@@ -98,6 +99,16 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="form-check form-check-inline mb-0 small"><input class="form-check-input" type="checkbox" id="scHideEmpty"><label class="form-check-label" for="scHideEmpty">Ukryj puste</label></div>
   <div class="form-check form-check-inline mb-0 small"><input class="form-check-input" type="checkbox" id="scNotify"><label class="form-check-label" for="scNotify">Powiadom kursantów o zmianie</label></div>
 </div>
+<div class="sc-bar" id="scScnBar">
+  <label class="small mb-0" for="scScn">Wersja planu:</label>
+  <select class="form-select form-select-sm" style="width:auto;max-width:16rem" id="scScn"></select>
+  <button type="button" class="btn btn-outline-primary btn-sm" id="scScnNew"><i class="bi bi-plus-lg me-1"></i>Nowy scenariusz</button>
+  <button type="button" class="btn btn-outline-secondary btn-sm" id="scScnDiff" hidden>Zmiany</button>
+  <button type="button" class="btn btn-success btn-sm" id="scScnPub" hidden>Opublikuj</button>
+  <button type="button" class="btn btn-outline-danger btn-sm" id="scScnDel" hidden>Odrzuć scenariusz</button>
+  <button type="button" class="btn btn-outline-primary btn-sm ms-auto" id="scFind"><i class="bi bi-search me-1"></i>Znajdź termin</button>
+</div>
+<div class="alert alert-info py-2 small" id="scScnBanner" hidden></div>
 <div class="sc-stats" id="scStats"></div>
 <div class="sc-legend" id="scLegend"></div>
 <div class="sc-scroll" id="scScroll"><div class="sc-grid" id="scGrid"><div class="p-3 text-body-secondary">Ładowanie…</div></div></div>
@@ -116,6 +127,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="col-6"><label class="form-label small mb-0" for="scMRoom">Sala</label><select class="form-select form-select-sm" id="scMRoom"></select></div>
       </div>
       <div class="mt-3" id="scMIssues" aria-live="polite"></div>
+      <div class="mt-2"><button type="button" class="btn btn-outline-secondary btn-sm" id="scMMatch"><i class="bi bi-magic me-1"></i>Podpowiedz trenera i salę</button></div>
+      <div class="mt-2" id="scMMatches"></div>
       <div class="d-flex flex-wrap gap-2 mt-3">
         <button type="button" class="btn btn-outline-primary btn-sm" id="scMClient"></button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="scMInstrOk"></button>
@@ -123,6 +136,32 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </div>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button><button type="button" class="btn btn-primary btn-sm" id="scMSave">Zapisz</button></div>
+  </div></div>
+</div>
+<div class="modal fade" id="scFindModal" tabindex="-1" aria-labelledby="scFindTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title h5" id="scFindTitle">Znajdź termin dla grupy</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
+    <div class="modal-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5"><label class="form-label small mb-0" for="scFCourse">Grupa</label><select class="form-select form-select-sm" id="scFCourse"></select></div>
+        <div class="col-md-2"><label class="form-label small mb-0" for="scFDur">Czas (min)</label><input type="number" class="form-control form-control-sm" id="scFDur" value="90" min="15" max="480" step="15"></div>
+        <div class="col-md-2"><label class="form-label small mb-0" for="scFFrom">Od</label><input type="date" class="form-control form-control-sm" id="scFFrom"></div>
+        <div class="col-md-3"><label class="form-label small mb-0" for="scFTo">Do</label><input type="date" class="form-control form-control-sm" id="scFTo"></div>
+        <div class="col-12 d-flex flex-wrap gap-3 small">
+          <label><input type="checkbox" class="form-check-input me-1" id="scFAny">Rozważ innych trenerów</label>
+          <label><input type="checkbox" class="form-check-input me-1" id="scFWk">Uwzględnij weekendy</label>
+          <button type="button" class="btn btn-primary btn-sm ms-auto" id="scFGo">Szukaj</button>
+        </div>
+      </div>
+      <p class="small text-body-secondary mt-2 mb-1" id="scFNote"></p>
+      <div id="scFResults" aria-live="polite"></div>
+    </div>
+  </div></div>
+</div>
+<div class="modal fade" id="scDiffModal" tabindex="-1" aria-labelledby="scDiffTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title h5" id="scDiffTitle">Zmiany względem planu oficjalnego</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
+    <div class="modal-body" id="scDiffBody"></div>
   </div></div>
 </div>
 <div class="sc-toast" id="scToast" role="status" aria-live="polite"></div>
@@ -133,7 +172,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 const TOKEN = <?= json_encode(dyd_token()) ?>;
 const STY = <?= json_encode(SC_STATUS_STYLES, JSON_UNESCAPED_UNICODE) ?>;
 const DAYS = ['Nd','Pn','Wt','Śr','Czw','Pt','Sob'];
-const st = { view: 'day', rows: 'instructor', date: new Date().toISOString().slice(0,10), data: null, loaded: '', cur: null };
+const st = { view: 'day', rows: 'instructor', date: new Date().toISOString().slice(0,10), data: null, loaded: '', cur: null, scn: 0 };
 try { Object.assign(st, JSON.parse(localStorage.getItem('scPrefs') || '{}')); } catch (e) {}
 if (!st.date || !/^\d{4}-\d{2}-\d{2}$/.test(st.date)) st.date = new Date().toISOString().slice(0,10);
 const $ = (id) => document.getElementById(id);
@@ -153,11 +192,12 @@ function toast(msg, kind) {
 
 async function load(force) {
   const from = monday(st.date), to = addDays(from, 6);
-  if (!force && st.loaded === from && st.data) return render();
+  const key = from + '|' + st.scn;
+  if (!force && st.loaded === key && st.data) return render();
   try {
-    const r = await fetch('planistaAjax.php?action=feed&from=' + from + '&to=' + to, { credentials: 'same-origin' });
+    const r = await fetch('planistaAjax.php?action=feed&from=' + from + '&to=' + to + '&scenario=' + st.scn, { credentials: 'same-origin' });
     const j = await r.json(); if (!j.ok) throw new Error(j.msg || 'Błąd');
-    st.data = j; st.loaded = from; render();
+    st.data = j; st.loaded = key; st.scn = j.scenario || 0; renderScn(); render();
   } catch (e) { $('scGrid').innerHTML = '<div class="p-3 text-danger">Nie udało się pobrać danych: ' + esc(e.message) + '</div>'; }
 }
 
@@ -238,7 +278,7 @@ function renderDay(list) {
 }
 function blockHtml(s, a) {
   const x = style(s), left = (h2m(s.from) - a) * PPM, w = Math.max(24, (h2m(s.to) - h2m(s.from)) * PPM);
-  return '<div class="sc-blk' + (s.movable ? '' : ' sc-fixed') + (s.conflicts.length ? ' sc-conf' : '') + '" data-id="' + s.id + '" tabindex="0" role="button" title="' + esc(blockTitle(s)) + '"'
+  return '<div class="sc-blk' + (s.movable ? '' : ' sc-fixed') + (s.conflicts.length ? ' sc-conf' : '') + (s.changed ? ' sc-chg' : '') + '" data-id="' + s.id + '" tabindex="0" role="button" title="' + esc(blockTitle(s)) + '"'
     + ' style="left:' + left + 'px;width:' + w + 'px;top:' + (2 + s._lane * LANE_H) + 'px;height:' + (LANE_H - 3) + 'px;background:' + x.bg + ';border-color:' + x.color + ';color:' + x.color + '">'
     + '<b>' + esc((s.code ? s.code + ' ' : '') + s.course) + '</b>' + esc(s.from + '–' + s.to) + (s.moved ? ' ↺' : '') + '</div>';
 }
@@ -330,7 +370,7 @@ function renderWeek(list) {
 }
 function chipHtml(s) {
   const x = style(s);
-  return '<div class="sc-chip' + (s.movable ? '' : ' sc-fixed') + (s.conflicts.length ? ' sc-conf' : '') + '" draggable="' + (s.movable ? 'true' : 'false') + '" tabindex="0" role="button" data-id="' + s.id + '" title="' + esc(blockTitle(s)) + '"'
+  return '<div class="sc-chip' + (s.movable ? '' : ' sc-fixed') + (s.conflicts.length ? ' sc-conf' : '') + (s.changed ? ' sc-chg' : '') + '" draggable="' + (s.movable ? 'true' : 'false') + '" tabindex="0" role="button" data-id="' + s.id + '" title="' + esc(blockTitle(s)) + '"'
     + ' style="background:' + x.bg + ';border-color:' + x.color + ';color:' + x.color + '"><b>' + esc(s.from + '–' + s.to) + '</b> ' + esc((s.code ? s.code + ' ' : '') + s.course)
     + (st.rows !== 'instructor' && s.instructor ? '<br><small>' + esc(s.instructor) + '</small>' : '') + (st.rows !== 'room' && s.room ? '<br><small>' + esc(s.room) + '</small>' : '') + '</div>';
 }
@@ -349,8 +389,9 @@ function issuesText(j) {
 async function doMove(id, p, force) {
   if ($('scNotify').checked) p.notify = 1;
   if (force) p.force = 1;
+  if (st.scn) p.scenario = st.scn;
   const j = await post('move', id, p);
-  if (j.ok) { toast('Zapisano zmianę terminu.', 'success'); await load(true); return true; }
+  if (j.ok) { toast(st.scn ? 'Zapisano w scenariuszu (plan oficjalny bez zmian).' : 'Zapisano zmianę terminu.', 'success'); await load(true); return true; }
   if (j.needs_ack) {
     if (confirm(issuesText(j) + '\n\nZapisać mimo to?')) return doMove(id, p, true);
     render(); return false;
@@ -376,6 +417,8 @@ function openModal(s) {
   $('scMClient').classList.toggle('active', s.client_ok); $('scMInstrOk').classList.toggle('active', s.instr_ok);
   $('scMLink').href = 'index.php?course=' + s.course_id + '&tab=lekcje';
   ['scMDate','scMFrom','scMTo','scMInstr','scMRoom','scMSave'].forEach(id => $(id).disabled = !s.movable);
+  ['scMClient','scMInstrOk'].forEach(id => $(id).disabled = !!st.scn);
+  $('scMMatches').innerHTML = ''; $('scMMatch').disabled = !s.movable;
   $('scMIssues').innerHTML = s.movable ? '' : '<div class="text-body-secondary small">Lekcja odbyta lub odwołana — edycja terminu wyłączona.</div>';
   modal.show(); if (s.movable) check();
 }
@@ -399,6 +442,80 @@ async function toggleState(which) {
 }
 $('scMClient').addEventListener('click', () => toggleState('client'));
 $('scMInstrOk').addEventListener('click', () => toggleState('instructor'));
+
+/* ───────── Scenariusze ───────── */
+function renderScn() {
+  const sel = $('scScn'), d = st.data;
+  sel.innerHTML = '<option value="0">Oficjalny plan</option>' + d.scenarios.map(x => '<option value="' + x.id + '"' + (x.id === st.scn ? ' selected' : '') + '>' + esc(x.title) + ' (' + x.n_changes + ')</option>').join('');
+  ['scScnDiff','scScnPub','scScnDel'].forEach(id => $(id).hidden = !st.scn);
+  const b = $('scScnBanner'), cur = d.scenarios.find(x => x.id === st.scn);
+  b.hidden = !st.scn; if (cur) b.innerHTML = '<strong>Scenariusz „' + esc(cur.title) + '”</strong> — wersja robocza. Zmiany nie wpływają na plan oficjalny, wypłaty ani kursantów, dopóki nie klikniesz „Opublikuj”.';
+}
+$('scScn').onchange = e => { st.scn = +e.target.value; load(true); };
+$('scScnNew').onclick = async () => {
+  const t = prompt('Nazwa scenariusza (np. „Wariant z nowym trenerem”):'); if (!t) return;
+  const fd = new FormData(); fd.append('_token', TOKEN); fd.append('action', 'scn_create'); fd.append('title', t);
+  const j = await (await fetch('planistaAjax.php', { method: 'POST', body: fd, credentials: 'same-origin' })).json();
+  if (j.ok) { st.scn = j.id; load(true); } else toast(j.msg || 'Błąd', 'danger');
+};
+async function scnPost(action, extra) {
+  const fd = new FormData(); fd.append('_token', TOKEN); fd.append('action', action); fd.append('scenario', st.scn);
+  Object.entries(extra || {}).forEach(([k, v]) => fd.append(k, v));
+  return (await fetch('planistaAjax.php', { method: 'POST', body: fd, credentials: 'same-origin' })).json();
+}
+$('scScnDel').onclick = async () => { if (!confirm('Odrzucić scenariusz wraz ze wszystkimi zmianami?')) return; await scnPost('scn_discard'); st.scn = 0; load(true); };
+$('scScnDiff').onclick = async () => {
+  const j = await scnPost('scn_diff');
+  $('scDiffBody').innerHTML = j.diff && j.diff.length ? '<table class="table table-sm"><thead><tr><th>Grupa</th><th>Było</th><th>Będzie</th><th>Trener</th><th>Sala</th></tr></thead><tbody>'
+    + j.diff.map(x => '<tr><td>' + esc(x.course) + '</td><td>' + esc(x.from) + '</td><td>' + esc(x.to) + '</td><td>' + esc(x.instructor) + '</td><td>' + esc(x.room) + '</td></tr>').join('') + '</tbody></table>'
+    : '<p class="text-body-secondary">Scenariusz nie zawiera jeszcze zmian — przeciągnij lekcje na planie.</p>';
+  new bootstrap.Modal($('scDiffModal')).show();
+};
+$('scScnPub').onclick = async () => {
+  if (!confirm('Opublikować scenariusz jako plan oficjalny? Lekcje zostaną przesunięte.')) return;
+  const notify = $('scNotify').checked ? 1 : 0;
+  let j = await scnPost('scn_publish', { notify });
+  if (j.needs_ack) { if (!confirm((j.issues || []).join('\n') + '\n\nOpublikować mimo ostrzeżeń?')) return; j = await scnPost('scn_publish', { notify, force: 1 }); }
+  if (j.ok) { toast(j.msg, 'success'); st.scn = 0; load(true); } else toast((j.issues || [j.msg]).join(' · '), 'danger');
+};
+
+/* ───────── Auto-dopasowanie ───────── */
+$('scMMatch').onclick = async () => {
+  const j = await post('match', st.cur.id, {});
+  $('scMMatches').innerHTML = (j.matches || []).map((m, i) => '<div class="d-flex align-items-center gap-2 small mb-1"><span>' + esc(m.instructor) + ' · ' + esc(m.room) + (m.soft.length ? ' <span class="text-warning" title="' + esc(m.soft.join(' | ')) + '">⚠</span>' : '') + '</span>'
+    + '<button type="button" class="btn btn-outline-primary btn-sm py-0 ms-auto" data-m="' + i + '">Użyj</button></div>').join('') || '<div class="small text-body-secondary">Brak wolnych kombinacji trener + sala w tym terminie.</div>';
+  $('scMMatches').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { const m = j.matches[+b.dataset.m]; $('scMInstr').value = m.instructor_id; $('scMRoom').value = m.room_id; check(); });
+};
+let findModal;
+$('scFind').onclick = () => {
+  findModal = findModal || new bootstrap.Modal($('scFindModal'));
+  $('scFCourse').innerHTML = st.data.courses.map(c => '<option value="' + c.id + '">' + esc((c.code ? c.code + ' · ' : '') + c.name) + '</option>').join('');
+  $('scFFrom').value = $('scFFrom').value || st.date; $('scFTo').value = $('scFTo').value || addDays(st.date, 14);
+  $('scFNote').textContent = st.scn ? 'Nowe lekcje dodaje się do planu oficjalnego (nie do scenariusza).' : '';
+  findModal.show();
+};
+$('scFGo').onclick = async () => {
+  const fd = new FormData(); fd.append('_token', TOKEN); fd.append('action', 'find_slots'); fd.append('course_id', $('scFCourse').value);
+  fd.append('dur', $('scFDur').value); fd.append('from', $('scFFrom').value); fd.append('to', $('scFTo').value);
+  if ($('scFAny').checked) fd.append('any', 1); if ($('scFWk').checked) fd.append('weekends', 1);
+  $('scFResults').innerHTML = '<div class="text-body-secondary small">Szukam…</div>';
+  const j = await (await fetch('planistaAjax.php', { method: 'POST', body: fd, credentials: 'same-origin' })).json();
+  const sl = j.slots || [];
+  $('scFResults').innerHTML = sl.length ? '<table class="table table-sm align-middle"><tbody>' + sl.map((x, i) => '<tr><td>' + esc(DAYS[dow(x.date)] + ' ' + x.date) + '</td><td>' + esc(x.from + '–' + x.to) + '</td><td>' + esc(x.instructor) + '</td><td>' + esc(x.room) + '</td><td>' + (x.soft.length ? '<span class="text-warning" title="' + esc(x.soft.join(' | ')) + '">⚠</span>' : '') + '</td>'
+    + '<td class="text-end"><button type="button" class="btn btn-primary btn-sm py-0" data-s="' + i + '">Dodaj lekcję</button></td></tr>').join('') + '</tbody></table>'
+    : '<div class="text-body-secondary small">Brak wolnych terminów bez twardych konfliktów w tym zakresie.</div>';
+  $('scFResults').querySelectorAll('[data-s]').forEach(b => b.onclick = async () => {
+    const x = sl[+b.dataset.s];
+    const add = async (force) => {
+      const f = new FormData(); f.append('_token', TOKEN); f.append('action', 'add_lesson'); f.append('course_id', $('scFCourse').value);
+      f.append('date', x.date); f.append('time_from', x.from); f.append('time_to', x.to); f.append('instructor_id', x.instructor_id); f.append('room_id', x.room_id); if (force) f.append('force', 1);
+      return (await fetch('planistaAjax.php', { method: 'POST', body: f, credentials: 'same-origin' })).json();
+    };
+    let r = await add(false);
+    if (r.needs_ack && confirm(issuesText(r) + '\n\nDodać mimo to?')) r = await add(true);
+    if (r.ok) { toast('Dodano lekcję do planu oficjalnego.', 'success'); findModal.hide(); st.scn = 0; load(true); } else if (!r.needs_ack) toast(r.msg || 'Błąd', 'danger');
+  });
+};
 
 /* ───────── Pasek narzędzi ───────── */
 const step = () => st.view === 'day' ? 1 : 7;
