@@ -6,6 +6,7 @@
  * Dostęp: zalogowany dydaktyk posiadający ten kurs (własny lub staff).
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/exportName.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 karty30_migrate();
@@ -150,7 +151,7 @@ try {
     $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
     $pdf->Cell($W, 4, $pl('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
-    $fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '.pdf';
+    $fname = ti_export_filename($course_id, 'plan_zajec', 'pdf');
     ti_print_log_add('harmonogram_pdf', 'Plan zajęć (dla ucznia/rodzica) — ' . $course['name'], $course_id, 0, [], $me);
     $pdfData = $pdf->Output('S');
     while (ob_get_level() > 0) ob_end_clean();

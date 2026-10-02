@@ -4,6 +4,7 @@
  * GET: ?month=YYYY-MM (wymagany), ?course_id=N (opcjonalny — jeden kurs)
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/exportName.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 karty30_migrate();
@@ -72,7 +73,7 @@ foreach ($course_ids as $cid) {
 
 // Nagłówek CSV
 while (ob_get_level() > 0) ob_end_clean();
-$fname = 'frekwencja_' . $month . ($cid_filter ? '_kurs' . $cid_filter : '') . '.csv';
+$fname = $cid_filter ? ti_export_filename($cid_filter, 'frekwencja_' . $month, 'csv') : 'frekwencja_' . $month . '_' . date('Y-m-d') . '.csv';
 ti_print_log_add('attendance_csv', 'Eksport CSV frekwencji — ' . $month, $cid_filter, 0, [], $me);
 header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="' . $fname . '"');

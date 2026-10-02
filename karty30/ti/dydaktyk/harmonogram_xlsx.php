@@ -5,6 +5,7 @@
  * GET: course_id (wymagane). Dostęp: dydaktyk posiadający kurs (własny/staff).
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/exportName.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/xlsx.php';
 
@@ -60,5 +61,5 @@ $x->writeRow([]);
 $x->writeRow(['Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')]);
 
 ti_print_log_add('harmonogram_xlsx', 'Plan zajęć XLSX (dla ucznia/rodzica) — ' . $course['name'], $course_id, 0, [], $me);
-$fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '.xlsx';
+$fname = ti_export_filename($course_id, 'plan_zajec', 'xlsx');
 $x->output($fname);

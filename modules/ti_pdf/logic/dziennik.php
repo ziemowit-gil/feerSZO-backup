@@ -308,6 +308,6 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
 /** Nazwa pliku dziennika. */
 function ti_dziennik_filename(array $course): string
 {
-    $n = preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string)$course['name']) ?: 'grupa');
-    return 'dziennik_zajec_' . trim($n, '_') . '_' . date('Y-m-d') . '.pdf';
+    require_once __DIR__ . '/exportName.php';
+    return ti_export_filename((int)($course['id'] ?? 0), 'dziennik_zajec', 'pdf');
 }

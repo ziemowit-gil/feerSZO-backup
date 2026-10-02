@@ -5,6 +5,7 @@
  * GET: course_id (wymagane). Dostęp: dydaktyk posiadający kurs (własny/staff).
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/exportName.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 karty30_migrate();
@@ -106,7 +107,7 @@ if ($LL) {
 
 ti_print_log_add('harmonogram_docx', 'Plan zajęć DOCX (dla ucznia/rodzica) — ' . $course['name'], $course_id, 0, [], $me);
 
-$fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', $course['name']) . '.docx';
+$fname = ti_export_filename($course_id, 'plan_zajec', 'docx');
 while (ob_get_level() > 0) ob_end_clean();
 header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 header('Content-Disposition: attachment; filename="' . $fname . '"');

@@ -6,6 +6,7 @@
  * Dostęp: zalogowany dydaktyk posiadający ten kurs.
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/exportName.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_print_log.php';
 
 karty30_migrate();
@@ -209,7 +210,7 @@ $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
 $pdf->Cell($PW, 4, _att_txt('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
 // ── Wysyłka ───────────────────────────────────────────────────────────────────
-$fname = 'obecnosc_' . preg_replace('/[^a-z0-9_]/i', '_', $course['name'] ?? 'kurs') . '_' . date('Ymd') . '.pdf';
+$fname = ti_export_filename($course_id, 'lista_obecnosci', 'pdf');
 ti_print_log_add('attendance_pdf', 'Lista obecności — ' . ($course['name'] ?? ''), $course_id, 0, [], $me);
 $pdf->Output('D', $fname);
 exit;

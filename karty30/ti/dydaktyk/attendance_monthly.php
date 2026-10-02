@@ -6,6 +6,7 @@
  * Dostęp: zalogowany dydaktyk (własne kursy; pracownik D3 — wszystkie).
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/exportName.php';
 
 karty30_migrate();
 $me  = dyd_require();
@@ -267,7 +268,8 @@ $pdf->SetY(-15);
 $pdf->SetFont('Helvetica', '', 7); $pdf->SetTextColor(130, 130, 130);
 $pdf->Cell($PW, 4, _mr('Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? '')), 0, 0, 'L');
 
-$fname = 'frekwencja_' . str_replace('-', '_', $month_raw) . '_' . date('His') . '.pdf';
+$fname = $course_id_filter ? ti_export_filename($course_id_filter, 'frekwencja_' . $month_raw, 'pdf')
+                          : 'frekwencja_' . str_replace('-', '_', $month_raw) . '_' . date('Y-m-d_His') . '.pdf';   // wszystkie kursy — bez typu/nazwy
 $pdf->Output('D', $fname);
 exit;
 } catch (\Throwable $e) {

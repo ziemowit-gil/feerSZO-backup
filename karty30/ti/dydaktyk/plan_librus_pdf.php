@@ -5,6 +5,7 @@
  * GET: course_id, weeks.
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/exportName.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_planner_ext.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_room_reports.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_reschedule.php';
@@ -35,7 +36,7 @@ try {
         'footer'   => 'Wygenerowano: ' . date('d.m.Y H:i') . ' przez ' . ($me['name'] ?? ''),
     ]);
     ti_print_log_add('plan_librus_pdf', 'Plan zajęć (siatka, PDF) — ' . $course['name'], $course_id, 0, ['weeks' => $weeks], $me);
-    $fname = 'plan_zajec_' . preg_replace('/[^a-z0-9]+/i', '_', (string)$course['name']) . '.pdf';
+    $fname = ti_export_filename($course_id, 'plan_siatka', 'pdf');
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="' . $fname . '"');
