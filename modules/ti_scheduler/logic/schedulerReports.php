@@ -126,3 +126,64 @@ function sc_report_totals(array $pay): array {
     foreach ($pay as $p) { foreach (['held_bb', 'planned_bb', 'total_bb', 'total_netto'] as $k) $t[$k] += $p[$k]; $t['lessons'] += $p['held_n'] + $p['planned_n']; $t['hours'] += $p['total_min'] / 60; }
     return $t;
 }
+
+/**
+ * Cykle grup: wzorce zajęć (dzień tygodnia + godziny) z lekcji od dziś, z godzinami i typowym odstępem.
+ * @return list<array>
+ */
+function sc_report_cycles(): array {
+    ti_sched_migrate();
+    $today = date('Y-m-d');
+    $rows = db_all(
+        "SELECT c.id, c.name, c.group_code, COALESCE(u.name,'—') AS iname, s.lesson_date, s.time_from, s.time_to, " . SC_REP_DUR . " AS dur, s.status
+           FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id LEFT JOIN users u ON u.id=COALESCE(s.instructor_id,c.instructor_id)
+          WHERE s.lesson_date>=? AND s.status IN ('planned','reserved') AND s.draft_id IS NULL
+            AND COALESCE(c.closed_at,'')='' AND COALESCE(c.status,'active')!='cancelled'
+          ORDER BY c.name, s.lesson_date, s.time_from", [$today]);
+    $DN = [1 => 'Pn', 2 => 'Wt', 3 => 'Śr', 4 => 'Czw', 5 => 'Pt', 6 => 'Sb', 7 => 'Nd'];
+    $by = [];
+    foreach ($rows as $r) {
+        $id = (int)$r['id'];
+        $by[$id] ??= ['course_id' => $id, 'course' => (string)$r['name'], 'code' => (string)$r['group_code'], 'instructor' => (string)$r['iname'], 'dates' => [], 'pat' => [], 'min' => 0, 'weeks' => []];
+        $by[$id]['dates'][] = $r['lesson_date']; $by[$id]['min'] += (int)$r['dur'];
+        $k = $DN[(int)date('N', strtotime($r['lesson_date']))] . ' ' . substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5);
+        $by[$id]['pat'][$k] = ($by[$id]['pat'][$k] ?? 0) + 1;
+        $by[$id]['weeks'][date('o-W', strtotime($r['lesson_date']))] = true;
+    }
+    $out = [];
+    foreach ($by as $g) {
+        $d = array_values(array_unique($g['dates'])); sort($d); $gaps = [];
+        for ($i = 1; $i < count($d); $i++) $gaps[] = (int)round((strtotime($d[$i]) - strtotime($d[$i - 1])) / 86400);
+        sort($gaps); $med = $gaps ? $gaps[intdiv(count($gaps), 2)] : 0;
+        arsort($g['pat']);
+        $nw = max(1, count($g['weeks']));
+        $out[] = ['course_id' => $g['course_id'], 'course' => $g['course'], 'code' => $g['code'], 'instructor' => $g['instructor'],
+            'lessons' => count($g['dates']), 'min' => $g['min'], 'first' => $d[0], 'last' => end($d), 'gap_days' => $med,
+            'per_week_min' => (int)round($g['min'] / $nw), 'weeks' => $nw,
+            'pattern' => implode('; ', array_map(fn($k, $v) => "$k (×$v)", array_keys($g['pat']), $g['pat']))];
+    }
+    return $out;
+}
+
+/** Godziny trenerów w kolejnych tygodniach (odbyte + zaplanowane). @return array{weeks:list<string>,rows:list<array>} */
+function sc_report_week_load(int $weeks = 8): array {
+    ti_sched_migrate();
+    $weeks = max(2, min(26, $weeks));
+    $mon = date('Y-m-d', strtotime('monday this week'));
+    $ws = []; for ($i = 0; $i < $weeks; $i++) $ws[] = date('Y-m-d', strtotime("$mon +$i weeks"));
+    $to = date('Y-m-d', strtotime(end($ws) . ' +6 days'));
+    $by = [];
+    foreach (db_all(
+        "SELECT COALESCE(s.instructor_id,c.instructor_id) AS iid, COALESCE(u.name,'(brak)') AS iname, s.lesson_date, " . SC_REP_DUR . " AS dur
+           FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id LEFT JOIN users u ON u.id=COALESCE(s.instructor_id,c.instructor_id)
+          WHERE s.lesson_date BETWEEN ? AND ? AND s.status IN ('planned','reserved','held','individual_change','remote_material') AND s.draft_id IS NULL", [$mon, $to]) as $r) {
+        $iid = (int)$r['iid'];
+        $w = date('Y-m-d', strtotime('monday this week', strtotime($r['lesson_date'])));
+        $by[$iid] ??= ['instructor_id' => $iid, 'name' => (string)$r['iname'], 'cells' => array_fill_keys($ws, 0), 'total' => 0];
+        if (isset($by[$iid]['cells'][$w])) { $by[$iid]['cells'][$w] += (int)$r['dur']; $by[$iid]['total'] += (int)$r['dur']; }
+    }
+    foreach ($by as &$x) { $lim = $x['instructor_id'] ? sc_limits($x['instructor_id']) : null; $x['week_limit'] = (int)($lim['max_week_min'] ?? 0); }
+    unset($x);
+    usort($by, fn($a, $b) => strcmp($a['name'], $b['name']));
+    return ['weeks' => $ws, 'rows' => array_values($by)];
+}

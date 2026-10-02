@@ -64,6 +64,26 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 <div class="card-body border-top" id="gOut" hidden></div></div>
 
+<div class="card border-0 shadow-sm mb-4"><div class="card-header fw-semibold bg-body-tertiary">Cykl: X godzin co Y <small class="text-body-secondary fw-normal">— np. 2 godziny co 3 dni, 1,5 godziny co tydzień, 3 godziny co miesiąc</small></div>
+<div class="card-body row g-2 align-items-end">
+  <div class="col-md-4"><label class="form-label small mb-0" for="cC">Grupa</label><select class="form-select form-select-sm" id="cC"><?php foreach ($courses as $c): ?><option value="<?= (int)$c['id'] ?>"><?= h(($c['group_code'] ? $c['group_code'] . ' · ' : '') . $c['name']) ?></option><?php endforeach; ?></select></div>
+  <div class="col-md-2"><label class="form-label small mb-0" for="cH">Czas spotkania (godz.)</label><input type="number" class="form-control form-control-sm" id="cH" value="2" min="0.5" step="0.5"></div>
+  <div class="col-md-2"><label class="form-label small mb-0" for="cU">Godzina to</label><select class="form-select form-select-sm" id="cU"><option value="45">45 min</option><option value="60">60 min</option></select></div>
+  <div class="col-md-2"><label class="form-label small mb-0" for="cI">Co</label><input type="number" class="form-control form-control-sm" id="cI" value="1" min="1"></div>
+  <div class="col-md-2"><label class="form-label small mb-0" for="cUnit">Jednostka</label><select class="form-select form-select-sm" id="cUnit"><option value="day">dni</option><option value="week" selected>tygodni</option><option value="month">miesięcy</option></select></div>
+  <div class="col-md-3"><label class="form-label small mb-0" for="cS">Pierwsze spotkanie</label><input type="date" class="form-control form-control-sm" id="cS" value="<?= date('Y-m-d') ?>"></div>
+  <div class="col-md-2"><label class="form-label small mb-0" for="cT">Godzina</label><input type="time" class="form-control form-control-sm" id="cT" value="17:00"></div>
+  <div class="col-md-7" id="cWdWrap"><span class="form-label small d-block mb-0">Dni tygodnia (przy „tygodni”; puste = dzień pierwszego spotkania)</span>
+    <?php foreach ($DN as $k => $l): ?><label class="me-2 small"><input type="checkbox" class="form-check-input cWd" value="<?= $k ?>"> <?= $l ?></label><?php endforeach; ?></div>
+  <div class="col-md-3"><label class="form-label small mb-0" for="cEM">Zakończ</label><select class="form-select form-select-sm" id="cEM"><option value="count">po liczbie spotkań</option><option value="hours">po łącznym wymiarze godzin</option><option value="date">do daty</option></select></div>
+  <div class="col-md-2"><label class="form-label small mb-0" for="cEV">Wartość</label><input class="form-control form-control-sm" id="cEV" value="10"></div>
+  <div class="col-md-3"><label class="form-label small mb-0" for="cHol">Dni wolne / święta</label><select class="form-select form-select-sm" id="cHol"><option value="skip">pomiń termin</option><option value="shift">przesuń na następny dzień roboczy</option></select></div>
+  <div class="col-md-4"><label class="form-label small mb-0" for="cIn">Trener</label><select class="form-select form-select-sm" id="cIn"><option value="0">— prowadzący grupy —</option><?php foreach ($instr as $u): ?><option value="<?= (int)$u['id'] ?>"><?= h($u['display_name']) ?></option><?php endforeach; ?></select></div>
+  <div class="col-md-3"><label class="form-label small mb-0" for="cR">Sala</label><select class="form-select form-select-sm" id="cR"><option value="0">— bez sali —</option><?php foreach ($rooms as $r): ?><option value="<?= (int)$r['id'] ?>"><?= h($r['name']) ?></option><?php endforeach; ?></select></div>
+  <div class="col-md-2"><button type="button" class="btn btn-primary btn-sm w-100" id="cGo">Podgląd</button></div>
+</div>
+<div class="card-body border-top" id="cOut" hidden></div></div>
+
 <div class="row g-3">
   <div class="col-lg-8"><div class="card border-0 shadow-sm">
     <div class="card-header fw-semibold bg-body-tertiary">Profile struktury czasu</div>
@@ -104,23 +124,34 @@ async function call(action) {
   fd.append('start_date', $('gS').value); fd.append('instructor_id', $('gI').value); fd.append('room_id', $('gR').value);
   return (await fetch('planistaAjax.php', { method: 'POST', body: fd, credentials: 'same-origin' })).json();
 }
-function render(j) {
-  const o = $('gOut'); o.hidden = false;
+function render(j, o, applyAction, collect) {
+  o.hidden = false;
   if (!j.ok) { o.innerHTML = '<div class="text-danger">' + esc(j.msg || 'Błąd') + '</div>'; return; }
   const by = {}; j.sessions.forEach(s => (by[s.date] = by[s.date] || []).push(s));
-  const rows = Object.entries(by).map(([d, ss]) => '<tr><td>' + esc(DN[new Date(d + 'T12:00:00').getDay()] + ' ' + d) + '</td><td>' + ss.map(s => esc(s.from + '–' + s.to)).join(', ') + '</td><td>' + fmt(ss.reduce((a, s) => a + s.min, 0)) + '</td><td class="small text-warning">' + esc([...new Set(ss.flatMap(s => s.warn))].join(' | ')) + '</td></tr>').join('');
-  const short = j.placed_min < j.total_min;
-  o.innerHTML = '<div class="mb-2"><strong>' + j.sessions.length + '</strong> lekcji w <strong>' + Object.keys(by).length + '</strong> dniach, razem ' + fmt(j.placed_min) + ' z ' + fmt(j.total_min) + (j.end_date ? ', do <strong>' + esc(j.end_date) + '</strong>' : '') + '.'
+  const rows = Object.entries(by).map(([d, ss]) => '<tr><td>' + esc(DN[new Date(d + 'T12:00:00').getDay()] + ' ' + d) + '</td><td>' + ss.map(s => esc(s.from + '–' + s.to)).join(', ') + '</td><td>' + fmt(ss.reduce((a, s) => a + s.min, 0)) + '</td><td class="small text-warning">' + esc([...new Set(ss.flatMap(s => s.warn))].join(' | ')) + '</td><td class="small text-body-secondary">' + esc(ss.map(s => s.shifted).filter(Boolean).join(', ')) + '</td></tr>').join('');
+  const short = j.total_min > 0 && j.placed_min < j.total_min;
+  o.innerHTML = '<div class="mb-2"><strong>' + j.sessions.length + '</strong> lekcji w <strong>' + Object.keys(by).length + '</strong> dniach, razem ' + fmt(j.placed_min) + (j.total_min ? ' z ' + fmt(j.total_min) : '') + (j.end_date ? ', do <strong>' + esc(j.end_date) + '</strong>' : '') + '.'
     + (short ? ' <span class="text-danger">Nie udało się ułożyć całego wymiaru.</span>' : '') + '</div>'
-    + '<div class="table-responsive" style="max-height:320px;overflow:auto"><table class="table table-sm mb-2"><thead><tr><th>Dzień</th><th>Bloki</th><th>Czas</th><th>Ostrzeżenia</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+    + '<div class="table-responsive" style="max-height:320px;overflow:auto"><table class="table table-sm mb-2"><thead><tr><th>Dzień</th><th>Bloki</th><th>Czas</th><th>Ostrzeżenia</th><th>Przesunięto</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
     + (j.skipped.length ? '<details class="small mb-2"><summary>Pominięte dni (' + j.skipped.length + ')</summary><ul class="mb-0">' + j.skipped.map(s => '<li>' + esc(s.date + ' — ' + s.reason) + '</li>').join('') + '</ul></details>' : '')
-    + (j.sessions.length ? '<button type="button" class="btn btn-success btn-sm" id="gApply">Zapisz ' + j.sessions.length + ' lekcji w planie</button>' : '');
-  const b = $('gApply'); if (b) b.onclick = async () => {
+    + (j.sessions.length ? '<button type="button" class="btn btn-success btn-sm" data-apply="1">Zapisz ' + j.sessions.length + ' lekcji w planie</button>' : '');
+  const b = o.querySelector('[data-apply]'); if (b) b.onclick = async () => {
     if (!confirm('Dodać ' + j.sessions.length + ' lekcji do planu oficjalnego grupy?')) return;
-    const r = await call('series_apply'); o.innerHTML = '<div class="' + (r.ok ? 'text-success' : 'text-danger') + '">' + esc(r.msg || '') + '</div>';
+    const r = await collect(applyAction); o.innerHTML = '<div class="' + (r.ok ? 'text-success' : 'text-danger') + '">' + esc(r.msg || '') + '</div>';
   };
 }
-$('gGo').onclick = async () => { $('gOut').hidden = false; $('gOut').textContent = 'Układam…'; render(await call('series_preview')); };
+$('gGo').onclick = async () => { $('gOut').hidden = false; $('gOut').textContent = 'Układam…'; render(await call('series_preview'), $('gOut'), 'series_apply', call); };
+async function callCycle(action) {
+  const fd = new FormData(); fd.append('_token', TOKEN); fd.append('action', action);
+  fd.append('course_id', $('cC').value); fd.append('hours', $('cH').value); fd.append('hour_min', $('cU').value); fd.append('interval', $('cI').value); fd.append('unit', $('cUnit').value);
+  fd.append('start_date', $('cS').value); fd.append('time_from', $('cT').value); fd.append('end_mode', $('cEM').value); fd.append('end_value', $('cEV').value);
+  fd.append('holiday_mode', $('cHol').value); fd.append('instructor_id', $('cIn').value); fd.append('room_id', $('cR').value);
+  document.querySelectorAll('.cWd:checked').forEach(c => fd.append('weekdays[]', c.value));
+  return (await fetch('planistaAjax.php', { method: 'POST', body: fd, credentials: 'same-origin' })).json();
+}
+$('cGo').onclick = async () => { $('cOut').hidden = false; $('cOut').textContent = 'Układam…'; render(await callCycle('cycle_preview'), $('cOut'), 'cycle_apply', callCycle); };
+const cyc = () => { $('cWdWrap').style.opacity = $('cUnit').value === 'week' ? 1 : .4; const m = $('cEM').value; $('cEV').type = m === 'date' ? 'date' : 'number'; $('cEV').value = m === 'date' ? '' : (m === 'hours' ? '40' : '10'); };
+$('cUnit').onchange = cyc; $('cEM').onchange = cyc; cyc();
 })();
 </script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>

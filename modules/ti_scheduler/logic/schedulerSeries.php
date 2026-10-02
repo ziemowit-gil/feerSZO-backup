@@ -137,3 +137,103 @@ function sc_series_apply(array $o, int $by): array {
     } catch (\Throwable $e) { $pdo->rollBack(); return ['ok' => false, 'msg' => 'Błąd zapisu: ' . $e->getMessage(), 'created' => 0]; }
     return ['ok' => true, 'created' => $n, 'msg' => "Dodano lekcji: $n (do {$pv['end_date']})."];
 }
+
+/**
+ * Cykl „X godzin co Y": stały termin powtarzany co N dni / tygodni / miesięcy.
+ * $o: course_id, start_date, time_from (HH:MM), hours (czas jednego spotkania), hour_min (45|60),
+ *     interval (N), unit (day|week|month), weekdays[] (ISO 1–7, tylko unit=week; domyślnie dzień startu),
+ *     end_mode (count|date|hours), end_value, holiday_mode (skip|shift), instructor_id, room_id.
+ * @return array{ok:bool,msg?:string,sessions:list<array>,skipped:list<array>,total_min:int,placed_min:int,end_date:string}
+ */
+function sc_cycle_preview(array $o): array {
+    ti_sched_migrate();
+    $fail = fn(string $m) => ['ok' => false, 'msg' => $m, 'sessions' => [], 'skipped' => [], 'total_min' => 0, 'placed_min' => 0, 'end_date' => ''];
+    $course = (int)($o['course_id'] ?? 0); $start = (string)($o['start_date'] ?? ''); $tf = substr((string)($o['time_from'] ?? ''), 0, 5);
+    $hour_min = in_array((int)($o['hour_min'] ?? 45), [45, 60], true) ? (int)$o['hour_min'] : 45;
+    $dur = (int)round((float)($o['hours'] ?? 0) * $hour_min);
+    $n = max(1, (int)($o['interval'] ?? 1)); $unit = in_array($o['unit'] ?? '', ['day', 'week', 'month'], true) ? $o['unit'] : 'week';
+    $mode = in_array($o['end_mode'] ?? '', ['count', 'date', 'hours'], true) ? $o['end_mode'] : 'count';
+    $endv = (string)($o['end_value'] ?? '');
+    if (!$course || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{2}:\d{2}$/', $tf)) return $fail('Wybierz grupę, datę i godzinę rozpoczęcia.');
+    if ($dur < 15 || $dur > 600) return $fail('Podaj czas jednego spotkania (od 15 minut do 10 godzin).');
+    if (ti_hm2min($tf) + $dur > 24 * 60) return $fail('Spotkanie wychodzi poza dobę — zmień godzinę lub czas.');
+    $limit_count = $mode === 'count' ? max(1, min(400, (int)$endv)) : 400;
+    $limit_min = $mode === 'hours' ? (int)round((float)str_replace(',', '.', $endv) * $hour_min) : PHP_INT_MAX;
+    $limit_date = $mode === 'date' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $endv) ? $endv : '2099-12-31';
+    if ($mode === 'date' && $limit_date === '2099-12-31') return $fail('Podaj datę zakończenia.');
+    if ($mode === 'hours' && $limit_min <= 0) return $fail('Podaj łączny wymiar godzin.');
+    $shift = ($o['holiday_mode'] ?? 'skip') === 'shift';
+    $iid_in = (int)($o['instructor_id'] ?? 0); $room = (int)($o['room_id'] ?? 0);
+    $iid = sc_effective_instructor($course, $iid_in);
+    $tt = sc_hm(ti_hm2min($tf) + $dur);
+
+    // kandydaci na daty (rosnąco)
+    $s0 = new \DateTimeImmutable($start);
+    $cands = (function () use ($s0, $n, $unit, $o) {
+        if ($unit === 'day') { for ($k = 0; $k < 1200; $k++) yield $s0->modify('+' . ($k * $n) . ' days'); }
+        elseif ($unit === 'month') {
+            for ($k = 0; $k < 120; $k++) {
+                $m = $s0->modify('first day of this month')->modify('+' . ($k * $n) . ' months');
+                $day = min((int)$s0->format('j'), (int)$m->format('t'));
+                yield $m->setDate((int)$m->format('Y'), (int)$m->format('n'), $day);
+            }
+        } else {
+            $wd = array_values(array_unique(array_filter(array_map('intval', (array)($o['weekdays'] ?? [])), fn($x) => $x >= 1 && $x <= 7)));
+            if (!$wd) $wd = [(int)$s0->format('N')];
+            sort($wd);
+            $mon = $s0->modify('monday this week');
+            for ($w = 0; $w < 400; $w++) {
+                $ws = $mon->modify('+' . ($w * $n) . ' weeks');
+                foreach ($wd as $d) { $day = $ws->modify('+' . ($d - 1) . ' days'); if ($day >= $s0) yield $day; }
+            }
+        }
+    })();
+
+    $sessions = []; $skipped = []; $placed = 0; $seen = [];
+    foreach ($cands as $d) {
+        $date = $d->format('Y-m-d');
+        if ($date > $limit_date || count($sessions) >= $limit_count || $placed >= $limit_min) break;
+        if ($date > date('Y-m-d', strtotime($start . ' +3 years'))) break;
+        $shifted = '';
+        if ($why = sc_day_off_reason($date)) {
+            if (!$shift) { $skipped[] = ['date' => $date, 'reason' => $why]; continue; }
+            $orig = $date;
+            for ($i = 0; $i < 10 && (sc_day_off_reason($date) !== '' || (int)(new \DateTimeImmutable($date))->format('N') >= 6); $i++) $date = date('Y-m-d', strtotime($date . ' +1 day'));
+            if (sc_day_off_reason($date) !== '' || $date > $limit_date) { $skipped[] = ['date' => $orig, 'reason' => $why]; continue; }
+            $shifted = $orig . ' → ' . $date;
+        }
+        if (isset($seen[$date])) continue; $seen[$date] = true;
+        if ($iid && function_exists('ti_instructor_on_leave') && ti_instructor_on_leave($iid, $date)) { $skipped[] = ['date' => $date, 'reason' => 'nieobecność trenera']; continue; }
+        $r = sc_validate(['course_id' => $course, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'instructor_id' => $iid_in, 'room_id' => $room]);
+        if ($r['hard']) { $skipped[] = ['date' => $date, 'reason' => $r['hard'][0]['msg']]; continue; }
+        $sessions[] = ['date' => $date, 'from' => $tf, 'to' => $tt, 'min' => $dur, 'warn' => array_column($r['soft'], 'msg'), 'shifted' => $shifted];
+        $placed += $dur;
+    }
+    return ['ok' => true, 'sessions' => $sessions, 'skipped' => $skipped, 'total_min' => $mode === 'hours' ? $limit_min : ($mode === 'count' ? $limit_count * $dur : 0),
+            'placed_min' => $placed, 'end_date' => $sessions ? end($sessions)['date'] : '', 'hour_min' => $hour_min];
+}
+
+/** Zapis lekcji z gotowego podglądu (wspólne dla generatora profilowego i cyklu). */
+function sc_series_commit(int $course, int $iid_in, int $room, array $sessions, array $meta, int $by): array {
+    if (!$sessions) return ['ok' => false, 'msg' => 'Brak lekcji do zapisu.', 'created' => 0];
+    $c = db_one("SELECT instructor_id FROM k30_ti_courses WHERE id=?", [$course]);
+    $own = ($iid_in && $iid_in !== (int)($c['instructor_id'] ?? 0)) ? $iid_in : 0;
+    $pdo = db(); $pdo->beginTransaction(); $n = 0;
+    try {
+        foreach ($sessions as $s) {
+            db_insert('k30_ti_sessions', ['course_id' => $course, 'lesson_date' => $s['date'], 'time_from' => $s['from'], 'time_to' => $s['to'], 'duration_min' => $s['min'],
+                'status' => 'planned', 'instructor_id' => $own ?: null, 'room_id' => $room ?: null, 'notes' => 'Wygenerowano w planiście (cykl zajęć)', 'created_by' => $by, 'created_at' => date('Y-m-d H:i:s')]);
+            $n++;
+        }
+        pl_audit('course', $course, 'planista_cycle', [], $meta + ['lessons' => $n], $by);
+        $pdo->commit();
+    } catch (\Throwable $e) { $pdo->rollBack(); return ['ok' => false, 'msg' => 'Błąd zapisu: ' . $e->getMessage(), 'created' => 0]; }
+    return ['ok' => true, 'created' => $n, 'msg' => "Dodano lekcji: $n (do " . end($sessions)['date'] . ').'];
+}
+
+function sc_cycle_apply(array $o, int $by): array {
+    $pv = sc_cycle_preview($o);
+    if (!$pv['ok']) return $pv + ['created' => 0];
+    return sc_series_commit((int)$o['course_id'], (int)($o['instructor_id'] ?? 0), (int)($o['room_id'] ?? 0), $pv['sessions'],
+        ['unit' => $o['unit'] ?? '', 'interval' => $o['interval'] ?? 1, 'from' => $o['start_date']], $by);
+}

@@ -59,6 +59,14 @@ if (in_array($action, ['series_preview', 'series_apply'], true)) {
     if ($msg = ti_course_closed_guard(['course_id' => $o['course_id']])) sc_out(['ok' => false, 'msg' => $msg], 423);
     sc_out($action === 'series_preview' ? sc_series_preview($o) : sc_series_apply($o, $uid));
 }
+if (in_array($action, ['cycle_preview', 'cycle_apply'], true)) {
+    $o = ['course_id' => (int)($_POST['course_id'] ?? 0), 'start_date' => (string)($_POST['start_date'] ?? ''), 'time_from' => (string)($_POST['time_from'] ?? ''),
+          'hours' => (float)str_replace(',', '.', (string)($_POST['hours'] ?? 0)), 'hour_min' => (int)($_POST['hour_min'] ?? 45), 'interval' => (int)($_POST['interval'] ?? 1),
+          'unit' => (string)($_POST['unit'] ?? 'week'), 'weekdays' => (array)($_POST['weekdays'] ?? []), 'end_mode' => (string)($_POST['end_mode'] ?? 'count'), 'end_value' => (string)($_POST['end_value'] ?? ''),
+          'holiday_mode' => (string)($_POST['holiday_mode'] ?? 'skip'), 'instructor_id' => (int)($_POST['instructor_id'] ?? 0), 'room_id' => (int)($_POST['room_id'] ?? 0)];
+    if ($msg = ti_course_closed_guard(['course_id' => $o['course_id']])) sc_out(['ok' => false, 'msg' => $msg], 423);
+    sc_out($action === 'cycle_preview' ? sc_cycle_preview($o) : sc_cycle_apply($o, $uid));
+}
 if ($action === 'find_slots') {
     $cid = (int)($_POST['course_id'] ?? 0);
     if (!$cid) sc_out(['ok' => false, 'msg' => 'Wybierz grupę.'], 400);
