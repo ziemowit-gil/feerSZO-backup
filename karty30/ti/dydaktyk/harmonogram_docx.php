@@ -27,6 +27,8 @@ $lm_labels = ['stacjonarna' => 'stacjonarnie', 'zdalna_zoom' => 'zdalnie (Zoom)'
 $_contact  = array_filter([$course['instructor_email'] ?? '', $course['instructor_phone'] ?? '']);
 
 require_once dirname(dirname(dirname(__DIR__))) . '/vendor/autoload.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/lessonList.php';
+$LL = ti_course_lesson_list($course_id);
 
 $phpWord = new \PhpOffice\PhpWord\PhpWord();
 $phpWord->getSettings()->setThemeFontLang(new \PhpOffice\PhpWord\Style\Language('pl-PL'));
@@ -79,6 +81,27 @@ if (!$rows_time) {
         . 'Aktualny harmonogram i ewentualne odwołania zawsze widoczne w panelu kursanta.',
         ['size' => 8, 'color' => '6E6E6E']
     );
+}
+
+// Lista konkretnych lekcji — odbyte, zaplanowane i odwołane
+if ($LL) {
+    $section->addPageBreak();
+    $section->addText('Lista zajęć — ' . $course['name'], ['bold' => true, 'size' => 13, 'color' => '0F5096']);
+    $lt = $section->addTable(['borderSize' => 6, 'borderColor' => '999999', 'cellMargin' => 60]);
+    $lw = [500, 1300, 700, 1500, 1700, 5200, 2000];
+    $lt->addRow(null, ['tblHeader' => true]);
+    foreach (['Lp.', 'Data', 'Dzień', 'Godziny', 'Forma', 'Temat', 'Status'] as $i => $t) {
+        $lt->addCell($lw[$i], ['bgColor' => 'E0E8F4'])->addText($t, ['bold' => true, 'size' => 9]);
+    }
+    foreach ($LL as $r) {
+        $lt->addRow();
+        $fill = $r['upcoming'] ? ['bgColor' => 'FFF9E1'] : [];
+        $f = ['size' => 8.5, 'bold' => $r['upcoming'], 'color' => $r['status'] === 'cancelled' ? 'A01E1E' : '000000'];
+        foreach ([(string)$r['n'], $r['date'], $r['dow'], $r['time'], $r['method'], $r['topic'] !== '' ? $r['topic'] : '—', $r['status_label']] as $i => $v) {
+            $lt->addCell($lw[$i], $fill)->addText($v, $f);
+        }
+    }
+    $section->addText('Pogrubione, podświetlone wiersze to zajęcia zaplanowane (nadchodzące). Terminy mogą ulec zmianie.', ['size' => 8, 'color' => '6E6E6E']);
 }
 
 ti_print_log_add('harmonogram_docx', 'Plan zajęć DOCX (dla ucznia/rodzica) — ' . $course['name'], $course_id, 0, [], $me);

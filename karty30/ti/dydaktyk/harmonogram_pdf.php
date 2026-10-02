@@ -34,6 +34,8 @@ if ($_contact) $_meta[] = 'Kontakt: ' . implode(' · ', $_contact);
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/fpdf/fpdf.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/TiPdf.php';   // DejaVu z polskimi znakami + stopka
 $pl = fn(string $s): string => TiPdf::pl($s);
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/lessonList.php';
+$LL = ti_course_lesson_list($course_id);
 
 try {
     $pdf = new TiPdf('L', 'mm', 'A4');
@@ -111,6 +113,36 @@ try {
         $pdf->MultiCell($W, 4, $pl(
             'Plan wyznaczony na podstawie ostatnio zaplanowanych/odbytych terminów — może ulec zmianie. '
           . 'Aktualny harmonogram i ewentualne odwołania zawsze widoczne w panelu kursanta.'), 0, 'L');
+    }
+
+    // Lista konkretnych lekcji — odbyte, zaplanowane i odwołane
+    if ($LL) {
+        $pdf->AddPage();
+        $pdf->SetFont('Helvetica', 'B', 12); $pdf->SetTextColor(15, 80, 150);
+        $pdf->Cell($W, 8, $pl('Lista zajęć — ' . $course['name']), 0, 1);
+        $pdf->SetTextColor(0, 0, 0);
+        $cw = [10, 26, 12, 30, 34, $W - 10 - 26 - 12 - 30 - 34 - 38, 38];
+        $head = ['Lp.', 'Data', 'Dzień', 'Godziny', 'Forma', 'Temat', 'Status'];
+        $hdr = function () use ($pdf, $cw, $head, $pl) {
+            $pdf->SetFillColor(224, 232, 244); $pdf->SetDrawColor(190, 205, 225); $pdf->SetFont('Helvetica', 'B', 8.5);
+            foreach ($head as $i => $t) $pdf->Cell($cw[$i], 7, $pl($t), 1, 0, 'C', true);
+            $pdf->Ln();
+        };
+        $hdr();
+        foreach ($LL as $r) {
+            if ($pdf->GetY() > $pdf->GetPageHeight() - 22) { $pdf->AddPage(); $hdr(); }
+            $up = $r['upcoming']; $cx = $r['status'] === 'cancelled';
+            $pdf->SetFont('Helvetica', $up ? 'B' : '', 8.5);
+            $pdf->SetFillColor($up ? 255 : 255, $up ? 249 : 255, $up ? 225 : 255);
+            if ($cx) $pdf->SetTextColor(160, 30, 30);
+            $vals = [(string)$r['n'], $r['date'], $r['dow'], $r['time'], $r['method'], mb_strimwidth($r['topic'], 0, 70, '…'), $r['status_label']];
+            foreach ($vals as $i => $v) $pdf->Cell($cw[$i], 6.5, $pl($v), 1, 0, in_array($i, [5], true) ? 'L' : 'C', $up);
+            $pdf->Ln();
+            $pdf->SetTextColor(0, 0, 0);
+        }
+        $pdf->Ln(2);
+        $pdf->SetFont('Helvetica', '', 7.5); $pdf->SetTextColor(110, 110, 110);
+        $pdf->Cell($W, 4, $pl('Pogrubione, podświetlone wiersze to zajęcia zaplanowane (nadchodzące). Terminy mogą ulec zmianie.'), 0, 1);
     }
 
     $pdf->SetAutoPageBreak(false);
