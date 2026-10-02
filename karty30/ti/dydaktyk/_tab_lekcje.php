@@ -48,12 +48,39 @@ if ($_sms_enabled && $cur_course) {
     <?php
       $_n_drafts = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='draft' AND draft_id IS NULL", [(int)$cur_course])['n'] ?? 0);
       if ($_n_drafts > 0): ?>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Drukuj wersje robocze">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Drukuj wersje robocze" id="dydDraftPrint" data-course="<?= (int)$cur_course ?>">
       <span class="btn btn-outline-secondary disabled text-body" title="Wersje robocze nie są widoczne dla kursantów i nie liczą się do rozliczeń"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Robocze: <?= $_n_drafts ?></span>
-      <a class="btn btn-outline-secondary" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=pdf" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
-      <a class="btn btn-outline-secondary" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</a>
-      <a class="btn btn-outline-secondary" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=xlsx"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Excel</a>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Wybierz kolumny wydruku"><i class="bi bi-layout-three-columns me-1" aria-hidden="true"></i>Kolumny</button>
+        <div class="dropdown-menu p-2" style="min-width:16rem">
+          <?php require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerExport.php'; foreach (SC_DRAFT_COLS as $_ck => $_cl): ?>
+          <div class="form-check"><input class="form-check-input dyd-dcol" type="checkbox" id="dcol_<?= h($_ck) ?>" value="<?= h($_ck) ?>" checked><label class="form-check-label small" for="dcol_<?= h($_ck) ?>"><?= h($_cl) ?></label></div>
+          <?php endforeach; ?>
+          <div class="d-flex gap-2 mt-2"><button type="button" class="btn btn-sm btn-outline-secondary py-0" id="dcolAll">Wszystkie</button><button type="button" class="btn btn-sm btn-outline-secondary py-0" id="dcolNone">Żadne</button></div>
+        </div>
+      </div>
+      <a class="btn btn-outline-secondary dyd-dlink" data-fmt="pdf" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=pdf" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+      <a class="btn btn-outline-secondary dyd-dlink" data-fmt="docx" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</a>
+      <a class="btn btn-outline-secondary dyd-dlink" data-fmt="xlsx" href="roboczeExport.php?course_id=<?= (int)$cur_course ?>&fmt=xlsx"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Excel</a>
     </div>
+    <script>
+    (function () {
+      var root = document.getElementById('dydDraftPrint'); if (!root) return;
+      var boxes = root.querySelectorAll('.dyd-dcol'), key = 'dydDraftCols';
+      try { var saved = JSON.parse(localStorage.getItem(key) || 'null'); if (Array.isArray(saved)) boxes.forEach(function (b) { b.checked = saved.indexOf(b.value) !== -1; }); } catch (e) {}
+      function sync() {
+        var on = []; boxes.forEach(function (b) { if (b.checked) on.push(b.value); });
+        try { localStorage.setItem(key, JSON.stringify(on)); } catch (e) {}
+        root.querySelectorAll('.dyd-dlink').forEach(function (a) {
+          a.href = 'roboczeExport.php?course_id=' + root.dataset.course + '&fmt=' + a.dataset.fmt + (on.length && on.length < boxes.length ? '&cols=' + encodeURIComponent(on.join(',')) : '');
+        });
+      }
+      boxes.forEach(function (b) { b.addEventListener('change', sync); });
+      document.getElementById('dcolAll').onclick = function () { boxes.forEach(function (b) { b.checked = true; }); sync(); };
+      document.getElementById('dcolNone').onclick = function () { boxes.forEach(function (b) { b.checked = false; }); sync(); };
+      sync();
+    })();
+    </script>
     <?php endif; ?>
     <div class="ms-auto d-flex align-items-center gap-2">
       <div class="dropdown">

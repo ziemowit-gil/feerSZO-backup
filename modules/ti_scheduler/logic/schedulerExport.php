@@ -135,7 +135,24 @@ function sc_drafts_dataset(int $course_id): array {
         'subtitle' => 'Typ kursu: ' . ($TYPE[$c['class_type']] ?? 'Indywidualny') . ($hybrid && $c['class_type'] !== 'hybrid' ? ' (hybrydowy)' : '') . ($c['subject'] !== '' ? ' · rodzaj zajęć: ' . $c['subject'] : '')
             . ' · prowadzący: ' . $c['iname'] . ' · stan na ' . date('d.m.Y H:i') . ' · ' . $n . ' lekcji, razem ' . $h($min) . ' h (' . $sum . ') · niewidoczne dla kursantów, nie liczą się do rozliczeń',
         'headers' => ['Lp.', 'Data', 'Dzień', 'Godziny', 'Godz.', 'Forma zajęć', 'Sala', 'Trener (zastępstwo)', 'Stawka ind.', 'Temat', 'Notatki'], 'rows' => $rows,
+        'keys' => array_keys(SC_DRAFT_COLS),
         'w' => [0.8, 1.6, 1, 1.8, 1, 2, 1.8, 2, 1.4, 3, 3], 'num' => [4, 8]];
+}
+
+/** Kolumny wydruku wersji roboczych (klucz => etykieta) — do wyboru przez użytkownika. */
+const SC_DRAFT_COLS = ['lp' => 'Lp.', 'data' => 'Data', 'dzien' => 'Dzień tygodnia', 'godziny' => 'Godziny', 'godz' => 'Czas (godz.)', 'forma' => 'Forma zajęć (stacjonarnie / online)',
+                       'sala' => 'Sala', 'trener' => 'Trener (zastępstwo)', 'stawka' => 'Stawka indywidualna', 'temat' => 'Temat', 'notatki' => 'Notatki'];
+
+/** Zawęża tabelę do wybranych kolumn (klucze z $ds['keys']); pusty wybór = wszystkie. */
+function sc_dataset_columns(array $ds, array $want): array {
+    $keys = $ds['keys'] ?? [];
+    $idx = []; foreach ($keys as $i => $k) if (in_array($k, $want, true)) $idx[] = $i;
+    if (!$idx || count($idx) === count($keys)) return $ds;
+    $pick = fn(array $a) => array_values(array_map(fn($i) => $a[$i], $idx));
+    $ds['headers'] = $pick($ds['headers']); $ds['w'] = $pick($ds['w']);
+    $ds['rows'] = array_map($pick, $ds['rows']);
+    $ds['num'] = array_values(array_keys(array_filter($idx, fn($i) => in_array($i, $ds['num'], true))));
+    return $ds;
 }
 
 function sc_export_xlsx(array $ds, string $by, string $filename): void {
