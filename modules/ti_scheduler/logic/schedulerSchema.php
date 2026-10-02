@@ -68,4 +68,37 @@ function ti_sched_migrate(): void {
         instr_confirmed_at   TEXT,
         instr_confirmed_by   INTEGER
     )");
+    // Zgłoszenia trenera: niedostępność (zakres dat) albo wniosek o zmianę terminu lekcji.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_sc_requests (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        type           TEXT    NOT NULL,
+        instructor_id  INTEGER NOT NULL,
+        date_from      TEXT    NOT NULL DEFAULT '',
+        date_to        TEXT    NOT NULL DEFAULT '',
+        leave_type     TEXT    NOT NULL DEFAULT 'urlop',
+        session_id     INTEGER,
+        proposed_date  TEXT    NOT NULL DEFAULT '',
+        proposed_from  TEXT    NOT NULL DEFAULT '',
+        proposed_to    TEXT    NOT NULL DEFAULT '',
+        reason         TEXT    NOT NULL DEFAULT '',
+        status         TEXT    NOT NULL DEFAULT 'pending',
+        leave_id       INTEGER,
+        decided_by     INTEGER,
+        decided_at     TEXT,
+        decision_note  TEXT    NOT NULL DEFAULT '',
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sc_requests_status ON k30_sc_requests(status)");
+    // Lekcje dotknięte zgłoszeniem niedostępności i sposób ich rozwiązania.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_sc_request_items (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id    INTEGER NOT NULL,
+        session_id    INTEGER NOT NULL,
+        resolution    TEXT    NOT NULL DEFAULT 'pending',
+        substitute_id INTEGER,
+        note          TEXT    NOT NULL DEFAULT '',
+        resolved_by   INTEGER,
+        resolved_at   TEXT,
+        UNIQUE(request_id, session_id)
+    )");
 }

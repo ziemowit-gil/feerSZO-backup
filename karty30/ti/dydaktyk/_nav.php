@@ -29,11 +29,11 @@ const DYD_NAV_TABS = [
 
 /** Strony samodzielne → sekcja (ekrany kierownika z _kierownik_bar.php i „moje”). */
 const DYD_NAV_PAGES = [
-    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php'],
+    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencje.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
                     'dostepnosci.php', 'sale.php', 'sale_rezerwacje.php', 'okresy.php', 'przedmioty.php',
-                    'dni_wolne.php', 'planista.php', 'kadraLimity.php', 'wylaczenia.php', 'zespol.php', 'testy.php', 'overpayments.php', 'pricing.php'],
+                    'dni_wolne.php', 'planista.php', 'kadraLimity.php', 'zgloszenia.php', 'wylaczenia.php', 'zespol.php', 'testy.php', 'overpayments.php', 'pricing.php'],
 ];
 
 /** Sekcje pierwszego poziomu: klucz => [etykieta, adres]. */

@@ -38,6 +38,13 @@ $_kp_data = szo_cache_remember('ti:pulpit_kierownik:v1', 120, function () use ($
         (int)$_kp_debt['n'] ? 'do zapłaty łącznie ' . number_format((float)$_kp_debt['s'], 2, ',', ' ') . ' zł' : 'wszystkie opłacone w terminie',
         'billing.php', 'receipt', 'danger'];
 
+    $_kp_sc = $_kp_try(function () {
+        require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerWorkflow.php';
+        return sc_pending_count();
+    }, null);
+    if ($_kp_sc !== null) $_kp_rows[] = ['Zgłoszenia trenerów', $_kp_sc,
+        'niedostępności i wnioski o zmianę terminu czekają na decyzję', 'zgloszenia.php', 'inbox', 'warning'];
+
     $_kp_defer = $_kp_try(fn() => (int)db_one("SELECT COUNT(*) AS n FROM k30_ti_payment_deferrals WHERE status = 'pending'")['n'], null);
     if ($_kp_defer !== null) $_kp_rows[] = ['Wnioski o odroczenie płatności', $_kp_defer,
         'czekają na decyzję', 'billing.php', 'hourglass-split', 'warning'];
