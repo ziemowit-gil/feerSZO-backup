@@ -120,6 +120,15 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         } else {
             $work_as = ['label' => $role, 'icon' => $icon];
         }
+        // Planowanie — skróty w menu użytkownika (kierownik: planista i narzędzia; prowadzący: własne zgłoszenia)
+        if ($staff && !$acting) {
+            $items[] = ['Planista zajęć', 'planista.php', 'calendar3-range'];
+            $items[] = ['Zgłoszenia trenerów', 'zgloszenia.php', 'inbox'];
+            $items[] = ['Generator ciągów zajęć', 'generatorCiagow.php', 'magic'];
+            $items[] = ['Raporty planisty', 'raportyPlanisty.php', 'bar-chart-line'];
+        } else {
+            $items[] = ['Moje zgłoszenia (niedostępność, zmiana terminu)', 'mojeZgloszenia.php', 'envelope-exclamation'];
+        }
         $items[] = ['Komunikaty', 'index.php?tab=komunikaty', 'megaphone'];
         $items[] = ['Gdzie co jest', 'index.php?tab=pomoc', 'signpost-split'];
         $tb['user_menu'] = [
