@@ -2115,7 +2115,8 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
     <div class="modal-body">
       <div class="row g-3">
         <div class="col-lg-6">
-          <h6 class="text-uppercase text-body-secondary small fw-bold mb-2"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Termin i forma zajęć</h6>
+          <section class="border rounded p-3 mb-3 bg-body">
+            <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Termin</h6>
       <?php if ($isPast || $_hyb_lock): ?>
       <div class="alert alert-secondary py-2 mb-3 small d-flex align-items-center gap-2">
         <i class="bi bi-lock-fill"></i>
@@ -2192,6 +2193,9 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         </div>
       </div>
       <?php endif; ?>
+          </section>
+          <section class="border rounded p-3 mb-3 bg-body">
+            <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>Forma i miejsce</h6>
       <?php $_lm_val = $r['lesson_method'] ?? ''; $_lm_zdalna = in_array($_lm_val, ['zdalna_zoom','zdalna_inne'], true); ?>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_method">Metoda lekcji</label>
@@ -2225,50 +2229,10 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         </select>
         <div class="form-text">Sale zarządzane w <a href="sale.php" target="_blank">wykazie sal</a>.</div>
       </div>
-      <?php if (dyd_is_staff()): $_ro = $r['rate_override'] ?? null; ?>
-      <div class="mb-2 p-2 rounded" style="background:#FFFBEB">
-        <label class="form-label mb-1" for="<?= $pfx ?>_rate"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Indywidualna stawka za godzinę tej lekcji (zł)</label>
-        <div class="d-flex gap-2">
-          <input type="number" step="0.01" min="0" class="form-control" style="max-width:9rem" id="<?= $pfx ?>_rate" name="rate_override"
-                 value="<?= ($_ro !== null && (float)$_ro > 0.005) ? h((string)$_ro) : '' ?>" placeholder="standardowa">
-          <input type="text" class="form-control" name="rate_override_note" maxlength="200" value="<?= h($r['rate_override_note'] ?? '') ?>" placeholder="uzasadnienie / ustalenie" aria-label="Uzasadnienie stawki indywidualnej">
-        </div>
-        <div class="form-text mb-0">Puste = stawka z zapisu wg trybu (stacjonarna lub online). Wpisana kwota liczy się za każdą rozliczaną godzinę tej lekcji w rozliczeniach, fakturach i saldzie.</div>
-      </div>
-      <?php endif; ?>
-        </div>
-        <div class="col-lg-6">
-          <h6 class="text-uppercase text-body-secondary small fw-bold mb-2"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>Treść, prowadzący i rozliczenie</h6>
-      <div class="mb-2">
-        <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
-        <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" list="ti_topic_options"
-               value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML — zacznij pisać, aby wybrać z planu nauczania">
-        <?php if ($_curr): ?>
-        <div class="form-text">Podpowiedzi z <a href="index.php?course=<?= $cur_course ?>&tab=program" target="_blank">planu nauczania</a> kursu — można też wpisać własny temat.</div>
-        <?php endif; ?>
-      </div>
-      <div class="mb-2">
-        <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
-        <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
-      </div>
-      <div class="border rounded p-2 mb-2 bg-body-tertiary">
-        <div class="form-check form-switch mb-1">
-          <input class="form-check-input" type="checkbox" role="switch"
-                 id="<?= $pfx ?>_hw" name="has_homework" value="1"
-                 <?= !empty($r['has_homework']) ? 'checked' : '' ?>>
-          <label class="form-check-label" for="<?= $pfx ?>_hw">
-            <i class="bi bi-pencil-square me-1 text-warning" aria-hidden="true"></i>Zadano zadanie domowe
-          </label>
-        </div>
-        <div class="form-check form-switch mb-0">
-          <input class="form-check-input" type="checkbox" role="switch"
-                 id="<?= $pfx ?>_spr" name="self_prep_remote" value="1"
-                 <?= !empty($r['self_prep_remote']) ? 'checked' : '' ?>>
-          <label class="form-check-label" for="<?= $pfx ?>_spr">
-            <i class="bi bi-laptop me-1 text-info" aria-hidden="true"></i>Praca prowadzącego — przygotowanie materiałów
-          </label>
-        </div>
-      </div>
+          </section>
+          <?php if (dyd_is_staff()): // prowadzenie (zastępstwo, dostępność) ustawia tylko kierownik ?>
+          <section class="border rounded p-3 mb-3 bg-body">
+            <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>Prowadzenie</h6>
       <?php if (dyd_is_staff()): $_les_instrs = k30_ti_instructors(); ?>
       <div class="mb-2">
         <label class="form-label" for="<?= $pfx ?>_instr">
@@ -2292,6 +2256,24 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         </div>
       </div>
       <?php endif; ?>
+          </section>
+          <?php endif; ?>
+        </div>
+        <div class="col-lg-6">
+          <section class="border rounded p-3 mb-3 bg-body">
+            <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-journal-text me-1" aria-hidden="true"></i>Treść zajęć</h6>
+      <div class="mb-2">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_topic">Temat lekcji</label>
+        <input type="text" class="form-control" id="<?= $pfx ?>_topic" name="topic" list="ti_topic_options"
+               value="<?= h($r['topic'] ?? '') ?>" placeholder="np. Podstawy HTML — zacznij pisać, aby wybrać z planu nauczania">
+        <?php if ($_curr): ?>
+        <div class="form-text">Podpowiedzi z <a href="index.php?course=<?= $cur_course ?>&tab=program" target="_blank">planu nauczania</a> kursu — można też wpisać własny temat.</div>
+        <?php endif; ?>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="<?= $pfx ?>_notes">Notatki</label>
+        <textarea class="form-control" id="<?= $pfx ?>_notes" name="notes" rows="2"><?= h($r['notes'] ?? '') ?></textarea>
+      </div>
       <?php
         // Realizowane punkty planu nauczania — progressive disclosure (rozwijane),
         // natywny multi-select dla pełnej obsługi klawiaturą i czytnikiem ekranu.
@@ -2322,6 +2304,38 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         <div class="form-text"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak zdefiniowanego planu nauczania dla tego kursu — punkty planu doda administrator.</div>
         <?php endif; ?>
       </div>
+      <div class="border rounded p-2 mb-2 bg-body-tertiary">
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="<?= $pfx ?>_hw" name="has_homework" value="1"
+                 <?= !empty($r['has_homework']) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="<?= $pfx ?>_hw">
+            <i class="bi bi-pencil-square me-1 text-warning" aria-hidden="true"></i>Zadano zadanie domowe
+          </label>
+        </div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="<?= $pfx ?>_spr" name="self_prep_remote" value="1"
+                 <?= !empty($r['self_prep_remote']) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="<?= $pfx ?>_spr">
+            <i class="bi bi-laptop me-1 text-info" aria-hidden="true"></i>Praca prowadzącego — przygotowanie materiałów
+          </label>
+        </div>
+      </div>
+          </section>
+          <section class="border rounded p-3 mb-3 bg-body">
+            <h6 class="text-uppercase text-body-secondary small fw-bold mb-3"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Rozliczenie i powiadomienia</h6>
+      <?php if (dyd_is_staff()): $_ro = $r['rate_override'] ?? null; ?>
+      <div class="mb-2 p-2 rounded" style="background:#FFFBEB">
+        <label class="form-label mb-1" for="<?= $pfx ?>_rate"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Indywidualna stawka za godzinę tej lekcji (zł)</label>
+        <div class="d-flex gap-2">
+          <input type="number" step="0.01" min="0" class="form-control" style="max-width:9rem" id="<?= $pfx ?>_rate" name="rate_override"
+                 value="<?= ($_ro !== null && (float)$_ro > 0.005) ? h((string)$_ro) : '' ?>" placeholder="standardowa">
+          <input type="text" class="form-control" name="rate_override_note" maxlength="200" value="<?= h($r['rate_override_note'] ?? '') ?>" placeholder="uzasadnienie / ustalenie" aria-label="Uzasadnienie stawki indywidualnej">
+        </div>
+        <div class="form-text mb-0">Puste = stawka z zapisu wg trybu (stacjonarna lub online). Wpisana kwota liczy się za każdą rozliczaną godzinę tej lekcji w rozliczeniach, fakturach i saldzie.</div>
+      </div>
+      <?php endif; ?>
       <?php if ($isEdit && !dyd_is_admin()): ?>
       <div class="mb-1 small text-body-secondary">
         <i class="bi bi-lock me-1" aria-hidden="true"></i>Status lekcji zmienia tylko administrator — lekcja staje się odbyta po zapisaniu obecności.
@@ -2353,6 +2367,7 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         <label class="form-check-label" for="<?= $pfx ?>_notify">Powiadom kursantów SMS o nowych zajęciach</label>
       </div>
       <?php endif; ?>
+          </section>
         </div>
       </div>
     </div>
