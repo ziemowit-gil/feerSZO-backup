@@ -126,4 +126,26 @@ function ti_sched_migrate(): void {
         updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(scenario_id, session_id)
     )");
+
+    // Profile struktury czasu kursu: ciągły / weekendowy (zjazdy) / wieczorowy.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_sc_day_profiles (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        name                TEXT    NOT NULL,
+        days                TEXT    NOT NULL DEFAULT '1,2,3,4,5',
+        start_time          TEXT    NOT NULL DEFAULT '08:00',
+        end_time            TEXT    NOT NULL DEFAULT '16:00',
+        unit_min            INTEGER NOT NULL DEFAULT 45,
+        break_min           INTEGER NOT NULL DEFAULT 10,
+        lunch_from          TEXT    NOT NULL DEFAULT '',
+        lunch_min           INTEGER NOT NULL DEFAULT 0,
+        max_consecutive_min INTEGER NOT NULL DEFAULT 180,
+        every_weeks         INTEGER NOT NULL DEFAULT 1,
+        is_active           INTEGER NOT NULL DEFAULT 1
+    )");
+    if (!(int)($pdo->query("SELECT COUNT(*) FROM k30_sc_day_profiles")->fetchColumn())) {
+        $pdo->exec("INSERT INTO k30_sc_day_profiles (name,days,start_time,end_time,unit_min,break_min,lunch_from,lunch_min,max_consecutive_min,every_weeks) VALUES
+            ('Ciągły (Pn–Pt, dzień)','1,2,3,4,5','08:00','16:00',45,10,'12:00',30,180,1),
+            ('Weekendowy (zjazdy Sb–Nd)','6,7','09:00','17:00',45,10,'13:00',45,180,1),
+            ('Wieczorowy (Pn–Pt)','1,2,3,4,5','17:00','21:00',45,10,'',0,135,1)");
+    }
 }

@@ -15,6 +15,7 @@ require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerFeed.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerScenarios.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerMatch.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerSeries.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
@@ -51,6 +52,12 @@ if (in_array($action, ['scn_discard', 'scn_diff', 'scn_publish'], true)) {
     if ($action === 'scn_diff') sc_out(['ok' => true, 'diff' => sc_scenario_diff($scn)]);
     $r = sc_scenario_publish($scn, $uid, !empty($_POST['force']), !empty($_POST['notify']));
     sc_out($r, $r['ok'] || !empty($r['needs_ack']) ? 200 : 409);
+}
+if (in_array($action, ['series_preview', 'series_apply'], true)) {
+    $o = ['course_id' => (int)($_POST['course_id'] ?? 0), 'profile_id' => (int)($_POST['profile_id'] ?? 0), 'total_hours' => (float)str_replace(',', '.', (string)($_POST['total_hours'] ?? 0)),
+          'hour_min' => (int)($_POST['hour_min'] ?? 45), 'start_date' => (string)($_POST['start_date'] ?? ''), 'instructor_id' => (int)($_POST['instructor_id'] ?? 0), 'room_id' => (int)($_POST['room_id'] ?? 0)];
+    if ($msg = ti_course_closed_guard(['course_id' => $o['course_id']])) sc_out(['ok' => false, 'msg' => $msg], 423);
+    sc_out($action === 'series_preview' ? sc_series_preview($o) : sc_series_apply($o, $uid));
 }
 if ($action === 'find_slots') {
     $cid = (int)($_POST['course_id'] ?? 0);
