@@ -149,6 +149,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="col-md-2"><label class="form-label small mb-0" for="scFDur">Czas (min)</label><input type="number" class="form-control form-control-sm" id="scFDur" value="90" min="15" max="480" step="15"></div>
         <div class="col-md-2"><label class="form-label small mb-0" for="scFFrom">Od</label><input type="date" class="form-control form-control-sm" id="scFFrom"></div>
         <div class="col-md-3"><label class="form-label small mb-0" for="scFTo">Do</label><input type="date" class="form-control form-control-sm" id="scFTo"></div>
+        <div class="col-md-5"><label class="form-label small mb-0" for="scFMethod">Metoda zajęć</label><select class="form-select form-select-sm" id="scFMethod"><option value="">dowolna</option><option value="stacjonarna">🏢 stacjonarnie (tylko z wolną salą)</option><option value="zdalna_zoom">💻 online — Zoom</option><option value="zdalna_inne">💻 online — inne</option></select></div>
         <div class="col-12 d-flex flex-wrap gap-3 small">
           <label><input type="checkbox" class="form-check-input me-1" id="scFAny">Rozważ innych trenerów</label>
           <label><input type="checkbox" class="form-check-input me-1" id="scFWk">Uwzględnij weekendy</label>
@@ -225,7 +226,8 @@ function buildRows(list) {
 }
 
 function style(s) { return STY[s.ds] || STY.tentative; }
-function blockTitle(s) { return s.course + ' · ' + s.from + '–' + s.to + (s.instructor ? ' · ' + s.instructor : '') + (s.room ? ' · ' + s.room : '') + ' — ' + style(s).label; }
+const MI = m => m === 'stacjonarna' ? '🏢 ' : (m === 'zdalna_zoom' || m === 'zdalna_inne') ? '💻 ' : '';
+function blockTitle(s) { return MI(s.method) + s.course + ' · ' + s.from + '–' + s.to + (s.instructor ? ' · ' + s.instructor : '') + (s.room ? ' · ' + s.room : '') + ' — ' + style(s).label; }
 
 function render() {
   if (!st.data) return;
@@ -236,9 +238,12 @@ function render() {
   const list = visibleSessions();
   const conf = list.filter(s => s.conflicts.length).length;
   const tent = list.filter(s => s.ds === 'tentative').length;
+  const onsite = list.filter(s => s.method === 'stacjonarna' && !s.room_id && s.status !== 'cancelled').length;
   $('scStats').innerHTML = '<div class="sc-stat"><b>' + list.length + '</b>lekcji w widoku</div>'
     + '<div class="sc-stat ' + (conf ? 'bad' : '') + '"><b>' + conf + '</b>w konflikcie</div>'
-    + '<div class="sc-stat"><b>' + tent + '</b>wstępnych (niepotwierdzonych)</div>';
+    + '<div class="sc-stat"><b>' + tent + '</b>wstępnych (niepotwierdzonych)</div>'
+    + (onsite ? '<div class="sc-stat bad"><b>' + onsite + '</b>stacjonarnych bez sali</div>' : '')
+    + '<div class="sc-stat"><b>' + list.filter(s => s.method === 'stacjonarna').length + '</b>🏢 stacjonarnie · <b>' + list.filter(s => s.method === 'zdalna_zoom' || s.method === 'zdalna_inne').length + '</b>💻 online</div>';
   (st.view === 'day' ? renderDay : renderWeek)(list);
 }
 
@@ -282,7 +287,7 @@ function blockHtml(s, a) {
   const x = style(s), left = (h2m(s.from) - a) * PPM, w = Math.max(24, (h2m(s.to) - h2m(s.from)) * PPM);
   return '<div class="sc-blk' + (s.movable ? '' : ' sc-fixed') + (s.conflicts.length ? ' sc-conf' : '') + (s.changed ? ' sc-chg' : '') + '" data-id="' + s.id + '" tabindex="0" role="button" title="' + esc(blockTitle(s)) + '"'
     + ' style="left:' + left + 'px;width:' + w + 'px;top:' + (2 + s._lane * LANE_H) + 'px;height:' + (LANE_H - 3) + 'px;background:' + x.bg + ';border-color:' + x.color + ';color:' + x.color + '">'
-    + '<b>' + esc((s.code ? s.code + ' ' : '') + s.course) + '</b>' + esc(s.from + '–' + s.to) + (s.moved ? ' ↺' : '') + '</div>';
+    + '<b>' + MI(s.method) + esc((s.code ? s.code + ' ' : '') + s.course) + '</b>' + esc(s.from + '–' + s.to) + (s.moved ? ' ↺' : '') + (s.rate ? ' 💰' : '') + (s.method === 'stacjonarna' && !s.room_id && s.status !== 'cancelled' ? ' ⚠ bez sali' : '') + '</div>';
 }
 
 function overlapsLocal(s, key, from, to) {
@@ -373,7 +378,7 @@ function renderWeek(list) {
 function chipHtml(s) {
   const x = style(s);
   return '<div class="sc-chip' + (s.movable ? '' : ' sc-fixed') + (s.conflicts.length ? ' sc-conf' : '') + (s.changed ? ' sc-chg' : '') + '" draggable="' + (s.movable ? 'true' : 'false') + '" tabindex="0" role="button" data-id="' + s.id + '" title="' + esc(blockTitle(s)) + '"'
-    + ' style="background:' + x.bg + ';border-color:' + x.color + ';color:' + x.color + '"><b>' + esc(s.from + '–' + s.to) + '</b> ' + esc((s.code ? s.code + ' ' : '') + s.course)
+    + ' style="background:' + x.bg + ';border-color:' + x.color + ';color:' + x.color + '"><b>' + esc(s.from + '–' + s.to) + '</b> ' + MI(s.method) + esc((s.code ? s.code + ' ' : '') + s.course) + (s.rate ? ' 💰' : '') + (s.method === 'stacjonarna' && !s.room_id && s.status !== 'cancelled' ? ' ⚠' : '')
     + (st.rows !== 'instructor' && s.instructor ? '<br><small>' + esc(s.instructor) + '</small>' : '') + (st.rows !== 'room' && s.room ? '<br><small>' + esc(s.room) + '</small>' : '') + '</div>';
 }
 
@@ -498,19 +503,19 @@ $('scFind').onclick = () => {
 };
 $('scFGo').onclick = async () => {
   const fd = new FormData(); fd.append('_token', TOKEN); fd.append('action', 'find_slots'); fd.append('course_id', $('scFCourse').value);
-  fd.append('dur', $('scFDur').value); fd.append('from', $('scFFrom').value); fd.append('to', $('scFTo').value);
+  fd.append('dur', $('scFDur').value); fd.append('method', $('scFMethod').value); fd.append('from', $('scFFrom').value); fd.append('to', $('scFTo').value);
   if ($('scFAny').checked) fd.append('any', 1); if ($('scFWk').checked) fd.append('weekends', 1);
   $('scFResults').innerHTML = '<div class="text-body-secondary small">Szukam…</div>';
   const j = await (await fetch('planistaAjax.php', { method: 'POST', body: fd, credentials: 'same-origin' })).json();
   const sl = j.slots || [];
-  $('scFResults').innerHTML = sl.length ? '<table class="table table-sm align-middle"><tbody>' + sl.map((x, i) => '<tr><td>' + esc(DAYS[dow(x.date)] + ' ' + x.date) + '</td><td>' + esc(x.from + '–' + x.to) + '</td><td>' + esc(x.instructor) + '</td><td>' + esc(x.room) + '</td><td>' + (x.soft.length ? '<span class="text-warning" title="' + esc(x.soft.join(' | ')) + '">⚠</span>' : '') + '</td>'
+  $('scFResults').innerHTML = sl.length ? '<table class="table table-sm align-middle"><tbody>' + sl.map((x, i) => '<tr><td>' + esc(DAYS[dow(x.date)] + ' ' + x.date) + '</td><td>' + esc(x.from + '–' + x.to) + '</td><td>' + esc(x.instructor) + '</td><td>' + esc(x.room) + (x.method === 'stacjonarna' ? ' <small class="text-body-secondary">(' + x.rooms_free + ' wolnych)</small>' : '') + '</td><td>' + (x.soft.length ? '<span class="text-warning" title="' + esc(x.soft.join(' | ')) + '">⚠</span>' : '') + '</td>'
     + '<td class="text-end"><button type="button" class="btn btn-primary btn-sm py-0" data-s="' + i + '">Dodaj lekcję</button></td></tr>').join('') + '</tbody></table>'
     : '<div class="text-body-secondary small">Brak wolnych terminów bez twardych konfliktów w tym zakresie.</div>';
   $('scFResults').querySelectorAll('[data-s]').forEach(b => b.onclick = async () => {
     const x = sl[+b.dataset.s];
     const add = async (force) => {
       const f = new FormData(); f.append('_token', TOKEN); f.append('action', 'add_lesson'); f.append('course_id', $('scFCourse').value);
-      f.append('date', x.date); f.append('time_from', x.from); f.append('time_to', x.to); f.append('instructor_id', x.instructor_id); f.append('room_id', x.room_id); if (force) f.append('force', 1);
+      f.append('date', x.date); f.append('time_from', x.from); f.append('time_to', x.to); f.append('instructor_id', x.instructor_id); f.append('room_id', x.room_id); f.append('method', $('scFMethod').value); if (force) f.append('force', 1);
       return (await fetch('planistaAjax.php', { method: 'POST', body: f, credentials: 'same-origin' })).json();
     };
     let r = await add(false);

@@ -70,7 +70,7 @@ if (in_array($action, ['cycle_preview', 'cycle_apply'], true)) {
 if ($action === 'find_slots') {
     $cid = (int)($_POST['course_id'] ?? 0);
     if (!$cid) sc_out(['ok' => false, 'msg' => 'Wybierz grupę.'], 400);
-    sc_out(['ok' => true, 'slots' => sc_find_slots($cid, (int)($_POST['dur'] ?? 90), (string)($_POST['from'] ?? date('Y-m-d')), (string)($_POST['to'] ?? date('Y-m-d', strtotime('+14 days'))), !empty($_POST['any']), !empty($_POST['weekends']))]);
+    sc_out(['ok' => true, 'slots' => sc_find_slots($cid, (int)($_POST['dur'] ?? 90), (string)($_POST['from'] ?? date('Y-m-d')), (string)($_POST['to'] ?? date('Y-m-d', strtotime('+14 days'))), !empty($_POST['any']), !empty($_POST['weekends']), 10, in_array($_POST['method'] ?? '', ['stacjonarna', 'zdalna_zoom', 'zdalna_inne'], true) ? $_POST['method'] : '')]);
 }
 if ($action === 'add_lesson') {
     $cid = (int)($_POST['course_id'] ?? 0); $date = (string)($_POST['date'] ?? ''); $tf = substr((string)($_POST['time_from'] ?? ''), 0, 5); $tt = substr((string)($_POST['time_to'] ?? ''), 0, 5);
@@ -79,12 +79,12 @@ if ($action === 'add_lesson') {
     $c = db_one("SELECT instructor_id FROM k30_ti_courses WHERE id=?", [$cid]);
     if (!$c) sc_out(['ok' => false, 'msg' => 'Nie znaleziono grupy.'], 404);
     $own = ($iid && $iid !== (int)$c['instructor_id']) ? $iid : 0;
-    $res = sc_validate(['course_id' => $cid, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'instructor_id' => $own, 'room_id' => $room]);
+    $res = sc_validate(['course_id' => $cid, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'instructor_id' => $own, 'room_id' => $room, 'lesson_method' => (string)($_POST['method'] ?? '')]);
     if ($res['hard']) sc_out(['ok' => false, 'blocked' => true, 'hard' => $res['hard'], 'soft' => $res['soft'], 'msg' => $res['hard'][0]['msg']], 409);
     if ($res['soft'] && empty($_POST['force'])) sc_out(['ok' => false, 'needs_ack' => true, 'hard' => [], 'soft' => $res['soft'], 'msg' => 'Termin wymaga potwierdzenia.'], 409);
     $dur = ti_hm2min($tt) - ti_hm2min($tf);
     $new = db_insert('k30_ti_sessions', ['course_id' => $cid, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'duration_min' => $dur,
-        'status' => 'planned', 'instructor_id' => $own ?: null, 'room_id' => $room ?: null, 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s')]);
+        'status' => 'planned', 'instructor_id' => $own ?: null, 'room_id' => $room ?: null, 'lesson_method' => in_array($_POST['method'] ?? '', ['stacjonarna', 'zdalna_zoom', 'zdalna_inne'], true) ? $_POST['method'] : '', 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s')]);
     pl_audit('session', (int)$new, 'planista_add', [], ['date' => $date, 'from' => $tf, 'to' => $tt], $uid);
     sc_out(['ok' => true, 'id' => (int)$new, 'msg' => 'Dodano lekcję.']);
 }

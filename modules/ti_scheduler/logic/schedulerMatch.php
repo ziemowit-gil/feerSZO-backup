@@ -61,7 +61,7 @@ function sc_match_session(int $session_id, int $limit = 5): array {
  * Szukanie terminów dla grupy: skanuje dni i godziny (co 30 min, 8:00–20:00), pomija dni wolne i weekendy
  * wg flagi. Domyślnie tylko trener grupy; $any_instructor=true rozszerza na całą kadrę.
  */
-function sc_find_slots(int $course_id, int $dur_min, string $from, string $to, bool $any_instructor = false, bool $weekends = false, int $limit = 10): array {
+function sc_find_slots(int $course_id, int $dur_min, string $from, string $to, bool $any_instructor = false, bool $weekends = false, int $limit = 10, string $method = ''): array {
     $dur_min = max(15, min(480, $dur_min));
     if ((strtotime($to) - strtotime($from)) > 31 * 86400) $to = date('Y-m-d', strtotime($from . ' +31 days'));
     $c = db_one("SELECT instructor_id FROM k30_ti_courses WHERE id=?", [$course_id]);
@@ -76,12 +76,15 @@ function sc_find_slots(int $course_id, int $dur_min, string $from, string $to, b
         foreach ($cands as $iid => $iname) {
             for ($m = 8 * 60; $m + $dur_min <= 20 * 60; $m += 30) {
                 $tf = sprintf('%02d:%02d', intdiv($m, 60), $m % 60); $e = $m + $dur_min; $tt = sprintf('%02d:%02d', intdiv($e, 60), $e % 60);
-                $r = sc_validate(['course_id' => $course_id, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'instructor_id' => $iid, 'room_id' => 0]);
+                $r = sc_validate(['course_id' => $course_id, 'lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'instructor_id' => $iid, 'room_id' => 0, 'lesson_method' => $method]);
                 if ($r['hard']) continue;
-                $rooms = sc_free_rooms($course_id, $date, $tf, $tt);
+                $rooms = sc_free_rooms($course_id, $date, $tf, $tt, 0, $method);
+                if ($method === 'stacjonarna' && !$rooms) continue;          // stacjonarnie tylko gdy jest wolna sala
+                $soft = array_values(array_filter($r['soft'], fn($x) => !in_array($x['code'], ['ROOM_MISSING'], true)));
                 $out[] = ['date' => $date, 'from' => $tf, 'to' => $tt, 'instructor_id' => $iid, 'instructor' => $iname,
-                          'room_id' => $rooms[0]['id'] ?? 0, 'room' => $rooms[0]['name'] ?? '—', 'soft' => array_column($r['soft'], 'msg'),
-                          'score' => sc_instructor_score($iid, $course_id, $date, count($r['soft'])) + (($rooms ? 0 : 300)) + abs($m - 17 * 60) / 30];
+                          'room_id' => $rooms[0]['id'] ?? 0, 'room' => $method !== '' && $method !== 'stacjonarna' ? '— online —' : ($rooms[0]['name'] ?? '—'), 'method' => $method,
+                          'soft' => array_column($soft, 'msg'), 'rooms_free' => count($rooms),
+                          'score' => sc_instructor_score($iid, $course_id, $date, count($soft)) + ((($rooms || $method !== '' && $method !== 'stacjonarna') ? 0 : 300)) + abs($m - 17 * 60) / 30];
             }
         }
     }
