@@ -9,6 +9,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerFeed.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerExport.php';   // kolumny i grupowania wydruków
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -108,7 +109,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <button type="button" class="btn btn-outline-secondary btn-sm" id="scScnDiff" hidden>Zmiany</button>
   <button type="button" class="btn btn-success btn-sm" id="scScnPub" hidden>Opublikuj</button>
   <button type="button" class="btn btn-outline-danger btn-sm" id="scScnDel" hidden>Odrzuć scenariusz</button>
-  <button type="button" class="btn btn-outline-primary btn-sm ms-auto" id="scFind"><i class="bi bi-search me-1"></i>Znajdź termin</button>
+  <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="scPrint"><i class="bi bi-printer me-1"></i>Wydruki</button>
+  <button type="button" class="btn btn-outline-primary btn-sm" id="scFind"><i class="bi bi-search me-1"></i>Znajdź termin</button>
 </div>
 <div class="alert alert-info py-2 small" id="scScnBanner" hidden></div>
 <div class="sc-stats" id="scStats"></div>
@@ -165,6 +167,69 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="modal-dialog modal-lg"><div class="modal-content">
     <div class="modal-header"><h2 class="modal-title h5" id="scDiffTitle">Zmiany względem planu oficjalnego</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
     <div class="modal-body" id="scDiffBody"></div>
+  </div></div>
+</div>
+<div class="modal fade" id="scPrintModal" tabindex="-1" aria-labelledby="scPrintTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title h5" id="scPrintTitle"><i class="bi bi-printer me-2" aria-hidden="true"></i>Wydruki planisty</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>
+    <div class="modal-body">
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <section class="border rounded p-3 mb-3" aria-labelledby="scp-h1">
+            <h3 class="h6 text-uppercase text-body-secondary small fw-bold mb-2" id="scp-h1"><i class="bi bi-calendar-range me-1" aria-hidden="true"></i>Zakres i wersja</h3>
+            <label class="form-label small mb-0" for="scPRange">Zakres</label>
+            <select class="form-select form-select-sm mb-2" id="scPRange"><option value="view">Bieżący widok (dzień / tydzień)</option><option value="week">Tydzień wybranej daty</option><option value="month">Miesiąc wybranej daty</option><option value="custom">Własny zakres</option></select>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="form-label small mb-0" for="scPFrom">Od</label><input type="date" class="form-control form-control-sm" id="scPFrom"></div>
+              <div class="col-6"><label class="form-label small mb-0" for="scPTo">Do</label><input type="date" class="form-control form-control-sm" id="scPTo"></div></div>
+            <label class="form-label small mb-0" for="scPVer">Wersja planu</label>
+            <select class="form-select form-select-sm mb-2" id="scPVer"></select>
+            <label class="form-label small mb-0" for="scPGroup">Układ</label>
+            <select class="form-select form-select-sm mb-2" id="scPGroup"><?php foreach (SC_PLANNER_GROUPS as $gk => $gl): ?><option value="<?= h($gk) ?>"><?= h($gl) ?></option><?php endforeach; ?></select>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="scPCanc"><label class="form-check-label small" for="scPCanc">Uwzględnij odwołane lekcje</label></div>
+          </section>
+          <section class="border rounded p-3 mb-3" aria-labelledby="scp-h2">
+            <h3 class="h6 text-uppercase text-body-secondary small fw-bold mb-2" id="scp-h2"><i class="bi bi-funnel me-1" aria-hidden="true"></i>Filtr</h3>
+            <label class="form-label small mb-0" for="scPCourse">Grupa</label><select class="form-select form-select-sm mb-2" id="scPCourse"></select>
+            <label class="form-label small mb-0" for="scPInstr">Trener</label><select class="form-select form-select-sm mb-2" id="scPInstr"></select>
+            <label class="form-label small mb-0" for="scPRoom">Sala</label><select class="form-select form-select-sm" id="scPRoom"></select>
+            <div class="form-text">Przy wyborze jednej grupy nazwa pliku zaczyna się od typu kursu, daty i nazwy grupy.</div>
+          </section>
+        </div>
+        <div class="col-lg-6">
+          <section class="border rounded p-3 mb-3" aria-labelledby="scp-h3">
+            <h3 class="h6 text-uppercase text-body-secondary small fw-bold mb-2" id="scp-h3"><i class="bi bi-layout-three-columns me-1" aria-hidden="true"></i>Kolumny</h3>
+            <div class="row row-cols-2 g-0 mb-2">
+              <?php foreach (SC_PLANNER_COLS as $ck => $cl): ?><div class="col"><div class="form-check"><input class="form-check-input scp-col" type="checkbox" id="scpc_<?= h($ck) ?>" value="<?= h($ck) ?>" checked><label class="form-check-label small" for="scpc_<?= h($ck) ?>"><?= h($cl) ?></label></div></div><?php endforeach; ?>
+            </div>
+            <button type="button" class="btn btn-sm btn-link p-0 me-3" id="scpAll">wszystkie</button><button type="button" class="btn btn-sm btn-link p-0" id="scpNone">żadne</button>
+          </section>
+          <section class="border rounded p-3 mb-3" id="scpDiffBox" aria-labelledby="scp-h4" hidden>
+            <h3 class="h6 text-uppercase text-body-secondary small fw-bold mb-2" id="scp-h4"><i class="bi bi-intersect me-1" aria-hidden="true"></i>Zmiany scenariusza</h3>
+            <p class="small text-body-secondary mb-2">Lista różnic względem planu oficjalnego (było / będzie, trener, sala).</p>
+            <div class="d-flex flex-wrap gap-1">
+              <a class="btn btn-sm btn-outline-primary scp-diff" data-fmt="pdf" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+              <a class="btn btn-sm btn-outline-secondary scp-diff" data-fmt="docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</a>
+              <a class="btn btn-sm btn-outline-secondary scp-diff" data-fmt="xlsx"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Excel</a>
+              <a class="btn btn-sm btn-outline-secondary scp-diff" data-fmt="html" target="_blank" rel="noopener"><i class="bi bi-file-text me-1" aria-hidden="true"></i>Tekst</a>
+            </div>
+          </section>
+          <section class="border rounded p-3 mb-3" aria-labelledby="scp-h5">
+            <h3 class="h6 text-uppercase text-body-secondary small fw-bold mb-2" id="scp-h5"><i class="bi bi-download me-1" aria-hidden="true"></i>Lekcje — pobierz</h3>
+            <div class="d-flex flex-wrap gap-1">
+              <a class="btn btn-sm btn-primary scp-link" data-fmt="pdf" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
+              <a class="btn btn-sm btn-outline-secondary scp-link" data-fmt="docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</a>
+              <a class="btn btn-sm btn-outline-secondary scp-link" data-fmt="xlsx"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Excel</a>
+              <a class="btn btn-sm btn-outline-secondary scp-link" data-fmt="csv"><i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>CSV</a>
+            </div>
+            <div class="d-flex flex-wrap gap-1 mt-2 align-items-center"><span class="small text-body-secondary me-1">Bez tabeli (czytnik ekranu):</span>
+              <a class="btn btn-sm btn-outline-secondary scp-link" data-fmt="html" target="_blank" rel="noopener"><i class="bi bi-file-text me-1" aria-hidden="true"></i>Tekst</a>
+              <a class="btn btn-sm btn-outline-secondary scp-link" data-fmt="txt"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>TXT</a>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button></div>
   </div></div>
 </div>
 <div class="sc-toast" id="scToast" role="status" aria-live="polite"></div>
@@ -523,6 +588,54 @@ $('scFGo').onclick = async () => {
     if (r.ok) { toast('Dodano lekcję do planu oficjalnego.', 'success'); findModal.hide(); st.scn = 0; load(true); } else if (!r.needs_ack) toast(r.msg || 'Błąd', 'danger');
   });
 };
+
+/* ───────── Wydruki planisty ───────── */
+let printModal;
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+function printRange() {
+  const kind = $('scPRange').value, base = new Date(st.date + 'T12:00:00');
+  if (kind === 'custom') return;
+  let a, b;
+  if (kind === 'month') { a = new Date(base.getFullYear(), base.getMonth(), 1, 12); b = new Date(base.getFullYear(), base.getMonth() + 1, 0, 12); }
+  else if (kind === 'view' && st.view === 'day') { a = b = base; }
+  else { const m = monday(st.date); a = new Date(m + 'T12:00:00'); b = new Date(addDays(m, 6) + 'T12:00:00'); }
+  $('scPFrom').value = ymd(a); $('scPTo').value = ymd(b);
+}
+function printUrl(fmt, what) {
+  const q = new URLSearchParams({ what: what || 'plan', fmt: fmt, from: $('scPFrom').value, to: $('scPTo').value, scenario: $('scPVer').value,
+    course: $('scPCourse').value, instructor: $('scPInstr').value, room: $('scPRoom').value, group: $('scPGroup').value });
+  if ($('scPCanc').checked) q.set('cancelled', '1');
+  const boxes = document.querySelectorAll('.scp-col'), on = [...boxes].filter(b => b.checked).map(b => b.value);
+  if (on.length && on.length < boxes.length) q.set('cols', on.join(','));
+  return 'planistaExport.php?' + q.toString();
+}
+function printSync() {
+  const on = [...document.querySelectorAll('.scp-col')].filter(b => b.checked).map(b => b.value);
+  try { localStorage.setItem('scPrintCols', JSON.stringify(on)); } catch (e) {}
+  document.querySelectorAll('.scp-link').forEach(a => a.href = printUrl(a.dataset.fmt, 'plan'));
+  document.querySelectorAll('.scp-diff').forEach(a => a.href = printUrl(a.dataset.fmt, 'diff'));
+  $('scpDiffBox').hidden = !+$('scPVer').value;
+}
+const optList = (items, first, label) => '<option value="0">' + esc(first) + '</option>' + items.map(i => '<option value="' + i.id + '">' + esc(label(i)) + '</option>').join('');
+$('scPrint').onclick = () => {
+  if (!st.data) return;
+  printModal = printModal || new bootstrap.Modal($('scPrintModal'));
+  $('scPVer').innerHTML = '<option value="0">Plan oficjalny</option>' + st.data.scenarios.map(x => '<option value="' + x.id + '">Scenariusz: ' + esc(x.title) + '</option>').join('');
+  $('scPVer').value = String(st.scn || 0);
+  $('scPCourse').innerHTML = optList(st.data.courses, 'wszystkie grupy', c => (c.code ? c.code + ' · ' : '') + c.name);
+  $('scPInstr').innerHTML = optList(st.data.instructors, 'wszyscy trenerzy', i => i.name);
+  $('scPRoom').innerHTML = optList(st.data.rooms, 'wszystkie sale', r => r.name);
+  $('scPRange').value = 'view'; printRange();
+  try { const saved = JSON.parse(localStorage.getItem('scPrintCols') || 'null'); if (Array.isArray(saved)) document.querySelectorAll('.scp-col').forEach(b => b.checked = saved.indexOf(b.value) !== -1); } catch (e) {}
+  printSync(); printModal.show();
+};
+['scPVer', 'scPGroup', 'scPCanc', 'scPCourse', 'scPInstr', 'scPRoom'].forEach(id => $(id).addEventListener('change', printSync));
+$('scPRange').addEventListener('change', () => { printRange(); printSync(); });
+['scPFrom', 'scPTo'].forEach(id => $(id).addEventListener('change', () => { $('scPRange').value = 'custom'; printSync(); }));
+document.querySelectorAll('.scp-col').forEach(b => b.addEventListener('change', printSync));
+$('scpAll').onclick = () => { document.querySelectorAll('.scp-col').forEach(b => b.checked = true); printSync(); };
+$('scpNone').onclick = () => { document.querySelectorAll('.scp-col').forEach(b => b.checked = false); printSync(); };
 
 /* ───────── Pasek narzędzi ───────── */
 const step = () => st.view === 'day' ? 1 : 7;
