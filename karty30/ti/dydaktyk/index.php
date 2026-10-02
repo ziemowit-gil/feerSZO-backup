@@ -742,6 +742,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($rc['hard']) { flash_set('danger', $rc['hard'][0]['msg'] ?? 'Sala zajęta w tym terminie.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         }
 
+        // Trener ma w tym czasie inne zajęcia (inna grupa) — blokada; kierownik może ominąć
+        // tym samym przełącznikiem co dostępność (np. zajęcia łączone grup).
+        if ($eff_instr && !$skip_avail && !$is_draft && !$is_reservation) {
+            require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_scheduler/logic/schedulerValidator.php';
+            if ($ic = sc_instructor_overlaps($eff_instr, $date, $tf, $tt, $sid)) {
+                flash_set('danger', 'Trener ma w tym czasie inne zajęcia: ' . $ic[0]['course_name'] . ' (' . substr($ic[0]['time_from'], 0, 5) . '–' . substr($ic[0]['time_to'], 0, 5) . ').' . (dyd_is_staff() ? ' Kierownik może to ominąć opcją pomijania dostępności.' : ''));
+                header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+            }
+        }
+
         if ($sid && dyd_owns_session($uid, $sid)) {
             // Status lekcji zmienia ręcznie tylko administrator — pozostali zachowują
             // bieżący (odbyta/zaplanowana wynika z zapisu obecności, nie z edycji).
