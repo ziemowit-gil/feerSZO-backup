@@ -30,6 +30,7 @@ $_lnk = function (string $href, string $label, string $icon, string $kind = 'out
   <span class="small text-body-secondary">Wszystko, co możesz wydrukować lub pobrać dla siebie i swoich grup.</span>
 </div>
 
+<?php if (dyd_is_staff()): /* raporty i PDF rachunków wirtualnych drukuje tylko kierownik */ ?>
 <section class="card mb-3" aria-labelledby="wd-rw">
   <div class="card-header" id="wd-rw"><i class="bi bi-bank me-1" aria-hidden="true"></i>Rachunki wirtualne kursantów</div>
   <div class="card-body d-flex flex-wrap gap-2 align-items-center">
@@ -42,6 +43,7 @@ $_lnk = function (string $href, string $label, string $icon, string $kind = 'out
     <span class="small text-body-secondary">Kursant, ID, numer rachunku do wpłat, seria i data przypisania; stan: bez numeru / bez powiadomienia / wirtualny.</span>
   </div>
 </section>
+<?php endif; ?>
 
 <div class="row g-3">
   <div class="col-lg-6">
