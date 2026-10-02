@@ -691,6 +691,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // i nieliczony do frekwencji/wypłat, dopóki ktoś jej nie potwierdzi.
         $is_reservation = !empty($_POST['is_reservation']);
         $is_draft       = !$is_reservation && !empty($_POST['is_draft']);
+        // Kurs hybrydowy: metoda lekcji jest obowiązkowa (od niej zależy stawka), stacjonarna wymaga sali
+        // (albo zapisu jako rezerwacja terminu), a lekcja zdalna nie trzyma sali.
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_scheduler/logic/schedulerValidator.php';
+        $_cid_h = (int)($_POST['course_id'] ?? $course_id ?? 0);
+        if (in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true) && $room_id) { $room_id = 0; flash_set('info', 'Lekcja zdalna nie ma sali — usunięto wybraną salę.'); }
+        if ($_cid_h && !$is_draft && ti_course_is_hybrid($_cid_h)) {
+            if ($lm === '') { flash_set('danger', 'Kurs hybrydowy: wybierz metodę lekcji (stacjonarna / zdalna) — od niej zależy stawka.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+            if ($lm === 'stacjonarna' && !$room_id && !$is_reservation) { flash_set('danger', 'Lekcja stacjonarna wymaga sali. Wybierz salę albo zapisz termin jako rezerwację (do czasu ustalenia sali).'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        }
         // Rezerwacja „na PESEL" — blokada terminu dla beneficjenta PFRON jeszcze
         // bez zapisu w systemie (bez zakładania kursanta/k30_clients). Temat
         // dostaje etykietę PFRON-XXX (3 ostatnie cyfry), pełny PESEL do notatek.
@@ -770,6 +779,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // gdy edytuje zwykły prowadzący (formularz mu go nawet nie pokazuje).
             if (dyd_is_staff()) {
                 db()->prepare("UPDATE k30_ti_sessions SET instructor_id=? WHERE id=?")->execute([$sess_instr ?: null, $sid]);
+                $_ro_v = (float)str_replace(',', '.', (string)($_POST['rate_override'] ?? ''));
+                db()->prepare("UPDATE k30_ti_sessions SET rate_override=?, rate_override_note=? WHERE id=?")
+                   ->execute([$_ro_v > 0.005 ? round($_ro_v, 2) : null, $_ro_v > 0.005 ? substr(trim((string)($_POST['rate_override_note'] ?? '')), 0, 200) : '', $sid]);
+                pl_audit('session', $sid, 'rate_override', [], ['rate' => $_ro_v > 0.005 ? $_ro_v : null], $uid);
             }
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             if ($st === 'remote_material') {
@@ -787,6 +800,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'room_id'         => $room_id ?: null, 'date_flag' => $dflag,
                 'created_by'      => $uid, 'created_at' => date('Y-m-d H:i:s'),
             ]);
+            if (dyd_is_staff() && ($_ro_n = (float)str_replace(',', '.', (string)($_POST['rate_override'] ?? ''))) > 0.005) {
+                db()->prepare("UPDATE k30_ti_sessions SET rate_override=?, rate_override_note=? WHERE id=?")
+                   ->execute([round($_ro_n, 2), substr(trim((string)($_POST['rate_override_note'] ?? '')), 0, 200), $sid]);
+                pl_audit('session', (int)$sid, 'rate_override', [], ['rate' => $_ro_n], $uid);
+            }
             k30_ti_session_set_curriculum($sid, (array)($_POST['curriculum_ids'] ?? []));
             // Wstępna obecność dla aktywnych uczestników
             foreach (db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=? AND status='active'", [$course_id]) as $e) {
@@ -890,6 +908,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ser_dflag    = in_array($_POST['date_flag'] ?? '', ['tentative','change_possible'], true) ? $_POST['date_flag'] : '';
         $ser_reservation = !empty($_POST['is_reservation']);
         $ser_draft       = !$ser_reservation && !empty($_POST['is_draft']);
+        // Kurs hybrydowy: metoda obowiązkowa, stacjonarna wymaga sali (lub rezerwacji), zdalna bez sali
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_scheduler/logic/schedulerValidator.php';
+        $_scid = (int)($_POST['course_id'] ?? 0);
+        if (in_array($ser_lm, ['zdalna_zoom', 'zdalna_inne'], true) && $ser_room_id) { $ser_room_id = 0; flash_set('info', 'Lekcje zdalne nie mają sali — usunięto wybraną salę.'); }
+        if ($_scid && !$ser_draft && ti_course_is_hybrid($_scid)) {
+            if ($ser_lm === '') { flash_set('danger', 'Kurs hybrydowy: wybierz metodę lekcji dla całej serii — od niej zależy stawka.'); header('Location: ' . dyd_back($_scid, 'lekcje')); exit; }
+            if ($ser_lm === 'stacjonarna' && !$ser_room_id && !$ser_reservation) { flash_set('danger', 'Seria stacjonarna wymaga sali. Wybierz salę albo zapisz serię jako rezerwację terminów.'); header('Location: ' . dyd_back($_scid, 'lekcje')); exit; }
+        }
         $ser_notes = '';
         if ($ser_reservation && trim($_POST['pfron_pesel'] ?? '') !== '') {
             $ser_pesel = preg_replace('/\D/', '', trim($_POST['pfron_pesel']));
@@ -2183,6 +2209,17 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
         </select>
         <div class="form-text">Sale zarządzane w <a href="sale.php" target="_blank">wykazie sal</a>.</div>
       </div>
+      <?php if (dyd_is_staff()): $_ro = $r['rate_override'] ?? null; ?>
+      <div class="mb-2 p-2 rounded" style="background:#FFFBEB">
+        <label class="form-label mb-1" for="<?= $pfx ?>_rate"><i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Indywidualna stawka za godzinę tej lekcji (zł)</label>
+        <div class="d-flex gap-2">
+          <input type="number" step="0.01" min="0" class="form-control" style="max-width:9rem" id="<?= $pfx ?>_rate" name="rate_override"
+                 value="<?= ($_ro !== null && (float)$_ro > 0.005) ? h((string)$_ro) : '' ?>" placeholder="standardowa">
+          <input type="text" class="form-control" name="rate_override_note" maxlength="200" value="<?= h($r['rate_override_note'] ?? '') ?>" placeholder="uzasadnienie / ustalenie" aria-label="Uzasadnienie stawki indywidualnej">
+        </div>
+        <div class="form-text mb-0">Puste = stawka z zapisu wg trybu (stacjonarna lub online). Wpisana kwota liczy się za każdą rozliczaną godzinę tej lekcji w rozliczeniach, fakturach i saldzie.</div>
+      </div>
+      <?php endif; ?>
       <div class="border rounded p-2 mb-2 bg-body-tertiary">
         <div class="form-check form-switch mb-1">
           <input class="form-check-input" type="checkbox" role="switch"

@@ -90,7 +90,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             $g_hours = round($g_hours + $hrs, 2);
             if ($attended) $g_present++;
             $l_on    = ti_session_is_online((string)$r['lesson_method'], $cid);   // stawka online / stacjonarna
-            $l_rate  = $hourly ? ti_lesson_rate($base_eff, $cid, $client_id, (string)$r['lesson_date'], $l_on)['rate'] : 0.0;
+            $l_rate  = $hourly ? (ti_session_rate_override((int)$r['id']) ?? ti_lesson_rate($base_eff, $cid, $client_id, (string)$r['lesson_date'], $l_on)['rate']) : 0.0;
             $g_hourly_amt += $hrs * $l_rate;
             if ($hrs > 0) $bill_lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => $hrs, 'online' => $l_on, 'session_id' => (int)$r['id']];
 

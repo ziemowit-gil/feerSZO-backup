@@ -17,6 +17,24 @@ const SC_CHAIN_GAP_MIN = 15;   // przerwa krótsza lub równa tej wartości = za
 const SC_DUR_SQL = "COALESCE(NULLIF(s.duration_min,0),
     CAST((strftime('%s','2000-01-01 '||s.time_to)-strftime('%s','2000-01-01 '||s.time_from))/60 AS INTEGER))";
 
+/**
+ * Kurs hybrydowy: aktywny uczestnik ma osobną stawkę online (hourly_rate_online > 0) albo grupa
+ * ma już lekcje i stacjonarne, i zdalne. W takim kursie każda lekcja musi mieć jawną metodę,
+ * bo od niej zależy stawka (patrz ti_session_is_online).
+ */
+function ti_course_is_hybrid(int $course_id): bool {
+    static $c = [];
+    if (!$course_id) return false;
+    if (!isset($c[$course_id])) {
+        $r = db_one("SELECT
+            (SELECT COUNT(*) FROM k30_ti_enrollments WHERE course_id=? AND status='active' AND COALESCE(hourly_rate_online,0)>0.005) AS online_rate,
+            (SELECT COUNT(DISTINCT CASE WHEN lesson_method='stacjonarna' THEN 's' WHEN lesson_method IN ('zdalna_zoom','zdalna_inne') THEN 'r' END)
+               FROM k30_ti_sessions WHERE course_id=? AND status!='cancelled' AND lesson_method!='') AS kinds", [$course_id, $course_id]);
+        $c[$course_id] = (int)($r['online_rate'] ?? 0) > 0 || (int)($r['kinds'] ?? 0) >= 2;
+    }
+    return $c[$course_id];
+}
+
 function sc_effective_instructor(int $course_id, int $instructor_id = 0): int {
     return $instructor_id > 0 ? $instructor_id : ti_course_instructor_id($course_id);
 }
@@ -155,6 +173,12 @@ function sc_validate(array $p): array {
     // Zoom (jeden host = jedno spotkanie)
     $lm = (string)($p['lesson_method'] ?? '');
     if ($skip && $lm === '') $lm = (string)(db_one("SELECT lesson_method FROM k30_ti_sessions WHERE id=?", [$skip])['lesson_method'] ?? '');
+    // Metoda i sala (kurs hybrydowy: od metody zależy stawka)
+    if (ti_course_is_hybrid($course)) {
+        if ($lm === '') $add_s('METHOD_MISSING', 'Kurs hybrydowy — lekcja nie ma metody (online / stacjonarna), więc stawka zależy od ustawienia grupy.');
+        elseif ($lm === 'stacjonarna' && !$room) $add_s('ROOM_MISSING', 'Lekcja stacjonarna bez przypisanej sali.');
+    }
+    if ($room && in_array($lm, ['zdalna_zoom', 'zdalna_inne'], true)) $add_s('ROOM_ON_ONLINE', 'Lekcja online ma przypisaną salę — zwolnij ją, jeśli nie jest potrzebna.');
     $zc = ti_zoom_slot_check($course, $lm, $date, $tf, $tt, $skip);
     if (!$zc['ok']) $add_h('CONFLICT_ZOOM', $zc['reason']);
 

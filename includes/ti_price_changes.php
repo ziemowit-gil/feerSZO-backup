@@ -102,6 +102,22 @@ function ti_session_is_online(string $lesson_method, int $course_id): bool {
 }
 
 /**
+ * Indywidualna stawka godzinowa jednej lekcji (k30_ti_sessions.rate_override) albo null.
+ * Cache per żądanie; brak kolumny (baza przed migracją) = null.
+ */
+function ti_session_rate_override(int $session_id): ?float {
+    static $c = [];
+    if ($session_id <= 0) return null;
+    if (!array_key_exists($session_id, $c)) {
+        try {
+            $v = db_one("SELECT rate_override FROM k30_ti_sessions WHERE id=?", [$session_id])['rate_override'] ?? null;
+            $c[$session_id] = ($v !== null && (float)$v > 0.005) ? round((float)$v, 2) : null;
+        } catch (\Throwable $e) { $c[$session_id] = null; }
+    }
+    return $c[$session_id];
+}
+
+/**
  * Stawka godzinowa JEDNEJ lekcji: stacjonarna (hourly_rate) albo online
  * (hourly_rate_online, gdy > 0), z nałożoną zmianą ceny z dnia lekcji.
  * Zmiana procentowa działa na obie stawki. Zmiana „nowa kwota” ustawia stawkę
@@ -139,6 +155,14 @@ function ti_price_hourly_breakdown(array $eff, int $course_id, int $client_id, a
         $d = (string)$l['date']; $h = (float)$l['hours'];
         // Tryb lekcji: 'online' w wierszu (kalkulator, raporty); brak = stacjonarna
         $on = !empty($l['online']);
+        // Indywidualna stawka tej lekcji (override) ma pierwszeństwo przed stawką z zapisu i zmianami ceny
+        $ov = !empty($l['session_id']) ? ti_session_rate_override((int)$l['session_id']) : null;
+        if ($ov !== null) {
+            $by_sess[(int)$l['session_id']] = $ov;
+            $kk = number_format($ov, 2, '.', '');
+            $parts[$kk] = ($parts[$kk] ?? 0.0) + $h; $amount += $h * $ov; $hours += $h;
+            continue;
+        }
         $k  = $d . ($on ? ':on' : ':st');
         if (!isset($memo[$k])) {
             $lr = ti_lesson_rate($eff, $course_id, $client_id, $d, $on);

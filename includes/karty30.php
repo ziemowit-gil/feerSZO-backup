@@ -502,6 +502,10 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_enrollments ADD COLUMN zoom_meeting_url TEXT NOT NULL DEFAULT ''",
         // Metoda lekcji: stacjonarna | zdalna_zoom | zdalna_inne ('' = nie wybrano)
         "ALTER TABLE k30_ti_sessions ADD COLUMN lesson_method TEXT NOT NULL DEFAULT ''",
+        // Indywidualna stawka za godzinę TEJ lekcji (zł) — nadpisuje stawkę z zapisu/zmiany ceny.
+        // NULL = stawka standardowa wg trybu (stacjonarna / online). Ustawia tylko kierownik.
+        "ALTER TABLE k30_ti_sessions ADD COLUMN rate_override REAL",
+        "ALTER TABLE k30_ti_sessions ADD COLUMN rate_override_note TEXT NOT NULL DEFAULT ''",
         // Pewność terminu w grafiku — niezależna od statusu lekcji. '' = ustalony,
         // tentative = niepewny (?), change_possible = możliwa zmiana terminu.
         "ALTER TABLE k30_ti_sessions ADD COLUMN date_flag TEXT NOT NULL DEFAULT ''",
