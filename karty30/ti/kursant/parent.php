@@ -343,7 +343,7 @@ if ($parent && isset($_GET['grades_pdf'])) {
 }
 
 $ptab   = $_GET['ptab'] ?? 'rozliczenia';
-if (!in_array($ptab, ['rozliczenia','portfel','frekwencja','oceny','licencje','dostep','harmonogram','wiadomosci','vlab'], true)) $ptab = 'rozliczenia';
+if (!in_array($ptab, ['rozliczenia','portfel','frekwencja','oceny','postepy','licencje','dostep','harmonogram','wiadomosci','vlab'], true)) $ptab = 'rozliczenia';
 $vlab_term_pending_parent = $parent ? !ti_term_accepted((int)$parent['client_id'], 'vlab') : false;
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
 $KP_TITLE  = 'Panel rodzica';
@@ -586,6 +586,11 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </li>
       <li class="nav-item">
+        <a class="nav-link <?= $ptab==='postepy'?'active':'' ?>" href="?ptab=postepy" <?= $ptab==='postepy'?'aria-current="page"':'' ?>>
+          <i class="bi bi-chat-square-text me-1" aria-hidden="true"></i>Uwagi prowadzącego
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link <?= $ptab==='licencje'?'active':'' ?>" href="?ptab=licencje" <?= $ptab==='licencje'?'aria-current="page"':'' ?>>
           <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje
           <?php if ($childLicCount > 0): ?><span class="badge text-bg-secondary ms-1"><?= $childLicCount ?></span><?php endif; ?>
@@ -823,6 +828,11 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endforeach; ?>
   <?php endif; ?>
+
+<?php elseif ($ptab === 'postepy'): ?>
+  <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-1"><i class="bi bi-chat-square-text text-primary" aria-hidden="true"></i>Uwagi prowadzącego o dziecku</h2>
+  <p class="text-body-secondary small mb-3">Uwagi o postępach dziecka, które prowadzący oznaczył jako widoczne dla kursanta i opiekuna.</p>
+  <?php $rv_client_id = (int)$parent['client_id']; $rv_audience = 'parent'; include __DIR__ . '/_postepy_view.php'; ?>
 
 <?php elseif ($ptab === 'licencje'): ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-1"><i class="bi bi-key text-primary" aria-hidden="true"></i>Licencje dziecka</h2>

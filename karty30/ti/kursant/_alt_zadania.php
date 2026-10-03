@@ -84,6 +84,7 @@ if ($sel_row) {
   Książki i materiały zewnętrzne: <a href="../ext/index.php?as=student">Biblioteka materiałów</a>.
 </p>
 <?= $ti_ctx_switch_html ?? '' ?>
+<?php $rv_client_id = (int)$student['client_id']; $rv_audience = 'student'; include __DIR__ . '/_postepy_view.php'; /* materiały i uwagi od prowadzącego (moduł ti_dydaktyka) */ ?>
 
 <?php $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']); if ($hwf): ?>
 <div class="alert alert-<?= $hwf[0] === 'ok' ? 'success' : 'danger' ?> alert-dismissible fade show" role="alert">

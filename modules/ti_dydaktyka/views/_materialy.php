@@ -15,8 +15,8 @@ foreach ($assignable as $m) $_by_course[$m['course_name']][] = $m;
     <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm align-middle" style="font-size:.88rem">
-        <caption class="visually-hidden">Materiały przypisane kursantowi: tytuł, typ, kto przypisał, termin i czy kursant je otworzył</caption>
-        <thead class="table-light"><tr><th scope="col">Materiał</th><th scope="col">Przypisał(a)</th><th scope="col">Termin</th><th scope="col">Otwarty</th><th scope="col">Uwaga</th><th scope="col" class="text-end">Akcje</th></tr></thead>
+        <caption class="visually-hidden">Materiały przypisane kursantowi: tytuł, typ, kto przypisał, termin i czy kursant pobrał plik</caption>
+        <thead class="table-light"><tr><th scope="col">Materiał</th><th scope="col">Przypisał(a)</th><th scope="col">Termin</th><th scope="col">Pobranie pliku</th><th scope="col">Uwaga</th><th scope="col" class="text-end">Akcje</th></tr></thead>
         <tbody>
         <?php foreach ($assigned as $a): ?>
           <tr>
@@ -24,7 +24,7 @@ foreach ($assignable as $m) $_by_course[$m['course_name']][] = $m;
               <div class="small fw-normal text-body-secondary"><?= h(k30_ti_material_type_label((string)$a['type'])) ?><?= !empty($a['course_name']) ? ' · ' . h($a['course_name']) : '' ?><?= $a['attach_name'] !== '' ? ' · ' . h($a['attach_name']) : '' ?><?= empty($a['is_active']) ? ' · nieaktywny' : '' ?></div></th>
             <td><?= h((string)($a['assigned_by_name'] ?? '—')) ?><div class="small text-body-secondary"><?= h(dk_date($a['assigned_at'])) ?></div></td>
             <td><?= !empty($a['due_at']) ? h(dk_date($a['due_at'])) : '—' ?></td>
-            <td><?= !empty($a['opened_at']) ? dk_badge('bi-check-circle-fill', 'dk-ok', 'otwarty ' . dk_date($a['opened_at'])) : dk_badge('bi-circle', 'dk-muted', 'nie otwarty') ?></td>
+            <td><?php if ($a['attach_path'] === ''): ?><span class="text-body-secondary">— (link, bez śledzenia)</span><?php else: ?><?= !empty($a['opened_at']) ? dk_badge('bi-check-circle-fill', 'dk-ok', 'pobrany ' . dk_date($a['opened_at'])) : dk_badge('bi-circle', 'dk-muted', 'nie pobrany') ?><?php endif; ?></td>
             <td><?= $a['note'] !== '' ? h($a['note']) : '—' ?></td>
             <td class="text-end">
               <form method="post" class="d-inline" action="<?= h(dk_url($clientId, $courseCtx, [], '#materialy')) ?>" onsubmit="return confirm('Cofnąć przypisanie tego materiału?')">

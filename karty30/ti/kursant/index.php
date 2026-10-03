@@ -3335,6 +3335,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <p class="text-body-secondary small mb-3">Materiały do nauki i zadania domowe — pogrupowane według lekcji. Oceny znajdziesz w zakładce „Oceny".
     Książki i materiały zewnętrzne: <a href="../ext/index.php?as=student"><i class="bi bi-book me-1" aria-hidden="true"></i>Biblioteka materiałów</a>.</p>
   <?= $ti_ctx_switch_html ?>
+  <?php $rv_client_id = (int)$student['client_id']; $rv_audience = 'student'; include __DIR__ . '/_postepy_view.php'; /* materiały i uwagi od prowadzącego (moduł ti_dydaktyka) */ ?>
 
   <?php
     $hwf = $_SESSION['hw_flash'] ?? null; unset($_SESSION['hw_flash']);
