@@ -16,12 +16,14 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_referrals.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payment_account_schema.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/payment_portal/logic/paymentPortal.php'; // rachunek wirtualny z nr kursanta
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/sprawdz_konto/logic/sprawdz_konto.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje/logic/tiLicencjeManager.php'; // licencje kursantów: przypisanie, forma rozliczenia
 
 $me       = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
 $uid      = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
 karty30_migrate();
+ti_licencje_migrate();   // kolumny formy rozliczenia licencji (zakładka „Licencje”)
 
 /** Generuje prosty login: pierwsza litera imienia + kropka + nazwisko, bez polskich znaków */
 function _gen_student_login(string $name, string $suffix = ''): string {
@@ -554,44 +556,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
-    // Licencje na oprogramowanie (inne niż MS365) — przypisanie/cofnięcie wprost
-    // z panelu akcji konta kursanta (ta sama baza co katalog/pełny widok w
-    // licencje.php — ekran kierownika, bez konta SZO — i w admin/licencje_admin.php).
+    // Licencje na oprogramowanie (inne niż MS365) — przypisanie/unieważnienie wprost z panelu akcji
+    // konta kursanta. Te same reguły co na ekranie „Licencje kursantów” (licencjeKursantow.php,
+    // moduł modules/ti_licencje): forma rozliczenia obowiązkowa, powiadomienie SMS / e-mail o przypisaniu.
     if ($op === 'license_assign') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
-        $license_id = (int)($_POST['license_id'] ?? 0);
-        if (!$acc || !$license_id) {
-            flash_set('danger', 'Wybierz oprogramowanie.');
-            header('Location: konta.php?selected=' . $aid); exit;
+        if (!$acc) {
+            flash_set('danger', 'Nie znaleziono konta kursanta.');
+            header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
         }
-        $exp = trim($_POST['expires_at'] ?? '');
-        if ($exp !== '') {
-            $d = DateTime::createFromFormat('Y-m-d', $exp);
-            if (!$d || $d->format('Y-m-d') !== $exp) $exp = '';
+        // client_id z konta (lewa strona „+” wygrywa) — formularz nie może go podmienić
+        $res = TiLicencjeManager::assign(['client_id' => (int)$acc['client_id']] + $_POST, $uid, !empty($_POST['notify']) ? ['email', 'sms'] : []);
+        if ($res['ok']) {
+            $n = $res['notify'];
+            flash_set($n && !$n['ok'] ? 'warning' : 'success',
+                      'Licencja przypisana kursantowi.' . ($n ? ' Powiadomienia — ' . $n['msg'] : ' Bez powiadomienia.'));
+        } else {
+            flash_set('danger', 'Nie przypisano licencji: ' . implode(' ', $res['errors']));
         }
-        db_insert('k30_ti_client_licenses', [
-            'license_id'  => $license_id,
-            'client_id'   => $acc['client_id'],
-            'login'       => trim($_POST['login'] ?? ''),
-            'access_key'  => trim($_POST['access_key'] ?? ''),
-            'notes'       => trim($_POST['notes'] ?? ''),
-            'expires_at'  => $exp ?: null,
-            'status'      => 'active',
-            'assigned_by' => $uid,
-        ]);
-        flash_set('success', 'Licencja przypisana kursantowi.');
-        header('Location: konta.php?selected=' . $aid); exit;
+        header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
     }
 
     if ($op === 'license_revoke') {
-        $aid           = (int)($_POST['account_id'] ?? 0);
-        $assignment_id = (int)($_POST['assignment_id'] ?? 0);
-        if ($assignment_id) {
-            db()->prepare("UPDATE k30_ti_client_licenses SET status='revoked' WHERE id=?")->execute([$assignment_id]);
-            flash_set('success', 'Przypisanie licencji cofnięte.');
-        }
-        header('Location: konta.php?selected=' . $aid); exit;
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $res = TiLicencjeManager::revoke((int)($_POST['assignment_id'] ?? 0), '', $uid);
+        flash_set($res['ok'] ? 'success' : 'danger', $res['ok'] ? 'Licencja unieważniona.' : $res['error']);
+        header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
     }
 
     // Wygeneruj link magiczny rodzica i wyślij go e-mailem (jeśli jest adres)
@@ -1475,13 +1466,14 @@ function printBulk(){
       </div>
       <?php if ($sa_licenses): ?>
       <ul class="list-group list-group-flush mb-2" style="max-width:560px">
-        <?php foreach ($sa_licenses as $sl): $sl_expired = !empty($sl['expires_at']) && $sl['expires_at'] < date('Y-m-d'); ?>
-        <li class="list-group-item d-flex align-items-center gap-2 px-0 py-1 small">
+        <?php foreach ($sa_licenses as $sl): $sl_st = TiLicencjeManager::statusOf($sl); ?>
+        <li class="list-group-item d-flex align-items-center gap-2 px-0 py-1 small flex-wrap">
           <span class="fw-semibold"><?= h($sl['license_name']) ?></span>
           <?php if ($sl['login']): ?><span class="font-monospace text-body-secondary"><?= h($sl['login']) ?></span><?php endif; ?>
           <?php if (!empty($sl['expires_at'])): ?>
-          <span class="<?= $sl_expired ? 'text-danger fw-semibold' : 'text-body-secondary' ?>">do <?= h($sl['expires_at']) ?><?= $sl_expired ? ' (wygasło)' : '' ?></span>
+          <span class="<?= $sl_st === 'expired' ? 'text-danger fw-semibold' : ($sl_st === 'expiring' ? 'text-warning-emphasis fw-semibold' : 'text-body-secondary') ?>">do <?= h($sl['expires_at']) ?><?= $sl_st === 'expired' ? ' (wygasła)' : ($sl_st === 'expiring' ? ' (wygasa wkrótce)' : '') ?></span>
           <?php endif; ?>
+          <span class="badge border text-body" title="Forma rozliczenia"><?= $sl['billing_form'] !== '' ? h($sl['billing_form']) : 'brak formy rozliczenia' ?></span>
           <form method="post" class="ms-auto" onsubmit="return confirm('Cofnąć przypisanie licencji „<?= h(addslashes($sl['license_name'])) ?>”?')">
             <input type="hidden" name="_token"       value="<?= h(dyd_token()) ?>">
             <input type="hidden" name="_op"          value="license_revoke">
@@ -1522,12 +1514,29 @@ function printBulk(){
           <label class="form-label small mb-0" for="lic_exp">Ważne do</label>
           <input type="date" class="form-control form-control-sm" id="lic_exp" name="expires_at" min="<?= date('Y-m-d') ?>">
         </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_form">Forma rozliczenia <span class="text-danger" aria-hidden="true">*</span></label>
+          <select class="form-select form-select-sm" id="lic_form" name="billing_form" required>
+            <option value="">— wybierz —</option>
+            <?php foreach (TiLicencjeManager::BILLING_FORMS as $bf_code => $bf_meta): ?>
+            <option value="<?= $bf_code ?>"><?= $bf_code ?> — <?= h($bf_meta['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-0" for="lic_bref">Nr faktury / kod</label>
+          <input type="text" class="form-control form-control-sm font-monospace" id="lic_bref" name="billing_ref" maxlength="190" style="width:150px">
+        </div>
+        <div class="form-check mb-1">
+          <input class="form-check-input" type="checkbox" id="lic_notify" name="notify" value="1" checked>
+          <label class="form-check-label small" for="lic_notify">Powiadom (e-mail / SMS)</label>
+        </div>
         <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Przypisz</button>
       </form>
       <?php else: ?>
       <p class="text-body-secondary small mb-0">Brak aktywnego oprogramowania w katalogu.</p>
       <?php endif; ?>
-      <a href="licencje.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
+      <a href="licencjeKursantow.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
     </div>
 
     <!-- ── Zakładka: Opiekun / Rodzic ───────────────────────────────────── -->
