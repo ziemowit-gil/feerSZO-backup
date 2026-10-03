@@ -67,6 +67,8 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
         $base_eff = $eff;
         $hourly = !in_array((int)$eff['model'], [1, 3], true);
         $eff = ti_price_eff_on($eff, $cid, $client_id, $from);
+        // Grupa „tylko godziny” w tym miesiącu: sumujemy godziny, bez stawek, kwot i salda
+        $ho = ti_course_hours_only($cid, sprintf('%04d-%02d', $year, $month));
 
         $rows = db_all(
             "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.status, s.topic, s.lesson_method,
@@ -90,7 +92,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             $g_hours = round($g_hours + $hrs, 2);
             if ($attended) $g_present++;
             $l_on    = ti_session_is_online((string)$r['lesson_method'], $cid);   // stawka online / stacjonarna
-            $l_rate  = $hourly ? (ti_session_rate_override((int)$r['id']) ?? ti_lesson_rate($base_eff, $cid, $client_id, (string)$r['lesson_date'], $l_on)['rate']) : 0.0;
+            $l_rate  = ($hourly && !$ho) ? (ti_session_rate_override((int)$r['id']) ?? ti_lesson_rate($base_eff, $cid, $client_id, (string)$r['lesson_date'], $l_on)['rate']) : 0.0;
             $g_hourly_amt += $hrs * $l_rate;
             if ($hrs > 0) $bill_lessons[] = ['date' => (string)$r['lesson_date'], 'hours' => $hrs, 'online' => $l_on, 'session_id' => (int)$r['id']];
 
@@ -102,24 +104,24 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
                 'hours'    => $hrs,
                 'status'   => $attended ? 'obecny' : ($noshow ? 'nieobecność płatna' : (empty($r['attended']) && !empty($r['att_cancelled']) ? 'odwołana' : 'nieobecny')),
                 'billed'   => $hrs > 0,
-                'amount'   => $hourly ? round($hrs * $l_rate, 2) : 0.0,
+                'amount'   => ($hourly && !$ho) ? round($hrs * $l_rate, 2) : 0.0,
                 'rate'     => $l_rate,
                 'remote'   => $r['status'] === 'remote_material',
                 'online'   => $l_on,
             ];
         }
 
-        if ($hourly) {
+        if ($hourly && !$ho) {
             // Jedna stawka albo średnia ważona, gdy w miesiącu obowiązywało kilka
             $g_bd = ti_price_hourly_breakdown($base_eff, $cid, $client_id, $bill_lessons);
             $eff['hourly_rate'] = $g_bd['rate'];
         }
-        $g_amount = $hourly ? round($g_hourly_amt, 2)
-                  : (($e['status'] ?? '') === 'active' ? round((float)$eff['amount'], 2) : 0.0);
+        $g_amount = $ho ? 0.0 : ($hourly ? round($g_hourly_amt, 2)
+                  : (($e['status'] ?? '') === 'active' ? round((float)$eff['amount'], 2) : 0.0));
         // Ryczałt naliczany tylko gdy jest za co (kwota ustawiona) - zgodnie z k30_ti_calculate_billing
         if (!$hourly && $g_amount <= 0) $g_amount = 0.0;
 
-        $bal = ti_group_balance($client_id, $cid);
+        $bal = $ho ? ['charges'=>0.0,'paid'=>0.0,'debt'=>0.0,'payments'=>0.0,'credit'=>0.0,'applied'=>0.0] : ti_group_balance($client_id, $cid);
         $mb  = ti_group_month_billing($client_id, $cid, $year, $month);
 
         $groups[$cid] = [
@@ -129,6 +131,7 @@ function ti_hours_data(int $client_id, int $year, int $month, int $course_id = 0
             'model'       => (int)$eff['model'],
             'model_label' => (string)$eff['label'],
             'hourly'      => $hourly,
+            'hours_only'  => $ho,   // „tylko godziny”: bez stawki, kwot i salda
             'hourly_rate' => (float)$eff['hourly_rate'],
             'rate_mixed'  => $hourly && count($g_bd['parts'] ?? []) > 1,
             'flat_amount' => (float)$eff['amount'],
@@ -205,11 +208,13 @@ function ti_hours_pdf(array $d, array $opts = []): string {
         $pdf->SetFont('DejaVu', 'B', 10.5);
         $pdf->Cell($W, 7, $pl($g['course_name'] . ($g['instructor'] ? '   |   prowadzący: ' . $g['instructor'] : '')), 0, 1, 'L', true);
         $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(80, 80, 80);
-        $basis = $g['hourly']
+        $g_ho = !empty($g['hours_only']);
+        $basis = $g_ho ? 'rozliczenie: tylko godziny (bez naliczania kwot)'
+            : ($g['hourly']
             ? (!empty($g['rate_mixed'])
                 ? 'rozliczenie godzinowe - stawka wg daty lekcji (zmiana ceny w trakcie miesiąca)'
                 : 'rozliczenie godzinowe - stawka ' . $zl($g['hourly_rate']) . ' zł/godz.')
-            : 'rozliczenie ' . mb_strtolower($g['model_label']) . ' - kwota ' . $zl($g['flat_amount']) . ' zł za okres';
+            : 'rozliczenie ' . mb_strtolower($g['model_label']) . ' - kwota ' . $zl($g['flat_amount']) . ' zł za okres');
         $pdf->Cell($W, 5, $pl($basis . '   |   obecności: ' . (int)$g['present'] . '/' . count($g['lessons'])
                               . '   |   godziny rozliczane: ' . $zl($g['hours'])), 0, 1);
         $pdf->SetTextColor(0, 0, 0); $pdf->Ln(1);
@@ -246,7 +251,7 @@ function ti_hours_pdf(array $d, array $opts = []): string {
             else                                            $pdf->SetTextColor(120, 120, 120);
             $pdf->Cell($cW['att'], 6, $pl($ls['status']), 1, 0, 'C', true);
             $pdf->SetTextColor(0, 0, 0);
-            $pdf->Cell($cW['amt'], 6, $g['hourly'] ? $zl($ls['amount']) : $pl('—'), 1, 1, 'R', true);
+            $pdf->Cell($cW['amt'], 6, ($g['hourly'] && !$g_ho) ? $zl($ls['amount']) : $pl('—'), 1, 1, 'R', true);
             $fill = !$fill;
         }
         if (!$g['lessons']) {
@@ -258,18 +263,20 @@ function ti_hours_pdf(array $d, array $opts = []): string {
         $pdf->SetFillColor(240, 244, 250);
         $pdf->Cell($W - $cW['hrs'] - $cW['att'] - $cW['amt'], 6.5, $pl('Razem - ' . $g['course_name']), 1, 0, 'R', true);
         $pdf->Cell($cW['hrs'], 6.5, $zl($g['hours']), 1, 0, 'R', true);
-        $pdf->Cell($cW['att'], 6.5, $pl($g['hourly'] ? 'godzinowo' : 'ryczałt'), 1, 0, 'C', true);
-        $pdf->Cell($cW['amt'], 6.5, $zl($g['amount']), 1, 1, 'R', true);
+        $pdf->Cell($cW['att'], 6.5, $pl($g_ho ? 'tylko godziny' : ($g['hourly'] ? 'godzinowo' : 'ryczałt')), 1, 0, 'C', true);
+        $pdf->Cell($cW['amt'], 6.5, $g_ho ? $pl('—') : $zl($g['amount']), 1, 1, 'R', true);
 
-        // Saldo tej grupy
-        $bal = $g['balance'];
-        $pdf->SetFont('DejaVu', '', 6.8); $pdf->SetTextColor(80, 80, 80);
-        $sal = 'Rozliczenie grupy: należności ' . $zl($bal['charges']) . ' zł | pokryte ' . $zl($bal['paid']) . ' zł';
-        if ($bal['debt']   > 0.005) $sal .= ' | DO ZAPŁATY ' . $zl($bal['debt']) . ' zł';
-        if ($bal['credit'] > 0.005) $sal .= ' | nadpłata ' . $zl($bal['credit']) . ' zł (zaliczona na kolejne zajęcia w tej grupie)';
-        if ($bal['debt'] <= 0.005 && $bal['credit'] <= 0.005) $sal .= ' | saldo rozliczone';
-        $pdf->MultiCell($W, 4.2, $pl($sal), 0, 'L');
-        $pdf->SetTextColor(0, 0, 0);
+        // Saldo tej grupy (grupa „tylko godziny” nie ma należności ani salda)
+        if (!$g_ho) {
+            $bal = $g['balance'];
+            $pdf->SetFont('DejaVu', '', 6.8); $pdf->SetTextColor(80, 80, 80);
+            $sal = 'Rozliczenie grupy: należności ' . $zl($bal['charges']) . ' zł | pokryte ' . $zl($bal['paid']) . ' zł';
+            if ($bal['debt']   > 0.005) $sal .= ' | DO ZAPŁATY ' . $zl($bal['debt']) . ' zł';
+            if ($bal['credit'] > 0.005) $sal .= ' | nadpłata ' . $zl($bal['credit']) . ' zł (zaliczona na kolejne zajęcia w tej grupie)';
+            if ($bal['debt'] <= 0.005 && $bal['credit'] <= 0.005) $sal .= ' | saldo rozliczone';
+            $pdf->MultiCell($W, 4.2, $pl($sal), 0, 'L');
+            $pdf->SetTextColor(0, 0, 0);
+        }
         $pdf->Ln(3);
     }
 
@@ -282,13 +289,21 @@ function ti_hours_pdf(array $d, array $opts = []): string {
     if ($pdf->GetY() > $pdf->GetPageHeight() - 45) $pdf->AddPage();
     $pdf->SetFont('DejaVu', 'B', 10);
     $pdf->SetFillColor(15, 80, 150); $pdf->SetTextColor(255, 255, 255);
-    $pdf->Cell($W - 60, 8, $pl('RAZEM za okres ' . $d['period']), 0, 0, 'R', true);
-    $pdf->Cell(30, 8, $pl($zl($d['totals']['hours']) . ' godz.'), 0, 0, 'R', true);
-    $pdf->Cell(30, 8, $pl($zl($d['totals']['amount']) . ' zł'), 0, 1, 'R', true);
+    // Wszystkie grupy „tylko godziny” → sama suma godzin (bez kwoty, nadpłaty i danych do wpłaty)
+    $all_ho = !empty($d['groups']) && !array_filter($d['groups'], fn($g) => empty($g['hours_only']));
+    $any_ho = (bool)array_filter($d['groups'], fn($g) => !empty($g['hours_only']));
+    if ($all_ho) {
+        $pdf->Cell($W - 30, 8, $pl('RAZEM za okres ' . $d['period']), 0, 0, 'R', true);
+        $pdf->Cell(30, 8, $pl($zl($d['totals']['hours']) . ' godz.'), 0, 1, 'R', true);
+    } else {
+        $pdf->Cell($W - 60, 8, $pl('RAZEM za okres ' . $d['period']), 0, 0, 'R', true);
+        $pdf->Cell(30, 8, $pl($zl($d['totals']['hours']) . ' godz.'), 0, 0, 'R', true);
+        $pdf->Cell(30, 8, $pl($zl($d['totals']['amount']) . ' zł'), 0, 1, 'R', true);
+    }
     $pdf->SetTextColor(0, 0, 0); $pdf->Ln(2);
 
     $acc = $d['account'];
-    if ($acc['general_credit'] > 0.005) {
+    if (!$all_ho && $acc['general_credit'] > 0.005) {
         $pdf->SetFont('DejaVu', '', 7.6); $pdf->SetTextColor(0, 110, 0);
         $pdf->Cell($W, 5, $pl('Nadpłata ogólna na koncie: ' . $zl($acc['general_credit'])
             . ' zł - zostanie zaliczona na kolejne zajęcia (dowolna grupa).'), 0, 1);
@@ -297,7 +312,7 @@ function ti_hours_pdf(array $d, array $opts = []): string {
 
     // Dane do wpłaty
     $pay = $d['payment'];
-    if (($pay['account'] ?? '') !== '' || ($pay['title'] ?? '') !== '') {
+    if (!$all_ho && (($pay['account'] ?? '') !== '' || ($pay['title'] ?? '') !== '')) {
         $pdf->Ln(1);
         $pdf->SetFont('DejaVu', 'B', 9);
         $pdf->Cell($W, 5.5, $pl('Dane do wpłaty'), 0, 1);
@@ -315,6 +330,7 @@ function ti_hours_pdf(array $d, array $opts = []): string {
         . 'Nieobecność zgłoszona zbyt późno („nieobecność płatna") jest naliczana zgodnie z regulaminem. '
         . 'Każda grupa (przedmiot) rozliczana jest osobno - ma własny model naliczania i własne saldo; '
         . 'nadpłata przypisana do grupy pokrywa kolejne zajęcia w tej grupie. '
+        . ($any_ho ? 'Grupy oznaczone „tylko godziny” nie mają naliczanych kwot — zestawienie obejmuje w nich wyłącznie godziny. ' : '')
         . 'Zestawienie ma charakter informacyjny i nie jest dokumentem księgowym.'
         . ($note !== '' ? ' ' . $note : '')), 0, 'L');
 
