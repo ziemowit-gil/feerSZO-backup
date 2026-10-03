@@ -148,9 +148,27 @@ const DYD_2FA_TTL = 600; // 10 min na dokończenie kroku TOTP po haśle/SSO
  * ani logowanie hasłem, ani Office SSO nie wołają już dyd_login_user()
  * wprost; robi to dopiero totp_gate.php po zweryfikowaniu kodu.
  */
-function dyd_2fa_stash(array $data): void {
+function dyd_2fa_stash(array $data, string $next = ''): void {
     dyd_start();
-    $_SESSION[DYD_2FA_KEY] = ['profile' => $data, 'ts' => time()];
+    $_SESSION[DYD_2FA_KEY] = ['profile' => $data, 'ts' => time(), 'next' => dyd_safe_next($next)];
+}
+
+/**
+ * Bezpieczny cel skoku po wejściu do panelu (?next= mostka office_enter.php): nazwa ISTNIEJĄCEGO pliku .php
+ * z tego katalogu, ewentualnie z prostym zapytaniem (key=…) — bez ścieżek, adresów zewnętrznych, znaków %, :, /
+ * i sterujących. Cokolwiek innego → index.php.
+ */
+function dyd_safe_next(string $next): string {
+    [$file, $qs] = array_pad(explode('?', $next, 2), 2, '');
+    $ok = preg_match('/^[A-Za-z][A-Za-z0-9]*\.php$/', $file) && is_file(__DIR__ . '/' . $file)
+       && ($qs === '' || preg_match('/^[A-Za-z0-9_=&.\-]{1,120}$/', $qs));
+    return $ok ? $next : 'index.php';
+}
+
+/** Cel zapamiętany przy odkładaniu na 2FA (po TOTP wracamy tam, gdzie użytkownik chciał wejść). */
+function dyd_2fa_next(): string {
+    dyd_start();
+    return dyd_safe_next((string)($_SESSION[DYD_2FA_KEY]['next'] ?? ''));
 }
 
 /** Profil czekający na dokończenie 2FA, albo null (brak albo upłynął czas). */

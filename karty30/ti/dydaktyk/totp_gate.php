@@ -60,9 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Krok końcowy: kody zapasowe pokazane, zakładamy pełną sesję ───────
     elseif ($action === 'finish' && $enrolled) {
+        $go = dyd_2fa_next();
         dyd_login_user($profile);
         dyd_2fa_clear_pending();
-        header('Location: index.php'); exit;
+        header('Location: ' . $go); exit;
     }
 
     // ── Konto Z TOTP: weryfikacja kodu (albo kodu zapasowego) ─────────────
@@ -86,9 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($ok) {
+            $go = dyd_2fa_next();
             dyd_login_user($profile);
             dyd_2fa_clear_pending();
-            header('Location: index.php'); exit;
+            header('Location: ' . $go); exit;
         }
         $error = 'Nieprawidłowy kod. Spróbuj ponownie.';
     }

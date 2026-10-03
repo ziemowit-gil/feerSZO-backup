@@ -53,14 +53,9 @@ if (!$data) {
     header('Location: login.php?office=denied'); exit;
 }
 
-// Opcjonalny skok na wskazany ekran panelu (np. ze starych ekranów karty30 albo z launchera) — tylko nazwa istniejącego
-// pliku .php z tego katalogu, ewentualnie z prostym zapytaniem (key=…): bez ścieżek, adresów zewnętrznych,
-// znaków %, :, / i sterujących.
-$next = (string)($_GET['next'] ?? '');
-[$next_file, $next_qs] = array_pad(explode('?', $next, 2), 2, '');
-$next_ok = preg_match('/^[A-Za-z][A-Za-z0-9]*\.php$/', $next_file) && is_file(__DIR__ . '/' . $next_file)
-        && ($next_qs === '' || preg_match('/^[A-Za-z0-9_=&.\-]{1,120}$/', $next_qs));          // prosty query (np. key=ti_grade)
-$target = $next_ok ? $next : 'index.php';
+// Opcjonalny skok na wskazany ekran panelu (np. ze starych ekranów karty30 albo z launchera): tylko istniejący plik
+// .php z tego katalogu + prosty query (dyd_safe_next()). Konta z TOTP trafiają tam dopiero po kodzie (totp_gate.php).
+$target = dyd_safe_next((string)($_GET['next'] ?? ''));
 
 // Panel jest już otwarty na tym samym koncie (drugi link z SZO, launcher, stara zakładka): sesji nie zakładamy od nowa —
 // nowy token CSRF unieważniłby formularze otwarte w innych kartach panelu, a TOTP był już sprawdzony.
@@ -84,6 +79,6 @@ if (($data['role'] ?? '') === 'admin') {
 // Pozostałe konta: dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe, tak
 // samo jak przy haśle. Sesję panelu zakłada dopiero totp_gate.php, po
 // weryfikacji kodu.
-dyd_2fa_stash($data);
+dyd_2fa_stash($data, $target);
 header('Location: totp_gate.php');
 exit;
