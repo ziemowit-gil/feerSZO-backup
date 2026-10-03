@@ -455,6 +455,47 @@ HTML;
 </p>
 HTML;
 
+    // ── TI: nowa licencja przypisana (kursant / opiekun) ─────────────
+    $ti_license_body = <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>W panelu kursanta przypisano Ci licencję na oprogramowanie:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Oprogramowanie</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{software}}</td></tr>
+  {{vendor_row}}
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Data wydania</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{issued}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Ważna do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+</table>
+<p>Szczegóły licencji znajdziesz w zakładce <strong>Licencje</strong> po zalogowaniu do panelu kursanta. {{secret_note}}</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Przejdź do panelu kursanta →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
+HTML;
+
+    $ti_license_guardian_body = <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>Kursantowi <strong>{{student}}</strong> przypisano licencję na oprogramowanie:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Oprogramowanie</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{software}}</td></tr>
+  {{vendor_row}}
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Data wydania</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{issued}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Ważna do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+</table>
+<p>Szczegóły licencji są w zakładce <strong>Licencje</strong> w panelu (po zalogowaniu jako opiekun). {{secret_note}}</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Przejdź do panelu →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
+HTML;
+
     // ── TI: nieobecność bez zgłoszenia (no-show) ─────────────────────
     $ti_no_show_body = <<<'HTML'
 <p>Dzień dobry,</p>
@@ -1000,6 +1041,48 @@ HTML;
                 'category_block'   => ['label' => 'Blok kategorii oceny (HTML lub pusty)', 'sample' => '<div style="font-size:.85em;color:#555;margin-top:4px">(zadanie domowe)</div>'],
                 'description_block'=> ['label' => 'Blok opisu (HTML lub pusty)', 'sample' => '<p style="color:#555;font-size:.9em">Zadanie domowe: Wprowadzenie do internetu</p>'],
                 'url'              => ['label' => 'Link do panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=oceny'],
+            ],
+        ],
+
+        'ti_license_assigned' => [
+            'label'       => 'TI: nowa licencja przypisana (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-key',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla kursanta o przypisaniu licencji na oprogramowanie (moduł Licencje kursantów TI). Nie zawiera loginu ani klucza — te są w panelu.',
+            'subject'     => '{{org}}: przypisano licencję — {{software}}',
+            'body'        => $ti_license_body,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji',        'sample' => 'Dydaktyka TI'],
+                'greeting'    => ['label' => 'Zwrot (spacja + imię albo puste)', 'sample' => ' Anna'],
+                'student'     => ['label' => 'Kursant',                  'sample' => 'Anna Nowak'],
+                'software'    => ['label' => 'Nazwa oprogramowania',     'sample' => 'Adobe Creative Cloud'],
+                'vendor_row'  => ['label' => 'Wiersz „Producent” (HTML lub pusty)', 'sample' => '<tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Producent</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">Adobe</td></tr>'],
+                'issued'      => ['label' => 'Data wydania',             'sample' => '03.10.2026'],
+                'expires'     => ['label' => 'Ważna do (albo „bezterminowo”)', 'sample' => '31.12.2026'],
+                'secret_note' => ['label' => 'Uwaga o loginie i kluczu (lub pusta)', 'sample' => 'Login i klucz licencyjny są dostępne wyłącznie w panelu — ze względów bezpieczeństwa nie przesyłamy ich e-mailem.'],
+                'url'         => ['label' => 'Link do panelu kursanta',  'sample' => $base . '/karty30/ti/kursant/index.php?tab=licencje'],
+            ],
+        ],
+
+        'ti_license_assigned_guardian' => [
+            'label'       => 'TI: nowa licencja przypisana (do opiekuna)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-key',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla opiekuna małoletniego kursanta o przypisaniu licencji na oprogramowanie. Nie zawiera loginu ani klucza.',
+            'subject'     => '{{org}}: przypisano licencję — {{software}} ({{student}})',
+            'body'        => $ti_license_guardian_body,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji',        'sample' => 'Dydaktyka TI'],
+                'greeting'    => ['label' => 'Zwrot (spacja + imię i nazwisko opiekuna albo puste)', 'sample' => ' Maria Nowak'],
+                'student'     => ['label' => 'Kursant',                  'sample' => 'Anna Nowak'],
+                'software'    => ['label' => 'Nazwa oprogramowania',     'sample' => 'Adobe Creative Cloud'],
+                'vendor_row'  => ['label' => 'Wiersz „Producent” (HTML lub pusty)', 'sample' => '<tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc"><strong>Producent</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">Adobe</td></tr>'],
+                'issued'      => ['label' => 'Data wydania',             'sample' => '03.10.2026'],
+                'expires'     => ['label' => 'Ważna do (albo „bezterminowo”)', 'sample' => '31.12.2026'],
+                'secret_note' => ['label' => 'Uwaga o loginie i kluczu (lub pusta)', 'sample' => 'Login i klucz licencyjny są dostępne wyłącznie w panelu — ze względów bezpieczeństwa nie przesyłamy ich e-mailem.'],
+                'url'         => ['label' => 'Link do logowania do panelu', 'sample' => $base . '/karty30/ti/kursant/login.php'],
             ],
         ],
 
