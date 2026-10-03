@@ -60,7 +60,11 @@ try { db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")->e
 // panelu zakłada się od razu, bez przystanku na totp_gate.php.
 if (($data['role'] ?? '') === 'admin') {
     dyd_login_user($data);
-    header('Location: index.php'); exit;
+    // Opcjonalny skok na wskazany ekran panelu (np. z dawnego licencje_admin.php) — tylko nazwa
+    // istniejącego pliku .php z tego katalogu: bez ścieżek i adresów zewnętrznych.
+    $next = (string)($_GET['next'] ?? '');
+    header('Location: ' . (preg_match('/^[A-Za-z][A-Za-z0-9]*\.php$/', $next) && is_file(__DIR__ . '/' . $next) ? $next : 'index.php'));
+    exit;
 }
 
 // Pozostałe konta: dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe, tak
