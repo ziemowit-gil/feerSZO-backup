@@ -52,6 +52,9 @@ function ti_payments_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_pay_course ON k30_ti_payments(client_id, course_id)");
     // Należność: ile już pokryto (alokacja FIFO wpłat)
     try { $pdo->exec("ALTER TABLE k30_ti_billing ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
+    // Wiersz „tylko godziny" (grupa bez naliczania kwot) — zapytania alokacji czytają tę kolumnę, więc musi istnieć
+    // także wtedy, gdy ta ścieżka działa przed karty30_migrate() (patrz includes/karty30.php).
+    try { $pdo->exec("ALTER TABLE k30_ti_billing ADD COLUMN hours_only INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     // Zgłoszenia przelewu tradycyjnego przez kursanta — czekają na zaksięgowanie
     // przez kierownika (dopiero wtedy powstaje wpłata w k30_ti_payments).
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_wallet_requests (
@@ -154,7 +157,7 @@ function ti_charges_total(int $client_id): float {
 function ti_client_allocation(int $client_id): array {
     ti_payments_migrate();
     $charges = db_all(
-        "SELECT id, COALESCE(course_id,0) AS course_id, (amount + COALESCE(adjustment,0)) AS due
+        "SELECT id, COALESCE(course_id,0) AS course_id, (amount + COALESCE(adjustment,0)) AS due, COALESCE(hours_only,0) AS ho
          FROM k30_ti_billing
          WHERE client_id=? AND status IN ('issued','paid')
          ORDER BY year ASC, month ASC, id ASC",
@@ -179,7 +182,7 @@ function ti_client_allocation(int $client_id): array {
 
     $rows = [];
     foreach ($charges as $c) {
-        $rows[] = ['id' => (int)$c['id'], 'course_id' => (int)$c['course_id'],
+        $rows[] = ['id' => (int)$c['id'], 'course_id' => (int)$c['course_id'], 'ho' => (int)$c['ho'],
                    'due' => round((float)$c['due'], 2), 'paid' => 0.0, 'status' => 'issued'];
     }
 
@@ -216,6 +219,7 @@ function ti_client_allocation(int $client_id): array {
     $tot_due = 0.0; $tot_paid = 0.0; $tot_debt = 0.0;
     foreach ($rows as $k => $r) {
         $rows[$k]['status'] = ($r['paid'] + 0.001 >= $r['due']) ? 'paid' : 'issued';
+        if (!empty($r['ho'])) continue;   // „tylko godziny": brak należności — grupa nie wchodzi do sald per grupa
         $cid  = $r['course_id'];
         $debt = round(max(0, $r['due'] - $r['paid']), 2);
         if (!isset($groups[$cid])) $groups[$cid] = ['charges'=>0.0,'paid'=>0.0,'debt'=>0.0,'payments'=>0.0,'credit'=>0.0];
@@ -552,6 +556,11 @@ function ti_payment_add(int $client_id, float $amount, string $paid_at = '', str
                         int $course_id = 0): array {
     ti_payments_migrate();
     $amount = round($amount, 2);
+    // Grupa „tylko godziny" nie ma należności — wpłata znaczona na nią trafia jako wpłata ogólna konta
+    if ($course_id > 0 && ti_course_hours_only($course_id)) {
+        $note = trim($note . ' (grupa liczona tylko w godzinach — wpłata ogólna)');
+        $course_id = 0;
+    }
     $credit_before = ti_client_balance($client_id)['credit'];
 
     $pid = db_insert('k30_ti_payments', [

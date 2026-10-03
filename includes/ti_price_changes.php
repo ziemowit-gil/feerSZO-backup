@@ -232,6 +232,9 @@ function ti_price_change_default_email(array $data, string $course_name): array 
  */
 function ti_price_change_create(array $data): int {
     ti_price_changes_migrate();
+    // Grupa „tylko godziny” nie ma cen — zmiany cen są dla niej wyłączone (zwraca 0 = nie utworzono)
+    if (function_exists('ti_course_hours_only') && (int)($data['course_id'] ?? 0) > 0
+        && ti_course_hours_only((int)$data['course_id'], substr((string)($data['date_from'] ?? ''), 0, 7))) return 0;
     $subject = trim((string)($data['email_subject'] ?? ''));
     $body    = trim((string)($data['email_body'] ?? ''));
     if ($subject === '' || $body === '') {
@@ -398,6 +401,8 @@ function ti_price_change_notify(int $id): int {
     ti_price_changes_migrate();
     $change = ti_price_change_get($id);
     if (!$change || $change['status'] !== 'active') return 0;
+    // Grupa „tylko godziny”: żadnych informacji o zmianie ceny do kursantów i opiekunów
+    if (function_exists('ti_course_hours_only') && (int)$change['course_id'] > 0 && ti_course_hours_only((int)$change['course_id'])) return 0;
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
 
     $subject = $change['email_subject'] !== '' ? $change['email_subject'] : 'Zmiana ceny zajęć';

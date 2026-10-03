@@ -213,6 +213,10 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
             <span class="badge ms-1" style="font-size:.6rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
                   title="Nauczanie indywidualne — to też grupa">NI</span>
             <?php endif; ?>
+            <?php if (!empty($c['hours_only_from'])): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A"
+                  title="Grupa liczy tylko godziny (od <?= h((string)$c['hours_only_from']) ?>) — bez kwot, salda, faktur i powiadomień o rozliczeniach">Tylko godziny</span>
+            <?php endif; ?>
             <?php if (($c['class_type'] ?? '') === 'hybrid'): ?>
             <span class="badge ms-1" style="font-size:.6rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"
                   title="Kurs hybrydowy — lekcje online i stacjonarnie, inna stawka za tryb">Hybryda</span>

@@ -13,6 +13,7 @@
  *   2. Dla każdego kursanta z aktywnym zapisem, którego rozliczenie za rozliczany
  *      miesiąc daje godziny>0 LUB kwotę>0 (model godzinowy / miesięczny / stały),
  *      wystawia rozliczenie (k30_ti_issue_billing) — idempotentnie.
+ *      Grupy „tylko godziny” dostają osobne wiersze z samymi godzinami (bez kwot i powiadomień).
  *   3. Przelicza saldo (auto-pobranie z nadpłaty) i wysyła powiadomienie
  *      (SMS z kwotą za okres + e-mail) — jednorazowo (guard notified_at).
  *
@@ -67,8 +68,10 @@ foreach ($clients as $row) {
     $cid = (int)$row['client_id'];
     try {
         $calc = k30_ti_calculate_billing($cid, $month, $year);
-        // Pomiń, gdy brak godzin i brak kwoty (np. brak obecności i model godzinowy)
-        if ($calc['hours_billed'] <= 0 && $calc['amount'] <= 0) { $skip++; continue; }
+        // Grupy „tylko godziny”: wiersze per grupa z samymi godzinami (bez kwot, bez powiadomień)
+        if (($calc['hours_only_hours'] ?? 0) > 0) k30_ti_issue_hours_only_rows($cid, $month, $year);
+        // Pomiń, gdy brak godzin (z grup płatnych) i brak kwoty (np. brak obecności i model godzinowy)
+        if (($calc['billable_hours'] ?? $calc['hours_billed']) <= 0 && $calc['amount'] <= 0) { $skip++; continue; }
 
         $bid = k30_ti_issue_billing($cid, $month, $year);
         ti_billing_recompute($cid);            // auto-pobranie z nadpłaty

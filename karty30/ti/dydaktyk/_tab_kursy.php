@@ -38,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                 'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
                 'is_online'           => isset($_POST['is_online']) ? 1 : 0,
                 'no_invoice'          => isset($_POST['no_invoice']) ? 1 : 0,
+                // „Tylko godziny” (bez naliczania kwot) od wskazanego miesiąca; puste = wyłączone
+                'hours_only_from'     => !isset($_POST['hours_only']) ? ''
+                                       : (preg_match('/^\d{4}-\d{2}$/', trim((string)($_POST['hours_only_from'] ?? ''))) ? trim((string)$_POST['hours_only_from']) : date('Y-m')),
                 'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
                 'billing_model'       => in_array((int)($_POST['billing_model'] ?? 2), [1,2,3], true) ? (int)$_POST['billing_model'] : 2,
                 'billing_amount'      => max(0, (float)str_replace(',', '.', (string)($_POST['billing_amount'] ?? '0'))),
@@ -695,6 +698,18 @@ unset($_SESSION['dyd_flash']);
         <input class="form-check-input" type="checkbox" name="no_invoice" id="ku_noinv">
         <label class="form-check-label small" for="ku_noinv">Bez fakturowania <span class="text-body-secondary">(np. dotacja)</span></label>
       </div>
+      <div class="border rounded p-2 m-0" style="background:#FFFBEB">
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" name="hours_only" id="ku_hoursonly"
+                 onchange="document.getElementById('ku_ho_from_wrap').style.display = this.checked ? '' : 'none'">
+          <label class="form-check-label small fw-semibold" for="ku_hoursonly">Tylko godziny — bez naliczania kwot</label>
+        </div>
+        <div id="ku_ho_from_wrap" class="mt-2" style="display:none">
+          <label class="form-label small mb-1" for="ku_ho_from">Od miesiąca</label>
+          <input type="month" class="form-control form-control-sm" style="width:11rem" id="ku_ho_from" name="hours_only_from" value="<?= date('Y-m') ?>">
+        </div>
+        <div class="form-text mb-0">Grupa sumuje wyłącznie godziny: bez stawek, kwot, salda, zaległości i faktur oraz bez powiadomień o cenach i rozliczeniach.</div>
+      </div>
       <div class="form-check form-switch m-0">
         <input class="form-check-input" type="checkbox" name="wup_exclude" id="ku_wup">
         <label class="form-check-label small" for="ku_wup">Poza raportem WUP</label>
@@ -840,6 +855,10 @@ function dydKuMoveOpen(fromId, fromName) {
             <?php if (($c['class_type'] ?? '') === 'individual'): ?>
             <span class="badge ms-1" style="font-size:.6rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
                   title="Nauczanie indywidualne — to też grupa">NI</span>
+            <?php endif; ?>
+            <?php if (!empty($c['hours_only_from'])): ?>
+            <span class="badge ms-1" style="font-size:.6rem;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A"
+                  title="Grupa liczy tylko godziny (od <?= h((string)$c['hours_only_from']) ?>) — bez kwot, salda, faktur i powiadomień o rozliczeniach">Tylko godziny</span>
             <?php endif; ?>
             <?php if (($c['class_type'] ?? '') === 'hybrid'): ?>
             <span class="badge ms-1" style="font-size:.6rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"

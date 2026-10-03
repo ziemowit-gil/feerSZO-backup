@@ -429,6 +429,10 @@ function karty30_migrate(): void {
         // się nie wystawia). Rozliczenia nadal powstają — nie znika ewidencja
         // godzin i saldo; blokujemy wyłącznie wystawianie faktur.
         "ALTER TABLE k30_ti_courses ADD COLUMN no_invoice INTEGER NOT NULL DEFAULT 0",
+        // „Tylko godziny": grupa NIE nalicza kwot należności — sumujemy wyłącznie godziny. Wartość to miesiąc
+        // 'YYYY-MM', OD KTÓREGO obowiązuje (puste = wyłączone); wcześniejsze miesiące liczą się po staremu,
+        // więc włączenie nie zmienia wstecz już wystawionych rozliczeń. Patrz ti_course_hours_only().
+        "ALTER TABLE k30_ti_courses ADD COLUMN hours_only_from TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_model  INTEGER NOT NULL DEFAULT 2",
         "ALTER TABLE k30_ti_courses ADD COLUMN billing_amount REAL    NOT NULL DEFAULT 0",
         // Wynagrodzenie prowadzącego: stała kwota brutto-brutto za przeprowadzoną lekcję
@@ -1528,6 +1532,9 @@ HTML;
         "ALTER TABLE k30_ti_billing ADD COLUMN invoice_issued_on DATE",
         // Tryb dokumentu: '' = z FVAT (czeka na fakturę), 'statement' = tylko zestawienie (bez FVAT)
         "ALTER TABLE k30_ti_billing ADD COLUMN doc_mode          TEXT NOT NULL DEFAULT ''",
+        // Wiersz „tylko godziny": kwota 0, brak powiadomień/faktur/zaległości; godziny w hours_billed.
+        // Snapshot z chwili wystawienia — późniejsza zmiana ustawienia grupy nie zmienia starych wierszy.
+        "ALTER TABLE k30_ti_billing ADD COLUMN hours_only        INTEGER NOT NULL DEFAULT 0",
         // Wycofanie rozliczenia (status='cancelled') — kto, kiedy, dlaczego
         "ALTER TABLE k30_ti_billing ADD COLUMN cancelled_at      TEXT",
         "ALTER TABLE k30_ti_billing ADD COLUMN cancelled_by_name TEXT NOT NULL DEFAULT ''",
@@ -2620,6 +2627,47 @@ const K30_TI_BILLING_MODELS = [
 
 function k30_ti_billing_model_label(int $code): string {
     return K30_TI_BILLING_MODELS[$code]['label'] ?? ('model ' . $code);
+}
+
+/**
+ * Czy grupa liczy „tylko godziny" (bez naliczania kwot) w danym miesiącu $ym ('YYYY-MM'; '' = bieżący).
+ * Włączone od miesiąca k30_ti_courses.hours_only_from. Cache per żądanie; brak kolumny (baza przed
+ * migracją) = false. Po zmianie ustawienia grupy w tym samym żądaniu: ti_course_hours_only_from($id, true).
+ */
+function ti_course_hours_only(int $course_id, string $ym = ''): bool {
+    if ($course_id <= 0) return false;
+    $from = ti_course_hours_only_from($course_id);
+    if ($from === '') return false;
+    $ym = preg_match('/^\d{4}-\d{2}$/', $ym) ? $ym : date('Y-m');
+    return $ym >= $from;
+}
+
+/**
+ * Miesiąc 'YYYY-MM', od którego grupa liczy tylko godziny ('' = nie dotyczy). Cache per żądanie;
+ * $fresh=true odświeża wpis (po zapisie ustawienia grupy w tym samym żądaniu).
+ */
+function ti_course_hours_only_from(int $course_id, bool $fresh = false): string {
+    static $cache = [];
+    if ($course_id <= 0) return '';
+    if ($fresh || !array_key_exists($course_id, $cache)) {
+        try { $v = (string)(db_one("SELECT hours_only_from FROM k30_ti_courses WHERE id=?", [$course_id])['hours_only_from'] ?? ''); }
+        catch (\Throwable $e) { $v = ''; }
+        $cache[$course_id] = preg_match('/^\d{4}-\d{2}$/', $v) ? $v : '';
+    }
+    return $cache[$course_id];
+}
+
+/**
+ * Kursant ma aktywne zapisy WYŁĄCZNIE w grupach liczonych „tylko godziny" (teraz) — wtedy nie wysyłamy mu
+ * informacji o numerze rachunku, zaległościach ani saldzie. Kursant mieszany (też grupy płatne) = false.
+ */
+function ti_client_only_hours_only(int $client_id): bool {
+    try {
+        $r = db_one("SELECT COUNT(*) AS n, SUM(CASE WHEN c.hours_only_from!='' AND c.hours_only_from<=? THEN 1 ELSE 0 END) AS h
+                       FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+                      WHERE e.client_id=? AND e.status='active'", [date('Y-m'), $client_id]);
+        return (int)($r['n'] ?? 0) > 0 && (int)$r['n'] === (int)($r['h'] ?? 0);
+    } catch (\Throwable $e) { return false; }
 }
 
 /**
@@ -5457,6 +5505,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
     );
 
     $hours   = 0.0;
+    $ho_hours = 0.0;   // godziny z grup „tylko godziny" (bez kwot)
     $amount  = 0.0;
     $models  = [];
     $courses = [];
@@ -5502,10 +5551,16 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
         // Godzinowo: każda lekcja po stawce z JEJ dnia (zmiana od 15. nie rusza
         // lekcji z 1–14.). Ryczałt: stan na 1. dzień miesiąca.
         require_once __DIR__ . '/ti_price_changes.php';
-        $models[$eff['code']] = true;
-        $hourly = !in_array((int)$eff['model'], [1, 3], true);
+        // Grupa „tylko godziny" (od wskazanego miesiąca): godziny się sumują, kwoty NIE są naliczane
+        $hours_only = ti_course_hours_only((int)$e['course_id'], sprintf('%04d-%02d', $year, $month));
+        if (!$hours_only) $models[$eff['code']] = true;
+        $hourly = $hours_only || !in_array((int)$eff['model'], [1, 3], true);
         $rate_parts = []; $rate_by_date = []; $rate_by_session = []; $pc_ids = [];
-        if (!$hourly) {
+        if ($hours_only) {
+            $course_amount = 0.0;
+            $eff['hourly_rate'] = 0.0; $eff['hourly_rate_online'] = 0.0;
+            $ho_hours += $ch;
+        } elseif (!$hourly) {
             $eff = ti_price_eff_on($eff, (int)$e['course_id'], $client_id, $from);
             // miesięczny / stały — kwota niezależna od godzin (naliczana gdy zapis aktywny)
             $course_amount = ($e['status'] ?? '') === 'active' ? $eff['amount'] : 0.0;
@@ -5540,6 +5595,7 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
             'hourly_rate_online' => (float)($eff['hourly_rate_online'] ?? 0),
             'price_change_id'  => (int)($pc_ids[0] ?? 0),
             'price_change_ids' => $pc_ids,
+            'hours_only'   => $hours_only,   // true = „tylko godziny": amount=0, bez stawek
         ];
     }
 
@@ -5547,7 +5603,9 @@ function k30_ti_calculate_billing(int $client_id, int $month, int $year, int $co
         'client_id'   => $client_id,
         'month'       => $month,
         'year'        => $year,
-        'hours_billed'=> round($hours, 4),
+        'hours_billed'=> round($hours, 4),                 // WSZYSTKIE godziny (także z grup „tylko godziny")
+        'hours_only_hours' => round($ho_hours, 4),         // z tego: grupy „tylko godziny"
+        'billable_hours'   => round($hours - $ho_hours, 4),// godziny z grup z naliczaniem kwot
         'amount'      => round($amount, 2),
         'models'      => array_keys($models), // kody zastosowanych modeli (info)
         'courses'     => $courses,            // rozbicie per kurs
@@ -5567,17 +5625,23 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
     $pay      = k30_ti_client_payment($client_id);
     $due_days = (int)($pay['due_days'] ?? K30_TI_PAY_DUE_DAYS_DEFAULT) ?: K30_TI_PAY_DUE_DAYS_DEFAULT;
     $due_date = date('Y-m-d', strtotime("+{$due_days} days"));
+    // Grupa „tylko godziny" (w tym miesiącu): wiersz per grupa bez kwot — sumujemy godziny, nic do zapłaty
+    $ho = $course_id > 0 && ti_course_hours_only($course_id, sprintf('%04d-%02d', $year, $month));
     $data = [
-        'hours_billed' => $calc['hours_billed'],
-        'amount'       => $calc['amount'],
+        // wiersz łączny nie dubluje godzin z grup „tylko godziny" (te mają własne wiersze per grupa)
+        'hours_billed' => $course_id === 0 ? $calc['billable_hours'] : $calc['hours_billed'],
+        'amount'       => $ho ? 0.0 : $calc['amount'],
         'notes'        => $notes,
         'issued_at'    => date('Y-m-d H:i:s'),
-        'status'       => 'issued',
+        'status'       => $ho ? 'paid' : 'issued',
+        'hours_only'   => $ho ? 1 : 0,
     ];
+    if ($ho) { $data['adjustment'] = 0; $data['adjustment_note'] = ''; }
     if ($ex) {
-        if (empty($ex['due_date'])) $data['due_date'] = $due_date;
+        if (empty($ex['due_date']) && !$ho) $data['due_date'] = $due_date;
         // Kwota ręczna (rozliczenie indywidualne) wygrywa z kalkulatorem — godziny się aktualizują
-        if (isset($ex['manual_amount']) && $ex['manual_amount'] !== null) $data['amount'] = round((float)$ex['manual_amount'], 2);
+        if ($ho) $data['manual_amount'] = null;   // „tylko godziny" ignoruje kwotę ręczną
+        elseif (isset($ex['manual_amount']) && $ex['manual_amount'] !== null) $data['amount'] = round((float)$ex['manual_amount'], 2);
         $set = []; $p = [];
         foreach ($data as $k => $v) { $set[] = "$k=?"; $p[] = $v; }
         $p[] = $ex['id'];
@@ -5588,14 +5652,14 @@ function k30_ti_issue_billing(int $client_id, int $month, int $year, string $not
     // (nigdy przy ponownym przeliczeniu, żeby nie nadpisać ręcznej korekty
     // pracownika). Patrz includes/ti_referrals.php.
     require_once __DIR__ . '/ti_referrals.php';
-    $ref = ti_referral_billing_adjustment($client_id, $month, $year, (float)$calc['amount']);
+    $ref = $ho ? ['adjustment' => 0] : ti_referral_billing_adjustment($client_id, $month, $year, (float)$calc['amount']);
     if ($ref['adjustment'] != 0) {
         $data['adjustment']      = $ref['adjustment'];
         $data['adjustment_note'] = $ref['note'];
     }
     return db_insert('k30_ti_billing', array_merge($data, [
         'client_id' => $client_id, 'month' => $month, 'year' => $year, 'course_id' => $course_id,
-        'due_date'  => $due_date,
+        'due_date'  => $ho ? null : $due_date,
         'created_at'=> date('Y-m-d H:i:s'),
     ]));
 }
@@ -5641,7 +5705,8 @@ function k30_ti_issue_billing_split(int $client_id, int $month, int $year, strin
             'billing_model'  => $e['course_billing_model'],
             'billing_amount' => $e['course_billing_amount'],
         ]);
-        if (in_array($eff['model'], [1, 3], true) && (float)$eff['amount'] > 0) {
+        if (in_array($eff['model'], [1, 3], true) && (float)$eff['amount'] > 0
+            && !ti_course_hours_only((int)$e['course_id'], sprintf('%04d-%02d', $year, $month))) {   // „tylko godziny" bez ryczałtu
             $ids[(int)$e['course_id']] = true;
         }
     }
@@ -5656,6 +5721,22 @@ function k30_ti_issue_billing_split(int $client_id, int $month, int $year, strin
     // spoza zajęć (adjustment), żeby zajęcia nie policzyły się drugi raz.
     k30_ti_billing_absorb_combined($client_id, $month, $year);
     return $bids;
+}
+
+/**
+ * Wystawia wiersze „tylko godziny" (kwota 0, godziny w hours_billed) dla grup kursanta liczonych w ten
+ * sposób w danym miesiącu — dla ścieżek, które wystawiają rozliczenie ŁĄCZNE (cron, kwota ręczna).
+ * Bez powiadomień. Zwraca id wystawionych wierszy.
+ * @return list<int>
+ */
+function k30_ti_issue_hours_only_rows(int $client_id, int $month, int $year, string $notes = ''): array {
+    $ids = [];
+    foreach (k30_ti_calculate_billing($client_id, $month, $year)['courses'] as $c) {
+        if (empty($c['hours_only']) || (float)$c['hours_billed'] <= 0.00001) continue;
+        $id = k30_ti_issue_billing($client_id, $month, $year, $notes, (int)$c['course_id']);
+        if ($id > 0) $ids[] = $id;
+    }
+    return $ids;
 }
 
 /**
@@ -5713,6 +5794,7 @@ function k30_ti_billing_fv_positions(array $b): array {
 
     $pos = [];
     foreach ($calc['courses'] as $c) {
+        if (!empty($c['hours_only'])) continue;   // „tylko godziny" — bez pozycji na fakturze
         if ((float)$c['amount'] <= 0.005 && (float)$c['hours_billed'] <= 0.005) continue;
         $hourly = !empty($c['hourly']);
         // Kilka stawek w miesiącu (zmiana ceny w trakcie) → osobna pozycja na
@@ -5781,6 +5863,13 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false, string $cha
                  LEFT JOIN k30_ti_courses c ON c.id=b.course_id AND b.course_id>0
                  WHERE b.id=?", [$billing_id]);
     if (!$b) return ['ok' => false, 'msg' => 'Brak rozliczenia.'];
+    // Grupa „tylko godziny": żadnych informacji o rozliczeniu (ani SMS, ani e-mail) — nie ma kwot do zapłaty
+    if (!empty($b['hours_only'])) return ['ok' => false, 'skipped' => true, 'msg' => 'Grupa liczona tylko w godzinach — bez powiadomień o rozliczeniu.'];
+    // Rozliczenie łączne bez żadnej kwoty u kursanta z grupami „tylko godziny" — też nic nie wysyłamy
+    if ((int)($b['course_id'] ?? 0) === 0 && abs((float)$b['amount'] + (float)($b['adjustment'] ?? 0)) < 0.005
+        && ti_client_only_hours_only((int)$b['client_id'])) {
+        return ['ok' => false, 'skipped' => true, 'msg' => 'Kursant liczony tylko w godzinach — bez powiadomień o rozliczeniu.'];
+    }
     if (!$force && !empty($b['notified_at'])) return ['ok' => false, 'skipped' => true, 'msg' => 'Powiadomienie już wysłano.'];
 
     $client = db_one("SELECT * FROM k30_clients WHERE id=?", [(int)$b['client_id']]) ?: [];
@@ -5834,9 +5923,12 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false, string $cha
             if ((int)($b['course_id'] ?? 0) > 0) {
                 $group_code = (string)($b['course_name'] ?? '—');
             } else {
-                $codes = db_all("SELECT COALESCE(NULLIF(c.group_code,''), c.name) AS code
+                $codes = db_all("SELECT c.id, COALESCE(NULLIF(c.group_code,''), c.name) AS code
                                  FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
                                  WHERE e.client_id=? AND e.status='active' ORDER BY c.name", [(int)$b['client_id']]);
+                // grupy „tylko godziny" nie wchodzą do wiadomości o rozliczeniu
+                $ym_b = sprintf('%04d-%02d', (int)$b['year'], (int)$b['month']);
+                $codes = array_values(array_filter($codes, fn($c) => !ti_course_hours_only((int)$c['id'], $ym_b)));
                 $group_code = $codes ? implode(', ', array_column($codes, 'code')) : '—';
             }
         }

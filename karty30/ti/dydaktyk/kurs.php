@@ -196,6 +196,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'reason' => $reason, 'email_subject' => $subject, 'email_body' => $body,
                 'created_by' => $uid,
             ]);
+            if (!$pc_id) {
+                flash_set('warning', 'Ta grupa liczy tylko godziny (bez kwot) — zmiany cen są dla niej wyłączone.');
+                header('Location: kurs.php?id=' . $id . '&pc=1'); exit;
+            }
             $msg = 'Zmiana ceny zapisana.';
             // Zmiana obejmująca miesiące już rozliczone → przelicz wystawione rozliczenia
             try { $msg .= ti_price_change_rebill_msg(ti_price_change_rebill($pc_id)); }
@@ -265,6 +269,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: kurs.php?id=' . $id . '#edytuj'); exit;
         }
         if ($up_plan_status === '') $up_plan_note = '';   // brak statusu = brak uzasadnienia do pokazania
+        // „Tylko godziny” (bez naliczania kwot): obowiązuje OD wskazanego miesiąca — wcześniejsze rozliczenia bez zmian
+        $up_ho_in  = trim((string)($_POST['hours_only_from'] ?? ''));
+        $up_ho_cur = ti_course_hours_only_from($id, true);
+        $up_ho_from = !isset($_POST['hours_only']) ? ''
+                    : (preg_match('/^\d{4}-\d{2}$/', $up_ho_in) ? $up_ho_in : ($up_ho_cur !== '' ? $up_ho_cur : date('Y-m')));
         $data = [
             'name'                => $name,
             'display_name'        => mb_substr(trim($_POST['display_name'] ?? ''), 0, 160),
@@ -296,6 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_subgroup'         => isset($_POST['is_subgroup']) ? 1 : 0,
             'is_online'           => isset($_POST['is_online']) ? 1 : 0,
             'no_invoice'          => isset($_POST['no_invoice']) ? 1 : 0,
+            'hours_only_from'     => $up_ho_from,
             'wup_exclude'         => isset($_POST['wup_exclude']) ? 1 : 0,
             'subject_type_id'     => ((int)($_POST['subject_type_id'] ?? 0)) ?: null,
             // class_type NIE jest tu zmieniany — typ kursu zmienia wyłącznie Konwerter typu (op convert_type)
@@ -368,6 +378,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_subgroup'         => 'Podgrupa',
             'is_online'           => 'Zajęcia online',
             'no_invoice'          => 'Bez fakturowania',
+            'hours_only_from'     => 'Tylko godziny (bez kwot) od miesiąca',
             'wup_exclude'         => 'Poza raportem WUP',
             'subject_type_id'     => 'Rodzaj zajęć',
             'class_type'          => 'Typ zajęć',
@@ -531,6 +542,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <?php if ($course['location']): ?> · <i class="bi bi-geo-alt me-1" aria-hidden="true"></i><?= h($course['location']) ?><?php endif; ?>
       · <i class="bi bi-cash-coin me-1" aria-hidden="true"></i>Rozliczanie: <?= h(k30_ti_billing_model_label($cbm)) ?> (kod <?= $cbm ?>)<?php
         if ($cbm !== 2 && (float)($course['billing_amount'] ?? 0) > 0): ?> · <?= number_format((float)$course['billing_amount'], 2, ',', '') ?> zł<?php endif; ?>
+      <?php $hdr_ho = ti_course_hours_only_from($id); if ($hdr_ho !== ''): ?>
+      · <span class="badge" style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A" title="Grupa liczy tylko godziny — bez kwot, salda, faktur i powiadomień o rozliczeniach"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Tylko godziny<?= $hdr_ho > date('Y-m') ? ' od ' . h($hdr_ho) : '' ?></span>
+      <?php endif; ?>
     </p>
     <?php if (!empty($course['plan_status']) && trim((string)($course['plan_note'] ?? '')) !== ''): ?>
     <p class="text-body-secondary small mb-0 fst-italic">
@@ -549,10 +563,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj kurs</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#convertTypeModal">
       <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwerter typu</button>
+    <?php if (!ti_course_hours_only($id)): // grupa „tylko godziny” nie ma cen ?>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#priceChangeModal">
       <i class="bi bi-tag me-1" aria-hidden="true"></i>Zmiana ceny
       <?php if ($price_changes): ?><span class="badge bg-secondary ms-1"><?= count($price_changes) ?></span><?php endif; ?>
     </button>
+    <?php endif; ?>
     <a href="log_grup.php?course=<?= $id ?>" class="btn btn-sm btn-outline-secondary" title="Log operacji tej grupy">
       <i class="bi bi-clock-history me-1" aria-hidden="true"></i>Log operacji</a>
   </div>
@@ -666,6 +682,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <tr class="<?= $e['status'] !== 'active' ? 'text-muted opacity-75' : '' ?>">
           <th scope="row" class="fw-semibold"><?= h($e['client_name']) ?></th>
           <td>
+            <?php if (ti_course_hours_only((int)$course['id'])): ?>
+            <span class="badge" style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Tylko godziny — bez kwot</span>
+            <?php else: ?>
             <?php if ($eff['individual']): ?>
             <span class="badge bg-warning text-dark" title="Indywidualne ustalenia">9999 · indyw.</span>
             <?php else: ?>
@@ -683,6 +702,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline" data-bs-toggle="modal"
                     data-bs-target="#bill<?= (int)$e['client_id'] ?>" title="Zmień rozliczanie">
               <i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Zmień rozliczanie</span></button>
+            <?php endif; // hours_only ?>
           </td>
           <td><span class="badge <?= $e['status'] === 'active' ? 'text-bg-success' : 'bg-secondary' ?>"><?= $e['status'] === 'active' ? 'Aktywny' : 'Nieaktywny' ?></span></td>
           <td class="text-end text-nowrap">
@@ -1286,6 +1306,19 @@ $_ct_enr = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_enrollments WHERE cour
         <div class="form-check form-switch m-0">
           <input class="form-check-input" type="checkbox" name="no_invoice" id="ed_noinv" <?= !empty($course['no_invoice']) ? 'checked' : '' ?>>
           <label class="form-check-label small" for="ed_noinv">Bez fakturowania</label>
+        </div>
+        <?php $ed_ho = ti_course_hours_only_from($id, true); ?>
+        <div class="border rounded p-2 m-0" style="background:#FFFBEB">
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" name="hours_only" id="ed_hoursonly" <?= $ed_ho !== '' ? 'checked' : '' ?>
+                   onchange="document.getElementById('ed_ho_from_wrap').style.display = this.checked ? '' : 'none'">
+            <label class="form-check-label small fw-semibold" for="ed_hoursonly">Tylko godziny — bez naliczania kwot</label>
+          </div>
+          <div id="ed_ho_from_wrap" class="mt-2" style="<?= $ed_ho !== '' ? '' : 'display:none' ?>">
+            <label class="form-label small mb-1" for="ed_ho_from">Od miesiąca</label>
+            <input type="month" class="form-control form-control-sm" style="width:11rem" id="ed_ho_from" name="hours_only_from" value="<?= h($ed_ho !== '' ? $ed_ho : date('Y-m')) ?>">
+          </div>
+          <div class="form-text mb-0">Grupa sumuje wyłącznie godziny: bez stawek, kwot, salda, zaległości i faktur oraz bez powiadomień o zmianie cen i rozliczeniach. Miesiące przed wskazanym zostają rozliczone po staremu.</div>
         </div>
         <?php $bf_course_pid = (int)org_setting('betterfly_ti_product_course_' . $id); ?>
         <div class="m-0">
