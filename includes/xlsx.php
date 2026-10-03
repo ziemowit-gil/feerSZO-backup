@@ -20,17 +20,21 @@ class XlsxWriter {
         $this->current  = count($this->sheets) - 1;
     }
 
-    /** Dodaj wiersz. $styles: ['header'] lub [] */
+    /**
+     * Dodaj wiersz. $styles: 'header' (pogrubiony) i/lub 'text' (teksty zostają tekstami — bez zamiany ciągów cyfr,
+     * np. numerów z zerem na początku, na liczby; liczby typu int/float nadal są liczbami).
+     */
     public function writeRow(array $cells, array $styles = []): void {
         if ($this->current < 0) $this->addSheet();
         $is_header = in_array('header', $styles);
+        $force_text = in_array('text', $styles, true);
         $row = [];
         foreach ($cells as $c) {
             if ($c === null || $c === '') {
                 $row[] = ['t'=>'s','v'=>'','h'=>$is_header];
-            } elseif (is_int($c) || (is_string($c) && ctype_digit($c))) {
+            } elseif (is_int($c) || (!$force_text && is_string($c) && ctype_digit($c))) {
                 $row[] = ['t'=>'n','v'=>(int)$c,'h'=>$is_header];
-            } elseif (is_float($c) || (is_string($c) && is_numeric($c) && str_contains($c,'.'))) {
+            } elseif (is_float($c) || (!$force_text && is_string($c) && is_numeric($c) && str_contains($c,'.'))) {
                 $row[] = ['t'=>'n','v'=>(float)$c,'h'=>$is_header];
             } else {
                 $s = (string)$c;
