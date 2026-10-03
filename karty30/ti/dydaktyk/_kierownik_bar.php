@@ -46,6 +46,8 @@ if (!empty($KIER_ITEMS)) {
         ['Wypłaty prowadzących',      'index.php?tab=wypłaty',      'cash-stack'],
         ['Praca własna',              'index.php?tab=praca_wlasna', 'journal-text'],
         ['Komunikacja',               'index.php?tab=komunikacja',  'megaphone'],
+        ['Szablony e-mail',           'szablonyEmail.php',          'envelope-paper'],
+        ['Szablony SMS',              'szablonySms.php',            'chat-left-text'],
         ['Żetony SZO',                'zetony.php',                 'ticket-detailed'],
         ['Zapisy na zajęcia',         'rekrutacja.php',             'ticket-perforated'],
         ['Dostępności prowadzących',  'dostepnosci.php',            'clock-history'],

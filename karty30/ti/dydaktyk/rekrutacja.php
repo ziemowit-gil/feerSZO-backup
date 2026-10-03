@@ -1120,7 +1120,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </form>
         <div class="form-text mt-2">
           Treść maila z zapowiedzią edytujesz w
-          <a href="../email_templates.php" target="_blank" rel="noopener">szablonach e-mail</a>
+          <a href="szablonyEmail.php" target="_blank" rel="noopener">szablonach e-mail<span class="visually-hidden"> (nowa karta)</span></a>
           (szablon „Rekrutacja TI — start zapisów”). Każdy kursant dostaje w nim osobisty link
           z tokenem na stronę zapisów — działa bez logowania.
         </div>

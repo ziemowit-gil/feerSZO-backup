@@ -3405,10 +3405,10 @@ if ($cur_course && dyd_is_staff()) {
      <?= $tab==='komunikacja'?'aria-current="page"':'' ?>>
     <i class="bi bi-send" aria-hidden="true"></i>Komunikacja
   </a>
-  <a class="dyd-sb-link" href="../email_templates.php" target="_blank" rel="noopener">
+  <a class="dyd-sb-link" href="szablonyEmail.php">
     <i class="bi bi-envelope-paper" aria-hidden="true"></i>Szablony e-mail
   </a>
-  <a class="dyd-sb-link" href="../sms_templates.php" target="_blank" rel="noopener">
+  <a class="dyd-sb-link" href="szablonySms.php">
     <i class="bi bi-chat-left-text" aria-hidden="true"></i>Szablony SMS
   </a>
   <a class="dyd-sb-link" href="../index.php" target="_blank" rel="noopener" style="opacity:.6">

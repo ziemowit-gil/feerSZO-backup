@@ -60,10 +60,14 @@ try { db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")->e
 // panelu zakłada się od razu, bez przystanku na totp_gate.php.
 if (($data['role'] ?? '') === 'admin') {
     dyd_login_user($data);
-    // Opcjonalny skok na wskazany ekran panelu (np. z dawnego licencje_admin.php) — tylko nazwa
-    // istniejącego pliku .php z tego katalogu: bez ścieżek i adresów zewnętrznych.
+    // Opcjonalny skok na wskazany ekran panelu (np. ze starych ekranów karty30) — tylko nazwa istniejącego
+    // pliku .php z tego katalogu, ewentualnie z prostym zapytaniem (key=…): bez ścieżek, adresów zewnętrznych,
+    // znaków %, :, / i sterujących.
     $next = (string)($_GET['next'] ?? '');
-    header('Location: ' . (preg_match('/^[A-Za-z][A-Za-z0-9]*\.php$/', $next) && is_file(__DIR__ . '/' . $next) ? $next : 'index.php'));
+    [$next_file, $next_qs] = array_pad(explode('?', $next, 2), 2, '');
+    $next_ok = preg_match('/^[A-Za-z][A-Za-z0-9]*\.php$/', $next_file) && is_file(__DIR__ . '/' . $next_file)
+            && ($next_qs === '' || preg_match('/^[A-Za-z0-9_=&.\-]{1,120}$/', $next_qs));      // prosty query (np. key=ti_grade)
+    header('Location: ' . ($next_ok ? $next : 'index.php'));
     exit;
 }
 

@@ -34,7 +34,8 @@ const DYD_NAV_PAGES = [
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
                     'dostepnosci.php', 'sale.php', 'sale_rezerwacje.php', 'okresy.php', 'przedmioty.php',
-                    'dni_wolne.php', 'wylaczenia.php', 'zespol.php', 'testy.php', 'overpayments.php', 'pricing.php'],
+                    'dni_wolne.php', 'wylaczenia.php', 'zespol.php', 'testy.php', 'overpayments.php', 'pricing.php',
+                    'szablonyEmail.php', 'szablonySms.php'],
 ];
 
 /** Sekcje pierwszego poziomu: klucz => [etykieta, adres]. */
