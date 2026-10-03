@@ -1067,6 +1067,7 @@ function ti_year_end_projection(int $client_id): array {
     $total   = 0.0;
     $courses = [];
     foreach ($enrs as $e) {
+        if (ti_course_hours_only((int)$e['course_id'])) continue;   // „tylko godziny” — bez prognozy kwot
         $eff = k30_ti_effective_billing($e, [
             'billing_model'  => $e['course_billing_model'],
             'billing_amount' => $e['course_billing_amount'],

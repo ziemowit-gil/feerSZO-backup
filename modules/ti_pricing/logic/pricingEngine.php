@@ -69,7 +69,10 @@ final class TiPricingEngine
         if ($client_id) {
             $r = db_one("SELECT statuses FROM ti_pricing_participant_status WHERE participant_id=?", [$client_id]);
             $statuses = array_values(array_filter(array_map('trim', explode(',', (string)($r['statuses'] ?? '')))));
-            $groups = (int)(db_one("SELECT COUNT(*) n FROM k30_ti_enrollments WHERE client_id=? AND status='active'", [$client_id])['n'] ?? 0);
+            // rabat pakietowy: grupy „tylko godziny” (bez kwot) nie liczą się do liczby grup z naliczaniem
+            $groups = (int)(db_one("SELECT COUNT(*) n FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+                                     WHERE e.client_id=? AND e.status='active' AND NOT (COALESCE(c.hours_only_from,'')!='' AND c.hours_only_from<=?)",
+                                   [$client_id, date('Y-m')])['n'] ?? 0);
             if ($course_id && !db_one("SELECT 1 FROM k30_ti_enrollments WHERE client_id=? AND course_id=? AND status='active'", [$client_id, $course_id])) $groups++;
             // Kontynuacja: zapis w innej grupie, która już się zakończyła albo z której kursant odszedł
             $cont = (bool)db_one(

@@ -76,6 +76,7 @@ function ti_lesson_ledger(int $client_id, string $from = '', string $to = ''): a
         $sum_by = [];   // course_id => suma pobrań z lekcji (do rozliczenia różnicy)
 
         foreach ($calc['courses'] as $cc) {
+            if (!empty($cc['hours_only'])) continue;   // grupa „tylko godziny” — bez pobrań z salda (nie ma kwot)
             $cid = (int)$cc['course_id']; $sum_by[$cid] = 0.0;
             $unb = !$has_total && !isset($billed_course[$cid]);
             if (empty($cc['hourly'])) {

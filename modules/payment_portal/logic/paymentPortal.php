@@ -282,6 +282,7 @@ function pp_set_nrb(int $participant_id, string $nrb, string $by, ?int $uid): ?s
  */
 function pp_ti_notify_nrb(int $client_id, string $nrb, bool $correction = false): array {
     $res = ['sms' => false, 'email' => false];
+    if (pp_ti_only_hours($client_id)) return $res;   // kursant tylko w grupach „tylko godziny” — bez informacji o rachunku
     $cl = db_one("SELECT name, email, phone FROM k30_clients WHERE id=?", [$client_id]);
     if (!$cl) return $res;
     $org = defined('ORG_NAME') ? ORG_NAME : 'FEER';
@@ -321,7 +322,7 @@ function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
     // Numery nadaje bank: kursant bez rachunku dostaje kolejny wolny z puli TI; istniejącego nie ruszamy
     $cur = pp_user($client_id);
     if ($cur && pp_nrb_normalize((string)$cur['individual_nrb']) !== '') return null;
-    if (pp_ti_is_virtual($client_id)) return null;
+    if (pp_ti_is_virtual($client_id) || pp_ti_only_hours($client_id)) return null;
     $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL ORDER BY substr(nrb,15,12) LIMIT 1");
     if (!$p) return null;
     if (!$cur && is_string(pp_user_ensure($client_id, $by, $uid))) return null;
@@ -334,6 +335,14 @@ function pp_ti_sync_nrb(int $client_id, string $by, ?int $uid): ?string {
 function pp_ti_is_virtual(int $client_id): bool {
     $r = db_one("SELECT COUNT(*) n, SUM(COALESCE(is_virtual,0)) v FROM k30_ti_student_accounts WHERE client_id=?", [$client_id]);
     return (int)($r['n'] ?? 0) > 0 && (int)($r['n']) === (int)($r['v'] ?? 0);
+}
+
+/**
+ * Kursant liczony WYŁĄCZNIE w godzinach (wszystkie aktywne grupy „tylko godziny”): nie ma należności, więc nie
+ * nadajemy mu numeru rachunku z puli i nie wysyłamy informacji o rachunku ani zaległościach.
+ */
+function pp_ti_only_hours(int $client_id): bool {
+    return function_exists('ti_client_only_hours_only') && ti_client_only_hours_only($client_id);
 }
 
 /**
@@ -773,6 +782,7 @@ function pp_vnrb_pool_assign_ti(string $by, ?int $uid, ?string $batch = null): a
                      WHERE (u.individual_nrb IS NULL OR u.individual_nrb='') AND COALESCE(a.is_virtual,0)=0 ORDER BY a.client_id");
     foreach ($rows as $row) {
         $cid = (int)$row['client_id'];
+        if (pp_ti_only_hours($cid)) continue;   // „tylko godziny” — nie zużywamy numerów z puli
         $p = db_one("SELECT nrb FROM pp_vnrb_pool WHERE grp='ti' AND participant_id IS NULL" . ($batch !== null ? " AND batch=?" : "") . " ORDER BY substr(nrb,15,12) LIMIT 1", $batch !== null ? [$batch] : []);
         if (!$p) { $r['nopool']++; continue; }
         if (is_string(pp_user_ensure($cid, $by, $uid))) continue;
@@ -927,10 +937,12 @@ function pp_vnrb_status_rows(): array {
     foreach ($rows as $r) {
         $nrb = preg_replace('/\D/', '', (string)$r['nrb']);
         $flags = [];
+        $only_h = pp_ti_only_hours((int)$r['client_id']);
         if ((int)$r['virt_all']) $flags[] = 'wirtualny';
         if ((int)$r['nb_all'])   $flags[] = 'bez rozliczeń';
+        if ($only_h)             $flags[] = 'tylko godziny';
         if ($nrb === '') {
-            $cat = (int)$r['virt_all'] ? 'wirtualny' : ((int)$r['nb_all'] ? 'bez_rozl' : 'brak');
+            $cat = (int)$r['virt_all'] ? 'wirtualny' : (((int)$r['nb_all'] || $only_h) ? 'bez_rozl' : 'brak');
         } elseif (!(int)$r['in_pool']) {
             $cat = 'reczny';
         } else {
@@ -982,9 +994,10 @@ function pp_pool_min(): int { $v = (int)org_setting('pp_pool_min'); return $v > 
 function pp_pool_alarms(): array {
     pp_migrate();
     $min = pp_pool_min(); $out = [];
-    $need_ti = (int)(db_one("SELECT COUNT(DISTINCT a.client_id) c FROM k30_ti_student_accounts a
+    $need_ids = db_all("SELECT DISTINCT a.client_id FROM k30_ti_student_accounts a
                               LEFT JOIN payment_portal_users u ON u.participant_id=a.client_id
-                             WHERE (u.individual_nrb IS NULL OR u.individual_nrb='') AND COALESCE(a.is_virtual,0)=0 AND COALESCE(a.no_billing,0)=0")['c'] ?? 0);
+                             WHERE (u.individual_nrb IS NULL OR u.individual_nrb='') AND COALESCE(a.is_virtual,0)=0 AND COALESCE(a.no_billing,0)=0");
+    $need_ti = count(array_filter($need_ids, fn($x) => !pp_ti_only_hours((int)$x['client_id'])));   // „tylko godziny” nie potrzebują numeru
     foreach (pp_series() as $k => $se) {
         $r = db_one("SELECT COUNT(*) n, COALESCE(SUM(participant_id IS NULL AND crm_contact_id IS NULL),0) f, MAX(substr(nrb,15,12)) mx FROM pp_vnrb_pool WHERE grp=?", [$k]);
         $n = (int)$r['n']; $free = (int)$r['f'];
@@ -1181,7 +1194,7 @@ function pp_notice_vars(int $client_id, string $kind = 'numer'): ?array {
 /** @return list<int> kursanci, do których wyśle się wiadomość z danej paczki (numer z puli TI, bez powiadomienia). */
 function pp_notice_recipients(string $scope, string $batch = '', int $batch_id = 0, string $kind = 'numer'): array {
     if ($kind === 'zaleglosc') {   // kursanci z niedopłatą (bez „bez rozliczeń”; wirtualnych pomija blokada wysyłki)
-        $ids = array_map(fn($r) => (int)$r['client_id'], ti_clients_with_debt());
+        $ids = array_values(array_filter(array_map(fn($r) => (int)$r['client_id'], ti_clients_with_debt()), fn($i) => !pp_ti_only_hours($i)));
         if ($batch_id > 0) { $ex = array_map('intval', array_column(db_all("SELECT client_id FROM pp_notice_exclusions WHERE batch_id=?", [$batch_id]), 'client_id')); $ids = array_values(array_diff($ids, $ex)); }
         sort($ids); return $ids;
     }
@@ -1189,7 +1202,7 @@ function pp_notice_recipients(string $scope, string $batch = '', int $batch_id =
     $par = [];
     if ($batch_id > 0) { $sql .= " AND participant_id NOT IN (SELECT client_id FROM pp_notice_exclusions WHERE batch_id=?)"; $par[] = $batch_id; }
     if ($scope === 'last' && $batch !== '') { $sql .= " AND batch=?"; $par[] = $batch; }
-    return array_map(fn($r) => (int)$r['id'], db_all($sql . ' ORDER BY 1', $par));
+    return array_values(array_filter(array_map(fn($r) => (int)$r['id'], db_all($sql . ' ORDER BY 1', $par)), fn($i) => !pp_ti_only_hours($i)));
 }
 
 function pp_notice_save(int $id, string $scope, string $subject, string $body, string $sms, string $by, string $kind = 'numer'): int|string {

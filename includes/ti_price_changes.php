@@ -280,6 +280,7 @@ function ti_course_zero_rates(int $course_id, string $from, string $reason, int 
     ti_price_changes_migrate();
     if (!db_one("SELECT 1 FROM k30_ti_courses WHERE id=?", [$course_id])) return ['error' => 'Nie znaleziono grupy.'];
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) return ['error' => 'Podaj datę w formacie RRRR-MM-DD.'];
+    if (ti_course_hours_only($course_id, substr($from, 0, 7))) return ['error' => 'Grupa liczy tylko godziny (bez kwot) — zmiany cen są dla niej wyłączone.'];
     if (mb_strlen(trim($reason)) < 5) return ['error' => 'Podaj uzasadnienie (min. 5 znaków).'];
     if (db_one("SELECT 1 FROM k30_ti_price_changes WHERE course_id=? AND scope='course' AND status='active' AND change_type='amount' AND change_value=0 AND date_from=? AND COALESCE(date_to,'')=''", [$course_id, $from]))
         return ['error' => 'Zerowanie stawek od ' . $from . ' jest już zapisane dla tej grupy.'];
@@ -301,6 +302,7 @@ function ti_course_zero_rates(int $course_id, string $from, string $reason, int 
  */
 function ti_lesson_price_correction(int $course_id, ?int $client_id, string $date, float $rate, string $reason, ?int $by = null): array {
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return ['error' => 'Nieprawidłowa data lekcji.'];
+    if (ti_course_hours_only($course_id, substr($date, 0, 7))) return ['error' => 'Grupa liczy tylko godziny (bez kwot) — korekta ceny lekcji jest wyłączona.'];
     if ($rate < 0) return ['error' => 'Stawka nie może być ujemna.'];
     if (mb_strlen(trim($reason)) < 5) return ['error' => 'Podaj uzasadnienie korekty ceny lekcji.'];
     $id = ti_price_change_create([

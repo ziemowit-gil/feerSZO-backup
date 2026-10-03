@@ -121,6 +121,10 @@ function betterfly_ti_course_billing(int $course_id, int $client_id, int $month,
     if ((int)($course['no_invoice'] ?? 0) === 1) {
         throw new BetterFlyException("Kurs \"{$course['name']}\" jest oznaczony jako wyłączony z fakturowania.");
     }
+    // Grupa „tylko godziny” (bez naliczania kwot) w tym miesiącu — nie ma czego fakturować
+    if (function_exists('ti_course_hours_only') && ti_course_hours_only($course_id, sprintf('%04d-%02d', $year, $month))) {
+        throw new BetterFlyException("Kurs \"{$course['name']}\" liczy tylko godziny (bez kwot) — faktura nie jest wystawiana.");
+    }
 
     $enr = db_one(
         "SELECT hourly_rate, hourly_rate_online FROM k30_ti_enrollments WHERE course_id=? AND client_id=?",
