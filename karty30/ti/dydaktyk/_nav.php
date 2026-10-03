@@ -29,7 +29,7 @@ const DYD_NAV_TABS = [
 
 /** Strony samodzielne → sekcja (ekrany kierownika z _kierownik_bar.php i „moje”). */
 const DYD_NAV_PAGES = [
-    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php'],
+    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',

@@ -242,6 +242,7 @@ $u_not_enrolled = $u_can_enroll
         <th scope="col" class="text-nowrap">Frekwencja</th>
         <th scope="col" class="text-nowrap">Oceny</th>
         <th scope="col">Status</th>
+        <th scope="col" class="usos-noprint">Karta</th>
         <?php if ($u_staff): ?>
         <th scope="col" class="usos-noprint">Przenieś do grupy</th>
         <th scope="col" class="usos-noprint">Wypisz</th>
@@ -249,7 +250,7 @@ $u_not_enrolled = $u_can_enroll
       </tr></thead>
       <tbody>
         <?php if (!$u_parts): ?>
-        <tr><td colspan="<?= $u_staff ? 9 : 7 ?>" class="text-center text-muted py-3">Do tej grupy nikt nie jest zapisany.</td></tr>
+        <tr><td colspan="<?= $u_staff ? 10 : 8 ?>" class="text-center text-muted py-3">Do tej grupy nikt nie jest zapisany.</td></tr>
         <?php endif; ?>
         <?php foreach ($u_parts as $i => $p):
           $cid  = (int)$p['client_id'];
@@ -293,6 +294,9 @@ $u_not_enrolled = $u_can_enroll
           <td class="small">
             <?php if ($inactive): ?><span class="badge text-bg-secondary">wypisany</span>
             <?php else: ?><span class="badge text-bg-success">aktywny</span><?php endif; ?>
+          </td>
+          <td class="usos-noprint">
+            <a class="btn btn-sm btn-outline-primary" href="kartaKursanta.php?client=<?= $cid ?>&amp;course=<?= (int)$course['id'] ?>" aria-label="Karta kursanta: <?= h($p['name']) ?>"><i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Karta</a>
           </td>
           <?php if ($u_staff): ?>
           <td class="text-nowrap usos-noprint">
