@@ -87,10 +87,14 @@ function launcherCatalog(): array {
         ['key'=>'rozliczenia','sec'=>'Dydaktyka',          'label'=>'Rozliczenia',    'desc'=>'Saldo grup i wynagrodzenia',
          'icon'=>'bi-cash-stack',         'mc'=>'#0f766e','mb'=>'#f0fdfa','url'=>"$app/rozliczenia/index.php",
          'check'=>fn()=>can_read('karty30'), 'match'=>['/rozliczenia/']],
+        // Panel dydaktyka to docelowe miejsce funkcji TI (stary karty30 jest wygaszany stopniowo), więc kafelek widzą
+        // wszyscy, którzy mogą do panelu wejść: z dostępem do modułu karty30 (dyd_profile_from_user() → doradca) albo
+        // z flagą k30_consultant. Wejście przez mostek office_enter.php — z konta SZO bez ponownego logowania
+        // (admin od razu, pozostali przez TOTP), bez zakładania sesji od nowa, gdy panel jest już otwarty.
         ['key'=>'dydaktyk',   'sec'=>'Dydaktyka',          'label'=>'Panel dydaktyka','desc'=>'Moje zajęcia i oceny',
-         'icon'=>'bi-easel2',             'mc'=>'#2563eb','mb'=>'#eff6ff','url'=>"$app/karty30/ti/dydaktyk/index.php",
+         'icon'=>'bi-easel2',             'mc'=>'#2563eb','mb'=>'#eff6ff','url'=>"$app/karty30/ti/dydaktyk/office_enter.php",
          'check'=>function () {
-             if (can_read('karty30')) return false;
+             if (can_read('karty30')) return true;
              try { return !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)(current_user()['id'] ?? 0)])['k30_consultant']); }
              catch (\Throwable $e) { return false; }
          }, 'match'=>['/karty30/ti/dydaktyk']],

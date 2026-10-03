@@ -167,6 +167,8 @@ function _k30_active(string $path): bool {
   $K30_NAV[] = ['link', 'Beneficjenci', 'people-fill', '/karty30/clients/index.php', ['/karty30/clients']];
 
   $K30_NAV[] = ['section', 'Dydaktyka (TI)'];
+  // Nowe funkcje TI powstają tylko w panelu dydaktyka; stare ekrany niżej są wygaszane stopniowo (zostają przekierowaniami).
+  $K30_NAV[] = ['link', 'Panel dydaktyka (nowy)', 'easel2', '/karty30/ti/dydaktyk/office_enter.php', ['/karty30/ti/dydaktyk']];
   $K30_NAV[] = ['link', 'Kursy i zajęcia', 'pc-display', '/karty30/ti/index.php', ['/karty30/ti/index','/karty30/ti/course','/karty30/ti/lesson']];
   if ($_can_write) {
       $K30_NAV[] = ['link', 'Plan nauczania',    'list-check',      '/karty30/ti/curriculum.php',  ['/karty30/ti/curriculum']];

@@ -53,6 +53,23 @@ if (!$data) {
     header('Location: login.php?office=denied'); exit;
 }
 
+// Opcjonalny skok na wskazany ekran panelu (np. ze starych ekranów karty30 albo z launchera) — tylko nazwa istniejącego
+// pliku .php z tego katalogu, ewentualnie z prostym zapytaniem (key=…): bez ścieżek, adresów zewnętrznych,
+// znaków %, :, / i sterujących.
+$next = (string)($_GET['next'] ?? '');
+[$next_file, $next_qs] = array_pad(explode('?', $next, 2), 2, '');
+$next_ok = preg_match('/^[A-Za-z][A-Za-z0-9]*\.php$/', $next_file) && is_file(__DIR__ . '/' . $next_file)
+        && ($next_qs === '' || preg_match('/^[A-Za-z0-9_=&.\-]{1,120}$/', $next_qs));          // prosty query (np. key=ti_grade)
+$target = $next_ok ? $next : 'index.php';
+
+// Panel jest już otwarty na tym samym koncie (drugi link z SZO, launcher, stara zakładka): sesji nie zakładamy od nowa —
+// nowy token CSRF unieważniłby formularze otwarte w innych kartach panelu, a TOTP był już sprawdzony.
+$open = dyd_current();
+if ($open && (int)($open['user_id'] ?? 0) === (int)$data['user_id']) {
+    header('Location: ' . $target);
+    exit;
+}
+
 // 3) Logowanie Office poprawne.
 try { db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")->execute([$data['user_id']]); } catch (\Throwable $e) {}
 
@@ -60,14 +77,7 @@ try { db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")->e
 // panelu zakłada się od razu, bez przystanku na totp_gate.php.
 if (($data['role'] ?? '') === 'admin') {
     dyd_login_user($data);
-    // Opcjonalny skok na wskazany ekran panelu (np. ze starych ekranów karty30) — tylko nazwa istniejącego
-    // pliku .php z tego katalogu, ewentualnie z prostym zapytaniem (key=…): bez ścieżek, adresów zewnętrznych,
-    // znaków %, :, / i sterujących.
-    $next = (string)($_GET['next'] ?? '');
-    [$next_file, $next_qs] = array_pad(explode('?', $next, 2), 2, '');
-    $next_ok = preg_match('/^[A-Za-z][A-Za-z0-9]*\.php$/', $next_file) && is_file(__DIR__ . '/' . $next_file)
-            && ($next_qs === '' || preg_match('/^[A-Za-z0-9_=&.\-]{1,120}$/', $next_qs));      // prosty query (np. key=ti_grade)
-    header('Location: ' . ($next_ok ? $next : 'index.php'));
+    header('Location: ' . $target);
     exit;
 }
 
