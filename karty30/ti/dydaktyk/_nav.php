@@ -35,7 +35,7 @@ const DYD_NAV_PAGES = [
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
                     'dostepnosci.php', 'sale.php', 'sale_rezerwacje.php', 'okresy.php', 'przedmioty.php',
                     'dni_wolne.php', 'wylaczenia.php', 'zespol.php', 'testy.php', 'overpayments.php', 'pricing.php',
-                    'szablonyEmail.php', 'szablonySms.php'],
+                    'szablonyEmail.php', 'szablonySms.php', 'analityka.php', 'analitykaRaport.php'],
 ];
 
 /** Sekcje pierwszego poziomu: klucz => [etykieta, adres]. */
@@ -130,6 +130,7 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         } else {
             $items[] = ['Moje zgłoszenia (niedostępność, zmiana terminu)', 'mojeZgloszenia.php', 'envelope-exclamation'];
         }
+        if (function_exists('dyd_can_analytics') && dyd_can_analytics($s)) $items[] = ['Analityka TI', 'analityka.php', 'speedometer2'];
         $items[] = ['Komunikaty', 'index.php?tab=komunikaty', 'megaphone'];
         $items[] = ['Gdzie co jest', 'index.php?tab=pomoc', 'signpost-split'];
         $tb['user_menu'] = [

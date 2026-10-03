@@ -98,6 +98,14 @@ function launcherCatalog(): array {
              try { return !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [(int)(current_user()['id'] ?? 0)])['k30_consultant']); }
              catch (\Throwable $e) { return false; }
          }, 'match'=>['/karty30/ti/dydaktyk']],
+        // Analityka TI (modules/analytics) — ekrany w panelu dydaktyka; kafelek tylko dla admina, zarządu i osób z uprawnieniem „analityka”.
+        ['key'=>'analityka',  'sec'=>'Dydaktyka',          'label'=>'Analityka TI',   'desc'=>'KPI i raporty zarządcze',
+         'icon'=>'bi-speedometer2',       'mc'=>'#0369a1','mb'=>'#f0f9ff','url'=>"$app/karty30/ti/dydaktyk/office_enter.php?next=analityka.php",
+         'check'=>function () {
+             require_once dirname(__DIR__, 3) . '/modules/analytics/logic/analyticsManager.php';
+             $u = current_user();
+             return $u && AnalyticsManager::canAccess(['id' => (int)($u['id'] ?? 0), 'role' => (string)($u['role'] ?? '')]);
+         }, 'match'=>['/karty30/ti/dydaktyk/analityka']],
         ['key'=>'szkolenia',  'sec'=>'Dydaktyka',          'label'=>'Szkolenia',      'desc'=>'Rezerwacja terminu szkolenia',
          'icon'=>'bi-calendar2-check',    'mc'=>'#7c3aed','mb'=>'#f5f3ff','url'=>"$app/szkolenia/index.php",
          'check'=>function () {

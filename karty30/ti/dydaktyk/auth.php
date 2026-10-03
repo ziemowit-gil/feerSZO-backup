@@ -18,6 +18,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/analytics/logic/analyticsManager.php';   // dostęp do Analityki TI (dyd_can_analytics)
 require_once __DIR__ . '/_nav.php';
 
 /**
@@ -103,6 +104,8 @@ function dyd_profile_from_user(array $u): ?array {
                      || in_array($panel_role, ['kierownik', 'zastepca'], true);
     $is_consultant = $is_staff || !empty($u['k30_consultant']) || $panel_role !== ''
                      || !empty($rp['karty30']['can_read']) || !empty($up['karty30']['can_read']);
+    // Analityka TI (modules/analytics): zarząd i osoby z uprawnieniem „analityka” — tylko ten ekran, bez własnych grup.
+    if (!$is_consultant && AnalyticsManager::canUser($u)) $is_consultant = true;
     if (!$is_consultant) return null; // konto bez uprawnień doradcy/dydaktyka TI
     return [
         'user_id'    => (int)$u['id'],
@@ -299,6 +302,16 @@ function dyd_is_staff(): bool {
     $s = dyd_current();
     if (!$s || empty($s['is_staff'])) return false;
     return dyd_ctx_role() !== 'instructor';
+}
+
+/**
+ * Czy zalogowany ma dostęp do Analityki TI (modules/analytics): administrator, zarząd albo uprawnienie „analityka”.
+ * Kierownik pracujący świadomie jako Prowadzący (też „w zastępstwie”) traci ten widok, jak inne ekrany zarządcze.
+ */
+function dyd_can_analytics(?array $s = null): bool {
+    $s ??= dyd_current();
+    if (!$s || dyd_ctx_role() === 'instructor') return false;
+    return AnalyticsManager::canAccess(['id' => (int)($s['user_id'] ?? 0), 'role' => (string)($s['role'] ?? '')]);
 }
 
 /** Administrator systemu (users.role=admin) — jedyny, kto może ręcznie zmienić status lekcji w edycji. */

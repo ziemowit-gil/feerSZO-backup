@@ -31,6 +31,7 @@ const PERMISSION_MODULES = [
     'poczta'        => 'Moduł Poczty',
     'wsparcie_ou'   => 'Rozliczanie OU',
     'srs'           => 'System Rezerwacji Sal (SRS)',
+    'analityka'     => 'Analityka TI (KPI i raporty zarządcze)',
     'admin'         => 'Administracja',
 ];
 
@@ -149,7 +150,7 @@ function _permissions_init(): void {
                 if ($mod !== 'ezd') {
                     $ins->execute([$editor_id, $mod, 1, 1, 0]);
                 }
-                $ins->execute([$viewer_id, $mod, $mod === 'ezd' ? 0 : 1, 0, 0]);
+                $ins->execute([$viewer_id, $mod, in_array($mod, ['ezd', 'analityka'], true) ? 0 : 1, 0, 0]);   // EZD i Analityka TI tylko na wniosek
             }
         }
         // crm_user: tylko crm read+write
