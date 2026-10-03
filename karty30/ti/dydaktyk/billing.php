@@ -75,9 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 if (!empty($n['email'])) $eml_c++;
             }
             $cnt   = count($bids);
+            // wiersze „tylko godziny” nie mają kwot — nie wysyłamy o nich powiadomień
+            $ho_n  = $bids ? (int)db_one("SELECT COUNT(*) AS n FROM k30_ti_billing WHERE id IN (" . implode(',', array_map('intval', $bids)) . ") AND COALESCE(hours_only,0)=1")['n'] : 0;
             $extra = ($sms_c || $eml_c)
                 ? ' Wysłano: ' . ($sms_c ? "SMS ({$sms_c})" : '') . ($sms_c && $eml_c ? ' i ' : '') . ($eml_c ? "e-mail ({$eml_c})" : '') . '.'
-                : ' (brak danych kontaktowych do powiadomień).';
+                : ($ho_n > 0 && $ho_n === $cnt ? ' Grupy „tylko godziny” — zapisano godziny, bez kwot i bez powiadomień.' : ' (brak danych kontaktowych do powiadomień).');
             flash_set('success', ($cnt > 1 ? "Wystawiono {$cnt} rozliczeń (osobno per kurs)" : 'Rozliczenie wystawione')
                 . ($doc_mode === 'statement' ? ' — tylko zestawienie, bez FVAT.' : '.') . $extra);
         }
@@ -1057,6 +1059,24 @@ echo '<main id="main" class="dyd-wrap">';
           $base = (float)$b['amount'];
           $tot  = $base + $adj;
         ?>
+        <?php if (!empty($b['hours_only'])): /* grupa „tylko godziny” — sama suma godzin, bez kwot / płatności / powiadomień */ ?>
+        <tr class="table-light">
+          <td>
+            <div class="fw-semibold"><?= h($b['client_name']) ?>
+              <a href="billing_view.php?id=<?= (int)$b['id'] ?>" target="_blank" rel="noopener" class="ms-1 fw-normal text-decoration-none"
+                 style="font-size:.74rem" title="Podgląd rozliczenia (zestawienie godzin)"><i class="bi bi-eye" aria-hidden="true"></i> Podgląd</a></div>
+            <?php if ((int)$b['course_id'] > 0): ?>
+            <div class="mt-1"><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle" style="font-size:.75rem">
+              <i class="bi bi-mortarboard me-1"></i><?= h($billing_course_names[(int)$b['id']] ?? '?') ?></span></div>
+            <?php endif; ?>
+          </td>
+          <td><?= number_format((float)$b['hours_billed'], 2, ',', '') ?> h</td>
+          <td colspan="3" class="text-body-secondary small">Tylko godziny — bez kwot, terminu płatności i powiadomień</td>
+          <td><span class="badge" style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A">Tylko godziny</span></td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-secondary py-0" target="_blank" rel="noopener"
+              href="hours_pdf.php?client_id=<?= (int)$b['client_id'] ?>&amp;month=<?= (int)$b['month'] ?>&amp;year=<?= (int)$b['year'] ?><?= (int)$b['course_id'] > 0 ? '&amp;course_id=' . (int)$b['course_id'] : '' ?>"><i class="bi bi-clock-history me-1"></i>Godziny</a></td>
+        </tr>
+        <?php continue; endif; ?>
         <tr>
           <td>
             <div class="fw-semibold"><?= h($b['client_name']) ?>
@@ -1508,6 +1528,7 @@ echo '<main id="main" class="dyd-wrap">';
 
 <!-- Modale edycji rozliczeń (poza tabelą — czytelne, bez obcinania) -->
 <?php if ($can_write): foreach ($billings as $b):
+  if (!empty($b['hours_only'])) continue;   // „tylko godziny” — nie ma czego korygować
   $adj      = (float)($b['adjustment'] ?? 0);
   $tot      = (float)$b['amount'] + $adj;
   $payer_def = k30_ti_default_payer((int)$b['client_id']);
@@ -1956,7 +1977,9 @@ echo '<main id="main" class="dyd-wrap">';
               <?php foreach ($p['courses'] as $pc): if ($pc['amount'] <= 0 && $pc['hours_billed'] <= 0) continue; ?>
               <span class="badge bg-light text-secondary border me-1" style="font-size:.72rem;font-weight:500">
                 <?= h($pc['course_name']) ?>:
-                <?php if ($pc['model'] !== 2): ?>
+                <?php if (!empty($pc['hours_only'])): ?>
+                  <?= number_format($pc['hours_billed'],2,',','') ?> h · tylko godziny
+                <?php elseif ($pc['model'] !== 2): ?>
                   <?= number_format($pc['amount'],2,',','') ?> zł
                 <?php else: ?>
                   <?= number_format($pc['hours_billed'],2,',','') ?> h · <?= number_format($pc['amount'],2,',','') ?> zł
@@ -1969,7 +1992,7 @@ echo '<main id="main" class="dyd-wrap">';
             <?php endif; ?>
           </td>
           <td><?= number_format($p['hours_billed'],2,',','') ?> h</td>
-          <td class="fw-semibold"><?= number_format($p['amount'],2,',','') ?> zł</td>
+          <td class="fw-semibold"><?= (($p['billable_hours'] ?? 1) <= 0 && $p['amount'] <= 0) ? '<span class="text-body-secondary fw-normal">tylko godziny</span>' : number_format($p['amount'],2,',','') . ' zł' ?></td>
           <td class="text-end">
             <?php if ($can_write): ?>
             <form method="post" class="d-inline">

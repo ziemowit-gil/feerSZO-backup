@@ -379,10 +379,15 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
   <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200" aria-labelledby="rz-h">
     <h2 id="rz-h" class="border-b border-slate-200 px-5 py-3 font-semibold"><i class="bi bi-receipt text-navy-700" aria-hidden="true"></i> Rozliczenia zajęć</h2>
     <div class="overflow-x-auto"><table class="min-w-full text-sm"><caption class="sr-only">Rozliczenia miesięczne</caption><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Okres</th><th class="px-2">Grupa</th><th class="px-2 text-right">Należność</th><th class="px-2 text-right">Pokryto</th><th class="px-2">Termin</th><th class="px-5 text-right">Dokumenty</th></tr></thead><tbody class="divide-y divide-slate-100">
-      <?php foreach (array_slice($bills_all, 0, 24) as $bl): $amt = (float)$bl['amount'] + (float)($bl['adjustment'] ?? 0); ?>
+      <?php foreach (array_slice($bills_all, 0, 24) as $bl): $amt = (float)$bl['amount'] + (float)($bl['adjustment'] ?? 0); $bl_ho = !empty($bl['hours_only']); ?>
       <tr><td class="whitespace-nowrap px-5 py-2"><?= h(($mn[(int)$bl['month']] ?? $bl['month']) . ' ' . $bl['year']) ?></td><td class="px-2 text-xs"><?= h($bl['course_name'] ?: 'rozliczenie łączne') ?></td>
+        <?php if ($bl_ho): /* grupa „tylko godziny” — sumujemy godziny, bez kwot */ ?>
+        <td class="px-2 text-right text-xs text-amber-800" colspan="2">tylko godziny: <?= h(number_format((float)$bl['hours_billed'], 2, ',', ' ')) ?> h</td>
+        <td class="px-2 text-xs">—</td>
+        <?php else: ?>
         <td class="px-2 text-right tabular-nums"><?= h(pp_fmt($amt)) ?></td><td class="px-2 text-right tabular-nums"><?= h(pp_fmt((float)($bl['paid_amount'] ?? 0))) ?></td>
         <td class="px-2 text-xs"><?= !empty($bl['due_date']) ? h(date('d.m.Y', strtotime((string)$bl['due_date']))) : '—' ?></td>
+        <?php endif; ?>
         <td class="px-5 text-right text-xs whitespace-nowrap"><a class="text-navy-700 hover:underline" href="dokument.php?type=hours&amp;month=<?= (int)$bl['month'] ?>&amp;year=<?= (int)$bl['year'] ?><?= (int)$bl['course_id'] > 0 ? '&amp;course_id=' . (int)$bl['course_id'] : '' ?>" target="_blank" rel="noopener">rozpiska</a>
           <?php if (!empty($bl['invoice_path'])): ?> · <a class="text-navy-700 hover:underline" href="dokument.php?type=invoice&amp;id=<?= (int)$bl['id'] ?>" target="_blank" rel="noopener">faktura</a><?php endif; ?></td></tr>
       <?php endforeach; ?></tbody></table></div>

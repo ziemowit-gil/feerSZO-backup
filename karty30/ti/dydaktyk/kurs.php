@@ -381,7 +381,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'hours_only_from'     => 'Tylko godziny (bez kwot) od miesiąca',
             'wup_exclude'         => 'Poza raportem WUP',
             'subject_type_id'     => 'Rodzaj zajęć',
-            'class_type'          => 'Typ zajęć',
             'is_oneoff'           => 'Kurs jednorazowy',
             'oneoff_date'         => 'Termin realizacji',
             'plan_status'         => 'Status planowania',

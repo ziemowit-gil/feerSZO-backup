@@ -57,6 +57,7 @@ include __DIR__ . '/_head.php';
           $mem   = $by_course[$cid] ?? [];
           $bids  = $bills_by_course[$cid] ?? [];
           $model = k30_ti_billing_model_label((int)($c['billing_model'] ?? 2) ?: 2);
+          $ho    = ti_course_hours_only($cid, $rz_ym);   // grupa „tylko godziny” — bez kwot, salda, faktur i maili
         ?>
         <tr>
           <th scope="row" style="font-weight:600">
@@ -65,11 +66,15 @@ include __DIR__ . '/_head.php';
             <div><span class="badge bg-light text-secondary border"><?= h($c['group_code']) ?></span></div>
             <?php endif; ?>
           </th>
-          <td><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><?= h($model) ?></span></td>
+          <td><?php if ($ho): ?><span class="badge" style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A">Tylko godziny</span>
+              <?php else: ?><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><?= h($model) ?></span><?php endif; ?></td>
           <td class="rz-num"><?= count($mem) ?></td>
-          <td class="rz-num"><?= $g ? h(rz_zl($g['charges'])) : '<span class="rz-zero">—</span>' ?></td>
-          <td class="rz-num"><?= $g ? rz_saldo((float)$g['credit'], (float)$g['debt']) : '<span class="rz-zero">—</span>' ?></td>
+          <td class="rz-num"><?= ($g && !$ho) ? h(rz_zl($g['charges'])) : '<span class="rz-zero">—</span>' ?></td>
+          <td class="rz-num"><?= ($g && !$ho) ? rz_saldo((float)$g['credit'], (float)$g['debt']) : '<span class="rz-zero">—</span>' ?></td>
           <td class="rz-num">
+            <?php if ($ho): ?>
+            <a class="btn btn-sm btn-outline-secondary" href="<?= APP_URL ?>/karty30/ti/dydaktyk/index.php?course=<?= $cid ?>&amp;tab=rozliczenia"><i class="bi bi-clock-history" aria-hidden="true"></i>Godziny</a>
+            <?php else: ?>
             <?php if ($rz_can_write && $mem): ?>
             <form method="post" class="d-inline">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
@@ -96,6 +101,7 @@ include __DIR__ . '/_head.php';
                title="Pozycje do faktury dla całej grupy">
               <i class="bi bi-printer" aria-hidden="true"></i>FVAT
             </a>
+            <?php endif; // $ho ?>
           </td>
         </tr>
         <?php endforeach; ?>

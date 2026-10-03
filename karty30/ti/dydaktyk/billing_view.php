@@ -73,6 +73,10 @@ $lessons = db_all(
     $bcourse > 0 ? [$client_id, $from, $to, $bcourse] : [$client_id, $from, $to]
 );
 
+// Rozliczenie „tylko godziny” (grupa bez kwot): sama suma godzin; w rozliczeniu łącznym pomijamy lekcje takich grup
+$ho = !empty($b['hours_only']);
+if ($bcourse === 0) $lessons = array_values(array_filter($lessons, fn($l) => empty($rates[(int)$l['course_id']]['hours_only'])));
+
 $gb    = $bcourse > 0 ? ti_group_balance($client_id, $bcourse) : null;
 $bal   = ti_client_balance($client_id);
 $pay   = k30_ti_client_payment($client_id);
@@ -133,8 +137,9 @@ $transfers = db_all("SELECT amount, paid_at, note FROM k30_ti_payments WHERE cli
   <h1><?= h($b['client_name']) ?></h1>
   <div class="sub">
     Rozliczenie za <?= h($months_pl[$m] ?? $m) ?> <?= $y ?> · <?= h($cname) ?>
+    <?php if ($ho): ?><span class="tag">tylko godziny</span><?php else: ?>
     <span class="tag"><?= h($status) ?></span>
-    <span class="tag"><?= ($b['doc_mode'] ?? '') === 'statement' ? 'tylko zestawienie, bez FVAT' : 'z fakturą VAT' ?></span>
+    <span class="tag"><?= ($b['doc_mode'] ?? '') === 'statement' ? 'tylko zestawienie, bez FVAT' : 'z fakturą VAT' ?></span><?php endif; ?>
     <?php if (trim((string)($b['invoice_no'] ?? '')) !== ''): ?><span class="tag">FV <?= h($b['invoice_no']) ?></span><?php endif; ?>
   </div>
 
@@ -145,6 +150,32 @@ $transfers = db_all("SELECT amount, paid_at, note FROM k30_ti_payments WHERE cli
   </div>
   <?php endif; ?>
 
+  <?php if ($ho): /* ── tylko godziny: bez kwot, salda i płatności ── */ ?>
+  <div class="grid">
+    <div class="kpi"><div class="l">Godziny rozliczane</div><div class="v"><?= rtrim(rtrim(number_format((float)$b['hours_billed'], 2, ',', ''), '0'), ',') ?> h</div></div>
+    <div class="kpi"><div class="l">Tryb rozliczenia</div><div class="v">tylko godziny</div></div>
+  </div>
+  <p class="note">Ta grupa liczy tylko godziny — bez stawek, kwot, salda i faktur; nie wysyłamy o niej powiadomień o rozliczeniach.</p>
+  <h2>Lekcje</h2>
+  <?php if (!$lessons): ?><p class="note">Brak rozliczalnych lekcji w tym okresie.</p><?php else: ?>
+  <table>
+    <thead><tr><th>Data</th><th>Temat</th><th class="r">Godz.</th></tr></thead>
+    <tbody>
+    <?php $sum_h = 0.0; foreach ($lessons as $l):
+        $hrs = ((int)$l['attended'] === 0 && (int)$l['no_show'] === 1 && $l['no_show_billing'] === '1h') ? 1.0 : (float)ceil((int)$l['duration_min'] / 60); $sum_h += $hrs; ?>
+      <tr><td><?= h(date('d.m.Y', strtotime((string)$l['lesson_date']))) ?><?= $l['time_from'] ? ' ' . h(substr((string)$l['time_from'], 0, 5)) : '' ?></td>
+        <td><?= h((string)$l['topic']) ?><?= ti_session_is_online((string)$l['lesson_method'], (int)$l['course_id']) ? ' <span class="tag">online</span>' : '' ?><?= (int)$l['attended'] === 0 ? ' <span class="note">(nieobecność nieusprawiedliwiona)</span>' : '' ?></td>
+        <td class="r"><?= rtrim(rtrim(number_format($hrs, 2, ',', ''), '0'), ',') ?></td></tr>
+    <?php endforeach; ?>
+    </tbody>
+    <tfoot><tr><td colspan="2">Razem</td><td class="r"><?= rtrim(rtrim(number_format($sum_h, 2, ',', ''), '0'), ',') ?></td></tr></tfoot>
+  </table>
+  <?php endif; ?>
+  <p class="note" style="margin-top:22px">Wygenerowano <?= date('d.m.Y H:i') ?> · <?= h((string)($me['name'] ?? '')) ?></p>
+</main>
+</body>
+</html>
+<?php exit; endif; ?>
   <div class="grid">
     <div class="kpi"><div class="l">Należność</div><div class="v"><?= $zl($due) ?></div></div>
     <div class="kpi"><div class="l">Zaliczone wpłaty</div><div class="v ok"><?= $zl($paid) ?></div></div>

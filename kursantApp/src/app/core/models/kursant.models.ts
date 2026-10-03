@@ -246,6 +246,8 @@ export interface BillingMonthRow {
   total: number;
   invoice_url: string | null;
   hours_url: string;
+  /** Grupa „tylko godziny” — bez kwot do zapłaty (sama suma godzin). */
+  hours_only?: boolean;
 }
 
 export interface BillingMonth {
@@ -262,9 +264,13 @@ export interface BillingMonth {
   hours_url: string;
   invoice_url: string | null;
   rows: BillingMonthRow[];
+  /** Wszystkie wiersze miesiąca to „tylko godziny” — bez kwot do zapłaty. */
+  hours_only?: boolean;
 }
 
 export interface BillingData {
+  /** Kursant liczony wyłącznie w godzinach (grupy „tylko godziny”) — bez salda i danych do wpłaty. */
+  only_hours?: boolean;
   balance: BillingBalance;
   /** Saldo per grupa — tylko gdy kursant ma >1 aktywną grupę. */
   groups: BillingGroupBalance[];

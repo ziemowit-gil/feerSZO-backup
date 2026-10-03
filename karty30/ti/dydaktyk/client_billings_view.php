@@ -172,6 +172,9 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
         <td class="keep"><?= h(($months_pl[(int)$b['month']] ?? $b['month']) . ' ' . $b['year']) ?></td>
         <td><?= $cid > 0 ? h((string)($b['course_name'] ?? '?')) : 'łączne' ?><?= $cid > 0 && $is_arch($cid) ? '<span class="tag">archiwum</span>' : '' ?></td>
         <td class="r"><?= $hrs((float)$b['hours_billed']) ?></td>
+        <?php if (!empty($b['hours_only'])): /* grupa „tylko godziny” — bez kwot */ ?>
+        <td class="r mut" colspan="4">tylko godziny — bez kwot</td>
+        <?php else: ?>
         <td class="r"><?= $zl($due) ?><?= abs((float)($b['adjustment'] ?? 0)) > 0.005 ? '<div class="mut" style="font-size:11.5px" title="' . h((string)$b['adjustment_note']) . '">w tym korekta ' . $zl((float)$b['adjustment']) . '</div>' : '' ?></td>
         <td class="r"><?= $zl($p) ?></td>
         <td class="r <?= $left > 0.005 ? 'bad' : '' ?>"><?= $zl($left) ?></td>
@@ -190,8 +193,9 @@ $status_l = ['issued' => 'wystawione', 'paid' => 'opłacone', 'cancelled' => 'wy
             <?php else: ?><div class="mut" style="font-size:11.5px">ręcznie: <?= h($rx['why']) ?></div><?php endif; ?>
           <?php elseif (!$x): ?><span class="mut">aktualna</span><?php endif; ?>
         </td>
+        <?php endif; ?>
         <td class="keep" style="white-space:nowrap"><?= !empty($b['due_date']) ? h(date('d.m.Y', strtotime((string)$b['due_date']))) : '—' ?></td>
-        <td class="keep"><?= h($status_l[$b['status']] ?? $b['status']) ?><?= ($b['doc_mode'] ?? '') === 'statement' ? '<span class="tag">bez FVAT</span>' : '' ?><?= trim((string)($b['invoice_no'] ?? '')) !== '' ? '<span class="tag">FV ' . h($b['invoice_no']) . '</span>' : '' ?>
+        <td class="keep"><?= !empty($b['hours_only']) ? 'tylko godziny' : h($status_l[$b['status']] ?? $b['status']) ?><?= ($b['doc_mode'] ?? '') === 'statement' ? '<span class="tag">bez FVAT</span>' : '' ?><?= trim((string)($b['invoice_no'] ?? '')) !== '' ? '<span class="tag">FV ' . h($b['invoice_no']) . '</span>' : '' ?>
           <?php if ($x && ($b['cancel_reason'] ?? '') !== ''): ?><div class="mut" style="font-size:11.5px"><?= h($b['cancel_reason']) ?></div><?php endif; ?></td>
         <td class="keep r"><a href="billing_view.php?id=<?= (int)$b['id'] ?>">Podgląd</a></td>
       </tr>

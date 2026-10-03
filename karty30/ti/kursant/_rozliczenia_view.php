@@ -29,6 +29,8 @@ $rv_months  = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'c
                7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
 $rv_st = ['draft'=>['Robocze','secondary'], 'issued'=>['Wystawione','primary'], 'paid'=>['Opłacone','success']];
 
+// Kursant liczony WYŁĄCZNIE w godzinach (grupy „tylko godziny”) — bez kwot, salda i danych do wpłaty
+$rv_only_ho = ti_client_only_hours_only((int)$rv_client_id);
 // Saldo z księgi wpłat (nadpłata/niedopłata)
 $rv_bal   = ti_client_balance((int)$rv_client_id);
 $rv_total = $rv_bal['charges'];
@@ -46,9 +48,10 @@ foreach ($rv_billing as $b) {
 
 // Przelicz agregaty per miesiąc
 foreach ($_rv_grouped as &$_mg) {
-    $sum_due = 0.0; $sum_h = 0.0;
+    $sum_due = 0.0; $sum_h = 0.0; $all_ho = true;
     $statuses = []; $due_date = null; $any_invoice = null;
     foreach ($_mg['rows'] as $b) {
+        if (empty($b['hours_only'])) $all_ho = false;
         $sum_due += (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
         $sum_h   += (float)$b['hours_billed'];
         $statuses[] = $b['status'];
@@ -57,6 +60,7 @@ foreach ($_rv_grouped as &$_mg) {
     }
     $all_paid  = !array_filter($statuses, fn($s) => $s !== 'paid');
     $all_draft = !array_filter($statuses, fn($s) => $s !== 'draft');
+    $_mg['all_ho']     = $all_ho;   // wszystkie wiersze miesiąca to „tylko godziny”
     $_mg['sum_due']    = round($sum_due, 2);
     $_mg['sum_hours']  = $sum_h;
     $_mg['agg_status'] = $all_paid ? 'paid' : ($all_draft ? 'draft' : 'issued');
@@ -69,13 +73,15 @@ unset($_mg);
 ?>
 <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-0"><i class="bi bi-receipt text-primary" aria-hidden="true"></i>Rozliczenia</h2>
+  <?php if (!$rv_only_ho): ?>
   <a class="btn btn-sm btn-outline-primary ms-auto" href="<?= h($rz_ledger_pdf ?? 'ledger_pdf.php') ?>" target="_blank" rel="noopener"
      title="Każda lekcja jako pobranie z salda, z wpłatami i saldem po każdej operacji">
     <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Historia pobrań za lekcje (PDF)</a>
+  <?php endif; ?>
 </div>
 
 <?php $rv_pay = k30_ti_client_payment((int)$rv_client_id); ?>
-<?php if ($rv_pay['account'] !== '' || $rv_pay['title'] !== '' || $rv_pay['codes']): ?>
+<?php if (!$rv_only_ho && ($rv_pay['account'] !== '' || $rv_pay['title'] !== '' || $rv_pay['codes'])): ?>
 <div class="card mb-4 border-primary-subtle">
   <div class="card-body py-3">
     <div class="fw-semibold mb-1"><i class="bi bi-bank2 text-primary me-1" aria-hidden="true"></i>Dane do wpłaty</div>
@@ -105,6 +111,12 @@ unset($_mg);
 </div>
 <?php endif; ?>
 
+<?php if ($rv_only_ho): $rv_hours_all = 0.0; foreach ($rv_billing as $_hb) $rv_hours_all += (float)$_hb['hours_billed']; ?>
+<div class="alert alert-info d-flex align-items-center gap-2" role="status">
+  <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+  <span>Zajęcia są rozliczane <strong>tylko w godzinach</strong> — bez kwot do zapłaty. Łącznie odbyte i rozliczone godziny: <strong><?= number_format($rv_hours_all, 2, ',', ' ') ?> h</strong>.</span>
+</div>
+<?php else: ?>
 <div class="row g-3 mb-4">
   <div class="col-12 col-md-4">
     <div class="card h-100"><div class="card-body">
@@ -133,7 +145,8 @@ unset($_mg);
     </div></div>
   </div>
 </div>
-<?php if ($rv_bal['credit'] > 0.005): ?>
+<?php endif; // rv_only_ho ?>
+<?php if (!$rv_only_ho && $rv_bal['credit'] > 0.005): ?>
 <div class="alert alert-success d-flex align-items-center gap-2" role="status">
   <i class="bi bi-piggy-bank-fill" aria-hidden="true"></i>
   <span>Na koncie jest nadpłata <strong><?= number_format($rv_bal['credit'], 2, ',', ' ') ?> zł</strong> — zostanie automatycznie zaliczona na poczet kolejnych zajęć.</span>
@@ -224,15 +237,15 @@ if (count($rv_groups['groups']) > 1):
           </td>
           <td class="fw-semibold"><?= number_format($mg['sum_hours'], 2, ',', ' ') ?> h</td>
           <td></td>
-          <td class="fw-bold"><?= number_format($mg['sum_due'], 2, ',', ' ') ?> zł</td>
+          <td class="fw-bold"><?= $mg['all_ho'] ? '<span class="text-body-secondary fw-normal">—</span>' : number_format($mg['sum_due'], 2, ',', ' ') . ' zł' ?></td>
           <td>
-            <?php if (!empty($mg['due_date'])): ?>
+            <?php if (!empty($mg['due_date']) && !$mg['all_ho']): ?>
               <span class="<?= $rv_overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?>">
                 <?= date('d.m.Y', strtotime($mg['due_date'])) ?>
               </span>
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
           </td>
-          <td><span class="badge text-bg-<?= $mcol ?>"><?= h($mlbl) ?></span></td>
+          <td><?php if ($mg['all_ho']): ?><span class="badge text-bg-warning">Tylko godziny</span><?php else: ?><span class="badge text-bg-<?= $mcol ?>"><?= h($mlbl) ?></span><?php endif; ?></td>
           <td></td>
           <td>
             <a href="hours_pdf.php?month=<?= (int)$mg['month'] ?>&amp;year=<?= (int)$mg['year'] ?>"
@@ -255,14 +268,14 @@ if (count($rv_groups['groups']) > 1):
           </td>
           <td class="text-body-secondary"><?= number_format((float)$b['hours_billed'], 2, ',', ' ') ?> h</td>
           <td>
-            <?php if ($adj != 0): ?>
+            <?php if ($adj != 0 && empty($b['hours_only'])): ?>
               <span class="<?= $adj > 0 ? 'text-danger' : 'text-success' ?>"><?= ($adj>0?'+':'−').number_format(abs($adj),2,',',' ') ?> zł</span>
               <?php if (!empty($b['adjustment_note'])): ?><div class="text-body-secondary" style="font-size:.72rem"><?= h($b['adjustment_note']) ?></div><?php endif; ?>
             <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
           </td>
-          <td class="text-body-secondary"><?= number_format($tot, 2, ',', ' ') ?> zł</td>
+          <td class="text-body-secondary"><?= !empty($b['hours_only']) ? '—' : number_format($tot, 2, ',', ' ') . ' zł' ?></td>
           <td></td>
-          <td></td>
+          <td><?php if (!empty($b['hours_only'])): ?><span class="badge text-bg-warning">Tylko godziny</span><?php endif; ?></td>
           <td>
             <?php if (!empty($b['invoice_path'])): ?>
             <a href="invoice_file.php?id=<?= (int)$b['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" target="_blank" rel="noopener" style="font-size:.78rem">

@@ -33,7 +33,7 @@ const GATEWAY_LABELS: Record<string, string> = {
     }
 
     @if (yearEnd(); as ye) {
-      @if (ye.allowed) {
+      @if (ye.allowed && !data()?.only_hours) {
         <section class="k-card year-end-card" aria-labelledby="year-end-heading">
           <h2 class="k-card-title" id="year-end-heading">
             <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
@@ -139,7 +139,14 @@ const GATEWAY_LABELS: Record<string, string> = {
     }
 
     @if (data(); as d) {
+      @if (d.only_hours) {
+        <div class="k-alert info">
+          <span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span>
+          <span>Twoje zajęcia są rozliczane <strong>tylko w godzinach</strong> — bez kwot do zapłaty. Poniżej znajdziesz sumy godzin w poszczególnych miesiącach.</span>
+        </div>
+      }
       <!-- Balance summary -->
+      @if (!d.only_hours) {
       <div class="summary-grid">
         <div class="k-card balance-card">
           <p class="balance-label">Suma rozliczeń</p>
@@ -162,15 +169,16 @@ const GATEWAY_LABELS: Record<string, string> = {
           }
         </div>
       </div>
+      }
 
-      @if (d.balance.credit > 0.005) {
+      @if (!d.only_hours && d.balance.credit > 0.005) {
         <div class="k-alert success">
           <span class="material-symbols-outlined" aria-hidden="true">savings</span>
           Na koncie jest nadpłata <strong>{{ d.balance.credit | currency:'PLN':'symbol':'1.2-2':'pl' }}</strong> — zostanie
           automatycznie zaliczona na poczet kolejnych zajęć.
         </div>
       }
-      @if (d.balance.debt > 0.005) {
+      @if (!d.only_hours && d.balance.debt > 0.005) {
         <div class="k-alert warning">
           <span class="material-symbols-outlined" aria-hidden="true">warning</span>
           Masz zaległość <strong>{{ d.balance.debt | currency:'PLN':'symbol':'1.2-2':'pl' }}</strong> — sprawdź dane do wpłaty poniżej.
@@ -311,14 +319,16 @@ const GATEWAY_LABELS: Record<string, string> = {
                   <tr [class.month-header]="m.multi">
                     <td class="fw-semibold">{{ m.label }}</td>
                     <td>{{ m.sum_hours }} h</td>
-                    <td class="fw-semibold">{{ m.sum_due | currency:'PLN':'symbol':'1.2-2':'pl' }}</td>
+                    <td class="fw-semibold">
+                      @if (m.hours_only) { <span class="text-muted">—</span> } @else { {{ m.sum_due | currency:'PLN':'symbol':'1.2-2':'pl' }} }
+                    </td>
                     <td>
-                      @if (m.due_date) {
+                      @if (m.due_date && !m.hours_only) {
                         <span [class.negative]="m.overdue">{{ m.due_date | date:'d.MM.yyyy' }}</span>
                       } @else { <span class="text-muted">—</span> }
                     </td>
                     <td>
-                      <span class="status-badge" [class]="m.status">{{ statusLabel(m.status) }}</span>
+                      <span class="status-badge" [class]="m.hours_only ? 'issued' : m.status">{{ m.hours_only ? 'Tylko godziny' : statusLabel(m.status) }}</span>
                     </td>
                     <td>
                       @if (!m.multi && m.invoice_url) {
@@ -341,8 +351,8 @@ const GATEWAY_LABELS: Record<string, string> = {
                         <td><span class="material-symbols-outlined sub-arrow" aria-hidden="true">subdirectory_arrow_right</span>{{ r.course_name }}</td>
                         <td>{{ r.hours_billed }} h</td>
                         <td>
-                          {{ r.total | currency:'PLN':'symbol':'1.2-2':'pl' }}
-                          @if (r.adjustment) {
+                          @if (r.hours_only) { <span class="text-muted">—</span> } @else { {{ r.total | currency:'PLN':'symbol':'1.2-2':'pl' }} }
+                          @if (r.adjustment && !r.hours_only) {
                             <div class="text-sm" [class.negative]="r.adjustment > 0" [class.positive]="r.adjustment < 0">
                               {{ r.adjustment > 0 ? '+' : '−' }}{{ (r.adjustment < 0 ? -r.adjustment : r.adjustment) | currency:'PLN':'symbol':'1.2-2':'pl' }}
                               @if (r.adjustment_note) { — {{ r.adjustment_note }} }

@@ -73,7 +73,8 @@ $bi_course_id = (int)($_GET['course_id'] ?? 0);
 $bi_courses   = k30_ti_courses(true);   // aktywne kursy do filtra
 
 // ── Rozliczenia za miesiąc ────────────────────────────────────────────────────
-$bi_where  = ["b.month=? AND b.year=?", "b.status!='cancelled'"]; $bi_params = [$bi_mon, $bi_year];
+// wiersze „tylko godziny” (grupy bez kwot) nie mają należności — pokazuje je panel Rozliczenia kursantów (billing.php)
+$bi_where  = ["b.month=? AND b.year=?", "b.status!='cancelled'", "COALESCE(b.hours_only,0)=0"]; $bi_params = [$bi_mon, $bi_year];
 if ($bi_course_id) {
     $bi_where[] = "b.client_id IN (SELECT client_id FROM k30_ti_enrollments WHERE course_id=?)";
     $bi_params[] = $bi_course_id;

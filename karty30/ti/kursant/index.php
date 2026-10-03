@@ -1922,7 +1922,7 @@ document.addEventListener('DOMContentLoaded', function() {
         );
     } catch (\Throwable $e) { $kp_upcoming = []; }
     $kp_bal = null;
-    if (!$is_minor) {
+    if (!$is_minor && !ti_client_only_hours_only((int)$student['client_id'])) {   // „tylko godziny” — bez kafla salda
         try {
             require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
             $kp_bal = ti_client_balance((int)$student['client_id']);

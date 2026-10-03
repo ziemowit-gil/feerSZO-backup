@@ -29,6 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'roz_paym
     header('Location: index.php?course=' . (int)$cur_course . '&tab=rozliczenia'); exit;
 }
 
+// Grupa „tylko godziny”: osobny widok — same godziny, bez należności, salda i wpłat
+if (ti_course_hours_only((int)$cur_course)) { include __DIR__ . '/_tab_rozliczenia_godziny.php'; return; }
+
 $roz_enrolled = db_all(
     "SELECT cl.id, cl.name
      FROM k30_ti_enrollments e

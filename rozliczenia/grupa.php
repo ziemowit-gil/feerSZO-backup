@@ -12,6 +12,19 @@ if (!$course) { http_response_code(404); die('Nie znaleziono grupy.'); }
 $rz_redirect = 'grupa.php?id=' . $course_id . '&m=' . $rz_ym;
 require __DIR__ . '/_actions.php';
 
+// Grupa „tylko godziny”: bez należności, salda i wpłat — odsyłamy do zestawienia godzin
+if (ti_course_hours_only($course_id, $rz_ym)) {
+    $PAGE_TITLE = $course['name'];
+    $RZ_ACTIVE  = 'grupy';
+    include __DIR__ . '/_head.php'; ?>
+<div class="mb-3"><h1 class="h4 fw-bold mb-1"><?= h($course['name']) ?></h1></div>
+<?= rz_month_bar('grupa.php', $rz_year, $rz_month, $rz_month_label, 'id=' . $course_id) ?>
+<div class="alert alert-warning" role="status"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>
+  <strong>Grupa liczy tylko godziny — bez kwot.</strong> Nie ma tu należności, salda, wpłat ani faktur, a powiadomienia o rozliczeniach nie są wysyłane.
+  <a class="alert-link" href="<?= APP_URL ?>/karty30/ti/dydaktyk/index.php?course=<?= $course_id ?>&amp;tab=rozliczenia">Zestawienie godzin grupy</a>.</div>
+<?php include __DIR__ . '/_foot.php'; exit;
+}
+
 $sum   = ti_course_billing_summary($course_id, $rz_year, $rz_month);
 $model = k30_ti_billing_model_label((int)($course['billing_model'] ?? 2) ?: 2);
 

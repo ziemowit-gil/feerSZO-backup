@@ -963,6 +963,7 @@ switch ($action) {
                       7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
 
         $bal = ti_client_balance($cid);
+        $onlyHours = ti_client_only_hours_only($cid);   // kursant liczony wyłącznie w godzinach (grupy „tylko godziny”)
 
         $grp = ti_client_group_balances($cid);
         $groups = count($grp['groups']) > 1 ? array_map(fn($g) => [
@@ -992,8 +993,9 @@ switch ($action) {
 
         $monthsOut = [];
         foreach ($grouped as $g) {
-            $sumDue = 0.0; $sumHours = 0.0; $statuses = []; $dueDate = null;
+            $sumDue = 0.0; $sumHours = 0.0; $statuses = []; $dueDate = null; $allHo = true;
             foreach ($g['rows'] as $b) {
+                if (empty($b['hours_only'])) $allHo = false;
                 $sumDue   += (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
                 $sumHours += (float)$b['hours_billed'];
                 $statuses[] = $b['status'];
@@ -1015,6 +1017,7 @@ switch ($action) {
                         'total'           => round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2),
                         'invoice_url'     => !empty($b['invoice_path']) ? $invoiceUrl((int)$b['id']) : null,
                         'hours_url'       => $hoursUrl($g['year'], $g['month'], (int)($b['course_id'] ?? 0)),
+                        'hours_only'      => !empty($b['hours_only']),   // „tylko godziny”: bez kwot
                     ];
                 }
             }
@@ -1030,6 +1033,7 @@ switch ($action) {
                 'due_date'     => $dueDate,
                 'overdue'      => $aggStatus !== 'paid' && $dueDate && $dueDate < date('Y-m-d'),
                 'multi'        => $multi,
+                'hours_only'   => $allHo,   // wszystkie wiersze miesiąca to „tylko godziny” — bez kwot do zapłaty
                 'hours_url'    => $hoursUrl($g['year'], $g['month']),
                 'invoice_url'  => (!$multi && !empty($single['invoice_path'])) ? $invoiceUrl((int)$single['id']) : null,
                 'rows'         => $rowsOut,
@@ -1057,7 +1061,8 @@ switch ($action) {
             'course_id'   => (int)$r['course_id'],
             'course_name' => $r['course_name'],
             'ref'         => sprintf('%06d%06d', $cid, (int)$r['course_id']),
-        ], $refs_stmt->fetchAll(PDO::FETCH_ASSOC));
+        ], array_values(array_filter($refs_stmt->fetchAll(PDO::FETCH_ASSOC),
+            fn($r) => !ti_course_hours_only((int)$r['course_id']))));   // grupy „tylko godziny” nie mają numeru referencyjnego do wpłat
 
         json_ok([
             'balance'        => [
@@ -1069,13 +1074,15 @@ switch ($action) {
             'groups'         => $groups,
             'general_credit' => round((float)$grp['general_credit'], 2),
             'months'         => $monthsOut,
-            'pay_account'    => $pay['account'],
-            'pay_title'      => $pay['title'],
-            'pay_codes'      => $pay['codes'],
-            'pay_refs'       => $pay_refs,
-            'pay_virtual'    => !empty($pay['virtual']),
+            // only_hours: kursant w grupach „tylko godziny” — bez danych do wpłaty (nie ma należności)
+            'only_hours'     => $onlyHours,
+            'pay_account'    => $onlyHours ? '' : $pay['account'],
+            'pay_title'      => $onlyHours ? '' : $pay['title'],
+            'pay_codes'      => $onlyHours ? [] : $pay['codes'],
+            'pay_refs'       => $onlyHours ? [] : $pay_refs,
+            'pay_virtual'    => !$onlyHours && !empty($pay['virtual']),
             // PDF „nadano numer rachunku” — tylko gdy kursant ma indywidualny numer (token jak przy rozpisce godzin)
-            'pay_info_pdf'   => !empty($pay['virtual']) ? '/karty30/ti/kursant/rachunek_pdf.php?token=' . $tok : null,
+            'pay_info_pdf'   => (!$onlyHours && !empty($pay['virtual'])) ? '/karty30/ti/kursant/rachunek_pdf.php?token=' . $tok : null,
         ]);
     }
 
