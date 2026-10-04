@@ -33,10 +33,32 @@ $RR = ti_room_reservation_range($w, $range);
 $from = $RR['from']; $to = $RR['to']; $prev = $RR['prev']; $next = $RR['next']; $range_label = $RR['label'];
 
 $by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from, $to) : ti_room_reservation_report($from, $to);
+
+// Zbiorcze zatwierdzenie roboczych („Do rezerwacji" → „Potwierdzone") w bieżącym okresie;
+// opcjonalnie tylko jeden operator (widok wg operatora). Działa na tym, co raport realnie pokazuje.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'approve_drafts') {
+    csrf_check();
+    $only_op = trim((string)($_POST['operator'] ?? ''));
+    $ids = [];
+    foreach ($by_group as $gk => $grows) {
+        if ($only_op !== '' && (string)$gk !== $only_op) continue;
+        foreach ($grows as $gr) {
+            if ($view === 'operator') { if ((int)$gr['pending'] > 0) $ids = array_merge($ids, $gr['session_ids']); }
+            elseif (($gr['room_reservation_status'] ?? '') !== 'potwierdzone') $ids[] = (int)$gr['id'];
+        }
+    }
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    foreach ($ids as $sid) pl_room_reservation_set($sid, 'potwierdzone');
+    ti_print_log_add('sale_rezerwacje_approve', 'Zatwierdzono robocze rezerwacje sal (' . count($ids) . ') — ' . $from . ' – ' . $to, 0, 0,
+        ['range' => $range, 'view' => $view, 'operator' => $only_op, 'count' => count($ids)], $me);
+    flash_set('success', $ids ? 'Zatwierdzono rezerwacje robocze: ' . count($ids) . '.' : 'Brak rezerwacji roboczych do zatwierdzenia.');
+    header('Location: ' . $_SERVER['REQUEST_URI']); exit;
+}
+
 $by_group = ti_room_reservation_filter_status($by_group, $status);
 $total  = array_sum(array_map('count', $by_group));
 $pending = 0;
-foreach ($by_group as $rows) foreach ($rows as $r) if ($r['room_reservation_status'] !== 'potwierdzone') $pending++;
+foreach ($by_group as $rows) foreach ($rows as $r) $pending += $view === 'operator' ? (int)$r['pending'] : (($r['room_reservation_status'] ?? '') !== 'potwierdzone' ? 1 : 0);
 
 ti_print_log_add('sale_rezerwacje', 'Wykaz sal do rezerwacji — ' . $from . ' – ' . $to, 0, 0, ['range' => $range, 'view' => $view], $me);
 
@@ -86,6 +108,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=<?= h($view) ?>&amp;status=<?= h($status) ?>" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Pobierz Excel
     </a>
+    <?php if ($pending > 0): ?>
+    <form method="post" class="d-inline usos-noprint" onsubmit="return confirm('Zatwierdzić wszystkie rezerwacje robocze w tym okresie (<?= (int)$pending ?>)?')">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="approve_drafts">
+      <button class="btn btn-sm btn-success"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź wszystkie robocze (<?= (int)$pending ?>)</button>
+    </form>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -125,6 +154,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </a>
     <a href="sale_rezerwacje_export.php?format=docx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;status=<?= h($status) ?>&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Word<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
     <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;status=<?= h($status) ?>&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Excel<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
+    <?php $_gp = array_sum(array_map(fn($x) => (int)$x['pending'], $rows)); if ($_gp > 0): ?>
+    <form method="post" class="d-inline usos-noprint" onsubmit="return confirm('Zatwierdzić robocze rezerwacje operatora (<?= (int)$_gp ?>)?')">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_op" value="approve_drafts">
+      <input type="hidden" name="operator" value="<?= h($group_key) ?>">
+      <button class="btn btn-sm btn-success py-0 px-2">Zatwierdź robocze<span class="visually-hidden"> operatora <?= h($group_key) ?></span> (<?= (int)$_gp ?>)</button>
+    </form>
+    <?php endif; ?>
     <?php endif; ?>
   </div>
   <div class="table-responsive">
