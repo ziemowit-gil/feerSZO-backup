@@ -15,12 +15,22 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/modules/sp_files/logic/spFiles.php';
+require_once dirname(__DIR__) . '/modules/sp_connection/logic/spConnection.php';
 
 require_role('admin');
 ika_require(APP_URL . '/admin/sp_contract_files.php', 3600);
 $PAGE_TITLE = 'Pliki umów — dopasowanie z SharePointa';
 
 const SPF_BATCH = 25;      // plików na jedno żądanie (każdy to kilka zapytań do Graph)
+
+// Bez połączenia z SharePointem nie ma skąd przywracać plików — zamiast listy i przycisków panel blokady z linkiem do ustawień
+if (!SpConnection::isConnected()) {
+    include dirname(__DIR__) . '/includes/header.php';
+    echo '<h1 class="h4 mb-3"><i class="bi bi-cloud-arrow-down text-primary" aria-hidden="true"></i> Pliki umów — dopasowanie z SharePointa</h1>';
+    SpConnection::renderBlocked('Przywracanie plików umów z SharePointa', 'Bez połączenia nie można wyszukać ani pobrać brakujących plików. Linki do plików w umowach działają dalej, o ile plik jest na serwerze.');
+    include dirname(__DIR__) . '/includes/footer.php';
+    exit;
+}
 
 $ready   = SpFiles::canRestore();
 $labels  = defined('CONTRACT_TYPES') ? CONTRACT_TYPES : [];

@@ -180,6 +180,9 @@ if ($overview_mode) {
 </div>
 <?php else: ?>
 
+<?php if (!$sp_ok): ?>
+<?php SpConnection::renderBlocked('Moduł Pliki', 'Pliki obszarów roboczych są przechowywane wyłącznie na SharePoincie — bez połączenia nie można ich przeglądać, wgrywać ani pobierać. Załączniki zadań (lokalne) działają bez zmian.'); ?>
+<?php else: // SharePoint połączony: siatka obszarów + ostatnio dodane pliki ?>
 <!-- Siatka obszarów roboczych -->
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mb-4">
   <?php foreach ($ov_workspaces as $ov_ws):
@@ -294,6 +297,8 @@ if ($overview_mode) {
   </div>
 </div>
 <?php endif; // recent_files ?>
+
+<?php endif; // sp_ok ?>
 
 <!-- Załączniki zadań (lokalne, niezależne od SharePoint/Koszulek) -->
 <?php if (!empty($recent_task_files)): ?>
@@ -667,6 +672,21 @@ $can_manage = ws_can_manage($ws_id, $uid);
 $folders    = ws_list_folders($ws_id);
 $sp_ok      = ws_available();
 $role       = ws_user_role($ws_id, $uid);
+
+// Bez połączenia z SharePointem widok obszaru (foldery i pliki leżą na SharePoincie) jest zablokowany — panel z linkiem do ustawień
+if (!$sp_ok) {
+    $PAGE_TITLE       = h($workspace['name']) . ' — Pliki';
+    $PAGE_SUBTITLE    = 'Pliki';
+    $TASKS_BREADCRUMB = h($workspace['name']);
+    $TASKS_WS_ID      = $ws_id;
+    $TASKS_FILES_VIEW = true;
+    require_once __DIR__ . '/includes/header_tasks.php';
+    echo '<main id="tsk-main" class="py-3 px-3 px-md-4 px-lg-5">';
+    SpConnection::renderBlocked('Pliki obszaru „' . $workspace['name'] . '”', 'Pliki obszarów roboczych są przechowywane wyłącznie na SharePoincie. Załączniki zadań (lokalne) nie wymagają SharePointa — są w widoku zadań.');
+    echo '</main>';
+    include __DIR__ . '/includes/footer_tasks.php';
+    exit;
+}
 
 // Auto-inicjuj strukturę SP gdy obszar jest pusty i użytkownik ma uprawnienia
 $auto_initialized = false;

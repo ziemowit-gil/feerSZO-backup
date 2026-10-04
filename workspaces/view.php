@@ -100,7 +100,11 @@ include dirname(__DIR__) . '/includes/header.php';
     </li>
   </ul>
 
-  <?php if ($active_tab === 'files'): ?>
+  <?php if ($active_tab === 'files' && !$sp_ok): ?>
+  <!-- ═══════════════════════ TAB: PLIKI — zablokowana (SharePoint niepołączony) ═══════════════════════ -->
+  <?php SpConnection::renderBlocked('Pliki obszaru', 'Zakładka Pliki działa tylko z połączonym SharePointem. Zakładka Zadania jest dostępna bez zmian.'); ?>
+
+  <?php elseif ($active_tab === 'files'): ?>
   <!-- ═══════════════════════ TAB: PLIKI ═══════════════════════════════════ -->
 
   <div class="row g-3">

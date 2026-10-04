@@ -30,22 +30,15 @@ include dirname(__DIR__) . '/includes/header.php';
     </h5>
     <?php if (!$sp_ok): ?>
     <span class="badge bg-warning text-dark">
-      <i class="bi bi-exclamation-triangle me-1"></i>SharePoint niekonfigurowany
+      <i class="bi bi-cloud-slash me-1" aria-hidden="true"></i>SharePoint niepołączony
     </span>
     <?php endif; ?>
   </div>
 
   <?php if (!$sp_ok): ?>
-  <div class="alert alert-warning mb-3">
-    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-    SharePoint nie jest w pełni skonfigurowany. Przejdź do
-    <a href="<?= APP_URL ?>/admin/m365_settings.php">Ustawień M365</a>
-    i włącz integrację SharePoint (<code>sp_enabled=1</code>, <code>sp_site_url</code>).
-    Możesz przeglądać metadane, ale upload/pobieranie nie będą działać.
-  </div>
-  <?php endif; ?>
+  <?php SpConnection::renderBlocked('Moduł Pliki (Koszulki)', 'Pliki obszarów roboczych są przechowywane wyłącznie na SharePoincie — bez połączenia nie można ich przeglądać, wgrywać ani pobierać.'); ?>
 
-  <?php if (empty($workspaces)): ?>
+  <?php elseif (empty($workspaces)): ?>
   <div class="text-center text-muted py-5">
     <i class="bi bi-folder2" style="font-size:2.5rem;opacity:.3"></i>
     <p class="mt-2 mb-1">Nie masz dostępu do żadnego obszaru roboczego.</p>

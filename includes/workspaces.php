@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/m365.php';
 require_once __DIR__ . '/tasks.php';
+require_once dirname(__DIR__) . '/modules/sp_connection/logic/spConnection.php';
 
 // ── Auto-migracja schematu ────────────────────────────────────────────────────
 (function () {
@@ -112,10 +113,13 @@ function ws_sp_root_folder(): string {
 }
 
 /**
- * Sprawdza, czy moduł Koszulek jest dostępny (SP skonfigurowany).
+ * Sprawdza, czy moduł Koszulek jest dostępny: SharePoint połączony (M365 skonfigurowany, synchronizacja włączona, wskazana witryna —
+ * SpConnection::isConnected()). Bez połączenia strony modułu pokazują blokadę (SpConnection::renderBlocked), a API odmawia (503).
+ * Wynik pamiętany na czas żądania — funkcja jest wołana wielokrotnie.
  */
 function ws_available(): bool {
-    return m365_setting('sp_enabled') === '1' && m365_setting('sp_site_url') !== '';
+    static $ok = null;
+    return $ok ??= SpConnection::isConnected();
 }
 
 // ── ACL — delegowane do task_workspace_role ───────────────────────────────────

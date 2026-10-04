@@ -17,6 +17,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/modules/sp_files/logic/spMatcher.php';
+require_once dirname(__DIR__) . '/modules/sp_connection/logic/spConnection.php';
 
 require_role('admin');
 ika_require(APP_URL . '/admin/sp_contract_match.php', 3600);
@@ -24,6 +25,15 @@ $PAGE_TITLE = 'Skany z SharePointa — umowy bez pliku';
 
 const SPM_PAGE         = 15;   // umów na stronę
 const SPM_ATTACH_BATCH = 10;   // przypisań na jedno kliknięcie (każde to pobranie pliku z SharePointa)
+
+// Bez połączenia z SharePointem nie da się zbudować indeksu ani pobrać skanów — zamiast formularzy panel blokady z linkiem do ustawień
+if (!SpConnection::isConnected()) {
+    include dirname(__DIR__) . '/includes/header.php';
+    echo '<h1 class="h4 mb-3"><i class="bi bi-file-earmark-arrow-down text-primary" aria-hidden="true"></i> Skany z SharePointa — umowy bez pliku</h1>';
+    SpConnection::renderBlocked('Skany z SharePointa → umowy bez pliku', 'Bez połączenia nie da się zbudować indeksu plików biblioteki ani pobrać skanów do umów.');
+    include dirname(__DIR__) . '/includes/footer.php';
+    exit;
+}
 
 $self    = 'sp_contract_match.php';
 $labels  = defined('CONTRACT_TYPES') ? CONTRACT_TYPES : [];

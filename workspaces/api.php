@@ -25,6 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($_GET['action'] ?? '', ['do
         echo 'Nieprawidłowy token CSRF.';
         exit;
     }
+    if (!ws_available()) {                                  // bez połączenia z SharePointem nie ma skąd pobrać pliku
+        http_response_code(503);
+        echo 'SharePoint nie jest połączony — pobieranie i podgląd plików są zablokowane. ' . SpConnection::blockedReason() . ' Poproś administratora o połączenie SharePoint (Administracja → SharePoint).';
+        exit;
+    }
     $file_id = (int)($_GET['id'] ?? 0);
     $inline  = ($_GET['action'] === 'preview');
     ws_proxy_download($file_id, current_user()['id'] ?? null, $inline);
@@ -52,6 +57,15 @@ if (!hash_equals(csrf_token(), $csrf)) {
 
 $user    = current_user();
 $user_id = (int)($user['id'] ?? 0);
+
+// Akcje na plikach i folderach wymagają połączonego SharePointa (powiązania plik–zadanie i listy to czysta baza — działają zawsze)
+if (in_array($action, ['create_folder', 'upload_file', 'delete_file', 'delete_folder'], true) && !ws_available()) {
+    http_response_code(503);
+    echo json_encode(['ok' => false, 'blocked' => true,
+        'error' => 'SharePoint nie jest połączony — operacje na plikach i folderach są zablokowane. ' . SpConnection::blockedReason()
+                 . ' Poproś administratora o połączenie SharePoint (Administracja → SharePoint).']);
+    exit;
+}
 
 $resp = match($action) {
 
