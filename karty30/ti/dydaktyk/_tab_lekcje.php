@@ -58,7 +58,7 @@ if ($_sms_enabled && $cur_course) {
       <div class="form-check"><input class="form-check-input" type="checkbox" id="apprAll"><label class="form-check-label small" for="apprAll">Zaznacz wszystkie</label></div>
     </li>
     <?php foreach ($_appr_drafts as $_d): $_ts = (string)$_d['lesson_date'] !== '' ? strtotime((string)$_d['lesson_date']) : 0; $_online = in_array((string)$_d['lesson_method'], ['zdalna_zoom','zdalna_inne'], true); ?>
-    <li class="list-group-item py-1">
+    <li class="list-group-item py-1 d-flex align-items-center gap-2">
       <div class="form-check">
         <input class="form-check-input appr-chk" type="checkbox" value="<?= (int)$_d['id'] ?>" id="apprC<?= (int)$_d['id'] ?>">
         <label class="form-check-label" for="apprC<?= (int)$_d['id'] ?>">
@@ -67,6 +67,7 @@ if ($_sms_enabled && $cur_course) {
           <?php if ($_online): ?><span class="badge text-bg-info"><i class="bi bi-camera-video me-1" aria-hidden="true"></i>online</span><?php endif; ?>
         </label>
       </div>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 ms-auto" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$_d['id'] ?>"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj<span class="visually-hidden"> wersję roboczą <?= h(trim((string)$_d['topic']) !== '' ? $_d['topic'] : 'bez tematu') ?></span></button>
     </li>
     <?php endforeach; ?>
   </ul>
