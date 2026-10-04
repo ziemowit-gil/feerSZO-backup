@@ -336,7 +336,7 @@ if (!function_exists('osw_rozpocznij_podpis')) {
         $telefon = trim((string)($user['phone_number'] ?? ''));
         if ($telefon !== '' && function_exists('sms_send_with_fallback') && function_exists('sms_is_mobile') && sms_is_mobile($telefon)) {
             try {
-                $kanal = sms_send_with_fallback($telefon, $tresc, (string)($user['email'] ?? ''));
+                $kanal = sms_send_with_fallback($telefon, $tresc, (string)($user['email'] ?? ''), 'authorization_code');
             } catch (\Throwable $e) {
                 $blad = $e->getMessage();
             }

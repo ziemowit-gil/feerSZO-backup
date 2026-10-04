@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             try {
                 $otp = sms_generate_otp($phone_norm, $user['id']);
-                $via = sms_send_with_fallback($phone_norm, "Kod weryfikacyjny 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '');
+                $via = sms_send_with_fallback($phone_norm, "Kod weryfikacyjny 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '', 'twofa_code');
                 $_SESSION['2fa_sms_setup_sent'] = true;
                 $success = $via === 'email' ? 'sms_fallback_email' : 'sms_sent';
             } catch (\Throwable $e) {

@@ -334,7 +334,7 @@ function owncloud_send_credentials(string $email, string $phone, string $name, s
     if ($phone !== '') {
         if (!function_exists('sms_send')) { @require_once __DIR__ . '/sms.php'; }
         if (function_exists('sms_is_enabled') && sms_is_enabled()) {
-            try { sms_send($phone, "{$org} - Moj dysk (ownCloud). Login: {$username}, haslo: {$password}"); }
+            try { sms_send($phone, "{$org} - Moj dysk (ownCloud). Login: {$username}, haslo: {$password}", 'access_data'); }
             catch (\Throwable $e) { /* SMS opcjonalny */ }
         }
     }

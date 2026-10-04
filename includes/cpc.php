@@ -427,7 +427,7 @@ function cpc_send_sms_fallback(int $user_id): array {
 
     try {
         foreach ($phones as $phone) {
-            sms_send($phone, $message);
+            sms_send($phone, $message, 'recovery_code');
         }
     } catch (\Throwable $e) {
         return ['ok' => false, 'error' => $e->getMessage()];

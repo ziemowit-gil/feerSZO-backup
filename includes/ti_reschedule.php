@@ -362,7 +362,7 @@ function k30_ti_reschedule_notify_parties(int $session_id, array $old, bool $als
         if (!function_exists('sms_tpl_render')) require_once __DIR__ . '/sms_templates.php';
         $stpl = sms_tpl_render('ti_reschedule_notify', ['course' => (string)$s['course_name'], 'when' => $newW]);
         if ($stpl['enabled']) {
-            try { ti_lesson_sms_notify((int)$s['course_id'], $stpl['message']); }
+            try { ti_lesson_sms_notify((int)$s['course_id'], $stpl['message'], 'ti_reschedule_notify'); }
             catch (\Throwable $e) {}
         }
     }

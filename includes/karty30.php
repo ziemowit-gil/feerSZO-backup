@@ -3897,8 +3897,9 @@ function ti_time_options(string $selected = '', string $from = '07:00', string $
  * dodatkowo na numer opiekuna (guardian_phone), gdy opiekun ma to włączone
  * (parent_notify_lessons=1) — niezależnie od opt-inu dziecka. Zwraca liczbę wysłanych.
  * Bezpieczne, gdy SMS wyłączony lub brak odbiorców (zwraca 0).
+ * $kind: rodzaj SMS z katalogu (modules/sms_senders) — decyduje o nadawcy, np. 'ti_lesson_added', 'ti_lesson_reminder'.
  */
-function ti_lesson_sms_notify(int $courseId, string $message): int {
+function ti_lesson_sms_notify(int $courseId, string $message, string $kind = ''): int {
     require_once __DIR__ . '/sms.php';
     if (!function_exists('sms_channel_ready') || !sms_channel_ready()) return 0;
     $rows = db_all(
@@ -3921,7 +3922,7 @@ function ti_lesson_sms_notify(int $courseId, string $message): int {
             if ($gp !== '' && !in_array($gp, $nums, true)) $nums[] = $gp;
         }
         foreach ($nums as $num) {
-            try { sms_send($num, $message); $sent++; } catch (\Throwable $e) { /* pojedynczy błąd nie blokuje */ }
+            try { sms_send($num, $message, $kind); $sent++; } catch (\Throwable $e) { /* pojedynczy błąd nie blokuje */ }
         }
     }
     return $sent;
@@ -4806,7 +4807,7 @@ function k30_ti_notify_dydaktyka(int $course_id, string $subject, string $bodyHt
             if (!function_exists('sms_send')) @require_once __DIR__ . '/sms.php';
             if (function_exists('sms_send') && function_exists('sms_channel_ready') && sms_channel_ready()) {
                 $nums = function_exists('k30_ti_sms_numbers') ? k30_ti_sms_numbers($acc) : array_filter([trim((string)($acc['phone'] ?? ''))]);
-                foreach ($nums as $num) { try { sms_send($num, $smsText); } catch (\Throwable $e) {} }
+                foreach ($nums as $num) { try { sms_send($num, $smsText, 'ti_dydaktyka_notice'); } catch (\Throwable $e) {} }
             }
         }
     }
@@ -5476,7 +5477,7 @@ function k30_ti_cancel_session(int $session_id, string $reason, string $role, st
     if (!empty($row['time_from'])) $when .= ' o ' . substr((string)$row['time_from'], 0, 5);
     return ti_lesson_sms_notify(
         (int)$row['course_id'],
-        'Odwolane zajecia: ' . (string)$row['course_name'] . ' — ' . $when . '. Szczegoly w panelu kursanta.'
+        'Odwolane zajecia: ' . (string)$row['course_name'] . ' — ' . $when . '. Szczegoly w panelu kursanta.', 'ti_lesson_cancelled'
     );
 }
 
@@ -5905,7 +5906,7 @@ function k30_ti_billing_notify(int $billing_id, bool $force = false, string $cha
                  . " Szczegoly w panelu kursanta.";
             $msg = strtr($msg, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
                                 'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z']);
-            try { sms_send($phone, $msg); $sms_sent = true; } catch (\Throwable $e) {}
+            try { sms_send($phone, $msg, 'ti_billing_notice'); $sms_sent = true; } catch (\Throwable $e) {}
         }
     }
 
@@ -6073,7 +6074,7 @@ function k30_waiting_send_sms(int $id, string $message): bool {
             [$id]
         );
         if (!$row || !$row['client_phone']) return false;
-        sms_send($row['client_phone'], $message);
+        sms_send($row['client_phone'], $message, 'ti_waiting_list');
         db()->prepare(
             "UPDATE k30_waiting_list SET sms_sent_at=datetime('now'), sms_count=sms_count+1, status='contacted', updated_at=datetime('now') WHERE id=?"
         )->execute([$id]);
@@ -7377,7 +7378,7 @@ function k30_ti_notify_low_attendance(int $course_id, int $client_id, int $pct, 
         if ($stpl['enabled']) {
             $nums = k30_ti_sms_numbers($row);
             if ($isMinor) { $gp = trim((string)($row['guardian_phone'] ?? '')); if ($gp !== '' && !in_array($gp, $nums, true)) $nums[] = $gp; }
-            foreach ($nums as $n) { try { sms_send($n, $stpl['message']); } catch (\Throwable $e) {} }
+            foreach ($nums as $n) { try { sms_send($n, $stpl['message'], 'ti_low_attendance'); } catch (\Throwable $e) {} }
         }
     }
 }

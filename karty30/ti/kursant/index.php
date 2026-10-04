@@ -670,7 +670,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "notify_phone{$which}_verified"    => 0,
         ], (int)$student['id']);
         $org = defined('ORG_NAME') ? ORG_NAME : 'Panel kursanta';
-        try { sms_send($phone, "{$org}: kod weryfikacyjny numeru do powiadomien: {$code} (wazny 10 min)."); } catch (\Throwable $e) {}
+        try { sms_send($phone, "{$org}: kod weryfikacyjny numeru do powiadomien: {$code} (wazny 10 min).", 'phone_verify_code'); } catch (\Throwable $e) {}
         header('Location: index.php?tab=ustawienia&phones=otp_sent_' . $which); exit;
     }
 

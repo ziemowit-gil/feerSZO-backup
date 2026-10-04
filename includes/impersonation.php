@@ -124,7 +124,7 @@ function impersonation_create_request(array $target, string $type, int $id, stri
 
     if ($method === 'sms') {
         require_once __DIR__ . '/sms.php';
-        sms_send($target['phone_number'], $body);
+        sms_send($target['phone_number'], $body, 'authorization_code');
     } else {
         require_once __DIR__ . '/mail_queue.php';
         $html = nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'));

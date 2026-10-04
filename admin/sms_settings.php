@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
 require_once dirname(__DIR__) . '/includes/approval.php';
+require_once dirname(__DIR__) . '/modules/sms_senders/logic/smsSenders.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Ustawienia SMS';
@@ -104,8 +105,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: sms_settings.php'); exit;
     }
 
+    if ($action === 'save_kind_senders') {
+        $in  = $_POST['kind_sender'] ?? [];
+        $res = SmsSenders::save(is_array($in) ? $in : [], (int)current_user()['id']);
+        $n   = count($res['changed']);
+        if ($n) log_system_action((int)current_user()['id'], 'settings_save', 'Ustawienia SMS — nadawca wg rodzaju SMS: ' . $n . ' zmian');
+        $kinds = SmsSenders::kinds();
+        if ($res['adjusted']) {
+            $names = array_map(fn($k) => '„' . $kinds[$k]['label'] . '”', $res['adjusted']);
+            flash_set('warning', 'Nadawców zapisano (zmian: ' . $n . '), ale poprawiono wpisy dla: ' . implode(', ', $names)
+                . ' — dozwolone są litery, cyfry, spacja, kropka, myślnik i podkreślnik, maks. ' . SmsSenders::NAME_MAX . ' znaków.');
+        } else {
+            flash_set('success', $n ? 'Nadawcy wg rodzaju SMS zapisani (zmian: ' . $n . ').' : 'Bez zmian — nadawcy wg rodzaju SMS są już zapisani w tej postaci.');
+        }
+        header('Location: sms_settings.php#kind-senders'); exit;
+    }
+
     if ($action === 'test') {
         $phone    = trim($_POST['test_phone'] ?? '');
+        $kind     = (string)($_POST['kind'] ?? '');
+        if (!SmsSenders::exists($kind)) $kind = '';                  // tylko rodzaje z katalogu; pusty = domyślny nadawca
         $via      = in_array($_POST['via'] ?? '', ['primary', 'fallback', 'chain'], true) ? $_POST['via'] : 'chain';
         $primary  = sms_provider();
         $fallback = sms_provider_fallback();
@@ -119,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 if ($via === 'chain') {
                     // tak jak w produkcji: główny → zapasowy; komunikat mówi, kto naprawdę wysłał
-                    $used = sms_send($phone, $text);
+                    $used = sms_send($phone, $text, $kind);
                     $last = sms_last_send();
                     if ($used === '') {
                         $test_result = ['ok' => true, 'msg' => 'SMS pominięty — numer należy do kursanta wirtualnego.'];
@@ -134,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     // jeden dostawca, bez łańcucha — sprawdza, czy właśnie ten operator działa
                     $prov = $via === 'primary' ? $primary : $fallback;
-                    sms_send_via($prov, $phone, $text);
+                    sms_send_via($prov, $phone, $text, $kind);
                     $test_result = ['ok' => true, 'msg' => 'SMS wysłany na ' . $phone . ' przez ' . sms_provider_label($prov)
                                     . ' (' . ($via === 'primary' ? 'główny' : 'zapasowy') . ', bez łańcucha).'];
                 }
@@ -394,7 +413,8 @@ try {
   <div class="form-text" id="sender-help">
     Pojawi się zamiast numeru telefonu u odbiorcy (smsapi.pl) i w placeholderze <code>{sender}</code> bramy HTTP.
     Twilio wysyła z numeru nadawcy z konfiguracji Twilio. SerwerSMS ma własne pole nadawcy w sekcji „Konfiguracja SerwerSMS.pl”
-    (nazwa musi być tam zarejestrowana).
+    (nazwa musi być tam zarejestrowana). Nadawcę dla poszczególnych rodzajów SMS (kody, powiadomienia TI…) ustawisz osobno
+    w sekcji <a href="#kind-senders">„Nadawca wg rodzaju SMS”</a> pod formularzem.
   </div>
 </div>
 </div>
@@ -675,6 +695,18 @@ try {
 
 </form>
 
+<?php
+// Nadawca wg rodzaju SMS: dostawcy łańcucha (główny, zapasowy) — kolumna „Obowiązuje teraz” pokazuje wynik dla każdego z nich
+$ks_groups    = SmsSenders::groups();
+$ks_stored    = SmsSenders::all();
+$ks_providers = array_values(array_unique(array_filter([sms_provider(), sms_provider_fallback()])));
+$ks_labels    = sms_providers();
+$ks_suggest   = array_values(array_unique(array_filter([
+    trim((string)$cfg['sms_sender_name']), trim((string)$cfg['sms_serwersms_sender']), sms_serwersms_sender(),
+])));
+include dirname(__DIR__) . '/modules/sms_senders/views/kindSenders.php';
+?>
+
 <!-- ── Test wysyłki ───────────────────────────────────────────────────────── -->
 <div class="card shadow-sm mb-3">
 <div class="card-header fw-semibold"><i class="bi bi-send"></i> Test wysyłki SMS</div>
@@ -693,6 +725,15 @@ try {
       <span class="input-group-text fw-semibold text-muted">+48</span>
       <input type="tel" id="test_phone" name="test_phone" class="form-control phone-48" placeholder="123 456 789" required>
     </div>
+    <label class="form-label small fw-semibold mb-1" for="test_kind">Rodzaj SMS <span class="text-muted fw-normal">(jakiego nadawcy użyć)</span></label>
+    <select id="test_kind" name="kind" class="form-select form-select-sm mb-2" style="max-width:340px">
+      <option value="">— bez rodzaju (domyślny nadawca) —</option>
+      <?php foreach ($ks_groups as $grp => $grp_kinds): ?>
+      <optgroup label="<?= h($grp) ?>">
+        <?php foreach ($grp_kinds as $k => $info): ?><option value="<?= h($k) ?>"><?= h($info['label']) ?></option><?php endforeach; ?>
+      </optgroup>
+      <?php endforeach; ?>
+    </select>
     <div class="d-flex flex-wrap gap-2">
       <button type="submit" name="via" value="chain" class="btn btn-sm btn-primary">
         <i class="bi bi-diagram-3"></i> Wyślij jak w produkcji (łańcuch)
@@ -750,6 +791,11 @@ try {
         <span class="text-danger">brak działającego dostawcy</span>
       <?php endif; ?>
     </span>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <span class="text-muted">Rodzaje SMS z własnym nadawcą</span>
+    <span class="fw-semibold"><a href="#kind-senders"><?= (int)count($ks_stored) ?></a> z <?= (int)count(SmsSenders::kinds()) ?></span>
   </div>
 
   <hr class="my-2">

@@ -616,7 +616,7 @@ function asr_notify_participant(int $id): void {
         && function_exists('sms_send')
         && (!function_exists('sms_is_enabled') || sms_is_enabled())) {
         $sms = "{$org}: zgloszenie {$no} — {$status}. " . mb_substr(strip_tags($body_text), 0, 100);
-        try { sms_send((string)$r['participant_phone'], $sms); } catch (\Throwable $e) { /* cicho */ }
+        try { sms_send((string)$r['participant_phone'], $sms, 'assistance'); } catch (\Throwable $e) { /* cicho */ }
     }
 }
 
@@ -685,6 +685,6 @@ function asr_notify_volunteer(int $id, array $channels): void {
         $msg = "{$org}: przydzielono Ci zgloszenie asysty {$no}"
              . ($event !== '' ? " ({$event})" : '')
              . ". Odpowiedz tutaj:{$link_part}";
-        try { sms_send($contact['phone'], $msg); } catch (\Throwable $e) { /* cicho */ }
+        try { sms_send($contact['phone'], $msg, 'assistance'); } catch (\Throwable $e) { /* cicho */ }
     }
 }

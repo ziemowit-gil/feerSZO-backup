@@ -641,7 +641,7 @@ switch ($action) {
         if (!empty($body['notify']) && !$spr) {
             $cn   = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$cid]);
             $when = $date . ($tf !== '' ? ' o ' . $tf : '');
-            $n = ti_lesson_sms_notify($cid, 'Nowe zajecia: ' . ($cn['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
+            $n = ti_lesson_sms_notify($cid, 'Nowe zajecia: ' . ($cn['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.', 'ti_lesson_added');
             if ($n) $msg .= " Wysłano SMS: {$n}.";
         }
         json_ok(null, $msg);

@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $norm = sms_normalize_phone($_POST['phone_number'] ?? '');
                 try {
                     $otp = sms_generate_otp($norm, $uid);
-                    $via = sms_send_with_fallback($norm, "Kod weryfikacyjny numeru telefonu: {$otp} (ważny 5 min). Nie udostępniaj go nikomu.", $user['email'] ?? '');
+                    $via = sms_send_with_fallback($norm, "Kod weryfikacyjny numeru telefonu: {$otp} (ważny 5 min). Nie udostępniaj go nikomu.", $user['email'] ?? '', 'phone_verify_code');
                     $_SESSION['sec_phone_pending'] = $norm;
                     flash_set($via === 'email' ? 'warning' : 'success',
                         $via === 'email'

@@ -292,7 +292,7 @@ function pp_ti_notify_nrb(int $client_id, string $nrb, bool $correction = false)
         if (!function_exists('sms_send')) require_once dirname(__DIR__, 3) . '/includes/sms.php';
         try {
             if (sms_channel_ready()) { sms_send($phone, ($correction ? "{$org}: poprzednio wyslany numer rachunku zostal wygenerowany blednie. Prosimy nie uzywac go. Prawidlowy numer do wplat: "
-                                            : "{$org}: Twoj nowy numer rachunku do wplat za zajecia: ") . preg_replace('/\D/', '', $nrb) . ". W tytule przelewu wpisz imie i nazwisko."); $res['sms'] = true; }
+                                            : "{$org}: Twoj nowy numer rachunku do wplat za zajecia: ") . preg_replace('/\D/', '', $nrb) . ". W tytule przelewu wpisz imie i nazwisko.", 'payment_account_notice'); $res['sms'] = true; }
         } catch (\Throwable $e) {}
     }
     $email = trim((string)($cl['email'] ?? ''));
@@ -1264,7 +1264,7 @@ function pp_notice_process(): array {
             if (trim($b['sms_text']) !== '' && trim($v['phone']) !== '') {
                 try {
                     if (!function_exists('sms_send')) require_once dirname(__DIR__, 3) . '/includes/sms.php';
-                    if (sms_channel_ready()) { sms_send($v['phone'], pp_notice_render($b['sms_text'], $v)); $st['sms']++; }
+                    if (sms_channel_ready()) { sms_send($v['phone'], pp_notice_render($b['sms_text'], $v), 'payment_notice'); $st['sms']++; }
                 } catch (\Throwable $e) {}
             }
             if ($kind !== 'zaleglosc') db()->prepare("UPDATE pp_vnrb_pool SET notified_at=datetime('now') WHERE nrb=?")->execute([$nrb]);

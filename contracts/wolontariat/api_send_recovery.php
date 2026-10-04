@@ -40,7 +40,7 @@ if ($channel === 'sms') {
         exit;
     }
     try {
-        sms_send($phone, $msg);
+        sms_send($phone, $msg, 'recovery_code');
         // Zapisz czas wysyłki
         db()->prepare("UPDATE umowy_wolontariat SET recovery_code_sent_at=? WHERE id=?")
            ->execute([date('Y-m-d H:i:s'), $id]);

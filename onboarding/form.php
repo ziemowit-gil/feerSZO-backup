@@ -178,7 +178,7 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'updated_at'         => date('Y-m-d H:i:s'),
             ], $ob_id);
             try {
-                sms_send($vol['telefon'], "Twój kod weryfikacyjny: {$code} (ważny 10 min)");
+                sms_send($vol['telefon'], "Twój kod weryfikacyjny: {$code} (ważny 10 min)", 'phone_verify_code');
                 $success = 'Kod SMS został wysłany.';
             } catch (\RuntimeException $e) {
                 $errors[] = 'Nie udało się wysłać SMS. Spróbuj ponownie.';
@@ -398,7 +398,7 @@ if (!$disabled_page && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 'updated_at'         => date('Y-m-d H:i:s'),
             ], $ob_id);
             try {
-                sms_send($vol['telefon'], "Twój kod weryfikacyjny: {$code} (ważny 10 min)");
+                sms_send($vol['telefon'], "Twój kod weryfikacyjny: {$code} (ważny 10 min)", 'phone_verify_code');
             } catch (\RuntimeException $e) {
                 $errors[] = 'Nie udało się wysłać SMS. Użyj przycisku „Wyślij ponownie".';
             }

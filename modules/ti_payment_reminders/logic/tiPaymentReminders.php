@@ -444,7 +444,7 @@ final class TiPaymentReminders
                 $m   = sms_tpl_render(self::TEMPLATE, self::vars($e, $contact, 'sms'));
                 $msg = trim(self::ascii($m['message']));
                 if ($msg === '') throw new \RuntimeException('pusta treść SMS');
-                $provider = sms_send((string)$d['to'], $msg);
+                $provider = sms_send((string)$d['to'], $msg, self::TEMPLATE);
                 $status = 'sent';
             }
         } catch (\Throwable $ex) {

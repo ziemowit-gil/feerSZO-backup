@@ -161,7 +161,7 @@ HTML;
         if ($phone && function_exists('sms_is_enabled') && sms_is_enabled()) {
             $sms_text = "FEER SZO: Nie aktywowałeś/aś jeszcze konta. Zaloguj się: {$tozsamosc_url} Pytania: {$contact_email}";
             try {
-                sms_send($phone, $sms_text);
+                sms_send($phone, $sms_text, 'account_activation');
                 echo "  [SMS] uid={$uid} → {$phone}\n";
             } catch (\Throwable $sms_e) {
                 echo "  [SMS-ERR] uid={$uid}: " . $sms_e->getMessage() . "\n";

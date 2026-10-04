@@ -108,7 +108,8 @@ if (file_exists(__DIR__ . '/config.php')) {
                         // Creator
                         'creator_password_hash',
                     ];
-                    $rows = db_all("SELECT key_, value FROM settings WHERE key_ IN (" . implode(',', array_fill(0, count($keys_to_preserve), '?')) . ")", $keys_to_preserve);
+                    // + nadawcy SMS wg rodzaju (sms_sender_kind_<rodzaj>) — klucze nie są znane z góry, więc po prefiksie
+                    $rows = db_all("SELECT key_, value FROM settings WHERE key_ IN (" . implode(',', array_fill(0, count($keys_to_preserve), '?')) . ") OR key_ LIKE 'sms_sender_kind_%'", $keys_to_preserve);
                     foreach ($rows as $r) $preserved[$r['key_']] = $r['value'];
                 } catch (\Throwable $e) {}
             }

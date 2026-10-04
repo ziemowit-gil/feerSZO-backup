@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     catch (\Throwable $e) { $fail++; }
                 }
                 if ($ch_sms && $sms_on && trim((string)$r['phone']) !== '') {
-                    try { sms_send(trim($r['phone']), $body); $ok++; }
+                    try { sms_send(trim($r['phone']), $body, 'ti_bulk_message'); $ok++; }
                     catch (\Throwable $e) { $fail++; }
                 }
             }

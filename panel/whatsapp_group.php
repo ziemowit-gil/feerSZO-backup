@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'send
         if ($via_sms) {
             if ($user_phone) {
                 try {
-                    sms_send($user_phone, "Link do grupy WhatsApp FEER: {$link}\n\n{$rules_text}");
+                    sms_send($user_phone, "Link do grupy WhatsApp FEER: {$link}\n\n{$rules_text}", 'whatsapp_group');
                     $sent[] = 'SMS-em';
                 } catch (\Throwable $e) {
                     $send_errors[] = 'Nie udało się wysłać SMS: ' . $e->getMessage();

@@ -64,7 +64,7 @@ if ($method === 'sms' && $sms_available && !empty($phone)
 ) {
     try {
         $otp = sms_generate_otp($phone, $uid);
-        $via = sms_send_with_fallback($phone, "Kod 2FA: {$otp} (ważny 5 min)", $_2fa_user_email);
+        $via = sms_send_with_fallback($phone, "Kod 2FA: {$otp} (ważny 5 min)", $_2fa_user_email, 'twofa_code');
         $_SESSION['2fa_sms_sent'] = true;
         $info = $via === 'email'
             ? 'Kod wysłany e-mailem (SMS niedostępny) — sprawdź skrzynkę.'
@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'sms_resend' && $method === 'sms' && $sms_available && $phone) {
         try {
             $otp = sms_generate_otp($phone, $uid);
-            $via = sms_send_with_fallback($phone, "Kod 2FA: {$otp} (ważny 5 min)", $_2fa_user_email);
+            $via = sms_send_with_fallback($phone, "Kod 2FA: {$otp} (ważny 5 min)", $_2fa_user_email, 'twofa_code');
             $_SESSION['2fa_sms_sent'] = true;
             $info = $via === 'email' ? 'Nowy kod wysłany e-mailem (SMS niedostępny).' : 'Nowy kod SMS został wysłany.';
         } catch (\Throwable $e) {

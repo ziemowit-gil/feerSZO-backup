@@ -110,7 +110,7 @@ function _student_send_login_sms(string $phone, string $login, string $pass): st
     $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
     $msg = "{$org} - panel kursanta. Login: {$login}, haslo: {$pass}";
     try {
-        sms_send($phone, $msg);
+        sms_send($phone, $msg, 'access_data');
         return ' Hasło wysłano SMS-em.';
     } catch (\Throwable $e) {
         return ' (błąd wysyłki SMS: ' . $e->getMessage() . ')';
@@ -648,7 +648,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($gphone !== '' && sms_channel_ready()) {
             try {
                 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
-                sms_send($gphone, "{$org} - panel rodzica. Login: {$login}, haslo: {$pass}");
+                sms_send($gphone, "{$org} - panel rodzica. Login: {$login}, haslo: {$pass}", 'access_data');
                 $sms = ' Dane wysłano SMS-em na numer opiekuna.';
             } catch (\Throwable $e) { $sms = ' (błąd wysyłki SMS: ' . $e->getMessage() . ')'; }
         }
@@ -672,7 +672,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($gphone !== '' && sms_channel_ready()) {
             try {
                 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
-                sms_send($gphone, "{$org} - panel rodzica. Login: {$acc['parent_login']}, haslo: {$pass}");
+                sms_send($gphone, "{$org} - panel rodzica. Login: {$acc['parent_login']}, haslo: {$pass}", 'access_data');
                 $sms = ' Dane wysłano SMS-em na numer opiekuna.';
             } catch (\Throwable $e) { $sms = ' (błąd wysyłki SMS: ' . $e->getMessage() . ')'; }
         }

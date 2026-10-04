@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $r = sms_tpl_render($key, sms_tpl_sample_vars($key));
         try {
-            sms_send($phone, '[TEST] ' . $r['message']);
+            sms_send($phone, '[TEST] ' . $r['message'], $key);
             flash_set('success', 'Wysłano testowy SMS na: ' . $phone);
         } catch (\Throwable $e) {
             flash_set('danger', 'Błąd wysyłki testu: ' . $e->getMessage());

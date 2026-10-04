@@ -263,7 +263,7 @@ function parent_otp_send(string $phone): int {
         'fallback_via' => 'sms',
     ];
     $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
-    $via = sms_send_with_fallback($norm, "{$org}: kod dostepu rodzica do rozliczen: {$code}", $guardian_email);
+    $via = sms_send_with_fallback($norm, "{$org}: kod dostepu rodzica do rozliczen: {$code}", $guardian_email, 'parent_access_code');
     $_SESSION['k30_parent_otp']['fallback_via'] = $via;
     return count($matched);
 }

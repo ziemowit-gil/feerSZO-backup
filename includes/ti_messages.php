@@ -271,7 +271,7 @@ function ti_msg_notify_student(int $studentId, string $subject, string $body): v
             if ($stpl['enabled']) {
                 $nums = function_exists('k30_ti_sms_numbers') ? k30_ti_sms_numbers($acc) : array_filter([trim((string)($acc['phone'] ?? ''))]);
                 foreach ($nums as $num) {
-                    try { sms_send($num, $stpl['message']); } catch (\Throwable $e) {}
+                    try { sms_send($num, $stpl['message'], 'ti_new_message'); } catch (\Throwable $e) {}
                 }
             }
         }

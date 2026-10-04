@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // sms_send() zwraca dostawcę, który wysłał ('' = pominięto), a przy porażce rzuca wyjątek —
                     // dawniej zwracało void, więc test zawsze zgłaszał „Błąd wysyłki” (null) nawet po udanej wysyłce
                     $sms_err = '';
-                    try { $ok = sms_send($tu['phone_number'], 'FEER Zadania [test]: powiadomienia SMS działają poprawnie.') !== ''; }
+                    try { $ok = sms_send($tu['phone_number'], 'FEER Zadania [test]: powiadomienia SMS działają poprawnie.', 'tasks_notify') !== ''; }
                     catch (\Throwable $e) { $ok = false; $sms_err = sms_scrub($e->getMessage()); }
                     $admin_test_result = ['ok' => $ok, 'msg' => $ok
                         ? 'SMS testowy wysłany na ' . $tu['phone_number'] . ' (' . $tu['name'] . ')'
@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ch === 'sms' && $has_sms) {
             require_once dirname(__DIR__) . '/includes/sms.php';
             $sms_err = '';
-            try { $ok = sms_send($user['phone_number'], 'FEER Zadania: test powiadomień SMS działa poprawnie.') !== ''; }
+            try { $ok = sms_send($user['phone_number'], 'FEER Zadania: test powiadomień SMS działa poprawnie.', 'tasks_notify') !== ''; }
             catch (\Throwable $e) { $ok = false; $sms_err = sms_scrub($e->getMessage()); }
             $test_result = ['ok' => $ok, 'channel' => 'sms',
                 'msg' => $ok ? 'SMS wysłany na ' . $user['phone_number'] : 'Błąd wysyłki SMS — ' . ($sms_err !== '' ? $sms_err : 'sprawdź konfigurację bramki.')];

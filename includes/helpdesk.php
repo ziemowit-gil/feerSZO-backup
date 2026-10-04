@@ -1170,7 +1170,7 @@ function hd_notify_status_change(array $ticket, string $old_status, string $new_
         try {
             require_once dirname(__DIR__) . '/includes/sms.php';
             $sms = "[{$org}] Zgłoszenie {$num} – status: {$old_label} → {$new_label}. Szczegóły: {$track_url}";
-            sms_send($ticket['requester_phone'], $sms);
+            sms_send($ticket['requester_phone'], $sms, 'helpdesk');
         } catch (\Throwable $e) {}
     }
 
@@ -1246,7 +1246,7 @@ function hd_notify_new_message(array $ticket, array $message): void {
             try {
                 require_once dirname(__DIR__) . '/includes/sms.php';
                 sms_send($ticket['requester_phone'],
-                    "[{$org}] Zgłoszenie {$num}: nowa odpowiedź od operatora. Sprawdź: {$track_url}");
+                    "[{$org}] Zgłoszenie {$num}: nowa odpowiedź od operatora. Sprawdź: {$track_url}", 'helpdesk');
             } catch (\Throwable $e) {}
         }
     }

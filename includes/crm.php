@@ -2446,7 +2446,7 @@ class CrmManager
                     if ($sms_sig !== '') {
                         $sms_body = rtrim($sms_body) . "\n" . $sms_sig;
                     }
-                    sms_send($to['telefon'], $sms_body);
+                    sms_send($to['telefon'], $sms_body, 'crm_message');
                     $status = 'wysłana';
                 } elseif ($channel === 'email' && $to['email'] !== '') {
                     require_once __DIR__ . '/mail_queue.php';

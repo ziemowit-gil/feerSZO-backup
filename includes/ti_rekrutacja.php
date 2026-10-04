@@ -1559,7 +1559,7 @@ function rk_waitlist_notify_slot_free(int $slot_id): void {
         $stpl = sms_tpl_render('rk_waitlist_slot_free', ['when' => date('d.m H:i', strtotime((string)$slot['starts_at']))]);
         if ($stpl['enabled']) {
             try {
-                function_exists('sms_send_with_fallback') ? sms_send_with_fallback($phone, $stpl['message'], $email) : sms_send($phone, $stpl['message']);
+                function_exists('sms_send_with_fallback') ? sms_send_with_fallback($phone, $stpl['message'], $email, 'rk_waitlist_slot_free') : sms_send($phone, $stpl['message'], 'rk_waitlist_slot_free');
             } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
         }
     }
@@ -2052,7 +2052,7 @@ function rk_parent_request_send(int $booking_id): bool {
             'org'     => defined('ORG_NAME') ? ORG_NAME : '',
         ]);
         if ($stpl['enabled']) {
-            try { sms_send($g['phone'], $stpl['message']); } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
+            try { sms_send($g['phone'], $stpl['message'], 'rk_parent_confirm'); } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
         }
     }
     return true;
@@ -2210,8 +2210,8 @@ function rk_approval_notify(int $booking_id, string $stage): bool {
             try {
                 // Fallback: gdy bramka SMS zawiedzie, treść trafia e-mailem
                 function_exists('sms_send_with_fallback')
-                    ? sms_send_with_fallback($phone, $stpl['message'], $email)
-                    : sms_send($phone, $stpl['message']);
+                    ? sms_send_with_fallback($phone, $stpl['message'], $email, 'rk_pending_notify')
+                    : sms_send($phone, $stpl['message'], 'rk_pending_notify');
             } catch (\Throwable) { /* SMS nie blokuje przepływu */ }
         }
     }

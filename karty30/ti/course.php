@@ -275,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $sms_sent = 0;
             $stpl = sms_tpl_render('ti_lesson_added', ['course' => (string)($course_row['name'] ?? ''), 'when' => $when]);
             if ($stpl['enabled']) {
-                $sms_sent = ti_lesson_sms_notify((int)$id, $stpl['message']);
+                $sms_sent = ti_lesson_sms_notify((int)$id, $stpl['message'], 'ti_lesson_added');
             }
             flash_set('success', 'Lekcja dodana.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : '') . $zw);
         }

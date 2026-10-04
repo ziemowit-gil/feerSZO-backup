@@ -360,7 +360,7 @@ function send_secure_letter_to_standalone_volunteer(int $user_id, array $letter,
 
     // 1) Najpierw SMS z hasłem — bez tego załącznik jest bezużyteczny.
     try {
-        sms_send($to_phone, "Haslo do pisma od {$org}: {$password} (jednorazowe, do pliku ZIP).");
+        sms_send($to_phone, "Haslo do pisma od {$org}: {$password} (jednorazowe, do pliku ZIP).", 'document_code');
     } catch (\Throwable $e) {
         foreach ($cleanup as $f) @unlink($f);
         @unlink($zip_path);

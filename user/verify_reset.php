@@ -361,7 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($target_phone !== '') {
                     try {
                         $org_name = defined('ORG_NAME') ? ORG_NAME : '';
-                        sms_send($target_phone, "Kod odzyskiwania dostępu: {$code}. Ważny 10 minut. [{$org_name}]");
+                        sms_send($target_phone, "Kod odzyskiwania dostępu: {$code}. Ważny 10 minut. [{$org_name}]", 'recovery_code');
                     } catch (\Throwable $e) {
                         // Milcząco ignorujemy — nie ujawniamy błędu SMS
                     }

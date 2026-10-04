@@ -630,7 +630,7 @@ function vlab_sms_credentials(array $container, string $hostUser, string $hostPa
                         'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z']);
 
     try {
-        sms_send($phone, $msg);
+        sms_send($phone, $msg, 'access_data');
         vlab_log((int)$container['id'], (int)$container['student_id'], 'sms', true, $phone);
         return true;
     } catch (\Throwable $e) {

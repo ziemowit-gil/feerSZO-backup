@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $org_short = mb_substr($org, 0, 24);
             $msg = "Panel {$org_short}\nLogin: {$email}\nHaslo: {$plain}\nZmien haslo po zalogowaniu.";
             try {
-                $via = sms_send_with_fallback(sms_normalize_phone($vol_phone), $msg, $email);
+                $via = sms_send_with_fallback(sms_normalize_phone($vol_phone), $msg, $email, 'access_data');
                 log_contract_action($TYPE, $id, $me, 'note', 'Wyslano login+haslo panelu SMS-em na: ' . $vol_phone . ' (reset hasla)');
                 flash_set($via === 'email' ? 'warning' : 'success',
                     $via === 'email'

@@ -224,7 +224,7 @@ HTML;
             if ($send_sms) {
                 try {
                     $sms_text = "FEER. Konto SZO dla {$email}. Ustaw haslo: {$setup_url}";
-                    sms_send($phone, $sms_text);
+                    sms_send($phone, $sms_text, 'admin_message');
                 } catch (\Throwable $e) {
                     flash_set('warning', 'Konto utworzone, ale SMS nie zostal wyslany: ' . $e->getMessage());
                 }

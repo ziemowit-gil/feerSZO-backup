@@ -157,7 +157,7 @@ final class TiLicencjeNotifier
                                 continue;
                             }
                             try {
-                                sms_send($phone, $r['message']);
+                                sms_send($phone, $r['message'], $tpl);
                                 self::note($res, $assignmentId, 'sms', $rc, self::maskPhone($phone), 'sent', '', $by);
                             } catch (\Throwable $e) {
                                 self::note($res, $assignmentId, 'sms', $rc, self::maskPhone($phone), 'failed', $e->getMessage(), $by);

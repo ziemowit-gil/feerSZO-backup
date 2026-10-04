@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         require_once dirname(__DIR__) . '/includes/sms.php';
                         $otp = sms_generate_otp($user['twofa_phone'], $user['id']);
-                        sms_send_with_fallback($user['twofa_phone'], "Kod 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '');
+                        sms_send_with_fallback($user['twofa_phone'], "Kod 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '', 'twofa_code');
                         $_SESSION['2fa_sms_sent'] = true;
                     } catch (\Throwable $e) {}
                 }

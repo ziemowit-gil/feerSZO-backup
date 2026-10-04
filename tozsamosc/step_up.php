@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $challenge) {
         try {
             $otp = sms_generate_otp($db_user['twofa_phone'], (int)$user['id']);
             $via = sms_send_with_fallback($db_user['twofa_phone'],
-                "Kod weryfikacyjny: {$otp} (ważny 5 min)", $user['email'] ?? '');
+                "Kod weryfikacyjny: {$otp} (ważny 5 min)", $user['email'] ?? '', 'twofa_code');
             $_SESSION['tz_stepup_sms_sent'] = true;
             $_SESSION['tz_stepup_active']   = 'sms';
         } catch (\Throwable $e) {

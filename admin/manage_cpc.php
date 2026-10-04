@@ -365,7 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $org_name    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Organizacja');
         $sms_msg     = "Twój kod IKA: " . $row_sms['cpc_code'] . "\n— " . $org_name;
         try {
-            sms_send($row_sms['phone_number'], $sms_msg);
+            sms_send($row_sms['phone_number'], $sms_msg, 'ika_code');
             log_system_action($me_id, 'ika_sms_sent',
                 "Admin wysłał SMS z kodem IKA do ID:{$target_id} ({$target_name}), tel: " . $row_sms['phone_number'] . ".");
             flash_set('success', 'SMS z kodem IKA wysłany do ' . $target_name . ' (' . $row_sms['phone_number'] . ').');

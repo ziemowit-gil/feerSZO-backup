@@ -45,7 +45,7 @@ foreach ($sessions as $s) {
         db()->prepare("UPDATE k30_ti_sessions SET reminder_sent_at = datetime('now') WHERE id = ?")
             ->execute([$s['id']]);
         if (!$tpl['enabled']) { $skip++; continue; }
-        $n = ti_lesson_sms_notify((int)$s['course_id'], $tpl['message']);
+        $n = ti_lesson_sms_notify((int)$s['course_id'], $tpl['message'], 'ti_lesson_reminder');
         if ($n > 0) { $sent++; } else { $skip++; }
     } catch (\Throwable $e) {
         $errs++;

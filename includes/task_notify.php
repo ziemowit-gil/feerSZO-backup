@@ -729,7 +729,7 @@ function _tn_sms(int $user_id, string $event, int $ref_id, string $message): voi
         $phone = $u['phone_number'] ?? '';
         if (!$phone) return;
 
-        sms_send($phone, $message);
+        sms_send($phone, $message, 'tasks_notify');
         // sms_send() zwraca void; zakładamy sukces jeśli nie rzuciło wyjątku
         _tn_dedup_mark($user_id, $event, $ref_id, 'sms', 'sms');
     } catch (\Throwable $e) {

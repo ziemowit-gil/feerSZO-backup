@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     try {
                         $org_name = defined('ORG_NAME') ? ORG_NAME : '';
-                        sms_send($result['phone'], "Kod rejestracji konta: {$code}. Ważny 10 min. [{$org_name}]");
+                        sms_send($result['phone'], "Kod rejestracji konta: {$code}. Ważny 10 min. [{$org_name}]", 'register_code');
                     } catch (\Throwable $e) {
                         // Milcząco — nie ujawniamy błędu
                     }

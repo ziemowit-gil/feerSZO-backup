@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($user['twofa_method'] === 'sms' && !empty($user['twofa_phone'])) {
                         try {
                             $otp = sms_generate_otp($user['twofa_phone'], $user['id']);
-                            sms_send_with_fallback($user['twofa_phone'], "Kod 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '');
+                            sms_send_with_fallback($user['twofa_phone'], "Kod 2FA: {$otp} (ważny 5 min)", $user['email'] ?? '', 'twofa_code');
                             $_SESSION['2fa_sms_sent'] = true;
                         } catch (\Throwable $e) {}
                     }
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $otp = sms_generate_otp($sms_phone, (int)$found['id']);
                 $org = defined('ORG_NAME') ? ORG_NAME : 'System';
-                $via = sms_send_with_fallback($sms_phone, "Kod logowania {$org}: {$otp} (ważny 5 min)", $found['email'] ?? '');
+                $via = sms_send_with_fallback($sms_phone, "Kod logowania {$org}: {$otp} (ważny 5 min)", $found['email'] ?? '', 'login_code');
                 $sms_step = 2;
                 $info = $via === 'email'
                     ? 'Nie udało się wysłać SMS — kod wysłany na adres e-mail powiązany z kontem.'

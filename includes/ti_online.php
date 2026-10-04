@@ -213,7 +213,7 @@ function ti_send_ms_credentials(array $student, string $upn, string $pass): void
     if ($phone !== '') {
         if (!function_exists('sms_send')) { @require_once __DIR__ . '/sms.php'; }
         if (function_exists('sms_is_enabled') && sms_is_enabled()) {
-            try { sms_send($phone, "{$org} - konto szkoleniowe MS. Login: {$upn}, haslo: {$pass}"); }
+            try { sms_send($phone, "{$org} - konto szkoleniowe MS. Login: {$upn}, haslo: {$pass}", 'access_data'); }
             catch (\Throwable $e) { /* SMS opcjonalny */ }
         }
     }

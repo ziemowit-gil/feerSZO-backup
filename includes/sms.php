@@ -14,6 +14,9 @@
  * SMSAPI.pl: preferowany token OAuth (sms_api_token); fallback login+hasło MD5.
  * SerwerSMS.pl: token API (sms_serwersms_token) albo użytkownik API (login+hasło). Kanał: normalny (FULL, domyślny) z nazwą nadawcy
  *   sms_serwersms_sender — domyślnie „tte”, zarejestrowaną w panelu SerwerSMS — albo ECO (bez nazwy nadawcy): sms_serwersms_channel.
+ * RODZAJ SMS ($kind, ostatni parametr sms_send*): klucz z katalogu modules/sms_senders (np. 'twofa_code', 'ti_lesson_added'). Dla każdego
+ *   rodzaju można w Ustawieniach SMS wybrać nadawcę: nazwę albo ECO (bez nazwy nadawcy) — ustawienie sms_sender_kind_<rodzaj>,
+ *   patrz sms_kind_sender(). Brak ustawienia = domyślny nadawca dostawcy. Twilio wysyła zawsze z numeru nadawcy z konfiguracji.
  * Limity czasu: SDK smsapi (cURL) 5 s połączenie / 20 s całość, HTTP 8 s połączenie / 15 s odpowiedź — bez nich
  * niedostępny operator blokowałby wysyłkę na minuty i do zapasowego nigdy by nie doszło.
  */
@@ -122,16 +125,43 @@ function sms_serwersms_sender(): string {
     return $s !== '' ? $s : 'tte';
 }
 
+/** Klucz ustawienia z nadawcą dla rodzaju SMS albo '' gdy nazwa rodzaju jest niepoprawna (dozwolone: a-z, 0-9, _; do 40 znaków). */
+function sms_kind_setting_key(string $kind): string {
+    return preg_match('/^[a-z0-9_]{1,40}$/', $kind) ? 'sms_sender_kind_' . $kind : '';
+}
+
+/**
+ * Nadawca ustawiony dla rodzaju SMS (Ustawienia SMS → „Nadawca wg rodzaju SMS”):
+ *   null — nie ustawiono (obowiązuje domyślny nadawca dostawcy),
+ *   ''   — ECO: bez nazwy nadawcy (SerwerSMS: kanał ECO; smsapi.pl i brama HTTP: domyślny nadawca konta u dostawcy),
+ *   inaczej — nazwa nadawcy (SerwerSMS: kanał normalny z tą nazwą; smsapi.pl: pole from; brama HTTP: {sender}).
+ */
+function sms_kind_sender(string $kind): ?string {
+    $key = sms_kind_setting_key($kind);
+    if ($key === '') return null;
+    $v = trim(sms_setting($key));
+    if ($v === '') return null;
+    return strcasecmp($v, 'ECO') === 0 ? '' : $v;
+}
+
+/**
+ * Nadawca smsapi.pl: ustawiony dla rodzaju SMS albo wspólna „Nazwa nadawcy”. '' = bez pola from (domyślny nadawca konta);
+ * stara metoda (login + hasło, $legacy) bez żadnej nazwy wysyła jako „INFO”, jak dotąd.
+ */
+function sms_smsapi_sender(string $kind, bool $legacy): string {
+    return sms_kind_sender($kind) ?? (sms_setting('sms_sender_name') ?: ($legacy ? 'INFO' : ''));
+}
+
 /** Router: wyślij wiadomość przez wskazanego dostawcę. Rzuca wyjątek przy błędzie. */
-function _sms_dispatch(string $provider, string $phone, string $message): void {
+function _sms_dispatch(string $provider, string $phone, string $message, string $kind = ''): void {
     if ($provider === 'twilio') {
         _sms_send_twilio($phone, $message);
     } elseif ($provider === 'serwersms') {
-        _sms_send_serwersms($phone, $message);
+        _sms_send_serwersms($phone, $message, $kind);
     } elseif ($provider === 'httprequest') {
-        _sms_send_httprequest($phone, $message);
+        _sms_send_httprequest($phone, $message, $kind);
     } else {
-        _sms_send_smsapi($phone, $message);
+        _sms_send_smsapi($phone, $message, $kind);
     }
 }
 
@@ -189,10 +219,11 @@ function sms_last_send(?array $set = null): array {
  * Zdarzenie wysyłki do dziennika: error_log + audyt (sms.fallback — przełączono na zapasowego, sms.failed — zawiodli
  * wszyscy). Numer zamaskowany, komunikaty oczyszczone z adresów. Nigdy nie przerywa wysyłki.
  */
-function sms_log_event(string $event, string $phone, array $errors, string $used = ''): void {
+function sms_log_event(string $event, string $phone, array $errors, string $used = '', string $kind = ''): void {
     try {
         $ctx = ['to' => $phone !== '' ? '***' . substr($phone, -3) : '', 'errors' => array_map('sms_scrub', $errors)];
         if ($used !== '') $ctx['used'] = $used;
+        if ($kind !== '') $ctx['kind'] = $kind;
         error_log('[SMS] ' . $event . ' ' . json_encode($ctx, JSON_UNESCAPED_UNICODE));
         if (!function_exists('audit_log')) require_once dirname(__DIR__) . '/modules/audit_logs/logic/audit_logs.php';
         audit_log('sms.' . $event, $ctx, 0);     // zdarzenie systemowe — bez current_user() (nie otwiera sesji w cronie, panelach i CLI)
@@ -205,22 +236,23 @@ function sms_log_event(string $event, string $phone, array $errors, string $used
  * ('smsapi' | 'serwersms' | 'twilio' | 'httprequest'), albo '' gdy SMS świadomie nie wysłano (kursant wirtualny).
  * Rzuca wyjątek dopiero, gdy zawiodą wszyscy: przy jednym dostawcy — jego oryginalny błąd, przy dwóch —
  * RuntimeException z komunikatami obu. Gdy nie skonfigurowano żadnego — błąd konfiguracji głównego.
+ * $kind: rodzaj SMS z katalogu (decyduje o nadawcy — patrz sms_kind_sender()); '' = bez rodzaju, domyślny nadawca.
  */
-function sms_send(string $phone, string $message): string {
+function sms_send(string $phone, string $message, string $kind = ''): string {
     require_once __DIR__ . '/ti_virtual.php';
     if (ti_virtual_blocked('', $phone)) { sms_last_send(['provider' => '', 'fallback' => false, 'errors' => []]); return ''; }   // kursant wirtualny — bez SMS
     $phone = sms_normalize_phone($phone);
 
     $chain = sms_provider_chain();
     if (!$chain) {
-        _sms_dispatch(sms_provider(), $phone, $message);        // nic nie skonfigurowano → wyjątek z podpowiedzią, czego brakuje
+        _sms_dispatch(sms_provider(), $phone, $message, $kind);  // nic nie skonfigurowano → wyjątek z podpowiedzią, czego brakuje
         return sms_provider();
     }
 
     $errors = []; $first = null;
     foreach ($chain as $provider) {
         try {
-            _sms_dispatch($provider, $phone, $message);
+            _sms_dispatch($provider, $phone, $message, $kind);
         } catch (\Throwable $e) {
             $errors[$provider] = $e->getMessage();
             $first ??= $e;
@@ -228,12 +260,12 @@ function sms_send(string $phone, string $message): string {
         }
         $used_fallback = $errors !== [];
         sms_last_send(['provider' => $provider, 'fallback' => $used_fallback, 'errors' => array_map('sms_scrub', $errors)]);
-        if ($used_fallback) sms_log_event('fallback', $phone, $errors, $provider);
+        if ($used_fallback) sms_log_event('fallback', $phone, $errors, $provider, $kind);
         return $provider;
     }
 
     sms_last_send(['provider' => '', 'fallback' => false, 'errors' => array_map('sms_scrub', $errors)]);
-    sms_log_event('failed', $phone, $errors);
+    sms_log_event('failed', $phone, $errors, '', $kind);
     if (count($errors) === 1) throw $first;                     // jeden dostawca → oryginalny błąd
     $parts = [];
     foreach ($errors as $provider => $msg) {
@@ -246,9 +278,9 @@ function sms_send(string $phone, string $message): string {
  * Wysyła SMS WYŁĄCZNIE przez wskazanego dostawcę — bez łańcucha i bez pominięć (np. test w ustawieniach:
  * „czy zapasowy w ogóle działa”). Rzuca wyjątek przy błędzie, także gdy dostawca nie jest skonfigurowany.
  */
-function sms_send_via(string $provider, string $phone, string $message): void {
+function sms_send_via(string $provider, string $phone, string $message, string $kind = ''): void {
     if (!isset(sms_providers()[$provider])) throw new InvalidArgumentException('Nieznany dostawca SMS.');
-    _sms_dispatch($provider, sms_normalize_phone($phone), $message);
+    _sms_dispatch($provider, sms_normalize_phone($phone), $message, $kind);
 }
 
 /**
@@ -257,10 +289,11 @@ function sms_send_via(string $provider, string $phone, string $message): void {
  * Rzuca wyjątek tylko gdy obie metody zawiodą (brak adresu e-mail).
  *
  * @param string $email  Adres e-mail do fallbacku ('' = brak fallbacku, rzuci wyjątek jak sms_send).
+ * @param string $kind   Rodzaj SMS (patrz sms_send).
  */
-function sms_send_with_fallback(string $phone, string $message, string $email = ''): string {
+function sms_send_with_fallback(string $phone, string $message, string $email = '', string $kind = ''): string {
     try {
-        sms_send($phone, $message);
+        sms_send($phone, $message, $kind);
         return 'sms';
     } catch (\Throwable $sms_err) {
         if ($email === '') throw $sms_err;
@@ -404,13 +437,13 @@ function _sms_http(string $url, string $method, array $headers, string $body = '
     return [$resp, $status];
 }
 
-function _sms_send_smsapi(string $phone, string $message): void {
+function _sms_send_smsapi(string $phone, string $message, string $kind = ''): void {
     $token  = sms_setting('sms_api_token');
-    $sender = sms_setting('sms_sender_name') ?: '';
+    $sender = sms_smsapi_sender($kind, false);                                      // '' = bez pola from (domyślny nadawca konta)
 
     // Fallback: jeśli brak nowego tokenu OAuth — użyj starego API (login+hasło)
     if (!$token) {
-        _sms_send_smsapi_legacy($phone, $message);
+        _sms_send_smsapi_legacy($phone, $message, $kind);
         return;
     }
 
@@ -434,10 +467,10 @@ function _sms_send_smsapi(string $phone, string $message): void {
 }
 
 /** Stara metoda login+hasło MD5 — jako fallback gdy brak tokenu OAuth. */
-function _sms_send_smsapi_legacy(string $phone, string $message): void {
+function _sms_send_smsapi_legacy(string $phone, string $message, string $kind = ''): void {
     $login  = sms_setting('sms_api_login');
     $pass   = sms_setting('sms_api_password');
-    $sender = sms_setting('sms_sender_name') ?: 'INFO';
+    $sender = sms_smsapi_sender($kind, true);
 
     if (!$login || !$pass) {
         throw new RuntimeException('Brak tokenu OAuth lub loginu/hasła smsapi.pl. Skonfiguruj w: Administracja → Ustawienia SMS.');
@@ -520,18 +553,19 @@ function _sms_send_twilio(string $phone, string $message): void {
  *
  * Kanał domyślny: normalny, FULL — z nazwą nadawcy (sms_serwersms_sender(), domyślnie „tte”; musi być zarejestrowana i zatwierdzona
  * w panelu SerwerSMS); tekst z polskimi znakami wychodzi jako UTF (utf=1; SMS ma wtedy 70 znaków), czysty ASCII — zwykłym
- * kodowaniem (160). Kanał ECO (sms_serwersms_channel = eco) idzie bez pola `sender` i bez UTF — tekst zamieniamy na ASCII.
+ * kodowaniem (160). Kanał ECO (sms_serwersms_channel = eco albo „ECO” ustawione dla rodzaju SMS) idzie bez pola `sender`
+ * i bez UTF — tekst zamieniamy na ASCII. Nadawcę dla rodzaju SMS ($kind) ustawia sms_kind_sender().
  * Nigdy nie wysyłamy `speed` (kanał jakościowy jest płatny dodatkowo).
  *
  * Powodzenie: {"success":true,"queued":N} z N ≥ 1. Błąd API ma postać {"error":{"code","type","message"}} i bywa zwracany
  * z HTTP 200, więc treść sprawdzamy zawsze (niezależnie od statusu). `details=1` daje powód odrzucenia numeru (np. 3103).
  * Adres API przestawia ustawienie `sms_serwersms_api_base` (dokumentacja podaje zapasowy host https://s1api2.serwersms.pl).
  */
-function _sms_send_serwersms(string $phone, string $message): void {
+function _sms_send_serwersms(string $phone, string $message, string $kind = ''): void {
     $token  = trim(sms_setting('sms_serwersms_token'));
     $login  = trim(sms_setting('sms_serwersms_login'));
     $pass   = sms_setting('sms_serwersms_password');
-    $sender = sms_serwersms_sender();
+    $sender = sms_kind_sender($kind) ?? sms_serwersms_sender();          // '' = kanał ECO (bez nazwy nadawcy)
 
     if ($token === '' && ($login === '' || $pass === '')) {
         throw new RuntimeException('Brak tokenu API ani loginu i hasła użytkownika API SerwerSMS. Skonfiguruj w: Administracja → Ustawienia SMS.');
@@ -599,7 +633,7 @@ function _sms_send_serwersms(string $phone, string $message): void {
  * (`sms_http_ok_text`, np. "OK"): odpowiedź bez niego to porażka i system przechodzi na zapasowego dostawcę.
  * Bez tego ustawienia nie zgadujemy po treści — fałszywa porażka wysłałaby ten sam SMS drugi raz.
  */
-function _sms_send_httprequest(string $phone, string $message): void {
+function _sms_send_httprequest(string $phone, string $message, string $kind = ''): void {
     $url_tpl = sms_setting('sms_http_url');
     $method  = strtoupper(sms_setting('sms_http_method') ?: 'GET');
 
@@ -608,7 +642,7 @@ function _sms_send_httprequest(string $phone, string $message): void {
     }
 
     // Wstaw placeholdery w URL
-    $sender = sms_setting('sms_sender_name') ?: 'INFO';
+    $sender = sms_kind_sender($kind) ?? (sms_setting('sms_sender_name') ?: 'INFO');     // '' (ECO) → {sender} puste
     $url = str_replace(
         ['{phone}', '{phone9}', '{phone_plus}', '{message}', '{text}', '{sms}', '{sender}'],
         [urlencode($phone), urlencode(substr($phone, -9)), urlencode('+' . $phone), urlencode($message), urlencode($message), urlencode($message), urlencode($sender)],

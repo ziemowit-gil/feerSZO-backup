@@ -551,7 +551,7 @@ class TaskNotificationService
             if (!$phone) return null;
 
             $msg = $payload['sms_text'] ?? 'FEER SZO. Nowe powiadomienie zadania.';
-            $ok  = (bool)sms_send($phone, $msg);
+            $ok  = (bool)sms_send($phone, $msg, 'tasks_notify');
             if ($ok) {
                 _tn_log($userId, $eventType, $taskId, 'sms');
             }

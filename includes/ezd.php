@@ -1529,7 +1529,7 @@ function ezd_ext_share_send_otp(array $share): array {
     $org = defined('ORG_NAME') ? ORG_NAME : 'System';
     $msg = "[$org] Kod dostępu do udostępnionych dokumentów: $code (ważny 10 minut).";
     try {
-        sms_send_with_fallback($share['recipient_phone'], $msg, $share['recipient_email']);
+        sms_send_with_fallback($share['recipient_phone'], $msg, $share['recipient_email'], 'document_code');
         ezd_ext_share_log((int)$share['id'], 'otp_sent', 'Wysłano kod SMS na numer kończący się na ' . substr($share['recipient_phone'], -3));
         return ['ok' => true, 'error' => null];
     } catch (\Throwable $e) {

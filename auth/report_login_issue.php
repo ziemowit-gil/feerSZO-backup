@@ -366,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($_SESSION['li_found']) && $phone !== '') {
                 try {
                     require_once dirname(__DIR__) . '/includes/sms.php';
-                    sms_send($phone, "Kod weryfikacyjny zgłoszenia: {$code}. Ważny 10 minut. [{$org}]");
+                    sms_send($phone, "Kod weryfikacyjny zgłoszenia: {$code}. Ważny 10 minut. [{$org}]", 'recovery_code');
                 } catch (\Throwable $e) {}
             }
             $step = 2;

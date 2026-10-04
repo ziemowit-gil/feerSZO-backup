@@ -80,7 +80,7 @@ HTML;
         $phone = trim((string)($u['phone_number'] ?? ''));
         if ($phone && function_exists('sms_is_enabled') && sms_is_enabled()) {
             try {
-                sms_send($phone, "FEER SZO: Nie aktywowałeś/aś jeszcze konta. Zaloguj się: {$tozsamosc_url} Pytania: {$contact_email}");
+                sms_send($phone, "FEER SZO: Nie aktywowałeś/aś jeszcze konta. Zaloguj się: {$tozsamosc_url} Pytania: {$contact_email}", 'admin_message');
                 $sms_sent = true;
             } catch (\Throwable $e) { /* ignoruj */ }
         }
