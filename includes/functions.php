@@ -135,17 +135,25 @@ function handle_upload(string $field, string $subfolder = ''): ?string {
 
     $result = ($subfolder ? $subfolder . '/' : '') . $name;
 
-    // SharePoint sync — fire-and-forget; błędy nie blokują uploadu
+    upload_sync_sharepoint($result);   // SharePoint — fire-and-forget; błędy nie blokują uploadu
+
+    return $result;
+}
+
+/**
+ * Wysyła świeżo zapisany plik z uploads/ na SharePoint (jeśli synchronizacja włączona): {sp_base_folder}/{ścieżka względna}.
+ * Fire-and-forget — błąd trafia tylko do logu i nigdy nie przerywa uploadu. Wołają go handle_upload() (pliki umów)
+ * i handle_letter_upload() (pisma, załączniki wniosków); ten sam układ ścieżek wykorzystuje modules/sp_files przy
+ * odzyskiwaniu plików, więc nie zmieniaj go bez zmiany tamtego modułu.
+ */
+function upload_sync_sharepoint(string $rel): void {
     if (!function_exists('sp_sync_upload')) {
         @require_once __DIR__ . '/m365.php';
     }
-    if (function_exists('sp_sync_upload')) {
-        try { sp_sync_upload($result); } catch (\Throwable $e) {
-            error_log('[SP sync] ' . $e->getMessage());
-        }
+    if (!function_exists('sp_sync_upload')) return;
+    try { sp_sync_upload($rel); } catch (\Throwable $e) {
+        error_log('[SP sync] ' . $rel . ': ' . $e->getMessage());
     }
-
-    return $result;
 }
 
 /**

@@ -33,7 +33,7 @@ $flash   = null;
 $load_missing = function () use ($type_f): array {
     $by = [];
     foreach (SpFiles::missing() as $r) {
-        if ($type_f !== '' && $r['type'] !== $type_f) continue;
+        if ($type_f !== '' && $r['type'] !== $type_f && $r['kind'] !== $type_f) continue;
         $by[$r['rel']]['refs'][] = $r;
     }
     ksort($by);
@@ -71,12 +71,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $total_refs   = count(SpFiles::references());
 $all_missing  = SpFiles::missing();
 $by_type      = [];
-foreach ($all_missing as $r) $by_type[$r['type'] ?: 'pismo'] = ($by_type[$r['type'] ?: 'pismo'] ?? 0) + 1;
+foreach ($all_missing as $r) {
+    $k = in_array($r['kind'], ['pismo', 'wniosek'], true) ? $r['kind'] : $r['type'];       // umowy wg rodzaju, pisma i wnioski osobno
+    $by_type[$k] = ($by_type[$k] ?? 0) + 1;
+}
 $pages        = max(1, (int)ceil(count($missing) / SPF_BATCH));
 $page         = min($page, $pages);
 $rows         = array_slice($missing, ($page - 1) * SPF_BATCH, SPF_BATCH, true);
 $fmt_size     = fn(int $b) => $b >= 1048576 ? number_format($b / 1048576, 1, ',', ' ') . ' MB' : ($b >= 1024 ? number_format($b / 1024, 0, ',', ' ') . ' KB' : $b . ' B');
-$type_label   = fn(string $t) => $t === '' ? 'Pismo do umowy' : ($labels[$t] ?? $t);
+$type_label   = function (array $r) use ($labels): string {
+    $t = (string)$r['type'];
+    return match ($r['kind']) {
+        'pismo'   => 'Pismo' . ($t !== '' ? ' — ' . ($labels[$t] ?? ($t === 'crm_case' ? 'sprawa CRM' : $t)) : ''),
+        'wniosek' => 'Wniosek wolontariusza',
+        default   => $labels[$t] ?? $t,
+    };
+};
 $method_label = ['path' => 'dokładna ścieżka', 'search' => 'po nazwie pliku'];
 
 include dirname(__DIR__) . '/includes/header.php';
@@ -107,16 +117,18 @@ include dirname(__DIR__) . '/includes/header.php';
     <div class="small text-muted">Odwołań do plików w umowach</div><div class="fs-4 fw-bold"><?= (int)$total_refs ?></div></div></div></div>
   <div class="col-sm-6 col-lg-3"><div class="card shadow-sm h-100"><div class="card-body py-2">
     <div class="small text-muted">Brak pliku na serwerze</div><div class="fs-4 fw-bold <?= $all_missing ? 'text-danger' : 'text-success' ?>"><?= count($all_missing) ?></div>
-    <?php if ($by_type): ?><div class="small text-muted"><?= h(implode(' · ', array_map(fn($t, $n) => $type_label($t === 'pismo' ? '' : $t) . ': ' . $n, array_keys($by_type), $by_type))) ?></div><?php endif; ?>
+    <?php if ($by_type): ?><div class="small text-muted"><?= h(implode(' · ', array_map(fn($t, $n) => ($labels[$t] ?? (SpFiles::KINDS[$t] ?? $t)) . ': ' . $n, array_keys($by_type), $by_type))) ?></div><?php endif; ?>
   </div></div></div>
 </div>
 
 <form method="get" class="d-flex align-items-end gap-2 mb-3 flex-wrap">
   <div>
-    <label class="form-label small mb-1" for="spf-type">Rodzaj umowy</label>
+    <label class="form-label small mb-1" for="spf-type">Rodzaj</label>
     <select class="form-select form-select-sm" id="spf-type" name="type">
       <option value="">wszystkie</option>
       <?php foreach ($labels as $slug => $lab): ?><option value="<?= h($slug) ?>"<?= $type_f === $slug ? ' selected' : '' ?>><?= h($lab) ?></option><?php endforeach; ?>
+      <option value="pismo"<?= $type_f === 'pismo' ? ' selected' : '' ?>>Pisma</option>
+      <option value="wniosek"<?= $type_f === 'wniosek' ? ' selected' : '' ?>>Wnioski wolontariuszy</option>
     </select>
   </div>
   <button class="btn btn-sm btn-outline-primary" type="submit">Filtruj</button>
@@ -141,8 +153,8 @@ include dirname(__DIR__) . '/includes/header.php';
         <tr>
           <td><input type="checkbox" name="rels[]" value="<?= h($rel) ?>" id="spf-<?= h(md5($rel)) ?>"<?= $checked ? ' checked' : '' ?> aria-label="Wybierz plik <?= h(basename($rel)) ?>"></td>
           <td>
-            <?= h($type_label($first['type'])) ?>
-            <?php if ($first['view'] !== ''): ?><a href="<?= h(rtrim(APP_URL, '/') . '/' . $first['view']) ?>" target="_blank" rel="noopener"><?= h($first['number'] !== '' ? $first['number'] : '#' . $first['id']) ?></a><?php endif; ?>
+            <?= h($type_label($first)) ?>
+            <?php if ($first['view'] !== ''): ?><a href="<?= h(rtrim(APP_URL, '/') . '/' . $first['view']) ?>" target="_blank" rel="noopener"><?= h($first['number'] !== '' ? $first['number'] : (['pismo' => 'pismo #', 'wniosek' => 'wniosek #'][$first['kind']] ?? '#') . $first['id']) ?></a><?php endif; ?>
             <?php if (count($g['refs']) > 1): ?><span class="text-muted small">(+<?= count($g['refs']) - 1 ?>)</span><?php endif; ?>
           </td>
           <td><?= h($first['column_label']) ?></td>
@@ -193,6 +205,11 @@ include dirname(__DIR__) . '/includes/header.php';
 <p class="small text-muted mt-4 mb-0">
   Hurtowo z konsoli: <code>php cli/sp_restore_files.php</code> (podgląd) i <code>php cli/sp_restore_files.php --apply</code> (przywracanie).
   Każde przywrócenie zapisuje się w audycie (<code>sp_files.restored</code>).
+</p>
+<p class="small text-muted mb-0">
+  Kierunek przeciwny — pliki, które są na serwerze, a nie mają kopii na SharePoincie (np. pisma sprzed synchronizacji pism):
+  <code>php cli/sp_push_files.php</code> (podgląd) i <code>php cli/sp_push_files.php --apply</code> (wysyłka; opcje <code>--kind=pismo</code>, <code>--since=7</code>).
+  Nowo wgrane pliki umów i pism wysyłają się na SharePoint automatycznie.
 </p>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

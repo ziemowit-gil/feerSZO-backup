@@ -167,7 +167,10 @@ function handle_letter_upload(string $field): ?string {
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $name = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     if (!move_uploaded_file($f['tmp_name'], $dir . $name)) return null;
-    return 'letters/' . $name;
+    $rel = 'letters/' . $name;
+    // SharePoint (jak pliki umów w handle_upload): kopia pisma poza serwerem, z której modules/sp_files odzyska plik, gdy zniknie z uploads/
+    if (function_exists('upload_sync_sharepoint')) upload_sync_sharepoint($rel);
+    return $rel;
 }
 
 function letter_file_url(?string $path): string {

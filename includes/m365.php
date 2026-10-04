@@ -825,6 +825,7 @@ class M365Graph {
         while (!feof($fp)) {
             $data = fread($fp, $chunk);
             $len  = strlen($data);
+            if ($len === 0) break;          // rozmiar będący wielokrotnością porcji: pusta porcja nie może nadpisać wyniku ostatniej
             $end  = $offset + $len - 1;
             $ctx  = stream_context_create(['http' => [
                 'method'        => 'PUT',
@@ -1517,7 +1518,12 @@ function sp_sync_upload(string $rel_path): void {
 
     $site_id  = $graph->sp_site_id($site_url);
     $drive_id = $graph->sp_drive_id($site_id, $library);
-    $graph->sp_upload_file($site_id, $drive_id, $sp_path, $local_path);
+    $item = $graph->sp_upload_file($site_id, $drive_id, $sp_path, $local_path);
+    // sp_upload_file() przy odmowie / błędzie Graph zwraca JSON z „error”, a nie wyjątek — bez tej kontroli nieudana
+    // synchronizacja byłaby niewidoczna (a odzyskiwanie plików z SharePointa opiera się na tej kopii)
+    if (empty($item['id'])) {
+        throw new \RuntimeException('upload na SharePoint nie powiódł się: ' . (string)($item['error']['message'] ?? 'brak odpowiedzi'));
+    }
 }
 
 /**

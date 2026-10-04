@@ -16,6 +16,10 @@
  *      (administrator wskazuje właściwy w narzędziu admin/sp_contract_files.php).
  * Nic nie jest dopasowywane „na oko” po treści i nigdy nie nadpisujemy istniejącego pliku lokalnego.
  *
+ * Kierunek przeciwny — push(): plik, który jest lokalnie, a nie ma go na SharePoincie, jest tam wysyłany (pod tą samą
+ * ścieżką co przy uploadzie: {sp_base_folder}/{ścieżka umowy}). Uzupełnia pliki nigdy niewysłane (pisma sprzed synchronizacji
+ * pism, uploady przy wyłączonym lub niedostępnym SharePoincie) — cli/sp_push_files.php.
+ *
  * Bezpieczeństwo: przywracamy wyłącznie ścieżki WSKAZANE przez rekordy umów (isReferenced) — nie da się tą drogą
  * pobrać dowolnego pliku z biblioteki; ścieżka musi przejść normalize() (bez „..”, bez ukośnika na początku,
  * znane rozszerzenia); zawartość trafia do pliku tymczasowego i dopiero potem na miejsce; każde przywrócenie
@@ -51,6 +55,9 @@ final class SpFiles
         'zgoda_opiekuna' => 'Zgoda opiekuna', 'zalaczniki' => 'Załącznik', 'plik_aneksu' => 'Aneks', 'stored_path' => 'Dokument dodatkowy',
         'plik' => 'Pismo',
     ];
+
+    /** Rodzaje odwołań ('kind') — używane w filtrach narzędzi: umowa | aneks | dokument | pismo | wniosek. */
+    public const KINDS = ['umowa' => 'Pliki umów', 'aneks' => 'Aneksy', 'dokument' => 'Dokumenty dodatkowe', 'pismo' => 'Pisma', 'wniosek' => 'Wnioski wolontariuszy'];
 
     // ── Ścieżki ──────────────────────────────────────────────────────────────
 
@@ -148,9 +155,16 @@ final class SpFiles
         foreach ($linked as [$kind, $type, $cid, $col, $rel]) {
             $add($kind, $type, $cid, $numbers[$type][$cid] ?? '', $col, $rel, isset($labels[$type]) ? "contracts/{$type}/view.php?id={$cid}" : '');
         }
+        // pisma do umów (typ umowy albo „crm_case” — sprawa CRM) i załączniki wniosków wolontariuszy (panel/apply.php)
         if (in_array('plik', self::tableColumns('contract_letters'), true)) {
-            foreach (db_all("SELECT id, plik FROM contract_letters WHERE COALESCE(plik, '') <> ''") as $r) {
-                foreach (self::extractPaths($r['plik']) as $rel) $add('pismo', '', (int)$r['id'], '', 'plik', $rel, 'contracts/letters/view.php?id=' . (int)$r['id']);
+            foreach (db_all("SELECT id, plik, contract_type, contract_id FROM contract_letters WHERE COALESCE(plik, '') <> ''") as $r) {
+                $type = (string)$r['contract_type'];
+                foreach (self::extractPaths($r['plik']) as $rel) $add('pismo', $type, (int)$r['id'], '', 'plik', $rel, 'contracts/letters/view.php?id=' . (int)$r['id']);
+            }
+        }
+        if (in_array('plik', self::tableColumns('user_applications'), true)) {
+            foreach (db_all("SELECT id, plik, contract_type FROM user_applications WHERE COALESCE(plik, '') <> ''") as $r) {
+                foreach (self::extractPaths($r['plik']) as $rel) $add('wniosek', (string)$r['contract_type'], (int)$r['id'], '', 'plik', $rel, 'admin/applications.php');
             }
         }
         return $out;
@@ -179,7 +193,7 @@ final class SpFiles
                 foreach ($row as $r) if (in_array($rel, self::extractPaths($r['v']), true)) return true;
             }
         }
-        foreach ([['contract_amendments', 'plik_aneksu'], ['contract_extra_docs', 'stored_path'], ['contract_letters', 'plik']] as [$table, $col]) {
+        foreach ([['contract_amendments', 'plik_aneksu'], ['contract_extra_docs', 'stored_path'], ['contract_letters', 'plik'], ['user_applications', 'plik']] as [$table, $col]) {
             if (!in_array($col, self::tableColumns($table), true)) continue;
             foreach (db_all("SELECT {$col} AS v FROM {$table} WHERE {$col} LIKE ? ESCAPE '\\'", [$like]) as $r) {
                 if (in_array($rel, self::extractPaths($r['v']), true)) return true;
@@ -199,7 +213,7 @@ final class SpFiles
         return $cache = m365_setting('sp_enabled') === '1' && m365_setting('sp_site_url') !== '' && (new M365Graph())->is_configured();
     }
 
-    /** @return array{g:M365Graph,drive:string,base:string} */
+    /** @return array{g:M365Graph,site:string,drive:string,base:string} */
     private static function context(?M365Graph $g = null): array
     {
         if (!function_exists('m365_setting')) require_once dirname(__DIR__, 3) . '/includes/m365.php';
@@ -208,8 +222,9 @@ final class SpFiles
         if ($site_url === '') throw new \RuntimeException('Brak adresu witryny SharePoint w ustawieniach.');
         $g ??= new M365Graph();
         if (!$g->is_configured()) throw new \RuntimeException('Brak konfiguracji Microsoft 365 (Graph).');
-        $drive = $g->sp_drive_id($g->sp_site_id($site_url), m365_setting('sp_library') ?: '');
-        return ['g' => $g, 'drive' => $drive, 'base' => trim(m365_setting('sp_base_folder'), '/')];
+        $site  = $g->sp_site_id($site_url);
+        $drive = $g->sp_drive_id($site, m365_setting('sp_library') ?: '');
+        return ['g' => $g, 'site' => $site, 'drive' => $drive, 'base' => trim(m365_setting('sp_base_folder'), '/')];
     }
 
     /** Pozycja z Graph → ['id', 'name', 'size', 'web_url', 'folder' (ścieżka folderu w bibliotece), 'path']. */
@@ -307,6 +322,76 @@ final class SpFiles
         if (!self::canRestore() || !self::isReferenced($norm)) return null;
         $r = self::restore($norm);
         return in_array($r['status'], ['restored', 'exists'], true) && is_file($abs) ? $abs : null;
+    }
+
+    // ── Wysyłka (lokalnie → SharePoint) ──────────────────────────────────────
+
+    /**
+     * Odwołania do plików, które SĄ lokalnie (kandydaci do wysyłki na SharePoint), po jednym na ścieżkę.
+     * $opts: 'kind' (klucz z KINDS), 'since' (liczba dni — tylko pliki z datą w nazwie RRRRMMDD_… nie starszą niż tyle;
+     * pliki bez daty w nazwie zostają zawsze, bo ich wieku nie znamy).
+     *
+     * @return list<array>
+     */
+    public static function localReferences(array $opts = []): array
+    {
+        $kind  = (string)($opts['kind'] ?? '');
+        $since = isset($opts['since']) ? (int)$opts['since'] : 0;
+        $min   = $since > 0 ? date('Ymd', strtotime("-{$since} days")) : '';
+        $by = [];
+        foreach (self::references() as $r) {
+            if (!$r['local'] || ($kind !== '' && $r['kind'] !== $kind)) continue;
+            if ($min !== '' && preg_match('~^(\d{8})_~', basename($r['rel']), $m) && $m[1] < $min) continue;
+            $by[$r['rel']] ??= $r;
+        }
+        ksort($by);
+        return array_values($by);
+    }
+
+    /**
+     * Wysyła lokalny plik na SharePoint, jeśli go tam jeszcze nie ma (ścieżka dokładna / po nazwie — jak locate()).
+     * Nic nie nadpisuje na SharePoincie. Po wysłaniu sprawdza, czy rozmiar się zgadza.
+     *
+     * @return array{status:string,method:string,item:?array,message:string,bytes?:int}
+     *         status: pushed | present | no_local | error
+     */
+    public static function push(string $rel, ?M365Graph $graph = null): array
+    {
+        $out = ['status' => 'error', 'method' => '', 'item' => null, 'message' => ''];
+        $rel = self::normalize($rel);
+        if ($rel === null) return ['message' => 'Niedozwolona ścieżka pliku.'] + $out;
+        $abs = self::localPath($rel);
+        if (!is_file($abs)) return ['status' => 'no_local', 'message' => 'Brak pliku na serwerze.'] + $out;
+        $size = (int)filesize($abs);
+        if ($size === 0) return ['message' => 'Plik jest pusty.'] + $out;
+        if ($size > self::MAX_BYTES) return ['message' => 'Plik jest za duży (' . round($size / 1048576) . ' MB).'] + $out;
+
+        $loc = self::locate($rel, $graph);
+        if ($loc['status'] === 'found' || $loc['status'] === 'ambiguous') {
+            return ['status' => 'present', 'method' => $loc['method'], 'item' => $loc['item'], 'message' => ''] + $out;
+        }
+        if ($loc['status'] === 'error') return ['message' => $loc['message']] + $out;
+
+        try {
+            $c = self::context($graph);
+            $sp_path = ($c['base'] !== '' ? $c['base'] . '/' : '') . $rel;
+            $item = $c['g']->sp_upload_file($c['site'], $c['drive'], $sp_path, $abs);
+            if (empty($item['id'])) throw new \RuntimeException('SharePoint odrzucił plik: ' . (string)($item['error']['message'] ?? 'brak odpowiedzi'));
+            if (isset($item['size']) && (int)$item['size'] !== $size) {
+                throw new \RuntimeException('Rozmiar na SharePoincie (' . (int)$item['size'] . ' B) różni się od lokalnego (' . $size . ' B).');
+            }
+        } catch (\Throwable $e) {
+            return ['message' => mb_substr($e->getMessage(), 0, 300)] + $out;
+        }
+        $shaped = self::shape($item + ['name' => basename($rel), 'size' => $size]);
+        $shaped['path'] = $sp_path;           // odpowiedź SharePointa nie zawsze niesie folder nadrzędny — ścieżkę znamy sami
+        try {
+            $uid = (PHP_SAPI === 'cli' || !function_exists('current_user')) ? 0 : (int)((current_user()['id'] ?? 0));
+            audit_log('sp_files.pushed', ['rel' => $rel, 'sp_path' => $sp_path, 'bytes' => $size, 'item_id' => $shaped['id']], $uid);
+        } catch (\Throwable $e) {
+            error_log('[sp_files] audyt wysyłki nie zapisany: ' . $e->getMessage());
+        }
+        return ['status' => 'pushed', 'item' => $shaped, 'bytes' => $size, 'message' => ''] + $out;
     }
 
     // ── Zapis ────────────────────────────────────────────────────────────────
