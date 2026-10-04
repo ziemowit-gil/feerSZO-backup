@@ -292,11 +292,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $lid    = (int)($_POST['letter_id'] ?? 0);
         $letter = db_one("SELECT * FROM contract_letters WHERE id=? AND contract_type='crm_case' AND contract_id=?", [$lid, $id]);
         if ($letter && ($letter['created_by'] == $uid || is_admin())) {
-            if ($letter['plik']) {
-                $fp = dirname(dirname(__DIR__)) . '/uploads/letters/' . $letter['plik'];
-                if (is_file($fp)) unlink($fp);
-            }
             db()->prepare("DELETE FROM contract_letters WHERE id=?")->execute([$lid]);
+            letter_file_delete($letter['plik'] ?? null);          // plik po rekordzie; ścieżka z „letters/” (dawniej złe sklejenie — nic nie kasowało)
             flash_set('success', 'Pismo usunięte.');
         }
         header('Location: view.php?id=' . $id . '#pisma'); exit;
@@ -346,11 +343,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
                 // Nowy plik (jeśli wgrany)
                 $plik = handle_letter_upload('pismo_plik');
                 if ($plik) {
-                    if ($letter['plik']) {
-                        $old = dirname(dirname(__DIR__)) . '/uploads/letters/' . $letter['plik'];
-                        if (is_file($old)) unlink($old);
-                    }
                     db()->prepare("UPDATE contract_letters SET plik=? WHERE id=?")->execute([$plik, $lid]);
+                    letter_file_delete($letter['plik'] ?? null, $lid);   // stary plik dopiero po zapisaniu nowego w bazie
                 }
                 db()->prepare("UPDATE crm_cases SET updated_at=? WHERE id=?")->execute([date('Y-m-d H:i:s'), $id]);
                 flash_set('success', 'Pismo zaktualizowane.');

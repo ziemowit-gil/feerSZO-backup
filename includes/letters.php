@@ -173,6 +173,31 @@ function handle_letter_upload(string $field): ?string {
     return $rel;
 }
 
+/**
+ * Usuwa z dysku plik pisma (ścieżka względna w uploads/, jak w contract_letters.plik: „letters/…”) i zwraca, czy go usunięto.
+ * Wołać PO zapisaniu zmiany w bazie (usunięciu rekordu / podmianie pliku) — błąd bazy nie może zostawić rekordu bez pliku.
+ *
+ * Zabezpieczenia: tylko ścieżki z katalogu letters/ (bez „..”, bez znaków sterujących); plik, który wskazuje jeszcze inny
+ * rekord (inne pismo — poza $exceptLetterId — albo załącznik wniosku), zostaje. Kopia na SharePoincie (modules/sp_files)
+ * nie jest ruszana — to archiwum, z którego można odzyskać plik.
+ *
+ * Dawniej crm/cases/view.php sklejał „uploads/letters/” + plik, a plik już zaczyna się od „letters/”, więc usuwanie
+ * pisma i zamiana jego pliku nigdy niczego nie kasowały (stare pliki zostawały na dysku).
+ */
+function letter_file_delete(?string $plik, int $exceptLetterId = 0): bool {
+    $plik = trim((string)$plik);
+    if ($plik === '' || !str_starts_with($plik, 'letters/') || str_contains($plik, '..') || str_contains($plik, '//')
+        || str_contains($plik, '\\') || preg_match('/[\x00-\x1f]/', $plik)) return false;
+    $abs = UPLOAD_DIR . $plik;
+    if (!is_file($abs)) return false;
+    $used = db_one("SELECT 1 AS x FROM contract_letters WHERE plik = ? AND id <> ? LIMIT 1", [$plik, $exceptLetterId]);
+    if (!$used) {
+        try { $used = db_one("SELECT 1 AS x FROM user_applications WHERE plik = ? LIMIT 1", [$plik]); } catch (\Throwable $e) { /* brak tabeli */ }
+    }
+    if ($used) return false;
+    return @unlink($abs);
+}
+
 function letter_file_url(?string $path): string {
     if (!$path) return '';
     return function_exists('upload_url') ? upload_url($path) : APP_URL . '/uploads/' . $path;   // brak lokalnie → odzyskanie z SharePointa
