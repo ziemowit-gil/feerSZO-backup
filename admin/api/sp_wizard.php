@@ -5,14 +5,19 @@
  * POST { action: 'test', site_url, library?, base_folder? }
  *   → { ok, site_id?, site_name?, drives?, error? }
  *
- * POST { action: 'save', sp_enabled, site_url, library, base_folder }
- *   → { ok, error? }
+ * POST { action: 'save', sp_enabled, site_url, library, base_folder, _csrf }
+ *   → { ok, error?, locked? }   (zmiana witryny / biblioteki / folderu bazowego bywa zablokowana — SpConnection)
+ *
+ * POST { action: 'unlock', confirm: true, _csrf }  → { ok, until, until_h }   odblokowanie edycji połączenia na 30 min
+ * POST { action: 'lock', _csrf }                   → { ok }                   włączenie blokady z powrotem
+ * Akcje zapisujące wymagają tokenu CSRF (_csrf z sesji administratora).
  */
 require_once dirname(dirname(__DIR__)) . '/config.php';
 require_once dirname(dirname(__DIR__)) . '/includes/db.php';
 require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/m365.php';
+require_once dirname(dirname(__DIR__)) . '/modules/sp_connection/logic/spConnection.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -30,6 +35,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 $action = $body['action'] ?? '';
+
+// Akcje zapisujące (save / unlock / lock) tylko z tokenem CSRF sesji — inaczej blokadę połączenia dałoby się obejść żądaniem z obcej strony
+if (in_array($action, ['save', 'unlock', 'lock'], true)) {
+    auth_start();
+    $sess = (string)($_SESSION['csrf'] ?? '');
+    if ($sess === '' || !hash_equals($sess, (string)($body['_csrf'] ?? ''))) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Błąd CSRF — odśwież stronę i spróbuj ponownie.']);
+        exit;
+    }
+}
+$uid = (int)(current_user()['id'] ?? 0);
 
 try {
 
@@ -109,27 +126,38 @@ if ($action === 'test') {
 
 // ── SAVE ─────────────────────────────────────────────────────────────────────
 if ($action === 'save') {
-    $sp_enabled  = ($body['sp_enabled']  ?? false) ? '1' : '0';
-    $site_url    = trim($body['site_url']    ?? '');
-    $library     = trim($body['library']     ?? '');
-    $base_folder = trim($body['base_folder'] ?? '', '/ ');
-
+    $site_url = trim($body['site_url'] ?? '');
     if (!$site_url) {
         echo json_encode(['ok' => false, 'error' => 'URL witryny jest wymagany.']);
         exit;
     }
-
     try {
-        m365_save_setting('sp_enabled',          $sp_enabled);
-        m365_save_setting('sp_site_url',         $site_url);
-        m365_save_setting('sp_library',          $library);
-        m365_save_setting('sp_base_folder',      $base_folder);
-        m365_save_setting('sp_cached_site_id',   '');
-        m365_save_setting('sp_cached_drive_id',  '');
-        echo json_encode(['ok' => true]);
+        // jedyna droga zapisu: SpConnection::save() pilnuje blokady zmiany połączenia, czyści cache id witryny i zapisuje audyt
+        echo json_encode(SpConnection::save([
+            'sp_enabled'     => (bool)($body['sp_enabled'] ?? false),
+            'sp_site_url'    => $site_url,
+            'sp_library'     => trim($body['library'] ?? ''),
+            'sp_base_folder' => trim($body['base_folder'] ?? '', '/ '),
+        ], $uid));
     } catch (\Throwable $e) {
         echo json_encode(['ok' => false, 'error' => 'Błąd zapisu: ' . $e->getMessage()]);
     }
+    exit;
+}
+
+// ── UNLOCK / LOCK — blokada zmiany połączenia ────────────────────────────────
+if ($action === 'unlock') {
+    if (empty($body['confirm'])) {
+        echo json_encode(['ok' => false, 'error' => 'Potwierdź, że rozumiesz skutki zmiany połączenia.']);
+        exit;
+    }
+    $until = SpConnection::unlock($uid);
+    echo json_encode(['ok' => true, 'until' => $until, 'until_h' => date('H:i', $until)]);
+    exit;
+}
+if ($action === 'lock') {
+    SpConnection::relock($uid, 'ręcznie');
+    echo json_encode(['ok' => true]);
     exit;
 }
 

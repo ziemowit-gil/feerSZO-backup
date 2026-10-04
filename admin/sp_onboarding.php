@@ -7,10 +7,16 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
+require_once dirname(__DIR__) . '/modules/sp_connection/logic/spConnection.php';
 
 require_role('admin');
 ika_require(APP_URL . '/admin/sp_onboarding.php', 3600);
 $PAGE_TITLE = 'SharePoint — konfiguracja i backup';
+
+// Blokada zmiany połączenia (witryna / biblioteka / folder bazowy) po zapisaniu witryny — odblokowuje się w sharepoint_settings.php
+$sp_conn         = SpConnection::state();
+$sp_locked       = $sp_conn['locked'];
+$sp_unlock_until = $sp_conn['unlock_until'];
 
 // ── Bieżące ustawienia ────────────────────────────────────────────────────────
 $sp_cfg = [
@@ -74,6 +80,17 @@ include dirname(__DIR__) . '/includes/header.php';
 </nav>
 
 <?= flash_html() ?>
+
+<?php if ($sp_locked): ?>
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2 small" role="status" id="sp-lock-banner">
+  <i class="bi bi-lock-fill fs-5" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <strong>Połączenie z SharePoint jest zablokowane.</strong> Witryna, biblioteka i folder bazowy są tylko do odczytu — zmiana nie przenosi plików
+    już wysłanych na SharePoint. Folder backupów i przełącznik synchronizacji można zmieniać.
+  </div>
+  <a href="sharepoint_settings.php" class="btn btn-sm btn-outline-dark"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Odblokuj w ustawieniach SharePoint</a>
+</div>
+<?php endif; ?>
 
 <div class="row g-4">
 
@@ -139,10 +156,10 @@ include dirname(__DIR__) . '/includes/header.php';
         <input type="url" id="sp_site_url" class="form-control font-monospace"
           value="<?= h($sp_cfg['sp_site_url']) ?>"
           placeholder="https://twojorg.sharepoint.com/sites/Dokumenty"
-          <?= !$m365_ok ? 'disabled' : '' ?>>
+          <?= !$m365_ok ? 'disabled' : '' ?><?= $sp_locked ? ' readonly aria-readonly="true"' : '' ?>>
         <button class="btn btn-outline-secondary" type="button" id="btn-list-sites"
-                title="Wybierz inną witrynę z listy"
-                <?= !$m365_ok ? 'disabled' : '' ?>>
+                title="<?= $sp_locked ? 'Połączenie zablokowane — odblokuj w ustawieniach SharePoint' : 'Wybierz inną witrynę z listy' ?>"
+                <?= (!$m365_ok || $sp_locked) ? 'disabled' : '' ?>>
           <i class="bi bi-arrow-repeat me-1"></i>Zmień
         </button>
         <button class="btn btn-outline-secondary" type="button" id="btn-test-sp"
@@ -181,7 +198,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <!-- Tryb ręczny — fallback gdy chcesz wpisać URL bezpośrednio -->
       <div class="text-end mt-2" style="font-size:.8rem">
         <button type="button" class="btn btn-link btn-sm p-0 text-muted" id="btn-manual-url"
-                <?= !$m365_ok ? 'disabled' : '' ?>>
+                <?= (!$m365_ok || $sp_locked) ? 'disabled' : '' ?>>
           <i class="bi bi-keyboard me-1"></i>Wpisz URL ręcznie…
         </button>
       </div>
@@ -238,7 +255,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <input type="text" id="sp_base_folder" class="form-control form-control-sm font-monospace"
           value="<?= h($sp_cfg['sp_base_folder']) ?>"
           placeholder="Rejestr Umów"
-          <?= !$sp_cfg['sp_site_url'] ? 'disabled' : '' ?>>
+          <?= !$sp_cfg['sp_site_url'] ? 'disabled' : '' ?><?= $sp_locked ? ' readonly aria-readonly="true"' : '' ?>>
         <div class="form-text">Podfolder dla plików umów.</div>
       </div>
       <div class="col-md-6">
@@ -304,6 +321,10 @@ include dirname(__DIR__) . '/includes/header.php';
        'val'   => '<span class="font-monospace small">'.h($sp_cfg['sp_backup_folder']).'</span>'],
       ['label' => 'Sync plików',         'ok' => $sp_cfg['sp_enabled'] === '1',
        'val'   => $sp_cfg['sp_enabled'] === '1' ? '<span class="badge bg-success">Aktywny</span>' : '<span class="badge bg-secondary">Wyłączony</span>'],
+      ['label' => 'Zmiana połączenia',   'ok' => $sp_locked,
+       'val'   => $sp_locked ? '<span class="badge bg-secondary"><i class="bi bi-lock-fill"></i> zablokowana</span>'
+                : ($sp_unlock_until ? '<span class="badge bg-warning text-dark"><i class="bi bi-unlock-fill"></i> odblokowana do ' . h(date('H:i', $sp_unlock_until)) . '</span>'
+                                    : '<span class="text-muted">swobodna (brak witryny)</span>')],
   ];
   ?>
   <div class="px-3 py-2">
@@ -357,6 +378,10 @@ include dirname(__DIR__) . '/includes/header.php';
 
 const API_WIZARD = '<?= APP_URL ?>/admin/api/sp_wizard.php';
 const API_BACKUP = '<?= APP_URL ?>/admin/api/sp_backup.php';
+const CSRF       = <?= json_encode(csrf_token()) ?>;
+// Blokada zmiany połączenia (SpConnection): przy zapisie wysyłamy ZAPISANE wartości lokalizacji, nie to, co pokazują pola
+const LOCKED        = <?= json_encode($sp_locked) ?>;
+const LOCKED_VALUES = <?= json_encode(['site_url' => $sp_cfg['sp_site_url'], 'library' => $sp_cfg['sp_library'], 'base_folder' => $sp_cfg['sp_base_folder']]) ?>;
 
 function log(msg, cls = 'info') {
     const el = document.getElementById('sp-log');
@@ -566,7 +591,7 @@ document.getElementById('btn-test-sp').addEventListener('click', async function 
         const o = new Option(d.name, d.name, false, d.name === cur);
         sel.add(o);
     });
-    sel.disabled = false;
+    sel.disabled = LOCKED;                       // przy zablokowanym połączeniu biblioteka i folder bazowy zostają tylko do odczytu
     document.getElementById('sp_base_folder').disabled = false;
     document.getElementById('sp_backup_folder').disabled = false;
 });
@@ -579,9 +604,9 @@ document.getElementById('sp_backup_folder').addEventListener('input', function (
 
 // ── Zapisz konfigurację ──────────────────────────────────────────────────────
 document.getElementById('btn-save').addEventListener('click', async function () {
-    const url      = document.getElementById('sp_site_url').value.trim();
-    const library  = document.getElementById('sp_library').value;
-    const base_f   = document.getElementById('sp_base_folder').value.trim();
+    const url      = LOCKED ? LOCKED_VALUES.site_url    : document.getElementById('sp_site_url').value.trim();
+    const library  = LOCKED ? LOCKED_VALUES.library     : document.getElementById('sp_library').value;
+    const base_f   = LOCKED ? LOCKED_VALUES.base_folder : document.getElementById('sp_base_folder').value.trim();
     const backup_f = document.getElementById('sp_backup_folder').value.trim();
     const enabled  = document.getElementById('sp_enabled').checked;
 
@@ -596,6 +621,7 @@ document.getElementById('btn-save').addEventListener('click', async function () 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             action: 'save',
+            _csrf: CSRF,
             sp_enabled: enabled,
             site_url: url,
             library: library,
@@ -608,7 +634,7 @@ document.getElementById('btn-save').addEventListener('click', async function () 
         await fetch('<?= APP_URL ?>/admin/api/sp_save_setting.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: 'sp_backup_folder', value: backup_f }),
+            body: JSON.stringify({ key: 'sp_backup_folder', value: backup_f, _csrf: CSRF }),
         }).catch(() => {});
     }
 

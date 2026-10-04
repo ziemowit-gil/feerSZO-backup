@@ -4,10 +4,16 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
+require_once dirname(__DIR__) . '/modules/sp_connection/logic/spConnection.php';
 
 require_role('admin');
 ika_require(APP_URL . '/admin/sharepoint_settings.php', 3600);
 $PAGE_TITLE = 'SharePoint — synchronizacja plików';
+
+// Blokada zmiany połączenia: po zapisaniu witryny witryna, biblioteka i folder bazowy są tylko do odczytu (patrz SpConnection)
+$sp_conn         = SpConnection::state();
+$sp_locked       = $sp_conn['locked'];
+$sp_unlock_until = $sp_conn['unlock_until'];
 
 $keys = ['sp_enabled','sp_site_url','sp_library','sp_base_folder'];
 $cfg  = [];
@@ -117,6 +123,45 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<?php if ($sp_locked): ?>
+<!-- Połączenie zablokowane przed zmianą -->
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2 small" role="status" id="sp-lock-banner">
+  <i class="bi bi-lock-fill fs-5" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <strong>Połączenie z SharePoint jest zablokowane.</strong>
+    Witryna, biblioteka i folder bazowy są tylko do odczytu: zmiana nie przenosi plików już wysłanych na SharePoint, więc aplikacja
+    przestałaby je znajdować (przywracanie plików umów, moduł Pliki). Przełącznik synchronizacji i test połączenia działają normalnie.
+  </div>
+  <button type="button" class="btn btn-sm btn-outline-dark" id="btn-unlock-open" aria-expanded="false" aria-controls="sp-unlock-box">
+    <i class="bi bi-unlock me-1" aria-hidden="true"></i>Odblokuj edycję…
+  </button>
+</div>
+<div id="sp-unlock-box" class="card border-warning shadow-sm mb-3 d-none">
+  <div class="card-body small">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="unlock-confirm">
+      <label class="form-check-label" for="unlock-confirm">
+        Rozumiem, że zmiana witryny, biblioteki lub folderu bazowego <strong>nie przenosi</strong> istniejących plików — te zostają pod starą
+        ścieżką i przestają być widoczne dla aplikacji.
+      </label>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+      <button type="button" class="btn btn-sm btn-warning" id="btn-unlock" disabled>Odblokuj na 30 minut</button>
+      <span class="text-muted">Odblokowanie wygasa po pierwszym zapisie zmian albo po 30 minutach. Zmiana zapisuje się w audycie.</span>
+    </div>
+    <div id="unlock-result" class="mt-2" role="status"></div>
+  </div>
+</div>
+<?php elseif ($sp_unlock_until): ?>
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2 py-2 small" role="status">
+  <i class="bi bi-unlock-fill fs-5" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    Edycja połączenia jest <strong>odblokowana do <?= h(date('H:i', $sp_unlock_until)) ?></strong> — po zapisaniu zmian blokada włączy się ponownie.
+  </div>
+  <button type="button" class="btn btn-sm btn-outline-dark" id="btn-lock-now"><i class="bi bi-lock me-1" aria-hidden="true"></i>Zablokuj teraz</button>
+</div>
+<?php endif; ?>
 
 <!-- Stepper -->
 <div class="sp-stepper" id="stepper">
@@ -264,7 +309,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <div class="input-group">
           <input type="url" id="sp_site_url" class="form-control font-monospace"
             value="<?= h($cfg['sp_site_url']) ?>"
-            placeholder="https://twojorg.sharepoint.com/sites/NazwaWitryny">
+            placeholder="https://twojorg.sharepoint.com/sites/NazwaWitryny"<?= $sp_locked ? ' readonly aria-readonly="true"' : '' ?>>
           <button class="btn btn-outline-primary" type="button" id="btn_test" onclick="testConnection()">
             <i class="bi bi-plug" id="test_icon"></i>
             <span id="test_label">Testuj połączenie</span>
@@ -327,7 +372,7 @@ include dirname(__DIR__) . '/includes/header.php';
         </label>
         <input type="text" id="sp_library" class="form-control form-control-sm"
           value="<?= h($cfg['sp_library']) ?>"
-          placeholder="Dokumenty (zostaw puste = domyślna)">
+          placeholder="Dokumenty (zostaw puste = domyślna)"<?= $sp_locked ? ' readonly aria-readonly="true"' : '' ?>>
       </div>
 
       <div class="d-flex justify-content-between mt-4">
@@ -358,7 +403,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <label class="form-label fw-semibold small">Ścieżka folderu bazowego</label>
         <input type="text" id="sp_base_folder" class="form-control font-monospace"
           value="<?= h($cfg['sp_base_folder']) ?>"
-          placeholder="np. Rejestr Umów">
+          placeholder="np. Rejestr Umów"<?= $sp_locked ? ' readonly aria-readonly="true"' : '' ?>>
         <div class="form-text">Zostaw puste, żeby pliki trafiały do korzenia biblioteki.</div>
       </div>
 
@@ -439,6 +484,8 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <script>
 const AJAX_URL = '<?= APP_URL ?>/admin/api/sp_wizard.php';
+const LOCKED   = <?= json_encode($sp_locked) ?>;   // zmiana witryny / biblioteki / folderu zablokowana (SpConnection)
+const CSRF     = <?= json_encode(csrf_token()) ?>;
 let wizardDrives = [];   // drives pobrane z kroku 1
 let currentStep = 0;
 
@@ -551,7 +598,7 @@ function renderDrives() {
         const dtype   = d.driveType || '';
         const sel     = (saved && saved === name) ? 'selected' : ((!saved && dtype === 'documentLibrary') ? '' : '');
         html += `
-        <label class="drive-card ${sel}" onclick="selectDrive(this, ${JSON.stringify(name)})">
+        <label class="drive-card ${sel}" onclick="selectDrive(this, ${JSON.stringify(name)})"${LOCKED ? ' aria-disabled="true" style="pointer-events:none;opacity:.65"' : ''}>
           <input type="radio" name="_drive" value="${escHtml(name)}" ${sel ? 'checked' : ''}
             style="pointer-events:none">
           <div class="flex-grow-1">
@@ -574,6 +621,7 @@ function renderDrives() {
 }
 
 function selectDrive(el, name) {
+    if (LOCKED) return;
     document.querySelectorAll('.drive-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     const r = el.querySelector('input[type=radio]');
@@ -633,6 +681,7 @@ async function saveSettings() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action:      'save',
+                _csrf:       CSRF,
                 sp_enabled:  document.getElementById('sp_enabled').checked,
                 site_url:    document.getElementById('sp_site_url').value.trim(),
                 library:     document.getElementById('sp_library').value.trim(),
@@ -660,6 +709,37 @@ async function saveSettings() {
         btn.innerHTML = '<i class="bi bi-check-lg"></i> Zapisz konfigurację';
     }
 }
+
+// ── Blokada zmiany połączenia: odblokuj / zablokuj ───────────────────────────
+async function lockApi(payload) {
+    try {
+        const res = await fetch(AJAX_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ _csrf: CSRF }, payload)),
+        });
+        return await res.json();
+    } catch (e) { return { ok: false, error: 'Błąd sieci: ' + e.message }; }
+}
+const btnUnlockOpen = document.getElementById('btn-unlock-open');
+if (btnUnlockOpen) {
+    btnUnlockOpen.addEventListener('click', () => {
+        const box = document.getElementById('sp-unlock-box');
+        const open = box.classList.toggle('d-none') === false;
+        btnUnlockOpen.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) document.getElementById('unlock-confirm').focus();
+    });
+    document.getElementById('unlock-confirm').addEventListener('change', e => {
+        document.getElementById('btn-unlock').disabled = !e.target.checked;
+    });
+    document.getElementById('btn-unlock').addEventListener('click', async () => {
+        const out = document.getElementById('unlock-result');
+        const res = await lockApi({ action: 'unlock', confirm: document.getElementById('unlock-confirm').checked });
+        if (res.ok) { out.innerHTML = '<span class="text-success">Odblokowano do ' + escHtml(res.until_h) + '…</span>'; setTimeout(() => location.reload(), 600); }
+        else out.innerHTML = '<span class="text-danger">' + escHtml(res.error || 'Nie udało się odblokować.') + '</span>';
+    });
+}
+const btnLockNow = document.getElementById('btn-lock-now');
+if (btnLockNow) btnLockNow.addEventListener('click', async () => { await lockApi({ action: 'lock' }); location.reload(); });
 
 // ── Utils ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
