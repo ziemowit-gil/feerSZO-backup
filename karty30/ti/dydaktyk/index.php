@@ -741,7 +741,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $m = (strtotime('1970-01-01 ' . $tt) - strtotime('1970-01-01 ' . $tf)) / 60;
             if ($m > 0) $dur = (int)$m;
         }
-        if ($date === '') { flash_set('danger', 'Data lekcji jest wymagana.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
+        // Wersja robocza nie wymaga terminu ani żadnych innych pól — data bywa pusta (do uzupełnienia przed zatwierdzeniem).
+        $nodate = $is_draft && $date === '';
+        if ($date === '' && !$is_draft) { flash_set('danger', 'Data lekcji jest wymagana (poza wersją roboczą).'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
 
         // Prowadzący TEJ lekcji — tylko kierownik może wskazać zastępstwo (inaczej
         // dziedziczy z kursu). Wpływa też na sprawdzenie dostępności i na wypłatę
@@ -752,24 +754,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Zajęcia tylko w dostępności prowadzącego (gdy zdefiniowana) — kierownik
         // może to świadomie ominąć (np. pilne zastępstwo poza zwykłymi godzinami)
         $skip_avail = dyd_is_staff() && !empty($_POST['skip_availability']);
-        if (!$skip_avail) {
+        if (!$skip_avail && !$nodate) {
             $av = ti_instructor_available_at($eff_instr, $date, $tf, $tt);
             if (!$av['ok']) { flash_set('danger', $av['reason']); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         }
 
         // Zamknięty okres nauczania — rozliczony protokołami, nic już w nim nie ruszamy
-        if ($_pc = ti_period_closed_for_date($date)) {
+        if (!$nodate && ($_pc = ti_period_closed_for_date($date))) {
             flash_set('danger', ti_period_closed_msg($_pc));
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
 
         // Zajętość konta Zoom (jeden host = jedno spotkanie naraz) — twarda blokada
-        $zc = ti_zoom_slot_check($course_id, $lm, $date, $tf, $tt, $sid);
+        $zc = $nodate ? ['ok' => true, 'warning' => ''] : ti_zoom_slot_check($course_id, $lm, $date, $tf, $tt, $sid);
         if (!$zc['ok']) { flash_set('danger', $zc['reason'] . ZOOM_BUSY_HINT); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         $zw = $zc['warning'] !== '' ? ' ' . $zc['warning'] : '';
 
         // Sala zajęta w tym oknie czasowym — twarda blokada (patrz pl_check_conflicts).
-        if ($room_id) {
+        if ($room_id && !$nodate) {
             $rc = pl_check_conflicts(['lesson_date' => $date, 'time_from' => $tf, 'time_to' => $tt, 'room_id' => $room_id, 'skip_id' => $sid]);
             if ($rc['hard']) { flash_set('danger', $rc['hard'][0]['msg'] ?? 'Sala zajęta w tym terminie.'); header('Location: ' . dyd_back($course_id, 'lekcje')); exit; }
         }
@@ -2127,8 +2129,9 @@ $lessonFormHtml = function(?array $r, string $pfx) use ($cur_course, $course) {
       </div>
       <?php else: ?>
       <div class="mb-2">
-        <label class="form-label fw-semibold" for="<?= $pfx ?>_date">Data <span class="text-danger">*</span></label>
-        <input type="date" class="form-control" id="<?= $pfx ?>_date" name="lesson_date" required value="<?= h($r['lesson_date'] ?? date('Y-m-d')) ?>">
+        <label class="form-label fw-semibold" for="<?= $pfx ?>_date">Data <span class="text-body-secondary small">(wymagana poza wersją roboczą)</span></label>
+        <input type="date" class="form-control" id="<?= $pfx ?>_date" name="lesson_date" value="<?= h(array_key_exists('lesson_date', (array)$r) ? $r['lesson_date'] : date('Y-m-d')) ?>" aria-describedby="<?= $pfx ?>_datehint">
+        <div class="form-text" id="<?= $pfx ?>_datehint">Data jest wymagana, chyba że zapisujesz wersję roboczą (szkic) — ta może być bez terminu i godzin; uzupełnisz je przed zatwierdzeniem.</div>
       </div>
       <div class="row g-2">
         <div class="col-6 mb-2">
