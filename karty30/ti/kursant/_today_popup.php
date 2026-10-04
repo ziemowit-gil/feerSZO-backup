@@ -9,7 +9,7 @@ unset($_SESSION['kp_today_popup']);
 
 try {
     $tp_rows = db_all(
-        "SELECT s.id, s.time_from, s.time_to, s.topic, s.lesson_method, s.meeting_url,
+        "SELECT s.id, s.course_id, s.time_from, s.time_to, s.topic, s.lesson_method, s.meeting_url,
                 c.name AS course_name, c.default_meeting_url AS course_meeting_url,
                 e.zoom_meeting_url AS enrollment_meeting_url, u.name AS instructor_name
          FROM k30_ti_sessions s
@@ -30,6 +30,17 @@ $tp_rows = array_values(array_filter($tp_rows, function ($r) use ($tp_now) {
     return $to === '' || $to >= $tp_now;
 }));
 if (!$tp_rows) return;
+
+// Zapasowe linki (spotkania z zakładki „Szkolenia online") dla zajęć bez własnego linku.
+$tp_meet = [];
+try {
+    foreach (ti_upcoming_meetings((int)$student['client_id']) as $m) {
+        if (empty($m['course_id'])) continue;
+        $d = substr((string)($m['starts_at'] ?? ''), 0, 10);
+        if ($d !== '' && $d !== date('Y-m-d')) continue;
+        $tp_meet[(int)$m['course_id']][] = $m['join_url'];
+    }
+} catch (\Throwable $e) {}
 $tp_n = count($tp_rows);
 ?>
 <div class="modal fade" id="kp-today-modal" tabindex="-1" aria-labelledby="kp-today-title" aria-describedby="kp-today-desc" aria-hidden="true">
@@ -70,7 +81,9 @@ $tp_n = count($tp_rows);
               <?php elseif ($lm === 'stacjonarna'): ?>
               <span class="small text-body-secondary">Zajęcia odbywają się stacjonarnie — nie ma linku do dołączenia.</span>
               <?php else: ?>
-              <span class="small text-body-secondary">Link do zajęć nie został jeszcze dodany.</span>
+              <a href="?tab=online" class="btn btn-success">
+                <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz do zajęć<span class="visually-hidden"> — <?= h($r['course_name']) ?> (przejdź do zakładki Szkolenia online)</span>
+              </a>
               <?php endif; ?>
             </div>
           </li>
