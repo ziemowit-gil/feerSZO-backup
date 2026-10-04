@@ -148,9 +148,27 @@ function handle_upload(string $field, string $subfolder = ''): ?string {
     return $result;
 }
 
+/**
+ * Adres pliku z uploads/. Gdy pliku brakuje lokalnie, a integracja SharePoint jest skonfigurowana, adres prowadzi przez
+ * contracts/file.php — ten dopasuje plik na SharePoincie, przywróci go i przekieruje (modules/sp_files). Sprawdzenie
+ * istnienia to jeden stat; przy renderowaniu list nic nie pyta SharePointa. Bez SharePointa (albo gdy plik jest) —
+ * zwykły adres statyczny, jak dotąd.
+ */
+function upload_url(?string $path): string {
+    if (!$path) return '';
+    $direct = APP_URL . '/uploads/' . $path;
+    if (is_file(UPLOAD_DIR . $path)) return $direct;
+    $mod = dirname(__DIR__) . '/modules/sp_files/logic/spFiles.php';
+    if (!is_file($mod)) return $direct;
+    require_once $mod;
+    return (SpFiles::normalize($path) !== null && SpFiles::canRestore())
+        ? APP_URL . '/contracts/file.php?f=' . rawurlencode($path)
+        : $direct;
+}
+
 function upload_link(?string $path): string {
     if (!$path) return '—';
-    $url = APP_URL . '/uploads/' . $path;
+    $url = upload_url($path);
     $name = basename($path);
     return '<a href="' . h($url) . '" target="_blank" class="btn btn-sm btn-outline-secondary">'
          . '<i class="bi bi-file-earmark-pdf"></i> ' . h($name) . '</a>';

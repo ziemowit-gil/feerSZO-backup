@@ -98,7 +98,12 @@ if ($action === 'send') {
     // Ścieżka do pliku PDF
     $pdf_path = UPLOAD_DIR . $letter['plik'];
     if (!file_exists($pdf_path)) {
-        flash_set('error', 'Nie znaleziono pliku PDF pisma na serwerze. Sprawdź czy plik istnieje.');
+        // brak lokalnie → próba odzyskania z SharePointa (modules/sp_files)
+        require_once dirname(__DIR__, 2) . '/modules/sp_files/logic/spFiles.php';
+        $pdf_path = SpFiles::ensureLocal((string)$letter['plik']) ?? $pdf_path;
+    }
+    if (!file_exists($pdf_path)) {
+        flash_set('error', 'Nie znaleziono pliku PDF pisma na serwerze ani na SharePoincie. Sprawdź czy plik istnieje.');
         header('Location: ' . $redirect);
         exit;
     }

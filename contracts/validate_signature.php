@@ -19,6 +19,11 @@ if ($rel === '' || strpos($rel, "\0") !== false || str_contains($rel, '..') || $
 }
 
 $abs  = UPLOAD_DIR . $rel;
+if (!is_file($abs)) {
+    // brak lokalnie → próba odzyskania z SharePointa (modules/sp_files; tylko ścieżki wskazane przez umowy)
+    require_once dirname(__DIR__) . '/modules/sp_files/logic/spFiles.php';
+    SpFiles::ensureLocal($rel);
+}
 $real = realpath($abs);
 $baseDir = realpath(UPLOAD_DIR);
 if (!$real || !$baseDir || strncmp($real, $baseDir, strlen($baseDir)) !== 0) {

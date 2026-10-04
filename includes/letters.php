@@ -172,7 +172,7 @@ function handle_letter_upload(string $field): ?string {
 
 function letter_file_url(?string $path): string {
     if (!$path) return '';
-    return APP_URL . '/uploads/' . $path;
+    return function_exists('upload_url') ? upload_url($path) : APP_URL . '/uploads/' . $path;   // brak lokalnie → odzyskanie z SharePointa
 }
 
 // ── Generowanie treści ─────────────────────────────────────────────────────────

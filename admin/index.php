@@ -253,6 +253,7 @@ $groups = [
             ['icon'=>'bi-plug',                 'label'=>'Integracje',               'url'=>'/admin/integrations.php'],
             ['icon'=>'bi-microsoft',            'label'=>'Microsoft 365',            'url'=>'/admin/m365_settings.php'],
             ['icon'=>'bi-cloud-upload',         'label'=>'SharePoint',               'url'=>'/admin/sharepoint_settings.php'],
+            ['icon'=>'bi-cloud-arrow-down',      'label'=>'Pliki umów z SharePointa', 'url'=>'/admin/sp_contract_files.php'],
             ['icon'=>'bi-calendar2-check',      'label'=>'Szkolenia (TidyCal)',      'url'=>'/admin/tidycal_settings.php'],
             ['icon'=>'bi-check2-square',        'label'=>'Zadania / Nozbe',          'url'=>'/admin/nozbe_settings.php'],
             ['icon'=>'bi-receipt',              'label'=>'Comarch Betterfly',        'url'=>'/admin/betterfly_settings.php'],

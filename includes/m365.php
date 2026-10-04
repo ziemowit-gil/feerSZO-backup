@@ -965,6 +965,52 @@ class M365Graph {
         return $resp['value'] ?? [];
     }
 
+    /**
+     * Metadane pliku lub folderu wskazanego ŚCIEŻKĄ względem korzenia biblioteki; null, gdy nie istnieje.
+     * Rzuca RuntimeException przy każdym innym błędzie (brak uprawnień, sieć, token) — „nie ma pliku” nie może
+     * się mieszać z „nie udało się sprawdzić”.
+     *
+     * @return array|null {id, name, size, webUrl, file, folder, parentReference, lastModifiedDateTime}
+     */
+    public function sp_item_by_path(string $drive_id, string $path): ?array {
+        $path = trim($path, '/');
+        if ($path === '') return null;
+        $enc  = implode('/', array_map('rawurlencode', explode('/', $path)));
+        $resp = $this->http_get("https://graph.microsoft.com/v1.0/drives/{$drive_id}/root:/{$enc}?" . http_build_query([
+            '$select' => 'id,name,size,webUrl,file,folder,parentReference,lastModifiedDateTime',
+        ]));
+        if (!empty($resp['id'])) return $resp;
+        if ((string)($resp['error']['code'] ?? '') === 'itemNotFound' || $this->last_status() === 404) return null;
+        throw new \RuntimeException('SharePoint: ' . (string)($resp['error']['message'] ?? ('błąd HTTP ' . $this->last_status())));
+    }
+
+    /**
+     * Wyszukuje w bibliotece PLIKI o dokładnie takiej nazwie (Graph root/search zwraca też trafienia częściowe
+     * i w treści dokumentów — te odrzucamy). Do 3 stron wyników. Indeks wyszukiwania SharePoint spóźnia się
+     * o minuty/godziny względem świeżych uploadów — dokładną ścieżkę sprawdzaj przez sp_item_by_path().
+     *
+     * @return list<array> {id, name, size, webUrl, file, parentReference}
+     */
+    public function sp_search_files_by_name(string $drive_id, string $name): array {
+        $q   = rawurlencode(str_replace("'", "''", $name));
+        $url = "https://graph.microsoft.com/v1.0/drives/{$drive_id}/root/search(q='{$q}')?" . http_build_query([
+            '$select' => 'id,name,size,webUrl,file,parentReference',
+            '$top'    => 50,
+        ]);
+        $out = [];
+        for ($page = 0; $page < 3 && $url; $page++) {
+            $resp = $this->http_get($url);
+            if (isset($resp['error'])) {
+                throw new \RuntimeException('SharePoint (wyszukiwanie): ' . (string)($resp['error']['message'] ?? 'błąd'));
+            }
+            foreach ($resp['value'] ?? [] as $it) {
+                if (isset($it['file']) && strcasecmp((string)($it['name'] ?? ''), $name) === 0) $out[] = $it;
+            }
+            $url = (string)($resp['@odata.nextLink'] ?? '');
+        }
+        return $out;
+    }
+
     // ══ ONEDRIVE UŻYTKOWNIKA ═════════════════════════════════════════════════
     // Uprawnienie aplikacji: Files.Read.All (odczyt OneDrive wskazanego usera).
     // Pobieranie treści pliku idzie przez sp_download_file() — /drives/{id}/items/{id}/content.

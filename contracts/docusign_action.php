@@ -76,7 +76,12 @@ if ($action === 'send') {
     if (!$pdf_rel) json_err('Brak pliku umowy (PDF). Przed wysłaniem do DocuSign wgraj plik umowy.');
 
     $pdf_path = UPLOAD_DIR . $pdf_rel;
-    if (!file_exists($pdf_path)) json_err('Plik umowy nie istnieje na dysku: ' . $pdf_rel);
+    if (!file_exists($pdf_path)) {
+        // brak lokalnie → próba odzyskania z SharePointa (modules/sp_files)
+        require_once dirname(__DIR__) . '/modules/sp_files/logic/spFiles.php';
+        $pdf_path = SpFiles::ensureLocal($pdf_rel) ?? $pdf_path;
+    }
+    if (!file_exists($pdf_path)) json_err('Plik umowy nie istnieje na dysku ani na SharePoincie: ' . $pdf_rel);
 
     $ext = strtolower(pathinfo($pdf_path, PATHINFO_EXTENSION));
     if ($ext !== 'pdf') json_err('DocuSign obsługuje tylko pliki PDF. Wgraj plik w formacie PDF.');

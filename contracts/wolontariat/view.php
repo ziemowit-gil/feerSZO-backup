@@ -2048,11 +2048,11 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
           <td><span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.68rem">Skan</span></td>
           <td class="small text-muted">—</td>
           <td class="text-end">
-            <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" target="_blank"
+            <a href="<?= h(upload_url($b['path'])) ?>" target="_blank"
                class="btn btn-sm btn-outline-secondary py-0 px-2">
               <i class="bi bi-eye"></i>
             </a>
-            <a href="<?= h(APP_URL . '/uploads/' . $b['path']) ?>" download
+            <a href="<?= h(upload_url($b['path'])) ?>" download
                class="btn btn-sm btn-outline-primary py-0 px-2">
               <i class="bi bi-download"></i>
             </a>
@@ -2069,9 +2069,9 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
           <td><span class="badge bg-info bg-opacity-25 text-info" style="font-size:.68rem">Upload</span></td>
           <td class="small text-muted"><?= date('d.m.Y', strtotime($cd['uploaded_at'])) ?></td>
           <td class="text-end">
-            <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" target="_blank"
+            <a href="<?= h(upload_url($cd['stored_path'])) ?>" target="_blank"
                class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-eye"></i></a>
-            <a href="<?= h(APP_URL . '/uploads/' . $cd['stored_path']) ?>" download
+            <a href="<?= h(upload_url($cd['stored_path'])) ?>" download
                class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-download"></i></a>
             <?php if (can_edit()): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Usunąć plik?')">
