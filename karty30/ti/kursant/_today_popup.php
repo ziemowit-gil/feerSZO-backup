@@ -59,7 +59,7 @@ $tp_n = count($tp_rows);
             $lm  = (string)($r['lesson_method'] ?? '');
             $enr = trim((string)($r['enrollment_meeting_url'] ?? ''));
             $mu  = trim((string)($r['meeting_url'] ?? ''));
-            $link = $lm === 'stacjonarna' ? '' : ($mu !== '' ? $mu : ($enr !== '' ? $enr : trim((string)($r['course_meeting_url'] ?? ''))));
+            $link = $mu !== '' ? $mu : ($enr !== '' ? $enr : trim((string)($r['course_meeting_url'] ?? '')));
             $from = substr((string)($r['time_from'] ?? ''), 0, 5);
             $to   = substr((string)($r['time_to'] ?? ''), 0, 5);
             $hours = $from !== '' ? $from . ($to !== '' ? '–' . $to : '') : '';
@@ -78,6 +78,7 @@ $tp_n = count($tp_rows);
               <a href="<?= h($link) ?>" target="_blank" rel="noopener" class="btn btn-success">
                 <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz do zajęć<span class="visually-hidden"> — <?= h($r['course_name']) ?> (otwiera się w nowej karcie)</span>
               </a>
+              <div class="small mt-2 text-break">Link do zajęć: <a href="<?= h($link) ?>" target="_blank" rel="noopener"><?= h($link) ?></a></div>
               <?php elseif ($lm === 'stacjonarna'): ?>
               <span class="small text-body-secondary">Zajęcia odbywają się stacjonarnie — nie ma linku do dołączenia.</span>
               <?php else: ?>
