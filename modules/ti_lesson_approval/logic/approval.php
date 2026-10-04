@@ -418,7 +418,7 @@ function ti_mm_check(int $course_id, array $sessions, array $ch, bool $is_staff)
         $items[] = $lbl . (!$dateless && ($lbl !== substr($dn, 0, strlen($lbl)) || (string)$n['time_to'] !== (string)$s['time_to']) ? ' → ' . $dn : '')
                  . ' — ' . (trim((string)$n['topic']) !== '' ? $n['topic'] : 'bez tematu');
         if ((string)$n['time_from'] !== '' && (string)$n['time_to'] !== '' && (string)$n['time_to'] <= (string)$n['time_from']) $b[] = "Termin $lbl: godzina końca musi być późniejsza niż początku po zmianie.";
-        if ($dateless && (string)$n['status'] !== 'draft') $b[] = "Termin „$lbl” nie ma daty — uzupełnij ją (zmiana „Przesuń” jej nie ustawia) albo zostaw typ „Wersja robocza”.";
+        if ($dateless && (string)$n['status'] !== 'draft') $b[] = "Termin ({$lbl}) nie ma daty — uzupełnij ją (przesunięcie dat jej nie ustawia) albo zostaw typ „Wersja robocza”.";
         if ($dateless) {
             if (ti_appr_is_online($n) && ti_appr_meeting_url($n, $course) === '') $w[] = "Szkic „{$n['topic']}” jest online, ale nie ma linku do spotkania.";
             continue;
