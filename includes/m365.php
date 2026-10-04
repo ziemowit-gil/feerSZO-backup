@@ -1012,6 +1012,44 @@ class M365Graph {
         return $out;
     }
 
+    /**
+     * Metadane pliku lub folderu wskazanego ID elementu; null, gdy nie istnieje (jak sp_item_by_path()).
+     * Rzuca RuntimeException przy każdym innym błędzie.
+     *
+     * @return array|null {id, name, size, webUrl, file, folder, parentReference, lastModifiedDateTime}
+     */
+    public function sp_item_by_id(string $drive_id, string $item_id): ?array {
+        if ($item_id === '') return null;
+        $resp = $this->http_get("https://graph.microsoft.com/v1.0/drives/{$drive_id}/items/" . rawurlencode($item_id) . '?' . http_build_query([
+            '$select' => 'id,name,size,webUrl,file,folder,parentReference,lastModifiedDateTime',
+        ]));
+        if (!empty($resp['id'])) return $resp;
+        if ((string)($resp['error']['code'] ?? '') === 'itemNotFound' || $this->last_status() === 404) return null;
+        throw new \RuntimeException('SharePoint: ' . (string)($resp['error']['message'] ?? ('błąd HTTP ' . $this->last_status())));
+    }
+
+    /**
+     * Jedna strona zawartości folderu (ID elementu; '' = korzeń biblioteki) — do przeglądania całej biblioteki
+     * strona po stronie. $next_link: adres z poprzedniej odpowiedzi ('next'); przyjmowany tylko z hosta Graph, bo
+     * idzie z nim token dostępu. W odróżnieniu od sp_list_folder() nie myli „pustego folderu” z błędem odczytu.
+     *
+     * @return array{items:list<array>,next:string}  items: {id, name, size, file, folder, webUrl, lastModifiedDateTime}
+     */
+    public function sp_children_page(string $drive_id, string $item_id = '', string $next_link = ''): array {
+        if ($next_link !== '') {
+            if (!str_starts_with($next_link, 'https://graph.microsoft.com/')) throw new \RuntimeException('SharePoint: niedozwolony adres następnej strony.');
+            $url = $next_link;
+        } else {
+            $url = 'https://graph.microsoft.com/v1.0/drives/' . $drive_id . ($item_id === '' ? '/root' : '/items/' . rawurlencode($item_id)) . '/children?'
+                 . http_build_query(['$select' => 'id,name,size,file,folder,webUrl,lastModifiedDateTime', '$top' => 200]);
+        }
+        $resp = $this->http_get($url);
+        if (isset($resp['error']) || !is_array($resp['value'] ?? null)) {
+            throw new \RuntimeException('SharePoint: ' . (string)($resp['error']['message'] ?? ('błąd HTTP ' . $this->last_status())));
+        }
+        return ['items' => $resp['value'], 'next' => (string)($resp['@odata.nextLink'] ?? '')];
+    }
+
     // ══ ONEDRIVE UŻYTKOWNIKA ═════════════════════════════════════════════════
     // Uprawnienie aplikacji: Files.Read.All (odczyt OneDrive wskazanego usera).
     // Pobieranie treści pliku idzie przez sp_download_file() — /drives/{id}/items/{id}/content.

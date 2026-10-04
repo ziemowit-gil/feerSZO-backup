@@ -92,7 +92,11 @@ final class SpFiles
 
     // ── Odwołania z umów ─────────────────────────────────────────────────────
 
-    private static function tableColumns(string $table): array
+    /** Rodzaje umów obsługiwane przez moduł (slugi z CONTRACT_TYPES; tabele umowy_{slug}). @return list<string> */
+    public static function contractTypes(): array { return array_keys(self::CONTRACT_COLUMNS); }
+
+    /** Nazwy kolumn tabeli (pusta lista, gdy tabeli nie ma). @return list<string> */
+    public static function tableColumns(string $table): array
     {
         static $cache = [];
         if (isset($cache[$table])) return $cache[$table];
@@ -213,8 +217,8 @@ final class SpFiles
         return $cache = m365_setting('sp_enabled') === '1' && m365_setting('sp_site_url') !== '' && (new M365Graph())->is_configured();
     }
 
-    /** @return array{g:M365Graph,site:string,drive:string,base:string} */
-    private static function context(?M365Graph $g = null): array
+    /** Połączenie z biblioteką SharePoint z ustawień (rzuca RuntimeException, gdy wyłączone / niekompletne). @return array{g:M365Graph,site:string,drive:string,base:string} */
+    public static function context(?M365Graph $g = null): array
     {
         if (!function_exists('m365_setting')) require_once dirname(__DIR__, 3) . '/includes/m365.php';
         if (m365_setting('sp_enabled') !== '1') throw new \RuntimeException('Integracja SharePoint jest wyłączona (Administracja → SharePoint).');
@@ -397,7 +401,7 @@ final class SpFiles
     // ── Zapis ────────────────────────────────────────────────────────────────
 
     /** Zapis przez plik tymczasowy w tym samym katalogu; nie nadpisuje pliku, który pojawił się w międzyczasie. */
-    private static function writeAtomic(string $abs, string $bytes): void
+    public static function writeAtomic(string $abs, string $bytes): void
     {
         $dir = dirname($abs);
         if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) throw new \RuntimeException('Nie można utworzyć katalogu uploads.');

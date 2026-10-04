@@ -93,7 +93,8 @@ include dirname(__DIR__) . '/includes/header.php';
 ?>
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <h1 class="h4 mb-0"><i class="bi bi-cloud-arrow-down text-primary" aria-hidden="true"></i> Pliki umów — dopasowanie z SharePointa</h1>
-  <a href="sharepoint_settings.php" class="btn btn-sm btn-outline-secondary ms-auto">Ustawienia SharePoint</a>
+  <a href="sp_contract_match.php" class="btn btn-sm btn-outline-secondary ms-auto">Skany z SharePointa → umowy bez pliku</a>
+  <a href="sharepoint_settings.php" class="btn btn-sm btn-outline-secondary">Ustawienia SharePoint</a>
 </div>
 
 <?php if ($flash): ?><div class="alert alert-<?= h($flash[0]) ?> py-2 small" role="status"><?= h($flash[1]) ?></div><?php endif; ?>
