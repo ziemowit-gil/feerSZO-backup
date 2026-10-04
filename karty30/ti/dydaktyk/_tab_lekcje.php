@@ -37,6 +37,87 @@ if ($_sms_enabled && $cur_course) {
 </div>
 <?php endif; ?>
 <?php
+  // Robocze wersje lekcji — lista do zatwierdzenia (popup z podglądem maila i załączników)
+  require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_lesson_approval/logic/approval.php';
+  $_appr_drafts = $cur_course ? ti_appr_drafts((int)$cur_course) : [];
+  $_appr_days = ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
+?>
+<?php if ($_appr_drafts): ?>
+<section class="card border-warning mb-3" aria-labelledby="apprH">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2 bg-warning-subtle">
+    <h2 class="h6 mb-0" id="apprH"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Wersje robocze do zatwierdzenia <span class="badge text-bg-warning"><?= count($_appr_drafts) ?></span></h2>
+    <span class="small text-body-secondary">Niewidoczne dla kursantów, dopóki ich nie zatwierdzisz.</span>
+    <button type="button" class="btn btn-sm btn-success ms-auto" id="apprOpen" disabled><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź zaznaczone…</button>
+  </div>
+  <ul class="list-group list-group-flush">
+    <li class="list-group-item py-1">
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="apprAll"><label class="form-check-label small" for="apprAll">Zaznacz wszystkie</label></div>
+    </li>
+    <?php foreach ($_appr_drafts as $_d): $_ts = strtotime((string)$_d['lesson_date']); $_online = in_array((string)$_d['lesson_method'], ['zdalna_zoom','zdalna_inne'], true); ?>
+    <li class="list-group-item py-1">
+      <div class="form-check">
+        <input class="form-check-input appr-chk" type="checkbox" value="<?= (int)$_d['id'] ?>" id="apprC<?= (int)$_d['id'] ?>">
+        <label class="form-check-label" for="apprC<?= (int)$_d['id'] ?>">
+          <?= h(date('d.m.Y', $_ts) . ' (' . $_appr_days[(int)date('w', $_ts)] . ') ' . substr((string)$_d['time_from'], 0, 5) . '–' . substr((string)$_d['time_to'], 0, 5)) ?>
+          — <?= h(trim((string)$_d['topic']) !== '' ? $_d['topic'] : 'bez tematu') ?>
+          <?php if ($_online): ?><span class="badge text-bg-info"><i class="bi bi-camera-video me-1" aria-hidden="true"></i>online</span><?php endif; ?>
+        </label>
+      </div>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+</section>
+<script>
+(function () {
+  var chks = document.querySelectorAll('.appr-chk'), all = document.getElementById('apprAll'), open = document.getElementById('apprOpen');
+  if (!open) return;
+  var cid = <?= (int)$cur_course ?>, token = <?= json_encode(dyd_token()) ?>, modalEl = null;
+  function sel() { return [].filter.call(chks, function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+  function sync() { open.disabled = sel().length === 0; all.checked = sel().length === chks.length; }
+  all.addEventListener('change', function () { [].forEach.call(chks, function (c) { c.checked = all.checked; }); sync(); });
+  [].forEach.call(chks, function (c) { c.addEventListener('change', sync); });
+  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+  function kb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  open.addEventListener('click', function () {
+    var ids = sel(); if (!ids.length) return;
+    // Modal poza zakładkami (zawsze dokładany do <body>)
+    if (modalEl) modalEl.remove();
+    modalEl = document.createElement('div');
+    modalEl.className = 'modal fade'; modalEl.tabIndex = -1; modalEl.setAttribute('aria-labelledby', 'apprMT'); modalEl.setAttribute('aria-hidden', 'true');
+    modalEl.innerHTML = '<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><form method="post" action="approve_drafts.php">'
+      + '<div class="modal-header"><h2 class="modal-title h5" id="apprMT">Zatwierdzenie wersji roboczych</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>'
+      + '<div class="modal-body" id="apprBody" aria-live="polite">Ładowanie podglądu…</div>'
+      + '<div class="modal-footer" id="apprFoot"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button></div>'
+      + '<input type="hidden" name="_token" value="' + esc(token) + '"><input type="hidden" name="course" value="' + cid + '">'
+      + ids.map(function (i) { return '<input type="hidden" name="ids[]" value="' + esc(i) + '">'; }).join('')
+      + '</form></div></div>';
+    document.body.appendChild(modalEl);
+    var m = bootstrap.Modal.getOrCreateInstance(modalEl); m.show();
+    fetch('approve_drafts.php?course=' + cid + '&ids=' + ids.join(','), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        var b = document.getElementById('apprBody'), f = document.getElementById('apprFoot');
+        if (d.error) { b.innerHTML = '<div class="alert alert-danger mb-0">' + esc(d.error) + '</div>'; return; }
+        var h = '<p>Zatwierdzasz <strong>' + d.count + '</strong> lekcji. Staną się widoczne dla kursantów i zaczną się liczyć do frekwencji i rozliczeń.</p>';
+        if (d.warnings.length) h += '<div class="alert alert-warning" role="alert"><strong><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Uwaga:</strong><ul class="mb-0">' + d.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
+        h += '<h3 class="h6">Podgląd wiadomości e-mail</h3><p class="small mb-1"><strong>Temat:</strong> ' + esc(d.subject) + '</p>'
+          + '<iframe title="Podgląd treści e-maila" sandbox="" style="width:100%;height:260px;border:1px solid #ccc;border-radius:6px;background:#fff" srcdoc="' + esc(d.html).replace(/"/g, '&quot;') + '"></iframe>';
+        h += '<h3 class="h6 mt-3">Załączniki (' + d.files.length + ')</h3>';
+        h += d.files.length ? '<ul class="small">' + d.files.map(function (x) { return '<li><i class="bi bi-paperclip me-1" aria-hidden="true"></i>' + esc(x.name) + (x.exists ? ' (' + kb(x.size) + ')' : ' — <span class="text-danger">brak pliku na dysku</span>') + '</li>'; }).join('') + '</ul>' : '<p class="small text-body-secondary">Brak plików przypisanych do tych lekcji.</p>';
+        if (d.links.length) h += '<p class="small mb-1">Linki w mailu:</p><ul class="small">' + d.links.map(function (l) { return '<li>' + esc(l.title || l.url) + '</li>'; }).join('') + '</ul>';
+        h += '<details class="small"><summary>Odbiorcy (' + d.recipients.length + ')</summary><ul class="mb-0">' + d.recipients.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul></details>';
+        h += '<div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="send_mail" value="1" id="apprSend"' + (d.recipients.length ? ' checked' : '') + '><label class="form-check-label" for="apprSend">Wyślij powyższy e-mail do kursantów (i opiekunów małoletnich)</label></div>';
+        b.innerHTML = h;
+        f.insertAdjacentHTML('beforeend', '<button type="submit" class="btn btn-success"><i class="bi bi-send me-1" aria-hidden="true"></i>Zatwierdź i wyślij</button>');
+        var sb = f.querySelector('button[type=submit]'), cb = document.getElementById('apprSend');
+        function lbl() { sb.innerHTML = '<i class="bi bi-' + (cb.checked ? 'send' : 'check2') + ' me-1" aria-hidden="true"></i>' + (cb.checked ? 'Zatwierdź i wyślij' : 'Zatwierdź bez wysyłki'); }
+        cb.addEventListener('change', lbl); lbl();
+      }).catch(function () { document.getElementById('apprBody').innerHTML = '<div class="alert alert-danger mb-0">Nie udało się pobrać podglądu.</div>'; });
+  });
+  sync();
+})();
+</script>
+<?php endif; ?>
+<?php
   // Karta otwartej lekcji (?lesson=<id>) — potrzebuje $STATUS, $_days_pl, $uid, $cur_course
   $_days_pl = $_days_pl ?? ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
   include __DIR__ . '/_lekcja_karta.php';
