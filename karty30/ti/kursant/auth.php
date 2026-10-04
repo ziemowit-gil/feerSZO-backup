@@ -57,6 +57,8 @@ function student_login_user(array $account, string $method = 'password', string 
         'ts'        => time(),
     ];
     ti_remember_issue('student', (int)$account['id']);
+    // Świeże logowanie (nie wznowienie „zapamiętaj mnie") — panel pokaże raz okno „masz dziś zajęcia".
+    if ($method !== 'remember') $_SESSION['kp_today_popup'] = 1;
 
     $ip = mb_substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
     try {

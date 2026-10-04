@@ -31,7 +31,10 @@
         // Zachowaj pozostałe parametry (np. course=) — podmień tylko tab
         var sp = new URLSearchParams(window.location.search);
         sp.set('tab', saved);
-        location.replace('?' + sp.toString());
+        var go = function(){ location.replace('?' + sp.toString()); };
+        // Okno „masz dziś zajęcia" jest jednorazowe — przekieruj dopiero po jego zamknięciu.
+        var tm = document.getElementById('kp-today-modal');
+        if (tm) tm.addEventListener('hidden.bs.modal', go); else go();
       }
     } catch(e) {}
   }

@@ -6016,4 +6016,5 @@ $authp_list = db_all(
   </div>
 </div>
 
+<?php include __DIR__ . '/_today_popup.php'; ?>
 <?php include __DIR__ . '/_layout_foot.php'; ?>
