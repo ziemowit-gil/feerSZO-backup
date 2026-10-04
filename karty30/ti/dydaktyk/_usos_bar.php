@@ -103,6 +103,7 @@ if (dyd_is_staff()) {
             $_it('rozliczenia',  'Rozliczenia grupy',     $_ct('rozliczenia'), (int)($_sb_roz_debt ?? 0), 'danger'),
             $_it('',             'Rozliczenia kursantów', 'billing.php'),
             $_it('',             'Nadpłaty uczestników',  'overpayments.php'),
+            $_it('',             'Przypomnienia o wpłatach', 'przypomnieniaWplat.php'),
             $_it('',             'Cenniki i rabaty',      'pricing.php'),
             $_it('',             'Zaległe protokoły',     'protokoly.php'),
             $_it('',             'Program poleceń',       'polecenia.php'),

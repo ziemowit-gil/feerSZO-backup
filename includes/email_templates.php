@@ -602,6 +602,24 @@ HTML;
 </p>
 HTML;
 
+    // ── TI: przypomnienie o braku wpłaty (do kursanta / opiekuna) ─────
+    $ti_payment_reminder_body = <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>przypominamy, że na koncie kursanta <strong>{{student}}</strong> brakuje wpłaty za zajęcia.
+   Zaległa kwota wynosi <strong>{{total}}</strong>, a termin płatności najstarszej należności minął {{due}} ({{days_text}} temu).</p>
+{{items_table}}
+<p>Prosimy o wpłatę na rachunek <strong>{{account}}</strong>.<br>
+   W tytule przelewu prosimy wpisać: <strong>„{{title}}”</strong>.</p>
+<p>Jeśli wpłata została już dokonana, prosimy o zignorowanie tej wiadomości — zaksięgowanie przelewu może potrwać kilka dni.
+   Aktualne saldo i historię rozliczeń znajdą Państwo w panelu kursanta:
+   <a href="{{portal}}" style="color:#059669">{{portal}}</a>.</p>
+<p>W razie pytań chętnie pomożemy.</p>
+<p style="margin-top:18px">Z poważaniem,<br>{{org}}</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość wygenerowana automatycznie.
+</p>
+HTML;
+
     // ── TI: nowa wiadomość od prowadzącego (do kursanta) ──────────────
     $ti_message_body = <<<'HTML'
 <p>Cześć <strong>{{name}}</strong>,</p>
@@ -1108,6 +1126,31 @@ HTML;
                 'total'          => ['label' => 'Razem do zapłaty',       'sample' => '200,00 PLN'],
                 'transfer_title' => ['label' => 'Tytuł przelewu',         'sample' => 'Faktura nr FV/123/2026 – Kowalski'],
                 'portal'         => ['label' => 'URL panelu kursanta',    'sample' => $base . '/karty30/ti/kursant/index.php'],
+            ],
+        ],
+
+        'ti_payment_reminder' => [
+            'label'       => 'TI: przypomnienie o braku wpłaty (do kursanta / opiekuna)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-cash-coin',
+            'auto'        => true,
+            'description' => 'Codzienne przypomnienie (o 7:00) o zaległej wpłacie za zajęcia, do czasu zaksięgowania wpłaty — do kursanta albo, gdy jest małoletni, do opiekuna. Włączanie, odstęp i limit: Panel dydaktyka → Przypomnienia o wpłatach.',
+            'subject'     => '{{org}}: brak wpłaty za zajęcia — {{student}}',
+            'body'        => $ti_payment_reminder_body,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji',                       'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
+                'greeting'    => ['label' => 'Zwrot (spacja + imię adresata albo puste)', 'sample' => ' Maria'],
+                'student'     => ['label' => 'Kursant',                                 'sample' => 'Jan Kowalski'],
+                'recipient'   => ['label' => 'Adresat (kursant lub opiekun)',           'sample' => 'Maria Kowalska'],
+                'total'       => ['label' => 'Zaległa kwota łącznie',                   'sample' => '350,00 PLN'],
+                'count'       => ['label' => 'Liczba zaległych należności',             'sample' => '2'],
+                'due'         => ['label' => 'Termin płatności najstarszej należności', 'sample' => '03.10.2026'],
+                'days'        => ['label' => 'Dni po terminie (liczba)',                'sample' => '5'],
+                'days_text'   => ['label' => 'Dni po terminie (np. „5 dni”)',           'sample' => '5 dni'],
+                'items_table' => ['label' => 'Tabela zaległych należności (HTML)',      'sample' => '<table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:14px 0;font-size:14px"><thead><tr><th style="padding:6px 10px;border:1px solid #dee2e6;background:#f1f3f5;text-align:left">Należność</th><th style="padding:6px 10px;border:1px solid #dee2e6;background:#f1f3f5;text-align:left">Termin płatności</th><th style="padding:6px 10px;border:1px solid #dee2e6;background:#f1f3f5;text-align:right">Do zapłaty</th></tr></thead><tbody><tr><td style="padding:6px 10px;border:1px solid #dee2e6">Angielski — wrzesień 2026</td><td style="padding:6px 10px;border:1px solid #dee2e6">03.10.2026</td><td style="padding:6px 10px;border:1px solid #dee2e6;text-align:right"><strong>200,00 PLN</strong></td></tr><tr><td style="padding:6px 10px;border:1px solid #dee2e6">Informatyka — wrzesień 2026</td><td style="padding:6px 10px;border:1px solid #dee2e6">05.10.2026</td><td style="padding:6px 10px;border:1px solid #dee2e6;text-align:right"><strong>150,00 PLN</strong></td></tr></tbody></table>'],
+                'account'     => ['label' => 'Numer rachunku do wpłat',                 'sample' => 'PL61 1090 1014 0000 0712 1981 2874'],
+                'title'       => ['label' => 'Tytuł przelewu',                          'sample' => 'TI/105 Jan Kowalski'],
+                'portal'      => ['label' => 'URL logowania do panelu kursanta',        'sample' => $base . '/karty30/ti/kursant/login.php'],
             ],
         ],
 

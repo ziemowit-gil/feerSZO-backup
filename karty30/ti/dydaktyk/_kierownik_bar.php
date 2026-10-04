@@ -36,6 +36,7 @@ if (!empty($KIER_ITEMS)) {
         ['Rozliczenia grupy',         'index.php?tab=rozliczenia',  'receipt-cutoff'],
         ['Rozliczenia kursantów',     'billing.php',                'receipt'],
         ['Nadpłaty uczestników',      'overpayments.php',           'piggy-bank'],
+        ['Przypomnienia o wpłatach',  'przypomnieniaWplat.php',     'cash-coin'],
         ['Cenniki i rabaty',          'pricing.php',                'tags'],
         ['Zaległe protokoły',         'protokoly.php',              'exclamation-octagon'],
         ['Audyt dzienników',          'audyt_dziennikow.php',       'clipboard2-check'],
