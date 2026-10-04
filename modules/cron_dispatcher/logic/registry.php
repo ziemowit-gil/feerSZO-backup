@@ -105,6 +105,11 @@ function cron_dispatcher_registry(): array
             'interval' => 86400,        // raz dziennie
             'schedule' => [3, 5],       // między 3:00 a 5:00
         ],
+        'ti_harmonogram_cleanup' => [
+            'file'     => $cronDir . '/ti_harmonogram_cleanup.php',
+            'interval' => 86400,        // raz dziennie — kasuje stare pliki harmonogramów z maili TI (>30 dni, nieużywane w kolejce)
+            'schedule' => [3, 5],       // w nocy
+        ],
         'tasks_nozbe_sync' => [
             'file'     => $cronDir . '/tasks_nozbe_sync.php',
             'interval' => 900,          // co 15 min — per-user push do Nozbe, patrz includes/task_nozbe.php
