@@ -43,22 +43,26 @@ if ($_sms_enabled && $cur_course) {
   $_appr_days = ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
 ?>
 <?php if ($_appr_drafts): ?>
+<div class="alert alert-warning d-flex align-items-center flex-wrap gap-2" role="alert" id="apprWarn">
+  <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
+  <span><strong>Masz <?= count($_appr_drafts) ?> <?= count($_appr_drafts) === 1 ? 'wersję roboczą' : 'wersji roboczych' ?> lekcji.</strong> Kursanci ich nie widzą i nie liczą się do frekwencji ani rozliczeń — podejmij decyzję.</span>
+  <button type="button" class="btn btn-sm btn-warning ms-auto" id="apprDecide">Podejmij decyzję…</button>
+</div>
 <section class="card border-warning mb-3" aria-labelledby="apprH">
   <div class="card-header d-flex align-items-center flex-wrap gap-2 bg-warning-subtle">
     <h2 class="h6 mb-0" id="apprH"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Wersje robocze do zatwierdzenia <span class="badge text-bg-warning"><?= count($_appr_drafts) ?></span></h2>
-    <span class="small text-body-secondary">Niewidoczne dla kursantów, dopóki ich nie zatwierdzisz.</span>
     <button type="button" class="btn btn-sm btn-success ms-auto" id="apprOpen" disabled><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź zaznaczone…</button>
   </div>
   <ul class="list-group list-group-flush">
     <li class="list-group-item py-1">
       <div class="form-check"><input class="form-check-input" type="checkbox" id="apprAll"><label class="form-check-label small" for="apprAll">Zaznacz wszystkie</label></div>
     </li>
-    <?php foreach ($_appr_drafts as $_d): $_ts = strtotime((string)$_d['lesson_date']); $_online = in_array((string)$_d['lesson_method'], ['zdalna_zoom','zdalna_inne'], true); ?>
+    <?php foreach ($_appr_drafts as $_d): $_ts = (string)$_d['lesson_date'] !== '' ? strtotime((string)$_d['lesson_date']) : 0; $_online = in_array((string)$_d['lesson_method'], ['zdalna_zoom','zdalna_inne'], true); ?>
     <li class="list-group-item py-1">
       <div class="form-check">
         <input class="form-check-input appr-chk" type="checkbox" value="<?= (int)$_d['id'] ?>" id="apprC<?= (int)$_d['id'] ?>">
         <label class="form-check-label" for="apprC<?= (int)$_d['id'] ?>">
-          <?= h(date('d.m.Y', $_ts) . ' (' . $_appr_days[(int)date('w', $_ts)] . ') ' . substr((string)$_d['time_from'], 0, 5) . '–' . substr((string)$_d['time_to'], 0, 5)) ?>
+          <?= $_ts ? h(date('d.m.Y', $_ts) . ' (' . $_appr_days[(int)date('w', $_ts)] . ') ' . substr((string)$_d['time_from'], 0, 5) . '–' . substr((string)$_d['time_to'], 0, 5)) : '<span class="text-body-secondary">bez terminu</span>' ?>
           — <?= h(trim((string)$_d['topic']) !== '' ? $_d['topic'] : 'bez tematu') ?>
           <?php if ($_online): ?><span class="badge text-bg-info"><i class="bi bi-camera-video me-1" aria-hidden="true"></i>online</span><?php endif; ?>
         </label>
@@ -67,53 +71,117 @@ if ($_sms_enabled && $cur_course) {
     <?php endforeach; ?>
   </ul>
 </section>
+<form id="apprDelForm" method="post" action="approve_drafts.php" class="d-none">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="course" value="<?= (int)$cur_course ?>"><input type="hidden" name="op" value="delete">
+</form>
+<script src="../assets/dydApprovalModal.js?v=<?= (int)@filemtime(__DIR__ . '/../assets/dydApprovalModal.js') ?>"></script>
 <script>
 (function () {
   var chks = document.querySelectorAll('.appr-chk'), all = document.getElementById('apprAll'), open = document.getElementById('apprOpen');
-  if (!open) return;
-  var cid = <?= (int)$cur_course ?>, token = <?= json_encode(dyd_token()) ?>, modalEl = null;
+  var cid = <?= (int)$cur_course ?>, token = <?= json_encode(dyd_token()) ?>, total = chks.length;
   function sel() { return [].filter.call(chks, function (c) { return c.checked; }).map(function (c) { return c.value; }); }
   function sync() { open.disabled = sel().length === 0; all.checked = sel().length === chks.length; }
+  function approve(ids) {
+    dydApprovalModal({ title: 'Zatwierdzenie wersji roboczych', previewUrl: 'approve_drafts.php?course=' + cid + '&ids=' + ids.join(','),
+      postUrl: 'approve_drafts.php', pairs: [['_token', token], ['course', cid], ['op', 'approve']] });
+  }
   all.addEventListener('change', function () { [].forEach.call(chks, function (c) { c.checked = all.checked; }); sync(); });
   [].forEach.call(chks, function (c) { c.addEventListener('change', sync); });
-  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
-  function kb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
-  open.addEventListener('click', function () {
-    var ids = sel(); if (!ids.length) return;
-    // Modal poza zakładkami (zawsze dokładany do <body>)
-    if (modalEl) modalEl.remove();
-    modalEl = document.createElement('div');
-    modalEl.className = 'modal fade'; modalEl.tabIndex = -1; modalEl.setAttribute('aria-labelledby', 'apprMT'); modalEl.setAttribute('aria-hidden', 'true');
-    modalEl.innerHTML = '<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><form method="post" action="approve_drafts.php">'
-      + '<div class="modal-header"><h2 class="modal-title h5" id="apprMT">Zatwierdzenie wersji roboczych</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>'
-      + '<div class="modal-body" id="apprBody" aria-live="polite">Ładowanie podglądu…</div>'
-      + '<div class="modal-footer" id="apprFoot"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button></div>'
-      + '<input type="hidden" name="_token" value="' + esc(token) + '"><input type="hidden" name="course" value="' + cid + '">'
-      + ids.map(function (i) { return '<input type="hidden" name="ids[]" value="' + esc(i) + '">'; }).join('')
-      + '</form></div></div>';
-    document.body.appendChild(modalEl);
-    var m = bootstrap.Modal.getOrCreateInstance(modalEl); m.show();
-    fetch('approve_drafts.php?course=' + cid + '&ids=' + ids.join(','), { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); }).then(function (d) {
-        var b = document.getElementById('apprBody'), f = document.getElementById('apprFoot');
-        if (d.error) { b.innerHTML = '<div class="alert alert-danger mb-0">' + esc(d.error) + '</div>'; return; }
-        var h = '<p>Zatwierdzasz <strong>' + d.count + '</strong> lekcji. Staną się widoczne dla kursantów i zaczną się liczyć do frekwencji i rozliczeń.</p>';
-        if (d.warnings.length) h += '<div class="alert alert-warning" role="alert"><strong><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Uwaga:</strong><ul class="mb-0">' + d.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
-        h += '<h3 class="h6">Podgląd wiadomości e-mail</h3><p class="small mb-1"><strong>Temat:</strong> ' + esc(d.subject) + '</p>'
-          + '<iframe title="Podgląd treści e-maila" sandbox="" style="width:100%;height:260px;border:1px solid #ccc;border-radius:6px;background:#fff" srcdoc="' + esc(d.html).replace(/"/g, '&quot;') + '"></iframe>';
-        h += '<h3 class="h6 mt-3">Załączniki (' + d.files.length + ')</h3>';
-        h += d.files.length ? '<ul class="small">' + d.files.map(function (x) { return '<li><i class="bi bi-paperclip me-1" aria-hidden="true"></i>' + esc(x.name) + (x.exists ? ' (' + kb(x.size) + ')' : ' — <span class="text-danger">brak pliku na dysku</span>') + '</li>'; }).join('') + '</ul>' : '<p class="small text-body-secondary">Brak plików przypisanych do tych lekcji.</p>';
-        if (d.links.length) h += '<p class="small mb-1">Linki w mailu:</p><ul class="small">' + d.links.map(function (l) { return '<li>' + esc(l.title || l.url) + '</li>'; }).join('') + '</ul>';
-        h += '<details class="small"><summary>Odbiorcy (' + d.recipients.length + ')</summary><ul class="mb-0">' + d.recipients.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul></details>';
-        h += '<div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="send_mail" value="1" id="apprSend"' + (d.recipients.length ? ' checked' : '') + '><label class="form-check-label" for="apprSend">Wyślij powyższy e-mail do kursantów (i opiekunów małoletnich)</label></div>';
-        b.innerHTML = h;
-        f.insertAdjacentHTML('beforeend', '<button type="submit" class="btn btn-success"><i class="bi bi-send me-1" aria-hidden="true"></i>Zatwierdź i wyślij</button>');
-        var sb = f.querySelector('button[type=submit]'), cb = document.getElementById('apprSend');
-        function lbl() { sb.innerHTML = '<i class="bi bi-' + (cb.checked ? 'send' : 'check2') + ' me-1" aria-hidden="true"></i>' + (cb.checked ? 'Zatwierdź i wyślij' : 'Zatwierdź bez wysyłki'); }
-        cb.addEventListener('change', lbl); lbl();
-      }).catch(function () { document.getElementById('apprBody').innerHTML = '<div class="alert alert-danger mb-0">Nie udało się pobrać podglądu.</div>'; });
-  });
+  open.addEventListener('click', function () { var ids = sel(); if (ids.length) approve(ids); });
   sync();
+
+  // Popup decyzyjny — raz na sesję przeglądarki dla danego kursu i liczby roboczych; zawsze dostępny przyciskiem w ostrzeżeniu
+  function decide() {
+    var old = document.getElementById('apprDecision'); if (old) old.remove();
+    var el = document.createElement('div');
+    el.id = 'apprDecision'; el.className = 'modal fade'; el.tabIndex = -1; el.setAttribute('aria-labelledby', 'apprDecT'); el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
+      + '<div class="modal-header"><h2 class="modal-title h5" id="apprDecT"><i class="bi bi-exclamation-triangle-fill text-warning me-2" aria-hidden="true"></i>Wersje robocze lekcji (' + total + ')</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>'
+      + '<div class="modal-body"><p>Te lekcje są jeszcze <strong>niewidoczne dla kursantów</strong> i nie liczą się do frekwencji ani rozliczeń. Co z nimi zrobić?</p>'
+      + '<div class="d-grid gap-2">'
+      + '<button type="button" class="btn btn-success" data-d="all"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Przejrzyj i zatwierdź wszystkie (podgląd maila)</button>'
+      + '<button type="button" class="btn btn-outline-primary" data-d="pick"><i class="bi bi-ui-checks me-1" aria-hidden="true"></i>Wybiorę, które zatwierdzić</button>'
+      + '<button type="button" class="btn btn-outline-danger" data-d="del"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń wszystkie wersje robocze</button>'
+      + '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zdecyduję później</button>'
+      + '</div></div></div></div>';
+    document.body.appendChild(el);
+    var m = bootstrap.Modal.getOrCreateInstance(el); m.show();
+    el.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-d]'); if (!b) return;
+      var d = b.getAttribute('data-d'); m.hide();
+      if (d === 'all') approve([].map.call(chks, function (c) { return c.value; }));
+      else if (d === 'pick') { var s = document.getElementById('apprH'); if (s) { s.scrollIntoView({ block: 'center' }); var f = chks[0]; if (f) f.focus(); } }
+      else if (d === 'del' && confirm('Usunąć WSZYSTKIE wersje robocze (' + total + ') tego kursu? Tej operacji nie można cofnąć.')) document.getElementById('apprDelForm').submit();
+    });
+  }
+  document.getElementById('apprDecide').addEventListener('click', decide);
+  var key = 'dydApprDecision:' + cid + ':' + total;
+  try { if (!sessionStorage.getItem(key)) { sessionStorage.setItem(key, '1'); window.addEventListener('load', function () { setTimeout(decide, 400); }); } } catch (e) { window.addEventListener('load', function () { setTimeout(decide, 400); }); }
+})();
+</script>
+<?php endif; ?>
+<?php if ($cur_course): // Masowa zmiana parametrów terminów ?>
+<?php $_mm_rooms = pl_rooms_list(['is_active' => 1]); $_mm_staff = dyd_is_staff(); $_mm_instrs = $_mm_staff ? k30_ti_instructors() : []; ?>
+<details class="card mb-3" id="mmBox">
+  <summary class="card-header fw-semibold" style="cursor:pointer"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Masowa zmiana typu i parametrów terminów</summary>
+  <form class="card-body" id="mmForm" onsubmit="return false">
+    <fieldset class="mb-3">
+      <legend class="h6">1. Których lekcji dotyczy zmiana (tylko nadchodzące, niezakończone)</legend>
+      <div class="row g-2">
+        <div class="col-6 col-md-3"><label class="form-label small" for="mmFrom">Od dnia</label><input class="form-control form-control-sm" type="date" id="mmFrom" name="from" value="<?= date('Y-m-d') ?>"></div>
+        <div class="col-6 col-md-3"><label class="form-label small" for="mmTo">Do dnia</label><input class="form-control form-control-sm" type="date" id="mmTo" name="to" value="<?= date('Y-m-d', strtotime('+90 days')) ?>"></div>
+        <div class="col-6 col-md-3"><label class="form-label small" for="mmOm">Obecna forma</label>
+          <select class="form-select form-select-sm" id="mmOm" name="only_method"><option value="any">dowolna</option><option value="none">nie wybrano</option><option value="stacjonarna">stacjonarna</option><option value="zdalna_zoom">zdalna — Zoom</option><option value="zdalna_inne">zdalna — inna</option></select></div>
+        <div class="col-6 col-md-3"><label class="form-label small" for="mmOs">Obecny typ terminu</label>
+          <select class="form-select form-select-sm" id="mmOs" name="only_status"><option value="any">dowolny</option><option value="draft">wersja robocza</option><option value="reserved">rezerwacja</option><option value="planned">zaplanowana</option></select></div>
+      </div>
+    </fieldset>
+    <fieldset class="mb-3">
+      <legend class="h6">2. Co zmienić (zaznacz pola, które mają się zmienić)</legend>
+      <?php
+      $_mm_row = function (string $f, string $label, string $input) {
+          echo '<div class="row g-2 align-items-center mb-2"><div class="col-12 col-md-4"><div class="form-check"><input class="form-check-input mm-chg" type="checkbox" name="chg_' . $f . '" value="1" id="mmChg_' . $f . '" data-f="' . $f . '"><label class="form-check-label" for="mmChg_' . $f . '">' . $label . '</label></div></div><div class="col-12 col-md-8">' . $input . '</div></div>';
+      };
+      $_mm_opts = fn(array $m) => implode('', array_map(fn($k, $v) => '<option value="' . h($k) . '">' . h($v) . '</option>', array_keys($m), $m));
+      $_mm_room_opts = '<option value="0">— brak sali —</option>' . implode('', array_map(fn($r) => '<option value="' . (int)$r['id'] . '">' . h($r['name']) . '</option>', $_mm_rooms));
+      $_mm_row('status', 'Typ terminu', '<select class="form-select form-select-sm mm-val" name="val_status" aria-label="Nowy typ terminu">' . $_mm_opts(TI_MM_STATUSES) . '</select>');
+      $_mm_row('lesson_method', 'Forma zajęć', '<select class="form-select form-select-sm mm-val" name="val_lesson_method" aria-label="Nowa forma zajęć">' . $_mm_opts(TI_MM_METHODS) . '</select>');
+      $_mm_row('meeting_url', 'Link do spotkania', '<input class="form-control form-control-sm mm-val" type="url" name="val_meeting_url" placeholder="https://… (puste = wyczyść)" aria-label="Link do spotkania">');
+      $_mm_row('room_id', 'Sala', '<select class="form-select form-select-sm mm-val" name="val_room_id" aria-label="Nowa sala">' . $_mm_room_opts . '</select>');
+      $_mm_row('time_from', 'Godzina rozpoczęcia', '<input class="form-control form-control-sm mm-val" type="time" name="val_time_from" aria-label="Nowa godzina rozpoczęcia">');
+      $_mm_row('time_to', 'Godzina zakończenia', '<input class="form-control form-control-sm mm-val" type="time" name="val_time_to" aria-label="Nowa godzina zakończenia">');
+      $_mm_row('shift_days', 'Przesuń daty o (dni)', '<input class="form-control form-control-sm mm-val" type="number" name="val_shift_days" value="7" min="-365" max="365" aria-label="Przesunięcie dat w dniach (ujemne = wstecz)">');
+      $_mm_row('topic', 'Temat', '<input class="form-control form-control-sm mm-val" type="text" name="val_topic" maxlength="300" placeholder="puste = wyczyść" aria-label="Nowy temat">');
+      $_mm_row('notes', 'Notatki', '<input class="form-control form-control-sm mm-val" type="text" name="val_notes" maxlength="2000" placeholder="puste = wyczyść" aria-label="Nowe notatki">');
+      $_mm_row('has_homework', 'Zadanie domowe', '<select class="form-select form-select-sm mm-val" name="val_has_homework" aria-label="Zadanie domowe"><option value="1">tak</option><option value="0">nie</option></select>');
+      $_mm_row('self_prep_remote', 'Praca własna zdalnie', '<select class="form-select form-select-sm mm-val" name="val_self_prep_remote" aria-label="Praca własna zdalnie"><option value="1">tak</option><option value="0">nie</option></select>');
+      $_mm_row('date_flag', 'Pewność terminu', '<select class="form-select form-select-sm mm-val" name="val_date_flag" aria-label="Pewność terminu">' . implode('', array_map(fn($k, $v) => '<option value="' . h($k) . '">' . h($v['label']) . '</option>', array_keys(K30_TI_DATE_FLAGS), K30_TI_DATE_FLAGS)) . '</select>');
+      if ($_mm_staff) $_mm_row('instructor_id', 'Prowadzący (zastępstwo)', '<select class="form-select form-select-sm mm-val" name="val_instructor_id" aria-label="Prowadzący"><option value="0">— domyślny kursu —</option>' . implode('', array_map(fn($i) => '<option value="' . (int)$i['id'] . '">' . h($i['name']) . '</option>', $_mm_instrs)) . '</select>');
+      ?>
+    </fieldset>
+    <button type="button" class="btn btn-primary" id="mmPreview"><i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd i zatwierdzenie zmiany…</button>
+    <span class="small text-body-secondary ms-2">Przed zapisem zobaczysz listę terminów, ostrzeżenia (kolizje, Zoom, brak linku) oraz podgląd maila do kursantów z harmonogramem w załączniku.</span>
+  </form>
+</details>
+<script src="../assets/dydApprovalModal.js?v=<?= (int)@filemtime(__DIR__ . '/../assets/dydApprovalModal.js') ?>"></script>
+<script>
+(function () {
+  var form = document.getElementById('mmForm'); if (!form) return;
+  var cid = <?= (int)$cur_course ?>, token = <?= json_encode(dyd_token()) ?>;
+  [].forEach.call(form.querySelectorAll('.mm-val'), function (v) {   // zmiana wartości = automatyczne zaznaczenie „zmień to pole"
+    v.addEventListener('input', function () { var c = form.querySelector('.mm-chg[data-f="' + v.name.replace('val_', '') + '"]'); if (c) c.checked = true; });
+  });
+  document.getElementById('mmPreview').addEventListener('click', function () {
+    var pairs = [];
+    new FormData(form).forEach(function (val, key) {
+      var f = key.indexOf('val_') === 0 ? key.slice(4) : null;
+      if (f && !form.querySelector('.mm-chg[data-f="' + f + '"]').checked) return;   // wartości niezaznaczonych pól pomijamy
+      pairs.push([key, val]);
+    });
+    var qs = new URLSearchParams(); qs.append('course', cid); pairs.forEach(function (p) { qs.append(p[0], p[1]); });
+    dydApprovalModal({ title: 'Masowa zmiana terminów', previewUrl: 'mass_edit.php?' + qs.toString(), postUrl: 'mass_edit.php',
+      pairs: [['_token', token], ['course', cid]].concat(pairs), confirmLabel: 'Zmień i wyślij e-mail', confirmNoMailLabel: 'Zmień terminy' });
+  });
 })();
 </script>
 <?php endif; ?>
@@ -421,6 +489,7 @@ if ($_sms_enabled && $cur_course) {
                        7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
         $_last_month = null;
         foreach (array_reverse($sessions) as $s): // domyślnie od najnowszych (najbliższe/ostatnie na górze)
+          if ((string)$s['lesson_date'] === '') continue; // wersja robocza bez terminu — widoczna tylko w panelu „Wersje robocze”
           $st      = $STATUS[$s['status']] ?? $STATUS['planned'];
           $sdate   = strtotime($s['lesson_date']);
           $_mkey   = date('Y-m', $sdate);

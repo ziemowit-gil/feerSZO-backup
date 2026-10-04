@@ -843,7 +843,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (isset($_POST['notify']) && !$spr) {
                     $cn = db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id]);
                     $when = $date . ($tf !== '' ? ' o ' . $tf : '');
-                    $n = ti_lesson_sms_notify($course_id, 'Nowe zajecia: ' . ($cn['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.');
+                    $n = ti_lesson_sms_notify($course_id, 'Nowe zajecia: ' . ($cn['name'] ?? '') . ' — ' . $when . '. Szczegoly w panelu kursanta.', 'ti_lesson_added');
                     if ($n) $msg .= " Wysłano SMS: {$n}.";
                 }
                 flash_set('success', $msg);
@@ -909,7 +909,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
         }
         $sms_text = ti_build_week_sms($week_sessions);
-        $n = ti_lesson_sms_notify($course_id, $sms_text);
+        $n = ti_lesson_sms_notify($course_id, $sms_text, 'ti_week_schedule');
         flash_set(
             $n > 0 ? 'success' : 'info',
             $n > 0
@@ -1895,7 +1895,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 catch (\Throwable $ex) { $fail++; }
             }
             if ($k_ch_sms && $k_sms_on && trim((string)$r['phone']) !== '') {
-                try { sms_send(trim($r['phone']), $k_body); $ok++; }
+                try { sms_send(trim($r['phone']), $k_body, 'ti_bulk_message'); $ok++; }
                 catch (\Throwable $ex) { $fail++; }
             }
         }
