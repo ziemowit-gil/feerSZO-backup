@@ -12,12 +12,18 @@ $PAGE_TITLE = 'Ustawienia SMS';
 // ── Załaduj bieżącą konfigurację ──────────────────────────────────────────────
 $cfg = [
     'sms_enabled'      => sms_setting('sms_enabled'),
-    'sms_provider'     => sms_provider(),           // 'smsapi', 'twilio' lub 'httprequest'
+    'sms_provider'     => sms_provider(),           // klucz z sms_providers()
     'sms_fallback_provider' => sms_provider_fallback(), // '' = brak, lub jw.
     // smsapi.pl
     'sms_api_login'    => sms_setting('sms_api_login'),
     'sms_api_password' => sms_setting('sms_api_password'),
     'sms_sender_name'  => sms_setting('sms_sender_name'),
+    // SerwerSMS.pl (token i hasło to sekrety — w formularzu nie wracają, zostają zapisane, gdy pole jest puste)
+    'sms_serwersms_login'    => sms_setting('sms_serwersms_login'),
+    'sms_serwersms_password' => sms_setting('sms_serwersms_password'),
+    'sms_serwersms_sender'   => sms_setting('sms_serwersms_sender'),
+    'sms_serwersms_channel'  => sms_serwersms_channel(),
+    'sms_serwersms_api_base' => sms_setting('sms_serwersms_api_base'),
     // Twilio
     'sms_twilio_sid'   => sms_setting('sms_twilio_sid'),
     'sms_twilio_token' => sms_setting('sms_twilio_token'),
@@ -36,11 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['_action'] ?? 'save';
 
     if ($action === 'save') {
-        $provider = in_array($_POST['sms_provider'] ?? '', ['smsapi','twilio','httprequest'], true)
+        $provider = in_array($_POST['sms_provider'] ?? '', array_keys(sms_providers()), true)
                     ? $_POST['sms_provider'] : 'smsapi';
 
         // Dostawca zapasowy (fallback) — '' = brak; nie może być taki sam jak główny
-        $fallback = in_array($_POST['sms_fallback_provider'] ?? '', ['smsapi','twilio','httprequest'], true)
+        $fallback = in_array($_POST['sms_fallback_provider'] ?? '', array_keys(sms_providers()), true)
                     ? $_POST['sms_fallback_provider'] : '';
         if ($fallback === $provider) $fallback = '';
 
@@ -58,6 +64,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $save['sms_api_login']    = $api_login ?: $cfg['sms_api_login'];
         $save['sms_api_password'] = $api_pass  ?: $cfg['sms_api_password'];
         $save['sms_sender_name']  = substr(trim($_POST['sms_sender_name'] ?? 'INFO'), 0, 11);
+
+        // SerwerSMS.pl: token i hasło zostają, gdy pole puste (jak w smsapi); nadawcę i adres API wolno wyczyścić —
+        // pusty nadawca = domyślny „tte” (kanał normalny FULL), pusty adres = domyślny https://api2.serwersms.pl.
+        // Kanał: full (normalny, z nazwą nadawcy) albo eco (bez nazwy nadawcy); nazwa nadawcy zostaje zapamiętana także przy ECO
+        $save['sms_serwersms_channel']  = ($_POST['sms_serwersms_channel'] ?? '') === 'eco' ? 'eco' : 'full';
+        $save['sms_serwersms_token']    = trim($_POST['sms_serwersms_token']    ?? '') ?: sms_setting('sms_serwersms_token');
+        $save['sms_serwersms_login']    = trim($_POST['sms_serwersms_login']    ?? '') ?: $cfg['sms_serwersms_login'];
+        $save['sms_serwersms_password'] = trim($_POST['sms_serwersms_password'] ?? '') ?: $cfg['sms_serwersms_password'];
+        $save['sms_serwersms_sender']   = substr((string)preg_replace('/[^A-Za-z0-9 ._-]/', '', trim((string)($_POST['sms_serwersms_sender'] ?? ''))), 0, 11);
+        $api_base = trim((string)($_POST['sms_serwersms_api_base'] ?? ''));
+        $api_base_bad = $api_base !== '' && !preg_match('~^https://[A-Za-z0-9.-]+(:\d+)?(/\S*)?$~', $api_base);
+        $save['sms_serwersms_api_base'] = $api_base_bad ? '' : rtrim($api_base, '/');
 
         // Twilio fields (keep existing if left blank)
         $twilio_token = trim($_POST['sms_twilio_token'] ?? '');
@@ -81,7 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         log_system_action((int)current_user()['id'], 'settings_save',
             'Ustawienia SMS — dostawca: ' . $provider);
-        flash_set('success', 'Ustawienia SMS zapisane.');
+        if ($api_base_bad) flash_set('warning', 'Ustawienia SMS zapisane, ale adres API SerwerSMS pominięto — musi zaczynać się od https://.');
+        else               flash_set('success', 'Ustawienia SMS zapisane.');
         header('Location: sms_settings.php'); exit;
     }
 
@@ -131,14 +150,18 @@ include dirname(__DIR__) . '/includes/header.php';
 // Pomocnik: czy dana konfiguracja jest kompletna
 $smsapi_ok = (bool)sms_setting('sms_api_token')
           || ((bool)$cfg['sms_api_login'] && (bool)$cfg['sms_api_password']);
+$serwersms_token = sms_setting('sms_serwersms_token');
+$serwersms_ok    = (bool)$serwersms_token || ((bool)$cfg['sms_serwersms_login'] && (bool)$cfg['sms_serwersms_password']);
 $twilio_ok = $cfg['sms_twilio_sid'] && $cfg['sms_twilio_token'] && $cfg['sms_twilio_from'];
 $http_ok   = (bool)$cfg['sms_http_url'];
 $active_ok = match($cfg['sms_provider']) {
+    'serwersms'   => $serwersms_ok,
     'twilio'      => $twilio_ok,
     'httprequest' => $http_ok,
     default       => $smsapi_ok,
 };
 $provider_label = match($cfg['sms_provider']) {
+    'serwersms'   => 'SerwerSMS.pl',
     'twilio'      => 'Twilio',
     'httprequest' => 'HTTP Request',
     default       => 'smsapi.pl',
@@ -147,7 +170,7 @@ $provider_label = match($cfg['sms_provider']) {
 // Główny i zapasowy dostawca: pola konfiguracji pokazujemy dla OBU (dawniej tylko dla głównego — zapasowego nie dało się skonfigurować)
 $fb        = $cfg['sms_fallback_provider'];
 $labels    = sms_providers();
-$ready_of  = ['smsapi' => $smsapi_ok, 'twilio' => (bool)$twilio_ok, 'httprequest' => $http_ok];
+$ready_of  = ['smsapi' => $smsapi_ok, 'serwersms' => $serwersms_ok, 'twilio' => (bool)$twilio_ok, 'httprequest' => $http_ok];
 $show      = fn(string $p): bool => $cfg['sms_provider'] === $p || $fb === $p;
 $fb_valid  = $fb !== '' && $fb !== $cfg['sms_provider'];
 $fb_ready  = $fb_valid && !empty($ready_of[$fb]);
@@ -176,6 +199,7 @@ try {
 .provider-logo { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
 .logo-smsapi  { background: #e0f2fe; color: #0369a1; }
 .logo-twilio  { background: #fce7f3; color: #be185d; }
+.logo-serwersms { background: #fef3c7; color: #b45309; }
 .logo-http    { background: #f0fdf4; color: #15803d; }
 </style>
 
@@ -263,6 +287,28 @@ try {
 
     <div class="col-md-4">
       <div class="provider-card">
+        <input type="radio" name="sms_provider" id="prov_serwersms" value="serwersms"
+               <?= $cfg['sms_provider'] === 'serwersms' ? 'checked' : '' ?>
+               onchange="refreshProviders()" class="d-none">
+        <label for="prov_serwersms" class="d-flex align-items-start gap-3 w-100 mb-0">
+          <div class="provider-logo logo-serwersms"><i class="bi bi-send"></i></div>
+          <div>
+            <div class="fw-semibold">SerwerSMS.pl</div>
+            <div class="small text-muted">Polski dostawca, API v2, kanały FULL i ECO.</div>
+            <?php if ($serwersms_ok): ?>
+            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle mt-1">
+              <i class="bi bi-check-circle"></i> Skonfigurowany
+            </span>
+            <?php else: ?>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis border mt-1">Nie skonfigurowany</span>
+            <?php endif; ?>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="provider-card">
         <input type="radio" name="sms_provider" id="prov_twilio" value="twilio"
                <?= $cfg['sms_provider'] === 'twilio' ? 'checked' : '' ?>
                onchange="refreshProviders()" class="d-none">
@@ -317,13 +363,14 @@ try {
     Gdy <strong>główny</strong> operator zwróci błąd albo nie odpowie w ciągu kilkunastu sekund, system automatycznie
     ponowi wysyłkę przez operatora zapasowego. Dla kodów logowania łańcuch to:
     <strong>główny SMS → zapasowy SMS → e-mail</strong>. Każde przełączenie zapisuje się w „Ostatnich zdarzeniach” obok.
-    Zalecane u nas: główny <strong>smsapi.pl</strong>, zapasowy <strong>Twilio</strong> albo <strong>HTTP Request</strong> (brama innego polskiego operatora).
+    Zalecane u nas: główny <strong>smsapi.pl</strong>, zapasowy <strong>SerwerSMS.pl</strong>, <strong>Twilio</strong> albo <strong>HTTP Request</strong> (brama innego operatora).
   </p>
   <label class="form-label fw-semibold small" for="sms_fallback_provider">Użyj jako zapasowego</label>
   <select name="sms_fallback_provider" id="sms_fallback_provider" class="form-select form-select-sm" style="max-width:280px"
           onchange="refreshProviders()" aria-describedby="fb-help fb-note">
     <option value="">— brak (bez fallbacku) —</option>
     <option value="smsapi"      <?= $fb==='smsapi'      ? 'selected':'' ?>>smsapi.pl</option>
+    <option value="serwersms"   <?= $fb==='serwersms'   ? 'selected':'' ?>>SerwerSMS.pl</option>
     <option value="twilio"      <?= $fb==='twilio'      ? 'selected':'' ?>>Twilio</option>
     <option value="httprequest" <?= $fb==='httprequest' ? 'selected':'' ?>>HTTP Request</option>
   </select>
@@ -346,7 +393,8 @@ try {
          value="<?= h($cfg['sms_sender_name']) ?>" maxlength="11" placeholder="INFO" aria-describedby="sender-help">
   <div class="form-text" id="sender-help">
     Pojawi się zamiast numeru telefonu u odbiorcy (smsapi.pl) i w placeholderze <code>{sender}</code> bramy HTTP.
-    Twilio wysyła z numeru nadawcy z konfiguracji Twilio.
+    Twilio wysyła z numeru nadawcy z konfiguracji Twilio. SerwerSMS ma własne pole nadawcy w sekcji „Konfiguracja SerwerSMS.pl”
+    (nazwa musi być tam zarejestrowana).
   </div>
 </div>
 </div>
@@ -407,6 +455,107 @@ try {
     <div class="form-text">Hasło wysyłane jako MD5 (stare API).</div>
     <?php endif; ?>
   </div>
+    </div>
+  </details>
+</div>
+</div>
+
+<!-- ── Konfiguracja SerwerSMS.pl ──────────────────────────────────────────── -->
+<div class="card shadow-sm mb-3" id="section-serwersms"
+     <?= $show('serwersms') ? '' : 'style="display:none"' ?>>
+<div class="card-header fw-semibold d-flex align-items-center gap-2">
+  <div class="provider-logo logo-serwersms" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
+    <i class="bi bi-send"></i>
+  </div>
+  Konfiguracja SerwerSMS.pl
+  <span class="badge ms-auto fw-normal role-badge" data-provider="serwersms"></span>
+</div>
+<div class="card-body">
+  <div class="alert alert-light border small p-2 mb-3">
+    HTTPS API v2 (<a href="https://dev.serwersms.pl/https-api-v2/wprowadzenie" target="_blank" rel="noopener">dokumentacja</a>).
+    Token wygenerujesz w panelu SerwerSMS: <strong>Ustawienia interfejsów → HTTPS API → Tokeny API</strong>.
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold small" for="sms_serwersms_token">
+      Token API
+      <span class="badge bg-success ms-1 fw-normal" style="font-size:.65rem">Zalecane</span>
+    </label>
+    <input type="password" id="sms_serwersms_token" name="sms_serwersms_token" class="form-control form-control-sm font-monospace"
+           placeholder="<?= $serwersms_token ? '(zapisany — zostaw puste by nie zmieniać)' : 'Token API z panelu SerwerSMS' ?>"
+           autocomplete="new-password">
+    <?php if ($serwersms_token): ?>
+    <div class="form-text text-success"><i class="bi bi-check-circle"></i> Token API zapisany — używany w nagłówku <code>Authorization: Bearer</code>.</div>
+    <?php else: ?>
+    <div class="form-text">Bez tokenu system użyje loginu i hasła użytkownika API (poniżej).</div>
+    <?php endif; ?>
+  </div>
+
+  <details class="mb-3">
+    <summary class="text-muted small" style="cursor:pointer">
+      <i class="bi bi-chevron-right me-1"></i>Alternatywa: użytkownik API (login + hasło)
+    </summary>
+    <div class="mt-2">
+      <div class="mb-3">
+        <label class="form-label fw-semibold small" for="sms_serwersms_login">Login użytkownika API</label>
+        <input type="text" id="sms_serwersms_login" name="sms_serwersms_login" class="form-control form-control-sm font-monospace"
+               value="<?= h($cfg['sms_serwersms_login']) ?>" placeholder="np. webapi_firma" autocomplete="off">
+        <?php if ($cfg['sms_serwersms_login']): ?>
+        <div class="form-text text-success"><i class="bi bi-check-circle"></i> Login zapisany.</div>
+        <?php endif; ?>
+      </div>
+      <div class="mb-0">
+        <label class="form-label fw-semibold small" for="sms_serwersms_password">Hasło użytkownika API</label>
+        <input type="password" id="sms_serwersms_password" name="sms_serwersms_password" class="form-control form-control-sm font-monospace"
+               placeholder="<?= $cfg['sms_serwersms_password'] ? '(zapisane — zostaw puste by nie zmieniać)' : 'Hasło użytkownika API' ?>"
+               autocomplete="new-password">
+        <?php if ($cfg['sms_serwersms_password']): ?>
+        <div class="form-text text-success"><i class="bi bi-check-circle"></i> Hasło zapisane.</div>
+        <?php else: ?>
+        <div class="form-text">Użytkownika API tworzysz w panelu: <strong>Ustawienia interfejsów → HTTPS API → Użytkownicy API</strong>. To nie jest hasło do panelu.</div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </details>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold small" for="sms_serwersms_channel">Kanał wysyłki</label>
+    <select id="sms_serwersms_channel" name="sms_serwersms_channel" class="form-select form-select-sm" style="max-width:340px"
+            aria-describedby="serwersms-channel-help">
+      <option value="full" <?= $cfg['sms_serwersms_channel'] === 'full' ? 'selected' : '' ?>>Normalny (FULL) — z nazwą nadawcy</option>
+      <option value="eco"  <?= $cfg['sms_serwersms_channel'] === 'eco'  ? 'selected' : '' ?>>ECO — bez własnej nazwy nadawcy</option>
+    </select>
+    <div class="form-text" id="serwersms-channel-help">
+      <strong>Normalny (FULL)</strong> — SMS z nazwą nadawcy (poniżej), polskie znaki w UTF (70 znaków w SMS-ie, bez nich 160).
+      <strong>ECO</strong> — tańszy kanał bez własnej nazwy nadawcy; nie obsługuje UTF, więc system zamienia polskie znaki na ASCII.
+      To ustawienie domyślne dla wszystkich SMS-ów; nadawcę wybranego rodzaju SMS można ustawić osobno.
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold small" for="sms_serwersms_sender">
+      Nazwa nadawcy w SerwerSMS <span class="text-muted fw-normal">(kanał normalny; maks. 11 znaków; puste = <code>tte</code>)</span>
+    </label>
+    <input type="text" id="sms_serwersms_sender" name="sms_serwersms_sender" class="form-control form-control-sm" style="max-width:280px"
+           value="<?= h($cfg['sms_serwersms_sender']) ?>" maxlength="11" placeholder="tte" aria-describedby="serwersms-sender-help">
+    <div class="form-text" id="serwersms-sender-help">
+      Używana w kanale normalnym (FULL) — domyślnie <code>tte</code>. Nazwa musi być wcześniej zarejestrowana i zatwierdzona
+      w panelu SerwerSMS, inaczej serwis odrzuci wiadomość (błąd 4402). Nie używa wspólnej „Nazwy nadawcy” z góry strony.
+    </div>
+  </div>
+
+  <details>
+    <summary class="text-muted small" style="cursor:pointer">
+      <i class="bi bi-chevron-right me-1"></i>Zaawansowane: adres API
+    </summary>
+    <div class="mt-2">
+      <label class="form-label fw-semibold small" for="sms_serwersms_api_base">Adres API <span class="text-muted fw-normal">(puste = domyślny)</span></label>
+      <input type="text" id="sms_serwersms_api_base" name="sms_serwersms_api_base" class="form-control form-control-sm font-monospace"
+             value="<?= h($cfg['sms_serwersms_api_base']) ?>" placeholder="https://api2.serwersms.pl" aria-describedby="serwersms-base-help">
+      <div class="form-text" id="serwersms-base-help">
+        Domyślnie <code>https://api2.serwersms.pl</code>. Dokumentacja podaje też zapasowy host <code>https://s1api2.serwersms.pl</code>.
+        Adres musi zaczynać się od <code>https://</code>.
+      </div>
     </div>
   </details>
 </div>
@@ -619,6 +768,20 @@ try {
 
   <hr class="my-2">
 
+  <!-- SerwerSMS status -->
+  <div class="d-flex justify-content-between align-items-center mb-1">
+    <span class="text-muted">SerwerSMS.pl — dostęp API</span>
+    <span class="badge <?= $serwersms_ok ? 'bg-success' : 'bg-secondary' ?>">
+      <?= $serwersms_token ? 'Token' : ($serwersms_ok ? 'Login + hasło' : 'Brak') ?>
+    </span>
+  </div>
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <span class="text-muted">SerwerSMS.pl — nadawca</span>
+    <span class="fw-semibold"><?php if (sms_serwersms_sender() === ''): ?>ECO <span class="text-muted fw-normal">(bez nazwy)</span><?php else: ?><?= h(sms_serwersms_sender()) ?> <span class="text-muted fw-normal">(FULL)</span><?php endif; ?></span>
+  </div>
+
+  <hr class="my-2">
+
   <!-- Twilio status -->
   <div class="d-flex justify-content-between align-items-center mb-1">
     <span class="text-muted">Twilio — Account SID</span>
@@ -703,26 +866,31 @@ try {
 <div class="card-body p-0">
 <table class="table table-sm mb-0 small">
   <thead class="table-light">
-    <tr><th></th><th class="text-center">smsapi.pl</th><th class="text-center">Twilio</th><th class="text-center">HTTP</th></tr>
+    <tr><th></th><th class="text-center">smsapi.pl</th><th class="text-center">SerwerSMS</th><th class="text-center">Twilio</th><th class="text-center">HTTP</th></tr>
   </thead>
   <tbody>
     <tr><td class="text-muted">Zasięg</td>
+        <td class="text-center">Polska</td>
         <td class="text-center">Polska</td>
         <td class="text-center">Globalny</td>
         <td class="text-center">Własny</td></tr>
     <tr><td class="text-muted">Cena (SMS do PL)</td>
         <td class="text-center">~0,07 zł</td>
+        <td class="text-center">wg cennika</td>
         <td class="text-center">~0,05 $</td>
         <td class="text-center">wg dostawcy</td></tr>
     <tr><td class="text-muted">Nazwa nadawcy</td>
         <td class="text-center"><i class="bi bi-check text-success"></i></td>
+        <td class="text-center"><i class="bi bi-check text-success"></i> FULL / ECO</td>
         <td class="text-center"><i class="bi bi-x text-muted"></i> nr tel</td>
         <td class="text-center">zależy</td></tr>
     <tr><td class="text-muted">Trial (darmowy)</td>
         <td class="text-center"><i class="bi bi-x text-muted"></i></td>
+        <td class="text-center">zależy</td>
         <td class="text-center"><i class="bi bi-check text-success"></i></td>
         <td class="text-center">zależy</td></tr>
     <tr><td class="text-muted">Konfiguracja</td>
+        <td class="text-center">1 token</td>
         <td class="text-center">1 token</td>
         <td class="text-center">SID + token + numer</td>
         <td class="text-center">URL szablonu</td></tr>
@@ -746,7 +914,7 @@ try {
     <li>Włącz przełącznik <em>Logowanie SMS aktywne</em>.</li>
     <li><strong>Dostawca SMS = smsapi.pl</strong> → wpisz <em>Token OAuth</em> i <em>Nazwę nadawcy</em>.</li>
     <li><strong>Dostawca zapasowy = Twilio</strong> (sekcja „Dostawca zapasowy”) — zaraz pod nią pojawi się konfiguracja Twilio:
-        Account SID, Auth Token, numer From (E.164, <code>+48…</code>). Zamiast Twilio może to być brama innego operatora (HTTP Request).</li>
+        Account SID, Auth Token, numer From (E.164, <code>+48…</code>). Zamiast Twilio może to być SerwerSMS.pl (token API) albo brama innego operatora (HTTP Request).</li>
     <li>Zapisz i sprawdź <em>testem</em>: „Tylko przez zapasowego” pokazuje, czy drugi operator działa, a „łańcuch” — kto wysłał jak w produkcji.
         Nie trzeba niczego „psuć” w głównym.</li>
   </ol>
@@ -776,12 +944,12 @@ function refreshProviders() {
     var main = (document.querySelector('[name="sms_provider"]:checked') || {}).value || '';
     var fbSel = document.getElementById('sms_fallback_provider');
     var fb = fbSel ? fbSel.value : '';
-    var names = {smsapi: 'smsapi.pl', twilio: 'Twilio', httprequest: 'HTTP Request'};
+    var names = {smsapi: 'smsapi.pl', serwersms: 'SerwerSMS.pl', twilio: 'Twilio', httprequest: 'HTTP Request'};
     if (fbSel) {
         Array.prototype.forEach.call(fbSel.options, function (o) { o.disabled = (o.value !== '' && o.value === main); });
         if (fb === main) { fbSel.value = ''; fb = ''; }
     }
-    ['smsapi', 'twilio', 'httprequest'].forEach(function (p) {
+    ['smsapi', 'serwersms', 'twilio', 'httprequest'].forEach(function (p) {
         var sec = document.getElementById('section-' + p);
         if (sec) sec.style.display = (p === main || p === fb) ? '' : 'none';
     });

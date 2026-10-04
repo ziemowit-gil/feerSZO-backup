@@ -1,7 +1,7 @@
 <?php
 /**
- * SMS integration — obsługuje smsapi.pl (SDK OAuth), Twilio i HTTP Request (dowolna brama przez URL).
- * Dostawca główny: ustawienie `sms_provider` ('smsapi' | 'twilio' | 'httprequest').
+ * SMS integration — obsługuje smsapi.pl (SDK OAuth), SerwerSMS.pl (HTTPS API v2), Twilio i HTTP Request (dowolna brama przez URL).
+ * Dostawca główny: ustawienie `sms_provider` ('smsapi' | 'serwersms' | 'twilio' | 'httprequest').
  * Dostawca zapasowy (inny operator): `sms_fallback_provider` — gdy główny zawiedzie, system
  *   automatycznie ponawia wysyłkę przez niego (np. główny smsapi.pl → zapasowy Twilio albo brama HTTP).
  * Łańcuch wysyłki (sms_provider_chain) składa się wyłącznie z dostawców z KOMPLETNĄ konfiguracją:
@@ -12,6 +12,8 @@
  * numer zamaskowany, adresy z kluczami API wycięte z komunikatów błędów).
  *
  * SMSAPI.pl: preferowany token OAuth (sms_api_token); fallback login+hasło MD5.
+ * SerwerSMS.pl: token API (sms_serwersms_token) albo użytkownik API (login+hasło). Kanał: normalny (FULL, domyślny) z nazwą nadawcy
+ *   sms_serwersms_sender — domyślnie „tte”, zarejestrowaną w panelu SerwerSMS — albo ECO (bez nazwy nadawcy): sms_serwersms_channel.
  * Limity czasu: SDK smsapi (cURL) 5 s połączenie / 20 s całość, HTTP 8 s połączenie / 15 s odpowiedź — bez nich
  * niedostępny operator blokowałby wysyłkę na minuty i do zapasowego nigdy by nie doszło.
  */
@@ -42,7 +44,7 @@ function sms_is_enabled(): bool {
 
 /** Obsługiwani dostawcy: klucz => etykieta. */
 function sms_providers(): array {
-    return ['smsapi' => 'smsapi.pl', 'twilio' => 'Twilio', 'httprequest' => 'HTTP Request'];
+    return ['smsapi' => 'smsapi.pl', 'serwersms' => 'SerwerSMS.pl', 'twilio' => 'Twilio', 'httprequest' => 'HTTP Request'];
 }
 
 function sms_provider_label(string $provider): string {
@@ -58,6 +60,8 @@ function sms_provider_ready(string $provider): bool {
         'httprequest' => sms_setting('sms_http_url') !== '',
         'smsapi'      => sms_setting('sms_api_token') !== ''
                       || (sms_setting('sms_api_login') !== '' && sms_setting('sms_api_password') !== ''),
+        'serwersms'   => sms_setting('sms_serwersms_token') !== ''
+                      || (sms_setting('sms_serwersms_login') !== '' && sms_setting('sms_serwersms_password') !== ''),
         default       => false,
     };
 }
@@ -71,10 +75,10 @@ function sms_channel_ready(): bool {
     return sms_provider_chain() !== [];
 }
 
-/** Aktywny dostawca: 'smsapi' (domyślnie), 'twilio' lub 'httprequest' */
+/** Aktywny dostawca: dowolny z sms_providers(), domyślnie 'smsapi'. */
 function sms_provider(): string {
     $p = sms_setting('sms_provider');
-    return in_array($p, ['smsapi', 'twilio', 'httprequest'], true) ? $p : 'smsapi';
+    return isset(sms_providers()[$p]) ? $p : 'smsapi';
 }
 
 /**
@@ -83,7 +87,7 @@ function sms_provider(): string {
  */
 function sms_provider_fallback(): string {
     $p = sms_setting('sms_fallback_provider');
-    return in_array($p, ['smsapi', 'twilio', 'httprequest'], true) ? $p : '';
+    return isset(sms_providers()[$p]) ? $p : '';
 }
 
 /**
@@ -100,10 +104,30 @@ function sms_provider_chain(): array {
     return $chain;
 }
 
+/**
+ * Kanał SerwerSMS (ustawienie `sms_serwersms_channel`): 'full' — normalny, z nazwą nadawcy (domyślnie) albo 'eco' — bez własnej
+ * nazwy nadawcy.
+ */
+function sms_serwersms_channel(): string {
+    return sms_setting('sms_serwersms_channel') === 'eco' ? 'eco' : 'full';
+}
+
+/**
+ * Nadawca SerwerSMS wysyłki domyślnej: nazwa z ustawienia `sms_serwersms_sender` (puste → „tte”) w kanale normalnym,
+ * w kanale ECO '' (bez nazwy nadawcy).
+ */
+function sms_serwersms_sender(): string {
+    if (sms_serwersms_channel() === 'eco') return '';
+    $s = trim(sms_setting('sms_serwersms_sender'));
+    return $s !== '' ? $s : 'tte';
+}
+
 /** Router: wyślij wiadomość przez wskazanego dostawcę. Rzuca wyjątek przy błędzie. */
 function _sms_dispatch(string $provider, string $phone, string $message): void {
     if ($provider === 'twilio') {
         _sms_send_twilio($phone, $message);
+    } elseif ($provider === 'serwersms') {
+        _sms_send_serwersms($phone, $message);
     } elseif ($provider === 'httprequest') {
         _sms_send_httprequest($phone, $message);
     } else {
@@ -118,6 +142,23 @@ function sms_normalize_phone(string $phone): string {
     $p = preg_replace('/\D/', '', $phone);
     if (strlen($p) === 9) $p = '48' . $p;
     return $p;
+}
+
+/**
+ * Tekst do SMS-a w samym ASCII: polskie litery → bez ogonków, typograficzne cudzysłowy/myślniki/wielokropek → zwykłe znaki,
+ * reszta spoza ASCII przez iconv TRANSLIT, a to, czego nie da się przełożyć, jest pomijane lub zamieniane na „?”.
+ * Dla kanałów bez UTF (SerwerSMS ECO) — i krótsze wiadomości (160 znaków w segmencie zamiast 70).
+ */
+function sms_ascii(string $s): string {
+    $s = strtr($s, ['ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z',
+                    'Ą' => 'A', 'Ć' => 'C', 'Ę' => 'E', 'Ł' => 'L', 'Ń' => 'N', 'Ó' => 'O', 'Ś' => 'S', 'Ź' => 'Z', 'Ż' => 'Z',
+                    '„' => '"', '”' => '"', '“' => '"', '’' => "'", '‘' => "'", '–' => '-', '—' => '-', '…' => '...', "\u{00A0}" => ' ']);
+    if (preg_match('/[^\x00-\x7F]/', $s)) {
+        $t = function_exists('iconv') ? @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) : false;
+        $s = $t !== false ? $t : $s;
+        $s = (string)preg_replace('/[^\x00-\x7F]/', '?', $s);       // co zostało spoza ASCII — nie może wyjść do bramki
+    }
+    return $s;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,7 +202,7 @@ function sms_log_event(string $event, string $phone, array $errors, string $used
 /**
  * Wyślij SMS: najpierw przez głównego dostawcę, a gdy zawiedzie — przez zapasowego (innego operatora).
  * Dostawcy bez kompletnej konfiguracji są pomijani. Zwraca klucz dostawcy, który wysłał
- * ('smsapi' | 'twilio' | 'httprequest'), albo '' gdy SMS świadomie nie wysłano (kursant wirtualny).
+ * ('smsapi' | 'serwersms' | 'twilio' | 'httprequest'), albo '' gdy SMS świadomie nie wysłano (kursant wirtualny).
  * Rzuca wyjątek dopiero, gdy zawiodą wszyscy: przy jednym dostawcy — jego oryginalny błąd, przy dwóch —
  * RuntimeException z komunikatami obu. Gdy nie skonfigurowano żadnego — błąd konfiguracji głównego.
  */
@@ -320,8 +361,10 @@ function sms_find_user_by_phone(string $phone): ?array {
  * Pomocnik: wysyła żądanie HTTP i zwraca [body, http_code].
  * Limity: 8 s na połączenie (default_socket_timeout — strumienie HTTP nie mają osobnego limitu połączenia) i 15 s
  * na odpowiedź. Komunikat błędu nie zawiera adresu — w zapytaniu są klucze API, numer i treść SMS.
+ * $verify_tls: sprawdza certyfikat serwera (łańcuch CA i nazwę hosta). Domyślnie wyłączone — tak działają od początku smsapi.pl,
+ * Twilio i brama HTTP; włącza je SerwerSMS, do którego idzie token API.
  */
-function _sms_http(string $url, string $method, array $headers, string $body = ''): array {
+function _sms_http(string $url, string $method, array $headers, string $body = '', bool $verify_tls = false): array {
     $ctx = stream_context_create([
         'http' => [
             'method'        => $method,
@@ -331,15 +374,20 @@ function _sms_http(string $url, string $method, array $headers, string $body = '
             'timeout'       => 15,
         ],
         'ssl' => [
-            'verify_peer'      => false,
-            'verify_peer_name' => false,
+            'verify_peer'      => $verify_tls,
+            'verify_peer_name' => $verify_tls,
         ],
     ]);
     $old_timeout = ini_set('default_socket_timeout', '8');
+    // Tryb ścisły zbiera WSZYSTKIE ostrzeżenia strumienia: przy odrzuceniu certyfikatu PHP kończy ogólnym „Failed to open stream”,
+    // a powód („certificate verify failed”) jest we wcześniejszym ostrzeżeniu, którego error_get_last() już nie widzi.
+    $warns = [];
+    if ($verify_tls) set_error_handler(function (int $no, string $str) use (&$warns): bool { $warns[] = $str; return true; });
     try {
-        $resp = @file_get_contents($url, false, $ctx);
-        $err  = $resp === false ? error_get_last() : null;
+        $resp = $verify_tls ? file_get_contents($url, false, $ctx) : @file_get_contents($url, false, $ctx);
+        $err  = $resp === false ? ($verify_tls ? ['message' => implode(' ', $warns)] : error_get_last()) : null;
     } finally {
+        if ($verify_tls) restore_error_handler();
         if ($old_timeout !== false) ini_set('default_socket_timeout', (string)$old_timeout);
     }
     if ($resp === false) {
@@ -461,6 +509,84 @@ function _sms_send_twilio(string $phone, string $message): void {
     if (!empty($data['status']) && in_array($data['status'], ['failed', 'undelivered'], true)) {
         throw new RuntimeException('Twilio: wiadomość niedostarczona (status: ' . $data['status'] . ')');
     }
+}
+
+/**
+ * SerwerSMS.pl — HTTPS API v2 (https://dev.serwersms.pl/https-api-v2/wprowadzenie): POST {api}/messages/send_sms.json.
+ *
+ * Autoryzacja: token API w nagłówku `Authorization: Bearer` (zalecany; panel SerwerSMS → Ustawienia interfejsów → HTTPS API →
+ * Tokeny API) albo użytkownik API w polach username/password; token ma pierwszeństwo. Certyfikat serwera jest weryfikowany —
+ * do SerwerSMS idzie token, a PHP bez pakietu CA zgłasza to osobnym, czytelnym błędem.
+ *
+ * Kanał domyślny: normalny, FULL — z nazwą nadawcy (sms_serwersms_sender(), domyślnie „tte”; musi być zarejestrowana i zatwierdzona
+ * w panelu SerwerSMS); tekst z polskimi znakami wychodzi jako UTF (utf=1; SMS ma wtedy 70 znaków), czysty ASCII — zwykłym
+ * kodowaniem (160). Kanał ECO (sms_serwersms_channel = eco) idzie bez pola `sender` i bez UTF — tekst zamieniamy na ASCII.
+ * Nigdy nie wysyłamy `speed` (kanał jakościowy jest płatny dodatkowo).
+ *
+ * Powodzenie: {"success":true,"queued":N} z N ≥ 1. Błąd API ma postać {"error":{"code","type","message"}} i bywa zwracany
+ * z HTTP 200, więc treść sprawdzamy zawsze (niezależnie od statusu). `details=1` daje powód odrzucenia numeru (np. 3103).
+ * Adres API przestawia ustawienie `sms_serwersms_api_base` (dokumentacja podaje zapasowy host https://s1api2.serwersms.pl).
+ */
+function _sms_send_serwersms(string $phone, string $message): void {
+    $token  = trim(sms_setting('sms_serwersms_token'));
+    $login  = trim(sms_setting('sms_serwersms_login'));
+    $pass   = sms_setting('sms_serwersms_password');
+    $sender = sms_serwersms_sender();
+
+    if ($token === '' && ($login === '' || $pass === '')) {
+        throw new RuntimeException('Brak tokenu API ani loginu i hasła użytkownika API SerwerSMS. Skonfiguruj w: Administracja → Ustawienia SMS.');
+    }
+    $base = rtrim(trim(sms_setting('sms_serwersms_api_base')) ?: 'https://api2.serwersms.pl', '/');
+
+    $eco    = $sender === '';
+    $text   = $message;
+    $fields = ['phone' => '+' . ltrim($phone, '+'), 'details' => '1'];
+    if (preg_match('/[^\x00-\x7F]/', $text)) {                   // znaki spoza ASCII (np. polskie litery): UTF tylko w FULL, ECO → ASCII
+        if ($eco) $text = sms_ascii($text); else $fields['utf'] = '1';
+    }
+    $fields['text'] = $text;
+    if (!$eco) $fields['sender'] = $sender;
+
+    $headers = ['Content-Type: application/x-www-form-urlencoded', 'Accept: application/json'];
+    if ($token !== '') {
+        $headers[] = 'Authorization: Bearer ' . $token;
+    } else {
+        $fields['username'] = $login;
+        $fields['password'] = $pass;
+    }
+    $body      = http_build_query($fields);
+    $headers[] = 'Content-Length: ' . strlen($body);
+
+    try {
+        [$resp, $code] = _sms_http($base . '/messages/send_sms.json', 'POST', $headers, $body, true);
+    } catch (RuntimeException $e) {
+        if (stripos($e->getMessage(), 'SSL') !== false || stripos($e->getMessage(), 'certificate') !== false) {
+            throw new RuntimeException('Błąd SerwerSMS: nie udało się zweryfikować certyfikatu TLS serwera API (PHP nie ma pakietu certyfikatów CA albo '
+                . 'połączenie jest podmieniane) — ustaw openssl.cafile w php.ini. Szczegóły: ' . $e->getMessage());
+        }
+        throw $e;
+    }
+
+    $data = json_decode($resp, true);
+    if (!is_array($data)) {
+        throw new RuntimeException("Błąd SerwerSMS: HTTP {$code}, odpowiedź: " . sms_scrub(mb_substr($resp, 0, 120)));
+    }
+    $err = $data['error'] ?? null;
+    if ($err === null && !empty($data['success']) && (int)($data['queued'] ?? 0) >= 1) return;          // przyjęte do kolejki
+
+    if ($err === null) {                                    // bez błędu API, ale nic nie weszło do kolejki — powód podaje pierwsza pozycja
+        $item = is_array($data['items'][0] ?? null) ? $data['items'][0] : [];
+        $err  = ['code' => $item['error_code'] ?? null, 'message' => $item['error_message'] ?? 'wiadomość nie trafiła do kolejki'];
+    }
+    $ecode = is_array($err) ? ($err['code'] ?? null) : null;
+    $emsg  = trim((string)(is_array($err) ? ($err['message'] ?? '') : $err));
+    $hint  = match ((int)$ecode) {
+        1003, 1009 => ' Adres IP serwera nie jest dopuszczony — sprawdź ograniczenia IP w ustawieniach HTTPS API w panelu SerwerSMS.',
+        3000, 3002 => ' Wyczerpany limit wiadomości na koncie SerwerSMS — doładuj konto.',
+        4402       => " Nazwa nadawcy „{$sender}” nie jest zarejestrowana w SerwerSMS — zarejestruj ją w panelu albo wpisz inną, zarejestrowaną, w Ustawieniach SMS (albo przełącz kanał na ECO).",
+        default    => '',
+    };
+    throw new RuntimeException('Błąd SerwerSMS: ' . ($emsg !== '' ? $emsg : "HTTP {$code}") . ($ecode !== null && $ecode !== '' ? " (kod {$ecode})" : '') . '.' . $hint);
 }
 
 /**
