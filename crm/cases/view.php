@@ -9,6 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm.php';
 require_once dirname(dirname(__DIR__)) . '/includes/crm_case_extras.php';
 require_once dirname(dirname(__DIR__)) . '/includes/letters.php';
+require_once dirname(dirname(__DIR__)) . '/includes/m365.php';   // m365_setting() w zakładce „Pliki” (crm/includes/case/tabs_work.php) — bez tego fatal przy renderze
 
 require_login();
 require_module_enabled('crm_enabled', 'Moduł CRM');
