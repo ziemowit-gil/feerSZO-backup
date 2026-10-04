@@ -162,13 +162,13 @@ if (!isset($case)) { http_response_code(400); exit; }
             <?php if ($l['plik']): ?>
             <a href="<?= h(letter_file_url($l['plik'])) ?>" target="_blank" rel="noopener"
                class="btn btn-sm btn-outline-primary py-0 px-2"
-               aria-label="Pobierz załącznik: <?= h($l['temat'] ?: $l['typ']) ?>">
+               aria-label="Pobierz załącznik: <?= h($l['tytul'] ?: $lt['label']) ?>">
               <i class="bi bi-download" aria-hidden="true"></i>
             </a>
             <?php endif; ?>
             <?php if ($can_write): ?>
             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
-                    aria-label="Edytuj pismo: <?= h($l['temat'] ?: $l['typ']) ?>"
+                    aria-label="Edytuj pismo: <?= h($l['tytul'] ?: $lt['label']) ?>"
                     onclick="pismoEdit(<?= $ldata ?>)">
               <i class="bi bi-pencil" aria-hidden="true"></i>
             </button>
@@ -179,7 +179,7 @@ if (!isset($case)) { http_response_code(400); exit; }
               <input type="hidden" name="_action" value="delete_pismo">
               <input type="hidden" name="letter_id" value="<?= (int)$l['id'] ?>">
               <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"
-                      aria-label="Usuń pismo: <?= h($l['temat'] ?: $l['typ']) ?>">
+                      aria-label="Usuń pismo: <?= h($l['tytul'] ?: $lt['label']) ?>">
                 <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </form>
