@@ -345,6 +345,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 <option value="month">Miesiąc (bieżący)</option>
                 <option value="quarter">3 miesiące (od bieżącego)</option>
               </select>
+              <select name="status" class="form-select form-select-sm w-auto" aria-label="Status rezerwacji">
+                <option value="all">Wszystkie statusy</option>
+                <option value="do_rezerwacji">Robocze (do rezerwacji)</option>
+                <option value="potwierdzone">Zatwierdzone (potwierdzone)</option>
+              </select>
               <button class="btn btn-sm btn-outline-primary" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
               <button class="btn btn-sm btn-primary" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
               <button class="btn btn-sm btn-outline-secondary" formaction="sale_rezerwacje_export.php" name="format" value="docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</button>
@@ -373,6 +378,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 <option value="week">Tydzień (bieżący)</option>
                 <option value="month">Miesiąc (bieżący)</option>
                 <option value="quarter">3 miesiące (od bieżącego)</option>
+              </select>
+              <select name="status" class="form-select form-select-sm w-auto" aria-label="Status rezerwacji">
+                <option value="all">Wszystkie statusy</option>
+                <option value="do_rezerwacji">Robocze (do rezerwacji)</option>
+                <option value="potwierdzone">Zatwierdzone (potwierdzone)</option>
               </select>
               <button class="btn btn-sm btn-outline-primary" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
               <button class="btn btn-sm btn-primary" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>

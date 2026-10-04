@@ -28,10 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'toggle_r
 $range = in_array($_GET['range'] ?? '', ['week', 'month', 'quarter'], true) ? $_GET['range'] : 'week';
 $w = (string)($_GET['w'] ?? '');
 $view = ($_GET['view'] ?? '') === 'operator' ? 'operator' : 'day';
+$status = ti_room_reservation_status_param((string)($_GET['status'] ?? ''));
 $RR = ti_room_reservation_range($w, $range);
 $from = $RR['from']; $to = $RR['to']; $prev = $RR['prev']; $next = $RR['next']; $range_label = $RR['label'];
 
 $by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from, $to) : ti_room_reservation_report($from, $to);
+$by_group = ti_room_reservation_filter_status($by_group, $status);
 $total  = array_sum(array_map('count', $by_group));
 $pending = 0;
 foreach ($by_group as $rows) foreach ($rows as $r) if ($r['room_reservation_status'] !== 'potwierdzone') $pending++;
@@ -56,27 +58,32 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <h1 class="h4 fw-bold mb-0"><i class="bi bi-clipboard-check text-primary me-2" aria-hidden="true"></i>Wykaz sal do rezerwacji</h1>
   <div class="ms-auto d-flex gap-2 align-items-center flex-wrap">
     <div class="btn-group btn-group-sm" role="group" aria-label="Widok">
-      <a href="?range=<?= h($range) ?>&w=<?= h($from) ?>&view=day" class="btn <?= $view==='day' ? 'btn-primary' : 'btn-outline-primary' ?>">Wg dnia</a>
-      <a href="?range=<?= h($range) ?>&w=<?= h($from) ?>&view=operator" class="btn <?= $view==='operator' ? 'btn-primary' : 'btn-outline-primary' ?>">Wg operatora</a>
+      <a href="?range=<?= h($range) ?>&w=<?= h($from) ?>&view=day&status=<?= h($status) ?>" class="btn <?= $view==='day' ? 'btn-primary' : 'btn-outline-primary' ?>">Wg dnia</a>
+      <a href="?range=<?= h($range) ?>&w=<?= h($from) ?>&view=operator&status=<?= h($status) ?>" class="btn <?= $view==='operator' ? 'btn-primary' : 'btn-outline-primary' ?>">Wg operatora</a>
+    </div>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Status rezerwacji">
+      <?php foreach (['all' => 'Wszystkie', 'do_rezerwacji' => 'Robocze (do rezerwacji)', 'potwierdzone' => 'Zatwierdzone'] as $_sk => $_sl): ?>
+      <a href="?range=<?= h($range) ?>&w=<?= h($from) ?>&view=<?= h($view) ?>&status=<?= h($_sk) ?>" class="btn <?= $status===$_sk ? 'btn-primary' : 'btn-outline-primary' ?>"<?= $status===$_sk ? ' aria-current="true"' : '' ?>><?= h($_sl) ?></a>
+      <?php endforeach; ?>
     </div>
     <select class="form-select form-select-sm" style="width:auto" aria-label="Zakres"
-            onchange="location.href='?range='+this.value+'&w=<?= h(date('Y-m-d')) ?>&view=<?= h($view) ?>'">
+            onchange="location.href='?range='+this.value+'&w=<?= h(date('Y-m-d')) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>'">
       <option value="week"    <?= $range==='week'    ? 'selected' : '' ?>>Tydzień</option>
       <option value="month"   <?= $range==='month'   ? 'selected' : '' ?>>Miesiąc</option>
       <option value="quarter" <?= $range==='quarter' ? 'selected' : '' ?>>3 miesiące</option>
     </select>
-    <a href="?range=<?= h($range) ?>&w=<?= h($prev) ?>&view=<?= h($view) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Poprzedni okres"><i class="bi bi-chevron-left"></i></a>
+    <a href="?range=<?= h($range) ?>&w=<?= h($prev) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Poprzedni okres"><i class="bi bi-chevron-left"></i></a>
     <span class="small fw-semibold"><?= h($range_label) ?></span>
-    <a href="?range=<?= h($range) ?>&w=<?= h($next) ?>&view=<?= h($view) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny okres"><i class="bi bi-chevron-right"></i></a>
-    <a href="?range=<?= h($range) ?>&w=<?= h(date('Y-m-d')) ?>&view=<?= h($view) ?>" class="btn btn-sm btn-outline-primary">Dziś</a>
+    <a href="?range=<?= h($range) ?>&w=<?= h($next) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny okres"><i class="bi bi-chevron-right"></i></a>
+    <a href="?range=<?= h($range) ?>&w=<?= h(date('Y-m-d')) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>" class="btn btn-sm btn-outline-primary">Dziś</a>
     <button onclick="window.print()" class="btn btn-sm btn-primary"><i class="bi bi-printer me-1"></i>Drukuj</button>
-    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=<?= h($view) ?>" target="_blank" class="btn btn-sm btn-primary">
+    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>" target="_blank" class="btn btn-sm btn-primary">
       <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
     </a>
-    <a href="sale_rezerwacje_export.php?format=docx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=<?= h($view) ?>" class="btn btn-sm btn-outline-primary">
+    <a href="sale_rezerwacje_export.php?format=docx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=<?= h($view) ?>&amp;status=<?= h($status) ?>" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Pobierz Word
     </a>
-    <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=<?= h($view) ?>" class="btn btn-sm btn-outline-primary">
+    <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=<?= h($view) ?>&amp;status=<?= h($status) ?>" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Pobierz Excel
     </a>
   </div>
@@ -111,13 +118,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <?php endif; ?>
     <span class="badge bg-secondary"><?= count($rows) ?></span>
     <?php if ($view === 'operator'): ?>
-    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=operator&operator=<?= urlencode($group_key) ?>"
+    <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=operator&status=<?= h($status) ?>&operator=<?= urlencode($group_key) ?>"
        target="_blank" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2 ms-auto usos-noprint"
        title="PDF tylko dla tego operatora — bez rezerwacji pozostałych">
       <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF dla tego operatora
     </a>
-    <a href="sale_rezerwacje_export.php?format=docx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Word<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
-    <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Excel<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
+    <a href="sale_rezerwacje_export.php?format=docx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;status=<?= h($status) ?>&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Word<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
+    <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;status=<?= h($status) ?>&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Excel<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
     <?php endif; ?>
   </div>
   <div class="table-responsive">

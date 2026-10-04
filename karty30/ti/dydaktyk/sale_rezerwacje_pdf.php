@@ -21,10 +21,12 @@ ti_planner_ext_migrate();
 $range = in_array($_GET['range'] ?? '', ['week', 'month', 'quarter'], true) ? $_GET['range'] : 'week';
 $w     = (string)($_GET['w'] ?? '');
 $view  = ($_GET['view'] ?? '') === 'operator' ? 'operator' : 'day';
+$status = ti_room_reservation_status_param((string)($_GET['status'] ?? ''));
 $RR    = ti_room_reservation_range($w, $range);
 $from  = $RR['from']; $to = $RR['to']; $range_label = $RR['label'];
 
 $by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from, $to) : ti_room_reservation_report($from, $to);
+$by_group = ti_room_reservation_filter_status($by_group, $status);
 
 // Jeden konkretny operator (PDF do wysłania TYLKO jemu — bez rezerwacji
 // pozostałych operatorów/sal). Działa wyłącznie z view=operator.
@@ -58,6 +60,7 @@ try {
         'tempDir'       => $mpdf_tmp,
     ]);
     $title_suffix = $operator !== '' ? (' — ' . $operator) : ($view === 'operator' ? ' — wg operatora' : '');
+    if ($status !== 'all') $title_suffix .= ' — ' . ti_room_reservation_status_label($status);
     $mpdf->SetTitle('Wykaz sal do rezerwacji' . $title_suffix . ' — ' . $range_label);
     $mpdf->SetAuthor($org !== '' ? $org : 'FEER');
 

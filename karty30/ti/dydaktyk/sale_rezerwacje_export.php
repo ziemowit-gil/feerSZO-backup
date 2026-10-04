@@ -18,14 +18,17 @@ ti_planner_ext_migrate();
 
 $range = in_array($_GET['range'] ?? '', ['week', 'month', 'quarter'], true) ? $_GET['range'] : 'week';
 $view  = ($_GET['view'] ?? '') === 'operator' ? 'operator' : 'day';
+$status = ti_room_reservation_status_param((string)($_GET['status'] ?? ''));
 $RR    = ti_room_reservation_range((string)($_GET['w'] ?? ''), $range);
 $from  = $RR['from']; $to = $RR['to'];
 
 $by_group = $view === 'operator' ? ti_room_reservation_report_by_operator($from, $to) : ti_room_reservation_report($from, $to);
+$by_group = ti_room_reservation_filter_status($by_group, $status);
 $operator = $view === 'operator' ? trim((string)($_GET['operator'] ?? '')) : '';
 if ($operator !== '') $by_group = [$operator => $by_group[$operator] ?? []];
 
-$title = 'Wykaz sal do rezerwacji' . ($operator !== '' ? ' — ' . $operator : ($view === 'operator' ? ' — wg operatora' : ''));
+$title = 'Wykaz sal do rezerwacji' . ($operator !== '' ? ' — ' . $operator : ($view === 'operator' ? ' — wg operatora' : ''))
+       . ($status !== 'all' ? ' — ' . ti_room_reservation_status_label($status) : '');
 
 if ($view === 'operator') {
     $head = ['Operator', 'Dzień tygodnia', 'Od', 'Do', 'Godziny', 'Sala (nazwa operatora)', 'Grupa', 'Prowadzący', 'Status'];
@@ -51,7 +54,7 @@ foreach ($by_group as $key => $items) {
 }
 
 $fmt   = ($_GET['format'] ?? 'docx') === 'xlsx' ? 'xlsx' : 'docx';
-$fname = 'wykaz_sal' . ($operator !== '' ? '_' . preg_replace('/[^a-z0-9]+/i', '_', $operator) : ($view === 'operator' ? '_operator' : ''))
+$fname = 'wykaz_sal' . ($status !== 'all' ? '_' . $status : '') . ($operator !== '' ? '_' . preg_replace('/[^a-z0-9]+/i', '_', $operator) : ($view === 'operator' ? '_operator' : ''))
        . '_' . preg_replace('/[^a-z0-9]+/i', '_', $from . '_' . $to) . '.' . $fmt;
 ti_print_log_add('sale_rezerwacje_' . $fmt, $title . ' ' . strtoupper($fmt) . ' — ' . $RR['label'], 0, 0, ['range' => $range, 'view' => $view, 'operator' => $operator], $me);
 

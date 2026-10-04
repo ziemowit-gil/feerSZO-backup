@@ -922,3 +922,29 @@ function ti_room_reservation_report_by_operator(string $from, string $to): array
     ksort($by_op, SORT_STRING | SORT_FLAG_CASE);
     return $by_op;
 }
+
+
+/** Status rezerwacji z parametru GET: all | do_rezerwacji (robocze) | potwierdzone (zatwierdzone). */
+function ti_room_reservation_status_param(string $s): string {
+    return in_array($s, ['do_rezerwacji', 'potwierdzone'], true) ? $s : 'all';
+}
+
+/** Zostawia w raporcie (grupy => wiersze) tylko terminy o danym statusie; grupy puste znikają. */
+function ti_room_reservation_filter_status(array $by_group, string $status): array {
+    if ($status === 'all') return $by_group;
+    $out = [];
+    foreach ($by_group as $key => $rows) {
+        $keep = [];
+        foreach ($rows as $r) {
+            // widok wg operatora zbiera kilka terminów w wiersz — „pending" > 0 = jeszcze robocze
+            $confirmed = isset($r['pending']) ? ((int)$r['pending'] === 0) : (($r['room_reservation_status'] ?? '') === 'potwierdzone');
+            if (($status === 'potwierdzone') === $confirmed) $keep[] = $r;
+        }
+        if ($keep) $out[$key] = $keep;
+    }
+    return $out;
+}
+
+function ti_room_reservation_status_label(string $status): string {
+    return ['all' => 'wszystkie', 'do_rezerwacji' => 'robocze (do rezerwacji)', 'potwierdzone' => 'zatwierdzone (potwierdzone)'][$status] ?? 'wszystkie';
+}
