@@ -347,6 +347,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               </select>
               <button class="btn btn-sm btn-outline-primary" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
               <button class="btn btn-sm btn-primary" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+              <button class="btn btn-sm btn-outline-secondary" formaction="sale_rezerwacje_export.php" name="format" value="docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</button>
+              <button class="btn btn-sm btn-outline-secondary" formaction="sale_rezerwacje_export.php" name="format" value="xlsx"><i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Excel</button>
             </form>
           </td>
         </tr>
@@ -374,6 +376,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               </select>
               <button class="btn btn-sm btn-outline-primary" formaction="sale_rezerwacje.php"><i class="bi bi-eye me-1" aria-hidden="true"></i>Pokaż</button>
               <button class="btn btn-sm btn-primary" formaction="sale_rezerwacje_pdf.php"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</button>
+              <button class="btn btn-sm btn-outline-secondary" formaction="sale_rezerwacje_export.php" name="format" value="docx"><i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Word</button>
+              <button class="btn btn-sm btn-outline-secondary" formaction="sale_rezerwacje_export.php" name="format" value="xlsx"><i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Excel</button>
             </form>
             <?php endif; ?>
           </td>

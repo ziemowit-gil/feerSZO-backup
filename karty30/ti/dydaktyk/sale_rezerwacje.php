@@ -73,6 +73,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=<?= h($view) ?>" target="_blank" class="btn btn-sm btn-primary">
       <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
     </a>
+    <a href="sale_rezerwacje_export.php?format=docx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=<?= h($view) ?>" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Pobierz Word
+    </a>
+    <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=<?= h($view) ?>" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i>Pobierz Excel
+    </a>
   </div>
 </div>
 
@@ -110,6 +116,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
        title="PDF tylko dla tego operatora — bez rezerwacji pozostałych">
       <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF dla tego operatora
     </a>
+    <a href="sale_rezerwacje_export.php?format=docx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Word<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
+    <a href="sale_rezerwacje_export.php?format=xlsx&amp;range=<?= h($range) ?>&amp;w=<?= h($from) ?>&amp;view=operator&amp;operator=<?= urlencode($group_key) ?>" class="btn btn-sm btn-outline-primary py-0 px-2 usos-noprint">Excel<span class="visually-hidden"> dla operatora <?= h($group_key) ?></span></a>
     <?php endif; ?>
   </div>
   <div class="table-responsive">
