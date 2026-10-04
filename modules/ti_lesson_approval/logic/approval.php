@@ -312,6 +312,16 @@ const TI_MM_FIELDS = ['status', 'lesson_method', 'meeting_url', 'room_id', 'time
 
 /** Wybór lekcji do zmiany: zakres dat + obecna forma + obecny typ terminu. Tylko nadchodzące, niezakończone. */
 function ti_mm_candidates(int $course_id, array $f): array {
+    // Jawna lista lekcji (np. zaznaczone wersje robocze) — bez filtra dat, obejmuje też szkice bez terminu.
+    $ids = $f['ids'] ?? [];
+    if (is_string($ids)) $ids = explode(',', $ids);
+    $ids = array_values(array_unique(array_filter(array_map('intval', (array)$ids))));
+    if ($ids) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        return db_all("SELECT s.*, r.name AS room_name FROM k30_ti_sessions s LEFT JOIN k30_pl_rooms r ON r.id=s.room_id
+                       WHERE s.course_id=? AND s.draft_id IS NULL AND s.status IN ('planned','reserved','draft') AND s.id IN ($ph)
+                       ORDER BY s.lesson_date='', s.lesson_date, s.time_from", array_merge([$course_id], $ids));
+    }
     $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($f['from'] ?? '')) ? $f['from'] : date('Y-m-d');
     $to   = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($f['to'] ?? '')) ? $f['to'] : date('Y-m-d', strtotime('+90 days'));
     $sql = "SELECT s.*, r.name AS room_name FROM k30_ti_sessions s LEFT JOIN k30_pl_rooms r ON r.id=s.room_id
@@ -359,7 +369,7 @@ function ti_mm_new_values(array $s, array $ch): array {
     if (array_key_exists('room_id', $ch)) $n['room_id'] = $ch['room_id'] ?: null;
     if (!empty($ch['time_from'])) $n['time_from'] = $ch['time_from'];
     if (!empty($ch['time_to']))   $n['time_to']   = $ch['time_to'];
-    if (!empty($ch['shift_days'])) $n['lesson_date'] = date('Y-m-d', strtotime($n['lesson_date'] . ' ' . ($ch['shift_days'] > 0 ? '+' : '') . $ch['shift_days'] . ' days'));
+    if (!empty($ch['shift_days']) && (string)$n['lesson_date'] !== '') $n['lesson_date'] = date('Y-m-d', strtotime($n['lesson_date'] . ' ' . ($ch['shift_days'] > 0 ? '+' : '') . $ch['shift_days'] . ' days'));
     if (array_key_exists('instructor_id', $ch)) $n['instructor_id'] = $ch['instructor_id'] ?: null;
     $a = strtotime('2000-01-01 ' . $n['time_from']); $b = strtotime('2000-01-01 ' . $n['time_to']);
     $n['duration_min'] = ($a && $b && $b > $a) ? (int)(($b - $a) / 60) : (int)$n['duration_min'];
@@ -402,13 +412,19 @@ function ti_mm_check(int $course_id, array $sessions, array $ch, bool $is_staff)
     $today = date('Y-m-d');
     foreach ($sessions as $s) {
         $n = ti_mm_new_values($s, $ch);
-        $lbl = date('d.m.Y', strtotime((string)$s['lesson_date'])) . ' ' . substr((string)$s['time_from'], 0, 5);
-        $dn = date('d.m.Y', strtotime((string)$n['lesson_date'])) . ' ' . substr((string)$n['time_from'], 0, 5) . '–' . substr((string)$n['time_to'], 0, 5);
-        $items[] = $lbl . ($lbl !== substr($dn, 0, strlen($lbl)) || (string)$n['time_to'] !== (string)$s['time_to'] ? ' → ' . $dn : '')
+        $dateless = (string)$n['lesson_date'] === '';
+        $lbl = $s['lesson_date'] !== '' ? date('d.m.Y', strtotime((string)$s['lesson_date'])) . ' ' . substr((string)$s['time_from'], 0, 5) : 'szkic bez terminu';
+        $dn  = $dateless ? 'szkic bez terminu' : date('d.m.Y', strtotime((string)$n['lesson_date'])) . ' ' . substr((string)$n['time_from'], 0, 5) . '–' . substr((string)$n['time_to'], 0, 5);
+        $items[] = $lbl . (!$dateless && ($lbl !== substr($dn, 0, strlen($lbl)) || (string)$n['time_to'] !== (string)$s['time_to']) ? ' → ' . $dn : '')
                  . ' — ' . (trim((string)$n['topic']) !== '' ? $n['topic'] : 'bez tematu');
         if ((string)$n['time_from'] !== '' && (string)$n['time_to'] !== '' && (string)$n['time_to'] <= (string)$n['time_from']) $b[] = "Termin $lbl: godzina końca musi być późniejsza niż początku po zmianie.";
+        if ($dateless && (string)$n['status'] !== 'draft') $b[] = "Termin „$lbl” nie ma daty — uzupełnij ją (zmiana „Przesuń” jej nie ustawia) albo zostaw typ „Wersja robocza”.";
+        if ($dateless) {
+            if (ti_appr_is_online($n) && ti_appr_meeting_url($n, $course) === '') $w[] = "Szkic „{$n['topic']}” jest online, ale nie ma linku do spotkania.";
+            continue;
+        }
         if (function_exists('ti_period_closed_for_date')) {
-            if (ti_period_closed_for_date((string)$s['lesson_date']) || ti_period_closed_for_date((string)$n['lesson_date']))
+            if (($s['lesson_date'] !== '' && ti_period_closed_for_date((string)$s['lesson_date'])) || ti_period_closed_for_date((string)$n['lesson_date']))
                 $b[] = "Termin $lbl lub jego nowa data leży w zamkniętym okresie rozliczeniowym.";
         }
         if ((string)$n['lesson_date'] < $today) $w[] = "Termin $lbl po zmianie wypada w przeszłości ($dn).";

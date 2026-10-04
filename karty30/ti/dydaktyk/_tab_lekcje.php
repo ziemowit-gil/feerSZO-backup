@@ -51,7 +51,8 @@ if ($_sms_enabled && $cur_course) {
 <section class="card border-warning mb-3" aria-labelledby="apprH">
   <div class="card-header d-flex align-items-center flex-wrap gap-2 bg-warning-subtle">
     <h2 class="h6 mb-0" id="apprH"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Wersje robocze do zatwierdzenia <span class="badge text-bg-warning"><?= count($_appr_drafts) ?></span></h2>
-    <button type="button" class="btn btn-sm btn-success ms-auto" id="apprOpen" disabled><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź zaznaczone…</button>
+    <button type="button" class="btn btn-sm btn-outline-primary ms-auto" id="apprEdit" disabled><i class="bi bi-sliders me-1" aria-hidden="true"></i>Zmień parametry zaznaczonych…</button>
+    <button type="button" class="btn btn-sm btn-success" id="apprOpen" disabled><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź zaznaczone…</button>
   </div>
   <ul class="list-group list-group-flush">
     <li class="list-group-item py-1">
@@ -81,7 +82,13 @@ if ($_sms_enabled && $cur_course) {
   var chks = document.querySelectorAll('.appr-chk'), all = document.getElementById('apprAll'), open = document.getElementById('apprOpen');
   var cid = <?= (int)$cur_course ?>, token = <?= json_encode(dyd_token()) ?>, total = chks.length;
   function sel() { return [].filter.call(chks, function (c) { return c.checked; }).map(function (c) { return c.value; }); }
-  function sync() { open.disabled = sel().length === 0; all.checked = sel().length === chks.length; }
+  function sync() { open.disabled = sel().length === 0; document.getElementById('apprEdit').disabled = sel().length === 0; all.checked = sel().length === chks.length; }
+  document.getElementById('apprEdit').addEventListener('click', function () {   // przejście do masowej zmiany parametrów z wybranymi szkicami
+    var box = document.getElementById('mmBox'), only = document.getElementById('mmOnlyDrafts');
+    if (!box || !only) return;
+    box.open = true; only.checked = true; box.scrollIntoView({ block: 'start' });
+    var f = document.getElementById('mmChg_lesson_method'); if (f) f.focus();
+  });
   function approve(ids) {
     dydApprovalModal({ title: 'Zatwierdzenie wersji roboczych', previewUrl: 'approve_drafts.php?course=' + cid + '&ids=' + ids.join(','),
       postUrl: 'approve_drafts.php', pairs: [['_token', token], ['course', cid], ['op', 'approve']] });
@@ -128,6 +135,9 @@ if ($_sms_enabled && $cur_course) {
   <form class="card-body" id="mmForm" onsubmit="return false">
     <fieldset class="mb-3">
       <legend class="h6">1. Których lekcji dotyczy zmiana (tylko nadchodzące, niezakończone)</legend>
+      <?php if ($_appr_drafts): ?>
+      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="mmOnlyDrafts"><label class="form-check-label" for="mmOnlyDrafts">Tylko zaznaczone wersje robocze (z listy powyżej) — zakres dat i filtry są wtedy pomijane; dotyczy też szkiców bez terminu</label></div>
+      <?php endif; ?>
       <div class="row g-2">
         <div class="col-6 col-md-3"><label class="form-label small" for="mmFrom">Od dnia</label><input class="form-control form-control-sm" type="date" id="mmFrom" name="from" value="<?= date('Y-m-d') ?>"></div>
         <div class="col-6 col-md-3"><label class="form-label small" for="mmTo">Do dnia</label><input class="form-control form-control-sm" type="date" id="mmTo" name="to" value="<?= date('Y-m-d', strtotime('+90 days')) ?>"></div>
@@ -179,6 +189,12 @@ if ($_sms_enabled && $cur_course) {
       if (f && !form.querySelector('.mm-chg[data-f="' + f + '"]').checked) return;   // wartości niezaznaczonych pól pomijamy
       pairs.push([key, val]);
     });
+    var only = document.getElementById('mmOnlyDrafts');
+    if (only && only.checked) {
+      var picked = [].filter.call(document.querySelectorAll('.appr-chk'), function (c) { return c.checked; }).map(function (c) { return c.value; });
+      if (!picked.length) { alert('Zaznacz na liście wersje robocze, których zmiana ma dotyczyć.'); return; }
+      pairs.push(['ids', picked.join(',')]);
+    }
     var qs = new URLSearchParams(); qs.append('course', cid); pairs.forEach(function (p) { qs.append(p[0], p[1]); });
     dydApprovalModal({ title: 'Masowa zmiana terminów', previewUrl: 'mass_edit.php?' + qs.toString(), postUrl: 'mass_edit.php',
       pairs: [['_token', token], ['course', cid]].concat(pairs), confirmLabel: 'Zmień i wyślij e-mail', confirmNoMailLabel: 'Zmień terminy' });
