@@ -158,12 +158,15 @@ function ti_appr_schedule_names(array $course): array {
 
 /** Generuje harmonogram jako PDF + XLSX + TXT (ten sam zestaw dla wszystkich adresatów jednego maila). */
 function ti_appr_schedule_files(array $course, array $sessions): array {
-    $head = ['Data', 'Dzień tygodnia', 'Godziny', 'Temat', 'Forma', 'Miejsce / link'];
-    $rows = ti_appr_schedule_rows($course, $sessions);
+    return ti_appr_files_from_rows($course, ['Data', 'Dzień tygodnia', 'Godziny', 'Temat', 'Forma', 'Miejsce / link'], ti_appr_schedule_rows($course, $sessions), 'Harmonogram zajęć');
+}
+
+/** Pliki harmonogramu (TXT, XLSX, PDF) z gotowych wierszy tabeli. */
+function ti_appr_files_from_rows(array $course, array $head, array $rows, string $title_prefix): array {
     $dir = rtrim(UPLOAD_DIR, '/') . '/ti_harmonogram_mail';
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
     $base = ti_appr_schedule_basename($course); $uniq = bin2hex(random_bytes(4));
-    $title = 'Harmonogram zajęć — ' . $course['name'];
+    $title = $title_prefix . ' — ' . $course['name'];
     $out = [];
     $add = function (string $ext, string $mime, string $data) use (&$out, $dir, $base, $uniq) {
         $path = $dir . '/' . $base . '_' . $uniq . '.' . $ext;
@@ -173,7 +176,8 @@ function ti_appr_schedule_files(array $course, array $sessions): array {
     // TXT — prosty, czytelny także dla czytników ekranu
     $txt = $title . "\r\nWygenerowano: " . date('d.m.Y H:i') . "\r\n\r\n";
     foreach ($rows as $i => $r) {
-        $txt .= ($i + 1) . '. ' . $r[0] . ' (' . $r[1] . '), ' . $r[2] . ' — temat: ' . $r[3] . '; ' . $r[4] . ': ' . $r[5] . "\r\n";
+        $parts = []; foreach ($r as $k => $v) $parts[] = $head[$k] . ': ' . $v;
+        $txt .= ($i + 1) . '. ' . implode('; ', $parts) . "\r\n";
     }
     $add('txt', 'text/plain; charset=UTF-8', "\xEF\xBB\xBF" . $txt);
     // XLSX
@@ -393,7 +397,7 @@ function ti_mm_check(int $course_id, array $sessions, array $ch, bool $is_staff)
     }
     if (isset($ch['meeting_url']) && $ch['meeting_url'] !== '' && !preg_match('~^https?://~i', $ch['meeting_url'])) $b[] = 'Link do spotkania musi zaczynać się od http:// lub https://.';
     if ((isset($ch['time_from']) xor isset($ch['time_to'])) === false && isset($ch['time_from']) && $ch['time_to'] <= $ch['time_from']) $b[] = 'Godzina końca musi być późniejsza niż początku.';
-    require_once dirname(dirname(__DIR__)) . '/includes/ti_periods.php';
+    require_once dirname(__DIR__, 3) . '/includes/ti_periods.php';
     $course = db_one("SELECT * FROM k30_ti_courses WHERE id=?", [$course_id]) ?: [];
     $today = date('Y-m-d');
     foreach ($sessions as $s) {
@@ -402,6 +406,7 @@ function ti_mm_check(int $course_id, array $sessions, array $ch, bool $is_staff)
         $dn = date('d.m.Y', strtotime((string)$n['lesson_date'])) . ' ' . substr((string)$n['time_from'], 0, 5) . '–' . substr((string)$n['time_to'], 0, 5);
         $items[] = $lbl . ($lbl !== substr($dn, 0, strlen($lbl)) || (string)$n['time_to'] !== (string)$s['time_to'] ? ' → ' . $dn : '')
                  . ' — ' . (trim((string)$n['topic']) !== '' ? $n['topic'] : 'bez tematu');
+        if ((string)$n['time_from'] !== '' && (string)$n['time_to'] !== '' && (string)$n['time_to'] <= (string)$n['time_from']) $b[] = "Termin $lbl: godzina końca musi być późniejsza niż początku po zmianie.";
         if (function_exists('ti_period_closed_for_date')) {
             if (ti_period_closed_for_date((string)$s['lesson_date']) || ti_period_closed_for_date((string)$n['lesson_date']))
                 $b[] = "Termin $lbl lub jego nowa data leży w zamkniętym okresie rozliczeniowym.";
@@ -480,4 +485,85 @@ function ti_mm_mail_preview_sessions(array $sessions, array $ch): array {
         if ($n['status'] === 'planned') { if ($s['status'] !== 'planned') $new_vis[] = $n; else $chg_vis[] = $n; }
     }
     return $new_vis ? [$new_vis, 'approve'] : ($chg_vis ? [$chg_vis, 'method'] : [[], '']);
+}
+
+
+/* ── Szkice z planera cyklicznego (k30_ti_weekly_plan, status draft/approved) ── */
+
+/** Szkice slotów prowadzącego (staff: wszystkie). */
+function ti_slot_drafts(int $uid, bool $staff): array {
+    return db_all("SELECT wp.*, c.name AS course_name, c.default_meeting_url, c.is_online FROM k30_ti_weekly_plan wp
+                   JOIN k30_ti_courses c ON c.id=wp.course_id WHERE wp.status='draft'" . ($staff ? '' : ' AND wp.instructor_id=?') . "
+                   ORDER BY c.name, (wp.day_of_week + 6) % 7, wp.time_from", $staff ? [] : [$uid]);
+}
+
+function ti_slot_get(array $ids, int $uid, bool $staff): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    return db_all("SELECT wp.*, c.name AS course_name, c.default_meeting_url, c.is_online FROM k30_ti_weekly_plan wp
+                   JOIN k30_ti_courses c ON c.id=wp.course_id WHERE wp.status='draft' AND wp.id IN ($ph)" . ($staff ? '' : ' AND wp.instructor_id=?') . "
+                   ORDER BY c.name, (wp.day_of_week + 6) % 7, wp.time_from", $staff ? $ids : array_merge($ids, [$uid]));
+}
+
+function ti_slot_range(array $sl): string {
+    $a = substr((string)$sl['time_from'], 0, 5);
+    $b = date('H:i', strtotime('2000-01-01 ' . $a . ' +' . (int)$sl['duration_min'] . ' minutes'));
+    return $a . '–' . $b;
+}
+
+function ti_slot_rows(array $slots): array {
+    $rows = [];
+    foreach ($slots as $sl) {
+        $online = !empty($sl['is_online']) || trim((string)$sl['default_meeting_url']) !== '';
+        $rows[] = [K30_TI_DAYS[(int)$sl['day_of_week']] ?? '', ti_slot_range($sl), (string)$sl['course_name'],
+                   $online ? 'online' : 'stacjonarnie', $online ? (trim((string)$sl['default_meeting_url']) ?: '(link zostanie przesłany osobno)') : '—', (string)($sl['notes'] ?? '')];
+    }
+    return $rows;
+}
+
+const TI_SLOT_HEAD = ['Dzień tygodnia', 'Godziny', 'Kurs', 'Forma', 'Link', 'Uwagi'];
+
+/** Mail o stałym terminie zajęć (jeden kurs). */
+function ti_slot_compose(array $course, array $slots, array $sched_names, string $first_name = '{imię}'): array {
+    $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $cell = 'padding:4px 8px;border:1px solid #ccc';
+    $rows = ''; $any_online = false;
+    foreach (ti_slot_rows($slots) as $r) {
+        $on = $r[3] === 'online'; $any_online = $any_online || $on;
+        $rows .= '<tr><td style="' . $cell . '">' . $e($r[0]) . '</td><td style="' . $cell . '">' . $e($r[1]) . '</td><td style="' . $cell . '">'
+              . ($on ? '<strong>ONLINE</strong><br>' . (str_starts_with($r[4], 'http') ? 'Link: <a href="' . $e($r[4]) . '">' . $e($r[4]) . '</a>' : $e($r[4])) : 'stacjonarnie') . '</td></tr>';
+    }
+    $subject = 'Stały harmonogram zajęć: ' . $course['name'] . ($any_online ? ' — online' : '');
+    $th = $cell . ';text-align:left';
+    $body = '<p>W kursie <strong>' . $e($course['name']) . '</strong> ustalono cykliczny termin zajęć (co tydzień):</p>'
+          . ($any_online ? '<p><strong>Zajęcia odbywają się online.</strong> Link do spotkania jest przy terminie.</p>' : '')
+          . '<table style="border-collapse:collapse"><thead><tr><th style="' . $th . '">Dzień</th><th style="' . $th . '">Godziny</th><th style="' . $th . '">Forma</th></tr></thead><tbody>' . $rows . '</tbody></table>'
+          . ($sched_names ? '<p><strong>Harmonogram znajdziesz także w załączniku</strong> (' . $e(implode(', ', $sched_names)) . ').</p>' : '')
+          . '<p>Szczegółowe daty zajęć zobaczysz w panelu kursanta.</p>';
+    return ti_appr_wrap(defined('ORG_NAME') ? ORG_NAME : 'Panel kursanta', $subject, $body, $first_name, $e);
+}
+
+/** Zatwierdza sloty; opcjonalnie mail do kursantów każdego kursu (harmonogram PDF+XLSX+TXT w załączniku). */
+function ti_slot_approve(array $ids, bool $send_mail, int $uid, bool $staff): array {
+    $slots = ti_slot_get($ids, $uid, $staff);
+    foreach ($slots as $sl) db_exec("UPDATE k30_ti_weekly_plan SET status='approved', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='draft'", [(int)$sl['id']]);
+    $mails = 0;
+    if ($send_mail && $slots) {
+        if (!function_exists('mail_queue_add')) require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
+        $by = [];
+        foreach ($slots as $sl) $by[(int)$sl['course_id']][] = $sl;
+        foreach ($by as $cid => $cs) {
+            $course = db_one("SELECT * FROM k30_ti_courses WHERE id=?", [$cid]) ?: ['name' => ''];
+            $files = ti_appr_files_from_rows($course, TI_SLOT_HEAD, ti_slot_rows($cs), 'Stały harmonogram zajęć');
+            $att = array_map(fn($g) => ['path' => $g['path'], 'name' => $g['name'], 'mime' => $g['mime'], 'size' => $g['size']], $files);
+            $names = array_map(fn($g) => $g['name'], $files);
+            foreach (ti_appr_recipients($cid) as $rc) {
+                $m = ti_slot_compose($course, $cs, $names, explode(' ', trim($rc['name']))[0] ?: $rc['name']);
+                try { if (mail_queue_add($rc['email'], $rc['name'], $m['subject'], $m['html'], '', 'ti_weekly_slot_approval', $cid, '', true, $att)) $mails++; }
+                catch (\Throwable $e) { error_log('[ti_slot] ' . $e->getMessage()); }
+            }
+        }
+    }
+    return ['approved' => count($slots), 'mails' => $mails];
 }

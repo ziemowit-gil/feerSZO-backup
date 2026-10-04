@@ -169,6 +169,47 @@ $DH_MIN    = TI_WEEKLY_DH_MIN;
 
 <div id="wplStatus" class="alert py-2 small" style="display:none" role="status" aria-live="polite"></div>
 
+<?php
+  require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_lesson_approval/logic/approval.php';
+  $_sd = ti_slot_drafts($uid, false);   // własne szkice prowadzącego
+?>
+<?php if ($_sd): ?>
+<div class="alert alert-warning mb-3" role="alert">
+  <div class="d-flex align-items-center flex-wrap gap-2">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
+    <span><strong>Masz <?= count($_sd) ?> <?= count($_sd) === 1 ? 'szkic' : 'szkiców' ?> w planie cyklicznym.</strong> Dopóki ich nie zatwierdzisz, nie są podstawą generowania lekcji. Podejmij decyzję.</span>
+    <button type="button" class="btn btn-sm btn-success ms-auto" id="slotApprOpen" disabled><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź zaznaczone…</button>
+  </div>
+  <fieldset class="mt-2 mb-0">
+    <legend class="visually-hidden">Szkice slotów do zatwierdzenia</legend>
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="slotApprAll"><label class="form-check-label small" for="slotApprAll">Zaznacz wszystkie</label></div>
+    <?php foreach ($_sd as $_s): ?>
+    <div class="form-check">
+      <input class="form-check-input slot-chk" type="checkbox" value="<?= (int)$_s['id'] ?>" id="slotC<?= (int)$_s['id'] ?>">
+      <label class="form-check-label" for="slotC<?= (int)$_s['id'] ?>"><?= h($_s['course_name']) ?> — <?= h(K30_TI_DAYS[(int)$_s['day_of_week']] ?? '') ?> <?= h(ti_slot_range($_s)) ?></label>
+    </div>
+    <?php endforeach; ?>
+  </fieldset>
+</div>
+<script src="../assets/dydApprovalModal.js?v=<?= (int)@filemtime(__DIR__ . '/../assets/dydApprovalModal.js') ?>"></script>
+<script>
+(function () {
+  var chks = document.querySelectorAll('.slot-chk'), all = document.getElementById('slotApprAll'), open = document.getElementById('slotApprOpen');
+  var token = <?= json_encode(dyd_token()) ?>;
+  function sel() { return [].filter.call(chks, function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+  function sync() { open.disabled = !sel().length; all.checked = sel().length === chks.length; }
+  all.addEventListener('change', function () { [].forEach.call(chks, function (c) { c.checked = all.checked; }); sync(); });
+  [].forEach.call(chks, function (c) { c.addEventListener('change', sync); });
+  open.addEventListener('click', function () {
+    var ids = sel(); if (!ids.length) return;
+    dydApprovalModal({ title: 'Zatwierdzenie szkiców planu cyklicznego', previewUrl: 'approve_slots.php?ids=' + ids.join(','),
+      postUrl: 'approve_slots.php', pairs: [['_token', token]] });
+  });
+  sync();
+})();
+</script>
+<?php endif; ?>
+
 <!-- Siatka tygodniowa -->
 <div class="wpl-grid mb-4" role="grid" aria-label="Tygodniowy plan zajęć">
 
