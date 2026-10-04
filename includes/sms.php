@@ -1,12 +1,19 @@
 <?php
 /**
- * SMS integration — obsługuje smsapi.pl (SDK OAuth), Twilio i HTTP Request.
+ * SMS integration — obsługuje smsapi.pl (SDK OAuth), Twilio i HTTP Request (dowolna brama przez URL).
  * Dostawca główny: ustawienie `sms_provider` ('smsapi' | 'twilio' | 'httprequest').
- * Dostawca zapasowy: `sms_fallback_provider` — gdy główny zawiedzie, system
- *   automatycznie ponawia wysyłkę przez niego (np. główny smsapi.pl → zapasowy Twilio).
+ * Dostawca zapasowy (inny operator): `sms_fallback_provider` — gdy główny zawiedzie, system
+ *   automatycznie ponawia wysyłkę przez niego (np. główny smsapi.pl → zapasowy Twilio albo brama HTTP).
+ * Łańcuch wysyłki (sms_provider_chain) składa się wyłącznie z dostawców z KOMPLETNĄ konfiguracją:
+ *   dostawca bez konfiguracji jest pomijany po cichu, a kanał jest gotowy (sms_channel_ready), gdy
+ *   skonfigurowany jest choć jeden z nich — także sam zapasowy.
  * Łańcuch przy wysyłce kodów: główny SMS → zapasowy SMS → e-mail (sms_send_with_fallback).
+ * Każde przełączenie na zapasowego i każda całkowita porażka trafia do audytu (sms.fallback / sms.failed,
+ * numer zamaskowany, adresy z kluczami API wycięte z komunikatów błędów).
  *
  * SMSAPI.pl: preferowany token OAuth (sms_api_token); fallback login+hasło MD5.
+ * Limity czasu: SDK smsapi (cURL) 5 s połączenie / 20 s całość, HTTP 8 s połączenie / 15 s odpowiedź — bez nich
+ * niedostępny operator blokowałby wysyłkę na minuty i do zapasowego nigdy by nie doszło.
  */
 
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -33,16 +40,35 @@ function sms_is_enabled(): bool {
     return sms_setting('sms_enabled') === '1';
 }
 
-/** Kanał wysyłki SMS gotowy: konfiguracja aktywnego dostawcy jest kompletna. */
-function sms_channel_ready(): bool {
-    return match (sms_provider()) {
+/** Obsługiwani dostawcy: klucz => etykieta. */
+function sms_providers(): array {
+    return ['smsapi' => 'smsapi.pl', 'twilio' => 'Twilio', 'httprequest' => 'HTTP Request'];
+}
+
+function sms_provider_label(string $provider): string {
+    return sms_providers()[$provider] ?? $provider;
+}
+
+/** Czy konfiguracja podanego dostawcy jest kompletna (da się przez niego wysłać SMS). */
+function sms_provider_ready(string $provider): bool {
+    return match ($provider) {
         'twilio'      => sms_setting('sms_twilio_sid') !== ''
                       && sms_setting('sms_twilio_token') !== ''
                       && sms_setting('sms_twilio_from') !== '',
         'httprequest' => sms_setting('sms_http_url') !== '',
-        default       => sms_setting('sms_api_token') !== ''
+        'smsapi'      => sms_setting('sms_api_token') !== ''
                       || (sms_setting('sms_api_login') !== '' && sms_setting('sms_api_password') !== ''),
+        default       => false,
     };
+}
+
+/**
+ * Kanał wysyłki SMS gotowy: skonfigurowany jest główny ALBO zapasowy dostawca.
+ * (Dawniej liczył się tylko główny — przy niekompletnym głównym powiadomienia nie szły wcale,
+ * mimo gotowego zapasowego.)
+ */
+function sms_channel_ready(): bool {
+    return sms_provider_chain() !== [];
 }
 
 /** Aktywny dostawca: 'smsapi' (domyślnie), 'twilio' lub 'httprequest' */
@@ -53,11 +79,25 @@ function sms_provider(): string {
 
 /**
  * Zapasowy dostawca SMS używany, gdy główny zawiedzie. '' = brak (wyłączony).
- * W naszym wdrożeniu: główny smsapi.pl, zapasowy Twilio.
+ * W naszym wdrożeniu: główny smsapi.pl, zapasowy Twilio (albo brama HTTP innego operatora).
  */
 function sms_provider_fallback(): string {
     $p = sms_setting('sms_fallback_provider');
     return in_array($p, ['smsapi', 'twilio', 'httprequest'], true) ? $p : '';
+}
+
+/**
+ * Kolejność wysyłki: [główny, zapasowy] — tylko dostawcy z kompletną konfiguracją, bez powtórzeń
+ * (zapasowy taki sam jak główny jest ignorowany).
+ *
+ * @return list<string>
+ */
+function sms_provider_chain(): array {
+    $chain = [];
+    foreach ([sms_provider(), sms_provider_fallback()] as $p) {
+        if ($p !== '' && !in_array($p, $chain, true) && sms_provider_ready($p)) $chain[] = $p;
+    }
+    return $chain;
 }
 
 /** Router: wyślij wiadomość przez wskazanego dostawcę. Rzuca wyjątek przy błędzie. */
@@ -85,38 +125,89 @@ function sms_normalize_phone(string $phone): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Wyślij SMS przez aktywnego dostawcę.
- * Gdy główny dostawca zawiedzie, a skonfigurowano dostawcę zapasowego
- * (sms_fallback_provider, np. Twilio) — automatycznie ponawia wysyłkę przez niego.
- * Rzuca RuntimeException dopiero gdy obaj zawiodą (lub brak zapasowego).
+ * Wycina z komunikatu błędu adresy URL (w zapytaniu bywają klucze API, numer i treść SMS) i skraca go —
+ * komunikaty trafiają do audytu, logów i, przy kodach, do e-maila.
  */
-function sms_send(string $phone, string $message): void {
-    require_once __DIR__ . '/ti_virtual.php';
-    if (ti_virtual_blocked('', $phone)) return;   // kursant wirtualny — bez SMS
-    $phone   = sms_normalize_phone($phone);
-    $primary = sms_provider();
+function sms_scrub(string $text): string {
+    $text = (string)preg_replace('~https?://[^\s)\'"]+~i', '[URL]', $text);
+    return trim(mb_substr($text, 0, 300));
+}
 
+/**
+ * Informacja o ostatniej wysyłce w tym żądaniu: ['provider' => kto wysłał, 'fallback' => czy przez zapasowego,
+ * 'errors' => [dostawca => komunikat błędu]]. Pozwala ekranowi (np. testowi w ustawieniach) pokazać, że główny
+ * zawiódł, choć SMS dotarł.
+ */
+function sms_last_send(?array $set = null): array {
+    static $last = [];
+    if ($set !== null) $last = $set;
+    return $last;
+}
+
+/**
+ * Zdarzenie wysyłki do dziennika: error_log + audyt (sms.fallback — przełączono na zapasowego, sms.failed — zawiodli
+ * wszyscy). Numer zamaskowany, komunikaty oczyszczone z adresów. Nigdy nie przerywa wysyłki.
+ */
+function sms_log_event(string $event, string $phone, array $errors, string $used = ''): void {
     try {
-        _sms_dispatch($primary, $phone, $message);
-        return;
-    } catch (\Throwable $e1) {
-        $fallback = sms_provider_fallback();
-        if ($fallback === '' || $fallback === $primary) {
-            throw $e1; // brak zapasowego (lub taki sam) → przekaż oryginalny błąd
-        }
-        try {
-            _sms_dispatch($fallback, $phone, $message);
-            error_log("[SMS] Główny dostawca '{$primary}' zawiódł ({$e1->getMessage()}); "
-                    . "wysłano przez zapasowy '{$fallback}'.");
-            return;
-        } catch (\Throwable $e2) {
-            throw new RuntimeException(
-                "Wysyłka SMS nieudana u obu dostawców. "
-                . "Główny ({$primary}): {$e1->getMessage()} | "
-                . "Zapasowy ({$fallback}): {$e2->getMessage()}"
-            );
-        }
+        $ctx = ['to' => $phone !== '' ? '***' . substr($phone, -3) : '', 'errors' => array_map('sms_scrub', $errors)];
+        if ($used !== '') $ctx['used'] = $used;
+        error_log('[SMS] ' . $event . ' ' . json_encode($ctx, JSON_UNESCAPED_UNICODE));
+        if (!function_exists('audit_log')) require_once dirname(__DIR__) . '/modules/audit_logs/logic/audit_logs.php';
+        audit_log('sms.' . $event, $ctx);
+    } catch (\Throwable $e) { /* dziennik nie może psuć wysyłki */ }
+}
+
+/**
+ * Wyślij SMS: najpierw przez głównego dostawcę, a gdy zawiedzie — przez zapasowego (innego operatora).
+ * Dostawcy bez kompletnej konfiguracji są pomijani. Zwraca klucz dostawcy, który wysłał
+ * ('smsapi' | 'twilio' | 'httprequest'), albo '' gdy SMS świadomie nie wysłano (kursant wirtualny).
+ * Rzuca wyjątek dopiero, gdy zawiodą wszyscy: przy jednym dostawcy — jego oryginalny błąd, przy dwóch —
+ * RuntimeException z komunikatami obu. Gdy nie skonfigurowano żadnego — błąd konfiguracji głównego.
+ */
+function sms_send(string $phone, string $message): string {
+    require_once __DIR__ . '/ti_virtual.php';
+    if (ti_virtual_blocked('', $phone)) { sms_last_send(['provider' => '', 'fallback' => false, 'errors' => []]); return ''; }   // kursant wirtualny — bez SMS
+    $phone = sms_normalize_phone($phone);
+
+    $chain = sms_provider_chain();
+    if (!$chain) {
+        _sms_dispatch(sms_provider(), $phone, $message);        // nic nie skonfigurowano → wyjątek z podpowiedzią, czego brakuje
+        return sms_provider();
     }
+
+    $errors = []; $first = null;
+    foreach ($chain as $provider) {
+        try {
+            _sms_dispatch($provider, $phone, $message);
+        } catch (\Throwable $e) {
+            $errors[$provider] = $e->getMessage();
+            $first ??= $e;
+            continue;
+        }
+        $used_fallback = $errors !== [];
+        sms_last_send(['provider' => $provider, 'fallback' => $used_fallback, 'errors' => array_map('sms_scrub', $errors)]);
+        if ($used_fallback) sms_log_event('fallback', $phone, $errors, $provider);
+        return $provider;
+    }
+
+    sms_last_send(['provider' => '', 'fallback' => false, 'errors' => array_map('sms_scrub', $errors)]);
+    sms_log_event('failed', $phone, $errors);
+    if (count($errors) === 1) throw $first;                     // jeden dostawca → oryginalny błąd
+    $parts = [];
+    foreach ($errors as $provider => $msg) {
+        $parts[] = ($parts ? 'Zapasowy' : 'Główny') . ' (' . $provider . '): ' . sms_scrub($msg);
+    }
+    throw new RuntimeException('Wysyłka SMS nieudana u obu dostawców. ' . implode(' | ', $parts));
+}
+
+/**
+ * Wysyła SMS WYŁĄCZNIE przez wskazanego dostawcę — bez łańcucha i bez pominięć (np. test w ustawieniach:
+ * „czy zapasowy w ogóle działa”). Rzuca wyjątek przy błędzie, także gdy dostawca nie jest skonfigurowany.
+ */
+function sms_send_via(string $provider, string $phone, string $message): void {
+    if (!isset(sms_providers()[$provider])) throw new InvalidArgumentException('Nieznany dostawca SMS.');
+    _sms_dispatch($provider, sms_normalize_phone($phone), $message);
 }
 
 /**
@@ -225,7 +316,11 @@ function sms_find_user_by_phone(string $phone): ?array {
 // Implementacje dostawców (prywatne) — używają file_get_contents + stream_context
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Pomocnik: wysyła żądanie HTTP i zwraca [body, http_code]. */
+/**
+ * Pomocnik: wysyła żądanie HTTP i zwraca [body, http_code].
+ * Limity: 8 s na połączenie (default_socket_timeout — strumienie HTTP nie mają osobnego limitu połączenia) i 15 s
+ * na odpowiedź. Komunikat błędu nie zawiera adresu — w zapytaniu są klucze API, numer i treść SMS.
+ */
 function _sms_http(string $url, string $method, array $headers, string $body = ''): array {
     $ctx = stream_context_create([
         'http' => [
@@ -240,10 +335,15 @@ function _sms_http(string $url, string $method, array $headers, string $body = '
             'verify_peer_name' => false,
         ],
     ]);
-    $resp = @file_get_contents($url, false, $ctx);
+    $old_timeout = ini_set('default_socket_timeout', '8');
+    try {
+        $resp = @file_get_contents($url, false, $ctx);
+        $err  = $resp === false ? error_get_last() : null;
+    } finally {
+        if ($old_timeout !== false) ini_set('default_socket_timeout', (string)$old_timeout);
+    }
     if ($resp === false) {
-        $err = error_get_last();
-        throw new RuntimeException('Błąd połączenia HTTP: ' . ($err['message'] ?? 'nieznany błąd'));
+        throw new RuntimeException('Błąd połączenia HTTP: ' . sms_scrub((string)($err['message'] ?? 'nieznany błąd')));
     }
     // Pobierz status HTTP z nagłówków odpowiedzi (PHP 8.4+ deprecates $http_response_header)
     $status  = 0;
@@ -267,8 +367,10 @@ function _sms_send_smsapi(string $phone, string $message): void {
     }
 
     $factory = new Psr17Factory();
+    // Limity czasu: domyślnie cURL czeka na połączenie ~5 min — niedostępny operator blokowałby wysyłkę i zapasowy
+    // dostawca nigdy by nie dostał szansy.
     $client  = new SmsapiHttpClient(
-        new \Http\Client\Curl\Client($factory, $factory),
+        new \Http\Client\Curl\Client($factory, $factory, [CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 20]),
         $factory,
         $factory
     );
@@ -332,7 +434,9 @@ function _sms_send_twilio(string $phone, string $message): void {
 
     // Twilio wymaga E.164: +48XXXXXXXXX
     $to  = '+' . ltrim($phone, '+');
-    $url = "https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json";
+    // Adres API można przestawić ustawieniem `sms_twilio_api_base` (np. brzeg regionalny Twilio, serwer pośredniczący)
+    $base = rtrim(sms_setting('sms_twilio_api_base') ?: 'https://api.twilio.com', '/');
+    $url  = "{$base}/2010-04-01/Accounts/{$sid}/Messages.json";
 
     $body = http_build_query(['To' => $to, 'From' => $from, 'Body' => $message]);
     $auth = base64_encode($sid . ':' . $token);
@@ -360,9 +464,14 @@ function _sms_send_twilio(string $phone, string $message): void {
 }
 
 /**
- * HTTP Request SMS — wysyła GET lub POST na skonfigurowany URL.
- * URL może zawierać {phone} i {message} jako placeholdery.
- * Przykład: https://sms.brama.pl/send?apikey=XYZ&to={phone}&text={message}
+ * HTTP Request SMS — wysyła GET lub POST na skonfigurowany URL (dowolna brama SMS innego operatora).
+ * URL może zawierać placeholdery: {phone} (48XXXXXXXXX), {phone9} (same 9 cyfr), {phone_plus} (+48XXXXXXXXX),
+ * {message} (też {text}, {sms}) i {sender} (nazwa nadawcy z ustawień) — wszystkie url-encodowane.
+ * Przykład: https://sms.brama.pl/send?apikey=XYZ&to={phone}&from={sender}&text={message}
+ *
+ * Powodzenie = HTTP 2xx. Bramy zwracające 200 także przy błędzie ("ERROR: brak środków") ustaw tekstem sukcesu
+ * (`sms_http_ok_text`, np. "OK"): odpowiedź bez niego to porażka i system przechodzi na zapasowego dostawcę.
+ * Bez tego ustawienia nie zgadujemy po treści — fałszywa porażka wysłałaby ten sam SMS drugi raz.
  */
 function _sms_send_httprequest(string $phone, string $message): void {
     $url_tpl = sms_setting('sms_http_url');
@@ -372,10 +481,11 @@ function _sms_send_httprequest(string $phone, string $message): void {
         throw new RuntimeException('Brak URL dla dostawcy HTTP Request. Skonfiguruj w: Administracja → Ustawienia SMS.');
     }
 
-    // Wstaw {phone} i {message} w URL
+    // Wstaw placeholdery w URL
+    $sender = sms_setting('sms_sender_name') ?: 'INFO';
     $url = str_replace(
-        ['{phone}', '{message}', '{text}', '{sms}'],
-        [urlencode($phone), urlencode($message), urlencode($message), urlencode($message)],
+        ['{phone}', '{phone9}', '{phone_plus}', '{message}', '{text}', '{sms}', '{sender}'],
+        [urlencode($phone), urlencode(substr($phone, -9)), urlencode('+' . $phone), urlencode($message), urlencode($message), urlencode($message), urlencode($sender)],
         $url_tpl
     );
 
@@ -390,8 +500,12 @@ function _sms_send_httprequest(string $phone, string $message): void {
     }
 
     if ($code < 200 || $code >= 300) {
-        $preview = mb_substr($resp, 0, 120);
+        $preview = sms_scrub(mb_substr($resp, 0, 120));
         throw new RuntimeException("HTTP SMS: serwer zwrócił HTTP {$code}. Odpowiedź: {$preview}");
+    }
+    $ok_text = trim(sms_setting('sms_http_ok_text'));
+    if ($ok_text !== '' && stripos($resp, $ok_text) === false) {
+        throw new RuntimeException('HTTP SMS: odpowiedź bramy nie zawiera oczekiwanego tekstu sukcesu „' . $ok_text . '”. Odpowiedź: ' . sms_scrub(mb_substr($resp, 0, 120)));
     }
 }
 

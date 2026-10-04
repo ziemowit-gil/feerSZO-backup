@@ -98,6 +98,8 @@ if (file_exists(__DIR__ . '/config.php')) {
                         'sms_api_login','sms_api_password','sms_provider',
                         'sms_enabled','sms_sender_name',
                         'sms_twilio_sid','sms_twilio_token','sms_twilio_from',
+                        // SMS — token OAuth, dostawca zapasowy (fallback) i brama HTTP: bez nich przy reinstalacji znikałby cały łańcuch
+                        'sms_api_token','sms_fallback_provider','sms_http_url','sms_http_method','sms_http_ok_text','sms_twilio_api_base',
                         // CRON
                         'cron_token',
                         // Anthropic AI

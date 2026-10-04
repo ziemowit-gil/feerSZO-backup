@@ -84,10 +84,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $admin_test_result = ['ok' => false, 'msg' => 'SMS niedostępny lub brak numeru telefonu dla tego użytkownika.'];
                 } else {
                     require_once dirname(__DIR__) . '/includes/sms.php';
-                    $ok = sms_send($tu['phone_number'], 'FEER Zadania [test]: powiadomienia SMS działają poprawnie.');
+                    // sms_send() zwraca dostawcę, który wysłał ('' = pominięto), a przy porażce rzuca wyjątek —
+                    // dawniej zwracało void, więc test zawsze zgłaszał „Błąd wysyłki” (null) nawet po udanej wysyłce
+                    $sms_err = '';
+                    try { $ok = sms_send($tu['phone_number'], 'FEER Zadania [test]: powiadomienia SMS działają poprawnie.') !== ''; }
+                    catch (\Throwable $e) { $ok = false; $sms_err = sms_scrub($e->getMessage()); }
                     $admin_test_result = ['ok' => $ok, 'msg' => $ok
                         ? 'SMS testowy wysłany na ' . $tu['phone_number'] . ' (' . $tu['name'] . ')'
-                        : 'Błąd wysyłki SMS — sprawdź konfigurację bramki.'];
+                        : 'Błąd wysyłki SMS — ' . ($sms_err !== '' ? $sms_err : 'sprawdź konfigurację bramki.')];
                 }
             } elseif ($tch === 'inapp') {
                 try {
@@ -120,9 +124,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ch = $_POST['test_channel'] ?? 'email';
         if ($ch === 'sms' && $has_sms) {
             require_once dirname(__DIR__) . '/includes/sms.php';
-            $ok  = sms_send($user['phone_number'], 'FEER Zadania: test powiadomień SMS działa poprawnie.');
+            $sms_err = '';
+            try { $ok = sms_send($user['phone_number'], 'FEER Zadania: test powiadomień SMS działa poprawnie.') !== ''; }
+            catch (\Throwable $e) { $ok = false; $sms_err = sms_scrub($e->getMessage()); }
             $test_result = ['ok' => $ok, 'channel' => 'sms',
-                'msg' => $ok ? 'SMS wysłany na ' . $user['phone_number'] : 'Błąd wysyłki SMS — sprawdź konfigurację bramki.'];
+                'msg' => $ok ? 'SMS wysłany na ' . $user['phone_number'] : 'Błąd wysyłki SMS — ' . ($sms_err !== '' ? $sms_err : 'sprawdź konfigurację bramki.')];
         } elseif ($ch === 'inapp') {
             try {
                 notif_create($uid, 'task', 'Zadania — test in-app', 'To jest testowe powiadomienie in-app.', APP_URL . '/tasks/notifications.php');

@@ -25,6 +25,7 @@ $cfg = [
     // HTTP Request (webhook)
     'sms_http_url'     => sms_setting('sms_http_url'),
     'sms_http_method'  => sms_setting('sms_http_method') ?: 'GET',
+    'sms_http_ok_text' => sms_setting('sms_http_ok_text'),
 ];
 
 $test_result = null;
@@ -68,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $save['sms_http_url']    = trim($_POST['sms_http_url']    ?? '') ?: $cfg['sms_http_url'];
         $save['sms_http_method'] = in_array($_POST['sms_http_method'] ?? '', ['GET','POST'], true)
                                    ? $_POST['sms_http_method'] : 'GET';
+        $save['sms_http_ok_text'] = mb_substr(trim($_POST['sms_http_ok_text'] ?? ''), 0, 100);   // opcjonalny; pusty = nie sprawdzamy treści odpowiedzi
 
         foreach ($save as $k => $v) {
             $exists = db_one("SELECT 1 FROM settings WHERE key_=?", [$k]);
@@ -85,21 +87,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'test') {
         $phone    = trim($_POST['test_phone'] ?? '');
-        $provider = $cfg['sms_provider'];
+        $via      = in_array($_POST['via'] ?? '', ['primary', 'fallback', 'chain'], true) ? $_POST['via'] : 'chain';
+        $primary  = sms_provider();
+        $fallback = sms_provider_fallback();
+        $text     = 'Test SMS z Rejestru Umów — ' . ORG_NAME . '. Zignoruj tę wiadomość.';
 
-        if (!$phone) {
-            $test_result = ['ok' => false, 'msg' => 'Podaj numer telefonu do testu.'];
-        } elseif ($provider === 'smsapi' && !sms_setting('sms_api_token') && (!$cfg['sms_api_login'] || !$cfg['sms_api_password'])) {
-            $test_result = ['ok' => false, 'msg' => 'Brak tokenu OAuth lub loginu/hasła smsapi.pl — najpierw zapisz konfigurację.'];
-        } elseif ($provider === 'twilio' && (!$cfg['sms_twilio_sid'] || !$cfg['sms_twilio_token'] || !$cfg['sms_twilio_from'])) {
-            $test_result = ['ok' => false, 'msg' => 'Niekompletna konfiguracja Twilio — najpierw zapisz wszystkie pola.'];
-        } elseif ($provider === 'httprequest' && !$cfg['sms_http_url']) {
-            $test_result = ['ok' => false, 'msg' => 'Brak URL dla HTTP Request — najpierw zapisz konfigurację.'];
+        if (strlen((string)preg_replace('/\D/', '', $phone)) < 9) {
+            $test_result = ['ok' => false, 'msg' => 'Podaj numer telefonu do testu (9 cyfr).'];
+        } elseif ($via === 'fallback' && ($fallback === '' || $fallback === $primary)) {
+            $test_result = ['ok' => false, 'msg' => 'Dostawca zapasowy nie jest wybrany (albo jest taki sam jak główny) — wybierz innego i zapisz konfigurację.'];
         } else {
             try {
-                sms_send($phone, 'Test SMS z Rejestru Umów — ' . ORG_NAME . '. Zignoruj tę wiadomość.');
-                $test_result = ['ok' => true, 'msg' => 'SMS wysłany pomyślnie na ' . $phone . ' przez ' . strtoupper($provider) . '.'];
-            } catch (\Exception $e) {
+                if ($via === 'chain') {
+                    // tak jak w produkcji: główny → zapasowy; komunikat mówi, kto naprawdę wysłał
+                    $used = sms_send($phone, $text);
+                    $last = sms_last_send();
+                    if ($used === '') {
+                        $test_result = ['ok' => true, 'msg' => 'SMS pominięty — numer należy do kursanta wirtualnego.'];
+                    } else {
+                        $msg = 'SMS wysłany na ' . $phone . ' przez ' . sms_provider_label($used) . '.';
+                        if (!empty($last['fallback'])) {
+                            $msg .= ' Główny dostawca (' . sms_provider_label($primary) . ') zawiódł: ' . ($last['errors'][$primary] ?? 'błąd')
+                                  . ' — zadziałał fallback.';
+                        }
+                        $test_result = ['ok' => true, 'msg' => $msg, 'fallback' => !empty($last['fallback'])];
+                    }
+                } else {
+                    // jeden dostawca, bez łańcucha — sprawdza, czy właśnie ten operator działa
+                    $prov = $via === 'primary' ? $primary : $fallback;
+                    sms_send_via($prov, $phone, $text);
+                    $test_result = ['ok' => true, 'msg' => 'SMS wysłany na ' . $phone . ' przez ' . sms_provider_label($prov)
+                                    . ' (' . ($via === 'primary' ? 'główny' : 'zapasowy') . ', bez łańcucha).'];
+                }
+            } catch (\Throwable $e) {
                 $test_result = ['ok' => false, 'msg' => $e->getMessage()];
             }
         }
@@ -123,6 +143,21 @@ $provider_label = match($cfg['sms_provider']) {
     'httprequest' => 'HTTP Request',
     default       => 'smsapi.pl',
 };
+
+// Główny i zapasowy dostawca: pola konfiguracji pokazujemy dla OBU (dawniej tylko dla głównego — zapasowego nie dało się skonfigurować)
+$fb        = $cfg['sms_fallback_provider'];
+$labels    = sms_providers();
+$ready_of  = ['smsapi' => $smsapi_ok, 'twilio' => (bool)$twilio_ok, 'httprequest' => $http_ok];
+$show      = fn(string $p): bool => $cfg['sms_provider'] === $p || $fb === $p;
+$fb_valid  = $fb !== '' && $fb !== $cfg['sms_provider'];
+$fb_ready  = $fb_valid && !empty($ready_of[$fb]);
+$chain     = sms_provider_chain();
+$events    = [];
+try {
+    require_once dirname(__DIR__) . '/modules/audit_logs/logic/audit_logs.php';
+    audit_logs_migrate();
+    $events = db_all("SELECT action, details, created_at FROM audit_logs WHERE action LIKE 'sms.%' ORDER BY id DESC LIMIT 10");
+} catch (\Throwable $e) {}
 ?>
 
 <style>
@@ -157,6 +192,24 @@ $provider_label = match($cfg['sms_provider']) {
 
 <?= flash_html() ?>
 
+<?php if (!$chain): ?>
+<div class="alert alert-danger small">
+  <strong>Żaden dostawca SMS nie jest skonfigurowany</strong> — powiadomienia i kody SMS nie będą wysyłane.
+  Uzupełnij konfigurację głównego dostawcy (<?= h($labels[$cfg['sms_provider']] ?? '') ?>) poniżej.
+</div>
+<?php elseif (!$active_ok): ?>
+<div class="alert alert-warning small">
+  <strong>Główny dostawca (<?= h($provider_label) ?>) nie ma kompletnej konfiguracji.</strong>
+  SMS-y idą wyłącznie przez zapasowego (<?= h($labels[$chain[0]] ?? $chain[0]) ?>) — uzupełnij głównego, żeby przywrócić normalny tryb.
+</div>
+<?php endif; ?>
+<?php if ($fb_valid && !$fb_ready): ?>
+<div class="alert alert-warning small">
+  <strong>Dostawca zapasowy (<?= h($labels[$fb] ?? $fb) ?>) nie ma kompletnej konfiguracji</strong> — fallback nie zadziała.
+  Uzupełnij jego pola w sekcji „Konfiguracja <?= h($labels[$fb] ?? $fb) ?>” poniżej i zapisz.
+</div>
+<?php endif; ?>
+
 <div class="row g-3">
 <div class="col-xl-7">
 
@@ -190,7 +243,7 @@ $provider_label = match($cfg['sms_provider']) {
       <div class="provider-card">
         <input type="radio" name="sms_provider" id="prov_smsapi" value="smsapi"
                <?= $cfg['sms_provider'] === 'smsapi' ? 'checked' : '' ?>
-               onchange="switchProvider('smsapi')" class="d-none">
+               onchange="refreshProviders()" class="d-none">
         <label for="prov_smsapi" class="d-flex align-items-start gap-3 w-100 mb-0">
           <div class="provider-logo logo-smsapi"><i class="bi bi-chat-dots"></i></div>
           <div>
@@ -212,7 +265,7 @@ $provider_label = match($cfg['sms_provider']) {
       <div class="provider-card">
         <input type="radio" name="sms_provider" id="prov_twilio" value="twilio"
                <?= $cfg['sms_provider'] === 'twilio' ? 'checked' : '' ?>
-               onchange="switchProvider('twilio')" class="d-none">
+               onchange="refreshProviders()" class="d-none">
         <label for="prov_twilio" class="d-flex align-items-start gap-3 w-100 mb-0">
           <div class="provider-logo logo-twilio"><i class="bi bi-telephone"></i></div>
           <div>
@@ -234,7 +287,7 @@ $provider_label = match($cfg['sms_provider']) {
       <div class="provider-card">
         <input type="radio" name="sms_provider" id="prov_http" value="httprequest"
                <?= $cfg['sms_provider'] === 'httprequest' ? 'checked' : '' ?>
-               onchange="switchProvider('httprequest')" class="d-none">
+               onchange="refreshProviders()" class="d-none">
         <label for="prov_http" class="d-flex align-items-start gap-3 w-100 mb-0">
           <div class="provider-logo logo-http"><i class="bi bi-globe2"></i></div>
           <div>
@@ -258,36 +311,55 @@ $provider_label = match($cfg['sms_provider']) {
 
 <!-- ── Dostawca zapasowy (fallback) ───────────────────────────────────────── -->
 <div class="card shadow-sm mb-3">
-<div class="card-header fw-semibold"><i class="bi bi-arrow-repeat"></i> Dostawca zapasowy (fallback)</div>
+<div class="card-header fw-semibold"><i class="bi bi-arrow-repeat"></i> Dostawca zapasowy — inny operator (fallback)</div>
 <div class="card-body">
   <p class="small text-muted mb-2">
-    Gdy <strong>główny</strong> dostawca zwróci błąd, system automatycznie ponowi wysyłkę
-    przez dostawcę zapasowego. Dla kodów logowania łańcuch to:
-    <strong>główny SMS → zapasowy SMS → e-mail</strong>.
-    Zalecane u nas: główny <strong>smsapi.pl</strong>, zapasowy <strong>Twilio</strong>.
+    Gdy <strong>główny</strong> operator zwróci błąd albo nie odpowie w ciągu kilkunastu sekund, system automatycznie
+    ponowi wysyłkę przez operatora zapasowego. Dla kodów logowania łańcuch to:
+    <strong>główny SMS → zapasowy SMS → e-mail</strong>. Każde przełączenie zapisuje się w „Ostatnich zdarzeniach” obok.
+    Zalecane u nas: główny <strong>smsapi.pl</strong>, zapasowy <strong>Twilio</strong> albo <strong>HTTP Request</strong> (brama innego polskiego operatora).
   </p>
   <label class="form-label fw-semibold small" for="sms_fallback_provider">Użyj jako zapasowego</label>
-  <select name="sms_fallback_provider" id="sms_fallback_provider" class="form-select form-select-sm" style="max-width:280px">
+  <select name="sms_fallback_provider" id="sms_fallback_provider" class="form-select form-select-sm" style="max-width:280px"
+          onchange="refreshProviders()" aria-describedby="fb-help fb-note">
     <option value="">— brak (bez fallbacku) —</option>
-    <option value="smsapi"      <?= $cfg['sms_fallback_provider']==='smsapi'      ? 'selected':'' ?>>smsapi.pl</option>
-    <option value="twilio"      <?= $cfg['sms_fallback_provider']==='twilio'      ? 'selected':'' ?>>Twilio</option>
-    <option value="httprequest" <?= $cfg['sms_fallback_provider']==='httprequest' ? 'selected':'' ?>>HTTP Request</option>
+    <option value="smsapi"      <?= $fb==='smsapi'      ? 'selected':'' ?>>smsapi.pl</option>
+    <option value="twilio"      <?= $fb==='twilio'      ? 'selected':'' ?>>Twilio</option>
+    <option value="httprequest" <?= $fb==='httprequest' ? 'selected':'' ?>>HTTP Request</option>
   </select>
-  <div class="form-text">
-    Musi być <strong>inny</strong> niż dostawca główny i mieć uzupełnioną własną konfigurację poniżej.
-    Wybór taki sam jak główny zostanie zignorowany.
+  <div class="form-text" id="fb-help">
+    Musi być <strong>inny</strong> niż dostawca główny. Po wyborze poniżej pojawia się jego konfiguracja —
+    uzupełnij ją tutaj, nie trzeba przełączać dostawcy głównego.
+  </div>
+  <div class="form-text fw-semibold" id="fb-note"></div>
+</div>
+</div>
+
+<!-- ── Nazwa nadawcy (wspólna) ────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-person-badge"></i> Nazwa nadawcy</div>
+<div class="card-body">
+  <label class="form-label fw-semibold small" for="sms_sender_name">
+    Nazwa nadawcy <span class="text-muted fw-normal">(maks. 11 znaków ASCII)</span>
+  </label>
+  <input type="text" id="sms_sender_name" name="sms_sender_name" class="form-control form-control-sm" style="max-width:280px"
+         value="<?= h($cfg['sms_sender_name']) ?>" maxlength="11" placeholder="INFO" aria-describedby="sender-help">
+  <div class="form-text" id="sender-help">
+    Pojawi się zamiast numeru telefonu u odbiorcy (smsapi.pl) i w placeholderze <code>{sender}</code> bramy HTTP.
+    Twilio wysyła z numeru nadawcy z konfiguracji Twilio.
   </div>
 </div>
 </div>
 
 <!-- ── Konfiguracja smsapi.pl ─────────────────────────────────────────────── -->
 <div class="card shadow-sm mb-3" id="section-smsapi"
-     <?= $cfg['sms_provider'] !== 'smsapi' ? 'style="display:none"' : '' ?>>
+     <?= $show('smsapi') ? '' : 'style="display:none"' ?>>
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-smsapi" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-chat-dots"></i>
   </div>
   Konfiguracja smsapi.pl
+  <span class="badge ms-auto fw-normal role-badge" data-provider="smsapi"></span>
 </div>
 <div class="card-body">
   <!-- Token OAuth (nowa metoda — zalecana) -->
@@ -337,27 +409,18 @@ $provider_label = match($cfg['sms_provider']) {
   </div>
     </div>
   </details>
-  <div class="mb-0">
-    <label class="form-label fw-semibold small">
-      Nazwa nadawcy
-      <span class="text-muted fw-normal">(maks. 11 znaków ASCII)</span>
-    </label>
-    <input type="text" name="sms_sender_name" class="form-control form-control-sm"
-           value="<?= h($cfg['sms_sender_name']) ?>"
-           maxlength="11" placeholder="INFO">
-    <div class="form-text">Pojawi się zamiast numeru telefonu u odbiorcy wiadomości.</div>
-  </div>
 </div>
 </div>
 
 <!-- ── Konfiguracja Twilio ────────────────────────────────────────────────── -->
 <div class="card shadow-sm mb-3" id="section-twilio"
-     <?= $cfg['sms_provider'] !== 'twilio' ? 'style="display:none"' : '' ?>>
+     <?= $show('twilio') ? '' : 'style="display:none"' ?>>
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-twilio" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-telephone"></i>
   </div>
   Konfiguracja Twilio
+  <span class="badge ms-auto fw-normal role-badge" data-provider="twilio"></span>
 </div>
 <div class="card-body">
   <div class="alert alert-light border small p-2 mb-3">
@@ -401,19 +464,21 @@ $provider_label = match($cfg['sms_provider']) {
 
 <!-- ── Konfiguracja HTTP Request ──────────────────────────────────────────── -->
 <div class="card shadow-sm mb-3" id="section-httprequest"
-     <?= $cfg['sms_provider'] !== 'httprequest' ? 'style="display:none"' : '' ?>>
+     <?= $show('httprequest') ? '' : 'style="display:none"' ?>>
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
   <div class="provider-logo logo-http" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
     <i class="bi bi-globe2"></i>
   </div>
   Konfiguracja HTTP Request (Webhook)
+  <span class="badge ms-auto fw-normal role-badge" data-provider="httprequest"></span>
 </div>
 <div class="card-body">
   <div class="alert alert-light border small p-2 mb-3">
-    Podaj adres URL do wywołania przy wysyłce SMS. Użyj placeholderów
-    <code>{phone}</code> (numer telefonu, format <code>48XXXXXXXXX</code>) i
-    <code>{message}</code> (treść SMS, urlencoded).<br>
-    Przykład: <code>https://sms.brama.pl/send?token=ABC&amp;to={phone}&amp;text={message}</code>
+    Podaj adres URL do wywołania przy wysyłce SMS. Placeholdery (url-encodowane):
+    <code>{phone}</code> — numer <code>48XXXXXXXXX</code>, <code>{phone9}</code> — same 9 cyfr,
+    <code>{phone_plus}</code> — <code>+48XXXXXXXXX</code>, <code>{message}</code> — treść SMS,
+    <code>{sender}</code> — nazwa nadawcy z ustawień.<br>
+    Przykład: <code>https://sms.brama.pl/send?apikey=ABC&amp;to={phone}&amp;from={sender}&amp;text={message}</code>
   </div>
 
   <div class="mb-3">
@@ -436,6 +501,17 @@ $provider_label = match($cfg['sms_provider']) {
     </select>
     <div class="form-text">
       <strong>GET</strong>: parametry w URL (domyślnie). <strong>POST</strong>: system wyśle też <code>phone</code>, <code>message</code>, <code>text</code> w ciele żądania (form-urlencoded), URL nadal może zawierać placeholdery.
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <label class="form-label fw-semibold small" for="sms_http_ok_text">Tekst oznaczający sukces w odpowiedzi <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+    <input type="text" id="sms_http_ok_text" name="sms_http_ok_text" class="form-control form-control-sm font-monospace" style="max-width:280px"
+           value="<?= h($cfg['sms_http_ok_text']) ?>" maxlength="100" placeholder="np. OK albo &quot;status&quot;:&quot;ok&quot;" aria-describedby="okt-help">
+    <div class="form-text" id="okt-help">
+      Sukcesem jest odpowiedź HTTP 2xx. Niektóre bramy zwracają 200 także przy błędzie (np. „ERROR: brak środków”) —
+      wpisz tekst, który występuje w odpowiedzi tylko przy powodzeniu, a odpowiedź bez niego zostanie uznana za porażkę
+      i system przejdzie na dostawcę zapasowego. Puste = treści nie sprawdzamy (system nie zgaduje, by nie wysłać SMS-a dwa razy).
     </div>
   </div>
 </div>
@@ -463,16 +539,26 @@ $provider_label = match($cfg['sms_provider']) {
   <form method="post">
     <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
     <input type="hidden" name="_action" value="test">
-    <div class="input-group input-group-sm mb-1">
+    <label class="form-label small fw-semibold mb-1" for="test_phone">Numer telefonu</label>
+    <div class="input-group input-group-sm mb-2" style="max-width:340px">
       <span class="input-group-text fw-semibold text-muted">+48</span>
-      <input type="tel" name="test_phone" class="form-control phone-48"
-             placeholder="123 456 789" required>
-      <button type="submit" class="btn btn-outline-primary">Wyślij testowy SMS</button>
+      <input type="tel" id="test_phone" name="test_phone" class="form-control phone-48" placeholder="123 456 789" required>
     </div>
-    <div class="form-text">
-      Używa aktualnie <strong>zapisanego</strong> dostawcy
-      (<strong><?= $provider_label ?></strong>).
-      Zapisz konfigurację przed testem.
+    <div class="d-flex flex-wrap gap-2">
+      <button type="submit" name="via" value="chain" class="btn btn-sm btn-primary">
+        <i class="bi bi-diagram-3"></i> Wyślij jak w produkcji (łańcuch)
+      </button>
+      <button type="submit" name="via" value="primary" class="btn btn-sm btn-outline-primary">
+        Tylko przez głównego (<?= h($provider_label) ?>)
+      </button>
+      <button type="submit" name="via" value="fallback" class="btn btn-sm btn-outline-primary"<?= $fb_valid ? '' : ' disabled aria-disabled="true"' ?>>
+        Tylko przez zapasowego (<?= $fb_valid ? h($labels[$fb] ?? $fb) : 'nie wybrano' ?>)
+      </button>
+    </div>
+    <div class="form-text mt-2">
+      Test używa <strong>zapisanej</strong> konfiguracji — zapisz ją przed testem. „Łańcuch” działa jak prawdziwa wysyłka i podaje,
+      kto faktycznie wysłał; „tylko głównego/zapasowego” sprawdza jednego operatora bez przechodzenia na drugiego —
+      tym sprawdzisz, czy zapasowy w ogóle działa, bez psucia głównego.
     </div>
   </form>
 </div>
@@ -500,15 +586,20 @@ $provider_label = match($cfg['sms_provider']) {
     <span class="fw-semibold"><?= $provider_label ?></span>
   </div>
 
-  <?php
-  $fb_label = match($cfg['sms_fallback_provider']) {
-      'twilio' => 'Twilio', 'httprequest' => 'HTTP Request', 'smsapi' => 'smsapi.pl', default => '—',
-  };
-  ?>
   <div class="d-flex justify-content-between align-items-center mb-2">
     <span class="text-muted">Dostawca zapasowy</span>
-    <span class="badge <?= $cfg['sms_fallback_provider'] ? 'bg-info-subtle text-info-emphasis border border-info-subtle' : 'bg-secondary' ?>">
-      <?= $cfg['sms_fallback_provider'] ? h($fb_label) : 'brak' ?>
+    <span class="badge <?= $fb_valid ? ($fb_ready ? 'bg-info-subtle text-info-emphasis border border-info-subtle' : 'bg-warning-subtle text-warning-emphasis border border-warning-subtle') : 'bg-secondary' ?>">
+      <?= $fb_valid ? h($labels[$fb] ?? $fb) . ($fb_ready ? '' : ' — niekompletny') : 'brak' ?>
+    </span>
+  </div>
+  <div class="d-flex justify-content-between align-items-start mb-2">
+    <span class="text-muted">Łańcuch wysyłki</span>
+    <span class="fw-semibold text-end">
+      <?php if ($chain): ?>
+        <?= h(implode(' → ', array_map(fn($p) => $labels[$p] ?? $p, $chain))) ?><?= ' → e-mail (kody)' ?>
+      <?php else: ?>
+        <span class="text-danger">brak działającego dostawcy</span>
+      <?php endif; ?>
     </span>
   </div>
 
@@ -560,6 +651,35 @@ $provider_label = match($cfg['sms_provider']) {
     <span class="fw-semibold"><?= h($cfg['sms_http_method'] ?: 'GET') ?></span>
   </div>
 
+</div>
+</div>
+
+<!-- Ostatnie zdarzenia -->
+<div class="card shadow-sm mb-3">
+<div class="card-header fw-semibold"><i class="bi bi-clock-history"></i> Ostatnie zdarzenia wysyłki</div>
+<div class="card-body small">
+  <?php if (!$events): ?>
+    <p class="text-muted mb-0">Brak zdarzeń — główny dostawca nie zawodził (albo nic jeszcze nie wysyłano).</p>
+  <?php else: ?>
+  <p class="text-muted mb-2">Przełączenia na zapasowego i całkowite porażki wysyłki (numer zamaskowany).</p>
+  <ul class="list-unstyled mb-0">
+    <?php foreach ($events as $ev):
+      $d = json_decode((string)$ev['details'], true) ?: [];
+      $is_fb = $ev['action'] === 'sms.fallback';
+      $err   = $d['errors'] ?? []; ?>
+    <li class="mb-2">
+      <span class="badge <?= $is_fb ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' : 'bg-danger-subtle text-danger-emphasis border border-danger-subtle' ?>">
+        <?= $is_fb ? 'przełączono na zapasowego' : 'wysyłka nieudana' ?>
+      </span>
+      <span class="text-muted"><?= h((string)$ev['created_at']) ?> · do <?= h((string)($d['to'] ?? '')) ?></span>
+      <?php if ($is_fb && !empty($d['used'])): ?><span> · wysłał <?= h($labels[$d['used']] ?? $d['used']) ?></span><?php endif; ?>
+      <?php foreach ($err as $prov => $msg): ?>
+        <div class="text-muted ps-2">— <?= h($labels[$prov] ?? $prov) ?>: <?= h(mb_substr((string)$msg, 0, 160)) ?></div>
+      <?php endforeach; ?>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+  <?php endif; ?>
 </div>
 </div>
 
@@ -625,9 +745,10 @@ $provider_label = match($cfg['sms_provider']) {
   <ol class="ps-3 mb-2">
     <li>Włącz przełącznik <em>Logowanie SMS aktywne</em>.</li>
     <li><strong>Dostawca SMS = smsapi.pl</strong> → wpisz <em>Token OAuth</em> i <em>Nazwę nadawcy</em>.</li>
-    <li>Uzupełnij <strong>Twilio</strong>: Account SID, Auth Token, numer From (E.164, <code>+48…</code>) — kliknij kafelek Twilio, by odsłonić pola, lub uzupełnij i zapisz.</li>
-    <li><strong>Dostawca zapasowy = Twilio</strong> (sekcja „Dostawca zapasowy (fallback)").</li>
-    <li>Zapisz i wyślij <em>testowy SMS</em>. Aby przetestować fallback, możesz tymczasowo „popsuć" głównego (np. błędny token) — SMS i tak dojdzie przez Twilio.</li>
+    <li><strong>Dostawca zapasowy = Twilio</strong> (sekcja „Dostawca zapasowy”) — zaraz pod nią pojawi się konfiguracja Twilio:
+        Account SID, Auth Token, numer From (E.164, <code>+48…</code>). Zamiast Twilio może to być brama innego operatora (HTTP Request).</li>
+    <li>Zapisz i sprawdź <em>testem</em>: „Tylko przez zapasowego” pokazuje, czy drugi operator działa, a „łańcuch” — kto wysłał jak w produkcji.
+        Nie trzeba niczego „psuć” w głównym.</li>
   </ol>
 
   <p class="fw-semibold mb-1">Gdzie Dydaktyka 3 wysyła SMS:</p>
@@ -650,16 +771,31 @@ $provider_label = match($cfg['sms_provider']) {
 </div><!-- /row -->
 
 <script>
-function switchProvider(name) {
-    document.getElementById('section-smsapi').style.display       = name === 'smsapi'       ? '' : 'none';
-    document.getElementById('section-twilio').style.display       = name === 'twilio'       ? '' : 'none';
-    document.getElementById('section-httprequest').style.display  = name === 'httprequest'  ? '' : 'none';
+// Sekcje konfiguracji widać dla dostawcy głównego i zapasowego; plakietki mówią, kim jest który.
+function refreshProviders() {
+    var main = (document.querySelector('[name="sms_provider"]:checked') || {}).value || '';
+    var fbSel = document.getElementById('sms_fallback_provider');
+    var fb = fbSel ? fbSel.value : '';
+    var names = {smsapi: 'smsapi.pl', twilio: 'Twilio', httprequest: 'HTTP Request'};
+    if (fbSel) {
+        Array.prototype.forEach.call(fbSel.options, function (o) { o.disabled = (o.value !== '' && o.value === main); });
+        if (fb === main) { fbSel.value = ''; fb = ''; }
+    }
+    ['smsapi', 'twilio', 'httprequest'].forEach(function (p) {
+        var sec = document.getElementById('section-' + p);
+        if (sec) sec.style.display = (p === main || p === fb) ? '' : 'none';
+    });
+    document.querySelectorAll('.role-badge').forEach(function (b) {
+        var p = b.getAttribute('data-provider');
+        var role = p === main ? 'Główny' : (p === fb ? 'Zapasowy' : '');
+        b.textContent = role;
+        b.className = 'badge ms-auto fw-normal role-badge ' + (p === main ? 'bg-primary' : 'bg-info-subtle text-info-emphasis border border-info-subtle');
+        b.style.display = role ? '' : 'none';
+    });
+    var note = document.getElementById('fb-note');
+    if (note) note.textContent = fb ? 'Zapasowy: ' + names[fb] + ' — uzupełnij jego konfigurację w sekcji poniżej.' : 'Bez fallbacku: porażka głównego dostawcy oznacza niewysłany SMS.';
 }
-// Init on load (handles browser back-fill of radio)
-document.addEventListener('DOMContentLoaded', function() {
-    const checked = document.querySelector('[name="sms_provider"]:checked');
-    if (checked) switchProvider(checked.value);
-});
+document.addEventListener('DOMContentLoaded', refreshProviders);
 </script>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
