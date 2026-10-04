@@ -154,7 +154,7 @@ function sms_log_event(string $event, string $phone, array $errors, string $used
         if ($used !== '') $ctx['used'] = $used;
         error_log('[SMS] ' . $event . ' ' . json_encode($ctx, JSON_UNESCAPED_UNICODE));
         if (!function_exists('audit_log')) require_once dirname(__DIR__) . '/modules/audit_logs/logic/audit_logs.php';
-        audit_log('sms.' . $event, $ctx);
+        audit_log('sms.' . $event, $ctx, 0);     // zdarzenie systemowe — bez current_user() (nie otwiera sesji w cronie, panelach i CLI)
     } catch (\Throwable $e) { /* dziennik nie może psuć wysyłki */ }
 }
 
