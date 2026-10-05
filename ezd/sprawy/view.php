@@ -1054,7 +1054,7 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
             <span><?= h((EZD_KIERUNKI[$kier] ?? ['label'=>$kier])['label']) ?></span>
             <?php if(!empty($item['nadawca'])): ?><span><?= h($item['nadawca']) ?></span><?php endif; ?>
             <?php if(!empty($item['status'])): ?><span class="badge bg-light text-dark border" style="font-size:.6rem"><?= h($item['status']) ?></span><?php endif; ?>
-            <span class="ms-auto"><?= date('d.m.Y', strtotime($item['_date'])) ?></span>
+            <span class="ms-auto"><?= ($__d = $item['_date'] ?? $item['data_pisma'] ?? $item['created_at'] ?? '') ? date('d.m.Y', strtotime($__d)) : '—' ?></span>
           </div>
         </div>
         <?php else: ?>
@@ -1064,7 +1064,7 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
           <div class="tl-meta">
             <span class="badge bg-warning text-dark" style="font-size:.62rem">Umowa</span>
             <?php if(!empty($item['nr_umowy'])): ?><span class="font-monospace"><?= h($item['nr_umowy']) ?></span><?php endif; ?>
-            <span class="ms-auto"><?= date('d.m.Y', strtotime($item['_date'])) ?></span>
+            <span class="ms-auto"><?= ($__d = $item['_date'] ?? $item['data_zawarcia'] ?? $item['created_at'] ?? '') ? date('d.m.Y', strtotime($__d)) : '—' ?></span>
           </div>
         </a>
         <?php endif; ?>
@@ -2377,7 +2377,7 @@ document.querySelectorAll('input[name="_dekr_mode"]').forEach(function(r) {
             <label class="form-label fw-semibold" style="font-size:.84rem">Rodzaj medium</label>
             <select name="rodzaj_medium" class="form-select form-select-sm">
               <?php foreach(EZD_MEDIA as $mval => $mlabel): ?>
-              <option value="<?= $mval ?>" <?= $mval === 'email' ? 'selected' : '' ?>><?= h($mlabel) ?></option>
+              <option value="<?= $mval ?>" <?= $mval === 'email' ? 'selected' : '' ?>><?= h(is_array($mlabel) ? ($mlabel['label'] ?? $mval) : $mlabel) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
