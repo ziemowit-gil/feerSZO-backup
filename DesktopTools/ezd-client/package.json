@@ -1,0 +1,52 @@
+{
+  "name": "ezd-crm-desktop",
+  "productName": "EZD Client",
+  "version": "0.1.0",
+  "description": "EZD Client — skanowanie i obsługa EZD/CRM (macOS / Windows)",
+  "main": "./out/main/index.js",
+  "author": "FEER",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "postinstall": "electron-builder install-app-deps",
+    "dist:mac": "npm run build && electron-builder --mac dmg pkg --universal",
+    "dist:win": "npm run build && electron-builder --win nsis msi --x64",
+    "test:smoke": "esbuild tests/smoke.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/smoke.cjs && ELECTRON_RUN_AS_NODE=1 electron out/smoke.cjs",
+    "test:escl": "esbuild tests/escl.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/escl.cjs --log-level=warning && ELECTRON_RUN_AS_NODE=1 electron out/escl.cjs",
+    "test:all": "npm run test:smoke && npm run test:escl && npm run test:sync && npm run test:auth",
+    "test:sync": "esbuild tests/sync.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/sync.cjs --log-level=warning && ELECTRON_RUN_AS_NODE=1 electron out/sync.cjs",
+    "test:auth": "esbuild tests/auth.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/auth.cjs --log-level=warning && ELECTRON_RUN_AS_NODE=1 electron out/auth.cjs",
+    "preview": "vite --config vite.preview.config.ts"
+  },
+  "dependencies": {
+    "better-sqlite3-multiple-ciphers": "^11.5.0",
+    "bonjour-service": "^1.4.4",
+    "electron-updater": "^6.3.9",
+    "fast-xml-parser": "^5.11.2",
+    "imapflow": "^1.0.164",
+    "nodemailer": "^6.9.16",
+    "pdf-lib": "^1.17.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.9.0",
+    "@types/nodemailer": "^6.4.16",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "axe-core": "^4.14.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.5"
+  }
+}

@@ -1,0 +1,21 @@
+appId: pl.feer.ezdclient
+productName: EZD Client
+directories: { output: dist, buildResources: build }
+files: ["out/**", "package.json"]
+asarUnpack: ["**/*.node"]
+publish: { provider: generic, url: "https://szo.feer.org.pl/desktop-updates/" }
+mac:
+  category: public.app-category.business
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true            # APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+  target: [dmg, pkg]
+dmg: { sign: false }
+pkg: { installLocation: /Applications }
+win:
+  target: [nsis, msi]
+  # podpis: Azure Trusted Signing lub certyfikat EV (WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD)
+nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true }
+msi: { oneClick: false, perMachine: true }
