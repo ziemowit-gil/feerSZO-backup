@@ -23,12 +23,9 @@ $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
     ? $raw_redirect : '';
 
-// Gdzie po zalogowaniu — ezd_only → EZD, admin/editor → Tożsamość, reszta → portal
+// Gdzie po zalogowaniu — domyślnie System Tożsamości (wyjątki: konta tylko-EZD / tylko-CRM), patrz auth_login_landing()
 function _login_landing(array $user): string {
-    if (function_exists('is_ezd_only') && is_ezd_only()) return APP_URL . '/ezd/index.php';
-    return in_array($user['role'] ?? '', ['admin', 'editor'], true)
-        ? APP_URL . '/tozsamosc/index.php'
-        : APP_URL . '/portal.php';
+    return auth_login_landing($user);
 }
 
 // ── Feature flags ─────────────────────────────────────────────────────────

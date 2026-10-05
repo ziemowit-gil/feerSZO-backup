@@ -148,11 +148,8 @@ function _2fa_success(array $user, string $redirect): void
           $_SESSION['2fa_sms_sent']);
     login_user($user);
     $tz = APP_URL . '/tozsamosc/index.php';
-    if (!$redirect || $redirect === $tz) {
-        $redirect = in_array($user['role'] ?? '', ['admin', 'editor'], true)
-            ? $tz : APP_URL . '/portal.php';
-    }
-    header('Location: ' . $redirect);
+    // Domyślne lądowanie = System Tożsamości (konta tylko-EZD/CRM — ich pulpit); jawny, inny adres wygrywa.
+    header('Location: ' . auth_login_landing($user, ($redirect && $redirect !== $tz) ? $redirect : ''));
     exit;
 }
 

@@ -66,9 +66,10 @@ if (!$error && !$code) {
     $error = 'Brak kodu autoryzacyjnego w odpowiedzi Microsoft.';
 }
 
-$redirect_after = APP_URL . '/portal.php';
+// Bez jawnego celu (ms_auth_url bez redirect_after) → System Tożsamości, jak przy każdym innym logowaniu.
+$redirect_after = APP_URL . '/tozsamosc/index.php';
 if (!$error) {
-    $redirect_after = $_SESSION['ms_login_redirect'] ?? APP_URL . '/portal.php';
+    $redirect_after = $_SESSION['ms_login_redirect'] ?? APP_URL . '/tozsamosc/index.php';
 
     // Wymieniamy kod na token PRZED usunięciem ms_login_verifier z sesji
     $tokens = ms_exchange_code($code);
