@@ -444,7 +444,7 @@ $pin_app_url = APP_URL . '/mobilna/';
 
 // Usługi — kafle (filtr Alpine po nazwie/statusie)
 $services = [[
-    'name' => 'Panel SZO', 'icon' => 'bi-window-desktop', 'tone' => 'blue',
+    'name' => 'Panel SZO', 'icon' => 'bi-window-desktop', 'tone' => 'brand',
     'status' => 'ok', 'status_label' => 'Aktywny',
     'desc' => 'Logowanie: ' . $panel_login . ' · dostęp bezterminowy w okresie obowiązywania umowy.',
     'href' => APP_URL . '/portal.php', 'cta' => 'Otwórz',
@@ -517,71 +517,181 @@ $account_parts = array_values(array_filter(preg_split('/[\s@.\-]+/', mb_strtolow
 $STATUS_CLASS = ['ok' => 'tzx-badge--ok', 'warn' => 'tzx-badge--warn', 'off' => 'tzx-badge--off'];
 $STATUS_ICON  = ['ok' => 'bi-check-circle-fill', 'warn' => 'bi-exclamation-circle-fill', 'off' => 'bi-slash-circle'];
 
+// Zakładka „Bezpieczeństwo": która sekcja rozwinięta na starcie — po błędzie formularza ta, której
+// dotyczył POST; przy oczekującym kodzie SMS telefon; w przeciwnym razie pierwszy brak w konfiguracji.
+$sec_open = 'haslo';
+if (!$has_local_password)                 $sec_open = 'haslo';
+elseif ($phone_pending || !$phone_verified) $sec_open = 'telefon';
+elseif (!$mfa_active)                      $sec_open = 'mfa';
+$__pa = (string)($_POST['_action'] ?? '');
+if ($errors && $__pa !== '') {
+    if (str_starts_with($__pa, 'pwd'))             $sec_open = 'haslo';
+    elseif (str_starts_with($__pa, 'phone'))       $sec_open = 'telefon';
+    elseif (str_starts_with($__pa, 'mobile_pin'))  $sec_open = 'pin';
+}
+$sec_overview = [
+    ['k' => 'haslo',   'icon' => 'bi-key',                 'label' => 'Hasło',               'ok' => $has_local_password, 'hint' => $has_local_password ? 'ustawione · SZO' . ($has_m365 ? ' + M365' : '') : 'brak hasła lokalnego'],
+    ['k' => 'telefon', 'icon' => 'bi-phone',               'label' => 'Telefon do SMS',      'ok' => $phone_verified,     'hint' => $phone_verified ? tz_mask_phone($phone_saved) : ($phone_saved ? 'niezweryfikowany' : 'brak numeru')],
+    ['k' => 'mfa',     'icon' => 'bi-shield-check',        'label' => 'Drugi składnik',      'ok' => $mfa_active,         'hint' => $mfa_active ? $mfa_label : 'wyłączony'],
+    ['k' => 'mfa',     'icon' => 'bi-fingerprint',         'label' => 'Klucz / passkey',     'ok' => $has_wk,             'hint' => $has_wk ? count($wk_keys_idx) . ' szt.' : 'brak'],
+];
+if ($pin_allowed) {
+    $sec_overview[] = ['k' => 'pin', 'icon' => 'bi-telephone-outbound', 'label' => 'PIN dialera', 'ok' => $pin_is_set, 'hint' => $pin_is_set ? 'ustawiony' : 'nieustawiony'];
+}
+$sec_items[0]['sec'] = 'haslo'; $sec_items[1]['sec'] = 'telefon'; $sec_items[2]['sec'] = 'mfa'; $sec_items[3]['sec'] = 'mfa';
+$ring_color = $sec_tone === 'emerald' ? '#34d399' : ($sec_tone === 'amber' ? '#fbbf24' : '#fb7185');
+
 $PAGE_TITLE = 'Tożsamość';
 $TZ_ACTIVE  = 'konto';
-include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
+
+// ── Hero (ciemny band pod paskiem; renderowany przez _head.php) ──
+// Linki w hero są poza zasięgiem Alpine (x-data otwiera się niżej) — przełączają zakładki przez #hash (nasłuch hashchange).
+ob_start(); ?>
+<div class="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-6">
+  <div class="tw-flex tw-items-center tw-gap-4 tw-min-w-0">
+    <span class="tw-w-16 tw-h-16 sm:tw-w-[72px] sm:tw-h-[72px] tw-rounded-[20px] tw-bg-gradient-to-br tw-from-brand-400 tw-to-violet-500 tw-text-white tw-flex tw-items-center tw-justify-center tw-text-xl sm:tw-text-2xl tw-font-extrabold tw-shrink-0 tw-shadow-xl tw-ring-4 tw-ring-white/10" aria-hidden="true"><?= h($initials) ?></span>
+    <div class="tw-min-w-0">
+      <div class="tw-text-[.66rem] tw-font-bold tw-uppercase tw-tracking-[.14em] tw-text-white/60">System Tożsamości · Identity &amp; Access</div>
+      <h1 class="tw-m-0 tw-mt-0.5 tw-text-[1.55rem] sm:tw-text-[1.95rem] tw-font-extrabold tw-tracking-tight tw-text-white tw-leading-tight tw-truncate"><?= h($user['name']) ?></h1>
+      <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-1.5 tw-mt-2">
+        <span class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-bg-white tw-text-ink-900 tw-px-2.5 tw-py-1 tw-text-[.72rem] tw-font-bold tw-font-mono tw-tracking-wider" title="Twój stały numer w rejestrze tożsamości"><span class="tw-text-brand-600 tw-font-sans tw-font-extrabold tw-tracking-normal">UID</span><?= h($uid) ?></span>
+        <span class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-bg-white/10 tw-border tw-border-solid tw-border-white/15 tw-text-white tw-px-2.5 tw-py-1 tw-text-[.72rem] tw-font-semibold" title="<?= h($role_desc) ?>"><i class="bi <?= $role_icon ?>" aria-hidden="true"></i><?= h($role_label) ?></span>
+        <span class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-bg-white/10 tw-border tw-border-solid tw-border-white/15 tw-text-white tw-px-2.5 tw-py-1 tw-text-[.72rem] tw-font-semibold"><i class="bi bi-file-earmark-person" aria-hidden="true"></i><?= h($account_type_label) ?></span>
+        <?php if ($has_m365): ?><span class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-bg-white/10 tw-border tw-border-solid tw-border-white/15 tw-text-white tw-px-2.5 tw-py-1 tw-text-[.72rem] tw-font-semibold"><i class="bi bi-microsoft" aria-hidden="true"></i>Entra ID</span><?php endif; ?>
+      </div>
+      <div class="tw-mt-2.5 tw-text-[.8rem] tw-text-white/70 tw-truncate"><i class="bi bi-at tw-mr-0.5" aria-hidden="true"></i><?= h($panel_login ?: '—') ?><?php if ($m365_login && $m365_login !== $panel_login): ?> <span class="tw-text-white/40">·</span> <i class="bi bi-microsoft tw-mx-0.5" aria-hidden="true"></i><?= h($m365_login) ?><?php endif; ?></div>
+    </div>
+  </div>
+
+  <a href="#bezpieczenstwo" class="tw-group tw-flex tw-items-center tw-gap-4 tw-rounded-2xl tw-bg-white/10 tw-border tw-border-solid tw-border-white/15 tw-backdrop-blur tw-px-4 tw-py-3 tw-no-underline tw-text-white hover:tw-bg-white/15 hover:tw-text-white tw-transition focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400 tw-min-w-[260px]" aria-label="Stan zabezpieczeń konta: <?= $sec_pct ?> procent, <?= $sec_ok ?> z <?= $sec_total ?> elementów. Przejdź do zakładki Bezpieczeństwo.">
+    <span class="tw-relative tw-w-[68px] tw-h-[68px] tw-shrink-0" aria-hidden="true">
+      <svg viewBox="0 0 36 36" class="tw-w-full tw-h-full tw-block">
+        <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="3.4"/>
+        <circle cx="18" cy="18" r="15.9" fill="none" stroke="<?= $ring_color ?>" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="<?= $sec_pct ?> 100" transform="rotate(-90 18 18)"/>
+      </svg>
+      <span class="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center tw-text-[.95rem] tw-font-extrabold"><?= $sec_pct ?>%</span>
+    </span>
+    <span class="tw-min-w-0">
+      <span class="tw-block tw-text-[.66rem] tw-font-bold tw-uppercase tw-tracking-[.12em] tw-text-white/60">Stan zabezpieczeń</span>
+      <span class="tw-block tw-text-[.95rem] tw-font-bold tw-leading-tight"><?= $sec_pct >= 80 ? 'Konto dobrze zabezpieczone' : ($sec_pct >= 50 ? 'Dokończ konfigurację' : 'Zabezpiecz konto') ?></span>
+      <span class="tw-block tw-text-[.76rem] tw-text-white/70 tw-mt-0.5"><?= $sec_ok ?> z <?= $sec_total ?> elementów · <span class="tw-underline tw-decoration-white/40 group-hover:tw-decoration-white">Bezpieczeństwo</span> <i class="bi bi-arrow-right-short" aria-hidden="true"></i></span>
+    </span>
+  </a>
+</div>
+<?php $TZ_HERO_HTML = ob_get_clean();
+include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO); renderuje band z $TZ_HERO_HTML
 ?>
 <style type="text/tailwindcss">
-/* ── Komponenty kaflowe (Tailwind bez preflightu: przy tw-border zawsze tw-border-solid) ── */
-.tzx-card      { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm; }
-.tzx-card-hd   { @apply tw-flex tw-items-center tw-gap-2.5 tw-px-5 tw-py-3.5 tw-border-b tw-border-solid tw-border-slate-100; }
+/* ── Komponenty (Tailwind bez preflightu: przy tw-border zawsze tw-border-solid; paleta brand/ink z _head.php) ── */
+.tzx-card      { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-ink-100 tw-shadow-[0_1px_2px_rgba(16,24,40,.04),0_10px_30px_-22px_rgba(16,24,40,.25)]; }
+.tzx-card-hd   { @apply tw-flex tw-items-center tw-gap-2.5 tw-px-5 tw-py-3.5 tw-border-b tw-border-solid tw-border-ink-100; }
 .tzx-card-bd   { @apply tw-p-5; }
 .tzx-h2        { @apply tw-m-0 tw-text-[.95rem] tw-font-semibold tw-text-slate-900 tw-tracking-tight; }
 .tzx-h3        { @apply tw-m-0 tw-mb-2 tw-text-sm tw-font-semibold tw-text-slate-900 tw-flex tw-items-center tw-gap-1.5; }
-.tzx-eyebrow   { @apply tw-text-[.66rem] tw-font-semibold tw-uppercase tw-tracking-[.08em] tw-text-slate-500; }
+.tzx-eyebrow   { @apply tw-text-[.66rem] tw-font-bold tw-uppercase tw-tracking-[.1em] tw-text-slate-500; }
 .tzx-muted     { @apply tw-text-xs tw-text-slate-500; }
-.tzx-btn       { @apply tw-inline-flex tw-items-center tw-justify-center tw-gap-1.5 tw-rounded-lg tw-bg-blue-600 tw-text-white tw-px-3.5 tw-py-2 tw-text-sm tw-font-semibold tw-no-underline tw-border-0 tw-cursor-pointer tw-transition tw-shadow-sm hover:tw-bg-blue-700 hover:tw-text-white focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-offset-2 focus-visible:tw-outline-amber-400 disabled:tw-opacity-50 disabled:tw-cursor-not-allowed; }
-.tzx-btn--sm   { @apply tw-px-3 tw-py-1.5 tw-text-xs; }
-.tzx-btn--ghost{ @apply tw-bg-white tw-text-slate-700 tw-border tw-border-solid tw-border-slate-300 tw-shadow-none hover:tw-bg-slate-50 hover:tw-text-slate-900 hover:tw-border-slate-400; }
+.tzx-btn       { @apply tw-inline-flex tw-items-center tw-justify-center tw-gap-1.5 tw-rounded-xl tw-bg-brand-500 tw-text-white tw-px-3.5 tw-py-2 tw-text-sm tw-font-semibold tw-no-underline tw-border-0 tw-cursor-pointer tw-transition tw-shadow-[0_6px_14px_-8px_rgba(30,109,255,.8)] hover:tw-bg-brand-600 hover:tw-text-white hover:tw--translate-y-px focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-offset-2 focus-visible:tw-outline-amber-400 disabled:tw-opacity-50 disabled:tw-cursor-not-allowed; }
+.tzx-btn--sm   { @apply tw-px-3 tw-py-1.5 tw-text-xs tw-rounded-lg; }
+.tzx-btn--ghost{ @apply tw-bg-white tw-text-slate-700 tw-border tw-border-solid tw-border-ink-200 tw-shadow-none hover:tw-bg-slate-50 hover:tw-text-slate-900 hover:tw-border-ink-300; }
 .tzx-btn--danger{ @apply tw-bg-white tw-text-rose-700 tw-border tw-border-solid tw-border-rose-200 tw-shadow-none hover:tw-bg-rose-50 hover:tw-text-rose-800 hover:tw-border-rose-300; }
 .tzx-badge     { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-full tw-px-2 tw-py-0.5 tw-text-[.68rem] tw-font-semibold tw-border tw-border-solid tw-whitespace-nowrap; }
 .tzx-badge--ok { @apply tw-bg-emerald-50 tw-text-emerald-700 tw-border-emerald-200; }
 .tzx-badge--warn{ @apply tw-bg-amber-50 tw-text-amber-700 tw-border-amber-200; }
 .tzx-badge--off{ @apply tw-bg-slate-100 tw-text-slate-600 tw-border-slate-200; }
-.tzx-badge--info{ @apply tw-bg-blue-50 tw-text-blue-700 tw-border-blue-200; }
-.tzx-tab       { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-2 tw-text-[.82rem] tw-font-medium tw-text-slate-600 tw-bg-transparent tw-border-0 tw-cursor-pointer tw-whitespace-nowrap tw-transition hover:tw-bg-slate-100 hover:tw-text-slate-900 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; }
-.tzx-tab[aria-selected="true"] { @apply tw-bg-blue-600 tw-text-white tw-shadow-sm hover:tw-bg-blue-600 hover:tw-text-white; }
-.tzx-kv        { @apply tw-rounded-xl tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-100 tw-px-3.5 tw-py-2.5 tw-min-w-0; }
-.tzx-kv dt     { @apply tw-text-[.64rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-m-0; }
+.tzx-badge--info{ @apply tw-bg-brand-50 tw-text-brand-700 tw-border-brand-200; }
+/* Nawigacja zakładek: pionowa lista na lg+, przewijany pasek na mniejszych ekranach */
+.tzx-tab       { @apply tw-inline-flex lg:tw-flex tw-items-center tw-gap-2.5 tw-rounded-xl tw-px-2.5 tw-py-2 tw-text-[.85rem] tw-font-medium tw-text-slate-600 tw-bg-transparent tw-border-0 tw-cursor-pointer tw-whitespace-nowrap tw-transition tw-text-left lg:tw-w-full hover:tw-bg-slate-100 hover:tw-text-slate-900 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; font: inherit; }
+.tzx-tab-ic    { @apply tw-w-8 tw-h-8 tw-rounded-lg tw-bg-slate-100 tw-text-slate-500 tw-flex tw-items-center tw-justify-center tw-text-[.95rem] tw-shrink-0 tw-transition; }
+.tzx-tab[aria-selected="true"] { @apply tw-bg-ink-900 tw-text-white tw-shadow-md hover:tw-bg-ink-900 hover:tw-text-white; }
+.tzx-tab[aria-selected="true"] .tzx-tab-ic { @apply tw-bg-brand-500 tw-text-white; }
+.tzx-kv        { @apply tw-rounded-xl tw-bg-ink-50 tw-border tw-border-solid tw-border-ink-100 tw-px-3.5 tw-py-2.5 tw-min-w-0; }
+.tzx-kv dt     { @apply tw-text-[.64rem] tw-font-bold tw-uppercase tw-tracking-[.08em] tw-text-slate-500 tw-m-0; }
 .tzx-kv dd     { @apply tw-m-0 tw-mt-0.5 tw-text-[.88rem] tw-font-semibold tw-text-slate-900 tw-break-words; }
-.tzx-tile      { @apply tw-flex tw-flex-col tw-gap-3 tw-rounded-2xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-p-4 tw-transition hover:tw-border-blue-300 hover:tw-shadow-md; }
+.tzx-tile      { @apply tw-flex tw-flex-col tw-gap-3 tw-rounded-2xl tw-bg-white tw-border tw-border-solid tw-border-ink-100 tw-p-4 tw-transition hover:tw-border-brand-300 hover:tw-shadow-md; }
 .tzx-ico       { @apply tw-w-10 tw-h-10 tw-rounded-xl tw-flex tw-items-center tw-justify-center tw-text-lg tw-shrink-0; }
-.tzx-chip      { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-200 tw-px-2 tw-py-0.5 tw-text-[.72rem] tw-text-slate-700; }
-.tzx-link-tile { @apply tw-flex tw-items-center tw-gap-3 tw-rounded-xl tw-border tw-border-solid tw-border-slate-200 tw-bg-white tw-p-3.5 tw-no-underline tw-text-slate-900 tw-transition hover:tw-border-blue-300 hover:tw-shadow-md hover:tw-text-slate-900 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; }
-.tzx-timeline li { @apply tw-relative tw-pl-6 tw-pb-4 tw-border-l tw-border-solid tw-border-slate-200 tw-ml-2; }
+.tzx-chip      { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-bg-ink-50 tw-border tw-border-solid tw-border-ink-100 tw-px-2 tw-py-0.5 tw-text-[.72rem] tw-text-slate-700; }
+.tzx-link-tile { @apply tw-flex tw-items-center tw-gap-3 tw-rounded-xl tw-border tw-border-solid tw-border-ink-100 tw-bg-white tw-p-3.5 tw-no-underline tw-text-slate-900 tw-transition hover:tw-border-brand-300 hover:tw-shadow-md hover:tw-text-slate-900 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; }
+.tzx-timeline li { @apply tw-relative tw-pl-6 tw-pb-4 tw-border-l tw-border-solid tw-border-ink-200 tw-ml-2; }
 .tzx-timeline li:last-child { @apply tw-pb-0; }
 .tzx-dot       { @apply tw-absolute tw-w-4 tw-h-4 tw-rounded-full tw-bg-white tw-border-2 tw-border-solid tw-flex tw-items-center tw-justify-center tw-text-[.5rem]; left: -9px; top: 0; }
 .tzx-field label { @apply tw-block tw-text-[.8rem] tw-font-semibold tw-text-slate-800 tw-mb-1; }
 .tzx-field .form-text { @apply tw-text-xs tw-text-slate-500; }
-.tzx-sec-row   { @apply tw-flex tw-items-center tw-gap-2.5 tw-py-2 tw-border-b tw-border-solid tw-border-slate-100 last:tw-border-b-0; }
+.tzx-sec-row   { @apply tw-flex tw-items-center tw-gap-2.5 tw-py-2 tw-border-b tw-border-solid tw-border-ink-100 last:tw-border-b-0; }
+/* Bezpieczeństwo: kafle przeglądu + akordeon sekcji */
+.tzx-stat      { @apply tw-flex tw-items-center tw-gap-3 tw-rounded-2xl tw-bg-white tw-border tw-border-solid tw-border-ink-100 tw-p-3.5 tw-text-left tw-cursor-pointer tw-transition tw-w-full hover:tw-border-brand-300 hover:tw-shadow-md focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; font: inherit; color: inherit; }
+.tzx-stat--ok  { @apply tw-border-emerald-200 tw-bg-emerald-50/40; }
+.tzx-acc       { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-ink-100 tw-shadow-[0_1px_2px_rgba(16,24,40,.04),0_10px_30px_-22px_rgba(16,24,40,.25)] tw-overflow-hidden tw-transition; }
+.tzx-acc--open { @apply tw-border-brand-300 tw-shadow-[0_0_0_4px_rgba(30,109,255,.08),0_12px_32px_-20px_rgba(16,24,40,.3)]; }
+.tzx-acc-btn   { @apply tw-w-full tw-flex tw-items-center tw-gap-3.5 tw-px-5 tw-py-4 tw-text-left tw-bg-transparent tw-border-0 tw-cursor-pointer tw-transition hover:tw-bg-ink-50/60 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw--outline-offset-[3px] focus-visible:tw-outline-amber-400; font: inherit; color: inherit; }
+.tzx-acc-bd    { @apply tw-px-5 tw-pb-5 tw-pt-4 tw-border-t tw-border-solid tw-border-ink-100; }
+.tzx-aside     { @apply tw-rounded-2xl tw-bg-ink-50 tw-border tw-border-solid tw-border-ink-100 tw-p-4 tw-text-[.82rem] tw-text-slate-600 tw-leading-relaxed; }
+.tzx-aside h4  { @apply tw-m-0 tw-mb-1.5 tw-text-[.8rem] tw-font-bold tw-text-slate-900 tw-flex tw-items-center tw-gap-1.5; }
+.tzx-aside ul  { @apply tw-m-0 tw-mt-2 tw-pl-4; }
+.tzx-aside li  { @apply tw-mb-1; }
 </style>
 
 <div x-data="tzIdentity(<?= h(json_encode(['tabs' => array_keys($tabs), 'firstVisit' => $first_visit])) ?>)" x-cloak>
 
-<!-- ═══════════ NAGŁÓWEK STRONY ═══════════ -->
-<div class="tw-flex tw-flex-wrap tw-items-end tw-justify-between tw-gap-3 tw-mb-4">
-  <div>
-    <div class="tzx-eyebrow tw-mb-1">System Tożsamości · Identity &amp; Access</div>
-    <h1 class="tw-m-0 tw-text-[1.45rem] tw-font-bold tw-tracking-tight tw-text-slate-900">
-      <i class="bi bi-person-vcard tw-text-blue-600 tw-mr-1" aria-hidden="true"></i>eTożsamość
-    </h1>
-    <p class="tw-m-0 tw-mt-0.5 tw-text-sm tw-text-slate-500">Centrum dostępów · jeden login, jedno hasło do wszystkich systemów organizacji</p>
-  </div>
-  <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
-    <span class="tzx-badge tw-bg-<?= $role_tone ?>-50 tw-text-<?= $role_tone ?>-700 tw-border-<?= $role_tone ?>-200 tw-py-1 tw-px-2.5 tw-text-xs" title="<?= h($role_desc) ?>">
-      <i class="bi <?= $role_icon ?>" aria-hidden="true"></i><?= h($role_label) ?>
-    </span>
-    <span class="tzx-badge <?= $mfa_active ? 'tzx-badge--ok' : 'tzx-badge--warn' ?> tw-py-1 tw-px-2.5 tw-text-xs">
-      <i class="bi <?= $mfa_active ? 'bi-shield-check' : 'bi-shield-exclamation' ?>" aria-hidden="true"></i><?= $mfa_active ? 'MFA aktywne' : 'MFA wyłączone' ?>
-    </span>
-  </div>
-</div>
+<!-- ═══════════ UKŁAD: lewa nawigacja (sticky) + treść ═══════════ -->
+<div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-[256px_minmax(0,1fr)] tw-gap-4 lg:tw-gap-6 tw-items-start">
+
+  <!-- ── Lewa kolumna: zakładki + lista kontrolna zabezpieczeń ── -->
+  <aside class="lg:tw-sticky lg:tw-top-[76px] tw-grid tw-gap-4">
+    <nav class="tzx-card tw-p-1.5" aria-label="Sekcje tożsamości">
+      <div class="tw-flex lg:tw-flex-col tw-gap-0.5 tw-overflow-x-auto lg:tw-overflow-visible tw-pb-0.5 lg:tw-pb-0" role="tablist" aria-orientation="vertical" aria-label="Sekcje tożsamości">
+        <?php $ti = 0; foreach ($tabs as $tk => [$tl, $tic]): ?>
+        <button type="button" role="tab" id="tab-<?= $tk ?>" class="tzx-tab<?= $tk === 'administracja' ? ' tw-text-orange-700' : '' ?>"
+                :aria-selected="tab === '<?= $tk ?>' ? 'true' : 'false'" :tabindex="tab === '<?= $tk ?>' ? 0 : -1"
+                aria-controls="<?= $tk ?>" x-ref="tab-<?= $tk ?>"
+                @click="go('<?= $tk ?>')" @keydown="key($event, <?= $ti ?>)">
+          <span class="tzx-tab-ic<?= $tk === 'administracja' ? ' tw-bg-orange-50 tw-text-orange-600' : '' ?>" aria-hidden="true"><i class="bi <?= $tic ?>"></i></span>
+          <span class="tw-truncate"><?= h($tl) ?></span>
+          <?php if ($tk === 'bezpieczenstwo' && $sec_ok < $sec_total): ?>
+          <span class="tw-ml-auto tw-w-2 tw-h-2 tw-rounded-full tw-bg-amber-400 tw-shrink-0" aria-label="do uzupełnienia"></span>
+          <?php endif; ?>
+        </button>
+        <?php $ti++; endforeach; ?>
+      </div>
+    </nav>
+
+    <section class="tzx-card tw-hidden lg:tw-block" aria-labelledby="sec-h">
+      <div class="tzx-card-hd tw-py-3">
+        <i class="bi bi-shield-lock tw-text-brand-600" aria-hidden="true"></i>
+        <h2 id="sec-h" class="tzx-h2 tw-text-[.88rem]">Lista kontrolna</h2>
+        <span class="tw-ml-auto tzx-badge tw-bg-<?= $sec_tone ?>-50 tw-text-<?= $sec_tone ?>-700 tw-border-<?= $sec_tone ?>-200"><?= $sec_ok ?>/<?= $sec_total ?></span>
+      </div>
+      <div class="tw-px-4 tw-py-2">
+        <div class="tw-h-1.5 tw-rounded-full tw-bg-ink-100 tw-overflow-hidden tw-my-2" role="progressbar" aria-valuenow="<?= $sec_pct ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Stan zabezpieczeń konta">
+          <span class="tw-block tw-h-full tw-rounded-full tw-bg-<?= $sec_tone ?>-500" style="width:<?= $sec_pct ?>%"></span>
+        </div>
+        <ul class="tw-list-none tw-p-0 tw-m-0">
+          <?php foreach ($sec_items as $it): ?>
+          <li class="tzx-sec-row tw-py-1.5">
+            <span class="tw-w-6 tw-h-6 tw-rounded-md tw-flex tw-items-center tw-justify-center tw-text-[.8rem] tw-shrink-0 <?= $it['ok'] ? 'tw-bg-emerald-50 tw-text-emerald-600' : 'tw-bg-amber-50 tw-text-amber-600' ?>" aria-hidden="true"><i class="bi <?= $it['icon'] ?>"></i></span>
+            <div class="tw-flex-1 tw-min-w-0">
+              <div class="tw-text-[.78rem] tw-font-semibold tw-text-slate-800 tw-leading-tight tw-truncate"><?= h($it['label']) ?></div>
+              <div class="tzx-muted tw-text-[.68rem] tw-truncate"><?= h($it['hint']) ?></div>
+            </div>
+            <?php if ($it['ok']): ?>
+              <i class="bi bi-check-circle-fill tw-text-emerald-500 tw-text-[.8rem]" aria-label="gotowe"></i>
+            <?php else: ?>
+              <a href="#<?= $it['tab'] ?>" class="tw-text-[.7rem] tw-font-bold tw-text-brand-700 tw-no-underline hover:tw-underline" @click.prevent="go('<?= $it['tab'] ?>')<?= !empty($it['sec']) ? "; \$dispatch('tz-sec', '" . $it['sec'] . "')" : '' ?>">Ustaw</a>
+            <?php endif; ?>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ── Prawa kolumna: treść zakładek ── -->
+  <div class="tw-min-w-0">
 
 <?php if ($first_visit): ?>
 <!-- Powitanie po pierwszym logowaniu (pokazywane raz) -->
-<section class="tzx-card tw-mb-4 tw-border-blue-300 tw-bg-gradient-to-r tw-from-blue-50 tw-to-white" aria-labelledby="welcome-h">
+<section class="tzx-card tw-mb-4 tw-border-brand-200 tw-bg-gradient-to-r tw-from-brand-50 tw-to-white" aria-labelledby="welcome-h">
   <div class="tzx-card-bd tw-flex tw-flex-wrap tw-items-center tw-gap-4">
-    <span class="tzx-ico tw-bg-blue-600 tw-text-white tw-w-11 tw-h-11 tw-text-xl" aria-hidden="true"><i class="bi bi-stars"></i></span>
+    <span class="tzx-ico tw-bg-brand-500 tw-text-white tw-w-11 tw-h-11 tw-text-xl tw-shadow-md" aria-hidden="true"><i class="bi bi-stars"></i></span>
     <div class="tw-flex-1 tw-min-w-[220px]">
       <div class="tw-font-bold tw-text-slate-900" id="welcome-h">Witaj w Systemie Tożsamości 👋</div>
       <div class="tzx-muted">To Twoje pierwsze wejście. Zajrzyj do zakładki <strong>„O panelu"</strong> — w 20 sekund zrozumiesz, do czego to służy (a do czego nie).</div>
@@ -609,30 +719,17 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 <?php endif; ?>
 </div>
 
-<!-- ═══════════ KARTA TOŻSAMOŚCI + STAN ZABEZPIECZEŃ (zawsze widoczne) ═══════════ -->
-<div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-3 tw-gap-4 tw-mb-4">
-
-  <section class="tzx-card lg:tw-col-span-2" aria-labelledby="id-h">
+<!-- ═══════════ PODSTAWOWE ═══════════ -->
+<section id="podstawowe" role="tabpanel" aria-labelledby="tab-podstawowe" tabindex="-1" x-show="tab === 'podstawowe'" x-transition.opacity.duration.150ms>
+  <!-- Dane identyfikacyjne (dawniej karta nad zakładkami) -->
+  <section class="tzx-card tw-mb-4" aria-labelledby="id-h">
+    <div class="tzx-card-hd">
+      <i class="bi bi-person-vcard tw-text-brand-600" aria-hidden="true"></i>
+      <h2 id="id-h" class="tzx-h2">Dane identyfikacyjne <span class="lbl-en tw-inline">Identity record</span></h2>
+      <span class="tw-ml-auto tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-bg-ink-900 tw-text-white tw-px-2.5 tw-py-1 tw-text-[.72rem] tw-font-bold"><span class="tw-text-brand-300">UID</span><span class="tw-font-mono tw-tracking-wider tw-text-sm"><?= h($uid) ?></span></span>
+    </div>
     <div class="tzx-card-bd">
-      <div class="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-4">
-        <div class="tw-flex tw-items-center tw-gap-3.5 tw-min-w-0">
-          <span class="tw-w-14 tw-h-14 tw-rounded-2xl tw-bg-gradient-to-br tw-from-blue-600 tw-to-indigo-600 tw-text-white tw-flex tw-items-center tw-justify-center tw-text-lg tw-font-bold tw-shrink-0 tw-shadow-md" aria-hidden="true"><?= h($initials) ?></span>
-          <div class="tw-min-w-0">
-            <h2 id="id-h" class="tw-m-0 tw-text-lg tw-font-bold tw-text-slate-900 tw-truncate"><?= h($user['name']) ?></h2>
-            <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-1.5 tw-mt-1">
-              <span class="tzx-badge tw-bg-<?= $role_tone ?>-50 tw-text-<?= $role_tone ?>-700 tw-border-<?= $role_tone ?>-200"><i class="bi <?= $role_icon ?>" aria-hidden="true"></i><?= h($role_label) ?></span>
-              <span class="tzx-badge tzx-badge--info"><i class="bi bi-file-earmark-person" aria-hidden="true"></i><?= h($account_type_label) ?></span>
-              <?php if ($has_m365): ?><span class="tzx-badge tzx-badge--off"><i class="bi bi-microsoft" aria-hidden="true"></i>Entra ID</span><?php endif; ?>
-            </div>
-          </div>
-        </div>
-        <div class="tw-text-right tw-shrink-0">
-          <div class="tzx-eyebrow">Numer UID</div>
-          <div class="tw-font-mono tw-font-bold tw-text-[1.7rem] tw-leading-none tw-text-blue-700 tw-tracking-wider"><?= h($uid) ?></div>
-        </div>
-      </div>
-
-      <dl class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 xl:tw-grid-cols-3 tw-gap-2.5 tw-mt-5 tw-mb-0">
+      <dl class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 xl:tw-grid-cols-3 tw-gap-2.5 tw-m-0">
         <div class="tzx-kv"><dt>Identyfikator sieciowy <span class="lbl-en">Network ID (login główny)</span></dt><dd><?= h($panel_login ?: '—') ?></dd></div>
         <div class="tzx-kv"><dt>Login Microsoft 365 <span class="lbl-en">M365 sign-in</span></dt><dd><?= h($m365_login ?: ($has_m365 ? $panel_login : '— brak konta M365 —')) ?></dd></div>
         <div class="tzx-kv"><dt>Identyfikator obiektu Entra <span class="lbl-en">Entra object ID</span></dt><dd class="tw-font-mono tw-text-[.74rem] tw-font-medium"><?= h($microsoft_id ?: '—') ?></dd></div>
@@ -652,60 +749,10 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     </p>
   </section>
 
-  <section class="tzx-card" aria-labelledby="sec-h">
-    <div class="tzx-card-hd">
-      <i class="bi bi-shield-lock tw-text-blue-600" aria-hidden="true"></i>
-      <h2 id="sec-h" class="tzx-h2">Stan zabezpieczeń</h2>
-      <span class="tw-ml-auto tzx-badge tw-bg-<?= $sec_tone ?>-50 tw-text-<?= $sec_tone ?>-700 tw-border-<?= $sec_tone ?>-200"><?= $sec_ok ?>/<?= $sec_total ?></span>
-    </div>
-    <div class="tzx-card-bd tw-pt-4">
-      <div class="tw-flex tw-items-end tw-justify-between tw-gap-2 tw-mb-1.5">
-        <div class="tw-text-2xl tw-font-bold tw-text-slate-900 tw-leading-none"><?= $sec_pct ?>%</div>
-        <div class="tzx-muted tw-text-right"><?= $sec_pct >= 80 ? 'Konto dobrze zabezpieczone' : ($sec_pct >= 50 ? 'Warto dokończyć konfigurację' : 'Zabezpiecz konto') ?></div>
-      </div>
-      <div class="tw-h-2 tw-rounded-full tw-bg-slate-100 tw-overflow-hidden" role="progressbar" aria-valuenow="<?= $sec_pct ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Stan zabezpieczeń konta">
-        <span class="tw-block tw-h-full tw-rounded-full tw-bg-<?= $sec_tone ?>-500" style="width:<?= $sec_pct ?>%"></span>
-      </div>
-      <ul class="tw-list-none tw-p-0 tw-m-0 tw-mt-3">
-        <?php foreach ($sec_items as $it): ?>
-        <li class="tzx-sec-row">
-          <span class="tw-w-7 tw-h-7 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-sm tw-shrink-0 <?= $it['ok'] ? 'tw-bg-emerald-50 tw-text-emerald-600' : 'tw-bg-amber-50 tw-text-amber-600' ?>" aria-hidden="true"><i class="bi <?= $it['icon'] ?>"></i></span>
-          <div class="tw-flex-1 tw-min-w-0">
-            <div class="tw-text-[.82rem] tw-font-semibold tw-text-slate-800 tw-leading-tight"><?= h($it['label']) ?></div>
-            <div class="tzx-muted tw-truncate"><?= h($it['hint']) ?></div>
-          </div>
-          <?php if ($it['ok']): ?>
-            <i class="bi bi-check-circle-fill tw-text-emerald-500" aria-label="gotowe"></i>
-          <?php else: ?>
-            <a href="#<?= $it['tab'] ?>" class="tzx-btn tzx-btn--ghost tzx-btn--sm" @click.prevent="go('<?= $it['tab'] ?>')">Ustaw</a>
-          <?php endif; ?>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-    </div>
-  </section>
-</div>
-
-<!-- ═══════════ ZAKŁADKI ═══════════ -->
-<div class="tw-sticky tw-top-[51px] tw-z-[5] tw-bg-[var(--tz-canvas)] tw-py-2 tw-mb-4">
-  <div class="tw-inline-flex tw-flex-wrap tw-gap-0.5 tw-p-1 tw-rounded-xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm tw-max-w-full" role="tablist" aria-label="Sekcje tożsamości">
-    <?php $ti = 0; foreach ($tabs as $tk => [$tl, $tic]): ?>
-    <button type="button" role="tab" id="tab-<?= $tk ?>" class="tzx-tab<?= $tk === 'administracja' ? ' tw-text-orange-700' : '' ?>"
-            :aria-selected="tab === '<?= $tk ?>' ? 'true' : 'false'" :tabindex="tab === '<?= $tk ?>' ? 0 : -1"
-            aria-controls="<?= $tk ?>" x-ref="tab-<?= $tk ?>"
-            @click="go('<?= $tk ?>')" @keydown="key($event, <?= $ti ?>)">
-      <i class="bi <?= $tic ?>" aria-hidden="true"></i><?= h($tl) ?>
-    </button>
-    <?php $ti++; endforeach; ?>
-  </div>
-</div>
-
-<!-- ═══════════ PODSTAWOWE ═══════════ -->
-<section id="podstawowe" role="tabpanel" aria-labelledby="tab-podstawowe" tabindex="-1" x-show="tab === 'podstawowe'" x-transition.opacity.duration.150ms>
   <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-3 tw-gap-4">
     <div class="tzx-card lg:tw-col-span-2">
       <div class="tzx-card-hd">
-        <i class="bi bi-diagram-3 tw-text-blue-600" aria-hidden="true"></i>
+        <i class="bi bi-diagram-3 tw-text-brand-600" aria-hidden="true"></i>
         <h2 class="tzx-h2">Rola i uprawnienia <span class="lbl-en tw-inline">Role-based access</span></h2>
         <span class="tw-ml-auto tzx-badge tzx-badge--info"><?= count($access) ?> modułów · <?= $access_write ?> z edycją</span>
       </div>
@@ -722,12 +769,12 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
         <div class="tw-flex tw-flex-wrap tw-gap-1.5">
           <?php foreach ($access as $i => $a): ?>
           <span class="tzx-chip" <?= $i >= 10 ? 'x-show="all" x-cloak' : '' ?>>
-            <i class="bi <?= $a['level'] === 'edycja' ? 'bi-pencil-fill tw-text-blue-600' : 'bi-eye-fill tw-text-slate-400' ?>" aria-hidden="true"></i>
+            <i class="bi <?= $a['level'] === 'edycja' ? 'bi-pencil-fill tw-text-brand-600' : 'bi-eye-fill tw-text-slate-400' ?>" aria-hidden="true"></i>
             <?= h($a['label']) ?> <span class="tw-text-slate-400">· <?= $a['level'] ?></span>
           </span>
           <?php endforeach; ?>
           <?php if (count($access) > 10): ?>
-          <button type="button" class="tzx-chip tw-cursor-pointer tw-text-blue-700 tw-bg-blue-50 tw-border-blue-200" @click="all = !all" :aria-expanded="all ? 'true' : 'false'">
+          <button type="button" class="tzx-chip tw-cursor-pointer tw-text-brand-700 tw-bg-brand-50 tw-border-brand-200" @click="all = !all" :aria-expanded="all ? 'true' : 'false'">
             <span x-text="all ? 'Zwiń' : 'Pokaż wszystkie (<?= count($access) ?>)'"></span>
           </button>
           <?php endif; ?>
@@ -740,10 +787,10 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     </div>
 
     <div class="tzx-card">
-      <div class="tzx-card-hd"><i class="bi bi-lightning-charge tw-text-blue-600" aria-hidden="true"></i><h2 class="tzx-h2">Szybkie akcje</h2></div>
+      <div class="tzx-card-hd"><i class="bi bi-lightning-charge tw-text-brand-600" aria-hidden="true"></i><h2 class="tzx-h2">Szybkie akcje</h2></div>
       <div class="tzx-card-bd tw-grid tw-gap-2">
         <a href="#bezpieczenstwo" class="tzx-link-tile" @click.prevent="go('bezpieczenstwo')">
-          <span class="tzx-ico tw-bg-blue-50 tw-text-blue-700" aria-hidden="true"><i class="bi bi-key"></i></span>
+          <span class="tzx-ico tw-bg-brand-50 tw-text-brand-700" aria-hidden="true"><i class="bi bi-key"></i></span>
           <span class="tw-flex-1 tw-min-w-0"><span class="tw-block tw-text-sm tw-font-semibold">Zmień hasło</span><span class="tzx-muted">SZO + Microsoft 365 naraz</span></span>
           <i class="bi bi-chevron-right tw-text-slate-400" aria-hidden="true"></i>
         </a>
@@ -826,7 +873,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     </article>
     <?php endforeach; ?>
   </div>
-  <p class="tzx-muted tw-mt-3 tw-mb-0" x-show="q.trim() !== '' || status !== ''" x-cloak><i class="bi bi-funnel tw-mr-1" aria-hidden="true"></i>Filtr aktywny — <button type="button" class="tw-bg-transparent tw-border-0 tw-p-0 tw-text-blue-700 tw-underline tw-cursor-pointer" @click="q = ''; status = ''">wyczyść</button>.</p>
+  <p class="tzx-muted tw-mt-3 tw-mb-0" x-show="q.trim() !== '' || status !== ''" x-cloak><i class="bi bi-funnel tw-mr-1" aria-hidden="true"></i>Filtr aktywny — <button type="button" class="tw-bg-transparent tw-border-0 tw-p-0 tw-text-brand-700 tw-underline tw-cursor-pointer" @click="q = ''; status = ''">wyczyść</button>.</p>
 
   <!-- Narzędzia zewnętrzne -->
   <div class="tw-mt-6">
@@ -851,205 +898,270 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 </section>
 
 <!-- ═══════════ BEZPIECZEŃSTWO ═══════════ -->
-<section id="bezpieczenstwo" role="tabpanel" aria-labelledby="tab-bezpieczenstwo" tabindex="-1" x-show="tab === 'bezpieczenstwo'" x-transition.opacity.duration.150ms>
-  <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-4">
+<?php
+// Nagłówki akordeonu: [klucz, ikona, tytuł, podtytuł EN, stan ok?, etykieta stanu]
+$sec_heads = [
+    'haslo'   => ['bi-key',          'Hasło do SZO' . ($has_m365 ? ' i Microsoft 365' : ''), 'Change / reconcile password',
+                  $has_local_password, $has_local_password ? 'Ustawione' : 'Brak hasła lokalnego'],
+    'telefon' => ['bi-phone',        'Telefon do SMS', 'Recovery / MFA phone',
+                  $phone_verified, $phone_verified ? 'Zweryfikowany' : ($phone_pending ? 'Oczekuje na kod' : ($phone_saved ? 'Niezweryfikowany' : 'Brak numeru'))],
+    'mfa'     => ['bi-shield-check', 'Metody weryfikacji (MFA)', 'Second factor & passkeys',
+                  $mfa_active, $mfa_active ? $mfa_label : 'Brak drugiego składnika'],
+    'pin'     => ['bi-telephone-outbound', 'Szybkie dzwonienie (mobile)', 'Quick dial sign-in',
+                  $pin_is_set, !$pin_allowed ? 'Wyłączone przez administratora' : ($pin_is_set ? 'PIN ustawiony' : 'PIN nieustawiony')],
+];
+$sec_head = function (string $k) use ($sec_heads): void {
+    [$ic, $t, $en, $ok, $st] = $sec_heads[$k];
+    ?>
+    <button type="button" class="tzx-acc-btn" :aria-expanded="sec === '<?= $k ?>' ? 'true' : 'false'" aria-controls="sec-<?= $k ?>-bd" id="sec-<?= $k ?>-hd" @click="open('<?= $k ?>')">
+      <span class="tzx-ico <?= $ok ? 'tw-bg-emerald-50 tw-text-emerald-700' : 'tw-bg-amber-50 tw-text-amber-700' ?>" :class="sec === '<?= $k ?>' ? 'tw-bg-brand-500 tw-text-white' : ''" aria-hidden="true"><i class="bi <?= $ic ?>"></i></span>
+      <span class="tw-flex-1 tw-min-w-0">
+        <span class="tw-block tw-text-[.95rem] tw-font-semibold tw-text-slate-900 tw-leading-tight"><?= h($t) ?> <span class="lbl-en tw-inline"><?= h($en) ?></span></span>
+        <span class="tw-block tzx-muted tw-mt-0.5 tw-truncate"><?= h($st) ?></span>
+      </span>
+      <span class="tzx-badge <?= $ok ? 'tzx-badge--ok' : 'tzx-badge--warn' ?> tw-hidden sm:tw-inline-flex"><i class="bi <?= $ok ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill' ?>" aria-hidden="true"></i><?= $ok ? 'Gotowe' : 'Do uzupełnienia' ?></span>
+      <i class="bi bi-chevron-down tw-text-slate-400 tw-transition" :class="sec === '<?= $k ?>' ? 'tw-rotate-180' : ''" aria-hidden="true"></i>
+    </button>
+    <?php
+};
+?>
+<section id="bezpieczenstwo" role="tabpanel" aria-labelledby="tab-bezpieczenstwo" tabindex="-1" x-show="tab === 'bezpieczenstwo'" x-transition.opacity.duration.150ms
+         x-data="{ sec: '<?= $sec_open ?>',
+                   open(k) { this.sec = this.sec === k ? '' : k; },
+                   reveal(k) { this.sec = k; this.$nextTick(() => { var el = document.getElementById('sec-' + k); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); } }"
+         @tz-sec.window="reveal($event.detail)">
+
+  <div class="tw-flex tw-flex-wrap tw-items-end tw-justify-between tw-gap-3 tw-mb-3">
+    <div>
+      <h2 class="tw-m-0 tw-text-base tw-font-bold tw-text-slate-900">Bezpieczeństwo konta <span class="lbl-en tw-inline">Account security</span></h2>
+      <p class="tzx-muted tw-m-0">Hasło, telefon odzyskiwania, drugi składnik logowania i PIN do dialera — wszystko w jednym miejscu.</p>
+    </div>
+    <span class="tzx-badge tw-bg-<?= $sec_tone ?>-50 tw-text-<?= $sec_tone ?>-700 tw-border-<?= $sec_tone ?>-200 tw-py-1 tw-px-2.5 tw-text-xs"><i class="bi bi-shield-lock" aria-hidden="true"></i><?= $sec_ok ?>/<?= $sec_total ?> · <?= $sec_pct ?>%</span>
+  </div>
+
+  <!-- Przegląd: kafle stanu (klik otwiera właściwą sekcję) -->
+  <div class="tw-grid tw-grid-cols-2 xl:tw-grid-cols-<?= min(count($sec_overview), 5) ?> tw-gap-2.5 tw-mb-5" role="list" aria-label="Przegląd zabezpieczeń">
+    <?php foreach ($sec_overview as $o): ?>
+    <button type="button" class="tzx-stat<?= $o['ok'] ? ' tzx-stat--ok' : '' ?>" role="listitem" @click="reveal('<?= $o['k'] ?>')" aria-label="<?= h($o['label']) ?>: <?= h($o['hint']) ?>. Otwórz sekcję.">
+      <span class="tw-w-9 tw-h-9 tw-rounded-xl tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0 <?= $o['ok'] ? 'tw-bg-emerald-100 tw-text-emerald-700' : 'tw-bg-amber-100 tw-text-amber-700' ?>" aria-hidden="true"><i class="bi <?= $o['icon'] ?>"></i></span>
+      <span class="tw-min-w-0">
+        <span class="tw-block tw-text-[.78rem] tw-font-semibold tw-text-slate-900 tw-leading-tight tw-truncate"><?= h($o['label']) ?></span>
+        <span class="tw-block tw-text-[.68rem] tw-mt-0.5 tw-truncate <?= $o['ok'] ? 'tw-text-emerald-700' : 'tw-text-amber-700' ?>"><i class="bi <?= $o['ok'] ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill' ?> tw-mr-0.5" aria-hidden="true"></i><?= h($o['hint']) ?></span>
+      </span>
+    </button>
+    <?php endforeach; ?>
+  </div>
+
+  <div class="tw-grid tw-gap-3">
 
     <!-- ── HASŁO ── -->
-    <div class="tzx-card lg:tw-col-span-3" x-data="tzPassword(<?= h(json_encode($account_parts)) ?>)">
-      <div class="tzx-card-hd">
-        <i class="bi bi-key tw-text-blue-600" aria-hidden="true"></i>
-        <h2 class="tzx-h2">Zmiana hasła <span class="lbl-en tw-inline">Change / reconcile password</span></h2>
-        <span class="tw-ml-auto tzx-badge tzx-badge--info"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>SZO <?= $has_m365 ? '↔ Microsoft 365' : '(konto lokalne)' ?></span>
-      </div>
-      <div class="tzx-card-bd">
-        <form method="post" id="pwdForm">
-          <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-          <input type="hidden" name="_action" value="pwd_change">
-          <?php if ($has_local_password): ?>
-          <div class="tzx-field tw-mb-3 tw-max-w-md">
-            <label for="pw_cur">Obecne hasło <span class="lbl-en">Current password</span></label>
-            <input type="password" id="pw_cur" name="current_password" class="form-control" autocomplete="current-password" required>
-          </div>
-          <?php else: ?>
-          <div class="tw-rounded-xl tw-bg-blue-50 tw-border tw-border-solid tw-border-blue-200 tw-text-blue-800 tw-px-3.5 tw-py-2.5 tw-text-sm tw-mb-3" role="note">
-            <i class="bi bi-info-circle tw-mr-1" aria-hidden="true"></i>
-            Twoja tożsamość nie ma jeszcze hasła lokalnego SZO. Ustaw je poniżej — będzie działać także jako hasło awaryjne obok logowania Microsoft.
-          </div>
-          <?php endif; ?>
-          <div class="tzx-field tw-mb-3 tw-max-w-md">
-            <label for="pw_new">Nowe hasło <span class="lbl-en">New password</span></label>
-            <div class="input-group">
-              <input :type="show ? 'text' : 'password'" id="pw_new" name="new_password" class="form-control" autocomplete="new-password"
-                     aria-describedby="pw_req pw_strength" minlength="12" required x-model="pw">
-              <button class="btn btn-outline-secondary" type="button" @click="show = !show"
-                      aria-label="Pokaż lub ukryj hasło" :aria-pressed="show ? 'true' : 'false'"><i class="bi" :class="show ? 'bi-eye-slash' : 'bi-eye'" aria-hidden="true"></i></button>
-            </div>
-            <div class="tz-meter" aria-hidden="true"><span :style="'width:' + pct + '%;background-color:' + color"></span></div>
-            <div class="form-text" id="pw_strength" aria-live="polite">Siła hasła: <span x-text="pw ? label : '—'"></span></div>
-          </div>
-          <div class="tzx-field tw-mb-3 tw-max-w-md">
-            <label for="pw_conf">Powtórz nowe hasło <span class="lbl-en">Confirm new password</span></label>
-            <input type="password" id="pw_conf" name="confirm_password" class="form-control" autocomplete="new-password" minlength="12" required x-model="pw2">
-            <div class="form-text tw-text-rose-600" x-show="mismatch" x-cloak>Hasła nie są identyczne.</div>
-          </div>
-          <fieldset class="tw-mb-4 tw-max-w-2xl tw-border-0 tw-p-0 tw-m-0">
-            <legend class="tw-text-[.8rem] tw-font-semibold tw-text-slate-800 tw-mb-0">Polityka haseł organizacji <span class="lbl-en">Entra ID password policy</span></legend>
-            <ul class="tz-req" id="pw_req" aria-live="polite">
-              <li :class="{ok: req.len}"><span class="dot" aria-hidden="true" x-text="req.len ? '✓' : '○'"></span> Min. 12 znaków</li>
-              <li :class="{ok: req.up}"><span class="dot" aria-hidden="true" x-text="req.up ? '✓' : '○'"></span> Wielka litera (A–Z)</li>
-              <li :class="{ok: req.low}"><span class="dot" aria-hidden="true" x-text="req.low ? '✓' : '○'"></span> Mała litera (a–z)</li>
-              <li :class="{ok: req.num}"><span class="dot" aria-hidden="true" x-text="req.num ? '✓' : '○'"></span> Cyfra (0–9)</li>
-              <li :class="{ok: req.sym}"><span class="dot" aria-hidden="true" x-text="req.sym ? '✓' : '○'"></span> Znak specjalny (!@#…)</li>
-              <li :class="{ok: req.name}"><span class="dot" aria-hidden="true" x-text="req.name ? '✓' : '○'"></span> Nie zawiera nazwy konta</li>
+    <article id="sec-haslo" class="tzx-acc" :class="sec === 'haslo' ? 'tzx-acc--open' : ''" x-data="tzPassword(<?= h(json_encode($account_parts)) ?>)">
+      <?php $sec_head('haslo'); ?>
+      <div id="sec-haslo-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-haslo-hd" x-show="sec === 'haslo'" x-transition.opacity.duration.150ms>
+        <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
+          <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
+            <h4><i class="bi bi-arrow-repeat tw-text-brand-600" aria-hidden="true"></i>Jedno hasło, <?= $has_m365 ? 'dwa systemy' : 'konto lokalne' ?></h4>
+            <?php if ($has_m365): ?>
+            Zmiana w tym miejscu ustawia to samo hasło w SZO i w Microsoft 365 (Entra ID) jednocześnie. Jeśli hasła się rozjechały — tu je ponownie uzgodnisz.
+            <?php else: ?>
+            Twoja tożsamość nie ma konta Microsoft 365 — hasło działa w SZO i w modułach, które z niego korzystają (CRM, EZD, panel).
+            <?php endif; ?>
+            <ul>
+              <li>Min. 12 znaków, wielka i mała litera, cyfra, znak specjalny.</li>
+              <li>Nie używaj imienia, nazwiska ani fragmentu loginu.</li>
+              <li>Najlepiej fraza z kilku słów zapisana w menedżerze haseł.</li>
             </ul>
-          </fieldset>
-          <button type="submit" class="tzx-btn"><i class="bi bi-key" aria-hidden="true"></i>Zmień hasło</button>
-        </form>
+            <?php if (!$has_local_password): ?>
+            <div class="tw-mt-3 tw-rounded-xl tw-bg-brand-50 tw-border tw-border-solid tw-border-brand-200 tw-text-brand-800 tw-px-3 tw-py-2 tw-text-[.78rem]"><i class="bi bi-info-circle tw-mr-1" aria-hidden="true"></i>Nie masz jeszcze hasła lokalnego SZO. Ustaw je — będzie też hasłem awaryjnym obok logowania Microsoft.</div>
+            <?php endif; ?>
+          </aside>
+          <div class="lg:tw-col-span-3 lg:tw-order-1">
+            <form method="post" id="pwdForm">
+              <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+              <input type="hidden" name="_action" value="pwd_change">
+              <?php if ($has_local_password): ?>
+              <div class="tzx-field tw-mb-3 tw-max-w-md">
+                <label for="pw_cur">Obecne hasło <span class="lbl-en">Current password</span></label>
+                <input type="password" id="pw_cur" name="current_password" class="form-control" autocomplete="current-password" required>
+              </div>
+              <?php endif; ?>
+              <div class="tzx-field tw-mb-3 tw-max-w-md">
+                <label for="pw_new">Nowe hasło <span class="lbl-en">New password</span></label>
+                <div class="input-group">
+                  <input :type="show ? 'text' : 'password'" id="pw_new" name="new_password" class="form-control" autocomplete="new-password"
+                         aria-describedby="pw_req pw_strength" minlength="12" required x-model="pw">
+                  <button class="btn btn-outline-secondary" type="button" @click="show = !show"
+                          aria-label="Pokaż lub ukryj hasło" :aria-pressed="show ? 'true' : 'false'"><i class="bi" :class="show ? 'bi-eye-slash' : 'bi-eye'" aria-hidden="true"></i></button>
+                </div>
+                <div class="tz-meter" aria-hidden="true"><span :style="'width:' + pct + '%;background-color:' + color"></span></div>
+                <div class="form-text" id="pw_strength" aria-live="polite">Siła hasła: <span x-text="pw ? label : '—'"></span></div>
+              </div>
+              <div class="tzx-field tw-mb-3 tw-max-w-md">
+                <label for="pw_conf">Powtórz nowe hasło <span class="lbl-en">Confirm new password</span></label>
+                <input type="password" id="pw_conf" name="confirm_password" class="form-control" autocomplete="new-password" minlength="12" required x-model="pw2">
+                <div class="form-text tw-text-rose-600" x-show="mismatch" x-cloak>Hasła nie są identyczne.</div>
+              </div>
+              <fieldset class="tw-mb-4 tw-max-w-2xl tw-border-0 tw-p-0 tw-m-0">
+                <legend class="tw-text-[.8rem] tw-font-semibold tw-text-slate-800 tw-mb-0">Polityka haseł organizacji <span class="lbl-en">Entra ID password policy</span></legend>
+                <ul class="tz-req" id="pw_req" aria-live="polite">
+                  <li :class="{ok: req.len}"><span class="dot" aria-hidden="true" x-text="req.len ? '✓' : '○'"></span> Min. 12 znaków</li>
+                  <li :class="{ok: req.up}"><span class="dot" aria-hidden="true" x-text="req.up ? '✓' : '○'"></span> Wielka litera (A–Z)</li>
+                  <li :class="{ok: req.low}"><span class="dot" aria-hidden="true" x-text="req.low ? '✓' : '○'"></span> Mała litera (a–z)</li>
+                  <li :class="{ok: req.num}"><span class="dot" aria-hidden="true" x-text="req.num ? '✓' : '○'"></span> Cyfra (0–9)</li>
+                  <li :class="{ok: req.sym}"><span class="dot" aria-hidden="true" x-text="req.sym ? '✓' : '○'"></span> Znak specjalny (!@#…)</li>
+                  <li :class="{ok: req.name}"><span class="dot" aria-hidden="true" x-text="req.name ? '✓' : '○'"></span> Nie zawiera nazwy konta</li>
+                </ul>
+              </fieldset>
+              <button type="submit" class="tzx-btn"><i class="bi bi-key" aria-hidden="true"></i><?= $has_local_password ? 'Zmień hasło' : 'Ustaw hasło' ?></button>
+            </form>
+          </div>
+        </div>
       </div>
-    </div>
+    </article>
 
     <!-- ── TELEFON ── -->
-    <div class="tzx-card lg:tw-col-span-2">
-      <div class="tzx-card-hd">
-        <i class="bi bi-phone tw-text-blue-600" aria-hidden="true"></i>
-        <h2 class="tzx-h2">Telefon do SMS <span class="lbl-en tw-inline">Recovery / MFA phone</span></h2>
-        <?php if ($phone_saved): ?>
-        <span class="tw-ml-auto tzx-badge <?= $phone_verified ? 'tzx-badge--ok' : 'tzx-badge--warn' ?>"><i class="bi <?= $phone_verified ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill' ?>" aria-hidden="true"></i><?= $phone_verified ? 'Zweryfikowany' : 'Niezweryfikowany' ?></span>
-        <?php endif; ?>
-      </div>
-      <div class="tzx-card-bd">
-        <p class="tzx-muted tw-mt-0">Numer służy do odzyskiwania dostępu (kod SMS do zdefiniowania nowego hasła) oraz powiadomień MFA.</p>
-        <?php if (!$sms_available): ?>
-          <div class="tw-rounded-xl tw-bg-amber-50 tw-border tw-border-solid tw-border-amber-200 tw-text-amber-800 tw-px-3.5 tw-py-2.5 tw-text-sm tw-mb-3" role="alert"><i class="bi bi-exclamation-triangle tw-mr-1" aria-hidden="true"></i>Weryfikacja SMS jest obecnie niedostępna.</div>
-        <?php endif; ?>
-        <?php if ($phone_saved && !$phone_pending): ?>
-          <p class="tw-mb-3 tw-text-sm">Aktualny numer: <strong class="tw-font-mono"><?= h(tz_mask_phone($phone_saved)) ?></strong></p>
-        <?php endif; ?>
+    <article id="sec-telefon" class="tzx-acc" :class="sec === 'telefon' ? 'tzx-acc--open' : ''">
+      <?php $sec_head('telefon'); ?>
+      <div id="sec-telefon-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-telefon-hd" x-show="sec === 'telefon'" x-transition.opacity.duration.150ms>
+        <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
+          <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
+            <h4><i class="bi bi-life-preserver tw-text-brand-600" aria-hidden="true"></i>Po co numer telefonu</h4>
+            Numer służy do odzyskiwania dostępu (kod SMS przy ustawianiu nowego hasła) i do powiadomień MFA. Nie jest używany do marketingu ani pokazywany innym użytkownikom.
+            <ul>
+              <li>Po zapisaniu wyślemy 6-cyfrowy kod — numer działa dopiero po jego wpisaniu.</li>
+              <li>Zmiana numeru wymaga ponownej weryfikacji.</li>
+            </ul>
+            <?php if ($phone_saved && !$phone_pending): ?>
+            <div class="tw-mt-3 tw-text-[.78rem]">Aktualny numer: <strong class="tw-font-mono tw-text-slate-900"><?= h(tz_mask_phone($phone_saved)) ?></strong></div>
+            <?php endif; ?>
+          </aside>
+          <div class="lg:tw-col-span-3 lg:tw-order-1">
+            <?php if (!$sms_available): ?>
+              <div class="tw-rounded-xl tw-bg-amber-50 tw-border tw-border-solid tw-border-amber-200 tw-text-amber-800 tw-px-3.5 tw-py-2.5 tw-text-sm tw-mb-3" role="alert"><i class="bi bi-exclamation-triangle tw-mr-1" aria-hidden="true"></i>Weryfikacja SMS jest obecnie niedostępna.</div>
+            <?php endif; ?>
 
-        <?php if ($phone_pending): ?>
-          <p class="tw-text-sm">Wpisz 6-cyfrowy kod wysłany na numer <strong><?= h(tz_mask_phone($phone_pending)) ?></strong>. <span class="lbl-en tw-inline">Enter the SMS code.</span></p>
-          <form method="post" class="tw-mt-2">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_action" value="phone_verify">
-            <div class="tzx-field tw-mb-3 tw-max-w-[320px]">
-              <label for="tel_code">Kod weryfikacyjny</label>
-              <input type="text" id="tel_code" name="code" class="form-control tz-otp" inputmode="numeric"
-                     autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000"
-                     aria-describedby="tel_code_help" autofocus required>
-              <div id="tel_code_help" class="form-text">Kod jest ważny 5 minut.</div>
-            </div>
-            <div class="tw-flex tw-flex-wrap tw-gap-2">
-              <button type="submit" class="tzx-btn"><i class="bi bi-check2-circle" aria-hidden="true"></i>Zweryfikuj</button>
-              <button type="submit" form="tel_resend" class="tzx-btn tzx-btn--ghost"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Wyślij ponownie</button>
-              <button type="submit" form="tel_cancel" class="btn btn-link text-muted">Anuluj</button>
-            </div>
-          </form>
-          <form method="post" id="tel_resend" class="tw-hidden">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="phone_send">
-            <input type="hidden" name="phone_number" value="<?= h($phone_pending) ?>">
-          </form>
-          <form method="post" id="tel_cancel" class="tw-hidden">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="phone_cancel">
-          </form>
-        <?php else: ?>
-          <form method="post">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_action" value="phone_send">
-            <div class="tzx-field tw-mb-3 tw-max-w-[360px]">
-              <label for="tel_num">Numer komórkowy <span class="lbl-en">Mobile number</span></label>
-              <div class="input-group">
-                <span class="input-group-text" id="tel_prefix">+48</span>
-                <input type="tel" id="tel_num" name="phone_number" class="form-control" inputmode="numeric"
-                       autocomplete="tel-national" value="<?= h(substr(preg_replace('/\D/','',$phone_saved), -9)) ?>"
-                       placeholder="600 100 200" aria-describedby="tel_prefix tel_help" required>
-              </div>
-              <div id="tel_help" class="form-text">Wyślemy 6-cyfrowy kod SMS. Standardowe opłaty operatora mogą obowiązywać.</div>
-            </div>
-            <div class="tw-flex tw-flex-wrap tw-gap-2">
-              <button type="submit" class="tzx-btn"><i class="bi bi-send" aria-hidden="true"></i>Wyślij kod weryfikacyjny</button>
+            <?php if ($phone_pending): ?>
+              <p class="tw-text-sm tw-mt-0">Wpisz 6-cyfrowy kod wysłany na numer <strong><?= h(tz_mask_phone($phone_pending)) ?></strong>. <span class="lbl-en tw-inline">Enter the SMS code.</span></p>
+              <form method="post" class="tw-mt-2">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_action" value="phone_verify">
+                <div class="tzx-field tw-mb-3 tw-max-w-[320px]">
+                  <label for="tel_code">Kod weryfikacyjny</label>
+                  <input type="text" id="tel_code" name="code" class="form-control tz-otp" inputmode="numeric"
+                         autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000"
+                         aria-describedby="tel_code_help" autofocus required>
+                  <div id="tel_code_help" class="form-text">Kod jest ważny 5 minut.</div>
+                </div>
+                <div class="tw-flex tw-flex-wrap tw-gap-2">
+                  <button type="submit" class="tzx-btn"><i class="bi bi-check2-circle" aria-hidden="true"></i>Zweryfikuj</button>
+                  <button type="submit" form="tel_resend" class="tzx-btn tzx-btn--ghost"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Wyślij ponownie</button>
+                  <button type="submit" form="tel_cancel" class="btn btn-link text-muted">Anuluj</button>
+                </div>
+              </form>
+              <form method="post" id="tel_resend" class="tw-hidden">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="phone_send">
+                <input type="hidden" name="phone_number" value="<?= h($phone_pending) ?>">
+              </form>
+              <form method="post" id="tel_cancel" class="tw-hidden">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="phone_cancel">
+              </form>
+            <?php else: ?>
+              <form method="post">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_action" value="phone_send">
+                <div class="tzx-field tw-mb-3 tw-max-w-[360px]">
+                  <label for="tel_num">Numer komórkowy <span class="lbl-en">Mobile number</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text" id="tel_prefix">+48</span>
+                    <input type="tel" id="tel_num" name="phone_number" class="form-control" inputmode="numeric"
+                           autocomplete="tel-national" value="<?= h(substr(preg_replace('/\D/','',$phone_saved), -9)) ?>"
+                           placeholder="600 100 200" aria-describedby="tel_prefix tel_help" required>
+                  </div>
+                  <div id="tel_help" class="form-text">Wyślemy 6-cyfrowy kod SMS. Standardowe opłaty operatora mogą obowiązywać.</div>
+                </div>
+                <div class="tw-flex tw-flex-wrap tw-gap-2">
+                  <button type="submit" class="tzx-btn"><i class="bi bi-send" aria-hidden="true"></i><?= $phone_saved ? 'Zmień numer i wyślij kod' : 'Wyślij kod weryfikacyjny' ?></button>
+                  <?php if ($phone_saved): ?>
+                  <button type="submit" form="tel_remove" class="tzx-btn tzx-btn--danger" onclick="return confirm('Usunąć numer telefonu z tożsamości?')"><i class="bi bi-trash" aria-hidden="true"></i>Usuń numer</button>
+                  <?php endif; ?>
+                </div>
+              </form>
               <?php if ($phone_saved): ?>
-              <button type="submit" form="tel_remove" class="tzx-btn tzx-btn--danger" onclick="return confirm('Usunąć numer telefonu z tożsamości?')"><i class="bi bi-trash" aria-hidden="true"></i>Usuń numer</button>
+              <form method="post" id="tel_remove" class="tw-hidden">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="phone_remove">
+              </form>
               <?php endif; ?>
-            </div>
-          </form>
-          <?php if ($phone_saved): ?>
-          <form method="post" id="tel_remove" class="tw-hidden">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="phone_remove">
-          </form>
-          <?php endif; ?>
-        <?php endif; ?>
+            <?php endif; ?>
+          </div>
+        </div>
       </div>
-    </div>
+    </article>
 
     <!-- ── MFA ── -->
-    <div class="tzx-card lg:tw-col-span-5">
-      <div class="tzx-card-hd">
-        <i class="bi bi-shield-check tw-text-blue-600" aria-hidden="true"></i>
-        <h2 class="tzx-h2">Metody weryfikacji (MFA) <span class="lbl-en tw-inline">Set up authenticator</span></h2>
-        <span class="tw-ml-auto tzx-badge <?= $mfa_active ? 'tzx-badge--ok' : 'tzx-badge--warn' ?>"><?= $mfa_active ? h($mfa_label) : 'Brak drugiego składnika' ?></span>
-      </div>
-      <div class="tzx-card-bd">
-        <p class="tzx-muted tw-mt-0">Sparuj smartfon z kontem organizacji. Zalecamy aplikację <strong>Microsoft Authenticator</strong>.</p>
-        <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 xl:tw-grid-cols-3 tw-gap-3 tw-mb-4">
-          <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $totp_on ? ' tw-border-blue-300 tw-bg-blue-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
-            <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
-              <span class="tzx-ico <?= $totp_on ? 'tw-bg-blue-600 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-phone"></i></span>
-              <?php if ($totp_on): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span><?php else: ?><span class="tzx-badge tzx-badge--off">Nieaktywne</span><?php endif; ?>
+    <article id="sec-mfa" class="tzx-acc" :class="sec === 'mfa' ? 'tzx-acc--open' : ''">
+      <?php $sec_head('mfa'); ?>
+      <div id="sec-mfa-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-mfa-hd" x-show="sec === 'mfa'" x-transition.opacity.duration.150ms>
+        <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
+          <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
+            <h4><i class="bi bi-shield-plus tw-text-brand-600" aria-hidden="true"></i>Drugi składnik logowania</h4>
+            Nawet wykradzione hasło nie wystarczy do wejścia na konto. Sparuj smartfon z kontem organizacji — zalecamy aplikację <strong>Microsoft Authenticator</strong>.
+            <ul>
+              <li><strong>Klucz / passkey</strong> to najmocniejsza ochrona — odporna na phishing.</li>
+              <li>Kody zapasowe zapisz w bezpiecznym miejscu; każdy działa raz.</li>
+            </ul>
+          </aside>
+          <div class="lg:tw-col-span-3 lg:tw-order-1">
+            <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-3 tw-mb-4">
+              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $totp_on ? ' tw-border-brand-300 tw-bg-brand-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
+                <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
+                  <span class="tzx-ico <?= $totp_on ? 'tw-bg-brand-500 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-phone"></i></span>
+                  <?php if ($totp_on): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span><?php else: ?><span class="tzx-badge tzx-badge--off">Nieaktywne</span><?php endif; ?>
+                </div>
+                <div><span class="tw-block tw-text-sm tw-font-semibold">Aplikacja Authenticator</span><span class="lbl-en">TOTP (Microsoft / Google Authenticator)</span><span class="tzx-muted tw-block tw-mt-1">Kod jednorazowy z aplikacji — działa offline.</span></div>
+              </a>
+              <?php if ($sms_available): ?>
+              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $sms_on ? ' tw-border-emerald-300 tw-bg-emerald-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
+                <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
+                  <span class="tzx-ico <?= $sms_on ? 'tw-bg-emerald-600 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
+                  <?php if ($sms_on): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span><?php else: ?><span class="tzx-badge tzx-badge--off">Nieaktywne</span><?php endif; ?>
+                </div>
+                <div><span class="tw-block tw-text-sm tw-font-semibold">Kod SMS</span><span class="lbl-en">Text message one-time code</span><span class="tzx-muted tw-block tw-mt-1">Jednorazowy kod na zweryfikowany numer telefonu.</span></div>
+              </a>
+              <?php endif; ?>
+              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $has_wk ? ' tw-border-emerald-300 tw-bg-emerald-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn">
+                <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
+                  <span class="tzx-ico <?= $has_wk ? 'tw-bg-emerald-700 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-fingerprint"></i></span>
+                  <?php if ($has_wk): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><?= count($wk_keys_idx) ?> klucz<?= count($wk_keys_idx) > 1 ? 'e' : '' ?></span><?php else: ?><span class="tzx-badge tzx-badge--off">Brak</span><?php endif; ?>
+                </div>
+                <div><span class="tw-block tw-text-sm tw-font-semibold">Klucz / Passkey</span><span class="lbl-en">WebAuthn / FIDO2 / Passkeys</span><span class="tzx-muted tw-block tw-mt-1">Biometria, YubiKey lub Windows Hello — ochrona przed phishingiem.</span></div>
+              </a>
             </div>
-            <div><span class="tw-block tw-text-sm tw-font-semibold">Aplikacja Authenticator</span><span class="lbl-en">TOTP (Microsoft / Google Authenticator)</span><span class="tzx-muted tw-block tw-mt-1">Kod jednorazowy z aplikacji — działa offline.</span></div>
-          </a>
-          <?php if ($sms_available): ?>
-          <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $sms_on ? ' tw-border-emerald-300 tw-bg-emerald-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
-            <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
-              <span class="tzx-ico <?= $sms_on ? 'tw-bg-emerald-600 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
-              <?php if ($sms_on): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span><?php else: ?><span class="tzx-badge tzx-badge--off">Nieaktywne</span><?php endif; ?>
-            </div>
-            <div><span class="tw-block tw-text-sm tw-font-semibold">Kod SMS</span><span class="lbl-en">Text message one-time code</span><span class="tzx-muted tw-block tw-mt-1">Jednorazowy kod na zweryfikowany numer telefonu.</span></div>
-          </a>
-          <?php endif; ?>
-          <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $has_wk ? ' tw-border-emerald-300 tw-bg-emerald-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn">
-            <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
-              <span class="tzx-ico <?= $has_wk ? 'tw-bg-emerald-700 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-fingerprint"></i></span>
-              <?php if ($has_wk): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><?= count($wk_keys_idx) ?> klucz<?= count($wk_keys_idx) > 1 ? 'e' : '' ?></span><?php else: ?><span class="tzx-badge tzx-badge--off">Brak</span><?php endif; ?>
-            </div>
-            <div><span class="tw-block tw-text-sm tw-font-semibold">Klucz / Passkey</span><span class="lbl-en">WebAuthn / FIDO2 / Passkeys</span><span class="tzx-muted tw-block tw-mt-1">Biometria, YubiKey lub Windows Hello — ochrona przed phishingiem.</span></div>
-          </a>
+            <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tzx-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i>Zarządzaj metodami weryfikacji</a>
+          </div>
         </div>
-        <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="tzx-btn"><i class="bi bi-shield-plus" aria-hidden="true"></i>Zarządzaj metodami weryfikacji</a>
       </div>
-    </div>
+    </article>
 
     <!-- ── Szybkie dzwonienie: UID + PIN ── -->
-    <div class="tzx-card lg:tw-col-span-5">
-      <div class="tzx-card-hd">
-        <i class="bi bi-telephone-outbound tw-text-emerald-600" aria-hidden="true"></i>
-        <h2 class="tzx-h2">Szybkie dzwonienie (mobile) <span class="lbl-en tw-inline">Quick dial sign-in</span></h2>
-        <span class="tw-ml-auto">
-          <?php if (!$pin_allowed): ?><span class="tzx-badge tzx-badge--off">Wyłączone przez administratora</span>
-          <?php elseif ($pin_is_set): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>PIN ustawiony</span>
-          <?php else: ?><span class="tzx-badge tzx-badge--warn">PIN nieustawiony</span><?php endif; ?>
-        </span>
-      </div>
-      <div class="tzx-card-bd">
-        <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-4">
-          <div class="lg:tw-col-span-2">
-            <p class="tzx-muted tw-mt-0">
-              Aplikacja mobilna <strong>Dzwoń</strong> pozwala wyszukać kontakt CRM i zadzwonić jednym dotknięciem.
-              Wchodzisz do niej numerem konta i PIN-em — a potem, jak wszędzie w CRM, kodem IKA.
-              Ta sesja otwiera <strong>wyłącznie</strong> dialer; do reszty systemu nadal logujesz się normalnie.
-            </p>
-            <dl class="tw-grid tw-grid-cols-1 tw-gap-2 tw-m-0">
-              <div class="tzx-kv"><dt>Adres aplikacji <span class="lbl-en">App address</span></dt><dd><a href="<?= h($pin_app_url) ?>" class="tw-text-blue-700"><?= h(preg_replace('#^https?://#', '', $pin_app_url)) ?></a> <span class="tzx-muted tw-font-normal">— dodaj do ekranu głównego telefonu</span></dd></div>
-              <div class="tzx-kv"><dt>Numer konta (UID) <span class="lbl-en">Account number</span></dt><dd class="tw-font-mono"><?= (int)$uid ?></dd></div>
-              <div class="tzx-kv"><dt>PIN <span class="lbl-en">Quick dial PIN</span></dt><dd>
+    <article id="sec-pin" class="tzx-acc" :class="sec === 'pin' ? 'tzx-acc--open' : ''">
+      <?php $sec_head('pin'); ?>
+      <div id="sec-pin-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-pin-hd" x-show="sec === 'pin'" x-transition.opacity.duration.150ms>
+        <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
+          <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
+            <h4><i class="bi bi-phone-vibrate tw-text-brand-600" aria-hidden="true"></i>Dialer CRM na telefonie</h4>
+            Aplikacja mobilna <strong>Dzwoń</strong> pozwala wyszukać kontakt CRM i zadzwonić jednym dotknięciem. Wchodzisz do niej numerem konta i PIN-em — a potem, jak wszędzie w CRM, kodem IKA. Ta sesja otwiera <strong>wyłącznie</strong> dialer.
+            <dl class="tw-grid tw-grid-cols-1 tw-gap-2 tw-m-0 tw-mt-3">
+              <div class="tzx-kv tw-bg-white"><dt>Adres aplikacji <span class="lbl-en">App address</span></dt><dd><a href="<?= h($pin_app_url) ?>" class="tw-text-brand-700"><?= h(preg_replace('#^https?://#', '', $pin_app_url)) ?></a> <span class="tzx-muted tw-font-normal">— dodaj do ekranu głównego</span></dd></div>
+              <div class="tzx-kv tw-bg-white"><dt>Numer konta (UID) <span class="lbl-en">Account number</span></dt><dd class="tw-font-mono"><?= (int)$uid ?></dd></div>
+              <div class="tzx-kv tw-bg-white"><dt>PIN <span class="lbl-en">Quick dial PIN</span></dt><dd>
                 <?php if (!$pin_allowed): ?>Wyłączone przez administratora
                 <?php elseif ($pin_is_set): ?>Ustawiony<?php if (!empty($db_user['mobile_pin_set_at'])): ?> <span class="tzx-muted tw-font-normal">od <?= h(date('d.m.Y', strtotime((string)$db_user['mobile_pin_set_at']))) ?></span><?php endif; ?>
                   <?php if ($pin_lock): ?> <span class="tzx-badge tzx-badge--warn">Zablokowany na <?= (int)$pin_lock ?> min po błędnych próbach</span><?php endif; ?>
                 <?php else: ?>Nieustawiony<?php endif; ?>
               </dd></div>
             </dl>
-          </div>
-          <div class="lg:tw-col-span-3">
+          </aside>
+          <div class="lg:tw-col-span-3 lg:tw-order-1">
             <?php if ($pin_allowed): ?>
             <form method="post" class="tw-mb-2">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
@@ -1088,7 +1200,8 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
           </div>
         </div>
       </div>
-    </div>
+    </article>
+
   </div>
 </section>
 
@@ -1097,7 +1210,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 <section id="ika" role="tabpanel" aria-labelledby="tab-ika" tabindex="-1" x-show="tab === 'ika'" x-transition.opacity.duration.150ms>
   <div class="tzx-card tw-max-w-3xl">
     <div class="tzx-card-hd">
-      <i class="bi bi-key tw-text-blue-600" aria-hidden="true"></i>
+      <i class="bi bi-key tw-text-brand-600" aria-hidden="true"></i>
       <h2 class="tzx-h2">Zmień kod IKA <span class="lbl-en tw-inline">Change your access code</span></h2>
       <span class="tw-ml-auto tzx-badge <?= $ika_blocked ? 'tzx-badge--warn' : 'tzx-badge--ok' ?>"><?= $ika_blocked ? 'Tymczasowo zablokowany' : 'Aktywny' ?></span>
     </div>
@@ -1143,7 +1256,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
     <div class="lg:tw-col-span-2 tw-grid tw-gap-4 tw-content-start">
       <div class="tzx-card">
         <div class="tzx-card-hd">
-          <i class="bi bi-info-circle tw-text-blue-600" aria-hidden="true"></i>
+          <i class="bi bi-info-circle tw-text-brand-600" aria-hidden="true"></i>
           <h2 class="tzx-h2">Co dzieje się z Twoimi danymi <span class="lbl-en tw-inline">How your data is processed</span></h2>
           <a href="<?= APP_URL ?>/tozsamosc/rodo_export.php" target="_blank" rel="noopener" class="tzx-btn tzx-btn--ghost tzx-btn--sm tw-ml-auto" title="Pobierz eksport danych osobowych (PDF) — art. 15 i 20 RODO"><i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>Eksport PDF</a>
         </div>
@@ -1162,7 +1275,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 
       <div class="tzx-card">
         <div class="tzx-card-hd">
-          <i class="bi bi-patch-check tw-text-blue-600" aria-hidden="true"></i>
+          <i class="bi bi-patch-check tw-text-brand-600" aria-hidden="true"></i>
           <h2 class="tzx-h2">Upoważnienia do przetwarzania danych</h2>
           <span class="tw-ml-auto tzx-badge tzx-badge--off"><?= count($rodo_auth) ?></span>
         </div>
@@ -1198,7 +1311,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 
     <div class="tzx-card lg:tw-col-span-3" x-data="{ f: 'all' }">
       <div class="tzx-card-hd tw-flex-wrap">
-        <i class="bi bi-file-earmark-text tw-text-blue-600" aria-hidden="true"></i>
+        <i class="bi bi-file-earmark-text tw-text-brand-600" aria-hidden="true"></i>
         <h2 class="tzx-h2">Czynności na Twojej umowie</h2>
         <div class="tw-ml-auto tw-inline-flex tw-gap-0.5 tw-p-0.5 tw-rounded-lg tw-bg-slate-100" role="group" aria-label="Filtr rejestru">
           <button type="button" class="tzx-tab tw-py-1 tw-px-2.5 tw-text-xs" :aria-selected="f === 'all' ? 'true' : 'false'" @click="f = 'all'">Wszystko</button>
@@ -1217,7 +1330,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
               $is_enter = in_array($ev['action'], $REG_ENTER, true);
             ?>
             <li x-show="f === 'all' || f === '<?= $is_enter ? 'enter' : 'mod' ?>'">
-              <span class="tzx-dot <?= $is_enter ? 'tw-border-slate-400 tw-text-slate-500' : 'tw-border-blue-500 tw-text-blue-600' ?>" aria-hidden="true"><i class="bi <?= h($ic) ?>"></i></span>
+              <span class="tzx-dot <?= $is_enter ? 'tw-border-slate-400 tw-text-slate-500' : 'tw-border-brand-500 tw-text-brand-600' ?>" aria-hidden="true"><i class="bi <?= h($ic) ?>"></i></span>
               <div class="tw-text-[.88rem] tw-font-semibold tw-text-slate-900 tw-flex tw-flex-wrap tw-items-center tw-gap-1.5">
                 <?= h($lbl) ?>
                 <span class="tzx-badge <?= $is_enter ? 'tzx-badge--off' : 'tzx-badge--info' ?>"><?= $is_enter ? 'Wejście' : 'Modyfikacja' ?></span>
@@ -1239,7 +1352,7 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 <!-- ═══════════ O PANELU ═══════════ -->
 <section id="opanelu" role="tabpanel" aria-labelledby="tab-opanelu" tabindex="-1" x-show="tab === 'opanelu'" x-transition.opacity.duration.150ms>
   <div class="tzx-card">
-    <div class="tzx-card-hd"><i class="bi bi-info-circle tw-text-blue-600" aria-hidden="true"></i><h2 class="tzx-h2">O panelu <span class="lbl-en tw-inline">About this panel</span></h2></div>
+    <div class="tzx-card-hd"><i class="bi bi-info-circle tw-text-brand-600" aria-hidden="true"></i><h2 class="tzx-h2">O panelu <span class="lbl-en tw-inline">About this panel</span></h2></div>
     <div class="tzx-card-bd">
       <p class="tw-mb-4 tw-text-[.92rem]">
         <strong>System Tożsamości</strong> to Twoje <strong>„konto o koncie"</strong> — jedno miejsce, w którym zarządzasz
@@ -1268,13 +1381,13 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
           </ul>
         </div>
       </div>
-      <h3 class="tzx-h3"><i class="bi bi-diagram-3 tw-text-blue-600" aria-hidden="true"></i>Jak to działa</h3>
+      <h3 class="tzx-h3"><i class="bi bi-diagram-3 tw-text-brand-600" aria-hidden="true"></i>Jak to działa</h3>
       <ul class="tw-text-[.86rem] tw-leading-7 tw-mb-5 tw-pl-4">
         <li>Twoje konto i <strong>numer UID</strong> powstają automatycznie w chwili <strong>zawarcia umowy</strong> — UID jest stały i niezmienny.</li>
         <li><strong>Login do panelu</strong> (identyfikator sieciowy) może różnić się od <strong>loginu Microsoft 365</strong> — oba widzisz w karcie tożsamości u góry.</li>
         <li>Zmiana hasła <strong>synchronizuje się</strong> jednocześnie z panelem SZO i Microsoft 365 / Entra ID.</li>
       </ul>
-      <h3 class="tzx-h3"><i class="bi bi-life-preserver tw-text-blue-600" aria-hidden="true"></i>Potrzebujesz pomocy?</h3>
+      <h3 class="tzx-h3"><i class="bi bi-life-preserver tw-text-brand-600" aria-hidden="true"></i>Potrzebujesz pomocy?</h3>
       <div class="tw-flex tw-flex-wrap tw-gap-2">
         <a href="<?= APP_URL ?>/helpdesk/index.php" class="tzx-btn tzx-btn--ghost tzx-btn--sm"><i class="bi bi-headset" aria-hidden="true"></i>Zgłoś do helpdesku</a>
         <a href="<?= APP_URL ?>/portal.php" class="tzx-btn tzx-btn--ghost tzx-btn--sm"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Przejdź do SZO</a>
@@ -1321,6 +1434,8 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 </section>
 <?php endif; ?>
 
+  </div><!-- /treść -->
+</div><!-- /układ -->
 </div><!-- /x-data tzIdentity -->
 
 <script>
