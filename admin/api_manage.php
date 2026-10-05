@@ -31,6 +31,7 @@ const AM_API_PERMISSIONS = [
     'events:read'      => 'Wydarzenia — odczyt (lista, szczegóły, rejestracje)',
     'events:write'     => 'Wydarzenia — zapis (twórz / edytuj / rejestracje)',
     'ezd:read'         => 'EZD Wirtualne biurko — odczyt (teczki, sprawy, pisma)',
+    'ezd:upload'       => 'EZD Wirtualne biurko — dołączanie plików/skanów (api/v1/ezd_upload.php, bez odczytu)',
     'pelnomocnictwa:read'  => 'Rejestr pełnomocnictw — odczyt',
     'pelnomocnictwa:write' => 'Rejestr pełnomocnictw — zapis (twórz / edytuj / usuń)',
     'ext:read'         => 'Materiały zewnętrzne — odczyt katalogu i dziennika (bez treści plików)',
