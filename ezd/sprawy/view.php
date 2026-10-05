@@ -498,19 +498,32 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 .ezd-main .sp-tab-pane { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-border-t-0 tw-rounded-b-2xl tw-p-4 tw-shadow-sm; }
 /* Przekazania */
 .ezd-main .dekr-row { @apply tw-flex tw-items-start tw-gap-3 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-100 tw-text-[.8rem] last:tw-border-b-0; }
-/* Stepper obiegu */
-.ezd-main .sp-etap-bar { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-2xl tw-px-4 tw-py-3 tw-mb-3 tw-shadow-sm; }
-.ezd-main .ezd-stepper { @apply tw-flex tw-items-start tw-gap-1 tw-overflow-x-auto tw-py-0.5; }
-.ezd-main .ezd-step { @apply tw-flex-1 tw-min-w-[64px] tw-text-center tw-relative; }
-.ezd-main .ezd-step::before { content: ''; @apply tw-absolute tw-top-[13px] tw-left-[-50%] tw-w-full tw-h-0.5 tw-bg-slate-200; z-index: 0; }
-.ezd-main .ezd-step:first-child::before { @apply tw-hidden; }
-.ezd-main .ezd-step-dot { @apply tw-relative tw-w-[26px] tw-h-[26px] tw-rounded-full tw-mx-auto tw-mb-1 tw-flex tw-items-center tw-justify-center tw-bg-slate-200 tw-text-slate-500 tw-text-[.7rem] tw-border-2 tw-border-solid tw-border-white; z-index: 1; box-shadow: 0 0 0 1px #e2e8f0; }
-.ezd-main .ezd-step-lbl { @apply tw-text-[.64rem] tw-text-slate-500 tw-leading-tight; }
-.ezd-main .ezd-step-done .ezd-step-dot { @apply tw-bg-emerald-500 tw-text-white; box-shadow: 0 0 0 1px #22c55e; }
-.ezd-main .ezd-step-done::before { @apply tw-bg-emerald-500; }
-.ezd-main .ezd-step-done .ezd-step-lbl { @apply tw-text-emerald-700; }
-.ezd-main .ezd-step-current .ezd-step-dot { @apply tw-bg-blue-600 tw-text-white; box-shadow: 0 0 0 4px #dbeafe; }
-.ezd-main .ezd-step-current .ezd-step-lbl { @apply tw-text-blue-700 tw-font-bold; }
+/* Prawa kolumna: karty */
+.ezd-main .sp-side { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-2xl tw-shadow-sm tw-min-w-0 tw-overflow-hidden; }
+.ezd-main .sp-side-hd { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-100; }
+.ezd-main .sp-side-h { @apply tw-m-0 tw-text-[.88rem] tw-font-semibold tw-text-slate-900 tw-tracking-tight; }
+.ezd-main .sp-side-bd { @apply tw-px-4 tw-py-3; }
+.ezd-main .sp-kv { @apply tw-grid tw-grid-cols-[minmax(96px,38%)_1fr] tw-gap-x-3 tw-gap-y-1.5 tw-m-0 tw-text-[.8rem]; }
+.ezd-main .sp-kv dt { @apply tw-text-slate-500 tw-font-normal tw-m-0 tw-min-w-0; }
+.ezd-main .sp-kv dd { @apply tw-m-0 tw-min-w-0 tw-text-slate-900 tw-break-words; }
+/* Stepper pionowy (obieg) */
+.ezd-main .sp-wf { @apply tw-list-none tw-m-0 tw-p-0 tw-grid tw-grid-cols-1; }
+.ezd-main .sp-wf-step { @apply tw-relative tw-flex tw-items-center tw-gap-3 tw-py-1.5 tw-pl-0; }
+.ezd-main .sp-wf-step::before { content: ''; @apply tw-absolute tw-left-[12px] tw-top-0 tw-bottom-0 tw-w-0.5 tw-bg-slate-200; }
+.ezd-main .sp-wf-step:first-child::before { @apply tw-top-1/2; }
+.ezd-main .sp-wf-step:last-child::before { @apply tw-bottom-1/2; }
+.ezd-main .sp-wf-dot { @apply tw-relative tw-z-[1] tw-w-[26px] tw-h-[26px] tw-shrink-0 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-slate-100 tw-text-slate-500 tw-text-[.7rem] tw-border-2 tw-border-solid tw-border-white; box-shadow: 0 0 0 1px #e2e8f0; }
+.ezd-main .sp-wf-lbl { @apply tw-text-[.8rem] tw-text-slate-500 tw-leading-tight tw-min-w-0 tw-flex tw-items-center tw-gap-2 tw-flex-wrap; }
+.ezd-main .sp-wf-now { @apply tw-text-[.6rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-blue-700 tw-bg-blue-50 tw-rounded-full tw-px-1.5 tw-py-0.5; }
+.ezd-main .sp-wf-done::before { @apply tw-bg-emerald-500; }
+.ezd-main .sp-wf-done .sp-wf-dot { @apply tw-bg-emerald-500 tw-text-white; box-shadow: 0 0 0 1px #22c55e; }
+.ezd-main .sp-wf-done .sp-wf-lbl { @apply tw-text-emerald-700; }
+.ezd-main .sp-wf-current .sp-wf-dot { @apply tw-bg-blue-600 tw-text-white; box-shadow: 0 0 0 4px #dbeafe; }
+.ezd-main .sp-wf-current .sp-wf-lbl { @apply tw-text-slate-900 tw-font-bold; }
+/* Historia operacji */
+.ezd-main .sp-log { @apply tw-max-h-[380px] tw-overflow-y-auto; }
+.ezd-main .sp-log-row { @apply tw-flex tw-items-start tw-gap-2 tw-py-1.5 tw-text-[.76rem] tw-border-b tw-border-solid tw-border-slate-100 last:tw-border-b-0; }
+.ezd-main .sp-log-dot { @apply tw-shrink-0 tw-mt-1.5 tw-w-2 tw-h-2 tw-rounded-full tw-bg-slate-300; }
 /* Oś czasu pism */
 .ezd-main .tl-wrap { @apply tw-relative tw-pl-8; }
 .ezd-main .tl-wrap::before { content: ''; @apply tw-absolute tw-left-[.55rem] tw-top-0 tw-bottom-0 tw-w-0.5 tw-bg-slate-200 tw-rounded; }
@@ -609,19 +622,9 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
   </dl>
 </section>
 
-<?php if(!$mini && $wf_steps): ?>
-<div class="sp-etap-bar mb-2">
-  <div class="ezd-stepper">
-    <?php foreach ($wf_steps as $i => $st):
-      $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
-    <div class="ezd-step ezd-step-<?= $state ?>">
-      <div class="ezd-step-dot"><i class="bi <?= $state === 'done' ? 'bi-check-lg' : ($st['icon'] ?: 'bi-record-circle') ?>"></i></div>
-      <div class="ezd-step-lbl"><?= h($st['label']) ?></div>
-    </div>
-    <?php endforeach; ?>
-  </div>
-</div>
-<?php endif; ?>
+<!-- ══ Układ 2-kolumnowy: lewa = akta + pisma/zadania/uczestnicy, prawa = obieg + metadane + historia ══ -->
+<div class="tw-grid tw-grid-cols-1 xl:tw-grid-cols-12 tw-gap-4 tw-items-start">
+<div class="xl:tw-col-span-8 tw-min-w-0">
 
 <!-- ══ Dokumenty w koszulce ══════════════════════════════════════════════════════ -->
 <div id="files">
@@ -885,9 +888,7 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
 <ul class="nav sp-tabs mt-3" id="sprawaTabs">
   <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-pisma"><i class="bi bi-envelope me-1"></i>PISMA <span class="badge bg-secondary ms-1"><?= count(array_filter($timeline,fn($t)=>$t['_typ']==='pismo')) ?></span></a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-zadania"><i class="bi bi-person-lines-fill me-1"></i>ZADANIA<?php $pend = count(array_filter($dekretacje,fn($d)=>$d['status']==='oczekuje')); if($pend): ?> <span class="badge bg-warning text-dark ms-1"><?= $pend ?></span><?php endif; ?></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-meta"><i class="bi bi-info-circle me-1"></i>METADANE</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-uczestnicy"><i class="bi bi-people me-1"></i>UCZESTNICY<?php if($shares||$strony): ?> <span class="badge bg-info ms-1"><?= count($shares)+count($strony) ?></span><?php endif; ?></a></li>
-  <?php if(!$mini): ?><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-przebieg"><i class="bi bi-diagram-2 me-1"></i>PRZEBIEG SPRAWY</a></li><?php endif; ?>
   <?php if($podsprawy): ?><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-podkoszulki"><i class="bi bi-diagram-3 me-1"></i>PODKOSZULKI <span class="badge bg-secondary ms-1"><?= count($podsprawy) ?></span></a></li><?php endif; ?>
 </ul>
 
@@ -1076,46 +1077,6 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
     <?php endif; ?>
   </div>
 
-  <!-- METADANE -->
-  <div class="tab-pane fade sp-tab-pane" id="tab-meta">
-    <div class="row g-3">
-      <div class="col-md-6">
-        <dl class="row mb-0" style="font-size:.84rem;row-gap:.4rem">
-          <dt class="col-5 text-muted fw-normal">Znak koszulki</dt><dd class="col-7 mb-0 font-monospace fw-bold"><?= h($sprawa['znak_sprawy']) ?></dd>
-          <dt class="col-5 text-muted fw-normal">Wykaz akt</dt><dd class="col-7 mb-0"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="text-decoration-none fw-semibold"><?= h($sprawa['teczka_symbol']) ?></a></dd>
-          <dt class="col-5 text-muted fw-normal">Właściciel</dt><dd class="col-7 mb-0"><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '<span class="text-muted">—</span>' ?></dd>
-          <dt class="col-5 text-muted fw-normal">Status</dt><dd class="col-7 mb-0"><?= ezd_status_badge_sprawa($sprawa['status']) ?></dd>
-          <dt class="col-5 text-muted fw-normal">Priorytet</dt><dd class="col-7 mb-0"><?= ezd_priority_badge($sprawa['priority']) ?></dd>
-          <dt class="col-5 text-muted fw-normal">Etap obiegu</dt><dd class="col-7 mb-0"><?= ezd_etap_badge($sprawa['etap'] ?? 'wszczeta') ?></dd>
-        </dl>
-      </div>
-      <div class="col-md-6">
-        <dl class="row mb-0" style="font-size:.84rem;row-gap:.4rem">
-          <dt class="col-5 text-muted fw-normal">Termin</dt>
-          <dd class="col-7 mb-0 <?= !empty($sprawa['ciagla'])?'text-info':($sprawa['deadline']&&$sprawa['deadline']<date('Y-m-d')&&!$is_closed?'text-danger fw-bold':'') ?>">
-            <?= !empty($sprawa['ciagla']) ? '<i class="bi bi-infinity me-1"></i>stale otwarta' : ($sprawa['deadline'] ? date_pl($sprawa['deadline']) : '—') ?>
-          </dd>
-          <dt class="col-5 text-muted fw-normal">Otwarto</dt><dd class="col-7 mb-0"><?= date_pl($sprawa['created_at']) ?></dd>
-          <?php if($sprawa['closed_at']): ?><dt class="col-5 text-muted fw-normal">Zamknięto</dt><dd class="col-7 mb-0"><?= date_pl($sprawa['closed_at']) ?></dd><?php endif; ?>
-          <?php if(!empty($sprawa['close_reason'])): ?><dt class="col-5 text-muted fw-normal">Powód zamknięcia</dt><dd class="col-7 mb-0 text-muted" style="white-space:pre-line;font-size:.79rem"><?= h($sprawa['close_reason']) ?></dd><?php endif; ?>
-          <dt class="col-5 text-muted fw-normal">Pliki</dt><dd class="col-7 mb-0"><?= count($zalaczniki) ?></dd>
-          <dt class="col-5 text-muted fw-normal">Pisma</dt><dd class="col-7 mb-0"><?= count(array_filter($timeline,fn($t)=>$t['_typ']==='pismo')) ?></dd>
-          <?php if($sprawa['description']): ?>
-          <dt class="col-5 text-muted fw-normal">Opis</dt><dd class="col-7 mb-0 text-muted" style="white-space:pre-line;font-size:.79rem"><?= h($sprawa['description']) ?></dd>
-          <?php endif; ?>
-        </dl>
-      </div>
-    </div>
-    <?php if($can_edit_case): ?>
-    <div class="mt-3 pt-3 border-top d-flex gap-2 flex-wrap">
-      <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Edytuj metadane</a>
-      <?php if(!$sprawa['parent_id']): ?>
-      <a href="<?= APP_URL ?>/ezd/sprawy/add.php?parent_id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-diagram-3 me-1"></i>Dodaj podkoszulkę</a>
-      <?php endif; ?>
-      <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-stars me-1"></i>Przerejestruj (AI)</a>
-    </div>
-    <?php endif; ?>
-  </div>
 
   <!-- UCZESTNICY: współdzielenie -->
   <div class="tab-pane fade sp-tab-pane" id="tab-uczestnicy">
@@ -1427,78 +1388,6 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
     <?php endif; ?>
   </div>
 
-  <!-- PRZEBIEG SPRAWY: stepper + log -->
-  <?php if(!$mini): ?>
-  <div class="tab-pane fade sp-tab-pane" id="tab-przebieg">
-    <?php if($wf_steps): ?>
-    <div class="mb-3">
-      <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-        <span class="fw-semibold" style="font-size:.82rem">Etap obiegu:</span>
-        <?= ezd_etap_badge($cur_etap) ?>
-        <?php if($wf_custom): ?><span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.6rem">wg Wykazu <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
-        <?php if(is_admin()): ?><a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= (int)($sprawa['jrwa_id'] ?? 0) ?>" class="text-muted" style="font-size:.72rem"><i class="bi bi-pencil me-1"></i>Edytuj workflow</a><?php endif; ?>
-      </div>
-      <div class="ezd-stepper">
-        <?php foreach ($wf_steps as $i => $st):
-          $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
-        <div class="ezd-step ezd-step-<?= $state ?>">
-          <div class="ezd-step-dot"><i class="bi <?= $state==='done'?'bi-check-lg':($st['icon'] ?: 'bi-record-circle') ?>"></i></div>
-          <div class="ezd-step-lbl"><?= h($st['label']) ?></div>
-        </div>
-        <?php endforeach; ?>
-      </div>
-      <?php if($can_act): ?>
-      <div class="d-flex gap-2 flex-wrap align-items-center mt-3 pt-3 border-top">
-        <?php if($next_step): ?>
-        <form method="post" class="d-inline">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="set_etap">
-          <input type="hidden" name="etap" value="<?= h($next_etap) ?>">
-          <button class="btn btn-sm btn-primary"><i class="bi <?= h($next_step['icon'] ?: 'bi-arrow-right') ?> me-1"></i>Dalej: <?= h($next_step['label']) ?> →</button>
-        </form>
-        <?php endif; ?>
-        <form method="post" class="d-inline d-flex gap-1">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="set_etap">
-          <select name="etap" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
-            <option disabled selected>Przejdź do etapu…</option>
-            <?php foreach($wf_steps as $st): ?>
-            <option value="<?= h($st['key']) ?>" <?= $st['key']===$cur_etap?'disabled':'' ?>><?= h($st['label']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </form>
-        <div class="ms-auto">
-          <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal">
-            <i class="bi bi-lock me-1"></i>Zamknij koszulkę
-          </button>
-        </div>
-      </div>
-      <?php endif; ?>
-    </div>
-    <?php endif; ?>
-
-    <!-- Historia operacji -->
-    <div>
-      <div class="fw-semibold mb-2" style="font-size:.8rem;color:#374151"><i class="bi bi-shield-check me-1"></i>Historia operacji</div>
-      <div class="border rounded" style="max-height:320px;overflow-y:auto">
-        <table class="table table-sm mb-0" style="font-size:.74rem">
-          <thead class="table-light sticky-top"><tr><th>Czas</th><th>Użytkownik</th><th>Operacja</th><th>Szczegóły</th></tr></thead>
-          <tbody>
-          <?php foreach ($log_entries as $l): ?>
-          <tr>
-            <td class="text-nowrap text-muted"><?= date('d.m.Y H:i', strtotime($l['created_at'])) ?></td>
-            <td><?= h($l['user_name'] ?? '—') ?></td>
-            <td><code style="font-size:.66rem"><?= h($l['action']) ?></code></td>
-            <td><?= h(mb_substr($l['details'],0,80)) ?></td>
-          </tr>
-          <?php endforeach; ?>
-          <?php if(!$log_entries): ?><tr><td colspan="4" class="text-center text-muted py-2">Brak wpisów</td></tr><?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  <?php endif; ?>
 
   <!-- PODKOSZULKI -->
   <?php if($podsprawy): ?>
@@ -1519,6 +1408,125 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
   <?php endif; ?>
 
 </div><!-- /tab-content -->
+
+</div><!-- /lewa kolumna -->
+
+<!-- ══ Prawa kolumna ═══════════════════════════════════════════════════════════ -->
+<aside class="xl:tw-col-span-4 tw-min-w-0 tw-grid tw-grid-cols-1 tw-gap-4" aria-label="Obieg, metadane i historia koszulki">
+
+  <?php if(!$mini): ?>
+  <!-- Obieg sprawy -->
+  <section class="sp-side" id="tab-przebieg" aria-labelledby="sp-wf-h">
+    <div class="sp-side-hd">
+      <i class="bi bi-diagram-2 tw-text-blue-600" aria-hidden="true"></i>
+      <h2 id="sp-wf-h" class="sp-side-h">Obieg sprawy</h2>
+      <?php if($wf_custom): ?><span class="ezx-badge ezx-badge--sky" title="Workflow przypisany do Wykazu akt">wg <?= h($sprawa['teczka_symbol']) ?></span><?php endif; ?>
+      <?php if(is_admin()): ?><a href="<?= APP_URL ?>/admin/ezd_workflows.php?jrwa_id=<?= (int)($sprawa['jrwa_id'] ?? 0) ?>" class="tw-ml-auto tw-text-[.7rem] tw-text-slate-500 hover:tw-text-blue-700" title="Edytuj workflow"><i class="bi bi-pencil" aria-hidden="true"></i></a><?php endif; ?>
+    </div>
+    <div class="sp-side-bd">
+      <?php if($wf_steps): ?>
+      <ol class="sp-wf" aria-label="Etapy obiegu">
+        <?php foreach ($wf_steps as $i => $st):
+          $state = $i < $cur_idx ? 'done' : ($i === $cur_idx ? 'current' : 'todo'); ?>
+        <li class="sp-wf-step sp-wf-<?= $state ?>" <?= $state === 'current' ? 'aria-current="step"' : '' ?>>
+          <span class="sp-wf-dot"><i class="bi <?= $state === 'done' ? 'bi-check-lg' : ($st['icon'] ?: 'bi-record-circle') ?>" aria-hidden="true"></i></span>
+          <span class="sp-wf-lbl"><?= h($st['label']) ?><?php if($state === 'current'): ?><span class="sp-wf-now">obecny etap</span><?php endif; ?></span>
+        </li>
+        <?php endforeach; ?>
+      </ol>
+      <?php if($can_act): ?>
+      <div class="tw-grid tw-grid-cols-1 tw-gap-2 tw-mt-3 tw-pt-3 tw-border-t tw-border-solid tw-border-slate-100">
+        <?php if($next_step): ?>
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="set_etap">
+          <input type="hidden" name="etap" value="<?= h($next_etap) ?>">
+          <button class="btn btn-sm btn-primary tw-w-full tw-rounded-lg tw-font-semibold"><i class="bi <?= h($next_step['icon'] ?: 'bi-arrow-right') ?> me-1"></i>Dalej: <?= h($next_step['label']) ?> →</button>
+        </form>
+        <?php endif; ?>
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_action" value="set_etap">
+          <label class="visually-hidden" for="sp-etap-sel">Przejdź do etapu</label>
+          <select id="sp-etap-sel" name="etap" class="form-select form-select-sm tw-rounded-lg" onchange="this.form.submit()">
+            <option disabled selected>Przejdź do etapu…</option>
+            <?php foreach($wf_steps as $st): ?>
+            <option value="<?= h($st['key']) ?>" <?= $st['key']===$cur_etap?'disabled':'' ?>><?= h($st['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </form>
+        <button type="button" class="btn btn-sm btn-outline-danger tw-rounded-lg tw-font-semibold" data-bs-toggle="modal" data-bs-target="#zamknijModal"><i class="bi bi-lock me-1"></i>Zamknij koszulkę</button>
+      </div>
+      <?php endif; ?>
+      <?php else: ?>
+      <div class="ezx-muted">Brak zdefiniowanego obiegu.</div>
+      <?php endif; ?>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <!-- Metadane -->
+  <section class="sp-side" id="tab-meta" aria-labelledby="sp-meta-h">
+    <div class="sp-side-hd">
+      <i class="bi bi-info-circle tw-text-blue-600" aria-hidden="true"></i>
+      <h2 id="sp-meta-h" class="sp-side-h">Metadane</h2>
+      <?php if($can_edit_case): ?><a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="tw-ml-auto tw-text-[.7rem] tw-text-slate-500 hover:tw-text-blue-700" title="Edytuj metadane" aria-label="Edytuj metadane"><i class="bi bi-pencil" aria-hidden="true"></i></a><?php endif; ?>
+    </div>
+    <div class="sp-side-bd">
+      <dl class="sp-kv">
+        <dt>Znak koszulki</dt><dd class="tw-font-mono tw-font-bold"><?= h($sprawa['znak_sprawy']) ?></dd>
+        <dt>Wykaz akt</dt><dd><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="tw-no-underline tw-font-semibold tw-text-blue-700"><?= h($sprawa['teczka_symbol']) ?></a></dd>
+        <dt>Właściciel</dt><dd><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '<span class="tw-text-slate-400">—</span>' ?></dd>
+        <dt>Status</dt><dd><?= ezd_status_badge_sprawa($sprawa['status']) ?></dd>
+        <dt>Priorytet</dt><dd><?= ezd_priority_badge($sprawa['priority']) ?></dd>
+        <?php if(!$mini): ?><dt>Etap obiegu</dt><dd><?= ezd_etap_badge($sprawa['etap'] ?? 'wszczeta') ?></dd><?php endif; ?>
+        <dt>Termin</dt>
+        <dd class="<?= !empty($sprawa['ciagla'])?'tw-text-sky-600':($sprawa['deadline']&&$sprawa['deadline']<date('Y-m-d')&&!$is_closed?'tw-text-rose-600 tw-font-bold':'') ?>">
+          <?= !empty($sprawa['ciagla']) ? '<i class="bi bi-infinity me-1"></i>stale otwarta' : ($sprawa['deadline'] ? date_pl($sprawa['deadline']) : '—') ?>
+        </dd>
+        <dt>Otwarto</dt><dd><?= date_pl($sprawa['created_at']) ?></dd>
+        <?php if($sprawa['closed_at']): ?><dt>Zamknięto</dt><dd><?= date_pl($sprawa['closed_at']) ?></dd><?php endif; ?>
+        <?php if(!empty($sprawa['close_reason'])): ?><dt>Powód zamknięcia</dt><dd class="tw-text-slate-500 tw-whitespace-pre-line tw-text-[.78rem]"><?= h($sprawa['close_reason']) ?></dd><?php endif; ?>
+        <dt>Zawartość</dt><dd><?= count($zalaczniki) ?> plik<?= count($zalaczniki) === 1 ? '' : 'ów' ?> · <?= count(array_filter($timeline,fn($t)=>$t['_typ']==='pismo')) ?> pism</dd>
+        <?php if($sprawa['description']): ?><dt>Opis</dt><dd class="tw-text-slate-500 tw-whitespace-pre-line tw-text-[.78rem]"><?= h($sprawa['description']) ?></dd><?php endif; ?>
+      </dl>
+      <?php if($can_edit_case): ?>
+      <div class="tw-flex tw-flex-wrap tw-gap-1.5 tw-mt-3 tw-pt-3 tw-border-t tw-border-solid tw-border-slate-100">
+        <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary tw-rounded-lg"><i class="bi bi-pencil me-1"></i>Edytuj</a>
+        <?php if(!$sprawa['parent_id']): ?>
+        <a href="<?= APP_URL ?>/ezd/sprawy/add.php?parent_id=<?= $id ?>" class="btn btn-sm btn-outline-secondary tw-rounded-lg"><i class="bi bi-diagram-3 me-1"></i>Podkoszulka</a>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary tw-rounded-lg"><i class="bi bi-stars me-1"></i>Przerejestruj (AI)</a>
+      </div>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <?php if(!$mini): ?>
+  <!-- Historia operacji -->
+  <section class="sp-side" id="historia" aria-labelledby="sp-log-h">
+    <div class="sp-side-hd">
+      <i class="bi bi-shield-check tw-text-blue-600" aria-hidden="true"></i>
+      <h2 id="sp-log-h" class="sp-side-h">Historia operacji</h2>
+      <span class="ezx-muted tw-ml-auto"><?= count($log_entries) ?></span>
+    </div>
+    <div class="sp-side-bd sp-log">
+      <?php foreach ($log_entries as $l): ?>
+      <div class="sp-log-row">
+        <span class="sp-log-dot" aria-hidden="true"></span>
+        <div class="tw-min-w-0">
+          <div class="tw-text-slate-800 tw-break-words [overflow-wrap:anywhere]"><?= h(mb_substr($l['details'],0,120)) ?></div>
+          <div class="ezx-muted"><?= h($l['user_name'] ?? '—') ?> · <?= date('d.m.Y H:i', strtotime($l['created_at'])) ?> · <code class="tw-text-[.62rem] tw-text-slate-500"><?= h($l['action']) ?></code></div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+      <?php if(!$log_entries): ?><div class="ezx-muted tw-text-center tw-py-2">Brak wpisów</div><?php endif; ?>
+    </div>
+  </section>
+  <?php endif; ?>
+
+</aside>
+</div><!-- /układ 2-kolumnowy -->
 
 <script>
 (function(){
@@ -1692,8 +1700,14 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
   if (hash === '#dekretacje' || hash === '#workflow' || hash === '#pisma') {
     tabTarget = {'#dekretacje':'tab-zadania','#workflow':'tab-przebieg','#pisma':'tab-pisma'}[hash];
   }
-  if (hash === '#tab-pisma' || hash === '#tab-zadania' || hash === '#tab-uczestnicy' || hash === '#tab-meta') {
+  if (hash === '#tab-pisma' || hash === '#tab-zadania' || hash === '#tab-uczestnicy') {
     tabTarget = hash.slice(1);
+  }
+  // Metadane i Obieg nie są już zakładkami — to karty w prawej kolumnie
+  if (hash === '#tab-meta' || hash === '#tab-przebieg' || hash === '#workflow') {
+    tabTarget = null;
+    var card = document.getElementById(hash === '#tab-meta' ? 'tab-meta' : 'tab-przebieg');
+    if (card) card.scrollIntoView({block: 'start'});
   }
   if (tabTarget && window.bootstrap) {
     var el = document.querySelector('[href="#'+tabTarget+'"]');
