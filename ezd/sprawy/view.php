@@ -462,72 +462,74 @@ $next_step = $next_etap !== null ? ($wf_steps[$cur_idx + 1] ?? null) : null;
 $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 ?>
 
-<style>
-/* ── Slim metadata bar ───────────────────── */
-.sp-meta-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap}
-.sp-meta-field{display:flex;flex-direction:column;min-width:0}
-.sp-meta-label{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;white-space:nowrap}
-.sp-meta-val{font-size:.82rem;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sp-meta-val.overdue{color:#dc2626}
-.sp-meta-divider{width:1px;height:2rem;background:#e2e8f0;flex-shrink:0}
-.sp-meta-actions{margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap;flex-shrink:0}
-
-/* ── Akta sprawy ─────────────────────────── */
-.sp-akta-hdr{display:flex;align-items:center;gap:.75rem;padding:.7rem 1rem;background:#fff;border:1px solid #e2e8f0;border-radius:10px 10px 0 0;border-bottom:none}
-.sp-akta-title{font-size:.9rem;font-weight:700;color:#1e293b}
-.sp-akta-count{font-size:.75rem;color:#94a3b8;font-weight:400}
-.sp-akta-body{background:#fff;border:1px solid #e2e8f0;border-radius:0 0 10px 10px;overflow:hidden;margin-bottom:1rem}
-.sp-file-row{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;border-bottom:1px solid #f8fafc;font-size:.8rem}
-.sp-file-row:last-child{border-bottom:none}
-.sp-file-row:hover{background:#f8fafc}
-
-/* ── Tabs EZD RP style ────────────────────── */
-.sp-tabs{border-bottom:2px solid #e2e8f0;margin-bottom:0;overflow-x:auto;flex-wrap:nowrap;white-space:nowrap}
-.sp-tabs .nav-link{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;border:none;border-bottom:3px solid transparent;border-radius:0;padding:.6rem .85rem;white-space:nowrap}
-.sp-tabs .nav-link.active,.sp-tabs .nav-link:hover{color:#1e3a6e;border-bottom-color:#1e3a6e;background:none}
-.sp-tab-pane{background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;padding:1rem}
-
-/* ── Dekretacja rows ──────────────────────── */
-.dekr-row{display:flex;align-items:flex-start;gap:.65rem;padding:.5rem 0;border-bottom:1px solid #f8fafc;font-size:.8rem}
-.dekr-row:last-child{border-bottom:none}
-
-/* ── Stepper ──────────────────────────────── */
-.ezd-stepper{display:flex;align-items:flex-start;gap:.25rem;overflow-x:auto;padding:.1rem 0}
-.ezd-step{flex:1 1 0;min-width:56px;text-align:center;position:relative}
-.ezd-step::before{content:'';position:absolute;top:11px;left:-50%;width:100%;height:2px;background:#e2e8f0;z-index:0}
-.ezd-step:first-child::before{display:none}
-.ezd-step-dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;margin:0 auto .25rem;display:flex;align-items:center;justify-content:center;background:#e2e8f0;color:#94a3b8;font-size:.68rem;border:2px solid #fff;box-shadow:0 0 0 1px #e2e8f0}
-.ezd-step-lbl{font-size:.62rem;color:#94a3b8;line-height:1.1}
-.ezd-step-done .ezd-step-dot{background:#22c55e;color:#fff;box-shadow:0 0 0 1px #22c55e}
-.ezd-step-done::before{background:#22c55e}
-.ezd-step-done .ezd-step-lbl{color:#16a34a}
-.ezd-step-current .ezd-step-dot{background:#1e3a6e;color:#fff;box-shadow:0 0 0 3px #bfdbfe}
-.ezd-step-current .ezd-step-lbl{color:#1e3a6e;font-weight:700}
-
-/* ── Timeline pisma ──────────────────────── */
-.tl-wrap{position:relative;padding-left:2rem}
-.tl-wrap::before{content:'';position:absolute;left:.55rem;top:0;bottom:0;width:2px;background:#e2e8f0;border-radius:2px}
-.tl-item{position:relative;margin-bottom:1rem}
-.tl-dot{position:absolute;left:-1.45rem;top:.3rem;width:14px;height:14px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 0 2px #2563eb;background:#2563eb}
-.tl-dot.pismo-in{background:#0891b2;box-shadow:0 0 0 2px #0891b2}
-.tl-dot.pismo-out{background:#2563eb;box-shadow:0 0 0 2px #2563eb}
-.tl-dot.pismo-int{background:#94a3b8;box-shadow:0 0 0 2px #94a3b8}
-.tl-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:.7rem 1rem;text-decoration:none;color:inherit;display:block;transition:border-color .15s}
-.tl-card:hover{border-color:#93c5fd}
-.tl-card.pismo-in{border-left:3px solid #0891b2}
-.tl-card.pismo-out{border-left:3px solid #2563eb}
-.tl-syg{font-family:monospace;font-size:.7rem;color:#64748b;font-weight:600}
-.tl-title{font-weight:700;font-size:.86rem;color:#1e293b;margin:.1rem 0}
-.tl-meta{font-size:.7rem;color:#94a3b8;display:flex;flex-wrap:wrap;gap:.3rem .7rem}
-
-/* ── Pasek postępu etapu obiegu ─────────────── */
-.sp-etap-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.3rem 1rem;margin-bottom:.75rem}
-
-/* ── Drag-and-Drop pliki koszulki ────────────── */
-.sp-dz-overlay{position:absolute;inset:0;background:rgba(37,99,235,.08);border:2.5px dashed #2563eb;border-radius:10px;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none;backdrop-filter:blur(1px)}
+<style type="text/tailwindcss">
+/* ── Karta koszulki — warstwa wizualna (Tailwind bez preflightu: przy tw-border zawsze tw-border-solid).
+   Nazwy klas są zaczepami skryptów i motywu ezd-tz-theme.css (selektory `body .x`), dlatego reguły są
+   zakotwiczone w .ezd-main (wyższa specyficzność), a nazwy zostają. ── */
+.ezd-main .ezx-badge { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-full tw-px-2 tw-py-0.5 tw-text-[.66rem] tw-font-semibold tw-border tw-border-solid tw-whitespace-nowrap tw-leading-tight; }
+.ezd-main .ezx-badge--slate  { @apply tw-bg-slate-100 tw-text-slate-600 tw-border-slate-200; }
+.ezd-main .ezx-badge--sky    { @apply tw-bg-sky-50 tw-text-sky-700 tw-border-sky-200; }
+.ezd-main .ezx-badge--blue   { @apply tw-bg-blue-50 tw-text-blue-700 tw-border-blue-200; }
+.ezd-main .ezx-badge--amber  { @apply tw-bg-amber-50 tw-text-amber-700 tw-border-amber-200; }
+.ezd-main .ezx-badge--emerald{ @apply tw-bg-emerald-50 tw-text-emerald-700 tw-border-emerald-200; }
+.ezd-main .ezx-badge--rose   { @apply tw-bg-rose-50 tw-text-rose-700 tw-border-rose-200; }
+.ezd-main .ezx-badge--violet { @apply tw-bg-violet-50 tw-text-violet-700 tw-border-violet-200; }
+.ezd-main .ezx-badge--urgent { @apply tw-bg-rose-600 tw-text-white tw-border-rose-600; }
+.ezd-main .ezx-kv    { @apply tw-rounded-xl tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-100 tw-px-3 tw-py-2 tw-min-w-0; }
+.ezd-main .ezx-kv dt { @apply tw-text-[.62rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-m-0 tw-whitespace-nowrap; }
+.ezd-main .ezx-kv dd { @apply tw-m-0 tw-mt-0.5 tw-text-[.84rem] tw-font-semibold tw-text-slate-900 tw-truncate; }
+.ezd-main .ezx-kv dd.overdue { @apply tw-text-rose-600; }
+/* Nagłówek + pasek metadanych */
+.ezd-main .sp-hero { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm tw-p-4 md:tw-p-5 tw-mb-3; }
+.ezd-main .sp-meta-actions { @apply tw-flex tw-flex-wrap tw-gap-1.5 tw-items-center; }
+.ezd-main .sp-meta-actions .btn { @apply tw-rounded-lg tw-font-semibold tw-text-xs tw-py-1.5 tw-px-2.5 tw-inline-flex tw-items-center tw-gap-1; }
+/* Dokumenty w koszulce (akta) */
+.ezd-main .sp-akta-hdr { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-3 tw-px-4 tw-py-3 tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-t-2xl tw-border-b-0; }
+.ezd-main .sp-akta-title { @apply tw-text-[.9rem] tw-font-semibold tw-text-slate-900; }
+.ezd-main .sp-akta-count { @apply tw-text-xs tw-text-slate-500 tw-font-normal; }
+.ezd-main .sp-akta-hdr .btn { @apply tw-rounded-lg tw-font-semibold tw-text-xs; }
+.ezd-main .sp-akta-body { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-b-2xl tw-overflow-hidden tw-mb-4 tw-shadow-sm; }
+.ezd-main .sp-file-row { @apply tw-flex tw-items-center tw-gap-2.5 tw-px-4 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-100 tw-text-[.8rem] last:tw-border-b-0 tw-transition hover:tw-bg-slate-50; }
+/* Zakładki */
+.ezd-main .sp-tabs { @apply tw-flex tw-gap-0.5 tw-p-1 tw-mb-0 tw-rounded-t-2xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-border-b-0 tw-overflow-x-auto tw-flex-nowrap tw-whitespace-nowrap; }
+.ezd-main .sp-tabs .nav-link { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-2 tw-text-[.72rem] tw-font-bold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-border-0 tw-whitespace-nowrap tw-transition hover:tw-bg-slate-100 hover:tw-text-slate-900; }
+.ezd-main .sp-tabs .nav-link.active { @apply tw-bg-slate-900 tw-text-white tw-shadow-sm hover:tw-bg-slate-900 hover:tw-text-white; }
+.ezd-main .sp-tabs .nav-link .badge { @apply tw-rounded-full tw-text-[.62rem]; }
+.ezd-main .sp-tab-pane { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-border-t-0 tw-rounded-b-2xl tw-p-4 tw-shadow-sm; }
+/* Przekazania */
+.ezd-main .dekr-row { @apply tw-flex tw-items-start tw-gap-3 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-100 tw-text-[.8rem] last:tw-border-b-0; }
+/* Stepper obiegu */
+.ezd-main .sp-etap-bar { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-2xl tw-px-4 tw-py-3 tw-mb-3 tw-shadow-sm; }
+.ezd-main .ezd-stepper { @apply tw-flex tw-items-start tw-gap-1 tw-overflow-x-auto tw-py-0.5; }
+.ezd-main .ezd-step { @apply tw-flex-1 tw-min-w-[64px] tw-text-center tw-relative; }
+.ezd-main .ezd-step::before { content: ''; @apply tw-absolute tw-top-[13px] tw-left-[-50%] tw-w-full tw-h-0.5 tw-bg-slate-200; z-index: 0; }
+.ezd-main .ezd-step:first-child::before { @apply tw-hidden; }
+.ezd-main .ezd-step-dot { @apply tw-relative tw-w-[26px] tw-h-[26px] tw-rounded-full tw-mx-auto tw-mb-1 tw-flex tw-items-center tw-justify-center tw-bg-slate-200 tw-text-slate-500 tw-text-[.7rem] tw-border-2 tw-border-solid tw-border-white; z-index: 1; box-shadow: 0 0 0 1px #e2e8f0; }
+.ezd-main .ezd-step-lbl { @apply tw-text-[.64rem] tw-text-slate-500 tw-leading-tight; }
+.ezd-main .ezd-step-done .ezd-step-dot { @apply tw-bg-emerald-500 tw-text-white; box-shadow: 0 0 0 1px #22c55e; }
+.ezd-main .ezd-step-done::before { @apply tw-bg-emerald-500; }
+.ezd-main .ezd-step-done .ezd-step-lbl { @apply tw-text-emerald-700; }
+.ezd-main .ezd-step-current .ezd-step-dot { @apply tw-bg-blue-600 tw-text-white; box-shadow: 0 0 0 4px #dbeafe; }
+.ezd-main .ezd-step-current .ezd-step-lbl { @apply tw-text-blue-700 tw-font-bold; }
+/* Oś czasu pism */
+.ezd-main .tl-wrap { @apply tw-relative tw-pl-8; }
+.ezd-main .tl-wrap::before { content: ''; @apply tw-absolute tw-left-[.55rem] tw-top-0 tw-bottom-0 tw-w-0.5 tw-bg-slate-200 tw-rounded; }
+.ezd-main .tl-item { @apply tw-relative tw-mb-3; }
+.ezd-main .tl-dot { @apply tw-absolute tw-left-[-1.45rem] tw-top-[.35rem] tw-w-3.5 tw-h-3.5 tw-rounded-full tw-bg-blue-600 tw-border-[2.5px] tw-border-solid tw-border-white; box-shadow: 0 0 0 2px #2563eb; }
+.ezd-main .tl-dot.pismo-in  { @apply tw-bg-cyan-600; box-shadow: 0 0 0 2px #0891b2; }
+.ezd-main .tl-dot.pismo-out { @apply tw-bg-blue-600; box-shadow: 0 0 0 2px #2563eb; }
+.ezd-main .tl-dot.pismo-int { @apply tw-bg-slate-400; box-shadow: 0 0 0 2px #94a3b8; }
+.ezd-main .tl-card { @apply tw-block tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-xl tw-px-4 tw-py-3 tw-no-underline tw-text-inherit tw-transition hover:tw-border-blue-300 hover:tw-shadow-md; }
+.ezd-main .tl-card.pismo-in  { @apply tw-border-l-[3px] tw-border-l-cyan-600; }
+.ezd-main .tl-card.pismo-out { @apply tw-border-l-[3px] tw-border-l-blue-600; }
+.ezd-main .tl-syg   { @apply tw-font-mono tw-text-[.7rem] tw-text-slate-500 tw-font-semibold; }
+.ezd-main .tl-title { @apply tw-font-bold tw-text-[.86rem] tw-text-slate-900 tw-my-0.5; }
+.ezd-main .tl-meta  { @apply tw-text-[.7rem] tw-text-slate-500 tw-flex tw-flex-wrap tw-gap-x-3 tw-gap-y-0.5; }
+/* Drag-and-drop plików (bez zmian funkcjonalnych) */
+.sp-dz-overlay{position:absolute;inset:0;background:rgba(37,99,235,.08);border:2.5px dashed #2563eb;border-radius:16px;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none;backdrop-filter:blur(1px)}
 .sp-dz-overlay.active{display:flex}
 .sp-dz-msg{text-align:center;color:#2563eb;font-size:.95rem;font-weight:700;pointer-events:none;padding:1.5rem;text-shadow:0 1px 3px rgba(255,255,255,.8)}
-.sp-dz-progress{position:fixed;bottom:1.5rem;right:1.5rem;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:.8rem 1.1rem;box-shadow:0 4px 24px rgba(0,0,0,.13);z-index:9999;min-width:260px;font-size:.82rem;display:none}
+.sp-dz-progress{position:fixed;bottom:1.5rem;right:1.5rem;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:.8rem 1.1rem;box-shadow:0 4px 24px rgba(0,0,0,.13);z-index:9999;min-width:260px;font-size:.82rem;display:none}
 .sp-dz-progress.visible{display:block}
 </style>
 
@@ -543,7 +545,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 <?= flash_html() ?>
 
 <?php if ($is_closed): ?>
-<div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-2" style="font-size:.82rem">
+<div class="tw-flex tw-items-center tw-gap-2 tw-rounded-2xl tw-bg-slate-100 tw-border tw-border-solid tw-border-slate-200 tw-text-slate-700 tw-px-4 tw-py-2.5 tw-mb-3 tw-text-[.82rem]" role="status">
   <i class="bi bi-lock-fill flex-shrink-0"></i>
   <span>Koszulka <strong>zamknięta</strong> — dodawanie treści i edycja są zablokowane.
   <?php if(!empty($sprawa['close_reason'])): ?> Powód: <em><?= h($sprawa['close_reason']) ?></em>.<?php endif; ?>
@@ -552,87 +554,60 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 <?php endif; ?>
 
 <!-- ══ Nagłówek koszulki ═══════════════════════════════════════════════════════ -->
-<div class="d-flex align-items-start gap-2 mb-1 flex-wrap">
-  <code class="bg-white px-2 py-0 rounded fw-bold border" style="font-size:.82rem;color:#1e3a6e"><?= h($sprawa['znak_sprawy']) ?></code>
-  <?= ezd_status_badge_sprawa($sprawa['status']) ?>
-  <?= ezd_priority_badge($sprawa['priority']) ?>
-  <?php if(!empty($sprawa['ciagla'])): ?><span class="badge bg-info bg-opacity-15 text-info border border-info" style="font-size:.67rem"><i class="bi bi-infinity me-1"></i>Ciągła</span><?php endif; ?>
-  <?php if($sprawa['parent_id']): ?><span class="badge bg-light text-muted border" style="font-size:.67rem"><i class="bi bi-diagram-3 me-1"></i>Podkoszulka</span><?php endif; ?>
-</div>
-<h1 class="h5 fw-bold mb-2" style="color:#0f172a"><?= h($sprawa['title']) ?></h1>
+<?php
+$TONE_V  = ['secondary' => 'slate', 'info' => 'sky', 'primary' => 'blue', 'warning' => 'amber', 'success' => 'emerald', 'danger' => 'rose', 'dark' => 'slate'];
+$st_meta = EZD_STATUSES_SPRAWA[$sprawa['status']] ?? ['label' => $sprawa['status'], 'class' => 'secondary'];
+$pr_meta = EZD_PRIORITIES[$sprawa['priority']] ?? ['label' => $sprawa['priority'], 'class' => 'secondary'];
+$et_meta = ezd_etap_meta($cur_etap);
+$overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_closed && empty($sprawa['ciagla']);
+?>
+<section class="sp-hero" aria-labelledby="sp-title">
+  <div class="tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-3">
+    <div class="tw-min-w-0 tw-flex-1">
+      <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-1.5 tw-mb-1.5">
+        <code class="tw-font-mono tw-text-[.8rem] tw-font-bold tw-text-blue-800 tw-bg-blue-50 tw-border tw-border-solid tw-border-blue-100 tw-rounded-md tw-px-2 tw-py-0.5"><?= h($sprawa['znak_sprawy']) ?></code>
+        <span class="ezx-badge ezx-badge--<?= $TONE_V[$st_meta['class']] ?? 'slate' ?>"><?= h($st_meta['label']) ?></span>
+        <?php if (!$mini): ?><span class="ezx-badge ezx-badge--<?= $cur_etap === 'akceptacja' ? 'violet' : ($TONE_V[$et_meta['class']] ?? 'slate') ?>"><i class="bi <?= h($et_meta['icon'] ?? 'bi-record-circle') ?>" aria-hidden="true"></i><?= $cur_etap === 'akceptacja' ? 'W akceptacji' : h($et_meta['label']) ?></span><?php endif; ?>
+        <?php if (in_array($sprawa['priority'], ['high', 'urgent'], true)): ?><span class="ezx-badge ezx-badge--<?= $TONE_V[$pr_meta['class']] ?? 'slate' ?>"><i class="bi bi-flag-fill" aria-hidden="true"></i><?= h($pr_meta['label']) ?></span><?php endif; ?>
+        <?php if ($overdue): ?><span class="ezx-badge ezx-badge--urgent"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>Pilne — po terminie</span><?php endif; ?>
+        <?php if (!empty($sprawa['ciagla'])): ?><span class="ezx-badge ezx-badge--sky"><i class="bi bi-infinity" aria-hidden="true"></i>Ciągła</span><?php endif; ?>
+        <?php if ($sprawa['parent_id']): ?><span class="ezx-badge ezx-badge--slate"><i class="bi bi-diagram-3" aria-hidden="true"></i>Podkoszulka</span><?php endif; ?>
+      </div>
+      <h1 id="sp-title" class="tw-m-0 tw-text-[1.25rem] tw-font-bold tw-tracking-tight tw-text-slate-900 tw-leading-snug"><?= h($sprawa['title']) ?></h1>
+      <?php if ($sprawa['description']): ?><p class="tw-m-0 tw-mt-1.5 tw-text-[.84rem] tw-text-slate-500 tw-leading-relaxed"><?= nl2br(h($sprawa['description'])) ?></p><?php endif; ?>
+    </div>
+    <div class="sp-meta-actions tw-shrink-0">
+      <?php if($can_act): ?>
+      <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#dekrModal"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>Przekaż</button>
+      <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal"><i class="bi bi-envelope-plus" aria-hidden="true"></i>Pismo</button>
+      <?php if($signed_pdfs): ?>
+      <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#sprawaSendMailModal"><i class="bi bi-send" aria-hidden="true"></i>Wyślij mailem</button>
+      <?php endif; ?>
+      <?php endif; ?>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#notatkiModal"><i class="bi bi-sticky" aria-hidden="true"></i>Notatki<?php if($notatki): ?> <span class="badge rounded-pill bg-secondary"><?= count($notatki) ?></span><?php endif; ?></button>
+      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark" onclick="return confirm('Czy na pewno chcesz wydrukować ten dokument?')"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj</a>
+      <?php if(!$mini): ?>
+      <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-clipboard-check" aria-hidden="true"></i>Metryka</a>
+      <?php endif; ?>
+      <?php if($can_edit_case): ?>
+      <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Przerejestruj (AI)"><i class="bi bi-stars" aria-hidden="true"></i>Przerejestruj</a>
+      <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary" title="Edytuj metadane" aria-label="Edytuj metadane"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+      <?php endif; ?>
+      <?php if($can_act): ?>
+      <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal" title="Zamknij koszulkę"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij</button>
+      <?php endif; ?>
+    </div>
+  </div>
 
-<!-- Metadata bar -->
-<div class="sp-meta-bar">
-  <div class="sp-meta-field">
-    <span class="sp-meta-label">Prowadzący</span>
-    <span class="sp-meta-val"><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '—' ?></span>
-  </div>
-  <div class="sp-meta-divider"></div>
-  <div class="sp-meta-field">
-    <span class="sp-meta-label">Wykaz akt</span>
-    <span class="sp-meta-val"><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="text-decoration-none fw-semibold text-dark"><?= h($sprawa['teczka_symbol']) ?></a></span>
-  </div>
-  <div class="sp-meta-divider"></div>
-  <div class="sp-meta-field">
-    <span class="sp-meta-label"><i class="bi bi-calendar3 me-1"></i>Data wszczęcia</span>
-    <span class="sp-meta-val"><?= date('d.m.Y', strtotime($sprawa['created_at'])) ?></span>
-  </div>
-  <?php if(!empty($sprawa['ciagla'])): ?>
-  <div class="sp-meta-divider"></div>
-  <div class="sp-meta-field">
-    <span class="sp-meta-label"><i class="bi bi-calendar-event me-1"></i>Termin</span>
-    <span class="sp-meta-val text-info"><i class="bi bi-infinity me-1"></i>stale otwarta</span>
-  </div>
-  <?php elseif($sprawa['deadline']): ?>
-  <div class="sp-meta-divider"></div>
-  <div class="sp-meta-field">
-    <span class="sp-meta-label"><i class="bi bi-calendar-event me-1"></i>Termin realizacji</span>
-    <span class="sp-meta-val <?= $sprawa['deadline']<date('Y-m-d')&&!$is_closed?'overdue':'' ?>">
-      <?= date_pl($sprawa['deadline']) ?>
-      <?php if($sprawa['deadline']<date('Y-m-d')&&!$is_closed): ?><i class="bi bi-exclamation-circle-fill text-danger ms-1"></i><?php endif; ?>
-    </span>
-  </div>
-  <?php endif; ?>
-
-  <div class="sp-meta-actions">
-    <?php if($can_act): ?>
-    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#dekrModal">
-      <i class="bi bi-person-lines-fill me-1"></i>Przekaż
-    </button>
-    <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal">
-      <i class="bi bi-envelope-plus me-1"></i>Pismo
-    </button>
-    <?php if($signed_pdfs): ?>
-    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#sprawaSendMailModal">
-      <i class="bi bi-send me-1"></i>Wyślij mailem
-    </button>
-    <?php endif; ?>
-    <?php endif; ?>
-    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#notatkiModal">
-      <i class="bi bi-sticky me-1"></i>Notatki<?php if($notatki): ?><span class="badge rounded-pill bg-secondary ms-1"><?= count($notatki) ?></span><?php endif; ?>
-    </button>
-    <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark"
-       onclick="return confirm('Czy na pewno chcesz wydrukować ten dokument?')">
-      <i class="bi bi-printer me-1"></i>Drukuj
-    </a>
-    <?php if(!$mini): ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-clipboard-check me-1"></i>Metryka
-    </a>
-    <?php endif; ?>
-    <?php if($can_edit_case): ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Przerejestruj (AI)">
-      <i class="bi bi-stars me-1"></i>Przerejestruj
-    </a>
-    <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-    <?php endif; ?>
-    <?php if($can_act): ?>
-    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal" title="Zamknij koszulkę">
-      <i class="bi bi-lock me-1"></i>Zamknij
-    </button>
-    <?php endif; ?>
-  </div>
-</div>
+  <dl class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 xl:tw-grid-cols-5 tw-gap-2 tw-mt-4 tw-mb-0">
+    <div class="ezx-kv"><dt><i class="bi bi-person" aria-hidden="true"></i> Prowadzący</dt><dd><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '—' ?></dd></div>
+    <div class="ezx-kv"><dt><i class="bi bi-archive" aria-hidden="true"></i> Wykaz akt</dt><dd><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="tw-no-underline tw-text-slate-900 hover:tw-text-blue-700"><?= h($sprawa['teczka_symbol']) ?></a></dd></div>
+    <div class="ezx-kv"><dt><i class="bi bi-calendar3" aria-hidden="true"></i> Data wszczęcia</dt><dd><?= date('d.m.Y', strtotime($sprawa['created_at'])) ?></dd></div>
+    <div class="ezx-kv"><dt><i class="bi bi-calendar-event" aria-hidden="true"></i> Termin realizacji</dt>
+      <dd class="<?= $overdue ? 'overdue' : '' ?>"><?php if(!empty($sprawa['ciagla'])): ?><span class="tw-text-sky-600"><i class="bi bi-infinity" aria-hidden="true"></i> stale otwarta</span><?php elseif($sprawa['deadline']): ?><?= date_pl($sprawa['deadline']) ?><?= $overdue ? ' <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>' : '' ?><?php else: ?>—<?php endif; ?></dd></div>
+    <div class="ezx-kv"><dt><i class="bi bi-files" aria-hidden="true"></i> Zawartość</dt><dd><?= count($zalaczniki) ?> plik<?= count($zalaczniki) === 1 ? '' : 'ów' ?> · <?= count(array_filter($timeline, fn($t) => $t['_typ'] === 'pismo')) ?> pism</dd></div>
+  </dl>
+</section>
 
 <?php if(!$mini && $wf_steps): ?>
 <div class="sp-etap-bar mb-2">
@@ -646,11 +621,6 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
     <?php endforeach; ?>
   </div>
 </div>
-<?php endif; ?>
-
-<!-- Opis koszulki -->
-<?php if($sprawa['description']): ?>
-<div class="mb-3 text-muted" style="font-size:.84rem;line-height:1.55"><?= nl2br(h($sprawa['description'])) ?></div>
 <?php endif; ?>
 
 <!-- ══ Dokumenty w koszulce ══════════════════════════════════════════════════════ -->
