@@ -75,54 +75,53 @@ $tok   = csrf_token();
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0b1a3a">
+<meta name="theme-color" content="#ffffff">
 <title>Wybór kontekstu · <?= h($org) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-  /* Warstwa wizualna (2026-10-05): język Systemu Tożsamości / strony startowej — granatowy band, karty nachodzące na band. */
-  :root{ --brand:#1E6DFF; --brand-dark:#1656d6; --ink:#0b1a3a; --line:#e6e9f0; --muted:#56637f; }
+  /* Warstwa wizualna (2026-10-05): jasna i płaska, jak System Tożsamości / strona startowa — biały pasek, karty. */
+  :root{ --brand:#2563eb; --brand-dark:#1d4ed8; --ink:#0f172a; --line:#e6e9f0; --muted:#56637f; }
   *{ box-sizing:border-box; }
   body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; background:#f3f5f9; color:#0f172a; min-height:100vh; -webkit-font-smoothing:antialiased; }
-  .band{ background:radial-gradient(1200px 420px at 85% -20%,rgba(30,109,255,.45),transparent 60%),radial-gradient(800px 300px at 0% 120%,rgba(124,92,255,.35),transparent 60%),linear-gradient(135deg,#0b1a3a 0%,#11275e 55%,#143070 100%); color:#fff; position:relative; overflow:hidden; }
-  .band::before{ content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px); background-size:36px 36px; -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.7),transparent 85%); mask-image:linear-gradient(180deg,rgba(0,0,0,.7),transparent 85%); pointer-events:none; }
-  .band .in{ max-width:860px; margin:0 auto; padding:1.5rem 1rem 5rem; position:relative; }
-  .top{ display:flex; align-items:center; gap:.6rem; margin-bottom:1.75rem; }
-  .mark{ width:36px; height:36px; border-radius:11px; background:linear-gradient(135deg,#1E6DFF,#7c5cff); display:flex; align-items:center; justify-content:center; font-size:1.05rem; box-shadow:0 6px 16px -4px rgba(30,109,255,.7); flex-shrink:0; }
-  .top b{ display:block; font-size:.95rem; font-weight:700; line-height:1.05; }
-  .top small{ display:block; font-size:.64rem; color:rgba(255,255,255,.62); }
-  .top .out{ margin-left:auto; color:rgba(255,255,255,.82); text-decoration:none; font-size:.83rem; font-weight:500; padding:.45rem .7rem; border-radius:9px; display:inline-flex; align-items:center; gap:.4rem; }
-  .top .out:hover{ background:rgba(255,255,255,.1); color:#fff; }
-  .eyebrow{ font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.14em; color:rgba(255,255,255,.6); }
-  .band h1{ font-size:clamp(1.5rem,3vw,2rem); font-weight:800; letter-spacing:-.025em; margin:.2rem 0 0; line-height:1.15; }
-  .band p{ color:rgba(255,255,255,.72); margin:.45rem 0 0; font-size:.92rem; }
-  .band p strong{ color:#fff; }
-  .wrap{ max-width:860px; margin:-3.5rem auto 0; padding:0 1rem 3rem; position:relative; z-index:1; }
+  .bar{ height:56px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; position:sticky; top:0; z-index:40; }
+  .bar .in{ width:100%; max-width:860px; margin:0 auto; padding:0 1rem; display:flex; align-items:center; gap:.6rem; }
+  .mark{ width:34px; height:34px; border-radius:10px; background:var(--brand); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+  .bar b{ display:block; font-size:.95rem; font-weight:700; line-height:1.05; }
+  .bar small{ display:block; font-size:.64rem; color:#64748b; }
+  .bar .out{ margin-left:auto; color:#374151; text-decoration:none; font-size:.82rem; font-weight:500; padding:.42rem .7rem; border-radius:8px; display:inline-flex; align-items:center; gap:.4rem; }
+  .bar .out:hover{ background:#fef2f2; color:#b91c1c; }
+  .head{ max-width:860px; margin:0 auto; padding:1.75rem 1rem 1.1rem; }
+  .eyebrow{ font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#94a3b8; }
+  .head h1{ font-size:clamp(1.4rem,2.6vw,1.75rem); font-weight:800; letter-spacing:-.025em; margin:.15rem 0 0; line-height:1.15; color:#0f172a; }
+  .head p{ color:#64748b; margin:.4rem 0 0; font-size:.9rem; }
+  .head p strong{ color:#0f172a; }
+  .wrap{ max-width:860px; margin:0 auto; padding:0 1rem 3rem; }
   .grid{ display:grid; grid-template-columns:1fr; gap:.9rem; }
   @media(min-width:680px){ .grid{ grid-template-columns:1fr 1fr; } .card--main{ grid-column:span 2; } }
-  .card{ background:#fff; border:1px solid var(--line); border-radius:20px; padding:1.2rem 1.25rem; box-shadow:0 1px 2px rgba(16,24,40,.04),0 14px 36px -24px rgba(16,24,40,.35); display:flex; flex-direction:column; gap:.6rem; position:relative; overflow:hidden; }
-  .card--main{ border-color:transparent; box-shadow:0 0 0 2px var(--brand),0 14px 36px -24px rgba(16,24,40,.35); }
-  .card--main::before{ content:''; position:absolute; left:0; right:0; top:0; height:5px; background:linear-gradient(90deg,#1E6DFF,#7c5cff); }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:1.1rem 1.2rem; box-shadow:0 1px 2px rgba(16,24,40,.04); display:flex; flex-direction:column; gap:.6rem; position:relative; overflow:hidden; }
+  .card--main{ border-color:var(--brand); }
+  .card--main::before{ content:''; position:absolute; left:0; right:0; top:0; height:4px; background:var(--brand); }
   .card-hd{ display:flex; align-items:center; gap:.8rem; }
-  .ic{ width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; color:#fff; flex-shrink:0; box-shadow:0 10px 20px -10px rgba(2,6,23,.5); }
+  .ic{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; flex-shrink:0; }
   .card h2{ font-size:1.02rem; margin:0; font-weight:800; letter-spacing:-.015em; }
   .card .desc{ color:var(--muted); font-size:.84rem; margin:0; line-height:1.45; flex:1; }
-  .tag{ display:inline-flex; align-items:center; gap:.3rem; background:var(--ink); color:#fff; font-size:.64rem; font-weight:700; padding:.22rem .55rem; border-radius:999px; position:absolute; top:1rem; right:1rem; }
-  .tag i{ color:#fbbf24; }
+  .tag{ display:inline-flex; align-items:center; gap:.3rem; background:#eef4ff; color:#1d4ed8; border:1px solid #bdd2ff; font-size:.64rem; font-weight:700; padding:.18rem .55rem; border-radius:999px; position:absolute; top:.95rem; right:.95rem; }
+  .tag i{ color:#f59e0b; }
   button.btn{ border:0; border-radius:11px; padding:.6rem 1rem; font-weight:700; font-size:.88rem; cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; justify-content:center; gap:.4rem; transition:background .12s,transform .12s; }
   button.btn:focus-visible{ outline:3px solid #fbbf24; outline-offset:2px; }
-  .btn-primary{ background:var(--brand); color:#fff; width:100%; font-size:.98rem; padding:.78rem; box-shadow:0 8px 18px -10px rgba(30,109,255,.9); }
-  .btn-primary:hover{ background:var(--brand-dark); transform:translateY(-1px); }
+  .btn-primary{ background:var(--brand); color:#fff; width:100%; font-size:.98rem; padding:.78rem; }
+  .btn-primary:hover{ background:var(--brand-dark); }
   .btn-soft{ background:#eef2f8; color:#0f172a; }
   .btn-soft:hover{ background:#e2e8f0; }
   .row-inline{ display:flex; gap:.5rem; flex-wrap:wrap; }
   select,input[type=search]{ width:100%; padding:.55rem .65rem; border:1px solid #cbd5e1; border-radius:10px; font-size:.9rem; margin-bottom:.55rem; background:#fff; font-family:inherit; }
-  select:focus,input:focus,textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 .2rem rgba(30,109,255,.15); }
+  select:focus,input:focus,textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 .2rem rgba(37,99,235,.15); }
   .err{ background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:12px; padding:.6rem .85rem; margin-bottom:1rem; font-size:.88rem; display:flex; gap:.5rem; align-items:flex-start; }
   .muted{ color:#7d8aa6; font-size:.8rem; text-align:center; margin-top:1.25rem; }
   textarea{ width:100%; padding:.55rem .65rem; border:1px solid #cbd5e1; border-radius:10px; font-size:.9rem; font-family:inherit; resize:vertical; margin-bottom:.55rem; }
   .lbl{ display:block; font-size:.8rem; font-weight:700; color:#334155; margin:.2rem 0 .3rem; }
   dialog.dlg{ border:0; border-radius:18px; padding:1.2rem 1.3rem; width:min(92vw,540px); box-shadow:0 24px 60px rgba(2,6,23,.35); }
-  dialog.dlg::backdrop{ background:rgba(11,26,58,.55); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
+  dialog.dlg::backdrop{ background:rgba(15,23,42,.45); }
   .dlg-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.8rem; }
   .dlg-head strong{ font-size:1.05rem; display:inline-flex; align-items:center; gap:.5rem; }
   .dlg-x{ border:0; background:#f1f5f9; width:32px; height:32px; border-radius:50%; font-size:1rem; cursor:pointer; color:#56637f; line-height:1; }
@@ -132,18 +131,18 @@ $tok   = csrf_token();
 </style>
 </head>
 <body>
-<section class="band">
+<header class="bar">
   <div class="in">
-    <div class="top">
-      <span class="mark" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
-      <span><b>System Tożsamości</b><small><?= h($org) ?></small></span>
-      <a href="<?= APP_URL ?>/auth/logout.php" class="out"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>Wyloguj</a>
-    </div>
-    <div class="eyebrow">Wybór kontekstu pracy</div>
-    <h1>Jak chcesz dziś korzystać z systemu?</h1>
-    <p>Zalogowano jako <strong><?= h($rname) ?></strong> (administrator). Kontekst możesz w każdej chwili zmienić — wróć do administratora przyciskiem w górnym pasku.</p>
+    <span class="mark" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
+    <span><b>System Tożsamości</b><small><?= h($org) ?></small></span>
+    <a href="<?= APP_URL ?>/auth/logout.php" class="out"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>Wyloguj</a>
   </div>
-</section>
+</header>
+<div class="head">
+  <div class="eyebrow">Wybór kontekstu pracy</div>
+  <h1>Jak chcesz dziś korzystać z systemu?</h1>
+  <p>Zalogowano jako <strong><?= h($rname) ?></strong> (administrator). Kontekst możesz w każdej chwili zmienić — wróć do administratora przyciskiem w górnym pasku.</p>
+</div>
 
 <main class="wrap">
   <?php if ($err): ?><div class="err" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span><?= h($err) ?></span></div><?php endif; ?>
@@ -153,7 +152,7 @@ $tok   = csrf_token();
   <div class="card card--main">
     <span class="tag"><i class="bi bi-star-fill" aria-hidden="true"></i>Domyślnie</span>
     <div class="card-hd">
-      <span class="ic" style="background:linear-gradient(135deg,#1E6DFF,#7c5cff)" aria-hidden="true"><i class="bi bi-shield-fill-check"></i></span>
+      <span class="ic" style="background:var(--brand)" aria-hidden="true"><i class="bi bi-shield-fill-check"></i></span>
       <h2>Administrator</h2>
     </div>
     <p class="desc">Pełny dostęp do wszystkich modułów i panelu administracyjnego.</p>
