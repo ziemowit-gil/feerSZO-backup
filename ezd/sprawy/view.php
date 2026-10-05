@@ -476,7 +476,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 .ezd-main .ezx-badge--violet { @apply tw-bg-violet-50 tw-text-violet-700 tw-border-violet-200; }
 .ezd-main .ezx-badge--urgent { @apply tw-bg-rose-600 tw-text-white tw-border-rose-600; }
 .ezd-main .ezx-kv    { @apply tw-rounded-xl tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-100 tw-px-3 tw-py-2 tw-min-w-0; }
-.ezd-main .ezx-kv dt { @apply tw-text-[.62rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-m-0 tw-whitespace-nowrap; }
+.ezd-main .ezx-kv dt { @apply tw-text-[.62rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-m-0 tw-truncate; }
 .ezd-main .ezx-kv dd { @apply tw-m-0 tw-mt-0.5 tw-text-[.84rem] tw-font-semibold tw-text-slate-900 tw-truncate; }
 .ezd-main .ezx-kv dd.overdue { @apply tw-text-rose-600; }
 /* Nagłówek + pasek metadanych */
@@ -599,7 +599,7 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
     </div>
   </div>
 
-  <dl class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 xl:tw-grid-cols-5 tw-gap-2 tw-mt-4 tw-mb-0">
+  <dl class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 2xl:tw-grid-cols-5 tw-gap-2 tw-mt-4 tw-mb-0">
     <div class="ezx-kv"><dt><i class="bi bi-person" aria-hidden="true"></i> Prowadzący</dt><dd><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '—' ?></dd></div>
     <div class="ezx-kv"><dt><i class="bi bi-archive" aria-hidden="true"></i> Wykaz akt</dt><dd><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="tw-no-underline tw-text-slate-900 hover:tw-text-blue-700"><?= h($sprawa['teczka_symbol']) ?></a></dd></div>
     <div class="ezx-kv"><dt><i class="bi bi-calendar3" aria-hidden="true"></i> Data wszczęcia</dt><dd><?= date('d.m.Y', strtotime($sprawa['created_at'])) ?></dd></div>

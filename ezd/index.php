@@ -314,7 +314,7 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <style type="text/tailwindcss">
 /* ── Pulpit EZD: komponenty kaflowe (Tailwind bez preflightu — przy tw-border zawsze tw-border-solid) ── */
-.ezx-card     { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm; }
+.ezx-card     { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm tw-min-w-0 tw-max-w-full tw-overflow-hidden; }
 .ezx-card-hd  { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-100; }
 .ezx-h2       { @apply tw-m-0 tw-text-[.9rem] tw-font-semibold tw-text-slate-900 tw-tracking-tight; }
 .ezx-eyebrow  { @apply tw-text-[.64rem] tw-font-bold tw-uppercase tw-tracking-[.1em] tw-text-slate-500; }
@@ -347,9 +347,9 @@ include dirname(__DIR__) . '/includes/header.php';
 .ezx-ico      { @apply tw-w-9 tw-h-9 tw-rounded-xl tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0; }
 .ezx-title    { @apply tw-text-[.85rem] tw-font-semibold tw-text-slate-900 tw-leading-snug tw-no-underline hover:tw-text-blue-700; }
 .ezx-znak     { @apply tw-font-mono tw-text-[.68rem] tw-text-slate-500; }
-.ezx-qa       { @apply tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-1.5 tw-rounded-xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-py-2.5 tw-px-1 tw-no-underline tw-text-slate-700 tw-cursor-pointer tw-transition hover:tw-border-blue-300 hover:tw-shadow-md hover:tw-text-blue-700 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; width: 100%; }
+.ezx-qa       { @apply tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-1.5 tw-rounded-xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-py-2.5 tw-px-1 tw-no-underline tw-text-slate-700 tw-cursor-pointer tw-transition hover:tw-border-blue-300 hover:tw-shadow-md hover:tw-text-blue-700 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; width: 100%; min-width: 0; }
 .ezx-qa-ico   { @apply tw-relative tw-w-10 tw-h-10 tw-rounded-xl tw-flex tw-items-center tw-justify-center tw-text-lg; }
-.ezx-qa-lbl   { @apply tw-text-[.64rem] tw-font-semibold tw-leading-tight tw-text-center tw-truncate tw-max-w-full; }
+.ezx-qa-lbl   { @apply tw-text-[.64rem] tw-font-semibold tw-leading-tight tw-text-center tw-max-w-full tw-break-words; }
 .ezx-qa-badge { @apply tw-absolute tw--top-1 tw--right-1 tw-min-w-[17px] tw-h-[17px] tw-px-1 tw-rounded-full tw-bg-rose-600 tw-text-white tw-text-[.55rem] tw-font-bold tw-flex tw-items-center tw-justify-center tw-border-2 tw-border-solid tw-border-white; }
 /* Stepper obiegu koszulki (kafel) */
 .ezx-steps    { @apply tw-flex tw-items-center tw-gap-1 tw-mt-2; }
@@ -409,7 +409,7 @@ include dirname(__DIR__) . '/includes/header.php';
 </form>
 
 <!-- ═══════════ KPI ═══════════ -->
-<div class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 xl:tw-grid-cols-6 tw-gap-3 tw-mb-4" role="list" aria-label="Szybkie statystyki">
+<div class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 2xl:tw-grid-cols-6 tw-gap-3 tw-mb-4" role="list" aria-label="Szybkie statystyki">
   <button type="button" class="ezx-kpi" role="listitem" @click="go('dzialanie'); filter = 'all'">
     <span class="ezx-eyebrow"><i class="bi bi-lightning-charge tw-text-amber-500" aria-hidden="true"></i> Do działania</span>
     <span class="ezx-kpi-num"><?= $act_cnt['all'] ?></span>
@@ -783,7 +783,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 
   <!-- ═══════════ PRAWA KOLUMNA: widżety ═══════════ -->
-  <div class="xl:tw-col-span-4 tw-min-w-0 tw-grid tw-gap-4 tw-content-start">
+  <div class="xl:tw-col-span-4 tw-min-w-0 tw-grid tw-grid-cols-1 tw-gap-4 tw-content-start">
 
     <div class="ezx-card">
       <div class="ezx-card-hd"><i class="bi bi-grid-3x3-gap tw-text-blue-600" aria-hidden="true"></i><h2 class="ezx-h2">Szybkie akcje</h2></div>
@@ -806,7 +806,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <span class="tw-shrink-0 tw-mt-1.5 tw-w-2 tw-h-2 tw-rounded-full" style="background:<?= $dot_colors[$a['action']] ?? '#94a3b8' ?>" aria-hidden="true"></span>
           <div class="tw-flex-1 tw-min-w-0">
             <?php if ($a['znak_sprawy']): ?><a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$a['sprawa_id'] ?>" class="ezx-znak tw-no-underline tw-font-semibold hover:tw-underline"><?= h($a['znak_sprawy']) ?></a><?php endif; ?>
-            <div class="tw-truncate tw-text-slate-700"><?= h($a['details'] ?: $a['action']) ?></div>
+            <div class="tw-text-slate-700 tw-break-words [overflow-wrap:anywhere] tw-line-clamp-2"><?= h($a['details'] ?: $a['action']) ?></div>
             <div class="ezx-muted"><?= h($a['user_name'] ?? '—') ?> · <?= date('d.m H:i', strtotime($a['created_at'])) ?></div>
           </div>
         </div>
@@ -817,7 +817,7 @@ include dirname(__DIR__) . '/includes/header.php';
 
     <div class="ezx-card">
       <div class="ezx-card-hd"><i class="bi bi-megaphone tw-text-rose-500" aria-hidden="true"></i><h2 class="ezx-h2">Ważne komunikaty</h2></div>
-      <div class="tw-px-4 tw-py-3 tw-grid tw-gap-2">
+      <div class="tw-px-4 tw-py-3 tw-grid tw-grid-cols-1 tw-gap-2">
         <?php if ($komunikaty): foreach ($komunikaty as $ann): $pilny = !empty($ann['is_pinned']); ?>
         <div class="tw-rounded-xl tw-border-l-[3px] tw-border-solid <?= $pilny ? 'tw-border-rose-500 tw-bg-rose-50/60' : 'tw-border-blue-500 tw-bg-slate-50' ?> tw-px-3 tw-py-2">
           <div class="tw-text-[.8rem] tw-font-semibold tw-text-slate-900"><?= h(mb_substr($ann['title'], 0, 60)) ?><?= mb_strlen($ann['title']) > 60 ? '…' : '' ?></div>
@@ -865,13 +865,13 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="tw-px-4 tw-py-3">
         <p class="ezx-muted tw-mt-0 tw-mb-2"><strong class="tw-text-slate-800">Aplikacja na komputer</strong> (macOS i Windows): skanuje ze skanera sieciowego (AirScan/eSCL) i wgrywa jednym kliknięciem do koszulki, nowej koszulki albo dziennika podawczego. Logujesz się kontem Microsoft 365 — jednorazowo.</p>
         <?php if ($ezdc_files): ?>
-        <div class="tw-grid tw-gap-1.5">
+        <div class="tw-grid tw-grid-cols-1 tw-gap-1.5">
           <?php foreach ($ezdc_files as $ext => $f): ?>
           <a class="ezx-btn <?= in_array($ext, ['dmg', 'exe'], true) ? '' : 'ezx-btn--ghost' ?> tw-justify-start" href="<?= APP_URL ?>/ezd/klient/pobierz.php?ext=<?= h($ext) ?>"><i class="bi bi-download" aria-hidden="true"></i><?= h($f['label']) ?> <span class="tw-opacity-75 tw-font-normal">· v<?= h($f['version']) ?>, <?= h(ezd_client_size_label($f['size'])) ?></span></a>
           <?php endforeach; ?>
         </div>
         <?php elseif ($ezdc_repo): ?>
-        <div class="tw-grid tw-gap-1.5">
+        <div class="tw-grid tw-grid-cols-1 tw-gap-1.5">
           <?php foreach ($ezdc_repo as $ext => $f): ?>
           <a class="ezx-btn <?= in_array($ext, ['dmg', 'exe'], true) ? '' : 'ezx-btn--ghost' ?> tw-justify-start" href="<?= h($f['url']) ?>" rel="noopener"><i class="bi bi-download" aria-hidden="true"></i><?= h($f['label']) ?> <span class="tw-opacity-75 tw-font-normal">· v<?= h($f['version']) ?></span></a>
           <?php endforeach; ?>

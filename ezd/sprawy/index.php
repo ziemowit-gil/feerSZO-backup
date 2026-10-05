@@ -210,7 +210,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   <div id="ezx-filters" x-show="filtersOpen" x-collapse x-cloak>
     <div class="ezx-card tw-mt-3 tw-p-4">
-      <div class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 xl:tw-grid-cols-6 tw-gap-3">
+      <div class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 2xl:tw-grid-cols-6 tw-gap-3">
         <div class="ezx-field">
           <label for="f-status">Status</label>
           <select id="f-status" name="status" class="form-select form-select-sm">
