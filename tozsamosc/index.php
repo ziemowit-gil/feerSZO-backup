@@ -578,6 +578,14 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 .tzx-field label { @apply tw-block tw-text-[.8rem] tw-font-semibold tw-text-slate-800 tw-mb-1; }
 .tzx-field .form-text { @apply tw-text-xs tw-text-slate-500; }
 .tzx-sec-row   { @apply tw-flex tw-items-center tw-gap-2.5 tw-py-2 tw-border-b tw-border-solid tw-border-slate-100 last:tw-border-b-0; }
+/* Pasek tożsamości (wstęp) */
+.tzx-idbar     { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-x-6 tw-gap-y-3 tw-px-5 tw-py-4; }
+.tzx-idrow     { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-x-6 tw-gap-y-2 tw-m-0 tw-min-w-0; }
+.tzx-idrow > div { @apply tw-min-w-0; }
+.tzx-idrow > div + div { @apply md:tw-border-l md:tw-border-solid md:tw-border-slate-200 md:tw-pl-6; }
+.tzx-idrow dt  { @apply tw-text-[.62rem] tw-font-semibold tw-uppercase tw-tracking-[.08em] tw-text-slate-500 tw-m-0; }
+.tzx-idrow dd  { @apply tw-m-0 tw-mt-0.5 tw-text-[.88rem] tw-font-semibold tw-text-slate-900 tw-truncate tw-max-w-[260px]; }
+.tzx-idrow-more { @apply tw-self-center; }
 /* Bezpieczeństwo: kafle przeglądu + sekcje rozwijane (płaskie) */
 .tzx-stat      { @apply tw-flex tw-items-center tw-gap-3 tw-rounded-xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-p-3 tw-text-left tw-cursor-pointer tw-transition tw-w-full hover:tw-border-blue-300 hover:tw-bg-slate-50 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-amber-400; font: inherit; color: inherit; }
 .tzx-acc       { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm tw-overflow-hidden; }
@@ -600,14 +608,6 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
       <i class="bi bi-person-vcard tw-text-blue-600 tw-mr-1" aria-hidden="true"></i>eTożsamość
     </h1>
     <p class="tw-m-0 tw-mt-0.5 tw-text-sm tw-text-slate-500">Centrum dostępów · jeden login, jedno hasło do wszystkich systemów organizacji</p>
-  </div>
-  <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
-    <span class="tzx-badge tw-bg-<?= $role_tone ?>-50 tw-text-<?= $role_tone ?>-700 tw-border-<?= $role_tone ?>-200 tw-py-1 tw-px-2.5 tw-text-xs" title="<?= h($role_desc) ?>">
-      <i class="bi <?= $role_icon ?>" aria-hidden="true"></i><?= h($role_label) ?>
-    </span>
-    <span class="tzx-badge <?= $mfa_active ? 'tzx-badge--ok' : 'tzx-badge--warn' ?> tw-py-1 tw-px-2.5 tw-text-xs">
-      <i class="bi <?= $mfa_active ? 'bi-shield-check' : 'bi-shield-exclamation' ?>" aria-hidden="true"></i><?= $mfa_active ? 'MFA aktywne' : 'MFA wyłączone' ?>
-    </span>
   </div>
 </div>
 
@@ -643,82 +643,40 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 <?php endif; ?>
 </div>
 
-<!-- ═══════════ KARTA TOŻSAMOŚCI + STAN ZABEZPIECZEŃ (zawsze widoczne) ═══════════ -->
-<div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-3 tw-gap-4 tw-mb-4">
-
-  <section class="tzx-card lg:tw-col-span-2" aria-labelledby="id-h">
-    <div class="tzx-card-bd">
-      <div class="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-4">
-        <div class="tw-flex tw-items-center tw-gap-3.5 tw-min-w-0">
-          <span class="tw-w-14 tw-h-14 tw-rounded-2xl tw-bg-gradient-to-br tw-from-blue-600 tw-to-indigo-600 tw-text-white tw-flex tw-items-center tw-justify-center tw-text-lg tw-font-bold tw-shrink-0 tw-shadow-md" aria-hidden="true"><?= h($initials) ?></span>
-          <div class="tw-min-w-0">
-            <h2 id="id-h" class="tw-m-0 tw-text-lg tw-font-bold tw-text-slate-900 tw-truncate"><?= h($user['name']) ?></h2>
-            <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-1.5 tw-mt-1">
-              <span class="tzx-badge tw-bg-<?= $role_tone ?>-50 tw-text-<?= $role_tone ?>-700 tw-border-<?= $role_tone ?>-200"><i class="bi <?= $role_icon ?>" aria-hidden="true"></i><?= h($role_label) ?></span>
-              <span class="tzx-badge tzx-badge--info"><i class="bi bi-file-earmark-person" aria-hidden="true"></i><?= h($account_type_label) ?></span>
-              <?php if ($has_m365): ?><span class="tzx-badge tzx-badge--off"><i class="bi bi-microsoft" aria-hidden="true"></i>Entra ID</span><?php endif; ?>
-            </div>
-          </div>
-        </div>
-        <div class="tw-text-right tw-shrink-0">
-          <div class="tzx-eyebrow">Numer UID</div>
-          <div class="tw-font-mono tw-font-bold tw-text-[1.7rem] tw-leading-none tw-text-blue-700 tw-tracking-wider"><?= h($uid) ?></div>
+<!-- ═══════════ PASEK TOŻSAMOŚCI (zawsze widoczny; szczegóły w zakładce Podstawowe) ═══════════ -->
+<section class="tzx-card tw-mb-4" aria-labelledby="id-h">
+  <div class="tzx-idbar">
+    <div class="tw-flex tw-items-center tw-gap-3.5 tw-min-w-0 tw-flex-1">
+      <span class="tw-w-12 tw-h-12 tw-rounded-2xl tw-bg-gradient-to-br tw-from-blue-600 tw-to-indigo-600 tw-text-white tw-flex tw-items-center tw-justify-center tw-text-base tw-font-bold tw-shrink-0 tw-shadow-md" aria-hidden="true"><?= h($initials) ?></span>
+      <div class="tw-min-w-0">
+        <h2 id="id-h" class="tw-m-0 tw-text-[1.05rem] tw-font-bold tw-text-slate-900 tw-truncate"><?= h($user['name']) ?></h2>
+        <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-1.5 tw-mt-1">
+          <span class="tzx-badge tw-bg-<?= $role_tone ?>-50 tw-text-<?= $role_tone ?>-700 tw-border-<?= $role_tone ?>-200" title="<?= h($role_desc) ?>"><i class="bi <?= $role_icon ?>" aria-hidden="true"></i><?= h($role_label) ?></span>
+          <span class="tzx-badge tzx-badge--info"><i class="bi bi-file-earmark-person" aria-hidden="true"></i><?= h($account_type_label) ?></span>
+          <?php if ($has_m365): ?><span class="tzx-badge tzx-badge--off"><i class="bi bi-microsoft" aria-hidden="true"></i>Entra ID</span><?php endif; ?>
+          <span class="tzx-badge <?= $mfa_active ? 'tzx-badge--ok' : 'tzx-badge--warn' ?>"><i class="bi <?= $mfa_active ? 'bi-shield-check' : 'bi-shield-exclamation' ?>" aria-hidden="true"></i><?= $mfa_active ? 'MFA aktywne' : 'MFA wyłączone' ?></span>
         </div>
       </div>
-
-      <dl class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 xl:tw-grid-cols-3 tw-gap-2.5 tw-mt-5 tw-mb-0">
-        <div class="tzx-kv"><dt>Identyfikator sieciowy <span class="lbl-en">Network ID (login główny)</span></dt><dd><?= h($panel_login ?: '—') ?></dd></div>
-        <div class="tzx-kv"><dt>Login Microsoft 365 <span class="lbl-en">M365 sign-in</span></dt><dd><?= h($m365_login ?: ($has_m365 ? $panel_login : '— brak konta M365 —')) ?></dd></div>
-        <div class="tzx-kv"><dt>Identyfikator obiektu Entra <span class="lbl-en">Entra object ID</span></dt><dd class="tw-font-mono tw-text-[.74rem] tw-font-medium"><?= h($microsoft_id ?: '—') ?></dd></div>
-        <div class="tzx-kv"><dt>Typ konta</dt><dd><?= h($account_type_label) ?></dd></div>
-        <div class="tzx-kv"><dt>Źródło danych <span class="lbl-en">Data source</span></dt><dd><?php
-          if ($src_contract) { echo 'Umowa ' . h($src_contract['numer_umowy']); }
-          elseif (is_admin()) { echo 'Wpis do KRS – powołanie'; }
-          else { echo '—'; }
-        ?></dd></div>
-        <div class="tzx-kv"><dt>UID nadany <span class="lbl-en">Assigned</span></dt><dd><?= h(!empty($db_user['created_at']) ? date('d.m.Y', strtotime($db_user['created_at'])) : ($src_contract['data_zawarcia'] ?? '—')) ?></dd></div>
-      </dl>
     </div>
-    <p class="tz-note tw-m-0 tw-rounded-b-2xl">
-      <i class="bi bi-info-circle" aria-hidden="true"></i>
-      <span>Numer UID został nadany automatycznie przy zawarciu umowy i jest Twoim stałym identyfikatorem w rejestrze tożsamości — nie można go zmienić. Login do panelu (identyfikator sieciowy) jest niezależny od loginu Microsoft 365.
-      <span class="lbl-en">UID is assigned at contract creation and is immutable. The panel sign-in may differ from the Microsoft 365 sign-in.</span></span>
-    </p>
-  </section>
-
-  <section class="tzx-card" aria-labelledby="sec-h">
-    <div class="tzx-card-hd">
-      <i class="bi bi-shield-lock tw-text-blue-600" aria-hidden="true"></i>
-      <h2 id="sec-h" class="tzx-h2">Stan zabezpieczeń</h2>
-      <span class="tw-ml-auto tzx-badge tw-bg-<?= $sec_tone ?>-50 tw-text-<?= $sec_tone ?>-700 tw-border-<?= $sec_tone ?>-200"><?= $sec_ok ?>/<?= $sec_total ?></span>
-    </div>
-    <div class="tzx-card-bd tw-pt-4">
-      <div class="tw-flex tw-items-end tw-justify-between tw-gap-2 tw-mb-1.5">
-        <div class="tw-text-2xl tw-font-bold tw-text-slate-900 tw-leading-none"><?= $sec_pct ?>%</div>
-        <div class="tzx-muted tw-text-right"><?= $sec_pct >= 80 ? 'Konto dobrze zabezpieczone' : ($sec_pct >= 50 ? 'Warto dokończyć konfigurację' : 'Zabezpiecz konto') ?></div>
+    <dl class="tzx-idrow">
+      <div>
+        <dt>Numer UID</dt>
+        <dd class="tw-font-mono tw-text-[1.35rem] tw-leading-none tw-text-blue-700 tw-tracking-wider"><?= h($uid) ?></dd>
       </div>
-      <div class="tw-h-2 tw-rounded-full tw-bg-slate-100 tw-overflow-hidden" role="progressbar" aria-valuenow="<?= $sec_pct ?>" aria-valuemin="0" aria-valuemax="100" aria-label="Stan zabezpieczeń konta">
-        <span class="tw-block tw-h-full tw-rounded-full tw-bg-<?= $sec_tone ?>-500" style="width:<?= $sec_pct ?>%"></span>
+      <div>
+        <dt>Identyfikator sieciowy</dt>
+        <dd><?= h($panel_login ?: '—') ?></dd>
       </div>
-      <ul class="tw-list-none tw-p-0 tw-m-0 tw-mt-3">
-        <?php foreach ($sec_items as $it): ?>
-        <li class="tzx-sec-row">
-          <span class="tw-w-7 tw-h-7 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-sm tw-shrink-0 <?= $it['ok'] ? 'tw-bg-emerald-50 tw-text-emerald-600' : 'tw-bg-amber-50 tw-text-amber-600' ?>" aria-hidden="true"><i class="bi <?= $it['icon'] ?>"></i></span>
-          <div class="tw-flex-1 tw-min-w-0">
-            <div class="tw-text-[.82rem] tw-font-semibold tw-text-slate-800 tw-leading-tight"><?= h($it['label']) ?></div>
-            <div class="tzx-muted tw-truncate"><?= h($it['hint']) ?></div>
-          </div>
-          <?php if ($it['ok']): ?>
-            <i class="bi bi-check-circle-fill tw-text-emerald-500" aria-label="gotowe"></i>
-          <?php else: ?>
-            <a href="#<?= $it['tab'] ?>" class="tzx-btn tzx-btn--ghost tzx-btn--sm" @click.prevent="go('<?= $it['tab'] ?>')<?= !empty($it['sec']) ? "; \$dispatch('tz-sec', '" . $it['sec'] . "')" : '' ?>">Ustaw</a>
-          <?php endif; ?>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-    </div>
-  </section>
-</div>
+      <div>
+        <dt>Login Microsoft 365</dt>
+        <dd><?= h($m365_login ?: ($has_m365 ? $panel_login : '— brak konta M365 —')) ?></dd>
+      </div>
+      <div class="tzx-idrow-more">
+        <a href="#podstawowe" class="tzx-btn tzx-btn--ghost tzx-btn--sm" @click.prevent="go('podstawowe')"><i class="bi bi-card-list" aria-hidden="true"></i>Szczegóły</a>
+      </div>
+    </dl>
+  </div>
+</section>
 
 <!-- ═══════════ ZAKŁADKI ═══════════ -->
 <div class="tw-sticky tw-top-[51px] tw-z-[5] tw-bg-[var(--tz-canvas)] tw-py-2 tw-mb-4">
@@ -736,8 +694,37 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 
 <!-- ═══════════ PODSTAWOWE ═══════════ -->
 <section id="podstawowe" role="tabpanel" aria-labelledby="tab-podstawowe" tabindex="-1" x-show="tab === 'podstawowe'" x-transition.opacity.duration.150ms>
-  <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-3 tw-gap-4">
-    <div class="tzx-card lg:tw-col-span-2">
+  <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-3 tw-gap-4 tw-items-start">
+    <div class="lg:tw-col-span-2 tw-min-w-0 tw-grid tw-grid-cols-1 tw-gap-4">
+
+    <div class="tzx-card" aria-labelledby="iddata-h">
+      <div class="tzx-card-hd">
+        <i class="bi bi-person-vcard tw-text-blue-600" aria-hidden="true"></i>
+        <h2 id="iddata-h" class="tzx-h2">Dane tożsamości <span class="lbl-en tw-inline">Identity record</span></h2>
+      </div>
+      <div class="tzx-card-bd">
+        <dl class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 xl:tw-grid-cols-3 tw-gap-2.5 tw-m-0">
+          <div class="tzx-kv"><dt>Numer UID</dt><dd class="tw-font-mono tw-text-blue-700"><?= h($uid) ?></dd></div>
+          <div class="tzx-kv"><dt>Identyfikator sieciowy <span class="lbl-en">Network ID (login główny)</span></dt><dd><?= h($panel_login ?: '—') ?></dd></div>
+          <div class="tzx-kv"><dt>Login Microsoft 365 <span class="lbl-en">M365 sign-in</span></dt><dd><?= h($m365_login ?: ($has_m365 ? $panel_login : '— brak konta M365 —')) ?></dd></div>
+          <div class="tzx-kv"><dt>Identyfikator obiektu Entra <span class="lbl-en">Entra object ID</span></dt><dd class="tw-font-mono tw-text-[.74rem] tw-font-medium"><?= h($microsoft_id ?: '—') ?></dd></div>
+          <div class="tzx-kv"><dt>Typ konta</dt><dd><?= h($account_type_label) ?></dd></div>
+          <div class="tzx-kv"><dt>Źródło danych <span class="lbl-en">Data source</span></dt><dd><?php
+            if ($src_contract) { echo 'Umowa ' . h($src_contract['numer_umowy']); }
+            elseif (is_admin()) { echo 'Wpis do KRS – powołanie'; }
+            else { echo '—'; }
+          ?></dd></div>
+          <div class="tzx-kv"><dt>UID nadany <span class="lbl-en">Assigned</span></dt><dd><?= h(!empty($db_user['created_at']) ? date('d.m.Y', strtotime($db_user['created_at'])) : ($src_contract['data_zawarcia'] ?? '—')) ?></dd></div>
+        </dl>
+      </div>
+      <p class="tz-note tw-m-0 tw-rounded-b-2xl">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <span>Numer UID został nadany automatycznie przy zawarciu umowy i jest Twoim stałym identyfikatorem w rejestrze tożsamości — nie można go zmienić. Login do panelu (identyfikator sieciowy) jest niezależny od loginu Microsoft 365.
+        <span class="lbl-en">UID is assigned at contract creation and is immutable. The panel sign-in may differ from the Microsoft 365 sign-in.</span></span>
+      </p>
+    </div>
+
+    <div class="tzx-card">
       <div class="tzx-card-hd">
         <i class="bi bi-diagram-3 tw-text-blue-600" aria-hidden="true"></i>
         <h2 class="tzx-h2">Rola i uprawnienia <span class="lbl-en tw-inline">Role-based access</span></h2>
@@ -772,6 +759,8 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
         <p class="tzx-muted tw-mt-4 tw-mb-0"><i class="bi bi-info-circle tw-mr-1" aria-hidden="true"></i>Roli ani uprawnień nie zmienisz tutaj — nadaje je administrator w <strong>Role i uprawnienia</strong>. Jeśli brakuje Ci dostępu, zgłoś to przez helpdesk.</p>
       </div>
     </div>
+
+    </div><!-- /lewa kolumna -->
 
     <div class="tzx-card">
       <div class="tzx-card-hd"><i class="bi bi-lightning-charge tw-text-blue-600" aria-hidden="true"></i><h2 class="tzx-h2">Szybkie akcje</h2></div>
