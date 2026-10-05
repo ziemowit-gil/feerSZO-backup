@@ -1,7 +1,7 @@
+import { fmtBytes } from '@shared/locale';
 import { STAGE_PL, useLoad } from '../hooks';
 import { Badge, EmptyState, Icon, PageHeader } from '../ui';
 
-const kb = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 export function Dashboard() {
   const scans = useLoad(() => window.api.scan.list(), []);
@@ -39,7 +39,7 @@ export function Dashboard() {
           <ul className="plain">
             {scans.data?.slice(0, 5).map((s) => (
               <li key={s.id} className="row" style={{ justifyContent: 'space-between' }}>
-                <span><strong>{s.name}</strong><br /><span className="muted">{s.pages} str. · {kb(s.size)}</span></span>
+                <span><strong>{s.name}</strong><br /><span className="muted">{s.pages} str. · {fmtBytes(s.size)}</span></span>
                 <Badge tone={s.status === 'uploaded' ? 'ok' : s.status === 'error' ? 'danger' : 'info'}>
                   {s.status === 'uploaded' ? 'Wgrany' : s.status === 'error' ? 'Błąd wysyłki' : s.status === 'uploading' ? 'Wysyłanie' : 'Do wysłania'}
                 </Badge>

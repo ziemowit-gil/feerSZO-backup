@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { In, PismoHit, RpwHit, ScanRec, ScannerCaps, ScannerInfo, ServerInfo, ServerStatus, Settings, SprawaHit, TeczkaHit } from '@shared/contracts';
+import { fmtBytes } from '@shared/locale';
 import { cleanError, useLoad } from '../hooks';
 import { Alert, Badge, EmptyState, Icon, Listbox, PageHeader, Spinner, Tabs, useConfirm } from '../ui';
 
@@ -7,7 +8,6 @@ const STATUS: Record<ScanRec['status'], { label: string; tone: 'info' | 'warn' |
   new: { label: 'Do wysłania', tone: 'info' }, uploading: { label: 'Wysyłanie…', tone: 'warn' },
   uploaded: { label: 'Wgrany do EZD', tone: 'ok' }, error: { label: 'Błąd wysyłki', tone: 'danger' }
 };
-const kb = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const RPW_TYPES = [['list', 'List zwykły'], ['polecony', 'List polecony'], ['paczka', 'Paczka'], ['email', 'E-mail'], ['epuap', 'e-Doręczenia'], ['fax', 'Faks'], ['osobiscie', 'Złożone osobiście'], ['inne', 'Inne']] as const;
 
 function useDebounced<T>(value: T, ms = 300): T {
@@ -68,7 +68,7 @@ function ServerBox({ onChange }: { onChange: () => void }) {
         {msg && <Alert kind={msg.ok ? 'ok' : 'error'}>{msg.text}</Alert>}
         {info && (
           <p className="hint">Serwer {info.org ?? ''} (wersja {info.version ?? '?'}), klucz „{info.keyName}”{info.owner ? `, właściciel ${info.owner}` : ''}.
-            Maks. plik: {kb(info.maxUploadBytes)}.{needed.length > 0 && <strong className="error-text"> Brakuje uprawnień: {needed.join(', ')}.</strong>}</p>
+            Maks. plik: {fmtBytes(info.maxUploadBytes)}.{needed.length > 0 && <strong className="error-text"> Brakuje uprawnień: {needed.join(', ')}.</strong>}</p>
         )}
       </div>
     </details>
@@ -281,7 +281,7 @@ export function Scanner() {
                 {scans.data?.map((s) => (
                   <tr key={s.id} className={sel === s.id ? 'selected' : undefined}>
                     <th scope="row" style={{ textTransform: 'none', letterSpacing: 0, fontSize: 'inherit', color: 'inherit', background: 'none', whiteSpace: 'normal' }}>{s.name}</th>
-                    <td>{s.pages}</td><td>{kb(s.size)}</td>
+                    <td>{s.pages}</td><td>{fmtBytes(s.size)}</td>
                     <td><Badge tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Badge>{s.error && <div className="error-text sub">{s.error}</div>}</td>
                     <td className="actions"><div className="row">
                       <button className="small" onClick={() => void guard(() => window.api.scan.open({ id: s.id }))} aria-label={`Podgląd: ${s.name}`}><Icon name="eye" size={15} />Podgląd</button>

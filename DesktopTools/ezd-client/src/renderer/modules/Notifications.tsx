@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { fmtDateTime, isoOf } from '@shared/locale';
 import { useLoad } from '../hooks';
 import { Badge, EmptyState, PageHeader } from '../ui';
 
@@ -17,7 +18,7 @@ export function Notifications() {
             <li key={n.id} className="row" style={{ justifyContent: 'space-between' }}>
               <span>
                 {!n.read && <Badge tone="info">Nowe</Badge>} <strong>{n.title}</strong><br />
-                <span>{n.body}</span> <time className="muted">{n.at}</time>
+                <span>{n.body}</span> <time className="muted" dateTime={isoOf(n.at)}>{fmtDateTime(n.at)}</time>
               </span>
               {!n.read && <button className="small" onClick={() => void window.api.notif.markRead(n.id).then(list.reload)} aria-label={`Oznacz jako przeczytane: ${n.title}`}>Przeczytane</button>}
             </li>

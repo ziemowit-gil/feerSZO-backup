@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Doc, DocKind, Stage } from '@shared/contracts';
+import { fmtDateTime, isoOf } from '@shared/locale';
 import { cleanError, KIND_PL, STAGE_PL, useLoad } from '../hooks';
 import { Alert, Badge, EmptyState, PageHeader } from '../ui';
 
@@ -74,7 +75,7 @@ export function Ezd() {
               <h3>Wersje plików</h3>
               <ul className="plain">{vers.data?.length === 0 && <li className="muted">Brak plików.</li>}{vers.data?.map((v) => <li key={v.version}>v{v.version} — {v.fileName} <span className="muted">SHA-256 {v.sha256.slice(0, 12)}…</span></li>)}</ul>
               <h3 style={{ marginTop: 14 }}>Metryka (audyt)</h3>
-              <ul className="plain">{audit.data?.map((a) => <li key={a.id}><time>{a.at}</time> — {a.actor}: {a.action}{a.detail ? ` ${a.detail}` : ''}</li>)}</ul>
+              <ul className="plain">{audit.data?.map((a) => <li key={a.id}><time dateTime={isoOf(a.at)}>{fmtDateTime(a.at)}</time> — {a.actor}: {a.action}{a.detail ? ` ${a.detail}` : ''}</li>)}</ul>
             </>
           )}
         </aside>

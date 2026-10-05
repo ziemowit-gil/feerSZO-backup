@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Customer } from '@shared/contracts';
+import { fmtDateTime, isoOf } from '@shared/locale';
 import { cleanError, useLoad } from '../hooks';
 import { Alert, Badge, EmptyState, PageHeader } from '../ui';
 
@@ -65,7 +66,7 @@ export function Customers() {
               <p style={{ marginTop: 10 }}><button onClick={() => void addNote()} disabled={!note.trim()}>Dodaj notatkę</button></p>
               <h3>Historia kontaktów</h3>
               <ul className="plain">{hist.data?.length === 0 && <li className="muted">Brak wpisów.</li>}
-                {hist.data?.map((h, i) => <li key={i}><Badge>{h.type === 'note' ? 'notatka' : h.type === 'document' ? 'dokument' : h.type === 'deal' ? 'sprawa' : 'mail'}</Badge> <time>{h.at}</time> — {h.text}</li>)}</ul>
+                {hist.data?.map((h, i) => <li key={i}><Badge>{h.type === 'note' ? 'notatka' : h.type === 'document' ? 'dokument' : h.type === 'deal' ? 'sprawa' : 'mail'}</Badge> <time dateTime={isoOf(h.at)}>{fmtDateTime(h.at)}</time> — {h.text}</li>)}</ul>
             </>
           )}
         </aside>

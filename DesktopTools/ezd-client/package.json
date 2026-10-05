@@ -13,14 +13,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "electron-builder install-app-deps",
-    "dist:mac": "npm run build && electron-builder --mac dmg pkg --universal",
-    "dist:win": "npm run build && electron-builder --win nsis msi --x64",
+    "dist:mac": "npm run build && electron-builder --mac dmg --arm64 -c.mac.identity=null -c.mac.notarize=false",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 -c.win.signAndEditExecutable=false && electron-builder install-app-deps --arch=arm64",
     "test:smoke": "esbuild tests/smoke.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/smoke.cjs && ELECTRON_RUN_AS_NODE=1 electron out/smoke.cjs",
     "test:escl": "esbuild tests/escl.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/escl.cjs --log-level=warning && ELECTRON_RUN_AS_NODE=1 electron out/escl.cjs",
-    "test:all": "npm run test:smoke && npm run test:escl && npm run test:sync && npm run test:auth",
+    "test:all": "npm run test:smoke && npm run test:escl && npm run test:sync && npm run test:auth && npm run test:locale",
     "test:sync": "esbuild tests/sync.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/sync.cjs --log-level=warning && ELECTRON_RUN_AS_NODE=1 electron out/sync.cjs",
     "test:auth": "esbuild tests/auth.ts --bundle --platform=node --external:electron --external:better-sqlite3-multiple-ciphers --alias:@shared=./src/shared --outfile=out/auth.cjs --log-level=warning && ELECTRON_RUN_AS_NODE=1 electron out/auth.cjs",
-    "preview": "vite --config vite.preview.config.ts"
+    "preview": "vite --config vite.preview.config.ts",
+    "test:locale": "esbuild tests/locale.ts --bundle --platform=node --external:electron --alias:@shared=./src/shared --outfile=out/locale.cjs --log-level=warning && ELECTRON_RUN_AS_NODE=1 electron out/locale.cjs"
   },
   "dependencies": {
     "better-sqlite3-multiple-ciphers": "^11.5.0",

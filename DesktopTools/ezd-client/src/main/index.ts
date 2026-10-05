@@ -11,7 +11,10 @@ import { getSettings } from './services/settings';
 import type { Ctx } from './services/context';
 import type { Notification } from '@shared/contracts';
 
+import { LANG } from '@shared/locale';
+
 const DEV_URL = process.env['ELECTRON_RENDERER_URL'];
+app.commandLine.appendSwitch('lang', LANG); // menu kontekstowe, podpowiedzi walidacji i dialogi Chromium po polsku niezależnie od języka systemu
 let win: BrowserWindow | null = null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -47,6 +50,7 @@ app.whenReady().then(() => {
   session.defaultSession.webRequest.onHeadersReceived((d, cb) =>
     cb({ responseHeaders: { ...d.responseHeaders, 'Content-Security-Policy': [csp] } }));
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  session.defaultSession.setSpellCheckerLanguages([LANG]);
 
   const userData = app.getPath('userData');
   const filesDir = join(userData, 'files');

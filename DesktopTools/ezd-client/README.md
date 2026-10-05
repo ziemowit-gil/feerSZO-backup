@@ -15,3 +15,8 @@ endpoint synchronizacji i pobieranie zmian z serwera.
 
 ## Podgląd UI i dostępność
 `npm run preview` uruchamia sam renderer z atrapą API (src/renderer/devMock.ts) pod http://localhost:5199 — do przeglądu wyglądu i testów axe-core. Atrapa ładuje się tylko w trybie DEV bez Electrona.
+
+## Build
+- `npm run dist:win` buduje .exe (NSIS) i na końcu przywraca natywny moduł pod macOS — build pod Windows zostawia w node_modules binarkę Windows i bez tego testy oraz `npm run dev` padają.
+- `npm run dist:mac` buduje .dmg (arm64). Bez certyfikatu Apple podpis jest tylko ad-hoc; po zbudowaniu `.app` popraw go: `codesign --force --deep --sign - "dist/mac-arm64/EZD Client.app"` i złóż dmg z `--prepackaged`.
+- Lokalizacja: język i formaty w `src/shared/locale.ts` (pl-PL), menu po polsku w `src/main/menu.ts`.

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DealStage } from '@shared/contracts';
+import { fmtPln } from '@shared/locale';
 import { cleanError, STAGE_PL, useLoad } from '../hooks';
 import { Alert, EmptyState, PageHeader } from '../ui';
 
@@ -42,7 +43,7 @@ export function Deals() {
               <ul className="plain">
                 {items.map((d) => (
                   <li key={d.id}>
-                    <strong>{d.title}</strong><br /><span className="muted">{d.customerName} · {d.valuePln.toLocaleString('pl-PL')} zł</span>
+                    <strong>{d.title}</strong><br /><span className="muted">{d.customerName} · {fmtPln(d.valuePln)}</span>
                     <div className="field" style={{ marginTop: 6 }}>
                       <label className="sr-only" htmlFor={`m-${d.id}`}>Etap sprawy: {d.title}</label>
                       <select id={`m-${d.id}`} value={d.stage} onChange={(e) => void guard(() => window.api.crm.moveDeal({ id: d.id, stage: e.target.value as typeof stage }))}>
