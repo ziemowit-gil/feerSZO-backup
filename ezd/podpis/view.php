@@ -131,14 +131,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="card shadow-sm mb-4">
       <div class="card-header fw-semibold" style="font-size:.88rem"><i class="bi bi-file-earmark-pdf me-1 text-danger"></i>Oryginał do podpisu</div>
       <div class="card-body p-0">
-        <iframe src="<?= APP_URL ?>/ezd/file.php?zal_id=<?= $req['zal_id'] ?>" style="width:100%;height:600px;border:none" title="Podgląd PDF"></iframe>
+        <iframe src="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$req['zal_id'] ?>" style="width:100%;height:600px;border:none" title="Podgląd PDF"></iframe>
       </div>
     </div>
     <?php else: ?>
     <div class="card shadow-sm mb-4">
       <div class="card-header fw-semibold" style="font-size:.88rem"><i class="bi bi-file-earmark me-1"></i>Oryginał</div>
       <div class="card-body">
-        <a href="<?= APP_URL ?>/ezd/file.php?zal_id=<?= $req['zal_id'] ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
+        <a href="<?= APP_URL ?>/ezd/serve.php?id=<?= (int)$req['zal_id'] ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
           <i class="bi bi-download me-1"></i>Pobierz <?= h($req['zal_name']) ?>
         </a>
       </div>

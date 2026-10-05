@@ -4213,10 +4213,11 @@ const EZD_SIGN_STATUSES = [
 ];
 
 function ezd_sign_request_create(int $zal_id, int $sprawa_id, int $requested_by, int $requested_to, string $notes): int {
-    $id = (int)db_insert(
-        "INSERT INTO ezd_sign_requests (zal_id,sprawa_id,requested_by,requested_to,notes) VALUES (?,?,?,?,?)",
-        [$zal_id, $sprawa_id, $requested_by, $requested_to, $notes]
-    );
+    // db_insert(tabela, dane) — dawniej przekazywano tu gotowy SQL, co kończyło się błędem składni („INSERT INTO INSERT INTO…”)
+    // i wniosku o podpis nie dało się w ogóle utworzyć.
+    $id = db_insert('ezd_sign_requests', [
+        'zal_id' => $zal_id, 'sprawa_id' => $sprawa_id, 'requested_by' => $requested_by, 'requested_to' => $requested_to, 'notes' => $notes,
+    ]);
     // Powiadomienie dla podpisującego
     $zal  = db_one("SELECT original_name FROM ezd_zalaczniki WHERE id=?", [$zal_id]);
     $from = db_one("SELECT name FROM users WHERE id=?", [$requested_by]);
@@ -4304,11 +4305,10 @@ function ezd_sign_request_upload(int $id, int $user_id, string $tmp, string $ori
 
     if (!move_uploaded_file($tmp, $dir . $filename)) return ['ok' => false, 'error' => 'Błąd zapisu pliku.'];
 
-    $signed_zal_id = (int)db_insert(
-        "INSERT INTO ezd_zalaczniki (sprawa_id,filename,original_name,mime_type,file_size,wersja,uploaded_by,converted_from_id)
-         VALUES (?,?,?,?,?,1,?,?)",
-        [$sprawa_id, $filename, $base . '_signed.' . $ext, $mime, filesize($dir . $filename), $user_id, $req['zal_id']]
-    );
+    $signed_zal_id = db_insert('ezd_zalaczniki', [
+        'sprawa_id' => $sprawa_id, 'filename' => $filename, 'original_name' => $base . '_signed.' . $ext, 'mime_type' => $mime,
+        'file_size' => filesize($dir . $filename), 'wersja' => 1, 'uploaded_by' => $user_id, 'converted_from_id' => $req['zal_id'],
+    ]);
 
     db()->prepare("UPDATE ezd_sign_requests SET status='podpisane', signed_zal_id=?, signed_at=datetime('now') WHERE id=?")
         ->execute([$signed_zal_id, $id]);
