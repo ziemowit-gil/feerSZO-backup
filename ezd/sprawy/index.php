@@ -88,213 +88,268 @@ if (($_GET['export'] ?? '') === 'csv') {
     fclose($out); exit;
 }
 
+// ── Model widoku listy (układ kaflowy/listowy, Tailwind + Alpine) ──────────────
+$TONE = ['secondary' => 'slate', 'info' => 'sky', 'primary' => 'blue', 'warning' => 'amber', 'success' => 'emerald', 'danger' => 'rose', 'dark' => 'slate', 'muted' => 'slate'];
+$today = date('Y-m-d');
+$active_filters = array_filter([
+    'status' => $status_f, 'priority' => $priority_f, 'owner_id' => $owner_f ?: '', 'deadline_od' => $dod, 'deadline_do' => $ddo,
+]);
+$n_filters   = count($active_filters) + (int)$mine_f + (int)$hide_ciagla_f + (int)$hide_old_f + (int)$show_hidden_f;
+$owner_names = array_column($owners, 'name', 'id');
+$cnt_over = 0; $cnt_mine_dekr = 0;
+foreach ($sprawy as $s) {
+    if ($s['deadline'] && $s['deadline'] < $today && empty($s['ciagla']) && $s['status'] !== 'closed') $cnt_over++;
+}
+$self_q = fn(array $over) => '?' . http_build_query(array_filter(array_merge($_GET, $over), fn($v) => $v !== '' && $v !== null));
+
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
-<style>
-.sprawa-line{display:flex;align-items:center;border-bottom:1px solid #f1f5f9;}
-.sprawa-line:last-child{border-bottom:none;}
-.sprawa-line:hover{background:#f8fafc;}
-.sprawa-row{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;text-decoration:none;color:inherit;transition:background .12s;cursor:pointer;}
-.sprawa-znak{font-family:monospace;font-size:.8rem;font-weight:700;color:#2563eb;white-space:nowrap;}
-.ezd-search .input-group{box-shadow:0 4px 14px rgba(15,23,42,.08);border-radius:14px;overflow:hidden;}
-.ezd-search .input-group-text{background:#fff;border:1px solid #e2e8f0;border-right:none;font-size:1.15rem;color:#64748b;padding:.7rem .55rem .7rem 1rem;}
-.ezd-search input{border:1px solid #e2e8f0;border-left:none;border-right:none;font-size:.95rem;padding:.7rem .5rem;}
-.ezd-search input:focus{box-shadow:none;border-color:#e2e8f0;}
-.ezd-search .btn{padding:.7rem 1.4rem;font-weight:600;}
-.dekr-cell{white-space:nowrap;font-size:.72rem;text-align:right;min-width:112px;}
-.dekr-cell .dekr-who{font-weight:600;color:#334155;}
-.dekr-cell .dekr-lezy{font-size:.66rem;}
-/* Timeline w popupie koszulki */
-.tl-wrap{display:flex;flex-direction:column;gap:.5rem;}
-.tl-item{display:flex;align-items:flex-start;gap:.6rem;}
-.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:.55rem;border:2px solid;}
-.tl-card{flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .75rem;background:#fff;transition:box-shadow .12s;color:inherit;}
-.tl-card:hover{box-shadow:0 2px 8px rgba(15,23,42,.1);}
-.tl-syg{font-size:.62rem;font-family:monospace;color:#64748b;margin-bottom:.15rem;}
-.tl-title{font-size:.83rem;font-weight:600;color:#1e293b;line-height:1.3;}
-.tl-meta{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem;font-size:.7rem;color:#64748b;}
-.pismo-in .tl-dot{border-color:#0ea5e9;background:#e0f2fe;}
-.pismo-out .tl-dot{border-color:#8b5cf6;background:#ede9fe;}
-.pismo-int .tl-dot{border-color:#94a3b8;background:#f1f5f9;}
-.tl-card.pismo-in{border-left:3px solid #0ea5e9;}
-.tl-card.pismo-out{border-left:3px solid #8b5cf6;}
-.tl-card.pismo-int{border-left:3px solid #94a3b8;}
-/* Przycisk "Przejdź do sprawy" na wierszu */
-.sp-full-btn{opacity:.6;transition:opacity .15s,color .15s;padding:.25rem .4rem;border-radius:4px;color:#4f46e5;text-decoration:none;flex-shrink:0;}
-.sprawa-line:hover .sp-full-btn,.sp-full-btn:focus{opacity:1;color:#3730a3;}
-/* Przycisk ukryj koszulkę */
-.sp-hide-btn{opacity:0;transition:opacity .15s,color .15s;padding:.25rem .4rem;border:none;background:none;border-radius:4px;color:#94a3b8;flex-shrink:0;cursor:pointer;line-height:1;}
-.sprawa-line:hover .sp-hide-btn,.sp-hide-btn:focus{opacity:1;}
-.sp-hide-btn:hover{color:#ef4444;}
-.sprawa-line.is-hidden{opacity:.55;background:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(148,163,184,.07) 6px,rgba(148,163,184,.07) 7px);}
-.sprawa-line.is-hidden .sp-hide-btn{opacity:.7;color:#64748b;}
-.sprawa-line.is-hidden .sp-hide-btn:hover{color:#2563eb;}
+<style type="text/tailwindcss">
+/* ── Lista koszulek: komponenty (Tailwind bez preflightu — przy tw-border zawsze tw-border-solid) ── */
+.ezx-card     { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm; }
+.ezx-eyebrow  { @apply tw-text-[.64rem] tw-font-bold tw-uppercase tw-tracking-[.1em] tw-text-slate-500; }
+.ezx-muted    { @apply tw-text-xs tw-text-slate-500; }
+.ezx-btn      { @apply tw-inline-flex tw-items-center tw-justify-center tw-gap-1.5 tw-rounded-lg tw-bg-blue-600 tw-text-white tw-px-3 tw-py-1.5 tw-text-xs tw-font-semibold tw-no-underline tw-border-0 tw-cursor-pointer tw-transition tw-shadow-sm hover:tw-bg-blue-700 hover:tw-text-white focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-offset-2 focus-visible:tw-outline-amber-400 disabled:tw-opacity-50 disabled:tw-cursor-not-allowed; }
+.ezx-btn--ghost { @apply tw-bg-white tw-text-slate-700 tw-border tw-border-solid tw-border-slate-300 tw-shadow-none hover:tw-bg-slate-50 hover:tw-text-slate-900 hover:tw-border-slate-400; }
+.ezx-btn--emerald { @apply tw-bg-emerald-600 hover:tw-bg-emerald-700; }
+.ezx-badge    { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-full tw-px-2 tw-py-0.5 tw-text-[.66rem] tw-font-semibold tw-border tw-border-solid tw-whitespace-nowrap tw-leading-tight; }
+.ezx-badge--slate  { @apply tw-bg-slate-100 tw-text-slate-600 tw-border-slate-200; }
+.ezx-badge--sky    { @apply tw-bg-sky-50 tw-text-sky-700 tw-border-sky-200; }
+.ezx-badge--blue   { @apply tw-bg-blue-50 tw-text-blue-700 tw-border-blue-200; }
+.ezx-badge--amber  { @apply tw-bg-amber-50 tw-text-amber-700 tw-border-amber-200; }
+.ezx-badge--emerald{ @apply tw-bg-emerald-50 tw-text-emerald-700 tw-border-emerald-200; }
+.ezx-badge--rose   { @apply tw-bg-rose-50 tw-text-rose-700 tw-border-rose-200; }
+.ezx-badge--violet { @apply tw-bg-violet-50 tw-text-violet-700 tw-border-violet-200; }
+.ezx-badge--urgent { @apply tw-bg-rose-600 tw-text-white tw-border-rose-600; }
+.ezx-chip     { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-full tw-px-3 tw-py-1.5 tw-text-[.76rem] tw-font-medium tw-text-slate-600 tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-cursor-pointer tw-transition tw-select-none hover:tw-border-slate-400 hover:tw-text-slate-900; }
+.ezx-chip--on { @apply tw-bg-blue-600 tw-text-white tw-border-blue-600 hover:tw-text-white hover:tw-border-blue-600; }
+.ezx-chip input { @apply tw-sr-only; }
+.ezx-chip:has(input:focus-visible) { @apply tw-outline tw-outline-[3px] tw-outline-amber-400; }
+.ezx-seg      { @apply tw-inline-flex tw-p-0.5 tw-rounded-lg tw-bg-slate-100 tw-border tw-border-solid tw-border-slate-200; }
+.ezx-seg button { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-px-2.5 tw-py-1 tw-text-xs tw-font-semibold tw-text-slate-600 tw-bg-transparent tw-border-0 tw-cursor-pointer hover:tw-text-slate-900; }
+.ezx-seg button[aria-pressed="true"] { @apply tw-bg-white tw-text-blue-700 tw-shadow-sm; }
+.ezx-znak     { @apply tw-font-mono tw-text-[.7rem] tw-font-bold tw-text-blue-700; }
+.ezx-field label { @apply tw-block tw-text-[.68rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-mb-1; }
+/* Pozycja listy — ten sam DOM w układzie listy i kafli (klasy .sprawa-line/.sprawa-row/.bulk-cb/.sp-* to zaczepy skryptów) */
+.ezx-list .sprawa-line { @apply tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-100 last:tw-border-b-0 tw-transition hover:tw-bg-slate-50; }
+.ezx-grid     { @apply tw-grid tw-grid-cols-1 md:tw-grid-cols-2 2xl:tw-grid-cols-3 tw-gap-3 tw-p-3; }
+.ezx-grid .sprawa-line { @apply tw-relative tw-flex tw-flex-col tw-gap-2 tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-bg-white tw-p-3.5 tw-transition hover:tw-border-blue-300 hover:tw-shadow-md; }
+.sprawa-line.is-hidden { @apply tw-opacity-60; background: repeating-linear-gradient(135deg, transparent, transparent 6px, rgba(148,163,184,.08) 6px, rgba(148,163,184,.08) 7px); }
+.sprawa-row   { @apply tw-flex-1 tw-min-w-0 tw-no-underline tw-text-slate-900 tw-cursor-pointer tw-flex tw-flex-col tw-gap-1; }
+.sprawa-row:hover { @apply tw-text-slate-900; }
+.ezx-rowhead  { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-1.5; }
+.ezx-rowtitle { @apply tw-text-[.88rem] tw-font-semibold tw-leading-snug; }
+.ezx-list .ezx-rowtitle { @apply tw-truncate; }
+.ezx-rowmeta  { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-x-3 tw-gap-y-0.5 ezx-muted; }
+.ezx-rowmeta .ezx-sep { @apply tw-hidden; }
+.ezx-rowactions { @apply tw-flex tw-items-center tw-gap-1 tw-shrink-0; }
+.ezx-grid .ezx-rowactions { @apply tw-absolute tw-top-2.5 tw-right-2.5; }
+.ezx-grid .bulk-cb-wrap { @apply tw-absolute tw-top-3 tw-left-3; }
+.ezx-grid .sprawa-row { @apply tw-pt-6 tw-pl-6; }
+.ezx-list .bulk-cb-wrap { @apply tw-pl-1; }
+.sp-full-btn  { @apply tw-inline-flex tw-items-center tw-justify-center tw-w-8 tw-h-8 tw-rounded-lg tw-text-indigo-700 tw-no-underline tw-opacity-60 tw-transition hover:tw-opacity-100 hover:tw-bg-indigo-50; }
+.sp-hide-btn  { @apply tw-inline-flex tw-items-center tw-justify-center tw-w-8 tw-h-8 tw-rounded-lg tw-bg-transparent tw-border-0 tw-text-slate-400 tw-cursor-pointer tw-opacity-0 tw-transition hover:tw-text-rose-600 hover:tw-bg-rose-50; }
+.sprawa-line:hover .sp-hide-btn, .sp-hide-btn:focus-visible, .ezx-grid .sp-hide-btn { @apply tw-opacity-100; }
+.sprawa-line.is-hidden .sp-hide-btn { @apply tw-opacity-100 tw-text-slate-500 hover:tw-text-blue-700; }
+.dekr-cell    { @apply tw-flex tw-items-center tw-gap-1 tw-text-[.72rem]; }
+/* Timeline w popupie koszulki (ezd/sprawy/ajax_panel.php) — bez zmian kontraktu klas */
+.tl-wrap{display:flex;flex-direction:column;gap:.5rem}
+.tl-item{display:flex;align-items:flex-start;gap:.6rem}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:.55rem;border:2px solid}
+.tl-card{flex:1;border:1px solid #e2e8f0;border-radius:10px;padding:.5rem .75rem;background:#fff;transition:box-shadow .12s;color:inherit}
+.tl-card:hover{box-shadow:0 2px 8px rgba(15,23,42,.1)}
+.tl-syg{font-size:.62rem;font-family:monospace;color:#64748b;margin-bottom:.15rem}
+.tl-title{font-size:.83rem;font-weight:600;color:#1e293b;line-height:1.3}
+.tl-meta{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem;font-size:.7rem;color:#64748b}
+.pismo-in .tl-dot{border-color:#0ea5e9;background:#e0f2fe}
+.pismo-out .tl-dot{border-color:#8b5cf6;background:#ede9fe}
+.pismo-int .tl-dot{border-color:#94a3b8;background:#f1f5f9}
+.tl-card.pismo-in{border-left:3px solid #0ea5e9}
+.tl-card.pismo-out{border-left:3px solid #8b5cf6}
+.tl-card.pismo-int{border-left:3px solid #94a3b8}
 </style>
 
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <h4 class="mb-0 fw-bold"><i class="bi bi-folder2-open text-primary me-2"></i>Koszulki</h4>
-  <div class="d-flex gap-2">
-    <?php if(can_edit()): ?>
-    <button type="button" id="bulkTrigger" class="btn btn-success btn-sm" disabled
-            data-bs-toggle="modal" data-bs-target="#bulkModal" title="Przerejestruj zaznaczone koszulki">
-      <i class="bi bi-arrow-left-right me-1"></i>Przerejestruj zaznaczone <span class="badge bg-light text-success ms-1" id="bulkCount">0</span>
+<div x-data="ezdSprawy(<?= h(json_encode(['filtersOpen' => $n_filters > 0], JSON_UNESCAPED_SLASHES)) ?>)" x-cloak>
+
+<!-- ═══════════ NAGŁÓWEK ═══════════ -->
+<div class="tw-flex tw-flex-wrap tw-items-end tw-justify-between tw-gap-3 tw-mb-4">
+  <div>
+    <div class="ezx-eyebrow tw-mb-1">Wirtualne biurko · EZD</div>
+    <h1 class="tw-m-0 tw-text-[1.4rem] tw-font-bold tw-tracking-tight tw-text-slate-900"><i class="bi bi-folder2-open tw-text-blue-600 tw-mr-1" aria-hidden="true"></i>Koszulki</h1>
+    <p class="tw-m-0 tw-mt-0.5 tw-text-sm tw-text-slate-500">
+      <strong class="tw-text-slate-800"><?= count($sprawy) ?></strong> <?= count($sprawy) === 1 ? 'koszulka' : (count($sprawy) % 10 >= 2 && count($sprawy) % 10 <= 4 && (count($sprawy) % 100 < 12 || count($sprawy) % 100 > 14) ? 'koszulki' : 'koszulek') ?>
+      <?= $n_filters ? ' spełnia filtry (' . $n_filters . ')' : ' w wykazie' ?><?= $cnt_over ? ' · <span class="tw-text-rose-600 tw-font-semibold">' . $cnt_over . ' po terminie</span>' : '' ?>
+    </p>
+  </div>
+  <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
+    <?php if (can_edit()): ?>
+    <button type="button" id="bulkTrigger" class="ezx-btn ezx-btn--emerald tw-py-2 tw-px-3.5 tw-text-sm" disabled data-bs-toggle="modal" data-bs-target="#bulkModal" title="Przerejestruj zaznaczone koszulki">
+      <i class="bi bi-arrow-left-right" aria-hidden="true"></i>Przerejestruj zaznaczone <span class="tw-rounded-full tw-bg-white/25 tw-px-1.5 tw-text-[.7rem]" id="bulkCount">0</span>
     </button>
     <?php endif; ?>
-    <a href="?<?= h(http_build_query(array_merge($_GET, ['export'=>'csv']))) ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Eksport CSV</a>
-    <?php if(can_edit()): ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-stars me-1"></i>Przerejestrowanie (AI)</a>
-    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="btn btn-primary btn-sm"><i class="bi bi-folder-plus me-1"></i>Nowa koszulka</a>
+    <a href="<?= h($self_q(['export' => 'csv'])) ?>" class="ezx-btn ezx-btn--ghost tw-py-2 tw-px-3.5 tw-text-sm"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>Eksport CSV</a>
+    <?php if (can_edit()): ?>
+    <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php" class="ezx-btn ezx-btn--ghost tw-py-2 tw-px-3.5 tw-text-sm"><i class="bi bi-stars" aria-hidden="true"></i>Przerejestrowanie (AI)</a>
+    <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="ezx-btn tw-py-2 tw-px-3.5 tw-text-sm"><i class="bi bi-folder-plus" aria-hidden="true"></i>Nowa koszulka</a>
     <?php endif; ?>
   </div>
 </div>
 
-<?= flash_html() ?>
-
-<!-- Filtry -->
-<form method="get" class="mb-3">
-<!-- Duża listwa wyszukiwania -->
-<div class="ezd-search mb-3">
-  <div class="input-group input-group-lg">
-    <span class="input-group-text"><i class="bi bi-search"></i></span>
-    <input type="search" name="q" value="<?= h($q) ?>" autofocus
+<!-- ═══════════ SZUKAJ + FILTRY ═══════════ -->
+<form method="get" class="tw-mb-4" role="search">
+  <label for="ezx-q" class="tw-sr-only">Szukaj koszulek</label>
+  <div class="tw-flex tw-items-center tw-gap-2 tw-rounded-2xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm tw-pl-4 tw-pr-2 tw-py-1.5 focus-within:tw-border-blue-400 focus-within:tw-ring-4 focus-within:tw-ring-blue-100">
+    <i class="bi bi-search tw-text-slate-400" aria-hidden="true"></i>
+    <input id="ezx-q" type="search" name="q" value="<?= h($q) ?>" autofocus autocomplete="off" class="tw-flex-1 tw-border-0 tw-bg-transparent tw-py-1.5 tw-text-[.95rem] tw-text-slate-900 tw-outline-none tw-min-w-0"
            placeholder="Szukaj po numerze dokumentu, numerze koszulki lub tytule…">
-    <button class="btn btn-primary" type="submit">Szukaj</button>
+    <button type="button" class="ezx-btn ezx-btn--ghost tw-py-2" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen ? 'true' : 'false'" aria-controls="ezx-filters">
+      <i class="bi bi-sliders" aria-hidden="true"></i>Filtry<?php if ($n_filters): ?> <span class="tw-rounded-full tw-bg-blue-600 tw-text-white tw-px-1.5 tw-text-[.68rem]"><?= $n_filters ?></span><?php endif; ?>
+    </button>
+    <button type="submit" class="ezx-btn tw-py-2 tw-px-4 tw-text-sm">Szukaj</button>
   </div>
-</div>
-<div class="row g-2 align-items-end">
-  <div class="col-md-3">
-    <select name="status" class="form-select form-select-sm">
-      <option value="">Wszystkie statusy</option>
-      <?php foreach(EZD_STATUSES_SPRAWA as $sv=>$sl): ?>
-      <option value="<?= $sv ?>" <?= $status_f===$sv?'selected':'' ?>><?= h($sl['label']) ?></option>
+
+  <div id="ezx-filters" x-show="filtersOpen" x-collapse x-cloak>
+    <div class="ezx-card tw-mt-3 tw-p-4">
+      <div class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 xl:tw-grid-cols-6 tw-gap-3">
+        <div class="ezx-field">
+          <label for="f-status">Status</label>
+          <select id="f-status" name="status" class="form-select form-select-sm">
+            <option value="">Wszystkie</option>
+            <?php foreach (EZD_STATUSES_SPRAWA as $sv => $sl): ?><option value="<?= $sv ?>" <?= $status_f === $sv ? 'selected' : '' ?>><?= h($sl['label']) ?></option><?php endforeach; ?>
+          </select>
+        </div>
+        <div class="ezx-field">
+          <label for="f-priority">Priorytet</label>
+          <select id="f-priority" name="priority" class="form-select form-select-sm">
+            <option value="">Wszystkie</option>
+            <?php foreach (EZD_PRIORITIES as $pv => $pl): ?><option value="<?= $pv ?>" <?= $priority_f === $pv ? 'selected' : '' ?>><?= h($pl['label']) ?></option><?php endforeach; ?>
+          </select>
+        </div>
+        <div class="ezx-field">
+          <label for="f-owner">Właściciel</label>
+          <select id="f-owner" name="owner_id" class="form-select form-select-sm">
+            <option value="">Wszyscy</option>
+            <?php foreach ($owners as $o): ?><option value="<?= (int)$o['id'] ?>" <?= $owner_f === (int)$o['id'] ? 'selected' : '' ?>><?= h($o['name']) ?></option><?php endforeach; ?>
+          </select>
+        </div>
+        <div class="ezx-field"><label for="f-dod">Termin od</label><input type="date" id="f-dod" name="deadline_od" class="form-control form-control-sm" value="<?= h($dod) ?>"></div>
+        <div class="ezx-field"><label for="f-ddo">Termin do</label><input type="date" id="f-ddo" name="deadline_do" class="form-control form-control-sm" value="<?= h($ddo) ?>"></div>
+        <div class="tw-flex tw-items-end tw-gap-2">
+          <button type="submit" class="ezx-btn tw-py-2 tw-flex-1"><i class="bi bi-funnel" aria-hidden="true"></i>Filtruj</button>
+          <?php if ($n_filters || $q !== ''): ?><a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="ezx-btn ezx-btn--ghost tw-py-2" title="Wyczyść filtry"><i class="bi bi-x-lg" aria-hidden="true"></i></a><?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2 tw-mt-3" role="group" aria-label="Szybkie przełączniki">
+    <label class="ezx-chip<?= $mine_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="mine" value="1" <?= $mine_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-person-check" aria-hidden="true"></i>Tylko moje i współdzielone</label>
+    <label class="ezx-chip<?= $hide_ciagla_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="hide_ciagla" value="1" <?= $hide_ciagla_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-infinity" aria-hidden="true"></i>Ukryj ciągle otwarte</label>
+    <label class="ezx-chip<?= $hide_old_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="hide_old" value="1" <?= $hide_old_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-clock-history" aria-hidden="true"></i>Ukryj starsze niż 14 dni</label>
+    <?php if (can_edit()): ?>
+    <label class="ezx-chip<?= $show_hidden_f ? ' ezx-chip--on' : '' ?>"><input type="checkbox" name="show_hidden" value="1" <?= $show_hidden_f ? 'checked' : '' ?> onchange="this.form.submit()"><i class="bi bi-eye-slash" aria-hidden="true"></i>Pokaż ukryte</label>
+    <?php endif; ?>
+    <?php if ($active_filters): ?>
+    <span class="ezx-muted tw-ml-1">Aktywne:
+      <?php foreach ($active_filters as $fk => $fv): $lbl = match ($fk) {
+          'status' => 'status: ' . (EZD_STATUSES_SPRAWA[$fv]['label'] ?? $fv), 'priority' => 'priorytet: ' . (EZD_PRIORITIES[$fv]['label'] ?? $fv),
+          'owner_id' => 'właściciel: ' . ($owner_names[(int)$fv] ?? $fv), 'deadline_od' => 'od ' . $fv, 'deadline_do' => 'do ' . $fv, default => $fv }; ?>
+      <a href="<?= h($self_q([$fk => ''])) ?>" class="ezx-badge ezx-badge--blue tw-no-underline tw-ml-1" title="Usuń ten filtr"><?= h($lbl) ?> <i class="bi bi-x" aria-hidden="true"></i></a>
       <?php endforeach; ?>
-    </select>
+    </span>
+    <?php endif; ?>
   </div>
-  <div class="col-md-2">
-    <select name="priority" class="form-select form-select-sm">
-      <option value="">Wszystkie priorytety</option>
-      <?php foreach(EZD_PRIORITIES as $pv=>$pl): ?>
-      <option value="<?= $pv ?>" <?= $priority_f===$pv?'selected':'' ?>><?= h($pl['label']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="col-md-2">
-    <select name="owner_id" class="form-select form-select-sm">
-      <option value="">Wszyscy właściciele</option>
-      <?php foreach($owners as $o): ?>
-      <option value="<?= $o['id'] ?>" <?= $owner_f===(int)$o['id']?'selected':'' ?>><?= h($o['name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="col-md-1">
-    <input type="date" name="deadline_od" class="form-control form-control-sm" value="<?= h($dod) ?>" title="Termin od">
-  </div>
-  <div class="col-md-1">
-    <input type="date" name="deadline_do" class="form-control form-control-sm" value="<?= h($ddo) ?>" title="Termin do">
-  </div>
-  <div class="col-md-1">
-    <button type="submit" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-funnel me-1"></i>Filtruj</button>
-  </div>
-</div>
-<div class="d-flex flex-wrap gap-3 mt-2">
-  <div class="form-check">
-    <input class="form-check-input" type="checkbox" name="mine" value="1" id="f-mine" <?= $mine_f?'checked':'' ?> onchange="this.form.submit()">
-    <label class="form-check-label" for="f-mine" style="font-size:.82rem">Tylko moje i współdzielone ze mną</label>
-  </div>
-  <div class="form-check">
-    <input class="form-check-input" type="checkbox" name="hide_ciagla" value="1" id="f-hide-ciagla" <?= $hide_ciagla_f?'checked':'' ?> onchange="this.form.submit()">
-    <label class="form-check-label" for="f-hide-ciagla" style="font-size:.82rem"><i class="bi bi-infinity me-1 text-info"></i>Ukryj ciągle otwarte</label>
-  </div>
-  <div class="form-check">
-    <input class="form-check-input" type="checkbox" name="hide_old" value="1" id="f-hide-old" <?= $hide_old_f?'checked':'' ?> onchange="this.form.submit()">
-    <label class="form-check-label" for="f-hide-old" style="font-size:.82rem"><i class="bi bi-clock-history me-1 text-muted"></i>Ukryj starsze niż 14 dni</label>
-  </div>
-  <?php if(can_edit()): ?>
-  <div class="form-check">
-    <input class="form-check-input" type="checkbox" name="show_hidden" value="1" id="f-show-hidden" <?= $show_hidden_f?'checked':'' ?> onchange="this.form.submit()">
-    <label class="form-check-label" for="f-show-hidden" style="font-size:.82rem"><i class="bi bi-eye-slash me-1 text-secondary"></i>Pokaż ukryte</label>
-  </div>
-  <?php endif; ?>
-</div>
 </form>
 
-<!-- Tabela -->
-<div class="card shadow-sm">
-  <div class="card-header d-flex align-items-center justify-content-between">
-    <span class="fw-semibold" style="font-size:.88rem"><i class="bi bi-folder2 me-1 text-primary"></i>Wyniki (<?= count($sprawy) ?>)</span>
-    <?php if(can_edit() && $sprawy): ?>
-    <div class="form-check mb-0">
-      <input type="checkbox" id="bulkAll" class="form-check-input">
-      <label for="bulkAll" class="form-check-label" style="font-size:.8rem">Zaznacz wszystkie</label>
-    </div>
+<!-- ═══════════ WYNIKI ═══════════ -->
+<div class="ezx-card">
+  <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-3 tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-100">
+    <span class="tw-text-[.9rem] tw-font-semibold tw-text-slate-900"><i class="bi bi-folder2 tw-text-blue-600 tw-mr-1" aria-hidden="true"></i>Wyniki <span class="ezx-muted tw-font-normal">(<?= count($sprawy) ?>)</span></span>
+    <?php if (can_edit() && $sprawy): ?>
+    <label class="tw-inline-flex tw-items-center tw-gap-2 tw-text-xs tw-text-slate-600 tw-cursor-pointer tw-m-0">
+      <input type="checkbox" id="bulkAll" class="form-check-input tw-m-0">Zaznacz wszystkie
+    </label>
     <?php endif; ?>
+    <div class="ezx-seg tw-ml-auto" role="group" aria-label="Układ listy">
+      <button type="button" :aria-pressed="view === 'list' ? 'true' : 'false'" @click="setView('list')" title="Lista"><i class="bi bi-list-ul" aria-hidden="true"></i><span class="tw-hidden sm:tw-inline">Lista</span></button>
+      <button type="button" :aria-pressed="view === 'cards' ? 'true' : 'false'" @click="setView('cards')" title="Kafle"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span class="tw-hidden sm:tw-inline">Kafle</span></button>
+    </div>
   </div>
 
-  <div>
-    <?php foreach($sprawy as $s):
-      $lz = ezd_lezy_since($s['dekr_since'] ?? null);
+  <div :class="view === 'cards' ? 'ezx-grid' : 'ezx-list'">
+    <?php foreach ($sprawy as $s):
+      $lz   = ezd_lezy_since($s['dekr_since'] ?? null);
+      $em   = ezd_etap_meta($s['etap'] ?: 'wszczeta');
+      $st   = EZD_STATUSES_SPRAWA[$s['status']] ?? ['label' => $s['status'], 'class' => 'secondary'];
+      $pr   = EZD_PRIORITIES[$s['priority']] ?? ['label' => $s['priority'], 'class' => 'secondary'];
+      $over = $s['deadline'] && $s['deadline'] < $today && empty($s['ciagla']) && $s['status'] !== 'closed';
+      $hid  = !empty($s['hidden_at']);
     ?>
-    <div class="sprawa-line<?= !empty($s['hidden_at']) ? ' is-hidden' : '' ?>" data-sprawa-id="<?= (int)$s['id'] ?>">
-      <?php if(can_edit()): ?>
-      <div class="ps-3 pe-1"><input type="checkbox" class="form-check-input bulk-cb" name="ids[]" value="<?= (int)$s['id'] ?>" form="bulkForm" aria-label="Zaznacz koszulkę <?= h($s['znak_sprawy']) ?>"></div>
+    <div class="sprawa-line<?= $hid ? ' is-hidden' : '' ?>" data-sprawa-id="<?= (int)$s['id'] ?>">
+      <?php if (can_edit()): ?>
+      <div class="bulk-cb-wrap"><input type="checkbox" class="form-check-input bulk-cb tw-m-0" name="ids[]" value="<?= (int)$s['id'] ?>" form="bulkForm" aria-label="Zaznacz koszulkę <?= h($s['znak_sprawy']) ?>"></div>
       <?php endif; ?>
-    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= $s['id'] ?>"
-       class="sprawa-row flex-grow-1 ezd-sp-preview"
-       data-sprawa-id="<?= (int)$s['id'] ?>"
-       data-sprawa-title="<?= h(mb_substr($s['title'],0,60)) ?>"
-       aria-label="Podgląd koszulki: <?= h($s['title']) ?>. Ctrl+klik otwiera pełny widok.">
-      <div class="flex-grow-1 overflow-hidden">
-        <div class="fw-semibold text-truncate" style="font-size:.88rem"><?= h($s['title']) ?></div>
-        <div class="text-muted" style="font-size:.74rem"><span class="font-monospace"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-archive me-1"></i><?= h($s['teczka_symbol'].' — '.$s['teczka_title']) ?><?= !empty($s['hidden_at']) ? ' · <span class="badge bg-secondary" style="font-size:.6rem;vertical-align:middle"><i class="bi bi-eye-slash me-1"></i>ukryta</span>' : '' ?></div>
-      </div>
-      <div class="dekr-cell">
-        <?php if(!empty($s['dekr_wykonawca_name'])): ?>
-        <div class="dekr-who"><i class="bi bi-person-fill me-1 text-warning"></i><?= h($s['dekr_wykonawca_name']) ?></div>
-        <div class="dekr-lezy text-<?= $lz['class'] ?>"><i class="bi bi-hourglass-split me-1"></i>leży: <?= h($lz['label']) ?></div>
-        <?php else: ?>
-        <span class="text-muted" style="font-size:.7rem"><i class="bi bi-dash-circle me-1"></i>nieprzekazana</span>
+      <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$s['id'] ?>" class="sprawa-row ezd-sp-preview"
+         data-sprawa-id="<?= (int)$s['id'] ?>" data-sprawa-title="<?= h(mb_substr($s['title'], 0, 60)) ?>"
+         aria-label="Podgląd koszulki: <?= h($s['title']) ?>. Ctrl+klik otwiera pełny widok.">
+        <div class="ezx-rowhead">
+          <span class="ezx-znak"><?= h($s['znak_sprawy']) ?></span>
+          <span class="ezx-badge ezx-badge--<?= $s['etap'] === 'akceptacja' ? 'violet' : ($TONE[$em['class']] ?? 'slate') ?>"><i class="bi <?= h($em['icon'] ?? 'bi-record-circle') ?>" aria-hidden="true"></i><?= $s['etap'] === 'akceptacja' ? 'W akceptacji' : h($em['label']) ?></span>
+          <?php if ($s['status'] !== 'open'): ?><span class="ezx-badge ezx-badge--<?= $TONE[$st['class']] ?? 'slate' ?>"><?= h($st['label']) ?></span><?php endif; ?>
+          <?php if (in_array($s['priority'], ['high', 'urgent'], true)): ?><span class="ezx-badge ezx-badge--<?= $TONE[$pr['class']] ?? 'slate' ?>"><i class="bi bi-flag-fill" aria-hidden="true"></i><?= h($pr['label']) ?></span><?php endif; ?>
+          <?php if ($over): ?><span class="ezx-badge ezx-badge--urgent"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>Pilne</span><?php endif; ?>
+          <?php if (!empty($s['ciagla'])): ?><span class="ezx-badge ezx-badge--sky" title="Koszulka ciągła"><i class="bi bi-infinity" aria-hidden="true"></i>ciągła</span><?php endif; ?>
+          <?php if ($hid): ?><span class="ezx-badge ezx-badge--slate"><i class="bi bi-eye-slash" aria-hidden="true"></i>ukryta</span><?php endif; ?>
+        </div>
+        <div class="ezx-rowtitle"><?= h($s['title']) ?></div>
+        <div class="ezx-rowmeta">
+          <span class="tw-truncate tw-max-w-[280px]" title="<?= h($s['teczka_symbol'] . ' — ' . $s['teczka_title']) ?>"><i class="bi bi-archive tw-mr-0.5" aria-hidden="true"></i><?= h($s['teczka_symbol']) ?> <span class="tw-text-slate-400">· <?= h(mb_strimwidth($s['teczka_title'], 0, 40, '…')) ?></span></span>
+          <span title="Właściciel"><i class="bi bi-person tw-mr-0.5" aria-hidden="true"></i><?= h($s['owner_name'] ?? '—') ?></span>
+          <?php if (!empty($s['ciagla'])): ?><span class="tw-text-sky-600"><i class="bi bi-infinity" aria-hidden="true"></i> stale otwarta</span>
+          <?php elseif ($s['deadline']): ?><span class="<?= $over ? 'tw-text-rose-600 tw-font-semibold' : '' ?>"><i class="bi bi-calendar-event tw-mr-0.5" aria-hidden="true"></i>termin <?= date_pl($s['deadline']) ?></span><?php endif; ?>
+          <?php if (!empty($s['dekr_wykonawca_name'])): ?>
+          <span class="dekr-cell"><i class="bi bi-person-fill tw-text-amber-500" aria-hidden="true"></i><span class="tw-font-semibold tw-text-slate-700"><?= h($s['dekr_wykonawca_name']) ?></span><span class="<?= $lz['class'] === 'danger' ? 'tw-text-rose-600' : ($lz['class'] === 'warning' ? 'tw-text-amber-600' : 'tw-text-slate-500') ?>"><i class="bi bi-hourglass-split" aria-hidden="true"></i> leży: <?= h($lz['label']) ?></span></span>
+          <?php else: ?><span class="tw-text-slate-400"><i class="bi bi-dash-circle" aria-hidden="true"></i> nieprzekazana</span><?php endif; ?>
+        </div>
+      </a>
+      <div class="ezx-rowactions">
+        <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$s['id'] ?>" class="sp-full-btn" title="Przejdź do sprawy — pełny widok" aria-label="Przejdź do sprawy: <?= h($s['title']) ?>"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i></a>
+        <?php if (can_edit()): ?>
+        <button type="button" class="sp-hide-btn" data-id="<?= (int)$s['id'] ?>" data-hidden="<?= $hid ? '1' : '0' ?>"
+                title="<?= $hid ? 'Przywróć na liście' : 'Ukryj koszulkę na liście' ?>" aria-label="<?= $hid ? 'Przywróć koszulkę na liście' : 'Ukryj koszulkę na liście' ?>">
+          <i class="bi <?= $hid ? 'bi-eye' : 'bi-eye-slash' ?>" aria-hidden="true"></i>
+        </button>
         <?php endif; ?>
       </div>
-      <?= ezd_etap_badge($s['etap'] ?? 'wszczeta') ?>
-      <?= ezd_priority_badge($s['priority']) ?>
-      <?= ezd_status_badge_sprawa($s['status']) ?>
-      <div class="text-muted" style="font-size:.73rem;white-space:nowrap">
-        <?php if($s['deadline']): ?>
-        <span class="<?= $s['deadline']<date('Y-m-d')?'text-danger fw-bold':'' ?>"><i class="bi bi-calendar-event me-1"></i><?= date_pl($s['deadline']) ?></span>
-        <?php endif; ?>
-      </div>
-      <div class="text-muted" style="font-size:.73rem;white-space:nowrap" title="Właściciel"><?= h($s['owner_name']??'—') ?></div>
-      <i class="bi bi-chevron-right text-muted" style="font-size:.75rem"></i>
-    </a>
-    <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$s['id'] ?>"
-       class="sp-full-btn"
-       title="Przejdź do sprawy — pełny widok"
-       aria-label="Przejdź do sprawy: <?= h($s['title']) ?>">
-      <i class="bi bi-box-arrow-in-right" style="font-size:1rem"></i>
-    </a>
-    <?php if(can_edit()): ?>
-    <button type="button"
-            class="sp-hide-btn"
-            data-id="<?= (int)$s['id'] ?>"
-            data-hidden="<?= !empty($s['hidden_at']) ? '1' : '0' ?>"
-            title="<?= !empty($s['hidden_at']) ? 'Przywróć na liście' : 'Ukryj koszulkę na liście' ?>"
-            aria-label="<?= !empty($s['hidden_at']) ? 'Przywróć koszulkę na liście' : 'Ukryj koszulkę na liście' ?>">
-      <i class="bi <?= !empty($s['hidden_at']) ? 'bi-eye' : 'bi-eye-slash' ?>"></i>
-    </button>
-    <?php endif; ?>
     </div>
     <?php endforeach; ?>
-    <?php if(!$sprawy): ?>
-    <div class="text-center py-5 text-muted">
-      <i class="bi bi-folder2" style="font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-      Brak koszulek pasujących do filtrów.
-      <?php if(can_edit()): ?><br><a href="<?= APP_URL ?>/ezd/sprawy/add.php">Załóż pierwszą koszulkę.</a><?php endif; ?>
+    <?php if (!$sprawy): ?>
+    <div class="tw-text-center tw-py-12 tw-px-4 tw-col-span-full">
+      <i class="bi bi-folder2 tw-text-4xl tw-text-slate-300 tw-block tw-mb-2" aria-hidden="true"></i>
+      <div class="tw-font-semibold tw-text-slate-800">Brak koszulek pasujących do filtrów</div>
+      <div class="ezx-muted tw-mt-1"><?php if ($n_filters || $q !== ''): ?><a href="<?= APP_URL ?>/ezd/sprawy/index.php" class="tw-text-blue-700">Wyczyść filtry</a><?php endif; ?><?php if (can_edit()): ?> <?= ($n_filters || $q !== '') ? '·' : '' ?> <a href="<?= APP_URL ?>/ezd/sprawy/add.php" class="tw-text-blue-700">Załóż nową koszulkę</a><?php endif; ?></div>
     </div>
     <?php endif; ?>
   </div>
 </div>
-<?php if(can_edit() && $sprawy): ?>
-<!-- Modal: masowe przerejestrowanie -->
+
+</div><!-- /x-data ezdSprawy -->
+
+<script>
+document.addEventListener('alpine:init', function () {
+  // Układ (lista/kafle) zapamiętywany w przeglądarce; panel filtrów otwarty, gdy jakiś filtr jest aktywny.
+  Alpine.data('ezdSprawy', function (cfg) {
+    return {
+      filtersOpen: !!cfg.filtersOpen, view: 'list',
+      init: function () { try { var v = localStorage.getItem('ezd_sprawy_view'); if (v === 'cards' || v === 'list') this.view = v; } catch (e) {} },
+      setView: function (v) { this.view = v; try { localStorage.setItem('ezd_sprawy_view', v); } catch (e) {} }
+    };
+  });
+});
+</script>
+
+<?php if (can_edit() && $sprawy): ?>
+<!-- Modal: masowe przerejestrowanie (Bootstrap) -->
 <div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form id="bulkForm" method="post" action="<?= h($_SERVER['REQUEST_URI']) ?>" onsubmit="return bulkConfirm()">
@@ -310,15 +365,15 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <label class="form-label fw-semibold small">Przenieś do:</label>
           <select name="target" class="form-select" required>
             <option value="">— segregator lub klasa JRWA —</option>
-            <?php if($teczki_cele): ?>
+            <?php if ($teczki_cele): ?>
             <optgroup label="Istniejące segregatory (otwarte)">
-              <?php foreach($teczki_cele as $t): ?>
-              <option value="teczka:<?= (int)$t['id'] ?>"><?= h($t['symbol']) ?> · <?= h($t['title']) ?> (<?= (int)$t['rok'] ?>)<?= $t['jrwa_symbol'] ? ' — JRWA '.h($t['jrwa_symbol']) : '' ?></option>
+              <?php foreach ($teczki_cele as $t): ?>
+              <option value="teczka:<?= (int)$t['id'] ?>"><?= h($t['symbol']) ?> · <?= h($t['title']) ?> (<?= (int)$t['rok'] ?>)<?= $t['jrwa_symbol'] ? ' — JRWA ' . h($t['jrwa_symbol']) : '' ?></option>
               <?php endforeach; ?>
             </optgroup>
             <?php endif; ?>
             <optgroup label="Utwórz/uzupełnij segregator w klasie JRWA">
-              <?php foreach($jrwa_cele as $j): ?>
+              <?php foreach ($jrwa_cele as $j): ?>
               <option value="jrwa:<?= h($j['symbol']) ?>"><?= h($j['symbol']) ?> — <?= h($j['title']) ?></option>
               <?php endforeach; ?>
             </optgroup>
@@ -363,19 +418,17 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 })();
 </script>
 <?php endif; ?>
-<!-- Modal: szybki podgląd koszulki ——————————————————————————————— -->
-<div class="modal fade" id="ksModal" tabindex="-1"
-     role="dialog" aria-modal="true" aria-labelledby="ksModalLabel">
-  <div class="modal-dialog modal-xl modal-fullscreen-md-down"
-       style="--bs-modal-width:min(900px,96vw)">
-    <div class="modal-content">
-      <div class="modal-header py-2" style="border-bottom:2px solid #e2e8f0">
+
+<!-- Modal: szybki podgląd koszulki (Bootstrap; treść z ezd/sprawy/ajax_panel.php) -->
+<div class="modal fade" id="ksModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="ksModalLabel">
+  <div class="modal-dialog modal-xl modal-fullscreen-md-down" style="--bs-modal-width:min(900px,96vw)">
+    <div class="modal-content" style="border-radius:16px;overflow:hidden">
+      <div class="modal-header py-2" style="border-bottom:1px solid #e2e8f0">
         <h2 class="modal-title fw-bold mb-0" id="ksModalLabel" style="font-size:.88rem">
           <i class="bi bi-folder2-open text-primary me-2" aria-hidden="true"></i>
           <span id="ksModalTitleText">Koszulka</span>
         </h2>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                aria-label="Zamknij podgląd koszulki"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij podgląd koszulki"></button>
       </div>
       <div class="modal-body p-3" id="ksModalBody" style="min-height:340px;max-height:82vh;overflow-y:auto">
         <div id="ksModalSpinner" class="text-center py-5 text-muted">
@@ -405,53 +458,30 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       body.innerHTML = cache[id];
     } else {
       body.innerHTML = SPINNER;
-      fetch('<?= APP_URL ?>/ezd/sprawy/ajax_panel.php?id=' + id,
-            {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}})
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
-        })
-        .then(function (html) {
-          if (curId === id) {
-            body.innerHTML = html;
-            cache[id] = html;
-          }
-        })
-        .catch(function () {
-          if (curId === id)
-            body.innerHTML = '<p class="text-danger p-3 mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Nie udało się załadować koszulki.</p>';
-        });
+      fetch('<?= APP_URL ?>/ezd/sprawy/ajax_panel.php?id=' + id, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function (html) { if (curId === id) { body.innerHTML = html; cache[id] = html; } })
+        .catch(function () { if (curId === id) body.innerHTML = '<p class="text-danger p-3 mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Nie udało się załadować koszulki.</p>'; });
     }
     bsModal.show();
-    setTimeout(function () {
-      var first = body.querySelector('a,button,[tabindex="0"]');
-      if (first) first.focus();
-    }, 350);
+    setTimeout(function () { var first = body.querySelector('a,button,[tabindex="0"]'); if (first) first.focus(); }, 350);
   }
 
+  var lastTrigger = null;
   document.querySelectorAll('.ezd-sp-preview').forEach(function (el) {
     el.addEventListener('click', function (e) {
       /* Ctrl/Cmd/Shift+klik → normalna nawigacja do pełnego widoku */
       if (e.ctrlKey || e.metaKey || e.shiftKey) return;
       e.preventDefault();
+      lastTrigger = el;
       open(el.dataset.sprawaId, el.dataset.sprawaTitle || 'Koszulka');
     });
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); el.click(); }
-    });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); el.click(); } });
   });
 
-  /* Czyść stan po zamknięciu */
+  /* Czyść stan i oddaj fokus wierszowi po zamknięciu (WCAG 2.5.3) */
   modalEl.addEventListener('hidden.bs.modal', function () {
     curId = null;
-  });
-
-  /* Powrót fokusu na wiersz po zamknięciu modalem (WCAG 2.5.3) */
-  var lastTrigger = null;
-  document.querySelectorAll('.ezd-sp-preview').forEach(function (el) {
-    el.addEventListener('click', function () { lastTrigger = el; });
-  });
-  modalEl.addEventListener('hidden.bs.modal', function () {
     if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
   });
 })();
@@ -475,8 +505,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       var fd = new FormData();
       fd.append('_csrf', CSRF); fd.append('id', id); fd.append('action', action);
 
-      fetch(HIDE_URL, {method:'POST', credentials:'same-origin', body: fd,
-                       headers:{'X-Requested-With':'XMLHttpRequest'}})
+      fetch(HIDE_URL, {method:'POST', credentials:'same-origin', body: fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
         .then(function (r) { return r.json(); })
         .then(function (data) {
           btn.disabled = false;
