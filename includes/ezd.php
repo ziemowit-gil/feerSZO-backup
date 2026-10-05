@@ -4324,6 +4324,29 @@ function ezd_sign_request_upload(int $id, int $user_id, string $tmp, string $ori
     return ['ok' => true, 'signed_zal_id' => $signed_zal_id];
 }
 
+/**
+ * Podpis złożony z aplikacji (rSign → ezd/sign.php zapisuje nową wersję załącznika) domyka otwarty wniosek o podpis
+ * tego pliku skierowany do podpisującego: status 'podpisane' + podpisany plik + powiadomienie nadawcy — to samo, co
+ * ręczne wgranie podpisanego PDF (ezd_sign_request_upload), tylko bez pliku z dysku. Zwraca id domkniętego wniosku
+ * albo null, gdy takiego wniosku nie było (podpis „z własnej inicjatywy” też jest w porządku).
+ */
+function ezd_sign_request_mark_signed(int $zal_id, int $signed_zal_id, int $user_id): ?int {
+    $req = db_one("SELECT r.*, z.original_name AS zal_name FROM ezd_sign_requests r LEFT JOIN ezd_zalaczniki z ON z.id=r.zal_id
+                   WHERE r.zal_id=? AND r.requested_to=? AND r.status='oczekuje' ORDER BY r.requested_at ASC LIMIT 1", [$zal_id, $user_id]);
+    if (!$req) return null;
+    $id = (int)$req['id'];
+    db()->prepare("UPDATE ezd_sign_requests SET status='podpisane', signed_zal_id=?, signed_at=datetime('now') WHERE id=?")
+        ->execute([$signed_zal_id, $id]);
+    $to = db_one("SELECT name FROM users WHERE id=?", [$user_id]);
+    $sp = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [(int)$req['sprawa_id']]);
+    $msg = 'Dokument „' . ($req['zal_name'] ?? '—') . '" w koszulce ' . ($sp['znak_sprawy'] ?? '—') . ' został podpisany przez ' . ($to['name'] ?? '—');
+    if (function_exists('NotificationService')) {
+        try { (new NotificationService())->toUser((int)$req['requested_by'], $msg, APP_URL.'/ezd/podpis/view.php?id='.$id); } catch (\Throwable $_) {}
+    }
+    ezd_log(null, (int)$req['sprawa_id'], null, null, $user_id, 'sign_uploaded', 'Podpisano (rSign): ' . ($req['zal_name'] ?? '—'));
+    return $id;
+}
+
 function ezd_sign_request_confirm(int $id, int $user_id): void {
     $req = ezd_sign_request_get($id);
     if (!$req || $req['status'] !== 'podpisane') return;

@@ -4,6 +4,8 @@
  *
  * GET  ?zal_id=X          → JSON {name, data (base64 PDF), mime, csrf}
  *                            (dokument do podpisania w rSign Desktop)
+ * GET  ?zal_id=X&info=1   → JSON {name, size, sha256, znak_sprawy, sprawa_id, signed, request_id} — same metadane
+ *                            i skrót dokumentu (modal potwierdzenia na pulpicie), bez treści pliku
  * POST ?zal_id=X + JSON   → {ok, new_zal_id, version, signer, integrity}
  *      body: {signed_data: base64, signed_name: string, csrf: token}
  */
@@ -62,6 +64,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (strlen($bytes) > 50 * 1024 * 1024) {
         http_response_code(413);
         echo json_encode(['error' => 'Plik przekracza 50 MB — za duży do podpisania przez rSign Desktop.']);
+        exit;
+    }
+
+    if (!empty($_GET['info'])) {
+        // Skrót pokazujemy użytkownikowi PRZED podpisem: potwierdza, że podpisuje dokładnie ten plik, który widzi w podglądzie.
+        $sp  = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [(int)$z['sprawa_id']]);
+        $req = db_one("SELECT id FROM ezd_sign_requests WHERE zal_id=? AND requested_to=? AND status='oczekuje' ORDER BY requested_at ASC LIMIT 1",
+                      [$zal_id, (int)current_user()['id']]);
+        echo json_encode([
+            'name'        => $z['original_name'],
+            'size'        => strlen($bytes),
+            'sha256'      => hash('sha256', $bytes),
+            'znak_sprawy' => (string)($sp['znak_sprawy'] ?? ''),
+            'sprawa_id'   => (int)$z['sprawa_id'],
+            'signed'      => (bool)(ezd_signature_info($path, $z['original_name'])['signed'] ?? false),
+            'request_id'  => $req ? (int)$req['id'] : null,
+            'version'     => (int)($z['wersja'] ?? 1),
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -188,6 +208,11 @@ $valid = ezd_validate_signature($dir . $stored, $signed_name);
 $cert  = $valid['certs'][0] ?? null;
 $cn    = $cert['cn'] ?? $info['signer'] ?? 'nieznany';
 
+// Profil podpisu (kafel na pulpicie: jakim certyfikatem podpisujesz, do kiedy ważny) + domknięcie wniosku o podpis tego pliku
+require_once dirname(__DIR__) . '/modules/ezd_sign_profile/logic/ezdSignProfile.php';
+if (is_array($cert)) EzdSignProfile::record($user_id, $cert, 'rsign');
+$closed_request = ezd_sign_request_mark_signed($zal_id, $new_zal_id, $user_id);
+
 // Log EZD
 ezd_log(
     null,
@@ -206,4 +231,5 @@ echo json_encode([
     'signer'     => $cn,
     'integrity'  => $valid['integrity'] ?? 'n/d',
     'cert'       => $cert,
+    'request_id' => $closed_request,
 ], JSON_UNESCAPED_UNICODE);
