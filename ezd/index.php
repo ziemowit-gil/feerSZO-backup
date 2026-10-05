@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/ezd.php';
 require_once dirname(__DIR__) . '/includes/pelnomocnictwa.php';
+require_once dirname(__DIR__) . '/includes/ezd_client.php';
 if (file_exists(dirname(__DIR__) . '/includes/notifications.php')) {
     require_once dirname(__DIR__) . '/includes/notifications.php';
 }
@@ -491,6 +492,32 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <!-- ──── Prawa: komunikaty + zastępstwa + linki ──────────────────────────── -->
   <div class="col-lg-3 col-xl-4">
+
+    <!-- EZD Client — aplikacja desktopowa (opis + pobieranie) -->
+    <?php $ezdc_files = ezd_client_files(); ?>
+    <div class="ezdd-card p-3 mb-3">
+      <div class="ezdd-label">EZD CLIENT</div>
+      <p class="small mb-2"><strong>Aplikacja na komputer</strong> (macOS i Windows) do pracy z EZD.
+        Skanuje dokumenty ze skanera sieciowego (AirScan/eSCL) i wgrywa je jednym kliknięciem do koszulki,
+        nowej koszulki albo dziennika podawczego (RPW), a potem otwiera rekord w przeglądarce.
+        Zawiera też szybką listę kontaktów z CRM. Konfiguracja jest jednorazowa — wystarczy klucz API.</p>
+      <?php if ($ezdc_files): ?>
+        <div class="d-grid gap-1">
+          <?php foreach ($ezdc_files as $ext => $f): ?>
+            <a class="btn btn-sm <?= in_array($ext, ['dmg', 'exe'], true) ? 'btn-primary' : 'btn-outline-secondary' ?> text-start"
+               href="<?= APP_URL ?>/ezd/klient/pobierz.php?ext=<?= h($ext) ?>">
+              <i class="bi bi-download me-1" aria-hidden="true"></i><?= h($f['label']) ?>
+              <span class="small opacity-75">· v<?= h($f['version']) ?>, <?= h(ezd_client_size_label($f['size'])) ?></span>
+            </a>
+          <?php endforeach; ?>
+        </div>
+      <?php else: ?>
+        <p class="small text-muted mb-0">Instalatory pojawią się tutaj wkrótce.<?= is_admin() ? ' Wgraj pliki .dmg/.pkg/.exe/.msi do katalogu <code>uploads/ezd-client/</code>.' : '' ?></p>
+      <?php endif; ?>
+      <?php if (is_admin()): ?>
+        <p class="small text-muted mt-2 mb-0">Klucz API dla aplikacji: <a href="<?= APP_URL ?>/admin/api_manage.php">Zarządzaj API</a> (uprawnienia ezd:read, ezd:upload, ezd:write; opcjonalnie crm:read, crm:write).</p>
+      <?php endif; ?>
+    </div>
 
     <!-- Ważne komunikaty -->
     <div class="ezdd-card p-3 mb-3">
