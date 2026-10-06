@@ -196,7 +196,7 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
         'q'=>$f['q'], 'status'=>$f['status'], 'opiekun'=>$f['opiekun'], 'projekt'=>$f['projekt'],
         'forma'=>$f['forma'], 'typ_st'=>$f['typ_st'], 'data_od'=>$f['data_od'], 'data_do'=>$f['data_do'],
         'wyna_od'=>$f['wyna_od'], 'wyna_do'=>$f['wyna_do'], 'zus'=>$f['zus'] ?: null,
-    'bez_rach'=>$f['bez_rach'] ?: null,
+    'bez_rach'=>$f['bez_rach'] ?: null, 'konczy'=>$f['konczy'] ?: null, 'po_term'=>$f['po_term'] ?: null,
         'sort'=>$sort_col !== 'created_at' ? $sort_col : null, 'dir'=>$sort_dir !== 'DESC' ? 'asc' : null,
     ], fn($v) => $v !== '' && $v !== null);
     $chip = fn($drop) => $base . '?' . http_build_query(array_diff_key($qs, array_flip(array_merge((array)$drop, ['page']))));
@@ -204,7 +204,7 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
     $adv_count = (int)!!$f['opiekun'] + (int)!!$f['projekt'] + (int)!!$f['forma'] + (int)!!$f['typ_st']
                + (int)!!$f['data_od'] + (int)!!$f['data_do']
                + (int)($f['wyna_od'] !== '') + (int)($f['wyna_do'] !== '') + (int)!!$f['zus']
-           + (int)!!$f['bez_rach'];
+           + (int)!!$f['bez_rach'] + (int)!!$f['konczy'] + (int)!!$f['po_term'];
     $filtering = $f['q'] !== '' || $f['status'] !== '' || $adv_count > 0;
 
     ob_start();
@@ -375,22 +375,6 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
 </div>
 <?php endif; ?>
 
-<?php if (($_zl_cnt_konczy || $_zl_cnt_poterm) && !$f['konczy'] && !$f['po_term']): ?>
-<!-- ══ ALERTY TERMINÓW — kończące się ≤ 14 dni / po terminie ═══════════════ -->
-<div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Alerty terminów">
-  <?php if ($_zl_cnt_konczy): ?>
-  <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?konczy=1" class="btn btn-sm btn-outline-warning text-dark">
-    <i class="bi bi-hourglass-split me-1"></i>Kończą się w ciągu 14 dni <span class="badge text-bg-warning ms-1"><?= $_zl_cnt_konczy ?></span>
-  </a>
-  <?php endif; ?>
-  <?php if ($_zl_cnt_poterm): ?>
-  <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?po_term=1" class="btn btn-sm btn-outline-danger">
-    <i class="bi bi-exclamation-octagon me-1"></i>Po terminie, do zamknięcia <span class="badge text-bg-danger ms-1"><?= $_zl_cnt_poterm ?></span>
-  </a>
-  <?php endif; ?>
-</div>
-<?php endif; ?>
-
 <!-- ══ STATYSTYKI ═══════════════════════════════════════════════════════════ -->
 <div class="row g-3 mb-3">
   <div class="col-6 col-md-3">
@@ -403,12 +387,22 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
     <div class="card shadow-sm h-100"><div class="card-body py-2">
       <div class="h4 mb-0"><?= number_format($stats['real'],0,',',' ') ?></div>
       <div class="text-muted small"><i class="bi bi-gear me-1" style="color:#0dcaf0"></i>W realizacji</div>
+      <?php if ($_zl_cnt_konczy): ?>
+      <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?konczy=1" class="small text-decoration-none" style="color:#b45309" title="Umowy kończące się w ciągu 14 dni">
+        <i class="bi bi-hourglass-split me-1"></i><?= $_zl_cnt_konczy ?> kończy się w ciągu 14 dni
+      </a>
+      <?php endif; ?>
     </div></div>
   </div>
   <div class="col-6 col-md-3">
     <div class="card shadow-sm h-100"><div class="card-body py-2">
       <div class="h4 mb-0"><?= number_format($stats['rozl'],0,',',' ') ?></div>
       <div class="text-muted small"><i class="bi bi-cash-coin me-1" style="color:#6366f1"></i>Do rozliczenia</div>
+      <?php if ($_zl_cnt_poterm): ?>
+      <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?po_term=1" class="small text-decoration-none text-danger" title="Termin minął, umowa wciąż otwarta">
+        <i class="bi bi-exclamation-octagon me-1"></i><?= $_zl_cnt_poterm ?> po terminie
+      </a>
+      <?php endif; ?>
     </div></div>
   </div>
   <div class="col-6 col-md-3">
