@@ -546,113 +546,125 @@ $TZ_ACTIVE  = 'konto';
 include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 ?>
 <style type="text/tailwindcss">
-/* ── Warstwa „dokumentowa” (wzorzec: strony usług CRI AGH): białe tło, nagłówki z kwadratowym znacznikiem,
-      szara kolumna informacyjna, tabele i listy zamiast kafli. Tailwind bez preflightu: przy tw-border zawsze tw-border-solid. ── */
-.tzx-h         { @apply tw-m-0 tw-mb-3 tw-text-[1.2rem] tw-font-bold tw-text-slate-900 tw-flex tw-items-center tw-gap-2.5 tw-tracking-tight; }
-.tzx-h::before { content: ''; @apply tw-inline-block tw-w-2.5 tw-h-2.5 tw-bg-blue-600 tw-shrink-0; }
-.tzx-h .lbl-en { @apply tw-inline tw-font-normal tw-ml-1; }
-.tzx-h3        { @apply tw-m-0 tw-mb-2 tw-mt-7 tw-text-[.98rem] tw-font-bold tw-text-slate-900; }
-.tzx-h2        { @apply tw-m-0 tw-text-[.95rem] tw-font-semibold tw-text-slate-900 tw-tracking-tight; }
-.tzx-lead      { @apply tw-text-[.92rem] tw-text-slate-700 tw-leading-relaxed tw-m-0 tw-max-w-[70ch]; }
-.tzx-sec       { @apply tw-pt-8 tw-pb-6 tw-border-t tw-border-solid tw-border-slate-200 tw-scroll-mt-20 tw-outline-none; }
-.tzx-sec:first-child { @apply tw-border-t-0 tw-pt-1; }
-.tzx-eyebrow   { @apply tw-text-[.66rem] tw-font-semibold tw-uppercase tw-tracking-[.08em] tw-text-slate-500; }
-.tzx-muted     { @apply tw-text-xs tw-text-slate-500; }
-/* tabela definicji (dane tożsamości) */
-.tzx-dl        { @apply tw-m-0 tw-border-t tw-border-solid tw-border-slate-300; }
-.tzx-dl > div  { @apply tw-grid tw-grid-cols-1 sm:tw-grid-cols-[230px_minmax(0,1fr)] tw-gap-x-6 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-200; }
-.tzx-dl dt     { @apply tw-m-0 tw-text-[.8rem] tw-font-semibold tw-text-slate-600; }
-.tzx-dl dd     { @apply tw-m-0 tw-text-[.9rem] tw-text-slate-900 tw-break-words; }
-/* tabela usług */
-.tzx-table     { @apply tw-w-full tw-text-[.86rem] tw-border-collapse; }
-.tzx-table th  { @apply tw-text-left tw-text-[.68rem] tw-uppercase tw-tracking-[.08em] tw-text-slate-500 tw-font-semibold tw-py-2 tw-pr-4 tw-border-b-2 tw-border-solid tw-border-slate-300; }
-.tzx-table td  { @apply tw-py-2.5 tw-pr-4 tw-border-b tw-border-solid tw-border-slate-200 tw-align-top; }
-/* lista odnośników z lewym znacznikiem (jak „Instrukcje” u AGH) */
-.tzx-links     { @apply tw-list-none tw-m-0 tw-p-0; }
-.tzx-links li  { @apply tw-border-l-[3px] tw-border-solid tw-border-slate-300 tw-pl-3 tw-py-1 tw-my-1.5 tw-transition; }
-.tzx-links li:hover { @apply tw-border-blue-600; }
-.tzx-links a   { @apply tw-text-slate-900 tw-font-medium tw-no-underline hover:tw-underline hover:tw-text-slate-900; }
-.tzx-links small { @apply tw-block tw-text-xs tw-text-slate-500; }
-/* kolumna boczna */
-.tzx-side      { @apply tw-bg-slate-100 tw-p-5 tw-text-[.86rem] lg:tw-sticky lg:tw-top-[68px]; }
-.tzx-side section + section { @apply tw-mt-6 tw-pt-5 tw-border-t tw-border-solid tw-border-slate-300/70; }
-.tzx-side h3   { @apply tw-m-0 tw-mb-2 tw-text-[.95rem] tw-font-bold tw-text-slate-900 tw-flex tw-items-center tw-gap-2; }
-.tzx-side h3::before { content: ''; @apply tw-inline-block tw-w-2 tw-h-2 tw-bg-blue-600 tw-shrink-0; }
-.tzx-side dl   { @apply tw-m-0; }
-.tzx-side dt   { @apply tw-text-[.7rem] tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-font-semibold tw-mt-2.5; }
-.tzx-side dd   { @apply tw-m-0 tw-text-slate-900 tw-break-words; }
-.tzx-side a    { @apply tw-text-blue-700; }
-.tzx-toc a     { @apply tw-block tw-py-1 tw-pl-3 tw-text-slate-700 tw-no-underline tw-border-l-[3px] tw-border-solid tw-border-transparent hover:tw-text-slate-900 hover:tw-underline; }
-.tzx-toc a.on  { @apply tw-border-blue-600 tw-font-semibold tw-text-slate-900; }
-.tzx-check     { @apply tw-list-none tw-m-0 tw-p-0; }
-.tzx-check li  { @apply tw-flex tw-items-start tw-gap-2 tw-py-1; }
-.tzx-check i   { @apply tw-mt-0.5 tw-text-[.9rem]; }
-/* przyciski, odznaki, pola */
-.tzx-btn       { @apply tw-inline-flex tw-items-center tw-justify-center tw-gap-1.5 tw-rounded tw-bg-slate-800 tw-text-white tw-px-3.5 tw-py-2 tw-text-sm tw-font-semibold tw-no-underline tw-border tw-border-solid tw-border-slate-800 tw-cursor-pointer tw-transition hover:tw-bg-slate-900 hover:tw-text-white focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-offset-2 focus-visible:tw-outline-amber-400 disabled:tw-opacity-50 disabled:tw-cursor-not-allowed; }
-.tzx-btn--sm   { @apply tw-px-3 tw-py-1.5 tw-text-xs; }
-.tzx-btn--ghost{ @apply tw-bg-white tw-text-slate-800 tw-border-slate-400 hover:tw-bg-slate-100 hover:tw-text-slate-900; }
-.tzx-btn--danger{ @apply tw-bg-white tw-text-rose-700 tw-border-rose-300 hover:tw-bg-rose-50 hover:tw-text-rose-800; }
-.tzx-badge     { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-sm tw-px-1.5 tw-py-0.5 tw-text-[.7rem] tw-font-semibold tw-border tw-border-solid tw-whitespace-nowrap; }
-.tzx-badge--ok { @apply tw-bg-white tw-text-emerald-700 tw-border-emerald-300; }
-.tzx-badge--warn{ @apply tw-bg-white tw-text-amber-700 tw-border-amber-300; }
-.tzx-badge--off{ @apply tw-bg-white tw-text-slate-600 tw-border-slate-300; }
-.tzx-badge--info{ @apply tw-bg-white tw-text-blue-700 tw-border-blue-300; }
+/* ── Metro UI (Windows 8 / Modern UI): płaskie jednolite kolory, 0 zaokrągleń, 0 cieni, lekka duża typografia,
+      kafle (Start) + nawigacja „pivot”. Tailwind bez preflightu: przy tw-border zawsze tw-border-solid. ── */
+:root{--m-blue:#1ba1e2;--m-blue-d:#0e7bb3;--m-green:#008a00;--m-orange:#fa6800;--m-red:#a20025;--m-teal:#00aba9;--m-purple:#6a00ff;--m-magenta:#d80073;--m-indigo:#0050ef;--m-dark:#1d1d1d;--m-grey:#777777;--m-light:#f2f2f2;--m-line:#e1e1e1}
+.tz{font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif}
+.mt-title    { @apply tw-m-0 tw-font-light tw-leading-none tw-tracking-tight tw-text-slate-900; font-size:2.5rem; }
+.mt-kicker   { @apply tw-text-[.74rem] tw-font-semibold tw-uppercase tw-tracking-[.18em] tw-text-slate-500 tw-mb-1.5; }
+.mt-lead     { @apply tw-text-[.95rem] tw-text-slate-600 tw-m-0 tw-mt-2 tw-max-w-[70ch] tw-font-light; }
+/* kafle */
+.mt-grid     { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); grid-auto-rows:150px; gap:8px; grid-auto-flow:dense; }
+@media (max-width:480px){ .mt-grid{ grid-template-columns:repeat(2,1fr); grid-auto-rows:140px; } }
+.mt-tile     { position:relative; display:flex; flex-direction:column; justify-content:space-between; padding:14px 16px; color:#fff; text-decoration:none; background:var(--c,var(--m-blue)); overflow:hidden; border:0; text-align:left; font:inherit; cursor:pointer; transition:transform .08s, filter .12s; min-width:0; }
+.mt-tile:hover{ filter:brightness(1.08); color:#fff; text-decoration:none; }
+.mt-tile:active{ transform:scale(.97); }
+.mt-tile:focus-visible{ outline:3px solid #000; outline-offset:-3px; }
+.mt-tile--w  { grid-column:span 2; }
+.mt-tile--l  { grid-column:span 2; grid-row:span 2; }
+.mt-tile .ic { font-size:2rem; line-height:1; }
+.mt-tile--l .ic{ font-size:3.4rem; }
+.mt-tile .lbl{ font-size:.82rem; font-weight:600; line-height:1.2; }
+.mt-tile .val{ font-size:1.85rem; font-weight:300; line-height:1; letter-spacing:-.02em; }
+.mt-tile--l .val{ font-size:2.6rem; }
+.mt-tile .sub{ font-size:.72rem; opacity:.85; margin-top:.15rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mt-tile .tag{ position:absolute; top:10px; right:12px; font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; background:rgba(0,0,0,.28); padding:2px 7px; }
+.mt-tile .ava{ width:64px; height:64px; background:rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; font-size:1.6rem; font-weight:600; }
+/* pivot */
+.mt-pivot    { display:flex; gap:1.75rem; overflow-x:auto; border-bottom:1px solid var(--m-line); margin:1.75rem 0 1.5rem; scrollbar-width:none; }
+.mt-pivot::-webkit-scrollbar{ display:none; }
+.mt-pivot button{ background:none; border:0; border-bottom:3px solid transparent; margin-bottom:-1px; padding:.35rem 0 .6rem; font:inherit; font-size:1.3rem; font-weight:300; color:#9ca3af; cursor:pointer; white-space:nowrap; letter-spacing:-.01em; }
+.mt-pivot button:hover{ color:#374151; }
+.mt-pivot button[aria-selected="true"]{ color:#111827; font-weight:600; border-bottom-color:var(--m-blue); }
+.mt-pivot button:focus-visible{ outline:3px solid #000; outline-offset:2px; }
+.mt-pivot button.adm[aria-selected="true"]{ border-bottom-color:var(--m-orange); }
+/* nagłówki sekcji, grupy */
+.mt-h2       { @apply tw-m-0 tw-mb-3 tw-text-[1.35rem] tw-font-light tw-text-slate-900 tw-tracking-tight; }
+.mt-h2 b     { @apply tw-font-semibold; }
+.mt-h3       { @apply tw-m-0 tw-mb-2 tw-mt-6 tw-text-[1.05rem] tw-font-semibold tw-text-slate-900; }
+.mt-group    { @apply tw-bg-[var(--m-light)] tw-p-5; }
+.mt-kv       { @apply tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 xl:tw-grid-cols-3 tw-gap-x-6 tw-gap-y-4 tw-m-0; }
+.mt-kv dt    { @apply tw-m-0 tw-text-[.7rem] tw-font-semibold tw-uppercase tw-tracking-[.1em] tw-text-slate-500; }
+.mt-kv dd    { @apply tw-m-0 tw-mt-0.5 tw-text-[1.05rem] tw-font-light tw-text-slate-900 tw-break-words; }
+.mt-kv dd.big{ @apply tw-text-[1.6rem]; }
+/* usługi: wiersze z grubym paskiem koloru */
+.mt-svc      { @apply tw-flex tw-items-center tw-gap-4 tw-bg-[var(--m-light)] tw-p-4 tw-min-w-0; border-left:8px solid var(--c,var(--m-blue)); }
+.mt-svc .ic  { @apply tw-text-[1.6rem] tw-text-slate-700 tw-w-9 tw-text-center tw-shrink-0; }
+.mt-svc h3   { @apply tw-m-0 tw-text-[1rem] tw-font-semibold tw-text-slate-900; }
+.mt-svc p    { @apply tw-m-0 tw-text-[.8rem] tw-text-slate-600; }
+/* wspólne: przyciski, etykiety, pola */
+.tzx-btn     { @apply tw-inline-flex tw-items-center tw-justify-center tw-gap-1.5 tw-bg-[var(--m-blue)] tw-text-white tw-px-4 tw-py-2 tw-text-sm tw-font-semibold tw-no-underline tw-border-2 tw-border-solid tw-border-[var(--m-blue)] tw-cursor-pointer tw-rounded-none hover:tw-bg-[var(--m-blue-d)] hover:tw-border-[var(--m-blue-d)] hover:tw-text-white focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw-outline-offset-2 focus-visible:tw-outline-black disabled:tw-opacity-50 disabled:tw-cursor-not-allowed; }
+.tzx-btn--sm { @apply tw-px-3 tw-py-1 tw-text-xs; }
+.tzx-btn--ghost{ @apply tw-bg-transparent tw-text-slate-900 tw-border-slate-900 hover:tw-bg-slate-900 hover:tw-text-white hover:tw-border-slate-900; }
+.tzx-btn--danger{ @apply tw-bg-transparent tw-text-[var(--m-red)] tw-border-[var(--m-red)] hover:tw-bg-[var(--m-red)] hover:tw-text-white hover:tw-border-[var(--m-red)]; }
+.tzx-badge   { @apply tw-inline-flex tw-items-center tw-gap-1 tw-px-1.5 tw-py-0.5 tw-text-[.68rem] tw-font-bold tw-uppercase tw-tracking-[.04em] tw-text-white tw-whitespace-nowrap tw-rounded-none tw-border-0; }
+.tzx-badge--ok{ @apply tw-bg-[var(--m-green)]; }
+.tzx-badge--warn{ @apply tw-bg-[var(--m-orange)]; }
+.tzx-badge--off{ @apply tw-bg-[var(--m-grey)]; }
+.tzx-badge--info{ @apply tw-bg-[var(--m-blue)]; }
 .tzx-field label { @apply tw-block tw-text-[.8rem] tw-font-semibold tw-text-slate-800 tw-mb-1; }
 .tzx-field .form-text { @apply tw-text-xs tw-text-slate-500; }
-/* elementy używane przez pozostałe sekcje (IKA, rejestr, o panelu, administracja) — spłaszczone */
-.tzx-card      { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded; }
-.tzx-card-hd   { @apply tw-flex tw-items-center tw-gap-2.5 tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-200 tw-bg-slate-50; }
-.tzx-card-bd   { @apply tw-p-4; }
-.tzx-kv        { @apply tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-200 tw-px-3 tw-py-2 tw-min-w-0; }
-.tzx-kv dt     { @apply tw-text-[.64rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-m-0; }
-.tzx-kv dd     { @apply tw-m-0 tw-mt-0.5 tw-text-[.88rem] tw-font-semibold tw-text-slate-900 tw-break-words; }
-.tzx-ico       { @apply tw-w-9 tw-h-9 tw-rounded tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0; }
-.tzx-chip      { @apply tw-inline-flex tw-items-center tw-gap-1 tw-bg-white tw-border tw-border-solid tw-border-slate-300 tw-px-2 tw-py-0.5 tw-text-[.74rem] tw-text-slate-800; }
-.tzx-tile      { @apply tw-flex tw-flex-col tw-gap-2 tw-bg-white tw-border tw-border-solid tw-border-slate-300 tw-p-3.5 tw-transition hover:tw-border-slate-800; }
-.tzx-link-tile { @apply tw-flex tw-items-center tw-gap-3 tw-border tw-border-solid tw-border-slate-200 tw-bg-white tw-p-3 tw-no-underline tw-text-slate-900 hover:tw-border-slate-800 hover:tw-text-slate-900; }
-.tzx-timeline li { @apply tw-relative tw-pl-6 tw-pb-4 tw-border-l tw-border-solid tw-border-slate-300 tw-ml-2; }
+.tz .form-control,.tz .form-select,.tz .input-group-text,.tz .btn{ border-radius:0 !important; }
+.tz .form-control,.tz .form-select{ border:2px solid #8a8a8a; }
+.tz .form-control:focus,.tz .form-select:focus{ border-color:var(--m-blue); box-shadow:none; }
+.tzx-eyebrow { @apply tw-text-[.68rem] tw-font-semibold tw-uppercase tw-tracking-[.12em] tw-text-slate-500; }
+.tzx-muted   { @apply tw-text-xs tw-text-slate-500; }
+.tzx-h2      { @apply tw-m-0 tw-text-[1rem] tw-font-semibold tw-text-slate-900; }
+.tzx-h3      { @apply tw-m-0 tw-mb-2 tw-text-sm tw-font-semibold tw-text-slate-900 tw-flex tw-items-center tw-gap-1.5; }
+/* elementy sekcji IKA / rejestr / o panelu / administracja — spłaszczone do Metro */
+.tzx-card    { @apply tw-bg-white tw-border tw-border-solid tw-border-[var(--m-line)] tw-rounded-none; }
+.tzx-card-hd { @apply tw-flex tw-items-center tw-gap-2.5 tw-px-4 tw-py-3 tw-bg-[var(--m-light)]; }
+.tzx-card-bd { @apply tw-p-4; }
+.tzx-kv      { @apply tw-bg-[var(--m-light)] tw-px-3 tw-py-2 tw-min-w-0 tw-rounded-none; }
+.tzx-kv dt   { @apply tw-text-[.64rem] tw-font-semibold tw-uppercase tw-tracking-[.08em] tw-text-slate-500 tw-m-0; }
+.tzx-kv dd   { @apply tw-m-0 tw-mt-0.5 tw-text-[.95rem] tw-font-light tw-text-slate-900 tw-break-words; }
+.tzx-ico     { @apply tw-w-10 tw-h-10 tw-rounded-none tw-flex tw-items-center tw-justify-center tw-text-lg tw-shrink-0; }
+.tzx-chip    { @apply tw-inline-flex tw-items-center tw-gap-1 tw-bg-[var(--m-light)] tw-px-2 tw-py-1 tw-text-[.76rem] tw-text-slate-800 tw-border-0 tw-rounded-none; }
+.tzx-tile    { @apply tw-flex tw-flex-col tw-gap-2 tw-bg-[var(--m-light)] tw-p-4 tw-border-0 tw-rounded-none hover:tw-bg-[#e6e6e6]; }
+.tzx-link-tile{ @apply tw-flex tw-items-center tw-gap-3 tw-bg-[var(--m-light)] tw-p-3 tw-no-underline tw-text-slate-900 tw-rounded-none hover:tw-bg-[#e6e6e6] hover:tw-text-slate-900; }
+.tzx-timeline li { @apply tw-relative tw-pl-6 tw-pb-4 tw-border-l-2 tw-border-solid tw-border-[var(--m-line)] tw-ml-2; }
 .tzx-timeline li:last-child { @apply tw-pb-0; }
-.tzx-dot       { @apply tw-absolute tw-w-4 tw-h-4 tw-rounded-full tw-bg-white tw-border-2 tw-border-solid tw-flex tw-items-center tw-justify-center tw-text-[.5rem]; left: -9px; top: 0; }
-.tzx-sec-row   { @apply tw-flex tw-items-center tw-gap-2.5 tw-py-2 tw-border-b tw-border-solid tw-border-slate-200 last:tw-border-b-0; }
-/* Bezpieczeństwo: sekcje rozwijane w stylu FAQ (ramka, tytuł, plus/minus po prawej) */
-.tzx-acc       { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-300 tw-mb-2; }
-.tzx-acc--open { @apply tw-border-slate-800; }
-.tzx-acc-btn   { @apply tw-w-full tw-flex tw-items-center tw-gap-3 tw-px-4 tw-py-3 tw-text-left tw-bg-transparent tw-border-0 tw-cursor-pointer hover:tw-bg-slate-50 focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw--outline-offset-[3px] focus-visible:tw-outline-amber-400; font: inherit; color: inherit; }
-.tzx-acc-plus  { @apply tw-w-7 tw-h-7 tw-rounded-full tw-border tw-border-solid tw-border-slate-800 tw-flex tw-items-center tw-justify-center tw-text-slate-800 tw-shrink-0 tw-text-sm; }
-.tzx-acc--open .tzx-acc-plus { @apply tw-bg-slate-800 tw-text-white; }
-.tzx-acc-bd    { @apply tw-px-4 tw-pb-5 tw-pt-4 tw-border-t tw-border-solid tw-border-slate-200; }
-.tzx-aside     { @apply tw-bg-slate-100 tw-p-4 tw-text-[.82rem] tw-text-slate-700 tw-leading-relaxed; }
-.tzx-aside h4  { @apply tw-m-0 tw-mb-1.5 tw-text-[.82rem] tw-font-bold tw-text-slate-900 tw-flex tw-items-center tw-gap-1.5; }
-.tzx-aside ul  { @apply tw-m-0 tw-mt-2 tw-pl-4; }
-.tzx-aside li  { @apply tw-mb-1; }
+.tzx-dot     { @apply tw-absolute tw-w-4 tw-h-4 tw-bg-white tw-border-2 tw-border-solid tw-flex tw-items-center tw-justify-center tw-text-[.5rem] tw-rounded-none; left: -9px; top: 0; }
+.tzx-sec-row { @apply tw-flex tw-items-center tw-gap-2.5 tw-py-2 tw-border-b tw-border-solid tw-border-[var(--m-line)] last:tw-border-b-0; }
+/* Bezpieczeństwo: lista ustawień w stylu Metro (kwadratowa ikona w kolorze stanu, plus/minus) */
+.tzx-acc     { @apply tw-bg-white tw-mb-2 tw-border-0 tw-rounded-none; }
+.tzx-acc--open .tzx-acc-btn{ @apply tw-bg-[var(--m-light)]; }
+.tzx-acc-btn { @apply tw-w-full tw-flex tw-items-center tw-gap-4 tw-px-3 tw-py-3 tw-text-left tw-bg-white tw-border-0 tw-cursor-pointer hover:tw-bg-[var(--m-light)] focus-visible:tw-outline focus-visible:tw-outline-[3px] focus-visible:tw--outline-offset-[3px] focus-visible:tw-outline-black; font: inherit; color: inherit; }
+.tzx-acc-ico { @apply tw-w-12 tw-h-12 tw-flex tw-items-center tw-justify-center tw-text-white tw-text-[1.35rem] tw-shrink-0; }
+.tzx-acc-plus{ @apply tw-w-8 tw-h-8 tw-border-2 tw-border-solid tw-border-slate-900 tw-flex tw-items-center tw-justify-center tw-text-slate-900 tw-shrink-0 tw-text-sm; }
+.tzx-acc--open .tzx-acc-plus { @apply tw-bg-slate-900 tw-text-white; }
+.tzx-acc-bd  { @apply tw-bg-[var(--m-light)] tw-px-5 tw-pb-6 tw-pt-5; }
+.tzx-aside   { @apply tw-bg-white tw-p-4 tw-text-[.84rem] tw-text-slate-700 tw-leading-relaxed; border-left:6px solid var(--m-blue); }
+.tzx-aside h4{ @apply tw-m-0 tw-mb-1.5 tw-text-[.9rem] tw-font-semibold tw-text-slate-900 tw-flex tw-items-center tw-gap-1.5; }
+.tzx-aside ul{ @apply tw-m-0 tw-mt-2 tw-pl-4; }
+.tzx-aside li{ @apply tw-mb-1; }
+.tz-req li.ok{ color:var(--m-green); }
+.tz-meter{ border-radius:0; }
 </style>
 
-<div x-data="tzIdentity(<?= h(json_encode(['sections' => array_keys($tabs), 'firstVisit' => $first_visit])) ?>)">
+<div x-data="tzIdentity(<?= h(json_encode(['tabs' => array_keys($tabs), 'firstVisit' => $first_visit])) ?>)" x-cloak>
 
-<!-- ═══════════ NAGŁÓWEK STRONY ═══════════ -->
-<nav aria-label="Ścieżka" class="tw-text-[.76rem] tw-text-slate-500 tw-mb-3">
-  <a href="<?= APP_URL ?>/tozsamosc/index.php" class="tw-text-slate-500 tw-no-underline hover:tw-underline">System Tożsamości</a>
-  <span class="tw-mx-1.5" aria-hidden="true">/</span><span class="tw-text-slate-700">Moja tożsamość</span>
-</nav>
-<h1 class="tzx-h tw-text-[1.6rem] tw-mb-2">Moja tożsamość</h1>
-<p class="tzx-lead tw-mb-6">
-  <strong>System Tożsamości</strong> to centralny rejestr kont organizacji: jeden identyfikator (UID), jeden login i jedno hasło
-  do systemów SZO, Microsoft 365 i usług powiązanych. Tutaj sprawdzisz swoje dane, zmienisz hasło, ustawisz telefon odzyskiwania
-  i metody weryfikacji dwuskładnikowej oraz zobaczysz, co dzieje się z Twoimi danymi.
-</p>
+<!-- ═══════════ NAGŁÓWEK ═══════════ -->
+<div class="tw-mb-6">
+  <div class="mt-kicker">System Tożsamości · Identity &amp; Access</div>
+  <h1 class="mt-title">Moja tożsamość</h1>
+  <p class="mt-lead">Jeden identyfikator, jeden login i jedno hasło do SZO, Microsoft 365 i usług powiązanych. Dane, hasło, telefon odzyskiwania i weryfikacja dwuskładnikowa — w jednym miejscu.</p>
+</div>
 
 <?php if ($first_visit): ?>
-<!-- Powitanie po pierwszym logowaniu (pokazywane raz) -->
-<div class="tw-border tw-border-solid tw-border-blue-300 tw-bg-blue-50 tw-px-4 tw-py-3 tw-mb-5 tw-text-sm tw-flex tw-flex-wrap tw-items-center tw-gap-3" role="note" aria-labelledby="welcome-h">
+<div class="tw-bg-[var(--m-blue)] tw-text-white tw-px-5 tw-py-4 tw-mb-5 tw-flex tw-flex-wrap tw-items-center tw-gap-4" role="note" aria-labelledby="welcome-h">
   <div class="tw-flex-1 tw-min-w-[220px]">
-    <strong id="welcome-h">To Twoje pierwsze wejście do Systemu Tożsamości.</strong>
-    <span class="tw-text-slate-700">Zacznij od sekcji <a href="#opanelu" @click.prevent="go('opanelu')">O panelu</a> — w 20 sekund zrozumiesz, do czego to służy (a do czego nie).</span>
+    <div id="welcome-h" class="tw-text-[1.1rem] tw-font-semibold">Witaj w Systemie Tożsamości</div>
+    <div class="tw-text-[.85rem] tw-opacity-90">To Twoje pierwsze wejście. Zajrzyj do sekcji „O panelu” — w 20 sekund zrozumiesz, do czego to służy (a do czego nie).</div>
   </div>
-  <form method="post" class="tw-m-0">
-    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-    <input type="hidden" name="_action" value="dismiss_intro">
-    <button type="submit" class="tzx-btn tzx-btn--ghost tzx-btn--sm">Rozumiem, nie pokazuj</button>
-  </form>
+  <div class="tw-flex tw-flex-wrap tw-gap-2">
+    <a href="#opanelu" class="tzx-btn tw-bg-white tw-text-[var(--m-blue)] tw-border-white hover:tw-bg-slate-100 hover:tw-text-[var(--m-blue-d)] hover:tw-border-slate-100" @click.prevent="go('opanelu')">Zobacz „O panelu”</a>
+    <form method="post" class="tw-m-0">
+      <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+      <input type="hidden" name="_action" value="dismiss_intro">
+      <button type="submit" class="tzx-btn tzx-btn--ghost tw-text-white tw-border-white hover:tw-bg-white hover:tw-text-[var(--m-blue)]">Nie pokazuj więcej</button>
+    </form>
+  </div>
 </div>
 <?php endif; ?>
 
@@ -660,119 +672,191 @@ include __DIR__ . '/_head.php';   // własny chrome podsystemu (bez menu SZO)
 
 <div aria-live="assertive">
 <?php if ($errors): ?>
-<div class="tw-border tw-border-solid tw-border-rose-300 tw-bg-rose-50 tw-text-rose-800 tw-px-4 tw-py-3 tw-mb-5 tw-text-sm" role="alert">
+<div class="tw-bg-[var(--m-red)] tw-text-white tw-px-5 tw-py-3 tw-mb-5 tw-text-sm" role="alert">
   <strong><i class="bi bi-exclamation-triangle-fill tw-mr-1" aria-hidden="true"></i>Popraw następujące błędy:</strong>
   <ul class="tw-mb-0 tw-mt-1 tw-pl-5"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
 </div>
 <?php endif; ?>
 </div>
 
-<!-- ═══════════ UKŁAD: treść + kolumna boczna ═══════════ -->
-<div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-[minmax(0,1fr)_320px] tw-gap-8 lg:tw-gap-10 tw-items-start">
-<div class="tw-min-w-0">
+<!-- ═══════════ KAFLE (Start) ═══════════ -->
+<?php
+$T_OK = 'var(--m-green)'; $T_WARN = 'var(--m-orange)'; $T_OFF = 'var(--m-grey)';
+$sec_tile_c = $sec_pct >= 80 ? $T_OK : ($sec_pct >= 50 ? $T_WARN : 'var(--m-red)');
+$m365_active = $has_m365 && !empty($m365_row['m365_konto_aktywne']);
+?>
+<div class="mt-grid" aria-label="Skróty">
+  <a href="#podstawowe" class="mt-tile mt-tile--l" style="--c:var(--m-blue)" @click.prevent="go('podstawowe')">
+    <span class="ava" aria-hidden="true"><?= h($initials) ?></span>
+    <span>
+      <span class="val tw-block tw-truncate"><?= h($user['name']) ?></span>
+      <span class="lbl tw-block tw-mt-1"><?= h($role_label) ?> · <?= h($account_type_label) ?></span>
+      <span class="sub">UID <b><?= h($uid) ?></b> · <?= h($panel_login ?: '—') ?></span>
+    </span>
+  </a>
+
+  <a href="#bezpieczenstwo" class="mt-tile mt-tile--w" style="--c:<?= $sec_tile_c ?>" @click.prevent="go('bezpieczenstwo')" aria-label="Stan zabezpieczeń: <?= $sec_pct ?> procent, <?= $sec_ok ?> z <?= $sec_total ?> elementów">
+    <i class="bi bi-shield-lock ic" aria-hidden="true"></i>
+    <span><span class="val"><?= $sec_pct ?>%</span><span class="lbl tw-block tw-mt-1">Stan zabezpieczeń</span><span class="sub"><?= $sec_ok ?> z <?= $sec_total ?> elementów · <?= $sec_pct >= 80 ? 'dobrze zabezpieczone' : ($sec_pct >= 50 ? 'dokończ konfigurację' : 'zabezpiecz konto') ?></span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/tozsamosc/mfa.php" class="mt-tile" style="--c:<?= $mfa_active ? $T_OK : $T_WARN ?>">
+    <span class="tag"><?= $mfa_active ? 'aktywne' : 'brak' ?></span>
+    <i class="bi bi-shield-check ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Weryfikacja dwuskładnikowa</span><span class="sub"><?= $mfa_active ? h($mfa_label) : 'skonfiguruj' ?></span></span>
+  </a>
+
+  <a href="#bezpieczenstwo" class="mt-tile" style="--c:<?= $has_local_password ? $T_OK : $T_WARN ?>" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'haslo')">
+    <span class="tag"><?= $has_local_password ? 'ok' : 'ustaw' ?></span>
+    <i class="bi bi-key ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Hasło</span><span class="sub"><?= $has_m365 ? 'SZO + Microsoft 365' : 'konto lokalne' ?></span></span>
+  </a>
+
+  <a href="#bezpieczenstwo" class="mt-tile" style="--c:<?= $phone_verified ? $T_OK : $T_WARN ?>" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'telefon')">
+    <span class="tag"><?= $phone_verified ? 'ok' : ($phone_saved ? 'zweryfikuj' : 'brak') ?></span>
+    <i class="bi bi-phone ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Telefon do SMS</span><span class="sub"><?= $phone_verified ? h(tz_mask_phone($phone_saved)) : 'odzyskiwanie dostępu' ?></span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn" class="mt-tile" style="--c:<?= $has_wk ? $T_OK : $T_OFF ?>">
+    <span class="tag"><?= $has_wk ? count($wk_keys_idx) . ' szt.' : 'brak' ?></span>
+    <i class="bi bi-fingerprint ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Klucz / passkey</span><span class="sub">FIDO2 · Windows Hello</span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/panel/m365.php" class="mt-tile mt-tile--w" style="--c:<?= $m365_active ? 'var(--m-indigo)' : $T_OFF ?>">
+    <span class="tag"><?= $m365_active ? 'aktywne' : ($has_m365 ? 'zawieszone' : 'brak konta') ?></span>
+    <i class="bi bi-microsoft ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Microsoft 365 / Entra ID</span><span class="sub"><?= $has_m365 ? h($m365_login ?: $panel_login) : 'konto nie zostało utworzone' ?></span></span>
+  </a>
+
+  <a href="#uslugi" class="mt-tile" style="--c:var(--m-teal)" @click.prevent="go('uslugi')">
+    <i class="bi bi-grid-3x3-gap ic" aria-hidden="true"></i>
+    <span><span class="val"><?= count($services) ?></span><span class="lbl tw-block">Usługi</span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/tozsamosc/rodo_export.php" target="_blank" rel="noopener" class="mt-tile" style="--c:var(--m-purple)">
+    <i class="bi bi-file-earmark-arrow-down ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Eksport danych</span><span class="sub">PDF · art. 15 i 20 RODO</span></span>
+  </a>
+
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="mt-tile" style="--c:var(--m-magenta)">
+    <i class="bi bi-headset ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Pomoc</span><span class="sub">helpdesk organizacji</span></span>
+  </a>
+
+  <?php if (is_admin()): ?>
+  <a href="#administracja" class="mt-tile" style="--c:var(--m-dark)" @click.prevent="go('administracja')">
+    <i class="bi bi-shield-fill-gear ic" aria-hidden="true"></i>
+    <span><span class="lbl tw-block">Administracja</span><span class="sub">tożsamością</span></span>
+  </a>
+  <?php endif; ?>
+</div>
+
+<!-- ═══════════ PIVOT ═══════════ -->
+<div class="mt-pivot" role="tablist" aria-label="Sekcje tożsamości">
+  <?php $ti = 0; foreach ($tabs as $tk => [$tl, $tic]): ?>
+  <button type="button" role="tab" id="tab-<?= $tk ?>" class="<?= $tk === 'administracja' ? 'adm' : '' ?>"
+          :aria-selected="tab === '<?= $tk ?>' ? 'true' : 'false'" :tabindex="tab === '<?= $tk ?>' ? 0 : -1"
+          aria-controls="<?= $tk ?>" x-ref="tab-<?= $tk ?>"
+          @click="go('<?= $tk ?>')" @keydown="key($event, <?= $ti ?>)"><?= h(mb_strtolower($tl)) ?></button>
+  <?php $ti++; endforeach; ?>
+</div>
 
 <!-- ═══════════ PODSTAWOWE ═══════════ -->
-<section id="podstawowe" class="tzx-sec" tabindex="-1" aria-labelledby="h-podstawowe">
-  <h2 id="h-podstawowe" class="tzx-h">Dane tożsamości <span class="lbl-en">Identity record</span></h2>
-  <dl class="tzx-dl">
-    <div><dt>Imię i nazwisko</dt><dd class="tw-font-semibold"><?= h($user['name']) ?></dd></div>
-    <div><dt>Numer UID</dt><dd class="tw-font-mono tw-font-bold"><?= h($uid) ?></dd></div>
-    <div><dt>Identyfikator sieciowy <span class="lbl-en">Network ID (login główny)</span></dt><dd><?= h($panel_login ?: '—') ?></dd></div>
-    <div><dt>Login Microsoft 365 <span class="lbl-en">M365 sign-in</span></dt><dd><?= h($m365_login ?: ($has_m365 ? $panel_login : '— brak konta M365 —')) ?></dd></div>
-    <div><dt>Identyfikator obiektu Entra <span class="lbl-en">Entra object ID</span></dt><dd class="tw-font-mono tw-text-[.8rem]"><?= h($microsoft_id ?: '—') ?></dd></div>
-    <div><dt>Rola w systemie</dt><dd><?= h($role_label) ?> <span class="tzx-muted">· klucz <code class="tw-text-[.74rem]"><?= h($role_key) ?></code></span></dd></div>
-    <div><dt>Typ konta</dt><dd><?= h($account_type_label) ?></dd></div>
-    <div><dt>Źródło danych <span class="lbl-en">Data source</span></dt><dd><?php
-      if ($src_contract) { echo 'Umowa ' . h($src_contract['numer_umowy']); }
-      elseif (is_admin()) { echo 'Wpis do KRS – powołanie'; }
-      else { echo '—'; }
-    ?></dd></div>
-    <div><dt>UID nadany <span class="lbl-en">Assigned</span></dt><dd><?= h(!empty($db_user['created_at']) ? date('d.m.Y', strtotime($db_user['created_at'])) : ($src_contract['data_zawarcia'] ?? '—')) ?></dd></div>
-  </dl>
-  <p class="tzx-muted tw-mt-3 tw-mb-0 tw-max-w-[75ch]">
-    Numer UID został nadany automatycznie przy zawarciu umowy i jest Twoim stałym identyfikatorem w rejestrze tożsamości — nie można go zmienić.
-    Login do panelu (identyfikator sieciowy) jest niezależny od loginu Microsoft 365.
-    <span class="lbl-en">UID is assigned at contract creation and is immutable. The panel sign-in may differ from the Microsoft 365 sign-in.</span>
-  </p>
-
-  <h3 class="tzx-h3">Rola i uprawnienia <span class="lbl-en tw-inline tw-font-normal">Role-based access</span></h3>
-  <p class="tw-text-[.88rem] tw-text-slate-700 tw-m-0 tw-mb-2 tw-max-w-[75ch]">
-    <strong><?= h($role_label) ?></strong> — <?= h($role_desc ?: 'rola nadana przez administratora; decyduje o tym, które moduły SZO widzisz i co możesz w nich zmieniać.') ?>
-    <?php if ($access): ?>Dostęp do <strong><?= count($access) ?></strong> modułów, w tym <strong><?= $access_write ?></strong> z prawem edycji.<?php endif; ?>
-  </p>
-  <?php if ($access): ?>
-  <div class="tw-flex tw-flex-wrap tw-gap-1.5" x-data="{ all: false }">
-    <?php foreach ($access as $i => $a): ?>
-    <span class="tzx-chip" <?= $i >= 12 ? 'x-show="all" x-cloak' : '' ?>><?= h($a['label']) ?> <span class="tw-text-slate-500">· <?= $a['level'] ?></span></span>
-    <?php endforeach; ?>
-    <?php if (count($access) > 12): ?>
-    <button type="button" class="tzx-chip tw-cursor-pointer tw-text-blue-700 tw-border-blue-300" @click="all = !all" :aria-expanded="all ? 'true' : 'false'">
-      <span x-text="all ? 'Zwiń' : 'Pokaż wszystkie (<?= count($access) ?>)'"></span>
-    </button>
-    <?php endif; ?>
+<section id="podstawowe" role="tabpanel" aria-labelledby="tab-podstawowe" tabindex="-1" x-show="tab === 'podstawowe'" x-transition.opacity.duration.150ms>
+  <h2 class="mt-h2">Dane <b>tożsamości</b> <span class="lbl-en tw-inline tw-font-normal">Identity record</span></h2>
+  <div class="mt-group">
+    <dl class="mt-kv">
+      <div><dt>Numer UID</dt><dd class="big tw-font-normal"><?= h($uid) ?></dd></div>
+      <div><dt>Identyfikator sieciowy <span class="lbl-en tw-inline">Network ID</span></dt><dd><?= h($panel_login ?: '—') ?></dd></div>
+      <div><dt>Login Microsoft 365</dt><dd><?= h($m365_login ?: ($has_m365 ? $panel_login : '— brak konta M365 —')) ?></dd></div>
+      <div><dt>Imię i nazwisko</dt><dd><?= h($user['name']) ?></dd></div>
+      <div><dt>Rola</dt><dd><?= h($role_label) ?> <span class="tzx-muted">· <code class="tw-text-[.72rem]"><?= h($role_key) ?></code></span></dd></div>
+      <div><dt>Typ konta</dt><dd><?= h($account_type_label) ?></dd></div>
+      <div><dt>Identyfikator obiektu Entra</dt><dd class="tw-font-mono tw-text-[.82rem] tw-font-normal"><?= h($microsoft_id ?: '—') ?></dd></div>
+      <div><dt>Źródło danych</dt><dd><?php
+        if ($src_contract) { echo 'Umowa ' . h($src_contract['numer_umowy']); }
+        elseif (is_admin()) { echo 'Wpis do KRS – powołanie'; }
+        else { echo '—'; }
+      ?></dd></div>
+      <div><dt>UID nadany</dt><dd><?= h(!empty($db_user['created_at']) ? date('d.m.Y', strtotime($db_user['created_at'])) : ($src_contract['data_zawarcia'] ?? '—')) ?></dd></div>
+    </dl>
+    <p class="tzx-muted tw-mt-5 tw-mb-0 tw-max-w-[80ch]">Numer UID został nadany automatycznie przy zawarciu umowy i jest Twoim stałym identyfikatorem w rejestrze tożsamości — nie można go zmienić. Login do panelu (identyfikator sieciowy) jest niezależny od loginu Microsoft 365.</p>
   </div>
-  <?php else: ?>
-  <p class="tzx-muted tw-m-0">Twoja rola nie daje dostępu do modułów systemu głównego (konto o zawężonym zakresie).</p>
-  <?php endif; ?>
-  <p class="tzx-muted tw-mt-3 tw-mb-0">Roli ani uprawnień nie zmienisz tutaj — nadaje je administrator. Jeśli brakuje Ci dostępu, zgłoś to przez helpdesk.</p>
 
-  <h3 class="tzx-h3">Najczęstsze czynności</h3>
-  <ul class="tzx-links">
-    <li><a href="#bezpieczenstwo" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'haslo')">Zmiana hasła</a><small>SZO i Microsoft 365 jednocześnie</small></li>
-    <li><a href="<?= APP_URL ?>/tozsamosc/mfa.php">Konfiguracja logowania dwuskładnikowego</a><small>Authenticator · SMS · klucz sprzętowy / passkey</small></li>
-    <li><a href="#bezpieczenstwo" @click.prevent="go('bezpieczenstwo'); $dispatch('tz-sec', 'telefon')">Telefon do odzyskiwania dostępu</a><small>numer do kodów SMS</small></li>
-    <li><a href="<?= APP_URL ?>/tozsamosc/rodo_export.php" target="_blank" rel="noopener">Eksport moich danych (PDF)</a><small>art. 15 i 20 RODO</small></li>
-    <li><a href="<?= APP_URL ?>/helpdesk/index.php">Zgłoszenie problemu z kontem</a><small>helpdesk organizacji</small></li>
-  </ul>
+  <h2 class="mt-h2 tw-mt-8">Rola i <b>uprawnienia</b> <span class="lbl-en tw-inline tw-font-normal">Role-based access</span></h2>
+  <div class="mt-group" x-data="{ all: false }">
+    <div class="tw-flex tw-items-start tw-gap-4 tw-mb-4">
+      <span class="tzx-ico tw-bg-[var(--m-blue)] tw-text-white tw-w-12 tw-h-12 tw-text-xl" aria-hidden="true"><i class="bi <?= $role_icon ?>"></i></span>
+      <div>
+        <div class="tw-text-[1.1rem] tw-font-semibold tw-text-slate-900"><?= h($role_label) ?></div>
+        <div class="tw-text-[.85rem] tw-text-slate-600"><?= h($role_desc ?: 'Rola nadana przez administratora — decyduje o tym, które moduły SZO widzisz i co możesz w nich zmieniać.') ?><?php if ($access): ?> Dostęp do <strong><?= count($access) ?></strong> modułów, <strong><?= $access_write ?></strong> z edycją.<?php endif; ?></div>
+      </div>
+    </div>
+    <?php if ($access): ?>
+    <div class="tw-flex tw-flex-wrap tw-gap-1.5">
+      <?php foreach ($access as $i => $a): ?>
+      <span class="tzx-chip tw-bg-white" <?= $i >= 12 ? 'x-show="all" x-cloak' : '' ?>><?= h($a['label']) ?> <span class="tw-text-slate-500">· <?= $a['level'] ?></span></span>
+      <?php endforeach; ?>
+      <?php if (count($access) > 12): ?>
+      <button type="button" class="tzx-chip tw-bg-[var(--m-blue)] tw-text-white tw-cursor-pointer" @click="all = !all" :aria-expanded="all ? 'true' : 'false'"><span x-text="all ? 'Zwiń' : 'Pokaż wszystkie (<?= count($access) ?>)'"></span></button>
+      <?php endif; ?>
+    </div>
+    <?php else: ?>
+    <p class="tzx-muted tw-m-0">Twoja rola nie daje dostępu do modułów systemu głównego (konto o zawężonym zakresie).</p>
+    <?php endif; ?>
+    <p class="tzx-muted tw-mt-4 tw-mb-0">Roli ani uprawnień nie zmienisz tutaj — nadaje je administrator. Jeśli brakuje Ci dostępu, zgłoś to przez helpdesk.</p>
+  </div>
 </section>
 
 <!-- ═══════════ USŁUGI ═══════════ -->
-<section id="uslugi" class="tzx-sec" tabindex="-1" aria-labelledby="h-uslugi">
-  <h2 id="h-uslugi" class="tzx-h">Usługi i ważność dostępu <span class="lbl-en">Services &amp; access validity</span></h2>
-  <p class="tzx-lead tw-mb-4">Systemy, do których logujesz się tą tożsamością — co jest włączone, co czeka na konfigurację, a co jest niedostępne.</p>
-  <div class="tw-overflow-x-auto">
-  <table class="tzx-table">
-    <thead><tr><th>Usługa</th><th>Stan</th><th class="tw-hidden md:tw-table-cell">Opis</th><th class="tw-text-right">Działanie</th></tr></thead>
-    <tbody>
+<section id="uslugi" role="tabpanel" aria-labelledby="tab-uslugi" tabindex="-1" x-show="tab === 'uslugi'" x-transition.opacity.duration.150ms>
+  <h2 class="mt-h2">Usługi i <b>ważność dostępu</b> <span class="lbl-en tw-inline tw-font-normal">Services &amp; access validity</span></h2>
+  <p class="mt-lead tw-mb-4 tw-mt-0">Systemy, do których logujesz się tą tożsamością — co jest włączone, co czeka na konfigurację, a co jest niedostępne.</p>
+  <?php $TONE_C = ['brand'=>'var(--m-blue)','blue'=>'var(--m-blue)','sky'=>'var(--m-teal)','teal'=>'var(--m-teal)','indigo'=>'var(--m-indigo)','slate'=>'var(--m-grey)','emerald'=>'var(--m-green)','amber'=>'var(--m-orange)']; ?>
+  <div class="tw-grid tw-grid-cols-1 xl:tw-grid-cols-2 tw-gap-2">
     <?php foreach ($services as $s): ?>
-    <tr<?= !empty($s['soon']) ? ' class="tw-text-slate-400"' : '' ?>>
-      <td class="tw-font-semibold tw-text-slate-900 tw-whitespace-nowrap"><i class="bi <?= $s['icon'] ?> tw-mr-1.5 tw-text-slate-500" aria-hidden="true"></i><?= h($s['name']) ?>
-        <div class="tzx-muted tw-font-normal md:tw-hidden tw-whitespace-normal tw-mt-0.5"><?= h($s['desc']) ?></div></td>
-      <td class="tw-whitespace-nowrap"><span class="tzx-badge <?= $STATUS_CLASS[$s['status']] ?>"><i class="bi <?= $STATUS_ICON[$s['status']] ?>" aria-hidden="true"></i><?= h($s['status_label']) ?></span></td>
-      <td class="tw-hidden md:tw-table-cell tw-text-slate-600"><?= h($s['desc']) ?></td>
-      <td class="tw-text-right tw-whitespace-nowrap">
+    <article class="mt-svc<?= !empty($s['soon']) ? ' tw-opacity-60' : '' ?>" style="--c:<?= $TONE_C[$s['tone']] ?? 'var(--m-blue)' ?>">
+      <i class="bi <?= $s['icon'] ?> ic" aria-hidden="true"></i>
+      <div class="tw-flex-1 tw-min-w-0">
+        <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2"><h3><?= h($s['name']) ?></h3><span class="tzx-badge <?= $STATUS_CLASS[$s['status']] ?>"><?= h($s['status_label']) ?></span></div>
+        <p><?= h($s['desc']) ?></p>
+      </div>
+      <div class="tw-shrink-0">
         <?php if (!empty($s['ldap'])): ?>
           <?php if ($ldap_enabled && !$has_ldap): ?>
-          <form method="post" class="tw-m-0 tw-inline">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_action" value="ldap_create">
-            <button type="submit" class="tzx-btn tzx-btn--sm" onclick="return confirm('Utworzyć konto w katalogu LDAP na podstawie Twoich danych tożsamości?');">Utwórz konto</button>
-          </form>
+          <form method="post" class="tw-m-0"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="ldap_create">
+            <button type="submit" class="tzx-btn tzx-btn--sm" onclick="return confirm('Utworzyć konto w katalogu LDAP na podstawie Twoich danych tożsamości?');">Utwórz konto</button></form>
           <?php elseif ($has_ldap): ?>
-          <form method="post" class="tw-m-0 tw-inline">
-            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
-            <input type="hidden" name="_action" value="ldap_create">
-            <button type="submit" class="tzx-btn tzx-btn--ghost tzx-btn--sm">Odśwież wpis</button>
-          </form>
-          <?php else: ?><span class="tzx-muted">—</span><?php endif; ?>
+          <form method="post" class="tw-m-0"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_action" value="ldap_create">
+            <button type="submit" class="tzx-btn tzx-btn--ghost tzx-btn--sm">Odśwież wpis</button></form>
+          <?php endif; ?>
         <?php elseif (!empty($s['soon'])): ?>
           <span class="tzx-muted">wkrótce</span>
         <?php elseif (!empty($s['tab'])): ?>
-          <a href="#<?= $s['tab'] ?>" class="tw-text-blue-700 tw-font-medium" @click.prevent="go('<?= $s['tab'] ?>')"><?= h($s['cta']) ?> <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          <a href="#<?= $s['tab'] ?>" class="tzx-btn tzx-btn--ghost tzx-btn--sm" @click.prevent="go('<?= $s['tab'] ?>')"><?= h($s['cta']) ?></a>
         <?php else: ?>
-          <a href="<?= h($s['href']) ?>" class="tw-text-blue-700 tw-font-medium"><?= h($s['cta']) ?> <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          <a href="<?= h($s['href']) ?>" class="tzx-btn tzx-btn--ghost tzx-btn--sm"><?= h($s['cta']) ?></a>
         <?php endif; ?>
-      </td>
-    </tr>
+      </div>
+    </article>
     <?php endforeach; ?>
-    </tbody>
-  </table>
   </div>
 
-  <h3 class="tzx-h3">Narzędzia zewnętrzne</h3>
-  <ul class="tzx-links">
-    <li><a href="<?= h($trello_ws_url) ?>" target="_blank" rel="noopener noreferrer">Trello <i class="bi bi-box-arrow-up-right tw-text-[.7rem]" aria-hidden="true"></i></a><small>Tablice Kanban — zadania i projekty zespołu<?php if (can_write('admin')): ?> · <a href="<?= APP_URL ?>/admin/trello_import.php" class="tw-text-blue-700">import zadań do SZO</a><?php endif; ?></small></li>
-  </ul>
+  <h3 class="mt-h3">Narzędzia zewnętrzne</h3>
+  <div class="mt-grid" style="grid-auto-rows:120px">
+    <a href="<?= h($trello_ws_url) ?>" target="_blank" rel="noopener noreferrer" class="mt-tile mt-tile--w" style="--c:#0052CC" aria-label="Otwórz Trello">
+      <i class="bi bi-kanban ic" aria-hidden="true"></i>
+      <span><span class="lbl tw-block">Trello</span><span class="sub">Tablice Kanban — zadania i projekty zespołu</span></span>
+    </a>
+    <?php if (can_write('admin')): ?>
+    <a href="<?= APP_URL ?>/admin/trello_import.php" class="mt-tile" style="--c:var(--m-dark)" title="Import zadań z Trello do SZO">
+      <i class="bi bi-download ic" aria-hidden="true"></i>
+      <span><span class="lbl tw-block">Import z Trello</span><span class="sub">do zadań SZO</span></span>
+    </a>
+    <?php endif; ?>
+  </div>
 </section>
 
 <!-- ═══════════ BEZPIECZEŃSTWO ═══════════ -->
@@ -792,9 +876,10 @@ $sec_head = function (string $k) use ($sec_heads): void {
     [$ic, $t, $en, $ok, $st] = $sec_heads[$k];
     ?>
     <button type="button" class="tzx-acc-btn" :aria-expanded="sec === '<?= $k ?>' ? 'true' : 'false'" aria-controls="sec-<?= $k ?>-bd" id="sec-<?= $k ?>-hd" @click="open('<?= $k ?>')">
+      <span class="tzx-acc-ico" style="background:<?= $ok ? 'var(--m-green)' : 'var(--m-orange)' ?>" aria-hidden="true"><i class="bi <?= $ic ?>"></i></span>
       <span class="tw-flex-1 tw-min-w-0">
-        <span class="tw-block tw-text-[.95rem] tw-font-semibold tw-text-slate-900 tw-leading-tight"><?= h($t) ?> <span class="lbl-en tw-inline"><?= h($en) ?></span></span>
-        <span class="tw-block tzx-muted tw-mt-0.5"><?= h($st) ?></span>
+        <span class="tw-block tw-text-[1.05rem] tw-font-semibold tw-text-slate-900 tw-leading-tight"><?= h($t) ?> <span class="lbl-en tw-inline"><?= h($en) ?></span></span>
+        <span class="tw-block tw-text-[.82rem] tw-text-slate-600 tw-mt-0.5"><?= h($st) ?></span>
       </span>
       <span class="tzx-badge <?= $ok ? 'tzx-badge--ok' : 'tzx-badge--warn' ?> tw-hidden sm:tw-inline-flex"><?= $ok ? 'Gotowe' : 'Do uzupełnienia' ?></span>
       <span class="tzx-acc-plus" aria-hidden="true"><i class="bi" :class="sec === '<?= $k ?>' ? 'bi-dash-lg' : 'bi-plus-lg'"></i></span>
@@ -802,13 +887,13 @@ $sec_head = function (string $k) use ($sec_heads): void {
     <?php
 };
 ?>
-<section id="bezpieczenstwo" class="tzx-sec" tabindex="-1" aria-labelledby="h-bezpieczenstwo"
+<section id="bezpieczenstwo" role="tabpanel" aria-labelledby="tab-bezpieczenstwo" tabindex="-1" x-show="tab === 'bezpieczenstwo'" x-transition.opacity.duration.150ms
          x-data="{ sec: '<?= $sec_open ?>',
                    open(k) { this.sec = this.sec === k ? '' : k; },
                    reveal(k) { this.sec = k; this.$nextTick(() => { var el = document.getElementById('sec-' + k); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); } }"
          @tz-sec.window="reveal($event.detail)">
-  <h2 id="h-bezpieczenstwo" class="tzx-h">Bezpieczeństwo konta <span class="lbl-en">Account security</span></h2>
-  <p class="tzx-lead tw-mb-4">Hasło, telefon do odzyskiwania dostępu, drugi składnik logowania i PIN do dialera. Skonfigurowane: <strong><?= $sec_ok ?> z <?= $sec_total ?></strong> elementów. Rozwiń sekcję, aby zmienić ustawienia.</p>
+  <h2 class="mt-h2">Bezpieczeństwo <b>konta</b> <span class="lbl-en tw-inline tw-font-normal">Account security</span></h2>
+  <p class="mt-lead tw-mb-4 tw-mt-0">Hasło, telefon do odzyskiwania dostępu, drugi składnik logowania i PIN do dialera. Skonfigurowane: <strong><?= $sec_ok ?> z <?= $sec_total ?></strong> elementów. Rozwiń sekcję, aby zmienić ustawienia.</p>
 
   <div>
 
@@ -818,7 +903,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
       <div id="sec-haslo-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-haslo-hd" x-show="sec === 'haslo'" x-transition.opacity.duration.150ms>
         <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
           <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
-            <h4><i class="bi bi-arrow-repeat tw-text-blue-600" aria-hidden="true"></i>Jedno hasło, <?= $has_m365 ? 'dwa systemy' : 'konto lokalne' ?></h4>
+            <h4><i class="bi bi-arrow-repeat tw-text-[var(--m-blue)]" aria-hidden="true"></i>Jedno hasło, <?= $has_m365 ? 'dwa systemy' : 'konto lokalne' ?></h4>
             <?php if ($has_m365): ?>
             Zmiana w tym miejscu ustawia to samo hasło w SZO i w Microsoft 365 (Entra ID) jednocześnie. Jeśli hasła się rozjechały — tu je ponownie uzgodnisz.
             <?php else: ?>
@@ -830,7 +915,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
               <li>Najlepiej fraza z kilku słów zapisana w menedżerze haseł.</li>
             </ul>
             <?php if (!$has_local_password): ?>
-            <div class="tw-mt-3 tw-rounded-xl tw-bg-blue-50 tw-border tw-border-solid tw-border-blue-200 tw-text-blue-800 tw-px-3 tw-py-2 tw-text-[.78rem]"><i class="bi bi-info-circle tw-mr-1" aria-hidden="true"></i>Nie masz jeszcze hasła lokalnego SZO. Ustaw je — będzie też hasłem awaryjnym obok logowania Microsoft.</div>
+            <div class="tw-mt-3 tw-bg-white tw-border-l-[6px] tw-border-solid tw-border-[var(--m-blue)] tw-text-slate-800 tw-px-3 tw-py-2 tw-text-[.78rem]"><i class="bi bi-info-circle tw-mr-1" aria-hidden="true"></i>Nie masz jeszcze hasła lokalnego SZO. Ustaw je — będzie też hasłem awaryjnym obok logowania Microsoft.</div>
             <?php endif; ?>
           </aside>
           <div class="lg:tw-col-span-3 lg:tw-order-1">
@@ -883,7 +968,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
       <div id="sec-telefon-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-telefon-hd" x-show="sec === 'telefon'" x-transition.opacity.duration.150ms>
         <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
           <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
-            <h4><i class="bi bi-life-preserver tw-text-blue-600" aria-hidden="true"></i>Po co numer telefonu</h4>
+            <h4><i class="bi bi-life-preserver tw-text-[var(--m-blue)]" aria-hidden="true"></i>Po co numer telefonu</h4>
             Numer służy do odzyskiwania dostępu (kod SMS przy ustawianiu nowego hasła) i do powiadomień MFA. Nie jest używany do marketingu ani pokazywany innym użytkownikom.
             <ul>
               <li>Po zapisaniu wyślemy 6-cyfrowy kod — numer działa dopiero po jego wpisaniu.</li>
@@ -895,7 +980,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
           </aside>
           <div class="lg:tw-col-span-3 lg:tw-order-1">
             <?php if (!$sms_available): ?>
-              <div class="tw-rounded-xl tw-bg-amber-50 tw-border tw-border-solid tw-border-amber-200 tw-text-amber-800 tw-px-3.5 tw-py-2.5 tw-text-sm tw-mb-3" role="alert"><i class="bi bi-exclamation-triangle tw-mr-1" aria-hidden="true"></i>Weryfikacja SMS jest obecnie niedostępna.</div>
+              <div class="tw-bg-white tw-border-l-[6px] tw-border-solid tw-border-[var(--m-orange)] tw-text-slate-800 tw-px-3.5 tw-py-2.5 tw-text-sm tw-mb-3" role="alert"><i class="bi bi-exclamation-triangle tw-mr-1" aria-hidden="true"></i>Weryfikacja SMS jest obecnie niedostępna.</div>
             <?php endif; ?>
 
             <?php if ($phone_pending): ?>
@@ -961,7 +1046,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
       <div id="sec-mfa-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-mfa-hd" x-show="sec === 'mfa'" x-transition.opacity.duration.150ms>
         <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
           <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
-            <h4><i class="bi bi-shield-plus tw-text-blue-600" aria-hidden="true"></i>Drugi składnik logowania</h4>
+            <h4><i class="bi bi-shield-plus tw-text-[var(--m-blue)]" aria-hidden="true"></i>Drugi składnik logowania</h4>
             Nawet wykradzione hasło nie wystarczy do wejścia na konto. Sparuj smartfon z kontem organizacji — zalecamy aplikację <strong>Microsoft Authenticator</strong>.
             <ul>
               <li><strong>Klucz / passkey</strong> to najmocniejsza ochrona — odporna na phishing.</li>
@@ -970,25 +1055,25 @@ $sec_head = function (string $k) use ($sec_heads): void {
           </aside>
           <div class="lg:tw-col-span-3 lg:tw-order-1">
             <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-3 tw-mb-4">
-              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $totp_on ? ' tw-border-blue-300 tw-bg-blue-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
+              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $totp_on ? ' tw-bg-[#d6effa]' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
                 <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
-                  <span class="tzx-ico <?= $totp_on ? 'tw-bg-blue-600 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-phone"></i></span>
+                  <span class="tzx-ico <?= $totp_on ? 'tw-bg-[var(--m-blue)] tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-phone"></i></span>
                   <?php if ($totp_on): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span><?php else: ?><span class="tzx-badge tzx-badge--off">Nieaktywne</span><?php endif; ?>
                 </div>
                 <div><span class="tw-block tw-text-sm tw-font-semibold">Aplikacja Authenticator</span><span class="lbl-en">TOTP (Microsoft / Google Authenticator)</span><span class="tzx-muted tw-block tw-mt-1">Kod jednorazowy z aplikacji — działa offline.</span></div>
               </a>
               <?php if ($sms_available): ?>
-              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $sms_on ? ' tw-border-emerald-300 tw-bg-emerald-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
+              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $sms_on ? ' tw-bg-[#dcf0dc]' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php">
                 <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
-                  <span class="tzx-ico <?= $sms_on ? 'tw-bg-emerald-600 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
+                  <span class="tzx-ico <?= $sms_on ? 'tw-bg-[var(--m-green)] tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
                   <?php if ($sms_on): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Aktywne</span><?php else: ?><span class="tzx-badge tzx-badge--off">Nieaktywne</span><?php endif; ?>
                 </div>
                 <div><span class="tw-block tw-text-sm tw-font-semibold">Kod SMS</span><span class="lbl-en">Text message one-time code</span><span class="tzx-muted tw-block tw-mt-1">Jednorazowy kod na zweryfikowany numer telefonu.</span></div>
               </a>
               <?php endif; ?>
-              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $has_wk ? ' tw-border-emerald-300 tw-bg-emerald-50/40' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn">
+              <a class="tzx-tile tw-no-underline tw-text-slate-900 hover:tw-text-slate-900<?= $has_wk ? ' tw-bg-[#dcf0dc]' : '' ?>" href="<?= APP_URL ?>/tozsamosc/mfa.php#webauthn">
                 <div class="tw-flex tw-items-center tw-justify-between tw-gap-2">
-                  <span class="tzx-ico <?= $has_wk ? 'tw-bg-emerald-700 tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-fingerprint"></i></span>
+                  <span class="tzx-ico <?= $has_wk ? 'tw-bg-[var(--m-green)] tw-text-white' : 'tw-bg-slate-100 tw-text-slate-500' ?>" aria-hidden="true"><i class="bi bi-fingerprint"></i></span>
                   <?php if ($has_wk): ?><span class="tzx-badge tzx-badge--ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><?= count($wk_keys_idx) ?> klucz<?= count($wk_keys_idx) > 1 ? 'e' : '' ?></span><?php else: ?><span class="tzx-badge tzx-badge--off">Brak</span><?php endif; ?>
                 </div>
                 <div><span class="tw-block tw-text-sm tw-font-semibold">Klucz / Passkey</span><span class="lbl-en">WebAuthn / FIDO2 / Passkeys</span><span class="tzx-muted tw-block tw-mt-1">Biometria, YubiKey lub Windows Hello — ochrona przed phishingiem.</span></div>
@@ -1006,12 +1091,12 @@ $sec_head = function (string $k) use ($sec_heads): void {
       <div id="sec-pin-bd" class="tzx-acc-bd" role="region" aria-labelledby="sec-pin-hd" x-show="sec === 'pin'" x-transition.opacity.duration.150ms>
         <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-5">
           <aside class="tzx-aside lg:tw-col-span-2 lg:tw-order-2">
-            <h4><i class="bi bi-phone-vibrate tw-text-blue-600" aria-hidden="true"></i>Dialer CRM na telefonie</h4>
+            <h4><i class="bi bi-phone-vibrate tw-text-[var(--m-blue)]" aria-hidden="true"></i>Dialer CRM na telefonie</h4>
             Aplikacja mobilna <strong>Dzwoń</strong> pozwala wyszukać kontakt CRM i zadzwonić jednym dotknięciem. Wchodzisz do niej numerem konta i PIN-em — a potem, jak wszędzie w CRM, kodem IKA. Ta sesja otwiera <strong>wyłącznie</strong> dialer.
             <dl class="tw-grid tw-grid-cols-1 tw-gap-2 tw-m-0 tw-mt-3">
-              <div class="tzx-kv tw-bg-white"><dt>Adres aplikacji <span class="lbl-en">App address</span></dt><dd><a href="<?= h($pin_app_url) ?>" class="tw-text-blue-700"><?= h(preg_replace('#^https?://#', '', $pin_app_url)) ?></a> <span class="tzx-muted tw-font-normal">— dodaj do ekranu głównego</span></dd></div>
-              <div class="tzx-kv tw-bg-white"><dt>Numer konta (UID) <span class="lbl-en">Account number</span></dt><dd class="tw-font-mono"><?= (int)$uid ?></dd></div>
-              <div class="tzx-kv tw-bg-white"><dt>PIN <span class="lbl-en">Quick dial PIN</span></dt><dd>
+              <div class="tzx-kv"><dt>Adres aplikacji <span class="lbl-en">App address</span></dt><dd><a href="<?= h($pin_app_url) ?>" class="tw-text-[var(--m-blue-d)]"><?= h(preg_replace('#^https?://#', '', $pin_app_url)) ?></a> <span class="tzx-muted tw-font-normal">— dodaj do ekranu głównego</span></dd></div>
+              <div class="tzx-kv"><dt>Numer konta (UID) <span class="lbl-en">Account number</span></dt><dd class="tw-font-mono"><?= (int)$uid ?></dd></div>
+              <div class="tzx-kv"><dt>PIN <span class="lbl-en">Quick dial PIN</span></dt><dd>
                 <?php if (!$pin_allowed): ?>Wyłączone przez administratora
                 <?php elseif ($pin_is_set): ?>Ustawiony<?php if (!empty($db_user['mobile_pin_set_at'])): ?> <span class="tzx-muted tw-font-normal">od <?= h(date('d.m.Y', strtotime((string)$db_user['mobile_pin_set_at']))) ?></span><?php endif; ?>
                   <?php if ($pin_lock): ?> <span class="tzx-badge tzx-badge--warn">Zablokowany na <?= (int)$pin_lock ?> min po błędnych próbach</span><?php endif; ?>
@@ -1065,11 +1150,11 @@ $sec_head = function (string $k) use ($sec_heads): void {
 
 <?php if ($has_ika): ?>
 <!-- ═══════════ ZMIEŃ IKA ═══════════ -->
-<section id="ika" class="tzx-sec" tabindex="-1" aria-labelledby="h-ika">
-  <h2 id="h-ika" class="tzx-h">Zmień kod IKA</h2>
+<section id="ika" role="tabpanel" aria-labelledby="tab-ika" tabindex="-1" x-show="tab === 'ika'" x-transition.opacity.duration.150ms>
+  <h2 class="mt-h2">Zmień <b>kod IKA</b></h2>
   <div class="tzx-card tw-max-w-3xl">
     <div class="tzx-card-hd">
-      <i class="bi bi-key tw-text-blue-600" aria-hidden="true"></i>
+      <i class="bi bi-key tw-text-[var(--m-blue)]" aria-hidden="true"></i>
       <h2 class="tzx-h2">Zmień kod IKA <span class="lbl-en tw-inline">Change your access code</span></h2>
       <span class="tw-ml-auto tzx-badge <?= $ika_blocked ? 'tzx-badge--warn' : 'tzx-badge--ok' ?>"><?= $ika_blocked ? 'Tymczasowo zablokowany' : 'Aktywny' ?></span>
     </div>
@@ -1079,7 +1164,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
         przy dostępie do chronionych danych (np. umów). Aby go zmienić, podaj obecny kod i ustaw nowy.
       </p>
       <?php if ($ika_blocked): ?>
-      <div class="tw-rounded-xl tw-bg-amber-50 tw-border tw-border-solid tw-border-amber-200 tw-text-amber-800 tw-px-3.5 tw-py-2.5 tw-text-sm tw-mb-3" role="alert">
+      <div class="tw-bg-amber-50 tw-border tw-border-solid tw-border-amber-200 tw-text-amber-800 tw-px-3.5 tw-py-2.5 tw-text-sm tw-mb-3" role="alert">
         <i class="bi bi-hourglass-split tw-mr-1" aria-hidden="true"></i>Kod IKA jest tymczasowo zablokowany po błędnych próbach. Spróbuj ponownie później.
       </div>
       <?php endif; ?>
@@ -1110,13 +1195,13 @@ $sec_head = function (string $k) use ($sec_heads): void {
 <?php endif; ?>
 
 <!-- ═══════════ REJESTR CZYNNOŚCI ═══════════ -->
-<section id="rejestr" class="tzx-sec" tabindex="-1" aria-labelledby="h-rejestr">
-  <h2 id="h-rejestr" class="tzx-h">Rejestr czynności</h2>
+<section id="rejestr" role="tabpanel" aria-labelledby="tab-rejestr" tabindex="-1" x-show="tab === 'rejestr'" x-transition.opacity.duration.150ms>
+  <h2 class="mt-h2">Rejestr <b>czynności</b></h2>
   <div class="tw-grid tw-grid-cols-1 lg:tw-grid-cols-5 tw-gap-4">
     <div class="lg:tw-col-span-2 tw-grid tw-gap-4 tw-content-start">
       <div class="tzx-card">
         <div class="tzx-card-hd">
-          <i class="bi bi-info-circle tw-text-blue-600" aria-hidden="true"></i>
+          <i class="bi bi-info-circle tw-text-[var(--m-blue)]" aria-hidden="true"></i>
           <h2 class="tzx-h2">Co dzieje się z Twoimi danymi <span class="lbl-en tw-inline">How your data is processed</span></h2>
           <a href="<?= APP_URL ?>/tozsamosc/rodo_export.php" target="_blank" rel="noopener" class="tzx-btn tzx-btn--ghost tzx-btn--sm tw-ml-auto" title="Pobierz eksport danych osobowych (PDF) — art. 15 i 20 RODO"><i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>Eksport PDF</a>
         </div>
@@ -1135,7 +1220,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
 
       <div class="tzx-card">
         <div class="tzx-card-hd">
-          <i class="bi bi-patch-check tw-text-blue-600" aria-hidden="true"></i>
+          <i class="bi bi-patch-check tw-text-[var(--m-blue)]" aria-hidden="true"></i>
           <h2 class="tzx-h2">Upoważnienia do przetwarzania danych</h2>
           <span class="tw-ml-auto tzx-badge tzx-badge--off"><?= count($rodo_auth) ?></span>
         </div>
@@ -1145,7 +1230,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
           <?php else: ?>
             <div class="tw-grid tw-gap-2">
             <?php foreach ($rodo_auth as $a): $scope = json_decode($a['scope_items'] ?? '[]', true) ?: []; ?>
-              <div class="tw-rounded-xl tw-border tw-border-solid tw-border-slate-200 tw-p-3<?= $a['status'] !== 'aktywne' ? ' tw-opacity-70' : '' ?>">
+              <div class="tw-border tw-border-solid tw-border-slate-200 tw-p-3<?= $a['status'] !== 'aktywne' ? ' tw-opacity-70' : '' ?>">
                 <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
                   <span class="tw-font-mono tw-font-bold tw-text-slate-500 tw-text-[.8rem]"><?= h($a['number']) ?></span>
                   <?= rodo_status_badge($a['status']) ?>
@@ -1171,9 +1256,9 @@ $sec_head = function (string $k) use ($sec_heads): void {
 
     <div class="tzx-card lg:tw-col-span-3" x-data="{ f: 'all' }">
       <div class="tzx-card-hd tw-flex-wrap">
-        <i class="bi bi-file-earmark-text tw-text-blue-600" aria-hidden="true"></i>
+        <i class="bi bi-file-earmark-text tw-text-[var(--m-blue)]" aria-hidden="true"></i>
         <h2 class="tzx-h2">Czynności na Twojej umowie</h2>
-        <div class="tw-ml-auto tw-inline-flex tw-gap-0.5 tw-p-0.5 tw-rounded-lg tw-bg-slate-100" role="group" aria-label="Filtr rejestru">
+        <div class="tw-ml-auto tw-inline-flex tw-gap-0.5 tw-p-0.5 tw-bg-slate-100" role="group" aria-label="Filtr rejestru">
           <button type="button" class="tzx-tab tw-py-1 tw-px-2.5 tw-text-xs" :aria-selected="f === 'all' ? 'true' : 'false'" @click="f = 'all'">Wszystko</button>
           <button type="button" class="tzx-tab tw-py-1 tw-px-2.5 tw-text-xs" :aria-selected="f === 'enter' ? 'true' : 'false'" @click="f = 'enter'">Wejścia</button>
           <button type="button" class="tzx-tab tw-py-1 tw-px-2.5 tw-text-xs" :aria-selected="f === 'mod' ? 'true' : 'false'" @click="f = 'mod'">Modyfikacje</button>
@@ -1190,7 +1275,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
               $is_enter = in_array($ev['action'], $REG_ENTER, true);
             ?>
             <li x-show="f === 'all' || f === '<?= $is_enter ? 'enter' : 'mod' ?>'">
-              <span class="tzx-dot <?= $is_enter ? 'tw-border-slate-400 tw-text-slate-500' : 'tw-border-blue-500 tw-text-blue-600' ?>" aria-hidden="true"><i class="bi <?= h($ic) ?>"></i></span>
+              <span class="tzx-dot <?= $is_enter ? 'tw-border-slate-400 tw-text-slate-500' : 'tw-border-blue-500 tw-text-[var(--m-blue)]' ?>" aria-hidden="true"><i class="bi <?= h($ic) ?>"></i></span>
               <div class="tw-text-[.88rem] tw-font-semibold tw-text-slate-900 tw-flex tw-flex-wrap tw-items-center tw-gap-1.5">
                 <?= h($lbl) ?>
                 <span class="tzx-badge <?= $is_enter ? 'tzx-badge--off' : 'tzx-badge--info' ?>"><?= $is_enter ? 'Wejście' : 'Modyfikacja' ?></span>
@@ -1210,10 +1295,10 @@ $sec_head = function (string $k) use ($sec_heads): void {
 </section>
 
 <!-- ═══════════ O PANELU ═══════════ -->
-<section id="opanelu" class="tzx-sec" tabindex="-1" aria-labelledby="h-opanelu">
-  <h2 id="h-opanelu" class="tzx-h">O panelu</h2>
+<section id="opanelu" role="tabpanel" aria-labelledby="tab-opanelu" tabindex="-1" x-show="tab === 'opanelu'" x-transition.opacity.duration.150ms>
+  <h2 class="mt-h2">O <b>panelu</b></h2>
   <div class="tzx-card">
-    <div class="tzx-card-hd"><i class="bi bi-info-circle tw-text-blue-600" aria-hidden="true"></i><h2 class="tzx-h2">O panelu <span class="lbl-en tw-inline">About this panel</span></h2></div>
+    <div class="tzx-card-hd"><i class="bi bi-info-circle tw-text-[var(--m-blue)]" aria-hidden="true"></i><h2 class="tzx-h2">O panelu <span class="lbl-en tw-inline">About this panel</span></h2></div>
     <div class="tzx-card-bd">
       <p class="tw-mb-4 tw-text-[.92rem]">
         <strong>System Tożsamości</strong> to Twoje <strong>„konto o koncie"</strong> — jedno miejsce, w którym zarządzasz
@@ -1221,7 +1306,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
         <strong>Nie służy do codziennej pracy</strong> — zadania, umowy i komunikaty załatwiasz w systemie SZO.
       </p>
       <div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-3 tw-mb-5">
-        <div class="tw-rounded-2xl tw-p-4 tw-bg-emerald-50 tw-border tw-border-solid tw-border-emerald-200">
+        <div class="tw-p-4 tw-bg-emerald-50 tw-border tw-border-solid tw-border-emerald-200">
           <div class="tw-font-bold tw-mb-2 tw-text-emerald-800"><i class="bi bi-check-circle-fill tw-mr-1" aria-hidden="true"></i>Do tego służy</div>
           <ul class="tw-mb-0 tw-pl-4 tw-text-[.86rem] tw-leading-7">
             <li>Sprawdzić swój <strong>numer UID</strong> i login (identyfikator sieciowy)</li>
@@ -1231,7 +1316,7 @@ $sec_head = function (string $k) use ($sec_heads): void {
             <li>Zobaczyć swoje <strong>usługi, upoważnienia RODO i rejestr czynności</strong></li>
           </ul>
         </div>
-        <div class="tw-rounded-2xl tw-p-4 tw-bg-orange-50 tw-border tw-border-solid tw-border-orange-200">
+        <div class="tw-p-4 tw-bg-orange-50 tw-border tw-border-solid tw-border-orange-200">
           <div class="tw-font-bold tw-mb-2 tw-text-orange-800"><i class="bi bi-x-circle-fill tw-mr-1" aria-hidden="true"></i>Czym NIE jest</div>
           <ul class="tw-mb-0 tw-pl-4 tw-text-[.86rem] tw-leading-7">
             <li>To <strong>nie</strong> panel do pracy — <strong>zadań, komunikatów, kalendarza</strong> szukaj w <a href="<?= APP_URL ?>/portal.php">SZO</a></li>
@@ -1242,13 +1327,13 @@ $sec_head = function (string $k) use ($sec_heads): void {
           </ul>
         </div>
       </div>
-      <h3 class="tzx-h3"><i class="bi bi-diagram-3 tw-text-blue-600" aria-hidden="true"></i>Jak to działa</h3>
+      <h3 class="tzx-h3"><i class="bi bi-diagram-3 tw-text-[var(--m-blue)]" aria-hidden="true"></i>Jak to działa</h3>
       <ul class="tw-text-[.86rem] tw-leading-7 tw-mb-5 tw-pl-4">
         <li>Twoje konto i <strong>numer UID</strong> powstają automatycznie w chwili <strong>zawarcia umowy</strong> — UID jest stały i niezmienny.</li>
         <li><strong>Login do panelu</strong> (identyfikator sieciowy) może różnić się od <strong>loginu Microsoft 365</strong> — oba widzisz w karcie tożsamości u góry.</li>
         <li>Zmiana hasła <strong>synchronizuje się</strong> jednocześnie z panelem SZO i Microsoft 365 / Entra ID.</li>
       </ul>
-      <h3 class="tzx-h3"><i class="bi bi-life-preserver tw-text-blue-600" aria-hidden="true"></i>Potrzebujesz pomocy?</h3>
+      <h3 class="tzx-h3"><i class="bi bi-life-preserver tw-text-[var(--m-blue)]" aria-hidden="true"></i>Potrzebujesz pomocy?</h3>
       <div class="tw-flex tw-flex-wrap tw-gap-2">
         <a href="<?= APP_URL ?>/helpdesk/index.php" class="tzx-btn tzx-btn--ghost tzx-btn--sm"><i class="bi bi-headset" aria-hidden="true"></i>Zgłoś do helpdesku</a>
         <a href="<?= APP_URL ?>/portal.php" class="tzx-btn tzx-btn--ghost tzx-btn--sm"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Przejdź do SZO</a>
@@ -1263,10 +1348,10 @@ $sec_head = function (string $k) use ($sec_heads): void {
 
 <?php if (is_admin()): ?>
 <!-- ═══════════ ADMINISTRACJA ═══════════ -->
-<section id="administracja" class="tzx-sec" tabindex="-1" aria-labelledby="h-administracja">
-  <h2 id="h-administracja" class="tzx-h">Administracja tożsamością</h2>
+<section id="administracja" role="tabpanel" aria-labelledby="tab-administracja" tabindex="-1" x-show="tab === 'administracja'" x-transition.opacity.duration.150ms>
+  <h2 class="mt-h2">Administracja <b>tożsamością</b></h2>
   <div class="tzx-card">
-    <div class="tzx-card-hd"><i class="bi bi-shield-fill-gear tw-text-orange-600" aria-hidden="true"></i><h2 class="tzx-h2">Administracja tożsamością <span class="lbl-en tw-inline">Admin controls</span></h2></div>
+    <div class="tzx-card-hd"><i class="bi bi-shield-fill-gear tw-text-[var(--m-orange)]" aria-hidden="true"></i><h2 class="tzx-h2">Administracja tożsamością <span class="lbl-en tw-inline">Admin controls</span></h2></div>
     <div class="tzx-card-bd">
       <p class="tzx-muted tw-mt-0">Zarządzanie kontami, rolami i federacją — w chrome Systemu Tożsamości.</p>
       <?php $admin_tiles = [
@@ -1296,87 +1381,51 @@ $sec_head = function (string $k) use ($sec_heads): void {
 </section>
 <?php endif; ?>
 
-</div><!-- /treść -->
-
-<!-- ═══════════ KOLUMNA BOCZNA ═══════════ -->
-<aside class="tzx-side" aria-label="Informacje o koncie">
-  <section aria-labelledby="side-id">
-    <h3 id="side-id">Konto</h3>
-    <dl>
-      <dt>Użytkownik</dt><dd class="tw-font-semibold"><?= h($user['name']) ?></dd>
-      <dt>Numer UID</dt><dd class="tw-font-mono tw-font-bold"><?= h($uid) ?></dd>
-      <dt>Identyfikator sieciowy</dt><dd><?= h($panel_login ?: '—') ?></dd>
-      <dt>Login Microsoft 365</dt><dd><?= h($m365_login ?: ($has_m365 ? $panel_login : 'brak konta M365')) ?></dd>
-      <dt>Rola</dt><dd><?= h($role_label) ?></dd>
-      <dt>Typ konta</dt><dd><?= h($account_type_label) ?></dd>
-    </dl>
-  </section>
-
-  <section aria-labelledby="side-sec">
-    <h3 id="side-sec">Stan zabezpieczeń</h3>
-    <p class="tw-m-0 tw-mb-1 tw-text-slate-700"><strong><?= $sec_ok ?> z <?= $sec_total ?></strong> elementów skonfigurowanych — <?= $sec_pct >= 80 ? 'konto dobrze zabezpieczone.' : ($sec_pct >= 50 ? 'warto dokończyć konfigurację.' : 'zabezpiecz konto.') ?></p>
-    <ul class="tzx-check">
-      <?php foreach ($sec_items as $it): ?>
-      <li>
-        <i class="bi <?= $it['ok'] ? 'bi-check-square-fill tw-text-emerald-600' : 'bi-square tw-text-slate-400' ?>" aria-hidden="true"></i>
-        <span class="tw-flex-1"><span class="tw-sr-only"><?= $it['ok'] ? 'gotowe: ' : 'do zrobienia: ' ?></span><?= h($it['label']) ?> <span class="tzx-muted">· <?= h($it['hint']) ?></span>
-          <?php if (!$it['ok']): ?> <a href="#<?= $it['tab'] ?>" class="tw-font-semibold" @click.prevent="go('<?= $it['tab'] ?>')<?= !empty($it['sec']) ? "; \$dispatch('tz-sec', '" . $it['sec'] . "')" : '' ?>">ustaw</a><?php endif; ?>
-        </span>
-      </li>
-      <?php endforeach; ?>
-    </ul>
-  </section>
-
-  <section aria-labelledby="side-toc">
-    <h3 id="side-toc">Na tej stronie</h3>
-    <nav class="tzx-toc" aria-label="Sekcje">
-      <?php foreach ($tabs as $tk => [$tl, $tic]): ?>
-      <a href="#<?= $tk ?>" :class="cur === '<?= $tk ?>' ? 'on' : ''" @click.prevent="go('<?= $tk ?>')"><?= h($tl) ?></a>
-      <?php endforeach; ?>
-      <a href="<?= APP_URL ?>/tozsamosc/mfa.php">Metody weryfikacji <i class="bi bi-arrow-right tw-text-[.7rem]" aria-hidden="true"></i></a>
-    </nav>
-  </section>
-
-  <section aria-labelledby="side-help">
-    <h3 id="side-help">Wsparcie</h3>
-    <p class="tw-m-0 tw-text-slate-700">Problem z logowaniem, hasłem lub dostępem: <a href="<?= APP_URL ?>/helpdesk/index.php">helpdesk organizacji</a>.</p>
-    <p class="tw-m-0 tw-mt-1.5 tw-text-slate-700">Adres usługi: <span class="tw-font-mono tw-text-[.8rem]"><?= h(preg_replace('#^https?://#', '', APP_URL)) ?>/tozsamosc/</span></p>
-  </section>
-</aside>
-</div><!-- /układ -->
 </div><!-- /x-data tzIdentity -->
 
 <script>
 document.addEventListener('alpine:init', function () {
-  // Strona „dokumentowa": wszystkie sekcje widoczne, #hash prowadzi do sekcji (przekierowania po zapisie używają
-  // #bezpieczenstwo itp.), spis treści w kolumnie bocznej podświetla bieżącą sekcję (IntersectionObserver).
+  // Pivot: jedna sekcja naraz, #hash w adresie (przekierowania po zapisie używają #bezpieczenstwo itp.),
+  // klawiatura (strzałki/Home/End) w pasku pivot.
   Alpine.data('tzIdentity', function (cfg) {
     return {
-      cur: '', sections: cfg.sections || [], q: '', status: '',
+      tab: 'podstawowe', tabs: cfg.tabs || [], q: '', status: '',
       init: function () {
-        var self = this;
         var h = (location.hash || '').slice(1);
-        if (this.sections.indexOf(h) >= 0) { this.cur = h; this.$nextTick(function () { self.go(h, 'auto'); }); }
-        else if (cfg.firstVisit) { this.cur = 'podstawowe'; }
-        else { this.cur = this.sections[0] || ''; }
-        if ('IntersectionObserver' in window) {
-          var io = new IntersectionObserver(function (entries) {
-            entries.forEach(function (en) { if (en.isIntersecting) self.cur = en.target.id; });
-          }, { rootMargin: '-25% 0px -65% 0px', threshold: 0 });
-          this.sections.forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
-        }
+        if (this.tabs.indexOf(h) >= 0) this.tab = h;
+        else if (cfg.firstVisit) this.tab = 'opanelu';
+        var self = this;
         window.addEventListener('hashchange', function () {
           var h2 = (location.hash || '').slice(1);
-          if (self.sections.indexOf(h2) >= 0) self.go(h2);
+          if (self.tabs.indexOf(h2) >= 0) self.tab = h2;
         });
       },
-      go: function (t, behavior) {
-        var el = document.getElementById(t);
-        if (!el) return;
-        this.cur = t;
+      go: function (t, focusPanel) {
+        if (this.tabs.indexOf(t) < 0) return;
+        this.tab = t;
         if (history.replaceState) history.replaceState(null, '', '#' + t);
-        el.scrollIntoView({ behavior: behavior || 'smooth', block: 'start' });
-        el.focus({ preventScroll: true });
+        var self = this;
+        this.$nextTick(function () {
+          var p = document.getElementById(t);
+          if (p) {
+            if (focusPanel !== false) p.focus({ preventScroll: true });
+            var bar = document.querySelector('.mt-pivot');
+            var top = (bar ? bar.getBoundingClientRect().top + window.scrollY : 0) - 70;
+            window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+          }
+        });
+      },
+      key: function (e, i) {
+        var n = this.tabs.length, j = null;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % n;
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + n) % n;
+        else if (e.key === 'Home') j = 0;
+        else if (e.key === 'End') j = n - 1;
+        if (j === null) return;
+        e.preventDefault();
+        this.go(this.tabs[j], false);
+        var btn = this.$refs['tab-' + this.tabs[j]];
+        if (btn) btn.focus();
       },
       match: function (hay, st) {
         var q = this.q.trim().toLowerCase();
@@ -1397,7 +1446,7 @@ document.addEventListener('alpine:init', function () {
       },
       get score() { var r = this.req, s = 0; for (var k in r) if (r[k]) s++; return s; },
       get pct() { return this.score / 6 * 100; },
-      get color() { var s = this.score; return s >= 6 ? '#16a34a' : s >= 5 ? '#22c55e' : s >= 3 ? '#f59e0b' : '#f87171'; },
+      get color() { var s = this.score; return s >= 6 ? '#008a00' : s >= 5 ? '#60a917' : s >= 3 ? '#f0a30a' : '#a20025'; },
       get label() { var s = this.score; return s >= 6 ? 'Bardzo silne · Very strong' : s >= 5 ? 'Silne · Strong' : s >= 3 ? 'Średnie · Medium' : 'Słabe · Weak'; },
       get mismatch() { return this.pw2.length > 0 && this.pw2 !== this.pw; }
     };
