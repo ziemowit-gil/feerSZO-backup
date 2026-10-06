@@ -594,4 +594,6 @@ function ceidgFill(d) {
 })();
 </script>
 
+<?php // Wymagalność pól (Admin → Wymagane pola w formularzach): oznaczenia etykiet + ostrzeżenia, bez blokowania zapisu.
+require_once dirname(dirname(__DIR__)) . '/modules/form_fields/logic/formFields.php'; formFieldsAttach('dzielo'); ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

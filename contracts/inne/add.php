@@ -442,4 +442,6 @@ document.getElementById('forma_podpisania').addEventListener('change', function 
 });
 </script>
 
+<?php // Wymagalność pól (Admin → Wymagane pola w formularzach): oznaczenia etykiet + ostrzeżenia, bez blokowania zapisu.
+require_once dirname(dirname(__DIR__)) . '/modules/form_fields/logic/formFields.php'; formFieldsAttach('inne'); ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
