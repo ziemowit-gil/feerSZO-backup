@@ -2061,8 +2061,6 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <?php include __DIR__ . '/_tab_formalnosci.php'; ?>
 <?php endif; ?>
 
-</div><!-- /tab-content -->
-</div><!-- /cv-tabs-layout -->
 
 <?php if (is_admin()): ?>
 <div class="modal fade" id="deleteModal" tabindex="-1">
@@ -3309,6 +3307,9 @@ window.CVTabsConfig = {
     include dirname(dirname(__DIR__)) . '/includes/messages_widget.php';
   ?>
 </div><!-- /tab-messages -->
+
+</div><!-- /tab-content -->
+</div><!-- /cv-tabs-layout -->
 
 <script>
 (function () {
