@@ -98,7 +98,8 @@ try {
     db_exec("DELETE FROM edok_wyplaty WHERE doc_id = ?", [$id]);
     db_exec("DELETE FROM edok_steps WHERE doc_id = ?", [$id]);
     db_exec("DELETE FROM edok_events WHERE doc_id = ?", [$id]);
-    db_exec("UPDATE edok_bank_tx SET doc_id = NULL, matched_how = NULL, matched_by = NULL, matched_by_name = NULL, matched_at = NULL WHERE doc_id = ?", [$id]);
+    // Odpięcie pozycji wyciągu: NOT NULL-e wracają do wartości domyślnych, reszta na NULL
+    db_exec("UPDATE edok_bank_tx SET doc_id = NULL, matched_how = '', matched_by = NULL, matched_by_name = '', matched_at = NULL WHERE doc_id = ?", [$id]);
     db_exec("UPDATE edok_ksef_queue SET doc_id = NULL WHERE doc_id = ?", [$id]);
     db_exec("UPDATE zlecenie_rachunki SET edok_doc_id = NULL, edok_number = NULL WHERE edok_doc_id = ?", [$id]);
     db_exec("UPDATE edok_documents SET proforma_id = NULL WHERE proforma_id = ?", [$id]);
