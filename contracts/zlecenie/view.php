@@ -203,11 +203,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_add']) && can_e
         'contract_id'      => $id,
         'numer'            => trim($_POST['rach_numer'] ?? ''),
         'data_wystawienia' => trim($_POST['rach_data']  ?? ''),
-        'okres'            => trim($_POST['rach_okres'] ?? ''),
+        'okres'            => trim($_POST['rach_okres'] ?? ''),   // własny opis (opcjonalnie) — inaczej etykieta z zakresu
+        'okres_od'         => '',
+        'okres_do'         => '',
         'kwota_brutto'     => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota'] ?? '')),
         'uwagi'            => trim($_POST['rach_uwagi'] ?? ''),
         'test_mode'        => !empty($_POST['rach_test']) ? 1 : 0,
     ];
+    // Okres rachunku: miesiąc „od” i (dla rachunku za kilka miesięcy) „do”.
+    $_okr = rachunek_okres_parse((string)($_POST['rach_okres_od'] ?? ''),
+                                 !empty($_POST['rach_okres_multi']) ? (string)($_POST['rach_okres_do'] ?? '') : '');
+    if ($_okr['error']) {
+        flash_set('error', $_okr['error']);
+        header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+    }
+    $_data['okres_od'] = $_okr['od'];
+    $_data['okres_do'] = $_okr['do'];
+    if ($_data['okres'] === '' && $_okr['label'] !== '') $_data['okres'] = $_okr['label'];
     try {
         if (($_FILES['rach_plik']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
             $_data = array_merge($_data, rachunek_store_file($_FILES['rach_plik']));
@@ -1870,8 +1882,20 @@ window.CVTabsConfig = {
                    placeholder="<?= h(number_format((float)($row['wynagrodzenie_brutto'] ?? 0), 2, ',', ' ')) ?>">
           </div>
           <div class="col-md-6">
-            <label class="form-label small fw-semibold" for="rachOkres">Za jaki okres</label>
-            <input id="rachOkres" name="rach_okres" class="form-control" placeholder="np. czerwiec 2026" maxlength="120">
+            <label class="form-label small fw-semibold" for="rachOkresOd">Za jaki okres</label>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <input id="rachOkresOd" name="rach_okres_od" type="month" class="form-control" style="max-width:170px"
+                     value="<?= h(date('Y-m')) ?>" aria-label="Okres od (miesiąc)">
+              <span id="rachOkresSep" class="text-muted small d-none">do</span>
+              <input id="rachOkresDo" name="rach_okres_do" type="month" class="form-control d-none" style="max-width:170px"
+                     value="<?= h(date('Y-m')) ?>" aria-label="Okres do (miesiąc)">
+            </div>
+            <div class="form-check mt-1">
+              <input class="form-check-input" type="checkbox" id="rachOkresMulti" name="rach_okres_multi" value="1">
+              <label class="form-check-label small" for="rachOkresMulti">Rachunek za kilka miesięcy (np. za 2 miesiące)</label>
+            </div>
+            <div class="form-text">Okres: <strong id="rachOkresPreview"></strong>. Baner „Wyślij rachunek” zniknie dla wszystkich objętych miesięcy.</div>
+            <input id="rachOkres" name="rach_okres" class="form-control form-control-sm mt-1" placeholder="Własny opis okresu (opcjonalnie, zastępuje automatyczny)" maxlength="120">
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold" for="rachPlik">Plik rachunku</label>
@@ -1921,6 +1945,29 @@ window.CVTabsConfig = {
         <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Zapisz rachunek</button>
       </div>
     </form>
+<script>
+(function () {
+  var od = document.getElementById('rachOkresOd'), doEl = document.getElementById('rachOkresDo'),
+      multi = document.getElementById('rachOkresMulti'), sep = document.getElementById('rachOkresSep'),
+      prev = document.getElementById('rachOkresPreview');
+  if (!od || !doEl || !multi) return;
+  var M = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+  function lbl(ym) { var p = (ym || '').split('-'); return p.length === 2 ? (M[parseInt(p[1], 10) - 1] || ym) + ' ' + p[0] : '—'; }
+  function render() {
+    var on = multi.checked;
+    doEl.classList.toggle('d-none', !on); sep.classList.toggle('d-none', !on);
+    if (!on) doEl.value = od.value;
+    if (on && doEl.value && doEl.value < od.value) doEl.value = od.value;
+    var a = od.value, b = on ? doEl.value : a;
+    if (!a) { prev.textContent = '—'; return; }
+    if (a === b) prev.textContent = lbl(a);
+    else if (a.slice(0, 4) === b.slice(0, 4)) prev.textContent = lbl(a).split(' ')[0] + '–' + lbl(b);
+    else prev.textContent = lbl(a) + ' – ' + lbl(b);
+  }
+  multi.addEventListener('change', render); od.addEventListener('change', render); doEl.addEventListener('change', render);
+  render();
+})();
+</script>
   </div>
 </div>
 

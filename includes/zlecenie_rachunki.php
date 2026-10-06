@@ -74,6 +74,8 @@ require_once __DIR__ . '/db.php';
         db()->exec("CREATE INDEX IF NOT EXISTS idx_zrach_kom ON zlecenie_rachunek_komentarze(rachunek_id)");
         // Dokładanie kolumn do istniejących tabel (idempotentnie, jak w rozliczenia.php)
         foreach ([
+            'okres_od'             => 'TEXT',   // YYYY-MM — początek okresu rachunku
+            'okres_do'             => 'TEXT',   // YYYY-MM — koniec okresu (rachunek za kilka miesięcy)
             'rozliczenie_id'       => 'INTEGER',
             'plik_sha256'          => 'TEXT',
             'kdok_doc_id'          => 'INTEGER',
@@ -280,7 +282,10 @@ function create_rachunek(array $data, ?int $user_id, string $type = 'zlecenie'):
         'status'           => $data['status'] ?? 'nowy',
         'numer'            => $numer !== '' ? $numer : null,
         'data_wystawienia' => ($data['data_wystawienia'] ?? '') !== '' ? $data['data_wystawienia'] : null,
-        'okres'            => ($data['okres'] ?? '') !== '' ? $data['okres'] : null,
+        'okres'            => ($data['okres'] ?? '') !== '' ? $data['okres']
+                              : ((($data['okres_od'] ?? '') !== '') ? rachunek_okres_label((string)$data['okres_od'], (string)($data['okres_do'] ?? '')) : null),
+        'okres_od'         => ($data['okres_od'] ?? '') !== '' ? $data['okres_od'] : null,
+        'okres_do'         => ($data['okres_do'] ?? '') !== '' ? $data['okres_do'] : (($data['okres_od'] ?? '') !== '' ? $data['okres_od'] : null),
         'kwota_brutto'     => ($data['kwota_brutto'] ?? '') === '' || $data['kwota_brutto'] === null
                               ? null : (float)$data['kwota_brutto'],
         'uwagi'            => ($data['uwagi'] ?? '') !== '' ? $data['uwagi'] : null,
@@ -865,10 +870,56 @@ function rachunek_exists_for_month(int $contract_id, ?string $ym = null, string 
     $ym = $ym ?: date('Y-m');
     foreach (get_rachunki($type, $contract_id) as $r) {
         if (rachunek_is_test($r)) continue;
-        $d = $r['data_wystawienia'] ?: ($r['created_at'] ?? '');
-        if ($d !== '' && substr((string)$d, 0, 7) === $ym) return true;
+        if (in_array($ym, rachunek_okres_months($r), true)) return true;
     }
     return false;
+}
+
+/**
+ * Miesiące (YYYY-MM) objęte rachunkiem: zakres okres_od–okres_do (rachunek za kilka miesięcy),
+ * a dla starszych rekordów bez zakresu — miesiąc daty wystawienia (lub dodania).
+ */
+function rachunek_okres_months(array $r): array {
+    $od = (string)($r['okres_od'] ?? ''); $do = (string)($r['okres_do'] ?? '') ?: $od;
+    if (!preg_match('/^\d{4}-\d{2}$/', $od)) {
+        $d = $r['data_wystawienia'] ?: ($r['created_at'] ?? '');
+        return $d !== '' ? [substr((string)$d, 0, 7)] : [];
+    }
+    if (!preg_match('/^\d{4}-\d{2}$/', $do) || $do < $od) $do = $od;
+    $out = []; $cur = $od; $guard = 0;
+    while ($cur <= $do && $guard++ < 36) {
+        $out[] = $cur;
+        [$y, $m] = array_map('intval', explode('-', $cur));
+        $m++; if ($m > 12) { $m = 1; $y++; }
+        $cur = sprintf('%04d-%02d', $y, $m);
+    }
+    return $out;
+}
+
+/**
+ * Walidacja zakresu okresu z formularza: ['od'=>'YYYY-MM','do'=>'YYYY-MM','label'=>..., 'error'=>?string].
+ * Puste „do” = ten sam miesiąc co „od”. Maksymalnie 12 miesięcy.
+ */
+function rachunek_okres_parse(string $od, string $do): array {
+    $od = trim($od); $do = trim($do) ?: $od;
+    if ($od === '') return ['od' => '', 'do' => '', 'label' => '', 'error' => null];
+    if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $od)) return ['od' => '', 'do' => '', 'label' => '', 'error' => 'Nieprawidłowy miesiąc początkowy okresu rachunku.'];
+    if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $do)) return ['od' => '', 'do' => '', 'label' => '', 'error' => 'Nieprawidłowy miesiąc końcowy okresu rachunku.'];
+    if ($do < $od) return ['od' => '', 'do' => '', 'label' => '', 'error' => 'Koniec okresu rachunku nie może być wcześniejszy niż początek.'];
+    $n = count(rachunek_okres_months(['okres_od' => $od, 'okres_do' => $do]));
+    if ($n > 12) return ['od' => '', 'do' => '', 'label' => '', 'error' => 'Okres rachunku może obejmować najwyżej 12 miesięcy.'];
+    return ['od' => $od, 'do' => $do, 'label' => rachunek_okres_label($od, $do), 'error' => null];
+}
+
+/** Etykieta okresu: „wrzesień 2026”, „wrzesień–październik 2026”, „grudzień 2025 – luty 2026”. */
+function rachunek_okres_label(string $od, string $do = ''): string {
+    $do = $do ?: $od;
+    if ($do === $od) return rachunek_month_label($od);
+    [$y1, $m1] = array_map('intval', explode('-', $od) + [1 => 1]);
+    [$y2, $m2] = array_map('intval', explode('-', $do) + [1 => 1]);
+    $months = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+    if ($y1 === $y2) return ($months[$m1 - 1] ?? $od) . '–' . ($months[$m2 - 1] ?? $do) . ' ' . $y1;
+    return rachunek_month_label($od) . ' – ' . rachunek_month_label($do);
 }
 
 /**
