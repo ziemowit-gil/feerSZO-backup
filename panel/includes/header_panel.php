@@ -467,6 +467,19 @@ try {
     <i class="bi bi-clock-history" aria-hidden="true"></i>Ewidencja godzin
   </a>
   <?php endif; ?>
+  <?php
+    $_pv_u = current_user();
+    $_pv_has_zl = false;
+    try {
+        $_pv_has_zl = (bool)db_one("SELECT 1 AS x FROM umowy_zlecenie WHERE (m365_user_id = ? OR m365_login = ? OR email = ?) AND status NOT IN ('anulowana','rozwiązana') LIMIT 1",
+            [(string)($_pv_u['microsoft_id'] ?? '') ?: '-', (string)($_pv_u['email'] ?? '') ?: '-', (string)($_pv_u['email'] ?? '') ?: '-']);
+    } catch (\Throwable $e) {}
+  ?>
+  <?php if ($_pv_has_zl): ?>
+  <a href="<?= APP_URL ?>/panel/rozliczenia_zlecenie.php" class="pv-nav-link<?= _pv_nav_active('/panel/rozliczenia_zlecenie') ?>">
+    <i class="bi bi-calculator" aria-hidden="true"></i>Godziny i rozliczenia
+  </a>
+  <?php endif; ?>
   <?php if (module_enabled('certificates_enabled')): ?>
   <a href="<?= APP_URL ?>/panel/certificates.php" class="pv-nav-link<?= _pv_nav_active('/panel/certificates') ?>">
     <i class="bi bi-award" aria-hidden="true"></i>Zaświadczenia
