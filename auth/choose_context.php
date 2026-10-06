@@ -75,59 +75,60 @@ $tok   = csrf_token();
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#1d1d1d">
 <title>Wybór kontekstu · <?= h($org) ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-  /* Warstwa wizualna (2026-10-05): jasna i płaska, jak System Tożsamości / strona startowa — biały pasek, karty. */
-  :root{ --brand:#2563eb; --brand-dark:#1d4ed8; --ink:#0f172a; --line:#e6e9f0; --muted:#56637f; }
+  /* Warstwa wizualna (2026-10-06): Metro UI (metroui.org.ua) — spójnie z Systemem Tożsamości i stroną startową:
+     ciemny app-bar #1d1d1d, Segoe UI, kafle w jednolitych kolorach, zero zaokrągleń i cieni. */
+  :root{ --m-cyan:#1ba1e2; --m-cyan-d:#0e7bb3; --m-green:#008a00; --m-orange:#fa6800; --m-crimson:#a20025; --m-teal:#00aba9; --m-magenta:#d80073; --m-dark:#1d1d1d; --m-light:#f2f2f2; --m-line:#e1e1e1; }
   *{ box-sizing:border-box; }
-  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; background:#f3f5f9; color:#0f172a; min-height:100vh; -webkit-font-smoothing:antialiased; }
-  .bar{ height:56px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; position:sticky; top:0; z-index:40; }
-  .bar .in{ width:100%; max-width:860px; margin:0 auto; padding:0 1rem; display:flex; align-items:center; gap:.6rem; }
-  .mark{ width:34px; height:34px; border-radius:10px; background:var(--brand); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
-  .bar b{ display:block; font-size:.95rem; font-weight:700; line-height:1.05; }
-  .bar small{ display:block; font-size:.64rem; color:#64748b; }
-  .bar .out{ margin-left:auto; color:#374151; text-decoration:none; font-size:.82rem; font-weight:500; padding:.42rem .7rem; border-radius:8px; display:inline-flex; align-items:center; gap:.4rem; }
-  .bar .out:hover{ background:#fef2f2; color:#b91c1c; }
-  .head{ max-width:860px; margin:0 auto; padding:1.75rem 1rem 1.1rem; }
-  .eyebrow{ font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#94a3b8; }
-  .head h1{ font-size:clamp(1.4rem,2.6vw,1.75rem); font-weight:800; letter-spacing:-.025em; margin:.15rem 0 0; line-height:1.15; color:#0f172a; }
-  .head p{ color:#64748b; margin:.4rem 0 0; font-size:.9rem; }
-  .head p strong{ color:#0f172a; }
-  .wrap{ max-width:860px; margin:0 auto; padding:0 1rem 3rem; }
-  .grid{ display:grid; grid-template-columns:1fr; gap:.9rem; }
+  body{ margin:0; font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif; background:#fff; color:#111; min-height:100vh; -webkit-font-smoothing:antialiased; }
+  .bar{ height:56px; background:var(--m-dark); color:#fff; display:flex; align-items:center; position:sticky; top:0; z-index:40; }
+  .bar .in{ width:100%; max-width:960px; margin:0 auto; padding:0 1rem; display:flex; align-items:center; gap:.65rem; }
+  .mark{ width:34px; height:34px; background:var(--m-cyan); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+  .bar b{ display:block; font-size:.95rem; font-weight:600; line-height:1.05; }
+  .bar small{ display:block; font-size:.64rem; color:rgba(255,255,255,.65); }
+  .bar .out{ margin-left:auto; color:rgba(255,255,255,.85); text-decoration:none; font-size:.82rem; font-weight:500; padding:.45rem .7rem; display:inline-flex; align-items:center; gap:.4rem; }
+  .bar .out:hover{ background:var(--m-crimson); color:#fff; }
+  .head{ max-width:960px; margin:0 auto; padding:2rem 1rem 1.25rem; }
+  .eyebrow{ font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.18em; color:#777; margin-bottom:.35rem; }
+  .head h1{ font-size:clamp(1.8rem,4vw,2.5rem); font-weight:300; letter-spacing:-.02em; margin:0; line-height:1.05; color:#111; }
+  .head p{ color:#555; margin:.6rem 0 0; font-size:.95rem; font-weight:300; }
+  .head p strong{ color:#111; font-weight:600; }
+  .wrap{ max-width:960px; margin:0 auto; padding:0 1rem 3rem; }
+  .grid{ display:grid; grid-template-columns:1fr; gap:8px; }
   @media(min-width:680px){ .grid{ grid-template-columns:1fr 1fr; } .card--main{ grid-column:span 2; } }
-  .card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:1.1rem 1.2rem; box-shadow:0 1px 2px rgba(16,24,40,.04); display:flex; flex-direction:column; gap:.6rem; position:relative; overflow:hidden; }
-  .card--main{ border-color:var(--brand); }
-  .card--main::before{ content:''; position:absolute; left:0; right:0; top:0; height:4px; background:var(--brand); }
-  .card-hd{ display:flex; align-items:center; gap:.8rem; }
-  .ic{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; flex-shrink:0; }
-  .card h2{ font-size:1.02rem; margin:0; font-weight:800; letter-spacing:-.015em; }
-  .card .desc{ color:var(--muted); font-size:.84rem; margin:0; line-height:1.45; flex:1; }
-  .tag{ display:inline-flex; align-items:center; gap:.3rem; background:#eef4ff; color:#1d4ed8; border:1px solid #bdd2ff; font-size:.64rem; font-weight:700; padding:.18rem .55rem; border-radius:999px; position:absolute; top:.95rem; right:.95rem; }
-  .tag i{ color:#f59e0b; }
-  button.btn{ border:0; border-radius:11px; padding:.6rem 1rem; font-weight:700; font-size:.88rem; cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; justify-content:center; gap:.4rem; transition:background .12s,transform .12s; }
-  button.btn:focus-visible{ outline:3px solid #fbbf24; outline-offset:2px; }
-  .btn-primary{ background:var(--brand); color:#fff; width:100%; font-size:.98rem; padding:.78rem; }
-  .btn-primary:hover{ background:var(--brand-dark); }
-  .btn-soft{ background:#eef2f8; color:#0f172a; }
-  .btn-soft:hover{ background:#e2e8f0; }
+  .card{ background:var(--m-light); padding:0; display:flex; flex-direction:column; position:relative; border:0; }
+  .card-hd{ display:flex; align-items:center; gap:.9rem; padding:1rem 1.1rem; color:#fff; background:var(--t,var(--m-cyan)); }
+  .card--main .card-hd{ padding:1.3rem 1.25rem; }
+  .ic{ width:46px; height:46px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; color:#fff; flex-shrink:0; background:rgba(255,255,255,.2); }
+  .card h2{ font-size:1.25rem; margin:0; font-weight:300; letter-spacing:-.015em; }
+  .card--main h2{ font-size:1.6rem; }
+  .card-bd{ padding:1rem 1.1rem 1.1rem; display:flex; flex-direction:column; gap:.75rem; flex:1; }
+  .card .desc{ color:#444; font-size:.88rem; margin:0; line-height:1.45; flex:1; font-weight:300; }
+  .tag{ display:inline-flex; align-items:center; gap:.3rem; background:rgba(0,0,0,.28); color:#fff; font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:.2rem .55rem; position:absolute; top:.85rem; right:.9rem; }
+  button.btn{ border:2px solid transparent; border-radius:0; padding:.6rem 1rem; font-weight:600; font-size:.88rem; cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; justify-content:center; gap:.4rem; transition:background .12s,color .12s; }
+  button.btn:focus-visible{ outline:3px solid #000; outline-offset:2px; }
+  .btn-primary{ background:var(--m-cyan); border-color:var(--m-cyan); color:#fff; width:100%; font-size:1rem; padding:.8rem; }
+  .btn-primary:hover{ background:var(--m-cyan-d); border-color:var(--m-cyan-d); }
+  .btn-soft{ background:transparent; color:#111; border-color:#111; }
+  .btn-soft:hover{ background:#111; color:#fff; }
   .row-inline{ display:flex; gap:.5rem; flex-wrap:wrap; }
-  select,input[type=search]{ width:100%; padding:.55rem .65rem; border:1px solid #cbd5e1; border-radius:10px; font-size:.9rem; margin-bottom:.55rem; background:#fff; font-family:inherit; }
-  select:focus,input:focus,textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 .2rem rgba(37,99,235,.15); }
-  .err{ background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:12px; padding:.6rem .85rem; margin-bottom:1rem; font-size:.88rem; display:flex; gap:.5rem; align-items:flex-start; }
-  .muted{ color:#7d8aa6; font-size:.8rem; text-align:center; margin-top:1.25rem; }
-  textarea{ width:100%; padding:.55rem .65rem; border:1px solid #cbd5e1; border-radius:10px; font-size:.9rem; font-family:inherit; resize:vertical; margin-bottom:.55rem; }
-  .lbl{ display:block; font-size:.8rem; font-weight:700; color:#334155; margin:.2rem 0 .3rem; }
-  dialog.dlg{ border:0; border-radius:18px; padding:1.2rem 1.3rem; width:min(92vw,540px); box-shadow:0 24px 60px rgba(2,6,23,.35); }
-  dialog.dlg::backdrop{ background:rgba(15,23,42,.45); }
-  .dlg-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.8rem; }
-  .dlg-head strong{ font-size:1.05rem; display:inline-flex; align-items:center; gap:.5rem; }
-  .dlg-x{ border:0; background:#f1f5f9; width:32px; height:32px; border-radius:50%; font-size:1rem; cursor:pointer; color:#56637f; line-height:1; }
-  .dlg-x:hover{ background:#e2e8f0; color:#0f172a; }
+  select,input[type=search]{ width:100%; padding:.55rem .65rem; border:2px solid #8a8a8a; border-radius:0; font-size:.9rem; margin-bottom:.55rem; background:#fff; font-family:inherit; }
+  select:focus,input:focus,textarea:focus{ outline:none; border-color:var(--m-cyan); box-shadow:none; }
+  .err{ background:var(--m-crimson); color:#fff; padding:.65rem .9rem; margin-bottom:1rem; font-size:.88rem; display:flex; gap:.5rem; align-items:flex-start; }
+  .muted{ color:#777; font-size:.8rem; text-align:center; margin-top:1.25rem; }
+  textarea{ width:100%; padding:.55rem .65rem; border:2px solid #8a8a8a; border-radius:0; font-size:.9rem; font-family:inherit; resize:vertical; margin-bottom:.55rem; }
+  .lbl{ display:block; font-size:.78rem; font-weight:600; color:#333; margin:.2rem 0 .3rem; text-transform:uppercase; letter-spacing:.06em; }
+  dialog.dlg{ border:0; border-radius:0; padding:1.25rem 1.35rem; width:min(92vw,540px); box-shadow:none; border-top:6px solid var(--m-orange); }
+  dialog.dlg::backdrop{ background:rgba(0,0,0,.6); }
+  .dlg-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.9rem; }
+  .dlg-head strong{ font-size:1.3rem; font-weight:300; display:inline-flex; align-items:center; gap:.5rem; }
+  .dlg-x{ border:2px solid #111; background:transparent; width:32px; height:32px; font-size:1rem; cursor:pointer; color:#111; line-height:1; }
+  .dlg-x:hover{ background:#111; color:#fff; }
   .dlg-foot{ display:flex; gap:.5rem; justify-content:flex-end; margin-top:.4rem; }
-  .audit{ display:inline-flex; align-items:center; gap:.35rem; font-size:.7rem; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:999px; padding:.15rem .55rem; font-weight:600; }
+  .audit{ display:inline-flex; align-items:center; gap:.35rem; font-size:.68rem; color:#fff; background:var(--m-orange); padding:.15rem .5rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
 </style>
 </head>
 <body>
@@ -149,40 +150,45 @@ $tok   = csrf_token();
 
   <div class="grid">
   <!-- Administrator -->
-  <div class="card card--main">
+  <div class="card card--main" style="--t:var(--m-cyan)">
     <span class="tag"><i class="bi bi-star-fill" aria-hidden="true"></i>Domyślnie</span>
     <div class="card-hd">
-      <span class="ic" style="background:var(--brand)" aria-hidden="true"><i class="bi bi-shield-fill-check"></i></span>
+      <span class="ic" aria-hidden="true"><i class="bi bi-shield-fill-check"></i></span>
       <h2>Administrator</h2>
     </div>
+    <div class="card-bd">
     <p class="desc">Pełny dostęp do wszystkich modułów i panelu administracyjnego.</p>
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= h($tok) ?>">
       <input type="hidden" name="choice" value="admin">
       <button class="btn btn-primary" type="submit"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Wejdź jako administrator</button>
     </form>
+    </div>
   </div>
 
   <!-- Mój panel -->
-  <div class="card">
+  <div class="card" style="--t:var(--m-magenta)">
     <div class="card-hd">
-      <span class="ic" style="background:linear-gradient(135deg,#9D174D,#EC4899)" aria-hidden="true"><i class="bi bi-person-heart"></i></span>
+      <span class="ic" aria-hidden="true"><i class="bi bi-person-heart"></i></span>
       <h2>Mój panel</h2>
     </div>
+    <div class="card-bd">
     <p class="desc">Twoje własne umowy i zadania — jeśli Twoje konto jest też wolontariuszem lub zleceniobiorcą.</p>
     <form method="post">
       <input type="hidden" name="_csrf" value="<?= h($tok) ?>">
       <input type="hidden" name="choice" value="mypanel">
       <button class="btn btn-soft" type="submit">Otwórz mój panel <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
     </form>
+    </div>
   </div>
 
   <!-- Wcielenie w użytkownika -->
-  <div class="card">
+  <div class="card" style="--t:var(--m-orange)">
     <div class="card-hd">
-      <span class="ic" style="background:linear-gradient(135deg,#b45309,#f59e0b)" aria-hidden="true"><i class="bi bi-incognito"></i></span>
+      <span class="ic" aria-hidden="true"><i class="bi bi-incognito"></i></span>
       <h2>Wciel się w użytkownika</h2>
     </div>
+    <div class="card-bd">
     <p class="desc">Zobacz system oczami konkretnej osoby — jej panel i dane. <span class="audit"><i class="bi bi-journal-check" aria-hidden="true"></i>wymagany powód · audytowane</span></p>
     <?php if ($users): ?>
     <button class="btn btn-soft" type="button" onclick="document.getElementById('imp-dlg').showModal()">
@@ -191,6 +197,7 @@ $tok   = csrf_token();
     <?php else: ?>
     <p class="muted" style="margin:0;text-align:left">Brak innych aktywnych użytkowników do wcielenia.</p>
     <?php endif; ?>
+    </div>
   </div>
 
   <?php if ($users): ?>
@@ -227,11 +234,12 @@ $tok   = csrf_token();
   <?php endif; ?>
 
   <!-- Podgląd roli -->
-  <div class="card">
+  <div class="card" style="--t:var(--m-teal)">
     <div class="card-hd">
-      <span class="ic" style="background:linear-gradient(135deg,#0f766e,#14b8a6)" aria-hidden="true"><i class="bi bi-eyeglasses"></i></span>
+      <span class="ic" aria-hidden="true"><i class="bi bi-eyeglasses"></i></span>
       <h2>Podgląd roli (bez danych)</h2>
     </div>
+    <div class="card-bd">
     <p class="desc">Zobacz interfejs i uprawnienia danej roli na własnym koncie — bez danych konkretnej osoby.</p>
     <form method="post" class="row-inline">
       <input type="hidden" name="_csrf" value="<?= h($tok) ?>">
@@ -241,6 +249,7 @@ $tok   = csrf_token();
       <button class="btn btn-soft" type="submit" name="role" value="crm_user">Użytkownik CRM</button>
       <button class="btn btn-soft" type="submit" name="role" value="ezd_user">Użytkownik EZD</button>
     </form>
+    </div>
   </div>
   </div><!-- /grid -->
 
