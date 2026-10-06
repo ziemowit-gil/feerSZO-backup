@@ -176,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit() && isset($_POST['_zl_ew'
     csrf_check();
     $_zl_act  = (string)$_POST['_zl_ew'];
     $_zl_uid  = (int)current_user()['id'];
-    $_zl_tab  = in_array($_zl_act, ['zamknij','otworz','wyplata','naleznosc','korekta','korekta_del','rach_ym'], true) ? 'rozliczenia' : 'godziny';
+    $_zl_tab  = in_array($_zl_act, ['zamknij','otworz','wyplata','naleznosc','korekta','korekta_del','rach_ym','rach_podzial'], true) ? 'rozliczenia' : 'godziny';
     $_zl_ym   = trim((string)($_POST['ym'] ?? ''));
     $_zl_num  = fn($k) => (float)str_replace([',', ' '], ['.', ''], (string)($_POST[$k] ?? '0'));
     try {
@@ -240,6 +240,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit() && isset($_POST['_zl_ew'
             case 'korekta_del':
                 zl_korekta_delete($row, (int)($_POST['korekta_id'] ?? 0), $_zl_uid);
                 flash_set('success', 'Korekta usunięta.');
+                break;
+            case 'rach_podzial':
+                $_pd = is_array($_POST['podzial'] ?? null) ? $_POST['podzial'] : [];
+                zl_rozl_rachunek_set_podzial($row, (int)($_POST['rachunek_id'] ?? 0), $_pd, $_zl_uid);
+                flash_set('success', 'Podział rachunku łączonego zapisany.');
                 break;
             case 'rach_ym':
                 $_rym = trim((string)($_POST['rach_ym'] ?? ''));
@@ -424,6 +429,7 @@ $_zl_instr    = $_zl_k30 && (int)($row['ti_instructor_user_id'] ?? 0) ? db_one("
 $_zl_ledger   = zl_rozl_ledger($row);
 $_zl_korekty  = zl_korekta_list($id);
 $_zl_rach_np  = zl_rozl_rachunki_niepewne($id);
+$_zl_rach_lacz = zl_rozl_rachunki_laczone($row);
 $_zl_days_end = (!empty($row['data_zakonczenia']) && empty($row['bezterminowa']))
     ? (int)floor((strtotime($row['data_zakonczenia']) - strtotime(date('Y-m-d'))) / 86400) : null;
 $_zl_open_status = in_array((string)$row['status'], ZLEC_RACHUNEK_ACTIVE_STATUSES, true);
@@ -1074,8 +1080,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
               <div class="small text-muted text-nowrap">
                 <a href="?id=<?= $id ?>&tab=rachunki" class="text-decoration-none">#<?= (int)$_r['id'] ?><?= $_r['numer'] ? ' ' . h($_r['numer']) : '' ?></a>
                 <?= money($_r['kwota']) ?>
+                <?php if (!empty($_r['laczony'])): ?><span class="badge text-bg-light border" title="Rachunek łączony za <?= h($_r['okres']) ?>: <?= money($_r['kwota_calosc']) ?>, podział <?= $_r['podzial'] === 'reczny' ? 'ręczny' : 'automatyczny' ?>">część z <?= money($_r['kwota_calosc']) ?></span><?php endif; ?>
                 <?php if ($_r['zrodlo_ym'] === 'reczne'): ?><i class="bi bi-pin-angle" title="przypisany ręcznie"></i><?php elseif (in_array($_r['zrodlo_ym'], ['tekst','data'], true)): ?><i class="bi bi-question-circle text-warning" title="miesiąc odgadnięty"></i><?php endif; ?>
-                <?php if (can_edit() && !$_mlock): ?>
+                <?php if (can_edit() && !$_mlock && empty($_r['laczony'])): ?>
                 <button type="button" class="btn btn-link btn-sm p-0 align-baseline" style="font-size:.75rem" onclick="document.getElementById('zlr-ym-<?= (int)$_r['id'] ?>').classList.toggle('d-none')">zmień mies.</button>
                 <form method="post" id="zlr-ym-<?= (int)$_r['id'] ?>" class="d-none d-inline-flex gap-1 mt-1">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="rach_ym"><input type="hidden" name="rachunek_id" value="<?= (int)$_r['id'] ?>"><input type="hidden" name="ym" value="<?= h($_m['ym']) ?>">
@@ -1146,6 +1153,36 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
     </table>
     </div>
   </div>
+
+  <?php if ($_zl_rach_lacz): ?>
+  <!-- Rachunki łączone — podział kwoty na miesiące -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-layers"></i> Rachunki łączone (za kilka miesięcy) <span class="small fw-normal text-muted ms-2">wypłata łączona rozkładana na miesiące salda — automatycznie proporcjonalnie do należności albo ręcznie</span></div>
+    <div class="card-body">
+      <?php foreach ($_zl_rach_lacz as $_rl): ?>
+      <form method="post" class="d-flex flex-wrap align-items-end gap-2 mb-2 pb-2" style="border-bottom:1px dashed #E2E8F0">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="rach_podzial"><input type="hidden" name="rachunek_id" value="<?= (int)$_rl['id'] ?>">
+        <div class="me-2" style="min-width:14rem">
+          <div class="fw-semibold">#<?= (int)$_rl['id'] ?><?= $_rl['numer'] ? ' ' . h($_rl['numer']) : '' ?> · <?= money($_rl['kwota']) ?></div>
+          <div class="small text-muted"><?= h($_rl['okres']) ?> · podział <?= $_rl['reczny'] ? 'ręczny' : ($_rl['zrodlo'] === 'rowno' ? 'po równo (brak należności)' : 'proporcjonalny do należności') ?><?= $_rl['locked'] ? ' · <i class="bi bi-lock"></i> miesiąc zamknięty' : '' ?></div>
+        </div>
+        <?php foreach ($_rl['months'] as $_ym): ?>
+        <div>
+          <label class="form-label small mb-0" for="zlpd-<?= (int)$_rl['id'] ?>-<?= h($_ym) ?>"><?= h(zl_ew_ym_label($_ym)) ?></label>
+          <input id="zlpd-<?= (int)$_rl['id'] ?>-<?= h($_ym) ?>" type="number" step="0.01" min="0" name="podzial[<?= h($_ym) ?>]" class="form-control form-control-sm" style="width:8rem"
+                 value="<?= isset($_rl['podzial'][$_ym]) ? h(number_format($_rl['podzial'][$_ym], 2, '.', '')) : '' ?>" <?= (!can_edit() || $_rl['locked']) ? 'disabled' : '' ?>>
+        </div>
+        <?php endforeach; ?>
+        <?php if (can_edit() && !$_rl['locked']): ?>
+        <button type="submit" class="btn btn-sm btn-outline-primary">Zapisz podział</button>
+        <button type="submit" class="btn btn-sm btn-link text-muted" onclick="this.form.querySelectorAll('input[name^=podzial]').forEach(i => i.value = '')">Automatycznie</button>
+        <?php endif; ?>
+      </form>
+      <?php endforeach; ?>
+      <div class="small text-muted">Suma podziału nie może przekroczyć kwoty rachunku; nieprzypisana reszta trafia do ostatniego miesiąca okresu. Kilka osobnych rachunków w jednym miesiącu sumuje się do wypłaty tego miesiąca.</div>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- Korekty -->
   <div class="card shadow-sm mb-3">

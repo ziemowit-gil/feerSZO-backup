@@ -1145,6 +1145,10 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
 //                                      („źle wyrachunkowane” — nie ruszamy zamkniętych miesięcy).
 //    zlecenie_rachunki.rozliczenie_ym — ręczne przypisanie rachunku do miesiąca salda
 //                                      (np. rachunek z sierpnia wystawiony we wrześniu, bez okresu).
+//    zlecenie_rachunek_podzial       — rachunek ŁĄCZONY (okres_od–okres_do za kilka miesięcy):
+//                                      kwota rozłożona na miesiące — ręcznie, a bez podziału
+//                                      proporcjonalnie do należności miesięcy (wypłata łączona).
+//                                      Kilka osobnych rachunków w miesiącu sumuje się do wypłaty.
 //    timesheets                      — miesięczna karta (istniejąca); po każdej zmianie
 //                                      ewidencji sumę godzin ROZLICZANYCH w miesiącu
 //                                      wpisujemy tam, więc stare ekrany i rozliczenia
@@ -1238,6 +1242,16 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
             created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
         )");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_zlkor_contract ON zlecenie_rozliczenie_korekty(contract_id, ym)");
+        // Rachunek łączony (za kilka miesięcy) — podział kwoty na miesiące salda (ręczny; brak = automat proporcjonalny)
+        db()->exec("CREATE TABLE IF NOT EXISTS zlecenie_rachunek_podzial (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            rachunek_id INTEGER NOT NULL,
+            ym          TEXT    NOT NULL,
+            kwota       REAL    NOT NULL DEFAULT 0,
+            created_by  INTEGER,
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(rachunek_id, ym)
+        )");
     } catch (\Throwable $e) {
         error_log('[zlecenie_ewidencja migrate] ' . $e->getMessage());
     }
@@ -1855,6 +1869,101 @@ function zl_rozl_rachunki_niepewne(int $contract_id): array {
     return $out;
 }
 
+// ── Rachunki łączone: podział kwoty na miesiące ───────────────────────────────
+
+/** Należność miesiąca bez salda z poprzednich (do proporcji podziału rachunku łączonego). */
+function zl_rozl_month_naleznosc(array $contract, string $ym): float {
+    $cid  = (int)$contract['id'];
+    $stan = zl_rozl_month_row($cid, $ym);
+    if ($stan && $stan['naleznosc_override'] !== null) return round((float)$stan['naleznosc_override'], 2);
+    return round(zl_rozl_naleznosc($contract, zl_rozl_month_hours($cid, $ym)) + zl_korekta_month($cid, $ym)['kwota'], 2);
+}
+
+/** Czy rachunek obejmuje więcej niż jeden miesiąc (łączony). */
+function zl_rozl_rachunek_is_laczony(array $r): bool {
+    return zl_ew_ym_valid((string)($r['okres_od'] ?? '')) && count(rachunek_okres_months($r)) > 1;
+}
+
+function zl_rozl_rachunek_podzial_reczny(int $rachunek_id): array {
+    $out = [];
+    foreach (db_all("SELECT ym, kwota FROM zlecenie_rachunek_podzial WHERE rachunek_id=? ORDER BY ym", [$rachunek_id]) as $x) $out[$x['ym']] = round((float)$x['kwota'], 2);
+    return $out;
+}
+
+/**
+ * Podział kwoty rachunku na miesiące salda: ['2026-01' => 800.0, ...] + 'zrodlo' w drugim elemencie.
+ *  - rachunek za jeden miesiąc / bez okresu → cała kwota w miesiącu wg zl_rozl_rachunek_ym(),
+ *  - łączony z ręcznym podziałem → ręczny (reszta nieprzypisana trafia do ostatniego miesiąca okresu),
+ *  - łączony bez podziału → proporcjonalnie do należności miesięcy; gdy należności brak — po równo.
+ *
+ * @return array{0: array<string,float>, 1: string}  [podział, 'jeden'|'reczny'|'proporcja'|'rowno']
+ */
+function zl_rozl_rachunek_podzial(array $r, array $contract): array {
+    $kwota = round((float)($r['kwota_brutto'] ?? 0), 2);
+    if (!zl_rozl_rachunek_is_laczony($r) || zl_ew_ym_valid((string)($r['rozliczenie_ym'] ?? ''))) {
+        [$ym] = zl_rozl_rachunek_ym($r);
+        return [[$ym => $kwota], 'jeden'];
+    }
+    $months = rachunek_okres_months($r);
+    $manual = zl_rozl_rachunek_podzial_reczny((int)$r['id']);
+    if ($manual) {
+        $sum  = round(array_sum($manual), 2);
+        $rest = round($kwota - $sum, 2);
+        if (abs($rest) > 0.004) { $last = end($months); $manual[$last] = round(($manual[$last] ?? 0) + $rest, 2); }
+        ksort($manual);
+        return [$manual, 'reczny'];
+    }
+    $weights = []; $total = 0.0;
+    foreach ($months as $ym) { $w = max(0.0, zl_rozl_month_naleznosc($contract, $ym)); $weights[$ym] = $w; $total += $w; }
+    $out = []; $acc = 0.0; $n = count($months);
+    foreach ($months as $i => $ym) {
+        if ($i === $n - 1) { $out[$ym] = round($kwota - $acc, 2); break; }
+        $part = $total > 0 ? round($kwota * $weights[$ym] / $total, 2) : round($kwota / $n, 2);
+        $out[$ym] = $part; $acc += $part;
+    }
+    return [$out, $total > 0 ? 'proporcja' : 'rowno'];
+}
+
+/**
+ * Ręczny podział rachunku łączonego: ['2026-01' => 800, '2026-02' => 400]. Suma nie może przekroczyć
+ * kwoty rachunku; miesiące muszą należeć do okresu rachunku i być otwarte. Pusta tablica = wróć do automatu.
+ */
+function zl_rozl_rachunek_set_podzial(array $contract, int $rachunek_id, array $podzial, ?int $user_id): void {
+    $cid = (int)$contract['id'];
+    $r = get_rachunek($rachunek_id);
+    if (!$r || (int)$r['contract_id'] !== $cid) throw new InvalidArgumentException('Nie znaleziono rachunku.');
+    if (!zl_rozl_rachunek_is_laczony($r)) throw new InvalidArgumentException('Ten rachunek nie jest łączony (obejmuje jeden miesiąc) — użyj przypisania do miesiąca.');
+    $months = rachunek_okres_months($r);
+    foreach ($months as $ym) zl_rozl_assert_open($cid, $ym);
+    $clean = []; $sum = 0.0;
+    foreach ($podzial as $ym => $kw) {
+        $kw = round((float)str_replace([',', ' '], ['.', ''], (string)$kw), 2);
+        if (!in_array($ym, $months, true)) throw new InvalidArgumentException('Miesiąc ' . zl_ew_ym_label((string)$ym) . ' jest poza okresem rachunku.');
+        if ($kw < 0) throw new InvalidArgumentException('Kwota podziału nie może być ujemna.');
+        if ($kw > 0) { $clean[$ym] = $kw; $sum += $kw; }
+    }
+    if ($sum > (float)$r['kwota_brutto'] + 0.004) throw new InvalidArgumentException(sprintf('Suma podziału (%s) przekracza kwotę rachunku (%s).', money($sum), money((float)$r['kwota_brutto'])));
+    db_exec("DELETE FROM zlecenie_rachunek_podzial WHERE rachunek_id=?", [$rachunek_id]);
+    foreach ($clean as $ym => $kw) db_insert('zlecenie_rachunek_podzial', ['rachunek_id' => $rachunek_id, 'ym' => $ym, 'kwota' => $kw, 'created_by' => $user_id, 'created_at' => date('Y-m-d H:i:s')]);
+    zl_ew_log($cid, 'rozliczenie_rachunek_podzial', sprintf('Rachunek #%d%s (%s): podział %s', $rachunek_id, $r['numer'] ? ' ' . $r['numer'] : '',
+        rachunek_okres_label($months[0], end($months)),
+        $clean ? implode(', ', array_map(fn($ym, $kw) => zl_ew_ym_label($ym) . ' ' . number_format($kw, 2, ',', ' ') . ' zł', array_keys($clean), $clean)) : 'automatyczny'), $user_id);
+}
+
+/** Rachunki łączone umowy z bieżącym podziałem (do formularza w saldzie). */
+function zl_rozl_rachunki_laczone(array $contract): array {
+    $out = [];
+    foreach (get_rachunki('zlecenie', (int)$contract['id']) as $r) {
+        if (rachunek_is_test($r) || $r['status'] === 'odrzucony' || !zl_rozl_rachunek_is_laczony($r)) continue;
+        [$podzial, $src] = zl_rozl_rachunek_podzial($r, $contract);
+        $months = rachunek_okres_months($r);
+        $out[] = ['id' => (int)$r['id'], 'numer' => $r['numer'], 'kwota' => (float)$r['kwota_brutto'], 'okres' => rachunek_okres_label($months[0], end($months)),
+                  'months' => $months, 'podzial' => $podzial, 'zrodlo' => $src, 'reczny' => $src === 'reczny',
+                  'locked' => (bool)array_filter($months, fn($ym) => zl_rozl_month_locked((int)$contract['id'], $ym))];
+    }
+    return $out;
+}
+
 // ── Korekty („coś było źle wyrachunkowane”) ───────────────────────────────────
 
 function zl_korekta_list(int $contract_id): array {
@@ -1933,17 +2042,24 @@ function zl_rozl_naleznosc(array $contract, float $godziny_rozl): float {
  *
  * @return array<string, array{kwota: float, rachunki: array}>
  */
-function zl_rozl_wyplaty_by_month(int $contract_id): array {
+function zl_rozl_wyplaty_by_month(int $contract_id, ?array $contract_for_split = null): array {
     $out = [];
+    $contract_for_split ??= db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [$contract_id]);
     foreach (get_rachunki('zlecenie', $contract_id) as $r) {
         if (rachunek_is_test($r) || $r['status'] === 'odrzucony' || $r['kwota_brutto'] === null) continue;
-        [$ym, $src] = zl_rozl_rachunek_ym($r);
-        $months = rachunek_okres_months($r);
-        $out[$ym] ??= ['kwota' => 0.0, 'rachunki' => []];
-        $out[$ym]['kwota'] = round($out[$ym]['kwota'] + (float)$r['kwota_brutto'], 2);
-        $out[$ym]['rachunki'][] = ['id' => (int)$r['id'], 'numer' => $r['numer'], 'kwota' => (float)$r['kwota_brutto'], 'status' => $r['status'],
-            'okres' => zl_ew_ym_valid((string)($r['okres_od'] ?? '')) && $months ? rachunek_okres_label($months[0], end($months)) : (string)($r['okres'] ?? ''),
-            'zrodlo_ym' => $src, 'data_wystawienia' => $r['data_wystawienia']];
+        [, $src] = zl_rozl_rachunek_ym($r);
+        $months  = rachunek_okres_months($r);
+        $laczony = zl_rozl_rachunek_is_laczony($r);
+        [$podzial, $psrc] = zl_rozl_rachunek_podzial($r, $contract_for_split ?? ['id' => $contract_id, 'typ_stawki' => '', 'stawka_kwota' => 0]);
+        foreach ($podzial as $ym => $czesc) {
+            if (!zl_ew_ym_valid((string)$ym) || abs($czesc) < 0.005) continue;
+            $out[$ym] ??= ['kwota' => 0.0, 'rachunki' => []];
+            $out[$ym]['kwota'] = round($out[$ym]['kwota'] + $czesc, 2);
+            $out[$ym]['rachunki'][] = ['id' => (int)$r['id'], 'numer' => $r['numer'], 'kwota' => round($czesc, 2), 'kwota_calosc' => (float)$r['kwota_brutto'],
+                'laczony' => $laczony, 'podzial' => $laczony ? $psrc : null, 'status' => $r['status'],
+                'okres' => zl_ew_ym_valid((string)($r['okres_od'] ?? '')) && $months ? rachunek_okres_label($months[0], end($months)) : (string)($r['okres'] ?? ''),
+                'zrodlo_ym' => $laczony ? 'okres' : $src, 'data_wystawienia' => $r['data_wystawienia']];
+        }
     }
     return $out;
 }
@@ -1957,7 +2073,7 @@ function zl_rozl_ledger(array $contract): array {
     $cid = (int)$contract['id'];
     $months = zl_ew_months($contract);
     sort($months);
-    $wyplaty = zl_rozl_wyplaty_by_month($cid);
+    $wyplaty = zl_rozl_wyplaty_by_month($cid, $contract);
     $stany = [];
     foreach (db_all("SELECT * FROM zlecenie_rozliczenie_miesiace WHERE contract_id=?", [$cid]) as $s) $stany[$s['ym']] = $s;
     // Miesiące z rachunkami poza zakresem umowy też pokazujemy
@@ -2016,6 +2132,19 @@ function zl_rozl_ledger(array $contract): array {
     $sum['typ_stawki'] = (string)($contract['typ_stawki'] ?? '');
     $sum['stawka']     = (float)($contract['stawka_kwota'] ?? 0);
     return ['miesiace' => array_reverse($rows), 'suma' => $sum];
+}
+
+/**
+ * Czy umowa korzysta z nowego mechanizmu salda (ma wpisy, przesunięcia, korekty albo stany miesięcy).
+ * Stare umowy bez tych danych NIE są blokowane przy zamykaniu — saldo ich nie dotyczy.
+ */
+function zl_rozl_uses_saldo(int $contract_id): bool {
+    try {
+        foreach (['zlecenie_ewidencja_wpisy', 'zlecenie_ewidencja_przesuniecia', 'zlecenie_rozliczenie_korekty', 'zlecenie_rozliczenie_miesiace'] as $t) {
+            if (db_one("SELECT 1 AS x FROM {$t} WHERE contract_id=? LIMIT 1", [$contract_id])) return true;
+        }
+    } catch (\Throwable $e) {}
+    return false;
 }
 
 /** Czy można zakończyć umowę bez „ogona”: pozostało 0 i żaden otwarty miesiąc nie ma godzin. */
