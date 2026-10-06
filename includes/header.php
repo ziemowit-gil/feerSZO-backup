@@ -218,8 +218,12 @@ if ($_user) {
 <link href="<?= APP_URL ?>/assets/css/ezd-tz-theme.css?v=<?= $_ezd_css_v ?>" rel="stylesheet">
 <?php endif; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="<?= APP_URL ?>/assets/js/app.js" defer></script>
-<script src="<?= APP_URL ?>/assets/js/utils.js" defer></script>
+<?php // Znacznik wersji (filemtime) — bez niego przeglądarki trzymały stary app.js (brak komponentów Alpine:
+      // tabbedContractForm, editRequestModal → puste zakładki edycji umów, martwy modal wniosku o edycję).
+      $_app_js_v = @filemtime(dirname(__DIR__) . '/assets/js/app.js') ?: date('Ymd');
+      $_utils_js_v = @filemtime(dirname(__DIR__) . '/assets/js/utils.js') ?: date('Ymd'); ?>
+<script src="<?= APP_URL ?>/assets/js/app.js?v=<?= $_app_js_v ?>" defer></script>
+<script src="<?= APP_URL ?>/assets/js/utils.js?v=<?= $_utils_js_v ?>" defer></script>
 <!-- Alpine.js — komponenty potrzebujące płynnych, dostępnych modali bez przeładowania strony.
      Wtyczka focus MUSI ładować się przed rdzeniem Alpine (rejestruje się na obiekcie Alpine przed jego startem). -->
 <script src="https://cdn.jsdelivr.net/npm/@alpinejs/focus@3/dist/cdn.min.js" defer></script>

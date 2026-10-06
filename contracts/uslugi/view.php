@@ -872,6 +872,6 @@ window.CVTabsConfig = {
   csrf:       <?= json_encode(csrf_token()) ?>
 };
 </script>
-<script src="<?= APP_URL ?>/assets/js/contract-view-tabs.js" defer></script>
+<script src="<?= APP_URL ?>/assets/js/contract-view-tabs.js?v=<?= @filemtime(dirname(dirname(__DIR__)) . '/assets/js/contract-view-tabs.js') ?: date('Ymd') ?>" defer></script>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
