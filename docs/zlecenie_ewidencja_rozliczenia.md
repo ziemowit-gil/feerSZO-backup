@@ -15,7 +15,8 @@ Zasada nadrzędna: **system nie generuje rachunków**. Rachunek wystawia księgo
 | `zlecenie_ewidencja_przesuniecia` | „X godzin z miesiąca A rozliczamy w miesiącu B” (całość lub część), z powodem |
 | `zlecenie_rozliczenie_miesiace` | stan miesiąca w saldzie: `otwarty`/`zamkniety`, `wyplata_override`, `naleznosc_override`, uwagi |
 | `zlecenie_rozliczenie_korekty` | korekta `+/− zł`, `+/− h`, księgowana w otwartym miesiącu `ym`, z `dotyczy_ym` i opcjonalnym `rachunek_id` |
-| `zlecenie_rachunki.rozliczenie_ym` | ręczne przypisanie rachunku do miesiąca salda |
+| `zlecenie_rachunki.rozliczenie_ym` | ręczne przypisanie rachunku (jednomiesięcznego) do miesiąca salda |
+| `zlecenie_rachunek_podzial` | rachunek **łączony** (okres_od–okres_do za kilka miesięcy): ręczny podział kwoty na miesiące; bez podziału kwota dzielona proporcjonalnie do należności miesięcy (po równo, gdy należności brak), reszta z zaokrągleń do ostatniego miesiąca |
 | `timesheets` (istniejąca) | karta miesięczna; dla miesięcy z wpisami dziennymi utrzymywana automatycznie (suma godzin rozliczanych), bez wpisów = ręczna ewidencja miesięczna admina |
 
 Wszystkie tabele i kolumny tworzą się same (auto‑migracja przy załadowaniu `zlecenie_rachunki.php`).
@@ -46,11 +47,13 @@ pozostalo(M)      = do_rozliczenia(M) − wyplata(M)     → przechodzi do M+1
 roznica(M)        = wyplata(M) − naleznosc(M)          → przy stawce godzinowej: brakuje / nadmiar godzin = roznica / stawka
 ```
 
-Miesiąc salda rachunku (`zl_rozl_rachunek_ym`): 1) `rozliczenie_ym` ręcznie, 2) ostatni miesiąc zakresu `okres_od`–`okres_do`, 3) miesiąc z tekstu `okres` („sierpień 2026”), 4) miesiąc daty wystawienia. Rachunki testowe i odrzucone pomijane. Rachunki z odgadniętym miesiącem są wylistowane nad tabelą z prośbą o sprawdzenie; „zmień mies.” przy rachunku ustawia przypisanie ręcznie.
+Kilka osobnych rachunków na różne kwoty w jednym miesiącu sumuje się do wypłaty tego miesiąca. Rachunek łączony rozkłada się na miesiące (`zl_rozl_rachunek_podzial`), formularz podziału jest w karcie „Rachunki łączone” w zakładce Rozliczenia.
+
+Miesiąc salda rachunku jednomiesięcznego (`zl_rozl_rachunek_ym`): 1) `rozliczenie_ym` ręcznie, 2) ostatni miesiąc zakresu `okres_od`–`okres_do`, 3) miesiąc z tekstu `okres` („sierpień 2026”), 4) miesiąc daty wystawienia. Rachunki testowe i odrzucone pomijane. Rachunki z odgadniętym miesiącem są wylistowane nad tabelą z prośbą o sprawdzenie; „zmień mies.” przy rachunku ustawia przypisanie ręcznie.
 
 **Zamknięcie miesiąca** zamraża wpisy, przesunięcia, przypisania rachunków i korekty tego miesiąca. Błędy w zamkniętym miesiącu poprawia się **korektą** zaksięgowaną w otwartym miesiącu (z polem „dotyczy miesiąca” i opcjonalnie rachunkiem). Ponowne otwarcie wymaga powodu; wszystko trafia do `contract_audit_log` (`log_contract_action`).
 
-`zl_rozl_close_blocker($contract)` zwraca powód, dla którego umowy nie należy jeszcze zakończyć (saldo ≠ 0 albo otwarty miesiąc z godzinami) — do podpięcia pod zmianę statusu na „zakończona”.
+`zl_rozl_close_blocker($contract)` zwraca powód, dla którego umowy nie można zakończyć (saldo ≠ 0 albo otwarty miesiąc z godzinami). Jest podpięty w `ContractSettlementGuard::assertClosable()` (`includes/contract_transitions.php`), czyli działa na każdej ścieżce zmiany statusu na zamykający — **tylko dla umów, które mają dane salda** (`zl_rozl_uses_saldo`); stare umowy bez wpisów, przesunięć, korekt i stanów miesięcy nie są blokowane.
 
 ## Alerty terminów
 
@@ -60,10 +63,12 @@ Miesiąc salda rachunku (`zl_rozl_rachunek_ym`): 1) `rozliczenie_ym` ręcznie, 2
 
 ## Funkcje (prefiksy)
 
-`zl_ew_*` — ewidencja i e‑dziennik; `zl_przes_*` — przesunięcia; `zl_korekta_*` — korekty; `zl_rozl_*` — saldo, stan miesiąca, rachunki. Obsługa POST w `view.php` przez pole `_zl_ew` (akcje: `sync`, `wpis_add/edit/del`, `miesiac`, `przes_add/del`, `zamknij`, `otworz`, `wyplata`, `naleznosc`, `korekta`, `korekta_del`, `rach_ym`).
+`zl_ew_*` — ewidencja i e‑dziennik; `zl_przes_*` — przesunięcia; `zl_korekta_*` — korekty; `zl_rozl_*` — saldo, stan miesiąca, rachunki. Obsługa POST w `view.php` przez pole `_zl_ew` (akcje: `sync`, `wpis_add/edit/del`, `miesiac`, `przes_add/del`, `zamknij`, `otworz`, `wyplata`, `naleznosc`, `korekta`, `korekta_del`, `rach_ym`, `rach_podzial`).
+
+## Widok zleceniobiorcy
+
+`panel/rozliczenia_zlecenie.php` (link „Godziny i rozliczenia” w nawigacji panelu i kafelek na stronie głównej, gdy konto ma umowę zlecenie dopasowaną po `m365_user_id`/`m365_login`/`email`): podsumowanie umowy i salda, tabela miesiąc po miesiącu, ewidencja wybranego miesiąca per grupa i dzień, przesunięcia i korekty. Tylko odczyt — wpisy i korekty wprowadza organizacja.
 
 ## Co dalej (nie zrobione)
 
 - Agent CRON dociągający dziennik dla otwartych miesięcy umów ze źródłem `karty30` (dziś ręcznie przyciskiem).
-- Podpięcie `zl_rozl_close_blocker()` pod szybką zmianę statusu na „zakończona”.
-- Widok dla zleceniobiorcy (portal) z jego ewidencją i saldem.
