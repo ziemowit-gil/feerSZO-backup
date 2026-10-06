@@ -67,10 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($row[$f]) && $row[$f] === '') $row[$f] = null;
         }
 
+        if (isset($row['ti_instructor_user_id']) && $row['ti_instructor_user_id'] === '') $row['ti_instructor_user_id'] = null;
         $allowed = ['numer_umowy','status','imie_nazwisko','pesel','adres','email','seria_nr_dowodu','urzad_skarbowy',
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             'rachunek_bankowy','przedmiot_zlecenia','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
+            'zrodlo_godzin','ti_instructor_user_id',
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','data_rachunku','okres_rachunku','forma_podpisania',
             'platforma_el','id_dokumentu_el','epodpis_dostawca','epodpis_nr_certyfikatu','epodpis_data_waznosci',
@@ -491,6 +493,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div>
       <label for="sposob_rozliczenia" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Sposób rozliczenia</label>
       <input id="sposob_rozliczenia" name="sposob_rozliczenia" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none" placeholder="np. miesięcznie, po wykonaniu" value="<?= h($row['sposob_rozliczenia']??'') ?>">
+    </div>
+
+    <div class="sm:tw-col-span-2 tw-rounded-lg tw-border tw-border-solid tw-border-sky-200 tw-bg-sky-50/60 tw-p-3">
+      <div class="tw-text-sm tw-font-semibold tw-text-slate-800 tw-mb-2">Ewidencja godzin — źródło</div>
+      <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-2 tw-gap-3">
+        <div>
+          <label for="zrodlo_godzin" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Źródło godzin</label>
+          <select id="zrodlo_godzin" name="zrodlo_godzin" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
+                  onchange="document.getElementById('ti-instr-wrap').style.display = this.value==='karty30' ? '' : 'none'">
+            <?php foreach (ZL_EW_ZRODLA as $_zk => $_zv): ?>
+            <option value="<?= h($_zk) ?>" <?= (($row['zrodlo_godzin'] ?? 'reczne') === $_zk) ? 'selected' : '' ?>><?= h($_zv['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1">Ręczne wpisy dzienne/miesięczne albo godziny z e-dziennika TI z podziałem na grupy.</p>
+        </div>
+        <div id="ti-instr-wrap" style="<?= (($row['zrodlo_godzin'] ?? 'reczne') === 'karty30') ? '' : 'display:none' ?>">
+          <label for="ti_instructor_user_id" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Prowadzący w e-dzienniku</label>
+          <select id="ti_instructor_user_id" name="ti_instructor_user_id" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
+            <option value="">— wybierz konto prowadzącego —</option>
+            <?php foreach (db_all("SELECT id, name, email FROM users WHERE is_active=1 ORDER BY name") as $_u): ?>
+            <option value="<?= (int)$_u['id'] ?>" <?= (int)($row['ti_instructor_user_id'] ?? 0) === (int)$_u['id'] ? 'selected' : '' ?>><?= h($_u['name']) ?><?= $_u['email'] ? ' (' . h($_u['email']) . ')' : '' ?></option>
+            <?php endforeach; ?>
+          </select>
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1">Sesje „odbyta”, „zmiana indywidualna” i „praca własna” liczone per grupa; stawka zawsze z umowy.</p>
+        </div>
+      </div>
     </div>
   </div>
 

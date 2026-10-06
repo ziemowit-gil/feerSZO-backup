@@ -171,6 +171,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit()) {
     }
 }
 
+// ── Ewidencja godzin: wpisy dzienne, e-dziennik, przesunięcia, korekty, saldo ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit() && isset($_POST['_zl_ew'])) {
+    csrf_check();
+    $_zl_act  = (string)$_POST['_zl_ew'];
+    $_zl_uid  = (int)current_user()['id'];
+    $_zl_tab  = in_array($_zl_act, ['zamknij','otworz','wyplata','naleznosc','korekta','korekta_del','rach_ym'], true) ? 'rozliczenia' : 'godziny';
+    $_zl_ym   = trim((string)($_POST['ym'] ?? ''));
+    $_zl_num  = fn($k) => (float)str_replace([',', ' '], ['.', ''], (string)($_POST[$k] ?? '0'));
+    try {
+        switch ($_zl_act) {
+            case 'sync':
+                $_r = zl_ew_karty30_sync($row, $_zl_ym, $_zl_uid);
+                flash_set('success', $_r['message']);
+                break;
+            case 'wpis_add':
+                zl_ew_add($row, trim((string)($_POST['data'] ?? '')), $_zl_num('godziny'), trim((string)($_POST['opis'] ?? '')), $_zl_uid);
+                flash_set('success', 'Wpis godzin dodany.');
+                $_zl_ym = substr(trim((string)($_POST['data'] ?? '')), 0, 7);
+                break;
+            case 'wpis_edit':
+                zl_ew_update($row, (int)($_POST['wpis_id'] ?? 0), trim((string)($_POST['data'] ?? '')), $_zl_num('godziny'), trim((string)($_POST['opis'] ?? '')), $_zl_uid);
+                flash_set('success', 'Wpis zapisany.');
+                break;
+            case 'wpis_del':
+                zl_ew_delete($row, (int)($_POST['wpis_id'] ?? 0), $_zl_uid);
+                flash_set('success', 'Wpis usunięty.');
+                break;
+            case 'miesiac':
+                zl_ew_month_set_hours($row, $_zl_ym, $_zl_num('godziny'), trim((string)($_POST['opis'] ?? '')), $_zl_uid);
+                flash_set('success', 'Ręczna ewidencja miesięczna zapisana.');
+                break;
+            case 'przes_add':
+                zl_przes_add($row, trim((string)($_POST['z_ym'] ?? '')), trim((string)($_POST['do_ym'] ?? '')), $_zl_num('godziny'), trim((string)($_POST['powod'] ?? '')), $_zl_uid);
+                flash_set('success', 'Przesunięcie godzin zapisane.');
+                $_zl_ym = trim((string)($_POST['z_ym'] ?? ''));
+                break;
+            case 'przes_del':
+                zl_przes_delete($row, (int)($_POST['przes_id'] ?? 0), $_zl_uid);
+                flash_set('success', 'Przesunięcie cofnięte.');
+                break;
+            case 'zamknij':
+                $_wyp = trim((string)($_POST['wyplata'] ?? ''));
+                zl_rozl_month_close($id, $_zl_ym, $_zl_uid, $_wyp === '' ? null : $_zl_num('wyplata'), trim((string)($_POST['uwagi'] ?? '')));
+                flash_set('success', 'Miesiąc ' . zl_ew_ym_label($_zl_ym) . ' zamknięty w saldzie.');
+                break;
+            case 'otworz':
+                $_pw = trim((string)($_POST['powod'] ?? ''));
+                if (mb_strlen($_pw) < 5) throw new InvalidArgumentException('Podaj powód ponownego otwarcia (min. 5 znaków).');
+                zl_rozl_month_reopen($id, $_zl_ym, $_zl_uid, $_pw);
+                flash_set('success', 'Miesiąc ' . zl_ew_ym_label($_zl_ym) . ' ponownie otwarty.');
+                break;
+            case 'wyplata':
+                $_w = trim((string)($_POST['wyplata'] ?? ''));
+                zl_rozl_month_set_wyplata($id, $_zl_ym, $_w === '' ? null : $_zl_num('wyplata'), $_zl_uid, trim((string)($_POST['uwagi'] ?? '')));
+                flash_set('success', 'Kwota wypłaty za ' . zl_ew_ym_label($_zl_ym) . ' zapisana.');
+                break;
+            case 'naleznosc':
+                $_n = trim((string)($_POST['naleznosc'] ?? ''));
+                zl_rozl_month_set_naleznosc($id, $_zl_ym, $_n === '' ? null : $_zl_num('naleznosc'), $_zl_uid, trim((string)($_POST['uwagi'] ?? '')));
+                flash_set('success', 'Należność za ' . zl_ew_ym_label($_zl_ym) . ' zapisana.');
+                break;
+            case 'korekta':
+                zl_korekta_add($row, $_zl_ym, trim((string)($_POST['dotyczy_ym'] ?? '')) ?: null, $_zl_num('kwota'), $_zl_num('godziny'),
+                    trim((string)($_POST['powod'] ?? '')), (int)($_POST['rachunek_id'] ?? 0) ?: null, $_zl_uid);
+                flash_set('success', 'Korekta zaksięgowana w ' . zl_ew_ym_label($_zl_ym) . '.');
+                break;
+            case 'korekta_del':
+                zl_korekta_delete($row, (int)($_POST['korekta_id'] ?? 0), $_zl_uid);
+                flash_set('success', 'Korekta usunięta.');
+                break;
+            case 'rach_ym':
+                $_rym = trim((string)($_POST['rach_ym'] ?? ''));
+                zl_rozl_rachunek_set_ym($row, (int)($_POST['rachunek_id'] ?? 0), $_rym === '' ? null : $_rym, $_zl_uid);
+                flash_set('success', 'Rachunek przypisany do miesiąca salda.');
+                break;
+            default:
+                throw new InvalidArgumentException('Nieznana akcja.');
+        }
+    } catch (\Throwable $e) {
+        flash_set('error', $e->getMessage());
+    }
+    header('Location: view.php?id=' . $id . '&tab=' . $_zl_tab . ($_zl_ym && zl_ew_ym_valid($_zl_ym) ? '&ym=' . $_zl_ym : '')); exit;
+}
+
 // ── Rachunki — komentarz (każdy z dostępem do umowy może dodać) ───────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_comment'])) {
     csrf_check();
@@ -321,6 +405,28 @@ $_ts_rows        = ts_contract_summary($id, 'zlecenie');
 $_ts_pending_tab = count(array_filter($_ts_rows, fn($r) => $r['status'] === 'złożone'));
 $_ts_approved    = ts_total_approved($id, 'zlecenie');
 $_ts_total_h     = ts_total_all($id, 'zlecenie');
+// ── Ewidencja dzienna / e-dziennik / przesunięcia / saldo ─────────────────────
+$_zl_months   = zl_ew_months($row);
+$_zl_ym       = (isset($_GET['ym']) && zl_ew_ym_valid((string)$_GET['ym'])) ? (string)$_GET['ym'] : ($_zl_months[0] ?? date('Y-m'));
+$_zl_zrodlo   = zl_ew_zrodlo($row);
+$_zl_k30      = zl_ew_uses_karty30($row);
+$_zl_k30_ok   = $_zl_k30 && zl_ew_karty30_available() && (int)($row['ti_instructor_user_id'] ?? 0) > 0;
+$_zl_wpisy    = zl_ew_wpisy($id, $_zl_ym);
+$_zl_grupy    = zl_ew_month_groups($id, $_zl_ym);
+$_zl_przes    = zl_przes_list($id);
+$_zl_przes_m  = zl_przes_month($id, $_zl_ym);
+$_zl_locked   = zl_rozl_month_locked($id, $_zl_ym);
+$_zl_h_ewid   = zl_ew_month_hours($id, $_zl_ym, $_zl_h_zrodlo);
+$_zl_h_rozl   = zl_rozl_month_hours($id, $_zl_ym);
+$_zl_k30_prev = $_zl_k30_ok ? zl_ew_karty30_preview($row, $_zl_ym) : null;
+$_zl_k30_diff = $_zl_k30_prev ? round($_zl_k30_prev['suma'] - array_sum(array_map(fn($g) => $g['zrodlo'] === 'karty30' ? $g['godziny'] : 0, $_zl_grupy)), 2) : 0.0;
+$_zl_instr    = $_zl_k30 && (int)($row['ti_instructor_user_id'] ?? 0) ? db_one("SELECT id, name, email FROM users WHERE id=?", [(int)$row['ti_instructor_user_id']]) : null;
+$_zl_ledger   = zl_rozl_ledger($row);
+$_zl_korekty  = zl_korekta_list($id);
+$_zl_rach_np  = zl_rozl_rachunki_niepewne($id);
+$_zl_days_end = (!empty($row['data_zakonczenia']) && empty($row['bezterminowa']))
+    ? (int)floor((strtotime($row['data_zakonczenia']) - strtotime(date('Y-m-d'))) / 86400) : null;
+$_zl_open_status = in_array((string)$row['status'], ZLEC_RACHUNEK_ACTIVE_STATUSES, true);
 
 // ── Wiadomości — liczba nieprzeczytanych ─────────────────────────────────────
 $_msg_unread = msg_unread_thread('contract', $id, can_edit() ? 'admin' : 'user');
@@ -359,6 +465,31 @@ $_cvh_edit_url   = 'edit.php?id=' . $id;
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 require_once dirname(__DIR__) . '/includes/cv_layout.php';
 ?>
+
+<?php if ($_zl_days_end !== null && $_zl_open_status && $_zl_days_end <= 14): ?>
+<!-- ═══ BANER — umowa kończy się / minął termin ═══ -->
+<div class="alert d-flex flex-wrap align-items-center gap-3 no-print mb-3"
+     style="<?= $_zl_days_end < 0 ? 'background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fca5a5;border-left:5px solid #dc2626' : 'background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fcd34d;border-left:5px solid #d97706' ?>">
+  <div class="flex-shrink-0 d-flex align-items-center justify-content-center"
+       style="width:46px;height:46px;border-radius:12px;background:<?= $_zl_days_end < 0 ? '#dc2626' : '#d97706' ?>;color:#fff;font-size:1.4rem">
+    <i class="bi <?= $_zl_days_end < 0 ? 'bi-exclamation-octagon' : 'bi-hourglass-split' ?>"></i>
+  </div>
+  <div class="flex-grow-1" style="min-width:220px">
+    <div class="fw-bold" style="font-size:1.05rem">
+      <?php if ($_zl_days_end < 0): ?>Termin umowy minął <?= -$_zl_days_end ?> dni temu (<?= date_pl($row['data_zakonczenia']) ?>)
+      <?php elseif ($_zl_days_end === 0): ?>Umowa kończy się dziś
+      <?php else: ?>Umowa kończy się za <?= $_zl_days_end ?> dni (<?= date_pl($row['data_zakonczenia']) ?>)<?php endif; ?>
+    </div>
+    <div class="small text-secondary">
+      <?php if (abs($_zl_ledger['suma']['pozostalo']) > 0.004): ?>
+        Saldo rozliczeń: <b><?= money($_zl_ledger['suma']['pozostalo']) ?></b> <?= $_zl_ledger['suma']['pozostalo'] > 0 ? 'pozostało do rozliczenia' : 'nadpłaty' ?>.
+      <?php else: ?>Saldo rozliczeń jest zerowe.<?php endif; ?>
+      <?php if ($_zl_days_end < 0): ?> Zamknij miesiące w saldzie i zakończ umowę albo przedłuż ją aneksem.<?php else: ?> Sprawdź ewidencję godzin i przygotuj rozliczenie ostatniego miesiąca.<?php endif; ?>
+    </div>
+  </div>
+  <a href="?id=<?= $id ?>&tab=rozliczenia" class="btn <?= $_zl_days_end < 0 ? 'btn-danger' : 'btn-warning' ?> flex-shrink-0"><i class="bi bi-calculator me-1"></i>Saldo rozliczeń</a>
+</div>
+<?php endif; ?>
 
 <?php if (rachunek_banner_needed($row)): ?>
 <!-- ═══ BANER — brak rachunku za bieżący miesiąc ═══ -->
@@ -856,6 +987,217 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
 <!-- ═══════════════════ TAB — ROZLICZENIA ═══════════════════ -->
 <div class="tab-pane fade<?php if($_tab==='rozliczenia') echo ' show active'; ?>" id="tab-rozliczenia" role="tabpanel">
+  <!-- ═══ SALDO ROZLICZEŃ — należność / wypłata z rachunków / pozostało (przenoszone na kolejny miesiąc) ═══ -->
+  <?php $_S = $_zl_ledger['suma']; $_is_godz = $_S['typ_stawki'] === 'godzinowo'; ?>
+  <div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="bi bi-calculator"></i> Saldo rozliczeń</span>
+      <span class="small fw-normal text-muted">
+        <?php if ($_S['typ_stawki'] === 'godzinowo'): ?>stawka <?= money($_S['stawka']) ?>/h
+        <?php elseif ($_S['typ_stawki'] === 'ryczalt'): ?>ryczałt <?= money((float)$_S['ryczalt']) ?> za całość
+        <?php else: ?>brak typu stawki w umowie — należność tylko ręcznie lub przez korekty<?php endif; ?>
+      </span>
+    </div>
+    <div class="card-body pb-2">
+      <div class="row g-2 text-center mb-2">
+        <div class="col-6 col-md-2"><div class="border rounded p-2"><div class="fs-5 fw-bold"><?= number_format($_S['godziny_rozl'], 2, ',', ' ') ?> h</div><div class="text-muted small">godz. rozliczanych</div></div></div>
+        <div class="col-6 col-md-2"><div class="border rounded p-2"><div class="fs-5 fw-bold"><?= money($_S['naleznosc']) ?></div><div class="text-muted small">należność razem</div></div></div>
+        <div class="col-6 col-md-2"><div class="border rounded p-2"><div class="fs-5 fw-bold text-success"><?= money($_S['wyplata']) ?></div><div class="text-muted small">wypłacono (rachunki)</div></div></div>
+        <div class="col-6 col-md-2"><div class="border rounded p-2 <?= abs($_S['pozostalo']) > 0.004 ? ($_S['pozostalo'] > 0 ? 'border-warning' : 'border-danger') : 'border-success' ?>">
+          <div class="fs-5 fw-bold <?= $_S['pozostalo'] > 0.004 ? 'text-warning-emphasis' : ($_S['pozostalo'] < -0.004 ? 'text-danger' : 'text-success') ?>"><?= money($_S['pozostalo']) ?></div>
+          <div class="text-muted small"><?= $_S['pozostalo'] < -0.004 ? 'nadpłata' : 'pozostało do rozliczenia' ?></div></div></div>
+        <?php if ($_is_godz): ?>
+        <div class="col-6 col-md-2"><div class="border rounded p-2"><div class="fs-5 fw-bold <?= $_S['brakuje_godzin'] > 0 ? 'text-danger' : '' ?>"><?= number_format($_S['brakuje_godzin'], 2, ',', ' ') ?> h</div><div class="text-muted small">brakuje w ewidencji</div></div></div>
+        <div class="col-6 col-md-2"><div class="border rounded p-2"><div class="fs-5 fw-bold <?= $_S['nadmiar_godzin'] > 0 ? 'text-warning-emphasis' : '' ?>"><?= number_format($_S['nadmiar_godzin'], 2, ',', ' ') ?> h</div><div class="text-muted small">nieopłaconych</div></div></div>
+        <?php endif; ?>
+      </div>
+      <?php if ($_zl_rach_np): ?>
+      <div class="alert alert-warning small py-2 mb-2">
+        <i class="bi bi-question-circle"></i> Rachunki bez wpisanego okresu — miesiąc salda odgadnięty
+        <?php foreach ($_zl_rach_np as $_n): ?>
+          <span class="badge text-bg-light border ms-1">#<?= (int)$_n['id'] ?><?= $_n['numer'] ? ' ' . h($_n['numer']) : '' ?> → <?= h(zl_ew_ym_label($_n['ym'])) ?> (z <?= $_n['zrodlo'] === 'tekst' ? 'tekstu „' . h($_n['okres']) . '”' : 'daty wystawienia' ?>)</span>
+        <?php endforeach; ?>
+        <?php if (can_edit()): ?> — popraw przypisanie w kolumnie „Wypłata” poniżej.<?php endif; ?>
+      </div>
+      <?php endif; ?>
+      <div class="small text-muted mb-2">
+        Należność = godziny rozliczane × stawka (+ korekty). Wypłata = suma rachunków z rejestru przypisanych do miesiąca (można ustalić ręcznie).
+        Pozostało = należność + saldo z poprzedniego miesiąca − wypłata; przechodzi na kolejny miesiąc. System nie generuje rachunków — robi to księgowy.
+      </div>
+    </div>
+
+    <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.84rem">
+      <thead class="table-light">
+        <tr>
+          <th>Miesiąc</th>
+          <th class="text-end" title="Godziny z ewidencji w miesiącu">Ewid.</th>
+          <th class="text-end" title="Przesunięcia: −z miesiąca / +do miesiąca, korekty godzin">Przes./kor.</th>
+          <th class="text-end" title="Godziny rozliczane w tym miesiącu">Rozl. h</th>
+          <th class="text-end">Należność</th>
+          <th class="text-end" title="Saldo przeniesione z poprzedniego miesiąca">Z poprz.</th>
+          <th class="text-end">Do rozl.</th>
+          <th class="text-end">Wypłata</th>
+          <th class="text-end" title="Rachunek vs należność tego miesiąca">Różnica</th>
+          <th class="text-end">Pozostało</th>
+          <th>Stan</th>
+          <?php if (can_edit()): ?><th></th><?php endif; ?>
+        </tr>
+      </thead>
+      <tbody>
+      <?php if (!$_zl_ledger['miesiace']): ?>
+        <tr><td colspan="12" class="text-center text-muted py-3">Brak miesięcy do rozliczenia.</td></tr>
+      <?php endif; ?>
+      <?php foreach ($_zl_ledger['miesiace'] as $_m): $_mid = str_replace('-', '', $_m['ym']); $_mlock = $_m['status'] === 'zamkniety'; ?>
+        <tr class="<?= $_mlock ? 'table-light' : ($_m['is_current'] ? 'table-primary bg-opacity-10' : '') ?>">
+          <td class="text-nowrap fw-semibold">
+            <a href="?id=<?= $id ?>&tab=godziny&ym=<?= h($_m['ym']) ?>" class="text-decoration-none"><?= h($_m['label']) ?></a>
+            <?php if ($_m['godziny_zrodlo'] === 'karta'): ?><i class="bi bi-calendar-check text-muted" title="godziny z ręcznej karty miesięcznej"></i><?php endif; ?>
+          </td>
+          <td class="text-end"><?= number_format($_m['godziny_ewid'], 2, ',', ' ') ?></td>
+          <td class="text-end text-nowrap small">
+            <?php $_pk = -$_m['przes_out'] + $_m['przes_in'] + $_m['korekty_godziny']; ?>
+            <?= abs($_pk) > 0.004 ? ($_pk > 0 ? '+' : '') . number_format($_pk, 2, ',', ' ') : '—' ?>
+          </td>
+          <td class="text-end fw-semibold"><?= number_format($_m['godziny_rozl'], 2, ',', ' ') ?></td>
+          <td class="text-end text-nowrap">
+            <?= money($_m['naleznosc']) ?>
+            <?php if ($_m['naleznosc_override'] !== null): ?><i class="bi bi-pencil-square text-primary" title="ustalona ręcznie (z godzin: <?= money($_m['naleznosc_auto']) ?>)"></i><?php endif; ?>
+            <?php if (abs($_m['korekty_kwota']) > 0.004): ?><div class="small text-muted">w tym korekty <?= ($_m['korekty_kwota'] > 0 ? '+' : '') . money($_m['korekty_kwota']) ?></div><?php endif; ?>
+          </td>
+          <td class="text-end text-nowrap <?= $_m['przeniesione_in'] < -0.004 ? 'text-danger' : '' ?>"><?= abs($_m['przeniesione_in']) > 0.004 ? money($_m['przeniesione_in']) : '—' ?></td>
+          <td class="text-end text-nowrap"><?= money($_m['do_rozliczenia']) ?></td>
+          <td class="text-end text-nowrap">
+            <?= money($_m['wyplata']) ?>
+            <?php if ($_m['wyplata_override'] !== null): ?><i class="bi bi-pencil-square text-primary" title="ustalona ręcznie (rachunki: <?= money($_m['wyplata_rachunki']) ?>)"></i><?php endif; ?>
+            <?php foreach ($_m['rachunki'] as $_r): ?>
+              <div class="small text-muted text-nowrap">
+                <a href="?id=<?= $id ?>&tab=rachunki" class="text-decoration-none">#<?= (int)$_r['id'] ?><?= $_r['numer'] ? ' ' . h($_r['numer']) : '' ?></a>
+                <?= money($_r['kwota']) ?>
+                <?php if ($_r['zrodlo_ym'] === 'reczne'): ?><i class="bi bi-pin-angle" title="przypisany ręcznie"></i><?php elseif (in_array($_r['zrodlo_ym'], ['tekst','data'], true)): ?><i class="bi bi-question-circle text-warning" title="miesiąc odgadnięty"></i><?php endif; ?>
+                <?php if (can_edit() && !$_mlock): ?>
+                <button type="button" class="btn btn-link btn-sm p-0 align-baseline" style="font-size:.75rem" onclick="document.getElementById('zlr-ym-<?= (int)$_r['id'] ?>').classList.toggle('d-none')">zmień mies.</button>
+                <form method="post" id="zlr-ym-<?= (int)$_r['id'] ?>" class="d-none d-inline-flex gap-1 mt-1">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="rach_ym"><input type="hidden" name="rachunek_id" value="<?= (int)$_r['id'] ?>"><input type="hidden" name="ym" value="<?= h($_m['ym']) ?>">
+                  <input type="month" name="rach_ym" class="form-control form-control-sm" style="width:9rem" value="<?= h($_m['ym']) ?>" aria-label="Miesiąc salda rachunku">
+                  <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
+                </form>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+          </td>
+          <td class="text-end text-nowrap">
+            <?php if (abs($_m['roznica']) > 0.004): ?>
+              <span class="<?= $_m['roznica'] > 0 ? 'text-danger' : 'text-warning-emphasis' ?>"><?= ($_m['roznica'] > 0 ? '+' : '') . money($_m['roznica']) ?></span>
+              <?php if ($_m['brakuje_godzin'] > 0): ?><div class="small text-danger">brakuje <?= number_format($_m['brakuje_godzin'], 2, ',', ' ') ?> h</div>
+              <?php elseif ($_m['nadmiar_godzin'] > 0): ?><div class="small text-muted"><?= number_format($_m['nadmiar_godzin'], 2, ',', ' ') ?> h nieopłac.</div><?php endif; ?>
+            <?php else: ?>—<?php endif; ?>
+          </td>
+          <td class="text-end text-nowrap fw-semibold <?= $_m['pozostalo'] > 0.004 ? 'text-warning-emphasis' : ($_m['pozostalo'] < -0.004 ? 'text-danger' : 'text-success') ?>"><?= money($_m['pozostalo']) ?></td>
+          <td class="text-nowrap">
+            <?php if ($_mlock): ?><span class="badge text-bg-secondary"><i class="bi bi-lock"></i> zamknięty</span>
+            <?php else: ?><span class="badge text-bg-success-subtle text-success-emphasis border">otwarty</span><?php endif; ?>
+            <?php if ($_m['uwagi']): ?><i class="bi bi-chat-left-text text-muted" title="<?= h($_m['uwagi']) ?>"></i><?php endif; ?>
+          </td>
+          <?php if (can_edit()): ?>
+          <td class="text-end text-nowrap">
+            <button type="button" class="btn btn-xs btn-outline-secondary" style="font-size:.72rem;padding:.15rem .45rem" onclick="document.getElementById('zls-<?= $_mid ?>').classList.toggle('d-none')" aria-label="Akcje miesiąca"><i class="bi bi-three-dots"></i></button>
+          </td>
+          <?php endif; ?>
+        </tr>
+        <?php if (can_edit()): ?>
+        <tr id="zls-<?= $_mid ?>" class="d-none">
+          <td colspan="12" style="background:#F8FAFC">
+            <div class="d-flex flex-wrap gap-3 align-items-start p-2">
+              <?php if (!$_mlock): ?>
+              <form method="post" class="d-flex gap-1 align-items-end">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="naleznosc"><input type="hidden" name="ym" value="<?= h($_m['ym']) ?>">
+                <div><label class="form-label small mb-0">Należność ręcznie (puste = z godzin)</label>
+                  <input type="number" step="0.01" name="naleznosc" class="form-control form-control-sm" style="width:9rem" value="<?= $_m['naleznosc_override'] !== null ? h($_m['naleznosc_override']) : '' ?>"></div>
+                <button class="btn btn-sm btn-outline-primary">Zapisz</button>
+              </form>
+              <form method="post" class="d-flex gap-1 align-items-end">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="wyplata"><input type="hidden" name="ym" value="<?= h($_m['ym']) ?>">
+                <div><label class="form-label small mb-0">Wypłata ręcznie (puste = wg rachunków)</label>
+                  <input type="number" step="0.01" name="wyplata" class="form-control form-control-sm" style="width:9rem" value="<?= $_m['wyplata_override'] !== null ? h($_m['wyplata_override']) : '' ?>"></div>
+                <button class="btn btn-sm btn-outline-primary">Zapisz</button>
+              </form>
+              <form method="post" class="d-flex gap-1 align-items-end" onsubmit="return confirm('Zamknąć <?= h($_m['label']) ?> w saldzie? Godziny, przesunięcia i przypisania rachunków tego miesiąca staną się tylko do odczytu.')">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="zamknij"><input type="hidden" name="ym" value="<?= h($_m['ym']) ?>">
+                <div><label class="form-label small mb-0">Uwagi do zamknięcia</label>
+                  <input type="text" name="uwagi" class="form-control form-control-sm" style="width:14rem" placeholder="opcjonalnie"></div>
+                <button class="btn btn-sm btn-dark"><i class="bi bi-lock"></i> Zamknij miesiąc</button>
+              </form>
+              <?php else: ?>
+              <form method="post" class="d-flex gap-1 align-items-end">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="otworz"><input type="hidden" name="ym" value="<?= h($_m['ym']) ?>">
+                <div><label class="form-label small mb-0">Powód ponownego otwarcia</label>
+                  <input type="text" name="powod" class="form-control form-control-sm" style="width:18rem" required minlength="5"></div>
+                <button class="btn btn-sm btn-outline-dark"><i class="bi bi-unlock"></i> Otwórz ponownie</button>
+              </form>
+              <div class="small text-muted align-self-center">Zamknięty miesiąc: błędy poprawia się <b>korektą</b> zaksięgowaną w otwartym miesiącu.</div>
+              <?php endif; ?>
+            </div>
+          </td>
+        </tr>
+        <?php endif; ?>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- Korekty -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-pencil-square"></i> Korekty rozliczeń <span class="small fw-normal text-muted ms-2">gdy coś było źle wyrachunkowane — księgowane w otwartym miesiącu, z odniesieniem do miesiąca lub rachunku, którego dotyczą</span></div>
+    <?php if ($_zl_korekty): ?>
+    <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle" style="font-size:.84rem">
+      <thead class="table-light"><tr><th>Zaksięgowano w</th><th>Dotyczy</th><th class="text-end">Kwota</th><th class="text-end">Godziny</th><th>Rachunek</th><th>Powód</th><th>Kto</th><?php if (can_edit()): ?><th></th><?php endif; ?></tr></thead>
+      <tbody>
+      <?php foreach ($_zl_korekty as $_k): $_klock = zl_rozl_month_locked($id, $_k['ym']); ?>
+        <tr>
+          <td class="text-nowrap"><?= h(zl_ew_ym_label($_k['ym'])) ?></td>
+          <td class="text-nowrap"><?= $_k['dotyczy_ym'] ? h(zl_ew_ym_label($_k['dotyczy_ym'])) : '—' ?></td>
+          <td class="text-end text-nowrap <?= (float)$_k['kwota'] < 0 ? 'text-danger' : 'text-success' ?>"><?= ((float)$_k['kwota'] > 0 ? '+' : '') . money((float)$_k['kwota']) ?></td>
+          <td class="text-end text-nowrap"><?= abs((float)$_k['godziny']) > 0.004 ? ((float)$_k['godziny'] > 0 ? '+' : '') . number_format((float)$_k['godziny'], 2, ',', ' ') . ' h' : '—' ?></td>
+          <td class="text-nowrap small"><?= $_k['rachunek_id'] ? '#' . (int)$_k['rachunek_id'] . ($_k['rachunek_numer'] ? ' ' . h($_k['rachunek_numer']) : '') : '—' ?></td>
+          <td class="small"><?= h($_k['powod']) ?></td>
+          <td class="small text-muted"><?= h($_k['created_by_name'] ?? '—') ?><br><span style="font-size:.8em"><?= date_pl($_k['created_at']) ?></span></td>
+          <?php if (can_edit()): ?>
+          <td class="text-end">
+            <?php if (!$_klock): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć korektę?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="korekta_del"><input type="hidden" name="korekta_id" value="<?= (int)$_k['id'] ?>">
+              <button type="submit" class="btn btn-xs btn-outline-danger" style="font-size:.72rem;padding:.15rem .45rem" aria-label="Usuń korektę"><i class="bi bi-trash"></i></button>
+            </form>
+            <?php else: ?><i class="bi bi-lock text-muted"></i><?php endif; ?>
+          </td>
+          <?php endif; ?>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <?php endif; ?>
+    <?php if (can_edit()): ?>
+    <div class="card-body">
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="korekta">
+        <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-ym">Księguj w</label><input id="zlk-ym" type="month" name="ym" class="form-control form-control-sm" value="<?= h(date('Y-m')) ?>" required></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-dot">Dotyczy miesiąca</label><input id="zlk-dot" type="month" name="dotyczy_ym" class="form-control form-control-sm"></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-kw">Kwota (±)</label><input id="zlk-kw" type="number" step="0.01" name="kwota" class="form-control form-control-sm" placeholder="np. -120.00"></div>
+        <div class="col-md-1"><label class="form-label small fw-semibold" for="zlk-g">Godz. (±)</label><input id="zlk-g" type="number" step="0.25" name="godziny" class="form-control form-control-sm" placeholder="0"></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold" for="zlk-r">Rachunek</label>
+          <select id="zlk-r" name="rachunek_id" class="form-select form-select-sm"><option value="">—</option>
+            <?php foreach ($rachunki as $_rr): ?><option value="<?= (int)$_rr['id'] ?>">#<?= (int)$_rr['id'] ?><?= $_rr['numer'] ? ' ' . h($_rr['numer']) : '' ?> · <?= $_rr['kwota_brutto'] !== null ? money((float)$_rr['kwota_brutto']) : '—' ?></option><?php endforeach; ?>
+          </select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold" for="zlk-p">Powód <span class="text-danger">*</span></label><input id="zlk-p" type="text" name="powod" class="form-control form-control-sm" required placeholder="co było źle wyliczone"></div>
+        <div class="col-12 d-flex justify-content-end"><button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Dodaj korektę</button></div>
+      </form>
+    </div>
+    <?php endif; ?>
+  </div>
 
   <?php $_ksieg_addr = org_setting('ksiegowy_email'); ?>
   <div class="card shadow-sm">
@@ -2465,6 +2807,254 @@ window.CVTabsConfig = {
 
 <!-- ══ TAB: Godziny ═══════════════════════════════════════════════════════════ -->
 <div class="tab-pane fade<?php if($_tab==='godziny') echo ' show active'; ?>" id="tab-godziny" role="tabpanel">
+  <!-- ═══ Ewidencja dzienna / e-dziennik Karty30 / przesunięcia (miesiąc: <?= h($_zl_ym) ?>) ═══ -->
+  <?php
+    $_zl_ym_prev = zl_ew_ym_add($_zl_ym, -1);
+    $_zl_ym_next = zl_ew_ym_add($_zl_ym, 1);
+    $_zl_ym_opts = $_zl_months;
+    if (!in_array($_zl_ym, $_zl_ym_opts, true)) { $_zl_ym_opts[] = $_zl_ym; rsort($_zl_ym_opts); }
+  ?>
+  <div class="cv-section">
+    <div class="cv-section-head flex-wrap gap-2">
+      <div class="cv-section-icon" style="background:#F0F9FF;color:#0284C7"><i class="bi bi-calendar-week"></i></div>
+      <span class="cv-section-title">Ewidencja godzin — <?= h(zl_ew_ym_label($_zl_ym)) ?></span>
+      <div class="d-flex align-items-center gap-1 ms-auto">
+        <a class="btn btn-sm btn-outline-secondary" href="?id=<?= $id ?>&tab=godziny&ym=<?= h($_zl_ym_prev) ?>" aria-label="Poprzedni miesiąc">‹</a>
+        <form method="get" class="d-inline">
+          <input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="tab" value="godziny">
+          <select name="ym" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Miesiąc ewidencji">
+            <?php foreach ($_zl_ym_opts as $_o): ?>
+            <option value="<?= h($_o) ?>" <?= $_o === $_zl_ym ? 'selected' : '' ?>><?= h(zl_ew_ym_label($_o)) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </form>
+        <a class="btn btn-sm btn-outline-secondary" href="?id=<?= $id ?>&tab=godziny&ym=<?= h($_zl_ym_next) ?>" aria-label="Następny miesiąc">›</a>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 align-items-center small mb-3">
+      <span class="badge rounded-pill text-bg-light border">Źródło: <b><?= h(ZL_EW_ZRODLA[$_zl_zrodlo]['label']) ?></b></span>
+      <?php if ($_zl_instr): ?><span class="badge rounded-pill text-bg-light border">Prowadzący: <?= h($_zl_instr['name']) ?></span><?php endif; ?>
+      <?php if ($_zl_locked): ?>
+      <span class="badge rounded-pill text-bg-warning"><i class="bi bi-lock"></i> Miesiąc zamknięty w saldzie — tylko odczyt</span>
+      <?php endif; ?>
+      <?php if ($_zl_h_zrodlo === 'karta'): ?>
+      <span class="badge rounded-pill text-bg-secondary">godziny z ręcznej karty miesięcznej</span>
+      <?php endif; ?>
+      <span class="ms-auto text-muted">
+        Ewidencja: <b><?= number_format($_zl_h_ewid, 2, ',', ' ') ?> h</b>
+        <?php if ($_zl_przes_m['out'] > 0): ?> · przesunięte z: <b>−<?= number_format($_zl_przes_m['out'], 2, ',', ' ') ?> h</b><?php endif; ?>
+        <?php if ($_zl_przes_m['in'] > 0): ?> · przesunięte do: <b>+<?= number_format($_zl_przes_m['in'], 2, ',', ' ') ?> h</b><?php endif; ?>
+        · rozliczane: <b class="text-primary"><?= number_format($_zl_h_rozl, 2, ',', ' ') ?> h</b>
+      </span>
+    </div>
+
+    <?php if ($_zl_k30): ?>
+    <!-- E-dziennik -->
+    <div class="rounded p-3 mb-3" style="background:#F0F9FF;border:1px solid #BAE6FD">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="small">
+          <b><i class="bi bi-journal-bookmark"></i> E-dziennik Karty30:</b>
+          <?php if ($_zl_k30_prev): ?>
+            <?= count($_zl_k30_prev['sesje']) ?> sesji · <?= number_format($_zl_k30_prev['suma'], 2, ',', ' ') ?> h w <?= count($_zl_k30_prev['grupy']) ?> grupach
+            <?php if (abs($_zl_k30_diff) > 0.004): ?>
+              <span class="text-warning-emphasis">— w ewidencji o <?= number_format(abs($_zl_k30_diff), 2, ',', ' ') ?> h <?= $_zl_k30_diff > 0 ? 'mniej' : 'więcej' ?>, pobierz z dziennika</span>
+            <?php else: ?>
+              <span class="text-success">— zgodne z ewidencją</span>
+            <?php endif; ?>
+          <?php elseif (!zl_ew_karty30_available()): ?>
+            <span class="text-danger">tabele e-dziennika niedostępne w tej bazie</span>
+          <?php else: ?>
+            <span class="text-danger">brak przypisanego prowadzącego — ustaw go w edycji umowy</span>
+          <?php endif; ?>
+          <?php if (!empty($row['ostatnia_synchronizacja_at'])): ?><span class="text-muted"> · ostatnia synchronizacja <?= h($row['ostatnia_synchronizacja_at']) ?></span><?php endif; ?>
+        </div>
+        <?php if (can_edit() && $_zl_k30_ok && !$_zl_locked): ?>
+        <form method="post" class="ms-auto">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="sync"><input type="hidden" name="ym" value="<?= h($_zl_ym) ?>">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-cloud-download"></i> Pobierz z dziennika</button>
+        </form>
+        <?php endif; ?>
+      </div>
+      <?php if ($_zl_k30_prev && $_zl_k30_prev['grupy']): ?>
+      <table class="cv-table mt-2 mb-0" style="font-size:.85rem">
+        <thead><tr><th>Grupa (dziennik)</th><th>Kod</th><th class="text-end">Sesje</th><th class="text-end">Godziny</th></tr></thead>
+        <tbody>
+        <?php foreach ($_zl_k30_prev['grupy'] as $_g): ?>
+          <tr><td><?= h($_g['nazwa']) ?></td><td class="text-muted"><?= h($_g['kod'] ?: '—') ?></td><td class="text-end"><?= (int)$_g['liczba'] ?></td><td class="text-end fw-semibold"><?= number_format($_g['godziny'], 2, ',', ' ') ?></td></tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($_zl_grupy): ?>
+    <!-- Podział na grupy (z ewidencji) -->
+    <table class="cv-table mb-3">
+      <thead><tr><th>W ewidencji — podział</th><th>Kod</th><th class="text-end">Wpisy</th><th class="text-end">Godziny</th></tr></thead>
+      <tbody>
+      <?php foreach ($_zl_grupy as $_g): ?>
+        <tr>
+          <td><?= $_g['zrodlo'] === 'karty30' ? '<i class="bi bi-journal-bookmark text-info"></i> ' : '<i class="bi bi-pencil text-secondary"></i> ' ?><?= h($_g['nazwa']) ?></td>
+          <td class="text-muted small"><?= h($_g['kod'] ?: '—') ?></td>
+          <td class="text-end"><?= (int)$_g['liczba'] ?></td>
+          <td class="text-end fw-semibold"><?= number_format($_g['godziny'], 2, ',', ' ') ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php endif; ?>
+
+    <!-- Wpisy dzienne -->
+    <?php if ($_zl_wpisy): ?>
+    <table class="cv-table">
+      <thead><tr><th style="width:7rem">Data</th><th>Opis</th><th style="width:6rem">Źródło</th><th class="text-end" style="width:6rem">Godziny</th><?php if (can_edit() && !$_zl_locked): ?><th style="width:6rem"></th><?php endif; ?></tr></thead>
+      <tbody>
+      <?php foreach ($_zl_wpisy as $_w): $_is_k30 = $_w['zrodlo'] === 'karty30'; ?>
+        <tr>
+          <td class="text-nowrap"><?= date_pl($_w['data']) ?></td>
+          <td class="small"><?= h($_w['opis'] ?: '—') ?></td>
+          <td><span class="badge rounded-pill <?= $_is_k30 ? 'text-bg-info' : 'text-bg-secondary' ?>" style="font-weight:500"><?= $_is_k30 ? 'dziennik' : 'ręczny' ?></span></td>
+          <td class="text-end fw-semibold"><?= number_format((float)$_w['godziny'], 2, ',', ' ') ?></td>
+          <?php if (can_edit() && !$_zl_locked): ?>
+          <td class="text-end text-nowrap">
+            <?php if (!$_is_k30): ?>
+            <button type="button" class="btn btn-xs btn-outline-secondary" style="font-size:.72rem;padding:.15rem .45rem" onclick="document.getElementById('zlw-edit-<?= (int)$_w['id'] ?>').classList.toggle('d-none')" aria-label="Edytuj wpis"><i class="bi bi-pencil"></i></button>
+            <form method="post" class="d-inline" onsubmit="return confirm('Usunąć wpis z <?= h($_w['data']) ?>?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="wpis_del"><input type="hidden" name="wpis_id" value="<?= (int)$_w['id'] ?>"><input type="hidden" name="ym" value="<?= h($_zl_ym) ?>">
+              <button type="submit" class="btn btn-xs btn-outline-danger" style="font-size:.72rem;padding:.15rem .45rem" aria-label="Usuń wpis"><i class="bi bi-trash"></i></button>
+            </form>
+            <?php endif; ?>
+          </td>
+          <?php endif; ?>
+        </tr>
+        <?php if (can_edit() && !$_zl_locked && !$_is_k30): ?>
+        <tr id="zlw-edit-<?= (int)$_w['id'] ?>" class="d-none">
+          <td colspan="5">
+            <form method="post" class="row g-2 align-items-end">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="wpis_edit"><input type="hidden" name="wpis_id" value="<?= (int)$_w['id'] ?>"><input type="hidden" name="ym" value="<?= h($_zl_ym) ?>">
+              <div class="col-auto"><input type="date" name="data" class="form-control form-control-sm" value="<?= h($_w['data']) ?>" required></div>
+              <div class="col-auto"><input type="number" name="godziny" class="form-control form-control-sm" style="width:6rem" step="0.25" min="0.25" max="24" value="<?= h($_w['godziny']) ?>" required></div>
+              <div class="col"><input type="text" name="opis" class="form-control form-control-sm" value="<?= h($_w['opis']) ?>" placeholder="Opis prac" maxlength="2000"></div>
+              <div class="col-auto"><button type="submit" class="btn btn-sm btn-success">Zapisz</button></div>
+            </form>
+            <div class="form-text">Zmiana daty na inny miesiąc przenosi wpis do tego miesiąca (oba muszą być otwarte).</div>
+          </td>
+        </tr>
+        <?php endif; ?>
+      <?php endforeach; ?>
+      </tbody>
+      <tfoot style="border-top:1px solid #E2E8F0">
+        <tr><td colspan="3" class="fw-bold" style="padding:.55rem 0">Razem wpisy</td><td class="text-end fw-bold" style="padding:.55rem 0"><?= number_format($_zl_h_ewid, 2, ',', ' ') ?> h</td><?php if (can_edit() && !$_zl_locked): ?><td></td><?php endif; ?></tr>
+      </tfoot>
+    </table>
+    <?php else: ?>
+    <div class="text-muted small py-2">Brak wpisów dziennych w tym miesiącu<?= $_zl_h_zrodlo === 'karta' ? ' — godziny pochodzą z ręcznej karty miesięcznej poniżej' : '' ?>.</div>
+    <?php endif; ?>
+
+    <?php if (can_edit() && !$_zl_locked): ?>
+    <!-- Dodaj wpis dzienny -->
+    <form method="post" class="row g-2 align-items-end mt-2">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="wpis_add">
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small" for="zlw-data">Data</label>
+        <input id="zlw-data" type="date" name="data" class="form-control form-control-sm" value="<?= h($_zl_ym === date('Y-m') ? date('Y-m-d') : $_zl_ym . '-01') ?>" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small" for="zlw-godz">Godziny <span class="text-danger">*</span></label>
+        <input id="zlw-godz" type="number" name="godziny" class="form-control form-control-sm" step="0.25" min="0.25" max="24" required placeholder="np. 4">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold small" for="zlw-opis">Opis prac<?= $_zl_k30 ? ' <span class="text-danger">*</span> (wpis poza dziennikiem)' : '' ?></label>
+        <input id="zlw-opis" type="text" name="opis" class="form-control form-control-sm" maxlength="2000" <?= $_zl_k30 ? 'required' : '' ?> placeholder="np. Przygotowanie materiałów">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-success btn-sm w-100"><i class="bi bi-plus-lg"></i> Dodaj wpis</button>
+      </div>
+    </form>
+
+    <?php if (!$_zl_wpisy): ?>
+    <!-- Ręczna ewidencja miesięczna (admin): jedna liczba godzin za miesiąc -->
+    <form method="post" class="row g-2 align-items-end mt-3 pt-3" style="border-top:1px dashed #E2E8F0">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="miesiac"><input type="hidden" name="ym" value="<?= h($_zl_ym) ?>">
+      <div class="col-md-3">
+        <label class="form-label fw-semibold small" for="zlm-godz">Godziny za cały miesiąc (ręcznie)</label>
+        <input id="zlm-godz" type="number" name="godziny" class="form-control form-control-sm" step="0.25" min="0" max="744" value="<?= $_zl_h_zrodlo === 'karta' ? h($_zl_h_ewid) : '' ?>" placeholder="np. 40">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold small" for="zlm-opis">Opis</label>
+        <input id="zlm-opis" type="text" name="opis" class="form-control form-control-sm" placeholder="np. Realizacja przedmiotu zlecenia">
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-outline-primary btn-sm w-100"><i class="bi bi-calendar-check"></i> Zapisz miesiąc</button>
+      </div>
+      <div class="col-12 form-text">Ewidencja miesięczna bez wpisów dziennych; 0 godzin usuwa kartę. Gdy pojawią się wpisy dzienne, to one są źródłem.</div>
+    </form>
+    <?php endif; ?>
+    <?php endif; ?>
+  </div>
+
+  <!-- Przesunięcia godzin względem rozliczenia -->
+  <div class="cv-section">
+    <div class="cv-section-head">
+      <div class="cv-section-icon" style="background:#FFF7ED;color:#EA580C"><i class="bi bi-arrow-left-right"></i></div>
+      <span class="cv-section-title">Przesunięcia godzin między miesiącami</span>
+      <span class="small text-muted ms-2">godziny przepracowane w jednym miesiącu, rozliczane w innym</span>
+    </div>
+    <?php if ($_zl_przes): ?>
+    <table class="cv-table mb-2">
+      <thead><tr><th>Z miesiąca</th><th>Do miesiąca</th><th class="text-end">Godziny</th><th>Powód</th><th>Kto</th><?php if (can_edit()): ?><th></th><?php endif; ?></tr></thead>
+      <tbody>
+      <?php foreach ($_zl_przes as $_p): $_p_lock = zl_rozl_month_locked($id, $_p['z_ym']) || zl_rozl_month_locked($id, $_p['do_ym']); ?>
+        <tr>
+          <td><?= h(zl_ew_ym_label($_p['z_ym'])) ?></td>
+          <td><?= h(zl_ew_ym_label($_p['do_ym'])) ?></td>
+          <td class="text-end fw-semibold"><?= number_format((float)$_p['godziny'], 2, ',', ' ') ?></td>
+          <td class="small"><?= h($_p['powod']) ?></td>
+          <td class="small text-muted"><?= h($_p['created_by_name'] ?? '—') ?><br><span style="font-size:.8em"><?= date_pl($_p['created_at']) ?></span></td>
+          <?php if (can_edit()): ?>
+          <td class="text-end">
+            <?php if (!$_p_lock): ?>
+            <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć to przesunięcie?')">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="przes_del"><input type="hidden" name="przes_id" value="<?= (int)$_p['id'] ?>"><input type="hidden" name="ym" value="<?= h($_zl_ym) ?>">
+              <button type="submit" class="btn btn-xs btn-outline-danger" style="font-size:.72rem;padding:.15rem .45rem" aria-label="Cofnij przesunięcie"><i class="bi bi-x-lg"></i></button>
+            </form>
+            <?php else: ?><i class="bi bi-lock text-muted" title="Miesiąc zamknięty"></i><?php endif; ?>
+          </td>
+          <?php endif; ?>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php else: ?>
+    <div class="text-muted small mb-2">Brak przesunięć.</div>
+    <?php endif; ?>
+    <?php if (can_edit()): ?>
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="_zl_ew" value="przes_add">
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small" for="zlp-z">Z miesiąca</label>
+        <input id="zlp-z" type="month" name="z_ym" class="form-control form-control-sm" value="<?= h($_zl_ym) ?>" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small" for="zlp-do">Do miesiąca</label>
+        <input id="zlp-do" type="month" name="do_ym" class="form-control form-control-sm" value="<?= h($_zl_ym_next) ?>" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fw-semibold small" for="zlp-g">Godziny</label>
+        <input id="zlp-g" type="number" name="godziny" class="form-control form-control-sm" step="0.25" min="0.25" required placeholder="max <?= number_format($_zl_h_rozl, 2, ',', ' ') ?>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold small" for="zlp-p">Powód <span class="text-danger">*</span></label>
+        <input id="zlp-p" type="text" name="powod" class="form-control form-control-sm" required placeholder="np. rachunek za styczeń obejmie te godziny w lutym">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-primary btn-sm w-100"><i class="bi bi-arrow-left-right"></i> Przesuń</button>
+      </div>
+    </form>
+    <?php endif; ?>
+  </div>
 
   <!-- Statsy -->
   <div class="row g-3 mb-3">
