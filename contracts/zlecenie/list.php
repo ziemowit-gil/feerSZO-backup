@@ -29,6 +29,8 @@ $f = [
     'wyna_do' => $_GET['wyna_do']      ?? '',
     'zus'     => !empty($_GET['zus'])  ? '1' : '',
     'bez_rach'=> !empty($_GET['bez_rach']) ? '1' : '',
+    'konczy'  => !empty($_GET['konczy'])   ? '1' : '',   // kończące się w ciągu 14 dni
+    'po_term' => !empty($_GET['po_term'])  ? '1' : '',   // po terminie, wciąż otwarte
     'sort'    => $_GET['sort']         ?? '',
     'dir'     => ($_GET['dir'] ?? '') === 'asc' ? 'asc' : 'desc',
 ];
@@ -119,13 +121,32 @@ if ($f['bez_rach']) {
              . "                  AND substr(COALESCE(data_wystawienia, created_at), 1, 7) = ?)";
     $params  = array_merge($params, ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-01'), date('Y-m')]);
 }
+$_ph_open = implode(',', array_fill(0, count(ZLEC_RACHUNEK_ACTIVE_STATUSES), '?'));
+if ($f['konczy']) {
+    $where .= " AND status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa = 0)"
+            . " AND data_zakonczenia IS NOT NULL AND data_zakonczenia <> '' AND data_zakonczenia BETWEEN ? AND ?";
+    $params = array_merge($params, ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d'), date('Y-m-d', strtotime('+14 days'))]);
+}
+if ($f['po_term']) {
+    $where .= " AND status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa = 0)"
+            . " AND data_zakonczenia IS NOT NULL AND data_zakonczenia <> '' AND data_zakonczenia < ?";
+    $params = array_merge($params, ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d')]);
+}
 $where .= ' AND ' . contract_access_where($TYPE);
 
 $adv_count = (int)!!$f['opiekun'] + (int)!!$f['projekt'] + (int)!!$f['forma'] + (int)!!$f['typ_st']
            + (int)!!$f['data_od'] + (int)!!$f['data_do']
            + (int)($f['wyna_od'] !== '') + (int)($f['wyna_do'] !== '') + (int)!!$f['zus']
-           + (int)!!$f['bez_rach'];
+           + (int)!!$f['bez_rach'] + (int)!!$f['konczy'] + (int)!!$f['po_term'];
 $adv_open  = $adv_count > 0 || !empty($_GET['adv']);
+// Liczniki alertów terminowych (niezależnie od filtrów)
+$_zl_cnt_konczy = $_zl_cnt_poterm = 0;
+try {
+    $_zl_cnt_konczy = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa=0) AND data_zakonczenia IS NOT NULL AND data_zakonczenia<>'' AND data_zakonczenia BETWEEN ? AND ? AND " . contract_access_where($TYPE),
+        array_merge(ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d'), date('Y-m-d', strtotime('+14 days'))]))['c'] ?? 0);
+    $_zl_cnt_poterm = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE status IN ({$_ph_open}) AND (bezterminowa IS NULL OR bezterminowa=0) AND data_zakonczenia IS NOT NULL AND data_zakonczenia<>'' AND data_zakonczenia < ? AND " . contract_access_where($TYPE),
+        array_merge(ZLEC_RACHUNEK_ACTIVE_STATUSES, [date('Y-m-d')]))['c'] ?? 0);
+} catch (\Throwable $e) {}
 
 $total  = (int)(db_one("SELECT COUNT(*) AS c FROM {$TABLE} WHERE {$where}", $params)['c'] ?? 0);
 
@@ -149,7 +170,7 @@ $qs_base = array_filter([
     'q'=>$f['q'], 'status'=>$f['status'], 'opiekun'=>$f['opiekun'], 'projekt'=>$f['projekt'],
     'forma'=>$f['forma'], 'typ_st'=>$f['typ_st'], 'data_od'=>$f['data_od'], 'data_do'=>$f['data_do'],
     'wyna_od'=>$f['wyna_od'], 'wyna_do'=>$f['wyna_do'], 'zus'=>$f['zus'] ?: null,
-    'bez_rach'=>$f['bez_rach'] ?: null,
+    'bez_rach'=>$f['bez_rach'] ?: null, 'konczy'=>$f['konczy'] ?: null, 'po_term'=>$f['po_term'] ?: null,
     'sort'=>$sort_col !== 'created_at' ? $sort_col : null,
     'dir' =>$sort_dir !== 'DESC' ? 'asc' : null,
 ], fn($v) => $v !== '' && $v !== null);
@@ -196,6 +217,8 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
       <?php if ($f['forma']): ?><a href="<?= h($chip('forma')) ?>" class="active-chip">Forma: <?= h($formy[$f['forma']] ?? $f['forma']) ?> <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['zus']): ?><a href="<?= h($chip('zus')) ?>" class="active-chip"><i class="bi bi-shield-check"></i> ZUS <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['bez_rach']): ?><a href="<?= h($chip('bez_rach')) ?>" class="active-chip"><i class="bi bi-receipt"></i> Bez rachunku w tym miesiącu <span class="chip-x">×</span></a><?php endif; ?>
+      <?php if ($f['konczy']): ?><a href="<?= h($chip('konczy')) ?>" class="active-chip"><i class="bi bi-hourglass-split"></i> Kończące się ≤ 14 dni <span class="chip-x">×</span></a><?php endif; ?>
+      <?php if ($f['po_term']): ?><a href="<?= h($chip('po_term')) ?>" class="active-chip"><i class="bi bi-exclamation-octagon"></i> Po terminie <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['data_od'] || $f['data_do']): ?><a href="<?= h($chip(['data_od','data_do'])) ?>" class="active-chip">Zawarcie: <?= h($f['data_od'] ?: '…') ?> – <?= h($f['data_do'] ?: '…') ?> <span class="chip-x">×</span></a><?php endif; ?>
       <?php if ($f['wyna_od'] !== '' || $f['wyna_do'] !== ''): ?><a href="<?= h($chip(['wyna_od','wyna_do'])) ?>" class="active-chip">Brutto: <?= $f['wyna_od'] !== '' ? number_format((float)$f['wyna_od'],0,',',' ') : '0' ?> – <?= $f['wyna_do'] !== '' ? number_format((float)$f['wyna_do'],0,',',' ') : '∞' ?> PLN <span class="chip-x">×</span></a><?php endif; ?>
     </div>
@@ -232,7 +255,11 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
               </td>
               <td class="d-none d-lg-table-cell" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.83rem"><?= h($r['przedmiot_zlecenia']) ?></td>
               <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zawarcia']) ?></td>
-              <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zakonczenia']) ?></td>
+              <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem"><?= date_pl($r['data_zakonczenia']) ?>
+                <?php $_dz = (!empty($r['data_zakonczenia']) && empty($r['bezterminowa']) && in_array((string)$r['status'], ZLEC_RACHUNEK_ACTIVE_STATUSES, true))
+                        ? (int)floor((strtotime($r['data_zakonczenia']) - strtotime(date('Y-m-d'))) / 86400) : null;
+                      if ($_dz !== null && $_dz < 0): ?><span class="badge text-bg-danger ms-1" title="Termin minął, umowa wciąż otwarta">po terminie</span>
+                <?php elseif ($_dz !== null && $_dz <= 14): ?><span class="badge text-bg-warning ms-1" title="Kończy się w ciągu 14 dni"><?= $_dz === 0 ? 'dziś' : 'za ' . $_dz . ' dn.' ?></span><?php endif; ?></td>
               <td class="d-none d-xl-table-cell text-end" style="white-space:nowrap"><?= money($r['wynagrodzenie_brutto']) ?></td>
               <td>
                 <?php if ($can_edit): ?>
@@ -345,6 +372,22 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
   <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?bez_rach=1" class="btn btn-primary flex-shrink-0">
     <i class="bi bi-funnel me-1"></i>Pokaż te umowy
   </a>
+</div>
+<?php endif; ?>
+
+<?php if (($_zl_cnt_konczy || $_zl_cnt_poterm) && !$f['konczy'] && !$f['po_term']): ?>
+<!-- ══ ALERTY TERMINÓW — kończące się ≤ 14 dni / po terminie ═══════════════ -->
+<div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Alerty terminów">
+  <?php if ($_zl_cnt_konczy): ?>
+  <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?konczy=1" class="btn btn-sm btn-outline-warning text-dark">
+    <i class="bi bi-hourglass-split me-1"></i>Kończą się w ciągu 14 dni <span class="badge text-bg-warning ms-1"><?= $_zl_cnt_konczy ?></span>
+  </a>
+  <?php endif; ?>
+  <?php if ($_zl_cnt_poterm): ?>
+  <a href="<?= APP_URL ?>/contracts/zlecenie/list.php?po_term=1" class="btn btn-sm btn-outline-danger">
+    <i class="bi bi-exclamation-octagon me-1"></i>Po terminie, do zamknięcia <span class="badge text-bg-danger ms-1"><?= $_zl_cnt_poterm ?></span>
+  </a>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 
