@@ -1127,3 +1127,907 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
 
     return ['ok' => true, 'msg' => 'Przekazano do EODoK jako ' . $number, 'doc_id' => $doc_id, 'number' => $number];
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  EWIDENCJA GODZIN (wpisy dzienne / e-dziennik Karty30 per grupa),
+//  PRZESUNIĘCIA GODZIN WZGLĘDEM ROZLICZENIA i SALDO ROZLICZEŃ (kwota wypłaty
+//  vs kwota pozostała do rozliczenia, przenoszona między miesiącami).
+//
+//  Warstwy:
+//    zlecenie_ewidencja_wpisy        — wpis = dzień pracy (ręczny) albo sesja z e-dziennika;
+//                                      liczony do miesiąca swojej daty.
+//    zlecenie_ewidencja_przesuniecia — „X godzin z miesiąca A rozliczamy w miesiącu B”
+//                                      (w całości lub części; jedyny mechanizm przesuwania).
+//    zlecenie_rozliczenie_miesiace   — stan miesiąca w saldzie (otwarty/zamknięty),
+//                                      ręczne nadpisanie kwoty wypłaty, uwagi.
+//    zlecenie_rozliczenie_korekty    — korekta (+/− zł, +/− h) księgowana w otwartym miesiącu,
+//                                      z odniesieniem do miesiąca/rachunku, którego dotyczy
+//                                      („źle wyrachunkowane” — nie ruszamy zamkniętych miesięcy).
+//    zlecenie_rachunki.rozliczenie_ym — ręczne przypisanie rachunku do miesiąca salda
+//                                      (np. rachunek z sierpnia wystawiony we wrześniu, bez okresu).
+//    timesheets                      — miesięczna karta (istniejąca); po każdej zmianie
+//                                      ewidencji sumę godzin ROZLICZANYCH w miesiącu
+//                                      wpisujemy tam, więc stare ekrany i rozliczenia
+//                                      (zlecenie wystawienia rachunku) widzą to samo.
+//                                      Gdy miesiąc NIE MA wpisów dziennych, godziny bierzemy
+//                                      z tej karty (ręczna ewidencja miesięczna admina).
+//    naleznosc_override              — ręczna kwota należności za miesiąc (admin, „per kwota”).
+//    różnica                         — rachunek vs należność miesiąca; przy stawce godzinowej
+//                                      przeliczana na brakujące / nadmiarowe godziny.
+//
+//  Saldo miesiąca M:
+//    godziny_rozl(M)  = godziny_ewid(M) − przesunięte Z M + przesunięte DO M
+//    naleznosc(M)     = godziny_rozl × stawka (godzinowo) | 0 (ryczałt: cały ryczałt
+//                       wchodzi jako saldo początkowe pierwszego miesiąca) + korekty(M)
+//    do_rozliczenia(M)= naleznosc(M) + pozostalo(M−1)
+//    wyplata(M)       = suma rachunków przypisanych do M (nadpisywalna ręcznie)
+//    pozostalo(M)     = do_rozliczenia(M) − wyplata(M)   → przechodzi do M+1
+//
+//  Rachunków system NIE generuje — robi to księgowy; wypłata = kwota z rejestru rachunków.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+(function () {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        foreach ([
+            'zrodlo_godzin'              => "TEXT NOT NULL DEFAULT 'reczne'", // reczne | karty30
+            'ti_instructor_user_id'      => 'INTEGER',                        // users.id prowadzącego w e-dzienniku
+            'ostatnia_synchronizacja_at' => 'DATETIME',
+        ] as $col => $def) {
+            try { db()->exec("ALTER TABLE umowy_zlecenie ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
+        }
+        db()->exec("CREATE TABLE IF NOT EXISTS zlecenie_ewidencja_wpisy (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id    INTEGER NOT NULL,
+            data           TEXT    NOT NULL,
+            godziny        REAL    NOT NULL,
+            opis           TEXT,
+            zrodlo         TEXT    NOT NULL DEFAULT 'reczne',
+            ti_course_id   INTEGER,
+            ti_course_name TEXT,
+            ti_group_code  TEXT,
+            ti_session_id  INTEGER,
+            created_by     INTEGER,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_by     INTEGER,
+            updated_at     DATETIME
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_zlew_contract_data ON zlecenie_ewidencja_wpisy(contract_id, data)");
+        db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_zlew_session ON zlecenie_ewidencja_wpisy(contract_id, ti_session_id)");
+
+        db()->exec("CREATE TABLE IF NOT EXISTS zlecenie_ewidencja_przesuniecia (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id INTEGER NOT NULL,
+            z_ym        TEXT    NOT NULL,
+            do_ym       TEXT    NOT NULL,
+            godziny     REAL    NOT NULL,
+            powod       TEXT,
+            created_by  INTEGER,
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_zlprzes_contract ON zlecenie_ewidencja_przesuniecia(contract_id)");
+
+        db()->exec("CREATE TABLE IF NOT EXISTS zlecenie_rozliczenie_miesiace (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id      INTEGER NOT NULL,
+            ym               TEXT    NOT NULL,
+            status           TEXT    NOT NULL DEFAULT 'otwarty',
+            wyplata_override REAL,
+            naleznosc_override REAL,               -- ręczna kwota należności za miesiąc (admin)
+            uwagi            TEXT,
+            zamkniety_by     INTEGER,
+            zamkniety_at     DATETIME,
+            updated_at       DATETIME,
+            UNIQUE(contract_id, ym)
+        )");
+        try { db()->exec("ALTER TABLE zlecenie_rozliczenie_miesiace ADD COLUMN naleznosc_override REAL"); } catch (\Throwable $e) {}
+        // Rachunek może być ręcznie przypisany do innego miesiąca salda niż wynika z okresu/daty
+        try { db()->exec("ALTER TABLE zlecenie_rachunki ADD COLUMN rozliczenie_ym TEXT"); } catch (\Throwable $e) {}
+        db()->exec("CREATE TABLE IF NOT EXISTS zlecenie_rozliczenie_korekty (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id INTEGER NOT NULL,
+            ym          TEXT    NOT NULL,          -- miesiąc zaksięgowania (musi być otwarty)
+            dotyczy_ym  TEXT,                      -- miesiąc, którego korekta dotyczy
+            kwota       REAL    NOT NULL DEFAULT 0, -- +/− zł (zmienia należność)
+            godziny     REAL    NOT NULL DEFAULT 0, -- +/− h  (zmienia godziny rozliczane)
+            rachunek_id INTEGER,                   -- błędny rachunek, którego dotyczy (opcjonalnie)
+            powod       TEXT    NOT NULL,
+            created_by  INTEGER,
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_zlkor_contract ON zlecenie_rozliczenie_korekty(contract_id, ym)");
+    } catch (\Throwable $e) {
+        error_log('[zlecenie_ewidencja migrate] ' . $e->getMessage());
+    }
+})();
+
+const ZL_EW_ZRODLA = [
+    'reczne'  => ['label' => 'Ręczne wpisy',                 'desc' => 'Godziny wpisywane ręcznie: data, liczba godzin, opis prac.'],
+    'karty30' => ['label' => 'Dydaktyka – Karty30 dziennik', 'desc' => 'Godziny pobierane z e-dziennika TI z podziałem na grupy; wpis ręczny tylko poza dziennikiem.'],
+];
+
+/** Statusy sesji e-dziennika liczone do wynagrodzenia (jak w karty30.php / schedulerReports.php). */
+const ZL_EW_K30_PAYABLE = ['held', 'individual_change', 'remote_material'];
+
+const ZL_EW_MONTHS_PL = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+
+// ── Pomocnicze ────────────────────────────────────────────────────────────────
+
+function zl_ew_zrodlo(array $contract): string {
+    $z = (string)($contract['zrodlo_godzin'] ?? 'reczne');
+    return isset(ZL_EW_ZRODLA[$z]) ? $z : 'reczne';
+}
+
+function zl_ew_uses_karty30(array $contract): bool {
+    return zl_ew_zrodlo($contract) === 'karty30';
+}
+
+function zl_ew_ym_valid(string $ym): bool {
+    return (bool)preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $ym);
+}
+
+function zl_ew_ym_label(string $ym): string {
+    [$y, $m] = array_map('intval', explode('-', $ym) + [1 => 1]);
+    return (ZL_EW_MONTHS_PL[$m - 1] ?? $ym) . ' ' . $y;
+}
+
+function zl_ew_ym_add(string $ym, int $months): string {
+    [$y, $m] = array_map('intval', explode('-', $ym) + [1 => 1]);
+    $idx = $y * 12 + ($m - 1) + $months;
+    return sprintf('%04d-%02d', intdiv($idx, 12), $idx % 12 + 1);
+}
+
+function zl_ew_minutes_to_hours(int $minutes): float {
+    return round(max(0, $minutes) / 60, 2);
+}
+
+function zl_ew_log(int $contract_id, string $action, string $note, ?int $user_id): void {
+    if (function_exists('log_contract_action')) {
+        try { log_contract_action('zlecenie', $contract_id, (int)$user_id, $action, $note); } catch (\Throwable $e) {}
+    }
+}
+
+/**
+ * Miesiące objęte umową (od rozpoczęcia do min(zakończenie, dziś)), najnowszy pierwszy.
+ * Dla umów bez dat — bieżący miesiąc. Uwzględnia też miesiące, w których są wpisy/przesunięcia/rachunki.
+ *
+ * @return string[] YYYY-MM
+ */
+function zl_ew_months(array $contract): array {
+    $start = substr((string)($contract['data_rozpoczecia'] ?: ($contract['data_zawarcia'] ?: date('Y-m-d'))), 0, 7);
+    $end   = (string)($contract['data_zakonczenia'] ?? '');
+    $end   = ($end !== '' && !$contract['bezterminowa'] && $end < date('Y-m-d')) ? substr($end, 0, 7) : date('Y-m');
+    if (!zl_ew_ym_valid($start)) $start = date('Y-m');
+    if ($end < $start) $end = $start;
+
+    $set = [];
+    $cur = $start; $guard = 0;
+    while ($cur <= $end && $guard++ < 240) { $set[$cur] = true; $cur = zl_ew_ym_add($cur, 1); }
+
+    $cid = (int)($contract['id'] ?? 0);
+    if ($cid) {
+        try {
+            foreach (db_all("SELECT DISTINCT substr(data,1,7) AS ym FROM zlecenie_ewidencja_wpisy WHERE contract_id=?", [$cid]) as $r) $set[$r['ym']] = true;
+            foreach (db_all("SELECT z_ym, do_ym FROM zlecenie_ewidencja_przesuniecia WHERE contract_id=?", [$cid]) as $r) { $set[$r['z_ym']] = true; $set[$r['do_ym']] = true; }
+            foreach (db_all("SELECT ym FROM zlecenie_rozliczenie_miesiace WHERE contract_id=?", [$cid]) as $r) $set[$r['ym']] = true;
+            foreach (db_all("SELECT ym FROM zlecenie_rozliczenie_korekty WHERE contract_id=?", [$cid]) as $r) $set[$r['ym']] = true;
+        } catch (\Throwable $e) {}
+    }
+    $out = array_keys(array_filter($set, fn($k) => zl_ew_ym_valid((string)$k), ARRAY_FILTER_USE_KEY));
+    rsort($out);
+    return $out;
+}
+
+// ── Stan miesiąca w saldzie (otwarty / zamknięty) ─────────────────────────────
+
+function zl_rozl_month_row(int $contract_id, string $ym): ?array {
+    return db_one("SELECT * FROM zlecenie_rozliczenie_miesiace WHERE contract_id=? AND ym=?", [$contract_id, $ym]);
+}
+
+function zl_rozl_month_locked(int $contract_id, string $ym): bool {
+    $r = zl_rozl_month_row($contract_id, $ym);
+    return $r !== null && $r['status'] === 'zamkniety';
+}
+
+/** Rzuca wyjątek, gdy miesiąc jest zamknięty w saldzie (wpisy i przesunięcia tylko do odczytu). */
+function zl_rozl_assert_open(int $contract_id, string $ym): void {
+    if (zl_rozl_month_locked($contract_id, $ym)) {
+        throw new RuntimeException('Miesiąc ' . zl_ew_ym_label($ym) . ' jest zamknięty w rozliczeniu — otwórz go ponownie, aby zmieniać godziny.');
+    }
+}
+
+function zl_rozl_month_close(int $contract_id, string $ym, ?int $user_id, ?float $wyplata_override = null, string $uwagi = ''): void {
+    if (!zl_ew_ym_valid($ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc.');
+    $row = zl_rozl_month_row($contract_id, $ym);
+    $data = [
+        'status'           => 'zamkniety',
+        'wyplata_override' => $wyplata_override,
+        'uwagi'            => $uwagi !== '' ? $uwagi : ($row['uwagi'] ?? null),
+        'zamkniety_by'     => $user_id,
+        'zamkniety_at'     => date('Y-m-d H:i:s'),
+        'updated_at'       => date('Y-m-d H:i:s'),
+    ];
+    if ($row) {
+        db_exec("UPDATE zlecenie_rozliczenie_miesiace SET status=?, wyplata_override=?, uwagi=?, zamkniety_by=?, zamkniety_at=?, updated_at=? WHERE id=?",
+            [$data['status'], $data['wyplata_override'], $data['uwagi'], $data['zamkniety_by'], $data['zamkniety_at'], $data['updated_at'], (int)$row['id']]);
+    } else {
+        db_insert('zlecenie_rozliczenie_miesiace', $data + ['contract_id' => $contract_id, 'ym' => $ym]);
+    }
+    $info = $wyplata_override !== null ? sprintf(', wypłata ustalona ręcznie: %.2f zł', $wyplata_override) : '';
+    zl_ew_log($contract_id, 'rozliczenie_zamknij', 'Zamknięto miesiąc ' . zl_ew_ym_label($ym) . ' w saldzie rozliczeń' . $info, $user_id);
+}
+
+function zl_rozl_month_reopen(int $contract_id, string $ym, ?int $user_id, string $powod): void {
+    $row = zl_rozl_month_row($contract_id, $ym);
+    if (!$row || $row['status'] !== 'zamkniety') return;
+    db_exec("UPDATE zlecenie_rozliczenie_miesiace SET status='otwarty', zamkniety_by=NULL, zamkniety_at=NULL, updated_at=datetime('now') WHERE id=?", [(int)$row['id']]);
+    zl_ew_log($contract_id, 'rozliczenie_otworz', 'Ponownie otwarto miesiąc ' . zl_ew_ym_label($ym) . '. Powód: ' . $powod, $user_id);
+}
+
+/** Ręczne ustalenie kwoty wypłaty za miesiąc (NULL = wróć do sumy rachunków). */
+function zl_rozl_month_set_wyplata(int $contract_id, string $ym, ?float $kwota, ?int $user_id, string $uwagi = ''): void {
+    if (!zl_ew_ym_valid($ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc.');
+    $row = zl_rozl_month_row($contract_id, $ym);
+    if ($row) {
+        db_exec("UPDATE zlecenie_rozliczenie_miesiace SET wyplata_override=?, uwagi=COALESCE(NULLIF(?, ''), uwagi), updated_at=datetime('now') WHERE id=?",
+            [$kwota, $uwagi, (int)$row['id']]);
+    } else {
+        db_insert('zlecenie_rozliczenie_miesiace', ['contract_id' => $contract_id, 'ym' => $ym, 'status' => 'otwarty',
+            'wyplata_override' => $kwota, 'uwagi' => $uwagi ?: null, 'updated_at' => date('Y-m-d H:i:s')]);
+    }
+    zl_ew_log($contract_id, 'rozliczenie_wyplata',
+        $kwota === null ? 'Kwota wypłaty za ' . zl_ew_ym_label($ym) . ': wg rachunków' : sprintf('Kwota wypłaty za %s ustalona ręcznie: %.2f zł', zl_ew_ym_label($ym), $kwota),
+        $user_id);
+}
+
+// ── Wpisy ewidencji ───────────────────────────────────────────────────────────
+
+/** Wpisy umowy; opcjonalnie tylko z jednego miesiąca. */
+function zl_ew_wpisy(int $contract_id, ?string $ym = null): array {
+    if ($ym !== null) {
+        return db_all("SELECT * FROM zlecenie_ewidencja_wpisy WHERE contract_id=? AND substr(data,1,7)=? ORDER BY data, id", [$contract_id, $ym]);
+    }
+    return db_all("SELECT * FROM zlecenie_ewidencja_wpisy WHERE contract_id=? ORDER BY data DESC, id DESC", [$contract_id]);
+}
+
+function zl_ew_wpis(int $wpis_id): ?array {
+    return db_one("SELECT * FROM zlecenie_ewidencja_wpisy WHERE id=?", [$wpis_id]);
+}
+
+/** Czy umowa ma w ogóle wpisy dzienne (wtedy karta miesięczna timesheets jest utrzymywana automatycznie). */
+function zl_ew_has_wpisy(int $contract_id): bool {
+    return (int)(db_one("SELECT COUNT(*) AS c FROM zlecenie_ewidencja_wpisy WHERE contract_id=?", [$contract_id])['c'] ?? 0) > 0;
+}
+
+function zl_ew_assert_date_in_contract(array $contract, string $data): void {
+    $from = (string)($contract['data_rozpoczecia'] ?? '');
+    $to   = (string)($contract['data_zakonczenia'] ?? '');
+    if ($from !== '' && $data < $from) throw new InvalidArgumentException("Data {$data} jest przed rozpoczęciem umowy ({$from}).");
+    if ($to !== '' && empty($contract['bezterminowa']) && $data > $to) throw new InvalidArgumentException("Data {$data} jest po zakończeniu umowy ({$to}).");
+}
+
+/** Ręczny wpis dzienny. */
+function zl_ew_add(array $contract, string $data, float $godziny, string $opis, ?int $user_id): int {
+    $cid = (int)$contract['id'];
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data) || !strtotime($data)) throw new InvalidArgumentException('Nieprawidłowa data.');
+    if ($godziny < 0.25 || $godziny > 24) throw new InvalidArgumentException('Liczba godzin musi być w zakresie 0,25–24.');
+    zl_ew_assert_date_in_contract($contract, $data);
+    zl_rozl_assert_open($cid, substr($data, 0, 7));
+    if (zl_ew_uses_karty30($contract) && trim($opis) === '') {
+        throw new InvalidArgumentException('Dla umowy rozliczanej z e-dziennika wpis ręczny (poza dziennikiem) wymaga opisu.');
+    }
+    $id = db_insert('zlecenie_ewidencja_wpisy', [
+        'contract_id' => $cid, 'data' => $data, 'godziny' => round($godziny, 2), 'opis' => $opis ?: null,
+        'zrodlo' => 'reczne', 'created_by' => $user_id, 'created_at' => date('Y-m-d H:i:s'),
+    ]);
+    zl_ew_sync_timesheet($cid, substr($data, 0, 7));
+    zl_ew_log($cid, 'ewidencja_wpis', sprintf('Dodano wpis %s: %.2f h', $data, $godziny), $user_id);
+    return $id;
+}
+
+function zl_ew_update(array $contract, int $wpis_id, string $data, float $godziny, string $opis, ?int $user_id): void {
+    $cid = (int)$contract['id'];
+    $w = zl_ew_wpis($wpis_id);
+    if (!$w || (int)$w['contract_id'] !== $cid) throw new InvalidArgumentException('Nie znaleziono wpisu.');
+    if ($w['zrodlo'] === 'karty30') throw new RuntimeException('Wpis pochodzi z e-dziennika — zmień go w dzienniku i ponów synchronizację.');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data) || !strtotime($data)) throw new InvalidArgumentException('Nieprawidłowa data.');
+    if ($godziny < 0.25 || $godziny > 24) throw new InvalidArgumentException('Liczba godzin musi być w zakresie 0,25–24.');
+    zl_ew_assert_date_in_contract($contract, $data);
+    $old_ym = substr((string)$w['data'], 0, 7); $new_ym = substr($data, 0, 7);
+    zl_rozl_assert_open($cid, $old_ym);
+    if ($new_ym !== $old_ym) zl_rozl_assert_open($cid, $new_ym);
+    db_exec("UPDATE zlecenie_ewidencja_wpisy SET data=?, godziny=?, opis=?, updated_by=?, updated_at=datetime('now') WHERE id=?",
+        [$data, round($godziny, 2), $opis ?: null, $user_id, $wpis_id]);
+    zl_ew_sync_timesheet($cid, $old_ym);
+    if ($new_ym !== $old_ym) zl_ew_sync_timesheet($cid, $new_ym);
+    zl_ew_log($cid, 'ewidencja_wpis_edycja', sprintf('Zmieniono wpis #%d → %s: %.2f h', $wpis_id, $data, $godziny), $user_id);
+}
+
+function zl_ew_delete(array $contract, int $wpis_id, ?int $user_id): void {
+    $cid = (int)$contract['id'];
+    $w = zl_ew_wpis($wpis_id);
+    if (!$w || (int)$w['contract_id'] !== $cid) return;
+    if ($w['zrodlo'] === 'karty30') throw new RuntimeException('Wpis pochodzi z e-dziennika — anuluj sesję w dzienniku i ponów synchronizację.');
+    $ym = substr((string)$w['data'], 0, 7);
+    zl_rozl_assert_open($cid, $ym);
+    db_exec("DELETE FROM zlecenie_ewidencja_wpisy WHERE id=?", [$wpis_id]);
+    zl_ew_sync_timesheet($cid, $ym);
+    zl_ew_log($cid, 'ewidencja_wpis_usun', sprintf('Usunięto wpis #%d (%s: %.2f h)', $wpis_id, $w['data'], (float)$w['godziny']), $user_id);
+}
+
+/** Suma godzin z wpisów dziennych w miesiącu (wg daty wpisu). */
+function zl_ew_month_hours_wpisy(int $contract_id, string $ym): float {
+    return round((float)(db_one("SELECT COALESCE(SUM(godziny),0) AS s FROM zlecenie_ewidencja_wpisy WHERE contract_id=? AND substr(data,1,7)=?", [$contract_id, $ym])['s'] ?? 0), 2);
+}
+
+/** Czy miesiąc ma wpisy dzienne (wtedy karta miesięczna jest pochodną, nie źródłem). */
+function zl_ew_month_has_wpisy(int $contract_id, string $ym): bool {
+    return (int)(db_one("SELECT COUNT(*) AS c FROM zlecenie_ewidencja_wpisy WHERE contract_id=? AND substr(data,1,7)=?", [$contract_id, $ym])['c'] ?? 0) > 0;
+}
+
+/** Godziny z ręcznej karty miesięcznej (timesheets) — ewidencja miesięczna admina. */
+function zl_ew_month_hours_karta(int $contract_id, string $ym): float {
+    if (!zl_ew_ym_valid($ym)) return 0.0;
+    [$rok, $mies] = array_map('intval', explode('-', $ym));
+    try {
+        $r = db_one("SELECT godziny, status FROM timesheets WHERE contract_type='zlecenie' AND contract_id=? AND rok=? AND miesiac=?", [$contract_id, $rok, $mies]);
+    } catch (\Throwable $e) { return 0.0; }
+    if (!$r || $r['status'] === 'odrzucone') return 0.0;
+    return round((float)$r['godziny'], 2);
+}
+
+/**
+ * Godziny ewidencji w miesiącu: wpisy dzienne, a gdy ich nie ma — ręczna karta miesięczna.
+ * Zwraca też źródło przez $zrodlo ('wpisy' | 'karta' | 'brak').
+ */
+function zl_ew_month_hours(int $contract_id, string $ym, ?string &$zrodlo = null): float {
+    if (zl_ew_month_has_wpisy($contract_id, $ym)) { $zrodlo = 'wpisy'; return zl_ew_month_hours_wpisy($contract_id, $ym); }
+    $h = zl_ew_month_hours_karta($contract_id, $ym);
+    $zrodlo = $h > 0 ? 'karta' : 'brak';
+    return $h;
+}
+
+/**
+ * Ręczna ewidencja miesięczna admina: liczba godzin za miesiąc wprost do karty (timesheets).
+ * Dozwolone tylko, gdy miesiąc nie ma wpisów dziennych (wtedy to one są źródłem).
+ */
+function zl_ew_month_set_hours(array $contract, string $ym, float $godziny, string $opis, ?int $user_id): void {
+    $cid = (int)$contract['id'];
+    if (!zl_ew_ym_valid($ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc.');
+    if ($godziny < 0 || $godziny > 744) throw new InvalidArgumentException('Liczba godzin za miesiąc musi być w zakresie 0–744.');
+    zl_rozl_assert_open($cid, $ym);
+    if (zl_ew_month_has_wpisy($cid, $ym)) throw new RuntimeException('Miesiąc ' . zl_ew_ym_label($ym) . ' ma wpisy dzienne — godziny wynikają z nich; popraw wpisy albo dodaj korektę.');
+    [$rok, $mies] = array_map('intval', explode('-', $ym));
+    $ts = db_one("SELECT * FROM timesheets WHERE contract_type='zlecenie' AND contract_id=? AND rok=? AND miesiac=?", [$cid, $rok, $mies]);
+    if ($godziny <= 0) {
+        if ($ts) db_exec("DELETE FROM timesheets WHERE id=?", [(int)$ts['id']]);
+    } elseif ($ts) {
+        db_exec("UPDATE timesheets SET godziny=?, opis=?, status='zatwierdzone', uwagi_admin=NULL, updated_at=datetime('now') WHERE id=?", [$godziny, $opis ?: $ts['opis'], (int)$ts['id']]);
+    } else {
+        db_exec("INSERT INTO timesheets (contract_type, contract_id, user_id, rok, miesiac, godziny, opis, status, created_at)
+                 VALUES ('zlecenie', ?, ?, ?, ?, ?, ?, 'zatwierdzone', datetime('now'))", [$cid, (int)$user_id, $rok, $mies, $godziny, $opis ?: 'Ewidencja miesięczna (ręcznie)']);
+    }
+    zl_ew_log($cid, 'ewidencja_miesiac', sprintf('Ręczna ewidencja miesięczna %s: %s h%s', zl_ew_ym_label($ym), number_format($godziny, 2, ',', ' '), $opis ? ' — ' . $opis : ''), $user_id);
+}
+
+/** Ręczna kwota należności za miesiąc (admin, „per kwota”); NULL = wróć do wyliczenia z godzin. */
+function zl_rozl_month_set_naleznosc(int $contract_id, string $ym, ?float $kwota, ?int $user_id, string $uwagi = ''): void {
+    if (!zl_ew_ym_valid($ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc.');
+    zl_rozl_assert_open($contract_id, $ym);
+    $row = zl_rozl_month_row($contract_id, $ym);
+    if ($row) {
+        db_exec("UPDATE zlecenie_rozliczenie_miesiace SET naleznosc_override=?, uwagi=COALESCE(NULLIF(?, ''), uwagi), updated_at=datetime('now') WHERE id=?", [$kwota, $uwagi, (int)$row['id']]);
+    } else {
+        db_insert('zlecenie_rozliczenie_miesiace', ['contract_id' => $contract_id, 'ym' => $ym, 'status' => 'otwarty',
+            'naleznosc_override' => $kwota, 'uwagi' => $uwagi ?: null, 'updated_at' => date('Y-m-d H:i:s')]);
+    }
+    zl_ew_log($contract_id, 'rozliczenie_naleznosc',
+        $kwota === null ? 'Należność za ' . zl_ew_ym_label($ym) . ': wg godzin' : sprintf('Należność za %s ustalona ręcznie: %.2f zł%s', zl_ew_ym_label($ym), $kwota, $uwagi ? ' — ' . $uwagi : ''),
+        $user_id);
+}
+
+/** Podział godzin miesiąca na grupy e-dziennika (+ wiersz „ręczne”). */
+function zl_ew_month_groups(int $contract_id, string $ym): array {
+    $rows = db_all(
+        "SELECT ti_course_id, COALESCE(ti_course_name,'') AS nazwa, COALESCE(ti_group_code,'') AS kod, zrodlo,
+                COUNT(*) AS n, ROUND(SUM(godziny),2) AS godziny
+         FROM zlecenie_ewidencja_wpisy WHERE contract_id=? AND substr(data,1,7)=?
+         GROUP BY zrodlo, ti_course_id, ti_course_name, ti_group_code
+         ORDER BY zrodlo DESC, nazwa", [$contract_id, $ym]);
+    return array_map(fn($r) => [
+        'ti_course_id' => $r['ti_course_id'] !== null ? (int)$r['ti_course_id'] : null,
+        'nazwa'        => $r['zrodlo'] === 'karty30' ? ($r['nazwa'] ?: ('grupa #' . $r['ti_course_id'])) : 'Wpisy ręczne',
+        'kod'          => $r['kod'],
+        'zrodlo'       => $r['zrodlo'],
+        'liczba'       => (int)$r['n'],
+        'godziny'      => (float)$r['godziny'],
+    ], $rows);
+}
+
+// ── Integracja z kartą miesięczną (timesheets) ────────────────────────────────
+
+/**
+ * Po zmianie ewidencji/przesunięć: suma godzin ROZLICZANYCH w miesiącu trafia do timesheets.
+ * Istniejący wpis „zatwierdzone” nie jest ruszany (karta zamknięta merytorycznie);
+ * nowy wpis dostaje status „złożone”. Gdy w miesiącu nic nie ma — wpis automatyczny jest usuwany.
+ */
+function zl_ew_sync_timesheet(int $contract_id, string $ym): void {
+    if (!zl_ew_ym_valid($ym)) return;
+    [$rok, $mies] = array_map('intval', explode('-', $ym));
+    $contract = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [$contract_id]);
+    if (!$contract) return;
+    if (!zl_ew_month_has_wpisy($contract_id, $ym)) {
+        // Brak wpisów dziennych: karta miesięczna jest ŹRÓDŁEM (ręczna ewidencja admina) — nie dotykamy jej,
+        // chyba że to nasz automatyczny wpis po usunięciu ostatniego wpisu dziennego.
+        try {
+            [$rok, $mies] = array_map('intval', explode('-', $ym));
+            $ts = db_one("SELECT id, opis, status FROM timesheets WHERE contract_type='zlecenie' AND contract_id=? AND rok=? AND miesiac=?", [$contract_id, $rok, $mies]);
+            if ($ts && str_starts_with((string)$ts['opis'], 'Ewidencja:') && $ts['status'] !== 'zatwierdzone') db_exec("DELETE FROM timesheets WHERE id=?", [(int)$ts['id']]);
+        } catch (\Throwable $e) {}
+        return;
+    }
+    $hours = zl_rozl_month_hours($contract_id, $ym);
+    $groups = array_filter(zl_ew_month_groups($contract_id, $ym), fn($g) => $g['zrodlo'] === 'karty30');
+    $opis = 'Ewidencja: ' . number_format(zl_ew_month_hours($contract_id, $ym), 2, ',', ' ') . ' h'
+          . ($groups ? ' (' . implode(', ', array_map(fn($g) => $g['nazwa'] . ' ' . number_format($g['godziny'], 2, ',', ' ') . ' h', $groups)) . ')' : '')
+          . (abs($hours - zl_ew_month_hours($contract_id, $ym)) > 0.004 ? '; po przesunięciach: ' . number_format($hours, 2, ',', ' ') . ' h' : '');
+    try {
+        $ts = db_one("SELECT * FROM timesheets WHERE contract_type='zlecenie' AND contract_id=? AND rok=? AND miesiac=?", [$contract_id, $rok, $mies]);
+        if ($hours <= 0) {
+            if ($ts && str_starts_with((string)$ts['opis'], 'Ewidencja:') && $ts['status'] !== 'zatwierdzone') {
+                db_exec("DELETE FROM timesheets WHERE id=?", [(int)$ts['id']]);
+            }
+            return;
+        }
+        if ($ts) {
+            if ($ts['status'] === 'zatwierdzone' && abs((float)$ts['godziny'] - $hours) < 0.004) return;
+            $status = $ts['status'] === 'zatwierdzone' ? 'zatwierdzone' : 'złożone';
+            db_exec("UPDATE timesheets SET godziny=?, opis=?, status=?, updated_at=datetime('now') WHERE id=?", [$hours, $opis, $status, (int)$ts['id']]);
+        } else {
+            db_exec("INSERT INTO timesheets (contract_type, contract_id, user_id, rok, miesiac, godziny, opis, status, created_at)
+                     VALUES ('zlecenie', ?, ?, ?, ?, ?, ?, 'złożone', datetime('now'))",
+                [$contract_id, (int)($contract['created_by'] ?? 0), $rok, $mies, $hours, $opis]);
+        }
+    } catch (\Throwable $e) {
+        error_log('[zl_ew_sync_timesheet] ' . $e->getMessage());
+    }
+}
+
+// ── E-dziennik Karty30 ────────────────────────────────────────────────────────
+
+function zl_ew_karty30_available(): bool {
+    static $ok = null;
+    if ($ok === null) {
+        try { db_one("SELECT 1 FROM k30_ti_sessions LIMIT 1"); db_one("SELECT 1 FROM k30_ti_courses LIMIT 1"); $ok = true; }
+        catch (\Throwable $e) { $ok = false; }
+    }
+    return $ok;
+}
+
+/**
+ * Sesje prowadzącego w miesiącu, liczone do wynagrodzenia:
+ *  - sesja ma instructor_id = prowadzący, albo
+ *  - sesja bez własnego prowadzącego i grupa ma instructor_id = prowadzący, albo
+ *  - prowadzący jest współprowadzącym grupy.
+ * Tylko statusy płatne, bez szkiców, w granicach dat umowy.
+ */
+function zl_ew_karty30_sessions(array $contract, string $ym): array {
+    if (!zl_ew_karty30_available()) return [];
+    $uid = (int)($contract['ti_instructor_user_id'] ?? 0);
+    if ($uid <= 0 || !zl_ew_ym_valid($ym)) return [];
+    $ph = implode(',', array_fill(0, count(ZL_EW_K30_PAYABLE), '?'));
+    $sql = "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.duration_min, s.topic, s.status, s.instructor_id,
+                   c.id AS course_id, c.name AS course_name, COALESCE(c.display_name,'') AS display_name, COALESCE(c.group_code,'') AS group_code
+            FROM k30_ti_sessions s
+            JOIN k30_ti_courses c ON c.id = s.course_id
+            LEFT JOIN k30_ti_course_coinstructors ci ON ci.course_id = c.id AND ci.user_id = ?
+            WHERE substr(s.lesson_date,1,7) = ?
+              AND s.status IN ({$ph})
+              AND s.draft_id IS NULL
+              AND (s.instructor_id = ? OR (s.instructor_id IS NULL AND c.instructor_id = ?) OR ci.id IS NOT NULL)";
+    $params = [$uid, $ym, ...ZL_EW_K30_PAYABLE, $uid, $uid];
+    $from = (string)($contract['data_rozpoczecia'] ?? '');
+    $to   = empty($contract['bezterminowa']) ? (string)($contract['data_zakonczenia'] ?? '') : '';
+    if ($from !== '') { $sql .= " AND s.lesson_date >= ?"; $params[] = substr($from, 0, 10); }
+    if ($to !== '')   { $sql .= " AND s.lesson_date <= ?"; $params[] = substr($to, 0, 10); }
+    $sql .= " ORDER BY s.lesson_date, s.time_from, s.id";
+    return db_all($sql, $params);
+}
+
+function zl_ew_karty30_hours(array $s): float {
+    $min = (int)($s['duration_min'] ?? 0);
+    if ($min <= 0 && !empty($s['time_from']) && !empty($s['time_to'])) {
+        $a = strtotime('2000-01-01 ' . substr($s['time_from'], 0, 5)); $b = strtotime('2000-01-01 ' . substr($s['time_to'], 0, 5));
+        $min = ($a && $b) ? max(0, (int)(($b - $a) / 60)) : 0;
+    }
+    return zl_ew_minutes_to_hours($min);
+}
+
+/** Podgląd dziennika bez zapisu: grupy + suma. */
+function zl_ew_karty30_preview(array $contract, string $ym): array {
+    $sesje = zl_ew_karty30_sessions($contract, $ym);
+    $grupy = [];
+    foreach ($sesje as $s) {
+        $k = (int)$s['course_id'];
+        $grupy[$k] ??= ['ti_course_id' => $k, 'nazwa' => $s['display_name'] ?: $s['course_name'], 'kod' => $s['group_code'], 'liczba' => 0, 'godziny' => 0.0];
+        $grupy[$k]['liczba']++;
+        $grupy[$k]['godziny'] = round($grupy[$k]['godziny'] + zl_ew_karty30_hours($s), 2);
+    }
+    usort($grupy, fn($a, $b) => strcmp($a['nazwa'], $b['nazwa']));
+    return ['sesje' => $sesje, 'grupy' => array_values($grupy), 'suma' => round(array_sum(array_column($grupy, 'godziny')), 2)];
+}
+
+/**
+ * Synchronizacja miesiąca z e-dziennikiem (idempotentna: wpis = sesja).
+ * Dodaje nowe sesje, aktualizuje zmienione, usuwa te, których już nie ma (anulowane, zmieniony prowadzący).
+ *
+ * @return array{added:int, updated:int, removed:int, suma:float, grupy:array, message:string}
+ */
+function zl_ew_karty30_sync(array $contract, string $ym, ?int $user_id): array {
+    $cid = (int)$contract['id'];
+    if (!zl_ew_uses_karty30($contract)) throw new LogicException('Umowa nie ma źródła godzin „Dydaktyka – Karty30 dziennik”.');
+    if ((int)($contract['ti_instructor_user_id'] ?? 0) <= 0) throw new LogicException('Umowa nie ma przypisanego prowadzącego z e-dziennika.');
+    if (!zl_ew_karty30_available()) throw new RuntimeException('Tabele e-dziennika (k30_ti_*) nie są dostępne.');
+    zl_rozl_assert_open($cid, $ym);
+
+    $prev = zl_ew_karty30_preview($contract, $ym);
+    $res  = ['added' => 0, 'updated' => 0, 'removed' => 0, 'suma' => $prev['suma'], 'grupy' => $prev['grupy'], 'message' => ''];
+
+    $existing = [];
+    foreach (db_all("SELECT * FROM zlecenie_ewidencja_wpisy WHERE contract_id=? AND zrodlo='karty30' AND substr(data,1,7)=?", [$cid, $ym]) as $w) {
+        $existing[(int)$w['ti_session_id']] = $w;
+    }
+
+    $own_tx = !db()->inTransaction();
+    if ($own_tx) db()->beginTransaction();
+    try {
+        foreach ($prev['sesje'] as $s) {
+            $sid   = (int)$s['id'];
+            $hours = zl_ew_karty30_hours($s);
+            $nazwa = $s['display_name'] ?: $s['course_name'];
+            $opis  = implode(' · ', array_filter([
+                $nazwa,
+                (!empty($s['time_from']) && !empty($s['time_to'])) ? substr($s['time_from'], 0, 5) . '–' . substr($s['time_to'], 0, 5) : '',
+                trim((string)$s['topic']),
+                $s['status'] === 'remote_material' ? '(praca własna / materiał zdalny)' : '',
+            ]));
+            if (isset($existing[$sid])) {
+                $w = $existing[$sid];
+                $dirty = abs((float)$w['godziny'] - $hours) > 0.004 || $w['data'] !== $s['lesson_date']
+                      || (int)$w['ti_course_id'] !== (int)$s['course_id'] || (string)$w['opis'] !== $opis;
+                if ($dirty) {
+                    db_exec("UPDATE zlecenie_ewidencja_wpisy SET data=?, godziny=?, opis=?, ti_course_id=?, ti_course_name=?, ti_group_code=?, updated_by=?, updated_at=datetime('now') WHERE id=?",
+                        [$s['lesson_date'], $hours, $opis, (int)$s['course_id'], $nazwa, $s['group_code'], $user_id, (int)$w['id']]);
+                    $res['updated']++;
+                }
+                unset($existing[$sid]);
+                continue;
+            }
+            db_insert('zlecenie_ewidencja_wpisy', [
+                'contract_id' => $cid, 'data' => $s['lesson_date'], 'godziny' => $hours, 'opis' => $opis, 'zrodlo' => 'karty30',
+                'ti_course_id' => (int)$s['course_id'], 'ti_course_name' => $nazwa, 'ti_group_code' => $s['group_code'],
+                'ti_session_id' => $sid, 'created_by' => $user_id, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            $res['added']++;
+        }
+        foreach ($existing as $stale) {
+            db_exec("DELETE FROM zlecenie_ewidencja_wpisy WHERE id=?", [(int)$stale['id']]);
+            $res['removed']++;
+        }
+        db_exec("UPDATE umowy_zlecenie SET ostatnia_synchronizacja_at=datetime('now') WHERE id=?", [$cid]);
+        if ($own_tx) db()->commit();
+    } catch (\Throwable $e) {
+        if ($own_tx) db()->rollBack();
+        throw $e;
+    }
+
+    zl_ew_sync_timesheet($cid, $ym);
+
+    $changed = $res['added'] + $res['updated'] + $res['removed'] > 0;
+    $res['message'] = $changed
+        ? sprintf('Pobrano z dziennika: %d nowych, %d zmienionych, %d usuniętych sesji. Razem %s h w %d grupach.',
+            $res['added'], $res['updated'], $res['removed'], number_format($res['suma'], 2, ',', ' '), count($res['grupy']))
+        : sprintf('Dziennik bez zmian: %s h w %d grupach.', number_format($res['suma'], 2, ',', ' '), count($res['grupy']));
+    if ($changed) zl_ew_log($cid, 'ewidencja_sync_karty30', zl_ew_ym_label($ym) . ': ' . $res['message'], $user_id);
+    return $res;
+}
+
+// ── Przesunięcia godzin względem rozliczenia ──────────────────────────────────
+
+function zl_przes_list(int $contract_id): array {
+    return db_all(
+        "SELECT p.*, u.name AS created_by_name
+         FROM zlecenie_ewidencja_przesuniecia p LEFT JOIN users u ON u.id = p.created_by
+         WHERE p.contract_id=? ORDER BY p.z_ym DESC, p.id DESC", [$contract_id]);
+}
+
+/** Godziny przesunięte Z miesiąca (ujemnie dla salda) i DO miesiąca. */
+function zl_przes_month(int $contract_id, string $ym): array {
+    $out = (float)(db_one("SELECT COALESCE(SUM(godziny),0) AS s FROM zlecenie_ewidencja_przesuniecia WHERE contract_id=? AND z_ym=?", [$contract_id, $ym])['s'] ?? 0);
+    $in  = (float)(db_one("SELECT COALESCE(SUM(godziny),0) AS s FROM zlecenie_ewidencja_przesuniecia WHERE contract_id=? AND do_ym=?", [$contract_id, $ym])['s'] ?? 0);
+    return ['out' => round($out, 2), 'in' => round($in, 2)];
+}
+
+/**
+ * „X godzin z miesiąca A rozliczamy w miesiącu B”. Nie można przesunąć więcej niż
+ * miesiąc A ma do rozliczenia (ewidencja − już przesunięte + przyjęte).
+ */
+function zl_przes_add(array $contract, string $z_ym, string $do_ym, float $godziny, string $powod, ?int $user_id): int {
+    $cid = (int)$contract['id'];
+    if (!zl_ew_ym_valid($z_ym) || !zl_ew_ym_valid($do_ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc.');
+    if ($z_ym === $do_ym) throw new InvalidArgumentException('Miesiąc źródłowy i docelowy muszą być różne.');
+    if ($godziny <= 0) throw new InvalidArgumentException('Liczba godzin musi być większa od zera.');
+    if (trim($powod) === '') throw new InvalidArgumentException('Podaj powód przesunięcia (trafia do historii umowy).');
+    zl_rozl_assert_open($cid, $z_ym);
+    zl_rozl_assert_open($cid, $do_ym);
+    $available = zl_rozl_month_hours($cid, $z_ym);
+    if ($godziny > $available + 0.004) {
+        throw new InvalidArgumentException(sprintf('W miesiącu %s do rozliczenia jest tylko %s h.', zl_ew_ym_label($z_ym), number_format($available, 2, ',', ' ')));
+    }
+    $id = db_insert('zlecenie_ewidencja_przesuniecia', [
+        'contract_id' => $cid, 'z_ym' => $z_ym, 'do_ym' => $do_ym, 'godziny' => round($godziny, 2),
+        'powod' => trim($powod), 'created_by' => $user_id, 'created_at' => date('Y-m-d H:i:s'),
+    ]);
+    zl_ew_sync_timesheet($cid, $z_ym);
+    zl_ew_sync_timesheet($cid, $do_ym);
+    zl_ew_log($cid, 'ewidencja_przesuniecie', sprintf('Przesunięto %s h z %s do %s. Powód: %s', number_format($godziny, 2, ',', ' '), zl_ew_ym_label($z_ym), zl_ew_ym_label($do_ym), trim($powod)), $user_id);
+    return $id;
+}
+
+function zl_przes_delete(array $contract, int $przes_id, ?int $user_id): void {
+    $cid = (int)$contract['id'];
+    $p = db_one("SELECT * FROM zlecenie_ewidencja_przesuniecia WHERE id=? AND contract_id=?", [$przes_id, $cid]);
+    if (!$p) return;
+    zl_rozl_assert_open($cid, $p['z_ym']);
+    zl_rozl_assert_open($cid, $p['do_ym']);
+    db_exec("DELETE FROM zlecenie_ewidencja_przesuniecia WHERE id=?", [$przes_id]);
+    zl_ew_sync_timesheet($cid, $p['z_ym']);
+    zl_ew_sync_timesheet($cid, $p['do_ym']);
+    zl_ew_log($cid, 'ewidencja_przesuniecie_usun', sprintf('Cofnięto przesunięcie %s h z %s do %s', number_format((float)$p['godziny'], 2, ',', ' '), zl_ew_ym_label($p['z_ym']), zl_ew_ym_label($p['do_ym'])), $user_id);
+}
+
+/** Godziny ROZLICZANE w miesiącu = ewidencja − przesunięte z + przesunięte do + korekty godzin. */
+function zl_rozl_month_hours(int $contract_id, string $ym): float {
+    $p = zl_przes_month($contract_id, $ym);
+    $k = zl_korekta_month($contract_id, $ym);
+    return round(zl_ew_month_hours($contract_id, $ym) - $p['out'] + $p['in'] + $k['godziny'], 2);
+}
+
+// ── Rachunki: miesiąc w saldzie (obsługa rachunków „z sierpnia”) ──────────────
+
+/** Nazwa polskiego miesiąca w tekście „okres” (np. „sierpień 2026”, „za sierpień”) → YYYY-MM. */
+function zl_rozl_parse_okres_text(string $txt, string $fallback_year = ''): ?string {
+    $t = mb_strtolower(trim($txt));
+    if ($t === '') return null;
+    if (preg_match('/(\d{4})-(0[1-9]|1[0-2])/', $t, $m)) return $m[1] . '-' . $m[2];
+    if (preg_match('/\b(0?[1-9]|1[0-2])[.\/](\d{4})\b/', $t, $m)) return sprintf('%04d-%02d', (int)$m[2], (int)$m[1]);
+    $stems = ['stycz' => 1, 'lut' => 2, 'mar' => 3, 'kwie' => 4, 'maj' => 5, 'czerw' => 6, 'lip' => 7, 'sierp' => 8, 'wrze' => 9, 'pa' => 10, 'listop' => 11, 'grud' => 12];
+    $month = null;
+    foreach ($stems as $stem => $num) { if (str_contains($t, $stem)) { $month = $num; break; } }
+    if (!$month) return null;
+    $year = preg_match('/\b(20\d{2})\b/', $t, $m) ? (int)$m[1] : (int)($fallback_year ?: date('Y'));
+    return sprintf('%04d-%02d', $year, $month);
+}
+
+/**
+ * Miesiąc salda, do którego liczy się rachunek:
+ *  1. ręczne przypisanie (rozliczenie_ym),
+ *  2. ostatni miesiąc zakresu okres_od–okres_do,
+ *  3. miesiąc z tekstowego pola „okres” („sierpień 2026”),
+ *  4. miesiąc daty wystawienia / dodania.
+ * Zwraca [ym, zrodlo].
+ */
+function zl_rozl_rachunek_ym(array $r): array {
+    $manual = (string)($r['rozliczenie_ym'] ?? '');
+    if (zl_ew_ym_valid($manual)) return [$manual, 'reczne'];
+    $od = (string)($r['okres_od'] ?? '');
+    if (zl_ew_ym_valid($od)) { $m = rachunek_okres_months($r); return [end($m), 'okres']; }
+    $d = substr((string)($r['data_wystawienia'] ?: ($r['created_at'] ?? '')), 0, 7);
+    $txt = zl_rozl_parse_okres_text((string)($r['okres'] ?? ''), substr($d, 0, 4));
+    if ($txt) return [$txt, 'tekst'];
+    return [zl_ew_ym_valid($d) ? $d : date('Y-m'), 'data'];
+}
+
+/** Ręczne przypisanie rachunku do miesiąca salda (NULL = wróć do automatu). */
+function zl_rozl_rachunek_set_ym(array $contract, int $rachunek_id, ?string $ym, ?int $user_id): void {
+    $cid = (int)$contract['id'];
+    $r = get_rachunek($rachunek_id);
+    if (!$r || (int)$r['contract_id'] !== $cid) throw new InvalidArgumentException('Nie znaleziono rachunku.');
+    if ($ym !== null && !zl_ew_ym_valid($ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc.');
+    [$old] = zl_rozl_rachunek_ym($r);
+    zl_rozl_assert_open($cid, $old);
+    if ($ym !== null) zl_rozl_assert_open($cid, $ym);
+    db_exec("UPDATE zlecenie_rachunki SET rozliczenie_ym=?, updated_at=datetime('now') WHERE id=?", [$ym, $rachunek_id]);
+    zl_ew_log($cid, 'rozliczenie_rachunek_ym', sprintf('Rachunek #%d%s przypisano do miesiąca %s (było: %s)',
+        $rachunek_id, $r['numer'] ? ' ' . $r['numer'] : '', $ym ? zl_ew_ym_label($ym) : 'wg okresu/daty', zl_ew_ym_label($old)), $user_id);
+}
+
+/** Rachunki, których miesiąc salda został odgadnięty z tekstu lub daty (warto sprawdzić). */
+function zl_rozl_rachunki_niepewne(int $contract_id): array {
+    $out = [];
+    foreach (get_rachunki('zlecenie', $contract_id) as $r) {
+        if (rachunek_is_test($r)) continue;
+        [$ym, $src] = zl_rozl_rachunek_ym($r);
+        if (in_array($src, ['tekst', 'data'], true)) $out[] = ['id' => (int)$r['id'], 'numer' => $r['numer'], 'ym' => $ym, 'zrodlo' => $src, 'okres' => $r['okres'], 'data_wystawienia' => $r['data_wystawienia']];
+    }
+    return $out;
+}
+
+// ── Korekty („coś było źle wyrachunkowane”) ───────────────────────────────────
+
+function zl_korekta_list(int $contract_id): array {
+    return db_all(
+        "SELECT k.*, u.name AS created_by_name, r.numer AS rachunek_numer
+         FROM zlecenie_rozliczenie_korekty k
+         LEFT JOIN users u ON u.id = k.created_by
+         LEFT JOIN zlecenie_rachunki r ON r.id = k.rachunek_id
+         WHERE k.contract_id=? ORDER BY k.ym DESC, k.id DESC", [$contract_id]);
+}
+
+/** Suma korekt zaksięgowanych w miesiącu: ['kwota' => zł, 'godziny' => h, 'pozycje' => [...]]. */
+function zl_korekta_month(int $contract_id, string $ym): array {
+    $rows = db_all("SELECT * FROM zlecenie_rozliczenie_korekty WHERE contract_id=? AND ym=? ORDER BY id", [$contract_id, $ym]);
+    return [
+        'kwota'   => round(array_sum(array_map(fn($r) => (float)$r['kwota'], $rows)), 2),
+        'godziny' => round(array_sum(array_map(fn($r) => (float)$r['godziny'], $rows)), 2),
+        'pozycje' => $rows,
+    ];
+}
+
+/**
+ * Korekta księgowana w OTWARTYM miesiącu $ym, dotycząca miesiąca $dotyczy_ym (może być zamknięty —
+ * nie ruszamy go, korekta wyrównuje saldo w bieżącym). Kwota i/lub godziny ze znakiem.
+ */
+function zl_korekta_add(array $contract, string $ym, ?string $dotyczy_ym, float $kwota, float $godziny, string $powod, ?int $rachunek_id, ?int $user_id): int {
+    $cid = (int)$contract['id'];
+    if (!zl_ew_ym_valid($ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc księgowania.');
+    if ($dotyczy_ym !== null && $dotyczy_ym !== '' && !zl_ew_ym_valid($dotyczy_ym)) throw new InvalidArgumentException('Nieprawidłowy miesiąc, którego dotyczy korekta.');
+    if (abs($kwota) < 0.005 && abs($godziny) < 0.005) throw new InvalidArgumentException('Podaj kwotę lub liczbę godzin korekty (ze znakiem).');
+    if (trim($powod) === '') throw new InvalidArgumentException('Podaj powód korekty (trafia do historii umowy).');
+    zl_rozl_assert_open($cid, $ym);
+    if ($rachunek_id) {
+        $r = get_rachunek($rachunek_id);
+        if (!$r || (int)$r['contract_id'] !== $cid) throw new InvalidArgumentException('Nie znaleziono rachunku.');
+    }
+    $id = db_insert('zlecenie_rozliczenie_korekty', [
+        'contract_id' => $cid, 'ym' => $ym, 'dotyczy_ym' => $dotyczy_ym ?: null,
+        'kwota' => round($kwota, 2), 'godziny' => round($godziny, 2), 'rachunek_id' => $rachunek_id ?: null,
+        'powod' => trim($powod), 'created_by' => $user_id, 'created_at' => date('Y-m-d H:i:s'),
+    ]);
+    if (abs($godziny) >= 0.005) zl_ew_sync_timesheet($cid, $ym);
+    zl_ew_log($cid, 'rozliczenie_korekta', sprintf('Korekta w %s%s: %s%s zł, %s%s h%s. Powód: %s',
+        zl_ew_ym_label($ym), $dotyczy_ym ? ' (dotyczy ' . zl_ew_ym_label($dotyczy_ym) . ')' : '',
+        $kwota >= 0 ? '+' : '', number_format($kwota, 2, ',', ' '), $godziny >= 0 ? '+' : '', number_format($godziny, 2, ',', ' '),
+        $rachunek_id ? ', rachunek #' . $rachunek_id : '', trim($powod)), $user_id);
+    return $id;
+}
+
+function zl_korekta_delete(array $contract, int $korekta_id, ?int $user_id): void {
+    $cid = (int)$contract['id'];
+    $k = db_one("SELECT * FROM zlecenie_rozliczenie_korekty WHERE id=? AND contract_id=?", [$korekta_id, $cid]);
+    if (!$k) return;
+    zl_rozl_assert_open($cid, $k['ym']);
+    db_exec("DELETE FROM zlecenie_rozliczenie_korekty WHERE id=?", [$korekta_id]);
+    if (abs((float)$k['godziny']) >= 0.005) zl_ew_sync_timesheet($cid, $k['ym']);
+    zl_ew_log($cid, 'rozliczenie_korekta_usun', sprintf('Usunięto korektę #%d z %s (%s zł, %s h)', $korekta_id, zl_ew_ym_label($k['ym']), number_format((float)$k['kwota'], 2, ',', ' '), number_format((float)$k['godziny'], 2, ',', ' ')), $user_id);
+}
+
+// ── Saldo rozliczeń ───────────────────────────────────────────────────────────
+
+/** Należność brutto za miesiąc wg typu stawki z umowy. */
+function zl_rozl_naleznosc(array $contract, float $godziny_rozl): float {
+    $typ = (string)($contract['typ_stawki'] ?? '');
+    $stawka = (float)($contract['stawka_kwota'] ?? 0);
+    return match ($typ) {
+        'godzinowo'   => round($godziny_rozl * $stawka, 2),
+        'miesiecznie' => round($stawka, 2),
+        default       => 0.0, // ryczałt: saldo początkowe (zl_rozl_ledger), inne: brak
+    };
+}
+
+/**
+ * Wypłaty wg rejestru rachunków: kwota rachunku trafia do miesiąca salda wg zl_rozl_rachunek_ym()
+ * (ręczne przypisanie → okres → tekst „okres” → data). Rachunki testowe i odrzucone pominięte.
+ *
+ * @return array<string, array{kwota: float, rachunki: array}>
+ */
+function zl_rozl_wyplaty_by_month(int $contract_id): array {
+    $out = [];
+    foreach (get_rachunki('zlecenie', $contract_id) as $r) {
+        if (rachunek_is_test($r) || $r['status'] === 'odrzucony' || $r['kwota_brutto'] === null) continue;
+        [$ym, $src] = zl_rozl_rachunek_ym($r);
+        $months = rachunek_okres_months($r);
+        $out[$ym] ??= ['kwota' => 0.0, 'rachunki' => []];
+        $out[$ym]['kwota'] = round($out[$ym]['kwota'] + (float)$r['kwota_brutto'], 2);
+        $out[$ym]['rachunki'][] = ['id' => (int)$r['id'], 'numer' => $r['numer'], 'kwota' => (float)$r['kwota_brutto'], 'status' => $r['status'],
+            'okres' => zl_ew_ym_valid((string)($r['okres_od'] ?? '')) && $months ? rachunek_okres_label($months[0], end($months)) : (string)($r['okres'] ?? ''),
+            'zrodlo_ym' => $src, 'data_wystawienia' => $r['data_wystawienia']];
+    }
+    return $out;
+}
+
+/**
+ * Pełne saldo umowy: wiersz na miesiąc (chronologicznie) + podsumowanie.
+ *
+ * @return array{miesiace: array<int, array>, suma: array}
+ */
+function zl_rozl_ledger(array $contract): array {
+    $cid = (int)$contract['id'];
+    $months = zl_ew_months($contract);
+    sort($months);
+    $wyplaty = zl_rozl_wyplaty_by_month($cid);
+    $stany = [];
+    foreach (db_all("SELECT * FROM zlecenie_rozliczenie_miesiace WHERE contract_id=?", [$cid]) as $s) $stany[$s['ym']] = $s;
+    // Miesiące z rachunkami poza zakresem umowy też pokazujemy
+    foreach (array_keys($wyplaty) as $ym) if (!in_array($ym, $months, true)) $months[] = $ym;
+    sort($months);
+
+    $is_ryczalt = (string)($contract['typ_stawki'] ?? '') === 'ryczalt';
+    $saldo_prev = $is_ryczalt ? round((float)($contract['wynagrodzenie_brutto'] ?? 0), 2) : 0.0;
+
+    $rows = []; $sum = ['godziny_ewid' => 0.0, 'godziny_rozl' => 0.0, 'naleznosc' => 0.0, 'wyplata' => 0.0];
+    foreach ($months as $i => $ym) {
+        $ewid  = zl_ew_month_hours($cid, $ym);
+        $przes = zl_przes_month($cid, $ym);
+        $kor   = zl_korekta_month($cid, $ym);
+        $zr    = null; zl_ew_month_hours($cid, $ym, $zr);
+        $rozl  = round($ewid - $przes['out'] + $przes['in'] + $kor['godziny'], 2);
+        $stan  = $stany[$ym] ?? null;
+        $nal_auto = round(zl_rozl_naleznosc($contract, $rozl) + $kor['kwota'], 2);
+        $nal   = ($stan && $stan['naleznosc_override'] !== null) ? round((float)$stan['naleznosc_override'], 2) : $nal_auto;
+        $wyp_r = $wyplaty[$ym]['kwota'] ?? 0.0;
+        $wyp   = ($stan && $stan['wyplata_override'] !== null) ? round((float)$stan['wyplata_override'], 2) : $wyp_r;
+        $do    = round($nal + $saldo_prev, 2);
+        $poz   = round($do - $wyp, 2);
+        // Różnica rachunek vs należność TEGO miesiąca (bez salda z poprzednich): >0 = rachunek wyższy niż wynika z godzin
+        $roznica = round($wyp - $nal, 2);
+        $stawka  = (float)($contract['stawka_kwota'] ?? 0);
+        $godz_roznica = ((string)($contract['typ_stawki'] ?? '') === 'godzinowo' && $stawka > 0) ? round($roznica / $stawka, 2) : null;
+        $rows[] = [
+            'ym' => $ym, 'label' => zl_ew_ym_label($ym),
+            'godziny_ewid' => $ewid, 'przes_out' => $przes['out'], 'przes_in' => $przes['in'], 'godziny_rozl' => $rozl,
+            'korekty_kwota' => $kor['kwota'], 'korekty_godziny' => $kor['godziny'], 'korekty' => $kor['pozycje'],
+            'godziny_zrodlo' => $zr,
+            'naleznosc' => $nal, 'naleznosc_auto' => $nal_auto, 'naleznosc_override' => $stan['naleznosc_override'] ?? null,
+            'przeniesione_in' => $saldo_prev, 'do_rozliczenia' => $do,
+            'roznica' => $roznica,                       // zł: wypłata − należność miesiąca
+            'brakuje_godzin'  => $godz_roznica !== null && $godz_roznica > 0.004 ? $godz_roznica : 0.0,   // rachunek wyższy → tylu godzin brakuje w ewidencji
+            'nadmiar_godzin'  => $godz_roznica !== null && $godz_roznica < -0.004 ? -$godz_roznica : 0.0, // rachunek niższy → tyle godzin nie zostało opłaconych
+            'wyplata_bez_rachunku' => $wyp > 0.004 && !($wyplaty[$ym]['rachunki'] ?? []),
+            'wyplata' => $wyp, 'wyplata_rachunki' => $wyp_r, 'wyplata_override' => $stan['wyplata_override'] ?? null,
+            'rachunki' => $wyplaty[$ym]['rachunki'] ?? [],
+            'pozostalo' => $poz,
+            'status' => $stan['status'] ?? 'otwarty', 'uwagi' => $stan['uwagi'] ?? null,
+            'zamkniety_at' => $stan['zamkniety_at'] ?? null,
+            'is_current' => $ym === date('Y-m'),
+            'is_first'   => $i === 0,
+        ];
+        $saldo_prev = $poz;
+        $sum['godziny_ewid'] += $ewid; $sum['godziny_rozl'] += $rozl; $sum['naleznosc'] += $nal; $sum['wyplata'] += $wyp;
+    }
+    $sum = array_map(fn($v) => round($v, 2), $sum);
+    $sum['ryczalt']   = $is_ryczalt ? round((float)($contract['wynagrodzenie_brutto'] ?? 0), 2) : null;
+    $sum['pozostalo'] = $rows ? end($rows)['pozostalo'] : ($is_ryczalt ? $sum['ryczalt'] : 0.0);
+    $sum['roznica']   = round($sum['wyplata'] - $sum['naleznosc'], 2);
+    $sum['brakuje_godzin'] = round(array_sum(array_column($rows, 'brakuje_godzin')), 2);
+    $sum['nadmiar_godzin'] = round(array_sum(array_column($rows, 'nadmiar_godzin')), 2);
+    $sum['typ_stawki'] = (string)($contract['typ_stawki'] ?? '');
+    $sum['stawka']     = (float)($contract['stawka_kwota'] ?? 0);
+    return ['miesiace' => array_reverse($rows), 'suma' => $sum];
+}
+
+/** Czy można zakończyć umowę bez „ogona”: pozostało 0 i żaden otwarty miesiąc nie ma godzin. */
+function zl_rozl_close_blocker(array $contract): ?string {
+    try {
+        $l = zl_rozl_ledger($contract);
+    } catch (\Throwable $e) { return null; }
+    if (abs($l['suma']['pozostalo']) > 0.004) {
+        return 'Saldo rozliczeń nie jest zerowe: pozostało ' . money($l['suma']['pozostalo']) . ' do rozliczenia.';
+    }
+    foreach ($l['miesiace'] as $m) {
+        if ($m['status'] !== 'zamkniety' && $m['godziny_rozl'] > 0) return 'Miesiąc ' . $m['label'] . ' z godzinami nie został zamknięty w saldzie.';
+    }
+    return null;
+}
