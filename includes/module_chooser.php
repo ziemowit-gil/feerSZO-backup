@@ -10,10 +10,10 @@
  *   $__choices — lista wpisów: ['label','desc','icon','grad','url','primary'(bool)]
  *                Pierwszy/„primary" wpis dostaje plakietkę „Twój moduł".
  *
- * Warstwa wizualna (2026-10-05): jasna i płaska, jak System Tożsamości (tozsamosc/_head.php) —
- * biały pasek, powitanie, białe karty modułów z paskiem gradientu modułu, akcent z brandingu
- * organizacji (--c z branding_css). Samodzielny CSS (bez Bootstrapa — tylko ikony).
- * Skróty klawiszowe: cyfry 1–9 otwierają kolejne moduły.
+ * Warstwa wizualna (2026-10-06): Metro UI (metroui.org.ua / Windows 8 Modern UI), spójnie
+ * z Systemem Tożsamości — ciemny app-bar #1d1d1d, Segoe UI, ekran Start z kafli w jednolitych
+ * kolorach (kolor kafla = ostatni kolor gradientu modułu z MODULE_REGISTRY), zero zaokrągleń
+ * i cieni. Samodzielny CSS (bez Bootstrapa — tylko ikony). Skróty klawiszowe: 1–9.
  */
 require_once __DIR__ . '/branding.php';
 
@@ -32,83 +32,78 @@ $_n = count($__choices);
 $_dni = ['niedziela','poniedziałek','wtorek','środa','czwartek','piątek','sobota'];
 $_mies = ['','stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'];
 $_today = $_dni[(int)date('w')] . ', ' . (int)date('j') . ' ' . $_mies[(int)date('n')] . ' ' . date('Y');
+// Jednolity kolor kafla z gradientu modułu (ostatni kolor); fallback: cyan Metro.
+$_tile_color = function (string $grad): string {
+    return preg_match_all('/#[0-9a-fA-F]{3,6}/', $grad, $m) ? end($m[0]) : '#1ba1e2';
+};
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#1d1d1d">
 <title><?= h($_org ?: 'System') ?> — wybór modułu</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php branding_css($_b); ?>
 <style>
+:root{--m-cyan:#1ba1e2;--m-cyan-d:#0e7bb3;--m-green:#008a00;--m-dark:#1d1d1d;--m-grey:#777;--m-light:#f2f2f2;--m-line:#e1e1e1}
 *,*::before,*::after{box-sizing:border-box}
-html,body{min-height:100vh;margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f3f5f9;color:#0f172a;-webkit-font-smoothing:antialiased}
+html,body{min-height:100vh;margin:0;font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;background:#fff;color:#111;-webkit-font-smoothing:antialiased}
 a{color:inherit}
-.sr{position:absolute;left:-999px}.sr:focus{left:1rem;top:1rem;z-index:50;background:#fff;color:#0b1a3a;padding:.5rem 1rem;border-radius:8px;font-weight:600}
-/* ── Pasek górny ── */
-.bar{height:56px;background:#fff;color:#0f172a;display:flex;align-items:center;position:sticky;top:0;z-index:40;border-bottom:1px solid #e6e9f0}
+.sr{position:absolute;left:-999px}.sr:focus{left:1rem;top:1rem;z-index:50;background:#fff;color:#111;padding:.5rem 1rem;font-weight:600;outline:3px solid #000}
+/* app-bar */
+.bar{height:56px;background:var(--m-dark);color:#fff;display:flex;align-items:center;position:sticky;top:0;z-index:40}
 .bar .in{width:100%;max-width:1100px;margin:0 auto;padding:0 1rem;display:flex;align-items:center;gap:.75rem}
-.brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:#0f172a;min-width:0;flex:1}
-.brand-img{height:30px;max-width:130px;object-fit:contain}
-.brand-ic{width:34px;height:34px;border-radius:10px;background:var(--c,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
-.brand b{display:block;font-weight:700;font-size:.95rem;line-height:1.05;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brand small{display:block;font-size:.64rem;color:#64748b;font-weight:500}
-.usr{display:inline-flex;align-items:center;gap:.55rem;padding:.25rem .5rem .25rem .25rem;border-radius:999px}
-.ava{width:32px;height:32px;border-radius:50%;background:var(--c,#2563eb);color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.brand{display:flex;align-items:center;gap:.65rem;text-decoration:none;color:#fff;min-width:0;flex:1}
+.brand-img{height:30px;max-width:130px;object-fit:contain;background:#fff;padding:.15rem .4rem}
+.brand-ic{width:34px;height:34px;background:var(--c,var(--m-cyan));color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.brand b{display:block;font-weight:600;font-size:.95rem;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand small{display:block;font-size:.64rem;color:rgba(255,255,255,.65);font-weight:400}
+.usr{display:inline-flex;align-items:center;gap:.6rem;padding:.2rem .4rem .2rem .2rem}
+.ava{width:32px;height:32px;background:var(--c,var(--m-cyan));color:#fff;font-size:.74rem;font-weight:700;display:flex;align-items:center;justify-content:center}
 .usr .who{display:none;flex-direction:column;line-height:1.1}
 .usr .who b{font-size:.78rem;font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.usr .who small{font-size:.64rem;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.usr .who small{font-size:.64rem;color:rgba(255,255,255,.65);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(min-width:640px){.usr .who{display:flex}}
-.lnk{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .7rem;border-radius:8px;color:#374151;text-decoration:none;font-size:.82rem;font-weight:500;white-space:nowrap;transition:background .12s,color .12s}
-.lnk:hover{background:#f3f4f6;color:#111827}
-.lnk:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
-.lnk--out:hover{background:#fef2f2;color:#b91c1c}
-/* ── Nagłówek z powitaniem ── */
-.head{max-width:1100px;margin:0 auto;padding:1.75rem 1rem .25rem;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}
-.eyebrow{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8}
-.greet{font-size:clamp(1.4rem,2.6vw,1.75rem);font-weight:800;letter-spacing:-.025em;margin:.15rem 0 0;line-height:1.15;color:#0f172a}
-.sub{font-size:.86rem;color:#64748b;margin:.35rem 0 0}
-.sub b{color:#0f172a;font-weight:700}
-.date{display:inline-flex;align-items:center;gap:.45rem;font-size:.78rem;color:#64748b;background:#fff;border:1px solid #e6e9f0;border-radius:999px;padding:.35rem .8rem}
-/* ── Treść ── */
+.lnk{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .7rem;color:rgba(255,255,255,.85);text-decoration:none;font-size:.82rem;font-weight:500;white-space:nowrap;transition:background .12s,color .12s}
+.lnk:hover{background:rgba(255,255,255,.12);color:#fff}
+.lnk:focus-visible{outline:3px solid #fff;outline-offset:-3px}
+.lnk--out:hover{background:#a20025}
+/* nagłówek */
+.head{max-width:1100px;margin:0 auto;padding:2rem 1rem 1.25rem;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem 1.5rem}
+.kicker{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:#777;margin-bottom:.35rem}
+.greet{font-size:clamp(1.9rem,4vw,2.6rem);font-weight:300;letter-spacing:-.02em;margin:0;line-height:1.05;color:#111}
+.sub{font-size:.95rem;color:#555;margin:.6rem 0 0;font-weight:300}
+.sub b{color:#111;font-weight:600}
+.date{font-size:.8rem;color:#777;white-space:nowrap}
+/* siatka kafli (Start) */
 .wrap{max-width:1100px;margin:0 auto;padding:0 1rem 3rem}
-.sec-h{display:flex;align-items:center;gap:.5rem;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#7d8aa6;margin:1.75rem .15rem .8rem}
-.sec-h:first-child{margin-top:1.25rem}
-.sec-h .cnt{margin-left:auto;font-weight:700;letter-spacing:0;text-transform:none;font-size:.72rem;color:inherit;opacity:.85}
-.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1rem}
-.app{position:relative;display:flex;flex-direction:column;gap:.7rem;background:#fff;border:1px solid #e6e9f0;border-radius:16px;padding:1.1rem 1.15rem 1rem;text-decoration:none;color:#0f172a;min-height:168px;box-shadow:0 1px 2px rgba(16,24,40,.04);transition:box-shadow .14s,border-color .14s;overflow:hidden}
-.app::before{content:'';position:absolute;left:0;right:0;top:0;height:4px;background:var(--g)}
-.app:hover{border-color:#bdd2ff;box-shadow:0 0 0 3px rgba(37,99,235,.10)}
-.app:focus-visible{outline:3px solid #fbbf24;outline-offset:3px}
-.app-ic{width:46px;height:46px;border-radius:12px;background:var(--g);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.35rem}
-.app-title{font-size:1.06rem;font-weight:800;letter-spacing:-.015em;line-height:1.2}
-.app-desc{font-size:.8rem;color:#56637f;line-height:1.45;flex:1;margin:0}
-.app-foot{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.1rem}
-.app-cta{display:inline-flex;align-items:center;gap:.3rem;font-size:.8rem;font-weight:700;color:var(--c,#1E6DFF)}
-.app:hover .app-cta i{transform:translateX(3px)}.app-cta i{transition:transform .14s}
-.key{display:inline-flex;align-items:center;justify-content:center;min-width:1.5rem;height:1.5rem;padding:0 .35rem;border-radius:6px;border:1px solid #cfd6e3;background:#f8fafc;color:#56637f;font:700 .68rem ui-monospace,SFMono-Regular,Menlo,monospace}
-.app-badge{position:absolute;top:.95rem;right:.95rem;display:inline-flex;align-items:center;gap:.3rem;background:#eef4ff;color:#1d4ed8;border:1px solid #bdd2ff;font-size:.64rem;font-weight:700;padding:.18rem .55rem;border-radius:999px}
-.app-badge i{color:#f59e0b}
-.app--primary{border-color:var(--c,#2563eb)}
-@media(min-width:720px){.app--primary{grid-column:span 2}.app--primary .app-desc{font-size:.84rem;max-width:46ch}}
-/* ── Rząd „Konto" ── */
-.row2{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.85rem}
-.tile{display:flex;align-items:center;gap:.9rem;background:#fff;border:1px solid #e6e9f0;border-radius:16px;padding:.9rem 1rem;text-decoration:none;color:#0f172a;transition:border-color .13s,box-shadow .13s,transform .13s}
-.tile:hover{border-color:#bdd2ff;box-shadow:0 0 0 3px rgba(37,99,235,.10)}
-.tile:focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
-.tile-ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;background:#eef4ff;color:#1656d6}
-.tile b{display:block;font-size:.9rem;font-weight:700}
-.tile small{display:block;font-size:.74rem;color:#56637f;margin-top:.1rem}
-.tile .chev{margin-left:auto;color:#a9b4c9}
-.note{display:flex;align-items:flex-start;gap:.6rem;background:#fff;border:1px dashed #cfd6e3;border-radius:14px;padding:.75rem 1rem;margin-top:1.5rem;font-size:.8rem;color:#56637f}
-.note i{color:var(--c,#2563eb);margin-top:.1rem}
-.foot{max-width:1100px;margin:0 auto;padding:1rem 1rem 2rem;font-size:.74rem;color:#7d8aa6;display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;align-items:center;border-top:1px solid #e6e9f0}
+.sec-h{font-size:1.3rem;font-weight:300;letter-spacing:-.01em;color:#111;margin:1.75rem 0 .75rem}
+.sec-h:first-child{margin-top:0}
+.sec-h b{font-weight:600}
+.sec-h .hint{font-size:.78rem;color:#777;font-weight:400;margin-left:.75rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-auto-rows:150px;gap:8px;grid-auto-flow:dense}
+.tile{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:14px 16px;color:#fff;text-decoration:none;background:var(--t,var(--m-cyan));overflow:hidden;min-width:0;transition:transform .08s,filter .12s}
+.tile:hover{filter:brightness(1.08);color:#fff}
+.tile:active{transform:scale(.97)}
+.tile:focus-visible{outline:3px solid #000;outline-offset:-3px}
+.tile--w{grid-column:span 2}
+.tile--l{grid-column:span 2;grid-row:span 2}
+.tile .ic{font-size:2.1rem;line-height:1}
+.tile--l .ic{font-size:3.6rem}
+.tile .title{font-size:1rem;font-weight:600;line-height:1.2}
+.tile--l .title{font-size:1.7rem;font-weight:300;letter-spacing:-.02em}
+.tile .desc{font-size:.76rem;opacity:.88;margin-top:.2rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile--l .desc{font-size:.9rem;-webkit-line-clamp:3}
+.tile .tag{position:absolute;top:10px;right:12px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:rgba(0,0,0,.28);padding:2px 7px;display:inline-flex;align-items:center;gap:.3rem}
+.tile .key{position:absolute;right:12px;bottom:12px;min-width:1.5rem;height:1.5rem;padding:0 .4rem;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.22);font:700 .72rem ui-monospace,SFMono-Regular,Menlo,monospace}
+.tile .cta{font-size:.78rem;font-weight:600;display:inline-flex;align-items:center;gap:.3rem;margin-top:.5rem}
+.tile:hover .cta i{transform:translateX(3px)}.tile .cta i{transition:transform .14s}
+.note{background:var(--m-light);padding:.85rem 1rem;margin-top:1.75rem;font-size:.82rem;color:#444;border-left:6px solid var(--m-cyan)}
+.foot{max-width:1100px;margin:0 auto;padding:1rem 1rem 2rem;font-size:.76rem;color:#777;display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;border-top:1px solid var(--m-line)}
 .foot span:last-child{margin-left:auto}
-@media(max-width:600px){.apps{grid-template-columns:1fr 1fr;gap:.7rem}.app{min-height:150px;padding:.95rem .95rem .85rem;border-radius:14px}.app-ic{width:40px;height:40px;font-size:1.15rem;border-radius:11px}.app-title{font-size:.95rem}.app-badge{top:.75rem;right:.75rem}.key{display:none}}
-@media(max-width:380px){.apps{grid-template-columns:1fr}}
-@media(max-width:520px){.d-sm,.who-txt{display:none}.bar .in{gap:.4rem}}
-@media(prefers-reduced-motion:reduce){.app,.tile,.app-cta i{transition:none}}
+@media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr);grid-auto-rows:140px}.tile{padding:12px 13px}.tile .key{display:none}.tile--l .title{font-size:1.35rem}.d-sm,.who-txt{display:none}.bar .in{gap:.4rem}}
+@media(prefers-reduced-motion:reduce){.tile,.tile .cta i{transition:none}}
 </style>
 </head>
 <body>
@@ -136,54 +131,56 @@ a{color:inherit}
 
 <header class="head" aria-labelledby="greet">
   <div>
-    <div class="eyebrow">Strona startowa · <?= h($_short) ?></div>
-    <h1 id="greet" class="greet"><?= h($_greet) ?>, <?= h($_fn) ?> 👋</h1>
-    <p class="sub">Masz dostęp do <b><?= $_n ?> <?= $_n === 1 ? 'modułu' : 'modułów' ?></b>. Wybierz, gdzie chcesz przejść — na tę stronę wrócisz zawsze przez stronę startową.</p>
+    <div class="kicker">Start · <?= h($_short) ?></div>
+    <h1 id="greet" class="greet"><?= h($_greet) ?>, <?= h($_fn) ?></h1>
+    <p class="sub">Masz dostęp do <b><?= $_n ?> <?= $_n === 1 ? 'modułu' : 'modułów' ?></b>. Wybierz kafel, aby przejść dalej — na tę stronę wrócisz zawsze przez stronę startową.</p>
   </div>
-  <span class="date"><i class="bi bi-calendar3" aria-hidden="true"></i><?= h($_today) ?></span>
+  <span class="date"><i class="bi bi-calendar3" aria-hidden="true"></i> <?= h($_today) ?></span>
 </header>
 
 <main id="main" class="wrap">
-  <div class="sec-h"><i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i> Twoje moduły <span class="cnt"><kbd class="key">1</kbd>–<kbd class="key"><?= min($_n, 9) ?></kbd> na klawiaturze</span></div>
-  <div class="apps" id="apps">
+  <h2 class="sec-h">Twoje <b>moduły</b><span class="hint">klawisze 1–<?= min($_n, 9) ?> otwierają kolejne kafle</span></h2>
+  <div class="grid" id="apps">
     <?php foreach ($__choices as $i => $c):
       $primary = !empty($c['primary']);
       $k = $i + 1;
     ?>
-    <a href="<?= h($c['url']) ?>" class="app<?= $primary ? ' app--primary' : '' ?>" style="--g:<?= $c['grad'] ?>" data-key="<?= $k <= 9 ? $k : '' ?>">
-      <?php if ($primary): ?><span class="app-badge"><i class="bi bi-star-fill" aria-hidden="true"></i>Twój moduł</span><?php endif; ?>
-      <span class="app-ic" aria-hidden="true"><i class="bi <?= h($c['icon']) ?>"></i></span>
-      <span class="app-title"><?= h($c['label']) ?></span>
-      <p class="app-desc"><?= h($c['desc'] ?? '') ?></p>
-      <span class="app-foot">
-        <span class="app-cta">Otwórz <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
-        <?php if ($k <= 9): ?><kbd class="key" aria-label="skrót klawiszowy <?= $k ?>"><?= $k ?></kbd><?php endif; ?>
+    <a href="<?= h($c['url']) ?>" class="tile<?= $primary ? ' tile--l' : ' tile--w' ?>" style="--t:<?= h($_tile_color((string)($c['grad'] ?? ''))) ?>" data-key="<?= $k <= 9 ? $k : '' ?>">
+      <?php if ($primary): ?><span class="tag"><i class="bi bi-star-fill" aria-hidden="true"></i>Twój moduł</span><?php endif; ?>
+      <i class="bi <?= h($c['icon']) ?> ic" aria-hidden="true"></i>
+      <span>
+        <span class="title"><?= h($c['label']) ?></span>
+        <span class="desc"><?= h($c['desc'] ?? '') ?></span>
+        <span class="cta">Otwórz <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
       </span>
+      <?php if ($k <= 9): ?><kbd class="key" aria-label="skrót klawiszowy <?= $k ?>"><?= $k ?></kbd><?php endif; ?>
     </a>
     <?php endforeach; ?>
   </div>
 
-  <div class="sec-h"><i class="bi bi-person-gear" aria-hidden="true"></i> Konto</div>
-  <div class="row2">
-    <a href="<?= APP_URL ?>/tozsamosc/index.php" class="tile">
-      <span class="tile-ic" aria-hidden="true"><i class="bi bi-person-vcard"></i></span>
-      <span><b>System Tożsamości</b><small>Twoje dane, hasło, telefon i metody weryfikacji (MFA)</small></span>
-      <i class="bi bi-chevron-right chev" aria-hidden="true"></i>
+  <h2 class="sec-h">Twoje <b>konto</b></h2>
+  <div class="grid" style="grid-auto-rows:120px">
+    <a href="<?= APP_URL ?>/tozsamosc/index.php" class="tile tile--w" style="--t:var(--m-cyan)">
+      <i class="bi bi-person-vcard ic" aria-hidden="true"></i>
+      <span><span class="title">System Tożsamości</span><span class="desc">Dane, hasło, telefon i metody weryfikacji</span></span>
     </a>
-    <a href="<?= APP_URL ?>/tozsamosc/index.php#bezpieczenstwo" class="tile">
-      <span class="tile-ic" style="background:#ecfdf5;color:#047857" aria-hidden="true"><i class="bi bi-shield-lock"></i></span>
-      <span><b>Bezpieczeństwo konta</b><small>Sprawdź, czy konto jest dobrze zabezpieczone</small></span>
-      <i class="bi bi-chevron-right chev" aria-hidden="true"></i>
+    <a href="<?= APP_URL ?>/tozsamosc/index.php#bezpieczenstwo" class="tile" style="--t:var(--m-green)">
+      <i class="bi bi-shield-lock ic" aria-hidden="true"></i>
+      <span><span class="title">Bezpieczeństwo</span><span class="desc">hasło · MFA · telefon</span></span>
+    </a>
+    <a href="<?= APP_URL ?>/auth/logout.php" class="tile" style="--t:var(--m-dark)" onclick="return confirm('Wylogować się?')">
+      <i class="bi bi-box-arrow-right ic" aria-hidden="true"></i>
+      <span><span class="title">Wyloguj</span><span class="desc"><?= h($_u['email'] ?? '') ?></span></span>
     </a>
   </div>
 
   <div class="note">
     <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
-    <div>Twoje konto ma dostęp do kilku modułów. Moduł oznaczony gwiazdką to Twój moduł podstawowy; pozostałe zostały przyznane dodatkowo przez administratora.</div>
+    Moduł oznaczony gwiazdką to Twój moduł podstawowy; pozostałe zostały przyznane dodatkowo przez administratora.
   </div>
 </main>
 <footer class="foot">
-  <span><i class="bi bi-shield-lock-fill" aria-hidden="true" style="color:var(--c,#2563eb)"></i> połączenie szyfrowane</span>
+  <span><i class="bi bi-shield-lock-fill" aria-hidden="true"></i> połączenie szyfrowane</span>
   <span>© <?= date('Y') ?> <?= h($_org) ?></span>
 </footer>
 <script>
@@ -193,7 +190,7 @@ a{color:inherit}
     var t = e.target && e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
     if (!/^[1-9]$/.test(e.key)) return;
-    var a = document.querySelector('#apps .app[data-key="' + e.key + '"]');
+    var a = document.querySelector('#apps .tile[data-key="' + e.key + '"]');
     if (a) { a.focus(); window.location.href = a.getAttribute('href'); }
   });
 </script>
