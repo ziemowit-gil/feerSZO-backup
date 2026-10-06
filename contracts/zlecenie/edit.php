@@ -33,7 +33,10 @@ if (contract_is_locked($row)) {
 }
 $PAGE_TITLE = 'Edycja: ' . $row['numer_umowy'];
 $errors = [];
-if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/zlecenie/edit.php?id=' . $id);
+// Tryb inline: formularz osadzony w ramce w podglądzie umowy (view.php, zakładka „Umowa”) — bez obudowy aplikacji,
+// po zapisie komunikat do strony-rodzica zamiast przekierowania.
+$INLINE = !empty($_GET['inline']);
+if ($_SERVER['REQUEST_METHOD'] === 'GET') ika_require(APP_URL . '/contracts/zlecenie/edit.php?id=' . $id . ($INLINE ? '&inline=1' : ''));
 
 if (!empty($row['person_id'])) {
     $person_row = person_by_id((int)$row['person_id']);
@@ -105,13 +108,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . ' db=' . (defined('DB_PATH') ? DB_PATH : '?'));
             flash_set('danger', 'Zmiany NIE zostały zapisane w bazie (' . count($missed)
                 . ' pól nie utrwalono). Zgłoś to administratorowi — najczęstsze przyczyny to brak praw zapisu do pliku bazy lub odczyt z innej bazy niż zapis.');
-            header('Location: edit.php?id=' . $id);
+            header('Location: edit.php?id=' . $id . ($INLINE ? '&inline=1' : ''));
             exit;
         }
 
         require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
         log_contract_action($TYPE, $id, current_user()['id'], 'edit', $diff ?: 'Edytowano umowę');
         flash_set('success', 'Zmiany zapisane.');
+        if ($INLINE) {
+            // Ramka w podglądzie: powiadom rodzica, on przeładuje podgląd (flash pokaże się tam).
+            echo '<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Zapisano</title></head><body>'
+               . '<script>try{parent.postMessage({zlInlineSaved:1,id:' . (int)$id . '},location.origin);}catch(e){}</script>'
+               . '<p style="font-family:system-ui;padding:1rem">Zapisano. <a href="view.php?id=' . (int)$id . '" target="_top">Wróć do podglądu</a></p></body></html>';
+            exit;
+        }
         header('Location: view.php?id=' . $id);
         exit;
     }
@@ -121,19 +131,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
-<div class="tw-max-w-6xl tw-mx-auto">
+<div class="tw-max-w-6xl tw-mx-auto" id="zl-edit-root">
 
 <div class="tw-flex tw-items-center tw-justify-between tw-mb-4 tw-flex-wrap tw-gap-2">
   <h1 class="tw-text-xl tw-font-semibold tw-text-slate-800 tw-flex tw-items-center tw-gap-2">
     <i class="bi bi-pencil tw-text-blue-600"></i> Edycja: <?= h($row['numer_umowy']) ?>
   </h1>
   <div class="tw-flex tw-gap-2">
+    <?php if ($INLINE): ?>
+    <button type="button" onclick="try{parent.postMessage({zlInlineCancel:1},location.origin);}catch(e){}" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
+      <i class="bi bi-x-lg"></i> Zamknij edycję
+    </button>
+    <?php else: ?>
     <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
       <i class="bi bi-eye"></i> Podgląd
     </a>
     <a href="list.php" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
       <i class="bi bi-arrow-left"></i> Lista
     </a>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -672,4 +688,30 @@ function ceidgFill(d) {
 
 <?php // Wymagalność pól (Admin → Wymagane pola w formularzach): oznaczenia etykiet + ostrzeżenia, bez blokowania zapisu.
 require_once dirname(dirname(__DIR__)) . '/modules/form_fields/logic/formFields.php'; formFieldsAttach('zlecenie'); ?>
+<?php if ($INLINE): ?>
+<style>
+  /* Tryb inline (ramka w podglądzie): tylko formularz, bez nawigacji i stopki aplikacji */
+  body { background:#fff !important; padding:0 !important; margin:0 !important; }
+  body > *:not(#zl-edit-root):not(script):not(style):not(link):not(.modal):not(.modal-backdrop):not(.offcanvas):not(.toast-container):not([data-zl-keep]) { display:none !important; }
+  #zl-edit-root { max-width:none !important; margin:0 !important; padding:.5rem .75rem 1rem; }
+</style>
+<script>
+(function () {
+  // Formularz musi być bezpośrednim dzieckiem <body>, żeby reguła powyżej go nie schowała
+  var root = document.getElementById('zl-edit-root');
+  if (root && root.parentNode !== document.body) document.body.appendChild(root);
+  // Wysokość ramki → rodzic
+  var send = function () {
+    var h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+    try { parent.postMessage({ zlInlineHeight: h }, location.origin); } catch (e) {}
+  };
+  if (window.ResizeObserver) new ResizeObserver(send).observe(document.documentElement);
+  window.addEventListener('load', send); setInterval(send, 1500);
+  // Linki, które opuszczają formularz, otwieraj w całym oknie
+  document.querySelectorAll('#zl-edit-root a[href]:not([target])').forEach(function (a) {
+    if (/^(view|list|add)\.php/.test(a.getAttribute('href') || '')) a.target = '_top';
+  });
+})();
+</script>
+<?php endif; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
