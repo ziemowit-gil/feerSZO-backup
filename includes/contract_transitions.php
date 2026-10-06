@@ -140,6 +140,18 @@ final class ContractSettlementGuard
             require_once dirname(__DIR__) . '/modules/holograms/logic/holograms.php';
             holo_assert_contract_settled($type, (int)$row['id'], ContractTransitionException::class);
         }
+        // Umowa zlecenie z prowadzonym saldem rozliczeń: nie zamykamy z niezerowym saldem
+        // ani z otwartym miesiącem z godzinami. Stare umowy bez danych salda — bez zmian.
+        if ($type === 'zlecenie' && !empty($row['id'])) {
+            require_once __DIR__ . '/zlecenie_rachunki.php';
+            if (zl_rozl_uses_saldo((int)$row['id'])) {
+                $blocker = zl_rozl_close_blocker($row);
+                if ($blocker !== null) {
+                    throw new ContractTransitionException('Nie można zamknąć umowy — ' . $blocker
+                        . ' Zamknij miesiące w zakładce Rozliczenia (różnice wyrównaj korektą), a potem zakończ umowę.');
+                }
+            }
+        }
     }
 
     /** Wersja bez wyjątku: null gdy można zamknąć, inaczej powód. */
