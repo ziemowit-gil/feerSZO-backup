@@ -107,6 +107,54 @@ function mail_parse_addr_list(string $raw): array {
     return array_values(array_unique($out));
 }
 
+/**
+ * Zamiana treści HTML e-maila na czytelny zwykły tekst (text/plain).
+ * Linki: „etykieta: URL” (etykieta będąca adresem lub pusta → sam URL; mailto → sam adres),
+ * bloki/<br> → nowe linie, encje zdekodowane, puste linie zredukowane do jednej,
+ * a linia będąca wyłącznie URL-em, który już wystąpił wyżej, jest pomijana
+ * (przycisk „Otwórz →” + podpis z adresem w HTML dawały dwa razy ten sam link).
+ */
+function mail_html_to_text(string $html): string {
+    $t = preg_replace('~<(script|style)\b.*?</\1>~is', '', $html);
+    $t = preg_replace('/\s*\r?\n\s*/', ' ', $t);   // łamania wierszy w źródle HTML nie są łamaniami tekstu
+    $seen_href = [];
+    $t = preg_replace_callback(
+        '~<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>~is',
+        function ($m) use (&$seen_href) {
+            $href  = html_entity_decode($m[1], ENT_QUOTES, 'UTF-8');
+            $label = trim(html_entity_decode(strip_tags($m[2]), ENT_QUOTES, 'UTF-8'));
+            $label = rtrim(preg_replace('/\s*(→|->|»)\s*$/u', '', $label));
+            if (str_starts_with($href, 'mailto:')) return substr($href, 7);
+            if ($label === '' || $label === $href || preg_match('~^https?://~i', $label)) { $seen_href[$href] = true; return $href; }
+            if (isset($seen_href[$href])) return $label;          // ten sam link drugi raz → sam tekst
+            $seen_href[$href] = true;
+            return $label . ': ' . $href;
+        },
+        $t
+    );
+    $t = preg_replace('~<(br|br/|br /)\s*>~i', "\n", $t);
+    $t = preg_replace('~</(p|div|li|tr|h[1-6]|table|blockquote)>~i', "\n\n", $t);
+    $t = preg_replace('~<li\b[^>]*>~i', '- ', $t);
+    $t = strip_tags($t);
+    $t = html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $t = str_replace("\xC2\xA0", ' ', $t);
+    $lines = [];
+    $seen_urls = [];
+    foreach (preg_split("/\r?\n/", $t) as $line) {
+        $line = trim(preg_replace('/[ \t]+/', ' ', $line));
+        if (preg_match('~^https?://\S+$~', $line)) {
+            if (isset($seen_urls[$line])) continue;
+            $seen_urls[$line] = true;
+        } else {
+            foreach (preg_match_all('~https?://\S+~', $line, $mm) ? $mm[0] : [] as $u) $seen_urls[rtrim($u, '.,;)')] = true;
+        }
+        $lines[] = $line;
+    }
+    $t = implode("\n", $lines);
+    $t = preg_replace("/\n{3,}/", "\n\n", $t);
+    return trim($t);
+}
+
 function mail_queue_add(
     string $to_email,
     string $to_name,
@@ -125,21 +173,7 @@ function mail_queue_add(
 ): int {
     require_once __DIR__ . '/ti_virtual.php';
     if (ti_virtual_blocked($to_email)) return 0;   // kursant wirtualny — bez e-maili
-    if (!$body_text) {
-        // Linki przed strip_tags: „tekst” → „tekst: URL”, inaczej adres z href
-        // znika i wersja tekstowa maila (klienci text/plain) zostaje bez linku.
-        $body_text = preg_replace_callback(
-            '~<a\b[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>~is',
-            function ($m) {
-                $label = trim(strip_tags($m[2]));
-                return $label !== '' && $label !== $m[1] ? "$label: $m[1]" : $m[1];
-            },
-            $body_html
-        );
-        $body_text = strip_tags(str_replace(['</p>','</div>','<br>','<br/>','<br />'], "\n", $body_text));
-        $body_text = preg_replace('/[ \t]+/', ' ', $body_text);
-        $body_text = trim($body_text);
-    }
+    if (!$body_text) $body_text = mail_html_to_text($body_html);
     $att_json = $attachments ? json_encode($attachments, JSON_UNESCAPED_UNICODE) : '[]';
     $cc_json  = $cc_emails   ? json_encode($cc_emails,   JSON_UNESCAPED_UNICODE) : '[]';
     $bcc_json = $bcc_emails  ? json_encode($bcc_emails,  JSON_UNESCAPED_UNICODE) : '[]';

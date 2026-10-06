@@ -531,22 +531,28 @@ function rachunek_notify_contractor(int $rid, ?int $actor_id = null): array {
     $subject   = $tpl['subject'] ?: ('Nowy rachunek w systemie – ' . $org);
     // Rachunek testowy — odbiorca musi od razu widzieć, że to próba obiegu.
     if (rachunek_is_test($rach)) $subject = '[TEST] ' . $subject;
-    $body_html = $tpl['html'];
-    $txt_skan = $dl['skan']     ? ' (do ' . date_pl($dl['skan']) . ')'     : '';
-    $txt_oryg = $dl['oryginal'] ? ' (do ' . date_pl($dl['oryginal']) . ')' : '';
-    $body_text = "Dzień dobry,\n\n"
-        . "Informujemy, że w systemie został wygenerowany nowy rachunek"
-        . ($numer ? " do umowy {$numer}" : '') . ".\n\n"
-        . "Możesz przejść do niego bezpośrednio pod poniższym adresem:\n{$url}\n\n"
-        . "Prosimy o pobranie dokumentu oraz dopełnienie dalszych kroków związanych z jego rozliczeniem.\n"
-        . "Rachunek należy wydrukować, podpisać odręcznie i dostarczyć jednym z dwóch sposobów:\n\n"
-        . "Opcja 1 (szybciej): wgraj skan podpisanego rachunku pod powyższym linkiem, a oryginał dostarcz\n"
-        . "  w ciągu " . ZLEC_RACHUNEK_ORYGINAL_DAYS . " dni{$txt_oryg}.\n"
-        . "Opcja 2: w ciągu " . ZLEC_RACHUNEK_SKAN_DAYS . " dni{$txt_skan} prześlij skan podpisanego rachunku\n"
-        . "  na adres {$skan}, a następnie w ciągu " . ZLEC_RACHUNEK_ORYGINAL_DAYS . " dni{$txt_oryg} dostarcz oryginał"
-        . ($adres ? " na adres: {$adres}" : '') . ".\n\n"
-        . "W razie pytań lub problemów technicznych pozostajemy do dyspozycji.\n\n"
-        . "Z poważaniem,\n{$org}";
+    // Wiadomość idzie WYŁĄCZNIE jako zwykły tekst (text/plain): treść to szablon z Ustawień → Szablony e-mail
+    // zamieniony na tekst (linki jako adresy, bez przycisku), z zapasową treścią gdy szablon jest pusty.
+    $tpl_raw   = email_tpl_get('zlecenie_rachunek_new');   // sama treść, bez ramki układu HTML
+    $body_text = $tpl_raw ? mail_html_to_text(email_tpl_substitute((string)$tpl_raw['body'], $vars)) : '';
+    if ($body_text === '') {
+        $txt_skan = $dl['skan']     ? ' (do ' . date_pl($dl['skan']) . ')'     : '';
+        $txt_oryg = $dl['oryginal'] ? ' (do ' . date_pl($dl['oryginal']) . ')' : '';
+        $body_text = "Dzień dobry,\n\n"
+            . "Informujemy, że w systemie został wygenerowany nowy rachunek"
+            . ($numer ? " do umowy {$numer}" : '') . ".\n\n"
+            . "Możesz przejść do niego bezpośrednio pod poniższym adresem:\n{$url}\n\n"
+            . "Prosimy o pobranie dokumentu oraz dopełnienie dalszych kroków związanych z jego rozliczeniem.\n"
+            . "Rachunek należy wydrukować, podpisać odręcznie i dostarczyć jednym z dwóch sposobów:\n\n"
+            . "Opcja 1 (szybciej): wgraj skan podpisanego rachunku pod powyższym linkiem, a oryginał dostarcz\n"
+            . "  w ciągu " . ZLEC_RACHUNEK_ORYGINAL_DAYS . " dni{$txt_oryg}.\n"
+            . "Opcja 2: w ciągu " . ZLEC_RACHUNEK_SKAN_DAYS . " dni{$txt_skan} prześlij skan podpisanego rachunku\n"
+            . "  na adres {$skan}, a następnie w ciągu " . ZLEC_RACHUNEK_ORYGINAL_DAYS . " dni{$txt_oryg} dostarcz oryginał"
+            . ($adres ? " na adres: {$adres}" : '') . ".\n\n"
+            . "W razie pytań lub problemów technicznych pozostajemy do dyspozycji.\n\n"
+            . "Z poważaniem,\n{$org}";
+    }
+    $body_html = '';   // pusty HTML = kolejka wysyła czysty text/plain (SMTP i Graph)
 
     // DW — stała kopia wysyłki rachunków (bez adresu głównego odbiorcy).
     $cc = array_values(array_filter(rachunek_cc_emails(),
@@ -657,6 +663,8 @@ function rachunek_cc_emails(): array {
 function rachunek_org_address(): string {
     $adres  = trim((string)org_setting('org_adres'));
     $miasto = trim((string)org_setting('org_miejscowosc'));
+    // Miasto dopisujemy tylko, gdy nie ma go już w adresie („…, 30-554 Kraków, Kraków”).
+    if ($miasto !== '' && mb_stripos($adres, $miasto) !== false) $miasto = '';
     return trim($adres . ($miasto ? ', ' . $miasto : ''), ', ');
 }
 
