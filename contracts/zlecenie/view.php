@@ -171,6 +171,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit()) {
     }
 }
 
+// ── Edycja inline (zakładka „Umowa”) ──────────────────────────────────────────
+require_once dirname(dirname(__DIR__)) . '/modules/zlecenie_inline/logic/zlecenieInlineEdit.php';
+$_zl_inline_errors = [];
+$_zl_inline_open   = false;
+$_zl_inline_post   = [];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_zl_inline_save'])) {
+    csrf_check();
+    if (!can_edit() || contract_is_locked($row)) {
+        flash_set('error', 'Brak uprawnień do edycji tej umowy.');
+        header('Location: view.php?id=' . $id); exit;
+    }
+    $_zl_res = zlecenie_inline_save($row, $_POST, (int)current_user()['id']);
+    if ($_zl_res['errors']) {
+        $_zl_inline_errors = $_zl_res['errors'];
+        $_zl_inline_open   = true;
+        $_zl_inline_post   = array_intersect_key($_POST, array_flip(zlecenie_inline_columns()));
+        $_tab = 'umowa';
+    } else {
+        flash_set('success', $_zl_res['changed'] ? 'Zmiany zapisane.' : 'Bez zmian.');
+        header('Location: view.php?id=' . $id . '&tab=umowa'); exit;
+    }
+}
+
 // ── Ewidencja godzin: wpisy dzienne, e-dziennik, przesunięcia, korekty, saldo ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit() && isset($_POST['_zl_ew'])) {
     csrf_check();
@@ -692,55 +715,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <div class="tab-pane fade<?php if($_tab==='umowa') echo ' show active'; ?>" id="tab-umowa" role="tabpanel">
 
   <?php if (can_edit() && !contract_is_locked($row)): ?>
-  <!-- ═══ EDYCJA INLINE — ten sam formularz co edit.php, w tym oknie ═══ -->
-  <div class="d-flex justify-content-end mb-2 no-print" id="zl-inline-bar">
-    <button type="button" class="btn btn-sm btn-outline-primary" id="zl-inline-open" aria-controls="zl-inline-edit" aria-expanded="false">
-      <i class="bi bi-pencil-square me-1"></i>Edytuj w tym oknie
-    </button>
-  </div>
-  <div id="zl-inline-edit" class="cv-section d-none" aria-live="polite">
-    <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-pencil-square"></i></div>
-      <span class="cv-section-title">Edycja umowy</span>
-      <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="zl-inline-close"><i class="bi bi-x-lg me-1"></i>Zamknij</button>
-    </div>
-    <iframe id="zl-inline-frame" title="Edycja umowy <?= h($row['numer_umowy']) ?>" data-src="edit.php?id=<?= $id ?>&amp;inline=1"
-            style="width:100%;min-height:520px;border:0;display:block;background:#fff"></iframe>
-  </div>
-  <script>
-  (function () {
-    var open  = document.getElementById('zl-inline-open');
-    var close = document.getElementById('zl-inline-close');
-    var box   = document.getElementById('zl-inline-edit');
-    var frame = document.getElementById('zl-inline-frame');
-    var bar   = document.getElementById('zl-inline-bar');
-    if (!open || !box || !frame) return;
-    function show() {
-      if (!frame.getAttribute('src')) frame.setAttribute('src', frame.getAttribute('data-src'));
-      box.classList.remove('d-none'); bar.classList.add('d-none'); open.setAttribute('aria-expanded', 'true');
-      box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    function hide() { box.classList.add('d-none'); bar.classList.remove('d-none'); open.setAttribute('aria-expanded', 'false'); }
-    open.addEventListener('click', show);
-    close.addEventListener('click', hide);
-    // Przycisk „Edytuj” w nagłówku umowy też otwiera edycję w tym oknie (href zostaje jako zapasowy)
-    document.querySelectorAll('.contract-hero-actions a[href^="edit.php"]').forEach(function (a) {
-      a.addEventListener('click', function (ev) {
-        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button !== 0) return;
-        ev.preventDefault();
-        var tabBtn = document.getElementById('tab-umowa-btn');
-        if (tabBtn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-        show();
-      });
-    });
-    window.addEventListener('message', function (ev) {
-      if (ev.origin !== location.origin || !ev.data) return;
-      if (ev.data.zlInlineHeight) frame.style.height = (Math.max(520, ev.data.zlInlineHeight + 24)) + 'px';
-      if (ev.data.zlInlineCancel) hide();
-      if (ev.data.zlInlineSaved)  location.href = 'view.php?id=<?= $id ?>&tab=umowa';
-    });
-  })();
-  </script>
+  <!-- ═══ EDYCJA INLINE — natywny formularz (Bootstrap, bez Tailwindu), zapis jak w edit.php ═══ -->
+  <?php include dirname(dirname(__DIR__)) . '/modules/zlecenie_inline/ui/inlineForm.php'; ?>
   <?php endif; ?>
 
   <div class="cv-section">
