@@ -48,7 +48,7 @@ $defRole  = msEduBulkRole((string)($_POST['rola_domyslna'] ?? 'uczen')) ?: 'ucze
 $defKlasa = trim((string)($_POST['klasa_domyslna'] ?? ''));
 $map    = array_map('strval', (array)($_POST['map'] ?? []));
 $header = !empty($_POST['naglowek']);
-$plan = null; $res = null;
+$plan = null; $res = null; $anPlan = null; $anSkipped = []; $an = ['szk' => '', 'ile' => 10, 'od' => 1, 'sep' => '.', 'pad' => 2];
 $mail = $_SESSION['msEduBulkMail'] ?? ['subject' => MS_EDU_BULK_MAIL_SUBJECT, 'body' => MS_EDU_BULK_MAIL_BODY, 'szkolenie' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -77,6 +77,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         header('Location: index.php'); exit;
+    }
+
+    // Konta anonimowe: {szkolenie}{sep}{nr}
+    if (in_array($op, ['anon_podglad', 'anon_utworz'], true)) {
+        $an = ['szk' => trim((string)($_POST['an_szkolenie'] ?? '')), 'ile' => (int)($_POST['an_ile'] ?? 0), 'od' => (int)($_POST['an_od'] ?? 1),
+               'sep' => (string)($_POST['an_sep'] ?? '.'), 'pad' => (int)($_POST['an_pad'] ?? 2)];
+        if (!$graph->is_configured()) $errors[] = 'Integracja Microsoft 365 nie jest skonfigurowana.';
+        elseif ($an['ile'] < 1) $errors[] = 'Podaj liczbę kont.';
+        else {
+            $ap = msEduBulkAnonPlan($graph, $an['szk'], $an['ile'], $an['od'], $an['sep'], $an['pad'], $domIn);
+            if ($ap['error']) $errors[] = $ap['error'];
+            else {
+                $anPlan = $ap['rows']; $anSkipped = $ap['skipped'];
+                if ($op === 'anon_utworz') {
+                    $res = msEduBulkCreate($graph, $anPlan, ['uczen' => $skuSel['uczen'], 'nauczyciel' => ''], $year, false);
+                    if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; }
+                    $anPlan = null;
+                }
+            }
+        }
     }
 
     // Wczytanie danych
@@ -145,11 +165,48 @@ include dirname(__DIR__, 2) . '/includes/header.php';
             <td class="text-warning small"><?= h($r['warn'] ?? '') ?></td></tr>
       <?php endforeach; ?></tbody></table></div>
   </div>
-  <?php
-    $mbRows = $result; $mbTokenName = '_csrf'; $mbTokenValue = csrf_token(); $mbAction = 'index.php';
+  <?php if (array_filter($result, fn($r) => !empty($r['email']))):
+    $mbRows = array_values(array_filter($result, fn($r) => !empty($r['email']))); $mbTokenName = '_csrf'; $mbTokenValue = csrf_token(); $mbAction = 'index.php';
     $mbSubject = $mail['subject']; $mbBody = $mail['body']; $mbSzkolenie = $mail['szkolenie'] ?? '';
     include __DIR__ . '/views/mailComposer.php';
-  endif; ?>
+  endif; endif; ?>
+
+  <?php if (!$grid): ?>
+  <form method="post" class="card card-body mb-4">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <h2 class="h5">Konta anonimowe <span class="text-muted fw-normal small">— bez danych osobowych, login: nazwa szkolenia + numer</span></h2>
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="anSzk">Nazwa szkolenia</label>
+        <input id="anSzk" name="an_szkolenie" class="form-control" value="<?= h($an['szk']) ?>" placeholder="np. excel"></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="anIle">Liczba kont</label>
+        <input id="anIle" type="number" min="1" max="200" name="an_ile" class="form-control" value="<?= (int)$an['ile'] ?>"></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="anOd">Numer początkowy</label>
+        <input id="anOd" type="number" min="1" name="an_od" class="form-control" value="<?= (int)$an['od'] ?>"></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="anSep">Separator</label>
+        <select id="anSep" name="an_sep" class="form-select">
+          <?php foreach (['.' => 'kropka (excel.01)', '' => 'brak (excel01)', '_' => 'podkreślnik (excel_01)', '-' => 'myślnik (excel-01)'] as $k => $l): ?>
+          <option value="<?= h($k) ?>"<?= $an['sep'] === (string)$k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="anPad">Cyfry numeru</label>
+        <select id="anPad" name="an_pad" class="form-select">
+          <?php foreach ([0 => 'bez zer (excel.1)', 2 => '2 cyfry (01)', 3 => '3 cyfry (001)'] as $k => $l): ?>
+          <option value="<?= $k ?>"<?= $an['pad'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="anDom">Domena kont</label>
+        <input id="anDom" name="domena" class="form-control" value="<?= h($domIn) ?>"></div>
+      <div class="col-md-4"><label class="form-label small fw-semibold" for="anSku">Licencja</label>
+        <select id="anSku" name="sku_uczen" class="form-select"><option value="">— bez licencji —</option>
+          <?php foreach ($skus as $s): ?><option value="<?= h($s['skuId']) ?>"<?= ($skuSel['uczen'] ?? '') === $s['skuId'] ? ' selected' : '' ?>><?= h($s['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+    </div>
+    <?php if ($anPlan): ?>
+    <div class="mt-3"><div class="fw-semibold small mb-1">Podgląd (<?= count($anPlan) ?>) — nic jeszcze nie utworzono<?= $anSkipped ? '; pominięto zajęte numery: ' . h(implode(', ', $anSkipped)) : '' ?></div>
+      <div class="font-monospace small" style="columns:3"><?php foreach ($anPlan as $r): ?><div><?= h($r['upn']) ?></div><?php endforeach; ?></div></div>
+    <?php endif; ?>
+    <div class="d-flex gap-2 mt-3">
+      <button name="_op" value="anon_podglad" class="btn btn-outline-primary"><i class="bi bi-eye me-1"></i>Podgląd loginów</button>
+      <?php if ($anPlan): ?><button name="_op" value="anon_utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w Entra ID?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($anPlan) ?> kont</button><?php endif; ?>
+    </div>
+    <p class="small text-muted mt-2 mb-0">Numeracja pomija numery już zajęte w tenancie. Hasła pokażą się raz — wydrukujesz je do PDF (jedno konto w linii) lub pobierzesz CSV.</p>
+  </form>
+  <?php endif; ?>
 
   <?php if (!$grid): ?>
   <form method="post" enctype="multipart/form-data" class="card card-body">

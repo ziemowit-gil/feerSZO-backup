@@ -142,3 +142,27 @@ function msEduBulkPdf(array $rows, string $title = 'Konta Microsoft 365'): strin
     $mpdf->WriteHTML($html);
     return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
 }
+
+/**
+ * Plan kont anonimowych: {szkolenie}{separator}{nr}, np. excel.01, excel_02, excel3.
+ * Zajęte numery są pomijane (numeracja idzie dalej), więc login nigdy nie dostaje sufiksu.
+ *
+ * @param string $sep ''|'.'|'_'|'-'   @param int $pad liczba cyfr numeru (0 = bez zer wiodących)
+ * @return array{rows:array,skipped:int[],error:?string}
+ */
+function msEduBulkAnonPlan(M365Graph $graph, string $szkolenie, int $count, int $start, string $sep, int $pad, string $domain): array {
+    $slug = msEduBulkAscii($szkolenie);
+    if ($slug === '') return ['rows' => [], 'skipped' => [], 'error' => 'Podaj nazwę szkolenia.'];
+    if (!in_array($sep, ['', '.', '_', '-'], true)) $sep = '.';
+    $count = min(max($count, 1), 200); $start = max($start, 1); $pad = min(max($pad, 0), 4);
+    $label = trim($szkolenie);
+    $rows = []; $skipped = []; $nr = $start; $guard = 0;
+    while (count($rows) < $count && $guard++ < $count + 500) {
+        $num = $pad > 0 ? str_pad((string)$nr, $pad, '0', STR_PAD_LEFT) : (string)$nr;
+        $upn = $slug . $sep . $num . '@' . $domain;
+        if ($graph->login_exists($upn)) { $skipped[] = $nr; $nr++; continue; }
+        $rows[] = ['imie' => $label, 'nazwisko' => $num, 'rola' => 'uczen', 'klasa' => $label, 'email' => '', 'upn' => $upn, 'anonim' => 1];
+        $nr++;
+    }
+    return ['rows' => $rows, 'skipped' => $skipped, 'error' => null];
+}
