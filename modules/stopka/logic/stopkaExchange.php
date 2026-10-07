@@ -81,20 +81,43 @@ function stopkaExToken(): string {
         throw new RuntimeException('Token Exchange Online: ' . ($r['error_description'] ?? $r['error'] ?? 'brak odpowiedzi')
             . ' — dodaj aplikacji uprawnienie Exchange.ManageAsApp.');
     }
+    $claims = M365Graph::decode_jwt($r['access_token']);
+    $roles  = $claims['roles'] ?? [];
+    if (!in_array('Exchange.ManageAsApp', $roles, true)) {
+        throw new RuntimeException('Token aplikacji do Exchange Online nie zawiera uprawnienia Exchange.ManageAsApp'
+            . ' (aud: ' . ($claims['aud'] ?? '?') . ', role: ' . ($roles ? implode(', ', $roles) : 'brak') . ').'
+            . ' Entra ID → Rejestracje aplikacji → ta aplikacja → Uprawnienia API → Dodaj → Office 365 Exchange Online'
+            . ' (zakładka „API używane przez moją organizację”) → Uprawnienia aplikacji → Exchange.ManageAsApp → Udziel zgody administratora.');
+    }
     return $r['access_token'];
 }
 
 function stopkaExHttp(string $method, string $url, array $headers, string $body): array {
     $ch = curl_init($url);
+    $hdrs = [];
     curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
-        CURLOPT_HTTPHEADER => $headers, CURLOPT_POSTFIELDS => $body]);
+        CURLOPT_HTTPHEADER => $headers, CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HEADERFUNCTION => function ($c, $line) use (&$hdrs) {
+            if (strpos($line, ':') !== false) { [$k, $v] = explode(':', $line, 2); $hdrs[strtolower(trim($k))] = trim($v); }
+            return strlen($line);
+        }]);
     $out = curl_exec($ch);
     $err = curl_error($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
     if ($out === false) throw new RuntimeException('Błąd połączenia: ' . $err);
     $j = json_decode($out, true);
-    if (!is_array($j)) throw new RuntimeException("Exchange zwrócił HTTP $code bez JSON.");
+    if (!is_array($j)) {
+        $hint = '';
+        if ($hdrs['www-authenticate'] ?? '') $hint .= ' WWW-Authenticate: ' . $hdrs['www-authenticate'] . '.';
+        if ($hdrs['x-ms-diagnostics'] ?? '') $hint .= ' x-ms-diagnostics: ' . $hdrs['x-ms-diagnostics'] . '.';
+        if ($code === 401 || $code === 403) {
+            $hint .= ' Zwykle znaczy to brak roli administracyjnej aplikacji w Exchange (Entra ID → Role i administratorzy →'
+                . ' „Exchange Administrator” → Dodaj przypisania → wybierz TĘ aplikację) lub brak zgody administratora na Exchange.ManageAsApp;'
+                . ' po nadaniu roli odczekaj kilka–kilkanaście minut.';
+        }
+        $snippet = trim(mb_substr(strip_tags((string)$out), 0, 200));
+        throw new RuntimeException("Exchange zwrócił HTTP $code bez JSON." . $hint . ($snippet !== '' ? " Treść: $snippet" : ''));
+    }
     if ($code >= 400 && empty($j['error'])) $j['error'] = ['message' => "HTTP $code"];
     return $j;
 }
@@ -103,7 +126,9 @@ function stopkaExHttp(string $method, string $url, array $headers, string $body)
 function stopkaExInvoke(string $token, string $cmdlet, array $params = []): array {
     $tenant = m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
     $r = stopkaExHttp('POST', "https://outlook.office365.com/adminapi/beta/$tenant/InvokeCommand", [
-        'Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json',
+        'Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json;odata.metadata=minimal',
+        'X-ResponseFormat: json', 'X-CmdletName: ' . $cmdlet,
+        'X-AnchorMailbox: APP:SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@' . $tenant,
     ], json_encode(['CmdletInput' => ['CmdletName' => $cmdlet, 'Parameters' => (object)$params]], JSON_UNESCAPED_UNICODE));
     if (!empty($r['error'])) {
         $m = $r['error']['message'] ?? ($r['error']['code'] ?? 'błąd');
