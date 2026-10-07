@@ -9,6 +9,7 @@
  */
 
 require_once dirname(__DIR__, 3) . '/includes/m365.php';
+require_once __DIR__ . '/msEduBulkAccounts.php';
 
 function msEduBulkAscii(string $s): string {
     $s = strtr($s, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
@@ -113,6 +114,7 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
                 $gname = $r['rola'] === 'uczen' ? 'Uczniowie_' . $year : 'Nauczyciele';
                 $graph->add_to_group($u['id'], msEduBulkGroupId($graph, $gname, $gc));
             } catch (\Throwable $e) { $warn[] = 'grupa: ' . $e->getMessage(); }
+            msEduBulkRegister($u['id'], $r);
             $out['ok'][] = $r + ['ms_user_id' => $u['id'], 'password' => $pass, 'warn' => implode('; ', $warn)];
         } catch (\Throwable $e) {
             $out['errors'][] = $r['upn'] . ': ' . $e->getMessage();

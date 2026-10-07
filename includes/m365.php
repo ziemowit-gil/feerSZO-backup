@@ -166,6 +166,72 @@ class M365Graph {
         return $resp;
     }
 
+    // ── Cykl życia konta (offboarding, menedżer, MFA, role) ─────────────────
+
+    /** Unieważnia aktywne sesje logowania użytkownika (revokeSignInSessions). */
+    public function revoke_sessions(string $user_id): void {
+        $ctx = stream_context_create(['http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/json\r\nAuthorization: Bearer {$this->token()}\r\n",
+            'content' => '{}',
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents("https://graph.microsoft.com/v1.0/users/{$user_id}/revokeSignInSessions", false, $ctx);
+        $this->capture_status($http_response_header ?? []);
+    }
+
+    /** Odbiera WSZYSTKIE przypisane licencje; zwraca liczbę odebranych. */
+    public function remove_all_licenses(string $user_id): int {
+        $u = $this->http_get("https://graph.microsoft.com/v1.0/users/{$user_id}?\$select=assignedLicenses");
+        $ids = array_values(array_filter(array_map(fn($l) => $l['skuId'] ?? '', $u['assignedLicenses'] ?? [])));
+        if (!$ids) return 0;
+        $this->http_post("https://graph.microsoft.com/v1.0/users/{$user_id}/assignLicense",
+            ['addLicenses' => [], 'removeLicenses' => $ids]);
+        return count($ids);
+    }
+
+    /** Ustawia atrybut Manager (PUT /users/{id}/manager/$ref). Zwraca true przy sukcesie. */
+    public function set_manager(string $user_id, string $manager_user_id): bool {
+        $ctx = stream_context_create(['http' => [
+            'method'  => 'PUT',
+            'header'  => "Content-Type: application/json\r\nAuthorization: Bearer {$this->token()}\r\n",
+            'content' => json_encode(['@odata.id' => "https://graph.microsoft.com/v1.0/users/{$manager_user_id}"]),
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents("https://graph.microsoft.com/v1.0/users/{$user_id}/manager/\$ref", false, $ctx);
+        $this->capture_status($http_response_header ?? []);
+        return $this->last_status() === 204;
+    }
+
+    /** Id użytkownika po UPN albo null. */
+    public function user_id_by_upn(string $upn): ?string {
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/users/" . urlencode($upn) . "?\$select=id");
+        return $r['id'] ?? null;
+    }
+
+    /**
+     * Wymusza MFA per użytkownik (beta: authentication/requirements). Wymaga uprawnienia
+     * UserAuthenticationMethod.ReadWrite.All; przy braku — false (nie blokuje tworzenia konta).
+     */
+    public function set_per_user_mfa(string $user_id, bool $enforced = true): bool {
+        $this->http_patch("https://graph.microsoft.com/beta/users/{$user_id}/authentication/requirements",
+            ['perUserMfaState' => $enforced ? 'enforced' : 'disabled']);
+        return in_array($this->last_status(), [200, 204], true);
+    }
+
+    /** Wbudowane role Entra dozwolone z poziomu SZO (bez Global Administratora). */
+    public const SAFE_DIRECTORY_ROLES = [
+        'helpdesk' => ['729827e3-9c14-49f7-bb1b-9608f156bbb8', 'Helpdesk Administrator'],
+        'user'     => ['fe930be7-5e62-47db-91af-98c3a49a38b1', 'User Administrator'],
+    ];
+
+    /** Przypisuje wbudowaną rolę katalogową (roleAssignments, zakres „/”). */
+    public function assign_directory_role(string $user_id, string $role_template_id): bool {
+        $resp = $this->http_post('https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments',
+            ['principalId' => $user_id, 'roleDefinitionId' => $role_template_id, 'directoryScopeId' => '/']);
+        return !empty($resp['id']);
+    }
+
     /** Tworzy użytkownika z opcjonalnym employeeId (dla K30). */
     public function create_user_with_employee_id(string $login, string $display_name, string $password, string $employee_id = ''): array {
         [$first, $rest] = array_pad(explode(' ', $display_name, 2), 2, '');

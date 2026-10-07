@@ -150,6 +150,7 @@ RewriteRule ^dzialania/(.+)$  actions/$1            [QSA,L]
 
 # Generator kont Microsoft 365 Edu (hurtowo / z listy / anonimowe)
 RewriteRule ^ms/?$            modules/ms_edu_bulk/index.php [QSA,L]
+RewriteRule ^ms/konta/?$      modules/ms_edu_bulk/konta.php [QSA,L]
 
 RewriteRule ^osoby/?$         persons/index.php     [QSA,L]
 RewriteRule ^osoby/(.+)$      persons/$1            [QSA,L]

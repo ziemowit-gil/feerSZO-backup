@@ -147,7 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>
 <div class="container-xl py-4">
-  <h1 class="h3 fw-bold mb-3"><i class="bi bi-people-fill me-2"></i>Generowanie kont M365 Edu</h1>
+  <div class="d-flex align-items-center mb-3"><h1 class="h3 fw-bold mb-0"><i class="bi bi-people-fill me-2"></i>Generowanie kont M365 Edu</h1>
+    <a href="<?= h(rtrim($self, '/') === '/ms' ? '/ms/konta' : 'konta.php') ?>" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-person-gear me-1"></i>Zarządzanie kontami</a></div>
   <?= flash_html() ?>
   <?php if (m365_edu_ready()): ?>
   <div class="alert alert-info py-2 small"><i class="bi bi-mortarboard me-1"></i>Konta powstają w <strong>tenancie EDU</strong> — domena <code><?= h($domain) ?></code>.</div>

@@ -1,0 +1,49 @@
+<?php
+/**
+ * Zarządzanie kontami EDU z rejestru generatora.
+ * Wejście: $zaRows, $zaAction, $zaTokenName, $zaTokenValue, $zaQ, $zaStatus, $zaAllowRoles (bool — role Entra tylko dla admina).
+ */
+?>
+<form method="get" class="d-flex gap-2 mb-3 flex-wrap">
+  <input name="q" value="<?= h($zaQ) ?>" class="form-control form-control-sm" style="max-width:20rem" placeholder="Szukaj: login, imię, klasa…" aria-label="Szukaj">
+  <select name="status" class="form-select form-select-sm" style="max-width:11rem" aria-label="Status">
+    <option value="">wszystkie</option><option value="active"<?= $zaStatus === 'active' ? ' selected' : '' ?>>aktywne</option><option value="suspended"<?= $zaStatus === 'suspended' ? ' selected' : '' ?>>zawieszone</option></select>
+  <button class="btn btn-sm btn-outline-secondary">Filtruj</button>
+</form>
+<form method="post" action="<?= h($zaAction) ?>" id="zaForm">
+  <input type="hidden" name="<?= h($zaTokenName) ?>" value="<?= h($zaTokenValue) ?>">
+  <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="zaMgr">Menedżer (UPN)</label>
+        <input id="zaMgr" name="manager" class="form-control form-control-sm" placeholder="np. jan.kowalski@domena"></div>
+      <?php if ($zaAllowRoles): ?>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="zaRole">Rola administracyjna Entra</label>
+        <select id="zaRole" name="role" class="form-select form-select-sm"><option value="">— wybierz —</option>
+          <?php foreach (M365Graph::SAFE_DIRECTORY_ROLES as $k => $r): ?><option value="<?= h($k) ?>"><?= h($r[1]) ?></option><?php endforeach; ?></select></div>
+      <?php endif; ?>
+      <div class="col-auto form-check ms-2"><input class="form-check-input" type="checkbox" id="zaLic" name="licenses" value="1" checked>
+        <label class="form-check-label small" for="zaLic">Zawieszając, odbierz licencje</label></div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap mt-3">
+      <button name="_op" value="suspend" class="btn btn-sm btn-outline-danger" onclick="return confirm('Zawiesić zaznaczone konta (blokada logowania, wylogowanie sesji)?')"><i class="bi bi-person-lock me-1" aria-hidden="true"></i>Zawieś (offboarding)</button>
+      <button name="_op" value="restore" class="btn btn-sm btn-outline-success"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Przywróć</button>
+      <button name="_op" value="manager" class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-2 me-1" aria-hidden="true"></i>Ustaw menedżera</button>
+      <button name="_op" value="mfa" class="btn btn-sm btn-outline-primary"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Wymagaj MFA</button>
+      <?php if ($zaAllowRoles): ?><button name="_op" value="role" class="btn btn-sm btn-outline-warning" onclick="return confirm('Nadać rolę administracyjną w Entra ID zaznaczonym kontom?')"><i class="bi bi-key me-1" aria-hidden="true"></i>Nadaj rolę</button><?php endif; ?>
+    </div>
+  </div></div>
+  <div class="table-responsive"><table class="table table-sm align-middle" style="font-size:.85rem">
+    <thead class="table-light"><tr><th style="width:2rem"><input type="checkbox" id="zaAll" aria-label="Zaznacz wszystkie"></th><th>Osoba / konto</th><th>Klasa</th><th>Login</th><th>Status</th><th>Menedżer</th><th>MFA</th><th>Rola Entra</th><th>Utworzono</th></tr></thead>
+    <tbody>
+    <?php if (!$zaRows): ?><tr><td colspan="9" class="text-center text-muted py-4">Brak kont w rejestrze (rejestr zapełnia się od momentu wdrożenia — konta tworzone wcześniej nie są w nim ujęte).</td></tr><?php endif; ?>
+    <?php foreach ($zaRows as $r): ?>
+      <tr><td><input type="checkbox" class="zaSel" name="ids[]" value="<?= (int)$r['id'] ?>"></td>
+        <td><?= h(trim($r['imie'] . ' ' . $r['nazwisko'])) ?><?= $r['anonim'] ? ' <span class="badge bg-secondary">anonim</span>' : '' ?></td>
+        <td><?= h($r['klasa']) ?></td><td class="font-monospace"><?= h($r['upn']) ?></td>
+        <td><?= $r['status'] === 'suspended' ? '<span class="badge bg-danger">zawieszone</span>' : '<span class="badge bg-success">aktywne</span>' ?></td>
+        <td class="small"><?= h($r['manager_upn'] ?: '—') ?></td><td><?= $r['mfa'] ? '<i class="bi bi-shield-check text-success" aria-label="tak"></i>' : '—' ?></td>
+        <td class="small"><?= h($r['admin_role'] ?: '—') ?></td><td class="text-muted small"><?= h(substr((string)$r['created_at'], 0, 16)) ?></td></tr>
+    <?php endforeach; ?>
+    </tbody></table></div>
+</form>
+<script>document.getElementById('zaAll').addEventListener('change', function () { document.querySelectorAll('.zaSel').forEach(function (c) { c.checked = this.checked; }, this); });</script>

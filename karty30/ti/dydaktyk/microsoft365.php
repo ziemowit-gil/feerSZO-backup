@@ -230,7 +230,7 @@ endif; ?>
 <?php if (!$ms_edu_ok): ?>
 <div class="alert alert-danger py-2 small"><strong>Tenant EDU nie jest skonfigurowany</strong> — hurtowe generowanie kont jest zablokowane (Dydaktyka 3 → M365, „własny tenant”).</div>
 <?php else: ?>
-<div class="alert alert-light border d-flex align-items-center gap-2 py-2 small"><i class="bi bi-file-earmark-spreadsheet text-primary" aria-hidden="true"></i><span>Osoby spoza systemu (bez konta kursanta)? Wklej listę lub wczytaj XLSX/CSV z wyborem kolumn.</span> <a class="btn btn-sm btn-outline-primary ms-auto" href="kontaListaM365.php">Konta z listy — bez kursantów</a></div>
+<div class="alert alert-light border d-flex align-items-center gap-2 py-2 small"><i class="bi bi-file-earmark-spreadsheet text-primary" aria-hidden="true"></i><span>Osoby spoza systemu (bez konta kursanta)? Wklej listę lub wczytaj XLSX/CSV z wyborem kolumn.</span> <a class="btn btn-sm btn-outline-primary ms-auto" href="kontaListaM365.php">Konta z listy — bez kursantów</a> <a class="btn btn-sm btn-outline-secondary" href="kontaEduZarzadzaj.php">Zarządzanie kontami EDU</a></div>
 <form method="post" class="card border-0 shadow-sm mb-4">
   <div class="card-header fw-semibold"><i class="bi bi-incognito me-2 text-primary" aria-hidden="true"></i>Konta anonimowe <span class="text-muted fw-normal small">— bez danych osobowych: nazwa szkolenia + numer</span></div>
   <div class="card-body">
