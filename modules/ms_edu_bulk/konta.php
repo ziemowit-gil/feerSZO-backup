@@ -74,22 +74,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
             foreach ($_SESSION['msEduBulkResult'] ?? [] as $sr) if (!empty($sr['upn']) && !empty($sr['password'])) $passMap[mb_strtolower($sr['upn'])] = $sr['password'];
             $res = msEduBulkRecreateRegistry(m365_edu(), $accs, $passMap, msEduBulkSkuList($_POST['regen_skus'] ?? []),
                 ['login' => (string)($_POST['regen_login'] ?? ''), 'password' => (string)($_POST['regen_pass'] ?? '')]);
-            $mailed = 0; $noMail = []; $mailFail = [];
+            $noMail = []; $toMail = [];
             if ($res['ok']) {
                 $_SESSION['msEduBulkReset'] = $res['ok']; // login + hasło do wydruku
                 if (!empty($_POST['regen_mail'])) foreach ($res['ok'] as $row) {
                     if (!filter_var(trim((string)$row['email']), FILTER_VALIDATE_EMAIL)) { $noMail[] = $row['upn']; continue; }
-                    $m = msEduBulkSendRegenMail($row, (string)($_POST['regen_msg'] ?? ''));
-                    if ($m['sent']) $mailed++; else $mailFail[] = $row['upn'] . ': ' . implode(' ', $m['failed']);
+                    $toMail[] = $row;
                 }
+                // E-mail NIE wychodzi od razu — najpierw podgląd treści i potwierdzenie (karta nad listą)
+                if ($toMail) $_SESSION['msEduBulkRegenMail'] = ['rows' => $toMail, 'custom' => (string)($_POST['regen_msg'] ?? '')];
             }
             $msg = 'Zregenerowano w tenancie EDU: ' . count($res['ok']) . '/' . count($accs) . '.';
-            if ($res['ok'] && !empty($_POST['regen_mail'])) $msg .= ' E-maile z danymi i przeprosinami: ' . $mailed . '.';
+            if ($toMail) $msg .= ' Sprawdź treść e-maila (' . count($toMail) . ') poniżej i potwierdź wysyłkę.';
             if ($noMail) $msg .= ' Bez e-maila (dane na wydruku PDF): ' . implode(', ', $noMail) . '.';
-            if ($mailFail) $msg .= ' Błąd e-maila: ' . implode(' | ', $mailFail) . '.';
             if ($res['ok'] && array_filter($res['ok'], fn($r) => $r['password_new'])) $msg .= ' Część kont dostała NOWE hasło — patrz wydruk PDF nad listą.';
             if ($res['errors']) $msg .= ' Błędy: ' . implode(' | ', $res['errors']);
-            flash_set($res['errors'] || $noMail || $mailFail ? 'warning' : 'success', $msg);
+            flash_set($res['errors'] || $noMail ? 'warning' : 'success', $msg);
+        }
+        header('Location: ' . $self); exit;
+    }
+    if (in_array($op, ['regen_mail_send', 'regen_mail_cancel', 'regen_mail_refresh'], true)) {
+        require_once __DIR__ . '/logic/msEduBulkMail.php';
+        $pm = $_SESSION['msEduBulkRegenMail'] ?? null;
+        if (!$pm) flash_set('danger', 'Brak e-maili oczekujących na wysyłkę.');
+        elseif ($op === 'regen_mail_refresh') { $_SESSION['msEduBulkRegenMail']['custom'] = (string)($_POST['regen_msg'] ?? ''); }
+        elseif ($op === 'regen_mail_cancel') { unset($_SESSION['msEduBulkRegenMail']); flash_set('info', 'Wysyłka e-maili odrzucona (konta zostały zregenerowane, hasła są na wydruku).'); }
+        else {
+            $custom = array_key_exists('regen_msg', $_POST) ? (string)$_POST['regen_msg'] : $pm['custom'];
+            $sent = 0; $fail = [];
+            foreach ($pm['rows'] as $row) { $m = msEduBulkSendRegenMail($row, $custom); if ($m['sent']) $sent++; else $fail[] = $row['upn'] . ': ' . implode(' ', $m['failed']); }
+            unset($_SESSION['msEduBulkRegenMail']);
+            flash_set($fail ? 'warning' : 'success', 'Wysłano e-maile z danymi i przeprosinami: ' . $sent . '/' . count($pm['rows']) . ($fail ? '. Błędy: ' . implode(' | ', $fail) : '.'));
         }
         header('Location: ' . $self); exit;
     }
@@ -148,6 +163,28 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   <?php include __DIR__ . '/views/tenantInfo.php'; ?>
   <?= msEduBulkTabs(['hub' => ['Generator', $lnk['hub'], 'bi-people-fill'], 'kreator' => ['Kreator z listy (XLS)', $lnk['kreator'], 'bi-magic'], 'konta' => ['Administracja kont', $lnk['konta'], 'bi-person-gear']], 'konta') ?>
   <?= flash_html() ?>
+  <?php if (!empty($_SESSION['msEduBulkRegenMail'])):
+    require_once __DIR__ . '/logic/msEduBulkMail.php';
+    $_rm = $_SESSION['msEduBulkRegenMail']; $_rr = $_rm['rows'];
+    [$_rsub, $_rhtml] = msEduBulkMailRender(MS_EDU_BULK_REGEN_MAIL_SUBJECT, msEduBulkRegenMailBody($_rm['custom']), $_rr[0]); ?>
+  <form method="post" action="<?= h($self) ?>" class="card border-warning mb-3">
+    <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+    <div class="card-header fw-semibold"><i class="bi bi-envelope-paper me-1"></i>Podgląd e-maila po regeneracji — nie wysłano (<?= count($_rr) ?> odbiorców)</div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-lg-7"><div class="small fw-semibold mb-1">Treść dla: <?= h($_rr[0]['imie'] . ' ' . $_rr[0]['nazwisko']) ?> &lt;<?= h($_rr[0]['email']) ?>&gt;</div>
+        <div class="border rounded p-2 bg-white" style="font-size:.85rem"><div class="fw-semibold mb-2"><?= h($_rsub) ?></div><?= $_rhtml ?></div></div>
+      <div class="col-lg-5"><label class="form-label small fw-semibold" for="rmMsg">Własna wiadomość (edytuj przed wysyłką)</label>
+        <textarea id="rmMsg" name="regen_msg" rows="4" maxlength="1000" class="form-control form-control-sm"><?= h($_rm['custom']) ?></textarea>
+        <div class="small text-muted mt-2">Odbiorcy: <?= h(implode(', ', array_map(fn($r) => $r['email'], array_slice($_rr, 0, 8)))) ?><?= count($_rr) > 8 ? ' i ' . (count($_rr) - 8) . ' więcej' : '' ?></div>
+        <div class="small text-muted">Po zmianie wiadomości użyj „Odśwież podgląd”.</div></div>
+    </div>
+    <div class="d-flex gap-2 mt-3 flex-wrap">
+      <button name="_op" value="regen_mail_refresh" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat me-1"></i>Odśwież podgląd</button>
+      <button name="_op" value="regen_mail_cancel" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Odrzucić wysyłkę e-maili?')">Nie wysyłaj</button>
+      <button name="_op" value="regen_mail_send" class="btn btn-sm btn-warning ms-auto" onclick="return confirm('Wysłać e-maile z danymi logowania do <?= count($_rr) ?> osób?')"><i class="bi bi-send me-1"></i>Wyślij e-maile (<?= count($_rr) ?>)</button>
+    </div></div>
+  </form>
+  <?php endif; ?>
   <?php if (!empty($_SESSION['msEduBulkReset'])): ?>
   <div class="alert alert-info d-flex align-items-center gap-2 flex-wrap" role="status">
     <span><strong>Nowe hasła (<?= count($_SESSION['msEduBulkReset']) ?>)</strong> po ostatnim resecie — wydrukuj i zachowaj poufnie:</span>

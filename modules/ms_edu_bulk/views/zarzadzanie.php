@@ -81,7 +81,7 @@
           <div class="col-md-3"><label class="form-label small mb-0" for="zaRegPass">Hasło startowe (opcj.)</label>
             <input id="zaRegPass" name="regen_pass" type="text" class="form-control form-control-sm font-monospace" autocomplete="off" minlength="8" placeholder="min. 8 znaków, np. Start2026!x"></div>
           <div class="col-md-3 form-check ms-2"><input class="form-check-input" type="checkbox" id="zaRegMail" name="regen_mail" value="1" checked>
-            <label class="form-check-label small" for="zaRegMail">Wyślij e-mail z danymi i przeprosinami</label></div>
+            <label class="form-check-label small" for="zaRegMail">Przygotuj e-mail z danymi i przeprosinami (podgląd przed wysyłką)</label></div>
           <div class="col-md-9"><label class="form-label small mb-0" for="zaRegMsg">Własna wiadomość w mailu (opcj.)</label>
             <textarea id="zaRegMsg" name="regen_msg" rows="2" class="form-control form-control-sm" maxlength="1000" placeholder="np. Prosimy o zalogowanie się do piątku."></textarea></div>
           <div class="col-md-3"><button name="_op" value="regenerate" class="btn btn-sm btn-outline-warning w-100" onclick="return confirm('Zregenerować zaznaczone konta w tenancie EDU? Zostaną utworzone ponownie z tym samym loginem tam, gdzie ich brakuje (istniejące konta nie są ruszane). Jeśli zaznaczono opcję e-maila, osoby z adresem alternatywnym dostaną dane i przeprosiny.')"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneruj zaznaczone</button></div>
