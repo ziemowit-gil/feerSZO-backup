@@ -21,7 +21,12 @@ $domain = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org
 
 // ── Pobieranie wyników (hasła tylko w sesji) ────────────────────────────────
 $result = $_SESSION['msEduBulkResult'] ?? [];
-if (isset($_GET['clear'])) { unset($_SESSION['msEduBulkResult'], $_SESSION['msEduBulkMail']); header('Location: kontaListaM365.php'); exit; }
+if (isset($_GET['clear']) || isset($_GET['porzuc'])) {
+    $_had = !empty($_SESSION['msEduBulkResult']);
+    unset($_SESSION['msEduBulkResult'], $_SESSION['msEduBulkMail']);
+    flash_set('info', 'Porzucono bieżący kreator' . ($_had ? ' — lista haseł została usunięta z sesji (utworzone konta zostają w Entra ID).' : ' — nic nie zostało utworzone.'));
+    header('Location: kontaListaM365.php'); exit;
+}
 if (isset($_GET['csv']) && $result) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="konta_m365_edu_' . date('Ymd_His') . '.csv"');
@@ -162,7 +167,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <?php $_pg = msEduBulkPendingGroups(array_column($result, 'upn')); if ($_pg): ?>
       <form method="post" class="d-inline"><input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><button name="_op" value="retry_groups" class="btn btn-sm btn-warning"><i class="bi bi-arrow-repeat me-1"></i>Ponów dodanie do grup (<?= $_pg ?>)</button></form>
       <?php endif; ?>
-      <a href="?clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Zamknąć listę? Hasła znikną z sesji.')">Zamknij listę</a>
+      <a href="?porzuc=1" class="btn btn-sm btn-outline-danger" onclick="return confirm('Porzucić? Lista haseł zniknie z sesji (konta zostają utworzone). Upewnij się, że została wydrukowana lub pobrana.')"><i class="bi bi-x-octagon me-1"></i>Porzuć</a>
     </div>
     <div class="table-responsive"><table class="table table-sm mb-0 font-monospace">
       <thead class="table-light"><tr><th>Osoba</th><th>Grupa</th><th>Login</th><th>Hasło</th><th></th></tr></thead>
@@ -247,6 +252,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w Entra ID?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont<?= $rowErrors ? ' (pominięto ' . count($rowErrors) . ' błędnych)' : '' ?></button>
       <?php endif; ?>
       <a href="kontaListaM365.php" class="btn btn-outline-secondary ms-auto">Wczytaj inną listę</a>
+      <a href="?porzuc=1" class="btn btn-outline-danger" onclick="return confirm('Porzucić kreator? Wczytane dane i podgląd zostaną odrzucone — nic nie zostanie utworzone.')"><i class="bi bi-x-octagon me-1"></i>Porzuć</a>
     </div>
   </form>
   <?php endif; ?>
