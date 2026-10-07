@@ -67,7 +67,7 @@ function msEduBulkAccountsByIds(array $ids): array {
 
 /**
  * Wykonuje akcję na zaznaczonych kontach.
- * @param string $action suspend | restore | manager | mfa | role | group | delete (tylko konta BEZ grupy)
+ * @param string $action suspend | restore | manager | mfa | role | group | license | delete (tylko konta BEZ grupy)
  * @param array  $opts   ['licenses'=>bool (suspend), 'manager'=>upn, 'role'=>helpdesk|user]
  * @return array{done:int,errors:string[]}
  */
@@ -106,6 +106,12 @@ function msEduBulkAccountsAct(M365Graph $graph, array $accounts, string $action,
                     if (!$role) throw new RuntimeException('Niedozwolona rola.');
                     if (!$graph->assign_directory_role($id, $role[0])) throw new RuntimeException('Graph odrzucił przypisanie roli (' . $role[1] . ').');
                     db()->prepare("UPDATE msedu_bulk_accounts SET admin_role=? WHERE id=?")->execute([$role[1], $a['id']]);
+                    break;
+                case 'license':
+                    // Zbiorcze przypisanie do 2 licencji (już przypisana licencja = błąd Graph → ostrzeżenie przy koncie)
+                    $skus = msEduBulkSkuList($opts['skus'] ?? []);
+                    if (!$skus) throw new RuntimeException('Wybierz licencję.');
+                    foreach ($skus as $sku) $graph->assign_license($id, $sku);
                     break;
                 case 'group':
                     // Zbiorcze przypisanie do grupy MS365 (grupa tworzona, jeśli jej brak) + zapis w rejestrze

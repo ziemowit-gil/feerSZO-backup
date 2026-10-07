@@ -13,12 +13,14 @@ karty30_migrate();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = (string)($_POST['_op'] ?? '');
+    // Szybka akcja przy koncie (suspend_one / restore_one) — dotyczy tylko tego jednego konta
+    if (in_array($op, ['suspend_one', 'restore_one'], true)) { $op = substr($op, 0, -4); $_POST['ids'] = [(int)($_POST['one'] ?? 0)]; }
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
     if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
     elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
-    elseif (!in_array($op, ['suspend', 'restore', 'manager', 'mfa', 'group'], true)) flash_set('danger', 'Ta akcja jest dostępna tylko w panelu administratora.');
+    elseif (!in_array($op, ['suspend', 'restore', 'manager', 'mfa', 'group', 'license'], true)) flash_set('danger', 'Ta akcja jest dostępna tylko w panelu administratora.');
     else {
-        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'group' => msEduBulkGroupFromPost($_POST)]);
+        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'group' => msEduBulkGroupFromPost($_POST), 'skus' => $_POST['skus'] ?? []]);
         flash_set($r['errors'] ? 'warning' : 'success', 'Wykonano: ' . $r['done'] . '/' . count($accs) . ($r['errors'] ? '. Błędy: ' . implode(' | ', $r['errors']) : '.'));
     }
     header('Location: kontaEduZarzadzaj.php'); exit;
@@ -27,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
 $zaRows = msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa);
 $zaAction = 'kontaEduZarzadzaj.php'; $zaTokenName = '_token'; $zaTokenValue = dyd_token(); $zaAllowRoles = false;
+$zaSkus = m365_edu_ready() ? m365_edu()->get_subscribed_skus() : [];
 
 $KP_TITLE  = 'Konta EDU — zarządzanie — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $dyd_name, 'logout' => 'logout.php'];

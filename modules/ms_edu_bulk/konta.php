@@ -16,12 +16,14 @@ $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'konta.php'), '?');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $op = (string)($_POST['_op'] ?? '');
+    // Szybka akcja przy koncie (suspend_one / restore_one) — dotyczy tylko tego jednego konta
+    if (in_array($op, ['suspend_one', 'restore_one'], true)) { $op = substr($op, 0, -4); $_POST['ids'] = [(int)($_POST['one'] ?? 0)]; }
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
     if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
     elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
     elseif ($op === 'role' && !isset(M365Graph::SAFE_DIRECTORY_ROLES[$_POST['role'] ?? ''])) flash_set('danger', 'Wybierz rolę.');
     else {
-        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'role' => $_POST['role'] ?? '', 'group' => msEduBulkGroupFromPost($_POST)]);
+        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'role' => $_POST['role'] ?? '', 'group' => msEduBulkGroupFromPost($_POST), 'skus' => $_POST['skus'] ?? []]);
         flash_set($r['errors'] ? 'warning' : 'success', 'Wykonano: ' . $r['done'] . '/' . count($accs) . ($r['errors'] ? '. Błędy: ' . implode(' | ', $r['errors']) : '.'));
     }
     header('Location: ' . $self); exit;
@@ -30,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
 $zaRows = msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa);
 $zaAction = $self; $zaTokenName = '_csrf'; $zaTokenValue = csrf_token(); $zaAllowRoles = true;
+$zaSkus = m365_edu_ready() ? m365_edu()->get_subscribed_skus() : [];
 $zaDetailUrl = str_starts_with($self, '/ms') ? '/ms/konto' : 'konto.php';
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>
