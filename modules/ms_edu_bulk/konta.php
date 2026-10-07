@@ -29,8 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ' . $self); exit;
 }
 
+$widok = (($_GET['widok'] ?? '') === 'usuniete') ? 'usuniete' : 'wygenerowane';
 $zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
-$zaRows = msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa);
+$zaRows = $widok === 'wygenerowane' ? msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa) : [];
+$delRows = $widok === 'usuniete' ? msEduBulkDeletedList($zaQ) : [];
+$cntGen = (int)db()->query("SELECT COUNT(*) FROM msedu_bulk_accounts")->fetchColumn();
+$cntDel = (int)db()->query("SELECT COUNT(*) FROM msedu_bulk_deleted")->fetchColumn();
 $zaAction = $self; $zaTokenName = '_csrf'; $zaTokenValue = csrf_token(); $zaAllowRoles = true;
 $zaSkus = m365_edu_ready() ? m365_edu()->get_subscribed_skus() : [];
 $zaDetailUrl = str_starts_with($self, '/ms') ? '/ms/konto' : 'konto.php';
@@ -42,6 +46,10 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <a href="<?= h(dirname($self)) ?>" class="btn btn-sm btn-outline-secondary ms-auto">← Generator kont</a>
   </div>
   <?= flash_html() ?>
-  <?php include __DIR__ . '/views/zarzadzanie.php'; ?>
+  <ul class="nav nav-tabs mb-3" aria-label="Podgląd kont">
+    <li class="nav-item"><a class="nav-link<?= $widok === 'wygenerowane' ? ' active' : '' ?>" <?= $widok === 'wygenerowane' ? 'aria-current="page"' : '' ?> href="<?= h($self) ?>">Wygenerowane <span class="badge text-bg-secondary"><?= $cntGen ?></span></a></li>
+    <li class="nav-item"><a class="nav-link<?= $widok === 'usuniete' ? ' active' : '' ?>" <?= $widok === 'usuniete' ? 'aria-current="page"' : '' ?> href="<?= h($self) ?>?widok=usuniete">Usunięte <span class="badge text-bg-secondary"><?= $cntDel ?></span></a></li>
+  </ul>
+  <?php include __DIR__ . '/views/' . ($widok === 'usuniete' ? 'usuniete' : 'zarzadzanie') . '.php'; ?>
 </div>
 <?php include dirname(__DIR__, 2) . '/includes/footer.php';

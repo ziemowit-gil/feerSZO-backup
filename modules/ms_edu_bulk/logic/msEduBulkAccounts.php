@@ -27,6 +27,22 @@ function msEduBulkMigrate(): void {
             created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
         )");
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_msedu_bulk_upn ON msedu_bulk_accounts(upn)");
+        // Rejestr usuniętych kont (kopia wiersza + kto i kiedy) — podgląd w zakładce „Usunięte”
+        db()->exec("CREATE TABLE IF NOT EXISTS msedu_bulk_deleted (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            ms_user_id   TEXT NOT NULL DEFAULT '',
+            upn          TEXT NOT NULL DEFAULT '',
+            imie         TEXT NOT NULL DEFAULT '',
+            nazwisko     TEXT NOT NULL DEFAULT '',
+            rola         TEXT NOT NULL DEFAULT '',
+            klasa        TEXT NOT NULL DEFAULT '',
+            email        TEXT NOT NULL DEFAULT '',
+            anonim       INTEGER NOT NULL DEFAULT 0,
+            grupa        TEXT NOT NULL DEFAULT '',
+            created_at   DATETIME,
+            deleted_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            deleted_by   TEXT NOT NULL DEFAULT ''
+        )");
         foreach (["grupa TEXT NOT NULL DEFAULT ''", "grupa_ok INTEGER NOT NULL DEFAULT 1"] as $col) {
             try { db()->exec("ALTER TABLE msedu_bulk_accounts ADD COLUMN $col"); } catch (\Throwable $e) {}
         }
@@ -42,6 +58,29 @@ function msEduBulkRegister(string $msUserId, array $r): void {
             ->execute([$msUserId, $r['upn'], $r['imie'] ?? '', $r['nazwisko'] ?? '', $r['rola'] ?? '', $r['klasa'] ?? '', $r['email'] ?? '', !empty($r['anonim']) ? 1 : 0,
                        $r['grupa'] ?? '', array_key_exists('grupa_ok', $r) && !$r['grupa_ok'] ? 0 : 1]);
     } catch (\Throwable $e) { /* rejestr pomocniczy */ }
+}
+
+/** Zapis usuniętego konta w rejestrze usuniętych (kto i kiedy). Nigdy nie przerywa usuwania. */
+function msEduBulkLogDeleted(array $a): void {
+    try {
+        msEduBulkMigrate();
+        $u = function_exists('current_user') ? current_user() : null;
+        $by = (string)($u['email'] ?? $u['name'] ?? $u['username'] ?? '');
+        db()->prepare("INSERT INTO msedu_bulk_deleted (ms_user_id, upn, imie, nazwisko, rola, klasa, email, anonim, grupa, created_at, deleted_by)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+            ->execute([$a['ms_user_id'] ?? '', $a['upn'] ?? '', $a['imie'] ?? '', $a['nazwisko'] ?? '', $a['rola'] ?? '', $a['klasa'] ?? '',
+                       $a['email'] ?? '', (int)($a['anonim'] ?? 0), $a['grupa'] ?? '', $a['created_at'] ?? null, $by]);
+    } catch (\Throwable $e) { error_log('[msedu_bulk deleted] ' . $e->getMessage()); }
+}
+
+/** Lista usuniętych kont (najnowsze pierwsze), opcjonalnie z filtrem tekstowym. */
+function msEduBulkDeletedList(string $q = ''): array {
+    msEduBulkMigrate();
+    $sql = "SELECT * FROM msedu_bulk_deleted WHERE 1=1"; $p = [];
+    if ($q !== '') { $sql .= " AND (upn LIKE ? OR imie LIKE ? OR nazwisko LIKE ? OR klasa LIKE ? OR deleted_by LIKE ?)"; $p = array_fill(0, 5, '%' . $q . '%'); }
+    $st = db()->prepare($sql . " ORDER BY deleted_at DESC, id DESC LIMIT 500");
+    $st->execute($p);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function msEduBulkAccountsList(string $q = '', string $status = '', string $grupa = ''): array {
@@ -126,6 +165,7 @@ function msEduBulkAccountsAct(M365Graph $graph, array $accounts, string $action,
                     // Trwałe usunięcie z Entra ID — wyłącznie konta bez przypisanej grupy
                     if (trim((string)$a['grupa']) !== '') throw new RuntimeException('konto ma przypisaną grupę („' . $a['grupa'] . '”) — pominięto.');
                     $graph->delete_user($id);
+                    msEduBulkLogDeleted($a);
                     db()->prepare("DELETE FROM msedu_bulk_accounts WHERE id=?")->execute([$a['id']]);
                     break;
                 default: throw new RuntimeException('Nieznana akcja.');
