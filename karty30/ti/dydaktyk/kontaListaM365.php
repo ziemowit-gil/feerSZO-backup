@@ -41,7 +41,9 @@ $grid   = [];
 $errors = [];
 $year   = preg_match('/^\d{4}$/', $_POST['rok'] ?? '') ? $_POST['rok'] : date('Y');
 $domIn  = preg_replace('/[^a-z0-9.\-]/i', '', $_POST['domena'] ?? '') ?: $domain;
-$mode   = in_array($_POST['tryb'] ?? '', ['rola', 'imie_nazwisko', 'szkolenie'], true) ? $_POST['tryb'] : 'rola';
+$mode   = in_array($_POST['tryb'] ?? '', ['rola', 'imie_nazwisko', 'szkolenie', 'is_skrot', 'in_skrot', 'skrot_is', 'skrot_in'], true) ? $_POST['tryb'] : 'rola';
+$abbrIn = trim((string)($_POST['skrot'] ?? ''));
+$dupOver = ($_POST['duplikat'] ?? 'nadpisz') === 'nadpisz'; // duplikat loginu: nadpisz własne konto albo dodaj sufiks
 $slug   = trim((string)($_POST['szkolenie'] ?? ''));
 $skuSel = ['uczen' => msEduBulkSkuList($_POST['sku_uczen'] ?? []), 'nauczyciel' => msEduBulkSkuList($_POST['sku_nauczyciel'] ?? [])];
 $defRole  = msEduBulkRole((string)($_POST['rola_domyslna'] ?? 'uczen')) ?: 'uczen';
@@ -111,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $p = msEduBulkRowsFromGrid($grid, $map, $header, $defRole, $defKlasa, $domIn);
             $rowErrors = $p['errors'];
             if (!$p['rows']) $errors[] = 'Brak poprawnych wierszy do utworzenia.';
-            else $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug);
+            else $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug, 1, $abbrIn, $dupOver);
             if ($op === 'utworz' && $plan) {
                 $res = msEduBulkCreate($graph, $plan, $skuSel, $year, false);
                 if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; $mail['szkolenie'] = $slug; $_SESSION['msEduBulkMail'] = $mail; }
@@ -201,12 +203,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <input id="domena" name="domena" class="form-control" value="<?= h($domIn) ?>"></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="tryb">Schemat loginu</label>
         <select id="tryb" name="tryb" class="form-select">
-          <option value="rola"<?= $mode === 'rola' ? ' selected' : '' ?>>wg roli (uczeń i.nazwisko+rok / nauczyciel imie.nazwisko)</option>
-          <option value="szkolenie"<?= $mode === 'szkolenie' ? ' selected' : '' ?>>nazwa szkolenia + numer (excel01)</option>
-          <option value="imie_nazwisko"<?= $mode === 'imie_nazwisko' ? ' selected' : '' ?>>imie.nazwisko</option>
+          <?= msEduBulkModeOptions($mode) ?>
         </select></div>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="dup">Duplikat loginu</label>
+        <select id="dup" name="duplikat" class="form-select"><option value="nadpisz"<?= $dupOver ? ' selected' : '' ?>>nadpisz istniejące konto (własne)</option><option value="sufiks"<?= !$dupOver ? ' selected' : '' ?>>dodaj sufiks .1, .2…</option></select></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="szkolenie">Nazwa szkolenia</label>
         <input id="szkolenie" name="szkolenie" class="form-control" value="<?= h($slug) ?>"></div>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="skrot">Skrót szkolenia <span class="text-muted fw-normal">(do loginu; puste = z nazwy: <code><?= h(msEduBulkAbbrev($slug) ?: '—') ?></code>)</span></label>
+        <input id="skrot" name="skrot" class="form-control" value="<?= h($abbrIn) ?>" maxlength="12"></div>
       <?php foreach (['uczen' => 'uczniowie', 'nauczyciel' => 'nauczyciele'] as $k => $lbl): for ($n = 0; $n < 2; $n++): ?>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="sku_<?= $k . $n ?>">Licencja <?= $n + 1 ?> — <?= $lbl ?></label>
         <select id="sku_<?= $k . $n ?>" name="sku_<?= $k ?>[]" class="form-select"><option value="">— brak —</option>
@@ -220,7 +224,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <h2 class="h5">3. Podgląd — nic jeszcze nie utworzono (<?= count($plan) ?>)</h2>
     <div class="table-responsive mb-3"><table class="table table-sm mb-0">
       <thead class="table-light"><tr><th>Osoba</th><th>Rola</th><th>Grupa</th><th>E-mail alternatywny</th><th>Login</th></tr></thead>
-      <tbody><?php foreach ($plan as $r): ?><tr><td><?= h($r['imie'] . ' ' . $r['nazwisko']) ?></td><td><?= h($r['rola']) ?></td><td><?= h($r['klasa']) ?></td><td><?= h($r['email']) ?></td><td class="font-monospace"><?= h($r['upn']) ?></td></tr><?php endforeach; ?></tbody>
+      <tbody><?php foreach ($plan as $r): ?><tr><td><?= h($r['imie'] . ' ' . $r['nazwisko']) ?></td><td><?= h($r['rola']) ?></td><td><?= h($r['klasa']) ?></td><td><?= h($r['email']) ?></td><td class="font-monospace"><?= h($r['upn']) ?><?= !empty($r['nadpisz']) ? ' <span class="badge bg-warning text-dark">nadpisze konto</span>' : '' ?></td></tr><?php endforeach; ?></tbody>
     </table></div>
     <?php endif; ?>
 

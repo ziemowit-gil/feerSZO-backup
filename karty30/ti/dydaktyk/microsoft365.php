@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($an['ile'] < 1) { $an_err = 'Podaj liczbę kont.'; }
         else {
             $domainA = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
-            $ap = msEduBulkAnonPlan(m365_edu(), $an['szk'], $an['ile'], $an['od'], $an['sep'], $an['pad'], $domainA);
+            $ap = msEduBulkAnonPlan(m365_edu(), $an['szk'], $an['ile'], $an['od'], $an['sep'], $an['pad'], $domainA, ($_POST['an_dup'] ?? 'nadpisz') === 'nadpisz');
             if ($ap['error']) { $an_err = $ap['error']; }
             else {
                 $anPlan = $ap['rows']; $anSkipped = $ap['skipped'];
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($op === 'ms_bulk') {
         $ids  = array_values(array_unique(array_map('intval', (array)($_POST['account_ids'] ?? []))));
-        $mode = in_array($_POST['tryb'] ?? '', ['szkolenie', 'imie_nazwisko'], true) ? $_POST['tryb'] : 'szkolenie';
+        $mode = in_array($_POST['tryb'] ?? '', ['szkolenie', 'imie_nazwisko', 'is_skrot', 'in_skrot', 'skrot_is', 'skrot_in'], true) ? $_POST['tryb'] : 'szkolenie';
         $slug = trim((string)($_POST['szkolenie'] ?? ''));
         $sku  = msEduBulkSkuList($_POST['sku'] ?? []);
         if (!$ms_edu_ok) { flash_set('danger', 'Tenant EDU nie jest skonfigurowany — konta nie zostały utworzone.'); header('Location: microsoft365.php'); exit; }
@@ -109,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$rows) { if (!$noMail) flash_set('danger', 'Brak kursantów do utworzenia.'); header('Location: microsoft365.php'); exit; }
         $domain = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
         $start = 1 + (int)(db_one("SELECT COUNT(*) c FROM k30_ti_student_accounts WHERE ms_upn LIKE ?", [msEduBulkAscii($slug) . '%@%'])['c'] ?? 0);
-        $planned = msEduBulkPlan($graph, $rows, $domain, date('Y'), $mode, $slug, $start);
+        $planned = msEduBulkPlan($graph, $rows, $domain, date('Y'), $mode, $slug, $start, (string)($_POST['skrot'] ?? ''));
         $res = msEduBulkCreate($graph, $planned, ['uczen' => $sku, 'nauczyciel' => $sku], date('Y'), false);
         foreach ($res['ok'] as $r) {
             db_update('k30_ti_student_accounts', [
@@ -253,6 +253,8 @@ endif; ?>
         <select id="anPad" name="an_pad" class="form-select form-select-sm">
           <?php foreach ([0 => 'bez zer', 2 => '2 (01)', 3 => '3 (001)'] as $k => $l): ?>
           <option value="<?= $k ?>"<?= $an['pad'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="anDup">Zajęty numer</label>
+        <select id="anDup" name="an_dup" class="form-select form-select-sm"><option value="nadpisz"<?= ($_POST['an_dup'] ?? 'nadpisz') === 'nadpisz' ? ' selected' : '' ?>>nadpisz własne</option><option value="pomin"<?= ($_POST['an_dup'] ?? '') === 'pomin' ? ' selected' : '' ?>>pomiń</option></select></div>
       <?php for ($n = 0; $n < 2; $n++): $_sel = $an['sku'][$n] ?? ($n === 0 && !$an['sku'] ? $ms_default_sku : ''); ?>
       <div class="col-md-4"><label class="form-label small fw-semibold" for="anSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcjonalnie)' : '' ?></label>
         <select id="anSku<?= $n ?>" name="an_sku[]" class="form-select form-select-sm"><option value="">— brak —</option>
@@ -261,7 +263,7 @@ endif; ?>
     </div>
     <?php if ($anPlan): ?>
     <div class="mt-3"><div class="fw-semibold small mb-1">Podgląd (<?= count($anPlan) ?>) — nic jeszcze nie utworzono<?= $anSkipped ? '; pominięto zajęte numery: ' . h(implode(', ', $anSkipped)) : '' ?></div>
-      <div class="font-monospace small" style="columns:3"><?php foreach ($anPlan as $r): ?><div><?= h($r['upn']) ?></div><?php endforeach; ?></div></div>
+      <div class="font-monospace small" style="columns:3"><?php foreach ($anPlan as $r): ?><div><?= h($r['upn']) ?><?= !empty($r['nadpisz']) ? ' <span class="badge bg-warning text-dark">nadpisze</span>' : '' ?></div><?php endforeach; ?></div></div>
     <?php endif; ?>
     <div class="d-flex gap-2 mt-3">
       <button name="_op" value="anon_podglad" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd loginów</button>
@@ -279,10 +281,9 @@ endif; ?>
     <input type="hidden" name="_op" value="ms_bulk">
     <div class="row g-3 align-items-end">
       <div class="col-md-4"><label class="form-label small fw-semibold" for="bkTryb">Schemat loginu</label>
-        <select id="bkTryb" name="tryb" class="form-select form-select-sm">
-          <option value="szkolenie">nazwa szkolenia + numer (excel01, excel02…)</option>
-          <option value="imie_nazwisko">imie.nazwisko</option>
-        </select></div>
+        <select id="bkTryb" name="tryb" class="form-select form-select-sm"><?= msEduBulkModeOptions("szkolenie", false) ?></select></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="bkSkrot">Skrót (do loginu)</label>
+        <input id="bkSkrot" name="skrot" class="form-control form-control-sm" maxlength="12" placeholder="np. co"></div>
       <div class="col-md-4"><label class="form-label small fw-semibold" for="bkSzk">Nazwa szkolenia</label>
         <input id="bkSzk" name="szkolenie" class="form-control form-control-sm" placeholder="np. excel" maxlength="40"></div>
       <?php for ($n = 0; $n < 2; $n++): ?>

@@ -43,6 +43,44 @@ function msEduBulkParse(string $text): array {
     return ['rows' => $rows, 'errors' => $errors];
 }
 
+/** Czy konto o tym UPN założył ten system (rejestr generatora lub konto kursanta TI) — tylko takie wolno nadpisać. */
+function msEduBulkOwnedUpn(string $upn): bool {
+    try {
+        msEduBulkMigrate();
+        $st = db()->prepare("SELECT 1 FROM msedu_bulk_accounts WHERE LOWER(upn)=LOWER(?)"); $st->execute([$upn]);
+        if ($st->fetchColumn()) return true;
+        $st = db()->prepare("SELECT 1 FROM k30_ti_student_accounts WHERE LOWER(ms_upn)=LOWER(?)"); $st->execute([$upn]);
+        return (bool)$st->fetchColumn();
+    } catch (\Throwable $e) { return false; }
+}
+
+/** Skrótowiec nazwy szkolenia: słowa pisane WIELKIMI (≤5 zn.) zostają w całości, pozostałe → pierwsza litera. */
+function msEduBulkAbbrev(string $name): string {
+    $out = '';
+    foreach (preg_split('/[\s\-_\/]+/u', trim($name)) as $w) {
+        if ($w === '') continue;
+        $a = msEduBulkAscii($w);
+        if ($a === '') continue;
+        $out .= (mb_strtoupper($w) === $w && mb_strlen($w) <= 5) ? $a : substr($a, 0, 1);
+    }
+    return $out;
+}
+
+/** <option> schematów loginu (wspólne dla kreatorów). */
+function msEduBulkModeOptions(string $mode, bool $withRole = true): string {
+    $opts = ($withRole ? ['rola' => 'wg roli (uczeń i.nazwisko+rok / nauczyciel imie.nazwisko)'] : []) + [
+        'szkolenie'     => 'nazwa szkolenia + numer (excel01)',
+        'is_skrot'      => 'i.nazwisko.skrót szkolenia (j.kowalski.co)',
+        'in_skrot'      => 'imie.nazwisko.skrót szkolenia (jan.kowalski.co)',
+        'skrot_is'      => 'skrót szkolenia.i.nazwisko (co.j.kowalski)',
+        'skrot_in'      => 'skrót szkolenia.imie.nazwisko (co.jan.kowalski)',
+        'imie_nazwisko' => 'imie.nazwisko (bez szkolenia)',
+    ];
+    $h = '';
+    foreach ($opts as $k => $l) $h .= '<option value="' . $k . '"' . ($k === $mode ? ' selected' : '') . '>' . htmlspecialchars($l, ENT_QUOTES, 'UTF-8') . '</option>';
+    return $h;
+}
+
 /**
  * Wylicza unikalne loginy (sprawdza Graph + loginy już zaplanowane w tej partii).
  * Dodaje klucz 'upn' do każdego wiersza.
@@ -53,24 +91,35 @@ function msEduBulkParse(string $text): array {
  *  - 'szkolenie'     {nazwa szkolenia}{nr}, np. excel01, excel02 … ($slug = nazwa szkolenia)
  * Duplikat dostaje sufiks .1, .2 …
  */
-function msEduBulkPlan(M365Graph $graph, array $rows, string $domain, string $year, string $mode = 'rola', string $slug = '', int $startNr = 1): array {
+function msEduBulkPlan(M365Graph $graph, array $rows, string $domain, string $year, string $mode = 'rola', string $slug = '', int $startNr = 1, string $abbr = '', bool $overwrite = false): array {
     $taken = [];
     $nr = max(1, $startNr);
+    $abbr = msEduBulkAscii($abbr) ?: msEduBulkAbbrev($slug); // skrót z oryginalnej nazwy (wielkie litery!)
     $slug = msEduBulkAscii($slug);
     if ($mode === 'szkolenie' && $slug === '') $mode = 'imie_nazwisko';
+    if (in_array($mode, ['is_skrot', 'in_skrot', 'skrot_is', 'skrot_in'], true) && $abbr === '') $mode = 'imie_nazwisko';
     foreach ($rows as &$r) {
         $i = msEduBulkAscii($r['imie']); $n = msEduBulkAscii($r['nazwisko']);
         if ($mode === 'szkolenie') {
             $base = $slug . str_pad((string)$nr++, 2, '0', STR_PAD_LEFT);
+        } elseif (in_array($mode, ['is_skrot', 'in_skrot', 'skrot_is', 'skrot_in'], true)) {
+            // nazwa/skrót szkolenia w loginie: i.nazwisko.skrot | imie.nazwisko.skrot | skrot.i.nazwisko | skrot.imie.nazwisko
+            $who = in_array($mode, ['is_skrot', 'skrot_is'], true) ? substr($i, 0, 1) . '.' . $n : $i . '.' . $n;
+            $base = str_ends_with($mode, '_skrot') ? $who . '.' . $abbr : $abbr . '.' . $who;
         } elseif ($mode === 'imie_nazwisko' || ($r['rola'] ?? '') === 'nauczyciel') {
             $base = $i . '.' . $n;
         } else {
             $base = substr($i, 0, 1) . '.' . $n . $year;
         }
         $cand = $base; $k = 0;
-        while (isset($taken[$cand]) || $graph->login_exists($cand . '@' . $domain)) {
-            $k++; $cand = $base . '.' . $k;
-            if ($k > 99) break;
+        while (true) {
+            if (isset($taken[$cand])) { $k++; $cand = $base . '.' . $k; if ($k > 99) break; continue; }
+            if ($graph->login_exists($cand . '@' . $domain)) {
+                // Duplikat: nadpisz własne konto (z rejestru generatora / TI), obce konto — dodaj sufiks
+                if ($overwrite && msEduBulkOwnedUpn($cand . '@' . $domain)) { $r['nadpisz'] = 1; break; }
+                $k++; $cand = $base . '.' . $k; if ($k > 99) break; continue;
+            }
+            break;
         }
         $taken[$cand] = true;
         $r['upn'] = $cand . '@' . $domain;
@@ -106,8 +155,18 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
     foreach ($planned as $r) {
         try {
             $pass = M365Graph::generate_password(16);
-            $u = $graph->create_user_full($r['upn'], $r['imie'], $r['nazwisko'], $pass, $r['klasa']);
             $warn = [];
+            if (!empty($r['nadpisz'])) {
+                // Duplikat loginu → nadpisanie własnego konta: nowe dane, nowe hasło (wymuszona zmiana), konto włączone
+                $eid = $graph->user_id_by_upn($r['upn']);
+                if (!$eid) throw new RuntimeException('Konto do nadpisania nie istnieje już w tenancie.');
+                $graph->update_user_full($eid, $r['imie'], $r['nazwisko'], $r['klasa']);
+                $graph->set_password($eid, $pass, true);
+                $u = ['id' => $eid];
+                $warn[] = 'nadpisano istniejące konto';
+            } else {
+                $u = $graph->create_user_full($r['upn'], $r['imie'], $r['nazwisko'], $pass, $r['klasa']);
+            }
             // Do 2 licencji na konto (np. A1 + dodatek); kolejne przypisania liczą się osobno.
             foreach (msEduBulkSkuList($skus[$r['rola']] ?? []) as $sku) {
                 try { $graph->assign_license($u['id'], $sku); } catch (\Throwable $e) { $warn[] = 'licencja: ' . $e->getMessage(); }
@@ -165,7 +224,7 @@ function msEduBulkPdf(array $rows, string $title = 'Konta Microsoft 365'): strin
  * @param string $sep ''|'.'|'_'|'-'   @param int $pad liczba cyfr numeru (0 = bez zer wiodących)
  * @return array{rows:array,skipped:int[],error:?string}
  */
-function msEduBulkAnonPlan(M365Graph $graph, string $szkolenie, int $count, int $start, string $sep, int $pad, string $domain): array {
+function msEduBulkAnonPlan(M365Graph $graph, string $szkolenie, int $count, int $start, string $sep, int $pad, string $domain, bool $overwrite = false): array {
     $slug = msEduBulkAscii($szkolenie);
     if ($slug === '') return ['rows' => [], 'skipped' => [], 'error' => 'Podaj nazwę szkolenia.'];
     if (!in_array($sep, ['', '.', '_', '-'], true)) $sep = '.';
@@ -175,8 +234,12 @@ function msEduBulkAnonPlan(M365Graph $graph, string $szkolenie, int $count, int 
     while (count($rows) < $count && $guard++ < $count + 500) {
         $num = $pad > 0 ? str_pad((string)$nr, $pad, '0', STR_PAD_LEFT) : (string)$nr;
         $upn = $slug . $sep . $num . '@' . $domain;
-        if ($graph->login_exists($upn)) { $skipped[] = $nr; $nr++; continue; }
-        $rows[] = ['imie' => $label, 'nazwisko' => $num, 'rola' => 'uczen', 'klasa' => $label, 'email' => '', 'upn' => $upn, 'anonim' => 1];
+        $over = false;
+        if ($graph->login_exists($upn)) {
+            if (!($overwrite && msEduBulkOwnedUpn($upn))) { $skipped[] = $nr; $nr++; continue; }
+            $over = true;
+        }
+        $rows[] = ['imie' => $label, 'nazwisko' => $num, 'rola' => 'uczen', 'klasa' => $label, 'email' => '', 'upn' => $upn, 'anonim' => 1] + ($over ? ['nadpisz' => 1] : []);
         $nr++;
     }
     return ['rows' => $rows, 'skipped' => $skipped, 'error' => null];

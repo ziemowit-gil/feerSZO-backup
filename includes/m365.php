@@ -232,6 +232,14 @@ class M365Graph {
         return !empty($resp['id']);
     }
 
+    /** Nadpisuje dane istniejącego konta (imię, nazwisko, nazwa, dział) i włącza je. */
+    public function update_user_full(string $user_id, string $given, string $surname, string $department = ''): void {
+        $this->http_patch("https://graph.microsoft.com/v1.0/users/{$user_id}", [
+            'displayName' => trim($given . ' ' . $surname), 'givenName' => $given, 'surname' => $surname,
+            'department' => $department, 'accountEnabled' => true, 'usageLocation' => 'PL',
+        ]);
+    }
+
     /** Tworzy użytkownika z opcjonalnym employeeId (dla K30). */
     public function create_user_with_employee_id(string $login, string $display_name, string $password, string $employee_id = ''): array {
         [$first, $rest] = array_pad(explode(' ', $display_name, 2), 2, '');
