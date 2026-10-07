@@ -78,6 +78,11 @@ function msEduBulkPlan(M365Graph $graph, array $rows, string $domain, string $ye
     return $rows;
 }
 
+/** Lista SKU z pola formularza (string albo tablica) — bez pustych i duplikatów, max 2. */
+function msEduBulkSkuList(mixed $v): array {
+    return array_slice(array_values(array_unique(array_filter(array_map('strval', (array)$v), fn($x) => $x !== ''))), 0, 2);
+}
+
 /** Id grupy o danej nazwie (tworzy, jeśli brak). */
 function msEduBulkGroupId(M365Graph $graph, string $name, array &$cache): string {
     if (isset($cache[$name])) return $cache[$name];
@@ -100,8 +105,9 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
             $pass = M365Graph::generate_password(16);
             $u = $graph->create_user_full($r['upn'], $r['imie'], $r['nazwisko'], $pass, $r['klasa']);
             $warn = [];
-            if (!empty($skus[$r['rola']])) {
-                try { $graph->assign_license($u['id'], $skus[$r['rola']]); } catch (\Throwable $e) { $warn[] = 'licencja: ' . $e->getMessage(); }
+            // Do 2 licencji na konto (np. A1 + dodatek); kolejne przypisania liczą się osobno.
+            foreach (msEduBulkSkuList($skus[$r['rola']] ?? []) as $sku) {
+                try { $graph->assign_license($u['id'], $sku); } catch (\Throwable $e) { $warn[] = 'licencja: ' . $e->getMessage(); }
             }
             if ($groups) try {
                 $gname = $r['rola'] === 'uczen' ? 'Uczniowie_' . $year : 'Nauczyciele';

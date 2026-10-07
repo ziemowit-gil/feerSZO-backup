@@ -43,7 +43,7 @@ $year   = preg_match('/^\d{4}$/', $_POST['rok'] ?? '') ? $_POST['rok'] : date('Y
 $domIn  = preg_replace('/[^a-z0-9.\-]/i', '', $_POST['domena'] ?? '') ?: $domain;
 $mode   = in_array($_POST['tryb'] ?? '', ['rola', 'imie_nazwisko', 'szkolenie'], true) ? $_POST['tryb'] : 'rola';
 $slug   = trim((string)($_POST['szkolenie'] ?? ''));
-$skuSel = ['uczen' => (string)($_POST['sku_uczen'] ?? ''), 'nauczyciel' => (string)($_POST['sku_nauczyciel'] ?? '')];
+$skuSel = ['uczen' => msEduBulkSkuList($_POST['sku_uczen'] ?? []), 'nauczyciel' => msEduBulkSkuList($_POST['sku_nauczyciel'] ?? [])];
 $defRole  = msEduBulkRole((string)($_POST['rola_domyslna'] ?? 'uczen')) ?: 'uczen';
 $defKlasa = trim((string)($_POST['klasa_domyslna'] ?? ''));
 $map    = array_map('strval', (array)($_POST['map'] ?? []));
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 $anPlan = $ap['rows']; $anSkipped = $ap['skipped'];
                 if ($op === 'anon_utworz') {
-                    $res = msEduBulkCreate($graph, $anPlan, ['uczen' => $skuSel['uczen'], 'nauczyciel' => ''], $year, false);
+                    $res = msEduBulkCreate($graph, $anPlan, ['uczen' => $skuSel['uczen'], 'nauczyciel' => []], $year, false);
                     if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; }
                     $anPlan = null;
                 }
@@ -192,9 +192,11 @@ include dirname(__DIR__, 2) . '/includes/header.php';
           <option value="<?= $k ?>"<?= $an['pad'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="anDom">Domena kont</label>
         <input id="anDom" name="domena" class="form-control" value="<?= h($domIn) ?>"></div>
-      <div class="col-md-4"><label class="form-label small fw-semibold" for="anSku">Licencja</label>
-        <select id="anSku" name="sku_uczen" class="form-select"><option value="">— bez licencji —</option>
-          <?php foreach ($skus as $s): ?><option value="<?= h($s['skuId']) ?>"<?= ($skuSel['uczen'] ?? '') === $s['skuId'] ? ' selected' : '' ?>><?= h($s['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+      <?php for ($n = 0; $n < 2; $n++): ?>
+      <div class="col-md-4"><label class="form-label small fw-semibold" for="anSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' <span class="text-muted fw-normal">(opcjonalnie)</span>' : '' ?></label>
+        <select id="anSku<?= $n ?>" name="sku_uczen[]" class="form-select"><option value="">— brak —</option>
+          <?php foreach ($skus as $s): ?><option value="<?= h($s['skuId']) ?>"<?= ($skuSel['uczen'][$n] ?? '') === $s['skuId'] ? ' selected' : '' ?>><?= h($s['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+      <?php endfor; ?>
     </div>
     <?php if ($anPlan): ?>
     <div class="mt-3"><div class="fw-semibold small mb-1">Podgląd (<?= count($anPlan) ?>) — nic jeszcze nie utworzono<?= $anSkipped ? '; pominięto zajęte numery: ' . h(implode(', ', $anSkipped)) : '' ?></div>
@@ -254,12 +256,12 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         </select></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="szkolenie">Nazwa szkolenia</label>
         <input id="szkolenie" name="szkolenie" class="form-control" value="<?= h($slug) ?>"></div>
-      <?php foreach (['uczen' => 'Licencja — uczniowie', 'nauczyciel' => 'Licencja — nauczyciele'] as $k => $lbl): ?>
-      <div class="col-md-3"><label class="form-label small fw-semibold" for="sku_<?= $k ?>"><?= $lbl ?></label>
-        <select id="sku_<?= $k ?>" name="sku_<?= $k ?>" class="form-select"><option value="">— bez licencji —</option>
-          <?php foreach ($skus as $s): ?><option value="<?= h($s['skuId']) ?>"<?= ($skuSel[$k] ?? '') === $s['skuId'] ? ' selected' : '' ?>><?= h($s['skuPartNumber']) ?> (wolne: <?= (int)$s['prepaidUnits']['enabled'] - (int)$s['consumedUnits'] ?>)</option><?php endforeach; ?>
+      <?php foreach (['uczen' => 'uczniowie', 'nauczyciel' => 'nauczyciele'] as $k => $lbl): for ($n = 0; $n < 2; $n++): ?>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="sku_<?= $k . $n ?>">Licencja <?= $n + 1 ?> — <?= $lbl ?></label>
+        <select id="sku_<?= $k . $n ?>" name="sku_<?= $k ?>[]" class="form-select"><option value="">— brak —</option>
+          <?php foreach ($skus as $s): ?><option value="<?= h($s['skuId']) ?>"<?= ($skuSel[$k][$n] ?? '') === $s['skuId'] ? ' selected' : '' ?>><?= h($s['skuPartNumber']) ?> (wolne: <?= (int)$s['prepaidUnits']['enabled'] - (int)$s['consumedUnits'] ?>)</option><?php endforeach; ?>
         </select></div>
-      <?php endforeach; ?>
+      <?php endfor; endforeach; ?>
     </div>
 
     <?php if ($plan): ?>

@@ -21,6 +21,7 @@ $uid      = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
 karty30_migrate();
 
+$anPlan = null; $anSkipped = []; $an_err = ''; $an = ['szk' => '', 'ile' => 10, 'od' => 1, 'sep' => '.', 'pad' => 2, 'sku' => []];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = $_POST['_op'] ?? '';
@@ -63,11 +64,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: microsoft365.php'); exit;
     }
 
+    if (in_array($op, ['anon_podglad', 'anon_utworz'], true)) {
+        $an = ['szk' => trim((string)($_POST['an_szkolenie'] ?? '')), 'ile' => (int)($_POST['an_ile'] ?? 0), 'od' => (int)($_POST['an_od'] ?? 1),
+               'sep' => (string)($_POST['an_sep'] ?? '.'), 'pad' => (int)($_POST['an_pad'] ?? 2), 'sku' => msEduBulkSkuList($_POST['an_sku'] ?? [])];
+        if (!ti_ms_enabled()) { flash_set('danger', 'Moduł kont Microsoft nie jest skonfigurowany.'); header('Location: microsoft365.php'); exit; }
+        elseif ($an['ile'] < 1) { $an_err = 'Podaj liczbę kont.'; }
+        else {
+            $domainA = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
+            $ap = msEduBulkAnonPlan(m365_training(), $an['szk'], $an['ile'], $an['od'], $an['sep'], $an['pad'], $domainA);
+            if ($ap['error']) { $an_err = $ap['error']; }
+            else {
+                $anPlan = $ap['rows']; $anSkipped = $ap['skipped'];
+                if ($op === 'anon_utworz') {
+                    $resA = msEduBulkCreate(m365_training(), $anPlan, ['uczen' => $an['sku'], 'nauczyciel' => []], date('Y'), false);
+                    if ($resA['ok']) { $_SESSION['new_ms_bulk'] = $resA['ok']; }
+                    flash_set($resA['errors'] ? 'warning' : 'success', 'Utworzono kont anonimowych: ' . count($resA['ok']) . ($resA['errors'] ? '. Błędy: ' . implode(' | ', $resA['errors']) : '.'));
+                    header('Location: microsoft365.php'); exit;
+                }
+            }
+        }
+    }
+
     if ($op === 'ms_bulk') {
         $ids  = array_values(array_unique(array_map('intval', (array)($_POST['account_ids'] ?? []))));
         $mode = in_array($_POST['tryb'] ?? '', ['szkolenie', 'imie_nazwisko'], true) ? $_POST['tryb'] : 'szkolenie';
         $slug = trim((string)($_POST['szkolenie'] ?? ''));
-        $sku  = (string)($_POST['sku'] ?? '');
+        $sku  = msEduBulkSkuList($_POST['sku'] ?? []);
         if (!ti_ms_enabled()) { flash_set('danger', 'Moduł kont Microsoft nie jest skonfigurowany.'); header('Location: microsoft365.php'); exit; }
         if (!$ids) { flash_set('danger', 'Zaznacz kursantów.'); header('Location: microsoft365.php'); exit; }
         if ($mode === 'szkolenie' && msEduBulkAscii($slug) === '') { flash_set('danger', 'Podaj nazwę szkolenia.'); header('Location: microsoft365.php'); exit; }
@@ -196,12 +218,52 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 <?php endif; ?>
 
-<?php if ($new_ms_bulk):
+<?php if ($new_ms_bulk && array_filter($new_ms_bulk, fn($r) => !empty($r['email']))):
   $_m = $_SESSION['new_ms_mail'] ?? ['subject' => MS_EDU_BULK_MAIL_SUBJECT, 'body' => MS_EDU_BULK_MAIL_BODY, 'szkolenie' => ''];
   $mbRows = $new_ms_bulk; $mbTokenName = '_token'; $mbTokenValue = dyd_token(); $mbAction = 'microsoft365.php';
   $mbSubject = $_m['subject']; $mbBody = $_m['body']; $mbSzkolenie = $_m['szkolenie'] ?? '';
   include dirname(__DIR__, 3) . '/modules/ms_edu_bulk/views/mailComposer.php';
 endif; ?>
+
+<?php if ($ms_online_enabled): ?>
+<div class="alert alert-light border d-flex align-items-center gap-2 py-2 small"><i class="bi bi-file-earmark-spreadsheet text-primary" aria-hidden="true"></i><span>Osoby spoza systemu (bez konta kursanta)? Wklej listę lub wczytaj XLSX/CSV z wyborem kolumn.</span> <a class="btn btn-sm btn-outline-primary ms-auto" href="kontaListaM365.php">Konta z listy — bez kursantów</a></div>
+<form method="post" class="card border-0 shadow-sm mb-4">
+  <div class="card-header fw-semibold"><i class="bi bi-incognito me-2 text-primary" aria-hidden="true"></i>Konta anonimowe <span class="text-muted fw-normal small">— bez danych osobowych: nazwa szkolenia + numer</span></div>
+  <div class="card-body">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <?php if ($an_err): ?><div class="alert alert-danger py-2 small"><?= h($an_err) ?></div><?php endif; ?>
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="anSzk">Nazwa szkolenia</label>
+        <input id="anSzk" name="an_szkolenie" class="form-control form-control-sm" value="<?= h($an['szk']) ?>" placeholder="np. excel"></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="anIle">Liczba kont</label>
+        <input id="anIle" type="number" min="1" max="200" name="an_ile" class="form-control form-control-sm" value="<?= (int)$an['ile'] ?>"></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="anOd">Numer początkowy</label>
+        <input id="anOd" type="number" min="1" name="an_od" class="form-control form-control-sm" value="<?= (int)$an['od'] ?>"></div>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="anSep">Separator</label>
+        <select id="anSep" name="an_sep" class="form-select form-select-sm">
+          <?php foreach (['.' => 'kropka (excel.01)', '' => 'brak (excel01)', '_' => 'podkreślnik (excel_01)', '-' => 'myślnik (excel-01)'] as $k => $l): ?>
+          <option value="<?= h($k) ?>"<?= $an['sep'] === (string)$k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <div class="col-md-2"><label class="form-label small fw-semibold" for="anPad">Cyfry</label>
+        <select id="anPad" name="an_pad" class="form-select form-select-sm">
+          <?php foreach ([0 => 'bez zer', 2 => '2 (01)', 3 => '3 (001)'] as $k => $l): ?>
+          <option value="<?= $k ?>"<?= $an['pad'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <?php for ($n = 0; $n < 2; $n++): $_sel = $an['sku'][$n] ?? ($n === 0 && !$an['sku'] ? $ms_default_sku : ''); ?>
+      <div class="col-md-4"><label class="form-label small fw-semibold" for="anSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcjonalnie)' : '' ?></label>
+        <select id="anSku<?= $n ?>" name="an_sku[]" class="form-select form-select-sm"><option value="">— brak —</option>
+          <?php foreach ($ms_skus as $sk): ?><option value="<?= h($sk['skuId']) ?>"<?= $sk['skuId'] === $_sel ? ' selected' : '' ?>><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+      <?php endfor; ?>
+    </div>
+    <?php if ($anPlan): ?>
+    <div class="mt-3"><div class="fw-semibold small mb-1">Podgląd (<?= count($anPlan) ?>) — nic jeszcze nie utworzono<?= $anSkipped ? '; pominięto zajęte numery: ' . h(implode(', ', $anSkipped)) : '' ?></div>
+      <div class="font-monospace small" style="columns:3"><?php foreach ($anPlan as $r): ?><div><?= h($r['upn']) ?></div><?php endforeach; ?></div></div>
+    <?php endif; ?>
+    <div class="d-flex gap-2 mt-3">
+      <button name="_op" value="anon_podglad" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd loginów</button>
+      <?php if ($anPlan): ?><button name="_op" value="anon_utworz" class="btn btn-primary btn-sm" onclick="return confirm('Utworzyć REALNE konta Microsoft?')"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz <?= count($anPlan) ?> kont</button><?php endif; ?>
+    </div>
+  </div>
+</form>
+<?php endif; ?>
 
 <?php if ($ms_online_enabled): ?>
 <form method="post" id="msBulkForm" class="card border-0 shadow-sm mb-4">
@@ -217,11 +279,11 @@ endif; ?>
         </select></div>
       <div class="col-md-4"><label class="form-label small fw-semibold" for="bkSzk">Nazwa szkolenia</label>
         <input id="bkSzk" name="szkolenie" class="form-control form-control-sm" placeholder="np. excel" maxlength="40"></div>
-      <div class="col-md-4"><label class="form-label small fw-semibold" for="bkSku">Licencja</label>
-        <select id="bkSku" name="sku" class="form-select form-select-sm"><option value="">— bez licencji —</option>
-          <?php foreach ($ms_skus as $sk): ?>
-          <option value="<?= h($sk['skuId']) ?>"<?= $sk['skuId'] === $ms_default_sku ? ' selected' : '' ?>><?= h($sk['skuPartNumber']) ?></option>
-          <?php endforeach; ?></select></div>
+      <?php for ($n = 0; $n < 2; $n++): ?>
+      <div class="col-md-4"><label class="form-label small fw-semibold" for="bkSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcjonalnie)' : '' ?></label>
+        <select id="bkSku<?= $n ?>" name="sku[]" class="form-select form-select-sm"><option value="">— brak —</option>
+          <?php foreach ($ms_skus as $sk): ?><option value="<?= h($sk['skuId']) ?>"<?= ($n === 0 && $sk['skuId'] === $ms_default_sku) ? ' selected' : '' ?>><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+      <?php endfor; ?>
     </div>
     <p class="small text-muted mt-2 mb-0">Zaznacz kursantów w tabeli poniżej (tylko bez konta) i kliknij „Utwórz konta dla zaznaczonych”. Konta zostaną powiązane z kursantami.</p>
     <button type="submit" class="btn btn-primary btn-sm mt-2" onclick="return confirm('Utworzyć REALNE konta Microsoft dla zaznaczonych kursantów?')"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Utwórz konta dla zaznaczonych</button>
