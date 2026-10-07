@@ -59,6 +59,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
     // Szybka akcja przy koncie (suspend_one / restore_one) — dotyczy tylko tego jednego konta
     if (in_array($op, ['suspend_one', 'restore_one'], true)) { $op = substr($op, 0, -4); $_POST['ids'] = [(int)($_POST['one'] ?? 0)]; }
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
+    if ($op === 'regenerate_one') {
+        // Regeneracja konta: zakłada je ponownie w Entra ID z tym samym loginem (gdy go tam brak); hasło jak wygenerowano
+        // wcześniej, jeśli jest w wynikach bieżącej sesji, inaczej nowe (trafia na wydruk).
+        $accs = msEduBulkAccountsByIds([(int)($_POST['one'] ?? 0)]);
+        if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
+        elseif (!$accs) flash_set('danger', 'Nie znaleziono konta.');
+        else {
+            $passMap = [];
+            foreach ($_SESSION['msEduBulkResult'] ?? [] as $sr) if (!empty($sr['upn']) && !empty($sr['password'])) $passMap[mb_strtolower($sr['upn'])] = $sr['password'];
+            $res = msEduBulkRecreateRegistry(m365_edu(), $accs, $passMap, []);
+            if ($res['ok']) {
+                $_SESSION['msEduBulkReset'] = $res['ok']; // login + hasło do wydruku
+                flash_set('success', 'Konto ' . $accs[0]['upn'] . ' utworzone w tenancie EDU ponownie'
+                    . ($res['ok'][0]['password_new'] ? ' z NOWYM hasłem — pobierz je z wydruku PDF nad listą.' : ' z dotychczasowym hasłem.'));
+            } else flash_set('danger', implode(' | ', $res['errors']));
+        }
+        header('Location: ' . $self); exit;
+    }
     if ($op === 'reset_mail') {
         if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
         elseif (!$accs) flash_set('danger', 'Zaznacz konta.');

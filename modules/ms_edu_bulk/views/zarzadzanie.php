@@ -90,6 +90,9 @@
           <button type="submit" name="_op" value="<?= $_susp ? 'restore_one' : 'suspend_one' ?>" formnovalidate class="btn btn-sm <?= $_susp ? 'btn-outline-success' : 'btn-outline-danger' ?>"
                   onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return <?= $_susp ? 'true' : "confirm('Zawiesić konto " . h(addslashes($r['upn'])) . " (blokada logowania, wylogowanie sesji)?')" ?>"
                   title="<?= $_susp ? 'Przywróć konto' : 'Szybkie zawieszenie konta' ?>"><i class="bi <?= $_susp ? 'bi-person-check' : 'bi-person-lock' ?>" aria-hidden="true"></i><span class="visually-hidden"><?= $_susp ? 'Przywróć' : 'Zawieś' ?></span></button>
+          <?php if ($zaAllowRoles): ?><button type="submit" name="_op" value="regenerate_one" formnovalidate class="btn btn-sm btn-outline-warning"
+                  onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return confirm('Zregenerować konto <?= h(addslashes($r['upn'])) ?> w tenancie EDU? Zostanie utworzone ponownie z tym samym loginem, o ile go tam brak (istniejące konto nie jest ruszane).')"
+                  title="Regeneruj konto — utwórz ponownie w Entra ID, jeśli go brak"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Regeneruj</span></button><?php endif; ?>
           <?php if (!empty($zaDetailUrl)): ?><a href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-primary" title="Szczegóły konta i zarządzanie grupami"><i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Szczegóły / grupy</a><?php endif; ?>
         </td>
 </tr>
