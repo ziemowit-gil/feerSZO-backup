@@ -13,7 +13,22 @@ require_role('admin');
 $PAGE_TITLE = 'Konta EDU — zarządzanie';
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'konta.php'), '?');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$cmp = null; $cmpErr = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['compare', 'sync_missing'], true)) {
+    csrf_check();
+    if (!m365_edu_ready()) $cmpErr = 'Tenant EDU nie jest skonfigurowany.';
+    else {
+        try {
+            if ($_POST['_op'] === 'sync_missing') {
+                $n = msEduBulkMarkMissingDeleted(msEduBulkAccountsByIds((array)($_POST['ids'] ?? [])));
+                flash_set('success', 'Przeniesiono do usuniętych: ' . $n . '.');
+                header('Location: ' . $self . '?widok=usuniete'); exit;
+            }
+            $cmp = msEduBulkCompareTenant(m365_edu());
+        } catch (\Throwable $e) { $cmpErr = $e->getMessage(); }
+    }
+    $_GET['widok'] = 'porownanie';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $op = (string)($_POST['_op'] ?? '');
     // Szybka akcja przy koncie (suspend_one / restore_one) — dotyczy tylko tego jednego konta
@@ -29,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ' . $self); exit;
 }
 
-$widok = (($_GET['widok'] ?? '') === 'usuniete') ? 'usuniete' : 'wygenerowane';
+$widok = in_array($_GET['widok'] ?? '', ['usuniete', 'porownanie'], true) ? $_GET['widok'] : 'wygenerowane';
 $zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
 $zaRows = $widok === 'wygenerowane' ? msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa) : [];
 $delRows = $widok === 'usuniete' ? msEduBulkDeletedList($zaQ) : [];
@@ -49,7 +64,8 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   <ul class="nav nav-tabs mb-3" aria-label="Podgląd kont">
     <li class="nav-item"><a class="nav-link<?= $widok === 'wygenerowane' ? ' active' : '' ?>" <?= $widok === 'wygenerowane' ? 'aria-current="page"' : '' ?> href="<?= h($self) ?>">Wygenerowane <span class="badge text-bg-secondary"><?= $cntGen ?></span></a></li>
     <li class="nav-item"><a class="nav-link<?= $widok === 'usuniete' ? ' active' : '' ?>" <?= $widok === 'usuniete' ? 'aria-current="page"' : '' ?> href="<?= h($self) ?>?widok=usuniete">Usunięte <span class="badge text-bg-secondary"><?= $cntDel ?></span></a></li>
+    <li class="nav-item"><a class="nav-link<?= $widok === 'porownanie' ? ' active' : '' ?>" <?= $widok === 'porownanie' ? 'aria-current="page"' : '' ?> href="<?= h($self) ?>?widok=porownanie">Porównanie z tenantem</a></li>
   </ul>
-  <?php include __DIR__ . '/views/' . ($widok === 'usuniete' ? 'usuniete' : 'zarzadzanie') . '.php'; ?>
+  <?php include __DIR__ . '/views/' . ['usuniete' => 'usuniete', 'porownanie' => 'porownanie', 'wygenerowane' => 'zarzadzanie'][$widok] . '.php'; ?>
 </div>
 <?php include dirname(__DIR__, 2) . '/includes/footer.php';

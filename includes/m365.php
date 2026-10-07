@@ -480,6 +480,26 @@ class M365Graph {
         }
     }
 
+    /**
+     * Pełna lista użytkowników tenanta (stronicowanie @odata.nextLink).
+     * Rzuca RuntimeException przy błędzie Graph — brak wyniku nie może wyglądać jak „pusty tenant”.
+     *
+     * @return array<int, array<string, mixed>> id, displayName, userPrincipalName, accountEnabled, createdDateTime
+     */
+    public function list_all_users(int $max = 10000): array {
+        $url = "https://graph.microsoft.com/v1.0/users?\$select=id,displayName,userPrincipalName,accountEnabled,createdDateTime&\$top=999";
+        $out = [];
+        while ($url && count($out) < $max) {
+            $resp = $this->http_get($url);
+            if (isset($resp['error'])) {
+                throw new \RuntimeException('Graph (lista użytkowników): ' . (string)($resp['error']['message'] ?? 'błąd'));
+            }
+            foreach ($resp['value'] ?? [] as $u) $out[] = $u;
+            $url = (string)($resp['@odata.nextLink'] ?? '');
+        }
+        return $out;
+    }
+
     public function get_user_by_id(string $id): array {
         try {
             return $this->http_get("https://graph.microsoft.com/v1.0/users/" . urlencode($id) . "?\$select=id,displayName,userPrincipalName,mail,accountEnabled,assignedLicenses");

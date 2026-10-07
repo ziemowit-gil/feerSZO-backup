@@ -61,11 +61,11 @@ function msEduBulkRegister(string $msUserId, array $r): void {
 }
 
 /** Zapis usuniętego konta w rejestrze usuniętych (kto i kiedy). Nigdy nie przerywa usuwania. */
-function msEduBulkLogDeleted(array $a): void {
+function msEduBulkLogDeleted(array $a, string $by = ''): void {
     try {
         msEduBulkMigrate();
         $u = function_exists('current_user') ? current_user() : null;
-        $by = (string)($u['email'] ?? $u['name'] ?? $u['username'] ?? '');
+        $by = $by !== '' ? $by : (string)($u['email'] ?? $u['name'] ?? $u['username'] ?? '');
         db()->prepare("INSERT INTO msedu_bulk_deleted (ms_user_id, upn, imie, nazwisko, rola, klasa, email, anonim, grupa, created_at, deleted_by)
                        VALUES (?,?,?,?,?,?,?,?,?,?,?)")
             ->execute([$a['ms_user_id'] ?? '', $a['upn'] ?? '', $a['imie'] ?? '', $a['nazwisko'] ?? '', $a['rola'] ?? '', $a['klasa'] ?? '',
@@ -81,6 +81,47 @@ function msEduBulkDeletedList(string $q = ''): array {
     $st = db()->prepare($sql . " ORDER BY deleted_at DESC, id DESC LIMIT 500");
     $st->execute($p);
     return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Porównuje rejestr generatora z listą użytkowników pobraną z tenanta EDU.
+ * Dopasowanie po ms_user_id, a gdy go brak — po UPN (bez rozróżniania wielkości liter).
+ *
+ * @return array{tenant: int, ok: int, missing: array, extra: array}
+ *   missing = konta z rejestru, których nie ma w tenancie (usunięte poza SZO),
+ *   extra   = konta z tenanta spoza rejestru (bez gości #EXT#).
+ */
+function msEduBulkCompareTenant(M365Graph $graph): array {
+    $tenant = $graph->list_all_users();
+    $byId = []; $byUpn = [];
+    foreach ($tenant as $u) {
+        $byId[(string)($u['id'] ?? '')] = $u;
+        $byUpn[mb_strtolower((string)($u['userPrincipalName'] ?? ''))] = $u;
+    }
+    $matched = []; $missing = []; $ok = 0;
+    foreach (msEduBulkAccountsList() as $r) {
+        $hit = ($r['ms_user_id'] !== '' ? ($byId[$r['ms_user_id']] ?? null) : null) ?? ($byUpn[mb_strtolower($r['upn'])] ?? null);
+        if ($hit) { $ok++; $matched[(string)$hit['id']] = true; } else $missing[] = $r;
+    }
+    $extra = [];
+    foreach ($tenant as $u) {
+        if (isset($matched[(string)($u['id'] ?? '')])) continue;
+        if (str_contains((string)($u['userPrincipalName'] ?? ''), '#EXT#')) continue;
+        $extra[] = $u;
+    }
+    usort($extra, fn($a, $b) => strcasecmp((string)($a['displayName'] ?? ''), (string)($b['displayName'] ?? '')));
+    return ['tenant' => count($tenant), 'ok' => $ok, 'missing' => $missing, 'extra' => $extra];
+}
+
+/** Przenosi konta nieistniejące już w tenancie do rejestru usuniętych (bez zmian w Entra ID). */
+function msEduBulkMarkMissingDeleted(array $accounts): int {
+    $n = 0;
+    foreach ($accounts as $a) {
+        msEduBulkLogDeleted($a, 'poza SZO (wykryto przy porównaniu z tenantem)');
+        db()->prepare("DELETE FROM msedu_bulk_accounts WHERE id=?")->execute([$a['id']]);
+        $n++;
+    }
+    return $n;
 }
 
 function msEduBulkAccountsList(string $q = '', string $status = '', string $grupa = ''): array {
