@@ -488,6 +488,17 @@ class M365Graph {
         }
     }
 
+    /** Dane profilowe do stopki e-mail (uprawnienie aplikacji User.Read.All). Zwraca [] przy błędzie. */
+    public function get_user_signature_profile(string $id_or_upn): array {
+        try {
+            $r = $this->http_get("https://graph.microsoft.com/v1.0/users/" . urlencode($id_or_upn)
+                . "?\$select=id,displayName,givenName,surname,jobTitle,mobilePhone,businessPhones");
+            return isset($r['id']) ? $r : [];
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
     /**
      * Szuka użytkownika M365 po adresie e-mail lub UPN.
      * Próbuje najpierw bezpośredniego lookup (email jako UPN),
