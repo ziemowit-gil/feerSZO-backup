@@ -265,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ms_msg = '';
         if (!empty($acc['ms_user_id'])) {
             try {
-                m365_training()->set_password($acc['ms_user_id'], $pass, true);
+                m365_edu()->set_password($acc['ms_user_id'], $pass, true);
                 $ms_msg = ' Nadpisano też hasło konta Microsoft (' . $acc['ms_upn'] . ').';
             } catch (\Throwable $e) {
                 $ms_msg = ' UWAGA: nie udało się nadpisać hasła konta Microsoft: ' . $e->getMessage();

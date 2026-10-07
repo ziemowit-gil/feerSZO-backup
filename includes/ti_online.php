@@ -78,7 +78,7 @@ function m365_edu_ready(): bool {
 
 /** Czy konta MS można tworzyć — konfiguracja M365 (Dydaktyka 3 → M365) jest kompletna. */
 function ti_ms_enabled(): bool {
-    return m365_training()->is_configured();
+    return m365_edu_ready(); // konta zakładamy wyłącznie w osobnym tenancie EDU
 }
 
 /**
@@ -137,7 +137,7 @@ function ti_ms_external_upn(int $studentId): ?string {
     $name = trim($r['client_name'] ?: $r['login']);
     if ($name === '') return null;
     try {
-        $graph = m365_training();
+        $graph = m365_edu();
         $login = $graph->natural_login($name);
         return $graph->login_exists($login) ? $login : null;
     } catch (\Throwable $e) {
@@ -162,7 +162,7 @@ function ti_ms_provision(int $studentId): array {
     $name = trim($r['client_name'] ?: $r['login']);
 
     try {
-        $graph = m365_training();
+        $graph = m365_edu();
         $upn   = $graph->unique_login($name);
         $pass  = M365Graph::generate_password();
         $created = $graph->create_user($upn, $name, $pass, true); // enabled=true
@@ -197,7 +197,7 @@ function ti_ms_delete(int $studentId): array {
     if (empty($r['ms_user_id'])) return ['ok' => false, 'msg' => 'Brak konta Microsoft do usunięcia.'];
 
     try {
-        m365_training()->delete_user($r['ms_user_id']);
+        m365_edu()->delete_user($r['ms_user_id']);
     } catch (\Throwable $e) {
         return ['ok' => false, 'msg' => 'Błąd usuwania konta Microsoft: ' . $e->getMessage()];
     }

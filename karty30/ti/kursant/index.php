@@ -720,7 +720,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // nadpisz od razu jego hasło tym samym, nowym hasłem.
         if (!empty($acc['ms_user_id'])) {
             try {
-                m365_training()->set_password($acc['ms_user_id'], $new, false);
+                m365_edu()->set_password($acc['ms_user_id'], $new, false);
                 $log_note .= ' Zaktualizowano też hasło konta Microsoft (' . $acc['ms_upn'] . ').';
             } catch (\Throwable $e) {
                 $log_note .= ' UWAGA: nie udało się zaktualizować hasła konta Microsoft: ' . $e->getMessage();
