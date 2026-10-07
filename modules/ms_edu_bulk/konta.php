@@ -49,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
             }
             $cmp = msEduBulkCompareTenant(m365_edu());
             $zaSkus = m365_edu()->get_subscribed_skus();
+            $cmpTenant = ['id' => m365_edu()->tenant_id(), 'domain' => function_exists('m365_training_domain') ? m365_training_domain() : ''];
         } catch (\Throwable $e) { $cmpErr = $e->getMessage(); }
     }
     $_GET['widok'] = 'porownanie';

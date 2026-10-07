@@ -73,13 +73,14 @@
     </div>
   </div></div>
   <div class="table-responsive"><table class="table table-sm align-middle" style="font-size:.85rem">
-    <thead class="table-light"><tr><th style="width:2rem"><input type="checkbox" id="zaAll" aria-label="Zaznacz wszystkie"></th><th>Osoba / konto</th><th>Grupa</th><th>Login</th><th>Status</th><th>Menedżer</th><th>MFA</th><th>Rola Entra</th><th>Utworzono</th><th class="text-end">Akcje</th></tr></thead>
+    <thead class="table-light"><tr><th style="width:2rem"><input type="checkbox" id="zaAll" aria-label="Zaznacz wszystkie"></th><th>Osoba / konto</th><th>Grupa</th><th>Login</th><th>Entra ID</th><th>Status</th><th>Menedżer</th><th>MFA</th><th>Rola Entra</th><th>Utworzono</th><th class="text-end">Akcje</th></tr></thead>
     <tbody>
-    <?php if (!$zaRows): ?><tr><td colspan="10" class="text-center text-muted py-4">Brak kont w rejestrze (rejestr zapełnia się od momentu wdrożenia — konta tworzone wcześniej nie są w nim ujęte).</td></tr><?php endif; ?>
+    <?php if (!$zaRows): ?><tr><td colspan="11" class="text-center text-muted py-4">Brak kont w rejestrze (rejestr zapełnia się od momentu wdrożenia — konta tworzone wcześniej nie są w nim ujęte).</td></tr><?php endif; ?>
     <?php foreach ($zaRows as $r): ?>
       <tr><td><input type="checkbox" class="zaSel" name="ids[]" value="<?= (int)$r['id'] ?>" data-grupa="<?= h($r['grupa'] ?? '') ?>"></td>
         <td><?= h(trim($r['imie'] . ' ' . $r['nazwisko'])) ?><?= $r['anonim'] ? ' <span class="badge bg-secondary">anonim</span>' : '' ?></td>
         <td><?= ($r['grupa'] ?? '') !== '' ? h($r['grupa']) . (empty($r['grupa_ok']) ? ' <span class="badge bg-warning text-dark" title="dodanie do grupy w MS365 nieudane">!</span>' : '') : '<span class="text-muted">bez grupy</span>' ?></td><td class="font-monospace"><?php if (!empty($zaDetailUrl)): ?><a href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>"><?= h($r['upn']) ?></a><?php else: ?><?= h($r['upn']) ?><?php endif; ?></td>
+        <td class="small font-monospace"><?php $eid = (string)($r['ms_user_id'] ?? ''); ?><?= $eid !== '' ? '<span title="' . h($eid) . '">' . h(substr($eid, 0, 8)) . '…</span> <button type="button" class="btn btn-sm btn-link p-0 align-baseline" title="Kopiuj Entra ID (Object ID)" aria-label="Kopiuj Entra ID konta ' . h($r['upn']) . '" onclick="navigator.clipboard&&navigator.clipboard.writeText(\'' . h($eid) . '\')"><i class="bi bi-clipboard" aria-hidden="true"></i></button>' : '<span class="badge bg-warning text-dark" title="Brak identyfikatora — konto mogło nie zostać utworzone w Entra ID">brak</span>' ?></td>
         <td><?= $r['status'] === 'suspended' ? '<span class="badge bg-danger">zawieszone</span>' : '<span class="badge bg-success">aktywne</span>' ?></td>
         <td class="small"><?= h($r['manager_upn'] ?: '—') ?></td><td><?= $r['mfa'] ? '<i class="bi bi-shield-check text-success" aria-label="tak"></i>' : '—' ?></td>
         <td class="small"><?= h($r['admin_role'] ?: '—') ?></td><td class="text-muted small"><?= h(substr((string)$r['created_at'], 0, 16)) ?></td>

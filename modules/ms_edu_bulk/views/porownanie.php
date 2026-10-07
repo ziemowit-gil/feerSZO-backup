@@ -8,6 +8,8 @@
 </form>
 <?php if ($cmpErr): ?><div class="alert alert-danger" role="alert"><?= h($cmpErr) ?></div><?php endif; ?>
 <?php if ($cmp): ?>
+  <p class="small text-muted mb-2">Odpytany tenant: <code><?= h($cmpTenant['id'] ?? '—') ?></code><?= !empty($cmpTenant['domain']) ? ' · domena <code>' . h($cmpTenant['domain']) . '</code>' : '' ?>
+    — porównaj z katalogiem (Directory ID), w którym szukasz kont w portalu Entra.</p>
   <div class="d-flex gap-2 flex-wrap mb-3">
     <span class="badge text-bg-secondary">w tenancie: <?= (int)$cmp['tenant'] ?></span>
     <span class="badge text-bg-success">zgodne z rejestrem: <?= (int)$cmp['ok'] ?></span>
