@@ -10,9 +10,10 @@ require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__, 2) . '/includes/m365.php';
 require_once __DIR__ . '/logic/stopka.php';
+require_once __DIR__ . '/logic/stopkaExchange.php';
 
 require_login();
-stopkaMigrate();
+stopkaExMigrate();
 $user = current_user();
 $self = APP_URL . '/modules/stopka/index.php';
 
@@ -32,6 +33,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             trim((string)($_POST['website'] ?? '')), stopkaSanitizePromo((string)($_POST['promo_html'] ?? '')),
         ]);
         flash_set('success', 'Ustawienia organizacji zapisane.');
+        if (!empty(stopkaExSettings()['ex_enabled'])) {
+            [$m, $e] = stopkaExPush();
+            flash_set($e ? 'danger' : 'success', 'Exchange: ' . $m);
+        }
+    } elseif ($do === 'save_exchange' && is_admin()) {
+        db_exec("UPDATE stopka_settings SET ex_enabled=?, ex_mode=?, ex_phone_attr=? WHERE id=1", [
+            !empty($_POST['ex_enabled']) ? 1 : 0,
+            ($_POST['ex_mode'] ?? '') === 'Enforce' ? 'Enforce' : 'Audit',
+            ($_POST['ex_phone_attr'] ?? '') === 'PhoneNumber' ? 'PhoneNumber' : 'MobilePhone',
+        ]);
+        if (!empty($_POST['ex_enabled'])) {
+            [$m, $e] = stopkaExPush();
+            flash_set($e ? 'danger' : 'success', 'Exchange: ' . $m);
+        } else {
+            flash_set('success', 'Synchronizacja z Exchange wyłączona (istniejąca reguła zostaje w Exchange — wyłącz ją tam ręcznie, jeśli trzeba).');
+        }
     }
     header('Location: ' . $self);
     exit;
@@ -88,6 +105,35 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <div class="sm:tw-col-span-2"><button class="<?= $btn ?>">Zapisz organizację</button>
         <span class="tw-text-xs tw-text-slate-500">Podgląd odświeża się na żywo; niedozwolone znaczniki zostaną usunięte przy zapisie.</span></div>
     </form>
+  </section>
+
+  <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-ex">
+    <h2 id="h-ex" class="tw-text-lg tw-font-semibold tw-mb-1">Automatyczna stopka w Outlooku (Exchange Online)</h2>
+    <p class="tw-text-sm tw-text-slate-600 tw-mb-3">Jedna reguła transportowa dopisuje stopkę do każdej wysłanej wiadomości — w Outlooku w przeglądarce, klasycznym i na telefonach. Imię, stanowisko, telefon i e-mail Exchange bierze z Entra ID.</p>
+    <?php $ex = stopkaExSettings(); ?>
+    <form method="post" class="tw-space-y-3">
+      <?= csrf_field() ?><input type="hidden" name="_action" value="save_exchange">
+      <label class="tw-flex tw-items-center tw-gap-2 tw-text-sm"><input type="checkbox" name="ex_enabled" value="1" <?= !empty($ex['ex_enabled']) ? 'checked' : '' ?>> Włącz synchronizację z Exchange (zapis ustawień od razu wypycha regułę)</label>
+      <div class="tw-grid sm:tw-grid-cols-2 tw-gap-3">
+        <div><label class="<?= $lbl ?>" for="x1">Tryb reguły</label>
+          <select id="x1" name="ex_mode" class="<?= $inp ?>">
+            <option value="Audit" <?= ($ex['ex_mode'] ?? 'Audit') === 'Audit' ? 'selected' : '' ?>>Audit — tylko loguje, nie zmienia wiadomości (test)</option>
+            <option value="Enforce" <?= ($ex['ex_mode'] ?? '') === 'Enforce' ? 'selected' : '' ?>>Enforce — dopisuje stopkę do wiadomości</option>
+          </select></div>
+        <div><label class="<?= $lbl ?>" for="x2">Telefon w stopce z atrybutu Entra ID</label>
+          <select id="x2" name="ex_phone_attr" class="<?= $inp ?>">
+            <option value="MobilePhone" <?= ($ex['ex_phone_attr'] ?? 'MobilePhone') === 'MobilePhone' ? 'selected' : '' ?>>Telefon komórkowy (mobilePhone)</option>
+            <option value="PhoneNumber" <?= ($ex['ex_phone_attr'] ?? '') === 'PhoneNumber' ? 'selected' : '' ?>>Telefon służbowy (businessPhones)</option>
+          </select></div>
+      </div>
+      <button class="<?= $btn ?>">Zapisz i wypchnij do Exchange</button>
+    </form>
+    <?php if (!empty($ex['ex_last_sync'])): ?>
+      <p class="tw-text-sm tw-mt-3" role="status"><strong>Ostatnia synchronizacja:</strong> <?= h($ex['ex_last_sync']) ?> — <?= h($ex['ex_last_msg']) ?></p>
+    <?php endif; ?>
+    <h3 class="tw-text-sm tw-font-semibold tw-mt-4 tw-mb-2">Podgląd stopki, jaką zobaczą odbiorcy (z Twoimi danymi)</h3>
+    <div class="tw-border tw-border-solid tw-border-slate-200 tw-rounded tw-p-4 tw-overflow-x-auto"><?= stopkaExPreviewHtml($org, $me) ?></div>
+    <p class="tw-text-xs tw-text-slate-500 tw-mt-2">Wymaga w Entra ID: uprawnienia aplikacji Exchange.ManageAsApp (zgoda admina) i roli Exchange Administrator dla tej aplikacji. Odświeżanie z CLI: <code>php cli/stopkaExchangeSync.php</code>.</p>
   </section>
   <?php endif; ?>
 </div>
