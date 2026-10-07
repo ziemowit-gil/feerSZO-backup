@@ -110,7 +110,64 @@ function msEduBulkCompareTenant(M365Graph $graph): array {
         $extra[] = $u;
     }
     usort($extra, fn($a, $b) => strcasecmp((string)($a['displayName'] ?? ''), (string)($b['displayName'] ?? '')));
-    return ['tenant' => count($tenant), 'ok' => $ok, 'missing' => $missing, 'extra' => $extra];
+
+    // Konta kursantów SZO (karty TI) z przypisanym kontem Microsoft: poza rejestrem EDU albo bez konta w tenancie
+    $regIds = []; $regUpns = [];
+    foreach (msEduBulkAccountsList() as $r) { $regIds[$r['ms_user_id']] = true; $regUpns[mb_strtolower($r['upn'])] = true; }
+    $szoUnregistered = []; $szoMissing = [];
+    try {
+        $st = db()->query("SELECT a.id, a.ms_user_id, a.ms_upn, cl.name AS client_name, cl.email AS client_email
+                           FROM k30_ti_student_accounts a JOIN k30_clients cl ON cl.id=a.client_id
+                           WHERE COALESCE(a.ms_user_id,'')<>'' OR COALESCE(a.ms_upn,'')<>'' ORDER BY cl.name");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) {
+            $inTenant = ($a['ms_user_id'] !== '' && isset($byId[$a['ms_user_id']])) || isset($byUpn[mb_strtolower((string)$a['ms_upn'])]);
+            $inReg = isset($regIds[$a['ms_user_id']]) || isset($regUpns[mb_strtolower((string)$a['ms_upn'])]);
+            if (!$inTenant) $szoMissing[] = $a;
+            elseif (!$inReg) $szoUnregistered[] = $a;
+        }
+    } catch (\Throwable $e) { /* brak tabeli kursantów — pomijamy */ }
+
+    return ['tenant' => count($tenant), 'ok' => $ok, 'missing' => $missing, 'extra' => $extra,
+            'szoUnregistered' => $szoUnregistered, 'szoMissing' => $szoMissing];
+}
+
+/** Dopisuje konta kursantów SZO (istniejące w tenancie) do rejestru EDU — bez zmian w Entra ID. */
+function msEduBulkRegisterSzoStudents(array $studentIds): int {
+    $n = 0;
+    foreach (array_unique(array_map('intval', $studentIds)) as $sid) {
+        $r = function_exists('ti_student_row') ? ti_student_row($sid) : null;
+        if (!$r || (string)$r['ms_upn'] === '') continue;
+        $parts = preg_split('/\s+/u', trim((string)$r['client_name']), 2);
+        msEduBulkRegister((string)$r['ms_user_id'], ['upn' => $r['ms_upn'], 'imie' => $parts[0] ?? '', 'nazwisko' => $parts[1] ?? '',
+                          'rola' => 'uczen', 'klasa' => '', 'email' => (string)($r['client_email'] ?? '')]);
+        $n++;
+    }
+    return $n;
+}
+
+/**
+ * Tworzy w tenancie EDU konto kursanta SZO, którego tam brak (np. usunięte poza SZO): czyści stare powiązanie
+ * i wywołuje standardowe ti_ms_create() (nowy login, hasło, licencja domyślna, wysyłka danych kursantowi).
+ *
+ * @return array{done: int, errors: string[]}
+ */
+function msEduBulkRecreateSzoStudents(array $studentIds): array {
+    $done = 0; $errors = [];
+    foreach (array_unique(array_map('intval', $studentIds)) as $sid) {
+        $r = ti_student_row($sid);
+        if (!$r) { $errors[] = '#' . $sid . ': brak konta kursanta'; continue; }
+        db_update('k30_ti_student_accounts', ['ms_user_id' => '', 'ms_upn' => '', 'ms_created_at' => null, 'updated_at' => date('Y-m-d H:i:s')], $sid);
+        $res = ti_ms_create($sid);
+        if ($res['ok']) {
+            msEduBulkRegisterSzoStudents([$sid]);
+            $done++;
+        } else {
+            // Nieudane utworzenie — przywracamy poprzednie powiązanie, żeby nie gubić śladu
+            db_update('k30_ti_student_accounts', ['ms_user_id' => $r['ms_user_id'], 'ms_upn' => $r['ms_upn'], 'ms_created_at' => $r['ms_created_at'], 'updated_at' => date('Y-m-d H:i:s')], $sid);
+            $errors[] = trim((string)$r['client_name']) . ': ' . $res['msg'];
+        }
+    }
+    return ['done' => $done, 'errors' => $errors];
 }
 
 /** Przenosi konta nieistniejące już w tenancie do rejestru usuniętych (bez zmian w Entra ID). */

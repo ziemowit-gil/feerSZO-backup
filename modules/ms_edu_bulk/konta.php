@@ -14,11 +14,20 @@ $PAGE_TITLE = 'Konta EDU — zarządzanie';
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'konta.php'), '?');
 
 $cmp = null; $cmpErr = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['compare', 'sync_missing'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['compare', 'sync_missing', 'register_szo', 'recreate_szo'], true)) {
     csrf_check();
     if (!m365_edu_ready()) $cmpErr = 'Tenant EDU nie jest skonfigurowany.';
     else {
         try {
+            if ($_POST['_op'] === 'register_szo') {
+                flash_set('success', 'Dodano do rejestru EDU: ' . msEduBulkRegisterSzoStudents((array)($_POST['sids'] ?? [])) . '.');
+                header('Location: ' . $self); exit;
+            }
+            if ($_POST['_op'] === 'recreate_szo') {
+                $r = msEduBulkRecreateSzoStudents((array)($_POST['sids'] ?? []));
+                flash_set($r['errors'] ? 'warning' : 'success', 'Utworzono w tenancie EDU: ' . $r['done'] . ($r['errors'] ? '. Błędy: ' . implode(' | ', $r['errors']) : '.'));
+                header('Location: ' . $self); exit;
+            }
             if ($_POST['_op'] === 'sync_missing') {
                 $n = msEduBulkMarkMissingDeleted(msEduBulkAccountsByIds((array)($_POST['ids'] ?? [])));
                 flash_set('success', 'Przeniesiono do usuniętych: ' . $n . '.');
