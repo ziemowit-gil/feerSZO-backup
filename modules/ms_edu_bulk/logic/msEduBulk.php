@@ -133,6 +133,20 @@ function msEduBulkSkuList(mixed $v): array {
     return array_slice(array_values(array_unique(array_filter(array_map('strval', (array)$v), fn($x) => $x !== ''))), 0, 2);
 }
 
+/**
+ * Dodaje użytkownika do grupy z ponawianiem: świeżo utworzone konto/grupa w Entra ID bywa
+ * niewidoczne przez kilka sekund (replikacja) i Graph zwraca wtedy 404.
+ */
+function msEduBulkAddToGroup(M365Graph $graph, string $userId, string $groupId, int $tries = 6): void {
+    for ($i = 1; ; $i++) {
+        try { $graph->add_to_group($userId, $groupId); return; }
+        catch (\RuntimeException $e) {
+            if ($i >= $tries || !str_contains($e->getMessage(), '404')) throw $e;
+            sleep(2 * $i > 6 ? 6 : 2 * $i);
+        }
+    }
+}
+
 /** Id grupy o danej nazwie (tworzy, jeśli brak). */
 function msEduBulkGroupId(M365Graph $graph, string $name, array &$cache): string {
     if (isset($cache[$name])) return $cache[$name];
@@ -173,11 +187,11 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
             }
             if ($groups) try {
                 $gname = $r['rola'] === 'uczen' ? 'Uczniowie_' . $year : 'Nauczyciele';
-                $graph->add_to_group($u['id'], msEduBulkGroupId($graph, $gname, $gc));
+                msEduBulkAddToGroup($graph, $u['id'], msEduBulkGroupId($graph, $gname, $gc));
             } catch (\Throwable $e) { $warn[] = 'grupa: ' . $e->getMessage(); }
             // Grupa jawna (z TI / nowa / z kolumny) → grupa bezpieczeństwa w MS365; tworzona, jeśli jej brak
             if (!empty($r['grupa'])) try {
-                $graph->add_to_group($u['id'], msEduBulkGroupId($graph, $r['grupa'], $gc));
+                msEduBulkAddToGroup($graph, $u['id'], msEduBulkGroupId($graph, $r['grupa'], $gc));
             } catch (\Throwable $e) { $warn[] = 'grupa „' . $r['grupa'] . '”: ' . $e->getMessage(); }
             msEduBulkRegister($u['id'], $r);
             $out['ok'][] = $r + ['ms_user_id' => $u['id'], 'password' => $pass, 'warn' => implode('; ', $warn)];
