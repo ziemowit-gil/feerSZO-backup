@@ -14,9 +14,13 @@ require_once __DIR__ . '/logic/msEduBulkImport.php';
 require_once __DIR__ . '/logic/msEduBulkMail.php';
 
 require_role('admin');
-$PAGE_TITLE = 'Generowanie kont M365 Edu';
+$ms_view = $ms_view ?? 'hub'; // hub = konta anonimowe + wyniki; kreator = import listy (kreator.php)
+$PAGE_TITLE = $ms_view === 'kreator' ? 'Kreator kont M365 Edu' : 'Generowanie kont M365 Edu';
 // Działa pod /modules/ms_edu_bulk/index.php i pod aliasem /ms — przekierowania i linki wracają pod aktualny adres.
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'index.php'), '?');
+$_alias = str_starts_with($self, '/ms');
+$lnk = $_alias ? ['hub' => '/ms', 'kreator' => '/ms/kreator', 'konta' => '/ms/konta']
+               : ['hub' => dirname($self) . '/index.php', 'kreator' => dirname($self) . '/kreator.php', 'konta' => dirname($self) . '/konta.php'];
 
 $graph  = m365_edu(); // konta zawsze w tenancie EDU
 $skus   = $graph->is_configured() ? $graph->get_subscribed_skus() : [];
@@ -35,7 +39,7 @@ if (isset($_GET['csv']) && $result) {
 if (isset($_GET['pdf']) && $result) {
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="konta_m365_edu_' . date('Ymd_His') . '.pdf"');
-    $_pm = $_GET['pdf'] ?? ''; echo $_pm === 'cards' ? msEduBulkPdfCards($result) : ($_pm === 'strips' ? msEduBulkPdfStrips($result) : msEduBulkPdf($result)); exit;
+    $_pm = $_GET['pdf'] ?? ''; echo $_pm === 'cards' ? msEduBulkPdfCards($result) : ($_pm === 'strips' ? msEduBulkPdfStrips($result) : ($_pm === 'strips1' ? msEduBulkPdfStrips($result, 'Konta Microsoft 365', 1) : msEduBulkPdf($result))); exit;
 }
 
 // ── Stan formularza ──────────────────────────────────────────────────────────
@@ -51,7 +55,7 @@ $defRole  = msEduBulkRole((string)($_POST['rola_domyslna'] ?? 'uczen')) ?: 'ucze
 $defKlasa = trim((string)($_POST['klasa_domyslna'] ?? ''));
 $map    = array_map('strval', (array)($_POST['map'] ?? []));
 $header = !empty($_POST['naglowek']);
-$plan = null; $res = null; $anPlan = null; $anSkipped = []; $an = ['szk' => '', 'ile' => 10, 'od' => 1, 'sep' => '.', 'pad' => 2];
+$plan = null; $res = null; $rowErrors = []; $anPlan = null; $anSkipped = []; $an = ['szk' => '', 'ile' => 10, 'od' => 1, 'sep' => '.', 'pad' => 2];
 $mail = $_SESSION['msEduBulkMail'] ?? ['subject' => MS_EDU_BULK_MAIL_SUBJECT, 'body' => MS_EDU_BULK_MAIL_BODY, 'szkolenie' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -131,11 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$graph->is_configured()) $errors[] = 'Integracja Microsoft 365 nie jest skonfigurowana.';
         if (!$errors) {
             $p = msEduBulkRowsFromGrid($grid, $map, $header, $defRole, $defKlasa, $domIn);
-            $errors = $p['errors'];
+            $rowErrors = $p['errors']; // błędne wiersze są pomijane, nie blokują reszty
             if (!$p['rows']) $errors[] = 'Brak poprawnych wierszy do utworzenia.';
-            // Błędy w wierszach blokują utworzenie — popraw dane i wczytaj ponownie / pomiń wiersze.
-            elseif (!$errors || $op === 'podglad') $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug);
-            if ($op === 'utworz' && $plan && !$errors) {
+            else $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug);
+            if ($op === 'utworz' && $plan) {
                 $res = msEduBulkCreate($graph, $plan, $skuSel, $year);
                 if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; $mail['szkolenie'] = $slug; $_SESSION['msEduBulkMail'] = $mail; }
                 $plan = null; $grid = [];
@@ -147,9 +150,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>
 <div class="container-xl py-4">
-  <div class="d-flex align-items-center mb-3"><h1 class="h3 fw-bold mb-0"><i class="bi bi-people-fill me-2"></i>Generowanie kont M365 Edu</h1>
-    <a href="<?= h(rtrim($self, '/') === '/ms' ? '/ms/konta' : 'konta.php') ?>" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-person-gear me-1"></i>Zarządzanie kontami</a></div>
+  <div class="d-flex align-items-center mb-3"><h1 class="h3 fw-bold mb-0"><i class="bi bi-<?= $ms_view === 'kreator' ? 'magic' : 'people-fill' ?> me-2"></i><?= $ms_view === 'kreator' ? 'Kreator kont z listy' : 'Generowanie kont M365 Edu' ?></h1>
+    <?php if ($ms_view === 'kreator'): ?><a href="<?= h($lnk['hub']) ?>" class="btn btn-sm btn-outline-secondary ms-3">← Generator</a><?php endif; ?>
+    <a href="<?= h($lnk['konta']) ?>" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-person-gear me-1"></i>Zarządzanie kontami</a></div>
   <?= flash_html() ?>
+  <?php if ($ms_view === 'kreator'):
+    $_st = $result && !$grid ? 4 : ($plan ? 3 : ($grid ? 2 : 1));
+    $_labels = [1 => 'Wczytaj listę', 2 => 'Kolumny i opcje', 3 => 'Podgląd loginów', 4 => 'Konta i e-maile']; ?>
+  <ol class="d-flex gap-2 list-unstyled flex-wrap mb-3 small" aria-label="Kroki kreatora">
+    <?php foreach ($_labels as $n => $l): ?><li class="badge rounded-pill <?= $n === $_st ? 'text-bg-primary' : ($n < $_st ? 'text-bg-success' : 'text-bg-light border text-muted') ?> px-3 py-2"><?= $n ?>. <?= h($l) ?></li><?php endforeach; ?>
+  </ol>
+  <?php endif; ?>
   <?php if (m365_edu_ready()): ?>
   <div class="alert alert-info py-2 small"><i class="bi bi-mortarboard me-1"></i>Konta powstają w <strong>tenancie EDU</strong> — domena <code><?= h($domain) ?></code>.</div>
   <?php else: ?>
@@ -166,7 +177,8 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <span>Wygenerowane konta: <strong><?= count($result) ?></strong> — hasła widoczne tylko tutaj</span>
       <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1"></i>Drukuj PDF</a>
       <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1"></i>Kartki do rozcięcia</a>
-      <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski Login · Hasło</a>
+      <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski: dwa bloki obok siebie</a>
+      <a href="?pdf=strips1" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski: jedna kolumna Login | Hasło</a>
       <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1"></i>CSV</a>
       <a href="?clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Zamknąć listę? Hasła znikną z sesji.')">Zamknij listę</a>
     </div>
@@ -183,7 +195,11 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     include __DIR__ . '/views/mailComposer.php';
   endif; endif; ?>
 
-  <?php if (!$grid): ?>
+  <?php if ($ms_view === 'hub'): ?>
+  <a href="<?= h($lnk['kreator']) ?>" class="card card-body mb-4 text-decoration-none border-primary">
+    <div class="d-flex align-items-center gap-3"><i class="bi bi-file-earmark-spreadsheet fs-2 text-primary"></i>
+      <div><div class="h5 mb-0">Kreator: konta z listy (XLS / CSV / wklejka)</div><div class="small text-muted">Wczytaj plik lub wklej tabelę, wskaż kolumny, sprawdź loginy i utwórz konta; potem wyślij dane na e-mail alternatywny.</div></div>
+      <i class="bi bi-arrow-right-circle fs-3 ms-auto text-primary"></i></div></a>
   <form method="post" class="card card-body mb-4">
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <h2 class="h5">Konta anonimowe <span class="text-muted fw-normal small">— bez danych osobowych, login: nazwa szkolenia + numer</span></h2>
@@ -222,7 +238,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   </form>
   <?php endif; ?>
 
-  <?php if (!$grid): ?>
+  <?php if ($ms_view === 'kreator' && !$grid): ?>
   <form method="post" enctype="multipart/form-data" class="card card-body">
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="_op" value="wczytaj">
@@ -235,7 +251,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <input id="plik" type="file" name="plik" class="form-control" accept=".xlsx,.csv,.txt"></div>
     <div><button class="btn btn-primary"><i class="bi bi-arrow-right-circle me-1"></i>Dalej — dopasuj kolumny</button></div>
   </form>
-  <?php else: ?>
+  <?php elseif ($ms_view === 'kreator'): ?>
   <form method="post" class="card card-body">
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="grid" value="<?= h(json_encode($grid, JSON_UNESCAPED_UNICODE)) ?>">
@@ -277,6 +293,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     </div>
 
     <?php if ($plan): ?>
+    <?php if ($rowErrors): ?><div class="alert alert-warning py-2 small"><strong>Pominięte wiersze (<?= count($rowErrors) ?>):</strong><br><?= h(implode(' • ', $rowErrors)) ?></div><?php endif; ?>
     <h2 class="h5">3. Podgląd — nic jeszcze nie utworzono (<?= count($plan) ?>)</h2>
     <div class="table-responsive mb-3"><table class="table table-sm mb-0">
       <thead class="table-light"><tr><th>Osoba</th><th>Rola</th><th>Klasa / dział</th><th>E-mail alternatywny</th><th>Login</th></tr></thead>
@@ -286,8 +303,8 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 
     <div class="d-flex gap-2 flex-wrap">
       <button name="_op" value="podglad" class="btn btn-outline-primary"><i class="bi bi-eye me-1"></i>Podgląd loginów</button>
-      <?php if ($plan && !$errors): ?>
-      <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w tenancie EDU (<?= h($domain) ?>)?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont</button>
+      <?php if ($plan): ?>
+      <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w tenancie EDU (<?= h($domain) ?>)?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont<?= $rowErrors ? ' (pominięto ' . count($rowErrors) . ' błędnych)' : '' ?></button>
       <?php endif; ?>
       <a href="<?= h($self) ?>" class="btn btn-outline-secondary ms-auto">Wczytaj inną listę</a>
     </div>

@@ -32,7 +32,7 @@ if (isset($_GET['csv']) && $result) {
 if (isset($_GET['pdf']) && $result) {
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="konta_m365_edu_' . date('Ymd_His') . '.pdf"');
-    $_pm = $_GET['pdf'] ?? ''; echo $_pm === 'cards' ? msEduBulkPdfCards($result) : ($_pm === 'strips' ? msEduBulkPdfStrips($result) : msEduBulkPdf($result)); exit;
+    $_pm = $_GET['pdf'] ?? ''; echo $_pm === 'cards' ? msEduBulkPdfCards($result) : ($_pm === 'strips' ? msEduBulkPdfStrips($result) : ($_pm === 'strips1' ? msEduBulkPdfStrips($result, 'Konta Microsoft 365', 1) : msEduBulkPdf($result))); exit;
 }
 
 // ── Stan formularza ──────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ $defRole  = msEduBulkRole((string)($_POST['rola_domyslna'] ?? 'uczen')) ?: 'ucze
 $defKlasa = trim((string)($_POST['klasa_domyslna'] ?? ''));
 $map    = array_map('strval', (array)($_POST['map'] ?? []));
 $header = !empty($_POST['naglowek']);
-$plan = null; $res = null;
+$plan = null; $res = null; $rowErrors = [];
 $mail = $_SESSION['msEduBulkMail'] ?? ['subject' => MS_EDU_BULK_MAIL_SUBJECT, 'body' => MS_EDU_BULK_MAIL_BODY, 'szkolenie' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -108,11 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!m365_edu_ready()) $errors[] = 'Integracja Microsoft 365 nie jest skonfigurowana.';
         if (!$errors) {
             $p = msEduBulkRowsFromGrid($grid, $map, $header, $defRole, $defKlasa, $domIn);
-            $errors = $p['errors'];
+            $rowErrors = $p['errors'];
             if (!$p['rows']) $errors[] = 'Brak poprawnych wierszy do utworzenia.';
-            // Błędy w wierszach blokują utworzenie — popraw dane i wczytaj ponownie / pomiń wiersze.
-            elseif (!$errors || $op === 'podglad') $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug);
-            if ($op === 'utworz' && $plan && !$errors) {
+            else $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug);
+            if ($op === 'utworz' && $plan) {
                 $res = msEduBulkCreate($graph, $plan, $skuSel, $year, false);
                 if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; $mail['szkolenie'] = $slug; $_SESSION['msEduBulkMail'] = $mail; }
                 $plan = null; $grid = [];
@@ -143,7 +142,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <span>Wygenerowane konta: <strong><?= count($result) ?></strong> — hasła widoczne tylko tutaj</span>
       <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1"></i>Drukuj PDF</a>
       <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1"></i>Kartki do rozcięcia</a>
-      <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski Login · Hasło</a>
+      <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski: dwa bloki obok siebie</a>
+      <a href="?pdf=strips1" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski: jedna kolumna Login | Hasło</a>
       <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1"></i>CSV</a>
       <a href="?clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Zamknąć listę? Hasła znikną z sesji.')">Zamknij listę</a>
     </div>
@@ -215,6 +215,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </div>
 
     <?php if ($plan): ?>
+    <?php if ($rowErrors): ?><div class="alert alert-warning py-2 small"><strong>Pominięte wiersze (<?= count($rowErrors) ?>):</strong><br><?= h(implode(' • ', $rowErrors)) ?></div><?php endif; ?>
     <h2 class="h5">3. Podgląd — nic jeszcze nie utworzono (<?= count($plan) ?>)</h2>
     <div class="table-responsive mb-3"><table class="table table-sm mb-0">
       <thead class="table-light"><tr><th>Osoba</th><th>Rola</th><th>Klasa / dział</th><th>E-mail alternatywny</th><th>Login</th></tr></thead>
@@ -224,8 +225,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <div class="d-flex gap-2 flex-wrap">
       <button name="_op" value="podglad" class="btn btn-outline-primary"><i class="bi bi-eye me-1"></i>Podgląd loginów</button>
-      <?php if ($plan && !$errors): ?>
-      <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w Entra ID?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont</button>
+      <?php if ($plan): ?>
+      <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w Entra ID?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont<?= $rowErrors ? ' (pominięto ' . count($rowErrors) . ' błędnych)' : '' ?></button>
       <?php endif; ?>
       <a href="kontaListaM365.php" class="btn btn-outline-secondary ms-auto">Wczytaj inną listę</a>
     </div>

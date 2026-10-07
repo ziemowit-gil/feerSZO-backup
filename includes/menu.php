@@ -522,6 +522,7 @@ function _menu_editor(): array {
             _mi('Microsoft 365','/admin/m365_settings.php','bi-microsoft',['match'=>'/admin/m365','kw'=>'m365 integracja graph']),
             _mi('Kody dostępowe M365','/admin/ms_edu_codes.php','bi-key-fill',['match'=>'/admin/ms_edu_codes','kw'=>'kody dostępowe m365 konta edu lccc']),
             _mi('Konta M365 Edu — hurtowo','/modules/ms_edu_bulk/index.php','bi-people-fill',['match'=>'/modules/ms_edu_bulk','kw'=>'konta m365 edu hurtowo generowanie uczniowie nauczyciele pdf login hasło']),
+            _mi('Kreator kont M365 z listy (XLS)','/modules/ms_edu_bulk/kreator.php','bi-magic',['match'=>'/modules/ms_edu_bulk/kreator','kw'=>'kreator konta m365 xls excel import lista csv']),
             _mi('Konta EDU — zarządzanie','/modules/ms_edu_bulk/konta.php','bi-person-gear',['match'=>'/modules/ms_edu_bulk/konta','kw'=>'konta edu zarządzanie zawieszenie offboarding menedżer mfa rola entra']),
             _mi('SharePoint','/admin/sharepoint_settings.php','bi-cloud-upload',['match'=>'/admin/sharepoint','kw'=>'sharepoint']),
             _mi('Szkolenia (TidyCal)','/admin/tidycal_settings.php','bi-calendar2-check',['match'=>'/admin/tidycal','kw'=>'tidycal szkolenia']),

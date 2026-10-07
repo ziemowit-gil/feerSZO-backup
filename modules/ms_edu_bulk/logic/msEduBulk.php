@@ -215,9 +215,11 @@ function msEduBulkPdfCards(array $rows, string $title = 'Konto Microsoft 365'): 
 
 /**
  * PDF w formie pasków: kolumny „Login | Hasło”, każdy wiersz = pasek do odcięcia
- * (linia cięcia pod każdym), dwa bloki obok siebie na A4 (po 18 pasków, duży odstęp).
+ * (linia cięcia pod każdym). $blocks=2: dwa bloki obok siebie (po 18 pasków); $blocks=1: jeden blok
+ * „Login | Hasło” na całą szerokość (20 pasków na stronie).
  */
-function msEduBulkPdfStrips(array $rows, string $title = 'Konta Microsoft 365'): string {
+function msEduBulkPdfStrips(array $rows, string $title = 'Konta Microsoft 365', int $blocks = 2): string {
+    $blocks = $blocks === 1 ? 1 : 2;
     require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
     $tmp = rtrim(defined('UPLOAD_DIR') ? UPLOAD_DIR : (dirname(__DIR__, 3) . '/uploads'), '/') . '/mpdf_tmp';
     if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
@@ -230,11 +232,14 @@ function msEduBulkPdfStrips(array $rows, string $title = 'Konta Microsoft 365'):
     $html = '<style>table.b{width:100%;border-collapse:separate;border-spacing:0}th{font-size:7pt;color:#666;text-align:left;padding:0 2mm 1mm;font-family:dejavusans}'
           . 'td.s{height:13.5mm;border-top:0.4pt dashed #666;padding:0 2mm;font-family:dejavusansmono;font-size:8.5pt;vertical-align:middle}'
           . 'td.p{font-size:10pt;font-weight:bold;border-left:0.4pt dotted #bbb}table.o{width:100%;border-collapse:collapse}table.o td{vertical-align:top;width:50%;padding:0 2mm}</style>';
-    $pages = array_chunk(array_values($rows), 36);
+    $per = $blocks === 1 ? 20 : 18;
+    $pages = array_chunk(array_values($rows), $per * $blocks);
     foreach ($pages as $pi => $pg) {
         if ($pi > 0) $html .= '<pagebreak />';
-        $cols = array_chunk($pg, 18);
-        $html .= '<table class="o"><tr><td>' . $block($cols[0]) . '</td><td>' . (isset($cols[1]) ? $block($cols[1]) : '') . '</td></tr></table>';
+        $cols = array_chunk($pg, $per);
+        $html .= $blocks === 1
+            ? '<div style="padding:0 8mm">' . $block($cols[0]) . '</div>'
+            : '<table class="o"><tr><td>' . $block($cols[0]) . '</td><td>' . (isset($cols[1]) ? $block($cols[1]) : '') . '</td></tr></table>';
     }
     $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 8, 'margin_right' => 8,
                             'margin_top' => 10, 'margin_bottom' => 8, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
