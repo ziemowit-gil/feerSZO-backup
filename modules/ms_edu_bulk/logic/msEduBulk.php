@@ -90,7 +90,9 @@ function msEduBulkGroupId(M365Graph $graph, string $name, array &$cache): string
     foreach ($graph->get_security_groups() as $g) {
         if (strcasecmp($g['displayName'] ?? '', $name) === 0) return $cache[$name] = $g['id'];
     }
-    $g = $graph->create_group($name, preg_replace('/[^A-Za-z0-9_]/', '', $name));
+    $nick = preg_replace('/[^A-Za-z0-9_]/', '', msEduBulkAscii($name)) ?: ('grupa' . substr(md5($name), 0, 6));
+    $g = $graph->create_group($name, $nick, 'Grupa utworzona w kreatorze kont EDU (SZO)');
+    $cache['__new'][] = $name;
     return $cache[$name] = $g['id'];
 }
 
@@ -114,12 +116,17 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
                 $gname = $r['rola'] === 'uczen' ? 'Uczniowie_' . $year : 'Nauczyciele';
                 $graph->add_to_group($u['id'], msEduBulkGroupId($graph, $gname, $gc));
             } catch (\Throwable $e) { $warn[] = 'grupa: ' . $e->getMessage(); }
+            // Grupa jawna (z TI / nowa / z kolumny) → grupa bezpieczeństwa w MS365; tworzona, jeśli jej brak
+            if (!empty($r['grupa'])) try {
+                $graph->add_to_group($u['id'], msEduBulkGroupId($graph, $r['grupa'], $gc));
+            } catch (\Throwable $e) { $warn[] = 'grupa „' . $r['grupa'] . '”: ' . $e->getMessage(); }
             msEduBulkRegister($u['id'], $r);
             $out['ok'][] = $r + ['ms_user_id' => $u['id'], 'password' => $pass, 'warn' => implode('; ', $warn)];
         } catch (\Throwable $e) {
             $out['errors'][] = $r['upn'] . ': ' . $e->getMessage();
         }
     }
+    $out['groups_created'] = $gc['__new'] ?? [];
     return $out;
 }
 

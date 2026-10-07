@@ -4,18 +4,18 @@
 const MS_EDU_BULK_MAIL_SUBJECT = 'Twoje konto Microsoft 365 — dane logowania';
 const MS_EDU_BULK_MAIL_BODY = "Dzień dobry {imie},\n\nzałożyliśmy dla Ciebie konto Microsoft 365. Dane do pierwszego logowania:\n\nLogin: {login}\nHasło tymczasowe: {haslo}\n\nZaloguj się na https://www.office.com — przy pierwszym logowaniu system poprosi o ustawienie własnego hasła.\nNie udostępniaj tych danych innym osobom.\n\nPozdrawiamy\n{organizacja}";
 
-const MS_EDU_BULK_MAIL_VARS = ['{imie}', '{nazwisko}', '{login}', '{haslo}', '{klasa}', '{szkolenie}', '{organizacja}'];
+const MS_EDU_BULK_MAIL_VARS = ['{imie}', '{nazwisko}', '{login}', '{haslo}', '{grupa}', '{szkolenie}', '{organizacja}'];
 
 /** Podstawia zmienne; zwraca [temat, html, tekst]. Login i hasło w HTML idą jako <code>. */
 function msEduBulkMailRender(string $subject, string $body, array $row, string $szkolenie = ''): array {
     $org = defined('ORG_NAME') ? ORG_NAME : '';
     $vals = ['{imie}' => $row['imie'] ?? '', '{nazwisko}' => $row['nazwisko'] ?? '', '{login}' => $row['upn'] ?? '',
-             '{haslo}' => $row['password'] ?? '', '{klasa}' => $row['klasa'] ?? '', '{szkolenie}' => $szkolenie, '{organizacja}' => $org];
+             '{haslo}' => $row['password'] ?? '', '{klasa}' => $row['klasa'] ?? '', '{grupa}' => $row['grupa'] ?? ($row['klasa'] ?? ''), '{szkolenie}' => $szkolenie, '{organizacja}' => $org];
     $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     $text = strtr($body, $vals);
     $htmlVals = $vals;
     foreach (['{login}', '{haslo}'] as $k) $htmlVals[$k] = '<code style="font-size:14px;background:#f1f5f9;padding:1px 5px">' . $e($vals[$k]) . '</code>';
-    foreach (['{imie}', '{nazwisko}', '{klasa}', '{szkolenie}', '{organizacja}'] as $k) $htmlVals[$k] = $e($vals[$k]);
+    foreach (['{imie}', '{nazwisko}', '{klasa}', '{grupa}', '{szkolenie}', '{organizacja}'] as $k) $htmlVals[$k] = $e($vals[$k]);
     // Najpierw zamiana na znaczniki, potem escapowanie reszty treści szablonu
     $parts = preg_split('/(\{[a-z]+\})/u', $body, -1, PREG_SPLIT_DELIM_CAPTURE);
     $html = '';

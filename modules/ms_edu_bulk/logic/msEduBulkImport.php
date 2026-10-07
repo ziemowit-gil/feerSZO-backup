@@ -12,7 +12,7 @@ const MS_EDU_BULK_FIELDS = [
     'imie_nazwisko' => 'Imię i nazwisko (razem)',
     'email'         => 'E-mail alternatywny (wymagany)',
     'rola'          => 'Rola (uczeń / nauczyciel)',
-    'klasa'         => 'Klasa / grupa / dział',
+    'klasa'         => 'Grupa',
 ];
 
 /** Wklejony tekst → siatka (wiersze × kolumny). */
@@ -147,11 +147,37 @@ function msEduBulkRowsFromGrid(array $grid, array $map, bool $header, string $de
         $roleRaw = $get('rola');
         $role = $roleRaw !== '' ? msEduBulkRole($roleRaw) : $defRole;
         if (!$role) { $errors[] = "Wiersz $no ($imie $nazw): nieznana rola „$roleRaw”."; continue; }
-        $klasa = $get('klasa') !== '' ? $get('klasa') : ($defKlasa !== '' ? $defKlasa : ($role === 'nauczyciel' ? 'Kadra Pedagogiczna' : ''));
+        $grupa = $get('klasa') !== '' ? $get('klasa') : $defKlasa;          // grupa jawna: z kolumny albo domyślna z formularza
+        $klasa = $grupa !== '' ? $grupa : ($role === 'nauczyciel' ? 'Kadra Pedagogiczna' : ''); // atrybut Department
         $key = msEduBulkAscii($imie . $nazw) . '|' . $email;
         if (isset($seen[$key])) { $errors[] = "Wiersz $no: duplikat ($imie $nazw, $email)."; continue; }
         $seen[$key] = 1;
-        $rows[] = ['imie' => $imie, 'nazwisko' => $nazw, 'rola' => $role, 'klasa' => $klasa, 'email' => $email];
+        $rows[] = ['imie' => $imie, 'nazwisko' => $nazw, 'rola' => $role, 'klasa' => $klasa, 'grupa' => $grupa, 'email' => $email];
     }
     return ['rows' => $rows, 'errors' => $errors];
+}
+
+/** Aktywne grupy z TI (kursy) — do wyboru w kreatorze. */
+function msEduBulkTiGroups(): array {
+    try {
+        return array_column(db()->query("SELECT name FROM k30_ti_courses WHERE is_active=1 AND TRIM(name)<>'' ORDER BY name")->fetchAll(PDO::FETCH_ASSOC), 'name');
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Grupa domyślna z pól formularza: wybór z TI albo nowa nazwa; '' = bez grupy. */
+function msEduBulkGroupFromPost(array $post): string {
+    $w = (string)($post['grupa_wybor'] ?? '');
+    return trim($w === '__new' ? (string)($post['grupa_nowa'] ?? '') : $w);
+}
+
+/** Pola formularza „Grupa” (select z TI + nowa grupa). */
+function msEduBulkGroupField(string $selected, array $tiGroups, string $id = 'gw'): string {
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $isNew = $selected !== '' && !in_array($selected, $tiGroups, true);
+    $o = '<option value="">— bez grupy —</option>';
+    foreach ($tiGroups as $g) $o .= '<option value="' . $e($g) . '"' . ($g === $selected ? ' selected' : '') . '>' . $e($g) . '</option>';
+    $o .= '<option value="__new"' . ($isNew ? ' selected' : '') . '>+ nowa grupa…</option>';
+    return '<label class="form-label small fw-semibold" for="' . $id . '">Grupa <span class="text-muted fw-normal">(z TI lub nowa — tworzona też w MS365)</span></label>'
+         . '<select id="' . $id . '" name="grupa_wybor" class="form-select" onchange="document.getElementById(\'' . $id . 'N\').style.display=this.value===\'__new\'?\'\':\'none\'">' . $o . '</select>'
+         . '<input id="' . $id . 'N" name="grupa_nowa" class="form-control form-control-sm mt-1" placeholder="nazwa nowej grupy" value="' . $e($isNew ? $selected : '') . '" style="' . ($isNew ? '' : 'display:none') . '">';
 }

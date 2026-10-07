@@ -25,7 +25,7 @@ if (isset($_GET['clear'])) { unset($_SESSION['msEduBulkResult'], $_SESSION['msEd
 if (isset($_GET['csv']) && $result) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="konta_m365_edu_' . date('Ymd_His') . '.csv"');
-    echo "\xEF\xBB\xBFimie;nazwisko;rola;klasa;email;login;haslo\n";
+    echo "\xEF\xBB\xBFimie;nazwisko;rola;grupa;email;login;haslo\n";
     foreach ($result as $r) echo implode(';', [$r['imie'], $r['nazwisko'], $r['rola'], $r['klasa'], $r['email'] ?? '', $r['upn'], $r['password']]) . "\n";
     exit;
 }
@@ -45,7 +45,8 @@ $mode   = in_array($_POST['tryb'] ?? '', ['rola', 'imie_nazwisko', 'szkolenie'],
 $slug   = trim((string)($_POST['szkolenie'] ?? ''));
 $skuSel = ['uczen' => msEduBulkSkuList($_POST['sku_uczen'] ?? []), 'nauczyciel' => msEduBulkSkuList($_POST['sku_nauczyciel'] ?? [])];
 $defRole  = msEduBulkRole((string)($_POST['rola_domyslna'] ?? 'uczen')) ?: 'uczen';
-$defKlasa = trim((string)($_POST['klasa_domyslna'] ?? ''));
+$defKlasa = msEduBulkGroupFromPost($_POST);
+$tiGroups = msEduBulkTiGroups();
 $map    = array_map('strval', (array)($_POST['map'] ?? []));
 $header = !empty($_POST['naglowek']);
 $plan = null; $res = null; $rowErrors = [];
@@ -135,6 +136,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <?php foreach ($errors as $e): ?><div class="alert alert-danger py-2 small mb-2"><?= h($e) ?></div><?php endforeach; ?>
 
   <?php if ($res && $res['errors']): ?><div class="alert alert-warning small">Nie utworzono: <?= h(implode(' | ', $res['errors'])) ?></div><?php endif; ?>
+  <?php if ($res && !empty($res['groups_created'])): ?><div class="alert alert-info py-2 small"><i class="bi bi-diagram-3 me-1"></i>Utworzono grupy w MS365: <strong><?= h(implode(', ', $res['groups_created'])) ?></strong></div><?php endif; ?>
 
   <?php if ($result): ?>
   <div class="card mb-4 border-success">
@@ -148,7 +150,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <a href="?clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Zamknąć listę? Hasła znikną z sesji.')">Zamknij listę</a>
     </div>
     <div class="table-responsive"><table class="table table-sm mb-0 font-monospace">
-      <thead class="table-light"><tr><th>Osoba</th><th>Klasa</th><th>Login</th><th>Hasło</th><th></th></tr></thead>
+      <thead class="table-light"><tr><th>Osoba</th><th>Grupa</th><th>Login</th><th>Hasło</th><th></th></tr></thead>
       <tbody><?php foreach ($result as $r): ?>
         <tr><td><?= h($r['imie'] . ' ' . $r['nazwisko']) ?></td><td><?= h($r['klasa']) ?></td><td><?= h($r['upn']) ?></td><td><?= h($r['password']) ?></td>
             <td class="text-warning small"><?= h($r['warn'] ?? '') ?></td></tr>
@@ -168,7 +170,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <p class="small text-muted mb-2">Skopiuj tabelę z Excela (Ctrl+C) i wklej poniżej (Ctrl+V) <strong>albo</strong> wybierz plik XLSX / CSV. W następnym kroku wskażesz, która kolumna co zawiera.
       Wymagane: imię, nazwisko i <strong>e-mail alternatywny</strong> (na niego wyślemy dane logowania).</p>
     <textarea name="wklej" rows="9" class="form-control font-monospace mb-3" aria-label="Wklej listę osób"
-              placeholder="Imię&#9;Nazwisko&#9;E-mail&#9;Rola&#9;Klasa&#10;Jan&#9;Kowalski&#9;jan@gmail.com&#9;uczeń&#9;1A"></textarea>
+              placeholder="Imię&#9;Nazwisko&#9;E-mail&#9;Rola&#9;Grupa&#10;Jan&#9;Kowalski&#9;jan@gmail.com&#9;uczeń&#9;1A"></textarea>
     <div class="mb-3"><label class="form-label small fw-semibold" for="plik">…lub plik (XLSX, CSV)</label>
       <input id="plik" type="file" name="plik" class="form-control" accept=".xlsx,.csv,.txt"></div>
     <div><button class="btn btn-primary"><i class="bi bi-arrow-right-circle me-1"></i>Dalej — dopasuj kolumny</button></div>
@@ -192,8 +194,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <div class="row g-3 mb-3">
       <div class="col-md-3"><label class="form-label small fw-semibold" for="rd">Rola domyślna <span class="text-muted fw-normal">(gdy brak kolumny)</span></label>
         <select id="rd" name="rola_domyslna" class="form-select"><option value="uczen"<?= $defRole === 'uczen' ? ' selected' : '' ?>>uczeń / kursant</option><option value="nauczyciel"<?= $defRole === 'nauczyciel' ? ' selected' : '' ?>>nauczyciel</option></select></div>
-      <div class="col-md-3"><label class="form-label small fw-semibold" for="kd">Klasa / grupa domyślna</label>
-        <input id="kd" name="klasa_domyslna" class="form-control" value="<?= h($defKlasa) ?>"></div>
+      <div class="col-md-3"><?= msEduBulkGroupField($defKlasa, $tiGroups) ?></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="rok">Rok rozpoczęcia nauki</label>
         <input id="rok" name="rok" class="form-control" value="<?= h($year) ?>" maxlength="4"></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="domena">Domena kont</label>
@@ -218,7 +219,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <?php if ($rowErrors): ?><div class="alert alert-warning py-2 small"><strong>Pominięte wiersze (<?= count($rowErrors) ?>):</strong><br><?= h(implode(' • ', $rowErrors)) ?></div><?php endif; ?>
     <h2 class="h5">3. Podgląd — nic jeszcze nie utworzono (<?= count($plan) ?>)</h2>
     <div class="table-responsive mb-3"><table class="table table-sm mb-0">
-      <thead class="table-light"><tr><th>Osoba</th><th>Rola</th><th>Klasa / dział</th><th>E-mail alternatywny</th><th>Login</th></tr></thead>
+      <thead class="table-light"><tr><th>Osoba</th><th>Rola</th><th>Grupa</th><th>E-mail alternatywny</th><th>Login</th></tr></thead>
       <tbody><?php foreach ($plan as $r): ?><tr><td><?= h($r['imie'] . ' ' . $r['nazwisko']) ?></td><td><?= h($r['rola']) ?></td><td><?= h($r['klasa']) ?></td><td><?= h($r['email']) ?></td><td class="font-monospace"><?= h($r['upn']) ?></td></tr><?php endforeach; ?></tbody>
     </table></div>
     <?php endif; ?>
