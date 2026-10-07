@@ -13,6 +13,7 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ms_edu_bulk/logic/msEduBulk.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ms_edu_bulk/logic/msEduBulkMail.php';
 
 $me       = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -36,6 +37,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: microsoft365.php'); exit;
     }
 
+    if (in_array($op, ['mail_preview', 'mail_test', 'mail_send'], true) && !empty($_SESSION['new_ms_bulk'])) {
+        $mail = ['subject' => trim((string)($_POST['mb_subject'] ?? '')) ?: MS_EDU_BULK_MAIL_SUBJECT,
+                 'body' => (string)($_POST['mb_body'] ?? '') ?: MS_EDU_BULK_MAIL_BODY,
+                 'szkolenie' => trim((string)($_POST['mb_szkolenie'] ?? ''))];
+        $_SESSION['new_ms_mail'] = $mail;
+        $rowsB = $_SESSION['new_ms_bulk'];
+        if ($op === 'mail_test') {
+            $to = trim((string)($me['email'] ?? ''));
+            if (!filter_var($to, FILTER_VALIDATE_EMAIL)) flash_set('danger', 'Brak Twojego adresu e-mail w sesji panelu.');
+            else {
+                $f = $rowsB[0]; $f['email'] = $to;
+                $t = msEduBulkMailSend([$f], '[TEST] ' . $mail['subject'], $mail['body'], $mail['szkolenie']);
+                flash_set($t['sent'] ? 'success' : 'danger', $t['sent'] ? "Wysłano test na $to." : implode(' ', $t['failed']));
+            }
+        } elseif ($op === 'mail_send') {
+            $only = array_map('intval', (array)($_POST['mb_sel'] ?? []));
+            if (!$only) flash_set('danger', 'Zaznacz odbiorców.');
+            else {
+                $sx = msEduBulkMailSend($rowsB, $mail['subject'], $mail['body'], $mail['szkolenie'], $only);
+                $_SESSION['new_ms_bulk'] = $sx['rows'];
+                flash_set($sx['failed'] ? 'warning' : 'success', 'Zakolejkowano wiadomości: ' . $sx['sent'] . ($sx['failed'] ? '. Błędy: ' . implode(' | ', $sx['failed']) : '.'));
+            }
+        }
+        header('Location: microsoft365.php'); exit;
+    }
+
     if ($op === 'ms_bulk') {
         $ids  = array_values(array_unique(array_map('intval', (array)($_POST['account_ids'] ?? []))));
         $mode = in_array($_POST['tryb'] ?? '', ['szkolenie', 'imie_nazwisko'], true) ? $_POST['tryb'] : 'szkolenie';
@@ -45,14 +72,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$ids) { flash_set('danger', 'Zaznacz kursantów.'); header('Location: microsoft365.php'); exit; }
         if ($mode === 'szkolenie' && msEduBulkAscii($slug) === '') { flash_set('danger', 'Podaj nazwę szkolenia.'); header('Location: microsoft365.php'); exit; }
         $graph = m365_training();
-        $rows = []; $map = [];
+        $rows = []; $map = []; $noMail = [];
         foreach (array_slice($ids, 0, 200) as $aid) {
             $r = ti_student_row($aid);
             if (!$r || !empty($r['ms_user_id'])) continue;
             $name = trim((string)($r['client_name'] ?: $r['login']));
+            $altMail = trim((string)($r['client_email'] ?? ''));
+            if (!filter_var($altMail, FILTER_VALIDATE_EMAIL)) { $noMail[] = $name; continue; }
             $parts = preg_split('/\s+/u', $name, 2);
-            $rows[] = ['imie' => $parts[0], 'nazwisko' => $parts[1] ?? $parts[0], 'rola' => 'uczen', 'klasa' => $slug, 'aid' => $aid];
+            $rows[] = ['imie' => $parts[0], 'nazwisko' => $parts[1] ?? $parts[0], 'rola' => 'uczen', 'klasa' => $slug, 'aid' => $aid, 'email' => $altMail];
         }
+        if ($noMail) flash_set('warning', 'Pominięto (brak e-maila alternatywnego w karcie beneficjenta): ' . implode(', ', $noMail));
+        if (!$rows) { if (!$noMail) flash_set('danger', 'Brak kursantów do utworzenia.'); header('Location: microsoft365.php'); exit; }
         $domain = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
         $start = 1 + (int)(db_one("SELECT COUNT(*) c FROM k30_ti_student_accounts WHERE ms_upn LIKE ?", [msEduBulkAscii($slug) . '%@%'])['c'] ?? 0);
         $planned = msEduBulkPlan($graph, $rows, $domain, date('Y'), $mode, $slug, $start);
@@ -63,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ms_created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
             ], (int)$r['aid']);
         }
-        if ($res['ok']) $_SESSION['new_ms_bulk'] = $res['ok'];
+        if ($res['ok']) { $_SESSION['new_ms_bulk'] = $res['ok']; $_SESSION['new_ms_mail'] = ['subject' => MS_EDU_BULK_MAIL_SUBJECT, 'body' => MS_EDU_BULK_MAIL_BODY, 'szkolenie' => $slug]; }
         flash_set($res['errors'] ? 'warning' : 'success', 'Utworzono kont: ' . count($res['ok']) . ($res['errors'] ? '. Błędy: ' . implode(' | ', $res['errors']) : '.'));
         header('Location: microsoft365.php'); exit;
     }
@@ -98,7 +129,7 @@ if (isset($_GET['pdf']) && $new_ms_bulk) {
     header('Content-Disposition: inline; filename="konta_m365_' . date('Ymd_His') . '.pdf"');
     echo msEduBulkPdf($new_ms_bulk); exit;
 }
-if (isset($_GET['clear'])) { unset($_SESSION['new_ms_bulk']); header('Location: microsoft365.php'); exit; }
+if (isset($_GET['clear'])) { unset($_SESSION['new_ms_bulk'], $_SESSION['new_ms_mail']); header('Location: microsoft365.php'); exit; }
 $ms_skus = $ms_online_enabled ? m365_training()->get_subscribed_skus() : [];
 $ms_default_sku = ti_m365_setting('default_sku');
 $new_ms_creds = $_SESSION['new_ms_creds'] ?? null;
@@ -164,6 +195,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </table>
 </div>
 <?php endif; ?>
+
+<?php if ($new_ms_bulk):
+  $_m = $_SESSION['new_ms_mail'] ?? ['subject' => MS_EDU_BULK_MAIL_SUBJECT, 'body' => MS_EDU_BULK_MAIL_BODY, 'szkolenie' => ''];
+  $mbRows = $new_ms_bulk; $mbTokenName = '_token'; $mbTokenValue = dyd_token(); $mbAction = 'microsoft365.php';
+  $mbSubject = $_m['subject']; $mbBody = $_m['body']; $mbSzkolenie = $_m['szkolenie'] ?? '';
+  include dirname(__DIR__, 3) . '/modules/ms_edu_bulk/views/mailComposer.php';
+endif; ?>
 
 <?php if ($ms_online_enabled): ?>
 <form method="post" id="msBulkForm" class="card border-0 shadow-sm mb-4">
