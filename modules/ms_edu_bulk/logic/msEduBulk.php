@@ -8,6 +8,8 @@
  * grupa „Uczniowie_{rok}" / „Nauczyciele" (tworzona, jeśli brak), UsageLocation PL.
  */
 
+require_once dirname(__DIR__, 3) . '/includes/m365.php';
+
 function msEduBulkAscii(string $s): string {
     $s = strtr($s, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
                     'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z']);
