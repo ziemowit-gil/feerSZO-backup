@@ -18,7 +18,7 @@
     <div class="row g-2 align-items-end">
       <div class="col-md-3"><label class="form-label small fw-semibold" for="zaMgr">Menedżer (UPN)</label>
         <input id="zaMgr" name="manager" class="form-control form-control-sm" placeholder="np. jan.kowalski@domena"></div>
-      <div class="col-md-4"><?= msEduBulkGroupField('', msEduBulkTiGroups(), 'zaGw') ?></div>
+      <div class="col-md-4"><?= msEduBulkGroupField('', msEduBulkTiGroups(), 'zaGw', msEduBulkEntraGroups()) ?></div>
       <?php if ($zaAllowRoles): ?>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="zaRole">Rola administracyjna Entra</label>
         <select id="zaRole" name="role" class="form-select form-select-sm"><option value="">— wybierz —</option>

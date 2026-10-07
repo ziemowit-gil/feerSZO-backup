@@ -289,7 +289,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="row g-3 mb-3">
       <div class="col-md-3"><label class="form-label small fw-semibold" for="rd">Rola domyślna <span class="text-muted fw-normal">(gdy brak kolumny)</span></label>
         <select id="rd" name="rola_domyslna" class="form-select"><option value="uczen"<?= $defRole === 'uczen' ? ' selected' : '' ?>>uczeń / kursant</option><option value="nauczyciel"<?= $defRole === 'nauczyciel' ? ' selected' : '' ?>>nauczyciel</option></select></div>
-      <div class="col-md-3"><?= msEduBulkGroupField($defKlasa, $tiGroups) ?></div>
+      <div class="col-md-3"><?= msEduBulkGroupField($defKlasa, $tiGroups, 'gw', msEduBulkEntraGroups($graph)) ?></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="rok">Rok rozpoczęcia nauki</label>
         <input id="rok" name="rok" class="form-control" value="<?= h($year) ?>" maxlength="4"></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="domena">Domena kont</label>

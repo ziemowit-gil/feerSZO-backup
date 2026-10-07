@@ -170,14 +170,29 @@ function msEduBulkGroupFromPost(array $post): string {
     return trim($w === '__new' ? (string)($post['grupa_nowa'] ?? '') : $w);
 }
 
-/** Pola formularza „Grupa” (select z TI + nowa grupa). */
-function msEduBulkGroupField(string $selected, array $tiGroups, string $id = 'gw'): string {
+/** Nazwy grup bezpieczeństwa z Entra ID (tenant EDU); [] przy braku połączenia. Cache na czas żądania. */
+function msEduBulkEntraGroups(?M365Graph $graph = null): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $graph = $graph ?: m365_edu();
+        $cache = $graph->is_configured() ? array_values(array_filter(array_map(fn($g) => (string)($g['displayName'] ?? ''), $graph->get_security_groups(300)))) : [];
+    } catch (\Throwable $e) { $cache = []; }
+    return $cache;
+}
+
+/** Pola formularza „Grupa” (select: grupy z TI + grupy z Entra ID + nowa). */
+function msEduBulkGroupField(string $selected, array $tiGroups, string $id = 'gw', array $entraGroups = []): string {
     $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-    $isNew = $selected !== '' && !in_array($selected, $tiGroups, true);
+    $entraOnly = array_values(array_diff($entraGroups, $tiGroups));
+    $known = array_merge($tiGroups, $entraOnly);
+    $isNew = $selected !== '' && !in_array($selected, $known, true);
+    $opt = fn($g) => '<option value="' . $e($g) . '"' . ($g === $selected ? ' selected' : '') . '>' . $e($g) . '</option>';
     $o = '<option value="">— bez grupy —</option>';
-    foreach ($tiGroups as $g) $o .= '<option value="' . $e($g) . '"' . ($g === $selected ? ' selected' : '') . '>' . $e($g) . '</option>';
+    if ($tiGroups) $o .= '<optgroup label="Grupy z TI (w MS365 utworzone, jeśli brak)">' . implode('', array_map($opt, $tiGroups)) . '</optgroup>';
+    if ($entraOnly) $o .= '<optgroup label="Grupy w Entra ID (MS365)">' . implode('', array_map($opt, $entraOnly)) . '</optgroup>';
     $o .= '<option value="__new"' . ($isNew ? ' selected' : '') . '>+ nowa grupa…</option>';
-    return '<label class="form-label small fw-semibold" for="' . $id . '">Grupa <span class="text-muted fw-normal">(z TI lub nowa — tworzona też w MS365)</span></label>'
+    return '<label class="form-label small fw-semibold" for="' . $id . '">Grupa <span class="text-muted fw-normal">(z TI, z Entra ID lub nowa — tworzona też w MS365)</span></label>'
          . '<select id="' . $id . '" name="grupa_wybor" class="form-select" onchange="document.getElementById(\'' . $id . 'N\').style.display=this.value===\'__new\'?\'\':\'none\'">' . $o . '</select>'
          . '<input id="' . $id . 'N" name="grupa_nowa" class="form-control form-control-sm mt-1" placeholder="nazwa nowej grupy" value="' . $e($isNew ? $selected : '') . '" style="' . ($isNew ? '' : 'display:none') . '">';
 }
