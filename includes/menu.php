@@ -520,6 +520,8 @@ function _menu_editor(): array {
         ];
         $integ = [
             _mi('Microsoft 365','/admin/m365_settings.php','bi-microsoft',['match'=>'/admin/m365','kw'=>'m365 integracja graph']),
+            _mi('Kody dostępowe M365','/admin/ms_edu_codes.php','bi-key-fill',['match'=>'/admin/ms_edu_codes','kw'=>'kody dostępowe m365 konta edu lccc']),
+            _mi('Konta M365 Edu — hurtowo','/modules/ms_edu_bulk/index.php','bi-people-fill',['match'=>'/modules/ms_edu_bulk','kw'=>'konta m365 edu hurtowo generowanie uczniowie nauczyciele pdf login hasło']),
             _mi('SharePoint','/admin/sharepoint_settings.php','bi-cloud-upload',['match'=>'/admin/sharepoint','kw'=>'sharepoint']),
             _mi('Szkolenia (TidyCal)','/admin/tidycal_settings.php','bi-calendar2-check',['match'=>'/admin/tidycal','kw'=>'tidycal szkolenia']),
             _mi('Zadania / Nozbe','/admin/nozbe_settings.php','bi-check2-square',['match'=>'/admin/nozbe_settings','kw'=>'nozbe zadania integracja']),
