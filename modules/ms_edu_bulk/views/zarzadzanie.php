@@ -33,6 +33,13 @@
         <div class="border-top mt-2 pt-2"><div class="small fw-semibold mb-1"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneracja konta (przycisk przy koncie)</div>
           <div class="form-check"><input class="form-check-input" type="checkbox" id="zaRegMail" name="regen_mail" value="1" checked>
             <label class="form-check-label small" for="zaRegMail">Wyślij e-mail z danymi i przeprosinami</label></div>
+          <div class="row g-1 mt-1">
+            <?php for ($n = 0; $n < 2; $n++): ?>
+            <div class="col-6"><label class="form-label small mb-0" for="zaRegSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcj.)' : '' ?></label>
+              <select id="zaRegSku<?= $n ?>" name="regen_skus[]" class="form-select form-select-sm"><option value="">— brak —</option>
+                <?php foreach (($zaSkus ?? []) as $sk): ?><option value="<?= h($sk['skuId']) ?>"><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+            <?php endfor; ?>
+          </div>
           <label class="form-label small mb-0 mt-1" for="zaRegMsg">Własna wiadomość w mailu (opcj.)</label>
           <textarea id="zaRegMsg" name="regen_msg" rows="2" class="form-control form-control-sm" maxlength="1000" placeholder="np. Prosimy o zalogowanie się do piątku."></textarea>
           <button name="_op" value="regenerate" class="btn btn-sm btn-outline-warning w-100 mt-2" onclick="return confirm('Zregenerować zaznaczone konta w tenancie EDU? Zostaną utworzone ponownie z tym samym loginem tam, gdzie ich brakuje (istniejące konta nie są ruszane). Jeśli zaznaczono opcję e-maila, osoby z adresem alternatywnym dostaną dane i przeprosiny.')"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneruj zaznaczone</button>
