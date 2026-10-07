@@ -49,6 +49,21 @@ function msEduBulkMigrate(): void {
     } catch (\Throwable $e) { error_log('[msedu_bulk migrate] ' . $e->getMessage()); }
 }
 
+/**
+ * Weryfikacja kodem IKA przed operacją zmieniającą konta (tworzenie, reset haseł, usuwanie, grupy, licencje itd.).
+ * Krótszy czas ważności niż domyślny dla panelu (10 min): po jego upływie operacja NIE jest wykonywana,
+ * a użytkownik trafia na bramę IKA i po weryfikacji wraca na stronę, by ponowić operację.
+ * Zwolnienia jak w całym systemie (ika_ok): wyłączony moduł IKA, sesja uwierzytelniona kluczem WebAuthn.
+ */
+function msEduBulkIkaGuard(int $ttl = 600): void {
+    if (!function_exists('ika_ok') || ika_ok('', $ttl)) return;
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $back = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . strtok((string)($_SERVER['REQUEST_URI'] ?? '/'), '#');
+    if (function_exists('flash_set')) flash_set('warning', 'Operacja na kontach wymaga weryfikacji kodem IKA (ważna ' . intdiv($ttl, 60) . ' min). Operacja NIE została wykonana — zweryfikuj się i ponów ją.');
+    header('Location: ' . APP_URL . '/contracts/ika_gate.php?to=' . urlencode($back));
+    exit;
+}
+
 /** Zapis konta w rejestrze (wołane po udanym utworzeniu). Nigdy nie przerywa tworzenia. */
 function msEduBulkRegister(string $msUserId, array $r): void {
     try {

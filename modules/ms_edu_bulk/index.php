@@ -49,6 +49,8 @@ if (isset($_GET['pdf']) && $result) {
 
 // ── Stan formularza ──────────────────────────────────────────────────────────
 $op     = (string)($_POST['_op'] ?? '');
+// Tworzenie kont, ponowienie grup i wysyłka e-maili z hasłami wymagają świeżej weryfikacji IKA
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($op, ['utworz', 'anon_utworz', 'retry_groups', 'mail_test', 'mail_send'], true)) msEduBulkIkaGuard();
 $grid   = [];
 $errors = [];
 $year   = preg_match('/^\d{4}$/', $_POST['rok'] ?? '') ? $_POST['rok'] : date('Y');
@@ -168,10 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>
 <div class="container-xl py-4">
-  <div class="d-flex align-items-center mb-3"><h1 class="h3 fw-bold mb-0"><i class="bi bi-<?= $ms_view === 'kreator' ? 'magic' : 'people-fill' ?> me-2"></i><?= $ms_view === 'kreator' ? 'Kreator kont z listy' : 'Generowanie kont M365 Edu' ?></h1>
-    <?php if ($ms_view === 'kreator'): ?><a href="<?= h($lnk['hub']) ?>" class="btn btn-sm btn-outline-secondary ms-3">← Generator</a><?php endif; ?>
-    <a href="<?= h($lnk['konta']) ?>" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-person-gear me-1"></i>Zarządzanie kontami</a></div>
+  <div class="d-flex align-items-center mb-3"><h1 class="h3 fw-bold mb-0"><i class="bi bi-<?= $ms_view === 'kreator' ? 'magic' : 'people-fill' ?> me-2"></i><?= $ms_view === 'kreator' ? 'Kreator kont z listy' : 'Generowanie kont M365 Edu' ?></h1></div>
   <?php include __DIR__ . '/views/tenantInfo.php'; ?>
+  <?= msEduBulkTabs(['hub' => ['Generator', $lnk['hub'], 'bi-people-fill'], 'kreator' => ['Kreator z listy (XLS)', $lnk['kreator'], 'bi-magic'], 'konta' => ['Administracja kont', $lnk['konta'], 'bi-person-gear']], $ms_view) ?>
   <?= flash_html() ?>
   <?php if ($ms_view === 'kreator'):
     $_st = $result && !$grid ? 4 : ($plan ? 3 : ($grid ? 2 : 1));

@@ -12,10 +12,14 @@ require_once __DIR__ . '/logic/msEduBulkImport.php';
 require_role('admin');
 $PAGE_TITLE = 'Konto EDU — podgląd';
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'konto.php'), '?');
-$back = str_starts_with($self, '/ms') ? '/ms/konta' : 'konta.php';
+$_alias = str_starts_with($self, '/ms');
+$back = $_alias ? '/ms/konta' : 'konta.php';
+$lnk = $_alias ? ['hub' => '/ms', 'kreator' => '/ms/kreator', 'konta' => '/ms/konta'] : ['hub' => 'index.php', 'kreator' => 'kreator.php', 'konta' => 'konta.php'];
 
 $rows = msEduBulkAccountsByIds([(int)($_GET['id'] ?? 0)]);
 $a = $rows[0] ?? null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') msEduBulkIkaGuard(); // zmiany na koncie wymagają świeżej weryfikacji IKA
 
 // ── Zarządzanie grupami konta ─────────────────────────────────────────────
 if ($a && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -67,6 +71,7 @@ $dt = fn($v) => $v ? h(str_replace('T', ' ', substr((string)$v, 0, 16))) : '—'
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>
 <div class="container-xl py-4" style="max-width:1000px">
+  <?= msEduBulkTabs(['hub' => ['Generator', $lnk['hub'], 'bi-people-fill'], 'kreator' => ['Kreator z listy (XLS)', $lnk['kreator'], 'bi-magic'], 'konta' => ['Administracja kont', $lnk['konta'], 'bi-person-gear']], 'konta') ?>
   <div class="d-flex align-items-center gap-2 mb-3">
     <h1 class="h3 fw-bold mb-0"><i class="bi bi-person-vcard me-2"></i>Podgląd konta EDU</h1>
     <a href="<?= h($back) ?>" class="btn btn-sm btn-outline-secondary ms-auto">← Zarządzanie kontami</a>

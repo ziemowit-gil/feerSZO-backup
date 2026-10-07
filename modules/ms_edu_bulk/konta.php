@@ -10,6 +10,8 @@ require_once __DIR__ . '/logic/msEduBulk.php';
 require_once __DIR__ . '/logic/msEduBulkImport.php';
 
 require_role('admin');
+// Każda operacja zmieniająca konta wymaga świeżej weryfikacji IKA (porównanie z tenantem jest tylko odczytem)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') !== 'compare') msEduBulkIkaGuard();
 $PAGE_TITLE = 'Konta EDU — zarządzanie';
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'konta.php'), '?');
 
@@ -132,6 +134,8 @@ $zaRows = $widok === 'wygenerowane' ? msEduBulkAccountsList($zaQ, $zaStatus, $za
 $delRows = $widok === 'usuniete' ? msEduBulkDeletedList($zaQ) : [];
 $cntGen = (int)db()->query("SELECT COUNT(*) FROM msedu_bulk_accounts")->fetchColumn();
 $cntDel = (int)db()->query("SELECT COUNT(*) FROM msedu_bulk_deleted")->fetchColumn();
+$_alias = str_starts_with($self, '/ms');
+$lnk = $_alias ? ['hub' => '/ms', 'kreator' => '/ms/kreator', 'konta' => '/ms/konta'] : ['hub' => 'index.php', 'kreator' => 'kreator.php', 'konta' => 'konta.php'];
 $zaAction = $self; $zaTokenName = '_csrf'; $zaTokenValue = csrf_token(); $zaAllowRoles = true;
 $zaSkus = m365_edu_ready() ? m365_edu()->get_subscribed_skus() : [];
 $zaDetailUrl = str_starts_with($self, '/ms') ? '/ms/konto' : 'konto.php';
@@ -140,9 +144,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 <div class="container-xl py-4">
   <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
     <h1 class="h3 fw-bold mb-0"><i class="bi bi-person-gear me-2"></i>Konta EDU — zarządzanie</h1>
-    <a href="<?= h(dirname($self)) ?>" class="btn btn-sm btn-outline-secondary ms-auto">← Generator kont</a>
   </div>
   <?php include __DIR__ . '/views/tenantInfo.php'; ?>
+  <?= msEduBulkTabs(['hub' => ['Generator', $lnk['hub'], 'bi-people-fill'], 'kreator' => ['Kreator z listy (XLS)', $lnk['kreator'], 'bi-magic'], 'konta' => ['Administracja kont', $lnk['konta'], 'bi-person-gear']], 'konta') ?>
   <?= flash_html() ?>
   <?php if (!empty($_SESSION['msEduBulkReset'])): ?>
   <div class="alert alert-info d-flex align-items-center gap-2 flex-wrap" role="status">
