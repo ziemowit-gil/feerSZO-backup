@@ -143,6 +143,29 @@ class M365Graph {
         return $resp;
     }
 
+    /**
+     * Tworzy konto z jawnym imieniem/nazwiskiem i działem (np. klasą) — hasło tymczasowe,
+     * wymuszona zmiana przy pierwszym logowaniu, UsageLocation PL.
+     */
+    public function create_user_full(string $login, string $given, string $surname, string $password, string $department = ''): array {
+        $body = [
+            'accountEnabled'    => true,
+            'displayName'       => trim($given . ' ' . $surname),
+            'givenName'         => $given,
+            'surname'           => $surname,
+            'mailNickname'      => explode('@', $login)[0],
+            'userPrincipalName' => $login,
+            'passwordProfile'   => ['forceChangePasswordNextSignIn' => true, 'password' => $password],
+            'usageLocation'     => 'PL',
+        ];
+        if ($department !== '') $body['department'] = $department;
+        $resp = $this->http_post('https://graph.microsoft.com/v1.0/users', $body);
+        if (empty($resp['id'])) {
+            throw new RuntimeException('Błąd tworzenia użytkownika: ' . json_encode($resp));
+        }
+        return $resp;
+    }
+
     /** Tworzy użytkownika z opcjonalnym employeeId (dla K30). */
     public function create_user_with_employee_id(string $login, string $display_name, string $password, string $employee_id = ''): array {
         [$first, $rest] = array_pad(explode(' ', $display_name, 2), 2, '');
