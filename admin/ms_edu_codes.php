@@ -44,12 +44,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ms_edu_codes.php'); exit;
     }
 
+    if ($op === 'bulk') {
+        $res = msedu_bulk_generate((int)($_POST['id'] ?? 0), (int)($_POST['count'] ?? 0));
+        if ($res['accounts']) {
+            $_SESSION['msedu_bulk'] = $res['accounts'];
+            flash_set($res['errors'] ? 'warning' : 'success',
+                'Utworzono kont: ' . count($res['accounts']) . '.' . ($res['errors'] ? ' Przerwano: ' . $res['errors'][0] : ''));
+            header('Location: ms_edu_codes.php?bulk=1'); exit;
+        }
+        flash_set('danger', $res['msg'] ?? implode(' ', $res['errors']) ?: 'Nie utworzono żadnego konta.');
+        header('Location: ms_edu_codes.php'); exit;
+    }
+
     if ($op === 'delete') {
         msedu_code_delete((int)($_POST['id'] ?? 0));
         flash_set('success', 'Kod usunięty.');
         header('Location: ms_edu_codes.php'); exit;
     }
 }
+
+// Hasła pokazujemy tylko raz (w sesji) — CSV do pobrania, potem czyszczone.
+$bulk = null;
+if (isset($_GET['csv']) && !empty($_SESSION['msedu_bulk'])) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="konta_m365_' . date('Ymd_His') . '.csv"');
+    echo "\xEF\xBB\xBFlogin;haslo\n";
+    foreach ($_SESSION['msedu_bulk'] as $a) echo $a['upn'] . ';' . $a['password'] . "\n";
+    unset($_SESSION['msedu_bulk']); exit;
+}
+if (isset($_GET['bulk']) && !empty($_SESSION['msedu_bulk'])) $bulk = $_SESSION['msedu_bulk'];
 
 $codes = msedu_codes_list();
 $skus  = (new M365Graph())->get_subscribed_skus();
@@ -79,6 +102,21 @@ include dirname(__DIR__) . '/includes/header.php';
   <p class="text-muted small">
     Publiczna strona do realizacji kodu: <code><?= h(rtrim(APP_URL, '/')) ?>/ext/kontoMicrosoftEdu/</code>
   </p>
+
+  <?php if ($bulk): ?>
+  <div class="card mb-4 border-success">
+    <div class="card-header d-flex align-items-center gap-2">
+      <span>Wygenerowane konta (<?= count($bulk) ?>) — hasła widoczne tylko teraz</span>
+      <a href="?csv=1" class="btn btn-sm btn-success ms-auto"><i class="bi bi-download me-1"></i>Pobierz CSV</a>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i></button>
+    </div>
+    <div class="table-responsive"><table class="table table-sm mb-0 font-monospace">
+      <thead class="table-light"><tr><th>Login</th><th>Hasło tymczasowe</th></tr></thead>
+      <tbody><?php foreach ($bulk as $a): ?><tr><td><?= h($a['upn']) ?></td><td><?= h($a['password']) ?></td></tr><?php endforeach; ?></tbody>
+    </table></div>
+    <div class="card-footer small text-muted">Po pobraniu CSV lista zniknie. Przy pierwszym logowaniu konto wymusi zmianę hasła.</div>
+  </div>
+  <?php endif; ?>
 
   <?php if ($view_code): ?>
   <div class="card mb-4">
@@ -119,6 +157,17 @@ include dirname(__DIR__) . '/includes/header.php';
             <td class="text-muted"><?= $c['expires_at'] ? h(substr($c['expires_at'],0,10)) : '—' ?></td>
             <td><span class="badge text-bg-<?= $cls ?>"><?= $lbl ?></span></td>
             <td class="text-end">
+              <?php if ($st === 'active'): ?>
+              <form method="post" class="d-inline-flex gap-1 align-items-center"
+                    onsubmit="return confirm('Utworzyć ' + this.count.value + ' kont M365 (REALNE konta w Entra ID)?')">
+                <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="_op" value="bulk">
+                <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
+                <input type="number" name="count" min="1" max="<?= max(1, min(200, (int)$c['max_uses'] - (int)$c['used_count'])) ?>"
+                       value="1" class="form-control form-control-sm" style="width:5rem" aria-label="Liczba kont">
+                <button class="btn btn-sm btn-outline-primary" title="Wygeneruj konta hurtowo"><i class="bi bi-people"></i></button>
+              </form>
+              <?php endif; ?>
               <button class="btn btn-sm btn-outline-secondary"
                       onclick='msEduFormEdit(<?= htmlspecialchars(json_encode($c), ENT_QUOTES) ?>)'>
                 <i class="bi bi-pencil"></i>

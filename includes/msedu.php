@@ -144,6 +144,17 @@ function msedu_redeem(string $rawCode, string $ip): array {
     if ($status === 'expired')  return ['ok' => false, 'msg' => 'Ten kod utracił ważność.'];
     if ($status === 'exhausted') return ['ok' => false, 'msg' => 'Limit kont dla tego kodu został wyczerpany.'];
 
+    return msedu_create_account($row);
+}
+
+/**
+ * Zakłada jedno konto M365 wg konfiguracji kodu (prefiks, licencje) i zlicza użycie.
+ * Wspólne dla strony publicznej i generowania hurtowego z admina.
+ *
+ * @return array{ok:bool,msg?:string,upn?:string,password?:string}
+ */
+function msedu_create_account(array $row): array {
+    $code  = (string)$row['code'];
     $graph = new M365Graph();
     if (!$graph->is_configured()) {
         return ['ok' => false, 'msg' => 'Integracja Microsoft 365 nie jest skonfigurowana. Skontaktuj się z administratorem.'];
@@ -153,8 +164,9 @@ function msedu_redeem(string $rawCode, string $ip): array {
     $prefix = $row['login_prefix'] !== '' ? $row['login_prefix'] : 'edu_';
     $local  = $prefix . strtolower($code);
 
+    $used  = (int)(msedu_code_get_by_id((int)$row['id'])['used_count'] ?? $row['used_count']);
     $login = '';
-    for ($i = (int)$row['used_count'] + 1; $i <= (int)$row['used_count'] + 100; $i++) {
+    for ($i = $used + 1; $i <= $used + 100; $i++) {
         $candidate = "{$local}_{$i}@{$domain}";
         if (!$graph->login_exists($candidate)) { $login = $candidate; break; }
     }
@@ -182,4 +194,29 @@ function msedu_redeem(string $rawCode, string $ip): array {
     db()->prepare("UPDATE msedu_codes SET used_count = used_count + 1 WHERE id=?")->execute([(int)$row['id']]);
 
     return ['ok' => true, 'upn' => $login, 'password' => $pass];
+}
+
+/**
+ * Hurtowe generowanie kont dla kodu (admin). Respektuje status kodu i limit użyć —
+ * generuje co najwyżej tyle kont, ile zostało do wyczerpania limitu.
+ *
+ * @return array{ok:bool,msg?:string,accounts:array<int,array{upn:string,password:string}>,errors:string[]}
+ */
+function msedu_bulk_generate(int $codeId, int $count): array {
+    $row = msedu_code_get_by_id($codeId);
+    if (!$row) return ['ok' => false, 'msg' => 'Nie znaleziono kodu.', 'accounts' => [], 'errors' => []];
+    $status = msedu_code_status($row);
+    if ($status !== 'active') {
+        return ['ok' => false, 'msg' => 'Kod nie jest aktywny (status: ' . $status . ').', 'accounts' => [], 'errors' => []];
+    }
+    $left  = max(0, (int)$row['max_uses'] - (int)$row['used_count']);
+    $count = min(max(1, $count), $left, 200);
+    $out = ['ok' => true, 'accounts' => [], 'errors' => []];
+    for ($n = 0; $n < $count; $n++) {
+        $r = msedu_create_account(msedu_code_get_by_id($codeId));
+        if ($r['ok']) { $out['accounts'][] = ['upn' => $r['upn'], 'password' => $r['password']]; }
+        else { $out['errors'][] = $r['msg'] ?? 'Błąd'; break; }
+    }
+    $out['ok'] = (bool)$out['accounts'];
+    return $out;
 }
