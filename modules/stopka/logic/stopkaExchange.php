@@ -45,28 +45,12 @@ function stopkaExSettings(): array {
     return db_one("SELECT * FROM stopka_settings WHERE id=1") ?? [];
 }
 
-/** Szablon HTML dla Exchange: placeholdery %%…%% zamiast danych osoby, style inline. */
+/** Szablon HTML dla Exchange: placeholdery %%…%% zamiast danych osoby. Wygląd = konfigurator. */
 function stopkaExBuildHtml(array $s): string {
-    $e   = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $ph  = in_array($s['ex_phone_attr'] ?? '', ['MobilePhone', 'PhoneNumber'], true) ? $s['ex_phone_attr'] : 'MobilePhone';
-    $row = fn(string $t, string $st) => $t === '' ? '' : '<div style="' . $st . '">' . $t . '</div>';
-    $url = trim((string)($s['website'] ?? ''));
-    $href = $url === '' ? '' : (preg_match('~^https?://~i', $url) ? $url : 'https://' . $url);
-
-    $h  = '<div style="font-family:Arial,Helvetica,sans-serif;color:#222;font-size:13px;line-height:1.5;margin-top:12px;">';
-    $h .= $row('%%DisplayName%%', 'font-size:16px;font-weight:bold;line-height:1.4;');
-    $h .= $row('%%Title%%', 'font-size:13px;');
-    $h .= $row('tel. %%' . $ph . '%% &nbsp;|&nbsp; <a href="mailto:%%Email%%" style="color:#1d4ed8;text-decoration:none;">%%Email%%</a>', 'font-size:13px;');
-    $h .= $row($e($s['org_name'] ?? ''), 'margin-top:8px;font-size:13px;font-weight:bold;');
-    $h .= $row($e($s['address'] ?? ''), 'font-size:12px;');
-    if (trim((string)($s['nip'] ?? '')) !== '') $h .= $row('NIP: ' . $e($s['nip']), 'font-size:12px;');
-    if (trim((string)($s['krs'] ?? '')) !== '') $h .= $row('KRS: ' . $e($s['krs']), 'font-size:12px;');
-    if ($href !== '') $h .= $row('<a href="' . $e($href) . '" style="color:#1d4ed8;text-decoration:none;">' . $e($url) . '</a>', 'font-size:12px;');
-    $promo = trim((string)($s['promo_html'] ?? ''));
-    if ($promo !== '') {
-        $h .= '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #999;font-size:12px;line-height:1.5;color:#444;">' . $promo . '</div>';
-    }
-    return $h . '</div>';
+    $ph = in_array($s['ex_phone_attr'] ?? '', ['MobilePhone', 'PhoneNumber'], true) ? $s['ex_phone_attr'] : 'MobilePhone';
+    return stopkaRenderHtml(stopkaSettings(), [
+        'name' => '%%DisplayName%%', 'title' => '%%Title%%', 'phone' => '%%' . $ph . '%%', 'email' => '%%Email%%',
+    ]);
 }
 
 /** Podgląd szablonu z podstawionymi danymi osoby (placeholdery → wartości). */
@@ -168,4 +152,58 @@ function stopkaExPush(): array {
     db_exec("UPDATE stopka_settings SET ex_last_sync=?, ex_last_msg=? WHERE id=1",
         [date('Y-m-d H:i:s'), ($err ? 'BŁĄD: ' : 'OK: ') . $msg]);
     return [$msg, $err];
+}
+
+
+/**
+ * Diagnostyka uprawnień: lista [etykieta, ok(true|false|null=info), szczegóły/podpowiedź].
+ * Niczego nie zmienia w Exchange (tylko odczyty).
+ */
+function stopkaExCheck(): array {
+    $out = [];
+    $tenant = m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
+    $cid    = m365_setting('m365_graph_client_id');
+    $cfgOk  = $tenant !== '' && $cid !== '' && m365_setting('m365_graph_client_secret') !== '';
+    $out[] = ['Konfiguracja aplikacji Graph (tenant, client id, secret)', $cfgOk,
+        $cfgOk ? 'Aplikacja: ' . $cid : 'Uzupełnij dane aplikacji w ustawieniach Microsoft 365 SZO.'];
+    if (!$cfgOk) return $out;
+
+    // Graph: User.Read.All (synchronizacja stanowiska/telefonu z Entra ID)
+    try {
+        $r = stopkaExHttp('POST', "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token", ['Content-Type: application/x-www-form-urlencoded'],
+            http_build_query(['grant_type' => 'client_credentials', 'client_id' => $cid, 'client_secret' => m365_setting('m365_graph_client_secret'), 'scope' => 'https://graph.microsoft.com/.default']));
+        $roles = M365Graph::decode_jwt($r['access_token'] ?? '')['roles'] ?? [];
+        $ok = in_array('User.Read.All', $roles, true) || in_array('Directory.Read.All', $roles, true);
+        $out[] = ['Graph: uprawnienie User.Read.All (odczyt profili)', $ok,
+            $ok ? 'Jest.' : 'Brak. Entra ID → Rejestracje aplikacji → Uprawnienia API → Microsoft Graph → Uprawnienia aplikacji → User.Read.All + zgoda administratora. (Dotyczy tylko przycisku „Synchronizuj z M365”.)'];
+    } catch (Throwable $e) {
+        $out[] = ['Graph: token aplikacji', false, $e->getMessage()];
+    }
+
+    // Exchange: token i rola aplikacji
+    try {
+        $tok = stopkaExToken();
+    } catch (Throwable $e) {
+        $out[] = ['Exchange Online: token aplikacji', false, $e->getMessage()];
+        return $out;
+    }
+    $roles = M365Graph::decode_jwt($tok)['roles'] ?? [];
+    $hasRole = in_array('Exchange.ManageAsApp', $roles, true);
+    $out[] = ['Exchange: uprawnienie aplikacji Exchange.ManageAsApp', $hasRole,
+        $hasRole ? 'Jest w tokenie.' : 'Brak. Uprawnienia API → Dodaj uprawnienie → Office 365 Exchange Online → Uprawnienia aplikacji → Exchange.ManageAsApp, potem zgoda administratora.'];
+
+    // Exchange: rola administracyjna (próba odczytu reguł)
+    try {
+        $rules = stopkaExInvoke($tok, 'Get-TransportRule');
+        $out[] = ['Exchange: rola administracyjna aplikacji (odczyt reguł transportowych)', true, 'Odczyt działa (reguł w organizacji: ' . count($rules) . ').'];
+        $mine = null;
+        foreach ($rules as $r) { if (($r['Name'] ?? '') === STOPKA_EX_RULE) { $mine = $r; break; } }
+        $out[] = ['Reguła „' . STOPKA_EX_RULE . '”', null, $mine
+            ? 'Istnieje — stan: ' . ($mine['State'] ?? '?') . ', tryb: ' . ($mine['Mode'] ?? '?') . '.'
+            : 'Jeszcze nie utworzona (powstanie przy pierwszym „Zapisz i wypchnij”).'];
+    } catch (Throwable $e) {
+        $out[] = ['Exchange: rola administracyjna aplikacji', false,
+            $e->getMessage() . ' — przypisz aplikacji (Enterprise application o tej nazwie) rolę „Exchange Administrator” w Entra ID → Role i administratorzy.'];
+    }
+    return $out;
 }

@@ -37,6 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$m, $e] = stopkaExPush();
             flash_set($e ? 'danger' : 'success', 'Exchange: ' . $m);
         }
+    } elseif ($do === 'save_design' && is_admin()) {
+        $d = stopkaDesignSanitize(json_decode((string)($_POST['design_json'] ?? ''), true));
+        db_exec("UPDATE stopka_settings SET design_json=? WHERE id=1", [json_encode($d, JSON_UNESCAPED_UNICODE)]);
+        flash_set('success', 'Wygląd stopki zapisany.');
+        if (!empty(stopkaExSettings()['ex_enabled'])) {
+            [$m, $e] = stopkaExPush();
+            flash_set($e ? 'danger' : 'success', 'Wygląd zapisany. Exchange: ' . $m);
+        }
+    } elseif ($do === 'check_exchange' && is_admin()) {
+        $_SESSION['stopka_check'] = stopkaExCheck();
+        $_SESSION['stopka_check_at'] = date('Y-m-d H:i:s');
     } elseif ($do === 'save_exchange' && is_admin()) {
         db_exec("UPDATE stopka_settings SET ex_enabled=?, ex_mode=?, ex_phone_attr=? WHERE id=1", [
             !empty($_POST['ex_enabled']) ? 1 : 0,
@@ -57,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $PAGE_TITLE = 'Stopka e-mail';
 $org  = stopkaSettings();
 $me   = stopkaProfile($user);
-$data = ['org' => $org, 'me' => $me];
+$data = ['org' => $org, 'me' => $me, 'design' => $org['design'], 'defaults' => stopkaDesignDefaults(), 'fonts' => STOPKA_FONTS];
+$check = $_SESSION['stopka_check'] ?? null; $checkAt = $_SESSION['stopka_check_at'] ?? ''; unset($_SESSION['stopka_check'], $_SESSION['stopka_check_at']);
 $inp  = 'tw-w-full tw-rounded tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-bg-white';
 $lbl  = 'tw-block tw-text-sm tw-font-medium tw-mb-1';
 $btn  = 'tw-rounded tw-bg-blue-700 tw-text-white tw-px-4 tw-py-2 hover:tw-bg-blue-800 tw-border-0';
@@ -107,6 +119,64 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     </form>
   </section>
 
+  <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-cfg">
+    <h2 id="h-cfg" class="tw-text-lg tw-font-semibold tw-mb-3">Konfigurator wyglądu stopki</h2>
+    <form method="post" class="tw-grid lg:tw-grid-cols-2 tw-gap-6">
+      <?= csrf_field() ?><input type="hidden" name="_action" value="save_design">
+      <input type="hidden" name="design_json" :value="JSON.stringify(design)">
+      <div class="tw-space-y-4">
+        <fieldset class="tw-grid tw-grid-cols-2 tw-gap-3 tw-border-0 tw-p-0 tw-m-0">
+          <legend class="tw-text-sm tw-font-semibold tw-mb-2">Czcionka i rozmiary</legend>
+          <div class="tw-col-span-2"><label class="<?= $lbl ?>" for="d1">Czcionka</label>
+            <select id="d1" x-model="design.font" class="<?= $inp ?>"><template x-for="f in fonts" :key="f"><option :value="f" x-text="f"></option></template></select></div>
+          <div><label class="<?= $lbl ?>" for="d2">Rozmiar tekstu: <span x-text="design.size"></span> px</label>
+            <input id="d2" type="range" min="11" max="16" x-model.number="design.size" class="tw-w-full"></div>
+          <div><label class="<?= $lbl ?>" for="d3">Rozmiar imienia i nazwiska: <span x-text="design.nameSize"></span> px</label>
+            <input id="d3" type="range" min="13" max="24" x-model.number="design.nameSize" class="tw-w-full"></div>
+          <div><label class="<?= $lbl ?>" for="d4">Odstęp między blokami: <span x-text="design.gap"></span> px</label>
+            <input id="d4" type="range" min="0" max="24" x-model.number="design.gap" class="tw-w-full"></div>
+        </fieldset>
+        <fieldset class="tw-grid tw-grid-cols-2 tw-gap-3 tw-border-0 tw-p-0 tw-m-0">
+          <legend class="tw-text-sm tw-font-semibold tw-mb-2">Kolory</legend>
+          <div><label class="<?= $lbl ?>" for="d5">Tekst</label><input id="d5" type="color" x-model="design.color" class="tw-h-10 tw-w-full"></div>
+          <div><label class="<?= $lbl ?>" for="d6">Linki i akcent</label><input id="d6" type="color" x-model="design.accent" class="tw-h-10 tw-w-full"></div>
+          <label class="tw-col-span-2 tw-flex tw-items-center tw-gap-2 tw-text-sm"><input type="checkbox" x-model="design.nameAccent"> Imię i nazwisko w kolorze akcentu</label>
+        </fieldset>
+        <fieldset class="tw-grid tw-grid-cols-2 tw-gap-3 tw-border-0 tw-p-0 tw-m-0">
+          <legend class="tw-text-sm tw-font-semibold tw-mb-2">Linia oddzielająca treść promocyjną</legend>
+          <div><label class="<?= $lbl ?>" for="d7">Styl</label>
+            <select id="d7" x-model="design.sepStyle" class="<?= $inp ?>">
+              <option value="solid">Ciągła</option><option value="dashed">Kreskowana</option><option value="dotted">Kropkowana</option><option value="none">Bez linii</option>
+            </select></div>
+          <div><label class="<?= $lbl ?>" for="d8">Kolor linii</label><input id="d8" type="color" x-model="design.sepColor" class="tw-h-10 tw-w-full"></div>
+        </fieldset>
+        <fieldset class="tw-grid tw-grid-cols-2 tw-gap-3 tw-border-0 tw-p-0 tw-m-0">
+          <legend class="tw-text-sm tw-font-semibold tw-mb-2">Logo (opcjonalnie)</legend>
+          <div class="tw-col-span-2"><label class="<?= $lbl ?>" for="d9">Adres obrazka (https://…, PNG/JPG hostowany publicznie)</label>
+            <input id="d9" type="url" x-model="design.logoUrl" class="<?= $inp ?>" placeholder="https://"></div>
+          <div class="tw-col-span-2"><label class="<?= $lbl ?>" for="d10">Szerokość logo: <span x-text="design.logoWidth"></span> px</label>
+            <input id="d10" type="range" min="40" max="300" x-model.number="design.logoWidth" class="tw-w-full"></div>
+        </fieldset>
+        <fieldset class="tw-border-0 tw-p-0 tw-m-0">
+          <legend class="tw-text-sm tw-font-semibold tw-mb-2">Elementy stopki</legend>
+          <div class="tw-grid tw-grid-cols-2 tw-gap-2 tw-text-sm">
+            <template x-for="[k,l] in shows" :key="k"><label class="tw-flex tw-items-center tw-gap-2"><input type="checkbox" x-model="design.show[k]"> <span x-text="l"></span></label></template>
+          </div>
+        </fieldset>
+        <div class="tw-flex tw-gap-3">
+          <button class="<?= $btn ?>">Zapisz wygląd</button>
+          <button type="button" @click="design = JSON.parse(JSON.stringify(defaults))" class="tw-rounded tw-bg-white tw-text-slate-800 tw-border tw-border-solid tw-border-slate-400 tw-px-4 tw-py-2">Przywróć domyślny</button>
+        </div>
+      </div>
+      <div class="lg:tw-sticky lg:tw-top-20 tw-self-start">
+        <h3 class="tw-text-sm tw-font-semibold tw-mb-2">Podgląd na żywo (z Twoimi danymi)</h3>
+        <label class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-mb-2"><input type="checkbox" x-model="dark"> Ciemne tło poczty</label>
+        <div class="tw-border tw-border-solid tw-border-slate-200 tw-rounded tw-p-4 tw-overflow-x-auto" :style="dark ? 'background:#1f2937;color:#e5e7eb' : 'background:#fff'" x-html="html()" aria-live="polite"></div>
+        <p class="tw-text-xs tw-text-slate-500 tw-mt-2">Zapis wyglądu aktualizuje też regułę w Exchange, jeśli synchronizacja jest włączona.</p>
+      </div>
+    </form>
+  </section>
+
   <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-ex">
     <h2 id="h-ex" class="tw-text-lg tw-font-semibold tw-mb-1">Automatyczna stopka w Outlooku (Exchange Online)</h2>
     <p class="tw-text-sm tw-text-slate-600 tw-mb-3">Jedna reguła transportowa dopisuje stopkę do każdej wysłanej wiadomości — w Outlooku w przeglądarce, klasycznym i na telefonach. Imię, stanowisko, telefon i e-mail Exchange bierze z Entra ID.</p>
@@ -128,6 +198,24 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       </div>
       <button class="<?= $btn ?>">Zapisz i wypchnij do Exchange</button>
     </form>
+    <form method="post" class="tw-mt-3">
+      <?= csrf_field() ?><input type="hidden" name="_action" value="check_exchange">
+      <button class="tw-rounded tw-bg-white tw-text-slate-800 tw-border tw-border-solid tw-border-slate-400 tw-px-4 tw-py-2 hover:tw-bg-slate-50">Sprawdź uprawnienia</button>
+      <span class="tw-text-xs tw-text-slate-500">Tylko odczyty — niczego nie zmienia w Exchange.</span>
+    </form>
+    <?php if ($check): ?>
+    <div class="tw-mt-3 tw-border tw-border-solid tw-border-slate-200 tw-rounded" role="region" aria-label="Wynik sprawdzenia uprawnień">
+      <p class="tw-text-xs tw-text-slate-500 tw-px-3 tw-pt-2">Sprawdzono: <?= h($checkAt) ?></p>
+      <ul class="tw-list-none tw-m-0 tw-p-3 tw-space-y-2">
+        <?php foreach ($check as [$label, $ok, $detail]): ?>
+        <li class="tw-flex tw-gap-2 tw-text-sm">
+          <span class="tw-shrink-0 tw-font-bold <?= $ok === true ? 'tw-text-green-700' : ($ok === false ? 'tw-text-red-700' : 'tw-text-slate-600') ?>" aria-hidden="true"><?= $ok === true ? '✔' : ($ok === false ? '✖' : 'ℹ') ?></span>
+          <span><strong><?= h($label) ?></strong> <span class="tw-sr-only"><?= $ok === true ? '— w porządku.' : ($ok === false ? '— problem.' : '— informacja.') ?></span><br><span class="tw-text-slate-600"><?= h($detail) ?></span></span>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif; ?>
     <?php if (!empty($ex['ex_last_sync'])): ?>
       <p class="tw-text-sm tw-mt-3" role="status"><strong>Ostatnia synchronizacja:</strong> <?= h($ex['ex_last_sync']) ?> — <?= h($ex['ex_last_msg']) ?></p>
     <?php endif; ?>
@@ -140,26 +228,37 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 
 <script>
 function stopkaGen(d) {
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   return {
-    me: d.me, org: d.org, copied: false, fail: false,
+    me: d.me, org: d.org, design: d.design, defaults: d.defaults, fonts: d.fonts, dark: false, copied: false, fail: false,
+    shows: [['title','Stanowisko'],['phone','Telefon'],['email','E-mail'],['org','Nazwa organizacji'],['address','Adres'],['nip','NIP'],['krs','KRS'],['website','Strona WWW'],['promo','Treść promocyjna']],
+    // Odpowiednik PHP: stopkaRenderHtml() w logic/stopka.php — zmieniając jedno, zmień drugie.
     html() {
-      const m = this.me, o = this.org, f = 'font-family:Arial,Helvetica,sans-serif;color:#222;';
-      const name = esc((m.first_name + ' ' + m.last_name).trim());
-      const contact = [m.phone ? 'tel. ' + esc(m.phone) : '', m.email ? '<a href="mailto:' + esc(m.email) + '" style="color:#1d4ed8;text-decoration:none;">' + esc(m.email) + '</a>' : ''].filter(Boolean).join(' &nbsp;|&nbsp; ');
+      const m = this.me, o = this.org, d = this.design, sh = d.show, sm = d.size - 1;
       const row = (t, st) => t ? '<div style="' + st + '">' + t + '</div>' : '';
-      const ids = (lbl, v) => v ? '<div style="font-size:12px;line-height:1.5;">' + lbl + ' ' + esc(v) + '</div>' : '';
-      const url = /^https?:\/\//i.test(o.website) ? o.website : (o.website ? 'https://' + o.website : '');
-      const site = url ? '<div style="font-size:12px;line-height:1.5;"><a href="' + esc(url) + '" style="color:#1d4ed8;text-decoration:none;">' + esc(o.website) + '</a></div>' : '';
-      const promo = o.promo_html && o.promo_html.trim()
-        ? '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #999;font-size:12px;line-height:1.5;color:#444;">' + this.safePromo(o.promo_html) + '</div>' : '';
-      return '<div style="' + f + 'font-size:13px;line-height:1.5;">'
-        + row(name, 'font-size:16px;font-weight:bold;line-height:1.4;')
-        + row(esc(m.job_title), 'font-size:13px;')
-        + row(contact, 'font-size:13px;')
-        + row(esc(o.org_name), 'margin-top:8px;font-size:13px;font-weight:bold;')
-        + row(esc(o.address), 'font-size:12px;line-height:1.5;')
-        + ids('NIP:', o.nip) + ids('KRS:', o.krs) + site + promo + '</div>';
+      const link = (href, label) => '<a href="' + href + '" style="color:' + d.accent + ';text-decoration:none;">' + label + '</a>';
+      let h = '<div style="font-family:' + d.font + ',Arial,Helvetica,sans-serif;color:' + d.color + ';font-size:' + d.size + 'px;line-height:1.5;">';
+      if (/^https:\/\/[^\s"'<>]+$/i.test(d.logoUrl || '')) {
+        h += '<div style="margin-bottom:' + d.gap + 'px;"><img src="' + esc(d.logoUrl) + '" width="' + d.logoWidth + '" alt="' + esc(o.org_name) + '" style="display:block;border:0;"></div>';
+      }
+      h += row(esc((m.first_name + ' ' + m.last_name).trim()), 'font-size:' + d.nameSize + 'px;font-weight:bold;line-height:1.4;color:' + (d.nameAccent ? d.accent : d.color) + ';');
+      if (sh.title) h += row(esc(m.job_title), 'font-size:' + d.size + 'px;');
+      const parts = [];
+      if (sh.phone && m.phone) parts.push('tel. ' + esc(m.phone));
+      if (sh.email && m.email) parts.push(link('mailto:' + esc(m.email), esc(m.email)));
+      h += row(parts.join(' &nbsp;|&nbsp; '), 'font-size:' + d.size + 'px;');
+      if (sh.org) h += row(esc(o.org_name), 'margin-top:' + d.gap + 'px;font-size:' + d.size + 'px;font-weight:bold;');
+      if (sh.address) h += row(esc(o.address), 'font-size:' + sm + 'px;');
+      if (sh.nip && (o.nip || '').trim()) h += row('NIP: ' + esc(o.nip), 'font-size:' + sm + 'px;');
+      if (sh.krs && (o.krs || '').trim()) h += row('KRS: ' + esc(o.krs), 'font-size:' + sm + 'px;');
+      const url = (o.website || '').trim();
+      if (sh.website && url) h += row(link(esc(/^https?:\/\//i.test(url) ? url : 'https://' + url), esc(url)), 'font-size:' + sm + 'px;');
+      const promo = (o.promo_html || '').trim();
+      if (sh.promo && promo) {
+        const bd = d.sepStyle === 'none' ? '' : 'border-top:1px ' + d.sepStyle + ' ' + d.sepColor + ';padding-top:8px;';
+        h += '<div style="margin-top:' + (d.gap + 2) + 'px;' + bd + 'font-size:' + sm + 'px;line-height:1.5;">' + this.safePromo(promo) + '</div>';
+      }
+      return h + '</div>';
     },
     safePromo(html) {
       const doc = new DOMParser().parseFromString('<div id="r">' + html + '</div>', 'text/html');

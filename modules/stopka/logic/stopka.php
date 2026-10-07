@@ -25,6 +25,7 @@ function stopkaMigrate(): void {
     if (!db_one("SELECT id FROM stopka_settings WHERE id=1")) {
         db_exec("INSERT INTO stopka_settings (id, org_name) VALUES (1, ?)", [defined('ORG_NAME') ? (string)ORG_NAME : '']);
     }
+    try { db()->exec("ALTER TABLE stopka_settings ADD COLUMN design_json TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) { /* jest */ }
     db()->exec("CREATE TABLE IF NOT EXISTS stopka_profile (
         user_id   INTEGER PRIMARY KEY,
         job_title TEXT NOT NULL DEFAULT '',
@@ -33,7 +34,10 @@ function stopkaMigrate(): void {
 }
 
 function stopkaSettings(): array {
-    return db_one("SELECT org_name, address, nip, krs, website, promo_html FROM stopka_settings WHERE id=1") ?? [];
+    $s = db_one("SELECT org_name, address, nip, krs, website, promo_html, design_json FROM stopka_settings WHERE id=1") ?? [];
+    $s['design'] = stopkaDesign($s);
+    unset($s['design_json']);
+    return $s;
 }
 
 /** Dane pracownika do stopki: users + stopka_profile (telefon: profil, a w razie braku users.phone_number). */
@@ -110,4 +114,90 @@ function stopkaSanitizePromo(string $html): string {
     $out = '';
     foreach ($root->childNodes as $c) $out .= $doc->saveHTML($c);
     return trim($out);
+}
+
+
+// ── Wygląd stopki (konfigurator graficzny) ──────────────────────────────────
+
+const STOPKA_FONTS = ['Arial', 'Calibri', 'Verdana', 'Tahoma', 'Georgia', 'Trebuchet MS', 'Segoe UI'];
+
+function stopkaDesignDefaults(): array {
+    return [
+        'font' => 'Arial', 'size' => 13, 'nameSize' => 16,
+        'color' => '#222222', 'accent' => '#1d4ed8', 'nameAccent' => false,
+        'sepStyle' => 'solid', 'sepColor' => '#999999', 'gap' => 8,
+        'logoUrl' => '', 'logoWidth' => 120,
+        'show' => ['title' => true, 'phone' => true, 'email' => true, 'org' => true, 'address' => true,
+                   'nip' => true, 'krs' => true, 'website' => true, 'promo' => true],
+    ];
+}
+
+/** Whitelist + przycięcie wartości: z bazy lub z formularza trafia tu dowolny JSON. */
+function stopkaDesignSanitize($in): array {
+    $d = stopkaDesignDefaults();
+    if (!is_array($in)) return $d;
+    $clamp = fn($v, int $lo, int $hi, int $def) => is_numeric($v) ? max($lo, min($hi, (int)$v)) : $def;
+    $hex   = fn($v, string $def) => is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? strtolower($v) : $def;
+    if (isset($in['font']) && in_array($in['font'], STOPKA_FONTS, true)) $d['font'] = $in['font'];
+    $d['size']     = $clamp($in['size'] ?? null, 11, 16, $d['size']);
+    $d['nameSize'] = $clamp($in['nameSize'] ?? null, 13, 24, $d['nameSize']);
+    $d['color']    = $hex($in['color'] ?? null, $d['color']);
+    $d['accent']   = $hex($in['accent'] ?? null, $d['accent']);
+    $d['sepColor'] = $hex($in['sepColor'] ?? null, $d['sepColor']);
+    $d['nameAccent'] = !empty($in['nameAccent']);
+    if (isset($in['sepStyle']) && in_array($in['sepStyle'], ['solid', 'dashed', 'dotted', 'none'], true)) $d['sepStyle'] = $in['sepStyle'];
+    $d['gap']       = $clamp($in['gap'] ?? null, 0, 24, $d['gap']);
+    $d['logoWidth'] = $clamp($in['logoWidth'] ?? null, 40, 300, $d['logoWidth']);
+    $logo = is_string($in['logoUrl'] ?? null) ? trim($in['logoUrl']) : '';
+    $d['logoUrl'] = (preg_match('~^https://[^\s"\'<>]+$~i', $logo)) ? $logo : '';
+    foreach (array_keys($d['show']) as $k) {
+        $d['show'][$k] = isset($in['show']) && is_array($in['show']) && array_key_exists($k, $in['show']) ? !empty($in['show'][$k]) : $d['show'][$k];
+    }
+    return $d;
+}
+
+function stopkaDesign(array $s): array {
+    $raw = json_decode((string)($s['design_json'] ?? ''), true);
+    return stopkaDesignSanitize($raw);
+}
+
+/**
+ * Jedyny generator HTML stopki po stronie PHP (podgląd serwerowy + szablon Exchange).
+ * $person: już ZESCAPOWANE (lub placeholdery %%…%%) pola name/title/phone/email.
+ * UWAGA: odpowiednik w JS to stopkaGen().html() w index.php — zmieniając jedno, zmień drugie
+ * (test zgodności: cli/stopkaParity.php).
+ */
+function stopkaRenderHtml(array $s, array $person): string {
+    $d  = stopkaDesignSanitize($s['design'] ?? json_decode((string)($s['design_json'] ?? ''), true));
+    $e  = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $sh = $d['show'];
+    $sm = $d['size'] - 1;
+    $row = fn(string $t, string $st) => $t === '' ? '' : '<div style="' . $st . '">' . $t . '</div>';
+    $link = fn(string $href, string $label) => '<a href="' . $href . '" style="color:' . $d['accent'] . ';text-decoration:none;">' . $label . '</a>';
+
+    $h = '<div style="font-family:' . $d['font'] . ',Arial,Helvetica,sans-serif;color:' . $d['color'] . ';font-size:' . $d['size'] . 'px;line-height:1.5;">';
+    if ($d['logoUrl'] !== '') {
+        $h .= '<div style="margin-bottom:' . $d['gap'] . 'px;"><img src="' . $e($d['logoUrl']) . '" width="' . $d['logoWidth'] . '" alt="' . $e($s['org_name'] ?? '') . '" style="display:block;border:0;"></div>';
+    }
+    $h .= $row($person['name'], 'font-size:' . $d['nameSize'] . 'px;font-weight:bold;line-height:1.4;color:' . ($d['nameAccent'] ? $d['accent'] : $d['color']) . ';');
+    if ($sh['title']) $h .= $row($person['title'], 'font-size:' . $d['size'] . 'px;');
+    $parts = [];
+    if ($sh['phone'] && $person['phone'] !== '') $parts[] = 'tel. ' . $person['phone'];
+    if ($sh['email'] && $person['email'] !== '') $parts[] = $link('mailto:' . $person['email'], $person['email']);
+    $h .= $row(implode(' &nbsp;|&nbsp; ', $parts), 'font-size:' . $d['size'] . 'px;');
+    if ($sh['org']) $h .= $row($e($s['org_name'] ?? ''), 'margin-top:' . $d['gap'] . 'px;font-size:' . $d['size'] . 'px;font-weight:bold;');
+    if ($sh['address']) $h .= $row($e($s['address'] ?? ''), 'font-size:' . $sm . 'px;');
+    if ($sh['nip'] && trim((string)($s['nip'] ?? '')) !== '') $h .= $row('NIP: ' . $e($s['nip']), 'font-size:' . $sm . 'px;');
+    if ($sh['krs'] && trim((string)($s['krs'] ?? '')) !== '') $h .= $row('KRS: ' . $e($s['krs']), 'font-size:' . $sm . 'px;');
+    $url = trim((string)($s['website'] ?? ''));
+    if ($sh['website'] && $url !== '') {
+        $href = preg_match('~^https?://~i', $url) ? $url : 'https://' . $url;
+        $h .= $row($link($e($href), $e($url)), 'font-size:' . $sm . 'px;');
+    }
+    $promo = trim((string)($s['promo_html'] ?? ''));
+    if ($sh['promo'] && $promo !== '') {
+        $bd = $d['sepStyle'] === 'none' ? '' : 'border-top:1px ' . $d['sepStyle'] . ' ' . $d['sepColor'] . ';padding-top:8px;';
+        $h .= '<div style="margin-top:' . ($d['gap'] + 2) . 'px;' . $bd . 'font-size:' . $sm . 'px;line-height:1.5;">' . $promo . '</div>';
+    }
+    return $h . '</div>';
 }
