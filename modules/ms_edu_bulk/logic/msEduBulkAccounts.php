@@ -27,6 +27,9 @@ function msEduBulkMigrate(): void {
             created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
         )");
         db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_msedu_bulk_upn ON msedu_bulk_accounts(upn)");
+        foreach (["grupa TEXT NOT NULL DEFAULT ''", "grupa_ok INTEGER NOT NULL DEFAULT 1"] as $col) {
+            try { db()->exec("ALTER TABLE msedu_bulk_accounts ADD COLUMN $col"); } catch (\Throwable $e) {}
+        }
     } catch (\Throwable $e) { error_log('[msedu_bulk migrate] ' . $e->getMessage()); }
 }
 
@@ -34,9 +37,10 @@ function msEduBulkMigrate(): void {
 function msEduBulkRegister(string $msUserId, array $r): void {
     try {
         msEduBulkMigrate();
-        db()->prepare("INSERT OR REPLACE INTO msedu_bulk_accounts (ms_user_id, upn, imie, nazwisko, rola, klasa, email, anonim)
-                       VALUES (?,?,?,?,?,?,?,?)")
-            ->execute([$msUserId, $r['upn'], $r['imie'] ?? '', $r['nazwisko'] ?? '', $r['rola'] ?? '', $r['klasa'] ?? '', $r['email'] ?? '', !empty($r['anonim']) ? 1 : 0]);
+        db()->prepare("INSERT OR REPLACE INTO msedu_bulk_accounts (ms_user_id, upn, imie, nazwisko, rola, klasa, email, anonim, grupa, grupa_ok)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)")
+            ->execute([$msUserId, $r['upn'], $r['imie'] ?? '', $r['nazwisko'] ?? '', $r['rola'] ?? '', $r['klasa'] ?? '', $r['email'] ?? '', !empty($r['anonim']) ? 1 : 0,
+                       $r['grupa'] ?? '', array_key_exists('grupa_ok', $r) && !$r['grupa_ok'] ? 0 : 1]);
     } catch (\Throwable $e) { /* rejestr pomocniczy */ }
 }
 
@@ -106,4 +110,47 @@ function msEduBulkAccountsAct(M365Graph $graph, array $accounts, string $action,
         } catch (\Throwable $e) { $errors[] = $upn . ': ' . $e->getMessage(); }
     }
     return ['done' => $done, 'errors' => $errors];
+}
+
+/** Liczba kont (z podanych UPN) czekających na dodanie do grupy MS365 (wcześniejszy błąd, np. 404). */
+function msEduBulkPendingGroups(array $upns): int {
+    if (!$upns) return 0;
+    msEduBulkMigrate();
+    $st = db()->prepare("SELECT COUNT(*) FROM msedu_bulk_accounts WHERE grupa<>'' AND grupa_ok=0 AND upn IN (" . implode(',', array_fill(0, count($upns), '?')) . ")");
+    $st->execute(array_values($upns));
+    return (int)$st->fetchColumn();
+}
+
+/**
+ * Ponawia dodanie do grup MS365 dla kont z nieudanym dodaniem (np. HTTP 404 przy replikacji).
+ * Wołane po wysyłce maili oraz ręcznie („Ponów dodanie do grup”).
+ * @param array|null $upns ograniczenie do tych kont (null = wszystkie oczekujące)
+ * @return array{fixed:string[],failed:string[]}
+ */
+function msEduBulkRetryGroups(M365Graph $graph, ?array $upns = null): array {
+    msEduBulkMigrate();
+    $sql = "SELECT * FROM msedu_bulk_accounts WHERE grupa<>'' AND grupa_ok=0"; $p = [];
+    if ($upns !== null) {
+        if (!$upns) return ['fixed' => [], 'failed' => []];
+        $sql .= " AND upn IN (" . implode(',', array_fill(0, count($upns), '?')) . ")"; $p = array_values($upns);
+    }
+    $st = db()->prepare($sql . " LIMIT 300"); $st->execute($p);
+    $fixed = []; $failed = []; $gc = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $a) {
+        try {
+            msEduBulkEnsureGroupAdd($graph, $a['ms_user_id'], $a['grupa'], $gc);
+            db()->prepare("UPDATE msedu_bulk_accounts SET grupa_ok=1 WHERE id=?")->execute([$a['id']]);
+            $fixed[] = $a['upn'];
+        } catch (\Throwable $e) { $failed[] = $a['upn'] . ': ' . $e->getMessage(); }
+    }
+    return ['fixed' => $fixed, 'failed' => $failed];
+}
+
+/** Po udanym ponowieniu usuwa z wyników w sesji ostrzeżenie o grupie dla tych kont. */
+function msEduBulkClearGroupWarn(array $upns): void {
+    foreach ($_SESSION['msEduBulkResult'] ?? [] as $i => $r) {
+        if (in_array($r['upn'], $upns, true)) {
+            $_SESSION['msEduBulkResult'][$i]['warn'] = trim(preg_replace('/grupa „[^;]*(;\s*|$)/u', '', (string)($r['warn'] ?? '')));
+        }
+    }
 }

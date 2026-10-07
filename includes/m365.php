@@ -704,6 +704,19 @@ class M365Graph {
      * @param string $group_id  Azure AD Group ID (GUID)
      * @throws \RuntimeException gdy odpowiedź API sygnalizuje błąd (poza 204 i 409 — 409 = już w grupie)
      */
+    /** Id grupy o dokładnej nazwie wyświetlanej (dowolny typ grupy) albo null. */
+    public function find_group_by_name(string $name): ?string {
+        $f = urlencode("displayName eq '" . str_replace("'", "''", $name) . "'");
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/groups?\$filter={$f}&\$select=id,displayName&\$top=5");
+        foreach ($r['value'] ?? [] as $g) if (strcasecmp($g['displayName'] ?? '', $name) === 0) return $g['id'];
+        return null;
+    }
+
+    public function group_exists(string $group_id): bool {
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/groups/{$group_id}?\$select=id");
+        return !empty($r['id']);
+    }
+
     public function add_to_group(string $user_id, string $group_id): void {
         $url  = "https://graph.microsoft.com/v1.0/groups/{$group_id}/members/\$ref";
         $body = json_encode([

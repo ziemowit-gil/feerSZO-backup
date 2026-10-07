@@ -64,6 +64,13 @@ $mail = $_SESSION['msEduBulkMail'] ?? ['subject' => MS_EDU_BULK_MAIL_SUBJECT, 'b
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
+    if ($op === 'retry_groups' && $result) {
+        $rg = msEduBulkRetryGroups($graph, array_column($result, 'upn'));
+        if ($rg['fixed']) msEduBulkClearGroupWarn($rg['fixed']);
+        flash_set($rg['failed'] ? 'warning' : 'success', 'Grupy MS365 — dodano: ' . count($rg['fixed']) . ($rg['failed'] ? '. Nadal błąd: ' . implode(' | ', array_slice($rg['failed'], 0, 3)) : '.'));
+        header('Location: ' . $self); exit;
+    }
+
     if (in_array($op, ['mail_preview', 'mail_test', 'mail_send'], true) && $result) {
         $mail = ['subject' => trim((string)($_POST['mb_subject'] ?? '')) ?: MS_EDU_BULK_MAIL_SUBJECT,
                  'body' => (string)($_POST['mb_body'] ?? '') ?: MS_EDU_BULK_MAIL_BODY,
@@ -83,6 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 $s = msEduBulkMailSend($result, $mail['subject'], $mail['body'], $mail['szkolenie'], $only);
                 $_SESSION['msEduBulkResult'] = $s['rows'];
+                $rg = msEduBulkRetryGroups($graph, array_column($s['rows'], 'upn')); // ponów grupy po wysyłce maili
+                if ($rg['fixed']) { msEduBulkClearGroupWarn($rg['fixed']); flash_set('info', 'Ponowiono dodanie do grup MS365: ' . count($rg['fixed']) . '.'); }
+                if ($rg['failed']) flash_set('warning', 'Grupa MS365 — nadal błąd: ' . implode(' | ', array_slice($rg['failed'], 0, 3)));
                 flash_set($s['failed'] ? 'warning' : 'success', 'Zakolejkowano wiadomości: ' . $s['sent'] . ($s['failed'] ? '. Błędy: ' . implode(' | ', $s['failed']) : '.'));
             }
         }
@@ -184,6 +194,9 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski: dwa bloki obok siebie</a>
       <a href="?pdf=strips1" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski: jedna kolumna Login | Hasło</a>
       <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1"></i>CSV</a>
+      <?php $_pg = msEduBulkPendingGroups(array_column($result, 'upn')); if ($_pg): ?>
+      <form method="post" class="d-inline"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><button name="_op" value="retry_groups" class="btn btn-sm btn-warning"><i class="bi bi-arrow-repeat me-1"></i>Ponów dodanie do grup (<?= $_pg ?>)</button></form>
+      <?php endif; ?>
       <a href="?clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Zamknąć listę? Hasła znikną z sesji.')">Zamknij listę</a>
     </div>
     <div class="table-responsive"><table class="table table-sm mb-0 font-monospace">

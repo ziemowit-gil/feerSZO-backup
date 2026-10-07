@@ -147,16 +147,39 @@ function msEduBulkAddToGroup(M365Graph $graph, string $userId, string $groupId, 
     }
 }
 
-/** Id grupy o danej nazwie (tworzy, jeśli brak). */
+/** Id grupy o danej nazwie — szuka w tenancie, a gdy jej nie ma, TWORZY grupę bezpieczeństwa. */
 function msEduBulkGroupId(M365Graph $graph, string $name, array &$cache): string {
     if (isset($cache[$name])) return $cache[$name];
-    foreach ($graph->get_security_groups() as $g) {
-        if (strcasecmp($g['displayName'] ?? '', $name) === 0) return $cache[$name] = $g['id'];
+    $id = null;
+    try { $id = $graph->find_group_by_name($name); } catch (\Throwable $e) {}
+    if (!$id) {
+        foreach ($graph->get_security_groups() as $g) {
+            if (strcasecmp($g['displayName'] ?? '', $name) === 0) { $id = $g['id']; break; }
+        }
     }
+    if ($id) return $cache[$name] = $id;
     $nick = preg_replace('/[^A-Za-z0-9_]/', '', msEduBulkAscii($name)) ?: ('grupa' . substr(md5($name), 0, 6));
     $g = $graph->create_group($name, $nick, 'Grupa utworzona w kreatorze kont EDU (SZO)');
     $cache['__new'][] = $name;
     return $cache[$name] = $g['id'];
+}
+
+/**
+ * Dodaje konto do grupy o nazwie; jeśli grupy nie ma — tworzy ją. Gdy Graph nadal zwraca 404
+ * (np. grupa znikła z cache), sprawdza jej istnienie i w razie braku zakłada ją ponownie.
+ */
+function msEduBulkEnsureGroupAdd(M365Graph $graph, string $userId, string $groupName, array &$cache): void {
+    $gid = msEduBulkGroupId($graph, $groupName, $cache);
+    try {
+        msEduBulkAddToGroup($graph, $userId, $gid, 4);
+    } catch (\RuntimeException $e) {
+        if (!str_contains($e->getMessage(), '404')) throw $e;
+        if (!$graph->group_exists($gid)) {
+            unset($cache[$groupName]);
+            $gid = msEduBulkGroupId($graph, $groupName, $cache); // brak grupy → utwórz
+        }
+        msEduBulkAddToGroup($graph, $userId, $gid, 6);
+    }
 }
 
 /**
@@ -187,12 +210,16 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
             }
             if ($groups) try {
                 $gname = $r['rola'] === 'uczen' ? 'Uczniowie_' . $year : 'Nauczyciele';
-                msEduBulkAddToGroup($graph, $u['id'], msEduBulkGroupId($graph, $gname, $gc));
+                msEduBulkEnsureGroupAdd($graph, $u['id'], $gname, $gc);
             } catch (\Throwable $e) { $warn[] = 'grupa: ' . $e->getMessage(); }
             // Grupa jawna (z TI / nowa / z kolumny) → grupa bezpieczeństwa w MS365; tworzona, jeśli jej brak
+            $r['grupa_ok'] = true;
             if (!empty($r['grupa'])) try {
-                msEduBulkAddToGroup($graph, $u['id'], msEduBulkGroupId($graph, $r['grupa'], $gc));
-            } catch (\Throwable $e) { $warn[] = 'grupa „' . $r['grupa'] . '”: ' . $e->getMessage(); }
+                msEduBulkEnsureGroupAdd($graph, $u['id'], $r['grupa'], $gc);
+            } catch (\Throwable $e) {
+                $r['grupa_ok'] = false; // zostanie ponowione po wysyłce maili / przyciskiem „Ponów dodanie do grup”
+                $warn[] = 'grupa „' . $r['grupa'] . '”: ' . $e->getMessage();
+            }
             msEduBulkRegister($u['id'], $r);
             $out['ok'][] = $r + ['ms_user_id' => $u['id'], 'password' => $pass, 'warn' => implode('; ', $warn)];
         } catch (\Throwable $e) {
