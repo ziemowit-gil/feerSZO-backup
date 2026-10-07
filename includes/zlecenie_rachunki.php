@@ -308,6 +308,65 @@ function update_rachunek(int $rid, array $data): void {
     db_update('zlecenie_rachunki', $data, $rid);
 }
 
+/**
+ * Nadpisanie rachunku w rejestrze: poprawa danych rejestrowych i/lub podmiana pliku.
+ * Zablokowane, gdy rachunek jest już w obiegu księgowym (EODoK/KDOK). Podmiana pliku
+ * rachunku, który ma podpisany skan, wymaga $reset_sign (unieważnia podpis).
+ *
+ * @param array      $data Kolumny do zapisania (numer, data_wystawienia, okres, okres_od, okres_do, kwota_brutto, uwagi).
+ * @param array|null $file Wpis z $_FILES (nowy plik rachunku) albo null.
+ * @return string[] Lista zmienionych pól (do wpisu w logu).
+ */
+function rachunek_overwrite(int $rid, array $data, ?array $file = null, bool $reset_sign = false): array {
+    $r = get_rachunek($rid);
+    if (!$r) throw new RuntimeException('Nie znaleziono rachunku.');
+    if (!empty($r['kdok_doc_id']) || !empty($r['edok_doc_id'])) {
+        throw new RuntimeException('Rachunek jest już w obiegu księgowym (EOD) — nie można go nadpisać.');
+    }
+    $upd = [];
+    $changed = [];
+    foreach (['numer', 'data_wystawienia', 'okres', 'okres_od', 'okres_do', 'uwagi'] as $col) {
+        if (!array_key_exists($col, $data)) continue;
+        $v = trim((string)$data[$col]);
+        if ($col === 'numer' && $v === '') continue; // pusty numer = zostaw dotychczasowy
+        if ($v !== trim((string)($r[$col] ?? ''))) { $upd[$col] = $v === '' ? null : $v; $changed[] = $col; }
+    }
+    if (array_key_exists('kwota_brutto', $data)) {
+        $k = trim((string)$data['kwota_brutto']);
+        if ($k !== '' && !is_numeric($k)) throw new RuntimeException('Nieprawidłowa kwota.');
+        $new = $k === '' ? null : round((float)$k, 2);
+        $old = $r['kwota_brutto'] === null ? null : round((float)$r['kwota_brutto'], 2);
+        if ($new !== $old) { $upd['kwota_brutto'] = $new; $changed[] = 'kwota_brutto'; }
+    }
+    $old_files = [];
+    if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+        if (rachunek_is_signed($r) && !$reset_sign) {
+            throw new RuntimeException('Rachunek jest już podpisany — podmiana pliku wymaga zaznaczenia unieważnienia podpisu.');
+        }
+        $upd += rachunek_store_file($file);
+        $changed[] = 'plik';
+        if (!empty($r['plik'])) $old_files[] = $r['plik'];
+        $upd['downloaded_at'] = null;
+        $upd['download_count'] = 0;
+        if (rachunek_is_signed($r)) {
+            if (!empty($r['plik_podpisany'])) $old_files[] = $r['plik_podpisany'];
+            $upd += ['plik_podpisany' => null, 'plik_podpisany_nazwa' => null, 'plik_podpisany_size' => null,
+                     'signed_at' => null, 'signed_ip' => null, 'accepted_by' => null, 'accepted_at' => null, 'paid_at' => null];
+            $changed[] = 'podpis unieważniony';
+        }
+        if (in_array($r['status'], ['pobrany', 'podpisany', 'zaakceptowany', 'zaplacony'], true)) {
+            $upd['status'] = !empty($r['notified_at']) ? 'przekazany' : 'nowy';
+        }
+    }
+    if (!$changed) return [];
+    update_rachunek($rid, $upd);
+    foreach ($old_files as $rel) {
+        $abs = rachunek_file_abs($rel);
+        if ($abs && is_file($abs)) @unlink($abs);
+    }
+    return $changed;
+}
+
 /** Zmiana statusu + znaczniki akceptacji/zapłaty. */
 function rachunek_set_status(int $rid, string $status, ?int $user_id): void {
     if (!isset(ZLEC_RACHUNEK_STATUSES[$status])) return;

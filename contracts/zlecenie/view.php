@@ -369,6 +369,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_add']) && can_e
     header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
 }
 
+// ── Rachunki — nadpisanie rachunku (poprawa danych / podmiana pliku) ──────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_edit']) && can_edit()) {
+    csrf_check();
+    $_uid = (int)current_user()['id'];
+    $_rid = (int)($_POST['rach_id'] ?? 0);
+    $_rr0 = get_rachunek($_rid);
+    if (!$_rr0 || (int)$_rr0['contract_id'] !== (int)$id) {
+        flash_set('error', 'Nie znaleziono rachunku.');
+        header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+    }
+    $_okr = rachunek_okres_parse((string)($_POST['rach_okres_od'] ?? ''),
+                                 !empty($_POST['rach_okres_multi']) ? (string)($_POST['rach_okres_do'] ?? '') : '');
+    if ($_okr['error']) {
+        flash_set('error', $_okr['error']);
+        header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+    }
+    $_okres_txt = trim($_POST['rach_okres'] ?? '');
+    if ($_okres_txt === '') $_okres_txt = $_okr['label'];
+    try {
+        $_zm = rachunek_overwrite($_rid, [
+            'numer'            => trim($_POST['rach_numer'] ?? ''),
+            'data_wystawienia' => trim($_POST['rach_data'] ?? ''),
+            'okres'            => $_okres_txt,
+            'okres_od'         => $_okr['od'],
+            'okres_do'         => $_okr['do'],
+            'kwota_brutto'     => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota'] ?? '')),
+            'uwagi'            => trim($_POST['rach_uwagi'] ?? ''),
+        ], $_FILES['rach_plik'] ?? null, !empty($_POST['rach_reset_sign']));
+        if ($_zm) {
+            log_contract_action($TYPE, $id, $_uid, 'rachunek_edit', 'Nadpisano rachunek #' . $_rid . ' (' . implode(', ', $_zm) . ')');
+            flash_set('success', 'Rachunek #' . $_rid . ' nadpisany (' . implode(', ', $_zm) . ').');
+        } else {
+            flash_set('info', 'Brak zmian w rachunku.');
+        }
+    } catch (\Throwable $e) {
+        flash_set('error', 'Nie udało się nadpisać rachunku: ' . $e->getMessage());
+    }
+    header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+}
+
 $_pending_term    = get_pending_termination_for_contract($TYPE, $id);
 $amendments       = get_amendments($TYPE, $id);
 $edit_requests    = get_edit_requests($TYPE, $id);
@@ -1612,6 +1652,18 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <?php endif; ?>
             <?php if (empty($rr['kdok_doc_id']) && empty($rr['edok_doc_id'])): ?>
             <li>
+              <button type="button" class="dropdown-item small" onclick="rachEdit(this)"
+                      data-rid="<?= $_rid ?>" data-numer="<?= h((string)$rr['numer']) ?>"
+                      data-data="<?= h((string)$rr['data_wystawienia']) ?>" data-okres="<?= h((string)$rr['okres']) ?>"
+                      data-od="<?= h((string)($rr['okres_od'] ?? '')) ?>" data-do="<?= h((string)($rr['okres_do'] ?? '')) ?>"
+                      data-kwota="<?= $rr['kwota_brutto'] !== null ? h((string)$rr['kwota_brutto']) : '' ?>"
+                      data-uwagi="<?= h((string)$rr['uwagi']) ?>"
+                      data-plik="<?= h((string)($rr['plik_nazwa'] ?? '')) ?>"
+                      data-signed="<?= rachunek_is_signed($rr) ? 1 : 0 ?>">
+                <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Nadpisz rachunek
+              </button>
+            </li>
+            <li>
               <button type="button" class="dropdown-item small" onclick="rachTestToggle(<?= $_rid ?>, <?= $_test ? 0 : 1 ?>, this)">
                 <i class="bi bi-flask me-1" aria-hidden="true"></i>
                 <?= $_test ? 'Zdejmij oznaczenie testowe' : 'Oznacz jako testowy' ?>
@@ -2252,6 +2304,77 @@ window.CVTabsConfig = {
       .catch(function () { btn.disabled = false; showErr('Błąd połączenia.'); });
   });
 })();
+</script>
+<?php endif; ?>
+
+<?php if (can_edit()): ?>
+<!-- ═══════════════════ MODAL — nadpisanie rachunku ═══════════════════ -->
+<div class="modal fade" id="rachEditModal" tabindex="-1" aria-labelledby="rachEditLabel">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form method="post" enctype="multipart/form-data" class="modal-content">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_rach_edit" value="1">
+      <input type="hidden" name="rach_id" id="rachEditId" value="">
+      <div class="modal-header" style="background:#2563eb;color:#fff">
+        <h5 class="modal-title" id="rachEditLabel"><i class="bi bi-pencil-square me-2"></i>Nadpisz rachunek <span id="rachEditNo"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Zmień dane rejestrowe i/lub wgraj nowy plik, który zastąpi dotychczasowy. Puste pole numeru zachowuje obecny numer.</p>
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label small fw-semibold" for="rachEditNumer">Numer rachunku</label>
+            <input id="rachEditNumer" name="rach_numer" class="form-control" maxlength="60"></div>
+          <div class="col-md-4"><label class="form-label small fw-semibold" for="rachEditData">Data wystawienia</label>
+            <input id="rachEditData" name="rach_data" type="date" class="form-control"></div>
+          <div class="col-md-4"><label class="form-label small fw-semibold" for="rachEditKwota">Kwota brutto (zł)</label>
+            <input id="rachEditKwota" name="rach_kwota" type="text" inputmode="decimal" class="form-control"></div>
+          <div class="col-md-6"><label class="form-label small fw-semibold" for="rachEditOd">Okres od</label>
+            <input id="rachEditOd" name="rach_okres_od" type="month" class="form-control"></div>
+          <div class="col-md-6"><label class="form-label small fw-semibold" for="rachEditDo">Okres do <span class="text-muted fw-normal">(rachunek za kilka miesięcy)</span></label>
+            <input id="rachEditDo" name="rach_okres_do" type="month" class="form-control">
+            <input type="hidden" name="rach_okres_multi" id="rachEditMulti" value="">
+          </div>
+          <div class="col-12"><label class="form-label small fw-semibold" for="rachEditOkres">Własny opis okresu <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <input id="rachEditOkres" name="rach_okres" class="form-control form-control-sm" maxlength="120"></div>
+          <div class="col-12"><label class="form-label small fw-semibold" for="rachEditPlik">Nowy plik rachunku <span class="text-muted fw-normal">(zastąpi: <span id="rachEditPlikNow">—</span>)</span></label>
+            <input id="rachEditPlik" name="rach_plik" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"></div>
+          <div class="col-12 d-none" id="rachEditSignBox">
+            <div class="alert alert-warning small mb-0">
+              Rachunek ma już podpis zleceniobiorcy. Podmiana pliku unieważni podpis i cofnie status.
+              <div class="form-check mt-1"><input class="form-check-input" type="checkbox" id="rachEditReset" name="rach_reset_sign" value="1">
+                <label class="form-check-label" for="rachEditReset">Rozumiem — unieważnij podpis przy podmianie pliku</label></div>
+            </div>
+          </div>
+          <div class="col-12"><label class="form-label small fw-semibold" for="rachEditUwagi">Uwagi</label>
+            <textarea id="rachEditUwagi" name="rach_uwagi" class="form-control" rows="2"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Nadpisz</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+window.rachEdit = function (b) {
+  var d = b.dataset, g = function (i) { return document.getElementById(i); };
+  g('rachEditId').value = d.rid; g('rachEditNo').textContent = '#' + d.rid;
+  g('rachEditNumer').value = d.numer; g('rachEditData').value = d.data;
+  g('rachEditKwota').value = d.kwota; g('rachEditOd').value = d.od; g('rachEditDo').value = d.do;
+  g('rachEditMulti').value = (d.do && d.do !== d.od) ? '1' : '';
+  g('rachEditOkres').value = d.okres; g('rachEditUwagi').value = d.uwagi;
+  g('rachEditPlik').value = ''; g('rachEditPlikNow').textContent = d.plik || 'brak pliku';
+  g('rachEditReset').checked = false;
+  g('rachEditSignBox').classList.toggle('d-none', d.signed !== '1');
+  bootstrap.Modal.getOrCreateInstance(g('rachEditModal')).show();
+};
+document.addEventListener('DOMContentLoaded', function () {
+  var o = document.getElementById('rachEditDo'), m = document.getElementById('rachEditMulti'), f = document.getElementById('rachEditOd');
+  if (!o) return;
+  function sync() { m.value = (o.value && o.value !== f.value) ? '1' : ''; }
+  o.addEventListener('change', sync); f.addEventListener('change', sync);
+});
 </script>
 <?php endif; ?>
 
