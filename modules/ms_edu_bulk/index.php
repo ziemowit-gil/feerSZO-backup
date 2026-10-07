@@ -22,6 +22,12 @@ if (isset($_GET['csv']) && !empty($_SESSION['msEduBulkResult'])) {
     unset($_SESSION['msEduBulkResult']); exit;
 }
 
+if (isset($_GET['pdf']) && !empty($_SESSION['msEduBulkResult'])) {
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="konta_m365_edu_' . date('Ymd_His') . '.pdf"');
+    echo msEduBulkPdf($_SESSION['msEduBulkResult']); exit;
+}
+
 $input  = (string)($_POST['lista'] ?? '');
 $year   = preg_match('/^\d{4}$/', $_POST['rok'] ?? '') ? $_POST['rok'] : date('Y');
 $domIn  = preg_replace('/[^a-z0-9.\-]/i', '', $_POST['domena'] ?? '') ?: $domain;
@@ -57,7 +63,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   <div class="card mb-4 border-success">
     <div class="card-header d-flex gap-2 align-items-center">
       <span>Utworzono: <strong><?= count($res['ok']) ?></strong>, błędów: <?= count($res['errors']) ?> — hasła widoczne tylko teraz</span>
-      <?php if ($res['ok']): ?><a href="?csv=1" class="btn btn-sm btn-success ms-auto"><i class="bi bi-download me-1"></i>Pobierz CSV</a><?php endif; ?>
+      <?php if ($res['ok']): ?><a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1"></i>Drukuj PDF</a> <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1"></i>CSV</a><?php endif; ?>
     </div>
     <div class="table-responsive"><table class="table table-sm mb-0 font-monospace">
       <thead class="table-light"><tr><th>Osoba</th><th>Klasa</th><th>Login</th><th>Hasło</th><th></th></tr></thead>

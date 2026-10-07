@@ -112,3 +112,31 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
     }
     return $out;
 }
+
+/**
+ * PDF z wygenerowanymi kontami — jedno konto w jednej linijce (Lp, osoba, login, hasło).
+ * @param array $rows wiersze z kluczami imie, nazwisko, upn, password
+ */
+function msEduBulkPdf(array $rows, string $title = 'Konta Microsoft 365'): string {
+    require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $tmp = rtrim(defined('UPLOAD_DIR') ? UPLOAD_DIR : (dirname(__DIR__, 3) . '/uploads'), '/') . '/mpdf_tmp';
+    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $html = '<style>body{font-family:dejavusans;font-size:9pt}h1{font-size:13pt;margin:0 0 2mm}'
+          . 'table{width:100%;border-collapse:collapse}td,th{border-bottom:0.3pt solid #999;padding:1.6mm 1.5mm;white-space:nowrap}'
+          . 'th{background:#eee;text-align:left;font-size:8pt}.m{font-family:dejavusansmono;font-size:8.5pt}</style>'
+          . '<h1>' . $e($title) . '</h1><div style="font-size:8pt;color:#555;margin-bottom:3mm">'
+          . 'Wygenerowano: ' . date('d.m.Y H:i') . ' · Hasła tymczasowe — zmiana przy pierwszym logowaniu. Dokument poufny.</div>'
+          . '<table><thead><tr><th style="width:8mm">Lp</th><th>Osoba</th><th>Login</th><th>Hasło tymczasowe</th></tr></thead><tbody>';
+    foreach (array_values($rows) as $i => $r) {
+        $html .= '<tr><td>' . ($i + 1) . '</td><td>' . $e(trim(($r['imie'] ?? '') . ' ' . ($r['nazwisko'] ?? '')))
+              . '</td><td class="m">' . $e($r['upn']) . '</td><td class="m">' . $e($r['password']) . '</td></tr>';
+    }
+    $html .= '</tbody></table>';
+    $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 12, 'margin_right' => 12,
+                            'margin_top' => 12, 'margin_bottom' => 12, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+    $mpdf->SetTitle($title);
+    $mpdf->SetFooter('{PAGENO} / {nbpg}');
+    $mpdf->WriteHTML($html);
+    return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+}

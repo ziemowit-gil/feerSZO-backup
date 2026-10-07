@@ -93,6 +93,11 @@ if (isset($_GET['csv']) && $new_ms_bulk) {
     foreach ($new_ms_bulk as $r) echo $r['imie'] . ' ' . $r['nazwisko'] . ';' . $r['upn'] . ';' . $r['password'] . "\n";
     unset($_SESSION['new_ms_bulk']); exit;
 }
+if (isset($_GET['pdf']) && $new_ms_bulk) {
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="konta_m365_' . date('Ymd_His') . '.pdf"');
+    echo msEduBulkPdf($new_ms_bulk); exit;
+}
 if (isset($_GET['clear'])) { unset($_SESSION['new_ms_bulk']); header('Location: microsoft365.php'); exit; }
 $ms_skus = $ms_online_enabled ? m365_training()->get_subscribed_skus() : [];
 $ms_default_sku = ti_m365_setting('default_sku');
@@ -148,7 +153,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="alert alert-warning mb-4 shadow-sm">
   <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
     <div class="fw-bold">⚠ Wygenerowane konta (<?= count($new_ms_bulk) ?>) — hasła widoczne tylko tutaj</div>
-    <a href="?csv=1" class="btn btn-sm btn-success ms-auto"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz CSV</a>
+    <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj PDF</a>
+    <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz CSV</a>
     <a href="?clear=1" class="btn btn-sm btn-outline-secondary">Zamknij</a>
   </div>
   <table class="table table-sm table-bordered mb-0 font-monospace" style="background:#fff;font-size:.85rem">
