@@ -221,12 +221,23 @@ function msEduBulkParsePasswordList(string $text, string $domain = ''): array {
  *
  * @return array{ok: array, errors: string[]}  ok[] = wiersz rejestru + password + password_new (bool)
  */
-function msEduBulkRecreateRegistry(M365Graph $graph, array $accounts, array $passMap, array $skus = []): array {
+function msEduBulkRecreateRegistry(M365Graph $graph, array $accounts, array $passMap, array $skus = [], array $override = []): array {
     $out = ['ok' => [], 'errors' => []]; $gc = [];
+    // Własny login i/lub hasło (tylko przy regeneracji jednego konta); login bez domeny dostaje domenę dotychczasowego loginu
+    $ovLogin = count($accounts) === 1 ? trim((string)($override['login'] ?? '')) : '';
+    $ovPass  = count($accounts) === 1 ? (string)($override['password'] ?? '') : '';
     foreach ($accounts as $a) {
         try {
+            if ($ovLogin !== '') {
+                if (!str_contains($ovLogin, '@')) $ovLogin .= '@' . (substr(strrchr($a['upn'], '@') ?: '@', 1) ?: '');
+                if (!preg_match('/^[A-Za-z0-9._\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/', $ovLogin)) throw new RuntimeException('niepoprawny login „' . $ovLogin . '”.');
+                $dup = db()->prepare("SELECT 1 FROM msedu_bulk_accounts WHERE LOWER(upn)=LOWER(?) AND id<>?"); $dup->execute([$ovLogin, $a['id']]);
+                if ($dup->fetchColumn()) throw new RuntimeException('login „' . $ovLogin . '” jest już w rejestrze.');
+                $a['upn'] = $ovLogin;
+            }
+            if ($ovPass !== '' && mb_strlen($ovPass) < 8) throw new RuntimeException('hasło musi mieć co najmniej 8 znaków.');
             if ($graph->user_id_by_upn($a['upn'])) throw new RuntimeException('konto już istnieje w tenancie — pominięto.');
-            $known = $passMap[mb_strtolower($a['upn'])] ?? '';
+            $known = $ovPass !== '' ? $ovPass : ($passMap[mb_strtolower($a['upn'])] ?? '');
             $pass = $known !== '' ? $known : M365Graph::generate_password(16);
             $u = $graph->create_user_full($a['upn'], $a['imie'], $a['nazwisko'], $pass, $a['klasa']);
             $warn = [];
@@ -236,8 +247,8 @@ function msEduBulkRecreateRegistry(M365Graph $graph, array $accounts, array $pas
             $grupaOk = 1;
             if (trim((string)$a['grupa']) !== '') try { msEduBulkEnsureGroupAdd($graph, $u['id'], $a['grupa'], $gc); }
             catch (\Throwable $e) { $grupaOk = 0; $warn[] = 'grupa „' . $a['grupa'] . '”: ' . $e->getMessage(); }
-            db()->prepare("UPDATE msedu_bulk_accounts SET ms_user_id=?, status='active', suspended_at=NULL, grupa_ok=? WHERE id=?")
-               ->execute([$u['id'], $grupaOk, $a['id']]);
+            db()->prepare("UPDATE msedu_bulk_accounts SET ms_user_id=?, upn=?, status='active', suspended_at=NULL, grupa_ok=? WHERE id=?")
+               ->execute([$u['id'], $a['upn'], $grupaOk, $a['id']]);
             $out['ok'][] = $a + ['ms_user_id' => $u['id'], 'password' => $pass, 'password_new' => $known === '', 'warn' => implode('; ', $warn)];
         } catch (\Throwable $e) { $out['errors'][] = $a['upn'] . ': ' . $e->getMessage(); }
     }

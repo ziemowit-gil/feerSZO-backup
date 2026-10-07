@@ -70,7 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
             require_once __DIR__ . '/logic/msEduBulkMail.php';
             $passMap = [];
             foreach ($_SESSION['msEduBulkResult'] ?? [] as $sr) if (!empty($sr['upn']) && !empty($sr['password'])) $passMap[mb_strtolower($sr['upn'])] = $sr['password'];
-            $res = msEduBulkRecreateRegistry(m365_edu(), $accs, $passMap, msEduBulkSkuList($_POST['regen_skus'] ?? []));
+            $res = msEduBulkRecreateRegistry(m365_edu(), $accs, $passMap, msEduBulkSkuList($_POST['regen_skus'] ?? []),
+                ['login' => (string)($_POST['regen_login'] ?? ''), 'password' => (string)($_POST['regen_pass'] ?? '')]);
             $mailed = 0; $noMail = []; $mailFail = [];
             if ($res['ok']) {
                 $_SESSION['msEduBulkReset'] = $res['ok']; // login + hasło do wydruku
