@@ -7,6 +7,7 @@ require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__, 2) . '/includes/m365.php';
 require_once dirname(__DIR__, 2) . '/includes/ti_online.php';
 require_once __DIR__ . '/logic/msEduBulk.php';
+require_once __DIR__ . '/logic/msEduBulkImport.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Konta EDU — zarządzanie';
@@ -20,14 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
     elseif ($op === 'role' && !isset(M365Graph::SAFE_DIRECTORY_ROLES[$_POST['role'] ?? ''])) flash_set('danger', 'Wybierz rolę.');
     else {
-        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'role' => $_POST['role'] ?? '']);
+        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'role' => $_POST['role'] ?? '', 'group' => msEduBulkGroupFromPost($_POST)]);
         flash_set($r['errors'] ? 'warning' : 'success', 'Wykonano: ' . $r['done'] . '/' . count($accs) . ($r['errors'] ? '. Błędy: ' . implode(' | ', $r['errors']) : '.'));
     }
     header('Location: ' . $self); exit;
 }
 
-$zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? '');
-$zaRows = msEduBulkAccountsList($zaQ, $zaStatus);
+$zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
+$zaRows = msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa);
 $zaAction = $self; $zaTokenName = '_csrf'; $zaTokenValue = csrf_token(); $zaAllowRoles = true;
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>

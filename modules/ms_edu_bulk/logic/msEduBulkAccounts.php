@@ -44,11 +44,13 @@ function msEduBulkRegister(string $msUserId, array $r): void {
     } catch (\Throwable $e) { /* rejestr pomocniczy */ }
 }
 
-function msEduBulkAccountsList(string $q = '', string $status = ''): array {
+function msEduBulkAccountsList(string $q = '', string $status = '', string $grupa = ''): array {
     msEduBulkMigrate();
     $sql = "SELECT * FROM msedu_bulk_accounts WHERE 1=1"; $p = [];
     if ($q !== '') { $sql .= " AND (upn LIKE ? OR imie LIKE ? OR nazwisko LIKE ? OR klasa LIKE ?)"; $p = array_fill(0, 4, '%' . $q . '%'); }
     if (in_array($status, ['active', 'suspended'], true)) { $sql .= " AND status=?"; $p[] = $status; }
+    if ($grupa === 'brak') $sql .= " AND grupa=''";
+    elseif ($grupa === 'jest') $sql .= " AND grupa<>''";
     $st = db()->prepare($sql . " ORDER BY created_at DESC, id DESC LIMIT 500");
     $st->execute($p);
     return $st->fetchAll(PDO::FETCH_ASSOC);
@@ -65,13 +67,14 @@ function msEduBulkAccountsByIds(array $ids): array {
 
 /**
  * Wykonuje akcję na zaznaczonych kontach.
- * @param string $action suspend | restore | manager | mfa | role
+ * @param string $action suspend | restore | manager | mfa | role | group | delete (tylko konta BEZ grupy)
  * @param array  $opts   ['licenses'=>bool (suspend), 'manager'=>upn, 'role'=>helpdesk|user]
  * @return array{done:int,errors:string[]}
  */
 function msEduBulkAccountsAct(M365Graph $graph, array $accounts, string $action, array $opts = []): array {
     $done = 0; $errors = [];
-    $managerId = null;
+    $managerId = null; $gc = [];
+    if ($action === 'group' && trim((string)($opts['group'] ?? '')) === '') return ['done' => 0, 'errors' => ['Wybierz lub wpisz nazwę grupy.']];
     if ($action === 'manager') {
         $managerId = $graph->user_id_by_upn(trim((string)($opts['manager'] ?? '')));
         if (!$managerId) return ['done' => 0, 'errors' => ['Nie znaleziono menedżera o podanym UPN w tenancie EDU.']];
@@ -103,6 +106,17 @@ function msEduBulkAccountsAct(M365Graph $graph, array $accounts, string $action,
                     if (!$role) throw new RuntimeException('Niedozwolona rola.');
                     if (!$graph->assign_directory_role($id, $role[0])) throw new RuntimeException('Graph odrzucił przypisanie roli (' . $role[1] . ').');
                     db()->prepare("UPDATE msedu_bulk_accounts SET admin_role=? WHERE id=?")->execute([$role[1], $a['id']]);
+                    break;
+                case 'group':
+                    // Zbiorcze przypisanie do grupy MS365 (grupa tworzona, jeśli jej brak) + zapis w rejestrze
+                    msEduBulkEnsureGroupAdd($graph, $id, trim((string)$opts['group']), $gc);
+                    db()->prepare("UPDATE msedu_bulk_accounts SET grupa=?, grupa_ok=1 WHERE id=?")->execute([trim((string)$opts['group']), $a['id']]);
+                    break;
+                case 'delete':
+                    // Trwałe usunięcie z Entra ID — wyłącznie konta bez przypisanej grupy
+                    if (trim((string)$a['grupa']) !== '') throw new RuntimeException('konto ma przypisaną grupę („' . $a['grupa'] . '”) — pominięto.');
+                    $graph->delete_user($id);
+                    db()->prepare("DELETE FROM msedu_bulk_accounts WHERE id=?")->execute([$a['id']]);
                     break;
                 default: throw new RuntimeException('Nieznana akcja.');
             }

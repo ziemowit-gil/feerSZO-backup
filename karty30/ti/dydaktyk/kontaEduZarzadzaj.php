@@ -3,6 +3,7 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_online.php';
 require_once dirname(__DIR__, 3) . '/modules/ms_edu_bulk/logic/msEduBulk.php';
+require_once dirname(__DIR__, 3) . '/modules/ms_edu_bulk/logic/msEduBulkImport.php';
 
 $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -15,16 +16,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
     if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
     elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
-    elseif (!in_array($op, ['suspend', 'restore', 'manager', 'mfa'], true)) flash_set('danger', 'Ta akcja jest dostępna tylko w panelu administratora.');
+    elseif (!in_array($op, ['suspend', 'restore', 'manager', 'mfa', 'group'], true)) flash_set('danger', 'Ta akcja jest dostępna tylko w panelu administratora.');
     else {
-        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '']);
+        $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'group' => msEduBulkGroupFromPost($_POST)]);
         flash_set($r['errors'] ? 'warning' : 'success', 'Wykonano: ' . $r['done'] . '/' . count($accs) . ($r['errors'] ? '. Błędy: ' . implode(' | ', $r['errors']) : '.'));
     }
     header('Location: kontaEduZarzadzaj.php'); exit;
 }
 
-$zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? '');
-$zaRows = msEduBulkAccountsList($zaQ, $zaStatus);
+$zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
+$zaRows = msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa);
 $zaAction = 'kontaEduZarzadzaj.php'; $zaTokenName = '_token'; $zaTokenValue = dyd_token(); $zaAllowRoles = false;
 
 $KP_TITLE  = 'Konta EDU — zarządzanie — Panel dydaktyka';
