@@ -14,35 +14,62 @@
 </form>
 <form method="post" action="<?= h($zaAction) ?>" id="zaForm">
   <input type="hidden" name="<?= h($zaTokenName) ?>" value="<?= h($zaTokenValue) ?>"><input type="hidden" name="one" id="zaOne" value="">
-  <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-3"><label class="form-label small fw-semibold" for="zaMgr">Menedżer (UPN)</label>
-        <input id="zaMgr" name="manager" class="form-control form-control-sm" placeholder="np. jan.kowalski@domena"></div>
-      <div class="col-md-4"><?= msEduBulkGroupField('', msEduBulkTiGroups(), 'zaGw', msEduBulkEntraGroups()) ?></div>
-      <?php if ($zaAllowRoles): ?>
-      <div class="col-md-3"><label class="form-label small fw-semibold" for="zaRole">Rola administracyjna Entra</label>
-        <select id="zaRole" name="role" class="form-select form-select-sm"><option value="">— wybierz —</option>
-          <?php foreach (M365Graph::SAFE_DIRECTORY_ROLES as $k => $r): ?><option value="<?= h($k) ?>"><?= h($r[1]) ?></option><?php endforeach; ?></select></div>
-      <?php endif; ?>
-      <?php for ($n = 0; $n < 2; $n++): ?>
-      <div class="col-md-2"><label class="form-label small fw-semibold" for="zaSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcj.)' : '' ?></label>
-        <select id="zaSku<?= $n ?>" name="skus[]" class="form-select form-select-sm"><option value="">— brak —</option>
-          <?php foreach (($zaSkus ?? []) as $sk): ?><option value="<?= h($sk['skuId']) ?>"><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
-      <?php endfor; ?>
-      <div class="col-auto form-check ms-2"><input class="form-check-input" type="checkbox" id="zaLic" name="licenses" value="1" checked>
-        <label class="form-check-label small" for="zaLic">Zawieszając, odbierz licencje</label></div>
+  <div class="card border-0 shadow-sm mb-3 position-sticky" style="top:.5rem;z-index:5"><div class="card-body py-2">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+      <span class="badge text-bg-primary" id="zaCount">0 zaznaczonych</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('zaAll').click()">Zaznacz / odznacz wszystkie</button>
+      <?php if ($zaAllowRoles): ?><button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.querySelectorAll('.zaSel').forEach(function(c){c.checked=c.dataset.grupa===''});zaCount()">Zaznacz bez grupy</button><?php endif; ?>
+      <span class="small text-muted ms-auto">Akcje działają na zaznaczone konta · szybkie zawieszenie jest przy każdym koncie</span>
     </div>
-    <div class="d-flex gap-2 flex-wrap mt-3">
-      <button name="_op" value="suspend" class="btn btn-sm btn-outline-danger" onclick="return confirm('Zawiesić zaznaczone konta (blokada logowania, wylogowanie sesji)?')"><i class="bi bi-person-lock me-1" aria-hidden="true"></i>Zawieś (offboarding)</button>
-      <button name="_op" value="restore" class="btn btn-sm btn-outline-success"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Przywróć</button>
-      <button name="_op" value="manager" class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-2 me-1" aria-hidden="true"></i>Ustaw menedżera</button>
-      <button name="_op" value="license" class="btn btn-sm btn-outline-primary" onclick="return confirm('Przypisać wybrane licencje zaznaczonym kontom?')"><i class="bi bi-award me-1" aria-hidden="true"></i>Przypisz licencje</button>
-      <button name="_op" value="group" class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Przypisz do grupy</button>
-      <button name="_op" value="mfa" class="btn btn-sm btn-outline-primary"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Wymagaj MFA</button>
-      <button name="_op" value="mfa_off" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Wyłączyć wymuszanie MFA dla zaznaczonych kont?')"><i class="bi bi-shield-slash me-1" aria-hidden="true"></i>Wyłącz wymuszanie MFA</button>
-      <?php if ($zaAllowRoles): ?><button name="_op" value="delete" class="btn btn-sm btn-danger ms-auto" onclick="return confirm('TRWALE usunąć zaznaczone konta z Entra ID? Dotyczy tylko kont bez przypisanej grupy. Tej operacji nie można cofnąć.')"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konta bez grupy</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.querySelectorAll('.zaSel').forEach(function(c){c.checked=c.dataset.grupa===''})">Zaznacz bez grupy</button><?php endif; ?>
-      <?php if ($zaAllowRoles): ?><button name="_op" value="role" class="btn btn-sm btn-outline-warning" onclick="return confirm('Nadać rolę administracyjną w Entra ID zaznaczonym kontom?')"><i class="bi bi-key me-1" aria-hidden="true"></i>Nadaj rolę</button><?php endif; ?>
+    <div class="row g-3">
+      <div class="col-lg-3"><div class="border rounded p-2 h-100">
+        <div class="small fw-bold text-uppercase text-muted mb-2">Dostęp do konta</div>
+        <div class="d-grid gap-1">
+          <button name="_op" value="suspend" class="btn btn-sm btn-outline-danger text-start" onclick="return confirm('Zawiesić zaznaczone konta (blokada logowania, wylogowanie sesji)?')"><i class="bi bi-person-lock me-1" aria-hidden="true"></i>Zawieś (offboarding)</button>
+          <button name="_op" value="restore" class="btn btn-sm btn-outline-success text-start"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Przywróć</button>
+        </div>
+        <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="zaLic" name="licenses" value="1" checked>
+          <label class="form-check-label small" for="zaLic">Zawieszając, odbierz licencje</label></div>
+      </div></div>
+
+      <div class="col-lg-5"><div class="border rounded p-2 h-100">
+        <div class="small fw-bold text-uppercase text-muted mb-2">Licencje i grupy</div>
+        <div class="row g-2 align-items-end">
+          <?php for ($n = 0; $n < 2; $n++): ?>
+          <div class="col-6"><label class="form-label small fw-semibold mb-0" for="zaSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcj.)' : '' ?></label>
+            <select id="zaSku<?= $n ?>" name="skus[]" class="form-select form-select-sm"><option value="">— brak —</option>
+              <?php foreach (($zaSkus ?? []) as $sk): ?><option value="<?= h($sk['skuId']) ?>"><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+          <?php endfor; ?>
+          <div class="col-12"><button name="_op" value="license" class="btn btn-sm btn-outline-primary w-100" onclick="return confirm('Przypisać wybrane licencje zaznaczonym kontom?')"><i class="bi bi-award me-1" aria-hidden="true"></i>Przypisz licencje</button></div>
+          <div class="col-12"><?= msEduBulkGroupField('', msEduBulkTiGroups(), 'zaGw', msEduBulkEntraGroups()) ?></div>
+          <div class="col-12"><button name="_op" value="group" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Przypisz do grupy</button></div>
+        </div>
+      </div></div>
+
+      <div class="col-lg-4"><div class="border rounded p-2 h-100">
+        <div class="small fw-bold text-uppercase text-muted mb-2">Organizacja i bezpieczeństwo</div>
+        <label class="form-label small fw-semibold mb-0" for="zaMgr">Menedżer (UPN)</label>
+        <div class="input-group input-group-sm mb-2"><input id="zaMgr" name="manager" class="form-control" placeholder="jan.kowalski@domena">
+          <button name="_op" value="manager" class="btn btn-outline-primary"><i class="bi bi-diagram-2 me-1" aria-hidden="true"></i>Ustaw</button></div>
+        <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="MFA">
+          <button name="_op" value="mfa" class="btn btn-outline-primary"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Wymagaj MFA</button>
+          <button name="_op" value="mfa_off" class="btn btn-outline-secondary" onclick="return confirm('Wyłączyć wymuszanie MFA dla zaznaczonych kont?')"><i class="bi bi-shield-slash me-1" aria-hidden="true"></i>Wyłącz MFA</button>
+        </div>
+        <?php if ($zaAllowRoles): ?>
+        <label class="form-label small fw-semibold mb-0" for="zaRole">Rola administracyjna Entra</label>
+        <div class="input-group input-group-sm"><select id="zaRole" name="role" class="form-select"><option value="">— wybierz —</option>
+          <?php foreach (M365Graph::SAFE_DIRECTORY_ROLES as $k => $r): ?><option value="<?= h($k) ?>"><?= h($r[1]) ?></option><?php endforeach; ?></select>
+          <button name="_op" value="role" class="btn btn-outline-warning" onclick="return confirm('Nadać rolę administracyjną w Entra ID zaznaczonym kontom?')"><i class="bi bi-key me-1" aria-hidden="true"></i>Nadaj</button></div>
+        <?php endif; ?>
+      </div></div>
+
+      <?php if ($zaAllowRoles): ?>
+      <div class="col-12"><div class="border border-danger-subtle rounded p-2 d-flex align-items-center gap-2 flex-wrap">
+        <span class="small fw-bold text-uppercase text-danger">Strefa niebezpieczna</span>
+        <span class="small text-muted">Trwałe usunięcie z Entra ID — tylko konta bez przypisanej grupy.</span>
+        <button name="_op" value="delete" class="btn btn-sm btn-danger ms-auto" onclick="return confirm('TRWALE usunąć zaznaczone konta z Entra ID? Dotyczy tylko kont bez przypisanej grupy. Tej operacji nie można cofnąć.')"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konta bez grupy</button>
+      </div></div>
+      <?php endif; ?>
     </div>
   </div></div>
   <div class="table-responsive"><table class="table table-sm align-middle" style="font-size:.85rem">
@@ -67,4 +94,6 @@
     <?php endforeach; ?>
     </tbody></table></div>
 </form>
-<script>document.getElementById('zaAll').addEventListener('change', function () { document.querySelectorAll('.zaSel').forEach(function (c) { c.checked = this.checked; }, this); });</script>
+<script>function zaCount(){var n=document.querySelectorAll('.zaSel:checked').length;document.getElementById('zaCount').textContent=n+' zaznaczonych';}
+document.querySelectorAll('.zaSel').forEach(function(c){c.addEventListener('change',zaCount)});
+document.getElementById('zaAll').addEventListener('change', function () { document.querySelectorAll('.zaSel').forEach(function (c) { c.checked = this.checked; }, this); zaCount(); });</script>
