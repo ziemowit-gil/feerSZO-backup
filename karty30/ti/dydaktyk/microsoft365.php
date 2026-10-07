@@ -21,6 +21,7 @@ $uid      = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
 karty30_migrate();
 
+$ms_edu_ok = m365_edu_ready();
 $anPlan = null; $anSkipped = []; $an_err = ''; $an = ['szk' => '', 'ile' => 10, 'od' => 1, 'sep' => '.', 'pad' => 2, 'sku' => []];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
@@ -67,16 +68,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (in_array($op, ['anon_podglad', 'anon_utworz'], true)) {
         $an = ['szk' => trim((string)($_POST['an_szkolenie'] ?? '')), 'ile' => (int)($_POST['an_ile'] ?? 0), 'od' => (int)($_POST['an_od'] ?? 1),
                'sep' => (string)($_POST['an_sep'] ?? '.'), 'pad' => (int)($_POST['an_pad'] ?? 2), 'sku' => msEduBulkSkuList($_POST['an_sku'] ?? [])];
-        if (!ti_ms_enabled()) { flash_set('danger', 'Moduł kont Microsoft nie jest skonfigurowany.'); header('Location: microsoft365.php'); exit; }
+        if (!$ms_edu_ok) { flash_set('danger', 'Tenant EDU nie jest skonfigurowany — konta nie zostały utworzone.'); header('Location: microsoft365.php'); exit; }
         elseif ($an['ile'] < 1) { $an_err = 'Podaj liczbę kont.'; }
         else {
             $domainA = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
-            $ap = msEduBulkAnonPlan(m365_training(), $an['szk'], $an['ile'], $an['od'], $an['sep'], $an['pad'], $domainA);
+            $ap = msEduBulkAnonPlan(m365_edu(), $an['szk'], $an['ile'], $an['od'], $an['sep'], $an['pad'], $domainA);
             if ($ap['error']) { $an_err = $ap['error']; }
             else {
                 $anPlan = $ap['rows']; $anSkipped = $ap['skipped'];
                 if ($op === 'anon_utworz') {
-                    $resA = msEduBulkCreate(m365_training(), $anPlan, ['uczen' => $an['sku'], 'nauczyciel' => []], date('Y'), false);
+                    $resA = msEduBulkCreate(m365_edu(), $anPlan, ['uczen' => $an['sku'], 'nauczyciel' => []], date('Y'), false);
                     if ($resA['ok']) { $_SESSION['new_ms_bulk'] = $resA['ok']; }
                     flash_set($resA['errors'] ? 'warning' : 'success', 'Utworzono kont anonimowych: ' . count($resA['ok']) . ($resA['errors'] ? '. Błędy: ' . implode(' | ', $resA['errors']) : '.'));
                     header('Location: microsoft365.php'); exit;
@@ -90,10 +91,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mode = in_array($_POST['tryb'] ?? '', ['szkolenie', 'imie_nazwisko'], true) ? $_POST['tryb'] : 'szkolenie';
         $slug = trim((string)($_POST['szkolenie'] ?? ''));
         $sku  = msEduBulkSkuList($_POST['sku'] ?? []);
-        if (!ti_ms_enabled()) { flash_set('danger', 'Moduł kont Microsoft nie jest skonfigurowany.'); header('Location: microsoft365.php'); exit; }
+        if (!$ms_edu_ok) { flash_set('danger', 'Tenant EDU nie jest skonfigurowany — konta nie zostały utworzone.'); header('Location: microsoft365.php'); exit; }
         if (!$ids) { flash_set('danger', 'Zaznacz kursantów.'); header('Location: microsoft365.php'); exit; }
         if ($mode === 'szkolenie' && msEduBulkAscii($slug) === '') { flash_set('danger', 'Podaj nazwę szkolenia.'); header('Location: microsoft365.php'); exit; }
-        $graph = m365_training();
+        $graph = m365_edu();
         $rows = []; $map = []; $noMail = [];
         foreach (array_slice($ids, 0, 200) as $aid) {
             $r = ti_student_row($aid);
@@ -152,7 +153,7 @@ if (isset($_GET['pdf']) && $new_ms_bulk) {
     echo (($_GET['pdf'] ?? '') === 'cards') ? msEduBulkPdfCards($new_ms_bulk) : msEduBulkPdf($new_ms_bulk); exit;
 }
 if (isset($_GET['clear'])) { unset($_SESSION['new_ms_bulk'], $_SESSION['new_ms_mail']); header('Location: microsoft365.php'); exit; }
-$ms_skus = $ms_online_enabled ? m365_training()->get_subscribed_skus() : [];
+$ms_skus = $ms_edu_ok ? m365_edu()->get_subscribed_skus() : [];
 $ms_default_sku = ti_m365_setting('default_sku');
 $new_ms_creds = $_SESSION['new_ms_creds'] ?? null;
 unset($_SESSION['new_ms_creds']);
@@ -226,7 +227,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   include dirname(__DIR__, 3) . '/modules/ms_edu_bulk/views/mailComposer.php';
 endif; ?>
 
-<?php if ($ms_online_enabled): ?>
+<?php if (!$ms_edu_ok): ?>
+<div class="alert alert-danger py-2 small"><strong>Tenant EDU nie jest skonfigurowany</strong> — hurtowe generowanie kont jest zablokowane (Dydaktyka 3 → M365, „własny tenant”).</div>
+<?php else: ?>
 <div class="alert alert-light border d-flex align-items-center gap-2 py-2 small"><i class="bi bi-file-earmark-spreadsheet text-primary" aria-hidden="true"></i><span>Osoby spoza systemu (bez konta kursanta)? Wklej listę lub wczytaj XLSX/CSV z wyborem kolumn.</span> <a class="btn btn-sm btn-outline-primary ms-auto" href="kontaListaM365.php">Konta z listy — bez kursantów</a></div>
 <form method="post" class="card border-0 shadow-sm mb-4">
   <div class="card-header fw-semibold"><i class="bi bi-incognito me-2 text-primary" aria-hidden="true"></i>Konta anonimowe <span class="text-muted fw-normal small">— bez danych osobowych: nazwa szkolenia + numer</span></div>
@@ -266,7 +269,7 @@ endif; ?>
 </form>
 <?php endif; ?>
 
-<?php if ($ms_online_enabled): ?>
+<?php if ($ms_edu_ok): ?>
 <form method="post" id="msBulkForm" class="card border-0 shadow-sm mb-4">
   <div class="card-header fw-semibold"><i class="bi bi-lightning-charge me-2 text-primary" aria-hidden="true"></i>Generuj konta hurtowo</div>
   <div class="card-body">

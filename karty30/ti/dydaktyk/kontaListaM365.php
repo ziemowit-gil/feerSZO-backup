@@ -15,8 +15,8 @@ $me = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
 karty30_migrate();
-$graph  = m365_training();
-$skus   = ti_ms_enabled() ? $graph->get_subscribed_skus() : [];
+$graph  = m365_edu();
+$skus   = m365_edu_ready() ? $graph->get_subscribed_skus() : [];
 $domain = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
 
 // ── Pobieranie wyników (hasła tylko w sesji) ────────────────────────────────
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($grid && in_array($op, ['podglad', 'utworz'], true)) {
         if (!in_array('email', $map, true)) $errors[] = 'Wskaż kolumnę z e-mailem alternatywnym — jest wymagana.';
         if (!in_array('imie', $map, true) && !in_array('imie_nazwisko', $map, true)) $errors[] = 'Wskaż kolumnę z imieniem (lub imieniem i nazwiskiem).';
-        if (!ti_ms_enabled()) $errors[] = 'Integracja Microsoft 365 nie jest skonfigurowana.';
+        if (!m365_edu_ready()) $errors[] = 'Integracja Microsoft 365 nie jest skonfigurowana.';
         if (!$errors) {
             $p = msEduBulkRowsFromGrid($grid, $map, $header, $defRole, $defKlasa, $domIn);
             $errors = $p['errors'];

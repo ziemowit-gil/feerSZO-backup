@@ -75,7 +75,7 @@ if (isset($_GET['csv']) && !empty($_SESSION['msedu_bulk'])) {
 if (isset($_GET['bulk']) && !empty($_SESSION['msedu_bulk'])) $bulk = $_SESSION['msedu_bulk'];
 
 $codes = msedu_codes_list();
-$skus  = m365_training()->get_subscribed_skus();
+$skus  = m365_edu()->get_subscribed_skus();
 $view_id = (int)($_GET['accounts'] ?? 0);
 $view_accounts = $view_id ? msedu_accounts_for_code($view_id) : null;
 $view_code     = $view_id ? msedu_code_get_by_id($view_id) : null;

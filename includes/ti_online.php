@@ -60,6 +60,22 @@ function m365_training_is_own(): bool {
     return (bool)ti_m365_setting('use_own_tenant');
 }
 
+/**
+ * Graph WYŁĄCZNIE dla tenanta EDU — bez fallbacku na główny tenant organizacji.
+ * Gdy osobny tenant EDU nie jest skonfigurowany, zwraca instancję niekonfigurowaną
+ * (is_configured() === false), więc nic nie zostanie utworzone w złym tenancie.
+ */
+function m365_edu(): M365Graph {
+    if (!m365_training_is_own()) {
+        return new M365Graph(['tenant_id' => '', 'client_id' => '', 'client_secret' => '', 'domain' => m365_training_domain()]);
+    }
+    return m365_training();
+}
+
+function m365_edu_ready(): bool {
+    return m365_training_is_own() && m365_training()->is_configured();
+}
+
 /** Czy konta MS można tworzyć — konfiguracja M365 (Dydaktyka 3 → M365) jest kompletna. */
 function ti_ms_enabled(): bool {
     return m365_training()->is_configured();

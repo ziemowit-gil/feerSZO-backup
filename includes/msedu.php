@@ -1,7 +1,7 @@
 <?php
 /**
  * includes/msedu.php — kody dostępowe (LCCC) do automatycznego zakładania
- * kont Microsoft 365 (tenant EDU = m365_training() z includes/ti_online.php, reużywa M365Graph).
+ * kont Microsoft 365 (tenant EDU = m365_edu() z includes/ti_online.php, reużywa M365Graph).
  *
  * Admin: admin/ms_edu_codes.php (CRUD kodów + licencje przypisywane zbiorczo
  * każdemu kontu założonemu danym kodem). Publiczne wejście z kodem:
@@ -10,7 +10,7 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/m365.php';
-require_once __DIR__ . '/ti_online.php'; // m365_training() — konta zakładamy w tenancie EDU
+require_once __DIR__ . '/ti_online.php'; // m365_edu() — konta zakładamy w tenancie EDU
 
 function msedu_migrate(): void {
     static $done = false;
@@ -156,7 +156,7 @@ function msedu_redeem(string $rawCode, string $ip): array {
  */
 function msedu_create_account(array $row): array {
     $code  = (string)$row['code'];
-    $graph = m365_training();
+    $graph = m365_edu();
     if (!$graph->is_configured()) {
         return ['ok' => false, 'msg' => 'Integracja Microsoft 365 nie jest skonfigurowana. Skontaktuj się z administratorem.'];
     }

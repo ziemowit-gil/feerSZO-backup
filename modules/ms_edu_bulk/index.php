@@ -18,7 +18,7 @@ $PAGE_TITLE = 'Generowanie kont M365 Edu';
 // Działa pod /modules/ms_edu_bulk/index.php i pod aliasem /ms — przekierowania i linki wracają pod aktualny adres.
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'index.php'), '?');
 
-$graph  = m365_training(); // konta zawsze w tenancie EDU
+$graph  = m365_edu(); // konta zawsze w tenancie EDU
 $skus   = $graph->is_configured() ? $graph->get_subscribed_skus() : [];
 $domain = m365_training_domain();
 
@@ -149,11 +149,11 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 <div class="container-xl py-4">
   <h1 class="h3 fw-bold mb-3"><i class="bi bi-people-fill me-2"></i>Generowanie kont M365 Edu</h1>
   <?= flash_html() ?>
-  <?php if (m365_training_is_own()): ?>
+  <?php if (m365_edu_ready()): ?>
   <div class="alert alert-info py-2 small"><i class="bi bi-mortarboard me-1"></i>Konta powstają w <strong>tenancie EDU</strong> — domena <code><?= h($domain) ?></code>.</div>
   <?php else: ?>
-  <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i><strong>Uwaga:</strong> osobny tenant EDU nie jest skonfigurowany — konta powstałyby w <strong>głównym tenancie organizacji</strong> (<code><?= h($domain) ?></code>).
-    Ustaw tenant EDU w Dydaktyka 3 → M365 (opcja „własny tenant”) przed generowaniem.</div>
+  <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i><strong>Generowanie zablokowane:</strong> tenant EDU nie jest skonfigurowany
+    (Dydaktyka 3 → M365, „własny tenant”). Konta nigdy nie powstają w głównym tenancie organizacji.</div>
   <?php endif; ?>
   <?php foreach ($errors as $e): ?><div class="alert alert-danger py-2 small mb-2"><?= h($e) ?></div><?php endforeach; ?>
 
