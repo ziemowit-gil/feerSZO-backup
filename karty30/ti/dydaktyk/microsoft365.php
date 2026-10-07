@@ -12,6 +12,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ms_edu_bulk/logic/msEduBulk.php';
 
 $me       = dyd_require();
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
@@ -35,6 +36,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: microsoft365.php'); exit;
     }
 
+    if ($op === 'ms_bulk') {
+        $ids  = array_values(array_unique(array_map('intval', (array)($_POST['account_ids'] ?? []))));
+        $mode = in_array($_POST['tryb'] ?? '', ['szkolenie', 'imie_nazwisko'], true) ? $_POST['tryb'] : 'szkolenie';
+        $slug = trim((string)($_POST['szkolenie'] ?? ''));
+        $sku  = (string)($_POST['sku'] ?? '');
+        if (!ti_ms_enabled()) { flash_set('danger', 'Moduł kont Microsoft nie jest skonfigurowany.'); header('Location: microsoft365.php'); exit; }
+        if (!$ids) { flash_set('danger', 'Zaznacz kursantów.'); header('Location: microsoft365.php'); exit; }
+        if ($mode === 'szkolenie' && msEduBulkAscii($slug) === '') { flash_set('danger', 'Podaj nazwę szkolenia.'); header('Location: microsoft365.php'); exit; }
+        $graph = m365_training();
+        $rows = []; $map = [];
+        foreach (array_slice($ids, 0, 200) as $aid) {
+            $r = ti_student_row($aid);
+            if (!$r || !empty($r['ms_user_id'])) continue;
+            $name = trim((string)($r['client_name'] ?: $r['login']));
+            $parts = preg_split('/\s+/u', $name, 2);
+            $rows[] = ['imie' => $parts[0], 'nazwisko' => $parts[1] ?? $parts[0], 'rola' => 'uczen', 'klasa' => $slug, 'aid' => $aid];
+        }
+        $domain = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
+        $start = 1 + (int)(db_one("SELECT COUNT(*) c FROM k30_ti_student_accounts WHERE ms_upn LIKE ?", [msEduBulkAscii($slug) . '%@%'])['c'] ?? 0);
+        $planned = msEduBulkPlan($graph, $rows, $domain, date('Y'), $mode, $slug, $start);
+        $res = msEduBulkCreate($graph, $planned, ['uczen' => $sku, 'nauczyciel' => $sku], date('Y'), false);
+        foreach ($res['ok'] as $r) {
+            db_update('k30_ti_student_accounts', [
+                'ms_user_id' => $r['ms_user_id'], 'ms_upn' => $r['upn'],
+                'ms_created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
+            ], (int)$r['aid']);
+        }
+        if ($res['ok']) $_SESSION['new_ms_bulk'] = $res['ok'];
+        flash_set($res['errors'] ? 'warning' : 'success', 'Utworzono kont: ' . count($res['ok']) . ($res['errors'] ? '. Błędy: ' . implode(' | ', $res['errors']) : '.'));
+        header('Location: microsoft365.php'); exit;
+    }
+
     if ($op === 'ms_delete') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $res = ti_ms_delete($aid);
@@ -52,6 +85,17 @@ $accounts = db_all(
 );
 $ms_count = count(array_filter($accounts, fn($a) => !empty($a['ms_user_id'])));
 
+$new_ms_bulk = $_SESSION['new_ms_bulk'] ?? null;
+if (isset($_GET['csv']) && $new_ms_bulk) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="konta_m365_' . date('Ymd_His') . '.csv"');
+    echo "\xEF\xBB\xBFosoba;login;haslo\n";
+    foreach ($new_ms_bulk as $r) echo $r['imie'] . ' ' . $r['nazwisko'] . ';' . $r['upn'] . ';' . $r['password'] . "\n";
+    unset($_SESSION['new_ms_bulk']); exit;
+}
+if (isset($_GET['clear'])) { unset($_SESSION['new_ms_bulk']); header('Location: microsoft365.php'); exit; }
+$ms_skus = $ms_online_enabled ? m365_training()->get_subscribed_skus() : [];
+$ms_default_sku = ti_m365_setting('default_sku');
 $new_ms_creds = $_SESSION['new_ms_creds'] ?? null;
 unset($_SESSION['new_ms_creds']);
 
@@ -100,6 +144,47 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 <?php endif; ?>
 
+<?php if ($new_ms_bulk): ?>
+<div class="alert alert-warning mb-4 shadow-sm">
+  <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+    <div class="fw-bold">⚠ Wygenerowane konta (<?= count($new_ms_bulk) ?>) — hasła widoczne tylko tutaj</div>
+    <a href="?csv=1" class="btn btn-sm btn-success ms-auto"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz CSV</a>
+    <a href="?clear=1" class="btn btn-sm btn-outline-secondary">Zamknij</a>
+  </div>
+  <table class="table table-sm table-bordered mb-0 font-monospace" style="background:#fff;font-size:.85rem">
+    <?php foreach ($new_ms_bulk as $r): ?>
+    <tr><td><?= h($r['imie'] . ' ' . $r['nazwisko']) ?></td><td><?= h($r['upn']) ?></td><td class="text-danger"><?= h($r['password']) ?></td></tr>
+    <?php endforeach; ?>
+  </table>
+</div>
+<?php endif; ?>
+
+<?php if ($ms_online_enabled): ?>
+<form method="post" id="msBulkForm" class="card border-0 shadow-sm mb-4">
+  <div class="card-header fw-semibold"><i class="bi bi-lightning-charge me-2 text-primary" aria-hidden="true"></i>Generuj konta hurtowo</div>
+  <div class="card-body">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <input type="hidden" name="_op" value="ms_bulk">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4"><label class="form-label small fw-semibold" for="bkTryb">Schemat loginu</label>
+        <select id="bkTryb" name="tryb" class="form-select form-select-sm">
+          <option value="szkolenie">nazwa szkolenia + numer (excel01, excel02…)</option>
+          <option value="imie_nazwisko">imie.nazwisko</option>
+        </select></div>
+      <div class="col-md-4"><label class="form-label small fw-semibold" for="bkSzk">Nazwa szkolenia</label>
+        <input id="bkSzk" name="szkolenie" class="form-control form-control-sm" placeholder="np. excel" maxlength="40"></div>
+      <div class="col-md-4"><label class="form-label small fw-semibold" for="bkSku">Licencja</label>
+        <select id="bkSku" name="sku" class="form-select form-select-sm"><option value="">— bez licencji —</option>
+          <?php foreach ($ms_skus as $sk): ?>
+          <option value="<?= h($sk['skuId']) ?>"<?= $sk['skuId'] === $ms_default_sku ? ' selected' : '' ?>><?= h($sk['skuPartNumber']) ?></option>
+          <?php endforeach; ?></select></div>
+    </div>
+    <p class="small text-muted mt-2 mb-0">Zaznacz kursantów w tabeli poniżej (tylko bez konta) i kliknij „Utwórz konta dla zaznaczonych”. Konta zostaną powiązane z kursantami.</p>
+    <button type="submit" class="btn btn-primary btn-sm mt-2" onclick="return confirm('Utworzyć REALNE konta Microsoft dla zaznaczonych kursantów?')"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Utwórz konta dla zaznaczonych</button>
+  </div>
+</form>
+<?php endif; ?>
+
 <div class="card border-0 shadow-sm">
   <div class="card-header fw-semibold">
     <i class="bi bi-people me-2 text-primary" aria-hidden="true"></i>Konta kursantów
@@ -111,11 +196,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
       <caption class="visually-hidden">Konta Microsoft 365 kursantów</caption>
       <thead class="table-light">
-        <tr><th>Beneficjent</th><th>Login (panel)</th><th>Konto Microsoft</th><th class="text-end">Akcja</th></tr>
+        <tr><th><span class="visually-hidden">Zaznacz</span></th><th>Beneficjent</th><th>Login (panel)</th><th>Konto Microsoft</th><th class="text-end">Akcja</th></tr>
       </thead>
       <tbody>
         <?php foreach ($accounts as $a): $has_ms = !empty($a['ms_user_id']); ?>
         <tr class="<?= $a['is_active'] ? '' : 'opacity-50' ?>">
+          <td><?php if (!$has_ms && $ms_online_enabled): ?><input type="checkbox" form="msBulkForm" name="account_ids[]" value="<?= (int)$a['id'] ?>" aria-label="Zaznacz <?= h($a['client_name']) ?>"><?php endif; ?></td>
           <td class="fw-semibold"><?= h($a['client_name']) ?></td>
           <td class="font-monospace"><?= h($a['login']) ?></td>
           <td>

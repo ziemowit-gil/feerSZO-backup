@@ -43,12 +43,27 @@ function msEduBulkParse(string $text): array {
 /**
  * Wylicza unikalne loginy (sprawdza Graph + loginy już zaplanowane w tej partii).
  * Dodaje klucz 'upn' do każdego wiersza.
+ *
+ * Tryby ($mode):
+ *  - 'rola'          uczeń i.nazwisko{rok}, nauczyciel imie.nazwisko
+ *  - 'imie_nazwisko' imie.nazwisko dla wszystkich
+ *  - 'szkolenie'     {nazwa szkolenia}{nr}, np. excel01, excel02 … ($slug = nazwa szkolenia)
+ * Duplikat dostaje sufiks .1, .2 …
  */
-function msEduBulkPlan(M365Graph $graph, array $rows, string $domain, string $year): array {
+function msEduBulkPlan(M365Graph $graph, array $rows, string $domain, string $year, string $mode = 'rola', string $slug = '', int $startNr = 1): array {
     $taken = [];
+    $nr = max(1, $startNr);
+    $slug = msEduBulkAscii($slug);
+    if ($mode === 'szkolenie' && $slug === '') $mode = 'imie_nazwisko';
     foreach ($rows as &$r) {
         $i = msEduBulkAscii($r['imie']); $n = msEduBulkAscii($r['nazwisko']);
-        $base = $r['rola'] === 'uczen' ? substr($i, 0, 1) . '.' . $n . $year : $i . '.' . $n;
+        if ($mode === 'szkolenie') {
+            $base = $slug . str_pad((string)$nr++, 2, '0', STR_PAD_LEFT);
+        } elseif ($mode === 'imie_nazwisko' || ($r['rola'] ?? '') === 'nauczyciel') {
+            $base = $i . '.' . $n;
+        } else {
+            $base = substr($i, 0, 1) . '.' . $n . $year;
+        }
         $cand = $base; $k = 0;
         while (isset($taken[$cand]) || $graph->login_exists($cand . '@' . $domain)) {
             $k++; $cand = $base . '.' . $k;
@@ -76,7 +91,7 @@ function msEduBulkGroupId(M365Graph $graph, string $name, array &$cache): string
  * @param array $skus ['uczen'=>skuId|'', 'nauczyciel'=>skuId|'']
  * @return array{ok:array,errors:string[]}
  */
-function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $year): array {
+function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $year, bool $groups = true): array {
     $out = ['ok' => [], 'errors' => []]; $gc = [];
     foreach ($planned as $r) {
         try {
@@ -86,11 +101,11 @@ function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $
             if (!empty($skus[$r['rola']])) {
                 try { $graph->assign_license($u['id'], $skus[$r['rola']]); } catch (\Throwable $e) { $warn[] = 'licencja: ' . $e->getMessage(); }
             }
-            try {
+            if ($groups) try {
                 $gname = $r['rola'] === 'uczen' ? 'Uczniowie_' . $year : 'Nauczyciele';
                 $graph->add_to_group($u['id'], msEduBulkGroupId($graph, $gname, $gc));
             } catch (\Throwable $e) { $warn[] = 'grupa: ' . $e->getMessage(); }
-            $out['ok'][] = $r + ['password' => $pass, 'warn' => implode('; ', $warn)];
+            $out['ok'][] = $r + ['ms_user_id' => $u['id'], 'password' => $pass, 'warn' => implode('; ', $warn)];
         } catch (\Throwable $e) {
             $out['errors'][] = $r['upn'] . ': ' . $e->getMessage();
         }

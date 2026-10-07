@@ -26,6 +26,8 @@ $input  = (string)($_POST['lista'] ?? '');
 $year   = preg_match('/^\d{4}$/', $_POST['rok'] ?? '') ? $_POST['rok'] : date('Y');
 $domIn  = preg_replace('/[^a-z0-9.\-]/i', '', $_POST['domena'] ?? '') ?: $domain;
 $skuSel = ['uczen' => (string)($_POST['sku_uczen'] ?? ''), 'nauczyciel' => (string)($_POST['sku_nauczyciel'] ?? '')];
+$mode   = in_array($_POST['tryb'] ?? '', ['rola','imie_nazwisko','szkolenie'], true) ? $_POST['tryb'] : 'rola';
+$slug   = trim((string)($_POST['szkolenie'] ?? ''));
 $plan = null; $res = null; $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -35,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$graph->is_configured()) $errors[] = 'Integracja Microsoft 365 nie jest skonfigurowana.';
     if (count($parsed['rows']) > 300) $errors[] = 'Maksymalnie 300 osób na raz.';
     if ($parsed['rows'] && !$errors) {
-        $plan = msEduBulkPlan($graph, $parsed['rows'], $domIn, $year);
+        $plan = msEduBulkPlan($graph, $parsed['rows'], $domIn, $year, $mode, $slug);
         if (($_POST['_op'] ?? '') === 'create') {
             $res = msEduBulkCreate($graph, $plan, $skuSel, $year);
             if ($res['ok']) $_SESSION['msEduBulkResult'] = $res['ok'];
@@ -89,6 +91,14 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <input id="rok" name="rok" class="form-control" value="<?= h($year) ?>" maxlength="4"></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="domena">Domena</label>
         <input id="domena" name="domena" class="form-control" value="<?= h($domIn) ?>"></div>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="tryb">Schemat loginu</label>
+        <select id="tryb" name="tryb" class="form-select">
+          <option value="rola"<?= $mode === 'rola' ? ' selected' : '' ?>>wg roli (uczeń i.nazwisko+rok / nauczyciel imie.nazwisko)</option>
+          <option value="szkolenie"<?= $mode === 'szkolenie' ? ' selected' : '' ?>>nazwa szkolenia + numer (excel01)</option>
+          <option value="imie_nazwisko"<?= $mode === 'imie_nazwisko' ? ' selected' : '' ?>>imie.nazwisko</option>
+        </select></div>
+      <div class="col-md-3"><label class="form-label small fw-semibold" for="szkolenie">Nazwa szkolenia <span class="text-muted fw-normal">(dla schematu „szkolenie + numer”)</span></label>
+        <input id="szkolenie" name="szkolenie" class="form-control" value="<?= h($slug) ?>"></div>
       <?php foreach (['uczen' => 'Licencja — uczniowie', 'nauczyciel' => 'Licencja — nauczyciele'] as $k => $lbl): ?>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="sku_<?= $k ?>"><?= $lbl ?></label>
         <select id="sku_<?= $k ?>" name="sku_<?= $k ?>" class="form-select">
