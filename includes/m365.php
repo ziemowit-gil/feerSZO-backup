@@ -240,6 +240,37 @@ class M365Graph {
         ]);
     }
 
+    // ── Szczegóły konta (podgląd administratora) ───────────────────────────
+
+    /** Profil konta (pola podstawowe); przy braku konta zwraca tablicę z kluczem 'error'. */
+    public function user_profile(string $user_id): array {
+        return $this->http_get("https://graph.microsoft.com/v1.0/users/{$user_id}?\$select=id,displayName,givenName,surname,userPrincipalName,mail,accountEnabled,department,usageLocation,createdDateTime,lastPasswordChangeDateTime,passwordPolicies,assignedLicenses");
+    }
+
+    /** Członkostwa (grupy i role katalogowe): [['id','displayName','@odata.type'], …]. */
+    public function user_member_of(string $user_id): array {
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/users/{$user_id}/memberOf?\$select=id,displayName&\$top=100");
+        return $r['value'] ?? [];
+    }
+
+    /** Menedżer konta (displayName, userPrincipalName) albo null. */
+    public function user_manager(string $user_id): ?array {
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/users/{$user_id}/manager?\$select=displayName,userPrincipalName");
+        return isset($r['userPrincipalName']) ? $r : null;
+    }
+
+    /** Przypisane licencje (skuPartNumber, skuId). */
+    public function user_license_details(string $user_id): array {
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/users/{$user_id}/licenseDetails");
+        return $r['value'] ?? [];
+    }
+
+    /** Ostatnie logowanie (wymaga AuditLog.Read.All) — null, gdy brak uprawnienia lub danych. */
+    public function user_last_signin(string $user_id): ?string {
+        $r = $this->http_get("https://graph.microsoft.com/v1.0/users/{$user_id}?\$select=signInActivity");
+        return $r['signInActivity']['lastSignInDateTime'] ?? null;
+    }
+
     /** Tworzy użytkownika z opcjonalnym employeeId (dla K30). */
     public function create_user_with_employee_id(string $login, string $display_name, string $password, string $employee_id = ''): array {
         [$first, $rest] = array_pad(explode(' ', $display_name, 2), 2, '');

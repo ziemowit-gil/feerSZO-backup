@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
 $zaRows = msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa);
 $zaAction = $self; $zaTokenName = '_csrf'; $zaTokenValue = csrf_token(); $zaAllowRoles = true;
+$zaDetailUrl = str_starts_with($self, '/ms') ? '/ms/konto' : 'konto.php';
 include dirname(__DIR__, 2) . '/includes/header.php';
 ?>
 <div class="container-xl py-4">

@@ -1,7 +1,7 @@
 <?php
 /**
  * Zarządzanie kontami EDU z rejestru generatora.
- * Wejście: $zaGrupa (filtr: ''|brak|jest), $zaRows, $zaAction, $zaTokenName, $zaTokenValue, $zaQ, $zaStatus, $zaAllowRoles (bool — role Entra tylko dla admina).
+ * Wejście: [$zaDetailUrl — link do podglądu konta, tylko admin], $zaGrupa (filtr: ''|brak|jest), $zaRows, $zaAction, $zaTokenName, $zaTokenValue, $zaQ, $zaStatus, $zaAllowRoles (bool — role Entra tylko dla admina).
  */
 ?>
 <form method="get" class="d-flex gap-2 mb-3 flex-wrap">
@@ -45,7 +45,7 @@
     <?php foreach ($zaRows as $r): ?>
       <tr><td><input type="checkbox" class="zaSel" name="ids[]" value="<?= (int)$r['id'] ?>" data-grupa="<?= h($r['grupa'] ?? '') ?>"></td>
         <td><?= h(trim($r['imie'] . ' ' . $r['nazwisko'])) ?><?= $r['anonim'] ? ' <span class="badge bg-secondary">anonim</span>' : '' ?></td>
-        <td><?= ($r['grupa'] ?? '') !== '' ? h($r['grupa']) . (empty($r['grupa_ok']) ? ' <span class="badge bg-warning text-dark" title="dodanie do grupy w MS365 nieudane">!</span>' : '') : '<span class="text-muted">bez grupy</span>' ?></td><td class="font-monospace"><?= h($r['upn']) ?></td>
+        <td><?= ($r['grupa'] ?? '') !== '' ? h($r['grupa']) . (empty($r['grupa_ok']) ? ' <span class="badge bg-warning text-dark" title="dodanie do grupy w MS365 nieudane">!</span>' : '') : '<span class="text-muted">bez grupy</span>' ?></td><td class="font-monospace"><?php if (!empty($zaDetailUrl)): ?><a href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>"><?= h($r['upn']) ?></a><?php else: ?><?= h($r['upn']) ?><?php endif; ?></td>
         <td><?= $r['status'] === 'suspended' ? '<span class="badge bg-danger">zawieszone</span>' : '<span class="badge bg-success">aktywne</span>' ?></td>
         <td class="small"><?= h($r['manager_upn'] ?: '—') ?></td><td><?= $r['mfa'] ? '<i class="bi bi-shield-check text-success" aria-label="tak"></i>' : '—' ?></td>
         <td class="small"><?= h($r['admin_role'] ?: '—') ?></td><td class="text-muted small"><?= h(substr((string)$r['created_at'], 0, 16)) ?></td></tr>
