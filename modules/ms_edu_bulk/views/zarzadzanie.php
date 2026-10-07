@@ -29,6 +29,15 @@
           <button name="_op" value="restore" class="btn btn-sm btn-outline-success text-start"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Przywróć</button>
           <?php if ($zaAllowRoles): ?><button name="_op" value="reset_mail" class="btn btn-sm btn-outline-warning text-start" onclick="return confirm('Zresetować hasła zaznaczonych kont i WYSŁAĆ im nowe dane e-mailem (na adres alternatywny)? Poprzednie hasła przestaną działać. Konta bez e-maila zostaną pominięte.')"><i class="bi bi-envelope-arrow-up me-1" aria-hidden="true"></i>Resetuj hasła i wyślij e-mail</button><?php endif; ?>
         </div>
+        <?php if ($zaAllowRoles): ?>
+        <div class="border-top mt-2 pt-2"><div class="small fw-semibold mb-1"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneracja konta (przycisk przy koncie)</div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" id="zaRegMail" name="regen_mail" value="1" checked>
+            <label class="form-check-label small" for="zaRegMail">Wyślij e-mail z danymi i przeprosinami</label></div>
+          <label class="form-label small mb-0 mt-1" for="zaRegMsg">Własna wiadomość w mailu (opcj.)</label>
+          <textarea id="zaRegMsg" name="regen_msg" rows="2" class="form-control form-control-sm" maxlength="1000" placeholder="np. Prosimy o zalogowanie się do piątku."></textarea>
+          <button name="_op" value="regenerate" class="btn btn-sm btn-outline-warning w-100 mt-2" onclick="return confirm('Zregenerować zaznaczone konta w tenancie EDU? Zostaną utworzone ponownie z tym samym loginem tam, gdzie ich brakuje (istniejące konta nie są ruszane). Jeśli zaznaczono opcję e-maila, osoby z adresem alternatywnym dostaną dane i przeprosiny.')"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneruj zaznaczone</button>
+        </div>
+        <?php endif; ?>
         <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="zaLic" name="licenses" value="1" checked>
           <label class="form-check-label small" for="zaLic">Zawieszając, odbierz licencje</label></div>
       </div></div>

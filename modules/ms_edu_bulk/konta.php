@@ -59,21 +59,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
     // Szybka akcja przy koncie (suspend_one / restore_one) — dotyczy tylko tego jednego konta
     if (in_array($op, ['suspend_one', 'restore_one'], true)) { $op = substr($op, 0, -4); $_POST['ids'] = [(int)($_POST['one'] ?? 0)]; }
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
-    if ($op === 'regenerate_one') {
-        // Regeneracja konta: zakłada je ponownie w Entra ID z tym samym loginem (gdy go tam brak); hasło jak wygenerowano
-        // wcześniej, jeśli jest w wynikach bieżącej sesji, inaczej nowe (trafia na wydruk).
-        $accs = msEduBulkAccountsByIds([(int)($_POST['one'] ?? 0)]);
+    if (in_array($op, ['regenerate_one', 'regenerate'], true)) {
+        // Regeneracja konta (pojedyncza lub masowa): zakłada je ponownie w Entra ID z tym samym loginem (gdy go tam brak);
+        // hasło jak wygenerowano wcześniej, jeśli jest w wynikach bieżącej sesji, inaczej nowe (trafia na wydruk).
+        // Opcjonalnie e-mail z danymi, przeprosinami i własną wiadomością.
+        $accs = $op === 'regenerate_one' ? msEduBulkAccountsByIds([(int)($_POST['one'] ?? 0)]) : $accs;
         if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
-        elseif (!$accs) flash_set('danger', 'Nie znaleziono konta.');
+        elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
         else {
+            require_once __DIR__ . '/logic/msEduBulkMail.php';
             $passMap = [];
             foreach ($_SESSION['msEduBulkResult'] ?? [] as $sr) if (!empty($sr['upn']) && !empty($sr['password'])) $passMap[mb_strtolower($sr['upn'])] = $sr['password'];
             $res = msEduBulkRecreateRegistry(m365_edu(), $accs, $passMap, []);
+            $mailed = 0; $noMail = []; $mailFail = [];
             if ($res['ok']) {
                 $_SESSION['msEduBulkReset'] = $res['ok']; // login + hasło do wydruku
-                flash_set('success', 'Konto ' . $accs[0]['upn'] . ' utworzone w tenancie EDU ponownie'
-                    . ($res['ok'][0]['password_new'] ? ' z NOWYM hasłem — pobierz je z wydruku PDF nad listą.' : ' z dotychczasowym hasłem.'));
-            } else flash_set('danger', implode(' | ', $res['errors']));
+                if (!empty($_POST['regen_mail'])) foreach ($res['ok'] as $row) {
+                    if (!filter_var(trim((string)$row['email']), FILTER_VALIDATE_EMAIL)) { $noMail[] = $row['upn']; continue; }
+                    $m = msEduBulkSendRegenMail($row, (string)($_POST['regen_msg'] ?? ''));
+                    if ($m['sent']) $mailed++; else $mailFail[] = $row['upn'] . ': ' . implode(' ', $m['failed']);
+                }
+            }
+            $msg = 'Zregenerowano w tenancie EDU: ' . count($res['ok']) . '/' . count($accs) . '.';
+            if ($res['ok'] && !empty($_POST['regen_mail'])) $msg .= ' E-maile z danymi i przeprosinami: ' . $mailed . '.';
+            if ($noMail) $msg .= ' Bez e-maila (dane na wydruku PDF): ' . implode(', ', $noMail) . '.';
+            if ($mailFail) $msg .= ' Błąd e-maila: ' . implode(' | ', $mailFail) . '.';
+            if ($res['ok'] && array_filter($res['ok'], fn($r) => $r['password_new'])) $msg .= ' Część kont dostała NOWE hasło — patrz wydruk PDF nad listą.';
+            if ($res['errors']) $msg .= ' Błędy: ' . implode(' | ', $res['errors']);
+            flash_set($res['errors'] || $noMail || $mailFail ? 'warning' : 'success', $msg);
         }
         header('Location: ' . $self); exit;
     }

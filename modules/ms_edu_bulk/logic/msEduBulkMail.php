@@ -7,6 +7,16 @@ const MS_EDU_BULK_MAIL_BODY = "Dzień dobry {imie},\n\nzałożyliśmy dla Ciebie
 const MS_EDU_BULK_RESET_MAIL_SUBJECT = 'Nowe hasło do konta Microsoft 365';
 const MS_EDU_BULK_RESET_MAIL_BODY = "Dzień dobry {imie},\n\nz przyczyn technicznych nadaliśmy nowe hasło dla konta Microsoft 365 w Edukacji:\n\nLogin: {login}\nNowe hasło: {haslo}\n\nZaloguj się na https://www.office.com — przy pierwszym logowaniu system poprosi o ustawienie własnego hasła. Poprzednie hasło przestało działać.\nNie udostępniaj tych danych innym osobom.\n\nPozdrawiamy\n{organizacja}";
 
+const MS_EDU_BULK_REGEN_MAIL_SUBJECT = 'Przepraszamy — Twoje konto Microsoft 365 zostało odtworzone';
+const MS_EDU_BULK_REGEN_MAIL_BODY = "Dzień dobry {imie},\n\nprzepraszamy za kłopot — z przyczyn technicznych Twoje konto Microsoft 365 w Edukacji musiało zostać odtworzone. Poniżej dane do logowania:\n\nLogin: {login}\nHasło: {haslo}\n\n{wiadomosc}Zaloguj się na https://www.office.com — przy pierwszym logowaniu system poprosi o ustawienie własnego hasła.\nNie udostępniaj tych danych innym osobom.\n\nJeszcze raz przepraszamy za utrudnienia.\nPozdrawiamy\n{organizacja}";
+
+/** Wysyła maila po regeneracji konta (z przeprosinami i opcjonalną własną wiadomością). Zwraca wynik msEduBulkMailSend(). */
+function msEduBulkSendRegenMail(array $row, string $custom = ''): array {
+    $custom = trim(str_replace(['{', '}'], ['(', ')'], $custom)); // bez zmiennych szablonu w treści użytkownika
+    $body = str_replace('{wiadomosc}', $custom !== '' ? $custom . "\n\n" : '', MS_EDU_BULK_REGEN_MAIL_BODY);
+    return msEduBulkMailSend([$row], MS_EDU_BULK_REGEN_MAIL_SUBJECT, $body);
+}
+
 const MS_EDU_BULK_MAIL_VARS = ['{imie}', '{nazwisko}', '{login}', '{haslo}', '{grupa}', '{szkolenie}', '{organizacja}'];
 
 /** Podstawia zmienne; zwraca [temat, html, tekst]. Login i hasło w HTML idą jako <code>. */
