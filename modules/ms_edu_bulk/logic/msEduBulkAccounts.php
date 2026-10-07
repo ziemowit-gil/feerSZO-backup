@@ -67,7 +67,7 @@ function msEduBulkAccountsByIds(array $ids): array {
 
 /**
  * Wykonuje akcję na zaznaczonych kontach.
- * @param string $action suspend | restore | manager | mfa | role | group | license | delete (tylko konta BEZ grupy)
+ * @param string $action suspend | restore | manager | mfa | mfa_off | role | group | license | delete (tylko konta BEZ grupy)
  * @param array  $opts   ['licenses'=>bool (suspend), 'manager'=>upn, 'role'=>helpdesk|user]
  * @return array{done:int,errors:string[]}
  */
@@ -100,6 +100,10 @@ function msEduBulkAccountsAct(M365Graph $graph, array $accounts, string $action,
                 case 'mfa':
                     if (!$graph->set_per_user_mfa($id, true)) throw new RuntimeException('Graph odrzucił wymuszenie MFA (brak uprawnienia UserAuthenticationMethod.ReadWrite.All?).');
                     db()->prepare("UPDATE msedu_bulk_accounts SET mfa=1 WHERE id=?")->execute([$a['id']]);
+                    break;
+                case 'mfa_off':
+                    if (!$graph->set_per_user_mfa($id, false)) throw new RuntimeException('Graph odrzucił wyłączenie wymuszania MFA (brak uprawnienia UserAuthenticationMethod.ReadWrite.All?).');
+                    db()->prepare("UPDATE msedu_bulk_accounts SET mfa=0 WHERE id=?")->execute([$a['id']]);
                     break;
                 case 'role':
                     $role = M365Graph::SAFE_DIRECTORY_ROLES[$opts['role'] ?? ''] ?? null;

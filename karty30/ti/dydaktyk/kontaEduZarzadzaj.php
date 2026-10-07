@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
     if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
     elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
-    elseif (!in_array($op, ['suspend', 'restore', 'manager', 'mfa', 'group', 'license'], true)) flash_set('danger', 'Ta akcja jest dostępna tylko w panelu administratora.');
+    elseif (!in_array($op, ['suspend', 'restore', 'manager', 'mfa', 'mfa_off', 'group', 'license'], true)) flash_set('danger', 'Ta akcja jest dostępna tylko w panelu administratora.');
     else {
         $r = msEduBulkAccountsAct(m365_edu(), $accs, $op, ['licenses' => !empty($_POST['licenses']), 'manager' => $_POST['manager'] ?? '', 'group' => msEduBulkGroupFromPost($_POST), 'skus' => $_POST['skus'] ?? []]);
         flash_set($r['errors'] ? 'warning' : 'success', 'Wykonano: ' . $r['done'] . '/' . count($accs) . ($r['errors'] ? '. Błędy: ' . implode(' | ', $r['errors']) : '.'));
