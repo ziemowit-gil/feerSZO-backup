@@ -172,3 +172,41 @@ function msEduBulkAnonPlan(M365Graph $graph, string $szkolenie, int $count, int 
     }
     return ['rows' => $rows, 'skipped' => $skipped, 'error' => null];
 }
+
+/**
+ * PDF w układzie kartek do rozcięcia: 2 kolumny × 5 wierszy na A4 (10 kart), przerywane ramki.
+ * Każda karta = jedno konto (osoba, login, hasło, krótka instrukcja).
+ */
+function msEduBulkPdfCards(array $rows, string $title = 'Konto Microsoft 365'): string {
+    require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $tmp = rtrim(defined('UPLOAD_DIR') ? UPLOAD_DIR : (dirname(__DIR__, 3) . '/uploads'), '/') . '/mpdf_tmp';
+    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $org = defined('ORG_NAME') ? ORG_NAME : '';
+    $card = function (?array $r) use ($e, $org, $title) {
+        if (!$r) return '<td class="c empty"></td>';
+        $anon = !empty($r['anonim']);
+        $who = $anon ? ($r['klasa'] ?? '') : trim(($r['imie'] ?? '') . ' ' . ($r['nazwisko'] ?? ''));
+        return '<td class="c"><div class="o">' . $e($org ?: $title) . '</div>'
+             . ($who !== '' ? '<div class="w">' . $e($who) . '</div>' : '')
+             . '<div class="l">Login</div><div class="m">' . $e($r['upn']) . '</div>'
+             . '<div class="l">Hasło tymczasowe</div><div class="m p">' . $e($r['password']) . '</div>'
+             . '<div class="i">Zaloguj się na office.com. Przy pierwszym logowaniu ustaw własne hasło. Nie udostępniaj tych danych.</div></td>';
+    };
+    $html = '<style>table{width:100%;border-collapse:collapse}td.c{width:50%;height:53mm;border:0.4pt dashed #666;padding:3.5mm 4mm;vertical-align:top;font-family:dejavusans}'
+          . '.o{font-size:7pt;color:#666;text-transform:uppercase}.w{font-size:11pt;font-weight:bold;margin:1mm 0 2mm}'
+          . '.l{font-size:6.5pt;color:#666;margin-top:1.5mm}.m{font-family:dejavusansmono;font-size:9pt}.p{font-size:11pt;font-weight:bold}'
+          . '.i{font-size:6.5pt;color:#555;margin-top:2.5mm}</style>';
+    $rows = array_values($rows);
+    foreach (array_chunk($rows, 10) as $pi => $page) {
+        if ($pi > 0) $html .= '<pagebreak />';
+        $html .= '<table>';
+        foreach (array_chunk($page, 2) as $pair) $html .= '<tr>' . $card($pair[0]) . $card($pair[1] ?? null) . '</tr>';
+        $html .= '</table>';
+    }
+    $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 8, 'margin_right' => 8,
+                            'margin_top' => 8, 'margin_bottom' => 8, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+    $mpdf->SetTitle($title . ' — kartki');
+    $mpdf->WriteHTML($html);
+    return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+}

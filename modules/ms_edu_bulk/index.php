@@ -8,6 +8,7 @@ require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__, 2) . '/includes/m365.php';
+require_once dirname(__DIR__, 2) . '/includes/ti_online.php';
 require_once __DIR__ . '/logic/msEduBulk.php';
 require_once __DIR__ . '/logic/msEduBulkImport.php';
 require_once __DIR__ . '/logic/msEduBulkMail.php';
@@ -17,9 +18,9 @@ $PAGE_TITLE = 'Generowanie kont M365 Edu';
 // Działa pod /modules/ms_edu_bulk/index.php i pod aliasem /ms — przekierowania i linki wracają pod aktualny adres.
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'index.php'), '?');
 
-$graph  = new M365Graph();
+$graph  = m365_training(); // konta zawsze w tenancie EDU
 $skus   = $graph->is_configured() ? $graph->get_subscribed_skus() : [];
-$domain = m365_setting('m365_domain') ?: 'feer.org.pl';
+$domain = m365_training_domain();
 
 // ── Pobieranie wyników (hasła tylko w sesji) ────────────────────────────────
 $result = $_SESSION['msEduBulkResult'] ?? [];
@@ -34,7 +35,7 @@ if (isset($_GET['csv']) && $result) {
 if (isset($_GET['pdf']) && $result) {
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="konta_m365_edu_' . date('Ymd_His') . '.pdf"');
-    echo msEduBulkPdf($result); exit;
+    echo (($_GET['pdf'] ?? '') === 'cards') ? msEduBulkPdfCards($result) : msEduBulkPdf($result); exit;
 }
 
 // ── Stan formularza ──────────────────────────────────────────────────────────
@@ -148,6 +149,12 @@ include dirname(__DIR__, 2) . '/includes/header.php';
 <div class="container-xl py-4">
   <h1 class="h3 fw-bold mb-3"><i class="bi bi-people-fill me-2"></i>Generowanie kont M365 Edu</h1>
   <?= flash_html() ?>
+  <?php if (m365_training_is_own()): ?>
+  <div class="alert alert-info py-2 small"><i class="bi bi-mortarboard me-1"></i>Konta powstają w <strong>tenancie EDU</strong> — domena <code><?= h($domain) ?></code>.</div>
+  <?php else: ?>
+  <div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle me-1"></i><strong>Uwaga:</strong> osobny tenant EDU nie jest skonfigurowany — konta powstałyby w <strong>głównym tenancie organizacji</strong> (<code><?= h($domain) ?></code>).
+    Ustaw tenant EDU w Dydaktyka 3 → M365 (opcja „własny tenant”) przed generowaniem.</div>
+  <?php endif; ?>
   <?php foreach ($errors as $e): ?><div class="alert alert-danger py-2 small mb-2"><?= h($e) ?></div><?php endforeach; ?>
 
   <?php if ($res && $res['errors']): ?><div class="alert alert-warning small">Nie utworzono: <?= h(implode(' | ', $res['errors'])) ?></div><?php endif; ?>
@@ -157,6 +164,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="card-header d-flex gap-2 align-items-center flex-wrap">
       <span>Wygenerowane konta: <strong><?= count($result) ?></strong> — hasła widoczne tylko tutaj</span>
       <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1"></i>Drukuj PDF</a>
+      <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1"></i>Kartki do rozcięcia</a>
       <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1"></i>CSV</a>
       <a href="?clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Zamknąć listę? Hasła znikną z sesji.')">Zamknij listę</a>
     </div>
@@ -206,7 +214,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <?php endif; ?>
     <div class="d-flex gap-2 mt-3">
       <button name="_op" value="anon_podglad" class="btn btn-outline-primary"><i class="bi bi-eye me-1"></i>Podgląd loginów</button>
-      <?php if ($anPlan): ?><button name="_op" value="anon_utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w Entra ID?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($anPlan) ?> kont</button><?php endif; ?>
+      <?php if ($anPlan): ?><button name="_op" value="anon_utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w tenancie EDU (<?= h($domain) ?>)?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($anPlan) ?> kont</button><?php endif; ?>
     </div>
     <p class="small text-muted mt-2 mb-0">Numeracja pomija numery już zajęte w tenancie. Hasła pokażą się raz — wydrukujesz je do PDF (jedno konto w linii) lub pobierzesz CSV.</p>
   </form>
@@ -277,7 +285,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="d-flex gap-2 flex-wrap">
       <button name="_op" value="podglad" class="btn btn-outline-primary"><i class="bi bi-eye me-1"></i>Podgląd loginów</button>
       <?php if ($plan && !$errors): ?>
-      <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w Entra ID?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont</button>
+      <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w tenancie EDU (<?= h($domain) ?>)?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont</button>
       <?php endif; ?>
       <a href="<?= h($self) ?>" class="btn btn-outline-secondary ms-auto">Wczytaj inną listę</a>
     </div>

@@ -149,7 +149,7 @@ if (isset($_GET['csv']) && $new_ms_bulk) {
 if (isset($_GET['pdf']) && $new_ms_bulk) {
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="konta_m365_' . date('Ymd_His') . '.pdf"');
-    echo msEduBulkPdf($new_ms_bulk); exit;
+    echo (($_GET['pdf'] ?? '') === 'cards') ? msEduBulkPdfCards($new_ms_bulk) : msEduBulkPdf($new_ms_bulk); exit;
 }
 if (isset($_GET['clear'])) { unset($_SESSION['new_ms_bulk'], $_SESSION['new_ms_mail']); header('Location: microsoft365.php'); exit; }
 $ms_skus = $ms_online_enabled ? m365_training()->get_subscribed_skus() : [];
@@ -207,6 +207,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
     <div class="fw-bold">⚠ Wygenerowane konta (<?= count($new_ms_bulk) ?>) — hasła widoczne tylko tutaj</div>
     <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj PDF</a>
+    <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1" aria-hidden="true"></i>Kartki do rozcięcia</a>
     <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz CSV</a>
     <a href="?clear=1" class="btn btn-sm btn-outline-secondary">Zamknij</a>
   </div>
@@ -259,7 +260,7 @@ endif; ?>
     <?php endif; ?>
     <div class="d-flex gap-2 mt-3">
       <button name="_op" value="anon_podglad" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd loginów</button>
-      <?php if ($anPlan): ?><button name="_op" value="anon_utworz" class="btn btn-primary btn-sm" onclick="return confirm('Utworzyć REALNE konta Microsoft?')"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz <?= count($anPlan) ?> kont</button><?php endif; ?>
+      <?php if ($anPlan): ?><button name="_op" value="anon_utworz" class="btn btn-primary btn-sm" onclick="return confirm('Utworzyć REALNE konta Microsoft w tenancie EDU?')"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz <?= count($anPlan) ?> kont</button><?php endif; ?>
     </div>
   </div>
 </form>
@@ -286,7 +287,7 @@ endif; ?>
       <?php endfor; ?>
     </div>
     <p class="small text-muted mt-2 mb-0">Zaznacz kursantów w tabeli poniżej (tylko bez konta) i kliknij „Utwórz konta dla zaznaczonych”. Konta zostaną powiązane z kursantami.</p>
-    <button type="submit" class="btn btn-primary btn-sm mt-2" onclick="return confirm('Utworzyć REALNE konta Microsoft dla zaznaczonych kursantów?')"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Utwórz konta dla zaznaczonych</button>
+    <button type="submit" class="btn btn-primary btn-sm mt-2" onclick="return confirm('Utworzyć REALNE konta Microsoft w tenancie EDU dla zaznaczonych kursantów?')"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Utwórz konta dla zaznaczonych</button>
   </div>
 </form>
 <?php endif; ?>

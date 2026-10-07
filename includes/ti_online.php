@@ -50,6 +50,16 @@ function m365_training(): M365Graph {
     ]);
 }
 
+/** Domena kont w tenancie szkoleniowym (EDU). */
+function m365_training_domain(): string {
+    return ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
+}
+
+/** Czy tenant szkoleniowy (EDU) jest osobnym tenantem, a nie głównym tenantem organizacji. */
+function m365_training_is_own(): bool {
+    return (bool)ti_m365_setting('use_own_tenant');
+}
+
 /** Czy konta MS można tworzyć — konfiguracja M365 (Dydaktyka 3 → M365) jest kompletna. */
 function ti_ms_enabled(): bool {
     return m365_training()->is_configured();
