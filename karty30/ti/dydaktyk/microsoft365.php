@@ -77,7 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 $anPlan = $ap['rows']; $anSkipped = $ap['skipped'];
                 if ($op === 'anon_utworz') {
-                    $resA = msEduBulkCreate(m365_edu(), $anPlan, ['uczen' => $an['sku'], 'nauczyciel' => []], date('Y'), false);
+                    $_fp = trim((string)($_POST['haslo_startowe'] ?? ''));
+                    if (($_pe = msEduBulkPasswordError($_fp)) !== null) { flash_set('danger', $_pe); header('Location: microsoft365.php'); exit; }
+                    $resA = msEduBulkCreate(m365_edu(), $anPlan, ['uczen' => $an['sku'], 'nauczyciel' => []], date('Y'), false, $_fp);
                     if ($resA['ok']) { $_SESSION['new_ms_bulk'] = $resA['ok']; }
                     flash_set($resA['errors'] ? 'warning' : 'success', 'Utworzono kont anonimowych: ' . count($resA['ok']) . ($resA['errors'] ? '. Błędy: ' . implode(' | ', $resA['errors']) : '.'));
                     header('Location: microsoft365.php'); exit;
@@ -110,7 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $domain = ti_m365_setting('domain') ?: (m365_setting('m365_domain') ?: 'feer.org.pl');
         $start = 1 + (int)(db_one("SELECT COUNT(*) c FROM k30_ti_student_accounts WHERE ms_upn LIKE ?", [msEduBulkAscii($slug) . '%@%'])['c'] ?? 0);
         $planned = msEduBulkPlan($graph, $rows, $domain, date('Y'), $mode, $slug, $start, (string)($_POST['skrot'] ?? ''));
-        $res = msEduBulkCreate($graph, $planned, ['uczen' => $sku, 'nauczyciel' => $sku], date('Y'), false);
+        $_fp = trim((string)($_POST['haslo_startowe'] ?? ''));
+        if (($_pe = msEduBulkPasswordError($_fp)) !== null) { flash_set('danger', $_pe); header('Location: microsoft365.php'); exit; }
+        $res = msEduBulkCreate($graph, $planned, ['uczen' => $sku, 'nauczyciel' => $sku], date('Y'), false, $_fp);
         foreach ($res['ok'] as $r) {
             db_update('k30_ti_student_accounts', [
                 'ms_user_id' => $r['ms_user_id'], 'ms_upn' => $r['upn'],
@@ -177,6 +181,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <span class="badge bg-secondary"><?= $ms_count ?>/<?= count($accounts) ?> z kontem</span>
 </div>
 
+<?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear']], 'konta') ?>
 <?= flash_html() ?>
 
 <?php if (!$ms_online_enabled): ?>
@@ -232,7 +237,6 @@ endif; ?>
 <?php if (!$ms_edu_ok): ?>
 <div class="alert alert-danger py-2 small"><strong>Tenant EDU nie jest skonfigurowany</strong> — hurtowe generowanie kont jest zablokowane (Dydaktyka 3 → M365, „własny tenant”).</div>
 <?php else: ?>
-<div class="alert alert-light border d-flex align-items-center gap-2 py-2 small"><i class="bi bi-file-earmark-spreadsheet text-primary" aria-hidden="true"></i><span>Osoby spoza systemu (bez konta kursanta)? Wklej listę lub wczytaj XLSX/CSV z wyborem kolumn.</span> <a class="btn btn-sm btn-outline-primary ms-auto" href="kontaListaM365.php">Konta z listy — bez kursantów</a> <a class="btn btn-sm btn-outline-secondary" href="kontaEduZarzadzaj.php">Zarządzanie kontami EDU</a></div>
 <form method="post" class="card border-0 shadow-sm mb-4">
   <div class="card-header fw-semibold"><i class="bi bi-incognito me-2 text-primary" aria-hidden="true"></i>Konta anonimowe <span class="text-muted fw-normal small">— bez danych osobowych: nazwa szkolenia + numer</span></div>
   <div class="card-body">
@@ -253,6 +257,7 @@ endif; ?>
         <select id="anPad" name="an_pad" class="form-select form-select-sm">
           <?php foreach ([0 => 'bez zer', 2 => '2 (01)', 3 => '3 (001)'] as $k => $l): ?>
           <option value="<?= $k ?>"<?= $an['pad'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <div class="col-md-4"><?= msEduBulkPasswordField('anHs', 'haslo_startowe', 'form-control form-control-sm') ?></div>
       <div class="col-md-2"><label class="form-label small fw-semibold" for="anDup">Zajęty numer</label>
         <select id="anDup" name="an_dup" class="form-select form-select-sm"><option value="nadpisz"<?= ($_POST['an_dup'] ?? 'nadpisz') === 'nadpisz' ? ' selected' : '' ?>>nadpisz własne</option><option value="pomin"<?= ($_POST['an_dup'] ?? '') === 'pomin' ? ' selected' : '' ?>>pomiń</option></select></div>
       <?php for ($n = 0; $n < 2; $n++): $_sel = $an['sku'][$n] ?? ($n === 0 && !$an['sku'] ? $ms_default_sku : ''); ?>
@@ -284,6 +289,7 @@ endif; ?>
         <select id="bkTryb" name="tryb" class="form-select form-select-sm"><?= msEduBulkModeOptions("szkolenie", false) ?></select></div>
       <div class="col-md-2"><label class="form-label small fw-semibold" for="bkSkrot">Skrót (do loginu)</label>
         <input id="bkSkrot" name="skrot" class="form-control form-control-sm" maxlength="12" placeholder="np. co"></div>
+      <div class="col-md-4"><?= msEduBulkPasswordField('bkHs', 'haslo_startowe', 'form-control form-control-sm') ?></div>
       <div class="col-md-4"><label class="form-label small fw-semibold" for="bkSzk">Nazwa szkolenia</label>
         <input id="bkSzk" name="szkolenie" class="form-control form-control-sm" placeholder="np. excel" maxlength="40"></div>
       <?php for ($n = 0; $n < 2; $n++): ?>

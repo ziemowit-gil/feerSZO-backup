@@ -44,8 +44,8 @@
             <div class="col-6"><label class="form-label small mb-0" for="zaRegLogin">Nowy login (opcj.)</label>
               <input id="zaRegLogin" name="regen_login" class="form-control form-control-sm" autocomplete="off" placeholder="np. jan.kowalski"></div>
             <div class="col-6"><label class="form-label small mb-0" for="zaRegPass">Nowe hasło (opcj.)</label>
-              <input id="zaRegPass" name="regen_pass" type="text" class="form-control form-control-sm font-monospace" autocomplete="off" minlength="8" placeholder="min. 8 znaków"></div>
-            <div class="form-text">Tylko przy regeneracji jednego konta; puste = ten sam login i hasło jak dotąd (lub wygenerowane).</div>
+              <input id="zaRegPass" name="regen_pass" type="text" class="form-control form-control-sm font-monospace" autocomplete="off" minlength="8" placeholder="min. 8 znaków, np. Start2026!x"></div>
+            <div class="form-text">Login — tylko przy jednym koncie. Własne hasło startowe obowiązuje wszystkie zaznaczone konta (3 z 4 klas znaków, min. 8); puste = hasło jak dotąd (lub losowe).</div>
           </div>
           <label class="form-label small mb-0 mt-1" for="zaRegMsg">Własna wiadomość w mailu (opcj.)</label>
           <textarea id="zaRegMsg" name="regen_msg" rows="2" class="form-control form-control-sm" maxlength="1000" placeholder="np. Prosimy o zalogowanie się do piątku."></textarea>

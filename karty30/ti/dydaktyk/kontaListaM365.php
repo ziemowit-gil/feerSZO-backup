@@ -48,6 +48,8 @@ $year   = preg_match('/^\d{4}$/', $_POST['rok'] ?? '') ? $_POST['rok'] : date('Y
 $domIn  = preg_replace('/[^a-z0-9.\-]/i', '', $_POST['domena'] ?? '') ?: $domain;
 $mode   = in_array($_POST['tryb'] ?? '', ['rola', 'imie_nazwisko', 'szkolenie', 'is_skrot', 'in_skrot', 'skrot_is', 'skrot_in'], true) ? $_POST['tryb'] : 'rola';
 $abbrIn = trim((string)($_POST['skrot'] ?? ''));
+$fixedPass = trim((string)($_POST['haslo_startowe'] ?? ''));
+if (($pe = msEduBulkPasswordError($fixedPass)) !== null) { $errors[] = $pe; $fixedPass = ''; $op = ''; }
 $dupOver = ($_POST['duplikat'] ?? 'nadpisz') === 'nadpisz'; // duplikat loginu: nadpisz własne konto albo dodaj sufiks
 $slug   = trim((string)($_POST['szkolenie'] ?? ''));
 $skuSel = ['uczen' => msEduBulkSkuList($_POST['sku_uczen'] ?? []), 'nauczyciel' => msEduBulkSkuList($_POST['sku_nauczyciel'] ?? [])];
@@ -130,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$p['rows']) $errors[] = 'Brak poprawnych wierszy do utworzenia.';
             else $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug, 1, $abbrIn, $dupOver);
             if ($op === 'utworz' && $plan) {
-                $res = msEduBulkCreate($graph, $plan, $skuSel, $year, false);
+                $res = msEduBulkCreate($graph, $plan, $skuSel, $year, false, $fixedPass);
                 if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; $mail['szkolenie'] = $slug; $_SESSION['msEduBulkMail'] = $mail; }
                 $plan = null; $grid = [];
             }
@@ -149,7 +151,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1100px">
   <h1 class="h3 fw-bold mb-3"><i class="bi bi-people-fill me-2"></i>Konta M365 z listy <span class="fs-6 text-muted fw-normal">— bez zakładania kursantów w systemie</span></h1>
-  <?= flash_html() ?>
+  <?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear']], 'lista') ?>
+<?= flash_html() ?>
   <?php foreach ($errors as $e): ?><div class="alert alert-danger py-2 small mb-2"><?= h($e) ?></div><?php endforeach; ?>
 
   <?php if ($res && $res['errors']): ?><div class="alert alert-warning small">Nie utworzono: <?= h(implode(' | ', $res['errors'])) ?></div><?php endif; ?>
@@ -223,6 +226,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <select id="tryb" name="tryb" class="form-select">
           <?= msEduBulkModeOptions($mode) ?>
         </select></div>
+      <div class="col-md-3"><?= msEduBulkPasswordField('hs') ?></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="dup">Duplikat loginu</label>
         <select id="dup" name="duplikat" class="form-select"><option value="nadpisz"<?= $dupOver ? ' selected' : '' ?>>nadpisz istniejące konto (własne)</option><option value="sufiks"<?= !$dupOver ? ' selected' : '' ?>>dodaj sufiks .1, .2…</option></select></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="szkolenie">Nazwa szkolenia</label>

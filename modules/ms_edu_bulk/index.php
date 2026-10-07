@@ -57,6 +57,8 @@ $year   = preg_match('/^\d{4}$/', $_POST['rok'] ?? '') ? $_POST['rok'] : date('Y
 $domIn  = preg_replace('/[^a-z0-9.\-]/i', '', $_POST['domena'] ?? '') ?: $domain;
 $mode   = in_array($_POST['tryb'] ?? '', ['rola', 'imie_nazwisko', 'szkolenie', 'is_skrot', 'in_skrot', 'skrot_is', 'skrot_in'], true) ? $_POST['tryb'] : 'rola';
 $abbrIn = trim((string)($_POST['skrot'] ?? ''));
+$fixedPass = trim((string)($_POST['haslo_startowe'] ?? ''));
+if (($pe = msEduBulkPasswordError($fixedPass)) !== null) { $errors[] = $pe; $fixedPass = ''; $op = ''; }
 $dupOver = ($_POST['duplikat'] ?? 'nadpisz') === 'nadpisz'; // duplikat loginu: nadpisz własne konto albo dodaj sufiks
 $slug   = trim((string)($_POST['szkolenie'] ?? ''));
 $skuSel = ['uczen' => msEduBulkSkuList($_POST['sku_uczen'] ?? []), 'nauczyciel' => msEduBulkSkuList($_POST['sku_nauczyciel'] ?? [])];
@@ -118,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 $anPlan = $ap['rows']; $anSkipped = $ap['skipped'];
                 if ($op === 'anon_utworz') {
-                    $res = msEduBulkCreate($graph, $anPlan, ['uczen' => $skuSel['uczen'], 'nauczyciel' => []], $year, false);
+                    $res = msEduBulkCreate($graph, $anPlan, ['uczen' => $skuSel['uczen'], 'nauczyciel' => []], $year, false, $fixedPass);
                     if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; }
                     $anPlan = null;
                 }
@@ -159,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$p['rows']) $errors[] = 'Brak poprawnych wierszy do utworzenia.';
             else $plan = msEduBulkPlan($graph, $p['rows'], $domIn, $year, $mode, $slug, 1, $abbrIn, $dupOver);
             if ($op === 'utworz' && $plan) {
-                $res = msEduBulkCreate($graph, $plan, $skuSel, $year);
+                $res = msEduBulkCreate($graph, $plan, $skuSel, $year, true, $fixedPass);
                 if ($res['ok']) { $_SESSION['msEduBulkResult'] = $res['ok']; $result = $res['ok']; $mail['szkolenie'] = $slug; $_SESSION['msEduBulkMail'] = $mail; }
                 $plan = null; $grid = [];
             }
@@ -242,6 +244,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <select id="anPad" name="an_pad" class="form-select">
           <?php foreach ([0 => 'bez zer (excel.1)', 2 => '2 cyfry (01)', 3 => '3 cyfry (001)'] as $k => $l): ?>
           <option value="<?= $k ?>"<?= $an['pad'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+      <div class="col-md-3"><?= msEduBulkPasswordField('anHs') ?></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="anDup">Zajęty numer</label>
         <select id="anDup" name="an_dup" class="form-select"><option value="nadpisz"<?= ($_POST['an_dup'] ?? 'nadpisz') === 'nadpisz' ? ' selected' : '' ?>>nadpisz własne konto</option><option value="pomin"<?= ($_POST['an_dup'] ?? '') === 'pomin' ? ' selected' : '' ?>>pomiń numer</option></select></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="anDom">Domena kont</label>
@@ -305,6 +308,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <select id="tryb" name="tryb" class="form-select">
           <?= msEduBulkModeOptions($mode) ?>
         </select></div>
+      <div class="col-md-3"><?= msEduBulkPasswordField('hs') ?></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="dup">Duplikat loginu</label>
         <select id="dup" name="duplikat" class="form-select"><option value="nadpisz"<?= $dupOver ? ' selected' : '' ?>>nadpisz istniejące konto (własne)</option><option value="sufiks"<?= !$dupOver ? ' selected' : '' ?>>dodaj sufiks .1, .2…</option></select></div>
       <div class="col-md-3"><label class="form-label small fw-semibold" for="szkolenie">Nazwa szkolenia</label>

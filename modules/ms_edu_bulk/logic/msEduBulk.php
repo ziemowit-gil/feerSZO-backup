@@ -128,6 +128,20 @@ function msEduBulkPlan(M365Graph $graph, array $rows, string $domain, string $ye
     return $rows;
 }
 
+/** Błąd złożoności własnego hasła startowego albo null (min. 8 znaków, 3 z 4 klas znaków — wymóg Entra ID). */
+function msEduBulkPasswordError(string $p): ?string {
+    if ($p === '') return null;
+    if (mb_strlen($p) < 8 || mb_strlen($p) > 256) return 'Hasło startowe: od 8 do 256 znaków.';
+    $c = (preg_match('/[a-z]/', $p) ? 1 : 0) + (preg_match('/[A-Z]/', $p) ? 1 : 0) + (preg_match('/\d/', $p) ? 1 : 0) + (preg_match('/[^a-zA-Z0-9]/', $p) ? 1 : 0);
+    return $c < 3 ? 'Hasło startowe musi zawierać co najmniej 3 z 4: małe litery, wielkie litery, cyfry, znaki specjalne.' : null;
+}
+
+/** Pole „własne hasło startowe” (puste = losowe, unikalne dla każdego konta). */
+function msEduBulkPasswordField(string $id = 'hs', string $name = 'haslo_startowe', string $class = 'form-control'): string {
+    return '<label class="form-label small fw-semibold" for="' . $id . '">Własne hasło startowe <span class="text-muted fw-normal">(puste = losowe dla każdego; własne = to samo dla wszystkich)</span></label>'
+         . '<input id="' . $id . '" name="' . $name . '" class="' . $class . '" autocomplete="off" maxlength="256" placeholder="np. Start2026!x">';
+}
+
 /** Lista SKU z pola formularza (string albo tablica) — bez pustych i duplikatów, max 2. */
 function msEduBulkSkuList(mixed $v): array {
     return array_slice(array_values(array_unique(array_filter(array_map('strval', (array)$v), fn($x) => $x !== ''))), 0, 2);
@@ -187,11 +201,11 @@ function msEduBulkEnsureGroupAdd(M365Graph $graph, string $userId, string $group
  * @param array $skus ['uczen'=>skuId|'', 'nauczyciel'=>skuId|'']
  * @return array{ok:array,errors:string[]}
  */
-function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $year, bool $groups = true): array {
+function msEduBulkCreate(M365Graph $graph, array $planned, array $skus, string $year, bool $groups = true, string $fixedPass = ''): array {
     $out = ['ok' => [], 'errors' => []]; $gc = [];
     foreach ($planned as $r) {
         try {
-            $pass = M365Graph::generate_password(16);
+            $pass = $fixedPass !== '' ? $fixedPass : M365Graph::generate_password(16); // własne hasło startowe albo losowe
             $warn = [];
             if (!empty($r['nadpisz'])) {
                 // Duplikat loginu → nadpisanie własnego konta: nowe dane, nowe hasło (wymuszona zmiana), konto włączone
@@ -357,4 +371,19 @@ function msEduBulkPdfStrips(array $rows, string $title = 'Konta Microsoft 365', 
     $mpdf->SetTitle($title . ' — paski');
     $mpdf->WriteHTML($html);
     return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+}
+
+/**
+ * Pasek zakładek (nav-tabs) wspólny dla ekranów kont EDU.
+ * @param array<string,array{0:string,1:string,2?:string}> $tabs klucz => [etykieta, url, ikona]
+ */
+function msEduBulkTabs(array $tabs, string $active): string {
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $h = '<ul class="nav nav-tabs mb-3" role="tablist" aria-label="Konta EDU">';
+    foreach ($tabs as $k => $t) {
+        $on = $k === $active;
+        $h .= '<li class="nav-item"><a class="nav-link' . ($on ? ' active fw-semibold' : '') . '" href="' . $e($t[1]) . '"' . ($on ? ' aria-current="page"' : '') . '>'
+            . (!empty($t[2]) ? '<i class="bi ' . $e($t[2]) . ' me-1" aria-hidden="true"></i>' : '') . $e($t[0]) . '</a></li>';
+    }
+    return $h . '</ul>';
 }

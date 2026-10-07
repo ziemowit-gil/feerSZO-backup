@@ -43,9 +43,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="container-fluid py-3" style="max-width:1200px">
   <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
     <h1 class="h4 mb-0 fw-bold"><i class="bi bi-person-gear text-primary me-2" aria-hidden="true"></i>Konta EDU — zarządzanie</h1>
-    <a href="microsoft365.php" class="btn btn-sm btn-outline-secondary ms-auto">← Microsoft 365</a>
   </div>
-  <?= flash_html() ?>
+  <?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear']], 'admin') ?>
+<?= flash_html() ?>
   <?php include dirname(__DIR__, 3) . '/modules/ms_edu_bulk/views/zarzadzanie.php'; ?>
 </div>
 </main>

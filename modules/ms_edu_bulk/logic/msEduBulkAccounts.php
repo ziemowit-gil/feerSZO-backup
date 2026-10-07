@@ -238,9 +238,9 @@ function msEduBulkParsePasswordList(string $text, string $domain = ''): array {
  */
 function msEduBulkRecreateRegistry(M365Graph $graph, array $accounts, array $passMap, array $skus = [], array $override = []): array {
     $out = ['ok' => [], 'errors' => []]; $gc = [];
-    // Własny login i/lub hasło (tylko przy regeneracji jednego konta); login bez domeny dostaje domenę dotychczasowego loginu
+    // Własny login (tylko przy jednym koncie) i/lub hasło startowe (jedno konto lub wszystkie zaznaczone); login bez domeny dostaje domenę dotychczasowego loginu
     $ovLogin = count($accounts) === 1 ? trim((string)($override['login'] ?? '')) : '';
-    $ovPass  = count($accounts) === 1 ? (string)($override['password'] ?? '') : '';
+    $ovPass  = trim((string)($override['password'] ?? '')); // własne hasło startowe — także przy regeneracji masowej (to samo dla wszystkich)
     foreach ($accounts as $a) {
         try {
             if ($ovLogin !== '') {
@@ -250,7 +250,7 @@ function msEduBulkRecreateRegistry(M365Graph $graph, array $accounts, array $pas
                 if ($dup->fetchColumn()) throw new RuntimeException('login „' . $ovLogin . '” jest już w rejestrze.');
                 $a['upn'] = $ovLogin;
             }
-            if ($ovPass !== '' && mb_strlen($ovPass) < 8) throw new RuntimeException('hasło musi mieć co najmniej 8 znaków.');
+            if ($ovPass !== '' && ($pe = msEduBulkPasswordError($ovPass)) !== null) throw new RuntimeException(lcfirst($pe));
             if ($graph->user_id_by_upn($a['upn'])) throw new RuntimeException('konto już istnieje w tenancie — pominięto.');
             $known = $ovPass !== '' ? $ovPass : ($passMap[mb_strtolower($a['upn'])] ?? '');
             $pass = $known !== '' ? $known : M365Graph::generate_password(16);
