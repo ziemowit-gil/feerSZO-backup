@@ -14,6 +14,8 @@ require_once __DIR__ . '/logic/msEduBulkMail.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Generowanie kont M365 Edu';
+// Działa pod /modules/ms_edu_bulk/index.php i pod aliasem /ms — przekierowania i linki wracają pod aktualny adres.
+$self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'index.php'), '?');
 
 $graph  = new M365Graph();
 $skus   = $graph->is_configured() ? $graph->get_subscribed_skus() : [];
@@ -21,7 +23,7 @@ $domain = m365_setting('m365_domain') ?: 'feer.org.pl';
 
 // ── Pobieranie wyników (hasła tylko w sesji) ────────────────────────────────
 $result = $_SESSION['msEduBulkResult'] ?? [];
-if (isset($_GET['clear'])) { unset($_SESSION['msEduBulkResult'], $_SESSION['msEduBulkMail']); header('Location: index.php'); exit; }
+if (isset($_GET['clear'])) { unset($_SESSION['msEduBulkResult'], $_SESSION['msEduBulkMail']); header('Location: ' . $self); exit; }
 if (isset($_GET['csv']) && $result) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="konta_m365_edu_' . date('Ymd_His') . '.csv"');
@@ -76,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set($s['failed'] ? 'warning' : 'success', 'Zakolejkowano wiadomości: ' . $s['sent'] . ($s['failed'] ? '. Błędy: ' . implode(' | ', $s['failed']) : '.'));
             }
         }
-        header('Location: index.php'); exit;
+        header('Location: ' . $self); exit;
     }
 
     // Konta anonimowe: {szkolenie}{sep}{nr}
@@ -166,7 +168,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <?php endforeach; ?></tbody></table></div>
   </div>
   <?php if (array_filter($result, fn($r) => !empty($r['email']))):
-    $mbRows = array_values(array_filter($result, fn($r) => !empty($r['email']))); $mbTokenName = '_csrf'; $mbTokenValue = csrf_token(); $mbAction = 'index.php';
+    $mbRows = array_values(array_filter($result, fn($r) => !empty($r['email']))); $mbTokenName = '_csrf'; $mbTokenValue = csrf_token(); $mbAction = $self;
     $mbSubject = $mail['subject']; $mbBody = $mail['body']; $mbSzkolenie = $mail['szkolenie'] ?? '';
     include __DIR__ . '/views/mailComposer.php';
   endif; endif; ?>
@@ -277,7 +279,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <?php if ($plan && !$errors): ?>
       <button name="_op" value="utworz" class="btn btn-primary" onclick="return confirm('Utworzyć REALNE konta w Entra ID?')"><i class="bi bi-person-plus me-1"></i>Utwórz <?= count($plan) ?> kont</button>
       <?php endif; ?>
-      <a href="index.php" class="btn btn-outline-secondary ms-auto">Wczytaj inną listę</a>
+      <a href="<?= h($self) ?>" class="btn btn-outline-secondary ms-auto">Wczytaj inną listę</a>
     </div>
   </form>
   <?php endif; ?>
