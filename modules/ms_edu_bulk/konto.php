@@ -44,9 +44,10 @@ if ($a && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ' . $self . '?id=' . (int)$a['id']); exit;
 }
 
-$live = null; $groups = []; $roles = []; $mgr = null; $lic = []; $signin = null; $err = '';
+$tenantId = ''; $live = null; $groups = []; $roles = []; $mgr = null; $lic = []; $signin = null; $err = '';
 if ($a && m365_edu_ready()) {
     $g = m365_edu();
+    $tenantId = $g->tenant_id();
     $live = $g->user_profile($a['ms_user_id']);
     if (isset($live['error']) || empty($live['id'])) {
         $err = $live['error']['message'] ?? 'Konta nie znaleziono w tenancie EDU (mogło zostać usunięte poza SZO).';
@@ -78,6 +79,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <table class="table table-sm mb-0"><tbody>
         <tr><th style="width:11rem">Osoba</th><td><?= h(trim($a['imie'] . ' ' . $a['nazwisko'])) ?><?= $a['anonim'] ? ' <span class="badge bg-secondary">anonim</span>' : '' ?></td></tr>
         <tr><th>Login (UPN)</th><td class="font-monospace"><?= h($a['upn']) ?></td></tr>
+        <tr><th>Entra ID (zapisane w SZO)</th><td class="font-monospace small"><?php if (($a['ms_user_id'] ?? '') !== ''): ?><?= h($a['ms_user_id']) ?><button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline" title="Kopiuj" aria-label="Kopiuj <?= 'Entra ID' ?>" onclick="navigator.clipboard&&navigator.clipboard.writeText('<?= h($a['ms_user_id']) ?>')"><i class="bi bi-clipboard" aria-hidden="true"></i></button><?php else: ?><span class="badge bg-warning text-dark">brak</span><?php endif; ?></td></tr>
         <tr><th>E-mail alternatywny</th><td><?= h($a['email'] ?: '—') ?></td></tr>
         <tr><th>Rola</th><td><?= h($a['rola'] ?: '—') ?></td></tr>
         <tr><th>Grupa (SZO)</th><td><?= h($a['grupa'] ?: 'bez grupy') ?><?= ($a['grupa'] ?? '') !== '' && empty($a['grupa_ok']) ? ' <span class="badge bg-warning text-dark">dodanie do grupy nieudane</span>' : '' ?></td></tr>
@@ -90,7 +92,10 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold">Entra ID (na żywo)</div>
       <?php if ($live): ?>
       <table class="table table-sm mb-0"><tbody>
-        <tr><th style="width:11rem">Nazwa wyświetlana</th><td><?= h($live['displayName'] ?? '—') ?></td></tr>
+        <tr><th style="width:11rem">Entra ID (Object ID)</th><td class="font-monospace small"><?= h($live['id'] ?? '—') ?><?php if (!empty($live['id'])): ?><button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline" title="Kopiuj" aria-label="Kopiuj <?= 'Object ID' ?>" onclick="navigator.clipboard&&navigator.clipboard.writeText('<?= h($live['id']) ?>')"><i class="bi bi-clipboard" aria-hidden="true"></i></button><?php endif; ?><?= !empty($live['id']) && $live['id'] !== ($a['ms_user_id'] ?? '') ? ' <span class="badge bg-warning text-dark" title="Identyfikator w Entra różni się od zapisanego w SZO">różni się od SZO</span>' : '' ?></td></tr>
+        <tr><th>Login w Entra (UPN)</th><td class="font-monospace small"><?= h($live['userPrincipalName'] ?? '—') ?></td></tr>
+        <tr><th>Tenant</th><td class="font-monospace small"><?= h($tenantId ?: '—') ?></td></tr>
+        <tr><th>Nazwa wyświetlana</th><td><?= h($live['displayName'] ?? '—') ?></td></tr>
         <tr><th>Konto włączone</th><td><?= !empty($live['accountEnabled']) ? '<span class="badge bg-success">tak</span>' : '<span class="badge bg-danger">nie</span>' ?></td></tr>
         <tr><th>Dział</th><td><?= h($live['department'] ?? '—') ?></td></tr>
         <tr><th>UsageLocation</th><td><?= h($live['usageLocation'] ?? '—') ?></td></tr>
@@ -100,7 +105,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
         <tr><th>Menedżer</th><td><?= $mgr ? h(($mgr['displayName'] ?? '') . ' (' . $mgr['userPrincipalName'] . ')') : '—' ?></td></tr>
         <tr><th>Role katalogowe</th><td><?= $roles ? h(implode(', ', $roles)) : '—' ?></td></tr>
       </tbody></table>
-      <?php else: ?><div class="card-body text-muted small">Brak danych na żywo.</div><?php endif; ?>
+      <?php else: ?><div class="card-body text-muted small">Brak danych na żywo.<?= $tenantId !== '' ? ' Odpytany tenant: <code>' . h($tenantId) . '</code>.' : '' ?></div><?php endif; ?>
     </div></div>
     <?php if ($live): ?>
     <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold">Licencje (<?= count($lic) ?>)</div><div class="card-body">
