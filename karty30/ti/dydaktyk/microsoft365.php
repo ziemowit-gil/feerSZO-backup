@@ -150,7 +150,7 @@ if (isset($_GET['csv']) && $new_ms_bulk) {
 if (isset($_GET['pdf']) && $new_ms_bulk) {
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="konta_m365_' . date('Ymd_His') . '.pdf"');
-    echo (($_GET['pdf'] ?? '') === 'cards') ? msEduBulkPdfCards($new_ms_bulk) : msEduBulkPdf($new_ms_bulk); exit;
+    $_pm = $_GET['pdf'] ?? ''; echo $_pm === 'cards' ? msEduBulkPdfCards($new_ms_bulk) : ($_pm === 'strips' ? msEduBulkPdfStrips($new_ms_bulk) : msEduBulkPdf($new_ms_bulk)); exit;
 }
 if (isset($_GET['clear'])) { unset($_SESSION['new_ms_bulk'], $_SESSION['new_ms_mail']); header('Location: microsoft365.php'); exit; }
 $ms_skus = $ms_edu_ok ? m365_edu()->get_subscribed_skus() : [];
@@ -209,6 +209,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <div class="fw-bold">⚠ Wygenerowane konta (<?= count($new_ms_bulk) ?>) — hasła widoczne tylko tutaj</div>
     <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj PDF</a>
     <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1" aria-hidden="true"></i>Kartki do rozcięcia</a>
+    <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1" aria-hidden="true"></i>Paski Login · Hasło</a>
     <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1" aria-hidden="true"></i>Pobierz CSV</a>
     <a href="?clear=1" class="btn btn-sm btn-outline-secondary">Zamknij</a>
   </div>

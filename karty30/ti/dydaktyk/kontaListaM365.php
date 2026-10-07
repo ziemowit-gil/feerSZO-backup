@@ -32,7 +32,7 @@ if (isset($_GET['csv']) && $result) {
 if (isset($_GET['pdf']) && $result) {
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="konta_m365_edu_' . date('Ymd_His') . '.pdf"');
-    echo (($_GET['pdf'] ?? '') === 'cards') ? msEduBulkPdfCards($result) : msEduBulkPdf($result); exit;
+    $_pm = $_GET['pdf'] ?? ''; echo $_pm === 'cards' ? msEduBulkPdfCards($result) : ($_pm === 'strips' ? msEduBulkPdfStrips($result) : msEduBulkPdf($result)); exit;
 }
 
 // ── Stan formularza ──────────────────────────────────────────────────────────
@@ -143,6 +143,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <span>Wygenerowane konta: <strong><?= count($result) ?></strong> — hasła widoczne tylko tutaj</span>
       <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1"></i>Drukuj PDF</a>
       <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1"></i>Kartki do rozcięcia</a>
+      <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1"></i>Paski Login · Hasło</a>
       <a href="?csv=1" class="btn btn-sm btn-success"><i class="bi bi-download me-1"></i>CSV</a>
       <a href="?clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Zamknąć listę? Hasła znikną z sesji.')">Zamknij listę</a>
     </div>

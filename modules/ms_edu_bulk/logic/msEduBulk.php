@@ -212,3 +212,33 @@ function msEduBulkPdfCards(array $rows, string $title = 'Konto Microsoft 365'): 
     $mpdf->WriteHTML($html);
     return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
 }
+
+/**
+ * PDF w formie pasków: kolumny „Login | Hasło”, każdy wiersz = pasek do odcięcia
+ * (linia cięcia pod każdym), dwa bloki obok siebie na A4 (po 25 pasków).
+ */
+function msEduBulkPdfStrips(array $rows, string $title = 'Konta Microsoft 365'): string {
+    require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $tmp = rtrim(defined('UPLOAD_DIR') ? UPLOAD_DIR : (dirname(__DIR__, 3) . '/uploads'), '/') . '/mpdf_tmp';
+    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+    $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    $block = function (array $part) use ($e) {
+        $h = '<table class="b"><tr><th>Login</th><th>Hasło</th></tr>';
+        foreach ($part as $r) $h .= '<tr><td class="s">' . $e($r['upn']) . '</td><td class="s p">' . $e($r['password']) . '</td></tr>';
+        return $h . '</table>';
+    };
+    $html = '<style>table.b{width:100%;border-collapse:collapse}th{font-size:7pt;color:#666;text-align:left;padding:0 2mm 1mm;font-family:dejavusans}'
+          . 'td.s{height:9.5mm;border-top:0.4pt dashed #666;padding:0 2mm;font-family:dejavusansmono;font-size:8.5pt;vertical-align:middle}'
+          . 'td.p{font-size:10pt;font-weight:bold;border-left:0.4pt dotted #bbb}table.o{width:100%;border-collapse:collapse}table.o td{vertical-align:top;width:50%;padding:0 2mm}</style>';
+    $pages = array_chunk(array_values($rows), 50);
+    foreach ($pages as $pi => $pg) {
+        if ($pi > 0) $html .= '<pagebreak />';
+        $cols = array_chunk($pg, 25);
+        $html .= '<table class="o"><tr><td>' . $block($cols[0]) . '</td><td>' . (isset($cols[1]) ? $block($cols[1]) : '') . '</td></tr></table>';
+    }
+    $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 8, 'margin_right' => 8,
+                            'margin_top' => 10, 'margin_bottom' => 8, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+    $mpdf->SetTitle($title . ' — paski');
+    $mpdf->WriteHTML($html);
+    return (string)$mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+}
