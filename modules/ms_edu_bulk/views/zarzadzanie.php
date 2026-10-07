@@ -29,29 +29,6 @@
           <button name="_op" value="restore" class="btn btn-sm btn-outline-success text-start"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Przywróć</button>
           <?php if ($zaAllowRoles): ?><button name="_op" value="reset_mail" class="btn btn-sm btn-outline-warning text-start" onclick="return confirm('Zresetować hasła zaznaczonych kont i WYSŁAĆ im nowe dane e-mailem (na adres alternatywny)? Poprzednie hasła przestaną działać. Konta bez e-maila zostaną pominięte.')"><i class="bi bi-envelope-arrow-up me-1" aria-hidden="true"></i>Resetuj hasła i wyślij e-mail</button><?php endif; ?>
         </div>
-        <?php if ($zaAllowRoles): ?>
-        <div class="border-top mt-2 pt-2"><div class="small fw-semibold mb-1"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneracja konta (przycisk przy koncie)</div>
-          <div class="form-check"><input class="form-check-input" type="checkbox" id="zaRegMail" name="regen_mail" value="1" checked>
-            <label class="form-check-label small" for="zaRegMail">Wyślij e-mail z danymi i przeprosinami</label></div>
-          <div class="row g-1 mt-1">
-            <?php for ($n = 0; $n < 2; $n++): ?>
-            <div class="col-6"><label class="form-label small mb-0" for="zaRegSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcj.)' : '' ?></label>
-              <select id="zaRegSku<?= $n ?>" name="regen_skus[]" class="form-select form-select-sm"><option value="">— brak —</option>
-                <?php foreach (($zaSkus ?? []) as $sk): ?><option value="<?= h($sk['skuId']) ?>"><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
-            <?php endfor; ?>
-          </div>
-          <div class="row g-1 mt-1">
-            <div class="col-6"><label class="form-label small mb-0" for="zaRegLogin">Nowy login (opcj.)</label>
-              <input id="zaRegLogin" name="regen_login" class="form-control form-control-sm" autocomplete="off" placeholder="np. jan.kowalski"></div>
-            <div class="col-6"><label class="form-label small mb-0" for="zaRegPass">Nowe hasło (opcj.)</label>
-              <input id="zaRegPass" name="regen_pass" type="text" class="form-control form-control-sm font-monospace" autocomplete="off" minlength="8" placeholder="min. 8 znaków, np. Start2026!x"></div>
-            <div class="form-text">Login — tylko przy jednym koncie. Własne hasło startowe obowiązuje wszystkie zaznaczone konta (3 z 4 klas znaków, min. 8); puste = hasło jak dotąd (lub losowe).</div>
-          </div>
-          <label class="form-label small mb-0 mt-1" for="zaRegMsg">Własna wiadomość w mailu (opcj.)</label>
-          <textarea id="zaRegMsg" name="regen_msg" rows="2" class="form-control form-control-sm" maxlength="1000" placeholder="np. Prosimy o zalogowanie się do piątku."></textarea>
-          <button name="_op" value="regenerate" class="btn btn-sm btn-outline-warning w-100 mt-2" onclick="return confirm('Zregenerować zaznaczone konta w tenancie EDU? Zostaną utworzone ponownie z tym samym loginem tam, gdzie ich brakuje (istniejące konta nie są ruszane). Jeśli zaznaczono opcję e-maila, osoby z adresem alternatywnym dostaną dane i przeprosiny.')"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneruj zaznaczone</button>
-        </div>
-        <?php endif; ?>
         <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="zaLic" name="licenses" value="1" checked>
           <label class="form-check-label small" for="zaLic">Zawieszając, odbierz licencje</label></div>
       </div></div>
@@ -88,6 +65,32 @@
       </div></div>
 
       <?php if ($zaAllowRoles): ?>
+      <div class="col-12"><div class="border border-warning-subtle rounded p-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+          <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneracja konta</span>
+          <span class="small text-muted">odtwarza w Entra ID konto, którego brakuje, z tym samym loginem · przycisk <i class="bi bi-arrow-repeat"></i> przy koncie używa pól poniżej i zapyta o hasło startowe</span>
+        </div>
+        <div class="row g-2 align-items-end">
+          <?php for ($n = 0; $n < 2; $n++): ?>
+          <div class="col-md-2"><label class="form-label small mb-0" for="zaRegSku<?= $n ?>">Licencja <?= $n + 1 ?><?= $n ? ' (opcj.)' : '' ?></label>
+            <select id="zaRegSku<?= $n ?>" name="regen_skus[]" class="form-select form-select-sm"><option value="">— brak —</option>
+              <?php foreach (($zaSkus ?? []) as $sk): ?><option value="<?= h($sk['skuId']) ?>"><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+          <?php endfor; ?>
+          <div class="col-md-2"><label class="form-label small mb-0" for="zaRegLogin">Nowy login (opcj., 1 konto)</label>
+            <input id="zaRegLogin" name="regen_login" class="form-control form-control-sm" autocomplete="off" placeholder="np. jan.kowalski"></div>
+          <div class="col-md-3"><label class="form-label small mb-0" for="zaRegPass">Hasło startowe (opcj.)</label>
+            <input id="zaRegPass" name="regen_pass" type="text" class="form-control form-control-sm font-monospace" autocomplete="off" minlength="8" placeholder="min. 8 znaków, np. Start2026!x"></div>
+          <div class="col-md-3 form-check ms-2"><input class="form-check-input" type="checkbox" id="zaRegMail" name="regen_mail" value="1" checked>
+            <label class="form-check-label small" for="zaRegMail">Wyślij e-mail z danymi i przeprosinami</label></div>
+          <div class="col-md-9"><label class="form-label small mb-0" for="zaRegMsg">Własna wiadomość w mailu (opcj.)</label>
+            <textarea id="zaRegMsg" name="regen_msg" rows="2" class="form-control form-control-sm" maxlength="1000" placeholder="np. Prosimy o zalogowanie się do piątku."></textarea></div>
+          <div class="col-md-3"><button name="_op" value="regenerate" class="btn btn-sm btn-outline-warning w-100" onclick="return confirm('Zregenerować zaznaczone konta w tenancie EDU? Zostaną utworzone ponownie z tym samym loginem tam, gdzie ich brakuje (istniejące konta nie są ruszane). Jeśli zaznaczono opcję e-maila, osoby z adresem alternatywnym dostaną dane i przeprosiny.')"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Regeneruj zaznaczone</button></div>
+          <div class="form-text">Hasło startowe obowiązuje wszystkie zaznaczone konta (3 z 4 klas znaków, min. 8); puste = hasło jak dotąd (lub losowe). Login tylko przy jednym koncie.</div>
+        </div>
+      </div></div>
+      <?php endif; ?>
+
+      <?php if ($zaAllowRoles): ?>
       <div class="col-12"><div class="border border-danger-subtle rounded p-2 d-flex align-items-center gap-2 flex-wrap">
         <span class="small fw-bold text-uppercase text-danger">Strefa niebezpieczna</span>
         <span class="small text-muted">Trwałe usunięcie z Entra ID — tylko konta bez przypisanej grupy.</span>
@@ -114,7 +117,7 @@
                   onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return <?= $_susp ? 'true' : "confirm('Zawiesić konto " . h(addslashes($r['upn'])) . " (blokada logowania, wylogowanie sesji)?')" ?>"
                   title="<?= $_susp ? 'Przywróć konto' : 'Szybkie zawieszenie konta' ?>"><i class="bi <?= $_susp ? 'bi-person-check' : 'bi-person-lock' ?>" aria-hidden="true"></i><span class="visually-hidden"><?= $_susp ? 'Przywróć' : 'Zawieś' ?></span></button>
           <?php if ($zaAllowRoles): ?><button type="submit" name="_op" value="regenerate_one" formnovalidate class="btn btn-sm btn-outline-warning"
-                  onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return confirm('Zregenerować konto <?= h(addslashes($r['upn'])) ?> w tenancie EDU? Zostanie utworzone ponownie z tym samym loginem, o ile go tam brak (istniejące konto nie jest ruszane).')"
+                  onclick="return zaRegenOne(<?= (int)$r['id'] ?>, '<?= h(addslashes($r['upn'])) ?>')"
                   title="Regeneruj konto — utwórz ponownie w Entra ID, jeśli go brak"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Regeneruj</span></button><?php endif; ?>
           <?php if (!empty($zaDetailUrl)): ?><a href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-primary" title="Szczegóły konta i zarządzanie grupami"><i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Szczegóły / grupy</a><?php endif; ?>
         </td>
@@ -122,6 +125,18 @@
     <?php endforeach; ?>
     </tbody></table></div>
 </form>
-<script>function zaCount(){var n=document.querySelectorAll('.zaSel:checked').length;document.getElementById('zaCount').textContent=n+' zaznaczonych';}
+<script>
+function zaRegenOne(id, upn) {
+  if (!confirm('Zregenerować konto ' + upn + ' w tenancie EDU? Zostanie utworzone ponownie z tym samym loginem, o ile go tam brak (istniejące konto nie jest ruszane).')) return false;
+  var pw = document.getElementById('zaRegPass');
+  if (pw && pw.value === '') {
+    var v = prompt('Własne hasło startowe dla tego konta (min. 8 znaków, 3 z 4 klas znaków).\nPuste = hasło jak dotąd lub losowe:', '');
+    if (v === null) return false;
+    pw.value = v.trim();
+  }
+  document.getElementById('zaOne').value = id;
+  return true;
+}
+function zaCount(){var n=document.querySelectorAll('.zaSel:checked').length;document.getElementById('zaCount').textContent=n+' zaznaczonych';}
 document.querySelectorAll('.zaSel').forEach(function(c){c.addEventListener('change',zaCount)});
 document.getElementById('zaAll').addEventListener('change', function () { document.querySelectorAll('.zaSel').forEach(function (c) { c.checked = this.checked; }, this); zaCount(); });</script>
