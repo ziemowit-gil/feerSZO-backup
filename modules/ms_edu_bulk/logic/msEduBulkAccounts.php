@@ -170,6 +170,53 @@ function msEduBulkRecreateSzoStudents(array $studentIds): array {
     return ['done' => $done, 'errors' => $errors];
 }
 
+/**
+ * Parsuje wklejoną listę haseł: jedna linia = „login<TAB|;|spacje>hasło” (jak w PDF z generatora).
+ * Zwraca mapę UPN (małe litery) => hasło.
+ */
+function msEduBulkParsePasswordList(string $text, string $domain = ''): array {
+    $map = [];
+    foreach (preg_split('/\R/u', $text) as $line) {
+        $p = preg_split('/[\t;,\s]+/u', trim($line), 2);
+        if (count($p) < 2 || $p[0] === '' || $p[1] === '') continue;
+        $login = mb_strtolower($p[0]);
+        if (!str_contains($login, '@') && $domain !== '') $login .= '@' . $domain;
+        $map[$login] = trim($p[1]);
+    }
+    return $map;
+}
+
+/**
+ * Zakłada w tenancie EDU konta, które są w rejestrze generatora, a w Entra ID ich brak — z TYM SAMYM loginem.
+ * Hasło: jak wygenerowano wcześniej, jeśli znamy je z listy ($passMap: UPN => hasło; hasła nie są zapisywane
+ * w rejestrze, więc źródłem jest wyniki bieżącej sesji lub wklejona lista); inaczej nowe hasło (zwracane w wyniku).
+ * Istniejących kont nie dotykamy — hasła kont będących w tenancie nie są zmieniane.
+ *
+ * @return array{ok: array, errors: string[]}  ok[] = wiersz rejestru + password + password_new (bool)
+ */
+function msEduBulkRecreateRegistry(M365Graph $graph, array $accounts, array $passMap, array $skus = []): array {
+    $out = ['ok' => [], 'errors' => []]; $gc = [];
+    foreach ($accounts as $a) {
+        try {
+            if ($graph->user_id_by_upn($a['upn'])) throw new RuntimeException('konto już istnieje w tenancie — pominięto.');
+            $known = $passMap[mb_strtolower($a['upn'])] ?? '';
+            $pass = $known !== '' ? $known : M365Graph::generate_password(16);
+            $u = $graph->create_user_full($a['upn'], $a['imie'], $a['nazwisko'], $pass, $a['klasa']);
+            $warn = [];
+            foreach (msEduBulkSkuList($skus) as $sku) {
+                try { $graph->assign_license($u['id'], $sku); } catch (\Throwable $e) { $warn[] = 'licencja: ' . $e->getMessage(); }
+            }
+            $grupaOk = 1;
+            if (trim((string)$a['grupa']) !== '') try { msEduBulkEnsureGroupAdd($graph, $u['id'], $a['grupa'], $gc); }
+            catch (\Throwable $e) { $grupaOk = 0; $warn[] = 'grupa „' . $a['grupa'] . '”: ' . $e->getMessage(); }
+            db()->prepare("UPDATE msedu_bulk_accounts SET ms_user_id=?, status='active', suspended_at=NULL, grupa_ok=? WHERE id=?")
+               ->execute([$u['id'], $grupaOk, $a['id']]);
+            $out['ok'][] = $a + ['ms_user_id' => $u['id'], 'password' => $pass, 'password_new' => $known === '', 'warn' => implode('; ', $warn)];
+        } catch (\Throwable $e) { $out['errors'][] = $a['upn'] . ': ' . $e->getMessage(); }
+    }
+    return $out;
+}
+
 /** Przenosi konta nieistniejące już w tenancie do rejestru usuniętych (bez zmian w Entra ID). */
 function msEduBulkMarkMissingDeleted(array $accounts): int {
     $n = 0;

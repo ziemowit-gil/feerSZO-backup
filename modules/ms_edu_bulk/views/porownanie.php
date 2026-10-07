@@ -46,7 +46,7 @@
 
   <h2 class="h6 fw-bold mt-4">W rejestrze, ale nie istnieją w tenancie (usunięte poza SZO)</h2>
   <?php if (!$cmp['missing']): ?><p class="text-muted small">Wszystkie konta z rejestru istnieją w tenancie.</p><?php else: ?>
-  <form method="post" action="<?= h($self) ?>" onsubmit="return confirm('Przenieść zaznaczone konta do rejestru usuniętych? Tenant nie jest zmieniany.')">
+  <form method="post" action="<?= h($self) ?>">
     <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
     <div class="table-responsive"><table class="table table-sm align-middle" style="font-size:.85rem">
       <thead class="table-light"><tr><th style="width:2rem"><input type="checkbox" aria-label="Zaznacz wszystkie" onchange="document.querySelectorAll('.cmpSel').forEach(c=>c.checked=this.checked)" checked></th><th>Osoba</th><th>Login</th><th>Grupa</th><th>Utworzono</th></tr></thead>
@@ -55,7 +55,16 @@
           <td><?= h(trim($r['imie'] . ' ' . $r['nazwisko'])) ?></td><td class="font-monospace"><?= h($r['upn']) ?></td>
           <td class="small"><?= h($r['grupa'] ?: '—') ?></td><td class="text-muted small"><?= h(substr((string)$r['created_at'], 0, 16)) ?></td></tr>
       <?php endforeach; ?></tbody></table></div>
-    <button name="_op" value="sync_missing" class="btn btn-sm btn-outline-danger"><i class="bi bi-archive me-1" aria-hidden="true"></i>Przenieś zaznaczone do usuniętych</button>
+    <div class="row g-2 mb-2">
+      <div class="col-lg-6"><label class="form-label small fw-semibold mb-0" for="cmpPw">Hasła, które mają zostać bez zmian <span class="text-muted fw-normal">(opcjonalnie, „login hasło” w linii — jak w PDF z generatora)</span></label>
+        <textarea id="cmpPw" name="passwords" rows="3" class="form-control form-control-sm font-monospace" placeholder="i.nowak2026@domena   Haslo123..."></textarea>
+        <div class="form-text">Hasła nie są zapisywane w rejestrze. Bez wpisu (i spoza bieżących wyników generatora) konto dostanie nowe hasło — zostanie pokazane w wyniku.</div></div>
+      <div class="col-lg-3"><label class="form-label small fw-semibold mb-0" for="cmpSku">Licencja (opcj.)</label>
+        <select id="cmpSku" name="skus[]" class="form-select form-select-sm"><option value="">— brak —</option>
+          <?php foreach (($zaSkus ?? []) as $sk): ?><option value="<?= h($sk['skuId']) ?>"><?= h($sk['skuPartNumber']) ?></option><?php endforeach; ?></select></div>
+    </div>
+    <button name="_op" value="recreate_registry" class="btn btn-sm btn-danger" formnovalidate onclick="return confirm('UTWORZYĆ REALNE konta w tenancie EDU dla zaznaczonych (ten sam login)? Hasła z listy zostają bez zmian; konta już istniejące w tenancie nie są ruszane.')"><i class="bi bi-cloud-upload me-1" aria-hidden="true"></i>Utwórz zaznaczone w tenancie EDU</button>
+    <button name="_op" value="sync_missing" class="btn btn-sm btn-outline-danger" formnovalidate onclick="return confirm('Przenieść zaznaczone konta do rejestru usuniętych? Tenant nie jest zmieniany.')"><i class="bi bi-archive me-1" aria-hidden="true"></i>Przenieś zaznaczone do usuniętych</button>
   </form>
   <?php endif; ?>
 

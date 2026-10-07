@@ -14,7 +14,7 @@ $PAGE_TITLE = 'Konta EDU — zarządzanie';
 $self = strtok((string)($_SERVER['REQUEST_URI'] ?? 'konta.php'), '?');
 
 $cmp = null; $cmpErr = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['compare', 'sync_missing', 'register_szo', 'recreate_szo'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['compare', 'sync_missing', 'register_szo', 'recreate_szo', 'recreate_registry'], true)) {
     csrf_check();
     if (!m365_edu_ready()) $cmpErr = 'Tenant EDU nie jest skonfigurowany.';
     else {
@@ -28,12 +28,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
                 flash_set($r['errors'] ? 'warning' : 'success', 'Utworzono w tenancie EDU: ' . $r['done'] . ($r['errors'] ? '. Błędy: ' . implode(' | ', $r['errors']) : '.'));
                 header('Location: ' . $self); exit;
             }
+            if ($_POST['_op'] === 'recreate_registry') {
+                $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
+                // Hasła zachowujemy: z wyników bieżącej sesji (generator) i z wklejonej listy „login hasło”
+                $passMap = [];
+                foreach ($_SESSION['msEduBulkResult'] ?? [] as $sr) if (!empty($sr['upn']) && !empty($sr['password'])) $passMap[mb_strtolower($sr['upn'])] = $sr['password'];
+                $passMap = msEduBulkParsePasswordList((string)($_POST['passwords'] ?? '')) + $passMap;
+                $res = msEduBulkRecreateRegistry(m365_edu(), $accs, $passMap, msEduBulkSkuList($_POST['skus'] ?? []));
+                $newPw = array_filter($res['ok'], fn($r) => $r['password_new']);
+                if ($newPw) $_SESSION['msEduBulkResult'] = array_merge($_SESSION['msEduBulkResult'] ?? [], array_values($newPw));
+                flash_set($res['errors'] || $newPw ? 'warning' : 'success', 'Utworzono w tenancie EDU: ' . count($res['ok'])
+                    . ($newPw ? '. Dla ' . count($newPw) . ' kont nie znano wcześniejszego hasła — nadano nowe (lista w wynikach generatora): ' . implode(', ', array_column($newPw, 'upn')) : '')
+                    . ($res['errors'] ? '. Błędy: ' . implode(' | ', $res['errors']) : '.'));
+                header('Location: ' . $self); exit;
+            }
             if ($_POST['_op'] === 'sync_missing') {
                 $n = msEduBulkMarkMissingDeleted(msEduBulkAccountsByIds((array)($_POST['ids'] ?? [])));
                 flash_set('success', 'Przeniesiono do usuniętych: ' . $n . '.');
                 header('Location: ' . $self . '?widok=usuniete'); exit;
             }
             $cmp = msEduBulkCompareTenant(m365_edu());
+            $zaSkus = m365_edu()->get_subscribed_skus();
         } catch (\Throwable $e) { $cmpErr = $e->getMessage(); }
     }
     $_GET['widok'] = 'porownanie';
