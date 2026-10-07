@@ -7,6 +7,7 @@ require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once dirname(__DIR__, 2) . '/includes/m365.php';
 require_once dirname(__DIR__, 2) . '/includes/ti_online.php';
 require_once __DIR__ . '/logic/msEduBulk.php';
+require_once __DIR__ . '/logic/msEduBulkImport.php';
 
 require_role('admin');
 $PAGE_TITLE = 'Konto EDU — podgląd';
@@ -15,6 +16,34 @@ $back = str_starts_with($self, '/ms') ? '/ms/konta' : 'konta.php';
 
 $rows = msEduBulkAccountsByIds([(int)($_GET['id'] ?? 0)]);
 $a = $rows[0] ?? null;
+
+// ── Zarządzanie grupami konta ─────────────────────────────────────────────
+if ($a && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_check();
+    $op = (string)($_POST['_op'] ?? '');
+    try {
+        if (!m365_edu_ready()) throw new RuntimeException('Tenant EDU nie jest skonfigurowany.');
+        $g = m365_edu();
+        if ($op === 'group_add') {
+            $name = msEduBulkGroupFromPost($_POST);
+            if ($name === '') throw new RuntimeException('Wybierz lub wpisz nazwę grupy.');
+            $gc = [];
+            msEduBulkEnsureGroupAdd($g, $a['ms_user_id'], $name, $gc);
+            if (trim((string)$a['grupa']) === '') db()->prepare("UPDATE msedu_bulk_accounts SET grupa=?, grupa_ok=1 WHERE id=?")->execute([$name, $a['id']]);
+            flash_set('success', 'Dodano do grupy „' . $name . '”' . (!empty($gc['__new']) ? ' (grupa utworzona w MS365).' : '.'));
+        } elseif ($op === 'group_remove') {
+            $gid = (string)($_POST['group_id'] ?? '');
+            $mine = array_filter($g->user_member_of($a['ms_user_id']), fn($m) => ($m['id'] ?? '') === $gid && !str_contains((string)($m['@odata.type'] ?? ''), 'directoryRole'));
+            if (!$mine) throw new RuntimeException('Konto nie jest członkiem tej grupy.');
+            $gname = (string)(reset($mine)['displayName'] ?? '');
+            $g->remove_from_group($a['ms_user_id'], $gid);
+            if ($gname !== '' && strcasecmp($gname, (string)$a['grupa']) === 0) db()->prepare("UPDATE msedu_bulk_accounts SET grupa='', grupa_ok=1 WHERE id=?")->execute([$a['id']]);
+            flash_set('success', 'Usunięto z grupy „' . $gname . '”.');
+        }
+    } catch (\Throwable $e) { flash_set('danger', $e->getMessage()); }
+    header('Location: ' . $self . '?id=' . (int)$a['id']); exit;
+}
+
 $live = null; $groups = []; $roles = []; $mgr = null; $lic = []; $signin = null; $err = '';
 if ($a && m365_edu_ready()) {
     $g = m365_edu();
@@ -25,7 +54,7 @@ if ($a && m365_edu_ready()) {
     } else {
         foreach ($g->user_member_of($a['ms_user_id']) as $m) {
             if (str_contains((string)($m['@odata.type'] ?? ''), 'directoryRole')) $roles[] = $m['displayName'] ?? '?';
-            else $groups[] = $m['displayName'] ?? '?';
+            else $groups[] = ['id' => $m['id'] ?? '', 'name' => $m['displayName'] ?? '?'];
         }
         $mgr = $g->user_manager($a['ms_user_id']);
         $lic = $g->user_license_details($a['ms_user_id']);
@@ -78,8 +107,16 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       <?php foreach ($lic as $l): ?><span class="badge text-bg-light border me-1 mb-1"><?= h($l['skuPartNumber'] ?? $l['skuId'] ?? '?') ?></span><?php endforeach; ?>
       <?php if (!$lic): ?><span class="text-muted">brak licencji</span><?php endif; ?></div></div></div>
     <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold">Grupy (<?= count($groups) ?>)</div><div class="card-body">
-      <?php foreach ($groups as $gr): ?><span class="badge text-bg-light border me-1 mb-1"><?= h($gr) ?></span><?php endforeach; ?>
-      <?php if (!$groups): ?><span class="text-muted">brak grup</span><?php endif; ?></div></div></div>
+      <?php foreach ($groups as $gr): ?>
+      <form method="post" class="d-inline-flex align-items-center border rounded-pill ps-2 pe-1 me-1 mb-1 bg-light" onsubmit="return confirm('Usunąć konto z grupy „<?= h($gr['name']) ?>”?')">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_op" value="group_remove"><input type="hidden" name="group_id" value="<?= h($gr['id']) ?>">
+        <span class="small me-1"><?= h($gr['name']) ?></span><button class="btn btn-sm btn-link text-danger p-0 px-1" title="Usuń z grupy" aria-label="Usuń z grupy <?= h($gr['name']) ?>"><i class="bi bi-x-lg"></i></button></form>
+      <?php endforeach; ?>
+      <?php if (!$groups): ?><span class="text-muted">brak grup</span><?php endif; ?>
+      <form method="post" class="mt-3 border-top pt-3"><input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_op" value="group_add">
+        <?= msEduBulkGroupField('', msEduBulkTiGroups(), 'kGw', msEduBulkEntraGroups()) ?>
+        <button class="btn btn-sm btn-primary mt-2"><i class="bi bi-plus-lg me-1"></i>Dodaj do grupy</button></form>
+    </div></div></div>
     <?php endif; ?>
   </div>
   <?php endif; ?>

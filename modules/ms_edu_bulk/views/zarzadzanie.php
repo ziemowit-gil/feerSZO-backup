@@ -39,16 +39,17 @@
     </div>
   </div></div>
   <div class="table-responsive"><table class="table table-sm align-middle" style="font-size:.85rem">
-    <thead class="table-light"><tr><th style="width:2rem"><input type="checkbox" id="zaAll" aria-label="Zaznacz wszystkie"></th><th>Osoba / konto</th><th>Grupa</th><th>Login</th><th>Status</th><th>Menedżer</th><th>MFA</th><th>Rola Entra</th><th>Utworzono</th></tr></thead>
+    <thead class="table-light"><tr><th style="width:2rem"><input type="checkbox" id="zaAll" aria-label="Zaznacz wszystkie"></th><th>Osoba / konto</th><th>Grupa</th><th>Login</th><th>Status</th><th>Menedżer</th><th>MFA</th><th>Rola Entra</th><th>Utworzono</th><?php if (!empty($zaDetailUrl)): ?><th class="text-end">Akcje</th><?php endif; ?></tr></thead>
     <tbody>
-    <?php if (!$zaRows): ?><tr><td colspan="9" class="text-center text-muted py-4">Brak kont w rejestrze (rejestr zapełnia się od momentu wdrożenia — konta tworzone wcześniej nie są w nim ujęte).</td></tr><?php endif; ?>
+    <?php if (!$zaRows): ?><tr><td colspan="10" class="text-center text-muted py-4">Brak kont w rejestrze (rejestr zapełnia się od momentu wdrożenia — konta tworzone wcześniej nie są w nim ujęte).</td></tr><?php endif; ?>
     <?php foreach ($zaRows as $r): ?>
       <tr><td><input type="checkbox" class="zaSel" name="ids[]" value="<?= (int)$r['id'] ?>" data-grupa="<?= h($r['grupa'] ?? '') ?>"></td>
         <td><?= h(trim($r['imie'] . ' ' . $r['nazwisko'])) ?><?= $r['anonim'] ? ' <span class="badge bg-secondary">anonim</span>' : '' ?></td>
         <td><?= ($r['grupa'] ?? '') !== '' ? h($r['grupa']) . (empty($r['grupa_ok']) ? ' <span class="badge bg-warning text-dark" title="dodanie do grupy w MS365 nieudane">!</span>' : '') : '<span class="text-muted">bez grupy</span>' ?></td><td class="font-monospace"><?php if (!empty($zaDetailUrl)): ?><a href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>"><?= h($r['upn']) ?></a><?php else: ?><?= h($r['upn']) ?><?php endif; ?></td>
         <td><?= $r['status'] === 'suspended' ? '<span class="badge bg-danger">zawieszone</span>' : '<span class="badge bg-success">aktywne</span>' ?></td>
         <td class="small"><?= h($r['manager_upn'] ?: '—') ?></td><td><?= $r['mfa'] ? '<i class="bi bi-shield-check text-success" aria-label="tak"></i>' : '—' ?></td>
-        <td class="small"><?= h($r['admin_role'] ?: '—') ?></td><td class="text-muted small"><?= h(substr((string)$r['created_at'], 0, 16)) ?></td></tr>
+        <td class="small"><?= h($r['admin_role'] ?: '—') ?></td><td class="text-muted small"><?= h(substr((string)$r['created_at'], 0, 16)) ?></td>
+        <?php if (!empty($zaDetailUrl)): ?><td class="text-end text-nowrap"><a href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-primary" title="Szczegóły konta i zarządzanie grupami"><i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Szczegóły / grupy</a></td><?php endif; ?></tr>
     <?php endforeach; ?>
     </tbody></table></div>
 </form>
