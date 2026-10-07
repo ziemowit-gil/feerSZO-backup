@@ -171,6 +171,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
   <div class="d-flex align-items-center mb-3"><h1 class="h3 fw-bold mb-0"><i class="bi bi-<?= $ms_view === 'kreator' ? 'magic' : 'people-fill' ?> me-2"></i><?= $ms_view === 'kreator' ? 'Kreator kont z listy' : 'Generowanie kont M365 Edu' ?></h1>
     <?php if ($ms_view === 'kreator'): ?><a href="<?= h($lnk['hub']) ?>" class="btn btn-sm btn-outline-secondary ms-3">← Generator</a><?php endif; ?>
     <a href="<?= h($lnk['konta']) ?>" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-person-gear me-1"></i>Zarządzanie kontami</a></div>
+  <?php include __DIR__ . '/views/tenantInfo.php'; ?>
   <?= flash_html() ?>
   <?php if ($ms_view === 'kreator'):
     $_st = $result && !$grid ? 4 : ($plan ? 3 : ($grid ? 2 : 1));

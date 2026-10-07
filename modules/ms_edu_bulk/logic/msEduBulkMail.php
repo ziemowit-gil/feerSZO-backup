@@ -4,6 +4,9 @@
 const MS_EDU_BULK_MAIL_SUBJECT = 'Twoje konto Microsoft 365 — dane logowania';
 const MS_EDU_BULK_MAIL_BODY = "Dzień dobry {imie},\n\nzałożyliśmy dla Ciebie konto Microsoft 365. Dane do pierwszego logowania:\n\nLogin: {login}\nHasło tymczasowe: {haslo}\n\nZaloguj się na https://www.office.com — przy pierwszym logowaniu system poprosi o ustawienie własnego hasła.\nNie udostępniaj tych danych innym osobom.\n\nPozdrawiamy\n{organizacja}";
 
+const MS_EDU_BULK_RESET_MAIL_SUBJECT = 'Nowe hasło do konta Microsoft 365';
+const MS_EDU_BULK_RESET_MAIL_BODY = "Dzień dobry {imie},\n\nz przyczyn technicznych nadaliśmy nowe hasło dla konta Microsoft 365 w Edukacji:\n\nLogin: {login}\nNowe hasło: {haslo}\n\nZaloguj się na https://www.office.com — przy pierwszym logowaniu system poprosi o ustawienie własnego hasła. Poprzednie hasło przestało działać.\nNie udostępniaj tych danych innym osobom.\n\nPozdrawiamy\n{organizacja}";
+
 const MS_EDU_BULK_MAIL_VARS = ['{imie}', '{nazwisko}', '{login}', '{haslo}', '{grupa}', '{szkolenie}', '{organizacja}'];
 
 /** Podstawia zmienne; zwraca [temat, html, tekst]. Login i hasło w HTML idą jako <code>. */

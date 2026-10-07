@@ -59,6 +59,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
     // Szybka akcja przy koncie (suspend_one / restore_one) — dotyczy tylko tego jednego konta
     if (in_array($op, ['suspend_one', 'restore_one'], true)) { $op = substr($op, 0, -4); $_POST['ids'] = [(int)($_POST['one'] ?? 0)]; }
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
+    if ($op === 'reset_mail') {
+        if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
+        elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
+        else {
+            require_once __DIR__ . '/logic/msEduBulkMail.php';
+            $r = msEduBulkResetAndMail(m365_edu(), $accs, MS_EDU_BULK_RESET_MAIL_SUBJECT, MS_EDU_BULK_RESET_MAIL_BODY);
+            $_SESSION['msEduBulkReset'] = $r['rows']; // nowe hasła do wydruku (lista / paski) — tylko w sesji admina
+            $msg = 'Zresetowano hasła i zakolejkowano e-maile: ' . $r['done'] . '/' . count($accs) . '.';
+            if ($r['skipped']) $msg .= ' Pominięto (bez zmiany hasła): ' . implode(' | ', $r['skipped']) . '.';
+            if ($r['errors']) $msg .= ' Błędy: ' . implode(' | ', $r['errors']) . ($r['unsent'] ? ' — ich nowe hasła są na wydruku PDF poniżej.' : '');
+            flash_set($r['errors'] || $r['skipped'] ? 'warning' : 'success', $msg);
+        }
+        header('Location: ' . $self); exit;
+    }
     if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
     elseif (!$accs) flash_set('danger', 'Zaznacz konta.');
     elseif ($op === 'role' && !isset(M365Graph::SAFE_DIRECTORY_ROLES[$_POST['role'] ?? ''])) flash_set('danger', 'Wybierz rolę.');
@@ -69,6 +83,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
     header('Location: ' . $self); exit;
 }
 
+// Wydruk nowych haseł po masowym resecie (dane tylko z sesji)
+if (isset($_GET['pdf']) && !empty($_SESSION['msEduBulkReset'])) {
+    $pr = $_SESSION['msEduBulkReset']; $pm = (string)$_GET['pdf'];
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="nowe_hasla_m365_edu_' . date('Ymd_His') . '.pdf"');
+    echo $pm === 'cards' ? msEduBulkPdfCards($pr, 'Nowe hasło — konto Microsoft 365')
+       : ($pm === 'strips' ? msEduBulkPdfStrips($pr, 'Nowe hasła — konta Microsoft 365')
+       : ($pm === 'strips1' ? msEduBulkPdfStrips($pr, 'Nowe hasła — konta Microsoft 365', 1) : msEduBulkPdf($pr, 'Nowe hasła — konta Microsoft 365')));
+    exit;
+}
+if (isset($_GET['reset_clear'])) { unset($_SESSION['msEduBulkReset']); header('Location: ' . $self); exit; }
 $widok = in_array($_GET['widok'] ?? '', ['usuniete', 'porownanie'], true) ? $_GET['widok'] : 'wygenerowane';
 $zaQ = trim((string)($_GET['q'] ?? '')); $zaStatus = (string)($_GET['status'] ?? ''); $zaGrupa = (string)($_GET['grupa'] ?? '');
 $zaRows = $widok === 'wygenerowane' ? msEduBulkAccountsList($zaQ, $zaStatus, $zaGrupa) : [];
@@ -85,7 +110,18 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <h1 class="h3 fw-bold mb-0"><i class="bi bi-person-gear me-2"></i>Konta EDU — zarządzanie</h1>
     <a href="<?= h(dirname($self)) ?>" class="btn btn-sm btn-outline-secondary ms-auto">← Generator kont</a>
   </div>
+  <?php include __DIR__ . '/views/tenantInfo.php'; ?>
   <?= flash_html() ?>
+  <?php if (!empty($_SESSION['msEduBulkReset'])): ?>
+  <div class="alert alert-info d-flex align-items-center gap-2 flex-wrap" role="status">
+    <span><strong>Nowe hasła (<?= count($_SESSION['msEduBulkReset']) ?>)</strong> po ostatnim resecie — wydrukuj i zachowaj poufnie:</span>
+    <a href="?pdf=1" target="_blank" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-printer me-1" aria-hidden="true"></i>Lista PDF</a>
+    <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1" aria-hidden="true"></i>Paski: dwa bloki</a>
+    <a href="?pdf=strips1" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1" aria-hidden="true"></i>Paski: jedna kolumna</a>
+    <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1" aria-hidden="true"></i>Kartki</a>
+    <a href="?reset_clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Usunąć listę nowych haseł z sesji? Nie da się jej odzyskać.')">Wyczyść listę</a>
+  </div>
+  <?php endif; ?>
   <ul class="nav nav-tabs mb-3" aria-label="Podgląd kont">
     <li class="nav-item"><a class="nav-link<?= $widok === 'wygenerowane' ? ' active' : '' ?>" <?= $widok === 'wygenerowane' ? 'aria-current="page"' : '' ?> href="<?= h($self) ?>">Wygenerowane <span class="badge text-bg-secondary"><?= $cntGen ?></span></a></li>
     <li class="nav-item"><a class="nav-link<?= $widok === 'usuniete' ? ' active' : '' ?>" <?= $widok === 'usuniete' ? 'aria-current="page"' : '' ?> href="<?= h($self) ?>?widok=usuniete">Usunięte <span class="badge text-bg-secondary"><?= $cntDel ?></span></a></li>

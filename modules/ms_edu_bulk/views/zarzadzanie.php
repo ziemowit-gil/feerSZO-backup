@@ -27,6 +27,7 @@
         <div class="d-grid gap-1">
           <button name="_op" value="suspend" class="btn btn-sm btn-outline-danger text-start" onclick="return confirm('Zawiesić zaznaczone konta (blokada logowania, wylogowanie sesji)?')"><i class="bi bi-person-lock me-1" aria-hidden="true"></i>Zawieś (offboarding)</button>
           <button name="_op" value="restore" class="btn btn-sm btn-outline-success text-start"><i class="bi bi-person-check me-1" aria-hidden="true"></i>Przywróć</button>
+          <?php if ($zaAllowRoles): ?><button name="_op" value="reset_mail" class="btn btn-sm btn-outline-warning text-start" onclick="return confirm('Zresetować hasła zaznaczonych kont i WYSŁAĆ im nowe dane e-mailem (na adres alternatywny)? Poprzednie hasła przestaną działać. Konta bez e-maila zostaną pominięte.')"><i class="bi bi-envelope-arrow-up me-1" aria-hidden="true"></i>Resetuj hasła i wyślij e-mail</button><?php endif; ?>
         </div>
         <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="zaLic" name="licenses" value="1" checked>
           <label class="form-check-label small" for="zaLic">Zawieszając, odbierz licencje</label></div>

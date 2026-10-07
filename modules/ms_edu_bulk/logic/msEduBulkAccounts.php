@@ -60,6 +60,33 @@ function msEduBulkRegister(string $msUserId, array $r): void {
     } catch (\Throwable $e) { /* rejestr pomocniczy */ }
 }
 
+/**
+ * Masowy reset haseł: nowe hasło tymczasowe (wymuszona zmiana przy logowaniu) + e-mail z danymi na adres alternatywny.
+ * Konta bez poprawnego e-maila są POMIJANE (reset bez możliwości przekazania hasła zablokowałby użytkownika).
+ * Przy nieudanym kolejkowaniu e-maila hasło jest już zmienione — taki przypadek zwracamy z hasłem w $out['unsent'].
+ *
+ * @return array{done: int, skipped: string[], errors: string[], unsent: array, rows: array}  rows = wszystkie konta z nowym hasłem (do wydruku)
+ */
+function msEduBulkResetAndMail(M365Graph $graph, array $accounts, string $subject, string $body): array {
+    require_once __DIR__ . '/msEduBulkMail.php';
+    $out = ['done' => 0, 'skipped' => [], 'errors' => [], 'unsent' => [], 'rows' => []];
+    foreach ($accounts as $a) {
+        $label = trim($a['imie'] . ' ' . $a['nazwisko']) . ' (' . $a['upn'] . ')';
+        if (!filter_var(trim((string)$a['email']), FILTER_VALIDATE_EMAIL)) { $out['skipped'][] = $label . ': brak e-maila'; continue; }
+        if ((string)$a['ms_user_id'] === '') { $out['errors'][] = $label . ': brak Entra ID w rejestrze'; continue; }
+        try {
+            $pass = M365Graph::generate_password(16);
+            $graph->set_password($a['ms_user_id'], $pass, true);
+        } catch (\Throwable $e) { $out['errors'][] = $label . ': ' . $e->getMessage(); continue; }
+        $row = $a + ['password' => $pass];
+        $out['rows'][] = $row;
+        $m = msEduBulkMailSend([$row], $subject, $body);
+        if ($m['sent']) $out['done']++;
+        else { $out['unsent'][] = $row; $out['errors'][] = $label . ': hasło zmienione, ale e-mail nie został zakolejkowany (' . implode(' ', $m['failed']) . ')'; }
+    }
+    return $out;
+}
+
 /** Zapis usuniętego konta w rejestrze usuniętych (kto i kiedy). Nigdy nie przerywa usuwania. */
 function msEduBulkLogDeleted(array $a, string $by = ''): void {
     try {
