@@ -320,8 +320,13 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
   </form>
     </div>
     <div x-show="tab === 'wplac'" x-cloak class="space-y-6">
-    <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dw-h" x-data="{ c: false }">
+    <section id="dw-print" class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dw-h" x-data="{ c: false }">
       <h2 id="dw-h" class="font-semibold"><i class="bi bi-bank2 text-navy-700" aria-hidden="true"></i> Dane do wpłaty</h2>
+      <div class="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-slate-800 ring-1 ring-amber-200">
+        <p class="font-semibold">Wybierz właściwe konto.</p>
+        <p class="mt-1">Od 1 stycznia 2026 roku mamy dwa osobne konta bankowe. Jedno służy tylko do darowizn, czyli dobrowolnego wsparcia naszej misji i bieżącej pracy fundacji. Drugie służy tylko do opłat za szkolenia, kursy i certyfikaty. Numery kont podajemy w mailu z fakturą. Opłaty wpłacaj tylko na konto do opłat.</p>
+        <p class="mt-1">Osoby indywidualne uczestniczące w szkoleniach mają indywidualny numer rachunku, a podmioty — numer ogólny.</p>
+      </div>
       <?php $acc_txt = (string)($pay_info['account'] ?? ''); $acc_d = preg_replace('/\D/', '', $acc_txt); ?>
       <?php if ($acc_txt !== ''): ?>
       <div class="mt-3 rounded-xl border-2 border-navy-700 bg-navy-50 px-4 py-3 text-center">
@@ -335,10 +340,21 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
       </dl>
       <div class="mt-3 flex flex-wrap gap-2">
         <button type="button" class="rounded-md px-3 py-1.5 text-sm ring-1 ring-slate-300 hover:bg-slate-50" @click="navigator.clipboard.writeText(<?= h($J($acc_d)) ?>); c = true" x-text="c ? 'Skopiowano' : 'Kopiuj numer'"></button>
+        <button type="button" class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm ring-1 ring-slate-300 hover:bg-slate-50" onclick="ppPrintDw()"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj</button>
         <?php if (!empty($pay_info['virtual'])): ?><a href="rachunek_pdf.php" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-md bg-navy-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-navy-600"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Drukuj PDF z informacją o numerze</a><?php endif; ?>
       </div>
       <?php else: ?><p class="mt-2 text-sm text-slate-500">Numer rachunku nie został jeszcze ustawiony — skontaktuj się z biurem.</p><?php endif; ?>
     </section>
+    <script>
+    function ppPrintDw(){
+      var el = document.getElementById('dw-print'); if (!el) return;
+      var c = el.cloneNode(true);
+      c.querySelectorAll('button, a, script').forEach(function(n){ n.remove(); });
+      var w = window.open('', '_blank'); if (!w) return;
+      w.document.write('<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Dane do wpłaty</title><style>body{font:14px/1.5 Arial,sans-serif;margin:24px;color:#111}h2{font-size:18px;margin:0 0 12px}.font-mono{font-family:monospace}.text-xl{font-size:20px;font-weight:600}.text-center{text-align:center}.text-xs{font-size:12px;color:#555}dl{display:grid;grid-template-columns:9rem 1fr;gap:4px}dt{color:#555}dd{margin:0}[class*="border-2"]{border:2px solid #000;padding:10px;margin:12px 0}[class*="ring-amber"]{border:1px solid #999;padding:10px;margin-bottom:12px}p{margin:4px 0}</style></head><body>' + c.innerHTML + '</body></html>');
+      w.document.close(); w.focus(); w.print();
+    }
+    </script>
   <?php if (array_filter($pp_gw)): ?>
   <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" aria-labelledby="dl-h">
     <h2 id="dl-h" class="font-semibold"><i class="bi bi-plus-circle text-navy-700" aria-hidden="true"></i> Doładuj portfel</h2>
