@@ -102,6 +102,31 @@ function msEduBulkResetAndMail(M365Graph $graph, array $accounts, string $subjec
     return $out;
 }
 
+/**
+ * Nowe hasło dla JEDNEGO konta: własne (≥ 8 znaków) albo wygenerowane; wymuszona zmiana przy logowaniu.
+ * Opcjonalnie e-mail z nowym hasłem (szablon resetu) na adres alternatywny z rejestru.
+ *
+ * @return array{row: array, mail: string}  mail = komunikat o wysyłce (pusty, gdy nie wysyłano)
+ * @throws RuntimeException gdy konta nie da się zresetować (brak Entra ID, za krótkie hasło, błąd Graph)
+ */
+function msEduBulkResetOne(M365Graph $graph, array $a, bool $sendMail, string $ownPassword = ''): array {
+    require_once __DIR__ . '/msEduBulkMail.php';
+    if ((string)$a['ms_user_id'] === '') throw new RuntimeException('brak Entra ID w rejestrze (użyj „Regeneruj konto”).');
+    if ($ownPassword !== '' && mb_strlen($ownPassword) < 8) throw new RuntimeException('hasło musi mieć co najmniej 8 znaków.');
+    $pass = $ownPassword !== '' ? $ownPassword : M365Graph::generate_password(16);
+    $graph->set_password($a['ms_user_id'], $pass, true);
+    $row = $a + ['password' => $pass];
+    $note = '';
+    if ($sendMail) {
+        if (!filter_var(trim((string)$a['email']), FILTER_VALIDATE_EMAIL)) $note = 'E-mail nie został wysłany — brak adresu alternatywnego.';
+        else {
+            $m = msEduBulkMailSend([$row], MS_EDU_BULK_RESET_MAIL_SUBJECT, MS_EDU_BULK_RESET_MAIL_BODY);
+            $note = $m['sent'] ? 'E-mail z nowym hasłem zakolejkowany na ' . $a['email'] . '.' : 'E-mail NIE został zakolejkowany: ' . implode(' ', $m['failed']);
+        }
+    }
+    return ['row' => $row, 'mail' => $note];
+}
+
 /** Zapis usuniętego konta w rejestrze usuniętych (kto i kiedy). Nigdy nie przerywa usuwania. */
 function msEduBulkLogDeleted(array $a, string $by = ''): void {
     try {

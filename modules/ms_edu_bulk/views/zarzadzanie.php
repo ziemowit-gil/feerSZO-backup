@@ -116,6 +116,9 @@
           <button type="submit" name="_op" value="<?= $_susp ? 'restore_one' : 'suspend_one' ?>" formnovalidate class="btn btn-sm <?= $_susp ? 'btn-outline-success' : 'btn-outline-danger' ?>"
                   onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return <?= $_susp ? 'true' : "confirm('Zawiesić konto " . h(addslashes($r['upn'])) . " (blokada logowania, wylogowanie sesji)?')" ?>"
                   title="<?= $_susp ? 'Przywróć konto' : 'Szybkie zawieszenie konta' ?>"><i class="bi <?= $_susp ? 'bi-person-check' : 'bi-person-lock' ?>" aria-hidden="true"></i><span class="visually-hidden"><?= $_susp ? 'Przywróć' : 'Zawieś' ?></span></button>
+          <?php if ($zaAllowRoles): ?><button type="submit" name="_op" value="reset_one" formnovalidate class="btn btn-sm btn-outline-secondary"
+                  onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return confirm('Ustawić NOWE hasło dla <?= h(addslashes($r['upn'])) ?>? Poprzednie hasło przestanie działać. Hasło z pola „Nowe hasło” (jeśli wpisano) albo wygenerowane; e-mail wg zaznaczenia w panelu.')"
+                  title="Nowe hasło (generuj pojedynczo)"><i class="bi bi-key" aria-hidden="true"></i><span class="visually-hidden">Nowe hasło</span></button><?php endif; ?>
           <?php if ($zaAllowRoles): ?><button type="submit" name="_op" value="regenerate_one" formnovalidate class="btn btn-sm btn-outline-warning"
                   onclick="return zaRegenOne(<?= (int)$r['id'] ?>, '<?= h(addslashes($r['upn'])) ?>')"
                   title="Regeneruj konto — utwórz ponownie w Entra ID, jeśli go brak"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Regeneruj</span></button><?php endif; ?>

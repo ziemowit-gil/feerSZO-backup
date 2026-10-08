@@ -61,6 +61,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
     // Szybka akcja przy koncie (suspend_one / restore_one) — dotyczy tylko tego jednego konta
     if (in_array($op, ['suspend_one', 'restore_one'], true)) { $op = substr($op, 0, -4); $_POST['ids'] = [(int)($_POST['one'] ?? 0)]; }
     $accs = msEduBulkAccountsByIds((array)($_POST['ids'] ?? []));
+    if ($op === 'reset_one') {
+        // Nowe hasło dla jednego konta (własne z pola „Nowe hasło” albo wygenerowane) + opcjonalny e-mail
+        $accs = msEduBulkAccountsByIds([(int)($_POST['one'] ?? 0)]);
+        if (!m365_edu_ready()) flash_set('danger', 'Tenant EDU nie jest skonfigurowany.');
+        elseif (!$accs) flash_set('danger', 'Nie znaleziono konta.');
+        else try {
+            $r = msEduBulkResetOne(m365_edu(), $accs[0], !empty($_POST['regen_mail']), (string)($_POST['regen_pass'] ?? ''));
+            $_SESSION['msEduBulkReset'] = [$r['row']]; // login + hasło do wydruku (lista / paski)
+            flash_set('success', 'Nowe hasło dla ' . $accs[0]['upn'] . ': ' . $r['row']['password'] . ' (wymuszona zmiana przy logowaniu). ' . $r['mail']);
+        } catch (\Throwable $e) { flash_set('danger', $accs[0]['upn'] . ': ' . $e->getMessage()); }
+        header('Location: ' . $self); exit;
+    }
     if (in_array($op, ['regenerate_one', 'regenerate'], true)) {
         // Regeneracja konta (pojedyncza lub masowa): zakłada je ponownie w Entra ID z tym samym loginem (gdy go tam brak);
         // hasło jak wygenerowano wcześniej, jeśli jest w wynikach bieżącej sesji, inaczej nowe (trafia na wydruk).
