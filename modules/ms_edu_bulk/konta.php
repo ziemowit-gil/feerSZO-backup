@@ -145,8 +145,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['com
 }
 
 // Wydruk nowych haseł po masowym resecie (dane tylko z sesji)
-if (isset($_GET['pdf']) && !empty($_SESSION['msEduBulkReset'])) {
-    $pr = $_SESSION['msEduBulkReset']; $pm = (string)$_GET['pdf'];
+// Hasła, które znamy w tej sesji (nowe hasło / regeneracja / generator) — hasła nie są zapisywane w bazie
+$zaPwRows = [];
+foreach (array_merge($_SESSION['msEduBulkResult'] ?? [], $_SESSION['msEduBulkReset'] ?? []) as $_pr)
+    if (!empty($_pr['upn']) && !empty($_pr['password'])) $zaPwRows[mb_strtolower($_pr['upn'])] = $_pr; // późniejsze (reset) nadpisują
+$zaPwUpns = array_fill_keys(array_keys($zaPwRows), true);
+if (isset($_GET['pdf']) && ($zaPwRows || !empty($_SESSION['msEduBulkReset']))) {
+    $pm = (string)$_GET['pdf'];
+    // ?u=login — pojedyncza karteczka jednego konta; bez u — wszystkie nowe hasła z ostatniego resetu
+    $pr = !empty($_GET['u']) ? array_values(array_filter([$zaPwRows[mb_strtolower((string)$_GET['u'])] ?? null])) : array_values($_SESSION['msEduBulkReset'] ?? []);
+    if (!$pr) { http_response_code(404); echo 'Brak hasła tego konta w bieżącej sesji (hasła nie są zapisywane).'; exit; }
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="nowe_hasla_m365_edu_' . date('Ymd_His') . '.pdf"');
     echo $pm === 'cards' ? msEduBulkPdfCards($pr, 'Nowe hasło — konto Microsoft 365')
@@ -204,6 +212,12 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <a href="?pdf=strips" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1" aria-hidden="true"></i>Paski: dwa bloki</a>
     <a href="?pdf=strips1" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-list-nested me-1" aria-hidden="true"></i>Paski: jedna kolumna</a>
     <a href="?pdf=cards" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1" aria-hidden="true"></i>Kartki</a>
+    <?php if (count($_SESSION['msEduBulkReset']) > 1 && count($_SESSION['msEduBulkReset']) <= 40): ?>
+    <details class="w-100"><summary class="small">Pojedyncze karteczki (<?= count($_SESSION['msEduBulkReset']) ?>)</summary>
+      <div class="d-flex flex-wrap gap-1 mt-1">
+        <?php foreach ($_SESSION['msEduBulkReset'] as $_pr): ?><a href="?pdf=cards&amp;u=<?= h(urlencode($_pr['upn'])) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary font-monospace"><i class="bi bi-scissors me-1" aria-hidden="true"></i><?= h($_pr['upn']) ?></a><?php endforeach; ?>
+      </div></details>
+    <?php endif; ?>
     <a href="?reset_clear=1" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Usunąć listę nowych haseł z sesji? Nie da się jej odzyskać.')">Wyczyść listę</a>
   </div>
   <?php endif; ?>

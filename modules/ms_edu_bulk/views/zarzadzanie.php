@@ -79,7 +79,9 @@
           <div class="col-md-2"><label class="form-label small mb-0" for="zaRegLogin">Nowy login (opcj., 1 konto)</label>
             <input id="zaRegLogin" name="regen_login" class="form-control form-control-sm" autocomplete="off" placeholder="np. jan.kowalski"></div>
           <div class="col-md-3"><label class="form-label small mb-0" for="zaRegPass">Hasło startowe (opcj.)</label>
-            <input id="zaRegPass" name="regen_pass" type="text" class="form-control form-control-sm font-monospace" autocomplete="off" minlength="8" placeholder="min. 8 znaków, np. Start2026!x"></div>
+            <div class="input-group input-group-sm"><input id="zaRegPass" name="regen_pass" type="text" class="form-control font-monospace" autocomplete="off" minlength="8" placeholder="min. 8 znaków, np. Start2026!x">
+              <button type="button" class="btn btn-outline-secondary" onclick="zaGenPass()" title="Wygeneruj hasło i pokaż je w polu (podgląd przed użyciem)"><i class="bi bi-magic" aria-hidden="true"></i><span class="visually-hidden">Wygeneruj podgląd hasła</span></button>
+              <button type="button" class="btn btn-outline-secondary" onclick="var v=document.getElementById('zaRegPass').value;if(v&amp;&amp;navigator.clipboard)navigator.clipboard.writeText(v)" title="Kopiuj hasło"><i class="bi bi-clipboard" aria-hidden="true"></i><span class="visually-hidden">Kopiuj hasło</span></button></div></div>
           <div class="col-md-3 form-check ms-2"><input class="form-check-input" type="checkbox" id="zaRegMail" name="regen_mail" value="1" checked>
             <label class="form-check-label small" for="zaRegMail">Przygotuj e-mail z danymi i przeprosinami (podgląd przed wysyłką)</label></div>
           <div class="col-md-9"><label class="form-label small mb-0" for="zaRegMsg">Własna wiadomość w mailu (opcj.)</label>
@@ -112,23 +114,34 @@
         <td class="small"><?= h($r['manager_upn'] ?: '—') ?></td><td><?= $r['mfa'] ? '<i class="bi bi-shield-check text-success" aria-label="tak"></i>' : '—' ?></td>
         <td class="small"><?= h($r['admin_role'] ?: '—') ?></td><td class="text-muted small"><?= h(substr((string)$r['created_at'], 0, 16)) ?></td>
         <td class="text-end text-nowrap">
-          <?php $_susp = $r['status'] === 'suspended'; ?>
-          <button type="submit" name="_op" value="<?= $_susp ? 'restore_one' : 'suspend_one' ?>" formnovalidate class="btn btn-sm <?= $_susp ? 'btn-outline-success' : 'btn-outline-danger' ?>"
-                  onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return <?= $_susp ? 'true' : "confirm('Zawiesić konto " . h(addslashes($r['upn'])) . " (blokada logowania, wylogowanie sesji)?')" ?>"
-                  title="<?= $_susp ? 'Przywróć konto' : 'Szybkie zawieszenie konta' ?>"><i class="bi <?= $_susp ? 'bi-person-check' : 'bi-person-lock' ?>" aria-hidden="true"></i><span class="visually-hidden"><?= $_susp ? 'Przywróć' : 'Zawieś' ?></span></button>
-          <?php if ($zaAllowRoles): ?><button type="submit" name="_op" value="reset_one" formnovalidate class="btn btn-sm btn-outline-secondary"
-                  onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return confirm('Ustawić NOWE hasło dla <?= h(addslashes($r['upn'])) ?>? Poprzednie hasło przestanie działać. Hasło z pola „Nowe hasło” (jeśli wpisano) albo wygenerowane; e-mail wg zaznaczenia w panelu.')"
-                  title="Nowe hasło (generuj pojedynczo)"><i class="bi bi-key" aria-hidden="true"></i><span class="visually-hidden">Nowe hasło</span></button><?php endif; ?>
-          <?php if ($zaAllowRoles): ?><button type="submit" name="_op" value="regenerate_one" formnovalidate class="btn btn-sm btn-outline-warning"
-                  onclick="return zaRegenOne(<?= (int)$r['id'] ?>, '<?= h(addslashes($r['upn'])) ?>')"
-                  title="Regeneruj konto — utwórz ponownie w Entra ID, jeśli go brak"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span class="visually-hidden">Regeneruj</span></button><?php endif; ?>
-          <?php if (!empty($zaDetailUrl)): ?><a href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-primary" title="Szczegóły konta i zarządzanie grupami"><i class="bi bi-person-vcard me-1" aria-hidden="true"></i>Szczegóły / grupy</a><?php endif; ?>
+          <?php $_susp = $r['status'] === 'suspended'; $_upnJs = h(addslashes($r['upn'])); $_hasPw = !empty($zaAllowRoles) && isset(($zaPwUpns ?? [])[mb_strtolower($r['upn'])]); ?>
+          <div class="dropdown">
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle za-act" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Akcje konta <?= h($r['upn']) ?>"><i class="bi bi-three-dots-vertical" aria-hidden="true"></i> Akcje</button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:15rem">
+              <?php if (!empty($zaDetailUrl)): ?><li><a class="dropdown-item" href="<?= h($zaDetailUrl) ?>?id=<?= (int)$r['id'] ?>"><i class="bi bi-person-vcard me-2" aria-hidden="true"></i>Szczegóły / grupy</a></li><?php endif; ?>
+              <?php if ($zaAllowRoles): ?>
+              <li><h6 class="dropdown-header">Hasło i dane logowania</h6></li>
+              <li><button type="submit" name="_op" value="reset_one" formnovalidate class="dropdown-item"
+                  onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return confirm('Ustawić NOWE hasło dla <?= $_upnJs ?>? Poprzednie hasło przestanie działać. Hasło z pola „Hasło startowe” (jeśli wpisano) albo wygenerowane; e-mail wg zaznaczenia w panelu.')"><i class="bi bi-key me-2" aria-hidden="true"></i>Nowe hasło</button></li>
+              <li><?php if ($_hasPw): ?><a class="dropdown-item" href="?pdf=cards&amp;u=<?= h(urlencode($r['upn'])) ?>" target="_blank" rel="noopener"><i class="bi bi-scissors me-2" aria-hidden="true"></i>Karteczka do druku (PDF)</a>
+                <?php else: ?><span class="dropdown-item disabled" title="Karteczka jest dostępna po nadaniu hasła (nowe hasło / regeneracja) w tej sesji — hasła nie są zapisywane"><i class="bi bi-scissors me-2" aria-hidden="true"></i>Karteczka do druku</span><?php endif; ?></li>
+              <li><button type="submit" name="_op" value="regenerate_one" formnovalidate class="dropdown-item" onclick="return zaRegenOne(<?= (int)$r['id'] ?>, '<?= $_upnJs ?>')"><i class="bi bi-arrow-repeat me-2" aria-hidden="true"></i>Regeneruj konto</button></li>
+              <?php endif; ?>
+              <li><hr class="dropdown-divider"></li>
+              <li><button type="submit" name="_op" value="<?= $_susp ? 'restore_one' : 'suspend_one' ?>" formnovalidate class="dropdown-item <?= $_susp ? 'text-success' : 'text-danger' ?>"
+                  onclick="document.getElementById('zaOne').value='<?= (int)$r['id'] ?>'; return <?= $_susp ? 'true' : "confirm('Zawiesić konto " . $_upnJs . " (blokada logowania, wylogowanie sesji)?')" ?>"><i class="bi <?= $_susp ? 'bi-person-check' : 'bi-person-lock' ?> me-2" aria-hidden="true"></i><?= $_susp ? 'Przywróć konto' : 'Zawieś konto (offboarding)' ?></button></li>
+            </ul>
+          </div>
         </td>
 </tr>
     <?php endforeach; ?>
     </tbody></table></div>
 </form>
 <script>
+function zaGenPass(){var G=['ABCDEFGHJKLMNPQRSTUVWXYZ','abcdefghjkmnpqrstuvwxyz','23456789','!@#$%^&*()-_='],all=G.join(''),r=function(n){var a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n},p=G.map(function(g){return g[r(g.length)]});
+  while(p.length<16)p.push(all[r(all.length)]);for(var i=p.length-1;i>0;i--){var j=r(i+1),t=p[i];p[i]=p[j];p[j]=t}document.getElementById('zaRegPass').value=p.join('')}
+// Menu akcji w tabeli: strategia „fixed”, żeby nie było przycinane przez .table-responsive
+document.querySelectorAll('.za-act').forEach(function(el){new bootstrap.Dropdown(el,{popperConfig:{strategy:'fixed'}})});
 function zaRegenOne(id, upn) {
   if (!confirm('Zregenerować konto ' + upn + ' w tenancie EDU? Zostanie utworzone ponownie z tym samym loginem, o ile go tam brak (istniejące konto nie jest ruszane).')) return false;
   var pw = document.getElementById('zaRegPass');
