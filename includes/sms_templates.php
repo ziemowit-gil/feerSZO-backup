@@ -126,6 +126,19 @@ function sms_tpl_registry(): array
                 'org'      => ['label' => 'Nazwa organizacji', 'sample' => 'Dydaktyka TI'],
             ],
         ],
+        'ti_plan_link' => [
+            'label'       => 'Link do planu zajęć grupy',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-link-45deg',
+            'auto'        => false,
+            'description' => 'Wysyłane ręcznie z panelu dydaktyka (Linki do planów grup) do kursantów grupy i opiekunów małoletnich — publiczny adres planu zajęć (bez logowania). Tylko gdy kursant włączył SMS od dydaktyki.',
+            'message'     => '{{org}}: plan zajec grupy {{group}} jest pod adresem {{url}} - zawsze aktualny, bez logowania.',
+            'vars'        => [
+                'group' => ['label' => 'Nazwa grupy', 'sample' => 'Programowanie A'],
+                'url'   => ['label' => 'Publiczny adres planu', 'sample' => 'https://ti.example.pl/plan/abc123def456ghi789jkl012'],
+                'org'   => ['label' => 'Nazwa organizacji', 'sample' => 'Dydaktyka TI'],
+            ],
+        ],
         'ti_payment_reminder' => [
             'label'       => 'Brak wpłaty za zajęcia (przypomnienie)',
             'group'       => 'TI — Zajęcia',

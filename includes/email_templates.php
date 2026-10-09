@@ -476,6 +476,22 @@ HTML;
 </p>
 HTML;
 
+    $ti_plan_link_body = <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>Plan zajęć grupy <strong>{{group}}</strong> (prowadzący: {{instructor}}) jest dostępny pod stałym adresem — bez logowania, zawsze w aktualnej wersji. Zapisz go w zakładkach albo na telefonie:</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{url}}" style="background:#0891b2;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Otwórz plan zajęć →
+  </a>
+</div>
+<p style="font-size:.9em;color:#475569;word-break:break-all">Adres: <a href="{{url}}">{{url}}</a></p>
+{{note_block}}
+<p>Odwołane zajęcia są w planie przekreślone, a zmiany terminu opisane w sekcji „Uwagi”. Prosimy nie udostępniać adresu osobom spoza grupy.</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość z systemu {{org}}.
+</p>
+HTML;
+
     $ti_license_guardian_body = <<<'HTML'
 <p>Dzień dobry{{greeting}},</p>
 <p>Kursantowi <strong>{{student}}</strong> przypisano licencję na oprogramowanie:</p>
@@ -1101,6 +1117,24 @@ HTML;
                 'expires'     => ['label' => 'Ważna do (albo „bezterminowo”)', 'sample' => '31.12.2026'],
                 'secret_note' => ['label' => 'Uwaga o loginie i kluczu (lub pusta)', 'sample' => 'Login i klucz licencyjny są dostępne wyłącznie w panelu — ze względów bezpieczeństwa nie przesyłamy ich e-mailem.'],
                 'url'         => ['label' => 'Link do logowania do panelu', 'sample' => $base . '/karty30/ti/kursant/login.php'],
+            ],
+        ],
+
+        'ti_plan_link' => [
+            'label'       => 'TI: link do planu zajęć grupy',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-link-45deg',
+            'auto'        => false,
+            'description' => 'Wysyłane ręcznie z panelu dydaktyka (Linki do planów grup) do kursantów grupy i opiekunów małoletnich — publiczny adres planu zajęć, bez logowania.',
+            'subject'     => '{{org}}: plan zajęć grupy {{group}}',
+            'body'        => $ti_plan_link_body,
+            'vars'        => [
+                'org'        => ['label' => 'Nazwa organizacji',                 'sample' => 'Dydaktyka TI'],
+                'greeting'   => ['label' => 'Zwrot (spacja + imię albo puste)',   'sample' => ' Anna'],
+                'group'      => ['label' => 'Nazwa grupy',                       'sample' => 'Programowanie A'],
+                'instructor' => ['label' => 'Prowadzący',                        'sample' => 'Jan Kowalski'],
+                'url'        => ['label' => 'Publiczny adres planu',             'sample' => $base . '/karty30/ti/dydaktyk/planPubliczny.php?g=abc123def456ghi789jkl012'],
+                'note_block' => ['label' => 'Dodatkowa uwaga od kierownika (HTML lub pusty)', 'sample' => '<p style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px">Plan może się jeszcze zmienić do 15 października.</p>'],
             ],
         ],
 

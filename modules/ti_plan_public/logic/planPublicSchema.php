@@ -33,4 +33,22 @@ function tiPlanPublicMigrate(): void {
         updated_at    DATETIME NOT NULL DEFAULT (datetime('now'))
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_plan_public_tok ON k30_ti_plan_public_links(token)");
+    $have = array_column($pdo->query("PRAGMA table_info(k30_ti_plan_public_links)")->fetchAll(), 'name');
+    if (!in_array('notified_at', $have, true)) $pdo->exec("ALTER TABLE k30_ti_plan_public_links ADD COLUMN notified_at DATETIME");   // ostatnia wysyłka linku do kursantów
+
+    // Dziennik wysyłek linku do kursantów / opiekunów (wysłano / błąd / pominięto + powód); adresat zamaskowany.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_plan_public_sends (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id      INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        batch          TEXT    NOT NULL DEFAULT '',                      -- identyfikator jednej wysyłki (wszyscy odbiorcy naraz)
+        channel        TEXT    NOT NULL CHECK (channel IN ('email','sms')),
+        recipient_kind TEXT    NOT NULL DEFAULT 'kursant',               -- kursant | opiekun
+        recipient_name TEXT    NOT NULL DEFAULT '',
+        recipient      TEXT    NOT NULL DEFAULT '',                      -- zamaskowany adres / numer
+        status         TEXT    NOT NULL DEFAULT 'sent',                  -- sent | failed | skipped
+        detail         TEXT    NOT NULL DEFAULT '',
+        created_by     INTEGER,
+        created_at     DATETIME
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_plan_public_sends_c ON k30_ti_plan_public_sends(course_id, created_at)");
 }
