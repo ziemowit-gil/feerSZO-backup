@@ -3,10 +3,11 @@
  * modules/ti_plan_public/logic/planPublicNotify.php — wysyłka publicznego linku do planu grupy
  * do kursantów (i opiekunów małoletnich) e-mailem / SMS-em.
  *
- * Odbiorcy: aktywne zapisy grupy (k30_ti_enrollments.status='active'); dla każdego kursanta
- * te same reguły zgody i kontaktu co przy licencjach — TiLicencjeNotifier::recipients()
- * (kursant: e-mail chyba że wyłączył „e-mail od dydaktyki”, SMS tylko gdy włączył „SMS od
- * dydaktyki”; opiekun małoletniego: wg parent_notify_*). Kursant wirtualny nic nie dostaje.
+ * Odbiorcy: aktywne zapisy grupy (k30_ti_enrollments.status='active'); kursanci wg tych samych
+ * reguł zgody i kontaktu co przy licencjach — TiLicencjeNotifier::recipients() (e-mail chyba że
+ * wyłączył „e-mail od dydaktyki”, SMS tylko gdy włączył „SMS od dydaktyki”); opiekunowie z dostępem
+ * do panelu rodzica (kontakt opiekuna w koncie albo login rodzica — nie tylko małoletni) wg
+ * parent_notify_messages / parent_notify_lessons. Kursant wirtualny nic nie dostaje.
  * Szablony edytowalne w panelu: ti_plan_link (SMS i e-mail). Rodzaj SMS = klucz szablonu.
  * Każda próba trafia do k30_ti_plan_public_sends; link dostaje notified_at.
  */
@@ -20,34 +21,64 @@ final class TiPlanPublicNotifier
 
     /**
      * Odbiorcy dla grupy: lista [client_id, kind, name, email, phones, email_skip, sms_skip].
+     * Kursanci wg TiLicencjeNotifier::recipients() (zgody z konta kursanta). Opiekunowie —
+     * gdy $withGuardians — to KAŻDY opiekun z dostępem do panelu rodzica (kontakt opiekuna
+     * w koncie kursanta albo login rodzica), nie tylko opiekun małoletniego; e-mail chyba
+     * że wyłączył „wiadomości od prowadzącego”, SMS chyba że wyłączył SMS-y o lekcjach.
      * @return list<array<string,mixed>>
      */
-    public static function recipients(int $courseId): array
+    public static function recipients(int $courseId, bool $withGuardians = true): array
     {
         $rows = db_all(
-            "SELECT e.client_id FROM k30_ti_enrollments e JOIN k30_clients c ON c.id = e.client_id
-              WHERE e.course_id = ? AND e.status = 'active' ORDER BY c.name",
+            "SELECT e.client_id, c.name AS client_name,
+                    a.id AS account_id, a.guardian_name, a.guardian_email, a.guardian_phone, a.parent_login,
+                    a.parent_notify_messages, a.parent_notify_lessons
+               FROM k30_ti_enrollments e
+               JOIN k30_clients c ON c.id = e.client_id
+               LEFT JOIN k30_ti_student_accounts a ON a.client_id = c.id AND a.is_active = 1
+              WHERE e.course_id = ? AND e.status = 'active'
+              GROUP BY e.client_id ORDER BY c.name",
             [$courseId]
         );
+        $smsReady = function_exists('sms_channel_ready') && sms_channel_ready();
         $out = [];
         foreach ($rows as $r) {
-            foreach (TiLicencjeNotifier::recipients((int)$r['client_id']) as $rc) {
-                $rc['client_id'] = (int)$r['client_id'];
+            $cid = (int)$r['client_id'];
+            foreach (TiLicencjeNotifier::recipients($cid) as $rc) {
+                if ($rc['kind'] !== 'kursant') continue;              // opiekunów liczymy sami (szerzej niż tylko małoletni)
+                $rc['client_id'] = $cid; $rc['student'] = (string)$r['client_name'];
                 $out[] = $rc;
             }
+            if (!$withGuardians || $r['account_id'] === null) continue;
+            $gEmail = trim((string)$r['guardian_email']);
+            $gPhone = trim((string)$r['guardian_phone']);
+            $hasPanel = $gEmail !== '' || $gPhone !== '' || trim((string)($r['parent_login'] ?? '')) !== '';
+            if (!$hasPanel) continue;                                  // brak opiekuna z dostępem do panelu rodzica
+            $es = '';
+            if ($gEmail === '' || !filter_var($gEmail, FILTER_VALIDATE_EMAIL)) $es = 'brak poprawnego adresu e-mail opiekuna';
+            elseif ($r['parent_notify_messages'] !== null && (int)$r['parent_notify_messages'] === 0) $es = 'opiekun wyłączył powiadomienia e-mail';
+            $ss = '';
+            if (!$smsReady)                                                                       $ss = 'kanał SMS nie jest skonfigurowany';
+            elseif ($gPhone === '')                                                               $ss = 'brak numeru telefonu opiekuna';
+            elseif ($r['parent_notify_lessons'] !== null && (int)$r['parent_notify_lessons'] === 0) $ss = 'opiekun wyłączył powiadomienia SMS';
+            $out[] = ['kind' => 'opiekun', 'name' => trim((string)$r['guardian_name']), 'email' => $gEmail,
+                      'phones' => $gPhone !== '' ? [$gPhone] : [], 'email_skip' => $es, 'sms_skip' => $ss,
+                      'client_id' => $cid, 'student' => (string)$r['client_name']];
         }
         return $out;
     }
 
-    /** Podsumowanie odbiorców do pokazania przed wysyłką: ilu dostanie e-mail / SMS, ilu pominiętych i czemu. */
-    public static function preview(int $courseId): array
+    /** Podsumowanie odbiorców do pokazania przed wysyłką: ilu dostanie e-mail / SMS (kursanci / opiekunowie), ilu pominiętych i czemu. */
+    public static function preview(int $courseId, bool $withGuardians = true): array
     {
-        $p = ['students' => 0, 'email_ok' => 0, 'sms_ok' => 0, 'email_skip' => [], 'sms_skip' => []];
+        $p = ['students' => 0, 'guardians' => 0, 'email_ok' => 0, 'sms_ok' => 0, 'email_ok_g' => 0, 'sms_ok_g' => 0, 'email_skip' => [], 'sms_skip' => []];
         $seen = [];
-        foreach (self::recipients($courseId) as $rc) {
-            if ($rc['kind'] === 'kursant') { $seen[$rc['client_id']] = true; }
-            if ($rc['email_skip'] === '') $p['email_ok']++; else $p['email_skip'][$rc['email_skip']] = ($p['email_skip'][$rc['email_skip']] ?? 0) + 1;
-            if ($rc['sms_skip'] === '')   $p['sms_ok']++;   else $p['sms_skip'][$rc['sms_skip']]     = ($p['sms_skip'][$rc['sms_skip']] ?? 0) + 1;
+        foreach (self::recipients($courseId, $withGuardians) as $rc) {
+            $g = $rc['kind'] === 'opiekun';
+            if ($g) $p['guardians']++; else $seen[$rc['client_id']] = true;
+            $pref = $g ? 'opiekun: ' : '';
+            if ($rc['email_skip'] === '') { $p['email_ok']++; if ($g) $p['email_ok_g']++; } else $p['email_skip'][$pref . $rc['email_skip']] = ($p['email_skip'][$pref . $rc['email_skip']] ?? 0) + 1;
+            if ($rc['sms_skip'] === '')   { $p['sms_ok']++;   if ($g) $p['sms_ok_g']++; }   else $p['sms_skip'][$pref . $rc['sms_skip']]     = ($p['sms_skip'][$pref . $rc['sms_skip']] ?? 0) + 1;
         }
         $p['students'] = count($seen);
         return $p;
@@ -58,7 +89,7 @@ final class TiPlanPublicNotifier
      * @param list<string> $channels 'email' i/lub 'sms'
      * @return array{ok:bool,sent:array{email:int,sms:int},failed:array{email:int,sms:int},skipped:list<array{who:string,channel:string,reason:string}>,msg:string}
      */
-    public static function send(int $courseId, array $channels, ?int $by = null, string $extraNote = ''): array
+    public static function send(int $courseId, array $channels, ?int $by = null, string $extraNote = '', bool $withGuardians = true): array
     {
         tiPlanPublicMigrate();
         $res = ['ok' => false, 'sent' => ['email' => 0, 'sms' => 0], 'failed' => ['email' => 0, 'sms' => 0], 'skipped' => [], 'msg' => ''];
@@ -74,7 +105,7 @@ final class TiPlanPublicNotifier
         $short = tiPlanPublicShortUrl($link);
         $seenEmail = []; $seenPhone = [];
 
-        foreach (self::recipients($courseId) as $rc) {
+        foreach (self::recipients($courseId, $withGuardians) as $rc) {
             if (in_array('email', $channels, true)) {
                 $to = $rc['email'];
                 if ($rc['email_skip'] !== '') {
@@ -187,6 +218,9 @@ final class TiPlanPublicNotifier
             'instructor' => h((string)$course['iname'] !== '' ? (string)$course['iname'] : '—'),
             'url'        => h($url),
             'note_block' => trim($extraNote) !== '' ? '<p style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px">' . nl2br(h($extraNote)) . '</p>' : '',
+            'student_block' => $guardian
+                ? '<p>Dotyczy kursanta: <strong>' . h((string)($rc['student'] ?? '')) . '</strong>. Ten sam link znajdziesz też w panelu rodzica, w zakładce „Harmonogram”.</p>'
+                : '',
         ];
     }
 

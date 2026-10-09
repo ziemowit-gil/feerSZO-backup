@@ -485,6 +485,7 @@ HTML;
   </a>
 </div>
 <p style="font-size:.9em;color:#475569;word-break:break-all">Adres: <a href="{{url}}">{{url}}</a></p>
+{{student_block}}
 {{note_block}}
 <p>Odwołane zajęcia są w planie przekreślone, a zmiany terminu opisane w sekcji „Uwagi”. Prosimy nie udostępniać adresu osobom spoza grupy.</p>
 <p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
@@ -1125,7 +1126,7 @@ HTML;
             'group'       => 'TI — Zajęcia',
             'icon'        => 'bi-link-45deg',
             'auto'        => false,
-            'description' => 'Wysyłane ręcznie z panelu dydaktyka (Linki do planów grup) do kursantów grupy i opiekunów małoletnich — publiczny adres planu zajęć, bez logowania.',
+            'description' => 'Wysyłane ręcznie z panelu dydaktyka (Linki do planów grup) do kursantów grupy i opiekunów z dostępem do panelu rodzica — publiczny adres planu zajęć, bez logowania.',
             'subject'     => '{{org}}: plan zajęć grupy {{group}}',
             'body'        => $ti_plan_link_body,
             'vars'        => [
@@ -1135,6 +1136,7 @@ HTML;
                 'instructor' => ['label' => 'Prowadzący',                        'sample' => 'Jan Kowalski'],
                 'url'        => ['label' => 'Publiczny adres planu',             'sample' => $base . '/karty30/ti/dydaktyk/planPubliczny.php?g=abc123def456ghi789jkl012'],
                 'note_block' => ['label' => 'Dodatkowa uwaga od kierownika (HTML lub pusty)', 'sample' => '<p style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px">Plan może się jeszcze zmienić do 15 października.</p>'],
+                'student_block' => ['label' => 'Dla opiekuna: akapit „Dotyczy kursanta …” (HTML lub pusty)', 'sample' => '<p>Dotyczy kursanta: <strong>Anna Nowak</strong>. Ten sam link znajdziesz też w panelu rodzica, w zakładce „Harmonogram”.</p>'],
             ],
         ],
 

@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ch = [];
                 if (!empty($_POST['ch_email'])) $ch[] = 'email';
                 if (!empty($_POST['ch_sms']))   $ch[] = 'sms';
-                $res = TiPlanPublicNotifier::send($cid, $ch, $uid, (string)($_POST['extra_note'] ?? ''));
+                $res = TiPlanPublicNotifier::send($cid, $ch, $uid, (string)($_POST['extra_note'] ?? ''), !empty($_POST['with_guardians']));
                 flash_set($res['ok'] ? 'success' : 'warning', 'Wysyłka linku do planu grupy „' . $c['name'] . '” — ' . $res['msg']);
                 break;
             case 'options':
@@ -214,13 +214,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="send"><input type="hidden" name="course_id" value="<?= $cid ?>">
         <div class="col-12">
           <span class="fw-semibold small"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij link kursantom</span>
-          <span class="small text-body-secondary">— aktywne zapisy: <?= (int)$pv['students'] ?>; e-mail dotrze do <?= (int)$pv['email_ok'] ?>, SMS do <?= (int)$pv['sms_ok'] ?> odbiorców (kursanci i opiekunowie małoletnich, wg ich zgód).</span>
+          <span class="small text-body-secondary">— aktywne zapisy: <?= (int)$pv['students'] ?>, opiekunowie z panelem rodzica: <?= (int)$pv['guardians'] ?>; e-mail dotrze do <?= (int)$pv['email_ok'] ?> (w tym opiekunów: <?= (int)$pv['email_ok_g'] ?>), SMS do <?= (int)$pv['sms_ok'] ?> (opiekunów: <?= (int)$pv['sms_ok_g'] ?>) — wg zgód z kont.</span>
           <?php $sk = []; foreach ($pv['email_skip'] as $why => $n) $sk[] = 'e-mail: ' . $why . ' (' . $n . ')'; foreach ($pv['sms_skip'] as $why => $n) $sk[] = 'SMS: ' . $why . ' (' . $n . ')'; ?>
           <?php if ($sk): ?><div class="small text-body-secondary">Pominięci — <?= h(implode('; ', $sk)) ?>.</div><?php endif; ?>
         </div>
         <div class="col-sm-auto">
           <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="ce<?= $cid ?>" name="ch_email" value="1" <?= $pv['email_ok'] ? 'checked' : 'disabled' ?>><label class="form-check-label small" for="ce<?= $cid ?>">E-mail</label></div>
           <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="cs<?= $cid ?>" name="ch_sms" value="1" <?= $pv['sms_ok'] ? 'checked' : 'disabled' ?>><label class="form-check-label small" for="cs<?= $cid ?>">SMS</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="cg<?= $cid ?>" name="with_guardians" value="1" <?= $pv['guardians'] ? 'checked' : 'disabled' ?>><label class="form-check-label small" for="cg<?= $cid ?>" title="Opiekunowie z dostępem do panelu rodzica — link widzą też w zakładce Harmonogram">także opiekunowie (panel rodzica)</label></div>
         </div>
         <div class="col-sm">
           <label class="form-label small mb-0 visually-hidden" for="en<?= $cid ?>">Dodatkowa uwaga w e-mailu</label>

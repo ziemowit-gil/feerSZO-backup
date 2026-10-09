@@ -131,7 +131,7 @@ function sms_tpl_registry(): array
             'group'       => 'TI — Zajęcia',
             'icon'        => 'bi-link-45deg',
             'auto'        => false,
-            'description' => 'Wysyłane ręcznie z panelu dydaktyka (Linki do planów grup) do kursantów grupy i opiekunów małoletnich — publiczny adres planu zajęć (bez logowania). Tylko gdy kursant włączył SMS od dydaktyki.',
+            'description' => 'Wysyłane ręcznie z panelu dydaktyka (Linki do planów grup) do kursantów grupy i opiekunów z dostępem do panelu rodzica — publiczny adres planu zajęć (bez logowania). Kursant: tylko gdy włączył SMS od dydaktyki; opiekun: chyba że wyłączył SMS-y.',
             'message'     => '{{org}}: plan zajec grupy {{group}} jest pod adresem {{url}} - zawsze aktualny, bez logowania.',
             'vars'        => [
                 'group' => ['label' => 'Nazwa grupy', 'sample' => 'Programowanie A'],

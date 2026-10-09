@@ -875,7 +875,46 @@ document.addEventListener('DOMContentLoaded', function() {
       $resch_pending_har[(int)$rp['session_id']] = $rp;
   }
   $hmsg = $_SESSION['k30_parent_msg'] ?? null; unset($_SESSION['k30_parent_msg']);
+  // Publiczne linki do planów grup dziecka (modules/ti_plan_public) — tylko opublikowane
+  $p_plan_links = [];
+  try {
+      require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_plan_public/logic/planPublicManager.php';
+      $p_plan_courses = db_all("SELECT c.id, c.name FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id = e.course_id
+                                 WHERE e.client_id = ? AND e.status = 'active' AND c.status NOT IN ('cancelled','archived') ORDER BY c.name", [(int)$parent['client_id']]);
+      $p_plan_map = tiPlanPublicMap(array_column($p_plan_courses, 'id'));
+      foreach ($p_plan_courses as $pc) {
+          $pl = $p_plan_map[(int)$pc['id']] ?? null;
+          if ($pl && (int)$pl['is_enabled'] === 1) $p_plan_links[] = ['name' => (string)$pc['name'], 'url' => tiPlanPublicUrl($pl), 'short' => tiPlanPublicShortUrl($pl)];
+      }
+  } catch (\Throwable $e) { $p_plan_links = []; }
 ?>
+  <?php if ($p_plan_links): ?>
+  <section class="card border-0 shadow-sm mb-3" aria-labelledby="kppPlanLinkTitle">
+    <div class="card-body py-2 px-3">
+      <h2 class="h6 fw-bold mb-1" id="kppPlanLinkTitle"><i class="bi bi-link-45deg text-primary me-1" aria-hidden="true"></i>Plan zajęć grupy — stały link</h2>
+      <p class="small text-body-secondary mb-2">Aktualny plan grupy dziecka (siatka tygodnia i terminy) bez logowania — zapisz w zakładkach lub prześlij dalej w rodzinie. Prosimy nie udostępniać adresu poza grupę.</p>
+      <?php foreach ($p_plan_links as $i => $pl): ?>
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+        <span class="small fw-semibold"><?= h($pl['name']) ?></span>
+        <div class="input-group input-group-sm flex-grow-1" style="max-width:560px">
+          <input type="text" class="form-control font-monospace" id="kppPlanUrl<?= $i ?>" value="<?= h($pl['short'] ?: $pl['url']) ?>" readonly onfocus="this.select()" aria-label="Adres planu zajęć grupy <?= h($pl['name']) ?>">
+          <button type="button" class="btn btn-outline-secondary" data-kpp-copy="kppPlanUrl<?= $i ?>"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
+          <a class="btn btn-outline-primary" href="<?= h($pl['url']) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz</a>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </section>
+  <script>
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-kpp-copy]'); if (!b) return;
+    var i = document.getElementById(b.getAttribute('data-kpp-copy')); if (!i) return;
+    var d = function () { var t = b.innerHTML; b.innerHTML = '<i class="bi bi-check2 me-1" aria-hidden="true"></i>Skopiowano'; setTimeout(function () { b.innerHTML = t; }, 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(i.value).then(d, function () { i.select(); document.execCommand('copy'); d(); });
+    else { i.select(); document.execCommand('copy'); d(); }
+  });
+  </script>
+  <?php endif; ?>
   <h2 class="h5 fw-bold d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-calendar-week text-primary" aria-hidden="true"></i>Harmonogram zajęć
     <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" data-bs-toggle="modal" data-bs-target="#kpParentCalSubModal">
