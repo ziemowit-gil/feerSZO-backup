@@ -45,6 +45,7 @@ if (!empty($KIER_ITEMS)) {
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],
         ['Wydruki i raporty',         'wydruki.php',                 'printer'],
         ['Linki do planów grup',      'planLinki.php',              'link-45deg'],
+        ['Godziny prowadzących',      'godziny.php',                'hourglass-split'],
         ...(function_exists('dyd_can_analytics') && dyd_can_analytics() ? [['Analityka TI', 'analityka.php', 'speedometer2']] : []),
         ['Wypłaty prowadzących',      'index.php?tab=wypłaty',      'cash-stack'],
         ['Praca własna',              'index.php?tab=praca_wlasna', 'journal-text'],
