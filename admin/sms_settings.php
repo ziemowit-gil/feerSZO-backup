@@ -78,6 +78,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $api_base_bad = $api_base !== '' && !preg_match('~^https://[A-Za-z0-9.-]+(:\d+)?(/\S*)?$~', $api_base);
         $save['sms_serwersms_api_base'] = $api_base_bad ? '' : rtrim($api_base, '/');
 
+        // Sendly: token zostaje, gdy pole puste; adres API wolno wyczyścić (domyślny https://api.sendly.link)
+        $save['sms_sendly_token'] = trim($_POST['sms_sendly_token'] ?? '') ?: sms_setting('sms_sendly_token');
+        $sl_base = trim((string)($_POST['sms_sendly_api_base'] ?? ''));
+        $save['sms_sendly_api_base'] = ($sl_base !== '' && preg_match('~^https://[A-Za-z0-9.-]+(:\d+)?(/\S*)?$~', $sl_base)) ? rtrim($sl_base, '/') : '';
+
         // Twilio fields (keep existing if left blank)
         $twilio_token = trim($_POST['sms_twilio_token'] ?? '');
         $save['sms_twilio_sid']   = trim($_POST['sms_twilio_sid']   ?? '') ?: $cfg['sms_twilio_sid'];
@@ -171,16 +176,20 @@ $smsapi_ok = (bool)sms_setting('sms_api_token')
           || ((bool)$cfg['sms_api_login'] && (bool)$cfg['sms_api_password']);
 $serwersms_token = sms_setting('sms_serwersms_token');
 $serwersms_ok    = (bool)$serwersms_token || ((bool)$cfg['sms_serwersms_login'] && (bool)$cfg['sms_serwersms_password']);
+$sendly_token = sms_setting('sms_sendly_token');
+$sendly_ok    = (bool)$sendly_token;
 $twilio_ok = $cfg['sms_twilio_sid'] && $cfg['sms_twilio_token'] && $cfg['sms_twilio_from'];
 $http_ok   = (bool)$cfg['sms_http_url'];
 $active_ok = match($cfg['sms_provider']) {
     'serwersms'   => $serwersms_ok,
+    'sendly'      => $sendly_ok,
     'twilio'      => $twilio_ok,
     'httprequest' => $http_ok,
     default       => $smsapi_ok,
 };
 $provider_label = match($cfg['sms_provider']) {
     'serwersms'   => 'SerwerSMS.pl',
+    'sendly'      => 'Sendly',
     'twilio'      => 'Twilio',
     'httprequest' => 'HTTP Request',
     default       => 'smsapi.pl',
@@ -189,7 +198,7 @@ $provider_label = match($cfg['sms_provider']) {
 // Główny i zapasowy dostawca: pola konfiguracji pokazujemy dla OBU (dawniej tylko dla głównego — zapasowego nie dało się skonfigurować)
 $fb        = $cfg['sms_fallback_provider'];
 $labels    = sms_providers();
-$ready_of  = ['smsapi' => $smsapi_ok, 'serwersms' => $serwersms_ok, 'twilio' => (bool)$twilio_ok, 'httprequest' => $http_ok];
+$ready_of  = ['smsapi' => $smsapi_ok, 'serwersms' => $serwersms_ok, 'sendly' => $sendly_ok, 'twilio' => (bool)$twilio_ok, 'httprequest' => $http_ok];
 $show      = fn(string $p): bool => $cfg['sms_provider'] === $p || $fb === $p;
 $fb_valid  = $fb !== '' && $fb !== $cfg['sms_provider'];
 $fb_ready  = $fb_valid && !empty($ready_of[$fb]);
@@ -219,6 +228,7 @@ try {
 .logo-smsapi  { background: #e0f2fe; color: #0369a1; }
 .logo-twilio  { background: #fce7f3; color: #be185d; }
 .logo-serwersms { background: #fef3c7; color: #b45309; }
+.logo-sendly { background: #dcfce7; color: #15803d; }
 .logo-http    { background: #f0fdf4; color: #15803d; }
 </style>
 
@@ -328,6 +338,28 @@ try {
 
     <div class="col-md-4">
       <div class="provider-card">
+        <input type="radio" name="sms_provider" id="prov_sendly" value="sendly"
+               <?= $cfg['sms_provider'] === 'sendly' ? 'checked' : '' ?>
+               onchange="refreshProviders()" class="d-none">
+        <label for="prov_sendly" class="d-flex align-items-start gap-3 w-100 mb-0">
+          <div class="provider-logo logo-sendly"><i class="bi bi-chat-dots"></i></div>
+          <div>
+            <div class="fw-semibold">Sendly</div>
+            <div class="small text-muted">Bramka SMS (sendly.link), API JSON z tokenem.</div>
+            <?php if ($sendly_ok): ?>
+            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle mt-1">
+              <i class="bi bi-check-circle"></i> Skonfigurowany
+            </span>
+            <?php else: ?>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis border mt-1">Nie skonfigurowany</span>
+            <?php endif; ?>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="provider-card">
         <input type="radio" name="sms_provider" id="prov_twilio" value="twilio"
                <?= $cfg['sms_provider'] === 'twilio' ? 'checked' : '' ?>
                onchange="refreshProviders()" class="d-none">
@@ -390,6 +422,7 @@ try {
     <option value="">— brak (bez fallbacku) —</option>
     <option value="smsapi"      <?= $fb==='smsapi'      ? 'selected':'' ?>>smsapi.pl</option>
     <option value="serwersms"   <?= $fb==='serwersms'   ? 'selected':'' ?>>SerwerSMS.pl</option>
+    <option value="sendly"      <?= $fb==='sendly'      ? 'selected':'' ?>>Sendly</option>
     <option value="twilio"      <?= $fb==='twilio'      ? 'selected':'' ?>>Twilio</option>
     <option value="httprequest" <?= $fb==='httprequest' ? 'selected':'' ?>>HTTP Request</option>
   </select>
@@ -582,6 +615,35 @@ try {
 </div>
 
 <!-- ── Konfiguracja Twilio ────────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-3" id="section-sendly"
+     <?= $show('sendly') ? '' : 'style="display:none"' ?>>
+<div class="card-header fw-semibold d-flex align-items-center gap-2">
+  <div class="provider-logo logo-sendly" style="width:24px;height:24px;font-size:.85rem;border-radius:4px">
+    <i class="bi bi-chat-dots"></i>
+  </div>
+  Konfiguracja Sendly
+  <span class="badge ms-auto fw-normal role-badge" data-provider="sendly"></span>
+</div>
+<div class="card-body">
+  <div class="alert alert-light border small p-2 mb-3">
+    API: <code>POST https://api.sendly.link/api/sms</code> (<code>to</code>, <code>body</code>), autoryzacja tokenem (<code>Authorization: Bearer</code>).
+    Token skopiujesz w panelu <a href="https://app.sendly.link" target="_blank" rel="noopener">app.sendly.link</a> po rejestracji.
+    Nazwa nadawcy (Sender ID do 11 znaków, weryfikacja w UKE) jest przypisana do usługi w panelu Sendly — nie ustawia się jej tutaj.
+  </div>
+  <div class="mb-3">
+    <label class="form-label fw-semibold small" for="sms_sendly_token">Token API</label>
+    <input type="password" id="sms_sendly_token" name="sms_sendly_token" class="form-control form-control-sm font-monospace"
+           placeholder="<?= $sendly_token ? '(zapisany — zostaw puste by nie zmieniać)' : 'Token API z panelu Sendly' ?>" autocomplete="new-password">
+  </div>
+  <div class="mb-0">
+    <label class="form-label fw-semibold small" for="sms_sendly_api_base">Adres API <span class="text-muted fw-normal">(puste = domyślny)</span></label>
+    <input type="text" id="sms_sendly_api_base" name="sms_sendly_api_base" class="form-control form-control-sm font-monospace" style="max-width:420px"
+           value="<?= h(sms_setting('sms_sendly_api_base')) ?>" placeholder="https://api.sendly.link">
+    <div class="form-text">Raporty doręczeń (DELIVERED / ERROR) Sendly wysyła webhookiem ustawianym w panelu Sendly — SZO ich nie przetwarza.</div>
+  </div>
+</div>
+</div>
+
 <div class="card shadow-sm mb-3" id="section-twilio"
      <?= $show('twilio') ? '' : 'style="display:none"' ?>>
 <div class="card-header fw-semibold d-flex align-items-center gap-2">
@@ -990,12 +1052,12 @@ function refreshProviders() {
     var main = (document.querySelector('[name="sms_provider"]:checked') || {}).value || '';
     var fbSel = document.getElementById('sms_fallback_provider');
     var fb = fbSel ? fbSel.value : '';
-    var names = {smsapi: 'smsapi.pl', serwersms: 'SerwerSMS.pl', twilio: 'Twilio', httprequest: 'HTTP Request'};
+    var names = {smsapi: 'smsapi.pl', serwersms: 'SerwerSMS.pl', sendly: 'Sendly', twilio: 'Twilio', httprequest: 'HTTP Request'};
     if (fbSel) {
         Array.prototype.forEach.call(fbSel.options, function (o) { o.disabled = (o.value !== '' && o.value === main); });
         if (fb === main) { fbSel.value = ''; fb = ''; }
     }
-    ['smsapi', 'serwersms', 'twilio', 'httprequest'].forEach(function (p) {
+    ['smsapi', 'serwersms', 'sendly', 'twilio', 'httprequest'].forEach(function (p) {
         var sec = document.getElementById('section-' + p);
         if (sec) sec.style.display = (p === main || p === fb) ? '' : 'none';
     });

@@ -174,6 +174,7 @@ final class SmsSenders
     public static function effective(string $provider, string $kind): array
     {
         if ($provider === 'twilio') return ['label' => 'numer nadawcy Twilio (bez zmian)', 'own' => false];
+        if ($provider === 'sendly') return ['label' => 'Sender ID z panelu Sendly (bez zmian)', 'own' => false];
         $own = sms_kind_sender($kind);
         $s = $own ?? match ($provider) {
             'serwersms'   => sms_serwersms_sender(),

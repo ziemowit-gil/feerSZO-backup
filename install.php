@@ -101,6 +101,7 @@ if (file_exists(__DIR__ . '/config.php')) {
                         // SMS — token OAuth, dostawca zapasowy (fallback) i brama HTTP: bez nich przy reinstalacji znikałby cały łańcuch
                         'sms_api_token','sms_fallback_provider','sms_http_url','sms_http_method','sms_http_ok_text','sms_twilio_api_base',
                         'sms_serwersms_token','sms_serwersms_login','sms_serwersms_password','sms_serwersms_sender','sms_serwersms_channel','sms_serwersms_api_base',
+                        'sms_sendly_token','sms_sendly_api_base',
                         // CRON
                         'cron_token',
                         // Anthropic AI

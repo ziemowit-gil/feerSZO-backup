@@ -1,7 +1,7 @@
 <?php
 /**
  * SMS integration — obsługuje smsapi.pl (SDK OAuth), SerwerSMS.pl (HTTPS API v2), Twilio i HTTP Request (dowolna brama przez URL).
- * Dostawca główny: ustawienie `sms_provider` ('smsapi' | 'serwersms' | 'twilio' | 'httprequest').
+ * Dostawca główny: ustawienie `sms_provider` ('smsapi' | 'serwersms' | 'sendly' | 'twilio' | 'httprequest').
  * Dostawca zapasowy (inny operator): `sms_fallback_provider` — gdy główny zawiedzie, system
  *   automatycznie ponawia wysyłkę przez niego (np. główny smsapi.pl → zapasowy Twilio albo brama HTTP).
  * Łańcuch wysyłki (sms_provider_chain) składa się wyłącznie z dostawców z KOMPLETNĄ konfiguracją:
@@ -14,6 +14,8 @@
  * SMSAPI.pl: preferowany token OAuth (sms_api_token); fallback login+hasło MD5.
  * SerwerSMS.pl: token API (sms_serwersms_token) albo użytkownik API (login+hasło). Kanał: normalny (FULL, domyślny) z nazwą nadawcy
  *   sms_serwersms_sender — domyślnie „tte”, zarejestrowaną w panelu SerwerSMS — albo ECO (bez nazwy nadawcy): sms_serwersms_channel.
+ * Sendly (sendly.link): token API (sms_sendly_token), POST {api}/api/sms JSON {to, body}, nagłówek Authorization: Bearer; nadawca (Sender ID
+ *   do 11 znaków) jest przypisany do usługi w panelu Sendly — API go nie przyjmuje, więc nazwa nadawcy z Ustawień SMS go nie zmienia.
  * RODZAJ SMS ($kind, ostatni parametr sms_send*): klucz z katalogu modules/sms_senders (np. 'twofa_code', 'ti_lesson_added'). Dla każdego
  *   rodzaju można w Ustawieniach SMS wybrać nadawcę: nazwę albo ECO (bez nazwy nadawcy) — ustawienie sms_sender_kind_<rodzaj>,
  *   patrz sms_kind_sender(). Brak ustawienia = domyślny nadawca dostawcy. Twilio wysyła zawsze z numeru nadawcy z konfiguracji.
@@ -47,7 +49,7 @@ function sms_is_enabled(): bool {
 
 /** Obsługiwani dostawcy: klucz => etykieta. */
 function sms_providers(): array {
-    return ['smsapi' => 'smsapi.pl', 'serwersms' => 'SerwerSMS.pl', 'twilio' => 'Twilio', 'httprequest' => 'HTTP Request'];
+    return ['smsapi' => 'smsapi.pl', 'serwersms' => 'SerwerSMS.pl', 'sendly' => 'Sendly', 'twilio' => 'Twilio', 'httprequest' => 'HTTP Request'];
 }
 
 function sms_provider_label(string $provider): string {
@@ -63,6 +65,7 @@ function sms_provider_ready(string $provider): bool {
         'httprequest' => sms_setting('sms_http_url') !== '',
         'smsapi'      => sms_setting('sms_api_token') !== ''
                       || (sms_setting('sms_api_login') !== '' && sms_setting('sms_api_password') !== ''),
+        'sendly'      => sms_setting('sms_sendly_token') !== '',
         'serwersms'   => sms_setting('sms_serwersms_token') !== ''
                       || (sms_setting('sms_serwersms_login') !== '' && sms_setting('sms_serwersms_password') !== ''),
         default       => false,
@@ -158,6 +161,8 @@ function _sms_dispatch(string $provider, string $phone, string $message, string 
         _sms_send_twilio($phone, $message);
     } elseif ($provider === 'serwersms') {
         _sms_send_serwersms($phone, $message, $kind);
+    } elseif ($provider === 'sendly') {
+        _sms_send_sendly($phone, $message, $kind);
     } elseif ($provider === 'httprequest') {
         _sms_send_httprequest($phone, $message, $kind);
     } else {
@@ -233,7 +238,7 @@ function sms_log_event(string $event, string $phone, array $errors, string $used
 /**
  * Wyślij SMS: najpierw przez głównego dostawcę, a gdy zawiedzie — przez zapasowego (innego operatora).
  * Dostawcy bez kompletnej konfiguracji są pomijani. Zwraca klucz dostawcy, który wysłał
- * ('smsapi' | 'serwersms' | 'twilio' | 'httprequest'), albo '' gdy SMS świadomie nie wysłano (kursant wirtualny).
+ * ('smsapi' | 'serwersms' | 'sendly' | 'twilio' | 'httprequest'), albo '' gdy SMS świadomie nie wysłano (kursant wirtualny).
  * Rzuca wyjątek dopiero, gdy zawiodą wszyscy: przy jednym dostawcy — jego oryginalny błąd, przy dwóch —
  * RuntimeException z komunikatami obu. Gdy nie skonfigurowano żadnego — błąd konfiguracji głównego.
  * $kind: rodzaj SMS z katalogu (decyduje o nadawcy — patrz sms_kind_sender()); '' = bez rodzaju, domyślny nadawca.
@@ -621,6 +626,44 @@ function _sms_send_serwersms(string $phone, string $message, string $kind = ''):
         default    => '',
     };
     throw new RuntimeException('Błąd SerwerSMS: ' . ($emsg !== '' ? $emsg : "HTTP {$code}") . ($ecode !== null && $ecode !== '' ? " (kod {$ecode})" : '') . '.' . $hint);
+}
+
+/**
+ * Sendly (https://sendly.link/pl/) — POST {api}/api/sms, JSON {"to": "48732129000", "body": "..."}, autoryzacja `Authorization: Bearer <token>`
+ * (token z panelu app.sendly.link). Numer bez plusa. Odpowiedź zawiera `message_id`; raporty doręczeń (DELIVERED/ERROR) przychodzą webhookiem
+ * skonfigurowanym w panelu Sendly (Bramka SMS → Ustawienia usługi) — tu nie są obsługiwane. Nadawca (Sender ID, do 11 znaków, weryfikacja w UKE)
+ * jest przypisany do usługi w panelu, więc $kind nie zmienia nadawcy. Adres API przestawia `sms_sendly_api_base` (domyślnie https://api.sendly.link).
+ * Powodzenie = HTTP 2xx; token leci w nagłówku, więc certyfikat serwera jest zawsze weryfikowany.
+ */
+function _sms_send_sendly(string $phone, string $message, string $kind = ''): void {
+    $token = trim(sms_setting('sms_sendly_token'));
+    if ($token === '') {
+        throw new RuntimeException('Brak tokenu API Sendly. Skonfiguruj w: Administracja → Ustawienia SMS.');
+    }
+    $base = rtrim(trim(sms_setting('sms_sendly_api_base')) ?: 'https://api.sendly.link', '/');
+    $body = json_encode(['to' => ltrim($phone, '+'), 'body' => $message], JSON_UNESCAPED_UNICODE);
+    $headers = ['Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json', 'Content-Length: ' . strlen($body)];
+
+    try {
+        [$resp, $code] = _sms_http($base . '/api/sms', 'POST', $headers, $body, true);
+    } catch (RuntimeException $e) {
+        if (stripos($e->getMessage(), 'SSL') !== false || stripos($e->getMessage(), 'certificate') !== false) {
+            throw new RuntimeException('Błąd Sendly: nie udało się zweryfikować certyfikatu TLS serwera API (PHP nie ma pakietu certyfikatów CA albo '
+                . 'połączenie jest podmieniane) — ustaw openssl.cafile w php.ini. Szczegóły: ' . $e->getMessage());
+        }
+        throw $e;
+    }
+    if ($code >= 200 && $code < 300) return;
+
+    $data = json_decode($resp, true);
+    $emsg = is_array($data) ? trim((string)($data['message'] ?? $data['error'] ?? $data['detail'] ?? '')) : '';
+    $hint = match (true) {
+        $code === 401, $code === 403 => ' Sprawdź token API w Ustawieniach SMS (Sendly → panel → token).',
+        $code === 402                => ' Brak środków na koncie Sendly — doładuj konto.',
+        $code === 429                => ' Przekroczono limit zapytań — spróbuj za chwilę.',
+        default                      => '',
+    };
+    throw new RuntimeException('Błąd Sendly: HTTP ' . $code . ($emsg !== '' ? ' — ' . sms_scrub($emsg) : ($data === null ? ' — ' . sms_scrub(mb_substr($resp, 0, 120)) : '')) . '.' . $hint);
 }
 
 /**
