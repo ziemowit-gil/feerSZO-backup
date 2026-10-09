@@ -7,7 +7,8 @@
  * a na subdomenie ti.* krótko:  https://ti.../plan/<token>  (reguła w .htaccess).
  *
  * Dane dla strony publicznej (tiPlanPublicData) celowo pomijają: kursantów, PESEL,
- * notatki lekcji, linki Zoom, rezerwacje (status reserved) i wersje robocze (draft).
+ * notatki lekcji, linki Zoom, rezerwacje (status reserved) i wersje robocze (draft);
+ * prowadzący TYLKO inicjałami (tiPlanPublicInitials) — pełne nazwisko zostaje w wydrukach wewnętrznych.
  */
 require_once __DIR__ . '/planPublicSchema.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_planner_ext.php';
@@ -111,6 +112,17 @@ function tiPlanPublicShortUrl(array $row): ?string {
     return $scheme . '://' . $host . '/plan/' . (string)$row['token'];
 }
 
+/** Inicjały prowadzącego na stronę publiczną: „Maria Szczerbowska” → „M. S.”; placeholdery (VCT/DUU) bez zmian. */
+function tiPlanPublicInitials(string $name): string {
+    $name = trim($name);
+    if ($name === '' || $name === '—') return $name;
+    $parts = preg_split('/[\s-]+/u', $name) ?: [];
+    if (count($parts) === 1 && mb_strlen($name) <= 4 && mb_strtoupper($name) === $name) return $name;   // VCT, DUU
+    $ini = [];
+    foreach ($parts as $w) { $w = (string)preg_replace('/^[^\p{L}]+|[^\p{L}]+$/u', '', $w); if ($w !== '') $ini[] = mb_strtoupper(mb_substr($w, 0, 1)) . '.'; }
+    return implode(' ', $ini);
+}
+
 /**
  * Dane strony publicznej: siatka tygodnia (ti_librus_grid — jak wydruk „Siatka”)
  * oraz lista nadchodzących terminów bez danych wrażliwych.
@@ -126,9 +138,11 @@ function tiPlanPublicData(array $link): array {
     $to   = date('Y-m-d', strtotime("+{$weeks} weeks"));
     $rows = db_all(
         "SELECT s.lesson_date, s.time_from, s.time_to, s.status, s.lesson_method, s.date_flag,
-                u.name AS instr_name, r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
+                u.name AS instr_name, r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label,
+                c.location AS course_location, c.is_online AS course_online
            FROM k30_ti_sessions s
-           LEFT JOIN users u ON u.id = s.instructor_id
+           JOIN k30_ti_courses c ON c.id = s.course_id
+           LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)
            LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
           WHERE s.course_id=? AND s.lesson_date BETWEEN ? AND ?
             AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved')
@@ -138,17 +152,22 @@ function tiPlanPublicData(array $link): array {
     $methods = ['stacjonarna' => 'stacjonarnie', 'zdalna_zoom' => 'online', 'zdalna_inne' => 'online'];
     $list = [];
     foreach ($rows as $r) {
-        $room = $r['room_name'] !== null ? ti_room_label(['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label']]) : '';
+        $room = ti_room_label($r['room_name'] !== null ? ['name' => $r['room_name'], 'location' => $r['room_location'], 'short_label' => $r['room_short_label']] : null, (string)($r['course_location'] ?? ''));
+        $method = $methods[(string)$r['lesson_method']] ?? ((string)$r['lesson_method'] === '' ? ((int)$r['course_online'] === 1 ? 'online' : 'stacjonarnie') : '');
         $list[] = [
             'date'      => (string)$r['lesson_date'],
             'dow'       => TI_DAYS_PL_FULL[(int)date('N', strtotime((string)$r['lesson_date']))] ?? '',
             'time'      => $r['time_from'] !== null && $r['time_from'] !== '' ? substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5) : '',
-            'method'    => $methods[(string)$r['lesson_method']] ?? '',
-            'instr'     => (string)($r['instr_name'] ?? ''),
+            'method'    => $method,
+            'instr'     => tiPlanPublicInitials((string)($r['instr_name'] ?? '')),
             'room'      => $room !== '—' ? $room : '',
             'cancelled' => (string)$r['status'] === 'cancelled',
             'flag'      => (string)($r['date_flag'] ?? ''),
         ];
     }
+    // Strona publiczna: prowadzący tylko inicjałami (siatka, nagłówek, kontakty)
+    foreach ($grid['grid'] ?? [] as $tk => $row) foreach ($row as $d => $cell) if ($cell) $grid['grid'][$tk][$d]['instructor'] = tiPlanPublicInitials((string)($cell['instructor'] ?? ''));
+    foreach ($grid['instructors'] ?? [] as $i => $ins) $grid['instructors'][$i]['name'] = tiPlanPublicInitials((string)$ins['name']);
+    if (!empty($grid['course'])) $grid['course']['instructor_name'] = tiPlanPublicInitials((string)($grid['course']['instructor_name'] ?? ''));
     return ['grid' => $grid, 'list' => $list, 'from' => $from, 'to' => $to, 'weeks' => $weeks];
 }

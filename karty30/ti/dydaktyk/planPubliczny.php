@@ -74,7 +74,7 @@ header('Cache-Control: private, max-age=300');
   table.plan { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; }
   table.plan th, table.plan td { border: 1px solid var(--line); padding: 6px 7px; vertical-align: top; }
   table.plan thead th { background: var(--soft); font-size: .85rem; color: #334155; text-align: center; }
-  table.plan .time-col { width: 84px; background: #f8fafc; font-weight: 600; font-size: .85rem; text-align: center; white-space: nowrap; }
+  table.plan .time-col { width: 7.5rem; background: #f8fafc; font-weight: 600; font-size: .85rem; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .cell .subject { font-weight: 700; }
   .cell .instr   { color: #334155; font-size: .88rem; }
   .cell .room    { color: var(--accent); font-size: .88rem; }
@@ -120,8 +120,8 @@ header('Cache-Control: private, max-age=300');
 
 <main id="plan">
   <div class="toolbar">
-    <button type="button" onclick="window.print()">🖨 Drukuj</button>
-    <button type="button" class="secondary" onclick="location.reload()">⟳ Odśwież</button>
+    <button type="button" onclick="window.print()">Drukuj</button>
+    <button type="button" class="secondary" onclick="location.reload()">Odśwież</button>
     <span class="range">Zakres: od <?= h(date('d.m.Y', strtotime($D['from']))) ?> do <?= h(date('d.m.Y', strtotime($D['to']))) ?> (<?= (int)$D['weeks'] ?> tyg.)</span>
   </div>
 
