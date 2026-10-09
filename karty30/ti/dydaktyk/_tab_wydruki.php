@@ -113,6 +113,9 @@ $_lnk = function (string $href, string $label, string $icon, string $kind = 'out
           <?= $_lnk('harmonogram_xlsx.php?' . $_q(['course_id' => $_wd_cid]), 'XLSX', 'file-earmark-spreadsheet', 'outline-secondary', false) ?>
           <?= $_lnk('plan_librus.php?' . $_q(['course_id' => $_wd_cid, 'weeks' => $_wd_weeks ?: 8]), 'Siatka', 'grid-3x3') ?>
           <?= $_lnk('plan_librus_pdf.php?' . $_q(['course_id' => $_wd_cid, 'weeks' => $_wd_weeks ?: 8]), 'Siatka PDF', 'file-earmark-pdf') ?>
+          <?php if (dyd_is_staff()): ?>
+          <a href="planLinki.php?course_id=<?= (int)$_wd_cid ?>#g<?= (int)$_wd_cid ?>" class="btn btn-sm btn-outline-success"><i class="bi bi-link-45deg me-1" aria-hidden="true"></i>Link publiczny</a>
+          <?php endif; ?>
         </div>
         <div class="small text-body-secondary mb-1">Obecności:</div>
         <div class="d-flex flex-wrap gap-1 mb-2">

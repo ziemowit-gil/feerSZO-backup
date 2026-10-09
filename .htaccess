@@ -39,6 +39,10 @@ RewriteRule ^klauzule\.json$ /modules/gdpr_clauses/public/list.php [QSA,L]
 #   ti.feer.org.pl/kursant     → panel kursanta
 #   ti.feer.org.pl/dydaktyk    → panel dydaktyka (prowadzącego)
 
+# /plan/<token> → publiczny plan zajęć grupy (bez logowania; token z panelu dydaktyka)
+RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteRule ^plan/([a-z0-9]{24})/?$ /karty30/ti/dydaktyk/planPubliczny.php?g=$1 [QSA,L]
+
 # /dydaktyk → wymuś końcowy ukośnik, aby ścieżki względne w panelu (login.php,
 # logout.php) rozwiązywały się względem /dydaktyk/ (to nie jest panel domyślny).
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]

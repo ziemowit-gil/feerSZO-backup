@@ -89,7 +89,9 @@ function ti_room_label(?array $room, ?string $course_location = null): string {
  * lekcji" z Librusa: wiersze to godziny zajęć tej grupy, kolumny to dni
  * tygodnia, komórka pokazuje przedmiot/grupę, prowadzącego i salę.
  */
-function ti_librus_grid(int $course_id, int $weeks = 8): array {
+function ti_librus_grid(int $course_id, int $weeks = 8, bool $public = false): array {
+    // $public = widok publiczny (link do planu): bez rezerwacji terminów, wersji
+    // roboczych i lekcji z projektów planisty — tylko to, co faktycznie w planie.
     $course = db_one(
         "SELECT c.*, u.name AS instructor_name, u.phone_number AS instructor_phone, u.email AS instructor_email,
                 st.name AS subject_name, st.abbreviation AS subject_abbr
@@ -111,7 +113,8 @@ function ti_librus_grid(int $course_id, int $weeks = 8): array {
          FROM k30_ti_sessions s
          LEFT JOIN users u ON u.id = s.instructor_id
          LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
-         WHERE s.course_id = ? AND s.lesson_date BETWEEN ? AND ? AND s.status NOT IN ('cancelled')
+         WHERE s.course_id = ? AND s.lesson_date BETWEEN ? AND ? AND s.status NOT IN ('cancelled')"
+         . ($public ? " AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved')" : '') . "
          ORDER BY s.lesson_date, s.time_from",
         [$course_id, $from, $to]
     );

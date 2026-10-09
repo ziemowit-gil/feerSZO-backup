@@ -812,6 +812,11 @@ function dydKuMoveOpen(fromId, fromName) {
 </script>
 <?php endif; ?>
 
+<?php
+  // Publiczne linki do planów (planLinki.php) — stan per grupa dla ikony w akcjach
+  require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicManager.php';
+  $ku_plan_links = tiPlanPublicMap(array_column($ku_all, 'id'));
+?>
 <?php if ($ku_view === 'tabela'): ?>
 
 <?php /* ── Widok tabeli: wszystkie kursy w jednym, gęstym zestawieniu ── */ ?>
@@ -935,6 +940,11 @@ function dydKuMoveOpen(fromId, fromName) {
               <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
             <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
               <i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
+            <?php if ($ku_can_write && !$cancelled && !$archived): $_pl = $ku_plan_links[$cid] ?? null; $_pl_on = $_pl && (int)$_pl['is_enabled'] === 1; ?>
+            <a href="planLinki.php?course_id=<?= $cid ?>#g<?= $cid ?>" class="btn btn-sm btn-outline-<?= $_pl_on ? 'success' : 'secondary' ?> py-0 px-2"
+               title="<?= $_pl_on ? 'Publiczny link do planu — opublikowany' : 'Publiczny link do planu — nieopublikowany' ?>">
+              <i class="bi bi-link-45deg" aria-hidden="true"></i><span class="visually-hidden">Link do planu<?= $_pl_on ? ' (opublikowany)' : '' ?></span></a>
+            <?php endif; ?>
             <?php if ($ku_can_write && $c['_active'] && !$cancelled && count($ku_active) > 1): ?>
             <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" title="Przenieś zajęcia/link do innej grupy"
                     onclick="dydKuMoveOpen(<?= $cid ?>, '<?= h(addslashes($c['name'])) ?>')">
@@ -1070,6 +1080,13 @@ function dydKuMoveOpen(fromId, fromName) {
        class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
       <i class="bi bi-gear" aria-hidden="true"></i>
     </a>
+    <!-- Publiczny link do planu grupy (planLinki.php) -->
+    <?php if ($ku_can_write): $_pl = $ku_plan_links[$cid] ?? null; $_pl_on = $_pl && (int)$_pl['is_enabled'] === 1; ?>
+    <a href="planLinki.php?course_id=<?= $cid ?>#g<?= $cid ?>" class="btn btn-sm btn-outline-<?= $_pl_on ? 'success' : 'secondary' ?> py-0 px-2"
+       title="<?= $_pl_on ? 'Publiczny link do planu — opublikowany' : 'Publiczny link do planu — nieopublikowany' ?>">
+      <i class="bi bi-link-45deg" aria-hidden="true"></i><span class="visually-hidden">Link do planu<?= $_pl_on ? ' (opublikowany)' : '' ?></span>
+    </a>
+    <?php endif; ?>
     <!-- Przenieś zajęcia/link do innej grupy -->
     <?php if ($ku_can_write && count($ku_active) > 1): ?>
     <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" title="Przenieś zajęcia/link do innej grupy"

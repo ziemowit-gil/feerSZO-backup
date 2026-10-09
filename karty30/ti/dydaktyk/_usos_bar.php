@@ -114,6 +114,7 @@ if (dyd_is_staff()) {
             $_it('wypłaty',      'Wypłaty prowadzących',  $_g('wypłaty')),
             $_it('praca_wlasna', 'Praca własna',          $_g('praca_wlasna')),
             $_it('komunikacja',  'Komunikacja',           $_g('komunikacja')),
+            $_it('',             'Linki do planów grup',  'planLinki.php'),
             $_it('',             'Szablony e-mail',       'szablonyEmail.php'),
             $_it('',             'Szablony SMS',          'szablonySms.php'),
             $_it('',             'Żetony SZO',            'zetony.php'),
