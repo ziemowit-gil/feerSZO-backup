@@ -451,6 +451,31 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <?= flash_html() ?>
 
+<?php
+  // ── Publiczny link do planu zajęć (tylko do skopiowania; włączanie/wysyłka — panel dydaktyka → Linki do planów grup)
+  require_once dirname(dirname(__DIR__)) . '/modules/ti_plan_public/logic/planPublicManager.php';
+  $_plan_link = tiPlanPublicGet($id);
+  $_plan_on   = $_plan_link && (int)$_plan_link['is_enabled'] === 1;
+  $_plan_mgmt = 'dydaktyk/office_enter.php?next=' . rawurlencode('planLinki.php?course_id=' . $id);
+?>
+<div class="card border-0 shadow-sm mb-3" id="plan-link">
+  <div class="card-body py-2 px-3 d-flex align-items-center gap-3 flex-wrap">
+    <span class="fw-semibold text-nowrap"><i class="bi bi-link-45deg text-primary me-1"></i>Plan zajęć — publiczny link</span>
+    <?php if ($_plan_on): $_plan_url = tiPlanPublicUrl($_plan_link); $_plan_short = tiPlanPublicShortUrl($_plan_link); ?>
+      <div class="input-group input-group-sm flex-grow-1" style="max-width:640px">
+        <input type="text" class="form-control font-monospace" id="planLinkUrl" value="<?= h($_plan_url) ?>" readonly onfocus="this.select()" aria-label="Publiczny adres planu zajęć">
+        <button type="button" class="btn btn-outline-secondary" onclick="(function(b){var i=document.getElementById('planLinkUrl');var d=function(){b.textContent='Skopiowano';setTimeout(function(){b.textContent='Kopiuj';},1800);};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(i.value).then(d,function(){i.select();document.execCommand('copy');d();});}else{i.select();document.execCommand('copy');d();}})(this)">Kopiuj</button>
+        <a class="btn btn-outline-primary" href="<?= h($_plan_url) ?>" target="_blank" rel="noopener" title="Otwórz plan w nowej karcie"><i class="bi bi-box-arrow-up-right"></i></a>
+      </div>
+      <?php if ($_plan_short): ?><span class="small text-muted">krótki: <span class="font-monospace"><?= h($_plan_short) ?></span></span><?php endif; ?>
+      <span class="text-muted" style="font-size:.72rem">wyświetleń: <?= (int)$_plan_link['views'] ?></span>
+    <?php else: ?>
+      <span class="text-muted small">Plan tej grupy nie jest opublikowany.</span>
+    <?php endif; ?>
+    <a href="<?= h($_plan_mgmt) ?>" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-sliders me-1"></i><?= $_plan_on ? 'Ustawienia / wyślij kursantom' : 'Opublikuj w panelu dydaktyka' ?></a>
+  </div>
+</div>
+
 <?php if (zoom_enabled()): ?>
 <!-- ── Zoom: stały link kursu ─────────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm mb-3" id="zoom">
