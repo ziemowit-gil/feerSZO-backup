@@ -77,6 +77,8 @@ $_tabs_html = ob_get_clean();
 
 auth_screen_head([
     'title'     => 'Wybierz rolę',
+    'side_title'=> 'Panel prowadzącego',
+    'side_sub'  => 'Masz dwie role. Wybierz, w której teraz pracujesz. Zmienisz to w każdej chwili.',
     'tabs_html' => $_tabs_html,
     'width'     => 560,
     'main_id'   => 'choose-ctx-main',

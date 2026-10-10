@@ -402,6 +402,12 @@ $otp_ready        = !empty($u_fresh['ika_email_otp'])
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'     => 'Weryfikacja IKA',
+    'side_title'=> 'Weryfikacja IKA',
+    'side_sub'  => 'Jak potwierdzić tożsamość:',
+    'side_steps'=> [
+        'Wpisz swój kod IKA.',
+        'Nie masz kodu przy sobie? Wybierz kod wysłany e-mailem.',
+    ],
     'mode'      => 'plain',
     'width'     => 640,
     'bootstrap' => true,

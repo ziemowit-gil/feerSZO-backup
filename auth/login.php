@@ -325,6 +325,13 @@ $_sys_name = 'Systemie Wspomagania Zarządzania Organizacją';
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'          => 'Logowanie',
+    'side_title'     => 'Logowanie do systemu (SZO)',
+    'side_sub'       => 'Jak się zalogować:',
+    'side_steps'     => [
+        'Masz konto @feer.org.pl? Wybierz „Zaloguj przez Microsoft 365”.',
+        'Współpracujesz z Fundacją? Wpisz e-mail i hasło.',
+        'Nie pamiętasz hasła? Wybierz „Odzyskiwanie hasła”.',
+    ],
     'side_tabs_html' => auth_screen_login_tabs('login'),
     'bootstrap'      => true,
     'width'          => 760,

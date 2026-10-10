@@ -105,6 +105,12 @@ try {
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'     => 'Logowanie do CRM',
+    'side_title'=> 'CRM',
+    'side_sub'  => 'Jak się zalogować:',
+    'side_steps'=> [
+        'Wybierz „Zaloguj przez Microsoft 365”.',
+        'Zaloguj się kontem służbowym @feer.org.pl.',
+    ],
     'tab'       => '',            // CRM nie ma rejestracji — zakładki byłyby ślepą uliczką
     'bootstrap' => true,
     'main_id'   => 'crm-login-main',

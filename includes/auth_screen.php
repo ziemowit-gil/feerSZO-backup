@@ -19,6 +19,7 @@
 
 require_once __DIR__ . '/branding.php';
 require_once __DIR__ . '/auth_security.php';
+require_once dirname(__DIR__) . '/inc/loginShell/loginShell.php';
 
 /** Wzór geometryczny tła ekranów wejścia (data URI, bez zewnętrznych zasobów). */
 const AUTH_SCREEN_BG_SVG = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'420\' height=\'420\' viewBox=\'0 0 420 420\'%3E%3Cg fill=\'%23000\' fill-opacity=\'.055\'%3E%3Crect x=\'24\' y=\'40\' width=\'120\' height=\'120\' rx=\'8\'/%3E%3Ccircle cx=\'330\' cy=\'96\' r=\'58\'/%3E%3Crect x=\'210\' y=\'250\' width=\'150\' height=\'150\' rx=\'8\'/%3E%3Cpath d=\'M0 210l70-70v46l-24 24zm52 132l96-96v46l-50 50z\'/%3E%3Cpath d=\'M300 0l60 60-24 24-60-60z\'/%3E%3C/g%3E%3C/svg%3E")';
@@ -62,6 +63,10 @@ function auth_screen_bg_css(string $sel = 'html,body'): void {
  *                 narrow     — true: treść karty w kolumnie 420 px
  *                 bootstrap  — true: dołącz CSS Bootstrapa + harmonizację
  *                 main_id    — id elementu <main> (kotwica skip-linka)
+ *                 metro      — wygląd logowania TI (ciemna kolumna z instrukcją + kwadratowa karta,
+ *                              inc/loginShell). Domyślnie włączony; w trybie 'plain' treść leży na
+ *                              jasnym tle, bez karty. 'metro' => false przywraca dawne tło marki.
+ *                 side_title / side_sub / side_steps — lewa kolumna w wyglądzie METRO
  */
 function auth_screen_head(array $o = []): void {
     $b         = branding_load();
@@ -74,10 +79,12 @@ function auth_screen_head(array $o = []): void {
     $bootstrap = !empty($o['bootstrap']);
     $main_id   = $o['main_id']   ?? 'ks-main';
     $side_tabs = $o['side_tabs_html'] ?? null;
+    $metro     = $o['metro'] ?? true;
     $GLOBALS['__ks_mode']    = $mode;
     $GLOBALS['__ks_bs']      = $bootstrap;
     $GLOBALS['__ks_org']     = $org_name;
-    $GLOBALS['__ks_split']   = $side_tabs !== null;
+    $GLOBALS['__ks_split']   = !$metro && $side_tabs !== null;
+    $GLOBALS['__ks_metro']   = $metro;
     ?><!DOCTYPE html>
 <html lang="pl" data-fs="m">
 <head>
@@ -357,9 +364,57 @@ html[data-theme="hc"] .ks-hero-h1,html[data-theme="hc"] .ks-hero-lead{color:#fff
 
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 @media(max-width:575.98px){.ks-h1{font-size:1.45rem}.ks-hero{padding-top:1.5rem}.ks-step{min-width:60px}}
+<?php if ($metro): ?>
+
+/* ── Wygląd logowania TI (METRO): inc/loginShell ───────────────────────── */
+<?= loginShellCss() ?>
+body.tzl{--ks:<?= LOGIN_SHELL_ACCENT ?>;--ks-dark:<?= LOGIN_SHELL_ACCENT_DARK ?>;--ks-on:#fff;--ks-radius:0;--ks-ink:#1d1d1d;background:#f3f4f6}
+html[data-theme="hc"] body.tzl{--ks:#000;--ks-dark:#000;--ks-ink:#000;--ks-muted:#000;background:#fff}
+.tzl .ks-a11y{background:#1d1d1d}
+.tzl .tz-card{max-width:<?= min(max($width, 420), 540) ?>px}
+.tzl .tz-plain{width:100%;max-width:<?= $width ?>px}
+.tzl .ks-shell{max-width:none}
+.tzl .ks-h1{text-align:left;font-size:1.5rem;font-weight:700;letter-spacing:0}
+.tzl .ks-lead{text-align:left;margin-bottom:1.5rem;color:#4b5563}
+.tzl .ks-btn,.tzl .form-control,.tzl .l-alert,.tzl .ks-news,.tzl .ks-shell .card,.tzl .ks-shell .alert,
+.tzl .ks-shell .btn,.tzl .lm-content,.tzl .ks-step .dot,.tzl .ks-shell .input-group-text,.tzl .crm-lost a{border-radius:0}
+.tzl .ks-btn--ghost{border:2px solid var(--ks);color:#1d1d1d}
+.tzl .ks-btn--ghost:hover{background:#e6f6fc;border-color:var(--ks);color:#1d1d1d}
+.tzl .tz-card a.ks-btn--primary,.tzl .tz-card a.ks-btn--ok{color:#fff}
+.tzl .tz-card a.ks-btn--ghost{color:#1d1d1d}
+.tzl .ks-forgot{color:#1d4ed8}
+.tzl .ks-shell .card{box-shadow:0 2px 10px rgba(0,0,0,.08)!important}
+.tzl .ks-hero-h1{color:#1d1d1d;text-align:left;font-weight:700}
+.tzl .ks-hero-lead{color:#4b5563;text-align:left}
+.tzl .ks-hero-ico{background:var(--ks);border-radius:0;margin:0 0 .9rem}
+.tzl .ks-steps--light .ks-step .dot{background:#fff;border-color:var(--ks-line);color:var(--ks-muted)}
+.tzl .ks-steps--light .ks-step .cap{color:var(--ks-muted)}
+.tzl .ks-steps--light .ks-step.is-active .dot{border-color:var(--ks);color:var(--ks);background:#fff}
+.tzl .ks-steps--light .ks-step.is-done .dot{background:var(--ks);border-color:var(--ks);color:#fff}
+.tzl .ks-steps--light .ks-step.is-active .cap{color:#1d1d1d}
+.tzl .ks-steps--light .ks-line{background:var(--ks-line)}
+.tzl .ks-steps--light .ks-line.is-done{background:var(--ks)}
+.tzl .tz-footer .ks-copy{color:#6b7280;margin-top:.35rem}
+.tzl .tz-split--wide .tz-side{flex:0 0 340px}
+/* Elementy „Tożsamości" (bramka IKA) na jasnym tle zamiast na kolorze marki */
+.tzl .ks-shell .tz-h{text-align:left}
+.tzl .ks-shell .tz-h h1{color:#1d1d1d;font-weight:700}
+.tzl .ks-shell .tz-h h1 i{color:var(--ks)!important}
+.tzl .ks-shell .tz-h p{color:#4b5563}
+.tzl .ks-shell .tz-card{max-width:none;width:auto;padding:0;border-radius:0;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.tzl .ks-shell .tz-btn{width:auto;border-radius:0}
+.tzl .ks-shell .tz-btn--wide{width:100%}
+.tzl .ks-shell .tz-subnav{justify-content:flex-start}
+.tzl .ks-shell .tz-subnav .seg{background:#e5e7eb;border-radius:0}
+.tzl .ks-shell .tz-subnav a{color:#1d1d1d;border-radius:0}
+.tzl .ks-shell .tz-subnav a:hover{background:#d1d5db;color:#1d1d1d}
+.tzl .ks-shell .tz-subnav a.on,.tzl .ks-shell .tz-subnav a.on i{background:var(--ks);color:#fff}
+html[data-theme="hc"] .tzl .tz-side{background:#000;border-right:3px solid #fff}
+html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
+<?php endif; ?>
 </style>
 </head>
-<body>
+<body<?= $metro ? ' class="tzl"' : '' ?>>
 
 <a href="#<?= h($main_id) ?>" class="skip-link">Przejdź do treści</a>
 <div role="status" aria-live="polite"    aria-atomic="true" id="login-live"  class="sr"></div>
@@ -382,6 +437,37 @@ html[data-theme="hc"] .ks-hero-h1,html[data-theme="hc"] .ks-hero-lead{color:#fff
   </div>
 </div>
 
+<?php if ($metro): ?>
+<?= loginShellBanner() ?>
+<div class="tz-split<?= ($mode !== 'card' && $width > 800) ? ' tz-split--wide' : '' ?>">
+  <?php
+  $_nav = $side_tabs ?? ($o['tabs_html'] ?? null);
+  if ($_nav === null && $tab) {
+      $_nav = '<a class="ks-tab" href="' . APP_URL . '/auth/login.php"' . ($tab === 'login' ? ' aria-current="page"' : '') . '>Zaloguj</a>';
+      if (register_is_open() || $tab === 'register') {
+          $_nav .= '<a class="ks-tab" href="' . APP_URL . '/user/register.php"' . ($tab === 'register' ? ' aria-current="page"' : '') . '>Rejestracja</a>';
+      }
+  }
+  echo loginShellSide([
+      'logoUrl'   => $b['logo_url'] ?? '',
+      'orgLabel'  => $org_name !== '' ? $org_name : 'System Tożsamości',
+      'sideTitle' => $o['side_title'] ?? $title,
+      'sideSub'   => $o['side_sub'] ?? '',
+      'sideSteps' => $o['side_steps'] ?? [],
+      'navHtml'   => $_nav ?? '',
+      'navLabel'  => 'Rodzaj użytkownika',
+  ]);
+  ?>
+  <?php if ($mode === 'card'): ?>
+  <main class="tz-main" id="<?= h($main_id) ?>" tabindex="-1">
+  <div class="tz-card"><div class="ks-shell ks-inner">
+  <?php else: ?>
+  <main class="tz-main" id="<?= h($main_id) ?>" tabindex="-1">
+  <div class="tz-plain"><div class="ks-shell">
+  <?php endif; ?>
+<?php
+    return;
+endif; ?>
 <div class="ks-hero">
 <div class="ks-shell">
 
@@ -485,6 +571,11 @@ function auth_screen_foot(array $o = []): void {
         ['url' => APP_URL . '/karty30/ti/dydaktyk/login.php', 'label' => 'Panel dydaktyka',    'icon' => 'bi-easel2'],
         ['url' => APP_URL . '/auth/report_login_issue.php',   'label' => 'Problem z logowaniem','icon' => 'bi-life-preserver'],
     ];
+    if (!empty($GLOBALS['__ks_metro'])) {
+        $o['links'] = $links;
+        auth_screen_foot_metro($o, $bs, $org);
+        return;
+    }
     ?>
   <?php if ($mode === 'card'): ?>
   </div>
@@ -510,6 +601,13 @@ function auth_screen_foot(array $o = []): void {
 
 </div>
 </div>
+<?php
+    auth_screen_scripts($o, $bs);
+}
+
+/** Skrypty ekranów wejścia + zamknięcie dokumentu. */
+function auth_screen_scripts(array $o, bool $bs): void {
+    ?>
 
 <script>
 (function(){
@@ -576,6 +674,27 @@ if(smsInput) smsInput.addEventListener('input',function(){
 </body>
 </html>
 <?php
+}
+
+/**
+ * Stopka w wyglądzie METRO (logowanie TI): zamyka kartę i układ dwukolumnowy,
+ * linki pod spodem, ten sam skrypt dostępności co w wyglądzie klasycznym.
+ */
+function auth_screen_foot_metro(array $o, bool $bs, string $org): void {
+    ?>
+  </div></div>
+  </main>
+</div><!-- /.tz-split -->
+
+<?= $o['extra_html'] ?? '' ?>
+
+<footer class="tz-footer" aria-label="Linki">
+  <?php foreach ($o['links'] as $l): ?><a href="<?= h($l['url']) ?>"><?= h($l['label']) ?></a><?php endforeach; ?>
+  <div class="ks-copy">&copy; <?= date('Y') ?> <?= h($org) ?></div>
+</footer>
+<?php
+    // Skrypty (dostępność, podgląd hasła, SMS) — wspólne z wyglądem klasycznym.
+    auth_screen_scripts($o, $bs);
 }
 
 /** Wypisuje komunikat „coś tu się zmieniło" (zamykany, zapamiętywany). */

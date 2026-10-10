@@ -43,6 +43,8 @@ $FEATURES = webmail_features();
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'     => 'Poczta — wybierz klienta',
+    'side_title'=> 'Poczta',
+    'side_sub'  => 'Wybierz program do poczty, a potem zaloguj się w nim.',
     'tab'       => '',
     'mode'      => 'plain',
     'bootstrap' => true,
@@ -55,10 +57,10 @@ auth_screen_head([
 /* ── Układ dwupanelowy ──────────────────────────────────────────────────────
    Panele to te same białe karty co na logowaniu (.pw-panel ≈ .ks-card), tylko
    węższy padding — mają zmieścić tabelę, nie formularz. */
-.pw-h1{color:#fff;text-align:center;font-size:clamp(1.4rem,3.2vw,1.9rem);font-weight:800;
+.pw-h1{color:#1d1d1d;text-align:left;font-size:clamp(1.4rem,3.2vw,1.9rem);font-weight:800;
   letter-spacing:-.02em;margin:0 0 .4rem}
-.pw-lead{color:rgba(255,255,255,.88);text-align:center;font-size:.95rem;line-height:1.55;
-  margin:0 auto 1.4rem;max-width:70ch}
+.pw-lead{color:#4b5563;text-align:left;font-size:.95rem;line-height:1.55;
+  margin:0 0 1.4rem;max-width:70ch}
 
 .pw-grid{display:grid;gap:1.1rem;align-items:start}
 @media(min-width:960px){.pw-grid{grid-template-columns:minmax(330px,29rem) 1fr}}

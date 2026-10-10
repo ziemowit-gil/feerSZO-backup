@@ -277,6 +277,13 @@ $step_labels = [1 => 'Dane umowy', 2 => 'Kod SMS', 3 => 'Hasło'];
 require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'          => 'Załóż konto',
+    'side_title'     => 'Rejestracja',
+    'side_sub'       => 'Jak założyć konto:',
+    'side_steps'     => [
+        'Wpisz dane z umowy i PIN od administratora.',
+        'Wpisz kod SMS wysłany na Twój telefon.',
+        'Ustaw hasło.',
+    ],
     'side_tabs_html' => auth_screen_login_tabs('register'),
     'width'          => 760,
     'main_id'        => 'reg-main',
