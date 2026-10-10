@@ -22,6 +22,21 @@ if (!$moze) {
 $wynik = null;  // wynik ostatniego wystawienia (hasło tylko gdy SMS się nie udał)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
+    // Uruchomienie certyfikatów: prośba do wszystkich prowadzących bez aktywnego certyfikatu.
+    if (($_POST['_op'] ?? '') === 'launch') {
+        $wyslano = 0; $pominieto = 0;
+        foreach (ti_cert_instructors() as $p) {
+            if (x509_user_has_active_cert((int)$p['id']) || trim((string)$p['email']) === '') { $pominieto++; continue; }
+            [$txt, $html] = ti_cert_request_mail((string)$p['name'], $me_name);
+            mail_queue_add((string)$p['email'], (string)$p['name'],
+                'Prośba o certyfikat do podpisywania protokołów TI — Fundacja FEER',
+                $html, $txt, 'ti_cert_request', (int)$p['id']);
+            $wyslano++;
+        }
+        flash_set('success', "Wysłano prośbę o certyfikat do {$wyslano} prowadzących." . ($pominieto ? " Pominięto {$pominieto} (mają certyfikat albo brak e-maila)." : ''));
+        header('Location: certyfikaty.php'); exit;
+    }
+
     // Odwołanie certyfikatu z listy zarządzania — tylko aktywnego (nie odwołanego).
     if (($_POST['_op'] ?? '') === 'revoke') {
         $cid = (int)($_POST['cert_id'] ?? 0);
@@ -96,6 +111,15 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   <p class="mb-0"><code class="fs-5"><?= h($wynik['password']) ?></code></p>
 </div>
 <?php endif; ?>
+
+<form method="post" class="mb-3" onsubmit="return confirm('Wysłać prowadzącym bez certyfikatu prośbę o wygenerowanie?');">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <input type="hidden" name="_op" value="launch">
+  <button type="submit" class="btn btn-primary">
+    <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Uruchom certyfikaty do podpisu
+  </button>
+  <span class="small text-body-secondary ms-2">Wyśle prowadzącym bez certyfikatu mail z instrukcją i prośbą o wygenerowanie.</span>
+</form>
 
 <?php if (!$prowadzacy): ?>
 <div class="alert alert-info">Nie ma prowadzących przypisanych do kursów.</div>

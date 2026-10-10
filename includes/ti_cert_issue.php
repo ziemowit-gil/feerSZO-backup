@@ -30,6 +30,27 @@ function ti_cert_instructors(): array {
     );
 }
 
+/**
+ * Prośba o wygenerowanie certyfikatu do podpisu protokołów — wysyłana przez kierownika do wszystkich
+ * prowadzących bez certyfikatu. Wyjaśnia, do czego jest certyfikat i jak go wygenerować samemu.
+ */
+function ti_cert_request_mail(string $name, string $issuer): array {
+    $link = rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/moj_certyfikat.php';
+    $txt = "Dzień dobry, {$name},\n\n"
+         . "od teraz protokoły miesięczne TI podpisuje się certyfikatem cyfrowym. "
+         . "Zatwierdzenie protokołu nie będzie możliwe bez certyfikatu, dlatego prosimy o jego wygenerowanie.\n\n"
+         . "Jak to zrobić:\n"
+         . "1. Zaloguj się do panelu dydaktyka i wejdź w sekcję „Certyfikat” (albo bezpośrednio: {$link}).\n"
+         . "2. Kliknij „Wygeneruj certyfikat”. Plik .p12 przyjdzie na Twój e-mail, a hasło do niego SMS-em na telefon z konta "
+         . "(możesz też sam ustawić hasło na tej samej stronie).\n"
+         . "3. Przy zatwierdzaniu protokołu wskaż plik i wpisz hasło. Nic z tym nie trzeba instalować.\n\n"
+         . "Jeśli nie możesz wejść do panelu albo coś nie działa, odezwij się do kierownika.\n\n"
+         . "Pozdrawiam,\n{$issuer}\nFundacja FEER\n\n"
+         . "--\nTo jest wiadomość automatyczna, wysłana przez system. Prosimy na nią nie odpowiadać.";
+    $html = '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>';
+    return [$txt, $html];
+}
+
 /** Treść maila z instrukcją (bez hasła). */
 function ti_cert_mail_body(string $name, string $issuer, bool $zmiana_hasla = false): array {
     $co = $zmiana_hasla
