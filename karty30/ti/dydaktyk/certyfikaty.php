@@ -29,13 +29,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (x509_user_has_active_cert($target)) {
         flash_set('danger', 'Ten prowadzący ma już aktywny certyfikat. Najpierw odwołaj poprzedni.');
     } else {
-        $wynik = ti_cert_issue_for_instructor($target, $me_name);
-        if (!$wynik['ok']) {
-            flash_set('danger', $wynik['error']);
-            $wynik = null;
-        } elseif ($wynik['sms']) {
-            flash_set('success', 'Certyfikat wystawiony. Mail z plikiem i SMS z hasłem zostały wysłane.');
-            $wynik = null;
+        // Brak telefonu: pytamy o numer w wierszu i zapisujemy go w koncie przed wysyłką SMS.
+        $tel_u    = db_one("SELECT phone_number FROM users WHERE id = ?", [$target]);
+        $tel_ok   = true;
+        if (preg_replace('/\D/', '', (string)($tel_u['phone_number'] ?? '')) === '') {
+            $tel = trim((string)($_POST['phone'] ?? ''));
+            if (strlen(preg_replace('/\D/', '', $tel)) < 9) {
+                flash_set('danger', 'Podaj numer telefonu prowadzącego (min. 9 cyfr), żeby mógł dostać hasło SMS-em.');
+                $tel_ok = false;
+            } else {
+                db_exec("UPDATE users SET phone_number = ? WHERE id = ?", [$tel, $target]);
+            }
+        }
+        if ($tel_ok) {
+            $wynik = ti_cert_issue_for_instructor($target, $me_name);
+            if (!$wynik['ok']) {
+                flash_set('danger', $wynik['error']);
+                $wynik = null;
+            } elseif ($wynik['sms']) {
+                flash_set('success', 'Certyfikat wystawiony. Mail z plikiem i SMS z hasłem zostały wysłane.');
+                $wynik = null;
+            }
         }
     }
 }
@@ -89,7 +103,11 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <form method="post" class="d-inline" onsubmit="return confirm('Wystawić certyfikat i wysłać go prowadzącemu?');">
             <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
             <input type="hidden" name="target_id" value="<?= (int)$p['id'] ?>">
-            <button type="submit" class="btn btn-sm btn-primary" <?= $braki ? 'disabled' : '' ?>>
+            <?php if (in_array('brak telefonu', $braki, true)): ?>
+            <input type="tel" name="phone" class="form-control form-control-sm d-inline-block mb-1" style="width:10rem"
+                   placeholder="numer telefonu" aria-label="Numer telefonu prowadzącego" required>
+            <?php endif; ?>
+            <button type="submit" class="btn btn-sm btn-primary" <?= in_array('brak e-maila', $braki, true) ? 'disabled' : '' ?>>
               <i class="bi bi-send me-1" aria-hidden="true"></i>Wystaw i wyślij
             </button>
           </form>
