@@ -75,14 +75,18 @@ $ok     = $_GET['ok'] ?? '';
 <header class="metro-bar">System Tożsamości · Klucze sprzętowe</header>
 <main class="metro-card">
   <h1 class="h5 fw-bold mb-2">Klucze sprzętowe i passkey</h1>
-  <p class="small text-body-secondary mb-3">Klucz (np. YubiKey) albo passkey w telefonie pozwala logować się bez hasła. Możesz mieć kilka kluczy.</p>
+  <div class="small mb-3">
+    <p class="mb-2"><strong>Co to jest klucz sprzętowy?</strong> To dodatkowy sposób logowania. Zamiast czekać na kod SMS, potwierdzasz logowanie dotknięciem klucza (np. YubiKey) albo odciskiem palca lub PIN-em w telefonie czy komputerze (passkey).</p>
+    <p class="mb-2">Klucz zostaje na Twoim urządzeniu. Serwer zapisuje tylko jego część publiczną, więc nie da się go skopiować z serwera ani ukraść przez hasło.</p>
+    <p class="mb-0">Możesz mieć kilka kluczy. Logowanie kluczem działa po pierwszym logowaniu i po ustawieniu obrazka bezpieczeństwa.</p>
+  </div>
 
   <?php if ($ok === 'usun'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz usunięty.</div><?php endif; ?>
   <?php if ($ok === 'dodany'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz dodany.</div><?php endif; ?>
   <div id="kl-blad" class="alert alert-danger small py-2 rounded-0 d-none" role="alert"></div>
 
   <?php if (!$klucze): ?>
-  <p class="small">Nie masz jeszcze klucza.</p>
+  <div class="alert alert-info small py-2 rounded-0" role="status">Nie masz jeszcze klucza. Zalecamy dodać go teraz: logowanie będzie szybsze, bez czekania na SMS.</div>
   <?php else: ?>
   <ul class="list-group mb-3">
     <?php foreach ($klucze as $k): ?>

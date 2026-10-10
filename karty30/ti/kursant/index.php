@@ -138,6 +138,8 @@ $ui_switch_url = 'index.php?tab=' . rawurlencode($tab)
 $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student['id']]);
 // Konto usunięte/zablokowane w trakcie sesji → wyloguj
 if (!$account || empty($account['is_active'])) { student_logout(); header('Location: login.php'); exit; }
+// Wymuszona zmiana hasła (po logowaniu kodem SMS) odbywa się w Tożsamości.
+if (!empty($account['must_change_password'])) { header('Location: ' . APP_URL . '/tozsamosc/kursant_haslo.php'); exit; }
 $client  = db_one("SELECT * FROM k30_clients WHERE id=?", [$student['client_id']]) ?: [];
 
 // ── Streak aktywności — aktualizuj raz dziennie ────────────────────────────

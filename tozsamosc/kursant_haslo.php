@@ -48,7 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         ti_account_log((int)$student['id'], 'password_changed', $log_note);
         flash_set('success', 'Hasło zostało zmienione.');
-        header('Location: ' . APP_URL . '/tozsamosc/kursant_haslo.php?ok=1'); exit;
+        // Po wymuszonej zmianie (pierwsze logowanie) zachęć do klucza sprzętowego.
+        header('Location: ' . APP_URL . ($wymuszona ? '/tozsamosc/kursant_klucz.php?nowy=1' : '/tozsamosc/kursant_haslo.php?ok=1')); exit;
     }
 }
 $ok = isset($_GET['ok']);
