@@ -19,6 +19,23 @@ if (!$moze) {
     die('Wystawianie certyfikatów jest dla kierownika TI.');
 }
 
+// Jednorazowo po uruchomieniu certyfikatów: kierownicy dostają info, że trzeba wygenerować plik certyfikatu.
+if (org_setting('ti_cert_launch_notice') !== '1') {
+    ti_panel_roles_migrate();
+    $kier = db_all("SELECT u.id, u.name, u.email FROM k30_ti_panel_roles r JOIN users u ON u.id = r.user_id
+                     WHERE r.role = 'kierownik' AND u.is_active = 1 AND TRIM(u.email) <> ''");
+    foreach ($kier as $k) {
+        $txt = "Dzień dobry, {$k['name']},\n\n"
+             . "w systemie uruchomiono certyfikaty do podpisu protokołów TI. "
+             . "Trzeba wygenerować certyfikat (plik .p12) dla prowadzących — "
+             . "w panelu dydaktyka: Certyfikaty prowadzących → „Uruchom certyfikaty do podpisu”.\n\n"
+             . "--\nTo jest wiadomość automatyczna, wysłana przez system. Prosimy na nią nie odpowiadać.";
+        mail_queue_add((string)$k['email'], (string)$k['name'], 'Certyfikaty do podpisu protokołów — trzeba wygenerować plik',
+            '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>', $txt, 'ti_cert_launch', (int)$k['id']);
+    }
+    org_setting_set('ti_cert_launch_notice', '1');
+}
+
 $wynik = null;  // wynik ostatniego wystawienia (hasło tylko gdy SMS się nie udał)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
