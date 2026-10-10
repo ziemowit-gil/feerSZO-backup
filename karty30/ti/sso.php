@@ -34,7 +34,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 
   <h2>Jak wygląda logowanie kursanta?</h2>
   <ol>
-    <li><strong>Pierwsze logowanie:</strong> wpisujesz login. Kod przychodzi SMS-em na telefon z karty kursanta.</li>
+    <li><strong>Pierwsze logowanie:</strong> wpisujesz login. Kod przychodzi SMS-em na Twój telefon.</li>
     <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Ma opis tekstowy, który czyta czytnik ekranu.</li>
     <li><strong>Hasło:</strong> po pierwszym logowaniu ustawiasz własne hasło.</li>
   </ol>

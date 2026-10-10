@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <h2 id="side-h">Panel kursanta</h2>
     <p class="lead-sub mb-0">Logowanie jest obsługiwane centralnie przez System Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
     <ul>
-      <li><strong>Pierwsze logowanie:</strong> wpisujesz tylko login. Kod przychodzi SMS-em na telefon z karty.</li>
+      <li><strong>Pierwsze logowanie:</strong> wpisujesz tylko login. Kod przychodzi SMS-em na Twój telefon.</li>
       <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Każdy ma opis tekstowy, który czyta czytnik ekranu.</li>
       <li><strong>Jeśli nie widzisz obrazka albo widzisz inny,</strong> nie wpisuj hasła.</li>
     </ul>

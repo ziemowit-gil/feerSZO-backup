@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <header class="metro-bar">System Tożsamości · Kod z SMS-a</header>
 <main class="metro-card">
   <h1 class="h5 fw-bold mb-2">Wpisz kod z SMS-a</h1>
-  <p class="small text-body-secondary mb-3">Wysłaliśmy 6-cyfrowy kod na telefon z Twojej karty. Kod jest ważny 5 minut.</p>
+  <p class="small text-body-secondary mb-3">Wysłaliśmy 6-cyfrowy kod na Twój telefon. Kod jest ważny 5 minut.</p>
   <?php if ($blad !== ''): ?>
   <div class="alert alert-danger small py-2 rounded-0" role="alert"><?= htmlspecialchars($blad, ENT_QUOTES, 'UTF-8') ?></div>
   <?php endif; ?>
