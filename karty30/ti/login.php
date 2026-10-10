@@ -41,7 +41,19 @@ $prefill_email = h($_GET['m'] ?? '');
 $office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
     . urlencode(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/office_enter.php');
 $office_available = function_exists('ms_login_available') && ms_login_available();
-$dyd_pwd_open     = !$office_available || $ec > 0;
+// Prowadzący zwykle mają konto Microsoft 365 — najpierw wybór (jak na logowaniu SZO):
+// poczta w domenie fundacji → od razu Microsoft 365; prywatny e-mail → formularz hasła.
+// Bez Microsoft 365 i po błędzie logowania od razu formularz hasła.
+$dyd_haslo = !$office_available || $ec > 0 || ($_GET['konto'] ?? '') === 'prywatny';
+
+// Lewa kolumna: instrukcja zależna od roli.
+$_side = [
+    'kursant'  => ['Wybierz, kim jesteś.', 'Wpisz login.', 'Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.', 'Wpisz hasło.'],
+    'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Mam pocztę w domenie fundacji” — zalogujesz się kontem Microsoft 365.', 'Nie masz poczty w domenie fundacji? Wybierz „Mam prywatny e-mail” i wpisz e-mail oraz hasło.'],
+    'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login opiekuna nadany w placówce.', 'Wpisz hasło. Nie masz hasła? Zaloguj się kodem SMS.'],
+    'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło nadane przez kursanta.'],
+];
+$_side_steps = $krok1 ? $_side['kursant'] : $_side[$tab];
 
 $_titles = [
     'kursant'  => 'Panel kursanta',
@@ -83,6 +95,8 @@ $_tabs = [
   .tz-btn-ghost:hover { background: #e6f6fc; color: #1d1d1d; }
   .tz-tile { display: block; height: 100%; padding: 1rem; text-decoration: none; color: #fff; border-radius: 0; font-family: "Segoe UI", system-ui, sans-serif; }
   .tz-tile:hover { color: #fff; filter: brightness(.92); }
+  .tz-choice { position: relative; padding: 1rem 1.1rem; min-height: 88px; }
+  .tz-choice-badge { position: absolute; top: .6rem; right: .6rem; background: #fff; color: #1d1d1d; font-size: .75rem; font-weight: 700; padding: .1rem .45rem; }
   .tz-tile:focus-visible, .tz-card :focus-visible, .tz-side a:focus-visible, .tz-btn:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
   .tz-footer { text-align: center; font-size: .85rem; color: #4b5563; padding: 1rem; }
   .tz-footer a { color: #1d4ed8; text-decoration: none; margin: 0 .5rem; }
@@ -100,13 +114,10 @@ $_tabs = [
 <div class="tz-split">
   <aside class="tz-side" aria-labelledby="tz-side-h">
     <div class="small fw-bold mb-2" style="letter-spacing:.06em">FEER · System Tożsamości</div>
-    <h2 id="tz-side-h">Panel kursanta</h2>
+    <h2 id="tz-side-h"><?= h($krok1 ? 'Panel TI' : $_titles[$tab]) ?></h2>
     <p class="sub mb-0">Jak się zalogować:</p>
     <ol>
-      <li>Wybierz, kim jesteś.</li>
-      <li>Wpisz login.</li>
-      <li>Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</li>
-      <li>Wpisz hasło.</li>
+      <?php foreach ($_side_steps as $_st): ?><li><?= h($_st) ?></li><?php endforeach; ?>
     </ol>
   </aside>
 
@@ -171,27 +182,30 @@ $_tabs = [
       <?php endif; ?>
 
       <?php elseif ($tab === 'dydaktyk'): ?>
-      <?php if ($office_available): ?>
-      <a href="<?= h($office_login_url) ?>" class="tz-btn tz-btn-ghost mb-2"
-         aria-label="Zaloguj się przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
-        Zaloguj przez Microsoft 365
-      </a>
-      <p class="tz-hint mb-3">Konto <strong>@feer.org.pl</strong> — zalecana metoda logowania.</p>
-      <button type="button" class="tz-btn tz-btn-ghost<?= $dyd_pwd_open ? ' d-none' : '' ?>" id="dydPwToggle"
-              data-bs-toggle="collapse" data-bs-target="#dydPwCollapse"
-              aria-expanded="<?= $dyd_pwd_open ? 'true' : 'false' ?>" aria-controls="dydPwCollapse">
-        Zaloguj hasłem (konta bez Microsoft 365)
-      </button>
-      <div class="collapse<?= $dyd_pwd_open ? ' show' : '' ?> mt-3" id="dydPwCollapse">
-      <?php endif; ?>
-
+      <?php if (!$dyd_haslo): ?>
+      <p class="mb-3">Prowadzący zwykle logują się kontem <strong>Microsoft 365</strong>. Jaki adres e-mail masz?</p>
+      <div class="d-grid gap-2" role="list" aria-label="Rodzaj adresu e-mail">
+        <a role="listitem" class="tz-tile tz-choice" href="<?= h($office_login_url) ?>" style="background:#1ba1e2"
+           aria-label="Mam pocztę w domenie fundacji — zalecane. Zaloguj przez Microsoft 365, zostaniesz przekierowany do Microsoft">
+          <span class="tz-choice-badge">Zalecane</span>
+          <i class="bi bi-building fs-4" aria-hidden="true"></i>
+          <span class="d-block fw-semibold mt-1">Mam pocztę w domenie fundacji</span>
+          <span class="d-block small">Adres @feer.org.pl — logowanie przez Microsoft 365</span>
+        </a>
+        <a role="listitem" class="tz-tile tz-choice" href="login.php?tab=dydaktyk&amp;konto=prywatny" style="background:#1d1d1d">
+          <i class="bi bi-envelope fs-4" aria-hidden="true"></i>
+          <span class="d-block fw-semibold mt-1">Mam prywatny adres e-mail</span>
+          <span class="d-block small">Logowanie e-mailem i hasłem</span>
+        </a>
+      </div>
+      <?php else: ?>
         <form method="post" action="dydaktyk/login.php" autocomplete="on">
           <div class="mb-3">
             <label for="dyd-email">Adres e-mail</label>
             <input type="email" class="form-control form-control-lg" id="dyd-email" name="email"
                    value="<?= $prefill_email ?>" required autocomplete="username"
                    placeholder="imie.nazwisko@feer.org.pl"
-                   <?= (!$office_available) ? 'autofocus' : '' ?>
+                   autofocus
                    <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
           </div>
           <div class="mb-4">
@@ -207,9 +221,9 @@ $_tabs = [
           <button type="submit" class="tz-btn">Zaloguj się</button>
         </form>
         <p class="tz-hint">Użyj danych logowania do Systemu Wspomagania Zarządzania Organizacją.</p>
-
-      <?php if ($office_available): ?>
-      </div>
+        <?php if ($office_available): ?>
+        <p class="tz-hint"><a href="<?= h($office_login_url) ?>">Mam pocztę @feer.org.pl — zaloguj przez Microsoft 365</a></p>
+        <?php endif; ?>
       <?php endif; ?>
 
       <?php elseif ($tab === 'rodzic'): ?>
