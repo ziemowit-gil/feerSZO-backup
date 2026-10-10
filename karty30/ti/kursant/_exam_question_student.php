@@ -18,7 +18,7 @@ $lang  = (string)($qcfg['language'] ?? 'python');
 ?>
 <fieldset class="card border-0 shadow-sm mb-4">
   <div class="card-body">
-    <legend class="h6 fw-semibold float-none w-auto mb-3">
+    <legend class="h6 fw-semibold float-none w-auto mb-3" id="qh<?= $qid ?>" tabindex="-1">
       <span class="badge text-bg-primary me-1">Pytanie <?= (int)$n + 1 ?></span>
       <span class="visually-hidden">, <?= h((string)$meta['label']) ?>, za <?= h($pts) ?> punktów: </span>
       <span class="badge text-bg-light text-dark border" aria-hidden="true"><?= h($pts) ?> pkt</span>
@@ -220,7 +220,7 @@ $lang  = (string)($qcfg['language'] ?? 'python');
     <?php else: ?>
       <label class="form-label" for="c<?= $qid ?>">Poprawiony kod</label>
       <textarea class="form-control font-monospace" id="c<?= $qid ?>" name="<?= h($base) ?>[code]" rows="12"
-                spellcheck="false" autocapitalize="off" autocorrect="off"
+                data-starter="<?= h($snippet) ?>" spellcheck="false" autocapitalize="off" autocorrect="off"
                 aria-describedby="cd<?= $qid ?>"><?= h((string)($payload['code'] ?? $snippet)) ?></textarea>
       <div class="form-text" id="cd<?= $qid ?>">Język: <?= h($languages[$lang] ?? $lang) ?>. Kod zostanie uruchomiony na danych testowych.</div>
     <?php endif; ?>
@@ -273,7 +273,7 @@ $lang  = (string)($qcfg['language'] ?? 'python');
 
     <label class="form-label" for="c<?= $qid ?>">Twoje rozwiązanie</label>
     <textarea class="form-control font-monospace" id="c<?= $qid ?>" name="<?= h($base) ?>[code]" rows="14"
-              spellcheck="false" autocapitalize="off" autocorrect="off"
+              data-starter="<?= h((string)($qcfg['starter'] ?? '')) ?>" spellcheck="false" autocapitalize="off" autocorrect="off"
               aria-describedby="cd<?= $qid ?>"><?= h((string)($payload['code'] ?? ($qcfg['starter'] ?? ''))) ?></textarea>
     <div class="form-text" id="cd<?= $qid ?>">
       Język: <?= h($languages[$lang] ?? $lang) ?>. Program czyta dane z wejścia standardowego i wypisuje wynik na wyjście.
