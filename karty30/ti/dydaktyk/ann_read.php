@@ -10,5 +10,5 @@ $me = dyd_require();
 dyd_token_check();
 $id = (int)($_POST['id'] ?? 0);
 if ($id > 0) ann_mark_read($id, (int)$me['user_id']);
-header('Location: index.php?tab=pulpit');
+header('Location: index.php?tab=komunikaty');
 exit;

@@ -10,6 +10,41 @@ $_notices_js = json_encode(array_map(fn($dn) => [
     'read'    => (bool)(int)($dn['is_read'] ?? 0),
 ], $dyd_notices), JSON_UNESCAPED_UNICODE);
 ?>
+<?php
+// Komunikaty z modułu Komunikaty dla odbiorcy „Prowadzący TI” (przeczytane i nieprzeczytane).
+$_ann_dyd = function_exists('ann_list_for_user')
+    ? array_values(array_filter(ann_list_for_user((int)$uid, 'viewer'), fn($a) => ($a['audience'] ?? '') === 'ti:prowadzacy'))
+    : [];
+if ($_ann_dyd): ?>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-transparent fw-semibold">
+    <i class="bi bi-megaphone-fill text-primary me-2" aria-hidden="true"></i>Komunikaty dla prowadzących
+  </div>
+  <ul class="list-group list-group-flush">
+    <?php foreach ($_ann_dyd as $_a): $_read = (int)($_a['is_read_by_me'] ?? 0); ?>
+    <li class="list-group-item d-flex gap-3 align-items-start">
+      <div class="flex-grow-1 min-w-0">
+        <div class="fw-semibold"><?= h($_a['title']) ?></div>
+        <?php if (($_a['body'] ?? '') !== ''): ?>
+        <div class="small mt-1" style="white-space:pre-wrap"><?= h($_a['body']) ?></div>
+        <?php endif; ?>
+        <div class="small text-body-secondary mt-1"><?= h($_a['author_name'] ?? '') ?> · <?= h(date('d.m.Y', strtotime((string)($_a['created_at'] ?? 'now')))) ?></div>
+      </div>
+      <?php if ($_read): ?>
+      <span class="badge text-bg-success flex-shrink-0">przeczytane</span>
+      <?php else: ?>
+      <form method="post" action="<?= h(APP_URL) ?>/karty30/ti/dydaktyk/ann_read.php" class="flex-shrink-0">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+        <input type="hidden" name="id" value="<?= (int)$_a['id'] ?>">
+        <button type="submit" class="btn btn-sm btn-primary">Przeczytane</button>
+      </form>
+      <?php endif; ?>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+</div>
+<?php endif; ?>
+
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-transparent d-flex align-items-center gap-2">
     <span class="fw-semibold"><i class="bi bi-megaphone text-warning me-2" aria-hidden="true"></i>Komunikaty placówki</span>
