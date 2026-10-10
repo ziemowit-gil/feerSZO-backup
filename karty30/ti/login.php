@@ -103,15 +103,45 @@ html, body { background-color: #1ba1e2 !important; background-image: none !impor
 </style>
 <h1 class="ks-h1"><?= h($krok1 ? 'Logowanie do panelu TI' : org_login_title($_titles[$tab])) ?></h1>
 <p class="ks-lead">Zaloguj się loginem/e-mailem i hasłem.</p>
-<aside class="border border-2 p-3 mb-3 small" style="border-color:#1ba1e2 !important;border-radius:0" aria-labelledby="co-nowego-h">
-  <h2 id="co-nowego-h" class="h6 fw-bold mb-2">Co nowego w logowaniu</h2>
-  <p class="mb-2"><strong>Logowanie centralne zostało zrealizowane.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
-  <ul class="mb-0 ps-3">
-    <li><strong>Kursant:</strong> przy pierwszym logowaniu wpisujesz tylko login, a kod przychodzi SMS-em na telefon z karty. Potem ustawiasz własne hasło.</li>
-    <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</li>
-    <li><strong>Prowadzący, rodzic i upoważniony:</strong> logowanie bez zmian.</li>
-  </ul>
-</aside>
+<p class="mb-3 small">
+  <button type="button" class="btn btn-sm rounded-0 text-white" style="background:#1ba1e2" data-bs-toggle="modal" data-bs-target="#coNowegoModal">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Co nowego w logowaniu
+  </button>
+</p>
+<div class="modal fade" id="coNowegoModal" tabindex="-1" aria-labelledby="coNowegoLbl" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-0">
+      <div class="modal-header rounded-0" style="background:#1d1d1d;color:#fff">
+        <h2 class="modal-title h5" id="coNowegoLbl">Co nowego w logowaniu</h2>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body small">
+        <p><strong>Logowanie centralne zostało zrealizowane.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
+        <ul class="ps-3">
+          <li><strong>Kursant:</strong> przy pierwszym logowaniu wpisujesz tylko login, a kod przychodzi SMS-em na telefon z karty. Potem ustawiasz własne hasło.</li>
+          <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</li>
+          <li><strong>Dla osób niewidomych:</strong> każdy obrazek ma opis tekstowy, który czyta czytnik ekranu, np. „Twój obrazek bezpieczeństwa: niebieskie koło”. Opis jest też podany obok obrazka.</li>
+          <li><strong>Prowadzący, rodzic i upoważniony:</strong> logowanie bez zmian.</li>
+        </ul>
+      </div>
+      <div class="modal-footer rounded-0">
+        <button type="button" class="btn rounded-0 text-white" style="background:#1ba1e2" data-bs-dismiss="modal">Rozumiem</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  // Okno pokazuje się raz na sesję przeglądarki (sessionStorage może być niedostępny — wtedy nic nie szkodzi).
+  try {
+    if (!sessionStorage.getItem('coNowegoPokazane')) {
+      sessionStorage.setItem('coNowegoPokazane', '1');
+      var m = document.getElementById('coNowegoModal');
+      if (m && window.bootstrap) new bootstrap.Modal(m).show();
+    }
+  } catch (e) {}
+})();
+</script>
 
 <?php if ($error): ?>
 <div class="l-alert l-alert-danger" role="alert" aria-live="assertive" aria-atomic="true" style="margin-bottom:1.25rem">
