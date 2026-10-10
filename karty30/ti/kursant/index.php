@@ -5935,7 +5935,7 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
 ?>
 
 <h1 class="h5 fw-bold mb-1"><i class="bi bi-person-check text-primary me-2" aria-hidden="true"></i>Osoby upoważnione</h1>
-<p class="text-body-secondary small mb-3">Osoby, które mają wgląd w Twój panel. Logują się przez oddzielny adres, własnym loginem i hasłem.</p>
+<p class="text-body-secondary small mb-3">Możesz sam upoważnić zaufaną osobę do wglądu w Twój panel i w każdej chwili cofnąć to upoważnienie. Na liście są też osoby dodane przez placówkę — je również możesz zablokować lub odwołać. Osoby upoważnione logują się przez oddzielny adres, własnym loginem i hasłem.</p>
 
 <?php if ($authp_flash): ?>
 <div class="alert alert-<?= $authp_flash[0] === 'ok' ? 'success' : 'danger' ?> small mb-3" role="<?= $authp_flash[0] === 'ok' ? 'status' : 'alert' ?>">
@@ -5988,6 +5988,7 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
         <tr class="<?= $ap_on ? '' : 'text-body-secondary' ?>">
           <th scope="row" class="fw-semibold">
             <?= h($ap['name']) ?>
+            <?php if (!empty($ap['added_by_name'])): ?><span class="badge text-bg-light border ms-1 fw-normal">dodane przez placówkę</span><?php endif; ?>
             <?php if (!empty($ap['notes'])): ?><div class="small fw-normal text-body-secondary"><?= h($ap['notes']) ?></div><?php endif; ?>
           </th>
           <td class="small"><code><?= h($ap['login']) ?></code></td>
@@ -6037,7 +6038,7 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
   </div>
 </div>
 <?php else: ?>
-<p class="text-body-secondary small mb-4"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Nie masz jeszcze osób upoważnionych.</p>
+<p class="text-body-secondary small mb-4"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Nie upoważniłeś jeszcze nikogo.</p>
 <?php endif; ?>
 
 <section class="card shadow-sm border-0" id="authp-form" aria-labelledby="authp-form-h">
@@ -6102,6 +6103,14 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
     <?php endif; ?>
   </div>
 </section>
+
+<?php elseif ($tab === 'upowaznieni'): ?>
+
+<h1 class="h5 fw-bold mb-1"><i class="bi bi-person-check text-primary me-2" aria-hidden="true"></i>Osoby upoważnione</h1>
+<div class="alert alert-info d-flex gap-2 py-2 small mb-3" role="note">
+  <i class="bi bi-info-circle flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <span>Osoby niepełnoletnie nie upoważniają innych samodzielnie. Upoważnieniami zarządza rodzic lub opiekun albo placówka — skontaktuj się z nimi, jeśli chcesz kogoś dodać lub usunąć.</span>
+</div>
 
 <?php elseif ($tab === 'komunikaty'): ?>
 
