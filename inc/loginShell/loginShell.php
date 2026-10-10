@@ -40,7 +40,19 @@ body.tzl { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; 
 .tz-skip:focus { left: 1rem; top: 1rem; background: #fff; color: #1d1d1d; padding: .5rem 1rem; z-index: 10; }
 .tz-split { display: flex; flex-direction: column; min-height: 100vh; }
 @media (min-width: 768px) { .tz-split { flex-direction: row; } }
-.tz-side { background: #1d1d1d; color: #fff; padding: 2.5rem 2rem; flex: 1 1 50%; display: flex; flex-direction: column; justify-content: center; }
+.tz-side { position: relative; background: #1d1d1d; color: #fff; padding: 2.5rem 2rem; flex: 1 1 50%; display: flex; flex-direction: column; justify-content: center; }
+.tz-side-hide { position: absolute; top: .75rem; right: .75rem; display: inline-flex; align-items: center; gap: .35rem; min-height: 40px; padding: .35rem .75rem; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); font-size: .85rem; font-weight: 600; cursor: pointer; }
+.tz-side-hide:hover { background: rgba(255,255,255,.1); border-color: #fff; }
+.tz-side-show { display: none; align-items: center; justify-content: center; gap: .5rem; background: #1d1d1d; color: #fff; border: 0; font-weight: 600; font-size: .9rem; cursor: pointer; padding: .75rem 1rem; }
+.tz-side-show:hover { background: #2d2d2d; }
+.tz-side-hide:focus-visible, .tz-side-show:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+html.tz-side-off .tz-side { display: none; }
+html.tz-side-off .tz-side-show { display: flex; }
+@media (min-width: 768px) {
+  .tz-side { padding-top: 3.5rem; }
+  .tz-side-show { flex: 0 0 52px; flex-direction: column; padding: 1rem .25rem; }
+  .tz-side-show span { writing-mode: vertical-rl; transform: rotate(180deg); }
+}
 .tz-side .tz-org { font-size: .8rem; font-weight: 700; letter-spacing: .06em; margin-bottom: .5rem; text-transform: uppercase; }
 .tz-side .tz-logo { max-height: 56px; max-width: 220px; object-fit: contain; filter: brightness(0) invert(1); margin-bottom: 1rem; align-self: flex-start; }
 .tz-side h2 { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; color: #fff; }
@@ -181,7 +193,13 @@ function loginShellSide(array $o): string {
     $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     $org   = $o['orgLabel'] ?? 'FEER · System Tożsamości';
     $steps = $o['sideSteps'] ?? [];
-    $out   = '<aside class="tz-side" aria-labelledby="tz-side-h">';
+    // Panel można schować; wybór pamięta przeglądarka. Skrypt przed panelem — bez mignięcia.
+    $out   = '<script>try{if(localStorage.getItem("tzSideOff")==="1")document.documentElement.classList.add("tz-side-off");}catch(e){}</script>'
+           . '<button type="button" class="tz-side-show" aria-controls="tz-side" aria-expanded="false" onclick="tzPanel(true)">'
+           . '<i class="bi bi-layout-sidebar" aria-hidden="true"></i><span>Pokaż panel informacji</span></button>'
+           . '<aside class="tz-side" id="tz-side" aria-labelledby="tz-side-h">'
+           . '<button type="button" class="tz-side-hide" aria-controls="tz-side" aria-expanded="true" onclick="tzPanel(false)">'
+           . '<i class="bi bi-chevron-double-left" aria-hidden="true"></i>Ukryj panel</button>';
     if (!empty($o['logoUrl'])) {
         $out .= '<img class="tz-logo" src="' . $e($o['logoUrl']) . '" alt="">';
     }
@@ -199,7 +217,10 @@ function loginShellSide(array $o): string {
     }
     if (!empty($o['account'])) $out .= loginShellAccountButtons($o['account'], $o['registerOpen'] ?? true);
     if ($o['actions'] ?? true) $out .= loginShellActions();
-    return $out . '</aside>';
+    return $out . '</aside>'
+         . '<script>function tzPanel(on){var r=document.documentElement;r.classList.toggle("tz-side-off",!on);'
+         . 'try{localStorage.setItem("tzSideOff",on?"0":"1");}catch(e){}'
+         . 'var b=document.querySelector(on?".tz-side-hide":".tz-side-show");if(b)b.focus();}</script>';
 }
 
 /**
