@@ -218,6 +218,13 @@ function edok_migrate(): void {
         created_at       TEXT
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_edok_wyplaty_doc ON edok_wyplaty(doc_id)");
+    // Ręczna wypłata pozycji (wynagrodzenia wypłacane poza bankowością online): kiedy i kto
+    // odnotował wypłatę. Pusty paid_at = pozycja jeszcze do wypłaty.
+    _edok_add_columns($db, 'edok_wyplaty', [
+        'paid_at'      => "TEXT",
+        'paid_by'      => "INTEGER",
+        'paid_comment' => "TEXT NOT NULL DEFAULT ''",
+    ]);
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2177,10 +2184,9 @@ function edok_przelew_exportable(array $d): bool {
     if (($d['status'] ?? '') !== 'zaakceptowany' || ($d['kierunek'] ?? 'wydatek') !== 'wydatek') return false;
     if (($d['status_platnosci'] ?? 'nowy') === 'oplacony') return false;
     if (!empty($d['zaplacono_przed']) && !edok_zaplata_do_zwrotu($d)) return false;
-    if (($d['typ_dokumentu'] ?? '') === 'lista_plac') {
-        $w = edok_wyplaty((int)$d['id']);
-        return $w && !array_filter($w, fn($x) => strlen(preg_replace('/\D/', '', (string)$x['rachunek'])) !== 26);
-    }
+    // Listy płac nie eksportują się online: wynagrodzenia są wypłacane ręcznie (tytuł do
+    // skopiowania przy każdej pozycji, wypłatę odnotowuje się przyciskiem „Wypłacono”).
+    if (($d['typ_dokumentu'] ?? '') === 'lista_plac') return false;
     $d = edok_przelew_doc($d);
     return strlen(preg_replace('/\D/', '', (string)($d['rachunek_bankowy'] ?? ''))) === 26;
 }
@@ -2293,6 +2299,65 @@ function edok_wyplata_delete(int $id, int $doc_id): void {
     if (!empty($w['zlec_rachunek_id'])) {
         try { db_exec("UPDATE zlecenie_rachunki SET edok_doc_id = NULL, edok_number = NULL WHERE id = ? AND edok_doc_id = ?", [(int)$w['zlec_rachunek_id'], $doc_id]); } catch (\Throwable $e) {}
     }
+}
+
+/** Tytuł przelewu jednej pozycji listy płac („WYNAGRODZENIE MM/RRRR - umowa nr …") — do skopiowania w bankowości. */
+function edok_wyplata_tytul(array $doc, array $w): string {
+    return edok_generate_tytul_przelewu(array_merge($doc, [
+        '_wyplata'         => $w,
+        'kwota_brutto'     => $w['kwota'],
+        'kwota_do_wyplaty' => '',
+        'umowa_numer'      => $w['umowa_numer'],
+    ]));
+}
+
+/**
+ * Odnotowuje ręczną wypłatę pozycji listy płac (wypłata poza bankowością online). Powiązany
+ * rachunek umowy → „Zapłacony”; gdy wypłacone są wszystkie pozycje, lista → „Opłacony”.
+ * Zwraca komunikat błędu albo null.
+ */
+function edok_wyplata_mark_paid(int $wid, int $doc_id, string $comment): ?string {
+    $doc = db_one("SELECT * FROM edok_documents WHERE id = ?", [$doc_id]);
+    if (!$doc || $doc['status'] !== 'zaakceptowany') return 'Wypłatę można odnotować dopiero po zaakceptowaniu listy płac.';
+    $w = db_one("SELECT * FROM edok_wyplaty WHERE id = ? AND doc_id = ?", [$wid, $doc_id]);
+    if (!$w) return 'Nie ma takiej pozycji.';
+    if (!empty($w['paid_at'])) return 'Ta pozycja jest już odnotowana jako wypłacona.';
+
+    $u = current_user();
+    db_exec("UPDATE edok_wyplaty SET paid_at = ?, paid_by = ?, paid_comment = ? WHERE id = ?",
+        [date('Y-m-d H:i:s'), (int)($u['id'] ?? 0), $comment, $wid]);
+    edok_log($doc_id, 'edit', '', $doc['status'], $doc['status'],
+        'Wypłata ręczna: ' . $w['osoba'] . ' — ' . $w['kwota'] . ($comment !== '' ? ' (' . $comment . ')' : ''));
+    if (!empty($w['zlec_rachunek_id'])) {
+        db_exec("UPDATE zlecenie_rachunki SET status='zaplacony', paid_at=COALESCE(paid_at, datetime('now')), updated_at=datetime('now') WHERE id = ? AND status <> 'zaplacony'", [(int)$w['zlec_rachunek_id']]);
+    }
+
+    $pozostale = (int)db_one("SELECT COUNT(*) AS n FROM edok_wyplaty WHERE doc_id = ? AND paid_at IS NULL", [$doc_id])['n'];
+    $prev = $doc['status_platnosci'] ?: 'nowy';
+    if ($pozostale === 0 && $prev !== 'oplacony') {
+        db_exec("UPDATE edok_documents SET status_platnosci='oplacony', updated_at=datetime('now') WHERE id=?", [$doc_id]);
+        edok_log($doc_id, 'status_platnosci', '', $prev, 'oplacony', 'Status płatności: wszystkie pozycje wypłacone ręcznie');
+    }
+    return null;
+}
+
+/** Cofa ręczne odnotowanie wypłaty pozycji (rachunek wraca do „Zaakceptowany”, lista do „Nowy”, gdy była opłacona). */
+function edok_wyplata_unmark(int $wid, int $doc_id): ?string {
+    $doc = db_one("SELECT * FROM edok_documents WHERE id = ?", [$doc_id]);
+    $w   = db_one("SELECT * FROM edok_wyplaty WHERE id = ? AND doc_id = ?", [$wid, $doc_id]);
+    if (!$doc || !$w) return 'Nie ma takiej pozycji.';
+    if (empty($w['paid_at'])) return 'Ta pozycja nie jest odnotowana jako wypłacona.';
+
+    db_exec("UPDATE edok_wyplaty SET paid_at = NULL, paid_by = NULL, paid_comment = '' WHERE id = ?", [$wid]);
+    edok_log($doc_id, 'edit', '', $doc['status'], $doc['status'], 'Cofnięto ręczną wypłatę: ' . $w['osoba'] . ' — ' . $w['kwota']);
+    if (!empty($w['zlec_rachunek_id'])) {
+        db_exec("UPDATE zlecenie_rachunki SET status='zaakceptowany', paid_at=NULL, updated_at=datetime('now') WHERE id = ? AND status = 'zaplacony'", [(int)$w['zlec_rachunek_id']]);
+    }
+    if (($doc['status_platnosci'] ?? '') === 'oplacony') {
+        db_exec("UPDATE edok_documents SET status_platnosci='nowy', updated_at=datetime('now') WHERE id=?", [$doc_id]);
+        edok_log($doc_id, 'status_platnosci', '', 'oplacony', 'nowy', 'Status płatności: cofnięto wypłatę pozycji listy płac');
+    }
+    return null;
 }
 
 /**

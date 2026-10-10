@@ -31,6 +31,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Pozycje listy płac — edycja jak danych dokumentu, blokowana razem z kwotami (etap „rachunkowa”).
     $can_edit_wyplaty = $doc['typ_dokumentu'] === 'lista_plac' && !$is_terminal && !$locked_rachunkowa
         && (is_admin() || edok_has_role('upload') || edok_has_role('dekretacja'));
+    // Ręczne odnotowanie wypłaty pozycji listy płac — po zaakceptowaniu listy, z tym samym
+    // uprawnieniem co zmiana statusu płatności w Preliminarzu (zatwierdza).
+    if (in_array($action, ['wyplata_paid', 'wyplata_unpaid'], true)) {
+        if (!(is_admin() || edok_has_role('zatwierdza')) || $doc['typ_dokumentu'] !== 'lista_plac') {
+            flash_set('danger', 'Brak uprawnień do odnotowania wypłaty.');
+        } elseif ($action === 'wyplata_paid') {
+            $werr = edok_wyplata_mark_paid((int)($_POST['wyplata_id'] ?? 0), $id, mb_substr(trim((string)($_POST['paid_comment'] ?? '')), 0, 200));
+            if ($werr) flash_set('danger', $werr); else flash_set('success', 'Odnotowano wypłatę.');
+        } else {
+            $werr = edok_wyplata_unmark((int)($_POST['wyplata_id'] ?? 0), $id);
+            if ($werr) flash_set('danger', $werr); else flash_set('success', 'Cofnięto odnotowanie wypłaty.');
+        }
+        header('Location: ' . APP_URL . '/edok/view.php?id=' . $id . '#wyplaty');
+        exit;
+    }
+
     if (in_array($action, ['wyplata_add', 'wyplata_delete', 'wyplaty_z_rachunkow'], true)) {
         if (!$can_edit_wyplaty) {
             flash_set('danger', 'Pozycji listy płac nie można już zmieniać.');
@@ -804,32 +820,65 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       $wyplaty = edok_wyplaty($id);
       $can_edit_wyplaty = !$is_terminal && !$locked_rachunkowa && (is_admin() || edok_has_role('upload') || edok_has_role('dekretacja'));
       $suma_wyplat = array_sum(array_map(fn($w) => _edok_kwota_float($w['kwota']), $wyplaty));
+      // Wynagrodzenia wypłacane ręcznie (poza bankowością online): po akceptacji listy zatwierdzający
+      // odnotowuje każdą wypłatę, a tytuł przelewu jest do skopiowania przy pozycji.
+      $can_pay_wyplata = $doc['status'] === 'zaakceptowany' && (is_admin() || edok_has_role('zatwierdza'));
     ?>
     <div class="edok-card tw-mt-4" id="wyplaty">
       <div class="edok-card__hd"><i class="bi bi-people"></i> Wypłaty z listy płac (<?= count($wyplaty) ?>)</div>
       <div class="edok-card__bd">
-        <p class="tw-text-xs tw-text-slate-500 tw-mb-2">Każda pozycja to osobny przelew z tytułem „WYNAGRODZENIE <?= h(edok_okres_label($doc['okres']) ?: 'MM/RRRR') ?> - umowa nr …”. Kwota = do wypłaty (po potrąceniach).</p>
+        <p class="tw-text-xs tw-text-slate-500 tw-mb-2">Wypłaty wykonujesz ręcznie w bankowości — skopiuj tytuł przelewu przy pozycji i po wypłacie oznacz ją jako „Wypłacono”. Kwota = do wypłaty (po potrąceniach).</p>
         <?php if ($wyplaty): ?>
         <div class="table-responsive">
         <table class="table table-sm align-middle mb-2" style="font-size:.82rem">
-          <thead><tr><th>Osoba</th><th>Umowa</th><th>Rachunek</th><th class="text-end">Kwota</th><?php if ($can_edit_wyplaty): ?><th></th><?php endif; ?></tr></thead>
+          <thead><tr><th>Osoba</th><th>Umowa</th><th>Rachunek</th><th class="text-end">Kwota</th><th>Tytuł przelewu</th><th>Wypłata</th><?php if ($can_edit_wyplaty): ?><th></th><?php endif; ?></tr></thead>
           <tbody>
-          <?php foreach ($wyplaty as $w): ?>
-            <tr>
+          <?php foreach ($wyplaty as $w): $wyplacona = !empty($w['paid_at']); $tytul = edok_wyplata_tytul($doc, $w); ?>
+            <tr<?= $wyplacona ? ' class="tw-text-slate-500"' : '' ?>>
               <td><?= h($w['osoba']) ?><?php if ($w['opis']): ?><div class="tw-text-xs tw-text-slate-500"><?= h($w['opis']) ?></div><?php endif; ?></td>
               <td class="tw-font-mono tw-text-xs">
                 <?php if ($w['contract_type'] && $w['contract_id']): ?><a href="<?= APP_URL ?>/contracts/<?= h($w['contract_type']) ?>/view.php?id=<?= (int)$w['contract_id'] ?>"><?= h($w['umowa_numer'] ?: '—') ?></a><?php else: ?><?= h($w['umowa_numer'] ?: '—') ?><?php endif; ?>
               </td>
               <td class="tw-font-mono tw-text-xs"><?= h(edok_nrb_format($w['rachunek'])) ?></td>
               <td class="text-end tw-font-mono"><?= h($w['kwota']) ?></td>
+              <td class="tw-font-mono tw-text-xs">
+                <span class="tw-break-all"><?= h($tytul) ?></span>
+                <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-copy="<?= h($tytul) ?>" onclick="navigator.clipboard && navigator.clipboard.writeText(this.dataset.copy)" aria-label="Kopiuj tytuł przelewu"><i class="bi bi-clipboard"></i></button>
+              </td>
+              <td class="tw-text-xs">
+                <?php if ($wyplacona): ?>
+                  <span class="badge bg-success">Wypłacono</span> <?= h(date('d.m.Y', strtotime($w['paid_at']))) ?>
+                  <?php if ($w['paid_comment'] !== ''): ?><div class="tw-text-slate-500"><?= h($w['paid_comment']) ?></div><?php endif; ?>
+                  <?php if ($can_pay_wyplata): ?>
+                  <form method="post" class="tw-inline">
+                    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                    <input type="hidden" name="action" value="wyplata_unpaid">
+                    <input type="hidden" name="wyplata_id" value="<?= (int)$w['id'] ?>">
+                    <button class="btn btn-sm btn-link p-0" type="submit">Cofnij</button>
+                  </form>
+                  <?php endif; ?>
+                <?php elseif ($can_pay_wyplata): ?>
+                  <form method="post" class="tw-flex tw-gap-1">
+                    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                    <input type="hidden" name="action" value="wyplata_paid">
+                    <input type="hidden" name="wyplata_id" value="<?= (int)$w['id'] ?>">
+                    <input type="text" name="paid_comment" class="form-control form-control-sm" maxlength="200" placeholder="uwagi (opc.)" aria-label="Uwagi do wypłaty">
+                    <button class="btn btn-sm btn-success text-nowrap" type="submit">Wypłacono</button>
+                  </form>
+                <?php else: ?>
+                  <span class="badge bg-secondary">Do wypłaty</span>
+                <?php endif; ?>
+              </td>
               <?php if ($can_edit_wyplaty): ?>
               <td class="text-end">
+                <?php if (!$wyplacona): ?>
                 <form method="post" class="tw-inline" onsubmit="return confirm('Usunąć tę pozycję?');">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
                   <input type="hidden" name="action" value="wyplata_delete">
                   <input type="hidden" name="wyplata_id" value="<?= (int)$w['id'] ?>">
                   <button class="btn btn-sm btn-link text-danger p-0" type="submit" aria-label="Usuń pozycję <?= h($w['osoba']) ?>"><i class="bi bi-trash"></i></button>
                 </form>
+                <?php endif; ?>
               </td>
               <?php endif; ?>
             </tr>
