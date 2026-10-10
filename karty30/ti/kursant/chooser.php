@@ -214,6 +214,7 @@ if (file_exists($project_root . '/includes/pfron.php')) {
     <hr>
 
     <nav class="choices" aria-label="Wybór interfejsu">
+      <?php if (KURSANT_NEW_UI_ENABLED): ?>
       <a href="<?= htmlspecialchars($new_ui_url) ?>"
          class="choice primary"
          aria-label="Nowy panel — Angular">
@@ -221,6 +222,7 @@ if (file_exists($project_root . '/includes/pfron.php')) {
         <span class="choice-tag" aria-hidden="true">Nowy</span>
         <span class="arrow" aria-hidden="true">→</span>
       </a>
+      <?php endif; ?>
       <a href="<?= htmlspecialchars($base_url) ?>/karty30/ti/kursant/login.php"
          class="choice"
          aria-label="Panel klasyczny — PHP">
