@@ -359,6 +359,8 @@ function _menu_editor(): array {
             $fin[] = _mi('EODoK — Kolejka do opisu','/edok/queue.php','bi-inboxes',['match'=>'/edok/queue','kw'=>'kolejka do opisu zbiorczy upload wgraj pliki edok eodok']);
         if (is_admin() || edok_has_role('zatwierdza') || (function_exists('kdok_has_role') && kdok_has_role('zatwierdza')))
             $fin[] = _mi('Preliminarz Płatności','/edok/preliminarz.php','bi-calendar-check',['match'=>'/edok/preliminarz','kw'=>'preliminarz płatności przelew']);
+        if (is_admin() || edok_has_role('zatwierdza'))
+            $fin[] = _mi('Zestawienie wypłat','/edok/wyplaty.php','bi-cash-stack',['match'=>'/edok/wyplaty','kw'=>'zestawienie wypłaty listy płac zlecenie eksport csv']);
     }
     if ($cnt['has_kdok'])
         $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
