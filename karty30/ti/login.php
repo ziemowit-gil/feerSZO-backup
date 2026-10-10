@@ -99,6 +99,14 @@ auth_screen_head([
 
 <?php if ($tab === 'kursant'): ?>
 <!-- ═══ KURSANT ═══════════════════════════════════════════════════════ -->
+<style>
+/* Wygląd METRO UI (jak w module Tożsamość): zero zaokrągleń i cieni, akcent cyan, Segoe UI. */
+.ks-field input, .ks-field .form-control, .pass-wrap .form-control, .pass-toggle { border-radius: 0 !important; box-shadow: none !important; }
+.ks-btn, .ks-btn--primary { border-radius: 0 !important; box-shadow: none !important; background: #1ba1e2 !important; border-color: #1ba1e2 !important; color: #fff !important; font-family: "Segoe UI", system-ui, sans-serif; }
+.ks-btn:hover, .ks-btn--primary:hover { background: #1790c9 !important; }
+.ks-field label, .ks-h1 { font-family: "Segoe UI", system-ui, sans-serif; }
+.ks-tab, .ks-sidetab { border-radius: 0 !important; }
+</style>
 <form method="post" action="kursant/login.php" autocomplete="on">
   <div class="ks-field">
     <label for="stu-login">Login</label>
