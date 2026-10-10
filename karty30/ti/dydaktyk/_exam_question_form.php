@@ -617,6 +617,9 @@ $is_tf = $q_type === 'truefalse';
       <i class="bi bi-save me-1" aria-hidden="true"></i><?= $editing ? 'Zapisz pytanie' : 'Dodaj pytanie' ?>
     </button>
     <?php if ($editing): ?>
+    <a class="btn btn-outline-primary" href="exam_preview.php?q=<?= (int)$edit_q['id'] ?>">
+      <i class="bi bi-eye me-1" aria-hidden="true"></i>Podejrzyj pytanie
+    </a>
     <a class="btn btn-outline-secondary" href="exam_build.php?exam_id=<?= (int)$exam['id'] ?>&amp;new=<?= h($q_type) ?>">
       <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Kolejne pytanie tego typu
     </a>

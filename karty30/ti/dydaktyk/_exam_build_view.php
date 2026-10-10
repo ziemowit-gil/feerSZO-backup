@@ -171,6 +171,9 @@ $form_open = $q_type !== '';
               <?php endif; ?>
             </div>
           </div>
+          <a class="btn btn-sm btn-outline-primary text-nowrap" href="exam_preview.php?q=<?= (int)$q['id'] ?>">
+            <i class="bi bi-eye me-1" aria-hidden="true"></i>Podejrzyj<span class="visually-hidden"> pytanie <?= $i + 1 ?></span>
+          </a>
           <div class="btn-group btn-group-sm" role="group" aria-label="Kolejność i usuwanie pytania <?= $i + 1 ?>">
             <form method="post"><input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="move_question">
