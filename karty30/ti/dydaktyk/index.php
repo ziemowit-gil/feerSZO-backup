@@ -3820,8 +3820,12 @@ document.addEventListener('click', function(e){
 })();
 
 // Odwołanie / przywrócenie udziału kursanta (z modalu obecności) — przez ukryty formularz.
+// Odwołania wymagają potwierdzenia dwukrotnego — drugie pytanie pokazuje konsekwencje.
+function dydConfirmTwice(first, second) {
+  return confirm(first) && confirm(second);
+}
 function dydCancelAtt(sid, cid) {
-  if (!confirm('Odwołać udział tego kursanta? Nie będzie liczony do ceny.')) return;
+  if (!dydConfirmTwice('Odwołać udział tego kursanta?', 'Na pewno? Udział nie będzie liczony do ceny, a kursant dostanie informację o odwołaniu.')) return;
   document.getElementById('daa_op').value = 'cancel_attendee';
   document.getElementById('daa_sid').value = sid;
   document.getElementById('daa_cid').value = cid;

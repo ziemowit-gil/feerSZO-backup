@@ -1596,7 +1596,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal: odwołanie całej lekcji -->
 <div class="modal fade" id="cancelSessionModal" tabindex="-1" aria-labelledby="cancelSession_t" aria-hidden="true">
-  <div class="modal-dialog"><form method="post" class="modal-content">
+  <div class="modal-dialog"><form method="post" class="modal-content" onsubmit="return dydConfirmTwice('Odwołać tę lekcję?', 'Na pewno? Lekcja nie zostanie policzona do ceny, a kursanci dostaną SMS o odwołaniu.')">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="_op" value="cancel_session">
     <input type="hidden" name="_tab" value="lekcje">
