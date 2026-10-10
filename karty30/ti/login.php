@@ -141,13 +141,17 @@ $_tabs = [
       <form method="post" action="<?= h(rtrim(APP_URL, '/')) ?>/tozsamosc/kursant.php" autocomplete="on">
         <div class="mb-3">
           <label for="stu-login">Login</label>
-          <input type="text" class="form-control form-control-lg" id="stu-login" name="login"
-                 value="<?= $prefill_login ?>" required autofocus autocomplete="username"
-                 placeholder="Login lub własny alias"
-                 <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-          <div class="d-flex align-items-center gap-3 mt-2" id="stu-sec" style="display:none" aria-live="polite">
-            <div id="stu-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
-            <div class="small" id="stu-sec-label"></div>
+          <div class="d-flex align-items-start gap-3">
+            <div class="flex-grow-1 min-w-0">
+              <input type="text" class="form-control form-control-lg" id="stu-login" name="login"
+                     value="<?= $prefill_login ?>" required autofocus autocomplete="username"
+                     placeholder="Login lub własny alias"
+                     <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
+            </div>
+            <div class="d-flex align-items-center gap-2" id="stu-sec" style="display:none;max-width:11rem" aria-live="polite">
+              <div id="stu-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
+              <div class="small" id="stu-sec-label"></div>
+            </div>
           </div>
         </div>
         <div class="mb-4">

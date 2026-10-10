@@ -104,12 +104,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <form method="post" action="" autocomplete="on">
         <div class="mb-3">
           <label for="kur-login" class="form-label fw-semibold">Login</label>
-          <input type="text" class="form-control form-control-lg" id="kur-login" name="login"
-                 value="<?= htmlspecialchars($login, ENT_QUOTES, 'UTF-8') ?>" required autocomplete="username" autofocus>
-        </div>
-        <div class="align-items-center gap-3 mb-3 d-none" id="kur-sec" aria-live="polite">
-          <div id="kur-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
-          <div class="small" id="kur-sec-label"></div>
+          <div class="d-flex align-items-start gap-3">
+            <div class="flex-grow-1 min-w-0">
+              <input type="text" class="form-control form-control-lg" id="kur-login" name="login"
+                     value="<?= htmlspecialchars($login, ENT_QUOTES, 'UTF-8') ?>" required autocomplete="username" autofocus>
+            </div>
+            <div class="align-items-center gap-2 d-none" id="kur-sec" style="max-width:11rem" aria-live="polite">
+              <div id="kur-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
+              <div class="small" id="kur-sec-label"></div>
+            </div>
+          </div>
         </div>
         <div class="mb-4">
           <label for="kur-password" class="form-label fw-semibold">Hasło</label>
