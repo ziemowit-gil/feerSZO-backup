@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label for="kur-password" class="form-label fw-semibold">Hasło</label>
           <input type="password" class="form-control form-control-lg" id="kur-password" name="password" autocomplete="current-password">
           <div class="form-text">Przy pierwszym logowaniu hasła nie wpisujesz.</div>
-          <div class="alert alert-info small py-2 rounded-0 mt-2 mb-0" role="note">Konta założone przed 10.10.2026 traktujemy jak nowe. Dotychczasowych haseł nie da się przenieść, więc przy tym logowaniu potwierdzisz się kodem SMS i ustawisz nowe hasło.</div>
+          <div class="alert alert-info small py-2 rounded-0 mt-2 mb-0" role="note">Konta założone przed 10.10.2026 traktujemy jak nowe. Dotychczasowych haseł nie da się przenieść, więc przy tym logowaniu potwierdzisz się kodem SMS i ustawisz nowe hasło. SMS-y obsługuje Sendly, który jest też nadawcą wiadomości.</div>
         </div>
         <button type="submit" class="btn btn-lg metro-btn w-100">Dalej</button>
       </form>
