@@ -411,3 +411,10 @@ body.kur-alt.ti-skin #kpIcalPopup > div:first-child { background: #1d1d1d !impor
 body.kur-alt.ti-skin #kpIcalPopup .btn { border-radius: 0 !important; }
 body.kur-alt.ti-skin #kpIcalPopup .btn-primary { background: #1d1d1d !important; border-color: #1d1d1d !important; color: #fff !important; }
 body.kur-alt.ti-skin #kpIcalPopup .btn-outline-light { color: #1d1d1d !important; border-color: #1d1d1d !important; }
+
+/* Okienko kalendarza: tytuł i ikona na ciemnym pasku białe, „Nie teraz” czytelne */
+body.kur-alt.ti-skin #kpIcalPopup > div:first-child h2,
+body.kur-alt.ti-skin #kpIcalPopup > div:first-child i { color: #fff !important; }
+body.kur-alt.ti-skin #kpIcalPopup .btn-outline-light,
+body.kur-alt.ti-skin #kpIcalPopup .btn-outline-secondary { color: #1d1d1d !important; border: 2px solid #1d1d1d !important; background: #fff !important; }
+body.kur-alt.ti-skin #kpIcalPopup p, body.kur-alt.ti-skin #kpIcalPopup .small { color: #1d1d1d !important; }
