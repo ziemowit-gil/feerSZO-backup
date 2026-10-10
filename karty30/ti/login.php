@@ -87,6 +87,16 @@ auth_screen_head([
 ]);
 ?>
 
+<style>
+/* Wygląd jak w module Tożsamość (METRO UI): zero zaokrągleń i cieni, akcent cyan #1ba1e2, Segoe UI. */
+body { font-family: "Segoe UI", system-ui, sans-serif; }
+.ks-h1, .ks-field label, .ks-lead { font-family: "Segoe UI", system-ui, sans-serif; }
+.ks-field input, .ks-field .form-control, .pass-wrap .form-control, .pass-toggle,
+.ks-tab, .ks-sidetab, .ks-btn { border-radius: 0 !important; box-shadow: none !important; }
+.ks-btn--primary, .ks-btn.ks-btn--primary { background: #1ba1e2 !important; border-color: #1ba1e2 !important; color: #fff !important; font-weight: 600; }
+.ks-btn--primary:hover { background: #1790c9 !important; border-color: #1790c9 !important; }
+.ks-tab[aria-current="page"] { background: #1ba1e2 !important; color: #fff !important; }
+</style>
 <h1 class="ks-h1"><?= h(org_login_title($_titles[$tab])) ?></h1>
 <p class="ks-lead">Zaloguj się loginem/e-mailem i hasłem.</p>
 <p class="small text-body-secondary mb-3"><strong>Logowanie przez SSO.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
