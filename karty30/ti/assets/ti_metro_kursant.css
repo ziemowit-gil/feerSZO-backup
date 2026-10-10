@@ -466,3 +466,73 @@ body.kur-alt.ti-skin #kpIcalPopupLater { background: #fff !important; color: #1d
 body.kur-alt.ti-skin #kpIcalPopupGo    { background: #0f6fa8 !important; color: #fff !important; border: 2px solid #0f6fa8 !important; border-radius: 0 !important; }
 body.kur-alt.ti-skin #kpIcalPopupLater:focus-visible,
 body.kur-alt.ti-skin #kpIcalPopupGo:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+
+/* ════════ BIAŁE TŁO WE WSZYSTKIM (widok alternatywny), kontrasty zachowane ════════
+   Tekst #1d1d1d na białym = 16:1; akcent #1ba1e2 tylko jako linie/obramowania (nie pod tekstem),
+   wyjątek: aktywny element menu — #1ba1e2 z ciemnym tekstem (5,8:1). */
+body.kur-alt.ti-skin { background: #fff !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin main, body.kur-alt.ti-skin .kp-start { background: #fff; }
+
+/* Pasek górny */
+body.kur-alt.ti-skin header .navbar { background: #fff !important; color: #1d1d1d !important; border-bottom: 3px solid #1ba1e2 !important; }
+body.kur-alt.ti-skin header .navbar .navbar-brand,
+body.kur-alt.ti-skin header .navbar .navbar-text,
+body.kur-alt.ti-skin header .navbar .kp-brand,
+body.kur-alt.ti-skin header .navbar .kp-brand i,
+body.kur-alt.ti-skin header .navbar a:not(.btn) { color: #1d1d1d !important; }
+body.kur-alt.ti-skin header .navbar .btn { background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; }
+
+/* Paski menu (zakładki / rozwijana sekcja / dropdown) */
+body.kur-alt.ti-skin .skin-sections,
+body.kur-alt.ti-skin .skin-dropdowns,
+body.kur-alt.ti-skin .skin-menu-rozwijane > summary { background: #fff !important; border-bottom: 2px solid #1d1d1d !important; }
+body.kur-alt.ti-skin .skin-sections a,
+body.kur-alt.ti-skin .skin-dd-btn,
+body.kur-alt.ti-skin .skin-menu-rozwijane > summary { background: #fff !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin .skin-sections a:hover,
+body.kur-alt.ti-skin .skin-dd-btn:hover,
+body.kur-alt.ti-skin .skin-menu-rozwijane > summary:hover { background: #e5e7eb !important; }
+body.kur-alt.ti-skin .skin-sections a[aria-current="page"],
+body.kur-alt.ti-skin .skin-dd-btn.active { background: #1ba1e2 !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin .skin-subnav a.active,
+body.kur-alt.ti-skin .skin-subnav a[aria-current="page"],
+body.kur-alt.ti-skin .skin-menu-lista a[aria-current="page"],
+body.kur-alt.ti-skin .skin-menu-lista a.active,
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-item.active { background: #1ba1e2 !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin .skin-subnav a, body.kur-alt.ti-skin .skin-menu-lista a { background: #fff !important; border: 1px solid #d1d5db; color: #1d1d1d !important; }
+
+/* Kafle pod okruszkami — aktywny biały z grubą ciemną ramką zamiast czarnego tła */
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini.active,
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini[aria-current="page"] {
+  background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; border-bottom: 5px solid #1ba1e2 !important;
+}
+
+/* Nagłówki kart i rozwijanych sekcji: białe, ciemny tekst, linia akcentu */
+body.kur-alt.ti-skin .card-header,
+body.kur-alt.ti-skin summary.card-header,
+body.kur-alt.ti-skin summary.card-body { background: #fff !important; color: #1d1d1d !important; border-bottom: 3px solid #1ba1e2 !important; }
+body.kur-alt.ti-skin .card-header *:not(.btn):not(.badge):not(.visually-hidden),
+body.kur-alt.ti-skin summary.card-header *:not(.btn):not(.badge):not(.visually-hidden),
+body.kur-alt.ti-skin summary.card-body .dyd-hw-chevron,
+body.kur-alt.ti-skin summary .bi,
+body.kur-alt.ti-skin .card-header i,
+body.kur-alt.ti-skin .card-header .text-body-secondary,
+body.kur-alt.ti-skin .card-header .text-muted,
+body.kur-alt.ti-skin .card-header small { color: #1d1d1d !important; }
+body.kur-alt.ti-skin .card-header .btn,
+body.kur-alt.ti-skin summary.card-header .btn { background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; }
+body.kur-alt.ti-skin .card { border: 1px solid #d1d5db !important; }
+
+/* Tabele: nagłówek biały z ciemnym tekstem i linią akcentu */
+body.kur-alt.ti-skin .table thead th { background: #fff !important; color: #1d1d1d !important; border-bottom: 3px solid #1ba1e2 !important; }
+
+/* Kafle stanu / komunikaty / informacja o rejestracji: białe z linią akcentu */
+body.kur-alt.ti-skin .kp-kafel-dzis { background: #fff !important; color: #1d1d1d !important; border-bottom: 4px solid #1ba1e2 !important; }
+body.kur-alt.ti-skin .kp-komun.kp-nowy { background: #fff !important; }
+body.kur-alt.ti-skin .alert { background: #fff !important; border: 1px solid #d1d5db !important; border-left: 6px solid #1ba1e2 !important; }
+body.kur-alt.ti-skin .kp-nauka, body.kur-alt.ti-skin .kp-typ-menu { background: #fff; border: 1px solid #d1d5db; border-left: 6px solid #1ba1e2; }
+
+/* Okienko kalendarza: nagłówek biały z ciemnym tekstem */
+body.kur-alt.ti-skin #kpIcalPopup > div:first-child { background: #fff !important; color: #1d1d1d !important; border-bottom: 3px solid #1ba1e2 !important; }
+body.kur-alt.ti-skin #kpIcalPopup > div:first-child h2,
+body.kur-alt.ti-skin #kpIcalPopup > div:first-child i { color: #1d1d1d !important; }
