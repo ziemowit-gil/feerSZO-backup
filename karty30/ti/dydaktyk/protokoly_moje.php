@@ -9,6 +9,8 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/webauthn.php';
+webauthn_migrate();
 
 $me      = dyd_require();
 $uid     = (int)$me['user_id'];
@@ -197,6 +199,45 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <?php endif; ?>
         <!-- Przed zatwierdzeniem: okno z listą godzin (data — liczba godzin), wydruk PDF
              i obowiązkowe „sprawdziłem/am” → Akceptuję wysyła ten formularz. -->
+        <?php if (webauthn_get_credentials($uid)): ?>
+        <button type="button" class="btn btn-outline-success me-2" id="pmYkBtn"
+                data-course="<?= (int)$open_row['course_id'] ?>" data-ym="<?= h($open_ym) ?>">
+          <i class="bi bi-usb-drive me-1" aria-hidden="true"></i>Zatwierdź kluczem YubiKey
+        </button>
+        <script>
+        (function () {
+          var b = document.getElementById('pmYkBtn'); if (!b) return;
+          var base = <?= json_encode(APP_URL . '/karty30/ti/dydaktyk/yk_protocol.php') ?>;
+          var tok  = <?= json_encode(dyd_token()) ?>;
+          function b64uToBuf(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+            var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a.buffer; }
+          function bufToB64u(buf) { var u = new Uint8Array(buf), s = ''; for (var i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
+            return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+          b.addEventListener('click', async function () {
+            if (!confirm('Sprawdziłeś/aś ewidencję godzin? Zatwierdzenie kluczem YubiKey zamyka protokół.')) return;
+            b.disabled = true;
+            try {
+              var r = await fetch(base + '?action=begin&course_id=' + b.dataset.course + '&year_month=' + encodeURIComponent(b.dataset.ym), { credentials: 'same-origin' });
+              var j = await r.json(); if (!r.ok) throw new Error(j.error || 'Nie udało się rozpocząć podpisu.');
+              var o = j.data;
+              var cred = await navigator.credentials.get({ publicKey: {
+                challenge: b64uToBuf(o.challenge), rpId: o.rpId,
+                allowCredentials: (o.allowCredentials || []).map(function (c) { return { type: 'public-key', id: b64uToBuf(c.id) }; }),
+                userVerification: o.userVerification || 'preferred', timeout: o.timeout || 60000 } });
+              var resp = { id: bufToB64u(cred.rawId), rawId: bufToB64u(cred.rawId), type: cred.type, response: {
+                clientDataJSON: bufToB64u(cred.response.clientDataJSON),
+                authenticatorData: bufToB64u(cred.response.authenticatorData),
+                signature: bufToB64u(cred.response.signature) } };
+              var r2 = await fetch(base + '?action=complete', { method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': tok },
+                body: JSON.stringify({ course_id: Number(b.dataset.course), year_month: b.dataset.ym, response: resp }) });
+              var j2 = await r2.json(); if (!r2.ok) throw new Error(j2.error || 'Nie udało się zatwierdzić kluczem.');
+              location.href = 'protokoly_moje.php';
+            } catch (e) { alert(e.message || 'Nie udało się zatwierdzić kluczem.'); b.disabled = false; }
+          });
+        })();
+        </script>
+        <?php endif; ?>
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck"<?= $_has_cert ? '' : ' disabled' ?>>
           <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
         </button>

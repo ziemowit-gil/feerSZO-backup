@@ -780,6 +780,46 @@ function ti_cert_sms_plain(string $phone, string $text): bool {
 }
 
 /**
+ * Alternatywa dla certyfikatu: klucz sprzętowy (YubiKey, WebAuthn). Wyzwanie to skrót treści
+ * protokołu (ti_protocol_sign_payload), więc podpis dotyczy dokładnie tych godzin i tego prowadzącego.
+ * Zwraca opcje dla navigator.credentials.get().
+ */
+function ti_protocol_yubikey_begin(int $uid, array $prot): array {
+    require_once dirname(__DIR__) . '/includes/webauthn.php';
+    webauthn_migrate();
+    $opts = webauthn_begin_auth($uid);
+    $challenge = hash('sha256', ti_protocol_sign_payload($prot, $uid), true);
+    $opts['challenge'] = webauthn_b64u_encode($challenge);
+    $_SESSION['webauthn_auth_challenge'] = $opts['challenge'];   // complete_auth sprawdzi ten sam skrót
+    return $opts;
+}
+
+/** Zatwierdzenie protokołu podpisem YubiKey. $response — odpowiedź z przeglądarki (WebAuthn get). */
+function ti_protocol_approve_yubikey(int $protocol_id, int $uid, string $by_name, array $response): void {
+    require_once dirname(__DIR__) . '/includes/webauthn.php';
+    ti_protocols_migrate();
+    $prot = ti_protocol_get($protocol_id);
+    if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
+
+    // Treść protokołu nie może zmienić się od wyzwania — inaczej podpis dotyczyłby starych godzin.
+    $expected = webauthn_b64u_encode(hash('sha256', ti_protocol_sign_payload($prot, $uid), true));
+    if (!hash_equals((string)($_SESSION['webauthn_auth_challenge'] ?? ''), $expected)) {
+        throw new \RuntimeException('Treść protokołu się zmieniła — podpisz ponownie.');
+    }
+
+    // Klucz musi należeć do tego prowadzącego.
+    $kid = webauthn_complete_auth($response);
+    if ($kid !== $uid) throw new \RuntimeException('Ten klucz nie należy do Ciebie.');
+
+    ti_protocol_approve($protocol_id, $uid, $by_name);
+    db()->prepare(
+        "UPDATE k30_ti_protocols
+            SET sign_fingerprint = ?, sign_subject = ?, sign_at = datetime('now'), sign_sig = ?
+          WHERE id = ?"
+    )->execute(['yubikey:' . substr((string)($response['id'] ?? ''), 0, 40), 'Klucz sprzętowy (YubiKey)', '', $protocol_id]);
+}
+
+/**
  * Zatwierdzenie protokołu podpisem certyfikatem prowadzącego. Najpierw podpis (błąd =
  * brak zatwierdzenia), potem zwykłe zatwierdzenie i zapis danych podpisu.
  * $p12 — zawartość pliku .p12, $password — jego hasło (używane tylko w tym żądaniu).
