@@ -141,7 +141,7 @@ function ti_cert_deliver(int $uid, string $name, string $email, string $phone, s
  * Wymaga aktywnego konta z e-mailem i telefonem.
  */
 function ti_cert_issue_for_instructor(int $target_id, string $issuer_name): array {
-    if (!ti_cert_generation_open()) return ['ok' => false, 'error' => ti_cert_generation_info()];
+    // Kierownik wystawia niezależnie od terminu otwarcia (blokada dotyczy tylko samodzielnego generowania).
     $u = db_one("SELECT id, name, email, phone_number FROM users WHERE id = ? AND is_active = 1", [$target_id]);
     if (!$u) return ['ok' => false, 'error' => 'Nie ma takiego aktywnego konta.'];
     if (trim((string)$u['email']) === '') return ['ok' => false, 'error' => 'Prowadzący nie ma adresu e-mail w koncie.'];

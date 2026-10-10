@@ -40,12 +40,6 @@ $wynik = null;  // wynik ostatniego wystawienia (hasło tylko gdy SMS się nie u
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     // Uruchomienie certyfikatów: prośba do wszystkich prowadzących bez aktywnego certyfikatu.
-    // Każde wystawienie, regeneracja i uruchomienie prośby — dopiero od terminu otwarcia.
-    if (!ti_cert_generation_open()) {
-        flash_set('danger', ti_cert_generation_info());
-        header('Location: certyfikaty.php'); exit;
-    }
-
     if (($_POST['_op'] ?? '') === 'launch') {
         $wyslano = 0; $pominieto = 0;
         foreach (ti_cert_instructors() as $p) {
@@ -128,9 +122,6 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <?= flash_html() ?>
 
 <h1 class="h4 fw-bold mb-2"><i class="bi bi-shield-check text-primary me-2" aria-hidden="true"></i>Certyfikaty prowadzących</h1>
-<?php if (!ti_cert_generation_open()): ?>
-<div class="alert alert-info small py-2"><i class="bi bi-calendar-event" aria-hidden="true"></i> <?= h(ti_cert_generation_info()) ?></div>
-<?php endif; ?>
 <p class="text-body-secondary small mb-3">
   Certyfikat służy prowadzącemu do podpisywania protokołów. Wystawienie wysyła plik .p12 mailem
   na adres prowadzącego, a hasło przychodzi SMS-em na jego telefon. Hasła nie zobaczysz w systemie.
