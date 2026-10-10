@@ -1214,7 +1214,7 @@ include __DIR__ . '/_layout_head.php';
   // je tak samo jak w panelu Angular (sekcje KONTO / INNE w bocznym menu).
   $nauka_tabs     = ['lekcje','zadania','zapisy','oceny','plan','egzaminy','testy'];
   $konto_tabs     = ['platnosci','rozliczenia','portfel','upowaznieni','ustawienia'];
-  $dostepy_tabs   = ['online','vlab','dysk','licencje','pfron'];
+  $dostepy_tabs   = ['licencje','pfron'];
   $inne_tabs      = ['problem','aktywnosc','regulaminy'];
   // Menu w grupach — źródło dla etykiety otwartej podstrony przy aktywnej grupie
   // (np. „Konto: Portfel”) i dla mobilnego panelu „Więcej” (offcanvas #kpMore).
@@ -1225,8 +1225,7 @@ include __DIR__ . '/_layout_head.php';
       'Komunikacja' => [['komunikaty','megaphone','Komunikaty'], ['wiadomosci','envelope','Wiadomości']],
       'Konto' => array_merge($is_minor ? [] : [['platnosci','cash-coin','Płatności'], ['rozliczenia','receipt','Rozliczenia'],
                       ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['ustawienia','gear','Ustawienia']]),
-      'Dostępy' => [['online','camera-video','Szkolenia online'], ['vlab','code-square','VLab'], ['dysk','hdd-network','Mój dysk'],
-                    ['licencje','key','Licencje'], ['pfron','shield-lock','PFRON (konsultacje)']],
+      'Dostępy' => [['licencje','key','Licencje'], ['pfron','shield-lock','PFRON (konsultacje)']],
       'Inne' => [['problem','life-preserver','Pomoc'], ['aktywnosc','clock-history','Aktywność konta'], ['regulaminy','file-earmark-text','Regulaminy']],
   ];
   $kp_tab_label = [];
@@ -1334,12 +1333,6 @@ include __DIR__ . '/_layout_head.php';
         <i class="bi bi-grid me-1" aria-hidden="true"></i>Dostępy<?= $kp_cur($dostepy_active) ?>
       </a>
       <ul class="dropdown-menu">
-        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='online'?'active':'' ?>" href="?tab=online" <?= $tab==='online'?'aria-current="page"':'' ?>>
-          <i class="bi bi-camera-video me-2" aria-hidden="true"></i>Szkolenia online</a></li>
-        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='vlab'?'active':'' ?>" href="?tab=vlab" <?= $tab==='vlab'?'aria-current="page"':'' ?>>
-          <i class="bi bi-code-square me-2" aria-hidden="true"></i>VLab</a></li>
-        <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='dysk'?'active':'' ?>" href="?tab=dysk" <?= $tab==='dysk'?'aria-current="page"':'' ?>>
-          <i class="bi bi-hdd-network me-2" aria-hidden="true"></i>Mój dysk</a></li>
         <?php /* Materiały zewnętrzne to osobny moduł (karty30/ti/ext), nie zakładka panelu. */ ?>
         <li><a class="dropdown-item <?= $mc() ?>" href="../ext/index.php?as=student">
           <i class="bi bi-book me-2" aria-hidden="true"></i>Biblioteka materiałów</a></li>
@@ -1836,8 +1829,6 @@ document.addEventListener('DOMContentLoaded', function() {
     $kp_start_items[] = ['tab' => 'portfel',      'icon' => 'wallet2',      'label' => 'Portfel'];
     $kp_start_items[] = ['tab' => 'upowaznieni',  'icon' => 'person-check', 'label' => 'Upoważnieni'];
   }
-  $kp_start_items[] = ['tab' => 'online',      'icon' => 'camera-video', 'label' => 'Szkolenia online'];
-  $kp_start_items[] = ['tab' => 'vlab',        'icon' => 'code-square',  'label' => 'VLab'];
   $kp_start_items[] = ['tab' => 'licencje',    'icon' => 'key',          'label' => 'Licencje',   'badge' => !empty($my_licenses) ? count($my_licenses) : 0];
   $kp_start_items[] = ['tab' => 'pfron',       'icon' => 'shield-lock',  'label' => 'PFRON (konsultacje)'];
   // Moduł materiałów zewnętrznych — kafel prowadzi poza panel, stąd pełny adres

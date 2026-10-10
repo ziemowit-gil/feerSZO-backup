@@ -78,11 +78,8 @@ $_alt_sections = [
     ],
     'dostepy' => [
         'label' => 'Dostępy',
-        'href'  => $_g('online'),
+        'href'  => $_g('licencje'),
         'items' => [
-            $_it('online',   'Szkolenia online',   $_g('online')),
-            $_it('vlab',     'VLab',               $_g('vlab')),
-            $_it('dysk',     'Mój dysk',           $_g('dysk')),
             $_it('licencje', 'Licencje',           $_g('licencje'), $_n_lic),
             $_it('pfron',    'PFRON (konsultacje)', $_g('pfron')),
             $_it('',         'Biblioteka materiałów', '../ext/index.php?as=student'),
