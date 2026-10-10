@@ -54,7 +54,7 @@ loginShellHead([
         'Prowadzisz zajęcia TI? Użyj logowania prowadzącego.',
     ],
     'mainId'    => 'k30-login-main',
-    'account'   => ['register', 'reset'],
+    'account'   => ['register'],   // „Nie pamiętasz hasła?” jest w karcie, pod polem hasła
     'registerOpen' => function_exists('register_is_open') && register_is_open(),
 ]);
 ?>
@@ -92,6 +92,7 @@ loginShellHead([
               <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
           </div>
+          <a href="<?= h_($APP) ?>/user/verify_reset.php" class="d-inline-block mt-2 small">Nie pamiętasz hasła?</a>
         </div>
 
         <button type="submit" class="tz-btn">Zaloguj do modułu</button>

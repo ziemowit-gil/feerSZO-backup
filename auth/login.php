@@ -334,7 +334,7 @@ require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'          => 'Logowanie',
     'side_title'     => 'Logowanie do systemu (SZO)',
-    'account_buttons'=> ['register', 'reset'],
+    'account_buttons'=> ['register'],   // „Nie pamiętasz hasła?” jest w karcie, pod polem hasła
     'side_sub'       => 'Jak się zalogować:',
     'side_steps'     => [
         'Masz konto @feer.org.pl? Wybierz „Zaloguj przez Microsoft 365”.',

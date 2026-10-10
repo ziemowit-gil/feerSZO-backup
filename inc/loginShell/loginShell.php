@@ -57,6 +57,7 @@ body.tzl { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; 
 .tz-actions-sub { color: #cbd5e1; font-size: .88rem; margin: 0 0 .6rem; }
 .tz-actions ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; font-size: .9rem; }
 .tz-actions li { margin: 0; }
+.tz-actions li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .tz-actions a { display: flex; align-items: center; gap: .5rem; min-height: 48px; padding: .55rem .75rem; color: #fff; text-decoration: none; font-weight: 600; background: var(--tz-k, #2d2d2d); }
 .tz-actions a:hover { filter: brightness(1.12); color: #fff; text-decoration: underline; }
 .tz-actions a .bi { font-size: 1.15rem; flex-shrink: 0; }
@@ -82,9 +83,8 @@ body.tzl { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; 
 .tz-account { margin-top: 1.75rem; max-width: 420px; }
 .tz-account-h { color: #cbd5e1; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 .6rem; }
 .tz-account .tz-btn { text-align: left; }
-.tz-btn-dark { background: #fff; color: #1d1d1d; border: 2px solid {$a}; }
-.tz-side a.tz-btn { color: #fff; } .tz-side a.tz-btn-dark { color: #1d1d1d; }
-.tz-btn-dark:hover, .tz-side a.tz-btn-dark:hover { background: #e6f6fc; color: #1d1d1d; }
+.tz-side a.tz-btn-side { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); font-weight: 600; }
+.tz-side a.tz-btn-side:hover { background: rgba(255,255,255,.1); border-color: #fff; color: #fff; }
 .tz-card :focus-visible, .tz-side a:focus-visible, .tz-banner a:focus-visible, .tz-btn:focus-visible, .tz-footer a:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
 .tz-footer { text-align: center; font-size: .85rem; color: #4b5563; padding: 1rem; }
 .tz-footer a { color: #1d4ed8; text-decoration: none; margin: 0 .5rem; }
@@ -162,7 +162,7 @@ function loginShellAccountButtons(array $which = ['register', 'reset'], bool $re
         if (!isset($btn[$k]) || ($k === 'register' && !$registerOpen)) continue;
         [$path, $label, $icon] = $btn[$k];
         if ($self !== '' && str_ends_with($self, $path)) continue;
-        $out .= '<a href="' . $app . $path . '" class="tz-btn' . ($out === '' ? '' : ' tz-btn-dark') . '">'
+        $out .= '<a href="' . $app . $path . '" class="tz-btn tz-btn-side">'
               . '<i class="bi ' . $icon . ' me-2" aria-hidden="true"></i>' . $label . '</a>';
     }
     if ($out === '') return '';
