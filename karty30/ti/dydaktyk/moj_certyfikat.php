@@ -127,19 +127,13 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <div class="alert alert-warning small py-2">Konto nie ma adresu e-mail. Poproś kierownika o jego uzupełnienie.</div>
     <?php else: ?>
     <p class="small mb-2">
-      System wygeneruje certyfikat z losowym hasłem. <strong>Plik przyjdzie mailem, hasło SMS-em.</strong>
+      Hasło do pliku ustawiasz <strong>sam</strong> w kreatorze — system go nie losuje i nigdzie nie wysyła.
+      Plik certyfikatu przyjdzie mailem.
       <?= $ma ? 'Obecny certyfikat przestanie wtedy działać.' : '' ?>
     </p>
-    <form method="post" onsubmit="return confirm('<?= $ma ? 'Wygenerować nowy certyfikat? Obecny przestanie działać.' : 'Wygenerować certyfikat?' ?>');">
-      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-      <?php if ($brak_tel): ?>
-      <label class="form-label small mb-1" for="myPhone">Numer telefonu (na niego przyjdzie hasło)</label>
-      <input type="tel" class="form-control form-control-sm mb-2" id="myPhone" name="phone" style="max-width:14rem" required>
-      <?php endif; ?>
-      <button type="submit" class="btn <?= $ma ? 'btn-outline-warning' : 'btn-primary' ?>" <?= ti_cert_generation_open() ? '' : 'disabled' ?>>
-        <i class="bi bi-<?= $ma ? 'arrow-repeat' : 'key' ?> me-1" aria-hidden="true"></i><?= $ma ? 'Wygeneruj nowy certyfikat' : 'Wygeneruj certyfikat' ?>
-      </button>
-    </form>
+    <button type="button" class="btn <?= $ma ? 'btn-outline-warning' : 'btn-primary' ?>" data-bs-toggle="modal" data-bs-target="#ustawHaslo" <?= ti_cert_generation_open() ? '' : 'disabled' ?>>
+      <i class="bi bi-<?= $ma ? 'arrow-repeat' : 'key' ?> me-1" aria-hidden="true"></i><?= $ma ? 'Wygeneruj nowy certyfikat' : 'Wygeneruj certyfikat' ?>
+    </button>
     <?php endif; ?>
   </div>
 </div>
@@ -147,15 +141,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <div class="card border-0 shadow-sm mt-3">
   <div class="card-body">
     <h2 class="h6 fw-semibold mb-2">Hasło do pliku certyfikatu</h2>
-    <ul class="small mb-3 ps-3">
-      <li><strong>Hasło losowe</strong> — wygenerowane przez system, przychodzi SMS-em (przycisk powyżej).</li>
-      <li><strong>Własne hasło</strong> — ustawiasz je sam w okienku. Plik z nowym hasłem przychodzi mailem.</li>
-    </ul>
-    <?php if (!$brak_email): ?>
-    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ustawHaslo" <?= ti_cert_generation_open() ? '' : 'disabled' ?>>
-      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Ustaw własne hasło
-    </button>
-    <?php endif; ?>
+    <p class="small mb-0">Hasło wybierasz sam w kreatorze (przycisk powyżej). Zapamiętaj je — nie zapisujemy go i nie wysyłamy.</p>
   </div>
 </div>
 
