@@ -47,6 +47,22 @@ foreach ($_st_glowne_klucze as $_gk) {
     foreach ($_st_wszystkie as $_p) { if ($_p['klucz'] === $_gk) { $_st_glowne[] = $_p; break; } }
 }
 
+// Bez dubli w siatce: „Dane kursanta” i „Aktywność” są już w pasku nad panelem,
+// a link z „Najważniejsze” nie powtarza się w sekcjach menu.
+$_st_pasek_klucze = ['dane', 'aktywnosc'];
+$_st_uzyte = array_flip(array_column($_st_glowne, 'href'));
+$_st_sekcje_bez_dubli = [];
+foreach ($_st_sekcje as $_sec) {
+    $_poz = [];
+    foreach ($_sec['pozycje'] as $_k) {
+        if (in_array($_k['klucz'], $_st_pasek_klucze, true) || isset($_st_uzyte[$_k['href']])) continue;
+        $_st_uzyte[$_k['href']] = true;
+        $_poz[] = $_k;
+    }
+    if ($_poz) $_st_sekcje_bez_dubli[] = ['label' => $_sec['label'], 'pozycje' => $_poz];
+}
+$_st_sekcje = $_st_sekcje_bez_dubli;
+
 // Na dziś: zajęcia, zadania nadchodzące i oddane
 $_st_now = date('Y-m-d H:i:s');
 $_st_nad = []; $_st_odd = [];
@@ -63,8 +79,14 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
     <h1 class="h4 fw-bold mb-0" id="kp-start-h">Panel kursanta</h1>
     <div class="kp-szukaj-box">
       <label for="kp-szukaj" class="visually-hidden">Szukaj w panelu</label>
-      <input type="search" id="kp-szukaj" class="form-control" placeholder="Szukaj w panelu: oceny, lekcje, zapisy…"
-             autocomplete="off" aria-describedby="kp-szukaj-wynik">
+      <div class="kp-szukaj-pole">
+        <i class="bi bi-search kp-szukaj-lupa" aria-hidden="true"></i>
+        <input type="search" id="kp-szukaj" class="kp-szukaj-input" placeholder="Szukaj: oceny, lekcje, zapisy…"
+               autocomplete="off" aria-describedby="kp-szukaj-wynik">
+        <button type="button" class="kp-szukaj-strzalka" id="kp-szukaj-idz" aria-label="Przejdź do pierwszego wyniku">
+          <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        </button>
+      </div>
       <div class="small mt-1" id="kp-szukaj-wynik" aria-live="polite"></div>
     </div>
   </div>
@@ -191,6 +213,16 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
   var pozycje = wyniki.querySelectorAll('.kp-kafel-poz');
   var info = document.getElementById('kp-szukaj-wynik');
   var brak = document.getElementById('kp-brak');
+  // Strzałka i Enter przenoszą fokus do pierwszego pasującego kafla
+  var idz = document.getElementById('kp-szukaj-idz');
+  var przejdz = function () {
+    var pierwszy = wyniki.querySelector('.kp-kafel-poz:not(.d-none) a');
+    if (pierwszy) pierwszy.focus();
+  };
+  idz.addEventListener('click', przejdz);
+  inp.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); przejdz(); }
+  });
   inp.addEventListener('input', function () {
     var q = inp.value.trim().toLowerCase();
     if (q === '') {

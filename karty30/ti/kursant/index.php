@@ -1698,14 +1698,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Szybki popup zachęcający do dodania kalendarza lekcji (iCal) — position:fixed, prawy dolny róg -->
 <div id="kpIcalPopup"
-     role="dialog" aria-modal="true" aria-labelledby="kpIcalPopupTitle"
-     tabindex="-1"
+     role="region" aria-labelledby="kpIcalPopupTitle"
      style="display:none;position:fixed;z-index:1080;bottom:1.5rem;right:1.5rem;
             width:min(380px,calc(100vw - 2rem));
-            background:#1e293b;color:#f1f5f9;
-            border:2px solid #2563eb;border-radius:.6rem;
-            box-shadow:0 8px 32px rgba(0,0,0,.5);">
-  <div style="background:#2563eb;color:#fff;border-radius:.45rem .45rem 0 0;
+            background:#fff;color:#1d1d1d;
+            border:2px solid #1d1d1d;
+            box-shadow:0 8px 32px rgba(0,0,0,.25);">
+  <div style="background:#1ba1e2;color:#1d1d1d;border-bottom:2px solid #1d1d1d;
               padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;">
     <i class="bi bi-calendar-plus" aria-hidden="true"></i>
     <h2 class="mb-0 fw-bold" id="kpIcalPopupTitle" style="font-size:1rem">Dodaj lekcje do kalendarza</h2>
@@ -1718,10 +1717,10 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <div style="padding:.5rem 1rem .8rem;display:flex;justify-content:flex-end;gap:.5rem">
     <button type="button" id="kpIcalPopupLater"
-            style="background:transparent;color:#cbd5e1;border:1px solid #475569;border-radius:.375rem;
+            style="background:#fff;color:#1d1d1d;border:2px solid #1d1d1d;border-radius:0;
                    padding:.3rem .8rem;font-size:.875rem;cursor:pointer">Nie teraz</button>
     <button type="button" id="kpIcalPopupGo" data-bs-toggle="modal" data-bs-target="#kpCalSubModal"
-            style="background:#2563eb;color:#fff;border:none;border-radius:.375rem;
+            style="background:#1d1d1d;color:#fff;border:2px solid #1d1d1d;border-radius:0;
                    padding:.3rem .9rem;font-weight:600;cursor:pointer;font-size:.875rem">
       <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Dodaj kalendarz
     </button>
