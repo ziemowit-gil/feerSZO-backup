@@ -227,3 +227,14 @@ body.kur-alt.ti-skin summary.card-header,
 body.kur-alt.ti-skin summary.card-body { background: #1d1d1d !important; color: #fff !important; }
 body.kur-alt.ti-skin summary.card-body .dyd-hw-chevron,
 body.kur-alt.ti-skin summary .bi { color: #fff !important; }
+
+/* Wspólny styl menu METRO — wszystkie trzy sposoby nawigacji (zakładki, rozwijana, dropdown)
+   wyglądają tak samo: wielkie litery, ten sam rozmiar, ten sam kolor aktywnego kafla #1ba1e2. */
+body.kur-alt.ti-skin .skin-sections a,
+body.kur-alt.ti-skin .skin-dd-btn,
+body.kur-alt.ti-skin .skin-menu-rozwijane > summary {
+  text-transform: uppercase; letter-spacing: .04em; font-size: .85rem; font-weight: 600;
+  line-height: 1.2;
+}
+body.kur-alt.ti-skin .skin-menu-rozwijane > summary { display: block; }
+body.kur-alt.ti-skin .skin-subnav a { font-size: .9rem; }
