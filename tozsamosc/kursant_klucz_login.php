@@ -25,7 +25,7 @@ try {
         $acc = $login !== '' ? db_one(
             "SELECT id FROM k30_ti_student_accounts
               WHERE (login = ? OR (login_alias != '' AND login_alias = ?)) AND is_active = 1
-                AND child_access_blocked = 0 AND last_login IS NOT NULL",
+                AND child_access_blocked = 0 AND last_login IS NOT NULL AND COALESCE(sec_chosen, 0) = 1",
             [$login, $login]) : null;
         if (!$acc || ti_sw_count((int)$acc['id']) === 0) {
             throw new \RuntimeException('Dla tego loginu nie ma zarejestrowanego klucza.');

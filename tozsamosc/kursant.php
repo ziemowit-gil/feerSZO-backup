@@ -13,6 +13,7 @@ require_once dirname(__DIR__) . '/karty30/ti/kursant/auth.php';
 require_once dirname(__DIR__) . '/includes/ti_sec_image.php';
 
 karty30_migrate();
+ti_sec_image_migrate();
 if (student_current()) { header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit; }
 
 $blad  = '';
@@ -26,8 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acc && !empty($acc['child_access_blocked'])) {
         $blad = 'Dostęp do panelu jest wstrzymany przez opiekuna. Skontaktuj się z rodzicem lub opiekunem.';
-    } elseif ($acc && empty($acc['last_login'])) {
-        // Pierwsze logowanie: kod SMS na telefon z karty.
+    } elseif ($acc && (empty($acc['last_login']) || empty($acc['sec_chosen']))) {
+        // Pierwsze logowanie albo brak ustawionego obrazka: ponowna autoryzacja jak przy pierwszym logowaniu (kod SMS, bez starego hasła).
         if (ti_student_otp_send((int)$acc['id'], (int)$acc['client_id'])) {
             student_start();
             $_SESSION['k30_ti_student_otp'] = ['id' => (int)$acc['id'], 'ts' => time()];

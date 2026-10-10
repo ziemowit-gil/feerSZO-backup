@@ -16,19 +16,22 @@ $student = student_current();
 if (!$student) { header('Location: ' . APP_URL . '/tozsamosc/kursant.php'); exit; }
 
 $blad = '';
+$_mcp = db_one("SELECT must_change_password FROM k30_ti_student_accounts WHERE id = ?", [(int)$student['id']]);
+$wymuszona = !empty($_mcp['must_change_password']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $cur = (string)($_POST['current'] ?? '');
     $new = (string)($_POST['new'] ?? '');
     $cnf = (string)($_POST['confirm'] ?? '');
     $acc = db_one("SELECT password_hash, ms_user_id, ms_upn FROM k30_ti_student_accounts WHERE id = ?", [(int)$student['id']]);
-    if (!$acc || !password_verify($cur, (string)$acc['password_hash'])) {
+    // Po logowaniu kodem SMS (wymuszona zmiana) nie pytamy o stare hasło.
+    if (!$acc || (!$wymuszona && !password_verify($cur, (string)$acc['password_hash']))) {
         $blad = 'Aktualne hasło jest nieprawidłowe.';
     } elseif (mb_strlen($new) < 8) {
         $blad = 'Nowe hasło musi mieć co najmniej 8 znaków.';
     } elseif ($new !== $cnf) {
         $blad = 'Nowe hasła nie są identyczne.';
-    } elseif ($new === $cur) {
+    } elseif (!$wymuszona && $new === $cur) {
         $blad = 'Nowe hasło musi różnić się od dotychczasowego.';
     } else {
         db()->prepare("UPDATE k30_ti_student_accounts SET password_hash = ?, must_change_password = 0, updated_at = datetime('now') WHERE id = ?")
@@ -81,10 +84,12 @@ $ok = isset($_GET['ok']);
 
   <form method="post" autocomplete="off">
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <?php if (!$wymuszona): ?>
     <div class="mb-3">
       <label for="hs-cur" class="form-label fw-semibold">Aktualne hasło</label>
       <input type="password" class="form-control form-control-lg" id="hs-cur" name="current" required autocomplete="current-password">
     </div>
+    <?php endif; ?>
     <div class="mb-3">
       <label for="hs-new" class="form-label fw-semibold">Nowe hasło</label>
       <input type="password" class="form-control form-control-lg" id="hs-new" name="new" required minlength="8" autocomplete="new-password">
