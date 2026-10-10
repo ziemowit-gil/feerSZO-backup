@@ -41,8 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['_op'] ?? '') === 'revoke') {
         $cid = (int)($_POST['cert_id'] ?? 0);
         if ($cid && db_one("SELECT id FROM admin_x509_certs WHERE id = ? AND revoked_at IS NULL", [$cid])) {
+            $_rv = db_one("SELECT c.numer, u.phone_number FROM admin_x509_certs c JOIN users u ON u.id = c.user_id WHERE c.id = ?", [$cid]);
             x509_revoke($cid);
-            flash_set('success', 'Certyfikat odwołany — przestaje działać przy podpisie.');
+            // Posiadacz dostaje SMS o odwołaniu.
+            ti_cert_sms((string)($_rv['phone_number'] ?? ''), 'FEER: certyfikat ' . ($_rv['numer'] ?: '') . ' zostal odwolany i nie bedzie dzialac przy podpisie protokolow. Skontaktuj sie z kierownikiem.', 'ti_dydaktyka_notice');
+            flash_set('success', 'Certyfikat odwołany — przestaje działać przy podpisie. Posiadacz dostał SMS.');
         } else {
             flash_set('danger', 'Nie ma takiego aktywnego certyfikatu.');
         }
@@ -169,7 +172,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <?php
 // Zarządzanie: wszystkie certyfikaty wystawione w systemie, ze statusem i odwołaniem.
 $wszystkie = db_all(
-    "SELECT c.id, c.subject_cn, c.issued_at, c.valid_to, c.revoked_at, u.name
+    "SELECT c.id, c.subject_cn, c.numer, c.issued_at, c.valid_to, c.revoked_at, u.name
        FROM admin_x509_certs c LEFT JOIN users u ON u.id = c.user_id
       ORDER BY c.issued_at DESC LIMIT 200"
 );
@@ -181,7 +184,7 @@ $wszystkie = db_all(
   <?php else: ?>
   <div class="table-responsive">
   <table class="table table-sm align-middle mb-0">
-    <thead><tr><th scope="col">Użytkownik</th><th scope="col">Wystawiony</th><th scope="col">Ważny do</th><th scope="col">Status</th><th scope="col" class="text-end">Akcja</th></tr></thead>
+    <thead><tr><th scope="col">Numer</th><th scope="col">Użytkownik</th><th scope="col">Wystawiony</th><th scope="col">Ważny do</th><th scope="col">Status</th><th scope="col" class="text-end">Akcja</th></tr></thead>
     <tbody>
     <?php foreach ($wszystkie as $c):
       if (!empty($c['revoked_at'])) { $st = ['secondary', 'odwołany']; }
@@ -189,6 +192,7 @@ $wszystkie = db_all(
       else { $st = ['success', 'aktywny']; }
     ?>
       <tr<?= !empty($c['revoked_at']) ? ' class="text-body-secondary"' : '' ?>>
+        <td class="font-monospace small"><?= h($c['numer'] ?: '—') ?></td>
         <td><?= h($c['name'] ?: $c['subject_cn']) ?></td>
         <td class="small"><?= h(date('d.m.Y', strtotime((string)$c['issued_at']))) ?></td>
         <td class="small"><?= h(date('d.m.Y', strtotime((string)$c['valid_to']))) ?></td>

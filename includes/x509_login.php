@@ -25,6 +25,8 @@ function x509_init(): void {
     } catch (\Throwable $e) {
         error_log('[x509_login] migrate: ' . $e->getMessage());
     }
+    // Numer certyfikatu w formacie CERT/RRRR/NNNN (nadawany przy wystawieniu).
+    try { db()->exec("ALTER TABLE admin_x509_certs ADD COLUMN numer TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 }
 
 /**
@@ -173,6 +175,20 @@ function x509_sign_payload_p12(int $user_id, string $p12_data, string $password,
         'subject'       => (string)($parsed['subject']['CN'] ?? ''),
         'signature_b64' => base64_encode($signature),
     ];
+}
+
+/**
+ * Nadaje numer CERT/RRRR/NNNN najnowszemu certyfikatowi użytkownika (zaraz po wystawieniu).
+ * Numer rośnie w obrębie roku i jest unikalny w systemie. Zwraca nadany numer.
+ */
+function x509_assign_number(int $user_id): string {
+    x509_init();
+    $rok   = date('Y');
+    $ile   = (int)db_one("SELECT COUNT(*) AS n FROM admin_x509_certs WHERE numer LIKE ?", ['CERT/' . $rok . '/%'])['n'];
+    $numer = sprintf('CERT/%s/%04d', $rok, $ile + 1);
+    db()->prepare("UPDATE admin_x509_certs SET numer = ? WHERE id = (SELECT MAX(id) FROM admin_x509_certs WHERE user_id = ?)")
+        ->execute([$numer, $user_id]);
+    return $numer;
 }
 
 /** Czy użytkownik ma co najmniej jeden certyfikat aktywny (nie odwołany, nie wygasły). */
