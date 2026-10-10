@@ -9,7 +9,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Czym jest SSO — Panel TI</title>
+<title>Czym jest SSO — Panel kursanta</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
   body { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; margin: 0; color: #1d1d1d; }
@@ -24,26 +24,28 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 </style>
 </head>
 <body>
-<header class="bar">FEER · Panel TI</header>
+<header class="bar">FEER · System Tożsamości</header>
 <main class="card-sso">
   <h1>Czym jest SSO?</h1>
-  <p><strong>SSO</strong> (Single Sign-On) to logowanie jednorazowe. Logujesz się raz, a system potwierdza Twoją tożsamość w jednym miejscu. Inne systemy, które z tego korzystają, nie pytają Cię o hasło ponownie.</p>
+  <p><strong>SSO</strong> (Single Sign-On) to jedno logowanie do wielu systemów. Gdyby takie logowanie działało tutaj, wpisywałbyś dane raz, a kolejne systemy nie pytałyby o hasło ponownie.</p>
 
-  <h2>Jak to wygląda w praktyce?</h2>
-  <p>Wchodzisz na stronę logowania, wpisujesz dane i wracasz do panelu. Nie musisz pamiętać osobnych haseł do każdego modułu, bo wszystkie korzystają z jednego miejsca logowania.</p>
+  <h2>Co działa teraz?</h2>
+  <p>Logowanie kursantów odbywa się przez jedną stronę w module Tożsamość. Każde konto ma swoje hasło, więc nadal logujesz się osobno do każdego systemu. Pełne SSO nie jest jeszcze wdrożone.</p>
 
-  <h2>Co jest już w systemie?</h2>
-  <p>Logowanie kursantów odbywa się przez jedną, centralną stronę w module Tożsamość. Prowadzący, rodzice i osoby upoważnione mają nadal swoje formularze. Pełne SSO, czyli jedno logowanie do wszystkich systemów, nie jest jeszcze wdrożone.</p>
+  <h2>Jak wygląda logowanie kursanta?</h2>
+  <ol>
+    <li><strong>Pierwsze logowanie:</strong> wpisujesz login. Kod przychodzi SMS-em na telefon z karty kursanta.</li>
+    <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Ma opis tekstowy, który czyta czytnik ekranu.</li>
+    <li><strong>Hasło:</strong> po pierwszym logowaniu ustawiasz własne hasło.</li>
+  </ol>
+  <p>Jeśli nie widzisz swojego obrazka albo widzisz inny, nie wpisuj hasła.</p>
 
   <h2>Dlaczego to ma znaczenie?</h2>
   <ul>
-    <li>Mniej haseł do zapamiętania.</li>
-    <li>Jedno miejsce kontroli bezpieczeństwa i wylogowania.</li>
-    <li>Łatwiejsze zarządzanie kontami przez administratorów.</li>
+    <li>Jedno miejsce logowania dla kursantów.</li>
+    <li>Obrazek pomaga sprawdzić, że strona jest prawdziwa.</li>
+    <li>Administratorzy zarządzają kontami z jednego miejsca.</li>
   </ul>
-
-  <h2>Czy moje dane są bezpieczne?</h2>
-  <p>Hasło wpisujesz tylko na stronie logowania systemu. Obrazek bezpieczeństwa pomaga sprawdzić, że strona jest prawdziwa. W razie wątpliwości zgłoś to kierownikowi jednostki.</p>
 
   <p class="mt-4"><a class="btn-back" href="login.php">Wróć do logowania</a></p>
 </main>
