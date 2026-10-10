@@ -1961,13 +1961,31 @@ document.addEventListener('DOMContentLoaded', function() {
     </ul>
     <?php endif; ?>
   </section>
+  <script>
+  // Dwie kolumny bez dziur: przenosi bloki do kolumn (zmienia też kolejność w DOM, więc czytnik czyta
+  // w tej samej kolejności, co widać). Bez JS strona zostaje w jednej kolumnie.
+  document.addEventListener('DOMContentLoaded', function () {
+    var main = document.querySelector('main.kp-dane-grid');
+    if (!main || main.querySelector('.kp-dane-kolumny')) return;
+    var lewa  = ['.kp-dane-osoba', '.kp-dane-komunikaty', '.kp-rk-banner', '.kp-dane-postep', '.kp-dane-napisz'];
+    var prawa = ['.kp-dane-kursy', '.kp-dane-mojekursy', '.kp-dane-uslugi'];
+    var box = document.createElement('div'); box.className = 'kp-dane-kolumny';
+    var kl = document.createElement('div'); kl.className = 'kp-dane-kol';
+    var kp = document.createElement('div'); kp.className = 'kp-dane-kol';
+    box.appendChild(kl); box.appendChild(kp);
+    var nagl = main.querySelector('.kp-dane-naglowek');
+    if (nagl) nagl.after(box); else main.prepend(box);
+    lewa.forEach(function (sel) { var el = main.querySelector(sel); if (el && !box.contains(el)) kl.appendChild(el); });
+    prawa.forEach(function (sel) { var el = main.querySelector(sel); if (el && !box.contains(el)) kp.appendChild(el); });
+  });
+  </script>
   <?php endif; ?>
 
   <!-- ── Pasek postępu kursu ─────────────────────────────────────────────── -->
   <?php if ($progress_total > 0): ?>
-  <div class="mb-3">
+  <div class="mb-3 kp-dane-postep">
     <div class="d-flex justify-content-between small text-body-secondary mb-1">
-      <span><i class="bi bi-graph-up me-1"></i>Postęp kursu</span>
+      <span><i class="bi bi-graph-up me-1" aria-hidden="true"></i>Postęp kursu</span>
       <span><?= $progress_done ?>/<?= $progress_total ?> lekcji (<?= $progress_pct ?>%)</span>
     </div>
     <div class="progress" style="height:8px" role="progressbar"
@@ -2107,9 +2125,9 @@ document.addEventListener('DOMContentLoaded', function() {
   </section>
   <?php endif; ?>
   <?php if ($instructors_for_quick): ?>
-  <div class="mb-4">
+  <div class="mb-4 kp-dane-napisz">
     <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalQuickMsg">
-      <i class="bi bi-chat-dots me-1"></i>Napisz do prowadzącego
+      <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Napisz do prowadzącego
     </button>
   </div>
   <?php endif; ?>
@@ -2232,7 +2250,7 @@ document.addEventListener('DOMContentLoaded', function() {
   ?>
 
   <?php if ($active_courses): ?>
-  <div class="card mb-4">
+  <div class="card mb-4 kp-dane-mojekursy">
     <div class="card-header fw-semibold d-flex align-items-center gap-2">
       <i class="bi bi-pc-display text-primary" aria-hidden="true"></i>Moje kursy
     </div>
@@ -2375,7 +2393,7 @@ document.addEventListener('DOMContentLoaded', function() {
         default       => '',
     };
   ?>
-  <div class="card border-0 shadow-sm mb-4 <?= $nl_today ? 'border-start border-4 border-warning' : '' ?>">
+  <div class="card border-0 shadow-sm mb-4 kp-dane-nastepna <?= $nl_today ? 'border-start border-4 border-warning' : '' ?>">
     <div class="card-body d-flex align-items-center gap-3 py-3">
       <a href="?tab=lekcje" class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-decoration-none <?= $nl_today ? 'text-bg-warning' : 'text-bg-primary' ?>"
          style="width:48px;height:48px;font-size:1.4rem" aria-hidden="true">
@@ -2411,7 +2429,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php endif; ?>
 
   <!-- Skróty -->
-  <div class="row g-3">
+  <div class="row g-3 kp-dane-skroty">
     <div class="col-6 col-lg-3">
       <a href="?tab=lekcje" class="card h-100 text-decoration-none"><div class="card-body">
         <div class="fs-3 fw-bold lh-1"><?= $total_lessons ?></div>
@@ -2445,7 +2463,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if ($sum_vps && $sum_vps['status'] === 'cancelled') $sum_vps = null;
     $sum_lic    = k30_ti_client_licenses((int)$student['client_id']);
   ?>
-  <div class="card border-0 shadow-sm mt-4">
+  <div class="card border-0 shadow-sm mt-4 kp-dane-uslugi">
     <div class="card-header fw-semibold d-flex align-items-center gap-2">
       <i class="bi bi-stars text-primary" aria-hidden="true"></i>Usługi dodatkowe
     </div>

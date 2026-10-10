@@ -842,3 +842,32 @@ body.kur-alt.ti-skin .kp-dane-kom-tytul { flex: 1; min-width: 0; overflow: hidde
 body.kur-alt.ti-skin .kp-dane-kom-nowy .kp-dane-kom-tytul { font-weight: 700; }
 body.kur-alt.ti-skin .kp-dane-kom-znacznik { font-size: .72rem; font-weight: 700; background: #1ba1e2; color: #1d1d1d; padding: .05rem .4rem; border: 1px solid #1d1d1d; }
 body.kur-alt.ti-skin .kp-dane-kom-data { font-size: .8rem; color: #374151; flex-shrink: 0; }
+
+/* ── Bez powtórzeń w widoku alternatywnym ──
+   „Masz dziś zajęcia” był na KAŻDEJ zakładce — informację niosą: kafel Najbliższe zajęcia (start),
+   lista Najbliższe zajęcia (Dane) i okno po zalogowaniu. Na Dane dodatkowo: karta „Następna lekcja”
+   (= pierwszy wiersz Najbliższych) i rząd skrótów z liczbami (lekcje/zadania/wiadomości/licencje są
+   w pasku postępu, menu i Usługach dodatkowych). */
+body.kur-alt.ti-skin [role="region"][aria-label="Zajęcia dzisiaj"] { display: none !important; }
+body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-nastepna,
+body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-skroty { display: none !important; }
+
+/* ── „Dane” w dwóch kolumnach (kolumny buduje skrypt; bez JS — jedna kolumna) ── */
+body.kur-alt.ti-skin main.kp-dane-grid { max-width: 1200px; }
+body.kur-alt.ti-skin .kp-dane-kolumny { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; align-items: start; }
+body.kur-alt.ti-skin .kp-dane-kol { display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+body.kur-alt.ti-skin .kp-dane-kol > * { margin: 0 !important; width: 100%; }
+@media (max-width: 991.98px) { body.kur-alt.ti-skin .kp-dane-kolumny { grid-template-columns: minmax(0, 1fr); } }
+body.kur-alt.ti-skin .kp-dane-postep { background: #fff; border: 2px solid #1d1d1d; padding: .6rem .9rem; }
+body.kur-alt.ti-skin .kp-dane-napisz .btn { width: 100%; justify-content: center; }
+
+/* ── Ikony nagłówków: kwadrat w akcencie z ciemnym znakiem (kontrast 5,8:1), ozdobne (aria-hidden) ── */
+body.kur-alt.ti-skin main.kp-dane-grid h2 > i.bi,
+body.kur-alt.ti-skin main.kp-dane-grid .card-header > i.bi,
+body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-postep i.bi {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.8rem; height: 1.8rem; margin-right: .5rem !important; flex-shrink: 0;
+  background: #1ba1e2; color: #1d1d1d !important; font-size: 1rem; vertical-align: middle;
+}
+body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-komunikaty h2 > i.bi { background: #f0a30a; }
+body.kur-alt.ti-skin main.kp-dane-grid .card-header { display: flex; align-items: center; }
