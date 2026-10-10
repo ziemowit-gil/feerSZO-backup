@@ -812,3 +812,10 @@ body.kur-alt.ti-skin .kp-dzis-lekcja { border: 2px solid #1d1d1d !important; bor
 body.kur-alt.ti-skin .kp-dzis-lekcja .fw-bold { font-size: 1.1rem; }
 body.kur-alt.ti-skin .kp-dzis-lekcja time { font-weight: 700; font-size: 1.05rem; }
 body.kur-alt.ti-skin .modal-backdrop.show { opacity: .6; }
+
+/* Zakładka „Dane”: zamiast siatki 2 kolumn (dziury przy blokach różnej wysokości) — jedna kolumna bez przerw,
+   dane kursanta na górze, pozostałe bloki pod spodem w kolejności z panelu */
+body.kur-alt.ti-skin main.kp-dane-grid { display: flex !important; flex-direction: column; gap: 1rem; grid-template-columns: none; }
+body.kur-alt.ti-skin main.kp-dane-grid > * { width: 100%; margin-bottom: 0 !important; }
+body.kur-alt.ti-skin main.kp-dane-grid > .kp-dane-osoba { order: -1; }
+body.kur-alt.ti-skin main.kp-dane-grid > :empty { display: none; }
