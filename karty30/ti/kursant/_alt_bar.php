@@ -173,3 +173,17 @@ foreach ($_cur_sec['items'] as $_i) {
     &rsaquo; <strong><?= h($_cur_label) ?></strong>
   <?php endif; ?>
 </div>
+
+<?php /* Układ kafelkowy: pozycje bieżącej sekcji jako kafle, aktualna wyróżniona */ ?>
+<nav class="kp-sekcja-kafle container-xl px-3 pt-3" aria-label="Pozycje sekcji <?= h($_cur_sec['label']) ?>">
+  <ul class="kp-kafle kp-kafle-mini">
+    <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
+    <li>
+      <a class="kp-kafel kp-kafel-mini<?= in_array($_i['tab'], ['lekcje', 'zadania', 'komunikaty', 'oceny'], true) ? ' kp-kafel-glowny' : '' ?><?= $_act ? ' active' : '' ?>" href="<?= h($_i['href']) ?>"<?= $_act ? ' aria-current="page"' : '' ?>>
+        <span class="kp-kafel-tytul"><?= h($_i['label']) ?></span>
+        <?php if ($_i['n'] > 0): ?><span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
+      </a>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+</nav>

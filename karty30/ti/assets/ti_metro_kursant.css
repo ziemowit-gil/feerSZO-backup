@@ -257,3 +257,16 @@ body.kur-alt.ti-skin .kp-kafel-dzis { background: #1ba1e2; color: #1d1d1d; borde
 body.kur-alt.ti-skin .kp-kafel-dzis .kp-kafel-sekcja { color: #1d1d1d; }
 body.kur-alt.ti-skin .kp-kafel-stan .kp-kafel-sekcja { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #374151; }
 body.kur-alt.ti-skin .kp-link { color: #0f6fa8; text-decoration: underline; }
+
+/* Układ kafelkowy pod okruszkami: rząd kafli pozycji sekcji; najważniejsze (niebieskie), reszta biała */
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafle-mini {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; padding: 0; margin: 0 0 .5rem;
+}
+body.kur-alt.ti-skin .kp-kafel-mini {
+  min-height: 56px; padding: .6rem .75rem; background: #fff; color: #1d1d1d; border-bottom: 3px solid #1ba1e2;
+  font-size: .9rem; font-weight: 600; flex-direction: row; align-items: center; justify-content: space-between; gap: .4rem;
+}
+body.kur-alt.ti-skin .kp-kafel-mini.kp-kafel-glowny { background: #1ba1e2; color: #1d1d1d; border-bottom-color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-kafel-mini.kp-kafel-glowny:hover { background: #3fb0e8; }
+body.kur-alt.ti-skin .kp-kafel-mini.active { background: #1d1d1d; color: #fff; border-bottom-color: #facc15; }
+body.kur-alt.ti-skin .kp-kafel-mini:hover { background: #e5e7eb; text-decoration: underline; }
