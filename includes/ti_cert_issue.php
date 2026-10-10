@@ -147,11 +147,23 @@ function ti_cert_issue_for_instructor(int $target_id, string $issuer_name): arra
  * i obecnego hasła (klucz prywatny nie jest przechowywany na serwerze). Zwraca jak ti_cert_deliver()
  * albo ok=false z błędem.
  */
+/**
+ * Siła hasła do certyfikatu: co najmniej 16 znaków i co najmniej 3 z 4 rodzajów znaków
+ * (mała litera, wielka litera, cyfra, znak specjalny). Zwraca komunikat błędu albo null.
+ */
+function ti_cert_password_error(string $p): ?string {
+    if (mb_strlen($p) < 16) return 'Hasło musi mieć co najmniej 16 znaków.';
+    $klasy = (preg_match('/[a-zęóąśłżźćń]/u', $p) ? 1 : 0) + (preg_match('/[A-ZĘÓĄŚŁŻŹĆŃ]/u', $p) ? 1 : 0)
+           + (preg_match('/\d/', $p) ? 1 : 0) + (preg_match('/[^\p{L}\d]/u', $p) ? 1 : 0);
+    if ($klasy < 3) return 'Hasło musi zawierać co najmniej 3 rodzaje znaków: małe litery, wielkie litery, cyfry, znaki specjalne.';
+    return null;
+}
+
 function ti_cert_set_own_password(int $uid, string $new_password): array {
     $u = db_one("SELECT id, name, email, phone_number FROM users WHERE id = ? AND is_active = 1", [$uid]);
     if (!$u) return ['ok' => false, 'error' => 'Nie ma takiego aktywnego konta.'];
     if (trim((string)$u['email']) === '') return ['ok' => false, 'error' => 'W koncie brakuje adresu e-mail.'];
-    if (strlen($new_password) < 8) return ['ok' => false, 'error' => 'Hasło musi mieć co najmniej 8 znaków.'];
+    if ($blad = ti_cert_password_error($new_password)) return ['ok' => false, 'error' => $blad];
 
     // Hasło wybiera prowadzący, więc wystawiamy nowy certyfikat z tym hasłem. Stare odwołujemy —
     // stary plik przestaje działać, nawet jeśli ktoś ma jego hasło.

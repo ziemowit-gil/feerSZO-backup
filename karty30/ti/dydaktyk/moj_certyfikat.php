@@ -137,12 +137,12 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <p class="small mb-3">Najpierw wybierz hasło do pliku certyfikatu. Zapamiętaj je — nie zapisujemy go i nie wysyłamy.</p>
             <div class="alert alert-danger small py-2 d-none" id="krokErr" role="alert"></div>
             <div class="mb-2">
-              <label class="form-label small mb-1" for="newPwd">Hasło (min. 8 znaków)</label>
-              <input type="password" class="form-control" id="newPwd" name="new_password" minlength="8" autocomplete="new-password" required>
+              <label class="form-label small mb-1" for="newPwd">Hasło (min. 16 znaków, min. 3 rodzaje znaków)</label>
+              <input type="password" class="form-control" id="newPwd" name="new_password" minlength="16" autocomplete="new-password" required>
             </div>
             <div>
               <label class="form-label small mb-1" for="newPwd2">Powtórz hasło</label>
-              <input type="password" class="form-control" id="newPwd2" name="new_password2" minlength="8" autocomplete="new-password" required>
+              <input type="password" class="form-control" id="newPwd2" name="new_password2" minlength="16" autocomplete="new-password" required>
             </div>
           </div>
 
@@ -180,7 +180,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   }
   function blad(t) { err.textContent = t; err.classList.remove('d-none'); }
   document.getElementById('krokDalej').addEventListener('click', function () {
-    if (p1.value.length < 8) return blad('Hasło musi mieć co najmniej 8 znaków.');
+    if (p1.value.length < 16) return blad('Hasło musi mieć co najmniej 16 znaków.');
+    var klasy = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z\d]/].filter(function (r) { return r.test(p1.value); }).length;
+    if (klasy < 3) return blad('Hasło musi zawierać co najmniej 3 rodzaje znaków: małe litery, wielkie litery, cyfry, znaki specjalne.');
     if (p1.value !== p2.value) return blad('Hasła nie są takie same.');
     err.classList.add('d-none');
     show(2);
