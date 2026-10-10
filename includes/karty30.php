@@ -2563,6 +2563,7 @@ const K30_TI_COURSE_LOG_ACTIONS = [
     'clear_sessions' => ['label' => 'Wyczyszczono terminy',    'icon' => 'calendar-x',        'color' => 'warning'],
     'delete_session'  => ['label' => 'Usunięto lekcję (kosz)', 'icon' => 'trash',             'color' => 'danger'],
     'restore_session' => ['label' => 'Przywrócono lekcję',     'icon' => 'arrow-counterclockwise', 'color' => 'success'],
+    'cancel_error'    => ['label' => 'Odwołano z powodu błędu', 'icon' => 'x-octagon',        'color' => 'danger'],
     'enroll'       => ['label' => 'Zapisano uczestnika',       'icon' => 'person-plus',       'color' => 'success'],
 ];
 

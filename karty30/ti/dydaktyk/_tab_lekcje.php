@@ -702,6 +702,19 @@ if ($_sms_enabled && $cur_course) {
                          onclick="dydOpenDelSession(<?= (int)$s['id'] ?>,<?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')),ENT_QUOTES) ?>);return false">
                     <i class="bi bi-trash me-2"></i>Usuń lekcję (kosz, z uzasadnieniem)
                   </a></li>
+                  <li>
+                    <form method="post" onsubmit="return dydConfirmTwice('Odwołać lekcję z powodu błędu?', 'Na pewno? Lekcja trafi do kosza jako błędny wpis: nie liczy się do obecności ani statystyk i nie wysyła SMS-ów.')">
+                      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                      <input type="hidden" name="_op" value="cancel_error">
+                      <input type="hidden" name="_tab" value="lekcje">
+                      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                      <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                      <input type="hidden" name="reason" value="Błąd wpisu — lekcja wprowadzona omyłkowo">
+                      <button type="submit" class="dropdown-item text-danger">
+                        <i class="bi bi-x-octagon me-2"></i>Odwołaj z powodu błędu
+                      </button>
+                    </form>
+                  </li>
                   <?php endif; ?>
                   <?php if ($s['status'] === 'cancelled'): ?>
                   <li><hr class="dropdown-divider"></li>

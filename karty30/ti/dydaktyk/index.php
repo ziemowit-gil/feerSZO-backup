@@ -384,7 +384,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'mark_no_show', 'cancel_session', 'uncancel_session', 'reschedule_session',
                     'reschedule_accept', 'excuse_absence', 'unexcuse_absence', 'confirm_reservation'];
     // Kierownik usuwa lekcję z zamkniętego okresu świadomie — z uzasadnieniem (patrz blok kosza poniżej).
-    $_closed_bypass = $op === 'delete_lesson' && dyd_is_staff();
+    $_closed_bypass = in_array($op, ['delete_lesson', 'cancel_error'], true) && dyd_is_staff();
     if (in_array($op, $_closed_ops, true) && !$_closed_bypass && ($_pc_s = ti_period_closed_for_session((int)($_POST['session_id'] ?? 0)))) {
         flash_set('danger', ti_period_closed_msg($_pc_s));
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
@@ -873,7 +873,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Kierownik: usuwanie i przywracanie lekcji (także z przeszłości) — wymaga uzasadnienia,
     // usunięta lekcja trafia do kosza (snapshot), a każda operacja jest w dzienniku grupy i w audit_logs.
-    if (in_array($op, ['delete_lesson', 'restore_session'], true) && dyd_is_staff()) {
+    if (in_array($op, ['delete_lesson', 'cancel_error', 'restore_session'], true) && dyd_is_staff()) {
         $reason = trim((string)($_POST['reason'] ?? ''));
         $by_name = (string)($me['name'] ?? '');
         $back = dyd_back($course_id, 'lekcje');
@@ -881,15 +881,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('danger', 'Podaj uzasadnienie (min. 10 znaków) — jest zapisywane w dzienniku.');
             header('Location: ' . $back); exit;
         }
-        if ($op === 'delete_lesson') {
+        if ($op === 'delete_lesson' || $op === 'cancel_error') {
             $sid = (int)($_POST['session_id'] ?? 0);
             $sess_row = $sid ? db_one("SELECT course_id, lesson_date, time_from FROM k30_ti_sessions WHERE id=?", [$sid]) : null;
             if ($sess_row) {
                 $trash_id = ti_session_trash_put($sid, $reason, $uid, $by_name);
                 $label = date('d.m.Y', strtotime((string)$sess_row['lesson_date'])) . ($sess_row['time_from'] ? ' ' . $sess_row['time_from'] : '');
-                ti_course_log((int)$sess_row['course_id'], 'delete_session', 'Lekcja ' . $label . ' (kosz #' . $trash_id . '). Powód: ' . $reason, $uid, $by_name);
-                audit_log('ti.session_delete', ['session_id' => $sid, 'trash_id' => $trash_id, 'course_id' => (int)$sess_row['course_id'], 'lesson' => $label, 'reason' => $reason], $uid);
-                flash_set('success', 'Lekcja usunięta (jest w koszu — można ją przywrócić).');
+                $is_err = $op === 'cancel_error';
+                ti_course_log((int)$sess_row['course_id'], $is_err ? 'cancel_error' : 'delete_session', ($is_err ? 'Odwołano z powodu błędu: lekcja ' : 'Lekcja ') . $label . ' (kosz #' . $trash_id . '). Powód: ' . $reason, $uid, $by_name);
+                audit_log($is_err ? 'ti.session_cancel_error' : 'ti.session_delete', ['session_id' => $sid, 'trash_id' => $trash_id, 'course_id' => (int)$sess_row['course_id'], 'lesson' => $label, 'reason' => $reason], $uid);
+                flash_set('success', $is_err ? 'Lekcja odwołana jako błędny wpis — nie liczy się do obecności ani statystyk, nie wysłano SMS-ów. Można ją przywrócić z kosza.' : 'Lekcja usunięta (jest w koszu — można ją przywrócić).');
             }
             header('Location: ' . $back); exit;
         }

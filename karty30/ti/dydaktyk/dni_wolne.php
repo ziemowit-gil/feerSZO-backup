@@ -217,7 +217,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <form method="post">
+      <form method="post" onsubmit="return confirm('Zapisać dzień wolny? Zaplanowane lekcje w tym zakresie zostaną ODWOŁANE (bez SMS-ów do kursantów).') && confirm('Na pewno? Tej zmiany nie cofnie usunięcie wpisu — odwołane lekcje trzeba przywrócić ręcznie.')">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="save">
         <input type="hidden" name="id" id="hol_id" value="0">
