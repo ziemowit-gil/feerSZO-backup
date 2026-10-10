@@ -49,7 +49,11 @@ if ($action === 'approve' && $method === 'POST') {
     }
     try {
         $prot = ti_protocol_get_or_create_for_month($cid, $ym);
-        ti_protocol_approve((int)$prot['id'], $uid, (string)($me['name'] ?? ''));
+        // Ta sama zasada co w protokoly_moje.php: zatwierdzenie tylko z podpisem certyfikatem (multipart: p12 + p12_password).
+        $p12 = (!empty($_FILES['p12']['tmp_name']) && is_uploaded_file($_FILES['p12']['tmp_name']) && (int)$_FILES['p12']['size'] <= 1048576)
+            ? (string)file_get_contents($_FILES['p12']['tmp_name']) : '';
+        if ($p12 === '') throw new \RuntimeException('Zatwierdzenie wymaga podpisu certyfikatem (plik .p12).');
+        ti_protocol_approve_signed((int)$prot['id'], $uid, (string)($me['name'] ?? ''), $p12, (string)($_POST['p12_password'] ?? ''));
         api_protocols_json(['data' => ['course_id' => $cid, 'year_month' => $ym, 'status' => 'approved']]);
     } catch (\Throwable $e) {
         api_protocols_json(['error' => $e->getMessage()], 422);

@@ -101,6 +101,12 @@ function ti_protocols_migrate(): void {
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_by     INTEGER",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_name   TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_at     TEXT",
+        // Podpis certyfikatem X.509 prowadzącego przy zatwierdzeniu protokołu (OpenSSL na serwerze):
+        // odcisk certyfikatu, nazwa podmiotu, czas, podpis (base64) nad treścią protokołu.
+        "ALTER TABLE k30_ti_protocols ADD COLUMN sign_fingerprint TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN sign_subject     TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN sign_at          TEXT",
+        "ALTER TABLE k30_ti_protocols ADD COLUMN sign_sig         TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_ti_protocols ADD COLUMN org_ack_ip     TEXT NOT NULL DEFAULT ''",
         // Tryb miesięczny (obok istniejącego trybu "okres nauczania" — period_id):
         // protokół bez period_id, kluczowany (course_id, year_month) "RRRR-MM".
@@ -298,7 +304,7 @@ function ti_protocol_closed_months_for_instructor(int $instructor_uid): array {
     $ph = implode(',', array_fill(0, count($ids), '?'));
     return db_all(
         "SELECT p.id AS protocol_id, p.course_id, c.name AS course_name, p.year_month,
-                p.approved_name, p.approved_at
+                p.approved_name, p.approved_at, p.sign_subject, p.sign_at
            FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id = p.course_id
           WHERE p.course_id IN ($ph) AND p.status = 'approved' AND p.year_month != ''
           ORDER BY p.year_month DESC, c.name",
@@ -726,6 +732,42 @@ function ti_protocol_approve(int $protocol_id, ?int $by, string $by_name): void 
     } catch (\Throwable $e) {
         error_log('ti_protocol_approve → EZD: ' . $e->getMessage());
     }
+}
+
+/**
+ * Treść, którą podpisuje prowadzący: protokół, kurs, miesiąc, prowadzący i dokładny stan
+ * ewidencji godzin (skrót) — zmiana godzin po podpisie unieważnia podpis.
+ */
+function ti_protocol_sign_payload(array $prot, int $uid): string {
+    $hours_hash = hash('sha256', json_encode(ti_protocol_hours_list($prot)));
+    return 'ti_protocol|' . (int)$prot['id'] . '|' . (int)$prot['course_id'] . '|'
+         . (int)($prot['period_id'] ?? 0) . '|' . $uid . '|' . $hours_hash;
+}
+
+/**
+ * Zatwierdzenie protokołu podpisem certyfikatem prowadzącego. Najpierw podpis (błąd =
+ * brak zatwierdzenia), potem zwykłe zatwierdzenie i zapis danych podpisu.
+ * $p12 — zawartość pliku .p12, $password — jego hasło (używane tylko w tym żądaniu).
+ */
+function ti_protocol_approve_signed(int $protocol_id, int $uid, string $by_name, string $p12, string $password): void {
+    require_once dirname(__DIR__) . '/includes/x509_login.php';
+    ti_protocols_migrate();
+    $prot = ti_protocol_get($protocol_id);
+    if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
+
+    $sig = x509_sign_payload_p12($uid, $p12, $password, ti_protocol_sign_payload($prot, $uid));
+    if (!$sig) {
+        throw new \RuntimeException('Nie udało się podpisać protokołu: sprawdź plik certyfikatu (.p12) i hasło. '
+            . 'Jeśli nie masz certyfikatu, poproś administratora o jego wystawienie.');
+    }
+
+    ti_protocol_approve($protocol_id, $uid, $by_name);
+
+    db()->prepare(
+        "UPDATE k30_ti_protocols
+            SET sign_fingerprint = ?, sign_subject = ?, sign_at = datetime('now'), sign_sig = ?
+          WHERE id = ?"
+    )->execute([$sig['fingerprint'], $sig['subject'], $sig['signature_b64'], $protocol_id]);
 }
 
 /**

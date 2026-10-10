@@ -8,6 +8,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
 
 $me      = dyd_require();
 $uid     = (int)$me['user_id'];
@@ -32,8 +33,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if (!ti_protocol_can_approve($uid, $cid, dyd_is_staff())) throw new \RuntimeException(TI_PROTOCOL_APPROVE_DENIED);
             $prot = ti_protocol_get_or_create_for_month($cid, $ym);
-            ti_protocol_approve((int)$prot['id'], $uid, $me_name);
-            flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony.');
+            // Zatwierdzenie wymaga podpisu certyfikatem prowadzącego (.p12 + hasło) — weryfikowanego na serwerze.
+            $p12 = (!empty($_FILES['p12']['tmp_name']) && is_uploaded_file($_FILES['p12']['tmp_name']) && (int)$_FILES['p12']['size'] <= 1048576)
+                ? (string)file_get_contents($_FILES['p12']['tmp_name']) : '';
+            if ($p12 === '') throw new \RuntimeException('Zatwierdzenie wymaga podpisu certyfikatem: dołącz plik .p12. Brak certyfikatu? Poproś administratora o jego wystawienie.');
+            ti_protocol_approve_signed((int)$prot['id'], $uid, $me_name, $p12, (string)($_POST['p12_password'] ?? ''));
+            flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony i podpisany certyfikatem.');
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
         }
@@ -141,14 +146,30 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <i class="bi bi-lock me-1" aria-hidden="true"></i>Protokół zatwierdza główny prowadzący kursu albo kierownik.
       </p>
       <?php else: ?>
-            <form method="post" class="ms-auto" id="pmApproveForm">
+            <?php $_has_cert = x509_user_has_active_cert($uid); ?>
+            <form method="post" class="ms-auto" id="pmApproveForm" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="approve_month">
         <input type="hidden" name="course_id" value="<?= (int)$open_row['course_id'] ?>">
         <input type="hidden" name="year_month" value="<?= h($open_ym) ?>">
+        <?php if ($_has_cert): ?>
+        <div class="card card-body py-2 mb-2 small" style="min-width:18rem">
+          <div class="fw-semibold mb-1"><i class="bi bi-patch-check text-success" aria-hidden="true"></i> Podpis certyfikatem</div>
+          <label class="form-label mb-1" for="pmP12">Plik certyfikatu (.p12)</label>
+          <input type="file" class="form-control form-control-sm mb-2" id="pmP12" name="p12" accept=".p12,.pfx" required>
+          <label class="form-label mb-1" for="pmP12Pwd">Hasło do certyfikatu</label>
+          <input type="password" class="form-control form-control-sm mb-1" id="pmP12Pwd" name="p12_password" autocomplete="off" required>
+          <div class="text-body-secondary">Podpis obejmuje dokładną treść ewidencji godzin. Plik i hasło służą tylko do tego podpisu i nie są zapisywane.</div>
+        </div>
+        <?php else: ?>
+        <div class="alert alert-warning small py-2 mb-2" style="min-width:18rem">
+          <div class="fw-semibold"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Nie masz certyfikatu do podpisu</div>
+          <p class="mb-0">Certyfikat to elektroniczny odpowiednik Twojego podpisu: potwierdza, że to Ty zatwierdziłeś protokół i że jego treść się nie zmieniła. Poproś administratora o wystawienie certyfikatu — dostaniesz plik .p12 i hasło do niego.</p>
+        </div>
+        <?php endif; ?>
         <!-- Przed zatwierdzeniem: okno z listą godzin (data — liczba godzin), wydruk PDF
              i obowiązkowe „sprawdziłem/am” → Akceptuję wysyła ten formularz. -->
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck"<?= $_has_cert ? '' : ' disabled' ?>>
           <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
         </button>
       </form>
@@ -252,7 +273,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="fw-semibold"><?= h($c['course_name']) ?></div>
         <div class="text-body-secondary small">
           <?= h($fmt_ym($c['year_month'])) ?>
-          <?php if (!empty($c['approved_at'])): ?> · zatwierdził <?= h($c['approved_name'] ?: '—') ?>, <?= h(date('d.m.Y', strtotime((string)$c['approved_at']))) ?><?php endif; ?>
+          <?php if (!empty($c['approved_at'])): ?> · zatwierdził <?= h($c['approved_name'] ?: '—') ?>, <?= h(date('d.m.Y', strtotime((string)$c['approved_at']))) ?><?php if (!empty($c['sign_subject'])): ?> · podpis certyfikatem: <?= h($c['sign_subject']) ?><?php endif; ?><?php endif; ?>
         </div>
       </div>
       <span class="badge bg-success">zatwierdzony</span>

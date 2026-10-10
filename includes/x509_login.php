@@ -140,6 +140,51 @@ function x509_verify_login(string $p12_data, string $cert_password): ?array {
 }
 
 /**
+ * Podpis treści certyfikatem .p12 użytkownika (OpenSSL po stronie serwera). W przeciwieństwie
+ * do x509_verify_login() nie wymaga roli admina — certyfikat musi być wystawiony TEMU
+ * użytkownikowi, aktywny (nie odwołany, nie wygasły). Klucz prywatny istnieje tylko w pamięci
+ * żądania. Zwraca dane podpisu albo null.
+ */
+function x509_sign_payload_p12(int $user_id, string $p12_data, string $password, string $payload): ?array {
+    x509_init();
+
+    $certs = [];
+    if (!@openssl_pkcs12_read($p12_data, $certs, $password)) return null;
+
+    $cert = @openssl_x509_read($certs['cert'] ?? '');
+    $pkey = @openssl_pkey_get_private($certs['pkey'] ?? '');
+    if (!$cert || !$pkey) return null;
+
+    $fp = openssl_x509_fingerprint($cert, 'sha256');
+    if (!$fp) return null;
+
+    $owned = db_one(
+        "SELECT id FROM admin_x509_certs
+          WHERE fingerprint = ? AND user_id = ? AND revoked_at IS NULL AND valid_to > datetime('now')",
+        [$fp, $user_id]
+    );
+    if (!$owned) return null;
+
+    if (!openssl_sign($payload, $signature, $pkey, OPENSSL_ALGO_SHA256)) return null;
+
+    $parsed = openssl_x509_parse($cert);
+    return [
+        'fingerprint'   => $fp,
+        'subject'       => (string)($parsed['subject']['CN'] ?? ''),
+        'signature_b64' => base64_encode($signature),
+    ];
+}
+
+/** Czy użytkownik ma co najmniej jeden certyfikat aktywny (nie odwołany, nie wygasły). */
+function x509_user_has_active_cert(int $user_id): bool {
+    x509_init();
+    return (bool)db_one(
+        "SELECT id FROM admin_x509_certs WHERE user_id = ? AND revoked_at IS NULL AND valid_to > datetime('now') LIMIT 1",
+        [$user_id]
+    );
+}
+
+/**
  * Revokes a cert (soft delete by timestamp).
  */
 function x509_revoke(int $cert_id): void {
