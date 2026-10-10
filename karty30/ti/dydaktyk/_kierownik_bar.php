@@ -156,22 +156,48 @@ $_kier_sections = [
   .kier-sidenav details.kier-grp > div, body.ti-skin .kier-sidenav details.kier-grp > div { padding-top: .2rem; }
 
   @media (min-width: 992px) {
-    .kier-sidenav, body.ti-skin .kier-sidenav { position: fixed; top: 4.2rem; left: .75rem; bottom: .75rem; width: 240px;
-                    overflow-y: auto; margin: 0; z-index: 1030; }
+    /* Menu jest częścią strony: przewija się razem z treścią (nie „pływa” przyklejone do ekranu). */
+    .kier-sidenav, body.ti-skin .kier-sidenav { position: absolute; top: 4.2rem; left: .75rem; width: 240px;
+                    margin: 0; z-index: 1030; }
     /* Tryb osadzony (index.php): sekcje stoją już w pasku górnym, nad treścią
        zostaje tylko rząd okruszków — zejdź o jego wysokość. */
     .kier-sidenav.kier-embed, body.ti-skin .kier-sidenav.kier-embed { top: 5.9rem; }
     .kier-sidenav details:not(.kier-grp) > summary, body.ti-skin .kier-sidenav details:not(.kier-grp) > summary { display: none; }   /* na desktopie zewnętrzna lista zawsze otwarta */
     .kier-sidenav details:not(.kier-grp), body.ti-skin .kier-sidenav details:not(.kier-grp) { display: contents; }
-    main.dyd-wrap { margin-left: 264px !important; }
+    /* width:auto — main bywa .container-fluid (width:100%); 100% + margines wypychało treść poza ekran. */
+    main.dyd-wrap { margin-left: 264px !important; width: auto !important; }
+    .skin-crumbs { margin-left: 264px; }
     /* index.php (skórka USOS): main ma też .dyd-content, a ti_skin.css zeruje mu
        margines selektorem body.dyd-usos .dyd-content !important — przebijamy
        silniejszym selektorem, inaczej sidebar wjeżdża na treść. */
-    body.dyd-usos main.dyd-content.dyd-wrap { margin-left: 264px !important; }
+    body.dyd-usos main.dyd-content.dyd-wrap { margin-left: 264px !important; width: auto !important; }
+    /* Menu schowane (przycisk „Ukryj menu”, pamiętane w przeglądarce): treść na całą szerokość. */
+    html.kier-side-off .kier-sidenav { display: none; }
+    html.kier-side-off main.dyd-wrap, html.kier-side-off body.dyd-usos main.dyd-content.dyd-wrap { margin-left: 0 !important; }
+    html.kier-side-off .skin-crumbs { margin-left: 0; }
+    .kier-side-show { display: none; }
+    html.kier-side-off .kier-side-show { display: inline-flex; }
   }
+  .kier-side-hide, body.ti-skin .kier-side-hide { display: none; }
+  @media (min-width: 992px) {
+    .kier-side-hide, body.ti-skin .kier-side-hide { display: flex; align-items: center; gap: .35rem; width: 100%; margin: 0 0 .25rem;
+      padding: .3rem .6rem; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 2px;
+      font-size: .78rem; font-weight: 600; cursor: pointer; }
+    .kier-side-hide:hover { background: rgba(255,255,255,.1); }
+  }
+  .kier-side-show { align-items: center; gap: .35rem; margin: .5rem 0 0 1rem; padding: .3rem .7rem; background: var(--ti-navy, #10335c);
+    color: #fff; border: 0; border-radius: 2px; font-size: .8rem; font-weight: 600; cursor: pointer; }
+  .kier-side-hide:focus-visible, .kier-side-show:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
 </style>
 
-<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" aria-label="Menu: <?= h($KIER_TITLE) ?>">
+<script>try{if(localStorage.getItem('kierSideOff')==='1')document.documentElement.classList.add('kier-side-off');}catch(e){}</script>
+<button type="button" class="kier-side-show" aria-controls="kierSidenav" aria-expanded="false" onclick="kierMenu(true)">
+  <i class="bi bi-layout-sidebar" aria-hidden="true"></i>Pokaż menu: <?= h(mb_strtolower($KIER_TITLE)) ?>
+</button>
+<nav class="kier-sidenav<?= $KIER_EMBED ? ' kier-embed' : '' ?>" id="kierSidenav" aria-label="Menu: <?= h($KIER_TITLE) ?>">
+  <button type="button" class="kier-side-hide" aria-controls="kierSidenav" aria-expanded="true" onclick="kierMenu(false)">
+    <i class="bi bi-chevron-double-left" aria-hidden="true"></i>Ukryj menu
+  </button>
   <details open>
     <summary aria-hidden="true"><i class="bi bi-list"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
     <div>
@@ -222,3 +248,23 @@ $_kier_sections = [
     </div>
   </details>
 </nav>
+<script>
+// Chowanie menu (pamiętane w przeglądarce); fokus wraca na przycisk drugiego stanu.
+function kierMenu(pokaz) {
+  document.documentElement.classList.toggle('kier-side-off', !pokaz);
+  try { localStorage.setItem('kierSideOff', pokaz ? '0' : '1'); } catch (e) {}
+  var b = document.querySelector(pokaz ? '.kier-side-hide' : '.kier-side-show'); if (b) b.focus();
+  window.dispatchEvent(new Event('resize'));
+}
+// Menu nie jest przyklejone do ekranu — gdy jest dłuższe niż treść, strona musi być co najmniej tak wysoka jak menu.
+(function () {
+  var nav = document.currentScript.previousElementSibling, main = document.querySelector('main.dyd-wrap');
+  if (!nav || !main || !window.matchMedia) return;
+  function wyrownaj() {
+    main.style.minHeight = (window.matchMedia('(min-width: 992px)').matches && !document.documentElement.classList.contains('kier-side-off'))
+      ? Math.max(0, nav.getBoundingClientRect().bottom - main.getBoundingClientRect().top) + 'px' : '';
+  }
+  window.addEventListener('load', wyrownaj); window.addEventListener('resize', wyrownaj);
+  nav.addEventListener('toggle', wyrownaj, true);   // zwijanie grup menu zmienia wysokość
+})();
+</script>
