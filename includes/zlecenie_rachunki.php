@@ -95,6 +95,9 @@ require_once __DIR__ . '/db.php';
             // pojedynczy dokument albo lista płac, na której rachunek został ujęty.
             'edok_doc_id'          => 'INTEGER',
             'edok_number'          => 'TEXT',
+            // Oryginał papierowy: pracownik oznacza „Jest w koszulce” (od kiedy) — ręcznie, bez EZD.
+            'oryginal_at'          => 'DATETIME',
+            'oryginal_by'          => 'INTEGER',
         ] as $col => $def) {
             try { db()->exec("ALTER TABLE zlecenie_rachunki ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
         }
@@ -763,6 +766,18 @@ function rachunek_deadlines(array $rach): array {
 function rachunek_is_signed(array $rach): bool {
     return !empty($rach['signed_at']) || !empty($rach['plik_podpisany'])
         || in_array($rach['status'] ?? '', ['podpisany', 'zaakceptowany', 'zaplacony'], true);
+}
+
+/**
+ * Braki w dokumentach rachunku: brak skanu podpisanego od zleceniobiorcy i brak oryginału
+ * papierowego (oznaczenie „w koszulce”). Odrzucone i testowe pomijane.
+ */
+function rachunek_braki_dokumentow(array $rach): array {
+    if (($rach['status'] ?? '') === 'odrzucony' || !empty($rach['test_mode'])) return [];
+    $braki = [];
+    if (!rachunek_is_signed($rach)) $braki[] = 'brak skanu';
+    if (empty($rach['oryginal_at'])) $braki[] = 'brak oryginału';
+    return $braki;
 }
 
 /**

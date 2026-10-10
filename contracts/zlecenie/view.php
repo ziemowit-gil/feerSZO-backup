@@ -307,6 +307,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_comment_del']) 
     header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
 }
 
+// ── Rachunki — oryginał papierowy „w koszulce” (oznaczany ręcznie przez pracownika) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_oryginal'])) {
+    csrf_check();
+    $_orid  = (int)($_POST['rach_id'] ?? 0);
+    $_orow  = $_orid ? get_rachunek($_orid) : null;
+    if (!can_edit()) {
+        flash_set('error', 'Brak uprawnień do zmiany oznaczenia oryginału.');
+    } elseif ($_orow && (int)$_orow['contract_id'] === $id) {
+        if (($_POST['oryginal'] ?? '') === '1') {
+            db()->prepare("UPDATE zlecenie_rachunki SET oryginal_at = datetime('now'), oryginal_by = ?, updated_at = datetime('now') WHERE id = ?")
+                ->execute([(int)(current_user()['id'] ?? 0), $_orid]);
+            flash_set('success', 'Oznaczono: oryginał w koszulce.');
+        } else {
+            db()->prepare("UPDATE zlecenie_rachunki SET oryginal_at = NULL, oryginal_by = NULL, updated_at = datetime('now') WHERE id = ?")
+                ->execute([$_orid]);
+            flash_set('success', 'Zdjęto oznaczenie „w koszulce”.');
+        }
+    }
+    header('Location: view.php?id=' . $id . '&tab=rachunki'); exit;
+}
+
 // ── Rachunki — dodanie rachunku do rejestru (+ powiadomienia) ─────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_add']) && can_edit()) {
     csrf_check();
@@ -1520,6 +1541,17 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       na <?= h(rachunek_skan_email()) ?> w ciągu <?= ZLEC_RACHUNEK_SKAN_DAYS ?> dni — oryginał dostarcza
       w ciągu <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni.
     </p>
+    <?php
+    // Braki w dokumentach: brak skanu od zleceniobiorcy albo oryginału w koszulce.
+    $_braki_rach = array_filter($rachunki, fn($x) => rachunek_braki_dokumentow($x));
+    if ($_braki_rach): ?>
+    <div class="alert alert-warning small py-2">
+      <i class="bi bi-exclamation-triangle"></i> Braki w dokumentach (<?= count($_braki_rach) ?>):
+      <?php foreach ($_braki_rach as $_br): ?>
+        <span class="me-2">#<?= (int)$_br['id'] ?><?= $_br['numer'] ? ' ' . h($_br['numer']) : '' ?> — <?= h(implode(', ', rachunek_braki_dokumentow($_br))) ?>;</span>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     <?php if (!$_rach_email): ?>
     <div class="alert alert-warning small py-2">
       <i class="bi bi-exclamation-triangle"></i> Zleceniobiorca nie ma adresu e-mail w umowie — powiadomienie
@@ -1649,6 +1681,25 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
             <?php endif; ?>
           <?php else: ?>
           <span class="text-muted"><i class="bi bi-hourglass" aria-hidden="true"></i> czeka na podpis</span>
+          <?php endif; ?>
+        </div>
+        <div class="small">
+          <?php if (!empty($rr['oryginal_at'])): ?>
+          <span class="text-success" title="Oryginał papierowy odłożony w koszulce"><i class="bi bi-folder-check" aria-hidden="true"></i> w koszulce <?= h(date('d.m.Y', strtotime($rr['oryginal_at']))) ?></span>
+          <?php else: ?>
+          <span class="badge bg-danger">brak oryginału</span>
+          <?php endif; ?>
+          <?php if (!rachunek_is_signed($rr)): ?>
+          <span class="badge bg-warning text-dark">brak skanu</span>
+          <?php endif; ?>
+          <?php if (can_edit() && ($rr['status'] ?? '') !== 'odrzucony'): ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_rach_oryginal" value="1">
+            <input type="hidden" name="rach_id" value="<?= $_rid ?>">
+            <input type="hidden" name="oryginal" value="<?= empty($rr['oryginal_at']) ? '1' : '0' ?>">
+            <button type="submit" class="btn btn-link btn-sm p-0 ms-1"><?= empty($rr['oryginal_at']) ? 'Jest w koszulce' : 'Zdejmij „w koszulce”' ?></button>
+          </form>
           <?php endif; ?>
         </div>
         <div>
