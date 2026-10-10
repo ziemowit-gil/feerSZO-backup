@@ -6191,11 +6191,18 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
 <p class="text-body-secondary small mb-4"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Nie upoważniłeś jeszcze nikogo.</p>
 <?php endif; ?>
 
-<details class="kp-upow-rozwin mb-3"<?= $authp_err_f !== '' ? ' open' : '' ?>>
-  <summary class="btn btn-primary kp-upow-przycisk"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Upoważnij osobę</summary>
-<section class="card shadow-sm border-0 kp-upow mt-2" id="authp-form" aria-labelledby="authp-form-h">
-  <div class="card-body">
-    <h2 class="h6 fw-bold mb-2" id="authp-form-h">Upoważnij osobę</h2>
+<!-- Formularz w okienku METRO (Bootstrap modal: pułapka fokusu, Esc zamyka, fokus wraca na przycisk). Przy błędzie otwiera się sam. -->
+<button type="button" class="btn btn-primary kp-upow-przycisk mb-3" data-bs-toggle="modal" data-bs-target="#authpModal">
+  <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Upoważnij osobę
+</button>
+<div class="modal fade kp-metro-modal" id="authpModal" tabindex="-1" aria-labelledby="authp-form-h" aria-hidden="true">
+<div class="modal-dialog modal-lg modal-dialog-scrollable">
+<section class="modal-content kp-upow" id="authp-form">
+  <div class="modal-header">
+    <h2 class="modal-title fs-5" id="authp-form-h"><i class="bi bi-person-plus me-2" aria-hidden="true"></i>Upoważnij osobę</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij okno"></button>
+  </div>
+  <div class="modal-body">
     <ul class="small mb-3 ps-3">
       <li>Możesz upoważnić zaufaną osobę, np. członka rodziny lub asystenta.</li>
       <li>Osoba upoważniona widzi Twoje lekcje, frekwencję i rozliczenia. Nie może niczego zmieniać.</li>
@@ -6246,7 +6253,16 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
     <?php endif; ?>
   </div>
 </section>
-</details>
+</div>
+</div>
+<?php if ($authp_err_f !== ''): ?>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var m = document.getElementById('authpModal');
+    if (m && window.bootstrap) bootstrap.Modal.getOrCreateInstance(m).show();
+  });
+</script>
+<?php endif; ?>
 
 <?php elseif ($tab === 'upowaznieni'): ?>
 
