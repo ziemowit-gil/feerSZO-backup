@@ -96,7 +96,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
 
 <main id="main" class="dyd-wrap">
-<div class="container-fluid py-3" style="max-width:760px">
+<?php /* Zatwierdzanie (kroki + podgląd dokumentów) potrzebuje szerokiej strony; lista protokołów — wąskiej. */ ?>
+<div class="container-fluid py-3" style="max-width:<?= $open_row ? '1500px' : '760px' ?>">
 <?= flash_html() ?>
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
@@ -190,7 +191,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         background:#0f6fa8;color:#fff;font-weight:700;font-size:1.05rem}
     </style>
     <div class="row g-4">
-    <div class="col-lg-6 pm-kroki">
+    <div class="col-xl-5 col-lg-6 pm-kroki">
     <?php if ($_key_first): ?>
       <section class="card border-success mb-3" aria-labelledby="pmKluczH">
         <div class="card-body">
@@ -294,7 +295,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                         'url' => 'protokol_pdf.php?hours=1&' . $_pv_q],
       ];
     ?>
-    <div class="col-lg-6">
+    <div class="col-xl-7 col-lg-6">
       <section class="card h-100" aria-labelledby="pmPodgladH">
         <div class="card-body d-flex flex-column">
           <h3 class="h6 fw-semibold mb-1" id="pmPodgladH"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Podgląd dokumentów</h3>
@@ -308,7 +309,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           </div>
           <p class="small mb-2" id="pmPodgladOpis" aria-live="polite"><?= h($_pv_dok['prot']['opis']) ?></p>
           <iframe id="pmPodgladRamka" title="Podgląd dokumentu: <?= h($_pv_dok['prot']['label']) ?>" src="<?= h($_pv_dok['prot']['url']) ?>"
-                  class="border flex-grow-1 w-100" style="min-height:32rem" loading="lazy"></iframe>
+                  class="border flex-grow-1 w-100" style="min-height:min(80vh,56rem)" loading="lazy"></iframe>
           <a class="small mt-2" id="pmPodgladNowe" href="<?= h($_pv_dok['prot']['url']) ?>" target="_blank" rel="noopener">
             Otwórz podgląd w nowej karcie<span class="visually-hidden"> (nowe okno)</span>
           </a>
