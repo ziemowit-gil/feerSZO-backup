@@ -1936,6 +1936,33 @@ document.addEventListener('DOMContentLoaded', function() {
     </a>
   </div>
 
+  <?php if ($KUR_UI === 'alt'):
+    // Wiersz „Komunikaty placówki”: 3 najnowsze, nieprzeczytane wyróżnione, link do pełnej listy
+    try { $kp_kom = array_slice(ti_notices_list_for_student((int)$student['id']), 0, 3); } catch (\Throwable $e) { $kp_kom = []; }
+  ?>
+  <section class="kp-dane-komunikaty" aria-labelledby="kp-dane-kom-h">
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+      <h2 class="h6 fw-bold mb-0" id="kp-dane-kom-h"><i class="bi bi-megaphone me-1" aria-hidden="true"></i>Komunikaty placówki<?php if ($notices_unread > 0): ?> <span class="badge text-bg-danger"><?= (int)$notices_unread ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif; ?></h2>
+      <a href="?tab=komunikaty" class="small">Wszystkie komunikaty<span aria-hidden="true"> →</span></a>
+    </div>
+    <?php if (!$kp_kom): ?>
+    <p class="small text-body-secondary mb-0">Brak aktywnych komunikatów.</p>
+    <?php else: ?>
+    <ul class="list-unstyled mb-0">
+      <?php foreach ($kp_kom as $kn): $kn_new = empty($kn['is_read']); ?>
+      <li class="kp-dane-kom<?= $kn_new ? ' kp-dane-kom-nowy' : '' ?>">
+        <a href="?tab=komunikaty">
+          <?php if ($kn_new): ?><span class="kp-dane-kom-znacznik">Nowe</span><?php endif; ?>
+          <span class="kp-dane-kom-tytul"><?= h((string)$kn['title']) ?></span>
+          <span class="kp-dane-kom-data"><?= h(substr((string)$kn['created_at'], 0, 10)) ?></span>
+        </a>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php endif; ?>
+  </section>
+  <?php endif; ?>
+
   <!-- ── Pasek postępu kursu ─────────────────────────────────────────────── -->
   <?php if ($progress_total > 0): ?>
   <div class="mb-3">

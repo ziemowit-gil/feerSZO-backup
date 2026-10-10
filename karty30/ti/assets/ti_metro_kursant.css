@@ -832,3 +832,13 @@ body.kur-alt.ti-skin .kp-dane-naglowek { justify-content: flex-end !important; m
 body.kur-alt.ti-skin .kp-dane-naglowek h1 {
   position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
+
+/* „Dane”: wiersz Komunikaty placówki — kompaktowa lista 3 najnowszych */
+body.kur-alt.ti-skin .kp-dane-komunikaty { background: #fff; border: 2px solid #1d1d1d; border-left: 8px solid #f0a30a; padding: .6rem .9rem; }
+body.kur-alt.ti-skin .kp-dane-kom + .kp-dane-kom { border-top: 1px solid #e5e7eb; }
+body.kur-alt.ti-skin .kp-dane-kom > a { display: flex; align-items: center; gap: .6rem; padding: .35rem 0; color: #1d1d1d !important; text-decoration: none; }
+body.kur-alt.ti-skin .kp-dane-kom > a:hover .kp-dane-kom-tytul { text-decoration: underline; }
+body.kur-alt.ti-skin .kp-dane-kom-tytul { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.kur-alt.ti-skin .kp-dane-kom-nowy .kp-dane-kom-tytul { font-weight: 700; }
+body.kur-alt.ti-skin .kp-dane-kom-znacznik { font-size: .72rem; font-weight: 700; background: #1ba1e2; color: #1d1d1d; padding: .05rem .4rem; border: 1px solid #1d1d1d; }
+body.kur-alt.ti-skin .kp-dane-kom-data { font-size: .8rem; color: #374151; flex-shrink: 0; }
