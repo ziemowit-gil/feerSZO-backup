@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <header class="metro-bar">FEER · System Tożsamości</header>
 <main class="metro-card">
   <h1 class="h5 fw-bold mb-1">Zaloguj się do panelu kursanta</h1>
-  <p class="small text-body-secondary mb-3"><strong>Logowanie przez SSO.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
+  <p class="small text-body-secondary mb-3"><strong>Logowanie centralne.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
 
   <?php if ($blad !== ''): ?>
   <div class="alert alert-danger small py-2 rounded-0" role="alert"><?= htmlspecialchars($blad, ENT_QUOTES, 'UTF-8') ?></div>

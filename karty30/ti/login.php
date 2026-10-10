@@ -101,7 +101,7 @@ html, body { background-color: #1ba1e2 !important; background-image: none !impor
 </style>
 <h1 class="ks-h1"><?= h(org_login_title($_titles[$tab])) ?></h1>
 <p class="ks-lead">Zaloguj się loginem/e-mailem i hasłem.</p>
-<p class="small text-body-secondary mb-3"><strong>Logowanie przez SSO.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
+<p class="small text-body-secondary mb-3"><strong>Logowanie centralne.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
 
 <?php if ($error): ?>
 <div class="l-alert l-alert-danger" role="alert" aria-live="assertive" aria-atomic="true" style="margin-bottom:1.25rem">
