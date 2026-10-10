@@ -297,3 +297,10 @@ body.kur-alt.ti-skin .kp-kafel-ikona { font-size: 1.6rem; line-height: 1; }
 body.kur-alt.ti-skin .kp-kafel-mini { flex-direction: row; justify-content: center; text-align: center; }
 body.kur-alt.ti-skin .kp-kafel-mini .kp-kafel-ikona { font-size: 1.1rem; margin-right: .4rem; }
 body.kur-alt.ti-skin .kp-kafel-stan { text-align: center; align-items: center; }
+
+/* Najważniejsze do nauki: lista linków w jednym bloku */
+body.kur-alt.ti-skin .kp-nauka { background: #fff; padding: 1rem 1.25rem; border-left: 6px solid #1ba1e2; }
+body.kur-alt.ti-skin .kp-nauka-lista { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; }
+body.kur-alt.ti-skin .kp-nauka-lista a { color: #1d1d1d; text-decoration: none; font-weight: 600; }
+body.kur-alt.ti-skin .kp-nauka-lista a:hover { text-decoration: underline; color: #0f6fa8; }
+body.kur-alt.ti-skin .kp-nauka-lista i { color: #0f6fa8; }

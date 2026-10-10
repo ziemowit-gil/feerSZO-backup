@@ -101,6 +101,26 @@ foreach ($_st_glowne_klucze as $_gk) {
     </div>
   </div>
 
+  <?php
+    // Najważniejsze rzeczy związane z nauką — linki w jednym miejscu
+    $_st_nauka_klucze = ['lekcje', 'zadania', 'oceny', 'plan', 'online', 'egzaminy'];
+    $_st_nauka = [];
+    foreach ($_st_nauka_klucze as $_nk) {
+        foreach ($_st_wszystkie as $_p) { if ($_p['klucz'] === $_nk) { $_st_nauka[] = $_p; break; } }
+    }
+    foreach ($_st_wszystkie as $_p) { if ($_p['etykieta'] === 'Biblioteka materiałów') { $_st_nauka[] = $_p; break; } }
+  ?>
+  <?php if ($_st_nauka): ?>
+  <nav class="kp-nauka mb-4" aria-labelledby="kp-nauka-h">
+    <h2 class="h6 fw-bold text-uppercase mb-2" id="kp-nauka-h">Najważniejsze do nauki</h2>
+    <ul class="kp-nauka-lista">
+      <?php foreach ($_st_nauka as $_k): ?>
+      <li><a href="<?= h($_k['href']) ?>"><i class="bi bi-chevron-right" aria-hidden="true"></i> <?= h($_k['etykieta']) ?></a></li>
+      <?php endforeach; ?>
+    </ul>
+  </nav>
+  <?php endif; ?>
+
   <!-- Widok domyślny: najważniejsze i wszystkie sekcje -->
   <div id="kp-widok">
     <h2 class="h6 fw-bold text-uppercase mb-2">Najważniejsze</h2>
