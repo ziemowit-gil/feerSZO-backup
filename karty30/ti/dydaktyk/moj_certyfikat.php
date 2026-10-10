@@ -39,15 +39,11 @@ $cert_html = $cert
       . '</tbody></table>'
     : '<p class="small mb-3 text-body-secondary">Nie masz aktywnego certyfikatu — zostanie wystawiony nowy.</p>';
 
-// Dane, na które zostanie wystawiony nowy certyfikat (ważność jak w generatorze: 730 dni).
-$nowy_html = '<div class="small mb-3"><div class="fw-semibold mb-1">Nowy certyfikat będzie wystawiony na:</div>'
-    . '<table class="table table-sm small mb-0"><tbody>'
-    . '<tr><th scope="row" class="fw-normal text-body-secondary">Imię i nazwisko</th><td>' . h((string)($konto['name'] ?? '')) . '</td></tr>'
-    . '<tr><th scope="row" class="fw-normal text-body-secondary">Organizacja</th><td>Fundacja FEER</td></tr>'
-    . '<tr><th scope="row" class="fw-normal text-body-secondary">E-mail (plik)</th><td>' . h((string)($konto['email'] ?? '')) . '</td></tr>'
-    . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny od</th><td>' . h(date('d.m.Y')) . '</td></tr>'
-    . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny do</th><td>' . h(date('d.m.Y', strtotime('+730 days'))) . '</td></tr>'
-    . '</tbody></table></div>';
+// Organizacja i jednostka — pokazywane w kroku „Wystawiasz certyfikat dla” kreatora.
+$org_nazwa = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'));
+$org_nip   = trim((string)org_setting('org_nip'));
+
+
 
 // Odwołanie własnego certyfikatu i usunięcie własnego klucza — zawsze dostępne (także przed
 // terminem otwarcia generowania): to zabezpieczenie, np. gdy ktoś poznał hasło.
@@ -182,11 +178,26 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <div class="modal-body">
           <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
           <input type="hidden" name="_op" value="pwd">
-          <div class="small text-body-secondary mb-3" id="krokInfo">Krok 1 z 2: hasło</div>
+          <div class="small text-body-secondary mb-3" id="krokInfo" aria-live="polite">Krok 1 z 3: dla kogo</div>
 
           <div class="kr-step" data-step="1">
-            <?= $cert_html ?><?= $nowy_html ?>
-            <p class="small mb-3">Najpierw wybierz hasło do pliku certyfikatu. Zapamiętaj je — nie zapisujemy go i nie wysyłamy.</p>
+            <h3 class="h6 fw-semibold mb-2">Wystawiasz certyfikat dla:</h3>
+            <table class="table table-sm small mb-3"><tbody>
+              <tr><th scope="row" class="fw-normal text-body-secondary" style="width:40%">Imię i nazwisko</th><td class="fw-semibold"><?= h((string)($konto['name'] ?? '')) ?></td></tr>
+              <tr><th scope="row" class="fw-normal text-body-secondary">Organizacja</th><td><?= h($org_nazwa) ?></td></tr>
+              <tr><th scope="row" class="fw-normal text-body-secondary">NIP organizacji</th><td class="font-monospace"><?= h($org_nip !== '' ? $org_nip : '—') ?></td></tr>
+              <tr><th scope="row" class="fw-normal text-body-secondary">Jednostka</th><td>TI</td></tr>
+              <tr><th scope="row" class="fw-normal text-body-secondary">Ważny</th><td><?= h(date('d.m.Y')) ?> – <?= h(date('d.m.Y', strtotime('+730 days'))) ?></td></tr>
+            </tbody></table>
+            <?php if ($cert): ?>
+            <p class="small fw-semibold mb-1">Zastąpi obecny certyfikat:</p>
+            <?= $cert_html ?>
+            <?php endif; ?>
+            <p class="small mb-0">Sprawdź dane. Jeśli coś się nie zgadza (np. imię i nazwisko), nie generuj certyfikatu — poproś kierownika o poprawienie danych w koncie.</p>
+          </div>
+
+          <div class="kr-step d-none" data-step="2">
+            <p class="small mb-3">Wybierz hasło do certyfikatu. Zapamiętaj je — nie zapisujemy go i nie wysyłamy. Podasz je przy każdym podpisie protokołu.</p>
             <div class="alert alert-danger small py-2 d-none" id="krokErr" role="alert"></div>
             <div class="mb-2">
               <label class="form-label small mb-1" for="newPwd">Hasło (min. 16 znaków, min. 3 rodzaje znaków)</label>
@@ -204,13 +215,14 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             </div>
           </div>
 
-          <div class="kr-step d-none" data-step="2">
-            <?= $cert_html ?><?= $nowy_html ?>
-            <p class="small mb-2">Potwierdź, a system wygeneruje certyfikat:</p>
+          <div class="kr-step d-none" data-step="3">
+            <p class="small mb-2">Potwierdź, a system wygeneruje certyfikat dla <strong><?= h((string)($konto['name'] ?? '')) ?></strong>
+              (<?= h($org_nazwa) ?>, jednostka TI):</p>
             <ul class="small mb-0 ps-3">
-              <li>plik certyfikatu (.p12) przyjdzie na adres <strong><?= h((string)($konto['email'] ?? '')) ?></strong>,</li>
+              <li>certyfikat zostanie <strong>zapisany w systemie</strong>, zabezpieczony Twoim hasłem,</li>
+              <li>na adres <strong><?= h((string)($konto['email'] ?? '')) ?></strong> przyjdzie tylko informacja o wygenerowaniu — bez pliku,</li>
               <li><strong>stare certyfikaty przestaną działać</strong>,</li>
-              <li>hasła nie wysyłamy nigdzie — podasz je przy zatwierdzaniu protokołu.</li>
+              <li>hasła nie wysyłamy nigdzie — przy zatwierdzaniu protokołu klikniesz „Odczytaj certyfikat” i je wpiszesz.</li>
             </ul>
           </div>
         </div>
@@ -218,7 +230,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
           <button type="button" class="btn btn-outline-secondary d-none" id="krokWstecz">Wstecz</button>
           <button type="button" class="btn btn-primary" id="krokDalej">Dalej</button>
-          <button type="submit" class="btn btn-success d-none" id="krokWyslij">Wygeneruj i wyślij</button>
+          <button type="submit" class="btn btn-success d-none" id="krokWyslij">Wygeneruj certyfikat</button>
         </div>
       </form>
     </div>
@@ -252,23 +264,27 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     rule('cls').classList.toggle('text-success', okCls);
   }
   p1.addEventListener('input', sila);
+  var krok = 1, NAZWY = { 1: 'dla kogo', 2: 'hasło', 3: 'potwierdzenie' };
   function show(n) {
+    krok = n;
     form.querySelectorAll('.kr-step').forEach(function (s) { s.classList.toggle('d-none', Number(s.dataset.step) !== n); });
-    document.getElementById('krokInfo').textContent = 'Krok ' + n + ' z 2: ' + (n === 1 ? 'hasło' : 'potwierdzenie');
+    document.getElementById('krokInfo').textContent = 'Krok ' + n + ' z 3: ' + NAZWY[n];
     document.getElementById('krokWstecz').classList.toggle('d-none', n === 1);
-    document.getElementById('krokDalej').classList.toggle('d-none', n === 2);
-    document.getElementById('krokWyslij').classList.toggle('d-none', n !== 2);
+    document.getElementById('krokDalej').classList.toggle('d-none', n === 3);
+    document.getElementById('krokWyslij').classList.toggle('d-none', n !== 3);
+    if (n === 2) p1.focus();
   }
   function blad(t) { err.textContent = t; err.classList.remove('d-none'); }
   document.getElementById('krokDalej').addEventListener('click', function () {
+    if (krok === 1) { show(2); return; }
     if (p1.value.length < 16) return blad('Hasło musi mieć co najmniej 16 znaków.');
     var klasy = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z\d]/].filter(function (r) { return r.test(p1.value); }).length;
     if (klasy < 3) return blad('Hasło musi zawierać co najmniej 3 rodzaje znaków: małe litery, wielkie litery, cyfry, znaki specjalne.');
     if (p1.value !== p2.value) return blad('Hasła nie są takie same.');
     err.classList.add('d-none');
-    show(2);
+    show(3);
   });
-  document.getElementById('krokWstecz').addEventListener('click', function () { show(1); });
+  document.getElementById('krokWstecz').addEventListener('click', function () { show(krok - 1); });
   document.getElementById('ustawHaslo').addEventListener('hidden.bs.modal', function () {
     show(1); p1.value = ''; p2.value = '';
   });
