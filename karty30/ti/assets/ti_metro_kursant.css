@@ -962,3 +962,16 @@ body.kur-alt.ti-skin .kp-mikrokafle .btn {
 }
 body.kur-alt.ti-skin .kp-mikrokafle .btn:hover { background: #f3f4f6 !important; }
 body.kur-alt.ti-skin .kp-mikrokafle .btn i { font-size: 1.15rem; margin: 0 !important; color: #0f6fa8 !important; }
+
+/* Microsoft 365 (EDU): karta konta + aplikacje jako równe kafle */
+body.kur-alt.ti-skin .kp-office-konto { background: #fff; border: 2px solid #1d1d1d; border-left: 8px solid #1ba1e2; padding: .8rem 1rem; }
+body.kur-alt.ti-skin .kp-office-kafle { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); grid-auto-rows: 1fr; gap: .6rem; }
+body.kur-alt.ti-skin .kp-office-kafel {
+  display: flex; flex-direction: column; gap: .25rem; height: 100%; min-height: 96px; padding: .8rem .9rem;
+  background: #fff; color: #1d1d1d !important; border: 2px solid #1d1d1d; border-bottom: 5px solid #1ba1e2; text-decoration: none;
+}
+body.kur-alt.ti-skin .kp-office-kafel:hover { background: #f3f4f6; }
+body.kur-alt.ti-skin .kp-office-kafel:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+body.kur-alt.ti-skin .kp-office-kafel > i { font-size: 1.5rem; color: #0f6fa8; }
+body.kur-alt.ti-skin .kp-office-tytul { font-weight: 700; }
+body.kur-alt.ti-skin .kp-office-opis { font-size: .82rem; color: #374151; }

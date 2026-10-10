@@ -42,7 +42,7 @@ $_ikony = [
   'testy' => 'pencil-square', 'komunikaty' => 'megaphone', 'wiadomosci' => 'chat-dots',
   'problem' => 'question-circle', 'online' => 'camera-video', 'vlab' => 'pc-display', 'dysk' => 'cloud',
   'licencje' => 'key', 'pfron' => 'people', 'zapisy' => 'person-plus', 'rozliczenia' => 'receipt',
-  'portfel' => 'wallet2', 'upowaznieni' => 'person-check', 'regulaminy' => 'file-text', 'ustawienia' => 'gear',
+  'portfel' => 'wallet2', 'upowaznieni' => 'person-check', 'regulaminy' => 'file-text', 'ustawienia' => 'gear', 'office' => 'microsoft',
 ];
 
 $_alt_sections = [
@@ -84,6 +84,7 @@ $_alt_sections = [
         'href'  => $_g('licencje'),
         'items' => [
             $_it('licencje', 'Licencje',           $_g('licencje'), $_n_lic),
+            ...(!empty($account['ms_upn']) ? [$_it('office', 'Microsoft 365 (EDU)', $_g('office'))] : []),   // tylko z aktywnym kontem EDU
             $_it('pfron',    'PFRON (konsultacje)', $_g('pfron')),
             $_it('',         'Biblioteka materiałów', '../ext/index.php?as=student'),
         ],

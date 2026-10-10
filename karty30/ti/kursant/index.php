@@ -4632,6 +4632,9 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php endforeach; ?>
   <?php endif; ?>
 
+<?php elseif ($tab === 'office' && $KUR_UI === 'alt' && !empty($account['ms_upn'])): ?>
+  <?php include __DIR__ . '/_alt_office.php'; /* konto Microsoft 365 EDU */ ?>
+
 <?php elseif (($tab === 'egzaminy' || $tab === 'testy') && $KUR_UI === 'alt'): ?>
   <?php include __DIR__ . '/_alt_testy.php'; /* jedna zakładka Testy: egzaminy + starsze testy */ ?>
 
