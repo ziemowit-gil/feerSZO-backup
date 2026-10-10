@@ -1,0 +1,74 @@
+/**
+ * karty30/ti/assets/ti_metro_kursant.css — widok alternatywny panelu kursanta w stylu METRO,
+ * jak w Systemie Tożsamości (ciemny pasek, akcent #1ba1e2, zero zaokrągleń, Segoe UI).
+ * Ładowany TYLKO w widoku alternatywnym (body.kur-alt.ti-skin), nad ti_skin.css.
+ * Widok klasyczny nie jest zmieniany.
+ *
+ * Kontrast: #fff/#0f6fa8 = 5,4:1 (przycisk), #0f6fa8/#fff = 5,4:1 (link).
+ * Akcent #1ba1e2 zostaje w obramowaniu paska i aktywnych elementach, nie pod białym tekstem.
+ */
+
+body.kur-alt.ti-skin {
+  --ti-navy:#1d1d1d;
+  --ti-blue:#0f6fa8;
+  --ti-link:#0f6fa8;
+  --ti-bar:#f3f4f6;
+  --ti-bar-border:#d1d5db;
+  --ti-grid:#d1d5db;
+  --ti-zebra:#f9fafb;
+  --ti-menu-bg:#f3f4f6;
+  --ti-text:#1d1d1d;
+
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  background: #f3f4f6;
+  color: var(--ti-text);
+}
+
+/* Pasek górny */
+body.kur-alt.ti-skin header .navbar {
+  background: #1d1d1d !important;
+  border-bottom: 3px solid #1ba1e2 !important;
+  border-radius: 0 !important;
+}
+body.kur-alt.ti-skin header .navbar .btn { border-radius: 0 !important; }
+body.kur-alt.ti-skin header .navbar-brand { font-weight: 600; }
+
+/* Pasek sekcji (zakładki) */
+body.kur-alt.ti-skin .skin-sections {
+  background: #fff;
+  border-bottom: 1px solid var(--ti-bar-border);
+}
+body.kur-alt.ti-skin .skin-sections .skin-subnav-btn,
+body.kur-alt.ti-skin .skin-sections a { border-radius: 0 !important; }
+body.kur-alt.ti-skin .skin-sections .active,
+body.kur-alt.ti-skin .skin-sections [aria-current="page"] {
+  border-bottom: 3px solid #1ba1e2 !important;
+  color: #1d1d1d !important;
+  font-weight: 700;
+}
+
+/* Karty, tabele, alerty, przyciski — proste, bez zaokrągleń */
+body.kur-alt.ti-skin .card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,.08);
+}
+body.kur-alt.ti-skin .card-header,
+body.kur-alt.ti-skin .card-footer { background: #fff !important; border-radius: 0 !important; }
+body.kur-alt.ti-skin .alert { border-radius: 0 !important; }
+body.kur-alt.ti-skin .badge,
+body.kur-alt.ti-skin .form-control,
+body.kur-alt.ti-skin .form-select { border-radius: 0 !important; }
+body.kur-alt.ti-skin .table thead th { background: #1d1d1d; color: #fff; }
+
+body.kur-alt.ti-skin .btn-primary {
+  background: #0f6fa8; border-color: #0f6fa8; color: #fff;
+  border-radius: 0 !important; font-weight: 600;
+}
+body.kur-alt.ti-skin .btn-primary:hover,
+body.kur-alt.ti-skin .btn-primary:focus { background: #0c5b8a; border-color: #0c5b8a; color: #fff; }
+
+body.kur-alt.ti-skin a:not(.btn) { color: #0f6fa8; }
+
+body.kur-alt.ti-skin :focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }

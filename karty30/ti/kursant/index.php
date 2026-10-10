@@ -1150,7 +1150,11 @@ $KP_BODY_CLASS = ($KP_BODY_CLASS ?? '');
 if ($KUR_UI === 'alt' && empty($account['must_change_password'])) {
     $KP_BODY_CLASS = trim($KP_BODY_CLASS . ' kur-alt ti-skin');
     $_skin_css     = __DIR__ . '/../assets/ti_skin.css';
-    $KP_EXTRA_CSS  = ['../assets/ti_skin.css?v=' . (is_file($_skin_css) ? (int)filemtime($_skin_css) : 1)];
+    $_metro_css    = __DIR__ . '/../assets/ti_metro_kursant.css';
+    $KP_EXTRA_CSS  = [
+        '../assets/ti_skin.css?v=' . (is_file($_skin_css) ? (int)filemtime($_skin_css) : 1),
+        '../assets/ti_metro_kursant.css?v=' . (is_file($_metro_css) ? (int)filemtime($_metro_css) : 1),
+    ];
 }
 include __DIR__ . '/_layout_head.php';
 ?>
