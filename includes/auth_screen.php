@@ -389,6 +389,19 @@ html[data-theme="hc"] body.tzl{--ks:#000;--ks-dark:#000;--ks-ink:#000;--ks-muted
 .tzl .tz-card a.ks-btn--primary,.tzl .tz-card a.ks-btn--ok{color:#fff}
 .tzl .tz-card a.ks-btn--ghost{color:#1d1d1d}
 .tzl .ks-forgot{color:#1d4ed8}
+.tzl .ks-news p strong{display:inline;font-size:inherit;margin:0}
+/* Wybór rodzaju konta (logowanie SZO, krok 1) — kafle METRO */
+.ks-choice{display:grid;gap:.6rem;margin:0 0 1rem}
+.ks-choice__item{display:flex;align-items:flex-start;gap:.85rem;padding:1rem 1.1rem;min-height:72px;text-decoration:none;
+  background:#1d1d1d;color:#fff!important;border-radius:0}
+.ks-choice__item--org{background:var(--ks)}
+.ks-choice__item:hover{filter:brightness(1.1);color:#fff}
+.ks-choice__item > .bi{font-size:1.6rem;line-height:1;flex-shrink:0}
+.ks-choice__item strong{display:block;font-size:1.05rem}
+.ks-choice__sub{display:block;font-size:.85rem;opacity:.9;margin-top:.15rem}
+.ks-switch{margin:1rem 0 0;font-size:.9rem}
+.ks-switch a{color:#1d4ed8}
+html[data-theme="hc"] .ks-choice__item{background:#000;border:2px solid #000}
 .tzl .ks-shell .card{box-shadow:0 2px 10px rgba(0,0,0,.08)!important}
 .tzl .ks-hero-h1{color:#1d1d1d;text-align:left;font-weight:700}
 .tzl .ks-hero-lead{color:#4b5563;text-align:left}
