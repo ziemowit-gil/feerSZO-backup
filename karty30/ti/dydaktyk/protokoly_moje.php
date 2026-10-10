@@ -112,10 +112,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <ul class="mb-2 ps-3">
     <li><strong>Podpis certyfikatem.</strong> Zatwierdzasz z plikiem .p12 i jego hasłem. Hasła nie zapisujemy w systemie.</li>
     <li><strong>Kod SMS.</strong> Przed podpisem kliknij „Wyślij kod SMS” i wpisz kod (ważny 5 minut, jednorazowy).</li>
-    <li><strong>Certyfikat od 11.10.2026.</strong> Wygenerujesz go sam w <a href="moj_certyfikat.php">Mój certyfikat</a>: plik przyjdzie mailem, hasło SMS-em, albo ustawisz własne hasło w kreatorze.</li>
+    <li><strong>Certyfikat od 11.10.2026.</strong> Wygenerujesz go sam w <a href="moj_certyfikat.php">Mój certyfikat</a>: hasło ustawiasz sam w kreatorze, plik przyjdzie mailem. Hasła nie wysyłamy SMS-em.</li>
+    <li><strong>Klucz bezpieczeństwa.</strong> Zamiast certyfikatu możesz zatwierdzić passkeyem lub YubiKeyem — klucz dodasz w <a href="moj_certyfikat.php">Mój certyfikat</a>.</li>
     <li><strong>Hasło własne:</strong> min. 16 znaków, co najmniej 3 rodzaje znaków (małe, wielkie litery, cyfry, znaki specjalne).</li>
   </ul>
-  <p class="mb-0">Brak certyfikatu lub telefonu w koncie? Poproś kierownika TI, który go uzupełni i wystawi certyfikat.</p>
+  <p class="mb-0">Brak telefonu w koncie? Poproś kierownika TI o jego uzupełnienie.</p>
 </div>
 
 <?php if ($open_row): ?>
@@ -154,80 +155,130 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
     <p class="text-body-secondary small">
       Zatwierdzenie zamyka protokół za ten miesiąc — nie da się go już cofnąć samodzielnie
-      (odblokować może administrator, z podaniem powodu).
+      (odblokować może kierownik, z podaniem powodu).
     </p>
 
-    <div class="d-flex gap-2">
-      <a href="protokoly_moje.php" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wstecz
-      </a>
+    <a href="protokoly_moje.php" class="btn btn-outline-secondary btn-sm mb-3">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wstecz do listy protokołów
+    </a>
 <?php if (empty($open_row['can_approve']) && !dyd_is_staff()): ?>
-      <p class="ms-auto small text-body-secondary mb-0 align-self-center">
-        <i class="bi bi-lock me-1" aria-hidden="true"></i>Protokół zatwierdza główny prowadzący kursu albo kierownik.
-      </p>
-      <?php else: ?>
-            <?php
-              $_has_cert = x509_user_has_active_cert($uid);
-              $_has_key  = (bool)webauthn_get_credentials($uid);
-              // Bez certyfikatu, ale z kluczem (passkey/YubiKey) — od razu proponujemy klucz;
-              // SMS i podpis .p12 są wtedy niepotrzebne.
-              // „Nie mogę skorzystać z passkey” (?metoda=zwykla) — wracamy do zwykłej metody.
-              $_key_first = !$_has_cert && $_has_key && ($_GET['metoda'] ?? '') !== 'zwykla';
-            ?>
-            <?php if (!$_key_first): ?>
-            <form method="post" class="mb-2">
+    <p class="small text-body-secondary mb-0">
+      <i class="bi bi-lock me-1" aria-hidden="true"></i>Protokół zatwierdza główny prowadzący kursu albo kierownik.
+    </p>
+<?php else: ?>
+    <?php
+      $_has_cert = x509_user_has_active_cert($uid);
+      $_has_key  = (bool)webauthn_get_credentials($uid);
+      // Bez certyfikatu, ale z kluczem (passkey/YubiKey) — od razu proponujemy klucz;
+      // SMS i podpis .p12 są wtedy niepotrzebne.
+      // „Nie mogę skorzystać z passkey” (?metoda=zwykla) — wracamy do zwykłej metody.
+      $_key_first = !$_has_cert && $_has_key && ($_GET['metoda'] ?? '') !== 'zwykla';
+      $_cid = (int)$open_row['course_id'];
+    ?>
+    <?php /* Formularz zatwierdzenia jest pusty: pola kroków i przycisk w okienku godzin
+             należą do niego przez atrybut form="pmApproveForm" — dzięki temu kroki mogą
+             być osobnymi kartami, a wysyłka kodu SMS osobnym formularzem. */ ?>
+    <form method="post" id="pmApproveForm" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="approve_month">
+      <input type="hidden" name="course_id" value="<?= $_cid ?>">
+      <input type="hidden" name="year_month" value="<?= h($open_ym) ?>">
+    </form>
+
+    <style>
+      .pm-nr{flex:0 0 2.25rem;height:2.25rem;display:flex;align-items:center;justify-content:center;
+        background:#0f6fa8;color:#fff;font-weight:700;font-size:1.05rem}
+    </style>
+    <div class="pm-kroki" style="max-width:40rem">
+    <?php if ($_key_first): ?>
+      <section class="card border-success mb-3" aria-labelledby="pmKluczH">
+        <div class="card-body">
+          <h3 class="h6 fw-semibold mb-1" id="pmKluczH"><i class="bi bi-usb-drive text-success me-1" aria-hidden="true"></i>Zatwierdź kluczem bezpieczeństwa</h3>
+          <p class="small mb-3" id="pmYkOpis">Masz zarejestrowany klucz (passkey lub YubiKey) — wystarczy go użyć. Nie potrzebujesz certyfikatu ani kodu SMS.
+            Klucz potwierdza, że to Ty zatwierdzasz protokół i że treść ewidencji godzin się nie zmieniła.</p>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button type="button" class="btn btn-success" id="pmYkBtn" data-course="<?= $_cid ?>" data-ym="<?= h($open_ym) ?>"
+                    aria-describedby="pmYkOpis pmYkStan">
+              <i class="bi bi-usb-drive me-1" aria-hidden="true"></i>Zatwierdź kluczem bezpieczeństwa
+            </button>
+            <a class="btn btn-outline-secondary" href="protokoly_moje.php?course=<?= $_cid ?>&amp;ym=<?= h(urlencode($open_ym)) ?>&amp;metoda=zwykla">
+              <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Nie mogę skorzystać z passkey
+            </a>
+          </div>
+          <div class="visually-hidden" role="status" aria-live="polite" id="pmYkStan"></div>
+          <div class="alert alert-danger small py-2 mt-2 mb-0 d-none" role="alert" id="pmYkBlad"></div>
+        </div>
+      </section>
+
+    <?php elseif ($_has_cert): ?>
+      <h3 class="h6 fw-semibold mb-2">Zatwierdzenie certyfikatem — 3 kroki</h3>
+      <ol class="list-unstyled mb-0">
+        <li class="card mb-2"><div class="card-body d-flex gap-3">
+          <span class="pm-nr" aria-hidden="true">1</span>
+          <div class="flex-grow-1">
+            <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 1: </span>Wyślij kod SMS</h4>
+            <p class="small text-body-secondary mb-2">Kod przyjdzie na telefon z Twojego konta. Jest ważny 5 minut i działa raz.</p>
+            <form method="post">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="send_otp">
-              <input type="hidden" name="course_id" value="<?= (int)$open_row['course_id'] ?>">
+              <input type="hidden" name="course_id" value="<?= $_cid ?>">
               <input type="hidden" name="year_month" value="<?= h($open_ym) ?>">
-              <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
-              <span class="small text-body-secondary ms-2">Najpierw kod na telefon, potem podpis.</span>
+              <button type="submit" class="btn btn-outline-primary"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
             </form>
-            <?php endif; ?>
-            <form method="post" class="ms-auto" id="pmApproveForm" enctype="multipart/form-data">
-        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-        <input type="hidden" name="_op" value="approve_month">
-        <input type="hidden" name="course_id" value="<?= (int)$open_row['course_id'] ?>">
-        <input type="hidden" name="year_month" value="<?= h($open_ym) ?>">
-        <?php if ($_has_cert): ?>
-        <div class="card card-body py-2 mb-2 small" style="min-width:18rem">
-          <div class="fw-semibold mb-1"><i class="bi bi-patch-check text-success" aria-hidden="true"></i> Podpis certyfikatem</div>
-          <label class="form-label mb-1" for="pmP12">Plik certyfikatu (.p12)</label>
-          <input type="file" class="form-control form-control-sm mb-2" id="pmP12" name="p12" accept=".p12,.pfx" required>
-          <label class="form-label mb-1" for="pmP12Pwd">Hasło do certyfikatu</label>
-          <input type="password" class="form-control form-control-sm mb-1" id="pmP12Pwd" name="p12_password" autocomplete="off" required>
-          <label class="form-label mb-1" for="pmOtp">Kod z SMS-a</label>
-          <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control form-control-sm mb-1" id="pmOtp" name="otp" autocomplete="one-time-code" required>
-          <div class="text-body-secondary">Podpis obejmuje dokładną treść ewidencji godzin. Plik i hasło służą tylko do tego podpisu i nie są zapisywane.</div>
+          </div>
+        </div></li>
+        <li class="card mb-2"><div class="card-body d-flex gap-3">
+          <span class="pm-nr" aria-hidden="true">2</span>
+          <div class="flex-grow-1">
+            <h4 class="h6 fw-semibold mb-2"><span class="visually-hidden">Krok 2: </span>Wskaż certyfikat i wpisz hasło oraz kod</h4>
+            <label class="form-label small fw-semibold mb-1" for="pmP12">Plik certyfikatu (.p12)</label>
+            <input type="file" class="form-control mb-2" id="pmP12" name="p12" accept=".p12,.pfx" required form="pmApproveForm">
+            <label class="form-label small fw-semibold mb-1" for="pmP12Pwd">Hasło do certyfikatu</label>
+            <input type="password" class="form-control mb-2" id="pmP12Pwd" name="p12_password" autocomplete="off" required form="pmApproveForm">
+            <label class="form-label small fw-semibold mb-1" for="pmOtp">Kod z SMS-a</label>
+            <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control mb-1" id="pmOtp" name="otp"
+                   autocomplete="one-time-code" required form="pmApproveForm" aria-describedby="pmOtpHint">
+            <p class="small text-body-secondary mb-0" id="pmOtpHint">Podpis obejmuje dokładną treść ewidencji godzin. Plik i hasło służą tylko do tego podpisu i nie są zapisywane.</p>
+          </div>
+        </div></li>
+        <li class="card mb-2"><div class="card-body d-flex gap-3">
+          <span class="pm-nr" aria-hidden="true">3</span>
+          <div class="flex-grow-1">
+            <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 3: </span>Sprawdź godziny i zatwierdź</h4>
+            <p class="small text-body-secondary mb-2">Zobaczysz listę godzin. Po potwierdzeniu protokół zostanie podpisany i zamknięty.</p>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck">
+              <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
+            </button>
+          </div>
+        </div></li>
+      </ol>
+
+    <?php else: ?>
+      <div class="alert alert-warning small py-2 mb-3">
+        <div class="fw-semibold"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Nie masz certyfikatu do podpisu</div>
+        <p class="mb-0">Certyfikat to elektroniczny odpowiednik Twojego podpisu: potwierdza, że to Ty zatwierdziłeś protokół i że jego treść się nie zmieniła.
+          Wygeneruj go w <a href="moj_certyfikat.php">Mój certyfikat</a> (hasło ustawiasz sam) albo dodaj tam klucz bezpieczeństwa (passkey lub YubiKey) i zatwierdzaj nim.</p>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($_has_key && !$_key_first): ?>
+      <?php /* Klucz jako alternatywa dla certyfikatu — osobna, spokojniejsza karta pod krokami. */ ?>
+      <section class="card bg-body-tertiary border-0 mt-3" aria-labelledby="pmAltH">
+        <div class="card-body">
+          <h3 class="h6 fw-semibold mb-1" id="pmAltH">Albo: klucz bezpieczeństwa zamiast certyfikatu</h3>
+          <p class="small text-body-secondary mb-2" id="pmYkOpis">Passkey lub YubiKey — bez pliku, hasła i kodu SMS.</p>
+          <button type="button" class="btn btn-outline-success" id="pmYkBtn" data-course="<?= $_cid ?>" data-ym="<?= h($open_ym) ?>"
+                  aria-describedby="pmYkOpis pmYkStan">
+            <i class="bi bi-usb-drive me-1" aria-hidden="true"></i>Zatwierdź kluczem (passkey / YubiKey)
+          </button>
+          <div class="visually-hidden" role="status" aria-live="polite" id="pmYkStan"></div>
+          <div class="alert alert-danger small py-2 mt-2 mb-0 d-none" role="alert" id="pmYkBlad"></div>
         </div>
-        <?php elseif ($_key_first): ?>
-        <div class="card card-body border-success py-2 mb-2 small" style="min-width:18rem">
-          <div class="fw-semibold mb-1"><i class="bi bi-usb-drive text-success" aria-hidden="true"></i> Zatwierdź kluczem bezpieczeństwa</div>
-          <p class="mb-0" id="pmYkOpis">Masz zarejestrowany klucz (passkey lub YubiKey) — wystarczy go użyć. Nie potrzebujesz certyfikatu ani kodu SMS.
-            Klucz potwierdza, że to Ty zatwierdzasz protokół i że treść ewidencji godzin się nie zmieniła.</p>
-          <a class="btn btn-sm btn-outline-secondary mt-2 align-self-start"
-             href="protokoly_moje.php?course=<?= (int)$open_row['course_id'] ?>&amp;ym=<?= h(urlencode($open_ym)) ?>&amp;metoda=zwykla">
-            <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Nie mogę skorzystać z passkey
-          </a>
-        </div>
-        <?php else: ?>
-        <div class="alert alert-warning small py-2 mb-2" style="min-width:18rem">
-          <div class="fw-semibold"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Nie masz certyfikatu do podpisu</div>
-          <p class="mb-0">Certyfikat to elektroniczny odpowiednik Twojego podpisu: potwierdza, że to Ty zatwierdziłeś protokół i że jego treść się nie zmieniła. Poproś administratora o wystawienie certyfikatu — dostaniesz plik .p12 i hasło do niego.
-            Możesz też dodać klucz bezpieczeństwa (passkey lub YubiKey) w <a href="moj_certyfikat.php">Mój certyfikat</a> i zatwierdzać nim.</p>
-        </div>
-        <?php endif; ?>
-        <!-- Przed zatwierdzeniem: okno z listą godzin (data — liczba godzin), wydruk PDF
-             i obowiązkowe „sprawdziłem/am” → Akceptuję wysyła ten formularz. -->
-        <?php if ($_has_key): ?>
-        <button type="button" class="btn <?= $_key_first ? 'btn-success' : 'btn-outline-success' ?> me-2" id="pmYkBtn"
-                data-course="<?= (int)$open_row['course_id'] ?>" data-ym="<?= h($open_ym) ?>"
-                aria-describedby="<?= $_key_first ? 'pmYkOpis ' : '' ?>pmYkStan">
-          <i class="bi bi-usb-drive me-1" aria-hidden="true"></i><?= $_key_first ? 'Zatwierdź kluczem bezpieczeństwa' : 'Zatwierdź kluczem (passkey / YubiKey)' ?>
-        </button>
-        <?php /* Postęp dla czytnika ekranu i błąd na stronie zamiast okienka alert(). */ ?>
-        <div class="visually-hidden" role="status" aria-live="polite" id="pmYkStan"></div>
-        <div class="alert alert-danger small py-2 mt-2 mb-2 d-none" role="alert" id="pmYkBlad"></div>
+      </section>
+    <?php endif; ?>
+    </div>
+
+    <?php if ($_has_key): ?>
         <script>
         (function () {
           var b = document.getElementById('pmYkBtn'); if (!b) return;
@@ -278,15 +329,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           });
         })();
         </script>
-        <?php endif; ?>
-        <?php if (!$_key_first): ?>
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck"<?= $_has_cert ? '' : ' disabled' ?>>
-          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
-        </button>
-        <?php endif; ?>
-      </form>
-      <?php endif; ?>
-    </div>
+    <?php endif; ?>
+<?php endif; ?>
   </div>
 </div>
 
