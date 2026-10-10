@@ -19,7 +19,7 @@ $egz_health = ti_exam_engine_health();
   </a>
 </div>
 
-<?php if (dyd_is_staff()):
+<?php if (dyd_is_staff() || (function_exists('ti_panel_role') && ti_panel_role((int)(dyd_current()['user_id'] ?? 0)) === 'kierownik')): /* kierownik TI także jako Prowadzący */
     require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_exam_notify/logic/tiExamNotify.php';
     $egz_notify_on = ti_exam_notify_enabled();
 ?>

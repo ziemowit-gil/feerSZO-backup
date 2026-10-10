@@ -665,7 +665,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Powiadomienia o egzaminach (e-mail + SMS do kursantów, agent ti_exam_notify) — włącznik globalny
     // kierownika; grupa w POST to tylko „skąd wrócić” (back_course), więc bramka course_id nie jest potrzebna.
-    if ($op === 'exam_notify_toggle' && dyd_is_staff()) {
+    // Wysyłka do kursantów (powiadomienia o egzaminach) — dla kierownika TI także, gdy pracuje jako Prowadzący
+    $_can_exam_notify = dyd_is_staff() || (function_exists('ti_panel_role') && ti_panel_role((int)$uid) === 'kierownik');
+    if ($op === 'exam_notify_toggle' && $_can_exam_notify) {
         require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_exam_notify/logic/tiExamNotify.php';
         $on = !empty($_POST['enabled']);
         ti_exam_notify_set_enabled($on);
