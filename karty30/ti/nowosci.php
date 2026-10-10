@@ -20,8 +20,8 @@ $_panel = 'kursant/index.php';
 <meta name="description" content="Nowy wygląd panelu kursanta (METRO) i nowe zasady logowania.">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-  /* Wygląd jak logowanie TI (login.php): METRO, ciemna kolumna, jasne tło, kwadratowe karty, przyciski #1ba1e2. */
-  :root { --tekst: #1d1d1d; --tlo: #f3f4f6; --akcent: #1ba1e2; --przycisk: #1ba1e2; --link: #1d4ed8; --fokus: #facc15; --szary: #4b5563; --cien: 0 2px 10px rgba(0,0,0,.08); }
+  /* Wygląd jak logowanie TI (login.php): METRO, ciemna kolumna, jasne tło, kwadratowe karty, przyciski #0f6fa8. */
+  :root { --tekst: #1d1d1d; --tlo: #f3f4f6; --akcent: #0f6fa8; --przycisk: #0f6fa8; --link: #1d4ed8; --fokus: #facc15; --szary: #4b5563; --cien: 0 2px 10px rgba(0,0,0,.08); }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 1rem; line-height: 1.6; color: var(--tekst); background: var(--tlo); }
   a { color: var(--link); }
@@ -37,7 +37,7 @@ $_panel = 'kursant/index.php';
   .nw-marka { font-weight: 700; font-size: 1.05rem; color: var(--tekst); text-decoration: none; display: inline-flex; align-items: center; gap: .5rem; }
   .nw-btn { display: inline-flex; align-items: center; gap: .5rem; min-height: 48px; padding: .55rem 1.2rem; font-weight: 700; text-decoration: none;
             background: var(--przycisk); color: #fff; border: 2px solid var(--przycisk); }
-  .nw-btn:hover { background: #1790c9; border-color: #1790c9; color: #fff; }
+  .nw-btn:hover { background: #0c5b8a; border-color: #0c5b8a; color: #fff; }
   .nw-btn-jasny { background: #fff; color: var(--tekst); border-color: var(--akcent); }
   .nw-btn-jasny:hover { background: #e6f6fc; color: var(--tekst); }
 
@@ -95,7 +95,7 @@ $_panel = 'kursant/index.php';
 <a class="nw-skip" href="#tresc">Przejdź do treści</a>
 <div class="nw-baner" role="region" aria-label="Informacja o logowaniu">
   Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
-  <a href="sso.php">Czym jest SSO?</a>
+  <a href="<?= h(rtrim((string)(parse_url(APP_URL, PHP_URL_PATH) ?: ''), '/')) ?>/karty30/ti/sso.php">Czym jest SSO?</a>
 </div>
 
 <header class="nw-top">
@@ -182,7 +182,7 @@ $_panel = 'kursant/index.php';
     <!-- ── Wygląd ─────────────────────────────────────────────────── -->
     <section class="nw-sekcja" id="wyglad" aria-labelledby="h-wyglad">
       <h2 id="h-wyglad"><i class="bi bi-grid-1x2" aria-hidden="true"></i>Nowy wygląd METRO</h2>
-      <div class="nw-wazne" role="note" style="border-left-color:#1ba1e2">
+      <div class="nw-wazne" role="note" style="border-left-color:#0f6fa8">
         <h3>Nowy wygląd działa już dla wszystkich</h3>
         <p>Od października 2026 panel kursanta jest dostępny tylko w nowym wyglądzie METRO — nie trzeba niczego włączać. Wszystkie funkcje i dane zostały na swoim miejscu; zmienił się sposób ich pokazania. Jeśli czegoś nie możesz znaleźć, użyj wyszukiwarki na ekranie startowym albo napisz przez <strong>Pomoc</strong>.</p>
       </div>
@@ -246,7 +246,7 @@ $_panel = 'kursant/index.php';
           <p>Możesz dać dostęp do podglądu panelu np. członkowi rodziny lub asystentowi. Taka osoba widzi lekcje, frekwencję i rozliczenia, ale niczego nie zmienia.</p>
           <p class="nw-gdzie">W każdej chwili zablokujesz albo odwołasz dostęp — działa to od razu. <strong>Sprawy → Upoważnieni</strong>.</p>
         </li>
-        <li class="nw-kafel" style="--k:#1ba1e2">
+        <li class="nw-kafel" style="--k:#0f6fa8">
           <h3><i class="bi bi-microsoft" aria-hidden="true"></i>Microsoft 365 (EDU)</h3>
           <p>Masz szkolne konto Microsoft 365? W panelu jest osobna zakładka z loginem i skrótami do Outlooka, Teams, OneDrive, Worda i Excela.</p>
         </li>

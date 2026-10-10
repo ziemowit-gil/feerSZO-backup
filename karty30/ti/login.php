@@ -16,6 +16,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/org_case.php';   // odmiana 
 
 karty30_migrate();
 
+// Linki do stron TI jako ścieżki od korzenia: na ti.* i kursant.* ta strona działa pod /login.php,
+// więc względne „sso.php” prowadziło do /sso.php (404).
+$TI_BASE = rtrim((string)(parse_url(APP_URL, PHP_URL_PATH) ?: ''), '/') . '/karty30/ti/';
+
 // ── Komunikaty błędów ─────────────────────────────────────────────────────────
 $ERR = [
     1 => 'Nieprawidłowy login lub hasło.',
@@ -62,7 +66,7 @@ $_titles = [
     'up'       => 'Dostęp upoważnionego',
 ];
 $_tabs = [
-    'kursant'  => ['label' => 'Kursant',     'icon' => 'bi-pc-display',   'who' => 'Uczestnik zajęć',                  'kolor' => '#1ba1e2'],
+    'kursant'  => ['label' => 'Kursant',     'icon' => 'bi-pc-display',   'who' => 'Uczestnik zajęć',                  'kolor' => '#0f6fa8'],
     'dydaktyk' => ['label' => 'Prowadzący',  'icon' => 'bi-easel2',       'who' => 'Prowadzę zajęcia',                 'kolor' => '#1d1d1d'],
     'rodzic'   => ['label' => 'Rodzic',      'icon' => 'bi-people',       'who' => 'Opiekun kursanta',                 'kolor' => '#00a300'],
     'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check', 'who' => 'Osoba upoważniona przez kursanta', 'kolor' => '#7e3878'],
@@ -89,9 +93,9 @@ $_tabs = [
   .tz-card { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; width: 100%; max-width: 420px; }
   .tz-card .form-control { border-radius: 0; box-shadow: none; padding: .7rem .9rem; font-size: 1.05rem; }
   .tz-card label { font-weight: 600; font-size: .92rem; margin-bottom: .3rem; }
-  .tz-btn { border-radius: 0; background: #1ba1e2; border: 0; color: #fff; font-weight: 600; padding: .75rem 1rem; width: 100%; text-align: center; text-decoration: none; display: block; }
-  .tz-btn:hover { background: #1790c9; color: #fff; }
-  .tz-btn-ghost { background: #fff; color: #1d1d1d; border: 2px solid #1ba1e2; }
+  .tz-btn { border-radius: 0; background: #0f6fa8; border: 0; color: #fff; font-weight: 600; padding: .75rem 1rem; width: 100%; text-align: center; text-decoration: none; display: block; }
+  .tz-btn:hover { background: #0c5b8a; color: #fff; }
+  .tz-btn-ghost { background: #fff; color: #1d1d1d; border: 2px solid #0f6fa8; }
   .tz-btn-ghost:hover { background: #e6f6fc; color: #1d1d1d; }
   .tz-tile { display: block; height: 100%; padding: 1rem; text-decoration: none; color: #fff; border-radius: 0; font-family: "Segoe UI", system-ui, sans-serif; }
   .tz-tile:hover { color: #fff; filter: brightness(.92); }
@@ -107,9 +111,9 @@ $_tabs = [
 </style>
 </head>
 <body>
-<div role="region" aria-label="Informacja o logowaniu" style="background:#1ba1e2;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
+<div role="region" aria-label="Informacja o logowaniu" style="background:#0f6fa8;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
   Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
-  <a href="sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
+  <a href="<?= h($TI_BASE) ?>sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
 </div>
 <div class="tz-split">
   <aside class="tz-side" aria-labelledby="tz-side-h">
@@ -176,7 +180,7 @@ $_tabs = [
         </div>
         <button type="submit" class="tz-btn">Dalej</button>
       </form>
-      <p class="tz-hint">Nie masz konta? <a href="zapisy.php">Zostaw kontakt</a> — odezwiemy się w sprawie zapisów.</p>
+      <p class="tz-hint">Nie masz konta? <a href="<?= h($TI_BASE) ?>zapisy.php">Zostaw kontakt</a> — odezwiemy się w sprawie zapisów.</p>
       <?php if (k30_pfron_enabled()): ?>
       <a href="kursant/pfron.php" class="tz-btn tz-btn-ghost mt-3">Rozliczenia PFRON (Aktywny Samorząd)</a>
       <?php endif; ?>
@@ -185,7 +189,7 @@ $_tabs = [
       <?php if (!$dyd_haslo): ?>
       <p class="mb-3">Prowadzący zwykle logują się kontem <strong>Microsoft 365</strong>. Jaki adres e-mail masz?</p>
       <div class="d-grid gap-2" role="list" aria-label="Rodzaj adresu e-mail">
-        <a role="listitem" class="tz-tile tz-choice" href="<?= h($office_login_url) ?>" style="background:#1ba1e2"
+        <a role="listitem" class="tz-tile tz-choice" href="<?= h($office_login_url) ?>" style="background:#0f6fa8"
            aria-label="Mam pocztę w domenie fundacji — zalecane. Zaloguj przez Microsoft 365, zostaniesz przekierowany do Microsoft">
           <span class="tz-choice-badge">Zalecane</span>
           <i class="bi bi-building fs-4" aria-hidden="true"></i>
@@ -281,7 +285,7 @@ $_tabs = [
 </div>
 
 <footer class="tz-footer" aria-label="Linki">
-  <a href="nowosci.php"><strong>Co nowego w panelu kursanta</strong></a>
+  <a href="<?= h($TI_BASE) ?>nowosci.php"><strong>Co nowego w panelu kursanta</strong></a>
   <a href="https://feer.org.pl">Strona Fundacji FEER</a>
   <a href="<?= h(rtrim(APP_URL, '/')) ?>/panel/index.php">Panel wolontariusza</a>
   <a href="<?= h(rtrim(APP_URL, '/')) ?>/auth/login.php">Logowanie do systemu (SZO)</a>
