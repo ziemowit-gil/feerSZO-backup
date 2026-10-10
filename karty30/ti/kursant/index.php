@@ -5734,7 +5734,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php endif; // online_term_ok ?>
 
 <?php elseif ($tab === 'problem'): ?>
-<div class="row justify-content-center">
+<div class="row justify-content-center kp-pomoc">
   <div class="col-lg-8">
     <h1 class="h5 fw-bold mb-1"><i class="bi bi-wrench-adjustable text-primary me-2" aria-hidden="true"></i>Zgłoś problem techniczny</h1>
     <p class="text-body-secondary small mb-3">

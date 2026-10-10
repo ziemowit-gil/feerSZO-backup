@@ -655,3 +655,16 @@ body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini .badge { margin-left: auto;
 
 /* Rozwijane karty pomocy (akordeony) w dwóch kolumnach: równe nagłówki */
 body.kur-alt.ti-skin .accordion-button { min-height: 64px; border-radius: 0 !important; }
+
+/* Pomoc (zgłoszenie problemu) pod nowe UI: pełna szerokość, płaska karta, kwadratowe pola z ciemną ramką */
+body.kur-alt.ti-skin .kp-pomoc { justify-content: flex-start !important; }
+body.kur-alt.ti-skin .kp-pomoc > .col-lg-8 { flex: 0 0 100%; max-width: 100%; }
+body.kur-alt.ti-skin .kp-pomoc .card { border: 2px solid #1d1d1d !important; }
+body.kur-alt.ti-skin .kp-pomoc .form-control,
+body.kur-alt.ti-skin .kp-pomoc .form-select { border: 2px solid #1d1d1d; border-radius: 0; padding: .6rem .75rem; font-size: 1rem; }
+body.kur-alt.ti-skin .kp-pomoc .form-control:focus,
+body.kur-alt.ti-skin .kp-pomoc .form-select:focus { border-color: #1ba1e2; box-shadow: 0 0 0 3px #d9f0fb; }
+body.kur-alt.ti-skin .kp-pomoc .form-label { font-size: .95rem; }
+body.kur-alt.ti-skin .kp-pomoc .alert-light { background: #f3f4f6 !important; border-left: 6px solid #1ba1e2 !important; }
+body.kur-alt.ti-skin .kp-pomoc .btn-primary { padding: .6rem 1.2rem; font-size: 1rem; }
+@media (min-width: 992px) { body.kur-alt.ti-skin .kp-pomoc form { max-width: 900px; } }
