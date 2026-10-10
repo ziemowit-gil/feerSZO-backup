@@ -53,7 +53,8 @@ body.tzl { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; 
 .tz-side-nav .ks-tab:hover, .tz-side-nav a:hover { background: rgba(255,255,255,.14); color: #fff; }
 .tz-side-nav [aria-current="page"] { border-left-color: {$a}; background: rgba(27,161,226,.22); }
 .tz-actions { margin-top: 2rem; max-width: 420px; }
-.tz-actions h3 { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #cbd5e1; margin: 0 0 .6rem; }
+.tz-actions h3 { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #cbd5e1; margin: 0 0 .25rem; }
+.tz-actions-sub { color: #cbd5e1; font-size: .88rem; margin: 0 0 .6rem; }
 .tz-actions ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; font-size: .9rem; }
 .tz-actions li { margin: 0; }
 .tz-actions a { display: flex; align-items: center; gap: .5rem; min-height: 48px; padding: .55rem .75rem; color: #fff; text-decoration: none; font-weight: 600; background: var(--tz-k, #2d2d2d); }
@@ -98,29 +99,47 @@ CSS;
 }
 
 /**
- * Kafle „Inne akcje" w lewej kolumnie: pozostałe logowania i pomoc. Kafel strony,
- * na której jesteśmy, jest pomijany (porównanie ścieżki z SCRIPT_NAME).
+ * Kafle „Serwisy i systemy z kontem w Tożsamości" w lewej kolumnie: systemy, do których
+ * wchodzi się kontem z Systemu Tożsamości (to samo konto i hasło), oraz aktywne aplikacje
+ * podłączone przez SAML (tabela saml_sp, pole relay_default). Kafel bieżącej strony jest pomijany.
  */
 function loginShellActions(): string {
     $e    = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     $app  = rtrim(APP_URL, '/');
     $self = (string)($_SERVER['SCRIPT_NAME'] ?? '');
-    $akcje = [
-        ['/karty30/ti/login.php',            'Panel kursanta TI',     'bi-pc-display',          '#1ba1e2'],
-        ['/auth/login.php',                  'Logowanie do SZO',      'bi-box-arrow-in-right',  '#2d2d2d'],
-        ['/karty30/login.php',               'Dydaktyka 3',           'bi-card-checklist',      '#2d2d2d'],
-        ['/crm/login.php',                   'CRM',                   'bi-people',              '#2d2d2d'],
-        ['/portal_kontrahenta/login.php',    'Portal Kontrahenta',    'bi-building',            '#2d2d2d'],
-        ['/user/verify_reset.php',           'Odzyskiwanie hasła',    'bi-key',                 '#2d2d2d'],
-        ['/auth/report_login_issue.php',     'Problem z logowaniem',  'bi-life-preserver',      '#7e3878'],
+    $systemy = [
+        [$app . '/tozsamosc/index.php',   'Moje konto (Tożsamość)', 'bi-person-vcard',       '#1ba1e2'],
+        [$app . '/auth/login.php',        'System SZO',             'bi-building',           '#2d2d2d'],
+        [$app . '/karty30/ti/login.php',  'Panel kursanta TI',      'bi-pc-display',         '#2d2d2d'],
+        [$app . '/karty30/login.php',     'Dydaktyka 3',            'bi-card-checklist',     '#2d2d2d'],
+        [$app . '/crm/login.php',         'CRM',                    'bi-people',             '#2d2d2d'],
+        [$app . '/ezd/index.php',         'EZD (dokumenty)',        'bi-folder2-open',       '#2d2d2d'],
+        [$app . '/tasks/index.php',       'Zadania',                'bi-check2-square',      '#2d2d2d'],
+        [$app . '/webmail/index.php',     'Poczta',                 'bi-envelope',           '#2d2d2d'],
+        [$app . '/panel/index.php',       'Panel wolontariusza',    'bi-heart',              '#2d2d2d'],
+        ['https://www.office.com',        'Microsoft 365',          'bi-microsoft',          '#2d2d2d'],
     ];
+    // Aplikacje zewnętrzne logujące przez Tożsamość (SAML) — tylko gdy baza jest dostępna.
+    try {
+        if (function_exists('db_all')) {
+            foreach (db_all("SELECT name, relay_default FROM saml_sp WHERE is_active = 1 AND COALESCE(relay_default, '') != '' ORDER BY name") as $sp) {
+                if (preg_match('#^https?://#i', (string)$sp['relay_default'])) {
+                    $systemy[] = [(string)$sp['relay_default'], (string)$sp['name'], 'bi-box-arrow-up-right', '#2d2d2d'];
+                }
+            }
+        }
+    } catch (\Throwable $ex) {}
+
     $li = '';
-    foreach ($akcje as [$path, $label, $icon, $kolor]) {
-        if ($self !== '' && str_ends_with($self, $path)) continue;
-        $li .= '<li><a href="' . $e($app . $path) . '" style="--tz-k:' . $kolor . '">'
+    foreach ($systemy as [$url, $label, $icon, $kolor]) {
+        $path = (string)parse_url($url, PHP_URL_PATH);
+        if ($self !== '' && str_starts_with($url, $app) && $path === $self) continue;   // bieżąca strona
+        $li .= '<li><a href="' . $e($url) . '" style="--tz-k:' . $kolor . '">'
              . '<i class="bi ' . $icon . '" aria-hidden="true"></i>' . $e($label) . '</a></li>';
     }
-    return '<section class="tz-actions" aria-labelledby="tz-actions-h"><h3 id="tz-actions-h">Inne akcje</h3><ul>' . $li . '</ul></section>';
+    return '<section class="tz-actions" aria-labelledby="tz-actions-h">'
+         . '<h3 id="tz-actions-h">Serwisy i systemy z kontem w Tożsamości</h3>'
+         . '<p class="tz-actions-sub">Wszędzie tu logujesz się tym samym kontem.</p><ul>' . $li . '</ul></section>';
 }
 
 /**
@@ -155,7 +174,7 @@ function loginShellAccountButtons(array $which = ['register', 'reset'], bool $re
  * Lewa kolumna: organizacja, tytuł, podtytuł, instrukcja i opcjonalna nawigacja.
  *
  * @param array $o sideTitle, sideSub, sideSteps (lista zdań), sideHtml (dowolny HTML),
- *                 navHtml (linki/zakładki), logoUrl, orgLabel, actions (kafle „Inne akcje", domyślnie true),
+ *                 navHtml (linki/zakładki), logoUrl, orgLabel, actions (kafle „Serwisy i systemy z kontem w Tożsamości", domyślnie true),
  *                 account (['login','register','reset'] — przyciski konta), registerOpen
  */
 function loginShellSide(array $o): string {

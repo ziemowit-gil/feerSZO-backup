@@ -69,7 +69,7 @@ function auth_screen_bg_css(string $sel = 'html,body'): void {
  *                 side_title / side_sub / side_steps — lewa kolumna w wyglądzie METRO
  *                 account_buttons — podzbiór ['login','register','reset']: przyciski konta w lewej kolumnie
  *                                   (zastępują zakładki side_tabs_html)
- *                 actions    — kafle „Inne akcje" (inne logowania, pomoc); domyślnie w trybie 'card'
+ *                 actions    — kafle „Serwisy i systemy z kontem w Tożsamości"; domyślnie w trybie 'card'
  */
 function auth_screen_head(array $o = []): void {
     $b         = branding_load();
