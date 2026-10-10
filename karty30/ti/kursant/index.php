@@ -2592,7 +2592,7 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php if ($KUR_UI === 'alt'): ?>
   <script>
-  // Moje lekcje: przyciski (mikrokafle) i mini-kalendarz po lewej, lekcje po prawej. Przenosi elementy w DOM,
+  // Moje lekcje: lekcje po lewej, przyciski (mikrokafle) i mini-kalendarz po prawej. Przenosi elementy w DOM,
   // więc czytnik ekranu czyta w tej samej kolejności, co widać. Bez JS — układ jednokolumnowy.
   document.addEventListener('DOMContentLoaded', function () {
     var main = document.querySelector('main.kp-lekcje-uklad');
@@ -2605,7 +2605,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var box = document.createElement('div'); box.className = 'kp-lekcje-kolumny';
     var lewa = document.createElement('aside'); lewa.className = 'kp-lekcje-lewa'; lewa.setAttribute('aria-label', 'Narzędzia: statystyki, pobieranie, kalendarz');
     var prawa = document.createElement('div'); prawa.className = 'kp-lekcje-prawa';
-    head.after(box); box.appendChild(lewa); box.appendChild(prawa);
+    head.after(box); box.appendChild(prawa); box.appendChild(lewa);
     lewa.appendChild(mk);
     var cal = document.getElementById('kpCalCard');
     if (cal) lewa.appendChild(cal);
@@ -2902,7 +2902,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Wiersz pojedynczej lekcji — współdzielony przez obie grupy
-    $lessonRow = function(array $l) use ($months_pl, $vlab_token, $hw_by_session, $resch_pending) {
+    $lessonRow = function(array $l) use ($months_pl, $vlab_token, $hw_by_session, $resch_pending, $KUR_UI) {
             $d   = new DateTime($l['lesson_date']);
             $dow = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$d->format('w')];
             $enroll_link = trim((string)($l['enrollment_meeting_url'] ?? ''));
