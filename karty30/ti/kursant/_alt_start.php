@@ -76,7 +76,7 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
       <h2 class="kp-w8-naglowek" id="kp-w8-g-dzis">Na dziś</h2>
       <ul class="kp-w8-siatka">
         <?php if (!empty($today_lessons)): ?>
-        <li class="kp-w8-kafel kp-w8-szeroki" style="--kolor:#fcd116">
+        <li class="kp-w8-kafel" style="--kolor:#fcd116">
           <a href="?tab=lekcje">
             <i class="bi bi-calendar-event kp-w8-ikona" aria-hidden="true"></i>
             <span class="kp-w8-tytul">Dziś masz zajęcia
@@ -87,7 +87,7 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
           </a>
         </li>
         <?php endif; ?>
-        <li class="kp-w8-kafel kp-w8-szeroki" style="--kolor:#f0a30a">
+        <li class="kp-w8-kafel" style="--kolor:#f0a30a">
           <a href="?tab=zadania">
             <i class="bi bi-hourglass-split kp-w8-ikona" aria-hidden="true"></i>
             <span class="kp-w8-tytul">Zadania do oddania
@@ -99,7 +99,7 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
             <?php if ($_st_nad): ?><span class="kp-w8-licznik"><?= count($_st_nad) ?></span><?php endif; ?>
           </a>
         </li>
-        <li class="kp-w8-kafel kp-w8-szeroki" style="--kolor:#60a917">
+        <li class="kp-w8-kafel" style="--kolor:#60a917">
           <a href="?tab=zadania">
             <i class="bi bi-check2-circle kp-w8-ikona" aria-hidden="true"></i>
             <span class="kp-w8-tytul">Zadania oddane
@@ -119,7 +119,7 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
       <h2 class="kp-w8-naglowek" id="kp-w8-g-glowne">Najważniejsze</h2>
       <ul class="kp-w8-siatka">
         <?php foreach ($_st_glowne as $_i => $_k): ?>
-        <li class="kp-w8-kafel kp-w8-szeroki" style="--kolor: <?= $_w8_akcent ?>">
+        <li class="kp-w8-kafel" style="--kolor: <?= $_w8_akcent ?>">
           <a href="<?= h($_k['href']) ?>">
             <i class="bi bi-<?= h($_st_ikona($_k)) ?> kp-w8-ikona" aria-hidden="true"></i>
             <span class="kp-w8-tytul"><?= h($_k['etykieta']) ?></span>

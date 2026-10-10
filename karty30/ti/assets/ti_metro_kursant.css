@@ -326,7 +326,6 @@ body.kur-alt.ti-skin .kp-w8-siatka {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
   grid-auto-rows: 124px; grid-auto-flow: dense; gap: 6px;
 }
-body.kur-alt.ti-skin .kp-w8-szeroki { grid-column: span 2; }
 body.kur-alt.ti-skin .kp-w8-kafel { background: var(--kolor); position: relative; }
 body.kur-alt.ti-skin .kp-w8-kafel a {
   display: flex; flex-direction: column; justify-content: space-between; height: 100%;
