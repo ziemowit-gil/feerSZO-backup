@@ -78,12 +78,10 @@ else
 fi
 
 # ── 2. Przebuduj obrazy ────────────────────────────────────────────────────────
-# exam-engine buduje się razem z app: kod Javy silnika Equi Exams jest kompilowany
-# wewnątrz obrazu (etap `javac`), więc bez rebuildu zmiany w exam-engine/src
-# nie trafiłyby na serwer. Gdy katalog się nie zmienił, cache warstw sprawia,
-# że ten krok kosztuje ułamek sekundy.
+# Silnik egzaminów Equi Exams działa w PHP wewnątrz obrazu app (piaskownica
+# kodu: użytkownik examrun z Dockerfile) — nie ma osobnego obrazu do zbudowania.
 section "2. Budowanie obrazów"
-BUILD_SERVICES="app exam-engine"
+BUILD_SERVICES="app"
 [[ $USE_NG      -eq 1 ]] && BUILD_SERVICES="${BUILD_SERVICES} ng-ui"
 [[ $USE_KURSANT -eq 1 ]] && BUILD_SERVICES="${BUILD_SERVICES} kursant-ui"
 if [[ $NO_CACHE -eq 1 ]]; then
