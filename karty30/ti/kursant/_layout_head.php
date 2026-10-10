@@ -289,15 +289,6 @@ if (function_exists('dyd_current') && dyd_current()) {
       <?php if (!empty($KP_TOPBAR['nav'])): ?><?= $KP_TOPBAR['nav'] ?><?php endif; ?>
       <div class="d-flex align-items-center flex-wrap gap-2 gap-lg-3 ms-auto">
         <?php if (!empty($KP_TOPBAR['notifications'])): ?><?= $KP_TOPBAR['notifications'] ?><?php endif; ?>
-        <?php // Panel dydaktyka (user_menu): „Nowy panel” schowany do menu użytkownika — pasek bez zbędnych przycisków
-        if (defined('KURSANT_NEW_UI_ENABLED') && KURSANT_NEW_UI_ENABLED && defined('KURSANT_NEW_UI_URL') && empty($KP_TOPBAR['user_menu'])): ?>
-        <a href="<?= h(rtrim(KURSANT_NEW_UI_URL, '/') . '/') ?>"
-           class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1"
-           title="Przejdź do nowej wersji panelu">
-          <i class="bi bi-stars" aria-hidden="true"></i>
-          <span class="d-none d-sm-inline">Nowy panel</span>
-        </a>
-        <?php endif; ?>
         <?php if (!empty($KP_TOPBAR['extra'])): ?><?= $KP_TOPBAR['extra'] ?><?php endif; ?>
         <?php if (!empty($KP_TOPBAR['user_menu'])): $_um = $KP_TOPBAR['user_menu']; ?>
         <?php if (!empty($_um['work_as'])): $_wa = $_um['work_as']; ?>
@@ -326,9 +317,6 @@ if (function_exists('dyd_current') && dyd_current()) {
             <?php foreach (($_um['items'] ?? []) as [$_l, $_h, $_i]): ?>
             <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= h($_h) ?>"><i class="bi bi-<?= h($_i) ?>" aria-hidden="true"></i><?= h($_l) ?></a></li>
             <?php endforeach; ?>
-            <?php if (defined('KURSANT_NEW_UI_ENABLED') && KURSANT_NEW_UI_ENABLED && defined('KURSANT_NEW_UI_URL')): ?>
-            <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= h(rtrim(KURSANT_NEW_UI_URL, '/') . '/') ?>"><i class="bi bi-stars" aria-hidden="true"></i>Nowy panel</a></li>
-            <?php endif; ?>
             <?php if (!empty($KP_TOPBAR['logout'])): ?>
             <li><hr class="dropdown-divider my-1"></li>
             <li><a class="dropdown-item d-flex align-items-center gap-2 text-danger" href="<?= h($KP_TOPBAR['logout']) ?>"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>Wyloguj</a></li>
