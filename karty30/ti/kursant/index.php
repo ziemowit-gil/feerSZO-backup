@@ -1975,9 +1975,10 @@ document.addEventListener('DOMContentLoaded', function() {
     box.appendChild(kl); box.appendChild(kp);
     var nagl = main.querySelector('.kp-dane-naglowek');
     if (nagl) nagl.after(box); else main.prepend(box);
-    // „Napisz do prowadzącego” jako kafel na górze, nad kolumnami
-    var napisz = main.querySelector('.kp-dane-napisz');
-    if (napisz) box.before(napisz);
+    // Kafle akcji na górze, nad kolumnami: „Napisz do prowadzącego” i „Odwołaj lub przesuń zajęcia”
+    var akcje = document.createElement('div'); akcje.className = 'kp-dane-akcje';
+    ['.kp-dane-napisz', '.kp-dane-zmien'].forEach(function (sel) { var el = main.querySelector(sel); if (el) akcje.appendChild(el); });
+    if (akcje.children.length) box.before(akcje);
     lewa.forEach(function (sel) { var el = main.querySelector(sel); if (el && !box.contains(el)) kl.appendChild(el); });
     prawa.forEach(function (sel) { var el = main.querySelector(sel); if (el && !box.contains(el)) kp.appendChild(el); });
   });
@@ -2132,6 +2133,13 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="btn btn-outline-primary btn-sm kp-napisz-kafel" data-bs-toggle="modal" data-bs-target="#modalQuickMsg">
       <i class="bi bi-chat-dots me-1" aria-hidden="true"></i><span class="kp-napisz-tekst"><span class="kp-napisz-tytul">Napisz do prowadzącego</span><span class="kp-napisz-pod">Wiadomość trafi do Twojego prowadzącego</span></span>
     </button>
+  </div>
+  <?php endif; ?>
+  <?php if ($KUR_UI === 'alt'): ?>
+  <div class="mb-4 kp-dane-zmien">
+    <a class="btn btn-outline-primary btn-sm kp-napisz-kafel" href="?tab=lekcje&amp;akcja=zmien#najblizsze-lekcje">
+      <i class="bi bi-calendar2-x me-1" aria-hidden="true"></i><span class="kp-napisz-tekst"><span class="kp-napisz-tytul">Odwołaj lub przesuń zajęcia</span><span class="kp-napisz-pod">Prośba trafi do prowadzącego do akceptacji</span></span>
+    </a>
   </div>
   <?php endif; ?>
 
@@ -3118,7 +3126,13 @@ document.addEventListener('DOMContentLoaded', function() {
   </script>
 
   <!-- Najbliższe (±7 dni) — zawsze widoczne -->
-  <div class="card mb-3">
+  <?php if (($_GET['akcja'] ?? '') === 'zmien'): ?>
+  <div class="alert alert-info d-flex gap-2 mb-2" role="status">
+    <i class="bi bi-info-circle flex-shrink-0 mt-1" aria-hidden="true"></i>
+    <span>Wybierz zajęcia poniżej i kliknij przycisk z trzema kropkami przy terminie. Masz tam „Odwołaj lekcję” i „Zaproponuj termin”. Prośba trafi do prowadzącego — termin zmieni się dopiero po jego akceptacji. Jeśli zajęć nie ma na liście, rozwiń „Minione” albo sprawdź kalendarz.</span>
+  </div>
+  <?php endif; ?>
+  <div class="card mb-3" id="najblizsze-lekcje" tabindex="-1">
     <div class="card-header fw-semibold d-flex align-items-center gap-2">
       <i class="bi bi-calendar2-week text-primary" aria-hidden="true"></i><span>Najbliższe lekcje</span>
       <span class="text-body-secondary fw-normal small">(ostatnie i nadchodzące 7 dni)</span>

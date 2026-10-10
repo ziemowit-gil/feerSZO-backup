@@ -901,3 +901,11 @@ body.kur-alt.ti-skin .kp-napisz-kafel > i.bi {
 }
 body.kur-alt.ti-skin .kp-napisz-tytul { display: block; font-size: 1.05rem; font-weight: 700; }
 body.kur-alt.ti-skin .kp-napisz-pod { display: block; font-size: .85rem; font-weight: 400; color: #374151; }
+
+/* Kafle akcji na górze „Dane”: obok siebie, równe */
+body.kur-alt.ti-skin .kp-dane-akcje { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .75rem; }
+body.kur-alt.ti-skin .kp-dane-akcje > * { margin: 0 !important; }
+body.kur-alt.ti-skin .kp-dane-akcje .kp-napisz-kafel { height: 100%; }
+body.kur-alt.ti-skin .kp-dane-zmien .kp-napisz-kafel { border-left-color: #f0a30a !important; }
+body.kur-alt.ti-skin .kp-dane-zmien .kp-napisz-kafel > i.bi { background: #f0a30a; }
+body.kur-alt.ti-skin #najblizsze-lekcje:focus { outline: 3px solid #facc15; outline-offset: 2px; }
