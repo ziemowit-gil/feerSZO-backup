@@ -696,6 +696,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Zmiana hasła do panelu (samoobsługa oraz wymuszona po nadaniu hasła przez admina)
     if ($op === 'change_password') {
+        require_once dirname(__DIR__, 3) . '/includes/ti_student_password.php';
         $cur = (string)($_POST['current'] ?? '');
         $new = (string)($_POST['new'] ?? '');
         $cnf = (string)($_POST['confirm'] ?? '');
@@ -705,8 +706,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Przy pierwszym logowaniu (must_change_password) nie weryfikujemy aktualnego hasła
         if (!$forced && (!$acc || !password_verify($cur, $acc['password_hash']))) {
             $err = 'Aktualne hasło jest nieprawidłowe.';
-        } elseif (mb_strlen($new) < 8) {
-            $err = 'Nowe hasło musi mieć co najmniej 8 znaków.';
+        } elseif (ti_student_password_error($new, (string)($account['login'] ?? '')) !== null) {
+            $err = ti_student_password_error($new, (string)($account['login'] ?? ''));
         } elseif ($new !== $cnf) {
             $err = 'Nowe hasła nie są identyczne.';
         } elseif (!$forced && $new === $cur) {
