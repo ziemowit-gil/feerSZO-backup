@@ -62,6 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: moj_certyfikat.php'); exit;
 }
 
+$KP_TITLE      = 'Mój certyfikat — Panel dydaktyka';
+$KP_TOPBAR     = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (string)($me['name'] ?? ''), 'logout' => 'logout.php'];
+$KP_BODY_CLASS = 'dyd-usos ti-skin';
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css">

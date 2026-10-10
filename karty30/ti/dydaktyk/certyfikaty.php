@@ -90,6 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $prowadzacy = ti_cert_instructors();
 
+$KP_TITLE      = 'Certyfikaty prowadzących — Panel dydaktyka';
+$KP_TOPBAR     = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (string)($me['name'] ?? ''), 'logout' => 'logout.php'];
+$KP_BODY_CLASS = 'dyd-usos ti-skin';
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css">
