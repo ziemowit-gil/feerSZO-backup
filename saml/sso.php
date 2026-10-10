@@ -132,6 +132,34 @@ if ((int)$sp['is_active'] !== 1) {
     saml_fail('Aplikacja wyłączona', 'Logowanie do tej aplikacji jest obecnie wyłączone.', 403);
 }
 
+// ── 3a. ForceAuthn: SP żąda świeżego logowania ───────────────────────────────────
+// Istniejąca sesja nie wystarcza — bieżące konto wylogowujemy i wracamy do logowania.
+// Marker saml_reauth pozwala wznowić żądanie po zalogowaniu bez pętli przekierowań.
+if ($binding !== 'idp' && !empty($req['force_authn'])) {
+    if (($_SESSION['saml_reauth'] ?? '') === $requestId) {
+        unset($_SESSION['saml_reauth']);
+    } else {
+        if (!empty($_SESSION['_session_token'])) {
+            require_once dirname(__DIR__) . '/includes/auth_security.php';
+            session_destroy_token((string)$_SESSION['_session_token']);
+        }
+        unset($_SESSION['user'], $_SESSION['_session_token']);
+        $_SESSION['saml_reauth'] = $requestId;
+        $_SESSION['sso_hint']    = ['app' => (string)$sp['name'], 'reauth' => true, 'at' => time()];
+        saml_log(['sp_id' => (int)$sp['id'], 'sp_entity' => $sp['entity_id'], 'binding' => $binding,
+                  'request_id' => $requestId, 'event' => 'reauth', 'result' => 'ok',
+                  'detail' => 'ForceAuthn — wymagane ponowne logowanie']);
+        if ($binding === 'post') {
+            $_SESSION['saml_pending'] = ['SAMLRequest' => $samlRequest, 'RelayState' => $relayState];
+            $return = rtrim(APP_URL, '/') . '/saml/sso.php?saml_resume=1';
+        } else {
+            $return = rtrim(APP_URL, '/') . '/saml/sso.php' . ($rawQuery !== '' ? '?' . $rawQuery : '');
+        }
+        header('Location: ' . rtrim(APP_URL, '/') . '/auth/login.php?redirect=' . urlencode($return));
+        exit;
+    }
+}
+
 // ── 4. Polityka dostępu (role) ───────────────────────────────────────────────────
 $allowed = array_filter(array_map('trim', explode(',', (string)$sp['allowed_roles'])));
 if ($allowed && !in_array($user['role'], $allowed, true)) {
