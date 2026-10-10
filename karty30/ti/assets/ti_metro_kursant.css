@@ -381,3 +381,33 @@ body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .text-bg-primary {
 body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .btn-primary { background: #1d1d1d; border-color: #1d1d1d; border-radius: 0; color: #fff; }
 body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .btn-outline-light,
 body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .btn-outline-secondary { border-radius: 0; }
+
+/* ── Poprawki kafli (nadpisują wcześniejsze reguły ogólne o niższej/równej specyficzności) ── */
+/* Kafle pod okruszkami: najważniejsze niebieskie, aktywny czarny z żółtą linią — widoczne od razu */
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini { background: #fff !important; color: #1d1d1d !important; border-bottom: 3px solid #1ba1e2 !important; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini.kp-kafel-glowny { background: #1ba1e2 !important; color: #1d1d1d !important; border-bottom-color: #1d1d1d !important; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini.active,
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini[aria-current="page"] {
+  background: #1d1d1d !important; color: #fff !important; border-bottom: 4px solid #facc15 !important; font-weight: 700;
+}
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini:hover { filter: brightness(1.08); text-decoration: underline; }
+
+/* Ekran startowy: nagłówek z wyszukiwarką, podpisy w kaflach, przełączniki typu menu widoczne */
+body.kur-alt.ti-skin .kp-szukaj-box { flex: 1 1 320px; max-width: 520px; }
+body.kur-alt.ti-skin .kp-szukaj-box .form-control { border: 2px solid #1d1d1d; border-radius: 0; }
+body.kur-alt.ti-skin .kp-w8-pod { display: block; font-size: .8rem; font-weight: 400; margin-top: .15rem; }
+body.kur-alt.ti-skin .kp-w8-tytul { text-align: left; }
+body.kur-alt.ti-skin .kp-typ-menu { background: #fff; padding: .6rem 1rem; border-left: 6px solid #1ba1e2; }
+body.kur-alt.ti-skin .kp-typ-menu .form-check-input { border: 2px solid #1d1d1d; width: 1.1em; height: 1.1em; margin-top: .2em; }
+body.kur-alt.ti-skin .kp-typ-menu .form-check-input:checked { background-color: #1ba1e2; border-color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-typ-menu .btn-outline-dark { border-radius: 0; }
+
+/* Okienko „Dodaj lekcje do kalendarza” (style inline → nadpisujemy po id) */
+body.kur-alt.ti-skin #kpIcalPopup {
+  background: #fff !important; color: #1d1d1d !important; border: 0 !important; border-left: 6px solid #1ba1e2 !important;
+  border-radius: 0 !important; box-shadow: 0 4px 16px rgba(0,0,0,.18) !important;
+}
+body.kur-alt.ti-skin #kpIcalPopup > div:first-child { background: #1d1d1d !important; color: #fff !important; border-radius: 0 !important; }
+body.kur-alt.ti-skin #kpIcalPopup .btn { border-radius: 0 !important; }
+body.kur-alt.ti-skin #kpIcalPopup .btn-primary { background: #1d1d1d !important; border-color: #1d1d1d !important; color: #fff !important; }
+body.kur-alt.ti-skin #kpIcalPopup .btn-outline-light { color: #1d1d1d !important; border-color: #1d1d1d !important; }
