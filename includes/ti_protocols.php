@@ -248,7 +248,7 @@ function ti_protocols_backfill_next_months(bool $dry_run = false): array {
  */
 function ti_protocol_pending_months_for_instructor(int $instructor_uid): array {
     ti_protocols_migrate();
-    $courses = k30_ti_instructor_courses($instructor_uid, false);
+    $courses = k30_ti_instructor_courses($instructor_uid, true);
     if (!$courses) return [];
     $cur_ym = date('Y-m');
     $out = [];
@@ -299,7 +299,7 @@ const TI_PROTOCOL_APPROVE_DENIED = 'Protokół zatwierdza główny prowadzący k
 /** Zatwierdzone protokoły MIESIĘCZNE własnych kursów prowadzącego (najnowsze najpierw). */
 function ti_protocol_closed_months_for_instructor(int $instructor_uid): array {
     ti_protocols_migrate();
-    $ids = array_map(fn($c) => (int)$c['id'], k30_ti_instructor_courses($instructor_uid, false));
+    $ids = array_map(fn($c) => (int)$c['id'], k30_ti_instructor_courses($instructor_uid, true));
     if (!$ids) return [];
     $ph = implode(',', array_fill(0, count($ids), '?'));
     return db_all(
@@ -324,7 +324,7 @@ function ti_protocol_closed_months_for_instructor(int $instructor_uid): array {
  */
 function ti_protocol_months_for_instructor(int $instructor_uid, int $months_back = 12): array {
     ti_protocols_migrate();
-    $courses = k30_ti_instructor_courses($instructor_uid, false);
+    $courses = k30_ti_instructor_courses($instructor_uid, true);
     $cur_ym  = date('Y-m');
     $min_ym  = date('Y-m', strtotime(date('Y-m-01') . ' -' . max(0, $months_back - 1) . ' month'));
     $today   = date('Y-m-d');
