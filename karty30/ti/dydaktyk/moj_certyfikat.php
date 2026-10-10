@@ -19,6 +19,22 @@ $konto = db_one("SELECT email, phone_number FROM users WHERE id = ?", [$uid]);
 $brak_tel   = preg_replace('/\D/', '', (string)($konto['phone_number'] ?? '')) === '';
 $brak_email = trim((string)($konto['email'] ?? '')) === '';
 
+// Dane aktywnego certyfikatu — pokazywane w oknie kreatora, żeby było widać, co zostanie zastąpione.
+$cert = db_one(
+    "SELECT numer, subject_cn, issued_at, valid_to FROM admin_x509_certs
+      WHERE user_id = ? AND revoked_at IS NULL AND valid_to > datetime('now')
+      ORDER BY id DESC LIMIT 1",
+    [$uid]
+);
+$cert_html = $cert
+    ? '<table class="table table-sm small mb-3"><tbody>'
+      . '<tr><th scope="row" class="fw-normal text-body-secondary">Numer</th><td class="font-monospace">' . h((string)($cert['numer'] ?: '—')) . '</td></tr>'
+      . '<tr><th scope="row" class="fw-normal text-body-secondary">Podmiot</th><td>' . h((string)$cert['subject_cn']) . '</td></tr>'
+      . '<tr><th scope="row" class="fw-normal text-body-secondary">Wystawiony</th><td>' . h(date('d.m.Y', strtotime((string)$cert['issued_at']))) . '</td></tr>'
+      . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny do</th><td>' . h(date('d.m.Y', strtotime((string)$cert['valid_to']))) . '</td></tr>'
+      . '</tbody></table>'
+    : '<p class="small mb-3 text-body-secondary">Nie masz aktywnego certyfikatu — zostanie wystawiony nowy.</p>';
+
 // Ustawienie własnego hasła: nowy certyfikat z tym hasłem, stare certyfikaty odwołane.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'pwd') {
     dyd_token_check();
@@ -134,6 +150,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <div class="small text-body-secondary mb-3" id="krokInfo">Krok 1 z 2: hasło</div>
 
           <div class="kr-step" data-step="1">
+            <?= $cert_html ?>
             <p class="small mb-3">Najpierw wybierz hasło do pliku certyfikatu. Zapamiętaj je — nie zapisujemy go i nie wysyłamy.</p>
             <div class="alert alert-danger small py-2 d-none" id="krokErr" role="alert"></div>
             <div class="mb-2">
@@ -147,6 +164,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           </div>
 
           <div class="kr-step d-none" data-step="2">
+            <?= $cert_html ?>
             <p class="small mb-2">Potwierdź, a system wygeneruje certyfikat:</p>
             <ul class="small mb-0 ps-3">
               <li>plik certyfikatu (.p12) przyjdzie na adres <strong><?= h((string)($konto['email'] ?? '')) ?></strong>,</li>
