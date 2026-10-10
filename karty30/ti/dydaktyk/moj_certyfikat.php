@@ -166,6 +166,12 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
             <div class="mb-2">
               <label class="form-label small mb-1" for="newPwd">Hasło (min. 16 znaków, min. 3 rodzaje znaków)</label>
               <input type="password" class="form-control" id="newPwd" name="new_password" minlength="16" autocomplete="new-password" required>
+              <div class="progress mt-2" style="height:6px"><div class="progress-bar" id="pwdBar" role="progressbar" style="width:0%"></div></div>
+              <div class="small mt-1" id="pwdLabel" aria-live="polite"></div>
+              <ul class="small mb-0 mt-1 ps-3 text-body-secondary" id="pwdRules">
+                <li data-rule="len">co najmniej 16 znaków</li>
+                <li data-rule="cls">co najmniej 3 rodzaje znaków (małe, wielkie, cyfry, znaki specjalne)</li>
+              </ul>
             </div>
             <div>
               <label class="form-label small mb-1" for="newPwd2">Powtórz hasło</label>
@@ -199,6 +205,24 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   if (!form) return;
   var p1 = document.getElementById('newPwd'), p2 = document.getElementById('newPwd2');
   var err = document.getElementById('krokErr');
+
+  // Sprawdzacz siły hasła: długość i liczba rodzajów znaków, na żywo.
+  var bar = document.getElementById('pwdBar'), lbl = document.getElementById('pwdLabel');
+  var rule = function (k) { return document.querySelector('#pwdRules [data-rule="' + k + '"]'); };
+  function sila() {
+    var v = p1.value, len = v.length;
+    var klasy = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z\d]/].filter(function (r) { return r.test(v); }).length;
+    var punkty = (len >= 16 ? 2 : len >= 12 ? 1 : 0) + (len >= 20 ? 1 : 0) + (klasy >= 3 ? 2 : klasy >= 2 ? 1 : 0);
+    var proc = Math.min(100, Math.round(punkty / 5 * 100));
+    var kolor = punkty >= 4 ? 'bg-success' : punkty >= 3 ? 'bg-warning' : 'bg-danger';
+    var opis  = punkty >= 4 ? 'mocne' : punkty >= 3 ? 'średnie' : (len === 0 ? '' : 'słabe');
+    bar.style.width = (len === 0 ? 0 : proc) + '%';
+    bar.className = 'progress-bar ' + kolor;
+    lbl.textContent = len === 0 ? '' : 'Siła hasła: ' + opis + ' (' + len + ' znaków)';
+    rule('len').classList.toggle('text-success', len >= 16);
+    rule('cls').classList.toggle('text-success', klasy >= 3);
+  }
+  p1.addEventListener('input', sila);
   function show(n) {
     form.querySelectorAll('.kr-step').forEach(function (s) { s.classList.toggle('d-none', Number(s.dataset.step) !== n); });
     document.getElementById('krokInfo').textContent = 'Krok ' + n + ' z 2: ' + (n === 1 ? 'hasło' : 'potwierdzenie');
