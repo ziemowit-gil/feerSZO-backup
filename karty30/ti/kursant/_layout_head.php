@@ -34,6 +34,13 @@ if ($KP_FULLCALENDAR): ?>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <?php endif; ?>
 <style>
+/* Statusy lekcji: delikatne tło + ciemny tekst (kontrast ≥ 7:1) + ikona i słowo — stan nie tylko kolorem */
+.badge.kp-st { font-weight: 700; border: 1px solid currentColor; }
+.badge.kp-st-planowana  { background: #cfe2ff; color: #052c65; }
+.badge.kp-st-zakonczona { background: #d1e7dd; color: #0a3622; }
+.badge.kp-st-odwolana   { background: #f8d7da; color: #58151c; }
+.badge.kp-st-czeka      { background: #fff3cd; color: #664d03; }
+.badge.kp-st-szara      { background: #e9ecef; color: #2b2f32; }
 :root {
   --bs-primary:#2563eb; --bs-primary-rgb:37,99,235; --bs-link-color-rgb:96,165,250;
   --kp-body-bg:#ffffff; --kp-primary:#2563eb; --kp-primary-rgb:37,99,235;

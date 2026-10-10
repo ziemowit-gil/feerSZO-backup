@@ -2962,21 +2962,26 @@ document.addEventListener('DOMContentLoaded', function() {
             <?php $att_cancelled = (int)($l['att_cancelled'] ?? 0) === 1; $att_pending = (int)($l['att_cancel_pending'] ?? 0) === 1; ?>
             <td class="text-center">
               <?php if ($att_pending): ?>
-              <span class="badge text-bg-warning" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Czeka na potwierdzenie</span>
+              <span class="badge kp-st kp-st-czeka" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Czeka na potwierdzenie</span>
               <?php elseif ($att_cancelled): ?>
-              <span class="badge text-bg-danger" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>odwołane</span>
+              <span class="badge kp-st kp-st-odwolana" title="<?= h($l['att_cancel_reason'] ?? '') ?>"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>Odwołana</span>
               <?php elseif ((int)($l['course_track_attendance'] ?? 1) === 0): ?>
-              <span class="badge text-bg-light text-secondary border" title="Kurs bez liczenia frekwencji">bez frekwencji</span>
+              <span class="badge kp-st kp-st-szara" title="Kurs bez liczenia frekwencji"><i class="bi bi-dash-circle me-1" aria-hidden="true"></i>Bez frekwencji</span>
               <?php elseif ($l['status'] !== 'held'):
-                $lbl = $l['status']==='planned' ? 'planowana'
-                     : ($l['status']==='remote_material' ? 'praca prowadzącego'
-                     : (K30_TI_SESSION_STATUSES[$l['status']]['label'] ?? $l['status']));
+                // Spójne etykiety: wielka litera, ikona + tekst (stan nie tylko kolorem), delikatne tło
+                [$lbl, $lcls, $lico] = match ((string)$l['status']) {
+                    'planned', 'reserved', 'draft' => ['Planowana', 'kp-st-planowana', 'calendar-event'],
+                    'done', 'individual_change'    => ['Zakończona', 'kp-st-zakonczona', 'check2-circle'],
+                    'remote_material'              => ['Praca prowadzącego', 'kp-st-szara', 'laptop'],
+                    'cancelled', 'removed'         => ['Odwołana', 'kp-st-odwolana', 'x-octagon'],
+                    default => [K30_TI_SESSION_STATUSES[$l['status']]['label'] ?? mb_convert_case((string)$l['status'], MB_CASE_TITLE), 'kp-st-szara', 'info-circle'],
+                };
               ?>
-              <span class="badge text-bg-secondary"><?= h($lbl) ?></span>
+              <span class="badge kp-st <?= $lcls ?>"><i class="bi bi-<?= $lico ?> me-1" aria-hidden="true"></i><?= h($lbl) ?></span>
               <?php elseif ($l['attended']): ?>
-              <span class="badge text-bg-success"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>obecny</span>
+              <span class="badge kp-st kp-st-zakonczona"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Obecny</span>
               <?php else: ?>
-              <span class="badge text-bg-danger"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>nieobecny</span>
+              <span class="badge kp-st kp-st-odwolana"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Nieobecny</span>
               <?php endif; ?>
             </td>
             <td class="small text-body-secondary">

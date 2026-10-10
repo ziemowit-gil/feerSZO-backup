@@ -1006,3 +1006,11 @@ body.kur-alt.ti-skin .kp-lekcje-kolumny { grid-template-columns: minmax(0, 1fr) 
 @media (max-width: 991.98px) {
   body.kur-alt.ti-skin .kp-lekcje-kolumny { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Statusy lekcji w METRO: te same delikatne tła co w widoku klasycznym (nadpisują ogólne reguły .badge) */
+body.kur-alt.ti-skin .badge.kp-st { border: 1px solid currentColor !important; }
+body.kur-alt.ti-skin .badge.kp-st-planowana  { background: #cfe2ff !important; color: #052c65 !important; }
+body.kur-alt.ti-skin .badge.kp-st-zakonczona { background: #d1e7dd !important; color: #0a3622 !important; }
+body.kur-alt.ti-skin .badge.kp-st-odwolana   { background: #f8d7da !important; color: #58151c !important; }
+body.kur-alt.ti-skin .badge.kp-st-czeka      { background: #fff3cd !important; color: #664d03 !important; }
+body.kur-alt.ti-skin .badge.kp-st-szara      { background: #e9ecef !important; color: #2b2f32 !important; }
