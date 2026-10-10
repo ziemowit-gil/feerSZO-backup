@@ -26,9 +26,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ids    = array_map(fn($i) => (int)$i['id'], ti_cert_instructors());
     if (!$target || !in_array($target, $ids, true)) {
         flash_set('danger', 'Nie ma takiego prowadzącego.');
-    } elseif (x509_user_has_active_cert($target)) {
-        flash_set('danger', 'Ten prowadzący ma już aktywny certyfikat. Najpierw odwołaj poprzedni.');
+    } elseif (x509_user_has_active_cert($target) && ($_POST['_op'] ?? '') !== 'regen') {
+        flash_set('danger', 'Ten prowadzący ma już aktywny certyfikat. Użyj „Wygeneruj ponownie”.');
     } else {
+        // Ponowne wygenerowanie: stare certyfikaty są odwoływane, więc przestają działać przy podpisie.
+        if (($_POST['_op'] ?? '') === 'regen') {
+            foreach (x509_list_for_user($target) as $_c) {
+                if (empty($_c['revoked_at']) && strtotime((string)$_c['valid_to']) > time()) {
+                    x509_revoke((int)$_c['id']);
+                }
+            }
+        }
         // Brak telefonu: pytamy o numer w wierszu i zapisujemy go w koncie przed wysyłką SMS.
         $tel_u    = db_one("SELECT phone_number FROM users WHERE id = ?", [$target]);
         $tel_ok   = true;
@@ -99,19 +107,18 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <?php else: ?><span class="badge bg-secondary">brak</span><?php endif; ?>
         </td>
         <td class="text-end">
-          <?php if (!$ma): ?>
-          <form method="post" class="d-inline" onsubmit="return confirm('Wystawić certyfikat i wysłać go prowadzącemu?');">
+          <form method="post" class="d-inline" onsubmit="return confirm('<?= $ma ? 'Wygenerować nowy certyfikat? Obecny przestanie działać i prowadzący dostanie nowy plik i hasło.' : 'Wystawić certyfikat i wysłać go prowadzącemu?' ?>');">
             <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
             <input type="hidden" name="target_id" value="<?= (int)$p['id'] ?>">
+            <input type="hidden" name="_op" value="<?= $ma ? 'regen' : 'new' ?>">
             <?php if (in_array('brak telefonu', $braki, true)): ?>
             <input type="tel" name="phone" class="form-control form-control-sm d-inline-block mb-1" style="width:10rem"
                    placeholder="numer telefonu" aria-label="Numer telefonu prowadzącego" required>
             <?php endif; ?>
-            <button type="submit" class="btn btn-sm btn-primary" <?= in_array('brak e-maila', $braki, true) ? 'disabled' : '' ?>>
-              <i class="bi bi-send me-1" aria-hidden="true"></i>Wystaw i wyślij
+            <button type="submit" class="btn btn-sm <?= $ma ? 'btn-outline-warning' : 'btn-primary' ?>" <?= in_array('brak e-maila', $braki, true) ? 'disabled' : '' ?>>
+              <i class="bi bi-<?= $ma ? 'arrow-repeat' : 'send' ?> me-1" aria-hidden="true"></i><?= $ma ? 'Wygeneruj ponownie' : 'Wystaw i wyślij' ?>
             </button>
           </form>
-          <?php endif; ?>
         </td>
       </tr>
     <?php endforeach; ?>
