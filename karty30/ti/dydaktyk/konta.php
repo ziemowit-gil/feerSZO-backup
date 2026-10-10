@@ -1394,7 +1394,6 @@ function printBulk(){
         </div>
       </div>
       </div>
-    </div>
 
     <!-- ── Zakładka: Płatności (nadpłata/metody + numer konta do wpłat) ──── -->
     <div class="tab-pane fade <?= $active_tab === 'platnosci' ? 'show active' : '' ?>" id="tab-platnosci" role="tabpanel" aria-labelledby="tab-btn-platnosci" tabindex="0">
