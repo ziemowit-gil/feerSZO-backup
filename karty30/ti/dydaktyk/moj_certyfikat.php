@@ -19,6 +19,21 @@ $konto = db_one("SELECT email, phone_number FROM users WHERE id = ?", [$uid]);
 $brak_tel   = preg_replace('/\D/', '', (string)($konto['phone_number'] ?? '')) === '';
 $brak_email = trim((string)($konto['email'] ?? '')) === '';
 
+// Ustawienie własnego hasła: nowy certyfikat z tym hasłem, stare certyfikaty odwołane.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'pwd') {
+    dyd_token_check();
+    $p1 = (string)($_POST['new_password'] ?? '');
+    $p2 = (string)($_POST['new_password2'] ?? '');
+    if ($p1 !== $p2) {
+        flash_set('danger', 'Hasła nie są takie same.');
+    } else {
+        $r = ti_cert_set_own_password($uid, $p1);
+        if ($r['ok']) flash_set('success', 'Ustawiono Twoje hasło. Stare certyfikaty są odwołane, nowy plik przyszedł na e-mail.');
+        else flash_set('danger', $r['error']);
+    }
+    header('Location: moj_certyfikat.php'); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $tel = trim((string)($_POST['phone'] ?? ''));
@@ -77,6 +92,32 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       <button type="submit" class="btn <?= $ma ? 'btn-outline-warning' : 'btn-primary' ?>">
         <i class="bi bi-<?= $ma ? 'arrow-repeat' : 'key' ?> me-1" aria-hidden="true"></i><?= $ma ? 'Wygeneruj nowy certyfikat' : 'Wygeneruj certyfikat' ?>
       </button>
+    </form>
+    <?php endif; ?>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-body">
+    <h2 class="h6 fw-semibold mb-1">Ustaw własne hasło</h2>
+    <p class="small text-body-secondary mb-2">Wybierasz hasło do pliku sam. Nowy certyfikat z tym hasłem przyjdzie mailem, a stare certyfikaty przestaną działać. Hasła nie wysyłamy nigdzie — zapamiętaj je.</p>
+    <?php if ($brak_email): ?>
+    <div class="alert alert-warning small py-2 mb-0">Konto nie ma adresu e-mail. Poproś kierownika o jego uzupełnienie.</div>
+    <?php else: ?>
+    <form method="post" onsubmit="return confirm('Ustawić hasło? Stare certyfikaty zostaną odwołane.');">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="pwd">
+      <div class="row g-2 mb-2">
+        <div class="col-sm-6">
+          <label class="form-label small mb-1" for="newPwd">Nowe hasło (min. 8 znaków)</label>
+          <input type="password" class="form-control form-control-sm" id="newPwd" name="new_password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small mb-1" for="newPwd2">Powtórz hasło</label>
+          <input type="password" class="form-control form-control-sm" id="newPwd2" name="new_password2" minlength="8" autocomplete="new-password" required>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-outline-primary">Ustaw hasło i wyślij certyfikat</button>
     </form>
     <?php endif; ?>
   </div>
