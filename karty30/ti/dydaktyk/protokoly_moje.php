@@ -365,7 +365,13 @@ if ($_pd):
             <label class="form-label small fw-semibold mb-1" for="pmOtp">Kod z SMS-a — 6 cyfr z kroku 1</label>
             <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control mb-1" id="pmOtp" name="otp"
                    autocomplete="one-time-code" required form="pmApproveForm" aria-describedby="pmOtpHint">
-            <p class="small text-body-secondary mb-0" id="pmOtpHint">Plik i hasło służą tylko do tego podpisu. Nie zapisujemy ich w systemie.</p>
+            <p class="small text-body-secondary mb-0" id="pmOtpHint">
+              <?php if ($_cert_srv): ?>
+              Certyfikat jest zapisany w systemie i zaszyfrowany Twoim hasłem. Hasła nie zapisujemy — znasz je tylko Ty i podajesz przy każdym podpisie.
+              <?php else: ?>
+              Wgrany plik służy tylko do tego podpisu i nie jest zapisywany. Hasła nie zapisujemy — znasz je tylko Ty.
+              <?php endif; ?>
+            </p>
           </div>
         </div></li>
         <li class="card mb-2"><div class="card-body d-flex gap-3">
