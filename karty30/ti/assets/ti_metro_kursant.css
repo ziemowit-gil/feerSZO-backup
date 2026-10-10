@@ -757,3 +757,20 @@ body.kur-alt.ti-skin.kp-test-strona .form-select:focus { border-color: #1ba1e2; 
 body.kur-alt.ti-skin.kp-test-strona [role="timer"] { font-weight: 700; font-size: 1.1rem; border: 2px solid #1d1d1d; background: #fff; padding: .3rem .7rem; }
 body.kur-alt.ti-skin.kp-test-strona :focus-visible { outline: 3px solid #facc15 !important; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { body.kur-alt.ti-skin.kp-test-strona * { scroll-behavior: auto !important; transition: none !important; } }
+
+/* Licencje: równe kafle, pola jako wyraźne wartości, przyciski Pokaż/Kopiuj, stopka z akcją */
+body.kur-alt.ti-skin .kp-lic-siatka { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: .75rem; margin: 0; }
+body.kur-alt.ti-skin .kp-lic-siatka > [class*="col-"] { width: auto; max-width: none; padding: 0; }
+body.kur-alt.ti-skin .kp-lic-kafel { border: 2px solid #1d1d1d !important; border-left: 8px solid #1ba1e2 !important; height: 100%; }
+body.kur-alt.ti-skin .kp-lic-kafel.kp-lic-wygasla { border-left-color: #e51400 !important; }
+body.kur-alt.ti-skin .kp-lic-kafel .card-body { display: flex; flex-direction: column; gap: .4rem; }
+body.kur-alt.ti-skin .kp-lic-ikona { background: #1ba1e2 !important; color: #1d1d1d !important; border-radius: 0 !important; }
+body.kur-alt.ti-skin .kp-lic-kafel .fw-bold { font-size: 1.05rem; }
+body.kur-alt.ti-skin .kp-lic-kafel dl { font-size: .95rem; }
+body.kur-alt.ti-skin .kp-lic-kafel dt { font-weight: 600 !important; color: #374151 !important; }
+body.kur-alt.ti-skin .kp-lic-wartosc { display: inline-block; background: #f3f4f6; border: 1px solid #d1d5db; padding: .15rem .45rem; color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-lic-kafel .lic-copy,
+body.kur-alt.ti-skin .kp-lic-kafel .lic-reveal { min-height: 36px; padding: .15rem .55rem; font-size: .85rem; }
+body.kur-alt.ti-skin .kp-lic-skopiowano { background: #60a917 !important; border-color: #1d1d1d !important; }
+body.kur-alt.ti-skin .kp-lic-stopka { margin-top: auto; padding-top: .5rem; border-top: 1px solid #e5e7eb; }
+body.kur-alt.ti-skin .kp-lic-uwaga { border-left-color: #f0a30a !important; }
