@@ -79,7 +79,10 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
 <?php try { ?>
 <section class="kp-start container-xl px-3 py-4" aria-labelledby="kp-start-h">
   <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
-    <h1 class="h4 fw-bold mb-0" id="kp-start-h">Panel kursanta</h1>
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <h1 class="h4 fw-bold mb-0" id="kp-start-h">Panel kursanta</h1>
+      <a class="kp-co-nowego" href="../nowosci.php"><i class="bi bi-stars" aria-hidden="true"></i>Co nowego w panelu</a>
+    </div>
     <div class="kp-szukaj-box">
       <label for="kp-szukaj" class="visually-hidden">Szukaj w panelu</label>
       <div class="kp-szukaj-pole">

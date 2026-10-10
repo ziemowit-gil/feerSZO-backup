@@ -1126,3 +1126,10 @@ body.kur-alt.ti-skin .kp-grupa-ctx .kp-grupa-zmien { display: inline-flex; align
   background: #0f6fa8; color: #fff !important; border: 2px solid #0f6fa8; font-weight: 700; text-decoration: none !important; }
 body.kur-alt.ti-skin .kp-grupa-ctx .kp-grupa-zmien:hover { background: #0c5b8a; text-decoration: underline !important; }
 body.kur-alt.ti-skin .kp-grupa-ctx .kp-grupa-zmien:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+
+/* Start: link „Co nowego w panelu” (strona nowosci.php) */
+body.kur-alt.ti-skin .kp-co-nowego { display: inline-flex; align-items: center; gap: .45rem; min-height: 44px; padding: .35rem .9rem;
+  background: #fff; color: #1d1d1d !important; border: 2px solid #1d1d1d; border-bottom: 4px solid #fcd116; font-weight: 700; text-decoration: none !important; }
+body.kur-alt.ti-skin .kp-co-nowego .bi { color: #0f6fa8; }
+body.kur-alt.ti-skin .kp-co-nowego:hover { background: #fffbea; text-decoration: underline !important; }
+body.kur-alt.ti-skin .kp-co-nowego:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }

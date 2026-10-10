@@ -267,6 +267,7 @@ $_tabs = [
 </div>
 
 <footer class="tz-footer" aria-label="Linki">
+  <a href="nowosci.php"><strong>Co nowego w panelu kursanta</strong></a>
   <a href="https://feer.org.pl">Strona Fundacji FEER</a>
   <a href="<?= h(rtrim(APP_URL, '/')) ?>/panel/index.php">Panel wolontariusza</a>
   <a href="<?= h(rtrim(APP_URL, '/')) ?>/auth/login.php">Logowanie do systemu (SZO)</a>
