@@ -21,6 +21,8 @@ $_st_ikona = function (array $p) use ($_ikony): string {
     if ($p['klucz'] !== '' && isset($_ikony[$p['klucz']])) return $_ikony[$p['klucz']];
     if (mb_stripos($p['etykieta'], 'Biblioteka') !== false) return 'book';
     if (mb_stripos($p['etykieta'], 'Menu panelu') !== false) return 'layout-text-sidebar';
+    if (mb_stripos($p['etykieta'], 'Napisz') !== false) return 'chat-dots';
+    if (mb_stripos($p['etykieta'], 'Odwołaj') !== false) return 'calendar2-x';
     return 'circle';
 };
 

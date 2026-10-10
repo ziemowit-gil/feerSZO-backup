@@ -52,6 +52,9 @@ $_alt_sections = [
         'items' => [
             $_it('dane',      'Dane kursanta', $_g('dane')),
             $_it('aktywnosc', 'Aktywność',     $_g('aktywnosc')),
+            // Akcje (bez własnej zakładki): pisanie do prowadzącego i prośba o odwołanie/przesunięcie
+            $_it('',          'Napisz do prowadzącego', $_g('wiadomosci')),
+            $_it('',          'Odwołaj lub przesuń zajęcia', 'index.php?tab=lekcje&akcja=zmien#najblizsze-lekcje'),
         ],
     ],
     'nauka' => [
@@ -186,7 +189,7 @@ foreach ($_cur_sec['items'] as $_i) {
     <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
     <li>
       <a title="<?= h($_i['label']) ?>" class="kp-kafel kp-kafel-mini<?= in_array($_i['tab'], ['lekcje', 'zadania', 'komunikaty', 'oceny'], true) ? ' kp-kafel-glowny' : '' ?><?= $_act ? ' active' : '' ?>" href="<?= h($_i['href']) ?>"<?= $_act ? ' aria-current="page"' : '' ?>>
-        <i class="bi bi-<?= h($_ikony[$_i['tab']] ?? (mb_stripos($_i['label'], 'Biblioteka') !== false ? 'book' : (mb_stripos($_i['label'], 'Menu panelu') !== false ? 'layout-text-sidebar' : 'circle'))) ?> kp-kafel-ikona" aria-hidden="true"></i>
+        <i class="bi bi-<?= h($_ikony[$_i['tab']] ?? (mb_stripos($_i['label'], 'Biblioteka') !== false ? 'book' : (mb_stripos($_i['label'], 'Menu panelu') !== false ? 'layout-text-sidebar' : (mb_stripos($_i['label'], 'Napisz') !== false ? 'chat-dots' : (mb_stripos($_i['label'], 'Odwołaj') !== false ? 'calendar2-x' : 'circle'))))) ?> kp-kafel-ikona" aria-hidden="true"></i>
         <span class="kp-kafel-tytul"><?= h($_i['label']) ?></span>
         <?php if ($_i['n'] > 0): ?><span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
       </a>

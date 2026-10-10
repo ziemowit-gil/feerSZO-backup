@@ -909,3 +909,9 @@ body.kur-alt.ti-skin .kp-dane-akcje .kp-napisz-kafel { height: 100%; }
 body.kur-alt.ti-skin .kp-dane-zmien .kp-napisz-kafel { border-left-color: #f0a30a !important; }
 body.kur-alt.ti-skin .kp-dane-zmien .kp-napisz-kafel > i.bi { background: #f0a30a; }
 body.kur-alt.ti-skin #najblizsze-lekcje:focus { outline: 3px solid #facc15; outline-offset: 2px; }
+
+/* Akcje „Napisz do prowadzącego” i „Odwołaj lub przesuń” są teraz w rzędzie kafli przy Dane/Aktywność —
+   nie dublujemy ich dużymi kaflami na stronie Dane */
+body.kur-alt.ti-skin .kp-dane-akcje,
+body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-napisz,
+body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-zmien { display: none !important; }
