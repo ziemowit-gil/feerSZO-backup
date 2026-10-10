@@ -5920,44 +5920,112 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php if ($tab === 'upowaznieni' && !$is_minor): ?>
 
 <?php
-$authp_list = db_all(
-    "SELECT * FROM k30_ti_authorized_persons WHERE student_account_id=? ORDER BY created_at DESC",
-    [(int)$student['id']]
-);
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_authorized_persons.php';
+$authp_list   = ti_authp_list((int)$student['id']);
+$authp_active = ti_authp_active_count((int)$student['id']);
+$authp_flash  = $_SESSION['authp_flash'] ?? null;   unset($_SESSION['authp_flash']);
+$authp_form   = $_SESSION['authp_form'] ?? [];      unset($_SESSION['authp_form']);
+$authp_new    = $_SESSION['authp_new'] ?? null;     unset($_SESSION['authp_new']);
+$authp_rev_id = (int)($_SESSION['authp_revoked'] ?? 0); unset($_SESSION['authp_revoked']);
+$authp_err_f  = (string)($authp_form['field'] ?? '');
+$authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
 ?>
 
 <h1 class="h5 fw-bold mb-1"><i class="bi bi-person-check text-primary me-2" aria-hidden="true"></i>Osoby upoważnione</h1>
-<p class="text-body-secondary small mb-3">Osoby, które administrator upoważnił do wglądu w Twój panel. Logują się do panelu przez oddzielny adres.</p>
+<p class="text-body-secondary small mb-3">Osoby, które mają wgląd w Twój panel. Logują się przez oddzielny adres, własnym loginem i hasłem.</p>
 
-<div class="alert alert-info d-flex gap-2 py-2 small mb-3" role="note">
-  <i class="bi bi-info-circle flex-shrink-0 mt-1" aria-hidden="true"></i>
-  <span>Listą upoważnień zarządza administrator. Aby dodać lub usunąć osobę, skontaktuj się z placówką.</span>
+<?php if ($authp_flash): ?>
+<div class="alert alert-<?= $authp_flash[0] === 'ok' ? 'success' : 'danger' ?> small mb-3" role="<?= $authp_flash[0] === 'ok' ? 'status' : 'alert' ?>">
+  <?= h($authp_flash[1]) ?>
+  <?php if ($authp_flash[0] === 'ok' && $authp_rev_id): ?>
+  <div class="mt-2">
+    <a href="authp_revoke_print.php?id=<?= $authp_rev_id ?>&amp;self=1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-printer me-1" aria-hidden="true"></i>Wydrukuj potwierdzenie odwołania<span class="visually-hidden"> (otwiera się w nowej karcie)</span>
+    </a>
+  </div>
+  <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<?php if ($authp_new): ?>
+<div class="alert alert-success mb-3" role="status" id="authp-new" tabindex="-1">
+  <h2 class="h6 fw-bold mb-2">Upoważnienie dodane: <?= h($authp_new['name']) ?></h2>
+  <p class="small mb-2">Hasło widzisz <strong>tylko teraz</strong> — nie wyślemy go e-mailem i nie da się go później odczytać. Zapisz je i przekaż tej osobie osobiście (np. na kartce lub telefonicznie).</p>
+  <dl class="row small mb-2">
+    <dt class="col-sm-4">Adres logowania</dt><dd class="col-sm-8 text-break"><?= h($authp_login_url) ?></dd>
+    <dt class="col-sm-4">Login</dt><dd class="col-sm-8"><code><?= h($authp_new['login']) ?></code></dd>
+    <dt class="col-sm-4">Hasło</dt><dd class="col-sm-8"><code><?= h($authp_new['pass']) ?></code></dd>
+  </dl>
+  <a href="authp_print.php?id=<?= (int)$authp_new['id'] ?>&amp;self=1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-printer me-1" aria-hidden="true"></i>Wydrukuj upoważnienie do podpisu<span class="visually-hidden"> (otwiera się w nowej karcie)</span>
+  </a>
+  <p class="small text-body-secondary mt-2 mb-0">Na wydruku nie ma hasła — dopisz je ręcznie albo przekaż osobno.</p>
+</div>
+<script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('authp-new');if(e)e.focus();});</script>
+<?php endif; ?>
 
 <?php if ($authp_list): ?>
-<div class="card shadow-sm border-0">
+<div class="card shadow-sm border-0 mb-4">
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
+      <caption class="visually-hidden">Lista osób upoważnionych do wglądu w Twój panel</caption>
       <thead class="table-light">
         <tr>
-          <th>Imię i nazwisko</th>
-          <th>Uwagi</th>
-          <th>Ostatnie logowanie</th>
-          <th>Status</th>
+          <th scope="col">Imię i nazwisko</th>
+          <th scope="col">Login</th>
+          <th scope="col">Ostatnie logowanie</th>
+          <th scope="col">Status</th>
+          <th scope="col">Działania</th>
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($authp_list as $ap): ?>
-        <tr class="<?= $ap['is_active'] ? '' : 'text-body-secondary' ?>">
-          <td class="fw-semibold"><?= h($ap['name']) ?></td>
-          <td class="small"><?= h($ap['notes']) ?: '—' ?></td>
+        <?php foreach ($authp_list as $ap):
+          $ap_revoked = !empty($ap['revoked_at']);
+          $ap_on      = !$ap_revoked && !empty($ap['is_active']); ?>
+        <tr class="<?= $ap_on ? '' : 'text-body-secondary' ?>">
+          <th scope="row" class="fw-semibold">
+            <?= h($ap['name']) ?>
+            <?php if (!empty($ap['notes'])): ?><div class="small fw-normal text-body-secondary"><?= h($ap['notes']) ?></div><?php endif; ?>
+          </th>
+          <td class="small"><code><?= h($ap['login']) ?></code></td>
           <td class="small text-nowrap"><?= $ap['last_login'] ? h(date('d.m.Y H:i', strtotime($ap['last_login']))) : '—' ?></td>
           <td>
-            <?php if ($ap['is_active']): ?>
+            <?php if ($ap_revoked): ?>
+            <span class="badge text-bg-secondary">odwołana <?= h(date('d.m.Y', strtotime($ap['revoked_at']))) ?></span>
+            <?php elseif ($ap_on): ?>
             <span class="badge text-bg-success">aktywna</span>
             <?php else: ?>
-            <span class="badge text-bg-secondary">wstrzymana</span>
+            <span class="badge text-bg-warning">zablokowana</span>
             <?php endif; ?>
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+            <?php if ($ap_revoked): ?>
+              <a href="authp_revoke_print.php?id=<?= (int)$ap['id'] ?>&amp;self=1" target="_blank" rel="noopener"
+                 class="btn btn-sm btn-outline-secondary" aria-label="Wydrukuj potwierdzenie odwołania upoważnienia: <?= h($ap['name']) ?> (otwiera się w nowej karcie)">
+                <i class="bi bi-printer me-1" aria-hidden="true"></i>Potwierdzenie
+              </a>
+            <?php else: ?>
+              <form method="post" class="d-inline" onsubmit="return confirm(this.dataset.confirm)"
+                    data-confirm="<?= h($ap_on ? "Zablokować dostęp osoby {$ap['name']}? Możesz go później odblokować." : "Odblokować dostęp osoby {$ap['name']}?") ?>">
+                <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+                <input type="hidden" name="_op" value="authp_self_toggle">
+                <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                <input type="hidden" name="ap_action" value="<?= $ap_on ? 'block' : 'unblock' ?>">
+                <button type="submit" class="btn btn-sm <?= $ap_on ? 'btn-outline-secondary' : 'btn-primary' ?>"
+                        aria-label="<?= h(($ap_on ? 'Zablokuj dostęp: ' : 'Odblokuj dostęp: ') . $ap['name']) ?>">
+                  <?= $ap_on ? 'Zablokuj' : 'Odblokuj' ?>
+                </button>
+              </form>
+              <form method="post" class="d-inline" onsubmit="return confirm(this.dataset.confirm)"
+                    data-confirm="<?= h("Odwołać upoważnienie dla osoby {$ap['name']}? Tej operacji nie można cofnąć — aby przywrócić dostęp, trzeba dodać osobę od nowa.") ?>">
+                <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+                <input type="hidden" name="_op" value="authp_self_revoke">
+                <input type="hidden" name="ap_id" value="<?= (int)$ap['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="<?= h('Odwołaj upoważnienie: ' . $ap['name']) ?>">Odwołaj</button>
+              </form>
+            <?php endif; ?>
+            </div>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -5966,8 +6034,71 @@ $authp_list = db_all(
   </div>
 </div>
 <?php else: ?>
-<div class="text-body-secondary small"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Brak upoważnionych osób.</div>
+<p class="text-body-secondary small mb-4"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Nie masz jeszcze osób upoważnionych.</p>
 <?php endif; ?>
+
+<section class="card shadow-sm border-0" id="authp-form" aria-labelledby="authp-form-h">
+  <div class="card-body">
+    <h2 class="h6 fw-bold mb-2" id="authp-form-h">Upoważnij osobę</h2>
+    <ul class="small mb-3 ps-3">
+      <li>Możesz upoważnić zaufaną osobę, np. członka rodziny lub asystenta.</li>
+      <li>Osoba upoważniona widzi Twoje lekcje, frekwencję i rozliczenia. Nie może niczego zmieniać.</li>
+      <li>W każdej chwili możesz zablokować jej dostęp albo odwołać upoważnienie.</li>
+      <li>Jednocześnie możesz mieć najwyżej <?= TI_AUTHP_MAX_ACTIVE ?> aktywne osoby upoważnione (teraz: <?= $authp_active ?>).</li>
+    </ul>
+
+    <?php if ($authp_active >= TI_AUTHP_MAX_ACTIVE): ?>
+    <div class="alert alert-warning small mb-0" role="note">
+      Masz już <?= TI_AUTHP_MAX_ACTIVE ?> aktywne osoby upoważnione. Aby dodać nową, zablokuj albo odwołaj jedną z nich.
+    </div>
+    <?php else: ?>
+    <p class="small text-body-secondary mb-3">Pola oznaczone słowem „wymagane” trzeba wypełnić.</p>
+    <form method="post" action="index.php?tab=upowaznieni" novalidate>
+      <input type="hidden" name="_token" value="<?= h(student_token()) ?>">
+      <input type="hidden" name="_op" value="authp_self_add">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="ap_name" class="form-label">Imię i nazwisko <span class="small">(wymagane)</span></label>
+          <input type="text" class="form-control<?= $authp_err_f === 'name' ? ' is-invalid' : '' ?>" id="ap_name" name="ap_name"
+                 maxlength="100" required autocomplete="off" value="<?= h($authp_form['name'] ?? '') ?>"
+                 <?= $authp_err_f === 'name' ? 'aria-invalid="true" autofocus' : '' ?>>
+        </div>
+        <div class="col-md-6">
+          <label for="ap_email" class="form-label">E-mail <span class="small text-body-secondary">(nieobowiązkowe)</span></label>
+          <input type="email" class="form-control<?= $authp_err_f === 'email' ? ' is-invalid' : '' ?>" id="ap_email" name="ap_email"
+                 maxlength="150" autocomplete="off" value="<?= h($authp_form['email'] ?? '') ?>" aria-describedby="ap_email_help"
+                 <?= $authp_err_f === 'email' ? 'aria-invalid="true" autofocus' : '' ?>>
+          <div id="ap_email_help" class="form-text">Tylko do kontaktu. Hasła nie wysyłamy e-mailem.</div>
+        </div>
+        <div class="col-md-6">
+          <label for="ap_notes" class="form-label">Kim jest dla Ciebie ta osoba <span class="small text-body-secondary">(nieobowiązkowe)</span></label>
+          <input type="text" class="form-control" id="ap_notes" name="ap_notes" maxlength="300" autocomplete="off"
+                 placeholder="np. mama, asystent" value="<?= h($authp_form['notes'] ?? '') ?>">
+        </div>
+        <div class="col-12">
+          <label for="ap_reason" class="form-label">Powód upoważnienia <span class="small">(wymagane)</span></label>
+          <textarea class="form-control<?= $authp_err_f === 'reason' ? ' is-invalid' : '' ?>" id="ap_reason" name="ap_reason"
+                    rows="2" maxlength="400" required aria-describedby="ap_reason_help"
+                    <?= $authp_err_f === 'reason' ? 'aria-invalid="true" autofocus' : '' ?>><?= h($authp_form['reason'] ?? '') ?></textarea>
+          <div id="ap_reason_help" class="form-text">Np. „pomoc w pilnowaniu terminów zajęć i płatności”.</div>
+        </div>
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input<?= $authp_err_f === 'consent' ? ' is-invalid' : '' ?>" type="checkbox" id="ap_consent" name="ap_consent" value="1" required
+                   <?= $authp_err_f === 'consent' ? 'aria-invalid="true" autofocus' : '' ?>>
+            <label class="form-check-label" for="ap_consent">
+              Oświadczam, że upoważniam tę osobę do wglądu w mój panel kursanta (lekcje, frekwencja, rozliczenia) <span class="small">(wymagane)</span>
+            </label>
+          </div>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Upoważnij osobę</button>
+        </div>
+      </div>
+    </form>
+    <?php endif; ?>
+  </div>
+</section>
 
 <?php elseif ($tab === 'komunikaty'): ?>
 
