@@ -82,8 +82,9 @@ $tp_n = count($tp_rows);
               <?php elseif ($lm === 'stacjonarna'): ?>
               <span class="small text-body-secondary">Zajęcia odbywają się stacjonarnie — nie ma linku do dołączenia.</span>
               <?php else: ?>
-              <a href="?tab=online" class="btn btn-success">
-                <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz do zajęć<span class="visually-hidden"> — <?= h($r['course_name']) ?> (przejdź do zakładki Szkolenia online)</span>
+              <span class="d-block small text-body-secondary mb-2">Prowadzący nie dodał jeszcze linku do spotkania — sprawdź szczegóły w „Moje lekcje”.</span>
+              <a href="?tab=lekcje" class="btn btn-success">
+                <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Moje lekcje<span class="visually-hidden"> — <?= h($r['course_name']) ?></span>
               </a>
               <?php endif; ?>
             </div>
