@@ -107,7 +107,7 @@ auth_screen_head([
 .ks-field label, .ks-h1 { font-family: "Segoe UI", system-ui, sans-serif; }
 .ks-tab, .ks-sidetab { border-radius: 0 !important; }
 </style>
-<form method="post" action="kursant/login.php" autocomplete="on">
+<form method="post" action="<?= h(rtrim(APP_URL, '/')) ?>/tozsamosc/kursant.php" autocomplete="on">
   <div class="ks-field">
     <label for="stu-login">Login</label>
     <input type="text" class="form-control" id="stu-login" name="login"
