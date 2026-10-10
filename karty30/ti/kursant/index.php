@@ -2449,7 +2449,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h1 class="h5 fw-bold mb-0">Moje lekcje</h1>
+    <?php if ($KUR_UI === 'alt'): /* widok alternatywny: pobieranie i drukowanie w jednym rozwijanym przycisku */ ?>
+    <details class="ms-auto">
+      <summary class="btn btn-sm btn-outline-secondary">Pobierz i drukuj</summary>
+      <div class="d-flex flex-wrap gap-2 mt-2 justify-content-end">
+    <?php else: ?>
     <div class="ms-auto d-flex gap-2">
+    <?php endif; ?>
       <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#kpCalSubModal">
         <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Subskrybuj / pobierz
       </button>
@@ -2468,7 +2474,7 @@ document.addEventListener('DOMContentLoaded', function() {
       <a href="plan_librus.php" class="btn btn-sm btn-outline-secondary" target="_blank">
         <i class="bi bi-grid-3x3 me-1" aria-hidden="true"></i>Plan tygodniowy
       </a>
-    </div>
+    <?php if ($KUR_UI === 'alt'): ?></div></details><?php else: ?></div><?php endif; ?>
   </div>
 
   <?php if (isset($_GET['rated'])): ?>
