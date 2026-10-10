@@ -134,6 +134,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css">
 
+<?php $KIER_CUR = 'certyfikaty.php'; $KIER_LABEL = 'Certyfikaty';
+   include __DIR__ . '/_kierownik_bar.php'; ?>
+
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:820px">
 <?= flash_html() ?>
