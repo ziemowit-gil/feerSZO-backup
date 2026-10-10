@@ -1,7 +1,8 @@
 <?php
 /**
  * Dokument odwołania upoważnienia do wglądu w panel kursanta.
- * Dostęp tylko dla administratora / pracownika D3.
+ * Dostęp: administrator / pracownik D3 albo — z parametrem ?self=1 — pełnoletni kursant,
+ * który sam odwołał upoważnienie (potwierdzenie odwołania z panelu kursanta).
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
@@ -9,21 +10,33 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 
-k30_ti_staff_access();
+$self_view = (($_GET['self'] ?? '') === '1');
+$self_sid  = 0;
+if ($self_view) {
+    require_once __DIR__ . '/auth.php';
+    $self_s = student_current();
+    if (!$self_s) { header('Location: login.php'); exit; }
+    $self_sid = (int)$self_s['id'];
+} else {
+    k30_ti_staff_access();
+}
 karty30_migrate();
 
 $id = (int)($_GET['id'] ?? 0);
 $ap = $id ? db_one(
-    "SELECT p.*, a.client_id, cl.name AS student_name, cl.email AS student_email
+    "SELECT p.*, a.client_id, a.is_minor, cl.name AS student_name, cl.email AS student_email
      FROM k30_ti_authorized_persons p
      JOIN k30_ti_student_accounts a ON a.id = p.student_account_id
      JOIN k30_clients cl ON cl.id = a.client_id
      WHERE p.id = ?", [$id]
 ) : null;
+// Kursant: tylko własne, faktycznie odwołane upoważnienie.
+if ($ap && $self_view && ((int)$ap['student_account_id'] !== $self_sid || !empty($ap['is_minor']) || empty($ap['revoked_at']))) $ap = null;
 if (!$ap) { http_response_code(404); die('Nie znaleziono.'); }
 
 $org        = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-$revoker    = !empty($ap['revoked_by_name']) ? $ap['revoked_by_name'] : (current_user()['name'] ?? 'Administrator');
+$revoker    = !empty($ap['revoked_by_name']) ? $ap['revoked_by_name']
+           : ($self_view ? $ap['student_name'] : (current_user()['name'] ?? 'Administrator'));
 $revoked_at = !empty($ap['revoked_at'])
     ? date('d.m.Y', strtotime($ap['revoked_at']))
     : date('d.m.Y');
@@ -71,7 +84,7 @@ $today      = date('d.m.Y');
   <button onclick="window.print()" style="background:#b91c1c;color:#fff;border:none;border-radius:5px;padding:6px 18px;font-size:13px;cursor:pointer">
     🖨 Drukuj / Zapisz PDF
   </button>
-  <a href="accounts.php?authp=<?= (int)$ap['student_account_id'] ?>" style="color:#374151;font-size:13px;text-decoration:none">← Wróć do upoważnień</a>
+  <a href="<?= $self_view ? 'index.php?tab=upowaznieni' : 'accounts.php?authp=' . (int)$ap['student_account_id'] ?>" style="color:#374151;font-size:13px;text-decoration:none">← Wróć do upoważnień</a>
 </div>
 
 <div class="page">
@@ -87,7 +100,7 @@ $today      = date('d.m.Y');
   <div class="revoke-box">UPOWAŻNIENIE ODWOŁANE</div>
 
   <div class="section">
-    <div class="section-title">Administrator odwołujący</div>
+    <div class="section-title"><?= $self_view ? 'Odwołujący (kursant)' : 'Administrator odwołujący' ?></div>
     <dl>
       <dt>Imię i nazwisko:</dt><dd><strong><?= htmlspecialchars($revoker, ENT_QUOTES) ?></strong></dd>
       <dt>Data odwołania:</dt><dd><?= $revoked_at ?></dd>
@@ -121,6 +134,22 @@ $today      = date('d.m.Y');
     </dl>
   </div>
 
+  <?php if ($self_view): ?>
+  <div class="declaration">
+    Ja, niżej podpisany/a <strong><?= htmlspecialchars($ap['student_name'], ENT_QUOTES) ?></strong>
+    oświadczam, że w dniu <strong><?= $revoked_at ?></strong> odwołałem/am upoważnienie do wglądu
+    w mój panel kursanta udzielone osobie <strong><?= htmlspecialchars($ap['name'], ENT_QUOTES) ?></strong>.
+    Konto dostępowe zostało dezaktywowane. Osoba wymieniona powyżej utraciła dostęp do panelu
+    z chwilą dokonania tej czynności w systemie.
+  </div>
+
+  <div class="sign-row">
+    <div class="sign-block">
+      Podpis kursanta<br><br><br>
+      <strong><?= htmlspecialchars($ap['student_name'], ENT_QUOTES) ?></strong>
+    </div>
+  </div>
+  <?php else: ?>
   <div class="declaration">
     Ja, niżej podpisany/a administrator/ka systemu <strong><?= htmlspecialchars($org, ENT_QUOTES) ?></strong>
     — <strong><?= htmlspecialchars($revoker, ENT_QUOTES) ?></strong> — oświadczam, że w dniu
@@ -137,6 +166,7 @@ $today      = date('d.m.Y');
       <strong><?= htmlspecialchars($revoker, ENT_QUOTES) ?></strong>
     </div>
   </div>
+  <?php endif; ?>
 
   <p class="notice">
     Dokument wewnętrzny — do przechowywania w aktach organizacji razem z dokumentem pierwotnego upoważnienia.

@@ -348,6 +348,17 @@ $auth_actor_name = $auth_ctx['actor_name'];
 //    authorized_person.php w klasycznym panelu (impersonacja admina zachowuje
 //    pełne uprawnienia kursanta, tak jak student_impersonate() w auth.php). ──
 if ($auth_role === 'authp') {
+    // Zablokowanie/odwołanie upoważnienia (przez kursanta lub kierownika) odcina token od razu.
+    $authp_live = db_one(
+        "SELECT p.is_active, p.revoked_at, a.is_minor FROM k30_ti_authorized_persons p
+         JOIN k30_ti_student_accounts a ON a.id=p.student_account_id
+         WHERE p.id=? AND p.student_account_id=?",
+        [(int)($auth_ctx['actor_id'] ?? 0), (int)$student_id]
+    );
+    if (!$authp_live || empty($authp_live['is_active']) || !empty($authp_live['revoked_at']) || !empty($authp_live['is_minor'])) {
+        $pdo->prepare("DELETE FROM k30_ti_api_tokens WHERE token=?")->execute([$auth_ctx['token']]);
+        json_err('Upoważnienie zostało zablokowane lub odwołane.', 401);
+    }
     $authp_allowed = ['dashboard', 'lessons', 'billing', 'logout'];
     if (!in_array($action, $authp_allowed, true)) {
         json_err('Brak uprawnień do tej operacji — wgląd upoważniony jest tylko do odczytu.', 403);

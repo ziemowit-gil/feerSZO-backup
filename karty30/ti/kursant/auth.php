@@ -376,6 +376,19 @@ function authp_current(): ?array {
         unset($_SESSION[AUTHP_SESSION_KEY]);
         return null;
     }
+    // Zablokowanie/odwołanie (przez kursanta lub kierownika) działa od razu — sesja
+    // osoby upoważnionej jest sprawdzana z bazą przy każdym żądaniu, nie tylko przy logowaniu.
+    try {
+        $row = db_one(
+            "SELECT p.is_active, p.revoked_at, a.is_minor FROM k30_ti_authorized_persons p
+             JOIN k30_ti_student_accounts a ON a.id=p.student_account_id WHERE p.id=?",
+            [(int)($p['authp_id'] ?? 0)]
+        );
+    } catch (\Throwable $e) { $row = null; }
+    if (!$row || empty($row['is_active']) || !empty($row['revoked_at']) || !empty($row['is_minor'])) {
+        unset($_SESSION[AUTHP_SESSION_KEY]);
+        return null;
+    }
     return $p;
 }
 
@@ -385,7 +398,7 @@ function authp_login(string $login, string $pass): bool {
     $row = db_one(
         "SELECT p.*, a.client_id, a.is_minor FROM k30_ti_authorized_persons p
          JOIN k30_ti_student_accounts a ON a.id=p.student_account_id
-         WHERE p.login=? AND p.is_active=1",
+         WHERE p.login=? AND p.is_active=1 AND p.revoked_at IS NULL",
         [$login]
     );
     if (!$row || empty($row['password_hash'])) return false;

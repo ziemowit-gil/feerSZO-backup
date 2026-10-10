@@ -1,7 +1,8 @@
 <?php
 /**
  * Kartka upoważnienia do wglądu w panel kursanta — do druku i podpisu.
- * Dostęp tylko dla administratora / pracownika D3.
+ * Dostęp: administrator / pracownik D3 albo — z parametrem ?self=1 — pełnoletni kursant,
+ * do którego należy upoważnienie (panel kursanta, zakładka „Upoważnieni”).
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/config.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/db.php';
@@ -9,17 +10,29 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/functions.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 
-k30_ti_staff_access();
+$self_view = (($_GET['self'] ?? '') === '1');
+$self_sid  = 0;
+if ($self_view) {
+    // Kursant drukuje kartkę dla osoby, którą sam upoważnił — osobna sesja kursanta.
+    require_once __DIR__ . '/auth.php';
+    $self_s = student_current();
+    if (!$self_s) { header('Location: login.php'); exit; }
+    $self_sid = (int)$self_s['id'];
+} else {
+    k30_ti_staff_access();
+}
 karty30_migrate();
 
 $id  = (int)($_GET['id'] ?? 0);
 $ap  = $id ? db_one(
-    "SELECT p.*, a.client_id, cl.name AS student_name, cl.email AS student_email
+    "SELECT p.*, a.client_id, a.is_minor, cl.name AS student_name, cl.email AS student_email
      FROM k30_ti_authorized_persons p
      JOIN k30_ti_student_accounts a ON a.id=p.student_account_id
      JOIN k30_clients cl ON cl.id=a.client_id
      WHERE p.id=?", [$id]
 ) : null;
+// Kursant widzi wyłącznie własne upoważnienia (i tylko jako pełnoletni).
+if ($ap && $self_view && ((int)$ap['student_account_id'] !== $self_sid || !empty($ap['is_minor']))) $ap = null;
 if (!$ap) { http_response_code(404); die('Nie znaleziono.'); }
 
 $org        = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
@@ -67,7 +80,7 @@ $by_admin   = !empty($ap['added_by_name']); // true = upoważnienie wystawione p
   <button onclick="window.print()" style="background:#1d4ed8;color:#fff;border:none;border-radius:5px;padding:6px 18px;font-size:13px;cursor:pointer">
     🖨 Drukuj / Zapisz PDF
   </button>
-  <a href="accounts.php?authp=<?= (int)$ap['student_account_id'] ?>" style="color:#374151;font-size:13px;text-decoration:none">← Wróć do upoważnień</a>
+  <a href="<?= $self_view ? 'index.php?tab=upowaznieni' : 'accounts.php?authp=' . (int)$ap['student_account_id'] ?>" style="color:#374151;font-size:13px;text-decoration:none">← Wróć do upoważnień</a>
 </div>
 
 <div class="page">
@@ -155,7 +168,7 @@ $by_admin   = !empty($ap['added_by_name']); // true = upoważnienie wystawione p
     Przyjmuję do wiadomości, że zostałam/em upoważniona/y przez kursanta <strong><?= h($ap['student_name']) ?></strong>
     do wglądu w dane jego panelu. Zobowiązuję się do nieudostępniania danych logowania osobom trzecim
     oraz do korzystania z panelu wyłącznie w celach, dla których upoważnienie zostało udzielone.
-    Upoważnienie może zostać cofnięte przez administratora w dowolnym momencie.
+    Upoważnienie może zostać cofnięte przez kursanta lub administratora w dowolnym momencie.
   </div>
 
   <div class="sign-area">

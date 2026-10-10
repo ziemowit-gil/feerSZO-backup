@@ -13,6 +13,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_online.php'; // konta MS
 require_once dirname(__DIR__) . '/kursant/auth.php'; // parent_make_token(), student_impersonate()
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_referrals.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_authorized_persons.php'; // wspólne reguły upoważnień (też panel kursanta)
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payment_account_schema.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/payment_portal/logic/paymentPortal.php'; // rachunek wirtualny z nr kursanta
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/sprawdz_konto/logic/sprawdz_konto.php';
@@ -115,11 +116,6 @@ function _student_send_login_sms(string $phone, string $login, string $pass): st
     } catch (\Throwable $e) {
         return ' (błąd wysyłki SMS: ' . $e->getMessage() . ')';
     }
-}
-
-function _authp_gen_pass_admin(): string {
-    $w = ['Kotek','Rower','Zamek','Kwiat','Statek','Zegar','Obraz','Lampa'];
-    return $w[array_rand($w)] . random_int(100, 999);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -735,39 +731,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: konta.php'); exit;
         }
         if ($op === 'authp_add') {
-            $ap_name      = mb_substr(trim((string)($_POST['ap_name']   ?? '')), 0, 100);
-            $ap_email     = mb_substr(trim((string)($_POST['ap_email']  ?? '')), 0, 150);
-            $ap_notes     = mb_substr(trim((string)($_POST['ap_notes']  ?? '')), 0, 300);
-            $ap_reason    = mb_substr(trim((string)($_POST['ap_reason'] ?? '')), 0, 400);
-            $ap_added_by  = $dyd_name;
-            if ($ap_name === '') {
-                flash_set('danger', 'Podaj imię i nazwisko osoby upoważnionej.');
+            $ap_added_by = $dyd_name;
+            // Walidacja, login, hasło i zapis — wspólne z panelem kursanta (includes/ti_authorized_persons.php).
+            // Kierownik nie podlega limitowi TI_AUTHP_MAX_ACTIVE i może dodać do nieaktywnego konta.
+            $ap_res = ti_authp_create([
+                'name'   => $_POST['ap_name']   ?? '',
+                'email'  => $_POST['ap_email']  ?? '',
+                'notes'  => $_POST['ap_notes']  ?? '',
+                'reason' => $_POST['ap_reason'] ?? '',
+            ], $aid, $ap_added_by, ['enforce_limit' => false, 'require_active' => false]);
+            if (empty($ap_res['ok'])) {
+                flash_set('danger', $ap_res['error'] ?? 'Nie udało się dodać upoważnienia.');
                 header('Location: konta.php?authp=' . $aid); exit;
             }
-            if ($ap_reason === '') {
-                flash_set('danger', 'Podaj powód upoważnienia.');
-                header('Location: konta.php?authp=' . $aid); exit;
-            }
-            // Wygeneruj unikalny login z imienia/nazwiska + sufiks -up
-            $ap_login = _gen_student_login($ap_name, '-up');
-            $suffix = 0;
-            $base   = $ap_login;
-            while (db_one("SELECT id FROM k30_ti_authorized_persons WHERE login=?", [$ap_login])
-                || db_one("SELECT id FROM k30_ti_student_accounts WHERE login=?", [$ap_login])) {
-                $suffix++;
-                $ap_login = $base . $suffix;
-            }
-            $ap_pass = _authp_gen_pass_admin();
-            $ap_id   = db_insert('k30_ti_authorized_persons', [
-                'student_account_id' => $aid,
-                'name'         => $ap_name,
-                'login'        => $ap_login,
-                'email'        => $ap_email,
-                'password_hash'=> password_hash($ap_pass, PASSWORD_BCRYPT),
-                'notes'        => $ap_notes,
-                'added_by_name'=> $ap_added_by,
-                'reason'       => $ap_reason,
-            ]);
+            $ap_id     = (int)$ap_res['id'];
+            $ap_name   = $ap_res['name'];
+            $ap_login  = $ap_res['login'];
+            $ap_pass   = $ap_res['pass'];
+            $ap_email  = $ap_res['email'];
+            $ap_notes  = $ap_res['notes'];
+            $ap_reason = $ap_res['reason'];
+            ti_account_log($aid, 'authp_added', "Dodano osobę upoważnioną: {$ap_name} (login: {$ap_login}).", null, $ap_added_by);
             // Pobierz prowadzących kursanta — do kopii maila
             $instructors = db()->prepare(
                 "SELECT DISTINCT u.name, u.email FROM k30_ti_enrollments e
@@ -860,20 +844,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $revoking = (bool)$ap['is_active']; // true = właśnie cofamy dostęp
             $revoker  = $dyd_name;
             if ($revoking) {
-                db()->prepare("UPDATE k30_ti_authorized_persons SET is_active=0, revoked_at=datetime('now'), revoked_by_name=? WHERE id=?")
-                   ->execute([$revoker, $ap_id_edit]);
+                ti_authp_revoke($ap_id_edit, $aid, $revoker);
+                ti_account_log($aid, 'authp_revoked', "Odwołano upoważnienie: {$ap['name']}.", null, $revoker);
                 $_SESSION['authp_revoked_id'] = $ap_id_edit;
                 flash_set('success', 'Dostęp wstrzymany. Wydrukuj dokument odwołania.');
             } else {
-                db()->prepare("UPDATE k30_ti_authorized_persons SET is_active=1, revoked_at=NULL, revoked_by_name='' WHERE id=?")
-                   ->execute([$ap_id_edit]);
+                ti_authp_restore($ap_id_edit, $aid);
+                ti_account_log($aid, 'authp_toggled', "Przywrócono dostęp osobie upoważnionej: {$ap['name']}.", null, $revoker);
                 flash_set('success', 'Dostęp przywrócony.');
             }
         } elseif ($op === 'authp_delete') {
             db()->prepare("DELETE FROM k30_ti_authorized_persons WHERE id=?")->execute([$ap_id_edit]);
             flash_set('success', "Upoważnienie usunięte: {$ap['name']}.");
         } elseif ($op === 'authp_reset_pass') {
-            $np = _authp_gen_pass_admin();
+            $np = ti_authp_gen_pass();
             db()->prepare("UPDATE k30_ti_authorized_persons SET password_hash=? WHERE id=?")
                ->execute([password_hash($np, PASSWORD_BCRYPT), $ap_id_edit]);
             $cl_row = db_one("SELECT cl.name FROM k30_ti_student_accounts a JOIN k30_clients cl ON cl.id=a.client_id WHERE a.id=?", [$aid]);

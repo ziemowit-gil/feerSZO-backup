@@ -172,6 +172,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=lekcje'); exit;
     }
 
+    // Upoważnienia nadawane przez samego (pełnoletniego) kursanta — reguły w includes/ti_authorized_persons.php
+    if (in_array($op, ['authp_self_add', 'authp_self_toggle', 'authp_self_revoke'], true)) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_authorized_persons.php';
+        $ap_sid = (int)$student['id'];
+        if (!empty($account['is_minor'])) {
+            $_SESSION['authp_flash'] = ['err', 'Osoby małoletnie nie mogą same upoważniać innych osób. Upoważnienie może wystawić rodzic lub placówka.'];
+            header('Location: index.php?tab=upowaznieni'); exit;
+        }
+        $ap_imp = student_impersonator();
+        $ap_by  = $ap_imp ? ('Administrator (podgląd): ' . ($ap_imp['name'] ?? '')) : (string)($client['name'] ?? 'Kursant');
+        if ($op === 'authp_self_add') {
+            $ap_form = [
+                'name'   => (string)($_POST['ap_name']   ?? ''),
+                'email'  => (string)($_POST['ap_email']  ?? ''),
+                'notes'  => (string)($_POST['ap_notes']  ?? ''),
+                'reason' => (string)($_POST['ap_reason'] ?? ''),
+            ];
+            if (empty($_POST['ap_consent'])) {
+                $_SESSION['authp_flash'] = ['err', 'Zaznacz oświadczenie, że upoważniasz tę osobę do wglądu w Twój panel.'];
+                $_SESSION['authp_form']  = $ap_form + ['field' => 'consent'];
+                header('Location: index.php?tab=upowaznieni#authp-form'); exit;
+            }
+            // added_by_name puste = upoważnienie od kursanta (tak rozróżnia je wydruk authp_print.php)
+            $ap_res = ti_authp_create($ap_form, $ap_sid, '');
+            if (empty($ap_res['ok'])) {
+                $_SESSION['authp_flash'] = ['err', $ap_res['error'] ?? 'Nie udało się dodać upoważnienia.'];
+                $_SESSION['authp_form']  = $ap_form + ['field' => (string)($ap_res['field'] ?? '')];
+                header('Location: index.php?tab=upowaznieni#authp-form'); exit;
+            }
+            ti_account_log($ap_sid, 'authp_added', "Kursant upoważnił osobę: {$ap_res['name']} (login: {$ap_res['login']}).", null, $ap_by);
+            // Hasło pokazujemy kursantowi JEDEN raz (jak kierownikowi w konta.php) — nie trafia do e-maila ani do bazy jawnie.
+            $_SESSION['authp_new'] = ['id' => (int)$ap_res['id'], 'name' => $ap_res['name'], 'login' => $ap_res['login'], 'pass' => $ap_res['pass']];
+            header('Location: index.php?tab=upowaznieni#authp-new'); exit;
+        }
+        $ap_id = (int)($_POST['ap_id'] ?? 0);
+        if ($op === 'authp_self_toggle') {
+            $ap_block = (($_POST['ap_action'] ?? '') === 'block');
+            $ap_res   = ti_authp_set_blocked($ap_id, $ap_sid, $ap_block);
+            if (!empty($ap_res['ok'])) {
+                $ap_nm = (string)$ap_res['row']['name'];
+                ti_account_log($ap_sid, 'authp_toggled', ($ap_block ? 'Kursant zablokował' : 'Kursant odblokował') . " dostęp osoby upoważnionej: {$ap_nm}.", null, $ap_by);
+                $_SESSION['authp_flash'] = ['ok', $ap_block
+                    ? "Dostęp osoby {$ap_nm} jest zablokowany. Możesz go później odblokować."
+                    : "Dostęp osoby {$ap_nm} jest ponownie aktywny."];
+            } else {
+                $_SESSION['authp_flash'] = ['err', $ap_res['error'] ?? 'Nie udało się zmienić dostępu.'];
+            }
+            header('Location: index.php?tab=upowaznieni'); exit;
+        }
+        // authp_self_revoke
+        $ap_res = ti_authp_revoke($ap_id, $ap_sid, $ap_by);
+        if (!empty($ap_res['ok'])) {
+            $ap_nm = (string)$ap_res['row']['name'];
+            ti_account_log($ap_sid, 'authp_revoked', "Kursant odwołał upoważnienie: {$ap_nm}.", null, $ap_by);
+            $_SESSION['authp_flash']   = ['ok', "Upoważnienie dla osoby {$ap_nm} zostało odwołane. Ta osoba nie może już wejść do Twojego panelu."];
+            $_SESSION['authp_revoked'] = $ap_id;
+        } else {
+            $_SESSION['authp_flash'] = ['err', $ap_res['error'] ?? 'Nie udało się odwołać upoważnienia.'];
+        }
+        header('Location: index.php?tab=upowaznieni'); exit;
+    }
+
     // Portfel: doładowanie online (Stripe/PayU). Wpłata jest OGÓLNA (course_id=0) —
     // alokacja FIFO automatycznie pobiera z niej opłaty za kolejne zajęcia.
     if ($op === 'wallet_topup') {
