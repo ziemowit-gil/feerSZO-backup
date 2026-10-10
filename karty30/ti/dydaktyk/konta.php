@@ -1216,8 +1216,20 @@ function printBulk(){
 
     <!-- ── Zakładka: Ogólne ─────────────────────────────────────────────── -->
     <div class="tab-pane fade <?= $active_tab === 'ogolne' ? 'show active' : '' ?>" id="tab-ogolne" role="tabpanel" aria-labelledby="tab-btn-ogolne" tabindex="0">
-      <div class="d-flex flex-column gap-3">
+      <ul class="nav nav-pills gap-1 mb-3" role="tablist" aria-label="Sekcje konta kursanta">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="og-btn-dane" data-bs-toggle="pill" data-bs-target="#og-dane" type="button" role="tab" aria-controls="og-dane" aria-selected="true">Dane i nauka</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="og-btn-haslo" data-bs-toggle="pill" data-bs-target="#og-haslo" type="button" role="tab" aria-controls="og-haslo" aria-selected="false">Logowanie i dostęp</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="og-btn-usun" data-bs-toggle="pill" data-bs-target="#og-usun" type="button" role="tab" aria-controls="og-usun" aria-selected="false">Usuwanie konta</button>
+        </li>
+      </ul>
 
+      <div class="tab-content">
+      <div class="tab-pane fade show active d-flex flex-column gap-3" id="og-dane" role="tabpanel" aria-labelledby="og-btn-dane" tabindex="0">
         <div>
           <div class="small fw-semibold text-body-secondary mb-1">Dane</div>
           <div class="row g-3 align-items-end">
@@ -1298,6 +1310,9 @@ function printBulk(){
         </div>
         <?php endif; ?>
 
+        </div>
+
+        <div class="tab-pane fade d-flex flex-column gap-3" id="og-haslo" role="tabpanel" aria-labelledby="og-btn-haslo" tabindex="0">
         <div>
           <div class="small fw-semibold text-body-secondary mb-1">Hasło i dostęp</div>
           <div class="d-flex flex-wrap gap-2">
@@ -1354,6 +1369,9 @@ function printBulk(){
           </div>
         </div>
 
+        </div>
+
+        <div class="tab-pane fade d-flex flex-column gap-3" id="og-usun" role="tabpanel" aria-labelledby="og-btn-usun" tabindex="0">
         <div class="border-top pt-3">
           <form method="post" onsubmit="return confirm('Usunąć konto „<?= h(addslashes($sa['client_name'])) ?>”? Tej operacji nie można cofnąć.')">
             <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
@@ -1363,6 +1381,8 @@ function printBulk(){
           </form>
         </div>
 
+        </div>
+      </div>
       </div>
     </div>
 
