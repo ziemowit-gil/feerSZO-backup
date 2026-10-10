@@ -8,8 +8,8 @@
  * Zawsze, o każdej porze, wychodzą:
  *   • kody jednorazowe i weryfikacja (logowanie, 2FA, odzyskiwanie, IKA, kody do dokumentów…) —
  *     ktoś właśnie na nie czeka,
- *   • SMS-y wysyłane ręcznie przez kierownika TI (rola „Kierownik Instytucji” w panelu dydaktyka)
- *     albo administratora SZO.
+ *   • SMS-y wysyłane ręcznie z panelu dydaktyka — przez prowadzącego albo kierownika TI —
+ *     oraz przez administratora SZO.
  * Wysyłki z CRON-a nie mają sesji, więc zawsze podlegają godzinom.
  */
 
@@ -26,11 +26,11 @@ function smsQuietNow(?int $ts = null): bool {
     return $h >= SMS_QUIET_FROM || $h < SMS_QUIET_TO;
 }
 
-/** Czy SMS wysyła teraz ręcznie kierownik TI albo administrator (nie CRON). */
+/** Czy SMS wysyła teraz ręcznie osoba z panelu dydaktyka (prowadzący, kierownik) albo administrator — nie CRON. */
 function smsQuietSenderIsManager(): bool {
     if (PHP_SAPI === 'cli') return false;
     try {
-        if (function_exists('dyd_is_staff') && dyd_is_staff()) return true;
+        if (function_exists('dyd_current') && dyd_current()) return true;   // prowadzący lub kierownik w panelu dydaktyka
         if (function_exists('is_admin') && is_admin()) return true;
     } catch (\Throwable $e) {}
     return false;
