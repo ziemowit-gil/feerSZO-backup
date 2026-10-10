@@ -35,6 +35,23 @@ if (!empty($_GET['hours'])) {
     exit;
 }
 
+// ?preview=1&course=&ym= — podgląd protokołu, który powstanie po zatwierdzeniu miesiąca
+// (ze znakiem wodnym „PODGLĄD”, otwierany w przeglądarce, bez zakładania protokołu).
+if (!empty($_GET['preview'])) {
+    $cid = (int)($_GET['course'] ?? 0);
+    $ym  = (string)($_GET['ym'] ?? '');
+    $pr  = ($cid && preg_match('/^\d{4}-\d{2}$/', $ym)) ? ti_protocol_month_stub($cid, $ym) : null;
+    if (!$pr) { http_response_code(404); exit('Protokół nie istnieje.'); }
+    if (!dyd_owns_course($uid, (int)$pr['course_id'])) { http_response_code(403); exit('Brak dostępu do tego protokołu.'); }
+    $pdf = ti_protocol_pdf($pr, true);
+    if ($pdf === null) { http_response_code(500); exit('Nie udało się wygenerować podglądu protokołu.'); }
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="podglad-' . ti_protocol_pdf_filename($pr) . '"');
+    header('Content-Length: ' . strlen($pdf));
+    echo $pdf;
+    exit;
+}
+
 $pr = $id ? ti_protocol_get($id) : null;
 if (!$pr) { http_response_code(404); exit('Protokół nie istnieje.'); }
 

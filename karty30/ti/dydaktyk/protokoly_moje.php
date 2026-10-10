@@ -189,7 +189,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       .pm-nr{flex:0 0 2.25rem;height:2.25rem;display:flex;align-items:center;justify-content:center;
         background:#0f6fa8;color:#fff;font-weight:700;font-size:1.05rem}
     </style>
-    <div class="pm-kroki" style="max-width:40rem">
+    <div class="row g-4">
+    <div class="col-lg-6 pm-kroki">
     <?php if ($_key_first): ?>
       <section class="card border-success mb-3" aria-labelledby="pmKluczH">
         <div class="card-body">
@@ -281,6 +282,54 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </div>
       </section>
     <?php endif; ?>
+    </div>
+
+    <?php
+      // Prawa kolumna: podgląd dokumentów, które powstaną po zatwierdzeniu.
+      $_pv_q   = 'course=' . $_cid . '&ym=' . urlencode($open_ym);
+      $_pv_dok = [
+          'prot'    => ['label' => 'Protokół zajęć', 'opis' => 'Dokument, który po zatwierdzeniu trafi do akt (i do EZD).',
+                        'url' => 'protokol_pdf.php?preview=1&' . $_pv_q],
+          'godziny' => ['label' => 'Lista godzin', 'opis' => 'Daty i liczba godzin — tę treść obejmuje Twój podpis.',
+                        'url' => 'protokol_pdf.php?hours=1&' . $_pv_q],
+      ];
+    ?>
+    <div class="col-lg-6">
+      <section class="card h-100" aria-labelledby="pmPodgladH">
+        <div class="card-body d-flex flex-column">
+          <h3 class="h6 fw-semibold mb-1" id="pmPodgladH"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Podgląd dokumentów</h3>
+          <p class="small text-body-secondary mb-2">Tak będą wyglądać dokumenty po zatwierdzeniu. Podgląd ma napis „PODGLĄD” — nie jest jeszcze podpisany.</p>
+          <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Wybierz dokument do podglądu">
+            <?php $_pv_first = true; foreach ($_pv_dok as $_k => $_d): ?>
+            <button type="button" class="btn btn-outline-primary<?= $_pv_first ? ' active' : '' ?>" data-pv="<?= h($_k) ?>"
+                    data-url="<?= h($_d['url']) ?>" data-opis="<?= h($_d['opis']) ?>" aria-pressed="<?= $_pv_first ? 'true' : 'false' ?>"
+                    aria-controls="pmPodgladRamka"><?= h($_d['label']) ?></button>
+            <?php $_pv_first = false; endforeach; ?>
+          </div>
+          <p class="small mb-2" id="pmPodgladOpis" aria-live="polite"><?= h($_pv_dok['prot']['opis']) ?></p>
+          <iframe id="pmPodgladRamka" title="Podgląd dokumentu: <?= h($_pv_dok['prot']['label']) ?>" src="<?= h($_pv_dok['prot']['url']) ?>"
+                  class="border flex-grow-1 w-100" style="min-height:32rem" loading="lazy"></iframe>
+          <a class="small mt-2" id="pmPodgladNowe" href="<?= h($_pv_dok['prot']['url']) ?>" target="_blank" rel="noopener">
+            Otwórz podgląd w nowej karcie<span class="visually-hidden"> (nowe okno)</span>
+          </a>
+        </div>
+      </section>
+      <script>
+      (function () {
+        var ramka = document.getElementById('pmPodgladRamka'), opis = document.getElementById('pmPodgladOpis'),
+            nowe = document.getElementById('pmPodgladNowe');
+        document.querySelectorAll('[data-pv]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            document.querySelectorAll('[data-pv]').forEach(function (x) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
+            b.classList.add('active'); b.setAttribute('aria-pressed', 'true');
+            ramka.src = b.dataset.url; nowe.href = b.dataset.url;
+            ramka.title = 'Podgląd dokumentu: ' + b.textContent.trim();
+            opis.textContent = b.dataset.opis;
+          });
+        });
+      })();
+      </script>
+    </div>
     </div>
 
     <?php if ($_has_key): ?>

@@ -1429,7 +1429,11 @@ function ti_protocol_print_html(array $prot): string {
 }
 
 /** Protokół jako bajty PDF (mPDF, dejavuserif) albo null przy błędzie. */
-function ti_protocol_pdf(array $prot): ?string {
+/**
+ * PDF protokołu zajęć. $podglad — wersja przed zatwierdzeniem (strona zatwierdzania pokazuje,
+ * jaki dokument powstanie): ukośny znak wodny „PODGLĄD”, żeby nie pomylić jej z podpisanym protokołem.
+ */
+function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
     try {
         require_once dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -1467,6 +1471,10 @@ function ti_protocol_pdf(array $prot): ?string {
              table.signs td { width:50%; padding-top:12mm; font-size:9pt; text-align:center; border:none; }',
             \Mpdf\HTMLParserMode::HEADER_CSS
         );
+        if ($podglad) {
+            $mpdf->SetWatermarkText('PODGLĄD', 0.12);
+            $mpdf->showWatermarkText = true;
+        }
         $mpdf->WriteHTML(ti_protocol_print_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
