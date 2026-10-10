@@ -118,13 +118,52 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
           <a href="?tab=lekcje">
             <i class="bi bi-calendar-check kp-w8-ikona" aria-hidden="true"></i>
             <span class="kp-w8-tytul">Moje lekcje
-              <?php if (!empty($today_lessons)): ?>
-                <?php foreach ($today_lessons as $_tl): ?>
-                <span class="kp-w8-pod">Dziś: <?= h($_tl['course_name']) ?><?= !empty($_tl['time_from']) ? ' · ' . h($_tl['time_from']) : '' ?></span>
-                <?php endforeach; ?>
+              <?php
+          // Najbliższe zajęcia: pierwsza lekcja, która jeszcze się nie skończyła (data + godzina wg PHP, strefa Europe/Warsaw)
+          $_st_next = null;
+          try {
+              $_st_next = db_one(
+                  "SELECT s.lesson_date, s.time_from, s.time_to, s.topic, c.name AS course_name
+                     FROM k30_ti_sessions s
+                     JOIN k30_ti_courses c ON c.id = s.course_id
+                     JOIN k30_ti_enrollments e ON e.course_id = c.id AND e.client_id = ? AND e.status = 'active'
+                    WHERE (s.lesson_date > ? OR (s.lesson_date = ? AND COALESCE(NULLIF(s.time_to,''), NULLIF(s.time_from,''), '23:59') >= ?))
+                      AND (s.status IS NULL OR s.status NOT IN ('cancelled','removed','reserved','remote_material'))
+                      AND NOT EXISTS (SELECT 1 FROM k30_ti_attendance a WHERE a.session_id = s.id AND a.client_id = e.client_id AND COALESCE(a.cancelled,0) = 1)
+                    ORDER BY s.lesson_date, s.time_from LIMIT 1",
+                  [(int)$student['client_id'], date('Y-m-d'), date('Y-m-d'), date('H:i')]);
+          } catch (\Throwable $e) { $_st_next = null; }
+          $_st_next_ts = $_st_next ? strtotime($_st_next['lesson_date'] . ' ' . (trim((string)$_st_next['time_from']) !== '' ? $_st_next['time_from'] : '00:00')) : null;
+          $_st_za = function (int $ts): string {
+              $d = $ts - time();
+              if ($d <= 0) return 'trwają teraz';
+              $dni = intdiv($d, 86400); $godz = intdiv($d % 86400, 3600); $min = intdiv($d % 3600, 60);
+              if ($dni > 0) return 'za ' . $dni . ' ' . ($dni === 1 ? 'dzień' : 'dni') . ($godz > 0 ? ' ' . $godz . ' godz.' : '');
+              if ($godz > 0) return 'za ' . $godz . ' godz. ' . $min . ' min';
+              return 'za ' . max(1, $min) . ' min';
+          };
+          $_st_dzien = function (string $d): string {
+              $diff = (int)round((strtotime($d) - strtotime(date('Y-m-d'))) / 86400);
+              if ($diff === 0) return 'dziś';
+              if ($diff === 1) return 'jutro';
+              $dn = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+              return $dn[(int)date('w', strtotime($d))] . ' ' . date('d.m', strtotime($d));
+          };
+        ?>
+        <li class="kp-w8-kafel kp-w8-szeroki kp-w8-nastepne" style="--kolor:#fcd116">
+          <a href="?tab=lekcje">
+            <i class="bi bi-alarm kp-w8-ikona" aria-hidden="true"></i>
+            <span class="kp-w8-tytul">Najbliższe zajęcia
+              <?php if ($_st_next): ?>
+              <span class="kp-w8-licznik-czas" <?= $_st_next_ts ? 'data-start="' . (int)$_st_next_ts . '"' : '' ?>><?= h($_st_za((int)$_st_next_ts)) ?></span>
+              <span class="kp-w8-pod"><?= h($_st_next['course_name']) ?><?= trim((string)$_st_next['topic']) !== '' ? ' — ' . h($_st_next['topic']) : '' ?></span>
+              <span class="kp-w8-pod"><time datetime="<?= h($_st_next['lesson_date'] . (trim((string)$_st_next['time_from']) !== '' ? 'T' . $_st_next['time_from'] : '')) ?>"><?= h($_st_dzien($_st_next['lesson_date'])) ?><?= trim((string)$_st_next['time_from']) !== '' ? ', ' . h($_st_next['time_from']) : '' ?><?= trim((string)$_st_next['time_to']) !== '' ? '–' . h($_st_next['time_to']) : '' ?></time></span>
               <?php else: ?>
-                <span class="kp-w8-pod">Dziś brak zajęć</span>
+              <span class="kp-w8-pod">Brak zaplanowanych zajęć.</span>
               <?php endif; ?>
+            </span>
+          </a>
+        </li>
             </span>
           </a>
         </li>
@@ -223,6 +262,21 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
   </form>
 </section>
 <?php } catch (\Throwable $e) { echo '<div class="alert alert-danger" role="alert">Nie udało się wyświetlić ekranu startowego: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>'; } ?>
+<script>
+(function () {
+  var el = document.querySelector('.kp-w8-licznik-czas[data-start]');
+  if (!el) return;
+  function za() {
+    var d = Math.floor(parseInt(el.getAttribute('data-start'), 10) - Date.now() / 1000);
+    if (d <= 0) return 'trwają teraz';
+    var dni = Math.floor(d / 86400), g = Math.floor((d % 86400) / 3600), m = Math.floor((d % 3600) / 60);
+    if (dni > 0) return 'za ' + dni + ' ' + (dni === 1 ? 'dzień' : 'dni') + (g > 0 ? ' ' + g + ' godz.' : '');
+    if (g > 0) return 'za ' + g + ' godz. ' + m + ' min';
+    return 'za ' + Math.max(1, m) + ' min';
+  }
+  setInterval(function () { el.textContent = za(); }, 60000);
+})();
+</script>
 <script>
 (function () {
   var inp = document.getElementById('kp-szukaj');

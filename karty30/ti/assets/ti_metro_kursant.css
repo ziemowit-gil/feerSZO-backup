@@ -784,3 +784,7 @@ body.kur-alt.ti-skin .kp-lic-kafel .kp-lic-ikona { width: 2.5rem; height: 2.5rem
 body.kur-alt.ti-skin .kp-lic-skopiowano { background: #60a917 !important; border-color: #1d1d1d !important; }
 body.kur-alt.ti-skin .kp-lic-stopka { margin-top: auto; padding-top: .5rem; border-top: 1px solid #e5e7eb; }
 body.kur-alt.ti-skin .kp-lic-uwaga { border-left-color: #f0a30a !important; }
+
+/* Najbliższe zajęcia: duży, czytelny licznik „za 2 dni 3 godz.” na kaflu */
+body.kur-alt.ti-skin .kp-w8-licznik-czas { display: block; font-size: 1.35rem; font-weight: 800; line-height: 1.15; margin: .15rem 0; }
+body.kur-alt.ti-skin .kp-w8-nastepne .kp-w8-ikona { font-size: 1.8rem; }
