@@ -29,7 +29,7 @@ const DYD_NAV_TABS = [
 
 /** Strony samodzielne → sekcja (ekrany kierownika z _kierownik_bar.php i „moje”). */
 const DYD_NAV_PAGES = [
-    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php'],
+    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php', 'moj_certyfikat.php', 'certyfikaty.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
@@ -131,6 +131,10 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
             $items[] = ['Moje zgłoszenia (niedostępność, zmiana terminu)', 'mojeZgloszenia.php', 'envelope-exclamation'];
         }
         if (function_exists('dyd_can_analytics') && dyd_can_analytics($s)) $items[] = ['Analityka TI', 'analityka.php', 'speedometer2'];
+        $items[] = ['Mój certyfikat', 'moj_certyfikat.php', 'shield-check'];
+        if (function_exists('ti_panel_role') && (is_admin() || ti_panel_role((int)($s['user_id'] ?? 0)) === 'kierownik')) {
+            $items[] = ['Certyfikaty prowadzących', 'certyfikaty.php', 'key'];
+        }
         $items[] = ['Komunikaty', 'index.php?tab=komunikaty', 'megaphone'];
         $items[] = ['Gdzie co jest', 'index.php?tab=pomoc', 'signpost-split'];
         $tb['user_menu'] = [
