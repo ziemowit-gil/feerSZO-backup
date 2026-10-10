@@ -146,18 +146,45 @@ $form_open = $q_type !== '';
     </form>
   </div>
 
-  <div class="row g-4">
-    <div class="col-xl-5">
-      <?php include __DIR__ . '/_exam_meta_form.php'; ?>
+  <?php
+  // Widoki strony egzaminu — żeby nie było wszystkiego naraz:
+  //   pytania (domyślny) — lista pytań + dodawanie, podgląd w okienku,
+  //   ustawienia         — sam formularz ustawień egzaminu,
+  //   formularz pytania  — gdy edytujemy (?q=) albo dodajemy (?new=).
+  $widok = $form_open ? 'pytanie' : ((string)($_GET['widok'] ?? '') === 'ustawienia' ? 'ustawienia' : 'pytania');
+  $u_pyt = 'exam_build.php?exam_id=' . (int)$exam['id'];
+  ?>
+  <nav aria-label="Widoki egzaminu" class="mb-3">
+    <ul class="nav nav-tabs">
+      <li class="nav-item"><a class="nav-link<?= $widok !== 'ustawienia' ? ' active' : '' ?>" <?= $widok === 'pytania' ? 'aria-current="page"' : '' ?>
+         href="<?= h($u_pyt) ?>"><i class="bi bi-list-ol me-1" aria-hidden="true"></i>Pytania (<?= count($questions) ?>)</a></li>
+      <li class="nav-item"><a class="nav-link<?= $widok === 'ustawienia' ? ' active' : '' ?>" <?= $widok === 'ustawienia' ? 'aria-current="page"' : '' ?>
+         href="<?= h($u_pyt . '&widok=ustawienia') ?>"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Ustawienia egzaminu</a></li>
+    </ul>
+  </nav>
 
-      <h2 class="h6 fw-semibold mt-4 mb-2">Pytania w zestawie (<?= count($questions) ?>)</h2>
+  <?php if ($widok === 'ustawienia'): ?>
+  <div class="row"><div class="col-lg-8 col-xl-6">
+    <?php include __DIR__ . '/_exam_meta_form.php'; ?>
+  </div></div>
+
+  <?php elseif ($widok === 'pytanie'): ?>
+  <p class="mb-2"><a href="<?= h($u_pyt) ?>"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do listy pytań</a></p>
+  <h2 class="h5 fw-semibold mb-2"><?= $editing ? 'Edycja pytania' : 'Nowe pytanie' ?></h2>
+  <div class="row"><div class="col-xl-10">
+    <?php include __DIR__ . '/_exam_question_form.php'; ?>
+  </div></div>
+
+  <?php else: /* pytania */ ?>
+  <div class="row g-4"><div class="col-xl-10">
+      <h2 class="h5 fw-semibold mb-2">Pytania w zestawie (<?= count($questions) ?>)</h2>
       <?php if (!$questions): ?>
         <p class="text-body-secondary small">Zestaw jest pusty — wybierz typ pytania po prawej stronie.</p>
       <?php else: ?>
       <ol class="list-group list-group-numbered mb-3">
         <?php foreach ($questions as $i => $q):
           $qm = K30_TI_EXAM_TYPES[(string)$q['type']] ?? null; ?>
-        <li class="list-group-item d-flex gap-2 align-items-start <?= ($edit_q && (int)$edit_q['id'] === (int)$q['id']) ? 'border-primary border-2' : '' ?>">
+        <li class="list-group-item d-flex flex-wrap gap-2 align-items-start">
           <div class="me-auto">
             <a class="fw-semibold text-decoration-none" href="exam_build.php?exam_id=<?= (int)$exam['id'] ?>&amp;q=<?= (int)$q['id'] ?>">
               <?= h(mb_strimwidth(trim(strip_tags((string)$q['prompt'])), 0, 90, '…')) ?>
@@ -171,8 +198,12 @@ $form_open = $q_type !== '';
               <?php endif; ?>
             </div>
           </div>
-          <a class="btn btn-sm btn-outline-primary text-nowrap" href="exam_preview.php?q=<?= (int)$q['id'] ?>">
+          <a class="btn btn-sm btn-outline-primary text-nowrap" href="exam_preview.php?q=<?= (int)$q['id'] ?>"
+             data-podglad="<?= (int)$q['id'] ?>" aria-haspopup="dialog">
             <i class="bi bi-eye me-1" aria-hidden="true"></i>Podejrzyj<span class="visually-hidden"> pytanie <?= $i + 1 ?></span>
+          </a>
+          <a class="btn btn-sm btn-outline-secondary text-nowrap" href="exam_build.php?exam_id=<?= (int)$exam['id'] ?>&amp;q=<?= (int)$q['id'] ?>">
+            <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj<span class="visually-hidden"> pytanie <?= $i + 1 ?></span>
           </a>
           <div class="btn-group btn-group-sm" role="group" aria-label="Kolejność i usuwanie pytania <?= $i + 1 ?>">
             <form method="post"><input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
@@ -230,12 +261,8 @@ $form_open = $q_type !== '';
         <p class="form-text mb-0">Pytania otwarte trafią jako „krótka odpowiedź" z oceną prowadzącego — uzupełnij im kryteria.</p>
       </details>
       <?php endif; ?>
-    </div>
 
-    <div class="col-xl-7">
-      <h2 class="h6 fw-semibold mb-2"><?= $editing ? 'Edycja pytania' : 'Nowe pytanie' ?></h2>
-
-      <?php if (!$form_open): ?>
+      <h2 class="h5 fw-semibold mt-4 mb-2" id="dodaj">Dodaj pytanie</h2>
       <div class="card border-0 shadow-sm">
         <div class="card-body">
           <p class="mb-3">Wybierz rodzaj pytania — formularz dopasuje się do niego.</p>
@@ -255,9 +282,45 @@ $form_open = $q_type !== '';
           </div>
         </div>
       </div>
-      <?php else: include __DIR__ . '/_exam_question_form.php'; endif; ?>
+  </div></div>
+  <?php endif; ?>
+
+  <?php /* Okienko podglądu — poza zakładkami; treść ładuje się do ramki (widok kursanta). */ ?>
+  <div class="modal fade" id="podgladModal" tabindex="-1" aria-labelledby="podgladTytul" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="podgladTytul"><i class="bi bi-eye me-2" aria-hidden="true"></i>Podgląd pytania — widok kursanta</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij podgląd"></button>
+        </div>
+        <div class="modal-body p-0">
+          <iframe id="podgladRamka" title="Podgląd pytania tak, jak zobaczy je kursant" style="width:100%;height:70vh;border:0" src="about:blank"></iframe>
+        </div>
+        <div class="modal-footer">
+          <a class="btn btn-outline-secondary" id="podgladOkno" href="#" target="_blank" rel="noopener">Otwórz w nowej karcie<span class="visually-hidden"> (nowe okno)</span></a>
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Zamknij</button>
+        </div>
+      </div>
     </div>
   </div>
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var el = document.getElementById('podgladModal');
+    if (!el || !window.bootstrap) return;
+    var modal = new bootstrap.Modal(el), ramka = document.getElementById('podgladRamka'), okno = document.getElementById('podgladOkno');
+    function pokaz(id) {
+      ramka.src = 'exam_preview.php?q=' + encodeURIComponent(id) + '&embed=1';
+      okno.href = 'exam_preview.php?q=' + encodeURIComponent(id);
+      modal.show();
+    }
+    document.querySelectorAll('[data-podglad]').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); pokaz(a.dataset.podglad); });
+    });
+    el.addEventListener('hidden.bs.modal', function () { ramka.src = 'about:blank'; });
+    <?php if (!empty($_GET['podglad']) && $edit_q): ?>pokaz(<?= (int)$edit_q['id'] ?>);<?php endif; ?>
+  });
+  </script>
+
 
 <?php endif; ?>
 

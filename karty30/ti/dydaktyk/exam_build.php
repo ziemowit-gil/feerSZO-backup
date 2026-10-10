@@ -101,11 +101,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $saved  = ti_exam_save_via_engine($cid, $eid ?: null, $form, $uid, $issues, $err);
         if ($saved === null) {
             exam_stash_issues($issues, $err);
-            header('Location: exam_build.php?' . ($eid ? 'exam_id=' . $eid : 'course_id=' . $cid)); exit;
+            header('Location: exam_build.php?' . ($eid ? 'exam_id=' . $eid . '&widok=ustawienia' : 'course_id=' . $cid)); exit;
         }
         exam_flash_warnings($issues);
         flash_set('success', $eid ? 'Ustawienia egzaminu zapisane.' : 'Egzamin utworzony — dodaj pytania.');
-        header('Location: exam_build.php?exam_id=' . $saved); exit;
+        // Zmiana ustawień istniejącego egzaminu — zostajemy w widoku ustawień.
+        header('Location: exam_build.php?exam_id=' . $saved . ($eid ? '&widok=ustawienia' : '')); exit;
     }
 
     if ($op === 'toggle_active') {
@@ -293,7 +294,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         exam_flash_warnings($issues);
         flash_set('success', $qid ? 'Pytanie zapisane.' : 'Pytanie dodane do zestawu.');
-        header('Location: exam_build.php?exam_id=' . (int)$e['id'] . '&q=' . $saved); exit;
+        // „Zapisz i podejrzyj” — po zapisie strona sama otwiera okienko podglądu.
+        $podglad = ((string)($_POST['po_zapisie'] ?? '') === 'podglad') ? '&podglad=1' : '';
+        header('Location: exam_build.php?exam_id=' . (int)$e['id'] . '&q=' . $saved . $podglad); exit;
     }
 
     header('Location: exam_build.php'); exit;

@@ -4,6 +4,7 @@
  * Equi Exams — „Podejrzyj pytanie”: pytanie dokładnie tak, jak zobaczy je kursant.
  *
  *   ?q=ID — podgląd jednego pytania (z przejściem do poprzedniego/następnego w zestawie).
+ *   &embed=1 — sama treść do okienka podglądu w kreatorze (bez paska, ścieżki i nawigacji).
  *
  * Renderuje ten sam szablon co arkusz kursanta (kursant/_exam_question_student.php),
  * więc podgląd nie rozjedzie się z tym, co widzi kursant. Formularz nie ma akcji —
@@ -43,6 +44,43 @@ $qcfg      = ti_exam_config($q);
 $orderMap  = [];
 $immediate = false;
 $languages = ti_exam_available_languages();
+
+$embed = !empty($_GET['embed']);
+
+if ($embed) {
+    // Okienko w kreatorze: minimalna strona z Bootstrapem — wygląd pytania jak na arkuszu kursanta.
+    ?><!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Podgląd pytania — <?= h((string)$exam['title']) ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>body{background:#f3f4f6}*:focus-visible{outline:3px solid #facc15!important;outline-offset:2px}</style>
+</head>
+<body>
+<main class="container py-3" style="max-width:52rem">
+  <p class="small text-body-secondary mb-2">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Pytanie <?= $pos + 1 ?> z <?= count($ids) ?>.
+    Odpowiadaj na próbę — nic nie jest zapisywane.
+    <?php if ((int)($exam['shuffle_options'] ?? 0) === 1): ?>Kursant zobaczy warianty w losowej kolejności.<?php endif; ?>
+  </p>
+  <form action="#" onsubmit="return false" aria-label="Podgląd pytania — odpowiedzi nie są zapisywane" autocomplete="off">
+    <?php require dirname(__DIR__) . '/kursant/_exam_question_student.php'; ?>
+  </form>
+  <?php if (trim((string)($q['explanation'] ?? '')) !== ''): ?>
+  <details>
+    <summary class="fw-semibold">Wyjaśnienie po odpowiedzi</summary>
+    <p class="mt-2 mb-0"><?= nl2br(h((string)$q['explanation'])) ?></p>
+  </details>
+  <?php endif; ?>
+</main>
+</body>
+</html>
+<?php
+    exit;
+}
 
 $KP_SKIP_TAB_MEMORY = true;
 $KP_TITLE  = 'Podgląd pytania — ' . (string)$exam['title'];
