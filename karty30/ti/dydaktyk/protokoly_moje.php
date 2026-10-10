@@ -20,6 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = $_POST['_op'] ?? '';
 
+    // Kod SMS do podpisu protokołu — wysyłany na telefon zalogowanego prowadzącego.
+    if ($op === 'send_otp') {
+        $err = ti_protocol_otp_send($uid);
+        flash_set($err === '' ? 'success' : 'danger', $err === '' ? 'Wysłaliśmy kod SMS (ważny 5 minut). Wpisz go przy zatwierdzaniu.' : $err);
+        header('Location: protokoly_moje.php?course=' . (int)($_POST['course_id'] ?? 0) . '&ym=' . urlencode((string)($_POST['year_month'] ?? ''))); exit;
+    }
+
     if ($op === 'approve_month') {
         $cid = (int)($_POST['course_id'] ?? 0);
         $ym  = (string)($_POST['year_month'] ?? '');
@@ -37,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $p12 = (!empty($_FILES['p12']['tmp_name']) && is_uploaded_file($_FILES['p12']['tmp_name']) && (int)$_FILES['p12']['size'] <= 1048576)
                 ? (string)file_get_contents($_FILES['p12']['tmp_name']) : '';
             if ($p12 === '') throw new \RuntimeException('Zatwierdzenie wymaga podpisu certyfikatem: dołącz plik .p12. Brak certyfikatu? Poproś administratora o jego wystawienie.');
-            ti_protocol_approve_signed((int)$prot['id'], $uid, $me_name, $p12, (string)($_POST['p12_password'] ?? ''));
+            ti_protocol_approve_signed((int)$prot['id'], $uid, $me_name, $p12, (string)($_POST['p12_password'] ?? ''), (string)($_POST['otp'] ?? ''));
             flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony i podpisany certyfikatem.');
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
@@ -153,6 +160,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </p>
       <?php else: ?>
             <?php $_has_cert = x509_user_has_active_cert($uid); ?>
+            <form method="post" class="mb-2">
+              <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op" value="send_otp">
+              <input type="hidden" name="course_id" value="<?= (int)$open_row['course_id'] ?>">
+              <input type="hidden" name="year_month" value="<?= h($open_ym) ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
+              <span class="small text-body-secondary ms-2">Najpierw kod na telefon, potem podpis.</span>
+            </form>
             <form method="post" class="ms-auto" id="pmApproveForm" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="approve_month">
@@ -165,6 +180,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <input type="file" class="form-control form-control-sm mb-2" id="pmP12" name="p12" accept=".p12,.pfx" required>
           <label class="form-label mb-1" for="pmP12Pwd">Hasło do certyfikatu</label>
           <input type="password" class="form-control form-control-sm mb-1" id="pmP12Pwd" name="p12_password" autocomplete="off" required>
+          <label class="form-label mb-1" for="pmOtp">Kod z SMS-a</label>
+          <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control form-control-sm mb-1" id="pmOtp" name="otp" autocomplete="one-time-code" required>
           <div class="text-body-secondary">Podpis obejmuje dokładną treść ewidencji godzin. Plik i hasło służą tylko do tego podpisu i nie są zapisywane.</div>
         </div>
         <?php else: ?>

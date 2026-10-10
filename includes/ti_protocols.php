@@ -745,15 +745,55 @@ function ti_protocol_sign_payload(array $prot, int $uid): string {
 }
 
 /**
+ * Wysyła kod SMS do podpisu protokołu (6 cyfr, 5 minut). Zwraca '' albo komunikat błędu.
+ */
+function ti_protocol_otp_send(int $uid): string {
+    require_once dirname(__DIR__) . '/includes/sms.php';
+    $u = db_one("SELECT phone_number FROM users WHERE id = ? AND is_active = 1", [$uid]);
+    $phone = (string)($u['phone_number'] ?? '');
+    if (preg_replace('/\D/', '', $phone) === '') return 'Brak numeru telefonu w koncie — poproś kierownika, żeby go uzupełnił.';
+    $code = sms_generate_otp($phone, $uid);
+    $ok = ti_cert_sms_plain($phone, 'FEER: kod do podpisu protokolu: ' . $code . ' (wazny 5 min). Nie udostepniaj.');
+    return $ok ? '' : 'Nie udało się wysłać SMS-a z kodem. Spróbuj ponownie.';
+}
+
+/** Sprawdza kod SMS do podpisu: musi być poprawny, nieużyty i należeć do tego prowadzącego. */
+function ti_protocol_otp_check(int $uid, string $code): bool {
+    require_once dirname(__DIR__) . '/includes/sms.php';
+    $code = preg_replace('/\D/', '', $code);
+    if (strlen($code) !== 6) return false;
+    $u = db_one("SELECT phone_number FROM users WHERE id = ? AND is_active = 1", [$uid]);
+    $phone = (string)($u['phone_number'] ?? '');
+    if (preg_replace('/\D/', '', $phone) === '') return false;
+    $ok = sms_verify_otp($phone, $code);   // zużywa kod (used_at)
+    return $ok !== null && (int)$ok['id'] === $uid;
+}
+
+/** SMS bez rodzaju-szablonu dla kodów podpisu (bramka wymaga rodzaju — używamy 'authorization_code'). */
+function ti_cert_sms_plain(string $phone, string $text): bool {
+    try {
+        return sms_send($phone, $text, 'authorization_code') !== '';
+    } catch (\Throwable $e) {
+        error_log('[ti_protocol_otp] ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * Zatwierdzenie protokołu podpisem certyfikatem prowadzącego. Najpierw podpis (błąd =
  * brak zatwierdzenia), potem zwykłe zatwierdzenie i zapis danych podpisu.
  * $p12 — zawartość pliku .p12, $password — jego hasło (używane tylko w tym żądaniu).
  */
-function ti_protocol_approve_signed(int $protocol_id, int $uid, string $by_name, string $p12, string $password): void {
+function ti_protocol_approve_signed(int $protocol_id, int $uid, string $by_name, string $p12, string $password, string $otp = ''): void {
     require_once dirname(__DIR__) . '/includes/x509_login.php';
     ti_protocols_migrate();
     $prot = ti_protocol_get($protocol_id);
     if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
+
+    // Kod SMS przed podpisem: jednorazowy, ważny 5 minut, wysłany na telefon tego prowadzącego.
+    if (!ti_protocol_otp_check($uid, $otp)) {
+        throw new \RuntimeException('Podaj poprawny kod z SMS-a (ważny 5 minut). Jeśli kod wygasł, wyślij nowy.');
+    }
 
     $sig = x509_sign_payload_p12($uid, $p12, $password, ti_protocol_sign_payload($prot, $uid));
     if (!$sig) {
