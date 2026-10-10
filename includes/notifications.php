@@ -376,6 +376,15 @@ function _ann_get_audience_users(string $audience): array {
         if ($audience === 'contracts:active') {
             return ann_active_contract_users();
         }
+        if ($audience === 'ti:prowadzacy') {
+            return db_all(
+                "SELECT DISTINCT u.id, u.name, u.email FROM users u
+                  WHERE u.is_active=1 AND (
+                    EXISTS (SELECT 1 FROM k30_ti_courses c WHERE c.instructor_id=u.id)
+                 OR EXISTS (SELECT 1 FROM k30_ti_course_coinstructors ci WHERE ci.user_id=u.id))",
+                []
+            );
+        }
         if (str_starts_with($audience, 'role:')) {
             $role = substr($audience, 5);
             return db_all("SELECT id, name, email FROM users WHERE role=? AND is_active=1", [$role]);
@@ -430,6 +439,16 @@ function _ann_user_can_see(string $audience, int $user_id, string $role): bool {
         return $role === 'admin' || ann_user_has_active_contract($user_id);
     }
     if ($audience === 'public') return $role === 'admin'; // zalogowani admini też widzą
+    if ($audience === 'ti:prowadzacy') {
+        try {
+            return (bool)db_one(
+                "SELECT 1 FROM users u WHERE u.id=? AND (
+                    EXISTS (SELECT 1 FROM k30_ti_courses c WHERE c.instructor_id=u.id)
+                 OR EXISTS (SELECT 1 FROM k30_ti_course_coinstructors ci WHERE ci.user_id=u.id))",
+                [$user_id]
+            );
+        } catch (\Throwable $e) { return false; }
+    }
     if (str_starts_with($audience, 'role:')) {
         return $role === substr($audience, 5);
     }
@@ -454,8 +473,22 @@ function _ann_user_can_see(string $audience, int $user_id, string $role): bool {
 function ann_panel_messages(int $user_id, string $role): array {
     $all = ann_list_for_user($user_id, $role);
     return array_values(array_filter($all, function ($a) {
+        // Komunikaty dla prowadzących pokazują się tylko w panelu dydaktyka (ann_dyd_banners).
+        if (($a['audience'] ?? '') === 'ti:prowadzacy') return false;
         $mode = $a['display_mode'] ?? 'feed';
         return in_array($mode, ['banner', 'popup'], true) && !(int)($a['is_read_by_me'] ?? 0);
+    }));
+}
+
+/**
+ * Banery dla prowadzących w panelu dydaktyka: nieprzeczytane, tryb 'banner', odbiorca „Prowadzący TI”.
+ */
+function ann_dyd_banners(int $user_id, string $role): array {
+    $all = ann_list_for_user($user_id, $role);
+    return array_values(array_filter($all, function ($a) {
+        return ($a['audience'] ?? '') === 'ti:prowadzacy'
+            && ($a['display_mode'] ?? 'feed') === 'banner'
+            && !(int)($a['is_read_by_me'] ?? 0);
     }));
 }
 
@@ -499,6 +532,7 @@ function ann_public_list(): array {
 function ann_audience_label(string $audience): string {
     if ($audience === 'all')    return 'Wszyscy użytkownicy';
     if ($audience === 'contracts:active') return 'Osoby z aktywnymi umowami';
+    if ($audience === 'ti:prowadzacy') return 'Prowadzący TI';
     if ($audience === 'public') return 'Strona logowania (publiczne)';
     if ($audience === 'role:admin')  return 'Administratorzy';
     if ($audience === 'role:editor') return 'Edytorzy';

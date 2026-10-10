@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (mb_strlen($values['body']) > 5000) $errors[] = 'Treść może mieć maksymalnie 5000 znaków.';
     if (mb_strlen($values['body']) < 1)    $errors[] = 'Treść jest wymagana.';
 
-    $valid_audiences = ['all', 'contracts:active', 'public', 'role:admin', 'role:editor', 'role:viewer'];
+    $valid_audiences = ['all', 'contracts:active', 'public', 'ti:prowadzacy', 'role:admin', 'role:editor', 'role:viewer'];
     foreach ($org_units as $ou) $valid_audiences[] = 'unit:' . $ou['id'];
     foreach ($all_users as $au) $valid_audiences[] = 'user:' . $au['id'];
     if (!in_array($values['audience'], $valid_audiences, true)) {
@@ -151,6 +151,7 @@ pv_page_header('Nowe ogłoszenie', [
                 <option value="all"    <?= $values['audience'] === 'all'    ? 'selected' : '' ?>>Wszyscy aktywni użytkownicy</option>
                 <option value="contracts:active" <?= $values['audience'] === 'contracts:active' ? 'selected' : '' ?>>Osoby z aktywnymi umowami</option>
                 <option value="public" <?= $values['audience'] === 'public' ? 'selected' : '' ?>>Strona logowania (przed zalogowaniem)</option>
+                <option value="ti:prowadzacy" <?= $values['audience'] === 'ti:prowadzacy' ? 'selected' : '' ?>>Prowadzący TI (baner tylko w panelu dydaktyka)</option>
                 <optgroup label="Rola">
                   <option value="role:admin"  <?= $values['audience'] === 'role:admin'  ? 'selected' : '' ?>>Administratorzy</option>
                   <option value="role:editor" <?= $values['audience'] === 'role:editor' ? 'selected' : '' ?>>Edytorzy</option>

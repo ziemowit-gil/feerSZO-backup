@@ -235,6 +235,28 @@ a.kp-dash-card:focus-visible { outline:3px solid rgba(var(--bs-primary-rgb),.55)
 <script src="<?= h(APP_URL) ?>/karty30/ti/assets/ti_busy.js?v=1" defer></script>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>"<?php if (!empty($vapid_public_key ?? '')): ?> data-vapid-key="<?= h($vapid_public_key) ?>"<?php endif; ?>>
+<?php
+// Komunikaty dla prowadzących (baner tylko w panelu dydaktyka). Dotyczy wyłącznie zalogowanego prowadzącego.
+if (function_exists('dyd_current') && dyd_current()) {
+    require_once dirname(__DIR__, 3) . '/includes/notifications.php';
+    $_dyd_u = dyd_current();
+    foreach (ann_dyd_banners((int)$_dyd_u['user_id'], 'viewer') as $_db): ?>
+<section class="alert alert-info m-3 mb-0 d-flex gap-3 align-items-start" aria-label="Komunikat: <?= h($_db['title']) ?>">
+  <i class="bi bi-megaphone-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+  <div class="flex-grow-1 min-w-0">
+    <div class="fw-semibold mb-1"><?= h($_db['title']) ?></div>
+    <?php if (($_db['body'] ?? '') !== ''): ?>
+    <div class="small" style="white-space:pre-wrap"><?= h($_db['body']) ?></div>
+    <?php endif; ?>
+  </div>
+  <form method="post" action="<?= h(APP_URL) ?>/karty30/ti/dydaktyk/ann_read.php" class="flex-shrink-0">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <input type="hidden" name="id" value="<?= (int)$_db['id'] ?>">
+    <button type="submit" class="btn btn-sm btn-primary">Przeczytane</button>
+  </form>
+</section>
+<?php endforeach; }
+?>
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
 
 <?php $KP_IMP = function_exists('student_impersonator') ? student_impersonator() : null; if ($KP_IMP): ?>
