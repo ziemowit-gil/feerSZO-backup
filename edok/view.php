@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('success', 'Usunięto pozycję listy płac.');
             }
         } else {
-            [$n, $werr] = edok_wyplaty_z_rachunkow($doc, (array)($_POST['rachunek_ids'] ?? []));
+            [$n, $werr] = edok_wyplaty_z_rachunkow($doc, (array)($_POST['rachunek_ids'] ?? []), (array)($_POST['rachunek_nr'] ?? []));
             if ($n) edok_log($id, 'edit', '', $doc['status'], $doc['status'], "Lista płac: ujęto rachunki do umów zlecenie ($n).");
             if ($werr) flash_set('warning', implode(' ', $werr));
             if ($n) flash_set('success', "Dodano $n wypłat z rachunków do umów.");
@@ -892,24 +892,31 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
         <?php endif; ?>
 
         <?php if ($can_edit_wyplaty):
-          $do_ujecia = edok_rachunki_umow_do_wyplaty($doc['okres']);
+          // Wszystkie rachunki do ujęcia (nie tylko z okresu listy) — rachunek może obejmować inny okres.
+          $do_ujecia = edok_rachunki_umow_do_wyplaty();
         ?>
         <?php if ($do_ujecia): ?>
         <form method="post" class="tw-mt-3 tw-rounded-lg tw-border tw-border-solid tw-border-slate-200 tw-p-2">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="action" value="wyplaty_z_rachunkow">
-          <div class="tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Dodaj z rachunków do umów zlecenie<?= $doc['okres'] ? ' (' . h(edok_okres_label($doc['okres'])) . ')' : '' ?></div>
-          <?php foreach ($do_ujecia as $r): $cid = 'zr_' . (int)$r['id']; ?>
-          <div class="form-check tw-text-sm">
-            <input type="checkbox" class="form-check-input" name="rachunek_ids[]" value="<?= (int)$r['id'] ?>" id="<?= $cid ?>" <?= strlen(preg_replace('/\D/', '', (string)$r['umowa_rachunek'])) === 26 ? '' : 'disabled' ?>>
+          <div class="tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1">Dodaj z rachunków do umów zlecenie</div>
+          <?php foreach ($do_ujecia as $r):
+            $cid      = 'zr_' . (int)$r['id'];
+            $umowa_ok = strlen(preg_replace('/\D/', '', (string)$r['umowa_rachunek'])) === 26;
+            $okres_r  = rachunek_okres_label((string)($r['okres_od'] ?? ''), (string)($r['okres_do'] ?? '')) ?: (string)($r['okres'] ?? '');
+          ?>
+          <div class="form-check tw-text-sm tw-mb-1">
+            <input type="checkbox" class="form-check-input" name="rachunek_ids[]" value="<?= (int)$r['id'] ?>" id="<?= $cid ?>">
             <label class="form-check-label" for="<?= $cid ?>">
               <?= h($r['imie_nazwisko']) ?> · <span class="tw-font-mono tw-text-xs"><?= h($r['umowa_rejestr']) ?></span> · rach. <?= h($r['numer'] ?: '#' . $r['id']) ?>
-              · <?= $r['kwota_brutto'] !== null ? h(number_format((float)$r['kwota_brutto'], 2, ',', ' ')) : '—' ?> · <?= rachunek_status_badge($r['status']) ?>
-              <?php if (strlen(preg_replace('/\D/', '', (string)$r['umowa_rachunek'])) !== 26): ?><span class="badge bg-danger">brak rachunku w umowie</span><?php endif; ?>
+              · <?= $okres_r ? h($okres_r) . ' · ' : '' ?><?= $r['kwota_brutto'] !== null ? h(number_format((float)$r['kwota_brutto'], 2, ',', ' ')) : '—' ?> · <?= rachunek_status_badge($r['status']) ?>
             </label>
+            <?php if (!$umowa_ok): ?>
+            <input type="text" name="rachunek_nr[<?= (int)$r['id'] ?>]" class="form-control form-control-sm font-monospace tw-mt-1" style="max-width:20rem" maxlength="40" placeholder="nr rachunku odbiorcy (26 cyfr) — w umowie brak" aria-label="Nr rachunku dla <?= h($r['imie_nazwisko']) ?>">
+            <?php endif; ?>
           </div>
           <?php endforeach; ?>
-          <div class="form-text">Kwota pozycji = brutto rachunku — popraw ją na kwotę do wypłaty, jeśli są potrącenia (usuń i dodaj ręcznie).</div>
+          <div class="form-text">Kwota pozycji = brutto rachunku — popraw ją na kwotę do wypłaty, jeśli są potrącenia (usuń i dodaj ręcznie). Okres pozycji bierze się z rachunku.</div>
           <button type="submit" class="btn btn-sm btn-outline-primary tw-mt-1"><i class="bi bi-plus-lg"></i> Dodaj zaznaczone</button>
         </form>
         <?php endif; ?>
@@ -936,6 +943,14 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <div class="col-sm-4">
               <label class="form-label small mb-1" for="w_kwota">Kwota do wypłaty</label>
               <input type="text" name="kwota" id="w_kwota" class="form-control form-control-sm font-monospace text-end" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small mb-1" for="w_okres_od">Okres — za miesiąc</label>
+              <input type="month" name="okres_od" id="w_okres_od" class="form-control form-control-sm" value="<?= h($doc['okres']) ?>" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small mb-1" for="w_okres_do">Do miesiąca (opcjonalnie, np. 3 miesiące)</label>
+              <input type="month" name="okres_do" id="w_okres_do" class="form-control form-control-sm">
             </div>
             <div class="col-12">
               <input type="text" name="opis" class="form-control form-control-sm" placeholder="Opis (opcjonalnie), np. wynagrodzenie zasadnicze">

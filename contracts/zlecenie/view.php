@@ -1433,6 +1433,74 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 <!-- ═══════════════════ TAB — RACHUNKI ═══════════════════ -->
 <div class="tab-pane fade<?php if($_tab==='rachunki') echo ' show active'; ?>" id="tab-rachunki" role="tabpanel">
 
+  <?php
+  // Wypłaty tej umowy z list płac (EODoK): tytuł przelewu do skopiowania i ręczne odnotowanie wypłaty.
+  require_once dirname(__DIR__, 2) . '/includes/edok.php';
+  $_edok_w   = edok_wyplaty_umowy($id);
+  $_edok_can = is_admin() || edok_has_role('zatwierdza');
+  ?>
+  <?php if ($_edok_w): ?>
+  <div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-cash-coin"></i> Wypłaty z list płac (EODoK)</div>
+    <div class="card-body pb-0">
+      <p class="text-muted small mb-2">Wypłaty wykonywane ręcznie w bankowości. Skopiuj tytuł przelewu i po wypłacie odnotuj ją przy pozycji.</p>
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Lista</th><th>Okres</th><th>Rachunek</th><th class="text-end">Kwota</th><th>Tytuł przelewu</th><th>Wypłata</th></tr>
+      </thead>
+      <tbody>
+      <?php foreach ($_edok_w as $_w):
+        $_wod   = $_w['okres_od'] ?: $_w['doc_okres'];
+        $_wdo   = $_w['okres_do'] !== '' ? $_w['okres_do'] : $_wod;
+        $_wtyt  = edok_wyplata_tytul(['okres' => $_w['doc_okres']], $_w);
+        $_wpaid = !empty($_w['paid_at']);
+      ?>
+        <tr<?= $_wpaid ? ' class="text-muted"' : '' ?>>
+          <td><a href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$_w['doc_id'] ?>"><?= h($_w['doc_number']) ?></a></td>
+          <td class="small"><?= h(rachunek_okres_label($_wod, $_wdo)) ?></td>
+          <td class="tw-font-mono tw-text-xs"><?= h(edok_nrb_format($_w['rachunek'])) ?></td>
+          <td class="text-end tw-font-mono"><?= h($_w['kwota']) ?></td>
+          <td class="tw-font-mono tw-text-xs"><span class="tw-break-all"><?= h($_wtyt) ?></span>
+            <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-copy="<?= h($_wtyt) ?>" onclick="navigator.clipboard && navigator.clipboard.writeText(this.dataset.copy)" aria-label="Kopiuj tytuł przelewu"><i class="bi bi-clipboard"></i></button>
+          </td>
+          <td class="small">
+            <?php if ($_wpaid): ?>
+              <span class="badge bg-success">Wypłacono</span> <?= h(date('d.m.Y', strtotime($_w['paid_at']))) ?>
+              <?php if ($_w['paid_comment'] !== ''): ?><div class="text-muted"><?= h($_w['paid_comment']) ?></div><?php endif; ?>
+              <?php if ($_edok_can): ?>
+              <form method="post" action="<?= APP_URL ?>/edok/wyplata_action.php" class="d-inline">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="action" value="wyplata_unpaid">
+                <input type="hidden" name="wyplata_id" value="<?= (int)$_w['id'] ?>">
+                <input type="hidden" name="return_to" value="contracts/zlecenie/view.php?id=<?= (int)$id ?>&amp;tab=rachunki">
+                <button class="btn btn-sm btn-link p-0" type="submit">Cofnij</button>
+              </form>
+              <?php endif; ?>
+            <?php elseif ($_edok_can && $_w['doc_status'] === 'zaakceptowany'): ?>
+              <form method="post" action="<?= APP_URL ?>/edok/wyplata_action.php" class="d-flex gap-1">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <input type="hidden" name="action" value="wyplata_paid">
+                <input type="hidden" name="wyplata_id" value="<?= (int)$_w['id'] ?>">
+                <input type="hidden" name="return_to" value="contracts/zlecenie/view.php?id=<?= (int)$id ?>&amp;tab=rachunki">
+                <input type="text" name="paid_comment" class="form-control form-control-sm" maxlength="200" placeholder="uwagi (opc.)" aria-label="Uwagi do wypłaty">
+                <button class="btn btn-sm btn-success text-nowrap" type="submit">Odnotuj wypłatę</button>
+              </form>
+            <?php elseif ($_w['doc_status'] !== 'zaakceptowany'): ?>
+              <span class="badge bg-secondary">Lista w obiegu</span>
+            <?php else: ?>
+              <span class="badge bg-secondary">Do wypłaty</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <?php $_rach_email = trim((string)($row['email'] ?? '')); ?>
   <div class="card shadow-sm">
   <div class="card-header fw-semibold d-flex justify-content-between align-items-center">

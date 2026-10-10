@@ -224,6 +224,9 @@ function edok_migrate(): void {
         'paid_at'      => "TEXT",
         'paid_by'      => "INTEGER",
         'paid_comment' => "TEXT NOT NULL DEFAULT ''",
+        // Okres pozycji (RRRR-MM) — może różnić się od okresu listy, np. rachunek za 2–3 miesiące.
+        'okres_od'     => "TEXT NOT NULL DEFAULT ''",
+        'okres_do'     => "TEXT NOT NULL DEFAULT ''",
     ]);
 
     $db->exec("CREATE TABLE IF NOT EXISTS edok_steps (
@@ -2271,10 +2274,16 @@ function edok_wyplata_add(int $doc_id, array $d): array {
     $osoba = trim((string)($d['osoba'] ?? ''));
     $nrb   = preg_replace('/\D/', '', (string)($d['rachunek'] ?? ''));
     $kwota = trim((string)($d['kwota'] ?? ''));
+    // Okres pozycji: domyślnie okres listy płac; „do” tylko gdy wypłata obejmuje kilka miesięcy.
+    $doc = db_one("SELECT okres FROM edok_documents WHERE id = ?", [$doc_id]);
+    $od  = trim((string)($d['okres_od'] ?? '')) ?: (string)($doc['okres'] ?? '');
+    $do  = trim((string)($d['okres_do'] ?? ''));
     $errors = [];
     if ($osoba === '')                  $errors[] = 'Podaj osobę (odbiorcę wypłaty).';
     if (!edok_nrb_valid($nrb))          $errors[] = 'Nieprawidłowy numer rachunku odbiorcy (' . ($osoba ?: 'pozycja') . ').';
     if (_edok_kwota_float($kwota) <= 0) $errors[] = 'Podaj kwotę do wypłaty większą od zera (' . ($osoba ?: 'pozycja') . ').';
+    if (!preg_match('/^\d{4}-\d{2}$/', $od)) $errors[] = 'Podaj okres wypłaty (miesiąc od), np. za 09/2026 (' . ($osoba ?: 'pozycja') . ').';
+    if ($do !== '' && (!preg_match('/^\d{4}-\d{2}$/', $do) || $do < $od)) $errors[] = 'Okres „do” musi być poprawnym miesiącem nie wcześniejszym niż „od" (' . ($osoba ?: 'pozycja') . ').';
     if ($errors) return [null, $errors];
     $id = db_insert('edok_wyplaty', [
         'doc_id'           => $doc_id,
@@ -2286,6 +2295,8 @@ function edok_wyplata_add(int $doc_id, array $d): array {
         'umowa_numer'      => trim((string)($d['umowa_numer'] ?? '')),
         'zlec_rachunek_id' => !empty($d['zlec_rachunek_id']) ? (int)$d['zlec_rachunek_id'] : null,
         'opis'             => trim((string)($d['opis'] ?? '')),
+        'okres_od'         => $od,
+        'okres_do'         => ($do !== '' && $do !== $od) ? $do : '',
         'created_at'       => date('Y-m-d H:i:s'),
     ]);
     return [$id, []];
@@ -2303,12 +2314,25 @@ function edok_wyplata_delete(int $id, int $doc_id): void {
 
 /** Tytuł przelewu jednej pozycji listy płac („WYNAGRODZENIE MM/RRRR - umowa nr …") — do skopiowania w bankowości. */
 function edok_wyplata_tytul(array $doc, array $w): string {
-    return edok_generate_tytul_przelewu(array_merge($doc, [
-        '_wyplata'         => $w,
-        'kwota_brutto'     => $w['kwota'],
-        'kwota_do_wyplaty' => '',
-        'umowa_numer'      => $w['umowa_numer'],
-    ]));
+    // Okres pozycji, a gdy brak — okres listy. Zakres: „07/2026-09/2026”.
+    $od    = (string)($w['okres_od'] ?? '') ?: (string)($doc['okres'] ?? '');
+    $do    = (string)($w['okres_do'] ?? '');
+    $okres = edok_okres_label($od);
+    if ($do !== '' && $do !== $od) $okres .= '-' . edok_okres_label($do);
+    $umowa = trim((string)($w['umowa_numer'] ?? ''));
+    $t = trim('WYNAGRODZENIE ' . $okres) . ($umowa !== '' ? ' - umowa nr ' . $umowa : '');
+    return mb_substr(preg_replace('/\s+/', ' ', $t), 0, 140);
+}
+
+/** Pozycje listy płac powiązane z umową zlecenie (wszystkie listy), najnowsze pierwsze. */
+function edok_wyplaty_umowy(int $contract_id): array {
+    return db_all(
+        "SELECT w.*, d.number AS doc_number, d.okres AS doc_okres, d.status AS doc_status
+           FROM edok_wyplaty w JOIN edok_documents d ON d.id = w.doc_id
+          WHERE w.contract_type = 'zlecenie' AND w.contract_id = ?
+          ORDER BY w.id DESC",
+        [$contract_id]
+    );
 }
 
 /**
@@ -2382,21 +2406,26 @@ function edok_rachunki_umow_do_wyplaty(string $okres = ''): array {
 }
 
 /** Ujmuje wskazane rachunki umów na liście płac. Zwraca [liczba dodanych, błędy]. */
-function edok_wyplaty_z_rachunkow(array $doc, array $rids): array {
+function edok_wyplaty_z_rachunkow(array $doc, array $rids, array $nr_map = []): array {
     $dostepne = [];
     foreach (edok_rachunki_umow_do_wyplaty() as $r) $dostepne[(int)$r['id']] = $r;
     $n = 0; $errors = [];
     foreach (array_unique(array_map('intval', $rids)) as $rid) {
         $r = $dostepne[$rid] ?? null;
         if (!$r) { $errors[] = "Rachunek #$rid nie jest dostępny (już w obiegu, zapłacony albo testowy)."; continue; }
+        // Numer rachunku: z umowy; gdy umowa go nie ma — wpisany przy pozycji (nr_map[rid]).
+        $nrb = strlen(preg_replace('/\D/', '', (string)$r['umowa_rachunek'])) === 26 ? $r['umowa_rachunek'] : ($nr_map[$rid] ?? '');
         [$id, $e] = edok_wyplata_add((int)$doc['id'], [
             'osoba'            => $r['imie_nazwisko'],
-            'rachunek'         => $r['umowa_rachunek'],
+            'rachunek'         => $nrb,
             'kwota'            => (string)($r['kwota_brutto'] ?? ''),
             'contract_type'    => 'zlecenie',
             'contract_id'      => $r['contract_id'],
             'umowa_numer'      => $r['umowa_rejestr'],
             'zlec_rachunek_id' => $rid,
+            // Okres pozycji = okres rachunku (także za kilka miesięcy); bez okresu → okres listy.
+            'okres_od'         => (string)($r['okres_od'] ?? ''),
+            'okres_do'         => (string)($r['okres_do'] ?? ''),
             'opis'             => trim('Rachunek ' . ($r['numer'] ?? '') . ($r['okres'] ? ' za ' . $r['okres'] : '')),
         ]);
         if (!$id) { $errors = array_merge($errors, $e); continue; }
