@@ -1,13 +1,15 @@
 <?php
 /**
- * karty30/ti/kursant/_alt_start.php — ekran startowy widoku alternatywnego: kafle wszystkich sekcji
- * i wyszukiwarka. Zmienne (np. $_alt_sections) pochodzą z _alt_bar.php.
+ * karty30/ti/kursant/_alt_start.php — ekran startowy widoku alternatywnego.
+ * Na start 4 najważniejsze kafle; wyszukiwarka przeszukuje WSZYSTKIE pozycje menu.
+ * Zmienne (np. $_alt_sections) pochodzą z _alt_bar.php.
  */
-$_st_kafle = [];
+$_st_wszystkie = [];
 foreach ($_alt_sections as $_ss) {
     foreach ($_ss['items'] as $_si) {
         if ($_si['href'] === '') continue;
-        $_st_kafle[] = [
+        $_st_wszystkie[] = [
+            'klucz'    => (string)$_si['tab'],
             'sekcja'   => (string)$_ss['label'],
             'etykieta' => (string)$_si['label'],
             'href'     => (string)$_si['href'],
@@ -15,6 +17,13 @@ foreach ($_alt_sections as $_ss) {
             'v'        => (string)$_si['v'],
         ];
     }
+}
+
+// Najważniejsze moduły — kolejność jak na kaflach
+$_st_glowne_klucze = ['lekcje', 'zadania', 'komunikaty', 'oceny'];
+$_st_glowne = [];
+foreach ($_st_glowne_klucze as $_gk) {
+    foreach ($_st_wszystkie as $_p) { if ($_p['klucz'] === $_gk) { $_st_glowne[] = $_p; break; } }
 }
 ?>
 <section class="kp-start container-xl px-3 py-4" aria-labelledby="kp-start-h">
@@ -27,8 +36,22 @@ foreach ($_alt_sections as $_ss) {
     <div class="small text-body-secondary mt-1" id="kp-szukaj-wynik" aria-live="polite"></div>
   </div>
 
-  <ul class="kp-kafle" id="kp-kafle">
-    <?php foreach ($_st_kafle as $_k): ?>
+  <!-- Kafle główne (domyślnie) -->
+  <ul class="kp-kafle" id="kp-glowne">
+    <?php foreach ($_st_glowne as $_k): ?>
+    <li>
+      <a class="kp-kafel" href="<?= h($_k['href']) ?>">
+        <span class="kp-kafel-sekcja"><?= h($_k['sekcja']) ?></span>
+        <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
+        <?php if ($_k['n'] > 0): ?><span class="badge text-bg-<?= h($_k['v']) ?>"><?= (int)$_k['n'] ?></span><?php endif; ?>
+      </a>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+
+  <!-- Wyniki wyszukiwania: wszystkie pozycje menu (ukryte, dopóki ktoś czegoś nie szuka) -->
+  <ul class="kp-kafle d-none" id="kp-wyniki">
+    <?php foreach ($_st_wszystkie as $_k): ?>
     <li class="kp-kafel-poz" data-tekst="<?= h(mb_strtolower($_k['sekcja'] . ' ' . $_k['etykieta'])) ?>">
       <a class="kp-kafel" href="<?= h($_k['href']) ?>">
         <span class="kp-kafel-sekcja"><?= h($_k['sekcja']) ?></span>
@@ -45,19 +68,30 @@ foreach ($_alt_sections as $_ss) {
 (function () {
   var inp = document.getElementById('kp-szukaj');
   if (!inp) return;
-  var pozycje = document.querySelectorAll('#kp-kafle .kp-kafel-poz');
-  var wynik = document.getElementById('kp-szukaj-wynik');
+  var glowne = document.getElementById('kp-glowne');
+  var wyniki = document.getElementById('kp-wyniki');
+  var pozycje = wyniki.querySelectorAll('.kp-kafel-poz');
+  var info = document.getElementById('kp-szukaj-wynik');
   var brak = document.getElementById('kp-brak');
   inp.addEventListener('input', function () {
     var q = inp.value.trim().toLowerCase();
+    if (q === '') {
+      glowne.classList.remove('d-none');
+      wyniki.classList.add('d-none');
+      brak.classList.add('d-none');
+      info.textContent = '';
+      return;
+    }
+    glowne.classList.add('d-none');
+    wyniki.classList.remove('d-none');
     var n = 0;
     pozycje.forEach(function (li) {
-      var pasuje = q === '' || li.getAttribute('data-tekst').indexOf(q) !== -1;
+      var pasuje = li.getAttribute('data-tekst').indexOf(q) !== -1;
       li.classList.toggle('d-none', !pasuje);
       if (pasuje) n++;
     });
-    wynik.textContent = q === '' ? '' : 'Znaleziono: ' + n;
-    brak.classList.toggle('d-none', q === '' || n > 0);
+    info.textContent = 'Znaleziono: ' + n;
+    brak.classList.toggle('d-none', n > 0);
   });
 })();
 </script>
