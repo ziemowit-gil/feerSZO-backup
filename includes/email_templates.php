@@ -637,6 +637,36 @@ HTML;
 </p>
 HTML;
 
+    // ── TI: egzamin udostępniony (do kursanta) ────────────────────────
+    $ti_exam_open_body = <<<'HTML'
+<p>Cześć <strong>{{imie}}</strong>,</p>
+<p>w grupie <strong>{{kurs}}</strong> został udostępniony egzamin <strong>„{{tytul}}”</strong>.</p>
+<p>Możesz go rozwiązać w panelu kursanta <strong>{{do_kiedy}}</strong>.</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{link}}" style="background:#1d4ed8;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Przejdź do egzaminu →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}.
+</p>
+HTML;
+
+    // ── TI: egzamin zamyka się w ciągu 24 h (do kursanta) ─────────────
+    $ti_exam_closing_body = <<<'HTML'
+<p>Cześć <strong>{{imie}}</strong>,</p>
+<p>przypominamy, że egzamin <strong>„{{tytul}}”</strong> w grupie <strong>{{kurs}}</strong> zamyka się
+   <strong>{{do_kiedy}}</strong>. Po tym terminie nie będzie można go rozwiązać.</p>
+<div style="margin:20px 0;text-align:center">
+  <a href="{{link}}" style="background:#b45309;color:#fff;padding:11px 26px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">
+    Rozwiąż egzamin →
+  </a>
+</div>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">
+  Wiadomość automatyczna z systemu {{org}}. Jeśli praca została już oddana, zignoruj tę wiadomość.
+</p>
+HTML;
+
     // ── TI: nowa wiadomość od prowadzącego (do kursanta) ──────────────
     $ti_message_body = <<<'HTML'
 <p>Cześć <strong>{{name}}</strong>,</p>
@@ -1187,6 +1217,42 @@ HTML;
                 'account'     => ['label' => 'Numer rachunku do wpłat',                 'sample' => 'PL61 1090 1014 0000 0712 1981 2874'],
                 'title'       => ['label' => 'Tytuł przelewu',                          'sample' => 'TI/105 Jan Kowalski'],
                 'portal'      => ['label' => 'URL logowania do panelu kursanta',        'sample' => $base . '/karty30/ti/kursant/login.php'],
+            ],
+        ],
+
+        'ti_exam_open' => [
+            'label'       => 'TI: egzamin udostępniony (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-patch-question',
+            'auto'        => true,
+            'description' => 'Agent ti_exam_notify (co godzinę, 8:00–20:00): kursant dostaje raz, gdy egzamin Equi Exams w jego grupie zostaje udostępniony. Włączanie: Panel dydaktyka → Egzaminy → Powiadomienia o egzaminach (domyślnie wyłączone).',
+            'subject'     => '{{org}}: nowy egzamin „{{tytul}}” — {{kurs}}',
+            'body'        => $ti_exam_open_body,
+            'vars'        => [
+                'org'      => ['label' => 'Nazwa organizacji',                 'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
+                'imie'     => ['label' => 'Imię kursanta',                     'sample' => 'Jan'],
+                'tytul'    => ['label' => 'Tytuł egzaminu',                    'sample' => 'Test końcowy — HTML i CSS'],
+                'kurs'     => ['label' => 'Nazwa grupy (kursu)',               'sample' => 'Informatyka S1'],
+                'do_kiedy' => ['label' => 'Termin („DD.MM.RRRR do HH:MM” albo „do odwołania”)', 'sample' => '20.10.2026 do 23:59'],
+                'link'     => ['label' => 'Link do zakładki Egzaminy w panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=egzaminy'],
+            ],
+        ],
+
+        'ti_exam_closing' => [
+            'label'       => 'TI: egzamin zamyka się w ciągu 24 h (do kursanta)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-hourglass-split',
+            'auto'        => true,
+            'description' => 'Agent ti_exam_notify (co godzinę, 8:00–20:00): kursant, który nie oddał pracy, dostaje raz przypomnienie, gdy do zamknięcia egzaminu zostało mniej niż 24 h. Włączanie: Panel dydaktyka → Egzaminy → Powiadomienia o egzaminach.',
+            'subject'     => '{{org}}: egzamin „{{tytul}}” zamyka się {{do_kiedy}}',
+            'body'        => $ti_exam_closing_body,
+            'vars'        => [
+                'org'      => ['label' => 'Nazwa organizacji',                 'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
+                'imie'     => ['label' => 'Imię kursanta',                     'sample' => 'Jan'],
+                'tytul'    => ['label' => 'Tytuł egzaminu',                    'sample' => 'Test końcowy — HTML i CSS'],
+                'kurs'     => ['label' => 'Nazwa grupy (kursu)',               'sample' => 'Informatyka S1'],
+                'do_kiedy' => ['label' => 'Termin zamknięcia („DD.MM.RRRR do HH:MM”)', 'sample' => '20.10.2026 do 23:59'],
+                'link'     => ['label' => 'Link do zakładki Egzaminy w panelu kursanta', 'sample' => $base . '/karty30/ti/kursant/index.php?tab=egzaminy'],
             ],
         ],
 

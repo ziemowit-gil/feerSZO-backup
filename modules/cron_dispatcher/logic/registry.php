@@ -253,6 +253,11 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 7:00 bez dryfu (przy 86400 przesuwałby się o minutę dziennie — dyspozytor tyka co minutę)
             'schedule' => [7, 8],       // okno 7:00–8:00 — przypomnienia o braku wpłaty za zajęcia TI (e-mail + SMS); wyłączone, póki ich nie włączy kierownik
         ],
+        'ti_exam_notify' => [
+            'file'     => $cronDir . '/agents/ti_exam_notify.php',
+            'interval' => 3600,         // co godzinę — powiadomienia o otwarciu egzaminu i o zamknięciu w ciągu 24 h (e-mail + SMS), każde raz; wyłączone, póki nie włączy kierownik
+            'schedule' => [8, 20],      // tylko w ciągu dnia
+        ],
         'stopka_exchange_sync' => [
             'file'     => $cronDir . '/stopka_exchange_sync.php',
             'interval' => 86400,        // raz dziennie — odświeża regułę transportową Exchange ze stopką e-mail (wyłączone, póki admin nie włączy synchronizacji)
