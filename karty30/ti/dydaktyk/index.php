@@ -2953,6 +2953,16 @@ $KP_TOPBAR = [
     'logout'        => 'logout.php',
     'notifications' => $_dyd_course_switcher,   // rola/kontekst — w menu użytkownika (_nav.php)
 ];
+// Fragment do okna lekcji (?frag=1): sama karta lekcji, bez układu strony. Wołane przez fetch z listy.
+if (!empty($_GET['frag']) && $tab === 'lekcje' && !empty($_GET['lesson'])) {
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    $_days_pl = ['Nd','Pn','Wt','Śr','Cz','Pt','So'];
+    echo '<div class="dyd-lesson-frag">';
+    include __DIR__ . '/_lekcja_karta.php';
+    echo '</div>';
+    exit;
+}
 $KP_FULLCALENDAR = ($tab === 'lekcje');   // kalendarz zmiany terminu — tylko w Zajęciach (_tab_lekcje.php)
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 ?>

@@ -543,7 +543,7 @@ if ($_sms_enabled && $cur_course) {
             style="border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
             class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
           <td style="font-size:.82rem;line-height:1.3">
-            <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>"
+            <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>" data-dyd-lesson="<?= (int)$s['id'] ?>"
                class="text-decoration-none" aria-label="Wejdź do lekcji <?= h(date('d.m.Y', $sdate)) ?>">
               <span class="fw-semibold"><?= date('d.m', $sdate) ?></span><span class="text-body-secondary">.<?= date('y', $sdate) ?></span>
             </a>
@@ -605,7 +605,7 @@ if ($_sms_enabled && $cur_course) {
           </td>
           <td>
             <div class="d-flex justify-content-end align-items-center flex-wrap gap-1">
-              <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>"
+              <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>" data-dyd-lesson="<?= (int)$s['id'] ?>"
                  class="btn btn-sm btn-outline-secondary py-0 px-2"
                  aria-label="Wejdź do lekcji <?= h(date('d.m.Y', $sdate)) ?>">
                 <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Wejdź
@@ -686,7 +686,7 @@ if ($_sms_enabled && $cur_course) {
                     </form>
                   </li>
                   <?php endif; ?>
-                  <li><a class="dropdown-item" href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>">
+                  <li><a class="dropdown-item" href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>" data-dyd-lesson="<?= (int)$s['id'] ?>">
                     <i class="bi bi-box-arrow-in-right me-2"></i>Wejdź do lekcji
                   </a></li>
                   <?php if ($s['status'] !== 'cancelled' && !$is_past): ?>
@@ -1516,6 +1516,82 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<!-- Okno lekcji: karta lekcji ładowana w tle (?frag=1), fokus i Esc obsługuje Bootstrap -->
+<div class="modal fade" id="dydLessonModal" tabindex="-1" aria-labelledby="dydLessonModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="dydLessonModalTitle">Lekcja</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij okno lekcji"></button>
+      </div>
+      <div class="modal-body" id="dydLessonBody" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var modalEl = document.getElementById('dydLessonModal');
+  var body    = document.getElementById('dydLessonBody');
+  if (!modalEl || !body || typeof bootstrap === 'undefined') return;
+  var trigger = null;
+
+  // Wspólna funkcja zatrzymana przez kartę (obecność „Wszyscy/Wyczyść") — skrypt karty nie wykona się przy innerHTML.
+  window.dydAttSetAll = window.dydAttSetAll || function (formSel, val) {
+    document.querySelectorAll(formSel + ' .dyd-att-cb').forEach(function (cb) { cb.checked = val; });
+  };
+
+  function openLesson(id, from) {
+    trigger = from || null;
+    var url = new URL(window.location.href);
+    url.searchParams.set('tab', 'lekcje');
+    url.searchParams.set('lesson', id);
+    url.searchParams.set('frag', '1');
+    body.innerHTML = '<p class="text-body-secondary mb-0">Ładowanie lekcji…</p>';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    fetch(url.toString(), { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (html) {
+        body.innerHTML = html;
+        // „Edytuj lekcję" otwiera modal z listy, którego w oknie nie ma — otwieramy edycję na pełnej stronie.
+        body.querySelectorAll('[data-bs-target^="#edL"]').forEach(function (btn) {
+          var sid = btn.getAttribute('data-bs-target').replace('#edL', '');
+          btn.removeAttribute('data-bs-toggle');
+          btn.removeAttribute('data-bs-target');
+          btn.addEventListener('click', function () {
+            var u = new URL(window.location.href);
+            u.searchParams.set('tab', 'lekcje');
+            u.searchParams.set('lesson', sid);
+            u.searchParams.set('edit', sid);
+            window.location.href = u.toString();
+          });
+        });
+      })
+      .catch(function () {
+        body.innerHTML = '<div class="alert alert-danger mb-0" role="alert">Nie udało się załadować lekcji. Spróbuj ponownie.</div>';
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[data-dyd-lesson]');
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || (e.button && e.button !== 0)) return;
+    e.preventDefault();
+    openLesson(a.getAttribute('data-dyd-lesson'), a);
+  });
+
+  // Po zamknięciu wracamy fokusem do linku, który okno otworzył.
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    if (trigger && document.contains(trigger)) trigger.focus();
+    trigger = null;
+  });
+
+  // Powrót z „Edytuj" na pełnej stronie: otwórz modal edycji tej lekcji.
+  var editId = new URLSearchParams(window.location.search).get('edit');
+  if (editId) {
+    var em = document.getElementById('edL' + editId);
+    if (em) bootstrap.Modal.getOrCreateInstance(em).show();
+  }
+})();
+</script>
 <?php if (dyd_is_staff() && $cur_course): ?>
 <!-- Modal: usunięcie lekcji przez kierownika (także z przeszłości) — wymaga uzasadnienia -->
 <div class="modal fade" id="dydDelSessionModal" tabindex="-1" aria-labelledby="dydDelSession_t" aria-hidden="true">
