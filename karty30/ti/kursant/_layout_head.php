@@ -232,6 +232,7 @@ a.kp-dash-card:focus-visible { outline:3px solid rgba(var(--bs-primary-rgb),.55)
 <?php foreach ($KP_EXTRA_CSS as $_css): ?>
 <link rel="stylesheet" href="<?= h($_css) ?>">
 <?php endforeach; ?>
+<script src="<?= h(APP_URL) ?>/karty30/ti/assets/ti_busy.js?v=1" defer></script>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>"<?php if (!empty($vapid_public_key ?? '')): ?> data-vapid-key="<?= h($vapid_public_key) ?>"<?php endif; ?>>
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
