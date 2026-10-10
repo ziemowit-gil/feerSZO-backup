@@ -56,7 +56,7 @@ function ti_student_onboarding_mail(string $name, string $login, array $grupy = 
          . "Jak zacząć:\n"
          . "1. Zaloguj się: {$login_url}\n"
          . "   Login: {$login}\n"
-         . "   Hasło dostałeś od prowadzącego. Jeśli go nie masz albo nie działa, poproś prowadzącego o nowe.\n"
+         . "   Przy pierwszym logowaniu hasło przyjdzie SMS-em na Twój telefon.\n"
          . "2. Po zalogowaniu zobaczysz swój plan i zajęcia.\n\n"
          . "Hasła nie wysyłamy mailem. Nie przekazuj go innym osobom.\n\n"
          . "Jeśli nie uzupełniłeś zgody na przetwarzanie danych, zrób to po zalogowaniu w ustawieniach.\n"
