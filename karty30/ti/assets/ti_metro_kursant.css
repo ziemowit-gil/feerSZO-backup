@@ -246,3 +246,14 @@ body.kur-alt.ti-skin .kp-kafel-glowny .kp-kafel-sekcja { color: #1d1d1d; }
 body.kur-alt.ti-skin .kp-kafle:not(.kp-kafle-glowne) .kp-kafel { min-height: 72px; background: #fff; color: #1d1d1d; border-bottom-color: #1ba1e2; }
 body.kur-alt.ti-skin .kp-kafle:not(.kp-kafle-glowne) .kp-kafel:hover { background: #e5e7eb; }
 body.kur-alt.ti-skin .kp-sekcja h2 { color: #1d1d1d; border-bottom: 2px solid #1ba1e2; padding-bottom: .25rem; }
+
+/* Kafle stanu na ekranie startowym: dzisiejsze zajęcia, zadania nadchodzące i oddane */
+body.kur-alt.ti-skin .kp-kafel-stan {
+  background: #fff; color: #1d1d1d; border-bottom: 4px solid #1ba1e2; padding: 1rem; min-height: 140px;
+  text-decoration: none; display: flex; flex-direction: column; gap: .35rem;
+}
+body.kur-alt.ti-skin a.kp-kafel-stan:hover { background: #e5e7eb; text-decoration: underline; }
+body.kur-alt.ti-skin .kp-kafel-dzis { background: #1ba1e2; color: #1d1d1d; border-bottom-color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-kafel-dzis .kp-kafel-sekcja { color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-kafel-stan .kp-kafel-sekcja { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #374151; }
+body.kur-alt.ti-skin .kp-link { color: #0f6fa8; text-decoration: underline; }

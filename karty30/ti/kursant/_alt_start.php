@@ -56,6 +56,50 @@ foreach ($_st_glowne_klucze as $_gk) {
     <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz typ menu</button>
   </form>
 
+  <?php
+    // Kafle stanu: dzisiejsze zajęcia, zadania nadchodzące i oddane
+    $_st_now = date('Y-m-d H:i:s');
+    $_st_nad = []; $_st_odd = [];
+    foreach (($homeworks_student ?? []) as $_h) {
+        if (!empty($_h['sub_id'])) { $_st_odd[] = $_h; continue; }
+        if (empty($_h['due_at']) || (string)$_h['due_at'] >= $_st_now) $_st_nad[] = $_h;
+    }
+    usort($_st_nad, fn($a, $b) => strcmp((string)($a['due_at'] ?? 'z'), (string)($b['due_at'] ?? 'z')));
+    usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''), (string)($a['sub_at'] ?? $a['due_at'] ?? '')));
+  ?>
+  <div class="row g-3 mb-4">
+    <?php if (!empty($today_lessons)): ?>
+    <div class="col-12 col-md-4">
+      <a class="kp-kafel kp-kafel-stan kp-kafel-dzis h-100" href="?tab=lekcje">
+        <span class="kp-kafel-sekcja">Dziś masz zajęcia</span>
+        <?php foreach ($today_lessons as $_tl): ?>
+        <span class="kp-kafel-tytul"><?= h($_tl['course_name']) ?><?= !empty($_tl['time_from']) ? ' · ' . h($_tl['time_from']) : '' ?></span>
+        <?php endforeach; ?>
+      </a>
+    </div>
+    <?php endif; ?>
+
+    <div class="col-12 col-md-4">
+      <div class="kp-kafel kp-kafel-stan h-100">
+        <span class="kp-kafel-sekcja">Zadania nadchodzące (<?= count($_st_nad) ?>)</span>
+        <?php if (!$_st_nad): ?><span class="small">Brak zadań do oddania.</span><?php endif; ?>
+        <?php foreach (array_slice($_st_nad, 0, 4) as $_h): ?>
+        <a class="kp-kafel-tytul kp-link" href="?tab=zadania&amp;hw=<?= (int)$_h['id'] ?>"><?= h($_h['title'] ?? 'Zadanie') ?><?php if (!empty($_h['due_at'])): ?><span class="d-block small">termin: <time datetime="<?= h(str_replace(' ', 'T', substr((string)$_h['due_at'], 0, 16))) ?>"><?= h(substr((string)$_h['due_at'], 0, 16)) ?></time></span><?php endif; ?></a>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="kp-kafel kp-kafel-stan h-100">
+        <span class="kp-kafel-sekcja">Zadania oddane (<?= count($_st_odd) ?>)</span>
+        <?php if (!$_st_odd): ?><span class="small">Nie oddałeś jeszcze żadnego zadania.</span><?php endif; ?>
+        <?php foreach (array_slice($_st_odd, 0, 4) as $_h): ?>
+        <a class="kp-kafel-tytul kp-link" href="?tab=zadania&amp;hw=<?= (int)$_h['id'] ?>"><?= h($_h['title'] ?? 'Zadanie') ?></a>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </div>
+
   <!-- Widok domyślny: najważniejsze i wszystkie sekcje -->
   <div id="kp-widok">
     <h2 class="h6 fw-bold text-uppercase mb-2">Najważniejsze</h2>
