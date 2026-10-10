@@ -46,6 +46,16 @@ $name    = trim((string)($client['name'] ?? $student['login'] ?? 'Kursant'));
 $KP_TITLE  = 'Wybierz grupę';
 $KP_TOPBAR = ['brand' => 'Panel kursanta', 'icon' => 'mortarboard', 'user' => $name, 'logout' => 'index.php?logout=1'];
 $KP_BODY_CLASS = '';
+// Widok alternatywny (METRO): ta sama skórka co w panelu
+if (function_exists('student_ui') && !empty($student['id']) && student_ui((int)$student['id']) === 'alt') {
+    $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' kur-alt ti-skin kp-wybor-grupy');
+    $_skin_css  = __DIR__ . '/../assets/ti_skin.css';
+    $_metro_css = __DIR__ . '/../assets/ti_metro_kursant.css';
+    $KP_EXTRA_CSS = [
+        '../assets/ti_skin.css?v=' . (is_file($_skin_css) ? (int)filemtime($_skin_css) : 1),
+        '../assets/ti_metro_kursant.css?v=' . (is_file($_metro_css) ? (int)filemtime($_metro_css) : 1),
+    ];
+}
 include __DIR__ . '/_layout_head.php';
 ?>
 
@@ -65,7 +75,7 @@ include __DIR__ . '/_layout_head.php';
         <input type="hidden" name="tab" value="<?= h($next_tab) ?>">
         <?php foreach ($active_courses as $c): ?>
         <button type="submit" name="course_id" value="<?= (int)$c['course_id'] ?>"
-                class="btn btn-outline-primary btn-lg text-start d-flex align-items-center gap-2">
+                class="btn btn-outline-primary btn-lg text-start d-flex align-items-center gap-2 kp-grupa-kafel">
           <i class="bi bi-mortarboard fs-5" aria-hidden="true"></i>
           <span>
             <span class="d-block fw-semibold"><?= h($c['course_name']) ?></span>
