@@ -20,7 +20,11 @@ $ma_mail    = trim((string)($konto['email'] ?? '')) !== '';
 $ma_tel     = preg_replace('/\D/', '', (string)($konto['phone_number'] ?? '')) !== '';
 $ma_cert    = x509_user_has_active_cert($uid);
 $ma_klucz   = !empty(webauthn_get_credentials($uid));
-$ma_kurs    = (bool)db_one("SELECT 1 FROM k30_ti_courses WHERE instructor_id = ? LIMIT 1", [$uid]);
+// Prowadzący główny albo współprowadzący przypisanego kursu.
+$ma_kurs    = (bool)db_one(
+    "SELECT 1 FROM k30_ti_courses c WHERE c.instructor_id = ?
+     OR EXISTS (SELECT 1 FROM k30_ti_course_coinstructors ci WHERE ci.course_id = c.id AND ci.user_id = ?) LIMIT 1",
+    [$uid, $uid]);
 
 // Kroki: [etykieta, czy zrobione, opis, adres, etykieta linku]
 $kroki = [
@@ -36,11 +40,15 @@ $kroki = [
     ['Przypisany kurs', $ma_kurs,
      'Protokoły dotyczą kursów, które prowadzisz. Bez przypisanego kursu nie ma czego zatwierdzać.',
      'index.php?tab=kursy', 'Zobacz kursy'],
-    ['Zasady zatwierdzania protokołu', false,
-     'Przeczytaj, jak zatwierdza się protokół: kod SMS, podpis, termin zamknięcia miesiąca.',
-     'protokoly_moje.php', 'Otwórz protokoły'],
 ];
 $zrobione = count(array_filter($kroki, fn($k) => $k[1]));
+
+// Grupy prowadzącego: numer (group_code, a gdy go nie ma — numer kursu) i nazwa.
+$moje_grupy = db_all(
+    "SELECT DISTINCT c.id, c.name, c.group_code, c.is_active FROM k30_ti_courses c
+      WHERE c.instructor_id = ? OR EXISTS (SELECT 1 FROM k30_ti_course_coinstructors ci WHERE ci.course_id = c.id AND ci.user_id = ?)
+      ORDER BY c.is_active DESC, c.name",
+    [$uid, $uid]);
 
 $KP_TITLE      = 'Onboarding — Panel dydaktyka';
 $KP_TOPBAR     = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (string)($me['name'] ?? ''), 'logout' => 'logout.php'];
@@ -79,7 +87,29 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 </ol>
 
 <p class="small text-body-secondary mt-3">
-  Pytania kieruj do kierownika jednostki.
+  <?php if ($moje_grupy): ?>
+<section class="card border-0 shadow-sm mb-3" aria-labelledby="grupy-h">
+  <div class="card-header bg-transparent fw-semibold" id="grupy-h">Twoje grupy</div>
+  <div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th scope="col">Numer grupy</th><th scope="col">Nazwa</th><th scope="col">Stan</th></tr></thead>
+    <tbody>
+    <?php foreach ($moje_grupy as $g): ?>
+      <tr>
+        <td class="font-monospace small"><?= h($g['group_code'] !== '' ? $g['group_code'] : '#' . (int)$g['id']) ?></td>
+        <td><?= h($g['name']) ?></td>
+        <td><?= (int)$g['is_active'] ? '<span class="badge bg-success">aktywna</span>' : '<span class="badge bg-secondary">zakończona</span>' ?></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+</section>
+<?php endif; ?>
+
+<p class="small mb-3"><strong>Dopisanie kursanta do grupy oznacza dołączenie go do zajęć.</strong> Kursant zobaczy wtedy plan i zajęcia tej grupy.</p>
+
+Pytania kieruj do kierownika jednostki.
 </p>
 </div>
 </main>
