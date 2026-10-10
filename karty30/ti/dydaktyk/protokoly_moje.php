@@ -23,6 +23,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = $_POST['_op'] ?? '';
 
+    // Zgoda prowadzącego na przepisanie godzin z podpisanego protokołu do ewidencji umowy zlecenie
+    // (= podpisane potwierdzenie realizacji umowy za ten miesiąc).
+    if ($op === 'ewidencja_zgoda') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        $ym  = (string)($_POST['year_month'] ?? '');
+        $wroc = 'protokoly_moje.php?podpisano=1&course=' . $cid . '&ym=' . urlencode($ym);
+        try {
+            if (!$cid || !preg_match('/^\d{4}-\d{2}$/', $ym) || !dyd_owns_course($uid, $cid)) throw new \RuntimeException('Nieprawidłowe dane protokołu.');
+            $pr = db_one("SELECT p.*, c.name AS course_name FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id = p.course_id
+                           WHERE p.course_id = ? AND p.year_month = ? AND p.status = 'approved'", [$cid, $ym]);
+            if (!$pr) throw new \RuntimeException('Zgodę można wyrazić dopiero po podpisaniu protokołu.');
+            $umowa = null;
+            foreach (ti_protocol_zlecenie_umowy($pr) as $_u) if ((int)$_u['id'] === (int)($_POST['umowa_id'] ?? 0)) $umowa = $_u;
+            if (!$umowa) throw new \RuntimeException('Wybierz umowę zlecenie, do której przepisać godziny.');
+            $r = ti_protocol_ewidencja_zgoda($pr, $umowa, $uid, $me_name);
+            flash_set('success', 'Godziny przepisane do umowy (' . number_format($r['godziny'], 2, ',', ' ') . ' h). Kierownik dostał informację o nowej e-ewidencji.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: ' . $wroc); exit;
+    }
+
     // Kierownik wycofuje zatwierdzony protokół (z podaniem powodu — trafia do śladu zmian).
     if ($op === 'withdraw') {
         $pid = (int)($_POST['protocol_id'] ?? 0);
@@ -179,6 +201,81 @@ if ($_pd):
           <i class="bi bi-list-check me-1" aria-hidden="true"></i>Wróć do listy protokołów
         </a>
       </div>
+    </div>
+  </section>
+
+  <?php
+    // ── E-ewidencja godzin do umowy zlecenie: podgląd PDF i zgoda na przepisanie godzin ──
+    ti_protocol_ew_migrate();
+    $_ew_prot  = (ti_protocol_get((int)$_pd['id']) ?: $_pd) + ['course_name' => $_pd['course_name']];
+    $_ew_row   = db_one("SELECT ew_umowa_id, ew_zgoda_at, ew_zgoda_name, ew_godziny FROM k30_ti_protocols WHERE id = ?", [(int)$_pd['id']]) ?: [];
+    $_ew_umowy = ti_protocol_zlecenie_umowy($_ew_prot);
+    $_ew_wyb   = null;
+    if (!empty($_ew_row['ew_umowa_id'])) { foreach ($_ew_umowy as $_u) if ((int)$_u['id'] === (int)$_ew_row['ew_umowa_id']) $_ew_wyb = $_u; }
+    elseif (count($_ew_umowy) === 1) $_ew_wyb = $_ew_umowy[0];
+    elseif (!empty($_GET['umowa'])) { foreach ($_ew_umowy as $_u) if ((int)$_u['id'] === (int)$_GET['umowa']) $_ew_wyb = $_u; }
+    $_ew_nr = fn(array $u) => trim((string)($u['numer_umowy'] ?: ($u['nr_rejestru'] ?? '') ?: ('#' . $u['id'])));
+    $_ew_q  = 'course=' . (int)$_pd['course_id'] . '&ym=' . urlencode($_pd_ym);
+  ?>
+  <?= flash_html() ?>
+  <section class="card border-0 shadow-sm mt-4" aria-labelledby="ewH">
+    <div class="card-body p-4">
+      <h2 class="h5 fw-bold mb-1" id="ewH"><i class="bi bi-journal-text me-2" aria-hidden="true"></i>E-ewidencja godzin do umowy zlecenie</h2>
+      <?php if (!$_ew_umowy && empty($_ew_row['ew_umowa_id'])): ?>
+        <p class="mb-0 text-body-secondary">Nie znaleźliśmy w systemie Twojej umowy zlecenie na ten miesiąc — e-ewidencja nie jest potrzebna.
+          Jeśli powinna być, poproś kierownika o powiązanie umowy z Twoim kontem.</p>
+      <?php elseif (!empty($_ew_row['ew_zgoda_at'])): ?>
+        <div class="alert alert-success mb-3" role="status">
+          <strong>Godziny przepisane do umowy<?= $_ew_wyb ? ' nr ' . h($_ew_nr($_ew_wyb)) : '' ?>.</strong>
+          <?= h(date('d.m.Y H:i', strtotime((string)$_ew_row['ew_zgoda_at'] . ' UTC'))) ?> — <?= h((string)$_ew_row['ew_zgoda_name']) ?>,
+          <?= h(number_format((float)$_ew_row['ew_godziny'], 2, ',', ' ')) ?> h. Zgoda jest podpisanym potwierdzeniem realizacji umowy za ten miesiąc.
+        </div>
+        <a class="btn btn-outline-secondary" href="protokol_pdf.php?ewidencja=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
+          <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>E-ewidencja (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+      <?php else: ?>
+        <?php if (count($_ew_umowy) > 1): ?>
+        <form method="get" class="mb-3">
+          <input type="hidden" name="podpisano" value="1"><input type="hidden" name="course" value="<?= (int)$_pd['course_id'] ?>">
+          <input type="hidden" name="ym" value="<?= h($_pd_ym) ?>">
+          <fieldset>
+            <legend class="h6 fw-semibold">Masz kilka umów zlecenie na ten miesiąc. Do której przepisać godziny?</legend>
+            <?php foreach ($_ew_umowy as $_u): ?>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="umowa" id="ewU<?= (int)$_u['id'] ?>" value="<?= (int)$_u['id'] ?>"
+                     <?= $_ew_wyb && (int)$_ew_wyb['id'] === (int)$_u['id'] ? 'checked' : '' ?> required>
+              <label class="form-check-label" for="ewU<?= (int)$_u['id'] ?>">
+                Umowa nr <strong><?= h($_ew_nr($_u)) ?></strong> — <?= h((string)$_u['imie_nazwisko']) ?>
+                <?php if (!empty($_u['przedmiot_zlecenia'])): ?><span class="text-body-secondary small">(<?= h(mb_strimwidth((string)$_u['przedmiot_zlecenia'], 0, 80, '…')) ?>)</span><?php endif; ?>
+              </label>
+            </div>
+            <?php endforeach; ?>
+          </fieldset>
+          <button type="submit" class="btn btn-outline-primary btn-sm mt-2">Pokaż e-ewidencję dla tej umowy</button>
+        </form>
+        <?php endif; ?>
+
+        <?php if ($_ew_wyb): ?>
+        <p class="small text-body-secondary mb-2">Umowa nr <strong><?= h($_ew_nr($_ew_wyb)) ?></strong> — <?= h((string)$_ew_wyb['imie_nazwisko']) ?>.
+          Sprawdź e-ewidencję poniżej.</p>
+        <iframe title="Podgląd e-ewidencji godzin do umowy nr <?= h($_ew_nr($_ew_wyb)) ?>" class="border w-100 mb-3" style="min-height:min(70vh,44rem)"
+                src="protokol_pdf.php?ewidencja=1&amp;<?= h($_ew_q) ?>&amp;umowa=<?= (int)$_ew_wyb['id'] ?>"></iframe>
+        <form method="post">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="ewidencja_zgoda">
+          <input type="hidden" name="course_id" value="<?= (int)$_pd['course_id'] ?>">
+          <input type="hidden" name="year_month" value="<?= h($_pd_ym) ?>">
+          <input type="hidden" name="umowa_id" value="<?= (int)$_ew_wyb['id'] ?>">
+          <div class="alert alert-info small" id="ewInfo">
+            <strong>To jest podpisane potwierdzenie realizacji umowy.</strong> Klikając, potwierdzasz wykonanie zlecenia
+            z umowy nr <?= h($_ew_nr($_ew_wyb)) ?> w tej grupie w miesiącu <?= h($fmt_ym($_pd_ym)) ?> — w liczbie godzin z e-ewidencji powyżej.
+            Godziny zostaną przepisane do ewidencji umowy, a kierownik dostanie informację o nowej e-ewidencji.
+          </div>
+          <button type="submit" class="btn btn-success btn-lg" aria-describedby="ewInfo">
+            <i class="bi bi-check2-square me-1" aria-hidden="true"></i>Wyrażam zgodę na przepisanie godzin do umowy
+          </button>
+        </form>
+        <?php endif; ?>
+      <?php endif; ?>
     </div>
   </section>
 </div>

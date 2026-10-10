@@ -1454,30 +1454,144 @@ function ti_protocol_zero_info_html(array $prot): string {
         . '<p class="trace">Data i podpis prowadzącego: .............................................</p>';
 }
 
+/** Kolumny zgody na przepisanie godzin do umowy zlecenie (samonaprawa przy pierwszym użyciu). */
+function ti_protocol_ew_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    foreach (["ew_umowa_id INTEGER", "ew_zgoda_at TEXT", "ew_zgoda_by INTEGER", "ew_zgoda_name TEXT NOT NULL DEFAULT ''", "ew_godziny REAL"] as $col) {
+        try { db()->exec("ALTER TABLE k30_ti_protocols ADD COLUMN $col"); } catch (\Throwable $e) { /* już jest */ }
+    }
+}
+
 /**
- * Umowa zlecenie prowadzącego grupy, obowiązująca w miesiącu protokołu — do e-ewidencji godzin.
- * Najpierw po powiązaniu z e-dziennikiem (umowy_zlecenie.ti_instructor_user_id), potem po e-mailu konta.
- * Pomija projekty i umowy anulowane/odrzucone. null = prowadzący nie ma umowy zlecenie w systemie.
+ * Umowy zlecenie prowadzącego grupy, obowiązujące w miesiącu protokołu — kandydaci do e-ewidencji.
+ * Dopasowanie: powiązanie z e-dziennikiem (ti_instructor_user_id), e-mail konta albo imię i nazwisko.
+ * Bez projektów i umów anulowanych/odrzuconych. Pusta lista = prowadzący nie ma umowy zlecenie w systemie.
+ */
+function ti_protocol_zlecenie_umowy(array $prot): array {
+    try {
+        $c   = db_one("SELECT c.instructor_id, u.email, u.name FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id = ?", [(int)$prot['course_id']]);
+        $uid = (int)($c['instructor_id'] ?? 0);
+        if ($uid <= 0) return [];
+        $ym = (string)($prot['year_month'] ?? substr((string)($prot['date_from'] ?? date('Y-m-d')), 0, 7));
+        $od = $ym . '-01';
+        $do = date('Y-m-t', strtotime($od));
+        return db_all(
+            "SELECT * FROM umowy_zlecenie
+              WHERE status NOT IN ('projekt','anulowana','odrzucona')
+                AND (data_rozpoczecia IS NULL OR data_rozpoczecia = '' OR data_rozpoczecia <= ?)
+                AND (COALESCE(bezterminowa,0) = 1 OR data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)
+                AND (ti_instructor_user_id = ?
+                     OR (TRIM(COALESCE(?, '')) <> '' AND lower(email) = lower(?))
+                     OR (TRIM(COALESCE(?, '')) <> '' AND lower(TRIM(imie_nazwisko)) = lower(TRIM(?))))
+              ORDER BY id DESC",
+            [$do, $od, $uid, (string)$c['email'], (string)$c['email'], (string)$c['name'], (string)$c['name']]
+        );
+    } catch (\Throwable $e) {
+        return [];   // brak modułu umów / kolumn — bez ewidencji
+    }
+}
+
+/**
+ * Umowa do e-ewidencji tego protokołu: ta, na którą prowadzący już przepisał godziny (zapisana w protokole),
+ * albo jedyna pasująca. Gdy pasuje kilka, a wyboru jeszcze nie było — null (strona pyta, do której umowy).
  */
 function ti_protocol_zlecenie_umowa(array $prot): ?array {
-    try {
-        $c   = db_one("SELECT c.instructor_id, u.email FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id = ?", [(int)$prot['course_id']]);
-        $uid = (int)($c['instructor_id'] ?? 0);
-        if ($uid <= 0) return null;
-        $ym   = (string)($prot['year_month'] ?? substr((string)($prot['date_from'] ?? date('Y-m-d')), 0, 7));
-        $od   = $ym . '-01';
-        $do   = date('Y-m-t', strtotime($od));
-        $war  = "status NOT IN ('projekt','anulowana','odrzucona')
-                 AND (data_rozpoczecia IS NULL OR data_rozpoczecia = '' OR data_rozpoczecia <= ?)
-                 AND (COALESCE(bezterminowa,0) = 1 OR data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)";
-        $u = db_one("SELECT * FROM umowy_zlecenie WHERE ti_instructor_user_id = ? AND $war ORDER BY id DESC LIMIT 1", [$uid, $do, $od]);
-        if (!$u && trim((string)($c['email'] ?? '')) !== '') {
-            $u = db_one("SELECT * FROM umowy_zlecenie WHERE lower(email) = lower(?) AND $war ORDER BY id DESC LIMIT 1", [(string)$c['email'], $do, $od]);
-        }
-        return $u ?: null;
-    } catch (\Throwable $e) {
-        return null;   // brak modułu umów / kolumn — bez ewidencji
+    ti_protocol_ew_migrate();
+    if (!empty($prot['id']) && empty($prot['ew_umowa_id'])) {
+        $prot += (array)db_one("SELECT ew_umowa_id FROM k30_ti_protocols WHERE id = ?", [(int)$prot['id']]);
     }
+    if (!empty($prot['ew_umowa_id'])) {
+        $u = db_one("SELECT * FROM umowy_zlecenie WHERE id = ?", [(int)$prot['ew_umowa_id']]);
+        if ($u) return $u;
+    }
+    $lista = ti_protocol_zlecenie_umowy($prot);
+    return count($lista) === 1 ? $lista[0] : null;
+}
+
+/**
+ * Zgoda prowadzącego na przepisanie godzin z protokołu (grupa + miesiąc) do ewidencji umowy zlecenie.
+ * Jest to podpisane potwierdzenie realizacji umowy (wykonania zlecenia) za ten miesiąc w tej grupie.
+ * Wpisy idą do zlecenie_ewidencja_wpisy (źródło „karty30”, wpis = sesja, idempotentnie — ponowne
+ * kliknięcie aktualizuje, nie dubluje). Zapisuje zgodę w protokole i powiadamia kierowników TI mailem.
+ *
+ * @return array{godziny: float, dodane: int, zmienione: int, umowa: array}
+ */
+function ti_protocol_ewidencja_zgoda(array $prot, array $umowa, int $uid, string $by_name): array {
+    require_once __DIR__ . '/zlecenie_rachunki.php';
+    ti_protocol_ew_migrate();
+    $ym  = (string)$prot['year_month'];
+    $cid = (int)$umowa['id'];
+    $kid = (int)$prot['course_id'];
+    zl_rozl_assert_open($cid, $ym);   // zamknięty miesiąc rozliczenia — tylko odczyt
+
+    // Sesje tej grupy z e-dziennika, liczone tak samo jak w module rozliczeń zlecenia.
+    $c   = db_one("SELECT instructor_id FROM k30_ti_courses WHERE id = ?", [$kid]);
+    $ctr = $umowa;
+    $ctr['ti_instructor_user_id'] = (int)($umowa['ti_instructor_user_id'] ?: ($c['instructor_id'] ?? 0));
+    $sesje = array_values(array_filter(zl_ew_karty30_sessions($ctr, $ym), fn($s) => (int)$s['course_id'] === $kid));
+
+    $istn = [];
+    foreach (db_all("SELECT * FROM zlecenie_ewidencja_wpisy WHERE contract_id=? AND zrodlo='karty30' AND ti_course_id=? AND substr(data,1,7)=?", [$cid, $kid, $ym]) as $w) {
+        $istn[(int)$w['ti_session_id']] = $w;
+    }
+    $dod = 0; $zm = 0; $suma = 0.0;
+    $own = !db()->inTransaction();
+    if ($own) db()->beginTransaction();
+    try {
+        foreach ($sesje as $s) {
+            $sid = (int)$s['id']; $godz = zl_ew_karty30_hours($s); $suma += $godz;
+            $nazwa = $s['display_name'] ?: $s['course_name'];
+            $opis  = implode(' · ', array_filter([$nazwa,
+                (!empty($s['time_from']) && !empty($s['time_to'])) ? substr($s['time_from'], 0, 5) . '–' . substr($s['time_to'], 0, 5) : '',
+                trim((string)$s['topic']), 'protokół podpisany']));
+            if (isset($istn[$sid])) {
+                db_exec("UPDATE zlecenie_ewidencja_wpisy SET data=?, godziny=?, opis=?, updated_by=?, updated_at=datetime('now') WHERE id=?",
+                    [$s['lesson_date'], $godz, $opis, $uid, (int)$istn[$sid]['id']]);
+                $zm++;
+                continue;
+            }
+            db_insert('zlecenie_ewidencja_wpisy', [
+                'contract_id' => $cid, 'data' => $s['lesson_date'], 'godziny' => $godz, 'opis' => $opis, 'zrodlo' => 'karty30',
+                'ti_course_id' => $kid, 'ti_course_name' => $nazwa, 'ti_group_code' => $s['group_code'],
+                'ti_session_id' => $sid, 'created_by' => $uid, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            $dod++;
+        }
+        if (function_exists('zl_ew_sync_timesheet')) zl_ew_sync_timesheet($cid, $ym);
+        if (!empty($prot['id'])) {
+            db_exec("UPDATE k30_ti_protocols SET ew_umowa_id=?, ew_zgoda_at=datetime('now'), ew_zgoda_by=?, ew_zgoda_name=?, ew_godziny=? WHERE id=?",
+                [$cid, $uid, $by_name, round($suma, 2), (int)$prot['id']]);
+        }
+        zl_ew_log($cid, 'zgoda_przepisanie', sprintf('%s wyraził(a) zgodę na przepisanie godzin z podpisanego protokołu (%s, %s): %s h — potwierdzenie realizacji umowy',
+            $by_name, (string)($prot['course_name'] ?? ''), zl_ew_ym_label($ym), number_format($suma, 2, ',', ' ')), $uid);
+        if ($own) db()->commit();
+    } catch (\Throwable $e) {
+        if ($own && db()->inTransaction()) db()->rollBack();
+        throw $e;
+    }
+
+    // Powiadomienie kierowników TI: nowa e-ewidencja (lista godzin) dodana do umowy.
+    try {
+        require_once __DIR__ . '/mail_queue.php';
+        if (function_exists('ti_panel_roles_migrate')) ti_panel_roles_migrate();
+        $nr  = trim((string)($umowa['numer_umowy'] ?: ($umowa['nr_rejestru'] ?? '')));
+        $txt = "Dzień dobry,\n\n{$by_name} wyraził(a) zgodę na przepisanie godzin do umowy zlecenie"
+             . ($nr !== '' ? " nr {$nr}" : '') . " (" . (string)($umowa['imie_nazwisko'] ?? '') . ").\n\n"
+             . "Grupa: " . (string)($prot['course_name'] ?? '') . "\nMiesiąc: " . zl_ew_ym_label($ym) . "\n"
+             . "Liczba godzin (faktyczna): " . number_format($suma, 2, ',', ' ') . "\n\n"
+             . "Zgoda jest podpisanym potwierdzeniem realizacji umowy za ten miesiąc. Nowa e-ewidencja jest w zakładce Godziny umowy.\n\n"
+             . "--\nWiadomość automatyczna.";
+        foreach (db_all("SELECT DISTINCT u.email, u.name FROM k30_ti_panel_roles r JOIN users u ON u.id = r.user_id
+                          WHERE r.role = 'kierownik' AND u.is_active = 1 AND TRIM(COALESCE(u.email,'')) <> ''") as $k) {
+            mail_queue_add((string)$k['email'], (string)$k['name'], 'Nowa e-ewidencja godzin do umowy — ' . (string)($umowa['imie_nazwisko'] ?? '') . ', ' . zl_ew_ym_label($ym),
+                '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>', $txt, 'ti_ewidencja', $cid);
+        }
+    } catch (\Throwable $e) {
+        error_log('[ti_protocol_ewidencja_zgoda] powiadomienie: ' . $e->getMessage());
+    }
+    return ['godziny' => round($suma, 2), 'dodane' => $dod, 'zmienione' => $zm, 'umowa' => $umowa];
 }
 
 /**
@@ -1528,6 +1642,37 @@ function ti_protocol_ewidencja_html(array $prot, array $umowa): string {
         . '<p class="sub">Liczba godzin faktyczna (minuty ÷ 60) — na podstawie e-dziennika zajęć, potwierdzona podpisem protokołu.</p>'
         . '<table class="signs"><tr><td>..............................................<br>data i podpis zleceniobiorcy</td>'
         . '<td>..............................................<br>data i podpis zleceniodawcy</td></tr></table>';
+}
+
+/** E-ewidencja godzin do umowy zlecenie jako osobny PDF (podgląd przed zgodą na przepisanie godzin). */
+function ti_protocol_ewidencja_pdf(array $prot, array $umowa): ?string {
+    try {
+        require_once dirname(__DIR__) . '/vendor/autoload.php';
+        $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
+        if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
+        $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 18, 'margin_right' => 16,
+            'margin_top' => 16, 'margin_bottom' => 16, 'default_font' => 'dejavuserif', 'tempDir' => $mpdf_tmp]);
+        $mpdf->SetTitle('E-ewidencja godzin — ' . (string)($umowa['imie_nazwisko'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''));
+        $mpdf->WriteHTML(
+            'body { font-family:"DejaVu Serif",serif; font-size:10pt; color:#000; }
+             h1 { font-size:14pt; margin:0 0 2mm; }
+             p.sub { font-size:9pt; color:#333; margin:1mm 0 3mm; }
+             table { border-collapse:collapse; width:100%; }
+             table.head th { text-align:left; width:30%; background:#f4f6f8; }
+             table.head th, table.head td { border:.2mm solid #ccc; padding:1.3mm 2mm; font-size:9.5pt; }
+             table.items { margin-top:5mm; }
+             table.items th { background:#eef1f4; border:.2mm solid #999; padding:1.3mm 2mm; font-size:9pt; text-align:left; }
+             table.items td { border:.2mm solid #999; padding:1.3mm 2mm; font-size:9.5pt; }
+             .r { text-align:right; } tr.sum td { background:#f2f2f2; font-weight:bold; }
+             p.empty-note { margin-top:5mm; padding:2.5mm 3mm; border:.3mm solid #333; background:#f2f2f2; font-weight:bold; }
+             table.signs td { width:50%; padding-top:14mm; font-size:9pt; text-align:center; border:none; }',
+            \Mpdf\HTMLParserMode::HEADER_CSS
+        );
+        $mpdf->WriteHTML(ti_protocol_ewidencja_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
+        return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+    } catch (\Throwable $e) {
+        return null;
+    }
 }
 
 /**
