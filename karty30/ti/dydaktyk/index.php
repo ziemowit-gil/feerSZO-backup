@@ -1905,6 +1905,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$k_ch_email && !$k_ch_sms) $errs[] = 'Wybierz kanał: e-mail i/lub SMS.';
         if ($k_ch_sms && !$k_sms_on)    $errs[] = 'SMS jest wyłączony w ustawieniach systemu.';
         if ($k_body === '')              $errs[] = 'Wpisz treść wiadomości.';
+        if ($k_mode === 'wszyscy' && empty($_POST['confirm_all'])) $errs[] = 'Wysyłka do wszystkich kursantów wymaga zaznaczenia potwierdzenia „Potwierdzam wysyłkę do wszystkich”.';
         if ($k_ch_email && $k_subject === '') $errs[] = 'Podaj temat wiadomości e-mail.';
         [$k_recipients, $k_filter_label] = tiCommTargets($k_mode, [
             'course_ids'=>$k_course_ids, 'client_ids'=>$k_client_ids, 'instructor_id'=>$k_instr_id, 'date'=>$k_date,

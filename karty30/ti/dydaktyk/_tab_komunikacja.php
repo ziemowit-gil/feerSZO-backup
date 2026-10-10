@@ -129,6 +129,11 @@ $_komm_log   = db_all(
             <div class="alert alert-warning py-2 small mb-0" role="note">
               <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Wiadomość trafi do <strong>wszystkich <?= count($_komm_students) ?></strong> kursantów z aktywnym zapisem. Najpierw użyj „Podglądu”, żeby sprawdzić listę.
             </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="confirm_all" id="komm_confirm_all" value="1" aria-describedby="komm_confirm_all_pom">
+              <label class="form-check-label fw-semibold" for="komm_confirm_all">Potwierdzam wysyłkę do wszystkich <?= count($_komm_students) ?> kursantów</label>
+              <div class="form-text" id="komm_confirm_all_pom">Bez tego potwierdzenia wiadomość nie zostanie wysłana. Zaznacz je przed kliknięciem „Wyślij”.</div>
+            </div>
           </div>
 
           <hr class="my-3">
@@ -210,7 +215,7 @@ $_komm_log   = db_all(
             </button>
             <button type="submit" name="_op" value="komm_send" class="btn btn-primary"
                     <?= $_kp_done && $_kp_recips ? '' : 'disabled' ?>
-                    onclick="return confirm('Wysłać wiadomość do <?= count($_kp_recips) ?> odbiorców?')">
+                    onclick="return kommPotwierdz(<?= count($_kp_recips) ?>)">
               <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij
             </button>
           </div>
@@ -420,4 +425,19 @@ $_komm_log   = db_all(
   function licz(){ if (lic) lic.textContent = '(zaznaczono: ' + document.querySelectorAll('.komm-osoba input:checked').length + ')'; }
   items.forEach(function(el){ el.querySelector('input').addEventListener('change', licz); });
 })();
+
+// Wysyłka: zwykłe potwierdzenie; dla „Wszyscy aktywni kursanci” wymagane zaznaczenie pola i mocniejsze ostrzeżenie
+function kommPotwierdz(n) {
+  var tryb = (document.querySelector('.komm-mode:checked') || {}).value;
+  if (tryb === 'wszyscy') {
+    var pole = document.getElementById('komm_confirm_all');
+    if (!pole || !pole.checked) {
+      alert('Zaznacz „Potwierdzam wysyłkę do wszystkich kursantów”, aby wysłać wiadomość do wszystkich.');
+      if (pole) pole.focus();
+      return false;
+    }
+    return confirm('UWAGA: wiadomość trafi do WSZYSTKICH aktywnych kursantów (' + n + ' odbiorców). Tej operacji nie da się cofnąć. Wysłać?');
+  }
+  return confirm('Wysłać wiadomość do ' + n + ' odbiorców?');
+}
 </script>
