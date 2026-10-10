@@ -340,3 +340,14 @@ body.kur-alt.ti-skin .kp-w8-licznik {
   position: absolute; top: .4rem; right: .45rem; background: #1d1d1d; color: #fff;
   font-size: .75rem; font-weight: 700; padding: .05rem .4rem;
 }
+
+/* Zakładka „Dane” w widoku alternatywnym: dane kursanta po lewej, zajęcia po prawej; zbędne bloki schowane */
+body.kur-alt.ti-skin .kp-dane-extra { display: none !important; }
+body.kur-alt.ti-skin main.kp-dane-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start;
+}
+body.kur-alt.ti-skin main.kp-dane-grid > * { min-width: 0; margin-bottom: 0 !important; }
+body.kur-alt.ti-skin main.kp-dane-grid > .kp-dane-osoba { order: -1; }
+@media (max-width: 991.98px) {
+  body.kur-alt.ti-skin main.kp-dane-grid { grid-template-columns: minmax(0, 1fr); }
+}

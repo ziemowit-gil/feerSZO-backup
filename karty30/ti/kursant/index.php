@@ -1377,7 +1377,7 @@ include __DIR__ . '/_layout_head.php';
 <?php if ($KUR_UI === 'alt') include __DIR__ . '/_alt_bar.php'; ?>
 <?php if ($KUR_UI === 'alt' && $tab === 'start') include __DIR__ . '/_alt_start.php'; ?>
 
-<main id="main" class="container-xl px-3 py-4">
+<main id="main" class="container-xl px-3 py-4<?= ($tab === 'dane' && $KUR_UI === 'alt') ? ' kp-dane-grid' : '' ?>">
 
 <!-- ── Pytanie o czytnik ekranu (jednorazowe, localStorage) ──────────── -->
 <div id="kpSrBanner" class="alert alert-primary alert-dismissible d-flex align-items-center gap-3 mb-3" role="dialog"
@@ -1941,7 +1941,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (\Throwable $e) { $kp_bal = null; }
     }
   ?>
-  <div class="row g-3 mb-4 row-cols-1 row-cols-sm-2 <?= $kp_bal ? 'row-cols-xl-5' : 'row-cols-lg-4' ?>">
+  <div class="row g-3 mb-4 row-cols-1 row-cols-sm-2 kp-dane-extra <?= $kp_bal ? 'row-cols-xl-5' : 'row-cols-lg-4' ?>">
     <!-- Następna lekcja -->
     <div class="col">
       <a href="?tab=lekcje" class="card h-100 border-0 shadow-sm text-decoration-none text-body kp-dash-card">
@@ -2011,7 +2011,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
   <?php if (count($kp_upcoming) > 1): ?>
-  <section class="card border-0 shadow-sm mb-4" aria-labelledby="kp-upc-h">
+  <section class="card border-0 shadow-sm mb-4 kp-dane-kursy" aria-labelledby="kp-upc-h">
     <div class="card-body pb-2">
       <h2 id="kp-upc-h" class="h6 fw-bold mb-2"><i class="bi bi-calendar-week text-primary me-1" aria-hidden="true"></i>Najbliższe zajęcia</h2>
       <ul class="list-unstyled mb-0">
@@ -2035,7 +2035,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php endif; ?>
 
   <!-- ── Duży skrót do eLearning — widoczny po zalogowaniu ────────────────────── -->
-  <div class="card border-0 shadow-sm mb-4 text-bg-primary">
+  <div class="card border-0 shadow-sm mb-4 text-bg-primary kp-dane-extra">
     <div class="card-body d-flex flex-wrap align-items-center gap-3">
       <i class="bi bi-mortarboard-fill flex-shrink-0" style="font-size:2.6rem" aria-hidden="true"></i>
       <div class="flex-grow-1 min-width-0">
@@ -2064,7 +2064,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!empty($account['notify_phone3']))     $contact_phones[] = ['Dodatkowy 2', $account['notify_phone3']];
     if (!empty($account['guardian_phone']))    $contact_phones[] = ['Opiekun', $account['guardian_phone']];
   ?>
-  <div class="card mb-4">
+  <div class="card mb-4 kp-dane-osoba">
     <div class="card-body">
       <div class="d-flex align-items-center gap-3 mb-3">
         <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 text-bg-primary"
