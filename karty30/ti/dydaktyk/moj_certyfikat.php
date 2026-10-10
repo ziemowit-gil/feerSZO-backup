@@ -7,6 +7,9 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_cert_issue.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/webauthn.php';
+webauthn_migrate();
+$klucze = webauthn_get_credentials($uid);
 
 $me      = dyd_require();
 $uid     = (int)$me['user_id'];
@@ -233,6 +236,61 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 })();
 </script>
 <?php endif; ?>
+
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-body">
+    <h2 class="h6 fw-semibold mb-2">Zamiast certyfikatu: klucz YubiKey</h2>
+    <p class="small mb-2">
+      Możesz zamiast certyfikatu używać klucza sprzętowego (YubiKey). Zatwierdzasz nim protokół bez pliku .p12 i bez SMS-a.
+      Klucz zostaje w Twoich rękach — w systemie zapisujemy tylko jego identyfikator.
+    </p>
+    <p class="small mb-3">
+      Zarejestrowane klucze: <strong><?= count($klucze) ?></strong>
+      <?php if ($klucze): ?> (ostatni użyty: <?= h((string)($klucze[0]['last_used_at'] ?? '—')) ?>)<?php endif; ?>
+    </p>
+    <button type="button" class="btn btn-outline-success" id="ykRegBtn">
+      <i class="bi bi-usb-drive me-1" aria-hidden="true"></i>Dodaj klucz YubiKey
+    </button>
+    <div class="small text-danger mt-2 d-none" id="ykRegErr" role="alert"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var b = document.getElementById('ykRegBtn'); if (!b) return;
+  var base = <?= json_encode(APP_URL . '/karty30/ti/dydaktyk/yk_register.php') ?>;
+  var tok  = <?= json_encode(dyd_token()) ?>;
+  var err  = document.getElementById('ykRegErr');
+  function b64uToBuf(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+    var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a.buffer; }
+  function bufToB64u(buf) { var u = new Uint8Array(buf), s = ''; for (var i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function blad(t) { err.textContent = t; err.classList.remove('d-none'); }
+  b.addEventListener('click', async function () {
+    err.classList.add('d-none'); b.disabled = true;
+    try {
+      var r = await fetch(base + '?action=begin', { credentials: 'same-origin' });
+      var j = await r.json(); if (!r.ok) throw new Error(j.error || 'Nie udało się rozpocząć rejestracji.');
+      var o = j.data;
+      var cred = await navigator.credentials.create({ publicKey: {
+        challenge: b64uToBuf(o.challenge),
+        rp: o.rp,
+        user: { id: b64uToBuf(o.user.id), name: o.user.name, displayName: o.user.displayName },
+        pubKeyCredParams: o.pubKeyCredParams,
+        timeout: o.timeout || 60000,
+        attestation: o.attestation || 'none',
+        excludeCredentials: (o.excludeCredentials || []).map(function (c) { return { type: 'public-key', id: b64uToBuf(c.id) }; }),
+        authenticatorSelection: o.authenticatorSelection || { userVerification: 'preferred' } } });
+      var resp = { id: bufToB64u(cred.rawId), rawId: bufToB64u(cred.rawId), type: cred.type, response: {
+        clientDataJSON: bufToB64u(cred.response.clientDataJSON),
+        attestationObject: bufToB64u(cred.response.attestationObject) } };
+      var r2 = await fetch(base + '?action=complete', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': tok }, body: JSON.stringify(resp) });
+      var j2 = await r2.json(); if (!r2.ok) throw new Error(j2.error || 'Nie udało się zapisać klucza.');
+      location.reload();
+    } catch (e) { blad(e.message || 'Nie udało się dodać klucza.'); b.disabled = false; }
+  });
+})();
+</script>
 
 <p class="small text-body-secondary mt-3">
   Przy zatwierdzaniu protokołu wgrywasz plik .p12 i wpisujesz hasło z SMS-a. Hasło nie jest zapisywane w systemie.
