@@ -123,15 +123,18 @@ $vlab_token = student_token();
 // wylogowanie i zmianę urządzenia. Wyjątek: podgląd administratora — tam wybór
 // żyje tylko w sesji podglądu, żeby admin nie przestawiał widoku kursantowi.
 $kur_imp = student_impersonator() !== null;
+if (isset($_GET['ui']) && STUDENT_UI_FORCE_ALT) {   // stare linki ?ui=… — widok jest jeden (METRO)
+    header('Location: index.php' . (isset($_GET['tab']) ? '?tab=' . rawurlencode($tab) : '')); exit;
+}
 if (isset($_GET['ui'])) {
     $_want = ($_GET['ui'] === 'alt') ? 'alt' : 'klasyczny';
     if ($kur_imp) { student_start(); $_SESSION['k30_student_ui'] = $_want; }
     else          { student_ui_set((int)$student['id'], $_want); }
     header('Location: index.php?tab=' . rawurlencode($tab)); exit;
 }
-$KUR_UI = ($kur_imp && isset($_SESSION['k30_student_ui']))
+$KUR_UI = STUDENT_UI_FORCE_ALT ? 'alt' : (($kur_imp && isset($_SESSION['k30_student_ui']))
     ? (string)$_SESSION['k30_student_ui']
-    : student_ui((int)$student['id']);
+    : student_ui((int)$student['id']));
 $ui_switch_url = 'index.php?tab=' . rawurlencode($tab)
     . '&ui=' . ($KUR_UI === 'alt' ? 'klasyczny' : 'alt');
 // Sposób nawigacji w widoku alternatywnym: zakładki albo menu rozwijane (wybór w Tożsamości)
@@ -1188,13 +1191,13 @@ ob_start(); ?>
 <?php
 // Przełącznik widoku w pasku użytkownika — widoczny w obu widokach, żeby powrót
 // do klasycznego był tam, gdzie włączenie alternatywnego.
-ob_start(); ?>
+ob_start(); if (!STUDENT_UI_FORCE_ALT): ?>
 <a href="<?= h($ui_switch_url) ?>" class="btn btn-outline-secondary btn-sm"
    title="<?= $KUR_UI === 'alt' ? 'Wróć do dotychczasowego wyglądu panelu' : 'Gęsty, tabelaryczny układ — cała nawigacja widoczna wprost' ?>">
   <i class="bi bi-<?= $KUR_UI === 'alt' ? 'grid-1x2' : 'list-columns-reverse' ?> me-1" aria-hidden="true"></i>
   <?= $KUR_UI === 'alt' ? 'Widok klasyczny' : 'Widok alternatywny' ?>
 </a>
-<?php $kur_ui_switch = ob_get_clean();
+<?php endif; $kur_ui_switch = ob_get_clean();
 
 $KP_TOPBAR = [
     'brand'  => $org,
@@ -5086,7 +5089,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- lewa: nawigacja sekcji -->
   <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
     <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawień">
-      <a href="#ust-styl"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-palette me-2" aria-hidden="true"></i>Styl panelu</a>
+      <?php if (!STUDENT_UI_FORCE_ALT): ?><a href="#ust-styl"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-palette me-2" aria-hidden="true"></i>Styl panelu</a><?php endif; ?>
       <?php if ($KUR_UI === 'alt'): ?><a href="#ust-menu" class="ust-navlink btn btn-sm text-start"><i class="bi bi-layout-text-sidebar me-2" aria-hidden="true"></i>Menu panelu</a><?php endif; ?>
       <a href="#ust-ulatw"  class="ust-navlink btn btn-sm text-start"><i class="bi bi-universal-access me-2" aria-hidden="true"></i>Ułatwienia</a>
       <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczeństwo</a>
@@ -5099,6 +5102,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- prawa: tresc -->
   <div class="col-12 col-md-9 col-xl-10 d-flex flex-column gap-4">
 
+    <?php if (!STUDENT_UI_FORCE_ALT): /* przy wymuszonym METRO nie ma wyboru wyglądu */ ?>
     <!-- Styl panelu -->
     <section id="ust-styl" class="card" aria-labelledby="ust-styl-h">
       <div class="card-header d-flex align-items-center gap-2 py-2">
@@ -5114,6 +5118,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       </div>
     </section>
+    <?php endif; ?>
 
     <?php if ($KUR_UI === 'alt'): require_once dirname(__DIR__, 3) . '/includes/auth.php'; /* csrf_token() dla formularza menu */ ?>
     <section id="ust-menu" class="card" aria-labelledby="ust-menu-h">

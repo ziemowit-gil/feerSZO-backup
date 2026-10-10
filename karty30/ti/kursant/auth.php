@@ -170,7 +170,11 @@ function student_ui_reset_od_1_11(): void {
     org_setting_set('ti_student_ui_reset_2026_11', '1');
 }
 
+/** METRO wymuszone dla wszystkich (decyzja z 11.10.2026) — widok klasyczny nie jest już dostępny. */
+const STUDENT_UI_FORCE_ALT = true;
+
 function student_ui(int $accountId): string {
+    if (STUDENT_UI_FORCE_ALT) return 'alt';
     student_ui_reset_od_1_11();
     $domyslny = (date('Y-m-d H:i:s') >= STUDENT_UI_ALT_DEFAULT_OD) ? 'alt' : 'klasyczny';
     if ($accountId <= 0) return $domyslny;

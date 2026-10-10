@@ -128,7 +128,7 @@ foreach ($_cur_sec['items'] as $_i) {
       <li><a class="dropdown-item<?= $_act ? ' active' : '' ?>" href="<?= h($_i['href']) ?>"<?= $_act ? ' aria-current="page"' : '' ?>><?= h($_i['label']) ?><?php if ($_i['n'] > 0): ?> <span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?></a></li>
       <?php endforeach; ?>
       <?php if ($_alt_cur === 'konto' && $_k === 'konto'): ?>
-      <li><a class="dropdown-item" href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a></li>
+      <?php if (!STUDENT_UI_FORCE_ALT): ?><li><a class="dropdown-item" href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a></li><?php endif; ?>
       <?php endif; ?>
     </ul>
   </div>
@@ -150,7 +150,7 @@ foreach ($_cur_sec['items'] as $_i) {
     </a></li>
     <?php endforeach; ?>
     <?php if ($_alt_cur === 'konto'): ?>
-    <li><a href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a></li>
+    <?php if (!STUDENT_UI_FORCE_ALT): ?><li><a href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a></li><?php endif; ?>
     <?php endif; ?>
   </ul>
 </details>
@@ -169,7 +169,7 @@ foreach ($_cur_sec['items'] as $_i) {
   </a>
   <?php endforeach; ?>
   <?php if ($_alt_cur === 'konto'): ?>
-  <a href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a>
+  <?php if (!STUDENT_UI_FORCE_ALT): ?><a href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a><?php endif; ?>
   <?php endif; ?>
 </nav>
 <?php endif; ?>
