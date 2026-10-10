@@ -189,7 +189,7 @@ foreach ($_cur_sec['items'] as $_i) {
   <ul class="kp-kafle kp-kafle-mini">
     <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
     <li>
-      <a class="kp-kafel kp-kafel-mini<?= in_array($_i['tab'], ['lekcje', 'zadania', 'komunikaty', 'oceny'], true) ? ' kp-kafel-glowny' : '' ?><?= $_act ? ' active' : '' ?>" href="<?= h($_i['href']) ?>"<?= $_act ? ' aria-current="page"' : '' ?>>
+      <a title="<?= h($_i['label']) ?>" class="kp-kafel kp-kafel-mini<?= in_array($_i['tab'], ['lekcje', 'zadania', 'komunikaty', 'oceny'], true) ? ' kp-kafel-glowny' : '' ?><?= $_act ? ' active' : '' ?>" href="<?= h($_i['href']) ?>"<?= $_act ? ' aria-current="page"' : '' ?>>
         <i class="bi bi-<?= h($_ikony[$_i['tab']] ?? (mb_stripos($_i['label'], 'Biblioteka') !== false ? 'book' : (mb_stripos($_i['label'], 'Menu panelu') !== false ? 'layout-text-sidebar' : 'circle'))) ?> kp-kafel-ikona" aria-hidden="true"></i>
         <span class="kp-kafel-tytul"><?= h($_i['label']) ?></span>
         <?php if ($_i['n'] > 0): ?><span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
