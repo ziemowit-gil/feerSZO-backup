@@ -123,32 +123,38 @@ foreach ($_st_glowne_klucze as $_gk) {
   </nav>
   <?php endif; ?>
 
-  <!-- Widok domyślny: najważniejsze i wszystkie sekcje -->
-  <div id="kp-widok">
-    <h2 class="h6 fw-bold text-uppercase mb-2">Najważniejsze</h2>
-    <ul class="kp-kafle kp-kafle-glowne mb-4">
-      <?php foreach ($_st_glowne as $_k): ?>
-      <li>
-        <a class="kp-kafel kp-kafel-glowny" href="<?= h($_k['href']) ?>">
-          <span class="kp-kafel-sekcja"><?= h($_k['sekcja']) ?></span>
-          <i class="bi bi-<?= h($_ikony[$_k['klucz']] ?? 'circle') ?> kp-kafel-ikona" aria-hidden="true"></i>
-        <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
-          <?php if ($_k['n'] > 0): ?><span class="badge text-bg-<?= h($_k['v']) ?>"><?= (int)$_k['n'] ?></span><?php endif; ?>
-        </a>
-      </li>
-      <?php endforeach; ?>
-    </ul>
+  <!-- Ekran startowy w stylu „Start” (kafle różnej wielkości, pogrupowane) -->
+  <?php
+    // Kolory kafli: ciemny tekst na jasnym tle (kontrast z #1d1d1d powyżej 4,5:1)
+    $_w8_kolory = ['#1ba1e2', '#a4c400', '#f0a30a', '#00aba9', '#fcd116', '#e671b8'];
+    $_w8_szerokie = ['lekcje', 'zadania', 'komunikaty', 'oceny'];
+  ?>
+  <div id="kp-widok" class="kp-w8">
+    <section class="kp-w8-grupa" aria-labelledby="kp-w8-g-glowne">
+      <h2 class="kp-w8-naglowek" id="kp-w8-g-glowne">Najważniejsze</h2>
+      <ul class="kp-w8-siatka">
+        <?php foreach ($_st_glowne as $_i => $_k): ?>
+        <li class="kp-w8-kafel kp-w8-szeroki" style="--kolor: <?= $_w8_kolory[$_i % count($_w8_kolory)] ?>">
+          <a href="<?= h($_k['href']) ?>">
+            <i class="bi bi-<?= h($_ikony[$_k['klucz']] ?? 'circle') ?> kp-w8-ikona" aria-hidden="true"></i>
+            <span class="kp-w8-tytul"><?= h($_k['etykieta']) ?></span>
+            <?php if ($_k['n'] > 0): ?><span class="kp-w8-licznik"><?= (int)$_k['n'] ?></span><?php endif; ?>
+          </a>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </section>
 
-    <?php foreach ($_st_sekcje as $_sec): ?>
-    <section class="kp-sekcja mb-4" aria-labelledby="kp-sek-<?= h(mb_strtolower(preg_replace('/\s+/', '-', $_sec['label']))) ?>">
-      <h2 class="h6 fw-bold text-uppercase mb-2" id="kp-sek-<?= h(mb_strtolower(preg_replace('/\s+/', '-', $_sec['label']))) ?>"><?= h($_sec['label']) ?></h2>
-      <ul class="kp-kafle">
+    <?php foreach ($_st_sekcje as $_si => $_sec): $_sid = 'kp-w8-g-' . $_si; ?>
+    <section class="kp-w8-grupa" aria-labelledby="<?= $_sid ?>">
+      <h2 class="kp-w8-naglowek" id="<?= $_sid ?>"><?= h($_sec['label']) ?></h2>
+      <ul class="kp-w8-siatka">
         <?php foreach ($_sec['pozycje'] as $_k): ?>
-        <li>
-          <a class="kp-kafel" href="<?= h($_k['href']) ?>">
-            <i class="bi bi-<?= h($_ikony[$_k['klucz']] ?? 'circle') ?> kp-kafel-ikona" aria-hidden="true"></i>
-        <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
-            <?php if ($_k['n'] > 0): ?><span class="badge text-bg-<?= h($_k['v']) ?>"><?= (int)$_k['n'] ?></span><?php endif; ?>
+        <li class="kp-w8-kafel<?= in_array($_k['klucz'], $_w8_szerokie, true) ? ' kp-w8-szeroki' : '' ?>" style="--kolor: <?= $_w8_kolory[$_si % count($_w8_kolory)] ?>">
+          <a href="<?= h($_k['href']) ?>">
+            <i class="bi bi-<?= h($_ikony[$_k['klucz']] ?? 'circle') ?> kp-w8-ikona" aria-hidden="true"></i>
+            <span class="kp-w8-tytul"><?= h($_k['etykieta']) ?></span>
+            <?php if ($_k['n'] > 0): ?><span class="kp-w8-licznik"><?= (int)$_k['n'] ?></span><?php endif; ?>
           </a>
         </li>
         <?php endforeach; ?>
