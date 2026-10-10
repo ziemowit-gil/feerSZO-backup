@@ -177,29 +177,16 @@ if ($sel_row) {
       <?php if (!$hw_rows): ?>
       <p class="text-body-secondary small">Nie masz jeszcze żadnych zadań — poniżej są same materiały.</p>
       <?php else: ?>
-      <ul class="list-group alt-zad-list">
+      <ul class="alt-zad-kafle" aria-label="Zadania">
         <?php foreach ($hw_rows as $r): $h = $r['h'];
           $is_sel = $sel_row && (int)$h['id'] === (int)$sel_row['h']['id']; ?>
-        <li class="list-group-item p-0">
-          <a class="d-block px-2 py-2 text-decoration-none alt-zad-item<?= $is_sel ? ' alt-zad-item-sel' : '' ?>"
-             href="?tab=zadania&amp;hw=<?= (int)$h['id'] ?>#zad-szczegoly"
-             <?= $is_sel ? 'aria-current="page"' : '' ?>>
-            <span class="d-flex align-items-start gap-2">
-              <span aria-hidden="true" class="alt-zad-mark"><?= $is_sel ? '&rsaquo;' : '' ?></span>
-              <span class="flex-grow-1 min-width-0">
-                <span class="d-block <?= $is_sel ? 'fw-bold' : 'fw-semibold' ?>"><?= h($h['title']) ?></span>
-                <span class="d-block small text-body-secondary">
-                  <?= h($h['course_name']) ?>
-                  <?php if (!empty($h['due_at'])): ?>
-                    · termin: <?= $_hw_time($h['due_at']) ?>
-                  <?php else: ?>
-                    · bez terminu
-                  <?php endif; ?>
-                </span>
-              </span>
-              <span class="badge text-bg-<?= h($r['v']) ?> flex-shrink-0">
-                <span class="visually-hidden">Status: </span><?= h($r['label']) ?>
-              </span>
+        <li class="alt-zad-kafel alt-zad-<?= h($r['key']) ?><?= $is_sel ? ' alt-zad-kafel-sel' : '' ?>">
+          <a href="?tab=zadania&amp;hw=<?= (int)$h['id'] ?>#zad-szczegoly" <?= $is_sel ? 'aria-current="page"' : '' ?>>
+            <span class="alt-zad-status badge text-bg-<?= h($r['v']) ?>"><span class="visually-hidden">Status: </span><?= h($r['label']) ?></span>
+            <span class="alt-zad-tytul"><?= h($h['title']) ?></span>
+            <span class="alt-zad-meta">
+              <span class="d-block"><?= h($h['course_name']) ?></span>
+              <span class="d-block"><?php if (!empty($h['due_at'])): ?>termin: <?= $_hw_time($h['due_at']) ?><?php else: ?>bez terminu<?php endif; ?></span>
             </span>
           </a>
         </li>

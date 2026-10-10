@@ -600,3 +600,30 @@ body.kur-alt.ti-skin header .navbar .text-light,
 body.kur-alt.ti-skin header .navbar span,
 body.kur-alt.ti-skin header .navbar i { color: #1d1d1d !important; }
 body.kur-alt.ti-skin header .navbar .btn i, body.kur-alt.ti-skin header .navbar .btn span { color: #1d1d1d !important; }
+
+/* Zadania: równe, czytelne kafle — stała wysokość, status u góry, tytuł max 2 linie, meta na dole */
+body.kur-alt.ti-skin .alt-zad-kafle {
+  list-style: none; padding: 0; margin: 0 0 1rem;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); grid-auto-rows: 150px; gap: .6rem;
+}
+body.kur-alt.ti-skin .alt-zad-kafel { background: #fff; border: 2px solid #1d1d1d; border-left-width: 8px; }
+body.kur-alt.ti-skin .alt-zad-kafel > a {
+  display: flex; flex-direction: column; gap: .35rem; height: 100%; padding: .7rem .8rem;
+  color: #1d1d1d !important; text-decoration: none;
+}
+body.kur-alt.ti-skin .alt-zad-kafel > a:hover { background: #f3f4f6; }
+body.kur-alt.ti-skin .alt-zad-kafel > a:focus-visible { outline: 3px solid #facc15; outline-offset: -3px; }
+body.kur-alt.ti-skin .alt-zad-status { align-self: flex-start; font-size: .75rem; }
+body.kur-alt.ti-skin .alt-zad-tytul {
+  font-weight: 700; font-size: 1rem; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+body.kur-alt.ti-skin .alt-zad-meta { margin-top: auto; font-size: .8rem; color: #374151; }
+/* Kolor paska z lewej = stan zadania (status jest też słowem w plakietce) */
+body.kur-alt.ti-skin .alt-zad-overdue  { border-left-color: #e51400; }
+body.kur-alt.ti-skin .alt-zad-todo     { border-left-color: #fcd116; }
+body.kur-alt.ti-skin .alt-zad-upcoming { border-left-color: #f0a30a; }
+body.kur-alt.ti-skin .alt-zad-closed   { border-left-color: #6b7280; }
+body.kur-alt.ti-skin .alt-zad-done     { border-left-color: #1ba1e2; }
+body.kur-alt.ti-skin .alt-zad-graded   { border-left-color: #60a917; }
+body.kur-alt.ti-skin .alt-zad-kafel-sel { background: #d9f0fb; box-shadow: inset 0 0 0 2px #1ba1e2; }
