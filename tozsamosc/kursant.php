@@ -10,6 +10,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
 require_once dirname(__DIR__) . '/includes/ti_student_otp.php';
 require_once dirname(__DIR__) . '/karty30/ti/kursant/auth.php';
+require_once dirname(__DIR__) . '/includes/ti_sec_image.php';
 
 karty30_migrate();
 if (student_current()) { header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit; }
@@ -35,7 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $blad = 'Nie udało się wysłać kodu. Skontaktuj się z prowadzącym, żeby uzupełnił numer telefonu.';
     } elseif ($acc && $haslo !== '' && password_verify($haslo, (string)$acc['password_hash'])) {
         student_login_user($acc, 'password', "login: {$login}");
-        header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit;
+        // Brak wybranego obrazka bezpieczeństwa: najpierw wybór, potem panel.
+        ti_sec_image_migrate();
+        $wybrany = db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [(int)$acc['id']]);
+        header('Location: ' . APP_URL . (empty($wybrany['sec_chosen'])
+            ? '/karty30/ti/kursant/sec_choose.php'
+            : '/karty30/ti/kursant/index.php')); exit;
     } else {
         if ($acc && function_exists('ti_account_log')) {
             ti_account_log((int)$acc['id'], 'login_failed', "Nieudana próba dla: {$login}");

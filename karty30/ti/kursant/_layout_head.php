@@ -255,7 +255,14 @@ if (function_exists('dyd_current') && dyd_current()) {
     <button type="submit" class="btn btn-sm btn-primary">Przeczytane</button>
   </form>
 </section>
-<?php endforeach; }
+<?php endforeach;
+    // Brak wybranego obrazka bezpieczeństwa — informacja po zalogowaniu.
+    require_once dirname(__DIR__, 3) . '/includes/ti_sec_image_dyd.php';
+    if (!ti_sec_dyd_chosen((int)$_dyd_u['user_id'])): ?>
+<div class="alert alert-warning m-3 mb-0 rounded-0 small" role="status">
+  Nie masz jeszcze obrazka bezpieczeństwa. Wybierz go w menu: <a href="<?= h(APP_URL) ?>/karty30/ti/dydaktyk/sec_choose.php">Obrazek bezpieczeństwa</a>.
+</div>
+<?php endif; }
 ?>
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
 
