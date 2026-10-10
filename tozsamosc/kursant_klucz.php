@@ -165,7 +165,15 @@ $ok     = $_GET['ok'] ?? '';
     }).then(function () {
       window.location = '<?= h(APP_URL) ?>/tozsamosc/kursant_klucz.php?ok=dodany';
     }).catch(function (err) {
-      pokazBlad(err && err.message ? err.message : 'Nie udało się dodać klucza.');
+      // InvalidStateError: ten klucz jest już zarejestrowany dla tego konta (excludeCredentials).
+      // NotAllowedError: użytkownik anulował albo minął czas.
+      if (err && err.name === 'InvalidStateError') {
+        pokazBlad('Ten klucz jest już dodany do Twojego konta. Użyj innego klucza albo passkey.');
+      } else if (err && err.name === 'NotAllowedError') {
+        pokazBlad('Dodawanie klucza zostało anulowane albo minął czas. Spróbuj ponownie.');
+      } else {
+        pokazBlad(err && err.message ? err.message : 'Nie udało się dodać klucza.');
+      }
     });
   });
 })();
