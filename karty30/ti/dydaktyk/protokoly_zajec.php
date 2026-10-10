@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/ti/dydaktyk/spotkania.php — Protokoły spotkań (prowadzący i kierownik).
+ * karty30/ti/dydaktyk/protokoly_zajec.php — Protokoły zajęć (prowadzący i kierownik).
  * Lista spotkań kursu, tworzenie, punkty i zatwierdzenie w oknie dialogowym.
  * GET: course=ID (wybór grupy), open=ID (otwórz okno), frag=1&id=ID (zawartość okna — fetch).
  */
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mid = (int)($_POST['meeting_id'] ?? 0);
     $cid = (int)($_POST['course_id'] ?? 0);
     $m   = $mid ? ti_meeting_get($mid) : null;
-    $back = 'spotkania.php?course=' . $cid;
+    $back = 'protokoly_zajec.php?course=' . $cid;
 
     try {
         if ($op === 'create') {
@@ -28,14 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $title = trim((string)($_POST['title'] ?? ''));
             $date  = trim((string)($_POST['meeting_date'] ?? ''));
             if (mb_strlen($title) < 3) throw new \RuntimeException('Podaj tytuł protokołu (min. 3 znaki).');
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) throw new \RuntimeException('Podaj datę spotkania.');
-            $new = ti_meeting_create($cid, $title, $date, $uid, $me_name);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) throw new \RuntimeException('Podaj datę zajęć.');
+            $pid = (int)($_POST['period_id'] ?? 0);
+            if (!$pid || !ti_period_get($pid)) throw new \RuntimeException('Wybierz okres rozliczeniowy — protokół zajęć dotyczy okresu.');
+            $new = ti_meeting_create($cid, $pid, $title, $date, $uid, $me_name);
             flash_set('success', 'Utworzono protokół. Dodaj punkty, potem zatwierdź.');
-            header('Location: spotkania.php?course=' . $cid . '&open=' . $new); exit;
+            header('Location: protokoly_zajec.php?course=' . $cid . '&open=' . $new); exit;
         }
 
         if (!$m || !dyd_owns_course($uid, (int)$m['course_id'])) throw new \RuntimeException('Brak dostępu do tego protokołu.');
-        $back = 'spotkania.php?course=' . (int)$m['course_id'] . '&open=' . $mid;
+        $back = 'protokoly_zajec.php?course=' . (int)$m['course_id'] . '&open=' . $mid;
 
         if ($op === 'add_item') {
             if (!ti_meeting_is_editable($m)) throw new \RuntimeException('Protokół jest zatwierdzony — nie można dodawać punktów.');
@@ -78,9 +80,37 @@ if (!empty($_GET['frag'])) {
     <div class="dyd-meeting-frag">
       <dl class="row small mb-3">
         <dt class="col-sm-3">Grupa</dt><dd class="col-sm-9"><?= h($fm['course_name']) ?></dd>
-        <dt class="col-sm-3">Data spotkania</dt><dd class="col-sm-9"><?= h(date('d.m.Y', strtotime((string)$fm['meeting_date']))) ?></dd>
+        <dt class="col-sm-3">Data zajęć</dt><dd class="col-sm-9"><?= h(date('d.m.Y', strtotime((string)$fm['meeting_date']))) ?></dd>
         <dt class="col-sm-3">Status</dt><dd class="col-sm-9"><?= h(TI_MEETING_STATUS_LABELS[$fm['status']] ?? $fm['status']) ?></dd>
       </dl>
+
+      <?php
+        $_per = $fm['period_id'] ? ti_period_get((int)$fm['period_id']) : null;
+        $_rows = $_per ? ti_meeting_participant_rows((int)$fm['course_id'], (int)$fm['period_id']) : [];
+      ?>
+      <h3 class="h6">Okres i kursanci</h3>
+      <?php if (!$_per): ?>
+        <p class="small text-body-secondary">Protokół nie ma przypisanego okresu.</p>
+      <?php elseif (!$_rows): ?>
+        <p class="small text-body-secondary">Brak aktywnych kursantów w tej grupie.</p>
+      <?php else: ?>
+        <p class="small mb-2">Okres: <strong><?= h($_per['name']) ?></strong> (<?= h($_per['date_from']) ?> – <?= h($_per['date_to']) ?>)</p>
+        <div class="table-responsive mb-3">
+          <table class="table table-sm align-middle">
+            <caption class="visually-hidden">Godziny i średnie ocen kursantów za okres <?= h($_per['name']) ?></caption>
+            <thead><tr><th scope="col">Kursant</th><th scope="col">Godziny</th><th scope="col">Średnia ocen</th></tr></thead>
+            <tbody>
+            <?php foreach ($_rows as $_r): ?>
+              <tr>
+                <th scope="row" class="fw-normal"><?= h($_r['name']) ?></th>
+                <td><?= h(rtrim(rtrim(number_format((float)$_r['hours'], 1, ',', ''), '0'), ',')) ?> h</td>
+                <td><?= $_r['avg'] !== null ? h(number_format((float)$_r['avg'], 2, ',', '')) : '<span class="text-body-secondary">brak ocen</span>' ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
 
       <h3 class="h6">Punkty protokołu</h3>
       <?php if (!$items): ?>
@@ -95,7 +125,7 @@ if (!empty($_GET['frag'])) {
               <?php if (trim((string)$it['body']) !== ''): ?><div class="small"><?= nl2br(h($it['body'])) ?></div><?php endif; ?>
             </div>
             <?php if ($editable): ?>
-            <form method="post" action="spotkania.php" class="m-0">
+            <form method="post" action="protokoly_zajec.php" class="m-0">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="delete_item">
               <input type="hidden" name="meeting_id" value="<?= $mid ?>">
@@ -112,7 +142,7 @@ if (!empty($_GET['frag'])) {
       <?php endif; ?>
 
       <?php if ($editable): ?>
-      <form method="post" action="spotkania.php" class="border rounded p-3 mb-3" aria-labelledby="addItemH">
+      <form method="post" action="protokoly_zajec.php" class="border rounded p-3 mb-3" aria-labelledby="addItemH">
         <h3 class="h6" id="addItemH">Dodaj punkt</h3>
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="add_item">
@@ -139,7 +169,7 @@ if (!empty($_GET['frag'])) {
         <button type="submit" class="btn btn-sm btn-primary">Dodaj punkt</button>
       </form>
 
-      <form method="post" action="spotkania.php" class="d-flex flex-wrap gap-2 align-items-center"
+      <form method="post" action="protokoly_zajec.php" class="d-flex flex-wrap gap-2 align-items-center"
             onsubmit="return <?= $items ? 'confirm(\'Zatwierdzić protokół? Po zatwierdzeniu treści nie można zmieniać.\')' : 'false' ?>">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="approve">
@@ -172,7 +202,7 @@ if (!$sel_course || !in_array($sel_course, $own_ids, true)) $sel_course = $own_i
 $meetings = $sel_course ? ti_meeting_list($sel_course) : [];
 $open_id  = (int)($_GET['open'] ?? 0);
 
-$KP_TITLE  = 'Protokoły spotkań — Panel dydaktyka';
+$KP_TITLE  = 'Protokoły zajęć — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $me_name, 'logout' => 'logout.php'];
 $KP_BODY_CLASS = 'dyd-usos ti-skin';
 include dirname(__DIR__) . '/kursant/_layout_head.php';
@@ -180,7 +210,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
 <main id="main" class="dyd-wrap">
-<h1 class="h4 mb-3"><i class="bi bi-journal-text me-2 text-primary" aria-hidden="true"></i>Protokoły spotkań</h1>
+<h1 class="h4 mb-3"><i class="bi bi-journal-text me-2 text-primary" aria-hidden="true"></i>Protokoły zajęć</h1>
 <?= flash_html() ?>
 
 <?php if (!$courses): ?>
@@ -202,19 +232,28 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <section class="card mb-4" aria-labelledby="newMeetingH">
   <div class="card-body">
     <h2 class="h5 card-title" id="newMeetingH">Nowy protokół</h2>
-    <form method="post" action="spotkania.php" class="row g-2 align-items-end">
+    <form method="post" action="protokoly_zajec.php" class="row g-2 align-items-end">
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
       <input type="hidden" name="_op" value="create">
       <input type="hidden" name="course_id" value="<?= $sel_course ?>">
-      <div class="col-md-6">
+      <div class="col-md-5">
         <label class="form-label" for="sp-title">Tytuł</label>
         <input type="text" class="form-control" id="sp-title" name="title" required minlength="3" maxlength="200">
       </div>
       <div class="col-md-3">
-        <label class="form-label" for="sp-date">Data spotkania</label>
+        <label class="form-label" for="sp-period">Okres rozliczeniowy</label>
+        <select class="form-select" id="sp-period" name="period_id" required>
+          <option value="">— wybierz okres —</option>
+          <?php foreach (ti_periods_all() as $pr): ?>
+            <option value="<?= (int)$pr['id'] ?>"><?= h($pr['name']) ?> (<?= h($pr['date_from']) ?> – <?= h($pr['date_to']) ?>)</option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="sp-date">Data protokołu</label>
         <input type="date" class="form-control" id="sp-date" name="meeting_date" required value="<?= h(date('Y-m-d')) ?>">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <button type="submit" class="btn btn-primary w-100">Utwórz protokół</button>
       </div>
     </form>
@@ -228,7 +267,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <?php else: ?>
   <div class="table-responsive">
     <table class="table table-sm align-middle">
-      <caption class="visually-hidden">Protokoły spotkań wybranej grupy</caption>
+      <caption class="visually-hidden">Protokoły zajęć wybranej grupy</caption>
       <thead><tr><th scope="col">Data</th><th scope="col">Tytuł</th><th scope="col">Punkty</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Akcje</span></th></tr></thead>
       <tbody>
       <?php foreach ($meetings as $mt): ?>
@@ -238,7 +277,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <td><?= (int)$mt['items_n'] ?></td>
           <td><?= h(TI_MEETING_STATUS_LABELS[$mt['status']] ?? $mt['status']) ?></td>
           <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary" href="spotkania.php?course=<?= $sel_course ?>&amp;open=<?= (int)$mt['id'] ?>"
+            <a class="btn btn-sm btn-outline-primary" href="protokoly_zajec.php?course=<?= $sel_course ?>&amp;open=<?= (int)$mt['id'] ?>"
                data-dyd-meeting="<?= (int)$mt['id'] ?>">Otwórz protokół<span class="visually-hidden">: <?= h($mt['title']) ?></span></a>
           </td>
         </tr>
@@ -253,7 +292,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h2 class="modal-title h5" id="meetingModalTitle">Protokół spotkania</h2>
+        <h2 class="modal-title h5" id="meetingModalTitle">Protokół zajęć</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij okno protokołu"></button>
       </div>
       <div class="modal-body" id="meetingBody" aria-live="polite"></div>

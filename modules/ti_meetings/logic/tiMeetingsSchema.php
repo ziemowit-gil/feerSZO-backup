@@ -99,6 +99,9 @@ function ti_meetings_migrate(): void {
         try { $pdo->exec($sql); }
         catch (\Throwable $e) { error_log('ti_meetings_migrate: ' . $e->getMessage()); }
     }
+    // Protokół zajęć przypisany do okresu rozliczeniowego (godziny i oceny liczone za ten okres).
+    try { $pdo->exec("ALTER TABLE k30_ti_meetings ADD COLUMN period_id INTEGER REFERENCES k30_ti_periods(id) ON DELETE SET NULL"); }
+    catch (\Throwable $e) { /* kolumna już istnieje */ }
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_meetings_course ON k30_ti_meetings(course_id, meeting_date)"); }
     catch (\Throwable $e) { error_log('ti_meetings_migrate index: ' . $e->getMessage()); }
 }

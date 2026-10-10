@@ -7,10 +7,12 @@
  * Podpis wewnętrzny: kto, kiedy i sha256 treści protokołu (bez podpisu kwalifikowanego).
  */
 require_once __DIR__ . '/tiMeetingsSchema.php';
+require_once dirname(__DIR__, 3) . '/includes/ti_periods.php';
+require_once dirname(__DIR__, 3) . '/includes/ti_protocols.php';
 
 const TI_MEETING_KINDS = [
     'obecnosc' => 'Obecność',
-    'przebieg' => 'Przebieg spotkania',
+    'przebieg' => 'Przebieg zajęć',
     'uchwala'  => 'Uchwała',
     'zadanie'  => 'Zadanie',
     'inne'     => 'Inne',
@@ -43,10 +45,10 @@ function ti_meeting_list(int $course_id): array {
     );
 }
 
-function ti_meeting_create(int $course_id, string $title, string $date, int $uid, string $name): int {
+function ti_meeting_create(int $course_id, int $period_id, string $title, string $date, int $uid, string $name): int {
     ti_meetings_migrate();
     $id = db_insert('k30_ti_meetings', [
-        'course_id' => $course_id, 'title' => mb_substr(trim($title), 0, 200), 'meeting_date' => $date,
+        'course_id' => $course_id, 'period_id' => $period_id, 'title' => mb_substr(trim($title), 0, 200), 'meeting_date' => $date,
         'status' => 'szkic', 'created_by' => $uid ?: null,
     ]);
     ti_meeting_log($id, 'utworzono', '', $uid, $name);
@@ -65,12 +67,47 @@ function ti_meeting_delete_item(int $item_id, int $meeting_id): void {
     db_exec("DELETE FROM k30_ti_meeting_items WHERE id=? AND meeting_id=?", [$item_id, $meeting_id]);
 }
 
+/**
+ * Kursanci grupy za okres protokołu: godziny (odbyte zajęcia, obecność) i średnia ocen z dziennika.
+ * Te same źródła co protokół godzin — wartości nie są przepisywane.
+ * @return array<int, array{client_id:int,name:string,hours:float,avg:?float}>
+ */
+function ti_meeting_participant_rows(int $course_id, int $period_id): array {
+    $per = $period_id ? ti_period_get($period_id) : null;
+    if (!$per) return [];
+    $from = (string)$per['date_from']; $to = (string)$per['date_to'];
+    $people = db_all(
+        "SELECT e.client_id, cl.name FROM k30_ti_enrollments e
+           JOIN k30_clients cl ON cl.id = e.client_id
+          WHERE e.course_id=? AND e.status='active' ORDER BY cl.name", [$course_id]);
+    $mins = [];
+    foreach (db_all(
+        "SELECT a.client_id, SUM(s.duration_min) AS mins
+           FROM k30_ti_attendance a JOIN k30_ti_sessions s ON s.id = a.session_id
+          WHERE s.course_id=? AND s.lesson_date BETWEEN ? AND ?
+            AND s.status IN ('held','individual_change','remote_material')
+            AND a.attended=1 AND COALESCE(a.cancelled,0)=0
+          GROUP BY a.client_id", [$course_id, $from, $to]) as $r) {
+        $mins[(int)$r['client_id']] = (int)$r['mins'];
+    }
+    $avgs = ti_protocol_diary_averages($course_id, $from, $to);
+    $out = [];
+    foreach ($people as $p) {
+        $cid = (int)$p['client_id'];
+        $out[] = ['client_id' => $cid, 'name' => (string)$p['name'],
+                  'hours' => round(($mins[$cid] ?? 0) / 60, 1),
+                  'avg' => isset($avgs[$cid]) ? round((float)$avgs[$cid], 2) : null];
+    }
+    return $out;
+}
+
 /** Skrót treści: tytuł, data i wszystkie punkty w kolejności — wykrywa późniejszą zmianę po podpisie. */
-function ti_meeting_content_hash(array $meeting, array $items): string {
+function ti_meeting_content_hash(array $meeting, array $items, array $rows = []): string {
     $payload = [
         'title' => (string)$meeting['title'],
         'date'  => (string)$meeting['meeting_date'],
         'items' => array_map(fn($i) => [(string)$i['kind'], (string)$i['title'], (string)$i['body']], $items),
+        'rows'  => array_map(fn($r) => [$r['client_id'], $r['hours'], $r['avg']], $rows),
     ];
     return hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
 }
@@ -81,7 +118,8 @@ function ti_meeting_approve(int $meeting_id, int $uid, string $name): void {
     if (!$m) throw new \RuntimeException('Nie ma takiego protokołu.');
     $items = ti_meeting_items($meeting_id);
     if (!$items) throw new \RuntimeException('Protokół nie ma żadnego punktu — dodaj treść przed zatwierdzeniem.');
-    $hash = ti_meeting_content_hash($m, $items);
+    $rows = ti_meeting_participant_rows((int)$m['course_id'], (int)($m['period_id'] ?? 0));
+    $hash = ti_meeting_content_hash($m, $items, $rows);
     $pdo = db();
     $pdo->beginTransaction();
     try {
