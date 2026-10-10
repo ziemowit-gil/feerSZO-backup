@@ -174,8 +174,8 @@ $_panel = 'kursant/index.php';
     <section class="nw-sekcja" id="wyglad" aria-labelledby="h-wyglad">
       <h2 id="h-wyglad"><i class="bi bi-grid-1x2" aria-hidden="true"></i>Nowy wygląd METRO</h2>
       <div class="nw-wazne" role="note" style="border-left-color:#1ba1e2">
-        <h3>Od 1 listopada 2026 nowy wygląd będzie domyślny</h3>
-        <p>Już teraz możesz go włączyć w <strong>Konto → Ustawienia → Styl panelu</strong>. W okresie przejściowym w każdej chwili wrócisz do widoku klasycznego przyciskiem <strong>„Widok klasyczny”</strong> u góry strony.</p>
+        <h3>Nowy wygląd działa już dla wszystkich</h3>
+        <p>Od października 2026 panel kursanta jest dostępny tylko w nowym wyglądzie METRO — nie trzeba niczego włączać. Wszystkie funkcje i dane zostały na swoim miejscu; zmienił się sposób ich pokazania. Jeśli czegoś nie możesz znaleźć, użyj wyszukiwarki na ekranie startowym albo napisz przez <strong>Pomoc</strong>.</p>
       </div>
       <ul class="nw-kafle">
         <li class="nw-kafel" style="--k:#fcd116">
@@ -243,7 +243,7 @@ $_panel = 'kursant/index.php';
         </li>
         <li class="nw-kafel" style="--k:#60a917">
           <h3><i class="bi bi-gear" aria-hidden="true"></i>Uporządkowane ustawienia</h3>
-          <p>Wszystkie ustawienia na jednej stronie, z kafelkami sekcji: Styl panelu, Menu panelu, Ułatwienia, Bezpieczeństwo, Powiadomienia, Push i Kalendarz.</p>
+          <p>Wszystkie ustawienia na jednej stronie, z kafelkami sekcji: Menu panelu, Ułatwienia, Bezpieczeństwo, Powiadomienia, Push i Kalendarz.</p>
         </li>
       </ul>
     </section>
