@@ -4832,8 +4832,8 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 <?php else: ?>
 <p class="text-body-secondary small mb-3">Historia ostatnich zdarzeń na Twoim koncie. Jeśli zauważysz nieznane logowania, zmień hasło lub skontaktuj się z prowadzącym.</p>
-<ol class="list-unstyled d-flex flex-column gap-2" aria-label="Zdarzenia na koncie">
-  <?php foreach ($kursant_log as $le):
+<ol class="list-unstyled d-flex flex-column gap-2 kp-akt-lista" aria-label="Zdarzenia na koncie">
+  <?php $_akt_n = 0; foreach ($kursant_log as $le): if ($_akt_n === 5): ?></ol><details class="mt-2"><summary>Pokaż więcej (<?= count($kursant_log) - 5 ?>)</summary><ol class="list-unstyled d-flex flex-column gap-2 kp-akt-lista mt-2"><?php endif; $_akt_n++;
     $cfg = $action_labels_kursant[$le['action']] ?? ['label' => $le['action'], 'icon' => 'bi-dot', 'color' => 'text-muted'];
     $ts  = $le['created_at'] ? date('d.m.Y, H:i', strtotime($le['created_at'])) : '';
     $device = !empty($le['user_agent']) ? ti_log_device_label($le['user_agent']) : '';
@@ -4860,7 +4860,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </article>
   </li>
   <?php endforeach; ?>
-</ol>
+<?php if ($_akt_n > 5): ?></ol></details><?php else: ?></ol><?php endif; ?>
 <?php endif; ?>
 
 <?php elseif ($tab === 'ustawienia'): ?>

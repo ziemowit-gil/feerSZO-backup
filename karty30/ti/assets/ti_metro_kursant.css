@@ -360,3 +360,24 @@ body.kur-alt.ti-skin .kp-rk-metro {
 body.kur-alt.ti-skin .kp-rk-metro .fw-bold { font-size: 1.05rem; }
 body.kur-alt.ti-skin .kp-rk-metro details summary { cursor: pointer; color: #0f6fa8; text-decoration: underline; }
 body.kur-alt.ti-skin .kp-rk-metro .btn-primary { background: #1d1d1d; border-color: #1d1d1d; color: #fff; border-radius: 0; }
+
+/* Aktywność: płaskie wpisy z akcentem, pierwsze 5 od razu, reszta w „Pokaż więcej” */
+body.kur-alt.ti-skin .kp-akt-lista > li + li { margin-top: .4rem; }
+body.kur-alt.ti-skin .kp-akt-lista article {
+  border: 0 !important; border-left: 4px solid #1ba1e2 !important; border-radius: 0 !important;
+  background: #fff; padding: .6rem .9rem !important;
+}
+body.kur-alt.ti-skin details > summary { cursor: pointer; color: #0f6fa8; font-weight: 600; text-decoration: underline; }
+
+/* Okienko „Dodaj lekcje do kalendarza”: płaskie, METRO (bez cienia, zaokrągleń, z akcentem) */
+body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) {
+  border: 0 !important; border-left: 6px solid #1ba1e2 !important; border-radius: 0 !important;
+  box-shadow: none !important; background: #fff;
+}
+body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .bg-primary,
+body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .text-bg-primary {
+  background: #1d1d1d !important; color: #fff !important; border-radius: 0 !important;
+}
+body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .btn-primary { background: #1d1d1d; border-color: #1d1d1d; border-radius: 0; color: #fff; }
+body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .btn-outline-light,
+body.kur-alt.ti-skin .position-fixed:has(#kpIcalPopupTitle) .btn-outline-secondary { border-radius: 0; }
