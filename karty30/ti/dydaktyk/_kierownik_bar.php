@@ -15,11 +15,16 @@
  * Zmienne wejściowe: $KIER_CUR — plik bieżącej strony (np. 'zetony.php'),
  *                    $KIER_LABEL — nazwa strony do okruszków,
  *                    $KIER_ITEMS — opcjonalne pozycje (tryb osadzony),
- *                    $KIER_EMBED — tryb osadzony (bool).
+ *                    $KIER_EMBED — tryb osadzony (bool),
+ *                    $KIER_FLAT  — pozycje jedną listą, bez grup (sekcje panelu inne niż Kierownik,
+ *                                  gdy kierownik pracuje w roli „Kierownik Instytucji”),
+ *                    $KIER_EXTRA_HTML — dodatkowy HTML pod listą (np. przyciski narzędzi sekcji).
  */
 $KIER_CUR   = $KIER_CUR   ?? '';
 $KIER_LABEL = $KIER_LABEL ?? '';
 $KIER_EMBED = !empty($KIER_EMBED);
+$KIER_FLAT  = !empty($KIER_FLAT);
+$KIER_EXTRA_HTML = $KIER_EXTRA_HTML ?? '';
 $KIER_TITLE = $KIER_TITLE ?? 'Kierownik';                       // nazwa menu (np. „Planista”)
 $KIER_CRUMB = $KIER_CRUMB ?? ['Kierownik', 'index.php?tab=grupy']; // drugi okruszek
 
@@ -171,6 +176,16 @@ $_kier_sections = [
     <summary aria-hidden="true"><i class="bi bi-list"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
     <div>
       <h2><?= h($KIER_TITLE) ?></h2>
+      <?php if ($KIER_FLAT): ?>
+        <?php foreach ($_kier_norm as $_i): ?>
+        <a href="<?= h($_i['href']) ?>"<?= $_i['active'] ? ' class="active" aria-current="page"' : '' ?><?= !empty($_i['blank']) ? ' target="_blank" rel="noopener"' : '' ?>>
+          <i class="bi bi-<?= h($_i['icon']) ?>" aria-hidden="true"></i><?= h($_i['label']) ?>
+          <?php if (!empty($_i['n'])): ?><span class="badge text-bg-<?= h($_i['v'] ?: 'secondary') ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
+          <?php if (!empty($_i['blank']) && empty($_i['n'])): ?><i class="bi bi-box-arrow-up-right kier-ext" aria-hidden="true"></i><?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+        <?= $KIER_EXTRA_HTML ?>
+      <?php else: ?>
       <?php foreach ($_kier_order as $_g):
         if (empty($_kier_by_grp[$_g])) continue;
         $_grp_open = array_filter($_kier_by_grp[$_g], fn($x) => !empty($x['active'])) ? ' open' : '';
@@ -188,6 +203,7 @@ $_kier_sections = [
         </div>
       </details>
       <?php endforeach; ?>
+      <?php endif; /* $KIER_FLAT */ ?>
 
       <?php if (!$KIER_EMBED): ?>
       <?php if (empty($GLOBALS['DYD_HEADER_NAV'])): // sekcje zwykle są już w pasku górnym (_nav.php) ?>

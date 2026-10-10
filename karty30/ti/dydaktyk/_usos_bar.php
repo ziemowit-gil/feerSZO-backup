@@ -185,9 +185,11 @@ foreach ($_cur_sec['items'] as $_i) {
 </nav>
 <?php endif; ?>
 
-<?php if ($_usos_cur === 'kierownik'):
+<?php if ($_usos_cur === 'kierownik' || (function_exists('dyd_is_staff') && dyd_is_staff())):
   // Pozycje sekcji Kierownik idą do MENU BOCZNEGO (jak na stronach zetony/okresy/
   // billing), nie do poziomego rzędu — lista jest za długa na jeden wiersz.
+  // W roli „Kierownik Instytucji” menu boczne mają też pozostałe sekcje (Mój panel, Kurs,
+  // Komunikacja, Zasoby) — jedną listą, bez grup ($KIER_FLAT).
   $_kier_icons = [
       'Przegląd grup'             => 'people',
       'Podgląd klientów'          => 'person-lines-fill',
@@ -216,17 +218,44 @@ foreach ($_cur_sec['items'] as $_i) {
       'Dni wolne'                 => 'calendar-x',
       'Wyłączenia panelu'         => 'moon',
       'Zespół i role'             => 'person-gear',
+      'Certyfikaty prowadzących'  => 'shield-check',
+      'Testy'                     => 'bug',
       'Pełny panel TI'            => 'box-arrow-up-right',
+      // pozostałe sekcje (menu boczne kierownika)
+      'Pulpit'                    => 'house',
+      'Gdzie co jest'             => 'signpost-split',
+      'Frekwencja grup'           => 'graph-up',
+      'Dostępność'                => 'calendar-check',
+      'Zapisy na zajęcia'         => 'ticket-perforated',
+      'Protokoły'                 => 'clipboard-check',
+      'Protokoły zajęć'           => 'journal-check',
+      'Moje zgłoszenia'           => 'inbox',
+      'Moje godziny'              => 'hourglass-split',
+      'Wydruki'                   => 'printer',
+      'Wiadomości'                => 'chat-dots',
+      'Komunikaty'                => 'megaphone',
+      'Mój dysk'                  => 'hdd',
+      'Zajętość Zoom'             => 'camera-video',
+      'Biblioteka materiałów'     => 'collection',
+      'Pełny moduł TI'            => 'box-arrow-up-right',
   ];
   $KIER_ITEMS = [];
   foreach ($_cur_sec['items'] as $_i) {
       $KIER_ITEMS[] = ['label' => $_i['label'], 'href' => $_i['href'],
-                       'icon'  => $_kier_icons[$_i['label']] ?? 'dot',
+                       'icon'  => $_kier_icons[$_i['label']] ?? 'chevron-right',
                        'n'     => (int)$_i['n'], 'v' => $_i['v'], 'blank' => $_i['blank'],
                        'active'=> ($_i['tab'] !== '' && $_i['tab'] === $tab)];
   }
   $KIER_EMBED = true;
   $KIER_LABEL = $_cur_label;
+  $KIER_FLAT  = $_usos_cur !== 'kierownik';
+  if ($KIER_FLAT) $KIER_TITLE = $_cur_sec['label'];
+  // Narzędzia Pulpitu (Powiadomienia, Tour powitalny) — w menu bocznym pod listą.
+  $KIER_EXTRA_HTML = $_usos_cur === 'start'
+      ? '<h2>Narzędzia</h2>'
+        . '<a href="#" onclick="window.dydShowFlashPref && window.dydShowFlashPref(); return false;" role="button"><i class="bi bi-bell" aria-hidden="true"></i>Powiadomienia</a>'
+        . '<a href="#" onclick="window.dydStartTour && window.dydStartTour(); return false;" role="button"><i class="bi bi-signpost" aria-hidden="true"></i>Tour powitalny</a>'
+      : '';
   include __DIR__ . '/_kierownik_bar.php';
 else: ?>
 <nav class="skin-subnav" aria-label="Pozycje sekcji <?= h($_cur_sec['label']) ?>">
