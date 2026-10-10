@@ -108,7 +108,23 @@ foreach ($_cur_sec['items'] as $_i) {
     if ($_i['tab'] === $tab) { $_cur_label = $_i['label']; break; }
 }
 ?>
-<?php if (($KUR_NAV ?? 'zakladki') === 'rozwijane'): ?>
+<?php if (($KUR_NAV ?? 'zakladki') === 'dropdown'): ?>
+<nav class="skin-dropdowns" aria-label="Sekcje panelu">
+  <?php foreach ($_alt_sections as $_k => $_s): ?>
+  <div class="dropdown">
+    <button class="skin-dd-btn<?= $_alt_cur === $_k ? ' active' : '' ?>" type="button" id="dd-<?= h($_k) ?>" data-bs-toggle="dropdown" aria-expanded="false"><?= h($_s['label']) ?></button>
+    <ul class="dropdown-menu rounded-0" aria-labelledby="dd-<?= h($_k) ?>">
+      <?php foreach ($_s['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
+      <li><a class="dropdown-item<?= $_act ? ' active' : '' ?>" href="<?= h($_i['href']) ?>"<?= $_act ? ' aria-current="page"' : '' ?>><?= h($_i['label']) ?><?php if ($_i['n'] > 0): ?> <span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?></a></li>
+      <?php endforeach; ?>
+      <?php if ($_alt_cur === 'konto' && $_k === 'konto'): ?>
+      <li><a class="dropdown-item" href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a></li>
+      <?php endif; ?>
+    </ul>
+  </div>
+  <?php endforeach; ?>
+</nav>
+<?php elseif (($KUR_NAV ?? 'zakladki') === 'rozwijane'): ?>
 <details class="skin-menu-rozwijane" aria-label="Menu panelu">
   <summary><?= h($_cur_sec['label']) ?><?= $_cur_label !== '' ? ' — ' . h($_cur_label) : '' ?></summary>
   <ul class="skin-menu-lista">

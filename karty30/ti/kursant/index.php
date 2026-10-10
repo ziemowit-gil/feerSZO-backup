@@ -2569,6 +2569,10 @@ document.addEventListener('DOMContentLoaded', function() {
       $kbW = ($kaW / $_kn) - 5;
       $kGap = ($kaW - $kbW * $_kn) / ($_kn + 1);
   ?>
+  <?php if ($KUR_UI === 'alt'): /* widok alternatywny: wykres na żądanie */ ?>
+  <details class="mb-4">
+    <summary class="btn btn-sm btn-outline-secondary mb-2">Pokaż frekwencję miesięczną</summary>
+  <?php endif; ?>
   <div class="card mb-4">
     <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
       <i class="bi bi-bar-chart-line text-primary" aria-hidden="true"></i>
@@ -2621,6 +2625,7 @@ document.addEventListener('DOMContentLoaded', function() {
       </table>
     </div>
   </div>
+  <?php if ($KUR_UI === 'alt'): ?></details><?php endif; ?>
   <?php endif; ?>
 
   <!-- ── Mini-kalendarz lekcji ──────────────────────────────────────────── -->
@@ -2703,7 +2708,10 @@ document.addEventListener('DOMContentLoaded', function() {
       if (icon) { icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up'); }
     }
   }
-  applyState(localStorage.getItem(KEY) === '1');
+  // Widok alternatywny: kalendarz domyślnie zwinięty (na żądanie), dopóki kursant nie zmieni stanu
+  var ZWINIETY_DOMYSLNIE = <?= $KUR_UI === 'alt' ? 'true' : 'false' ?>;
+  var zapis = localStorage.getItem(KEY);
+  applyState(zapis === null ? ZWINIETY_DOMYSLNIE : zapis === '1');
   if (btn) btn.addEventListener('click', function(){
     var collapsed = localStorage.getItem(KEY) !== '1';
     localStorage.setItem(KEY, collapsed ? '1' : '0');
