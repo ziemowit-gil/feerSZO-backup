@@ -30,6 +30,7 @@ function ti_student_onboarding_grupy(int $client_id): array {
            JOIN k30_ti_courses c ON c.id = e.course_id
            LEFT JOIN users u ON u.id = c.instructor_id
           WHERE e.client_id = ? AND e.status = 'active'
+            AND c.group_code <> ''   -- grupy bez numeru to dawne (# numer kursu) — poza mailingiem
           ORDER BY c.name",
         [$client_id]
     );
