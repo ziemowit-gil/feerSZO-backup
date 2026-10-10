@@ -189,11 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'notes'  => (string)($_POST['ap_notes']  ?? ''),
                 'reason' => (string)($_POST['ap_reason'] ?? ''),
             ];
-            if (empty($_POST['ap_consent'])) {
-                $_SESSION['authp_flash'] = ['err', 'Zaznacz oświadczenie, że upoważniasz tę osobę do wglądu w Twój panel.'];
-                $_SESSION['authp_form']  = $ap_form + ['field' => 'consent'];
-                header('Location: index.php?tab=upowaznieni#authp-form'); exit;
-            }
+            // Oświadczenie (podpis) nie jest wymagane — upoważnienie dodaje się samym formularzem
             // added_by_name puste = upoważnienie od kursanta (tak rozróżnia je wydruk authp_print.php)
             $ap_res = ti_authp_create($ap_form, $ap_sid, '');
             if (empty($ap_res['ok'])) {
@@ -6085,15 +6081,6 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
                     rows="2" maxlength="400" required aria-describedby="ap_reason_help"
                     <?= $authp_err_f === 'reason' ? 'aria-invalid="true" autofocus' : '' ?>><?= h($authp_form['reason'] ?? '') ?></textarea>
           <div id="ap_reason_help" class="form-text">Np. „pomoc w pilnowaniu terminów zajęć i płatności”.</div>
-        </div>
-        <div class="col-12">
-          <div class="form-check">
-            <input class="form-check-input<?= $authp_err_f === 'consent' ? ' is-invalid' : '' ?>" type="checkbox" id="ap_consent" name="ap_consent" value="1" required
-                   <?= $authp_err_f === 'consent' ? 'aria-invalid="true" autofocus' : '' ?>>
-            <label class="form-check-label" for="ap_consent">
-              Oświadczam, że upoważniam tę osobę do wglądu w mój panel kursanta (lekcje, frekwencja, rozliczenia) <span class="small">(wymagane)</span>
-            </label>
-          </div>
         </div>
         <div class="col-12">
           <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Upoważnij osobę</button>
