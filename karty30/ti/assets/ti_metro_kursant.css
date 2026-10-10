@@ -177,3 +177,20 @@ body.kur-alt.ti-skin .skin-dropdowns .dropdown-menu {
   box-shadow: 0 6px 16px rgba(0,0,0,.18);
 }
 body.kur-alt.ti-skin .skin-dropdowns .dropdown-item.active { background: #1d1d1d; color: #fff; }
+
+/* Nagłówki kart są ciemne: ikony w nich muszą być jasne (była niebieska na czarnym, prawie niewidoczna) */
+body.kur-alt.ti-skin .card-header i,
+body.kur-alt.ti-skin .card-header .text-primary { color: #fff !important; }
+
+/* Ustawienia: zakładki sekcji jako poziome kafle METRO zamiast pionowej listy */
+body.kur-alt.ti-skin .ust-layout > [class*="col-"] { width: 100%; max-width: 100%; flex: 0 0 100%; padding-right: 0 !important; }
+body.kur-alt.ti-skin .ust-layout > .col-md-9 { margin-top: 1rem; }
+body.kur-alt.ti-skin .ust-sidenav { flex-direction: row !important; flex-wrap: wrap; gap: 0 !important; background: #1d1d1d; }
+body.kur-alt.ti-skin .ust-navlink {
+  background: #1d1d1d !important; color: #fff !important; border: 0 !important; border-radius: 0 !important;
+  border-bottom: 4px solid transparent !important; padding: .7rem 1rem !important; font-weight: 600; text-decoration: none;
+}
+body.kur-alt.ti-skin .ust-navlink:hover, body.kur-alt.ti-skin .ust-navlink:focus-visible {
+  background: #2b2b2b !important; border-bottom-color: #1ba1e2 !important; text-decoration: underline;
+}
+body.kur-alt.ti-skin .ust-navlink i { color: #fff !important; }

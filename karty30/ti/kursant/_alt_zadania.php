@@ -61,6 +61,20 @@ usort($hw_rows, function ($a, $b) {
 $counts = ['overdue' => 0, 'todo' => 0, 'upcoming' => 0, 'closed' => 0, 'done' => 0, 'graded' => 0];
 foreach ($hw_rows as $r) { $counts[$r['key']]++; }
 
+// Dwa kroki: 1) wybór lekcji (lista), 2) materiały i zadania tej jednej lekcji.
+// Krok 2 idzie adresem `?tab=zadania&lekcja=ID` (ID = session_id, 0 = bez lekcji).
+$lekcja_id = isset($_GET['lekcja']) ? (int)$_GET['lekcja'] : null;
+$lekcja_grupa = null;
+if ($lekcja_id !== null) {
+    foreach (($dyd_groups ?? []) as $g) {
+        if ((int)$g['session_id'] === $lekcja_id) { $lekcja_grupa = $g; break; }
+    }
+    if ($lekcja_grupa === null) $lekcja_id = null;   // nieznana lekcja → wracamy do listy
+}
+if ($lekcja_id !== null) {
+    $hw_rows = array_values(array_filter($hw_rows, fn($r) => (int)($r['h']['session_id'] ?? 0) === $lekcja_id));
+}
+
 // Wybrane zadanie: z adresu, a gdy brak/nie istnieje — pierwsze z listy (najpilniejsze)
 $sel_id  = (int)($_GET['hw'] ?? 0);
 $sel_row = null;
@@ -92,6 +106,53 @@ if ($sel_row) {
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij"></button>
 </div>
 <?php endif; ?>
+
+<?php if ($lekcja_id === null): ?>
+
+<h2 class="h6 fw-bold mb-2">Wybierz lekcję</h2>
+<?php if (!$dyd_groups): ?>
+<div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak lekcji z materiałami i zadaniami.</div>
+<?php else: ?>
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <caption class="visually-hidden">Lekcje z materiałami i zadaniami</caption>
+    <thead>
+      <tr>
+        <th scope="col">Data</th>
+        <th scope="col">Lekcja</th>
+        <th scope="col">Materiały</th>
+        <th scope="col">Zadania do oddania</th>
+        <th scope="col"><span class="visually-hidden">Otwórz</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($dyd_groups as $g):
+        $_sid  = (int)$g['session_id'];
+        $_dnia = substr((string)$g['date'], 0, 10);
+        $_do   = 0;
+        foreach ($g['homeworks'] as $_hh) { if (empty($_hh['sub_id'])) $_do++; }
+        $_tytul = (string)$g['topic'] !== '' ? (string)$g['topic'] : ($_sid === 0 ? 'Bez przypisanej lekcji' : 'Lekcja');
+      ?>
+      <tr>
+        <td><?= $_dnia !== '' ? '<time datetime="' . h($_dnia) . '">' . h($_dnia) . '</time>' : '—' ?></td>
+        <td><?= h($_tytul) ?><?php if ($g['course_name'] !== ''): ?><span class="d-block small text-body-secondary"><?= h($g['course_name']) ?></span><?php endif; ?></td>
+        <td><?= count($g['materials']) ?></td>
+        <td><?= $_do ?> z <?= count($g['homeworks']) ?></td>
+        <td class="text-end"><a href="?tab=zadania&amp;lekcja=<?= $_sid ?>">Otwórz lekcję<span class="visually-hidden"> z dnia <?= h($_dnia !== '' ? $_dnia : 'bez daty') ?></span></a></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+<?php endif; ?>
+
+<?php else: ?>
+
+<p class="mb-2"><a href="?tab=zadania">&larr; Wszystkie lekcje</a></p>
+<h2 class="h6 fw-bold mb-3">
+  <?= h((string)$lekcja_grupa['topic'] !== '' ? (string)$lekcja_grupa['topic'] : ($lekcja_id === 0 ? 'Bez przypisanej lekcji' : 'Lekcja')) ?>
+  <?php if ((string)$lekcja_grupa['date'] !== ''): ?><span class="fw-normal text-body-secondary"> · <?= h(substr((string)$lekcja_grupa['date'], 0, 10)) ?></span><?php endif; ?>
+</h2>
 
 <?php if (!$hw_rows && !($dyd_groups ?? [])): ?>
 <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak materiałów i zadań od prowadzącego.</div>
@@ -287,4 +348,5 @@ if ($all_mats): ?>
 </div>
 <?php endif; ?>
 
+<?php endif; ?>
 <?php endif; ?>
