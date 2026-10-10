@@ -697,6 +697,12 @@ if ($_sms_enabled && $cur_course) {
                     <i class="bi bi-x-circle me-2"></i>Odwołaj lekcję
                   </a></li>
                   <?php endif; ?>
+                  <?php if (dyd_is_staff()): ?>
+                  <li><a class="dropdown-item text-danger" href="#"
+                         onclick="dydOpenDelSession(<?= (int)$s['id'] ?>,<?= htmlspecialchars(json_encode(date('d.m.Y',$sdate).($s['time_from']?' '.h($s['time_from']):'')),ENT_QUOTES) ?>);return false">
+                    <i class="bi bi-trash me-2"></i>Usuń lekcję (kosz, z uzasadnieniem)
+                  </a></li>
+                  <?php endif; ?>
                   <?php if ($s['status'] === 'cancelled'): ?>
                   <li><hr class="dropdown-divider"></li>
                   <li>
@@ -1493,6 +1499,90 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('dydIcalPopupGo').addEventListener('click', dismiss);
 });
 </script>
+
+<?php if (dyd_is_staff() && $cur_course): ?>
+<!-- Modal: usunięcie lekcji przez kierownika (także z przeszłości) — wymaga uzasadnienia -->
+<div class="modal fade" id="dydDelSessionModal" tabindex="-1" aria-labelledby="dydDelSession_t" aria-hidden="true">
+  <div class="modal-dialog"><form method="post" class="modal-content">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <input type="hidden" name="_op" value="delete_lesson">
+    <input type="hidden" name="_tab" value="lekcje">
+    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+    <input type="hidden" name="session_id" id="ds_sid" value="">
+    <div class="modal-header">
+      <h5 class="modal-title" id="dydDelSession_t"><i class="bi bi-trash text-danger me-2"></i>Usunięcie lekcji</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+    </div>
+    <div class="modal-body">
+      <p class="mb-2">Lekcja: <strong id="ds_label"></strong></p>
+      <p class="text-body-secondary small mb-2">Lekcja trafi do kosza i może zostać przywrócona. Operacja zostanie zapisana w dzienniku grupy wraz z uzasadnieniem.</p>
+      <label class="form-label fw-semibold" for="ds_reason">Uzasadnienie (min. 10 znaków)</label>
+      <textarea class="form-control" id="ds_reason" name="reason" rows="3" required minlength="10" placeholder="np. lekcja wprowadzona omyłkowo jako duplikat…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+      <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Usuń lekcję</button>
+    </div>
+  </form></div>
+</div>
+
+<!-- Kosz lekcji grupy (tylko kierownik): przywracanie z uzasadnieniem -->
+<?php
+  $_trash_rows = ti_session_trash_list((int)$cur_course);
+?>
+<div class="card mt-4" id="dydSessionTrash">
+  <div class="card-header d-flex align-items-center">
+    <i class="bi bi-trash3 me-2" aria-hidden="true"></i>
+    <strong>Kosz lekcji</strong>
+    <span class="badge bg-secondary ms-2"><?= count($_trash_rows) ?></span>
+  </div>
+  <div class="card-body p-0">
+    <?php if (!$_trash_rows): ?>
+      <div class="p-3 text-body-secondary small">Brak usuniętych lekcji w tej grupie.</div>
+    <?php else: ?>
+      <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Termin</th><th>Usunięto</th><th>Powód</th><th>Stan</th><th style="min-width:280px">Przywrócenie</th></tr></thead>
+        <tbody>
+        <?php foreach ($_trash_rows as $_tr):
+          $_snap = json_decode((string)$_tr['snapshot'], true) ?: [];
+          $_ts   = $_snap['session']['time_from'] ?? '';
+        ?>
+          <tr>
+            <td><?= h(date('d.m.Y', strtotime((string)$_tr['lesson_date']))) ?><?= $_ts ? ' ' . h($_ts) : '' ?></td>
+            <td class="small"><?= h((string)$_tr['deleted_at']) ?><br><span class="text-body-secondary"><?= h((string)$_tr['deleted_by_name']) ?></span></td>
+            <td class="small"><?= h((string)$_tr['reason']) ?></td>
+            <td class="small">
+              <?php if ($_tr['restored_at']): ?>
+                <span class="badge bg-success">Przywrócona</span><br>
+                <span class="text-body-secondary"><?= h((string)$_tr['restored_at']) ?> · <?= h((string)$_tr['restored_by_name']) ?></span><br>
+                <span class="text-body-secondary"><?= h((string)$_tr['restored_reason']) ?></span>
+              <?php else: ?>
+                <span class="badge bg-danger">W koszu</span>
+              <?php endif; ?>
+            </td>
+            <td>
+              <?php if (!$_tr['restored_at']): ?>
+              <form method="post" class="d-flex gap-2 align-items-start">
+                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                <input type="hidden" name="_op" value="restore_session">
+                <input type="hidden" name="_tab" value="lekcje">
+                <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+                <input type="hidden" name="trash_id" value="<?= (int)$_tr['id'] ?>">
+                <input type="text" class="form-control form-control-sm" name="reason" required minlength="10" placeholder="Uzasadnienie (min. 10 znaków)" aria-label="Uzasadnienie przywrócenia">
+                <button type="submit" class="btn btn-sm btn-outline-success text-nowrap"><i class="bi bi-arrow-counterclockwise me-1"></i>Przywróć</button>
+              </form>
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      </div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- Ukryty formularz akcji obecności -->
 <form method="post" id="dydAttAction" class="d-none">

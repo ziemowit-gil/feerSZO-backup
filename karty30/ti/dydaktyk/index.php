@@ -383,7 +383,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'confirm_cancel', 'reject_cancel', 'cancel_attendee', 'restore_attendee',
                     'mark_no_show', 'cancel_session', 'uncancel_session', 'reschedule_session',
                     'reschedule_accept', 'excuse_absence', 'unexcuse_absence', 'confirm_reservation'];
-    if (in_array($op, $_closed_ops, true) && ($_pc_s = ti_period_closed_for_session((int)($_POST['session_id'] ?? 0)))) {
+    // Kierownik usuwa lekcję z zamkniętego okresu świadomie — z uzasadnieniem (patrz blok kosza poniżej).
+    $_closed_bypass = $op === 'delete_lesson' && dyd_is_staff();
+    if (in_array($op, $_closed_ops, true) && !$_closed_bypass && ($_pc_s = ti_period_closed_for_session((int)($_POST['session_id'] ?? 0)))) {
         flash_set('danger', ti_period_closed_msg($_pc_s));
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
@@ -867,6 +869,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('danger', 'Brak uprawnień do tej lekcji.');
         }
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
+    }
+
+    // Kierownik: usuwanie i przywracanie lekcji (także z przeszłości) — wymaga uzasadnienia,
+    // usunięta lekcja trafia do kosza (snapshot), a każda operacja jest w dzienniku grupy i w audit_logs.
+    if (in_array($op, ['delete_lesson', 'restore_session'], true) && dyd_is_staff()) {
+        $reason = trim((string)($_POST['reason'] ?? ''));
+        $by_name = (string)($me['name'] ?? '');
+        $back = dyd_back($course_id, 'lekcje');
+        if (mb_strlen($reason) < 10) {
+            flash_set('danger', 'Podaj uzasadnienie (min. 10 znaków) — jest zapisywane w dzienniku.');
+            header('Location: ' . $back); exit;
+        }
+        if ($op === 'delete_lesson') {
+            $sid = (int)($_POST['session_id'] ?? 0);
+            $sess_row = $sid ? db_one("SELECT course_id, lesson_date, time_from FROM k30_ti_sessions WHERE id=?", [$sid]) : null;
+            if ($sess_row) {
+                $trash_id = ti_session_trash_put($sid, $reason, $uid, $by_name);
+                $label = date('d.m.Y', strtotime((string)$sess_row['lesson_date'])) . ($sess_row['time_from'] ? ' ' . $sess_row['time_from'] : '');
+                ti_course_log((int)$sess_row['course_id'], 'delete_session', 'Lekcja ' . $label . ' (kosz #' . $trash_id . '). Powód: ' . $reason, $uid, $by_name);
+                audit_log('ti.session_delete', ['session_id' => $sid, 'trash_id' => $trash_id, 'course_id' => (int)$sess_row['course_id'], 'lesson' => $label, 'reason' => $reason], $uid);
+                flash_set('success', 'Lekcja usunięta (jest w koszu — można ją przywrócić).');
+            }
+            header('Location: ' . $back); exit;
+        }
+        // restore_session
+        $trash_id = (int)($_POST['trash_id'] ?? 0);
+        $t_row = $trash_id ? db_one("SELECT course_id, lesson_date FROM k30_ti_session_trash WHERE id=? AND restored_at IS NULL", [$trash_id]) : null;
+        if ($t_row) {
+            $new_sid = ti_session_trash_restore($trash_id, $reason, $uid, $by_name);
+            if ($new_sid) {
+                $label = date('d.m.Y', strtotime((string)$t_row['lesson_date']));
+                ti_course_log((int)$t_row['course_id'], 'restore_session', 'Przywrócono lekcję z dnia ' . $label . ' (kosz #' . $trash_id . ', nowe id ' . $new_sid . '). Powód: ' . $reason, $uid, $by_name);
+                audit_log('ti.session_restore', ['trash_id' => $trash_id, 'session_id' => $new_sid, 'course_id' => (int)$t_row['course_id'], 'reason' => $reason], $uid);
+                flash_set('success', 'Lekcja przywrócona.');
+            }
+        }
+        header('Location: ' . $back); exit;
     }
 
     if ($op === 'delete_lesson') {
@@ -3811,6 +3850,13 @@ function dydOpenCancelSession(sid, label) {
   document.getElementById('cs_label').textContent = label || '';
   var t = document.getElementById('cs_reason'); if (t) t.value = '';
   new bootstrap.Modal(document.getElementById('cancelSessionModal')).show();
+}
+// Usunięcie lekcji przez kierownika — otwiera modal z uzasadnieniem.
+function dydOpenDelSession(sid, label) {
+  document.getElementById('ds_sid').value = sid;
+  document.getElementById('ds_label').textContent = label || '';
+  var t = document.getElementById('ds_reason'); if (t) t.value = '';
+  new bootstrap.Modal(document.getElementById('dydDelSessionModal')).show();
 }
 // Zmiana terminu lekcji — otwiera modal z bieżącym terminem.
 function dydOpenReschedule(sid, label, date, from, to) {

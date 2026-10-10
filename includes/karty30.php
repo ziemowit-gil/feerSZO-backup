@@ -2561,6 +2561,8 @@ const K30_TI_COURSE_LOG_ACTIONS = [
     'transfer_in'  => ['label' => 'Przyjęto zajęcia/link',     'icon' => 'box-arrow-in-left', 'color' => 'info'],
     'convert_type' => ['label' => 'Zmieniono typ kursu',        'icon' => 'arrow-left-right',  'color' => 'warning'],
     'clear_sessions' => ['label' => 'Wyczyszczono terminy',    'icon' => 'calendar-x',        'color' => 'warning'],
+    'delete_session'  => ['label' => 'Usunięto lekcję (kosz)', 'icon' => 'trash',             'color' => 'danger'],
+    'restore_session' => ['label' => 'Przywrócono lekcję',     'icon' => 'arrow-counterclockwise', 'color' => 'success'],
     'enroll'       => ['label' => 'Zapisano uczestnika',       'icon' => 'person-plus',       'color' => 'success'],
 ];
 
@@ -2593,6 +2595,111 @@ function ti_course_log(int $course_id, string $action, string $detail = '', int 
             'by_name'    => mb_substr(trim($by_name), 0, 140),
         ]);
     } catch (\Throwable $e) {}
+}
+
+/**
+ * Kosz lekcji: usunięta lekcja zapisuje się tu jako snapshot (wiersz lekcji + obecność,
+ * oceny, powiązania z planem), żeby kierownik mógł ją przywrócić. Wpis nigdy nie jest
+ * kasowany — po przywróceniu dostaje tylko `restored_at`.
+ */
+function ti_session_trash_migrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_session_trash (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id       INTEGER NOT NULL,
+        course_id        INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        lesson_date      DATE    NOT NULL,
+        snapshot         TEXT    NOT NULL,
+        reason           TEXT    NOT NULL DEFAULT '',
+        deleted_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        deleted_by_name  TEXT    NOT NULL DEFAULT '',
+        deleted_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+        restored_at      DATETIME,
+        restored_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        restored_by_name TEXT    NOT NULL DEFAULT '',
+        restored_reason  TEXT    NOT NULL DEFAULT ''
+    )");
+    db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_session_trash_course ON k30_ti_session_trash(course_id, deleted_at)");
+}
+
+/** Tabele podrzędne lekcji kopiowane do snapshotu (brakująca tabela = pomijana). */
+const K30_TI_SESSION_CHILD_TABLES = ['k30_ti_attendance', 'k30_ti_lesson_ratings', 'k30_ti_session_curriculum'];
+
+/**
+ * Usuwa lekcję do kosza razem z uzasadnieniem. Zwraca id wpisu kosza albo 0, gdy lekcji nie ma.
+ * Wszystko w jednej transakcji — nie ma stanu „lekcja usunięta, a kosz pusty".
+ */
+function ti_session_trash_put(int $session_id, string $reason, int $by_uid, string $by_name): int {
+    ti_session_trash_migrate();
+    $sess = db_one("SELECT * FROM k30_ti_sessions WHERE id=?", [$session_id]);
+    if (!$sess) return 0;
+    $snap = ['session' => $sess];
+    foreach (K30_TI_SESSION_CHILD_TABLES as $tbl) {
+        try { $snap[$tbl] = db_all("SELECT * FROM $tbl WHERE session_id=?", [$session_id]); }
+        catch (\Throwable $e) { $snap[$tbl] = []; }
+    }
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        db_insert('k30_ti_session_trash', [
+            'session_id'      => $session_id,
+            'course_id'       => (int)$sess['course_id'],
+            'lesson_date'     => (string)$sess['lesson_date'],
+            'snapshot'        => json_encode($snap, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+            'reason'          => mb_substr(trim($reason), 0, 1000),
+            'deleted_by'      => $by_uid ?: null,
+            'deleted_by_name' => mb_substr(trim($by_name), 0, 140),
+        ]);
+        $trash_id = (int)$pdo->lastInsertId();
+        db_exec("DELETE FROM k30_ti_sessions WHERE id=?", [$session_id]);
+        $pdo->commit();
+        return $trash_id;
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/** Przywraca lekcję z kosza jako NOWĄ lekcję (nowe id). Zwraca nowe id sesji albo null. */
+function ti_session_trash_restore(int $trash_id, string $reason, int $by_uid, string $by_name): ?int {
+    ti_session_trash_migrate();
+    $t = db_one("SELECT * FROM k30_ti_session_trash WHERE id=? AND restored_at IS NULL", [$trash_id]);
+    if (!$t) return null;
+    $snap = json_decode((string)$t['snapshot'], true) ?: [];
+    $sess = $snap['session'] ?? null;
+    if (!$sess) return null;
+    unset($sess['id']);
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $new_id = db_insert('k30_ti_sessions', $sess);
+        foreach (K30_TI_SESSION_CHILD_TABLES as $tbl) {
+            foreach ((array)($snap[$tbl] ?? []) as $row) {
+                unset($row['id']);
+                $row['session_id'] = $new_id;
+                db_insert($tbl, $row);
+            }
+        }
+        db_exec("UPDATE k30_ti_session_trash SET restored_at=CURRENT_TIMESTAMP, restored_by=?, restored_by_name=?, restored_reason=? WHERE id=?",
+            [$by_uid ?: null, mb_substr(trim($by_name), 0, 140), mb_substr(trim($reason), 0, 1000), $trash_id]);
+        $pdo->commit();
+        return $new_id;
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/** Kosz lekcji grupy — najnowsze usunięcia najpierw. */
+function ti_session_trash_list(int $course_id): array {
+    ti_session_trash_migrate();
+    return db_all(
+        "SELECT id, session_id, lesson_date, reason, deleted_at, deleted_by_name, restored_at, restored_by_name, restored_reason, snapshot
+           FROM k30_ti_session_trash WHERE course_id=? ORDER BY deleted_at DESC, id DESC LIMIT 200",
+        [$course_id]
+    );
 }
 
 /** Wpisy dziennika — $course_id=0 zwraca log wszystkich grup (przegląd kierownika). */
