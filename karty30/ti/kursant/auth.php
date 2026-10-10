@@ -148,13 +148,23 @@ function student_token_check(): void {
 // ma osobną sesję i konto bez wpisu w `users`, więc preferencja nie mieści się
 // w user_prefs (tam siedzi wybór panelu dydaktyka) — idzie kolumną na koncie.
 
-/** Widok panelu kursanta: 'alt' albo 'klasyczny' (domyślnie klasyczny). */
+/** Od tej chwili widok alternatywny jest domyślnym (nowym) widokiem panelu kursanta. */
+const STUDENT_UI_ALT_DEFAULT_OD = '2026-11-01 00:00:00';
+
+/**
+ * Widok panelu kursanta: 'alt' albo 'klasyczny'.
+ * Bez zapisanego wyboru: od 01.11.2026 'alt' (nowy widok), wcześniej 'klasyczny'.
+ * Zapisany wybór kursanta ma pierwszeństwo.
+ */
 function student_ui(int $accountId): string {
-    if ($accountId <= 0) return 'klasyczny';
+    $domyslny = (date('Y-m-d H:i:s') >= STUDENT_UI_ALT_DEFAULT_OD) ? 'alt' : 'klasyczny';
+    if ($accountId <= 0) return $domyslny;
     try {
         $r = db_one("SELECT ui_pref FROM k30_ti_student_accounts WHERE id=?", [$accountId]);
-    } catch (\Throwable $e) { return 'klasyczny'; }
-    return (($r['ui_pref'] ?? '') === 'alt') ? 'alt' : 'klasyczny';
+    } catch (\Throwable $e) { return $domyslny; }
+    $pref = (string)($r['ui_pref'] ?? '');
+    if ($pref === 'alt' || $pref === 'klasyczny') return $pref;
+    return $domyslny;
 }
 
 /** Zapis wyboru widoku panelu kursanta. */
