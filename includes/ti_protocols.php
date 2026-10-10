@@ -47,6 +47,8 @@ function ti_protocols_migrate(): void {
     static $done = false;
     if ($done) return;
     $done = true;
+    require_once dirname(__DIR__) . '/modules/ti_meetings/logic/tiMeetingsSchema.php';
+    ti_meetings_migrate();                                              // nowe tabele spotkań (obok, nie zamiast danych godzinowych)
     if (szo_schema_current('ti_protocols_migrate', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_protocols (
