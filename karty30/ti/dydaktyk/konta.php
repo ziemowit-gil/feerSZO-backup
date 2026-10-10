@@ -941,7 +941,7 @@ if ($active_tab === 'upowaznieni' && !$authp_account) $active_tab = 'ogolne';
 
 $KP_TITLE  = 'Konta kursantów — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $dyd_name, 'logout' => 'logout.php'];
-$KP_BODY_CLASS = 'dyd-usos ti-skin';
+$KP_BODY_CLASS = 'dyd-usos ti-skin dyd-konta';
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
