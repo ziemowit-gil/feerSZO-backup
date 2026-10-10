@@ -8,8 +8,12 @@
 require_once dirname(__DIR__, 3) . '/includes/auth.php'; // csrf_token() dla formularza typu menu
 
 $_st_glowne_klucze = ['lekcje', 'zadania', 'komunikaty', 'oceny'];
-// Kolory kafli (paleta Start): ciemny tekst #1d1d1d na każdym z nich ma kontrast ≥ 4,5:1
-$_w8_kolory = ['#1ba1e2', '#a4c400', '#f0a30a', '#00aba9', '#fcd116', '#e671b8', '#60a917'];
+// Kolory kafli: ciemny tekst #1d1d1d na każdym ma kontrast ≥ 4,5:1.
+// Najważniejsze — zawsze akcent METRO; grupy — jeden stały kolor na grupę (po etykiecie), reszta z palety.
+$_w8_akcent = '#1ba1e2';
+$_w8_grupy  = ['Mój panel' => '#00aba9', 'Szkolenia' => '#a4c400', 'Komunikacja' => '#f0a30a',
+               'Dostępy' => '#e3c800', 'Sprawy' => '#fa6800', 'Konto' => '#cfd8dc'];
+$_w8_kolory = ['#00aba9', '#a4c400', '#f0a30a', '#e3c800', '#fa6800', '#cfd8dc'];
 
 /** Ikona kafla: po kluczu zakładki, a gdy go brak (linki zewnętrzne) — po etykiecie. */
 $_st_ikona = function (array $p) use ($_ikony): string {
@@ -115,7 +119,7 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
       <h2 class="kp-w8-naglowek" id="kp-w8-g-glowne">Najważniejsze</h2>
       <ul class="kp-w8-siatka">
         <?php foreach ($_st_glowne as $_i => $_k): ?>
-        <li class="kp-w8-kafel kp-w8-szeroki" style="--kolor: <?= $_w8_kolory[$_i % count($_w8_kolory)] ?>">
+        <li class="kp-w8-kafel kp-w8-szeroki" style="--kolor: <?= $_w8_akcent ?>">
           <a href="<?= h($_k['href']) ?>">
             <i class="bi bi-<?= h($_st_ikona($_k)) ?> kp-w8-ikona" aria-hidden="true"></i>
             <span class="kp-w8-tytul"><?= h($_k['etykieta']) ?></span>
@@ -127,7 +131,7 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
     </section>
 
     <!-- Sekcje menu -->
-    <?php foreach ($_st_sekcje as $_si => $_sec): $_sid = 'kp-w8-g-' . $_si; $_kol = $_w8_kolory[($_si + 4) % count($_w8_kolory)]; ?>
+    <?php foreach ($_st_sekcje as $_si => $_sec): $_sid = 'kp-w8-g-' . $_si; $_kol = $_w8_grupy[$_sec['label']] ?? $_w8_kolory[$_si % count($_w8_kolory)]; ?>
     <section class="kp-w8-grupa" aria-labelledby="<?= $_sid ?>">
       <h2 class="kp-w8-naglowek" id="<?= $_sid ?>"><?= h($_sec['label']) ?></h2>
       <ul class="kp-w8-siatka">
