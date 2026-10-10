@@ -36,6 +36,13 @@ $cert_html = $cert
     : '<p class="small mb-3 text-body-secondary">Nie masz aktywnego certyfikatu — zostanie wystawiony nowy.</p>';
 
 // Ustawienie własnego hasła: nowy certyfikat z tym hasłem, stare certyfikaty odwołane.
+// Przed jakąkolwiek zmianą (także odwołaniem starego certyfikatu) sprawdzamy termin otwarcia.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !ti_cert_generation_open()) {
+    dyd_token_check();
+    flash_set('danger', ti_cert_generation_info());
+    header('Location: moj_certyfikat.php'); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'pwd') {
     dyd_token_check();
     $p1 = (string)($_POST['new_password'] ?? '');
@@ -98,6 +105,9 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     <p class="mb-2">Status: <?= $ma ? '<span class="badge bg-success">aktywny</span>' : '<span class="badge bg-secondary">brak</span>' ?></p>
+    <?php if (!ti_cert_generation_open()): ?>
+    <div class="alert alert-info small py-2"><i class="bi bi-calendar-event" aria-hidden="true"></i> <?= h(ti_cert_generation_info()) ?></div>
+    <?php endif; ?>
 
     <?php if ($brak_email): ?>
     <div class="alert alert-warning small py-2">Konto nie ma adresu e-mail. Poproś kierownika o jego uzupełnienie.</div>
@@ -112,7 +122,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       <label class="form-label small mb-1" for="myPhone">Numer telefonu (na niego przyjdzie hasło)</label>
       <input type="tel" class="form-control form-control-sm mb-2" id="myPhone" name="phone" style="max-width:14rem" required>
       <?php endif; ?>
-      <button type="submit" class="btn <?= $ma ? 'btn-outline-warning' : 'btn-primary' ?>">
+      <button type="submit" class="btn <?= $ma ? 'btn-outline-warning' : 'btn-primary' ?>" <?= ti_cert_generation_open() ? '' : 'disabled' ?>>
         <i class="bi bi-<?= $ma ? 'arrow-repeat' : 'key' ?> me-1" aria-hidden="true"></i><?= $ma ? 'Wygeneruj nowy certyfikat' : 'Wygeneruj certyfikat' ?>
       </button>
     </form>
@@ -128,7 +138,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       <li><strong>Własne hasło</strong> — ustawiasz je sam w okienku. Plik z nowym hasłem przychodzi mailem.</li>
     </ul>
     <?php if (!$brak_email): ?>
-    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ustawHaslo">
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ustawHaslo" <?= ti_cert_generation_open() ? '' : 'disabled' ?>>
       <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Ustaw własne hasło
     </button>
     <?php endif; ?>

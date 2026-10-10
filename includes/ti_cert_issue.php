@@ -20,6 +20,19 @@ function ti_cert_tmp_dir(): string {
     return $dir;
 }
 
+/** Data, od której można wystawiać certyfikaty do podpisu (RRRR-MM-DD). */
+const TI_CERT_GENERATION_FROM = '2026-10-11';
+
+/** Czy wystawianie certyfikatów jest już otwarte. */
+function ti_cert_generation_open(): bool {
+    return date('Y-m-d') >= TI_CERT_GENERATION_FROM;
+}
+
+/** Komunikat o terminie otwarcia (np. „od 11.10.2026”). */
+function ti_cert_generation_info(): string {
+    return 'Wystawianie certyfikatów będzie możliwe od ' . date('d.m.Y', strtotime(TI_CERT_GENERATION_FROM)) . '.';
+}
+
 /** Osoby, które mogą dostać certyfikat: prowadzący przypisani do kursów, aktywne konta. */
 function ti_cert_instructors(): array {
     return db_all(
@@ -128,6 +141,7 @@ function ti_cert_deliver(int $uid, string $name, string $email, string $phone, s
  * Wymaga aktywnego konta z e-mailem i telefonem.
  */
 function ti_cert_issue_for_instructor(int $target_id, string $issuer_name): array {
+    if (!ti_cert_generation_open()) return ['ok' => false, 'error' => ti_cert_generation_info()];
     $u = db_one("SELECT id, name, email, phone_number FROM users WHERE id = ? AND is_active = 1", [$target_id]);
     if (!$u) return ['ok' => false, 'error' => 'Nie ma takiego aktywnego konta.'];
     if (trim((string)$u['email']) === '') return ['ok' => false, 'error' => 'Prowadzący nie ma adresu e-mail w koncie.'];
@@ -160,6 +174,7 @@ function ti_cert_password_error(string $p): ?string {
 }
 
 function ti_cert_set_own_password(int $uid, string $new_password): array {
+    if (!ti_cert_generation_open()) return ['ok' => false, 'error' => ti_cert_generation_info()];
     $u = db_one("SELECT id, name, email, phone_number FROM users WHERE id = ? AND is_active = 1", [$uid]);
     if (!$u) return ['ok' => false, 'error' => 'Nie ma takiego aktywnego konta.'];
     if (trim((string)$u['email']) === '') return ['ok' => false, 'error' => 'W koncie brakuje adresu e-mail.'];
