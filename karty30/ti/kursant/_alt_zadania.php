@@ -98,8 +98,8 @@ if ($sel_row) {
 
 <h1 class="h5 fw-bold mb-1"><i class="bi bi-mortarboard text-primary me-1" aria-hidden="true"></i>Dydaktyka / eLearning</h1>
 <p class="text-body-secondary small mb-3">
-  Zadania od prowadzącego uszeregowane według pilności. Wybierz zadanie z listy — szczegóły,
-  materiały i oddawanie pokażą się obok. Oceny znajdziesz w zakładce <a href="?tab=oceny">Oceny</a>.
+  Wybierz lekcję — zobaczysz jej materiały i zadania. Możesz też przejrzeć wszystkie zadania albo materiały po dacie.
+  Oceny znajdziesz w zakładce <a href="?tab=oceny">Oceny</a>.
   Książki i materiały zewnętrzne: <a href="../ext/index.php?as=student">Biblioteka materiałów</a>.
 </p>
 <?= $ti_ctx_switch_html ?? '' ?>
@@ -114,7 +114,7 @@ if ($sel_row) {
 
 <?php if ($lekcja_id === null): ?>
 
-<nav aria-label="Widok zadań" class="mb-3">
+<nav aria-label="Widok zadań" class="mb-3 kp-widok-przelacznik">
   <a href="?tab=zadania" <?= $widok_zad === 'lekcje' ? 'aria-current="page"' : '' ?>>Według lekcji</a>
   <span aria-hidden="true"> · </span>
   <a href="?tab=zadania&amp;widok=zadania&amp;sort=<?= h($sort_zad) ?>" <?= $widok_zad === 'zadania' ? 'aria-current="page"' : '' ?>>Wszystkie zadania po dacie</a>
@@ -230,37 +230,38 @@ if ($sel_row) {
 <?php if (!$dyd_groups): ?>
 <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak lekcji z materiałami i zadaniami.</div>
 <?php else: ?>
-<div class="table-responsive">
-  <table class="table table-sm align-middle">
-    <caption class="visually-hidden">Lekcje z materiałami i zadaniami</caption>
-    <thead>
-      <tr>
-        <th scope="col">Data</th>
-        <th scope="col">Lekcja</th>
-        <th scope="col">Materiały</th>
-        <th scope="col">Zadania do oddania</th>
-        <th scope="col"><span class="visually-hidden">Otwórz</span></th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($dyd_groups as $g):
-        $_sid  = (int)$g['session_id'];
-        $_dnia = substr((string)$g['date'], 0, 10);
-        $_do   = 0;
-        foreach ($g['homeworks'] as $_hh) { if (empty($_hh['sub_id'])) $_do++; }
-        $_tytul = (string)$g['topic'] !== '' ? (string)$g['topic'] : ($_sid === 0 ? 'Bez przypisanej lekcji' : 'Lekcja');
-      ?>
-      <tr>
-        <td><?= $_dnia !== '' ? '<time datetime="' . h($_dnia) . '">' . h($_dnia) . '</time>' : '—' ?></td>
-        <td><?= h($_tytul) ?><?php if ($g['course_name'] !== ''): ?><span class="d-block small text-body-secondary"><?= h($g['course_name']) ?></span><?php endif; ?></td>
-        <td><?= count($g['materials']) ?></td>
-        <td><?= $_do ?> z <?= count($g['homeworks']) ?></td>
-        <td class="text-end"><a href="?tab=zadania&amp;lekcja=<?= $_sid ?>">Otwórz lekcję<span class="visually-hidden"> z dnia <?= h($_dnia !== '' ? $_dnia : 'bez daty') ?></span></a></td>
-      </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
-</div>
+<?php $_dn_pl = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota']; ?>
+<ul class="kp-lekcje-kafle" aria-label="Lekcje z materiałami i zadaniami">
+  <?php foreach ($dyd_groups as $g):
+    $_sid  = (int)$g['session_id'];
+    $_dnia = substr((string)$g['date'], 0, 10);
+    $_do   = 0;
+    foreach ($g['homeworks'] as $_hh) { if (empty($_hh['sub_id'])) $_do++; }
+    $_tytul = (string)$g['topic'] !== '' ? (string)$g['topic'] : ($_sid === 0 ? 'Bez przypisanej lekcji' : 'Lekcja');
+    $_nmat  = count($g['materials']); $_nzad = count($g['homeworks']);
+  ?>
+  <li class="kp-lekcja-kafel<?= $_do > 0 ? ' kp-lekcja-do' : '' ?>">
+    <a href="?tab=zadania&amp;lekcja=<?= $_sid ?>">
+      <span class="kp-lekcja-data">
+        <?php if ($_dnia !== ''): ?>
+          <time datetime="<?= h($_dnia) ?>"><?= h(date('d.m.Y', strtotime($_dnia))) ?></time>
+          <span class="kp-lekcja-dzien"><?= h($_dn_pl[(int)date('w', strtotime($_dnia))]) ?></span>
+        <?php else: ?>
+          <span>Bez daty</span>
+        <?php endif; ?>
+      </span>
+      <span class="kp-lekcja-tytul"><?= h($_tytul) ?></span>
+      <?php if ($g['course_name'] !== ''): ?><span class="kp-lekcja-kurs"><?= h($g['course_name']) ?></span><?php endif; ?>
+      <span class="kp-lekcja-liczby">
+        <span><i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Materiały: <strong><?= $_nmat ?></strong></span>
+        <span><i class="bi bi-journal-check me-1" aria-hidden="true"></i>Zadania do oddania: <strong><?= $_do ?></strong> z <?= $_nzad ?></span>
+      </span>
+      <?php if ($_do > 0): ?><span class="kp-lekcja-znacznik">Do oddania</span><?php endif; ?>
+      <span class="kp-lekcja-akcja">Otwórz lekcję <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+    </a>
+  </li>
+  <?php endforeach; ?>
+</ul>
 <?php endif; ?>
 
 <?php else: ?>

@@ -915,3 +915,36 @@ body.kur-alt.ti-skin #najblizsze-lekcje:focus { outline: 3px solid #facc15; outl
 body.kur-alt.ti-skin .kp-dane-akcje,
 body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-napisz,
 body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-zmien { display: none !important; }
+
+/* Dydaktyka: przełącznik widoku jako segmenty (aktywny = aria-current), lekcje jako równe kafle */
+body.kur-alt.ti-skin .kp-widok-przelacznik { display: flex; flex-wrap: wrap; gap: 0; }
+body.kur-alt.ti-skin .kp-widok-przelacznik > span[aria-hidden] { display: none; }
+body.kur-alt.ti-skin .kp-widok-przelacznik a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: .4rem 1rem; margin: 0 -2px 0 0;
+  background: #fff; color: #1d1d1d !important; border: 2px solid #1d1d1d; text-decoration: none; font-weight: 600;
+}
+body.kur-alt.ti-skin .kp-widok-przelacznik a:hover { background: #e5e7eb; }
+body.kur-alt.ti-skin .kp-widok-przelacznik a[aria-current="page"] { background: #1d1d1d; color: #fff !important; box-shadow: inset 0 -4px 0 #facc15; }
+
+body.kur-alt.ti-skin .kp-lekcje-kafle {
+  list-style: none; padding: 0; margin: 0 0 1rem;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: 1fr; gap: .75rem;
+}
+body.kur-alt.ti-skin .kp-lekcja-kafel { background: #fff; border: 2px solid #1d1d1d; border-left: 8px solid #1ba1e2; }
+body.kur-alt.ti-skin .kp-lekcja-kafel.kp-lekcja-do { border-left-color: #fcd116; }
+body.kur-alt.ti-skin .kp-lekcja-kafel > a {
+  position: relative; display: flex; flex-direction: column; gap: .3rem; height: 100%; padding: .8rem .9rem;
+  color: #1d1d1d !important; text-decoration: none;
+}
+body.kur-alt.ti-skin .kp-lekcja-kafel > a:hover { background: #f3f4f6; }
+body.kur-alt.ti-skin .kp-lekcja-kafel > a:focus-visible { outline: 3px solid #facc15; outline-offset: -3px; }
+body.kur-alt.ti-skin .kp-lekcja-data { font-weight: 700; font-size: .95rem; }
+body.kur-alt.ti-skin .kp-lekcja-dzien { font-weight: 400; color: #374151; margin-left: .3rem; }
+body.kur-alt.ti-skin .kp-lekcja-tytul { font-size: 1.1rem; font-weight: 700; line-height: 1.25; }
+body.kur-alt.ti-skin .kp-lekcja-kurs { font-size: .85rem; color: #374151; }
+body.kur-alt.ti-skin .kp-lekcja-liczby { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .88rem; }
+body.kur-alt.ti-skin .kp-lekcja-znacznik {
+  position: absolute; top: .6rem; right: .6rem; font-size: .75rem; font-weight: 700;
+  background: #fcd116; color: #1d1d1d; border: 1px solid #1d1d1d; padding: .1rem .45rem;
+}
+body.kur-alt.ti-skin .kp-lekcja-akcja { margin-top: auto; padding-top: .4rem; font-weight: 700; color: #0f6fa8; }
