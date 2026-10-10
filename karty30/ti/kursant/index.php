@@ -4483,6 +4483,9 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php endforeach; ?>
   <?php endif; ?>
 
+<?php elseif (($tab === 'egzaminy' || $tab === 'testy') && $KUR_UI === 'alt'): ?>
+  <?php include __DIR__ . '/_alt_testy.php'; /* jedna zakładka Testy: egzaminy + starsze testy */ ?>
+
 <?php elseif ($tab === 'egzaminy'): ?>
   <?php /* Equi Exams — u kursanta moduł nazywa się po prostu „Testy”. */ ?>
   <h1 class="h5 fw-bold mb-3"><i class="bi bi-card-checklist text-primary me-2" aria-hidden="true"></i>Testy</h1>

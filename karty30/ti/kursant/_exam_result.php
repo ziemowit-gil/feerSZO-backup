@@ -69,6 +69,43 @@ $fmt      = fn(float $v): string => rtrim(rtrim(number_format($v, 2, ',', ' '), 
   $questions = ti_exam_attempt_questions($att);
   $answers   = ti_exam_answers((int)$att['id']);
   $orderMap  = ti_exam_attempt_option_order($att); ?>
+  <?php
+    // Podsumowanie i szybkie przejście do pytań: stan każdego pytania słownie, ikoną i kolorem
+    $res_stany = [];
+    foreach ($questions as $n => $q) {
+        $qid_s  = (int)$q['id'];
+        $ans_s  = $answers[$qid_s] ?? null;
+        $aw_s   = $ans_s && $ans_s['points_awarded'] !== null ? (float)$ans_s['points_awarded'] : null;
+        $max_s  = (float)$q['points'];
+        $rev_s  = $ans_s ? (int)$ans_s['needs_review'] === 1 : true;
+        $res_stany[(int)$n + 1] = $rev_s ? 'review'
+            : (($aw_s !== null && $max_s > 0 && $aw_s >= $max_s - 1e-9) ? 'ok' : (($aw_s !== null && $aw_s > 0) ? 'part' : 'bad'));
+    }
+    $res_licz  = array_count_values($res_stany) + ['ok' => 0, 'part' => 0, 'bad' => 0, 'review' => 0];
+    $res_opis  = ['ok' => ['poprawnie', 'check-lg'], 'part' => ['częściowo', 'dash-lg'], 'bad' => ['niepoprawnie', 'x-lg'], 'review' => ['czeka na ocenę', 'hourglass-split']];
+  ?>
+  <section class="kp-res-podsum mb-4" aria-labelledby="res-podsum-h">
+    <h2 class="h5 fw-semibold mb-2" id="res-podsum-h">Podsumowanie</h2>
+    <ul class="kp-res-liczniki list-unstyled d-flex flex-wrap gap-2 mb-3">
+      <?php foreach ($res_opis as $k => [$lbl, $ico]): ?>
+      <li class="kp-res-licznik kp-res-<?= $k ?>"><i class="bi bi-<?= $ico ?> me-1" aria-hidden="true"></i><?= $lbl ?>: <strong><?= (int)$res_licz[$k] ?></strong></li>
+      <?php endforeach; ?>
+    </ul>
+    <nav aria-label="Przejdź do pytania">
+      <ol class="kp-res-skoki list-unstyled d-flex flex-wrap gap-1 mb-2">
+        <?php foreach ($res_stany as $nr => $st): ?>
+        <li><a class="kp-res-skok kp-res-<?= $st ?>" href="#pyt<?= $nr ?>"><span class="visually-hidden">Pytanie </span><?= $nr ?><span class="visually-hidden">, <?= $res_opis[$st][0] ?></span></a></li>
+        <?php endforeach; ?>
+      </ol>
+    </nav>
+    <?php if ($res_licz['part'] + $res_licz['bad'] > 0): ?>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="kp-res-filtr">
+      <label class="form-check-label" for="kp-res-filtr">Pokaż tylko pytania do poprawy (częściowo i niepoprawnie)</label>
+    </div>
+    <?php endif; ?>
+  </section>
+
   <h2 class="h5 fw-semibold mb-3">Twoje odpowiedzi</h2>
 
   <?php foreach ($questions as $n => $q):
@@ -80,7 +117,7 @@ $fmt      = fn(float $v): string => rtrim(rtrim(number_format($v, 2, ',', ' '), 
     $maxp    = (float)$q['points'];
     $review  = $ans ? (int)$ans['needs_review'] === 1 : true;
     $full    = $awarded !== null && $maxp > 0 && $awarded >= $maxp - 1e-9; ?>
-  <section class="card border-0 shadow-sm mb-3" aria-labelledby="res<?= $qid ?>">
+  <section class="card border-0 shadow-sm mb-3 kp-res-pyt" id="pyt<?= (int)$n + 1 ?>" data-stan="<?= h($res_stany[(int)$n + 1] ?? '') ?>" tabindex="-1" aria-labelledby="res<?= $qid ?>">
     <div class="card-header bg-transparent d-flex flex-wrap gap-2 align-items-center">
       <h3 class="h6 mb-0 fw-semibold" id="res<?= $qid ?>">Pytanie <?= (int)$n + 1 ?></h3>
       <span class="ms-auto">
@@ -142,6 +179,18 @@ $fmt      = fn(float $v): string => rtrim(rtrim(number_format($v, 2, ',', ' '), 
     </div>
   </section>
   <?php endforeach; ?>
+  <script>
+  (function () {
+    var f = document.getElementById('kp-res-filtr');
+    if (!f) return;
+    f.addEventListener('change', function () {
+      document.querySelectorAll('.kp-res-pyt').forEach(function (s) {
+        var st = s.getAttribute('data-stan');
+        s.hidden = f.checked && st !== 'part' && st !== 'bad';
+      });
+    });
+  })();
+  </script>
 <?php endif; ?>
 
 <?php

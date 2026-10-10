@@ -65,7 +65,6 @@ $_alt_sections = [
             $_it('oceny',    'Oceny',                 $_g('oceny')),
             $_it('plan',     'Plan nauczania',        $_g('plan')),
             $_it('egzaminy', 'Testy',                 $_g('egzaminy')),
-            $_it('testy',    'Testy (starsze)',       $_g('testy')),
         ],
     ],
     'komunikacja' => [

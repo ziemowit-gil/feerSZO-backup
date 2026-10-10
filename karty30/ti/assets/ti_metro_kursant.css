@@ -668,3 +668,54 @@ body.kur-alt.ti-skin .kp-pomoc .form-label { font-size: .95rem; }
 body.kur-alt.ti-skin .kp-pomoc .alert-light { background: #f3f4f6 !important; border-left: 6px solid #1ba1e2 !important; }
 body.kur-alt.ti-skin .kp-pomoc .btn-primary { padding: .6rem 1.2rem; font-size: 1rem; }
 @media (min-width: 992px) { body.kur-alt.ti-skin .kp-pomoc form { max-width: 900px; } }
+
+/* Przyciski-rozwijacze (<summary class="btn">, np. „Pokaż frekwencję miesięczną”, „Pobierz i drukuj”):
+   wygląd przycisku, bez podkreślenia, ze strzałką stanu; żółta obwódka tylko przy obsłudze klawiaturą */
+body.kur-alt.ti-skin details > summary.btn {
+  display: inline-flex; align-items: center; gap: .4rem; list-style: none;
+  text-decoration: none !important; color: #1d1d1d !important; background: #fff !important;
+  border: 2px solid #1d1d1d !important; padding: .4rem .9rem; font-weight: 600; cursor: pointer;
+}
+body.kur-alt.ti-skin details > summary.btn::-webkit-details-marker { display: none; }
+body.kur-alt.ti-skin details > summary.btn::after { content: "▾"; font-size: .8em; }
+body.kur-alt.ti-skin details[open] > summary.btn::after { content: "▴"; }
+body.kur-alt.ti-skin details > summary.btn:hover { background: #e5e7eb !important; }
+body.kur-alt.ti-skin details > summary.btn:focus { outline: none; }
+body.kur-alt.ti-skin details > summary.btn:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+
+/* Wynik egzaminu: liczniki i skoki do pytań (stan słownie + ikona + kolor obramowania) */
+body.kur-alt.ti-skin .kp-res-licznik { background: #fff; border: 2px solid #1d1d1d; padding: .3rem .7rem; }
+body.kur-alt.ti-skin .kp-res-skok {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 2.4rem; height: 2.4rem;
+  background: #fff; color: #1d1d1d; border: 2px solid #1d1d1d; font-weight: 700; text-decoration: none;
+}
+body.kur-alt.ti-skin .kp-res-skok:hover { background: #e5e7eb; }
+body.kur-alt.ti-skin .kp-res-ok     { border-bottom: 5px solid #60a917 !important; }
+body.kur-alt.ti-skin .kp-res-part   { border-bottom: 5px solid #f0a30a !important; }
+body.kur-alt.ti-skin .kp-res-bad    { border-bottom: 5px solid #e51400 !important; }
+body.kur-alt.ti-skin .kp-res-review { border-bottom: 5px solid #1ba1e2 !important; }
+
+/* Wspólna zakładka Testy: równe kafle, stan słownie u góry, pasek z lewej w kolorze stanu */
+body.kur-alt.ti-skin .kp-testy-kafle {
+  list-style: none; padding: 0; margin: 0 0 1rem;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); grid-auto-rows: 170px; gap: .6rem;
+}
+body.kur-alt.ti-skin .kp-test-kafel { background: #fff; border: 2px solid #1d1d1d; border-left-width: 8px; }
+body.kur-alt.ti-skin .kp-test-kafel > a,
+body.kur-alt.ti-skin .kp-test-kafel > .kp-test-wew {
+  display: flex; flex-direction: column; gap: .3rem; height: 100%; padding: .7rem .8rem; color: #1d1d1d !important; text-decoration: none;
+}
+body.kur-alt.ti-skin .kp-test-kafel > a:hover { background: #f3f4f6; }
+body.kur-alt.ti-skin .kp-test-kafel > a:focus-visible { outline: 3px solid #facc15; outline-offset: -3px; }
+body.kur-alt.ti-skin .kp-test-status { align-self: flex-start; font-size: .75rem; font-weight: 700; padding: .15rem .5rem; border: 1px solid #1d1d1d; background: #f3f4f6; }
+body.kur-alt.ti-skin .kp-test-tytul { font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+body.kur-alt.ti-skin .kp-test-meta { font-size: .8rem; color: #374151; }
+body.kur-alt.ti-skin .kp-test-akcja { margin-top: auto; font-weight: 700; color: #0f6fa8; font-size: .9rem; }
+body.kur-alt.ti-skin .kp-test-w_toku  { border-left-color: #1ba1e2; }
+body.kur-alt.ti-skin .kp-test-do      { border-left-color: #fcd116; }
+body.kur-alt.ti-skin .kp-test-wkrotce { border-left-color: #f0a30a; }
+body.kur-alt.ti-skin .kp-test-ocena   { border-left-color: #6a00ff; }
+body.kur-alt.ti-skin .kp-test-zal     { border-left-color: #60a917; }
+body.kur-alt.ti-skin .kp-test-niezal  { border-left-color: #e51400; }
+body.kur-alt.ti-skin .kp-test-nied    { border-left-color: #9ca3af; background: #f9fafb; }
+body.kur-alt.ti-skin .kp-test-nied .kp-test-akcja { color: #374151; font-weight: 400; }
