@@ -29,7 +29,8 @@ const DYD_NAV_TABS = [
 
 /** Strony samodzielne → sekcja (ekrany kierownika z _kierownik_bar.php i „moje”). */
 const DYD_NAV_PAGES = [
-    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php', 'moj_certyfikat.php', 'certyfikaty.php'],
+    'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php'],
+    'certyfikat' => ['moj_certyfikat.php', 'certyfikaty.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
@@ -46,10 +47,19 @@ function dyd_nav_sections(): array {
         'kurs'        => ['Kurs',        $c ? 'index.php?course=' . $c . '&tab=lekcje' : 'index.php?tab=lekcje'],
         'komunikacja' => ['Komunikacja', 'index.php?tab=wiadomosci'],
         'zasoby'      => ['Zasoby',      'index.php?tab=dysk'],
+        'certyfikat'  => ['Certyfikat',  'moj_certyfikat.php'],
     ];
     if (function_exists('dyd_is_staff') && dyd_is_staff()) $s['planowanie'] = ['Planowanie', 'planista.php'];
     if (function_exists('dyd_is_staff') && dyd_is_staff()) $s['kierownik'] = ['Kierownik', 'index.php?tab=grupy'];
     return $s;
+}
+
+/** Czy zalogowany prowadzący nie ma aktywnego certyfikatu do podpisu protokołów (wtedy czerwona odznaka w nawigacji). */
+function dyd_cert_missing(): bool {
+    $s = function_exists('dyd_current') ? dyd_current() : null;
+    if (!$s || empty($s['user_id'])) return false;
+    require_once dirname(__DIR__, 3) . '/includes/x509_login.php';
+    return !x509_user_has_active_cert((int)$s['user_id']);
 }
 
 /** Sekcja bieżącego ekranu ('' = nieznana — żadna nie jest podświetlona). */
@@ -86,7 +96,8 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
 <nav class="dyd-topnav" aria-label="Sekcje panelu">
   <?php foreach (dyd_nav_sections() as $k => [$label, $href]): ?>
   <a href="<?= h($href) ?>"<?= $cur === $k ? ' aria-current="page"' : '' ?>><?= h($label) ?><?php
-    if ($k === 'komunikacja' && $n_msg > 0): ?> <span class="badge text-bg-danger"><?= $n_msg ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif; ?></a>
+    if ($k === 'komunikacja' && $n_msg > 0): ?> <span class="badge text-bg-danger"><?= $n_msg ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif;
+    if ($k === 'certyfikat' && dyd_cert_missing()): ?> <span class="badge text-bg-danger">brak</span><?php endif; ?></a>
   <?php endforeach; ?>
 </nav>
 <?php   $tb['nav'] = (string)ob_get_clean();
