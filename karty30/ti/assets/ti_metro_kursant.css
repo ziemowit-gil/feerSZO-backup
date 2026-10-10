@@ -871,3 +871,17 @@ body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-postep i.bi {
 }
 body.kur-alt.ti-skin main.kp-dane-grid .kp-dane-komunikaty h2 > i.bi { background: #f0a30a; }
 body.kur-alt.ti-skin main.kp-dane-grid .card-header { display: flex; align-items: center; }
+
+/* Upoważnieni w METRO: formularz schowany za przyciskiem „Upoważnij osobę” (otwarty przy błędzie),
+   lista jako płaska tabela, karta formularza z ramką i paskiem akcentu */
+body.kur-alt.ti-skin details > summary.btn.kp-upow-przycisk {
+  background: #0f6fa8 !important; color: #fff !important; border-color: #0f6fa8 !important; min-height: 44px; padding: .5rem 1.1rem;
+}
+body.kur-alt.ti-skin details > summary.btn.kp-upow-przycisk:hover { background: #0c5b8a !important; border-color: #0c5b8a !important; }
+body.kur-alt.ti-skin details > summary.btn.kp-upow-przycisk i { color: #fff !important; }
+body.kur-alt.ti-skin .kp-upow { border: 2px solid #1d1d1d !important; border-left: 8px solid #1ba1e2 !important; border-radius: 0 !important; box-shadow: none !important; }
+body.kur-alt.ti-skin .kp-upow h2 { font-size: 1.05rem; }
+body.kur-alt.ti-skin .kp-upow .form-control { border: 2px solid #1d1d1d; border-radius: 0; min-height: 44px; }
+body.kur-alt.ti-skin .kp-upow .form-control:focus { border-color: #1ba1e2; box-shadow: 0 0 0 3px #d9f0fb; }
+body.kur-alt.ti-skin .kp-upow .form-check-input { width: 1.3em; height: 1.3em; border: 2px solid #1d1d1d; }
+body.kur-alt.ti-skin .kp-upow .is-invalid { border-color: #b91c1c !important; }
