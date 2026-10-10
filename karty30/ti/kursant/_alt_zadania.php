@@ -61,6 +61,11 @@ usort($hw_rows, function ($a, $b) {
 $counts = ['overdue' => 0, 'todo' => 0, 'upcoming' => 0, 'closed' => 0, 'done' => 0, 'graded' => 0];
 foreach ($hw_rows as $r) { $counts[$r['key']]++; }
 
+// Widok „Wszystkie zadania po dacie”: płaska tabela, sortowana po terminie (domyślnie najbliższy pierwszy).
+// Zadania bez terminu zawsze na końcu. Wybór idzie adresem (?widok=zadania&sort=termin|termin_mal).
+$widok_zad = in_array($_GET['widok'] ?? '', ['zadania', 'materialy'], true) ? $_GET['widok'] : 'lekcje';
+$sort_zad  = ($_GET['sort'] ?? '') === 'termin_mal' ? 'termin_mal' : 'termin';
+
 // Dwa kroki: 1) wybór lekcji (lista), 2) materiały i zadania tej jednej lekcji.
 // Krok 2 idzie adresem `?tab=zadania&lekcja=ID` (ID = session_id, 0 = bez lekcji).
 $lekcja_id = isset($_GET['lekcja']) ? (int)$_GET['lekcja'] : null;
@@ -108,6 +113,118 @@ if ($sel_row) {
 <?php endif; ?>
 
 <?php if ($lekcja_id === null): ?>
+
+<nav aria-label="Widok zadań" class="mb-3">
+  <a href="?tab=zadania" <?= $widok_zad === 'lekcje' ? 'aria-current="page"' : '' ?>>Według lekcji</a>
+  <span aria-hidden="true"> · </span>
+  <a href="?tab=zadania&amp;widok=zadania&amp;sort=<?= h($sort_zad) ?>" <?= $widok_zad === 'zadania' ? 'aria-current="page"' : '' ?>>Wszystkie zadania po dacie</a>
+  <span aria-hidden="true"> · </span>
+  <a href="?tab=zadania&amp;widok=materialy&amp;sort=<?= h($sort_zad) ?>" <?= $widok_zad === 'materialy' ? 'aria-current="page"' : '' ?>>Wszystkie materiały po dacie</a>
+</nav>
+<?php endif; ?>
+
+<?php if ($lekcja_id === null && $widok_zad === 'zadania'):
+  // Płaska lista wszystkich zadań, posortowana po terminie
+  $zad_po_dacie = $hw_rows;
+  usort($zad_po_dacie, function ($a, $b) use ($sort_zad) {
+      $da = (string)($a['h']['due_at'] ?? ''); $db = (string)($b['h']['due_at'] ?? '');
+      if ($da === '' && $db === '') return strcmp((string)$a['h']['title'], (string)$b['h']['title']);
+      if ($da === '') return 1;                 // bez terminu na końcu, niezależnie od kierunku
+      if ($db === '') return -1;
+      $c = $sort_zad === 'termin_mal' ? strcmp($db, $da) : strcmp($da, $db);
+      return $c !== 0 ? $c : strcmp((string)$a['h']['title'], (string)$b['h']['title']);
+  });
+  $_kier_termin = $sort_zad === 'termin' ? 'ascending' : 'descending';
+  $_link_termin = '?tab=zadania&amp;widok=zadania&amp;sort=' . ($sort_zad === 'termin' ? 'termin_mal' : 'termin');
+?>
+<h2 class="h6 fw-bold mb-2">Wszystkie zadania po dacie</h2>
+<p class="small mb-2">
+  Sortowanie: <a href="<?= $_link_termin ?>">zmień na <?= $sort_zad === 'termin' ? 'najdalszy termin pierwszy' : 'najbliższy termin pierwszy' ?></a>
+  <span class="text-body-secondary">(teraz: <?= $sort_zad === 'termin' ? 'najbliższy pierwszy' : 'najdalszy pierwszy' ?>)</span>
+</p>
+<?php if (!$zad_po_dacie): ?>
+<div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Nie masz jeszcze żadnych zadań.</div>
+<?php else: ?>
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <caption class="visually-hidden">Wszystkie zadania, posortowane po terminie</caption>
+    <thead>
+      <tr>
+        <th scope="col" aria-sort="<?= $_kier_termin ?>">Termin</th>
+        <th scope="col">Zadanie</th>
+        <th scope="col">Kurs</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($zad_po_dacie as $r): $h = $r['h']; ?>
+      <tr>
+        <td><?= !empty($h['due_at']) ? $_hw_time($h['due_at']) : 'bez terminu' ?></td>
+        <td><a href="?tab=zadania&amp;lekcja=<?= (int)($h['session_id'] ?? 0) ?>&amp;hw=<?= (int)$h['id'] ?>#zad-szczegoly"><?= h($h['title']) ?></a></td>
+        <td><?= h($h['course_name']) ?></td>
+        <td><span class="badge text-bg-<?= h($r['v']) ?>"><?= h($r['label']) ?></span></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+<?php endif; ?>
+
+<?php elseif ($lekcja_id === null && $widok_zad === 'materialy'):
+  // Płaska lista wszystkich materiałów, sortowana po dacie lekcji (a bez lekcji — po dacie dodania)
+  $mat_po_dacie = [];
+  foreach (($dyd_groups ?? []) as $g) {
+      foreach ($g['materials'] as $_mt) {
+          $_d = (string)($_mt['session_date'] ?? '') !== '' ? (string)$_mt['session_date'] : (string)($_mt['created_at'] ?? '');
+          $mat_po_dacie[] = ['m' => $_mt, 'sid' => (int)$g['session_id'], 'd' => substr($_d, 0, 16)];
+      }
+  }
+  usort($mat_po_dacie, function ($a, $b) use ($sort_zad) {
+      if ($a['d'] === '' && $b['d'] === '') return strcmp((string)$a['m']['title'], (string)$b['m']['title']);
+      if ($a['d'] === '') return 1;             // bez daty na końcu, niezależnie od kierunku
+      if ($b['d'] === '') return -1;
+      $c = $sort_zad === 'termin_mal' ? strcmp($b['d'], $a['d']) : strcmp($a['d'], $b['d']);
+      return $c !== 0 ? $c : strcmp((string)$a['m']['title'], (string)$b['m']['title']);
+  });
+  $_kier_mat = $sort_zad === 'termin' ? 'ascending' : 'descending';
+  $_link_mat = '?tab=zadania&amp;widok=materialy&amp;sort=' . ($sort_zad === 'termin' ? 'termin_mal' : 'termin');
+?>
+<h2 class="h6 fw-bold mb-2">Wszystkie materiały po dacie</h2>
+<p class="small mb-2">
+  Sortowanie: <a href="<?= $_link_mat ?>">zmień na <?= $sort_zad === 'termin' ? 'najnowsze pierwsze' : 'najstarsze pierwsze' ?></a>
+  <span class="text-body-secondary">(teraz: <?= $sort_zad === 'termin' ? 'najstarsze pierwsze' : 'najnowsze pierwsze' ?>)</span>
+</p>
+<?php if (!$mat_po_dacie): ?>
+<div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Nie ma jeszcze żadnych materiałów.</div>
+<?php else: ?>
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <caption class="visually-hidden">Wszystkie materiały, posortowane po dacie</caption>
+    <thead>
+      <tr>
+        <th scope="col" aria-sort="<?= $_kier_mat ?>">Data</th>
+        <th scope="col">Materiał</th>
+        <th scope="col">Kurs</th>
+        <th scope="col">Typ</th>
+        <th scope="col"><span class="visually-hidden">Otwórz</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($mat_po_dacie as $row): $_mt = $row['m']; ?>
+      <tr>
+        <td><?= $row['d'] !== '' ? '<time datetime="' . h(str_replace(' ', 'T', $row['d'])) . '">' . h($row['d']) . '</time>' : '—' ?></td>
+        <td><?= h((string)$_mt['title'] !== '' ? (string)$_mt['title'] : (string)($_mt['attach_name'] ?: 'Materiał')) ?></td>
+        <td><?= h($_mt['course_name'] ?? '') ?></td>
+        <td><?= h($_mt['type'] ?? '') ?></td>
+        <td class="text-end"><a href="?tab=zadania&amp;lekcja=<?= $row['sid'] ?>">Pokaż w lekcji<span class="visually-hidden"> — <?= h((string)$_mt['title']) ?></span></a></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+<?php endif; ?>
+
+<?php elseif ($lekcja_id === null): ?>
 
 <h2 class="h6 fw-bold mb-2">Wybierz lekcję</h2>
 <?php if (!$dyd_groups): ?>
