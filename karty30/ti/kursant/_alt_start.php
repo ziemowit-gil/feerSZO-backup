@@ -30,6 +30,7 @@ foreach ($_st_glowne_klucze as $_gk) {
     foreach ($_st_wszystkie as $_p) { if ($_p['klucz'] === $_gk) { $_st_glowne[] = $_p; break; } }
 }
 ?>
+<?php try { ?>
 <section class="kp-start container-xl px-3 py-4" aria-labelledby="kp-start-h">
   <h1 class="h4 fw-bold mb-3" id="kp-start-h">Panel kursanta</h1>
 
@@ -147,6 +148,7 @@ foreach ($_st_glowne_klucze as $_gk) {
 
   <p class="d-none mt-3" id="kp-brak">Nic nie pasuje do wyszukiwania. Spróbuj innego słowa.</p>
 </section>
+<?php } catch (\Throwable $e) { echo '<div class="alert alert-danger" role="alert">Nie udało się wyświetlić ekranu startowego: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>'; } ?>
 <script>
 (function () {
   var inp = document.getElementById('kp-szukaj');
