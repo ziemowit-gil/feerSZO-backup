@@ -5082,7 +5082,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <a class="btn btn-sm <?= $KUR_UI === 'alt' ? 'btn-primary' : 'btn-outline-secondary' ?>" href="index.php?ui=alt"<?= $KUR_UI === 'alt' ? ' aria-current="true"' : '' ?>>Widok alternatywny (METRO)</a>
         </div>
 
-        <?php if ($KUR_UI === 'alt'): ?>
+        <?php if ($KUR_UI === 'alt'): require_once dirname(__DIR__, 3) . '/includes/auth.php'; /* csrf_token() dla formularza menu */ ?>
         <form method="post" action="<?= h(APP_URL) ?>/tozsamosc/kursant_ustawienia.php" class="d-flex flex-column gap-2">
           <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
           <fieldset>
