@@ -35,6 +35,16 @@ if (!$_minor) {
 }
 $_sprawy_items[] = $_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger');
 
+/** Ikony kafli (Bootstrap Icons) wg zakładki; nieznana zakładka dostaje kółko. */
+$_ikony = [
+  'dane' => 'person-badge', 'aktywnosc' => 'activity', 'lekcje' => 'calendar-check',
+  'zadania' => 'journal-check', 'oceny' => 'award', 'plan' => 'diagram-3', 'egzaminy' => 'pencil-square',
+  'testy' => 'pencil-square', 'komunikaty' => 'megaphone', 'wiadomosci' => 'chat-dots',
+  'problem' => 'question-circle', 'online' => 'camera-video', 'vlab' => 'pc-display', 'dysk' => 'cloud',
+  'licencje' => 'key', 'pfron' => 'people', 'zapisy' => 'person-plus', 'rozliczenia' => 'receipt',
+  'portfel' => 'wallet2', 'upowaznieni' => 'person-check', 'regulaminy' => 'file-text', 'ustawienia' => 'gear',
+];
+
 $_alt_sections = [
     'start' => [
         'label' => 'Mój panel',
@@ -180,6 +190,7 @@ foreach ($_cur_sec['items'] as $_i) {
     <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
     <li>
       <a class="kp-kafel kp-kafel-mini<?= in_array($_i['tab'], ['lekcje', 'zadania', 'komunikaty', 'oceny'], true) ? ' kp-kafel-glowny' : '' ?><?= $_act ? ' active' : '' ?>" href="<?= h($_i['href']) ?>"<?= $_act ? ' aria-current="page"' : '' ?>>
+        <i class="bi bi-<?= h($_ikony[$_i['tab']] ?? 'circle') ?> kp-kafel-ikona" aria-hidden="true"></i>
         <span class="kp-kafel-tytul"><?= h($_i['label']) ?></span>
         <?php if ($_i['n'] > 0): ?><span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
       </a>

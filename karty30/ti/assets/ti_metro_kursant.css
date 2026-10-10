@@ -290,3 +290,10 @@ body.kur-alt.ti-skin .alert {
 }
 body.kur-alt.ti-skin .card-body { padding: 1rem 1.25rem; }
 body.kur-alt.ti-skin h2.h5, body.kur-alt.ti-skin h1.h5 { letter-spacing: 0; }
+
+/* Kafle wyśrodkowane, z ikoną nad tytułem (kafle startowe) i obok tytułu (kafle pod okruszkami) */
+body.kur-alt.ti-skin .kp-kafel { text-align: center; align-items: center; justify-content: center; }
+body.kur-alt.ti-skin .kp-kafel-ikona { font-size: 1.6rem; line-height: 1; }
+body.kur-alt.ti-skin .kp-kafel-mini { flex-direction: row; justify-content: center; text-align: center; }
+body.kur-alt.ti-skin .kp-kafel-mini .kp-kafel-ikona { font-size: 1.1rem; margin-right: .4rem; }
+body.kur-alt.ti-skin .kp-kafel-stan { text-align: center; align-items: center; }

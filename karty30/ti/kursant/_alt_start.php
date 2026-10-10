@@ -109,7 +109,8 @@ foreach ($_st_glowne_klucze as $_gk) {
       <li>
         <a class="kp-kafel kp-kafel-glowny" href="<?= h($_k['href']) ?>">
           <span class="kp-kafel-sekcja"><?= h($_k['sekcja']) ?></span>
-          <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
+          <i class="bi bi-<?= h($_ikony[$_k['klucz']] ?? 'circle') ?> kp-kafel-ikona" aria-hidden="true"></i>
+        <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
           <?php if ($_k['n'] > 0): ?><span class="badge text-bg-<?= h($_k['v']) ?>"><?= (int)$_k['n'] ?></span><?php endif; ?>
         </a>
       </li>
@@ -123,7 +124,8 @@ foreach ($_st_glowne_klucze as $_gk) {
         <?php foreach ($_sec['pozycje'] as $_k): ?>
         <li>
           <a class="kp-kafel" href="<?= h($_k['href']) ?>">
-            <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
+            <i class="bi bi-<?= h($_ikony[$_k['klucz']] ?? 'circle') ?> kp-kafel-ikona" aria-hidden="true"></i>
+        <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
             <?php if ($_k['n'] > 0): ?><span class="badge text-bg-<?= h($_k['v']) ?>"><?= (int)$_k['n'] ?></span><?php endif; ?>
           </a>
         </li>
@@ -139,6 +141,7 @@ foreach ($_st_glowne_klucze as $_gk) {
     <li class="kp-kafel-poz" data-tekst="<?= h(mb_strtolower($_k['sekcja'] . ' ' . $_k['etykieta'])) ?>">
       <a class="kp-kafel" href="<?= h($_k['href']) ?>">
         <span class="kp-kafel-sekcja"><?= h($_k['sekcja']) ?></span>
+        <i class="bi bi-<?= h($_ikony[$_k['klucz']] ?? 'circle') ?> kp-kafel-ikona" aria-hidden="true"></i>
         <span class="kp-kafel-tytul"><?= h($_k['etykieta']) ?></span>
         <?php if ($_k['n'] > 0): ?><span class="badge text-bg-<?= h($_k['v']) ?>"><?= (int)$_k['n'] ?></span><?php endif; ?>
       </a>
