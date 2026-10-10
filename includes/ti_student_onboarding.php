@@ -19,8 +19,11 @@ function ti_student_accounts_for_onboarding(): array {
 /** Treść maila onboardingowego dla jednego konta. */
 /** Aktywne grupy klienta: numer (group_code, a gdy go nie ma — numer kursu) i nazwa. */
 function ti_student_onboarding_grupy(int $client_id): array {
+    // Link online: najpierw link zapisu kursanta, a gdy go brak — stały link grupy (jak w ti_online.php).
     return db_all(
-        "SELECT c.id, c.name, c.group_code FROM k30_ti_enrollments e
+        "SELECT c.id, c.name, c.group_code,
+                CASE WHEN e.zoom_meeting_url != '' THEN e.zoom_meeting_url ELSE c.default_meeting_url END AS online_url
+           FROM k30_ti_enrollments e
            JOIN k30_ti_courses c ON c.id = e.course_id
           WHERE e.client_id = ? AND e.status = 'active'
           ORDER BY c.name",
@@ -36,8 +39,11 @@ function ti_student_onboarding_mail(string $name, string $login, array $grupy = 
     $imie = trim((string)preg_split('/\s+/u', trim($name))[0]);
     $txt = ($org !== '' ? "Instytucja: {$org}\n\n" : '')
          . "Dzień dobry, {$imie},\n\n"
-         . ($grupy ? "Twoje grupy:\n" . implode("\n", array_map(
-               fn($g) => '- ' . ($g['group_code'] !== '' ? $g['group_code'] : '#' . (int)$g['id']) . ' — ' . $g['name'], $grupy)) . "\n\n" : '')
+         . ($grupy ? "Twoje grupy:\n" . implode("\n", array_map(function ($g) {
+               $linia = '- ' . ($g['group_code'] !== '' ? $g['group_code'] : '#' . (int)$g['id']) . ' — ' . $g['name'];
+               if (trim((string)($g['online_url'] ?? '')) !== '') $linia .= "\n  Zajęcia online (link): " . trim((string)$g['online_url']);
+               return $linia;
+           }, $grupy)) . "\n\n" : '')
          . "Twoje konto w panelu kursanta jest gotowe. Tam zobaczysz swoje zajęcia, plan i rozliczenia.\n\n"
          . "Jak zacząć:\n"
          . "1. Zaloguj się: {$login_url}\n"
