@@ -107,6 +107,28 @@ auth_screen_head([
            placeholder="Login lub własny alias"
            <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
     <p class="ks-fieldhint">Login otrzymujesz od prowadzącego. Przy pierwszym logowaniu wpisz tylko login — kod przyjdzie SMS-em na Twój telefon.</p>
+    <div class="align-items-center gap-3 my-2" id="stu-sec" style="display:none" aria-live="polite">
+      <div id="stu-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
+      <div class="small" id="stu-sec-label"></div>
+    </div>
+    <p class="ks-fieldhint">Obrazek służy do sprawdzenia, że strona jest prawdziwa. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</p>
+    <script>
+    (function () {
+      var inp = document.getElementById('stu-login'), box = document.getElementById('stu-sec');
+      var img = document.getElementById('stu-sec-img'), lbl = document.getElementById('stu-sec-label');
+      if (!inp || !box) return;
+      function pokaz() {
+        var v = inp.value.trim();
+        if (!v) { box.style.display = 'none'; return; }
+        fetch('<?= APP_URL ?>/karty30/ti/kursant/sec_image.php?login=' + encodeURIComponent(v), { credentials: 'omit', cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { img.innerHTML = j.svg; lbl.textContent = j.label; box.style.display = 'flex'; })
+          .catch(function () { box.style.display = 'none'; });
+      }
+      inp.addEventListener('change', pokaz);
+      inp.addEventListener('blur', pokaz);
+    })();
+    </script>
   </div>
   <div class="ks-field">
     <label for="stu-password">Hasło <span class="fw-normal">(przy pierwszym logowaniu nie wpisuj)</span></label>

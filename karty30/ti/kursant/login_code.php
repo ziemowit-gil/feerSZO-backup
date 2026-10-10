@@ -33,7 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([(int)$acc['id']]);
         $acc['must_change_password'] = 1;
         student_login_user($acc, 'otp', 'pierwsze logowanie (kod SMS)');
-        header('Location: index.php'); exit;
+        // Najpierw wybór obrazka bezpieczeństwa (jeśli jeszcze nie wybrano), potem panel (hasło wymuszone).
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_sec_image.php';
+        ti_sec_image_migrate();
+        $wybrany = db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [(int)$acc['id']]);
+        header('Location: ' . (empty($wybrany['sec_chosen']) ? 'sec_choose.php' : 'index.php')); exit;
     }
     $blad = 'Nieprawidłowy kod albo kod wygasł. Spróbuj ponownie lub wróć do logowania, aby dostać nowy.';
 }
