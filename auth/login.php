@@ -355,6 +355,29 @@ $_modals_html = ob_get_clean();
     </div>
     <?php endif; ?>
 
+    <?php
+    // Komunikat z żądania SSO: którą aplikację się loguje (role="alert", żeby czytnik
+    // ekranu przeczytał go przed polem hasła). Wygasa po 15 min.
+    $_sso_hint = $_SESSION['sso_hint'] ?? null;
+    if ($_sso_hint && time() - (int)($_sso_hint['at'] ?? 0) > 900) {
+        unset($_SESSION['sso_hint']);
+        $_sso_hint = null;
+    }
+    if ($_sso_hint): ?>
+    <div class="l-alert l-alert-info" role="alert" id="sso-hint">
+      <i class="bi bi-shield-check flex-shrink-0" aria-hidden="true"></i>
+      <div>
+        <?php if (!empty($_sso_hint['reauth'])): ?><strong>Wymagane ponowne logowanie.</strong> <?php endif; ?>
+        <?php if (($_sso_hint['app'] ?? '') !== ''): ?>
+          Logujesz się, aby otworzyć aplikację: <strong><?= h($_sso_hint['app']) ?></strong>.
+        <?php else: ?>
+          Logujesz się, aby otworzyć zewnętrzną aplikację.
+        <?php endif; ?>
+        Jeśli nie otwierasz żadnej aplikacji, nie wpisuj hasła i zamknij tę stronę.
+      </div>
+    </div>
+    <?php endif; ?>
+
     <?php if (isset($_GET['ended'])): ?>
     <div class="l-alert l-alert-success" role="status">
       <i class="bi bi-box-arrow-right flex-shrink-0" aria-hidden="true"></i>

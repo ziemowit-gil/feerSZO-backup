@@ -531,6 +531,7 @@ function login_user(array $user, bool $mobile_scope = false): void {
         'portal_scope' => $user['portal_scope'] ?? null,
     ];
     $_SESSION['user'] = $userData;
+    unset($_SESSION['sso_hint']); // komunikat „logujesz się do aplikacji X” — po zalogowaniu nieaktualny
     if ($mobile_scope) { $_SESSION['_mobile_scope'] = 1; } else { unset($_SESSION['_mobile_scope']); }
     // Inicjuj poziom zaufania sesji (1 = hasło)
     if (function_exists('tz_init_on_login')) {
