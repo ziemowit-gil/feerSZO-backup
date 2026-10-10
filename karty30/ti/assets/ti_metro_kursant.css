@@ -771,6 +771,16 @@ body.kur-alt.ti-skin .kp-lic-kafel dt { font-weight: 600 !important; color: #374
 body.kur-alt.ti-skin .kp-lic-wartosc { display: inline-block; background: #f3f4f6; border: 1px solid #d1d5db; padding: .15rem .45rem; color: #1d1d1d; }
 body.kur-alt.ti-skin .kp-lic-kafel .lic-copy,
 body.kur-alt.ti-skin .kp-lic-kafel .lic-reveal { min-height: 36px; padding: .15rem .55rem; font-size: .85rem; }
+/* Licencje w pełnym METRO: wyrównane karty (stopka zawsze na dole), kwadratowe przyciski, płaskie ostrzeżenie */
+body.kur-alt.ti-skin .kp-lic-kafel .card-body > :last-child { margin-top: auto; }
+body.kur-alt.ti-skin .kp-lic-kafel .btn { border: 2px solid #1d1d1d; border-radius: 0; background: #fff; color: #1d1d1d; font-weight: 600; }
+body.kur-alt.ti-skin .kp-lic-kafel .btn:hover { background: #e5e7eb; color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-lic-kafel .btn:focus-visible { outline: 3px solid #1d1d1d; outline-offset: 2px; box-shadow: 0 0 0 3px #facc15; }
+body.kur-alt.ti-skin .kp-lic-kafel a.btn-outline-primary { background: #1ba1e2; color: #1d1d1d; border-color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-lic-kafel a.btn-outline-primary:hover { background: #3fb0e8; }
+body.kur-alt.ti-skin .kp-lic-kafel .kp-lic-uwaga { background: #fff; color: #1d1d1d; border: 2px solid #1d1d1d; border-left: 8px solid #facc15; border-radius: 0; }
+body.kur-alt.ti-skin .kp-lic-kafel .kp-lic-wartosc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .95rem; word-break: break-all; }
+body.kur-alt.ti-skin .kp-lic-kafel .kp-lic-ikona { width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center; }
 body.kur-alt.ti-skin .kp-lic-skopiowano { background: #60a917 !important; border-color: #1d1d1d !important; }
 body.kur-alt.ti-skin .kp-lic-stopka { margin-top: auto; padding-top: .5rem; border-top: 1px solid #e5e7eb; }
 body.kur-alt.ti-skin .kp-lic-uwaga { border-left-color: #f0a30a !important; }
