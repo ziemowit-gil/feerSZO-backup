@@ -1,5 +1,8 @@
 # Equi Exams — silnik testów wiedzy i umiejętności
 
+> **Nieaktualne.** Silnik został przepisany na PHP (`modules/equi_exams/logic`) i jest wywoływany
+> lokalnie z `includes/ti_exams.php`. Ten katalog nie jest już używany i może zostać usunięty.
+
 Usługa w Javie obsługująca moduł **Equi Exams** w TI.
 W panelu prowadzącego moduł nazywa się **Egzaminy**, w panelu kursanta — **Testy**.
 
