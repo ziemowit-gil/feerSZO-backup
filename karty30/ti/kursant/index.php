@@ -978,6 +978,7 @@ try {
     $next_lesson = db_one(
         "SELECT s.id, s.lesson_date, s.time_from, s.time_to, s.topic, s.lesson_method, s.meeting_url,
                 c.name AS course_name, c.default_meeting_url AS course_meeting_url,
+                c.location AS course_location,
                 e.zoom_meeting_url AS enrollment_meeting_url,
                 u.name AS instructor_name
          FROM k30_ti_sessions s

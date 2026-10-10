@@ -90,6 +90,21 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
       </div>
       <div class="small mt-1" id="kp-szukaj-wynik" aria-live="polite"></div>
     </div>
+    <?php if (!empty($active_lesson['eff_link'])): ?>
+    <a href="<?= h($active_lesson['eff_link']) ?>" target="_blank" rel="noopener"
+       class="btn btn-success kp-dolacz-lekcje align-self-start"
+       aria-label="Dołącz do lekcji: <?= h($active_lesson['course_name']) ?> (otwiera się w nowej karcie)">
+      <i class="bi bi-camera-video me-1" aria-hidden="true"></i>Dołącz do lekcji
+    </a>
+    <?php endif; ?>
+    <?php if (!empty($next_lesson) && ($next_lesson['lesson_method'] ?? '') === 'stacjonarna'): ?>
+    <div class="kp-najblizsze small align-self-start" role="note">
+      <strong>Najbliższe zajęcia stacjonarne:</strong>
+      <time datetime="<?= h($next_lesson['lesson_date']) ?>"><?= h($next_lesson['lesson_date']) ?></time><?php if (!empty($next_lesson['time_from'])): ?>,
+      <?= h($next_lesson['time_from']) ?><?= !empty($next_lesson['time_to']) ? '–' . h($next_lesson['time_to']) : '' ?><?php endif; ?>
+      · <span><?= h(trim((string)($next_lesson['course_location'] ?? '')) !== '' ? $next_lesson['course_location'] : 'miejsce do ustalenia z prowadzącym') ?></span>
+    </div>
+    <?php endif; ?>
   </div>
 
   <div id="kp-widok" class="kp-w8">
