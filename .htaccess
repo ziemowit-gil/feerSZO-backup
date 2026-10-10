@@ -70,7 +70,7 @@ RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 # auth/ms365_prowadzacy.php, callback auth/microsoft.php).
 RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI|tozsamosc)/ [NC]
 # Moduł Rozliczenia (kierownik/dydaktyk) — własny katalog, nie ścieżka panelu kursanta
 RewriteCond %{REQUEST_URI} !^/rozliczenia(/|$) [NC]
 # Portal płatności (/platnosci) — wejście z panelu kursanta/rodzica jednym kliknięciem
@@ -85,7 +85,7 @@ RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
 
 RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
-RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api)/ [NC]
+RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|tozsamosc)/ [NC]
 RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
