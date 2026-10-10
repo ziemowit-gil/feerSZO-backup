@@ -1085,3 +1085,36 @@ body.kur-alt.ti-skin .skin-dropdowns .dropdown-item { display: flex; align-items
 body.kur-alt.ti-skin .skin-dropdowns .dropdown-item:hover, body.kur-alt.ti-skin .skin-dropdowns .dropdown-item:focus-visible { background: #eef6fc !important; color: #1d1d1d !important; text-decoration: underline; }
 body.kur-alt.ti-skin .skin-dropdowns .dropdown-item:focus-visible { outline: 3px solid #facc15; outline-offset: -3px; }
 body.kur-alt.ti-skin .skin-dropdowns .dropdown-item.active { background: #0f6fa8 !important; color: #fff !important; border-left: 5px solid #facc15; }
+
+/* Start, „Na dziś”: szersze kafle (2 kolumny, najbliższe zajęcia 3), równa wysokość 124 px w rzędzie;
+   opisy przycięte wizualnie do 1 linii (pełny tekst zostaje w kodzie dla czytnika ekranu; całość w „Moje lekcje”/„Zadania”) */
+body.kur-alt.ti-skin .kp-w8-siatka { grid-auto-rows: 124px; }
+body.kur-alt.ti-skin .kp-w8-grupa[aria-labelledby="kp-w8-g-dzis"] .kp-w8-kafel { grid-column: span 2; }
+body.kur-alt.ti-skin .kp-w8-grupa[aria-labelledby="kp-w8-g-dzis"] .kp-w8-szeroki { grid-column: span 3; }
+body.kur-alt.ti-skin .kp-w8-kafel { overflow: hidden; min-width: 0; }
+body.kur-alt.ti-skin .kp-w8-kafel a { justify-content: flex-start; gap: .3rem; overflow: hidden; }
+body.kur-alt.ti-skin .kp-w8-kafel .kp-w8-tytul { margin-top: auto; }
+body.kur-alt.ti-skin .kp-w8-pod { display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+body.kur-alt.ti-skin .kp-w8-nastepne a { display: grid !important; grid-template-columns: auto minmax(0, 1fr); column-gap: .8rem; align-content: center; }
+body.kur-alt.ti-skin .kp-w8-nastepne .kp-w8-ikona { grid-row: 1 / span 2; align-self: start; font-size: 2rem; }
+body.kur-alt.ti-skin .kp-w8-nastepne .kp-w8-tytul { margin-top: 0; }
+body.kur-alt.ti-skin .kp-w8-nastepne .kp-w8-licznik-czas { font-size: 1.5rem; margin: .1rem 0 .15rem; }
+@media (max-width: 575.98px) {
+  body.kur-alt.ti-skin .kp-w8-siatka { grid-auto-rows: minmax(124px, auto); }
+  body.kur-alt.ti-skin .kp-w8-grupa[aria-labelledby="kp-w8-g-dzis"] .kp-w8-kafel,
+  body.kur-alt.ti-skin .kp-w8-grupa[aria-labelledby="kp-w8-g-dzis"] .kp-w8-szeroki { grid-column: 1 / -1; }
+  body.kur-alt.ti-skin .kp-w8-pod { -webkit-line-clamp: 3; }
+}
+
+/* Okienko „Masz dziś zajęcia” — METRO: duże przyciski (48 px), kafel lekcji z paskiem, bez zaokrągleń */
+body.kur-alt.ti-skin .kp-dzis-modal .kp-dzis-lekcja { border: 2px solid #1d1d1d !important; border-left: 8px solid #1ba1e2 !important; border-radius: 0 !important; background: #fff; padding: 1rem 1.1rem !important; }
+body.kur-alt.ti-skin .kp-dzis-modal .kp-dzis-lekcja .fw-bold { font-size: 1.1rem; }
+body.kur-alt.ti-skin .kp-dzis-modal .kp-dzis-lekcja time { font-size: 1.25rem; font-weight: 800; }
+body.kur-alt.ti-skin .kp-dzis-modal .kp-dzis-lekcja .text-body-secondary { color: #374151 !important; }
+body.kur-alt.ti-skin .kp-dzis-modal .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 48px; padding: .6rem 1.2rem; font-size: 1rem; font-weight: 700; border-radius: 0 !important; }
+body.kur-alt.ti-skin .kp-dzis-modal .kp-dzis-lekcja .btn { width: 100%; font-size: 1.05rem; background: #0f6fa8 !important; border: 2px solid #0f6fa8 !important; color: #fff !important; }
+body.kur-alt.ti-skin .kp-dzis-modal .kp-dzis-lekcja .btn:hover { background: #0c5b8a !important; text-decoration: underline; }
+body.kur-alt.ti-skin .kp-dzis-modal .modal-footer .btn { background: #fff !important; border: 2px solid #1d1d1d !important; color: #1d1d1d !important; min-width: 150px; }
+body.kur-alt.ti-skin .kp-dzis-modal .modal-footer .btn:hover { background: #eef6fc !important; }
+body.kur-alt.ti-skin .kp-dzis-modal .btn:focus-visible { outline: 3px solid #facc15 !important; outline-offset: 2px; box-shadow: none !important; }
+body.kur-alt.ti-skin .kp-dzis-modal .modal-footer { gap: .5rem; }
