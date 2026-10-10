@@ -208,3 +208,14 @@ body.kur-alt.ti-skin .card-header .btn-outline-primary {
   color: #fff !important; border-color: #cbd5e1 !important; background: transparent !important; border-radius: 0;
 }
 body.kur-alt.ti-skin .card-header .btn:hover { background: #2b2b2b !important; }
+
+/* Komunikaty placówki w stylu METRO: białe kafle, pasek z lewej (akcent = nowe, pomarańcz = przypięte) */
+body.kur-alt.ti-skin .kp-komun {
+  border-radius: 0 !important; background: #fff; border-left: 6px solid #d1d5db !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06) !important;
+}
+body.kur-alt.ti-skin .kp-komun.kp-nowy { border-left-color: #1ba1e2 !important; background: #f0f9ff; }
+body.kur-alt.ti-skin .kp-komun.kp-przypiety { border-left-color: #b45309 !important; }
+body.kur-alt.ti-skin .kp-komun h2 { color: #1d1d1d; font-size: 1.05rem; }
+body.kur-alt.ti-skin .kp-komun .badge { border-radius: 0 !important; background: #0f6fa8 !important; }
+body.kur-alt.ti-skin .kp-komun .btn-link { color: #0f6fa8 !important; text-decoration: underline; }

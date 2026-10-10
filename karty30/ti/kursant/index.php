@@ -5946,7 +5946,7 @@ $authp_list = db_all(
   $is_read   = (int)$n['is_read'];
   $is_pinned = (int)$n['is_pinned'];
 ?>
-<div class="card border-0 shadow-sm <?= !$is_read ? 'border-start border-primary border-3' : '' ?>"
+<div class="card border-0 shadow-sm kp-komun <?= !$is_read ? 'kp-nowy border-start border-primary border-3' : '' ?> <?= $is_pinned ? 'kp-przypiety' : '' ?>"
      style="<?= $is_pinned ? 'border-left:4px solid #f59e0b!important' : (!$is_read ? '' : '') ?>">
   <div class="card-body">
     <div class="d-flex align-items-start gap-2 mb-1">
