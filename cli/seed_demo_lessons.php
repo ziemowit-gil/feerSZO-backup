@@ -15,6 +15,7 @@
  *   php cli/seed_demo_lessons.php --login=test2 --dry-run
  *   php cli/seed_demo_lessons.php --login=test2 --reset    # usuń i utwórz od nowa (świeże daty)
  *   php cli/seed_demo_lessons.php --login=test2 --remove   # usuń dane demo tego konta
+ *   php cli/seed_demo_lessons.php --login=test2 --instructor=jan@feer.org.pl   # przypisz prowadzącego (także do istniejącej grupy demo)
  */
 
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit("Tylko z CLI.\n"); }
@@ -27,9 +28,10 @@ karty30_migrate();
 
 const DEMO_MARKER = '[DEMO-SEED]';
 
-$opt = ['login' => 'test2', 'dry-run' => false, 'reset' => false, 'remove' => false];
+$opt = ['login' => 'test2', 'dry-run' => false, 'reset' => false, 'remove' => false, 'instructor' => ''];
 foreach (array_slice($argv, 1) as $a) {
     if (preg_match('/^--login=(.+)$/', $a, $m)) $opt['login'] = trim($m[1]);
+    elseif (preg_match('/^--instructor=(.+)$/', $a, $m)) $opt['instructor'] = trim($m[1]);
     elseif (in_array($a, ['--dry-run', '--reset', '--remove'], true)) $opt[substr($a, 2)] = true;
     else { fwrite(STDERR, "Nieznana opcja: $a\n"); exit(2); }
 }
@@ -71,8 +73,28 @@ if ($opt['remove']) {
     exit(0);
 }
 
+// Prowadzący (opcjonalnie): konto SZO po e-mailu
+$instructor_id = null;
+if ($opt['instructor'] !== '') {
+    $u = db_one("SELECT id, name FROM users WHERE LOWER(email) = LOWER(?) AND is_active = 1", [$opt['instructor']]);
+    if (!$u) { fwrite(STDERR, "Nie ma aktywnego konta prowadzącego o e-mailu „{$opt['instructor']}”.\n"); exit(1); }
+    $instructor_id = (int)$u['id'];
+    echo "Prowadzący: {$u['name']} (#{$instructor_id})\n";
+}
+
 if ($demo_courses()) {
-    if (!$opt['reset']) { echo "Dane demo już istnieją — nic nie robię. Użyj --reset, żeby odświeżyć daty, albo --remove.\n"; exit(0); }
+    if (!$opt['reset'] && $instructor_id !== null) {
+        foreach ($demo_courses() as $c) {
+            echo ($opt['dry-run'] ? '[dry-run] ' : '') . "Przypisuję prowadzącego do grupy demo #{$c['id']}\n";
+            if (!$opt['dry-run']) {
+                db()->prepare("UPDATE k30_ti_courses SET instructor_id = ? WHERE id = ?")->execute([$instructor_id, $c['id']]);
+                db()->prepare("UPDATE k30_ti_sessions SET instructor_id = ? WHERE course_id = ?")->execute([$instructor_id, $c['id']]);
+            }
+        }
+        echo "Gotowe.\n";
+        exit(0);
+    }
+    if (!$opt['reset']) { echo "Dane demo już istnieją — nic nie robię. Użyj --reset, żeby odświeżyć daty, --instructor=…, żeby przypisać prowadzącego, albo --remove.\n"; exit(0); }
     $remove($opt['dry-run']);
 }
 
@@ -105,6 +127,7 @@ $pdo->beginTransaction();
 try {
     $course_id = db_insert('k30_ti_courses', [
         'name'         => 'Pracownia komputerowa (DEMO)',
+        'instructor_id' => $instructor_id,
         'display_name' => 'Pracownia komputerowa (DEMO)',
         'group_code'   => 'DEMO-1',
         'description'  => DEMO_MARKER . ' Dane fikcyjne do testów widoku panelu kursanta. Usuń: php cli/seed_demo_lessons.php --remove',
@@ -138,6 +161,7 @@ try {
             'status'       => $d < $today ? 'done' : 'planned',
             'topic'        => $topic,
             'notes'        => DEMO_MARKER,
+            'instructor_id' => $instructor_id,
         ]);
         if ($att !== null) {
             db_insert('k30_ti_attendance', ['session_id' => $sid, 'client_id' => $client_id, 'attended' => $att]);
