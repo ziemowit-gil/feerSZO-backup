@@ -120,7 +120,11 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
           <a href="?tab=lekcje">
             <i class="bi bi-calendar-check kp-w8-ikona" aria-hidden="true"></i>
             <span class="kp-w8-tytul">Moje lekcje
-              <?php
+              <span class="kp-w8-pod">Plan, odwołania i zmiany terminów</span>
+            </span>
+          </a>
+        </li>
+        <?php
           // Najbliższe zajęcia: pierwsza lekcja, która jeszcze się nie skończyła (data + godzina wg PHP, strefa Europe/Warsaw)
           $_st_next = null;
           try {
@@ -163,9 +167,6 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
               <?php else: ?>
               <span class="kp-w8-pod">Brak zaplanowanych zajęć.</span>
               <?php endif; ?>
-            </span>
-          </a>
-        </li>
             </span>
           </a>
         </li>
