@@ -4,6 +4,8 @@
  * Na górze 4 najważniejsze moduły, niżej wszystkie sekcje jako grupy kafli.
  * Wyszukiwarka przeszukuje wszystkie pozycje menu. Zmienne pochodzą z _alt_bar.php.
  */
+require_once dirname(__DIR__, 3) . '/includes/auth.php'; // csrf_token() dla formularza typu menu
+
 $_st_glowne_klucze = ['lekcje', 'zadania', 'komunikaty', 'oceny'];
 
 $_st_wszystkie = [];
