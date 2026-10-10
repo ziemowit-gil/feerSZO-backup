@@ -429,3 +429,40 @@ body.kur-alt.ti-skin #kp-brak { color: #1d1d1d !important; }
 body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-kafel { background: #d9f0fb !important; border-bottom: 3px solid #1ba1e2; }
 body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-kafel a:hover { background: #c3e6f7; filter: none; }
 body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-tytul { text-decoration: underline; text-decoration-color: #1ba1e2; text-underline-offset: .2em; }
+
+/* ── Jedna paleta dla wszystkich przycisków i kontrolek w widoku alternatywnym ──
+   główny: #0f6fa8 (biały tekst 5,4:1); drugorzędny: biały z ciemną ramką; bez zaokrągleń. */
+body.kur-alt.ti-skin .btn { border-radius: 0 !important; font-weight: 600; }
+body.kur-alt.ti-skin .btn-primary,
+body.kur-alt.ti-skin .btn-info,
+body.kur-alt.ti-skin .btn-success { background: #0f6fa8 !important; border-color: #0f6fa8 !important; color: #fff !important; }
+body.kur-alt.ti-skin .btn-primary:hover,
+body.kur-alt.ti-skin .btn-info:hover,
+body.kur-alt.ti-skin .btn-success:hover { background: #0c5b8a !important; border-color: #0c5b8a !important; }
+body.kur-alt.ti-skin .btn-outline-primary,
+body.kur-alt.ti-skin .btn-outline-secondary,
+body.kur-alt.ti-skin .btn-outline-dark,
+body.kur-alt.ti-skin .btn-light,
+body.kur-alt.ti-skin .btn-outline-info { background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; }
+body.kur-alt.ti-skin .btn-outline-primary:hover,
+body.kur-alt.ti-skin .btn-outline-secondary:hover,
+body.kur-alt.ti-skin .btn-outline-dark:hover,
+body.kur-alt.ti-skin .btn-light:hover,
+body.kur-alt.ti-skin .btn-outline-info:hover { background: #e5e7eb !important; }
+body.kur-alt.ti-skin .btn-outline-warning { background: #fff !important; color: #1d1d1d !important; border: 2px solid #f0a30a !important; }
+body.kur-alt.ti-skin .btn-outline-danger  { background: #fff !important; color: #b91c1c !important; border: 2px solid #b91c1c !important; }
+body.kur-alt.ti-skin .btn-link { color: #0f6fa8 !important; text-decoration: underline; }
+body.kur-alt.ti-skin details > summary.btn { display: inline-block; }
+body.kur-alt.ti-skin .dropdown-menu { border-radius: 0; border: 2px solid #1d1d1d; }
+body.kur-alt.ti-skin .progress { border-radius: 0 !important; }
+body.kur-alt.ti-skin .progress-bar { background: #1ba1e2 !important; }
+
+/* Ciemne nagłówki kart: przyciski/strzałki w nich na jasno (nie czarne na czarnym) */
+body.kur-alt.ti-skin .card-header .btn,
+body.kur-alt.ti-skin summary.card-header .btn { background: transparent !important; color: #fff !important; border: 2px solid #cbd5e1 !important; }
+
+/* Okienko kalendarza: przyciski mają style inline → nadpisujemy po id */
+body.kur-alt.ti-skin #kpIcalPopupLater { background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; border-radius: 0 !important; font-weight: 600; }
+body.kur-alt.ti-skin #kpIcalPopupGo    { background: #0f6fa8 !important; color: #fff !important; border: 2px solid #0f6fa8 !important; border-radius: 0 !important; }
+body.kur-alt.ti-skin #kpIcalPopupLater:focus-visible,
+body.kur-alt.ti-skin #kpIcalPopupGo:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
