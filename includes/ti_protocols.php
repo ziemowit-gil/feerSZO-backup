@@ -790,15 +790,17 @@ function ti_protocol_approve_signed(int $protocol_id, int $uid, string $by_name,
     $prot = ti_protocol_get($protocol_id);
     if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
 
-    // Kod SMS przed podpisem: jednorazowy, ważny 5 minut, wysłany na telefon tego prowadzącego.
-    if (!ti_protocol_otp_check($uid, $otp)) {
-        throw new \RuntimeException('Podaj poprawny kod z SMS-a (ważny 5 minut). Jeśli kod wygasł, wyślij nowy.');
-    }
-
+    // Najpierw certyfikat (bez zużywania czegokolwiek), dopiero potem kod SMS — zły plik albo hasło
+    // nie zużywa kodu, więc prowadzący nie musi prosić o nowy SMS.
     $sig = x509_sign_payload_p12($uid, $p12, $password, ti_protocol_sign_payload($prot, $uid));
     if (!$sig) {
         throw new \RuntimeException('Nie udało się podpisać protokołu: sprawdź plik certyfikatu (.p12) i hasło. '
             . 'Jeśli nie masz certyfikatu, poproś administratora o jego wystawienie.');
+    }
+
+    // Kod SMS: jednorazowy, ważny 5 minut, wysłany na telefon tego prowadzącego.
+    if (!ti_protocol_otp_check($uid, $otp)) {
+        throw new \RuntimeException('Podaj poprawny kod z SMS-a (ważny 5 minut). Jeśli kod wygasł, wyślij nowy.');
     }
 
     ti_protocol_approve($protocol_id, $uid, $by_name);
