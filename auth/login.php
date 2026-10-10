@@ -333,6 +333,9 @@ $_url_dyd = APP_URL . '/karty30/ti/dydaktyk/login.php';
 $konto = in_array($_GET['konto'] ?? '', ['fundacja', 'prywatny'], true) ? $_GET['konto'] : '';
 if ($konto === '' && (!$ms_available || $emergency || ($error && $active_tab === 'local'))) $konto = 'prywatny';
 if ($konto === 'fundacja' && !$ms_available) $konto = 'prywatny';
+// Poczta w domenie fundacji = od razu Microsoft 365, bez pośredniego ekranu z drugim przyciskiem.
+$_ms_url = $ms_available ? ms_auth_url($redirect ?: APP_URL . '/tozsamosc/index.php') : '';
+if ($konto === 'fundacja') { header('Location: ' . $_ms_url); exit; }
 $_konto_url = function (string $k): string {
     $q = $_GET;
     unset($q['konto']);
@@ -432,7 +435,6 @@ $_modals_html = ob_get_clean();
     <p class="ks-lead">
       <?php if ($_login_welcome_is_custom): ?><?= nl2br(h($_login_welcome)) ?>
       <?php elseif ($konto === ''): ?>Jaki adres e-mail masz?
-      <?php elseif ($konto === 'fundacja'): ?>Masz pocztę w domenie fundacji — zaloguj się przez Microsoft 365.
       <?php else: ?>Zaloguj się adresem e-mail i hasłem.
       <?php endif; ?>
     </p>
@@ -440,7 +442,8 @@ $_modals_html = ob_get_clean();
     <?php if ($konto === ''): ?>
     <!-- ══ Krok 1: wybór rodzaju adresu e-mail ══════════════════════════ -->
     <div class="ks-choice" role="list" aria-label="Rodzaj adresu e-mail">
-      <a role="listitem" class="ks-choice__item ks-choice__item--org" href="<?= h($_konto_url('fundacja')) ?>">
+      <a role="listitem" class="ks-choice__item ks-choice__item--org" href="<?= h($_ms_url) ?>"
+         aria-label="Mam pocztę w domenie fundacji — zaloguj przez Microsoft 365, zostaniesz przekierowany do Microsoft">
         <i class="bi bi-building" aria-hidden="true"></i>
         <span><strong>Mam pocztę w domenie fundacji</strong>
           <span class="ks-choice__sub">Adres <b>@feer.org.pl</b> — logowanie przez Microsoft 365</span></span>
@@ -451,19 +454,6 @@ $_modals_html = ob_get_clean();
           <span class="ks-choice__sub">Np. Gmail, Onet, WP — logowanie e-mailem i hasłem</span></span>
       </a>
     </div>
-    <?php endif; ?>
-
-    <?php if ($konto === 'fundacja'): ?>
-    <a href="<?= h(ms_auth_url($redirect ?: APP_URL . '/tozsamosc/index.php')) ?>" class="ks-btn ks-btn--primary"
-       aria-label="Zaloguj się przez Microsoft 365 — zostaniesz przekierowany do Microsoft">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" aria-hidden="true" focusable="false">
-        <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/>
-        <path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
-      </svg>
-      Zaloguj przez Microsoft 365
-    </a>
-    <p class="ks-hint">Konto <strong>@feer.org.pl</strong> — SSO, bez wpisywania hasła</p>
-    <p class="ks-switch"><a href="<?= h($_konto_url('prywatny')) ?>">Nie mam poczty w domenie fundacji — zaloguj e-mailem i hasłem</a></p>
     <?php endif; ?>
 
     <?php if ($konto === 'prywatny'): ?>
@@ -497,13 +487,13 @@ $_modals_html = ob_get_clean();
       <button type="submit" class="ks-btn ks-btn--primary">Zaloguj</button>
     </form>
     <?php if ($ms_available && !$emergency): ?>
-    <p class="ks-switch"><a href="<?= h($_konto_url('fundacja')) ?>">Mam pocztę @feer.org.pl — zaloguj przez Microsoft 365</a></p>
+    <p class="ks-switch"><a href="<?= h($_ms_url) ?>">Mam pocztę @feer.org.pl — zaloguj przez Microsoft 365</a></p>
     <?php endif; ?>
     <?php endif; ?>
 
     <?php /* „Załóż konto" i „Odzyskaj hasło" są w lewej kolumnie (account_buttons). */ ?>
 
-    <?php $has_alt = $konto !== 'fundacja' && ($code_available || $sms_available || $x509_available); if ($has_alt): ?>
+    <?php $has_alt = ($code_available || $sms_available || $x509_available); if ($has_alt): ?>
     <hr class="ks-sep">
     <p class="ks-sub">Inne metody logowania</p>
     <?php if ($code_available): ?>
