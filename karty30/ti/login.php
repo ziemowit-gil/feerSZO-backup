@@ -101,7 +101,15 @@ html, body { background-color: #1ba1e2 !important; background-image: none !impor
 </style>
 <h1 class="ks-h1"><?= h(org_login_title($_titles[$tab])) ?></h1>
 <p class="ks-lead">Zaloguj się loginem/e-mailem i hasłem.</p>
-<p class="small text-body-secondary mb-3"><strong>Logowanie centralne zostało zrealizowane.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
+<aside class="border border-2 p-3 mb-3 small" style="border-color:#1ba1e2 !important;border-radius:0" aria-labelledby="co-nowego-h">
+  <h2 id="co-nowego-h" class="h6 fw-bold mb-2">Co nowego w logowaniu</h2>
+  <p class="mb-2"><strong>Logowanie centralne zostało zrealizowane.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
+  <ul class="mb-0 ps-3">
+    <li><strong>Kursant:</strong> przy pierwszym logowaniu wpisujesz tylko login, a kod przychodzi SMS-em na telefon z karty. Potem ustawiasz własne hasło.</li>
+    <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</li>
+    <li><strong>Prowadzący, rodzic i upoważniony:</strong> logowanie bez zmian.</li>
+  </ul>
+</aside>
 
 <?php if ($error): ?>
 <div class="l-alert l-alert-danger" role="alert" aria-live="assertive" aria-atomic="true" style="margin-bottom:1.25rem">

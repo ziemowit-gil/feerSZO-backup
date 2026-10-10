@@ -68,7 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <header class="metro-bar">FEER · System Tożsamości</header>
 <main class="metro-card">
   <h1 class="h5 fw-bold mb-1">Zaloguj się do panelu kursanta</h1>
-  <p class="small text-body-secondary mb-3"><strong>Logowanie centralne zostało zrealizowane.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
+  <aside class="border border-2 p-3 mb-3 small" style="border-color:#1ba1e2 !important;border-radius:0" aria-labelledby="co-nowego-h">
+  <h2 id="co-nowego-h" class="h6 fw-bold mb-2">Co nowego w logowaniu</h2>
+  <p class="mb-2"><strong>Logowanie centralne zostało zrealizowane.</strong> Logowanie do panelu TI idzie przez centralny serwer logowania Systemu Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
+  <ul class="mb-0 ps-3">
+    <li><strong>Kursant:</strong> przy pierwszym logowaniu wpisujesz tylko login, a kod przychodzi SMS-em na telefon z karty. Potem ustawiasz własne hasło.</li>
+    <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</li>
+  </ul>
+</aside>
 
   <?php if ($blad !== ''): ?>
   <div class="alert alert-danger small py-2 rounded-0" role="alert"><?= htmlspecialchars($blad, ENT_QUOTES, 'UTF-8') ?></div>
