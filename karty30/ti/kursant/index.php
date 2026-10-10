@@ -4907,6 +4907,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
     <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawien">
       <a href="#ust-styl"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-palette me-2" aria-hidden="true"></i>Styl panelu</a>
+      <a href="#ust-ulatw"  class="ust-navlink btn btn-sm text-start"><i class="bi bi-universal-access me-2" aria-hidden="true"></i>Ułatwienia</a>
       <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczenstwo</a>
       <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
       <a href="#ust-push"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell-fill     me-2" aria-hidden="true"></i>Push</a>
@@ -4944,6 +4945,36 @@ document.addEventListener('DOMContentLoaded', function() {
         <?php endif; ?>
       </div>
     </section>
+
+    <section id="ust-ulatw" class="card" aria-labelledby="ust-ulatw-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-universal-access" aria-hidden="true"></i>
+        <h2 id="ust-ulatw-h" class="h6 fw-bold mb-0">Ułatwienia</h2>
+      </div>
+      <div class="card-body">
+        <p class="small text-body-secondary mb-2">Dostosuj wygląd do siebie. Wybór zapamiętuje ta przeglądarka i działa na wszystkich stronach panelu.</p>
+        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="ul-duzy" data-ul="kp-duzy-tekst"><label class="form-check-label" for="ul-duzy">Większy tekst</label></div>
+        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="ul-kontrast" data-ul="kp-kontrast"><label class="form-check-label" for="ul-kontrast">Wysoki kontrast</label></div>
+        <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="ul-ruch" data-ul="kp-bez-ruchu"><label class="form-check-label" for="ul-ruch">Bez animacji i przejść</label></div>
+      </div>
+    </section>
+    <script>
+    (function () {
+      var KEY = 'kp_ulatwienia';
+      function czytaj() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+      var stan = czytaj();
+      document.querySelectorAll('[data-ul]').forEach(function (cb) {
+        var klasa = cb.getAttribute('data-ul');
+        cb.checked = !!stan[klasa];
+        document.body.classList.toggle(klasa, !!stan[klasa]);
+        cb.addEventListener('change', function () {
+          stan[klasa] = cb.checked;
+          document.body.classList.toggle(klasa, cb.checked);
+          try { localStorage.setItem(KEY, JSON.stringify(stan)); } catch (e) { /* prywatne okno — działa bez zapisu */ }
+        });
+      });
+    })();
+    </script>
 
     <section id="ust-bezp" class="card" aria-labelledby="ust-bezp-h">
       <div class="card-header d-flex align-items-center gap-2 py-2">

@@ -257,6 +257,27 @@ if (function_exists('dyd_current') && dyd_current()) {
 </section>
 <?php endforeach; }
 ?>
+<style>
+  /* Ułatwienia (ustawienia kursanta): większy tekst, wysoki kontrast, bez animacji */
+  body.kp-duzy-tekst { font-size: 18px; }
+  body.kp-duzy-tekst .small, body.kp-duzy-tekst small { font-size: .9em; }
+  body.kp-kontrast { background: #fff !important; color: #000 !important; }
+  body.kp-kontrast .card, body.kp-kontrast .alert { border: 2px solid #000 !important; }
+  body.kp-kontrast .text-body-secondary, body.kp-kontrast .text-muted { color: #1f2937 !important; }
+  body.kp-kontrast a:not(.btn) { color: #00366b !important; text-decoration: underline; }
+  body.kp-bez-ruchu *, body.kp-bez-ruchu *::before, body.kp-bez-ruchu *::after {
+    transition: none !important; animation: none !important; scroll-behavior: auto !important;
+  }
+</style>
+<script>
+  (function () {
+    try {
+      var s = JSON.parse(localStorage.getItem('kp_ulatwienia') || '{}');
+      ['kp-duzy-tekst', 'kp-kontrast', 'kp-bez-ruchu'].forEach(function (k) { if (s[k]) document.documentElement.classList.add(k); });
+    } catch (e) { /* bez zapisu — domyślny wygląd */ }
+  })();
+  document.documentElement.classList.forEach(function (k) { document.body && document.body.classList.add(k); });
+</script>
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
 
 <?php $KP_IMP = function_exists('student_impersonator') ? student_impersonator() : null; if ($KP_IMP): ?>
