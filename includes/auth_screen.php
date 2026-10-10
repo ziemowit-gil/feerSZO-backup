@@ -104,7 +104,7 @@ function auth_screen_head(array $o = []): void {
 (function(){try{
   var fs=localStorage.getItem('szoFs'); if(fs==='L'||fs==='XL') document.documentElement.dataset.fs=fs;
   if(localStorage.getItem('szoHc')==='1') document.documentElement.dataset.theme='hc';
-  if(localStorage.getItem('szoNews')==='2026-08') document.documentElement.dataset.news='off';
+  if(localStorage.getItem('szoNews')==='2026-10') document.documentElement.dataset.news='off';
 }catch(e){}})();
 </script>
 <style>
@@ -675,7 +675,7 @@ if(hcBtn){
 var newsX=document.getElementById('ks-news-x');
 if(newsX) newsX.addEventListener('click',function(){
   root.dataset.news='off';
-  try{localStorage.setItem('szoNews','2026-08');}catch(e){}
+  try{localStorage.setItem('szoNews','2026-10');}catch(e){}
 });
 
 /* Błąd do czytnika ekranu */
@@ -726,12 +726,13 @@ function auth_screen_news(): void {
     <div class="ks-news" id="ks-news" role="note">
       <i class="bi bi-stars ico" aria-hidden="true"></i>
       <div>
-        <strong>Coś tu się zmieniło 👋</strong>
-        <p>Odświeżyliśmy ekrany wejścia do systemu. Na górze strony ustawisz teraz <strong>rozmiar tekstu</strong>
-           i <strong>wysoki kontrast</strong> — ustawienie zostaje zapamiętane. Logowanie, rejestracja
-           i odzyskiwanie hasła działają tak samo jak dotąd.</p>
+        <strong>Nowy wygląd logowania</strong>
+        <p>Najpierw wybierz, jaki masz adres e-mail: <strong>w domenie fundacji</strong> (logowanie przez Microsoft 365)
+           czy <strong>prywatny</strong> (e-mail i hasło). Po lewej jest instrukcja i lista serwisów, do których
+           wchodzisz tym samym kontem. Panel możesz schować. Na górze strony ustawisz <strong>rozmiar tekstu</strong>
+           i <strong>wysoki kontrast</strong>.</p>
       </div>
-      <button type="button" class="x" id="ks-news-x" aria-label="Zamknij komunikat o nowym wyglądzie">
+      <button type="button" class="x" id="ks-news-x" aria-label="Zamknij komunikat o nowym wyglądzie logowania">
         <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
     </div>
