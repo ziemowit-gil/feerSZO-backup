@@ -424,3 +424,8 @@ body.kur-alt.ti-skin .kp-w8 { background: transparent !important; color: #1d1d1d
 body.kur-alt.ti-skin .kp-w8-naglowek { color: #1d1d1d !important; border-bottom: 2px solid #1ba1e2; padding-bottom: .25rem; }
 body.kur-alt.ti-skin .kp-w8-siatka { gap: 8px; }
 body.kur-alt.ti-skin #kp-brak { color: #1d1d1d !important; }
+
+/* Najważniejsze: delikatnie podkreślone — jaśniejszy akcent i cienka ciemna linia u dołu, bez krzyku */
+body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-kafel { background: #d9f0fb !important; border-bottom: 3px solid #1ba1e2; }
+body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-kafel a:hover { background: #c3e6f7; filter: none; }
+body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-tytul { text-decoration: underline; text-decoration-color: #1ba1e2; text-underline-offset: .2em; }
