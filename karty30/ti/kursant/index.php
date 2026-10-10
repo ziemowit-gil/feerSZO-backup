@@ -135,6 +135,10 @@ $ui_switch_url = 'index.php?tab=' . rawurlencode($tab)
     . '&ui=' . ($KUR_UI === 'alt' ? 'klasyczny' : 'alt');
 // Sposób nawigacji w widoku alternatywnym: zakładki albo menu rozwijane (wybór w Tożsamości)
 $KUR_NAV = student_nav((int)$student['id']);
+// Kursant jeszcze nie wybrał menu — pytamy raz, przed pierwszym wejściem do widoku alternatywnego
+if ($KUR_UI === 'alt' && !student_nav_chosen((int)$student['id'])) {
+    header('Location: ' . APP_URL . '/tozsamosc/kursant_ustawienia.php?pierwszy=1'); exit;
+}
 
 // Dane kursanta
 $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student['id']]);

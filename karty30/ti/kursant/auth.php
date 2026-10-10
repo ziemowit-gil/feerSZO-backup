@@ -192,20 +192,30 @@ function student_nav(int $accountId): string {
         $migrated = true;
         try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN nav_pref TEXT NOT NULL DEFAULT 'zakladki'"); }
         catch (\Throwable $e) { /* kolumna już istnieje */ }
+        try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN nav_chosen INTEGER NOT NULL DEFAULT 0"); }
+        catch (\Throwable $e) { /* kolumna już istnieje */ }
     }
     if ($accountId <= 0) return 'zakladki';
     try {
         $r = db_one("SELECT nav_pref FROM k30_ti_student_accounts WHERE id=?", [$accountId]);
     } catch (\Throwable $e) { return 'zakladki'; }
-    return (($r['nav_pref'] ?? '') === 'rozwijane') ? 'rozwijane' : 'zakladki';
+    $pref = (string)($r['nav_pref'] ?? '');
+    return in_array($pref, ['rozwijane', 'dropdown'], true) ? $pref : 'zakladki';
+}
+
+/** Czy kursant sam wybrał sposób nawigacji (jeśli nie — pytamy przy logowaniu). */
+function student_nav_chosen(int $accountId): bool {
+    student_nav($accountId); // dopilnowuje kolumn
+    $r = db_one("SELECT nav_chosen FROM k30_ti_student_accounts WHERE id=?", [$accountId]);
+    return !empty($r['nav_chosen']);
 }
 
 function student_nav_set(int $accountId, string $nav): void {
     if ($accountId <= 0) return;
     student_nav($accountId); // dopilnowuje kolumny nav_pref
 
-    $nav = ($nav === 'rozwijane') ? 'rozwijane' : 'zakladki';
-    db()->prepare("UPDATE k30_ti_student_accounts SET nav_pref = ? WHERE id = ?")->execute([$nav, $accountId]);
+    $nav = in_array($nav, ['rozwijane', 'dropdown'], true) ? $nav : 'zakladki';
+    db()->prepare("UPDATE k30_ti_student_accounts SET nav_pref = ?, nav_chosen = 1 WHERE id = ?")->execute([$nav, $accountId]);
 }
 
 /** Zapis wyboru widoku panelu kursanta. */
