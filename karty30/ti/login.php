@@ -56,17 +56,24 @@ $_titles = [
     'up'       => 'Dostęp upoważnionego',
 ];
 $_tabs = [
-    'kursant'  => ['label' => 'Kursant',     'icon' => 'bi-pc-display'],
-    'dydaktyk' => ['label' => 'Prowadzący',  'icon' => 'bi-easel2'],
-    'rodzic'   => ['label' => 'Rodzic',      'icon' => 'bi-people'],
-    'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check'],
+    'kursant'  => ['label' => 'Kursant',     'icon' => 'bi-pc-display',   'who' => 'Uczestnik zajęć'],
+    'dydaktyk' => ['label' => 'Prowadzący',  'icon' => 'bi-easel2',       'who' => 'Prowadzę zajęcia'],
+    'rodzic'   => ['label' => 'Rodzic',      'icon' => 'bi-people',       'who' => 'Opiekun kursanta'],
+    'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check', 'who' => 'Osoba upoważniona przez kursanta'],
 ];
 
-// ── Zakładki roli po lewej (zamiast poziomego paska nad kartą) ───────────────
-ob_start();
-foreach ($_tabs as $_key => $_t): ?>
+// ── Zakładki roli po lewej: pytanie „kim jesteś” + krótki opis każdej roli ────
+ob_start(); ?>
+  <div class="small fw-semibold text-muted mb-2" style="letter-spacing:.02em">Kim jesteś?</div>
+<?php foreach ($_tabs as $_key => $_t): ?>
   <a class="ks-tab" href="login.php?tab=<?= $_key ?>" <?= $tab === $_key ? 'aria-current="page"' : '' ?>>
-    <i class="bi <?= $_t['icon'] ?> me-1" aria-hidden="true"></i><?= h($_t['label']) ?>
+    <span class="d-flex align-items-center gap-2">
+      <i class="bi <?= $_t['icon'] ?>" aria-hidden="true"></i>
+      <span>
+        <span class="d-block fw-semibold"><?= h($_t['label']) ?></span>
+        <span class="d-block" style="font-size:.74rem;font-weight:400;opacity:.8"><?= h($_t['who']) ?></span>
+      </span>
+    </span>
   </a>
 <?php endforeach;
 $_tabs_html = ob_get_clean();
