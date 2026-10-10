@@ -35,6 +35,21 @@ $account = db_one(
     [$login, $login]
 );
 
+// Pierwsze logowanie (konto nigdy nie logowało się): sam login, kod SMS na telefon z karty.
+// Po poprawnym kodzie kursant ustawia własne hasło (must_change_password).
+if ($account && empty($account['last_login'])) {
+    require_once __DIR__ . '/../../../includes/ti_student_otp.php';
+    if (!empty($account['child_access_blocked'])) {
+        header('Location: ../login.php?tab=kursant&e=2'); exit;
+    }
+    if (ti_student_otp_send((int)$account['id'], (int)$account['client_id'])) {
+        student_start();
+        $_SESSION['k30_ti_student_otp'] = ['id' => (int)$account['id'], 'ts' => time()];
+        header('Location: login_code.php'); exit;
+    }
+    header('Location: ../login.php?tab=kursant&e=1&l=' . urlencode($login)); exit;
+}
+
 if ($account && password_verify($password, $account['password_hash'])) {
     if (!empty($account['child_access_blocked'])) {
         // Kod 2: dostęp wstrzymany przez opiekuna

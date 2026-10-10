@@ -106,13 +106,13 @@ auth_screen_head([
            value="<?= $prefill_login ?>" required autofocus autocomplete="username"
            placeholder="Login lub własny alias"
            <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-    <p class="ks-fieldhint">Login otrzymujesz od prowadzącego.</p>
+    <p class="ks-fieldhint">Login otrzymujesz od prowadzącego. Przy pierwszym logowaniu wpisz tylko login — kod przyjdzie SMS-em na Twój telefon.</p>
   </div>
   <div class="ks-field">
-    <label for="stu-password">Hasło</label>
+    <label for="stu-password">Hasło <span class="fw-normal">(przy pierwszym logowaniu nie wpisuj)</span></label>
     <div class="pass-wrap">
       <input type="password" class="form-control" id="stu-password" name="password"
-             required autocomplete="current-password">
+             autocomplete="current-password">
       <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false"
               onclick="togglePass('stu-password', this)">
         <i class="bi bi-eye" aria-hidden="true"></i>
