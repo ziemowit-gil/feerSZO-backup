@@ -166,7 +166,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <i class="bi bi-lock me-1" aria-hidden="true"></i>Protokół zatwierdza główny prowadzący kursu albo kierownik.
       </p>
       <?php else: ?>
-            <?php $_has_cert = x509_user_has_active_cert($uid); ?>
+            <?php
+              $_has_cert = x509_user_has_active_cert($uid);
+              $_has_key  = (bool)webauthn_get_credentials($uid);
+              // Bez certyfikatu, ale z kluczem (passkey/YubiKey) — od razu proponujemy klucz;
+              // SMS i podpis .p12 są wtedy niepotrzebne.
+              // „Nie mogę skorzystać z passkey” (?metoda=zwykla) — wracamy do zwykłej metody.
+              $_key_first = !$_has_cert && $_has_key && ($_GET['metoda'] ?? '') !== 'zwykla';
+            ?>
+            <?php if (!$_key_first): ?>
             <form method="post" class="mb-2">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="send_otp">
@@ -175,6 +183,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
               <span class="small text-body-secondary ms-2">Najpierw kod na telefon, potem podpis.</span>
             </form>
+            <?php endif; ?>
             <form method="post" class="ms-auto" id="pmApproveForm" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="_op" value="approve_month">
@@ -191,19 +200,34 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control form-control-sm mb-1" id="pmOtp" name="otp" autocomplete="one-time-code" required>
           <div class="text-body-secondary">Podpis obejmuje dokładną treść ewidencji godzin. Plik i hasło służą tylko do tego podpisu i nie są zapisywane.</div>
         </div>
+        <?php elseif ($_key_first): ?>
+        <div class="card card-body border-success py-2 mb-2 small" style="min-width:18rem">
+          <div class="fw-semibold mb-1"><i class="bi bi-usb-drive text-success" aria-hidden="true"></i> Zatwierdź kluczem bezpieczeństwa</div>
+          <p class="mb-0" id="pmYkOpis">Masz zarejestrowany klucz (passkey lub YubiKey) — wystarczy go użyć. Nie potrzebujesz certyfikatu ani kodu SMS.
+            Klucz potwierdza, że to Ty zatwierdzasz protokół i że treść ewidencji godzin się nie zmieniła.</p>
+          <a class="btn btn-sm btn-outline-secondary mt-2 align-self-start"
+             href="protokoly_moje.php?course=<?= (int)$open_row['course_id'] ?>&amp;ym=<?= h(urlencode($open_ym)) ?>&amp;metoda=zwykla">
+            <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Nie mogę skorzystać z passkey
+          </a>
+        </div>
         <?php else: ?>
         <div class="alert alert-warning small py-2 mb-2" style="min-width:18rem">
           <div class="fw-semibold"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Nie masz certyfikatu do podpisu</div>
-          <p class="mb-0">Certyfikat to elektroniczny odpowiednik Twojego podpisu: potwierdza, że to Ty zatwierdziłeś protokół i że jego treść się nie zmieniła. Poproś administratora o wystawienie certyfikatu — dostaniesz plik .p12 i hasło do niego.</p>
+          <p class="mb-0">Certyfikat to elektroniczny odpowiednik Twojego podpisu: potwierdza, że to Ty zatwierdziłeś protokół i że jego treść się nie zmieniła. Poproś administratora o wystawienie certyfikatu — dostaniesz plik .p12 i hasło do niego.
+            Możesz też dodać klucz bezpieczeństwa (passkey lub YubiKey) w <a href="moj_certyfikat.php">Mój certyfikat</a> i zatwierdzać nim.</p>
         </div>
         <?php endif; ?>
         <!-- Przed zatwierdzeniem: okno z listą godzin (data — liczba godzin), wydruk PDF
              i obowiązkowe „sprawdziłem/am” → Akceptuję wysyła ten formularz. -->
-        <?php if (webauthn_get_credentials($uid)): ?>
-        <button type="button" class="btn btn-outline-success me-2" id="pmYkBtn"
-                data-course="<?= (int)$open_row['course_id'] ?>" data-ym="<?= h($open_ym) ?>">
-          <i class="bi bi-usb-drive me-1" aria-hidden="true"></i>Zatwierdź kluczem YubiKey
+        <?php if ($_has_key): ?>
+        <button type="button" class="btn <?= $_key_first ? 'btn-success' : 'btn-outline-success' ?> me-2" id="pmYkBtn"
+                data-course="<?= (int)$open_row['course_id'] ?>" data-ym="<?= h($open_ym) ?>"
+                aria-describedby="<?= $_key_first ? 'pmYkOpis ' : '' ?>pmYkStan">
+          <i class="bi bi-usb-drive me-1" aria-hidden="true"></i><?= $_key_first ? 'Zatwierdź kluczem bezpieczeństwa' : 'Zatwierdź kluczem (passkey / YubiKey)' ?>
         </button>
+        <?php /* Postęp dla czytnika ekranu i błąd na stronie zamiast okienka alert(). */ ?>
+        <div class="visually-hidden" role="status" aria-live="polite" id="pmYkStan"></div>
+        <div class="alert alert-danger small py-2 mt-2 mb-2 d-none" role="alert" id="pmYkBlad"></div>
         <script>
         (function () {
           var b = document.getElementById('pmYkBtn'); if (!b) return;
@@ -213,9 +237,18 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a.buffer; }
           function bufToB64u(buf) { var u = new Uint8Array(buf), s = ''; for (var i = 0; i < u.length; i++) s += String.fromCharCode(u[i]);
             return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
-          b.addEventListener('click', async function () {
-            if (!confirm('Sprawdziłeś/aś ewidencję godzin? Zatwierdzenie kluczem YubiKey zamyka protokół.')) return;
+          var stan = document.getElementById('pmYkStan'), blad = document.getElementById('pmYkBlad');
+          function koniec() { b.disabled = false; b.removeAttribute('aria-busy'); }
+          if (!window.PublicKeyCredential || !navigator.credentials) {
             b.disabled = true;
+            blad.textContent = 'Ta przeglądarka nie obsługuje kluczy bezpieczeństwa. Otwórz panel w aktualnym Chrome, Edge, Firefox lub Safari.';
+            blad.classList.remove('d-none');
+            return;
+          }
+          b.addEventListener('click', async function () {
+            if (!confirm('Sprawdziłeś/aś ewidencję godzin? Zatwierdzenie kluczem zamyka protokół.')) return;
+            b.disabled = true; b.setAttribute('aria-busy', 'true'); blad.classList.add('d-none');
+            stan.textContent = 'Dotknij klucza bezpieczeństwa albo potwierdź w urządzeniu.';
             try {
               var r = await fetch(base + '?action=begin&course_id=' + b.dataset.course + '&year_month=' + encodeURIComponent(b.dataset.ym), { credentials: 'same-origin' });
               var j = await r.json(); if (!r.ok) throw new Error(j.error || 'Nie udało się rozpocząć podpisu.');
@@ -232,15 +265,25 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': tok },
                 body: JSON.stringify({ course_id: Number(b.dataset.course), year_month: b.dataset.ym, response: resp }) });
               var j2 = await r2.json(); if (!r2.ok) throw new Error(j2.error || 'Nie udało się zatwierdzić kluczem.');
+              stan.textContent = 'Protokół zatwierdzony. Wracam do listy protokołów.';
               location.href = 'protokoly_moje.php';
-            } catch (e) { alert(e.message || 'Nie udało się zatwierdzić kluczem.'); b.disabled = false; }
+            } catch (e) {
+              stan.textContent = '';
+              blad.textContent = (e && e.name === 'NotAllowedError')
+                ? 'Zatwierdzanie kluczem przerwane albo minął czas. Spróbuj ponownie.'
+                : (e && e.message ? e.message : 'Nie udało się zatwierdzić kluczem.');
+              blad.classList.remove('d-none');
+              koniec();
+            }
           });
         })();
         </script>
         <?php endif; ?>
+        <?php if (!$_key_first): ?>
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck"<?= $_has_cert ? '' : ' disabled' ?>>
           <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
         </button>
+        <?php endif; ?>
       </form>
       <?php endif; ?>
     </div>
