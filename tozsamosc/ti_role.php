@@ -65,24 +65,23 @@ include __DIR__ . '/_head.php';
   <div class="table-responsive">
   <table class="table table-sm align-middle">
     <caption class="visually-hidden">Osoby i ich role w panelu TI</caption>
-    <thead><tr><th scope="col">Osoba</th><th scope="col">E-mail</th><th scope="col">Rola TI</th><th scope="col"><span class="visually-hidden">Zapis</span></th></tr></thead>
+    <thead><tr><th scope="col">Osoba</th><th scope="col">E-mail</th><th scope="col">Rola TI</th></tr></thead>
     <tbody>
     <?php foreach ($osoby as $o): ?>
       <tr>
         <td><?= h($o['name']) ?></td>
         <td class="small"><?= h($o['email']) ?></td>
         <td>
-          <form method="post" class="d-flex gap-2 align-items-center" id="f<?= (int)$o['id'] ?>">
+          <form method="post" class="align-items-center" id="f<?= (int)$o['id'] ?>">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="user_id" value="<?= (int)$o['id'] ?>">
             <label class="visually-hidden" for="r<?= (int)$o['id'] ?>">Rola dla <?= h($o['name']) ?></label>
-            <select class="form-select form-select-sm" id="r<?= (int)$o['id'] ?>" name="role" style="max-width:14rem">
+            <select class="form-select form-select-sm" id="r<?= (int)$o['id'] ?>" name="role" style="max-width:14rem" onchange="this.form.submit()">
               <option value="" <?= $o['role'] === '' ? 'selected' : '' ?>>— brak roli —</option>
               <?php foreach (K30_TI_PANEL_ROLES as $k => $lbl): ?>
               <option value="<?= h($k) ?>" <?= $o['role'] === $k ? 'selected' : '' ?>><?= h($lbl) ?></option>
               <?php endforeach; ?>
             </select>
-            <button type="submit" class="btn btn-sm rounded-0 text-white" style="background:#1ba1e2">Zapisz</button>
           </form>
         </td>
       </tr>
