@@ -69,6 +69,7 @@ if (!empty($KIER_ITEMS)) {
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
         ['Certyfikaty prowadzących',  'certyfikaty.php',            'shield-check'],
+        ['Mail onboardingowy kursantów', 'kursanci_onboarding.php', 'envelope-paper'],
         ['Testy',                     'testy.php',                  'bug'],
         ['Pełny panel TI',            '../index.php',               'box-arrow-up-right',  true],
     ];
@@ -85,7 +86,7 @@ $_kier_grupy = [
     'Grupy i kursy'          => ['index.php?tab=grupy', 'index.php?tab=kursy', 'index.php?tab=praca_wlasna', 'log_grup.php',
                                  'planLinki.php', 'godziny.php', 'dostepnosci.php', 'urlopy.php'],
     'Kursanci i konta'       => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php',
-                                 'rekrutacja.php', 'polecenia.php'],
+                                 'rekrutacja.php', 'polecenia.php', 'kursanci_onboarding.php'],
     'Finanse'                => ['index.php?tab=rozliczenia', 'billing.php', 'overpayments.php', 'przypomnieniaWplat.php',
                                  'pricing.php', 'index.php?tab=wypłaty'],
     'Protokoły i raporty'    => ['protokoly.php', 'audyt_dziennikow.php', 'wydruki.php', 'analityka.php', 'raport_odwolanych.php'],
