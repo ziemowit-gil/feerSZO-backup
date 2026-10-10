@@ -32,8 +32,7 @@ function ti_student_onboarding_grupy(int $client_id): array {
 }
 
 function ti_student_onboarding_mail(string $name, string $login, array $grupy = []): array {
-    $login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=kursant';
-    $start_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/onboarding.php';
+    $login_url = 'https://kursant.feer.org.pl/login.php';
     $org = function_exists('org_setting') && org_setting('org_name') !== '' ? org_setting('org_name') : (defined('ORG_NAME') ? ORG_NAME : '');
     // Powitanie tylko imieniem (pierwszy wyraz nazwy klienta).
     $imie = trim((string)preg_split('/\s+/u', trim($name))[0]);
@@ -49,8 +48,7 @@ function ti_student_onboarding_mail(string $name, string $login, array $grupy = 
          . "1. Zaloguj się: {$login_url}\n"
          . "   Login: {$login}\n"
          . "   Hasło dostałeś od prowadzącego. Jeśli go nie masz albo nie działa, poproś prowadzącego o nowe.\n"
-         . "2. Po zalogowaniu otwórz listę startową: {$start_url}\n"
-         . "   Pokaże, czy masz uzupełnione dane kontaktowe, zgodę i zapis na grupę.\n\n"
+         . "2. Po zalogowaniu zobaczysz swój plan i zajęcia.\n\n"
          . "Hasła nie wysyłamy mailem. Nie przekazuj go innym osobom.\n\n"
          . "Pytania kieruj do prowadzącego swojej grupy.\n\n"
          . "--\nWiadomość automatyczna. Prosimy na nią nie odpowiadać.";
