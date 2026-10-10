@@ -270,3 +270,23 @@ body.kur-alt.ti-skin .kp-kafel-mini.kp-kafel-glowny { background: #1ba1e2; color
 body.kur-alt.ti-skin .kp-kafel-mini.kp-kafel-glowny:hover { background: #3fb0e8; }
 body.kur-alt.ti-skin .kp-kafel-mini.active { background: #1d1d1d; color: #fff; border-bottom-color: #facc15; }
 body.kur-alt.ti-skin .kp-kafel-mini:hover { background: #e5e7eb; text-decoration: underline; }
+
+/* Spokojniej, bardziej METRO: płaskie karty, bez cieni i gradientów, jeden akcent (#1ba1e2) */
+body.kur-alt.ti-skin .card,
+body.kur-alt.ti-skin .kp-dash-card {
+  box-shadow: none !important; border: 0 !important; border-radius: 0 !important; background: #fff;
+}
+body.kur-alt.ti-skin .kp-dash-card { border-bottom: 3px solid transparent !important; }
+body.kur-alt.ti-skin .kp-dash-card:hover { border-bottom-color: #1ba1e2 !important; background: #f9fafb; }
+body.kur-alt.ti-skin .text-bg-primary,
+body.kur-alt.ti-skin .bg-primary {
+  background: #1ba1e2 !important; color: #1d1d1d !important; border-radius: 0 !important;
+}
+body.kur-alt.ti-skin .text-bg-primary .btn-primary,
+body.kur-alt.ti-skin .bg-primary .btn-primary { background: #1d1d1d; border-color: #1d1d1d; color: #fff; }
+body.kur-alt.ti-skin .alert {
+  border: 0 !important; border-left: 6px solid #1ba1e2 !important; border-radius: 0 !important;
+  background: #f0f9ff; color: #1d1d1d;
+}
+body.kur-alt.ti-skin .card-body { padding: 1rem 1.25rem; }
+body.kur-alt.ti-skin h2.h5, body.kur-alt.ti-skin h1.h5 { letter-spacing: 0; }
