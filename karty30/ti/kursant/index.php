@@ -4906,6 +4906,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- lewa: nawigacja sekcji -->
   <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
     <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawien">
+      <a href="#ust-styl"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-palette me-2" aria-hidden="true"></i>Styl panelu</a>
       <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczenstwo</a>
       <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
       <a href="#ust-push"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell-fill     me-2" aria-hidden="true"></i>Push</a>
@@ -4917,6 +4918,33 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="col-12 col-md-9 col-xl-10 d-flex flex-column gap-4">
 
     <!-- 1. Bezpieczenstwo -->
+    <section id="ust-styl" class="card" aria-labelledby="ust-styl-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-palette" aria-hidden="true"></i>
+        <h2 id="ust-styl-h" class="h6 fw-bold mb-0">Styl panelu</h2>
+      </div>
+      <div class="card-body">
+        <p class="small text-body-secondary mb-2">Wygląd panelu. Zmiana działa od razu. Obecnie: <strong><?= $KUR_UI === 'alt' ? 'widok alternatywny' : 'widok klasyczny' ?></strong>.</p>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <a class="btn btn-sm <?= $KUR_UI === 'alt' ? 'btn-outline-secondary' : 'btn-primary' ?>" href="index.php?ui=klasyczny"<?= $KUR_UI !== 'alt' ? ' aria-current="true"' : '' ?>>Widok klasyczny</a>
+          <a class="btn btn-sm <?= $KUR_UI === 'alt' ? 'btn-primary' : 'btn-outline-secondary' ?>" href="index.php?ui=alt"<?= $KUR_UI === 'alt' ? ' aria-current="true"' : '' ?>>Widok alternatywny (METRO)</a>
+        </div>
+
+        <?php if ($KUR_UI === 'alt'): ?>
+        <form method="post" action="<?= h(APP_URL) ?>/tozsamosc/kursant_ustawienia.php" class="d-flex flex-column gap-2">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <fieldset>
+            <legend class="small fw-semibold mb-1">Menu w widoku alternatywnym</legend>
+            <div class="form-check"><input class="form-check-input" type="radio" name="nav" id="nav-zakl" value="zakladki" <?= ($KUR_NAV ?? 'zakladki') === 'zakladki' ? 'checked' : '' ?>><label class="form-check-label" for="nav-zakl">Zakładki (wszystko widać)</label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="nav" id="nav-rozw" value="rozwijane" <?= ($KUR_NAV ?? '') === 'rozwijane' ? 'checked' : '' ?>><label class="form-check-label" for="nav-rozw">Rozwijana bieżąca sekcja</label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="nav" id="nav-drop" value="dropdown" <?= ($KUR_NAV ?? '') === 'dropdown' ? 'checked' : '' ?>><label class="form-check-label" for="nav-drop">Menu rozwijane (dropdown)</label></div>
+          </fieldset>
+          <button type="submit" class="btn btn-sm btn-primary align-self-start">Zapisz menu</button>
+        </form>
+        <?php endif; ?>
+      </div>
+    </section>
+
     <section id="ust-bezp" class="card" aria-labelledby="ust-bezp-h">
       <div class="card-header d-flex align-items-center gap-2 py-2">
         <i class="bi bi-shield-lock text-primary" aria-hidden="true"></i>
