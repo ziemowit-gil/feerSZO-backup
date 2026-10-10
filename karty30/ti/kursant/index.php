@@ -103,7 +103,8 @@ $ti_ctx_course_id = 0;
 if ($ti_ctx_multi) {
     $ti_ctx_course_id = (int)($_SESSION['k30_ti_ctx']['course_id'] ?? 0);
     if (!$ti_ctx_course_id || !in_array($ti_ctx_course_id, array_column($ti_ctx_courses, 'course_id'), true)) {
-        header('Location: choose_group.php?tab=' . urlencode((string)($_GET['tab'] ?? 'dane'))); exit;
+        // Po zalogowaniu (bez ?tab=) wracamy na ekran startowy, a nie na „Dane”
+        header('Location: choose_group.php' . (isset($_GET['tab']) ? '?tab=' . urlencode((string)$_GET['tab']) : '')); exit;
     }
 }
 $ti_ctx_switch_html = '';

@@ -23,11 +23,12 @@ $active_courses = array_values(array_filter(
     fn($c) => ($c['status'] ?? 'active') === 'active'
 ));
 
-$next_tab = preg_replace('/[^a-zA-Z0-9_]/', '', (string)($_GET['tab'] ?? $_POST['tab'] ?? 'dane')) ?: 'dane';
+$next_tab = preg_replace('/[^a-zA-Z0-9_]/', '', (string)($_GET['tab'] ?? $_POST['tab'] ?? ''));   // '' = ekran startowy
+$next_url = 'index.php' . ($next_tab !== '' ? '?tab=' . urlencode($next_tab) : '');
 
 // Nic do wyboru (0 albo 1 aktywna grupa) — nie ma po co tu być.
 if (count($active_courses) <= 1) {
-    header('Location: index.php?tab=' . urlencode($next_tab)); exit;
+    header('Location: ' . $next_url); exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -35,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cid = (int)($_POST['course_id'] ?? 0);
     if ($cid && in_array($cid, array_column($active_courses, 'course_id'), true)) {
         $_SESSION['k30_ti_ctx'] = ['course_id' => $cid];
-        header('Location: index.php?tab=' . urlencode($next_tab)); exit;
+        header('Location: ' . $next_url); exit;
     }
     $error = 'Wybierz jedną z grup poniżej.';
 }
