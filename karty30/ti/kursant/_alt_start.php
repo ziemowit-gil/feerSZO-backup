@@ -7,7 +7,8 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/auth.php'; // csrf_token() dla formularza typu menu
 
-$_st_glowne_klucze = ['lekcje', 'zadania', 'komunikaty', 'oceny'];
+// „Moje lekcje” jest na samej górze (Na dziś), więc nie powtarza się w Najważniejsze ani w sekcjach
+$_st_glowne_klucze = ['zadania', 'komunikaty', 'oceny'];
 // Kolory kafli: ciemny tekst #1d1d1d na każdym ma kontrast ≥ 4,5:1.
 // Najważniejsze — zawsze akcent METRO; grupy — jeden stały kolor na grupę (po etykiecie), reszta z palety.
 $_w8_akcent = '#1ba1e2';
@@ -49,7 +50,7 @@ foreach ($_st_glowne_klucze as $_gk) {
 
 // Bez dubli w siatce: „Dane kursanta” i „Aktywność” są już w pasku nad panelem,
 // a link z „Najważniejsze” nie powtarza się w sekcjach menu.
-$_st_pasek_klucze = ['dane', 'aktywnosc'];
+$_st_pasek_klucze = ['dane', 'aktywnosc', 'lekcje'];
 $_st_uzyte = array_flip(array_column($_st_glowne, 'href'));
 $_st_sekcje_bez_dubli = [];
 foreach ($_st_sekcje as $_sec) {
@@ -97,18 +98,21 @@ usort($_st_odd, fn($a, $b) => strcmp((string)($b['sub_at'] ?? $b['due_at'] ?? ''
     <section class="kp-w8-grupa" aria-labelledby="kp-w8-g-dzis">
       <h2 class="kp-w8-naglowek" id="kp-w8-g-dzis">Na dziś</h2>
       <ul class="kp-w8-siatka">
-        <?php if (!empty($today_lessons)): ?>
-        <li class="kp-w8-kafel" style="--kolor:#fcd116">
+        <!-- Moje lekcje: zawsze pierwszy kafel po zalogowaniu (dzisiejsze zajęcia pod tytułem) -->
+        <li class="kp-w8-kafel" style="--kolor:#1ba1e2">
           <a href="?tab=lekcje">
-            <i class="bi bi-calendar-event kp-w8-ikona" aria-hidden="true"></i>
-            <span class="kp-w8-tytul">Dziś masz zajęcia
-              <?php foreach ($today_lessons as $_tl): ?>
-              <span class="kp-w8-pod"><?= h($_tl['course_name']) ?><?= !empty($_tl['time_from']) ? ' · ' . h($_tl['time_from']) : '' ?></span>
-              <?php endforeach; ?>
+            <i class="bi bi-calendar-check kp-w8-ikona" aria-hidden="true"></i>
+            <span class="kp-w8-tytul">Moje lekcje
+              <?php if (!empty($today_lessons)): ?>
+                <?php foreach ($today_lessons as $_tl): ?>
+                <span class="kp-w8-pod">Dziś: <?= h($_tl['course_name']) ?><?= !empty($_tl['time_from']) ? ' · ' . h($_tl['time_from']) : '' ?></span>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <span class="kp-w8-pod">Dziś brak zajęć</span>
+              <?php endif; ?>
             </span>
           </a>
         </li>
-        <?php endif; ?>
         <li class="kp-w8-kafel" style="--kolor:#f0a30a">
           <a href="?tab=zadania">
             <i class="bi bi-hourglass-split kp-w8-ikona" aria-hidden="true"></i>
