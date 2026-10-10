@@ -8,7 +8,7 @@
 require_once dirname(__DIR__, 3) . '/includes/auth.php'; // csrf_token() dla formularza typu menu
 
 // „Moje lekcje” jest na samej górze (Na dziś), więc nie powtarza się w Najważniejsze ani w sekcjach
-$_st_glowne_klucze = ['zadania', 'komunikaty', 'oceny'];
+$_st_glowne_klucze = ['zadania', 'komunikaty', 'oceny', 'office'];   // office — tylko z aktywnym kontem Microsoft 365 EDU
 // Kolory kafli: ciemny tekst #1d1d1d na każdym ma kontrast ≥ 4,5:1.
 // Najważniejsze — zawsze akcent METRO; grupy — jeden stały kolor na grupę (po etykiecie), reszta z palety.
 $_w8_akcent = '#1ba1e2';
