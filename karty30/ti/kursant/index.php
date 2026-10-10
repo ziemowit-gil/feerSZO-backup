@@ -2562,7 +2562,10 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h1 class="h5 fw-bold mb-0">Moje lekcje</h1>
     <?php if ($KUR_UI === 'alt'): /* widok alternatywny: pobieranie i drukowanie w jednym rozwijanym przycisku */ ?>
-    <div class="kp-mikrokafle w-100" role="group" aria-label="Pobierz i drukuj">
+    <div class="kp-mikrokafle w-100" role="group" aria-label="Statystyki, pobieranie i drukowanie">
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#kpStatyModal">
+        <i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i>Statystyki
+      </button>
     <?php else: ?>
     <div class="ms-auto d-flex gap-2">
     <?php endif; ?>
@@ -2621,6 +2624,16 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   <?php endif; ?>
 
+  <?php if ($KUR_UI === 'alt'): /* widok alternatywny: statystyki i wykres w oknie „Statystyki” */ ?>
+  <div class="modal fade" id="kpStatyModal" tabindex="-1" aria-labelledby="kpStatyTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="kpStatyTitle"><i class="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Statystyki zajęć</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij okno"></button>
+        </div>
+        <div class="modal-body">
+  <?php endif; ?>
   <!-- Statystyki -->
   <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
@@ -2675,10 +2688,6 @@ document.addEventListener('DOMContentLoaded', function() {
       $kbW = ($kaW / $_kn) - 5;
       $kGap = ($kaW - $kbW * $_kn) / ($_kn + 1);
   ?>
-  <?php if ($KUR_UI === 'alt'): /* widok alternatywny: wykres na żądanie */ ?>
-  <details class="mb-4">
-    <summary class="btn btn-sm btn-outline-secondary mb-2">Pokaż frekwencję miesięczną</summary>
-  <?php endif; ?>
   <div class="card mb-4">
     <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
       <i class="bi bi-bar-chart-line text-primary" aria-hidden="true"></i>
@@ -2731,7 +2740,12 @@ document.addEventListener('DOMContentLoaded', function() {
       </table>
     </div>
   </div>
-  <?php if ($KUR_UI === 'alt'): ?></details><?php endif; ?>
+  <?php endif; ?>
+  <?php if ($KUR_UI === 'alt'): ?>
+        </div>
+      </div>
+    </div>
+  </div>
   <?php endif; ?>
 
   <!-- ── Mini-kalendarz lekcji ──────────────────────────────────────────── -->
