@@ -107,6 +107,27 @@ foreach ($_cur_sec['items'] as $_i) {
     if ($_i['tab'] === $tab) { $_cur_label = $_i['label']; break; }
 }
 ?>
+<?php if (($KUR_NAV ?? 'zakladki') === 'rozwijane'): ?>
+<details class="skin-menu-rozwijane" aria-label="Menu panelu">
+  <summary><?= h($_cur_sec['label']) ?><?= $_cur_label !== '' ? ' — ' . h($_cur_label) : '' ?></summary>
+  <ul class="skin-menu-lista">
+    <?php foreach ($_alt_sections as $_k => $_s): ?>
+    <li><a href="<?= h($_s['href']) ?>" <?= $_alt_cur === $_k ? 'aria-current="page"' : '' ?>><?= h($_s['label']) ?></a></li>
+    <?php endforeach; ?>
+  </ul>
+  <ul class="skin-menu-lista">
+    <?php foreach ($_cur_sec['items'] as $_i): $_act = ($_i['tab'] !== '' && $_i['tab'] === $tab); ?>
+    <li><a href="<?= h($_i['href']) ?>" <?= $_act ? 'class="active" aria-current="page"' : '' ?>>
+      <?= h($_i['label']) ?>
+      <?php if ($_i['n'] > 0): ?><span class="badge text-bg-<?= h($_i['v']) ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
+    </a></li>
+    <?php endforeach; ?>
+    <?php if ($_alt_cur === 'konto'): ?>
+    <li><a href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a></li>
+    <?php endif; ?>
+  </ul>
+</details>
+<?php else: ?>
 <nav class="skin-sections" aria-label="Sekcje panelu">
   <?php foreach ($_alt_sections as $_k => $_s): ?>
   <a href="<?= h($_s['href']) ?>" <?= $_alt_cur === $_k ? 'aria-current="page"' : '' ?>><?= h($_s['label']) ?></a>
@@ -124,6 +145,7 @@ foreach ($_cur_sec['items'] as $_i) {
   <a href="<?= h($ui_switch_url ?? 'index.php?ui=klasyczny') ?>">Wróć do widoku klasycznego</a>
   <?php endif; ?>
 </nav>
+<?php endif; ?>
 
 <div class="skin-crumbs">
   <a href="index.php?tab=dane">Panel kursanta</a>

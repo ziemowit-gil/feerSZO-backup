@@ -182,6 +182,32 @@ function student_ui(int $accountId): string {
     return $domyslny;
 }
 
+/**
+ * Sposób nawigacji w widoku alternatywnym: 'zakladki' (wszystko widać) albo 'rozwijane' (menu rozwijane).
+ * Kursant wybiera w Tożsamości; domyślnie zakładki.
+ */
+function student_nav(int $accountId): string {
+    static $migrated = false;
+    if (!$migrated) {
+        $migrated = true;
+        try { db()->exec("ALTER TABLE k30_ti_student_accounts ADD COLUMN nav_pref TEXT NOT NULL DEFAULT 'zakladki'"); }
+        catch (\Throwable $e) { /* kolumna już istnieje */ }
+    }
+    if ($accountId <= 0) return 'zakladki';
+    try {
+        $r = db_one("SELECT nav_pref FROM k30_ti_student_accounts WHERE id=?", [$accountId]);
+    } catch (\Throwable $e) { return 'zakladki'; }
+    return (($r['nav_pref'] ?? '') === 'rozwijane') ? 'rozwijane' : 'zakladki';
+}
+
+function student_nav_set(int $accountId, string $nav): void {
+    if ($accountId <= 0) return;
+    student_nav($accountId); // dopilnowuje kolumny nav_pref
+
+    $nav = ($nav === 'rozwijane') ? 'rozwijane' : 'zakladki';
+    db()->prepare("UPDATE k30_ti_student_accounts SET nav_pref = ? WHERE id = ?")->execute([$nav, $accountId]);
+}
+
 /** Zapis wyboru widoku panelu kursanta. */
 function student_ui_set(int $accountId, string $ui): void {
     if ($accountId <= 0) return;
