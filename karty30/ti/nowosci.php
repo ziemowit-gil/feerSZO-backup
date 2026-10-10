@@ -20,63 +20,68 @@ $_panel = 'kursant/index.php';
 <meta name="description" content="Nowy wygląd panelu kursanta (METRO) i nowe zasady logowania.">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-  :root { --tekst: #1d1d1d; --tlo: #eceff3; --akcent: #1ba1e2; --przycisk: #0f6fa8; --fokus: #facc15; --szary: #374151; }
+  /* Wygląd jak logowanie TI (login.php): METRO, ciemna kolumna, jasne tło, kwadratowe karty, przyciski #1ba1e2. */
+  :root { --tekst: #1d1d1d; --tlo: #f3f4f6; --akcent: #1ba1e2; --przycisk: #1ba1e2; --link: #1d4ed8; --fokus: #facc15; --szary: #4b5563; --cien: 0 2px 10px rgba(0,0,0,.08); }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 1rem; line-height: 1.6; color: var(--tekst); background: var(--tlo); }
-  a { color: var(--przycisk); }
+  a { color: var(--link); }
+  .nw-baner { background: var(--akcent); color: #fff; padding: .6rem 1rem; text-align: center; font-weight: 600; font-size: .95rem; }
+  .nw-baner a { color: #fff; text-decoration: underline; margin-left: .5rem; }
   a:focus-visible, .nw-btn:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; }
   .nw-skip { position: absolute; left: -9999px; top: 0; background: var(--fokus); color: var(--tekst); padding: .6rem 1rem; font-weight: 700; z-index: 10; }
   .nw-skip:focus { left: 1rem; top: 1rem; }
   .nw-wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
 
-  .nw-top { background: #fff; border-bottom: 3px solid var(--akcent); }
+  .nw-top { background: #fff; box-shadow: var(--cien); }
   .nw-top .nw-wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; min-height: 64px; }
   .nw-marka { font-weight: 700; font-size: 1.05rem; color: var(--tekst); text-decoration: none; display: inline-flex; align-items: center; gap: .5rem; }
   .nw-btn { display: inline-flex; align-items: center; gap: .5rem; min-height: 48px; padding: .55rem 1.2rem; font-weight: 700; text-decoration: none;
             background: var(--przycisk); color: #fff; border: 2px solid var(--przycisk); }
-  .nw-btn:hover { background: #0c5b8a; text-decoration: underline; }
-  .nw-btn-jasny { background: #fff; color: var(--tekst); border-color: var(--tekst); }
-  .nw-btn-jasny:hover { background: #eef6fc; }
+  .nw-btn:hover { background: #1790c9; border-color: #1790c9; color: #fff; }
+  .nw-btn-jasny { background: #fff; color: var(--tekst); border-color: var(--akcent); }
+  .nw-btn-jasny:hover { background: #e6f6fc; color: var(--tekst); }
 
-  .nw-hero { background: #fff; border-bottom: 2px solid var(--tekst); }
+  .nw-hero { background: #1d1d1d; color: #fff; }
+  .nw-hero h1 { color: #fff; }
+  .nw-hero a:focus-visible { outline-color: var(--fokus); }
   .nw-hero .nw-wrap { padding-top: 2.5rem; padding-bottom: 2.5rem; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 2rem; align-items: center; }
-  .nw-data { display: inline-block; font-size: .85rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--przycisk); margin-bottom: .5rem; }
+  .nw-data { display: inline-block; font-size: .85rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #7dd3fc; margin-bottom: .5rem; }
   h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.15; margin: 0 0 .8rem; }
-  .nw-lead { font-size: 1.15rem; color: var(--szary); margin: 0 0 1.5rem; }
+  .nw-lead { font-size: 1.15rem; color: #cbd5e1; margin: 0 0 1.5rem; }
   .nw-akcje { display: flex; flex-wrap: wrap; gap: .6rem; }
   .nw-mozaika { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 84px; gap: 6px; }
-  .nw-mozaika span { display: flex; align-items: flex-end; padding: .5rem .6rem; font-weight: 700; font-size: .85rem; background: #fff; border: 2px solid var(--tekst); border-bottom: 5px solid var(--k, var(--akcent)); }
+  .nw-mozaika span { display: flex; align-items: flex-end; padding: .5rem .6rem; font-weight: 700; font-size: .85rem; background: #fff; color: var(--tekst); border-bottom: 5px solid var(--k, var(--akcent)); }
   .nw-mozaika .nw-szer { grid-column: span 2; }
-  .nw-mozaika .nw-nieb { background: var(--akcent); }
+  .nw-mozaika .nw-nieb { background: var(--akcent); color: #fff; }
 
   main { padding: 2rem 0 3rem; }
   .nw-spis { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 2rem; padding: 0; list-style: none; }
   .nw-spis a { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; padding: .4rem .9rem; background: #fff; color: var(--tekst);
-               border: 2px solid var(--tekst); border-bottom: 4px solid var(--akcent); font-weight: 600; text-decoration: none; }
-  .nw-spis a:hover { background: #eef6fc; text-decoration: underline; }
+               box-shadow: var(--cien); border-bottom: 4px solid var(--akcent); font-weight: 600; text-decoration: none; }
+  .nw-spis a:hover { background: #e6f6fc; text-decoration: underline; }
 
   section.nw-sekcja { margin-bottom: 2.5rem; scroll-margin-top: 1rem; }
   h2 { font-size: 1.5rem; margin: 0 0 1rem; padding-bottom: .3rem; border-bottom: 3px solid var(--akcent); display: flex; align-items: center; gap: .6rem; }
-  h2 .bi { color: var(--przycisk); }
+  h2 .bi { color: var(--akcent); }
   .nw-kafle { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .75rem; }
-  .nw-kafel { background: #fff; border: 2px solid var(--tekst); border-bottom: 5px solid var(--k, var(--akcent)); padding: 1rem 1.1rem; }
+  .nw-kafel { background: #fff; box-shadow: var(--cien); border-bottom: 5px solid var(--k, var(--akcent)); padding: 1rem 1.1rem; }
   .nw-kafel h3 { font-size: 1.05rem; margin: .3rem 0 .4rem; display: flex; align-items: center; gap: .5rem; }
-  .nw-kafel h3 .bi { font-size: 1.4rem; color: var(--przycisk); }
+  .nw-kafel h3 .bi { font-size: 1.4rem; color: var(--akcent); }
   .nw-kafel p { margin: 0 0 .4rem; }
   .nw-kafel p:last-child { margin-bottom: 0; }
   .nw-gdzie { font-size: .88rem; color: var(--szary); }
   .nw-gdzie strong { color: var(--tekst); }
 
-  .nw-wazne { background: #fff; border: 2px solid var(--tekst); border-left: 10px solid #f0a30a; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
+  .nw-wazne { background: #fff; box-shadow: var(--cien); border-left: 10px solid #f0a30a; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
   .nw-wazne h3 { margin: 0 0 .4rem; font-size: 1.1rem; }
   .nw-wazne p { margin: 0; }
   .nw-kroki { counter-reset: krok; list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .5rem; }
-  .nw-kroki li { counter-increment: krok; background: #fff; border: 2px solid var(--tekst); padding: .75rem 1rem .75rem 3.6rem; position: relative; min-height: 56px; }
+  .nw-kroki li { counter-increment: krok; background: #fff; box-shadow: var(--cien); padding: .75rem 1rem .75rem 3.6rem; position: relative; min-height: 56px; }
   .nw-kroki li::before { content: counter(krok); position: absolute; left: 0; top: 0; bottom: 0; width: 2.8rem; display: flex; align-items: center; justify-content: center;
-                         background: var(--przycisk); color: #fff; font-weight: 800; font-size: 1.2rem; }
+                         background: #1d1d1d; color: #fff; font-weight: 800; font-size: 1.2rem; }
 
-  .nw-stopka { background: #fff; border-top: 2px solid var(--tekst); padding: 1.5rem 0; font-size: .9rem; }
-  .nw-stopka .nw-wrap { display: flex; flex-wrap: wrap; gap: 1rem 2rem; justify-content: space-between; }
+  .nw-stopka { padding: 1rem 0 1.5rem; font-size: .85rem; color: var(--szary); }
+  .nw-stopka .nw-wrap { display: flex; flex-wrap: wrap; gap: .5rem 2rem; justify-content: center; text-align: center; }
 
   @media (max-width: 767.98px) {
     .nw-hero .nw-wrap { grid-template-columns: minmax(0, 1fr); }
@@ -88,6 +93,10 @@ $_panel = 'kursant/index.php';
 </head>
 <body>
 <a class="nw-skip" href="#tresc">Przejdź do treści</a>
+<div class="nw-baner" role="region" aria-label="Informacja o logowaniu">
+  Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
+  <a href="sso.php">Czym jest SSO?</a>
+</div>
 
 <header class="nw-top">
   <div class="nw-wrap">
