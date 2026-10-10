@@ -463,7 +463,10 @@ if ($_sms_enabled && $cur_course) {
       display: grid; grid-template-columns: 5.5rem 1fr auto; grid-template-areas: "date topic att" "time status actions";
       column-gap: .75rem; row-gap: .2rem; align-items: center; margin: 0 0 .5rem; padding: .55rem .7rem;
       background: #fff !important; border: 1px solid #d3dce7; border-left-width: 4px; border-radius: 6px;
-      box-shadow: 0 1px 2px rgba(16,51,92,.06); }
+      box-shadow: 0 1px 2px rgba(16,51,92,.06); position: relative; }
+  /* Karta z otwartym menu „Więcej" ma być nad kolejnymi kartami (inaczej menu jest zasłaniane). */
+  #dyd-table-lekcje.dyd-lek-os tr[data-filter-item]:has(.dropdown-menu.show) { z-index: 1060; }
+  #dyd-table-lekcje .dropdown-menu.show { z-index: 1060; background-color: #fff; }
   #dyd-table-lekcje.dyd-lek-os tr[data-filter-item][hidden], #dyd-table-lekcje.dyd-lek-os tr[style*="display: none"] { display: none; }
   #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td { display: block; border: 0 !important; padding: 0 !important; background: none !important; }
   #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:nth-child(1) { grid-area: date; font-size: 1rem !important; }

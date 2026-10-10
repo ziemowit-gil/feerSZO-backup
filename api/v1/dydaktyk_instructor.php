@@ -523,6 +523,7 @@ switch ($action) {
 
         $u = db_one("SELECT name FROM users WHERE id=?", [$instructor_id]);
         $sms_sent = k30_ti_cancel_session($sid, $reason, 'doradca', (string)($u['name'] ?? ''));
+        k30_ti_notify_instructors_cancelled([$sid], $reason, $instructor_id);
         json_ok(null, 'Lekcja odwołana — nie zostanie policzona do ceny.' . ($sms_sent ? " Wysłano SMS: {$sms_sent}." : ''));
     }
 

@@ -5426,6 +5426,63 @@ function k30_ti_confirm_cancel_attendance(int $session_id, int $client_id): void
     )->execute([$session_id, $client_id]);
 }
 
+/**
+ * Wszyscy prowadzący kursu danej lekcji (główny + współprowadzący) — do powiadomień o odwołaniach.
+ * Zwraca [['id'=>int,'email'=>string,'name'=>string], ...] bez duplikatów; pomija adresy niepoprawne.
+ */
+function k30_ti_session_instructors(int $session_id): array {
+    $rows = db_all(
+        "SELECT u.id, u.email, COALESCE(NULLIF(TRIM(u.first_name||' '||u.last_name),''), u.name) AS name
+           FROM users u
+          WHERE u.id IN (
+                SELECT c.instructor_id FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id=s.course_id WHERE s.id=?
+                UNION
+                SELECT ci.user_id FROM k30_ti_sessions s JOIN k30_ti_course_coinstructors ci ON ci.course_id=s.course_id WHERE s.id=?)",
+        [$session_id, $session_id]
+    );
+    $out = [];
+    foreach ($rows as $r) {
+        $email = trim((string)($r['email'] ?? ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
+        $out[] = ['id' => (int)$r['id'], 'email' => $email, 'name' => (string)($r['name'] ?? '')];
+    }
+    return $out;
+}
+
+/**
+ * Powiadamia prowadzących (główny + współprowadzący) o odwołanych lekcjach — jeden e-mail na osobę,
+ * z listą lekcji. $exclude_uid = osoba, która sama odwołała (nie dostaje maila).
+ */
+function k30_ti_notify_instructors_cancelled(array $session_ids, string $reason, int $exclude_uid = 0): void {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $session_ids))));
+    if (!$ids) return;
+    if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
+    if (!function_exists('mail_queue_add')) return;
+    $by_user = [];   // uid => ['name','email','lessons'=>[]]
+    foreach ($ids as $sid) {
+        $lesson = db_one(
+            "SELECT s.lesson_date, s.time_from, c.name AS course_name FROM k30_ti_sessions s
+              JOIN k30_ti_courses c ON c.id=s.course_id WHERE s.id=?", [$sid]);
+        if (!$lesson) continue;
+        $when = date('d.m.Y', strtotime((string)$lesson['lesson_date'])) . ($lesson['time_from'] ? ' o ' . substr((string)$lesson['time_from'], 0, 5) : '');
+        foreach (k30_ti_session_instructors($sid) as $ins) {
+            if ($ins['id'] === $exclude_uid) continue;
+            $by_user[$ins['id']]['name']  = $ins['name'];
+            $by_user[$ins['id']]['email'] = $ins['email'];
+            $by_user[$ins['id']]['lessons'][] = htmlspecialchars((string)$lesson['course_name'] . ' — ' . $when, ENT_QUOTES);
+        }
+    }
+    $org = defined('ORG_NAME') ? ORG_NAME : 'TI';
+    foreach ($by_user as $u) {
+        $n = count($u['lessons']);
+        $subject = "{$org}: odwołano {$n} " . ($n === 1 ? 'lekcję' : 'lekcje') . ' z Twoich zajęć';
+        $html = '<p>Odwołano lekcje, w których jesteś prowadzącym:</p><ul><li>' . implode('</li><li>', $u['lessons']) . '</li></ul>'
+              . ($reason !== '' ? '<p>Powód: ' . htmlspecialchars($reason, ENT_QUOTES) . '</p>' : '');
+        try { mail_queue_add($u['email'], $u['name'], $subject, $html, '', 'ti_session_cancelled', $ids[0], '', false); }
+        catch (\Throwable $e) {}
+    }
+}
+
 /** E-mail do prowadzącego o prośbie kursanta o odwołanie udziału w lekcji. */
 function k30_ti_notify_instructor_cancel_request(int $session_id, int $client_id, string $reason): void {
     $row = db_one(
@@ -5440,8 +5497,8 @@ function k30_ti_notify_instructor_cancel_request(int $session_id, int $client_id
         [$client_id, $session_id]
     );
     if (!$row) return;
-    $email = trim((string)($row['instructor_email'] ?? ''));
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+    $recipients = k30_ti_session_instructors($session_id);
+    if (!$recipients) return;
     if (!function_exists('mail_queue_add')) @require_once __DIR__ . '/mail_queue.php';
     if (!function_exists('mail_queue_add')) return;
     if (!function_exists('email_tpl_render')) @require_once __DIR__ . '/email_templates.php';
@@ -5457,8 +5514,10 @@ function k30_ti_notify_instructor_cancel_request(int $session_id, int $client_id
         'reason_block' => $reason_block,
         'url'          => htmlspecialchars($url, ENT_QUOTES),
     ]) : ['subject' => "{$org}: prośba o odwołanie lekcji — {$when}", 'html' => "<p>Prośba od {$row['client_name']}.</p>", 'enabled' => true];
-    try { mail_queue_add($email, (string)($row['instructor_name'] ?? ''), $r['subject'], $r['html'], '', 'ti_cancel_req', $session_id, '', false); }
-    catch (\Throwable $e) {}
+    foreach ($recipients as $ins) {
+        try { mail_queue_add($ins['email'], $ins['name'], $r['subject'], $r['html'], '', 'ti_cancel_req', $session_id, '', false); }
+        catch (\Throwable $e) {}
+    }
 }
 
 /**

@@ -72,10 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cnt = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE lesson_date BETWEEN ? AND ? AND status='planned'", [$df, $dt])['n'] ?? 0);
             if ($cnt > 0) {
                 $role = (($me['role'] ?? '') === 'admin') ? 'admin' : 'doradca';
+                $affected_ids = array_map('intval', array_column(db_all("SELECT id FROM k30_ti_sessions WHERE lesson_date BETWEEN ? AND ? AND status='planned'", [$df, $dt]), 'id'));
                 db()->prepare(
                     "UPDATE k30_ti_sessions SET status='cancelled', cancel_reason=?, cancelled_by_role=?, cancelled_by=?, cancelled_at=datetime('now'), updated_at=datetime('now')
                      WHERE lesson_date BETWEEN ? AND ? AND status='planned'"
                 )->execute(['Dzień wolny — decyzja kierownika (' . $name . ')', $role, (string)($me['name'] ?? 'Kierownik'), $df, $dt]);
+                k30_ti_notify_instructors_cancelled($affected_ids, 'Dzień wolny — ' . $name, (int)($me['user_id'] ?? 0));
             }
 
             flash_set('success', ($id ? 'Zapisano wpis.' : 'Dodano wpis do kalendarza.')
