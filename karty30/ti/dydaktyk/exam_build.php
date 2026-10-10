@@ -237,8 +237,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
 
+        $pairs = [];
+        foreach ((array)($_POST['match_left'] ?? []) as $i => $left) {
+            $pairs[] = ['left' => (string)$left, 'right' => (string)($_POST['match_right'][$i] ?? '')];
+        }
+        // Elementy kolejności w porządku indeksów formularza = kolejność poprawna.
+        $order_items = (array)($_POST['order_item'] ?? []);
+        ksort($order_items, SORT_NUMERIC);
+        $order_items = array_map('strval', array_values($order_items));
+
         $form = [
             'options'            => $options,
+            'pairs'              => $pairs,
+            'distractors'        => (string)($_POST['match_distractors'] ?? ''),
+            'items'              => $order_items,
+            'scoring'            => (string)($_POST['q_scoring'] ?? 'position'),
             'cases'              => $cases,
             'blanks'             => $blanks,
             'criteria'           => $criteria,

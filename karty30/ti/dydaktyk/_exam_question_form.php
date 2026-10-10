@@ -16,6 +16,8 @@ $existing_options = $editing ? ti_exam_options((int)$edit_q['id']) : [];
 $existing_cases   = $editing ? ti_exam_cases((int)$edit_q['id'])   : [];
 $existing_blanks  = (array)($cfg['blanks']   ?? []);
 $existing_crit    = (array)($cfg['keywords'] ?? []);
+$existing_pairs   = (array)($cfg['pairs']    ?? []);
+$existing_items   = (array)($cfg['items']    ?? []);
 
 /** Ile pustych wierszy dorzucić w repeaterze (praca bez JavaScriptu ma być możliwa). */
 $spare = 3;
@@ -139,6 +141,102 @@ $is_tf = $q_type === 'truefalse';
       <div class="form-text" id="qNegHelp">Ustawienie indywidualne nadpisuje regułę całego egzaminu.</div>
     </div>
   <?php endif; ?>
+<?php endif; ?>
+
+<?php /* ══════════════ DOPASOWYWANIE PAR ══════════════ */ ?>
+<?php if ($q_type === 'matching'): ?>
+    <fieldset class="mb-3">
+      <legend class="fs-6 fw-semibold">Pary do dopasowania</legend>
+      <p class="form-text mt-0" id="pairHelp">
+        W każdym wierszu wpisz element po lewej (np. pojęcie) i pasujący do niego element po prawej (np. definicję).
+        Kursant zobaczy lewe elementy w tej kolejności, a przy każdym listę wyboru z prawymi elementami w losowej kolejności.
+        Potrzebne są co najmniej dwie pełne pary. Puste wiersze są pomijane.
+      </p>
+      <div class="vstack gap-2" data-repeat="pairs">
+      <?php
+        $rows = $existing_pairs;
+        for ($i = 0; $i < $spare; $i++) $rows[] = ['left' => '', 'right' => ''];
+        foreach ($rows as $i => $p): ?>
+        <div class="border rounded p-2" data-row>
+          <div class="row g-2">
+            <div class="col-md-5">
+              <label class="form-label small mb-1" for="ml<?= $i ?>">Para <span data-num><?= $i + 1 ?></span> — element po lewej</label>
+              <input class="form-control form-control-sm" id="ml<?= $i ?>" name="match_left[<?= $i ?>]"
+                     value="<?= h((string)($p['left'] ?? '')) ?>" aria-describedby="pairHelp">
+            </div>
+            <div class="col-md-7">
+              <label class="form-label small mb-1" for="mr<?= $i ?>">Para <span data-num><?= $i + 1 ?></span> — pasujący element po prawej</label>
+              <input class="form-control form-control-sm" id="mr<?= $i ?>" name="match_right[<?= $i ?>]"
+                     value="<?= h((string)($p['right'] ?? '')) ?>">
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-add="pairs">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj parę
+      </button>
+    </fieldset>
+
+    <div class="mb-3">
+      <label class="form-label" for="qDistractors">Dodatkowe elementy po prawej (pułapki) — nieobowiązkowe</label>
+      <textarea class="form-control" id="qDistractors" name="match_distractors" rows="3"
+                aria-describedby="qDistractorsHelp"><?= h($cl('distractors')) ?></textarea>
+      <div class="form-text" id="qDistractorsHelp">
+        Każdy element w osobnej linii. Pojawią się na liście wyboru, ale nie pasują do żadnego lewego elementu.
+        Nie mogą powtarzać poprawnych odpowiedzi.
+      </div>
+    </div>
+<?php endif; ?>
+
+<?php /* ══════════════ USTAW W KOLEJNOŚCI ══════════════ */ ?>
+<?php if ($q_type === 'ordering'): ?>
+    <fieldset class="mb-3">
+      <legend class="fs-6 fw-semibold">Elementy w poprawnej kolejności</legend>
+      <p class="form-text mt-0" id="itemHelp">
+        Wpisz elementy od pierwszego do ostatniego — dokładnie w takiej kolejności, jaka jest poprawna.
+        Kursant zobaczy je przemieszane i przy każdym wybierze numer pozycji. Potrzebne są co najmniej trzy różne elementy.
+        Puste wiersze są pomijane.
+      </p>
+      <ol class="list-unstyled vstack gap-2 mb-0" data-repeat="items">
+      <?php
+        $rows = $existing_items;
+        for ($i = 0; $i < $spare; $i++) $rows[] = '';
+        foreach ($rows as $i => $it): ?>
+        <li class="border rounded p-2" data-row>
+          <label class="form-label small mb-1" for="oi<?= $i ?>">Pozycja <span data-num><?= $i + 1 ?></span></label>
+          <input class="form-control form-control-sm" id="oi<?= $i ?>" name="order_item[<?= $i ?>]"
+                 value="<?= h((string)$it) ?>" aria-describedby="itemHelp">
+        </li>
+      <?php endforeach; ?>
+      </ol>
+      <button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-add="items">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj element
+      </button>
+    </fieldset>
+
+    <div class="mb-3">
+      <label class="form-label" for="qScoring">Sposób liczenia punktów</label>
+      <select class="form-select" id="qScoring" name="q_scoring" aria-describedby="qScoringHelp">
+        <option value="position" <?= (string)$cv('scoring', 'position') !== 'pairs' ? 'selected' : '' ?>>Za każdy element na właściwej pozycji (zalecane)</option>
+        <option value="pairs" <?= (string)$cv('scoring', 'position') === 'pairs' ? 'selected' : '' ?>>Za każdą poprawnie ułożoną parę sąsiednich elementów</option>
+      </select>
+      <div class="form-text" id="qScoringHelp">
+        Druga reguła docenia dobrą kolejność względną — np. całość przesunięta o jedno miejsce nadal zdobywa większość punktów.
+      </div>
+    </div>
+<?php endif; ?>
+
+<?php if ($q_type === 'matching' || $q_type === 'ordering'): ?>
+    <div class="mb-3">
+      <label class="form-label" for="qNegItems">Punktacja tego pytania</label>
+      <select class="form-select" id="qNegItems" name="q_neg_marking" aria-describedby="qNegItemsHelp">
+        <option value="">Jak w ustawieniach egzaminu</option>
+        <option value="partial" <?= in_array((string)$cv('negMarking', ''), ['partial', 'none'], true) ? 'selected' : '' ?>>Cząstkowa — proporcjonalnie do poprawnych <?= $q_type === 'matching' ? 'par' : 'pozycji' ?></option>
+        <option value="all_or_nothing" <?= (string)$cv('negMarking', '') === 'all_or_nothing' ? 'selected' : '' ?>>Wszystko albo nic — punkty tylko za komplet</option>
+      </select>
+      <div class="form-text" id="qNegItemsHelp">W tym typie nie ma kary za zgadywanie — reguły „z karą” i „bez kary” liczą tak samo.</div>
+    </div>
 <?php endif; ?>
 
 <?php /* ══════════════ LUKI (tekst i kod) ══════════════ */ ?>
@@ -551,6 +649,8 @@ $is_tf = $q_type === 'truefalse';
         if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
         else if (el.tagName !== 'SELECT') el.value = '';
       });
+      // Numer wiersza w etykiecie („Para 4”, „Pozycja 4”) — czytnik ekranu go odczytuje.
+      clone.querySelectorAll('[data-num]').forEach(function (s) { s.textContent = idx + 1; });
       box.appendChild(clone);
       var first = clone.querySelector('input, textarea, select');
       if (first) first.focus();
