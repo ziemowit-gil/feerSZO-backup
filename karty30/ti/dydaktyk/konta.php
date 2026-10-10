@@ -250,6 +250,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    // Reset do 1 logowania: brak daty ostatniego logowania = następne wejście idzie kodem SMS (jak przy nowym koncie).
+    if ($op === 'reset_first_login') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT login FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        if (!$acc) { flash_set('danger','Konto nie istnieje.'); header('Location: konta.php'); exit; }
+        db()->prepare("UPDATE k30_ti_student_accounts SET last_login=NULL, must_change_password=1, updated_at=datetime('now') WHERE id=?")
+           ->execute([$aid]);
+        flash_set('success', "Konto {$acc['login']} wraca do 1 logowania: kolejne wejście kodem SMS z karty kursanta.");
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     // Hasło serwisowe: stałe 8-znakowe hasło ustawiane RAZEM jako hasło lokalne
     // panelu kursanta i (jeśli kursant ma konto MS) hasło jego konta Microsoft —
     // by nie miał dwóch różnych haseł do zapamiętania.
@@ -1295,6 +1306,12 @@ function printBulk(){
               <input type="hidden" name="_op"        value="reset_pass">
               <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
               <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło</button>
+            </form>
+            <form method="post" onsubmit="return confirm('Przywrócić konto do 1 logowania? Następne wejście będzie kodem SMS.')">
+              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op"        value="reset_first_login">
+              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Reset do 1 logowania</button>
             </form>
             <form method="post" onsubmit="return confirm('Ustawić hasło serwisowe (8 znaków)?<?= $sa_has_ms ? ' Nadpisze też hasło konta Microsoft tego kursanta.' : '' ?>')">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
