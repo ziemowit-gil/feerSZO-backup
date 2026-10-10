@@ -1410,7 +1410,7 @@ function ti_protocol_print_html(array $prot): string {
         . '<table class="head"><tbody>'
         . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
         . '<tr><th>Protokół</th><td>' . $h($prot['title']) . '</td></tr>'
-        . '<tr><th>Okres</th><td>' . $h($prot['period_name'] ?: 'nie wskazano') . '</td></tr>'
+        . '<tr><th>Okres</th><td>' . $h(ti_pdf_period($prot) ?: 'nie wskazano') . '</td></tr>'
         . '<tr><th>Stan</th><td>' . $h(ti_protocol_status_label((string)$prot['status']))
             . ' — ' . $h(ti_protocol_fill_text($stats))
             . (ti_protocol_is_empty($stats) ? ' — <strong>brak ocen</strong>' : '') . '</td></tr>'
@@ -1428,7 +1428,7 @@ function ti_protocol_print_html(array $prot): string {
         . $statement;
 }
 
-/** Protokół jako bajty PDF (mPDF, dejavuserif) albo null przy błędzie. */
+/** Protokół jako bajty PDF (mPDF, wspólny wygląd ti_pdf_new) albo null przy błędzie. */
 /** Czy w protokole jest 0 godzin (brak odbytych zajęć) — wtedy zamiast protokołu powstaje sama informacja. */
 function ti_protocol_is_zero(array $prot): bool {
     return (float)ti_protocol_hours_list($prot)['total_hours'] <= 0;
@@ -1444,7 +1444,7 @@ function ti_protocol_zero_info_html(array $prot): string {
     return '<h1>Informacja o braku zajęć — 0 godzin</h1>'
         . '<table class="head"><tbody>'
         . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
-        . '<tr><th>Okres</th><td>' . $h($prot['period_name'] ?? '') . '</td></tr>'
+        . '<tr><th>Okres</th><td>' . $h(ti_pdf_period($prot)) . '</td></tr>'
         . '<tr><th>Prowadzący</th><td>' . $h($hl['instructor'] !== '' ? $hl['instructor'] : '—') . '</td></tr>'
         . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
         . '</tbody></table>'
@@ -1644,30 +1644,104 @@ function ti_protocol_ewidencja_html(array $prot, array $umowa): string {
         . '<td>..............................................<br>data i podpis zleceniodawcy</td></tr></table>';
 }
 
+/**
+ * Wspólny wygląd dokumentów PDF protokołów TI (protokół, lista godzin, informacja o 0 godzin,
+ * e-ewidencja): czcionka bezszeryfowa, pasek nagłówka z organizacją i rodzajem dokumentu,
+ * stopka z datą wydruku i „Strona X z Y”, granatowe nagłówki tabel z paskami, ramki podpisów.
+ */
+function ti_pdf_new(string $title, string $doc_label): \Mpdf\Mpdf {
+    require_once dirname(__DIR__) . '/vendor/autoload.php';
+    $tmp = UPLOAD_DIR . 'mpdf_tmp';
+    if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+    $mpdf = new \Mpdf\Mpdf([
+        'mode' => 'utf-8', 'format' => 'A4', 'default_font' => 'dejavusans', 'tempDir' => $tmp,
+        'margin_left' => 16, 'margin_right' => 16, 'margin_top' => 26, 'margin_bottom' => 20,
+        'margin_header' => 9, 'margin_footer' => 8,
+    ]);
+    $org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'));
+    $e   = fn($x) => htmlspecialchars((string)$x, ENT_QUOTES, 'UTF-8');
+    $mpdf->SetTitle($title);
+    $mpdf->SetAuthor($org);
+    $mpdf->SetHTMLHeader(
+        '<table width="100%" style="border-bottom:.6mm solid #0f6fa8;font-family:dejavusans;font-size:8pt;color:#10335c">'
+        . '<tr><td style="font-weight:bold;padding-bottom:1.5mm">' . $e($org) . '</td>'
+        . '<td style="text-align:right;padding-bottom:1.5mm;color:#4b5563">' . $e($doc_label) . '</td></tr></table>');
+    $mpdf->SetHTMLFooter(
+        '<table width="100%" style="border-top:.2mm solid #c9d6e3;font-family:dejavusans;font-size:7.5pt;color:#6b7280">'
+        . '<tr><td style="padding-top:1.5mm">Dokument wygenerowany w systemie SZO · ' . date('d.m.Y H:i') . '</td>'
+        . '<td style="text-align:right;padding-top:1.5mm">Strona {PAGENO} z {nbpg}</td></tr></table>');
+    $mpdf->WriteHTML(ti_pdf_css(), \Mpdf\HTMLParserMode::HEADER_CSS);
+    return $mpdf;
+}
+
+/** „2026-07” → „lipiec 2026”. */
+function ti_pdf_month_label(string $ym): string {
+    $mn = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+    return preg_match('/^(\d{4})-(\d{2})$/', $ym, $m) ? $mn[(int)$m[2] - 1] . ' ' . $m[1] : $ym;
+}
+
+/** Okres do dokumentu: „miesiąc 2026-07” (zapisany w starszych protokołach) → „lipiec 2026”; nazwa okresu bez zmian. */
+function ti_pdf_period(array $prot): string {
+    $pn = trim((string)($prot['period_name'] ?? ''));
+    $ym = (string)($prot['year_month'] ?? '');
+    if (($pn === '' || preg_match('/^miesiąc \d{4}-\d{2}$/u', $pn)) && preg_match('/^\d{4}-\d{2}$/', $ym)) return ti_pdf_month_label($ym);
+    return $pn;
+}
+
+/**
+ * Adnotacja o podpisie elektronicznym — tylko w pliku PODPISANEGO protokołu (nie w podglądzie):
+ * certyfikat X.509 (podmiot, odcisk) albo klucz bezpieczeństwa, kto i kiedy.
+ */
+function ti_pdf_sign_note(array $prot): string {
+    if ((string)($prot['status'] ?? '') !== 'approved') return '';
+    $fp = trim((string)($prot['sign_fingerprint'] ?? ''));
+    if ($fp === '' && empty($prot['sign_at'])) return '';
+    $e    = fn($x) => htmlspecialchars((string)$x, ENT_QUOTES, 'UTF-8');
+    $kiedy = !empty($prot['sign_at']) ? date('d.m.Y H:i', strtotime((string)$prot['sign_at'] . ' UTC')) : '';
+    $kto   = trim((string)($prot['approved_name'] ?? ''));
+    if (str_starts_with($fp, 'yubikey:')) {
+        $jak = 'kluczem bezpieczeństwa (WebAuthn / FIDO2 — passkey lub YubiKey)';
+        $szcz = '';
+    } else {
+        $jak  = 'certyfikatem X.509';
+        $odc  = strtoupper(implode(':', str_split(substr($fp, 0, 32), 2)));
+        $szcz = '<br>Certyfikat: ' . $e($prot['sign_subject'] ?? '') . ($odc !== '' ? ' · odcisk SHA-256: ' . $e($odc) . '…' : '');
+    }
+    return '<div style="margin-top:8mm;border:.4mm solid #15803d;background:#f0fdf4;padding:3mm 3.5mm;font-size:8.5pt;color:#14532d">'
+        . '<strong>Dokument podpisany elektronicznie w systemie SZO ' . $jak . '.</strong><br>'
+        . 'Podpisał(a): ' . $e($kto !== '' ? $kto : '—') . ($kiedy !== '' ? ' · ' . $e($kiedy) : '') . $szcz
+        . '<br>Podpis obejmuje treść ewidencji godzin z tego protokołu; jej zmiana unieważnia podpis.</div>';
+}
+
+function ti_pdf_css(): string {
+    return 'body { font-family:dejavusans; font-size:9.5pt; color:#1d1d1d; line-height:1.35; }
+     h1 { font-size:15pt; color:#10335c; margin:0 0 4mm; padding-bottom:2mm; border-bottom:.6mm solid #0f6fa8; }
+     h2 { font-size:10.5pt; color:#10335c; margin:7mm 0 2.5mm; padding:1.4mm 2.5mm; border-left:1.2mm solid #0f6fa8; background:#eef4fa; }
+     p.sub { font-size:8.5pt; color:#4b5563; margin:1mm 0 2.5mm; }
+     table { border-collapse:collapse; width:100%; }
+     table.head th { text-align:left; width:30%; background:#eef4fa; color:#10335c; font-weight:bold; }
+     table.head th, table.head td { border:.2mm solid #c9d6e3; padding:1.7mm 2.4mm; font-size:9pt; }
+     table.items { margin-top:4mm; }
+     table.items th { background:#10335c; color:#ffffff; border:.2mm solid #10335c; padding:1.8mm 2mm; font-size:8.5pt; text-align:left; font-weight:bold; }
+     table.items td { border:.2mm solid #c9d6e3; padding:1.7mm 2mm; font-size:9pt; }
+     table.items tr:nth-child(even) td { background:#f6f9fc; }
+     .r, td.r, th.r { text-align:right; }
+     .c, td.c, th.c { text-align:center; }
+     tr.sum td { background:#dbe7f3; font-weight:bold; border-top:.5mm solid #10335c; }
+     p.empty-note { margin-top:5mm; padding:3mm 3.5mm; border-left:1.2mm solid #b45309; background:#fff7ed; font-weight:bold; font-size:9.5pt; }
+     p.trace { margin-top:6mm; font-size:9pt; }
+     div.stmt { margin-top:6mm; border:.3mm solid #10335c; padding:3.5mm; background:#f8fafc; }
+     p.stmt-h { font-weight:bold; color:#10335c; margin:0 0 1.5mm; font-size:10pt; }
+     div.stmt p { font-size:9pt; margin:0 0 2mm; }
+     table.signs { margin-top:8mm; }
+     table.signs td { width:50%; padding:14mm 4mm 0; font-size:8.5pt; text-align:center; border:none; color:#4b5563; }';
+}
+
 /** E-ewidencja godzin do umowy zlecenie jako osobny PDF (podgląd przed zgodą na przepisanie godzin). */
 function ti_protocol_ewidencja_pdf(array $prot, array $umowa): ?string {
     try {
-        require_once dirname(__DIR__) . '/vendor/autoload.php';
-        $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
-        if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
-        $mpdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 18, 'margin_right' => 16,
-            'margin_top' => 16, 'margin_bottom' => 16, 'default_font' => 'dejavuserif', 'tempDir' => $mpdf_tmp]);
-        $mpdf->SetTitle('E-ewidencja godzin — ' . (string)($umowa['imie_nazwisko'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''));
-        $mpdf->WriteHTML(
-            'body { font-family:"DejaVu Serif",serif; font-size:10pt; color:#000; }
-             h1 { font-size:14pt; margin:0 0 2mm; }
-             p.sub { font-size:9pt; color:#333; margin:1mm 0 3mm; }
-             table { border-collapse:collapse; width:100%; }
-             table.head th { text-align:left; width:30%; background:#f4f6f8; }
-             table.head th, table.head td { border:.2mm solid #ccc; padding:1.3mm 2mm; font-size:9.5pt; }
-             table.items { margin-top:5mm; }
-             table.items th { background:#eef1f4; border:.2mm solid #999; padding:1.3mm 2mm; font-size:9pt; text-align:left; }
-             table.items td { border:.2mm solid #999; padding:1.3mm 2mm; font-size:9.5pt; }
-             .r { text-align:right; } tr.sum td { background:#f2f2f2; font-weight:bold; }
-             p.empty-note { margin-top:5mm; padding:2.5mm 3mm; border:.3mm solid #333; background:#f2f2f2; font-weight:bold; }
-             table.signs td { width:50%; padding-top:14mm; font-size:9pt; text-align:center; border:none; }',
-            \Mpdf\HTMLParserMode::HEADER_CSS
-        );
+        $mpdf = ti_pdf_new('E-ewidencja godzin — ' . (string)($umowa['imie_nazwisko'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''),
+                           'E-ewidencja godzin wykonania zlecenia');
         $mpdf->WriteHTML(ti_protocol_ewidencja_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
@@ -1681,49 +1755,22 @@ function ti_protocol_ewidencja_pdf(array $prot, array $umowa): ?string {
  */
 function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
     try {
-        require_once dirname(__DIR__) . '/vendor/autoload.php';
-
-        $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
-        if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
-
-        $mpdf = new \Mpdf\Mpdf([
-            'mode' => 'utf-8', 'format' => 'A4',
-            'margin_left' => 18, 'margin_right' => 16, 'margin_top' => 16, 'margin_bottom' => 16,
-            'default_font' => 'dejavuserif', 'tempDir' => $mpdf_tmp,
-        ]);
-        $mpdf->SetTitle((ti_protocol_is_zero($prot) ? 'Informacja o braku zajęć (0 godzin) — ' : 'Protokół zajęć kursu — ') . (string)($prot['course_name'] ?? '')
-            . ((string)($prot['period_name'] ?? '') !== '' ? ', ' . (string)$prot['period_name'] : ''));
-        $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
-        $mpdf->WriteHTML(
-            'body { font-family:"DejaVu Serif",serif; font-size:10pt; color:#000; }
-             h1 { font-size:14pt; margin:0 0 3mm; }
-             table { border-collapse:collapse; width:100%; }
-             table.head th { text-align:left; width:30%; background:#f4f6f8; }
-             table.head th, table.head td { border:.2mm solid #ccc; padding:1.3mm 2mm; font-size:9.5pt; }
-             table.items { margin-top:5mm; }
-             table.items th { background:#eef1f4; border:.2mm solid #999; padding:1.3mm 2mm; font-size:9pt; text-align:left; }
-             table.items td { border:.2mm solid #999; padding:1.3mm 2mm; font-size:9.5pt; }
-             td.c { text-align:center; }
-             p.empty-note { margin-top:5mm; padding:2.5mm 3mm; border:.3mm solid #333;
-                            background:#f2f2f2; font-size:9.5pt; font-weight:bold; }
-             p.trace { margin-top:5mm; font-size:9pt; color:#333; }
-             h2 { font-size:11.5pt; margin:6mm 0 2mm; border-bottom:.3mm solid #999; padding-bottom:1mm; }
-             p.sub { font-size:9pt; color:#333; margin:0 0 2mm; }
-             td.r { text-align:right; }
-             tr.sum td { background:#f2f2f2; font-weight:bold; }
-             div.stmt { margin-top:6mm; border:.3mm solid #333; padding:3mm; }
-             p.stmt-h { font-weight:bold; margin:0 0 1.5mm; font-size:10pt; }
-             div.stmt p { font-size:9.5pt; margin:0 0 2mm; }
-             table.signs td { width:50%; padding-top:12mm; font-size:9pt; text-align:center; border:none; }',
-            \Mpdf\HTMLParserMode::HEADER_CSS
-        );
+        $zero = ti_protocol_is_zero($prot);
+        $mpdf = ti_pdf_new(($zero ? 'Informacja o braku zajęć (0 godzin) — ' : 'Protokół zajęć kursu — ') . (string)($prot['course_name'] ?? '')
+                . ((string)($prot['period_name'] ?? '') !== '' ? ', ' . (string)$prot['period_name'] : ''),
+            $zero ? 'Informacja o braku zajęć' : 'Protokół zajęć');
         if ($podglad) {
             $mpdf->SetWatermarkText('PODGLĄD', 0.12);
             $mpdf->showWatermarkText = true;
         }
         // 0 godzin: pełnego protokołu nie generujemy — do druku, podpisu i EZD idzie sama informacja.
-        $mpdf->WriteHTML(ti_protocol_is_zero($prot) ? ti_protocol_zero_info_html($prot) : ti_protocol_print_html($prot),
+        $mpdf->WriteHTML($zero ? ti_protocol_zero_info_html($prot) : ti_protocol_print_html($prot),
             \Mpdf\HTMLParserMode::HTML_BODY);
+        // Adnotacja o podpisie — tylko w pliku po podpisaniu (podgląd jej nie ma).
+        if (!$podglad) {
+            $_note = ti_pdf_sign_note(ti_protocol_get((int)($prot['id'] ?? 0)) ?: $prot);
+            if ($_note !== '') $mpdf->WriteHTML($_note, \Mpdf\HTMLParserMode::HTML_BODY);
+        }
         // Wraz z protokołem — e-ewidencja godzin do umowy zlecenie prowadzącego (gdy ma taką umowę).
         if ($umowa = ti_protocol_zlecenie_umowa($prot)) {
             $mpdf->AddPage();
@@ -1747,7 +1794,7 @@ function ti_protocol_month_stub(int $course_id, string $year_month): array {
     return [
         'id' => 0, 'course_id' => $course_id, 'course_name' => (string)($c['name'] ?? ''),
         'year_month' => $year_month, 'status' => 'open', 'title' => 'Protokół ' . $year_month,
-        'period_name' => 'miesiąc ' . $year_month,
+        'period_name' => ti_pdf_month_label($year_month),
         'date_from' => $year_month . '-01', 'date_to' => date('Y-m-t', strtotime($year_month . '-01')),
     ];
 }
@@ -1800,7 +1847,7 @@ function ti_protocol_hours_list_html(array $prot): string {
     $out = '<h1>Lista godzin zajęć</h1>'
          . '<table class="head"><tbody>'
          . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
-         . '<tr><th>Okres</th><td>' . $h($prot['period_name'] ?? '') . '</td></tr>'
+         . '<tr><th>Okres</th><td>' . $h(ti_pdf_period($prot)) . '</td></tr>'
          . '<tr><th>Prowadzący</th><td>' . $h($hl['instructor'] !== '' ? $hl['instructor'] : '—') . '</td></tr>'
          . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
          . '</tbody></table>';
@@ -1885,31 +1932,7 @@ function ti_protocol_hours_check_modal(string $modal_id, array $prot, string $pd
 /** Lista godzin jako PDF (mPDF) albo null przy błędzie. */
 function ti_protocol_hours_list_pdf(array $prot): ?string {
     try {
-        require_once dirname(__DIR__) . '/vendor/autoload.php';
-        $mpdf_tmp = UPLOAD_DIR . 'mpdf_tmp';
-        if (!is_dir($mpdf_tmp)) @mkdir($mpdf_tmp, 0755, true);
-        $mpdf = new \Mpdf\Mpdf([
-            'mode' => 'utf-8', 'format' => 'A4',
-            'margin_left' => 18, 'margin_right' => 16, 'margin_top' => 16, 'margin_bottom' => 16,
-            'default_font' => 'dejavuserif', 'tempDir' => $mpdf_tmp,
-        ]);
-        $mpdf->SetTitle('Lista godzin — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['period_name'] ?? ''));
-        $mpdf->WriteHTML(
-            'body { font-family:"DejaVu Serif",serif; font-size:10pt; color:#000; }
-             h1 { font-size:14pt; margin:0 0 3mm; }
-             table { border-collapse:collapse; width:100%; }
-             table.head th { text-align:left; width:30%; background:#f4f6f8; }
-             table.head th, table.head td { border:.2mm solid #ccc; padding:1.3mm 2mm; font-size:9.5pt; }
-             table.items { margin-top:5mm; }
-             table.items th { background:#eef1f4; border:.2mm solid #999; padding:1.3mm 2mm; font-size:9pt; text-align:left; }
-             table.items td { border:.2mm solid #999; padding:1.3mm 2mm; font-size:10pt; }
-             .r { text-align:right; }
-             .c { text-align:center; }
-             tr.sum td { background:#f2f2f2; font-weight:bold; }
-             p.empty-note { margin-top:5mm; font-weight:bold; }
-             p.trace { margin-top:10mm; font-size:9.5pt; }',
-            \Mpdf\HTMLParserMode::HEADER_CSS
-        );
+        $mpdf = ti_pdf_new('Lista godzin — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['period_name'] ?? ''), 'Lista godzin zajęć');
         $mpdf->WriteHTML(ti_protocol_hours_list_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
