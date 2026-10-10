@@ -1,7 +1,7 @@
 <?php
 /**
  * karty30/ti/dydaktyk/certyfikaty.php — wystawianie certyfikatów prowadzącym (kierownik TI / admin).
- * Certyfikat .p12 idzie mailem, hasło SMS-em — patrz includes/ti_cert_issue.php.
+ * Certyfikat .p12 zostaje zapisany w systemie (mail tylko informuje), hasło SMS-em — patrz includes/ti_cert_issue.php.
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
@@ -143,14 +143,14 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 <h1 class="h4 fw-bold mb-2"><i class="bi bi-shield-check text-primary me-2" aria-hidden="true"></i>Certyfikaty prowadzących</h1>
 <p class="text-body-secondary small mb-3">
-  Certyfikat służy prowadzącemu do podpisywania protokołów. Wystawienie wysyła plik .p12 mailem
-  na adres prowadzącego, a hasło przychodzi SMS-em na jego telefon. Hasła nie zobaczysz w systemie.
+  Certyfikat służy prowadzącemu do podpisywania protokołów. Wystawiony certyfikat zostaje zapisany
+  w systemie (prowadzący dostaje mail z informacją), a hasło przychodzi SMS-em na jego telefon. Hasła nie zobaczysz w systemie.
 </p>
 
 <?php if ($wynik && !$wynik['sms']): ?>
 <div class="alert alert-warning">
   <div class="fw-semibold"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> SMS z hasłem się nie wysłał</div>
-  <p class="mb-1">Certyfikat jest wystawiony i wysłany mailem. Hasło przekaż prowadzącemu osobiście albo telefonicznie — pokażę je tylko raz:</p>
+  <p class="mb-1">Certyfikat jest wystawiony i zapisany w systemie. Hasło przekaż prowadzącemu osobiście albo telefonicznie — pokażę je tylko raz:</p>
   <p class="mb-0"><code class="fs-5"><?= h($wynik['password']) ?></code></p>
 </div>
 <?php endif; ?>

@@ -1,7 +1,7 @@
 <?php
 /**
  * karty30/ti/dydaktyk/moj_certyfikat.php — prowadzący sam wystawia sobie certyfikat do podpisu protokołów.
- * Plik .p12 przychodzi mailem, hasło SMS-em (includes/ti_cert_issue.php). Kierownik może to zrobić
+ * Plik .p12 zostaje zapisany w systemie (inc/tiCertStore), mail tylko informuje o wygenerowaniu (includes/ti_cert_issue.php). Kierownik może to zrobić
  * też za prowadzącego — ta strona dotyczy tylko własnego konta.
  */
 require_once __DIR__ . '/auth.php';
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'pwd') {
         flash_set('danger', 'Hasła nie są takie same.');
     } else {
         $r = ti_cert_set_own_password($uid, $p1);
-        if ($r['ok']) flash_set('success', 'Ustawiono Twoje hasło. Stare certyfikaty są odwołane, nowy plik przyszedł na e-mail.');
+        if ($r['ok']) flash_set('success', 'Certyfikat wygenerowany i zapisany w systemie. Stare certyfikaty są odwołane. Przy podpisie protokołu kliknij „Odczytaj certyfikat”.');
         else flash_set('danger', $r['error']);
     }
     header('Location: moj_certyfikat.php'); exit;
@@ -89,10 +89,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$wynik['ok']) {
             flash_set('danger', $wynik['error']);
         } elseif ($wynik['sms']) {
-            flash_set('success', 'Certyfikat wygenerowany. Plik przyszedł na e-mail, hasło SMS-em.');
+            flash_set('success', 'Certyfikat wygenerowany i zapisany w systemie. Hasło przyszło SMS-em.');
         } else {
             // SMS się nie udał — hasło pokazujemy tylko raz, na tym ekranie.
-            flash_set('warning', 'Certyfikat wygenerowany i wysłany mailem, ale SMS z hasłem się nie wysłał. Hasło: ' . $wynik['password'] . ' — zapisz je teraz, drugi raz nie zostanie pokazane.');
+            flash_set('warning', 'Certyfikat wygenerowany i zapisany w systemie, ale SMS z hasłem się nie wysłał. Hasło: ' . $wynik['password'] . ' — zapisz je teraz, drugi raz nie zostanie pokazane.');
         }
     }
     header('Location: moj_certyfikat.php'); exit;
@@ -111,8 +111,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 <h1 class="h4 fw-bold mb-2"><i class="bi bi-shield-check text-primary me-2" aria-hidden="true"></i>Mój certyfikat</h1>
 <p class="text-body-secondary small mb-3">
-  Certyfikat podpisuje Twoje protokoły miesięczne. Możesz go wygenerować samodzielnie: plik .p12 przyjdzie
-  na Twój e-mail, a hasło SMS-em na telefon z konta.
+  Certyfikat podpisuje Twoje protokoły miesięczne. Możesz go wygenerować samodzielnie: hasło ustawiasz sam,
+  a certyfikat zostaje zapisany w systemie. Przy podpisie protokołu klikasz „Odczytaj certyfikat”.
 </p>
 
 <div class="card border-0 shadow-sm">
@@ -128,7 +128,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php else: ?>
     <p class="small mb-2">
       Hasło do pliku ustawiasz <strong>sam</strong> w kreatorze — system go nie losuje i nigdzie nie wysyła.
-      Plik certyfikatu przyjdzie mailem.
+      Certyfikat zostanie zapisany w systemie, a na e-mail przyjdzie tylko informacja o jego wygenerowaniu.
       <?= $ma ? 'Obecny certyfikat przestanie wtedy działać.' : '' ?>
     </p>
     <button type="button" class="btn <?= $ma ? 'btn-outline-warning' : 'btn-primary' ?>" data-bs-toggle="modal" data-bs-target="#ustawHaslo" <?= ti_cert_generation_open() ? '' : 'disabled' ?>>
@@ -307,7 +307,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 </script>
 
 <p class="small text-body-secondary mt-3">
-  Przy zatwierdzaniu protokołu wgrywasz plik .p12 i wpisujesz hasło z SMS-a. Hasło nie jest zapisywane w systemie.
+  Przy zatwierdzaniu protokołu klikasz „Odczytaj certyfikat” i wpisujesz hasło do niego oraz kod z SMS-a. Hasło nie jest zapisywane w systemie.
 </p>
 </div>
 </main>

@@ -2,14 +2,17 @@
 /**
  * includes/ti_cert_issue.php — wystawianie i wysyłka certyfikatu prowadzącego.
  *
- * Plik .p12 idzie do prowadzącego mailem jako załącznik, hasło do pliku SMS-em (rodzaj
- * 'document_code'). Hasło nie trafia do maila ani do bazy. Plik tymczasowy jest usuwany
- * zaraz po wysłaniu maila; jeśli wysyłka maila się nie uda, mail jest anulowany.
+ * Od 11.10.2026 plik .p12 NIE idzie mailem: zostaje zapisany w systemie (inc/tiCertStore,
+ * zaszyfrowany hasłem prowadzącego i kluczem aplikacji), a mail tylko informuje o wygenerowaniu.
+ * Przy zatwierdzaniu protokołu prowadzący klika „Odczytaj certyfikat” i wpisuje hasło.
+ * Hasło: własne (kreator „Mój certyfikat”) — nigdzie nie wysyłane; albo losowane przy wystawieniu
+ * przez kierownika — SMS-em (rodzaj 'document_code'). Hasło nie trafia do maila ani do bazy.
  * Jeśli SMS się nie uda, hasło pokazuje się osobie wystawiającej jednorazowo.
  */
 require_once dirname(__DIR__) . '/includes/x509_login.php';
 require_once dirname(__DIR__) . '/includes/mail_queue.php';
 require_once dirname(__DIR__) . '/includes/sms.php';
+require_once dirname(__DIR__) . '/inc/tiCertStore/tiCertStore.php';   // plik .p12 zostaje na serwerze
 
 /** Katalog tymczasowy na plik .p12 (w uploads/, ale z zakazem dostępu przez WWW). */
 function ti_cert_tmp_dir(): string {
@@ -108,33 +111,29 @@ function ti_cert_request_mail(string $name, string $issuer): array {
 }
 
 /**
- * Treść maila z instrukcją (bez hasła).
+ * Treść maila z informacją o wygenerowaniu certyfikatu. Od 11.10.2026 BEZ załącznika — plik
+ * zostaje w systemie (inc/tiCertStore), przy podpisie prowadzący klika „Odczytaj certyfikat”.
  * $wlasne_haslo — prowadzący ustawił hasło sam w kreatorze; wtedy nie piszemy o SMS-ie z hasłem.
  */
 function ti_cert_mail_body(string $name, string $issuer, bool $zmiana_hasla = false, string $numer = '', bool $wlasne_haslo = false): array {
-    $co = $wlasne_haslo
-        ? "w załączniku przesyłamy certyfikat cyfrowy (plik .p12) zabezpieczony hasłem, które ustawił(a) Pan/Pani w kreatorze. "
-          . "Będzie nim Pan/Pani podpisywać protokoły miesięczne w module Dydaktyka. Poprzednie certyfikaty zostały unieważnione."
-        : ($zmiana_hasla
-            ? "w załączniku przesyłamy certyfikat (plik .p12) z nowym hasłem. Zmienione zostało hasło do pliku."
-            : "w załączniku przesyłamy certyfikat cyfrowy (plik .p12), którym będzie Pan/Pani podpisywać protokoły miesięczne w module Dydaktyka.");
     $txt = "Dzień dobry, {$name},\n\n"
-         . ($numer !== '' ? "Numer certyfikatu: {$numer}.\n\n" : '')
-         . "{$co}\n\n"
+         . "w systemie wygenerowano certyfikat cyfrowy do podpisywania protokołów miesięcznych w module Dydaktyka"
+         . ($numer !== '' ? " (numer: {$numer})" : '') . ". "
+         . ($wlasne_haslo || $zmiana_hasla ? "Poprzednie certyfikaty zostały unieważnione.\n\n" : "\n\n")
+         . "Pliku certyfikatu nie wysyłamy — jest bezpiecznie zapisany w systemie i zabezpieczony hasłem.\n\n"
          . ($wlasne_haslo
-              ? "Hasło do pliku ustawił(a) Pan/Pani sam(a) w kreatorze. Nie wysyłamy go — zna je tylko Pan/Pani.\n\n"
-              : "Hasło do pliku przyjdzie w osobnej wiadomości SMS na Pana/Pani numer telefonu.\n\n")
-         . "Do czego służy?\n"
-         . "Zatwierdzając protokół, podpisuje Pan/Pani go swoim certyfikatem. Podpis potwierdza, że to Pan/Pani "
-         . "zatwierdził(a) ewidencję godzin i że jej treść nie została zmieniona po podpisaniu. "
-         . "Bez certyfikatu nie da się zatwierdzić protokołu.\n\n"
-         . "Co zrobić:\n"
-         . "1. Zapisz plik w bezpiecznym miejscu. Nie przesyłaj go dalej i nie zostawiaj na wspólnym komputerze.\n"
-         . "2. Przy zatwierdzaniu protokołu (Protokoły → Zamknij) wskaż ten plik i wpisz " . ($wlasne_haslo ? 'swoje hasło' : 'hasło z SMS-a') . ".\n"
-         . "3. Plik i hasło są używane tylko do tego podpisu i nie są zapisywane w systemie.\n\n"
+              ? "Hasło ustawił(a) Pan/Pani sam(a) w kreatorze. Nie wysyłamy go — zna je tylko Pan/Pani.\n\n"
+              : "Hasło do certyfikatu przyjdzie w osobnej wiadomości SMS na Pana/Pani numer telefonu.\n\n")
+         . "Jak podpisać protokół:\n"
+         . "1. W panelu dydaktyka wejdź w Protokoły i wybierz miesiąc.\n"
+         . "2. Kliknij „Wyślij kod SMS”.\n"
+         . "3. Kliknij „Odczytaj certyfikat”, wpisz " . ($wlasne_haslo ? 'swoje hasło' : 'hasło z SMS-a') . " i kod z SMS-a.\n"
+         . "4. Sprawdź listę godzin i zatwierdź.\n\n"
+         . "Certyfikat jest ważny 2 lata. "
          . ($wlasne_haslo
-              ? "Certyfikat jest ważny 2 lata. Jeśli plik się zgubi albo nie pamięta Pan/Pani hasła, wygeneruj nowy certyfikat w „Mój certyfikat”.\n\n"
-              : "Certyfikat jest ważny 2 lata. Jeśli plik się zgubi albo hasła nie ma, poproś o ponowne wystawienie.\n\n")
+              ? "Jeśli nie pamięta Pan/Pani hasła, wygeneruj nowy certyfikat w „Mój certyfikat”.\n\n"
+              : "Jeśli hasło się zgubi, poproś o ponowne wystawienie.\n\n")
+         . "Jeśli to nie Pan/Pani generował(a) certyfikat, skontaktuj się od razu z kierownikiem jednostki.\n\n"
          . "Pozdrawiam,\n{$issuer}\nFundacja FEER\n\n"
          . "--\nTo jest wiadomość automatyczna, wysłana przez system. Prosimy na nią nie odpowiadać.";
     $html = '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>';
@@ -142,34 +141,28 @@ function ti_cert_mail_body(string $name, string $issuer, bool $zmiana_hasla = fa
 }
 
 /**
- * Wysyła plik .p12 mailem (załącznik) i hasło SMS-em. Zwraca:
+ * Zapisuje plik .p12 na serwerze (inc/tiCertStore), wysyła mail z informacją (bez załącznika)
+ * i — przy haśle losowanym — hasło SMS-em. Zwraca:
  *   ok (bool), error (string), sms (bool), password (string — tylko gdy SMS się nie udał).
  */
-function ti_cert_deliver(int $uid, string $name, string $email, string $phone, string $p12, string $password, string $issuer, bool $zmiana_hasla = false, bool $sms = true, string $numer = ''): array {
-    $dir  = ti_cert_tmp_dir();
-    $file = bin2hex(random_bytes(12)) . '.p12';
-    if (file_put_contents($dir . $file, $p12) === false) return ['ok' => false, 'error' => 'Nie udało się zapisać pliku certyfikatu.'];
+function ti_cert_deliver(int $uid, string $name, string $email, string $phone, string $p12, string $password, string $issuer, bool $zmiana_hasla = false, bool $sms = true, string $numer = '', string $fingerprint = ''): array {
+    if ($fingerprint === '') return ['ok' => false, 'error' => 'Brak odcisku certyfikatu — nie można go zapisać.'];
+    try {
+        tiCertStoreSave($uid, $fingerprint, $p12);
+        tiCertStorePurgeRevoked($uid);
+    } catch (\Throwable $e) {
+        error_log('[ti_cert_deliver] zapis certyfikatu: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'Nie udało się zapisać certyfikatu w systemie. Spróbuj ponownie później.'];
+    }
 
     // $sms === false: hasło ustawił prowadzący — mail nie może zapowiadać SMS-a z hasłem.
     [$txt, $html] = ti_cert_mail_body($name, $issuer, $zmiana_hasla, $numer, !$sms);
-    $mail_id = mail_queue_add(
-        $email, $name,
-        'Certyfikat do podpisywania protokołów TI — Fundacja FEER',
-        $html, $txt, 'ti_cert', $uid, '', true,
-        [['path' => 'ti_certs_tmp/' . $file, 'name' => 'certyfikat-' . $uid . '.p12', 'mime' => 'application/x-pkcs12', 'size' => strlen($p12)]]
-    );
-    $status = (string)db_one("SELECT status FROM mail_queue WHERE id = ?", [$mail_id])['status'];
-    @unlink($dir . $file);  // plik nie może zostać na serwerze po wysyłce
-
-    if ($status !== 'sent') {
-        // Bez pliku wiadomość poszłaby bez załącznika — anuluj ją w kolejce.
-        mail_queue_cancel($mail_id);
-        return ['ok' => false, 'error' => 'Mail z certyfikatem nie został wysłany. Spróbuj ponownie później.'];
-    }
+    mail_queue_add($email, $name, 'Wygenerowano certyfikat do podpisywania protokołów TI — Fundacja FEER',
+        $html, $txt, 'ti_cert', $uid, '', true);
 
     // Hasło wybrane przez prowadzącego nie idzie nigdzie — zna je tylko on. Informujemy go SMS-em o wystawieniu.
     if (!$sms) {
-        ti_cert_sms($phone, 'FEER: wystawiono certyfikat ' . $numer . ' do podpisu protokołów. Plik na e-mailu. Hasło ustawiłeś sam.', 'ti_dydaktyka_notice');
+        ti_cert_sms($phone, 'FEER: wygenerowano certyfikat ' . $numer . ' do podpisu protokolow. Jest zapisany w systemie, haslo ustawiles sam.', 'ti_dydaktyka_notice');
         return ['ok' => true, 'error' => '', 'sms' => false, 'password' => ''];
     }
 
@@ -196,7 +189,7 @@ function ti_cert_issue_for_instructor(int $target_id, string $issuer_name): arra
     if ($p12 === '') return ['ok' => false, 'error' => 'Nie udało się wygenerować certyfikatu.'];
 
     $numer = x509_assign_number($target_id);
-    return ti_cert_deliver($target_id, (string)$u['name'], (string)$u['email'], (string)$u['phone_number'], $p12, $password, $issuer_name, false, true, $numer);
+    return ti_cert_deliver($target_id, (string)$u['name'], (string)$u['email'], (string)$u['phone_number'], $p12, $password, $issuer_name, false, true, $numer, (string)($gen['fingerprint'] ?? ''));
 }
 
 /**
@@ -233,7 +226,7 @@ function ti_cert_set_own_password(int $uid, string $new_password): array {
     $p12 = (string)($gen['p12_data'] ?? '');
     if ($p12 === '') return ['ok' => false, 'error' => 'Nie udało się wygenerować certyfikatu. Stare certyfikaty zostały odwołane — wystaw nowy.'];
 
-    // Plik idzie mailem; hasło zna tylko prowadzący, więc nigdzie go nie wysyłamy.
+    // Plik zostaje w systemie (zaszyfrowany); hasło zna tylko prowadzący, więc nigdzie go nie wysyłamy.
     $numer = x509_assign_number($uid);
-    return ti_cert_deliver($uid, (string)$u['name'], (string)$u['email'], (string)$u['phone_number'], $p12, '', (string)$u['name'], true, false, $numer);
+    return ti_cert_deliver($uid, (string)$u['name'], (string)$u['email'], (string)$u['phone_number'], $p12, '', (string)$u['name'], true, false, $numer, (string)($gen['fingerprint'] ?? ''));
 }

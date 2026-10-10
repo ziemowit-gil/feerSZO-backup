@@ -10,6 +10,7 @@ require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/webauthn.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/inc/tiCertStore/tiCertStore.php';
 webauthn_migrate();
 
 $me      = dyd_require();
@@ -43,9 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!ti_protocol_can_approve($uid, $cid, dyd_is_staff())) throw new \RuntimeException(TI_PROTOCOL_APPROVE_DENIED);
             $prot = ti_protocol_get_or_create_for_month($cid, $ym);
             // Zatwierdzenie wymaga podpisu certyfikatem prowadzącego (.p12 + hasło) — weryfikowanego na serwerze.
-            $p12 = (!empty($_FILES['p12']['tmp_name']) && is_uploaded_file($_FILES['p12']['tmp_name']) && (int)$_FILES['p12']['size'] <= 1048576)
-                ? (string)file_get_contents($_FILES['p12']['tmp_name']) : '';
-            if ($p12 === '') throw new \RuntimeException('Zatwierdzenie wymaga podpisu certyfikatem: dołącz plik .p12. Brak certyfikatu? Poproś administratora o jego wystawienie.');
+            // Certyfikat zapisany w systemie („Odczytaj certyfikat”) albo — dla starszych certyfikatów,
+            // które przyszły mailem — plik wgrany z dysku.
+            $p12 = '';
+            if (!empty($_POST['cert_z_serwera'])) {
+                $zapisany = tiCertStoreActive($uid, true);
+                if (!$zapisany) throw new \RuntimeException('Nie znaleziono certyfikatu zapisanego w systemie. Wygeneruj go w „Mój certyfikat”.');
+                $p12 = (string)$zapisany['p12'];
+            } elseif (!empty($_FILES['p12']['tmp_name']) && is_uploaded_file($_FILES['p12']['tmp_name']) && (int)$_FILES['p12']['size'] <= 1048576) {
+                $p12 = (string)file_get_contents($_FILES['p12']['tmp_name']);
+            }
+            if ($p12 === '') throw new \RuntimeException('Zatwierdzenie wymaga podpisu certyfikatem: kliknij „Odczytaj certyfikat” albo dołącz plik .p12. Brak certyfikatu? Wygeneruj go w „Mój certyfikat”.');
             ti_protocol_approve_signed((int)$prot['id'], $uid, $me_name, $p12, (string)($_POST['p12_password'] ?? ''), (string)($_POST['otp'] ?? ''));
             flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony i podpisany certyfikatem.');
         } catch (\Throwable $e) {
@@ -111,9 +120,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="alert alert-info small py-2 mb-3" role="note">
   <div class="fw-semibold mb-1"><i class="bi bi-info-circle" aria-hidden="true"></i> Co się zmieniło przy zatwierdzaniu protokołu</div>
   <ul class="mb-2 ps-3">
-    <li><strong>Podpis certyfikatem.</strong> Zatwierdzasz z plikiem .p12 i jego hasłem. Hasła nie zapisujemy w systemie.</li>
+    <li><strong>Podpis certyfikatem.</strong> Zatwierdzasz swoim certyfikatem i jego hasłem. Hasła nie zapisujemy w systemie.</li>
     <li><strong>Kod SMS.</strong> Przed podpisem kliknij „Wyślij kod SMS” i wpisz kod (ważny 5 minut, jednorazowy).</li>
-    <li><strong>Certyfikat od 11.10.2026.</strong> Wygenerujesz go sam w <a href="moj_certyfikat.php">Mój certyfikat</a>: hasło ustawiasz sam w kreatorze, plik przyjdzie mailem. Hasła nie wysyłamy SMS-em.</li>
+    <li><strong>Certyfikat od 11.10.2026.</strong> Wygenerujesz go sam w <a href="moj_certyfikat.php">Mój certyfikat</a>: hasło ustawiasz sam w kreatorze. Certyfikat zostaje zapisany w systemie — przy podpisie klikasz „Odczytaj certyfikat”. Mailem dostaniesz tylko informację o wygenerowaniu.</li>
     <li><strong>Klucz bezpieczeństwa.</strong> Zamiast certyfikatu możesz zatwierdzić passkeyem lub YubiKeyem — klucz dodasz w <a href="moj_certyfikat.php">Mój certyfikat</a>.</li>
     <li><strong>Hasło własne:</strong> min. 16 znaków, co najmniej 3 rodzaje znaków (małe, wielkie litery, cyfry, znaki specjalne).</li>
   </ul>
@@ -175,6 +184,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       // „Nie mogę skorzystać z passkey” (?metoda=zwykla) — wracamy do zwykłej metody.
       $_key_first = !$_has_cert && $_has_key && ($_GET['metoda'] ?? '') !== 'zwykla';
       $_cid = (int)$open_row['course_id'];
+      // Certyfikat zapisany w systemie (od 11.10.2026) — przy podpisie „Odczytaj certyfikat”.
+      $_cert_srv = $_has_cert ? tiCertStoreActive($uid) : null;
+      $_odczytany = $_cert_srv && !empty($_GET['odczytaj']);
     ?>
     <?php /* Formularz zatwierdzenia jest pusty: pola kroków i przycisk w okienku godzin
              należą do niego przez atrybut form="pmApproveForm" — dzięki temu kroki mogą
@@ -234,11 +246,31 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <li class="card mb-2"><div class="card-body d-flex gap-3">
           <span class="pm-nr" aria-hidden="true">2</span>
           <div class="flex-grow-1">
+            <?php if ($_cert_srv): ?>
+            <h4 class="h6 fw-semibold mb-1" id="pmKrok2"><span class="visually-hidden">Krok 2: </span>Odczytaj certyfikat i wpisz hasło oraz kod</h4>
+            <p class="small text-body-secondary mb-2">Twój certyfikat jest zapisany w systemie. Kliknij „Odczytaj certyfikat”,
+              sprawdź, czy to Twój, potem wpisz hasło do niego i kod z SMS-a.</p>
+            <a class="btn btn-outline-primary mb-2<?= $_odczytany ? ' d-none' : '' ?>" id="pmOdczytaj"
+               href="protokoly_moje.php?course=<?= $_cid ?>&amp;ym=<?= h(urlencode($open_ym)) ?>&amp;odczytaj=1#pmKrok2"
+               aria-controls="pmCertInfo">
+              <i class="bi bi-file-earmark-lock me-1" aria-hidden="true"></i>Odczytaj certyfikat
+            </a>
+            <div class="alert alert-success small py-2 mb-2" id="pmCertInfo" <?= $_odczytany ? '' : 'hidden' ?>>
+              <div class="fw-semibold mb-1"><i class="bi bi-patch-check me-1" aria-hidden="true"></i>Odczytano certyfikat</div>
+              <div>Numer: <strong><?= h((string)($_cert_srv['numer'] ?: '—')) ?></strong></div>
+              <div>Wystawiony dla: <strong><?= h((string)$_cert_srv['subject_cn']) ?></strong></div>
+              <div>Ważny do: <strong><?= h(date('d.m.Y', strtotime((string)$_cert_srv['valid_to']))) ?></strong></div>
+            </div>
+            <input type="hidden" name="cert_z_serwera" value="1" form="pmApproveForm" id="pmCertSrv" <?= $_odczytany ? '' : 'disabled' ?>>
+            <div class="visually-hidden" role="status" aria-live="polite" id="pmCertStan"></div>
+            <?php else: ?>
             <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 2: </span>Dodaj certyfikat i wpisz hasło oraz kod</h4>
-            <p class="small text-body-secondary mb-2">Wybierz plik certyfikatu, wpisz hasło do niego i kod z SMS-a.</p>
-            <label class="form-label small fw-semibold mb-1" for="pmP12">Plik certyfikatu (.p12) — ten z maila „Certyfikat do podpisywania protokołów”</label>
+            <p class="small text-body-secondary mb-2">Twój certyfikat przyszedł mailem przed 11.10.2026 — wybierz plik, wpisz hasło do niego i kod z SMS-a.
+              Nowe certyfikaty są zapisywane w systemie (wygenerujesz je w <a href="moj_certyfikat.php">Mój certyfikat</a>).</p>
+            <label class="form-label small fw-semibold mb-1" for="pmP12">Plik certyfikatu (.p12)</label>
             <input type="file" class="form-control mb-2" id="pmP12" name="p12" accept=".p12,.pfx" required form="pmApproveForm">
-            <label class="form-label small fw-semibold mb-1" for="pmP12Pwd">Hasło do certyfikatu — to, które ustawiłeś/aś w kreatorze</label>
+            <?php endif; ?>
+            <label class="form-label small fw-semibold mb-1" for="pmP12Pwd">Hasło do certyfikatu</label>
             <input type="password" class="form-control mb-2" id="pmP12Pwd" name="p12_password" autocomplete="off" required form="pmApproveForm">
             <label class="form-label small fw-semibold mb-1" for="pmOtp">Kod z SMS-a — 6 cyfr z kroku 1</label>
             <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control mb-1" id="pmOtp" name="otp"
@@ -315,6 +347,20 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           </a>
         </div>
       </section>
+      <script>
+      // „Odczytaj certyfikat” bez przeładowania strony (bez JS działa zwykły link z ?odczytaj=1).
+      (function () {
+        var a = document.getElementById('pmOdczytaj'); if (!a) return;
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          document.getElementById('pmCertInfo').hidden = false;
+          document.getElementById('pmCertSrv').disabled = false;
+          a.classList.add('d-none');
+          document.getElementById('pmCertStan').textContent = 'Odczytano certyfikat. Wpisz hasło do certyfikatu.';
+          var p = document.getElementById('pmP12Pwd'); if (p) p.focus();
+        });
+      })();
+      </script>
       <script>
       (function () {
         var ramka = document.getElementById('pmPodgladRamka'), opis = document.getElementById('pmPodgladOpis'),
