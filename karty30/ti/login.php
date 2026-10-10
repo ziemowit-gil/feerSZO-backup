@@ -38,6 +38,8 @@ $error = $ERR[$ec] ?? null;
 
 // ── Aktywna zakładka ──────────────────────────────────────────────────────────
 $tab = in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up'], true) ? $_GET['tab'] : 'kursant';
+// Krok 1: wybór roli (bez parametru tab). Krok 2: login, hasło, obrazek dla wybranej roli.
+$krok1 = !in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up'], true);
 
 // ── Prefill pól po błędzie (z urlencode() w handlerach) ──────────────────────
 $prefill_login = h($_GET['l'] ?? '');
@@ -99,7 +101,7 @@ html, body { background-color: #1ba1e2 !important; background-image: none !impor
 .ks-btn--primary:hover { background: #1790c9 !important; border-color: #1790c9 !important; }
 .ks-tab[aria-current="page"] { background: #1ba1e2 !important; color: #fff !important; }
 </style>
-<h1 class="ks-h1"><?= h(org_login_title($_titles[$tab])) ?></h1>
+<h1 class="ks-h1"><?= h($krok1 ? 'Logowanie do panelu TI' : org_login_title($_titles[$tab])) ?></h1>
 <p class="ks-lead">Zaloguj się loginem/e-mailem i hasłem.</p>
 <aside class="border border-2 p-3 mb-3 small" style="border-color:#1ba1e2 !important;border-radius:0" aria-labelledby="co-nowego-h">
   <h2 id="co-nowego-h" class="h6 fw-bold mb-2">Co nowego w logowaniu</h2>
@@ -118,6 +120,30 @@ html, body { background-color: #1ba1e2 !important; background-image: none !impor
 </div>
 <?php endif; ?>
 
+<?php if ($krok1): ?>
+<h2 class="h6 fw-semibold mb-3">Krok 1 z 2: wybierz, kim jesteś</h2>
+<div class="row g-2" role="list">
+<?php
+// Kafle w stylu METRO UI: płaskie, kolorowe, bez zaokrągleń i cieni.
+$_kafle = [
+    'kursant'  => '#1ba1e2',
+    'dydaktyk' => '#1d1d1d',
+    'rodzic'   => '#00a300',
+    'up'       => '#7e3878',
+];
+?>
+<?php foreach ($_tabs as $_key => $_t): ?>
+  <div class="col-6" role="listitem">
+    <a class="d-block h-100 p-3 text-decoration-none text-white" href="login.php?tab=<?= $_key ?>"
+       style="background:<?= $_kafle[$_key] ?>;border-radius:0;font-family:'Segoe UI',system-ui,sans-serif">
+      <i class="bi <?= $_t['icon'] ?> fs-4" aria-hidden="true"></i>
+      <span class="d-block fw-semibold mt-1"><?= h($_t['label']) ?></span>
+      <span class="d-block small"><?= h($_t['who']) ?></span>
+    </a>
+  </div>
+<?php endforeach; ?>
+</div>
+<?php else: ?>
 <?php if ($tab === 'kursant'): ?>
 <!-- ═══ KURSANT ═══════════════════════════════════════════════════════ -->
 <style>
@@ -292,6 +318,7 @@ html, body { background-color: #1ba1e2 !important; background-image: none !impor
 </form>
 
 <p class="ks-hint">Dostęp do rozliczeń, frekwencji i harmonogramu kursanta, który Cię upoważnił.</p>
+<?php endif; ?>
 <?php endif; ?>
 
 <?php
