@@ -68,6 +68,7 @@ if (!empty($KIER_ITEMS)) {
         ['Raport odwołanych',         'raport_odwolanych.php',      'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
+        ['Role w panelu TI',          '../tozsamosc/ti_role.php',   'person-gear'],
         ['Certyfikaty prowadzących',  'certyfikaty.php',            'shield-check'],
         ['Mail onboardingowy kursantów', 'kursanci_onboarding.php', 'envelope-paper'],
         ['Testy',                     'testy.php',                  'bug'],
@@ -93,7 +94,7 @@ $_kier_grupy = [
     'Planowanie'             => ['planista.php', 'raportyPlanisty.php', 'generatorCiagow.php', 'zgloszenia.php', 'kadraLimity.php',
                                  'sale.php', 'okresy.php', 'przedmioty.php', 'dni_wolne.php', 'wylaczenia.php'],
     'Komunikacja'            => ['index.php?tab=komunikacja', 'szablonyEmail.php', 'szablonySms.php'],
-    'Ustawienia i narzędzia' => ['zetony.php', 'certyfikaty.php', 'zespol.php', 'testy.php', '../index.php'],
+    'Ustawienia i narzędzia' => ['zetony.php', 'certyfikaty.php', 'zespol.php', '../tozsamosc/ti_role.php', 'testy.php', '../index.php'],
 ];
 $_kier_map = [];
 foreach ($_kier_grupy as $_g => $_hrefs) foreach ($_hrefs as $_h) $_kier_map[$_h] = $_g;
