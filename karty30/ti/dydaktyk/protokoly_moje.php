@@ -211,13 +211,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </section>
 
     <?php elseif ($_has_cert): ?>
-      <h3 class="h6 fw-semibold mb-2">Zatwierdzenie certyfikatem — 3 kroki</h3>
+      <h3 class="h6 fw-semibold mb-1">Jak zatwierdzić protokół certyfikatem</h3>
+      <p class="small text-body-secondary mb-2">Zrób po kolei trzy kroki. Przygotuj telefon i plik certyfikatu z maila.</p>
       <ol class="list-unstyled mb-0">
         <li class="card mb-2"><div class="card-body d-flex gap-3">
           <span class="pm-nr" aria-hidden="true">1</span>
           <div class="flex-grow-1">
-            <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 1: </span>Wyślij kod SMS</h4>
-            <p class="small text-body-secondary mb-2">Kod przyjdzie na telefon z Twojego konta. Jest ważny 5 minut i działa raz.</p>
+            <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 1: </span>Poproś o kod SMS</h4>
+            <p class="small text-body-secondary mb-2">Kliknij przycisk. Na telefon zapisany w Twoim koncie przyjdzie kod z 6 cyfr.
+              Masz 5 minut, żeby go wpisać w kroku 2. Kod działa tylko raz.</p>
             <form method="post">
               <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op" value="send_otp">
@@ -230,22 +232,24 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <li class="card mb-2"><div class="card-body d-flex gap-3">
           <span class="pm-nr" aria-hidden="true">2</span>
           <div class="flex-grow-1">
-            <h4 class="h6 fw-semibold mb-2"><span class="visually-hidden">Krok 2: </span>Wskaż certyfikat i wpisz hasło oraz kod</h4>
-            <label class="form-label small fw-semibold mb-1" for="pmP12">Plik certyfikatu (.p12)</label>
+            <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 2: </span>Dodaj certyfikat i wpisz hasło oraz kod</h4>
+            <p class="small text-body-secondary mb-2">Wybierz plik certyfikatu, wpisz hasło do niego i kod z SMS-a.</p>
+            <label class="form-label small fw-semibold mb-1" for="pmP12">Plik certyfikatu (.p12) — ten z maila „Certyfikat do podpisywania protokołów”</label>
             <input type="file" class="form-control mb-2" id="pmP12" name="p12" accept=".p12,.pfx" required form="pmApproveForm">
-            <label class="form-label small fw-semibold mb-1" for="pmP12Pwd">Hasło do certyfikatu</label>
+            <label class="form-label small fw-semibold mb-1" for="pmP12Pwd">Hasło do certyfikatu — to, które ustawiłeś/aś w kreatorze</label>
             <input type="password" class="form-control mb-2" id="pmP12Pwd" name="p12_password" autocomplete="off" required form="pmApproveForm">
-            <label class="form-label small fw-semibold mb-1" for="pmOtp">Kod z SMS-a</label>
+            <label class="form-label small fw-semibold mb-1" for="pmOtp">Kod z SMS-a — 6 cyfr z kroku 1</label>
             <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="form-control mb-1" id="pmOtp" name="otp"
                    autocomplete="one-time-code" required form="pmApproveForm" aria-describedby="pmOtpHint">
-            <p class="small text-body-secondary mb-0" id="pmOtpHint">Podpis obejmuje dokładną treść ewidencji godzin. Plik i hasło służą tylko do tego podpisu i nie są zapisywane.</p>
+            <p class="small text-body-secondary mb-0" id="pmOtpHint">Plik i hasło służą tylko do tego podpisu. Nie zapisujemy ich w systemie.</p>
           </div>
         </div></li>
         <li class="card mb-2"><div class="card-body d-flex gap-3">
           <span class="pm-nr" aria-hidden="true">3</span>
           <div class="flex-grow-1">
-            <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 3: </span>Sprawdź godziny i zatwierdź</h4>
-            <p class="small text-body-secondary mb-2">Zobaczysz listę godzin. Po potwierdzeniu protokół zostanie podpisany i zamknięty.</p>
+            <h4 class="h6 fw-semibold mb-1"><span class="visually-hidden">Krok 3: </span>Sprawdź godziny i podpisz</h4>
+            <p class="small text-body-secondary mb-2">Otworzy się lista godzin z tego miesiąca. Sprawdź daty i liczbę godzin,
+              zaznacz „Sprawdziłem/am listę godzin” i kliknij „Akceptuję”. Protokół zostanie podpisany i zamknięty.</p>
             <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pmHoursCheck">
               <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zatwierdź protokół
             </button>
@@ -265,8 +269,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <?php /* Klucz jako alternatywa dla certyfikatu — osobna, spokojniejsza karta pod krokami. */ ?>
       <section class="card bg-body-tertiary border-0 mt-3" aria-labelledby="pmAltH">
         <div class="card-body">
-          <h3 class="h6 fw-semibold mb-1" id="pmAltH">Albo: klucz bezpieczeństwa zamiast certyfikatu</h3>
-          <p class="small text-body-secondary mb-2" id="pmYkOpis">Passkey lub YubiKey — bez pliku, hasła i kodu SMS.</p>
+          <h3 class="h6 fw-semibold mb-1" id="pmAltH">Albo: zatwierdź kluczem bezpieczeństwa</h3>
+          <p class="small text-body-secondary mb-2" id="pmYkOpis">Masz passkey lub YubiKey? Możesz pominąć kroki 1–3: kliknij przycisk
+            i dotknij klucza albo potwierdź w telefonie. Nie potrzebujesz pliku, hasła ani kodu SMS.</p>
           <button type="button" class="btn btn-outline-success" id="pmYkBtn" data-course="<?= $_cid ?>" data-ym="<?= h($open_ym) ?>"
                   aria-describedby="pmYkOpis pmYkStan">
             <i class="bi bi-usb-drive me-1" aria-hidden="true"></i>Zatwierdź kluczem (passkey / YubiKey)
