@@ -38,6 +38,14 @@ $kroki = [
 ];
 $zrobione = count(array_filter($kroki, fn($k) => $k[1]));
 
+// Grupy kursanta (aktywne zapisy): numer (group_code, a gdy go nie ma — numer kursu) i nazwa.
+$moje_grupy = $client_id ? db_all(
+    "SELECT c.id, c.name, c.group_code FROM k30_ti_enrollments e
+       JOIN k30_ti_courses c ON c.id = e.course_id
+      WHERE e.client_id = ? AND e.status = 'active'
+      ORDER BY c.name",
+    [$client_id]) : [];
+
 $KP_TITLE      = 'Start w panelu kursanta';
 $KP_TOPBAR     = ['brand' => 'Panel kursanta', 'icon' => 'pc-display', 'user' => (string)($klient['name'] ?? ''), 'logout' => 'logout.php'];
 $KP_BODY_CLASS = 'ti-skin';
@@ -72,6 +80,27 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   </li>
 <?php endforeach; ?>
 </ol>
+
+<?php if ($moje_grupy): ?>
+<section class="card border-0 shadow-sm mb-3" aria-labelledby="grupy-h">
+  <div class="card-header bg-transparent fw-semibold" id="grupy-h">Twoje grupy</div>
+  <div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th scope="col">Numer grupy</th><th scope="col">Nazwa</th></tr></thead>
+    <tbody>
+    <?php foreach ($moje_grupy as $g): ?>
+      <tr>
+        <td class="font-monospace small"><?= h($g['group_code'] !== '' ? $g['group_code'] : '#' . (int)$g['id']) ?></td>
+        <td><?= h($g['name']) ?></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+</section>
+<?php endif; ?>
+
+<p class="small mb-3"><strong>Dopisanie do grupy oznacza dołączenie do zajęć.</strong> Po dopisaniu zobaczysz plan i zajęcia tej grupy.</p>
 
 <p class="small text-body-secondary mt-3">Pytania kieruj do prowadzącego swojej grupy.</p>
 </div>
