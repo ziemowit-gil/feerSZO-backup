@@ -799,3 +799,16 @@ body.kur-alt.ti-skin.kp-wybor-grupy .kp-grupa-kafel:hover,
 body.kur-alt.ti-skin.kp-wybor-grupy .kp-grupa-kafel:focus { background: #d9f0fb !important; color: #1d1d1d !important; }
 body.kur-alt.ti-skin.kp-wybor-grupy .kp-grupa-kafel .text-body-secondary { color: #374151 !important; }
 body.kur-alt.ti-skin.kp-wybor-grupy .kp-grupa-kafel i { color: #1d1d1d !important; }
+
+/* Okna (modale) w METRO — m.in. „Masz dziś zajęcia”: płaskie, ciemna ramka, linia akcentu pod tytułem */
+body.kur-alt.ti-skin .modal-content { border: 2px solid #1d1d1d; border-radius: 0; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+body.kur-alt.ti-skin .modal-header { border-bottom: 3px solid #1ba1e2; }
+body.kur-alt.ti-skin .modal-title { font-weight: 700; color: #1d1d1d; }
+body.kur-alt.ti-skin .modal-footer { border-top: 1px solid #d1d5db; }
+body.kur-alt.ti-skin .modal-footer .btn, body.kur-alt.ti-skin .modal-body .btn { min-height: 44px; }
+body.kur-alt.ti-skin .btn-close { opacity: 1; width: 44px; height: 44px; background-size: 1rem; }
+body.kur-alt.ti-skin .btn-close:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; box-shadow: none; }
+body.kur-alt.ti-skin .kp-dzis-lekcja { border: 2px solid #1d1d1d !important; border-left: 8px solid #1ba1e2 !important; border-radius: 0 !important; background: #fff; }
+body.kur-alt.ti-skin .kp-dzis-lekcja .fw-bold { font-size: 1.1rem; }
+body.kur-alt.ti-skin .kp-dzis-lekcja time { font-weight: 700; font-size: 1.05rem; }
+body.kur-alt.ti-skin .modal-backdrop.show { opacity: .6; }

@@ -43,7 +43,7 @@ try {
 } catch (\Throwable $e) {}
 $tp_n = count($tp_rows);
 ?>
-<div class="modal fade" id="kp-today-modal" tabindex="-1" aria-labelledby="kp-today-title" aria-describedby="kp-today-desc" aria-hidden="true">
+<div class="modal fade kp-dzis-modal" id="kp-today-modal" tabindex="-1" aria-labelledby="kp-today-title" aria-describedby="kp-today-desc" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -65,7 +65,7 @@ $tp_n = count($tp_rows);
             $hours = $from !== '' ? $from . ($to !== '' ? '–' . $to : '') : '';
             $mlabel = match ($lm) { 'stacjonarna' => 'Zajęcia stacjonarne', 'zdalna_zoom' => 'Zdalnie — Zoom', 'zdalna_inne' => 'Zdalnie', default => '' };
         ?>
-          <li class="border rounded p-3">
+          <li class="border rounded p-3 kp-dzis-lekcja">
             <div class="fw-bold"><?= h($r['course_name']) ?></div>
             <div>
               <?php if ($hours !== ''): ?><time><?= h($hours) ?></time><?php endif; ?>
@@ -93,7 +93,7 @@ $tp_n = count($tp_rows);
       </div>
       <div class="modal-footer">
         <a href="?tab=lekcje" class="btn btn-outline-secondary">Przejdź do lekcji</a>
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Nie teraz</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Nie teraz</button>
       </div>
     </div>
   </div>
