@@ -23,7 +23,8 @@
   var SKIP = ['dane'];
   // Odczytaj aktualny tab z URL
   var urlTab = (new URLSearchParams(window.location.search)).get('tab') || 'dane';
-  if (urlTab === 'dane' || urlTab === '') {
+  // Widok alternatywny (kur-alt) otwiera się na ekranie startowym z kaflami — bez przeskoku na zapamiętaną zakładkę.
+  if ((urlTab === 'dane' || urlTab === '') && !document.body.classList.contains('kur-alt')) {
     // Sprawdź zapisaną zakładkę
     try {
       var saved = localStorage.getItem(TAB_KEY);
