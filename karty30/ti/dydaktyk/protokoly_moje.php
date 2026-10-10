@@ -56,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($p12 === '') throw new \RuntimeException('Zatwierdzenie wymaga podpisu certyfikatem: kliknij „Odczytaj certyfikat” albo dołącz plik .p12. Brak certyfikatu? Wygeneruj go w „Mój certyfikat”.');
             ti_protocol_approve_signed((int)$prot['id'], $uid, $me_name, $p12, (string)($_POST['p12_password'] ?? ''), (string)($_POST['otp'] ?? ''));
-            flash_set('success', 'Protokół za ' . $ym . ' zatwierdzony i podpisany certyfikatem.');
+            // Sukces: potwierdzenie na całą stronę (widok ?podpisano=1).
+            header('Location: protokoly_moje.php?podpisano=1&course=' . $cid . '&ym=' . urlencode($ym)); exit;
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
         }
@@ -103,6 +104,56 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
+<?php
+// ── Po poprawnym podpisaniu: potwierdzenie na całą stronę ────────────────────
+$_pd_cid = (int)($_GET['course'] ?? 0);
+$_pd_ym  = (string)($_GET['ym'] ?? '');
+$_pd = (!empty($_GET['podpisano']) && $_pd_cid && preg_match('/^\d{4}-\d{2}$/', $_pd_ym) && dyd_owns_course($uid, $_pd_cid))
+    ? db_one("SELECT p.*, c.name AS course_name FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id = p.course_id
+               WHERE p.course_id = ? AND p.year_month = ? AND p.status = 'approved'", [$_pd_cid, $_pd_ym])
+    : null;
+if ($_pd):
+    $_pd_zero  = ti_protocol_is_zero(ti_protocol_get((int)$_pd['id']) ?: $_pd);
+    $_pd_klucz = str_starts_with((string)($_pd['sign_fingerprint'] ?? ''), 'yubikey:');
+?>
+<main id="main" class="dyd-wrap">
+<div class="container-fluid py-5" style="max-width:760px">
+  <section class="card border-0 shadow-sm text-center" aria-labelledby="pdTytul">
+    <div class="card-body p-4 p-md-5">
+      <div class="mx-auto mb-3 d-flex align-items-center justify-content-center"
+           style="width:96px;height:96px;background:#15803d;color:#fff;font-size:3.2rem" aria-hidden="true">
+        <i class="bi bi-check-lg"></i>
+      </div>
+      <h1 class="h3 fw-bold mb-2" id="pdTytul" tabindex="-1"><?= $_pd_zero ? 'Informacja podpisana' : 'Protokół podpisany' ?></h1>
+      <p class="fs-5 mb-4">
+        <?= $_pd_zero ? 'Informacja o braku zajęć (0 godzin)' : 'Protokół' ?> za <strong><?= h($fmt_ym($_pd_ym)) ?></strong>
+        — <strong><?= h((string)$_pd['course_name']) ?></strong> — został podpisany i zamknięty.
+      </p>
+      <dl class="row text-start small mx-auto mb-4" style="max-width:32rem">
+        <dt class="col-sm-5 fw-normal text-body-secondary">Podpisał(a)</dt><dd class="col-sm-7 fw-semibold"><?= h((string)($_pd['approved_name'] ?: $me_name)) ?></dd>
+        <dt class="col-sm-5 fw-normal text-body-secondary">Data podpisu</dt><dd class="col-sm-7"><?= h(date('d.m.Y H:i', strtotime((string)($_pd['sign_at'] ?: $_pd['approved_at']) . ' UTC'))) /* datetime('now') w SQLite = UTC */ ?></dd>
+        <dt class="col-sm-5 fw-normal text-body-secondary">Sposób podpisu</dt><dd class="col-sm-7"><?= $_pd_klucz ? 'Klucz bezpieczeństwa (passkey / YubiKey)' : 'Certyfikat i kod SMS' ?></dd>
+        <?php if (!$_pd_klucz && trim((string)($_pd['sign_subject'] ?? '')) !== ''): ?>
+        <dt class="col-sm-5 fw-normal text-body-secondary">Certyfikat</dt><dd class="col-sm-7"><?= h((string)$_pd['sign_subject']) ?></dd>
+        <?php endif; ?>
+        <?php if (!$_pd_klucz && trim((string)($_pd['sign_fingerprint'] ?? '')) !== ''): ?>
+        <dt class="col-sm-5 fw-normal text-body-secondary">Odcisk certyfikatu</dt><dd class="col-sm-7"><code><?= h(strtoupper(implode(':', str_split(substr((string)$_pd['sign_fingerprint'], 0, 16), 2)))) ?>…</code></dd>
+        <?php endif; ?>
+      </dl>
+      <div class="d-flex flex-wrap gap-2 justify-content-center">
+        <a class="btn btn-success btn-lg" href="protokol_pdf.php?id=<?= (int)$_pd['id'] ?>">
+          <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Pobierz podpisany dokument (PDF)
+        </a>
+        <a class="btn btn-outline-secondary btn-lg" href="protokoly_moje.php">
+          <i class="bi bi-list-check me-1" aria-hidden="true"></i>Wróć do listy protokołów
+        </a>
+      </div>
+    </div>
+  </section>
+</div>
+</main>
+<script>document.getElementById('pdTytul').focus();</script>
+<?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; exit; endif; ?>
 
 <main id="main" class="dyd-wrap">
 <?php /* Zatwierdzanie (kroki + podgląd dokumentów) potrzebuje szerokiej strony; lista protokołów — wąskiej. */ ?>
@@ -430,7 +481,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 body: JSON.stringify({ course_id: Number(b.dataset.course), year_month: b.dataset.ym, response: resp }) });
               var j2 = await r2.json(); if (!r2.ok) throw new Error(j2.error || 'Nie udało się zatwierdzić kluczem.');
               stan.textContent = 'Protokół zatwierdzony. Wracam do listy protokołów.';
-              location.href = 'protokoly_moje.php';
+              location.href = 'protokoly_moje.php?podpisano=1&course=' + encodeURIComponent(b.dataset.course) + '&ym=' + encodeURIComponent(b.dataset.ym);
             } catch (e) {
               stan.textContent = '';
               blad.textContent = (e && e.name === 'NotAllowedError')
