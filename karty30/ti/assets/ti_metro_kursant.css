@@ -951,3 +951,14 @@ body.kur-alt.ti-skin .kp-lekcja-akcja { margin-top: auto; padding-top: .4rem; fo
 
 /* Moje lekcje: widoczne przyciski Odwołaj / Przesuń (bez menu „⋯”), cele dotykowe 44 px */
 body.kur-alt.ti-skin .kp-lekcja-akcje .btn { min-height: 44px; padding: .3rem .7rem; white-space: nowrap; }
+
+/* Moje lekcje: bez kolumny „Typ lekcji”; „Pobierz i drukuj” jako rząd mikrokafli (zawsze widoczny) */
+body.kur-alt.ti-skin .kp-kol-typ { display: none !important; }
+body.kur-alt.ti-skin .kp-mikrokafle { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .5rem; margin-top: .25rem; }
+body.kur-alt.ti-skin .kp-mikrokafle .btn {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: .25rem;
+  min-height: 64px; padding: .5rem .7rem; text-align: left; font-size: .85rem; line-height: 1.2;
+  background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; border-bottom: 4px solid #1ba1e2 !important;
+}
+body.kur-alt.ti-skin .kp-mikrokafle .btn:hover { background: #f3f4f6 !important; }
+body.kur-alt.ti-skin .kp-mikrokafle .btn i { font-size: 1.15rem; margin: 0 !important; color: #0f6fa8 !important; }

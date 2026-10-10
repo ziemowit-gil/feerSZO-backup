@@ -2562,9 +2562,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h1 class="h5 fw-bold mb-0">Moje lekcje</h1>
     <?php if ($KUR_UI === 'alt'): /* widok alternatywny: pobieranie i drukowanie w jednym rozwijanym przycisku */ ?>
-    <details class="ms-auto">
-      <summary class="btn btn-sm btn-outline-secondary">Pobierz i drukuj</summary>
-      <div class="d-flex flex-wrap gap-2 mt-2 justify-content-end">
+    <div class="kp-mikrokafle w-100" role="group" aria-label="Pobierz i drukuj">
     <?php else: ?>
     <div class="ms-auto d-flex gap-2">
     <?php endif; ?>
@@ -2586,7 +2584,7 @@ document.addEventListener('DOMContentLoaded', function() {
       <a href="plan_librus.php" class="btn btn-sm btn-outline-secondary" target="_blank">
         <i class="bi bi-grid-3x3 me-1" aria-hidden="true"></i>Plan tygodniowy
       </a>
-    <?php if ($KUR_UI === 'alt'): ?></div></details><?php else: ?></div><?php endif; ?>
+    <?php if ($KUR_UI === 'alt'): ?></div><?php else: ?></div><?php endif; ?>
   </div>
 
   <?php if (isset($_GET['rated'])): ?>
@@ -2908,7 +2906,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <a href="?tab=zadania" class="badge text-bg-warning text-decoration-none">do oddania</a>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
             </td>
-            <td>
+            <td class="kp-kol-typ">
               <?php if (!empty($l['self_prep_remote'])): ?>
               <span class="badge text-bg-info"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Przygotowanie materiałów</span>
               <?php else: ?>
@@ -3071,7 +3069,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <thead>
           <tr>
             <th scope="col">Data</th><th scope="col">Kurs</th><th scope="col">Godziny</th>
-            <th scope="col">Temat</th><th scope="col">Zadanie</th><th scope="col">Typ lekcji</th>
+            <th scope="col">Temat</th><th scope="col">Zadanie</th><th scope="col" class="kp-kol-typ">Typ lekcji</th>
             <th scope="col" class="text-center">Obecność</th><th scope="col">Uwagi</th>
             <th scope="col" class="text-end">Akcje</th>
           </tr>
