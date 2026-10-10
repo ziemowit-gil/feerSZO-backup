@@ -108,10 +108,10 @@ if ($sel_row) {
   ocenione <strong><?= $counts['graded'] ?></strong>.
 </p>
 
-<div class="row g-3">
+<div class="row g-3"><!-- prosty widok: lista i szczegóły jedna pod drugą -->
 
   <!-- ── Lewa kolumna: lista zadań ────────────────────────────────────────── -->
-  <div class="col-12 col-lg-4">
+  <div class="col-12">
     <nav aria-label="Lista zadań">
       <?php if (!$hw_rows): ?>
       <p class="text-body-secondary small">Nie masz jeszcze żadnych zadań — poniżej są same materiały.</p>
@@ -149,7 +149,7 @@ if ($sel_row) {
   </div>
 
   <!-- ── Prawa kolumna: szczegóły wybranego zadania ───────────────────────── -->
-  <div class="col-12 col-lg-8">
+  <div class="col-12 mt-2">
     <section id="zad-szczegoly" tabindex="-1" aria-labelledby="zad-szczegoly-h">
       <?php if (!$sel_row): ?>
       <h2 id="zad-szczegoly-h" class="h6 fw-bold">Szczegóły zadania</h2>
@@ -237,7 +237,8 @@ foreach (($dyd_groups ?? []) as $g) {
     }
 }
 if ($all_mats): ?>
-<h2 class="h6 fw-bold mt-4 mb-2">Wszystkie materiały</h2>
+<details class="mt-4">
+<summary class="h6 fw-bold mb-2">Wszystkie materiały (pokaż listę)</summary>
 <?php /* Widok klasyczny chowa materiały z lekcji starszych niż 14 dni, żeby
          ściana kart nie rosła. Tabela nie ma tego problemu, więc nic tu nie
          ukrywamy — kursant szukający czegoś sprzed miesiąca to znajdzie. */ ?>

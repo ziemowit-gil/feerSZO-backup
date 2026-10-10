@@ -160,3 +160,20 @@ body.kur-alt.ti-skin .kp-kafel:hover { background: #2b2b2b; text-decoration: und
 body.kur-alt.ti-skin .kp-kafel-sekcja { font-size: .75rem; color: #cbd5e1; text-transform: uppercase; letter-spacing: .04em; }
 body.kur-alt.ti-skin .kp-kafel-tytul { font-size: 1.1rem; font-weight: 700; }
 body.kur-alt.ti-skin .kp-kafel .badge { align-self: flex-start; }
+
+/* Menu dropdown (trzecia opcja w Ustawieniach): każda sekcja to przycisk z rozwijaną listą */
+body.kur-alt.ti-skin .skin-dropdowns {
+  display: flex; flex-wrap: wrap; background: #1d1d1d; margin: 0;
+}
+body.kur-alt.ti-skin .skin-dropdowns .dropdown { position: relative; }
+body.kur-alt.ti-skin .skin-dd-btn {
+  background: #1d1d1d; color: #fff; border: 0; border-radius: 0;
+  padding: .55rem 1rem; font-weight: 600; font-size: inherit;
+}
+body.kur-alt.ti-skin .skin-dd-btn:hover { background: #2b2b2b; }
+body.kur-alt.ti-skin .skin-dd-btn.active { background: #1ba1e2; color: #1d1d1d; }
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-menu {
+  border-radius: 0; border: 0; border-top: 3px solid #1ba1e2; margin-top: 0; min-width: 14rem;
+  box-shadow: 0 6px 16px rgba(0,0,0,.18);
+}
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-item.active { background: #1d1d1d; color: #fff; }
