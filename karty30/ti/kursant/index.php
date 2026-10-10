@@ -2992,6 +2992,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 <i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Termin: <?= h(date('d.m.Y', strtotime($rp['proposed_date'])) . ($rp['proposed_from'] ? ' '.substr((string)$rp['proposed_from'],0,5) : '')) ?>
               </span>
               <?php endif; ?>
+              <?php if ($KUR_UI === 'alt'): /* widok alternatywny: dwa widoczne przyciski zamiast menu „⋯” */ ?>
+              <span class="d-inline-flex flex-wrap gap-1 kp-lekcja-akcje">
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-cancel-session="<?= (int)$l['id'] ?>"
+                        data-lesson-label="<?= h($l['course_name'].' — '.$d->format('d.m.Y')) ?>"
+                        aria-label="Odwołaj zajęcia: <?= h($l['course_name'].', '.$d->format('d.m.Y')) ?>">
+                  <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Odwołaj
+                </button>
+                <?php if (!$rp): ?>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        data-reschedule-session="<?= (int)$l['id'] ?>"
+                        data-lesson-label="<?= h($l['course_name'].' — '.$d->format('d.m.Y')) ?>"
+                        data-lesson-date="<?= h((string)$l['lesson_date']) ?>"
+                        data-lesson-from="<?= h((string)($l['time_from'] ?? '')) ?>"
+                        data-lesson-to="<?= h((string)($l['time_to'] ?? '')) ?>"
+                        aria-label="Przesuń zajęcia — zaproponuj inny termin: <?= h($l['course_name'].', '.$d->format('d.m.Y')) ?>">
+                  <i class="bi bi-calendar2-range me-1" aria-hidden="true"></i>Przesuń
+                </button>
+                <?php endif; ?>
+              </span>
+              <?php else: ?>
               <div class="dropdown d-inline-block">
                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
                         data-bs-toggle="dropdown" aria-expanded="false" aria-label="Akcje lekcji">
@@ -3019,6 +3040,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   <?php endif; ?>
                 </ul>
               </div>
+              <?php endif; ?>
               <?php elseif (in_array($l['status'], ['held','individual_change'], true) && !$l['attended'] && !$att_cancelled): ?>
               <?php if ($att_pending): ?>
               <span class="badge text-bg-info align-self-center" title="Usprawiedliwienie oczekuje na decyzję prowadzącego">
@@ -3129,7 +3151,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php if (($_GET['akcja'] ?? '') === 'zmien'): ?>
   <div class="alert alert-info d-flex gap-2 mb-2" role="status">
     <i class="bi bi-info-circle flex-shrink-0 mt-1" aria-hidden="true"></i>
-    <span>Wybierz zajęcia poniżej i kliknij przycisk z trzema kropkami przy terminie. Masz tam „Odwołaj lekcję” i „Zaproponuj termin”. Prośba trafi do prowadzącego — termin zmieni się dopiero po jego akceptacji. Jeśli zajęć nie ma na liście, rozwiń „Minione” albo sprawdź kalendarz.</span>
+    <span>Przy wybranych zajęciach kliknij „Odwołaj” albo „Przesuń”. Prośba trafi do prowadzącego — termin zmieni się dopiero po jego akceptacji. Dalsze terminy znajdziesz w „Nadchodzące później”.</span>
   </div>
   <?php endif; ?>
   <div class="card mb-3" id="najblizsze-lekcje" tabindex="-1">

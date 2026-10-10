@@ -948,3 +948,6 @@ body.kur-alt.ti-skin .kp-lekcja-znacznik {
   background: #fcd116; color: #1d1d1d; border: 1px solid #1d1d1d; padding: .1rem .45rem;
 }
 body.kur-alt.ti-skin .kp-lekcja-akcja { margin-top: auto; padding-top: .4rem; font-weight: 700; color: #0f6fa8; }
+
+/* Moje lekcje: widoczne przyciski Odwołaj / Przesuń (bez menu „⋯”), cele dotykowe 44 px */
+body.kur-alt.ti-skin .kp-lekcja-akcje .btn { min-height: 44px; padding: .3rem .7rem; white-space: nowrap; }

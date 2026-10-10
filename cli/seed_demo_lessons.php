@@ -158,7 +158,7 @@ try {
             'time_from'    => $f,
             'time_to'      => $t,
             'duration_min' => $mins > 0 ? $mins : 90,
-            'status'       => $d < $today ? 'done' : 'planned',
+            'status'       => $d < $today ? 'held' : 'planned',
             'topic'        => $topic,
             'notes'        => DEMO_MARKER,
             'instructor_id' => $instructor_id,
