@@ -16,9 +16,10 @@
  * żeby logowanie SZO, CRM, rejestracja i reset hasła wyglądały tak samo.
  */
 
-/** Kolory METRO wspólne dla wszystkich stron logowania. */
-const LOGIN_SHELL_ACCENT      = '#1ba1e2';
-const LOGIN_SHELL_ACCENT_DARK = '#1790c9';
+/** Kolory METRO wspólne dla wszystkich stron logowania. Ciemniejszy niebieski niż #1ba1e2:
+ *  biały tekst ma kontrast ok. 5,4:1 (WCAG AA wymaga 4,5:1; #1ba1e2 dawał tylko 2,9:1). */
+const LOGIN_SHELL_ACCENT      = '#0f6fa8';
+const LOGIN_SHELL_ACCENT_DARK = '#0c5b8a';
 
 /** Baner „Logowanie centralne" — ten sam tekst co na logowaniu TI. */
 function loginShellBanner(): string {
@@ -40,6 +41,8 @@ body.tzl { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; 
 .tz-skip:focus { left: 1rem; top: 1rem; background: #fff; color: #1d1d1d; padding: .5rem 1rem; z-index: 10; }
 .tz-split { display: flex; flex-direction: column; min-height: 100vh; }
 @media (min-width: 768px) { .tz-split { flex-direction: row; } }
+/* Telefon: najpierw formularz, potem panel z instrukcją i serwisami. */
+@media (max-width: 767.98px) { .tz-main { order: 1; } .tz-side, .tz-side-show { order: 2; } .tz-side { padding-top: 3.5rem; } }
 .tz-side { position: relative; background: #1d1d1d; color: #fff; padding: 2.5rem 2rem; flex: 1 1 50%; display: flex; flex-direction: column; justify-content: center; }
 .tz-side-hide { position: absolute; top: .75rem; right: .75rem; display: inline-flex; align-items: center; gap: .35rem; min-height: 40px; padding: .35rem .75rem; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); font-size: .85rem; font-weight: 600; cursor: pointer; }
 .tz-side-hide:hover { background: rgba(255,255,255,.1); border-color: #fff; }
@@ -120,7 +123,7 @@ function loginShellActions(): string {
     $app  = rtrim(APP_URL, '/');
     $self = (string)($_SERVER['SCRIPT_NAME'] ?? '');
     $systemy = [
-        [$app . '/tozsamosc/index.php',   'Moje konto (Tożsamość)', 'bi-person-vcard',       '#1ba1e2'],
+        [$app . '/tozsamosc/index.php',   'Moje konto (Tożsamość)', 'bi-person-vcard',       '#0f6fa8'],
         [$app . '/auth/login.php',        'System SZO',             'bi-building',           '#2d2d2d'],
         [$app . '/karty30/ti/login.php',  'Panel kursanta TI',      'bi-pc-display',         '#2d2d2d'],
         [$app . '/karty30/login.php',     'Dydaktyka 3',            'bi-card-checklist',     '#2d2d2d'],

@@ -62,6 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <style>
   body { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; margin: 0; }
   .metro-split { display: flex; flex-direction: column; min-height: 100vh; }
+  /* Telefon: najpierw formularz, potem panel z instrukcją. */
+  @media (max-width: 767.98px) { .metro-main { order: 1; } .metro-side { order: 2; } }
   @media (min-width: 768px) { .metro-split { flex-direction: row; } }
   .metro-side { background: #1d1d1d; color: #fff; padding: 2.5rem 2rem; flex: 1 1 50%; display: flex; flex-direction: column; justify-content: center; }
   .metro-side h2 { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; }
@@ -71,8 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   .metro-main { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
   .metro-card { background: #fff; border: 0; border-radius: 0; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; width: 100%; max-width: 420px; }
   .metro-card .form-control-lg { font-size: 1.1rem; padding: .75rem 1rem; border-radius: 0; box-shadow: none; }
-  .metro-btn { border-radius: 0; background: #1ba1e2; border-color: #1ba1e2; color: #fff; font-weight: 600; }
-  .metro-btn:hover { background: #1790c9; border-color: #1790c9; color: #fff; }
+  .metro-btn { border-radius: 0; background: #0f6fa8; border-color: #0f6fa8; color: #fff; font-weight: 600; }
+  .metro-btn:hover { background: #0c5b8a; border-color: #0c5b8a; color: #fff; }
   .metro-btn:focus-visible, .form-control:focus-visible, .metro-side a:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
   .metro-footer { text-align: center; font-size: .85rem; color: #4b5563; padding: 1rem; }
   .metro-footer a { color: #1d4ed8; text-decoration: none; margin: 0 .5rem; }
@@ -80,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </style>
 </head>
 <body>
-<div role="region" aria-label="Informacja o logowaniu" style="background:#1ba1e2;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
+<div role="region" aria-label="Informacja o logowaniu" style="background:#0f6fa8;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
   Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
   <a href="../karty30/ti/sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
 </div>

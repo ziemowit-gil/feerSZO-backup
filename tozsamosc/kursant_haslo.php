@@ -66,8 +66,8 @@ $ok = isset($_GET['ok']);
   body { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; margin: 0; }
   .metro-bar { background: #1d1d1d; color: #fff; padding: .75rem 1rem; font-weight: 600; }
   .metro-card { background: #fff; padding: 2rem; max-width: 460px; margin: 2rem auto; }
-  .metro-btn { border-radius: 0; background: #1ba1e2; border-color: #1ba1e2; color: #fff; font-weight: 600; }
-  .metro-btn:hover { background: #1790c9; border-color: #1790c9; color: #fff; }
+  .metro-btn { border-radius: 0; background: #0f6fa8; border-color: #0f6fa8; color: #fff; font-weight: 600; }
+  .metro-btn:hover { background: #0c5b8a; border-color: #0c5b8a; color: #fff; }
   .metro-card .form-control { border-radius: 0; box-shadow: none; }
   .rules { list-style: none; padding: 0; margin: .5rem 0 0; font-size: .9rem; }
   .rules li { padding: .15rem 0; color: #6b7280; }

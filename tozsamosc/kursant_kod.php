@@ -55,13 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   .metro-bar { background: #1d1d1d; color: #fff; padding: .75rem 1rem; font-weight: 600; }
   .metro-card { background: #fff; border: 0; border-radius: 0; padding: 2rem; max-width: 420px; margin: 2rem auto; }
   .metro-card .form-control { border-radius: 0; box-shadow: none; }
-  .metro-btn { border-radius: 0; background: #1ba1e2; border-color: #1ba1e2; color: #fff; font-weight: 600; }
-  .metro-btn:hover { background: #1790c9; border-color: #1790c9; color: #fff; }
+  .metro-btn { border-radius: 0; background: #0f6fa8; border-color: #0f6fa8; color: #fff; font-weight: 600; }
+  .metro-btn:hover { background: #0c5b8a; border-color: #0c5b8a; color: #fff; }
   .metro-btn:focus-visible, .form-control:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
 </style>
 </head>
 <body>
-<div role="region" aria-label="Informacja o logowaniu" style="background:#1ba1e2;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
+<div role="region" aria-label="Informacja o logowaniu" style="background:#0f6fa8;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
   Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
   <a href="../karty30/ti/sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
 </div>

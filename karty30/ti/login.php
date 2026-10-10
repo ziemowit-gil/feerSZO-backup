@@ -82,6 +82,8 @@ $_tabs = [
 <style>
   body { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; margin: 0; color: #1d1d1d; }
   .tz-split { display: flex; flex-direction: column; min-height: 100vh; }
+  /* Telefon: najpierw formularz, potem panel z instrukcją. */
+  @media (max-width: 767.98px) { .tz-main { order: 1; } .tz-side { order: 2; } }
   @media (min-width: 768px) { .tz-split { flex-direction: row; } }
   .tz-side { background: #1d1d1d; color: #fff; padding: 2.5rem 2rem; flex: 1 1 50%; display: flex; flex-direction: column; justify-content: center; }
   .tz-side h2 { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; }

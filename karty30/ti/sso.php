@@ -18,8 +18,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
   .card-sso h1 { font-size: 1.5rem; font-weight: 700; }
   .card-sso h2 { font-size: 1.1rem; font-weight: 700; margin-top: 1.5rem; }
   .card-sso a { color: #1d4ed8; }
-  .btn-back { border-radius: 0; background: #1ba1e2; color: #fff; border: 0; padding: .6rem 1.2rem; text-decoration: none; display: inline-block; font-weight: 600; }
-  .btn-back:hover { background: #1790c9; color: #fff; }
+  .btn-back { border-radius: 0; background: #0f6fa8; color: #fff; border: 0; padding: .6rem 1.2rem; text-decoration: none; display: inline-block; font-weight: 600; }
+  .btn-back:hover { background: #0c5b8a; color: #fff; }
   .btn-back:focus-visible, .card-sso a:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
 </style>
 </head>

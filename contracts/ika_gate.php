@@ -510,7 +510,7 @@ auth_screen_head([
 
 /* ── Na kogo się logujesz ── */
 .ika-who{display:flex;align-items:center;gap:1rem;background:#1d1d1d;color:#fff;padding:1.1rem 1.25rem;margin:0 0 1rem}
-.ika-who__av{flex:0 0 64px;height:64px;display:flex;align-items:center;justify-content:center;background:#1ba1e2;color:#fff;font-weight:800;font-size:1.35rem}
+.ika-who__av{flex:0 0 64px;height:64px;display:flex;align-items:center;justify-content:center;background:#0f6fa8;color:#fff;font-weight:800;font-size:1.35rem}
 .ika-who__txt{min-width:0}
 .ika-who__h{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#cbd5e1!important;margin:0}
 .ika-who__name{font-size:1.5rem;font-weight:700;line-height:1.2;margin:.1rem 0 0;color:#fff!important;overflow-wrap:anywhere}
@@ -523,7 +523,7 @@ auth_screen_head([
 .ika-field__hint{font-size:.85rem;color:#4b5563;margin:0 0 .5rem}
 .ika-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.8rem!important;letter-spacing:.45em;text-align:center;
   padding:.6rem .5rem .6rem 1rem!important;min-height:60px;border:2px solid #6b7280!important;border-radius:0!important}
-.ika-code:focus{border-color:#1ba1e2!important;box-shadow:none!important}
+.ika-code:focus{border-color:#0f6fa8!important;box-shadow:none!important}
 .ika-code[aria-invalid="true"]{border-color:#b91c1c!important;background:#fef2f2}
 .ika-field .reveal-btn{margin-top:.4rem;min-height:44px;color:#1d1d1d;font-size:.9rem}
 
