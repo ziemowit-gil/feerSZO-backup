@@ -507,6 +507,34 @@ auth_screen_head([
 #ika-main .recovery-btn{border-radius:11px;box-shadow:0 1px 2px rgba(15,23,42,.03)}
 #ika-main .recovery-btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px -8px rgba(15,23,42,.22)}
 #ika-main .recovery-btn i{width:22px;text-align:center;flex-shrink:0}
+
+/* ── Na kogo się logujesz ── */
+.ika-who{display:flex;align-items:center;gap:1rem;background:#1d1d1d;color:#fff;padding:1.1rem 1.25rem;margin:0 0 1rem}
+.ika-who__av{flex:0 0 64px;height:64px;display:flex;align-items:center;justify-content:center;background:#1ba1e2;color:#fff;font-weight:800;font-size:1.35rem}
+.ika-who__txt{min-width:0}
+.ika-who__h{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#cbd5e1!important;margin:0}
+.ika-who__name{font-size:1.5rem;font-weight:700;line-height:1.2;margin:.1rem 0 0;color:#fff!important;overflow-wrap:anywhere}
+.ika-who__mail{font-size:1rem;color:#e5e7eb!important;margin:.15rem 0 0;overflow-wrap:anywhere}
+.ika-who__out{display:inline-block;margin-top:.4rem;color:#7dd3fc!important;font-size:.9rem;text-decoration:underline}
+.ika-who__out:focus-visible{outline:3px solid #facc15;outline-offset:2px}
+/* ── Pole kodu — jedno pole z etykietą (WCAG: 1.3.1, 3.3.2) ── */
+.ika-field{max-width:20rem;margin:0 auto 1rem;text-align:center}
+.ika-field__label{display:block;font-weight:700;font-size:1rem;margin:0 0 .2rem;color:#1d1d1d}
+.ika-field__hint{font-size:.85rem;color:#4b5563;margin:0 0 .5rem}
+.ika-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.8rem!important;letter-spacing:.45em;text-align:center;
+  padding:.6rem .5rem .6rem 1rem!important;min-height:60px;border:2px solid #6b7280!important;border-radius:0!important}
+.ika-code:focus{border-color:#1ba1e2!important;box-shadow:none!important}
+.ika-code[aria-invalid="true"]{border-color:#b91c1c!important;background:#fef2f2}
+.ika-field .reveal-btn{margin-top:.4rem;min-height:44px;color:#1d1d1d;font-size:.9rem}
+
+/* ── Wygląd METRO (jak logowanie TI): kwadratowe pola, karty i przyciski ── */
+.tzl #ika-main .tz-card,.tzl #ika-main .digit-box,.tzl #ika-main .pesel-box,.tzl #ika-main .recovery-btn,
+.tzl #ika-main .ika-mod-icon,.tzl #ika-main .ika-user-pill,.tzl #ika-main .tz-card__hd i,
+.tzl #ika-main .tz-btn,.tzl #ika-main .show-code-btn,.tzl #ika-main .tz-subnav .seg,.tzl #ika-main .tz-subnav a{border-radius:0!important}
+.tzl #ika-main .tz-card{box-shadow:0 2px 10px rgba(0,0,0,.08);border:0}
+.tzl #ika-main .digit-box,.tzl #ika-main .pesel-box{border-width:2px}
+.tzl #ika-main .recovery-btn{box-shadow:none}
+.tzl #ika-main .recovery-btn:hover{transform:none;background:#e6f6fc;border-color:var(--ks)}
 </style>
 
 <!-- ── Nagłówek strony ───────────────────────────────────────────────────────── -->
@@ -529,16 +557,22 @@ auth_screen_head([
         <div class="fw-bold" style="color:var(--tz-strong)"><?= h($dest_ctx['module']) ?></div>
         <div class="text-muted small"><?= h($dest_ctx['resource']) ?></div>
       </div>
-      <div class="ika-user-pill d-flex align-items-center gap-2 border rounded-pill px-3 py-1"
-           style="background:var(--tz-canvas);border-color:var(--tz-line)!important">
-        <span style="width:26px;height:26px;border-radius:50%;background:var(--tz);color:#fff;
-                     display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.62rem;flex-shrink:0"
-              aria-hidden="true"><?= h($initials) ?></span>
-        <span style="font-size:.82rem;font-weight:600;color:#374151;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= h($display_name) ?></span>
-      </div>
     </div>
   </div>
 </div>
+
+<!-- ── Na kogo się logujesz — duże, wyraźne potwierdzenie ──────────────────── -->
+<section class="ika-who" aria-labelledby="ika-who-h">
+  <span class="ika-who__av" aria-hidden="true"><?= h($initials) ?></span>
+  <div class="ika-who__txt">
+    <h2 class="ika-who__h" id="ika-who-h">Logujesz się jako</h2>
+    <p class="ika-who__name"><?= h($display_name) ?></p>
+    <?php if ($user_email !== '' && $user_email !== $display_name): ?>
+    <p class="ika-who__mail"><?= h($user_email) ?></p>
+    <?php endif; ?>
+    <a class="ika-who__out" href="<?= h(APP_URL) ?>/auth/logout.php">To nie Ty? Wyloguj się</a>
+  </div>
+</section>
 
 <!-- ── Zakładki metod (gdy aktywna) ─────────────────────────────────────────── -->
 <?php if ($show_method_tabs): ?>
@@ -765,19 +799,15 @@ $head_title = match(true) {
         <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
         <input type="hidden" name="_mode" value="ika">
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-        <p class="text-muted small text-center mb-1">Wpisz 6-cyfrowy kod IKA</p>
-        <div class="digit-row" id="ikaDigits" role="group" aria-label="Kod IKA — 6 cyfr">
-          <?php for ($i = 1; $i <= 6; $i++): ?>
-          <input type="password" class="digit-box<?= $error && $active_method === 'ika' ? ' is-error' : '' ?>"
-                 maxlength="1" inputmode="numeric" pattern="\d"
-                 id="d<?= $i ?>" name="ika_d[]" data-idx="<?= $i ?>"
+        <div class="ika-field">
+          <label for="ikaCode" class="ika-field__label">Kod IKA</label>
+          <p class="ika-field__hint" id="ikaCodeHint">6 cyfr. Kod ustawiasz i sprawdzasz w Systemie Tożsamości.</p>
+          <input type="password" class="form-control ika-code" id="ikaCode" name="ika_code"
+                 inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required
                  autocomplete="off" data-1p-ignore data-lpignore="true"
-                 aria-label="Cyfra <?= $i ?> kodu IKA">
-          <?php endfor; ?>
-          <input type="hidden" name="ika_code" id="ikaCodeHidden">
-        </div>
-        <div class="reveal-row">
-          <button type="button" class="reveal-btn" data-group="ikaDigits" aria-pressed="false">
+                 aria-describedby="ikaCodeHint"
+                 <?= $error && $active_method === 'ika' ? 'aria-invalid="true"' : '' ?>>
+          <button type="button" class="reveal-btn" data-target="ikaCode" aria-controls="ikaCode" aria-pressed="false">
             <i class="bi bi-eye" aria-hidden="true"></i><span>Pokaż kod</span>
           </button>
         </div>
@@ -862,17 +892,13 @@ $head_title = match(true) {
         <input type="hidden" name="_csrf"  value="<?= csrf_token() ?>">
         <input type="hidden" name="_mode" value="verify_email_otp">
         <input type="hidden" name="to"    value="<?= h($return_to) ?>">
-        <div class="digit-row" id="emailDigits" role="group" aria-label="Kod e-mail — 6 cyfr">
-          <?php for ($i = 1; $i <= 6; $i++): ?>
-          <input type="password" class="digit-box<?= $error && $active_method === 'email' ? ' is-error' : '' ?>"
-                 maxlength="1" inputmode="numeric" pattern="\d"
-                 id="ed<?= $i ?>" name="email_d[]" data-idx="<?= $i ?>" autocomplete="off"
-                 data-1p-ignore data-lpignore="true" aria-label="Cyfra <?= $i ?> kodu z e-maila">
-          <?php endfor; ?>
-          <input type="hidden" name="email_otp" id="emailOtpHidden">
-        </div>
-        <div class="reveal-row">
-          <button type="button" class="reveal-btn" data-group="emailDigits" aria-pressed="false">
+        <div class="ika-field">
+          <label for="emailOtp" class="ika-field__label">Kod z e-maila</label>
+          <input type="password" class="form-control ika-code" id="emailOtp" name="email_otp"
+                 inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" required
+                 autocomplete="one-time-code" data-1p-ignore data-lpignore="true"
+                 <?= $error && $active_method === 'email' ? 'aria-invalid="true"' : '' ?>>
+          <button type="button" class="reveal-btn" data-target="emailOtp" aria-controls="emailOtp" aria-pressed="false">
             <i class="bi bi-eye" aria-hidden="true"></i><span>Pokaż kod</span>
           </button>
         </div>
@@ -979,71 +1005,36 @@ window.switchMethod = switchMethod;
 /* ── Podgląd zamaskowanego kodu ────────────────────────── */
 document.querySelectorAll('.reveal-btn').forEach(function (btn) {
   btn.addEventListener('click', function () {
-    var group = document.getElementById(btn.dataset.group);
-    if (!group) return;
+    var inp = document.getElementById(btn.dataset.target);
+    if (!inp) return;
     var show = btn.getAttribute('aria-pressed') !== 'true';
-    group.querySelectorAll('.digit-box').forEach(function (i) { i.type = show ? 'text' : 'password'; });
+    inp.type = show ? 'text' : 'password';
     btn.setAttribute('aria-pressed', show ? 'true' : 'false');
     btn.querySelector('span').textContent = show ? 'Ukryj kod' : 'Pokaż kod';
     btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
   });
 });
 
-/* ── Helper: 6-box digit group ─────────────────────────── */
-function initDigitGroup(groupId, hiddenId, btnId, spinnerId) {
-  var group   = document.getElementById(groupId);
-  var hidden  = document.getElementById(hiddenId);
-  var btn     = document.getElementById(btnId);
+/* ── Pole kodu: tylko cyfry; wysyła dopiero przycisk lub Enter (bez zmiany kontekstu przy wpisywaniu) ── */
+function initCodeField(inputId, btnId, spinnerId) {
+  var inp = document.getElementById(inputId), btn = document.getElementById(btnId);
   var spinner = document.getElementById(spinnerId);
-  if (!group || !btn) return;
-
-  var inputs = Array.from(group.querySelectorAll('.digit-box'));
-
-  function collect() { return inputs.map(function(i){ return i.value.replace(/\D/g,'').slice(0,1); }).join(''); }
-  function sync() {
-    var v = collect();
-    if (hidden) hidden.value = v;
-    btn.disabled = v.length < inputs.length;
-    inputs.forEach(function(i){ i.classList.toggle('filled', i.value !== ''); });
-  }
-  // Blokadę przycisku zakłada dopiero skrypt — w HTML przycisk jest aktywny,
-  // żeby awaria JS nie odcinała jedynej drogi wysłania kodu.
-  sync();
-
-  inputs.forEach(function(inp, idx) {
-    inp.addEventListener('input', function() {
-      var d = this.value.replace(/\D/g,'').slice(0,1);
-      this.value = d; sync();
-      if (d && idx < inputs.length - 1) inputs[idx+1].focus();
-      if (collect().length === inputs.length) setTimeout(function(){ if (!btn.disabled) btn.click(); }, 120);
-    });
-    inp.addEventListener('keydown', function(e) {
-      if (e.key === 'Backspace' && !this.value && idx > 0) inputs[idx-1].focus();
-      if (e.key === 'ArrowLeft'  && idx > 0) inputs[idx-1].focus();
-      if (e.key === 'ArrowRight' && idx < inputs.length-1) inputs[idx+1].focus();
-    });
-    inp.addEventListener('paste', function(e) {
-      e.preventDefault();
-      var pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'');
-      pasted.split('').forEach(function(ch,i){ if (idx+i < inputs.length) inputs[idx+i].value = ch; });
-      inputs[Math.min(idx + pasted.length, inputs.length-1)].focus();
-      sync();
-    });
+  if (!inp || !btn) return;
+  inp.addEventListener('input', function () {
+    var v = this.value.replace(/\D/g, '').slice(0, 6);
+    if (v !== this.value) this.value = v;
   });
-
   var form = btn.closest('form');
-  if (form) form.addEventListener('submit', function() {
-    if (hidden) hidden.value = collect();   // ostatnia synchronizacja tuż przed wysyłką
+  if (form) form.addEventListener('submit', function () {
     if (spinner) spinner.style.display = 'inline-block';
     btn.disabled = true;
   });
-
-  var panel = group.closest('[id^=panel-]') || group;
-  if (!panel.hidden) inputs[0].focus();
+  var panel = inp.closest('[id^=panel-]');
+  if (!panel || !panel.hidden) inp.focus();
 }
 
-initDigitGroup('ikaDigits',   'ikaCodeHidden',  'btnVerify',   'ikaSpinner');
-initDigitGroup('emailDigits', 'emailOtpHidden', 'btnEmailOtp', 'spinEmailOtp');
+initCodeField('ikaCode',  'btnVerify',   'ikaSpinner');
+initCodeField('emailOtp', 'btnEmailOtp', 'spinEmailOtp');
 
 /* ── PESEL — 3 osobne boxy ────────────────────────────── */
 (function() {
@@ -1056,7 +1047,6 @@ initDigitGroup('emailDigits', 'emailOtpHidden', 'btnEmailOtp', 'spinEmailOtp');
       this.value = this.value.replace(/\D/g,'').slice(0,1);
       btn.disabled = collect().length < pInputs.length;
       if (this.value && idx < pInputs.length-1) pInputs[idx+1].focus();
-      if (collect().length === pInputs.length) setTimeout(function(){if(!btn.disabled)btn.click();},120);
     });
     inp.addEventListener('keydown', function(e){
       if (e.key==='Backspace' && !this.value && idx>0) pInputs[idx-1].focus();
