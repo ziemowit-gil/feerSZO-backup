@@ -1967,7 +1967,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('DOMContentLoaded', function () {
     var main = document.querySelector('main.kp-dane-grid');
     if (!main || main.querySelector('.kp-dane-kolumny')) return;
-    var lewa  = ['.kp-dane-osoba', '.kp-dane-komunikaty', '.kp-rk-banner', '.kp-dane-postep', '.kp-dane-napisz'];
+    var lewa  = ['.kp-dane-osoba', '.kp-dane-komunikaty', '.kp-rk-banner', '.kp-dane-postep'];
     var prawa = ['.kp-dane-kursy', '.kp-dane-mojekursy', '.kp-dane-uslugi'];
     var box = document.createElement('div'); box.className = 'kp-dane-kolumny';
     var kl = document.createElement('div'); kl.className = 'kp-dane-kol';
@@ -1975,6 +1975,9 @@ document.addEventListener('DOMContentLoaded', function() {
     box.appendChild(kl); box.appendChild(kp);
     var nagl = main.querySelector('.kp-dane-naglowek');
     if (nagl) nagl.after(box); else main.prepend(box);
+    // „Napisz do prowadzącego” jako kafel na górze, nad kolumnami
+    var napisz = main.querySelector('.kp-dane-napisz');
+    if (napisz) box.before(napisz);
     lewa.forEach(function (sel) { var el = main.querySelector(sel); if (el && !box.contains(el)) kl.appendChild(el); });
     prawa.forEach(function (sel) { var el = main.querySelector(sel); if (el && !box.contains(el)) kp.appendChild(el); });
   });
@@ -2126,8 +2129,8 @@ document.addEventListener('DOMContentLoaded', function() {
   <?php endif; ?>
   <?php if ($instructors_for_quick): ?>
   <div class="mb-4 kp-dane-napisz">
-    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalQuickMsg">
-      <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Napisz do prowadzącego
+    <button class="btn btn-outline-primary btn-sm kp-napisz-kafel" data-bs-toggle="modal" data-bs-target="#modalQuickMsg">
+      <i class="bi bi-chat-dots me-1" aria-hidden="true"></i><span class="kp-napisz-tekst"><span class="kp-napisz-tytul">Napisz do prowadzącego</span><span class="kp-napisz-pod">Wiadomość trafi do Twojego prowadzącego</span></span>
     </button>
   </div>
   <?php endif; ?>

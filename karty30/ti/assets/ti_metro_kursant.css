@@ -885,3 +885,19 @@ body.kur-alt.ti-skin .kp-upow .form-control { border: 2px solid #1d1d1d; border-
 body.kur-alt.ti-skin .kp-upow .form-control:focus { border-color: #1ba1e2; box-shadow: 0 0 0 3px #d9f0fb; }
 body.kur-alt.ti-skin .kp-upow .form-check-input { width: 1.3em; height: 1.3em; border: 2px solid #1d1d1d; }
 body.kur-alt.ti-skin .kp-upow .is-invalid { border-color: #b91c1c !important; }
+
+/* „Napisz do prowadzącego” jako kafel na górze strony Dane (w klasycznym widoku zwykły przycisk) */
+.kp-napisz-pod { display: none; }
+body.kur-alt.ti-skin .kp-dane-napisz { margin: 0 0 .75rem !important; }
+body.kur-alt.ti-skin .kp-napisz-kafel {
+  display: flex !important; align-items: center; justify-content: flex-start !important; gap: .8rem; width: 100%;
+  min-height: 72px; padding: .7rem 1rem !important; text-align: left;
+  background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; border-left: 8px solid #1ba1e2 !important;
+}
+body.kur-alt.ti-skin .kp-napisz-kafel:hover { background: #f3f4f6 !important; }
+body.kur-alt.ti-skin .kp-napisz-kafel > i.bi {
+  display: inline-flex; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; margin: 0 !important;
+  background: #1ba1e2; color: #1d1d1d !important; font-size: 1.3rem; flex-shrink: 0;
+}
+body.kur-alt.ti-skin .kp-napisz-tytul { display: block; font-size: 1.05rem; font-weight: 700; }
+body.kur-alt.ti-skin .kp-napisz-pod { display: block; font-size: .85rem; font-weight: 400; color: #374151; }
