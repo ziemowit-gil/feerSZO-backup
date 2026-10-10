@@ -137,6 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       .then(function (j) { img.innerHTML = j.svg; lbl.textContent = j.label; box.classList.remove('d-none'); box.classList.add('d-flex'); })
       .catch(function () { box.classList.add('d-none'); });
   }
+  // Obrazek pojawia się od razu podczas pisania (z krótką przerwą), nie dopiero po wyjściu z pola.
+  var t = null;
+  inp.addEventListener('input', function () { clearTimeout(t); t = setTimeout(pokaz, 300); });
   inp.addEventListener('change', pokaz);
   inp.addEventListener('blur', pokaz);
   pokaz();

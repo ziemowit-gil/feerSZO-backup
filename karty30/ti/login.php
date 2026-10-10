@@ -293,6 +293,9 @@ function tzPokaz(id, btn) {
       .then(function (j) { img.innerHTML = j.svg; lbl.textContent = j.label; box.style.display = 'flex'; })
       .catch(function () { box.style.display = 'none'; });
   }
+  // Obrazek pojawia się od razu podczas pisania (z krótką przerwą), nie dopiero po wyjściu z pola.
+  var t = null;
+  inp.addEventListener('input', function () { clearTimeout(t); t = setTimeout(pokaz, 300); });
   inp.addEventListener('change', pokaz);
   inp.addEventListener('blur', pokaz);
 })();
