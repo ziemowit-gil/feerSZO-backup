@@ -17,12 +17,25 @@ function ti_student_accounts_for_onboarding(): array {
 }
 
 /** Treść maila onboardingowego dla jednego konta. */
-function ti_student_onboarding_mail(string $name, string $login): array {
+/** Aktywne grupy klienta: numer (group_code, a gdy go nie ma — numer kursu) i nazwa. */
+function ti_student_onboarding_grupy(int $client_id): array {
+    return db_all(
+        "SELECT c.id, c.name, c.group_code FROM k30_ti_enrollments e
+           JOIN k30_ti_courses c ON c.id = e.course_id
+          WHERE e.client_id = ? AND e.status = 'active'
+          ORDER BY c.name",
+        [$client_id]
+    );
+}
+
+function ti_student_onboarding_mail(string $name, string $login, array $grupy = []): array {
     $login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=kursant';
     $start_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/onboarding.php';
     $org = function_exists('org_setting') && org_setting('org_name') !== '' ? org_setting('org_name') : (defined('ORG_NAME') ? ORG_NAME : '');
     $txt = ($org !== '' ? "Instytucja: {$org}\n\n" : '')
          . "Dzień dobry, {$name},\n\n"
+         . ($grupy ? "Twoje grupy:\n" . implode("\n", array_map(
+               fn($g) => '- ' . ($g['group_code'] !== '' ? $g['group_code'] : '#' . (int)$g['id']) . ' — ' . $g['name'], $grupy)) . "\n\n" : '')
          . "Twoje konto w panelu kursanta jest gotowe. Tam zobaczysz swoje zajęcia, plan i rozliczenia.\n\n"
          . "Jak zacząć:\n"
          . "1. Zaloguj się: {$login_url}\n"
@@ -42,7 +55,7 @@ function ti_student_onboarding_mail(string $name, string $login): array {
  */
 function ti_student_onboarding_send(int $account_id): string {
     $a = db_one(
-        "SELECT a.id, a.login, c.name AS client_name, c.email AS client_email
+        "SELECT a.id, a.login, a.client_id, c.name AS client_name, c.email AS client_email
            FROM k30_ti_student_accounts a JOIN k30_clients c ON c.id = a.client_id
           WHERE a.id = ? AND a.is_active = 1",
         [$account_id]
@@ -51,7 +64,8 @@ function ti_student_onboarding_send(int $account_id): string {
     $email = trim((string)$a['client_email']);
     if ($email === '') return 'no_email';
 
-    [$txt, $html] = ti_student_onboarding_mail((string)$a['client_name'], (string)$a['login']);
+    [$txt, $html] = ti_student_onboarding_mail((string)$a['client_name'], (string)$a['login'],
+        ti_student_onboarding_grupy((int)$a['client_id']));
     $mail_id = mail_queue_add($email, (string)$a['client_name'],
         'Witamy w panelu kursanta – jak zacząć', $html, $txt, 'ti_student_onboarding', $account_id, '', true);
     $status = (string)db_one("SELECT status FROM mail_queue WHERE id = ?", [$mail_id])['status'];

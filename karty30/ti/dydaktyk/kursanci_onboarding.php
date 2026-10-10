@@ -43,7 +43,8 @@ $podglad = null;
 $pid = (int)($_GET['podglad'] ?? 0);
 foreach ($konta as $a) {
     if ((int)$a['id'] === $pid) {
-        [$p_txt, $p_html] = ti_student_onboarding_mail((string)$a['client_name'], (string)$a['login']);
+        [$p_txt, $p_html] = ti_student_onboarding_mail((string)$a['client_name'], (string)$a['login'],
+            ti_student_onboarding_grupy((int)$a['client_id']));
         $podglad = ['a' => $a, 'txt' => $p_txt];
         break;
     }
