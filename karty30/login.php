@@ -54,6 +54,8 @@ loginShellHead([
         'Prowadzisz zajęcia TI? Użyj logowania prowadzącego.',
     ],
     'mainId'    => 'k30-login-main',
+    'account'   => ['register', 'reset'],
+    'registerOpen' => function_exists('register_is_open') && register_is_open(),
 ]);
 ?>
       <h1 class="h4 fw-bold mb-1">Zaloguj się</h1>

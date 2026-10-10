@@ -334,6 +334,7 @@ require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'          => 'Logowanie',
     'side_title'     => 'Logowanie do systemu (SZO)',
+    'account_buttons'=> ['register', 'reset'],
     'side_sub'       => 'Jak się zalogować:',
     'side_steps'     => [
         'Masz konto @feer.org.pl? Wybierz „Zaloguj przez Microsoft 365”.',
@@ -465,13 +466,7 @@ $_modals_html = ob_get_clean();
       <button type="submit" class="ks-btn ks-btn--primary">Zaloguj</button>
     </form>
 
-    <hr class="ks-sep">
-
-    <p class="ks-sub">Jeszcze nie masz konta?</p>
-    <?php if (register_is_open()): ?>
-    <a href="<?= APP_URL ?>/user/register.php" class="ks-btn ks-btn--ghost">Zarejestruj się</a>
-    <?php endif; ?>
-    <a href="<?= APP_URL ?>/user/verify_reset.php" class="ks-btn ks-btn--ghost">Odzyskaj dostęp do konta</a>
+    <?php /* „Załóż konto" i „Odzyskaj hasło" są w lewej kolumnie (account_buttons). */ ?>
 
     <?php $has_alt = $code_available || $sms_available || $x509_available; if ($has_alt): ?>
     <hr class="ks-sep">

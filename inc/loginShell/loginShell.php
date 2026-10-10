@@ -52,6 +52,13 @@ body.tzl { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; 
 .tz-side-nav .ks-tab, .tz-side-nav a { display: block; padding: .7rem 1rem; color: #fff; text-decoration: none; font-weight: 600; border-left: 4px solid transparent; background: rgba(255,255,255,.06); }
 .tz-side-nav .ks-tab:hover, .tz-side-nav a:hover { background: rgba(255,255,255,.14); color: #fff; }
 .tz-side-nav [aria-current="page"] { border-left-color: {$a}; background: rgba(27,161,226,.22); }
+.tz-actions { margin-top: 2rem; max-width: 420px; }
+.tz-actions h3 { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #cbd5e1; margin: 0 0 .6rem; }
+.tz-actions ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; font-size: .9rem; }
+.tz-actions li { margin: 0; }
+.tz-actions a { display: flex; align-items: center; gap: .5rem; min-height: 48px; padding: .55rem .75rem; color: #fff; text-decoration: none; font-weight: 600; background: var(--tz-k, #2d2d2d); }
+.tz-actions a:hover { filter: brightness(1.12); color: #fff; text-decoration: underline; }
+.tz-actions a .bi { font-size: 1.15rem; flex-shrink: 0; }
 .tz-side-nav nav, .tz-side-nav .ks-tabs { display: flex; flex-direction: column; gap: .25rem; }
 .tz-main { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
 .tz-card { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; width: 100%; max-width: 420px; border-radius: 0; }
@@ -71,6 +78,12 @@ body.tzl { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; 
 .tz-btn-ghost, .tz-card a.tz-btn-ghost { background: #fff; color: #1d1d1d; border: 2px solid {$a}; }
 .tz-btn-ghost:hover, .tz-card a.tz-btn-ghost:hover { background: #e6f6fc; color: #1d1d1d; }
 .tz-btn + .tz-btn { margin-top: .5rem; }
+.tz-account { margin-top: 1.75rem; max-width: 420px; }
+.tz-account-h { color: #cbd5e1; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 .6rem; }
+.tz-account .tz-btn { text-align: left; }
+.tz-btn-dark { background: #fff; color: #1d1d1d; border: 2px solid {$a}; }
+.tz-side a.tz-btn { color: #fff; } .tz-side a.tz-btn-dark { color: #1d1d1d; }
+.tz-btn-dark:hover, .tz-side a.tz-btn-dark:hover { background: #e6f6fc; color: #1d1d1d; }
 .tz-card :focus-visible, .tz-side a:focus-visible, .tz-banner a:focus-visible, .tz-btn:focus-visible, .tz-footer a:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
 .tz-footer { text-align: center; font-size: .85rem; color: #4b5563; padding: 1rem; }
 .tz-footer a { color: #1d4ed8; text-decoration: none; margin: 0 .5rem; }
@@ -85,10 +98,65 @@ CSS;
 }
 
 /**
+ * Kafle „Inne akcje" w lewej kolumnie: pozostałe logowania i pomoc. Kafel strony,
+ * na której jesteśmy, jest pomijany (porównanie ścieżki z SCRIPT_NAME).
+ */
+function loginShellActions(): string {
+    $e    = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $app  = rtrim(APP_URL, '/');
+    $self = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+    $akcje = [
+        ['/karty30/ti/login.php',            'Panel kursanta TI',     'bi-pc-display',          '#1ba1e2'],
+        ['/auth/login.php',                  'Logowanie do SZO',      'bi-box-arrow-in-right',  '#2d2d2d'],
+        ['/karty30/login.php',               'Dydaktyka 3',           'bi-card-checklist',      '#2d2d2d'],
+        ['/crm/login.php',                   'CRM',                   'bi-people',              '#2d2d2d'],
+        ['/portal_kontrahenta/login.php',    'Portal Kontrahenta',    'bi-building',            '#2d2d2d'],
+        ['/user/verify_reset.php',           'Odzyskiwanie hasła',    'bi-key',                 '#2d2d2d'],
+        ['/auth/report_login_issue.php',     'Problem z logowaniem',  'bi-life-preserver',      '#7e3878'],
+    ];
+    $li = '';
+    foreach ($akcje as [$path, $label, $icon, $kolor]) {
+        if ($self !== '' && str_ends_with($self, $path)) continue;
+        $li .= '<li><a href="' . $e($app . $path) . '" style="--tz-k:' . $kolor . '">'
+             . '<i class="bi ' . $icon . '" aria-hidden="true"></i>' . $e($label) . '</a></li>';
+    }
+    return '<section class="tz-actions" aria-labelledby="tz-actions-h"><h3 id="tz-actions-h">Inne akcje</h3><ul>' . $li . '</ul></section>';
+}
+
+/**
+ * Przyciski w lewej kolumnie: „Zaloguj się", „Załóż nowe konto", „Odzyskaj hasło".
+ * Przycisk strony, na której jesteśmy, jest pomijany.
+ *
+ * @param array $which podzbiór ['login', 'register', 'reset']
+ * @param bool  $registerOpen czy rejestracja jest otwarta (gdy nie — bez „Załóż konto")
+ */
+function loginShellAccountButtons(array $which = ['register', 'reset'], bool $registerOpen = true): string {
+    $app  = rtrim(APP_URL, '/');
+    $self = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+    $btn  = [
+        'login'    => ['/auth/login.php',       'Zaloguj się',      'bi-box-arrow-in-right'],
+        'register' => ['/user/register.php',    'Załóż nowe konto', 'bi-person-plus'],
+        'reset'    => ['/user/verify_reset.php','Odzyskaj hasło',   'bi-key'],
+    ];
+    $out = '';
+    foreach ($which as $k) {
+        if (!isset($btn[$k]) || ($k === 'register' && !$registerOpen)) continue;
+        [$path, $label, $icon] = $btn[$k];
+        if ($self !== '' && str_ends_with($self, $path)) continue;
+        $out .= '<a href="' . $app . $path . '" class="tz-btn' . ($out === '' ? '' : ' tz-btn-dark') . '">'
+              . '<i class="bi ' . $icon . ' me-2" aria-hidden="true"></i>' . $label . '</a>';
+    }
+    if ($out === '') return '';
+    return '<div class="tz-account" role="group" aria-labelledby="tz-account-h">'
+         . '<p class="tz-account-h" id="tz-account-h">Konto i hasło</p>' . $out . '</div>';
+}
+
+/**
  * Lewa kolumna: organizacja, tytuł, podtytuł, instrukcja i opcjonalna nawigacja.
  *
  * @param array $o sideTitle, sideSub, sideSteps (lista zdań), sideHtml (dowolny HTML),
- *                 navHtml (linki/zakładki), logoUrl, orgLabel
+ *                 navHtml (linki/zakładki), logoUrl, orgLabel, actions (kafle „Inne akcje", domyślnie true),
+ *                 account (['login','register','reset'] — przyciski konta), registerOpen
  */
 function loginShellSide(array $o): string {
     $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
@@ -110,6 +178,8 @@ function loginShellSide(array $o): string {
     if (!empty($o['navHtml'])) {
         $out .= '<nav class="tz-side-nav" aria-label="' . $e($o['navLabel'] ?? 'Logowanie') . '">' . $o['navHtml'] . '</nav>';
     }
+    if (!empty($o['account'])) $out .= loginShellAccountButtons($o['account'], $o['registerOpen'] ?? true);
+    if ($o['actions'] ?? true) $out .= loginShellActions();
     return $out . '</aside>';
 }
 

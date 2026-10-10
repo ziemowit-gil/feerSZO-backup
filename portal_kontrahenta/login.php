@@ -39,6 +39,7 @@ loginShellHead([
         'Nie masz konta? Załóż je i potwierdź linkiem z e-maila.',
     ],
     'banner'    => false,   // kontrahenci nie korzystają z logowania centralnego
+    'actions'   => false,   // bez kafli logowań wewnętrznych (SZO, CRM, TI)
     'mainId'    => 'pk-login-main',
 ]);
 ?>

@@ -278,6 +278,7 @@ require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_screen_head([
     'title'          => 'Załóż konto',
     'side_title'     => 'Rejestracja',
+    'account_buttons'=> ['login', 'reset'],
     'side_sub'       => 'Jak założyć konto:',
     'side_steps'     => [
         'Wpisz dane z umowy i PIN od administratora.',

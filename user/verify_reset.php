@@ -567,6 +567,8 @@ auth_screen_head([
         'Ustaw nowe hasło.',
     ],
     'side_tabs_html' => auth_screen_login_tabs('reset'),
+    'actions'   => true,
+    'account_buttons' => ['login', 'register'],
     'mode'      => 'plain',
     'width'     => 640,
     'bootstrap' => true,

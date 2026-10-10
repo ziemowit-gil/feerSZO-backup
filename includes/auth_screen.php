@@ -67,6 +67,9 @@ function auth_screen_bg_css(string $sel = 'html,body'): void {
  *                              inc/loginShell). Domyślnie włączony; w trybie 'plain' treść leży na
  *                              jasnym tle, bez karty. 'metro' => false przywraca dawne tło marki.
  *                 side_title / side_sub / side_steps — lewa kolumna w wyglądzie METRO
+ *                 account_buttons — podzbiór ['login','register','reset']: przyciski konta w lewej kolumnie
+ *                                   (zastępują zakładki side_tabs_html)
+ *                 actions    — kafle „Inne akcje" (inne logowania, pomoc); domyślnie w trybie 'card'
  */
 function auth_screen_head(array $o = []): void {
     $b         = branding_load();
@@ -444,7 +447,8 @@ html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
 <?= loginShellBanner() ?>
 <div class="tz-split<?= ($mode !== 'card' && $width > 800) ? ' tz-split--wide' : '' ?>">
   <?php
-  $_nav = $side_tabs ?? ($o['tabs_html'] ?? null);
+  // Przyciski konta w lewej kolumnie zastępują zakładki Zaloguj/Rejestracja/Odzyskiwanie.
+  $_nav = !empty($o['account_buttons']) ? '' : ($side_tabs ?? ($o['tabs_html'] ?? null));
   if ($_nav === null && $tab) {
       $_nav = '<a class="ks-tab" href="' . APP_URL . '/auth/login.php"' . ($tab === 'login' ? ' aria-current="page"' : '') . '>Zaloguj</a>';
       if (register_is_open() || $tab === 'register') {
@@ -459,6 +463,9 @@ html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
       'sideSteps' => $o['side_steps'] ?? [],
       'navHtml'   => $_nav ?? '',
       'navLabel'  => 'Rodzaj użytkownika',
+      'actions'   => $o['actions'] ?? ($mode === 'card'),
+      'account'   => $o['account_buttons'] ?? [],
+      'registerOpen' => register_is_open(),
   ]);
   ?>
   <?php if ($mode === 'card'): ?>
