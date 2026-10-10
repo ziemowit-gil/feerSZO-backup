@@ -84,10 +84,14 @@ if ($_sms_enabled && $cur_course) {
   function sel() { return [].filter.call(chks, function (c) { return c.checked; }).map(function (c) { return c.value; }); }
   function sync() { open.disabled = sel().length === 0; document.getElementById('apprEdit').disabled = sel().length === 0; all.checked = sel().length === chks.length; }
   document.getElementById('apprEdit').addEventListener('click', function () {   // przejście do masowej zmiany parametrów z wybranymi szkicami
-    var box = document.getElementById('mmBox'), only = document.getElementById('mmOnlyDrafts');
-    if (!box || !only) return;
-    box.open = true; only.checked = true; box.scrollIntoView({ block: 'start' });
-    var f = document.getElementById('mmChg_lesson_method'); if (f) f.focus();
+    var mm = document.getElementById('mmModal'), only = document.getElementById('mmOnlyDrafts');
+    if (!mm || !only || typeof bootstrap === 'undefined') return;
+    only.checked = true;
+    mm.addEventListener('shown.bs.modal', function onShown() {
+      mm.removeEventListener('shown.bs.modal', onShown);
+      var f = document.getElementById('mmChg_lesson_method'); if (f) f.focus();
+    });
+    bootstrap.Modal.getOrCreateInstance(mm).show();
   });
   function approve(ids) {
     dydApprovalModal({ title: 'Zatwierdzenie wersji roboczych', previewUrl: 'approve_drafts.php?course=' + cid + '&ids=' + ids.join(','),
@@ -130,8 +134,15 @@ if ($_sms_enabled && $cur_course) {
 <?php endif; ?>
 <?php if ($cur_course): // Masowa zmiana parametrów terminów ?>
 <?php $_mm_rooms = pl_rooms_list(['is_active' => 1]); $_mm_staff = dyd_is_staff(); $_mm_instrs = $_mm_staff ? k30_ti_instructors() : []; ?>
-<details class="card mb-3" id="mmBox">
-  <summary class="card-header fw-semibold" style="cursor:pointer"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Masowa zmiana typu i parametrów terminów</summary>
+<button type="button" class="btn btn-outline-primary btn-sm mb-3" data-bs-toggle="modal" data-bs-target="#mmModal" id="mmOpen"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Masowa zmiana typu i parametrów terminów</button>
+<div class="modal fade" id="mmModal" tabindex="-1" aria-labelledby="mmModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="mmModalTitle"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Masowa zmiana typu i parametrów terminów</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij okno masowej zmiany"></button>
+      </div>
+      <div class="modal-body p-0" id="mmBox">
   <form class="card-body" id="mmForm" onsubmit="return false">
     <fieldset class="mb-3">
       <legend class="h6">1. Których lekcji dotyczy zmiana (tylko nadchodzące, niezakończone)</legend>
@@ -173,7 +184,11 @@ if ($_sms_enabled && $cur_course) {
     <button type="button" class="btn btn-primary" id="mmPreview"><i class="bi bi-eye me-1" aria-hidden="true"></i>Podgląd i zatwierdzenie zmiany…</button>
     <span class="small text-body-secondary ms-2">Przed zapisem zobaczysz listę terminów, ostrzeżenia (kolizje, Zoom, brak linku) oraz podgląd maila do kursantów z harmonogramem w załączniku.</span>
   </form>
-</details>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="../assets/dydApprovalModal.js?v=<?= (int)@filemtime(__DIR__ . '/../assets/dydApprovalModal.js') ?>"></script>
 <script>
 (function () {
