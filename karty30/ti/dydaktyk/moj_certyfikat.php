@@ -8,6 +8,7 @@ require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_cert_issue.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/webauthn.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/inc/tiCertStore/tiCertStore.php';
 webauthn_migrate();
 
 $me      = dyd_require();
@@ -47,6 +48,28 @@ $nowy_html = '<div class="small mb-3"><div class="fw-semibold mb-1">Nowy certyfi
     . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny od</th><td>' . h(date('d.m.Y')) . '</td></tr>'
     . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny do</th><td>' . h(date('d.m.Y', strtotime('+730 days'))) . '</td></tr>'
     . '</tbody></table></div>';
+
+// Odwołanie własnego certyfikatu i usunięcie własnego klucza — zawsze dostępne (także przed
+// terminem otwarcia generowania): to zabezpieczenie, np. gdy ktoś poznał hasło.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_op'] ?? '', ['revoke_cert', 'delete_key'], true)) {
+    dyd_token_check();
+    if ($_POST['_op'] === 'revoke_cert') {
+        $cid = (int)($_POST['cert_id'] ?? 0);
+        $c   = db_one("SELECT id, numer FROM admin_x509_certs WHERE id = ? AND user_id = ? AND revoked_at IS NULL", [$cid, $uid]);
+        if (!$c) {
+            flash_set('danger', 'Nie ma takiego aktywnego certyfikatu na Twoim koncie.');
+        } else {
+            x509_revoke((int)$c['id']);
+            tiCertStorePurgeRevoked($uid);   // zapisany plik odwołanego certyfikatu znika z systemu
+            ti_cert_sms((string)($konto['phone_number'] ?? ''), 'FEER: odwolano certyfikat ' . ($c['numer'] ?: '') . ' na Twoja prosbe. Nie bedzie dzialac przy podpisie protokolow.', 'ti_dydaktyka_notice');
+            flash_set('success', 'Certyfikat ' . ($c['numer'] ?: '') . ' został odwołany i nie zadziała przy podpisie. Możesz wygenerować nowy.');
+        }
+    } else {
+        $ok = webauthn_delete_credential((int)($_POST['key_id'] ?? 0), $uid);
+        flash_set($ok ? 'success' : 'danger', $ok ? 'Klucz usunięty — nie zadziała już przy podpisie protokołu.' : 'Nie ma takiego klucza na Twoim koncie.');
+    }
+    header('Location: moj_certyfikat.php'); exit;
+}
 
 // Ustawienie własnego hasła: nowy certyfikat z tym hasłem, stare certyfikaty odwołane.
 // Przed jakąkolwiek zmianą (także odwołaniem starego certyfikatu) sprawdzamy termin otwarcia.
@@ -106,7 +129,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <link rel="stylesheet" href="../assets/ti_skin.css">
 
 <main id="main" class="dyd-wrap">
-<div class="container-fluid py-3" style="max-width:720px">
+<div class="container-fluid py-3" style="max-width:1300px">
 <?= flash_html() ?>
 
 <h1 class="h4 fw-bold mb-2"><i class="bi bi-shield-check text-primary me-2" aria-hidden="true"></i>Mój certyfikat</h1>
@@ -115,6 +138,8 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   a certyfikat zostaje zapisany w systemie. Przy podpisie protokołu klikasz „Odczytaj certyfikat”.
 </p>
 
+<div class="row g-4">
+<div class="col-lg-6">
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     <p class="mb-2">Status: <?= $ma ? '<span class="badge bg-success">aktywny</span>' : '<span class="badge bg-secondary">brak</span>' ?></p>
@@ -302,6 +327,119 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
       var j2 = await r2.json(); if (!r2.ok) throw new Error(j2.error || 'Nie udało się zapisać klucza.');
       location.reload();
     } catch (e) { blad(e.message || 'Nie udało się dodać klucza.'); b.disabled = false; }
+  });
+})();
+</script>
+
+
+</div><!-- /lewa kolumna -->
+
+<?php
+  // Prawa kolumna: wszystkie certyfikaty i klucze konta, rozpoznawane po odcisku (fingerprint).
+  $_certs = x509_list_for_user($uid);
+  $_w_sys = [];
+  try { tiCertStoreMigrate(); foreach (db_all("SELECT fingerprint FROM k30_ti_cert_store WHERE user_id = ?", [$uid]) as $_r) $_w_sys[$_r['fingerprint']] = true; } catch (\Throwable $e) {}
+  $_fp = fn(string $x) => strtoupper(implode(':', str_split(substr($x, 0, 16), 2))) . '…';
+?>
+<div class="col-lg-6">
+  <section class="card border-0 shadow-sm" aria-labelledby="mcListaH">
+    <div class="card-body">
+      <h2 class="h6 fw-semibold mb-1" id="mcListaH"><i class="bi bi-fingerprint me-1" aria-hidden="true"></i>Moje certyfikaty i klucze</h2>
+      <p class="small text-body-secondary mb-2">Każdy certyfikat i klucz ma swój odcisk (fingerprint) — po nim go rozpoznasz w protokole.
+        Odwołany certyfikat i usunięty klucz od razu przestają działać.</p>
+      <label class="form-label small fw-semibold mb-1" for="mcSzukaj">Szukaj po odcisku</label>
+      <input type="search" class="form-control form-control-sm mb-3 font-monospace" id="mcSzukaj" placeholder="np. 9F:3A albo 9f3a" autocomplete="off"
+             aria-describedby="mcSzukajWynik">
+      <p class="visually-hidden" role="status" aria-live="polite" id="mcSzukajWynik"></p>
+
+      <h3 class="h6 fw-semibold mb-2">Certyfikaty (<?= count($_certs) ?>)</h3>
+      <?php if (!$_certs): ?>
+      <p class="small text-body-secondary">Nie masz jeszcze certyfikatu.</p>
+      <?php else: ?>
+      <div class="table-responsive mb-3">
+        <table class="table table-sm align-middle small mb-0">
+          <caption class="visually-hidden">Twoje certyfikaty z odciskiem, stanem i ważnością</caption>
+          <thead><tr><th scope="col">Numer</th><th scope="col">Odcisk</th><th scope="col">Stan</th><th scope="col">Ważny do</th><th scope="col"><span class="visually-hidden">Akcje</span></th></tr></thead>
+          <tbody>
+          <?php foreach ($_certs as $_c):
+            $_odw = !empty($_c['revoked_at']);
+            $_wyg = !$_odw && strtotime((string)$_c['valid_to']) <= time(); ?>
+            <tr data-fp="<?= h(strtolower((string)$_c['fingerprint'])) ?>">
+              <td class="font-monospace"><?= h((string)($_c['numer'] ?: '—')) ?></td>
+              <td><code title="<?= h((string)$_c['fingerprint']) ?>"><?= h($_fp((string)$_c['fingerprint'])) ?></code></td>
+              <td>
+                <?php if ($_odw): ?><span class="badge text-bg-secondary">odwołany</span>
+                <?php elseif ($_wyg): ?><span class="badge text-bg-warning">wygasł</span>
+                <?php else: ?><span class="badge text-bg-success">aktywny</span><?php endif; ?>
+                <?php if (!empty($_w_sys[$_c['fingerprint']])): ?><span class="badge text-bg-light border text-dark">w systemie</span><?php endif; ?>
+              </td>
+              <td><?= h(date('d.m.Y', strtotime((string)$_c['valid_to']))) ?></td>
+              <td class="text-end">
+                <?php if (!$_odw && !$_wyg): ?>
+                <form method="post" class="d-inline"
+                      onsubmit="return confirm('Odwołać certyfikat <?= h((string)($_c['numer'] ?: '')) ?>? Przestanie działać przy podpisie protokołów. Tego nie da się cofnąć.');">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="revoke_cert">
+                  <input type="hidden" name="cert_id" value="<?= (int)$_c['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-x-octagon me-1" aria-hidden="true"></i>Odwołaj<span class="visually-hidden"> certyfikat <?= h((string)($_c['numer'] ?: '')) ?></span>
+                  </button>
+                </form>
+                <?php endif; ?>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+
+      <h3 class="h6 fw-semibold mb-2">Klucze bezpieczeństwa (<?= count($klucze) ?>)</h3>
+      <?php if (!$klucze): ?>
+      <p class="small text-body-secondary mb-0">Nie masz zarejestrowanego klucza.</p>
+      <?php else: ?>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle small mb-0">
+          <caption class="visually-hidden">Twoje klucze bezpieczeństwa z odciskiem</caption>
+          <thead><tr><th scope="col">Nazwa</th><th scope="col">Odcisk</th><th scope="col">Dodany</th><th scope="col">Ostatnio użyty</th><th scope="col"><span class="visually-hidden">Akcje</span></th></tr></thead>
+          <tbody>
+          <?php foreach ($klucze as $_k):
+            // Odcisk klucza = SHA-256 identyfikatora klucza (credential_id) — stały, niezależny od nazwy.
+            $_kfp = hash('sha256', (string)$_k['credential_id']); ?>
+            <tr data-fp="<?= h($_kfp) ?>">
+              <td><?= h((string)($_k['name'] ?: 'Klucz')) ?></td>
+              <td><code title="<?= h(strtoupper($_kfp)) ?>"><?= h($_fp($_kfp)) ?></code></td>
+              <td><?= h($_k['created_at'] ? date('d.m.Y', strtotime((string)$_k['created_at'])) : '—') ?></td>
+              <td><?= h($_k['last_used_at'] ? date('d.m.Y H:i', strtotime((string)$_k['last_used_at'])) : 'nigdy') ?></td>
+              <td class="text-end">
+                <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ten klucz? Przestanie działać przy podpisie protokołów.');">
+                  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+                  <input type="hidden" name="_op" value="delete_key">
+                  <input type="hidden" name="key_id" value="<?= (int)$_k['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń<span class="visually-hidden"> klucz <?= h((string)($_k['name'] ?: '')) ?></span>
+                  </button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+    </div>
+  </section>
+</div>
+</div><!-- /.row -->
+<script>
+// Szukaj po odcisku: dopasowanie bez dwukropków i wielkości liter, w obu tabelach naraz.
+(function () {
+  var inp = document.getElementById('mcSzukaj'), wynik = document.getElementById('mcSzukajWynik');
+  if (!inp) return;
+  inp.addEventListener('input', function () {
+    var q = inp.value.toLowerCase().replace(/[^0-9a-f]/g, ''), n = 0, rows = document.querySelectorAll('tr[data-fp]');
+    rows.forEach(function (tr) { var ok = !q || tr.dataset.fp.indexOf(q) !== -1; tr.hidden = !ok; if (ok) n++; });
+    wynik.textContent = q ? ('Pasujące pozycje: ' + n + ' z ' + rows.length) : '';
   });
 })();
 </script>
