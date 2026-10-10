@@ -52,7 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <style>
   body { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; }
   .metro-bar { background: #1d1d1d; color: #fff; padding: .75rem 1rem; font-weight: 600; }
-  .metro-card { background: #fff; border: 0; border-radius: 0; box-shadow: none; padding: 2rem; max-width: 420px; margin: 2rem auto; }
+  .metro-card { background: #fff; border: 0; border-radius: 0; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; max-width: 460px; margin: 2.5rem auto; }
+  .metro-card .form-control-lg { font-size: 1.1rem; padding: .75rem 1rem; }
+  .metro-footer { text-align: center; font-size: .85rem; color: #4b5563; margin-top: 1.5rem; }
+  .metro-footer a { color: #1d4ed8; text-decoration: none; margin: 0 .5rem; }
+  .metro-footer a:hover { text-decoration: underline; }
   .metro-card .form-control { border-radius: 0; box-shadow: none; }
   .metro-btn { border-radius: 0; background: #1ba1e2; border-color: #1ba1e2; color: #fff; font-weight: 600; }
   .metro-btn:hover { background: #1790c9; border-color: #1790c9; color: #fff; }
@@ -60,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </style>
 </head>
 <body>
-<header class="metro-bar">System Tożsamości · Logowanie kursanta</header>
+<header class="metro-bar">FEER · System Tożsamości</header>
 <main class="metro-card">
   <h1 class="h5 fw-bold mb-1">Zaloguj się do panelu kursanta</h1>
   <p class="small text-body-secondary mb-3">Logowanie jest obsługiwane centralnie przez System Tożsamości (SSO).</p>
@@ -86,6 +90,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <button type="submit" class="btn btn-lg metro-btn w-100">Dalej</button>
   </form>
 </main>
+<footer class="metro-footer" aria-label="Pomoc">
+  <a href="https://feer.org.pl">Strona Fundacji</a>
+  <a href="#" aria-disabled="true">Pomoc</a>
+  <a href="#" aria-disabled="true">Bezpieczeństwo</a>
+  <a href="#" aria-disabled="true">Kontakt</a>
+</footer>
 <script>
 (function () {
   var inp = document.getElementById('kur-login'), box = document.getElementById('kur-sec');
