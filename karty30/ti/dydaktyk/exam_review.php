@@ -6,8 +6,9 @@
  *   ?exam_id=N     — lista podejść + statystyka zestawu (liczona przez silnik),
  *   ?attempt=ID    — wgląd w pojedyncze podejście + panel oceny ręcznej.
  *
- * Punkty wpisane przez prowadzącego przelicza silnik Java
- * (POST /api/exam/manual-grade) — PHP zapisuje gotowy wynik.
+ * Punkty wpisane przez prowadzącego przelicza silnik PHP (modules/equi_exams,
+ * ścieżka '/api/exam/manual-grade' w ti_exam_engine_post) — tu zapisujemy
+ * gotowy wynik.
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_exams.php';

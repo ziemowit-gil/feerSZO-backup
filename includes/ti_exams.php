@@ -4,13 +4,21 @@
  * Moduł „Testy wiedzy i umiejętności" (Egzaminy) dla TI.
  *
  * Podział odpowiedzialności:
- *   • PHP  — trwałość (SQLite/MySQL), uprawnienia, sesje, interfejs,
- *   • Java — modele pytań, składanie wariantów, weryfikacja i ocenianie oraz
- *            uruchamianie kodu kursanta w piaskownicy (kontener `exam-engine`).
+ *   • ten plik (includes/)            — trwałość (SQLite/MySQL), uprawnienia,
+ *                                       sesje, interfejs,
+ *   • silnik (modules/equi_exams/logic) — modele pytań, składanie wariantów,
+ *                                       weryfikacja i ocenianie (czysty PHP,
+ *                                       port dawnego silnika Java),
+ *   • piaskownica (sandbox.php)       — uruchamianie kodu kursanta jako osobny,
+ *                                       nieuprzywilejowany użytkownik systemowy
+ *                                       (`sudo -u examrun`, cli/exam_sandbox_worker.php).
  *
  * Silnik jest BEZSTANOWY: nie dotyka bazy, dostaje komplet definicji pytań
- * i odpowiedzi w JSON, oddaje punktację. Dzięki temu do pliku SQLite pisze
- * dalej wyłącznie PHP i nie ma dwóch pisarzy tej samej bazy.
+ * i odpowiedzi w tablicach (ten sam kształt co dawne żądania JSON do usługi
+ * Java), oddaje punktację. Do bazy pisze wyłącznie ta warstwa. Wywołania
+ * przechodzą przez ti_exam_engine_post(), która dziś jest lokalnym
+ * dispatcherem po ścieżce — sygnatura została zachowana, żeby nie ruszać
+ * miejsc wywołań.
  *
  * Moduł jest ODRĘBNY od starszego modułu „Testy" (k30_ti_tests*). Tamten działa
  * bez zmian; tu jest własna przestrzeń tabel k30_ti_exam* oraz import pytań
@@ -21,12 +29,19 @@
 
 require_once __DIR__ . '/ti_exams_schema.php';
 
+// Silnik egzaminów (Equi Exams) — czysty PHP, bez usługi sieciowej.
+foreach (['json_helpers', 'text_match', 'sandbox', 'grading', 'code_grading',
+          'generator', 'authoring', 'manual_grading', 'stats'] as $_ex_logic) {
+    require_once dirname(__DIR__) . '/modules/equi_exams/logic/' . $_ex_logic . '.php';
+}
+unset($_ex_logic);
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  SŁOWNIKI
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Typy pytań. Klucze MUSZĄ odpowiadać stałym w pl.feer.exam.model.Question.
+ * Typy pytań. Klucze MUSZĄ odpowiadać ex_qa_types() w modules/equi_exams/logic/authoring.php.
  *   options — pytanie ma warianty/twierdzenia,
  *   cases   — pytanie ma przypadki testowe wejście/wyjście,
  *   code    — pytanie operuje na kodzie (edytor monospace, wybór języka).
@@ -77,7 +92,7 @@ const K30_TI_EXAM_TYPES = [
 /**
  * Formuły testu — WYŁĄCZNIE etykiety do interfejsu.
  * Wartości domyślne i reguły spójności formuł należą do silnika
- * (pl.feer.exam.authoring.ExamAuthoring); tutaj świadomie ich nie powtarzamy.
+ * (ex_exam_authoring_normalize w authoring.php); tutaj świadomie ich nie powtarzamy.
  */
 const K30_TI_EXAM_MODES = [
     'exam' => [
@@ -104,7 +119,7 @@ const K30_TI_EXAM_NEG = [
     'all_or_nothing' => 'Wszystko albo nic — punkty tylko za komplet',
 ];
 
-/** Języki zadań programistycznych — muszą pokrywać się z pl.feer.exam.sandbox.Language. */
+/** Języki zadań programistycznych — muszą pokrywać się z ex_lang_registry() w sandbox.php. */
 const K30_TI_EXAM_LANGS = [
     'python'     => 'Python 3',
     'php'        => 'PHP',
@@ -133,103 +148,66 @@ function ti_exam_mode_label(string $mode): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  KLIENT SILNIKA JAVA
+//  SILNIK — LOKALNY DISPATCHER (modules/equi_exams/logic)
 // ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Adres silnika. Kolejność źródeł: config.local.php → zmienna środowiskowa →
- * nazwa usługi w compose. Poza Dockerem wygodnie ustawić http://127.0.0.1:8090.
- */
-function ti_exam_engine_url(): string {
-    if (defined('EXAM_ENGINE_URL') && EXAM_ENGINE_URL !== '') return rtrim((string)EXAM_ENGINE_URL, '/');
-    $env = getenv('EXAM_ENGINE_URL');
-    if (is_string($env) && $env !== '') return rtrim($env, '/');
-    return 'http://exam-engine:8090';
-}
-
-function ti_exam_engine_token(): string {
-    if (defined('EXAM_ENGINE_TOKEN') && EXAM_ENGINE_TOKEN !== '') return (string)EXAM_ENGINE_TOKEN;
-    $env = getenv('EXAM_ENGINE_TOKEN');
-    return is_string($env) ? $env : '';
-}
+//
+// Dawniej ten blok był klientem HTTP usługi Java (`exam-engine`). Ścieżki
+// z API zostały jako KLUCZE dispatchera, żeby osiem miejsc wywołań w tym pliku
+// nie musiało się zmieniać; kształty żądań i odpowiedzi są identyczne.
 
 /**
  * Wywołanie silnika. Zwraca tablicę z odpowiedzią albo null przy awarii;
  * powód awarii ląduje w $error (do pokazania prowadzącemu, nie kursantowi).
+ *
+ * @param int $timeout zachowany dla zgodności sygnatury — lokalny silnik nie
+ *                     ma limitu czasu na tym poziomie (piaskownica kodu ma
+ *                     własny, patrz ex_sandbox_config()).
  */
 function ti_exam_engine_post(string $path, array $payload, ?string &$error = null, int $timeout = 40): ?array {
     $error = null;
-    $json  = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if ($json === false) { $error = 'Nie udało się zserializować żądania: ' . json_last_error_msg(); return null; }
-
-    $headers = "Content-Type: application/json; charset=utf-8\r\nAccept: application/json\r\n";
-    $token   = ti_exam_engine_token();
-    if ($token !== '') $headers .= 'X-Exam-Token: ' . $token . "\r\n";
-
-    $ctx = stream_context_create(['http' => [
-        'method'        => 'POST',
-        'header'        => $headers,
-        'content'       => $json,
-        'timeout'       => $timeout,
-        'ignore_errors' => true,
-    ]]);
-
-    $url  = ti_exam_engine_url() . $path;
-    $resp = @file_get_contents($url, false, $ctx);
-    if ($resp === false) {
-        $error = 'Silnik egzaminów jest nieosiągalny (' . $url . '). ' . ti_exam_engine_hint();
+    try {
+        switch ($path) {
+            case '/api/exam/generate':       return ex_generate_exam($payload);
+            case '/api/exam/grade':          return ex_grade_attempt($payload);
+            case '/api/exam/manual-grade':   return ex_manual_grading_apply($payload);
+            case '/api/exam/stats':          return ex_stats_compute($payload);
+            case '/api/authoring/exam':      return ex_exam_authoring_normalize($payload);
+            case '/api/authoring/question':  return ex_question_authoring_build($payload);
+        }
+    } catch (\Throwable $e) {
+        $error = 'Silnik egzaminów zgłosił błąd (' . $path . '): ' . $e->getMessage();
         return null;
     }
-    $status = 0;
-    foreach ($http_response_header ?? [] as $h) {
-        if (preg_match('~^HTTP/\S+\s+(\d+)~', $h, $m)) $status = (int)$m[1];
-    }
-    $data = json_decode($resp, true);
-    if (!is_array($data)) { $error = 'Silnik zwrócił odpowiedź, której nie da się odczytać.'; return null; }
-    if ($status >= 400) {
-        $error = 'Silnik odrzucił żądanie (HTTP ' . $status . '): ' . (string)($data['error'] ?? 'bez opisu');
-        return null;
-    }
-    return $data;
+    $error = 'Nieznana operacja silnika egzaminów: ' . $path;
+    return null;
 }
 
 /**
- * Podpowiedź, co zrobić, gdy silnik nie odpowiada. Sam komunikat „nieosiągalny”
- * jest ślepą uliczką — najczęstsza przyczyna to niewystartowany albo
- * nieprzebudowany kontener, a adres z nazwą usługi Dockera rozwiązuje się
- * WYŁĄCZNIE wewnątrz sieci Dockera (poza nią trzeba wskazać własny URL).
+ * Podpowiedź diagnostyczna dla prowadzącego, gdy zadania programistyczne nie
+ * mają działającej piaskownicy. Sam silnik (ocenianie, losowanie, walidacja)
+ * działa zawsze — w procesie PHP; piaskownicy wymaga tylko uruchamianie kodu.
  */
 function ti_exam_engine_hint(): string {
-    $url  = ti_exam_engine_url();
-    $host = (string)(parse_url($url, PHP_URL_HOST) ?? '');
-    if ($host === 'exam-engine') {
-        return 'Adres wskazuje usługę Dockera, więc silnik musi działać w tej samej sieci. '
-             . 'Uruchom lub przebuduj kontener: docker/scripts/rebuild.sh '
-             . '(albo docker compose -f docker/docker-compose.yml up -d --build exam-engine), '
-             . 'a potem sprawdź logi: docker compose -f docker/docker-compose.yml logs -f exam-engine.';
-    }
-    return 'Sprawdź, czy usługa działa pod ' . $url . ' i czy zmienna EXAM_ENGINE_URL wskazuje właściwy adres '
-         . '(przy uruchomieniu bez Dockera zwykle http://127.0.0.1:8090).';
+    $cfg = ex_sandbox_config();
+    return 'Kod kursanta uruchamia robotnik cli/exam_sandbox_worker.php jako użytkownik '
+         . $cfg['user'] . ' (sudo -n -u ' . $cfg['user'] . '). Sprawdź, czy w obrazie (docker/Dockerfile) '
+         . 'istnieje to konto, wpis sudoers i interpretery wybranych języków.';
 }
 
-/** Stan silnika — używane w panelu prowadzącego i przy diagnostyce. */
+/** Stan silnika — używane w panelu prowadzącego i przy diagnostyce. Bez sieci. */
 function ti_exam_engine_health(): array {
-    $url = ti_exam_engine_url() . '/health';
-    $ctx = stream_context_create(['http' => ['method' => 'GET', 'timeout' => 5, 'ignore_errors' => true]]);
-    $raw = @file_get_contents($url, false, $ctx);
-    if ($raw === false) return ['ok' => false, 'error' => 'Silnik nie odpowiada pod ' . $url . '. ' . ti_exam_engine_hint()];
-    $data = json_decode($raw, true);
-    if (!is_array($data)) return ['ok' => false, 'error' => 'Nieczytelna odpowiedź silnika.'];
-    $data['ok'] = (($data['status'] ?? '') === 'ok');
-    return $data;
+    $langs = [];
+    foreach (ex_lang_describe_all() as $l) {
+        $l['available'] = ex_sandbox_available((string)$l['id']);
+        $langs[] = $l;
+    }
+    return ['ok' => true, 'status' => 'ok', 'engine' => 'php', 'languages' => $langs];
 }
 
-/** Języki faktycznie dostępne w obrazie silnika (przecięcie słownika PHP i /health). */
+/** Języki, dla których piaskownica ma działający interpreter/kompilator. */
 function ti_exam_available_languages(): array {
-    $h = ti_exam_engine_health();
-    if (empty($h['ok']) || empty($h['languages'])) return K30_TI_EXAM_LANGS;
     $out = [];
-    foreach ($h['languages'] as $l) {
+    foreach (ti_exam_engine_health()['languages'] as $l) {
         $id = (string)($l['id'] ?? '');
         if ($id !== '' && !empty($l['available']) && isset(K30_TI_EXAM_LANGS[$id])) {
             $out[$id] = K30_TI_EXAM_LANGS[$id];
@@ -260,9 +238,10 @@ function ti_exams_list(int $course_id, bool $only_active = false): array {
 /**
  * Zapis egzaminu z wartości ZNORMALIZOWANYCH PRZEZ SILNIK.
  *
- * $norm to obiekt `exam` zwrócony przez POST /api/authoring/exam — o tym, co
- * jest dozwoloną wartością którego pola, decyduje wyłącznie Java
- * (pl.feer.exam.authoring.ExamAuthoring). Ta funkcja tylko przekłada klucze
+ * $norm to obiekt `exam` zwrócony przez '/api/authoring/exam' — o tym, co
+ * jest dozwoloną wartością którego pola, decyduje wyłącznie silnik
+ * (ex_exam_authoring_normalize w modules/equi_exams/logic/authoring.php).
+ * Ta funkcja tylko przekłada klucze
  * na kolumny; nie podejmuje żadnych decyzji o treści ustawień.
  */
 function ti_exam_save(array $norm, int $course_id, ?int $id = null, ?int $user_id = null): int {
@@ -363,11 +342,11 @@ function ti_exam_config(array $question): array {
 /**
  * Zapis pytania z definicji ZBUDOWANEJ PRZEZ SILNIK.
  *
- * $norm to obiekt `question` zwrócony przez POST /api/authoring/question.
+ * $norm to obiekt `question` zwrócony przez '/api/authoring/question'.
  * O tym, jak wygląda poprawne pytanie danego typu (jakie pola konfiguracji,
- * jakie warianty, jakie przypadki testowe), decyduje wyłącznie Java
- * (pl.feer.exam.authoring.QuestionAuthoring razem z modelami pytań).
- * PHP wykonuje tylko zapis do bazy.
+ * jakie warianty, jakie przypadki testowe), decyduje wyłącznie silnik
+ * (ex_question_authoring_build w modules/equi_exams/logic/authoring.php).
+ * Ta warstwa wykonuje tylko zapis do bazy.
  */
 function ti_exam_question_save(array $norm, int $exam_id, ?int $id = null): int {
     $f = [
@@ -482,7 +461,7 @@ function ti_exam_max_score(int $exam_id, ?array $ids = null): float {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Pytanie w formacie oczekiwanym przez silnik Java.
+ * Pytanie w formacie oczekiwanym przez silnik (modules/equi_exams/logic).
  *
  * @param bool $withAnswers false = wersja dla kursanta (bez poprawnych odpowiedzi
  *                          i bez ukrytych przypadków) — używane, gdy trzeba
@@ -620,13 +599,14 @@ function ti_exam_attempts_for_exam(int $exam_id): array {
 }
 
 /**
- * Rozpoczyna podejście: prosi silnik o złożenie wariantu (losowanie z banku,
- * kolejność pytań i wariantów) i zapisuje go w podejściu.
+ * Rozpoczyna podejście: prosi silnik (ex_generate_exam) o złożenie wariantu
+ * (losowanie z banku, kolejność pytań i wariantów) i zapisuje go w podejściu.
  *
- * Gdy silnik nie odpowiada, wariant składa awaryjnie PHP — kursant nie zostaje
- * zablokowany przy wejściu na salę. To dotyczy WYŁĄCZNIE ułożenia zestawu;
- * ocenianie nie ma ścieżki awaryjnej (patrz ti_exam_submit), bo wynik musi
- * pochodzić z jednego, autorytatywnego miejsca.
+ * Gdyby generator zgłosił wyjątek, wariant składa awaryjnie
+ * ti_exam_compose_fallback — kursant nie zostaje zablokowany przy wejściu na
+ * salę. To dotyczy WYŁĄCZNIE ułożenia zestawu; ocenianie nie ma ścieżki
+ * awaryjnej (patrz ti_exam_submit), bo wynik musi pochodzić z jednego,
+ * autorytatywnego miejsca.
  */
 function ti_exam_start_attempt(int $exam_id, int $client_id): ?array {
     $exam = ti_exam_get($exam_id);
@@ -698,9 +678,10 @@ function ti_exam_start_attempt(int $exam_id, int $client_id): ?array {
 }
 
 /**
- * Awaryjne złożenie wariantu po stronie PHP — używane tylko gdy silnik milczy.
- * Odwzorowuje regułę silnika: pytania stałe + losowanie z banku, opcjonalne
- * przetasowanie pytań i wariantów, wszystko deterministycznie względem ziarna.
+ * Awaryjne złożenie wariantu — używane tylko gdy generator silnika zawiedzie
+ * (wyjątek albo pusty plan). Odwzorowuje regułę silnika: pytania stałe +
+ * losowanie z banku, opcjonalne przetasowanie pytań i wariantów, wszystko
+ * deterministycznie względem ziarna. Celowo pozostawione jako zabezpieczenie.
  */
 function ti_exam_compose_fallback(array $exam, array $questions, int $seed): array {
     mt_srand($seed);
@@ -793,7 +774,7 @@ function ti_exam_answer_payload(?array $row): array {
 /**
  * Przekłada surowe pola arkusza (`a[idPytania][...]`) na kanoniczny kształt
  * odpowiedzi rozumiany przez silnik. To wyłącznie zmiana formatu — o tym, czy
- * odpowiedź jest poprawna, decyduje Java.
+ * odpowiedź jest poprawna, decyduje silnik (grading.php).
  */
 function ti_exam_payload_from_post($raw): array {
     if (!is_array($raw)) return [];
@@ -872,14 +853,16 @@ function equi_exams_footer_html(string $class = 'text-body-secondary small mt-4 
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Oddanie podejścia: komplet odpowiedzi jedzie do silnika Java, wraca punktacja.
+ * Oddanie podejścia: komplet odpowiedzi jedzie do silnika (ex_grade_attempt),
+ * wraca punktacja.
  *
- * Silnik nie ma ścieżki awaryjnej po stronie PHP — świadomie. Gdyby PHP liczyło
- * punkty „na wszelki wypadek", istniałyby dwie implementacje tej samej reguły
- * i prędzej czy później rozjechałyby się wynikami. Zamiast tego podejście
- * zostaje zapisane jako oddane, ze znacznikiem `engine_status='pending'`
- * i `needs_review=1`; prowadzący widzi je na liście „do oceny" i może
- * uruchomić ponowną ocenę jednym przyciskiem, gdy silnik wróci.
+ * Ocenianie nie ma drugiej, „awaryjnej” implementacji — świadomie. Gdyby ta
+ * warstwa liczyła punkty „na wszelki wypadek", istniałyby dwie implementacje
+ * tej samej reguły i prędzej czy później rozjechałyby się wynikami. Gdy silnik
+ * zgłosi błąd (np. piaskownica kodu nie działa), podejście zostaje zapisane
+ * jako oddane, ze znacznikiem `engine_status='pending'` i `needs_review=1`;
+ * prowadzący widzi je na liście „do oceny" i może uruchomić ponowną ocenę
+ * jednym przyciskiem.
  *
  * @return array{ok:bool, error:?string, attempt:?array}
  */
@@ -1005,7 +988,7 @@ function ti_exam_recalc(int $attempt_id): void {
 /**
  * Ocena ręczna pytań otwartych i opisowych przez prowadzącego.
  *
- * Punkty wpisane w panelu jadą do silnika (POST /api/exam/manual-grade), który
+ * Punkty wpisane w panelu jadą do silnika (ex_manual_grading_apply), który
  * przycina je do zakresu pytania, rozstrzyga o poprawności, zdejmuje znacznik
  * „do sprawdzenia” i przelicza sumę podejścia. PHP zapisuje to, co wróci —
  * reguły oceniania nie mają drugiej implementacji.

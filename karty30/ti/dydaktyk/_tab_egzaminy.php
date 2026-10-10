@@ -22,8 +22,9 @@ $egz_health = ti_exam_engine_health();
 <?php if (empty($egz_health['ok'])): ?>
 <div class="alert alert-warning d-flex align-items-start gap-2 small" role="alert">
   <i class="bi bi-plug fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
-  <span><strong>Silnik Equi Exams nie odpowiada.</strong> Kursanci mogą rozwiązywać testy — prace zostaną
-    zapisane i ocenione, gdy usługa wróci. Tworzenie i edycja pytań są w tym czasie wstrzymane.
+  <span><strong>Silnik Equi Exams zgłasza problem.</strong> Silnik działa wewnątrz aplikacji (PHP), więc
+    ten komunikat oznacza błąd konfiguracji, a nie niedostępną usługę. Kursanci mogą rozwiązywać testy —
+    prace zostaną zapisane i ocenione po usunięciu problemu.
     <span class="d-block text-body-secondary"><?= h((string)($egz_health['error'] ?? '')) ?></span></span>
 </div>
 <?php endif; ?>

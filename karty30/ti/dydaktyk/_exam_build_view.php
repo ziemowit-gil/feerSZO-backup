@@ -58,7 +58,7 @@ $form_open = $q_type !== '';
     <i class="bi bi-plug fs-5 flex-shrink-0" aria-hidden="true"></i>
     <div>
       <strong>Silnik ocen nie odpowiada.</strong>
-      Możesz dalej układać pytania, ale oddane prace nie zostaną ocenione, dopóki usługa nie wróci —
+      Możesz dalej układać pytania, ale oddane prace nie zostaną ocenione, dopóki problem nie zostanie usunięty —
       zostaną odłożone jako „do oceny" i wystarczy je wtedy ocenić ponownie jednym przyciskiem.
       <div class="small text-body-secondary mt-1"><?= h((string)($health['error'] ?? '')) ?></div>
     </div>
