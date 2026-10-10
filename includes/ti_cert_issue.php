@@ -43,6 +43,38 @@ function ti_cert_instructors(): array {
     );
 }
 
+/**
+ * Info dla prowadzących o zmianach przy zatwierdzaniu protokołu: czym jest certyfikat, po co i co trzeba zrobić.
+ * Wysyłane przez kierownika jednostki (przycisk na stronie certyfikatów).
+ */
+function ti_cert_info_mail(string $name): array {
+    $txt = "Dzień dobry, {$name},\n\n"
+         . "od teraz protokół miesięczny zatwierdza się elektronicznie. Poniżej wyjaśniam, co to oznacza.\n\n"
+         . "Czym jest certyfikat?\n"
+         . "To elektroniczny odpowiednik podpisu. Plik .p12 zawiera klucz, którym podpisujesz protokół. "
+         . "Dzięki temu widać, kto zatwierdził protokół i czy ktoś zmienił godziny po zatwierdzeniu.\n\n"
+         . "Dlaczego tak?\n"
+         . "- Protokół jest podstawą do rozliczenia Twoich godzin. Musi być wiarygodny i łatwy do sprawdzenia.\n"
+         . "- Podpis elektroniczny zastępuje wydruk i ręczny podpis, więc nie trzeba niczego drukować ani skanować.\n"
+         . "- Kod z SMS-a dodaje drugie zabezpieczenie: nawet jeśli ktoś pozna plik certyfikatu, bez Twojego telefonu nie zatwierdzi protokołu.\n\n"
+         . "Co trzeba zrobić?\n"
+         . "1. Przy zatwierdzaniu protokołu wyślij kod SMS i podpisz się certyfikatem (plik .p12 i hasło) albo kluczem YubiKey.\n"
+         . "2. Certyfikat wygenerujesz sam w „Mój certyfikat”. Hasło ustawiasz sam: co najmniej 16 znaków, w tym co najmniej 3 rodzaje znaków (małe i wielkie litery, cyfry, znaki specjalne).\n"
+         . "3. Certyfikaty wystawione przed 10.10.2026, godz. 21:32, są nieważne. Wygeneruj nowy.\n"
+         . "4. Samodzielne wystawianie działa od 11.10.2026.\n\n"
+         . "Rachunki (umowy zlecenia) są przesyłane tak jak dotychczas. Zmiana dotyczy tylko zatwierdzania protokołów.\n\n"
+         . "Jeśli w ostatnim czasie dostałeś testowe maile albo SMS-y o certyfikatach, zignoruj je.\n\n"
+         . "W razie pytań pisz do kierownika jednostki.\n\n"
+         . "--\nWiadomość automatyczna. Prosimy na nią nie odpowiadać.";
+    $html = '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>';
+    return [$txt, $html];
+}
+
+/** Krótki SMS z informacją o zmianach (odsyła do maila). */
+function ti_cert_info_sms(): string {
+    return 'FEER: od teraz protokoly zatwierdza sie certyfikatem i kodem SMS. Certyfikat wygenerujesz w panelu dydaktyka (Mój certyfikat). Szczegoly w mailu.';
+}
+
 /** SMS dotyczący certyfikatu. Zwraca true, gdy bramka przyjęła wiadomość; błąd nie przerywa procesu. */
 function ti_cert_sms(string $phone, string $text, string $kind): bool {
     if (preg_replace('/\D/', '', $phone) === '') return false;

@@ -40,6 +40,23 @@ $wynik = null;  // wynik ostatniego wystawienia (hasło tylko gdy SMS się nie u
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     // Uruchomienie certyfikatów: prośba do wszystkich prowadzących bez aktywnego certyfikatu.
+    // Info o zmianach dla wszystkich prowadzących: mail z wyjaśnieniem + krótki SMS.
+    if (($_POST['_op'] ?? '') === 'info') {
+        $maile = 0; $sms = 0;
+        foreach (ti_cert_instructors() as $p) {
+            if (trim((string)$p['email']) !== '') {
+                [$txt, $html] = ti_cert_info_mail((string)$p['name']);
+                mail_queue_add((string)$p['email'], (string)$p['name'],
+                    'Certyfikaty do protokołów TI – co się zmienia i dlaczego',
+                    $html, $txt, 'ti_cert_info', (int)$p['id']);
+                $maile++;
+            }
+            if (ti_cert_sms((string)$p['phone_number'], ti_cert_info_sms(), 'ti_dydaktyka_notice')) $sms++;
+        }
+        flash_set('success', "Wysłano info o zmianach: maili {$maile}, SMS-ów {$sms}.");
+        header('Location: certyfikaty.php'); exit;
+    }
+
     if (($_POST['_op'] ?? '') === 'launch') {
         $wyslano = 0; $pominieto = 0;
         foreach (ti_cert_instructors() as $p) {
@@ -142,6 +159,15 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <i class="bi bi-megaphone me-1" aria-hidden="true"></i>Uruchom certyfikaty do podpisu
   </button>
   <span class="small text-body-secondary ms-2">Wyśle prowadzącym bez certyfikatu mail z instrukcją i prośbą o wygenerowanie.</span>
+</form>
+
+<form method="post" class="mb-3" onsubmit="return confirm('Wysłać wszystkim prowadzącym mail z wyjaśnieniem i SMS o zmianach?');">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <input type="hidden" name="_op" value="info">
+  <button type="submit" class="btn btn-outline-primary">
+    <i class="bi bi-envelope-paper me-1" aria-hidden="true"></i>Wyślij info o zmianach (mail + SMS)
+  </button>
+  <span class="small text-body-secondary ms-2">Wyjaśni prowadzącym, czym jest certyfikat i co trzeba zrobić.</span>
 </form>
 
 <?php if (!$prowadzacy): ?>
