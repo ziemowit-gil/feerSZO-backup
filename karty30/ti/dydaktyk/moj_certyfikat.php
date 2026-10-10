@@ -86,6 +86,10 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <?php if ($brak_email): ?>
     <div class="alert alert-warning small py-2">Konto nie ma adresu e-mail. Poproś kierownika o jego uzupełnienie.</div>
     <?php else: ?>
+    <p class="small mb-2">
+      System wygeneruje certyfikat z losowym hasłem. <strong>Plik przyjdzie mailem, hasło SMS-em.</strong>
+      <?= $ma ? 'Obecny certyfikat przestanie wtedy działać.' : '' ?>
+    </p>
     <form method="post" onsubmit="return confirm('<?= $ma ? 'Wygenerować nowy certyfikat? Obecny przestanie działać.' : 'Wygenerować certyfikat?' ?>');">
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
       <?php if ($brak_tel): ?>
@@ -102,29 +106,53 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 
 <div class="card border-0 shadow-sm mt-3">
   <div class="card-body">
-    <h2 class="h6 fw-semibold mb-1">Ustaw własne hasło</h2>
-    <p class="small text-body-secondary mb-2">Wybierasz hasło do pliku sam. Nowy certyfikat z tym hasłem przyjdzie mailem, a stare certyfikaty przestaną działać. Hasła nie wysyłamy nigdzie — zapamiętaj je.</p>
-    <?php if ($brak_email): ?>
-    <div class="alert alert-warning small py-2 mb-0">Konto nie ma adresu e-mail. Poproś kierownika o jego uzupełnienie.</div>
-    <?php else: ?>
-    <form method="post" onsubmit="return confirm('Ustawić hasło? Stare certyfikaty zostaną odwołane.');">
-      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-      <input type="hidden" name="_op" value="pwd">
-      <div class="row g-2 mb-2">
-        <div class="col-sm-6">
-          <label class="form-label small mb-1" for="newPwd">Nowe hasło (min. 8 znaków)</label>
-          <input type="password" class="form-control form-control-sm" id="newPwd" name="new_password" minlength="8" autocomplete="new-password" required>
-        </div>
-        <div class="col-sm-6">
-          <label class="form-label small mb-1" for="newPwd2">Powtórz hasło</label>
-          <input type="password" class="form-control form-control-sm" id="newPwd2" name="new_password2" minlength="8" autocomplete="new-password" required>
-        </div>
-      </div>
-      <button type="submit" class="btn btn-outline-primary">Ustaw hasło i wyślij certyfikat</button>
-    </form>
+    <h2 class="h6 fw-semibold mb-2">Hasło do pliku certyfikatu</h2>
+    <ul class="small mb-3 ps-3">
+      <li><strong>Hasło losowe</strong> — wygenerowane przez system, przychodzi SMS-em (przycisk powyżej).</li>
+      <li><strong>Własne hasło</strong> — ustawiasz je sam w okienku. Plik z nowym hasłem przychodzi mailem.</li>
+    </ul>
+    <?php if (!$brak_email): ?>
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ustawHaslo">
+      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Ustaw własne hasło
+    </button>
     <?php endif; ?>
   </div>
 </div>
+
+<?php if (!$brak_email): ?>
+<div class="modal fade" id="ustawHaslo" tabindex="-1" aria-labelledby="ustawHasloLbl" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" onsubmit="return confirm('Ustawić hasło? Stare certyfikaty zostaną odwołane.');">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="ustawHasloLbl">Ustaw własne hasło</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="pwd">
+          <p class="small text-body-secondary mb-3">
+            Nowy certyfikat z tym hasłem przyjdzie mailem. <strong>Stare certyfikaty przestaną działać.</strong>
+            Hasła nie wysyłamy nigdzie — zapamiętaj je.
+          </p>
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="newPwd">Nowe hasło (min. 8 znaków)</label>
+            <input type="password" class="form-control" id="newPwd" name="new_password" minlength="8" autocomplete="new-password" required>
+          </div>
+          <div>
+            <label class="form-label small mb-1" for="newPwd2">Powtórz hasło</label>
+            <input type="password" class="form-control" id="newPwd2" name="new_password2" minlength="8" autocomplete="new-password" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+          <button type="submit" class="btn btn-primary">Ustaw hasło i wyślij plik</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <p class="small text-body-secondary mt-3">
   Przy zatwierdzaniu protokołu wgrywasz plik .p12 i wpisujesz hasło z SMS-a. Hasło nie jest zapisywane w systemie.
