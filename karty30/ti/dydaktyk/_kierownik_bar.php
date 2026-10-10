@@ -65,6 +65,7 @@ if (!empty($KIER_ITEMS)) {
         ['Okresy nauczania',          'okresy.php',                 'calendar-range'],
         ['Rodzaje zajęć',             'przedmioty.php',             'tags'],
         ['Dni wolne',                 'dni_wolne.php',              'calendar-x'],
+        ['Raport odwołanych',         'raport_odwolanych.php',      'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
         ['Testy',                     'testy.php',                  'bug'],
