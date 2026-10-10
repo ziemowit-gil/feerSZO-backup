@@ -183,27 +183,6 @@ auth_screen_head([
              <?= (!$office_available) ? 'autofocus' : '' ?>
              <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
     </div>
-    <div class="align-items-center gap-3 mb-3" id="dyd-sec" style="display:none" aria-live="polite">
-      <div id="dyd-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
-      <div class="small" id="dyd-sec-label"></div>
-    </div>
-    <script>
-    (function () {
-      var inp = document.getElementById('dyd-email'), box = document.getElementById('dyd-sec');
-      var img = document.getElementById('dyd-sec-img'), lbl = document.getElementById('dyd-sec-label');
-      if (!inp || !box) return;
-      function pokaz() {
-        var v = inp.value.trim();
-        if (!v) { box.style.display = 'none'; return; }
-        fetch('<?= APP_URL ?>/karty30/ti/dydaktyk/sec_image.php?email=' + encodeURIComponent(v), { credentials: 'omit', cache: 'no-store' })
-          .then(function (r) { return r.json(); })
-          .then(function (j) { img.innerHTML = j.svg; lbl.textContent = j.label; box.style.display = 'flex'; })
-          .catch(function () { box.style.display = 'none'; });
-      }
-      inp.addEventListener('change', pokaz);
-      inp.addEventListener('blur', pokaz);
-    })();
-    </script>
     <div class="ks-field">
       <label for="dyd-password">Hasło</label>
       <div class="pass-wrap">
