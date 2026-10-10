@@ -15,7 +15,7 @@ karty30_migrate();
 x509_init();
 
 $ma   = x509_user_has_active_cert($uid);
-$konto = db_one("SELECT email, phone_number FROM users WHERE id = ?", [$uid]);
+$konto = db_one("SELECT name, email, phone_number FROM users WHERE id = ?", [$uid]);
 $brak_tel   = preg_replace('/\D/', '', (string)($konto['phone_number'] ?? '')) === '';
 $brak_email = trim((string)($konto['email'] ?? '')) === '';
 
@@ -34,6 +34,16 @@ $cert_html = $cert
       . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny do</th><td>' . h(date('d.m.Y', strtotime((string)$cert['valid_to']))) . '</td></tr>'
       . '</tbody></table>'
     : '<p class="small mb-3 text-body-secondary">Nie masz aktywnego certyfikatu — zostanie wystawiony nowy.</p>';
+
+// Dane, na które zostanie wystawiony nowy certyfikat (ważność jak w generatorze: 730 dni).
+$nowy_html = '<div class="small mb-3"><div class="fw-semibold mb-1">Nowy certyfikat będzie wystawiony na:</div>'
+    . '<table class="table table-sm small mb-0"><tbody>'
+    . '<tr><th scope="row" class="fw-normal text-body-secondary">Imię i nazwisko</th><td>' . h((string)($konto['name'] ?? '')) . '</td></tr>'
+    . '<tr><th scope="row" class="fw-normal text-body-secondary">Organizacja</th><td>Fundacja FEER</td></tr>'
+    . '<tr><th scope="row" class="fw-normal text-body-secondary">E-mail (plik)</th><td>' . h((string)($konto['email'] ?? '')) . '</td></tr>'
+    . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny od</th><td>' . h(date('d.m.Y')) . '</td></tr>'
+    . '<tr><th scope="row" class="fw-normal text-body-secondary">Ważny do</th><td>' . h(date('d.m.Y', strtotime('+730 days'))) . '</td></tr>'
+    . '</tbody></table></div>';
 
 // Ustawienie własnego hasła: nowy certyfikat z tym hasłem, stare certyfikaty odwołane.
 // Przed jakąkolwiek zmianą (także odwołaniem starego certyfikatu) sprawdzamy termin otwarcia.
@@ -160,7 +170,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           <div class="small text-body-secondary mb-3" id="krokInfo">Krok 1 z 2: hasło</div>
 
           <div class="kr-step" data-step="1">
-            <?= $cert_html ?>
+            <?= $cert_html ?><?= $nowy_html ?>
             <p class="small mb-3">Najpierw wybierz hasło do pliku certyfikatu. Zapamiętaj je — nie zapisujemy go i nie wysyłamy.</p>
             <div class="alert alert-danger small py-2 d-none" id="krokErr" role="alert"></div>
             <div class="mb-2">
@@ -174,7 +184,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
           </div>
 
           <div class="kr-step d-none" data-step="2">
-            <?= $cert_html ?>
+            <?= $cert_html ?><?= $nowy_html ?>
             <p class="small mb-2">Potwierdź, a system wygeneruje certyfikat:</p>
             <ul class="small mb-0 ps-3">
               <li>plik certyfikatu (.p12) przyjdzie na adres <strong><?= h((string)($konto['email'] ?? '')) ?></strong>,</li>
