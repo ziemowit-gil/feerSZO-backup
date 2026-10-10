@@ -194,3 +194,17 @@ body.kur-alt.ti-skin .ust-navlink:hover, body.kur-alt.ti-skin .ust-navlink:focus
   background: #2b2b2b !important; border-bottom-color: #1ba1e2 !important; text-decoration: underline;
 }
 body.kur-alt.ti-skin .ust-navlink i { color: #fff !important; }
+
+/* Ciemne nagłówki kart: podpisy, ikony i przyciski w nich mają być jasne (były szare/niebieskie na czarnym) */
+body.kur-alt.ti-skin .card-header,
+body.kur-alt.ti-skin .card-header .text-body-secondary,
+body.kur-alt.ti-skin .card-header .text-muted,
+body.kur-alt.ti-skin .card-header small { color: #e5e7eb !important; }
+body.kur-alt.ti-skin .card-header i,
+body.kur-alt.ti-skin .card-header .text-primary,
+body.kur-alt.ti-skin .card-header .text-secondary { color: #fff !important; }
+body.kur-alt.ti-skin .card-header .btn-outline-secondary,
+body.kur-alt.ti-skin .card-header .btn-outline-primary {
+  color: #fff !important; border-color: #cbd5e1 !important; background: transparent !important; border-radius: 0;
+}
+body.kur-alt.ti-skin .card-header .btn:hover { background: #2b2b2b !important; }
