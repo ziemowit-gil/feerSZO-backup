@@ -81,12 +81,17 @@ $ok     = $_GET['ok'] ?? '';
     <p class="mb-0">Możesz mieć kilka kluczy. Logowanie kluczem działa po pierwszym logowaniu i po ustawieniu obrazka bezpieczeństwa.</p>
   </div>
 
+  <?php if (($_GET['nowy'] ?? '') === '1'): ?>
+  <div class="alert alert-success small py-2 rounded-0" role="status">Hasło zostało zapisane. Klucz możesz dodać teraz albo później.
+    <a class="d-inline-block mt-2 btn btn-sm metro-btn" href="<?= h(APP_URL) ?>/karty30/ti/kursant/index.php">Przejdź do panelu</a>
+  </div>
+  <?php endif; ?>
   <?php if ($ok === 'usun'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz usunięty.</div><?php endif; ?>
   <?php if ($ok === 'dodany'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz dodany.</div><?php endif; ?>
   <div id="kl-blad" class="alert alert-danger small py-2 rounded-0 d-none" role="alert"></div>
 
   <?php if (!$klucze): ?>
-  <div class="alert alert-info small py-2 rounded-0" role="status">Nie masz jeszcze klucza. Zalecamy dodać go teraz: logowanie będzie szybsze, bez czekania na SMS.</div>
+  <div class="alert alert-info small py-2 rounded-0" role="status">Nie masz jeszcze klucza. Warto dodać, bo logowanie będzie szybsze. Klucz nie jest wymagany, możesz to zrobić kiedy chcesz.</div>
   <?php else: ?>
   <ul class="list-group mb-3">
     <?php foreach ($klucze as $k): ?>
