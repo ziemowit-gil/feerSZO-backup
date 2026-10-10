@@ -264,13 +264,16 @@ if (function_exists('dyd_current') && dyd_current()) {
   body.kp-kontrast { background: #fff !important; color: #000 !important; }
   body.kp-kontrast .card, body.kp-kontrast .alert { border: 2px solid #000 !important; }
   body.kp-kontrast .text-body-secondary, body.kp-kontrast .text-muted { color: #1f2937 !important; }
-  body.kp-kontrast a:not(.btn) { color: #00366b !important; text-decoration: underline; }
+  /* tylko treść strony — paski (header, nawigacja) mają ciemne tło i własne jasne linki */
+  body.kp-kontrast main a:not(.btn) { color: #00366b !important; text-decoration: underline; }
   body.kp-bez-ruchu *, body.kp-bez-ruchu *::before, body.kp-bez-ruchu *::after {
     transition: none !important; animation: none !important; scroll-behavior: auto !important;
   }
 </style>
 <script>
   (function () {
+    // Ułatwienia dotyczą panelu kursanta — nie przenosimy ich do panelu dydaktyka (ten sam szablon i domena)
+    if (/\/dydaktyk\//.test(location.pathname)) return;
     try {
       var s = JSON.parse(localStorage.getItem('kp_ulatwienia') || '{}');
       ['kp-duzy-tekst', 'kp-kontrast', 'kp-bez-ruchu'].forEach(function (k) { if (s[k]) document.documentElement.classList.add(k); });
