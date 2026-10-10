@@ -304,3 +304,13 @@ body.kur-alt.ti-skin .kp-nauka-lista { list-style: none; padding: 0; margin: 0; 
 body.kur-alt.ti-skin .kp-nauka-lista a { color: #1d1d1d; text-decoration: none; font-weight: 600; }
 body.kur-alt.ti-skin .kp-nauka-lista a:hover { text-decoration: underline; color: #0f6fa8; }
 body.kur-alt.ti-skin .kp-nauka-lista i { color: #0f6fa8; }
+
+/* Mniejsze kafle i linki: ikona i tytuł w skali bliższej tekstu */
+body.kur-alt.ti-skin .kp-kafle { gap: .5rem; }
+body.kur-alt.ti-skin .kp-kafel { min-height: 84px; padding: .7rem .8rem; gap: .2rem; }
+body.kur-alt.ti-skin .kp-kafel-glowny { min-height: 92px; }
+body.kur-alt.ti-skin .kp-kafel-ikona { font-size: 1.2rem; }
+body.kur-alt.ti-skin .kp-kafel-tytul { font-size: .95rem; }
+body.kur-alt.ti-skin .kp-kafel-sekcja { font-size: .7rem; }
+body.kur-alt.ti-skin .kp-nauka { padding: .75rem 1rem; }
+body.kur-alt.ti-skin .kp-nauka-lista a { font-size: .9rem; }
