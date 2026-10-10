@@ -950,8 +950,34 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php $KIER_CUR = 'konta.php'; $KIER_LABEL = 'Konta kursantów';
    include __DIR__ . '/_kierownik_bar.php'; ?>
 
+<style>
+  /* Konta kursantów (METRO): w szczegółach konta treść zakładki po lewej, menu (zakładki + szybkie akcje) po prawej.
+     W kodzie kolejność bez zmian: szybkie akcje → lista zakładek → treść (wzorzec ARIA tabs). Na węższych ekranach układ jak dotąd. */
+  #detail-panel { border: 2px solid #1d1d1d !important; border-radius: 0 !important; box-shadow: none !important; }
+  #detail-panel > .card-header { background: #fff; border-bottom: 5px solid #1ba1e2; border-radius: 0; }
+  #detail-panel .kk-akcje .btn, #detail-panel #detailTabs .nav-link { border-radius: 0; }
+  #detail-panel #detailTabs .nav-link:focus-visible, #detail-panel .kk-akcje .btn:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; box-shadow: none; }
+  @media (min-width: 1400px) {
+    #detail-panel { display: grid; grid-template-columns: minmax(0, 1fr) 250px;
+      grid-template-areas: "naglowek naglowek" "tresc zakladki" "tresc akcje" "tresc ."; grid-template-rows: auto auto auto 1fr; }
+    #detail-panel > .card-header { grid-area: naglowek; }
+    #detail-panel > .tab-content { grid-area: tresc; min-width: 0; border-right: 2px solid #1d1d1d; }
+    #detail-panel > #detailTabs { grid-area: zakladki; flex-direction: column; flex-wrap: nowrap; gap: .4rem; border: 0; padding: .9rem .9rem 0 !important; }
+    #detail-panel > #detailTabs .nav-link { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 48px; text-align: left; margin: 0;
+      border: 2px solid #1d1d1d; border-bottom: 5px solid #1ba1e2; background: #fff; color: #1d1d1d; font-weight: 600; }
+    #detail-panel > #detailTabs .nav-link:hover { background: #eef6fc; }
+    #detail-panel > #detailTabs .nav-link.active { background: #0f6fa8; color: #fff; border-color: #0f6fa8; border-bottom-color: #facc15; }
+    #detail-panel > #detailTabs .nav-link.active .text-body-secondary, #detail-panel > #detailTabs .nav-link.active .badge { color: #fff !important; }
+    #detail-panel > .kk-akcje { grid-area: akcje; border-bottom: 0 !important; padding: .9rem; }
+    #detail-panel > .kk-akcje::before { content: "Szybkie akcje" / ""; display: block; font-weight: 700; font-size: .85rem; margin-bottom: .4rem; }
+    #detail-panel > .kk-akcje > .d-flex { flex-direction: column; flex-wrap: nowrap !important; gap: .4rem !important; }
+    #detail-panel > .kk-akcje form, #detail-panel > .kk-akcje .btn { width: 100%; }
+    #detail-panel > .kk-akcje .btn { min-height: 44px; text-align: left; white-space: normal; }
+  }
+</style>
+
 <main id="main" class="dyd-wrap">
-<div class="container-fluid py-3" style="max-width:1200px">
+<div class="container-fluid py-3" style="max-width:<?= !empty($selected_acc) ? '1600px' : '1200px' ?>">
 
 <div class="d-flex align-items-center mb-3 gap-2">
   <h1 class="h4 mb-0 fw-bold"><i class="bi bi-person-badge text-primary me-2" aria-hidden="true"></i>Konta kursantów</h1>
@@ -1119,7 +1145,7 @@ function printBulk(){
   </div>
 
   <!-- Szybkie akcje — bez przechodzenia do zakładek -->
-  <div class="card-body border-bottom pb-3">
+  <div class="card-body border-bottom pb-3 kk-akcje" role="group" aria-label="Szybkie akcje">
     <div class="d-flex flex-wrap gap-2">
       <?php if ($sa['is_active']): ?>
       <form method="post" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja panelu pozostanie aktywna w tej karcie.')">

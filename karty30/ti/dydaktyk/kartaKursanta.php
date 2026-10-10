@@ -129,13 +129,25 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .badge.dk-bad  { background: #f8d7da; color: #58151c; } .badge.dk-warn { background: #fff3cd; color: #664d03; }
   .badge.dk-muted{ background: #e2e3e5; color: #2b2f32; } .badge.dk-prog { background: #cfe2ff; color: #052c65; }
   .badge.dk-goal { background: #e6dcf5; color: #2d1b4e; } .badge.dk-dark { background: #212529; color: #ffffff; }
-  .dk-sections a, body.ti-skin .dk-sections a { display: inline-block; padding: .3rem .7rem; border: 1px solid #6c757d; border-radius: 999px; background: #fff; color: #1b2430; text-decoration: none; font-size: .85rem; }
-  .dk-sections a:hover, body.ti-skin .dk-sections a:hover { background: #f1f4f8; text-decoration: underline; }
+  /* METRO: treść po lewej, menu sekcji (kafle 48px) po prawej, przyklejone przy przewijaniu */
+  .dk-uklad { display: grid; grid-template-columns: minmax(0, 1fr) 260px; grid-template-areas: "tresc menu"; gap: 1.25rem; align-items: start; }
+  .dk-tresc { grid-area: tresc; min-width: 0; }
+  .dk-menu  { grid-area: menu; position: sticky; top: .75rem; }
+  .dk-sections { display: flex; flex-direction: column; gap: .5rem; }
+  .dk-sections a, body.ti-skin .dk-sections a { display: flex; align-items: center; gap: .6rem; min-height: 48px; padding: .5rem .8rem; border: 2px solid #1d1d1d; border-bottom: 5px solid #1ba1e2; border-radius: 0; background: #fff; color: #1d1d1d; text-decoration: none; font-weight: 600; font-size: .95rem; }
+  .dk-sections a i { font-size: 1.15rem; color: #0f6fa8; }
+  .dk-sections a:hover, body.ti-skin .dk-sections a:hover { background: #eef6fc; text-decoration: underline; }
+  .dk-sections a:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+  @media (max-width: 991.98px) {
+    .dk-uklad { grid-template-columns: minmax(0, 1fr); grid-template-areas: "menu" "tresc"; }
+    .dk-menu { position: static; }
+    .dk-sections { flex-direction: row; flex-wrap: wrap; }
+  }
   details > summary:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
 </style>
 
 <main id="main" class="dyd-wrap">
-<div class="container-fluid py-3" style="max-width:1100px">
+<div class="container-fluid py-3" style="max-width:1440px">
 
 <nav aria-label="Ścieżka nawigacji" class="small mb-2">
   <a href="index.php">Panel dydaktyka</a> &rsaquo;
@@ -162,13 +174,21 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <script>document.getElementById('dk-errors').focus();</script>
 <?php endif; ?>
 
-<nav aria-label="Sekcje karty kursanta" class="mb-3">
-  <ul class="list-unstyled d-flex flex-wrap gap-2 mb-0 dk-sections">
-    <li><a href="#profil">Profil tyflo</a></li><li><a href="#sprzet">Sprzęt i licencje</a></li><li><a href="#moduly">Postępy w modułach</a></li>
-    <li><a href="#dziennik">Dziennik zajęć</a></li><li><a href="#notatki">Notatki</a></li><li><a href="#materialy">Materiały</a></li>
+<!-- Układ: sekcje karty po lewej, menu sekcji po prawej (na wąskim ekranie menu nad treścią).
+     W kodzie menu jest PRZED treścią — klawiatura i czytnik ekranu najpierw trafiają na spis sekcji. -->
+<div class="dk-uklad">
+<nav aria-label="Sekcje karty kursanta" class="dk-menu">
+  <ul class="list-unstyled mb-0 dk-sections">
+    <li><a href="#profil"><i class="bi bi-person-badge" aria-hidden="true"></i>Profil tyflo</a></li>
+    <li><a href="#sprzet"><i class="bi bi-laptop" aria-hidden="true"></i>Sprzęt i licencje</a></li>
+    <li><a href="#moduly"><i class="bi bi-diagram-3" aria-hidden="true"></i>Postępy w modułach</a></li>
+    <li><a href="#dziennik"><i class="bi bi-journal-text" aria-hidden="true"></i>Dziennik zajęć</a></li>
+    <li><a href="#notatki"><i class="bi bi-sticky" aria-hidden="true"></i>Notatki</a></li>
+    <li><a href="#materialy"><i class="bi bi-folder2-open" aria-hidden="true"></i>Materiały</a></li>
   </ul>
 </nav>
 
+<div class="dk-tresc">
 <?php
 $_v = dirname(__DIR__, 3) . '/modules/ti_dydaktyka/views/';
 include $_v . '_profil.php';
@@ -178,6 +198,8 @@ include $_v . '_dziennik.php';
 include $_v . '_notatki.php';
 include $_v . '_materialy.php';
 ?>
+</div>
+</div>
 
 </div>
 </main>
