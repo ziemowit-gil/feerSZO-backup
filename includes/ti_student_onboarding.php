@@ -22,9 +22,11 @@ function ti_student_onboarding_grupy(int $client_id): array {
     // Link online: najpierw link zapisu kursanta, a gdy go brak — stały link grupy (jak w ti_online.php).
     return db_all(
         "SELECT c.id, c.name, c.group_code,
-                CASE WHEN e.zoom_meeting_url != '' THEN e.zoom_meeting_url ELSE c.default_meeting_url END AS online_url
+                CASE WHEN e.zoom_meeting_url != '' THEN e.zoom_meeting_url ELSE c.default_meeting_url END AS online_url,
+                u.name AS instructor_name, u.email AS instructor_email
            FROM k30_ti_enrollments e
            JOIN k30_ti_courses c ON c.id = e.course_id
+           LEFT JOIN users u ON u.id = c.instructor_id
           WHERE e.client_id = ? AND e.status = 'active'
           ORDER BY c.name",
         [$client_id]
@@ -40,6 +42,10 @@ function ti_student_onboarding_mail(string $name, string $login, array $grupy = 
          . "Dzień dobry, {$imie},\n\n"
          . ($grupy ? "Twoje grupy:\n" . implode("\n", array_map(function ($g) {
                $linia = '- ' . ($g['group_code'] !== '' ? $g['group_code'] : '#' . (int)$g['id']) . ' — ' . $g['name'];
+               if (trim((string)($g['instructor_name'] ?? '')) !== '') {
+                   $linia .= "\n  Prowadzący: " . trim((string)$g['instructor_name'])
+                           . (trim((string)($g['instructor_email'] ?? '')) !== '' ? ' (' . trim((string)$g['instructor_email']) . ')' : '');
+               }
                if (trim((string)($g['online_url'] ?? '')) !== '') $linia .= "\n  Zajęcia online (link): " . trim((string)$g['online_url']);
                return $linia;
            }, $grupy)) . "\n\n" : '')
@@ -50,7 +56,9 @@ function ti_student_onboarding_mail(string $name, string $login, array $grupy = 
          . "   Hasło dostałeś od prowadzącego. Jeśli go nie masz albo nie działa, poproś prowadzącego o nowe.\n"
          . "2. Po zalogowaniu zobaczysz swój plan i zajęcia.\n\n"
          . "Hasła nie wysyłamy mailem. Nie przekazuj go innym osobom.\n\n"
-         . "Pytania kieruj do prowadzącego swojej grupy.\n\n"
+         . "Jeśli nie uzupełniłeś zgody na przetwarzanie danych, zrób to po zalogowaniu w ustawieniach.\n"
+         . "Twoje dane są chronione. Zmianę danych możesz zgłosić prowadzącemu.\n\n"
+         . "Problemy z logowaniem zgłoś kierownikowi jednostki. Pozostałe pytania kieruj do prowadzącego swojej grupy.\n\n"
          . "--\nWiadomość automatyczna. Prosimy na nią nie odpowiadać.";
     $html = '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>';
     return [$txt, $html];
