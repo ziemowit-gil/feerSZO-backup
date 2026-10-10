@@ -1928,7 +1928,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
   <!-- ── Dane kursanta — strona startowa panelu ─────────────────────────────── -->
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 kp-dane-naglowek">
     <h1 class="h5 fw-bold mb-0"><i class="bi bi-person-vcard text-primary me-1" aria-hidden="true"></i>Dane kursanta</h1>
     <a href="<?= APP_URL ?>/karty30/clients/card_print.php?kursant=1" target="_blank"
        class="btn btn-outline-secondary btn-sm">

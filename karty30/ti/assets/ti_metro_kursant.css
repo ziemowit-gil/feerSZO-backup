@@ -819,3 +819,16 @@ body.kur-alt.ti-skin main.kp-dane-grid { display: flex !important; flex-directio
 body.kur-alt.ti-skin main.kp-dane-grid > * { width: 100%; margin-bottom: 0 !important; }
 body.kur-alt.ti-skin main.kp-dane-grid > .kp-dane-osoba { order: -1; }
 body.kur-alt.ti-skin main.kp-dane-grid > :empty { display: none; }
+
+/* „Dane”: ciaśniej i węziej (mniej rozstrzału), bez powtórzonego nagłówka „Dane kursanta”
+   (nazwa jest już w kaflu i okruszkach) — nagłówek zostaje tylko dla czytnika ekranu */
+body.kur-alt.ti-skin main.kp-dane-grid { max-width: 960px; gap: .6rem; padding-top: .75rem !important; }
+body.kur-alt.ti-skin main.kp-dane-grid .card-body { padding: .7rem .9rem; }
+body.kur-alt.ti-skin main.kp-dane-grid .kp-rk-metro { padding: .7rem .9rem; }
+body.kur-alt.ti-skin main.kp-dane-grid .kp-rk-metro .fw-bold { font-size: .98rem; }
+body.kur-alt.ti-skin main.kp-dane-grid h2 { font-size: 1rem; }
+body.kur-alt.ti-skin main.kp-dane-grid .row { --bs-gutter-y: .5rem; --bs-gutter-x: .6rem; }
+body.kur-alt.ti-skin .kp-dane-naglowek { justify-content: flex-end !important; margin-bottom: 0 !important; }
+body.kur-alt.ti-skin .kp-dane-naglowek h1 {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
