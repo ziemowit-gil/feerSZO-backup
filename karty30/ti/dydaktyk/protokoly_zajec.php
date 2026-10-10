@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_meetings/logic/tiMeetingsManager.php';
+ti_meetings_import_legacy();   // jednorazowo: kopia starych protokołów godzinowych (stare tabele zostają)
 
 $me      = dyd_require();
 $uid     = (int)$me['user_id'];
@@ -52,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!ti_meeting_is_editable($m)) throw new \RuntimeException('Protokół jest zatwierdzony — nie można usuwać punktów.');
             ti_meeting_delete_item((int)($_POST['item_id'] ?? 0), $mid);
             flash_set('success', 'Usunięto punkt.');
+        } elseif ($op === 'unlock') {
+            if (!dyd_is_staff()) throw new \RuntimeException('Odblokowanie zatwierdzonego protokołu może zrobić kierownik.');
+            ti_meeting_unlock($mid, (string)($_POST['reason'] ?? ''), $uid, $me_name);
+            flash_set('success', 'Protokół odblokowany. Po zmianach zatwierdź go ponownie.');
         } elseif ($op === 'approve') {
             if (!ti_meeting_is_editable($m)) throw new \RuntimeException('Ten protokół jest już zatwierdzony.');
             ti_meeting_approve($mid, $uid, $me_name);
@@ -179,7 +184,22 @@ if (!empty($_GET['frag'])) {
         <?php if (!$items): ?><span class="small text-body-secondary">Najpierw dodaj przynajmniej jeden punkt.</span><?php endif; ?>
       </form>
       <?php else: ?>
-        <p class="small mb-0"><strong>Protokół zatwierdzony</strong> — treść jest tylko do odczytu.</p>
+        <p class="small mb-2"><strong>Protokół zatwierdzony</strong> — treść jest tylko do odczytu.</p>
+        <?php if (dyd_is_staff()): ?>
+        <form method="post" action="protokoly_zajec.php" class="border rounded p-3 mb-3" aria-labelledby="unlockH">
+          <h3 class="h6" id="unlockH">Odblokuj protokół</h3>
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="unlock">
+          <input type="hidden" name="meeting_id" value="<?= $mid ?>">
+          <input type="hidden" name="course_id" value="<?= (int)$fm['course_id'] ?>">
+          <label class="form-label" for="unlock-reason-<?= $mid ?>">Powód odblokowania (min. 10 znaków)</label>
+          <textarea class="form-control form-control-sm mb-2" id="unlock-reason-<?= $mid ?>" name="reason" rows="2" required minlength="10"></textarea>
+          <button type="submit" class="btn btn-sm btn-outline-warning">Odblokuj protokół</button>
+        </form>
+        <?php endif; ?>
+      <?php endif; ?>
+      <?php if ((string)$fm['status'] === 'odblokowany'): ?>
+        <p class="small text-warning-emphasis">Protokół odblokowany — po zmianach zatwierdź go ponownie.</p>
       <?php endif; ?>
 
       <?php $_sigs = db_all("SELECT signed_name, signed_at, content_hash FROM k30_ti_meeting_signatures WHERE meeting_id=? ORDER BY id DESC", [$mid]); ?>

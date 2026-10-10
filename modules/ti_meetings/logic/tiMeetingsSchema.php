@@ -102,6 +102,11 @@ function ti_meetings_migrate(): void {
     // Protokół zajęć przypisany do okresu rozliczeniowego (godziny i oceny liczone za ten okres).
     try { $pdo->exec("ALTER TABLE k30_ti_meetings ADD COLUMN period_id INTEGER REFERENCES k30_ti_periods(id) ON DELETE SET NULL"); }
     catch (\Throwable $e) { /* kolumna już istnieje */ }
+    // Powiązanie z protokołem godzinowym, z którego skopiowano wpis (jeden wpis = jeden protokół).
+    try { $pdo->exec("ALTER TABLE k30_ti_meetings ADD COLUMN legacy_protocol_id INTEGER"); }
+    catch (\Throwable $e) { /* kolumna już istnieje */ }
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_meetings_legacy ON k30_ti_meetings(legacy_protocol_id) WHERE legacy_protocol_id IS NOT NULL"); }
+    catch (\Throwable $e) { error_log('ti_meetings legacy idx: ' . $e->getMessage()); }
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_meetings_course ON k30_ti_meetings(course_id, meeting_date)"); }
     catch (\Throwable $e) { error_log('ti_meetings_migrate index: ' . $e->getMessage()); }
 }

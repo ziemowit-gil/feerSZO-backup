@@ -149,3 +149,68 @@ function ti_meeting_log(int $meeting_id, string $action, string $reason, int $ui
         ]);
     } catch (\Throwable $e) {}
 }
+
+/**
+ * Przeniesienie: każdy stary protokół godzinowy (k30_ti_protocols) jest KOPIOWANY jako protokół zajęć.
+ * Stare tabele zostają nietknięte. Idempotentne: legacy_protocol_id nie dopuszcza duplikatów.
+ * Zatwierdzony protokół godzin dostaje podpis wewnętrzny z datą i osobą z oryginału.
+ */
+function ti_meetings_import_legacy(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (szo_schema_current('ti_meetings_import_legacy', __FILE__)) return;   // raz na wersję pliku
+    ti_meetings_migrate();
+    try {
+        $rows = db_all(
+            "SELECT p.*, per.date_to AS period_to
+               FROM k30_ti_protocols p
+               LEFT JOIN k30_ti_periods per ON per.id = p.period_id
+              WHERE NOT EXISTS (SELECT 1 FROM k30_ti_meetings m WHERE m.legacy_protocol_id = p.id)"
+        );
+    } catch (\Throwable $e) { error_log('ti_meetings_import_legacy: ' . $e->getMessage()); return; }
+    foreach ($rows as $r) {
+        $approved = (string)$r['status'] === 'approved';
+        $ym = (string)($r['year_month'] ?? '');
+        $date = !empty($r['period_to']) ? (string)$r['period_to']
+              : (preg_match('/^\d{4}-\d{2}$/', $ym) ? date('Y-m-t', strtotime($ym . '-01'))
+              : substr((string)($r['approved_at'] ?: date('Y-m-d')), 0, 10));
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $mid = db_insert('k30_ti_meetings', [
+                'course_id' => (int)$r['course_id'], 'period_id' => $r['period_id'] ?: null,
+                'title' => (string)($r['title'] ?: 'Protokół godzin'), 'meeting_date' => $date,
+                'status' => $approved ? 'zatwierdzony' : 'szkic', 'legacy_protocol_id' => (int)$r['id'],
+                'created_by' => $r['created_by'] ?: null,
+            ]);
+            if ($approved) {
+                $payload = json_encode([(int)$r['id'], (int)$r['course_id'], $r['period_id'], $ym, (string)$r['approved_at'], (string)$r['approved_name']]);
+                db_insert('k30_ti_meeting_signatures', [
+                    'meeting_id' => $mid, 'role' => 'prowadzacy', 'user_id' => $r['approved_by'] ?: null,
+                    'signed_name' => (string)$r['approved_name'], 'content_hash' => hash('sha256', (string)$payload),
+                    'signed_at' => (string)($r['approved_at'] ?: date('Y-m-d H:i:s')),
+                ]);
+            }
+            ti_meeting_log($mid, 'przeniesiono', 'z protokołu godzin #' . (int)$r['id'], 0, 'migracja');
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            error_log('ti_meetings_import_legacy #' . $r['id'] . ': ' . $e->getMessage());
+        }
+    }
+}
+
+/**
+ * Odblokowanie zatwierdzonego protokołu: wymaga powodu, zostaje w logu.
+ * Po odblokowaniu treść można zmieniać i zatwierdzić ponownie (nowy podpis).
+ */
+function ti_meeting_unlock(int $meeting_id, string $reason, int $uid, string $name): void {
+    $m = ti_meeting_get($meeting_id);
+    if (!$m) throw new \RuntimeException('Nie ma takiego protokołu.');
+    if ((string)$m['status'] !== 'zatwierdzony') throw new \RuntimeException('Ten protokół nie jest zatwierdzony.');
+    $reason = trim($reason);
+    if (mb_strlen($reason) < 10) throw new \RuntimeException('Podaj powód odblokowania (min. 10 znaków).');
+    db_exec("UPDATE k30_ti_meetings SET status='odblokowany', updated_at=datetime('now') WHERE id=?", [$meeting_id]);
+    ti_meeting_log($meeting_id, 'odblokowano', $reason, $uid, $name);
+}
