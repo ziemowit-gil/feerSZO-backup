@@ -59,6 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </style>
 </head>
 <body>
+<div role="region" aria-label="Informacja o logowaniu" style="background:#1ba1e2;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
+  Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
+  <a href="../karty30/ti/sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
+</div>
 <header class="metro-bar">System Tożsamości · Kod z SMS-a</header>
 <main class="metro-card">
   <h1 class="h5 fw-bold mb-2">Wpisz kod z SMS-a</h1>

@@ -129,6 +129,10 @@ body {
 </style>
 </head>
 <body>
+<div role="region" aria-label="Informacja o logowaniu" style="background:#1ba1e2;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
+  Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
+  <a href="../karty30/ti/sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
+</div>
 <a href="#k30-login-main" class="visually-hidden-focusable position-absolute top-0 start-0 m-2 btn btn-light btn-sm">Przejdź do formularza</a>
 
 <!-- Lewa kolumna — branding -->
