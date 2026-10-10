@@ -9,7 +9,9 @@ require_once dirname(__DIR__) . '/includes/mail_queue.php';
 /** Konta kursantów z danymi kontaktowymi klienta (do listy i wysyłki). */
 function ti_student_accounts_for_onboarding(): array {
     return db_all(
-        "SELECT a.id, a.login, a.is_active, a.client_id, c.name AS client_name, c.email AS client_email
+        "SELECT a.id, a.login, a.is_active, a.client_id, c.name AS client_name, c.email AS client_email,
+                c.phone AS client_phone, c.consent AS client_consent,
+                (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.client_id = a.client_id AND e.status = 'active') AS n_grup
            FROM k30_ti_student_accounts a
            JOIN k30_clients c ON c.id = a.client_id
           ORDER BY c.name"

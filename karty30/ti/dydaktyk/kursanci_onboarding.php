@@ -109,20 +109,32 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     <caption class="visually-hidden">Konta kursantów i wysyłka maila onboardingowego</caption>
     <thead><tr><th scope="col">Kursant</th><th scope="col">Login</th><th scope="col">E-mail</th><th scope="col">Konto</th><th scope="col" class="text-end">Akcja</th></tr></thead>
     <tbody>
-    <?php foreach ($konta as $a): $ma_mail = trim((string)$a['client_email']) !== ''; ?>
+    <?php foreach ($konta as $a):
+      $ma_mail = trim((string)$a['client_email']) !== '';
+      // Braki w danych kursanta — pokazywane przy nazwisku i potwierdzane przed wysyłką.
+      $braki = [];
+      if (!$ma_mail) $braki[] = 'e-mail';
+      if (preg_replace('/\D/', '', (string)($a['client_phone'] ?? '')) === '') $braki[] = 'telefon';
+      if (empty($a['client_consent'])) $braki[] = 'zgoda';
+      if ((int)($a['n_grup'] ?? 0) === 0) $braki[] = 'zapis na grupę';
+      $braki_txt = $braki ? 'Brakuje: ' . implode(', ', $braki) . '. Wysłać mail mimo to?' : 'Wysłać mail onboardingowy?';
+    ?>
       <tr>
-        <td><?= h($a['client_name']) ?></td>
+        <td>
+          <?= h($a['client_name']) ?>
+          <?php foreach ($braki as $b): ?><span class="badge bg-warning text-dark ms-1"><?= h($b) ?></span><?php endforeach; ?>
+        </td>
         <td class="font-monospace small"><?= h($a['login']) ?></td>
         <td class="small"><?= $ma_mail ? h($a['client_email']) : '<span class="badge bg-warning text-dark">brak e-maila</span>' ?></td>
         <td><?= (int)$a['is_active'] ? '<span class="badge bg-success">aktywne</span>' : '<span class="badge bg-secondary">nieaktywne</span>' ?></td>
         <td class="text-end">
           <a href="kursanci_onboarding.php?podglad=<?= (int)$a['id'] ?>" class="btn btn-sm btn-outline-secondary">Podgląd</a>
           <?php if ($ma_mail && (int)$a['is_active']): ?>
-          <form method="post" class="d-inline" onsubmit="return confirm('Wysłać mail do <?= h(addslashes($a['client_name'])) ?>?');">
+          <form method="post" class="d-inline" onsubmit="return confirm('<?= h(addslashes($a['client_name'])) ?>. <?= h(addslashes($braki_txt)) ?>');">
             <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
             <input type="hidden" name="_op" value="one">
             <input type="hidden" name="account_id" value="<?= (int)$a['id'] ?>">
-            <button type="submit" class="btn btn-sm btn-outline-primary">Wyślij</button>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Onboard</button>
           </form>
           <?php endif; ?>
         </td>
