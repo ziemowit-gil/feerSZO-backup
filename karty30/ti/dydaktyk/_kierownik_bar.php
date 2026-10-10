@@ -68,6 +68,7 @@ if (!empty($KIER_ITEMS)) {
         ['Raport odwołanych',         'raport_odwolanych.php',      'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
+        ['Certyfikaty prowadzących',  'certyfikaty.php',            'shield-check'],
         ['Testy',                     'testy.php',                  'bug'],
         ['Pełny panel TI',            '../index.php',               'box-arrow-up-right',  true],
     ];
@@ -78,6 +79,28 @@ if (!empty($KIER_ITEMS)) {
                          'active' => ($_d[1] === $KIER_CUR)];
     }
 }
+
+// Sekcje menu kierownika (zwijane). Pozycja trafia do sekcji po adresie (href); nieznane — do „Inne”.
+$_kier_grupy = [
+    'Grupy i kursy'          => ['index.php?tab=grupy', 'index.php?tab=kursy', 'index.php?tab=praca_wlasna', 'log_grup.php',
+                                 'planLinki.php', 'godziny.php', 'dostepnosci.php', 'urlopy.php'],
+    'Kursanci i konta'       => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php',
+                                 'rekrutacja.php', 'polecenia.php'],
+    'Finanse'                => ['index.php?tab=rozliczenia', 'billing.php', 'overpayments.php', 'przypomnieniaWplat.php',
+                                 'pricing.php', 'index.php?tab=wypłaty'],
+    'Protokoły i raporty'    => ['protokoly.php', 'audyt_dziennikow.php', 'wydruki.php', 'analityka.php', 'raport_odwolanych.php'],
+    'Planowanie'             => ['planista.php', 'raportyPlanisty.php', 'generatorCiagow.php', 'zgloszenia.php', 'kadraLimity.php',
+                                 'sale.php', 'okresy.php', 'przedmioty.php', 'dni_wolne.php', 'wylaczenia.php'],
+    'Komunikacja'            => ['index.php?tab=komunikacja', 'szablonyEmail.php', 'szablonySms.php'],
+    'Ustawienia i narzędzia' => ['zetony.php', 'certyfikaty.php', 'zespol.php', 'testy.php', '../index.php'],
+];
+$_kier_map = [];
+foreach ($_kier_grupy as $_g => $_hrefs) foreach ($_hrefs as $_h) $_kier_map[$_h] = $_g;
+$_kier_by_grp = [];
+foreach ($_kier_norm as $_i) {
+    $_kier_by_grp[$_kier_map[$_i['href']] ?? 'Inne'][] = $_i;
+}
+$_kier_order = array_merge(array_keys($_kier_grupy), ['Inne']);
 
 $_kier_sections = [
     ['Mój panel',    'index.php?tab=pulpit'],
@@ -114,6 +137,16 @@ $_kier_sections = [
   .kier-sidenav details > summary, body.ti-skin .kier-sidenav details > summary { cursor: pointer; font-weight: 700; padding: .3rem .2rem; color: #fff;
                                     list-style: none; display: flex; align-items: center; gap: .5rem; }
   .kier-sidenav details > summary::-webkit-details-marker, body.ti-skin .kier-sidenav details > summary::-webkit-details-marker { display: none; }
+  /* Sekcje menu (zwijane): nagłówek jak przycisk, znacznik stanu tekstowy (dostępność: nie tylko kolor/ikona). */
+  .kier-sidenav details.kier-grp, body.ti-skin .kier-sidenav details.kier-grp { margin-top: .35rem; }
+  .kier-sidenav details.kier-grp > summary, body.ti-skin .kier-sidenav details.kier-grp > summary { font-size: .74rem; font-weight: 700;
+                    text-transform: uppercase; letter-spacing: .06em; color: #ffd863; padding: .45rem .5rem; min-height: 36px;
+                    border-bottom: 1px solid rgba(255,255,255,.18); border-radius: 2px; }
+  .kier-sidenav details.kier-grp > summary:hover, body.ti-skin .kier-sidenav details.kier-grp > summary:hover { background: rgba(255,255,255,.08); }
+  .kier-sidenav details.kier-grp > summary:focus-visible, body.ti-skin .kier-sidenav details.kier-grp > summary:focus-visible { outline: 3px solid #ffd863; outline-offset: 1px; }
+  .kier-sidenav details.kier-grp > summary::after, body.ti-skin .kier-sidenav details.kier-grp > summary::after { content: '▾ zwiń'; margin-left: auto; font-size: .66rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: #fff; }
+  .kier-sidenav details.kier-grp:not([open]) > summary::after, body.ti-skin .kier-sidenav details.kier-grp:not([open]) > summary::after { content: '▸ rozwiń'; }
+  .kier-sidenav details.kier-grp > div, body.ti-skin .kier-sidenav details.kier-grp > div { padding-top: .2rem; }
 
   @media (min-width: 992px) {
     .kier-sidenav, body.ti-skin .kier-sidenav { position: fixed; top: 4.2rem; left: .75rem; bottom: .75rem; width: 240px;
@@ -121,8 +154,8 @@ $_kier_sections = [
     /* Tryb osadzony (index.php): sekcje stoją już w pasku górnym, nad treścią
        zostaje tylko rząd okruszków — zejdź o jego wysokość. */
     .kier-sidenav.kier-embed, body.ti-skin .kier-sidenav.kier-embed { top: 5.9rem; }
-    .kier-sidenav details > summary, body.ti-skin .kier-sidenav details > summary { display: none; }   /* na desktopie lista zawsze otwarta */
-    .kier-sidenav details, body.ti-skin .kier-sidenav details { display: contents; }
+    .kier-sidenav details:not(.kier-grp) > summary, body.ti-skin .kier-sidenav details:not(.kier-grp) > summary { display: none; }   /* na desktopie zewnętrzna lista zawsze otwarta */
+    .kier-sidenav details:not(.kier-grp), body.ti-skin .kier-sidenav details:not(.kier-grp) { display: contents; }
     main.dyd-wrap { margin-left: 264px !important; }
     /* index.php (skórka USOS): main ma też .dyd-content, a ti_skin.css zeruje mu
        margines selektorem body.dyd-usos .dyd-content !important — przebijamy
@@ -136,12 +169,22 @@ $_kier_sections = [
     <summary aria-hidden="true"><i class="bi bi-list"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
     <div>
       <h2><?= h($KIER_TITLE) ?></h2>
-      <?php foreach ($_kier_norm as $_i): ?>
-      <a href="<?= h($_i['href']) ?>"<?= $_i['active'] ? ' class="active" aria-current="page"' : '' ?><?= !empty($_i['blank']) ? ' target="_blank" rel="noopener"' : '' ?>>
-        <i class="bi bi-<?= h($_i['icon']) ?>" aria-hidden="true"></i><?= h($_i['label']) ?>
-        <?php if (!empty($_i['n'])): ?><span class="badge text-bg-<?= h($_i['v'] ?: 'secondary') ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
-        <?php if (!empty($_i['blank']) && empty($_i['n'])): ?><i class="bi bi-box-arrow-up-right kier-ext" aria-hidden="true"></i><?php endif; ?>
-      </a>
+      <?php foreach ($_kier_order as $_g):
+        if (empty($_kier_by_grp[$_g])) continue;
+        $_grp_open = array_filter($_kier_by_grp[$_g], fn($x) => !empty($x['active'])) ? ' open' : '';
+      ?>
+      <details class="kier-grp"<?= $_grp_open ?>>
+        <summary><?= h($_g) ?></summary>
+        <div>
+        <?php foreach ($_kier_by_grp[$_g] as $_i): ?>
+        <a href="<?= h($_i['href']) ?>"<?= $_i['active'] ? ' class="active" aria-current="page"' : '' ?><?= !empty($_i['blank']) ? ' target="_blank" rel="noopener"' : '' ?>>
+          <i class="bi bi-<?= h($_i['icon']) ?>" aria-hidden="true"></i><?= h($_i['label']) ?>
+          <?php if (!empty($_i['n'])): ?><span class="badge text-bg-<?= h($_i['v'] ?: 'secondary') ?>"><?= (int)$_i['n'] ?></span><?php endif; ?>
+          <?php if (!empty($_i['blank']) && empty($_i['n'])): ?><i class="bi bi-box-arrow-up-right kier-ext" aria-hidden="true"></i><?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+        </div>
+      </details>
       <?php endforeach; ?>
 
       <?php if (!$KIER_EMBED): ?>
