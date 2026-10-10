@@ -145,7 +145,7 @@ $_panel = 'kursant/index.php';
 
       <div class="nw-wazne" role="note">
         <h3>Konto założone przed 10.10.2026? Zaloguj się jak za pierwszym razem</h3>
-        <p>Przeszliśmy na nowy System Tożsamości. Dotychczasowych haseł nie da się do niego przenieść, dlatego wszystkie konta założone przed 10 października 2026 traktujemy jak nowe. Dane, lekcje, oceny i zadania zostają bez zmian.</p>
+        <p><strong>Od 10.10.2026 obowiązuje nowy system zarządzania tożsamością.</strong> Przeszliśmy na nowy System Tożsamości. Dotychczasowych haseł nie da się do niego przenieść, dlatego wszystkie konta założone przed 10 października 2026 traktujemy jak nowe. Dane, lekcje, oceny i zadania zostają bez zmian.</p>
       </div>
 
       <p><strong>Jak zalogować się pierwszy raz:</strong></p>

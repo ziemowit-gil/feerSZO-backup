@@ -69,12 +69,19 @@ loginShellHead([
         . '.tzt-ms{display:flex!important;align-items:center;justify-content:center;gap:.6rem;min-height:48px}'
         . '.tzt-card-h{font-size:1.5rem;font-weight:700;margin:0 0 .25rem}'
         . '.tz-btn{min-height:48px;display:flex;align-items:center;justify-content:center}'
+        . '.tzt-nowy{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 1.25rem;padding:.75rem .9rem;background:#e6f4fb;border-left:6px solid #1ba1e2;font-size:.9rem;color:#1d1d1d}'
+        . '.tzt-nowy .bi{color:#0f6fa8;font-size:1.15rem}'
         . '.tzt-inne{display:grid;gap:.5rem;margin-top:.5rem}'
         . '.tzt-inne a{display:flex;align-items:center;gap:.5rem;min-height:44px;padding:.4rem .2rem;color:#1d4ed8;font-weight:600}'
         . '.tzt-inne a .bi{color:#1ba1e2;font-size:1.1rem}'
         . '</style>',
 ]);
 ?>
+      <div class="tzt-nowy" role="note">
+        <i class="bi bi-calendar-check" aria-hidden="true"></i>
+        <span><strong>Od 10.10.2026 obowiązuje nowy system zarządzania tożsamością.</strong>
+        Konta założone wcześniej logują się jak za pierwszym razem — dotychczasowych haseł nie dało się przenieść.</span>
+      </div>
       <h1 class="tzt-card-h">Zaloguj się</h1>
       <p class="tz-hint mt-0 mb-3">do Systemu Tożsamości Fundacji FEER</p>
 
