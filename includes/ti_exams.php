@@ -72,6 +72,17 @@ const K30_TI_EXAM_TYPES = [
         'hint'  => 'Odpowiedź opisowa — automat po słowach kluczowych albo ocena prowadzącego.',
         'icon'  => 'chat-left-text', 'options' => false, 'cases' => false, 'code' => false,
     ],
+    // matching/ordering: elementy w config (pairs/distractors, items) — nie w k30_ti_exam_options.
+    'matching' => [
+        'label' => 'Dopasowywanie par',
+        'hint'  => 'Do każdego pojęcia po lewej kursant wybiera pasujący element z listy; możliwe dodatkowe elementy-pułapki.',
+        'icon'  => 'arrow-left-right', 'options' => false, 'cases' => false, 'code' => false,
+    ],
+    'ordering' => [
+        'label' => 'Ustaw w kolejności',
+        'hint'  => 'Kursant nadaje elementom numery pozycji — np. kroki procedury albo chronologię.',
+        'icon'  => 'sort-numeric-down', 'options' => false, 'cases' => false, 'code' => false,
+    ],
     'code_fix' => [
         'label' => 'Analiza / poprawa kodu',
         'hint'  => 'Fragment kodu z błędem — wskazanie linii albo przepisanie poprawnie.',
@@ -112,7 +123,7 @@ const K30_TI_EXAM_MODES = [
     ],
 ];
 
-/** Zasady punktacji pytań wielokrotnego wyboru i prawda/fałsz. */
+/** Zasady punktacji pytań wielokrotnego wyboru, prawda/fałsz, dopasowywania i kolejności. */
 const K30_TI_EXAM_NEG = [
     'partial'        => 'Cząstkowa z karą — (trafione − błędne) / poprawnych, nie mniej niż 0',
     'none'           => 'Cząstkowa bez kary — trafione / poprawnych',
@@ -495,6 +506,15 @@ function ti_exam_question_payload(array $q, bool $withAnswers = true): array {
             $payload['options'][] = $row;
         }
     }
+    // Wersja bez odpowiedzi: config dopasowywania/kolejności zdradza pary i
+    // kolejność — zostawiamy same elementy w kolejności neutralnej (po kluczu).
+    if (!$withAnswers && ($type === 'matching' || $type === 'ordering')) {
+        $byKey = function (array $rows): array { usort($rows, fn($a, $b) => strcmp($a['key'], $b['key'])); return $rows; };
+        $payload['config'] = $type === 'matching'
+            ? ['lefts' => array_map(fn($p) => ['key' => $p['key'], 'label' => $p['left']], ex_matching_pairs($cfg)),
+               'rights' => $byKey(ex_matching_right_pool($cfg))]
+            : ['items' => $byKey(ex_ordering_items($cfg))];
+    }
     if (!empty($meta['cases'])) {
         foreach (ti_exam_cases((int)$q['id']) as $c) {
             if (!$withAnswers && (int)$c['is_hidden'] === 1) continue;
@@ -708,6 +728,9 @@ function ti_exam_compose_fallback(array $exam, array $questions, int $seed): arr
     foreach ($chosen as $q) {
         $qid     = (int)$q['id'];
         $order[] = $qid;
+        // Dopasowywanie / kolejność: ta sama reguła co w generatorze (zawsze tasowane).
+        $items = ex_items_shuffle_order(['type' => (string)$q['type'], 'config' => ti_exam_config($q)]);
+        if ($items !== null) { $opts[(string)$qid] = $items; continue; }
         $ids     = array_map(fn($o) => (int)$o['id'], ti_exam_options($qid));
         if (!$ids) continue;
         // Kolejność wariantów tasujemy tylko tam, gdzie ma to sens — w lukach
@@ -756,6 +779,37 @@ function ti_exam_options_ordered(int $question_id, array $order_map): array {
     return $out;
 }
 
+/**
+ * Elementy pytania 'matching'/'ordering' w kolejności pokazywanej kursantowi.
+ *
+ * $items to lista z ex_matching_right_pool() albo ex_ordering_items(); $perm —
+ * permutacja indeksów zapisana przy losowaniu (option_order). Gdy zapisu brak
+ * albo nie pasuje (prowadzący zmienił pytanie po starcie podejścia), elementy
+ * idą w kolejności kluczy — neutralnej, niezwiązanej z kolejnością poprawną.
+ */
+function ti_exam_items_ordered(array $items, array $perm): array {
+    $n = count($items);
+    $p = array_map('intval', $perm);
+    $ok = count($p) === $n;
+    if ($ok) { $s = $p; sort($s); $ok = $s === range(0, max(0, $n - 1)) || $n === 0; }
+    if ($ok) return array_map(fn($i) => $items[$i], $p);
+    usort($items, fn($a, $b) => strcmp((string)$a['key'], (string)$b['key']));
+    return $items;
+}
+
+/**
+ * Komunikat o niejednoznacznej odpowiedzi do pokazania kursantowi przed
+ * oddaniem pracy (dziś: powtórzone pozycje w 'ordering'). null = wszystko gra.
+ * Punktacja i tak się liczy — powtórzone pozycje silnik uznaje za błędne.
+ */
+function ti_exam_answer_issue(array $question, array $payload): ?string {
+    if ((string)$question['type'] !== 'ordering') return null;
+    $dups = ex_ordering_duplicates(ex_answer_order($payload));
+    if (!$dups) return null;
+    return (count($dups) === 1 ? 'Pozycja ' . $dups[0] . ' jest przypisana' : 'Pozycje ' . implode(', ', $dups) . ' są przypisane')
+         . ' więcej niż jednemu elementowi. Każdy element powinien mieć inny numer — powtórzone pozycje zostaną policzone jako błędne.';
+}
+
 function ti_exam_answers(int $attempt_id): array {
     $out = [];
     foreach (db_all("SELECT * FROM k30_ti_exam_answers WHERE attempt_id=?", [$attempt_id]) as $r) {
@@ -795,6 +849,28 @@ function ti_exam_payload_from_post($raw): array {
         $bl = [];
         foreach ($raw['blanks'] as $k => $v) $bl[(string)$k] = (string)$v;
         $out['blanks'] = $bl;
+    }
+    // Dopasowywanie par: a[q][pairs][kluczLewego] = kluczPrawego; kolejność:
+    // a[q][order][kluczElementu] = pozycja. Klucze to skróty z silnika (ex_item_key).
+    if (isset($raw['pairs']) && is_array($raw['pairs'])) {
+        $pr = [];
+        foreach ($raw['pairs'] as $k => $v) {
+            if (is_array($v)) continue;
+            $k = preg_replace('/[^A-Za-z0-9]/', '', (string)$k);
+            $v = preg_replace('/[^A-Za-z0-9]/', '', (string)$v);
+            if ($k !== '' && $v !== '') $pr[$k] = $v;
+        }
+        $out['pairs'] = $pr;
+    }
+    if (isset($raw['order']) && is_array($raw['order'])) {
+        $or = [];
+        foreach ($raw['order'] as $k => $v) {
+            if (is_array($v)) continue;
+            $k = preg_replace('/[^A-Za-z0-9]/', '', (string)$k);
+            $n = (int)$v;
+            if ($k !== '' && $n >= 1) $or[$k] = $n;
+        }
+        $out['order'] = $or;
     }
     if (isset($raw['text']) && trim((string)$raw['text']) !== '') $out['text'] = (string)$raw['text'];
     if (isset($raw['code']) && trim((string)$raw['code']) !== '') $out['code'] = (string)$raw['code'];

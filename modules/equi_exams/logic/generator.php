@@ -26,7 +26,39 @@ require_once __DIR__ . '/grading.php'; // ex_question_options / ex_question_poin
  * to był błąd względem Javy, tu naprawiony.
  */
 function ex_options_shufflable(string $type): bool {
-    return !in_array($type, ['fill_blank', 'short_answer', 'code_fix', 'code_completion', 'code_run'], true);
+    // matching/ordering nie mają wariantów w tabeli opcji — ich elementy tasuje
+    // ex_items_shuffle_order() niezależnie od ustawienia shuffleOptions.
+    return !in_array($type, ['fill_blank', 'short_answer', 'code_fix', 'code_completion', 'code_run',
+                             'matching', 'ordering'], true);
+}
+
+/**
+ * Kolejność elementów pokazywana kursantowi dla 'matching' (prawa kolumna)
+ * i 'ordering' (elementy do ułożenia) — permutacja indeksów 0..N-1 albo null
+ * dla pozostałych typów.
+ *
+ * Tasujemy ZAWSZE, bez względu na shuffleOptions: kolejność autora to dokładnie
+ * odpowiedź (ordering) albo układ „para obok pary” (matching). Permutacja
+ * tożsamościowa jest odrzucana, więc przy N ≥ 2 kursant nigdy nie zobaczy
+ * kolejności poprawnej. Korzysta z bieżącego stanu mt_rand — wołający ustawia
+ * ziarno (mt_srand), dzięki czemu wynik jest powtarzalny.
+ */
+function ex_items_shuffle_order(array $question): ?array {
+    $type = ex_cfg_str($question, 'type', '');
+    $config = ex_cfg_map($question, 'config');
+    if ($type === 'matching')      $n = count(ex_matching_right_pool($config));
+    elseif ($type === 'ordering')  $n = count(ex_ordering_items($config));
+    else return null;
+
+    $perm = range(0, max(0, $n - 1));
+    if ($n < 2) return $n === 1 ? [0] : [];
+    $identity = $perm;
+    for ($try = 0; $try < 20; $try++) {
+        shuffle($perm);
+        if ($perm !== $identity) return $perm;
+    }
+    // Skrajnie mało prawdopodobne — przesunięcie cykliczne o 1 nigdy nie jest tożsamością.
+    return array_merge(array_slice($identity, 1), [0]);
 }
 
 /** Zwraca całą pulę gdy $n<=0 lub $n>=count(pool); inaczej losowe $n pozycji (ExamGenerator.pick). */
@@ -59,6 +91,7 @@ function ex_generate_exam(array $request): array {
             $q['type']     = ex_cfg_str($q, 'type', 'single');
             $q['inBank']   = ex_cfg_bool($q, 'inBank', false);
             $q['options']  = ex_question_options($q);
+            $q['config']   = ex_cfg_map($q, 'config');
             if ($q['inBank']) $bank[] = $q; else $fixed[] = $q;
         }
 
@@ -84,6 +117,12 @@ function ex_generate_exam(array $request): array {
         foreach ($chosen as $q) {
             $order[] = $q['id'];
             $maxScore += $q['points'];
+            $items = ex_items_shuffle_order($q);
+            if ($items !== null) {
+                // matching/ordering: indeksy elementów (prawej kolumny / do ułożenia).
+                $optionOrder[(string)$q['id']] = $items;
+                continue;
+            }
             if (empty($q['options'])) continue;
             $ids = array_map(fn($o) => $o['id'], $q['options']);
             if ($shuffleOptions && ex_options_shufflable($q['type'])) shuffle($ids);

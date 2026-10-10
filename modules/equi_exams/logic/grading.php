@@ -64,6 +64,100 @@ function ex_answer_statements(array $answer): array {
     return $out;
 }
 
+/**
+ * Dopasowywanie par: {kluczLewego: kluczPrawego}. Puste wybory („— wybierz —")
+ * są pomijane — lewy element bez wyboru liczy się jak niedopasowany.
+ */
+function ex_answer_pairs(array $answer): array {
+    $out = [];
+    foreach (ex_cfg_map($answer, 'pairs') as $k => $v) {
+        if ($v === null || is_array($v)) continue;
+        $s = trim((string)$v);
+        if ($s !== '') $out[(string)$k] = $s;
+    }
+    return $out;
+}
+
+/** Ustaw w kolejności: {kluczElementu: pozycja 1..N}. Pozycje spoza zakresu ≥1 pomijamy. */
+function ex_answer_order(array $answer): array {
+    $out = [];
+    foreach (ex_cfg_map($answer, 'order') as $k => $v) {
+        if ($v === null || is_array($v)) continue;
+        $s = trim((string)$v);
+        if ($s === '' || !is_numeric($s)) continue;
+        $n = (int)round((float)$s);
+        if ($n >= 1) $out[(string)$k] = $n;
+    }
+    return $out;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Elementy pytań „matching” i „ordering” — klucze i pule
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Elementy tych typów mieszkają w `config` pytania (nie w tabeli wariantów).
+// Kursant odwołuje się do nich przez KLUCZ wyliczony z treści — nieprzezroczysty
+// skrót, który nie zdradza ani kolejności poprawnej, ani pary (indeks albo
+// rosnące id wariantu zdradzałyby odpowiedź komuś, kto zajrzy w kod strony).
+
+/** Klucz elementu wyliczony z treści (stały między podejściami, nie zdradza pozycji). */
+function ex_item_key(string $label): string {
+    return 'k' . substr(sha1(trim($label)), 0, 12);
+}
+
+/** Pary w kolejności autora: [['key','left','right','rightKey'], …]. */
+function ex_matching_pairs(array $config): array {
+    $out = [];
+    foreach (ex_cfg_list($config, 'pairs') as $pRaw) {
+        $p = is_array($pRaw) ? $pRaw : [];
+        $left  = trim(ex_cfg_str($p, 'left', ''));
+        $right = trim(ex_cfg_str($p, 'right', ''));
+        if ($left === '' || $right === '') continue;
+        $out[] = ['key' => ex_item_key($left), 'left' => $left,
+                  'right' => $right, 'rightKey' => ex_item_key($right)];
+    }
+    return $out;
+}
+
+/**
+ * Prawa kolumna do wyboru: prawe strony par + dystraktory, bez powtórzeń
+ * (ten sam prawy element może pasować do kilku lewych — pokazujemy go raz).
+ */
+function ex_matching_right_pool(array $config): array {
+    $out = []; $seen = [];
+    $labels = array_map(fn($p) => $p['right'], ex_matching_pairs($config));
+    foreach (ex_cfg_strings($config, 'distractors') as $d) $labels[] = trim($d);
+    foreach ($labels as $label) {
+        if ($label === '') continue;
+        $key = ex_item_key($label);
+        if (isset($seen[$key])) continue;
+        $seen[$key] = true;
+        $out[] = ['key' => $key, 'label' => $label];
+    }
+    return $out;
+}
+
+/** Elementy do ułożenia w POPRAWNEJ kolejności: [['key','label'], …]. */
+function ex_ordering_items(array $config): array {
+    $out = [];
+    foreach (ex_cfg_strings($config, 'items') as $label) {
+        $label = trim($label);
+        if ($label === '') continue;
+        $out[] = ['key' => ex_item_key($label), 'label' => $label];
+    }
+    return $out;
+}
+
+/** Pozycje wskazane więcej niż jednemu elementowi (posortowane rosnąco). */
+function ex_ordering_duplicates(array $order): array {
+    $dups = [];
+    foreach (array_count_values(array_map('intval', array_values($order))) as $pos => $n) {
+        if ($n > 1) $dups[] = (int)$pos;
+    }
+    sort($dups);
+    return $dups;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  GradingContext.java
 // ═══════════════════════════════════════════════════════════════════════════
@@ -389,6 +483,135 @@ function ex_short_answer_fmt(float $d): string {
     return (string)(round($d * 100) / 100);
 }
 
+/**
+ * Punkty za ułamek trafień wg reguły pytania/egzaminu. Dla dopasowywania
+ * i kolejności nie ma „zgadywania” do ukarania (każdy element ma dokładnie
+ * jedno miejsce), więc 'partial' i 'none' liczą proporcjonalnie, a
+ * 'all_or_nothing' daje punkty tylko za komplet.
+ */
+function ex_items_score(float $points, int $hits, int $total, string $rule): float {
+    if ($total <= 0) return 0.0;
+    if ($rule === 'all_or_nothing') return $hits === $total ? $points : 0.0;
+    return $points * ($hits / $total);
+}
+
+function ex_grade_matching(array $question, array $answer, array $ctx): array {
+    $r = ex_qr_new($question);
+    $config = ex_cfg_map($question, 'config');
+    $pairs  = ex_matching_pairs($config);
+    if (count($pairs) < 1) {
+        $r['needsReview'] = true;
+        return ex_qr_feedback(ex_qr_award($r, 0), 'Pytanie nie ma zdefiniowanych par — do sprawdzenia przez prowadzącego.');
+    }
+
+    $given  = ex_answer_pairs($answer);
+    $labels = [];
+    foreach (ex_matching_right_pool($config) as $p) $labels[$p['key']] = $p['label'];
+
+    $hits = 0; $answered = 0; $rows = [];
+    foreach ($pairs as $p) {
+        $g  = $given[$p['key']] ?? null;
+        $ok = $g !== null && $g === $p['rightKey'];
+        if ($g !== null) $answered++;
+        if ($ok) $hits++;
+        $row = [
+            'key'        => $p['key'],
+            'left'       => $p['left'],
+            'answered'   => $g !== null,
+            'given'      => $g,
+            'givenLabel' => $g !== null ? ($labels[$g] ?? '') : '',
+            'correct'    => $ok,
+        ];
+        if (!empty($ctx['revealAnswers'])) $row['expected'] = $p['right'];
+        $rows[] = $row;
+    }
+
+    $total = count($pairs);
+    $rule  = ex_cfg_str($config, 'negMarking', $ctx['negMarking']);
+    if ($answered === 0) {
+        $r = ex_qr_award($r, 0);
+        $r['details'] = ['pairs' => $rows, 'hits' => 0, 'total' => $total, 'negMarking' => $rule];
+        return ex_qr_feedback($r, 'Brak odpowiedzi.');
+    }
+
+    $r = ex_qr_award($r, ex_items_score(ex_question_points($question), $hits, $total, $rule));
+    $r['details']['pairs']      = $rows;
+    $r['details']['hits']       = $hits;
+    $r['details']['total']      = $total;
+    $r['details']['skipped']    = $total - $answered;
+    $r['details']['negMarking'] = $rule;
+    $fb = "Poprawnie dopasowane pary: {$hits} z {$total}";
+    if ($total - $answered > 0) $fb .= ' (bez wyboru: ' . ($total - $answered) . ')';
+    if ($rule === 'all_or_nothing' && $hits < $total) $fb .= ' — punkty tylko za komplet';
+    return ex_qr_feedback($r, $fb . '.');
+}
+
+function ex_grade_ordering(array $question, array $answer, array $ctx): array {
+    $r = ex_qr_new($question);
+    $config = ex_cfg_map($question, 'config');
+    $items  = ex_ordering_items($config);
+    $n      = count($items);
+    if ($n < 2) {
+        $r['needsReview'] = true;
+        return ex_qr_feedback(ex_qr_award($r, 0), 'Pytanie nie ma elementów do ułożenia — do sprawdzenia przez prowadzącego.');
+    }
+
+    // Pozycje spoza 1..N i nieznane klucze odrzucamy; pozycja wskazana kilku
+    // elementom jest niejednoznaczna — każdy z tych elementów liczy się jako błędny.
+    $order = [];
+    $keys  = array_column($items, 'key');
+    foreach (ex_answer_order($answer) as $k => $pos) {
+        if ($pos <= $n && in_array($k, $keys, true)) $order[$k] = $pos;
+    }
+    $dups = ex_ordering_duplicates($order);
+
+    $rows = []; $posHits = 0;
+    foreach ($items as $i => $it) {
+        $g   = $order[$it['key']] ?? null;
+        $dup = $g !== null && in_array($g, $dups, true);
+        $ok  = $g !== null && !$dup && $g === $i + 1;
+        if ($ok) $posHits++;
+        $row = ['key' => $it['key'], 'label' => $it['label'], 'answered' => $g !== null,
+                'given' => $g, 'duplicate' => $dup, 'correct' => $ok];
+        if (!empty($ctx['revealAnswers'])) $row['expected'] = $i + 1;
+        $rows[] = $row;
+    }
+
+    $scoring = ex_cfg_str($config, 'scoring', 'position') === 'pairs' ? 'pairs' : 'position';
+    if ($scoring === 'pairs') {
+        // Sąsiednie pary: element i+1 stoi tuż za elementem i (względna kolejność).
+        $hits = 0; $total = $n - 1;
+        for ($i = 0; $i < $n - 1; $i++) {
+            $a = $rows[$i]; $b = $rows[$i + 1];
+            if ($a['given'] !== null && $b['given'] !== null && !$a['duplicate'] && !$b['duplicate']
+                && $b['given'] === $a['given'] + 1) $hits++;
+        }
+    } else {
+        $hits = $posHits; $total = $n;
+    }
+
+    $rule = ex_cfg_str($config, 'negMarking', $ctx['negMarking']);
+    $details = ['items' => $rows, 'hits' => $hits, 'total' => $total, 'positionHits' => $posHits,
+                'scoring' => $scoring, 'duplicates' => $dups, 'negMarking' => $rule];
+
+    if (empty($order)) {
+        $r = ex_qr_award($r, 0);
+        $r['details'] = $details;
+        return ex_qr_feedback($r, 'Brak odpowiedzi.');
+    }
+
+    $r = ex_qr_award($r, ex_items_score(ex_question_points($question), $hits, $total, $rule));
+    $r['details'] = array_merge($r['details'], $details);
+    $fb = $scoring === 'pairs'
+        ? "Poprawnie ułożone sąsiednie pary: {$hits} z {$total}"
+        : "Elementy na właściwej pozycji: {$hits} z {$total}";
+    if ($dups) {
+        $fb .= '. Pozycja ' . implode(', ', $dups) . ' została wskazana kilku elementom — liczone jako błędne';
+    }
+    if ($rule === 'all_or_nothing' && $hits < $total) $fb .= ' — punkty tylko za komplet';
+    return ex_qr_feedback($r, $fb . '.');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Dispatch + Grader.java (ocenianie całego podejścia)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -406,6 +629,8 @@ function ex_grade_question(array $question, $answerRaw, array $ctx): array {
             case 'truefalse':       return ex_grade_truefalse($question, $answer, $ctx);
             case 'fill_blank':      return ex_grade_fill_blank($question, $answer, $ctx);
             case 'short_answer':    return ex_grade_short_answer($question, $answer, $ctx);
+            case 'matching':        return ex_grade_matching($question, $answer, $ctx);
+            case 'ordering':        return ex_grade_ordering($question, $answer, $ctx);
             case 'code_fix':        return ex_grade_code_fix($question, $answer, $ctx);
             case 'code_completion': return ex_grade_code_completion($question, $answer, $ctx);
             case 'code_run':        return ex_grade_code_run($question, $answer, $ctx);

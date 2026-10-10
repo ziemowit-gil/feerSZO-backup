@@ -86,7 +86,8 @@ function ex_form_error(string $field, string $message): array {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function ex_qa_types(): array {
-    return ['single', 'multi', 'truefalse', 'fill_blank', 'short_answer', 'code_fix', 'code_completion', 'code_run'];
+    return ['single', 'multi', 'truefalse', 'fill_blank', 'short_answer', 'matching', 'ordering',
+            'code_fix', 'code_completion', 'code_run'];
 }
 
 function ex_qa_match_modes(): array {
@@ -101,6 +102,8 @@ function ex_qa_type_meta(): array {
         'truefalse'       => ['options' => true,  'cases' => false],
         'fill_blank'      => ['options' => false, 'cases' => false],
         'short_answer'    => ['options' => false, 'cases' => false],
+        'matching'        => ['options' => false, 'cases' => false],   // pary w config.pairs
+        'ordering'        => ['options' => false, 'cases' => false],   // elementy w config.items
         'code_fix'        => ['options' => false, 'cases' => true],
         'code_completion' => ['options' => false, 'cases' => true],
         'code_run'        => ['options' => false, 'cases' => true],
@@ -295,6 +298,97 @@ function ex_qa_short_answer(array $form, array &$config, array &$errors, array &
     }
 }
 
+/** Porównanie „czy to ten sam element” — bez wielkości liter i skrajnych spacji. */
+function ex_qa_item_norm(string $s): string {
+    return mb_strtolower(trim($s), 'UTF-8');
+}
+
+/**
+ * Dopasowywanie par. Pola formularza: pairs:[{left,right}], distractors (lista
+ * albo tekst wielolinijkowy), negMarking. Wiersze całkiem puste są pomijane
+ * (to zapasowe wiersze formularza).
+ */
+function ex_qa_matching(array $form, array &$config, array &$errors, array &$warnings): void {
+    ex_qa_neg_marking($form, $config);
+
+    $pairs = []; $lefts = []; $rights = [];
+    $n = 0;
+    foreach (ex_cfg_list($form, 'pairs') as $pRaw) {
+        $p = is_array($pRaw) ? $pRaw : [];
+        $left  = trim(ex_cfg_str($p, 'left', ''));
+        $right = trim(ex_cfg_str($p, 'right', ''));
+        if ($left === '' && $right === '') continue;
+        $n++;
+        if ($left === '' || $right === '') {
+            $errors[] = ex_form_error('pairs', "Para {$n}: uzupełnij obie strony — element po lewej i pasujący element po prawej.");
+            continue;
+        }
+        $ln = ex_qa_item_norm($left);
+        if (isset($lefts[$ln])) {
+            $errors[] = ex_form_error('pairs', 'Element po lewej „' . $left . '” powtarza się — każdy lewy element musi być inny.');
+            continue;
+        }
+        $lefts[$ln] = true;
+        $rn = ex_qa_item_norm($right);
+        if (isset($rights[$rn])) {
+            $warnings[] = ex_form_error('pairs', 'Element po prawej „' . $right . '” pasuje do kilku lewych — kursant zobaczy go na liście raz i może wybrać go wielokrotnie.');
+        }
+        // Ten sam prawy element (bez względu na wielkość liter) zapisujemy jedną
+        // pisownią — inaczej na liście wyboru pojawiłyby się dwa „różne” elementy.
+        $rights[$rn] = $rights[$rn] ?? $right;
+        $pairs[] = ['left' => $left, 'right' => $rights[$rn]];
+    }
+    if (count($pairs) < 2) {
+        $errors[] = ex_form_error('pairs', 'Podaj co najmniej dwie pełne pary do dopasowania.');
+    }
+
+    $distractors = []; $seen = [];
+    foreach (ex_form_lines($form, 'distractors') as $d) {
+        $dn = ex_qa_item_norm($d);
+        if (isset($rights[$dn])) {
+            $errors[] = ex_form_error('distractors', 'Dodatkowy element „' . $d . '” jest taki sam jak jedna z poprawnych odpowiedzi po prawej — usuń go albo zmień.');
+            continue;
+        }
+        if (isset($seen[$dn])) {
+            $warnings[] = ex_form_error('distractors', 'Dodatkowy element „' . $d . '” powtarza się — zapisano go raz.');
+            continue;
+        }
+        $seen[$dn] = true;
+        $distractors[] = $d;
+    }
+
+    $config['pairs']       = $pairs;
+    $config['distractors'] = $distractors;
+}
+
+/**
+ * Ustaw w kolejności. Pola formularza: items (lista albo tekst wielolinijkowy —
+ * w POPRAWNEJ kolejności), scoring ('position' | 'pairs'), negMarking.
+ */
+function ex_qa_ordering(array $form, array &$config, array &$errors, array &$warnings): void {
+    ex_qa_neg_marking($form, $config);
+    $scoring = ex_cfg_str($form, 'scoring', 'position');
+    $config['scoring'] = $scoring === 'pairs' ? 'pairs' : 'position';
+
+    $items = []; $seen = [];
+    foreach (ex_form_lines($form, 'items') as $it) {
+        $k = ex_qa_item_norm($it);
+        if (isset($seen[$k])) {
+            $errors[] = ex_form_error('items', 'Element „' . $it . '” powtarza się — każdy element do ułożenia musi być inny.');
+            continue;
+        }
+        $seen[$k] = true;
+        $items[] = $it;
+    }
+    if (count($items) < 3) {
+        $errors[] = ex_form_error('items', 'Podaj co najmniej trzy elementy do ułożenia w kolejności.');
+    }
+    if (count($items) > 20) {
+        $warnings[] = ex_form_error('items', 'Ponad 20 elementów to długa lista do ułożenia — zwłaszcza z czytnikiem ekranu. Rozważ podział na dwa pytania.');
+    }
+    $config['items'] = $items;
+}
+
 function ex_qa_code_fix(array $form, array &$config, array $cases, array &$errors, array &$warnings): void {
     ex_qa_language($form, $config, $errors);
     $snippet = ex_cfg_str($form, 'snippet', '');
@@ -403,6 +497,8 @@ function ex_question_authoring_build(array $req): array {
         case 'truefalse':       ex_qa_truefalse($form, $config, $options, $errors); break;
         case 'fill_blank':      ex_qa_fill_blank($form, $config, $prompt, $errors, $warnings); break;
         case 'short_answer':    ex_qa_short_answer($form, $config, $errors, $warnings); break;
+        case 'matching':        ex_qa_matching($form, $config, $errors, $warnings); break;
+        case 'ordering':        ex_qa_ordering($form, $config, $errors, $warnings); break;
         case 'code_fix':        ex_qa_code_fix($form, $config, $cases, $errors, $warnings); break;
         case 'code_completion': ex_qa_code_completion($form, $config, $cases, $errors, $warnings); break;
         case 'code_run':        ex_qa_code_run($form, $config, $cases, $errors, $warnings); break;
@@ -437,6 +533,8 @@ function ex_question_authoring_catalogue(): array {
         ['truefalse', 'Prawda / Fałsz', 'toggles', 'Zestaw twierdzeń — kursant ocenia każde osobno.'],
         ['fill_blank', 'Pytanie z luką', 'input-cursor-text', 'Wpisanie brakującego słowa kluczowego lub pojęcia.'],
         ['short_answer', 'Krótka odpowiedź', 'chat-left-text', 'Odpowiedź opisowa — automat po słowach kluczowych albo ocena prowadzącego.'],
+        ['matching', 'Dopasowywanie par', 'arrow-left-right', 'Do każdego pojęcia po lewej kursant wybiera pasujący element z listy; możliwe dodatkowe elementy-pułapki.'],
+        ['ordering', 'Ustaw w kolejności', 'sort-numeric-down', 'Kursant nadaje elementom numery pozycji — np. kroki procedury albo chronologię.'],
         ['code_fix', 'Analiza / poprawa kodu', 'bug', 'Fragment kodu z błędem — wskazanie linii albo przepisanie poprawnie.'],
         ['code_completion', 'Luki w kodzie', 'braces', 'Uzupełnienie brakujących słów kluczowych i konstrukcji składniowych.'],
         ['code_run', 'Zadanie programistyczne', 'terminal', 'Kod uruchamiany w piaskownicy i sprawdzany na danych wejście/wyjście.'],
