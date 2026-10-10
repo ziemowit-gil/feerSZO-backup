@@ -40,6 +40,22 @@ foreach ($_st_glowne_klucze as $_gk) {
     <div class="small text-body-secondary mt-1" id="kp-szukaj-wynik" aria-live="polite"></div>
   </div>
 
+  <!-- Wybór typu menu bez wychodzenia z panelu -->
+  <form method="post" action="<?= h(APP_URL) ?>/tozsamosc/kursant_ustawienia.php" class="d-flex flex-wrap align-items-end gap-2 mb-4">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <input type="hidden" name="wroc" value="panel">
+    <fieldset class="d-flex flex-wrap gap-2 m-0 p-0 border-0">
+      <legend class="small fw-semibold mb-1 w-100">Typ menu</legend>
+      <?php foreach (['zakladki' => 'Zakładki', 'rozwijane' => 'Rozwijana sekcja', 'dropdown' => 'Dropdown'] as $_v => $_l): ?>
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="radio" name="nav" id="kp-menu-<?= h($_v) ?>" value="<?= h($_v) ?>" <?= ($KUR_NAV ?? 'zakladki') === $_v ? 'checked' : '' ?>>
+        <label class="form-check-label" for="kp-menu-<?= h($_v) ?>"><?= h($_l) ?></label>
+      </div>
+      <?php endforeach; ?>
+    </fieldset>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz typ menu</button>
+  </form>
+
   <!-- Widok domyślny: najważniejsze i wszystkie sekcje -->
   <div id="kp-widok">
     <h2 class="h6 fw-bold text-uppercase mb-2">Najważniejsze</h2>

@@ -19,6 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     student_nav_set($acc_id, (string)($_POST['nav'] ?? 'zakladki'));
     // Pierwszy wybór przy logowaniu wraca od razu do panelu; zmiana w Tożsamości zostaje tutaj.
+    if (($_POST['wroc'] ?? '') === 'panel') {
+        header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit;
+    }
     if (($_POST['pierwszy'] ?? '') === '1') {
         header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php?ui=alt'); exit;
     }
