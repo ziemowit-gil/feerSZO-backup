@@ -418,3 +418,9 @@ body.kur-alt.ti-skin #kpIcalPopup > div:first-child i { color: #fff !important; 
 body.kur-alt.ti-skin #kpIcalPopup .btn-outline-light,
 body.kur-alt.ti-skin #kpIcalPopup .btn-outline-secondary { color: #1d1d1d !important; border: 2px solid #1d1d1d !important; background: #fff !important; }
 body.kur-alt.ti-skin #kpIcalPopup p, body.kur-alt.ti-skin #kpIcalPopup .small { color: #1d1d1d !important; }
+
+/* Bez czarnego: siatka kafli na jasnym tle, nagłówki grup ciemne, kafle kolorowe */
+body.kur-alt.ti-skin .kp-w8 { background: transparent !important; color: #1d1d1d !important; padding: 0 !important; }
+body.kur-alt.ti-skin .kp-w8-naglowek { color: #1d1d1d !important; border-bottom: 2px solid #1ba1e2; padding-bottom: .25rem; }
+body.kur-alt.ti-skin .kp-w8-siatka { gap: 8px; }
+body.kur-alt.ti-skin #kp-brak { color: #1d1d1d !important; }
