@@ -115,6 +115,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <div class="card border-0 shadow-sm">
   <div class="card-body">
     <p class="mb-2">Status: <?= $ma ? '<span class="badge bg-success">aktywny</span>' : '<span class="badge bg-secondary">brak</span>' ?></p>
+    <?= $cert_html ?>
     <?php if (!ti_cert_generation_open()): ?>
     <div class="alert alert-info small py-2"><i class="bi bi-calendar-event" aria-hidden="true"></i> <?= h(ti_cert_generation_info()) ?></div>
     <?php endif; ?>
