@@ -219,8 +219,12 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
     bar.style.width = (len === 0 ? 0 : proc) + '%';
     bar.className = 'progress-bar ' + kolor;
     lbl.textContent = len === 0 ? '' : 'Siła hasła: ' + opis + ' (' + len + ' znaków)';
-    rule('len').classList.toggle('text-success', len >= 16);
-    rule('cls').classList.toggle('text-success', klasy >= 3);
+    // Spełnienie wymagania pokazujemy tekstem (✓ / •), nie tylko kolorem (WCAG 1.4.1).
+    var okLen = len >= 16, okCls = klasy >= 3;
+    rule('len').textContent = (okLen ? '✓ spełnione: ' : '• wymaganie: ') + 'co najmniej 16 znaków';
+    rule('cls').textContent = (okCls ? '✓ spełnione: ' : '• wymaganie: ') + 'co najmniej 3 rodzaje znaków (małe, wielkie, cyfry, znaki specjalne)';
+    rule('len').classList.toggle('text-success', okLen);
+    rule('cls').classList.toggle('text-success', okCls);
   }
   p1.addEventListener('input', sila);
   function show(n) {
