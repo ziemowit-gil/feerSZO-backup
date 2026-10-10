@@ -1,6 +1,6 @@
 {
-    "name": "feer/szo",
-    "description": "System SZO",
+    "name": "feer/szo-feer",
+    "description": "SZO FEER",
     "type": "project",
     "require": {
         "php": ">=8.1",

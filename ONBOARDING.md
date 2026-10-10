@@ -1,4 +1,4 @@
-# feerSZO — ONBOARDING
+# SZO FEER — ONBOARDING
 
 Wewnętrzny system zarządzania organizacją FEER (umowy, EZD, CRM, karty30/TI, panel wolontariusza i in.).
 

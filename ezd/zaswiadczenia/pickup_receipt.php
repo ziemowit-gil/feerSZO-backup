@@ -121,7 +121,7 @@ table.grid td.lbl { width: 42%; background: #f5f5f5; color: #333; font-weight: b
            . '<td class="sig-cell">.....................<br>podpis osoby wydającej</td>'
            . '</tr></table>';
 
-    $html .= '<div class="footer">Wydrukowano: ' . $printed . ' &nbsp;·&nbsp; Dokument wygenerowany automatycznie przez system feerSZO</div>';
+    $html .= '<div class="footer">Wydrukowano: ' . $printed . ' &nbsp;·&nbsp; Dokument wygenerowany automatycznie przez system SZO FEER</div>';
     $html .= '</body></html>';
 
     $mpdf->WriteHTML($html);

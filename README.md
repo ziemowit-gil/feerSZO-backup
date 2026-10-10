@@ -1,4 +1,4 @@
-# Platforma NGO — feerSZO
+# SZO FEER — Platforma NGO
 
 Webowa platforma do zarządzania organizacją pozarządową. PHP 8.1+ / SQLite lub MySQL.
 

@@ -36,11 +36,11 @@ except:
   fi
 }
 
-echo -e "\n${BOLD}  feerSZO — Konfiguracja Angular new UI${RESET}"
+echo -e "\n${BOLD}  SZO FEER — Konfiguracja Angular new UI${RESET}"
 echo -e "  ${DIM}${NG_CONFIG}${RESET}\n"
 
 API_URL=$(ask  "URL API (karty30.php)" "$(ng_val apiUrl  '/api/v1/karty30.php')")
-APP_TITLE=$(ask "Tytuł aplikacji"      "$(ng_val appTitle 'feerSZO — Panel')")
+APP_TITLE=$(ask "Tytuł aplikacji"      "$(ng_val appTitle 'SZO FEER — Panel')")
 ORG_NAME=$(ask  "Nazwa organizacji"    "$(ng_val orgName  'FEER')")
 BASE_HREF=$(ask "Base href"            "$(ng_val baseHref '/newUI/')")
 
