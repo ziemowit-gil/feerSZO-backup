@@ -73,6 +73,19 @@ if (isset($_GET['saml_resume']) && !empty($_SESSION['saml_pending'])) {
 // Nie używamy require_login() — pomijamy ograniczenia ścieżek crm_only,
 // aby SSO działało dla wszystkich aktywnych kont.
 if (!current_user()) {
+    // Nazwa aplikacji na stronie logowania — tylko z rejestru SP (niezarejestrowanego
+    // issuera nie pokazujemy, żeby obca strona nie mogła podszyć się pod znaną aplikację).
+    $hintSp = null;
+    if ($binding === 'idp') {
+        $hintKey = (string)$_GET['sp'];
+        $hintSp  = ctype_digit($hintKey) ? saml_sp_by_id((int)$hintKey) : saml_sp_by_entity($hintKey);
+    } elseif (($hintXml = saml_decode_message($samlRequest, $binding === 'redirect')) !== null
+              && ($hintReq = saml_parse_authn_request($hintXml)) !== null) {
+        $hintSp = saml_sp_by_entity($hintReq['issuer']);
+    }
+    $_SESSION['sso_hint'] = ['app' => ($hintSp && (int)$hintSp['is_active'] === 1) ? (string)$hintSp['name'] : '',
+                             'reauth' => false, 'at' => time()];
+
     if ($binding === 'post') {
         $_SESSION['saml_pending'] = ['SAMLRequest' => $samlRequest, 'RelayState' => $relayState];
         $return = rtrim(APP_URL, '/') . '/saml/sso.php?saml_resume=1';
