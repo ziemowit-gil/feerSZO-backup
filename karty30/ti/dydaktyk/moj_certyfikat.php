@@ -9,11 +9,11 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_cert_issue.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/webauthn.php';
 webauthn_migrate();
-$klucze = webauthn_get_credentials($uid);
 
 $me      = dyd_require();
 $uid     = (int)$me['user_id'];
 $me_name = (string)($me['name'] ?? '');
+$klucze  = webauthn_get_credentials($uid);
 karty30_migrate();
 x509_init();
 
