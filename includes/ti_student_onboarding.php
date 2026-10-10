@@ -32,8 +32,10 @@ function ti_student_onboarding_mail(string $name, string $login, array $grupy = 
     $login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=kursant';
     $start_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/onboarding.php';
     $org = function_exists('org_setting') && org_setting('org_name') !== '' ? org_setting('org_name') : (defined('ORG_NAME') ? ORG_NAME : '');
+    // Powitanie tylko imieniem (pierwszy wyraz nazwy klienta).
+    $imie = trim((string)preg_split('/\s+/u', trim($name))[0]);
     $txt = ($org !== '' ? "Instytucja: {$org}\n\n" : '')
-         . "Dzień dobry, {$name},\n\n"
+         . "Dzień dobry, {$imie},\n\n"
          . ($grupy ? "Twoje grupy:\n" . implode("\n", array_map(
                fn($g) => '- ' . ($g['group_code'] !== '' ? $g['group_code'] : '#' . (int)$g['id']) . ' — ' . $g['name'], $grupy)) . "\n\n" : '')
          . "Twoje konto w panelu kursanta jest gotowe. Tam zobaczysz swoje zajęcia, plan i rozliczenia.\n\n"
