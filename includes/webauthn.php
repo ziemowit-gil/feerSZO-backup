@@ -335,7 +335,23 @@ function webauthn_begin_register(int $user_id, string $user_name, string $displa
     ];
 }
 
+/**
+ * Ujednolica odpowiedź z przeglądarki. Część stron wysyła płasko
+ * {id, clientDataJSON, attestationObject|authenticatorData, signature}, a część tak, jak
+ * wygląda PublicKeyCredential: {id, rawId, type, response: {clientDataJSON, …}}
+ * (np. panel prowadzącego: moj_certyfikat.php, protokoly_moje.php). Bez tego zagnieżdżona
+ * postać kończyła się błędem „nieprawidłowy clientDataJSON”.
+ */
+function webauthn_flatten_response(array $response): array {
+    if (isset($response['response']) && is_array($response['response'])) {
+        $response = array_merge($response, $response['response']);
+        unset($response['response']);
+    }
+    return $response;
+}
+
 function webauthn_complete_register(array $response, string $key_name = 'Klucz sprzętowy'): int {
+    $response = webauthn_flatten_response($response);
     $challenge_b64u = $_SESSION['webauthn_reg_challenge'] ?? null;
     $user_id        = $_SESSION['webauthn_reg_uid']       ?? null;
     if (!$challenge_b64u || !$user_id) {
@@ -442,6 +458,7 @@ function webauthn_begin_auth(?int $user_id = null): array {
 }
 
 function webauthn_complete_auth(array $response): int {
+    $response = webauthn_flatten_response($response);
     $challenge_b64u = $_SESSION['webauthn_auth_challenge'] ?? null;
     if (!$challenge_b64u) {
         throw new \RuntimeException('WebAuthn: brak sesji uwierzytelniania');
