@@ -9,6 +9,9 @@ $_kp_label   = $komm_filter_label ?? '';
 $_kp_mode    = $komm_mode       ?? 'grupa';
 $_kp_cids    = $komm_course_ids ?? [];
 $_kp_instr   = $komm_instr_id   ?? 0;
+$_kp_clients = $komm_client_ids ?? [];
+require_once dirname(__DIR__, 3) . '/modules/ti_comm_targets/logic/tiCommTargets.php';
+$_komm_students = tiCommStudentsList();
 $_kp_date    = $komm_date       ?? '';
 $_kp_email   = $komm_ch_email   ?? false;
 $_kp_sms     = $komm_ch_sms     ?? false;
@@ -62,6 +65,14 @@ $_komm_log   = db_all(
               <input class="form-check-input komm-mode" type="radio" name="mode" id="km_dzien" value="dzien" <?= $_kp_mode==='dzien'?'checked':'' ?>>
               <label class="form-check-label" for="km_dzien">Per dzień (lekcje danego dnia)</label>
             </div>
+            <div class="form-check">
+              <input class="form-check-input komm-mode" type="radio" name="mode" id="km_osoby" value="osoby" <?= $_kp_mode==='osoby'?'checked':'' ?>>
+              <label class="form-check-label" for="km_osoby">Wybrane osoby</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input komm-mode" type="radio" name="mode" id="km_wszyscy" value="wszyscy" <?= $_kp_mode==='wszyscy'?'checked':'' ?>>
+              <label class="form-check-label" for="km_wszyscy">Wszyscy aktywni kursanci (<?= count($_komm_students) ?>)</label>
+            </div>
           </fieldset>
 
           <div class="komm-pane" data-mode="grupa" <?= $_kp_mode!=='grupa'?'hidden':'' ?>>
@@ -94,6 +105,30 @@ $_komm_log   = db_all(
             <label class="form-label fw-semibold" for="komm_date">Dzień zajęć</label>
             <input type="date" class="form-control" id="komm_date" name="date" value="<?= h($_kp_date) ?>" style="max-width:14rem">
             <div class="form-text">Wiadomość trafi do kursantów z kursów, które mają lekcję tego dnia.</div>
+          </div>
+
+          <div class="komm-pane" data-mode="osoby" <?= $_kp_mode!=='osoby'?'hidden':'' ?>>
+            <label class="form-label fw-semibold" for="komm_szukaj">Szukaj kursanta</label>
+            <input type="search" class="form-control mb-2" id="komm_szukaj" autocomplete="off" aria-describedby="komm_szukaj_pom" placeholder="imię, nazwisko, e-mail lub telefon">
+            <div class="form-text mt-0 mb-2" id="komm_szukaj_pom">Lista poniżej zawęża się w trakcie pisania. Zaznaczone osoby zostają zaznaczone.</div>
+            <fieldset>
+              <legend class="form-label fw-semibold mb-1">Kursanci <span class="text-muted small" id="komm_osoby_licz" aria-live="polite">(zaznaczono: <?= count($_kp_clients) ?>)</span></legend>
+              <div class="komm-osoby border p-2" style="max-height:300px;overflow:auto">
+                <?php foreach ($_komm_students as $st):
+                  $kont = trim(($st['email'] ?: '') . ($st['email'] && $st['phone'] ? ' · ' : '') . ($st['phone'] ?: '')); ?>
+                <div class="form-check komm-osoba" data-szukaj="<?= h(mb_strtolower($st['name'] . ' ' . $st['email'] . ' ' . $st['phone'])) ?>">
+                  <input class="form-check-input" type="checkbox" name="client_ids[]" value="<?= (int)$st['id'] ?>" id="komm_os_<?= (int)$st['id'] ?>" <?= in_array((int)$st['id'], $_kp_clients, true) ? 'checked' : '' ?>>
+                  <label class="form-check-label" for="komm_os_<?= (int)$st['id'] ?>"><?= h($st['name']) ?><?php if ($kont !== ''): ?> <span class="text-muted small">— <?= h($kont) ?></span><?php else: ?> <span class="text-muted small">— brak e-maila i telefonu</span><?php endif; ?></label>
+                </div>
+                <?php endforeach; ?>
+              </div>
+            </fieldset>
+          </div>
+
+          <div class="komm-pane" data-mode="wszyscy" <?= $_kp_mode!=='wszyscy'?'hidden':'' ?>>
+            <div class="alert alert-warning py-2 small mb-0" role="note">
+              <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Wiadomość trafi do <strong>wszystkich <?= count($_komm_students) ?></strong> kursantów z aktywnym zapisem. Najpierw użyj „Podglądu”, żeby sprawdzić listę.
+            </div>
           </div>
 
           <hr class="my-3">
@@ -372,5 +407,17 @@ $_komm_log   = db_all(
       });
     }
   }
+})();
+
+// Wybrane osoby: zawężanie listy i licznik zaznaczonych
+(function(){
+  var q = document.getElementById('komm_szukaj'), lic = document.getElementById('komm_osoby_licz');
+  var items = document.querySelectorAll('.komm-osoba');
+  if (q) q.addEventListener('input', function(){
+    var t = q.value.trim().toLowerCase();
+    items.forEach(function(el){ el.hidden = t !== '' && el.getAttribute('data-szukaj').indexOf(t) === -1; });
+  });
+  function licz(){ if (lic) lic.textContent = '(zaznaczono: ' + document.querySelectorAll('.komm-osoba input:checked').length + ')'; }
+  items.forEach(function(el){ el.querySelector('input').addEventListener('change', licz); });
 })();
 </script>

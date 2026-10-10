@@ -49,7 +49,7 @@ if (!empty($KIER_ITEMS)) {
         ...(function_exists('dyd_can_analytics') && dyd_can_analytics() ? [['Analityka TI', 'analityka.php', 'speedometer2']] : []),
         ['Wypłaty prowadzących',      'index.php?tab=wypłaty',      'cash-stack'],
         ['Praca własna',              'index.php?tab=praca_wlasna', 'journal-text'],
-        ['Komunikacja',               'index.php?tab=komunikacja',  'megaphone'],
+        ['SMS i mailing do kursantów', 'index.php?tab=komunikacja', 'send'],
         ['Szablony e-mail',           'szablonyEmail.php',          'envelope-paper'],
         ['Szablony SMS',              'szablonySms.php',            'chat-left-text'],
         ['Żetony SZO',                'zetony.php',                 'ticket-detailed'],

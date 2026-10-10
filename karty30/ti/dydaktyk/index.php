@@ -353,6 +353,7 @@ $komm_filter_label = '';
 $komm_mode         = 'grupa';
 $komm_course_ids   = [];
 $komm_instr_id     = 0;
+$komm_client_ids   = [];
 $komm_date         = '';
 $komm_ch_email     = false;
 $komm_ch_sms       = false;
@@ -1865,8 +1866,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Komunikacja — e-mail / SMS ────────────────────────────────────────────
     if ($op === 'komm_preview' && dyd_is_staff()) {
-        $komm_mode       = in_array($_POST['mode'] ?? '', ['grupa','prowadzacy','dzien'], true) ? $_POST['mode'] : 'grupa';
+        require_once dirname(__DIR__, 3) . '/modules/ti_comm_targets/logic/tiCommTargets.php';
+        $komm_mode       = in_array($_POST['mode'] ?? '', TI_COMM_MODES, true) ? $_POST['mode'] : 'grupa';
         $komm_course_ids = array_values(array_filter(array_map('intval', (array)($_POST['course_ids'] ?? []))));
+        $komm_client_ids = array_values(array_filter(array_map('intval', (array)($_POST['client_ids'] ?? []))));
         $komm_instr_id   = (int)($_POST['instructor_id'] ?? 0);
         $komm_date       = trim($_POST['date'] ?? '');
         $komm_ch_email   = !empty($_POST['ch_email']);
@@ -1875,30 +1878,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $komm_subject    = trim($_POST['subject'] ?? '');
         $komm_body       = trim($_POST['body'] ?? '');
         $komm_body_html  = trim($_POST['body_html'] ?? '');
-        $cids = k30_ti_comm_course_ids($komm_mode, [
-            'course_ids'=>$komm_course_ids, 'instructor_id'=>$komm_instr_id, 'date'=>$komm_date,
-        ]);
-        $komm_recipients = k30_ti_comm_recipients($cids);
-        if ($komm_ch_guard) {
-            $komm_recipients = array_merge($komm_recipients, k30_ti_comm_guardian_recipients($cids));
-            $seen = [];
-            $komm_recipients = array_values(array_filter($komm_recipients, function($r) use (&$seen) {
-                $key = trim(mb_strtolower((string)$r['email'])) ?: trim((string)$r['phone']);
-                if ($key === '' || isset($seen[$key])) return $key === '';
-                $seen[$key] = true;
-                return true;
-            }));
-        }
-        if ($komm_mode === 'grupa') {
-            $names = $cids ? array_column(db_all("SELECT name FROM k30_ti_courses WHERE id IN (".implode(',',array_fill(0,count($cids),'?')).")", $cids), 'name') : [];
-            $komm_filter_label = 'Grupy: ' . (implode(', ', $names) ?: '—');
-        } elseif ($komm_mode === 'prowadzacy') {
-            $in = $komm_instr_id ? db_one("SELECT name FROM users WHERE id=?", [$komm_instr_id]) : null;
-            $komm_filter_label = 'Prowadzący: ' . ($in['name'] ?? '—');
-        } else {
-            $komm_filter_label = 'Dzień: ' . ($komm_date ?: '—');
-        }
-        if ($komm_ch_guard) $komm_filter_label .= ' + rodzice/opiekunowie';
+        [$komm_recipients, $komm_filter_label] = tiCommTargets($komm_mode, [
+            'course_ids'=>$komm_course_ids, 'client_ids'=>$komm_client_ids, 'instructor_id'=>$komm_instr_id, 'date'=>$komm_date,
+        ], $komm_ch_guard);
         $komm_did_preview = true;
         // Nie redirectuje — renderuje stronę z zakładką komunikacja
     }
@@ -1906,7 +1888,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'komm_send' && dyd_is_staff()) {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/sms.php';
-        $k_mode       = in_array($_POST['mode'] ?? '', ['grupa','prowadzacy','dzien'], true) ? $_POST['mode'] : 'grupa';
+        require_once dirname(__DIR__, 3) . '/modules/ti_comm_targets/logic/tiCommTargets.php';
+        $k_mode       = in_array($_POST['mode'] ?? '', TI_COMM_MODES, true) ? $_POST['mode'] : 'grupa';
+        $k_client_ids = array_values(array_filter(array_map('intval', (array)($_POST['client_ids'] ?? []))));
         $k_course_ids = array_values(array_filter(array_map('intval', (array)($_POST['course_ids'] ?? []))));
         $k_instr_id   = (int)($_POST['instructor_id'] ?? 0);
         $k_date       = trim($_POST['date'] ?? '');
@@ -1922,20 +1906,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($k_ch_sms && !$k_sms_on)    $errs[] = 'SMS jest wyłączony w ustawieniach systemu.';
         if ($k_body === '')              $errs[] = 'Wpisz treść wiadomości.';
         if ($k_ch_email && $k_subject === '') $errs[] = 'Podaj temat wiadomości e-mail.';
-        $cids = k30_ti_comm_course_ids($k_mode, [
-            'course_ids'=>$k_course_ids, 'instructor_id'=>$k_instr_id, 'date'=>$k_date,
-        ]);
-        $k_recipients = k30_ti_comm_recipients($cids);
-        if ($k_ch_guard) {
-            $k_recipients = array_merge($k_recipients, k30_ti_comm_guardian_recipients($cids));
-            $seen = [];
-            $k_recipients = array_values(array_filter($k_recipients, function($r) use (&$seen) {
-                $key = trim(mb_strtolower((string)$r['email'])) ?: trim((string)$r['phone']);
-                if ($key === '' || isset($seen[$key])) return $key === '';
-                $seen[$key] = true;
-                return true;
-            }));
-        }
+        [$k_recipients, $k_filter_label] = tiCommTargets($k_mode, [
+            'course_ids'=>$k_course_ids, 'client_ids'=>$k_client_ids, 'instructor_id'=>$k_instr_id, 'date'=>$k_date,
+        ], $k_ch_guard);
         if (!$k_recipients) $errs[] = 'Brak odbiorców dla wybranego filtra.';
         if ($errs) {
             foreach ($errs as $e) flash_set('danger', $e);
@@ -1957,16 +1930,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 catch (\Throwable $ex) { $fail++; }
             }
         }
-        if ($k_mode === 'grupa') {
-            $names = $cids ? array_column(db_all("SELECT name FROM k30_ti_courses WHERE id IN (".implode(',',array_fill(0,count($cids),'?')).")", $cids), 'name') : [];
-            $k_filter_label = 'Grupy: ' . (implode(', ', $names) ?: '—');
-        } elseif ($k_mode === 'prowadzacy') {
-            $in2 = $k_instr_id ? db_one("SELECT name FROM users WHERE id=?", [$k_instr_id]) : null;
-            $k_filter_label = 'Prowadzący: ' . ($in2['name'] ?? '—');
-        } else {
-            $k_filter_label = 'Dzień: ' . ($k_date ?: '—');
-        }
-        if ($k_ch_guard) $k_filter_label .= ' + rodzice/opiekunowie';
         $k_ch = trim(($k_ch_email ? 'email' : '') . ($k_ch_email && $k_ch_sms ? '+' : '') . ($k_ch_sms ? 'sms' : ''));
         db_insert('k30_ti_comm_log', [
             'channel'=>$k_ch, 'filter_type'=>$k_mode, 'filter_label'=>$k_filter_label,
