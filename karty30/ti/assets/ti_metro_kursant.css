@@ -219,3 +219,11 @@ body.kur-alt.ti-skin .kp-komun.kp-przypiety { border-left-color: #b45309 !import
 body.kur-alt.ti-skin .kp-komun h2 { color: #1d1d1d; font-size: 1.05rem; }
 body.kur-alt.ti-skin .kp-komun .badge { border-radius: 0 !important; background: #0f6fa8 !important; }
 body.kur-alt.ti-skin .kp-komun .btn-link { color: #0f6fa8 !important; text-decoration: underline; }
+
+/* Wszystko, co stoi na ciemnym nagłówku (także <summary> rozwijanych kart), ma być jasne */
+body.kur-alt.ti-skin .card-header *:not(.btn):not(.badge):not(.visually-hidden),
+body.kur-alt.ti-skin summary.card-header *:not(.btn):not(.badge):not(.visually-hidden) { color: #f3f4f6 !important; }
+body.kur-alt.ti-skin summary.card-header,
+body.kur-alt.ti-skin summary.card-body { background: #1d1d1d !important; color: #fff !important; }
+body.kur-alt.ti-skin summary.card-body .dyd-hw-chevron,
+body.kur-alt.ti-skin summary .bi { color: #fff !important; }
