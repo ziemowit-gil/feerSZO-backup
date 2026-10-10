@@ -1118,3 +1118,11 @@ body.kur-alt.ti-skin .kp-dzis-modal .modal-footer .btn { background: #fff !impor
 body.kur-alt.ti-skin .kp-dzis-modal .modal-footer .btn:hover { background: #eef6fc !important; }
 body.kur-alt.ti-skin .kp-dzis-modal .btn:focus-visible { outline: 3px solid #facc15 !important; outline-offset: 2px; box-shadow: none !important; }
 body.kur-alt.ti-skin .kp-dzis-modal .modal-footer { gap: .5rem; }
+
+/* Aktywna grupa (kursant w kilku grupach) — w pasku okruszków, po prawej; przycisk 44 px */
+body.kur-alt.ti-skin .kp-grupa-ctx { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .9rem; color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-grupa-ctx > .bi { color: #0f6fa8; font-size: 1.1rem; }
+body.kur-alt.ti-skin .kp-grupa-ctx .kp-grupa-zmien { display: inline-flex; align-items: center; min-height: 44px; padding: .35rem .9rem;
+  background: #0f6fa8; color: #fff !important; border: 2px solid #0f6fa8; font-weight: 700; text-decoration: none !important; }
+body.kur-alt.ti-skin .kp-grupa-ctx .kp-grupa-zmien:hover { background: #0c5b8a; text-decoration: underline !important; }
+body.kur-alt.ti-skin .kp-grupa-ctx .kp-grupa-zmien:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }

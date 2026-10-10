@@ -174,13 +174,24 @@ foreach ($_cur_sec['items'] as $_i) {
 </nav>
 <?php endif; ?>
 
-<div class="skin-crumbs">
+<div class="skin-crumbs d-flex flex-wrap align-items-center gap-2">
+  <span>
   <a href="index.php?tab=dane">Panel kursanta</a>
   <?php if ($_alt_cur !== 'start'): ?>
     &rsaquo; <a href="<?= h($_cur_sec['href']) ?>"><?= h($_cur_sec['label']) ?></a>
   <?php endif; ?>
   <?php if ($_cur_label !== '' && $tab !== 'dane'): ?>
     &rsaquo; <strong><?= h($_cur_label) ?></strong>
+  <?php endif; ?>
+  </span>
+  <?php if (!empty($ti_ctx_multi)): /* kursant w kilku grupach: aktywna grupa + zmiana bez wylogowania */
+    $_ctx_nazwa = '';
+    foreach (($ti_ctx_courses ?? []) as $_cc) if ((int)$_cc['course_id'] === (int)($ti_ctx_course_id ?? 0)) $_ctx_nazwa = (string)$_cc['course_name']; ?>
+  <span class="kp-grupa-ctx ms-auto">
+    <i class="bi bi-people" aria-hidden="true"></i>
+    <span>Grupa: <strong><?= h($_ctx_nazwa) ?></strong></span>
+    <a class="kp-grupa-zmien" href="choose_group.php?tab=<?= h((string)($_GET['tab'] ?? '')) ?>">Zmień grupę<span class="visually-hidden"> (masz <?= count($ti_ctx_courses) ?> grupy)</span></a>
+  </span>
   <?php endif; ?>
 </div>
 
