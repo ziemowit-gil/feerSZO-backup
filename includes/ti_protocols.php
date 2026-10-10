@@ -50,6 +50,7 @@ function ti_protocols_migrate(): void {
     require_once dirname(__DIR__) . '/modules/ti_meetings/logic/tiMeetingsSchema.php';
     ti_meetings_migrate();                                              // nowe tabele spotkań (obok, nie zamiast danych godzinowych)
     if (szo_schema_current('ti_protocols_migrate', __FILE__)) return;   // raz na wersję pliku (includes/db.php)
+    try { ti_protocols_backfill_titles(); } catch (\Throwable $e) {}   // stare tytuły „Protokół RRRR-MM"
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS k30_ti_protocols (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,14 +146,38 @@ function ti_protocols_migrate(): void {
  * 'open'). $year_month w formacie "RRRR-MM". Osobny tor od protokołów
  * per-okres (period_id) — patrz nagłówek pliku.
  */
+/** Tytuł protokołu godzin: „Protokół godzin — {grupa} — {miesiąc} {rok}". */
+function ti_protocol_auto_title(string $course_name, string $year_month): string {
+    static $months = ['', 'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
+                      'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+    if (!preg_match('/^(\d{4})-(\d{2})$/', $year_month, $m)) return 'Protokół godzin';
+    $month = $months[(int)$m[2]] ?? $m[2];
+    $course = trim($course_name) !== '' ? trim($course_name) : 'bez nazwy grupy';
+    return 'Protokół godzin — ' . $course . ' — ' . $month . ' ' . $m[1];
+}
+
+/** Jednorazowe uzupełnienie tytułów starego formatu („Protokół 2026-10"). */
+function ti_protocols_backfill_titles(): void {
+    $rows = db_all(
+        "SELECT p.id, p.year_month, c.name AS course_name
+           FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id = p.course_id
+          WHERE p.title = 'Protokół ' || p.year_month"
+    );
+    foreach ($rows as $r) {
+        db_exec("UPDATE k30_ti_protocols SET title = ? WHERE id = ?",
+            [ti_protocol_auto_title((string)$r['course_name'], (string)$r['year_month']), (int)$r['id']]);
+    }
+}
+
 function ti_protocol_get_or_create_for_month(int $course_id, string $year_month): array {
     ti_protocols_migrate();
     $row = db_one("SELECT * FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$course_id, $year_month]);
     if ($row) return $row;
     ti_protocol_require_course_open($course_id);
+    $_cname = (string)(db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$course_id])['name'] ?? '');
     db()->prepare(
         "INSERT INTO k30_ti_protocols (course_id, year_month, title, status) VALUES (?,?,?,'open')"
-    )->execute([$course_id, $year_month, 'Protokół ' . $year_month]);
+    )->execute([$course_id, $year_month, ti_protocol_auto_title($_cname, $year_month)]);
     return db_one("SELECT * FROM k30_ti_protocols WHERE course_id=? AND year_month=?", [$course_id, $year_month]);
 }
 
