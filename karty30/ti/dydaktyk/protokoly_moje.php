@@ -23,6 +23,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = $_POST['_op'] ?? '';
 
+    // Kierownik wycofuje zatwierdzony protokół (z podaniem powodu — trafia do śladu zmian).
+    if ($op === 'withdraw') {
+        $pid = (int)($_POST['protocol_id'] ?? 0);
+        $pr  = $pid ? ti_protocol_get($pid) : null;
+        try {
+            if (!dyd_is_staff()) throw new \RuntimeException('Wycofać protokół może tylko kierownik.');
+            if (!$pr || !dyd_owns_course($uid, (int)$pr['course_id'])) throw new \RuntimeException('Nie ma takiego protokołu.');
+            ti_protocol_unlock($pid, $uid, $me_name, (string)($_POST['reason'] ?? ''));
+            flash_set('success', 'Protokół wycofany — prowadzący może go poprawić i zatwierdzić ponownie. Powód zapisano w śladzie zmian.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: protokoly_moje.php'); exit;
+    }
+
     // Kod SMS do podpisu protokołu — wysyłany na telefon zalogowanego prowadzącego.
     if ($op === 'send_otp') {
         $err = ti_protocol_otp_send($uid);
@@ -92,6 +107,22 @@ $open_summary = $open_row ? ti_protocol_month_summary($open_cid, $open_ym) : nul
 
 $_mon_names = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
+/** Przycisk „Wycofaj” (tylko kierownik): rozwijany formularz z obowiązkowym powodem. */
+$wycofaj_html = function (int $pid, string $opis): string {
+    if (!dyd_is_staff()) return '';
+    $id = 'wyc' . $pid . '_' . substr(md5($opis), 0, 4);
+    return '<details class="d-inline-block text-start ms-1"><summary class="btn btn-sm btn-outline-danger py-0">'
+         . '<i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Wycofaj<span class="visually-hidden"> protokół: ' . h($opis) . '</span></summary>'
+         . '<form method="post" class="card card-body p-2 mt-1 small" style="min-width:16rem">'
+         . '<input type="hidden" name="_token" value="' . h(dyd_token()) . '">'
+         . '<input type="hidden" name="_op" value="withdraw"><input type="hidden" name="protocol_id" value="' . $pid . '">'
+         . '<label class="form-label mb-1 fw-semibold" for="' . $id . '">Powód wycofania</label>'
+         . '<textarea class="form-control form-control-sm mb-2" id="' . $id . '" name="reason" rows="2" required '
+         . 'placeholder="np. błędna liczba godzin 12.10"></textarea>'
+         . '<button type="submit" class="btn btn-sm btn-danger">Wycofaj protokół</button>'
+         . '<span class="text-body-secondary mt-1">Prowadzący będzie mógł go poprawić i zatwierdzić ponownie.</span></form></details>';
+};
+
 $fmt_ym = function (string $ym) use ($_mon_names): string {
     [$y, $m] = explode('-', $ym);
     return ($_mon_names[(int)$m] ?? $ym) . ' ' . $y;
@@ -571,6 +602,7 @@ $_n_old = count(array_filter($months, fn($m) => !in_array($m['state'], ['current
             <?php if ($mr['state'] === 'approved'): ?>
               <a href="protokol_pdf.php?id=<?= (int)$mr['protocol_id'] ?>" class="btn btn-sm btn-outline-secondary py-0"
                  aria-label="PDF protokołu: <?= h($mr['course_name']) ?>, <?= h($fmt_ym($mr['year_month'])) ?>"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF</a>
+              <?= $wycofaj_html((int)$mr['protocol_id'], $mr['course_name'] . ', ' . $fmt_ym($mr['year_month'])) ?>
             <?php elseif ($mr['state'] === 'empty'): ?>
               <span class="text-body-secondary small">niewymagany</span>
             <?php elseif ($mr['can_approve'] || dyd_is_staff()): ?>
@@ -625,6 +657,7 @@ $_n_old = count(array_filter($months, fn($m) => !in_array($m['state'], ['current
          aria-label="Pobierz PDF protokołu: <?= h($c['course_name']) ?>, <?= h($fmt_ym($c['year_month'])) ?>">
         <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
       </a>
+      <?= $wycofaj_html((int)$c['protocol_id'], $c['course_name'] . ', ' . $fmt_ym($c['year_month'])) ?>
     </li>
     <?php endforeach; ?>
   </ul>
