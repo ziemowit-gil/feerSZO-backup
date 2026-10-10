@@ -97,8 +97,8 @@ function ti_cert_request_mail(string $name, string $issuer): array {
          . "Zatwierdzenie protokołu nie będzie możliwe bez certyfikatu, dlatego prosimy o jego wygenerowanie.\n\n"
          . "Jak to zrobić:\n"
          . "1. Zaloguj się do panelu dydaktyka i wejdź w sekcję „Certyfikat” (albo bezpośrednio: {$link}).\n"
-         . "2. Kliknij „Wygeneruj certyfikat”. Plik .p12 przyjdzie na Twój e-mail, a hasło do niego SMS-em na telefon z konta "
-         . "(możesz też sam ustawić hasło na tej samej stronie).\n"
+         . "2. Kliknij „Wygeneruj certyfikat” i ustaw w kreatorze własne hasło do pliku (co najmniej 16 znaków). "
+         . "Plik .p12 przyjdzie na Twój e-mail. Hasła nie wysyłamy — znasz je tylko Ty, więc je zapamiętaj.\n"
          . "3. Przy zatwierdzaniu protokołu wskaż plik i wpisz hasło. Nic z tym nie trzeba instalować.\n\n"
          . "Jeśli nie możesz wejść do panelu albo coś nie działa, odezwij się do kierownika.\n\n"
          . "Pozdrawiam,\n{$issuer}\nFundacja FEER\n\n"
@@ -107,24 +107,34 @@ function ti_cert_request_mail(string $name, string $issuer): array {
     return [$txt, $html];
 }
 
-/** Treść maila z instrukcją (bez hasła). */
-function ti_cert_mail_body(string $name, string $issuer, bool $zmiana_hasla = false, string $numer = ''): array {
-    $co = $zmiana_hasla
-        ? "w załączniku przesyłamy certyfikat (plik .p12) z nowym hasłem. Zmienione zostało hasło do pliku."
-        : "w załączniku przesyłamy certyfikat cyfrowy (plik .p12), którym będzie Pan/Pani podpisywać protokoły miesięczne w module Dydaktyka.";
+/**
+ * Treść maila z instrukcją (bez hasła).
+ * $wlasne_haslo — prowadzący ustawił hasło sam w kreatorze; wtedy nie piszemy o SMS-ie z hasłem.
+ */
+function ti_cert_mail_body(string $name, string $issuer, bool $zmiana_hasla = false, string $numer = '', bool $wlasne_haslo = false): array {
+    $co = $wlasne_haslo
+        ? "w załączniku przesyłamy certyfikat cyfrowy (plik .p12) zabezpieczony hasłem, które ustawił(a) Pan/Pani w kreatorze. "
+          . "Będzie nim Pan/Pani podpisywać protokoły miesięczne w module Dydaktyka. Poprzednie certyfikaty zostały unieważnione."
+        : ($zmiana_hasla
+            ? "w załączniku przesyłamy certyfikat (plik .p12) z nowym hasłem. Zmienione zostało hasło do pliku."
+            : "w załączniku przesyłamy certyfikat cyfrowy (plik .p12), którym będzie Pan/Pani podpisywać protokoły miesięczne w module Dydaktyka.");
     $txt = "Dzień dobry, {$name},\n\n"
          . ($numer !== '' ? "Numer certyfikatu: {$numer}.\n\n" : '')
          . "{$co}\n\n"
-         . "Hasło do pliku przyjdzie w osobnej wiadomości SMS na Pana/Pani numer telefonu.\n\n"
+         . ($wlasne_haslo
+              ? "Hasło do pliku ustawił(a) Pan/Pani sam(a) w kreatorze. Nie wysyłamy go — zna je tylko Pan/Pani.\n\n"
+              : "Hasło do pliku przyjdzie w osobnej wiadomości SMS na Pana/Pani numer telefonu.\n\n")
          . "Do czego służy?\n"
          . "Zatwierdzając protokół, podpisuje Pan/Pani go swoim certyfikatem. Podpis potwierdza, że to Pan/Pani "
          . "zatwierdził(a) ewidencję godzin i że jej treść nie została zmieniona po podpisaniu. "
          . "Bez certyfikatu nie da się zatwierdzić protokołu.\n\n"
          . "Co zrobić:\n"
          . "1. Zapisz plik w bezpiecznym miejscu. Nie przesyłaj go dalej i nie zostawiaj na wspólnym komputerze.\n"
-         . "2. Przy zatwierdzaniu protokołu (Protokoły → Zamknij) wskaż ten plik i wpisz hasło z SMS-a.\n"
+         . "2. Przy zatwierdzaniu protokołu (Protokoły → Zamknij) wskaż ten plik i wpisz " . ($wlasne_haslo ? 'swoje hasło' : 'hasło z SMS-a') . ".\n"
          . "3. Plik i hasło są używane tylko do tego podpisu i nie są zapisywane w systemie.\n\n"
-         . "Certyfikat jest ważny 2 lata. Jeśli plik się zgubi albo hasła nie ma, poproś o ponowne wystawienie.\n\n"
+         . ($wlasne_haslo
+              ? "Certyfikat jest ważny 2 lata. Jeśli plik się zgubi albo nie pamięta Pan/Pani hasła, wygeneruj nowy certyfikat w „Mój certyfikat”.\n\n"
+              : "Certyfikat jest ważny 2 lata. Jeśli plik się zgubi albo hasła nie ma, poproś o ponowne wystawienie.\n\n")
          . "Pozdrawiam,\n{$issuer}\nFundacja FEER\n\n"
          . "--\nTo jest wiadomość automatyczna, wysłana przez system. Prosimy na nią nie odpowiadać.";
     $html = '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>';
@@ -140,7 +150,8 @@ function ti_cert_deliver(int $uid, string $name, string $email, string $phone, s
     $file = bin2hex(random_bytes(12)) . '.p12';
     if (file_put_contents($dir . $file, $p12) === false) return ['ok' => false, 'error' => 'Nie udało się zapisać pliku certyfikatu.'];
 
-    [$txt, $html] = ti_cert_mail_body($name, $issuer, $zmiana_hasla, $numer);
+    // $sms === false: hasło ustawił prowadzący — mail nie może zapowiadać SMS-a z hasłem.
+    [$txt, $html] = ti_cert_mail_body($name, $issuer, $zmiana_hasla, $numer, !$sms);
     $mail_id = mail_queue_add(
         $email, $name,
         'Certyfikat do podpisywania protokołów TI — Fundacja FEER',
