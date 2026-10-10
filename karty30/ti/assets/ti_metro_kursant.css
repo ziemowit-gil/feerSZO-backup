@@ -583,3 +583,21 @@ body.kur-alt.ti-skin .alt-zad-item { color: #1d1d1d !important; min-height: 84px
 body.kur-alt.ti-skin .alt-zad-item:hover { background: #f3f4f6; }
 body.kur-alt.ti-skin .alt-zad-item-sel { background: #d9f0fb; border-left: 6px solid #1ba1e2; }
 body.kur-alt.ti-skin .alt-zad-mark { display: none; }
+
+/* Mniejsze kafle pod okruszkami: niski pasek, ikona obok tekstu */
+body.kur-alt.ti-skin .kp-sekcja-kafle { padding-top: .5rem !important; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafle-mini { grid-template-columns: repeat(auto-fill, minmax(120px, max-content)); gap: .35rem; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini {
+  min-height: 0 !important; padding: .3rem .7rem !important; font-size: .85rem; border-width: 1px !important;
+  border-bottom-width: 3px !important; gap: .35rem;
+}
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini.active,
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini[aria-current="page"] { border-bottom-width: 3px !important; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini .kp-kafel-ikona { font-size: .95rem; margin-right: .3rem; }
+
+/* Pasek górny na biało: nazwa użytkownika i ikony nie mogą zostać białe */
+body.kur-alt.ti-skin header .navbar .text-white,
+body.kur-alt.ti-skin header .navbar .text-light,
+body.kur-alt.ti-skin header .navbar span,
+body.kur-alt.ti-skin header .navbar i { color: #1d1d1d !important; }
+body.kur-alt.ti-skin header .navbar .btn i, body.kur-alt.ti-skin header .navbar .btn span { color: #1d1d1d !important; }
