@@ -99,7 +99,7 @@ $_alt_sections = [
         'href'  => $_g('ustawienia'),
         'items' => [
             $_it('ustawienia', 'Ustawienia', $_g('ustawienia')),
-            $_it('',           'Menu panelu: zakładki czy rozwijane', APP_URL . '/tozsamosc/kursant_ustawienia.php'),
+            $_it('',           'Menu panelu: zakładki czy rozwijane', $_g('ustawienia') . '#ust-menu'),
         ],
     ],
 ];

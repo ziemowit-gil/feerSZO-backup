@@ -1054,3 +1054,34 @@ body.kur-alt.ti-skin .ust-navlink.active i { color: #fff !important; }
   body.kur-alt.ti-skin .ust-sidenav { flex-direction: row !important; flex-wrap: wrap; }
   body.kur-alt.ti-skin .ust-sidenav .ust-navlink { width: auto; flex: 1 1 150px; }
 }
+
+/* Ustawienia: karty w kolorach całego panelu — biel, ramka #1d1d1d, niebieski pasek pod nagłówkiem, ciemny tekst */
+body.kur-alt.ti-skin .ust-layout section.card { background: #fff !important; border: 2px solid #1d1d1d !important; border-radius: 0 !important; box-shadow: none !important; }
+body.kur-alt.ti-skin .ust-layout section.card > .card-header { background: #fff !important; color: #1d1d1d !important; border-bottom: 5px solid #1ba1e2 !important; border-radius: 0 !important; padding: .7rem 1rem !important; }
+body.kur-alt.ti-skin .ust-layout section.card > .card-header *:not(.btn):not(.badge):not(.visually-hidden) { color: #1d1d1d !important; }
+body.kur-alt.ti-skin .ust-layout section.card > .card-header i { color: #0f6fa8 !important; font-size: 1.15rem; }
+body.kur-alt.ti-skin .ust-layout section.card > .card-header h2 { font-size: 1.05rem !important; }
+body.kur-alt.ti-skin .ust-layout .form-check-input { width: 1.25rem; height: 1.25rem; border: 2px solid #1d1d1d; margin-top: .1rem; }
+body.kur-alt.ti-skin .ust-layout .form-check-input:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; box-shadow: none; }
+body.kur-alt.ti-skin .ust-layout .form-check { min-height: 32px; display: flex; align-items: center; gap: .5rem; padding-left: 0; }
+body.kur-alt.ti-skin .ust-layout .form-check .form-check-input { float: none; margin-left: 0; }
+
+/* Menu panelu: trzy opcje jako kafle z radiem (całe pole klikalne przez <label>, stan = zaznaczone radio + ramka, nie sam kolor) */
+body.kur-alt.ti-skin .kp-menu-opcje { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .75rem; }
+body.kur-alt.ti-skin .kp-menu-opcja { position: relative; }
+body.kur-alt.ti-skin .kp-menu-opcja .form-check-input { position: absolute; top: .8rem; right: .8rem; margin: 0; width: 1.3rem; height: 1.3rem; border: 2px solid #1d1d1d; }
+body.kur-alt.ti-skin .kp-menu-opcja label { display: flex; flex-direction: column; gap: .3rem; height: 100%; min-height: 120px; padding: .8rem 2.6rem .8rem .9rem;
+  background: #fff; border: 2px solid #1d1d1d; border-bottom: 5px solid #1ba1e2; cursor: pointer; color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-menu-opcja label > i { font-size: 1.6rem; color: #0f6fa8; }
+body.kur-alt.ti-skin .kp-menu-opcja-t { font-weight: 700; font-size: 1rem; }
+body.kur-alt.ti-skin .kp-menu-opcja-o { font-size: .85rem; color: #374151; }
+body.kur-alt.ti-skin .kp-menu-opcja label:hover { background: #eef6fc; }
+body.kur-alt.ti-skin .kp-menu-opcja .form-check-input:checked + label { background: #e6f4fb; border-color: #0f6fa8; border-width: 3px; border-bottom: 5px solid #0f6fa8; }
+body.kur-alt.ti-skin .kp-menu-opcja .form-check-input:focus-visible + label { outline: 3px solid #facc15; outline-offset: 2px; }
+
+/* Menu rozwijane (dropdown) w pasku: METRO — kwadratowe, ciemny tekst, pozycje 44px, aktywna niebieska z białym tekstem */
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-menu { border: 2px solid #1d1d1d !important; border-radius: 0 !important; padding: .25rem 0 !important; box-shadow: 0 6px 16px rgba(0,0,0,.12); min-width: 260px; }
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-item { display: flex; align-items: center; min-height: 44px; padding: .5rem 1rem; color: #1d1d1d !important; font-weight: 600; text-decoration: none; }
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-item:hover, body.kur-alt.ti-skin .skin-dropdowns .dropdown-item:focus-visible { background: #eef6fc !important; color: #1d1d1d !important; text-decoration: underline; }
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-item:focus-visible { outline: 3px solid #facc15; outline-offset: -3px; }
+body.kur-alt.ti-skin .skin-dropdowns .dropdown-item.active { background: #0f6fa8 !important; color: #fff !important; border-left: 5px solid #facc15; }

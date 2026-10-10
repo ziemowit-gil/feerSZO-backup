@@ -5087,6 +5087,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
     <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawień">
       <a href="#ust-styl"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-palette me-2" aria-hidden="true"></i>Styl panelu</a>
+      <?php if ($KUR_UI === 'alt'): ?><a href="#ust-menu" class="ust-navlink btn btn-sm text-start"><i class="bi bi-layout-text-sidebar me-2" aria-hidden="true"></i>Menu panelu</a><?php endif; ?>
       <a href="#ust-ulatw"  class="ust-navlink btn btn-sm text-start"><i class="bi bi-universal-access me-2" aria-hidden="true"></i>Ułatwienia</a>
       <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczeństwo</a>
       <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
@@ -5098,7 +5099,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- prawa: tresc -->
   <div class="col-12 col-md-9 col-xl-10 d-flex flex-column gap-4">
 
-    <!-- 1. Bezpieczeństwo -->
+    <!-- Styl panelu -->
     <section id="ust-styl" class="card" aria-labelledby="ust-styl-h">
       <div class="card-header d-flex align-items-center gap-2 py-2">
         <i class="bi bi-palette" aria-hidden="true"></i>
@@ -5111,20 +5112,44 @@ document.addEventListener('DOMContentLoaded', function() {
           <a class="btn btn-sm <?= $KUR_UI === 'alt' ? 'btn-primary' : 'btn-outline-secondary' ?>" href="index.php?ui=alt"<?= $KUR_UI === 'alt' ? ' aria-current="true"' : '' ?>>Widok alternatywny (METRO)</a>
         </div>
 
-        <?php if ($KUR_UI === 'alt'): require_once dirname(__DIR__, 3) . '/includes/auth.php'; /* csrf_token() dla formularza menu */ ?>
-        <form method="post" action="<?= h(APP_URL) ?>/tozsamosc/kursant_ustawienia.php" class="d-flex flex-column gap-2">
-          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-          <fieldset>
-            <legend class="small fw-semibold mb-1">Menu w widoku alternatywnym</legend>
-            <div class="form-check"><input class="form-check-input" type="radio" name="nav" id="nav-zakl" value="zakladki" <?= ($KUR_NAV ?? 'zakladki') === 'zakladki' ? 'checked' : '' ?>><label class="form-check-label" for="nav-zakl">Zakładki (wszystko widać)</label></div>
-            <div class="form-check"><input class="form-check-input" type="radio" name="nav" id="nav-rozw" value="rozwijane" <?= ($KUR_NAV ?? '') === 'rozwijane' ? 'checked' : '' ?>><label class="form-check-label" for="nav-rozw">Rozwijana bieżąca sekcja</label></div>
-            <div class="form-check"><input class="form-check-input" type="radio" name="nav" id="nav-drop" value="dropdown" <?= ($KUR_NAV ?? '') === 'dropdown' ? 'checked' : '' ?>><label class="form-check-label" for="nav-drop">Menu rozwijane (dropdown)</label></div>
-          </fieldset>
-          <button type="submit" class="btn btn-sm btn-primary align-self-start">Zapisz menu</button>
-        </form>
-        <?php endif; ?>
       </div>
     </section>
+
+    <?php if ($KUR_UI === 'alt'): require_once dirname(__DIR__, 3) . '/includes/auth.php'; /* csrf_token() dla formularza menu */ ?>
+    <section id="ust-menu" class="card" aria-labelledby="ust-menu-h">
+      <div class="card-header d-flex align-items-center gap-2 py-2">
+        <i class="bi bi-layout-text-sidebar" aria-hidden="true"></i>
+        <h2 id="ust-menu-h" class="h6 fw-bold mb-0">Menu panelu</h2>
+      </div>
+      <div class="card-body">
+        <?php if (isset($_GET['menu_ok'])): ?>
+        <div class="alert alert-success py-2 small" role="status"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Zapisano wybór menu.</div>
+        <?php endif; ?>
+        <form method="post" action="<?= h(APP_URL) ?>/tozsamosc/kursant_ustawienia.php">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="wroc" value="ustawienia">
+          <fieldset>
+            <legend class="small text-body-secondary mb-2">Wybierz, jak ma wyglądać menu w widoku METRO. Zmianę możesz cofnąć w każdej chwili.</legend>
+            <div class="kp-menu-opcje">
+            <div class="kp-menu-opcja">
+              <input class="form-check-input" type="radio" name="nav" id="nav-zakl" value="zakladki" aria-describedby="nav-zakl-op" <?= ($KUR_NAV ?? 'zakladki') === 'zakladki' ? 'checked' : '' ?>>
+              <label for="nav-zakl"><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i><span class="kp-menu-opcja-t">Zakładki</span><span class="kp-menu-opcja-o" id="nav-zakl-op">Wszystkie pozycje sekcji widać od razu jako rząd kafli.</span></label>
+            </div>
+            <div class="kp-menu-opcja">
+              <input class="form-check-input" type="radio" name="nav" id="nav-rozw" value="rozwijane" aria-describedby="nav-rozw-op" <?= ($KUR_NAV ?? '') === 'rozwijane' ? 'checked' : '' ?>>
+              <label for="nav-rozw"><i class="bi bi-list-nested" aria-hidden="true"></i><span class="kp-menu-opcja-t">Rozwijana sekcja</span><span class="kp-menu-opcja-o" id="nav-rozw-op">Widać bieżącą sekcję, resztę rozwijasz jednym przyciskiem.</span></label>
+            </div>
+            <div class="kp-menu-opcja">
+              <input class="form-check-input" type="radio" name="nav" id="nav-drop" value="dropdown" aria-describedby="nav-drop-op" <?= ($KUR_NAV ?? '') === 'dropdown' ? 'checked' : '' ?>>
+              <label for="nav-drop"><i class="bi bi-menu-button-wide" aria-hidden="true"></i><span class="kp-menu-opcja-t">Menu rozwijane</span><span class="kp-menu-opcja-o" id="nav-drop-op">Każda sekcja to przycisk z listą — najmniej miejsca na ekranie.</span></label>
+            </div>
+            </div>
+          </fieldset>
+          <button type="submit" class="btn btn-primary mt-3">Zapisz menu</button>
+        </form>
+      </div>
+    </section>
+    <?php endif; ?>
 
     <section id="ust-ulatw" class="card" aria-labelledby="ust-ulatw-h">
       <div class="card-header d-flex align-items-center gap-2 py-2">
