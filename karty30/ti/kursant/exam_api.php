@@ -68,7 +68,9 @@ $op      = (string)($body['op'] ?? 'save');
 
 if ($op === 'save') {
     ti_exam_answer_save((int)$attempt['id'], $qid, $payload);
-    exam_api_out(['ok' => true, 'savedAt' => date('c')]);
+    // Ostrzeżenie (np. powtórzona pozycja w „Ustaw w kolejności”) — odpowiedź jest zapisana.
+    $warn = ti_exam_answer_issue($question, $payload);
+    exam_api_out(['ok' => true, 'savedAt' => date('c')] + ($warn !== null ? ['warning' => $warn] : []));
 }
 
 if ($op === 'check') {

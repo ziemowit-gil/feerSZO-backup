@@ -142,6 +142,41 @@ $fmt      = fn(float $v): string => rtrim(rtrim(number_format($v, 2, ',', ' '), 
         <p class="mb-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= h((string)$ans['feedback']) ?></p>
       <?php endif; ?>
 
+      <?php /* Dopasowywanie / kolejność: stan każdej pary i pozycji — ikona + słowo, nie sam kolor.
+               Poprawnych odpowiedzi nie pokazujemy (jak w pozostałych typach). */ ?>
+      <?php if ((string)$q['type'] === 'matching' && !empty($details['pairs'])): ?>
+      <ul class="list-unstyled mb-2" aria-label="Twoje dopasowania">
+        <?php foreach ((array)$details['pairs'] as $pr): $okp = !empty($pr['correct']); ?>
+        <li class="mb-1">
+          <i class="bi bi-<?= $okp ? 'check-circle text-success' : 'x-circle text-danger' ?> me-1" aria-hidden="true"></i>
+          <span class="fw-semibold"><?= h((string)($pr['left'] ?? '')) ?></span>
+          <span aria-hidden="true">→</span><span class="visually-hidden">, Twój wybór:</span>
+          <?= !empty($pr['answered']) ? h((string)($pr['givenLabel'] ?? '')) : '<em>bez wyboru</em>' ?>
+          — <span class="fw-semibold"><?= $okp ? 'poprawnie' : 'niepoprawnie' ?></span>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php elseif ((string)$q['type'] === 'ordering' && !empty($details['items'])):
+        // Elementy w kolejności, w jakiej kursant je widział — kolejność poprawna
+        // nie wycieka przez sam układ listy.
+        $byKey = [];
+        foreach ((array)$details['items'] as $it) $byKey[(string)($it['key'] ?? '')] = $it;
+        $shownO = ti_exam_items_ordered(
+            array_map(fn($it) => ['key' => (string)($it['key'] ?? ''), 'label' => (string)($it['label'] ?? '')], array_values($byKey)),
+            $orderMap[$qid] ?? []); ?>
+      <ul class="list-unstyled mb-2" aria-label="Twoja kolejność">
+        <?php foreach ($shownO as $so): $it = $byKey[$so['key']] ?? []; $oko = !empty($it['correct']); ?>
+        <li class="mb-1">
+          <i class="bi bi-<?= $oko ? 'check-circle text-success' : 'x-circle text-danger' ?> me-1" aria-hidden="true"></i>
+          <?= h($so['label']) ?> — Twoja pozycja:
+          <strong><?= !empty($it['answered']) ? (int)$it['given'] : 'brak' ?></strong>
+          <?php if (!empty($it['duplicate'])): ?>(wskazana kilku elementom)<?php endif; ?>
+          — <span class="fw-semibold"><?= $oko ? 'poprawnie' : 'niepoprawnie' ?></span>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php endif; ?>
+
       <?php if (!empty($details['cases'])): ?>
       <ul class="list-unstyled mb-2">
         <?php foreach ((array)$details['cases'] as $c): ?>

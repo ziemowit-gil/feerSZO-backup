@@ -61,9 +61,11 @@ $languages  = K30_TI_EXAM_LANGS;
   <input type="hidden" name="exam_id" value="<?= (int)$exam['id'] ?>">
   <input type="hidden" name="attempt_id" value="<?= (int)$attempt['id'] ?>" id="examAttemptId">
 
-  <?php foreach ($questions as $n => $q):
+  <?php $sheet_issues = 0;
+  foreach ($questions as $n => $q):
     $qid     = (int)$q['id'];
     $payload = ti_exam_answer_payload($answers[$qid] ?? null);
+    if (ti_exam_answer_issue($q, $payload) !== null) $sheet_issues++;
     $qcfg    = ti_exam_config($q);
     require __DIR__ . '/_exam_question_student.php';
   endforeach; ?>
@@ -72,6 +74,11 @@ $languages  = K30_TI_EXAM_LANGS;
     <button class="btn btn-lg btn-primary" type="submit" id="examSubmit">
       <i class="bi bi-send-check me-1" aria-hidden="true"></i>Oddaj pracę
     </button>
+    <?php if ($sheet_issues > 0): ?>
+    <button class="btn btn-lg btn-outline-secondary" type="submit" name="force_submit" value="1">
+      <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Oddaj mimo to
+    </button>
+    <?php endif; ?>
     <span class="text-body-secondary small">
       Po oddaniu nie będzie już można zmienić odpowiedzi.
     </span>
@@ -130,7 +137,8 @@ $languages  = K30_TI_EXAM_LANGS;
                              question_id: qid, answer: collect(qid) })
     }).then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && d.ok) setSaveState('ok', 'Zapisano ' + new Date().toLocaleTimeString('pl-PL'), true);
+        if (d && d.ok && d.warning) setSaveState('error', 'Zapisano, ale: ' + d.warning, true);
+        else if (d && d.ok) setSaveState('ok', 'Zapisano ' + new Date().toLocaleTimeString('pl-PL'), true);
         else setSaveState('error', 'Nie udało się zapisać — odpowiedzi zostaną wysłane przy oddaniu pracy.', true);
       })
       .catch(function () {

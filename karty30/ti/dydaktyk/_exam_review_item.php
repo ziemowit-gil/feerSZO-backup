@@ -109,6 +109,56 @@ $qcfg     = ti_exam_config($q);
       </table>
     </div>
 
+<?php elseif ($qtype === 'matching'):
+    $prs = (array)($details['pairs'] ?? []);
+    if (!$prs) {   // brak wyniku silnika (np. czeka na ocenę) — pokaż pary z definicji
+        foreach (ex_matching_pairs($qcfg) as $p) $prs[] = ['left' => $p['left'], 'expected' => $p['right'], 'answered' => false];
+    } ?>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle">
+        <caption class="visually-hidden">Pary: element po lewej, wybór kursanta, poprawny element i ocena</caption>
+        <thead><tr><th scope="col">Element</th><th scope="col">Wybór kursanta</th><th scope="col">Poprawnie</th><th scope="col">Ocena</th></tr></thead>
+        <tbody>
+        <?php foreach ($prs as $pr): $okp = !empty($pr['correct']); ?>
+          <tr>
+            <th scope="row" class="fw-normal"><?= h((string)($pr['left'] ?? '')) ?></th>
+            <td><?= !empty($pr['answered']) ? h((string)($pr['givenLabel'] ?? '')) : '<span class="text-body-secondary">bez wyboru</span>' ?></td>
+            <td class="small"><?= h((string)($pr['expected'] ?? '')) ?></td>
+            <td><span class="badge text-bg-<?= $okp ? 'success' : 'danger' ?>">
+              <i class="bi bi-<?= $okp ? 'check-lg' : 'x-lg' ?> me-1" aria-hidden="true"></i><?= $okp ? 'poprawnie' : 'niepoprawnie' ?></span></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+
+<?php elseif ($qtype === 'ordering'):
+    $its = (array)($details['items'] ?? []);
+    if (!$its) {
+        foreach (ex_ordering_items($qcfg) as $i => $it) $its[] = ['label' => $it['label'], 'expected' => $i + 1, 'answered' => false];
+    } ?>
+    <?php if (!empty($details['scoring']) && $details['scoring'] === 'pairs'): ?>
+      <p class="small text-body-secondary mb-1">Punktacja za poprawnie ułożone sąsiednie pary.</p>
+    <?php endif; ?>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle">
+        <caption class="visually-hidden">Elementy w poprawnej kolejności, pozycja wskazana przez kursanta i ocena</caption>
+        <thead><tr><th scope="col">Poprawna pozycja</th><th scope="col">Element</th><th scope="col">Pozycja kursanta</th><th scope="col">Ocena</th></tr></thead>
+        <tbody>
+        <?php foreach ($its as $it): $oko = !empty($it['correct']); ?>
+          <tr>
+            <td><?= isset($it['expected']) ? (int)$it['expected'] : '—' ?></td>
+            <th scope="row" class="fw-normal"><?= h((string)($it['label'] ?? '')) ?></th>
+            <td><?= !empty($it['answered']) ? (int)$it['given'] : '<span class="text-body-secondary">brak</span>' ?>
+              <?php if (!empty($it['duplicate'])): ?><span class="small d-block">powtórzona pozycja</span><?php endif; ?></td>
+            <td><span class="badge text-bg-<?= $oko ? 'success' : 'danger' ?>">
+              <i class="bi bi-<?= $oko ? 'check-lg' : 'x-lg' ?> me-1" aria-hidden="true"></i><?= $oko ? 'poprawnie' : 'niepoprawnie' ?></span></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+
 <?php elseif ($qtype === 'short_answer'): ?>
     <div class="border rounded p-2 bg-body-tertiary mb-3">
       <?= nl2br(h((string)($payload['text'] ?? ''))) ?: '<span class="text-body-secondary">Brak odpowiedzi.</span>' ?>

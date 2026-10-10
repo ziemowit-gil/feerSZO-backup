@@ -69,6 +69,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $qid = (int)$q['id'];
             ti_exam_answer_save((int)$att['id'], $qid, ti_exam_payload_from_post($_POST['a'][$qid] ?? []));
         }
+
+        // Niejednoznaczne odpowiedzi (np. ta sama pozycja dla kilku elementów
+        // w „Ustaw w kolejności”) — wracamy do arkusza z komunikatem, chyba że
+        // kursant świadomie wybrał „Oddaj mimo to” albo czas właśnie minął.
+        $dl      = trim((string)($att['deadline_at'] ?? ''));
+        $expired = $dl !== '' && time() >= strtotime($dl) - 5;
+        if (empty($_POST['force_submit']) && !$expired) {
+            $answers_now = ti_exam_answers((int)$att['id']);
+            $problems    = [];
+            foreach (ti_exam_attempt_questions($att) as $i => $q) {
+                $issue = ti_exam_answer_issue($q, ti_exam_answer_payload($answers_now[(int)$q['id']] ?? null));
+                if ($issue !== null) $problems[] = 'pytanie ' . ($i + 1);
+            }
+            if ($problems) {
+                $msg = 'Praca nie została jeszcze oddana. Sprawdź: ' . implode(', ', $problems)
+                     . ' — ten sam numer pozycji wybrano dla kilku elementów. Popraw kolejność albo wybierz „Oddaj mimo to”'
+                     . ' (powtórzone pozycje zostaną policzone jako błędne).';
+                header('Location: exam.php?exam=' . (int)$exam['id'] . '&solve=1&err=' . urlencode($msg)); exit;
+            }
+        }
+
         $r = ti_exam_submit((int)$att['id']);
         $suffix = $r['ok'] ? '' : '&engine=down';
         header('Location: exam.php?attempt=' . (int)$att['id'] . '&done=1' . $suffix); exit;

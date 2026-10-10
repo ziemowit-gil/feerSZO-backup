@@ -105,6 +105,73 @@ $lang  = (string)($qcfg['language'] ?? 'python');
       </table>
     </div>
 
+<?php /* ── Dopasowywanie par ───────────────────────────────────────────── */ ?>
+<?php elseif ($type === 'matching'):
+  // Lewe elementy w kolejności autora, prawa kolumna w kolejności wylosowanej
+  // dla podejścia. Wartości opcji to klucze z silnika — nie zdradzają pary.
+  $pairsL = ex_matching_pairs($qcfg);
+  $poolR  = ti_exam_items_ordered(ex_matching_right_pool($qcfg), $orderMap[$qid] ?? []);
+  $given  = (array)($payload['pairs'] ?? []); ?>
+    <p class="form-text mt-0" id="mh<?= $qid ?>">
+      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Do każdego elementu wybierz z listy pasujący element.
+      <?php if (count($poolR) > count($pairsL)): ?>Na liście są też elementy, które nie pasują do niczego.<?php endif; ?>
+    </p>
+    <?php foreach ($pairsL as $i => $p):
+      $fid = 'm' . $qid . '_' . $p['key'];
+      $cur = (string)($given[$p['key']] ?? ''); ?>
+    <div class="row g-2 align-items-center py-1">
+      <div class="col-sm-5">
+        <label class="form-label mb-0" for="<?= h($fid) ?>"><?= h($p['left']) ?><span class="visually-hidden"> — wybierz pasujący element</span></label>
+      </div>
+      <div class="col-sm-7">
+        <select class="form-select" id="<?= h($fid) ?>" name="<?= h($base) ?>[pairs][<?= h($p['key']) ?>]"
+                aria-describedby="mh<?= $qid ?>">
+          <option value="">— wybierz —</option>
+          <?php foreach ($poolR as $r): ?>
+          <option value="<?= h($r['key']) ?>" <?= $cur === $r['key'] ? 'selected' : '' ?>><?= h($r['label']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+    <?php endforeach; ?>
+
+<?php /* ── Ustaw w kolejności ──────────────────────────────────────────── */ ?>
+<?php elseif ($type === 'ordering'):
+  // Elementy w kolejności wylosowanej (nigdy poprawnej); przy każdym numer pozycji.
+  // Bez przeciągania — zwykłe listy wyboru działają z klawiatury, czytnikiem i bez JS.
+  $itemsO = ti_exam_items_ordered(ex_ordering_items($qcfg), $orderMap[$qid] ?? []);
+  $cntO   = count($itemsO);
+  $given  = (array)($payload['order'] ?? []);
+  $issue  = ti_exam_answer_issue($q, $payload); ?>
+    <p class="form-text mt-0" id="oh<?= $qid ?>">
+      <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Przy każdym elemencie wybierz jego miejsce w kolejności:
+      1 to pierwszy, <?= $cntO ?> to ostatni. Każdy numer wybierz tylko raz.
+    </p>
+    <?php if ($issue !== null): ?>
+    <div class="alert alert-warning d-flex gap-2 py-2" id="oi<?= $qid ?>">
+      <i class="bi bi-exclamation-triangle flex-shrink-0" aria-hidden="true"></i>
+      <span><span class="fw-semibold">Uwaga:</span> <?= h($issue) ?></span>
+    </div>
+    <?php endif; ?>
+    <?php foreach ($itemsO as $it):
+      $fid = 'ord' . $qid . '_' . $it['key'];
+      $cur = (int)($given[$it['key']] ?? 0); ?>
+    <div class="row g-2 align-items-center py-1">
+      <div class="col-sm-8">
+        <label class="form-label mb-0" for="<?= h($fid) ?>"><?= h($it['label']) ?><span class="visually-hidden"> — pozycja w kolejności</span></label>
+      </div>
+      <div class="col-sm-4">
+        <select class="form-select" id="<?= h($fid) ?>" name="<?= h($base) ?>[order][<?= h($it['key']) ?>]"
+                aria-describedby="oh<?= $qid ?><?= $issue !== null ? ' oi' . $qid : '' ?>">
+          <option value="">— pozycja —</option>
+          <?php for ($pos = 1; $pos <= $cntO; $pos++): ?>
+          <option value="<?= $pos ?>" <?= $cur === $pos ? 'selected' : '' ?>><?= $pos ?><?= $pos === 1 ? ' (pierwszy)' : ($pos === $cntO ? ' (ostatni)' : '') ?></option>
+          <?php endfor; ?>
+        </select>
+      </div>
+    </div>
+    <?php endforeach; ?>
+
 <?php /* ── Krótka odpowiedź ────────────────────────────────────────────── */ ?>
 <?php elseif ($type === 'short_answer'):
   $min = (int)($qcfg['minChars'] ?? 0); ?>
