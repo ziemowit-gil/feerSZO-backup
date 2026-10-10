@@ -128,6 +128,16 @@ loginShellHead([
         <button type="submit" class="tz-btn">Zaloguj do Tożsamości</button>
       </form>
 
+      <?php /* Logowanie kluczem bezpieczeństwa (WebAuthn) — logika w tozsamosc/klucz_login.php */ ?>
+      <div class="tz-sep">lub kluczem bezpieczeństwa</div>
+      <button type="button" class="tz-btn tz-btn-ghost tzt-ms" id="tzt-klucz" aria-describedby="tzt-klucz-hint">
+        <i class="bi bi-usb-drive" aria-hidden="true"></i>Zaloguj kluczem bezpieczeństwa
+      </button>
+      <p class="tz-hint mt-2 mb-0" id="tzt-klucz-hint">YubiKey, passkey w telefonie, Windows Hello lub Touch ID.
+        Masz YubiKey? Najpierw wpisz adres e-mail powyżej. Klucz dodasz w Tożsamości: <strong>Bezpieczeństwo</strong>.</p>
+      <div class="alert alert-danger small py-2 mt-2 mb-0 d-none" id="tzt-klucz-err" role="alert"></div>
+      <div class="visually-hidden" role="status" aria-live="polite" id="tzt-klucz-live"></div>
+
       <p class="tz-hint mt-4 mb-1 fw-semibold">Inne sposoby logowania</p>
       <div class="tzt-inne">
         <a href="<?= $e($full_url) ?>"><i class="bi bi-phone" aria-hidden="true"></i>Kod SMS, kod jednorazowy lub certyfikat</a>
@@ -135,7 +145,39 @@ loginShellHead([
       </div>
       <p class="tz-hint mb-0">Logowanie chronione: logowanie dwuetapowe i klucze bezpieczeństwa działają tak jak w całym systemie.</p>
 <?php
+$_klucz_js = '<script>(function () {'
+    . 'var btn = document.getElementById("tzt-klucz"), err = document.getElementById("tzt-klucz-err"), live = document.getElementById("tzt-klucz-live");'
+    . 'if (!btn) return;'
+    . 'if (!window.PublicKeyCredential || !navigator.credentials) { btn.disabled = true; btn.setAttribute("aria-disabled", "true");'
+    . '  document.getElementById("tzt-klucz-hint").textContent = "Ta przeglądarka nie obsługuje kluczy bezpieczeństwa."; return; }'
+    . 'var api = ' . json_encode($APP . '/tozsamosc/klucz_login.php?api=') . ', tok = ' . json_encode($token) . ', ret = ' . json_encode($redirect) . ';'
+    . 'function b2(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a.buffer;}'
+    . 'function u2(buf){var u=new Uint8Array(buf),s="";for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}'
+    . 'function blad(t){err.textContent=t;err.classList.remove("d-none");btn.disabled=false;live.textContent="";}'
+    . 'btn.addEventListener("click", async function () {'
+    . '  err.classList.add("d-none"); btn.disabled = true; live.textContent = "Dotknij klucza bezpieczeństwa albo potwierdź w urządzeniu.";'
+    . '  try {'
+    . '    var em = (document.getElementById("tzt-email").value || "").trim();'
+    . '    var r = await fetch(api + "begin" + (em ? "&email=" + encodeURIComponent(em) : ""), { credentials: "same-origin", cache: "no-store" });'
+    . '    var j = await r.json(); if (!r.ok) throw new Error(j.error || "Nie udało się rozpocząć logowania kluczem.");'
+    . '    var o = j.data;'
+    . '    var c = await navigator.credentials.get({ publicKey: { challenge: b2(o.challenge), rpId: o.rpId, timeout: o.timeout || 60000,'
+    . '      userVerification: o.userVerification || "preferred",'
+    . '      allowCredentials: (o.allowCredentials || []).map(function (a) { return { type: "public-key", id: b2(a.id), transports: a.transports }; }) } });'
+    . '    var resp = { id: c.id, rawId: u2(c.rawId), type: c.type, clientDataJSON: u2(c.response.clientDataJSON),'
+    . '      authenticatorData: u2(c.response.authenticatorData), signature: u2(c.response.signature) };'
+    . '    var r2 = await fetch(api + "complete", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },'
+    . '      body: JSON.stringify({ _csrf: tok, response: resp, redirect: ret }) });'
+    . '    var j2 = await r2.json(); if (!r2.ok || !j2.ok) throw new Error(j2.error || "Nie udało się zalogować kluczem.");'
+    . '    live.textContent = "Zalogowano. Przechodzę dalej."; window.location = j2.redirect;'
+    . '  } catch (e) {'
+    . '    blad(e && e.name === "NotAllowedError" ? "Logowanie kluczem przerwane albo minął czas. Spróbuj ponownie." : (e && e.message ? e.message : "Nie udało się zalogować kluczem."));'
+    . '  }'
+    . '});'
+    . '})();</script>';
+
 loginShellFoot([
+    'extraJs' => $_klucz_js,
     'links' => [
         ['url' => $APP . '/auth/report_login_issue.php', 'label' => 'Problem z logowaniem'],
         ['url' => $sso_url,                              'label' => 'Czym jest SSO?'],
