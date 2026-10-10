@@ -22,6 +22,17 @@ if (!$moze) {
 $wynik = null;  // wynik ostatniego wystawienia (hasło tylko gdy SMS się nie udał)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
+    // Odwołanie certyfikatu z listy zarządzania — tylko aktywnego (nie odwołanego).
+    if (($_POST['_op'] ?? '') === 'revoke') {
+        $cid = (int)($_POST['cert_id'] ?? 0);
+        if ($cid && db_one("SELECT id FROM admin_x509_certs WHERE id = ? AND revoked_at IS NULL", [$cid])) {
+            x509_revoke($cid);
+            flash_set('success', 'Certyfikat odwołany — przestaje działać przy podpisie.');
+        } else {
+            flash_set('danger', 'Nie ma takiego aktywnego certyfikatu.');
+        }
+        header('Location: certyfikaty.php'); exit;
+    }
     $target = (int)($_POST['target_id'] ?? 0);
     $ids    = array_map(fn($i) => (int)$i['id'], ti_cert_instructors());
     if (!$target || !in_array($target, $ids, true)) {
@@ -127,6 +138,51 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   </div>
 </div>
 <?php endif; ?>
+
+<?php
+// Zarządzanie: wszystkie certyfikaty wystawione w systemie, ze statusem i odwołaniem.
+$wszystkie = db_all(
+    "SELECT c.id, c.subject_cn, c.issued_at, c.valid_to, c.revoked_at, u.name
+       FROM admin_x509_certs c LEFT JOIN users u ON u.id = c.user_id
+      ORDER BY c.issued_at DESC LIMIT 200"
+);
+?>
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header fw-semibold">Zarządzanie certyfikatami (<?= count($wszystkie) ?>)</div>
+  <?php if (!$wszystkie): ?>
+  <div class="card-body small text-body-secondary">Nie wystawiono jeszcze żadnego certyfikatu.</div>
+  <?php else: ?>
+  <div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th scope="col">Użytkownik</th><th scope="col">Wystawiony</th><th scope="col">Ważny do</th><th scope="col">Status</th><th scope="col" class="text-end">Akcja</th></tr></thead>
+    <tbody>
+    <?php foreach ($wszystkie as $c):
+      if (!empty($c['revoked_at'])) { $st = ['secondary', 'odwołany']; }
+      elseif (strtotime((string)$c['valid_to']) <= time()) { $st = ['warning text-dark', 'wygasły']; }
+      else { $st = ['success', 'aktywny']; }
+    ?>
+      <tr<?= !empty($c['revoked_at']) ? ' class="text-body-secondary"' : '' ?>>
+        <td><?= h($c['name'] ?: $c['subject_cn']) ?></td>
+        <td class="small"><?= h(date('d.m.Y', strtotime((string)$c['issued_at']))) ?></td>
+        <td class="small"><?= h(date('d.m.Y', strtotime((string)$c['valid_to']))) ?></td>
+        <td><span class="badge bg-<?= $st[0] ?>"><?= h($st[1]) ?></span></td>
+        <td class="text-end">
+          <?php if ($st[1] === 'aktywny'): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Odwołać certyfikat? Przestanie działać przy podpisie protokołów.');">
+            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op" value="revoke">
+            <input type="hidden" name="cert_id" value="<?= (int)$c['id'] ?>">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Odwołaj</button>
+          </form>
+          <?php endif; ?>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+  <?php endif; ?>
+</div>
 
 </div>
 </main>

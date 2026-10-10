@@ -101,7 +101,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="alert alert-info small py-2 mb-3" role="note">
   <div class="fw-semibold mb-1"><i class="bi bi-info-circle" aria-hidden="true"></i> Zatwierdzanie protokołu wymaga certyfikatu</div>
   <p class="mb-1">Protokół podpisujesz swoim certyfikatem: wgrywasz plik .p12 i wpisujesz jego hasło przy zatwierdzaniu. Hasło nie jest zapisywane w systemie.</p>
-  <p class="mb-0">Nie masz certyfikatu? Poproś kierownika TI — wystawi go i wyśle plik mailem, a hasło przyjdzie SMS-em na Twój telefon.</p>
+  <p class="mb-0">Nie masz certyfikatu? Wygeneruj go sam w <a href="moj_certyfikat.php">Mój certyfikat</a> — plik przyjdzie mailem, a hasło SMS-em na Twój telefon. Możesz też poprosić kierownika TI.</p>
 </div>
 
 <?php if ($open_row): ?>
