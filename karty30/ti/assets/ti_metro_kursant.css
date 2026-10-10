@@ -72,3 +72,34 @@ body.kur-alt.ti-skin .btn-primary:focus { background: #0c5b8a; border-color: #0c
 body.kur-alt.ti-skin a:not(.btn) { color: #0f6fa8; }
 
 body.kur-alt.ti-skin :focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+
+/* Nawigacja jak kafle METRO: sekcje (pierwszy rząd) i pozycje sekcji (drugi rząd).
+   Aktywny kafel: akcent #1ba1e2 z ciemnym tekstem #1d1d1d (5,8:1). */
+body.kur-alt.ti-skin .skin-sections {
+  display: flex; flex-wrap: wrap; gap: 0; padding: 0;
+  background: #1d1d1d; border-bottom: 0;
+}
+body.kur-alt.ti-skin .skin-sections a {
+  display: inline-block; padding: .55rem 1rem; color: #fff !important;
+  text-decoration: none; background: #1d1d1d; border: 0; font-weight: 600;
+}
+body.kur-alt.ti-skin .skin-sections a:hover { background: #2b2b2b; text-decoration: underline; }
+body.kur-alt.ti-skin .skin-sections a[aria-current="page"] {
+  background: #1ba1e2 !important; color: #1d1d1d !important; border-bottom: 0 !important;
+}
+
+body.kur-alt.ti-skin .skin-subnav {
+  display: flex; flex-wrap: wrap; gap: .25rem; padding: .4rem .5rem;
+  background: #fff; border-bottom: 1px solid var(--ti-bar-border);
+}
+body.kur-alt.ti-skin .skin-subnav a {
+  display: inline-block; padding: .3rem .7rem; color: #1d1d1d !important;
+  background: #f3f4f6; border: 0; text-decoration: none;
+}
+body.kur-alt.ti-skin .skin-subnav a:hover { background: #e5e7eb; text-decoration: underline; }
+body.kur-alt.ti-skin .skin-subnav a.active,
+body.kur-alt.ti-skin .skin-subnav a[aria-current="page"] {
+  background: #1d1d1d !important; color: #fff !important; font-weight: 700;
+}
+
+body.kur-alt.ti-skin .skin-crumbs { background: #fff; color: #4b5563; font-size: .85rem; }
