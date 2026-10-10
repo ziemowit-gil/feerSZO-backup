@@ -156,7 +156,22 @@ const STUDENT_UI_ALT_DEFAULT_OD = '2026-11-01 00:00:00';
  * Bez zapisanego wyboru: od 01.11.2026 'alt' (nowy widok), wcześniej 'klasyczny'.
  * Zapisany wybór kursanta ma pierwszeństwo.
  */
+/**
+ * Jednorazowo od 01.11.2026 zdejmuje stare wybory „klasyczny” (zapisane przed zmianą domyślnego widoku),
+ * żeby wszyscy zaczęli od nowego widoku. Wybory dokonane już po tej dacie zostają — flaga w settings.
+ */
+function student_ui_reset_od_1_11(): void {
+    if (date('Y-m-d H:i:s') < STUDENT_UI_ALT_DEFAULT_OD) return;
+    if (!function_exists('org_setting_set')) return;
+    if (org_setting('ti_student_ui_reset_2026_11') === '1') return;
+    try {
+        db()->exec("UPDATE k30_ti_student_accounts SET ui_pref = '' WHERE ui_pref = 'klasyczny'");
+    } catch (\Throwable $e) { return; }
+    org_setting_set('ti_student_ui_reset_2026_11', '1');
+}
+
 function student_ui(int $accountId): string {
+    student_ui_reset_od_1_11();
     $domyslny = (date('Y-m-d H:i:s') >= STUDENT_UI_ALT_DEFAULT_OD) ? 'alt' : 'klasyczny';
     if ($accountId <= 0) return $domyslny;
     try {
