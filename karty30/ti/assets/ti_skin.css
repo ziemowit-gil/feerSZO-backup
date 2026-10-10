@@ -639,21 +639,3 @@ body.dyd-usos.ti-skin :is(main, .modal) .btn-group > .btn:not(:last-child):not(.
 /* Wyłączone — wyraźnie nieaktywne, bez cienia */
 body.dyd-usos.ti-skin :is(main, .modal) .btn:disabled,
 body.dyd-usos.ti-skin :is(main, .modal) .btn.disabled { opacity: .5; box-shadow: none !important; cursor: not-allowed; }
-
-/* Konta kursantów — nowy widok: bez bocznego menu kierownika (nawigacja jest w pasku górnym),
-   pełna szerokość treści, płaskie zakładki i kwadratowe przyciski w stylu METRO. Zakres tylko body.dyd-konta. */
-body.dyd-konta .kier-sidenav { display: none !important; }
-body.dyd-konta .dyd-wrap { margin-left: 0 !important; max-width: none; }
-body.dyd-konta .nav-tabs { border-bottom: 2px solid #1d1d1d; gap: .25rem; }
-body.dyd-konta .nav-tabs .nav-link { border: 2px solid transparent; border-radius: 0; color: #1d1d1d; font-weight: 600; }
-body.dyd-konta .nav-tabs .nav-link:hover { background: #e5e7eb; }
-body.dyd-konta .nav-tabs .nav-link.active { background: #1d1d1d; color: #fff; border-color: #1d1d1d; border-bottom-color: #facc15; border-bottom-width: 4px; }
-body.dyd-konta .card { border: 2px solid #1d1d1d !important; border-radius: 0 !important; box-shadow: none !important; }
-body.dyd-konta .btn { border-radius: 0; border: 2px solid #1d1d1d; font-weight: 600; color: #1d1d1d; background: #fff; }
-body.dyd-konta .btn:hover { background: #e5e7eb; color: #1d1d1d; }
-body.dyd-konta .btn:focus-visible { outline: 3px solid #1d1d1d; outline-offset: 2px; box-shadow: 0 0 0 3px #facc15; }
-body.dyd-konta .btn-primary, body.dyd-konta .btn-danger { color: #1d1d1d; }
-body.dyd-konta .btn-primary { background: #1ba1e2; }
-body.dyd-konta .btn-primary:hover { background: #3fb0e8; }
-body.dyd-konta .form-control, body.dyd-konta .form-select { border: 2px solid #1d1d1d; border-radius: 0; }
-body.dyd-konta .form-control:focus, body.dyd-konta .form-select:focus { border-color: #1ba1e2; box-shadow: 0 0 0 3px #d9f0fb; }
