@@ -106,9 +106,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 
 <div class="alert alert-info small py-2 mb-3" role="note">
-  <div class="fw-semibold mb-1"><i class="bi bi-info-circle" aria-hidden="true"></i> Zatwierdzanie protokołu wymaga certyfikatu</div>
-  <p class="mb-1">Protokół podpisujesz swoim certyfikatem: wgrywasz plik .p12 i wpisujesz jego hasło przy zatwierdzaniu. Hasło nie jest zapisywane w systemie.</p>
-  <p class="mb-0">Nie masz certyfikatu? Wygeneruj go sam w <a href="moj_certyfikat.php">Mój certyfikat</a> — plik przyjdzie mailem, a hasło SMS-em na Twój telefon. Możesz też poprosić kierownika TI.</p>
+  <div class="fw-semibold mb-1"><i class="bi bi-info-circle" aria-hidden="true"></i> Co się zmieniło przy zatwierdzaniu protokołu</div>
+  <ul class="mb-2 ps-3">
+    <li><strong>Podpis certyfikatem.</strong> Zatwierdzasz z plikiem .p12 i jego hasłem. Hasła nie zapisujemy w systemie.</li>
+    <li><strong>Kod SMS.</strong> Przed podpisem kliknij „Wyślij kod SMS” i wpisz kod (ważny 5 minut, jednorazowy).</li>
+    <li><strong>Certyfikat od 11.10.2026.</strong> Wygenerujesz go sam w <a href="moj_certyfikat.php">Mój certyfikat</a>: plik przyjdzie mailem, hasło SMS-em, albo ustawisz własne hasło w kreatorze.</li>
+    <li><strong>Hasło własne:</strong> min. 16 znaków, co najmniej 3 rodzaje znaków (małe, wielkie litery, cyfry, znaki specjalne).</li>
+  </ul>
+  <p class="mb-0">Brak certyfikatu lub telefonu w koncie? Poproś kierownika TI, który go uzupełni i wystawi certyfikat.</p>
 </div>
 
 <?php if ($open_row): ?>
