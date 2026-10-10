@@ -93,6 +93,9 @@ $_tabs = [
 </style>
 </head>
 <body>
+<div role="region" aria-label="Informacja o logowaniu" style="background:#1ba1e2;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
+  Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
+</div>
 <div class="tz-split">
   <aside class="tz-side" aria-labelledby="tz-side-h">
     <div class="small fw-bold mb-2" style="letter-spacing:.06em">FEER · System Tożsamości</div>
