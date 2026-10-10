@@ -103,3 +103,26 @@ body.kur-alt.ti-skin .skin-subnav a[aria-current="page"] {
 }
 
 body.kur-alt.ti-skin .skin-crumbs { background: #fff; color: #4b5563; font-size: .85rem; }
+
+/* Typografia i nagłówki jak w Systemie Tożsamości (Segoe UI, mocne nagłówki, bez ozdób) */
+body.kur-alt.ti-skin h1,
+body.kur-alt.ti-skin h2,
+body.kur-alt.ti-skin h3 {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #1d1d1d;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+body.kur-alt.ti-skin h1 { font-size: 1.5rem; margin-bottom: .75rem; }
+body.kur-alt.ti-skin h2 { font-size: 1.25rem; }
+body.kur-alt.ti-skin h3 { font-size: 1.05rem; }
+
+/* Nagłówki kart: ciemny pasek z białym tekstem, jak nagłówki kafli METRO */
+body.kur-alt.ti-skin .card-header {
+  background: #1d1d1d !important; color: #fff !important; font-weight: 600;
+  border-bottom: 3px solid #1ba1e2 !important;
+}
+
+/* Treść strony na jasnym tle z lekkim odstępem, jak w Tożsamości */
+body.kur-alt.ti-skin main { max-width: 1200px; margin: 0 auto; }
+body.kur-alt.ti-skin .card-body { padding: 1.25rem; }
