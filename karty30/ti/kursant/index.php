@@ -4930,31 +4930,8 @@ document.addEventListener('DOMContentLoaded', function() {
           <!-- Haslo -->
           <div class="col-12 col-lg-6">
             <h3 class="h6 fw-semibold mb-1"><i class="bi bi-key me-2 text-secondary" aria-hidden="true"></i>Zmien haslo</h3>
-            <p class="text-body-secondary small mb-2">Ustaw wlasne haslo do panelu kursanta (min. 8 znakow).</p>
-            <form method="post" autocomplete="off" class="d-flex flex-column gap-2">
-              <input type="hidden" name="_token" value="<?= h($vlab_token) ?>">
-              <input type="hidden" name="_op" value="change_password">
-              <div>
-                <label class="form-label small mb-1" for="cps-cur">Aktualne haslo</label>
-                <input type="password" class="form-control form-control-sm" id="cps-cur" name="current" required autocomplete="current-password">
-              </div>
-              <div>
-                <label class="form-label small mb-1" for="cps-new">Nowe haslo</label>
-                <input type="password" class="form-control form-control-sm" id="cps-new" name="new" required minlength="8" autocomplete="new-password"
-                       placeholder="min. 8 znakow" oninput="kpPwMeter(this,'cps-new-meter')">
-                <div class="progress mt-1" style="height:5px" aria-hidden="true">
-                  <div class="progress-bar" id="cps-new-meter-bar" style="width:0%"></div>
-                </div>
-                <div class="form-text" id="cps-new-meter-text" aria-live="polite"></div>
-              </div>
-              <div>
-                <label class="form-label small mb-1" for="cps-cnf">Powtorz nowe haslo</label>
-                <input type="password" class="form-control form-control-sm" id="cps-cnf" name="confirm" required minlength="8" autocomplete="new-password">
-              </div>
-              <div>
-                <button class="btn btn-primary btn-sm"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Zapisz haslo</button>
-              </div>
-            </form>
+            <p class="text-body-secondary small mb-2">Hasło zmienisz w module Tożsamość (min. 8 znaków).</p>
+            <a class="btn btn-primary btn-sm" href="<?= h(APP_URL) ?>/tozsamosc/kursant_haslo.php"><i class="bi bi-key me-1" aria-hidden="true"></i>Zmień hasło w Tożsamości</a>
           </div>
           <!-- E-mail -->
           <div class="col-12 col-lg-6">
