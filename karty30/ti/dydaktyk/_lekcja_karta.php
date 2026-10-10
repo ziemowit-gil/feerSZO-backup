@@ -62,7 +62,7 @@ if ($open_ses):
         <i class="bi bi-person-workspace me-1" aria-hidden="true"></i>Zastępstwo: <?= h($_o_instr_name) ?>
       </span></dd>
       <?php endif; ?>
-      <?php if (in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)): ?>
+      <?php if (dyd_is_staff() && in_array($open_ses['status'], K30_TI_HELD_STATUSES, true)): ?>
       <dt class="col-sm-3">Dokumentacja</dt>
       <dd class="col-sm-9">
         <?php if (!empty($open_ses['docs_complete'])): ?>
@@ -82,7 +82,7 @@ if ($open_ses):
       <?php if ((string)$open_ses['status'] === 'cancelled' && trim((string)($open_ses['cancel_reason'] ?? '')) !== ''): ?>
       <dt class="col-sm-3">Powód odwołania</dt><dd class="col-sm-9"><?= h($open_ses['cancel_reason']) ?></dd>
       <?php endif; ?>
-      <?php if ($_o_curr): ?>
+      <?php if ($_o_curr && dyd_is_staff()): ?>
       <dt class="col-sm-3">Punkty sylabusa</dt>
       <dd class="col-sm-9"><?= h(implode(' · ', array_map(fn($c) => (string)$c['title'], $_o_curr))) ?></dd>
       <?php endif; ?>
