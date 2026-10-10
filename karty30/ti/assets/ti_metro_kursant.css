@@ -1014,3 +1014,18 @@ body.kur-alt.ti-skin .badge.kp-st-zakonczona { background: #d1e7dd !important; c
 body.kur-alt.ti-skin .badge.kp-st-odwolana   { background: #f8d7da !important; color: #58151c !important; }
 body.kur-alt.ti-skin .badge.kp-st-czeka      { background: #fff3cd !important; color: #664d03 !important; }
 body.kur-alt.ti-skin .badge.kp-st-szara      { background: #e9ecef !important; color: #2b2f32 !important; }
+
+/* Statusy lekcji — METRO: płaski kafelek, kolorowy pasek z lewej, ikona + słowo, ciemny tekst (≥ 7:1) */
+body.kur-alt.ti-skin .badge.kp-st {
+  display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap;
+  padding: .3rem .6rem .3rem .5rem; border-radius: 0 !important;
+  font-size: .82rem; font-weight: 700; letter-spacing: .01em; line-height: 1.2;
+  color: #1d1d1d !important; border: 0 !important; border-left: 5px solid var(--st, #6b7280) !important;
+  background: var(--st-bg, #f3f4f6) !important;
+}
+body.kur-alt.ti-skin .badge.kp-st > .bi { margin: 0 !important; font-size: 1rem; color: var(--st-ikona, #1d1d1d); }
+body.kur-alt.ti-skin .badge.kp-st-planowana  { --st: #1ba1e2; --st-bg: #e6f4fb; --st-ikona: #0f6fa8; }
+body.kur-alt.ti-skin .badge.kp-st-zakonczona { --st: #60a917; --st-bg: #eaf5e0; --st-ikona: #2d6a0b; }
+body.kur-alt.ti-skin .badge.kp-st-odwolana   { --st: #e51400; --st-bg: #fdeceb; --st-ikona: #a10e00; }
+body.kur-alt.ti-skin .badge.kp-st-czeka      { --st: #f0a30a; --st-bg: #fef4dc; --st-ikona: #7a5200; }
+body.kur-alt.ti-skin .badge.kp-st-szara      { --st: #6b7280; --st-bg: #f1f2f4; --st-ikona: #374151; }
