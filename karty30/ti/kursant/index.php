@@ -1799,6 +1799,9 @@ document.addEventListener('DOMContentLoaded', function() {
   var STORE_KEY = 'ti_ical_popup_seen_student';
   var popup = document.getElementById('kpIcalPopup');
   if (!popup) return;
+  // Tylko na ekranie startowym (bez ?tab= albo tab=start/dane) — na formularzach zasłaniał pola
+  var tabNow = new URLSearchParams(location.search).get('tab');
+  if (tabNow !== null && tabNow !== 'start' && tabNow !== 'dane') return;
   try { if (localStorage.getItem(STORE_KEY) === '1') return; } catch(e) {}
 
   var dismiss = function(){
