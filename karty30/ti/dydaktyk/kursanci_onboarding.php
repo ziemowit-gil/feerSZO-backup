@@ -18,7 +18,7 @@ if (!(is_admin() || ti_panel_role($uid) === 'kierownik')) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $op = (string)($_POST['_op'] ?? '');
-    $ile = ['sent' => 0, 'no_email' => 0, 'failed' => 0];
+    $ile = ['sent' => 0, 'scheduled' => 0, 'no_email' => 0, 'failed' => 0];
 
     if ($op === 'one') {
         $res = ti_student_onboarding_send((int)($_POST['account_id'] ?? 0));
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     flash_set($ile['failed'] ? 'warning' : 'success',
-        "Wysłano: {$ile['sent']}. Bez adresu e-mail: {$ile['no_email']}. Nieudane: {$ile['failed']}.");
+        "Wysłano: {$ile['sent']}. Zaplanowano na godz. 7:00 (poza oknem 7–22): {$ile['scheduled']}. Bez adresu e-mail: {$ile['no_email']}. Nieudane: {$ile['failed']}.");
     header('Location: kursanci_onboarding.php'); exit;
 }
 

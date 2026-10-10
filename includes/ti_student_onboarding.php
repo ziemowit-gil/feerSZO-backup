@@ -80,8 +80,23 @@ function ti_student_onboarding_send(int $account_id): string {
 
     [$txt, $html] = ti_student_onboarding_mail((string)$a['client_name'], (string)$a['login'],
         ti_student_onboarding_grupy((int)$a['client_id']));
+
+    // Adresy spoza @feer.org.pl: wysyłka tylko w godzinach 7:00–22:00; poza nimi — na 7:00 (następnego dnia, gdy po 22:00).
+    $scheduled = '';
+    if (!str_ends_with(strtolower($email), '@feer.org.pl')) {
+        $h = (int)date('G');
+        if ($h < 7 || $h >= 22) {
+            // Kolejka porównuje czas z datetime('now') (UTC), więc 7:00 czasu polskiego zapisujemy jako UTC.
+            $pl = new DateTime($h >= 22 ? 'tomorrow 07:00' : 'today 07:00', new DateTimeZone('Europe/Warsaw'));
+            $pl->setTimezone(new DateTimeZone('UTC'));
+            $scheduled = $pl->format('Y-m-d H:i:s');
+        }
+    }
+
     $mail_id = mail_queue_add($email, (string)$a['client_name'],
-        'Witamy w panelu kursanta – jak zacząć', $html, $txt, 'ti_student_onboarding', $account_id, '', true);
+        'Witamy w panelu kursanta – jak zacząć', $html, $txt, 'ti_student_onboarding', $account_id,
+        $scheduled, $scheduled === '');
+    if ($scheduled !== '') return 'scheduled';
     $status = (string)db_one("SELECT status FROM mail_queue WHERE id = ?", [$mail_id])['status'];
     return $status === 'sent' ? 'sent' : 'failed';
 }
