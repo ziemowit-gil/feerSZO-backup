@@ -27,7 +27,7 @@ const TI_MEETING_STATUS_LABELS = [
 
 function ti_meeting_get(int $id): ?array {
     ti_meetings_migrate();
-    return $id > 0 ? db_one("SELECT m.*, c.name AS course_name FROM k30_ti_meetings m JOIN k30_ti_courses c ON c.id=m.course_id WHERE m.id=?", [$id]) : null;
+    return $id > 0 ? db_one("SELECT m.*, c.name AS course_name FROM k30_ti_meeting_records m JOIN k30_ti_courses c ON c.id=m.course_id WHERE m.id=?", [$id]) : null;
 }
 
 function ti_meeting_items(int $meeting_id): array {
@@ -40,14 +40,14 @@ function ti_meeting_list(int $course_id): array {
     return db_all(
         "SELECT m.id, m.title, m.meeting_date, m.status,
                 (SELECT COUNT(*) FROM k30_ti_meeting_items i WHERE i.meeting_id=m.id) AS items_n
-           FROM k30_ti_meetings m WHERE m.course_id=? ORDER BY m.meeting_date DESC, m.id DESC",
+           FROM k30_ti_meeting_records m WHERE m.course_id=? ORDER BY m.meeting_date DESC, m.id DESC",
         [$course_id]
     );
 }
 
 function ti_meeting_create(int $course_id, int $period_id, string $title, string $date, int $uid, string $name): int {
     ti_meetings_migrate();
-    $id = db_insert('k30_ti_meetings', [
+    $id = db_insert('k30_ti_meeting_records', [
         'course_id' => $course_id, 'period_id' => $period_id, 'title' => mb_substr(trim($title), 0, 200), 'meeting_date' => $date,
         'status' => 'szkic', 'created_by' => $uid ?: null,
     ]);
@@ -127,7 +127,7 @@ function ti_meeting_approve(int $meeting_id, int $uid, string $name): void {
             'meeting_id' => $meeting_id, 'role' => 'prowadzacy', 'user_id' => $uid ?: null,
             'signed_name' => mb_substr(trim($name), 0, 140), 'content_hash' => $hash,
         ]);
-        db_exec("UPDATE k30_ti_meetings SET status='zatwierdzony', version=version+1, updated_at=datetime('now') WHERE id=?", [$meeting_id]);
+        db_exec("UPDATE k30_ti_meeting_records SET status='zatwierdzony', version=version+1, updated_at=datetime('now') WHERE id=?", [$meeting_id]);
         ti_meeting_log($meeting_id, 'zatwierdzono', 'hash ' . substr($hash, 0, 12), $uid, $name);
         $pdo->commit();
     } catch (\Throwable $e) {
@@ -166,7 +166,7 @@ function ti_meetings_import_legacy(): void {
             "SELECT p.*, per.date_to AS period_to
                FROM k30_ti_protocols p
                LEFT JOIN k30_ti_periods per ON per.id = p.period_id
-              WHERE NOT EXISTS (SELECT 1 FROM k30_ti_meetings m WHERE m.legacy_protocol_id = p.id)"
+              WHERE NOT EXISTS (SELECT 1 FROM k30_ti_meeting_records m WHERE m.legacy_protocol_id = p.id)"
         );
     } catch (\Throwable $e) { error_log('ti_meetings_import_legacy: ' . $e->getMessage()); return; }
     foreach ($rows as $r) {
@@ -178,7 +178,7 @@ function ti_meetings_import_legacy(): void {
         $pdo = db();
         $pdo->beginTransaction();
         try {
-            $mid = db_insert('k30_ti_meetings', [
+            $mid = db_insert('k30_ti_meeting_records', [
                 'course_id' => (int)$r['course_id'], 'period_id' => $r['period_id'] ?: null,
                 'title' => (string)($r['title'] ?: 'Protokół godzin'), 'meeting_date' => $date,
                 'status' => $approved ? 'zatwierdzony' : 'szkic', 'legacy_protocol_id' => (int)$r['id'],
@@ -211,6 +211,6 @@ function ti_meeting_unlock(int $meeting_id, string $reason, int $uid, string $na
     if ((string)$m['status'] !== 'zatwierdzony') throw new \RuntimeException('Ten protokół nie jest zatwierdzony.');
     $reason = trim($reason);
     if (mb_strlen($reason) < 10) throw new \RuntimeException('Podaj powód odblokowania (min. 10 znaków).');
-    db_exec("UPDATE k30_ti_meetings SET status='odblokowany', updated_at=datetime('now') WHERE id=?", [$meeting_id]);
+    db_exec("UPDATE k30_ti_meeting_records SET status='odblokowany', updated_at=datetime('now') WHERE id=?", [$meeting_id]);
     ti_meeting_log($meeting_id, 'odblokowano', $reason, $uid, $name);
 }
