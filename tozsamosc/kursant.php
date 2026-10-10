@@ -7,6 +7,7 @@
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/includes/karty30.php';
 require_once dirname(__DIR__) . '/includes/ti_student_otp.php';
 require_once dirname(__DIR__) . '/karty30/ti/kursant/auth.php';
 
