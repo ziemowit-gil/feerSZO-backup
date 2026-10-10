@@ -122,6 +122,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <button type="submit" class="btn btn-lg metro-btn w-100">Dalej</button>
       </form>
+      <div class="mt-3 text-center">
+        <button type="button" class="btn btn-outline-dark rounded-0 w-100" id="kur-klucz">Zaloguj kluczem sprzętowym</button>
+        <p class="small text-body-secondary mt-2 mb-0">Działa po pierwszym logowaniu, gdy masz zarejestrowany klucz.</p>
+        <div class="alert alert-danger small py-2 rounded-0 mt-2 d-none" id="kur-klucz-blad" role="alert"></div>
+      </div>
     </div>
   </main>
 </div>
@@ -130,6 +135,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </footer>
 <script>
 (function () {
+  // Logowanie kluczem (WebAuthn): tylko dla kont z zarejestrowanym kluczem.
+  var kbtn = document.getElementById('kur-klucz'), kblad = document.getElementById('kur-klucz-blad');
+  function b64uToBuf(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+    var bin = atob(s), buf = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  }
+  function bufToB64u(buf) {
+    var bytes = new Uint8Array(buf), bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  if (kbtn) {
+    if (!window.PublicKeyCredential || !navigator.credentials) { kbtn.disabled = true; }
+    kbtn.addEventListener('click', function () {
+      var login = (document.getElementById('kur-login').value || '').trim();
+      kblad.classList.add('d-none');
+      if (!login) { kblad.textContent = 'Najpierw wpisz login.'; kblad.classList.remove('d-none'); return; }
+      var api = '<?= APP_URL ?>/tozsamosc/kursant_klucz_login.php?api=';
+      fetch(api + 'begin&login=' + encodeURIComponent(login), { credentials: 'omit', cache: 'no-store' })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Błąd'); return j; }); })
+        .then(function (opts) {
+          opts.challenge = b64uToBuf(opts.challenge);
+          opts.allowCredentials = (opts.allowCredentials || []).map(function (c) { return { id: b64uToBuf(c.id), type: c.type, transports: c.transports }; });
+          return navigator.credentials.get({ publicKey: opts });
+        })
+        .then(function (cred) {
+          var data = {
+            id: cred.id,
+            rawId: bufToB64u(cred.rawId),
+            clientDataJSON: bufToB64u(cred.response.clientDataJSON),
+            authenticatorData: bufToB64u(cred.response.authenticatorData),
+            signature: bufToB64u(cred.response.signature)
+          };
+          var fd = new FormData();
+          fd.append('data', JSON.stringify(data));
+          return fetch(api + 'complete', { method: 'POST', body: fd, credentials: 'omit' })
+            .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Błąd'); return j; }); });
+        })
+        .then(function (j) { window.location = j.redirect; })
+        .catch(function (err) {
+          kblad.textContent = (err && err.message) ? err.message : 'Nie udało się zalogować kluczem.';
+          kblad.classList.remove('d-none');
+        });
+    });
+  }
   var inp = document.getElementById('kur-login'), box = document.getElementById('kur-sec');
   var img = document.getElementById('kur-sec-img'), lbl = document.getElementById('kur-sec-label');
   if (!inp || !box) return;
