@@ -199,7 +199,7 @@ $_kier_sections = [
     <i class="bi bi-chevron-double-left" aria-hidden="true"></i>Ukryj menu
   </button>
   <details open>
-    <summary aria-hidden="true"><i class="bi bi-list"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
+    <summary><i class="bi bi-list" aria-hidden="true"></i> Menu: <?= h(mb_strtolower($KIER_TITLE)) ?></summary>
     <div>
       <h2><?= h($KIER_TITLE) ?></h2>
       <?php if ($KIER_FLAT): ?>
@@ -259,6 +259,10 @@ function kierMenu(pokaz) {
 // Menu nie jest przyklejone do ekranu — gdy jest dłuższe niż treść, strona musi być co najmniej tak wysoka jak menu.
 (function () {
   var nav = document.currentScript.previousElementSibling, main = document.querySelector('main.dyd-wrap');
+  // Telefon / wąski ekran: menu zwinięte na start (rozwija się przyciskiem „Menu: …”).
+  if (nav && window.matchMedia && !window.matchMedia('(min-width: 992px)').matches) {
+    var zew = nav.querySelector(':scope > details'); if (zew) zew.open = false;
+  }
   if (!nav || !main || !window.matchMedia) return;
   function wyrownaj() {
     main.style.minHeight = (window.matchMedia('(min-width: 992px)').matches && !document.documentElement.classList.contains('kier-side-off'))
