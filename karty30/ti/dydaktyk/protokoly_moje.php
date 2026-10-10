@@ -224,6 +224,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     'current'  => ['primary', 'bieżący'],
     'empty'    => ['light text-dark border', 'bez zajęć'],
 ]; ?>
+<?php
+// Na start tylko bieżące, zaległe i ostatnie 2 miesiące; starsze pod przyciskiem.
+$_cut   = date('Y-m', strtotime('-2 months'));
+$_n_old = count(array_filter($months, fn($m) => !in_array($m['state'], ['current', 'overdue'], true) && $m['year_month'] < $_cut));
+?>
 <div class="card border-0 shadow-sm mt-3">
   <div class="card-header fw-semibold">Miesiące</div>
   <div class="table-responsive">
@@ -234,8 +239,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <th scope="col" class="text-end">Zajęcia odbyte</th><th scope="col" class="text-end">Akcja</th>
       </tr></thead>
       <tbody>
-        <?php foreach ($months as $mr): [$_bc, $_bl] = $_mstate[$mr['state']]; ?>
-        <tr>
+        <?php foreach ($months as $mr): [$_bc, $_bl] = $_mstate[$mr['state']];
+              $_old = !in_array($mr['state'], ['current', 'overdue'], true) && $mr['year_month'] < $_cut; ?>
+        <tr<?= $_old ? ' class="month-old d-none"' : '' ?>>
           <td class="text-nowrap"><?= h($fmt_ym($mr['year_month'])) ?></td>
           <td><?= h($mr['course_name']) ?></td>
           <td><span class="badge bg-<?= $_bc ?>"><?= h($_bl) ?></span></td>
@@ -260,12 +266,30 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       </tbody>
     </table>
   </div>
+  <?php if ($_n_old > 0): ?>
+  <div class="card-footer bg-white text-center">
+    <button type="button" class="btn btn-sm btn-link" id="pmShowOld" aria-expanded="false" aria-controls="pmMonths">
+      Pokaż starsze miesiące (<?= $_n_old ?>)
+    </button>
+  </div>
+  <script>
+  (function () {
+    var b = document.getElementById('pmShowOld');
+    b.addEventListener('click', function () {
+      var open = b.getAttribute('aria-expanded') === 'true';
+      document.querySelectorAll('tr.month-old').forEach(function (tr) { tr.classList.toggle('d-none', open); });
+      b.setAttribute('aria-expanded', open ? 'false' : 'true');
+      b.textContent = open ? 'Pokaż starsze miesiące (<?= $_n_old ?>)' : 'Ukryj starsze miesiące';
+    });
+  })();
+  </script>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 
 <?php if ($closed): ?>
-<div class="card border-0 shadow-sm mt-3">
-  <div class="card-header fw-semibold">Zatwierdzone protokoły</div>
+<details class="card border-0 shadow-sm mt-3">
+  <summary class="card-header fw-semibold" style="cursor:pointer">Kto zatwierdził i podpis (<?= count($closed) ?>)</summary>
   <ul class="list-group list-group-flush">
     <?php foreach ($closed as $c): ?>
     <li class="list-group-item d-flex align-items-center gap-3 flex-wrap">
@@ -284,7 +308,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </li>
     <?php endforeach; ?>
   </ul>
-</div>
+</details>
 <?php endif; ?>
 <?php endif; ?>
 
