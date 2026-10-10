@@ -351,3 +351,12 @@ body.kur-alt.ti-skin main.kp-dane-grid > .kp-dane-osoba { order: -1; }
 @media (max-width: 991.98px) {
   body.kur-alt.ti-skin main.kp-dane-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Informacja o rejestracji żetonowej: krótka, płaska, z akcentem METRO; szczegóły w rozwijanym „Jak to działa” */
+body.kur-alt.ti-skin .kp-rk-metro {
+  border: 0 !important; border-left: 6px solid #1ba1e2 !important; border-radius: 0 !important;
+  background: #fff !important; color: #1d1d1d !important; padding: 1rem 1.25rem;
+}
+body.kur-alt.ti-skin .kp-rk-metro .fw-bold { font-size: 1.05rem; }
+body.kur-alt.ti-skin .kp-rk-metro details summary { cursor: pointer; color: #0f6fa8; text-decoration: underline; }
+body.kur-alt.ti-skin .kp-rk-metro .btn-primary { background: #1d1d1d; border-color: #1d1d1d; color: #fff; border-radius: 0; }

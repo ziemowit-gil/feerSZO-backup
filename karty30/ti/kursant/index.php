@@ -1783,7 +1783,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .kp-rk-banner { animation: none; }
   }
 </style>
-<div class="alert <?= $rk_banner_open ? 'alert-primary' : 'alert-info' ?> kp-rk-banner align-items-start gap-3 flex-wrap" role="region"
+<div class="alert <?= $rk_banner_open ? 'alert-primary' : 'alert-info' ?> kp-rk-banner kp-rk-metro align-items-start gap-3 flex-wrap" role="region"
      aria-label="Rejestracja żetonowa na zajęcia">
   <i class="bi bi-ticket-perforated fs-3 flex-shrink-0" aria-hidden="true"></i>
   <div class="flex-grow-1" style="min-width:16rem">
@@ -1795,14 +1795,15 @@ document.addEventListener('DOMContentLoaded', function() {
       <?php endif; ?>
     </div>
     <div class="small">
-      <?= $rk_banner_open && $rk_banner['closes_at'] ? 'Zapisy trwają do ' . h(rk_fmt_dt((string)$rk_banner['closes_at'])) . '. ' : '' ?>
-      Wybierasz prowadzącego i termin z jego kalendarza, a rezerwację opłacasz <strong>żetonami</strong>
-      (Twoje saldo: <strong><?= rk_client_available((int)$student['client_id']) ?></strong>).
-      Żetony są po to, by każdy zapisał się na jedną–dwie grupy, w których faktycznie będzie —
-      zamiast blokować „na zapas” miejsca innym. Schodzą przy rezerwacji i wracają w całości
-      przy odpowiednio wczesnej rezygnacji. Wybrana data to data pierwszych zajęć — możesz też
-      jednym kliknięciem ustalić zajęcia na cały okres (ten sam dzień i godzina co tydzień).
+      <?= $rk_banner_open && $rk_banner['closes_at'] ? 'Zapisy do <strong>' . h(rk_fmt_dt((string)$rk_banner['closes_at'])) . '</strong>. ' : '' ?>
+      Saldo żetonów: <strong><?= rk_client_available((int)$student['client_id']) ?></strong>.
     </div>
+    <details class="small mt-1">
+      <summary>Jak to działa</summary>
+      <p class="mb-1 mt-1">Wybierasz prowadzącego i termin z jego kalendarza. Rezerwację opłacasz żetonami.</p>
+      <p class="mb-1">Żetony wracają w całości przy odpowiednio wczesnej rezygnacji.</p>
+      <p class="mb-0">Wybrana data to data pierwszych zajęć. Możesz też ustawić zajęcia na cały okres (ten sam dzień i godzina co tydzień).</p>
+    </details>
   </div>
   <?php if ($rk_banner_open): ?>
   <a class="btn btn-sm btn-primary align-self-center" href="index.php?tab=zapisy">
