@@ -378,6 +378,9 @@ html[data-theme="hc"] body.tzl{--ks:#000;--ks-dark:#000;--ks-ink:#000;--ks-muted
 .tzl .ks-lead{text-align:left;margin-bottom:1.5rem;color:#4b5563}
 .tzl .ks-btn,.tzl .form-control,.tzl .l-alert,.tzl .ks-news,.tzl .ks-shell .card,.tzl .ks-shell .alert,
 .tzl .ks-shell .btn,.tzl .lm-content,.tzl .ks-step .dot,.tzl .ks-shell .input-group-text,.tzl .crm-lost a{border-radius:0}
+.tzl .tz-side-nav .ks-tab{border-radius:0;box-shadow:none;padding:.75rem 1rem}
+.tzl .tz-side-nav .ks-tab[aria-current="page"]{background:rgba(27,161,226,.22);color:#fff}
+.tzl .ks-shell .nav-tabs .nav-link,.tzl .ks-shell .card-header,.tzl .ks-shell .form-check-input:not([type=checkbox]){border-radius:0}
 .tzl .ks-btn--ghost{border:2px solid var(--ks);color:#1d1d1d}
 .tzl .ks-btn--ghost:hover{background:#e6f6fc;border-color:var(--ks);color:#1d1d1d}
 .tzl .tz-card a.ks-btn--primary,.tzl .tz-card a.ks-btn--ok{color:#fff}
