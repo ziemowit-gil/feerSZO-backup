@@ -1429,7 +1429,7 @@ include __DIR__ . '/_layout_head.php';
 <?php if ($KUR_UI === 'alt') include __DIR__ . '/_alt_bar.php'; ?>
 <?php if ($KUR_UI === 'alt' && $tab === 'start') include __DIR__ . '/_alt_start.php'; ?>
 
-<main id="main" class="container-xl px-3 py-4<?= ($tab === 'dane' && $KUR_UI === 'alt') ? ' kp-dane-grid' : '' ?>">
+<main id="main" class="container-xl px-3 py-4<?= ($tab === 'dane' && $KUR_UI === 'alt') ? ' kp-dane-grid' : '' ?><?= ($tab === 'lekcje' && $KUR_UI === 'alt') ? ' kp-lekcje-uklad' : '' ?>">
 
 <!-- ── Pytanie o czytnik ekranu (jednorazowe, localStorage) ──────────── -->
 <div id="kpSrBanner" class="alert alert-primary alert-dismissible d-flex align-items-center gap-3 mb-3" role="dialog"
@@ -2589,6 +2589,29 @@ document.addEventListener('DOMContentLoaded', function() {
       </a>
     <?php if ($KUR_UI === 'alt'): ?></div><?php else: ?></div><?php endif; ?>
   </div>
+  <?php if ($KUR_UI === 'alt'): ?>
+  <script>
+  // Moje lekcje: przyciski (mikrokafle) i mini-kalendarz po lewej, lekcje po prawej. Przenosi elementy w DOM,
+  // więc czytnik ekranu czyta w tej samej kolejności, co widać. Bez JS — układ jednokolumnowy.
+  document.addEventListener('DOMContentLoaded', function () {
+    var main = document.querySelector('main.kp-lekcje-uklad');
+    if (!main || main.querySelector('.kp-lekcje-kolumny')) return;
+    var mk = main.querySelector('.kp-mikrokafle');
+    if (!mk) return;
+    var head = mk.parentElement;
+    var reszta = [], n = head.nextElementSibling;
+    while (n) { reszta.push(n); n = n.nextElementSibling; }
+    var box = document.createElement('div'); box.className = 'kp-lekcje-kolumny';
+    var lewa = document.createElement('aside'); lewa.className = 'kp-lekcje-lewa'; lewa.setAttribute('aria-label', 'Narzędzia: statystyki, pobieranie, kalendarz');
+    var prawa = document.createElement('div'); prawa.className = 'kp-lekcje-prawa';
+    head.after(box); box.appendChild(lewa); box.appendChild(prawa);
+    lewa.appendChild(mk);
+    var cal = document.getElementById('kpCalCard');
+    if (cal) lewa.appendChild(cal);
+    reszta.forEach(function (el) { if (el !== cal && el.tagName !== 'SCRIPT') prawa.appendChild(el); });
+  });
+  </script>
+  <?php endif; ?>
 
   <?php if (isset($_GET['rated'])): ?>
   <div class="alert alert-success alert-dismissible fade show" role="alert">

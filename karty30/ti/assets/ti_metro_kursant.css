@@ -975,3 +975,17 @@ body.kur-alt.ti-skin .kp-office-kafel:focus-visible { outline: 3px solid #facc15
 body.kur-alt.ti-skin .kp-office-kafel > i { font-size: 1.5rem; color: #0f6fa8; }
 body.kur-alt.ti-skin .kp-office-tytul { font-weight: 700; }
 body.kur-alt.ti-skin .kp-office-opis { font-size: .82rem; color: #374151; }
+
+/* Moje lekcje: przyciski i mini-kalendarz w lewej kolumnie, tabele lekcji po prawej */
+body.kur-alt.ti-skin .kp-lekcje-kolumny { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 1rem; align-items: start; margin-top: .5rem; }
+body.kur-alt.ti-skin .kp-lekcje-lewa { display: flex; flex-direction: column; gap: .75rem; position: sticky; top: .75rem; }
+body.kur-alt.ti-skin .kp-lekcje-lewa .kp-mikrokafle { grid-template-columns: minmax(0, 1fr); margin: 0; }
+body.kur-alt.ti-skin .kp-lekcje-lewa .kp-mikrokafle .btn { flex-direction: row; align-items: center; justify-content: flex-start; gap: .6rem; min-height: 48px; }
+body.kur-alt.ti-skin .kp-lekcje-lewa #kpCalCard { margin: 0 !important; }
+body.kur-alt.ti-skin .kp-lekcje-prawa { min-width: 0; }
+body.kur-alt.ti-skin .kp-lekcje-prawa > *:first-child { margin-top: 0 !important; }
+@media (max-width: 991.98px) {
+  body.kur-alt.ti-skin .kp-lekcje-kolumny { grid-template-columns: minmax(0, 1fr); }
+  body.kur-alt.ti-skin .kp-lekcje-lewa { position: static; }
+  body.kur-alt.ti-skin .kp-lekcje-lewa .kp-mikrokafle { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
