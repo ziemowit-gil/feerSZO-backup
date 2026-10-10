@@ -123,35 +123,74 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <div class="modal fade" id="ustawHaslo" tabindex="-1" aria-labelledby="ustawHasloLbl" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
-      <form method="post" onsubmit="return confirm('Ustawić hasło? Stare certyfikaty zostaną odwołane.');">
+      <form method="post" id="kreatorForm" onsubmit="return confirm('Wygenerować certyfikat z tym hasłem? Stare certyfikaty zostaną odwołane.');">
         <div class="modal-header">
-          <h2 class="modal-title h5" id="ustawHasloLbl">Ustaw własne hasło</h2>
+          <h2 class="modal-title h5" id="ustawHasloLbl">Certyfikat — kreator</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
           <input type="hidden" name="_op" value="pwd">
-          <p class="small text-body-secondary mb-3">
-            Nowy certyfikat z tym hasłem przyjdzie mailem. <strong>Stare certyfikaty przestaną działać.</strong>
-            Hasła nie wysyłamy nigdzie — zapamiętaj je.
-          </p>
-          <div class="mb-2">
-            <label class="form-label small mb-1" for="newPwd">Nowe hasło (min. 8 znaków)</label>
-            <input type="password" class="form-control" id="newPwd" name="new_password" minlength="8" autocomplete="new-password" required>
+          <div class="small text-body-secondary mb-3" id="krokInfo">Krok 1 z 2: hasło</div>
+
+          <div class="kr-step" data-step="1">
+            <p class="small mb-3">Najpierw wybierz hasło do pliku certyfikatu. Zapamiętaj je — nie zapisujemy go i nie wysyłamy.</p>
+            <div class="alert alert-danger small py-2 d-none" id="krokErr" role="alert"></div>
+            <div class="mb-2">
+              <label class="form-label small mb-1" for="newPwd">Hasło (min. 8 znaków)</label>
+              <input type="password" class="form-control" id="newPwd" name="new_password" minlength="8" autocomplete="new-password" required>
+            </div>
+            <div>
+              <label class="form-label small mb-1" for="newPwd2">Powtórz hasło</label>
+              <input type="password" class="form-control" id="newPwd2" name="new_password2" minlength="8" autocomplete="new-password" required>
+            </div>
           </div>
-          <div>
-            <label class="form-label small mb-1" for="newPwd2">Powtórz hasło</label>
-            <input type="password" class="form-control" id="newPwd2" name="new_password2" minlength="8" autocomplete="new-password" required>
+
+          <div class="kr-step d-none" data-step="2">
+            <p class="small mb-2">Potwierdź, a system wygeneruje certyfikat:</p>
+            <ul class="small mb-0 ps-3">
+              <li>plik certyfikatu (.p12) przyjdzie na adres <strong><?= h((string)($konto['email'] ?? '')) ?></strong>,</li>
+              <li><strong>stare certyfikaty przestaną działać</strong>,</li>
+              <li>hasła nie wysyłamy nigdzie — podasz je przy zatwierdzaniu protokołu.</li>
+            </ul>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-primary">Ustaw hasło i wyślij plik</button>
+          <button type="button" class="btn btn-outline-secondary d-none" id="krokWstecz">Wstecz</button>
+          <button type="button" class="btn btn-primary" id="krokDalej">Dalej</button>
+          <button type="submit" class="btn btn-success d-none" id="krokWyslij">Wygeneruj i wyślij</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('kreatorForm');
+  if (!form) return;
+  var p1 = document.getElementById('newPwd'), p2 = document.getElementById('newPwd2');
+  var err = document.getElementById('krokErr');
+  function show(n) {
+    form.querySelectorAll('.kr-step').forEach(function (s) { s.classList.toggle('d-none', Number(s.dataset.step) !== n); });
+    document.getElementById('krokInfo').textContent = 'Krok ' + n + ' z 2: ' + (n === 1 ? 'hasło' : 'potwierdzenie');
+    document.getElementById('krokWstecz').classList.toggle('d-none', n === 1);
+    document.getElementById('krokDalej').classList.toggle('d-none', n === 2);
+    document.getElementById('krokWyslij').classList.toggle('d-none', n !== 2);
+  }
+  function blad(t) { err.textContent = t; err.classList.remove('d-none'); }
+  document.getElementById('krokDalej').addEventListener('click', function () {
+    if (p1.value.length < 8) return blad('Hasło musi mieć co najmniej 8 znaków.');
+    if (p1.value !== p2.value) return blad('Hasła nie są takie same.');
+    err.classList.add('d-none');
+    show(2);
+  });
+  document.getElementById('krokWstecz').addEventListener('click', function () { show(1); });
+  document.getElementById('ustawHaslo').addEventListener('hidden.bs.modal', function () {
+    show(1); p1.value = ''; p2.value = '';
+  });
+})();
+</script>
 <?php endif; ?>
 
 <p class="small text-body-secondary mt-3">
