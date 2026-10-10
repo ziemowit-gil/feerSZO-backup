@@ -3,11 +3,13 @@
  *  - każda wysyłka formularza pokazuje okienko (tekst z data-busy, domyślnie „Zapisuję…”),
  *  - pomijane: formularze z atrybutem target (np. pobieranie w nowej karcie) i data-nobusy,
  *  - nie pokazuje się, gdy inline onsubmit anulował wysyłkę (np. odrzucone potwierdzenie),
+ *  - okienko zawsze widać co najmniej MIN_MS (1,5 s), nawet gdy operacja trwa krócej,
  *  - ręcznie: window.tiBusy.show('tekst') / window.tiBusy.hide().
  * Zabezpieczenie: okienko samo znika po 30 s i przy powrocie do strony.
  */
 (function () {
-  var box = null, timer = null;
+  var MIN_MS = 1500;
+  var box = null, timer = null, hideTimer = null, shownAt = 0;
 
   function show(text) {
     if (box) return;
@@ -22,12 +24,23 @@
       + '<div class="mt-3 fw-semibold" style="font-size:.95rem"></div></div>';
     box.querySelector('.fw-semibold').textContent = text || 'Proszę czekać…';
     document.body.appendChild(box);
+    shownAt = Date.now();
     timer = setTimeout(hide, 30000);
   }
 
-  function hide() {
+  function remove() {
     if (timer) { clearTimeout(timer); timer = null; }
     if (box) { box.remove(); box = null; }
+  }
+
+  function hide() {
+    if (!box) return;
+    var wait = MIN_MS - (Date.now() - shownAt);
+    if (wait > 0) {
+      if (!hideTimer) hideTimer = setTimeout(function () { hideTimer = null; hide(); }, wait);
+      return;
+    }
+    remove();
   }
 
   window.tiBusy = { show: show, hide: hide };
@@ -38,5 +51,6 @@
     show(f.getAttribute('data-busy') || 'Zapisuję…');
   });
 
-  window.addEventListener('pageshow', hide);
+  // Powrót do strony (np. z historii): od razu zdejmij okienko, bez czekania.
+  window.addEventListener('pageshow', remove);
 })();
