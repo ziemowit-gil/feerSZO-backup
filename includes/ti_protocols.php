@@ -1525,7 +1525,22 @@ function ti_protocol_hours_fmt(float $h): string {
     return rtrim(rtrim(number_format($h, 2, ',', ''), '0'), ',');
 }
 
-/** HTML listy godzin (data — liczba godzin) — do okna sprawdzenia i PDF. */
+/** Czas faktyczny w godzinach z ułamkiem (minuty / 60, do 2 miejsc): 45 min → 0,75; 90 min → 1,5. */
+function ti_protocol_hours_fact_fmt(int $min): string {
+    return ti_protocol_hours_fmt(round($min / 60, 2));
+}
+
+/** Godzina zajęć „od–do” albo pusty tekst. */
+function ti_protocol_hours_span(array $r): string {
+    $od = substr((string)($r['from'] ?? ''), 0, 5);
+    $do = substr((string)($r['to'] ?? ''), 0, 5);
+    return ($od !== '' && $do !== '') ? $od . '–' . $do : '';
+}
+
+/**
+ * HTML listy godzin — do PDF. Dwie wartości przy każdych zajęciach:
+ * czas faktyczny (minuty i godziny z ułamkiem) i godziny rozliczeniowe (każda rozpoczęta = pełna).
+ */
 function ti_protocol_hours_list_html(array $prot): string {
     $h  = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     $hl = ti_protocol_hours_list($prot);
@@ -1537,17 +1552,27 @@ function ti_protocol_hours_list_html(array $prot): string {
          . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
          . '</tbody></table>';
     if (!$hl['rows']) return $out . '<p class="empty-note">W tym okresie nie ma zajęć odbytych.</p>';
-    $out .= '<table class="items"><thead><tr><th style="width:8%">#</th><th>Data</th><th style="width:30%" class="r">Liczba godzin</th></tr></thead><tbody>';
+    $out .= '<table class="items"><thead>'
+          . '<tr><th rowspan="2" style="width:6%">#</th><th rowspan="2">Data</th><th rowspan="2" style="width:15%">Godzina</th>'
+          . '<th colspan="2" class="c">Czas faktyczny</th><th rowspan="2" style="width:17%" class="r">Godziny rozliczeniowe</th></tr>'
+          . '<tr><th style="width:12%" class="r">minuty</th><th style="width:12%" class="r">godziny</th></tr></thead><tbody>';
     $i = 0;
     foreach ($hl['rows'] as $r) {
         $i++;
         $out .= '<tr><td>' . $i . '.</td><td>' . $h(date('d.m.Y', strtotime($r['date'])))
               . ($r['sub'] !== '' ? ' <em>(zastępstwo: ' . $h($r['sub']) . ')</em>' : '') . '</td>'
-              . '<td class="r">' . $h(ti_protocol_hours_fmt($r['hours'])) . '</td></tr>';
+              . '<td>' . $h(ti_protocol_hours_span($r)) . '</td>'
+              . '<td class="r">' . (int)$r['min'] . '</td>'
+              . '<td class="r">' . $h(ti_protocol_hours_fact_fmt((int)$r['min'])) . '</td>'
+              . '<td class="r"><strong>' . $h(ti_protocol_hours_fmt($r['hours'])) . '</strong></td></tr>';
     }
-    $out .= '<tr class="sum"><td colspan="2">Razem (' . count($hl['rows']) . ' zaj.)</td><td class="r">'
-          . $h(ti_protocol_hours_fmt($hl['total_hours'])) . '</td></tr></tbody></table>'
-          . '<p style="font-size:8.5pt;color:#444">Każda rozpoczęta godzina zajęć liczona jako pełna.</p>'
+    $out .= '<tr class="sum"><td colspan="3">Razem (' . count($hl['rows']) . ' zaj.)</td>'
+          . '<td class="r">' . (int)$hl['total_min'] . '</td>'
+          . '<td class="r">' . $h(ti_protocol_hours_fact_fmt((int)$hl['total_min'])) . '</td>'
+          . '<td class="r">' . $h(ti_protocol_hours_fmt($hl['total_hours'])) . '</td></tr></tbody></table>'
+          . '<p style="font-size:8.5pt;color:#444">Czas faktyczny — minuty zajęć i godziny z ułamkiem (minuty ÷ 60). '
+          . 'Godziny rozliczeniowe — każda rozpoczęta godzina zajęć liczona jako pełna (45 min = 1 h, 90 min = 2 h); '
+          . 'od nich liczy się wynagrodzenie.</p>'
           . '<p class="trace">Sprawdziłem/am listę godzin: ............................................. (data i podpis)</p>';
     return $out;
 }
@@ -1565,22 +1590,30 @@ function ti_protocol_hours_check_modal(string $modal_id, array $prot, string $pd
     foreach ($hl['rows'] as $i => $r) {
         $rows .= '<tr><td class="text-body-secondary">' . ($i + 1) . '.</td><td>' . $h(date('d.m.Y', strtotime($r['date'])))
                . ($r['sub'] !== '' ? ' <span class="small text-body-secondary">(zastępstwo: ' . $h($r['sub']) . ')</span>' : '')
-               . '</td><td class="text-end">' . $h(ti_protocol_hours_fmt($r['hours'])) . '</td></tr>';
+               . '<span class="d-block small text-body-secondary">' . $h(ti_protocol_hours_span($r)) . '</span></td>'
+               . '<td class="text-end">' . (int)$r['min'] . ' min</td>'
+               . '<td class="text-end">' . $h(ti_protocol_hours_fact_fmt((int)$r['min'])) . ' h</td>'
+               . '<td class="text-end fw-semibold">' . $h(ti_protocol_hours_fmt($r['hours'])) . ' h</td></tr>';
     }
     $cb = $modal_id . '_ok';
     return '<div class="modal fade" id="' . $h($modal_id) . '" tabindex="-1" aria-labelledby="' . $h($modal_id) . '_t" aria-hidden="true">'
-        . '<div class="modal-dialog modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">'
+        . '<div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">'
         . '<div class="modal-header"><h5 class="modal-title" id="' . $h($modal_id) . '_t"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Sprawdź listę godzin</h5>'
         . '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button></div>'
         . '<div class="modal-body">'
         . '<p class="small mb-2"><strong>' . $h($prot['course_name'] ?? '') . '</strong> — ' . $h($prot['period_name'] ?? '') . '</p>'
         . ($hl['rows']
             ? '<table class="table table-sm align-middle mb-2"><caption class="visually-hidden">Lista godzin zajęć</caption>'
-              . '<thead><tr><th scope="col" style="width:3rem">#</th><th scope="col">Data</th><th scope="col" class="text-end">Liczba godzin</th></tr></thead>'
+              . '<thead><tr><th scope="col" style="width:3rem">#</th><th scope="col">Data i godzina</th>'
+              . '<th scope="col" class="text-end">Faktycznie (min)</th><th scope="col" class="text-end">Faktycznie (godz.)</th>'
+              . '<th scope="col" class="text-end">Rozliczeniowe</th></tr></thead>'
               . '<tbody>' . $rows . '</tbody><tfoot><tr class="fw-semibold"><td colspan="2">Razem (' . count($hl['rows']) . ' zaj.)</td>'
-              . '<td class="text-end">' . $h(ti_protocol_hours_fmt($hl['total_hours'])) . '</td></tr></tfoot></table>'
+              . '<td class="text-end">' . (int)$hl['total_min'] . ' min</td>'
+              . '<td class="text-end">' . $h(ti_protocol_hours_fact_fmt((int)$hl['total_min'])) . ' h</td>'
+              . '<td class="text-end">' . $h(ti_protocol_hours_fmt($hl['total_hours'])) . ' h</td></tr></tfoot></table>'
             : '<p class="text-body-secondary">W tym okresie nie ma zajęć odbytych.</p>')
-        . '<p class="small text-body-secondary mb-2">Każda rozpoczęta godzina zajęć liczona jako pełna (45 min = 1 h, 90 min = 2 h).</p>'
+        . '<p class="small text-body-secondary mb-2"><strong>Faktycznie</strong> — rzeczywisty czas zajęć w minutach i w godzinach z ułamkiem. '
+        . '<strong>Rozliczeniowe</strong> — każda rozpoczęta godzina liczona jako pełna (45 min = 1 h, 90 min = 2 h); od nich liczy się wynagrodzenie.</p>'
         . '<a href="' . $h($pdf_url) . '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary mb-3">'
         . '<i class="bi bi-printer me-1" aria-hidden="true"></i>Drukuj listę godzin (PDF)</a>'
         . '<div class="form-check"><input class="form-check-input" type="checkbox" id="' . $h($cb) . '" '
@@ -1615,6 +1648,7 @@ function ti_protocol_hours_list_pdf(array $prot): ?string {
              table.items th { background:#eef1f4; border:.2mm solid #999; padding:1.3mm 2mm; font-size:9pt; text-align:left; }
              table.items td { border:.2mm solid #999; padding:1.3mm 2mm; font-size:10pt; }
              .r { text-align:right; }
+             .c { text-align:center; }
              tr.sum td { background:#f2f2f2; font-weight:bold; }
              p.empty-note { margin-top:5mm; font-weight:bold; }
              p.trace { margin-top:10mm; font-size:9.5pt; }',
