@@ -70,7 +70,7 @@ function h_($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 body {
   min-height:100vh;
   display:flex;
-  background:#1b2e45;
+  background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);
 }
 
 /* Lewa kolumna — dekoracyjna */
@@ -80,7 +80,7 @@ body {
   flex-shrink:0;
   position:relative;
   overflow:hidden;
-  background:linear-gradient(160deg,#13233a 0%,#1b2e45 55%,#2563eb 100%);
+  background:transparent;
 }
 @media (min-width:900px){ .k30-brand-side { display:flex; flex-direction:column; justify-content:center; padding:3rem; } }
 
@@ -101,12 +101,11 @@ body {
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:2rem 1rem;
+  padding:2.25rem 1.5rem;
+  margin:1.25rem;
   background:#fff;
-  border-radius:0;
-}
-@media (min-width:900px){
-  .k30-form-side { border-radius:0 0 0 0; }
+  border-radius:18px;
+  box-shadow:0 20px 50px rgba(15,23,42,.25);
 }
 
 .k30-login-card {
@@ -116,9 +115,9 @@ body {
 .k30-login-logo {
   width:56px; height:56px;
   border-radius:14px;
-  background:linear-gradient(135deg,#1b2e45,#2563eb);
+  background:linear-gradient(135deg,#2563eb,#1e3a8a);
   display:flex; align-items:center; justify-content:center;
-  box-shadow:0 4px 14px rgba(194,65,12,.35);
+  box-shadow:0 4px 14px rgba(37,99,235,.35);
 }
 
 .form-control { border-radius:9px !important; border-color:#e2e8f0; }
