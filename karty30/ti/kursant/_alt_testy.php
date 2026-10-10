@@ -2,9 +2,8 @@
 /**
  * karty30/ti/kursant/_alt_testy.php — wspólna zakładka „Testy” w widoku alternatywnym.
  *
- * Łączy dwa źródła w jedną listę równych kafli:
- *   • egzaminy Equi Exams (k30_ti_exams, rozwiązywanie w exam.php),
- *   • starsze testy (k30_ti_tests, rozwiązywanie w test.php).
+ * Pokazuje WYŁĄCZNIE egzaminy Equi Exams (k30_ti_exams, rozwiązywanie w exam.php).
+ * Starsze testy (k30_ti_tests) nie występują w widoku METRO — zostają tylko w widoku klasycznym.
  * Kolejność: w toku → do zrobienia → wkrótce → czeka na ocenę → z wynikiem → niedostępne.
  * Stan zawsze słownie w plakietce (nie samym kolorem).
  *
@@ -55,34 +54,6 @@ foreach (($courses ?? []) as $_tt_c) {
         ];
     }
 
-    // ── Starsze testy (k30_ti_tests) ───────────────────────────────────────
-    foreach (k30_ti_tests_list($_tt_cid, true) as $t) {
-        $nq   = (int)$t['n_questions'];
-        $best = k30_ti_test_best_attempt((int)$t['id'], $_tt_client);
-        $open = db_one("SELECT id FROM k30_ti_test_attempts WHERE test_id=? AND client_id=? AND status='in_progress' ORDER BY id DESC LIMIT 1",
-                       [(int)$t['id'], $_tt_client]);
-        $href = $nq > 0 ? 'test.php?test=' . (int)$t['id'] : '';
-
-        if ($nq === 0) {
-            $st = ['wkrotce', 'Wkrótce', 3]; $akcja = 'Pytania w przygotowaniu';
-        } elseif ($open) {
-            $st = ['w_toku', 'W toku', 1]; $akcja = 'Kontynuuj';
-        } elseif ($best && $best['status'] === 'submitted' && (int)$best['needs_review'] === 1) {
-            $st = ['ocena', 'Czeka na ocenę', 4]; $akcja = 'Rozwiąż ponownie';
-        } elseif ($best) {
-            $mx = (float)$best['max_score']; $pct = $mx > 0 ? (int)round(100 * (float)$best['score'] / $mx) : 0;
-            $ok = (int)$t['pass_pct'] === 0 || $pct >= (int)$t['pass_pct'];
-            $st = [$ok ? 'zal' : 'niezal', ($ok ? 'Zaliczony' : 'Niezaliczony') . ' · ' . $pct . '%', 5]; $akcja = 'Rozwiąż ponownie';
-        } else {
-            $st = ['do', 'Do zrobienia', 2]; $akcja = 'Rozwiąż';
-        }
-
-        $_tt_rows[] = [
-            'st' => $st, 'href' => $href, 'akcja' => $akcja, 'tytul' => (string)$t['title'], 'kurs' => $_tt_kurs,
-            'meta' => 'Test · ' . $nq . ' pytań' . ((int)$t['time_limit_min'] > 0 ? ' · ' . (int)$t['time_limit_min'] . ' min' : ''),
-            'termin' => '', 'ikona' => 'card-checklist',
-        ];
-    }
 }
 
 usort($_tt_rows, fn($a, $b) => [$a['st'][2], $a['tytul']] <=> [$b['st'][2], $b['tytul']]);
