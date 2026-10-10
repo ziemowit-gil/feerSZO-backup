@@ -1637,7 +1637,16 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php
   $_trash_rows = ti_session_trash_list((int)$cur_course);
 ?>
-<div class="card mt-4" id="dydSessionTrash">
+<button type="button" class="btn btn-outline-secondary btn-sm mt-4" data-bs-toggle="modal" data-bs-target="#dydTrashModal" id="dydTrashOpen"><i class="bi bi-trash3 me-1" aria-hidden="true"></i>Kosz lekcji <span class="badge bg-secondary ms-1"><?= count($_trash_rows) ?></span></button>
+<div class="modal fade" id="dydTrashModal" tabindex="-1" aria-labelledby="dydTrashModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="dydTrashModalTitle"><i class="bi bi-trash3 me-2" aria-hidden="true"></i>Kosz lekcji</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij kosz lekcji"></button>
+      </div>
+      <div class="modal-body">
+<div class="card" id="dydSessionTrash">
   <div class="card-header d-flex align-items-center">
     <i class="bi bi-trash3 me-2" aria-hidden="true"></i>
     <strong>Kosz lekcji</strong>
@@ -1687,6 +1696,10 @@ document.addEventListener('DOMContentLoaded', function() {
       </table>
       </div>
     <?php endif; ?>
+  </div>
+</div>
+      </div>
+    </div>
   </div>
 </div>
 <?php endif; ?>
