@@ -19,6 +19,43 @@ $egz_health = ti_exam_engine_health();
   </a>
 </div>
 
+<?php if (dyd_is_staff()):
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_exam_notify/logic/tiExamNotify.php';
+    $egz_notify_on = ti_exam_notify_enabled();
+?>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-3">
+    <form method="post" action="index.php" class="d-flex flex-wrap align-items-start gap-3">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="exam_notify_toggle">
+      <input type="hidden" name="back_course" value="<?= (int)$cur_course ?>">
+      <input type="hidden" name="enabled" value="0">
+      <div class="flex-grow-1" style="min-width:16rem">
+        <h6 class="fw-semibold mb-1"><i class="bi bi-bell me-1" aria-hidden="true"></i>Powiadomienia o egzaminach</h6>
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" role="switch" id="egz_notify_enabled" name="enabled" value="1"
+                 <?= $egz_notify_on ? 'checked' : '' ?> aria-describedby="egz_notify_help">
+          <label class="form-check-label" for="egz_notify_enabled">
+            Wysyłaj kursantom e-mail i SMS o udostępnieniu egzaminu i dzień przed jego zamknięciem
+            <span class="badge <?= $egz_notify_on ? 'text-bg-success' : 'text-bg-secondary' ?> ms-1"><?= $egz_notify_on ? 'włączone' : 'wyłączone' ?></span>
+          </label>
+        </div>
+        <p id="egz_notify_help" class="small text-body-secondary mb-0">
+          Dotyczy wszystkich grup. Domyślnie wyłączone. Każdy kursant dostaje dane powiadomienie tylko raz; SMS trafia
+          tylko do osób, które włączyły „SMS o zajęciach”. Agent sprawdza egzaminy co godzinę między 8:00 a 20:00,
+          a e-maile na adresy zewnętrzne wychodzą wyłącznie w godzinach 7:00–22:00. Treści:
+          <a href="szablonyEmail.php?key=ti_exam_open">szablony e-mail</a> i <a href="szablonySms.php?key=ti_exam_open">szablony SMS</a>
+          (<code>ti_exam_open</code>, <code>ti_exam_closing</code>).
+        </p>
+      </div>
+      <button type="submit" class="btn btn-sm btn-outline-primary align-self-center">
+        <i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz
+      </button>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php if (empty($egz_health['ok'])): ?>
 <div class="alert alert-warning d-flex align-items-start gap-2 small" role="alert">
   <i class="bi bi-plug fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>

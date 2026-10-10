@@ -663,6 +663,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: index.php?tab=komunikaty'); exit;
     }
 
+    // Powiadomienia o egzaminach (e-mail + SMS do kursantów, agent ti_exam_notify) — włącznik globalny
+    // kierownika; grupa w POST to tylko „skąd wrócić” (back_course), więc bramka course_id nie jest potrzebna.
+    if ($op === 'exam_notify_toggle' && dyd_is_staff()) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_exam_notify/logic/tiExamNotify.php';
+        $on = !empty($_POST['enabled']);
+        ti_exam_notify_set_enabled($on);
+        if (function_exists('audit_log')) { try { audit_log('ti_exam_notify.toggle', ['enabled' => $on], $uid); } catch (\Throwable $e) {} }
+        flash_set('success', $on
+            ? 'Powiadomienia o egzaminach włączone — kursanci dostaną e-mail i SMS o udostępnieniu egzaminu i dzień przed jego zamknięciem.'
+            : 'Powiadomienia o egzaminach wyłączone.');
+        header('Location: ' . dyd_back((int)($_POST['back_course'] ?? 0), 'egzaminy')); exit;
+    }
+
     // Zbiorcze uzupełnienie zaległych lekcji z widżetu "Do zrobienia" — obejmuje
     // sesje z różnych kursów naraz, więc nie ma jednego course_id w POST; każdą
     // sesję autoryzujemy osobno (dyd_owns_session), stąd handler PRZED bramką
