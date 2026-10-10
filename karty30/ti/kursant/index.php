@@ -135,6 +135,8 @@ $ui_switch_url = 'index.php?tab=' . rawurlencode($tab)
     . '&ui=' . ($KUR_UI === 'alt' ? 'klasyczny' : 'alt');
 // Sposób nawigacji w widoku alternatywnym: zakładki albo menu rozwijane (wybór w Tożsamości)
 $KUR_NAV = student_nav((int)$student['id']);
+// Widok alternatywny otwiera się na ekranie startowym z kaflami i wyszukiwarką
+if (!isset($_GET['tab']) && $KUR_UI === 'alt') { $tab = 'start'; }
 // Kursant jeszcze nie wybrał menu — pytamy raz, przed pierwszym wejściem do widoku alternatywnego
 if ($KUR_UI === 'alt' && !student_nav_chosen((int)$student['id'])) {
     header('Location: ' . APP_URL . '/tozsamosc/kursant_ustawienia.php?pierwszy=1'); exit;
@@ -1377,6 +1379,7 @@ include __DIR__ . '/_layout_head.php';
 <?php endif; ?>
 
 <?php if ($KUR_UI === 'alt') include __DIR__ . '/_alt_bar.php'; ?>
+<?php if ($KUR_UI === 'alt' && $tab === 'start') include __DIR__ . '/_alt_start.php'; ?>
 
 <main id="main" class="container-xl px-3 py-4">
 
