@@ -669,6 +669,19 @@ body.kur-alt.ti-skin .kp-pomoc .alert-light { background: #f3f4f6 !important; bo
 body.kur-alt.ti-skin .kp-pomoc .btn-primary { padding: .6rem 1.2rem; font-size: 1rem; }
 @media (min-width: 992px) { body.kur-alt.ti-skin .kp-pomoc form { max-width: 900px; } }
 
+/* Upoważnieni pod nowe UI: płaskie karty z ciemną ramką, kwadratowe pola i przyciski (jak Pomoc) */
+body.kur-alt.ti-skin .kp-upow { box-shadow: none !important; border: 2px solid #1d1d1d !important; border-radius: 0 !important; background: #fff; }
+body.kur-alt.ti-skin .kp-upow .card-body { padding: 1.25rem; }
+body.kur-alt.ti-skin .kp-upow .form-control { border: 2px solid #1d1d1d; border-radius: 0; padding: .6rem .75rem; font-size: 1rem; }
+body.kur-alt.ti-skin .kp-upow .form-control:focus { border-color: #1ba1e2; box-shadow: 0 0 0 3px #d9f0fb; }
+body.kur-alt.ti-skin .kp-upow .btn { border-radius: 0; border: 2px solid #1d1d1d; font-weight: 600; }
+body.kur-alt.ti-skin .kp-upow .btn-primary { background: #1ba1e2; color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-upow .btn-primary:hover { background: #3fb0e8; color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-upow .btn-outline-secondary,
+body.kur-alt.ti-skin .kp-upow .btn-outline-danger { background: #fff; color: #1d1d1d; }
+body.kur-alt.ti-skin .kp-upow .table thead th { background: #1d1d1d; color: #fff; border: 0; }
+body.kur-alt.ti-skin .kp-upow .table td, body.kur-alt.ti-skin .kp-upow .table th { border-color: #1d1d1d; }
+
 /* Przyciski-rozwijacze (<summary class="btn">, np. „Pokaż frekwencję miesięczną”, „Pobierz i drukuj”):
    wygląd przycisku, bez podkreślenia, ze strzałką stanu; żółta obwódka tylko przy obsłudze klawiaturą */
 body.kur-alt.ti-skin details > summary.btn {

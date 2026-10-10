@@ -5968,7 +5968,7 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
 <?php endif; ?>
 
 <?php if ($authp_list): ?>
-<div class="card shadow-sm border-0 mb-4">
+<div class="card shadow-sm border-0 mb-4 kp-upow">
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
       <caption class="visually-hidden">Lista osób upoważnionych do wglądu w Twój panel</caption>
@@ -6041,7 +6041,7 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
 <p class="text-body-secondary small mb-4"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Nie upoważniłeś jeszcze nikogo.</p>
 <?php endif; ?>
 
-<section class="card shadow-sm border-0" id="authp-form" aria-labelledby="authp-form-h">
+<section class="card shadow-sm border-0 kp-upow" id="authp-form" aria-labelledby="authp-form-h">
   <div class="card-body">
     <h2 class="h6 fw-bold mb-2" id="authp-form-h">Upoważnij osobę</h2>
     <ul class="small mb-3 ps-3">
