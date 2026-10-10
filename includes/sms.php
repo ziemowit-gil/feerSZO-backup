@@ -248,6 +248,15 @@ function sms_send(string $phone, string $message, string $kind = ''): string {
     if (ti_virtual_blocked('', $phone)) { sms_last_send(['provider' => '', 'fallback' => false, 'errors' => []]); return ''; }   // kursant wirtualny — bez SMS
     $phone = sms_normalize_phone($phone);
 
+    // Godziny wysyłki 7:00–22:00 (inc/smsQuietHours): poza nimi SMS systemowy czeka w kolejce do 7:00.
+    // Kody jednorazowe i wysyłki ręczne kierownika/administratora wychodzą zawsze.
+    require_once dirname(__DIR__) . '/inc/smsQuietHours/smsQuietHours.php';
+    if (empty($GLOBALS['__sms_quiet_bypass']) && !smsQuietAllowed($kind)) {
+        smsQuietDefer($phone, $message, $kind);
+        sms_last_send(['provider' => 'odlozony', 'fallback' => false, 'errors' => []]);
+        return 'odlozony';   // niepusty wynik = „przyjęty do wysyłki” dla wywołujących
+    }
+
     $chain = sms_provider_chain();
     if (!$chain) {
         _sms_dispatch(sms_provider(), $phone, $message, $kind);  // nic nie skonfigurowano → wyjątek z podpowiedzią, czego brakuje

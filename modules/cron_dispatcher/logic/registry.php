@@ -53,6 +53,11 @@ function cron_dispatcher_registry(): array
             'file'     => $cronDir . '/mail_queue.php',
             'interval' => 300,          // co 5 min
         ],
+        'sms_deferred' => [
+            'file'     => $cronDir . '/sms_deferred.php',
+            'interval' => 300,          // co 5 min — SMS-y odłożone w ciszy nocnej (22–7) wychodzą od 7:00
+            'schedule' => [7, 22],
+        ],
         'ext_agent' => [
             'file'     => $cronDir . '/ext_agent.php',
             'interval' => 120,          // co 2 min — kolejka stempli i sprzątanie
