@@ -93,9 +93,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </main>
 <footer class="metro-footer" aria-label="Pomoc">
   <a href="https://feer.org.pl">Strona Fundacji</a>
-  <a href="#" aria-disabled="true">Pomoc</a>
-  <a href="#" aria-disabled="true">Bezpieczeństwo</a>
-  <a href="#" aria-disabled="true">Kontakt</a>
 </footer>
 <script>
 (function () {
