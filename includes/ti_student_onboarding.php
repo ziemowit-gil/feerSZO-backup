@@ -59,7 +59,7 @@ function ti_student_onboarding_mail(string $name, string $login, array $grupy = 
          . "2. Po zalogowaniu zobaczysz swój plan i zajęcia.\n\n"
          . "Hasła nie wysyłamy mailem. Nie przekazuj go innym osobom.\n\n"
          . "Jeśli nie uzupełniłeś zgody na przetwarzanie danych, zrób to po zalogowaniu w ustawieniach.\n"
-         . "Twoje dane są chronione. Zmianę danych możesz zgłosić prowadzącemu.\n\n"
+         . "\n"
          . "Problemy z logowaniem zgłoś kierownikowi jednostki. Pozostałe pytania kieruj do prowadzącego swojej grupy.\n\n"
          . "--\nWiadomość automatyczna. Prosimy na nią nie odpowiadać.";
     $html = '<p>' . nl2br(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8')) . '</p>';
