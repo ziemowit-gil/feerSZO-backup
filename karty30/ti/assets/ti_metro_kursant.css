@@ -536,3 +536,50 @@ body.kur-alt.ti-skin .kp-nauka, body.kur-alt.ti-skin .kp-typ-menu { background: 
 body.kur-alt.ti-skin #kpIcalPopup > div:first-child { background: #fff !important; color: #1d1d1d !important; border-bottom: 3px solid #1ba1e2 !important; }
 body.kur-alt.ti-skin #kpIcalPopup > div:first-child h2,
 body.kur-alt.ti-skin #kpIcalPopup > div:first-child i { color: #1d1d1d !important; }
+
+/* ════════ Tło delikatnie ciemniejsze + kafle kontrastowe + tabele ════════ */
+body.kur-alt.ti-skin { background: #eceff3 !important; }
+body.kur-alt.ti-skin main, body.kur-alt.ti-skin .kp-start { background: transparent; }
+
+/* Kafle kontrastowe: biały kafel z wyraźną ciemną ramką, najważniejsze w akcencie, aktywny czarny */
+body.kur-alt.ti-skin .kp-w8-kafel { border: 2px solid #1d1d1d; }
+body.kur-alt.ti-skin .kp-w8-kafel a { color: #1d1d1d !important; }
+body.kur-alt.ti-skin .kp-w8-kafel[style*="--kolor"] { background: #fff !important; border-bottom: 5px solid var(--kolor) !important; }
+body.kur-alt.ti-skin .kp-w8-kafel a:hover { background: #f3f4f6; filter: none; }
+body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-kafel { background: #1ba1e2 !important; border-bottom: 5px solid #1d1d1d !important; }
+body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-kafel a:hover { background: #3fb0e8; }
+body.kur-alt.ti-skin #kp-w8-g-glowne + .kp-w8-siatka .kp-w8-tytul { text-decoration: none; }
+body.kur-alt.ti-skin .kp-w8-licznik { background: #1d1d1d; color: #fff; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini { border: 2px solid #1d1d1d !important; border-bottom: 5px solid #1ba1e2 !important; background: #fff !important; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini.kp-kafel-glowny { background: #1ba1e2 !important; border-bottom-color: #1d1d1d !important; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini.active,
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini[aria-current="page"] { background: #1d1d1d !important; color: #fff !important; border-bottom: 5px solid #facc15 !important; }
+body.kur-alt.ti-skin .kp-sekcja-kafle .kp-kafel-mini.active .kp-kafel-ikona { color: #fff !important; }
+body.kur-alt.ti-skin .kp-kafel-stan { border: 2px solid #1d1d1d; }
+
+/* Rząd kafli pod okruszkami zastępuje pasek pozycji sekcji — nie dublujemy menu */
+body.kur-alt.ti-skin .skin-subnav { display: none !important; }
+
+/* Tabele (oceny, materiały, lekcje): spokojne, czytelne, bez ciężkich kolorów */
+body.kur-alt.ti-skin .table { border: 1px solid #d1d5db; background: #fff; }
+body.kur-alt.ti-skin .table thead th { background: #f3f4f6 !important; color: #1d1d1d !important; border-bottom: 2px solid #1d1d1d !important; font-weight: 700; }
+body.kur-alt.ti-skin .table tbody tr:nth-child(odd) > * { background-color: #fff; }
+body.kur-alt.ti-skin .table tbody tr:nth-child(even) > * { background-color: #f9fafb; }
+body.kur-alt.ti-skin .table-hover tbody tr:hover > * { background-color: #e5e7eb !important; }
+body.kur-alt.ti-skin .table td, body.kur-alt.ti-skin .table th { border-color: #e5e7eb; padding: .5rem .6rem; vertical-align: middle; }
+body.kur-alt.ti-skin .badge { border-radius: 0 !important; font-weight: 700; padding: .3em .55em; border: 1px solid rgba(0,0,0,.25); }
+body.kur-alt.ti-skin .badge.text-bg-warning { background: #fcd116 !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin .badge.text-bg-success { background: #60a917 !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin .badge.text-bg-danger  { background: #e51400 !important; color: #fff !important; }
+body.kur-alt.ti-skin .badge.text-bg-primary,
+body.kur-alt.ti-skin .badge.text-bg-info    { background: #1ba1e2 !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin .badge.text-bg-secondary { background: #e5e7eb !important; color: #1d1d1d !important; }
+body.kur-alt.ti-skin .card-header .badge { border-color: #1d1d1d; }
+
+/* Lista zadań jako kafle (siatka), zamiast jednej długiej listy */
+body.kur-alt.ti-skin .alt-zad-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .6rem; border: 0; }
+body.kur-alt.ti-skin .alt-zad-list > .list-group-item { border: 2px solid #1d1d1d !important; border-radius: 0 !important; background: #fff; }
+body.kur-alt.ti-skin .alt-zad-item { color: #1d1d1d !important; min-height: 84px; }
+body.kur-alt.ti-skin .alt-zad-item:hover { background: #f3f4f6; }
+body.kur-alt.ti-skin .alt-zad-item-sel { background: #d9f0fb; border-left: 6px solid #1ba1e2; }
+body.kur-alt.ti-skin .alt-zad-mark { display: none; }
