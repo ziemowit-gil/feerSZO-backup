@@ -1029,3 +1029,28 @@ body.kur-alt.ti-skin .badge.kp-st-zakonczona { --st: #60a917; --st-bg: #eaf5e0; 
 body.kur-alt.ti-skin .badge.kp-st-odwolana   { --st: #e51400; --st-bg: #fdeceb; --st-ikona: #a10e00; }
 body.kur-alt.ti-skin .badge.kp-st-czeka      { --st: #f0a30a; --st-bg: #fef4dc; --st-ikona: #7a5200; }
 body.kur-alt.ti-skin .badge.kp-st-szara      { --st: #6b7280; --st-bg: #f1f2f4; --st-ikona: #374151; }
+
+/* Ustawienia — METRO jak „Moje lekcje”: sekcje po lewej, jasne kafle menu po prawej (bez czarnego paska).
+   W kodzie menu zostaje przed treścią (spis sekcji jako pierwszy punkt nawigacji). */
+@media (min-width: 992px) {
+  body.kur-alt.ti-skin .ust-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 1.25rem; align-items: start; }
+  body.kur-alt.ti-skin .ust-layout > [class*="col-"] { width: auto; max-width: none; flex: none; margin: 0 !important; padding: 0 !important; }
+  body.kur-alt.ti-skin .ust-layout > :first-child { grid-column: 2; grid-row: 1; position: sticky; top: .75rem; }
+  body.kur-alt.ti-skin .ust-layout > .col-md-9 { grid-column: 1; grid-row: 1; min-width: 0; }
+}
+body.kur-alt.ti-skin .ust-sidenav { background: transparent !important; border: 0 !important; padding: 0 !important; gap: .5rem !important; flex-direction: column !important; }
+body.kur-alt.ti-skin .ust-navlink, body.kur-alt.ti-skin .ust-sidenav .ust-navlink {
+  display: flex; align-items: center; gap: .6rem; width: 100%; min-height: 48px; padding: .5rem .8rem !important;
+  background: #fff !important; color: #1d1d1d !important; border: 2px solid #1d1d1d !important; border-bottom: 5px solid #1ba1e2 !important;
+  border-radius: 0 !important; font-size: .95rem !important; font-weight: 600; text-decoration: none !important;
+}
+body.kur-alt.ti-skin .ust-navlink i { color: #0f6fa8 !important; margin: 0 !important; font-size: 1.15rem; }
+body.kur-alt.ti-skin .ust-navlink:hover { background: #eef6fc !important; text-decoration: underline !important; }
+body.kur-alt.ti-skin .ust-navlink:focus-visible { outline: 3px solid #facc15 !important; outline-offset: 2px; background: #eef6fc !important; border-bottom-color: #1ba1e2 !important; }
+body.kur-alt.ti-skin .ust-navlink.active:focus-visible { background: #0f6fa8 !important; }
+body.kur-alt.ti-skin .ust-navlink.active { background: #0f6fa8 !important; color: #fff !important; border-color: #0f6fa8 !important; border-bottom-color: #facc15 !important; }
+body.kur-alt.ti-skin .ust-navlink.active i { color: #fff !important; }
+@media (max-width: 991.98px) {
+  body.kur-alt.ti-skin .ust-sidenav { flex-direction: row !important; flex-wrap: wrap; }
+  body.kur-alt.ti-skin .ust-sidenav .ust-navlink { width: auto; flex: 1 1 150px; }
+}

@@ -5085,10 +5085,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <!-- lewa: nawigacja sekcji -->
   <div class="col-12 col-md-3 col-xl-2 pe-md-3 mb-3 mb-md-0">
-    <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawien">
+    <nav class="ust-sidenav d-flex flex-row flex-md-column gap-1" aria-label="Sekcje ustawień">
       <a href="#ust-styl"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-palette me-2" aria-hidden="true"></i>Styl panelu</a>
       <a href="#ust-ulatw"  class="ust-navlink btn btn-sm text-start"><i class="bi bi-universal-access me-2" aria-hidden="true"></i>Ułatwienia</a>
-      <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczenstwo</a>
+      <a href="#ust-bezp"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-shield-lock  me-2" aria-hidden="true"></i>Bezpieczeństwo</a>
       <a href="#ust-notify" class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell          me-2" aria-hidden="true"></i>Powiadomienia</a>
       <a href="#ust-push"   class="ust-navlink btn btn-sm text-start"><i class="bi bi-bell-fill     me-2" aria-hidden="true"></i>Push</a>
       <a href="#ust-cal"    class="ust-navlink btn btn-sm text-start"><i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>Kalendarz</a>
@@ -5098,7 +5098,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- prawa: tresc -->
   <div class="col-12 col-md-9 col-xl-10 d-flex flex-column gap-4">
 
-    <!-- 1. Bezpieczenstwo -->
+    <!-- 1. Bezpieczeństwo -->
     <section id="ust-styl" class="card" aria-labelledby="ust-styl-h">
       <div class="card-header d-flex align-items-center gap-2 py-2">
         <i class="bi bi-palette" aria-hidden="true"></i>
@@ -5159,7 +5159,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <section id="ust-bezp" class="card" aria-labelledby="ust-bezp-h">
       <div class="card-header d-flex align-items-center gap-2 py-2">
         <i class="bi bi-shield-lock text-primary" aria-hidden="true"></i>
-        <h2 id="ust-bezp-h" class="h6 fw-bold mb-0">Bezpieczenstwo</h2>
+        <h2 id="ust-bezp-h" class="h6 fw-bold mb-0">Bezpieczeństwo</h2>
       </div>
       <div class="card-body">
         <div class="row g-4">
@@ -5198,8 +5198,8 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
           <!-- Haslo -->
           <div class="col-12 col-lg-6">
-            <h3 class="h6 fw-semibold mb-1"><i class="bi bi-key me-2 text-secondary" aria-hidden="true"></i>Zmien haslo</h3>
-            <p class="text-body-secondary small mb-2">Hasło zmienisz w module Tożsamość (min. 8 znaków).</p>
+            <h3 class="h6 fw-semibold mb-1"><i class="bi bi-key me-2 text-secondary" aria-hidden="true"></i>Zmień hasło</h3>
+            <p class="text-body-secondary small mb-2">Hasło zmienisz w Systemie Tożsamości (min. 12 znaków, w tym duże i małe litery, cyfra i znak specjalny).</p>
             <a class="btn btn-primary btn-sm" href="<?= h(APP_URL) ?>/tozsamosc/kursant_haslo.php"><i class="bi bi-key me-1" aria-hidden="true"></i>Zmień hasło w Tożsamości</a>
           </div>
           <!-- E-mail -->
@@ -5529,7 +5529,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function setActive(){
     var cur = 0;
     targets.forEach(function(t,i){ if (t && t.getBoundingClientRect().top <= 120) cur = i; });
-    links.forEach(function(l,i){ l.classList.toggle('active', i === cur); });
+    links.forEach(function(l,i){ l.classList.toggle('active', i === cur); if (i === cur) l.setAttribute('aria-current', 'location'); else l.removeAttribute('aria-current'); });
   }
   setActive();
   window.addEventListener('scroll', setActive, { passive:true });
