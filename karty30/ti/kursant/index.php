@@ -137,10 +137,6 @@ $ui_switch_url = 'index.php?tab=' . rawurlencode($tab)
 $KUR_NAV = student_nav((int)$student['id']);
 // Widok alternatywny otwiera się na ekranie startowym z kaflami i wyszukiwarką
 if (!isset($_GET['tab']) && $KUR_UI === 'alt') { $tab = 'start'; }
-// Kursant jeszcze nie wybrał menu — pytamy raz, przed pierwszym wejściem do widoku alternatywnego
-if ($KUR_UI === 'alt' && !student_nav_chosen((int)$student['id'])) {
-    header('Location: ' . APP_URL . '/tozsamosc/kursant_ustawienia.php?pierwszy=1'); exit;
-}
 
 // Dane kursanta
 $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student['id']]);
