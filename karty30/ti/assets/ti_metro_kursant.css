@@ -989,3 +989,14 @@ body.kur-alt.ti-skin .kp-lekcje-prawa > *:first-child { margin-top: 0 !important
   body.kur-alt.ti-skin .kp-lekcje-lewa { position: static; }
   body.kur-alt.ti-skin .kp-lekcje-lewa .kp-mikrokafle { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
+
+/* Komunikat „Płatności przeniesione do portalu” (Rozliczenia, Portfel) w METRO */
+body.kur-alt.ti-skin .kp-przeniesione { border: 2px solid #1d1d1d !important; border-left: 8px solid #f0a30a !important; border-radius: 0 !important; box-shadow: none !important; background: #fff; }
+body.kur-alt.ti-skin .kp-przeniesione .card-body { padding: 1rem 1.2rem; align-items: center !important; }
+body.kur-alt.ti-skin .kp-przeniesione .fw-semibold { display: flex; align-items: center; gap: .6rem; font-size: 1.1rem; font-weight: 700 !important; color: #1d1d1d; margin-bottom: .35rem; }
+body.kur-alt.ti-skin .kp-przeniesione .fw-semibold > i.bi {
+  display: inline-flex; align-items: center; justify-content: center; width: 2.4rem; height: 2.4rem; margin: 0 !important;
+  background: #f0a30a; color: #1d1d1d !important; font-size: 1.2rem; flex-shrink: 0;
+}
+body.kur-alt.ti-skin .kp-przeniesione .small { font-size: .92rem; color: #374151 !important; max-width: 70ch; }
+body.kur-alt.ti-skin .kp-przeniesione .btn { min-height: 48px; padding: .55rem 1.3rem; font-size: 1rem; }

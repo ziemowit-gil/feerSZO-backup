@@ -9,10 +9,10 @@
 // Tylko dla panelu kursanta i rodzica ($rv_portal_redirect); osoba upoważniona nie ma konta w portalu.
 if (!empty($rv_portal_redirect)):
 ?>
-<div class="card border-primary-subtle mb-4">
+<div class="card border-primary-subtle mb-4 kp-przeniesione" role="region" aria-labelledby="kp-przen-h">
   <div class="card-body d-flex flex-wrap align-items-center gap-3">
     <div class="flex-grow-1">
-      <div class="fw-semibold"><i class="bi bi-credit-card-2-front text-primary me-1" aria-hidden="true"></i>Płatności i rozliczenia zostały przeniesione do portalu płatności</div>
+      <div class="fw-semibold" id="kp-przen-h"><i class="bi bi-credit-card-2-front text-primary me-1" aria-hidden="true"></i>Płatności i rozliczenia zostały przeniesione do portalu płatności</div>
       <div class="small text-body-secondary">Ta zakładka nie pokazuje już płatności. Numer rachunku do wpłat (także PDF), saldo, doładowanie portfela (PayU, Przelewy24, karta) oraz historia wpłat i należności są teraz w portalu płatności — otwiera się po kliknięciu przycisku, bez ponownego logowania.</div>
     </div>
     <a class="btn btn-primary" href="platnosci.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Przejdź do płatności</a>
