@@ -20,7 +20,9 @@ function ti_student_accounts_for_onboarding(): array {
 function ti_student_onboarding_mail(string $name, string $login): array {
     $login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=kursant';
     $start_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/onboarding.php';
-    $txt = "Dzień dobry, {$name},\n\n"
+    $org = function_exists('org_setting') && org_setting('org_name') !== '' ? org_setting('org_name') : (defined('ORG_NAME') ? ORG_NAME : '');
+    $txt = ($org !== '' ? "Instytucja: {$org}\n\n" : '')
+         . "Dzień dobry, {$name},\n\n"
          . "Twoje konto w panelu kursanta jest gotowe. Tam zobaczysz swoje zajęcia, plan i rozliczenia.\n\n"
          . "Jak zacząć:\n"
          . "1. Zaloguj się: {$login_url}\n"

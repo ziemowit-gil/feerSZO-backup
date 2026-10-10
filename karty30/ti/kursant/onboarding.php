@@ -56,6 +56,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:760px">
 
+<p class="small text-body-secondary mb-1">Instytucja: <strong><?= h(function_exists('org_setting') && org_setting('org_name') !== '' ? org_setting('org_name') : (defined('ORG_NAME') ? ORG_NAME : '')) ?></strong></p>
 <h1 class="h4 fw-bold mb-2"><i class="bi bi-person-check text-primary me-2" aria-hidden="true"></i>Start w panelu kursanta</h1>
 <p class="small mb-3">Lista pokazuje, co jest już gotowe, a co zostało do zrobienia. Postęp: <strong><?= $zrobione ?> z <?= count($kroki) ?></strong> kroków.</p>
 
