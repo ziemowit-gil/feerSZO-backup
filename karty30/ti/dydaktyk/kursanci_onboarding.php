@@ -38,6 +38,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $konta = ti_student_accounts_for_onboarding();
 
+// Podgląd maila dla wybranego konta (bez wysyłki).
+$podglad = null;
+$pid = (int)($_GET['podglad'] ?? 0);
+foreach ($konta as $a) {
+    if ((int)$a['id'] === $pid) {
+        [$p_txt, $p_html] = ti_student_onboarding_mail((string)$a['client_name'], (string)$a['login']);
+        $podglad = ['a' => $a, 'txt' => $p_txt];
+        break;
+    }
+}
+
 $KP_TITLE      = 'Mail onboardingowy dla kursantów — Panel dydaktyka';
 $KP_TOPBAR     = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (string)($me['name'] ?? ''), 'logout' => 'logout.php'];
 $KP_BODY_CLASS = 'dyd-usos ti-skin';
@@ -54,6 +65,32 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
   Każdy kursant dostaje osobny mail z loginem i linkiem do panelu. Hasła w mailu nie ma — kursant dostaje je od prowadzącego.
   Konta bez adresu e-mail w karcie klienta są pomijane.
 </p>
+
+<?php if ($podglad): $pa = $podglad['a']; ?>
+<section class="card border-0 shadow-sm mb-3" aria-labelledby="podglad-h">
+  <div class="card-header bg-transparent d-flex align-items-center gap-2">
+    <h2 id="podglad-h" class="h6 fw-semibold mb-0">Podgląd maila</h2>
+    <a href="kursanci_onboarding.php" class="btn btn-sm btn-outline-secondary ms-auto">Zamknij podgląd</a>
+  </div>
+  <div class="card-body">
+    <dl class="row small mb-3">
+      <dt class="col-sm-3">Do</dt>
+      <dd class="col-sm-9"><?= h($pa['client_name']) ?> &lt;<?= h($pa['client_email']) ?>&gt;</dd>
+      <dt class="col-sm-3">Temat</dt>
+      <dd class="col-sm-9">Witamy w panelu kursanta – jak zacząć</dd>
+    </dl>
+    <pre class="border rounded p-3 bg-light small mb-3" style="white-space:pre-wrap" tabindex="0" aria-label="Treść maila"><?= h($podglad['txt']) ?></pre>
+    <?php if (trim((string)$pa['client_email']) !== '' && (int)$pa['is_active']): ?>
+    <form method="post" onsubmit="return confirm('Wysłać ten mail do <?= h(addslashes($pa['client_name'])) ?>?');">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="one">
+      <input type="hidden" name="account_id" value="<?= (int)$pa['id'] ?>">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij ten mail</button>
+    </form>
+    <?php endif; ?>
+  </div>
+</section>
+<?php endif; ?>
 
 <?php if (!$konta): ?>
 <div class="alert alert-info">Nie ma kont kursantów.</div>
@@ -78,6 +115,7 @@ include dirname(__DIR__) . '/kursant/_layout_head.php';
         <td class="small"><?= $ma_mail ? h($a['client_email']) : '<span class="badge bg-warning text-dark">brak e-maila</span>' ?></td>
         <td><?= (int)$a['is_active'] ? '<span class="badge bg-success">aktywne</span>' : '<span class="badge bg-secondary">nieaktywne</span>' ?></td>
         <td class="text-end">
+          <a href="kursanci_onboarding.php?podglad=<?= (int)$a['id'] ?>" class="btn btn-sm btn-outline-secondary">Podgląd</a>
           <?php if ($ma_mail && (int)$a['is_active']): ?>
           <form method="post" class="d-inline" onsubmit="return confirm('Wysłać mail do <?= h(addslashes($a['client_name'])) ?>?');">
             <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
