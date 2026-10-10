@@ -1429,6 +1429,31 @@ function ti_protocol_print_html(array $prot): string {
 }
 
 /** Protokół jako bajty PDF (mPDF, dejavuserif) albo null przy błędzie. */
+/** Czy w protokole jest 0 godzin (brak odbytych zajęć) — wtedy zamiast protokołu powstaje sama informacja. */
+function ti_protocol_is_zero(array $prot): bool {
+    return (float)ti_protocol_hours_list($prot)['total_hours'] <= 0;
+}
+
+/**
+ * HTML „Informacja: 0 godzin” — dokument do druku i podpisu zamiast pełnego protokołu, gdy w okresie
+ * nie odbyły się żadne zajęcia. Te same style co protokół (h1, table.head, p.empty-note, p.trace).
+ */
+function ti_protocol_zero_info_html(array $prot): string {
+    $h  = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $hl = ti_protocol_hours_list($prot);
+    return '<h1>Informacja o braku zajęć — 0 godzin</h1>'
+        . '<table class="head"><tbody>'
+        . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
+        . '<tr><th>Okres</th><td>' . $h($prot['period_name'] ?? '') . '</td></tr>'
+        . '<tr><th>Prowadzący</th><td>' . $h($hl['instructor'] !== '' ? $hl['instructor'] : '—') . '</td></tr>'
+        . '<tr><th>Wydruk</th><td>' . date('d.m.Y H:i') . '</td></tr>'
+        . '</tbody></table>'
+        . '<p class="empty-note">W tym okresie nie odbyły się żadne zajęcia — liczba godzin: 0. '
+        . 'Protokół zajęć nie jest sporządzany; ta informacja go zastępuje.</p>'
+        . '<p class="trace">Potwierdzam, że w podanym okresie nie prowadziłem/am zajęć w tej grupie.</p>'
+        . '<p class="trace">Data i podpis prowadzącego: .............................................</p>';
+}
+
 /**
  * PDF protokołu zajęć. $podglad — wersja przed zatwierdzeniem (strona zatwierdzania pokazuje,
  * jaki dokument powstanie): ukośny znak wodny „PODGLĄD”, żeby nie pomylić jej z podpisanym protokołem.
@@ -1445,7 +1470,7 @@ function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
             'margin_left' => 18, 'margin_right' => 16, 'margin_top' => 16, 'margin_bottom' => 16,
             'default_font' => 'dejavuserif', 'tempDir' => $mpdf_tmp,
         ]);
-        $mpdf->SetTitle('Protokół zajęć kursu — ' . (string)($prot['course_name'] ?? '')
+        $mpdf->SetTitle((ti_protocol_is_zero($prot) ? 'Informacja o braku zajęć (0 godzin) — ' : 'Protokół zajęć kursu — ') . (string)($prot['course_name'] ?? '')
             . ((string)($prot['period_name'] ?? '') !== '' ? ', ' . (string)$prot['period_name'] : ''));
         $mpdf->SetAuthor(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER'));
         $mpdf->WriteHTML(
@@ -1475,7 +1500,9 @@ function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
             $mpdf->SetWatermarkText('PODGLĄD', 0.12);
             $mpdf->showWatermarkText = true;
         }
-        $mpdf->WriteHTML(ti_protocol_print_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
+        // 0 godzin: pełnego protokołu nie generujemy — do druku, podpisu i EZD idzie sama informacja.
+        $mpdf->WriteHTML(ti_protocol_is_zero($prot) ? ti_protocol_zero_info_html($prot) : ti_protocol_print_html($prot),
+            \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
         return null;

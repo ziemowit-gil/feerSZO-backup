@@ -184,6 +184,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       // „Nie mogę skorzystać z passkey” (?metoda=zwykla) — wracamy do zwykłej metody.
       $_key_first = !$_has_cert && $_has_key && ($_GET['metoda'] ?? '') !== 'zwykla';
       $_cid = (int)$open_row['course_id'];
+      $_zero = ti_protocol_is_zero(ti_protocol_month_stub($_cid, $open_ym));   // 0 godzin → sama informacja zamiast protokołu
       // Certyfikat zapisany w systemie (od 11.10.2026) — przy podpisie „Odczytaj certyfikat”.
       $_cert_srv = $_has_cert ? tiCertStoreActive($uid) : null;
       $_odczytany = $_cert_srv && !empty($_GET['odczytaj']);
@@ -202,6 +203,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       .pm-nr{flex:0 0 2.25rem;height:2.25rem;display:flex;align-items:center;justify-content:center;
         background:#0f6fa8;color:#fff;font-weight:700;font-size:1.05rem}
     </style>
+    <?php if ($_zero): ?>
+    <div class="alert alert-warning d-flex gap-2 mb-3" role="status">
+      <i class="bi bi-hourglass fs-5 flex-shrink-0" aria-hidden="true"></i>
+      <div><strong>W tym miesiącu 0 godzin.</strong> Protokół zajęć nie jest generowany — drukujesz i podpisujesz tylko
+        informację, że zajęć nie było. Podpisujesz ją tak samo jak protokół (certyfikatem albo kluczem).</div>
+    </div>
+    <?php endif; ?>
     <div class="row g-4">
     <div class="col-xl-5 col-lg-6 pm-kroki">
     <?php if ($_key_first): ?>
@@ -320,7 +328,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <?php
       // Prawa kolumna: podgląd dokumentów, które powstaną po zatwierdzeniu.
       $_pv_q   = 'course=' . $_cid . '&ym=' . urlencode($open_ym);
-      $_pv_dok = [
+      // 0 godzin: pełnego protokołu nie ma — do podglądu i podpisu jest tylko informacja o braku zajęć.
+      $_pv_dok = $_zero ? [
+          'prot' => ['label' => 'Informacja: 0 godzin', 'opis' => 'W tym miesiącu nie było zajęć — zamiast protokołu podpisujesz tę informację.',
+                     'url' => 'protokol_pdf.php?preview=1&' . $_pv_q],
+      ] : [
           'prot'    => ['label' => 'Protokół zajęć', 'opis' => 'Dokument, który po zatwierdzeniu trafi do akt (i do EZD).',
                         'url' => 'protokol_pdf.php?preview=1&' . $_pv_q],
           'godziny' => ['label' => 'Lista godzin', 'opis' => 'Daty i liczba godzin — tę treść obejmuje Twój podpis.',
