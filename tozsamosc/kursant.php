@@ -11,9 +11,11 @@ require_once dirname(__DIR__) . '/includes/karty30.php';
 require_once dirname(__DIR__) . '/includes/ti_student_otp.php';
 require_once dirname(__DIR__) . '/karty30/ti/kursant/auth.php';
 require_once dirname(__DIR__) . '/includes/ti_sec_image.php';
+require_once dirname(__DIR__) . '/includes/ti_student_reauth.php';
 
 karty30_migrate();
 ti_sec_image_migrate();
+ti_reauth_migrate();
 if (student_current()) { header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit; }
 
 $blad  = '';
@@ -27,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($acc && !empty($acc['child_access_blocked'])) {
         $blad = 'Dostęp do panelu jest wstrzymany przez opiekuna. Skontaktuj się z rodzicem lub opiekunem.';
-    } elseif ($acc && (empty($acc['last_login']) || empty($acc['sec_chosen']))) {
+    } elseif ($acc && ti_student_needs_reauth($acc)) {
         // Pierwsze logowanie albo brak ustawionego obrazka: ponowna autoryzacja jak przy pierwszym logowaniu (kod SMS, bez starego hasła).
         if (ti_student_otp_send((int)$acc['id'], (int)$acc['client_id'])) {
             student_start();
@@ -120,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label for="kur-password" class="form-label fw-semibold">Hasło</label>
           <input type="password" class="form-control form-control-lg" id="kur-password" name="password" autocomplete="current-password">
           <div class="form-text">Przy pierwszym logowaniu hasła nie wpisujesz.</div>
+          <div class="alert alert-info small py-2 rounded-0 mt-2 mb-0" role="note">Konta założone przed 10.10.2026 traktujemy jak nowe. Dotychczasowych haseł nie da się przenieść, więc przy tym logowaniu potwierdzisz się kodem SMS i ustawisz nowe hasło.</div>
         </div>
         <button type="submit" class="btn btn-lg metro-btn w-100">Dalej</button>
       </form>

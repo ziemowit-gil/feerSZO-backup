@@ -9,10 +9,12 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
 require_once dirname(__DIR__) . '/includes/ti_student_otp.php';
 require_once dirname(__DIR__) . '/includes/ti_sec_image.php';
+require_once dirname(__DIR__) . '/includes/ti_student_reauth.php';
 require_once dirname(__DIR__) . '/karty30/ti/kursant/auth.php';
 
 karty30_migrate();
 ti_sec_image_migrate();
+ti_reauth_migrate();
 student_start();
 
 $p = $_SESSION['k30_ti_student_otp'] ?? null;
@@ -30,7 +32,7 @@ $blad = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (ti_student_otp_check((int)$acc['id'], (string)($_POST['code'] ?? ''))) {
         unset($_SESSION['k30_ti_student_otp']);
-        db()->prepare("UPDATE k30_ti_student_accounts SET must_change_password = 1, updated_at = datetime('now') WHERE id = ?")
+        db()->prepare("UPDATE k30_ti_student_accounts SET must_change_password = 1, reauth_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
             ->execute([(int)$acc['id']]);
         $acc['must_change_password'] = 1;
         student_login_user($acc, 'otp', 'pierwsze logowanie (kod SMS, Tożsamość)');
