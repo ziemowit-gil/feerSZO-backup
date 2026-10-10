@@ -90,6 +90,8 @@ auth_screen_head([
 <style>
 /* Wygląd jak w module Tożsamość (METRO UI): zero zaokrągleń i cieni, akcent cyan #1ba1e2, Segoe UI. */
 body { font-family: "Segoe UI", system-ui, sans-serif; }
+/* Niebieskie tło → kolor Tożsamości (akcent cyan), bez obrazka tła. */
+html, body { background-color: #1ba1e2 !important; background-image: none !important; }
 .ks-h1, .ks-field label, .ks-lead { font-family: "Segoe UI", system-ui, sans-serif; }
 .ks-field input, .ks-field .form-control, .pass-wrap .form-control, .pass-toggle,
 .ks-tab, .ks-sidetab, .ks-btn { border-radius: 0 !important; box-shadow: none !important; }
