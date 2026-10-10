@@ -23,6 +23,14 @@ $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
     ? $raw_redirect : '';
 
+// Wejście do Systemu Tożsamości → dedykowane okno logowania z wyjaśnieniem (tozsamosc/login.php).
+// Tylko czyste GET z samym ?redirect= — każdy inny parametr (err, tab, pelne=1, awaryjne…) zostaje tutaj.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && $redirect !== ''
+    && str_starts_with($redirect, APP_URL . '/tozsamosc/')
+    && array_keys($_GET) === ['redirect'] && empty($_SESSION['sso_hint'])) {
+    header('Location: ' . APP_URL . '/tozsamosc/login.php?redirect=' . urlencode($redirect)); exit;
+}
+
 // Gdzie po zalogowaniu — domyślnie System Tożsamości (wyjątki: konta tylko-EZD / tylko-CRM), patrz auth_login_landing()
 function _login_landing(array $user): string {
     return auth_login_landing($user);
