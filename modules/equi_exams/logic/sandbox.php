@@ -138,22 +138,52 @@ function ex_sandbox_config(): array {
     ];
 }
 
+/**
+ * Czy PHP wolno zajrzeć pod tę ścieżkę. Na hostingu z open_basedir (np. MyDevil) is_file() poza
+ * dozwolonymi katalogami rzuca ostrzeżenie widoczne na stronie — takie ścieżki pomijamy po cichu.
+ */
+function ex_sandbox_path_allowed(string $file): bool {
+    $ob = (string)ini_get('open_basedir');
+    if ($ob === '') return true;
+    foreach (explode(PATH_SEPARATOR, $ob) as $base) {
+        $base = rtrim(trim($base), '/');
+        if ($base === '') continue;
+        if ($file === $base || str_starts_with($file, $base . '/')) return true;
+    }
+    return false;
+}
+
+/** Czy da się w ogóle uruchamiać procesy (proc_open nie jest wyłączone w disable_functions). */
+function ex_sandbox_can_spawn(): bool {
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    $disabled = array_map('trim', explode(',', strtolower((string)ini_get('disable_functions'))));
+    return $ok = function_exists('proc_open') && !in_array('proc_open', $disabled, true);
+}
+
 function ex_sandbox_which(string $bin): ?string {
-    if ($bin === '' || str_starts_with($bin, './') || str_starts_with($bin, '/')) return $bin;
+    static $cache = [];
+    if (array_key_exists($bin, $cache)) return $cache[$bin];
+    if ($bin === '' || str_starts_with($bin, './')) return $cache[$bin] = $bin;
+    if (str_starts_with($bin, '/')) {
+        return $cache[$bin] = (ex_sandbox_path_allowed($bin) && @is_file($bin)) ? $bin : null;
+    }
     $path = getenv('PATH');
     if ($path === false || $path === '') $path = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
     foreach (explode(PATH_SEPARATOR, $path) as $dir) {
         if ($dir === '') continue;
         $f = rtrim($dir, '/') . '/' . $bin;
-        if (is_file($f) && is_executable($f)) return $f;
+        if (!ex_sandbox_path_allowed($f)) continue;
+        if (@is_file($f) && @is_executable($f)) return $cache[$bin] = $f;
     }
-    return null;
+    return $cache[$bin] = null;
 }
 
 /** Czy dany język ma w obrazie działający interpreter/kompilator (Sandbox.available). */
 function ex_sandbox_available(string $languageId): bool {
     $lang = ex_lang_by_id($languageId);
     if (!$lang) return false;
+    if (!ex_sandbox_can_spawn()) return false;   // hosting bez uruchamiania procesów — pytania z kodem niedostępne
     $bin = $lang['compileArgs'] !== null ? $lang['compileArgs'][0] : $lang['runArgs'][0];
     return ex_sandbox_which($bin) !== null;
 }
