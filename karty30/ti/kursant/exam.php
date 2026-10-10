@@ -97,6 +97,16 @@ if ($solving && !$attempt) { header('Location: exam.php?exam=' . (int)$exam['id'
 $err_msg = trim((string)($_GET['err'] ?? ''));
 
 $KP_SKIP_TAB_MEMORY = true;
+// Widok alternatywny (METRO) kursanta obejmuje też strony testu — ta sama skórka co w panelu.
+if (function_exists('student_ui') && student_ui((int)$student['id']) === 'alt') {
+    $KP_BODY_CLASS = trim(($KP_BODY_CLASS ?? '') . ' kur-alt ti-skin kp-test-strona');
+    $_skin_css  = __DIR__ . '/../assets/ti_skin.css';
+    $_metro_css = __DIR__ . '/../assets/ti_metro_kursant.css';
+    $KP_EXTRA_CSS = [
+        '../assets/ti_skin.css?v=' . (is_file($_skin_css) ? (int)filemtime($_skin_css) : 1),
+        '../assets/ti_metro_kursant.css?v=' . (is_file($_metro_css) ? (int)filemtime($_metro_css) : 1),
+    ];
+}
 $KP_TITLE  = EQUI_EXAMS_STUDENT_LABEL . ': ' . (string)$exam['title'];
 $KP_TOPBAR = ['brand' => EQUI_EXAMS_STUDENT_LABEL, 'icon' => 'card-checklist'];
 include __DIR__ . '/_layout_head.php';
@@ -134,7 +144,7 @@ include __DIR__ . '/_layout_head.php';
   <?php endif; ?>
 
   <h2 class="h5 fw-semibold mt-4">Zasady tego testu</h2>
-  <ul class="list-group list-group-flush mb-4">
+  <ul class="list-group list-group-flush mb-4 kp-test-zasady">
     <li class="list-group-item bg-transparent d-flex gap-2">
       <i class="bi bi-list-ol text-body-secondary" aria-hidden="true"></i>
       <span>Liczba pytań: <strong><?= $count ?></strong><?php
