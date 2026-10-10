@@ -100,7 +100,7 @@ $_tabs = [
 <div class="tz-split">
   <aside class="tz-side" aria-labelledby="tz-side-h">
     <div class="small fw-bold mb-2" style="letter-spacing:.06em">FEER · System Tożsamości</div>
-    <h2 id="tz-side-h">Panel TI</h2>
+    <h2 id="tz-side-h">Panel kursanta</h2>
     <p class="sub mb-0">Jak się zalogować:</p>
     <ol>
       <li>Wybierz, kim jesteś.</li>
@@ -108,7 +108,6 @@ $_tabs = [
       <li>Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</li>
       <li>Wpisz hasło.</li>
     </ol>
-    <p class="sub mt-3 mb-0">Kursant loguje się pierwszy raz kodem SMS-em na telefon z karty. Potem ustawia własne hasło.</p>
   </aside>
 
   <main class="tz-main" id="ti-login-main">
