@@ -1455,6 +1455,82 @@ function ti_protocol_zero_info_html(array $prot): string {
 }
 
 /**
+ * Umowa zlecenie prowadzącego grupy, obowiązująca w miesiącu protokołu — do e-ewidencji godzin.
+ * Najpierw po powiązaniu z e-dziennikiem (umowy_zlecenie.ti_instructor_user_id), potem po e-mailu konta.
+ * Pomija projekty i umowy anulowane/odrzucone. null = prowadzący nie ma umowy zlecenie w systemie.
+ */
+function ti_protocol_zlecenie_umowa(array $prot): ?array {
+    try {
+        $c   = db_one("SELECT c.instructor_id, u.email FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id = ?", [(int)$prot['course_id']]);
+        $uid = (int)($c['instructor_id'] ?? 0);
+        if ($uid <= 0) return null;
+        $ym   = (string)($prot['year_month'] ?? substr((string)($prot['date_from'] ?? date('Y-m-d')), 0, 7));
+        $od   = $ym . '-01';
+        $do   = date('Y-m-t', strtotime($od));
+        $war  = "status NOT IN ('projekt','anulowana','odrzucona')
+                 AND (data_rozpoczecia IS NULL OR data_rozpoczecia = '' OR data_rozpoczecia <= ?)
+                 AND (COALESCE(bezterminowa,0) = 1 OR data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)";
+        $u = db_one("SELECT * FROM umowy_zlecenie WHERE ti_instructor_user_id = ? AND $war ORDER BY id DESC LIMIT 1", [$uid, $do, $od]);
+        if (!$u && trim((string)($c['email'] ?? '')) !== '') {
+            $u = db_one("SELECT * FROM umowy_zlecenie WHERE lower(email) = lower(?) AND $war ORDER BY id DESC LIMIT 1", [(string)$c['email'], $do, $od]);
+        }
+        return $u ?: null;
+    } catch (\Throwable $e) {
+        return null;   // brak modułu umów / kolumn — bez ewidencji
+    }
+}
+
+/**
+ * HTML e-ewidencji liczby godzin wykonania zlecenia (art. 8a ust. 4 ustawy o minimalnym wynagrodzeniu)
+ * za miesiąc protokołu. Godziny faktyczne (minuty ÷ 60, bez zaokrąglania — jak w module rozliczeń zlecenia);
+ * zajęcia poprowadzone w zastępstwie przez inną osobę nie wchodzą do ewidencji tego zleceniobiorcy.
+ */
+function ti_protocol_ewidencja_html(array $prot, array $umowa): string {
+    $h   = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $hl  = ti_protocol_hours_list($prot);
+    $org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'));
+    $nip = trim((string)org_setting('org_nip'));
+    $nr  = trim((string)($umowa['numer_umowy'] ?: ($umowa['nr_rejestru'] ?? '') ?: ($umowa['nr_roboczy'] ?? '')));
+    $ym   = (string)($prot['year_month'] ?? '');
+    $mn   = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+    $mies = preg_match('/^(\d{4})-(\d{2})$/', $ym, $m) ? $mn[(int)$m[2] - 1] . ' ' . $m[1] : (string)($prot['period_name'] ?? '');
+    $rows = ''; $i = 0; $min = 0; $zast = 0;
+    foreach ($hl['rows'] as $r) {
+        if ((string)$r['sub'] !== '') { $zast++; continue; }
+        $i++; $min += (int)$r['min'];
+        $rows .= '<tr><td>' . $i . '.</td><td>' . $h(date('d.m.Y', strtotime($r['date']))) . '</td>'
+               . '<td>' . $h(ti_protocol_hours_span($r)) . '</td>'
+               . '<td class="r">' . $h(ti_protocol_hours_fact_fmt((int)$r['min'])) . '</td>'
+               . '<td>' . $h($prot['course_name'] ?? '') . '</td></tr>';
+    }
+    $out = '<h1>Ewidencja liczby godzin wykonania zlecenia</h1>'
+         . '<p class="sub">Art. 8a ust. 4 ustawy z dnia 10 października 2002 r. o minimalnym wynagrodzeniu za pracę — e-ewidencja.</p>'
+         . '<table class="head"><tbody>'
+         . '<tr><th>Zleceniodawca</th><td>' . $h($org) . ($nip !== '' ? ', NIP ' . $h($nip) : '') . '</td></tr>'
+         . '<tr><th>Zleceniobiorca</th><td>' . $h($umowa['imie_nazwisko'] ?? '') . '</td></tr>'
+         . '<tr><th>Umowa zlecenie</th><td>' . ($nr !== '' ? 'nr ' . $h($nr) : '—')
+         . (!empty($umowa['data_zawarcia']) ? ' z dnia ' . $h(date('d.m.Y', strtotime((string)$umowa['data_zawarcia']))) : '') . '</td></tr>'
+         . '<tr><th>Miesiąc</th><td>' . $h($mies) . '</td></tr>'
+         . '<tr><th>Zakres</th><td>Zajęcia w grupie ' . $h($prot['course_name'] ?? '') . '</td></tr>'
+         . '</tbody></table>';
+    if ($i === 0) {
+        $out .= '<p class="empty-note">W tym miesiącu zleceniobiorca nie wykonywał zlecenia w tej grupie — liczba godzin: 0.</p>';
+    } else {
+        $out .= '<table class="items"><thead><tr><th style="width:7%">Lp.</th><th style="width:16%">Data</th><th style="width:16%">Godziny</th>'
+              . '<th style="width:15%" class="r">Liczba godzin</th><th>Zajęcia</th></tr></thead><tbody>' . $rows
+              . '<tr class="sum"><td colspan="3">Razem</td><td class="r">' . $h(ti_protocol_hours_fact_fmt($min)) . '</td><td></td></tr>'
+              . '</tbody></table>';
+    }
+    if ($zast > 0) {
+        $out .= '<p class="sub">Pominięto zajęcia poprowadzone w zastępstwie przez inną osobę: ' . $zast . '.</p>';
+    }
+    return $out
+        . '<p class="sub">Liczba godzin faktyczna (minuty ÷ 60) — na podstawie e-dziennika zajęć, potwierdzona podpisem protokołu.</p>'
+        . '<table class="signs"><tr><td>..............................................<br>data i podpis zleceniobiorcy</td>'
+        . '<td>..............................................<br>data i podpis zleceniodawcy</td></tr></table>';
+}
+
+/**
  * PDF protokołu zajęć. $podglad — wersja przed zatwierdzeniem (strona zatwierdzania pokazuje,
  * jaki dokument powstanie): ukośny znak wodny „PODGLĄD”, żeby nie pomylić jej z podpisanym protokołem.
  */
@@ -1503,6 +1579,11 @@ function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
         // 0 godzin: pełnego protokołu nie generujemy — do druku, podpisu i EZD idzie sama informacja.
         $mpdf->WriteHTML(ti_protocol_is_zero($prot) ? ti_protocol_zero_info_html($prot) : ti_protocol_print_html($prot),
             \Mpdf\HTMLParserMode::HTML_BODY);
+        // Wraz z protokołem — e-ewidencja godzin do umowy zlecenie prowadzącego (gdy ma taką umowę).
+        if ($umowa = ti_protocol_zlecenie_umowa($prot)) {
+            $mpdf->AddPage();
+            $mpdf->WriteHTML(ti_protocol_ewidencja_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
+        }
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
         return null;
