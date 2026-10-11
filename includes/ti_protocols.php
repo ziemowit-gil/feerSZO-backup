@@ -1738,10 +1738,15 @@ function ti_pdf_css(): string {
 }
 
 /** E-ewidencja godzin do umowy zlecenie jako osobny PDF (podgląd przed zgodą na przepisanie godzin). */
-function ti_protocol_ewidencja_pdf(array $prot, array $umowa): ?string {
+function ti_protocol_ewidencja_pdf(array $prot, array $umowa, bool $podglad = false): ?string {
     try {
         $mpdf = ti_pdf_new('E-ewidencja godzin — ' . (string)($umowa['imie_nazwisko'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''),
                            'E-ewidencja godzin wykonania zlecenia');
+        // Przed zgodą na przepisanie godzin — znak wodny „PODGLĄD” (jak podgląd protokołu).
+        if ($podglad) {
+            $mpdf->SetWatermarkText('PODGLĄD', 0.12);
+            $mpdf->showWatermarkText = true;
+        }
         $mpdf->WriteHTML(ti_protocol_ewidencja_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
@@ -1771,14 +1776,7 @@ function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
             $_note = ti_pdf_sign_note(ti_protocol_get((int)($prot['id'] ?? 0)) ?: $prot);
             if ($_note !== '') $mpdf->WriteHTML($_note, \Mpdf\HTMLParserMode::HTML_BODY);
         }
-        // Wraz z protokołem — e-ewidencja godzin do umowy zlecenie, ale TYLKO po zgodzie prowadzącego
-        // na przepisanie godzin (wtedy wiadomo, której umowy dotyczy; zgoda = potwierdzenie realizacji umowy).
-        ti_protocol_ew_migrate();
-        $_ew = !empty($prot['id']) ? db_one("SELECT ew_umowa_id, ew_zgoda_at FROM k30_ti_protocols WHERE id = ?", [(int)$prot['id']]) : null;
-        if (!$podglad && !empty($_ew['ew_zgoda_at']) && ($umowa = db_one("SELECT * FROM umowy_zlecenie WHERE id = ?", [(int)$_ew['ew_umowa_id']]))) {
-            $mpdf->AddPage();
-            $mpdf->WriteHTML(ti_protocol_ewidencja_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
-        }
+        // E-ewidencja godzin do umowy zlecenie to osobny, trzeci dokument (protokol_pdf.php?ewidencja=1) — nie doklejamy jej tu.
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
         return null;

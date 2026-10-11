@@ -240,7 +240,7 @@ if ($_pd):
           <?= h(number_format((float)$_ew_row['ew_godziny'], 2, ',', ' ')) ?> h. Zgoda jest podpisanym potwierdzeniem realizacji umowy za ten miesiąc.
         </div>
         <a class="btn btn-outline-secondary" href="protokol_pdf.php?ewidencja=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
-          <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>E-ewidencja (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+          <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz listę godzin do umowy — e-ewidencję (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
       <?php else: ?>
         <?php if (count($_ew_umowy) > 1): ?>
         <form method="get" class="mb-3">
@@ -532,6 +532,13 @@ if ($_pd):
           'godziny' => ['label' => 'Lista godzin', 'opis' => 'Daty i liczba godzin — tę treść obejmuje Twój podpis.',
                         'url' => 'protokol_pdf.php?hours=1&' . $_pv_q],
       ];
+      // Trzeci dokument: e-ewidencja godzin do umowy zlecenie — gdy prowadzący ma taką umowę w systemie.
+      if (!$_zero && ($_pv_umowy = ti_protocol_zlecenie_umowy(ti_protocol_month_stub($_cid, $open_ym)))) {
+          $_pv_dok['ewidencja'] = ['label' => 'Lista godzin do umowy',
+              'opis' => 'E-ewidencja godzin do Twojej umowy zlecenie — osobny dokument. Po podpisaniu protokołu sprawdzisz ją'
+                      . (count($_pv_umowy) > 1 ? ', wybierzesz umowę' : '') . ' i wyrazisz zgodę na przepisanie godzin.',
+              'url' => 'protokol_pdf.php?ewidencja=1&' . $_pv_q . '&umowa=' . (int)$_pv_umowy[0]['id']];
+      }
     ?>
     <div class="col-xl-7 col-lg-6">
       <section class="card h-100" aria-labelledby="pmPodgladH">

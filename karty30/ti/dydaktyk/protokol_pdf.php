@@ -44,12 +44,17 @@ if (!empty($_GET['ewidencja'])) {
     if (!dyd_owns_course($uid, (int)$pr['course_id'])) { http_response_code(403); exit('Brak dostępu do tego protokołu.'); }
     // &umowa=ID — wybór, gdy pasuje kilka umów (tylko spośród umów tego prowadzącego).
     $umowa = null;
-    if (!empty($_GET['umowa'])) {
+    // Po zgodzie: zawsze umowa, do której przepisano godziny (dokument bez znaku wodnego).
+    ti_protocol_ew_migrate();
+    $_ew = !empty($pr['id']) ? db_one("SELECT ew_umowa_id, ew_zgoda_at FROM k30_ti_protocols WHERE id = ?", [(int)$pr['id']]) : null;
+    $_zgoda = !empty($_ew['ew_zgoda_at']) && !empty($_ew['ew_umowa_id']);
+    if ($_zgoda) $umowa = db_one("SELECT * FROM umowy_zlecenie WHERE id = ?", [(int)$_ew['ew_umowa_id']]);
+    elseif (!empty($_GET['umowa'])) {
         foreach (ti_protocol_zlecenie_umowy($pr) as $_u) if ((int)$_u['id'] === (int)$_GET['umowa']) $umowa = $_u;
     }
     $umowa ??= ti_protocol_zlecenie_umowa($pr);
     if (!$umowa) { http_response_code(404); exit('Nie wybrano umowy zlecenie (albo prowadzący nie ma jej w systemie).'); }
-    $pdf = ti_protocol_ewidencja_pdf($pr, $umowa);
+    $pdf = ti_protocol_ewidencja_pdf($pr, $umowa, !$_zgoda);
     if ($pdf === null) { http_response_code(500); exit('Nie udało się wygenerować e-ewidencji.'); }
     header('Content-Type: application/pdf');
     header('Content-Disposition: inline; filename="e-ewidencja-' . $cid . '-' . $ym . '.pdf"');
