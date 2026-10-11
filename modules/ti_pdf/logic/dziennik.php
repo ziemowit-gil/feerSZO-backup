@@ -10,7 +10,9 @@
  *
  * Dane osobowe (data urodzenia, PESEL, opiekun) tylko na żądanie
  * ($opts['personal'] = true) — domyślnie wydruk bez nich.
- * Wywołanie: karty30/ti/dydaktyk/dziennik_pdf.php (tylko kierownik).
+ * $opts['ym'] = 'RRRR-MM' — dziennik za jeden miesiąc (zajęcia tylko z tego miesiąca;
+ * drukuje się razem z dokumentami protokołu miesięcznego).
+ * Wywołanie: karty30/ti/dydaktyk/dziennik_pdf.php (tylko kierownik), protokol_pdf.php?dziennik=1 (prowadzący).
  */
 require_once __DIR__ . '/TiPdf.php';
 
@@ -20,6 +22,7 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
     $c = k30_ti_course_get($course_id);
     if (!$c) return null;
     $personal = !empty($opts['personal']);
+    $ym = preg_match('/^\d{4}-\d{2}$/', (string)($opts['ym'] ?? '')) ? (string)$opts['ym'] : '';
     $pl  = [TiPdf::class, 'pl'];
     $org = (string)org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
     $adr = trim((string)org_setting('org_adres'));
@@ -43,8 +46,8 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
            FROM k30_ti_sessions s
            LEFT JOIN users u  ON u.id = s.instructor_id
            LEFT JOIN users iu ON iu.id = ?
-          WHERE s.course_id = ? AND s.status NOT IN ('draft', 'reserved')
-          ORDER BY s.lesson_date, s.time_from", [(int)$c['instructor_id'], $course_id]
+          WHERE s.course_id = ? AND s.status NOT IN ('draft', 'reserved')" . ($ym !== '' ? " AND substr(s.lesson_date, 1, 7) = ?" : '') . "
+          ORDER BY s.lesson_date, s.time_from", array_merge([(int)$c['instructor_id'], $course_id], $ym !== '' ? [$ym] : [])
     );
     $att = [];
     foreach (db_all("SELECT a.* FROM k30_ti_attendance a JOIN k30_ti_sessions s ON s.id = a.session_id WHERE s.course_id = ?", [$course_id]) as $a) {
@@ -145,6 +148,12 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
     $pdf->Cell($W(), 14, $pl('DZIENNIK ZAJĘĆ'), 0, 1, 'C');
     $pdf->SetFont('DejaVu', '', 15); $pdf->SetTextColor(0, 0, 0);
     $pdf->Cell($W(), 10, $pl('Rok szkolny ' . $sy_from . '/' . $sy_to), 0, 1, 'C');
+    if ($ym !== '') {
+        $mies = ['', 'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+        $pdf->SetFont('DejaVu', 'B', 13);
+        $pdf->Cell($W(), 9, $pl('Miesiąc: ' . $mies[(int)substr($ym, 5, 2)] . ' ' . substr($ym, 0, 4)), 0, 1, 'C');
+        $pdf->SetFont('DejaVu', '', 15);
+    }
     $pdf->Ln(6);
     $pdf->SetFont('DejaVu', 'B', 14);
     $pdf->MultiCell($W(), 8, $pl((string)$c['name']), 0, 'C');
@@ -306,8 +315,8 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
 }
 
 /** Nazwa pliku dziennika. */
-function ti_dziennik_filename(array $course): string
+function ti_dziennik_filename(array $course, string $ym = ''): string
 {
     require_once __DIR__ . '/exportName.php';
-    return ti_export_filename((int)($course['id'] ?? 0), 'dziennik_zajec', 'pdf');
+    return ti_export_filename((int)($course['id'] ?? 0), 'dziennik_zajec' . ($ym !== '' ? '_' . $ym : ''), 'pdf');
 }

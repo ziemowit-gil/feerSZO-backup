@@ -35,7 +35,7 @@ if (!empty($_GET['hours'])) {
     exit;
 }
 
-// ?dziennik=1&course= — dziennik zajęć grupy (wraz z dokumentami protokołu), bez danych osobowych.
+// ?dziennik=1&course=&ym= — dziennik zajęć grupy za miesiąc protokołu, bez danych osobowych.
 // Prowadzący — tylko własnej grupy; wersję z danymi osobowymi drukuje kierownik (dziennik_pdf.php?dane=1).
 if (!empty($_GET['dziennik'])) {
     require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/dziennik.php';
@@ -43,11 +43,12 @@ if (!empty($_GET['dziennik'])) {
     $course = $cid ? k30_ti_course_get($cid) : null;
     if (!$course) { http_response_code(404); exit('Nie znaleziono grupy.'); }
     if (!dyd_owns_course($uid, $cid)) { http_response_code(403); exit('Brak dostępu do tej grupy.'); }
-    $pdf = ti_dziennik_pdf($cid, ['personal' => false]);
+    $ym  = preg_match('/^\d{4}-\d{2}$/', (string)($_GET['ym'] ?? '')) ? (string)$_GET['ym'] : '';
+    $pdf = ti_dziennik_pdf($cid, ['personal' => false, 'ym' => $ym]);
     if ($pdf === null) { http_response_code(500); exit('Nie udało się wygenerować dziennika.'); }
-    ti_print_log_add('dziennik_pdf', 'Dziennik zajęć (z protokołem) — ' . $course['name'], $cid, 0, ['dane' => 0], $me);
+    ti_print_log_add('dziennik_pdf', 'Dziennik zajęć' . ($ym !== '' ? ' za ' . $ym : '') . ' — ' . $course['name'], $cid, 0, ['dane' => 0, 'ym' => $ym], $me);
     header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="' . ti_dziennik_filename($course) . '"');
+    header('Content-Disposition: inline; filename="' . ti_dziennik_filename($course, $ym) . '"');
     header('Cache-Control: private, no-store');
     echo $pdf;
     exit;
