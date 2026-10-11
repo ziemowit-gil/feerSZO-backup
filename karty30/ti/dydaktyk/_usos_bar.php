@@ -37,12 +37,12 @@ $_it = fn(string $tab_key, string $label, string $href, int $n = 0, string $vari
 $_kurs_items = [];
 foreach (($_sb_ctabs ?? []) as $_k => $_meta) {
     [$_ico, $_lbl, $_n, $_v] = $_meta;
-    $_kurs_items[] = $_it((string)$_k, (string)$_lbl, $_ct((string)$_k), (int)$_n, $_v !== '' ? (string)$_v : 'secondary');
+    $_kurs_items[] = $_it((string)$_k, (string)$_lbl, $_sb_chref[$_k] ?? $_ct((string)$_k), (int)$_n, $_v !== '' ? (string)$_v : 'secondary');
 }
 if (!$_kurs_items) {   // brak wybranego kursu — same wejścia, bez liczników
     foreach ([
         'lekcje' => 'Zajęcia', 'uczestnicy' => 'Uczestnicy', 'plan' => 'Plan zajęć',
-        'protokol' => 'Protokoły', 'zadania' => 'Zadania', 'materialy' => 'Materiały',
+        'zadania' => 'Zadania', 'materialy' => 'Materiały',
         'nieobecnosci' => 'Nieobecności', 'oceny' => 'Oceny', 'program' => 'Sylabus',
         'egzaminy' => 'Testy i egzaminy', 'testy' => 'Testy (starsze)',
     ] as $_k => $_lbl) {

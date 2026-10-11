@@ -184,6 +184,11 @@ if ($tab === 'testy' && empty($_GET['legacy'])) {
 if (!in_array($tab, ['pulpit', 'lekcje', 'zadania', 'materialy', 'nieobecnosci', 'program', 'oceny', 'dostepnosc', 'testy', 'egzaminy', 'wiadomosci', 'formalnosci', 'komunikaty', 'komunikacja', 'dysk', 'cykliczne', 'wydruki', 'rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'frekwencja_grup', 'zoom', 'uczestnicy', 'plan', 'protokol', 'pomoc'], true)) $tab = 'pulpit';
 if (in_array($tab, ['rozliczenia', 'wypłaty', 'praca_wlasna', 'grupy', 'billing', 'kursy', 'komunikacja'], true) && !dyd_is_staff()) $tab = 'pulpit';
 if ($tab === 'cykliczne' && !dyd_plan_cykliczny_enabled()) $tab = 'pulpit';   // plan cykliczny wyłączony (auth.php)
+// Zakładka „Protokoły” kursu (oceny końcowe, ewidencja, wypłata) — tylko kierownik. Prowadzący ma
+// jedno okno: zatwierdzanie i podpis miesięcznych protokołów (protokoly_moje.php).
+if ($tab === 'protokol' && !dyd_is_staff()) {
+    header('Location: protokoly_moje.php' . ($cur_course ? '?course=' . (int)$cur_course : '')); exit;
+}
 
 // Picker pełnoekranowy — pyta o grupę tylko przy pierwszym wejściu na pulpit
 // (brak zapamiętanego wyboru); poza tym wybór grupy przez dropdown w topbarze.
@@ -1589,6 +1594,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── PROTOKOŁY OCEN ──────────────────────────────────────────────────────────
     if (in_array($op, ['protocol_create', 'protocol_save', 'protocol_approve', 'protocol_unlock', 'protocol_hours_ack', 'protocol_org_ack'], true)) {
         dyd_token_check();
+        if (!dyd_is_staff()) { http_response_code(403); exit('Protokoły ocen prowadzi kierownik.'); }
         $back = dyd_back($course_id, 'protokol');
         if ($dziennik_off) {
             flash_set('danger', 'Dziennik ocen jest wyłączony ' . ti_blackout_range_text($dziennik_off) . ' — protokoły też.');
@@ -3235,6 +3241,8 @@ $_sb_ctabs = $cur_course ? [
     'program'      => ['list-check',      'Sylabus',       $_sb_program,  ''],   // dawniej „Program zajęć"
     'egzaminy'     => ['patch-question',  'Testy i egzaminy', $_sb_egz_rev ?: $_sb_egz, $_sb_egz_rev ? 'warning' : ''],
 ] : [];
+// Prowadzący: „Protokoły” prowadzą do okna zatwierdzania jego protokołów miesięcznych tej grupy.
+$_sb_chref = ($cur_course && !dyd_is_staff()) ? ['protokol' => 'protokoly_moje.php?course=' . (int)$cur_course] : [];
 if ($cur_course && dyd_is_staff()) {
     $_sb_ctabs['rozliczenia'] = ['receipt','Rozliczenia', $_sb_roz_debt, $_sb_roz_debt ? 'danger' : ''];
 }
@@ -3321,7 +3329,7 @@ if ($cur_course && dyd_is_staff()) {
 
   <?php foreach ($_sb_ctabs as $_ct_key => [$_ct_ico, $_ct_lbl, $_ct_n, $_ct_v]): ?>
   <a class="dyd-sb-link dyd-sb-sub <?= $tab === $_ct_key ? 'active' : '' ?>"
-     href="index.php?course=<?= $cur_course ?>&tab=<?= $_ct_key ?>"
+     href="<?= h($_sb_chref[$_ct_key] ?? ('index.php?course=' . $cur_course . '&tab=' . $_ct_key)) ?>"
      <?= $tab === $_ct_key ? 'aria-current="page"' : '' ?>>
     <i class="bi bi-<?= $_ct_ico ?>" aria-hidden="true"></i><?= $_ct_lbl ?>
     <?php if ($_ct_n > 0): ?>
