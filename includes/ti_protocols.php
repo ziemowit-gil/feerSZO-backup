@@ -1523,10 +1523,23 @@ function ti_protocol_zlecenie_umowa(array $prot): ?array {
  *
  * @return array{godziny: float, dodane: int, zmienione: int, umowa: array}
  */
+/** Od tego miesiąca godziny z podpisanych protokołów przepisujemy do ewidencji umowy zlecenie (rachunki). */
+const TI_EW_PRZEPISANIE_OD = '2026-10';
+
+/** Czy godziny z protokołu za ten miesiąc przepisujemy do ewidencji umowy (wcześniejsze — rozliczone jak dotąd). */
+function ti_protocol_ew_przepisanie_aktywne(string $ym): bool {
+    return $ym >= TI_EW_PRZEPISANIE_OD;
+}
+
 function ti_protocol_ewidencja_zgoda(array $prot, array $umowa, int $uid, string $by_name): array {
     require_once __DIR__ . '/zlecenie_rachunki.php';
     ti_protocol_ew_migrate();
     $ym  = (string)$prot['year_month'];
+    // Protokół sprzed października 2026 (podpisany później) — nic nie przepisujemy i nie zgłaszamy błędu:
+    // te miesiące są rozliczone w rachunkach po staremu.
+    if (!ti_protocol_ew_przepisanie_aktywne($ym)) {
+        return ['godziny' => 0.0, 'dodane' => 0, 'zmienione' => 0, 'umowa' => $umowa, 'pominieto' => true];
+    }
     $cid = (int)$umowa['id'];
     $kid = (int)$prot['course_id'];
     zl_rozl_assert_open($cid, $ym);   // zamknięty miesiąc rozliczenia — tylko odczyt

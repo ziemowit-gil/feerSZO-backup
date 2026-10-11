@@ -38,6 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (ti_protocol_zlecenie_umowy($pr) as $_u) if ((int)$_u['id'] === (int)($_POST['umowa_id'] ?? 0)) $umowa = $_u;
             if (!$umowa) throw new \RuntimeException('Wybierz umowę zlecenie, do której przepisać godziny.');
             $r = ti_protocol_ewidencja_zgoda($pr, $umowa, $uid, $me_name);
+            if (!empty($r['pominieto'])) {
+                flash_set('info', 'Za ' . ti_pdf_month_label($ym) . ' godzin nie przepisujemy do umowy — przepisywanie działa od października 2026, wcześniejsze miesiące są rozliczone w rachunkach jak dotąd.');
+                header('Location: ' . $wroc); exit;
+            }
             flash_set('success', 'Godziny przepisane do umowy (' . number_format($r['godziny'], 2, ',', ' ') . ' h). Kierownik dostał informację o nowej e-ewidencji.');
         } catch (\Throwable $e) {
             flash_set('danger', $e->getMessage());
@@ -252,6 +256,15 @@ if ($_pd):
           <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz listę godzin do umowy — e-ewidencję (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
         <a class="btn btn-outline-secondary" href="protokol_pdf.php?obecnosc=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
           <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz listę obecności do umowy (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+      <?php elseif (!ti_protocol_ew_przepisanie_aktywne($_pd_ym)): ?>
+        <p class="text-body-secondary">Za <?= h($fmt_ym($_pd_ym)) ?> godzin nie przepisujemy do ewidencji umowy — przepisywanie działa
+          <strong>od października 2026</strong>, wcześniejsze miesiące są rozliczone w rachunkach jak dotąd. Dokumenty możesz pobrać:</p>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-secondary" href="protokol_pdf.php?ewidencja=1&amp;<?= h($_ew_q) ?><?= $_ew_wyb ? '&amp;umowa=' . (int)$_ew_wyb['id'] : '' ?>" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Lista godzin do umowy (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+          <a class="btn btn-outline-secondary" href="protokol_pdf.php?obecnosc=1&amp;<?= h($_ew_q) ?><?= $_ew_wyb ? '&amp;umowa=' . (int)$_ew_wyb['id'] : '' ?>" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Lista obecności do umowy (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+        </div>
       <?php else: ?>
         <?php if (count($_ew_umowy) > 1): ?>
         <form method="get" class="mb-3">
