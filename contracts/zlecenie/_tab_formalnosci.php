@@ -140,7 +140,7 @@
 
   <?php if (can_write('contracts') || is_admin()): ?>
   <div class="text-end no-print">
-    <a href="edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary">
+    <a href="view.php?id=<?= $id ?>&amp;tab=umowa&amp;edit=1" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj dane IS
     </a>
   </div>

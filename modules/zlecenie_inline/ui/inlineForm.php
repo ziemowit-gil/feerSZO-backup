@@ -12,6 +12,10 @@ $_zi_users  = [];
 try { $_zi_users = db_all("SELECT id, name, email FROM users WHERE is_active=1 ORDER BY name"); } catch (\Throwable $e) {}
 $_zi_zrodla = [];
 foreach (ZL_EW_ZRODLA as $k => $v) $_zi_zrodla[$k] = $v['label'];
+$_zi_units = ['' => '— wybierz —'];
+try { foreach (db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name") as $_ou) $_zi_units[$_ou['id']] = $_ou['name']; } catch (\Throwable $e) {}
+require_once dirname(__DIR__, 3) . '/includes/person_picker.php';
+require_once dirname(__DIR__, 3) . '/includes/contract_access.php';
 
 /** Ikona i kolor sekcji — te same co w podglądzie umowy. */
 $_zi_icons = [
@@ -20,7 +24,11 @@ $_zi_icons = [
     'Wynagrodzenie i podatek'             => ['bi-cash-coin',      '#FFF7ED', '#EA580C'],
     'Ewidencja godzin'                    => ['bi-calendar-week',  '#F0F9FF', '#0284C7'],
     'ZUS — rejestracja i wyrejestrowanie' => ['bi-shield-check',   '#F5F3FF', '#7C3AED'],
-    'Rachunek i podpisanie'               => ['bi-pen',            '#FDF2F8', '#DB2777'],
+    'Rachunek'                            => ['bi-receipt',        '#FFF7ED', '#C2410C'],
+    'Podpisanie'                          => ['bi-pen',            '#FDF2F8', '#DB2777'],
+    'Inicjatywa społeczna (IS)'           => ['bi-building-check', '#EEF4FF', '#1D4ED8'],
+    'Microsoft 365'                       => ['bi-microsoft',      '#F0F9FF', '#0369A1'],
+    'Dostęp'                              => ['bi-people',         '#F1F5F9', '#334155'],
     'Numery referencyjne'                 => ['bi-hash',           '#F8FAFC', '#475569'],
     'Uwagi'                               => ['bi-chat-left-text', '#FEFCE8', '#CA8A04'],
 ];
@@ -50,7 +58,7 @@ $_zi_col = function (array $d): string {
 </div>
 
 <div id="zl-inline-edit" class="<?= $_zl_inline_open ? '' : 'd-none' ?>">
-  <form method="post" id="zl-inline-form" novalidate>
+  <form method="post" id="zl-inline-form" enctype="multipart/form-data" novalidate>
     <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
     <input type="hidden" name="_zl_inline_save" value="1">
 
@@ -59,7 +67,6 @@ $_zi_col = function (array $d): string {
       <div class="cv-section-head flex-wrap gap-2">
         <div class="cv-section-icon" style="background:#EEF4FF;color:#2563EB"><i class="bi bi-pencil-square"></i></div>
         <span class="cv-section-title">Edycja umowy <?= h($row['numer_umowy']) ?></span>
-        <span class="small text-muted">status, pliki umowy i dostęp zmienisz w <a href="edit.php?id=<?= $id ?>">pełnej edycji</a></span>
         <div class="ms-auto d-flex gap-2">
           <button type="button" class="btn btn-sm btn-outline-secondary zl-inline-close"><i class="bi bi-x-lg me-1"></i>Anuluj</button>
           <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg me-1"></i>Zapisz zmiany</button>
@@ -88,7 +95,19 @@ $_zi_col = function (array $d): string {
         ?>
         <div class="<?= $_zi_col($_d) ?>" id="zi-col-<?= h($_name) ?>">
           <?php if ($_wrap): ?><div class="mb-3 mb-0"><?php endif; ?>
-          <?php if ($_d['type'] === 'checkbox'): ?>
+          <?php if ($_d['type'] === 'person'): ?>
+            <?= person_picker($_zi_vals, ['id' => 'zipp', 'label' => $_d['label'], 'fill' => [
+                  'imie_nazwisko' => 'zi-imie_nazwisko', 'pesel' => 'zi-pesel', 'email' => 'zi-email', 'seria_nr_dowodu' => 'zi-seria_nr_dowodu',
+                  'urzad_skarbowy' => 'zi-urzad_skarbowy', 'rachunek_bankowy' => 'zi-rachunek_bankowy']]) ?>
+            <div class="form-text">Wybierz osobę z rejestru — puste pola (imię, PESEL, e-mail, nr konta…) uzupełnią się automatycznie.</div>
+          <?php elseif ($_d['type'] === 'access'): ?>
+            <input type="hidden" name="_zi_access" value="1">
+            <?= contract_access_field_html(contract_access_user_ids('zlecenie', $id)) ?>
+          <?php elseif ($_d['type'] === 'file'): ?>
+            <label class="form-label" for="<?= $_id ?>"><?= h($_d['label']) ?></label>
+            <input class="form-control form-control-sm" type="file" id="<?= $_id ?>" name="<?= h($_name) ?>" accept="<?= h($_d['accept'] ?? '') ?>">
+            <div class="form-text"><?= !empty($row[$_name]) ? 'Jest plik: ' . upload_link_signed($row[$_name]) . ' — wybierz nowy, żeby go zastąpić.' : 'Brak pliku.' ?></div>
+          <?php elseif ($_d['type'] === 'checkbox'): ?>
           <div class="form-check mt-md-4 pt-md-1">
             <input class="form-check-input" type="checkbox" id="<?= $_id ?>" name="<?= h($_name) ?>" value="1" <?= !empty($_val) ? 'checked' : '' ?>>
             <label class="form-check-label" for="<?= $_id ?>"><?= h($_d['label']) ?></label>
@@ -97,8 +116,10 @@ $_zi_col = function (array $d): string {
           <label class="form-label" for="<?= $_id ?>"><?= h($_d['label']) ?><?= !empty($_d['required']) ? ' <span class="zi-req">*</span>' : '' ?></label>
             <?php if ($_d['type'] === 'select'):
               $_opts = $_d['options'] === '__zrodla__' ? $_zi_zrodla
+                     : ($_d['options'] === '__status__' ? zlecenie_inline_status_options((string)$row['status'])
+                     : ($_d['options'] === '__units__' ? $_zi_units
                      : ($_d['options'] === '__users__' ? ['' => '— wybierz konto —'] + array_column(array_map(fn($u) => [$u['id'], $u['name'] . ($u['email'] ? ' (' . $u['email'] . ')' : '')], $_zi_users), 1, 0)
-                     : $_d['options']); ?>
+                     : $_d['options']))); ?>
             <select class="form-select form-select-sm" id="<?= $_id ?>" name="<?= h($_name) ?>">
               <?php foreach ($_opts as $_ov => $_ol): ?>
               <option value="<?= h((string)$_ov) ?>" <?= (string)$_val === (string)$_ov ? 'selected' : '' ?>><?= h($_ol) ?></option>
@@ -138,8 +159,8 @@ $_zi_col = function (array $d): string {
   open.addEventListener('click', show);
   if (!box.classList.contains('d-none')) siblings().forEach(function (el) { el.style.display = 'none'; }); // otwarty po błędzie walidacji
   box.querySelectorAll('.zl-inline-close').forEach(function (b) { b.addEventListener('click', hide); });
-  // „Edytuj” w nagłówku umowy otwiera edycję w tym oknie (Ctrl/⌘/środkowy klik → pełna edycja)
-  document.querySelectorAll('.contract-hero-actions a[href^="edit.php"]').forEach(function (a) {
+  // „Edytuj” w nagłówku umowy otwiera edycję w tym oknie (to jedyny edytor — osobny edit.php przekierowuje tu)
+  document.querySelectorAll('.contract-hero-actions a[href*="edit=1"], .contract-hero-actions a[href^="edit.php"]').forEach(function (a) {
     a.addEventListener('click', function (ev) {
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button !== 0) return;
       ev.preventDefault();

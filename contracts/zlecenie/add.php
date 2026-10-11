@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($is_draft) {
             flash_set('info', 'Zapisano roboczo — możesz wrócić i dokończyć umowę.');
-            header('Location: ' . APP_URL . "/contracts/{$TYPE}/edit.php?id={$id}"); exit;
+            header('Location: ' . APP_URL . "/contracts/{$TYPE}/view.php?id={$id}&tab=umowa&edit=1"); exit;
         }
 
         // M365 auto-create (jeśli zaznaczono checkbox przy zapisie)

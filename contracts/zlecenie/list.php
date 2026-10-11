@@ -291,7 +291,7 @@ function _zlecenie_table_html(array $rows, int $total, array $pag, int $per, arr
               <td class="text-end" style="white-space:nowrap">
                 <a href="<?= h($vurl) ?>" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="event.stopPropagation()"><i class="bi bi-eye"></i></a>
                 <?php if ($can_edit): ?>
-                <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/edit.php?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="event.stopPropagation()"><i class="bi bi-pencil"></i></a>
+                <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= (int)$r['id'] ?>&amp;tab=umowa&amp;edit=1" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="event.stopPropagation()"><i class="bi bi-pencil"></i></a>
                 <?php endif; ?>
                 <?php if (is_admin() || ($can_edit && (int)($r['created_by'] ?? 0) === (int)current_user()['id'])): ?>
                 <form method="post" class="d-inline" data-ajax-action="delete"

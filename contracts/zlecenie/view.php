@@ -176,6 +176,7 @@ require_once dirname(dirname(__DIR__)) . '/modules/zlecenie_inline/logic/zleceni
 $_zl_inline_errors = [];
 $_zl_inline_open   = false;
 $_zl_inline_post   = [];
+if (!empty($_GET['edit'])) { $_zl_inline_open = true; $_tab = 'umowa'; }   // ?edit=1 (dawny edit.php) — od razu edycja
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_zl_inline_save'])) {
     csrf_check();
     if (!can_edit() || contract_is_locked($row)) {
@@ -587,7 +588,7 @@ $_cvh_amount_lbl = 'Wynagrodzenie brutto';
 $_cvh_end_date   = $row['data_zakonczenia'] ?? null;
 $_cvh_subject    = $row['przedmiot_zlecenia'] ?? null;
 $_cvh_list_url   = APP_URL . '/contracts/zlecenie/list.php';
-$_cvh_edit_url   = 'edit.php?id=' . $id;
+$_cvh_edit_url   = 'view.php?id=' . $id . '&tab=umowa&edit=1';   // jedyny edytor: inline w zakładce Umowa
 include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 require_once dirname(__DIR__) . '/includes/cv_layout.php';
 ?>
