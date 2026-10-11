@@ -126,6 +126,14 @@ $wy_f = fn($x) => number_format((float)$x, 2, ',', ' ');
        class="btn btn-outline-secondary btn-sm" aria-label="Następny miesiąc">
       <i class="bi bi-chevron-right" aria-hidden="true"></i>
     </a>
+    <form method="post" class="d-inline ms-1">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="payout_recompute_month">
+      <input type="hidden" name="ym" value="<?= h($wy_ym) ?>">
+      <button type="submit" class="btn btn-outline-primary btn-sm" title="Przelicz wynagrodzenie w zatwierdzonych protokołach tego miesiąca (aktualne stawki; godziny bez zmian)">
+        <i class="bi bi-calculator me-1" aria-hidden="true"></i>Przelicz wynagrodzenia
+      </button>
+    </form>
     <a href="../payouts.php?m=<?= h($wy_ym) ?>"
        class="btn btn-outline-secondary btn-sm ms-1" target="_blank" rel="noopener"
        title="Otwórz w pełnym panelu TI">

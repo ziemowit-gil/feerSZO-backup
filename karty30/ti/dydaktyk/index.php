@@ -1604,7 +1604,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── PROTOKOŁY OCEN ──────────────────────────────────────────────────────────
-    if (in_array($op, ['protocol_create', 'protocol_save', 'protocol_approve', 'protocol_unlock', 'protocol_hours_ack', 'protocol_org_ack'], true)) {
+    // Kierownik: przelicz wynagrodzenia we wszystkich zatwierdzonych protokołach miesiąca (zakładka Wypłaty).
+    if ($op === 'payout_recompute_month') {
+        dyd_token_check();
+        if (!dyd_is_staff()) { http_response_code(403); exit('Wynagrodzenia przelicza kierownik.'); }
+        $_ym = (string)($_POST['ym'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}$/', $_ym)) {
+            $_r = ti_protocol_recompute_payout_month($_ym, $uid, (string)($me['name'] ?? ''));
+            flash_set($_r['pominiete'] ? 'warning' : 'success', 'Przeliczono wynagrodzenie w zatwierdzonych protokołach: ' . $_r['przeliczone']
+                . ', bez zmian: ' . $_r['bez_zmian'] . '.'
+                . ($_r['pominiete'] ? ' Pominięte (po zatwierdzeniu zmieniły się lekcje — odblokuj i zatwierdź ponownie): ' . implode(', ', $_r['pominiete']) . '.' : ''));
+        }
+        header('Location: index.php?tab=' . urlencode('wypłaty') . '&m=' . urlencode($_ym)); exit;
+    }
+
+    if (in_array($op, ['protocol_create', 'protocol_save', 'protocol_approve', 'protocol_unlock', 'protocol_hours_ack', 'protocol_org_ack', 'protocol_recompute_payout'], true)) {
         dyd_token_check();
         if (!dyd_is_staff()) { http_response_code(403); exit('Protokoły ocen prowadzi kierownik.'); }
         $back = dyd_back($course_id, 'protokol');
@@ -1650,6 +1664,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!dyd_is_staff()) { http_response_code(403); exit('Podpisać za organizatora może pracownik D3 lub administrator.'); }
                 ti_protocol_org_ack($pid, $uid, $me_name, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
                 flash_set('success', 'Protokół podpisany za organizatora — ślad zapisany w dokumencie.');
+            } elseif ($op === 'protocol_recompute_payout') {
+                $_r = ti_protocol_recompute_payout($pid, $uid, $me_name);
+                flash_set('success', $_r['changed']
+                    ? 'Przeliczono wynagrodzenie: netto ' . ti_protocol_money($_r['old']) . ' → ' . ti_protocol_money($_r['new']) . '. Godziny bez zmian.'
+                    : 'Wynagrodzenie jest aktualne — bez zmian (netto ' . ti_protocol_money($_r['new']) . ').');
             } elseif ($op === 'protocol_unlock') {
                 if (!dyd_is_staff()) { http_response_code(403); exit('Odblokować protokół może pracownik D3 lub administrator.'); }
                 ti_protocol_unlock($pid, $uid, $me_name, (string)($_POST['reason'] ?? ''));

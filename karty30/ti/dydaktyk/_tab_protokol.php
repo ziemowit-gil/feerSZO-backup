@@ -412,6 +412,17 @@ $pr_empty   = $pr ? ti_protocol_is_empty($pr_stats) : false;
 
       <?php if ($pr_locked && dyd_is_staff()): ?>
       <div class="card-body border-top usos-noprint">
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-center mb-3">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+          <input type="hidden" name="_op" value="protocol_recompute_payout">
+          <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
+          <input type="hidden" name="protocol_id" value="<?= (int)$pr['id'] ?>">
+          <button type="submit" class="btn btn-sm btn-outline-primary" aria-describedby="pr-recalc-hint">
+            <i class="bi bi-calculator me-1" aria-hidden="true"></i>Przelicz wynagrodzenie
+          </button>
+          <span class="small text-body-secondary" id="pr-recalc-hint">Aktualna stawka i forma rozliczenia — godziny (objęte podpisem) bez zmian.<?php
+            if (!empty($pr['payout_recalc_at'])): ?> Ostatnio przeliczone: <?= h(date('d.m.Y H:i', strtotime((string)$pr['payout_recalc_at'] . ' UTC'))) ?>, <?= h((string)$pr['payout_recalc_name']) ?>.<?php endif; ?></span>
+        </form>
         <form method="post" class="d-flex flex-wrap gap-2 align-items-end"
               onsubmit="return confirm('Odblokować zatwierdzony protokół? Powód zostanie zapisany.')">
           <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">

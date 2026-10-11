@@ -897,6 +897,61 @@ function ti_protocol_averages_for(array $prot): array {
 }
 
 /**
+ * „Przelicz wynagrodzenie” (kierownik): w kopii zatwierdzonego protokołu przelicza samo wynagrodzenie
+ * (stawka kursu, forma rozliczenia prowadzącego i zastępców) z aktualnych danych. Godzin NIE rusza —
+ * lista godzin jest objęta podpisem prowadzącego; gdy lekcje zmieniły się po zatwierdzeniu, odmawia
+ * (wtedy trzeba odblokować protokół i zatwierdzić ponownie). Zwraca ['old' => netto, 'new' => netto, 'changed' => bool].
+ */
+function ti_protocol_recompute_payout(int $protocol_id, int $by, string $by_name): array {
+    ti_protocols_migrate();
+    foreach (["ALTER TABLE k30_ti_protocols ADD COLUMN payout_recalc_at TEXT",
+              "ALTER TABLE k30_ti_protocols ADD COLUMN payout_recalc_by INTEGER",
+              "ALTER TABLE k30_ti_protocols ADD COLUMN payout_recalc_name TEXT NOT NULL DEFAULT ''"] as $_sql) {
+        try { db()->exec($_sql); } catch (\Throwable $e) {}
+    }
+    $prot = ti_protocol_get($protocol_id);
+    if (!$prot) throw new \RuntimeException('Protokół nie istnieje.');
+    $snap = ti_protocol_snapshot($prot);
+    if (!$snap || !is_array($snap['hours'] ?? null)) {
+        throw new \RuntimeException('Protokół nie jest zatwierdzony — jego wynagrodzenie i tak liczy się na bieżąco.');
+    }
+    $old  = (array)$snap['hours'];
+    $live = ti_protocol_hours_and_payout_live($prot);
+    $key  = fn(array $rows) => json_encode(array_map(fn($r) => [(string)$r['date'], (string)$r['from'], (string)$r['to'], (int)$r['min'], (string)($r['sub'] ?? '')], $rows));
+    if ($key((array)($old['rows'] ?? [])) !== $key((array)$live['rows'])) {
+        throw new \RuntimeException('Po zatwierdzeniu zmieniły się lekcje (godziny objęte podpisem) — przeliczenie samego wynagrodzenia nie wystarczy. '
+            . 'Odblokuj protokół i zatwierdź go ponownie.');
+    }
+    $new = $old;
+    foreach (['bb', 'payout', 'subs', 'form', 'has_rate'] as $k) $new[$k] = $live[$k];
+    foreach ($new['rows'] as $i => $r) { $new['rows'][$i]['bb'] = $live['rows'][$i]['bb']; $new['rows'][$i]['netto'] = $live['rows'][$i]['netto']; }
+    $o = (float)($old['payout']['netto'] ?? 0); $n = (float)($new['payout']['netto'] ?? 0);
+    $changed = json_encode([$old['bb'] ?? 0, $old['payout'] ?? [], $old['subs'] ?? []]) !== json_encode([$new['bb'], $new['payout'], $new['subs']]);
+    if ($changed) {
+        $snap['hours'] = $new;
+        db()->prepare("UPDATE k30_ti_protocols SET snapshot_json = ?, payout_recalc_at = datetime('now'), payout_recalc_by = ?, payout_recalc_name = ?, updated_at = datetime('now') WHERE id = ?")
+            ->execute([json_encode($snap, JSON_UNESCAPED_UNICODE), $by, $by_name, $protocol_id]);
+    }
+    return ['old' => $o, 'new' => $n, 'changed' => $changed];
+}
+
+/** Przelicza wynagrodzenie we wszystkich zatwierdzonych protokołach miesiąca. Zwraca [przeliczone, bez zmian, pominięte (zmienione lekcje)]. */
+function ti_protocol_recompute_payout_month(string $ym, int $by, string $by_name): array {
+    ti_protocols_migrate();
+    $out = ['przeliczone' => 0, 'bez_zmian' => 0, 'pominiete' => []];
+    foreach (db_all("SELECT p.id, c.name FROM k30_ti_protocols p JOIN k30_ti_courses c ON c.id = p.course_id
+                      WHERE p.year_month = ? AND p.status = 'approved' AND TRIM(COALESCE(p.snapshot_json, '')) <> ''", [$ym]) as $r) {
+        try {
+            $res = ti_protocol_recompute_payout((int)$r['id'], $by, $by_name);
+            $res['changed'] ? $out['przeliczone']++ : $out['bez_zmian']++;
+        } catch (\Throwable $e) {
+            $out['pominiete'][] = (string)$r['name'];
+        }
+    }
+    return $out;
+}
+
+/**
  * Czy dane na żywo rozjechały się z kopią zatwierdzonego protokołu (ktoś
  * zmienił/usunął lekcję po zatwierdzeniu) — do ostrzeżenia w panelu.
  */
