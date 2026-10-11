@@ -20,11 +20,13 @@
  *     "data":     {"imie_nazwisko":"…", "email":"…", "telefon":"…", …},
  *     "custom":   {"12":"wartość"},       // pola niestandardowe po ID definicji
  *     "consents": ["c1","c2"],            // zaznaczone zgody
+ *     "fields":   [{"name":"nip","label":"NIP","type":"text"}],  // opis pól z CMS-a — brakujące
+ *                                          // pola SZO dopisuje do formularza (wbudowane albo pola dodatkowe CRM)
  *     "meta":     {"ip":"1.2.3.4", "url":"https://feer.org.pl/kontakt", "external_id":"77"},
  *     "intake":   {"inbox":true,"activity":true,"task":false}   // nadpisanie skutków
  *   }
  *
- * Odpowiedź: {ok, contact_id, created, inbox_id, activity_id, task_id, duplicate}
+ * Odpowiedź: {ok, contact_id, created, inbox_id, activity_id, task_id, duplicate, created_fields}
  *
  * Uprawnienia: forms:read (GET), forms:submit (POST). Osobne od crm:write —
  * token dla CMS-a ma móc TYLKO przyjmować zgłoszenia, nie kasować kontaktów.
@@ -135,8 +137,15 @@ if ($external_id !== '') {
     }
 }
 
+// Pola, których formularz SZO jeszcze nie ma, są dopisywane (pole wbudowane albo pole
+// dodatkowe CRM) — wartości trafiają do kartoteki zamiast przepadać.
+$ensured = crm_form_ensure_fields($form, $data, (array)($body['fields'] ?? []));
+$form    = $ensured['form'];
+// Listy (np. wybór wielokrotny) dalej jako tekst — kartoteka, skrzynka i powiadomienie oczekują napisów.
+$data = array_map(fn($v) => is_array($v) ? implode(', ', array_map('strval', $v)) : $v, $data);
+
 $res = crm_form_intake($form, $data, [
-    'custom'   => (array)($body['custom']   ?? []),
+    'custom'   => (array)($body['custom'] ?? []) + $ensured['custom'],
     'consents' => (array)($body['consents'] ?? []),
     'intake'   => (array)($body['intake']   ?? []),
     // IP zgłaszającego przekazuje CMS — do rejestru zgód ma trafić adres
@@ -169,4 +178,5 @@ api_json([
     'activity_id' => (int)($res['activity_id'] ?? 0),
     'task_id'     => (int)($res['task_id']     ?? 0),
     'contact_url' => APP_URL . '/crm/contact/view.php?id=' . (int)$res['contact_id'],
+    'created_fields' => $ensured['created'],
 ]);

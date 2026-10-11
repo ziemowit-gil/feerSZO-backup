@@ -99,6 +99,94 @@ function crm_form_intake_config(array $form, array $override = []): array
 
 
 /**
+ * Uzupełnia definicję formularza SZO o pola, które przyszły w zgłoszeniu z CMS-a,
+ * a których formularz jeszcze nie ma.
+ *
+ * Pole wbudowane kartoteki (np. adres, stanowisko) — dopisywane do formularza jako
+ * zwykłe pole. Każde inne — jako pole dodatkowe CRM (crm_contact_field_defs):
+ * istniejąca definicja o tej samej etykiecie jest używana ponownie, inaczej powstaje
+ * nowa. Wartości takich pól trafiają do kartoteki kontaktu (zwracane jako `custom`).
+ *
+ * @param array $form   wiersz crm_web_forms
+ * @param array $data   wartości zgłoszenia [klucz => wartość]
+ * @param array $meta   opis pól z CMS-a: [['name'=>…, 'label'=>…, 'type'=>…, 'options'=>…], …]
+ * @return array{form: array, custom: array<int,string>, created: list<string>}
+ */
+function crm_form_ensure_fields(array $form, array $data, array $meta = []): array
+{
+    $builtin = ['imie_nazwisko', 'email', 'telefon', 'organizacja', 'stanowisko', 'adres', 'notatka', 'wojewodztwo', 'powiat', 'gmina'];
+    $config  = json_decode((string)($form['fields_json'] ?? '[]'), true) ?: [];
+
+    $known = [];
+    foreach ($config as $fc) {
+        if (!empty($fc['name'])) $known[(string)$fc['name']] = $fc;
+    }
+    $metaBy = [];
+    foreach ($meta as $m) {
+        if (is_array($m) && !empty($m['name'])) $metaBy[(string)$m['name']] = $m;
+    }
+
+    $typeMap = ['email' => 'email', 'url' => 'url', 'number' => 'number', 'date' => 'date', 'textarea' => 'textarea',
+                'select' => 'select', 'radio' => 'select', 'checkbox' => 'checkbox', 'consent' => 'checkbox'];
+    $created = [];
+    $changed = false;
+
+    foreach (array_keys($data) as $key) {
+        $key = (string)$key;
+        if ($key === '' || isset($known[$key]) || !preg_match('/^[a-z0-9_]{1,64}$/', $key)) continue;
+        $m     = $metaBy[$key] ?? [];
+        $label = mb_substr(trim((string)($m['label'] ?? '')) ?: ucfirst(str_replace('_', ' ', $key)), 0, 120);
+
+        if (in_array($key, $builtin, true)) {
+            $entry = ['name' => $key, 'required' => false];
+        } else {
+            $def = db_one("SELECT id FROM crm_contact_field_defs WHERE lower(label)=lower(?) ORDER BY is_active DESC, id LIMIT 1", [$label]);
+            $defId = $def ? (int)$def['id'] : CrmManager::saveFieldDef([
+                'label'      => $label,
+                'field_type' => $typeMap[(string)($m['type'] ?? '')] ?? 'text',
+                'options'    => is_array($m['options'] ?? null) ? implode(',', $m['options']) : (string)($m['options'] ?? ''),
+                'applies_to' => 'both',
+                'sort_order' => 900,
+            ]);
+            if (!$defId) continue;
+            // Formularz ma już to pole dodatkowe (np. po zapisie w edytorze formularza klucz z CMS-a
+            // przepadł) — przypinamy klucz do istniejącego wpisu zamiast dublować pole.
+            foreach ($config as $i => $fc) {
+                if (($fc['type'] ?? '') === 'custom' && (int)($fc['field_def_id'] ?? 0) === $defId && empty($fc['name'])) {
+                    $config[$i]['name'] = $key;
+                    $known[$key] = $config[$i];
+                    $changed = true;
+                    continue 2;
+                }
+            }
+            // `name` = klucz z CMS-a — po nim API rozpoznaje pole przy kolejnych zgłoszeniach.
+            $entry = ['type' => 'custom', 'field_def_id' => $defId, 'name' => $key, 'label' => $label, 'required' => false, 'placeholder' => '', 'source' => 'cms'];
+        }
+        $config[]    = $entry;
+        $known[$key] = $entry;
+        $created[]   = $label;
+        $changed     = true;
+    }
+
+    if ($changed) {
+        $json = json_encode($config, JSON_UNESCAPED_UNICODE);
+        db()->prepare("UPDATE crm_web_forms SET fields_json=? WHERE id=?")->execute([$json, (int)$form['id']]);
+        $form['fields_json'] = $json;
+    }
+
+    // Wartości pól dodatkowych (custom) wg klucza z CMS-a.
+    $custom = [];
+    foreach ($known as $key => $fc) {
+        if (($fc['type'] ?? '') !== 'custom' || empty($fc['field_def_id']) || !array_key_exists($key, $data)) continue;
+        $v = $data[$key];
+        $v = is_array($v) ? implode(', ', array_map('strval', $v)) : trim((string)$v);
+        if ($v !== '') $custom[(int)$fc['field_def_id']] = $v;
+    }
+
+    return ['form' => $form, 'custom' => $custom, 'created' => $created];
+}
+
+/**
  * Przyjmuje zgłoszenie i zakłada albo aktualizuje kontakt.
  *
  * @param array $form  wiersz z crm_web_forms
