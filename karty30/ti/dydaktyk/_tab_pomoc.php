@@ -46,7 +46,7 @@ $_guide = [
     ],
 ];
 // Formalności to sprawa prowadzącego, ale w nawigacji stoi w sekcji Kurs
-$_guide['Kurs — praca z grupą'][] = ['Formalności', $_g('formalnosci'), 'Twoje umowy i dokumenty związane z prowadzeniem zajęć.', ''];
+$_guide['Kurs — praca z grupą'][] = ['Formalności', $_g('formalnosci'), 'Twoje umowy i dokumenty związane z prowadzeniem zajęć, a także umowa zlecenie z e-ewidencją godzin (miesiące, wpisy, PDF-y z podpisanych protokołów).', 'Dawna strona „Umowa” jest teraz częścią Formalności.'];
 
 if (dyd_is_staff()) {
     $_guide['Kierownik — tylko pracownicy D3'] = [

@@ -323,7 +323,19 @@ foreach ([
         $params = [];
         if ($dyd_email) { $conds[] = 'email=?'; $params[] = $dyd_email; }
         if ($dyd_ms_id) { $conds[] = 'm365_user_id=?'; $params[] = $dyd_ms_id; }
+        if ($ctype === 'zlecenie') { $conds[] = 'ti_instructor_user_id=?'; $params[] = (int)$uid; }   // prowadzący wskazany w umowie
         if (!$conds) continue;
+        // Kolumny różnią się między rodzajami umów — brakujące jako NULL (inaczej zapytanie padało
+        // po cichu i zakładka Formalności zawsze mówiła „Brak informacji z rejestru umów”).
+        $_have = array_column(db_all("PRAGMA table_info({$table})"), 'name');
+        $_col  = fn(string $c) => in_array($c, $_have, true) ? $c : "NULL AS {$c}";
+        if (!in_array($end_col, $_have, true)) continue;
+        $conds = array_values(array_filter($conds, fn($c) => in_array(strtok($c, '='), $_have, true)));
+        if (!$conds) continue;
+        $params = [];
+        if ($dyd_email && in_array('email', $_have, true)) $params[] = $dyd_email;
+        if ($dyd_ms_id && in_array('m365_user_id', $_have, true)) $params[] = $dyd_ms_id;
+        if ($ctype === 'zlecenie' && in_array('ti_instructor_user_id', $_have, true)) $params[] = (int)$uid;
         $extra_cols = $ctype === 'zlecenie'
             ? ", COALESCE(w_ramach_is,0) AS w_ramach_is, is_nazwa, is_adres, is_numer_umowy,
                numer_projektu, klauzula_rodo, is_uprawnienia_nr, is_dyplom_nr, is_dopuszczenie"
@@ -331,7 +343,7 @@ foreach ([
         $rows = db_all(
             "SELECT id, '{$ctype}' AS contract_type, numer_umowy, status, data_zawarcia,
                     {$end_col} AS data_zakonczenia, imie_nazwisko,
-                    stanowisko, wynagrodzenie_brutto, miejsce_wolontariatu, przedmiot_porozumienia
+                    " . implode(', ', array_map($_col, ['stanowisko', 'wynagrodzenie_brutto', 'miejsce_wolontariatu', 'przedmiot_porozumienia'])) . "
                     {$extra_cols}
              FROM {$table} WHERE (" . implode(' OR ', $conds) . ") ORDER BY data_zawarcia DESC",
             $params
@@ -3290,7 +3302,7 @@ if ($cur_course && dyd_is_staff()) {
     <span class="badge bg-warning text-dark ms-auto" style="font-size:.6rem"><?= count($_my_pending_protocols) ?></span>
     <?php endif; ?>
   </a>
-  <a class="dyd-sb-link" href="umowa.php">
+  <a class="dyd-sb-link" href="index.php?tab=formalnosci#umowa">
     <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Umowa
   </a>
 

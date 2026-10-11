@@ -140,6 +140,10 @@
     </div>
   </div>
   <?php endforeach; ?>
+
+  <?php /* ── Umowa zlecenie i e-ewidencja godzin (dawniej osobna strona umowa.php) ── */ ?>
+  <div class="mt-4"><?php include __DIR__ . '/_umowa_ewidencja.php'; ?></div>
+
   <p class="text-body-secondary small mt-2 mb-0">
     <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
     W razie pytań dotyczących umów skontaktuj się z koordynatorem.
