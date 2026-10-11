@@ -788,6 +788,9 @@ function ti_protocol_yubikey_begin(int $uid, array $prot): array {
     require_once dirname(__DIR__) . '/includes/webauthn.php';
     webauthn_migrate();
     $opts = webauthn_begin_auth($uid);
+    // Pełny wiersz (z okresem date_from/date_to) — ten sam, z którego liczy ti_protocol_approve_yubikey();
+    // goły wiersz z ti_protocol_get_or_create_for_month() dawał inną listę godzin i podpis zawsze się „nie zgadzał”.
+    if (!empty($prot['id'])) $prot = ti_protocol_get((int)$prot['id']) ?: $prot;
     $challenge = hash('sha256', ti_protocol_sign_payload($prot, $uid), true);
     $opts['challenge'] = webauthn_b64u_encode($challenge);
     $_SESSION['webauthn_auth_challenge'] = $opts['challenge'];   // complete_auth sprawdzi ten sam skrót
