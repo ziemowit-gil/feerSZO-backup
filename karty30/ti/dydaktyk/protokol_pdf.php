@@ -35,6 +35,24 @@ if (!empty($_GET['hours'])) {
     exit;
 }
 
+// ?dziennik=1&course= — dziennik zajęć grupy (wraz z dokumentami protokołu), bez danych osobowych.
+// Prowadzący — tylko własnej grupy; wersję z danymi osobowymi drukuje kierownik (dziennik_pdf.php?dane=1).
+if (!empty($_GET['dziennik'])) {
+    require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_pdf/logic/dziennik.php';
+    $cid    = (int)($_GET['course'] ?? 0);
+    $course = $cid ? k30_ti_course_get($cid) : null;
+    if (!$course) { http_response_code(404); exit('Nie znaleziono grupy.'); }
+    if (!dyd_owns_course($uid, $cid)) { http_response_code(403); exit('Brak dostępu do tej grupy.'); }
+    $pdf = ti_dziennik_pdf($cid, ['personal' => false]);
+    if ($pdf === null) { http_response_code(500); exit('Nie udało się wygenerować dziennika.'); }
+    ti_print_log_add('dziennik_pdf', 'Dziennik zajęć (z protokołem) — ' . $course['name'], $cid, 0, ['dane' => 0], $me);
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . ti_dziennik_filename($course) . '"');
+    header('Cache-Control: private, no-store');
+    echo $pdf;
+    exit;
+}
+
 // ?ewidencja=1&course=&ym= — e-ewidencja godzin do umowy zlecenie prowadzącego (podgląd przed zgodą na przepisanie).
 if (!empty($_GET['ewidencja'])) {
     $cid = (int)($_GET['course'] ?? 0);

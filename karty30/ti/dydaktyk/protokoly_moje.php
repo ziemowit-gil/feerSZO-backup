@@ -206,6 +206,9 @@ if ($_pd):
         <a class="btn btn-success btn-lg" href="protokol_pdf.php?id=<?= (int)$_pd['id'] ?>">
           <i class="bi bi-file-earmark-arrow-down me-1" aria-hidden="true"></i>Pobierz podpisany dokument (PDF)
         </a>
+        <a class="btn btn-outline-success btn-lg" href="protokol_pdf.php?dziennik=1&amp;course=<?= (int)$_pd['course_id'] ?>">
+          <i class="bi bi-journal-bookmark me-1" aria-hidden="true"></i>Dziennik zajęć (PDF)
+        </a>
         <a class="btn btn-outline-secondary btn-lg" href="protokoly_moje.php">
           <i class="bi bi-list-check me-1" aria-hidden="true"></i>Wróć do listy protokołów
         </a>
@@ -539,6 +542,10 @@ if ($_pd):
                       . (count($_pv_umowy) > 1 ? ', wybierzesz umowę' : '') . ' i wyrazisz zgodę na przepisanie godzin.',
               'url' => 'protokol_pdf.php?ewidencja=1&' . $_pv_q . '&umowa=' . (int)$_pv_umowy[0]['id']];
       }
+      // Dziennik zajęć grupy (cały kurs, bez danych osobowych) — generuje się razem z dokumentami protokołu.
+      $_pv_dok['dziennik'] = ['label' => 'Dziennik zajęć',
+          'opis' => 'Dziennik zajęć grupy (terminy, obecności, tematy, oceny) — bez danych osobowych kursantów.',
+          'url' => 'protokol_pdf.php?dziennik=1&course=' . $_cid];
     ?>
     <div class="col-xl-7 col-lg-6">
       <section class="card h-100" aria-labelledby="pmPodgladH">
