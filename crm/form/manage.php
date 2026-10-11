@@ -52,16 +52,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array('imie_nazwisko', array_column($sel_fields,'name'))) {
             array_unshift($sel_fields, ['name'=>'imie_nazwisko','required'=>true]);
         }
+        // Pola, które przyszły z CMS-a (crm_form_ensure_fields): zachowujemy znacznik źródła
+        // i klucz z CMS-a — bez nich kolejne zgłoszenie nie rozpoznałoby pola.
+        $prev_cfg = $id ? (json_decode((string)(db_one("SELECT fields_json FROM crm_web_forms WHERE id=?", [$id])['fields_json'] ?? '[]'), true) ?: []) : [];
+        $prev_builtin = []; $prev_custom = [];
+        foreach ($prev_cfg as $pf) {
+            if (($pf['type'] ?? '') === 'custom') $prev_custom[(int)($pf['field_def_id'] ?? 0)] = $pf;
+            elseif (!empty($pf['name'])) $prev_builtin[(string)$pf['name']] = $pf;
+        }
+        foreach ($sel_fields as $si => $sf) {
+            if (($prev_builtin[$sf['name']]['source'] ?? '') === 'cms') $sel_fields[$si]['source'] = 'cms';
+        }
         // Pola niestandardowe (crm_contact_field_defs)
         foreach ((array)($_POST['custom_field_id'] ?? []) as $i => $def_id) {
             $def_id = (int)$def_id;
             if (!$def_id) continue;
+            $prev = $prev_custom[$def_id] ?? [];
             $sel_fields[] = [
                 'type'         => 'custom',
                 'field_def_id' => $def_id,
                 'required'     => isset($_POST['custom_req'][$i]),
                 'placeholder'  => trim($_POST['custom_placeholder'][$i] ?? ''),
-            ];
+            ] + array_intersect_key($prev, array_flip(['name', 'label', 'source']));
         }
 
         // Automatyzacje
@@ -481,7 +493,7 @@ include __DIR__ . '/../includes/header_crm.php';
                   <input type="checkbox" class="form-check-input" name="field_<?= $fname ?>" id="f_<?= $fname ?>"
                          <?= $is_active?'checked':'' ?> <?= $locked?'disabled':'' ?>>
                   <?php if ($locked): ?><input type="hidden" name="field_<?= $fname ?>" value="on"><?php endif; ?>
-                  <label class="form-check-label small" for="f_<?= $fname ?>"><?= h($fdef['label']) ?></label>
+                  <label class="form-check-label small" for="f_<?= $fname ?>"><?= h($fdef['label']) ?><?php if (($active_fields[$fname]['source'] ?? '') === 'cms'): ?><span class="badge ms-1" style="font-size:.62rem;background:#e8f0ff;color:#1752bf;border:1px solid #1752bf" title="Pole dodane automatycznie przez zgłoszenie z CMS-a (strona feer.org.pl)<?= !empty($active_fields[$fname]['name']) ? ' — klucz: ' . h($active_fields[$fname]['name']) : '' ?>"><i class="bi bi-cloud-arrow-down me-1" aria-hidden="true"></i>z CMS</span><?php endif; ?></label>
                 </div>
                 <div class="form-check mb-0" style="width:80px;text-align:center">
                   <input type="checkbox" class="form-check-input" name="req_<?= $fname ?>" id="r_<?= $fname ?>"
@@ -507,7 +519,15 @@ include __DIR__ . '/../includes/header_crm.php';
           // Już wybrane pola custom
           $edit_custom_fields = array_filter($edit_fields, fn($f) => ($f['type'] ?? '') === 'custom');
           $edit_custom_ids    = array_column(array_values($edit_custom_fields), 'field_def_id');
+          $cms_count = count(array_filter($edit_fields, fn($f) => ($f['source'] ?? '') === 'cms'));
           ?>
+          <?php if ($cms_count): ?>
+          <div class="alert alert-light border small py-2 mb-2">
+            <i class="bi bi-cloud-arrow-down me-1" aria-hidden="true"></i>
+            <?= $cms_count === 1 ? '1 pole przyszło' : ($cms_count % 10 >= 2 && $cms_count % 10 <= 4 && ($cms_count % 100 < 12 || $cms_count % 100 > 14) ? $cms_count . ' pola przyszły' : $cms_count . ' pól przyszło') ?> z formularza na stronie (CMS) — oznaczone jako <strong>z CMS</strong>.
+            Dodało je zgłoszenie, bo formularz w SZO ich nie miał; wartości są zapisywane w kartotece kontaktu.
+          </div>
+          <?php endif; ?>
 
           <!-- Dodane pola custom -->
           <div id="customFieldList">
@@ -522,6 +542,7 @@ include __DIR__ . '/../includes/header_crm.php';
                 <span class="fw-semibold small flex-grow-1">
                   <?= h($def['label']) ?>
                   <span class="badge bg-light text-dark border ms-1" style="font-size:.62rem"><?= h($def['field_type']) ?></span>
+                  <?php if (($cf['source'] ?? '') === 'cms'): ?><span class="badge ms-1" style="font-size:.62rem;background:#e8f0ff;color:#1752bf;border:1px solid #1752bf" title="Pole dodane automatycznie przez zgłoszenie z CMS-a (strona feer.org.pl)<?= !empty($cf['name']) ? ' — klucz: ' . h($cf['name']) : '' ?>"><i class="bi bi-cloud-arrow-down me-1" aria-hidden="true"></i>z CMS</span><?php endif; ?>
                 </span>
                 <div class="form-check mb-0">
                   <input type="checkbox" class="form-check-input" name="custom_req[<?= $ci ?>]"

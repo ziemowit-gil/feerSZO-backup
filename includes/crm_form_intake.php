@@ -138,7 +138,7 @@ function crm_form_ensure_fields(array $form, array $data, array $meta = []): arr
         $label = mb_substr(trim((string)($m['label'] ?? '')) ?: ucfirst(str_replace('_', ' ', $key)), 0, 120);
 
         if (in_array($key, $builtin, true)) {
-            $entry = ['name' => $key, 'required' => false];
+            $entry = ['name' => $key, 'required' => false, 'source' => 'cms'];
         } else {
             $def = db_one("SELECT id FROM crm_contact_field_defs WHERE lower(label)=lower(?) ORDER BY is_active DESC, id LIMIT 1", [$label]);
             $defId = $def ? (int)$def['id'] : CrmManager::saveFieldDef([
@@ -153,7 +153,8 @@ function crm_form_ensure_fields(array $form, array $data, array $meta = []): arr
             // przepadł) — przypinamy klucz do istniejącego wpisu zamiast dublować pole.
             foreach ($config as $i => $fc) {
                 if (($fc['type'] ?? '') === 'custom' && (int)($fc['field_def_id'] ?? 0) === $defId && empty($fc['name'])) {
-                    $config[$i]['name'] = $key;
+                    $config[$i]['name']   = $key;
+                    $config[$i]['source'] = 'cms';
                     $known[$key] = $config[$i];
                     $changed = true;
                     continue 2;
