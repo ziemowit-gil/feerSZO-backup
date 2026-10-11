@@ -3290,6 +3290,9 @@ if ($cur_course && dyd_is_staff()) {
     <span class="badge bg-warning text-dark ms-auto" style="font-size:.6rem"><?= count($_my_pending_protocols) ?></span>
     <?php endif; ?>
   </a>
+  <a class="dyd-sb-link" href="umowa.php">
+    <i class="bi bi-file-earmark-text" aria-hidden="true"></i>Umowa
+  </a>
 
   <div class="dyd-sb-sep"></div>
 
