@@ -948,7 +948,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
     <div class="cv-fields">
       <div class="cv-field"><div class="cv-label">Prowadzący w e-dzienniku</div><div class="cv-value"><?= $_dyd_instr ? h($_dyd_instr['name'] . ($_dyd_instr['email'] ? ' (' . $_dyd_instr['email'] . ')' : '')) : '—' ?></div></div>
       <div class="cv-field"><div class="cv-label">Co to daje</div><div class="cv-value small">Umowa widoczna w panelu dydaktyka (Formalności), e-ewidencja godzin i lista obecności z podpisanych protokołów.
-        <?= in_array($row['status'], ['projekt', 'anulowana', 'odrzucona'], true) ? '<br><span class="text-warning-emphasis">Działa od podpisania umowy — teraz status „' . h(STATUS_LABELS[$row['status']]['label'] ?? $row['status']) . '”.</span>' : '' ?></div></div>
+        <?= in_array($row['status'], ['anulowana', 'odrzucona'], true) ? '<br><span class="text-warning-emphasis">Nie działa dla umowy w statusie „' . h(STATUS_LABELS[$row['status']]['label'] ?? $row['status']) . '”.</span>' : '' ?></div></div>
     </div>
   </div>
 

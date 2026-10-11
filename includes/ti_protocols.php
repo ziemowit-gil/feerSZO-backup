@@ -1483,7 +1483,7 @@ function ti_protocol_zlecenie_umowy(array $prot): array {
         $do = date('Y-m-t', strtotime($od));
         return db_all(
             "SELECT * FROM umowy_zlecenie
-              WHERE status NOT IN ('projekt','anulowana','odrzucona')
+              WHERE status NOT IN ('anulowana','odrzucona')   -- projekt i w realizacji też (dydaktyka)
                 AND COALESCE(dydaktyka_udostepnij, 0) = 1   -- „Dydaktyka — udostępnij dane do modułu”
                 AND (data_rozpoczecia IS NULL OR data_rozpoczecia = '' OR data_rozpoczecia <= ?)
                 AND (COALESCE(bezterminowa,0) = 1 OR data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)

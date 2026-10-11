@@ -19,7 +19,7 @@ $_um_list = [];
 try {
     $_um_list = db_all(
         "SELECT * FROM umowy_zlecenie
-          WHERE status NOT IN ('projekt','anulowana','odrzucona')
+          WHERE status NOT IN ('anulowana','odrzucona')   -- projekt i w realizacji też (dydaktyka)
             AND COALESCE(dydaktyka_udostepnij, 0) = 1
             AND (ti_instructor_user_id = ?
                  OR (TRIM(COALESCE(?, '')) <> '' AND lower(email) = lower(?))
@@ -83,8 +83,8 @@ $_um_zr = fn(string $z) => ['karty30' => 'protokół zajęć TI', 'reczne' => 'w
       <p class="mb-2">Twoja umowa zlecenie jest w systemie, ale e-ewidencja jej jeszcze nie obejmuje:</p>
       <ul class="mb-0">
         <?php foreach ($_um_pomin as $_u): $_pow = [];
-          if (in_array($_u['status'], ['projekt', 'anulowana', 'odrzucona'], true))
-              $_pow[] = 'ma status „' . ((defined('STATUS_LABELS') ? (STATUS_LABELS[$_u['status']]['label'] ?? null) : null) ?? ucfirst((string)$_u['status'])) . '” — e-ewidencja działa dla umowy podpisanej (od statusu „Do podpisu” / „Podpisana”)';
+          if (in_array($_u['status'], ['anulowana', 'odrzucona'], true))
+              $_pow[] = 'ma status „' . ((defined('STATUS_LABELS') ? (STATUS_LABELS[$_u['status']]['label'] ?? null) : null) ?? ucfirst((string)$_u['status'])) . '”';
           if (!(int)$_u['dyd']) $_pow[] = 'nie ma zaznaczonego pola „Dydaktyka — udostępnij dane do modułu”'; ?>
         <li>Umowa <strong><?= h($_um_nr($_u)) ?></strong> <?= h(implode(' i ', $_pow)) ?>.</li>
         <?php endforeach; ?>
