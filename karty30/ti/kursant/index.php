@@ -1164,29 +1164,64 @@ ob_start(); ?>
     </span>
     <?php endif; ?>
   </button>
-  <div class="dropdown-menu dropdown-menu-end shadow" style="min-width:340px;max-width:92vw" aria-labelledby="kpNotifBtn">
-    <div class="d-flex align-items-center px-3 py-2">
-      <span class="fw-semibold"><i class="bi bi-bell me-1" aria-hidden="true"></i>Powiadomienia</span>
-      <?php if ($notif_unread > 0): ?><span class="badge text-bg-danger ms-2"><?= $notif_unread ?> nowych</span><?php endif; ?>
-      <?php if ($notif_items): ?><a href="?notif_mark=1&amp;tab=<?= h($tab) ?>" class="ms-auto small text-decoration-none">Oznacz jako przeczytane</a><?php endif; ?>
+  <?php
+    $notif_groups = k30_ti_notif_grouped($notif_items, $notif_seen);
+    $notif_new    = array_values(array_filter($notif_groups, fn($g) => $g['new']));
+    $notif_old    = array_values(array_filter($notif_groups, fn($g) => !$g['new']));
+    // Kolor kółka ikony wg rodzaju powiadomienia
+    $notif_tone = ['ocena' => ['#FEF3C7', '#92400E'], 'zadanie' => ['#DBEAFE', '#1E40AF'], 'material' => ['#E0E7FF', '#3730A3'],
+                   'termin' => ['#DCFCE7', '#166534'], 'wiadomosc' => ['#FCE7F3', '#9D174D']];
+    $notif_row = function (array $g) use ($notif_tone): string {
+        [$bg, $fg] = $notif_tone[$g['kind'] ?? ''] ?? ['#F1F5F9', '#334155'];
+        return '<a class="dropdown-item kp-notif-item' . ($g['new'] ? ' is-new' : '') . '" href="' . h($g['url']) . '">'
+             . '<span class="kp-notif-ico" style="background:' . $bg . ';color:' . $fg . '" aria-hidden="true"><i class="bi bi-' . h($g['icon']) . '"></i></span>'
+             . '<span class="kp-notif-txt"><span class="kp-notif-title">' . h($g['title']) . '</span>'
+             . '<span class="kp-notif-meta">' . h($g['meta']) . '</span></span>'
+             . ($g['new'] ? '<span class="kp-notif-dot" aria-hidden="true"></span><span class="visually-hidden"> (nieprzeczytane)</span>' : '')
+             . '</a>';
+    };
+  ?>
+  <div class="dropdown-menu dropdown-menu-end shadow kp-notif" aria-labelledby="kpNotifBtn">
+    <div class="kp-notif-head">
+      <div class="d-flex align-items-center gap-2">
+        <span class="fw-bold fs-6"><i class="bi bi-bell me-1" aria-hidden="true"></i>Powiadomienia</span>
+        <?php if ($notif_unread > 0): ?><span class="badge rounded-pill text-bg-danger"><?= $notif_unread ?> <?= h(k30_ti_notif_plural($notif_unread, 'nowe', 'nowe', 'nowych')) ?></span><?php endif; ?>
+      </div>
+      <?php if ($notif_unread > 0): ?>
+      <a href="?notif_mark=1&amp;tab=<?= h($tab) ?>" class="btn btn-sm btn-outline-primary w-100 mt-2">
+        <i class="bi bi-check2-all me-1" aria-hidden="true"></i>Oznacz wszystkie jako przeczytane</a>
+      <?php endif; ?>
     </div>
-    <div class="dropdown-divider my-0"></div>
-    <div style="max-height:60vh;overflow-y:auto">
-    <?php if (!$notif_items): ?>
-    <div class="px-3 py-4 text-body-secondary small text-center"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Brak powiadomień.</div>
-    <?php else: foreach ($notif_items as $it):
-      $isnew = $notif_seen === '' || strcmp((string)$it['ts'], $notif_seen) > 0; ?>
-    <a class="dropdown-item d-flex gap-2 py-2 <?= $isnew ? 'fw-semibold' : '' ?>" href="<?= h($it['url']) ?>" style="white-space:normal">
-      <i class="bi bi-<?= h($it['icon']) ?> mt-1 <?= $isnew ? 'text-primary' : 'text-body-secondary' ?>" aria-hidden="true"></i>
-      <span class="flex-grow-1">
-        <span class="d-block"><?= h($it['title']) ?></span>
-        <span class="d-block text-body-secondary small fw-normal"><?= h(k30_ti_notif_ago($it['ts'])) ?></span>
-      </span>
-      <?php if ($isnew): ?><span class="badge text-bg-primary align-self-start">nowe</span><?php endif; ?>
-    </a>
-    <?php endforeach; endif; ?>
+    <div class="kp-notif-list">
+    <?php if (!$notif_groups): ?>
+      <div class="px-3 py-4 text-body-secondary small text-center"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Brak powiadomień.</div>
+    <?php else: ?>
+      <?php if ($notif_new): ?>
+      <h3 class="kp-notif-sec">Nowe</h3>
+      <?php foreach ($notif_new as $g) echo $notif_row($g); ?>
+      <?php endif; ?>
+      <?php if ($notif_old): ?>
+      <h3 class="kp-notif-sec">Wcześniej</h3>
+      <?php foreach ($notif_old as $g) echo $notif_row($g); ?>
+      <?php endif; ?>
+    <?php endif; ?>
     </div>
   </div>
+  <style>
+    .kp-notif { width: 400px; max-width: 94vw; padding: 0; overflow: hidden; }
+    .kp-notif-head { padding: .75rem 1rem; border-bottom: 1px solid #e2e8f0; }
+    .kp-notif-list { max-height: 65vh; overflow-y: auto; padding-bottom: .25rem; }
+    .kp-notif-sec { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #475569; margin: .7rem 1rem .25rem; }
+    .kp-notif-item { display: flex; align-items: flex-start; gap: .65rem; padding: .55rem 1rem; white-space: normal; border-left: 3px solid transparent; }
+    .kp-notif-item.is-new { background: #f8fbff; border-left-color: #2563eb; }
+    .kp-notif-item:hover, .kp-notif-item:focus { background: #eef4ff; }
+    .kp-notif-ico { flex: 0 0 2rem; height: 2rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .95rem; }
+    .kp-notif-txt { flex: 1 1 auto; min-width: 0; }
+    .kp-notif-title { display: block; color: #0f172a; line-height: 1.3; }
+    .kp-notif-item.is-new .kp-notif-title { font-weight: 700; }
+    .kp-notif-meta { display: block; font-size: .78rem; color: #475569; margin-top: .1rem; }
+    .kp-notif-dot { flex: 0 0 .55rem; height: .55rem; border-radius: 50%; background: #2563eb; margin-top: .45rem; }
+  </style>
 </div>
 <?php
 // Przełącznik widoku w pasku użytkownika — widoczny w obu widokach, żeby powrót
