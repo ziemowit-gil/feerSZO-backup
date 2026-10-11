@@ -306,6 +306,19 @@ if (function_exists('dyd_current') && dyd_current()) {
   </div>
 </div>
 <?php endif; ?>
+<?php
+// Panel dydaktyka: dzwonek z powiadomieniami prowadzącego na każdej stronie panelu (modules/ti_dyd_notifications).
+if ($KP_TOPBAR && empty($KP_TOPBAR['no_enrich']) && function_exists('dyd_current') && ($_dn_u = dyd_current())
+    && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka') {
+    try {
+        require_once dirname(__DIR__, 3) . '/modules/ti_dyd_notifications/logic/dydNotifications.php';
+        $_dn_back = basename((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php')) . (($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '');
+        $KP_TOPBAR['notifications'] = dyd_notif_bell_html((int)$_dn_u['user_id'], dyd_token(), $_dn_back) . ($KP_TOPBAR['notifications'] ?? '');
+    } catch (\Throwable $e) {
+        error_log('dyd_notif_bell: ' . $e->getMessage());
+    }
+}
+?>
 <?php if ($KP_TOPBAR): ?>
 <header>
   <nav class="navbar bg-body-tertiary border-bottom" aria-label="Pasek użytkownika">

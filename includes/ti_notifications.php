@@ -130,7 +130,7 @@ function k30_ti_notif_plural(int $n, string $one, string $few, string $many): st
  * Grupuje sąsiednie pozycje tego samego rodzaju, kursu i dnia (np. 6 ocen z jednego dnia → jedna pozycja
  * „6 nowych ocen — TEST: 4-, 1, 1…”). Zwraca pozycje z polami: title, meta (kurs · kiedy), new, count, url, icon, kind.
  */
-function k30_ti_notif_grouped(array $items, string $seen_at): array {
+function k30_ti_notif_grouped(array $items, string $seen_at, array $extra_labels = []): array {
     $out = [];
     foreach ($items as $it) {
         $it['new'] = k30_ti_notif_is_new($it, $seen_at);
@@ -150,6 +150,7 @@ function k30_ti_notif_grouped(array $items, string $seen_at): array {
         'material' => ['materiał', 'materiały', 'materiałów'],
         'termin'   => ['decyzja ws. terminu', 'decyzje ws. terminów', 'decyzji ws. terminów'],
     ];
+    $labels = $extra_labels + $labels;   // panel dydaktyka ma własne rodzaje i nazwy
     foreach ($out as &$g) {
         $k = (string)($g['kind'] ?? '');
         if ($g['count'] > 1 && isset($labels[$k])) {
@@ -168,7 +169,10 @@ function k30_ti_notif_grouped(array $items, string $seen_at): array {
 
 /** Krótka etykieta czasu „temu" po polsku. */
 function k30_ti_notif_ago(string $ts): string {
-    $t = strtotime($ts);
+    // Znaczniki z SQLite (datetime('now')) są w UTC — czytamy je jako UTC; gdyby wyszła przyszłość
+    // (wpis zapisany czasem lokalnym z PHP), wracamy do odczytu lokalnego.
+    $t = strtotime($ts . (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $ts) ? ' UTC' : ''));
+    if ($t && $t > time() + 120) $t = strtotime($ts);
     if (!$t) return '';
     $diff = time() - $t;
     if ($diff < 60)      return 'przed chwilą';
