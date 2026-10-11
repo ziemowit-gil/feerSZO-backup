@@ -194,6 +194,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_zl_inline_save'])) {
     }
 }
 
+// ── Dydaktyka: udostępnienie umowy panelowi dydaktyka TI (potwierdzenie kodem IKA) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_zl_dyd_share'])) {
+    csrf_check();
+    $_dyd_back = 'view.php?id=' . $id . '&tab=umowa#zl-dydaktyka';
+    if (!can_edit()) { flash_set('error', 'Brak uprawnień do zmiany tej umowy.'); header('Location: ' . $_dyd_back); exit; }
+    require_once dirname(dirname(__DIR__)) . '/includes/cpc.php';
+    $_dyd_uid = (int)current_user()['id'];
+    $_dyd_vr  = cpc_verify($_dyd_uid, trim((string)($_POST['ika'] ?? '')));
+    if (empty($_dyd_vr['ok'])) {
+        flash_set('error', !empty($_dyd_vr['blocked']) ? 'Kod IKA zablokowany po błędnych próbach — spróbuj później.' : 'Nieprawidłowy kod IKA — nic nie zmieniono.');
+        header('Location: ' . $_dyd_back); exit;
+    }
+    if ($_POST['_zl_dyd_share'] === 'off') {
+        db_update('umowy_zlecenie', ['dydaktyka_udostepnij' => 0], $id);
+        log_contract_action('zlecenie', $id, $_dyd_uid, 'edit', 'Wyłączono udostępnienie umowy dydaktyce (potwierdzone IKA)');
+        flash_set('success', 'Umowa nie jest już udostępniona dydaktyce.');
+    } else {
+        $_dyd_instr = (int)($_POST['ti_instructor_user_id'] ?? 0);
+        $_dyd_mail  = trim((string)($_POST['email'] ?? ''));
+        if (!$_dyd_instr || !db_one("SELECT id FROM users WHERE id = ? AND is_active = 1", [$_dyd_instr])) {
+            flash_set('error', 'Wskaż konto prowadzącego w e-dzienniku — nic nie zmieniono.'); header('Location: ' . $_dyd_back); exit;
+        }
+        if ($_dyd_mail !== '' && !filter_var($_dyd_mail, FILTER_VALIDATE_EMAIL)) {
+            flash_set('error', 'Nieprawidłowy adres e-mail — nic nie zmieniono.'); header('Location: ' . $_dyd_back); exit;
+        }
+        $_dyd_save = ['dydaktyka_udostepnij' => 1, 'ti_instructor_user_id' => $_dyd_instr];
+        if ($_dyd_mail !== '') $_dyd_save['email'] = $_dyd_mail;
+        require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
+        $_dyd_diff = format_field_diff($row, $_dyd_save);
+        db_update('umowy_zlecenie', $_dyd_save, $id);
+        log_contract_action('zlecenie', $id, $_dyd_uid, 'edit', 'Udostępniono umowę dydaktyce (potwierdzone IKA)' . ($_dyd_diff ? ': ' . $_dyd_diff : ''));
+        flash_set('success', 'Umowa udostępniona dydaktyce — prowadzący widzi ją w Formalnościach, a godziny z podpisanych protokołów mogą trafiać do e-ewidencji.');
+    }
+    header('Location: ' . $_dyd_back); exit;
+}
+
 // ── Ewidencja godzin: wpisy dzienne, e-dziennik, przesunięcia, korekty, saldo ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && can_edit() && isset($_POST['_zl_ew'])) {
     csrf_check();
@@ -892,6 +928,29 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
     <div class="cv-value"><?= nl2br(h($row['uwagi'])) ?></div>
   </div>
   <?php endif; ?>
+
+  <?php /* ── Dydaktyka: udostępnienie umowy panelowi dydaktyka TI ── */
+    $_dyd_on    = !empty($row['dydaktyka_udostepnij']);
+    $_dyd_instr = !empty($row['ti_instructor_user_id']) ? db_one("SELECT id, name, email FROM users WHERE id = ?", [(int)$row['ti_instructor_user_id']]) : null;
+    $_dyd_guess = $_dyd_instr ?: (!empty($row['email']) ? db_one("SELECT id, name, email FROM users WHERE lower(email) = lower(?) AND is_active = 1", [(string)$row['email']]) : null);
+  ?>
+  <div class="cv-section" id="zl-dydaktyka">
+    <div class="cv-section-head flex-wrap gap-2">
+      <div class="cv-section-icon" style="background:#F0F9FF;color:#0284C7"><i class="bi bi-mortarboard"></i></div>
+      <span class="cv-section-title">Dydaktyka</span>
+      <span class="badge <?= $_dyd_on ? 'bg-success' : 'bg-secondary' ?>"><?= $_dyd_on ? 'Udostępniona' : 'Nieudostępniona' ?></span>
+      <?php if (can_edit()): ?>
+      <button type="button" class="btn btn-sm <?= $_dyd_on ? 'btn-outline-secondary' : 'btn-primary' ?> ms-auto" data-bs-toggle="modal" data-bs-target="#zlDydModal">
+        <i class="bi bi-mortarboard me-1"></i><?= $_dyd_on ? 'Zmień udostępnienie' : 'Udostępnij dla dydaktyki' ?>
+      </button>
+      <?php endif; ?>
+    </div>
+    <div class="cv-fields">
+      <div class="cv-field"><div class="cv-label">Prowadzący w e-dzienniku</div><div class="cv-value"><?= $_dyd_instr ? h($_dyd_instr['name'] . ($_dyd_instr['email'] ? ' (' . $_dyd_instr['email'] . ')' : '')) : '—' ?></div></div>
+      <div class="cv-field"><div class="cv-label">Co to daje</div><div class="cv-value small">Umowa widoczna w panelu dydaktyka (Formalności), e-ewidencja godzin i lista obecności z podpisanych protokołów.
+        <?= in_array($row['status'], ['projekt', 'anulowana', 'odrzucona'], true) ? '<br><span class="text-warning-emphasis">Działa od podpisania umowy — teraz status „' . h(STATUS_LABELS[$row['status']]['label'] ?? $row['status']) . '”.</span>' : '' ?></div></div>
+    </div>
+  </div>
 
   <?php if ($row['nr_roboczy'] || $row['nr_system'] || $row['nr_rejestru']): ?>
   <div class="cv-section">
@@ -3574,4 +3633,50 @@ document.addEventListener('DOMContentLoaded', function () {
 })();
 </script>
 
+<?php if (can_edit()):
+  $_dyd_users = db_all("SELECT id, name, email FROM users WHERE is_active = 1 ORDER BY name COLLATE NOCASE"); ?>
+<!-- ═══ MODAL — udostępnienie umowy dydaktyce (dane + kod IKA) ═══ -->
+<div class="modal fade" id="zlDydModal" tabindex="-1" aria-labelledby="zlDydModalH" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="zlDydModalH"><i class="bi bi-mortarboard me-2"></i>Udostępnij umowę dydaktyce</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Prowadzący zobaczy umowę w panelu dydaktyka, a godziny z podpisanych protokołów będą mogły trafiać do jej e-ewidencji.
+          Sprawdź i uzupełnij dane, potem potwierdź <strong>kodem IKA</strong>.</p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="zlDydInstr">Konto prowadzącego w e-dzienniku <span class="text-danger">*</span></label>
+          <select class="form-select" id="zlDydInstr" name="ti_instructor_user_id" required>
+            <option value="">— wybierz konto —</option>
+            <?php foreach ($_dyd_users as $_u): ?>
+            <option value="<?= (int)$_u['id'] ?>" <?= $_dyd_guess && (int)$_dyd_guess['id'] === (int)$_u['id'] ? 'selected' : '' ?>><?= h($_u['name'] . ($_u['email'] ? ' (' . $_u['email'] . ')' : '')) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <?php if (!$_dyd_instr && $_dyd_guess): ?><div class="form-text">Podpowiedź po adresie e-mail z umowy — sprawdź.</div><?php endif; ?>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="zlDydMail">E-mail zleceniobiorcy</label>
+          <input class="form-control" type="email" id="zlDydMail" name="email" value="<?= h((string)($row['email'] ?? '')) ?>" autocomplete="off">
+          <div class="form-text">Po nim panel dydaktyka rozpoznaje umowę prowadzącego — zmień, jeśli jest nieaktualny.</div>
+        </div>
+        <div class="mb-1">
+          <label class="form-label fw-semibold" for="zlDydIka">Kod IKA <span class="text-danger">*</span></label>
+          <input class="form-control" type="password" id="zlDydIka" name="ika" required autocomplete="off" inputmode="numeric" placeholder="Twój kod IKA">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <?php if (!empty($row['dydaktyka_udostepnij'])): ?>
+        <button type="submit" name="_zl_dyd_share" value="off" class="btn btn-outline-danger me-auto" formnovalidate
+                onclick="var i=document.getElementById('zlDydIka'); if(!i.value){i.focus(); return false;}">Wyłącz udostępnienie</button>
+        <?php endif; ?>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" name="_zl_dyd_share" value="on" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i><?= !empty($row['dydaktyka_udostepnij']) ? 'Zapisz' : 'Udostępnij' ?></button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
