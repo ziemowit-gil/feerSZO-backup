@@ -45,6 +45,7 @@ if (!empty($KIER_ITEMS)) {
         ['Cenniki i rabaty',          'pricing.php',                'tags'],
         ['Zaległe protokoły',         'protokoly.php',              'exclamation-octagon'],
         ['Audyt dzienników',          'audyt_dziennikow.php',       'clipboard2-check'],
+        ['Hospitacje i wizytacje',    'hospitacje.php',             'clipboard2-pulse'],
         ['Program poleceń',          'polecenia.php',               'gift'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],

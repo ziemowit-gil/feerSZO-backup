@@ -281,10 +281,20 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
     $pdf->MultiCell($W(), 4, $pl('Średnia ważona z ocen cząstkowych dziennika; ocena końcowa z ostatniego zatwierdzonego protokołu zajęć.'), 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
 
-    // 8. Hospitacje i wizytacje (do wypełnienia ręcznie)
+    // 8. Hospitacje i wizytacje — przeprowadzone z modułu kierownika (hospitacje.php), resztę wierszy do wypełnienia ręcznie
     $section('Hospitacje i wizytacje');
+    $hosp = [];
+    try {
+        require_once dirname(__DIR__, 2) . '/ti_hospitacje/logic/tiHospitacje.php';
+        foreach (ti_hosp_for_dziennik($course_id, $ym) as $i => $hz) {
+            $hosp[] = [$i + 1, $d($hz['data']), ($hz['typ'] === 'wizytacja' ? 'Wizytacja' : 'Hospitacja') . ($hz['temat'] !== '' ? ': ' . $hz['temat'] : ''),
+                       trim($hz['hospitujacy'] . ($hz['funkcja'] !== '' ? ', ' . $hz['funkcja'] : '')), ''];
+        }
+    } catch (\Throwable $e) { $hosp = []; }
+    $_hn = max(14, count($hosp) + 2);   // wolne wiersze do wpisania ręcznie
+    for ($i = count($hosp) + 1; $i <= $_hn; $i++) $hosp[] = [$i, '', '', '', ''];
     $table([['Lp.', 10, 'C'], ['Data', 22, 'C'], ['Temat zajęć', $W() - 132, 'L'], ['Imię i nazwisko, funkcja hospitującego', 70, 'L'], ['Podpis', 30, 'C']],
-           array_map(fn($i) => [$i, '', '', '', ''], range(1, 14)), 12);
+           $hosp, 12);
 
     // 9. Organizacja kursu i sprawozdanie
     $section('Organizacja kursu i sprawozdanie z kursu');
