@@ -518,8 +518,7 @@ if ($_pd):
           'prot' => ['label' => 'Informacja: 0 godzin', 'opis' => 'W tym miesiącu nie było zajęć — zamiast protokołu podpisujesz tę informację.',
                      'url' => 'protokol_pdf.php?preview=1&' . $_pv_q],
       ] : [
-          'prot'    => ['label' => 'Protokół zajęć', 'opis' => 'Dokument, który po zatwierdzeniu trafi do akt (i do EZD).'
-                          . (ti_protocol_zlecenie_umowa(ti_protocol_month_stub($_cid, $open_ym)) ? ' Na kolejnej stronie: e-ewidencja godzin do Twojej umowy zlecenie.' : ''),
+          'prot'    => ['label' => 'Protokół zajęć', 'opis' => 'Dokument, który po zatwierdzeniu trafi do akt (i do EZD).',
                         'url' => 'protokol_pdf.php?preview=1&' . $_pv_q],
           'godziny' => ['label' => 'Lista godzin', 'opis' => 'Daty i liczba godzin — tę treść obejmuje Twój podpis.',
                         'url' => 'protokol_pdf.php?hours=1&' . $_pv_q],

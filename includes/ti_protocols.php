@@ -1771,8 +1771,11 @@ function ti_protocol_pdf(array $prot, bool $podglad = false): ?string {
             $_note = ti_pdf_sign_note(ti_protocol_get((int)($prot['id'] ?? 0)) ?: $prot);
             if ($_note !== '') $mpdf->WriteHTML($_note, \Mpdf\HTMLParserMode::HTML_BODY);
         }
-        // Wraz z protokołem — e-ewidencja godzin do umowy zlecenie prowadzącego (gdy ma taką umowę).
-        if ($umowa = ti_protocol_zlecenie_umowa($prot)) {
+        // Wraz z protokołem — e-ewidencja godzin do umowy zlecenie, ale TYLKO po zgodzie prowadzącego
+        // na przepisanie godzin (wtedy wiadomo, której umowy dotyczy; zgoda = potwierdzenie realizacji umowy).
+        ti_protocol_ew_migrate();
+        $_ew = !empty($prot['id']) ? db_one("SELECT ew_umowa_id, ew_zgoda_at FROM k30_ti_protocols WHERE id = ?", [(int)$prot['id']]) : null;
+        if (!$podglad && !empty($_ew['ew_zgoda_at']) && ($umowa = db_one("SELECT * FROM umowy_zlecenie WHERE id = ?", [(int)$_ew['ew_umowa_id']]))) {
             $mpdf->AddPage();
             $mpdf->WriteHTML(ti_protocol_ewidencja_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
         }
