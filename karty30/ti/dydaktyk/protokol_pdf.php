@@ -55,7 +55,10 @@ if (!empty($_GET['dziennik'])) {
 }
 
 // ?ewidencja=1&course=&ym= — e-ewidencja godzin do umowy zlecenie prowadzącego (podgląd przed zgodą na przepisanie).
-if (!empty($_GET['ewidencja'])) {
+// ?obecnosc=1&course=&ym= — e-lista obecności do umowy zlecenie (te same zasady wyboru umowy).
+// Bez umowy w systemie oba dokumenty też się generują — pola umowy mają „----”.
+if (!empty($_GET['ewidencja']) || !empty($_GET['obecnosc'])) {
+    $_obec = !empty($_GET['obecnosc']);
     $cid = (int)($_GET['course'] ?? 0);
     $ym  = (string)($_GET['ym'] ?? '');
     $pr  = ($cid && preg_match('/^\d{4}-\d{2}$/', $ym)) ? ti_protocol_month_stub($cid, $ym) : null;
@@ -71,12 +74,13 @@ if (!empty($_GET['ewidencja'])) {
     elseif (!empty($_GET['umowa'])) {
         foreach (ti_protocol_zlecenie_umowy($pr) as $_u) if ((int)$_u['id'] === (int)$_GET['umowa']) $umowa = $_u;
     }
-    $umowa ??= ti_protocol_zlecenie_umowa($pr);
-    if (!$umowa) { http_response_code(404); exit('Nie wybrano umowy zlecenie (albo prowadzący nie ma jej w systemie).'); }
-    $pdf = ti_protocol_ewidencja_pdf($pr, $umowa, !$_zgoda);
-    if ($pdf === null) { http_response_code(500); exit('Nie udało się wygenerować e-ewidencji.'); }
+    $umowa ??= ti_protocol_zlecenie_umowa($pr) ?: (ti_protocol_zlecenie_umowy($pr)[0] ?? null);
+    // Znak wodny „PODGLĄD”: do zgody na przepisanie godzin; bez umowy — do zatwierdzenia protokołu.
+    $_podglad = $umowa ? !$_zgoda : (($pr['status'] ?? '') !== 'approved');
+    $pdf = $_obec ? ti_protocol_obecnosc_pdf($pr, $umowa, $_podglad) : ti_protocol_ewidencja_pdf($pr, $umowa, $_podglad);
+    if ($pdf === null) { http_response_code(500); exit('Nie udało się wygenerować dokumentu.'); }
     header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="e-ewidencja-' . $cid . '-' . $ym . '.pdf"');
+    header('Content-Disposition: inline; filename="' . ($_obec ? 'e-lista-obecnosci-' : 'e-ewidencja-') . $cid . '-' . $ym . '.pdf"');
     header('Content-Length: ' . strlen($pdf));
     echo $pdf;
     exit;

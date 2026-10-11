@@ -234,8 +234,14 @@ if ($_pd):
     <div class="card-body p-4">
       <h2 class="h5 fw-bold mb-1" id="ewH"><i class="bi bi-journal-text me-2" aria-hidden="true"></i>E-ewidencja godzin do umowy zlecenie</h2>
       <?php if (!$_ew_umowy && empty($_ew_row['ew_umowa_id'])): ?>
-        <p class="mb-0 text-body-secondary">Nie znaleźliśmy w systemie Twojej umowy zlecenie na ten miesiąc — e-ewidencja nie jest potrzebna.
-          Jeśli powinna być, poproś kierownika o powiązanie umowy z Twoim kontem.</p>
+        <p class="text-body-secondary">Nie znaleźliśmy w systemie Twojej umowy zlecenie na ten miesiąc — dokumenty możesz wygenerować,
+          pola umowy mają „----”. Jeśli umowa powinna być, poproś kierownika o powiązanie jej z Twoim kontem.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-secondary" href="protokol_pdf.php?ewidencja=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Lista godzin do umowy (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+          <a class="btn btn-outline-secondary" href="protokol_pdf.php?obecnosc=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Lista obecności do umowy (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+        </div>
       <?php elseif (!empty($_ew_row['ew_zgoda_at'])): ?>
         <div class="alert alert-success mb-3" role="status">
           <strong>Godziny przepisane do umowy<?= $_ew_wyb ? ' nr ' . h($_ew_nr($_ew_wyb)) : '' ?>.</strong>
@@ -244,6 +250,8 @@ if ($_pd):
         </div>
         <a class="btn btn-outline-secondary" href="protokol_pdf.php?ewidencja=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
           <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz listę godzin do umowy — e-ewidencję (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
+        <a class="btn btn-outline-secondary" href="protokol_pdf.php?obecnosc=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
+          <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz listę obecności do umowy (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>
       <?php else: ?>
         <?php if (count($_ew_umowy) > 1): ?>
         <form method="get" class="mb-3">
@@ -535,12 +543,21 @@ if ($_pd):
           'godziny' => ['label' => 'Lista godzin', 'opis' => 'Daty i liczba godzin — tę treść obejmuje Twój podpis.',
                         'url' => 'protokol_pdf.php?hours=1&' . $_pv_q],
       ];
-      // Trzeci dokument: e-ewidencja godzin do umowy zlecenie — gdy prowadzący ma taką umowę w systemie.
-      if (!$_zero && ($_pv_umowy = ti_protocol_zlecenie_umowy(ti_protocol_month_stub($_cid, $open_ym)))) {
+      // Trzeci i czwarty dokument: e-ewidencja godzin i e-lista obecności do umowy zlecenie.
+      // Bez umowy w systemie też się generują — pola umowy mają wtedy „----”.
+      if (!$_zero) {
+          $_pv_umowy = ti_protocol_zlecenie_umowy(ti_protocol_month_stub($_cid, $open_ym));
+          $_pv_u     = $_pv_umowy ? '&umowa=' . (int)$_pv_umowy[0]['id'] : '';
+          $_pv_po    = $_pv_umowy ? ' Po podpisaniu protokołu sprawdzisz ją' . (count($_pv_umowy) > 1 ? ', wybierzesz umowę' : '')
+                                    . ' i wyrazisz zgodę na przepisanie godzin.'
+                                  : ' Nie znaleźliśmy Twojej umowy zlecenie — pola umowy mają „----”.';
           $_pv_dok['ewidencja'] = ['label' => 'Lista godzin do umowy',
-              'opis' => 'E-ewidencja godzin do Twojej umowy zlecenie — osobny dokument. Po podpisaniu protokołu sprawdzisz ją'
-                      . (count($_pv_umowy) > 1 ? ', wybierzesz umowę' : '') . ' i wyrazisz zgodę na przepisanie godzin.',
-              'url' => 'protokol_pdf.php?ewidencja=1&' . $_pv_q . '&umowa=' . (int)$_pv_umowy[0]['id']];
+              'opis' => 'E-ewidencja godzin do umowy zlecenie — osobny dokument.' . $_pv_po,
+              'url' => 'protokol_pdf.php?ewidencja=1&' . $_pv_q . $_pv_u];
+          $_pv_dok['obecnosc'] = ['label' => 'Lista obecności do umowy',
+              'opis' => 'E-lista obecności do umowy zlecenie: Twoje zajęcia w miesiącu, godziny i obecni kursanci.'
+                      . ($_pv_umowy ? '' : ' Nie znaleźliśmy Twojej umowy zlecenie — pola umowy mają „----”.'),
+              'url' => 'protokol_pdf.php?obecnosc=1&' . $_pv_q . $_pv_u];
       }
       // Dziennik zajęć grupy (cały kurs, bez danych osobowych) — generuje się razem z dokumentami protokołu.
       $_pv_dok['dziennik'] = ['label' => 'Dziennik zajęć',

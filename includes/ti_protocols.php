@@ -1599,12 +1599,13 @@ function ti_protocol_ewidencja_zgoda(array $prot, array $umowa, int $uid, string
  * za miesiąc protokołu. Godziny faktyczne (minuty ÷ 60, bez zaokrąglania — jak w module rozliczeń zlecenia);
  * zajęcia poprowadzone w zastępstwie przez inną osobę nie wchodzą do ewidencji tego zleceniobiorcy.
  */
-function ti_protocol_ewidencja_html(array $prot, array $umowa): string {
+function ti_protocol_ewidencja_html(array $prot, ?array $umowa): string {
     $h   = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     $hl  = ti_protocol_hours_list($prot);
     $org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'));
     $nip = trim((string)org_setting('org_nip'));
-    $nr  = trim((string)($umowa['numer_umowy'] ?: ($umowa['nr_rejestru'] ?? '') ?: ($umowa['nr_roboczy'] ?? '')));
+    // Bez umowy zlecenie w systemie dokument też da się wygenerować — pola umowy mają wtedy „----”.
+    $nr  = $umowa ? trim((string)($umowa['numer_umowy'] ?: ($umowa['nr_rejestru'] ?? '') ?: ($umowa['nr_roboczy'] ?? ''))) : '';
     $ym   = (string)($prot['year_month'] ?? '');
     $mn   = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
     $mies = preg_match('/^(\d{4})-(\d{2})$/', $ym, $m) ? $mn[(int)$m[2] - 1] . ' ' . $m[1] : (string)($prot['period_name'] ?? '');
@@ -1621,8 +1622,8 @@ function ti_protocol_ewidencja_html(array $prot, array $umowa): string {
          . '<p class="sub">Art. 8a ust. 4 ustawy z dnia 10 października 2002 r. o minimalnym wynagrodzeniu za pracę — e-ewidencja.</p>'
          . '<table class="head"><tbody>'
          . '<tr><th>Zleceniodawca</th><td>' . $h($org) . ($nip !== '' ? ', NIP ' . $h($nip) : '') . '</td></tr>'
-         . '<tr><th>Zleceniobiorca</th><td>' . $h($umowa['imie_nazwisko'] ?? '') . '</td></tr>'
-         . '<tr><th>Umowa zlecenie</th><td>' . ($nr !== '' ? 'nr ' . $h($nr) : '—')
+         . '<tr><th>Zleceniobiorca</th><td>' . $h($umowa ? ($umowa['imie_nazwisko'] ?? '') : ($hl['instructor'] !== '' ? $hl['instructor'] : '----')) . '</td></tr>'
+         . '<tr><th>Umowa zlecenie</th><td>' . ($nr !== '' ? 'nr ' . $h($nr) : '----')
          . (!empty($umowa['data_zawarcia']) ? ' z dnia ' . $h(date('d.m.Y', strtotime((string)$umowa['data_zawarcia']))) : '') . '</td></tr>'
          . '<tr><th>Miesiąc</th><td>' . $h($mies) . '</td></tr>'
          . '<tr><th>Zakres</th><td>Zajęcia w grupie ' . $h($prot['course_name'] ?? '') . '</td></tr>'
@@ -1642,6 +1643,69 @@ function ti_protocol_ewidencja_html(array $prot, array $umowa): string {
         . '<p class="sub">Liczba godzin faktyczna (minuty ÷ 60) — na podstawie e-dziennika zajęć, potwierdzona podpisem protokołu.</p>'
         . '<table class="signs"><tr><td>..............................................<br>data i podpis zleceniobiorcy</td>'
         . '<td>..............................................<br>data i podpis zleceniodawcy</td></tr></table>';
+}
+
+/**
+ * HTML e-listy obecności do umowy zlecenie za miesiąc protokołu: zajęcia poprowadzone przez
+ * zleceniobiorcę (bez zastępstw), godziny i kursanci obecni na zajęciach (z e-dziennika).
+ * Bez umowy w systemie — pola umowy „----”, dokument i tak się generuje.
+ */
+function ti_protocol_obecnosc_html(array $prot, ?array $umowa): string {
+    $h   = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $hl  = ti_protocol_hours_list($prot);
+    $org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Fundacja FEER'));
+    $nr  = $umowa ? trim((string)($umowa['numer_umowy'] ?: ($umowa['nr_rejestru'] ?? '') ?: ($umowa['nr_roboczy'] ?? ''))) : '';
+    $cid = (int)($prot['course_id'] ?? 0);
+    $rows = ''; $i = 0; $min = 0;
+    foreach ($hl['rows'] as $r) {
+        if ((string)$r['sub'] !== '') continue;   // zastępstwo — nie ten zleceniobiorca
+        $i++; $min += (int)$r['min'];
+        $s = db_one("SELECT id, topic FROM k30_ti_sessions WHERE course_id = ? AND lesson_date = ? AND substr(time_from, 1, 5) = ?
+                      ORDER BY id LIMIT 1", [$cid, (string)$r['date'], substr((string)$r['from'], 0, 5)]);
+        $ob = $s ? db_all("SELECT cl.name FROM k30_ti_attendance a JOIN k30_clients cl ON cl.id = a.client_id
+                            WHERE a.session_id = ? AND a.attended = 1 AND COALESCE(a.cancelled, 0) = 0
+                            ORDER BY cl.name COLLATE NOCASE", [(int)$s['id']]) : [];
+        $rows .= '<tr><td>' . $i . '.</td><td>' . $h(date('d.m.Y', strtotime($r['date']))) . '</td>'
+               . '<td>' . $h(ti_protocol_hours_span($r)) . '</td>'
+               . '<td class="r">' . $h(ti_protocol_hours_fact_fmt((int)$r['min'])) . '</td>'
+               . '<td>' . $h(trim((string)($s['topic'] ?? '')) ?: '—') . '</td>'
+               . '<td>' . ($ob ? $h(implode(', ', array_column($ob, 'name'))) . ' <span class="sub">(' . count($ob) . ')</span>' : '—') . '</td></tr>';
+    }
+    $out = '<h1>Lista obecności — wykonanie zlecenia</h1>'
+         . '<p class="sub">E-lista obecności zleceniobiorcy na zajęciach (na podstawie e-dziennika zajęć).</p>'
+         . '<table class="head"><tbody>'
+         . '<tr><th>Zleceniodawca</th><td>' . $h($org) . '</td></tr>'
+         . '<tr><th>Zleceniobiorca</th><td>' . $h($umowa ? ($umowa['imie_nazwisko'] ?? '') : ($hl['instructor'] !== '' ? $hl['instructor'] : '----')) . '</td></tr>'
+         . '<tr><th>Umowa zlecenie</th><td>' . ($nr !== '' ? 'nr ' . $h($nr) : '----') . '</td></tr>'
+         . '<tr><th>Miesiąc</th><td>' . $h(ti_pdf_month_label((string)($prot['year_month'] ?? ''))) . '</td></tr>'
+         . '<tr><th>Grupa</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
+         . '</tbody></table>';
+    if ($i === 0) {
+        $out .= '<p class="empty-note">W tym miesiącu zleceniobiorca nie prowadził zajęć w tej grupie.</p>';
+    } else {
+        $out .= '<table class="items"><thead><tr><th style="width:6%">Lp.</th><th style="width:13%">Data</th><th style="width:17%">Godziny</th>'
+              . '<th style="width:10%" class="r">Liczba godzin</th><th style="width:22%">Temat</th><th>Obecni kursanci</th></tr></thead><tbody>' . $rows
+              . '<tr class="sum"><td colspan="3">Razem</td><td class="r">' . $h(ti_protocol_hours_fact_fmt($min)) . '</td><td colspan="2"></td></tr>'
+              . '</tbody></table>';
+    }
+    return $out
+        . '<table class="signs"><tr><td>..............................................<br>data i podpis zleceniobiorcy</td>'
+        . '<td>..............................................<br>data i podpis zleceniodawcy</td></tr></table>';
+}
+
+function ti_protocol_obecnosc_pdf(array $prot, ?array $umowa, bool $podglad = false): ?string {
+    try {
+        $mpdf = ti_pdf_new('Lista obecności — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''),
+                           'E-lista obecności do umowy zlecenie');
+        if ($podglad) {
+            $mpdf->SetWatermarkText('PODGLĄD', 0.12);
+            $mpdf->showWatermarkText = true;
+        }
+        $mpdf->WriteHTML(ti_protocol_obecnosc_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
+        return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+    } catch (\Throwable $e) {
+        return null;
+    }
 }
 
 /**
@@ -1738,7 +1802,7 @@ function ti_pdf_css(): string {
 }
 
 /** E-ewidencja godzin do umowy zlecenie jako osobny PDF (podgląd przed zgodą na przepisanie godzin). */
-function ti_protocol_ewidencja_pdf(array $prot, array $umowa, bool $podglad = false): ?string {
+function ti_protocol_ewidencja_pdf(array $prot, ?array $umowa, bool $podglad = false): ?string {
     try {
         $mpdf = ti_pdf_new('E-ewidencja godzin — ' . (string)($umowa['imie_nazwisko'] ?? '') . ', ' . (string)($prot['year_month'] ?? ''),
                            'E-ewidencja godzin wykonania zlecenia');
