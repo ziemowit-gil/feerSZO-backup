@@ -1256,6 +1256,13 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
         ] as $col => $def) {
             try { db()->exec("ALTER TABLE umowy_zlecenie ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
         }
+        // „Dydaktyka — udostępnij dane do modułu”: tylko zaznaczone umowy widzi panel dydaktyka TI
+        // (e-ewidencja z protokołów, strona „Umowa”). Przy dodaniu kolumny zaznaczamy umowy, które już
+        // mają wskazanego prowadzącego w e-dzienniku — to było jawne powiązanie z dydaktyką.
+        try {
+            db()->exec("ALTER TABLE umowy_zlecenie ADD COLUMN dydaktyka_udostepnij INTEGER NOT NULL DEFAULT 0");
+            db()->exec("UPDATE umowy_zlecenie SET dydaktyka_udostepnij = 1 WHERE ti_instructor_user_id IS NOT NULL");
+        } catch (\Throwable $e) {}
         db()->exec("CREATE TABLE IF NOT EXISTS zlecenie_ewidencja_wpisy (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             contract_id    INTEGER NOT NULL,

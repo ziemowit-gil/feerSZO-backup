@@ -49,6 +49,7 @@ function zlecenie_inline_fields(): array {
         'Ewidencja godzin' => [
             'zrodlo_godzin'         => ['label' => 'Źródło godzin', 'type' => 'select', 'options' => '__zrodla__'],
             'ti_instructor_user_id' => ['label' => 'Prowadzący w e-dzienniku', 'type' => 'select', 'options' => '__users__'],
+            'dydaktyka_udostepnij'  => ['label' => 'Dydaktyka — udostępnij dane do modułu', 'type' => 'checkbox'],
         ],
         'ZUS — rejestracja i wyrejestrowanie' => [
             'zus_skladki'              => ['label' => 'Składki ZUS', 'type' => 'checkbox'],

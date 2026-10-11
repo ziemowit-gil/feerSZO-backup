@@ -235,7 +235,7 @@ if ($_pd):
       <h2 class="h5 fw-bold mb-1" id="ewH"><i class="bi bi-journal-text me-2" aria-hidden="true"></i>E-ewidencja godzin do umowy zlecenie</h2>
       <?php if (!$_ew_umowy && empty($_ew_row['ew_umowa_id'])): ?>
         <p class="text-body-secondary">Nie znaleźliśmy w systemie Twojej umowy zlecenie na ten miesiąc — dokumenty możesz wygenerować,
-          pola umowy mają „----”. Jeśli umowa powinna być, poproś kierownika o powiązanie jej z Twoim kontem.</p>
+          pola umowy mają „----”. Jeśli umowa powinna być, poproś o zaznaczenie w niej pola „Dydaktyka — udostępnij dane do modułu”.</p>
         <div class="d-flex flex-wrap gap-2">
           <a class="btn btn-outline-secondary" href="protokol_pdf.php?ewidencja=1&amp;<?= h($_ew_q) ?>" target="_blank" rel="noopener">
             <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Lista godzin do umowy (PDF)<span class="visually-hidden"> — otwiera się w nowej karcie</span></a>

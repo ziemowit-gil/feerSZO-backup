@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        foreach (['zus_skladki','zwolnienie_wiek','wymagany_rachunek','m365_konto'] as $f) {
+        foreach (['zus_skladki','zwolnienie_wiek','wymagany_rachunek','m365_konto','dydaktyka_udostepnij'] as $f) {
             $data[$f] = isset($_POST[$f]) ? 1 : 0;
         }
         foreach (['wynagrodzenie_brutto','stawka_kwota','liczba_godzin_planowana','zaliczka_podatek'] as $f) {
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'addr_street','addr_house','addr_flat','addr_postal','addr_city','addr_country',
             'rachunek_bankowy','przedmiot_zlecenia','data_zawarcia','data_rozpoczecia','data_zakonczenia',
             'wynagrodzenie_brutto','stawka_kwota','typ_stawki','liczba_godzin_planowana','sposob_rozliczenia',
-            'zrodlo_godzin','ti_instructor_user_id',
+            'zrodlo_godzin','ti_instructor_user_id','dydaktyka_udostepnij',
             'termin_platnosci','zus_skladki','tytul_ubezpieczenia','zus_data_rejestracji','zus_data_wyrejestrowania','zwolnienie_wiek','zaliczka_podatek','kup',
             'numer_projektu','opiekun','wymagany_rachunek','data_zl_rachunku','data_rachunku','okres_rachunku','forma_podpisania',
             'platforma_el','id_dokumentu_el','epodpis_dostawca','epodpis_nr_certyfikatu','epodpis_data_waznosci',
@@ -492,6 +492,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endforeach; ?>
           </select>
           <p class="tw-text-xs tw-text-slate-500 tw-mt-1">Sesje „odbyta”, „zmiana indywidualna” i „praca własna” liczone per grupa; stawka zawsze z umowy.</p>
+        </div>
+        <div>
+          <label for="dydaktyka_udostepnij" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700">
+            <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="dydaktyka_udostepnij" id="dydaktyka_udostepnij" value="1" aria-describedby="dydaktyka_udostepnij_opis" <?= !empty($row['dydaktyka_udostepnij'])?'checked':'' ?>>
+            Dydaktyka — udostępnij dane do modułu
+          </label>
+          <p id="dydaktyka_udostepnij_opis" class="tw-text-xs tw-text-slate-500 tw-mt-1">Umowa widoczna w panelu dydaktyka TI: e-ewidencja godzin i lista obecności z protokołów, strona „Umowa” prowadzącego.</p>
         </div>
       </div>
     </div>

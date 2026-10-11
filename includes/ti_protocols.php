@@ -1474,6 +1474,7 @@ function ti_protocol_ew_migrate(): void {
  */
 function ti_protocol_zlecenie_umowy(array $prot): array {
     try {
+        require_once __DIR__ . '/zlecenie_rachunki.php';   // migracja kolumny dydaktyka_udostepnij
         $c   = db_one("SELECT c.instructor_id, u.email, u.name FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id = ?", [(int)$prot['course_id']]);
         $uid = (int)($c['instructor_id'] ?? 0);
         if ($uid <= 0) return [];
@@ -1483,6 +1484,7 @@ function ti_protocol_zlecenie_umowy(array $prot): array {
         return db_all(
             "SELECT * FROM umowy_zlecenie
               WHERE status NOT IN ('projekt','anulowana','odrzucona')
+                AND COALESCE(dydaktyka_udostepnij, 0) = 1   -- „Dydaktyka — udostępnij dane do modułu”
                 AND (data_rozpoczecia IS NULL OR data_rozpoczecia = '' OR data_rozpoczecia <= ?)
                 AND (COALESCE(bezterminowa,0) = 1 OR data_zakonczenia IS NULL OR data_zakonczenia = '' OR data_zakonczenia >= ?)
                 AND (ti_instructor_user_id = ?

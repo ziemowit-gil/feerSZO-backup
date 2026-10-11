@@ -2,7 +2,8 @@
 /**
  * karty30/ti/dydaktyk/umowa.php — „Umowa”: umowy zlecenie prowadzącego i e-ewidencja godzin do przeglądania.
  *
- * Tylko odczyt. Prowadzący widzi własne umowy (powiązane kontem, e-mailem albo imieniem i nazwiskiem —
+ * Tylko odczyt. Prowadzący widzi własne umowy z zaznaczonym „Dydaktyka — udostępnij dane do modułu”
+ * (powiązane kontem, e-mailem albo imieniem i nazwiskiem —
  * te same zasady co przy e-ewidencji z protokołów, includes/ti_protocols.php). Dla wybranej umowy:
  * miesiące z liczbą godzin, a dla wybranego miesiąca — wpisy ewidencji (data, godziny, opis, skąd)
  * i odnośniki do PDF e-ewidencji / e-listy obecności z podpisanych protokołów.
@@ -10,6 +11,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_protocols.php';
+require_once dirname(__DIR__, 3) . '/includes/zlecenie_rachunki.php';   // kolumna dydaktyka_udostepnij
 
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
@@ -22,6 +24,7 @@ try {
     $umowy = db_all(
         "SELECT * FROM umowy_zlecenie
           WHERE status NOT IN ('projekt','anulowana','odrzucona')
+            AND COALESCE(dydaktyka_udostepnij, 0) = 1   -- „Dydaktyka — udostępnij dane do modułu”
             AND (ti_instructor_user_id = ?
                  OR (TRIM(COALESCE(?, '')) <> '' AND lower(email) = lower(?))
                  OR (TRIM(COALESCE(?, '')) <> '' AND lower(TRIM(imie_nazwisko)) = lower(TRIM(?))))
@@ -85,7 +88,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
   <?php if (!$umowy): ?>
     <div class="alert alert-secondary" role="status">
-      Nie znaleźliśmy w systemie Twojej umowy zlecenie. Jeśli powinna być, poproś kierownika o powiązanie umowy z Twoim kontem.
+      Nie znaleźliśmy w systemie Twojej umowy zlecenie udostępnionej dydaktyce. Jeśli powinna być, poproś o zaznaczenie w umowie
+      pola <strong>„Dydaktyka — udostępnij dane do modułu”</strong> (i wskazanie Twojego konta jako prowadzącego w e-dzienniku).
       Dokumenty do umowy z protokołów i tak możesz wygenerować w <a href="protokoly_moje.php">Protokołach</a> — pola umowy mają wtedy „----”.
     </div>
   <?php else: ?>
