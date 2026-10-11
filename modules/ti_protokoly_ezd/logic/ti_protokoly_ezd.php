@@ -123,16 +123,21 @@ function ti_prot_ezd_register(int $protocol_id, ?int $user_id): ?int {
             'rodzaj_medium' => 'inne',
         ], $uid);
 
-        $pdf = ti_protocol_pdf($prot);
-        if ($pdf !== null && $pdf !== '') {
-            $tmp = tempnam(sys_get_temp_dir(), 'tiprot_');
-            if ($tmp !== false) {
-                try {
-                    file_put_contents($tmp, $pdf);
-                    ezd_attach_path($tmp, ti_protocol_pdf_filename($prot), $sid, $pid, $uid);
-                } finally {
-                    @unlink($tmp);
-                }
+        _ti_prot_ezd_attach(ti_protocol_pdf($prot), ti_protocol_pdf_filename($prot), $sid, $pid, $uid);
+        // Dokumenty towarzyszące (podpisane razem z protokołem): lista godzin, dokumenty do umowy zlecenie
+        // (e-ewidencja, e-lista obecności — bez umowy z „----”) i dziennik zajęć za miesiąc.
+        if (!ti_protocol_is_zero($prot)) {
+            $ym  = (string)($prot['year_month'] ?? '');
+            $umowa = ti_protocol_zlecenie_umowa($prot) ?: (ti_protocol_zlecenie_umowy($prot)[0] ?? null);
+            _ti_prot_ezd_attach(ti_protocol_hours_list_pdf($prot), ti_protocol_hours_list_filename($prot), $sid, $pid, $uid);
+            _ti_prot_ezd_attach(ti_protocol_ewidencja_pdf($prot, $umowa), 'e-ewidencja-' . $ym . '.pdf', $sid, $pid, $uid);
+            _ti_prot_ezd_attach(ti_protocol_obecnosc_pdf($prot, $umowa), 'e-lista-obecnosci-' . $ym . '.pdf', $sid, $pid, $uid);
+            try {
+                require_once dirname(__DIR__, 2) . '/ti_pdf/logic/dziennik.php';
+                $c = k30_ti_course_get((int)$prot['course_id']);
+                if ($c) _ti_prot_ezd_attach(ti_dziennik_pdf((int)$prot['course_id'], ['personal' => false, 'ym' => $ym]), ti_dziennik_filename($c, $ym), $sid, $pid, $uid);
+            } catch (\Throwable $e) {
+                error_log('ti_prot_ezd_register dziennik #' . $protocol_id . ': ' . $e->getMessage());
             }
         }
         return $sid;
@@ -140,6 +145,52 @@ function ti_prot_ezd_register(int $protocol_id, ?int $user_id): ?int {
         error_log('ti_prot_ezd_register #' . $protocol_id . ': ' . $e->getMessage());
         return null;
     }
+}
+
+/** Zapisuje PDF (treść w pamięci) jako załącznik pisma w koszulce. */
+function _ti_prot_ezd_attach(?string $pdf, string $name, int $sid, int $pid, int $uid): void {
+    if ($pdf === null || $pdf === '') return;
+    $tmp = tempnam(sys_get_temp_dir(), 'tiprot_');
+    if ($tmp === false) return;
+    try {
+        file_put_contents($tmp, $pdf);
+        ezd_attach_path($tmp, $name, $sid, $pid, $uid);
+    } finally {
+        @unlink($tmp);
+    }
+}
+
+/**
+ * Po zgodzie prowadzącego na przepisanie godzin: nowe pismo w koszulce protokołu z ostateczną
+ * e-ewidencją i e-listą obecności do umowy (umowa, do której przepisano godziny).
+ */
+function ti_prot_ezd_attach_umowa_docs(int $protocol_id, ?int $user_id): void {
+    if (!ti_prot_ezd_active()) return;
+    require_once dirname(__DIR__, 3) . '/includes/ezd.php';
+    $sid  = ti_prot_ezd_sprawa_id($protocol_id);
+    $prot = ti_protocol_get($protocol_id);
+    if (!$sid || !$prot) return;
+    $ew    = db_one("SELECT ew_umowa_id, ew_zgoda_name, ew_zgoda_at FROM k30_ti_protocols WHERE id = ?", [$protocol_id]) ?: [];
+    $umowa = !empty($ew['ew_umowa_id']) ? db_one("SELECT * FROM umowy_zlecenie WHERE id = ?", [(int)$ew['ew_umowa_id']]) : null;
+    if (!$umowa) return;
+    $uid = (int)($user_id ?: 0);
+    $nr  = trim((string)($umowa['numer_umowy'] ?: ($umowa['nr_rejestru'] ?? '')));
+    $pid = ezd_pismo_create([
+        'sprawa_id'     => $sid,
+        'kierunek'      => 'wewnetrzne',
+        'title'         => 'Zgoda na przepisanie godzin do umowy' . ($nr !== '' ? ' nr ' . $nr : '') . ' — ' . (string)$prot['course_name'],
+        'tresc'         => 'E-ewidencja godzin i e-lista obecności do umowy zlecenie — zgoda prowadzącego na przepisanie godzin '
+                         . '(potwierdzenie realizacji umowy), dołączone automatycznie z panelu dydaktyka TI.',
+        'nadawca'       => (string)($ew['ew_zgoda_name'] ?? ''),
+        'odbiorca'      => '',
+        'data_pisma'    => substr((string)($ew['ew_zgoda_at'] ?? date('Y-m-d')), 0, 10),
+        'status'        => 'zakonczone',
+        'owner_id'      => $uid ?: null,
+        'rodzaj_medium' => 'inne',
+    ], $uid);
+    $ym = (string)($prot['year_month'] ?? '');
+    _ti_prot_ezd_attach(ti_protocol_ewidencja_pdf($prot, $umowa), 'e-ewidencja-' . $ym . '.pdf', $sid, $pid, $uid);
+    _ti_prot_ezd_attach(ti_protocol_obecnosc_pdf($prot, $umowa), 'e-lista-obecnosci-' . $ym . '.pdf', $sid, $pid, $uid);
 }
 
 /** Odnośnik do koszulki protokołu w EZD (lub null). */

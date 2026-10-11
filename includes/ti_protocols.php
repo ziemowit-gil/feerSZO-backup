@@ -1591,6 +1591,15 @@ function ti_protocol_ewidencja_zgoda(array $prot, array $umowa, int $uid, string
     } catch (\Throwable $e) {
         error_log('[ti_protocol_ewidencja_zgoda] powiadomienie: ' . $e->getMessage());
     }
+    // EZD: e-ewidencja i e-lista obecności po zgodzie dopisują się do sprawy protokołu jako nowe pismo.
+    if (!empty($prot['id'])) {
+        try {
+            require_once dirname(__DIR__) . '/modules/ti_protokoly_ezd/logic/ti_protokoly_ezd.php';
+            ti_prot_ezd_attach_umowa_docs((int)$prot['id'], $uid);
+        } catch (\Throwable $e) {
+            error_log('[ti_protocol_ewidencja_zgoda] EZD: ' . $e->getMessage());
+        }
+    }
     return ['godziny' => round($suma, 2), 'dodane' => $dod, 'zmienione' => $zm, 'umowa' => $umowa];
 }
 
@@ -1702,6 +1711,7 @@ function ti_protocol_obecnosc_pdf(array $prot, ?array $umowa, bool $podglad = fa
             $mpdf->showWatermarkText = true;
         }
         $mpdf->WriteHTML(ti_protocol_obecnosc_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
+        if (!$podglad) ti_pdf_write_sign_note($mpdf, $prot);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
         return null;
@@ -1777,6 +1787,12 @@ function ti_pdf_sign_note(array $prot): string {
         . '<br>Podpis obejmuje treść ewidencji godzin z tego protokołu; jej zmiana unieważnia podpis.</div>';
 }
 
+/** Dopisuje adnotację o podpisie protokołu do dokumentu towarzyszącego (lista godzin, e-ewidencja, e-lista obecności). */
+function ti_pdf_write_sign_note(\Mpdf\Mpdf $mpdf, array $prot): void {
+    $note = ti_pdf_sign_note(!empty($prot['id']) ? (ti_protocol_get((int)$prot['id']) ?: $prot) : $prot);
+    if ($note !== '') $mpdf->WriteHTML($note, \Mpdf\HTMLParserMode::HTML_BODY);
+}
+
 function ti_pdf_css(): string {
     return 'body { font-family:dejavusans; font-size:9.5pt; color:#1d1d1d; line-height:1.35; }
      h1 { font-size:15pt; color:#10335c; margin:0 0 4mm; padding-bottom:2mm; border-bottom:.6mm solid #0f6fa8; }
@@ -1812,6 +1828,7 @@ function ti_protocol_ewidencja_pdf(array $prot, ?array $umowa, bool $podglad = f
             $mpdf->showWatermarkText = true;
         }
         $mpdf->WriteHTML(ti_protocol_ewidencja_html($prot, $umowa), \Mpdf\HTMLParserMode::HTML_BODY);
+        if (!$podglad) ti_pdf_write_sign_note($mpdf, $prot);
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
         return null;
@@ -1999,6 +2016,7 @@ function ti_protocol_hours_list_pdf(array $prot): ?string {
     try {
         $mpdf = ti_pdf_new('Lista godzin — ' . (string)($prot['course_name'] ?? '') . ', ' . (string)($prot['period_name'] ?? ''), 'Lista godzin zajęć');
         $mpdf->WriteHTML(ti_protocol_hours_list_html($prot), \Mpdf\HTMLParserMode::HTML_BODY);
+        ti_pdf_write_sign_note($mpdf, $prot);   // tylko podpisany protokół (funkcja sama sprawdza status)
         return $mpdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
     } catch (\Throwable $e) {
         return null;
