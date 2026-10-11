@@ -476,14 +476,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <div>
           <label for="zrodlo_godzin" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Źródło godzin</label>
           <select id="zrodlo_godzin" name="zrodlo_godzin" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
-                  onchange="document.getElementById('ti-instr-wrap').style.display = this.value==='karty30' ? '' : 'none'">
+                  onchange="document.getElementById('ti-instr-wrap').style.display = (this.value==='karty30' || document.getElementById('dydaktyka_udostepnij').checked) ? '' : 'none'">
             <?php foreach (ZL_EW_ZRODLA as $_zk => $_zv): ?>
             <option value="<?= h($_zk) ?>" <?= (($row['zrodlo_godzin'] ?? 'reczne') === $_zk) ? 'selected' : '' ?>><?= h($_zv['label']) ?></option>
             <?php endforeach; ?>
           </select>
           <p class="tw-text-xs tw-text-slate-500 tw-mt-1">Ręczne wpisy dzienne/miesięczne albo godziny z e-dziennika TI z podziałem na grupy.</p>
         </div>
-        <div id="ti-instr-wrap" style="<?= (($row['zrodlo_godzin'] ?? 'reczne') === 'karty30') ? '' : 'display:none' ?>">
+        <div id="ti-instr-wrap" style="<?= (($row['zrodlo_godzin'] ?? 'reczne') === 'karty30' || !empty($row['dydaktyka_udostepnij'])) ? '' : 'display:none' ?>">
           <label for="ti_instructor_user_id" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Prowadzący w e-dzienniku</label>
           <select id="ti_instructor_user_id" name="ti_instructor_user_id" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
             <option value="">— wybierz konto prowadzącego —</option>
@@ -495,7 +495,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         </div>
         <div>
           <label for="dydaktyka_udostepnij" class="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-text-slate-700">
-            <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="dydaktyka_udostepnij" id="dydaktyka_udostepnij" value="1" aria-describedby="dydaktyka_udostepnij_opis" <?= !empty($row['dydaktyka_udostepnij'])?'checked':'' ?>>
+            <input class="tw-h-4 tw-w-4 tw-rounded tw-border-slate-300 tw-text-blue-600 focus:tw-ring-blue-200" type="checkbox" name="dydaktyka_udostepnij" id="dydaktyka_udostepnij" value="1" onchange="document.getElementById('ti-instr-wrap').style.display = (this.checked || document.getElementById('zrodlo_godzin').value==='karty30') ? '' : 'none'" aria-describedby="dydaktyka_udostepnij_opis" <?= !empty($row['dydaktyka_udostepnij'])?'checked':'' ?>>
             Dydaktyka — udostępnij dane do modułu
           </label>
           <p id="dydaktyka_udostepnij_opis" class="tw-text-xs tw-text-slate-500 tw-mt-1">Umowa widoczna w panelu dydaktyka TI: e-ewidencja godzin i lista obecności z protokołów, strona „Umowa” prowadzącego.</p>

@@ -148,8 +148,12 @@ $_zi_col = function (array $d): string {
       show();
     });
   });
-  // Prowadzący tylko przy źródle „Karty30”
-  var zr = document.getElementById('zi-zrodlo_godzin'), ti = document.getElementById('zi-col-ti_instructor_user_id');
-  if (zr && ti) { var upd = function () { ti.style.display = zr.value === 'karty30' ? '' : 'none'; }; zr.addEventListener('change', upd); upd(); }
+  // Prowadzący przy źródle „Karty30” albo przy zaznaczonym „Dydaktyka — udostępnij dane do modułu”
+  var zr = document.getElementById('zi-zrodlo_godzin'), ti = document.getElementById('zi-col-ti_instructor_user_id'),
+      dy = document.getElementById('zi-dydaktyka_udostepnij');
+  if (zr && ti) {
+    var upd = function () { ti.style.display = (zr.value === 'karty30' || (dy && dy.checked)) ? '' : 'none'; };
+    zr.addEventListener('change', upd); if (dy) dy.addEventListener('change', upd); upd();
+  }
 })();
 </script>

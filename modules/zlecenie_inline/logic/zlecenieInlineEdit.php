@@ -46,6 +46,13 @@ function zlecenie_inline_fields(): array {
             'kup'                     => ['label' => 'KUP', 'type' => 'select', 'options' => ['' => '—', '20' => '20 %', '50' => '50 %', 'brak' => 'Brak / standardowe']],
             'zwolnienie_wiek'         => ['label' => 'Zwolnienie (do 26 lat)', 'type' => 'checkbox'],
         ],
+        'Rachunek' => [
+            'wymagany_rachunek' => ['label' => 'Wymagany rachunek', 'type' => 'checkbox'],
+            'data_zl_rachunku'  => ['label' => 'Data złożenia rachunku', 'type' => 'date'],
+            'data_rachunku'     => ['label' => 'Data rachunku', 'type' => 'date'],
+            'okres_rachunku'    => ['label' => 'Okres rachunku', 'type' => 'text'],
+            'nr_roboczy'        => ['label' => 'Numer na rachunkach (roboczy)', 'type' => 'text', 'mono' => true],
+        ],
         'Ewidencja godzin' => [
             'zrodlo_godzin'         => ['label' => 'Źródło godzin', 'type' => 'select', 'options' => '__zrodla__'],
             'ti_instructor_user_id' => ['label' => 'Prowadzący w e-dzienniku', 'type' => 'select', 'options' => '__users__'],
@@ -57,11 +64,7 @@ function zlecenie_inline_fields(): array {
             'zus_data_rejestracji'     => ['label' => 'Data rejestracji', 'type' => 'date'],
             'zus_data_wyrejestrowania' => ['label' => 'Data wyrejestrowania', 'type' => 'date'],
         ],
-        'Rachunek i podpisanie' => [
-            'wymagany_rachunek'      => ['label' => 'Wymagany rachunek', 'type' => 'checkbox'],
-            'data_zl_rachunku'       => ['label' => 'Data złożenia rachunku', 'type' => 'date'],
-            'data_rachunku'          => ['label' => 'Data rachunku', 'type' => 'date'],
-            'okres_rachunku'         => ['label' => 'Okres rachunku', 'type' => 'text'],
+        'Podpisanie' => [
             'forma_podpisania'       => ['label' => 'Forma podpisania', 'type' => 'select', 'options' => ['' => '—', 'papierowa' => 'Papierowa', 'elektroniczna' => 'Elektroniczna', 'epodpis_kwalifikowany' => 'E-podpis kwalifikowany', 'mieszana' => 'Mieszana']],
             'platforma_el'           => ['label' => 'Platforma e-podpisu', 'type' => 'text'],
             'id_dokumentu_el'        => ['label' => 'ID dokumentu el.', 'type' => 'text'],
@@ -69,7 +72,6 @@ function zlecenie_inline_fields(): array {
             'podpisujacy_stanowisko' => ['label' => 'Stanowisko podpisującego', 'type' => 'text'],
         ],
         'Numery referencyjne' => [
-            'nr_roboczy'  => ['label' => 'Numer na rachunkach (roboczy)', 'type' => 'text', 'mono' => true],
             'nr_system'   => ['label' => 'Numer systemowy', 'type' => 'text', 'mono' => true],
             'nr_rejestru' => ['label' => 'Nr w rejestrze umów', 'type' => 'text', 'mono' => true],
         ],
@@ -120,7 +122,8 @@ function zlecenie_inline_save(array $row, array $post, int $uid): array {
     if (($data['zrodlo_godzin'] ?? '') === 'karty30' && empty($data['ti_instructor_user_id'])) {
         $errors[] = 'Dla źródła „Dydaktyka – Karty30 dziennik” wskaż prowadzącego.';
     }
-    if (($data['zrodlo_godzin'] ?? '') !== 'karty30') $data['ti_instructor_user_id'] = null;
+    // Prowadzący zostaje przy źródle „Karty30” albo przy zaznaczonej dydaktyce (powiązanie konta z umową).
+    if (($data['zrodlo_godzin'] ?? '') !== 'karty30' && empty($data['dydaktyka_udostepnij'])) $data['ti_instructor_user_id'] = null;
     if ($errors) return ['errors' => $errors, 'changed' => false];
 
     require_once dirname(__DIR__, 3) . '/includes/amendments.php';
