@@ -1541,7 +1541,9 @@ function ti_protocol_ewidencja_zgoda(array $prot, array $umowa, int $uid, string
     if ($own) db()->beginTransaction();
     try {
         foreach ($sesje as $s) {
-            $sid = (int)$s['id']; $godz = zl_ew_karty30_hours($s); $suma += $godz;
+            $sid = (int)$s['id'];
+            // Do umowy przepisujemy pełne godziny (każda rozpoczęta = pełna) — tak jak na e-ewidencji.
+            $godz = (float)ti_protocol_hours_ceil((int)round(zl_ew_karty30_hours($s) * 60)); $suma += $godz;
             $nazwa = $s['display_name'] ?: $s['course_name'];
             $opis  = implode(' · ', array_filter([$nazwa,
                 (!empty($s['time_from']) && !empty($s['time_to'])) ? substr($s['time_from'], 0, 5) . '–' . substr($s['time_to'], 0, 5) : '',
