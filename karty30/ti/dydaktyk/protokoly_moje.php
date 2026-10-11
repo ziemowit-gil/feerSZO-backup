@@ -168,6 +168,13 @@ $_pd = (!empty($_GET['podpisano']) && $_pd_cid && preg_match('/^\d{4}-\d{2}$/', 
 if ($_pd):
     $_pd_zero  = ti_protocol_is_zero(ti_protocol_get((int)$_pd['id']) ?: $_pd);
     $_pd_klucz = str_starts_with((string)($_pd['sign_fingerprint'] ?? ''), 'yubikey:');
+    // Sprawa w EZD, do której trafił zatwierdzony protokół (koszulka JRWA 384) — gdy EZD jest włączone.
+    $_pd_ezd = null;
+    try {
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_protokoly_ezd/logic/ti_protokoly_ezd.php';
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ezd.php';
+        if (function_exists('ezd_sprawy_by_ref')) $_pd_ezd = ezd_sprawy_by_ref(TI_PROT_EZD_REF_TYPE, (int)$_pd['id'])[0] ?? null;
+    } catch (\Throwable $e) { $_pd_ezd = null; }
 ?>
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-5" style="max-width:760px">
@@ -186,6 +193,8 @@ if ($_pd):
         <dt class="col-sm-5 fw-normal text-body-secondary">Podpisał(a)</dt><dd class="col-sm-7 fw-semibold"><?= h((string)($_pd['approved_name'] ?: $me_name)) ?></dd>
         <dt class="col-sm-5 fw-normal text-body-secondary">Data podpisu</dt><dd class="col-sm-7"><?= h(date('d.m.Y H:i', strtotime((string)($_pd['sign_at'] ?: $_pd['approved_at']) . ' UTC'))) /* datetime('now') w SQLite = UTC */ ?></dd>
         <dt class="col-sm-5 fw-normal text-body-secondary">Sposób podpisu</dt><dd class="col-sm-7"><?= $_pd_klucz ? 'Klucz bezpieczeństwa (passkey / YubiKey)' : 'Certyfikat i kod SMS' ?></dd>
+        <dt class="col-sm-5 fw-normal text-body-secondary">Sprawa w EZD</dt>
+        <dd class="col-sm-7"><?php if ($_pd_ezd): ?><strong class="fs-6"><?= h((string)($_pd_ezd['znak_sprawy'] ?: ('#' . $_pd_ezd['id']))) ?></strong><?php else: ?><span class="text-body-secondary">nie zarejestrowano (EZD wyłączone lub błąd rejestracji)</span><?php endif; ?></dd>
         <?php if (!$_pd_klucz && trim((string)($_pd['sign_subject'] ?? '')) !== ''): ?>
         <dt class="col-sm-5 fw-normal text-body-secondary">Certyfikat</dt><dd class="col-sm-7"><?= h((string)$_pd['sign_subject']) ?></dd>
         <?php endif; ?>
