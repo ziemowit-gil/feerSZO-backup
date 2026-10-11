@@ -26,6 +26,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
 <style>
+/* Treść modułu: marginesy jak w panelu dydaktyka (style .dyd-wrap są tylko w jego index.php) — bez nich
+   treść przylegała do krawędzi, a ujemne marginesy .row z filtrów dawały poziomy pasek przewijania. */
+body.ext-mod main.dyd-wrap { box-sizing: border-box; width: 100%; max-width: 1400px; margin: 0 auto; padding: 1rem clamp(1rem, 3vw, 2rem) 2.5rem; }
+body.ext-mod .skin-sections { padding-left: clamp(1rem, 3vw, 2rem); padding-right: clamp(1rem, 3vw, 2rem); }
 /* Skórka panelowa nie zna kart katalogu — dokładamy tylko to, czego brakuje. */
 body.ext-mod .ext-grid { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fill,minmax(15rem,1fr)); }
 body.ext-mod .ext-card { border:1px solid var(--ti-grid); background:#fff; padding:.6rem; }
