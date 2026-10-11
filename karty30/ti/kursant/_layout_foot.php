@@ -1,5 +1,6 @@
 <?php /** Wspólna stopka panelu kursanta/rodzica. */ ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>window.bootstrap || document.write('<script src="<?= h(APP_URL) ?>/karty30/ti/assets/vendor/bootstrap-5.3.3.bundle.min.js"><\/script>');</script>
 <script>
 // Baner „zmieniliśmy wygląd" (motyw Metro) — odrzucenie zapamiętane na stałe.
 (function(){

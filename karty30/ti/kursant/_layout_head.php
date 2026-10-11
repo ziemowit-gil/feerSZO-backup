@@ -23,7 +23,9 @@ $KP_EXTRA_CSS  = $KP_EXTRA_CSS  ?? [];
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= h($KP_TITLE) ?> — <?= h($KP_ORG) ?></title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<?php /* Bootstrap z CDN; gdy CDN nie dojdzie (słabe łącze — np. w pociągu strona była bez stylów), kopia z naszego serwera. */ ?>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+      onerror="this.onerror=null;this.href='<?= h(APP_URL) ?>/karty30/ti/assets/vendor/bootstrap-5.3.3.min.css'">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <?php
 // FullCalendar v6 (~270 KB) — duży kalendarz przy wyborze terminu (zmiana terminu lekcji).
