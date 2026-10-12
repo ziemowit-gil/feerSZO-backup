@@ -685,7 +685,7 @@ function edok_generate_tytul_przelewu(array $doc): string {
     // Wynagrodzenia (pozycja listy płac / rachunek do umowy / lista płac) — format ustalony
     // z użytkownikiem: „WYNAGRODZENIE MM/RRRR - umowa nr {nr z Rejestru Umów}” (umowa_numer = nr_rejestru,
     // awaryjnie numer umowy). Lista płac jako całość (bez pozycji): „WYNAGRODZENIA MM/RRRR”.
-    if (!$jest_przychod && empty($doc['_zwrot']) && (!empty($doc['_wyplata']) || ($typ_dokumentu === 'rachunek' && $umowa !== '') || $typ_dokumentu === 'lista_plac')) {
+    if (!$jest_przychod && empty($doc['_zwrot']) && (!empty($doc['_wyplata']) || ($typ_dokumentu === 'rachunek' && ($umowa !== '' || ($doc['contract_type'] ?? '') === 'zlecenie')) || $typ_dokumentu === 'lista_plac')) {
         $cala_lista = $typ_dokumentu === 'lista_plac' && empty($doc['_wyplata']);
         $t = trim(($cala_lista ? 'WYNAGRODZENIA' : 'WYNAGRODZENIE') . ' ' . $okres)
             . (!$cala_lista && $umowa !== '' ? ' - umowa nr ' . $umowa : '');
@@ -979,6 +979,7 @@ function edok_decide_step(array $doc, string $step_key, string $status, int $use
     if ($status === 'odrzucono') {
         db_exec("UPDATE edok_documents SET status='odrzucony', updated_at=datetime('now') WHERE id=?", [$id]);
         edok_log($id, 'status_change', $step_key, $doc['status'], 'odrzucony', 'Dokument odrzucony na etapie: ' . edok_step_label($step_key, $doc), $doc);
+        edok_sync_rachunki_umow($id); // rachunek do umowy wraca do poprawy
         return ['status' => 'odrzucony', 'rejected' => true];
     }
 
@@ -1106,6 +1107,7 @@ function edok_unlock(int $doc_id, string $reason): void {
     db_exec("DELETE FROM edok_steps WHERE doc_id = ?", [$doc_id]);
     db_exec("UPDATE edok_documents SET status='w_obiegu', updated_at=datetime('now') WHERE id=?", [$doc_id]);
     edok_log($doc_id, 'unlock', '', $doc['status'], 'w_obiegu', 'Cofnięto decyzję, obieg wznowiony od etapu 1. Powód: ' . $reason);
+    edok_sync_rachunki_umow($doc_id);
 }
 
 /** Wycofanie dokumentu przez wnioskodawcę/admina — kończy obieg bez decyzji merytorycznej. */
@@ -1117,6 +1119,7 @@ function edok_withdraw(int $doc_id, string $reason): void {
     }
     db_exec("UPDATE edok_documents SET status='wycofany', updated_at=datetime('now') WHERE id=?", [$doc_id]);
     edok_log($doc_id, 'withdraw', '', $doc['status'], 'wycofany', $reason);
+    edok_sync_rachunki_umow($doc_id); // rachunek do umowy wraca do poprawy
 }
 
 // ── Przelewy własne / przesunięcia po rachunkach i klasyfikacjach ─────────────
@@ -2463,26 +2466,64 @@ function edok_przelew_rows(array $doc): array {
 }
 
 /**
- * Synchronizacja z rejestrem rachunków umowy zlecenie: akceptacja obiegu → rachunek
- * „Zaakceptowany”, status płatności „Opłacony” → „Zapłacony”. Best-effort.
+ * Synchronizacja z rejestrem rachunków umowy zlecenie — w obie strony, wołana po każdej zmianie
+ * stanu dokumentu (decyzja, odrzucenie, wycofanie, cofnięcie decyzji, płatność, wyciąg bankowy):
+ *  - odrzucony / wycofany → rachunek wraca do umowy (zwolnione powiązanie z EODoK, status sprzed
+ *    akceptacji) — można go poprawić i przekazać ponownie;
+ *  - w obiegu (np. po cofnięciu decyzji) → rachunek znów powiązany (jeśli w międzyczasie nie trafił
+ *    gdzie indziej), „Zaakceptowany/Zapłacony” cofnięte;
+ *  - zaakceptowany → „Zaakceptowany”; zapłacony → „Zapłacony” (pozycja listy płac — wg jej wypłaty).
+ * Best-effort: błąd nie przerywa operacji na dokumencie.
  */
 function edok_sync_rachunki_umow(int $doc_id): void {
     try {
         $doc = db_one("SELECT * FROM edok_documents WHERE id = ?", [$doc_id]);
         if (!$doc) return;
-        $rids = array_values(array_filter(array_merge(
-            [(int)($doc['zlec_rachunek_id'] ?? 0)],
-            array_map('intval', array_column(edok_wyplaty($doc_id), 'zlec_rachunek_id'))
-        )));
+        // rid => czy zapłacony (pojedynczy rachunek — wg dokumentu; lista płac — wg pozycji)
+        $rids = [];
+        if (!empty($doc['zlec_rachunek_id'])) $rids[(int)$doc['zlec_rachunek_id']] = ($doc['status_platnosci'] ?: 'nowy') === 'oplacony';
+        foreach (edok_wyplaty($doc_id) as $w) {
+            if (!empty($w['zlec_rachunek_id'])) $rids[(int)$w['zlec_rachunek_id']] = !empty($w['paid_at']);
+        }
         if (!$rids) return;
-        $ph = implode(',', array_fill(0, count($rids), '?'));
-        if (($doc['status_platnosci'] ?: 'nowy') === 'oplacony') {
-            db_exec("UPDATE zlecenie_rachunki SET status='zaplacony', paid_at=COALESCE(paid_at, datetime('now')), updated_at=datetime('now') WHERE id IN ($ph) AND status <> 'zaplacony'", $rids);
-        } elseif ($doc['status'] === 'zaakceptowany') {
-            db_exec("UPDATE zlecenie_rachunki SET status='zaakceptowany', accepted_at=COALESCE(accepted_at, datetime('now')), updated_at=datetime('now') WHERE id IN ($ph) AND status NOT IN ('zaakceptowany','zaplacony')", $rids);
+        // Status sprzed akceptacji: podpisany (jest skan podpisanego) albo nowy.
+        $przed = "CASE WHEN COALESCE(plik_podpisany,'') <> '' THEN 'podpisany' ELSE 'nowy' END";
+        foreach ($rids as $rid => $zaplacony) {
+            if (in_array($doc['status'], ['odrzucony', 'wycofany'], true)) {
+                db_exec("UPDATE zlecenie_rachunki SET edok_doc_id = NULL, edok_number = NULL,
+                            status = CASE WHEN status IN ('zaakceptowany','zaplacony') THEN $przed ELSE status END,
+                            accepted_at = NULL, paid_at = NULL, updated_at = datetime('now')
+                          WHERE id = ? AND edok_doc_id = ?", [$rid, $doc_id]);
+                continue;
+            }
+            // Powiązanie (np. po cofnięciu decyzji odrzucenia) — tylko gdy rachunek nie trafił gdzie indziej.
+            db_exec("UPDATE zlecenie_rachunki SET edok_doc_id = ?, edok_number = ?, updated_at = datetime('now')
+                      WHERE id = ? AND edok_doc_id IS NULL AND kdok_doc_id IS NULL", [$doc_id, $doc['number'], $rid]);
+            if ($doc['status'] === 'zaakceptowany' && $zaplacony) {
+                db_exec("UPDATE zlecenie_rachunki SET status='zaplacony', paid_at=COALESCE(paid_at, datetime('now')), updated_at=datetime('now') WHERE id = ? AND edok_doc_id = ? AND status <> 'zaplacony'", [$rid, $doc_id]);
+            } elseif ($doc['status'] === 'zaakceptowany') {
+                db_exec("UPDATE zlecenie_rachunki SET status='zaakceptowany', accepted_at=COALESCE(accepted_at, datetime('now')), paid_at=NULL, updated_at=datetime('now') WHERE id = ? AND edok_doc_id = ? AND status <> 'zaakceptowany'", [$rid, $doc_id]);
+            } else {
+                db_exec("UPDATE zlecenie_rachunki SET status = $przed, accepted_at = NULL, paid_at = NULL, updated_at = datetime('now')
+                          WHERE id = ? AND edok_doc_id = ? AND status IN ('zaakceptowany','zaplacony')", [$rid, $doc_id]);
+            }
         }
     } catch (\Throwable $e) {
         error_log('[edok_sync_rachunki_umow] ' . $e->getMessage());
+    }
+}
+
+/**
+ * Lista płac w Preliminarzu oznaczona jako „Opłacona” → wszystkie jeszcze niewypłacone pozycje
+ * odnotowane jako wypłacone (z adnotacją); cofnięcie „Opłacony” cofa tylko te odnotowania.
+ */
+function edok_lista_plac_oplacona(int $doc_id, bool $oplacona): void {
+    $u = current_user();
+    if ($oplacona) {
+        db_exec("UPDATE edok_wyplaty SET paid_at = datetime('now'), paid_by = ?, paid_comment = 'Preliminarz: lista opłacona' WHERE doc_id = ? AND paid_at IS NULL",
+            [(int)($u['id'] ?? 0), $doc_id]);
+    } else {
+        db_exec("UPDATE edok_wyplaty SET paid_at = NULL, paid_by = NULL, paid_comment = '' WHERE doc_id = ? AND paid_comment = 'Preliminarz: lista opłacona'", [$doc_id]);
     }
 }
 

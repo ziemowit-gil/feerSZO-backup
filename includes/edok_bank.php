@@ -183,6 +183,7 @@ function edok_bank_assign(int $tx_id, int $doc_id, string $how = 'manual'): ?str
         'Przypisano transakcję bankową: ' . date_pl($tx['data_waluty']) . ', ' . ($tx['znak'] === 'C' ? '+' : '−') . number_format((float)$tx['kwota'], 2, ',', ' ') . ' ' . $tx['waluta']
         . ', ' . ($tx['kontrahent_nazwa'] ?: 'brak kontrahenta') . ' (wyciąg ' . ($tx['statement_no'] ?: '—') . ', operacja ' . $tx['numer_operacji'] . ', '
         . ($how === 'auto' ? 'automatycznie' : 'ręcznie') . ')' . ($paid_prev !== null ? '. Status płatności: Opłacony.' : '.'), $doc);
+    if ($paid_prev !== null) edok_sync_rachunki_umow($doc_id); // rachunek do umowy → „Zapłacony”
     return null;
 }
 
@@ -196,6 +197,7 @@ function edok_bank_unassign(int $tx_id): ?string {
     }
     db_exec("UPDATE edok_bank_tx SET doc_id=NULL, matched_how='', matched_by=NULL, matched_by_name='', matched_at=NULL, paid_prev=NULL WHERE id=?", [$tx_id]);
     edok_log($doc_id, 'bank_unmatch', '', '', '', 'Odpięto transakcję bankową (operacja ' . $tx['numer_operacji'] . ')' . ($tx['paid_prev'] !== null ? '; status płatności przywrócono do: ' . $tx['paid_prev'] . '.' : '.'));
+    if ($tx['paid_prev'] !== null) edok_sync_rachunki_umow($doc_id);
     return null;
 }
 

@@ -41,7 +41,11 @@ if ($source === 'edok') {
         } else {
             db_exec("UPDATE edok_documents SET status_platnosci=?, updated_at=datetime('now') WHERE id=?", [$status, $id]);
             edok_log($id, 'status_platnosci', '', $prev, $status, 'Status płatności: ' . (EDOK_STATUS_PLATNOSCI[$prev]['label'] ?? $prev) . ' → ' . EDOK_STATUS_PLATNOSCI[$status]['label']);
-            edok_sync_rachunki_umow($id); // rachunek do umowy zlecenie → „Zapłacony”
+            // Lista płac: „Opłacony” = wszystkie pozycje wypłacone (cofnięcie cofa tylko to odnotowanie).
+            if (($doc['typ_dokumentu'] ?? '') === 'lista_plac' && ($status === 'oplacony') !== ($prev === 'oplacony')) {
+                edok_lista_plac_oplacona($id, $status === 'oplacony');
+            }
+            edok_sync_rachunki_umow($id); // rachunek do umowy zlecenie → „Zapłacony” / z powrotem
             flash_set('success', 'Status płatności zaktualizowany.');
         }
     }

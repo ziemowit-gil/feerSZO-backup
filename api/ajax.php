@@ -398,6 +398,11 @@ switch ($action) {
         $rach = get_rachunek($rid);
         if (!$rach) ajax_err('Nie znaleziono rachunku');
         if ($rach['status'] === $status) ajax_ok([], 'Status niezmieniony');
+        // Rachunek w obiegu EODoK/KDOK: status wynika z obiegu (akceptacja, płatność) — ręczna zmiana rozjechałaby rejestry.
+        if (!empty($rach['edok_doc_id']) || !empty($rach['kdok_doc_id'])) {
+            ajax_err('Rachunek jest w obiegu ' . (!empty($rach['edok_doc_id']) ? 'EODoK (' . ($rach['edok_number'] ?: '#' . $rach['edok_doc_id']) . ')' : 'KDOK')
+                . ' — status zmienia się tam (akceptacja, płatność). Odrzucenie lub wycofanie dokumentu oddaje rachunek do umowy.');
+        }
 
         rachunek_set_status($rid, $status, (int)current_user()['id']);
         log_contract_action('zlecenie', (int)$rach['contract_id'], (int)current_user()['id'], 'rachunek_status',
@@ -457,6 +462,10 @@ switch ($action) {
 
         $rach = get_rachunek($rid);
         if (!$rach) ajax_err('Nie znaleziono rachunku');
+        if (!empty($rach['edok_doc_id']) || !empty($rach['kdok_doc_id'])) {
+            ajax_err('Rachunek jest w obiegu ' . (!empty($rach['edok_doc_id']) ? 'EODoK (' . ($rach['edok_number'] ?: '#' . $rach['edok_doc_id']) . ')' : 'KDOK')
+                . ' — najpierw wycofaj albo odrzuć dokument, inaczej zostałby dokument bez rachunku.');
+        }
 
         $uid = (int)current_user()['id'];
         require_once dirname(__DIR__) . '/includes/cpc.php';

@@ -168,6 +168,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$description, $kontrahent_nazwa, $kontrahent_nip, $nr_faktury, $nr_bramki, $zrodlo_przychodu, $kwota_netto, $kwota_vat, $kwota_brutto, $rodzaj, $projekt, $mpk, $tytul_przelewu,
              (int)$zaplata['zaplacono_przed'], $zaplata['data_zaplaty'], $zaplata['forma_zaplaty'], $zaplata['zaplacil'], $zaplata['zwrot_osoba'], $zaplata['zwrot_rachunek'], $proforma_id, $zaplata['dowod_zaplaty_path'], $okres, $umowa_numer, $kwota_do_wyplaty, $id]
         );
+        // Rachunek do umowy: numer konta odbiorcy poprawialny do etapu rachunkowego (bez niego dokument nie da się zapłacić przelewem).
+        if ($doc['typ_dokumentu'] === 'rachunek' && !$locked_rachunkowa && isset($_POST['rachunek_bankowy'])) {
+            $nrb_new = preg_replace('/\D/', '', (string)$_POST['rachunek_bankowy']);
+            if ($nrb_new !== preg_replace('/\D/', '', (string)$doc['rachunek_bankowy'])) {
+                if (strlen($nrb_new) === 26 && edok_nrb_valid($nrb_new)) {
+                    db_exec("UPDATE edok_documents SET rachunek_bankowy=? WHERE id=?", [$nrb_new, $id]);
+                    edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Zmieniono numer konta odbiorcy: ' . (edok_nrb_format((string)$doc['rachunek_bankowy']) ?: 'brak') . ' → ' . edok_nrb_format($nrb_new) . '.');
+                } elseif ($nrb_new !== '') {
+                    flash_set('warning', 'Numer konta odbiorcy jest nieprawidłowy (26 cyfr, suma kontrolna) — nie zmieniono go.');
+                }
+            }
+        }
         $nowa_zaplata = $zaplata + ['proforma_id' => $proforma_id];
         $zmiana_zaplaty = edok_zaplata_opis($nowa_zaplata) !== edok_zaplata_opis($doc) || (int)$proforma_id !== (int)$doc['proforma_id'];
         edok_log($id, 'edit', '', $doc['status'], $doc['status'], 'Zaktualizowano dane dokumentu.'
@@ -796,6 +808,12 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <input type="text" name="kwota_do_wyplaty" id="e_do_wyplaty" class="form-control form-control-sm font-monospace text-end" value="<?= h($doc['kwota_do_wyplaty']) ?>" placeholder="= brutto" <?= $locked_rachunkowa ? 'readonly' : '' ?>>
           </div>
           <div class="col-12 form-text mt-0">Kwota do wypłaty = brutto rachunku po potrąceniu zaliczki PIT i składek ZUS — na nią pójdzie przelew. Puste = brutto.</div>
+          <?php if ($doc['typ_dokumentu'] === 'rachunek'): ?>
+          <div class="col-sm-8">
+            <label class="tw-block tw-text-xs tw-font-semibold tw-text-slate-600 tw-mb-1" for="e_nrb">Konto odbiorcy (NRB)</label>
+            <input type="text" name="rachunek_bankowy" id="e_nrb" inputmode="numeric" class="form-control form-control-sm font-monospace" value="<?= h(edok_nrb_format((string)$doc['rachunek_bankowy'])) ?>" placeholder="26 cyfr" <?= $locked_rachunkowa ? 'readonly' : '' ?>>
+          </div>
+          <?php endif; ?>
           <?php endif; ?>
         </div>
         <?php endif; ?>

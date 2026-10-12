@@ -1159,6 +1159,7 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
     if (rachunek_is_test($rach)) return ['ok' => false, 'msg' => 'Rachunek testowy nie trafia do obiegu księgowego.'];
     if (!empty($rach['edok_doc_id'])) return ['ok' => false, 'msg' => 'Ten rachunek jest już w EODoK jako ' . ($rach['edok_number'] ?: '#' . (int)$rach['edok_doc_id']) . '.'];
     if (!empty($rach['kdok_doc_id'])) return ['ok' => false, 'msg' => 'Ten rachunek jest już w obiegu KDOK jako ' . ($rach['kdok_number'] ?: '#' . (int)$rach['kdok_doc_id']) . '.'];
+    if (($rach['status'] ?? '') === 'odrzucony') return ['ok' => false, 'msg' => 'Rachunek jest odrzucony — popraw go albo zmień status przed przekazaniem do obiegu.'];
     $src = rachunek_file_abs($rach['plik_podpisany'] ?? null) ?: rachunek_file_abs($rach['plik'] ?? null);
     if (!$src) return ['ok' => false, 'msg' => 'Rachunek nie ma pliku — dodaj skan przed przekazaniem do EODoK.'];
 
@@ -1216,7 +1217,20 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
         'updated_at'       => date('Y-m-d H:i:s'),
     ];
     $doc['tytul_przelewu'] = edok_generate_tytul_przelewu($doc);
-    $doc_id = db_insert('edok_documents', $doc);
+    // Rezerwacja rachunku (atomowo): drugie równoległe przekazanie nie przejdzie — bez dwóch dokumentów do zapłaty.
+    $claim = db()->prepare("UPDATE zlecenie_rachunki SET edok_doc_id = -1 WHERE id = ? AND edok_doc_id IS NULL AND kdok_doc_id IS NULL");
+    $claim->execute([$rid]);
+    if ($claim->rowCount() !== 1) {
+        @unlink($dir . $name);
+        return ['ok' => false, 'msg' => 'Ten rachunek jest właśnie przekazywany albo już jest w obiegu — odśwież stronę.'];
+    }
+    try {
+        $doc_id = db_insert('edok_documents', $doc);
+    } catch (\Throwable $e) {
+        db_exec("UPDATE zlecenie_rachunki SET edok_doc_id = NULL WHERE id = ? AND edok_doc_id = -1", [$rid]);
+        @unlink($dir . $name);
+        throw $e;
+    }
     edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Dokument ' . $number . ' złożony do obiegu z rejestru rachunków umowy zlecenie ' . $ru . ' (rachunek #' . $rid . ').');
     update_rachunek($rid, ['edok_doc_id' => $doc_id, 'edok_number' => $number]);
 

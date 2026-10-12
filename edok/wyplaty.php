@@ -12,6 +12,12 @@ require_once __DIR__ . '/../includes/edok.php';
 
 edok_require_access();
 edok_migrate();
+// Wynagrodzenia i numery kont zleceniobiorców — tylko role finansowe (nie każdy, kto może dodać dokument).
+if (!is_admin() && !edok_has_role('zatwierdza') && !edok_has_role('rachunkowa') && !edok_has_role('ksiegowy') && !edok_has_role('dekretacja')) {
+    flash_set('danger', 'Zestawienie wypłat jest dostępne dla osób rozliczających płatności (rachunkowa, dekretacja, zatwierdzanie, księgowy).');
+    header('Location: ' . APP_URL . '/edok/index.php');
+    exit;
+}
 
 $f_od     = preg_match('/^\d{4}-\d{2}$/', (string)($_GET['od'] ?? '')) ? (string)$_GET['od'] : '';
 $f_do     = preg_match('/^\d{4}-\d{2}$/', (string)($_GET['do'] ?? '')) ? (string)$_GET['do'] : '';
