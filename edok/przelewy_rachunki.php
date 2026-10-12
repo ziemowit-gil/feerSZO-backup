@@ -35,8 +35,8 @@ if (isset($_GET['plik'])) {
 }
 
 $_okres_in = (string)($_POST['okres'] ?? $_GET['okres'] ?? '');
-$ym = preg_match('/^\d{4}-\d{2}$/', $_okres_in) ? $_okres_in : date('Y-m', strtotime('first day of last month'));
-if ($_okres_in === 'wszystkie') $ym = '';
+// Domyślnie wszystkie niezapłacone — filtr miesiąca ukrywał rachunki wystawione za inny okres.
+$ym = preg_match('/^\d{4}-\d{2}$/', $_okres_in) ? $_okres_in : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'generuj') {
     csrf_check();
@@ -122,10 +122,10 @@ require_once __DIR__ . '/../includes/header.php';
         <?php foreach ($rows as $r): $ok = $r['problem'] === null; ?>
           <tr class="<?= $ok ? '' : 'tw-text-slate-400' ?>">
             <td><input type="checkbox" class="form-check-input prz-cb" name="rid[]" value="<?= (int)$r['id'] ?>"
-                   data-kwota="<?= h((string)(float)($r['kwota_netto'] ?? 0)) ?>" <?= $ok ? (empty($r['przelew_id']) ? 'checked' : '') : 'disabled' ?>
+                   data-kwota="<?= h((string)(float)($r['kwota_netto'] ?? 0)) ?>" <?= $ok ? (empty($r['ponowny']) ? 'checked' : '') : 'disabled' ?>
                    aria-label="<?= h($r['imie_nazwisko'] . ' ' . $r['numer']) ?>"></td>
             <td><a href="<?= APP_URL ?>/contracts/zlecenie/view.php?id=<?= (int)$r['umowa_id'] ?>&amp;tab=rachunki" class="tw-font-medium"><?= h($r['imie_nazwisko']) ?></a>
-                <div class="tw-text-xs tw-text-slate-500">umowa <?= h($r['umowa_ref'] ?: ($r['numer_umowy'] ?: '—')) ?></div></td>
+                <div class="tw-text-xs tw-text-slate-500"><?= $r['umowa_ref'] !== '' ? 'umowa ' . h($r['umowa_ref']) : 'umowa techniczna (bez numeru)' ?></div></td>
             <td class="tw-font-mono tw-text-xs"><?= h($r['numer'] ?: '#' . $r['id']) ?></td>
             <td class="tw-whitespace-nowrap"><?= h((string)($r['okres'] ?: '—')) ?></td>
             <td class="tw-whitespace-nowrap tw-text-right"><?= $r['kwota_brutto'] !== null ? $money($r['kwota_brutto']) : '—' ?></td>

@@ -11,7 +11,9 @@
  *    nie jest do wyboru (brutto nie jest kwotą wypłaty);
  *  - NRB odbiorcy = rachunek bankowy z umowy (26 cyfr), odbiorca = zleceniobiorca;
  *  - tytuł „WYNAGRODZENIE MM/RRRR - umowa nr {Rejestr Umów}” (okres rachunku; umowa techniczna bez numeru);
- *  - pomijane: testowe, odrzucone, zapłacone i będące w obiegu EODoK/KDOK (tam płaci się z Preliminarza);
+ *  - pomijane: testowe, odrzucone, zapłacone, czekające na eObieg w EODoK i będące w KDOK; rachunek w EODoK
+ *    zaakceptowany (np. obieg papierowy) jest do wyboru — dokument EODoK dostaje status płatności „zlecony”
+ *    (albo „opłacony”), więc Preliminarz nie zapłaci go drugi raz;
  *  - każdy plik zapisany w historii; rachunek ujęty w pliku jest oznaczony — ponowne ujęcie wymaga potwierdzenia.
  */
 
@@ -70,14 +72,22 @@ function prz_rach_lista(string $ym = ''): array {
         $nrb = preg_replace('/\D/', '', (string)$r['umowa_nrb']);
         $r['nrb']    = $nrb;
         $r['umowa_ref'] = rachunek_umowa_ref($r);
+        $doc = (int)($r['edok_doc_id'] ?? 0) > 0 ? db_one("SELECT id, number, status, status_platnosci, obieg_papierowy FROM edok_documents WHERE id = ?", [(int)$r['edok_doc_id']]) : null;
+        $r['edok'] = $doc;
+        $edok_plat = $doc ? ($doc['status_platnosci'] ?: 'nowy') : null;
         $r['problem'] = match (true) {
             $r['status'] === 'zaplacony'                             => 'Zapłacony',
-            !empty($r['edok_doc_id']) || !empty($r['kdok_doc_id'])    => 'W obiegu ' . (!empty($r['edok_doc_id']) ? 'EODoK' : 'KDOK') . ' — płatność z Preliminarza',
+            !empty($r['kdok_doc_id'])                                 => 'W obiegu KDOK — płatność z Preliminarza',
+            $doc !== null && $doc['status'] !== 'zaakceptowany'       => 'Czeka na akceptację w eObiegu EODoK (' . $doc['number'] . ')',
+            $edok_plat === 'oplacony'                                 => 'Opłacony w EODoK (' . $doc['number'] . ')',
             ($r['kwota_netto'] ?? null) === null || (float)$r['kwota_netto'] <= 0 => 'Brak kwoty netto — uzupełnij w rachunku',
             strlen($nrb) !== 26                                      => 'Brak numeru konta w umowie',
             default                                                  => null,
         };
-        $r['uwaga'] = !empty($r['przelew_id']) ? 'Już w pliku przelewów z ' . date('d.m.Y H:i', strtotime((string)$r['przelew_at'])) : null;
+        $r['uwaga'] = !empty($r['przelew_id']) ? 'Już w pliku przelewów z ' . date('d.m.Y H:i', strtotime((string)$r['przelew_at']))
+            : ($edok_plat === 'zlecony' ? 'Przelew już zlecony z Preliminarza EODoK (' . $doc['number'] . ')'
+            : ($doc ? 'EODoK ' . $doc['number'] . (!empty($doc['obieg_papierowy']) ? ' (obieg papierowy)' : '') : null));
+        $r['ponowny'] = !empty($r['przelew_id']) || $edok_plat === 'zlecony';
         $out[] = $r;
     }
     return $out;
@@ -121,7 +131,7 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
     if (!$rows) return ['ok' => false, 'msg' => 'Zaznacz co najmniej jeden rachunek.'];
     $zle = array_filter($rows, fn($r) => $r['problem'] !== null);
     if ($zle) return ['ok' => false, 'msg' => 'Nie można wygenerować przelewu dla: ' . implode(', ', array_map(fn($r) => $r['imie_nazwisko'] . ' (' . $r['problem'] . ')', $zle)) . '.'];
-    $ponowne = array_filter($rows, fn($r) => !empty($r['przelew_id']));
+    $ponowne = array_filter($rows, fn($r) => !empty($r['ponowny']));
     if ($ponowne && !$potwierdz_ponowne) {
         return ['ok' => false, 'msg' => 'Rachunki ' . implode(', ', array_map(fn($r) => $r['imie_nazwisko'] . ' ' . $r['numer'], $ponowne))
             . ' były już w pliku przelewów — zaznacz „Potwierdzam ponowne ujęcie”, jeśli to nie podwójna płatność.'];
@@ -156,6 +166,17 @@ function prz_rach_generuj(array $rids, string $nrb_z, string $format, bool $ozna
     foreach ($rows as $r) {
         update_rachunek((int)$r['id'], ['przelew_id' => $pid, 'przelew_at' => date('Y-m-d H:i:s')]);
         if ($oznacz_zaplacone) rachunek_set_status((int)$r['id'], 'zaplacony', $uid);
+        // Rachunek w EODoK: status płatności dokumentu — Preliminarz nie zapłaci go drugi raz.
+        if (!empty($r['edok'])) {
+            $prev = $r['edok']['status_platnosci'] ?: 'nowy';
+            $nowy = $oznacz_zaplacone ? 'oplacony' : 'zlecony';
+            if ($prev !== $nowy) {
+                db_exec("UPDATE edok_documents SET status_platnosci = ?, updated_at = datetime('now') WHERE id = ?", [$nowy, (int)$r['edok']['id']]);
+                edok_log((int)$r['edok']['id'], 'status_platnosci', '', $prev, $nowy,
+                    'Przelew w pliku „Przelewy za rachunki” #' . $pid . ' (netto ' . number_format((float)$r['kwota_netto'], 2, ',', ' ') . ' zł) — status płatności: '
+                    . ($nowy === 'oplacony' ? 'Opłacony' : 'Zlecony do banku') . '.');
+            }
+        }
         try {
             log_contract_action('zlecenie', (int)$r['contract_id'], (int)$uid,
                 'rachunek_przelew', 'Rachunek ' . ($r['numer'] ?: '#' . $r['id']) . ' w pliku przelewów #' . $pid
