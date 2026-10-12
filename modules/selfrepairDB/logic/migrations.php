@@ -113,4 +113,19 @@ return [
         },
     ],
 
+    '2026-10_edok_rachunki_obieg_papierowy' => [
+        'desc' => 'EODoK: rachunki do umów zlecenie czekające w obiegu elektronicznym → obieg papierowy (akceptacja na papierze), dokumenty do zapłaty',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/auth.php';   // edok_log → current_user() (także przy uruchomieniu z CLI)
+            require_once $ROOT . '/includes/edok.php';
+            edok_migrate();
+            $docs = db_all("SELECT id FROM edok_documents
+                             WHERE zlec_rachunek_id IS NOT NULL AND typ_dokumentu = 'rachunek'
+                               AND status IN ('draft','w_obiegu') AND COALESCE(obieg_papierowy,0) = 0");
+            foreach ($docs as $d) {
+                edok_zatwierdz_papierowo((int)$d['id'], 'poprawka: rachunki do umów domyślnie w obiegu papierowym — dokument przeniesiony z obiegu elektronicznego');
+            }
+        },
+    ],
+
 ];

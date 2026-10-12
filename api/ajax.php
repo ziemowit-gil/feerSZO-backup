@@ -442,7 +442,8 @@ switch ($action) {
         if (!$rach) ajax_err('Nie znaleziono rachunku');
 
         // Od EDOK_CUTOFF_RACHUNEK rachunki idą do EODoK, wcześniejsze — do KDOK.
-        $res = rachunek_push_to_obieg($rid, (int)current_user()['id']);
+        // Domyślnie obieg papierowy (akceptacja na papierze); elektroniczny — gdy wybrano w oknie.
+        $res = rachunek_push_to_obieg($rid, (int)current_user()['id'], empty($_POST['elektroniczny']));
         if (empty($res['ok'])) ajax_err($res['msg']);
 
         log_contract_action('zlecenie', (int)$rach['contract_id'], (int)current_user()['id'], 'rachunek_kdok',

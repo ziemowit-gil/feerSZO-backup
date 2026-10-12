@@ -1144,12 +1144,12 @@ function rachunek_push_to_kdok(int $rid, ?int $user_id): array {
  * EDOK_CUTOFF_RACHUNEK → EODoK, wcześniejsze → dotychczasowy KDOK (ta sama
  * reguła co w edok/add.php, patrz edok_typ_data_graniczna()).
  */
-function rachunek_push_to_obieg(int $rid, ?int $user_id): array {
+function rachunek_push_to_obieg(int $rid, ?int $user_id, bool $papierowy = true): array {
     require_once __DIR__ . '/edok.php';
     $rach = get_rachunek($rid);
     if (!$rach) return ['ok' => false, 'msg' => 'Nie znaleziono rachunku.'];
     $data = substr((string)($rach['data_wystawienia'] ?: date('Y-m-d')), 0, 10);
-    return $data < EDOK_CUTOFF_RACHUNEK ? rachunek_push_to_kdok($rid, $user_id) : rachunek_push_to_edok($rid, $user_id);
+    return $data < EDOK_CUTOFF_RACHUNEK ? rachunek_push_to_kdok($rid, $user_id) : rachunek_push_to_edok($rid, $user_id, $papierowy);
 }
 
 /**
@@ -1170,7 +1170,7 @@ function rachunek_umowa_ref(array $contract): string {
     return preg_match('/\d/', $ru) ? $ru : '';
 }
 
-function rachunek_push_to_edok(int $rid, ?int $user_id): array {
+function rachunek_push_to_edok(int $rid, ?int $user_id, bool $papierowy = true): array {
     require_once __DIR__ . '/edok.php';
     edok_migrate();
     $rach = get_rachunek($rid);
@@ -1253,7 +1253,12 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
     edok_log($doc_id, 'submit', '', 'draft', 'w_obiegu', 'Dokument ' . $number . ' złożony do obiegu z rejestru rachunków umowy zlecenie ' . $ru . ' (rachunek #' . $rid . ').');
     update_rachunek($rid, ['edok_doc_id' => $doc_id, 'edok_number' => $number]);
 
-    return ['ok' => true, 'msg' => 'Przekazano do EODoK jako ' . $number, 'doc_id' => $doc_id, 'number' => $number];
+    // Domyślnie obieg papierowy: rachunek zatwierdzony na papierze → w EODoK od razu do zapłaty.
+    if ($papierowy) {
+        edok_zatwierdz_papierowo((int)$doc_id, 'rachunek do umowy ' . ($ru !== '' ? $ru : 'zlecenie') . ' przekazany z rejestru rachunków');
+        return ['ok' => true, 'msg' => 'Przekazano do EODoK jako ' . $number . ' — obieg papierowy, dokument do zapłaty.', 'doc_id' => $doc_id, 'number' => $number];
+    }
+    return ['ok' => true, 'msg' => 'Przekazano do EODoK jako ' . $number . ' — eObieg rachunku (elektronicznie, 5 etapów akceptacji).', 'doc_id' => $doc_id, 'number' => $number];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

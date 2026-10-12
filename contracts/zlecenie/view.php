@@ -2675,9 +2675,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   };
 
-  window.rachToKdok = function (rid, btn, potwierdzone) {
-    if (!potwierdzone && !confirm('Przekazać rachunek do obiegu akceptacji (EODoK)?')) return;
-    post('rachunek_kdok', {rachunek_id: rid}, btn, function () {
+  window.rachToKdok = function (rid, btn, potwierdzone, elektroniczny) {
+    if (!potwierdzone && !confirm('Przekazać rachunek do EODoK (obieg papierowy — od razu do zapłaty)?')) return;
+    post('rachunek_kdok', {rachunek_id: rid, elektroniczny: elektroniczny ? 1 : 0}, btn, function () {
       setTimeout(function () { location.reload(); }, 800);
     });
   };
@@ -2729,8 +2729,21 @@ try {
         </dl>
         <div id="rachEdokWarn" class="alert alert-warning small py-2 d-none" role="alert"></div>
 
-        <h6 class="fw-semibold">Jak przebiega akceptacja w EODoK</h6>
-        <p class="small text-muted mb-2">Dokument przechodzi kolejno 5 etapów. Każdy zatwierdza osoba z daną rolą (administrator może każdy) — potwierdzając tożsamość PIN-em lub kluczem. Odrzucenie na dowolnym etapie oddaje rachunek tutaj do poprawy. Po 5. etapie dokument trafia do Preliminarza płatności, a przelew idzie z kwoty <strong>netto</strong>.</p>
+        <h6 class="fw-semibold">Akceptacja</h6>
+        <div class="vstack gap-2 mb-3">
+          <label class="d-flex gap-2 align-items-start border rounded p-2">
+            <input class="form-check-input mt-1" type="radio" name="rachEdokTryb" value="papier" checked>
+            <span><strong>Obieg papierowy</strong> <span class="badge bg-light text-dark border">domyślnie</span>
+              <span class="d-block small text-muted">Rachunek zatwierdzony na papierze. W EODoK od razu jako „Zaakceptowany — obieg papierowy”: do Preliminarza i przelewu (z kwoty netto). Decyzje elektroniczne i edycja w EODoK zablokowane; korekty — administrator tutaj.</span></span>
+          </label>
+          <label class="d-flex gap-2 align-items-start border rounded p-2">
+            <input class="form-check-input mt-1" type="radio" name="rachEdokTryb" value="elektroniczny">
+            <span><strong>eObieg rachunku</strong> <span class="text-muted">(elektronicznie w EODoK)</span>
+              <span class="d-block small text-muted">5 etapów poniżej — każdy zatwierdza osoba z rolą, PIN-em lub kluczem. Odrzucenie oddaje rachunek tutaj do poprawy.</span></span>
+          </label>
+        </div>
+        <div id="rachEdokEtapy" class="d-none">
+        <p class="small text-muted mb-2">Etapy eObiegu rachunku (administrator może zatwierdzić każdy). Po 5. etapie dokument trafia do Preliminarza płatności, a przelew idzie z kwoty <strong>netto</strong>.</p>
         <ol class="list-group list-group-numbered small mb-2">
           <?php foreach ($_edok_kroki as $_ek => $_k): ?>
           <li class="list-group-item d-flex justify-content-between align-items-start gap-3">
@@ -2739,6 +2752,7 @@ try {
           </li>
           <?php endforeach; ?>
         </ol>
+        </div>
         <p class="small text-muted mb-0">Role ustawia się w EODoK → Ustawienia (role użytkowników). Jeśli zatwierdzanie odbywa się na papierze, przelew możesz wygenerować bez obiegu: Finanse → <a href="<?= APP_URL ?>/edok/przelewy_rachunki.php">Przelewy za rachunki</a>.</p>
       </div>
       <div class="modal-footer">
@@ -2765,10 +2779,18 @@ try {
     g('rachEdokWarn').innerHTML = w.map(function (t) { return '<div>• ' + t.replace(/</g, '&lt;') + '</div>'; }).join('');
     g('rachEdokWarn').classList.toggle('d-none', !w.length);
     g('rachEdokGo').disabled = !d.nrb;
+    document.querySelector('input[name=rachEdokTryb][value=papier]').checked = true;
+    g('rachEdokEtapy').classList.add('d-none');
     bootstrap.Modal.getOrCreateInstance(g('rachEdokModal')).show();
   };
+  document.querySelectorAll('input[name=rachEdokTryb]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      document.getElementById('rachEdokEtapy').classList.toggle('d-none', r.value !== 'elektroniczny' || !r.checked);
+    });
+  });
   document.getElementById('rachEdokGo').addEventListener('click', function () {
-    if (rid) window.rachToKdok(rid, this, true);
+    var el = (document.querySelector('input[name=rachEdokTryb]:checked') || {}).value === 'elektroniczny';
+    if (rid) window.rachToKdok(rid, this, true, el);
   });
 })();
 </script>

@@ -186,6 +186,9 @@ function edok_migrate(): void {
         'kwota_do_wyplaty'       => "TEXT NOT NULL DEFAULT ''",
         'umowa_numer'            => "TEXT NOT NULL DEFAULT ''",
         'zlec_rachunek_id'       => "INTEGER",
+        // Obieg papierowy (domyślnie dla rachunków do umów): akceptacja na papierze, w EODoK tylko
+        // ewidencja i płatność — bez 5 etapów elektronicznych, decyzje i edycja danych zablokowane.
+        'obieg_papierowy'        => "INTEGER NOT NULL DEFAULT 0",
     ]);
 
     // Rejestr przelewów składek ZUS (bez obiegu akceptacji — kwota wynika z rozliczonych
@@ -940,6 +943,7 @@ function edok_pending_for_user(int $user_id): array {
  * Zwraca ['status' => string edok_documents.status po zapisie, 'rejected' => bool].
  */
 function edok_decide_step(array $doc, string $step_key, string $status, int $user_id, string $notes, bool $pin_verified = false, string $verify_kind = 'pin'): array {
+    if (edok_is_papierowy($doc)) throw new RuntimeException('Dokument w obiegu papierowym — akceptacja odbyła się na papierze, decyzje elektroniczne są zablokowane.');
     $id    = (int)$doc['id'];
     $user  = current_user();
     $who   = $user['name'] ?? ('uid:' . $user_id);
@@ -1098,9 +1102,32 @@ function edok_sign_all(int $doc_id, int $user_id, string $pin, string $notes = '
 }
 
 /** Cofnięcie decyzji (tylko admin/ksiegowy) — resetuje wszystkie etapy, wznawia obieg od etapu 1. */
+/** Dokument w obiegu papierowym (rachunek do umowy zatwierdzony na papierze). */
+function edok_is_papierowy(?array $doc): bool {
+    return $doc !== null && !empty($doc['obieg_papierowy']);
+}
+
+/**
+ * Obieg papierowy: dokument zatwierdzony na papierze → od razu „Zaakceptowany” (do zapłaty), bez etapów
+ * elektronicznych. Wołane przy przekazaniu rachunku (domyślnie) albo przyciskiem na karcie dokumentu
+ * w obiegu. Rachunek w rejestrze umowy → „Zaakceptowany”.
+ */
+function edok_zatwierdz_papierowo(int $doc_id, string $note = ''): void {
+    $doc = edok_get($doc_id);
+    if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
+    if (!in_array($doc['status'], ['draft', 'w_obiegu'], true)) throw new RuntimeException('Na papierowy można przełączyć tylko dokument w obiegu.');
+    $u = current_user();
+    db_exec("UPDATE edok_documents SET obieg_papierowy = 1, status = 'zaakceptowany', updated_at = datetime('now') WHERE id = ?", [$doc_id]);
+    edok_log($doc_id, 'status_change', '', $doc['status'], 'zaakceptowany',
+        'Obieg papierowy — dokument zatwierdzony na papierze' . ($note !== '' ? ' (' . $note . ')' : '') . '; potwierdził w systemie: ' . ($u['name'] ?? '—')
+        . '. Etapy elektroniczne pominięte, dokument do zapłaty.');
+    edok_sync_rachunki_umow($doc_id);
+}
+
 function edok_unlock(int $doc_id, string $reason): void {
     $doc = edok_get($doc_id);
     if (!$doc) throw new RuntimeException('Dokument nie istnieje.');
+    if (edok_is_papierowy($doc)) throw new RuntimeException('Dokument w obiegu papierowym — decyzje zapadają na papierze. Korekty: administrator w rejestrze rachunków umowy.');
     if (!in_array($doc['status'], ['zaakceptowany', 'odrzucony'], true)) {
         throw new RuntimeException('Cofnięcie jest możliwe tylko dla dokumentu zaakceptowanego lub odrzuconego.');
     }
@@ -1161,7 +1188,8 @@ function edok_transfer_label_klasyfikacja(string $rodzaj, string $projekt): stri
 
 function edok_status_badge(string $status, ?array $doc = null): string {
     $s = EDOK_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary'];
-    return '<span class="badge bg-' . $s['class'] . '">' . h($doc ? edok_status_label($doc) : $s['label']) . '</span>';
+    return '<span class="badge bg-' . $s['class'] . '">' . h($doc ? edok_status_label($doc) : $s['label']) . '</span>'
+        . (edok_is_papierowy($doc) ? ' <span class="badge bg-light text-dark border" title="Zatwierdzony na papierze — w EODoK tylko ewidencja i płatność"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> papierowy</span>' : '');
 }
 
 // ── Karta akceptacji — HTML współdzielony między edok/print.php (przeglądarka) ─

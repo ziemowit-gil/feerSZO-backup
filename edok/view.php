@@ -274,6 +274,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Cofnięcie decyzji — tylko admin / rola 'ksiegowy'
+    // Rachunek do umowy w obiegu → obieg papierowy (zatwierdzony na papierze): od razu do zapłaty.
+    if ($action === 'papierowy') {
+        if (!(is_admin() || edok_has_role('zatwierdza') || (int)$doc['created_by'] === (int)($user['id'] ?? 0)) || empty($doc['zlec_rachunek_id'])) {
+            flash_set('danger', 'Obieg papierowy może włączyć administrator, osoba zatwierdzająca do zapłaty albo przekazujący — tylko dla rachunków do umów.');
+        } else {
+            try {
+                edok_zatwierdz_papierowo($id, 'przełączono z obiegu elektronicznego');
+                flash_set('success', 'Obieg papierowy — dokument zatwierdzony na papierze, gotowy do zapłaty.');
+            } catch (Throwable $e) {
+                flash_set('danger', 'Błąd: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . APP_URL . '/edok/view.php?id=' . $id);
+        exit;
+    }
+
     if ($action === 'unlock_doc') {
         if (!edok_has_unlock_perm()) {
             flash_set('danger', 'Brak uprawnień do cofania decyzji.');
@@ -509,6 +525,13 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
 </style>
 
 <div class="edok-page">
+<?php if (edok_is_papierowy($doc)): ?>
+<div class="alert alert-light border small mb-3" role="note">
+  <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>
+  <strong>Obieg papierowy.</strong> Rachunek zatwierdzony na papierze — w EODoK tylko ewidencja i płatność. Decyzje etapów, cofanie i edycja danych są zablokowane;
+  korekty kwot robi administrator w rejestrze rachunków umowy (przechodzą tutaj automatycznie).
+</div>
+<?php endif; ?>
 <div class="edok-topbar">
   <div class="edok-topbar__title">
     <a href="<?= APP_URL ?>/edok/index.php" class="edok-btn edok-btn-ghost edok-btn-sm" aria-label="Wróć"><i class="bi bi-arrow-left"></i></a>
@@ -546,7 +569,14 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
     <a href="<?= APP_URL ?>/edok/print_pdf.php?id=<?= $id ?>" target="_blank" class="edok-btn edok-btn-ghost" title="PDF: dokument źródłowy + karta akceptacji, do wydruku">
       <i class="bi bi-file-earmark-pdf"></i> PDF do druku
     </a>
-    <?php if (edok_has_unlock_perm() && $is_terminal): ?>
+    <?php if (!$is_terminal && !empty($doc['zlec_rachunek_id']) && (is_admin() || edok_has_role('zatwierdza') || (int)$doc['created_by'] === (int)($user['id'] ?? 0))): ?>
+    <form method="post" class="tw-inline" onsubmit="return confirm('Rachunek został zatwierdzony na papierze? Dokument przejdzie od razu do zapłaty, etapy elektroniczne zostaną pominięte.');">
+      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="papierowy">
+      <button class="edok-btn edok-btn-primary" type="submit"><i class="bi bi-file-earmark-check"></i> Zatwierdzono na papierze</button>
+    </form>
+    <?php endif; ?>
+    <?php if (edok_has_unlock_perm() && $is_terminal && !edok_is_papierowy($doc)): ?>
     <button class="edok-btn edok-btn-ghost" type="button" data-bs-toggle="modal" data-bs-target="#unlockModal">
       <i class="bi bi-arrow-counterclockwise"></i> Cofnij decyzję
     </button>
