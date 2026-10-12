@@ -75,6 +75,8 @@ require_once __DIR__ . '/db.php';
         // Dokładanie kolumn do istniejących tabel (idempotentnie, jak w rozliczenia.php)
         foreach ([
             'okres_od'             => 'TEXT',   // YYYY-MM — początek okresu rachunku
+            // Kwota netto = do wypłaty zleceniobiorcy (brutto − składki − zaliczka na PIT); z niej idą przelewy.
+            'kwota_netto'          => 'REAL',
             'okres_do'             => 'TEXT',   // YYYY-MM — koniec okresu (rachunek za kilka miesięcy)
             'rozliczenie_id'       => 'INTEGER',
             'plik_sha256'          => 'TEXT',
@@ -291,6 +293,8 @@ function create_rachunek(array $data, ?int $user_id, string $type = 'zlecenie'):
         'okres_do'         => ($data['okres_do'] ?? '') !== '' ? $data['okres_do'] : (($data['okres_od'] ?? '') !== '' ? $data['okres_od'] : null),
         'kwota_brutto'     => ($data['kwota_brutto'] ?? '') === '' || $data['kwota_brutto'] === null
                               ? null : (float)$data['kwota_brutto'],
+        'kwota_netto'      => ($data['kwota_netto'] ?? '') === '' || ($data['kwota_netto'] ?? null) === null
+                              ? null : (float)$data['kwota_netto'],
         'uwagi'            => ($data['uwagi'] ?? '') !== '' ? $data['uwagi'] : null,
         'rozliczenie_id'   => !empty($data['rozliczenie_id']) ? (int)$data['rozliczenie_id'] : null,
         'plik'             => $data['plik']        ?? null,
@@ -334,12 +338,13 @@ function rachunek_overwrite(int $rid, array $data, ?array $file = null, bool $re
         if ($col === 'numer' && $v === '') continue; // pusty numer = zostaw dotychczasowy
         if ($v !== trim((string)($r[$col] ?? ''))) { $upd[$col] = $v === '' ? null : $v; $changed[] = $col; }
     }
-    if (array_key_exists('kwota_brutto', $data)) {
-        $k = trim((string)$data['kwota_brutto']);
+    foreach (['kwota_brutto', 'kwota_netto'] as $kcol) {
+        if (!array_key_exists($kcol, $data)) continue;
+        $k = trim((string)$data[$kcol]);
         if ($k !== '' && !is_numeric($k)) throw new RuntimeException('Nieprawidłowa kwota.');
         $new = $k === '' ? null : round((float)$k, 2);
-        $old = $r['kwota_brutto'] === null ? null : round((float)$r['kwota_brutto'], 2);
-        if ($new !== $old) { $upd['kwota_brutto'] = $new; $changed[] = 'kwota_brutto'; }
+        $old = ($r[$kcol] ?? null) === null ? null : round((float)$r[$kcol], 2);
+        if ($new !== $old) { $upd[$kcol] = $new; $changed[] = $kcol; }
     }
     $old_files = [];
     if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
@@ -1137,6 +1142,15 @@ function rachunek_push_to_obieg(int $rid, ?int $user_id): array {
  *
  * @return array{ok:bool, msg:string, doc_id?:int, number?:string}
  */
+/**
+ * Numer umowy do tytułu przelewu: nr z Rejestru Umów, awaryjnie numer umowy. Umowa techniczna
+ * (numer bez cyfr, np. „---”) → pusty — tytuł „WYNAGRODZENIE MM/RRRR” bez bezwartościowego numeru.
+ */
+function rachunek_umowa_ref(array $contract): string {
+    $ru = trim((string)($contract['nr_rejestru'] ?? '')) ?: trim((string)($contract['numer_umowy'] ?? ''));
+    return preg_match('/\d/', $ru) ? $ru : '';
+}
+
 function rachunek_push_to_edok(int $rid, ?int $user_id): array {
     require_once __DIR__ . '/edok.php';
     edok_migrate();
@@ -1150,6 +1164,9 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
 
     $contract = db_one("SELECT * FROM umowy_zlecenie WHERE id=?", [(int)$rach['contract_id']]);
     if (!$contract) return ['ok' => false, 'msg' => 'Nie znaleziono umowy.'];
+    // Bez kwoty albo bez numeru konta dokument przeszedłby obieg i nie dałby się zapłacić przelewem.
+    if ($rach['kwota_brutto'] === null && ($rach['kwota_netto'] ?? null) === null) return ['ok' => false, 'msg' => 'Rachunek nie ma kwoty — uzupełnij ją przed przekazaniem.'];
+    if (strlen(preg_replace('/\D/', '', (string)($contract['rachunek_bankowy'] ?? ''))) !== 26) return ['ok' => false, 'msg' => 'Umowa nie ma poprawnego numeru rachunku bankowego (26 cyfr) — uzupełnij go w umowie, inaczej nie da się wypłacić przelewem.'];
 
     $dir = rtrim(UPLOAD_DIR, '/') . '/edok_docs/';
     if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) return ['ok' => false, 'msg' => 'Nie można utworzyć katalogu edok_docs.'];
@@ -1159,10 +1176,13 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
 
     $user   = $user_id ? db_one("SELECT id, name FROM users WHERE id=?", [$user_id]) : null;
     $osoba  = (string)($contract['imie_nazwisko'] ?? '');
-    $ru     = trim((string)($contract['nr_rejestru'] ?? '')) ?: (string)($contract['numer_umowy'] ?? '');
+    $ru     = rachunek_umowa_ref($contract);
     $data   = substr((string)($rach['data_wystawienia'] ?: date('Y-m-d')), 0, 10);
-    $okres  = substr($data, 0, 7);
+    // Okres wynagrodzenia = okres rachunku (nie miesiąc wystawienia): rachunek za 09 wystawiony 2.10 → „09/2026”.
+    $okres  = preg_match('/^\d{4}-\d{2}$/', (string)($rach['okres_od'] ?? '')) ? (string)$rach['okres_od'] : substr($data, 0, 7);
     $brutto = $rach['kwota_brutto'] !== null ? number_format((float)$rach['kwota_brutto'], 2, ',', '') : '';
+    // Netto (po składkach i zaliczce na PIT) — z niej idzie przelew (edok_przelew_rows → kwota_do_wyplaty).
+    $netto  = ($rach['kwota_netto'] ?? null) !== null ? number_format((float)$rach['kwota_netto'], 2, ',', '') : '';
     $number = edok_next_number();
     $doc = [
         'number'           => $number,
@@ -1179,6 +1199,7 @@ function rachunek_push_to_edok(int $rid, ?int $user_id): array {
         'stawka_vat'       => 'np',
         'kwota_vat'        => '0,00',
         'kwota_brutto'     => $brutto,
+        'kwota_do_wyplaty' => $netto,
         'waluta'           => 'PLN',
         'rachunek_bankowy' => preg_replace('/\s+/', '', (string)($contract['rachunek_bankowy'] ?? '')),
         'contract_type'    => 'zlecenie',

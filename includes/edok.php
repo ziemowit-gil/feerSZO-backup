@@ -2418,7 +2418,8 @@ function edok_wyplaty_z_rachunkow(array $doc, array $rids, array $nr_map = []): 
         [$id, $e] = edok_wyplata_add((int)$doc['id'], [
             'osoba'            => $r['imie_nazwisko'],
             'rachunek'         => $nrb,
-            'kwota'            => (string)($r['kwota_brutto'] ?? ''),
+            // Przelew na kwotę do wypłaty (netto z rachunku), a gdy jej nie podano — na brutto.
+            'kwota'            => (string)(($r['kwota_netto'] ?? null) !== null ? $r['kwota_netto'] : ($r['kwota_brutto'] ?? '')),
             'contract_type'    => 'zlecenie',
             'contract_id'      => $r['contract_id'],
             'umowa_numer'      => $r['umowa_rejestr'],

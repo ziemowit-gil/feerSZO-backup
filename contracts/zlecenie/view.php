@@ -377,6 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_add']) && can_e
         'okres_od'         => '',
         'okres_do'         => '',
         'kwota_brutto'     => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota'] ?? '')),
+        'kwota_netto'      => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota_netto'] ?? '')),
         'uwagi'            => trim($_POST['rach_uwagi'] ?? ''),
         'test_mode'        => !empty($_POST['rach_test']) ? 1 : 0,
     ];
@@ -453,6 +454,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_edit']) && can_
             'okres_od'         => $_okr['od'],
             'okres_do'         => $_okr['do'],
             'kwota_brutto'     => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota'] ?? '')),
+            'kwota_netto'      => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota_netto'] ?? '')),
             'uwagi'            => trim($_POST['rach_uwagi'] ?? ''),
         ], $_FILES['rach_plik'] ?? null, !empty($_POST['rach_reset_sign']));
         if ($_zm) {
@@ -1694,6 +1696,9 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
       <!-- Kwota -->
       <td class="text-end text-nowrap fw-semibold">
         <?= $rr['kwota_brutto'] !== null ? money((float)$rr['kwota_brutto']) : '<span class="text-muted fw-normal">—</span>' ?>
+        <?php if (($rr['kwota_netto'] ?? null) !== null): ?>
+        <div class="small text-muted fw-normal">netto <?= money((float)$rr['kwota_netto']) ?></div>
+        <?php endif; ?>
       </td>
 
       <!-- Obieg: powiadomienie → pobranie → podpis → EOD -->
@@ -1836,6 +1841,7 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
                       data-data="<?= h((string)$rr['data_wystawienia']) ?>" data-okres="<?= h((string)$rr['okres']) ?>"
                       data-od="<?= h((string)($rr['okres_od'] ?? '')) ?>" data-do="<?= h((string)($rr['okres_do'] ?? '')) ?>"
                       data-kwota="<?= $rr['kwota_brutto'] !== null ? h((string)$rr['kwota_brutto']) : '' ?>"
+                      data-kwota-netto="<?= ($rr['kwota_netto'] ?? null) !== null ? h((string)$rr['kwota_netto']) : '' ?>"
                       data-uwagi="<?= h((string)$rr['uwagi']) ?>"
                       data-plik="<?= h((string)($rr['plik_nazwa'] ?? '')) ?>"
                       data-signed="<?= rachunek_is_signed($rr) ? 1 : 0 ?>">
@@ -2507,6 +2513,8 @@ window.CVTabsConfig = {
             <input id="rachEditData" name="rach_data" type="date" class="form-control"></div>
           <div class="col-md-4"><label class="form-label small fw-semibold" for="rachEditKwota">Kwota brutto (zł)</label>
             <input id="rachEditKwota" name="rach_kwota" type="text" inputmode="decimal" class="form-control"></div>
+          <div class="col-md-4 offset-md-8"><label class="form-label small fw-semibold" for="rachEditKwotaNetto">Kwota netto — do wypłaty (zł)</label>
+            <input id="rachEditKwotaNetto" name="rach_kwota_netto" type="text" inputmode="decimal" class="form-control"></div>
           <div class="col-md-6"><label class="form-label small fw-semibold" for="rachEditOd">Okres od</label>
             <input id="rachEditOd" name="rach_okres_od" type="month" class="form-control"></div>
           <div class="col-md-6"><label class="form-label small fw-semibold" for="rachEditDo">Okres do <span class="text-muted fw-normal">(rachunek za kilka miesięcy)</span></label>
@@ -2540,7 +2548,7 @@ window.rachEdit = function (b) {
   var d = b.dataset, g = function (i) { return document.getElementById(i); };
   g('rachEditId').value = d.rid; g('rachEditNo').textContent = '#' + d.rid;
   g('rachEditNumer').value = d.numer; g('rachEditData').value = d.data;
-  g('rachEditKwota').value = d.kwota; g('rachEditOd').value = d.od; g('rachEditDo').value = d.do;
+  g('rachEditKwota').value = d.kwota; g('rachEditKwotaNetto').value = d.kwotaNetto || ''; g('rachEditOd').value = d.od; g('rachEditDo').value = d.do;
   g('rachEditMulti').value = (d.do && d.do !== d.od) ? '1' : '';
   g('rachEditOkres').value = d.okres; g('rachEditUwagi').value = d.uwagi;
   g('rachEditPlik').value = ''; g('rachEditPlikNow').textContent = d.plik || 'brak pliku';
@@ -2587,6 +2595,11 @@ document.addEventListener('DOMContentLoaded', function () {
             <label class="form-label small fw-semibold" for="rachKwota">Kwota brutto (PLN)</label>
             <input id="rachKwota" name="rach_kwota" type="text" inputmode="decimal" class="form-control"
                    placeholder="<?= h(number_format((float)($row['wynagrodzenie_brutto'] ?? 0), 2, ',', ' ')) ?>">
+          </div>
+          <div class="col-md-4 offset-md-8">
+            <label class="form-label small fw-semibold" for="rachKwotaNetto">Kwota netto — do wypłaty (PLN)</label>
+            <input id="rachKwotaNetto" name="rach_kwota_netto" type="text" inputmode="decimal" class="form-control" aria-describedby="rachKwotaNettoHelp">
+            <div id="rachKwotaNettoHelp" class="form-text">Po składkach i zaliczce na PIT — z tej kwoty idzie przelew. Puste = przelew z kwoty brutto.</div>
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold" for="rachOkresOd">Za jaki okres</label>

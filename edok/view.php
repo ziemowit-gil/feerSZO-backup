@@ -909,7 +909,7 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
             <input type="checkbox" class="form-check-input" name="rachunek_ids[]" value="<?= (int)$r['id'] ?>" id="<?= $cid ?>">
             <label class="form-check-label" for="<?= $cid ?>">
               <?= h($r['imie_nazwisko']) ?> · <span class="tw-font-mono tw-text-xs"><?= h($r['umowa_rejestr']) ?></span> · rach. <?= h($r['numer'] ?: '#' . $r['id']) ?>
-              · <?= $okres_r ? h($okres_r) . ' · ' : '' ?><?= $r['kwota_brutto'] !== null ? h(number_format((float)$r['kwota_brutto'], 2, ',', ' ')) : '—' ?> · <?= rachunek_status_badge($r['status']) ?>
+              · <?= $okres_r ? h($okres_r) . ' · ' : '' ?><?= $r['kwota_brutto'] !== null ? h(number_format((float)$r['kwota_brutto'], 2, ',', ' ')) : '—' ?><?= ($r['kwota_netto'] ?? null) !== null ? ' (do wypłaty ' . h(number_format((float)$r['kwota_netto'], 2, ',', ' ')) . ')' : '' ?> · <?= rachunek_status_badge($r['status']) ?>
             </label>
             <?php if (!$umowa_ok): ?>
             <input type="text" name="rachunek_nr[<?= (int)$r['id'] ?>]" class="form-control form-control-sm font-monospace tw-mt-1" style="max-width:20rem" maxlength="40" placeholder="nr rachunku odbiorcy (26 cyfr) — w umowie brak" aria-label="Nr rachunku dla <?= h($r['imie_nazwisko']) ?>">
