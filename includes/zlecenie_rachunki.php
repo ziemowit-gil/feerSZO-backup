@@ -324,11 +324,12 @@ function update_rachunek(int $rid, array $data): void {
  * @param array|null $file Wpis z $_FILES (nowy plik rachunku) albo null.
  * @return string[] Lista zmienionych pól (do wpisu w logu).
  */
-function rachunek_overwrite(int $rid, array $data, ?array $file = null, bool $reset_sign = false): array {
+function rachunek_overwrite(int $rid, array $data, ?array $file = null, bool $reset_sign = false, bool $admin_override = false): array {
     $r = get_rachunek($rid);
     if (!$r) throw new RuntimeException('Nie znaleziono rachunku.');
-    if (!empty($r['kdok_doc_id']) || !empty($r['edok_doc_id'])) {
-        throw new RuntimeException('Rachunek jest już w obiegu księgowym (EOD) — nie można go nadpisać.');
+    // W obiegu księgowym tylko administrator (świadoma korekta); zmiana kwot przechodzi też do dokumentu EODoK.
+    if ((!empty($r['kdok_doc_id']) || !empty($r['edok_doc_id'])) && !$admin_override) {
+        throw new RuntimeException('Rachunek jest już w obiegu księgowym (EOD) — nadpisać może tylko administrator.');
     }
     $upd = [];
     $changed = [];
@@ -371,6 +372,24 @@ function rachunek_overwrite(int $rid, array $data, ?array $file = null, bool $re
     foreach ($old_files as $rel) {
         $abs = rachunek_file_abs($rel);
         if ($abs && is_file($abs)) @unlink($abs);
+    }
+    // Korekta administratora rachunku w EODoK: kwoty i okres także w dokumencie (przelew idzie z dokumentu).
+    if ($admin_override && (int)($r['edok_doc_id'] ?? 0) > 0 && array_intersect($changed, ['kwota_brutto', 'kwota_netto', 'okres_od'])) {
+        try {
+            require_once __DIR__ . '/edok.php';
+            $n = get_rachunek($rid);
+            $fmt = fn($v) => $v === null ? '' : number_format((float)$v, 2, ',', '');
+            $set = ['kwota_brutto' => $fmt($n['kwota_brutto']), 'kwota_netto' => $fmt($n['kwota_brutto']), 'kwota_do_wyplaty' => $fmt($n['kwota_netto'] ?? null)];
+            if (preg_match('/^\d{4}-\d{2}$/', (string)($n['okres_od'] ?? ''))) $set['okres'] = $n['okres_od'];
+            $cols = implode(', ', array_map(fn($c) => "$c = ?", array_keys($set)));
+            db_exec("UPDATE edok_documents SET $cols, updated_at = datetime('now') WHERE id = ?", [...array_values($set), (int)$r['edok_doc_id']]);
+            $doc = edok_get((int)$r['edok_doc_id']);
+            if ($doc) edok_log((int)$doc['id'], 'edit', '', $doc['status'], $doc['status'],
+                'Korekta administratora w rejestrze rachunków (rachunek #' . $rid . '): ' . implode(', ', $changed)
+                . ' — brutto ' . ($set['kwota_brutto'] ?: '—') . ', do wypłaty ' . ($set['kwota_do_wyplaty'] ?: '= brutto') . '.');
+        } catch (\Throwable $e) {
+            error_log('[rachunek_overwrite edok] ' . $e->getMessage());
+        }
     }
     return $changed;
 }

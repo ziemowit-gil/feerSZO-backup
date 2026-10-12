@@ -399,9 +399,10 @@ switch ($action) {
         if (!$rach) ajax_err('Nie znaleziono rachunku');
         if ($rach['status'] === $status) ajax_ok([], 'Status niezmieniony');
         // Rachunek w obiegu EODoK/KDOK: status wynika z obiegu (akceptacja, płatność) — ręczna zmiana rozjechałaby rejestry.
-        if (!empty($rach['edok_doc_id']) || !empty($rach['kdok_doc_id'])) {
+        // Wyjątek: administrator (świadoma korekta, zapisana w historii umowy).
+        if ((!empty($rach['edok_doc_id']) || !empty($rach['kdok_doc_id'])) && !is_admin()) {
             ajax_err('Rachunek jest w obiegu ' . (!empty($rach['edok_doc_id']) ? 'EODoK (' . ($rach['edok_number'] ?: '#' . $rach['edok_doc_id']) . ')' : 'KDOK')
-                . ' — status zmienia się tam (akceptacja, płatność). Odrzucenie lub wycofanie dokumentu oddaje rachunek do umowy.');
+                . ' — status zmienia się tam (akceptacja, płatność). Odrzucenie lub wycofanie dokumentu oddaje rachunek do umowy. Zmienić może administrator.');
         }
 
         rachunek_set_status($rid, $status, (int)current_user()['id']);

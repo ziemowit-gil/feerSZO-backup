@@ -456,9 +456,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_rach_edit']) && can_
             'kwota_brutto'     => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota'] ?? '')),
             'kwota_netto'      => str_replace([' ', ','], ['', '.'], trim($_POST['rach_kwota_netto'] ?? '')),
             'uwagi'            => trim($_POST['rach_uwagi'] ?? ''),
-        ], $_FILES['rach_plik'] ?? null, !empty($_POST['rach_reset_sign']));
+        ], $_FILES['rach_plik'] ?? null, !empty($_POST['rach_reset_sign']), is_admin());
         if ($_zm) {
-            log_contract_action($TYPE, $id, $_uid, 'rachunek_edit', 'Nadpisano rachunek #' . $_rid . ' (' . implode(', ', $_zm) . ')');
+            $_w_obiegu_rach = get_rachunek($_rid);
+            $_admin_note = (!empty($_w_obiegu_rach['edok_doc_id']) || !empty($_w_obiegu_rach['kdok_doc_id'])) ? ' — korekta administratora rachunku w obiegu księgowym' : '';
+            log_contract_action($TYPE, $id, $_uid, 'rachunek_edit', 'Nadpisano rachunek #' . $_rid . ' (' . implode(', ', $_zm) . ')' . $_admin_note);
             flash_set('success', 'Rachunek #' . $_rid . ' nadpisany (' . implode(', ', $_zm) . ').');
         } else {
             flash_set('info', 'Brak zmian w rachunku.');
@@ -1624,223 +1626,174 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
   <?php if ($rachunki): ?>
   <style>
-  /* Rejestr rachunków — zwarty układ, żeby tabela mieściła się bez poziomego scrolla.
-     Menu akcji używa data-bs-strategy="fixed", inaczej .table-responsive (overflow) je przycina. */
-  .rach-table td, .rach-table th { vertical-align: top; }
-  .rach-table th { white-space: nowrap; font-size: .8rem; }
-  .rach-table .rach-flow div { font-size: .78rem; line-height: 1.55; white-space: nowrap; }
-  .rach-table .rach-flow code { font-size: .74rem; }
-  .rach-table tr.rach-com-row:hover > td { background: transparent; }
-  @media (max-width: 991.98px) {
-    .rach-table .rach-flow div { white-space: normal; }
-  }
+  /* Rejestr rachunków — karty zamiast tabeli w .table-responsive (tam menu akcji było przycinane
+     i zasłaniało wiersze). Netto (do wypłaty) na pierwszym planie, ścieżka obiegu jako etykiety. */
+  .rach-list { display: flex; flex-direction: column; gap: .75rem; padding: 0 1rem 1rem; }
+  .rach-card { border: 1px solid #e2e8f0; border-radius: .6rem; background: #fff; }
+  .rach-card.is-test { background: #fffbeb; border-color: #fcd34d; }
+  .rach-main { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: flex-start; justify-content: space-between; padding: .85rem 1rem .6rem; }
+  .rach-title { font-weight: 700; font-size: 1.02rem; }
+  .rach-meta { font-size: .8rem; color: #64748b; }
+  .rach-amount { text-align: right; min-width: 9rem; }
+  .rach-amount .net { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
+  .rach-amount .lbl { font-size: .72rem; color: #64748b; font-weight: 500; }
+  .rach-flow { display: flex; flex-wrap: wrap; gap: .35rem; padding: 0 1rem .75rem; }
+  .rach-step { display: inline-flex; align-items: center; gap: .3rem; padding: .18rem .55rem; border-radius: 999px; font-size: .75rem; border: 1px solid #e2e8f0; color: #64748b; background: #f8fafc; text-decoration: none; }
+  .rach-step.ok   { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+  .rach-step.warn { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+  .rach-step.bad  { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
+  .rach-step.edok { color: #1e3a8a; background: #eff6ff; border-color: #bfdbfe; }
+  .rach-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; justify-content: space-between; padding: .55rem 1rem; border-top: 1px solid #f1f5f9; background: #fbfcfe; border-radius: 0 0 .6rem .6rem; }
+  .rach-actions .btn { font-size: .8rem; }
+  .rach-com { border-top: 1px solid #e2e8f0; background: #f8fafc; border-radius: 0 0 .6rem .6rem; }
   </style>
-  <div class="table-responsive">
-  <table class="table table-sm table-hover mb-0 align-middle rach-table">
-    <thead class="table-light">
-      <tr>
-        <th>Rachunek</th>
-        <th>Status</th>
-        <th class="text-end">Kwota</th>
-        <th>Obieg dokumentu</th>
-        <th class="text-end"><span class="visually-hidden">Akcje</span></th>
-      </tr>
-    </thead>
-    <tbody>
+  <div class="rach-list">
     <?php foreach ($rachunki as $rr):
       $_rid  = (int)$rr['id'];
       $_dl   = rachunek_deadlines($rr);
       $_test = rachunek_is_test($rr);
       $_cc   = (int)($_rach_com_count[$_rid] ?? 0);
+      $_w_obiegu = !empty($rr['edok_doc_id']) || !empty($rr['kdok_doc_id']);
+      $_netto = ($rr['kwota_netto'] ?? null) !== null;
+      $_mozna_edok = can_edit() && !$_w_obiegu && !empty($rr['plik']) && !$_test && ($rr['status'] ?? '') !== 'odrzucony';
     ?>
-    <tr id="rach-row-<?= $_rid ?>">
-      <!-- Rachunek: numer, okres, data, autor -->
-      <td>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <?php if ($_test): ?>
-          <span class="badge bg-warning text-dark" title="Rachunek testowy — poza obiegiem księgowym">TEST</span>
-          <?php endif; ?>
-          <span class="fw-semibold">
-            <?= $rr['numer'] ? h($rr['numer']) : '<span class="text-muted fw-normal">bez numeru</span>' ?>
-          </span>
-          <span class="text-muted small">#<?= $_rid ?></span>
-        </div>
-        <div class="small text-muted">
-          <?= h($rr['okres'] ?: '—') ?>
-          <?php if (!empty($rr['data_wystawienia'])): ?> · wyst. <?= date_pl($rr['data_wystawienia']) ?><?php endif; ?>
-        </div>
-        <div class="text-muted" style="font-size:.75rem">
-          dodał: <?= h($rr['created_by_name'] ?? '—') ?> · <?= date_pl($rr['created_at']) ?>
-        </div>
-      </td>
-
-      <!-- Status + plik -->
-      <td id="rach-status-<?= $_rid ?>">
-        <?= rachunek_status_badge($rr['status']) ?>
-        <?php if (!empty($rr['plik'])): ?>
-        <div class="small mt-1">
-          <a href="<?= APP_URL ?>/contracts/zlecenie/rachunek_pobierz.php?id=<?= $_rid ?>&inline=1" target="_blank"
-             title="<?= h($rr['plik_nazwa'] ?? '') ?>">
-            <i class="bi bi-paperclip" aria-hidden="true"></i>
-            <?= h(mb_strimwidth((string)($rr['plik_nazwa'] ?? 'plik'), 0, 18, '…')) ?>
-          </a>
-          <?php if (!empty($rr['plik_size'])): ?>
-          <span class="text-muted" style="font-size:.75rem">· <?= h(rachunek_file_size_h((int)$rr['plik_size'])) ?></span>
-          <?php endif; ?>
-        </div>
-        <?php else: ?>
-        <div class="small text-muted mt-1"><i class="bi bi-paperclip" aria-hidden="true"></i> bez pliku</div>
-        <?php endif; ?>
-      </td>
-
-      <!-- Kwota -->
-      <td class="text-end text-nowrap fw-semibold">
-        <?php // Do wypłaty obowiązuje NETTO (na nie idzie przelew); brutto pod spodem. ?>
-        <?php if (($rr['kwota_netto'] ?? null) !== null): ?>
-          <?= money((float)$rr['kwota_netto']) ?> <span class="small text-muted fw-normal">netto</span>
-          <div class="small text-muted fw-normal"><?= $rr['kwota_brutto'] !== null ? 'brutto ' . money((float)$rr['kwota_brutto']) : 'brutto —' ?></div>
-        <?php else: ?>
-          <?= $rr['kwota_brutto'] !== null ? money((float)$rr['kwota_brutto']) . ' <span class="small text-muted fw-normal">brutto</span>' : '<span class="text-muted fw-normal">—</span>' ?>
-          <?php if (!rachunek_is_test($rr) && $rr['status'] !== 'odrzucony'): ?><div class="small fw-normal" style="color:#b45309">netto: uzupełnij <span class="visually-hidden">(Nadpisz rachunek)</span></div><?php endif; ?>
-        <?php endif; ?>
-      </td>
-
-      <!-- Obieg: powiadomienie → pobranie → podpis → EOD -->
-      <td class="rach-flow" id="rach-notif-<?= $_rid ?>">
-        <div>
-          <?php if (!empty($rr['notified_at'])): ?>
-          <span class="text-success" title="Powiadomienie wysłane do: <?= h($rr['notified_to_email'] ?? '') ?>">
-            <i class="bi bi-envelope-check" aria-hidden="true"></i> wysłano <?= date_pl($rr['notified_at']) ?>
-          </span>
-          <?php else: ?>
-          <span class="text-muted"><i class="bi bi-envelope" aria-hidden="true"></i> nie powiadomiono</span>
-          <?php endif; ?>
-        </div>
-        <div>
-          <?php if (!empty($rr['downloaded_at'])): ?>
-          <span class="text-primary" title="Liczba pobrań: <?= (int)$rr['download_count'] ?>">
-            <i class="bi bi-download" aria-hidden="true"></i> pobrano <?= date_pl($rr['downloaded_at']) ?>
-          </span>
-          <?php else: ?>
-          <span class="text-muted"><i class="bi bi-download" aria-hidden="true"></i> niepobrany</span>
-          <?php endif; ?>
-        </div>
-        <div>
-          <?php if (!empty($rr['plik_podpisany'])): ?>
-          <a href="<?= APP_URL ?>/contracts/zlecenie/rachunek_pobierz.php?id=<?= $_rid ?>&podpisany=1&inline=1"
-             target="_blank" class="text-success" title="<?= h($rr['plik_podpisany_nazwa'] ?? '') ?>">
-            <i class="bi bi-file-earmark-check" aria-hidden="true"></i> podpisany <?= date_pl($rr['signed_at']) ?>
-          </a>
-          <?php elseif (rachunek_is_signed($rr)): ?>
-          <span class="text-success"><i class="bi bi-check2" aria-hidden="true"></i> podpis przyjęty</span>
-          <?php elseif ($_dl['skan']): ?>
-            <?php if ($_dl['oryginal_left'] !== null && $_dl['oryginal_left'] < 0): ?>
-            <span class="badge bg-danger" title="Minął termin dostarczenia oryginału (<?= date_pl($_dl['oryginal']) ?>)">
-              po terminie
-            </span>
-            <?php elseif ($_dl['skan_left'] !== null && $_dl['skan_left'] < 0): ?>
-            <span class="badge bg-warning text-dark"
-                  title="Termin skanu minął <?= date_pl($_dl['skan']) ?>; oryginał do <?= date_pl($_dl['oryginal']) ?>">
-              skan po terminie
-            </span>
+    <article class="rach-card<?= $_test ? ' is-test' : '' ?>" id="rach-row-<?= $_rid ?>" aria-labelledby="rach-t-<?= $_rid ?>">
+      <div class="rach-main">
+        <div class="min-w-0">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="rach-title" id="rach-t-<?= $_rid ?>"><?= $rr['numer'] ? h($rr['numer']) : '<span class="text-muted fw-normal">Rachunek bez numeru</span>' ?></span>
+            <span class="text-muted small">#<?= $_rid ?></span>
+            <span id="rach-status-<?= $_rid ?>"><?= rachunek_status_badge($rr['status']) ?></span>
+            <?php if ($_test): ?><span class="badge bg-warning text-dark" title="Rachunek testowy — poza obiegiem księgowym">TEST</span><?php endif; ?>
+          </div>
+          <div class="rach-meta mt-1">
+            <i class="bi bi-calendar3" aria-hidden="true"></i> <?= h($rr['okres'] ?: '—') ?>
+            <?php if (!empty($rr['data_wystawienia'])): ?> · wystawiony <?= date_pl($rr['data_wystawienia']) ?><?php endif; ?>
+            · dodał <?= h($rr['created_by_name'] ?? '—') ?> <?= date_pl($rr['created_at']) ?>
+          </div>
+          <div class="small mt-1">
+            <?php if (!empty($rr['plik'])): ?>
+            <a href="<?= APP_URL ?>/contracts/zlecenie/rachunek_pobierz.php?id=<?= $_rid ?>&inline=1" target="_blank" title="<?= h($rr['plik_nazwa'] ?? '') ?>">
+              <i class="bi bi-paperclip" aria-hidden="true"></i> <?= h(mb_strimwidth((string)($rr['plik_nazwa'] ?? 'plik'), 0, 32, '…')) ?></a>
+            <?php if (!empty($rr['plik_size'])): ?><span class="text-muted">· <?= h(rachunek_file_size_h((int)$rr['plik_size'])) ?></span><?php endif; ?>
             <?php else: ?>
-            <span class="text-muted" title="Oryginał do <?= date_pl($_dl['oryginal']) ?>">
-              <i class="bi bi-hourglass-split" aria-hidden="true"></i> skan do <?= date_pl($_dl['skan']) ?>
-            </span>
+            <span class="text-muted"><i class="bi bi-paperclip" aria-hidden="true"></i> bez pliku</span>
             <?php endif; ?>
+            <?php if (!empty($rr['plik_podpisany'])): ?>
+            · <a href="<?= APP_URL ?>/contracts/zlecenie/rachunek_pobierz.php?id=<?= $_rid ?>&podpisany=1&inline=1" target="_blank" class="text-success" title="<?= h($rr['plik_podpisany_nazwa'] ?? '') ?>">
+              <i class="bi bi-file-earmark-check" aria-hidden="true"></i> podpisany skan</a>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="rach-amount">
+          <?php if ($_netto): ?>
+            <div class="lbl">do wypłaty (netto)</div>
+            <div class="net"><?= money((float)$rr['kwota_netto']) ?></div>
+            <div class="lbl">brutto <?= $rr['kwota_brutto'] !== null ? money((float)$rr['kwota_brutto']) : '—' ?></div>
           <?php else: ?>
-          <span class="text-muted"><i class="bi bi-hourglass" aria-hidden="true"></i> czeka na podpis</span>
+            <div class="lbl">brutto</div>
+            <div class="net"><?= $rr['kwota_brutto'] !== null ? money((float)$rr['kwota_brutto']) : '—' ?></div>
+            <?php if (!$_test && $rr['status'] !== 'odrzucony'): ?><div class="lbl" style="color:#b45309">netto do wypłaty: uzupełnij</div><?php endif; ?>
           <?php endif; ?>
         </div>
-        <div class="small">
-          <?php if (!empty($rr['oryginal_at'])): ?>
-          <span class="text-success" title="Oryginał papierowy odłożony w koszulce"><i class="bi bi-folder-check" aria-hidden="true"></i> w koszulce <?= h(date('d.m.Y', strtotime($rr['oryginal_at']))) ?></span>
-          <?php else: ?>
-          <span class="badge bg-danger">brak oryginału</span>
-          <?php endif; ?>
-          <?php if (!rachunek_is_signed($rr)): ?>
-          <span class="badge bg-warning text-dark">brak skanu</span>
-          <?php endif; ?>
-          <?php if (can_edit() && ($rr['status'] ?? '') !== 'odrzucony'): ?>
-          <form method="post" class="d-inline">
-            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="_rach_oryginal" value="1">
-            <input type="hidden" name="rach_id" value="<?= $_rid ?>">
-            <input type="hidden" name="oryginal" value="<?= empty($rr['oryginal_at']) ? '1' : '0' ?>">
-            <button type="submit" class="btn btn-link btn-sm p-0 ms-1"><?= empty($rr['oryginal_at']) ? 'Jest w koszulce' : 'Zdejmij „w koszulce”' ?></button>
-          </form>
-          <?php endif; ?>
-        </div>
-        <div>
-          <?php if (!empty($rr['edok_doc_id'])): ?>
-          <a href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$rr['edok_doc_id'] ?>" target="_blank" title="Dokument w EODoK">
-            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
-            <code><?= h($rr['edok_number'] ?: '#' . (int)$rr['edok_doc_id']) ?></code>
-          </a>
-          <?php elseif (!empty($rr['kdok_doc_id'])): ?>
-          <a href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= (int)$rr['kdok_doc_id'] ?>" target="_blank"
-             title="Dokument w EOD Dok. Księgowych">
-            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
-            <code><?= h($rr['kdok_number'] ?: '#' . (int)$rr['kdok_doc_id']) ?></code>
-          </a>
-          <?php elseif ($_test): ?>
-          <span class="text-muted" title="Rachunek testowy nie trafia do obiegu księgowego">
-            <i class="bi bi-flask" aria-hidden="true"></i> poza obiegiem księgowym
-          </span>
-          <?php else: ?>
-          <span class="text-muted"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> nie w EOD</span>
-          <?php endif; ?>
-        </div>
-      </td>
+      </div>
 
-      <!-- Akcje -->
-      <td class="text-end text-nowrap">
-        <div class="btn-group btn-group-sm" role="group" aria-label="Akcje dla rachunku #<?= $_rid ?>">
+      <!-- Obieg: powiadomienie → pobranie → podpis → oryginał → EODoK -->
+      <div class="rach-flow" id="rach-notif-<?= $_rid ?>" aria-label="Obieg rachunku">
+        <?php if (!empty($rr['notified_at'])): ?>
+          <span class="rach-step ok" title="Powiadomienie wysłane do: <?= h($rr['notified_to_email'] ?? '') ?>"><i class="bi bi-envelope-check" aria-hidden="true"></i> wysłano <?= date_pl($rr['notified_at']) ?></span>
+        <?php else: ?>
+          <span class="rach-step"><i class="bi bi-envelope" aria-hidden="true"></i> nie powiadomiono</span>
+        <?php endif; ?>
+        <?php if (!empty($rr['downloaded_at'])): ?>
+          <span class="rach-step ok" title="Liczba pobrań: <?= (int)$rr['download_count'] ?>"><i class="bi bi-download" aria-hidden="true"></i> pobrano <?= date_pl($rr['downloaded_at']) ?></span>
+        <?php else: ?>
+          <span class="rach-step"><i class="bi bi-download" aria-hidden="true"></i> niepobrany</span>
+        <?php endif; ?>
+        <?php if (!empty($rr['plik_podpisany'])): ?>
+          <span class="rach-step ok"><i class="bi bi-pen" aria-hidden="true"></i> podpisany <?= date_pl($rr['signed_at']) ?></span>
+        <?php elseif (rachunek_is_signed($rr)): ?>
+          <span class="rach-step ok"><i class="bi bi-check2" aria-hidden="true"></i> podpis przyjęty</span>
+        <?php elseif ($_dl['skan'] && $_dl['oryginal_left'] !== null && $_dl['oryginal_left'] < 0): ?>
+          <span class="rach-step bad" title="Minął termin dostarczenia oryginału (<?= date_pl($_dl['oryginal']) ?>)"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i> podpis po terminie</span>
+        <?php elseif ($_dl['skan'] && $_dl['skan_left'] !== null && $_dl['skan_left'] < 0): ?>
+          <span class="rach-step warn" title="Oryginał do <?= date_pl($_dl['oryginal']) ?>"><i class="bi bi-hourglass-bottom" aria-hidden="true"></i> skan po terminie (<?= date_pl($_dl['skan']) ?>)</span>
+        <?php elseif ($_dl['skan']): ?>
+          <span class="rach-step" title="Oryginał do <?= date_pl($_dl['oryginal']) ?>"><i class="bi bi-hourglass-split" aria-hidden="true"></i> skan do <?= date_pl($_dl['skan']) ?></span>
+        <?php else: ?>
+          <span class="rach-step"><i class="bi bi-hourglass" aria-hidden="true"></i> czeka na podpis</span>
+        <?php endif; ?>
+        <?php if (!empty($rr['oryginal_at'])): ?>
+          <span class="rach-step ok" title="Oryginał papierowy odłożony w koszulce"><i class="bi bi-folder-check" aria-hidden="true"></i> oryginał w koszulce <?= h(date('d.m.Y', strtotime($rr['oryginal_at']))) ?></span>
+        <?php elseif (!$_test): ?>
+          <span class="rach-step bad"><i class="bi bi-folder-x" aria-hidden="true"></i> brak oryginału</span>
+        <?php endif; ?>
+        <?php if (!empty($rr['edok_doc_id'])): ?>
+          <a class="rach-step edok" href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$rr['edok_doc_id'] ?>" target="_blank"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> EODoK <?= h($rr['edok_number'] ?: '#' . (int)$rr['edok_doc_id']) ?></a>
+        <?php elseif (!empty($rr['kdok_doc_id'])): ?>
+          <a class="rach-step edok" href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= (int)$rr['kdok_doc_id'] ?>" target="_blank"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> KDOK <?= h($rr['kdok_number'] ?: '#' . (int)$rr['kdok_doc_id']) ?></a>
+        <?php elseif ($_test): ?>
+          <span class="rach-step"><i class="bi bi-flask" aria-hidden="true"></i> poza obiegiem księgowym</span>
+        <?php else: ?>
+          <span class="rach-step"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> nie w EODoK</span>
+        <?php endif; ?>
+        <?php if (!empty($rr['przelew_id'])): ?>
+          <span class="rach-step ok" title="Ujęty w pliku przelewów"><i class="bi bi-bank" aria-hidden="true"></i> w przelewach <?= date_pl($rr['przelew_at']) ?></span>
+        <?php endif; ?>
+      </div>
+
+      <div class="rach-actions">
+        <div class="d-flex flex-wrap gap-2">
+          <?php if ($_mozna_edok):
+            $_e_okres = preg_match('/^\d{4}-\d{2}$/', (string)($rr['okres_od'] ?? '')) ? (string)$rr['okres_od'] : substr((string)($rr['data_wystawienia'] ?: date('Y-m-d')), 0, 7);
+            $_e_ref   = rachunek_umowa_ref($row);
+            $_e_tytul = 'WYNAGRODZENIE ' . substr($_e_okres, 5, 2) . '/' . substr($_e_okres, 0, 4) . ($_e_ref !== '' ? ' - umowa nr ' . $_e_ref : '');
+            $_e_nrb   = preg_replace('/\D/', '', (string)($row['rachunek_bankowy'] ?? ''));
+            $_e_kdok  = (string)($rr['data_wystawienia'] ?: date('Y-m-d')) < EDOK_CUTOFF_RACHUNEK;
+          ?>
+          <button type="button" class="btn btn-sm btn-primary" onclick="rachEdokPreview(this)"
+                  data-rid="<?= $_rid ?>" data-numer="<?= h((string)($rr['numer'] ?: '#' . $_rid)) ?>" data-okres="<?= h((string)($rr['okres'] ?: '—')) ?>"
+                  data-netto="<?= $_netto ? h(money((float)$rr['kwota_netto'])) : '' ?>" data-brutto="<?= $rr['kwota_brutto'] !== null ? h(money((float)$rr['kwota_brutto'])) : '' ?>"
+                  data-nrb="<?= strlen($_e_nrb) === 26 ? h(edok_nrb_format($_e_nrb)) : '' ?>" data-tytul="<?= h($_e_tytul) ?>"
+                  data-kdok="<?= $_e_kdok ? 1 : 0 ?>" data-podpisany="<?= rachunek_is_signed($rr) ? 1 : 0 ?>">
+            <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Wyślij do EODoK
+          </button>
+          <?php endif; ?>
           <?php if (can_edit()): ?>
-          <?php if ($_rach_email): ?>
-          <button type="button" class="btn btn-outline-info" onclick="rachNotify(<?= $_rid ?>, this)"
-                  title="<?= empty($rr['notified_at']) ? 'Powiadom zleceniobiorcę o nowym rachunku' : 'Wyślij powiadomienie ponownie' ?> (<?= h($_rach_email) ?>)">
-            <i class="bi bi-send" aria-hidden="true"></i>
-          </button>
-          <?php else: ?>
-          <button type="button" class="btn btn-outline-info" disabled
-                  title="Brak adresu e-mail zleceniobiorcy"><i class="bi bi-send" aria-hidden="true"></i></button>
-          <?php endif; ?>
-          <button type="button" class="btn btn-outline-secondary" onclick="rachCopyLink(<?= $_rid ?>, this)"
-                  title="Kopiuj link dla zleceniobiorcy"><i class="bi bi-link-45deg" aria-hidden="true"></i></button>
-          <?php endif; ?>
-          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse"
-                  data-bs-target="#rach-com-<?= $_rid ?>" aria-expanded="false"
-                  aria-controls="rach-com-<?= $_rid ?>" title="Komentarze do rachunku">
-            <i class="bi bi-chat-left-text" aria-hidden="true"></i><?= $_cc ? ' ' . $_cc : '' ?>
-          </button>
-          <?php if (can_edit() || is_admin()): ?>
-          <!-- strategy=fixed — menu musi wyjść poza .table-responsive (overflow), inaczej jest przycinane -->
-          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="dropdown"
-                  data-bs-strategy="fixed" aria-expanded="false" title="Więcej akcji">
-            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-            <span class="visually-hidden">Więcej akcji</span>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <?php if (can_edit()): ?>
-            <li><h6 class="dropdown-header">Zmień status</h6></li>
-            <?php foreach (ZLEC_RACHUNEK_STATUSES as $_sk => $_sv): ?>
-            <li>
-              <button type="button" class="dropdown-item small<?= $rr['status'] === $_sk ? ' active' : '' ?>"
-                      onclick="rachStatus(<?= $_rid ?>, '<?= $_sk ?>')"><?= h($_sv['label']) ?></button>
-            </li>
-            <?php endforeach; ?>
-            <li><hr class="dropdown-divider"></li>
-            <?php if (empty($rr['kdok_doc_id']) && empty($rr['edok_doc_id']) && !empty($rr['plik']) && !$_test): ?>
-            <li>
-              <button type="button" class="dropdown-item small" onclick="rachToKdok(<?= $_rid ?>, this)">
-                <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przekaż do obiegu (EODoK)
-              </button>
-            </li>
+            <?php if ($_rach_email): ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="rachNotify(<?= $_rid ?>, this)"
+                    title="<?= h($_rach_email) ?>"><i class="bi bi-send" aria-hidden="true"></i> <?= empty($rr['notified_at']) ? 'Powiadom' : 'Powiadom ponownie' ?></button>
+            <?php else: ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Brak adresu e-mail zleceniobiorcy"><i class="bi bi-send" aria-hidden="true"></i> Powiadom</button>
             <?php endif; ?>
-            <?php if (empty($rr['kdok_doc_id']) && empty($rr['edok_doc_id'])): ?>
+            <?php if (!$_w_obiegu || is_admin()): ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('rach-edit-<?= $_rid ?>').click()"
+                    <?= $_w_obiegu ? 'title="Korekta administratora — rachunek jest w obiegu"' : '' ?>><i class="bi bi-pencil-square" aria-hidden="true"></i> Edytuj</button>
+            <?php endif; ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="rachCopyLink(<?= $_rid ?>, this)"><i class="bi bi-link-45deg" aria-hidden="true"></i> Link</button>
+            <?php if (($rr['status'] ?? '') !== 'odrzucony' && !$_test): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="_rach_oryginal" value="1">
+              <input type="hidden" name="rach_id" value="<?= $_rid ?>">
+              <input type="hidden" name="oryginal" value="<?= empty($rr['oryginal_at']) ? '1' : '0' ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-folder<?= empty($rr['oryginal_at']) ? '-plus' : '-minus' ?>" aria-hidden="true"></i> <?= empty($rr['oryginal_at']) ? 'Jest w koszulce' : 'Zdejmij „w koszulce”' ?></button>
+            </form>
+            <?php endif; ?>
+          <?php endif; ?>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#rach-com-<?= $_rid ?>"
+                  aria-expanded="false" aria-controls="rach-com-<?= $_rid ?>"><i class="bi bi-chat-left-text" aria-hidden="true"></i> Komentarze<?= $_cc ? ' (' . $_cc . ')' : '' ?></button>
+        </div>
+        <?php if (can_edit() || is_admin()): ?>
+        <div class="dropdown">
+          <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Więcej</button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="max-height:none">
+            <?php if ($_w_obiegu && is_admin()): ?>
+            <li><span class="dropdown-item-text small text-muted" style="max-width:18rem;white-space:normal"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>W obiegu — zmiany jako korekta administratora (kwoty trafią też do EODoK).</span></li>
+            <?php endif; ?>
+            <?php if ((can_edit() && !$_w_obiegu) || is_admin()): ?>
             <li>
-              <button type="button" class="dropdown-item small" onclick="rachEdit(this)"
+              <button type="button" class="dropdown-item small" onclick="rachEdit(this)" id="rach-edit-<?= $_rid ?>"
                       data-rid="<?= $_rid ?>" data-numer="<?= h((string)$rr['numer']) ?>"
                       data-data="<?= h((string)$rr['data_wystawienia']) ?>" data-okres="<?= h((string)$rr['okres']) ?>"
                       data-od="<?= h((string)($rr['okres_od'] ?? '')) ?>" data-do="<?= h((string)($rr['okres_do'] ?? '')) ?>"
@@ -1849,92 +1802,76 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
                       data-uwagi="<?= h((string)$rr['uwagi']) ?>"
                       data-plik="<?= h((string)($rr['plik_nazwa'] ?? '')) ?>"
                       data-signed="<?= rachunek_is_signed($rr) ? 1 : 0 ?>">
-                <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Nadpisz rachunek
+                <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Edytuj rachunek (kwoty, okres, plik)
               </button>
             </li>
-            <li>
-              <button type="button" class="dropdown-item small" onclick="rachTestToggle(<?= $_rid ?>, <?= $_test ? 0 : 1 ?>, this)">
-                <i class="bi bi-flask me-1" aria-hidden="true"></i>
-                <?= $_test ? 'Zdejmij oznaczenie testowe' : 'Oznacz jako testowy' ?>
-              </button>
-            </li>
-            <?php endif; ?>
-            <?php endif; ?>
-            <?php if (is_admin()): ?>
+            <li><h6 class="dropdown-header">Status</h6></li>
+            <?php foreach (ZLEC_RACHUNEK_STATUSES as $_sk => $_sv): if ($_sk === $rr['status']) continue; ?>
+            <li><button type="button" class="dropdown-item small" onclick="rachStatus(<?= $_rid ?>, '<?= $_sk ?>')">→ <?= h($_sv['label']) ?></button></li>
+            <?php endforeach; ?>
             <li><hr class="dropdown-divider"></li>
             <li>
-              <button type="button" class="dropdown-item small text-danger" onclick="rachDelete(<?= $_rid ?>)">
-                <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń rachunek
+              <button type="button" class="dropdown-item small" onclick="rachTestToggle(<?= $_rid ?>, <?= $_test ? 0 : 1 ?>, this)">
+                <i class="bi bi-flask me-1" aria-hidden="true"></i><?= $_test ? 'Zdejmij oznaczenie testowe' : 'Oznacz jako testowy' ?>
               </button>
             </li>
+            <?php elseif ($_w_obiegu): ?>
+            <li><span class="dropdown-item-text small text-muted" style="max-width:18rem;white-space:normal">Rachunek jest w obiegu — status i dane zmieniają się w EODoK. Odrzucenie lub wycofanie dokumentu oddaje go tutaj.</span></li>
+            <?php endif; ?>
+            <?php if (is_admin() && !$_w_obiegu): ?>
+            <li><hr class="dropdown-divider"></li>
+            <li><button type="button" class="dropdown-item small text-danger" onclick="rachDelete(<?= $_rid ?>)"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń rachunek</button></li>
             <?php endif; ?>
           </ul>
-          <?php endif; ?>
         </div>
-      </td>
-    </tr>
+        <?php endif; ?>
+      </div>
 
-    <!-- Komentarze — wiersz rozwijany pod rachunkiem -->
-    <tr class="rach-com-row">
-      <td colspan="5" class="p-0 border-0">
-        <div class="collapse" id="rach-com-<?= $_rid ?>">
-          <div class="p-3" style="background:#f8fafc;border-top:1px solid #e2e8f0">
-            <div class="fw-semibold small mb-2">
-              <i class="bi bi-chat-left-text" aria-hidden="true"></i> Komentarze do rachunku #<?= $_rid ?>
-            </div>
-            <?php $_coms = rachunek_comments($_rid); ?>
-            <?php if ($_coms): ?>
-            <div class="mb-3">
-              <?php foreach ($_coms as $_c): ?>
-              <div class="d-flex gap-2 mb-2">
-                <div class="flex-shrink-0" style="width:26px;height:26px;border-radius:50%;
-                     background:<?= $_c['author_type'] === 'zleceniobiorca' ? '#0d9488' : '#6366f1' ?>;
-                     color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem">
-                  <i class="bi <?= $_c['author_type'] === 'zleceniobiorca' ? 'bi-person' : 'bi-person-badge' ?>" aria-hidden="true"></i>
-                </div>
-                <div class="flex-grow-1">
-                  <div class="small">
-                    <strong><?= h($_c['author_name'] ?: 'Nieznany') ?></strong>
-                    <?php if ($_c['author_type'] === 'zleceniobiorca'): ?>
-                    <span class="badge text-white" style="background:#0d9488;font-size:.65rem">zleceniobiorca</span>
-                    <?php endif; ?>
-                    <span class="text-muted" style="font-size:.8em"><?= h($_c['created_at']) ?></span>
-                    <?php if (is_admin()): ?>
-                    <form method="post" class="d-inline" onsubmit="return confirm('Usunąć komentarz?')">
-                      <?= csrf_field() ?>
-                      <input type="hidden" name="_rach_comment_del" value="1">
-                      <input type="hidden" name="comment_id" value="<?= (int)$_c['id'] ?>">
-                      <button type="submit" class="btn btn-link btn-sm p-0 text-danger align-baseline"
-                              style="font-size:.75rem" title="Usuń komentarz"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-                    </form>
-                    <?php endif; ?>
-                  </div>
-                  <div style="white-space:pre-wrap"><?= h($_c['tresc']) ?></div>
-                </div>
+      <!-- Komentarze -->
+      <div class="collapse" id="rach-com-<?= $_rid ?>">
+        <div class="rach-com p-3">
+          <?php $_coms = rachunek_comments($_rid); ?>
+          <?php if ($_coms): ?>
+          <div class="mb-3">
+            <?php foreach ($_coms as $_c): ?>
+            <div class="d-flex gap-2 mb-2">
+              <div class="flex-shrink-0" style="width:26px;height:26px;border-radius:50%;background:<?= $_c['author_type'] === 'zleceniobiorca' ? '#0d9488' : '#6366f1' ?>;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem">
+                <i class="bi <?= $_c['author_type'] === 'zleceniobiorca' ? 'bi-person' : 'bi-person-badge' ?>" aria-hidden="true"></i>
               </div>
-              <?php endforeach; ?>
+              <div class="flex-grow-1">
+                <div class="small">
+                  <strong><?= h($_c['author_name'] ?: 'Nieznany') ?></strong>
+                  <?php if ($_c['author_type'] === 'zleceniobiorca'): ?><span class="badge text-white" style="background:#0d9488;font-size:.65rem">zleceniobiorca</span><?php endif; ?>
+                  <span class="text-muted" style="font-size:.8em"><?= h($_c['created_at']) ?></span>
+                  <?php if (is_admin()): ?>
+                  <form method="post" class="d-inline" onsubmit="return confirm('Usunąć komentarz?')">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="_rach_comment_del" value="1">
+                    <input type="hidden" name="comment_id" value="<?= (int)$_c['id'] ?>">
+                    <button type="submit" class="btn btn-link btn-sm p-0 text-danger align-baseline" style="font-size:.75rem" title="Usuń komentarz"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                  </form>
+                  <?php endif; ?>
+                </div>
+                <div style="white-space:pre-wrap"><?= h($_c['tresc']) ?></div>
+              </div>
             </div>
-            <?php else: ?>
-            <p class="text-muted small">Brak komentarzy.</p>
-            <?php endif; ?>
-            <form method="post" class="d-flex gap-2 align-items-start">
-              <?= csrf_field() ?>
-              <input type="hidden" name="_rach_comment" value="1">
-              <input type="hidden" name="rach_id" value="<?= $_rid ?>">
-              <label class="visually-hidden" for="rach-com-input-<?= $_rid ?>">Treść komentarza</label>
-              <textarea id="rach-com-input-<?= $_rid ?>" name="rach_comment" class="form-control form-control-sm"
-                        rows="2" placeholder="Napisz komentarz…" required></textarea>
-              <button type="submit" class="btn btn-sm btn-primary text-nowrap">
-                <i class="bi bi-send" aria-hidden="true"></i> Dodaj
-              </button>
-            </form>
+            <?php endforeach; ?>
           </div>
+          <?php else: ?>
+          <p class="text-muted small">Brak komentarzy.</p>
+          <?php endif; ?>
+          <form method="post" class="d-flex gap-2 align-items-start">
+            <?= csrf_field() ?>
+            <input type="hidden" name="_rach_comment" value="1">
+            <input type="hidden" name="rach_id" value="<?= $_rid ?>">
+            <label class="visually-hidden" for="rach-com-input-<?= $_rid ?>">Treść komentarza</label>
+            <textarea id="rach-com-input-<?= $_rid ?>" name="rach_comment" class="form-control form-control-sm" rows="2" placeholder="Napisz komentarz…" required></textarea>
+            <button type="submit" class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-send" aria-hidden="true"></i> Dodaj</button>
+          </form>
         </div>
-      </td>
-    </tr>
+      </div>
+    </article>
     <?php endforeach; ?>
-    </tbody>
-  </table>
   </div>
   <?php else: ?>
   <div class="card-body text-muted small pt-0">
@@ -2505,7 +2442,7 @@ window.CVTabsConfig = {
       <input type="hidden" name="_rach_edit" value="1">
       <input type="hidden" name="rach_id" id="rachEditId" value="">
       <div class="modal-header" style="background:#2563eb;color:#fff">
-        <h5 class="modal-title" id="rachEditLabel"><i class="bi bi-pencil-square me-2"></i>Nadpisz rachunek <span id="rachEditNo"></span></h5>
+        <h5 class="modal-title" id="rachEditLabel"><i class="bi bi-pencil-square me-2"></i>Edytuj rachunek <span id="rachEditNo"></span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Zamknij"></button>
       </div>
       <div class="modal-body">
@@ -2738,8 +2675,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   };
 
-  window.rachToKdok = function (rid, btn) {
-    if (!confirm('Przekazać rachunek do obiegu akceptacji (EODoK)?')) return;
+  window.rachToKdok = function (rid, btn, potwierdzone) {
+    if (!potwierdzone && !confirm('Przekazać rachunek do obiegu akceptacji (EODoK)?')) return;
     post('rachunek_kdok', {rachunek_id: rid}, btn, function () {
       setTimeout(function () { location.reload(); }, 800);
     });
@@ -2761,6 +2698,81 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <?php if ((current_user()['role'] ?? '') === 'admin'): ?>
 <!-- ═══════════════════ MODAL — usunięcie rachunku (admin + IKA + powód) ═══════════════════ -->
+<?php
+// Okno „Wyślij do EODoK”: jak wygląda akceptacja (5 etapów i osoby z rolami) zanim rachunek trafi do obiegu.
+if (!function_exists('edok_migrate')) require_once dirname(dirname(__DIR__)) . '/includes/edok.php';
+$_edok_kroki = [];
+try {
+    foreach (EDOK_STEPS as $_ek => $_el) {
+        $_edok_kroki[$_ek] = ['label' => $_el, 'osoby' => array_column(db_all(
+            "SELECT u.name FROM edok_user_roles r JOIN users u ON u.id = r.user_id WHERE r.role = ? AND COALESCE(u.is_active,1) = 1 ORDER BY u.name", [$_ek]), 'name')];
+    }
+} catch (\Throwable $e) { $_edok_kroki = []; }
+?>
+<div class="modal fade" id="rachEdokModal" tabindex="-1" aria-labelledby="rachEdokLabel">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rachEdokLabel"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Wyślij rachunek do EODoK</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <div id="rachEdokKdok" class="alert alert-info small py-2 d-none">Rachunek wystawiony przed <?= h(date('d.m.Y', strtotime(EDOK_CUTOFF_RACHUNEK))) ?> trafi do archiwalnego obiegu KDOK, nie do EODoK.</div>
+        <h6 class="fw-semibold">Co trafi do dokumentu</h6>
+        <dl class="row small mb-3">
+          <dt class="col-sm-4">Rachunek</dt><dd class="col-sm-8" id="rachEdokNumer"></dd>
+          <dt class="col-sm-4">Okres</dt><dd class="col-sm-8" id="rachEdokOkres"></dd>
+          <dt class="col-sm-4">Do wypłaty (netto)</dt><dd class="col-sm-8 fw-semibold" id="rachEdokNetto"></dd>
+          <dt class="col-sm-4">Brutto</dt><dd class="col-sm-8" id="rachEdokBrutto"></dd>
+          <dt class="col-sm-4">Konto zleceniobiorcy</dt><dd class="col-sm-8 font-monospace" id="rachEdokNrb"></dd>
+          <dt class="col-sm-4">Tytuł przelewu</dt><dd class="col-sm-8 font-monospace" id="rachEdokTytul"></dd>
+        </dl>
+        <div id="rachEdokWarn" class="alert alert-warning small py-2 d-none" role="alert"></div>
+
+        <h6 class="fw-semibold">Jak przebiega akceptacja w EODoK</h6>
+        <p class="small text-muted mb-2">Dokument przechodzi kolejno 5 etapów. Każdy zatwierdza osoba z daną rolą (administrator może każdy) — potwierdzając tożsamość PIN-em lub kluczem. Odrzucenie na dowolnym etapie oddaje rachunek tutaj do poprawy. Po 5. etapie dokument trafia do Preliminarza płatności, a przelew idzie z kwoty <strong>netto</strong>.</p>
+        <ol class="list-group list-group-numbered small mb-2">
+          <?php foreach ($_edok_kroki as $_ek => $_k): ?>
+          <li class="list-group-item d-flex justify-content-between align-items-start gap-3">
+            <div class="ms-1 me-auto"><div class="fw-semibold"><?= h($_k['label']) ?></div>
+              <span class="text-muted"><?= $_k['osoby'] ? h(implode(', ', $_k['osoby'])) : 'nikt nie ma tej roli — zatwierdzi administrator' ?></span></div>
+          </li>
+          <?php endforeach; ?>
+        </ol>
+        <p class="small text-muted mb-0">Role ustawia się w EODoK → Ustawienia (role użytkowników). Jeśli zatwierdzanie odbywa się na papierze, przelew możesz wygenerować bez obiegu: Finanse → <a href="<?= APP_URL ?>/edok/przelewy_rachunki.php">Przelewy za rachunki</a>.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="button" class="btn btn-primary" id="rachEdokGo"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i> Przekaż do EODoK</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var rid = 0;
+  window.rachEdokPreview = function (btn) {
+    var d = btn.dataset, g = function (i) { return document.getElementById(i); };
+    rid = parseInt(d.rid, 10);
+    g('rachEdokNumer').textContent = d.numer; g('rachEdokOkres').textContent = d.okres;
+    g('rachEdokNetto').textContent = d.netto || '— (brak)'; g('rachEdokBrutto').textContent = d.brutto || '—';
+    g('rachEdokNrb').textContent = d.nrb || '— (brak)'; g('rachEdokTytul').textContent = d.tytul;
+    g('rachEdokKdok').classList.toggle('d-none', d.kdok !== '1');
+    var w = [];
+    if (!d.nrb) w.push('Umowa nie ma poprawnego numeru konta — przekazanie zostanie odrzucone. Uzupełnij konto w zakładce Zleceniobiorca.');
+    if (!d.netto) w.push('Brak kwoty netto — przelew poszedłby z brutto. Uzupełnij netto przez „Edytuj”.');
+    if (d.podpisany !== '1') w.push('Rachunek nie ma jeszcze podpisanego skanu — do obiegu trafi plik niepodpisany.');
+    g('rachEdokWarn').innerHTML = w.map(function (t) { return '<div>• ' + t.replace(/</g, '&lt;') + '</div>'; }).join('');
+    g('rachEdokWarn').classList.toggle('d-none', !w.length);
+    g('rachEdokGo').disabled = !d.nrb;
+    bootstrap.Modal.getOrCreateInstance(g('rachEdokModal')).show();
+  };
+  document.getElementById('rachEdokGo').addEventListener('click', function () {
+    if (rid) window.rachToKdok(rid, this, true);
+  });
+})();
+</script>
+
 <div class="modal fade" id="rachDeleteModal" tabindex="-1" aria-labelledby="rachDeleteLabel">
   <div class="modal-dialog">
     <div class="modal-content">
