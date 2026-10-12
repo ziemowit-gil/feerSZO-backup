@@ -139,241 +139,236 @@ $skan_mail  = rachunek_skan_email();
 $dl         = rachunek_deadlines($rach);
 $is_signed  = rachunek_is_signed($rach);
 $self_url   = APP_URL . '/contracts/zlecenie/rachunek_pobierz.php?token=' . urlencode($token);
+// Widok: kroki dla zleceniobiorcy (pobierz → podpisz → wgraj skan → oryginał), kwota do wypłaty (netto).
+$umowa_ref  = preg_match('/\d/', $numer) ? $numer : '';
+$netto      = ($rach['kwota_netto'] ?? null) !== null && $rach['kwota_netto'] !== '' ? (float)$rach['kwota_netto'] : null;
+$brutto     = $rach['kwota_brutto'] !== null && $rach['kwota_brutto'] !== '' ? (float)$rach['kwota_brutto'] : null;
+$nrb_digits = preg_replace('/\D/', '', (string)($contract['rachunek_bankowy'] ?? ''));
+$kroki = [
+    ['Pobierz',      !empty($rach['downloaded_at'])],
+    ['Podpisz',      $is_signed],
+    ['Wgraj skan',   $is_signed],
+    ['Oryginał',     !empty($rach['oryginal_at'])],
+];
+$krok_teraz = 0;
+foreach ($kroki as $i => [$_l, $_done]) { if (!$_done) { $krok_teraz = $i; break; } $krok_teraz = $i + 1; }
 ?><!doctype html>
 <html lang="pl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Rachunek<?= $numer ? ' · ' . h($numer) : '' ?> — <?= h($org_name) ?></title>
+<title>Rachunek<?= !empty($rach['numer']) ? ' ' . h($rach['numer']) : '' ?> — <?= h($org_name) ?></title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;
-     color:#1e293b;font-size:15px;line-height:1.65;padding:28px 16px}
-.wrap{max-width:640px;margin:0 auto}
-.card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;
-      box-shadow:0 1px 3px rgba(15,23,42,.08)}
-.head{background:#1e293b;color:#e2e8f0;padding:16px 28px;display:flex;justify-content:space-between;
-      align-items:center;gap:16px;flex-wrap:wrap}
-.head .org{font-size:13px;font-weight:600;letter-spacing:.03em}
-.head img{max-height:38px;max-width:120px;display:block}
-.body{padding:28px}
-h1{font-size:20px;font-weight:700;margin-bottom:6px}
-.lead{color:#475569;font-size:14px;margin-bottom:22px}
-table.data{width:100%;border-collapse:collapse;margin-bottom:22px}
-table.data th{text-align:left;font-weight:600;color:#64748b;font-size:13px;
-              padding:7px 12px 7px 0;width:44%;vertical-align:top}
-table.data td{padding:7px 0;font-size:14px;vertical-align:top}
-table.data tr+tr th,table.data tr+tr td{border-top:1px solid #f1f5f9}
-.btn{display:inline-block;background:#2563eb;color:#fff;padding:12px 28px;border-radius:8px;
-     text-decoration:none;font-weight:600;font-size:15px}
-.btn:hover{background:#1d4ed8}
-.steps{background:#f8fafc;border-left:3px solid #2563eb;border-radius:4px;padding:14px 18px;margin-top:24px;font-size:14px}
-.steps ol{margin:8px 0 0 18px}
-.steps li{margin-bottom:5px}
-.warn{background:#fff7ed;border-left:3px solid #f59e0b;border-radius:4px;padding:12px 16px;font-size:14px}
-.ok{background:#f0fdf4;border-left:3px solid #16a34a;border-radius:4px;padding:12px 16px;font-size:14px;margin-top:20px}
-.opt{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;margin-top:14px;background:#fff}
-.opt-h{font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px;margin-bottom:4px}
-.opt-h .num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
-            border-radius:50%;background:#2563eb;color:#fff;font-size:13px;flex:0 0 24px}
-.coms{margin-top:28px;padding-top:20px;border-top:1px solid #e2e8f0}
-.coms-h{font-size:15px;margin-bottom:12px}
-.com{background:#f8fafc;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:14px}
-.com-meta{color:#64748b;font-size:12.5px;margin-bottom:4px}
-.com-meta .tag{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:4px}
-.foot{color:#94a3b8;font-size:12px;text-align:center;padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#0f172a;font-size:15px;line-height:1.6}
 a{color:#1d4ed8}
+:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+.top{background:#0f172a;color:#e2e8f0}
+.top-in{max-width:760px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.top .org{font-weight:600;font-size:14px;letter-spacing:.02em}
+.top img{max-height:34px;max-width:120px;background:#fff;border-radius:6px;padding:3px}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 40px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.05);padding:22px 24px;margin-bottom:16px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#64748b}
+h1{font-size:24px;line-height:1.25;margin:4px 0 6px}
+h2{font-size:17px;margin-bottom:10px}
+.muted{color:#64748b}
+.small{font-size:13px}
+/* Kroki */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px;list-style:none}
+.step{display:flex;flex-direction:column;align-items:center;text-align:center;font-size:12.5px;color:#64748b;position:relative}
+.step .dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #cbd5e1;background:#fff;margin-bottom:5px}
+.step.done .dot{background:#16a34a;border-color:#16a34a;color:#fff}
+.step.now .dot{border-color:#2563eb;color:#2563eb}
+.step.now{color:#0f172a;font-weight:600}
+.step:not(:last-child)::after{content:"";position:absolute;top:15px;left:calc(50% + 18px);right:calc(-50% + 18px);height:2px;background:#e2e8f0}
+.step.done:not(:last-child)::after{background:#86efac}
+/* Kwota */
+.sum{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;justify-content:space-between}
+.amount .lbl{font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.amount .val{font-size:30px;font-weight:800;line-height:1.15}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;margin-top:4px}
+.facts dt{color:#64748b}
+.facts dd{font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;background:#2563eb;color:#fff;border:0;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit}
+.btn:hover{background:#1d4ed8}
+.btn-lg{width:100%;justify-content:center;padding:14px 22px;font-size:16px}
+.btn-sec{background:#fff;color:#1d4ed8;border:2px solid #bfdbfe}
+.btn-sec:hover{background:#eff6ff}
+.file-meta{text-align:center;color:#94a3b8;font-size:12.5px;margin-top:6px}
+/* Komunikaty */
+.note{border-radius:10px;padding:12px 16px;font-size:14px;margin-bottom:16px}
+.note-ok{background:#f0fdf4;border:1px solid #bbf7d0}
+.note-warn{background:#fffbeb;border:1px solid #fde68a}
+.note-err{background:#fef2f2;border:1px solid #fecaca}
+/* Sposoby dostarczenia */
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.opt{border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;background:#fff;display:flex;flex-direction:column}
+.opt.rec{border:2px solid #2563eb;background:#f8fbff}
+.opt-h{display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:6px}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#dbeafe;color:#1e40af}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;background:#f1f5f9;border-radius:8px;padding:4px 10px;margin:4px 6px 0 0}
+.drop{display:block;border:2px dashed #93c5fd;border-radius:10px;padding:16px;text-align:center;background:#fff;cursor:pointer;margin:10px 0}
+.drop:hover,.drop:focus-within{border-color:#2563eb;background:#eff6ff}
+.drop input{display:block;margin:8px auto 0;max-width:100%;font-size:13px}
+.opt ol{margin:6px 0 0 18px;font-size:14px}
+.opt li{margin-bottom:6px}
+/* Komentarze */
+.com{background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:14px}
+.com.org{background:#eef2ff}
+.com-meta{color:#64748b;font-size:12.5px;margin-bottom:3px}
+textarea{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;font-family:inherit;resize:vertical}
+.foot{color:#94a3b8;font-size:12px;text-align:center;margin-top:10px}
+@media (max-width:640px){
+  .opts{grid-template-columns:1fr}
+  h1{font-size:21px}
+  .amount .val{font-size:26px}
+  .step{font-size:11.5px}
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card">
-    <div class="head">
-      <span class="org"><?= h($org_name) ?></span>
-      <?php if ($org_logo_url): ?><img src="<?= h($org_logo_url) ?>" alt=""><?php endif; ?>
-    </div>
-    <div class="body">
-      <?php if (rachunek_is_test($rach)): ?>
-      <div class="warn" style="margin-bottom:18px">
-        <strong>Dokument testowy.</strong> Ten rachunek został wystawiony w trybie testowym —
-        służy wyłącznie sprawdzeniu, czy obieg działa. Nie wywołuje skutków księgowych
-        i nie wymaga od Ciebie żadnych działań.
-      </div>
-      <?php endif; ?>
-      <h1>Rachunek do umowy zlecenie</h1>
-      <p class="lead">
-        Dzień dobry<?= $imie_nazw ? ', ' . h($imie_nazw) : '' ?>. Poniżej znajdziesz rachunek
-        udostępniony przez <?= h($org_name) ?>.
-      </p>
-
-      <table class="data">
-        <?php if ($numer): ?>
-        <tr><th>Umowa</th><td><?= h($numer) ?></td></tr>
-        <?php endif; ?>
-        <?php if ($imie_nazw): ?>
-        <tr><th>Zleceniobiorca</th><td><?= h($imie_nazw) ?></td></tr>
-        <?php endif; ?>
-        <?php if ($adres_osob): ?>
-        <tr><th>Adres</th><td><?= h($adres_osob) ?></td></tr>
-        <?php endif; ?>
-        <?php if (!empty($rach['numer'])): ?>
-        <tr><th>Numer rachunku</th><td><?= h($rach['numer']) ?></td></tr>
-        <?php endif; ?>
-        <?php if (!empty($rach['data_wystawienia'])): ?>
-        <tr><th>Data wystawienia</th><td><?= date_pl($rach['data_wystawienia']) ?></td></tr>
-        <?php endif; ?>
-        <?php if (!empty($rach['okres'])): ?>
-        <tr><th>Za jaki okres</th><td><?= h($rach['okres']) ?></td></tr>
-        <?php endif; ?>
-        <?php if ($rach['kwota_brutto'] !== null && $rach['kwota_brutto'] !== ''): ?>
-        <tr><th>Kwota brutto</th><td><strong><?= money((float)$rach['kwota_brutto']) ?></strong></td></tr>
-        <?php endif; ?>
-        <?php if (!empty($rach['uwagi'])): ?>
-        <tr><th>Uwagi</th><td><?= nl2br(h($rach['uwagi'])) ?></td></tr>
-        <?php endif; ?>
-      </table>
-
-      <?php if ($has_file): ?>
-      <div style="text-align:center">
-        <a class="btn" href="<?= h($file_url) ?>">&#11015; Pobierz dokument</a>
-        <?php if (!empty($rach['plik_nazwa'])): ?>
-        <div style="color:#94a3b8;font-size:12px;margin-top:8px">
-          <?= h($rach['plik_nazwa']) ?><?= $rach['plik_size'] ? ' · ' . h(rachunek_file_size_h((int)$rach['plik_size'])) : '' ?>
-        </div>
-        <?php endif; ?>
-      </div>
-      <?php else: ?>
-      <div class="warn">
-        Do tego rachunku nie dołączono jeszcze pliku. Prosimy o kontakt z <?= h($org_name) ?>
-        <?= $org_mail ? '(<a href="mailto:' . h($org_mail) . '">' . h($org_mail) . '</a>)' : '' ?>.
-      </div>
-      <?php endif; ?>
-
-      <?php if ($upload_ok): ?>
-      <div class="ok">
-        <strong>&#10003; Dziękujemy — podpisany rachunek został przyjęty.</strong>
-        <div style="margin-top:6px">
-          Osoby prowadzące umowę zostały o tym powiadomione. Pamiętaj o dostarczeniu
-          <strong>oryginału</strong> rachunku<?= $dl['oryginal'] ? ' do <strong>' . date_pl($dl['oryginal']) . '</strong>' : '' ?><?php
-            ?><?= $siedziba ? ' na adres: <strong>' . h($siedziba) . '</strong>' : '' ?>.
-        </div>
-      </div>
-      <?php elseif ($upload_err): ?>
-      <div class="warn" style="margin-top:20px">
-        <strong>Nie udało się wgrać pliku:</strong> <?= h($upload_err) ?>
-      </div>
-      <?php endif; ?>
-
-      <div class="steps">
-        <strong>Co dalej? Rachunek trzeba wydrukować, podpisać odręcznie i dostarczyć.</strong>
-        <p style="margin:8px 0 0;font-size:13.5px;color:#475569">
-          Wybierz jeden z dwóch sposobów — <strong>opcja 1</strong> jest szybsza i nie wymaga wysyłki skanu e-mailem.
-        </p>
-      </div>
-
-      <div class="opt">
-        <div class="opt-h"><span class="num">1</span> Wgraj podpisany rachunek tutaj</div>
-        <p style="font-size:14px;color:#475569;margin-bottom:12px">
-          Podpisz wydrukowany rachunek, zeskanuj go lub zrób wyraźne zdjęcie i wgraj plik poniżej —
-          trafi bezpośrednio do systemu.
-          <?php if ($dl['oryginal']): ?>
-          Oryginał dostarczasz następnie w ciągu <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni,
-          czyli do <strong><?= date_pl($dl['oryginal']) ?></strong>.
-          <?php endif; ?>
-        </p>
-
-        <?php if ($is_signed && !empty($rach['signed_at'])): ?>
-        <div class="ok" style="margin:0">
-          Podpisany rachunek już do nas dotarł (<?= date_pl($rach['signed_at']) ?>).
-          Możesz wgrać poprawioną wersję, jeśli poprzednia była nieczytelna.
-        </div>
-        <?php endif; ?>
-
-        <form method="post" enctype="multipart/form-data" action="<?= h($self_url) ?>" style="margin-top:12px">
-          <input type="hidden" name="_rach_signed" value="1">
-          <label for="rachPodpisany" style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">
-            Skan lub zdjęcie podpisanego rachunku
-          </label>
-          <input id="rachPodpisany" type="file" name="rach_podpisany" required
-                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                 style="display:block;width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:#fff">
-          <div style="color:#94a3b8;font-size:12px;margin:6px 0 12px">PDF, JPG, PNG, DOC lub DOCX — do 30 MB.</div>
-          <button type="submit" class="btn">&#8593; Wyślij podpisany rachunek</button>
-        </form>
-      </div>
-
-      <div class="opt">
-        <div class="opt-h"><span class="num">2</span> Wyślij skan e-mailem, a potem oryginał pocztą</div>
-        <ol style="margin:10px 0 0 18px;font-size:14px;color:#334155">
-          <li style="margin-bottom:6px">
-            W ciągu <strong><?= ZLEC_RACHUNEK_SKAN_DAYS ?> dni</strong><?= $dl['skan'] ? ' (do <strong>' . date_pl($dl['skan']) . '</strong>)' : '' ?>
-            prześlij <strong>skan podpisanego rachunku</strong> na adres
-            <a href="mailto:<?= h($skan_mail) ?>"><?= h($skan_mail) ?></a>.
-          </li>
-          <li>
-            W ciągu <strong><?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni</strong><?= $dl['oryginal'] ? ' (do <strong>' . date_pl($dl['oryginal']) . '</strong>)' : '' ?>
-            dostarcz <strong>oryginał</strong> — pocztą lub osobiście<?= $siedziba ? ' na adres: <strong>' . h($siedziba) . '</strong>' : '' ?>.
-          </li>
-        </ol>
-      </div>
-
-      <?php if (!empty($contract['rachunek_bankowy'])): ?>
-      <p style="color:#64748b;font-size:13px;margin-top:18px">
-        Wynagrodzenie zostanie przekazane na rachunek bankowy wskazany w umowie.
-      </p>
-      <?php endif; ?>
-
-      <p style="color:#64748b;font-size:13px;margin-top:14px">
-        W razie pytań lub problemów technicznych pozostajemy do dyspozycji<?= $org_mail ? ' — <a href="mailto:' . h($org_mail) . '">' . h($org_mail) . '</a>' : '' ?>.
-      </p>
-
-      <div class="coms" id="komentarze">
-        <div class="coms-h"><strong>Komentarze</strong>
-          <span style="color:#94a3b8;font-weight:400">— pytania i uwagi do tego rachunku</span>
-        </div>
-        <?php $coms = rachunek_comments((int)$rach['id']); ?>
-        <?php if (!empty($_GET['kom'])): ?>
-        <div class="ok" style="margin:0 0 12px">&#10003; Komentarz został dodany.</div>
-        <?php endif; ?>
-        <?php if ($comment_err): ?>
-        <div class="warn" style="margin:0 0 12px"><?= h($comment_err) ?></div>
-        <?php endif; ?>
-        <?php if ($coms): ?>
-        <?php foreach ($coms as $c): ?>
-        <div class="com">
-          <div class="com-meta">
-            <strong><?= h($c['author_name'] ?: 'Nieznany') ?></strong>
-            <?php if ($c['author_type'] !== 'zleceniobiorca'): ?>
-            <span class="tag"><?= h($org_name) ?></span>
-            <?php endif; ?>
-            · <?= h($c['created_at']) ?>
-          </div>
-          <div style="white-space:pre-wrap"><?= h($c['tresc']) ?></div>
-        </div>
-        <?php endforeach; ?>
-        <?php else: ?>
-        <p style="color:#94a3b8;font-size:14px;margin-bottom:12px">Nie ma jeszcze komentarzy.</p>
-        <?php endif; ?>
-
-        <form method="post" action="<?= h($self_url) ?>#komentarze">
-          <input type="hidden" name="_rach_comment" value="1">
-          <label for="rachKomentarz" style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">
-            Twój komentarz
-          </label>
-          <textarea id="rachKomentarz" name="rach_comment" rows="3" required
-                    placeholder="np. proszę o korektę okresu rozliczeniowego"
-                    style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;
-                           font-family:inherit;resize:vertical"></textarea>
-          <button type="submit" class="btn" style="margin-top:10px;padding:10px 22px;font-size:14px">
-            Dodaj komentarz
-          </button>
-        </form>
-      </div>
-    </div>
-    <div class="foot">
-      <?= h($org_name) ?><?= $org_krs ? ' · KRS ' . h($org_krs) : '' ?><?= $org_nip ? ' · NIP ' . h($org_nip) : '' ?>
-    </div>
+<header class="top">
+  <div class="top-in">
+    <span class="org"><?= h($org_name) ?></span>
+    <?php if ($org_logo_url): ?><img src="<?= h($org_logo_url) ?>" alt=""><?php endif; ?>
   </div>
-</div>
+</header>
+
+<main class="wrap">
+
+  <?php if (rachunek_is_test($rach)): ?>
+  <div class="note note-warn"><strong>Dokument testowy.</strong> Ten rachunek służy wyłącznie sprawdzeniu obiegu — nie wywołuje skutków księgowych i nie wymaga od Ciebie żadnych działań.</div>
+  <?php endif; ?>
+
+  <?php if ($upload_ok): ?>
+  <div class="note note-ok" role="status">
+    <strong>✓ Dziękujemy — podpisany rachunek został przyjęty.</strong>
+    Osoby prowadzące umowę zostały powiadomione. Pamiętaj jeszcze o <strong>oryginale</strong><?= $dl['oryginal'] ? ' — do <strong>' . date_pl($dl['oryginal']) . '</strong>' : '' ?><?= $siedziba ? ', adres: <strong>' . h($siedziba) . '</strong>' : '' ?>.
+  </div>
+  <?php elseif ($upload_err): ?>
+  <div class="note note-err" role="alert"><strong>Nie udało się wgrać pliku:</strong> <?= h($upload_err) ?></div>
+  <?php endif; ?>
+
+  <!-- Nagłówek i kroki -->
+  <section class="card" aria-labelledby="h1">
+    <div class="eyebrow">Rachunek do umowy zlecenie</div>
+    <h1 id="h1">Twój rachunek<?= !empty($rach['okres']) ? ' za ' . h($rach['okres']) : '' ?></h1>
+    <p class="muted">Dzień dobry<?= $imie_nazw ? ', ' . h($imie_nazw) : '' ?>. Pobierz rachunek, podpisz go odręcznie i dostarcz — poniżej krok po kroku.</p>
+    <ol class="steps" aria-label="Postęp">
+      <?php foreach ($kroki as $i => [$l, $done]): $cls = $done ? 'done' : ($i === $krok_teraz ? 'now' : ''); ?>
+      <li class="step <?= $cls ?>"<?= $i === $krok_teraz ? ' aria-current="step"' : '' ?>>
+        <span class="dot" aria-hidden="true"><?= $done ? '✓' : $i + 1 ?></span>
+        <?= h($l) ?><span class="visually-hidden" style="position:absolute;left:-9999px"><?= $done ? ' — zrobione' : ($i === $krok_teraz ? ' — teraz' : '') ?></span>
+      </li>
+      <?php endforeach; ?>
+    </ol>
+  </section>
+
+  <!-- Kwota i dane -->
+  <section class="card" aria-labelledby="hSum">
+    <h2 id="hSum" style="position:absolute;left:-9999px">Dane rachunku</h2>
+    <div class="sum">
+      <div class="amount">
+        <?php if ($netto !== null): ?>
+          <div class="lbl">Do wypłaty (netto)</div>
+          <div class="val"><?= money($netto) ?></div>
+          <?php if ($brutto !== null): ?><div class="muted small">brutto <?= money($brutto) ?></div><?php endif; ?>
+        <?php elseif ($brutto !== null): ?>
+          <div class="lbl">Kwota brutto</div>
+          <div class="val"><?= money($brutto) ?></div>
+        <?php endif; ?>
+      </div>
+      <dl class="facts">
+        <?php if (!empty($rach['numer'])): ?><dt>Numer</dt><dd><?= h($rach['numer']) ?></dd><?php endif; ?>
+        <?php if (!empty($rach['data_wystawienia'])): ?><dt>Wystawiony</dt><dd><?= date_pl($rach['data_wystawienia']) ?></dd><?php endif; ?>
+        <?php if (!empty($rach['okres'])): ?><dt>Okres</dt><dd><?= h($rach['okres']) ?></dd><?php endif; ?>
+        <dt>Umowa</dt><dd><?= $umowa_ref !== '' ? h($umowa_ref) : 'umowa zlecenie' ?></dd>
+        <?php if ($imie_nazw): ?><dt>Zleceniobiorca</dt><dd><?= h($imie_nazw) ?></dd><?php endif; ?>
+      </dl>
+    </div>
+    <?php if (!empty($rach['uwagi'])): ?><p class="small muted" style="margin-top:12px"><strong>Uwagi:</strong> <?= nl2br(h($rach['uwagi'])) ?></p><?php endif; ?>
+
+    <div style="margin-top:18px">
+      <?php if ($has_file): ?>
+      <a class="btn btn-lg" href="<?= h($file_url) ?>"><span aria-hidden="true">⬇</span> Pobierz rachunek do wydruku</a>
+      <?php if (!empty($rach['plik_nazwa'])): ?>
+      <div class="file-meta"><?= h($rach['plik_nazwa']) ?><?= $rach['plik_size'] ? ' · ' . h(rachunek_file_size_h((int)$rach['plik_size'])) : '' ?></div>
+      <?php endif; ?>
+      <?php else: ?>
+      <div class="note note-warn" style="margin:0">Do tego rachunku nie dołączono jeszcze pliku. Prosimy o kontakt<?= $org_mail ? ': <a href="mailto:' . h($org_mail) . '">' . h($org_mail) . '</a>' : '' ?>.</div>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <!-- Sposoby dostarczenia -->
+  <section class="card" aria-labelledby="hOpt">
+    <h2 id="hOpt">Jak dostarczyć podpisany rachunek</h2>
+    <p class="small muted" style="margin-bottom:12px">Wydrukuj, podpisz odręcznie i wybierz jeden ze sposobów. Oryginał papierowy jest potrzebny zawsze.</p>
+    <div class="opts">
+      <div class="opt rec">
+        <div class="opt-h">1. Wgraj skan tutaj <span class="badge">zalecane</span></div>
+        <p class="small muted">Zeskanuj albo zrób wyraźne zdjęcie podpisanego rachunku — trafi od razu do systemu.</p>
+        <?php if ($is_signed && !empty($rach['signed_at'])): ?>
+        <div class="note note-ok small" style="margin:10px 0 0">Podpisany rachunek już dotarł (<?= date_pl($rach['signed_at']) ?>). Możesz wgrać poprawioną wersję, jeśli poprzednia była nieczytelna.</div>
+        <?php endif; ?>
+        <form method="post" enctype="multipart/form-data" action="<?= h($self_url) ?>">
+          <input type="hidden" name="_rach_signed" value="1">
+          <label class="drop" for="rachPodpisany">
+            <strong>Wybierz plik ze skanem lub zdjęciem</strong>
+            <span class="small muted" style="display:block">PDF, JPG, PNG, DOC lub DOCX — do 30 MB</span>
+            <input id="rachPodpisany" type="file" name="rach_podpisany" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+          </label>
+          <button type="submit" class="btn" style="width:100%;justify-content:center"><span aria-hidden="true">⬆</span> Wyślij podpisany rachunek</button>
+        </form>
+        <?php if ($dl['oryginal']): ?>
+        <div><span class="chip">📮 Oryginał do <strong><?= date_pl($dl['oryginal']) ?></strong></span></div>
+        <?php endif; ?>
+      </div>
+      <div class="opt">
+        <div class="opt-h">2. Skan e-mailem, oryginał pocztą</div>
+        <ol>
+          <li>Skan podpisanego rachunku na <a href="mailto:<?= h($skan_mail) ?>"><?= h($skan_mail) ?></a> — w ciągu <?= ZLEC_RACHUNEK_SKAN_DAYS ?> dni<?= $dl['skan'] ? ', do <strong>' . date_pl($dl['skan']) . '</strong>' : '' ?>.</li>
+          <li>Oryginał pocztą lub osobiście — w ciągu <?= ZLEC_RACHUNEK_ORYGINAL_DAYS ?> dni<?= $dl['oryginal'] ? ', do <strong>' . date_pl($dl['oryginal']) . '</strong>' : '' ?>.</li>
+        </ol>
+        <?php if ($siedziba): ?><p class="small" style="margin-top:auto;padding-top:10px"><strong>Adres:</strong> <?= h($org_name) ?>, <?= h($siedziba) ?></p><?php endif; ?>
+      </div>
+    </div>
+  </section>
+
+  <!-- Wypłata -->
+  <?php if (strlen($nrb_digits) === 26): ?>
+  <section class="card small" aria-label="Wypłata">
+    <strong>Wypłata.</strong> <?= $netto !== null ? 'Kwotę <strong>' . money($netto) . '</strong> przelejemy' : 'Wynagrodzenie przelejemy' ?> na konto wskazane w umowie (kończące się na <strong><?= h(substr($nrb_digits, -4)) ?></strong>) po przyjęciu podpisanego rachunku.
+    <?php if ($org_mail): ?><span class="muted">Zmiana konta lub pytania: <a href="mailto:<?= h($org_mail) ?>"><?= h($org_mail) ?></a>.</span><?php endif; ?>
+  </section>
+  <?php endif; ?>
+
+  <!-- Komentarze -->
+  <section class="card" id="komentarze" aria-labelledby="hKom">
+    <h2 id="hKom">Pytania i uwagi do rachunku</h2>
+    <?php $coms = rachunek_comments((int)$rach['id']); ?>
+    <?php if (!empty($_GET['kom'])): ?><div class="note note-ok" role="status">✓ Komentarz został dodany.</div><?php endif; ?>
+    <?php if ($comment_err): ?><div class="note note-err" role="alert"><?= h($comment_err) ?></div><?php endif; ?>
+    <?php if ($coms): ?>
+      <?php foreach ($coms as $c): ?>
+      <div class="com<?= $c['author_type'] !== 'zleceniobiorca' ? ' org' : '' ?>">
+        <div class="com-meta"><strong><?= h($c['author_name'] ?: 'Nieznany') ?></strong><?= $c['author_type'] !== 'zleceniobiorca' ? ' · ' . h($org_name) : '' ?> · <?= h($c['created_at']) ?></div>
+        <div style="white-space:pre-wrap"><?= h($c['tresc']) ?></div>
+      </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <p class="small muted" style="margin-bottom:10px">Nie ma jeszcze komentarzy. Jeśli coś się nie zgadza (kwota, okres, dane) — napisz tutaj.</p>
+    <?php endif; ?>
+    <form method="post" action="<?= h($self_url) ?>#komentarze">
+      <input type="hidden" name="_rach_comment" value="1">
+      <label for="rachKomentarz" class="small" style="display:block;font-weight:600;margin-bottom:6px">Twój komentarz</label>
+      <textarea id="rachKomentarz" name="rach_comment" rows="3" required placeholder="np. proszę o korektę okresu rozliczeniowego"></textarea>
+      <button type="submit" class="btn btn-sec" style="margin-top:10px">Wyślij komentarz</button>
+    </form>
+  </section>
+
+  <p class="foot"><?= h($org_name) ?><?= $org_krs ? ' · KRS ' . h($org_krs) : '' ?><?= $org_nip ? ' · NIP ' . h($org_nip) : '' ?></p>
+</main>
 </body>
 </html>
