@@ -1695,9 +1695,13 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
       <!-- Kwota -->
       <td class="text-end text-nowrap fw-semibold">
-        <?= $rr['kwota_brutto'] !== null ? money((float)$rr['kwota_brutto']) : '<span class="text-muted fw-normal">—</span>' ?>
+        <?php // Do wypłaty obowiązuje NETTO (na nie idzie przelew); brutto pod spodem. ?>
         <?php if (($rr['kwota_netto'] ?? null) !== null): ?>
-        <div class="small text-muted fw-normal">netto <?= money((float)$rr['kwota_netto']) ?></div>
+          <?= money((float)$rr['kwota_netto']) ?> <span class="small text-muted fw-normal">netto</span>
+          <div class="small text-muted fw-normal"><?= $rr['kwota_brutto'] !== null ? 'brutto ' . money((float)$rr['kwota_brutto']) : 'brutto —' ?></div>
+        <?php else: ?>
+          <?= $rr['kwota_brutto'] !== null ? money((float)$rr['kwota_brutto']) . ' <span class="small text-muted fw-normal">brutto</span>' : '<span class="text-muted fw-normal">—</span>' ?>
+          <?php if (!rachunek_is_test($rr) && $rr['status'] !== 'odrzucony'): ?><div class="small fw-normal" style="color:#b45309">netto: uzupełnij <span class="visually-hidden">(Nadpisz rachunek)</span></div><?php endif; ?>
         <?php endif; ?>
       </td>
 
@@ -2511,10 +2515,10 @@ window.CVTabsConfig = {
             <input id="rachEditNumer" name="rach_numer" class="form-control" maxlength="60"></div>
           <div class="col-md-4"><label class="form-label small fw-semibold" for="rachEditData">Data wystawienia</label>
             <input id="rachEditData" name="rach_data" type="date" class="form-control"></div>
-          <div class="col-md-4"><label class="form-label small fw-semibold" for="rachEditKwota">Kwota brutto (zł)</label>
+          <div class="col-md-2"><label class="form-label small fw-semibold" for="rachEditKwotaNetto">Netto — do wypłaty</label>
+            <input id="rachEditKwotaNetto" name="rach_kwota_netto" type="text" inputmode="decimal" class="form-control fw-semibold"></div>
+          <div class="col-md-2"><label class="form-label small fw-semibold" for="rachEditKwota">Brutto</label>
             <input id="rachEditKwota" name="rach_kwota" type="text" inputmode="decimal" class="form-control"></div>
-          <div class="col-md-4 offset-md-8"><label class="form-label small fw-semibold" for="rachEditKwotaNetto">Kwota netto — do wypłaty (zł)</label>
-            <input id="rachEditKwotaNetto" name="rach_kwota_netto" type="text" inputmode="decimal" class="form-control"></div>
           <div class="col-md-6"><label class="form-label small fw-semibold" for="rachEditOd">Okres od</label>
             <input id="rachEditOd" name="rach_okres_od" type="month" class="form-control"></div>
           <div class="col-md-6"><label class="form-label small fw-semibold" for="rachEditDo">Okres do <span class="text-muted fw-normal">(rachunek za kilka miesięcy)</span></label>
@@ -2592,14 +2596,18 @@ document.addEventListener('DOMContentLoaded', function () {
             <input id="rachData" name="rach_data" type="date" class="form-control" value="<?= h(date('Y-m-d')) ?>">
           </div>
           <div class="col-md-4">
-            <label class="form-label small fw-semibold" for="rachKwota">Kwota brutto (PLN)</label>
-            <input id="rachKwota" name="rach_kwota" type="text" inputmode="decimal" class="form-control"
-                   placeholder="<?= h(number_format((float)($row['wynagrodzenie_brutto'] ?? 0), 2, ',', ' ')) ?>">
-          </div>
-          <div class="col-md-4 offset-md-8">
-            <label class="form-label small fw-semibold" for="rachKwotaNetto">Kwota netto — do wypłaty (PLN)</label>
-            <input id="rachKwotaNetto" name="rach_kwota_netto" type="text" inputmode="decimal" class="form-control" aria-describedby="rachKwotaNettoHelp">
-            <div id="rachKwotaNettoHelp" class="form-text">Po składkach i zaliczce na PIT — z tej kwoty idzie przelew. Puste = przelew z kwoty brutto.</div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small fw-semibold" for="rachKwotaNetto">Netto — do wypłaty</label>
+                <input id="rachKwotaNetto" name="rach_kwota_netto" type="text" inputmode="decimal" class="form-control fw-semibold" aria-describedby="rachKwotaNettoHelp">
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-semibold" for="rachKwota">Brutto</label>
+                <input id="rachKwota" name="rach_kwota" type="text" inputmode="decimal" class="form-control"
+                       placeholder="<?= h(number_format((float)($row['wynagrodzenie_brutto'] ?? 0), 2, ',', ' ')) ?>">
+              </div>
+            </div>
+            <div id="rachKwotaNettoHelp" class="form-text">Do wypłaty obowiązuje <strong>netto</strong> (po składkach i zaliczce na PIT) — z niego idzie przelew. Kwoty w PLN.</div>
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold" for="rachOkresOd">Za jaki okres</label>
