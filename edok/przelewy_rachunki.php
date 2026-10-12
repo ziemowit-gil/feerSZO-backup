@@ -86,7 +86,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div>
       <p class="tw-m-0 tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-slate-500">EODoK · Płatności</p>
       <h1 class="tw-m-0 tw-mt-1 tw-text-2xl tw-font-semibold tw-text-slate-900"><i class="bi bi-bank tw-mr-1 tw-text-blue-600" aria-hidden="true"></i> Przelewy za rachunki do umów</h1>
-      <p class="tw-m-0 tw-mt-1 tw-max-w-3xl tw-text-sm tw-text-slate-500">Rachunki zatwierdzane na papierze — tu tylko plik przelewów dla banku. Kwota przelewu = <strong>netto</strong> (do wypłaty). Tytuł: „WYNAGRODZENIE MM/RRRR - umowa nr …”.</p>
+      <p class="tw-m-0 tw-mt-1 tw-max-w-3xl tw-text-sm tw-text-slate-500">Rachunki zatwierdzane na papierze — tu tylko plik przelewów dla banku. Kwota przelewu = <strong>netto</strong> (do wypłaty). Tytuł: „WYNAGRODZENIE MM/RRRR - umowa nr …”. Przelewy mogą iść z dowolnego konta organizacji — domyślnie z konta w PKO BP.</p>
     </div>
     <form method="get" class="tw-flex tw-items-end tw-gap-2">
       <div>
@@ -145,7 +145,8 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="tw-mt-4 tw-grid tw-gap-4 tw-border-0 tw-border-t tw-border-solid tw-border-slate-100 tw-pt-4 md:tw-grid-cols-3">
       <div>
         <label for="rachunek_zlecen" class="prz-label">Z rachunku organizacji</label>
-        <select id="rachunek_zlecen" name="rachunek_zlecen" class="prz-input tw-w-full" required>
+        <p id="rachunek_zlecen_help" class="tw-m-0 tw-mb-1 tw-text-xs tw-text-slate-500">Wybierz konto, z którego pójdą przelewy — może to być każde konto organizacji (np. projektowe), nie tylko PKO. Plik dopasuje się do banku tego konta. Rachunki z różnych kont generuj osobnymi plikami.</p>
+        <select id="rachunek_zlecen" name="rachunek_zlecen" class="prz-input tw-w-full" required aria-describedby="rachunek_zlecen_help">
           <?php if (!$konta): ?><option value="">— brak rachunków w Ustawieniach organizacji —</option><?php endif; ?>
           <?php foreach ($konta as $k): $n = preg_replace('/\D/', '', (string)$k['nrb']); ?>
           <option value="<?= h($n) ?>" <?= $n === $domyslne_konto ? 'selected' : '' ?>><?= h(trim(($k['nazwa'] ?? '') . ' ' . ($k['bank'] ?? ''))) ?> · …<?= h(substr($n, -4)) ?></option>
@@ -159,7 +160,7 @@ require_once __DIR__ . '/../includes/header.php';
           <option value="<?= h($fk) ?>" <?= $fk === 'auto' ? 'selected' : '' ?>><?= h($fl) ?></option>
           <?php endforeach; ?>
         </select>
-        <p class="tw-m-0 tw-mt-1 tw-text-xs tw-text-slate-500">Automatycznie: konto w PKO BP → iPKO biznes (ELIXIR-O, .txt).</p>
+        <p class="tw-m-0 tw-mt-1 tw-text-xs tw-text-slate-500">Automatycznie wg banku wybranego konta: PKO BP → iPKO biznes (.txt), Millennium → Millenet, inne banki → ELIXIR-O.</p>
       </div>
       <div class="tw-space-y-2 tw-pt-1">
         <label class="tw-flex tw-items-start tw-gap-2 tw-text-sm"><input type="checkbox" class="form-check-input tw-mt-0.5" name="oznacz_zaplacone" value="1"> Oznacz rachunki jako zapłacone</label>
