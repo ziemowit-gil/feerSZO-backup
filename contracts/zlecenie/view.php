@@ -1730,6 +1730,10 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
         <?php endif; ?>
         <?php if (!empty($rr['edok_doc_id'])): ?>
           <a class="rach-step edok" href="<?= APP_URL ?>/edok/view.php?id=<?= (int)$rr['edok_doc_id'] ?>" target="_blank"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> EODoK <?= h($rr['edok_number'] ?: '#' . (int)$rr['edok_doc_id']) ?></a>
+          <?php if (in_array($rr['status'], ['zaakceptowany', 'zaplacony'], true)): ?>
+          <a class="rach-step edok" href="<?= APP_URL ?>/edok/print_pdf.php?id=<?= (int)$rr['edok_doc_id'] ?>" target="_blank"
+             title="Rachunek + karta akceptacji z EODoK (adnotacja o akceptacji drukuje się na stronie po rachunku)"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF z akceptacją</a>
+          <?php endif; ?>
         <?php elseif (!empty($rr['kdok_doc_id'])): ?>
           <a class="rach-step edok" href="<?= APP_URL ?>/ksiegowosc/view.php?id=<?= (int)$rr['kdok_doc_id'] ?>" target="_blank"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> KDOK <?= h($rr['kdok_number'] ?: '#' . (int)$rr['kdok_doc_id']) ?></a>
         <?php elseif ($_test): ?>

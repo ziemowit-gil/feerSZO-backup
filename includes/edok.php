@@ -1243,6 +1243,19 @@ function edok_print_html(array $doc): string {
         . h(EDOK_TYPES[$doc['typ_dokumentu']] ?? $doc['typ_dokumentu']) . ' · nr ' . h($doc['nr_faktury'])
         . ' · status: ' . h(edok_status_label($doc)) . '</div>';
 
+    // Adnotacja o sposobie akceptacji — drukowana na stronie po dokumencie źródłowym (np. rachunku).
+    if (edok_is_papierowy($doc)) {
+        $kto = db_one("SELECT actor_name AS user_name, created_at FROM edok_events WHERE doc_id = ? AND to_status = 'zaakceptowany' ORDER BY id DESC LIMIT 1", [(int)$doc['id']]);
+        $html .= '<div class="desc" style="font-weight:700">OBIEG PAPIEROWY — dokument zatwierdzony na papierze. W systemie EODoK ujęty do zapłaty'
+            . ($kto ? ' (potwierdził: ' . h(str_starts_with((string)$kto['user_name'], 'uid:') ? 'system (poprawka obiegu)' : (string)$kto['user_name']) . ', ' . date('d.m.Y H:i', strtotime((string)$kto['created_at'])) . ')' : '') . '.</div>';
+    } elseif (($doc['status'] ?? '') === 'zaakceptowany') {
+        $ost = db_one("SELECT MAX(decided_at) AS t FROM edok_steps WHERE doc_id = ? AND status IN ('ok','uwagi')", [(int)$doc['id']]);
+        $html .= '<div class="desc" style="font-weight:700">ZAAKCEPTOWANO ELEKTRONICZNIE w systemie EODoK'
+            . (($doc['typ_dokumentu'] ?? '') === 'rachunek' ? ' (eObieg rachunku)' : '')
+            . (!empty($ost['t']) ? ' — ' . date('d.m.Y H:i', strtotime((string)$ost['t'])) : '')
+            . '. Akceptacja wszystkich etapów z weryfikacją tożsamości (PIN / klucz) — wydruk nie wymaga podpisów odręcznych.</div>';
+    }
+
     $html .= '<table class="head-table"><tr><td class="l">' . ($jest_przychod ? 'Kontrahent / darczyńca' : 'Kontrahent') . '</td><td>' . h($doc['kontrahent_nazwa'])
         . '</td><td class="l">NIP</td><td>' . h($doc['kontrahent_nip'] ?: '—') . '</td></tr>'
         . (!empty($doc['zaplacono_przed']) ? '<tr><td class="l">Zapłacono przed akceptacją</td><td colspan="3">' . h(edok_zaplata_opis($doc))
