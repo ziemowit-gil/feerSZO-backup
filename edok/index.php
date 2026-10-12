@@ -61,6 +61,11 @@ if (in_array($filter_kierunek, ['wydatek', 'przychod'], true)) {
     $where[]  = "COALESCE(kierunek,'wydatek') = ?";
     $params[] = $filter_kierunek;
 }
+// Obieg: E = elektroniczny, P = papierowy.
+$filter_obieg = in_array($_GET['c_obieg'] ?? '', ['E', 'P'], true) ? $_GET['c_obieg'] : '';
+if ($filter_obieg !== '') {
+    $where[] = $filter_obieg === 'P' ? "COALESCE(obieg_papierowy,0) = 1" : "COALESCE(obieg_papierowy,0) = 0";
+}
 $filter_proformy = !empty($_GET['proformy_bez_faktury']);
 if ($filter_proformy) {
     $where[] = "typ_dokumentu = 'proforma' AND status NOT IN ('odrzucony','wycofany')
@@ -334,6 +339,7 @@ require_once __DIR__ . '/../includes/header.php';
         <th title="Tytuł dokumentu — zwykle numer faktury lub opis operacji.">Tytuł</th>
         <th class="text-end" title="Kwota brutto w walucie dokumentu.">Kwota brutto</th>
         <th title="Stan obiegu: projekt, w obiegu, zaakceptowany, odrzucony, wycofany.">Status</th>
+        <th class="text-center" title="Sposób akceptacji: E = elektroniczny (eObieg w EODoK, domyślnie faktury, w tym z KSeF), P = papierowy (akceptacja na papierze, domyślnie rachunki do umów).">Obieg</th>
         <?php $step_abbr = ['meryt' => 'M', 'formal' => 'F', 'rachunkowa' => 'R', 'dekretacja' => 'D', 'zatwierdza' => 'Z']; $step_no = 0; ?>
         <?php foreach (EDOK_STEPS as $sk => $sl): $step_no++; ?>
         <th class="text-center" title="Etap <?= $step_no ?> z 5: <?= h($sl) ?>. Ikona w wierszu: zielona = zaakceptowano, żółta = z uwagami, czerwona = odrzucono, szara = oczekuje."><abbr title="" style="text-decoration:none"><?= h($step_abbr[$sk] ?? '?') ?>.</abbr></th>
@@ -351,6 +357,8 @@ require_once __DIR__ . '/../includes/header.php';
         <th><input form="colFilters" name="c_kwota" value="<?= h($cf['c_kwota']) ?>" class="form-control form-control-sm text-end" placeholder="np. 220" aria-label="Filtr: kwota brutto" style="min-width:80px"></th>
         <th><select form="colFilters" name="status" class="form-select form-select-sm" aria-label="Filtr: status" onchange="this.form.submit()">
           <option value="">Wszystkie</option><?php foreach (EDOK_STATUSES as $k => $st_): ?><option value="<?= h($k) ?>"<?= $filter_status === $k ? ' selected' : '' ?>><?= h($st_['label']) ?></option><?php endforeach; ?></select></th>
+        <th><select form="colFilters" name="c_obieg" class="form-select form-select-sm px-1" aria-label="Filtr: obieg" onchange="this.form.submit()" style="min-width:52px">
+          <option value="">—</option><option value="E"<?= $filter_obieg === 'E' ? ' selected' : '' ?>>E</option><option value="P"<?= $filter_obieg === 'P' ? ' selected' : '' ?>>P</option></select></th>
         <?php foreach (array_keys(EDOK_STEPS) as $sk): $cv = $cf['c_' . $sk]; ?>
         <th><select form="colFilters" name="c_<?= h($sk) ?>" class="form-select form-select-sm px-1" aria-label="Filtr: etap <?= h($step_abbr[$sk] ?? $sk) ?>" onchange="this.form.submit()" style="min-width:52px">
           <option value="">—</option><option value="ok"<?= $cv === 'ok' ? ' selected' : '' ?>>✓ zatwierdzone</option><option value="uwagi"<?= $cv === 'uwagi' ? ' selected' : '' ?>>! z uwagami</option>
@@ -363,7 +371,7 @@ require_once __DIR__ . '/../includes/header.php';
     </thead>
     <tbody>
       <?php if (!$docs): ?>
-      <tr><td colspan="<?= $can_export ? 14 : 13 ?>" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
+      <tr><td colspan="<?= $can_export ? 15 : 14 ?>" class="text-center text-muted py-4">Brak dokumentów.</td></tr>
       <?php endif; ?>
       <?php foreach ($docs as $doc): ?>
       <tr>
@@ -379,12 +387,15 @@ require_once __DIR__ . '/../includes/header.php';
         <td title="<?= h($doc['title']) ?>"><?= h($doc['title']) ?></td>
         <td class="text-end font-monospace"><?= h($doc['kwota_brutto']) ?> <?= h($doc['waluta']) ?></td>
         <td><?= edok_status_badge($doc['status'], $doc) ?></td>
+        <td class="text-center"><?php if (!empty($doc['obieg_papierowy'])): ?><span class="badge bg-light text-dark border" title="Obieg papierowy — akceptacja na papierze">P</span><?php else: ?><span class="badge bg-primary-subtle text-primary-emphasis border" title="Obieg elektroniczny (eObieg w EODoK)">E</span><?php endif; ?></td>
         <?php foreach (array_keys(EDOK_STEPS) as $sk): ?>
         <td class="text-center">
           <?php $st = $doc['steps'][$sk] ?? null; $m_ = $doc['step_meta'][$sk] ?? null;
             $who_ = ($m_ && $m_['decided_at']) ? ' — ' . $m_['user_name'] . ', ' . date('d.m.Y H:i', strtotime($m_['decided_at'])) : '';
             $lbl_ = edok_step_label($sk, $doc); ?>
-          <?php if ($st === 'ok'): ?>
+          <?php if (!empty($doc['obieg_papierowy'])): ?>
+          <i class="bi bi-file-earmark-text text-secondary" title="<?= h($lbl_ . ': akceptacja papierowa') ?>" role="img" aria-label="<?= h($lbl_ . ': akceptacja papierowa') ?>"></i>
+          <?php elseif ($st === 'ok'): ?>
           <i class="bi bi-check-circle-fill text-success" title="<?= h($lbl_ . ': zatwierdzone' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': zatwierdzone') ?>"></i>
           <?php elseif ($st === 'uwagi'): ?>
           <i class="bi bi-exclamation-circle-fill text-warning" title="<?= h($lbl_ . ': z uwagami' . $who_) ?>" role="img" aria-label="<?= h($lbl_ . ': z uwagami') ?>"></i>

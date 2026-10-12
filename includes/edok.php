@@ -1287,6 +1287,11 @@ function edok_print_html(array $doc): string {
         . '</tr></thead><tbody>';
     foreach (array_keys(EDOK_STEPS) as $sk) {
         $s = $doc['steps'][$sk] ?? null;
+        if (edok_is_papierowy($doc)) {
+            $html .= '<tr><td>' . h(edok_step_label($sk, $doc)) . '</td><td class="dec">PAPIEROWA</td>'
+                . '<td>akceptacja na papierze</td><td>na oryginale dokumentu</td></tr>';
+            continue;
+        }
         $html .= '<tr><td>' . h(edok_step_label($sk, $doc)) . '</td>'
             . '<td class="dec">' . h(edok_print_decision_label($s)) . '</td>'
             . '<td>' . edok_print_who($s) . '</td>'

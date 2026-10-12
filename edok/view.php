@@ -1029,7 +1029,8 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
       <?php $n = 0; foreach ($steps_config as $sk => $cfg): $n++;
         $s = $doc['steps'][$sk] ?? null;
         $decided = $s && in_array($s['status'], ['ok', 'uwagi', 'odrzucono'], true);
-        if ($s && $s['status'] === 'ok')            { $cls = 'is-done';     $icon = 'bi-check-lg';           $state = 'Zaakceptowano'; }
+        if (edok_is_papierowy($doc))                { $cls = 'is-done';     $icon = 'bi-file-earmark-text';  $state = 'Akceptacja papierowa — na oryginale rachunku'; }
+        elseif ($s && $s['status'] === 'ok')        { $cls = 'is-done';     $icon = 'bi-check-lg';           $state = 'Zaakceptowano'; }
         elseif ($s && $s['status'] === 'odrzucono') { $cls = 'is-rejected'; $icon = 'bi-x-lg';               $state = 'Odrzucono — obieg zatrzymany'; }
         elseif ($s && $s['status'] === 'uwagi')     { $cls = 'is-uwagi';    $icon = 'bi-exclamation-lg';     $state = 'Zaakceptowano z uwagami'; }
         elseif ($sk === $current_key && !$is_terminal) { $cls = 'is-current'; $icon = (string)$n;            $state = 'Bieżący etap — oczekuje na decyzję'; }
@@ -1051,7 +1052,10 @@ $current_review = $current_key ? edok_step_review_fields($current_key, $doc) : [
     <?php if ($is_terminal): ?>
     <div class="edok-card">
       <div class="edok-card__bd tw-text-center tw-py-6">
-        <?php if ($doc['status'] === 'zaakceptowany'): ?>
+        <?php if ($doc['status'] === 'zaakceptowany' && edok_is_papierowy($doc)): ?>
+        <i class="bi bi-file-earmark-check tw-text-5xl tw-text-slate-500"></i>
+        <p class="tw-mt-2 tw-font-semibold tw-text-slate-700">Obieg papierowy — akceptacja na papierze, dokument do zapłaty.</p>
+        <?php elseif ($doc['status'] === 'zaakceptowany'): ?>
         <i class="bi bi-check-circle-fill tw-text-5xl tw-text-emerald-500"></i>
         <p class="tw-mt-2 tw-font-semibold tw-text-slate-700">Obieg zakończony — dokument w pełni zaakceptowany.</p>
         <?php elseif ($doc['status'] === 'odrzucony'): ?>
