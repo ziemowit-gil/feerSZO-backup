@@ -361,6 +361,8 @@ function _menu_editor(): array {
             $fin[] = _mi('Preliminarz Płatności','/edok/preliminarz.php','bi-calendar-check',['match'=>'/edok/preliminarz','kw'=>'preliminarz płatności przelew']);
         if (is_admin() || edok_has_role('zatwierdza'))
             $fin[] = _mi('Zestawienie wypłat','/edok/wyplaty.php','bi-cash-stack',['match'=>'/edok/wyplaty','kw'=>'zestawienie wypłaty listy płac zlecenie eksport csv']);
+        if (is_admin() || edok_has_role('zatwierdza'))
+            $fin[] = _mi('Przelewy za rachunki','/edok/przelewy_rachunki.php','bi-bank',['match'=>'/edok/przelewy_rachunki','kw'=>'przelewy rachunki umowy zlecenie netto wypłata pko ipko plik bank']);
     }
     if ($cnt['has_kdok'])
         $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
