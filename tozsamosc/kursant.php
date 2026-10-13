@@ -95,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <li><strong>Pierwsze logowanie:</strong> wpisujesz tylko login. Kod przychodzi SMS-em na Twój telefon.</li>
       <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Każdy ma opis tekstowy, który czyta czytnik ekranu.</li>
       <li><strong>Jeśli nie widzisz obrazka albo widzisz inny,</strong> nie wpisuj hasła.</li>
+      <li><strong>Login:</strong> kursant szkoleń — np. <span class="font-monospace">j.kowalski</span>; osoba korzystająca z konsultacji — „k” i 4 cyfry, np. <span class="font-monospace">k1234</span>. <a href="#jak-logowac" style="color:inherit" onclick="document.getElementById('jak-logowac').open=true">Więcej o logowaniu</a></li>
     </ul>
   </aside>
 
@@ -128,6 +129,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <button type="submit" class="btn btn-lg metro-btn w-100">Dalej</button>
       </form>
+      <details class="mt-3 border p-3" id="jak-logowac">
+        <summary class="fw-semibold">Jak się zalogować? Jaki mam login?</summary>
+        <h2 class="h6 fw-bold mt-3">Twój login</h2>
+        <ul class="small mb-2">
+          <li><strong>Kursant szkoleń</strong> (zajęcia w grupie, szkolenie krótkie): login to pierwsza litera imienia, kropka i nazwisko bez polskich znaków, np. <span class="font-monospace">j.kowalski</span>. Jeśli ktoś ma już taki login, na końcu jest cyfra, np. <span class="font-monospace">j.kowalski2</span>. Możesz też logować się własnym aliasem, jeśli go ustawiłeś.</li>
+          <li><strong>Osoba korzystająca z konsultacji</strong>: login to litera „k” i cztery cyfry, np. <span class="font-monospace">k1234</span>. Dostajesz go SMS-em po umówieniu pierwszej konsultacji.</li>
+          <li>Login i pierwsze hasło przychodzą SMS-em albo dostajesz je od nas na wydruku.</li>
+        </ul>
+        <h2 class="h6 fw-bold">Pierwsze logowanie</h2>
+        <ol class="small mb-2">
+          <li>Wpisz login i wybierz „Dalej”.</li>
+          <li>Sprawdź swój obrazek bezpieczeństwa. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła i skontaktuj się z nami.</li>
+          <li>Potwierdź się kodem z SMS-a (albo hasłem jednorazowym, jeśli je dostałeś).</li>
+          <li>Ustaw własne hasło — będziesz go używać przy kolejnych logowaniach.</li>
+        </ol>
+        <h2 class="h6 fw-bold">Nie pamiętasz hasła albo loginu?</h2>
+        <p class="small mb-2">Wpisz login — dostaniesz kod SMS na numer zapisany w Twoim koncie. Jeśli nie pamiętasz loginu albo zmieniłeś numer telefonu, zadzwoń lub napisz do placówki — wyślemy nowe dane.</p>
+        <h2 class="h6 fw-bold">Inne osoby logują się gdzie indziej</h2>
+        <ul class="small mb-0">
+          <li><strong>Rodzic lub opiekun</strong> małoletniego kursanta — <a href="../karty30/ti/login.php?tab=rodzic">logowanie rodzica</a> (login opiekuna nadany w placówce).</li>
+          <li><strong>Osoba upoważniona</strong> przez kursanta — <a href="../karty30/ti/login.php?tab=up">logowanie upoważnionego</a>.</li>
+          <li><strong>Prowadzący zajęcia i konsultanci</strong> — <a href="../karty30/ti/login.php?tab=dydaktyk">panel prowadzącego</a>.</li>
+        </ul>
+      </details>
       <div class="mt-3 text-center">
         <button type="button" class="btn btn-outline-dark rounded-0 w-100" id="kur-klucz">Zaloguj kluczem sprzętowym</button>
         <p class="small text-body-secondary mt-2 mb-0">Działa po pierwszym logowaniu, gdy masz zarejestrowany klucz.</p>
