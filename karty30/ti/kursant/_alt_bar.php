@@ -11,7 +11,7 @@
  * zakładek z rozwijanymi grupami wszystko widać wprost.
  *
  * Zmienne z index.php: $tab, $is_minor, $hw_pending_total, $notices_unread,
- * $msg_unread, $my_licenses, $terms_pending, $ui_switch_url, $KUR_SIMPLE (kursant uproszczony).
+ * $msg_unread, $my_licenses, $terms_pending, $ui_switch_url, $KUR_SIMPLE (kursant uproszczony: 0/1/2).
  */
 
 $_g = fn(string $t) => 'index.php?tab=' . $t;
@@ -104,7 +104,7 @@ $_alt_sections = [
     ],
 ];
 
-// „Kursant uproszczony” — jedna sekcja: terminy zajęć (+ regulaminy do akceptacji)
+// „Kursant uproszczony” — sekcja terminów zajęć (+ regulaminy do akceptacji); w trybie 2 także sekcja płatności
 if (!empty($KUR_SIMPLE)) {
     $_alt_sections = ['nauka' => [
         'label' => 'Moje lekcje',
@@ -115,6 +115,18 @@ if (!empty($KUR_SIMPLE)) {
             ...($_n_terms > 0 ? [$_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger')] : []),
         ],
     ]];
+    if ((int)$KUR_SIMPLE === 2 && !$_minor) {
+        $_alt_sections['sprawy'] = [
+            'label' => 'Płatności',
+            'href'  => $_g('rozliczenia'),
+            'items' => [
+                $_it('rozliczenia', 'Rozliczenia', $_g('rozliczenia')),
+                $_it('portfel',     'Portfel',     $_g('portfel')),
+                $_it('platnosci',   'Numer konta do wpłat', $_g('platnosci')),
+            ],
+        ];
+        $_ikony['platnosci'] = 'cash-coin';
+    }
 }
 
 // Sekcja otwarta = ta, która zawiera bieżącą zakładkę

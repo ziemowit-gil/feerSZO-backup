@@ -20,6 +20,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/sprawdz_konto/logic/
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje/logic/tiLicencjeManager.php'; // licencje kursantów: przypisanie, forma rozliczenia
 
 $me       = dyd_require();
+/** Tryby panelu kursanta (k30_ti_student_accounts.simple_mode) — te same wartości co STUDENT_SIMPLE_MODES w kursant/auth.php. */
+const KK_SIMPLE_MODES = [0 => 'pełny panel', 1 => 'uproszczony — tylko terminy', 2 => 'uproszczony — terminy + płatności'];
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
 $uid      = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
@@ -358,15 +360,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
-    if ($op === 'toggle_simple') {
-        $aid = (int)($_POST['account_id'] ?? 0);
-        $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
-        if ($acc) {
-            $v = empty($acc['simple_mode']) ? 1 : 0;
-            db()->prepare("UPDATE k30_ti_student_accounts SET simple_mode=?, updated_at=datetime('now') WHERE id=?")->execute([$v, $aid]);
-            if (function_exists('ti_account_log')) ti_account_log($aid, 'simple_mode', $v ? 'Włączono tryb „Kursant uproszczony” (tylko terminy zajęć).' : 'Wyłączono tryb „Kursant uproszczony”.', (int)($me['user_id'] ?? 0) ?: null, (string)($me['name'] ?? ''));
-            flash_set('success', $v ? 'Kursant uproszczony: w panelu widzi tylko terminy zajęć (Moje lekcje) — może je odwołać, przesunąć lub usprawiedliwić nieobecność. Reszta panelu jest ukryta.'
-                                    : 'Kursant ma znów dostęp do całego panelu.');
+    if ($op === 'set_simple') {
+        // Kursant uproszczony: 0 = pełny panel, 1 = tylko terminy, 2 = terminy + płatności (egzekwowanie: kursant/auth.php)
+        $aid  = (int)($_POST['account_id'] ?? 0);
+        $mode = (int)($_POST['simple_mode'] ?? 0);
+        $acc  = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
+        if ($acc && isset(KK_SIMPLE_MODES[$mode]) && (int)($acc['simple_mode'] ?? 0) !== $mode) {
+            db()->prepare("UPDATE k30_ti_student_accounts SET simple_mode=?, updated_at=datetime('now') WHERE id=?")->execute([$mode, $aid]);
+            ti_account_log($aid, 'simple_mode', 'Tryb panelu: ' . KK_SIMPLE_MODES[$mode] . '.', (int)($me['user_id'] ?? 0) ?: null, (string)($me['name'] ?? ''));
+            flash_set('success', match ($mode) {
+                1 => 'Kursant uproszczony: w panelu widzi tylko terminy zajęć (Moje lekcje) — może je odwołać, przesunąć lub usprawiedliwić nieobecność.',
+                2 => 'Kursant uproszczony z płatnościami: terminy zajęć oraz Płatności, Rozliczenia i Portfel. Reszta panelu jest ukryta.',
+                default => 'Kursant ma znów dostęp do całego panelu.',
+            });
         }
         header('Location: konta.php?selected=' . $aid); exit;
     }
@@ -1151,7 +1157,7 @@ function printBulk(){
     <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-people" aria-hidden="true"></i> małoletni</span>
     <?php endif; ?>
     <?php if (!empty($sa['simple_mode'])): ?>
-    <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-calendar-check" aria-hidden="true"></i> uproszczony — tylko terminy</span>
+    <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-calendar-check" aria-hidden="true"></i> <?= h(KK_SIMPLE_MODES[(int)$sa['simple_mode']] ?? 'uproszczony') ?></span>
     <?php endif; ?>
     <?php if (!empty($sa['child_access_blocked'])): ?>
     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-lock-fill" aria-hidden="true"></i> wstrzymany przez opiekuna</span>
@@ -1368,13 +1374,16 @@ function printBulk(){
                 <i class="bi <?= $sa['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-1" aria-hidden="true"></i><?= $sa['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
               </button>
             </form>
-            <form method="post">
+            <form method="post" class="d-flex align-items-center gap-1">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="toggle_simple">
+              <input type="hidden" name="_op"        value="set_simple">
               <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm <?= !empty($sa['simple_mode']) ? 'btn-warning' : 'btn-outline-secondary' ?>" title="Kursant uproszczony widzi w panelu tylko terminy zajęć (Moje lekcje): odwołanie, przesunięcie, usprawiedliwienie, plan i wydruk lekcji">
-                <i class="bi bi-calendar-check me-1" aria-hidden="true"></i><?= !empty($sa['simple_mode']) ? 'Kursant uproszczony: TAK (wyłącz)' : 'Kursant uproszczony (tylko terminy)' ?>
-              </button>
+              <label class="small text-nowrap" for="kk-simple-<?= (int)$sa['id'] ?>"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Panel kursanta:</label>
+              <select class="form-select form-select-sm w-auto" id="kk-simple-<?= (int)$sa['id'] ?>" name="simple_mode"
+                      title="Kursant uproszczony widzi tylko terminy zajęć (odwołanie, przesunięcie, usprawiedliwienie, plan i wydruk lekcji); wariant z płatnościami dodaje Płatności, Rozliczenia i Portfel">
+                <?php foreach (KK_SIMPLE_MODES as $_m => $_ml): ?><option value="<?= $_m ?>"<?= (int)($sa['simple_mode'] ?? 0) === $_m ? ' selected' : '' ?>><?= h(mb_strtoupper(mb_substr($_ml, 0, 1)) . mb_substr($_ml, 1)) ?></option><?php endforeach; ?>
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
             </form>
             <form method="post">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">

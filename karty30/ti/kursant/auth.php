@@ -118,7 +118,7 @@ function student_require(): array {
         exit;
     }
     // „Kursant uproszczony” widzi tylko terminy zajęć — każda inna strona panelu wraca do Moich lekcji
-    if (student_is_simple((int)$s['id']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), STUDENT_SIMPLE_PAGES, true)) {
+    if (student_is_simple((int)$s['id']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), student_simple_allowed((int)$s['id'], 'pages'), true)) {
         header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'index.php?tab=lekcje');
         exit;
     }
@@ -126,10 +126,13 @@ function student_require(): array {
 }
 
 /**
- * „Kursant uproszczony” (k30_ti_student_accounts.simple_mode, przełącznik w dydaktyk/konta.php):
- * dostęp tylko do części z terminami — zakładka „Moje lekcje” (lista, odwołanie / przesunięcie, usprawiedliwienie),
- * plan tygodniowy, wydruki i eksport lekcji, kalendarz iCal, regulaminy. Reszta panelu, menu i API newUI zamknięte.
+ * „Kursant uproszczony” (k30_ti_student_accounts.simple_mode, wybór w dydaktyk/konta.php):
+ *   1 = tylko terminy — zakładka „Moje lekcje” (lista, odwołanie / przesunięcie, usprawiedliwienie),
+ *       plan tygodniowy, wydruki i eksport lekcji, kalendarz iCal, regulaminy;
+ *   2 = terminy + płatności — dodatkowo Płatności, Rozliczenia, Portfel, PDF-y rozliczeń i przejście do portalu /platnosci.
+ * Reszta panelu, menu i API newUI zamknięte. Listy: STUDENT_SIMPLE_* (+ STUDENT_SIMPLE_PAY_* dla trybu 2).
  */
+const STUDENT_SIMPLE_MODES = [0 => 'Pełny panel', 1 => 'Uproszczony — tylko terminy', 2 => 'Uproszczony — terminy + płatności'];
 const STUDENT_SIMPLE_PAGES = ['index.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
                               'plan_librus_pdf.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
 /** Zakładki index.php dostępne w trybie uproszczonym. */
@@ -137,15 +140,34 @@ const STUDENT_SIMPLE_TABS  = ['lekcje', 'regulaminy'];
 /** Operacje POST index.php dostępne w trybie uproszczonym (wszystkie dotyczą terminów). */
 const STUDENT_SIMPLE_OPS   = ['cancel_lesson', 'uncancel_lesson', 'excuse_absence', 'propose_reschedule', 'rate_lesson',
                               'reset_calendar_token', 'cal_token_reset', 'accept_term', 'change_password'];
+/** Tryb 2 (terminy + płatności) — dodatkowe strony, zakładki i operacje. */
+const STUDENT_SIMPLE_PAY_PAGES = ['platnosci.php', 'rachunek_pdf.php', 'ledger_pdf.php', 'invoice_file.php', 'hours_pdf.php'];
+const STUDENT_SIMPLE_PAY_TABS  = ['platnosci', 'rozliczenia', 'portfel'];
+const STUDENT_SIMPLE_PAY_OPS   = ['wallet_topup', 'wallet_declare', 'year_end_declare', 'year_end_overpay'];
 
-function student_is_simple(int $accountId): bool {
+/** Tryb konta: 0 = pełny panel, 1 = tylko terminy, 2 = terminy + płatności. */
+function student_simple_mode(int $accountId): int {
     static $cache = [];
-    if ($accountId <= 0) return false;
+    if ($accountId <= 0) return 0;
     if (!array_key_exists($accountId, $cache)) {
-        try { $cache[$accountId] = !empty(db_one("SELECT simple_mode FROM k30_ti_student_accounts WHERE id=?", [$accountId])['simple_mode']); }
-        catch (\Throwable $e) { $cache[$accountId] = false; }   // kolumna jeszcze bez migracji
+        try { $m = (int)(db_one("SELECT simple_mode FROM k30_ti_student_accounts WHERE id=?", [$accountId])['simple_mode'] ?? 0); }
+        catch (\Throwable $e) { $m = 0; }   // kolumna jeszcze bez migracji
+        $cache[$accountId] = isset(STUDENT_SIMPLE_MODES[$m]) ? $m : 1;
     }
     return $cache[$accountId];
+}
+
+function student_is_simple(int $accountId): bool { return student_simple_mode($accountId) > 0; }
+
+/** Dozwolone w trybie uproszczonym: $kind = 'pages' | 'tabs' | 'ops'. */
+function student_simple_allowed(int $accountId, string $kind): array {
+    $pay = student_simple_mode($accountId) === 2;
+    return match ($kind) {
+        'pages' => array_merge(STUDENT_SIMPLE_PAGES, $pay ? STUDENT_SIMPLE_PAY_PAGES : []),
+        'tabs'  => array_merge(STUDENT_SIMPLE_TABS,  $pay ? STUDENT_SIMPLE_PAY_TABS  : []),
+        'ops'   => array_merge(STUDENT_SIMPLE_OPS,   $pay ? STUDENT_SIMPLE_PAY_OPS   : []),
+        default => [],
+    };
 }
 
 /** Token CSRF dla panelu kursanta (osobna sesja k30_student). */

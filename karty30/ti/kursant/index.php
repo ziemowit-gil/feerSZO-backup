@@ -141,9 +141,9 @@ $ui_switch_url = 'index.php?tab=' . rawurlencode($tab)
 $KUR_NAV = student_nav((int)$student['id']);
 // Widok alternatywny otwiera się na ekranie startowym z kaflami i wyszukiwarką
 if (!isset($_GET['tab']) && $KUR_UI === 'alt') { $tab = 'start'; }
-// „Kursant uproszczony” — tylko terminy zajęć (Moje lekcje) i regulaminy
-$KUR_SIMPLE = student_is_simple((int)$student['id']);
-if ($KUR_SIMPLE && !in_array($tab, STUDENT_SIMPLE_TABS, true)) { $tab = 'lekcje'; }
+// „Kursant uproszczony” — tylko terminy zajęć (Moje lekcje) i regulaminy; w trybie 2 także płatności
+$KUR_SIMPLE = student_simple_mode((int)$student['id']);   // 0 = pełny panel
+if ($KUR_SIMPLE && !in_array($tab, student_simple_allowed((int)$student['id'], 'tabs'), true)) { $tab = 'lekcje'; }
 
 // Dane kursanta
 $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student['id']]);
@@ -172,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op  = $_POST['_op'] ?? '';
     $tok = $_POST['_token'] ?? '';
     if (!hash_equals(student_token(), (string)$tok)) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
-    if ($KUR_SIMPLE && !in_array($op, STUDENT_SIMPLE_OPS, true)) { header('Location: index.php?tab=lekcje'); exit; }
+    if ($KUR_SIMPLE && !in_array($op, student_simple_allowed((int)$student['id'], 'ops'), true)) { header('Location: index.php?tab=lekcje'); exit; }
 
     // Nowy adres subskrypcji kalendarza (unieważnia poprzedni)
     if ($op === 'cal_token_reset') {
@@ -6438,7 +6438,9 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
   ];
   $kp_more_badge = (int)$notices_unread + (!empty($terms_pending) ? count($terms_pending) : 0);
   if ($KUR_SIMPLE) { $kp_bn = [$kp_bn[1]]; $kp_more_badge = !empty($terms_pending) ? count($terms_pending) : 0;
-                     $kp_menu = ['Panel' => [['lekcje', 'calendar-check', 'Moje lekcje'], ...(!empty($terms_pending) ? [['regulaminy', 'file-earmark-text', 'Regulaminy']] : [])]]; }
+                     $kp_menu = ['Panel' => [['lekcje', 'calendar-check', 'Moje lekcje'],
+                                             ...($KUR_SIMPLE === 2 && !$is_minor ? [['platnosci', 'cash-coin', 'Płatności'], ['rozliczenia', 'receipt', 'Rozliczenia'], ['portfel', 'wallet2', 'Portfel']] : []),
+                                             ...(!empty($terms_pending) ? [['regulaminy', 'file-earmark-text', 'Regulaminy']] : [])]]; }
 ?>
 <nav class="d-lg-none fixed-bottom bg-body border-top kp-bottomnav" style="padding-bottom:env(safe-area-inset-bottom)" aria-label="Nawigacja główna (telefon)">
   <div class="d-flex justify-content-around py-1">
