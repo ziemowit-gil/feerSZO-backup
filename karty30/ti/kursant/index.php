@@ -3149,7 +3149,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php }; // $lessonRow
 
     // Tabela lekcji z nagłówkiem — współdzielona przez obie grupy
-    $lessonTable = function(array $rows) use ($lessonRow) { ?>
+    $lessonTable = function(array $rows) use ($lessonRow, $KUR_SIMPLE) { ?>
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <caption class="visually-hidden">Lista lekcji z obecnością</caption>
