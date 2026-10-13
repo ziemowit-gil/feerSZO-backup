@@ -22,6 +22,8 @@ $_kb = [
     ['Klienci',               'konsultacjeKlienci.php',       'people'],
     ['Nowy klient',           'konsultacjeKlient.php?nowy=1', 'person-plus'],
     ['Umowy PFRON',           'konsultacjePfron.php',         'building-fill-check'],
+    ['Dokumenty i regulamin PFRON', 'konsultacjePfronDokumenty.php', 'file-earmark-text'],
+    ['Licencje',              'licencjeKursantow.php',        'key'],
     // Komunikacja
     ['Komunikacja (e-mail / SMS)', 'konsultacjeKomunikacja.php', 'send'],
     ['Komunikaty',            'index.php?tab=komunikaty',     'megaphone'],
@@ -31,15 +33,16 @@ $_kb = [
 if ($_kb_staff) {
     $_kb[] = ['Szkolenia krótkie (SzK)', 'grupaUproszczona.php', 'lightning-charge'];
     $_kb[] = ['Ustawienia konsultacji',  'konsultacjeUstawienia.php', 'gear'];
+    $_kb[] = ['Regulaminy (edytor)',     'regulaminy.php', 'file-earmark-ruled'];   // ten sam edytor co u kierownika (odbiorcy: beneficjenci konsultacji / SzK)
     $_kb[] = ['Panel kierownika',        'index.php?tab=grupy', 'people'];
 }
 $KIER_GRUPY = [
     'Terminy'      => ['rezerwacje.php', 'rezerwacjeKalendarz.php', 'rezerwacja.php?szybka=1', 'rezerwacja.php?nowa=1', 'kolejka.php'],
     'Karty'        => ['konsultacje.php', 'konsultacja.php?nowa=1'],
-    'Klienci'      => ['konsultacjeKlienci.php', 'konsultacjeKlient.php?nowy=1', 'konsultacjePfron.php'],
+    'Klienci'      => ['konsultacjeKlienci.php', 'konsultacjeKlient.php?nowy=1', 'konsultacjePfron.php', 'konsultacjePfronDokumenty.php', 'licencjeKursantow.php'],
     'Komunikacja'  => ['konsultacjeKomunikacja.php', 'index.php?tab=komunikaty'],
     'Raporty'      => ['konsultacjeZestawienia.php'],
-    'Ustawienia'   => ['grupaUproszczona.php', 'konsultacjeUstawienia.php', 'index.php?tab=grupy'],
+    'Ustawienia'   => ['grupaUproszczona.php', 'konsultacjeUstawienia.php', 'regulaminy.php', 'index.php?tab=grupy'],
 ];
 $KIER_ITEMS = [];
 foreach ($_kb as $_d) {

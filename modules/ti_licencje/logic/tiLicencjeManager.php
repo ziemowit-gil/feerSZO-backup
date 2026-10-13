@@ -239,6 +239,8 @@ final class TiLicencjeManager
             "SELECT DISTINCT c.id, c.name FROM k30_clients c
               WHERE c.id IN (SELECT client_id FROM k30_ti_enrollments)
                  OR c.id IN (SELECT client_id FROM k30_ti_student_accounts)
+                 OR COALESCE(c.consult_client, 0) = 1
+                 OR c.id IN (SELECT client_id FROM k30_schedules)
               ORDER BY c.name"
         );
     }
@@ -248,7 +250,9 @@ final class TiLicencjeManager
         return (bool)db_one(
             "SELECT 1 FROM k30_clients c
               WHERE c.id = ? AND (c.id IN (SELECT client_id FROM k30_ti_enrollments)
-                               OR c.id IN (SELECT client_id FROM k30_ti_student_accounts))",
+                               OR c.id IN (SELECT client_id FROM k30_ti_student_accounts)
+                               OR COALESCE(c.consult_client, 0) = 1
+                               OR c.id IN (SELECT client_id FROM k30_schedules))",   // także beneficjenci konsultacji
             [$clientId]
         );
     }

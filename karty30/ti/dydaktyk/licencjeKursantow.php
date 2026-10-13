@@ -188,8 +188,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .lic-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 </style>
 
-<?php $KIER_CUR = 'licencjeKursantow.php'; $KIER_LABEL = 'Licencje kursantów';
-   include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php if (function_exists('dyd_mode') && dyd_mode() === 'konsultacje') { $RZ_CUR = 'licencjeKursantow.php'; $RZ_LABEL = 'Licencje'; include __DIR__ . '/_konsultacje_bar.php'; }   // w trybie Konsultacje — menu Konsultacji
+   else { $KIER_CUR = 'licencjeKursantow.php'; $KIER_LABEL = 'Licencje kursantów'; include __DIR__ . '/_kierownik_bar.php'; } ?>
 
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1280px">

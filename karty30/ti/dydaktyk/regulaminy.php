@@ -101,7 +101,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.min.css">
-<?php $KIER_CUR = 'regulaminy.php'; $KIER_LABEL = 'Regulaminy'; include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php if (function_exists('dyd_mode') && dyd_mode() === 'konsultacje') { $RZ_CUR = 'regulaminy.php'; $RZ_LABEL = 'Regulaminy'; include __DIR__ . '/_konsultacje_bar.php'; }   // w trybie Konsultacje — menu Konsultacji
+   else { $KIER_CUR = 'regulaminy.php'; $KIER_LABEL = 'Regulaminy'; include __DIR__ . '/_kierownik_bar.php'; } ?>
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1300px">
 <h1 class="h4 fw-bold mb-2"><i class="bi bi-file-earmark-text text-primary me-2" aria-hidden="true"></i>Regulaminy</h1>
