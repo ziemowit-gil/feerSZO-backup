@@ -4,7 +4,8 @@
  *
  * 1. Nowa grupa uproszczona w jednym kroku: nazwa KON, prowadzący, uczestnicy (z bazy albo nowi), 1–4 terminy,
  *    tryb panelu uczestników (tylko terminy / + płatności / + płatności uproszczone).
- *    Opis grupy (internal_desc) widzi tylko kadra.
+ *    Opis grupy (internal_desc) widzi tylko kadra. Uczestnicy bez konta dostają konto panelu automatycznie —
+ *    login i hasło pokazujemy raz po utworzeniu (i opcjonalnie wysyłamy SMS-em).
  * 2. Konwerter grup: istniejąca grupa → uproszczona (nazwa KON) i z powrotem; lekcje i rozliczenia bez zmian.
  * Tylko kierownik (dyd_is_staff). Logika: modules/ti_simple_groups/logic/simpleGroups.php.
  */
@@ -32,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = TiSimpleGroups::create([
             'number' => (int)($_POST['k_num'] ?? 0), 'letters' => (string)($_POST['k_let'] ?? ''), 'year' => (int)($_POST['k_year'] ?? 0),
             'instructor_id' => (int)($_POST['instructor_id'] ?? 0), 'class_type' => (string)($_POST['class_type'] ?? 'individual'),
-            'desc' => (string)($_POST['desc'] ?? ''),
+            'desc' => (string)($_POST['desc'] ?? ''), 'accounts' => isset($_POST['accounts']), 'send_logins' => isset($_POST['send_logins']),
             'location' => (string)($_POST['location'] ?? ''), 'meeting_url' => (string)($_POST['meeting_url'] ?? ''),
             'mode' => (int)($_POST['mode'] ?? 1), 'notify' => isset($_POST['notify']),
             'clients' => $cl, 'new_people' => $people, 'lessons' => $lessons,
@@ -41,8 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Utworzono grupę uproszczoną ' . $res['name'] . '.';
             if ($res['warnings']) $msg .= ' Uwaga: ' . implode(' ', $res['warnings']);
             if ($res['no_account']) $msg .= ' Bez konta w panelu kursanta (załóż w Kontach kursantów): ' . implode(', ', $res['no_account']) . '.';
-            $_SESSION['dyd_flash'] = ['type' => $res['warnings'] || $res['no_account'] ? 'warning' : 'success', 'msg' => $msg];
-            header('Location: index.php?course=' . $res['course_id'] . '&tab=lekcje'); exit;
+            if ($res['accounts']) $msg .= ' Założono konta panelu kursanta: ' . count($res['accounts']) . '.';
+            flash_set($res['warnings'] || $res['no_account'] ? 'warning' : 'success', $msg);
+            // Loginy i hasła nowych kont — pokazujemy raz, na tej stronie
+            $_SESSION['gu_creds'] = ['course_id' => $res['course_id'], 'name' => $res['name'], 'rows' => $res['accounts']];
+            header('Location: grupaUproszczona.php?utworzono=' . $res['course_id']); exit;
         }
         $errors = $res['errors']; $warnings = $res['warnings'];
     } elseif ($op === 'convert') {
@@ -64,6 +68,9 @@ $year        = (int)date('Y');
 $o = fn(string $k, $def = '') => $old[$k] ?? $def;
 $oa = fn(string $k, int $i, $def = '') => $old[$k][$i] ?? $def;
 
+$creds = null;
+if (!empty($_SESSION['gu_creds']) && (int)$_SESSION['gu_creds']['course_id'] === (int)($_GET['utworzono'] ?? 0)) $creds = $_SESSION['gu_creds'];
+unset($_SESSION['gu_creds']);
 $showAll = !empty($_GET['wszystkie']);
 $groups  = TiSimpleGroups::listGroups(!$showAll);
 
@@ -104,6 +111,26 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php if ($warnings && $errors): ?>
 <div class="alert alert-warning small"><?php foreach ($warnings as $w): ?><div><?= h($w) ?></div><?php endforeach; ?></div>
 <?php endif; ?>
+
+<?php if (!empty($_GET['utworzono'])): $_cg = db_one("SELECT id, name FROM k30_ti_courses WHERE id=?", [(int)$_GET['utworzono']]); if ($_cg): ?>
+<section class="card border-success mb-4" aria-labelledby="gu-done-h">
+  <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2" id="gu-done-h">
+    <span><i class="bi bi-check-circle text-success me-1" aria-hidden="true"></i>Grupa <span class="font-monospace"><?= h($_cg['name']) ?></span> utworzona</span>
+    <a class="btn btn-sm btn-primary ms-auto" href="index.php?course=<?= (int)$_cg['id'] ?>&amp;tab=lekcje">Otwórz grupę</a>
+  </div>
+  <?php if ($creds && $creds['rows']): ?>
+  <div class="card-body">
+    <p class="small mb-2"><strong>Nowe konta panelu kursanta</strong> — hasła widać tylko teraz (przy pierwszym logowaniu kursant ustawi własne). Zapisz je albo wydrukuj, jeśli SMS nie dotarł.</p>
+    <div class="table-responsive"><table class="table table-sm mb-2">
+      <caption class="visually-hidden">Loginy i hasła nowych kont</caption>
+      <thead><tr><th scope="col">Uczestnik</th><th scope="col">Login</th><th scope="col">Hasło jednorazowe</th><th scope="col">SMS</th></tr></thead>
+      <tbody><?php foreach ($creds['rows'] as $r): ?><tr><th scope="row" class="fw-normal"><?= h($r['name']) ?></th><td class="font-monospace"><?= h($r['login']) ?></td><td class="font-monospace"><?= h($r['password']) ?></td><td class="small"><?= h($r['sms'] ?: 'nie wysyłano') ?></td></tr><?php endforeach; ?></tbody>
+    </table></div>
+    <p class="small text-body-secondary mb-0">Logowanie: <?= h(rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php') ?></p>
+  </div>
+  <?php endif; ?>
+</section>
+<?php endif; endif; ?>
 
 <section class="card border-0 shadow-sm mb-4" id="lista" aria-labelledby="gu-list-h">
   <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2" id="gu-list-h">
@@ -214,8 +241,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <div class="col-sm-4"><label class="form-label small mb-0" for="gu-np-e<?= $i ?>">E-mail</label><input class="form-control form-control-sm" id="gu-np-e<?= $i ?>" name="np_email[]" type="email" value="<?= h((string)$oa('np_email', $i)) ?>"></div>
         </div>
         <?php endfor; ?>
-        <p class="form-text mb-0">Nowa osoba trafia do bazy kursantów i do CRM. Konto w panelu kursanta załóż potem w Kontach kursantów.</p>
+        <p class="form-text mb-0">Nowa osoba trafia do bazy kursantów i do CRM.</p>
       </details>
+      <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="gu-acc" name="accounts" value="1"<?= !$old || $o('accounts') ? ' checked' : '' ?>>
+        <label class="form-check-label small" for="gu-acc">Załóż konta w panelu kursanta uczestnikom, którzy ich nie mają</label></div>
+      <div class="form-check ms-3"><input class="form-check-input" type="checkbox" id="gu-acc-sms" name="send_logins" value="1"<?= !$old || $o('send_logins') ? ' checked' : '' ?>>
+        <label class="form-check-label small" for="gu-acc-sms">Wyślij login i hasło SMS-em (gdy jest numer telefonu)</label></div>
     </fieldset>
 
     <fieldset class="mb-3">

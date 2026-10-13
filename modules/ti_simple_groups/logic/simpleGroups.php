@@ -10,9 +10,12 @@
  * chyba że konto ma własny tryb (k30_ti_student_accounts.simple_mode > 0), on ma pierwszeństwo.
  * Konwerter zamienia istniejącą grupę w uproszczoną (z nazwą KON) i z powrotem.
  * Opis grupy (internal_desc) widzi tylko kadra — kursant widzi sam numer KON.
+ * Przy tworzeniu uczestnicy bez konta panelu dostają konto automatycznie (jak „Utwórz konto” w dydaktyk/konta.php:
+ * login imię.nazwisko, hasło jednorazowe z wymuszoną zmianą, 12-cyfrowy numer kursanta, rachunek w portalu płatności, SMS).
  */
 require_once dirname(__DIR__, 3) . '/includes/karty30.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_periods.php';
+require_once dirname(__DIR__, 3) . '/includes/sms.php';
 
 final class TiSimpleGroups
 {
@@ -75,12 +78,12 @@ final class TiSimpleGroups
     /**
      * Utworzenie grupy uproszczonej.
      * $in: number, letters, year (części nazwy), instructor_id, class_type, is_online, location, meeting_url, mode (1–3),
-     *      desc (opis tylko dla kadry),
+     *      desc (opis tylko dla kadry), accounts (bool — załóż konta panelu), send_logins (bool — SMS z loginem i hasłem),
      *      notify (bool — SMS o terminach), clients: int[] (istniejący), new_people: [['name','phone','email'], …],
      *      lessons: [['date','from','to','method'], …] (puste wiersze pomijane, 1–4 terminy; method z METHODS).
      * „Hybryda krótka” (class_type hybrid): zajęcia mieszane — część stacjonarnie, część online; mieszane formy
      * terminów ustawiają ją same, nawet gdy wybrano inny rodzaj.
-     * @return array{ok:bool, errors:string[], warnings:string[], course_id:int, name:string, no_account:string[]}
+     * @return array{ok:bool, errors:string[], warnings:string[], course_id:int, name:string, no_account:string[], accounts:array}
      */
     public static function create(array $in, int $uid, string $byName): array
     {
@@ -136,7 +139,7 @@ final class TiSimpleGroups
         if ($remote && count($remote) < count($lessons)) $type = 'hybrid';
         $url = trim((string)($in['meeting_url'] ?? ''));
 
-        if ($err) return ['ok' => false, 'errors' => $err, 'warnings' => $warn, 'course_id' => 0, 'name' => $name, 'no_account' => []];
+        if ($err) return ['ok' => false, 'errors' => $err, 'warnings' => $warn, 'course_id' => 0, 'name' => $name, 'no_account' => [], 'accounts' => []];
 
         $pdo = db(); $pdo->beginTransaction();
         try {
@@ -171,7 +174,7 @@ final class TiSimpleGroups
         } catch (\Throwable $e) {
             $pdo->rollBack();
             error_log('ti_simple_groups create: ' . $e->getMessage());
-            return ['ok' => false, 'errors' => ['Nie udało się utworzyć grupy — spróbuj ponownie.'], 'warnings' => $warn, 'course_id' => 0, 'name' => $name, 'no_account' => []];
+            return ['ok' => false, 'errors' => ['Nie udało się utworzyć grupy — spróbuj ponownie.'], 'warnings' => $warn, 'course_id' => 0, 'name' => $name, 'no_account' => [], 'accounts' => []];
         }
         foreach ($newPeople as $p) {
             try { k30_sync_to_crm(['name' => $p['name'], 'email' => $p['email'], 'phone' => $p['phone']], $uid); } catch (\Throwable $e) {}
@@ -184,7 +187,15 @@ final class TiSimpleGroups
             try { ti_lesson_sms_notify($cid, 'Zaplanowano zajecia: ' . $when . '. Szczegoly w panelu kursanta.', 'ti_lesson_added'); } catch (\Throwable $e) {}
         }
         if ($type === 'hybrid' && ($in['class_type'] ?? '') !== 'hybrid') $warn[] = 'Terminy mają różne formy — grupa została założona jako „Hybryda krótka”.';
-        return ['ok' => true, 'errors' => [], 'warnings' => $warn, 'course_id' => $cid, 'name' => $name, 'no_account' => self::withoutAccount($clients)];
+        $accounts = [];
+        if (!empty($in['accounts'])) {
+            foreach ($clients as $c) {
+                try { if ($a = self::createAccount($c, $uid, !empty($in['send_logins']))) $accounts[] = $a; }
+                catch (\Throwable $e) { error_log('ti_simple_groups account: ' . $e->getMessage()); $warn[] = 'Nie udało się założyć konta dla uczestnika #' . $c . '.'; }
+            }
+            if ($accounts) ti_course_log($cid, 'accounts', 'Założono konta panelu kursanta: ' . implode(', ', array_column($accounts, 'name')) . '.', $uid, $byName);
+        }
+        return ['ok' => true, 'errors' => [], 'warnings' => $warn, 'course_id' => $cid, 'name' => $name, 'no_account' => self::withoutAccount($clients), 'accounts' => $accounts];
     }
 
     /**
@@ -206,6 +217,63 @@ final class TiSimpleGroups
                FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id
               WHERE c.simple_mode > 0" . ($active ? " AND c.is_active = 1 AND COALESCE(c.status,'') NOT IN ('cancelled','archived')" : '') . "
               ORDER BY c.is_active DESC, first_lesson DESC, c.name DESC");
+    }
+
+    /**
+     * Konto panelu kursanta dla uczestnika bez konta — te same zasady co „Utwórz konto” w dydaktyk/konta.php.
+     * @return array{name:string, login:string, password:string, sms:string}|null  null = konto już istnieje
+     */
+    public static function createAccount(int $clientId, int $uid, bool $sendSms): ?array
+    {
+        if (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=?", [$clientId])) return null;
+        $c = db_one("SELECT id, name, phone FROM k30_clients WHERE id=?", [$clientId]);
+        if (!$c) return null;
+        $base = self::loginBase((string)$c['name']); $login = $base; $i = 2;
+        while (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE login=?", [$login])) $login = $base . $i++;
+        $words = ['Kot', 'Pies', 'Dom', 'Las', 'Rok', 'Nos', 'Byk', 'Lis', 'Mak', 'Rak'];
+        $pass = $words[random_int(0, count($words) - 1)] . random_int(10, 99);   // jednorazowe — kursant zmienia przy pierwszym logowaniu
+        db_insert('k30_ti_student_accounts', [
+            'client_id' => $clientId, 'login' => $login, 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
+            'student_no' => self::studentNo($clientId), 'is_active' => 1, 'must_change_password' => 1,
+            'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        try {
+            require_once dirname(__DIR__, 2) . '/payment_portal/logic/paymentPortal.php';
+            pp_ti_sync_nrb($clientId, 'grupa uproszczona', null);   // rachunek wirtualny z numeru kursanta
+        } catch (\Throwable $e) {}
+        $sms = '';
+        if ($sendSms) {
+            $phone = trim((string)($c['phone'] ?? ''));
+            if ($phone === '') $sms = 'brak telefonu — przekaż ręcznie';
+            elseif (!sms_channel_ready()) $sms = 'SMS wyłączony — przekaż ręcznie';
+            else {
+                $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
+                try { sms_send($phone, "{$org} - panel kursanta. Login: {$login}, haslo: {$pass}", 'access_data'); $sms = 'wysłano SMS'; }
+                catch (\Throwable $e) { $sms = 'błąd SMS — przekaż ręcznie'; }
+            }
+        }
+        return ['name' => (string)$c['name'], 'login' => $login, 'password' => $pass, 'sms' => $sms];
+    }
+
+    /** Login „j.kowalski” bez polskich znaków (jak _gen_student_login w konta.php). */
+    private static function loginBase(string $name): string
+    {
+        $n = strtr($name, ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
+                           'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z']);
+        $p = preg_split('/\s+/', trim($n)) ?: [''];
+        $l = preg_replace('/[^a-z0-9._-]/', '', strtolower(count($p) >= 2 ? $p[0][0] . '.' . end($p) : $p[0]));
+        return $l !== '' ? $l : 'kursant';
+    }
+
+    /** Unikalny 12-cyfrowy numer kursanta, niekolidujący z rachunkami wirtualnymi innych uczestników. */
+    private static function studentNo(int $clientId): string
+    {
+        do {
+            $no = ''; for ($i = 0; $i < 12; $i++) $no .= random_int(0, 9);
+            $clash = (bool)db_one("SELECT 1 FROM k30_ti_student_accounts WHERE student_no=?", [$no]);
+            if (!$clash) { try { $clash = (bool)db_one("SELECT 1 FROM payment_portal_users WHERE substr(individual_nrb,15,12)=? AND participant_id!=?", [$no, $clientId]); } catch (\Throwable $e) {} }
+        } while ($clash);
+        return $no;
     }
 
     /** Nazwiska uczestników bez konta w panelu kursanta (nie zalogują się, dopóki konto nie powstanie). */
