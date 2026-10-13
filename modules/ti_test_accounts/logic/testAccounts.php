@@ -10,6 +10,7 @@
  * Osoby testowe: k30_clients.notes = MARKER. Odświeżenie nadaje nowe hasła (bez wymuszonej zmiany — do wielokrotnych testów).
  */
 require_once dirname(__DIR__, 3) . '/includes/karty30.php';
+require_once __DIR__ . '/testFilter.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_simple_groups/logic/simpleGroups.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_consultations/logic/consultations.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_bookings/logic/bookings.php';
@@ -17,7 +18,7 @@ require_once dirname(__DIR__, 3) . '/modules/ti_student_docs/logic/studentDocs.p
 
 final class TiTestAccounts
 {
-    public const MARKER = 'KONTO TESTOWE TI (konsultacje / szkolenia krótkie)';
+    public const MARKER = TI_TEST_MARKER;   // modules/ti_test_accounts/logic/testFilter.php — wspólny z filtrem raportów
     public const DEFAULT_PHONE = '535231923';
     private const KONS = [['Anna Testowa', 'draft'], ['Jan Testowy', 'signed'], ['Ewa Próbna', 'approved']];
     private const SZK = [

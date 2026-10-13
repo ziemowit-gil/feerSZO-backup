@@ -17,6 +17,7 @@
  * reszta tekstem; kolumny liczbowe wskazuje 'num', liczbę miejsc po przecinku 'dec' (kolumna => miejsca).
  */
 require_once dirname(__DIR__, 3) . '/modules/audit_logs/logic/audit_logs.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_test_accounts/logic/testFilter.php';   // wykluczanie kont testowych z raportów
 
 final class AnalyticsManager
 {
@@ -116,7 +117,7 @@ final class AnalyticsManager
     {
         return (int)(db_one(
             "SELECT COUNT(DISTINCT e.client_id) AS n FROM k30_ti_enrollments e
-               JOIN k30_ti_courses c ON c.id = e.course_id WHERE " . self::ACTIVE_ENROLLED
+               JOIN k30_ti_courses c ON c.id = e.course_id WHERE " . self::ACTIVE_ENROLLED . " AND " . ti_test_client_sql('e.client_id') . " AND " . ti_test_course_sql('e.course_id')
         )['n'] ?? 0);
     }
 
@@ -228,7 +229,7 @@ final class AnalyticsManager
                   JOIN k30_ti_courses c ON c.id = e.course_id
                   JOIN k30_clients k ON k.id = e.client_id
                   LEFT JOIN users u ON u.id = c.instructor_id
-                 WHERE " . self::ACTIVE_ENROLLED . "
+                 WHERE " . self::ACTIVE_ENROLLED . " AND " . ti_test_client_sql('k.id') . " AND " . ti_test_course_sql('c.id') . "
                    AND (TRIM(COALESCE(k.equipment, '')) = '' OR LOWER(TRIM(k.equipment)) IN ($ph))";
         if (self::hasTable('k30_pl_laptop_loans')) {
             $sql .= " AND NOT EXISTS (SELECT 1 FROM k30_pl_laptop_loans ll WHERE ll.client_id = k.id AND ll.returned_at IS NULL)";
@@ -268,7 +269,7 @@ final class AnalyticsManager
                FROM k30_ti_client_licenses l
                JOIN k30_ti_licenses lic ON lic.id = l.license_id
                JOIN k30_clients k ON k.id = l.client_id
-              WHERE $where ORDER BY $order",
+              WHERE ($where) AND " . ti_test_client_sql('l.client_id') . " ORDER BY $order",
             $params
         );
     }
@@ -333,7 +334,7 @@ final class AnalyticsManager
                FROM k30_ti_sessions s
                JOIN k30_ti_courses c ON c.id = s.course_id
                LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)
-              WHERE strftime('%Y-%m', s.lesson_date) = ? AND s.draft_id IS NULL
+              WHERE strftime('%Y-%m', s.lesson_date) = ? AND s.draft_id IS NULL AND " . ti_test_course_sql('s.course_id') . "
                 AND s.status IN ('held','individual_change','remote_material','planned','reserved')", [$ym]) as $r) {
             $iid = (int)$r['iid'];
             $by[$iid] ??= ['name' => (string)$r['iname'], 'groups' => [], 'held' => 0, 'planned' => 0, 'min' => 0];
@@ -376,7 +377,8 @@ final class AnalyticsManager
             "SELECT s.id, s.course_id, s.lesson_date, s.status, c.name AS course_name,
                     COALESCE(NULLIF(s.duration_min,0), (strftime('%s','2000-01-01 '||s.time_to) - strftime('%s','2000-01-01 '||s.time_from))/60.0, 0) / 60.0 AS h
                FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
-              WHERE s.lesson_date BETWEEN ? AND ? AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved')", [$from, $to]);
+              WHERE s.lesson_date BETWEEN ? AND ? AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved') AND " . ti_test_course_sql('s.course_id'), [$from, $to]);
+        $testIds = array_flip(array_map('intval', array_column(db_all("SELECT id FROM k30_clients WHERE notes = ?", [TI_TEST_MARKER]), 'id')));
         if (!$sessions) {
             return ['title' => self::REPORTS['godziny_uczestnikow'][0], 'subtitle' => 'Miesiąc ' . $ym . ' · brak lekcji w tym miesiącu',
                     'headers' => [], 'rows' => [], 'num' => [], 'dec' => [], 'sheet' => 'Godziny uczestników'];
@@ -405,6 +407,7 @@ final class AnalyticsManager
             }
             $held = in_array((string)$s['status'], K30_TI_HELD_STATUSES, true);
             foreach ($who as $cl => $a) {
+                if (isset($testIds[$cl])) continue;   // osoby testowe poza raportem
                 $by[$cl] ??= ['groups' => [], 'plan' => 0.0, 'done' => 0.0, 'absent' => 0.0, 'todo' => 0.0, 'canc' => 0.0, 'n_plan' => 0, 'n_done' => 0];
                 $x = &$by[$cl];
                 $x['groups'][(string)$s['course_name']] = true;

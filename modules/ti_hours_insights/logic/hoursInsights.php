@@ -13,6 +13,7 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/karty30.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_leaves.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_test_accounts/logic/testFilter.php';   // wykluczanie kont testowych z raportów
 
 final class TiHoursInsights
 {
@@ -71,7 +72,7 @@ final class TiHoursInsights
             "SELECT s.*, " . self::HOURS . " AS h, c.name AS course_name, c.class_type, c.is_online, c.lesson_payout_bb, c.track_attendance,
                     " . k30_ti_docs_complete_sql() . " AS docs_ok
                FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
-              WHERE COALESCE(s.instructor_id, c.instructor_id) = CAST(? AS INTEGER) AND s.lesson_date BETWEEN ? AND ? AND " . self::BASE_EXCL . " $extra
+              WHERE COALESCE(s.instructor_id, c.instructor_id) = CAST(? AS INTEGER) AND s.lesson_date BETWEEN ? AND ? AND " . self::BASE_EXCL . " AND " . ti_test_course_sql('s.course_id') . " $extra
               ORDER BY s.lesson_date, s.time_from",
             [$uid, $r['from'], $r['to']]
         );
@@ -290,6 +291,7 @@ final class TiHoursInsights
                FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
                JOIN k30_ti_attendance a ON a.session_id = s.id JOIN k30_clients cl ON cl.id = a.client_id
               WHERE COALESCE(s.instructor_id, c.instructor_id) = CAST(? AS INTEGER) AND s.lesson_date BETWEEN ? AND ? AND " . self::BASE_EXCL . "
+                AND " . ti_test_client_sql('cl.id') . " AND " . ti_test_course_sql('s.course_id') . "
               ORDER BY cl.name", [$uid, $r['from'], $r['to']]);
         $g = [];
         foreach ($rows as $x) {

@@ -10,6 +10,7 @@
  */
 require_once dirname(__DIR__, 3) . '/includes/karty30.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_consultations/logic/consultations.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_test_accounts/logic/testFilter.php';   // wykluczanie kont testowych z raportów
 
 final class TiConsultReports
 {
@@ -58,7 +59,7 @@ final class TiConsultReports
         return db_all("SELECT co.*, c.name AS client_name, u.name AS consultant_name, k.name AS course_name
                          FROM k30_consultations co LEFT JOIN k30_clients c ON c.id = co.client_id
                          LEFT JOIN users u ON u.id = co.consultant_id LEFT JOIN k30_ti_courses k ON k.id = co.course_id
-                        WHERE DATE(co.consultation_datetime) BETWEEN ? AND ? AND co.status <> 'cancelled' $mine
+                        WHERE DATE(co.consultation_datetime) BETWEEN ? AND ? AND co.status <> 'cancelled' AND " . ti_test_client_sql('co.client_id') . " AND " . ti_test_course_sql('co.course_id') . " $mine
                         ORDER BY co.consultation_datetime, co.id", $p);
     }
 
@@ -118,7 +119,7 @@ final class TiConsultReports
         $p = [$r['from'], $r['to']]; $mine = $staff ? '' : ' AND s.assigned_to = ' . (int)$uid;
         foreach (db_all("SELECT s.client_id, c.name, SUM(s.status='attended') AS att, SUM(s.status='no_show') AS ns
                            FROM k30_schedules s JOIN k30_clients c ON c.id = s.client_id
-                          WHERE DATE(s.start_time) BETWEEN ? AND ? $mine GROUP BY s.client_id", $p) as $s) {
+                          WHERE DATE(s.start_time) BETWEEN ? AND ? AND " . ti_test_client_sql('s.client_id') . " $mine GROUP BY s.client_id", $p) as $s) {
             $k = (int)$s['client_id'];
             $g[$k] ??= ['name' => (string)$s['name'], 'n' => 0, 'min' => 0, 'last' => ''];
             $g[$k]['att'] = (int)$s['att']; $g[$k]['ns'] = (int)$s['ns'];
@@ -134,7 +135,7 @@ final class TiConsultReports
         $cols = ['preliminary', 'confirmed', 'attended', 'no_show', 'cancelled_by_client', 'cancelled_by_feer', 'cancelled'];
         $out = []; $tot = array_fill_keys($cols, 0);
         foreach (db_all("SELECT COALESCE(u.name,'(nie przypisano)') AS k, s.status, COUNT(*) AS n FROM k30_schedules s LEFT JOIN users u ON u.id = s.assigned_to
-                          WHERE DATE(s.start_time) BETWEEN ? AND ? $mine GROUP BY k, s.status ORDER BY k", $p) as $x) {
+                          WHERE DATE(s.start_time) BETWEEN ? AND ? AND " . ti_test_client_sql('s.client_id') . " $mine GROUP BY k, s.status ORDER BY k", $p) as $x) {
             $out[$x['k']] ??= array_fill_keys($cols, 0);
             if (isset($out[$x['k']][$x['status']])) { $out[$x['k']][$x['status']] += (int)$x['n']; $tot[$x['status']] += (int)$x['n']; }
         }
@@ -153,7 +154,7 @@ final class TiConsultReports
         $out = [];
         foreach (db_all("SELECT strftime('%Y-%m', start_time) AS m, billing_type, COUNT(*) AS n, SUM(billed_hours) AS bh, SUM(free_hours) AS fh,
                                 SUM(charged_hours) AS ch, SUM(amount_due) AS amt
-                           FROM k30_schedules WHERE DATE(start_time) BETWEEN ? AND ? AND status NOT IN ('cancelled','cancelled_by_feer','cancelled_by_client','rejected') $mine
+                           FROM k30_schedules WHERE DATE(start_time) BETWEEN ? AND ? AND status NOT IN ('cancelled','cancelled_by_feer','cancelled_by_client','rejected') AND " . ti_test_client_sql('client_id') . " $mine
                           GROUP BY m, billing_type ORDER BY m, billing_type", $p) as $x)
             $out[] = [(string)$x['m'], K30_BILLING_TYPES[$x['billing_type']]['label'] ?? (string)$x['billing_type'], (int)$x['n'], round((float)$x['bh'], 2), round((float)$x['fh'], 2), round((float)$x['ch'], 2), round((float)$x['amt'], 2)];
         return ['headers' => ['Miesiąc', 'Rozliczenie', 'Rezerwacje', 'Godziny', 'Bezpłatne (h)', 'Płatne (h)', 'Kwota (zł)'], 'rows' => $out,
@@ -164,7 +165,7 @@ final class TiConsultReports
     {
         $mine = $staff ? '' : ' AND (c.instructor_id = ' . (int)$uid . ' OR EXISTS (SELECT 1 FROM k30_ti_sessions s2 WHERE s2.course_id = c.id AND s2.instructor_id = ' . (int)$uid . '))';
         return db_all("SELECT c.*, u.name AS instructor_name FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id
-                        WHERE c.simple_mode > 0 $mine AND EXISTS (SELECT 1 FROM k30_ti_sessions s WHERE s.course_id = c.id AND s.draft_id IS NULL AND s.lesson_date BETWEEN ? AND ?)
+                        WHERE c.simple_mode > 0 AND " . ti_test_course_sql('c.id') . " $mine AND EXISTS (SELECT 1 FROM k30_ti_sessions s WHERE s.course_id = c.id AND s.draft_id IS NULL AND s.lesson_date BETWEEN ? AND ?)
                         ORDER BY c.name", [$r['from'], $r['to']]);
     }
 
@@ -194,7 +195,7 @@ final class TiConsultReports
                                 COALESCE(NULLIF(s.duration_min,0),60) AS dur
                            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
                            JOIN k30_ti_attendance a ON a.session_id = s.id JOIN k30_clients cl ON cl.id = a.client_id
-                          WHERE s.course_id IN ($in) AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved','cancelled') AND s.lesson_date BETWEEN ? AND ?",
+                          WHERE s.course_id IN ($in) AND " . ti_test_client_sql('cl.id') . " AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved','cancelled') AND s.lesson_date BETWEEN ? AND ?",
                          [$r['from'], $r['to']]) as $x) {
             $k = (int)$x['id'];
             $g[$k] ??= ['name' => (string)$x['name'], 'c' => [], 'n' => 0, 'att' => 0, 'min' => 0];
