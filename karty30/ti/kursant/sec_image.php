@@ -15,6 +15,10 @@ if ($login !== '' && mb_strlen($login) <= 100) {
           WHERE (login = ? OR (login_alias != '' AND login_alias = ?)) AND is_active = 1",
         [$login, $login]
     );
+    if ($acc && !ti_sec_image_required((int)$acc['id'])) {   // konsultacje / szkolenia krótkie — bez obrazka
+        header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store');
+        echo json_encode(['svg' => '', 'label' => '', 'none' => true]); exit;
+    }
     if ($acc) $idx = ti_sec_image_assign((int)$acc['id']);
 }
 

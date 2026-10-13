@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Brak wybranego obrazka bezpieczeństwa: najpierw wybór, potem panel.
         ti_sec_image_migrate();
         $wybrany = db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [(int)$acc['id']]);
-        header('Location: ' . APP_URL . (empty($wybrany['sec_chosen'])
+        header('Location: ' . APP_URL . (empty($wybrany['sec_chosen']) && ti_sec_image_required((int)$acc['id'])
             ? '/karty30/ti/kursant/sec_choose.php'
             : '/karty30/ti/kursant/index.php')); exit;
     } else {
@@ -221,7 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!v) { box.classList.add('d-none'); return; }
     fetch('<?= APP_URL ?>/karty30/ti/kursant/sec_image.php?login=' + encodeURIComponent(v), { credentials: 'omit', cache: 'no-store' })
       .then(function (r) { return r.json(); })
-      .then(function (j) { img.innerHTML = j.svg; lbl.textContent = j.label; box.classList.remove('d-none'); box.classList.add('d-flex'); })
+      .then(function (j) { if (j.none) { box.classList.add('d-none'); box.classList.remove('d-flex'); return; }   // konto bez obrazka
+        img.innerHTML = j.svg; lbl.textContent = j.label; box.classList.remove('d-none'); box.classList.add('d-flex'); })
       .catch(function () { box.classList.add('d-none'); });
   }
   // Obrazek pojawia się od razu podczas pisania (z krótką przerwą), nie dopiero po wyjściu z pola.

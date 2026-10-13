@@ -17,6 +17,18 @@ const TI_SEC_IMAGES = [
     ['szary krzyż',            'cross',    '#475569'],
 ];
 
+/**
+ * Czy konto ma obrazek bezpieczeństwa. Nie mają go beneficjenci konsultacji i uczestnicy szkoleń krótkich
+ * (panel uproszczony — TiSimpleGroups::accountMode > 0); dotyczy wyboru po zalogowaniu i podglądu przy loginie.
+ */
+function ti_sec_image_required(int $account_id): bool {
+    if ($account_id <= 0) return true;
+    try {
+        require_once dirname(__DIR__) . '/modules/ti_simple_groups/logic/simpleGroups.php';
+        return TiSimpleGroups::accountMode($account_id) === 0;
+    } catch (\Throwable $e) { return true; }
+}
+
 function ti_sec_image_migrate(): void {
     static $done = false;
     if ($done) return;

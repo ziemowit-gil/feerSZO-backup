@@ -8,7 +8,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/karty30.php';
 require_once dirname(__DIR__) . '/includes/ti_student_otp.php';
-require_once dirname(__DIR__) . '/includes/ti_sec_image.php';
+require_once dirname(__DIR__) . '/includes/ti_sec_image.php';   // także ti_sec_image_required()
 require_once dirname(__DIR__) . '/includes/ti_student_reauth.php';
 require_once dirname(__DIR__) . '/karty30/ti/kursant/auth.php';
 
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acc['must_change_password'] = 1;
         student_login_user($acc, 'otp', 'pierwsze logowanie (kod SMS, Tożsamość)');
         $wybrany = db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [(int)$acc['id']]);
-        header('Location: ' . APP_URL . (empty($wybrany['sec_chosen'])
+        header('Location: ' . APP_URL . (empty($wybrany['sec_chosen']) && ti_sec_image_required((int)$acc['id'])
             ? '/karty30/ti/kursant/sec_choose.php'
             : '/karty30/ti/kursant/index.php')); exit;
     }

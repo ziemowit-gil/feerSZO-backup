@@ -14,6 +14,7 @@ $acc_id = (int)($s['id'] ?? 0);
 $acc = db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [$acc_id]);
 if (!$acc) { header('Location: ../login.php?tab=kursant'); exit; }
 if (!empty($acc['sec_chosen'])) { header('Location: index.php'); exit; }
+if (!ti_sec_image_required($acc_id)) { header('Location: index.php'); exit; }   // konsultacje / szkolenia krótkie — bez obrazka
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $wybor = (string)($_POST['wybor'] ?? '');
