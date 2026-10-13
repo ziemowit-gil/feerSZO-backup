@@ -138,11 +138,13 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         if ($acting) {
             $work_as = ['label' => 'Prowadzący — w zastępstwie: ' . (string)($tb['user'] ?? ''), 'icon' => 'person-video2',
                         'acting' => true, 'change_href' => 'choose_context.php', 'change_label' => 'Zakończ / zmień rolę'];
-        } elseif ($own && $ctx !== '') {
-            $work_as = ['label' => $ctx === 'instructor' ? 'Prowadzący' : 'Kierownik Instytucji', 'icon' => 'person-gear',
-                        'change_href' => 'choose_context.php', 'change_label' => 'Zmień rolę'];
         } else {
-            $work_as = ['label' => $role, 'icon' => $icon];
+            // „Pracujesz jako: rola · tryb” — link do wspólnego ekranu wyboru (choose_mode.php), gdy jest co wybierać
+            $_two = function_exists('dyd_modes_available') && count(dyd_modes_available($s)) > 1;
+            $_lbl = ($own && $ctx !== '') ? ($ctx === 'instructor' ? 'Prowadzący' : 'Kierownik Instytucji') : $role;
+            if ($_two) $_lbl .= ' · ' . (dyd_mode() === 'konsultacje' ? 'Konsultacje' : 'Szkolenia');
+            $work_as = ['label' => $_lbl, 'icon' => ($own && $ctx !== '') ? 'person-gear' : $icon]
+                     + (($own && $ctx !== '') || $_two ? ['change_href' => 'choose_mode.php', 'change_label' => 'Zmień'] : []);
         }
         // Planowanie — skróty w menu użytkownika (kierownik: planista i narzędzia; prowadzący: własne zgłoszenia)
         if ($staff && !$acting) {
