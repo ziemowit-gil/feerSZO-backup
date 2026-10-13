@@ -269,7 +269,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
           <label for="par-login">Login rodzica/opiekuna</label>
           <input type="text" class="form-control form-control-lg" id="par-login" name="login"
                  value="<?= $prefill_login ?>" required autofocus autocomplete="username"
-                 placeholder="np. j.kowalski-r"
+                 placeholder="Login opiekuna nadany w placówce"
                  <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
           <p class="tz-hint">Login konta opiekuna nadany w placówce.</p>
         </div>
