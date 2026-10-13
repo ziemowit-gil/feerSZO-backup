@@ -7,6 +7,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_bookings/logic/bookings.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_consultations/logic/consultations.php';
 $me     = dyd_require();
 $uid    = (int)$me['user_id'];
 $staff  = dyd_is_staff();

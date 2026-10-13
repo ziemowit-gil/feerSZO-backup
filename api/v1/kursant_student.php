@@ -385,8 +385,9 @@ if (in_array($auth_role, ['student', 'impersonation'], true)) {
     if ($simple === 2) array_push($simple_allowed, 'billing', 'wallet', 'wallet_topup', 'wallet_declare',
                                   'year_end_overpay_info', 'year_end_declare_transfer', 'year_end_overpay');
     if ($simple === 3) $simple_allowed[] = 'billing';
+    if ($simple === 4) $simple_allowed = ['dashboard', 'logout', 'billing', 'terms', 'accept_term', 'change_password', 'push_vapid_key', 'push_subscribe', 'push_unsubscribe'];
     if ($simple > 0 && !in_array($action, $simple_allowed, true)) {
-        json_err($simple >= 2 ? 'Twoje konto ma dostęp tylko do terminów zajęć i płatności.' : 'Twoje konto ma dostęp tylko do terminów zajęć.', 403);
+        json_err($simple === 4 ? 'Twoje konto ma dostęp do konsultacji i rozliczeń — karty konsultacji są w panelu kursanta.' : ($simple >= 2 ? 'Twoje konto ma dostęp tylko do terminów zajęć i płatności.' : 'Twoje konto ma dostęp tylko do terminów zajęć.'), 403);
     }
 }
 

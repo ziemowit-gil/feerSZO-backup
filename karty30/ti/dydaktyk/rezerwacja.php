@@ -54,7 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = TiBookings::create($d, $uid, $byName);
         if ($res['ok']) {
             flash_set('success', (count($res['ids']) > 1 ? 'Utworzono serię ' . count($res['ids']) . ' terminów.' : 'Rezerwacja zapisana.')
-                . ($d['needs_invoice'] ? ' Prośba o fakturę przekazana administratorom.' : '') . ($res['warnings'] ? ' Uwaga: ' . implode(' ', $res['warnings']) : ''));
+                . ($d['needs_invoice'] ? ' Prośba o fakturę przekazana administratorom.' : '') . ($res['warnings'] ? ' Uwaga: ' . implode(' ', $res['warnings']) : '')
+                . TiConsultations::accountMsg($res['account'] ?? null));
             header('Location: rezerwacja.php?id=' . $res['ids'][0] . (count($res['ids']) === 1 ? '&druk=1' : '')); exit;
         }
         $errors = $res['errors']; $warnings = $res['warnings']; $form = $op === 'create'; $quick = $op === 'quick';

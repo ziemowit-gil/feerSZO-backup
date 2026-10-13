@@ -104,8 +104,21 @@ $_alt_sections = [
     ],
 ];
 
+// Beneficjent konsultacji (tryb 4, konto „k1234”): tylko Moje konsultacje i Rozliczenia
+if ((int)($KUR_SIMPLE ?? 0) === 4) {
+    $_alt_sections = ['konsultacje' => [
+        'label' => 'Moje konsultacje',
+        'href'  => $_g('konsultacje'),
+        'items' => [
+            $_it('konsultacje', 'Moje konsultacje', $_g('konsultacje')),
+            $_it('rozliczenia', 'Rozliczenia', $_g('rozliczenia')),
+            ...($_n_terms > 0 ? [$_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger')] : []),
+        ],
+    ]];
+    $_ikony['konsultacje'] = 'clipboard2-check';
+}
 // „Kursant uproszczony” — sekcja terminów zajęć (+ regulaminy do akceptacji); w trybie 2 także sekcja płatności
-if (!empty($KUR_SIMPLE)) {
+elseif (!empty($KUR_SIMPLE)) {
     $_alt_sections = ['nauka' => [
         'label' => 'Moje lekcje',
         'href'  => $_g('lekcje'),

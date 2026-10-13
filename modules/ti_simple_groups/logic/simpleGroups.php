@@ -268,7 +268,7 @@ final class TiSimpleGroups
     }
 
     /** Unikalny 12-cyfrowy numer kursanta, niekolidujący z rachunkami wirtualnymi innych uczestników. */
-    private static function studentNo(int $clientId): string
+    public static function studentNo(int $clientId): string
     {
         do {
             $no = ''; for ($i = 0; $i < 12; $i++) $no .= random_int(0, 9);

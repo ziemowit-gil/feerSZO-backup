@@ -119,7 +119,7 @@ function student_require(): array {
     }
     // „Kursant uproszczony” widzi tylko terminy zajęć — każda inna strona panelu wraca do Moich lekcji
     if (student_is_simple((int)$s['id']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), student_simple_allowed((int)$s['id'], 'pages'), true)) {
-        header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'index.php?tab=lekcje');
+        header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'index.php?tab=' . student_simple_home((int)$s['id']));
         exit;
     }
     return $s;
@@ -133,7 +133,11 @@ function student_require(): array {
  *   3 = terminy + płatności uproszczone — jedna zakładka „Opłaty” (_oplaty_view.php): ile do zapłaty, numer konta, „Zapłać online”.
  * Reszta panelu, menu i API newUI zamknięte. Listy: STUDENT_SIMPLE_* (+ STUDENT_SIMPLE_PAY_* dla trybu 2).
  */
-const STUDENT_SIMPLE_MODES = [0 => 'Pełny panel', 1 => 'Uproszczony — tylko terminy', 2 => 'Uproszczony — terminy + płatności', 3 => 'Uproszczony — terminy + płatności uproszczone'];
+const STUDENT_SIMPLE_MODES = [0 => 'Pełny panel', 1 => 'Uproszczony — tylko terminy', 2 => 'Uproszczony — terminy + płatności', 3 => 'Uproszczony — terminy + płatności uproszczone', 4 => 'Beneficjent konsultacji — konsultacje i rozliczenia'];
+/** Tryb 4 (beneficjent konsultacji, konto „k1234”): tylko „Moje konsultacje” (terminy, karty z etapem, PDF) i rozliczenia. */
+const STUDENT_SIMPLE_KONS_PAGES = ['index.php', 'konsultacjaPdf.php', 'platnosci.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
+const STUDENT_SIMPLE_KONS_TABS  = ['konsultacje', 'rozliczenia', 'regulaminy'];
+const STUDENT_SIMPLE_KONS_OPS   = ['accept_term', 'change_password'];
 const STUDENT_SIMPLE_PAGES = ['index.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
                               'plan_librus_pdf.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
 /** Zakładki index.php dostępne w trybie uproszczonym. */
@@ -168,12 +172,18 @@ function student_is_simple(int $accountId): bool { return student_simple_mode($a
 /** Dozwolone w trybie uproszczonym: $kind = 'pages' | 'tabs' | 'ops'. */
 function student_simple_allowed(int $accountId, string $kind): array {
     $m = student_simple_mode($accountId);
+    if ($m === 4) return match ($kind) { 'pages' => STUDENT_SIMPLE_KONS_PAGES, 'tabs' => STUDENT_SIMPLE_KONS_TABS, 'ops' => STUDENT_SIMPLE_KONS_OPS, default => [] };
     return match ($kind) {
         'pages' => array_merge(STUDENT_SIMPLE_PAGES, $m === 2 ? STUDENT_SIMPLE_PAY_PAGES : ($m === 3 ? STUDENT_SIMPLE_EASYPAY_PAGES : [])),
         'tabs'  => array_merge(STUDENT_SIMPLE_TABS,  $m === 2 ? STUDENT_SIMPLE_PAY_TABS  : ($m === 3 ? STUDENT_SIMPLE_EASYPAY_TABS  : [])),
         'ops'   => array_merge(STUDENT_SIMPLE_OPS,   $m === 2 ? STUDENT_SIMPLE_PAY_OPS   : []),
         default => [],
     };
+}
+
+/** Zakładka startowa trybu uproszczonego: „lekcje”, a dla beneficjenta konsultacji — „konsultacje”. */
+function student_simple_home(int $accountId): string {
+    return student_simple_mode($accountId) === 4 ? 'konsultacje' : 'lekcje';
 }
 
 /** Token CSRF dla panelu kursanta (osobna sesja k30_student). */

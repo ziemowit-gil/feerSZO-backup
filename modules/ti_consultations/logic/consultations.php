@@ -207,6 +207,59 @@ final class TiConsultations
         return sprintf('KON.%03d', $max + 1) . $sfx;
     }
 
+    // ── Konto beneficjenta konsultacji ──────────────────────────────────────
+
+    /**
+     * Konto panelu kursanta dla beneficjenta konsultacji bez konta: login „k” + 4 cyfry (k1234), hasło jednorazowe
+     * (zmiana przy pierwszym logowaniu) wysyłane SMS-em, tryb panelu 4 (tylko Moje konsultacje i Rozliczenia).
+     * Beneficjent, który ma już konto (np. kursant szkoleń), zostaje bez zmian — zwraca null.
+     * @return array{login:string, password:string, sms:string}|null
+     */
+    public static function ensureBeneficiaryAccount(int $clientId, int $uid, bool $sendSms = true): ?array
+    {
+        if ($clientId <= 0 || db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=?", [$clientId])) return null;
+        $c = db_one("SELECT id, name, phone FROM k30_clients WHERE id=?", [$clientId]);
+        if (!$c) return null;
+        $digits = 4; $login = '';
+        for ($try = 0; $try < 60; $try++) {
+            if ($try === 40) $digits = 5;   // pula 4 cyfr prawie pełna — dłuższy numer
+            $cand = 'k' . str_pad((string)random_int(0, 10 ** $digits - 1), $digits, '0', STR_PAD_LEFT);
+            if (!db_one("SELECT 1 FROM k30_ti_student_accounts WHERE login=? OR login_alias=?", [$cand, $cand])) { $login = $cand; break; }
+        }
+        if ($login === '') return null;
+        $chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; $pass = '';
+        for ($i = 0; $i < 8; $i++) $pass .= $chars[random_int(0, strlen($chars) - 1)];
+        require_once dirname(__DIR__, 2) . '/ti_simple_groups/logic/simpleGroups.php';
+        $accId = (int)db_insert('k30_ti_student_accounts', [
+            'client_id' => $clientId, 'login' => $login, 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
+            'student_no' => TiSimpleGroups::studentNo($clientId), 'is_active' => 1, 'must_change_password' => 1, 'simple_mode' => 4,
+            'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        try { require_once dirname(__DIR__, 2) . '/payment_portal/logic/paymentPortal.php'; pp_ti_sync_nrb($clientId, 'konsultacje', null); } catch (\Throwable $e) {}
+        $sms = '';
+        if ($sendSms) {
+            require_once dirname(__DIR__, 3) . '/includes/sms.php';
+            $phone = trim((string)($c['phone'] ?? ''));
+            if ($phone === '') $sms = 'brak telefonu — przekaż login i hasło ręcznie';
+            elseif (!sms_channel_ready()) $sms = 'SMS wyłączony — przekaż login i hasło ręcznie';
+            else {
+                $org = defined('ORG_NAME') ? ORG_NAME : 'Panel';
+                $url = defined('APP_URL') ? ' ' . rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php' : '';
+                try { sms_send($phone, "{$org} - konsultacje. Login: {$login}, haslo: {$pass}.{$url}", 'access_data'); $sms = 'hasło wysłane SMS-em'; }
+                catch (\Throwable $e) { $sms = 'błąd SMS — przekaż login i hasło ręcznie'; }
+            }
+        }
+        try { if (function_exists('ti_account_log')) ti_account_log($accId, 'created', 'Konto beneficjenta konsultacji (' . $login . ').', $uid ?: null); } catch (\Throwable $e) {}
+        return ['login' => $login, 'password' => $pass, 'sms' => $sms];
+    }
+
+    /** Komunikat o założonym koncie do flash (hasło pokazywane, gdy SMS nie wyszedł). */
+    public static function accountMsg(?array $a): string
+    {
+        if (!$a) return '';
+        return ' Założono konto beneficjenta w panelu: login ' . $a['login'] . ($a['sms'] === 'hasło wysłane SMS-em' ? ' — hasło wysłane SMS-em.' : ', hasło jednorazowe ' . $a['password'] . ' (' . $a['sms'] . ').');
+    }
+
     // ── Karta samodzielna ───────────────────────────────────────────────────
 
     /**
@@ -250,7 +303,9 @@ final class TiConsultations
             return ['ok' => true, 'id' => $id, 'errors' => []];
         }
         $row += ['status' => 'draft', 'card_no' => self::cardNumber($dtDb), 'created_by' => $uid ?: null];
-        return ['ok' => true, 'id' => (int)db_insert('k30_consultations', $row), 'errors' => []];
+        $newId = (int)db_insert('k30_consultations', $row);
+        $acc = self::ensureBeneficiaryAccount($client, $uid);   // beneficjent bez konta → konto „k1234” + SMS
+        return ['ok' => true, 'id' => $newId, 'errors' => [], 'account' => $acc];
     }
 
     // ── Karty terminu szkolenia krótkiego SzK ───────────────────────────────

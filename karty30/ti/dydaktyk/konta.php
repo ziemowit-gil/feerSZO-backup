@@ -21,7 +21,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje/logic/ti
 
 $me       = dyd_require();
 /** Tryby panelu kursanta (k30_ti_student_accounts.simple_mode) — te same wartości co STUDENT_SIMPLE_MODES w kursant/auth.php. */
-const KK_SIMPLE_MODES = [0 => 'pełny panel (albo wg grupy uproszczonej)', 1 => 'uproszczony — tylko terminy', 2 => 'uproszczony — terminy + płatności', 3 => 'uproszczony — terminy + płatności uproszczone'];
+const KK_SIMPLE_MODES = [0 => 'pełny panel (albo wg grupy uproszczonej)', 1 => 'uproszczony — tylko terminy', 2 => 'uproszczony — terminy + płatności', 3 => 'uproszczony — terminy + płatności uproszczone', 4 => 'beneficjent konsultacji — konsultacje i rozliczenia'];
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
 $uid      = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
@@ -372,6 +372,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 1 => 'Kursant uproszczony: w panelu widzi tylko terminy zajęć (Moje lekcje) — może je odwołać, przesunąć lub usprawiedliwić nieobecność.',
                 2 => 'Kursant uproszczony z płatnościami: terminy zajęć oraz Płatności, Rozliczenia i Portfel. Reszta panelu jest ukryta.',
                 3 => 'Kursant uproszczony z płatnościami uproszczonymi: terminy zajęć i jeden ekran „Opłaty” (ile do zapłaty, numer konta, płatność online).',
+                4 => 'Beneficjent konsultacji: w panelu tylko Moje konsultacje (terminy, karty z etapem, PDF) i Rozliczenia.',
                 default => 'Kursant ma znów dostęp do całego panelu.',
             });
         }

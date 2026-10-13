@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'description' => (string)($_POST['description'] ?? ''), 'next_action' => (string)($_POST['next_action'] ?? ''),
             'intake' => TiConsultations::intakeFromPost($_POST),
         ], $isNew ? null : $id, $uid);
-        if ($res['ok']) { flash_set('success', $isNew ? 'Karta konsultacji zapisana.' : 'Zmiany zapisane.'); header('Location: konsultacja.php?id=' . $res['id']); exit; }
+        if ($res['ok']) { flash_set('success', ($isNew ? 'Karta konsultacji zapisana.' : 'Zmiany zapisane.') . TiConsultations::accountMsg($res['account'] ?? null)); header('Location: konsultacja.php?id=' . $res['id']); exit; }
         $errors = $res['errors'];
     } elseif ($op === 'approve' && $card) {
         $res = TiConsultations::approve([$id], $uid, $approver, (string)($_POST['ika_code'] ?? ''));

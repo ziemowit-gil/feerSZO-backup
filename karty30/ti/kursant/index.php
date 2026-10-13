@@ -143,7 +143,7 @@ $KUR_NAV = student_nav((int)$student['id']);
 if (!isset($_GET['tab']) && $KUR_UI === 'alt') { $tab = 'start'; }
 // „Kursant uproszczony” — tylko terminy zajęć (Moje lekcje) i regulaminy; w trybie 2 także płatności
 $KUR_SIMPLE = student_simple_mode((int)$student['id']);   // 0 = pełny panel
-if ($KUR_SIMPLE && !in_array($tab, student_simple_allowed((int)$student['id'], 'tabs'), true)) { $tab = 'lekcje'; }
+if ($KUR_SIMPLE && !in_array($tab, student_simple_allowed((int)$student['id'], 'tabs'), true)) { $tab = student_simple_home((int)$student['id']); }
 
 // Dane kursanta
 $account = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$student['id']]);
@@ -172,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op  = $_POST['_op'] ?? '';
     $tok = $_POST['_token'] ?? '';
     if (!hash_equals(student_token(), (string)$tok)) { http_response_code(403); exit('Nieprawidłowy token sesji.'); }
-    if ($KUR_SIMPLE && !in_array($op, student_simple_allowed((int)$student['id'], 'ops'), true)) { header('Location: index.php?tab=lekcje'); exit; }
+    if ($KUR_SIMPLE && !in_array($op, student_simple_allowed((int)$student['id'], 'ops'), true)) { header('Location: index.php?tab=' . student_simple_home((int)$student['id'])); exit; }
 
     // Nowy adres subskrypcji kalendarza (unieważnia poprzedni)
     if ($op === 'cal_token_reset') {
@@ -3895,6 +3895,10 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 
+<?php elseif ($tab === 'konsultacje' && $KUR_SIMPLE === 4):
+  include __DIR__ . '/_konsultacje_view.php';
+?>
+
 <?php elseif ($tab === 'oplaty' && $KUR_SIMPLE === 3 && !$is_minor):
   include __DIR__ . '/_oplaty_view.php';
 ?>
@@ -6443,7 +6447,10 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
       ['wiadomosci', 'envelope',       'envelope-fill',       'Wiadomości', (int)$msg_unread, 'bg-primary'],
   ];
   $kp_more_badge = (int)$notices_unread + (!empty($terms_pending) ? count($terms_pending) : 0);
-  if ($KUR_SIMPLE) { $kp_bn = [$kp_bn[1], ...($KUR_SIMPLE === 3 && !$is_minor ? [['oplaty', 'cash-coin', 'cash-coin', 'Opłaty', 0, '']] : [])]; $kp_more_badge = !empty($terms_pending) ? count($terms_pending) : 0;
+  if ($KUR_SIMPLE === 4) { $kp_bn = [['konsultacje', 'clipboard2-check', 'clipboard2-check-fill', 'Konsultacje', 0, ''], ['rozliczenia', 'receipt', 'receipt', 'Rozliczenia', 0, '']];
+                           $kp_menu = ['Panel' => [['konsultacje', 'clipboard2-check', 'Moje konsultacje'], ['rozliczenia', 'receipt', 'Rozliczenia'],
+                                                   ...(!empty($terms_pending) ? [['regulaminy', 'file-earmark-text', 'Regulaminy']] : [])]]; }
+  elseif ($KUR_SIMPLE) { $kp_bn = [$kp_bn[1], ...($KUR_SIMPLE === 3 && !$is_minor ? [['oplaty', 'cash-coin', 'cash-coin', 'Opłaty', 0, '']] : [])]; $kp_more_badge = !empty($terms_pending) ? count($terms_pending) : 0;
                      $kp_menu = ['Panel' => [['lekcje', 'calendar-check', 'Moje lekcje'],
                                              ...($KUR_SIMPLE === 2 && !$is_minor ? [['platnosci', 'cash-coin', 'Płatności'], ['rozliczenia', 'receipt', 'Rozliczenia'], ['portfel', 'wallet2', 'Portfel']] : []),
                                              ...($KUR_SIMPLE === 3 && !$is_minor ? [['oplaty', 'cash-coin', 'Opłaty']] : []),

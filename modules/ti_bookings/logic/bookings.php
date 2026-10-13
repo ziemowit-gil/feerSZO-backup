@@ -228,7 +228,10 @@ final class TiBookings
             try { k30_waiting_change_status((int)$d['from_waiting'], 'scheduled', $ids[0]); } catch (\Throwable $e) {}
         }
         if ($inv && $ids) self::invoiceNotify($ids[0], $base, $uid);
-        return ['ok' => true, 'ids' => $ids, 'errors' => [], 'warnings' => $v['warnings']];
+        // Beneficjent konsultacji bez konta w panelu → konto „k1234” z hasłem SMS-em (kursanci szkoleń mają konta po staremu)
+        require_once dirname(__DIR__, 2) . '/ti_consultations/logic/consultations.php';
+        $acc = $ids ? TiConsultations::ensureBeneficiaryAccount($client, $uid) : null;
+        return ['ok' => true, 'ids' => $ids, 'errors' => [], 'warnings' => $v['warnings'], 'account' => $acc];
     }
 
     /** Edycja jak dawniej (beneficjent, konsultant, termin, czas, status, opis) + sala/zdalnie ze sprawdzeniem kolizji. Bez ponownej wyceny. */
