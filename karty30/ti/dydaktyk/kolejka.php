@@ -29,7 +29,7 @@ $rows = k30_waiting_list($status === 'all' ? '' : $status);
 $clients = db_all("SELECT id, name FROM k30_clients ORDER BY name");
 $org = defined('ORG_NAME') ? ORG_NAME : 'Fundacja';
 $smsTpl = "Dzień dobry! {$org} informuje, że możemy zaproponować Panu/Pani termin konsultacji. Prosimy o kontakt tel. lub odpowiedź na tę wiadomość.";
-$RZ_TITLE = 'Kolejka oczekujących';
+$RZ_TITLE = 'Kolejka oczekujących'; $RZ_CUR = 'kolejka.php';
 include __DIR__ . '/_rezerwacje_head.php';
 ?>
 <main id="main" class="dyd-wrap">

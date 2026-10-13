@@ -96,6 +96,7 @@ $val = function (string $k, $def = '') use ($P, $row) {
 };
 
 $RZ_TITLE = $form ? ($row ? 'Edycja rezerwacji' : 'Nowa rezerwacja') : ($quick ? 'Szybka rezerwacja' : 'Rezerwacja');
+$RZ_CUR = $form && !$row ? 'rezerwacja.php?nowa=1' : ($quick ? 'rezerwacja.php?szybka=1' : 'rezerwacje.php');
 include __DIR__ . '/_rezerwacje_head.php';
 ?>
 <main id="main" class="dyd-wrap">

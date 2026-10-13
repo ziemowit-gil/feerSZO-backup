@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: konsultacjeUstawienia.php'); exit;
 }
 $all = TiConsultations::dicts(); $act = TiConsultations::dicts(true);
-$RZ_TITLE = 'Ustawienia konsultacji';
+$RZ_TITLE = 'Ustawienia konsultacji'; $RZ_CUR = 'konsultacjeUstawienia.php';
 include __DIR__ . '/_rezerwacje_head.php';
 ?>
 <main id="main" class="dyd-wrap">

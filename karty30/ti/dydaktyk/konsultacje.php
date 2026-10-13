@@ -61,7 +61,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 $STL = ['planned' => 'zaplanowana', 'held' => 'odbyta', 'individual_change' => 'odbyta (indyw.)', 'remote_material' => 'praca własna', 'cancelled' => 'odwołana'];
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
-<?php if ($staff): $KIER_CUR = 'konsultacje.php'; $KIER_LABEL = 'Karty konsultacji'; include __DIR__ . '/_kierownik_bar.php'; endif; ?>
+<?php if (in_array('konsultacje', dyd_modes_available(), true)): $RZ_CUR = 'konsultacje.php'; $RZ_LABEL = 'Karty konsultacji'; include __DIR__ . '/_konsultacje_bar.php';
+      elseif ($staff): $KIER_CUR = 'konsultacje.php'; $KIER_LABEL = 'Karty konsultacji'; include __DIR__ . '/_kierownik_bar.php'; endif; ?>
 
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1200px">

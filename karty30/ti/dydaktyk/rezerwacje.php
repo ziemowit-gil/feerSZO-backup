@@ -15,7 +15,7 @@ $rows  = TiBookings::list($f, $per, ($page - 1) * $per);
 $consultants = k30_get_consultants();
 $qs = fn(array $x = []) => http_build_query(array_filter(array_merge($f, $x), fn($v) => $v !== '' && $v !== 0));
 
-$RZ_TITLE = 'Rezerwacje terminów';
+$RZ_TITLE = 'Rezerwacje terminów'; $RZ_CUR = 'rezerwacje.php';
 include __DIR__ . '/_rezerwacje_head.php';
 ?>
 <main id="main" class="dyd-wrap">

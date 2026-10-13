@@ -17,7 +17,7 @@ catch (\Throwable $e) { error_log('konsultacjeZestawienia: ' . $e->getMessage())
 $q = fn(array $x = []) => 'konsultacjeZestawienia.php?' . http_build_query(array_filter(array_merge(['r' => $key, 'm' => $range['m'], 'from' => $range['m'] === '' ? $range['from'] : '', 'to' => $range['m'] === '' ? $range['to'] : '', 'v' => $view === 'lista' ? 'lista' : ''], $x), fn($v) => $v !== '' && $v !== null));
 $szk = in_array($key, ['szk', 'szk_uczestnicy'], true) ? db_all("SELECT id, name FROM k30_ti_courses WHERE simple_mode > 0 ORDER BY name DESC LIMIT 200") : [];
 
-$RZ_TITLE = 'Wydruki i zestawienia';
+$RZ_TITLE = 'Wydruki i zestawienia'; $RZ_CUR = 'konsultacjeZestawienia.php';
 include __DIR__ . '/_rezerwacje_head.php';
 ?>
 <main id="main" class="dyd-wrap">

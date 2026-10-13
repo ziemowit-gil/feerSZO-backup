@@ -13,7 +13,7 @@ if (isset($_GET['api'])) {
 }
 $consultants = k30_get_consultants();
 $KP_FULLCALENDAR = true;
-$RZ_TITLE = 'Kalendarz rezerwacji';
+$RZ_TITLE = 'Kalendarz rezerwacji'; $RZ_CUR = 'rezerwacjeKalendarz.php';
 include __DIR__ . '/_rezerwacje_head.php';
 ?>
 <main id="main" class="dyd-wrap">
