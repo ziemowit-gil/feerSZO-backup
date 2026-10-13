@@ -1812,9 +1812,8 @@ function k30_parse_cert(string $pem): ?array {
     $parsed = @openssl_x509_parse($pem);
     if (!$parsed) return null;
 
-    // Fingerprint SHA1 (openssl x509 -fingerprint)
-    $der        = '';
-    openssl_x509_export_to_file($pem, 'php://memory');  // nie używamy — obliczamy inaczej
+    // Fingerprint SHA1 (openssl x509 -fingerprint) — z DER odczytanego przez openssl_x509_export (bez plików:
+    // dawne openssl_x509_export_to_file($pem, 'php://memory') sypało ostrzeżeniem „Error opening file” na serwerze)
     $fingerprint = '';
     $res = openssl_x509_read($pem);
     if ($res) {
