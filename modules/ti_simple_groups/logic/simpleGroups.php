@@ -185,6 +185,27 @@ final class TiSimpleGroups
         return ['ok' => true, 'errors' => [], 'warnings' => $warn, 'course_id' => $cid, 'name' => $name, 'no_account' => self::withoutAccount($clients)];
     }
 
+    /**
+     * Lista grup uproszczonych (simple_mode > 0) z prowadzącym, uczestnikami, terminami (odbyte / wszystkie,
+     * najbliższy) i formami zajęć. $active: true = tylko aktywne, false = wszystkie (także zamknięte i anulowane).
+     */
+    public static function listGroups(bool $active = true): array
+    {
+        return db_all(
+            "SELECT c.id, c.name, c.simple_mode, c.class_type, c.is_active, c.status, u.name AS instructor_name,
+                    (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS people,
+                    (SELECT GROUP_CONCAT(cl.name, ', ') FROM k30_ti_enrollments e JOIN k30_clients cl ON cl.id = e.client_id
+                      WHERE e.course_id = c.id AND e.status = 'active') AS people_names,
+                    (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.course_id = c.id AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved','cancelled')) AS lessons,
+                    (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.course_id = c.id AND s.status IN ('held','individual_change','remote_material')) AS held,
+                    (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.course_id = c.id AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved','cancelled') AND s.lesson_method LIKE 'zdalna%') AS online,
+                    (SELECT MIN(s.lesson_date || ' ' || s.time_from) FROM k30_ti_sessions s WHERE s.course_id = c.id AND s.status = 'planned' AND s.lesson_date >= date('now')) AS next_lesson,
+                    (SELECT MIN(s.lesson_date) FROM k30_ti_sessions s WHERE s.course_id = c.id AND s.draft_id IS NULL) AS first_lesson
+               FROM k30_ti_courses c LEFT JOIN users u ON u.id = c.instructor_id
+              WHERE c.simple_mode > 0" . ($active ? " AND c.is_active = 1 AND COALESCE(c.status,'') NOT IN ('cancelled','archived')" : '') . "
+              ORDER BY c.is_active DESC, first_lesson DESC, c.name DESC");
+    }
+
     /** Nazwiska uczestników bez konta w panelu kursanta (nie zalogują się, dopóki konto nie powstanie). */
     public static function withoutAccount(array $clientIds): array
     {

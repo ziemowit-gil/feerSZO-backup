@@ -62,6 +62,9 @@ $year        = (int)date('Y');
 $o = fn(string $k, $def = '') => $old[$k] ?? $def;
 $oa = fn(string $k, int $i, $def = '') => $old[$k][$i] ?? $def;
 
+$showAll = !empty($_GET['wszystkie']);
+$groups  = TiSimpleGroups::listGroups(!$showAll);
+
 $conv = (int)($_GET['konwertuj'] ?? 0);
 $convC = $conv ? db_one("SELECT id, name, simple_mode FROM k30_ti_courses WHERE id=?", [$conv]) : null;
 $convYear = $year; $convLet = '';
@@ -99,6 +102,41 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php if ($warnings && $errors): ?>
 <div class="alert alert-warning small"><?php foreach ($warnings as $w): ?><div><?= h($w) ?></div><?php endforeach; ?></div>
 <?php endif; ?>
+
+<section class="card border-0 shadow-sm mb-4" id="lista" aria-labelledby="gu-list-h">
+  <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2" id="gu-list-h">
+    <span><i class="bi bi-list-ul me-1 text-primary" aria-hidden="true"></i>Grupy uproszczone <span class="badge text-bg-secondary"><?= count($groups) ?></span></span>
+    <a class="small ms-auto" href="grupaUproszczona.php<?= $showAll ? '' : '?wszystkie=1' ?>#lista"><?= $showAll ? 'Pokaż tylko aktywne' : 'Pokaż także zamknięte' ?></a>
+    <a class="btn btn-sm btn-primary" href="#gu-new-h"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowa grupa</a>
+  </div>
+  <?php if (!$groups): ?>
+  <div class="card-body small text-body-secondary">Nie ma jeszcze <?= $showAll ? '' : 'aktywnych ' ?>grup uproszczonych.</div>
+  <?php else: ?>
+  <div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <caption class="visually-hidden">Grupy uproszczone</caption>
+    <thead class="table-light"><tr>
+      <th scope="col">Grupa</th><th scope="col">Rodzaj</th><th scope="col">Panel uczestników</th><th scope="col">Prowadzący</th>
+      <th scope="col">Uczestnicy</th><th scope="col" class="text-end">Zajęcia</th><th scope="col">Najbliższe</th><th scope="col"><span class="visually-hidden">Akcje</span></th>
+    </tr></thead>
+    <tbody>
+    <?php foreach ($groups as $g): $_typ = ['individual' => 'Indywidualne', 'group' => 'Grupowe', 'hybrid' => 'Hybryda krótka'][$g['class_type']] ?? $g['class_type']; ?>
+    <tr<?= empty($g['is_active']) ? ' class="text-body-secondary"' : '' ?>>
+      <th scope="row" class="font-monospace fw-semibold"><a href="index.php?course=<?= (int)$g['id'] ?>&amp;tab=lekcje"><?= h($g['name']) ?></a><?= empty($g['is_active']) ? ' <span class="badge text-bg-secondary">nieaktywna</span>' : '' ?></th>
+      <td><?= h($_typ) ?><?php if ((int)$g['online'] > 0 && (int)$g['online'] < (int)$g['lessons']): ?><div class="small text-body-secondary"><?= (int)$g['lessons'] - (int)$g['online'] ?> stac. + <?= (int)$g['online'] ?> online</div><?php elseif ((int)$g['lessons'] > 0 && (int)$g['online'] === (int)$g['lessons']): ?><div class="small text-body-secondary">online</div><?php endif; ?></td>
+      <td class="small"><?= h(TiSimpleGroups::MODES[(int)$g['simple_mode']] ?? '') ?></td>
+      <td class="small"><?= h((string)($g['instructor_name'] ?? '—')) ?></td>
+      <td class="small" style="max-width:16rem"><?= (int)$g['people'] ?><?php if ($g['people_names']): ?> — <?= h(mb_strimwidth((string)$g['people_names'], 0, 80, '…')) ?><?php endif; ?></td>
+      <td class="text-end small"><?= (int)$g['held'] ?> / <?= (int)$g['lessons'] ?><span class="visually-hidden"> odbytych</span></td>
+      <td class="small text-nowrap"><?= $g['next_lesson'] ? h(date('d.m.Y', strtotime(substr((string)$g['next_lesson'], 0, 10))) . ' ' . substr((string)$g['next_lesson'], 11, 5)) : '—' ?></td>
+      <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$g['id'] ?>#konwerter" title="Konwertuj grupę <?= h($g['name']) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Konwertuj</span></a></td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+  <?php endif; ?>
+</section>
 
 <datalist id="gu-clients"><?php foreach ($clients as $c): ?><option value="<?= h($c['name'] . ' · #' . $c['id']) ?>"><?php endforeach; ?></datalist>
 
