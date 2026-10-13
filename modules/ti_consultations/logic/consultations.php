@@ -68,7 +68,7 @@ final class TiConsultations
         return ['approved' => $done, 'closed' => $closed];
     }
 
-    /** Słowniki danych zgłoszenia (karta samodzielna) — klucz => etykieta. */
+    /** Słowniki danych zgłoszenia — wartości domyślne (klucz => etykieta); edytowalne w Ustawieniach konsultacji (dicts()). */
     public const INTAKE = [
         'contact_pref' => ['email' => 'E-mail', 'phone' => 'Telefon / SMS', 'app' => 'Aplikacja / komunikator'],
         'who'          => ['niewidoma' => 'Osoba niewidoma / słabowidząca', 'rodzic' => 'Rodzic / opiekun prawny',
@@ -85,11 +85,89 @@ final class TiConsultations
         'form'         => ['online' => 'On-line (Teams, Zoom, telefon)', 'stacjonarnie' => 'Stacjonarnie (siedziba / dojazd)'],
     ];
 
+    public const DICT_NAMES = ['contact_pref' => 'Preferowana forma kontaktu', 'who' => 'Kogo dotyczy zgłoszenie', 'vision' => 'Stopień / specyfika wzroku',
+                               'topics' => 'Tematy konsultacji', 'systems' => 'Systemy', 'form' => 'Forma konsultacji'];
+    /** Domyślne teksty zgód — {polityka} i {regulamin} zamieniane na linki z ustawień. */
+    public const RODO_DEFAULT  = 'Beneficjent wyraził zgodę na przetwarzanie danych osobowych (RODO) po zapoznaniu się z obowiązkiem informacyjnym i {polityka}.';
+    public const TERMS_DEFAULT = 'Akceptacja {regulamin} (jeśli dotyczy).';
+
+    /**
+     * Słowniki po zmianach z ustawień (org_setting ti_consult_dicts, JSON {słownik: [[klucz, etykieta, aktywna], …]}).
+     * $activeOnly — tylko aktywne (formularz); inaczej wszystkie (opisy na kartach i wydrukach starszych kart).
+     * @return array<string, array<string,string>>
+     */
+    public static function dicts(bool $activeOnly = false): array
+    {
+        static $cache = null;
+        if ($cache === null) {
+            $cache = ['all' => self::INTAKE, 'active' => self::INTAKE];
+            $j = function_exists('org_setting') ? json_decode((string)org_setting('ti_consult_dicts'), true) : null;
+            if (is_array($j)) foreach (self::DICT_NAMES as $d => $_) {
+                if (empty($j[$d]) || !is_array($j[$d])) continue;   // brak / pusty słownik = domyślny
+                $all = []; $act = [];
+                foreach ($j[$d] as $row) {
+                    [$k, $l, $on] = array_pad((array)$row, 3, 1);
+                    if (!is_string($k) || $k === '' || trim((string)$l) === '') continue;
+                    $all[$k] = (string)$l; if ($on) $act[$k] = (string)$l;
+                }
+                foreach (self::INTAKE[$d] as $k => $l) if (!isset($all[$k])) { $all[$k] = $l; }   // stare klucze zawsze opisane
+                $cache['all'][$d] = $all; $cache['active'][$d] = $act;
+            }
+        }
+        return $cache[$activeOnly ? 'active' : 'all'];
+    }
+
+    /** Zapis słowników z formularza ustawień: $in[słownik] = [['key'=>, 'label'=>, 'on'=>bool], …]; puste klucze = nowe pozycje. */
+    public static function saveDicts(array $in): void
+    {
+        $out = [];
+        foreach (self::DICT_NAMES as $d => $_) {
+            $rows = []; $used = [];
+            $taken = [];   // klucze istniejących pozycji — nowa pozycja ich nie zajmie
+            foreach ((array)($in[$d] ?? []) as $r) if (preg_match('/^[a-z0-9_]{1,40}$/', (string)($r['key'] ?? ''))) $taken[$r['key']] = true;
+            foreach ((array)($in[$d] ?? []) as $r) {
+                $l = trim(mb_substr((string)($r['label'] ?? ''), 0, 200));
+                if ($l === '') continue;
+                $k = (string)($r['key'] ?? '');
+                if (!preg_match('/^[a-z0-9_]{1,40}$/', $k)) {   // nowa pozycja — klucz z etykiety, unikalny w słowniku (także wobec domyślnych)
+                    $base = substr(trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $l) ?: '')), '_'), 0, 30) ?: 'poz';
+                    $k = $base; $i = 2;
+                    while (isset($used[$k]) || isset($taken[$k]) || isset(self::INTAKE[$d][$k])) $k = $base . '_' . $i++;
+                }
+                if (isset($used[$k])) continue;
+                $used[$k] = true; $rows[] = [$k, $l, !empty($r['on']) ? 1 : 0];
+            }
+            $out[$d] = $rows;
+        }
+        org_setting_set('ti_consult_dicts', json_encode($out, JSON_UNESCAPED_UNICODE));
+    }
+
+    /** Tekst zgody z linkami (HTML, już escapowany). $kind = 'rodo' | 'terms'. */
+    public static function consentHtml(string $kind): string
+    {
+        $txt = trim((string)org_setting($kind === 'rodo' ? 'ti_consult_rodo_text' : 'ti_consult_terms_text')) ?: ($kind === 'rodo' ? self::RODO_DEFAULT : self::TERMS_DEFAULT);
+        $link = function (string $key, string $label) {
+            $u = trim((string)org_setting($key));
+            return preg_match('#^https?://#i', $u) ? '<a href="' . htmlspecialchars($u, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">' . $label . '</a>' : $label;
+        };
+        return strtr(htmlspecialchars($txt, ENT_QUOTES, 'UTF-8'), [
+            '{polityka}' => $link('ti_consult_privacy_url', 'Polityką Prywatności'),
+            '{regulamin}' => $link('ti_consult_terms_url', 'regulaminu świadczenia konsultacji'),
+        ]);
+    }
+
+    /** Tekst zgody bez HTML (do PDF / zapisu przy karcie). */
+    public static function consentText(string $kind): string
+    {
+        return html_entity_decode(strip_tags(self::consentHtml($kind)), ENT_QUOTES, 'UTF-8');
+    }
+
     /** Dane zgłoszenia z formularza (pola intake_*) — tylko znane wartości. */
     public static function intakeFromPost(array $p): array
     {
-        $one = fn(string $k) => isset(self::INTAKE[$k][$p['intake_' . $k] ?? '']) ? (string)$p['intake_' . $k] : '';
-        $many = fn(string $k) => array_values(array_intersect(array_keys(self::INTAKE[$k]), (array)($p['intake_' . $k] ?? [])));
+        $D = self::dicts();
+        $one = fn(string $k) => isset($D[$k][$p['intake_' . $k] ?? '']) ? (string)$p['intake_' . $k] : '';
+        $many = fn(string $k) => array_values(array_intersect(array_keys($D[$k]), (array)($p['intake_' . $k] ?? [])));
         $t = fn(string $k, int $max = 500) => mb_substr(trim((string)($p['intake_' . $k] ?? '')), 0, $max);
         return [
             'email' => $t('email', 190), 'phone' => $t('phone', 40), 'contact_pref' => $one('contact_pref'), 'contact_app' => $t('contact_app', 100),
@@ -97,6 +175,7 @@ final class TiConsultations
             'topics' => $many('topics'), 'topics_other' => $t('topics_other', 300), 'systems' => $many('systems'), 'at_tools' => $t('at_tools', 300),
             'problem' => $t('problem', 4000), 'form' => $one('form'), 'availability' => $t('availability', 300),
             'rodo' => !empty($p['intake_rodo']), 'terms' => !empty($p['intake_terms']), 'consent_at' => !empty($p['intake_rodo']) ? date('Y-m-d H:i:s') : '',
+            'rodo_text' => !empty($p['intake_rodo']) ? self::consentText('rodo') : '', 'terms_text' => !empty($p['intake_terms']) ? self::consentText('terms') : '',
         ];
     }
 
@@ -121,7 +200,7 @@ final class TiConsultations
     {
         $i = self::intake($card);
         if (!$i) return [];
-        $L = self::INTAKE; $lab = fn($k, $v) => $L[$k][$v] ?? '';
+        $L = self::dicts(); $lab = fn($k, $v) => $L[$k][$v] ?? '';
         $topics = array_map(fn($v) => $lab('topics', $v), (array)($i['topics'] ?? []));
         if (($i['topics_other'] ?? '') !== '') $topics[] = 'inne: ' . $i['topics_other'];
         return array_values(array_filter([
@@ -134,8 +213,8 @@ final class TiConsultations
             ['Czytnik ekranu / powiększalnik', $i['at_tools'] ?? ''],
             ['Opis problemu / cel', $i['problem'] ?? ''],
             ['Preferowana forma', $lab('form', $i['form'] ?? '')], ['Dogodne terminy', $i['availability'] ?? ''],
-            ['Zgoda RODO', !empty($i['rodo']) ? 'tak' . (($i['consent_at'] ?? '') !== '' ? ' (' . date('d.m.Y H:i', strtotime((string)$i['consent_at'])) . ')' : '') : 'nie'],
-            ['Regulamin konsultacji', !empty($i['terms']) ? 'zaakceptowany' : 'nie dotyczy / brak'],
+            ['Zgoda RODO', !empty($i['rodo']) ? 'tak' . (($i['consent_at'] ?? '') !== '' ? ' (' . date('d.m.Y H:i', strtotime((string)$i['consent_at'])) . ')' : '') . (($i['rodo_text'] ?? '') !== '' ? ' — „' . $i['rodo_text'] . '”' : '') : 'nie'],
+            ['Regulamin konsultacji', !empty($i['terms']) ? 'zaakceptowany' . (($i['terms_text'] ?? '') !== '' ? ' — „' . $i['terms_text'] . '”' : '') : 'nie dotyczy / brak'],
         ], fn($r) => trim((string)$r[1]) !== ''));
     }
 

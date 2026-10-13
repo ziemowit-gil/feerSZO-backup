@@ -21,7 +21,8 @@ function rz_nav(string $cur): void {
     $tabs = ['lista' => ['Rezerwacje', 'rezerwacje.php', 'list-ul'], 'kalendarz' => ['Kalendarz', 'rezerwacjeKalendarz.php', 'calendar3'],
              'szybka' => ['Szybka rezerwacja', 'rezerwacja.php?szybka=1', 'lightning'], 'nowa' => ['Nowa rezerwacja', 'rezerwacja.php?nowa=1', 'plus-lg'],
              'kolejka' => ['Kolejka oczekujących', 'kolejka.php', 'hourglass-split'], 'karty' => ['Karty konsultacji', 'konsultacje.php', 'clipboard2-check'],
-             'zestawienia' => ['Wydruki i zestawienia', 'konsultacjeZestawienia.php', 'printer']]; ?>
+             'zestawienia' => ['Wydruki i zestawienia', 'konsultacjeZestawienia.php', 'printer']];
+    if (dyd_is_staff()) $tabs['ustawienia'] = ['Ustawienia', 'konsultacjeUstawienia.php', 'gear']; ?>
 <nav class="mb-3" aria-label="Rezerwacje terminów">
   <ul class="nav nav-pills flex-wrap gap-1">
     <?php foreach ($tabs as $k => [$l, $href, $ic]): ?>

@@ -123,7 +123,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <div class="col-md-4"><label class="form-label" for="kc-dur">Czas trwania (min)</label>
       <input class="form-control" type="number" min="5" step="5" id="kc-dur" name="duration" value="<?= h((string)($_POST['duration'] ?? ($card['duration_minutes'] ?? 60))) ?>"></div>
   </div>
-  <?php $L = TiConsultations::INTAKE;
+  <?php $L = TiConsultations::dicts(true); $LA = TiConsultations::dicts();
+        foreach ($L as $_d => $_x) foreach ((array)$iv($_d, []) as $_v) if (is_string($_v) && isset($LA[$_d][$_v]) && !isset($L[$_d][$_v])) $L[$_d][$_v] = $LA[$_d][$_v] . ' (wyłączone)';   // wybrane wcześniej, dziś wyłączone
         $radio = function (string $k, string $legend) use ($L, $iv) { ?>
     <fieldset class="mb-2"><legend class="form-label small fw-semibold mb-1"><?= h($legend) ?></legend>
       <?php foreach ($L[$k] as $o => $ol): ?><div class="form-check"><input class="form-check-input" type="radio" name="intake_<?= $k ?>" id="in-<?= $k ?>-<?= $o ?>" value="<?= h($o) ?>"<?= (string)$iv($k) === $o ? ' checked' : '' ?>><label class="form-check-label small" for="in-<?= $k ?>-<?= $o ?>"><?= h($ol) ?></label></div><?php endforeach; ?>
@@ -157,8 +158,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <div class="row g-2"><div class="col-md-6"><?php $radio('form', 'Preferowana forma konsultacji'); ?></div>
       <div class="col-md-6"><label class="form-label small mb-0" for="in-av">Dogodne dni / godziny kontaktu</label><input class="form-control form-control-sm" id="in-av" name="intake_availability" value="<?= h((string)$iv('availability')) ?>"></div></div>
     <h3 class="small fw-bold text-uppercase text-body-secondary mt-3">5. Zgody</h3>
-    <div class="form-check"><input class="form-check-input" type="checkbox" id="in-rodo" name="intake_rodo" value="1" required<?= $iv('rodo') ? ' checked' : '' ?>><label class="form-check-label small" for="in-rodo">Beneficjent wyraził zgodę na przetwarzanie danych osobowych (RODO) po zapoznaniu się z obowiązkiem informacyjnym i Polityką Prywatności <span class="text-danger" aria-hidden="true">*</span></label></div>
-    <div class="form-check"><input class="form-check-input" type="checkbox" id="in-terms" name="intake_terms" value="1"<?= $iv('terms') ? ' checked' : '' ?>><label class="form-check-label small" for="in-terms">Akceptacja regulaminu świadczenia konsultacji (jeśli dotyczy)</label></div>
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="in-rodo" name="intake_rodo" value="1" required<?= $iv('rodo') ? ' checked' : '' ?>><label class="form-check-label small" for="in-rodo"><?= TiConsultations::consentHtml('rodo') ?> <span class="text-danger" aria-hidden="true">*</span></label></div>
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="in-terms" name="intake_terms" value="1"<?= $iv('terms') ? ' checked' : '' ?>><label class="form-check-label small" for="in-terms"><?= TiConsultations::consentHtml('terms') ?></label></div>
   </section>
   <div class="mb-3"><label class="form-label" for="kc-desc">Opis konsultacji (przebieg — wypełnia konsultant)</label><textarea class="form-control" id="kc-desc" name="description" rows="5"><?= h((string)$v('description')) ?></textarea></div>
   <div class="mb-3"><label class="form-label" for="kc-next">Następne działania</label><textarea class="form-control" id="kc-next" name="next_action" rows="2"><?= h((string)$v('next_action')) ?></textarea></div>

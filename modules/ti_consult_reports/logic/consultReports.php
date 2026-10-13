@@ -64,7 +64,7 @@ final class TiConsultReports
 
     private static function r_karty(array $r, int $uid, bool $staff): array
     {
-        $L = TiConsultations::INTAKE; $out = []; $min = 0;
+        $L = TiConsultations::dicts(); $out = []; $min = 0;
         foreach (self::cards($r, $uid, $staff) as $c) {
             $i = TiConsultations::intake($c);
             $topics = implode('; ', array_map(fn($t) => explode(' (', $L['topics'][$t] ?? $t)[0], (array)($i['topics'] ?? [])));
@@ -93,7 +93,7 @@ final class TiConsultReports
 
     private static function r_tematy(array $r, int $uid, bool $staff): array
     {
-        $L = TiConsultations::INTAKE; $cnt = array_fill_keys(array_keys($L['topics']), 0); $sys = array_fill_keys(array_keys($L['systems']), 0); $with = 0; $all = 0;
+        $L = TiConsultations::dicts(); $cnt = array_fill_keys(array_keys($L['topics']), 0); $sys = array_fill_keys(array_keys($L['systems']), 0); $with = 0; $all = 0;
         foreach (self::cards($r, $uid, $staff) as $c) {
             $all++; $i = TiConsultations::intake($c);
             if (!$i) continue;
