@@ -68,7 +68,6 @@ $_usos_sections = [
             $_it('',                 'Protokoły zajęć', 'protokoly_zajec.php'),
             $_it('',                 'Moje zgłoszenia',   'mojeZgloszenia.php'),
             $_it('',                 'Moje godziny',      'godziny.php'),
-            $_it('',                 'Karty konsultacji', 'konsultacje.php'),
             $_it('wydruki',          'Wydruki',           $_g('wydruki')),
         ],
     ],
@@ -83,6 +82,15 @@ $_usos_sections = [
         'items' => [
             $_it('wiadomosci', 'Wiadomości', $_g('wiadomosci'), $_n_msg, 'danger'),
             $_it('komunikaty', 'Komunikaty', $_g('komunikaty'), $_n_notices, 'warning'),
+        ],
+    ],
+    'konsultacje' => [
+        'label' => 'Konsultacje',
+        'href'  => 'konsultacje.php',
+        'items' => [
+            $_it('', 'Karty konsultacji', 'konsultacje.php'),
+            $_it('', 'Nowa konsultacja',  'konsultacja.php?nowa=1'),
+            ...(dyd_is_staff() ? [$_it('', 'Szkolenia krótkie (SzK)', 'grupaUproszczona.php')] : []),
         ],
     ],
     'zasoby' => [
@@ -113,6 +121,8 @@ if (dyd_is_staff()) {
             $_it('',             'Zaległe protokoły',     'protokoly.php'),
             $_it('',             'Program poleceń',       'polecenia.php'),
             $_it('kursy',        'Zarządzanie kursami',   $_g('kursy')),
+            $_it('',             'Szkolenia krótkie (SzK)', 'grupaUproszczona.php'),
+            $_it('',             'Karty konsultacji',     'konsultacje.php'),
             $_it('',             'Log operacji na grupach', 'log_grup.php'),
             $_it('',             'Wydruki i raporty',     'wydruki.php'),
             ...(function_exists('dyd_can_analytics') && dyd_can_analytics() ? [$_it('', 'Analityka TI', 'analityka.php')] : []),

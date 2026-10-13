@@ -31,6 +31,7 @@ const DYD_NAV_TABS = [
 const DYD_NAV_PAGES = [
     'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php', 'umowa.php'],
     'certyfikat' => ['moj_certyfikat.php', 'certyfikaty.php'],
+    'konsultacje' => ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'grupaUproszczona.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
@@ -47,6 +48,7 @@ function dyd_nav_sections(): array {
         'kurs'        => ['Kurs',        $c ? 'index.php?course=' . $c . '&tab=lekcje' : 'index.php?tab=lekcje'],
         'komunikacja' => ['Komunikacja', 'index.php?tab=wiadomosci'],
         'zasoby'      => ['Zasoby',      'index.php?tab=dysk'],
+        'konsultacje' => ['Konsultacje', 'konsultacje.php'],
         'certyfikat'  => ['Certyfikat',  'moj_certyfikat.php'],
     ];
     if (function_exists('dyd_is_staff') && dyd_is_staff()) $s['planowanie'] = ['Planowanie', 'planista.php'];
