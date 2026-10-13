@@ -220,6 +220,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
             <?php if (!empty($c['simple_mode'])): ?>
             <span class="badge ms-1" style="font-size:.6rem;background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc"
                   title="Grupa uproszczona (2–4 zajęcia) — uczestnicy widzą uproszczony panel"><?= ($c['class_type'] ?? '') === 'hybrid' ? 'Hybryda krótka' : 'Uproszczona' ?></span>
+            <?php if (trim((string)($c['internal_desc'] ?? '')) !== ''): ?><span class="small fst-italic text-body-secondary ms-1" title="Opis grupy — widzi tylko kadra"><?= h($c['internal_desc']) ?></span><?php endif; ?>
             <?php elseif (($c['class_type'] ?? '') === 'hybrid'): ?>
             <span class="badge ms-1" style="font-size:.6rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"
                   title="Kurs hybrydowy — lekcje online i stacjonarnie, inna stawka za tryb">Hybryda</span>

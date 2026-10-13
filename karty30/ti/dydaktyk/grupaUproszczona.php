@@ -4,6 +4,7 @@
  *
  * 1. Nowa grupa uproszczona w jednym kroku: nazwa KON, prowadzący, uczestnicy (z bazy albo nowi), 1–4 terminy,
  *    tryb panelu uczestników (tylko terminy / + płatności / + płatności uproszczone).
+ *    Opis grupy (internal_desc) widzi tylko kadra.
  * 2. Konwerter grup: istniejąca grupa → uproszczona (nazwa KON) i z powrotem; lekcje i rozliczenia bez zmian.
  * Tylko kierownik (dyd_is_staff). Logika: modules/ti_simple_groups/logic/simpleGroups.php.
  */
@@ -31,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = TiSimpleGroups::create([
             'number' => (int)($_POST['k_num'] ?? 0), 'letters' => (string)($_POST['k_let'] ?? ''), 'year' => (int)($_POST['k_year'] ?? 0),
             'instructor_id' => (int)($_POST['instructor_id'] ?? 0), 'class_type' => (string)($_POST['class_type'] ?? 'individual'),
+            'desc' => (string)($_POST['desc'] ?? ''),
             'location' => (string)($_POST['location'] ?? ''), 'meeting_url' => (string)($_POST['meeting_url'] ?? ''),
             'mode' => (int)($_POST['mode'] ?? 1), 'notify' => isset($_POST['notify']),
             'clients' => $cl, 'new_people' => $people, 'lessons' => $lessons,
@@ -49,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = $mode > 0 && ($_POST['k_num'] ?? '') !== ''
             ? TiSimpleGroups::name((int)$_POST['k_num'], (string)($_POST['k_let'] ?? ''), (int)($_POST['k_year'] ?? date('Y')))
             : trim((string)($_POST['new_name'] ?? ''));
-        $res = TiSimpleGroups::convert($cid, $mode, $name, $uid, $byName);
+        $res = TiSimpleGroups::convert($cid, $mode, $name, $uid, $byName, (string)($_POST['desc'] ?? ''));
         flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
         header('Location: grupaUproszczona.php?konwertuj=' . $cid . '#konwerter'); exit;
     }
@@ -57,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $instructors = k30_ti_instructors();
 $clients     = db_all("SELECT id, name FROM k30_clients WHERE TRIM(COALESCE(name,'')) <> '' ORDER BY name");
-$courses     = db_all("SELECT id, name, simple_mode, is_active FROM k30_ti_courses WHERE COALESCE(status,'') NOT IN ('cancelled','archived') ORDER BY is_active DESC, name");
+$courses     = db_all("SELECT id, name, simple_mode, is_active, internal_desc FROM k30_ti_courses WHERE COALESCE(status,'') NOT IN ('cancelled','archived') ORDER BY is_active DESC, name");
 $year        = (int)date('Y');
 $o = fn(string $k, $def = '') => $old[$k] ?? $def;
 $oa = fn(string $k, int $i, $def = '') => $old[$k][$i] ?? $def;
@@ -66,7 +68,7 @@ $showAll = !empty($_GET['wszystkie']);
 $groups  = TiSimpleGroups::listGroups(!$showAll);
 
 $conv = (int)($_GET['konwertuj'] ?? 0);
-$convC = $conv ? db_one("SELECT id, name, simple_mode FROM k30_ti_courses WHERE id=?", [$conv]) : null;
+$convC = $conv ? db_one("SELECT id, name, simple_mode, internal_desc FROM k30_ti_courses WHERE id=?", [$conv]) : null;
 $convYear = $year; $convLet = '';
 if ($convC) {
     $_first = db_one("SELECT MIN(lesson_date) AS d FROM k30_ti_sessions WHERE course_id=? AND draft_id IS NULL", [$conv]);
@@ -122,7 +124,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <tbody>
     <?php foreach ($groups as $g): $_typ = ['individual' => 'Indywidualne', 'group' => 'Grupowe', 'hybrid' => 'Hybryda krótka'][$g['class_type']] ?? $g['class_type']; ?>
     <tr<?= empty($g['is_active']) ? ' class="text-body-secondary"' : '' ?>>
-      <th scope="row" class="font-monospace fw-semibold"><a href="index.php?course=<?= (int)$g['id'] ?>&amp;tab=lekcje"><?= h($g['name']) ?></a><?= empty($g['is_active']) ? ' <span class="badge text-bg-secondary">nieaktywna</span>' : '' ?></th>
+      <th scope="row"><a class="font-monospace fw-semibold" href="index.php?course=<?= (int)$g['id'] ?>&amp;tab=lekcje"><?= h($g['name']) ?></a><?= empty($g['is_active']) ? ' <span class="badge text-bg-secondary">nieaktywna</span>' : '' ?>
+        <?php if (trim((string)$g['internal_desc']) !== ''): ?><div class="small fw-normal text-body-secondary"><?= h($g['internal_desc']) ?></div><?php endif; ?></th>
       <td><?= h($_typ) ?><?php if ((int)$g['online'] > 0 && (int)$g['online'] < (int)$g['lessons']): ?><div class="small text-body-secondary"><?= (int)$g['lessons'] - (int)$g['online'] ?> stac. + <?= (int)$g['online'] ?> online</div><?php elseif ((int)$g['lessons'] > 0 && (int)$g['online'] === (int)$g['lessons']): ?><div class="small text-body-secondary">online</div><?php endif; ?></td>
       <td class="small"><?= h(TiSimpleGroups::MODES[(int)$g['simple_mode']] ?? '') ?></td>
       <td class="small"><?= h((string)($g['instructor_name'] ?? '—')) ?></td>
@@ -162,7 +165,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <input class="form-control form-control-sm" id="gu-year" name="k_year" size="5" maxlength="4" pattern="\d{4}" inputmode="numeric"
                value="<?= h((string)$o('k_year', (string)$year)) ?>">
       </div>
-      <div class="form-text">5 cyfr (kolejny numer w roku), 3 litery, rok. Litery podpowiadają się z pierwszego uczestnika.</div>
+      <div class="form-text">5 cyfr (kolejny numer w roku), 3 litery, rok. Litery podpowiadają się z pierwszego uczestnika. Kursanci widzą tylko ten numer.</div>
+      <label class="form-label small mb-0 mt-2" for="gu-desc">Opis <span class="text-body-secondary fw-normal">(widzi tylko kadra — nie pokazujemy go kursantom)</span></label>
+      <input class="form-control form-control-sm" id="gu-desc" name="desc" maxlength="300" value="<?= h((string)$o('desc')) ?>" placeholder="np. konsultacje z obsługi czytnika ekranu">
     </fieldset>
 
     <fieldset class="mb-3">
@@ -256,7 +261,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <label class="form-label small mb-0" for="gu-conv-c">Grupa</label>
         <select class="form-select form-select-sm" id="gu-conv-c" name="konwertuj" onchange="this.form.submit()">
           <option value="0">— wybierz grupę —</option>
-          <?php foreach ($courses as $c): ?><option value="<?= (int)$c['id'] ?>"<?= (int)$c['id'] === $conv ? ' selected' : '' ?>><?= h($c['name']) ?><?= (int)$c['simple_mode'] > 0 ? ' (uproszczona)' : '' ?><?= empty($c['is_active']) ? ' — nieaktywna' : '' ?></option><?php endforeach; ?>
+          <?php foreach ($courses as $c): ?><option value="<?= (int)$c['id'] ?>"<?= (int)$c['id'] === $conv ? ' selected' : '' ?>><?= h($c['name']) ?><?= trim((string)($c['internal_desc'] ?? '')) !== '' ? ' — ' . h($c['internal_desc']) : '' ?><?= (int)$c['simple_mode'] > 0 ? ' (uproszczona)' : '' ?><?= empty($c['is_active']) ? ' — nieaktywna' : '' ?></option><?php endforeach; ?>
         </select>
       </div>
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary">Wybierz</button></div>
@@ -267,7 +272,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <p class="mb-2">Teraz: <strong><?= h($convC['name']) ?></strong> — <?= $cm > 0 ? 'uproszczona (' . h(TiSimpleGroups::MODES[$cm] ?? '') . ')' : 'zwykła grupa' ?></p>
       <label class="form-label small mb-0" for="gu-conv-mode">Zamień na</label>
       <select class="form-select form-select-sm mb-2" id="gu-conv-mode" name="mode" style="max-width:26rem">
-        <?php if ($cm > 0): ?><option value="0">Zwykła grupa (pełny panel uczestników)</option><?php endif; ?>
+        <?php if ($cm > 0): ?><option value="<?= $cm ?>" selected>Bez zmiany trybu (uproszczona — <?= h(TiSimpleGroups::MODES[$cm] ?? '') ?>)</option><option value="0">Zwykła grupa (pełny panel uczestników)</option><?php endif; ?>
         <?php foreach (TiSimpleGroups::MODES as $m => $ml): if ($m === $cm) continue; ?><option value="<?= $m ?>">Uproszczona — <?= h($ml) ?></option><?php endforeach; ?>
       </select>
       <div id="gu-conv-kon" class="mb-2">
@@ -279,6 +284,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <label class="visually-hidden" for="gu-cy">Rok</label><input class="form-control form-control-sm" id="gu-cy" name="k_year" size="5" maxlength="4" value="<?= h($_y) ?>">
         </div>
       </div>
+      <label class="form-label small mb-0" for="gu-conv-desc">Opis <span class="text-body-secondary fw-normal">(tylko dla kadry)</span></label>
+      <input class="form-control form-control-sm mb-2" id="gu-conv-desc" name="desc" maxlength="300" style="max-width:26rem" value="<?= h((string)($convC['internal_desc'] ?? '')) ?>">
       <?php if ($cm > 0): ?>
       <div id="gu-conv-plain" class="mb-2" hidden>
         <label class="form-label small mb-0" for="gu-conv-name">Nowa nazwa grupy (puste = bez zmiany)</label>

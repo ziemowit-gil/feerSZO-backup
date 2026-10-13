@@ -9,6 +9,7 @@
  * w trybie grupy (1 = tylko terminy, 2 = terminy + płatności, 3 = terminy + płatności uproszczone) —
  * chyba że konto ma własny tryb (k30_ti_student_accounts.simple_mode > 0), on ma pierwszeństwo.
  * Konwerter zamienia istniejącą grupę w uproszczoną (z nazwą KON) i z powrotem.
+ * Opis grupy (internal_desc) widzi tylko kadra — kursant widzi sam numer KON.
  */
 require_once dirname(__DIR__, 3) . '/includes/karty30.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_periods.php';
@@ -74,6 +75,7 @@ final class TiSimpleGroups
     /**
      * Utworzenie grupy uproszczonej.
      * $in: number, letters, year (części nazwy), instructor_id, class_type, is_online, location, meeting_url, mode (1–3),
+     *      desc (opis tylko dla kadry),
      *      notify (bool — SMS o terminach), clients: int[] (istniejący), new_people: [['name','phone','email'], …],
      *      lessons: [['date','from','to','method'], …] (puste wiersze pomijane, 1–4 terminy; method z METHODS).
      * „Hybryda krótka” (class_type hybrid): zajęcia mieszane — część stacjonarnie, część online; mieszane formy
@@ -139,7 +141,7 @@ final class TiSimpleGroups
         $pdo = db(); $pdo->beginTransaction();
         try {
             $cid = (int)db_insert('k30_ti_courses', [
-                'name' => $name, 'display_name' => '', 'description' => 'Grupa uproszczona (' . self::MODES[$mode] . ').',
+                'name' => $name, 'display_name' => '', 'description' => '', 'internal_desc' => mb_substr(trim((string)($in['desc'] ?? '')), 0, 300),
                 'instructor_id' => $instr ?: null, 'location' => mb_substr(trim((string)($in['location'] ?? '')), 0, 200),
                 'default_meeting_url' => $remote ? $url : '',
                 'is_active' => 1, 'track_attendance' => 1, 'is_online' => $online, 'class_type' => $type,
@@ -192,7 +194,7 @@ final class TiSimpleGroups
     public static function listGroups(bool $active = true): array
     {
         return db_all(
-            "SELECT c.id, c.name, c.simple_mode, c.class_type, c.is_active, c.status, u.name AS instructor_name,
+            "SELECT c.id, c.name, c.internal_desc, c.simple_mode, c.class_type, c.is_active, c.status, u.name AS instructor_name,
                     (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS people,
                     (SELECT GROUP_CONCAT(cl.name, ', ') FROM k30_ti_enrollments e JOIN k30_clients cl ON cl.id = e.client_id
                       WHERE e.course_id = c.id AND e.status = 'active') AS people_names,
@@ -222,7 +224,7 @@ final class TiSimpleGroups
      * opcjonalnie nowa nazwa). Lekcje, zapisy i rozliczenia zostają bez zmian.
      * @return array{ok:bool, msg:string}
      */
-    public static function convert(int $courseId, int $mode, string $newName, int $uid, string $byName): array
+    public static function convert(int $courseId, int $mode, string $newName, int $uid, string $byName, ?string $desc = null): array
     {
         $c = db_one("SELECT id, name, simple_mode FROM k30_ti_courses WHERE id=?", [$courseId]);
         if (!$c) return ['ok' => false, 'msg' => 'Nie znaleziono grupy.'];
@@ -231,12 +233,16 @@ final class TiSimpleGroups
         if ($newName === '') $newName = (string)$c['name'];
         if ($mode > 0 && !self::isValidName($newName)) return ['ok' => false, 'msg' => 'Grupa uproszczona musi mieć nazwę KON.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.'];
         if ($newName !== $c['name'] && db_one("SELECT 1 FROM k30_ti_courses WHERE name=? AND id<>?", [$newName, $courseId])) return ['ok' => false, 'msg' => 'Grupa ' . $newName . ' już istnieje.'];
-        if ($mode === (int)$c['simple_mode'] && $newName === $c['name']) return ['ok' => false, 'msg' => 'Nic się nie zmienia — wybierz inny tryb albo nazwę.'];
+        $oldDesc = (string)(db_one("SELECT internal_desc FROM k30_ti_courses WHERE id=?", [$courseId])['internal_desc'] ?? '');
+        $desc = $desc === null ? $oldDesc : mb_substr(trim($desc), 0, 300);
+        if ($mode === (int)$c['simple_mode'] && $newName === $c['name'] && $desc === $oldDesc) return ['ok' => false, 'msg' => 'Nic się nie zmienia — wybierz inny tryb, nazwę albo opis.'];
+        db()->prepare("UPDATE k30_ti_courses SET internal_desc=? WHERE id=?")->execute([$desc, $courseId]);
         db()->prepare("UPDATE k30_ti_courses SET simple_mode=?, name=? WHERE id=?")->execute([$mode, $newName, $courseId]);
         $from = (int)$c['simple_mode'] > 0 ? 'uproszczona (' . self::MODES[(int)$c['simple_mode']] . ')' : 'zwykła';
         $to   = $mode > 0 ? 'uproszczona (' . self::MODES[$mode] . ')' : 'zwykła';
-        $det  = $from . ' → ' . $to . ($newName !== $c['name'] ? '; nazwa: ' . $c['name'] . ' → ' . $newName : '');
+        $det  = ($from !== $to ? $from . ' → ' . $to : $to) . ($newName !== $c['name'] ? '; nazwa: ' . $c['name'] . ' → ' . $newName : '')
+              . ($desc !== $oldDesc ? '; opis: ' . ($desc !== '' ? $desc : '(usunięty)') : '');
         ti_course_log($courseId, 'convert_simple', 'Konwerter grup: ' . $det, $uid, $byName);
-        return ['ok' => true, 'msg' => 'Grupa przekonwertowana: ' . $det . '.'];
+        return ['ok' => true, 'msg' => ($from !== $to ? 'Grupa przekonwertowana: ' : 'Zapisano zmiany grupy: ') . $det . '.'];
     }
 }

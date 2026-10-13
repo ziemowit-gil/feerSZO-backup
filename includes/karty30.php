@@ -419,6 +419,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_ti_courses ADD COLUMN action_id INTEGER NOT NULL DEFAULT 0",
         // Grupa uproszczona (KON.xxxxx.yyy.rrrr, 2–4 zajęcia): tryb panelu uczestników 1–3, patrz modules/ti_simple_groups
         "ALTER TABLE k30_ti_courses ADD COLUMN simple_mode INTEGER NOT NULL DEFAULT 0",
+        // Opis grupy tylko dla kadry (grupy uproszczone: „KON.… + opis”) — nie pokazywany kursantom
+        "ALTER TABLE k30_ti_courses ADD COLUMN internal_desc TEXT NOT NULL DEFAULT ''",
         // Status planowania grupy: informacja dla kierownika o zbliżającej się zmianie
         // (nie wpływa na is_active/status operacyjny — kurs działa normalnie do decyzji).
         // '' = brak, to_launch = planowana do uruchomienia, to_phase_out = do wygaszenia.

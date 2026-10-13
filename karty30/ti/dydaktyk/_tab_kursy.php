@@ -1059,6 +1059,7 @@ function dydKuMoveOpen(fromId, fromName) {
       <a class="badge text-decoration-none" style="font-size:.62rem;background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc" href="grupaUproszczona.php?konwertuj=<?= (int)$c['id'] ?>#konwerter"
          title="Grupa uproszczona — uczestnicy widzą uproszczony panel; kliknij, by przekonwertować"><?= ($c['class_type'] ?? '') === 'hybrid' ? 'Hybryda krótka' : 'Uproszczona' ?></a>
       <?php endif; ?>
+      <?php if (trim((string)($c['internal_desc'] ?? '')) !== ''): ?><span class="fst-italic" title="Opis grupy — widzi tylko kadra"><?= h($c['internal_desc']) ?></span><?php endif; ?>
       <?php if (!empty($c['hours_only_from'])): ?>
       <span class="badge" style="font-size:.62rem;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A"
             title="Grupa liczy tylko godziny (od <?= h((string)$c['hours_only_from']) ?>) — bez kwot, salda, faktur i powiadomień">Tylko godziny</span>
