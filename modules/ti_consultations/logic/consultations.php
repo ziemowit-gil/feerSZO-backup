@@ -23,6 +23,77 @@ final class TiConsultations
 
     public static function statuses(): array { return K30_CONSULTATION_STATUSES; }
 
+    /** Słowniki danych zgłoszenia (karta samodzielna) — klucz => etykieta. */
+    public const INTAKE = [
+        'contact_pref' => ['email' => 'E-mail', 'phone' => 'Telefon / SMS', 'app' => 'Aplikacja / komunikator'],
+        'who'          => ['niewidoma' => 'Osoba niewidoma / słabowidząca', 'rodzic' => 'Rodzic / opiekun prawny',
+                           'nauczyciel' => 'Nauczyciel / edukator / terapeuta', 'instytucja' => 'Przedstawiciel instytucji / firmy / NGO', 'inne' => 'Inne'],
+        'vision'       => ['niewidoma' => 'Osoba całkowicie niewidoma', 'slabowidzaca' => 'Osoba słabowidząca (powiększenie / kontrast)',
+                           'gluchoslepota' => 'Osoba z głuchoślepotą', 'brak' => 'Brak dysfunkcji wzroku (dostępność dla instytucji/firmy)'],
+        'topics'       => ['sprzet' => 'Dobór sprzętu tyfloinformatycznego (linijka brajlowska, powiększalnik, dyktafon)',
+                           'screenreader' => 'Oprogramowanie odczytu ekranu (NVDA, JAWS, VoiceOver, TalkBack)',
+                           'konfiguracja' => 'Dobór i konfiguracja smartfona / komputera / systemu',
+                           'biurowe' => 'Nauka obsługi oprogramowania biurowego / narzędzi programistycznych',
+                           'wcag' => 'Dostępność cyfrowa stron WWW / dokumentów (WCAG)',
+                           'adaptacja' => 'Adaptacja materiałów dydaktycznych lub stanowiska pracy/nauki', 'inne' => 'Inne'],
+        'systems'      => ['windows' => 'Windows', 'macos' => 'macOS', 'ios' => 'iOS', 'android' => 'Android', 'linux' => 'Linux'],
+        'form'         => ['online' => 'On-line (Teams, Zoom, telefon)', 'stacjonarnie' => 'Stacjonarnie (siedziba / dojazd)'],
+    ];
+
+    /** Dane zgłoszenia z formularza (pola intake_*) — tylko znane wartości. */
+    public static function intakeFromPost(array $p): array
+    {
+        $one = fn(string $k) => isset(self::INTAKE[$k][$p['intake_' . $k] ?? '']) ? (string)$p['intake_' . $k] : '';
+        $many = fn(string $k) => array_values(array_intersect(array_keys(self::INTAKE[$k]), (array)($p['intake_' . $k] ?? [])));
+        $t = fn(string $k, int $max = 500) => mb_substr(trim((string)($p['intake_' . $k] ?? '')), 0, $max);
+        return [
+            'email' => $t('email', 190), 'phone' => $t('phone', 40), 'contact_pref' => $one('contact_pref'), 'contact_app' => $t('contact_app', 100),
+            'who' => $one('who'), 'who_other' => $t('who_other', 200), 'vision' => $one('vision'),
+            'topics' => $many('topics'), 'topics_other' => $t('topics_other', 300), 'systems' => $many('systems'), 'at_tools' => $t('at_tools', 300),
+            'problem' => $t('problem', 4000), 'form' => $one('form'), 'availability' => $t('availability', 300),
+            'rodo' => !empty($p['intake_rodo']), 'terms' => !empty($p['intake_terms']), 'consent_at' => !empty($p['intake_rodo']) ? date('Y-m-d H:i:s') : '',
+        ];
+    }
+
+    /** Walidacja danych zgłoszenia karty samodzielnej. */
+    public static function intakeErrors(array $i): array
+    {
+        $e = [];
+        if ($i['email'] === '' || !filter_var($i['email'], FILTER_VALIDATE_EMAIL)) $e[] = 'Podaj poprawny adres e-mail beneficjenta.';
+        if ($i['contact_pref'] === 'phone' && $i['phone'] === '') $e[] = 'Preferowany kontakt telefoniczny — podaj numer telefonu.';
+        if (!$i['rodo']) $e[] = 'Wymagana zgoda na przetwarzanie danych osobowych (RODO).';
+        return $e;
+    }
+
+    public static function intake(array $card): array
+    {
+        $j = json_decode((string)($card['intake'] ?? ''), true);
+        return is_array($j) ? $j : [];
+    }
+
+    /** Wiersze [etykieta, wartość] danych zgłoszenia — do podglądu i PDF. */
+    public static function intakeRows(array $card): array
+    {
+        $i = self::intake($card);
+        if (!$i) return [];
+        $L = self::INTAKE; $lab = fn($k, $v) => $L[$k][$v] ?? '';
+        $topics = array_map(fn($v) => $lab('topics', $v), (array)($i['topics'] ?? []));
+        if (($i['topics_other'] ?? '') !== '') $topics[] = 'inne: ' . $i['topics_other'];
+        return array_values(array_filter([
+            ['E-mail', $i['email'] ?? ''], ['Telefon', $i['phone'] ?? ''],
+            ['Preferowany kontakt', trim($lab('contact_pref', $i['contact_pref'] ?? '') . (($i['contact_app'] ?? '') !== '' ? ' — ' . $i['contact_app'] : ''))],
+            ['Kogo dotyczy', trim($lab('who', $i['who'] ?? '') . (($i['who_other'] ?? '') !== '' ? ' — ' . $i['who_other'] : ''))],
+            ['Wzrok', $lab('vision', $i['vision'] ?? '')],
+            ['Temat konsultacji', implode('; ', $topics)],
+            ['Systemy', implode(', ', array_map(fn($v) => $lab('systems', $v), (array)($i['systems'] ?? [])))],
+            ['Czytnik ekranu / powiększalnik', $i['at_tools'] ?? ''],
+            ['Opis problemu / cel', $i['problem'] ?? ''],
+            ['Preferowana forma', $lab('form', $i['form'] ?? '')], ['Dogodne terminy', $i['availability'] ?? ''],
+            ['Zgoda RODO', !empty($i['rodo']) ? 'tak' . (($i['consent_at'] ?? '') !== '' ? ' (' . date('d.m.Y H:i', strtotime((string)$i['consent_at'])) . ')' : '') : 'nie'],
+            ['Regulamin konsultacji', !empty($i['terms']) ? 'zaakceptowany' : 'nie dotyczy / brak'],
+        ], fn($r) => trim((string)$r[1]) !== ''));
+    }
+
     // ── Odczyt ───────────────────────────────────────────────────────────────
 
     public static function get(int $id): ?array
@@ -108,12 +179,22 @@ final class TiConsultations
         if ($id && (!$old || $old['status'] !== 'draft')) $err[] = 'Edytować można tylko roboczą kartę.';
         if ($err) return ['ok' => false, 'id' => (int)$id, 'errors' => $err];
         $dtDb = str_replace('T', ' ', substr($dt, 0, 16)) . ':00';
+        if (isset($d['intake'])) {
+            $err = array_merge($err, self::intakeErrors($d['intake']));
+            if ($err) return ['ok' => false, 'id' => (int)$id, 'errors' => $err];
+        }
         $row = [
             'client_id' => $client, 'consultant_id' => ((int)($d['consultant_id'] ?? 0)) ?: null,
             'schedule_id' => ((int)($d['schedule_id'] ?? 0)) ?: null, 'consultation_datetime' => $dtDb,
             'duration_minutes' => max(0, (int)($d['duration'] ?? 0)) ?: null,
             'description' => trim((string)($d['description'] ?? '')) ?: null, 'next_action' => trim((string)($d['next_action'] ?? '')) ?: null,
         ];
+        if (isset($d['intake'])) {
+            $row['intake'] = json_encode($d['intake'], JSON_UNESCAPED_UNICODE);
+            // Brakujący e-mail / telefon beneficjenta uzupełniamy z karty (nie nadpisujemy istniejących)
+            db()->prepare("UPDATE k30_clients SET email=COALESCE(NULLIF(email,''), ?), phone=COALESCE(NULLIF(phone,''), ?) WHERE id=?")
+               ->execute([$d['intake']['email'] ?: null, $d['intake']['phone'] ?: null, $client]);
+        }
         if ($id) {
             $set = []; $par = [];
             foreach ($row as $k => $v) { $set[] = "$k=?"; $par[] = $v; }
@@ -332,7 +413,13 @@ final class TiConsultations
         if (!empty($k['course_name'])) $rows[] = ['Szkolenie krótkie', $k['course_name']];
         $h = '<h1>Karta konsultacji</h1><table class="t">';
         foreach ($rows as [$a, $b]) $h .= '<tr><th>' . $e($a) . '</th><td>' . $e($b) . '</td></tr>';
-        $h .= '</table><h2>Opis konsultacji</h2><div class="box">' . nl2br($e($k['description'] ?: '—')) . '</div>'
+        $h .= '</table>';
+        if ($ir = self::intakeRows($k)) {
+            $h .= '<h2>Zgłoszenie</h2><table class="t">';
+            foreach ($ir as [$a, $b]) $h .= '<tr><th>' . $e($a) . '</th><td>' . nl2br($e($b)) . '</td></tr>';
+            $h .= '</table>';
+        }
+        $h .= '<h2>Opis konsultacji</h2><div class="box">' . nl2br($e($k['description'] ?: '—')) . '</div>'
             . '<h2>Następne działania</h2><div class="box">' . nl2br($e($k['next_action'] ?: '—')) . '</div>';
         if ($k['status'] === 'completed') {
             $h .= '<h2>Zatwierdzenie</h2><table class="t">'
@@ -341,8 +428,11 @@ final class TiConsultations
                 . '<tr><th>Certyfikat x509</th><td>' . $e($k['cert_subject']) . '<br><span class="mono">' . $e($k['cert_fingerprint']) . '</span></td></tr>'
                 . '<tr><th>SHA1 danych karty</th><td class="mono">' . $e($k['sha1sum']) . '</td></tr></table>';
         } else {
-            $h .= '<p class="muted">Karta niezatwierdzona — dokument roboczy.</p>';
+            $h .= '<p class="muted">Karta bez podpisu elektronicznego — do podpisu odręcznego.</p>';
         }
+        // Podpisy odręczne: beneficjent zawsze; konsultant — gdy karta nie jest podpisana elektronicznie (IKA + x509)
+        $h .= '<table class="sig"><tr><td>' . "\n\n" . '</td><td></td></tr><tr><th>data i podpis beneficjenta / opiekuna</th>'
+            . ($k['status'] === 'completed' ? '<th>podpisano elektronicznie — ' . $e($k['approved_by_name']) . '</th>' : '<th>data i podpis konsultanta</th>') . '</tr></table>';
         return $h;
     }
 
@@ -352,7 +442,9 @@ final class TiConsultations
         $css = '<style>body{font-family:dejavusans;font-size:10pt;color:#111}h1{font-size:15pt;margin:0 0 3mm}h2{font-size:11pt;margin:5mm 0 1.5mm}
                 table.t{border-collapse:collapse;width:100%}table.t th,table.t td{border:0.3mm solid #666;padding:1.8mm;text-align:left;vertical-align:top}
                 table.t th{background:#eef2f7;width:42mm}.box{border:0.3mm solid #666;padding:2.5mm;min-height:18mm}
-                .mono{font-family:dejavusansmono;font-size:8pt}.muted{color:#555}</style>';
+                .mono{font-family:dejavusansmono;font-size:8pt}.muted{color:#555}
+                table.sig{width:100%;margin-top:14mm;border-collapse:separate;border-spacing:8mm 0}table.sig td{height:14mm}
+                table.sig th{border-top:0.3mm solid #333;font-weight:normal;font-size:8.5pt;text-align:center;padding-top:1.5mm;width:50%}</style>';
         $parts = [];
         foreach ($ids as $id) if ($k = self::get((int)$id)) $parts[] = self::cardHtml($k);
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';

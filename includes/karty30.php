@@ -99,6 +99,8 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_consultations ADD COLUMN card_no    TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE k30_consultations ADD COLUMN session_id INTEGER",
         "ALTER TABLE k30_consultations ADD COLUMN course_id  INTEGER",
+        // Dane zgłoszenia na karcie konsultacji (kontakt, profil, wzrok, tematy, sprzęt, forma, zgody) — JSON, TiConsultations::INTAKE
+        "ALTER TABLE k30_consultations ADD COLUMN intake     TEXT NOT NULL DEFAULT ''",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

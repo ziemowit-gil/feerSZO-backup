@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'client_id' => (int)($_POST['client_id'] ?? 0), 'consultant_id' => (int)($_POST['consultant_id'] ?? 0), 'schedule_id' => (int)($_POST['schedule_id'] ?? 0),
             'datetime' => (string)($_POST['datetime'] ?? ''), 'duration' => (int)($_POST['duration'] ?? 0),
             'description' => (string)($_POST['description'] ?? ''), 'next_action' => (string)($_POST['next_action'] ?? ''),
+            'intake' => TiConsultations::intakeFromPost($_POST),
         ], $isNew ? null : $id, $uid);
         if ($res['ok']) { flash_set('success', $isNew ? 'Karta konsultacji zapisana.' : 'Zmiany zapisane.'); header('Location: konsultacja.php?id=' . $res['id']); exit; }
         $errors = $res['errors'];
@@ -54,7 +55,9 @@ if ($card && $_SERVER['REQUEST_METHOD'] === 'GET') {
 $card = $id ? TiConsultations::get($id) : null;
 $edit = $isNew || ($card && $card['status'] === 'draft' && !(int)$card['session_id'] && isset($_GET['edytuj']));
 
-$clients     = $edit ? db_all("SELECT id, name FROM k30_clients ORDER BY name") : [];
+$clients     = $edit ? db_all("SELECT id, name, email, phone FROM k30_clients ORDER BY name") : [];
+$IN = $card ? TiConsultations::intake($card) : [];   // zapisane dane zgłoszenia
+$iv = function (string $k, $def = '') use ($IN) { return array_key_exists('intake_' . $k, $_POST) ? $_POST['intake_' . $k] : ($IN[$k] ?? $def); };
 $consultants = $edit ? k30_get_consultants() : [];
 $schedules   = $edit ? db_all("SELECT s.id, s.start_time, s.duration_minutes, s.client_id, c.name AS client_name FROM k30_schedules s LEFT JOIN k30_clients c ON c.id=s.client_id
                                WHERE s.status IN ('confirmed','attended') ORDER BY s.start_time DESC LIMIT 100") : [];
@@ -116,7 +119,44 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <div class="col-md-4"><label class="form-label" for="kc-dur">Czas trwania (min)</label>
       <input class="form-control" type="number" min="5" step="5" id="kc-dur" name="duration" value="<?= h((string)($_POST['duration'] ?? ($card['duration_minutes'] ?? 60))) ?>"></div>
   </div>
-  <div class="mb-3"><label class="form-label" for="kc-desc">Opis konsultacji</label><textarea class="form-control" id="kc-desc" name="description" rows="5"><?= h((string)$v('description')) ?></textarea></div>
+  <?php $L = TiConsultations::INTAKE;
+        $radio = function (string $k, string $legend) use ($L, $iv) { ?>
+    <fieldset class="mb-2"><legend class="form-label small fw-semibold mb-1"><?= h($legend) ?></legend>
+      <?php foreach ($L[$k] as $o => $ol): ?><div class="form-check"><input class="form-check-input" type="radio" name="intake_<?= $k ?>" id="in-<?= $k ?>-<?= $o ?>" value="<?= h($o) ?>"<?= (string)$iv($k) === $o ? ' checked' : '' ?>><label class="form-check-label small" for="in-<?= $k ?>-<?= $o ?>"><?= h($ol) ?></label></div><?php endforeach; ?>
+    </fieldset><?php };
+        $checks = function (string $k, string $legend) use ($L, $iv) { ?>
+    <fieldset class="mb-2"><legend class="form-label small fw-semibold mb-1"><?= h($legend) ?></legend>
+      <?php foreach ($L[$k] as $o => $ol): ?><div class="form-check"><input class="form-check-input" type="checkbox" name="intake_<?= $k ?>[]" id="in-<?= $k ?>-<?= $o ?>" value="<?= h($o) ?>"<?= in_array($o, (array)$iv($k, []), true) ? ' checked' : '' ?>><label class="form-check-label small" for="in-<?= $k ?>-<?= $o ?>"><?= h($ol) ?></label></div><?php endforeach; ?>
+    </fieldset><?php }; ?>
+  <section class="border rounded p-3 mb-3" aria-labelledby="in-h">
+    <h2 class="h6 fw-bold" id="in-h">Zgłoszenie</h2>
+    <h3 class="small fw-bold text-uppercase text-body-secondary mt-2">1. Dane kontaktowe</h3>
+    <div class="row g-2 mb-2">
+      <div class="col-md-6"><label class="form-label small mb-0" for="in-email">E-mail <span class="text-danger" aria-hidden="true">*</span></label><input class="form-control form-control-sm" type="email" id="in-email" name="intake_email" required value="<?= h((string)$iv('email')) ?>"></div>
+      <div class="col-md-6"><label class="form-label small mb-0" for="in-phone">Telefon <span class="small text-body-secondary">(wymagany przy kontakcie telefonicznym)</span></label><input class="form-control form-control-sm" type="tel" id="in-phone" name="intake_phone" value="<?= h((string)$iv('phone')) ?>"></div>
+    </div>
+    <div class="row g-2"><div class="col-md-6"><?php $radio('contact_pref', 'Preferowana forma kontaktu'); ?></div>
+      <div class="col-md-6"><label class="form-label small mb-0" for="in-app">Aplikacja / komunikator (np. WhatsApp, Teams)</label><input class="form-control form-control-sm" id="in-app" name="intake_contact_app" value="<?= h((string)$iv('contact_app')) ?>"></div></div>
+    <h3 class="small fw-bold text-uppercase text-body-secondary mt-3">2. Profil i potrzeby</h3>
+    <div class="row g-2"><div class="col-md-6"><?php $radio('who', 'Kogo dotyczy zgłoszenie?'); ?>
+        <label class="form-label small mb-0" for="in-who-o">Inne — jakie?</label><input class="form-control form-control-sm" id="in-who-o" name="intake_who_other" value="<?= h((string)$iv('who_other')) ?>"></div>
+      <div class="col-md-6"><?php $radio('vision', 'Stopień / specyfika wzroku (opcjonalnie)'); ?></div></div>
+    <h3 class="small fw-bold text-uppercase text-body-secondary mt-3">3. Zakres tematyczny</h3>
+    <div class="row g-2"><div class="col-md-7"><?php $checks('topics', 'Główny temat konsultacji'); ?>
+        <label class="form-label small mb-0" for="in-top-o">Inne — jakie?</label><input class="form-control form-control-sm" id="in-top-o" name="intake_topics_other" value="<?= h((string)$iv('topics_other')) ?>"></div>
+      <div class="col-md-5"><?php $checks('systems', 'Używane systemy'); ?>
+        <label class="form-label small mb-0" for="in-at">Czytnik ekranu / powiększalnik (jeśli dotyczy)</label><input class="form-control form-control-sm" id="in-at" name="intake_at_tools" value="<?= h((string)$iv('at_tools')) ?>"></div></div>
+    <h3 class="small fw-bold text-uppercase text-body-secondary mt-3">4. Szczegóły i logistyka</h3>
+    <label class="form-label small mb-0" for="in-prob">Opis problemu / cel konsultacji</label>
+    <textarea class="form-control form-control-sm mb-1" id="in-prob" name="intake_problem" rows="3" aria-describedby="in-prob-h"><?= h((string)$iv('problem')) ?></textarea>
+    <div class="form-text mt-0 mb-2" id="in-prob-h">Opisz krótko, w czym możemy pomóc lub z jakim problemem technologicznym się mierzysz.</div>
+    <div class="row g-2"><div class="col-md-6"><?php $radio('form', 'Preferowana forma konsultacji'); ?></div>
+      <div class="col-md-6"><label class="form-label small mb-0" for="in-av">Dogodne dni / godziny kontaktu</label><input class="form-control form-control-sm" id="in-av" name="intake_availability" value="<?= h((string)$iv('availability')) ?>"></div></div>
+    <h3 class="small fw-bold text-uppercase text-body-secondary mt-3">5. Zgody</h3>
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="in-rodo" name="intake_rodo" value="1" required<?= $iv('rodo') ? ' checked' : '' ?>><label class="form-check-label small" for="in-rodo">Beneficjent wyraził zgodę na przetwarzanie danych osobowych (RODO) po zapoznaniu się z obowiązkiem informacyjnym i Polityką Prywatności <span class="text-danger" aria-hidden="true">*</span></label></div>
+    <div class="form-check"><input class="form-check-input" type="checkbox" id="in-terms" name="intake_terms" value="1"<?= $iv('terms') ? ' checked' : '' ?>><label class="form-check-label small" for="in-terms">Akceptacja regulaminu świadczenia konsultacji (jeśli dotyczy)</label></div>
+  </section>
+  <div class="mb-3"><label class="form-label" for="kc-desc">Opis konsultacji (przebieg — wypełnia konsultant)</label><textarea class="form-control" id="kc-desc" name="description" rows="5"><?= h((string)$v('description')) ?></textarea></div>
   <div class="mb-3"><label class="form-label" for="kc-next">Następne działania</label><textarea class="form-control" id="kc-next" name="next_action" rows="2"><?= h((string)$v('next_action')) ?></textarea></div>
   <button class="btn btn-primary"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz</button>
   <a class="btn btn-outline-secondary" href="<?= $isNew ? 'konsultacje.php' : 'konsultacja.php?id=' . $id ?>">Anuluj</a>
@@ -124,6 +164,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <script>
 (function () {
   var sch = document.getElementById('kc-sched'), cl = document.getElementById('kc-client'), pf = <?= json_encode($pfron, JSON_HEX_TAG) ?>;
+  var cdata = <?= json_encode(array_column(array_map(fn($c) => ['id' => (int)$c['id'], 'e' => (string)$c['email'], 'p' => (string)$c['phone']], $clients), null, 'id'), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
+  cl.addEventListener('change', function () { var c = cdata[cl.value]; if (!c) return; var e = document.getElementById('in-email'), p = document.getElementById('in-phone');
+    if (e && !e.value) e.value = c.e || ''; if (p && !p.value) p.value = c.p || ''; });
+  if (cl.value) cl.dispatchEvent(new Event('change'));
   sch.addEventListener('change', function () { var o = sch.options[sch.selectedIndex]; if (!o.value) return;
     cl.value = o.dataset.client || ''; document.getElementById('kc-dt').value = o.dataset.dt || ''; document.getElementById('kc-dur').value = o.dataset.dur || ''; pfr(); });
   function pfr() { var b = document.getElementById('kc-pfron'), n = pf[parseInt(cl.value, 10)]; b.hidden = !n; if (n) document.getElementById('kc-pfron-no').textContent = n; }
@@ -170,6 +214,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </div></div>
   </div>
   <div class="col-md-7">
+    <?php if ($_ir = TiConsultations::intakeRows($card)): ?>
+    <section class="card border-0 shadow-sm mb-3" aria-labelledby="kc-i-h"><div class="card-header fw-semibold" id="kc-i-h">Zgłoszenie</div><div class="card-body small">
+      <dl class="row mb-0"><?php foreach ($_ir as [$_a, $_b]): ?><dt class="col-5 fw-normal text-body-secondary"><?= h($_a) ?></dt><dd class="col-7"><?= nl2br(h($_b)) ?></dd><?php endforeach; ?></dl>
+    </div></section>
+    <?php endif; ?>
     <section class="card border-0 shadow-sm mb-3" aria-labelledby="kc-d-h"><div class="card-header fw-semibold" id="kc-d-h">Opis konsultacji</div><div class="card-body"><?= $card['description'] ? nl2br(h($card['description'])) : '<span class="text-body-secondary">—</span>' ?></div></section>
     <section class="card border-0 shadow-sm" aria-labelledby="kc-n-h"><div class="card-header fw-semibold" id="kc-n-h">Następne działania</div><div class="card-body"><?= $card['next_action'] ? nl2br(h($card['next_action'])) : '<span class="text-body-secondary">—</span>' ?></div></section>
   </div>
