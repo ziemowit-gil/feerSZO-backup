@@ -54,6 +54,7 @@ final class SmsSenders
         'ti_lesson_cancelled'    => [self::G_TI, 'Odwołane zajęcia', 'Odwołanie lekcji.'],
         'ti_week_schedule'       => [self::G_TI, 'Plan zajęć na tydzień', 'Wysyłka planu bieżącego tygodnia z panelu dydaktyka.'],
         'ti_waiting_list'        => [self::G_TI, 'Lista oczekujących — kontakt', 'SMS do osoby z listy oczekujących.'],
+        'ti_consult_message'     => [self::G_TI, 'Wiadomość do beneficjentów konsultacji', 'Komunikacja w trybie Konsultacje panelu dydaktyka: przypomnienia o terminach, zmiany, zaproszenia z kolejki.'],
         'ti_exam_notice'         => [self::G_TI, 'Powiadomienie o egzaminie', 'Agent ti_exam_notify: egzamin udostępniony / zamyka się w ciągu 24 h (treść: szablony ti_exam_open, ti_exam_closing).'],
 
         'ti_billing_notice'      => [self::G_TI_PAY, 'Rozliczenie za miesiąc', 'Powiadomienie o należności za zajęcia (kwota, termin, rachunek).'],

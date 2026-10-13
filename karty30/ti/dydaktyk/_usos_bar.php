@@ -182,6 +182,10 @@ if (dyd_plan_cykliczny_enabled()) {
 
 // Tryb pracy (choose_mode.php): w Kursach bez sekcji Konsultacje, w Konsultacjach tylko Konsultacje, Komunikacja i Kierownik
 if (function_exists('dyd_mode')) {
+    if (dyd_mode() === 'konsultacje' && isset($_usos_sections['komunikacja'])) {   // komunikacja z beneficjentami konsultacji (bez wiadomości grup)
+        $_usos_sections['komunikacja']['href']  = 'konsultacjeKomunikacja.php';
+        $_usos_sections['komunikacja']['items'] = [$_it('', 'E-mail / SMS do beneficjentów', 'konsultacjeKomunikacja.php'), $_it('komunikaty', 'Komunikaty', $_g('komunikaty'), $_n_notices, 'warning')];
+    }
     $_usos_sections = dyd_mode() === 'konsultacje'
         ? array_intersect_key($_usos_sections, array_flip(['konsultacje', 'komunikacja', 'kierownik']))
         : array_diff_key($_usos_sections, ['konsultacje' => 1]);

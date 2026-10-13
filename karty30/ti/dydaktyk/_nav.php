@@ -31,6 +31,7 @@ const DYD_NAV_TABS = [
 const DYD_NAV_PAGES = [
     'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php', 'umowa.php'],
     'certyfikat' => ['moj_certyfikat.php', 'certyfikaty.php'],
+    'komunikacja' => ['konsultacjeKomunikacja.php'],
     'konsultacje' => ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'grupaUproszczona.php',
                       'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php',
                       'konsultacjeZestawienia.php'],
@@ -49,7 +50,7 @@ function dyd_nav_sections(): array {
     if (function_exists('dyd_mode') && dyd_mode() === 'konsultacje') {
         $s = [
             'konsultacje' => ['Konsultacje', 'rezerwacje.php'],
-            'komunikacja' => ['Komunikacja', 'index.php?tab=wiadomosci'],
+            'komunikacja' => ['Komunikacja', 'konsultacjeKomunikacja.php'],   // e-mail / SMS do beneficjentów konsultacji
             'certyfikat'  => ['Certyfikat',  'moj_certyfikat.php'],
         ];
         if (function_exists('dyd_is_staff') && dyd_is_staff()) $s['kierownik'] = ['Kierownik', 'index.php?tab=grupy'];

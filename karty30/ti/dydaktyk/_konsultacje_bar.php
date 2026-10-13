@@ -16,6 +16,8 @@ $_kb = [
     ['Karty konsultacji',     'konsultacje.php',              'clipboard2-check'],
     ['Nowa konsultacja',      'konsultacja.php?nowa=1',       'clipboard2-plus'],
     ['Wydruki i zestawienia', 'konsultacjeZestawienia.php',   'printer'],
+    ['Komunikacja (e-mail / SMS)', 'konsultacjeKomunikacja.php', 'send'],
+    ['Komunikaty',            'index.php?tab=komunikaty',     'megaphone'],
 ];
 if ($_kb_staff) {
     $_kb[] = ['Szkolenia krótkie (SzK)', 'grupaUproszczona.php', 'lightning-charge'];
