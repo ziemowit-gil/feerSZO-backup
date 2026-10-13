@@ -1,12 +1,12 @@
 <?php
 /**
- * karty30/ti/dydaktyk/grupaUproszczona.php — Grupy uproszczone (KON.xxxxx.yyy.rrrr, 2–4 zajęcia) i konwerter grup.
+ * karty30/ti/dydaktyk/grupaUproszczona.php — Grupy uproszczone (SzK.xxxxx.yyy.rrrr, 2–4 zajęcia) i konwerter grup.
  *
- * 1. Nowa grupa uproszczona w jednym kroku: nazwa KON, prowadzący, uczestnicy (z bazy albo nowi), 1–4 terminy,
+ * 1. Nowa grupa uproszczona w jednym kroku: nazwa SzK, prowadzący, uczestnicy (z bazy albo nowi), 1–4 terminy,
  *    tryb panelu uczestników (tylko terminy / + płatności / + płatności uproszczone).
  *    Opis grupy (internal_desc) widzi tylko kadra. Uczestnicy bez konta dostają konto panelu automatycznie —
  *    login i hasło pokazujemy raz po utworzeniu (i opcjonalnie wysyłamy SMS-em).
- * 2. Konwerter grup: istniejąca grupa → uproszczona (nazwa KON) i z powrotem; lekcje i rozliczenia bez zmian.
+ * 2. Konwerter grup: istniejąca grupa → uproszczona (nazwa SzK) i z powrotem; lekcje i rozliczenia bez zmian.
  * Tylko kierownik (dyd_is_staff). Logika: modules/ti_simple_groups/logic/simpleGroups.php.
  */
 require_once __DIR__ . '/auth.php';
@@ -86,7 +86,7 @@ if ($convC) {
     $convLet = TiSimpleGroups::suggestLetters((string)($_p['name'] ?? ''));
 }
 
-$KP_TITLE  = 'Grupy uproszczone — Panel dydaktyka';
+$KP_TITLE  = 'Szkolenia krótkie (SzK) — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $byName, 'logout' => 'logout.php'];
 $KP_BODY_CLASS = 'dyd-usos ti-skin';
 include dirname(__DIR__) . '/kursant/_layout_head.php';
@@ -99,13 +99,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .gu-row { border-left: 4px solid #10335c; padding-left: .6rem; }
 </style>
 
-<?php $KIER_CUR = 'grupaUproszczona.php'; $KIER_LABEL = 'Grupy uproszczone'; include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php $KIER_CUR = 'grupaUproszczona.php'; $KIER_LABEL = 'Szkolenia krótkie (SzK)'; include __DIR__ . '/_kierownik_bar.php'; ?>
 
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1100px">
 
-<h1 class="h4 fw-bold mb-1"><i class="bi bi-lightning-charge text-primary me-2" aria-hidden="true"></i>Grupy uproszczone</h1>
-<p class="small text-body-secondary mb-3">Krótkie grupy na 2–4 zajęcia (konsultacje) o nazwie <span class="font-monospace">KON.xxxxx.yyy.rrrr</span>. Uczestnicy, którzy są tylko w takich grupach, widzą uproszczony panel kursanta.</p>
+<h1 class="h4 fw-bold mb-1"><i class="bi bi-lightning-charge text-primary me-2" aria-hidden="true"></i>Szkolenia krótkie (SzK)</h1>
+<p class="small text-body-secondary mb-3">Szkolenia krótkie — najwyżej 4 terminy — o nazwie <span class="font-monospace">SzK.xxxxx.yyy.rrrr</span>. Uczestnicy, którzy są tylko w takich grupach, widzą uproszczony panel kursanta.</p>
 <?= flash_html() ?>
 <?php if ($errors): ?>
 <div class="alert alert-danger" role="alert"><strong>Nie utworzono grupy:</strong><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
@@ -141,7 +141,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
 <section class="card border-0 shadow-sm mb-4" id="lista" aria-labelledby="gu-list-h">
   <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2" id="gu-list-h">
-    <span><i class="bi bi-list-ul me-1 text-primary" aria-hidden="true"></i>Grupy uproszczone <span class="badge text-bg-secondary"><?= count($groups) ?></span></span>
+    <span><i class="bi bi-list-ul me-1 text-primary" aria-hidden="true"></i>Szkolenia krótkie <span class="badge text-bg-secondary"><?= count($groups) ?></span></span>
     <a class="small ms-auto" href="grupaUproszczona.php<?= $showAll ? '' : '?wszystkie=1' ?>#lista"><?= $showAll ? 'Pokaż tylko aktywne' : 'Pokaż także zamknięte' ?></a>
     <a class="btn btn-sm btn-primary" href="#gu-new-h"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowa grupa</a>
   </div>
@@ -178,15 +178,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <datalist id="gu-clients"><?php foreach ($clients as $c): ?><option value="<?= h($c['name'] . ' · #' . $c['id']) ?>"><?php endforeach; ?></datalist>
 
 <section class="card border-0 shadow-sm mb-4" aria-labelledby="gu-new-h">
-  <div class="card-header fw-semibold" id="gu-new-h"><i class="bi bi-plus-circle me-1 text-primary" aria-hidden="true"></i>Nowa grupa uproszczona</div>
+  <div class="card-header fw-semibold" id="gu-new-h"><i class="bi bi-plus-circle me-1 text-primary" aria-hidden="true"></i>Nowe szkolenie krótkie</div>
   <div class="card-body">
   <form method="post" id="gu-form">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="create">
 
     <fieldset class="mb-3">
       <legend class="h6 fw-bold">1. Nazwa grupy</legend>
-      <div class="gu-kon" role="group" aria-label="Nazwa KON.xxxxx.yyy.rrrr">
-        <span>KON.</span>
+      <div class="gu-kon" role="group" aria-label="Nazwa SzK.xxxxx.yyy.rrrr">
+        <span>SzK.</span>
         <label class="visually-hidden" for="gu-num">Numer (5 cyfr)</label>
         <input class="form-control form-control-sm" id="gu-num" name="k_num" size="6" maxlength="5" pattern="\d{1,5}" inputmode="numeric"
                value="<?= h((string)$o('k_num', sprintf('%05d', TiSimpleGroups::nextNumber($year)))) ?>" title="5 cyfr — domyślnie kolejny wolny numer w roku">
@@ -293,7 +293,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <section class="card border-0 shadow-sm mb-4" id="konwerter" aria-labelledby="gu-conv-h">
   <div class="card-header fw-semibold" id="gu-conv-h"><i class="bi bi-arrow-left-right me-1 text-primary" aria-hidden="true"></i>Konwerter grup</div>
   <div class="card-body">
-    <p class="small text-body-secondary">Zamienia istniejącą grupę w uproszczoną (z nazwą KON) albo uproszczoną w zwykłą. Lekcje, uczestnicy i rozliczenia zostają bez zmian — zmienia się nazwa i panel uczestników.</p>
+    <p class="small text-body-secondary">Zamienia istniejącą grupę w uproszczoną (z nazwą SzK) albo uproszczoną w zwykłą. Lekcje, uczestnicy i rozliczenia zostają bez zmian — zmienia się nazwa i panel uczestników.</p>
     <form method="get" class="row g-2 align-items-end mb-3">
       <div class="col-sm-8">
         <label class="form-label small mb-0" for="gu-conv-c">Grupa</label>
@@ -314,9 +314,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <?php foreach (TiSimpleGroups::MODES as $m => $ml): if ($m === $cm) continue; ?><option value="<?= $m ?>">Uproszczona — <?= h($ml) ?></option><?php endforeach; ?>
       </select>
       <div id="gu-conv-kon" class="mb-2">
-        <div class="small fw-semibold mb-1">Nazwa KON<?= TiSimpleGroups::isValidName((string)$convC['name']) ? ' (zostaw, by nie zmieniać)' : '' ?></div>
+        <div class="small fw-semibold mb-1">Nazwa SzK<?= TiSimpleGroups::isValidName((string)$convC['name']) ? ' (zostaw, by nie zmieniać)' : '' ?></div>
         <?php if (TiSimpleGroups::isValidName((string)$convC['name'])): [, $_n, $_l, $_y] = explode('.', (string)$convC['name']); else: $_n = sprintf('%05d', TiSimpleGroups::nextNumber($convYear)); $_l = $convLet; $_y = (string)$convYear; endif; ?>
-        <div class="gu-kon"><span>KON.</span>
+        <div class="gu-kon"><span>SzK.</span>
           <label class="visually-hidden" for="gu-cn">Numer</label><input class="form-control form-control-sm" id="gu-cn" name="k_num" size="6" maxlength="5" value="<?= h($_n) ?>"><span>.</span>
           <label class="visually-hidden" for="gu-cl">Litery</label><input class="form-control form-control-sm" id="gu-cl" name="k_let" size="4" maxlength="3" value="<?= h($_l) ?>"><span>.</span>
           <label class="visually-hidden" for="gu-cy">Rok</label><input class="form-control form-control-sm" id="gu-cy" name="k_year" size="5" maxlength="4" value="<?= h($_y) ?>">
@@ -376,7 +376,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   // Rok z daty pierwszych zajęć
   var d0 = document.getElementById('gu-d0'), yr = document.getElementById('gu-year');
   if (d0 && yr) d0.addEventListener('change', function () { if (/^\d{4}/.test(d0.value)) yr.value = d0.value.slice(0, 4); });
-  // Konwerter: przy zamianie na zwykłą — pole nazwy zamiast KON
+  // Konwerter: przy zamianie na zwykłą — pole nazwy zamiast SzK
   var cm = document.getElementById('gu-conv-mode'), kon = document.getElementById('gu-conv-kon'), plain = document.getElementById('gu-conv-plain');
   function sync() { if (!cm || !plain) return; var z = cm.value === '0'; kon.hidden = z; plain.hidden = !z; kon.querySelectorAll('input').forEach(function (i) { i.disabled = z; }); }
   if (cm) { cm.addEventListener('change', sync); sync(); }

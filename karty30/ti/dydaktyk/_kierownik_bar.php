@@ -48,7 +48,7 @@ if (!empty($KIER_ITEMS)) {
         ['Hospitacje i wizytacje',    'hospitacje.php',             'clipboard2-pulse'],
         ['Program poleceń',          'polecenia.php',               'gift'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
-        ['Grupy uproszczone (KON)',   'grupaUproszczona.php',       'lightning-charge'],
+        ['Szkolenia krótkie (SzK)',   'grupaUproszczona.php',       'lightning-charge'],
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],
         ['Wydruki i raporty',         'wydruki.php',                 'printer'],
         ['Linki do planów grup',      'planLinki.php',              'link-45deg'],

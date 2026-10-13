@@ -128,4 +128,19 @@ return [
         },
     ],
 
+    '2026-10_ti_szk_rename' => [
+        'desc' => 'TI: szkolenia krótkie (grupy uproszczone) KON.xxxxx.yyy.rrrr → SzK.xxxxx.yyy.rrrr (KON = odtąd numeracja kart konsultacji)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/karty30.php';
+            karty30_migrate();
+            foreach (db_all("SELECT id, name FROM k30_ti_courses WHERE simple_mode > 0 AND name LIKE 'KON.%'") as $c) {
+                if (!preg_match('/^KON\.(\d{5}\.\p{Lu}{3}\.\d{4})$/u', (string)$c['name'], $m)) continue;
+                $new = 'SzK.' . $m[1];
+                if (db_one("SELECT 1 FROM k30_ti_courses WHERE name=? AND id<>?", [$new, (int)$c['id']])) continue;
+                db()->prepare("UPDATE k30_ti_courses SET name=? WHERE id=?")->execute([$new, (int)$c['id']]);
+                ti_course_log((int)$c['id'], 'rename', 'Zmiana prefiksu szkolenia krótkiego: ' . $c['name'] . ' → ' . $new . '.', 0, 'system');
+            }
+        },
+    ],
+
 ];

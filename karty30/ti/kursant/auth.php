@@ -155,7 +155,7 @@ function student_simple_mode(int $accountId): int {
     static $cache = [];
     if ($accountId <= 0) return 0;
     if (!array_key_exists($accountId, $cache)) {
-        // Tryb konta, a gdy brak — tryb grup uproszczonych (KON.…), w których jest kursant
+        // Tryb konta, a gdy brak — tryb grup uproszczonych (SzK.…), w których jest kursant
         require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_simple_groups/logic/simpleGroups.php';
         $m = TiSimpleGroups::accountMode($accountId);
         $cache[$accountId] = isset(STUDENT_SIMPLE_MODES[$m]) ? $m : 1;

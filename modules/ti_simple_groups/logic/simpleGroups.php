@@ -1,15 +1,17 @@
 <?php
 /**
- * modules/ti_simple_groups/logic/simpleGroups.php — Grupy uproszczone TI (krótkie konsultacje: 2–4 zajęcia).
+ * modules/ti_simple_groups/logic/simpleGroups.php — Szkolenia krótkie TI (SzK, grupy uproszczone: najwyżej 4 terminy).
+ * Do 2026-10-14 nazywane KON.xxxxx.yyy.rrrr — prefiks KON przeszedł na numerację kart konsultacji (KON.XXX.MM.RRRR),
+ * stare nazwy grup przemianowuje migracja 2026-10_ti_szk_rename (modules/selfrepairDB).
  *
- * Grupa uproszczona = zwykły kurs (k30_ti_courses) z simple_mode > 0 i nazwą KON.xxxxx.yyy.rrrr
+ * Grupa uproszczona = zwykły kurs (k30_ti_courses) z simple_mode > 0 i nazwą SzK.xxxxx.yyy.rrrr
  * (xxxxx — 5 cyfr, kolejny numer w roku; yyy — 3 litery; rrrr — rok pierwszych zajęć).
  * Tworzona w jednym kroku: grupa + uczestnicy (istniejący lub nowi) + 1–4 terminy.
  * Uczestnicy, których WSZYSTKIE aktywne grupy są uproszczone, dostają uproszczony panel kursanta
  * w trybie grupy (1 = tylko terminy, 2 = terminy + płatności, 3 = terminy + płatności uproszczone) —
  * chyba że konto ma własny tryb (k30_ti_student_accounts.simple_mode > 0), on ma pierwszeństwo.
- * Konwerter zamienia istniejącą grupę w uproszczoną (z nazwą KON) i z powrotem.
- * Opis grupy (internal_desc) widzi tylko kadra — kursant widzi sam numer KON.
+ * Konwerter zamienia istniejącą grupę w uproszczoną (z nazwą SzK) i z powrotem.
+ * Opis grupy (internal_desc) widzi tylko kadra — kursant widzi sam numer SzK.
  * Przy tworzeniu uczestnicy bez konta panelu dostają konto automatycznie (jak „Utwórz konto” w dydaktyk/konta.php:
  * login imię.nazwisko, hasło jednorazowe z wymuszoną zmianą, 12-cyfrowy numer kursanta, rachunek w portalu płatności, SMS).
  */
@@ -21,24 +23,24 @@ final class TiSimpleGroups
 {
     public const MODES = [1 => 'tylko terminy', 2 => 'terminy + płatności', 3 => 'terminy + płatności uproszczone'];
     public const MAX_LESSONS = 4;
-    public const NAME_RE = '/^KON\.\d{5}\.\p{Lu}{3}\.\d{4}$/u';
+    public const NAME_RE = '/^SzK\.\d{5}\.\p{Lu}{3}\.\d{4}$/u';
     /** Forma pojedynczych zajęć (k30_ti_sessions.lesson_method) — w grupie można je mieszać. */
     public const METHODS = ['stacjonarna' => 'Stacjonarnie', 'zdalna_zoom' => 'Online — Zoom', 'zdalna_inne' => 'Online — inne'];
 
-    /** Nazwa KON.xxxxx.yyy.rrrr z części; litery wielkie, bez spacji. */
+    /** Nazwa SzK.xxxxx.yyy.rrrr z części; litery wielkie, bez spacji. */
     public static function name(int $number, string $letters, int $year): string
     {
-        return sprintf('KON.%05d.%s.%04d', $number, mb_strtoupper($letters), $year);
+        return sprintf('SzK.%05d.%s.%04d', $number, mb_strtoupper($letters), $year);
     }
 
     public static function isValidName(string $name): bool { return (bool)preg_match(self::NAME_RE, $name); }
 
-    /** Kolejny wolny numer xxxxx w danym roku (po istniejących grupach KON.*.rrrr). */
+    /** Kolejny wolny numer xxxxx w danym roku (po istniejących grupach SzK.*.rrrr). */
     public static function nextNumber(int $year): int
     {
         $max = 0;
-        foreach (db_all("SELECT name FROM k30_ti_courses WHERE name LIKE ?", ['KON.%.' . $year]) as $r) {
-            if (preg_match('/^KON\.(\d{5})\./', (string)$r['name'], $m)) $max = max($max, (int)$m[1]);
+        foreach (db_all("SELECT name FROM k30_ti_courses WHERE name LIKE ?", ['SzK.%.' . $year]) as $r) {
+            if (preg_match('/^SzK\.(\d{5})\./', (string)$r['name'], $m)) $max = max($max, (int)$m[1]);
         }
         return $max + 1;
     }
@@ -48,7 +50,7 @@ final class TiSimpleGroups
     {
         $p = preg_split('/\s+/u', trim($personName)) ?: [];
         $p = array_values(array_filter($p, fn($x) => $x !== ''));
-        if (!$p) return 'KON';
+        if (!$p) return 'XXX';
         $last = (string)end($p); $first = (string)$p[0];
         $l = mb_strtoupper(mb_substr(preg_replace('/[^\p{L}]/u', '', $last), 0, 2) . mb_substr(preg_replace('/[^\p{L}]/u', '', $first), 0, 1));
         return mb_strlen($l) === 3 ? $l : str_pad($l, 3, 'X');
@@ -126,11 +128,11 @@ final class TiSimpleGroups
         }
         if (!$clients && !$newPeople) $err[] = 'Dodaj przynajmniej jednego uczestnika.';
 
-        // Nazwa KON.xxxxx.yyy.rrrr
+        // Nazwa SzK.xxxxx.yyy.rrrr
         $year = (int)($in['year'] ?? 0) ?: (int)substr($lessons[0]['date'] ?? date('Y'), 0, 4);
         $num  = (int)($in['number'] ?? 0) ?: self::nextNumber($year);
         $name = self::name($num, (string)($in['letters'] ?? ''), $year);
-        if (!self::isValidName($name)) $err[] = 'Nazwa musi mieć postać KON.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.';
+        if (!self::isValidName($name)) $err[] = 'Nazwa musi mieć postać SzK.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.';
         elseif (db_one("SELECT 1 FROM k30_ti_courses WHERE name=?", [$name])) $err[] = 'Grupa ' . $name . ' już istnieje — zmień numer albo litery.';
 
         // Forma grupy z form zajęć: same online → is_online; mieszane → „Hybryda krótka” (class_type hybrid, stawki online/stacjonarne osobno)
@@ -179,7 +181,7 @@ final class TiSimpleGroups
         foreach ($newPeople as $p) {
             try { k30_sync_to_crm(['name' => $p['name'], 'email' => $p['email'], 'phone' => $p['phone']], $uid); } catch (\Throwable $e) {}
         }
-        ti_course_log($cid, 'create', 'Utworzono grupę uproszczoną „' . $name . '” (' . self::MODES[$mode] . ($type === 'hybrid' ? ', hybryda krótka' : '') . '), terminów: ' . count($lessons)
+        ti_course_log($cid, 'create', 'Utworzono szkolenie krótkie „' . $name . '” (' . self::MODES[$mode] . ($type === 'hybrid' ? ', hybryda krótka' : '') . '), terminów: ' . count($lessons)
                       . ' (online: ' . count($remote) . '), uczestników: ' . count($clients) . '.', $uid, $byName);
 
         if (!empty($in['notify'])) {
@@ -278,7 +280,7 @@ final class TiSimpleGroups
 
     /**
      * PDF z loginami i hasłami nowych kont grupy: strona zbiorcza dla kadry + kartki do wręczenia uczestnikom
-     * (numer grupy KON, terminy zajęć, login, hasło jednorazowe, adres logowania). Opisu grupy NIE drukujemy —
+     * (numer grupy SzK, terminy zajęć, login, hasło jednorazowe, adres logowania). Opisu grupy NIE drukujemy —
      * kartki trafiają do kursantów. $rows: [['name','login','password'], …] (z sesji — hasła nie są w bazie).
      */
     public static function credentialsPdf(int $courseId, array $rows): string
@@ -341,7 +343,7 @@ final class TiSimpleGroups
     }
 
     /**
-     * Konwerter: zwykła grupa → uproszczona (mode 1–3, opcjonalnie nowa nazwa KON) albo uproszczona → zwykła (mode 0,
+     * Konwerter: zwykła grupa → uproszczona (mode 1–3, opcjonalnie nowa nazwa SzK) albo uproszczona → zwykła (mode 0,
      * opcjonalnie nowa nazwa). Lekcje, zapisy i rozliczenia zostają bez zmian.
      * @return array{ok:bool, msg:string}
      */
@@ -352,7 +354,7 @@ final class TiSimpleGroups
         if ($mode !== 0 && !isset(self::MODES[$mode])) return ['ok' => false, 'msg' => 'Nieznany tryb.'];
         $newName = trim($newName);
         if ($newName === '') $newName = (string)$c['name'];
-        if ($mode > 0 && !self::isValidName($newName)) return ['ok' => false, 'msg' => 'Grupa uproszczona musi mieć nazwę KON.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.'];
+        if ($mode > 0 && !self::isValidName($newName)) return ['ok' => false, 'msg' => 'Grupa uproszczona musi mieć nazwę SzK.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.'];
         if ($newName !== $c['name'] && db_one("SELECT 1 FROM k30_ti_courses WHERE name=? AND id<>?", [$newName, $courseId])) return ['ok' => false, 'msg' => 'Grupa ' . $newName . ' już istnieje.'];
         $oldDesc = (string)(db_one("SELECT internal_desc FROM k30_ti_courses WHERE id=?", [$courseId])['internal_desc'] ?? '');
         $desc = $desc === null ? $oldDesc : mb_substr(trim($desc), 0, 300);

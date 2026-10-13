@@ -438,7 +438,7 @@ unset($_SESSION['dyd_flash']);
   <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#kuNewModal">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy kurs
   </button>
-  <a class="btn btn-outline-primary btn-sm" href="grupaUproszczona.php" title="Krótka grupa KON na 2–4 zajęcia: uczestnicy i terminy w jednym kroku; konwerter grup">
+  <a class="btn btn-outline-primary btn-sm" href="grupaUproszczona.php" title="Krótka grupa SzK na 2–4 zajęcia: uczestnicy i terminy w jednym kroku; konwerter grup">
     <i class="bi bi-lightning-charge me-1" aria-hidden="true"></i>Grupa uproszczona
   </a>
   <?php endif; ?>

@@ -562,7 +562,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj kurs</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#convertTypeModal">
       <i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Konwerter typu</button>
-    <a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$id ?>#konwerter" title="Zwykła grupa ↔ grupa uproszczona KON (2–4 zajęcia, uproszczony panel uczestników)">
+    <a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$id ?>#konwerter" title="Zwykła grupa ↔ grupa uproszczona SzK (2–4 zajęcia, uproszczony panel uczestników)">
       <i class="bi bi-lightning-charge me-1" aria-hidden="true"></i><?= !empty($course['simple_mode']) ? 'Grupa uproszczona — konwerter' : 'Konwertuj na uproszczoną' ?></a>
     <?php if (!ti_course_hours_only($id)): // grupa „tylko godziny” nie ma cen ?>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#priceChangeModal">
