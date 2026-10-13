@@ -166,7 +166,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <td class="small" style="max-width:16rem"><?= (int)$g['people'] ?><?php if ($g['people_names']): ?> — <?= h(mb_strimwidth((string)$g['people_names'], 0, 80, '…')) ?><?php endif; ?></td>
       <td class="text-end small"><?= (int)$g['held'] ?> / <?= (int)$g['lessons'] ?><span class="visually-hidden"> odbytych</span></td>
       <td class="small text-nowrap"><?= $g['next_lesson'] ? h(date('d.m.Y', strtotime(substr((string)$g['next_lesson'], 0, 10))) . ' ' . substr((string)$g['next_lesson'], 11, 5)) : '—' ?></td>
-      <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$g['id'] ?>#konwerter" title="Konwertuj grupę <?= h($g['name']) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Konwertuj</span></a></td>
+      <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" href="konsultacje.php?course=<?= (int)$g['id'] ?>" title="Karty konsultacji i zamknięcie szkolenia <?= h($g['name']) ?>"><i class="bi bi-clipboard2-check" aria-hidden="true"></i><span class="visually-hidden">Karty konsultacji</span></a>
+        <a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$g['id'] ?>#konwerter" title="Konwertuj grupę <?= h($g['name']) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Konwertuj</span></a></td>
     </tr>
     <?php endforeach; ?>
     </tbody>

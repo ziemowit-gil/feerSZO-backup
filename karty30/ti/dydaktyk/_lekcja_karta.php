@@ -7,7 +7,7 @@ $open_id  = (int)($_GET['lesson'] ?? 0);
 $open_ses = null;
 if ($open_id && dyd_owns_session($uid, $open_id)) {
     $open_ses = db_one(
-        "SELECT s.*, c.name AS course_name, c.default_meeting_url, c.instructor_id AS course_instructor_id,
+        "SELECT s.*, c.name AS course_name, c.default_meeting_url, c.instructor_id AS course_instructor_id, c.simple_mode AS course_simple_mode,
                 s.docs_complete AS docs_manual, " . k30_ti_docs_complete_sql() . " AS docs_complete
            FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
           WHERE s.id = ?",
@@ -103,6 +103,11 @@ if ($open_ses):
       <button type="button" class="btn btn-sm btn-success" onclick="wizOpenExt(<?= (int)$open_id ?>)">
         <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Uzupełnij obecność i temat
       </button>
+      <?php endif; ?>
+      <?php if ((int)($open_ses['course_simple_mode'] ?? 0) > 0 && $open_ses['status'] !== 'cancelled'): // szkolenie krótkie SzK — karta konsultacji uzupełnia temat i obecność ?>
+      <a class="btn btn-sm btn-primary" href="konsultacjaTermin.php?session=<?= (int)$open_id ?>">
+        <i class="bi bi-clipboard2-check me-1" aria-hidden="true"></i>Karty konsultacji
+      </a>
       <?php endif; ?>
       <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#edL<?= (int)$open_id ?>">
         <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj lekcję

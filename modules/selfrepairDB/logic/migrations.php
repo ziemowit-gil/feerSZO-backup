@@ -143,4 +143,17 @@ return [
         },
     ],
 
+    '2026-10_ti_consultation_card_no' => [
+        'desc' => 'Karty konsultacji: numer KON.XXX.MM.RRRR dla kart sprzed przeniesienia do panelu dydaktyka (kolejność wg daty konsultacji)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/karty30.php';
+            require_once $ROOT . '/modules/ti_consultations/logic/consultations.php';
+            karty30_migrate();
+            foreach (db_all("SELECT id, consultation_datetime FROM k30_consultations WHERE COALESCE(card_no,'') = '' ORDER BY consultation_datetime, id") as $c) {
+                db()->prepare("UPDATE k30_consultations SET card_no=? WHERE id=? AND COALESCE(card_no,'') = ''")
+                   ->execute([TiConsultations::cardNumber((string)$c['consultation_datetime']), (int)$c['id']]);
+            }
+        },
+    ],
+
 ];

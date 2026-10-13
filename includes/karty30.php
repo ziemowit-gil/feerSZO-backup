@@ -95,9 +95,14 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_consultations ADD COLUMN cert_fingerprint TEXT",
         "ALTER TABLE k30_consultations ADD COLUMN cert_subject      TEXT",
         "ALTER TABLE k30_consultations ADD COLUMN ika_verified_at   DATETIME",
+        // Karty konsultacji w panelu dydaktyka (modules/ti_consultations): numer KON.XXX.MM.RRRR, powiązanie z terminem szkolenia krótkiego SzK
+        "ALTER TABLE k30_consultations ADD COLUMN card_no    TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_consultations ADD COLUMN session_id INTEGER",
+        "ALTER TABLE k30_consultations ADD COLUMN course_id  INTEGER",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_k30_cons_session ON k30_consultations(session_id)"); } catch (\Throwable $e) {}
 
     // Uprawnienie "Doradca TyfloKonsultacje" — może prowadzić konsultacje
     try {

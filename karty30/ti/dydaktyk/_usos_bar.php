@@ -68,6 +68,7 @@ $_usos_sections = [
             $_it('',                 'Protokoły zajęć', 'protokoly_zajec.php'),
             $_it('',                 'Moje zgłoszenia',   'mojeZgloszenia.php'),
             $_it('',                 'Moje godziny',      'godziny.php'),
+            $_it('',                 'Karty konsultacji', 'konsultacje.php'),
             $_it('wydruki',          'Wydruki',           $_g('wydruki')),
         ],
     ],
