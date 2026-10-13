@@ -53,7 +53,7 @@ $dyd_haslo = !$office_available || $ec > 0 || ($_GET['konto'] ?? '') === 'prywat
 // Lewa kolumna: instrukcja zależna od roli.
 $_side = [
     'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
-        ? ['Wybierz, kim jesteś.', 'Wpisz login' . (($_GET['fn'] ?? '') === 'konsultacje' ? ' (litera „k” i cztery cyfry, np. k1234)' : ' (np. j.kowalski)') . '.', 'Wpisz hasło. Przy pierwszym logowaniu dostaniesz kod SMS i ustawisz własne hasło.']
+        ? ['Wybierz, kim jesteś.', 'Wpisz login, który dostałeś SMS-em albo na wydruku.', 'Wpisz hasło. Przy pierwszym logowaniu dostaniesz kod SMS i ustawisz własne hasło.']
         : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.', 'Wpisz hasło.'],
     'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Mam pocztę w domenie fundacji” — zalogujesz się kontem Microsoft 365.', 'Nie masz poczty w domenie fundacji? Wybierz „Mam prywatny e-mail” i wpisz e-mail oraz hasło.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login opiekuna nadany w placówce.', 'Wpisz hasło. Nie masz hasła? Zaloguj się kodem SMS.'],
@@ -96,9 +96,8 @@ $_groups = [
 if ($tab === 'dydaktyk' && in_array($_fn, ['szkolenia', 'konsultacje', 'kierownik'], true)) {
     setcookie('ti_login_fn', $_fn, ['expires' => time() + 600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
 }
-$_kursant_hint = ['szkolenia' => 'Login: pierwsza litera imienia, kropka, nazwisko — np. j.kowalski',
-                  'szk'       => 'Login: pierwsza litera imienia, kropka, nazwisko — np. j.kowalski',
-                  'konsultacje' => 'Login: litera „k” i cztery cyfry — np. k1234 (z SMS-a po umówieniu konsultacji)'][$_fn] ?? 'Login lub własny alias';
+$_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z SMS-a lub wydruku',
+                  'konsultacje' => 'Login z SMS-a po umówieniu konsultacji'][$_fn] ?? 'Login lub własny alias';
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
