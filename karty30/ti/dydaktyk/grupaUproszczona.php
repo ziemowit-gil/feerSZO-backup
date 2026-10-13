@@ -71,6 +71,8 @@ $oa = fn(string $k, int $i, $def = '') => $old[$k][$i] ?? $def;
 $creds = null;
 if (!empty($_SESSION['gu_creds']) && (int)$_SESSION['gu_creds']['course_id'] === (int)($_GET['utworzono'] ?? 0)) $creds = $_SESSION['gu_creds'];
 unset($_SESSION['gu_creds']);
+// Do wydruku PDF hasła zostają w sesji jeszcze 30 minut (grupaUproszczonaPdf.php), potem znikają
+if ($creds && $creds['rows']) $_SESSION['gu_creds_pdf'][(int)$creds['course_id']] = ['rows' => $creds['rows'], 'ts' => time()];
 $showAll = !empty($_GET['wszystkie']);
 $groups  = TiSimpleGroups::listGroups(!$showAll);
 
@@ -126,7 +128,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <thead><tr><th scope="col">Uczestnik</th><th scope="col">Login</th><th scope="col">Hasło jednorazowe</th><th scope="col">SMS</th></tr></thead>
       <tbody><?php foreach ($creds['rows'] as $r): ?><tr><th scope="row" class="fw-normal"><?= h($r['name']) ?></th><td class="font-monospace"><?= h($r['login']) ?></td><td class="font-monospace"><?= h($r['password']) ?></td><td class="small"><?= h($r['sms'] ?: 'nie wysyłano') ?></td></tr><?php endforeach; ?></tbody>
     </table></div>
-    <p class="small text-body-secondary mb-0">Logowanie: <?= h(rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php') ?></p>
+    <p class="small text-body-secondary mb-2">Logowanie: <?= h(rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php') ?></p>
+    <form method="post" action="grupaUproszczonaPdf.php" target="_blank" class="d-inline">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="course_id" value="<?= (int)$_cg['id'] ?>">
+      <button class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Pobierz PDF z loginami i hasłami<span class="visually-hidden"> (otwiera się w nowej karcie)</span></button>
+    </form>
+    <span class="small text-body-secondary ms-2">Zestawienie dla kadry + kartki do wręczenia uczestnikom. Dostępne przez 30 minut.</span>
   </div>
   <?php endif; ?>
 </section>

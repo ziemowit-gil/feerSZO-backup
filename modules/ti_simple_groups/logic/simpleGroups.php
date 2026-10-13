@@ -276,6 +276,59 @@ final class TiSimpleGroups
         return $no;
     }
 
+    /**
+     * PDF z loginami i hasłami nowych kont grupy: strona zbiorcza dla kadry + kartki do wręczenia uczestnikom
+     * (numer grupy KON, terminy zajęć, login, hasło jednorazowe, adres logowania). Opisu grupy NIE drukujemy —
+     * kartki trafiają do kursantów. $rows: [['name','login','password'], …] (z sesji — hasła nie są w bazie).
+     */
+    public static function credentialsPdf(int $courseId, array $rows): string
+    {
+        $c = db_one("SELECT name, location, default_meeting_url FROM k30_ti_courses WHERE id=?", [$courseId]) ?: ['name' => ''];
+        $days = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+        $terms = [];
+        foreach (db_all("SELECT lesson_date, time_from, time_to, lesson_method FROM k30_ti_sessions WHERE course_id=? AND draft_id IS NULL
+                          AND status NOT IN ('draft','reserved','cancelled') ORDER BY lesson_date, time_from", [$courseId]) as $s) {
+            $terms[] = date('d.m.Y', strtotime((string)$s['lesson_date'])) . ' (' . $days[(int)date('w', strtotime((string)$s['lesson_date']))] . '), '
+                     . substr((string)$s['time_from'], 0, 5) . '–' . substr((string)$s['time_to'], 0, 5)
+                     . (str_starts_with((string)$s['lesson_method'], 'zdalna') ? ' — online' : (trim((string)($c['location'] ?? '')) !== '' ? ' — ' . $c['location'] : ' — stacjonarnie'));
+        }
+        $org   = defined('ORG_NAME') ? ORG_NAME : 'Panel kursanta';
+        $url   = rtrim(defined('APP_URL') ? APP_URL : '', '/') . '/karty30/ti/kursant/login.php';
+        $e     = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $termsHtml = $terms ? '<ul style="margin:2mm 0 0 0;padding-left:5mm">' . implode('', array_map(fn($t) => '<li>' . $e($t) . '</li>', $terms)) . '</ul>' : '';
+
+        $html = '<style>body{font-family:dejavusans;font-size:10pt;color:#111}h1{font-size:14pt;margin:0 0 2mm}
+                 table.t{border-collapse:collapse;width:100%}table.t th,table.t td{border:0.3mm solid #555;padding:2mm;text-align:left}
+                 table.t th{background:#e8eef5}.mono{font-family:dejavusansmono;font-size:11pt}
+                 .slip{border:0.4mm dashed #777;padding:5mm;margin:0 0 6mm 0;page-break-inside:avoid}
+                 .slip .big{font-family:dejavusansmono;font-size:14pt;font-weight:bold}.muted{color:#555;font-size:8.5pt}</style>';
+        $html .= '<h1>Dane logowania — grupa ' . $e($c['name']) . '</h1>'
+               . '<p class="muted">Wydruk dla kadry, ' . date('d.m.Y H:i') . '. Hasła są jednorazowe — przy pierwszym logowaniu kursant ustawia własne. Po wręczeniu kartek zniszcz tę stronę.</p>'
+               . '<table class="t"><thead><tr><th style="width:8mm">#</th><th>Uczestnik</th><th>Login</th><th>Hasło jednorazowe</th></tr></thead><tbody>';
+        foreach (array_values($rows) as $i => $r) {
+            $html .= '<tr><td>' . ($i + 1) . '</td><td>' . $e($r['name']) . '</td><td class="mono">' . $e($r['login']) . '</td><td class="mono">' . $e($r['password']) . '</td></tr>';
+        }
+        $html .= '</tbody></table><p class="muted">Adres logowania: ' . $e($url) . '</p>';
+        $html .= '<pagebreak />';
+        foreach ($rows as $r) {
+            $html .= '<div class="slip"><div class="muted">' . $e($org) . ' — panel kursanta</div>'
+                   . '<p style="margin:2mm 0"><strong>' . $e($r['name']) . '</strong> · grupa ' . $e($c['name']) . '</p>'
+                   . '<table style="width:100%"><tr><td style="width:50%">Login:<br><span class="big">' . $e($r['login']) . '</span></td>'
+                   . '<td>Hasło jednorazowe:<br><span class="big">' . $e($r['password']) . '</span></td></tr></table>'
+                   . '<p style="margin:3mm 0 0">Zaloguj się na: <strong>' . $e($url) . '</strong><br>Przy pierwszym logowaniu ustawisz własne hasło. W panelu zobaczysz terminy zajęć i możesz je odwołać lub przesunąć.</p>'
+                   . ($termsHtml !== '' ? '<p style="margin:3mm 0 0"><strong>Twoje zajęcia:</strong></p>' . $termsHtml : '')
+                   . '</div>';
+        }
+        require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+        $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
+        if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
+        $pdf = new \Mpdf\Mpdf(['mode' => 'utf-8', 'format' => 'A4', 'margin_left' => 15, 'margin_right' => 15, 'margin_top' => 15, 'margin_bottom' => 15,
+                                'default_font' => 'dejavusans', 'tempDir' => $tmp]);
+        $pdf->SetTitle('Dane logowania — ' . $c['name']);
+        $pdf->WriteHTML($html);
+        return $pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+    }
+
     /** Nazwiska uczestników bez konta w panelu kursanta (nie zalogują się, dopóki konto nie powstanie). */
     public static function withoutAccount(array $clientIds): array
     {
