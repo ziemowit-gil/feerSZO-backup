@@ -72,8 +72,8 @@ $opt = function (string $name, string $value, bool $checked, string $icon, strin
         <fieldset class="card border-0 shadow-sm h-100">
           <legend class="card-header fw-semibold fs-6 mb-0 w-100">Rola</legend>
           <div class="list-group list-group-flush">
-            <?php $opt('role', 'staff', $curRole !== 'instructor', 'building', 'Kierownik Instytucji', 'Pełny widok — wszystkie grupy, rozliczenia, zapisy, ustawienia.'); ?>
-            <?php $opt('role', 'instructor', $curRole === 'instructor' && empty($s['acting_as_other']), 'mortarboard', 'Prowadzący', 'Tylko Twoje własne grupy (' . $ownCount . ') — bez funkcji kierownika.'); ?>
+            <?php $opt('role', 'staff', $curRole !== 'instructor', 'building', 'Kierownik Instytucji', 'Widzisz wszystkie grupy i całą organizację zajęć — rozliczenia, zapisy, zespół i ustawienia.'); ?>
+            <?php $opt('role', 'instructor', $curRole === 'instructor' && empty($s['acting_as_other']), 'mortarboard', 'Prowadzący', 'Widzisz tylko swoje grupy (' . $ownCount . '), tak jak każdy prowadzący.'); ?>
           </div>
         </fieldset>
       </div>
@@ -83,8 +83,8 @@ $opt = function (string $name, string $value, bool $checked, string $icon, strin
         <fieldset class="card border-0 shadow-sm h-100">
           <legend class="card-header fw-semibold fs-6 mb-0 w-100">Tryb pracy</legend>
           <div class="list-group list-group-flush">
-            <?php $opt('mode', 'kursy', $curMode !== 'konsultacje', 'easel2', 'Szkolenia', 'Grupy i lekcje, obecność, dziennik, protokoły, szkolenia krótkie SzK.'); ?>
-            <?php $opt('mode', 'konsultacje', $curMode === 'konsultacje', 'clipboard2-check', 'Konsultacje', 'Rezerwacje terminów i karty konsultacji KON.XXX.MM.RRRR.'); ?>
+            <?php $opt('mode', 'kursy', $curMode !== 'konsultacje', 'easel2', 'Szkolenia', 'Prowadzisz zajęcia: sprawdzasz obecność, uzupełniasz dziennik i zamykasz miesiąc protokołem.'); ?>
+            <?php $opt('mode', 'konsultacje', $curMode === 'konsultacje', 'clipboard2-check', 'Konsultacje', 'Umawiasz spotkania z beneficjentami i po każdym wypełniasz kartę konsultacji.'); ?>
           </div>
         </fieldset>
       </div>
