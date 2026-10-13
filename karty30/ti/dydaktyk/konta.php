@@ -360,6 +360,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    // „Wymaga dokumentu potwierdzającego” — po zalogowaniu kursant wgrywa skan albo składa oświadczenie (modules/ti_student_docs)
+    if ($op === 'doc_required') {
+        require_once dirname(__DIR__, 3) . '/modules/ti_student_docs/logic/studentDocs.php';
+        $aid = (int)($_POST['account_id'] ?? 0);
+        if ($aid && db_one("SELECT 1 FROM k30_ti_student_accounts WHERE id=?", [$aid])) {
+            $on = !empty($_POST['requires_doc']); $reset = !empty($_POST['doc_reset']);
+            TiStudentDocs::setRequired($aid, $on, (string)($_POST['requires_doc_label'] ?? ''), $reset, $uid, $dyd_name);
+            flash_set('success', $on ? 'Wymóg dokumentu potwierdzającego zapisany' . ($reset ? ' — kursant złoży dokument lub oświadczenie przy najbliższym logowaniu.' : '.') : 'Wymóg dokumentu potwierdzającego wyłączony.');
+        }
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     if ($op === 'set_simple') {
         // Kursant uproszczony: 0 = pełny panel, 1 = tylko terminy, 2 = terminy + płatności (egzekwowanie: kursant/auth.php)
         $aid  = (int)($_POST['account_id'] ?? 0);
@@ -933,6 +945,19 @@ unset($_SESSION['authp_revoked_id']);
 // wstecznej zgodności z istniejącymi przekierowaniami po zapisie formularzy
 // powyżej, żeby nie trzeba było zmieniać ~40 handlerów POST).
 $selected_id  = (int)($_GET['selected'] ?? $_GET['guardian'] ?? $_GET['authp'] ?? 0);
+// Podgląd skanu dokumentu potwierdzającego (tylko kadra panelu — ta strona)
+if (isset($_GET['doc_view'])) {
+    require_once dirname(__DIR__, 3) . '/modules/ti_student_docs/logic/studentDocs.php';
+    $_dr = TiStudentDocs::get((int)$_GET['doc_view']);
+    $_df = $_dr ? TiStudentDocs::filePath($_dr) : null;
+    if (!$_df) { http_response_code(404); exit('Brak pliku.'); }
+    try { k30_log_access('student_document', (int)$_GET['doc_view'], 'view'); } catch (\Throwable $e) {}
+    $_ext = pathinfo($_df, PATHINFO_EXTENSION);
+    header('Content-Type: ' . ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'png' => 'image/png'][$_ext]);
+    header('Content-Disposition: inline; filename="dokument-' . (int)$_GET['doc_view'] . '.' . $_ext . '"');
+    header('Cache-Control: no-store, private');
+    readfile($_df); exit;
+}
 $selected_acc = null;
 foreach ($accounts as $a) {
     if ((int)$a['id'] === $selected_id) { $selected_acc = $a; break; }
@@ -1375,6 +1400,24 @@ function printBulk(){
               <button type="submit" class="btn btn-sm btn-outline-secondary">
                 <i class="bi <?= $sa['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-1" aria-hidden="true"></i><?= $sa['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
               </button>
+            </form>
+            <?php require_once dirname(__DIR__, 3) . '/modules/ti_student_docs/logic/studentDocs.php'; $_doc = TiStudentDocs::get((int)$sa['id']) ?: []; ?>
+            <form method="post" class="d-flex flex-wrap align-items-center gap-2 border rounded px-2 py-1">
+              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op"        value="doc_required">
+              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+              <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="requires_doc" value="1" id="kk-rd-<?= (int)$sa['id'] ?>"<?= !empty($_doc['requires_doc']) ? ' checked' : '' ?>>
+                <label class="form-check-label small" for="kk-rd-<?= (int)$sa['id'] ?>">Wymaga dokumentu potwierdzającego</label></div>
+              <label class="visually-hidden" for="kk-rdl-<?= (int)$sa['id'] ?>">Jaki dokument</label>
+              <input class="form-control form-control-sm w-auto" id="kk-rdl-<?= (int)$sa['id'] ?>" name="requires_doc_label" size="28" placeholder="np. orzeczenie o niepełnosprawności" value="<?= h((string)($_doc['requires_doc_label'] ?? '')) ?>">
+              <span class="small">
+                <?php if (empty($_doc['requires_doc'])): ?><span class="text-body-secondary">nie wymaga</span>
+                <?php elseif (($_doc['doc_status'] ?? '') === 'scan'): ?><span class="badge text-bg-success">skan</span> <?= h(substr((string)$_doc['doc_at'], 0, 10)) ?> · <a href="konta.php?doc_view=<?= (int)$sa['id'] ?>" target="_blank" rel="noopener">pokaż</a>
+                <?php elseif (($_doc['doc_status'] ?? '') === 'declared'): ?><span class="badge text-bg-info">oświadczenie</span> <?= h(substr((string)$_doc['doc_at'], 0, 10)) ?>
+                <?php else: ?><span class="badge text-bg-warning">czeka na kursanta</span><?php endif; ?>
+              </span>
+              <?php if (!empty($_doc['requires_doc']) && ($_doc['doc_status'] ?? '') !== ''): ?><div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="doc_reset" value="1" id="kk-rr-<?= (int)$sa['id'] ?>"><label class="form-check-label small" for="kk-rr-<?= (int)$sa['id'] ?>">poproś ponownie</label></div><?php endif; ?>
+              <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
             </form>
             <form method="post" class="d-flex align-items-center gap-1">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">

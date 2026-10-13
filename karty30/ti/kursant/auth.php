@@ -117,6 +117,14 @@ function student_require(): array {
         header('Location: login.php');
         exit;
     }
+    // „Wymaga dokumentu potwierdzającego” (Konta kursantów): do czasu skanu albo oświadczenia — tylko kursant/dokument.php
+    // (podgląd administratora „zaloguj jako” nie jest blokowany)
+    if (empty($s['imp']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), ['dokument.php', 'login.php'], true)) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_student_docs/logic/studentDocs.php';
+        if (TiStudentDocs::pending((int)$s['id'])) {
+            header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'dokument.php'); exit;
+        }
+    }
     // „Kursant uproszczony” widzi tylko terminy zajęć — każda inna strona panelu wraca do Moich lekcji
     if (student_is_simple((int)$s['id']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), student_simple_allowed((int)$s['id'], 'pages'), true)) {
         header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'index.php?tab=' . student_simple_home((int)$s['id']));
