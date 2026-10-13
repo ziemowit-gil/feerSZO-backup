@@ -52,7 +52,9 @@ $dyd_haslo = !$office_available || $ec > 0 || ($_GET['konto'] ?? '') === 'prywat
 
 // Lewa kolumna: instrukcja zależna od roli.
 $_side = [
-    'kursant'  => ['Wybierz, kim jesteś.', 'Wpisz login.', 'Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.', 'Wpisz hasło.'],
+    'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
+        ? ['Wybierz, kim jesteś.', 'Wpisz login' . (($_GET['fn'] ?? '') === 'konsultacje' ? ' (litera „k” i cztery cyfry, np. k1234)' : ' (np. j.kowalski)') . '.', 'Wpisz hasło. Przy pierwszym logowaniu dostaniesz kod SMS i ustawisz własne hasło.']
+        : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.', 'Wpisz hasło.'],
     'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Mam pocztę w domenie fundacji” — zalogujesz się kontem Microsoft 365.', 'Nie masz poczty w domenie fundacji? Wybierz „Mam prywatny e-mail” i wpisz e-mail oraz hasło.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login opiekuna nadany w placówce.', 'Wpisz hasło. Nie masz hasła? Zaloguj się kodem SMS.'],
     'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło nadane przez kursanta.'],
@@ -71,6 +73,32 @@ $_tabs = [
     'rodzic'   => ['label' => 'Rodzic',      'icon' => 'bi-people',       'who' => 'Opiekun kursanta',                 'kolor' => '#00a300'],
     'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check', 'who' => 'Osoba upoważniona przez kursanta', 'kolor' => '#7e3878'],
 ];
+// Krok 1 z podziałem wg roli (kto) i funkcji (co robi): każdy kafel to rola ($tab) + funkcja (fn),
+// która podpowiada login (kursant) albo tryb pracy po zalogowaniu (prowadzący/konsultant → choose_mode.php).
+$_fn = in_array($_GET['fn'] ?? '', ['szkolenia', 'szk', 'konsultacje', 'kierownik'], true) ? (string)$_GET['fn'] : '';
+$_groups = [
+    ['title' => 'Uczestnicy', 'items' => [
+        ['tab' => 'kursant', 'fn' => 'szkolenia',   'kolor' => '#0f6fa8', 'icon' => 'bi-pc-display',       'label' => 'Kursant szkoleń',          'who' => 'Zajęcia w grupie — login np. j.kowalski'],
+        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Szkolenie krótkie',        'who' => '2–4 spotkania — login np. j.kowalski'],
+        ['tab' => 'kursant', 'fn' => 'konsultacje', 'kolor' => '#2b6cb0', 'icon' => 'bi-clipboard2-check', 'label' => 'Konsultacje',              'who' => 'Umówione spotkanie — login np. k1234'],
+    ]],
+    ['title' => 'Rodzina i osoby bliskie', 'items' => [
+        ['tab' => 'rodzic',  'fn' => '',            'kolor' => '#00a300', 'icon' => 'bi-people',           'label' => 'Rodzic / opiekun',         'who' => 'Opiekun małoletniego kursanta'],
+        ['tab' => 'up',      'fn' => '',            'kolor' => '#7e3878', 'icon' => 'bi-person-check',     'label' => 'Osoba upoważniona',        'who' => 'Wgląd nadany przez kursanta'],
+    ]],
+    ['title' => 'Kadra', 'items' => [
+        ['tab' => 'dydaktyk', 'fn' => 'szkolenia',   'kolor' => '#1d1d1d', 'icon' => 'bi-easel2',           'label' => 'Prowadzący zajęcia',       'who' => 'Grupy, dziennik, protokoły'],
+        ['tab' => 'dydaktyk', 'fn' => 'konsultacje', 'kolor' => '#3b3b3b', 'icon' => 'bi-chat-square-text', 'label' => 'Konsultant',               'who' => 'Rezerwacje i karty konsultacji'],
+        ['tab' => 'dydaktyk', 'fn' => 'kierownik',   'kolor' => '#5b5b5b', 'icon' => 'bi-building',         'label' => 'Kierownik',                'who' => 'Cały panel dydaktyka'],
+    ]],
+];
+// Zapamiętany wybór funkcji przez prowadzącego — panel ustawia tryb pracy po zalogowaniu (choose_mode.php czyta cookie)
+if ($tab === 'dydaktyk' && in_array($_fn, ['szkolenia', 'konsultacje', 'kierownik'], true)) {
+    setcookie('ti_login_fn', $_fn, ['expires' => time() + 600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+}
+$_kursant_hint = ['szkolenia' => 'Login: pierwsza litera imienia, kropka, nazwisko — np. j.kowalski',
+                  'szk'       => 'Login: pierwsza litera imienia, kropka, nazwisko — np. j.kowalski',
+                  'konsultacje' => 'Login: litera „k” i cztery cyfry — np. k1234 (z SMS-a po umówieniu konsultacji)'][$_fn] ?? 'Login lub własny alias';
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -93,6 +121,7 @@ $_tabs = [
   .tz-side a { color: #7dd3fc; }
   .tz-main { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
   .tz-card { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; width: 100%; max-width: 420px; }
+  .tz-card.tz-wide { max-width: 640px; }
   .tz-card .form-control { border-radius: 0; box-shadow: none; padding: .7rem .9rem; font-size: 1.05rem; }
   .tz-card label { font-weight: 600; font-size: .92rem; margin-bottom: .3rem; }
   .tz-btn { border-radius: 0; background: #0f6fa8; border: 0; color: #fff; font-weight: 600; padding: .75rem 1rem; width: 100%; text-align: center; text-decoration: none; display: block; }
@@ -128,7 +157,7 @@ $_tabs = [
   </aside>
 
   <main class="tz-main" id="ti-login-main">
-    <div class="tz-card">
+    <div class="tz-card<?= $krok1 ? ' tz-wide' : '' ?>">
       <h1 class="h4 fw-bold mb-2"><?= h($krok1 ? 'Logowanie do panelu TI' : org_login_title($_titles[$tab])) ?></h1>
 
       <?php if ($error): ?>
@@ -136,18 +165,21 @@ $_tabs = [
       <?php endif; ?>
 
       <?php if ($krok1): ?>
-      <h2 class="h6 fw-semibold mb-3">Krok 1 z 2: wybierz, kim jesteś</h2>
-      <div class="row g-2" role="list">
-        <?php foreach ($_tabs as $_key => $_t): ?>
-        <div class="col-6" role="listitem">
-          <a class="tz-tile" href="login.php?tab=<?= $_key ?>" style="background:<?= $_t['kolor'] ?>">
-            <i class="bi <?= $_t['icon'] ?> fs-4" aria-hidden="true"></i>
-            <span class="d-block fw-semibold mt-1"><?= h($_t['label']) ?></span>
-            <span class="d-block small"><?= h($_t['who']) ?></span>
+      <h2 class="h6 fw-semibold mb-3">Krok 1 z 2: wybierz, kim jesteś i z czego korzystasz</h2>
+      <?php foreach ($_groups as $_g): ?>
+      <h3 class="small text-uppercase fw-bold text-body-secondary mt-3 mb-2" style="letter-spacing:.05em"><?= h($_g['title']) ?></h3>
+      <div class="row g-2" role="list" aria-label="<?= h($_g['title']) ?>">
+        <?php foreach ($_g['items'] as $_i): ?>
+        <div class="col-6 col-sm-4" role="listitem">
+          <a class="tz-tile" href="login.php?tab=<?= h($_i['tab']) ?><?= $_i['fn'] !== '' ? '&amp;fn=' . h($_i['fn']) : '' ?>" style="background:<?= h($_i['kolor']) ?>">
+            <i class="bi <?= h($_i['icon']) ?> fs-4" aria-hidden="true"></i>
+            <span class="d-block fw-semibold mt-1"><?= h($_i['label']) ?></span>
+            <span class="d-block small"><?= h($_i['who']) ?></span>
           </a>
         </div>
         <?php endforeach; ?>
       </div>
+      <?php endforeach; ?>
 
       <?php else: ?>
       <p class="small mb-3">Krok 2 z 2: wpisz dane logowania dla roli: <strong><?= h($_tabs[$tab]['label']) ?></strong>.
@@ -161,7 +193,7 @@ $_tabs = [
             <div class="flex-grow-1 min-w-0">
               <input type="text" class="form-control form-control-lg" id="stu-login" name="login"
                      value="<?= $prefill_login ?>" required autofocus autocomplete="username"
-                     placeholder="Login lub własny alias"
+                     placeholder="<?= h($_kursant_hint) ?>"
                      <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
             </div>
             <div class="d-flex align-items-center gap-2" id="stu-sec" style="display:none;max-width:11rem" aria-live="polite">
