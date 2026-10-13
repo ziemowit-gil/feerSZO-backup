@@ -21,7 +21,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje/logic/ti
 
 $me       = dyd_require();
 /** Tryby panelu kursanta (k30_ti_student_accounts.simple_mode) — te same wartości co STUDENT_SIMPLE_MODES w kursant/auth.php. */
-const KK_SIMPLE_MODES = [0 => 'pełny panel', 1 => 'uproszczony — tylko terminy', 2 => 'uproszczony — terminy + płatności'];
+const KK_SIMPLE_MODES = [0 => 'pełny panel', 1 => 'uproszczony — tylko terminy', 2 => 'uproszczony — terminy + płatności', 3 => 'uproszczony — terminy + płatności uproszczone'];
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
 $uid      = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
@@ -371,6 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', match ($mode) {
                 1 => 'Kursant uproszczony: w panelu widzi tylko terminy zajęć (Moje lekcje) — może je odwołać, przesunąć lub usprawiedliwić nieobecność.',
                 2 => 'Kursant uproszczony z płatnościami: terminy zajęć oraz Płatności, Rozliczenia i Portfel. Reszta panelu jest ukryta.',
+                3 => 'Kursant uproszczony z płatnościami uproszczonymi: terminy zajęć i jeden ekran „Opłaty” (ile do zapłaty, numer konta, płatność online).',
                 default => 'Kursant ma znów dostęp do całego panelu.',
             });
         }
@@ -1380,7 +1381,7 @@ function printBulk(){
               <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
               <label class="small text-nowrap" for="kk-simple-<?= (int)$sa['id'] ?>"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Panel kursanta:</label>
               <select class="form-select form-select-sm w-auto" id="kk-simple-<?= (int)$sa['id'] ?>" name="simple_mode"
-                      title="Kursant uproszczony widzi tylko terminy zajęć (odwołanie, przesunięcie, usprawiedliwienie, plan i wydruk lekcji); wariant z płatnościami dodaje Płatności, Rozliczenia i Portfel">
+                      title="Kursant uproszczony widzi tylko terminy zajęć (odwołanie, przesunięcie, usprawiedliwienie, plan i wydruk lekcji); wariant z płatnościami dodaje Płatności, Rozliczenia i Portfel; płatności uproszczone to jeden ekran: ile do zapłaty i jak zapłacić">
                 <?php foreach (KK_SIMPLE_MODES as $_m => $_ml): ?><option value="<?= $_m ?>"<?= (int)($sa['simple_mode'] ?? 0) === $_m ? ' selected' : '' ?>><?= h(mb_strtoupper(mb_substr($_ml, 0, 1)) . mb_substr($_ml, 1)) ?></option><?php endforeach; ?>
               </select>
               <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>

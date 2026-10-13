@@ -11,7 +11,7 @@
  * zakładek z rozwijanymi grupami wszystko widać wprost.
  *
  * Zmienne z index.php: $tab, $is_minor, $hw_pending_total, $notices_unread,
- * $msg_unread, $my_licenses, $terms_pending, $ui_switch_url, $KUR_SIMPLE (kursant uproszczony: 0/1/2).
+ * $msg_unread, $my_licenses, $terms_pending, $ui_switch_url, $KUR_SIMPLE (kursant uproszczony: 0–3, patrz kursant/auth.php).
  */
 
 $_g = fn(string $t) => 'index.php?tab=' . $t;
@@ -126,6 +126,10 @@ if (!empty($KUR_SIMPLE)) {
             ],
         ];
         $_ikony['platnosci'] = 'cash-coin';
+    }
+    if ((int)$KUR_SIMPLE === 3 && !$_minor) {   // płatności uproszczone: jeden ekran „Opłaty” w sekcji lekcji
+        $_alt_sections['nauka']['items'][] = $_it('oplaty', 'Opłaty', $_g('oplaty'));
+        $_ikony['oplaty'] = 'cash-coin';
     }
 }
 

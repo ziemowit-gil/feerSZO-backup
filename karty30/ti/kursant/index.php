@@ -3895,6 +3895,10 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 
+<?php elseif ($tab === 'oplaty' && $KUR_SIMPLE === 3 && !$is_minor):
+  include __DIR__ . '/_oplaty_view.php';
+?>
+
 <?php elseif ($tab === 'rozliczenia' && !$is_minor):
   $rv_client_id    = $student['client_id'];
   $rv_show_lessons = false; $rv_portal_redirect = true;
@@ -6439,9 +6443,10 @@ $authp_login_url = rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=up';
       ['wiadomosci', 'envelope',       'envelope-fill',       'Wiadomości', (int)$msg_unread, 'bg-primary'],
   ];
   $kp_more_badge = (int)$notices_unread + (!empty($terms_pending) ? count($terms_pending) : 0);
-  if ($KUR_SIMPLE) { $kp_bn = [$kp_bn[1]]; $kp_more_badge = !empty($terms_pending) ? count($terms_pending) : 0;
+  if ($KUR_SIMPLE) { $kp_bn = [$kp_bn[1], ...($KUR_SIMPLE === 3 && !$is_minor ? [['oplaty', 'cash-coin', 'cash-coin', 'Opłaty', 0, '']] : [])]; $kp_more_badge = !empty($terms_pending) ? count($terms_pending) : 0;
                      $kp_menu = ['Panel' => [['lekcje', 'calendar-check', 'Moje lekcje'],
                                              ...($KUR_SIMPLE === 2 && !$is_minor ? [['platnosci', 'cash-coin', 'Płatności'], ['rozliczenia', 'receipt', 'Rozliczenia'], ['portfel', 'wallet2', 'Portfel']] : []),
+                                             ...($KUR_SIMPLE === 3 && !$is_minor ? [['oplaty', 'cash-coin', 'Opłaty']] : []),
                                              ...(!empty($terms_pending) ? [['regulaminy', 'file-earmark-text', 'Regulaminy']] : [])]]; }
 ?>
 <nav class="d-lg-none fixed-bottom bg-body border-top kp-bottomnav" style="padding-bottom:env(safe-area-inset-bottom)" aria-label="Nawigacja główna (telefon)">

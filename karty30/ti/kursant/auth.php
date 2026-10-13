@@ -129,10 +129,11 @@ function student_require(): array {
  * „Kursant uproszczony” (k30_ti_student_accounts.simple_mode, wybór w dydaktyk/konta.php):
  *   1 = tylko terminy — zakładka „Moje lekcje” (lista, odwołanie / przesunięcie, usprawiedliwienie),
  *       plan tygodniowy, wydruki i eksport lekcji, kalendarz iCal, regulaminy;
- *   2 = terminy + płatności — dodatkowo Płatności, Rozliczenia, Portfel, PDF-y rozliczeń i przejście do portalu /platnosci.
+ *   2 = terminy + płatności — dodatkowo Płatności, Rozliczenia, Portfel, PDF-y rozliczeń i przejście do portalu /platnosci;
+ *   3 = terminy + płatności uproszczone — jedna zakładka „Opłaty” (_oplaty_view.php): ile do zapłaty, numer konta, „Zapłać online”.
  * Reszta panelu, menu i API newUI zamknięte. Listy: STUDENT_SIMPLE_* (+ STUDENT_SIMPLE_PAY_* dla trybu 2).
  */
-const STUDENT_SIMPLE_MODES = [0 => 'Pełny panel', 1 => 'Uproszczony — tylko terminy', 2 => 'Uproszczony — terminy + płatności'];
+const STUDENT_SIMPLE_MODES = [0 => 'Pełny panel', 1 => 'Uproszczony — tylko terminy', 2 => 'Uproszczony — terminy + płatności', 3 => 'Uproszczony — terminy + płatności uproszczone'];
 const STUDENT_SIMPLE_PAGES = ['index.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
                               'plan_librus_pdf.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
 /** Zakładki index.php dostępne w trybie uproszczonym. */
@@ -144,8 +145,11 @@ const STUDENT_SIMPLE_OPS   = ['cancel_lesson', 'uncancel_lesson', 'excuse_absenc
 const STUDENT_SIMPLE_PAY_PAGES = ['platnosci.php', 'rachunek_pdf.php', 'ledger_pdf.php', 'invoice_file.php', 'hours_pdf.php'];
 const STUDENT_SIMPLE_PAY_TABS  = ['platnosci', 'rozliczenia', 'portfel'];
 const STUDENT_SIMPLE_PAY_OPS   = ['wallet_topup', 'wallet_declare', 'year_end_declare', 'year_end_overpay'];
+/** Tryb 3 (terminy + płatności uproszczone) — tylko ekran „Opłaty”, przejście do portalu i PDF z numerem konta. */
+const STUDENT_SIMPLE_EASYPAY_PAGES = ['platnosci.php', 'rachunek_pdf.php'];
+const STUDENT_SIMPLE_EASYPAY_TABS  = ['oplaty'];
 
-/** Tryb konta: 0 = pełny panel, 1 = tylko terminy, 2 = terminy + płatności. */
+/** Tryb konta: 0 = pełny panel, 1 = tylko terminy, 2 = terminy + płatności, 3 = terminy + płatności uproszczone. */
 function student_simple_mode(int $accountId): int {
     static $cache = [];
     if ($accountId <= 0) return 0;
@@ -161,11 +165,11 @@ function student_is_simple(int $accountId): bool { return student_simple_mode($a
 
 /** Dozwolone w trybie uproszczonym: $kind = 'pages' | 'tabs' | 'ops'. */
 function student_simple_allowed(int $accountId, string $kind): array {
-    $pay = student_simple_mode($accountId) === 2;
+    $m = student_simple_mode($accountId);
     return match ($kind) {
-        'pages' => array_merge(STUDENT_SIMPLE_PAGES, $pay ? STUDENT_SIMPLE_PAY_PAGES : []),
-        'tabs'  => array_merge(STUDENT_SIMPLE_TABS,  $pay ? STUDENT_SIMPLE_PAY_TABS  : []),
-        'ops'   => array_merge(STUDENT_SIMPLE_OPS,   $pay ? STUDENT_SIMPLE_PAY_OPS   : []),
+        'pages' => array_merge(STUDENT_SIMPLE_PAGES, $m === 2 ? STUDENT_SIMPLE_PAY_PAGES : ($m === 3 ? STUDENT_SIMPLE_EASYPAY_PAGES : [])),
+        'tabs'  => array_merge(STUDENT_SIMPLE_TABS,  $m === 2 ? STUDENT_SIMPLE_PAY_TABS  : ($m === 3 ? STUDENT_SIMPLE_EASYPAY_TABS  : [])),
+        'ops'   => array_merge(STUDENT_SIMPLE_OPS,   $m === 2 ? STUDENT_SIMPLE_PAY_OPS   : []),
         default => [],
     };
 }
