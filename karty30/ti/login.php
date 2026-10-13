@@ -103,7 +103,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h($krok1 ? 'Logowanie — panel beneficjenta szkoleń' : $_titles[$tab] . ' — Logowanie') ?></title>
+<title><?= h($krok1 ? 'Logowanie — Dydaktyka 3' : $_titles[$tab] . ' — Logowanie') ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
@@ -148,7 +148,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
 <div class="tz-split">
   <aside class="tz-side" aria-labelledby="tz-side-h">
     <div class="small fw-bold mb-2" style="letter-spacing:.06em">FEER · System Tożsamości</div>
-    <h2 id="tz-side-h"><?= h($krok1 ? 'Panel beneficjenta szkoleń' : $_titles[$tab]) ?></h2>
+    <h2 id="tz-side-h"><?= h($krok1 ? 'Dydaktyka 3' : $_titles[$tab]) ?></h2>
     <p class="sub mb-0">Jak się zalogować:</p>
     <ol>
       <?php foreach ($_side_steps as $_st): ?><li><?= h($_st) ?></li><?php endforeach; ?>
@@ -157,7 +157,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
 
   <main class="tz-main" id="ti-login-main">
     <div class="tz-card<?= $krok1 ? ' tz-wide' : '' ?>">
-      <h1 class="h4 fw-bold mb-2"><?= h($krok1 ? 'Logowanie do panelu beneficjenta szkoleń' : org_login_title($_titles[$tab])) ?></h1>
+      <h1 class="h4 fw-bold mb-2"><?= h($krok1 ? 'Logowanie — Dydaktyka 3' : org_login_title($_titles[$tab])) ?></h1>
 
       <?php if ($error): ?>
       <div class="alert alert-danger small py-2 rounded-0" role="alert" aria-live="assertive"><?= h($error) ?></div>
