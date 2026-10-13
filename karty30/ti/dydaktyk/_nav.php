@@ -40,7 +40,7 @@ const DYD_NAV_PAGES = [
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
                     'dostepnosci.php', 'sale.php', 'sale_rezerwacje.php', 'okresy.php', 'przedmioty.php',
                     'dni_wolne.php', 'wylaczenia.php', 'zespol.php', 'testy.php', 'overpayments.php', 'przypomnieniaWplat.php', 'pricing.php',
-                    'szablonyEmail.php', 'szablonySms.php', 'analityka.php', 'analitykaRaport.php', 'planLinki.php'],
+                    'szablonyEmail.php', 'szablonySms.php', 'analityka.php', 'analitykaRaport.php', 'planLinki.php', 'regulaminy.php', 'kontaTestowe.php'],
 ];
 
 /** Sekcje pierwszego poziomu: klucz => [etykieta, adres]. */

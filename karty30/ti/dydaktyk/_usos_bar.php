@@ -144,6 +144,7 @@ if (dyd_is_staff()) {
             $_it('',             'Rodzaje zajęć',         'przedmioty.php'),
             $_it('',             'Dni wolne',             'dni_wolne.php'),
             $_it('',             'Wyłączenia panelu',     'wylaczenia.php'),
+            $_it('',             'Regulaminy',            'regulaminy.php'),
             $_it('',             'Zespół i role',         'zespol.php'),
             // Certyfikaty prowadzących — tylko dla kierownika TI i admina (ta sama reguła co w certyfikaty.php).
             ...((is_admin() || (function_exists('ti_panel_role') && ti_panel_role((int)((dyd_current() ?? [])['user_id'] ?? 0)) === 'kierownik'))

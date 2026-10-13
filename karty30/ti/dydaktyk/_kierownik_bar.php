@@ -76,6 +76,7 @@ if (!empty($KIER_ITEMS)) {
         ['Dni wolne',                 'dni_wolne.php',              'calendar-x'],
         ['Raport odwołanych',         'raport_odwolanych.php',      'calendar-x'],
         ['Wyłączenia panelu',         'wylaczenia.php',             'moon'],
+        ['Regulaminy',                'regulaminy.php',             'file-earmark-text'],
         ['Zespół i role',             'zespol.php',                 'person-gear'],
         ['Role w panelu TI',          APP_URL . '/tozsamosc/ti_role.php', 'person-gear'],
         ['Certyfikaty prowadzących',  'certyfikaty.php',            'shield-check'],
@@ -96,7 +97,7 @@ if (!empty($KIER_ITEMS)) {
 $_kier_grupy = [
     'Grupy i kursy'          => ['index.php?tab=grupy', 'index.php?tab=kursy', 'grupaUproszczona.php', 'rezerwacje.php', 'konsultacje.php', 'index.php?tab=praca_wlasna', 'log_grup.php',
                                  'planLinki.php', 'godziny.php', 'dostepnosci.php', 'urlopy.php'],
-    'Kursanci i konta'       => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php',
+    'Kursanci i konta'       => ['klienci.php', 'konta.php', 'regulaminy.php', 'microsoft365.php', 'licencjeKursantow.php',
                                  'rekrutacja.php', 'polecenia.php', 'kursanci_onboarding.php'],
     'Finanse'                => ['index.php?tab=rozliczenia', 'billing.php', 'overpayments.php', 'przypomnieniaWplat.php',
                                  'pricing.php', 'index.php?tab=wypłaty'],
