@@ -15,13 +15,14 @@ $uid   = (int)$me['user_id'];
 $staff = dyd_is_staff();
 karty30_migrate();
 $meRow = db_one("SELECT name, first_name, last_name, k30_consultant, cpc_code FROM users WHERE id=?", [$uid]) ?: [];
-$isConsultant = !empty($meRow['k30_consultant']);
+$isConsultant = in_array('konsultacje', dyd_modes_available(), true);   // uprawnienie do Konsultacji (TiWorkModes)
 $approver = trim(($meRow['first_name'] ?? '') . ' ' . ($meRow['last_name'] ?? '')) ?: (string)($meRow['name'] ?? $me['name'] ?? '');
 
 $id   = (int)($_GET['id'] ?? 0);
 $isNew = !$id;
-if ($isNew && !$staff && !$isConsultant) { flash_set('danger', 'Nową kartę zakłada kadra albo doradca TI.'); header('Location: konsultacje.php'); exit; }
+if ($isNew && !$isConsultant) { flash_set('danger', 'Nową kartę zakłada osoba z uprawnieniem do Konsultacji.'); header('Location: konsultacje.php'); exit; }
 $card = $id ? TiConsultations::get($id) : null;
+if ($card && !$isConsultant && !(int)$card['session_id']) $card = null;   // karta samodzielna — tylko w trybie Konsultacje
 if ($id && (!$card || !TiConsultations::canAccess($card, $uid, $staff))) { flash_set('danger', 'Nie znaleziono karty albo nie masz do niej dostępu.'); header('Location: konsultacje.php'); exit; }
 
 $errors = [];

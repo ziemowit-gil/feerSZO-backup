@@ -75,6 +75,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: zespol.php'); exit;
     }
 
+    // Tryby pracy per osoba: Szkolenia / Konsultacje (modules/ti_work_modes) — „auto” usuwa ustawienie jawne
+    if ($op === 'modes_set') {
+        require_once dirname(__DIR__, 3) . '/modules/ti_work_modes/logic/workModes.php';
+        $zm_id = (int)($_POST['user_id'] ?? 0);
+        $zm_u  = $zm_id ? db_one("SELECT id, name FROM users WHERE id=? AND is_active=1", [$zm_id]) : null;
+        if (!$zm_u) {
+            flash_set('danger', 'Nie znaleziono aktywnego użytkownika.');
+        } elseif (isset($_POST['auto'])) {
+            TiWorkModes::set($zm_id, false, false, $uid, true);
+            flash_set('success', 'Tryby pracy: ' . $zm_u['name'] . ' — automatycznie (wg roli, grup i znacznika doradcy TI).');
+        } else {
+            $zm_k = !empty($_POST['kursy']); $zm_c = !empty($_POST['konsultacje']);
+            if (!$zm_k && !$zm_c) {
+                flash_set('danger', 'Zaznacz przynajmniej jeden tryb — bez trybów osoba nie wejdzie do panelu. Aby odebrać dostęp, odbierz rolę panelu.');
+            } else {
+                TiWorkModes::set($zm_id, $zm_k, $zm_c, $uid);
+                flash_set('success', 'Tryby pracy: ' . $zm_u['name'] . ' → ' . implode(' + ', array_filter([$zm_k ? 'Szkolenia' : '', $zm_c ? 'Konsultacje' : '']))
+                    . '. Zadziała przy najbliższym wejściu tej osoby do panelu.');
+            }
+        }
+        header('Location: zespol.php#tryby'); exit;
+    }
+
     if ($op === 'role_del') {
         $zu_id = (int)($_POST['user_id'] ?? 0);
         if ($zu_id === $uid && ti_panel_role($uid) !== '' && ($me['role'] ?? '') !== 'admin') {
@@ -368,6 +391,51 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </div>
   </div>
 </div>
+
+<?php
+require_once dirname(__DIR__, 3) . '/modules/ti_work_modes/logic/workModes.php';
+$zm_people = TiWorkModes::people();
+?>
+<section class="card mt-4" id="tryby" aria-labelledby="zm-h">
+  <div class="card-header fw-semibold bg-white" id="zm-h"><i class="bi bi-signpost-split text-primary me-1" aria-hidden="true"></i>Tryby pracy: Szkolenia i Konsultacje</div>
+  <div class="card-body small text-body-secondary pb-0">
+    Kto może pracować w Szkoleniach (grupy, lekcje, szkolenia krótkie SzK) i w Konsultacjach (rezerwacje terminów, karty konsultacji).
+    „Automatycznie” — Szkolenia ma osoba z rolą panelu albo własnymi grupami, Konsultacje — doradca TI. Kierownik i zastępca mają zawsze oba tryby.
+    Osoba z dwoma trybami wybiera tryb po zalogowaniu.
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Tryby pracy osób z dostępem do panelu</caption>
+      <thead class="table-light"><tr><th scope="col">Osoba</th><th scope="col" class="text-center">Szkolenia</th><th scope="col" class="text-center">Konsultacje</th><th scope="col">Ustawienie</th><th scope="col" class="text-end"><span class="visually-hidden">Zapis</span></th></tr></thead>
+      <tbody>
+      <?php if (!$zm_people): ?><tr><td colspan="5" class="text-center text-body-secondary py-3">Brak osób z dostępem do panelu.</td></tr><?php endif; ?>
+      <?php foreach ($zm_people as $zp): $zf = 'zm-f' . $zp['id']; $eff = $zp['explicit'] ?? $zp['auto']; ?>
+      <tr>
+        <th scope="row" class="fw-semibold"><?= h($zp['name']) ?>
+          <div class="fw-normal text-body-secondary" style="font-size:.75rem"><?= h(implode(' · ', array_filter([
+              $zp['panel_role'] !== '' ? (K30_TI_PANEL_ROLES[$zp['panel_role']] ?? $zp['panel_role']) : '',
+              $zp['consultant'] ? 'doradca TI' : '', $zp['courses'] ? 'grupy: ' . $zp['courses'] : '']))) ?></div></th>
+        <?php if ($zp['staff']): ?>
+        <td class="text-center"><i class="bi bi-check-lg" aria-label="tak"></i></td><td class="text-center"><i class="bi bi-check-lg" aria-label="tak"></i></td>
+        <td class="small text-body-secondary">kierownik — zawsze oba</td><td></td>
+        <?php else: ?>
+        <td class="text-center"><input class="form-check-input" type="checkbox" form="<?= $zf ?>" name="kursy" value="1" aria-label="Szkolenia — <?= h($zp['name']) ?>"<?= !empty($eff['kursy']) ? ' checked' : '' ?>></td>
+        <td class="text-center"><input class="form-check-input" type="checkbox" form="<?= $zf ?>" name="konsultacje" value="1" aria-label="Konsultacje — <?= h($zp['name']) ?>"<?= !empty($eff['konsultacje']) ? ' checked' : '' ?>></td>
+        <td class="small"><?= $zp['explicit'] ? '<span class="badge text-bg-primary">ustawione</span>' : '<span class="badge text-bg-light border">automatycznie</span>' ?></td>
+        <td class="text-end text-nowrap">
+          <form method="post" id="<?= $zf ?>" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_op" value="modes_set"><input type="hidden" name="user_id" value="<?= (int)$zp['id'] ?>">
+            <button class="btn btn-sm btn-outline-primary py-0">Zapisz<span class="visually-hidden"> tryby — <?= h($zp['name']) ?></span></button>
+            <?php if ($zp['explicit']): ?><button class="btn btn-sm btn-link py-0" name="auto" value="1">Automatycznie</button><?php endif; ?>
+          </form>
+        </td>
+        <?php endif; ?>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
 
 </main>
 <?php $PRINT_TITLE = 'Zespół i role panelu'; include __DIR__ . '/_print_page.php'; ?>

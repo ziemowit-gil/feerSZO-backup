@@ -219,20 +219,21 @@ function dyd_require(): array {
         }
     }
 
+    // Wspólny ekran wyboru (choose_mode.php): rola Kierownik / Prowadzący (kierownik z własnymi grupami)
+    // i tryb pracy Szkolenia / Konsultacje (gdy dostępne oba — TiWorkModes). Raz na sesję; gdy wyboru nie ma, ustawiane same.
+    $_need = false;
     if (!empty($s['is_staff']) && !isset($_SESSION['k30_dyd_ctx']['role'])) {
-        if (k30_ti_instructor_courses((int)$s['user_id'], false)) {
-            header('Location: choose_context.php'); exit;
-        }
-        $_SESSION['k30_dyd_ctx']['role'] = 'staff'; // nic do wyboru — ustal raz i nie pytaj więcej
+        if (k30_ti_instructor_courses((int)$s['user_id'], false)) $_need = true;
+        else $_SESSION['k30_dyd_ctx']['role'] = 'staff'; // nic do wyboru — ustal raz i nie pytaj więcej
     }
-
-    // Tryb pracy: Kursy albo Konsultacje (choose_mode.php) — wybór raz na sesję, gdy dostępne są oba;
-    // przy jednym dostępnym trybie ustawiany sam. Od trybu zależy menu (dyd_nav_sections) i ekran startowy.
-    if (!isset($_SESSION['k30_dyd_ctx']['mode'])) {
-        $_modes = dyd_modes_available($s);
-        if (count($_modes) > 1) { header('Location: choose_mode.php'); exit; }
-        $_SESSION['k30_dyd_ctx']['mode'] = $_modes[0] ?? 'kursy';
+    $_modes = dyd_modes_available($s);
+    if (!isset($_SESSION['k30_dyd_ctx']['mode']) || !in_array($_SESSION['k30_dyd_ctx']['mode'], $_modes ?: ['kursy'], true)) {
+        if (count($_modes) > 1) $_need = true;
+        else $_SESSION['k30_dyd_ctx']['mode'] = $_modes[0] ?? 'kursy';
     }
+    if ($_need) { header('Location: choose_mode.php'); exit; }
+    // Osoba tylko z Konsultacjami: ekrany Szkoleń są niedostępne (wiadomości i komunikaty — tak)
+    if ($_modes === ['konsultacje'] && !dyd_konsultacje_page()) { header('Location: konsultacje.php'); exit; }
 
     // Pełne wcielenie w wybranego prowadzącego (patrz choose_context.php, opcja
     // „Wejdź jako inny prowadzący"). Od tego miejsca $s['user_id']/name/email to
@@ -290,15 +291,24 @@ function dyd_ctx_role(): string {
 function dyd_modes_available(?array $s = null): array {
     $s ??= dyd_current();
     if (!$s) return [];
-    $uid   = (int)($s['user_id'] ?? 0);
-    $staff = !empty($s['is_staff']);
-    $out = [];
-    if ($staff || ($s['panel_role'] ?? '') !== '' || k30_ti_instructor_courses($uid, false)) $out[] = 'kursy';
-    if ($staff || !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [$uid])['k30_consultant'])) $out[] = 'konsultacje';
-    return $out;
+    require_once dirname(__DIR__, 3) . '/modules/ti_work_modes/logic/workModes.php';
+    // Uprawnienia per osoba (Zespół i role → Tryby pracy); bez ustawienia — automatycznie, kierownik zawsze oba
+    return TiWorkModes::available((int)($s['user_id'] ?? 0), !empty($s['is_staff']), (string)($s['panel_role'] ?? ''));
 }
 
-/** Bieżący tryb pracy: 'kursy' (domyślnie) albo 'konsultacje'. */
+/** Strony dostępne w samym trybie Konsultacje (osoba bez uprawnienia do Szkoleń). */
+const DYD_KONSULTACJE_PAGES = ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'konsultacjaPdf.php',
+                               'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'rezerwacjaPdf.php', 'kolejka.php',
+                               'moj_certyfikat.php', 'logout.php', 'choose_mode.php', 'office_enter.php', 'totp_gate.php'];
+
+function dyd_konsultacje_page(): bool {
+    $script = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    if (in_array($script, DYD_KONSULTACJE_PAGES, true)) return true;
+    if ($script === 'index.php') return in_array((string)($_GET['tab'] ?? ''), ['wiadomosci', 'komunikaty'], true);
+    return (bool)preg_match('/^(api|notif|ajax|poll|heartbeat)/i', $script);   // tła panelu (dzwonek, odświeżanie)
+}
+
+/** Bieżący tryb pracy: 'kursy' (Szkolenia, domyślnie) albo 'konsultacje'. */
 function dyd_mode(): string {
     return (($_SESSION['k30_dyd_ctx']['mode'] ?? '') === 'konsultacje') ? 'konsultacje' : 'kursy';
 }

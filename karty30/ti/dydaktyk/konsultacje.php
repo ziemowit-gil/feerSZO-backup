@@ -14,12 +14,14 @@ $me    = dyd_require();
 $uid   = (int)$me['user_id'];
 $staff = dyd_is_staff();
 karty30_migrate();
-$isConsultant = !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [$uid])['k30_consultant']);
+$isConsultant = in_array('konsultacje', dyd_modes_available(), true);   // uprawnienie do Konsultacji (Zespół i role → Tryby pracy)
 
 // Panel szkolenia krótkiego (zamknięcie)
 $courseId = (int)($_GET['course'] ?? 0);
 $course   = $courseId ? db_one("SELECT id, name, internal_desc, simple_mode, closed_at, instructor_id FROM k30_ti_courses WHERE id=?", [$courseId]) : null;
 if ($course && !dyd_owns_course($uid, $courseId)) $course = null;   // kadra albo prowadzący tej grupy
+// Bez uprawnienia do Konsultacji — tylko panel własnego szkolenia krótkiego (karty jego terminów)
+if (!$isConsultant && !$course) { flash_set('warning', 'Nie masz uprawnień do Konsultacji — ustawia je kierownik w „Zespół i role”.'); header('Location: index.php'); exit; }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();

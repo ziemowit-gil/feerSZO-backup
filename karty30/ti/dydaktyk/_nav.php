@@ -125,11 +125,9 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         // sam odsyła, gdy nie ma czego wybierać), albo powrót z zastępstwa.
         if ($acting) {
             $items[] = ['Wróć do swojego konta', 'choose_context.php?role=staff', 'arrow-return-left'];
-        } elseif (!empty($s['is_staff'])) {
-            $items[] = ['Zmień rolę / kontekst', 'choose_context.php', 'arrow-left-right'];
-        }
-        if (function_exists('dyd_modes_available') && count(dyd_modes_available($s)) > 1) {
-            $items[] = [dyd_mode() === 'konsultacje' ? 'Zmień tryb pracy (teraz: Konsultacje)' : 'Zmień tryb pracy (teraz: Kursy)', 'choose_mode.php', 'signpost-split'];
+        } elseif (!empty($s['is_staff']) || (function_exists('dyd_modes_available') && count(dyd_modes_available($s)) > 1)) {
+            // Jeden ekran wyboru: rola (kierownik/prowadzący) i tryb pracy (Szkolenia/Konsultacje) — choose_mode.php
+            $items[] = ['Zmień rolę / tryb pracy (teraz: ' . (dyd_mode() === 'konsultacje' ? 'Konsultacje' : 'Szkolenia') . ')', 'choose_mode.php', 'signpost-split'];
         }
         // „Pracujesz jako: …” widoczne wprost w pasku (dawniej akapit w treści
         // index.php); link do zmiany roli — gdy kierownik ma własne grupy albo
