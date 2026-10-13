@@ -32,7 +32,8 @@ const DYD_NAV_PAGES = [
     'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php', 'umowa.php'],
     'certyfikat' => ['moj_certyfikat.php', 'certyfikaty.php'],
     'konsultacje' => ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'grupaUproszczona.php',
-                      'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php'],
+                      'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php',
+                      'konsultacjeZestawienia.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
@@ -155,6 +156,11 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
             $items[] = ['Raporty planisty', 'raportyPlanisty.php', 'bar-chart-line'];
         } else {
             $items[] = ['Moje zgłoszenia (niedostępność, zmiana terminu)', 'mojeZgloszenia.php', 'envelope-exclamation'];
+        }
+        // Konsultacje — w menu użytkownika w każdym trybie (osoby z uprawnieniem do Konsultacji, TiWorkModes)
+        if (function_exists('dyd_modes_available') && in_array('konsultacje', dyd_modes_available($s), true)) {
+            $items[] = ['Rezerwacje terminów', 'rezerwacje.php', 'calendar-check'];
+            $items[] = ['Karty konsultacji', 'konsultacje.php', 'clipboard2-check'];
         }
         if (function_exists('dyd_can_analytics') && dyd_can_analytics($s)) $items[] = ['Analityka TI', 'analityka.php', 'speedometer2'];
         $items[] = ['Mój certyfikat', 'moj_certyfikat.php', 'shield-check'];

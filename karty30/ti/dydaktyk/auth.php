@@ -299,6 +299,7 @@ function dyd_modes_available(?array $s = null): array {
 /** Strony dostępne w samym trybie Konsultacje (osoba bez uprawnienia do Szkoleń). */
 const DYD_KONSULTACJE_PAGES = ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'konsultacjaPdf.php',
                                'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'rezerwacjaPdf.php', 'kolejka.php',
+                               'konsultacjeZestawienia.php', 'konsultacjeEksport.php',
                                'moj_certyfikat.php', 'logout.php', 'choose_mode.php', 'office_enter.php', 'totp_gate.php'];
 
 function dyd_konsultacje_page(): bool {

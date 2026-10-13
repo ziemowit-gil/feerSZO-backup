@@ -91,6 +91,7 @@ $_usos_sections = [
             $_it('', 'Rezerwacje terminów', 'rezerwacje.php'),
             $_it('', 'Kalendarz rezerwacji', 'rezerwacjeKalendarz.php'),
             $_it('', 'Kolejka oczekujących', 'kolejka.php'),
+            $_it('', 'Wydruki i zestawienia', 'konsultacjeZestawienia.php'),
             $_it('', 'Karty konsultacji', 'konsultacje.php'),
             $_it('', 'Nowa konsultacja',  'konsultacja.php?nowa=1'),
             ...(dyd_is_staff() ? [$_it('', 'Szkolenia krótkie (SzK)', 'grupaUproszczona.php')] : []),

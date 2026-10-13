@@ -16,6 +16,11 @@ if ($id = (int)($_GET['id'] ?? 0)) {
     $k = TiConsultations::get($id);
     if (!$k || !TiConsultations::canAccess($k, $uid, $staff)) { http_response_code(403); exit('Brak dostępu do karty.'); }
     $ids = [$id]; $name = TiConsultations::pdfName($k);
+} elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['from'] ?? '')) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['to'] ?? ''))) {
+    // Zbiorczy PDF kart z okresu (Wydruki i zestawienia) — kadra: wszystkie, pozostali: swoje
+    require_once dirname(__DIR__, 3) . '/modules/ti_consult_reports/logic/consultReports.php';
+    $ids = TiConsultReports::cardIds(TiConsultReports::range($_GET), $uid, $staff);
+    $name = 'karty-konsultacji-' . $_GET['from'] . '-' . $_GET['to'] . '.pdf';
 } elseif ($sid = (int)($_GET['session'] ?? 0)) {
     if (!dyd_owns_session($uid, $sid)) { http_response_code(403); exit('Brak dostępu do terminu.'); }
     $ids = array_map(fn($r) => (int)$r['id'], db_all("SELECT id FROM k30_consultations WHERE session_id=? AND status<>'cancelled' ORDER BY id", [$sid]));
