@@ -78,18 +78,18 @@ $_tabs = [
 $_fn = in_array($_GET['fn'] ?? '', ['szkolenia', 'szk', 'konsultacje', 'kierownik'], true) ? (string)$_GET['fn'] : '';
 $_groups = [
     ['title' => 'Uczestnicy', 'items' => [
-        ['tab' => 'kursant', 'fn' => 'szkolenia',   'kolor' => '#0f6fa8', 'icon' => 'bi-pc-display',       'label' => 'Uczestnik szkoleń',          'who' => 'Zajęcia w grupie — login np. j.kowalski'],
-        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Uczestnik szkolenia krótkiego', 'who' => '2–4 spotkania — login np. j.kowalski'],
-        ['tab' => 'kursant', 'fn' => 'konsultacje', 'kolor' => '#2b6cb0', 'icon' => 'bi-clipboard2-check', 'label' => 'Beneficjent konsultacji',    'who' => 'Umówione spotkanie — login np. k1234'],
+        ['tab' => 'kursant', 'fn' => 'szkolenia',   'kolor' => '#0f6fa8', 'icon' => 'bi-pc-display',       'label' => 'Uczestnik szkoleń',          'who' => 'Chodzę na zajęcia w grupie'],
+        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Uczestnik szkolenia krótkiego', 'who' => 'Mam kilka spotkań w małej grupie'],
+        ['tab' => 'kursant', 'fn' => 'konsultacje', 'kolor' => '#2b6cb0', 'icon' => 'bi-clipboard2-check', 'label' => 'Beneficjent konsultacji',    'who' => 'Mam umówioną konsultację'],
     ]],
     ['title' => 'Rodzina i osoby bliskie', 'items' => [
-        ['tab' => 'rodzic',  'fn' => '',            'kolor' => '#00a300', 'icon' => 'bi-people',           'label' => 'Rodzic / opiekun',         'who' => 'Opiekun małoletniego kursanta'],
-        ['tab' => 'up',      'fn' => '',            'kolor' => '#7e3878', 'icon' => 'bi-person-check',     'label' => 'Osoba upoważniona',        'who' => 'Wgląd nadany przez kursanta'],
+        ['tab' => 'rodzic',  'fn' => '',            'kolor' => '#00a300', 'icon' => 'bi-people',           'label' => 'Rodzic / opiekun',         'who' => 'Opiekuję się dzieckiem, które tu się uczy'],
+        ['tab' => 'up',      'fn' => '',            'kolor' => '#7e3878', 'icon' => 'bi-person-check',     'label' => 'Osoba upoważniona',        'who' => 'Kursant dał mi dostęp do swoich spraw'],
     ]],
     ['title' => 'Kadra', 'items' => [
-        ['tab' => 'dydaktyk', 'fn' => 'szkolenia',   'kolor' => '#1d1d1d', 'icon' => 'bi-easel2',           'label' => 'Prowadzący zajęcia',       'who' => 'Grupy, dziennik, protokoły'],
-        ['tab' => 'dydaktyk', 'fn' => 'konsultacje', 'kolor' => '#3b3b3b', 'icon' => 'bi-chat-square-text', 'label' => 'Konsultant',               'who' => 'Rezerwacje i karty konsultacji'],
-        ['tab' => 'dydaktyk', 'fn' => 'kierownik',   'kolor' => '#5b5b5b', 'icon' => 'bi-building',         'label' => 'Kierownik',                'who' => 'Cały panel dydaktyka'],
+        ['tab' => 'dydaktyk', 'fn' => 'szkolenia',   'kolor' => '#1d1d1d', 'icon' => 'bi-easel2',           'label' => 'Prowadzący zajęcia',       'who' => 'Prowadzę grupy i uzupełniam dziennik'],
+        ['tab' => 'dydaktyk', 'fn' => 'konsultacje', 'kolor' => '#3b3b3b', 'icon' => 'bi-chat-square-text', 'label' => 'Konsultant',               'who' => 'Umawiam i prowadzę konsultacje'],
+        ['tab' => 'dydaktyk', 'fn' => 'kierownik',   'kolor' => '#5b5b5b', 'icon' => 'bi-building',         'label' => 'Kierownik',                'who' => 'Zarządzam całą placówką'],
     ]],
 ];
 // Zapamiętany wybór funkcji przez prowadzącego — panel ustawia tryb pracy po zalogowaniu (choose_mode.php czyta cookie)
@@ -104,7 +104,7 @@ $_kursant_hint = ['szkolenia' => 'Login: pierwsza litera imienia, kropka, nazwis
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h($krok1 ? 'Logowanie do panelu TI' : $_titles[$tab] . ' — Logowanie') ?></title>
+<title><?= h($krok1 ? 'Logowanie — panel beneficjenta szkoleń' : $_titles[$tab] . ' — Logowanie') ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
@@ -149,7 +149,7 @@ $_kursant_hint = ['szkolenia' => 'Login: pierwsza litera imienia, kropka, nazwis
 <div class="tz-split">
   <aside class="tz-side" aria-labelledby="tz-side-h">
     <div class="small fw-bold mb-2" style="letter-spacing:.06em">FEER · System Tożsamości</div>
-    <h2 id="tz-side-h"><?= h($krok1 ? 'Panel TI' : $_titles[$tab]) ?></h2>
+    <h2 id="tz-side-h"><?= h($krok1 ? 'Panel beneficjenta szkoleń' : $_titles[$tab]) ?></h2>
     <p class="sub mb-0">Jak się zalogować:</p>
     <ol>
       <?php foreach ($_side_steps as $_st): ?><li><?= h($_st) ?></li><?php endforeach; ?>
@@ -158,7 +158,7 @@ $_kursant_hint = ['szkolenia' => 'Login: pierwsza litera imienia, kropka, nazwis
 
   <main class="tz-main" id="ti-login-main">
     <div class="tz-card<?= $krok1 ? ' tz-wide' : '' ?>">
-      <h1 class="h4 fw-bold mb-2"><?= h($krok1 ? 'Logowanie do panelu TI' : org_login_title($_titles[$tab])) ?></h1>
+      <h1 class="h4 fw-bold mb-2"><?= h($krok1 ? 'Logowanie do panelu beneficjenta szkoleń' : org_login_title($_titles[$tab])) ?></h1>
 
       <?php if ($error): ?>
       <div class="alert alert-danger small py-2 rounded-0" role="alert" aria-live="assertive"><?= h($error) ?></div>
