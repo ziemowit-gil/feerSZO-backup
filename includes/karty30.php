@@ -209,6 +209,8 @@ function karty30_migrate(): void {
     try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN used_paid REAL NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
     // PESEL (do dokumentów PFRON)
     try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN pesel TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // Klient konsultacji (tryb Konsultacje panelu, przycisk „Zapisz do konsultacji”) — widoczny na liście klientów konsultacji od razu, bez rezerwacji
+    try { $pdo->exec("ALTER TABLE k30_clients ADD COLUMN consult_client INTEGER NOT NULL DEFAULT 0"); } catch (\Throwable $e) {}
 
     // Migracja statusów beneficjentów (ready/to_settle/other) — jednorazowa, przeniesiona do
     // modules/selfrepairDB/logic/migrations.php ('2026-06_k30_client_status_keys').

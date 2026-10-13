@@ -5,6 +5,7 @@
  * Kartoteka to k30_clients (ta sama co kursantów szkoleń). Ekran w Konsultacjach obejmuje osoby, które mają cokolwiek
  * w konsultacjach (rezerwacja, karta, kolejka, konto beneficjenta konsultacji) albo zostały tu dodane — bez aktywnego
  * zapisu do grupy nie pojawiają się w panelowym „Podgląd klientów” (klienci.php), stąd osobny ekran.
+ * „Zapisz do konsultacji” oznacza osobę (k30_clients.consult_client) — jest na liście od razu, zanim ma rezerwację.
  * Dostęp: osoby z uprawnieniem do Konsultacji; edycja danych — tak samo (dane kontaktowe są potrzebne do rezerwacji),
  * usuwanie — tylko kadra. Każdy odczyt i edycja w rejestrze dostępu RODO (k30_access_log).
  */
@@ -23,7 +24,8 @@ final class TiConsultClients
     }
 
     /** Warunek SQL „osoba ma coś w konsultacjach” (alias tabeli k30_clients: c). */
-    private const IN_KONS = "(EXISTS (SELECT 1 FROM k30_schedules s WHERE s.client_id = c.id)
+    private const IN_KONS = "(COALESCE(c.consult_client,0) = 1
+        OR EXISTS (SELECT 1 FROM k30_schedules s WHERE s.client_id = c.id)
         OR EXISTS (SELECT 1 FROM k30_consultations k WHERE k.client_id = c.id)
         OR EXISTS (SELECT 1 FROM k30_waiting_list w WHERE w.client_id = c.id)
         OR EXISTS (SELECT 1 FROM k30_ti_student_accounts a WHERE a.client_id = c.id AND COALESCE(a.simple_mode,0) = 4))";
@@ -88,15 +90,16 @@ final class TiConsultClients
         return ['row' => $row, 'errors' => $e];
     }
 
-    public static function create(array $row, int $uid): int
+    public static function create(array $row, int $uid, bool $consult = false): int
     {
-        $id = (int)db_insert('k30_clients', $row + ['created_by' => $uid ?: null]);
+        $id = (int)db_insert('k30_clients', $row + ['created_by' => $uid ?: null, 'consult_client' => $consult ? 1 : 0]);
         try { k30_sync_to_crm(['name' => $row['name'], 'email' => (string)$row['email'], 'phone' => (string)$row['phone']], $uid); } catch (\Throwable $e) {}
         return $id;
     }
 
-    public static function update(int $id, array $row): void
+    public static function update(int $id, array $row, ?bool $consult = null): void
     {
+        if ($consult !== null) $row['consult_client'] = $consult ? 1 : 0;
         db_update('k30_clients', $row + ['updated_at' => date('Y-m-d H:i:s')], $id);
     }
 

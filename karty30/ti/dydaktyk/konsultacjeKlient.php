@@ -20,8 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $r = TiConsultClients::fromPost($_POST);
         $errors = $r['errors'];
         if (!$errors) {
-            if ($c) { TiConsultClients::update($id, $r['row']); try { k30_log_access('client', $id, 'edit', $r['row']['name']); } catch (\Throwable $e) {} flash_set('success', 'Dane klienta zapisane.'); }
-            else { $id = TiConsultClients::create($r['row'], $uid); flash_set('success', 'Klient dodany.'); }
+            $kons = ($_POST['save_as'] ?? '') === 'kons';   // drugi przycisk: „Zapisz do konsultacji”
+            if ($c) { TiConsultClients::update($id, $r['row'], $kons ? true : null); try { k30_log_access('client', $id, 'edit', $r['row']['name']); } catch (\Throwable $e) {} flash_set('success', $kons ? 'Dane zapisane — klient oznaczony jako klient konsultacji.' : 'Dane klienta zapisane.'); }
+            else { $id = TiConsultClients::create($r['row'], $uid, $kons); flash_set('success', $kons ? 'Klient dodany i zapisany do konsultacji — jest już na liście klientów konsultacji.' : 'Klient dodany do kartoteki (bez oznaczenia konsultacji — pojawi się na liście po pierwszej rezerwacji albo w zakresie „cała kartoteka”).'); }
             header('Location: konsultacjeKlient.php?id=' . $id); exit;
         }
     } elseif ($op === 'delete' && $c && $staff) {
@@ -65,13 +66,18 @@ include __DIR__ . '/_rezerwacje_head.php';
     <div class="col-md-6"><label class="form-label" for="c-eq">Sprzęt i oprogramowanie</label><textarea class="form-control" id="c-eq" name="equipment" rows="3"><?= h((string)$v('equipment')) ?></textarea></div>
     <div class="col-12"><label class="form-label" for="c-notes">Notatki (widzi tylko kadra)</label><textarea class="form-control" id="c-notes" name="notes" rows="2"><?= h((string)$v('notes')) ?></textarea></div>
   </div>
-  <div class="mt-3"><button class="btn btn-primary"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz</button> <a class="btn btn-outline-secondary" href="<?= $c ? 'konsultacjeKlient.php?id=' . $id : 'konsultacjeKlienci.php' ?>">Anuluj</a></div>
+  <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
+    <button class="btn btn-outline-primary" name="save_as" value="plain"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz</button>
+    <button class="btn btn-primary" name="save_as" value="kons"<?= $c && (int)($c['consult_client'] ?? 0) === 1 ? ' hidden' : '' ?>><i class="bi bi-clipboard2-check me-1" aria-hidden="true"></i>Zapisz do konsultacji</button>
+    <a class="btn btn-outline-secondary" href="<?= $c ? 'konsultacjeKlient.php?id=' . $id : 'konsultacjeKlienci.php' ?>">Anuluj</a>
+    <span class="small text-body-secondary"><?= $c && (int)($c['consult_client'] ?? 0) === 1 ? 'Klient konsultacji.' : '„Zapisz do konsultacji” — osoba od razu na liście klientów konsultacji; samo „Zapisz” — tylko do kartoteki.' ?></span>
+  </div>
 </div></form>
 
 <?php else: $st = K30_CLIENT_STATUSES[$c['status']] ?? ['label' => $c['status'], 'color' => '#555', 'bg' => '#eee']; $acc = $P['account']; ?>
 <div class="d-flex flex-wrap align-items-start gap-2 mb-3">
   <div><h1 class="h4 fw-bold mb-0"><?= h($c['name']) ?></h1>
-    <span class="badge mt-1" style="background:<?= h($st['bg']) ?>;color:#111827;border:1px solid <?= h($st['color']) ?>"><?= h($st['label']) ?></span>
+    <span class="badge mt-1" style="background:<?= h($st['bg']) ?>;color:#111827;border:1px solid <?= h($st['color']) ?>"><?= h($st['label']) ?></span><?php if ((int)($c['consult_client'] ?? 0) === 1): ?> <span class="badge text-bg-info mt-1">klient konsultacji</span><?php endif; ?>
     <?php foreach ($P['groups'] as $g): ?><span class="badge text-bg-light border mt-1"><?= (int)$g['simple_mode'] ? 'SzK ' : 'grupa ' ?><?= h($g['name']) ?></span><?php endforeach; ?></div>
   <div class="ms-auto d-flex flex-wrap gap-2">
     <a class="btn btn-sm btn-primary" href="rezerwacja.php?nowa=1&amp;client_id=<?= $id ?>"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Nowa rezerwacja</a>
