@@ -179,7 +179,7 @@ body { background:var(--bg); font-family:var(--font); min-height:100vh; margin:0
 .form-card { max-width:var(--mw); margin:2.5rem auto 3rem; background:#fff; border-radius:var(--rounded); box-shadow:0 4px 24px rgba(0,0,0,.08); overflow:hidden; }
 .form-header { background:var(--accent); color:var(--txt-on); padding:1.75rem; }
 .form-header h1 { font-size:1.25rem; font-weight:700; margin:0 0 .3rem; }
-.form-header p  { font-size:.85rem; opacity:.85; margin:0; }
+.form-header p  { font-size:.85rem; opacity:.85; margin:0; white-space:pre-line; }
 .form-body  { padding:1.75rem; }
 
 /* ── Pola (WCAG 1.3.1, 3.3.2) ── */
