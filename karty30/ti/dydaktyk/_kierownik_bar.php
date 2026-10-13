@@ -81,6 +81,7 @@ if (!empty($KIER_ITEMS)) {
         ['Certyfikaty prowadzących',  'certyfikaty.php',            'shield-check'],
         ['Mail onboardingowy kursantów', 'kursanci_onboarding.php', 'envelope-paper'],
         ['Testy',                     'testy.php',                  'bug'],
+        ...(function_exists('dyd_is_admin') && dyd_is_admin() ? [['Konta testowe (konsultacje, SzK)', 'kontaTestowe.php', 'person-badge']] : []),
         ['Pełny panel TI',            '../index.php',               'box-arrow-up-right',  true],
     ];
     $_kier_norm = [];
