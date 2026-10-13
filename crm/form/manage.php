@@ -166,6 +166,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         db()->prepare("DELETE FROM crm_web_forms WHERE id=?")->execute([$id]);
         flash_set('success','Formularz usunięty.');
+    } elseif ($op === 'duplicate') {
+        // Kopia z całą konfiguracją (pola, zgody, styl, automatyzacje, skutki przyjęcia) — bez licznika
+        // zgłoszeń, z nowym slugiem i NIEAKTYWNA, żeby nie ruszyła publicznie przed przejrzeniem.
+        $src = db_one("SELECT * FROM crm_web_forms WHERE id=?", [(int)($_POST['id'] ?? 0)]);
+        if (!$src) { flash_set('danger','Nie znaleziono formularza.'); goto redirect; }
+        $base = substr(preg_replace('/-kopia(-\d+)?$/', '', $src['slug']), 0, 80) . '-kopia';
+        $slug = $base;
+        for ($n = 2; db_one("SELECT 1 FROM crm_web_forms WHERE slug=?", [$slug]); $n++) $slug = $base . '-' . $n;
+        $copy = $src;
+        unset($copy['id']);
+        $copy['slug']       = $slug;
+        $copy['title']      = preg_replace('/ \(kopia\)$/u', '', $src['title']) . ' (kopia)';
+        $copy['is_active']  = 0;
+        $copy['submissions']= 0;
+        $copy['created_by'] = current_user()['id'] ?? null;
+        $copy['created_at'] = date('Y-m-d H:i:s');
+        try {
+            $new_id = (int)db_insert('crm_web_forms', $copy);
+            flash_set('success','Utworzono kopię formularza (nieaktywną) — sprawdź slug i włącz, gdy będzie gotowa.');
+            header('Location: '.$_SERVER['PHP_SELF'].'?edit='.$new_id); exit;
+        } catch (\Throwable $e) {
+            flash_set('danger','Nie udało się skopiować formularza: '.$e->getMessage());
+        }
     }
     redirect:
     header('Location: '.$_SERVER['PHP_SELF']); exit;
@@ -362,6 +385,12 @@ include __DIR__ . '/../includes/header_crm.php';
               <?= csrf_field() ?><input type="hidden" name="_op" value="toggle"><input type="hidden" name="id" value="<?= $f['id'] ?>">
               <button class="btn btn-sm <?= $f['is_active']?'btn-outline-warning':'btn-outline-success' ?> py-0 px-2">
                 <?= $f['is_active']?'<i class="bi bi-pause"></i>':'<i class="bi bi-play"></i>' ?>
+              </button>
+            </form>
+            <form method="post" class="d-inline">
+              <?= csrf_field() ?><input type="hidden" name="_op" value="duplicate"><input type="hidden" name="id" value="<?= $f['id'] ?>">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Duplikuj formularz" aria-label="Duplikuj formularz <?= h($f['title']) ?>">
+                <i class="bi bi-copy"></i>
               </button>
             </form>
             <form method="post" class="d-inline">
