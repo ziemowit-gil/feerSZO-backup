@@ -69,10 +69,10 @@ final class TiConsultReports
             $i = TiConsultations::intake($c);
             $topics = implode('; ', array_map(fn($t) => explode(' (', $L['topics'][$t] ?? $t)[0], (array)($i['topics'] ?? [])));
             $out[] = [(string)$c['card_no'], date('d.m.Y H:i', strtotime((string)$c['consultation_datetime'])), (string)$c['client_name'], (string)($c['consultant_name'] ?? ''),
-                      (int)$c['duration_minutes'], $topics, $L['form'][$i['form'] ?? ''] ?? '', (string)($c['course_name'] ?? ''), K30_CONSULTATION_STATUSES[$c['status']]['label'] ?? $c['status']];
+                      (int)$c['duration_minutes'], $topics, $L['form'][$i['form'] ?? ''] ?? '', (string)($c['course_name'] ?? ''), TiConsultations::STAGES[TiConsultations::stage($c)][0]];
             $min += (int)$c['duration_minutes'];
         }
-        return ['subtitle' => count($out) . ' kart, ' . round($min / 60, 1) . ' h', 'headers' => ['Numer', 'Data', 'Beneficjent', 'Konsultant', 'Min', 'Temat', 'Forma', 'Szkolenie SzK', 'Status'],
+        return ['subtitle' => count($out) . ' kart, ' . round($min / 60, 1) . ' h', 'headers' => ['Numer', 'Data', 'Beneficjent', 'Konsultant', 'Min', 'Temat', 'Forma', 'Szkolenie SzK', 'Etap'],
                 'rows' => $out, 'num' => [4], 'sheet' => 'Karty'];
     }
 
@@ -88,7 +88,7 @@ final class TiConsultReports
         }
         ksort($g); $out = [];
         foreach ($g as $k => $x) $out[] = [$k, $x['n'], round($x['min'] / 60, 2), $x['ok'], $x['draft'], count($x['cl']), $x['szk']];
-        return ['headers' => ['Konsultant', 'Karty', 'Godziny', 'Zatwierdzone', 'Robocze', 'Beneficjenci', 'W tym karty SzK'], 'rows' => $out, 'num' => [1, 2, 3, 4, 5, 6], 'dec' => [2 => 2]];
+        return ['headers' => ['Konsultant', 'Karty', 'Godziny', 'Podpisane', 'Robocze', 'Beneficjenci', 'W tym karty SzK'], 'rows' => $out, 'num' => [1, 2, 3, 4, 5, 6], 'dec' => [2 => 2]];
     }
 
     private static function r_tematy(array $r, int $uid, bool $staff): array

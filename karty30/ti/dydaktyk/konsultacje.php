@@ -116,8 +116,8 @@ $STL = ['planned' => 'zaplanowana', 'held' => 'odbyta', 'individual_change' => '
 <form method="get" class="row g-2 align-items-end mb-3" role="search" aria-label="Filtry kart">
   <?php if ($course): ?><input type="hidden" name="course" value="<?= (int)$courseId ?>"><?php endif; ?>
   <div class="col-sm-4 col-lg-3"><label class="form-label small mb-0" for="kc-q">Beneficjent lub numer</label><input class="form-control form-control-sm" id="kc-q" name="q" value="<?= h($f['q']) ?>"></div>
-  <div class="col-sm-3 col-lg-2"><label class="form-label small mb-0" for="kc-st">Status</label>
-    <select class="form-select form-select-sm" id="kc-st" name="status"><option value="">wszystkie</option><?php foreach ($ST as $k => $v): ?><option value="<?= h($k) ?>"<?= $f['status'] === $k ? ' selected' : '' ?>><?= h($v['label']) ?></option><?php endforeach; ?></select></div>
+  <div class="col-sm-3 col-lg-2"><label class="form-label small mb-0" for="kc-st">Etap</label>
+    <select class="form-select form-select-sm" id="kc-st" name="status"><option value="">wszystkie</option><?php foreach (TiConsultations::STAGES as $k => [$l]): ?><option value="<?= h($k) ?>"<?= $f['status'] === $k ? ' selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
   <div class="col-sm-3 col-lg-2"><label class="form-label small mb-0" for="kc-ym">Miesiąc</label><input class="form-control form-control-sm" type="month" id="kc-ym" name="ym" value="<?= h($f['ym']) ?>"></div>
   <div class="col-sm-3 col-lg-2"><label class="form-label small mb-0" for="kc-kind">Rodzaj</label>
     <select class="form-select form-select-sm" id="kc-kind" name="kind"><option value="">wszystkie</option><option value="sam"<?= $f['kind'] === 'sam' ? ' selected' : '' ?>>samodzielne</option><option value="szk"<?= $f['kind'] === 'szk' ? ' selected' : '' ?>>terminy SzK</option></select></div>
@@ -130,7 +130,7 @@ $STL = ['planned' => 'zaplanowana', 'held' => 'odbyta', 'individual_change' => '
 <div class="table-responsive">
 <table class="table table-sm table-hover align-middle">
   <caption class="visually-hidden">Karty konsultacji</caption>
-  <thead class="table-light"><tr><th scope="col">Numer</th><th scope="col">Data</th><th scope="col">Beneficjent</th><th scope="col">Konsultant</th><th scope="col">Szkolenie</th><th scope="col" class="text-end">Min</th><th scope="col">Status</th></tr></thead>
+  <thead class="table-light"><tr><th scope="col">Numer</th><th scope="col">Data</th><th scope="col">Beneficjent</th><th scope="col">Konsultant</th><th scope="col">Szkolenie</th><th scope="col" class="text-end">Min</th><th scope="col">Etap</th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r): $st = $ST[$r['status']] ?? ['label' => $r['status'], 'color' => '#555', 'bg' => '#eee']; ?>
   <tr>
@@ -140,7 +140,7 @@ $STL = ['planned' => 'zaplanowana', 'held' => 'odbyta', 'individual_change' => '
     <td class="small"><?= h($r['consultant_name'] ?? '—') ?></td>
     <td class="small"><?php if ($r['course_id']): ?><a class="font-monospace" href="konsultacje.php?course=<?= (int)$r['course_id'] ?>"><?= h($r['course_name'] ?? '') ?></a><?php else: ?>—<?php endif; ?></td>
     <td class="text-end small"><?= $r['duration_minutes'] ? (int)$r['duration_minutes'] : '—' ?></td>
-    <td><span class="badge" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>"><?= h($st['label']) ?></span></td>
+    <td><?= TiConsultations::stageBadge($r) ?></td>
   </tr>
   <?php endforeach; ?>
   </tbody>

@@ -101,6 +101,10 @@ function karty30_migrate(): void {
         "ALTER TABLE k30_consultations ADD COLUMN course_id  INTEGER",
         // Dane zgłoszenia na karcie konsultacji (kontakt, profil, wzrok, tematy, sprzęt, forma, zgody) — JSON, TiConsultations::INTAKE
         "ALTER TABLE k30_consultations ADD COLUMN intake     TEXT NOT NULL DEFAULT ''",
+        // Etap 3 karty: zatwierdzenie przez kierownika (po podpisie konsultanta IKA + x509)
+        "ALTER TABLE k30_consultations ADD COLUMN mgr_approved_by   INTEGER",
+        "ALTER TABLE k30_consultations ADD COLUMN mgr_approved_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE k30_consultations ADD COLUMN mgr_approved_at   TEXT",
     ] as $_sql) {
         try { $pdo->exec($_sql); } catch (\Throwable $e) {}
     }

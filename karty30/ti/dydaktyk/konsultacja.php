@@ -40,9 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = $res['errors'];
     } elseif ($op === 'approve' && $card) {
         $res = TiConsultations::approve([$id], $uid, $approver, (string)($_POST['ika_code'] ?? ''));
-        if ($res['ok']) flash_set('success', 'Karta zatwierdzona (IKA + x509).' . ($res['closed'] ? ' Szkolenie ' . $res['closed'] . ' zamknięte — karty trafiły do EZD.' : ''));
+        if ($res['ok']) flash_set('success', 'Karta podpisana (IKA + x509) — czeka na zatwierdzenie przez kierownika.');
         else foreach ($res['errors'] as $e) flash_set('danger', $e);
         header('Location: konsultacja.php?id=' . $id . '#zatwierdzenie'); exit;
+    } elseif ($op === 'mgr_approve' && $card && $staff) {
+        $res = TiConsultations::managerApprove([$id], $uid, (string)($me['name'] ?? ''));
+        flash_set($res['approved'] ? 'success' : 'warning', $res['approved'] ? 'Karta zatwierdzona przez kierownika.' . ($res['closed'] ? ' Szkolenie ' . $res['closed'] . ' zamknięte — karty trafiły do EZD.' : (TiConsultations::ezdActive() && !(int)$card['course_id'] ? ' Karta trafiła do EZD.' : '')) : 'Zatwierdzić można tylko podpisaną kartę.');
+        header('Location: konsultacja.php?id=' . $id); exit;
     } elseif ($op === 'cancel' && $card) {
         $ok = TiConsultations::cancel($id);
         flash_set($ok ? 'info' : 'warning', $ok ? 'Karta anulowana.' : 'Anulować można tylko roboczą kartę.');
@@ -180,7 +184,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div>
     <h1 class="h4 fw-bold mb-0"><span class="font-monospace"><?= h($card['card_no'] ?: '#' . $id) ?></span> — <?= h($card['client_name']) ?></h1>
     <div class="small text-body-secondary"><?= h(date('d.m.Y H:i', strtotime((string)$card['consultation_datetime']))) ?><?= $card['duration_minutes'] ? ' · ' . (int)$card['duration_minutes'] . ' min' : '' ?></div>
-    <span class="badge mt-1" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>"><?= h($st['label']) ?></span>
+    <div class="mt-1"><?= TiConsultations::stageBadge($card) ?> <span class="small text-body-secondary">Robocza → Podpisana → Zatwierdzona przez kierownika</span></div>
   </div>
   <div class="ms-auto d-flex gap-2 flex-wrap">
     <a class="btn btn-sm btn-outline-secondary" href="konsultacjaPdf.php?id=<?= $id ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
@@ -224,9 +228,22 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
 </div>
 
+<?php if (TiConsultations::stage($card) === 'signed'): ?>
+<section class="card border-0 shadow-sm mt-3" id="kierownik" aria-labelledby="kc-m-h">
+  <div class="card-header fw-semibold" id="kc-m-h"><i class="bi bi-check2-all me-1 text-primary" aria-hidden="true"></i>Zatwierdzenie przez kierownika</div>
+  <div class="card-body">
+  <?php if ($staff): ?>
+    <form method="post" onsubmit="return confirm('Zatwierdzić kartę jako kierownik? Karta samodzielna trafi do EZD.')">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="mgr_approve">
+      <button class="btn btn-success"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź jako kierownik</button>
+    </form>
+  <?php else: ?><p class="small mb-0">Karta podpisana — czeka na zatwierdzenie przez kierownika.</p><?php endif; ?>
+  </div>
+</section>
+<?php endif; ?>
 <?php if ($card['status'] === 'draft'): ?>
 <section class="card border-0 shadow-sm mt-3" id="zatwierdzenie" aria-labelledby="kc-a-h">
-  <div class="card-header fw-semibold" id="kc-a-h"><i class="bi bi-shield-lock me-1 text-primary" aria-hidden="true"></i>Zatwierdzenie — kod IKA + certyfikat x509</div>
+  <div class="card-header fw-semibold" id="kc-a-h"><i class="bi bi-shield-lock me-1 text-primary" aria-hidden="true"></i>Podpis konsultanta — kod IKA + certyfikat x509</div>
   <div class="card-body">
   <?php if ($canApprove): ?>
     <p class="small mb-2">Certyfikat: <strong><?= h($certChk['cert']['cert_subject'] ?? '') ?></strong>, ważny do <?= h(date('d.m.Y', (int)($certChk['cert']['cert_valid_to'] ?? 0))) ?>. Zatwierdzenie jest nieodwracalne.</p>
@@ -234,11 +251,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="approve">
       <div><label class="form-label small mb-0" for="kc-ika">Kod IKA (6 cyfr)</label>
         <input class="form-control font-monospace text-center" style="width:9rem;letter-spacing:.3em" id="kc-ika" name="ika_code" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code" required aria-describedby="kc-ika-h"></div>
-      <button class="btn btn-success"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Zatwierdź</button>
+      <button class="btn btn-success"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Podpisz</button>
       <div class="form-text w-100" id="kc-ika-h">3 błędne próby blokują kod na 15 minut.</div>
     </form>
   <?php else: ?>
-    <p class="small mb-1">Aby zatwierdzić kartę, potrzebujesz:</p>
+    <p class="small mb-1">Aby podpisać kartę, potrzebujesz:</p>
     <ul class="small mb-0">
       <?php if (!$hasIka): ?><li>kodu IKA — nadaje administrator</li><?php endif; ?>
       <?php if (!$certChk['ok']): ?><li>certyfikatu x509 — <?= h((string)$certChk['error']) ?></li><?php endif; ?>

@@ -32,12 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'duration' => (int)($_POST['duration'] ?? 0), 'present' => (array)($_POST['present'] ?? []), 'notes' => $notes,
         ], $uid);
         flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
+    } elseif ($op === 'mgr_approve_all' && $staff) {
+        $ids = array_map(fn($c) => (int)$c['id'], array_filter($view['cards'], fn($c) => TiConsultations::stage($c) === 'signed'));
+        $res = TiConsultations::managerApprove($ids, $uid, (string)($me['name'] ?? ''));
+        flash_set('success', 'Zatwierdzono jako kierownik: ' . count($res['approved']) . '.' . ($res['closed'] ? ' Szkolenie ' . $res['closed'] . ' zamknięte — karty trafiły do EZD.' : ''));
     } elseif ($op === 'approve_all') {
         $ids = array_map(fn($c) => (int)$c['id'], array_filter($view['cards'], fn($c) => $c['status'] === 'draft'));
         if (!$ids) flash_set('warning', 'Brak roboczych kart do zatwierdzenia.');
         else {
             $res = TiConsultations::approve($ids, $uid, $approver, (string)($_POST['ika_code'] ?? ''));
-            if ($res['ok']) flash_set('success', 'Zatwierdzono karty: ' . count($res['approved']) . '.' . ($res['closed'] ? ' Szkolenie ' . $res['closed'] . ' zamknięte — karty trafiły do EZD.' : ''));
+            if ($res['ok']) flash_set('success', 'Podpisano karty: ' . count($res['approved']) . ' — czekają na zatwierdzenie przez kierownika.');
             else foreach ($res['errors'] as $e) flash_set('danger', $e);
         }
     }
@@ -97,7 +101,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <label class="form-check-label fw-semibold" for="kt-p<?= $cid ?>"><?= h($p['client_name']) ?> — obecny/a</label></div>
       <?php if ($locked): ?><input type="hidden" name="present[]" value="<?= $cid ?>"><?php endif; ?>
       <?php if ($c): ?><a class="small font-monospace ms-auto" href="konsultacja.php?id=<?= (int)$c['id'] ?>"><?= h($c['card_no']) ?></a>
-        <span class="badge" style="background:<?= h($st['bg'] ?? '#eee') ?>;color:<?= h($st['color'] ?? '#555') ?>"><?= h($st['label'] ?? '') ?></span><?php endif; ?>
+        <?= TiConsultations::stageBadge($c) ?><?php endif; ?>
     </div>
     <?php if (!$locked): ?>
     <label class="form-label small mb-0 mt-1" for="kt-n<?= $cid ?>">Uwagi tylko do karty tej osoby (opcjonalnie)</label>
@@ -111,16 +115,24 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </fieldset>
 </div></form>
 
+<?php $signed = count(array_filter($cards, fn($c) => TiConsultations::stage($c) === 'signed'));
+if ($signed && $staff && !$closed): ?>
+<form method="post" class="card border-0 shadow-sm mb-3"><div class="card-body d-flex flex-wrap gap-2 align-items-center">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="mgr_approve_all">
+  <span class="small">Podpisane karty czekające na kierownika: <strong><?= $signed ?></strong></span>
+  <button class="btn btn-sm btn-success ms-auto"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Zatwierdź jako kierownik</button>
+</div></form>
+<?php endif; ?>
 <?php if ($drafts && !$closed): ?>
 <section class="card border-0 shadow-sm" aria-labelledby="kt-a-h">
-  <div class="card-header fw-semibold" id="kt-a-h"><i class="bi bi-shield-lock me-1 text-primary" aria-hidden="true"></i>Zatwierdź wszystkie robocze karty terminu (<?= $drafts ?>)</div>
+  <div class="card-header fw-semibold" id="kt-a-h"><i class="bi bi-shield-lock me-1 text-primary" aria-hidden="true"></i>Podpisz wszystkie robocze karty terminu (<?= $drafts ?>)</div>
   <div class="card-body">
   <?php if ($certChk['ok'] && $hasIka): ?>
     <form method="post" class="d-flex flex-wrap align-items-end gap-2">
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="approve_all">
       <div><label class="form-label small mb-0" for="kt-ika">Kod IKA (6 cyfr)</label>
         <input class="form-control font-monospace text-center" style="width:9rem;letter-spacing:.3em" id="kt-ika" name="ika_code" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code" required></div>
-      <button class="btn btn-success"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Zatwierdź (IKA + x509)</button>
+      <button class="btn btn-success"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Podpisz (IKA + x509)</button>
       <a class="btn btn-outline-secondary" href="konsultacjaPdf.php?session=<?= $sid ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Podgląd PDF</a>
     </form>
   <?php else: ?>

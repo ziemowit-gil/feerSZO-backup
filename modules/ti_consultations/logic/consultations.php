@@ -23,6 +23,51 @@ final class TiConsultations
 
     public static function statuses(): array { return K30_CONSULTATION_STATUSES; }
 
+    /** Etapy karty: Robocza → Podpisana (konsultant, IKA + x509) → Zatwierdzona przez kierownika; albo Anulowana. */
+    public const STAGES = [
+        'draft'     => ['Robocza', 'secondary'],
+        'signed'    => ['Podpisana', 'primary'],
+        'approved'  => ['Zatwierdzona przez kierownika', 'success'],
+        'cancelled' => ['Anulowana', 'danger'],
+    ];
+
+    public static function stage(array $k): string
+    {
+        if (($k['status'] ?? '') === 'cancelled') return 'cancelled';
+        if (($k['status'] ?? '') !== 'completed') return 'draft';
+        return !empty($k['mgr_approved_at']) ? 'approved' : 'signed';
+    }
+
+    public static function stageBadge(array $k): string
+    {
+        [$l, $c] = self::STAGES[self::stage($k)];
+        return '<span class="badge text-bg-' . $c . '">' . htmlspecialchars($l, ENT_QUOTES, 'UTF-8') . '</span>';
+    }
+
+    /**
+     * Etap 3: zatwierdzenie podpisanych kart przez kierownika. Karta samodzielna trafia wtedy do EZD; szkolenie krótkie SzK
+     * zamyka się samo, gdy wszystkie jego karty są zatwierdzone, a terminy rozliczone.
+     * @return array{approved:int[], closed:?string}
+     */
+    public static function managerApprove(array $ids, int $uid, string $name): array
+    {
+        $done = []; $courses = [];
+        foreach (array_unique(array_map('intval', $ids)) as $id) {
+            $k = self::get($id);
+            if (!$k || self::stage($k) !== 'signed') continue;
+            db()->prepare("UPDATE k30_consultations SET mgr_approved_by=?, mgr_approved_name=?, mgr_approved_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND mgr_approved_at IS NULL")
+               ->execute([$uid ?: null, $name, $id]);
+            $done[] = $id;
+            if ((int)$k['course_id'] > 0) $courses[(int)$k['course_id']] = true;
+            elseif (self::ezdActive()) self::ezdCard($id, $uid);
+        }
+        $closed = null;
+        foreach (array_keys($courses) as $cid) {
+            if (self::groupClosable($cid)['ok']) { self::closeGroup($cid, $uid, $name, true); $closed = (string)(db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$cid])['name'] ?? ''); }
+        }
+        return ['approved' => $done, 'closed' => $closed];
+    }
+
     /** Słowniki danych zgłoszenia (karta samodzielna) — klucz => etykieta. */
     public const INTAKE = [
         'contact_pref' => ['email' => 'E-mail', 'phone' => 'Telefon / SMS', 'app' => 'Aplikacja / komunikator'],
@@ -111,14 +156,16 @@ final class TiConsultations
     }
 
     /**
-     * Lista kart. $f: q (beneficjent / numer), status, ym (RRRR-MM), kind ('sam' — samodzielne | 'szk' — terminy szkoleń krótkich | ''), client_id, course_id.
+     * Lista kart. $f: q (beneficjent / numer), status (etap: draft|signed|approved|cancelled), ym (RRRR-MM), kind ('sam' — samodzielne | 'szk' — terminy szkoleń krótkich | ''), client_id, course_id.
      * Kadra widzi wszystko; pozostali — karty, w których są konsultantem, i karty terminów swoich grup.
      */
     public static function list(array $f, int $uid, bool $staff, int $limit = 300): array
     {
         $w = ['1=1']; $p = [];
         if (($q = trim((string)($f['q'] ?? ''))) !== '') { $w[] = "(c.name LIKE ? OR co.card_no LIKE ?)"; $p[] = "%$q%"; $p[] = "%$q%"; }
-        if (isset(K30_CONSULTATION_STATUSES[$f['status'] ?? ''])) { $w[] = 'co.status = ?'; $p[] = $f['status']; }
+        $stageSql = ['draft' => "co.status = 'draft'", 'signed' => "co.status = 'completed' AND co.mgr_approved_at IS NULL",
+                     'approved' => "co.status = 'completed' AND co.mgr_approved_at IS NOT NULL", 'cancelled' => "co.status = 'cancelled'"];
+        if (isset($stageSql[$f['status'] ?? ''])) $w[] = $stageSql[$f['status']];   // filtr etapu (Robocza / Podpisana / Zatwierdzona / Anulowana)
         if (preg_match('/^\d{4}-\d{2}$/', (string)($f['ym'] ?? ''))) { $w[] = "strftime('%Y-%m', co.consultation_datetime) = ?"; $p[] = $f['ym']; }
         if (($f['kind'] ?? '') === 'sam') $w[] = 'COALESCE(co.session_id,0) = 0';
         if (($f['kind'] ?? '') === 'szk') $w[] = 'COALESCE(co.session_id,0) > 0';
@@ -346,15 +393,9 @@ final class TiConsultations
                         (string)$k['consultation_datetime'], 'done', 'Zatwierdził: ' . $approverName . ' · SHA1: ' . substr($sha1, 0, 12) . '…', $uid);
             } catch (\Throwable $e) { error_log('ti_consultations CRM: ' . $e->getMessage()); }
             $done[] = $id;
-            if ((int)$k['course_id'] > 0) $courses[(int)$k['course_id']] = true;
-            elseif (self::ezdActive()) self::ezdCard($id, $uid);   // karta samodzielna — do EZD od razu
         }
-        // Szkolenie krótkie SzK: po zatwierdzeniu ostatniej karty, gdy wszystkie terminy minęły — zamknij i wyślij karty do EZD
-        $closed = null;
-        foreach (array_keys($courses) as $cid) {
-            if (self::groupClosable($cid)['ok']) { self::closeGroup($cid, $uid, $approverName, true); $closed = (string)(db_one("SELECT name FROM k30_ti_courses WHERE id=?", [$cid])['name'] ?? ''); }
-        }
-        return ['ok' => true, 'errors' => [], 'approved' => $done, 'closed' => $closed];
+        // EZD i zamknięcie szkolenia SzK — dopiero po zatwierdzeniu przez kierownika (managerApprove)
+        return ['ok' => true, 'errors' => [], 'approved' => $done, 'closed' => null];
     }
 
     public static function cancel(int $id): bool
@@ -382,7 +423,9 @@ final class TiConsultations
                                   AND NOT EXISTS (SELECT 1 FROM k30_consultations k WHERE k.session_id=s.id AND k.status<>'cancelled')", [$courseId])['n'] ?? 0);
         if ($noCard) return ['ok' => false, 'reason' => 'Odbyte terminy bez karty konsultacji: ' . $noCard . '.', 'cards' => 0];
         $draft = (int)(db_one("SELECT COUNT(*) AS n FROM k30_consultations WHERE course_id=? AND status='draft'", [$courseId])['n'] ?? 0);
-        if ($draft) return ['ok' => false, 'reason' => 'Niezatwierdzone karty: ' . $draft . '.', 'cards' => 0];
+        if ($draft) return ['ok' => false, 'reason' => 'Niepodpisane (robocze) karty: ' . $draft . '.', 'cards' => 0];
+        $nomgr = (int)(db_one("SELECT COUNT(*) AS n FROM k30_consultations WHERE course_id=? AND status='completed' AND mgr_approved_at IS NULL", [$courseId])['n'] ?? 0);
+        if ($nomgr) return ['ok' => false, 'reason' => 'Karty czekające na zatwierdzenie przez kierownika: ' . $nomgr . '.', 'cards' => 0];
         $cards = (int)(db_one("SELECT COUNT(*) AS n FROM k30_consultations WHERE course_id=? AND status='completed'", [$courseId])['n'] ?? 0);
         return ['ok' => true, 'reason' => '', 'cards' => $cards];
     }
@@ -401,14 +444,13 @@ final class TiConsultations
     private static function cardHtml(array $k): string
     {
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $st = K30_CONSULTATION_STATUSES[$k['status']]['label'] ?? $k['status'];
         $rows = [
             ['Numer karty', $k['card_no'] ?: '#' . $k['id']],
             ['Beneficjent', $k['client_name'] ?? ''],
             ['Data i godzina', date('d.m.Y H:i', strtotime((string)$k['consultation_datetime']))],
             ['Czas trwania', $k['duration_minutes'] ? (int)$k['duration_minutes'] . ' min' : '—'],
             ['Konsultant', $k['consultant_name'] ?? '—'],
-            ['Status', $st],
+            ['Etap', self::STAGES[self::stage($k)][0]],
         ];
         if (!empty($k['course_name'])) $rows[] = ['Szkolenie krótkie', $k['course_name']];
         $h = '<h1>Karta konsultacji</h1><table class="t">';
@@ -426,7 +468,8 @@ final class TiConsultations
                 . '<tr><th>Zatwierdził(a)</th><td>' . $e($k['approved_by_name']) . '</td></tr>'
                 . '<tr><th>Weryfikacja IKA</th><td>' . $e($k['ika_verified_at'] ? date('d.m.Y H:i:s', strtotime((string)$k['ika_verified_at'])) : '—') . '</td></tr>'
                 . '<tr><th>Certyfikat x509</th><td>' . $e($k['cert_subject']) . '<br><span class="mono">' . $e($k['cert_fingerprint']) . '</span></td></tr>'
-                . '<tr><th>SHA1 danych karty</th><td class="mono">' . $e($k['sha1sum']) . '</td></tr></table>';
+                . '<tr><th>SHA1 danych karty</th><td class="mono">' . $e($k['sha1sum']) . '</td></tr>'
+                . '<tr><th>Zatwierdzenie kierownika</th><td>' . (!empty($k['mgr_approved_at']) ? $e($k['mgr_approved_name']) . ', ' . $e(date('d.m.Y H:i', strtotime((string)$k['mgr_approved_at']))) : 'oczekuje') . '</td></tr></table>';
         } else {
             $h .= '<p class="muted">Karta bez podpisu elektronicznego — do podpisu odręcznego.</p>';
         }
@@ -509,7 +552,7 @@ final class TiConsultations
     public static function ezdCard(int $id, int $uid): ?int
     {
         $k = self::get($id);
-        if (!$k || $k['status'] !== 'completed') return null;
+        if (!$k || self::stage($k) !== 'approved') return null;
         return self::ezdFile('ti_konsultacja', $id, 'Karta konsultacji ' . ($k['card_no'] ?: '#' . $id) . ' — ' . $k['client_name'],
             'Zatwierdzona karta konsultacji (IKA + x509), SHA1 ' . $k['sha1sum'], self::pdf([$id]), self::pdfName($k), $uid);
     }
@@ -517,7 +560,7 @@ final class TiConsultations
     public static function ezdGroup(int $courseId, int $uid): ?int
     {
         $c = db_one("SELECT name, internal_desc FROM k30_ti_courses WHERE id=?", [$courseId]);
-        $ids = array_map(fn($r) => (int)$r['id'], db_all("SELECT id FROM k30_consultations WHERE course_id=? AND status='completed' ORDER BY consultation_datetime, id", [$courseId]));
+        $ids = array_map(fn($r) => (int)$r['id'], db_all("SELECT id FROM k30_consultations WHERE course_id=? AND status='completed' AND mgr_approved_at IS NOT NULL ORDER BY consultation_datetime, id", [$courseId]));
         if (!$c || !$ids) return null;
         return self::ezdFile('ti_konsultacje_grupa', $courseId, 'Karty konsultacji — ' . $c['name'],
             'Grupa uproszczona ' . $c['name'] . (trim((string)$c['internal_desc']) !== '' ? ' (' . $c['internal_desc'] . ')' : '') . '; kart: ' . count($ids) . '.',
