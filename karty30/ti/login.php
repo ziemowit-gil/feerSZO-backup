@@ -78,9 +78,9 @@ $_tabs = [
 $_fn = in_array($_GET['fn'] ?? '', ['szkolenia', 'szk', 'konsultacje', 'kierownik'], true) ? (string)$_GET['fn'] : '';
 $_groups = [
     ['title' => 'Uczestnicy', 'items' => [
-        ['tab' => 'kursant', 'fn' => 'szkolenia',   'kolor' => '#0f6fa8', 'icon' => 'bi-pc-display',       'label' => 'Kursant szkoleń',          'who' => 'Zajęcia w grupie — login np. j.kowalski'],
-        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Szkolenie krótkie',        'who' => '2–4 spotkania — login np. j.kowalski'],
-        ['tab' => 'kursant', 'fn' => 'konsultacje', 'kolor' => '#2b6cb0', 'icon' => 'bi-clipboard2-check', 'label' => 'Konsultacje',              'who' => 'Umówione spotkanie — login np. k1234'],
+        ['tab' => 'kursant', 'fn' => 'szkolenia',   'kolor' => '#0f6fa8', 'icon' => 'bi-pc-display',       'label' => 'Uczestnik szkoleń',          'who' => 'Zajęcia w grupie — login np. j.kowalski'],
+        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Uczestnik szkolenia krótkiego', 'who' => '2–4 spotkania — login np. j.kowalski'],
+        ['tab' => 'kursant', 'fn' => 'konsultacje', 'kolor' => '#2b6cb0', 'icon' => 'bi-clipboard2-check', 'label' => 'Beneficjent konsultacji',    'who' => 'Umówione spotkanie — login np. k1234'],
     ]],
     ['title' => 'Rodzina i osoby bliskie', 'items' => [
         ['tab' => 'rodzic',  'fn' => '',            'kolor' => '#00a300', 'icon' => 'bi-people',           'label' => 'Rodzic / opiekun',         'who' => 'Opiekun małoletniego kursanta'],
