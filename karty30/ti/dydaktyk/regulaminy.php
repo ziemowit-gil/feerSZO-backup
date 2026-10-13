@@ -38,13 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'create_term') {
         $nt = ti_term_create((string)($_POST['title'] ?? ''), '<p>Treść regulaminu do uzupełnienia.</p>', (array)($_POST['audience'] ?? []), $uid);
         if ($nt === '') $err = 'Podaj tytuł nowego regulaminu.';
-        else { flash_set('success', 'Dodano regulamin — uzupełnij treść i włącz go przełącznikiem „aktywny”.'); header('Location: regulaminy.php?type=' . urlencode($nt)); exit; }
+        else {
+            ti_term_set_conditions($nt, (array)($_POST['cond'] ?? [])); flash_set('success', 'Dodano regulamin — uzupełnij treść i włącz go przełącznikiem „aktywny”.'); header('Location: regulaminy.php?type=' . urlencode($nt)); exit; }
     } elseif ($op === 'save_term' && $isTerm) {
         $title = trim((string)($_POST['title'] ?? ''));
         if ($title === '') $err = 'Tytuł regulaminu nie może być pusty.';
         else {
             ti_term_save($type, $title, (string)($_POST['body_html'] ?? ''), !empty($_POST['is_active']) ? 1 : 0, $uid);
             ti_term_set_audience($type, (array)($_POST['audience'] ?? []));
+            ti_term_set_conditions($type, (array)($_POST['cond'] ?? []));
             flash_set('success', 'Regulamin zapisany.'); header('Location: ' . $back); exit;
         }
     } elseif ($op === 'admin_action' && $isTerm) {
@@ -89,6 +91,7 @@ $accepts = db_all("SELECT a.*, c.name AS client_name, COALESCE(NULLIF(TRIM(u.fir
 $clients = db_all("SELECT DISTINCT a.client_id, cl.name AS client_name, a.is_minor FROM k30_ti_student_accounts a JOIN k30_clients cl ON cl.id=a.client_id ORDER BY cl.name");
 $lastAccept = (int)($_GET['last_accept'] ?? 0);
 $aud = $cur ? array_filter(explode(',', (string)($cur['audience'] ?? ''))) : [];
+$cond = $cur ? ti_term_conditions($cur) : ti_term_conditions([]);
 
 $KP_TITLE = 'Regulaminy — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (string)($me['name'] ?? ''), 'logout' => 'logout.php'];
@@ -106,7 +109,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php if ($err !== ''): ?><div class="alert alert-danger py-2" role="alert"><?= h($err) ?></div><?php endif; ?>
 
 <ul class="nav nav-tabs mb-3">
-  <?php foreach ($terms as $t): ?><li class="nav-item"><a class="nav-link<?= $t['type'] === $active ? ' active' : '' ?>" href="?type=<?= urlencode($t['type']) ?>"<?= $t['type'] === $active ? ' aria-current="page"' : '' ?>><?= h(TI_TERM_TYPES[$t['type']] ?? $t['title']) ?><?= empty($t['is_active']) ? ' <span class="badge text-bg-secondary">nieaktywny</span>' : '' ?></a></li><?php endforeach; ?>
+  <?php foreach ($terms as $t): ?><li class="nav-item"><a class="nav-link<?= $t['type'] === $active ? ' active' : '' ?>" href="?type=<?= urlencode($t['type']) ?>"<?= $t['type'] === $active ? ' aria-current="page"' : '' ?>><?= h(TI_TERM_TYPES[$t['type']] ?? $t['title']) ?><?= empty($t['is_active']) ? ' <span class="badge text-bg-secondary">nieaktywny</span>' : '' ?><?= ti_term_conditions($t)['gate'] ? ' <span class="badge text-bg-warning" title="Blokuje panel do akceptacji">blokuje</span>' : '' ?></a></li><?php endforeach; ?>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="collapse" href="#nowy" role="button" aria-expanded="false" aria-controls="nowy"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj regulamin</a></li>
 </ul>
 <form method="post" class="collapse card card-body border-0 shadow-sm mb-3" id="nowy" style="max-width:720px">
@@ -115,6 +118,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <fieldset class="mb-2"><legend class="form-label fw-semibold fs-6">Kto ma go zatwierdzić?</legend>
     <?php foreach (TI_TERM_AUDIENCES as $ak => $al): ?><div class="form-check"><input class="form-check-input" type="checkbox" name="audience[]" value="<?= h($ak) ?>" id="nt-<?= h($ak) ?>"><label class="form-check-label" for="nt-<?= h($ak) ?>"><?= h($al) ?></label></div><?php endforeach; ?>
     <div class="form-text">Nic nie zaznaczone = wszyscy kursanci i beneficjenci.</div></fieldset>
+  <fieldset class="mb-3"><legend class="form-label fw-semibold fs-6">Warunki</legend>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="cond[gate]" value="1" id="nt-gate"><label class="form-check-label" for="nt-gate">Blokuje panel do czasu akceptacji — pokazujemy zaraz po zalogowaniu</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="cond[parent]" value="1" id="nt-par"><label class="form-check-label" for="nt-par">U małoletnich akceptuje opiekun (w panelu rodzica)</label></div>
+        <div class="row g-2 mt-1">
+          <div class="col-sm-6"><label class="form-label small mb-0" for="nt-age">Wiek</label><select class="form-select form-select-sm" id="nt-age" name="cond[age]"><option value="all">wszyscy</option><option value="adult">tylko pełnoletni</option><option value="minor">tylko małoletni</option></select></div>
+          <div class="col-sm-6"><label class="form-label small mb-0" for="nt-since">Tylko konta założone od</label><input class="form-control form-control-sm" type="date" id="nt-since" name="cond[since]" value=""><div class="form-text mt-0">Puste = wszystkie konta. Data = tylko nowi.</div></div>
+        </div></fieldset>
   <div><button class="btn btn-primary btn-sm">Dodaj</button> <span class="small text-body-secondary">Powstanie jako nieaktywny — uzupełnij treść i włącz.</span></div>
 </form>
 
@@ -134,6 +144,13 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <fieldset class="mb-3"><legend class="form-label fw-semibold fs-6">Kto ma zatwierdzić ten regulamin?</legend>
         <?php foreach (TI_TERM_AUDIENCES as $ak => $al): ?><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="audience[]" value="<?= h($ak) ?>" id="ta-<?= h($ak) ?>"<?= in_array($ak, $aud, true) ? ' checked' : '' ?>><label class="form-check-label" for="ta-<?= h($ak) ?>"><?= h($al) ?></label></div><?php endforeach; ?>
         <div class="form-text">Nic nie zaznaczone = wszyscy. Osoby spoza wybranych grup nie zobaczą regulaminu do akceptacji.</div></fieldset>
+<fieldset class="mb-3"><legend class="form-label fw-semibold fs-6">Warunki</legend>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="cond[gate]" value="1" id="tc-gate"<?= $cond['gate'] ? ' checked' : '' ?>><label class="form-check-label" for="tc-gate">Blokuje panel do czasu akceptacji — pokazujemy zaraz po zalogowaniu</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="cond[parent]" value="1" id="tc-par"<?= $cond['parent'] ? ' checked' : '' ?>><label class="form-check-label" for="tc-par">U małoletnich akceptuje opiekun (w panelu rodzica)</label></div>
+        <div class="row g-2 mt-1">
+          <div class="col-sm-6"><label class="form-label small mb-0" for="tc-age">Wiek</label><select class="form-select form-select-sm" id="tc-age" name="cond[age]"><option value="all">wszyscy</option><option value="adult"<?= $cond['age'] === 'adult' ? ' selected' : '' ?>>tylko pełnoletni</option><option value="minor"<?= $cond['age'] === 'minor' ? ' selected' : '' ?>>tylko małoletni</option></select></div>
+          <div class="col-sm-6"><label class="form-label small mb-0" for="tc-since">Tylko konta założone od</label><input class="form-control form-control-sm" type="date" id="tc-since" name="cond[since]" value="<?= h($cond['since']) ?>"><div class="form-text mt-0">Puste = wszystkie konta. Data = tylko nowi.</div></div>
+        </div></fieldset>
       <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="term-active" name="is_active" value="1"<?= $cur['is_active'] ? ' checked' : '' ?>><label class="form-check-label" for="term-active">Regulamin aktywny (wymagany do zaakceptowania)</label></div>
       <button class="btn btn-primary"><i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz</button>
       <?php if (!empty($cur['updated_at'])): ?><span class="small text-body-secondary ms-2">Zmienił(a): <?= h($cur['editor_name'] ?: '—') ?> · <?= h(date('d.m.Y H:i', strtotime((string)$cur['updated_at']))) ?></span><?php endif; ?>

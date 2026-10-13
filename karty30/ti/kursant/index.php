@@ -448,7 +448,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // zaakceptować sam, nawet wysyłając formularz bezpośrednio.
         $is_minor_acc   = !empty($account['is_minor']);
         $already_signed = $term_row && ti_term_accepted((int)$student['client_id'], $term_row['type']);
-        if ($term_row && !empty($term_row['is_active']) && !$already_signed && !($is_minor_acc && $term_row['type'] === 'vlab')) {
+        if ($term_row && !empty($term_row['is_active']) && !$already_signed && !ti_term_parent_only($term_row, (int)$student['client_id'])) {   // u małoletnich wg warunku regulaminu akceptuje opiekun
             ti_term_accept((int)$student['client_id'], $term_id, (int)$student['id']);
         }
         $redirect_tab = (string)($_POST['redirect_tab'] ?? 'regulaminy');
@@ -6070,10 +6070,10 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
   <?php foreach ($terms_pending as $tp): ?>
-  <?php if ($is_minor && $tp['type'] === 'vlab'): ?>
+  <?php if (ti_term_parent_only($tp, (int)$student['client_id'])): ?>
   <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
     <i class="bi bi-people-fill mt-1" aria-hidden="true"></i>
-    <span><strong><?= h($tp['title']) ?></strong> — jesteś niepełnoletni/a, ten regulamin musi zaakceptować Twój opiekun w panelu rodzica (zakładka „Regulamin VLab").</span>
+    <span><strong><?= h($tp['title']) ?></strong> — jesteś niepełnoletni/a, ten regulamin musi zaakceptować Twój opiekun w panelu rodzica.</span>
   </div>
   <?php else: ?>
   <?= _ti_terms_acceptance_block($tp, $vlab_token, 'regulaminy') ?>

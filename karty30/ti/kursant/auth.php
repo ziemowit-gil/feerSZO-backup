@@ -125,6 +125,15 @@ function student_require(): array {
             header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'dokument.php'); exit;
         }
     }
+    // Regulaminy blokujące panel (warunek „blokuje panel do akceptacji”) — zaraz po zalogowaniu, przed resztą panelu
+    if (empty($s['imp']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), ['regulaminyStart.php', 'dokument.php', 'login.php', 'terms_pdf.php'], true)) {
+        require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
+        try {
+            if (ti_terms_gate_pending((int)$s['client_id'])) {
+                header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'regulaminyStart.php'); exit;
+            }
+        } catch (\Throwable $e) { error_log('regulaminy — bramka: ' . $e->getMessage()); }
+    }
     // „Kursant uproszczony” widzi tylko terminy zajęć — każda inna strona panelu wraca do Moich lekcji
     if (student_is_simple((int)$s['id']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), student_simple_allowed((int)$s['id'], 'pages'), true)) {
         header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'index.php?tab=' . student_simple_home((int)$s['id']));
@@ -143,10 +152,10 @@ function student_require(): array {
  */
 const STUDENT_SIMPLE_MODES = [0 => 'Pełny panel', 1 => 'Uproszczony — tylko terminy', 2 => 'Uproszczony — terminy + płatności', 3 => 'Uproszczony — terminy + płatności uproszczone', 4 => 'Beneficjent konsultacji — konsultacje i rozliczenia'];
 /** Tryb 4 (beneficjent konsultacji, konto „k1234”): tylko „Moje konsultacje” (terminy, karty z etapem, PDF) i rozliczenia. */
-const STUDENT_SIMPLE_KONS_PAGES = ['index.php', 'konsultacjaPdf.php', 'platnosci.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
+const STUDENT_SIMPLE_KONS_PAGES = ['index.php', 'regulaminyStart.php', 'konsultacjaPdf.php', 'platnosci.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
 const STUDENT_SIMPLE_KONS_TABS  = ['konsultacje', 'rozliczenia', 'regulaminy'];
 const STUDENT_SIMPLE_KONS_OPS   = ['accept_term', 'change_password'];
-const STUDENT_SIMPLE_PAGES = ['index.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
+const STUDENT_SIMPLE_PAGES = ['index.php', 'regulaminyStart.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
                               'plan_librus_pdf.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
 /** Zakładki index.php dostępne w trybie uproszczonym. */
 const STUDENT_SIMPLE_TABS  = ['lekcje', 'regulaminy'];

@@ -63,6 +63,9 @@ function ti_terms_migrate(): void {
     db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_terms_acc ON k30_ti_terms_accepts(client_id, term_id)");
     // Odbiorcy regulaminu (kto ma go zatwierdzić) — TI_TERM_AUDIENCES; pusto = wszyscy
     try { db()->exec("ALTER TABLE k30_ti_terms ADD COLUMN audience TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
+    // Warunki regulaminu (JSON): gate — blokuje panel do akceptacji (pokazywany zaraz po zalogowaniu), age — all|adult|minor,
+    // since — dotyczy kont założonych od dnia (RRRR-MM-DD), parent — u małoletnich akceptuje opiekun (panel rodzica)
+    try { db()->exec("ALTER TABLE k30_ti_terms ADD COLUMN conditions TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     // Utwórz domyślne wpisy regulaminów jeśli nie istnieją
     foreach (TI_TERM_TYPES as $type => $title) {
@@ -108,6 +111,52 @@ function ti_terms_all(): array {
                    ORDER BY t.type");
 }
 
+/** Warunki regulaminu z domyślnymi wartościami (vLAB: u małoletnich zawsze opiekun — dotychczasowa reguła). */
+function ti_term_conditions(array $term): array {
+    $c = json_decode((string)($term['conditions'] ?? ''), true);
+    $c = is_array($c) ? $c : [];
+    return [
+        'gate'   => !empty($c['gate']),
+        'age'    => in_array($c['age'] ?? '', ['adult', 'minor'], true) ? $c['age'] : 'all',
+        'since'  => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($c['since'] ?? '')) ? $c['since'] : '',
+        'parent' => !empty($c['parent']) || ($term['type'] ?? '') === 'vlab',
+    ];
+}
+
+/** Zapis warunków z formularza (gate, age, since, parent). */
+function ti_term_set_conditions(string $type, array $in): void {
+    ti_terms_migrate();
+    $c = ['gate' => !empty($in['gate']) ? 1 : 0, 'age' => in_array($in['age'] ?? '', ['adult', 'minor'], true) ? $in['age'] : 'all',
+          'since' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($in['since'] ?? '')) ? $in['since'] : '', 'parent' => !empty($in['parent']) ? 1 : 0];
+    db()->prepare("UPDATE k30_ti_terms SET conditions=? WHERE type=?")->execute([json_encode($c), $type]);
+}
+
+/** Opis warunków jednym zdaniem (lista, zakładki). */
+function ti_term_conditions_label(array $term): string {
+    $c = ti_term_conditions($term); $o = [];
+    if ($c['gate']) $o[] = 'blokuje panel do akceptacji';
+    if ($c['age'] === 'adult') $o[] = 'tylko pełnoletni';
+    if ($c['age'] === 'minor') $o[] = 'tylko małoletni';
+    if ($c['since'] !== '') $o[] = 'konta od ' . date('d.m.Y', strtotime($c['since']));
+    if ($c['parent']) $o[] = 'u małoletnich akceptuje opiekun';
+    return implode(', ', $o);
+}
+
+/** Konto panelu beneficjenta (małoletni, data założenia) — do warunków regulaminu. */
+function ti_term_client_account(int $client_id): array {
+    static $c = [];
+    if (!isset($c[$client_id])) {
+        try { $a = db_one("SELECT is_minor, created_at FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [$client_id]); } catch (\Throwable $e) { $a = null; }
+        $c[$client_id] = ['minor' => !empty($a['is_minor']), 'created' => substr((string)($a['created_at'] ?? ''), 0, 10)];
+    }
+    return $c[$client_id];
+}
+
+/** Czy akceptacja należy do opiekuna (małoletni + warunek „akceptuje opiekun”). */
+function ti_term_parent_only(array $term, int $client_id): bool {
+    return ti_term_conditions($term)['parent'] && ti_term_client_account($client_id)['minor'];
+}
+
 /** Grupy odbiorców, do których należy beneficjent (klucze TI_TERM_AUDIENCES). */
 function ti_term_client_groups(int $client_id): array {
     static $c = [];
@@ -130,13 +179,23 @@ function ti_term_client_groups(int $client_id): array {
 /** Czy regulamin dotyczy beneficjenta (pusta lista odbiorców = wszystkich). */
 function ti_term_applies(array $term, int $client_id): bool {
     $aud = array_filter(explode(',', (string)($term['audience'] ?? '')));
-    return !$aud || (bool)array_intersect($aud, ti_term_client_groups($client_id));
+    if ($aud && !array_intersect($aud, ti_term_client_groups($client_id))) return false;
+    $c = ti_term_conditions($term); $acc = ti_term_client_account($client_id);
+    if ($c['age'] === 'adult' && $acc['minor']) return false;
+    if ($c['age'] === 'minor' && !$acc['minor']) return false;
+    if ($c['since'] !== '' && $acc['created'] !== '' && $acc['created'] < $c['since']) return false;   // tylko nowe konta
+    return true;
+}
+
+/** Regulaminy blokujące panel, które kursant musi (i może sam) zaakceptować — bramka po zalogowaniu. */
+function ti_terms_gate_pending(int $client_id): array {
+    return array_values(array_filter(ti_terms_pending($client_id), fn($t) => ti_term_conditions($t)['gate'] && !ti_term_parent_only($t, $client_id)));
 }
 
 /** Czy kursant zaakceptował aktualną wersję regulaminu danego typu? */
 function ti_term_accepted(int $client_id, string $type): bool {
     ti_terms_migrate();
-    $term = db_one("SELECT id, version, is_active, audience FROM k30_ti_terms WHERE type=?", [$type]);
+    $term = db_one("SELECT id, type, version, is_active, audience, conditions FROM k30_ti_terms WHERE type=?", [$type]);
     if (!$term || empty($term['is_active'])) return true; // nieaktywny = nie wymaga akceptacji
     if (!ti_term_applies($term, $client_id)) return true; // nie dotyczy tej osoby (odbiorcy regulaminu)
     $acc = db_one(
