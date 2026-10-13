@@ -4,7 +4,7 @@
  *
  *   • Rola (tylko kierownik, który ma też własne grupy): Kierownik Instytucji albo Prowadzący;
  *   • Tryb (gdy osoba ma oba — TiWorkModes, ustawiane w „Zespół i role”): Szkolenia albo Konsultacje.
- * Pokazuje tylko te grupy wyborów, które dotyczą zalogowanej osoby; wybór żyje w sesji ($_SESSION['k30_dyd_ctx'])
+ * Strona w samym panelu (pasek górny, skórka USOS). Pokazuje tylko te grupy wyborów, które dotyczą zalogowanej osoby; wybór żyje w sesji ($_SESSION['k30_dyd_ctx'])
  * i zmienia się w menu użytkownika („Zmień rolę / tryb pracy”). Wejście na konto innego prowadzącego — choose_context.php.
  *
  * UWAGA: NIE woła dyd_require() — to ten ekran jest celem przekierowania z dyd_require() (pętla).
@@ -44,48 +44,57 @@ if (!$askRole && !$askMode) {   // nic do wyboru
 $curRole = (string)($_SESSION['k30_dyd_ctx']['role'] ?? 'staff');
 $curMode = (string)($_SESSION['k30_dyd_ctx']['mode'] ?? ($modes[0] ?? 'kursy'));
 
-require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth_screen.php';
-auth_screen_head([
-    'title'      => 'Jak pracujesz',
-    'actions'    => false,
-    'side_title' => 'Panel dydaktyka',
-    'side_sub'   => 'Wybierz rolę i tryb pracy. Menu dopasuje się do wyboru — zmienisz go w każdej chwili w menu użytkownika.',
-    'width'      => 600,
-    'main_id'    => 'choose-mode-main',
-]);
+// Ekran w samym panelu (pasek górny, skórka USOS) — nie na ekranie logowania
+$KP_TITLE  = 'Jak pracujesz — Panel dydaktyka';
+$KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (string)($s['name'] ?? ''), 'logout' => 'logout.php'];
+$KP_BODY_CLASS = 'dyd-usos ti-skin';
+include dirname(__DIR__) . '/kursant/_layout_head.php';
+$_skin_css = __DIR__ . '/../assets/ti_skin.css';
 $opt = function (string $name, string $value, bool $checked, string $icon, string $title, string $desc): void { ?>
-  <label class="ks-btn ks-btn--ghost mb-2" style="justify-content:flex-start;text-align:left;height:auto;padding:.8rem 1rem;cursor:pointer">
-    <input type="radio" name="<?= h($name) ?>" value="<?= h($value) ?>" class="form-check-input me-2 mt-0 flex-shrink-0"<?= $checked ? ' checked' : '' ?> required>
-    <i class="bi bi-<?= h($icon) ?> me-2" aria-hidden="true"></i>
-    <span><span class="d-block fw-semibold"><?= h($title) ?></span><span class="d-block" style="font-size:.8rem;color:var(--ks-muted)"><?= h($desc) ?></span></span>
-  </label>
+      <label class="list-group-item list-group-item-action d-flex gap-3 align-items-start py-3" style="cursor:pointer">
+        <input class="form-check-input flex-shrink-0 mt-1" type="radio" name="<?= h($name) ?>" value="<?= h($value) ?>"<?= $checked ? ' checked' : '' ?> required>
+        <i class="bi bi-<?= h($icon) ?> fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
+        <span><span class="d-block fw-bold"><?= h($title) ?></span><span class="d-block small text-body-secondary"><?= h($desc) ?></span></span>
+      </label>
 <?php };
 ?>
-<h1 class="ks-h1">Jak teraz pracujesz?</h1>
-<?= flash_html() ?>
-<form method="post">
-  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-  <?php if ($askRole): ?>
-  <fieldset class="mb-3">
-    <legend class="fw-bold" style="font-size:1rem">Rola</legend>
-    <?php $opt('role', 'staff', $curRole !== 'instructor', 'building', 'Kierownik Instytucji', 'Pełny widok — wszystkie grupy, rozliczenia, zapisy, ustawienia.'); ?>
-    <?php $opt('role', 'instructor', $curRole === 'instructor' && empty($s['acting_as_other']), 'mortarboard', 'Prowadzący', 'Tylko Twoje własne grupy (' . $ownCount . ') — bez funkcji kierownika.'); ?>
-  </fieldset>
-  <?php endif; ?>
-  <?php if ($askMode): ?>
-  <fieldset class="mb-3">
-    <legend class="fw-bold" style="font-size:1rem">Tryb pracy</legend>
-    <?php $opt('mode', 'kursy', $curMode !== 'konsultacje', 'easel2', 'Szkolenia', 'Grupy i lekcje, obecność, dziennik, protokoły, szkolenia krótkie SzK.'); ?>
-    <?php $opt('mode', 'konsultacje', $curMode === 'konsultacje', 'clipboard2-check', 'Konsultacje', 'Rezerwacje terminów i karty konsultacji KON.XXX.MM.RRRR — wystawianie, zatwierdzanie, wydruk.'); ?>
-  </fieldset>
-  <?php endif; ?>
-  <button type="submit" class="ks-btn ks-btn--primary"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przejdź do panelu</button>
-</form>
-<?php if (!empty($s['is_staff'])): ?>
-<p class="mt-3 mb-0" style="font-size:.85rem"><a href="choose_context.php">Wejdź jako inny prowadzący…</a></p>
-<?php endif;
-auth_screen_foot([
-    'links' => [
-        ['url' => 'logout.php', 'label' => 'Wyloguj', 'icon' => 'bi-box-arrow-right'],
-    ],
-]);
+<link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
+<main id="main" class="dyd-wrap">
+<div class="container-fluid py-4" style="max-width:860px">
+  <h1 class="h4 fw-bold mb-1"><i class="bi bi-signpost-split text-primary me-2" aria-hidden="true"></i>Jak teraz pracujesz?</h1>
+  <p class="text-body-secondary small mb-3">Wybór dotyczy tej sesji — menu panelu dopasuje się do niego. Zmienisz go w każdej chwili: menu użytkownika → „Zmień rolę / tryb pracy”.</p>
+  <?= flash_html() ?>
+  <form method="post">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+    <div class="row g-3">
+      <?php if ($askRole): ?>
+      <div class="col-md-6">
+        <fieldset class="card border-0 shadow-sm h-100">
+          <legend class="card-header fw-semibold fs-6 mb-0 w-100">Rola</legend>
+          <div class="list-group list-group-flush">
+            <?php $opt('role', 'staff', $curRole !== 'instructor', 'building', 'Kierownik Instytucji', 'Pełny widok — wszystkie grupy, rozliczenia, zapisy, ustawienia.'); ?>
+            <?php $opt('role', 'instructor', $curRole === 'instructor' && empty($s['acting_as_other']), 'mortarboard', 'Prowadzący', 'Tylko Twoje własne grupy (' . $ownCount . ') — bez funkcji kierownika.'); ?>
+          </div>
+        </fieldset>
+      </div>
+      <?php endif; ?>
+      <?php if ($askMode): ?>
+      <div class="col-md-6">
+        <fieldset class="card border-0 shadow-sm h-100">
+          <legend class="card-header fw-semibold fs-6 mb-0 w-100">Tryb pracy</legend>
+          <div class="list-group list-group-flush">
+            <?php $opt('mode', 'kursy', $curMode !== 'konsultacje', 'easel2', 'Szkolenia', 'Grupy i lekcje, obecność, dziennik, protokoły, szkolenia krótkie SzK.'); ?>
+            <?php $opt('mode', 'konsultacje', $curMode === 'konsultacje', 'clipboard2-check', 'Konsultacje', 'Rezerwacje terminów i karty konsultacji KON.XXX.MM.RRRR.'); ?>
+          </div>
+        </fieldset>
+      </div>
+      <?php endif; ?>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przejdź do panelu</button>
+      <?php if (!empty($s['is_staff'])): ?><a class="small" href="choose_context.php">Wejdź jako inny prowadzący…</a><?php endif; ?>
+    </div>
+  </form>
+</div>
+</main>
+<?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
