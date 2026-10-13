@@ -107,6 +107,8 @@ $_kier_grupy = [
     'Komunikacja'            => ['index.php?tab=komunikacja', 'szablonyEmail.php', 'szablonySms.php'],
     'Ustawienia i narzędzia' => ['zetony.php', 'certyfikaty.php', 'zespol.php', APP_URL . '/tozsamosc/ti_role.php', 'testy.php', '../index.php'],
 ];
+// Własna mapa grup (np. menu Konsultacji — _konsultacje_bar.php podaje $KIER_GRUPY) zastępuje mapę kierownika
+if (!empty($KIER_GRUPY) && is_array($KIER_GRUPY)) $_kier_grupy = $KIER_GRUPY;
 $_kier_map = [];
 foreach ($_kier_grupy as $_g => $_hrefs) foreach ($_hrefs as $_h) $_kier_map[$_h] = $_g;
 $_kier_by_grp = [];

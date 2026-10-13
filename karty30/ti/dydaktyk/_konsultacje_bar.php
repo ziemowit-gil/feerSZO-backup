@@ -7,27 +7,44 @@
 $RZ_CUR   = $RZ_CUR   ?? '';
 $RZ_LABEL = $RZ_LABEL ?? '';
 $_kb_staff = function_exists('dyd_is_staff') && dyd_is_staff();
+// Pozycje wg rodzaju funkcji (grupy zwijane jak w menu kierownika: $KIER_GRUPY)
 $_kb = [
+    // Terminy
     ['Rezerwacje terminów',   'rezerwacje.php',               'calendar-check'],
     ['Kalendarz rezerwacji',  'rezerwacjeKalendarz.php',      'calendar3'],
     ['Szybka rezerwacja',     'rezerwacja.php?szybka=1',      'lightning'],
     ['Nowa rezerwacja',       'rezerwacja.php?nowa=1',        'plus-lg'],
     ['Kolejka oczekujących',  'kolejka.php',                  'hourglass-split'],
+    // Karty
     ['Karty konsultacji',     'konsultacje.php',              'clipboard2-check'],
     ['Nowa konsultacja',      'konsultacja.php?nowa=1',       'clipboard2-plus'],
-    ['Wydruki i zestawienia', 'konsultacjeZestawienia.php',   'printer'],
+    // Klienci
+    ['Klienci',               'konsultacjeKlienci.php',       'people'],
+    ['Nowy klient',           'konsultacjeKlient.php?nowy=1', 'person-plus'],
+    ['Umowy PFRON',           'konsultacjePfron.php',         'building-fill-check'],
+    // Komunikacja
     ['Komunikacja (e-mail / SMS)', 'konsultacjeKomunikacja.php', 'send'],
     ['Komunikaty',            'index.php?tab=komunikaty',     'megaphone'],
+    // Raporty
+    ['Wydruki i zestawienia', 'konsultacjeZestawienia.php',   'printer'],
 ];
 if ($_kb_staff) {
     $_kb[] = ['Szkolenia krótkie (SzK)', 'grupaUproszczona.php', 'lightning-charge'];
     $_kb[] = ['Ustawienia konsultacji',  'konsultacjeUstawienia.php', 'gear'];
     $_kb[] = ['Panel kierownika',        'index.php?tab=grupy', 'people'];
 }
+$KIER_GRUPY = [
+    'Terminy'      => ['rezerwacje.php', 'rezerwacjeKalendarz.php', 'rezerwacja.php?szybka=1', 'rezerwacja.php?nowa=1', 'kolejka.php'],
+    'Karty'        => ['konsultacje.php', 'konsultacja.php?nowa=1'],
+    'Klienci'      => ['konsultacjeKlienci.php', 'konsultacjeKlient.php?nowy=1', 'konsultacjePfron.php'],
+    'Komunikacja'  => ['konsultacjeKomunikacja.php', 'index.php?tab=komunikaty'],
+    'Raporty'      => ['konsultacjeZestawienia.php'],
+    'Ustawienia'   => ['grupaUproszczona.php', 'konsultacjeUstawienia.php', 'index.php?tab=grupy'],
+];
 $KIER_ITEMS = [];
 foreach ($_kb as $_d) {
     $KIER_ITEMS[] = ['label' => $_d[0], 'href' => $_d[1], 'icon' => $_d[2], 'n' => 0, 'v' => 'secondary', 'blank' => false, 'active' => $_d[1] === $RZ_CUR];
 }
-$KIER_EMBED = false; $KIER_FLAT = true; $KIER_CUR = $RZ_CUR; $KIER_LABEL = $RZ_LABEL;
+$KIER_EMBED = false; $KIER_FLAT = false; $KIER_CUR = $RZ_CUR;   // grupy wg funkcji ($KIER_GRUPY) $KIER_LABEL = $RZ_LABEL;
 $KIER_TITLE = 'Konsultacje'; $KIER_CRUMB = ['Konsultacje', 'rezerwacje.php'];
 include __DIR__ . '/_kierownik_bar.php';
