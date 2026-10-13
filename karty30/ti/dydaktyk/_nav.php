@@ -34,7 +34,7 @@ const DYD_NAV_PAGES = [
     'komunikacja' => ['konsultacjeKomunikacja.php'],
     'konsultacje' => ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'grupaUproszczona.php',
                       'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php',
-                      'konsultacjeZestawienia.php'],
+                      'konsultacjeZestawienia.php', 'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
@@ -165,6 +165,7 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         }
         if (function_exists('dyd_can_analytics') && dyd_can_analytics($s)) $items[] = ['Analityka TI', 'analityka.php', 'speedometer2'];
         $items[] = ['Mój certyfikat', 'moj_certyfikat.php', 'shield-check'];
+        $items[] = ['Obrazek bezpieczeństwa', 'sec_choose.php', 'image'];
         if (function_exists('ti_panel_role') && (is_admin() || ti_panel_role((int)($s['user_id'] ?? 0)) === 'kierownik')) {
             $items[] = ['Certyfikaty prowadzących', 'certyfikaty.php', 'key'];
         }

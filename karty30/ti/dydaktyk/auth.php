@@ -300,6 +300,7 @@ function dyd_modes_available(?array $s = null): array {
 const DYD_KONSULTACJE_PAGES = ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'konsultacjaPdf.php',
                                'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'rezerwacjaPdf.php', 'kolejka.php',
                                'konsultacjeZestawienia.php', 'konsultacjeEksport.php', 'konsultacjeUstawienia.php', 'konsultacjeKomunikacja.php',
+                               'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php',
                                'moj_certyfikat.php', 'logout.php', 'choose_mode.php', 'office_enter.php', 'totp_gate.php'];
 
 function dyd_konsultacje_page(): bool {
