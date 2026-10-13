@@ -438,6 +438,9 @@ unset($_SESSION['dyd_flash']);
   <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#kuNewModal">
     <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nowy kurs
   </button>
+  <a class="btn btn-outline-primary btn-sm" href="grupaUproszczona.php" title="Krótka grupa KON na 2–4 zajęcia: uczestnicy i terminy w jednym kroku; konwerter grup">
+    <i class="bi bi-lightning-charge me-1" aria-hidden="true"></i>Grupa uproszczona
+  </a>
   <?php endif; ?>
   <a href="../index.php" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener"
      title="Pełny panel zarządzania kursami TI">
@@ -1051,6 +1054,10 @@ function dydKuMoveOpen(fromId, fromName) {
       <?php if (($c['class_type']??'') === 'hybrid'): ?>
       <span class="badge" style="font-size:.62rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"
             title="Kurs hybrydowy — lekcje online i stacjonarnie, inna stawka za tryb">Hybryda</span>
+      <?php endif; ?>
+      <?php if (!empty($c['simple_mode'])): ?>
+      <a class="badge text-decoration-none" style="font-size:.62rem;background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc" href="grupaUproszczona.php?konwertuj=<?= (int)$c['id'] ?>#konwerter"
+         title="Grupa uproszczona — uczestnicy widzą uproszczony panel; kliknij, by przekonwertować">Uproszczona</a>
       <?php endif; ?>
       <?php if (!empty($c['hours_only_from'])): ?>
       <span class="badge" style="font-size:.62rem;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A"

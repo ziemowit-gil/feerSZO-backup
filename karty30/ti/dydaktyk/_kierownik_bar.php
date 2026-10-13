@@ -48,6 +48,7 @@ if (!empty($KIER_ITEMS)) {
         ['Hospitacje i wizytacje',    'hospitacje.php',             'clipboard2-pulse'],
         ['Program poleceń',          'polecenia.php',               'gift'],
         ['Zarządzanie kursami',       'index.php?tab=kursy',        'collection'],
+        ['Grupy uproszczone (KON)',   'grupaUproszczona.php',       'lightning-charge'],
         ['Log operacji na grupach',   'log_grup.php',               'clock-history'],
         ['Wydruki i raporty',         'wydruki.php',                 'printer'],
         ['Linki do planów grup',      'planLinki.php',              'link-45deg'],
@@ -90,7 +91,7 @@ if (!empty($KIER_ITEMS)) {
 
 // Sekcje menu kierownika (zwijane). Pozycja trafia do sekcji po adresie (href); nieznane — do „Inne”.
 $_kier_grupy = [
-    'Grupy i kursy'          => ['index.php?tab=grupy', 'index.php?tab=kursy', 'index.php?tab=praca_wlasna', 'log_grup.php',
+    'Grupy i kursy'          => ['index.php?tab=grupy', 'index.php?tab=kursy', 'grupaUproszczona.php', 'index.php?tab=praca_wlasna', 'log_grup.php',
                                  'planLinki.php', 'godziny.php', 'dostepnosci.php', 'urlopy.php'],
     'Kursanci i konta'       => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php',
                                  'rekrutacja.php', 'polecenia.php', 'kursanci_onboarding.php'],

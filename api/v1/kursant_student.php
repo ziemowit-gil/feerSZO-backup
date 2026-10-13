@@ -378,7 +378,8 @@ if ($auth_role === 'authp') {
 // „Kursant uproszczony” (simple_mode) — tylko terminy zajęć, jak w klasycznym panelu (STUDENT_SIMPLE_* w kursant/auth.php)
 if (in_array($auth_role, ['student', 'impersonation'], true)) {
     $simple = 0;   // 1 = tylko terminy, 2 = terminy + płatności, 3 = terminy + płatności uproszczone (tylko odczyt rozliczeń)
-    try { $simple = (int)(db_one("SELECT simple_mode FROM k30_ti_student_accounts WHERE id=?", [(int)$student_id])['simple_mode'] ?? 0); } catch (\Throwable $e) {}
+    require_once dirname(__DIR__, 2) . '/modules/ti_simple_groups/logic/simpleGroups.php';
+    $simple = TiSimpleGroups::accountMode((int)$student_id);   // tryb konta albo grup uproszczonych
     $simple_allowed = ['dashboard', 'lessons', 'logout', 'cancel_lesson', 'uncancel_lesson', 'rate_lesson', 'propose_reschedule',
                        'terms', 'accept_term', 'cal_token_reset', 'change_password', 'push_vapid_key', 'push_subscribe', 'push_unsubscribe'];
     if ($simple === 2) array_push($simple_allowed, 'billing', 'wallet', 'wallet_topup', 'wallet_declare',

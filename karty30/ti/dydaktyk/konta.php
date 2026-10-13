@@ -21,7 +21,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje/logic/ti
 
 $me       = dyd_require();
 /** Tryby panelu kursanta (k30_ti_student_accounts.simple_mode) — te same wartości co STUDENT_SIMPLE_MODES w kursant/auth.php. */
-const KK_SIMPLE_MODES = [0 => 'pełny panel', 1 => 'uproszczony — tylko terminy', 2 => 'uproszczony — terminy + płatności', 3 => 'uproszczony — terminy + płatności uproszczone'];
+const KK_SIMPLE_MODES = [0 => 'pełny panel (albo wg grupy uproszczonej)', 1 => 'uproszczony — tylko terminy', 2 => 'uproszczony — terminy + płatności', 3 => 'uproszczony — terminy + płatności uproszczone'];
 if (!dyd_is_staff()) { header('Location: index.php'); exit; }
 $uid      = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';

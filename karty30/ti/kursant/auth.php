@@ -149,13 +149,15 @@ const STUDENT_SIMPLE_PAY_OPS   = ['wallet_topup', 'wallet_declare', 'year_end_de
 const STUDENT_SIMPLE_EASYPAY_PAGES = ['platnosci.php', 'rachunek_pdf.php'];
 const STUDENT_SIMPLE_EASYPAY_TABS  = ['oplaty'];
 
-/** Tryb konta: 0 = pełny panel, 1 = tylko terminy, 2 = terminy + płatności, 3 = terminy + płatności uproszczone. */
+/** Tryb konta: 0 = pełny panel, 1 = tylko terminy, 2 = terminy + płatności, 3 = terminy + płatności uproszczone.
+ *  Własny tryb konta ma pierwszeństwo; przy 0 decydują grupy uproszczone kursanta (TiSimpleGroups::accountMode). */
 function student_simple_mode(int $accountId): int {
     static $cache = [];
     if ($accountId <= 0) return 0;
     if (!array_key_exists($accountId, $cache)) {
-        try { $m = (int)(db_one("SELECT simple_mode FROM k30_ti_student_accounts WHERE id=?", [$accountId])['simple_mode'] ?? 0); }
-        catch (\Throwable $e) { $m = 0; }   // kolumna jeszcze bez migracji
+        // Tryb konta, a gdy brak — tryb grup uproszczonych (KON.…), w których jest kursant
+        require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_simple_groups/logic/simpleGroups.php';
+        $m = TiSimpleGroups::accountMode($accountId);
         $cache[$accountId] = isset(STUDENT_SIMPLE_MODES[$m]) ? $m : 1;
     }
     return $cache[$accountId];

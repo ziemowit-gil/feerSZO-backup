@@ -1,0 +1,209 @@
+<?php
+/**
+ * modules/ti_simple_groups/logic/simpleGroups.php — Grupy uproszczone TI (krótkie konsultacje: 2–4 zajęcia).
+ *
+ * Grupa uproszczona = zwykły kurs (k30_ti_courses) z simple_mode > 0 i nazwą KON.xxxxx.yyy.rrrr
+ * (xxxxx — 5 cyfr, kolejny numer w roku; yyy — 3 litery; rrrr — rok pierwszych zajęć).
+ * Tworzona w jednym kroku: grupa + uczestnicy (istniejący lub nowi) + 1–4 terminy.
+ * Uczestnicy, których WSZYSTKIE aktywne grupy są uproszczone, dostają uproszczony panel kursanta
+ * w trybie grupy (1 = tylko terminy, 2 = terminy + płatności, 3 = terminy + płatności uproszczone) —
+ * chyba że konto ma własny tryb (k30_ti_student_accounts.simple_mode > 0), on ma pierwszeństwo.
+ * Konwerter zamienia istniejącą grupę w uproszczoną (z nazwą KON) i z powrotem.
+ */
+require_once dirname(__DIR__, 3) . '/includes/karty30.php';
+require_once dirname(__DIR__, 3) . '/includes/ti_periods.php';
+
+final class TiSimpleGroups
+{
+    public const MODES = [1 => 'tylko terminy', 2 => 'terminy + płatności', 3 => 'terminy + płatności uproszczone'];
+    public const MAX_LESSONS = 4;
+    public const NAME_RE = '/^KON\.\d{5}\.\p{Lu}{3}\.\d{4}$/u';
+
+    /** Nazwa KON.xxxxx.yyy.rrrr z części; litery wielkie, bez spacji. */
+    public static function name(int $number, string $letters, int $year): string
+    {
+        return sprintf('KON.%05d.%s.%04d', $number, mb_strtoupper($letters), $year);
+    }
+
+    public static function isValidName(string $name): bool { return (bool)preg_match(self::NAME_RE, $name); }
+
+    /** Kolejny wolny numer xxxxx w danym roku (po istniejących grupach KON.*.rrrr). */
+    public static function nextNumber(int $year): int
+    {
+        $max = 0;
+        foreach (db_all("SELECT name FROM k30_ti_courses WHERE name LIKE ?", ['KON.%.' . $year]) as $r) {
+            if (preg_match('/^KON\.(\d{5})\./', (string)$r['name'], $m)) $max = max($max, (int)$m[1]);
+        }
+        return $max + 1;
+    }
+
+    /** Propozycja liter yyy: pierwsze litery nazwiska i imienia pierwszego uczestnika („Jan Kowalski” → KOJ). */
+    public static function suggestLetters(string $personName): string
+    {
+        $p = preg_split('/\s+/u', trim($personName)) ?: [];
+        $p = array_values(array_filter($p, fn($x) => $x !== ''));
+        if (!$p) return 'KON';
+        $last = (string)end($p); $first = (string)$p[0];
+        $l = mb_strtoupper(mb_substr(preg_replace('/[^\p{L}]/u', '', $last), 0, 2) . mb_substr(preg_replace('/[^\p{L}]/u', '', $first), 0, 1));
+        return mb_strlen($l) === 3 ? $l : str_pad($l, 3, 'X');
+    }
+
+    /**
+     * Tryb panelu dla konta kursanta: własny tryb konta, a gdy 0 — tryb grup (jeśli wszystkie aktywne grupy
+     * kursanta są uproszczone, najszerszy z ich trybów). 0 = pełny panel.
+     */
+    public static function accountMode(int $accountId): int
+    {
+        if ($accountId <= 0) return 0;
+        try {
+            $a = db_one("SELECT client_id, simple_mode FROM k30_ti_student_accounts WHERE id=?", [$accountId]);
+            if (!$a) return 0;
+            if ((int)$a['simple_mode'] > 0) return (int)$a['simple_mode'];
+            $g = db_one(
+                "SELECT COUNT(*) AS n, SUM(CASE WHEN c.simple_mode > 0 THEN 1 ELSE 0 END) AS s, MAX(c.simple_mode) AS m
+                   FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id = e.course_id
+                  WHERE e.client_id = ? AND e.status = 'active' AND c.is_active = 1", [(int)$a['client_id']]);
+            return ((int)($g['n'] ?? 0) > 0 && (int)$g['n'] === (int)$g['s']) ? (int)$g['m'] : 0;
+        } catch (\Throwable $e) {
+            return 0;   // kolumny jeszcze bez migracji
+        }
+    }
+
+    /**
+     * Utworzenie grupy uproszczonej.
+     * $in: number, letters, year (części nazwy), instructor_id, class_type, is_online, location, meeting_url, mode (1–3),
+     *      notify (bool — SMS o terminach), clients: int[] (istniejący), new_people: [['name','phone','email'], …],
+     *      lessons: [['date','from','to'], …] (puste wiersze pomijane, 1–4 terminy).
+     * @return array{ok:bool, errors:string[], warnings:string[], course_id:int, name:string, no_account:string[]}
+     */
+    public static function create(array $in, int $uid, string $byName): array
+    {
+        $err = []; $warn = [];
+        $mode   = (int)($in['mode'] ?? 1);
+        $instr  = max(0, (int)($in['instructor_id'] ?? 0));
+        $type   = in_array($in['class_type'] ?? '', ['individual', 'group'], true) ? (string)$in['class_type'] : 'individual';
+        $online = !empty($in['is_online']) ? 1 : 0;
+        if (!isset(self::MODES[$mode])) $err[] = 'Wybierz tryb panelu uczestników.';
+
+        // Terminy
+        $lessons = [];
+        foreach ((array)($in['lessons'] ?? []) as $l) {
+            $d = trim((string)($l['date'] ?? '')); $f = trim((string)($l['from'] ?? '')); $t = trim((string)($l['to'] ?? ''));
+            if ($d === '' && $f === '' && $t === '') continue;
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) || !preg_match('/^\d{2}:\d{2}$/', $f) || !preg_match('/^\d{2}:\d{2}$/', $t) || $t <= $f) {
+                $err[] = 'Termin ' . ($d ?: '(bez daty)') . ': podaj datę oraz godzinę od i do (koniec po początku).'; continue;
+            }
+            if ($pc = ti_period_closed_for_date($d)) { $err[] = 'Termin ' . date('d.m.Y', strtotime($d)) . ': ' . ti_period_closed_msg($pc); continue; }
+            if ($instr) {
+                $av = ti_instructor_available_at($instr, $d, $f, $t);
+                if (!$av['ok']) $warn[] = 'Termin ' . date('d.m.Y', strtotime($d)) . ' ' . $f . ': ' . $av['reason'];
+            }
+            $lessons[] = ['date' => $d, 'from' => $f, 'to' => $t];
+        }
+        if (!$lessons) $err[] = 'Dodaj przynajmniej jeden termin zajęć.';
+        if (count($lessons) > self::MAX_LESSONS) $err[] = 'Grupa uproszczona ma najwyżej ' . self::MAX_LESSONS . ' terminy — dłuższy kurs załóż jako zwykłą grupę.';
+        usort($lessons, fn($a, $b) => [$a['date'], $a['from']] <=> [$b['date'], $b['from']]);
+
+        // Uczestnicy
+        $clients = array_values(array_unique(array_filter(array_map('intval', (array)($in['clients'] ?? [])))));
+        foreach ($clients as $c) if (!db_one("SELECT 1 FROM k30_clients WHERE id=?", [$c])) $err[] = 'Nie znaleziono uczestnika #' . $c . '.';
+        $newPeople = [];
+        foreach ((array)($in['new_people'] ?? []) as $p) {
+            $n = trim((string)($p['name'] ?? '')); $e = trim((string)($p['email'] ?? '')); $ph = trim((string)($p['phone'] ?? ''));
+            if ($n === '' && $e === '' && $ph === '') continue;
+            if ($n === '') { $err[] = 'Nowa osoba: podaj imię i nazwisko.'; continue; }
+            if ($e !== '' && !filter_var($e, FILTER_VALIDATE_EMAIL)) { $err[] = 'Nowa osoba ' . $n . ': nieprawidłowy e-mail.'; continue; }
+            $newPeople[] = ['name' => $n, 'email' => $e, 'phone' => $ph];
+        }
+        if (!$clients && !$newPeople) $err[] = 'Dodaj przynajmniej jednego uczestnika.';
+
+        // Nazwa KON.xxxxx.yyy.rrrr
+        $year = (int)($in['year'] ?? 0) ?: (int)substr($lessons[0]['date'] ?? date('Y'), 0, 4);
+        $num  = (int)($in['number'] ?? 0) ?: self::nextNumber($year);
+        $name = self::name($num, (string)($in['letters'] ?? ''), $year);
+        if (!self::isValidName($name)) $err[] = 'Nazwa musi mieć postać KON.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.';
+        elseif (db_one("SELECT 1 FROM k30_ti_courses WHERE name=?", [$name])) $err[] = 'Grupa ' . $name . ' już istnieje — zmień numer albo litery.';
+
+        if ($err) return ['ok' => false, 'errors' => $err, 'warnings' => $warn, 'course_id' => 0, 'name' => $name, 'no_account' => []];
+
+        $pdo = db(); $pdo->beginTransaction();
+        try {
+            $cid = (int)db_insert('k30_ti_courses', [
+                'name' => $name, 'display_name' => '', 'description' => 'Grupa uproszczona (' . self::MODES[$mode] . ').',
+                'instructor_id' => $instr ?: null, 'location' => mb_substr(trim((string)($in['location'] ?? '')), 0, 200),
+                'default_meeting_url' => $online ? trim((string)($in['meeting_url'] ?? '')) : '',
+                'is_active' => 1, 'track_attendance' => 1, 'is_online' => $online, 'class_type' => $type,
+                'billing_model' => 2, 'group_code' => k30_ti_generate_group_code(), 'simple_mode' => $mode,
+                'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            foreach ($newPeople as $p) {
+                $clients[] = (int)db_insert('k30_clients', ['name' => $p['name'], 'email' => $p['email'] ?: null, 'phone' => $p['phone'] ?: null,
+                                                            'status' => 'enrolled', 'created_by' => $uid ?: null]);
+            }
+            $start = $lessons[0]['date'];
+            $enr = $pdo->prepare("INSERT INTO k30_ti_enrollments (course_id, client_id, start_date, status) VALUES (?,?,?,'active')
+                                  ON CONFLICT(course_id, client_id) DO UPDATE SET status='active', start_date=excluded.start_date");
+            foreach ($clients as $c) $enr->execute([$cid, $c, $start]);
+            $att = $pdo->prepare("INSERT OR IGNORE INTO k30_ti_attendance (session_id, client_id, attended) VALUES (?,?,0)");
+            foreach ($lessons as $l) {
+                $dur = (int)((strtotime('2000-01-01 ' . $l['to']) - strtotime('2000-01-01 ' . $l['from'])) / 60);
+                $sid = (int)db_insert('k30_ti_sessions', [
+                    'course_id' => $cid, 'lesson_date' => $l['date'], 'time_from' => $l['from'], 'time_to' => $l['to'], 'duration_min' => $dur,
+                    'status' => 'planned', 'lesson_method' => $online ? 'zdalna_zoom' : 'stacjonarna',
+                    'meeting_url' => $online ? trim((string)($in['meeting_url'] ?? '')) : '',
+                    'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s'),
+                ]);
+                foreach ($clients as $c) $att->execute([$sid, $c]);
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            error_log('ti_simple_groups create: ' . $e->getMessage());
+            return ['ok' => false, 'errors' => ['Nie udało się utworzyć grupy — spróbuj ponownie.'], 'warnings' => $warn, 'course_id' => 0, 'name' => $name, 'no_account' => []];
+        }
+        foreach ($newPeople as $p) {
+            try { k30_sync_to_crm(['name' => $p['name'], 'email' => $p['email'], 'phone' => $p['phone']], $uid); } catch (\Throwable $e) {}
+        }
+        ti_course_log($cid, 'create', 'Utworzono grupę uproszczoną „' . $name . '” (' . self::MODES[$mode] . '), terminów: ' . count($lessons) . ', uczestników: ' . count($clients) . '.', $uid, $byName);
+
+        if (!empty($in['notify'])) {
+            $when = implode(', ', array_map(fn($l) => date('d.m', strtotime($l['date'])) . ' ' . $l['from'], $lessons));
+            try { ti_lesson_sms_notify($cid, 'Zaplanowano zajecia: ' . $when . '. Szczegoly w panelu kursanta.', 'ti_lesson_added'); } catch (\Throwable $e) {}
+        }
+        return ['ok' => true, 'errors' => [], 'warnings' => $warn, 'course_id' => $cid, 'name' => $name, 'no_account' => self::withoutAccount($clients)];
+    }
+
+    /** Nazwiska uczestników bez konta w panelu kursanta (nie zalogują się, dopóki konto nie powstanie). */
+    public static function withoutAccount(array $clientIds): array
+    {
+        $out = [];
+        foreach ($clientIds as $c) {
+            if (!db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=?", [(int)$c]))
+                $out[] = (string)(db_one("SELECT name FROM k30_clients WHERE id=?", [(int)$c])['name'] ?? ('#' . $c));
+        }
+        return $out;
+    }
+
+    /**
+     * Konwerter: zwykła grupa → uproszczona (mode 1–3, opcjonalnie nowa nazwa KON) albo uproszczona → zwykła (mode 0,
+     * opcjonalnie nowa nazwa). Lekcje, zapisy i rozliczenia zostają bez zmian.
+     * @return array{ok:bool, msg:string}
+     */
+    public static function convert(int $courseId, int $mode, string $newName, int $uid, string $byName): array
+    {
+        $c = db_one("SELECT id, name, simple_mode FROM k30_ti_courses WHERE id=?", [$courseId]);
+        if (!$c) return ['ok' => false, 'msg' => 'Nie znaleziono grupy.'];
+        if ($mode !== 0 && !isset(self::MODES[$mode])) return ['ok' => false, 'msg' => 'Nieznany tryb.'];
+        $newName = trim($newName);
+        if ($newName === '') $newName = (string)$c['name'];
+        if ($mode > 0 && !self::isValidName($newName)) return ['ok' => false, 'msg' => 'Grupa uproszczona musi mieć nazwę KON.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.'];
+        if ($newName !== $c['name'] && db_one("SELECT 1 FROM k30_ti_courses WHERE name=? AND id<>?", [$newName, $courseId])) return ['ok' => false, 'msg' => 'Grupa ' . $newName . ' już istnieje.'];
+        if ($mode === (int)$c['simple_mode'] && $newName === $c['name']) return ['ok' => false, 'msg' => 'Nic się nie zmienia — wybierz inny tryb albo nazwę.'];
+        db()->prepare("UPDATE k30_ti_courses SET simple_mode=?, name=? WHERE id=?")->execute([$mode, $newName, $courseId]);
+        $from = (int)$c['simple_mode'] > 0 ? 'uproszczona (' . self::MODES[(int)$c['simple_mode']] . ')' : 'zwykła';
+        $to   = $mode > 0 ? 'uproszczona (' . self::MODES[$mode] . ')' : 'zwykła';
+        $det  = $from . ' → ' . $to . ($newName !== $c['name'] ? '; nazwa: ' . $c['name'] . ' → ' . $newName : '');
+        ti_course_log($courseId, 'convert_simple', 'Konwerter grup: ' . $det, $uid, $byName);
+        return ['ok' => true, 'msg' => 'Grupa przekonwertowana: ' . $det . '.'];
+    }
+}
