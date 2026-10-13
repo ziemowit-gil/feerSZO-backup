@@ -32,6 +32,8 @@ final class AnalyticsManager
             'Lekcje odbyte i zaplanowane w miesiącu, godziny oraz wykorzystanie miesięcznego limitu godzin prowadzącego.'],
         'rozliczenia' => ['Rozliczenia licencji (FAK / FAZ / DSC / GST)', 'receipt',
             'Przypisane licencje wystawione w wybranym okresie, z formą rozliczenia i numerem faktury lub kodem.'],
+        'godziny_uczestnikow' => ['Godziny uczestników w miesiącu', 'table',
+            'Wszyscy uczestnicy zajęć w wybranym miesiącu: godziny zaplanowane (bez odwołanych) i zrealizowane (lekcja odbyta i uczestnik obecny), procent realizacji, nieobecności, godziny jeszcze do realizacji i odwołane oraz udział procentowy uczestnika w sumie godzin zaplanowanych i zrealizowanych.'],
     ];
 
     /** Statusy wniosku o zwrot kosztów uznawane za otwarte (FinanceManager::STATUSES bez „wypłacono” i „odrzucony”). */
@@ -163,7 +165,7 @@ final class AnalyticsManager
 
     /**
      * Filtry raportu z GET/POST sprowadzone do znanych wartości.
-     *   licencje: days = 14|30|60|90 (okno „wygasa w ciągu”), obciazenie: ym = RRRR-MM,
+     *   licencje: days = 14|30|60|90 (okno „wygasa w ciągu”), obciazenie i godziny_uczestnikow: ym = RRRR-MM,
      *   rozliczenia: from, to = daty RRRR-MM-DD (domyślnie od początku roku do dziś, maks. ok. 3 lata).
      *
      * @return array<string,string|int>
@@ -174,7 +176,7 @@ final class AnalyticsManager
             $d = (int)($src['days'] ?? 30);
             return ['days' => in_array($d, [14, 30, 60, 90], true) ? $d : 30];
         }
-        if ($key === 'obciazenie') {
+        if ($key === 'obciazenie' || $key === 'godziny_uczestnikow') {
             $ym = (string)($src['ym'] ?? '');
             return ['ym' => preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $ym) ? $ym : date('Y-m')];
         }
@@ -198,6 +200,7 @@ final class AnalyticsManager
             'licencje'    => self::expiringLicenses((int)$f['days']),
             'obciazenie'  => self::instructorLoad((string)$f['ym']),
             'rozliczenia' => self::licenseBilling((string)$f['from'], (string)$f['to']),
+            'godziny_uczestnikow' => self::participantHours((string)$f['ym']),
             default       => null,
         };
     }
@@ -354,6 +357,92 @@ final class AnalyticsManager
                           . $lessons . ' lekcji, ' . number_format($minutes / 60, 1, ',', '') . ' h · prowadzących: ' . count($rows),
             'headers'  => ['Prowadzący', 'Grupy', 'Lekcje odbyte', 'Lekcje zaplanowane', 'Godziny razem', 'Limit miesięczny (h)', 'Wykorzystanie limitu (%)', 'Limit'],
             'rows'     => $rows, 'num' => [1, 2, 3, 4, 5, 6], 'dec' => [1 => 0, 2 => 0, 3 => 0, 4 => 1, 5 => 1, 6 => 1], 'sheet' => 'Obciążenie instruktorów',
+        ];
+    }
+
+    /**
+     * Godziny każdego uczestnika w miesiącu. Uczestnicy lekcji = wpisy obecności tej lekcji, a gdy ich nie ma —
+     * aktywne zapisy grupy obejmujące datę lekcji (start_date / end_date). Godzina = duration_min/60
+     * (gdy brak: time_to − time_from), jak w „Moich godzinach”. Bez szkiców, rezerwacji i projektów planisty.
+     *   zaplanowane  = lekcje nieodwołane (ani cała lekcja, ani dla uczestnika),
+     *   zrealizowane = lekcja odbyta (K30_TI_HELD_STATUSES) i uczestnik obecny,
+     *   nieobecności = lekcja odbyta, uczestnik nieobecny lub bez wpisu obecności,
+     *   do realizacji = lekcja wciąż „zaplanowana” (także minione, jeszcze nierozliczone).
+     */
+    private static function participantHours(string $ym): array
+    {
+        $from = $ym . '-01'; $to = date('Y-m-t', strtotime($from));
+        $sessions = db_all(
+            "SELECT s.id, s.course_id, s.lesson_date, s.status, c.name AS course_name,
+                    COALESCE(NULLIF(s.duration_min,0), (strftime('%s','2000-01-01 '||s.time_to) - strftime('%s','2000-01-01 '||s.time_from))/60.0, 0) / 60.0 AS h
+               FROM k30_ti_sessions s JOIN k30_ti_courses c ON c.id = s.course_id
+              WHERE s.lesson_date BETWEEN ? AND ? AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved')", [$from, $to]);
+        if (!$sessions) {
+            return ['title' => self::REPORTS['godziny_uczestnikow'][0], 'subtitle' => 'Miesiąc ' . $ym . ' · brak lekcji w tym miesiącu',
+                    'headers' => [], 'rows' => [], 'num' => [], 'dec' => [], 'sheet' => 'Godziny uczestników'];
+        }
+        $ids = array_map(fn($s) => (int)$s['id'], $sessions);
+        $cids = array_values(array_unique(array_map(fn($s) => (int)$s['course_id'], $sessions)));
+        $att = [];
+        foreach (array_chunk($ids, 500) as $ch) {
+            foreach (db_all("SELECT session_id, client_id, attended, cancelled FROM k30_ti_attendance WHERE session_id IN (" . implode(',', array_fill(0, count($ch), '?')) . ")", $ch) as $a)
+                $att[(int)$a['session_id']][(int)$a['client_id']] = $a;
+        }
+        $enr = [];
+        foreach (db_all("SELECT course_id, client_id, start_date, end_date FROM k30_ti_enrollments WHERE status = 'active' AND course_id IN (" . implode(',', array_fill(0, count($cids), '?')) . ")", $cids) as $e)
+            $enr[(int)$e['course_id']][] = $e;
+        $names = [];
+        $by = [];
+        foreach ($sessions as $s) {
+            $sid = (int)$s['id']; $d = (string)$s['lesson_date']; $h = (float)$s['h'];
+            $who = $att[$sid] ?? [];
+            if (!$who) {
+                foreach ($enr[(int)$s['course_id']] ?? [] as $e) {
+                    if (!empty($e['start_date']) && $d < (string)$e['start_date']) continue;
+                    if (!empty($e['end_date']) && $d > (string)$e['end_date']) continue;
+                    $who[(int)$e['client_id']] = null;
+                }
+            }
+            $held = in_array((string)$s['status'], K30_TI_HELD_STATUSES, true);
+            foreach ($who as $cl => $a) {
+                $by[$cl] ??= ['groups' => [], 'plan' => 0.0, 'done' => 0.0, 'absent' => 0.0, 'todo' => 0.0, 'canc' => 0.0, 'n_plan' => 0, 'n_done' => 0];
+                $x = &$by[$cl];
+                $x['groups'][(string)$s['course_name']] = true;
+                if ($s['status'] === 'cancelled' || ($a && (int)$a['cancelled'] === 1)) { $x['canc'] += $h; unset($x); continue; }
+                $x['plan'] += $h; $x['n_plan']++;
+                if ($held) {
+                    if ($a && (int)$a['attended'] === 1) { $x['done'] += $h; $x['n_done']++; } else $x['absent'] += $h;
+                } else $x['todo'] += $h;
+                unset($x);
+            }
+        }
+        if ($by) {
+            $cl = array_keys($by);
+            foreach (array_chunk($cl, 500) as $ch)
+                foreach (db_all("SELECT id, name FROM k30_clients WHERE id IN (" . implode(',', array_fill(0, count($ch), '?')) . ")", $ch) as $r) $names[(int)$r['id']] = (string)$r['name'];
+        }
+        $tPlan = array_sum(array_column($by, 'plan')); $tDone = array_sum(array_column($by, 'done'));
+        $pct = fn(float $a, float $b) => $b > 0 ? round($a / $b * 100, 1) : null;
+        uksort($by, fn($a, $b) => strcasecmp($names[$a] ?? '', $names[$b] ?? ''));
+        $rows = []; $tot = ['n_plan' => 0, 'n_done' => 0, 'absent' => 0.0, 'todo' => 0.0, 'canc' => 0.0];
+        foreach ($by as $cl => $x) {
+            $groups = array_keys($x['groups']); sort($groups, SORT_NATURAL | SORT_FLAG_CASE);
+            $rows[] = [$names[$cl] ?? ('(kursant #' . $cl . ')'), implode(', ', $groups), round($x['plan'], 2), $x['n_plan'], round($x['done'], 2), $x['n_done'],
+                       $pct($x['done'], $x['plan']), round($x['absent'], 2), round($x['todo'], 2), round($x['canc'], 2), $pct($x['plan'], $tPlan), $pct($x['done'], $tDone)];
+            foreach ($tot as $k => $_) $tot[$k] += $x[$k];
+        }
+        if ($rows) {
+            $rows[] = ['Razem', count($rows) . ' uczestn.', round($tPlan, 2), $tot['n_plan'], round($tDone, 2), $tot['n_done'], $pct($tDone, $tPlan),
+                       round($tot['absent'], 2), round($tot['todo'], 2), round($tot['canc'], 2), $tPlan > 0 ? 100.0 : null, $tDone > 0 ? 100.0 : null];
+        }
+        return [
+            'title'    => self::REPORTS['godziny_uczestnikow'][0],
+            'subtitle' => 'Miesiąc ' . $ym . ' · uczestników: ' . count($by) . ' · zaplanowane ' . number_format($tPlan, 1, ',', '') . ' h, zrealizowane '
+                          . number_format($tDone, 1, ',', '') . ' h (' . number_format((float)($pct($tDone, $tPlan) ?? 0), 1, ',', '') . '% planu) · bez szkiców i rezerwacji planisty',
+            'headers'  => ['Uczestnik', 'Grupy', 'Zaplanowane (h)', 'Lekcje zaplanowane', 'Zrealizowane (h)', 'Lekcje zrealizowane', 'Realizacja planu (%)',
+                           'Nieobecności (h)', 'Do realizacji (h)', 'Odwołane (h)', 'Udział w zaplanowanych (%)', 'Udział w zrealizowanych (%)'],
+            'rows'     => $rows, 'num' => [2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            'dec'      => [2 => 2, 4 => 2, 6 => 1, 7 => 2, 8 => 2, 9 => 2, 10 => 1, 11 => 1], 'sheet' => 'Godziny uczestników',
         ];
     }
 

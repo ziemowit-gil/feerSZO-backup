@@ -24,7 +24,7 @@ $_cols  = count($an_ds['headers']);
         <?php foreach ([14, 30, 60, 90] as $d): ?><option value="<?= $d ?>"<?= (int)$an_filters['days'] === $d ? ' selected' : '' ?>><?= $d ?> dni</option><?php endforeach; ?>
       </select>
     </div>
-  <?php elseif ($an_key === 'obciazenie'): ?>
+  <?php elseif ($an_key === 'obciazenie' || $an_key === 'godziny_uczestnikow'): ?>
     <div>
       <label class="form-label small mb-1" for="an-ym">Miesiąc</label>
       <input class="form-control form-control-sm" type="month" id="an-ym" name="ym" value="<?= h($an_filters['ym']) ?>" pattern="\d{4}-\d{2}" placeholder="RRRR-MM" required>
@@ -75,11 +75,11 @@ $_cols  = count($an_ds['headers']);
       </thead>
       <tbody>
       <?php foreach ($an_ds['rows'] as $_row): ?>
-        <tr>
+        <tr<?= ($_row[0] ?? '') === 'Razem' ? ' class="fw-bold table-light"' : '' ?>>
           <?php foreach ($_row as $_c => $_v): $_num = in_array($_c, $an_ds['num'], true);
             $_txt = AnalyticsExport::display($_v, AnalyticsExport::decimals($an_ds, (int)$_c));
             $_flag = $_v === 'Ponad limit'; ?>
-            <?php if ($_c === 0): ?><th scope="row" class="fw-normal"><?= h($_txt) ?></th>
+            <?php if ($_c === 0): ?><th scope="row" class="<?= $_txt === 'Razem' ? 'fw-bold' : 'fw-normal' ?>"><?= h($_txt) ?></th>
             <?php else: ?><td<?= $_num ? ' class="text-end"' : '' ?>><?php if ($_flag): ?><span class="badge text-bg-danger"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i><?= h($_txt) ?></span><?php else: ?><?= h($_txt) ?><?php endif; ?></td><?php endif; ?>
           <?php endforeach; ?>
         </tr>

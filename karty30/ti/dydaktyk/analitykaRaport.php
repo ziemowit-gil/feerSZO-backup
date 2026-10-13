@@ -1,7 +1,7 @@
 <?php
 /**
  * karty30/ti/dydaktyk/analitykaRaport.php — jeden raport Analityki TI (zarząd / koordynatorzy).
- * GET: r = bez_sprzetu | licencje | obciazenie | rozliczenia, filtry (days / ym / from + to), view = tabela | lista.
+ * GET: r = bez_sprzetu | licencje | obciazenie | rozliczenia | godziny_uczestnikow, filtry (days / ym / from + to), view = tabela | lista.
  * Eksport CSV / Excel: formularz POST do analitykaEksport.php.
  */
 require_once __DIR__ . '/auth.php';
