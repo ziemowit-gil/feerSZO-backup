@@ -156,4 +156,14 @@ return [
         },
     ],
 
+    '2026-10_ti_protocol_numbers' => [
+        'desc' => 'Protokoły zajęć TI: numer PRT/kod grupy/MM/RR dla protokołów sprzed wprowadzenia numeracji',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/karty30.php';
+            require_once $ROOT . '/includes/ti_protocols.php';
+            ti_protocols_migrate();
+            foreach (db_all("SELECT id FROM k30_ti_protocols WHERE COALESCE(prot_no,'') = '' ORDER BY id") as $p) ti_protocol_get((int)$p['id']);   // nadaje i zapisuje numer
+        },
+    ],
+
 ];

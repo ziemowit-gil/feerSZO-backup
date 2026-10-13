@@ -112,6 +112,8 @@ function ti_protocols_migrate(): void {
         // protokół bez period_id, kluczowany (course_id, year_month) "RRRR-MM".
         // Stare protokoły per-okres zostają nietknięte; nowe zamykanie jest per-miesiąc.
         "ALTER TABLE k30_ti_protocols ADD COLUMN year_month TEXT NOT NULL DEFAULT ''",
+        // Numer protokołu PRT/<kod grupy>/<MM>/<RR> — modules/ti_protocol_numbers
+        "ALTER TABLE k30_ti_protocols ADD COLUMN prot_no TEXT NOT NULL DEFAULT ''",
         // Stała kopia danych z chwili zatwierdzenia (ewidencja godzin, wypłata,
         // uczestnicy, średnie z dziennika) — zatwierdzony protokół pokazuje ją
         // zamiast liczenia na żywo, więc późniejsze zmiany lekcji go nie ruszają.
@@ -544,7 +546,7 @@ function ti_protocols_overdue_months(): array {
 function ti_protocol_get(int $id): ?array {
     ti_protocols_migrate();
     if (!$id) return null;
-    return db_one(
+    $p = db_one(
         "SELECT p.*, " . TI_PROTOCOL_RANGE_COLS . ", c.name AS course_name
            FROM k30_ti_protocols p
            LEFT JOIN k30_ti_periods per ON per.id = p.period_id
@@ -552,6 +554,12 @@ function ti_protocol_get(int $id): ?array {
           WHERE p.id = ?",
         [$id]
     );
+    // Numer PRT/<kod grupy>/<MM>/<RR> — nadawany przy pierwszym odczycie, potem stały
+    if ($p) {
+        require_once dirname(__DIR__) . '/modules/ti_protocol_numbers/logic/protocolNumbers.php';
+        $p['prot_no'] = TiProtocolNumbers::forProtocol($p);
+    }
+    return $p;
 }
 
 /**
@@ -1466,6 +1474,7 @@ function ti_protocol_print_html(array $prot): string {
 
     return '<h1>Protokół zajęć kursu za ' . (!empty($prot['year_month']) ? 'miesiąc' : 'okres') . '</h1>'
         . '<table class="head"><tbody>'
+        . '<tr><th>Numer</th><td><strong>' . $h($prot['prot_no'] ?? '') . '</strong></td></tr>'
         . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
         . '<tr><th>Protokół</th><td>' . $h($prot['title']) . '</td></tr>'
         . '<tr><th>Okres</th><td>' . $h(ti_pdf_period($prot) ?: 'nie wskazano') . '</td></tr>'
@@ -1501,6 +1510,7 @@ function ti_protocol_zero_info_html(array $prot): string {
     $hl = ti_protocol_hours_list($prot);
     return '<h1>Informacja o braku zajęć — 0 godzin</h1>'
         . '<table class="head"><tbody>'
+        . '<tr><th>Numer</th><td><strong>' . $h($prot['prot_no'] ?? '') . '</strong></td></tr>'
         . '<tr><th>Zajęcia</th><td>' . $h($prot['course_name'] ?? '') . '</td></tr>'
         . '<tr><th>Okres</th><td>' . $h(ti_pdf_period($prot)) . '</td></tr>'
         . '<tr><th>Prowadzący</th><td>' . $h($hl['instructor'] !== '' ? $hl['instructor'] : '—') . '</td></tr>'
@@ -2119,7 +2129,8 @@ function ti_protocol_final_grades_for_client(int $client_id): array {
 
 /** Nazwa pliku PDF protokołu. */
 function ti_protocol_pdf_filename(array $prot): string {
-    $base = 'protokol-' . (string)($prot['course_name'] ?? 'zajecia') . '-' . (string)($prot['period_name'] ?? 'okres');
+    $base = (trim((string)($prot['prot_no'] ?? '')) !== '' ? str_replace('/', '-', (string)$prot['prot_no']) . '-' : '')
+          . 'protokol-' . (string)($prot['course_name'] ?? 'zajecia') . '-' . (string)($prot['period_name'] ?? 'okres');
     $base = preg_replace('/[^A-Za-z0-9_\-]+/', '-', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $base) ?: $base);
     return trim((string)$base, '-') . '.pdf';
 }

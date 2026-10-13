@@ -86,7 +86,7 @@ function ti_prot_ezd_register(int $protocol_id, ?int $user_id): ?int {
         $uid = (int)($user_id ?: ($prot['approved_by'] ?? 0));
 
         $okres  = (string)($prot['period_name'] ?? '');
-        $title  = 'Protokół zajęć — ' . (string)$prot['course_name'] . ($okres !== '' ? ', ' . $okres : '');
+        $title  = (trim((string)($prot['prot_no'] ?? '')) !== '' ? $prot['prot_no'] . ' — ' : '') . 'Protokół zajęć — ' . (string)$prot['course_name'] . ($okres !== '' ? ', ' . $okres : '');
         $course = db_one("SELECT c.name, u.name AS instructor_name FROM k30_ti_courses c
                           LEFT JOIN users u ON u.id=c.instructor_id WHERE c.id=?", [(int)$prot['course_id']]) ?: [];
 

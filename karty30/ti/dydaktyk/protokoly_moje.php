@@ -8,6 +8,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_protocol_numbers/logic/protocolNumbers.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/x509_login.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/webauthn.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/inc/tiCertStore/tiCertStore.php';
@@ -742,7 +743,7 @@ $_n_old = count(array_filter($months, fn($m) => !in_array($m['state'], ['current
     <table class="table table-sm align-middle mb-0">
       <caption class="visually-hidden">Miesiące i stan protokołów per grupa</caption>
       <thead><tr>
-        <th scope="col">Miesiąc</th><th scope="col">Grupa</th><th scope="col">Stan</th>
+        <th scope="col">Miesiąc</th><th scope="col">Grupa</th><th scope="col">Numer</th><th scope="col">Stan</th>
         <th scope="col" class="text-end">Zajęcia odbyte</th><th scope="col" class="text-end">Akcja</th>
       </tr></thead>
       <tbody>
@@ -751,6 +752,7 @@ $_n_old = count(array_filter($months, fn($m) => !in_array($m['state'], ['current
         <tr<?= $_old ? ' class="month-old d-none"' : '' ?>>
           <td class="text-nowrap"><?= h($fmt_ym($mr['year_month'])) ?></td>
           <td><?= h($mr['course_name']) ?></td>
+          <td class="font-monospace small text-nowrap"><?= h(TiProtocolNumbers::forCourseMonth((int)$mr['course_id'], (string)$mr['year_month'])) ?></td>
           <td><span class="badge bg-<?= $_bc ?>"><?= h($_bl) ?></span></td>
           <td class="text-end"><?= (int)$mr['lessons_held'] ?><?php if ($mr['state'] === 'current' && $mr['planned_left'] > 0): ?>
             <span class="text-body-secondary small">(+<?= (int)$mr['planned_left'] ?> zaplan.)</span><?php endif; ?></td>
@@ -793,6 +795,49 @@ $_n_old = count(array_filter($months, fn($m) => !in_array($m['state'], ['current
   </script>
   <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<?php
+// ── Numery protokołów PRT/<kod grupy>/<MM>/<RR> — do wpisania na dokumentach (także papierowych) ──
+$_pn_courses = dyd_is_staff() ? k30_ti_courses(true) : k30_ti_instructor_courses($uid, true);
+$_pn_codes = [];
+foreach ($_pn_courses as $_c) $_pn_codes[(int)$_c['id']] = ['name' => (string)$_c['name'], 'code' => TiProtocolNumbers::code((int)$_c['id'])];
+$_pn_ym = date('Y-m');
+?>
+<?php if ($_pn_codes): ?>
+<section class="card border-0 shadow-sm mt-3" aria-labelledby="pnH">
+  <div class="card-header fw-semibold" id="pnH"><i class="bi bi-hash me-1 text-primary" aria-hidden="true"></i>Numery protokołów</div>
+  <div class="card-body">
+    <p class="small text-body-secondary mb-2">Numer ma postać <span class="font-monospace">PRT/kod grupy/MM/RR</span> i nadaje się sam przy protokole. Tutaj sprawdzisz go wcześniej — np. do wpisania na papierowej liście obecności. Protokół założony później dostanie ten sam numer.</p>
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-6"><label class="form-label small mb-0" for="pnC">Grupa</label>
+        <select class="form-select form-select-sm" id="pnC"><?php foreach ($_pn_codes as $_id => $_x): ?><option value="<?= $_id ?>"><?= h($_x['name']) ?></option><?php endforeach; ?></select></div>
+      <div class="col-sm-3"><label class="form-label small mb-0" for="pnM">Miesiąc</label>
+        <input class="form-control form-control-sm" type="month" id="pnM" value="<?= h($_pn_ym) ?>"></div>
+      <div class="col-sm-3 d-flex gap-1 align-items-center">
+        <output class="font-monospace fw-bold" id="pnOut" for="pnC pnM" aria-live="polite"></output>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="pnCopy"><i class="bi bi-clipboard" aria-hidden="true"></i><span class="visually-hidden">Kopiuj numer</span></button>
+      </div>
+    </div>
+    <details class="mt-3"><summary class="small fw-semibold">Wszystkie moje grupy — bieżący i poprzedni miesiąc</summary>
+      <table class="table table-sm mt-2 mb-0"><caption class="visually-hidden">Numery protokołów grup</caption>
+        <thead><tr><th scope="col">Grupa</th><th scope="col"><?= h(date('m.Y', strtotime('first day of last month'))) ?></th><th scope="col"><?= h(date('m.Y')) ?></th></tr></thead>
+        <tbody><?php foreach ($_pn_codes as $_id => $_x): ?><tr><th scope="row" class="fw-normal small"><?= h($_x['name']) ?></th>
+          <td class="font-monospace small"><?= h(TiProtocolNumbers::forCourseMonth($_id, date('Y-m', strtotime('first day of last month')))) ?></td>
+          <td class="font-monospace small"><?= h(TiProtocolNumbers::forCourseMonth($_id, $_pn_ym)) ?></td></tr><?php endforeach; ?></tbody>
+      </table>
+    </details>
+  </div>
+</section>
+<script>
+(function () {
+  var codes = <?= json_encode(array_map(fn($x) => $x['code'], $_pn_codes), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
+  var c = document.getElementById('pnC'), m = document.getElementById('pnM'), out = document.getElementById('pnOut'), cp = document.getElementById('pnCopy');
+  function upd() { var v = m.value.split('-'); out.textContent = (v.length === 2 && codes[c.value]) ? 'PRT/' + codes[c.value] + '/' + v[1] + '/' + v[0].slice(2) : ''; }
+  c.addEventListener('change', upd); m.addEventListener('change', upd); upd();
+  cp.addEventListener('click', function () { if (navigator.clipboard && out.textContent) navigator.clipboard.writeText(out.textContent).then(function () { cp.innerHTML = '<i class="bi bi-check2" aria-hidden="true"></i><span class="visually-hidden">Skopiowano</span>'; }); });
+})();
+</script>
 <?php endif; ?>
 
 <?php if ($closed): ?>

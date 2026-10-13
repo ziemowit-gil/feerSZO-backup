@@ -10,6 +10,7 @@
  * nie prowadzący kursu).
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_protocol_numbers/logic/protocolNumbers.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_protocols.php';
 
 $me  = dyd_require();
@@ -225,6 +226,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <thead>
         <tr>
           <th>Kurs</th>
+          <th>Numer</th>
           <th>Prowadzący</th>
           <th>Miesiąc</th>
           <th>Zaległość</th>
@@ -235,6 +237,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <?php foreach ($overdue_m as $r): ?>
         <tr>
           <td><?= h($r['course_name']) ?></td>
+          <td class="font-monospace small text-nowrap"><?= h(TiProtocolNumbers::forCourseMonth((int)$r['course_id'], (string)$r['year_month'])) ?></td>
           <td><?= h($r['instructor_name'] ?: '—') ?></td>
           <td class="text-nowrap"><?= h($r['year_month']) ?><?php if (!$r['protocol_id']): ?> <span class="text-body-secondary small">(nieotwarty)</span><?php endif; ?></td>
           <td><span class="badge text-bg-warning"><?= (int)$r['days_overdue'] ?> dni</span></td>
