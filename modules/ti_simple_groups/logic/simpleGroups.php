@@ -18,6 +18,8 @@ final class TiSimpleGroups
     public const MODES = [1 => 'tylko terminy', 2 => 'terminy + płatności', 3 => 'terminy + płatności uproszczone'];
     public const MAX_LESSONS = 4;
     public const NAME_RE = '/^KON\.\d{5}\.\p{Lu}{3}\.\d{4}$/u';
+    /** Forma pojedynczych zajęć (k30_ti_sessions.lesson_method) — w grupie można je mieszać. */
+    public const METHODS = ['stacjonarna' => 'Stacjonarnie', 'zdalna_zoom' => 'Online — Zoom', 'zdalna_inne' => 'Online — inne'];
 
     /** Nazwa KON.xxxxx.yyy.rrrr z części; litery wielkie, bez spacji. */
     public static function name(int $number, string $letters, int $year): string
@@ -73,7 +75,9 @@ final class TiSimpleGroups
      * Utworzenie grupy uproszczonej.
      * $in: number, letters, year (części nazwy), instructor_id, class_type, is_online, location, meeting_url, mode (1–3),
      *      notify (bool — SMS o terminach), clients: int[] (istniejący), new_people: [['name','phone','email'], …],
-     *      lessons: [['date','from','to'], …] (puste wiersze pomijane, 1–4 terminy).
+     *      lessons: [['date','from','to','method'], …] (puste wiersze pomijane, 1–4 terminy; method z METHODS).
+     * „Hybryda krótka” (class_type hybrid): zajęcia mieszane — część stacjonarnie, część online; mieszane formy
+     * terminów ustawiają ją same, nawet gdy wybrano inny rodzaj.
      * @return array{ok:bool, errors:string[], warnings:string[], course_id:int, name:string, no_account:string[]}
      */
     public static function create(array $in, int $uid, string $byName): array
@@ -81,14 +85,14 @@ final class TiSimpleGroups
         $err = []; $warn = [];
         $mode   = (int)($in['mode'] ?? 1);
         $instr  = max(0, (int)($in['instructor_id'] ?? 0));
-        $type   = in_array($in['class_type'] ?? '', ['individual', 'group'], true) ? (string)$in['class_type'] : 'individual';
-        $online = !empty($in['is_online']) ? 1 : 0;
+        $type   = in_array($in['class_type'] ?? '', ['individual', 'group', 'hybrid'], true) ? (string)$in['class_type'] : 'individual';
         if (!isset(self::MODES[$mode])) $err[] = 'Wybierz tryb panelu uczestników.';
 
         // Terminy
         $lessons = [];
         foreach ((array)($in['lessons'] ?? []) as $l) {
             $d = trim((string)($l['date'] ?? '')); $f = trim((string)($l['from'] ?? '')); $t = trim((string)($l['to'] ?? ''));
+            $lm = isset(self::METHODS[$l['method'] ?? '']) ? (string)$l['method'] : (!empty($in['is_online']) ? 'zdalna_zoom' : 'stacjonarna');
             if ($d === '' && $f === '' && $t === '') continue;
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) || !preg_match('/^\d{2}:\d{2}$/', $f) || !preg_match('/^\d{2}:\d{2}$/', $t) || $t <= $f) {
                 $err[] = 'Termin ' . ($d ?: '(bez daty)') . ': podaj datę oraz godzinę od i do (koniec po początku).'; continue;
@@ -98,7 +102,7 @@ final class TiSimpleGroups
                 $av = ti_instructor_available_at($instr, $d, $f, $t);
                 if (!$av['ok']) $warn[] = 'Termin ' . date('d.m.Y', strtotime($d)) . ' ' . $f . ': ' . $av['reason'];
             }
-            $lessons[] = ['date' => $d, 'from' => $f, 'to' => $t];
+            $lessons[] = ['date' => $d, 'from' => $f, 'to' => $t, 'method' => $lm];
         }
         if (!$lessons) $err[] = 'Dodaj przynajmniej jeden termin zajęć.';
         if (count($lessons) > self::MAX_LESSONS) $err[] = 'Grupa uproszczona ma najwyżej ' . self::MAX_LESSONS . ' terminy — dłuższy kurs załóż jako zwykłą grupę.';
@@ -124,6 +128,12 @@ final class TiSimpleGroups
         if (!self::isValidName($name)) $err[] = 'Nazwa musi mieć postać KON.xxxxx.yyy.rrrr — 5 cyfr, 3 litery, rok.';
         elseif (db_one("SELECT 1 FROM k30_ti_courses WHERE name=?", [$name])) $err[] = 'Grupa ' . $name . ' już istnieje — zmień numer albo litery.';
 
+        // Forma grupy z form zajęć: same online → is_online; mieszane → „Hybryda krótka” (class_type hybrid, stawki online/stacjonarne osobno)
+        $remote = array_filter($lessons, fn($l) => str_starts_with($l['method'], 'zdalna'));
+        $online = $lessons && count($remote) === count($lessons) ? 1 : 0;
+        if ($remote && count($remote) < count($lessons)) $type = 'hybrid';
+        $url = trim((string)($in['meeting_url'] ?? ''));
+
         if ($err) return ['ok' => false, 'errors' => $err, 'warnings' => $warn, 'course_id' => 0, 'name' => $name, 'no_account' => []];
 
         $pdo = db(); $pdo->beginTransaction();
@@ -131,7 +141,7 @@ final class TiSimpleGroups
             $cid = (int)db_insert('k30_ti_courses', [
                 'name' => $name, 'display_name' => '', 'description' => 'Grupa uproszczona (' . self::MODES[$mode] . ').',
                 'instructor_id' => $instr ?: null, 'location' => mb_substr(trim((string)($in['location'] ?? '')), 0, 200),
-                'default_meeting_url' => $online ? trim((string)($in['meeting_url'] ?? '')) : '',
+                'default_meeting_url' => $remote ? $url : '',
                 'is_active' => 1, 'track_attendance' => 1, 'is_online' => $online, 'class_type' => $type,
                 'billing_model' => 2, 'group_code' => k30_ti_generate_group_code(), 'simple_mode' => $mode,
                 'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s'),
@@ -149,8 +159,8 @@ final class TiSimpleGroups
                 $dur = (int)((strtotime('2000-01-01 ' . $l['to']) - strtotime('2000-01-01 ' . $l['from'])) / 60);
                 $sid = (int)db_insert('k30_ti_sessions', [
                     'course_id' => $cid, 'lesson_date' => $l['date'], 'time_from' => $l['from'], 'time_to' => $l['to'], 'duration_min' => $dur,
-                    'status' => 'planned', 'lesson_method' => $online ? 'zdalna_zoom' : 'stacjonarna',
-                    'meeting_url' => $online ? trim((string)($in['meeting_url'] ?? '')) : '',
+                    'status' => 'planned', 'lesson_method' => $l['method'],
+                    'meeting_url' => str_starts_with($l['method'], 'zdalna') ? $url : '',
                     'created_by' => $uid ?: null, 'created_at' => date('Y-m-d H:i:s'),
                 ]);
                 foreach ($clients as $c) $att->execute([$sid, $c]);
@@ -164,12 +174,14 @@ final class TiSimpleGroups
         foreach ($newPeople as $p) {
             try { k30_sync_to_crm(['name' => $p['name'], 'email' => $p['email'], 'phone' => $p['phone']], $uid); } catch (\Throwable $e) {}
         }
-        ti_course_log($cid, 'create', 'Utworzono grupę uproszczoną „' . $name . '” (' . self::MODES[$mode] . '), terminów: ' . count($lessons) . ', uczestników: ' . count($clients) . '.', $uid, $byName);
+        ti_course_log($cid, 'create', 'Utworzono grupę uproszczoną „' . $name . '” (' . self::MODES[$mode] . ($type === 'hybrid' ? ', hybryda krótka' : '') . '), terminów: ' . count($lessons)
+                      . ' (online: ' . count($remote) . '), uczestników: ' . count($clients) . '.', $uid, $byName);
 
         if (!empty($in['notify'])) {
             $when = implode(', ', array_map(fn($l) => date('d.m', strtotime($l['date'])) . ' ' . $l['from'], $lessons));
             try { ti_lesson_sms_notify($cid, 'Zaplanowano zajecia: ' . $when . '. Szczegoly w panelu kursanta.', 'ti_lesson_added'); } catch (\Throwable $e) {}
         }
+        if ($type === 'hybrid' && ($in['class_type'] ?? '') !== 'hybrid') $warn[] = 'Terminy mają różne formy — grupa została założona jako „Hybryda krótka”.';
         return ['ok' => true, 'errors' => [], 'warnings' => $warn, 'course_id' => $cid, 'name' => $name, 'no_account' => self::withoutAccount($clients)];
     }
 

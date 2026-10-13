@@ -27,11 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $people = [];
         foreach ((array)($_POST['np_name'] ?? []) as $i => $n) $people[] = ['name' => $n, 'phone' => $_POST['np_phone'][$i] ?? '', 'email' => $_POST['np_email'][$i] ?? ''];
         $lessons = [];
-        foreach ((array)($_POST['l_date'] ?? []) as $i => $d) $lessons[] = ['date' => $d, 'from' => $_POST['l_from'][$i] ?? '', 'to' => $_POST['l_to'][$i] ?? ''];
+        foreach ((array)($_POST['l_date'] ?? []) as $i => $d) $lessons[] = ['date' => $d, 'from' => $_POST['l_from'][$i] ?? '', 'to' => $_POST['l_to'][$i] ?? '', 'method' => $_POST['l_method'][$i] ?? ''];
         $res = TiSimpleGroups::create([
             'number' => (int)($_POST['k_num'] ?? 0), 'letters' => (string)($_POST['k_let'] ?? ''), 'year' => (int)($_POST['k_year'] ?? 0),
             'instructor_id' => (int)($_POST['instructor_id'] ?? 0), 'class_type' => (string)($_POST['class_type'] ?? 'individual'),
-            'is_online' => isset($_POST['is_online']), 'location' => (string)($_POST['location'] ?? ''), 'meeting_url' => (string)($_POST['meeting_url'] ?? ''),
+            'location' => (string)($_POST['location'] ?? ''), 'meeting_url' => (string)($_POST['meeting_url'] ?? ''),
             'mode' => (int)($_POST['mode'] ?? 1), 'notify' => isset($_POST['notify']),
             'clients' => $cl, 'new_people' => $people, 'lessons' => $lessons,
         ], $uid, $byName);
@@ -142,14 +142,12 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <select class="form-select form-select-sm" id="gu-type" name="class_type">
             <option value="individual">Indywidualne</option>
             <option value="group"<?= $o('class_type') === 'group' ? ' selected' : '' ?>>Grupowe</option>
+            <option value="hybrid"<?= $o('class_type') === 'hybrid' ? ' selected' : '' ?>>Hybryda krótka (część stacjonarnie, część online)</option>
           </select>
         </div>
-        <div class="col-sm-4 d-flex align-items-end">
-          <div class="form-check"><input class="form-check-input" type="checkbox" id="gu-online" name="is_online" value="1"<?= $o('is_online') ? ' checked' : '' ?>>
-            <label class="form-check-label small" for="gu-online">Zajęcia online</label></div>
-        </div>
-        <div class="col-sm-6"><label class="form-label small mb-0" for="gu-loc">Miejsce (stacjonarnie)</label><input class="form-control form-control-sm" id="gu-loc" name="location" value="<?= h((string)$o('location')) ?>"></div>
-        <div class="col-sm-6"><label class="form-label small mb-0" for="gu-url">Link do spotkania (online)</label><input class="form-control form-control-sm" id="gu-url" name="meeting_url" type="url" value="<?= h((string)$o('meeting_url')) ?>"></div>
+        <div class="col-sm-4 small text-body-secondary d-flex align-items-end">Formę (stacjonarnie / online) wybierasz przy każdym terminie — można mieszać.</div>
+        <div class="col-sm-6"><label class="form-label small mb-0" for="gu-loc">Miejsce (zajęcia stacjonarne)</label><input class="form-control form-control-sm" id="gu-loc" name="location" value="<?= h((string)$o('location')) ?>"></div>
+        <div class="col-sm-6"><label class="form-label small mb-0" for="gu-url">Link do spotkania (zajęcia online)</label><input class="form-control form-control-sm" id="gu-url" name="meeting_url" type="url" value="<?= h((string)$o('meeting_url')) ?>"></div>
       </div>
     </fieldset>
 
@@ -185,9 +183,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="col-sm-3"><label class="form-label small mb-0" for="gu-d<?= $i ?>">Data</label><input class="form-control form-control-sm" type="date" id="gu-d<?= $i ?>" name="l_date[]" value="<?= h((string)$oa('l_date', $i)) ?>"<?= $i === 0 ? ' required' : '' ?>></div>
         <div class="col-sm-2"><label class="form-label small mb-0" for="gu-f<?= $i ?>">Od</label><input class="form-control form-control-sm" type="time" id="gu-f<?= $i ?>" name="l_from[]" value="<?= h((string)$oa('l_from', $i)) ?>"<?= $i === 0 ? ' required' : '' ?>></div>
         <div class="col-sm-2"><label class="form-label small mb-0" for="gu-t<?= $i ?>">Do</label><input class="form-control form-control-sm" type="time" id="gu-t<?= $i ?>" name="l_to[]" value="<?= h((string)$oa('l_to', $i)) ?>"<?= $i === 0 ? ' required' : '' ?>></div>
+        <div class="col-sm-3"><label class="form-label small mb-0" for="gu-lm<?= $i ?>">Forma</label>
+          <select class="form-select form-select-sm gu-method" id="gu-lm<?= $i ?>" name="l_method[]">
+            <?php foreach (TiSimpleGroups::METHODS as $_mk => $_ml): ?><option value="<?= h($_mk) ?>"<?= $oa('l_method', $i, 'stacjonarna') === $_mk ? ' selected' : '' ?>><?= h($_ml) ?></option><?php endforeach; ?>
+          </select></div>
       </div>
       <?php endfor; ?>
-      <div class="form-text">Puste wiersze są pomijane. Brak dostępności prowadzącego nie blokuje zapisu — pokaże się ostrzeżenie.</div>
+      <div class="form-text">Puste wiersze są pomijane. Brak dostępności prowadzącego nie blokuje zapisu — pokaże się ostrzeżenie.
+        Terminy w różnych formach (część stacjonarnie, część online) zakładają grupę jako „Hybryda krótka” — stawkę online ustawisz przy uczestnikach.</div>
+      <p class="small fw-semibold mb-0 mt-1" id="gu-mix" aria-live="polite"></p>
     </fieldset>
 
     <fieldset class="mb-3">
@@ -272,6 +276,20 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     if (e.target.classList && e.target.classList.contains('gu-client')) suggest(e.target.value);
     if (e.target.id === 'gu-np-n0') suggest(e.target.value);
   });
+  // Podsumowanie form zajęć (mieszane → Hybryda krótka)
+  var mix = document.getElementById('gu-mix'), typ = document.getElementById('gu-type');
+  function mixInfo() {
+    var on = 0, st = 0;
+    document.querySelectorAll('.gu-method').forEach(function (s, i) {
+      if (!document.getElementById('gu-d' + i).value) return;
+      if (s.value.indexOf('zdalna') === 0) on++; else st++;
+    });
+    var m = on && st;
+    if (m && typ) typ.value = 'hybrid';
+    mix.textContent = m ? 'Hybryda krótka: ' + st + ' stacjonarnie, ' + on + ' online.' : '';
+  }
+  document.addEventListener('change', function (e) { if (e.target.matches && e.target.matches('.gu-method, input[type=date]')) mixInfo(); });
+  mixInfo();
   // Rok z daty pierwszych zajęć
   var d0 = document.getElementById('gu-d0'), yr = document.getElementById('gu-year');
   if (d0 && yr) d0.addEventListener('change', function () { if (/^\d{4}/.test(d0.value)) yr.value = d0.value.slice(0, 4); });

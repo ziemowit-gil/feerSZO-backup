@@ -1051,13 +1051,13 @@ function dydKuMoveOpen(fromId, fromName) {
       <span class="badge" style="font-size:.62rem;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
             title="Nauczanie indywidualne — to też grupa">NI</span>
       <?php endif; ?>
-      <?php if (($c['class_type']??'') === 'hybrid'): ?>
+      <?php if (($c['class_type']??'') === 'hybrid' && empty($c['simple_mode'])): /* grupa uproszczona ma własną plakietkę „Hybryda krótka” */ ?>
       <span class="badge" style="font-size:.62rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"
             title="Kurs hybrydowy — lekcje online i stacjonarnie, inna stawka za tryb">Hybryda</span>
       <?php endif; ?>
       <?php if (!empty($c['simple_mode'])): ?>
       <a class="badge text-decoration-none" style="font-size:.62rem;background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc" href="grupaUproszczona.php?konwertuj=<?= (int)$c['id'] ?>#konwerter"
-         title="Grupa uproszczona — uczestnicy widzą uproszczony panel; kliknij, by przekonwertować">Uproszczona</a>
+         title="Grupa uproszczona — uczestnicy widzą uproszczony panel; kliknij, by przekonwertować"><?= ($c['class_type'] ?? '') === 'hybrid' ? 'Hybryda krótka' : 'Uproszczona' ?></a>
       <?php endif; ?>
       <?php if (!empty($c['hours_only_from'])): ?>
       <span class="badge" style="font-size:.62rem;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A"
