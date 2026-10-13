@@ -35,8 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'datetime' => (string)($_POST['datetime'] ?? ''), 'duration' => (int)($_POST['duration'] ?? 0),
             'description' => (string)($_POST['description'] ?? ''), 'next_action' => (string)($_POST['next_action'] ?? ''),
             'intake' => TiConsultations::intakeFromPost($_POST),
-        ], $isNew ? null : $id, $uid);
-        if ($res['ok']) { flash_set('success', ($isNew ? 'Karta konsultacji zapisana.' : 'Zmiany zapisane.') . TiConsultations::accountMsg($res['account'] ?? null)); header('Location: konsultacja.php?id=' . $res['id']); exit; }
+        ], $isNew ? null : $id, $uid, $staff, (string)($me['name'] ?? ''));
+        if ($res['ok']) { flash_set(!empty($res['unsigned']) ? 'warning' : 'success', ($isNew ? 'Karta konsultacji zapisana.' : 'Zmiany zapisane.') . (!empty($res['unsigned']) ? ' Podpis konsultanta został cofnięty — karta wróciła do etapu Robocza i wymaga ponownego podpisu.' : '') . TiConsultations::accountMsg($res['account'] ?? null)); header('Location: konsultacja.php?id=' . $res['id']); exit; }
         $errors = $res['errors'];
     } elseif ($op === 'approve' && $card) {
         $res = TiConsultations::approve([$id], $uid, $approver, (string)($_POST['ika_code'] ?? ''));
@@ -46,6 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($op === 'mgr_approve' && $card && $staff) {
         $res = TiConsultations::managerApprove([$id], $uid, (string)($me['name'] ?? ''));
         flash_set($res['approved'] ? 'success' : 'warning', $res['approved'] ? 'Karta zatwierdzona przez kierownika.' . ($res['closed'] ? ' Szkolenie ' . $res['closed'] . ' zamknięte — karty trafiły do EZD.' : (TiConsultations::ezdActive() && !(int)$card['course_id'] ? ' Karta trafiła do EZD.' : '')) : 'Zatwierdzić można tylko podpisaną kartę.');
+        header('Location: konsultacja.php?id=' . $id); exit;
+    } elseif ($op === 'mgr_unapprove' && $card && $staff) {
+        $ok = TiConsultations::managerUnapprove($id, $uid, (string)($me['name'] ?? ''));
+        flash_set($ok ? 'warning' : 'danger', $ok ? 'Zatwierdzenie kierownika cofnięte — karta wróciła do etapu Podpisana (można ją edytować, podpis zostanie wtedy cofnięty).' : 'Nie udało się cofnąć zatwierdzenia.');
         header('Location: konsultacja.php?id=' . $id); exit;
     } elseif ($op === 'cancel' && $card) {
         $ok = TiConsultations::cancel($id);
@@ -57,7 +61,8 @@ if ($card && $_SERVER['REQUEST_METHOD'] === 'GET') {
     try { k30_log_access('consultation', $id, 'view', (string)($card['client_name'] ?? '')); } catch (\Throwable $e) {}
 }
 $card = $id ? TiConsultations::get($id) : null;
-$edit = $isNew || ($card && $card['status'] === 'draft' && !(int)$card['session_id'] && isset($_GET['edytuj']));
+$canEdit = $card && TiConsultations::canEdit($card, $uid, $staff) && !(int)$card['session_id'];   // karty terminu SzK edytuje konsultacjaTermin.php
+$edit = $isNew || ($canEdit && isset($_GET['edytuj']));
 
 $clients     = $edit ? db_all("SELECT id, name, email, phone FROM k30_clients ORDER BY name") : [];
 $IN = $card ? TiConsultations::intake($card) : [];   // zapisane dane zgłoszenia
@@ -92,6 +97,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
 <?php if ($edit): ?>
 <h1 class="h4 fw-bold"><i class="bi bi-clipboard2-plus text-primary me-2" aria-hidden="true"></i><?= $isNew ? 'Nowa konsultacja' : 'Edycja karty ' . h($card['card_no']) ?></h1>
+<?php if (!$isNew && TiConsultations::stage($card) === 'signed'): ?><div class="alert alert-warning small py-2">Ta karta jest podpisana przez konsultanta. Po zapisaniu zmian podpis zostanie cofnięty, a karta wróci do etapu Robocza — konsultant podpisze ją ponownie.</div><?php endif; ?>
 <?php if ($isNew): ?><p class="small text-body-secondary">Numer KON.XXX.MM.RRRR nada się przy zapisie (kolejny w miesiącu konsultacji).</p><?php endif; ?>
 <form method="post" class="card border-0 shadow-sm"><div class="card-body">
   <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="save">
@@ -190,12 +196,18 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
   <div class="ms-auto d-flex gap-2 flex-wrap">
     <a class="btn btn-sm btn-outline-secondary" href="konsultacjaPdf.php?id=<?= $id ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF</a>
-    <?php if ($card['status'] === 'draft'): ?>
-      <?php if ((int)$card['session_id']): ?>
+    <?php $_st = TiConsultations::stage($card); ?>
+    <?php if ((int)$card['session_id'] && in_array($_st, ['draft', 'signed'], true) && ($_st === 'draft' || $staff)): ?>
       <a class="btn btn-sm btn-outline-primary" href="konsultacjaTermin.php?session=<?= (int)$card['session_id'] ?>"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj w kartach terminu</a>
-      <?php else: ?>
-      <a class="btn btn-sm btn-outline-primary" href="konsultacja.php?id=<?= $id ?>&amp;edytuj=1"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj</a>
-      <?php endif; ?>
+    <?php elseif ($canEdit): ?>
+      <a class="btn btn-sm btn-outline-primary" href="konsultacja.php?id=<?= $id ?>&amp;edytuj=1" title="<?= $_st === 'signed' ? 'Zmiana treści cofnie podpis konsultanta' : '' ?>"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj<?= $_st === 'signed' ? ' (cofnie podpis)' : '' ?></a>
+    <?php elseif ($_st === 'approved' && $staff): ?>
+      <form method="post" class="d-inline" onsubmit="return confirm('Cofnąć zatwierdzenie kierownika? Karta wróci do etapu Podpisana.')">
+        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="mgr_unapprove">
+        <button class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Cofnij zatwierdzenie</button>
+      </form>
+    <?php endif; ?>
+    <?php if ($card['status'] === 'draft'): ?>
       <form method="post" class="d-inline" onsubmit="return confirm('Anulować tę kartę? Tej operacji nie można cofnąć.')">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="cancel">
         <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Anuluj kartę</button>

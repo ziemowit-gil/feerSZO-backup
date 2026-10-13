@@ -272,6 +272,53 @@ final class TiConsultations
         return false;
     }
 
+    /**
+     * Kto może edytować kartę na danym etapie: Robocza — konsultant karty, prowadzący terminu SzK i kadra;
+     * Podpisana — tylko kadra (zmiana treści cofa podpis, bo SHA1 podpisu obejmuje treść); Zatwierdzona i Anulowana — nikt.
+     */
+    public static function canEdit(array $card, int $uid, bool $staff): bool
+    {
+        $stage = self::stage($card);
+        if ($stage === 'approved' || $stage === 'cancelled') return false;
+        if ($stage === 'signed') return $staff;
+        return self::canAccess($card, $uid, $staff);
+    }
+
+    /** Powód braku edycji — do komunikatu. */
+    public static function editBlockReason(array $card): string
+    {
+        return match (self::stage($card)) {
+            'approved'  => 'Karta zatwierdzona przez kierownika — zmiany wymagają najpierw cofnięcia zatwierdzenia.',
+            'cancelled' => 'Karta anulowana.',
+            'signed'    => 'Karta podpisana — zmienić ją może kierownik (podpis zostanie cofnięty).',
+            default     => '',
+        };
+    }
+
+    /** Cofa podpis konsultanta (po zmianie treści przez kadrę): karta wraca do Roboczej, wpis w dzienniku konta. */
+    public static function unsign(int $id, int $uid, string $byName, string $why): void
+    {
+        db()->prepare("UPDATE k30_consultations SET status='draft', confirmed=0, approved_by_name='', sha1sum='', cert_fingerprint=NULL, cert_subject=NULL, ika_verified_at=NULL, updated_at=datetime('now') WHERE id=?")->execute([$id]);
+        try {
+            $k = db_one("SELECT client_id, card_no FROM k30_consultations WHERE id=?", [$id]);
+            $acc = $k ? db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id=?", [(int)$k['client_id']]) : null;
+            if ($acc && function_exists('ti_account_log')) ti_account_log((int)$acc['id'], 'consultation', 'Cofnięto podpis karty ' . ($k['card_no'] ?? '') . ' — ' . $why . '.', $uid ?: null, $byName);
+        } catch (\Throwable $e) {}
+    }
+
+    /** Kierownik cofa swoje zatwierdzenie (karta wraca do Podpisanej); EZD nie jest ruszane. */
+    public static function managerUnapprove(int $id, int $uid, string $byName): bool
+    {
+        $k = self::get($id);
+        if (!$k || self::stage($k) !== 'approved') return false;
+        db()->prepare("UPDATE k30_consultations SET mgr_approved_by=NULL, mgr_approved_name='', mgr_approved_at=NULL, updated_at=datetime('now') WHERE id=?")->execute([$id]);
+        try {
+            $acc = db_one("SELECT id FROM k30_ti_student_accounts WHERE client_id=?", [(int)$k['client_id']]);
+            if ($acc && function_exists('ti_account_log')) ti_account_log((int)$acc['id'], 'consultation', 'Kierownik cofnął zatwierdzenie karty ' . $k['card_no'] . '.', $uid ?: null, $byName);
+        } catch (\Throwable $e) {}
+        return true;
+    }
+
     // ── Numeracja KON.XXX.MM.RRRR ───────────────────────────────────────────
 
     /** Kolejny numer karty w miesiącu daty konsultacji (RRRR-MM-DD…). */
@@ -346,7 +393,7 @@ final class TiConsultations
      * duration, description, next_action.
      * @return array{ok:bool, id:int, errors:string[]}
      */
-    public static function saveStandalone(array $d, ?int $id, int $uid): array
+    public static function saveStandalone(array $d, ?int $id, int $uid, bool $staff = false, string $byName = ''): array
     {
         $err = [];
         $client = (int)($d['client_id'] ?? 0);
@@ -355,7 +402,7 @@ final class TiConsultations
         if (!$cl) $err[] = 'Wybierz beneficjenta.';
         if (!preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/', $dt)) $err[] = 'Podaj datę i godzinę konsultacji.';
         $old = $id ? self::get($id) : null;
-        if ($id && (!$old || $old['status'] !== 'draft')) $err[] = 'Edytować można tylko roboczą kartę.';
+        if ($id && (!$old || !self::canEdit($old, $uid, $staff))) $err[] = $old ? (self::editBlockReason($old) ?: 'Nie masz uprawnień do edycji tej karty.') : 'Nie znaleziono karty.';
         if ($err) return ['ok' => false, 'id' => (int)$id, 'errors' => $err];
         $dtDb = str_replace('T', ' ', substr($dt, 0, 16)) . ':00';
         if (isset($d['intake'])) {
@@ -379,7 +426,9 @@ final class TiConsultations
             foreach ($row as $k => $v) { $set[] = "$k=?"; $par[] = $v; }
             $par[] = $id;
             db()->prepare("UPDATE k30_consultations SET " . implode(',', $set) . ", updated_at=datetime('now') WHERE id=?")->execute($par);
-            return ['ok' => true, 'id' => $id, 'errors' => []];
+            $unsigned = false;
+            if ($old && self::stage($old) === 'signed') { self::unsign($id, $uid, $byName, 'zmiana treści przez ' . ($byName ?: 'kadrę')); $unsigned = true; }
+            return ['ok' => true, 'id' => $id, 'errors' => [], 'unsigned' => $unsigned];
         }
         $row += ['status' => 'draft', 'card_no' => self::cardNumber($dtDb), 'created_by' => $uid ?: null];
         $newId = (int)db_insert('k30_consultations', $row);
@@ -425,7 +474,7 @@ final class TiConsultations
      * $d: topic, description, next_action, duration, present: int[] (client_id), notes: [client_id => tekst].
      * @return array{ok:bool, msg:string, cards:int}
      */
-    public static function saveSession(int $sessionId, array $d, int $uid): array
+    public static function saveSession(int $sessionId, array $d, int $uid, bool $staff = false, string $byName = ''): array
     {
         $v = self::sessionView($sessionId);
         if (!$v) return ['ok' => false, 'msg' => 'Nie znaleziono terminu.', 'cards' => 0];
@@ -438,7 +487,7 @@ final class TiConsultations
         $topic = trim((string)($d['topic'] ?? '')) ?: mb_substr(trim(strtok($desc, "\n") ?: ''), 0, 200);
         $dt = $s['lesson_date'] . ' ' . (substr((string)$s['time_from'], 0, 5) ?: '00:00') . ':00';
         $consultant = (int)$s['eff_instructor'] ?: ($uid ?: null);
-        $pdo = db(); $pdo->beginTransaction();
+        $pdo = db(); $pdo->beginTransaction(); $unsigned = [];
         try {
             $n = 0;
             foreach ($v['people'] as $p) {
@@ -448,7 +497,8 @@ final class TiConsultations
                 $pdo->prepare("INSERT INTO k30_ti_attendance (session_id, client_id, attended) VALUES (?,?,?)
                                ON CONFLICT(session_id, client_id) DO UPDATE SET attended = excluded.attended")->execute([$sessionId, $cid, $isIn ? 1 : 0]);
                 $card = $v['cards'][$cid] ?? null;
-                if ($card && $card['status'] === 'completed') continue;   // zatwierdzona karta jest nienaruszalna
+                if ($card && self::stage($card) === 'approved') continue;   // zatwierdzona przez kierownika — nienaruszalna
+                if ($card && self::stage($card) === 'signed') { if (!$staff) continue; self::unsign((int)$card['id'], $uid, $byName, 'zmiana kart terminu przez ' . ($byName ?: 'kadrę')); $unsigned[] = $card['card_no']; }
                 $note = trim((string)($d['notes'][$cid] ?? ''));
                 $text = $desc . ($note !== '' ? "\n\n" . $note : '');
                 if ($isIn) {
@@ -480,6 +530,7 @@ final class TiConsultations
             return ['ok' => false, 'msg' => 'Nie udało się zapisać kart — spróbuj ponownie.', 'cards' => 0];
         }
         $msg = 'Zapisano karty konsultacji: ' . $n . '.';
+        if ($unsigned) $msg .= ' Cofnięto podpis kart: ' . implode(', ', $unsigned) . ' — wymagają ponownego podpisu.';
         if (!$present) $msg .= ' Nikt nie był obecny — lekcja nie została oznaczona jako odbyta.';
         elseif ((string)$s['lesson_date'] > date('Y-m-d')) $msg .= ' Termin jeszcze nie minął — status lekcji bez zmian.';
         return ['ok' => true, 'msg' => $msg, 'cards' => $n];
@@ -605,7 +656,7 @@ final class TiConsultations
                 . '<tr><th>SHA1 danych karty</th><td class="mono">' . $e($k['sha1sum']) . '</td></tr>'
                 . '<tr><th>Zatwierdzenie kierownika</th><td>' . (!empty($k['mgr_approved_at']) ? $e($k['mgr_approved_name']) . ', ' . $e(date('d.m.Y H:i', strtotime((string)$k['mgr_approved_at']))) : 'oczekuje') . '</td></tr></table>';
         } else {
-            $h .= '<p class="muted">Karta bez podpisu elektronicznego — do podpisu odręcznego.</p>';
+            $h .= '<p class="muted">Karta robocza — bez podpisu elektronicznego; dokument do podpisu odręcznego.</p>';
         }
         // Podpisy odręczne: beneficjent zawsze; konsultant — gdy karta nie jest podpisana elektronicznie (IKA + x509)
         $h .= '<table class="sig"><tr><td>' . "\n\n" . '</td><td></td></tr><tr><th>data i podpis beneficjenta / opiekuna</th>'
@@ -622,8 +673,8 @@ final class TiConsultations
                 .mono{font-family:dejavusansmono;font-size:8pt}.muted{color:#555}
                 table.sig{width:100%;margin-top:14mm;border-collapse:separate;border-spacing:8mm 0}table.sig td{height:14mm}
                 table.sig th{border-top:0.3mm solid #333;font-weight:normal;font-size:8.5pt;text-align:center;padding-top:1.5mm;width:50%}</style>';
-        $parts = [];
-        foreach ($ids as $id) if ($k = self::get((int)$id)) $parts[] = self::cardHtml($k);
+        $parts = []; $marks = [];
+        foreach ($ids as $id) if ($k = self::get((int)$id)) { $parts[] = self::cardHtml($k); $marks[] = self::watermark($k); }
         require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
         $tmp = (defined('UPLOAD_DIR') ? UPLOAD_DIR : sys_get_temp_dir() . '/') . 'mpdf_tmp';
         if (!is_dir($tmp)) @mkdir($tmp, 0755, true);
@@ -631,8 +682,22 @@ final class TiConsultations
                                 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
         $pdf->SetTitle('Karta konsultacji');
         $pdf->SetFooter((defined('ORG_NAME') ? ORG_NAME : '') . '||{PAGENO}/{nbpg}');
-        $pdf->WriteHTML($css . implode('<pagebreak />', $parts ?: ['<p>Brak kart.</p>']));
+        // Znak wodny per karta: ROBOCZA / NIEPODPISANA (podpisana, bez zatwierdzenia kierownika); zatwierdzona — bez znaku
+        $pdf->WriteHTML($css);
+        foreach ($parts as $i => $html) {
+            if ($i > 0) $pdf->AddPage();
+            $pdf->SetWatermarkText($marks[$i], $marks[$i] !== '' ? 0.13 : 0);
+            $pdf->showWatermarkText = $marks[$i] !== '';
+            $pdf->WriteHTML($html);
+        }
+        if (!$parts) $pdf->WriteHTML('<p>Brak kart.</p>');
         return $pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN);
+    }
+
+    /** Tekst znaku wodnego dla etapu karty ('' = bez znaku). */
+    public static function watermark(array $k): string
+    {
+        return match (self::stage($k)) { 'draft' => 'ROBOCZA', 'signed' => 'NIEPODPISANA', 'cancelled' => 'ANULOWANA', default => '' };
     }
 
     public static function pdfName(array $k): string

@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = TiConsultations::saveSession($sid, [
             'topic' => (string)($_POST['topic'] ?? ''), 'description' => (string)($_POST['description'] ?? ''), 'next_action' => (string)($_POST['next_action'] ?? ''),
             'duration' => (int)($_POST['duration'] ?? 0), 'present' => (array)($_POST['present'] ?? []), 'notes' => $notes,
-        ], $uid);
+        ], $uid, $staff, (string)($me['name'] ?? ''));
         flash_set($res['ok'] ? 'success' : 'danger', $res['msg']);
     } elseif ($op === 'mgr_approve_all' && $staff) {
         $ids = array_map(fn($c) => (int)$c['id'], array_filter($view['cards'], fn($c) => TiConsultations::stage($c) === 'signed'));
@@ -94,7 +94,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <textarea class="form-control" id="kt-next" name="next_action" rows="2"><?= h((string)($first['next_action'] ?? '')) ?></textarea></div>
 
   <fieldset class="mb-3"><legend class="h6 fw-bold">Uczestnicy — obecność i karta</legend>
-  <?php foreach ($people as $p): $cid = (int)$p['client_id']; $c = $cards[$cid] ?? null; $locked = $c && $c['status'] === 'completed';
+  <?php foreach ($people as $p): $cid = (int)$p['client_id']; $c = $cards[$cid] ?? null; $_cs = $c ? TiConsultations::stage($c) : 'draft';
+        $locked = $_cs === 'approved' || ($_cs === 'signed' && !$staff);   // zatwierdzona — nikt; podpisana — tylko kadra (cofa podpis)
         $st = $c ? ($ST[$c['status']] ?? null) : null; $present = $c ? true : ((int)($p['attended'] ?? 0) === 1); ?>
   <div class="border rounded p-2 mb-2">
     <div class="d-flex flex-wrap align-items-center gap-2">
@@ -107,7 +108,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <?php if (!$locked): ?>
     <label class="form-label small mb-0 mt-1" for="kt-n<?= $cid ?>">Uwagi tylko do karty tej osoby (opcjonalnie)</label>
     <input class="form-control form-control-sm" id="kt-n<?= $cid ?>" name="note[<?= $cid ?>]">
-    <?php else: ?><div class="small text-body-secondary mt-1">Karta zatwierdzona — bez zmian.</div><?php endif; ?>
+    <?php else: ?><div class="small text-body-secondary mt-1"><?= $_cs === 'approved' ? 'Karta zatwierdzona przez kierownika — bez zmian.' : 'Karta podpisana — zmienić ją może kierownik (cofnie podpis).' ?></div><?php endif; ?>
+    <?php if ($_cs === 'signed' && $staff): ?><div class="small text-warning-emphasis mt-1">Karta podpisana — zapis zmian cofnie podpis konsultanta.</div><?php endif; ?>
   </div>
   <?php endforeach; ?>
   <?php if (!$people): ?><p class="small text-body-secondary">Brak aktywnych uczestników grupy.</p><?php endif; ?>
