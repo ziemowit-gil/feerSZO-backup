@@ -2944,7 +2944,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Wiersz pojedynczej lekcji — współdzielony przez obie grupy
-    $lessonRow = function(array $l) use ($months_pl, $vlab_token, $hw_by_session, $resch_pending, $KUR_UI) {
+    $lessonRow = function(array $l) use ($months_pl, $vlab_token, $hw_by_session, $resch_pending, $KUR_UI, $KUR_SIMPLE) {
             $d   = new DateTime($l['lesson_date']);
             $dow = ['Nd','Pn','Wt','Śr','Czw','Pt','Sb'][(int)$d->format('w')];
             $enroll_link = trim((string)($l['enrollment_meeting_url'] ?? ''));
@@ -2968,6 +2968,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <?= h($l['topic']) ?>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
             </td>
+            <?php if (!$KUR_SIMPLE): /* kursant uproszczony nie ma zakładki zadań — bez kolumny „Zadanie” */ ?>
             <td style="max-width:220px">
               <?php $lesson_hws = $hw_by_session[(int)$l['id']] ?? [];
                 if ($lesson_hws): ?>
@@ -2986,6 +2987,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <a href="?tab=zadania" class="badge text-bg-warning text-decoration-none">do oddania</a>
               <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
             </td>
+            <?php endif; ?>
             <td class="kp-kol-typ">
               <?php if (!empty($l['self_prep_remote'])): ?>
               <span class="badge text-bg-info"><i class="bi bi-laptop me-1" aria-hidden="true"></i>Przygotowanie materiałów</span>
@@ -3154,7 +3156,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <thead>
           <tr>
             <th scope="col">Data</th><th scope="col">Kurs</th><th scope="col">Godziny</th>
-            <th scope="col">Temat</th><th scope="col">Zadanie</th><th scope="col" class="kp-kol-typ">Typ lekcji</th>
+            <th scope="col">Temat</th><?php if (!$KUR_SIMPLE): ?><th scope="col">Zadanie</th><?php endif; ?><th scope="col" class="kp-kol-typ">Typ lekcji</th>
             <th scope="col" class="text-center">Obecność</th><th scope="col">Uwagi</th>
             <th scope="col" class="text-end">Akcje</th>
           </tr>
