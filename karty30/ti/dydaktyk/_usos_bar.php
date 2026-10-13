@@ -176,8 +176,15 @@ if (dyd_plan_cykliczny_enabled()) {
     $_usos_sections['start']['items'][] = $_it('cykliczne', 'Plan cykliczny', $_g('cykliczne'));
 }
 
+// Tryb pracy (choose_mode.php): w Kursach bez sekcji Konsultacje, w Konsultacjach tylko Konsultacje, Komunikacja i Kierownik
+if (function_exists('dyd_mode')) {
+    $_usos_sections = dyd_mode() === 'konsultacje'
+        ? array_intersect_key($_usos_sections, array_flip(['konsultacje', 'komunikacja', 'kierownik']))
+        : array_diff_key($_usos_sections, ['konsultacje' => 1]);
+}
+
 // Sekcja otwarta = ta, która zawiera bieżącą zakładkę
-$_usos_cur = 'start';
+$_usos_cur = isset($_usos_sections['start']) ? 'start' : (string)array_key_first($_usos_sections);
 foreach ($_usos_sections as $_k => $_s) {
     foreach ($_s['items'] as $_i) {
         if ($_i['tab'] !== '' && $_i['tab'] === $tab) { $_usos_cur = $_k; break 2; }

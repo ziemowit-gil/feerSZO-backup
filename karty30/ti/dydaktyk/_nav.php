@@ -43,12 +43,21 @@ const DYD_NAV_PAGES = [
 /** Sekcje pierwszego poziomu: klucz => [etykieta, adres]. */
 function dyd_nav_sections(): array {
     $c = (int)($GLOBALS['cur_course'] ?? 0);
+    // Tryb Konsultacje (choose_mode.php): menu tylko do konsultacji — karty, komunikacja, certyfikat (+ Kierownik)
+    if (function_exists('dyd_mode') && dyd_mode() === 'konsultacje') {
+        $s = [
+            'konsultacje' => ['Konsultacje', 'konsultacje.php'],
+            'komunikacja' => ['Komunikacja', 'index.php?tab=wiadomosci'],
+            'certyfikat'  => ['Certyfikat',  'moj_certyfikat.php'],
+        ];
+        if (function_exists('dyd_is_staff') && dyd_is_staff()) $s['kierownik'] = ['Kierownik', 'index.php?tab=grupy'];
+        return $s;
+    }
     $s = [
         'start'       => ['Mój panel',   'index.php?tab=pulpit'],
         'kurs'        => ['Kurs',        $c ? 'index.php?course=' . $c . '&tab=lekcje' : 'index.php?tab=lekcje'],
         'komunikacja' => ['Komunikacja', 'index.php?tab=wiadomosci'],
         'zasoby'      => ['Zasoby',      'index.php?tab=dysk'],
-        'konsultacje' => ['Konsultacje', 'konsultacje.php'],
         'certyfikat'  => ['Certyfikat',  'moj_certyfikat.php'],
     ];
     if (function_exists('dyd_is_staff') && dyd_is_staff()) $s['planowanie'] = ['Planowanie', 'planista.php'];
@@ -118,6 +127,9 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
             $items[] = ['Wróć do swojego konta', 'choose_context.php?role=staff', 'arrow-return-left'];
         } elseif (!empty($s['is_staff'])) {
             $items[] = ['Zmień rolę / kontekst', 'choose_context.php', 'arrow-left-right'];
+        }
+        if (function_exists('dyd_modes_available') && count(dyd_modes_available($s)) > 1) {
+            $items[] = [dyd_mode() === 'konsultacje' ? 'Zmień tryb pracy (teraz: Konsultacje)' : 'Zmień tryb pracy (teraz: Kursy)', 'choose_mode.php', 'signpost-split'];
         }
         // „Pracujesz jako: …” widoczne wprost w pasku (dawniej akapit w treści
         // index.php); link do zmiany roli — gdy kierownik ma własne grupy albo

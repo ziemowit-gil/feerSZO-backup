@@ -226,6 +226,14 @@ function dyd_require(): array {
         $_SESSION['k30_dyd_ctx']['role'] = 'staff'; // nic do wyboru — ustal raz i nie pytaj więcej
     }
 
+    // Tryb pracy: Kursy albo Konsultacje (choose_mode.php) — wybór raz na sesję, gdy dostępne są oba;
+    // przy jednym dostępnym trybie ustawiany sam. Od trybu zależy menu (dyd_nav_sections) i ekran startowy.
+    if (!isset($_SESSION['k30_dyd_ctx']['mode'])) {
+        $_modes = dyd_modes_available($s);
+        if (count($_modes) > 1) { header('Location: choose_mode.php'); exit; }
+        $_SESSION['k30_dyd_ctx']['mode'] = $_modes[0] ?? 'kursy';
+    }
+
     // Pełne wcielenie w wybranego prowadzącego (patrz choose_context.php, opcja
     // „Wejdź jako inny prowadzący"). Od tego miejsca $s['user_id']/name/email to
     // dane WSKAZANEGO prowadzącego — dalsze dyd_owns_course()/dyd_owns_session()
@@ -273,6 +281,26 @@ function dyd_instructor_switch_log(int $kierownik_user_id, int $instructor_user_
 /** Rola robocza kierownika-prowadzącego w tej sesji: 'staff'|'instructor'|'' (zwykły użytkownik, brak wyboru). */
 function dyd_ctx_role(): string {
     return (string)($_SESSION['k30_dyd_ctx']['role'] ?? '');
+}
+
+/**
+ * Tryby pracy dostępne dla zalogowanego: 'kursy' (kierownik, prowadzący z kursami, rola panelu) i 'konsultacje'
+ * (kierownik albo doradca TI — users.k30_consultant). Pusta lista = konto tylko do Analityki → traktujemy jak 'kursy'.
+ */
+function dyd_modes_available(?array $s = null): array {
+    $s ??= dyd_current();
+    if (!$s) return [];
+    $uid   = (int)($s['user_id'] ?? 0);
+    $staff = !empty($s['is_staff']);
+    $out = [];
+    if ($staff || ($s['panel_role'] ?? '') !== '' || k30_ti_instructor_courses($uid, false)) $out[] = 'kursy';
+    if ($staff || !empty(db_one("SELECT k30_consultant FROM users WHERE id=?", [$uid])['k30_consultant'])) $out[] = 'konsultacje';
+    return $out;
+}
+
+/** Bieżący tryb pracy: 'kursy' (domyślnie) albo 'konsultacje'. */
+function dyd_mode(): string {
+    return (($_SESSION['k30_dyd_ctx']['mode'] ?? '') === 'konsultacje') ? 'konsultacje' : 'kursy';
 }
 
 /** Token CSRF panelu dydaktyka (osobna sesja k30_dydaktyk). */
