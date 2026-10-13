@@ -81,10 +81,14 @@ $ok     = $_GET['ok'] ?? '';
     <p class="mb-0">Możesz mieć kilka kluczy. Logowanie kluczem działa po pierwszym logowaniu i po ustawieniu obrazka bezpieczeństwa.</p>
   </div>
 
-  <?php if (($_GET['nowy'] ?? '') === '1'): ?>
-  <div class="alert alert-success small py-2 rounded-0" role="status">Hasło zostało zapisane. Klucz możesz dodać teraz albo później.
-    <a class="d-inline-block mt-2 btn btn-sm metro-btn" href="<?= h(APP_URL) ?>/karty30/ti/kursant/index.php">Przejdź do panelu</a>
+  <?php /* Dwa duże przyciski wyboru pod opisem: dodanie klucza (przewija do formularza) albo rezygnacja — bez klucza wszystko działa po staremu (SMS). */ ?>
+  <div class="d-grid gap-2 mb-3">
+    <a class="btn btn-lg metro-btn" href="#kl-form" id="kl-chce">Chcę dodać klucz</a>
+    <a class="btn btn-lg btn-outline-dark rounded-0 fw-semibold" href="<?= h(APP_URL) ?>/karty30/ti/kursant/index.php">Nie mam klucza albo nie chcę korzystać<span class="d-block small fw-normal">Przejdź do panelu — logowanie zostaje jak dotąd (hasło i kod SMS)</span></a>
   </div>
+
+  <?php if (($_GET['nowy'] ?? '') === '1'): ?>
+  <div class="alert alert-success small py-2 rounded-0" role="status">Hasło zostało zapisane. Klucz możesz dodać teraz albo później.</div>
   <?php endif; ?>
   <?php if ($ok === 'usun'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz usunięty.</div><?php endif; ?>
   <?php if ($ok === 'dodany'): ?><div class="alert alert-success small py-2 rounded-0" role="status">Klucz dodany.</div><?php endif; ?>
@@ -147,6 +151,9 @@ $ok     = $_GET['ok'] ?? '';
     document.getElementById('kl-dodaj').disabled = true;
     return;
   }
+  document.getElementById('kl-chce').addEventListener('click', function (e) {
+    e.preventDefault(); var f = document.getElementById('kl-form'); f.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.getElementById('kl-name').focus();
+  });
   document.getElementById('kl-form').addEventListener('submit', function (e) {
     e.preventDefault();
     blad.classList.add('d-none');
