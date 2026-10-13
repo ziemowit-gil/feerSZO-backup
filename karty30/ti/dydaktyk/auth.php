@@ -233,7 +233,7 @@ function dyd_require(): array {
     }
     if ($_need) { header('Location: choose_mode.php'); exit; }
     // Osoba tylko z Konsultacjami: ekrany Szkoleń są niedostępne (wiadomości i komunikaty — tak)
-    if ($_modes === ['konsultacje'] && !dyd_konsultacje_page()) { header('Location: konsultacje.php'); exit; }
+    if ($_modes === ['konsultacje'] && !dyd_konsultacje_page()) { header('Location: rezerwacje.php'); exit; }
 
     // Pełne wcielenie w wybranego prowadzącego (patrz choose_context.php, opcja
     // „Wejdź jako inny prowadzący"). Od tego miejsca $s['user_id']/name/email to

@@ -25,7 +25,7 @@ $apply = function (?string $role, ?string $mode) use ($modes, $askRole): void {
     }
     if ($mode !== null && in_array($mode, $modes, true)) $_SESSION['k30_dyd_ctx']['mode'] = $mode;
 };
-$go = fn() => header('Location: ' . (dyd_mode() === 'konsultacje' ? 'konsultacje.php' : 'index.php'));
+$go = fn() => header('Location: ' . (dyd_mode() === 'konsultacje' ? 'rezerwacje.php' : 'index.php'));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();

@@ -31,7 +31,8 @@ const DYD_NAV_TABS = [
 const DYD_NAV_PAGES = [
     'start' => ['protokoly_moje.php', 'rekrutacja.php', 'urlopy.php', 'mojeZgloszenia.php', 'kartaKursanta.php', 'godziny.php', 'umowa.php'],
     'certyfikat' => ['moj_certyfikat.php', 'certyfikaty.php'],
-    'konsultacje' => ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'grupaUproszczona.php'],
+    'konsultacje' => ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'grupaUproszczona.php',
+                      'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
     'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
@@ -46,7 +47,7 @@ function dyd_nav_sections(): array {
     // Tryb Konsultacje (choose_mode.php): menu tylko do konsultacji — karty, komunikacja, certyfikat (+ Kierownik)
     if (function_exists('dyd_mode') && dyd_mode() === 'konsultacje') {
         $s = [
-            'konsultacje' => ['Konsultacje', 'konsultacje.php'],
+            'konsultacje' => ['Konsultacje', 'rezerwacje.php'],
             'komunikacja' => ['Komunikacja', 'index.php?tab=wiadomosci'],
             'certyfikat'  => ['Certyfikat',  'moj_certyfikat.php'],
         ];

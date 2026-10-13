@@ -31,8 +31,8 @@ k30_ti_reschedule_migrate();
 ti_notices_migrate();
 ti_planner_ext_migrate();
 $me  = dyd_require();
-// Tryb Konsultacje: ekranem startowym są karty konsultacji (wejście bez parametrów — np. po zalogowaniu)
-if (dyd_mode() === 'konsultacje' && !$_GET && $_SERVER['REQUEST_METHOD'] === 'GET') { header('Location: konsultacje.php'); exit; }
+// Tryb Konsultacje: ekranem startowym są rezerwacje terminów (wejście bez parametrów — np. po zalogowaniu)
+if (dyd_mode() === 'konsultacje' && !$_GET && $_SERVER['REQUEST_METHOD'] === 'GET') { header('Location: rezerwacje.php'); exit; }
 $uid = (int)$me['user_id'];
 
 // ── Bramka przerwy technicznej (tylko dla prowadzących, nie dla staff/admin) ──
