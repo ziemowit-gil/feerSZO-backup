@@ -375,6 +375,17 @@ if ($auth_role === 'authp') {
     }
 }
 
+// „Kursant uproszczony” (simple_mode) — tylko terminy zajęć, jak w klasycznym panelu (STUDENT_SIMPLE_* w kursant/auth.php)
+if (in_array($auth_role, ['student', 'impersonation'], true)) {
+    $simple = false;
+    try { $simple = !empty(db_one("SELECT simple_mode FROM k30_ti_student_accounts WHERE id=?", [(int)$student_id])['simple_mode']); } catch (\Throwable $e) {}
+    $simple_allowed = ['dashboard', 'lessons', 'logout', 'cancel_lesson', 'uncancel_lesson', 'rate_lesson', 'propose_reschedule',
+                       'terms', 'accept_term', 'cal_token_reset', 'change_password', 'push_vapid_key', 'push_subscribe', 'push_unsubscribe'];
+    if ($simple && !in_array($action, $simple_allowed, true)) {
+        json_err('Twoje konto ma dostęp tylko do terminów zajęć.', 403);
+    }
+}
+
 // ── Helper: load student + client ─────────────────────────────────────────────
 function load_student(int $sid): array {
     global $pdo;

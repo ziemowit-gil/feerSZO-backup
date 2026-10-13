@@ -117,7 +117,35 @@ function student_require(): array {
         header('Location: login.php');
         exit;
     }
+    // „Kursant uproszczony” widzi tylko terminy zajęć — każda inna strona panelu wraca do Moich lekcji
+    if (student_is_simple((int)$s['id']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), STUDENT_SIMPLE_PAGES, true)) {
+        header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'index.php?tab=lekcje');
+        exit;
+    }
     return $s;
+}
+
+/**
+ * „Kursant uproszczony” (k30_ti_student_accounts.simple_mode, przełącznik w dydaktyk/konta.php):
+ * dostęp tylko do części z terminami — zakładka „Moje lekcje” (lista, odwołanie / przesunięcie, usprawiedliwienie),
+ * plan tygodniowy, wydruki i eksport lekcji, kalendarz iCal, regulaminy. Reszta panelu, menu i API newUI zamknięte.
+ */
+const STUDENT_SIMPLE_PAGES = ['index.php', 'choose_group.php', 'lessons_pdf.php', 'lessons_export.php', 'plan_librus.php',
+                              'plan_librus_pdf.php', 'terms_pdf.php', 'push_subscribe.php', 'sec_choose.php', 'sec_image.php'];
+/** Zakładki index.php dostępne w trybie uproszczonym. */
+const STUDENT_SIMPLE_TABS  = ['lekcje', 'regulaminy'];
+/** Operacje POST index.php dostępne w trybie uproszczonym (wszystkie dotyczą terminów). */
+const STUDENT_SIMPLE_OPS   = ['cancel_lesson', 'uncancel_lesson', 'excuse_absence', 'propose_reschedule', 'rate_lesson',
+                              'reset_calendar_token', 'cal_token_reset', 'accept_term', 'change_password'];
+
+function student_is_simple(int $accountId): bool {
+    static $cache = [];
+    if ($accountId <= 0) return false;
+    if (!array_key_exists($accountId, $cache)) {
+        try { $cache[$accountId] = !empty(db_one("SELECT simple_mode FROM k30_ti_student_accounts WHERE id=?", [$accountId])['simple_mode']); }
+        catch (\Throwable $e) { $cache[$accountId] = false; }   // kolumna jeszcze bez migracji
+    }
+    return $cache[$accountId];
 }
 
 /** Token CSRF dla panelu kursanta (osobna sesja k30_student). */

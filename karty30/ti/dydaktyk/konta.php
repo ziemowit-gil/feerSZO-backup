@@ -358,6 +358,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid); exit;
     }
 
+    if ($op === 'toggle_simple') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
+        if ($acc) {
+            $v = empty($acc['simple_mode']) ? 1 : 0;
+            db()->prepare("UPDATE k30_ti_student_accounts SET simple_mode=?, updated_at=datetime('now') WHERE id=?")->execute([$v, $aid]);
+            if (function_exists('ti_account_log')) ti_account_log($aid, 'simple_mode', $v ? 'Włączono tryb „Kursant uproszczony” (tylko terminy zajęć).' : 'Wyłączono tryb „Kursant uproszczony”.', (int)($me['user_id'] ?? 0) ?: null, (string)($me['name'] ?? ''));
+            flash_set('success', $v ? 'Kursant uproszczony: w panelu widzi tylko terminy zajęć (Moje lekcje) — może je odwołać, przesunąć lub usprawiedliwić nieobecność. Reszta panelu jest ukryta.'
+                                    : 'Kursant ma znów dostęp do całego panelu.');
+        }
+        header('Location: konta.php?selected=' . $aid); exit;
+    }
+
     if ($op === 'toggle_virtual') {
         $aid = (int)($_POST['account_id'] ?? 0);
         $acc = db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]);
@@ -1137,6 +1150,9 @@ function printBulk(){
     <?php if (!empty($sa['is_minor'])): ?>
     <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-people" aria-hidden="true"></i> małoletni</span>
     <?php endif; ?>
+    <?php if (!empty($sa['simple_mode'])): ?>
+    <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-calendar-check" aria-hidden="true"></i> uproszczony — tylko terminy</span>
+    <?php endif; ?>
     <?php if (!empty($sa['child_access_blocked'])): ?>
     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-lock-fill" aria-hidden="true"></i> wstrzymany przez opiekuna</span>
     <?php endif; ?>
@@ -1350,6 +1366,14 @@ function printBulk(){
               <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
               <button type="submit" class="btn btn-sm btn-outline-secondary">
                 <i class="bi <?= $sa['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-1" aria-hidden="true"></i><?= $sa['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
+              </button>
+            </form>
+            <form method="post">
+              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op"        value="toggle_simple">
+              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+              <button type="submit" class="btn btn-sm <?= !empty($sa['simple_mode']) ? 'btn-warning' : 'btn-outline-secondary' ?>" title="Kursant uproszczony widzi w panelu tylko terminy zajęć (Moje lekcje): odwołanie, przesunięcie, usprawiedliwienie, plan i wydruk lekcji">
+                <i class="bi bi-calendar-check me-1" aria-hidden="true"></i><?= !empty($sa['simple_mode']) ? 'Kursant uproszczony: TAK (wyłącz)' : 'Kursant uproszczony (tylko terminy)' ?>
               </button>
             </form>
             <form method="post">

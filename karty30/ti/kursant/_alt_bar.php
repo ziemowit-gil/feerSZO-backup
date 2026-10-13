@@ -11,7 +11,7 @@
  * zakładek z rozwijanymi grupami wszystko widać wprost.
  *
  * Zmienne z index.php: $tab, $is_minor, $hw_pending_total, $notices_unread,
- * $msg_unread, $my_licenses, $terms_pending, $ui_switch_url.
+ * $msg_unread, $my_licenses, $terms_pending, $ui_switch_url, $KUR_SIMPLE (kursant uproszczony).
  */
 
 $_g = fn(string $t) => 'index.php?tab=' . $t;
@@ -104,8 +104,21 @@ $_alt_sections = [
     ],
 ];
 
+// „Kursant uproszczony” — jedna sekcja: terminy zajęć (+ regulaminy do akceptacji)
+if (!empty($KUR_SIMPLE)) {
+    $_alt_sections = ['nauka' => [
+        'label' => 'Moje lekcje',
+        'href'  => $_g('lekcje'),
+        'items' => [
+            $_it('lekcje', 'Moje lekcje', $_g('lekcje')),
+            $_it('',       'Odwołaj lub przesuń zajęcia', 'index.php?tab=lekcje&akcja=zmien#najblizsze-lekcje'),
+            ...($_n_terms > 0 ? [$_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger')] : []),
+        ],
+    ]];
+}
+
 // Sekcja otwarta = ta, która zawiera bieżącą zakładkę
-$_alt_cur = 'start';
+$_alt_cur = array_key_first($_alt_sections);   // domyślnie pierwsza sekcja (Mój panel; u kursanta uproszczonego — Moje lekcje)
 foreach ($_alt_sections as $_k => $_s) {
     foreach ($_s['items'] as $_i) {
         if ($_i['tab'] !== '' && $_i['tab'] === $tab) { $_alt_cur = $_k; break 2; }
