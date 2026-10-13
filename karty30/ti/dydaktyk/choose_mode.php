@@ -25,7 +25,16 @@ $apply = function (?string $role, ?string $mode) use ($modes, $askRole): void {
     }
     if ($mode !== null && in_array($mode, $modes, true)) $_SESSION['k30_dyd_ctx']['mode'] = $mode;
 };
-$go = fn() => header('Location: ' . (dyd_mode() === 'konsultacje' ? 'rezerwacje.php' : 'index.php'));
+// Grupa, na której pracujesz (tryb Szkolenia): kierownik — wszystkie aktywne, prowadzący — własne; zapamiętywana jak wybór w panelu
+$groups = !empty($s['is_staff']) ? k30_ti_courses(true) : k30_ti_instructor_courses((int)$s['user_id'], true);
+$groupIds = array_map(fn($c) => (int)$c['id'], $groups);
+$prefGroup = function_exists('dyd_pref') ? (int)dyd_pref((int)$s['user_id'], 'dyd_last_course') : 0;
+$go = function () use ($groupIds) {
+    $g = (int)($_POST['course'] ?? 0);
+    if (dyd_mode() === 'konsultacje') header('Location: rezerwacje.php');
+    elseif ($g && in_array($g, $groupIds, true)) header('Location: index.php?course=' . $g . '&tab=pulpit');   // index.php zapamiętuje wybór
+    else header('Location: index.php');
+};
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
@@ -90,6 +99,16 @@ $opt = function (string $name, string $value, bool $checked, string $icon, strin
       </div>
       <?php endif; ?>
     </div>
+    <?php if ($groups): ?>
+    <div class="card border-0 shadow-sm mt-3" id="cm-group"><div class="card-body">
+      <label class="form-label fw-semibold mb-1" for="cm-course">Grupa, na której pracujesz <span class="fw-normal small text-body-secondary">(Szkolenia)</span></label>
+      <select class="form-select" id="cm-course" name="course" style="max-width:32rem">
+        <option value="0">— wybiorę w panelu —</option>
+        <?php foreach ($groups as $g): ?><option value="<?= (int)$g['id'] ?>"<?= (int)$g['id'] === $prefGroup ? ' selected' : '' ?>><?= h($g['name']) ?><?= trim((string)($g['display_name'] ?? '')) !== '' ? ' — ' . h($g['display_name']) : '' ?></option><?php endforeach; ?>
+      </select>
+      <div class="form-text">Panel otworzy się od razu na tej grupie i zapamięta ją na kolejne logowania; zmienisz ją w każdej chwili przełącznikiem grupy u góry.</div>
+    </div></div>
+    <?php endif; ?>
     <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
       <button type="submit" class="btn btn-primary"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przejdź do panelu</button>
       <?php if (!empty($s['is_staff'])): ?><a class="small" href="choose_context.php">Wejdź jako inny prowadzący…</a><?php endif; ?>
@@ -97,4 +116,11 @@ $opt = function (string $name, string $value, bool $checked, string $icon, strin
   </form>
 </div>
 </main>
+<script>
+(function () {   // pole grupy tylko przy trybie Szkolenia
+  var box = document.getElementById('cm-group'); if (!box) return;
+  function sync() { var m = document.querySelector('input[name=mode]:checked'); box.hidden = !!m && m.value !== 'kursy'; }
+  document.querySelectorAll('input[name=mode]').forEach(function (r) { r.addEventListener('change', sync); }); sync();
+})();
+</script>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
