@@ -57,7 +57,18 @@ if ($method === 'GET') {
     $sql  = "SELECT * FROM crm_web_forms WHERE is_active=1" . ($slug ? " AND slug=?" : '') . " ORDER BY title";
     $rows = db_all($sql, $slug ? [$slug] : []);
 
-    $out = array_map(function (array $f) {
+    // Pola wbudowane kartoteki — w fields_json jest tylko klucz, etykieta i typ są tutaj.
+    $builtin = [
+        'imie_nazwisko' => ['Imię i nazwisko', 'text'],  'email'       => ['Adres e-mail', 'email'],
+        'telefon'       => ['Telefon', 'tel'],           'organizacja' => ['Organizacja', 'text'],
+        'stanowisko'    => ['Stanowisko', 'text'],       'adres'       => ['Adres', 'text'],
+        'notatka'       => ['Wiadomość / Notatka', 'textarea'], 'wojewodztwo' => ['Województwo', 'text'],
+        'powiat'        => ['Powiat', 'text'],           'gmina'       => ['Gmina', 'text'],
+    ];
+    $defs = [];
+    foreach (db_all("SELECT id, label, field_type, options FROM crm_contact_field_defs") as $d) $defs[(int)$d['id']] = $d;
+
+    $out = array_map(function (array $f) use ($builtin, $defs) {
         $fields   = json_decode((string)$f['fields_json'],   true) ?: [];
         $consents = json_decode((string)($f['consents_json'] ?? '[]'), true) ?: [];
         return [
@@ -65,13 +76,25 @@ if ($method === 'GET') {
             'title'       => $f['title'],
             'description' => $f['description'],
             // Nazwy pól to KONTRAKT: CMS musi przysłać dokładnie te klucze.
-            'fields' => array_map(fn($x) => [
-                'name'     => $x['name']  ?? '',
-                'label'    => $x['label'] ?? '',
-                'type'     => $x['type']  ?? 'text',
-                'required' => !empty($x['required']),
-                'field_def_id' => isset($x['field_def_id']) ? (int)$x['field_def_id'] : null,
-            ], $fields),
+            // Pole dodatkowe CRM (type=custom) bez klucza CMS wysyła w "custom" po field_def_id;
+            // etykieta, typ i opcje pochodzą z jego definicji w kartotece.
+            'fields' => array_map(function ($x) use ($builtin, $defs) {
+                $defId = isset($x['field_def_id']) ? (int)$x['field_def_id'] : null;
+                $def   = $defId ? ($defs[$defId] ?? null) : null;
+                $name  = (string)($x['name'] ?? '');
+                $type  = $def ? (string)$def['field_type'] : ($builtin[$name][1] ?? (string)($x['type'] ?? 'text'));
+                return [
+                    'name'         => $name,
+                    'label'        => (string)($x['label'] ?? '') ?: ($def['label'] ?? ($builtin[$name][0] ?? '')),
+                    'type'         => $type,
+                    'required'     => !empty($x['required']),
+                    'field_def_id' => $defId,
+                    'options'      => $def && $type === 'select'
+                                        ? array_values(array_filter(array_map('trim', explode(',', (string)$def['options'])), 'strlen'))
+                                        : [],
+                    'placeholder'  => (string)($x['placeholder'] ?? ''),
+                ];
+            }, $fields),
             'consents' => array_map(fn($c) => [
                 'id'       => (string)($c['id'] ?? ''),
                 'text'     => (string)($c['text'] ?? ''),
