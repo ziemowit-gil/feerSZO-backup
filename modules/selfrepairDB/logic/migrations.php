@@ -166,4 +166,13 @@ return [
         },
     ],
 
+    '2026-10_ti_terms_audience_defaults' => [
+        'desc' => 'Regulaminy TI: vLAB i oświadczenie o poufności licencji — odbiorcy „kursanci szkoleń + uczestnicy SzK” (beneficjenci konsultacji z nich nie korzystają)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/includes/ti_terms.php';
+            ti_terms_migrate();
+            db()->exec("UPDATE k30_ti_terms SET audience='kursanci,szk' WHERE type IN ('vlab','licencje') AND COALESCE(audience,'') = ''");
+        },
+    ],
+
 ];

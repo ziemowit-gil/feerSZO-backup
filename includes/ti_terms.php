@@ -13,6 +13,13 @@ const TI_TERM_TYPES = [
     'licencje'  => 'Oświadczenie o poufności — Licencje',
 ];
 
+/** Kto ma zatwierdzić regulamin (k30_ti_terms.audience, lista po przecinku; pusta = wszyscy). */
+const TI_TERM_AUDIENCES = [
+    'kursanci'    => 'Kursanci szkoleń (zwykłe grupy)',
+    'szk'         => 'Uczestnicy szkoleń krótkich (SzK)',
+    'konsultacje' => 'Beneficjenci konsultacji',
+];
+
 function ti_terms_migrate(): void {
     static $done = false;
     if ($done) return;
@@ -54,6 +61,8 @@ function ti_terms_migrate(): void {
     try { db()->exec("ALTER TABLE k30_ti_terms_accepts ADD COLUMN signed_uploaded_at DATETIME"); } catch (\Throwable $e) {}
 
     db()->exec("CREATE INDEX IF NOT EXISTS idx_ti_terms_acc ON k30_ti_terms_accepts(client_id, term_id)");
+    // Odbiorcy regulaminu (kto ma go zatwierdzić) — TI_TERM_AUDIENCES; pusto = wszyscy
+    try { db()->exec("ALTER TABLE k30_ti_terms ADD COLUMN audience TEXT NOT NULL DEFAULT ''"); } catch (\Throwable $e) {}
 
     // Utwórz domyślne wpisy regulaminów jeśli nie istnieją
     foreach (TI_TERM_TYPES as $type => $title) {
@@ -99,11 +108,37 @@ function ti_terms_all(): array {
                    ORDER BY t.type");
 }
 
+/** Grupy odbiorców, do których należy beneficjent (klucze TI_TERM_AUDIENCES). */
+function ti_term_client_groups(int $client_id): array {
+    static $c = [];
+    if (isset($c[$client_id])) return $c[$client_id];
+    $g = [];
+    try {
+        $e = db_one("SELECT SUM(CASE WHEN COALESCE(k.simple_mode,0) > 0 THEN 1 ELSE 0 END) AS szk, SUM(CASE WHEN COALESCE(k.simple_mode,0) = 0 THEN 1 ELSE 0 END) AS kur
+                       FROM k30_ti_enrollments e JOIN k30_ti_courses k ON k.id = e.course_id WHERE e.client_id = ? AND e.status = 'active'", [$client_id]);
+        if ((int)($e['kur'] ?? 0) > 0) $g[] = 'kursanci';
+        if ((int)($e['szk'] ?? 0) > 0) $g[] = 'szk';
+    } catch (\Throwable $ex) { $g[] = 'kursanci'; }
+    try {
+        if (db_one("SELECT 1 FROM k30_ti_student_accounts WHERE client_id=? AND simple_mode=4", [$client_id])
+            || db_one("SELECT 1 FROM k30_schedules WHERE client_id=? LIMIT 1", [$client_id])
+            || db_one("SELECT 1 FROM k30_consultations WHERE client_id=? LIMIT 1", [$client_id])) $g[] = 'konsultacje';
+    } catch (\Throwable $ex) {}
+    return $c[$client_id] = $g;
+}
+
+/** Czy regulamin dotyczy beneficjenta (pusta lista odbiorców = wszystkich). */
+function ti_term_applies(array $term, int $client_id): bool {
+    $aud = array_filter(explode(',', (string)($term['audience'] ?? '')));
+    return !$aud || (bool)array_intersect($aud, ti_term_client_groups($client_id));
+}
+
 /** Czy kursant zaakceptował aktualną wersję regulaminu danego typu? */
 function ti_term_accepted(int $client_id, string $type): bool {
     ti_terms_migrate();
-    $term = db_one("SELECT id, version, is_active FROM k30_ti_terms WHERE type=?", [$type]);
+    $term = db_one("SELECT id, version, is_active, audience FROM k30_ti_terms WHERE type=?", [$type]);
     if (!$term || empty($term['is_active'])) return true; // nieaktywny = nie wymaga akceptacji
+    if (!ti_term_applies($term, $client_id)) return true; // nie dotyczy tej osoby (odbiorcy regulaminu)
     $acc = db_one(
         "SELECT id FROM k30_ti_terms_accepts WHERE client_id=? AND term_id=? AND version>=?",
         [$client_id, (int)$term['id'], (int)$term['version']]
@@ -117,6 +152,7 @@ function ti_terms_pending(int $client_id): array {
     $all = db_all("SELECT * FROM k30_ti_terms WHERE is_active=1 ORDER BY type");
     $pending = [];
     foreach ($all as $t) {
+        if (!ti_term_applies($t, $client_id)) continue;   // regulamin dla innych odbiorców
         $acc = db_one(
             "SELECT id FROM k30_ti_terms_accepts WHERE client_id=? AND term_id=? AND version>=?",
             [$client_id, (int)$t['id'], (int)$t['version']]
@@ -220,6 +256,32 @@ function ti_terms_accept_get(int $accept_id, int $client_id): ?array {
 }
 
 /** Zaktualizuj treść regulaminu (admin). Automatycznie inkrementuje wersję. */
+/** Odbiorcy regulaminu z formularza (lista kluczy TI_TERM_AUDIENCES; pusto = wszyscy). */
+function ti_term_set_audience(string $type, array $aud): void {
+    ti_terms_migrate();
+    $aud = array_values(array_intersect(array_keys(TI_TERM_AUDIENCES), $aud));
+    db()->prepare("UPDATE k30_ti_terms SET audience=? WHERE type=?")->execute([implode(',', $aud), $type]);
+}
+
+/** Nowy regulamin (typ własny „r_…”). Zwraca klucz typu albo '' przy błędzie. */
+function ti_term_create(string $title, string $body_html, array $aud, int $user_id): string {
+    ti_terms_migrate();
+    $title = trim($title);
+    if ($title === '') return '';
+    $base = 'r_' . (substr(trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $title) ?: '')), '_'), 0, 30) ?: 'regulamin');
+    $type = $base; $i = 2;
+    while (db_one("SELECT 1 FROM k30_ti_terms WHERE type=?", [$type])) $type = $base . '_' . $i++;
+    db_insert('k30_ti_terms', ['type' => $type, 'title' => mb_substr($title, 0, 200), 'body_html' => $body_html, 'is_active' => 0, 'updated_by' => $user_id ?: null]);
+    ti_term_set_audience($type, $aud);
+    return $type;
+}
+
+/** Etykieta odbiorców do listy / zakładek. */
+function ti_term_audience_label(array $term): string {
+    $aud = array_filter(explode(',', (string)($term['audience'] ?? '')));
+    return $aud ? implode(', ', array_map(fn($a) => TI_TERM_AUDIENCES[$a] ?? $a, $aud)) : 'wszyscy kursanci i beneficjenci';
+}
+
 function ti_term_save(string $type, string $title, string $body_html, int $is_active, int $user_id): void {
     ti_terms_migrate();
     $existing = db_one("SELECT id, version FROM k30_ti_terms WHERE type=?", [$type]);

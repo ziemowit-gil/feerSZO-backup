@@ -31,7 +31,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     $op   = (string)($_POST['_op'] ?? '');
     $type = (string)($_POST['type'] ?? '');
 
-    if ($op === 'save_term' && isset(TI_TERM_TYPES[$type])) {
+    // Nowy regulamin z wyborem odbiorców (kto ma go zatwierdzić) — zapisywany jako nieaktywny, do uzupełnienia treści
+    if ($op === 'create_term') {
+        $nt = ti_term_create((string)($_POST['title'] ?? ''), '<p>Treść regulaminu do uzupełnienia.</p>', (array)($_POST['audience'] ?? []), (int)$user['id']);
+        if ($nt === '') { $flash_err = 'Podaj tytuł nowego regulaminu.'; }
+        else { flash_set('success', 'Dodano regulamin — uzupełnij treść i włącz go przełącznikiem „aktywny”.'); header('Location: terms_admin.php?type=' . urlencode($nt)); exit; }
+    }
+
+    $isTerm = $type !== '' && (bool)db_one("SELECT 1 FROM k30_ti_terms WHERE type=?", [$type]);
+    if ($op === 'save_term' && $isTerm) {
         $title     = trim((string)($_POST['title'] ?? ''));
         $body_html = (string)($_POST['body_html'] ?? '');
         $is_active = !empty($_POST['is_active']) ? 1 : 0;
@@ -39,13 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             $flash_err = 'Tytuł regulaminu nie może być pusty.';
         } else {
             ti_term_save($type, $title, $body_html, $is_active, (int)$user['id']);
+            ti_term_set_audience($type, (array)($_POST['audience'] ?? []));
             flash_set('success', 'Regulamin zapisany.');
             header('Location: terms_admin.php?type=' . urlencode($type)); exit;
         }
     }
 
     // Pominięcie wymogu akceptacji / zdalna akceptacja w imieniu kursanta.
-    if ($op === 'admin_action' && isset(TI_TERM_TYPES[$type])) {
+    if ($op === 'admin_action' && $isTerm) {
         $mode      = ($_POST['mode'] ?? '') === 'skip' ? 'skip' : 'remote';
         $client_id = (int)($_POST['client_id'] ?? 0);
         $reason    = trim((string)($_POST['reason'] ?? ''));
@@ -107,9 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     }
 }
 
-$active_type = $_GET['type'] ?? 'szkolenia';
-if (!isset(TI_TERM_TYPES[$active_type])) $active_type = 'szkolenia';
+$active_type = (string)($_GET['type'] ?? 'szkolenia');
 $terms = ti_terms_all();
+if (!in_array($active_type, array_column($terms, 'type'), true)) $active_type = 'szkolenia';
 $current = null;
 foreach ($terms as $t) { if ($t['type'] === $active_type) { $current = $t; break; } }
 
@@ -159,13 +168,26 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <!-- Zakładki typów regulaminów -->
 <ul class="nav nav-tabs mb-3" role="tablist">
-  <?php foreach (TI_TERM_TYPES as $ttype => $tlabel): ?>
+  <?php foreach ($terms as $_t): $ttype = (string)$_t['type']; $tlabel = TI_TERM_TYPES[$ttype] ?? $_t['title']; ?>
   <li class="nav-item">
     <a class="nav-link <?= $active_type===$ttype?'active':'' ?>"
        href="?type=<?= urlencode($ttype) ?>"><?= h($tlabel) ?></a>
   </li>
   <?php endforeach; ?>
+  <?php if ($can_write): ?><li class="nav-item"><a class="nav-link" href="#nowy-regulamin" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="nowy-regulamin"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj regulamin</a></li><?php endif; ?>
 </ul>
+<?php if ($can_write): ?>
+<form method="post" class="collapse card card-body shadow-sm mb-3" id="nowy-regulamin" style="max-width:720px">
+  <?= csrf_field() ?><input type="hidden" name="_op" value="create_term">
+  <label class="form-label fw-semibold" for="nt-title">Tytuł nowego regulaminu</label>
+  <input class="form-control mb-2" id="nt-title" name="title" required maxlength="200">
+  <fieldset class="mb-2"><legend class="form-label fw-semibold fs-6">Kto ma go zatwierdzić?</legend>
+    <?php foreach (TI_TERM_AUDIENCES as $ak => $al): ?><div class="form-check"><input class="form-check-input" type="checkbox" name="audience[]" value="<?= h($ak) ?>" id="nt-a-<?= h($ak) ?>"><label class="form-check-label" for="nt-a-<?= h($ak) ?>"><?= h($al) ?></label></div><?php endforeach; ?>
+    <div class="form-text">Nic nie zaznaczone = wszyscy kursanci i beneficjenci.</div>
+  </fieldset>
+  <div><button class="btn btn-primary btn-sm">Dodaj</button> <span class="small text-body-secondary">Regulamin powstanie jako nieaktywny — uzupełnij treść i włącz go.</span></div>
+</form>
+<?php endif; ?>
 
 <?php if ($current): ?>
 <div class="row g-4">
@@ -199,6 +221,15 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
             <textarea name="body_html" id="term-body" class="d-none"><?= h($current['body_html']) ?></textarea>
             <div class="form-text">Zmiana treści automatycznie podniesie numer wersji — kursanci będą musieli ponownie zaakceptować.</div>
           </div>
+
+          <fieldset class="mb-3">
+            <legend class="form-label fw-semibold fs-6">Kto ma zatwierdzić ten regulamin?</legend>
+            <?php $_aud = array_filter(explode(',', (string)($current['audience'] ?? '')));
+                  foreach (TI_TERM_AUDIENCES as $ak => $al): ?>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="audience[]" value="<?= h($ak) ?>" id="ta-<?= h($ak) ?>"<?= in_array($ak, $_aud, true) ? ' checked' : '' ?>><label class="form-check-label" for="ta-<?= h($ak) ?>"><?= h($al) ?></label></div>
+            <?php endforeach; ?>
+            <div class="form-text">Nic nie zaznaczone = wszyscy kursanci i beneficjenci. Osoby spoza wybranych grup nie zobaczą regulaminu do akceptacji.</div>
+          </fieldset>
 
           <div class="mb-3">
             <div class="form-check form-switch">
