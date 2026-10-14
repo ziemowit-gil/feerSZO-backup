@@ -11,6 +11,14 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_simple_groups/logic/simpleGroups.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicManager.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicNotify.php';
+
+/** Publikuje plan grupy (jeśli trzeba) i wysyła uczestnikom (oraz opiekunom z panelem rodzica) link SMS-em. */
+function gu_send_plan_sms(int $cid, int $uid): array {
+    tiPlanPublicEnable($cid, $uid);
+    return TiPlanPublicNotifier::send($cid, ['sms'], $uid, '', true);
+}
 
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
@@ -46,14 +54,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set($res['warnings'] || $res['no_account'] ? 'warning' : 'success', $msg);
             // Loginy i hasła nowych kont — pokazujemy raz, na tej stronie
             $_SESSION['gu_creds'] = ['course_id' => $res['course_id'], 'name' => $res['name'], 'rows' => $res['accounts']];
+            // Link do publicznego planu — SMS do uczestników (po założeniu kont i ewentualnym linku Zoom, żeby plan go pokazał)
+            $planSms = !empty($_POST['plan_sms']);
             // Stały link Zoom grupy — gdy zaznaczono i są zajęcia „Online — Zoom”
             if (!empty($_POST['gen_zoom']) && in_array('zdalna_zoom', array_column($lessons, 'method'), true)) {
                 $z = TiSimpleGroups::zoomGenerate((int)$res['course_id'], $uid, $byName);
                 flash_set($z['ok'] ? 'success' : 'warning', $z['ok'] ? $z['msg'] : 'Grupa utworzona, ale linku Zoom nie wygenerowano: ' . $z['msg']);
             }
+            if ($planSms) {
+                $ps = gu_send_plan_sms((int)$res['course_id'], $uid);
+                flash_set($ps['ok'] ? 'success' : 'warning', 'Link do planu zajęć (SMS) — ' . $ps['msg']);
+            }
             header('Location: grupaUproszczona.php?utworzono=' . $res['course_id']); exit;
         }
         $errors = $res['errors']; $warnings = $res['warnings'];
+    } elseif ($op === 'plan_sms') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        if (!db_one("SELECT 1 FROM k30_ti_courses WHERE id = ? AND simple_mode > 0", [$cid])) flash_set('danger', 'To nie jest szkolenie krótkie.');
+        else { $ps = gu_send_plan_sms($cid, $uid); flash_set($ps['ok'] ? 'success' : 'warning', 'Link do planu zajęć (SMS) — ' . $ps['msg']); }
+        header('Location: grupaUproszczona.php' . (!empty($_POST['all']) ? '?wszystkie=1' : '') . '#lista'); exit;
     } elseif ($op === 'zoom_gen' || $op === 'zoom_clear') {
         $cid = (int)($_POST['course_id'] ?? 0);
         if (!db_one("SELECT 1 FROM k30_ti_courses WHERE id = ? AND simple_mode > 0", [$cid])) flash_set('danger', 'To nie jest szkolenie krótkie.');
@@ -183,6 +202,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <td class="small text-nowrap"><?= $g['next_lesson'] ? h(date('d.m.Y', strtotime(substr((string)$g['next_lesson'], 0, 10))) . ' ' . substr((string)$g['next_lesson'], 11, 5)) : '—' ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" href="konsultacje.php?course=<?= (int)$g['id'] ?>" title="Karty konsultacji i zamknięcie szkolenia <?= h($g['name']) ?>"><i class="bi bi-clipboard2-check" aria-hidden="true"></i><span class="visually-hidden">Karty konsultacji</span></a>
         <a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$g['id'] ?>#konwerter" title="Konwertuj grupę <?= h($g['name']) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Konwertuj</span></a>
+        <form method="post" class="d-inline" onsubmit="return confirm('Wysłać uczestnikom grupy <?= h(addslashes($g['name'])) ?> SMS z linkiem do planu zajęć?')">
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="plan_sms"><input type="hidden" name="course_id" value="<?= (int)$g['id'] ?>"><?= $showAll ? '<input type="hidden" name="all" value="1">' : '' ?>
+          <button class="btn btn-sm btn-outline-secondary" title="Wyślij link do planu SMS-em — <?= h($g['name']) ?>"><i class="bi bi-phone" aria-hidden="true"></i><span class="visually-hidden">Wyślij link do planu SMS-em</span></button>
+        </form>
         <?php if ($zoomOn): $hasZoom = trim((string)$g['zoom_meeting_id']) !== ''; ?>
         <form method="post" class="d-inline"<?= $hasZoom ? ' onsubmit="return confirm(\'Wygenerować nowy link Zoom? Poprzedni przestanie działać.\')"' : '' ?>>
           <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="zoom_gen"><input type="hidden" name="course_id" value="<?= (int)$g['id'] ?>"><?= $showAll ? '<input type="hidden" name="all" value="1">' : '' ?>
@@ -317,6 +340,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <?php endforeach; ?>
       <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="gu-notify" name="notify" value="1"<?= $o('notify') ? ' checked' : '' ?>>
         <label class="form-check-label small" for="gu-notify">Wyślij uczestnikom SMS z terminami</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="gu-plansms" name="plan_sms" value="1"<?= !$old || $o('plan_sms') ? ' checked' : '' ?>>
+        <label class="form-check-label small" for="gu-plansms">Opublikuj plan zajęć i wyślij uczestnikom link SMS-em (zawsze aktualne terminy<?= $zoomOn ? ' i link do zajęć online' : '' ?>, bez logowania)</label></div>
     </fieldset>
 
     <button class="btn btn-primary"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Utwórz grupę</button>
