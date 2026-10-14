@@ -844,6 +844,8 @@ document.addEventListener('DOMContentLoaded', function() {
     $rv_lic_token         = student_token();
     $rv_lic_redirect_tab  = 'licencje';
     include __DIR__ . '/_licencje_view.php';
+    $rv_uslugi_heading = 'h3';
+    include __DIR__ . '/_uslugi_view.php';   // domeny, hosting i inne usługi dziecka
   ?>
 
 <?php elseif ($ptab === 'harmonogram'):

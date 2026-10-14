@@ -1327,7 +1327,7 @@ include __DIR__ . '/_layout_head.php';
       'Komunikacja' => [['komunikaty','megaphone','Komunikaty'], ['wiadomosci','envelope','Wiadomości']],
       'Konto' => array_merge($is_minor ? [] : [['platnosci','cash-coin','Płatności'], ['rozliczenia','receipt','Rozliczenia'],
                       ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['ustawienia','gear','Ustawienia']]),
-      'Dostępy' => [['licencje','key','Licencje'], ['pfron','shield-lock','PFRON (konsultacje)']],
+      'Dostępy' => [['licencje','key','Licencje i usługi'], ['pfron','shield-lock','PFRON (konsultacje)']],
       'Inne' => [['problem','life-preserver','Pomoc'], ['aktywnosc','clock-history','Aktywność konta'], ['regulaminy','file-earmark-text','Regulaminy']],
   ];
   $kp_tab_label = [];
@@ -5628,6 +5628,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $rv_lic_token         = $vlab_token;
     $rv_lic_redirect_tab  = 'licencje';
     include __DIR__ . '/_licencje_view.php';
+    include __DIR__ . '/_uslugi_view.php';   // domeny, hosting i inne usługi (modules/ti_products)
   ?>
 
 <?php elseif ($tab === 'dysk'):
