@@ -5,7 +5,7 @@
  * Dostęp przez tajny token w adresie (?g=<token>), jeden link na grupę — włączany,
  * wyłączany i regenerowany w panelu dydaktyka (planLinki.php). Pokazuje siatkę
  * tygodnia (jak wydruk „Siatka”) i listę nadchodzących terminów; bez danych
- * kursantów, bez linków do zajęć online. Logika: modules/ti_plan_public/logic/.
+ * kursantów; z linkiem do zajęć online (link terminu albo stały link grupy, np. Zoom). Logika: modules/ti_plan_public/logic/.
  *
  * URL: <APP_URL>/karty30/ti/dydaktyk/planPubliczny.php?g=<token>
  *      https://ti.<domena>/plan/<token>   (skrót z .htaccess)
@@ -42,6 +42,49 @@ foreach ($L['grid'] ?? [] as $row) foreach ($row as $c) if (($c['date_flag'] ?? 
 $upcoming = array_values(array_filter($D['list'], fn($r) => !$r['cancelled']));
 $cancelledN = count($D['list']) - count($upcoming);
 $genAt = date('d.m.Y H:i');
+// Szkolenie krótkie (SzK, kilka terminów): sama lista terminów, bez siatki tygodnia i „52 tyg.”
+$short = (int)(db_one("SELECT simple_mode FROM k30_ti_courses WHERE id = ?", [(int)$link['course_id']])['simple_mode'] ?? 0) > 0;
+$next  = null;
+foreach ($upcoming as $r) { if ($r['date'] > date('Y-m-d') || ($r['date'] === date('Y-m-d') && substr($r['time'], 6, 5) >= date('H:i'))) { $next = $r; break; } }
+$lastDate = $upcoming ? end($upcoming)['date'] : '';
+$fmtPhone = function (string $p): string {   // 48535231923 → +48 535 231 923
+    $d = preg_replace('/\D/', '', $p);
+    if (strlen($d) === 11 && str_starts_with($d, '48')) return '+48 ' . implode(' ', str_split(substr($d, 2), 3));
+    if (strlen($d) === 9) return implode(' ', str_split($d, 3));
+    return $p;
+};
+
+// Plik kalendarza (.ics) z nadchodzącymi terminami — „Dodaj do kalendarza”
+if (isset($_GET['ics'])) {
+    $esc = fn(string $s) => str_replace(["\\", ';', ',', "\n"], ["\\\\", '\\;', '\\,', '\\n'], $s);
+    $host = parse_url((string)(defined('APP_URL') ? APP_URL : ''), PHP_URL_HOST) ?: 'feer.org.pl';
+    $out = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//FEER//Plan zajec TI//PL", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+            'X-WR-CALNAME:' . $esc('Plan zajęć — ' . $link['course_name']), "X-WR-TIMEZONE:Europe/Warsaw",
+            // definicja strefy (Outlook jej wymaga przy TZID)
+            "BEGIN:VTIMEZONE", "TZID:Europe/Warsaw",
+            "BEGIN:DAYLIGHT", "TZOFFSETFROM:+0100", "TZOFFSETTO:+0200", "TZNAME:CEST", "DTSTART:19700329T020000", "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU", "END:DAYLIGHT",
+            "BEGIN:STANDARD", "TZOFFSETFROM:+0200", "TZOFFSETTO:+0100", "TZNAME:CET", "DTSTART:19701025T030000", "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU", "END:STANDARD",
+            "END:VTIMEZONE"];
+    foreach ($upcoming as $i => $r) {
+        if (!preg_match('/^(\d{2}):(\d{2})–(\d{2}):(\d{2})$/u', $r['time'], $t)) continue;
+        $day = str_replace('-', '', $r['date']);
+        $out[] = 'BEGIN:VEVENT';
+        $out[] = 'UID:' . sha1($link['id'] . '|' . $r['date'] . '|' . $r['time']) . '@' . $host;
+        $out[] = 'DTSTAMP:' . gmdate('Ymd\THis\Z');
+        $out[] = "DTSTART;TZID=Europe/Warsaw:{$day}T{$t[1]}{$t[2]}00";
+        $out[] = "DTEND;TZID=Europe/Warsaw:{$day}T{$t[3]}{$t[4]}00";
+        $out[] = 'SUMMARY:' . $esc('Zajęcia — ' . $link['course_name']);
+        $out[] = 'LOCATION:' . $esc($r['method'] === 'online' ? ($r['url'] ?: 'online') : ($r['room'] ?: (string)($course['location'] ?? '')));
+        if ($r['url'] !== '') $out[] = 'URL:' . $r['url'];
+        $out[] = 'DESCRIPTION:' . $esc('Forma: ' . ($r['method'] ?: '—') . ($r['url'] ? '. Link do zajęć: ' . $r['url'] : '') . ($r['instr'] ? '. Prowadzący: ' . rtrim($r['instr'], '.') : '') . '. Plan może ulec zmianie.');
+        $out[] = 'END:VEVENT';
+    }
+    $out[] = 'END:VCALENDAR';
+    header('Content-Type: text/calendar; charset=utf-8');
+    header('Content-Disposition: attachment; filename="plan-' . preg_replace('/[^A-Za-z0-9._-]+/', '-', (string)$link['course_name']) . '.ics"');
+    echo implode("\r\n", $out) . "\r\n";
+    exit;
+}
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: private, max-age=300');
 ?><!DOCTYPE html>
@@ -75,7 +118,18 @@ header('Cache-Control: private, max-age=300');
   table.plan th, table.plan td { border: 1px solid var(--line); padding: 6px 7px; vertical-align: top; }
   table.plan thead th { background: var(--soft); font-size: .85rem; color: #334155; text-align: center; }
   table.plan .time-col { width: 7.5rem; background: #f8fafc; font-weight: 600; font-size: .85rem; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cell { overflow-wrap: anywhere; }
   .cell .subject { font-weight: 700; }
+  .next { background: #fff; border: 1px solid var(--line); border-left: 6px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 0 0 18px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .next .lbl { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); font-weight: 700; }
+  .next .when { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+  .next .det { color: var(--muted); }
+  .next .in { margin-left: auto; background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; border-radius: 999px; padding: 4px 12px; font-weight: 700; white-space: nowrap; }
+  .toolbar a.btn { font-size: .9rem; padding: 7px 14px; border: 1px solid var(--head); background: #fff; color: var(--head); border-radius: 6px; min-height: 40px; display: inline-flex; align-items: center; text-decoration: none; }
+  table.list tr.is-next td { background: #ecfdf5; font-weight: 600; }
+  .next a.join { display: inline-block; margin-top: 10px; background: #0b5cad; color: #fff; font-weight: 700; padding: 9px 18px; border-radius: 6px; text-decoration: none; min-height: 40px; }
+  .next a.join:hover { background: #084a8c; text-decoration: underline; }
+  .tag-next { display: inline-block; font-size: .72rem; font-weight: 700; color: #065f46; background: #d1fae5; border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
   .cell .instr   { color: #334155; font-size: .88rem; }
   .cell .room    { color: var(--accent); font-size: .88rem; }
   .cell .valid   { color: #b45309; font-size: .75rem; margin-top: 2px; }
@@ -122,13 +176,32 @@ header('Cache-Control: private, max-age=300');
   <div class="toolbar">
     <button type="button" onclick="window.print()">Drukuj</button>
     <button type="button" class="secondary" onclick="location.reload()">Odśwież</button>
-    <span class="range">Zakres: od <?= h(date('d.m.Y', strtotime($D['from']))) ?> do <?= h(date('d.m.Y', strtotime($D['to']))) ?> (<?= (int)$D['weeks'] ?> tyg.)</span>
+    <?php if ($upcoming): ?><a class="btn" href="?g=<?= h(urlencode((string)($_GET['g'] ?? ''))) ?>&amp;ics=1">Dodaj do kalendarza</a><?php endif; ?>
+    <span class="range"><?php if ($short || ($lastDate !== '' && $lastDate < $D['to'])): ?>
+      <?= count($upcoming) ?> <?= count($upcoming) === 1 ? 'termin' : (count($upcoming) % 10 >= 2 && count($upcoming) % 10 <= 4 && (count($upcoming) % 100 < 10 || count($upcoming) % 100 >= 20) ? 'terminy' : 'terminów') ?><?php if ($upcoming): ?>: od <?= h(date('d.m.Y', strtotime($upcoming[0]['date']))) ?> do <?= h(date('d.m.Y', strtotime($lastDate))) ?><?php endif; ?>
+    <?php else: ?>Zakres: od <?= h(date('d.m.Y', strtotime($D['from']))) ?> do <?= h(date('d.m.Y', strtotime($D['to']))) ?><?php endif; ?></span>
   </div>
+
+  <?php if ($next): $nd = (int)round((strtotime($next['date']) - strtotime(date('Y-m-d'))) / 86400); ?>
+  <section class="next" aria-label="Najbliższe zajęcia">
+    <div>
+      <div class="lbl">Najbliższe zajęcia</div>
+      <div class="when"><?= h($next['dow']) ?>, <?= h(date('d.m.Y', strtotime($next['date']))) ?> · <?= h($next['time'] ?: '—') ?></div>
+      <div class="det"><?= h($next['method'] ?: '') ?><?= $next['room'] ? ' · ' . h($next['room']) : '' ?><?= $next['instr'] ? ' · prowadzi ' . h($next['instr']) : '' ?>
+        <?php if ($next['method'] === 'online' && $next['url'] === ''): ?><br>Link do spotkania prowadzący poda przed zajęciami.<?php endif; ?></div>
+      <?php if ($next['url'] !== ''): ?><a class="join" href="<?= h($next['url']) ?>" target="_blank" rel="noopener">Dołącz do zajęć online</a><?php endif; ?>
+    </div>
+    <span class="in"><?= $nd === 0 ? 'dziś' : ($nd === 1 ? 'jutro' : 'za ' . $nd . ' dni') ?></span>
+  </section>
+  <?php elseif (!$upcoming): ?>
+  <section class="next" aria-label="Najbliższe zajęcia"><div><div class="lbl">Najbliższe zajęcia</div><div class="when">Brak zaplanowanych terminów</div><div class="det">Gdy pojawią się nowe terminy, zobaczysz je tutaj.</div></div></section>
+  <?php endif; ?>
 
   <?php if (trim((string)$link['note']) !== ''): ?>
   <div class="note" role="note"><?= nl2br(h($link['note'])) ?></div>
   <?php endif; ?>
 
+  <?php if (!$short): ?>
   <h2>Siatka tygodnia</h2>
   <?php if (!$L['time_slots']): ?>
     <p class="empty">Brak zaplanowanych terminów w tym okresie.</p>
@@ -161,22 +234,23 @@ header('Cache-Control: private, max-age=300');
     </table>
   </div>
   <?php endif; ?>
+  <?php endif; /* !$short */ ?>
 
-  <?php if ((int)$link['show_list']): ?>
+  <?php if ((int)$link['show_list'] || $short): ?>
   <h2>Terminy zajęć</h2>
   <?php if (!$D['list']): ?>
     <p class="empty">Brak terminów w tym okresie.</p>
   <?php else: ?>
   <table class="list">
-    <caption class="skip">Lista terminów zajęć od <?= h(date('d.m.Y', strtotime($D['from']))) ?> do <?= h(date('d.m.Y', strtotime($D['to']))) ?></caption>
+    <caption class="skip">Lista terminów zajęć<?= $upcoming ? ' od ' . h(date('d.m.Y', strtotime($upcoming[0]['date']))) . ' do ' . h(date('d.m.Y', strtotime($lastDate))) : '' ?></caption>
     <thead><tr><th scope="col">Data</th><th scope="col">Dzień</th><th scope="col">Godziny</th><th scope="col">Forma</th><th scope="col">Prowadzący</th><th scope="col">Sala</th></tr></thead>
     <tbody>
-    <?php foreach ($D['list'] as $r): ?>
-      <tr<?= $r['cancelled'] ? ' class="cancelled"' : '' ?>>
-        <td><?= h(date('d.m.Y', strtotime($r['date']))) ?><?= $r['cancelled'] ? ' <span class="st">(odwołane)</span>' : '' ?></td>
+    <?php foreach ($D['list'] as $r): $isNext = $next && $r === $next; ?>
+      <tr<?= $r['cancelled'] ? ' class="cancelled"' : ($isNext ? ' class="is-next"' : '') ?>>
+        <td><?= h(date('d.m.Y', strtotime($r['date']))) ?><?= $r['cancelled'] ? ' <span class="st">(odwołane)</span>' : '' ?><?= $isNext ? '<span class="tag-next">najbliższe</span>' : '' ?></td>
         <td><?= h($r['dow']) ?></td>
         <td><?= h($r['time'] ?: '—') ?><?php if ($r['flag'] === 'tentative'): ?> <span class="flag flag-tentative">niepewny</span><?php elseif ($r['flag'] === 'change_possible'): ?> <span class="flag flag-change">możliwa zmiana</span><?php endif; ?></td>
-        <td><?= h($r['method'] ?: '—') ?></td>
+        <td><?= h($r['method'] ?: '—') ?><?php if ($r['url'] !== '' && !$r['cancelled']): ?> · <a href="<?= h($r['url']) ?>" target="_blank" rel="noopener">dołącz<span class="skip"> do zajęć <?= h(date('d.m.Y', strtotime($r['date']))) ?></span></a><?php endif; ?></td>
         <td><?= h($r['instr'] ?: '—') ?></td>
         <td><?= h($r['room'] ?: '—') ?></td>
       </tr>
@@ -194,17 +268,18 @@ header('Cache-Control: private, max-age=300');
       <?php if (!$L['instructors']): ?><p class="empty">Brak przypisanego prowadzącego.</p>
       <?php else: ?>
       <ul>
-        <?php foreach ($L['instructors'] as $ins): $ic = array_filter([$ins['phone'], $ins['email']]); ?>
-        <li><span class="name"><?= h($ins['name']) ?></span><br><span class="line"><?= $ic ? h(implode(' · ', $ic)) : 'brak danych kontaktowych' ?></span></li>
+        <?php foreach ($L['instructors'] as $ins): $ic = [];
+          if (trim((string)$ins['phone']) !== '') $ic[] = '<a href="tel:+' . h(preg_replace('/\D/', '', strlen(preg_replace('/\D/', '', (string)$ins['phone'])) === 9 ? '48' . $ins['phone'] : (string)$ins['phone'])) . '">' . h($fmtPhone((string)$ins['phone'])) . '</a>';
+          if (trim((string)$ins['email']) !== '') $ic[] = '<a href="mailto:' . h($ins['email']) . '">' . h($ins['email']) . '</a>'; ?>
+        <li><span class="name"><?= h($ins['name']) ?></span><br><span class="line"><?= $ic ? implode(' · ', $ic) : 'brak danych kontaktowych' ?></span></li>
         <?php endforeach; ?>
       </ul>
       <?php endif; ?>
     </div>
     <?php endif; ?>
+    <?php if ($L['multi_slot'] || $hasFlags || $L['exceptions']): /* sekcja tylko, gdy jest co pokazać */ ?>
     <div>
       <h2>Uwagi</h2>
-      <?php if (!$L['multi_slot'] && !$hasFlags && !$L['exceptions']): ?><p class="empty">Brak uwag do wybranego okresu.</p>
-      <?php else: ?>
       <ul>
         <?php if ($L['multi_slot']): ?><li>Harmonogram grupy zmienia się w tym okresie — przy każdym terminie podano zakres dat, w którym obowiązuje.</li><?php endif; ?>
         <?php if ($hasFlags): ?><li>Etykiety „Termin niepewny” / „Możliwa zmiana terminu” dotyczą co najmniej jednej daty w danym slocie.</li><?php endif; ?>
@@ -212,8 +287,8 @@ header('Cache-Control: private, max-age=300');
         <li>Zmiana terminu: <?= h($ex['from_label']) ?> → <strong><?= h($ex['to_label']) ?></strong><?php if ($ex['room'] !== '—'): ?>, <span class="room"><?= h($ex['room']) ?></span><?php endif; ?></li>
         <?php endforeach; ?>
       </ul>
-      <?php endif; ?>
     </div>
+    <?php endif; ?>
   </div>
 </main>
 <footer>Plan może ulec zmianie — aktualna wersja zawsze pod tym adresem. Wygenerowano <?= h($genAt) ?>.</footer>

@@ -137,7 +137,7 @@ function tiPlanPublicData(array $link): array {
     $from = date('Y-m-d');
     $to   = date('Y-m-d', strtotime("+{$weeks} weeks"));
     $rows = db_all(
-        "SELECT s.lesson_date, s.time_from, s.time_to, s.status, s.lesson_method, s.date_flag,
+        "SELECT s.lesson_date, s.time_from, s.time_to, s.status, s.lesson_method, s.date_flag, s.meeting_url, c.default_meeting_url,
                 u.name AS instr_name, r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label,
                 c.location AS course_location, c.is_online AS course_online
            FROM k30_ti_sessions s
@@ -160,9 +160,11 @@ function tiPlanPublicData(array $link): array {
             'time'      => $r['time_from'] !== null && $r['time_from'] !== '' ? substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5) : '',
             'method'    => $method,
             'instr'     => tiPlanPublicInitials((string)($r['instr_name'] ?? '')),
-            'room'      => $room !== '—' ? $room : '',
+            'room'      => $room !== '—' && $method !== 'online' ? $room : '',   // zajęcia online — bez sali
             'cancelled' => (string)$r['status'] === 'cancelled',
             'flag'      => (string)($r['date_flag'] ?? ''),
+            // link do zajęć online (własny link terminu, a gdy go brak — stały link grupy, np. Zoom)
+            'url'       => $method === 'online' ? (trim((string)$r['meeting_url']) ?: trim((string)$r['default_meeting_url'])) : '',
         ];
     }
     // Strona publiczna: prowadzący tylko inicjałami (siatka, nagłówek, kontakty)
