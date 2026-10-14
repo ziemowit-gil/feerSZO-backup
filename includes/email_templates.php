@@ -1151,6 +1151,78 @@ HTML;
             ],
         ],
 
+        'ti_product_started' => [
+            'label'       => 'TI: uruchomiono usługę w imieniu kursanta (domena, hosting…)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-globe2',
+            'auto'        => true,
+            'description' => 'Powiadomienie dla kursanta (a gdy jest małoletni — także dla opiekuna) o uruchomieniu w jego imieniu nowej usługi lub produktu: domeny, hostingu albo innej (panel konta kursanta → Usługi i produkty). Bez haseł i danych dostępowych.',
+            'subject'     => '{{org}}: uruchomiono w Twoim imieniu nową usługę — {{name}}',
+            'body'        => <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>Informujemy, że w imieniu <strong>{{student}}</strong> uruchomiliśmy nową usługę:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Usługa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{type}}: {{name}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Dostawca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{provider}}</td></tr>
+  {{details_row}}
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Ważna / opłacona do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Status</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{status}}</td></tr>
+</table>
+<p>Dane dostępowe przekażemy osobno — nie wysyłamy ich e-mailem. W razie pytań odpowiedz na tę wiadomość albo napisz w panelu kursanta.</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość automatyczna z systemu {{org}}.</p>
+HTML,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji',                      'sample' => 'Dydaktyka TI'],
+                'greeting'    => ['label' => 'Zwrot (spacja + imię albo puste)',       'sample' => ' Anna'],
+                'student'     => ['label' => 'Kursant',                                'sample' => 'Anna Nowak'],
+                'type'        => ['label' => 'Typ (Domena / Hosting / Inne)',          'sample' => 'Domena'],
+                'name'        => ['label' => 'Nazwa (domena, konto, usługa)',          'sample' => 'mojafirma.pl'],
+                'provider'    => ['label' => 'Dostawca',                               'sample' => 'MyDevil.net'],
+                'details_row' => ['label' => 'Wiersz „Pakiet / serwer” (HTML lub pusty)', 'sample' => ''],
+                'expires'     => ['label' => 'Ważna do (albo „bez daty”)',             'sample' => '31.12.2027'],
+                'status'      => ['label' => 'Status',                                 'sample' => 'Aktywny'],
+            ],
+        ],
+
+        'ti_product_started_admin' => [
+            'label'       => 'TI: uruchomiono usługę kursanta — kopia dla administratora',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-globe2',
+            'auto'        => true,
+            'description' => 'Kopia informacji o nowej usłudze/produkcie kursanta (domena, hosting, inne) dla administratora: adres z ustawienia w zakładce „Usługi i produkty”, a gdy puste — konta z rolą admin. Zawiera numery faktur.',
+            'subject'     => '{{org}}: nowa usługa kursanta {{student}} — {{name}}',
+            'body'        => <<<'HTML'
+<p>Kopia powiadomienia: dla kursanta <strong>{{student}}</strong> uruchomiono nową usługę (dodał(a): {{by}}).</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Usługa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{type}}: {{name}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Dostawca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{provider}}</td></tr>
+  {{details_row}}
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Ważna / opłacona do</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Status</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{status}}</td></tr>
+</table>
+<table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-size:.95em">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Faktura nasza</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{invoice_own}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Faktura obca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{invoice_vendor}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Powiadomiono</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{recipients}}</td></tr>
+</table>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość automatyczna z systemu {{org}}.</p>
+HTML,
+            'vars'        => [
+                'org'            => ['label' => 'Nazwa organizacji',              'sample' => 'Dydaktyka TI'],
+                'student'        => ['label' => 'Kursant',                        'sample' => 'Anna Nowak'],
+                'type'           => ['label' => 'Typ',                            'sample' => 'Domena'],
+                'name'           => ['label' => 'Nazwa',                          'sample' => 'mojafirma.pl'],
+                'provider'       => ['label' => 'Dostawca',                       'sample' => 'MyDevil.net'],
+                'details_row'    => ['label' => 'Wiersz „Pakiet / serwer”',       'sample' => ''],
+                'expires'        => ['label' => 'Ważna do',                       'sample' => '31.12.2027'],
+                'status'         => ['label' => 'Status',                         'sample' => 'Aktywny'],
+                'invoice_own'    => ['label' => 'Nr faktury — nasza',             'sample' => 'FV/12/2026'],
+                'invoice_vendor' => ['label' => 'Nr faktury — obca',              'sample' => 'MD/2026/5531'],
+                'recipients'     => ['label' => 'Komu wysłano (zamaskowane)',     'sample' => 'a***@example.com'],
+                'by'             => ['label' => 'Kto dodał',                      'sample' => 'Jan Kowalski'],
+            ],
+        ],
+
         'ti_plan_link' => [
             'label'       => 'TI: link do planu zajęć grupy',
             'group'       => 'TI — Zajęcia',

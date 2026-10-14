@@ -18,6 +18,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payment_account_
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/payment_portal/logic/paymentPortal.php'; // rachunek wirtualny z nr kursanta
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/sprawdz_konto/logic/sprawdz_konto.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje/logic/tiLicencjeManager.php'; // licencje kursantów: przypisanie, forma rozliczenia
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_products/logic/tiProducts.php'; // usługi i produkty: domeny, hosting, inne
 
 $me       = dyd_require();
 /** Tryby panelu kursanta (k30_ti_student_accounts.simple_mode) — te same wartości co STUDENT_SIMPLE_MODES w kursant/auth.php. */
@@ -625,6 +626,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: konta.php?selected=' . $aid . '&ptab=licencje'); exit;
     }
 
+    // Usługi i produkty kursanta (domeny, hosting, inne) — modules/ti_products. client_id zawsze z konta, nie z formularza.
+    if ($op === 'product_admin_email') {   // adres(y) kopii powiadomień o nowych usługach (puste = konta z rolą admin)
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $em  = array_filter(array_map('trim', preg_split('/[\s,;]+/', (string)($_POST['admin_email'] ?? ''))));
+        $bad = array_filter($em, fn($e) => !filter_var($e, FILTER_VALIDATE_EMAIL));
+        if ($bad) flash_set('danger', 'Nieprawidłowy adres e-mail: ' . implode(', ', $bad));
+        else { org_setting_set('ti_products_admin_email', implode(', ', $em)); flash_set('success', 'Adres kopii powiadomień zapisany.'); }
+        header('Location: konta.php?selected=' . $aid . '&ptab=produkty#tab-produkty'); exit;
+    }
+    if ($op === 'product_save' || $op === 'product_delete') {
+        $aid = (int)($_POST['account_id'] ?? 0);
+        $acc = $aid ? db_one("SELECT client_id FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
+        $pid = (int)($_POST['product_id'] ?? 0);
+        if (!$acc) {
+            flash_set('danger', 'Nie znaleziono konta kursanta.');
+        } elseif ($op === 'product_delete') {
+            $ok = TiProducts::delete((int)$acc['client_id'], $pid);
+            flash_set($ok ? 'success' : 'danger', $ok ? 'Produkt usunięty.' : 'Nie znaleziono produktu tego kursanta.');
+        } else {
+            $res = TiProducts::save((int)$acc['client_id'], $_POST, $pid, $uid);
+            if ($res['ok']) {
+                // Nowa usługa: e-mail „uruchomiono w Twoim imieniu” do kursanta (+ opiekun małoletniego) i kopia do administratora
+                $note = (!$pid && !empty($_POST['notify'])) ? ' Powiadomienia — ' . TiProducts::notifyStarted($res['id'], $dyd_name) . '.' : '';
+                flash_set('success', ($pid ? 'Zmiany produktu zapisane.' : 'Produkt dodany.') . $note);
+            }
+            else {
+                flash_set('danger', 'Nie zapisano produktu: ' . implode(' ', $res['errors']));
+                $_SESSION['ti_product_old'] = $_POST;   // formularz wraca z wpisanymi danymi
+                header('Location: konta.php?selected=' . $aid . '&ptab=produkty' . ($pid ? '&pedit=' . $pid : '&pnew=1') . '#tab-produkty'); exit;
+            }
+        }
+        header('Location: konta.php?selected=' . $aid . '&ptab=produkty#tab-produkty'); exit;
+    }
+
     // Wygeneruj link magiczny rodzica i wyślij go e-mailem (jeśli jest adres)
     if ($op === 'parent_link') {
         $aid = (int)($_POST['account_id'] ?? 0);
@@ -964,7 +999,7 @@ foreach ($accounts as $a) {
 }
 
 $active_tab = $_GET['ptab'] ?? (isset($_GET['guardian']) ? 'opiekun' : (isset($_GET['authp']) ? 'upowaznieni' : 'ogolne'));
-if (!in_array($active_tab, ['ogolne', 'platnosci', 'licencje', 'opiekun', 'upowaznieni'], true)) $active_tab = 'ogolne';
+if (!in_array($active_tab, ['ogolne', 'platnosci', 'licencje', 'produkty', 'opiekun', 'upowaznieni'], true)) $active_tab = 'ogolne';
 
 // Opiekun/rodzic — te same kolumny co $selected_acc (k30_ti_student_accounts),
 // więc bez osobnego zapytania.
@@ -1254,6 +1289,11 @@ function printBulk(){
     <li class="nav-item" role="presentation">
       <button class="nav-link <?= $active_tab === 'licencje' ? 'active' : '' ?>" id="tab-btn-licencje" data-bs-toggle="tab" data-bs-target="#tab-licencje" type="button" role="tab" aria-controls="tab-licencje" aria-selected="<?= $active_tab === 'licencje' ? 'true' : 'false' ?>">
         <i class="bi bi-key me-1" aria-hidden="true"></i>Licencje
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link <?= $active_tab === 'produkty' ? 'active' : '' ?>" id="tab-btn-produkty" data-bs-toggle="tab" data-bs-target="#tab-produkty" type="button" role="tab" aria-controls="tab-produkty" aria-selected="<?= $active_tab === 'produkty' ? 'true' : 'false' ?>">
+        <i class="bi bi-globe2 me-1" aria-hidden="true"></i>Usługi i produkty
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -1662,6 +1702,9 @@ function printBulk(){
       <?php endif; ?>
       <a href="licencjeKursantow.php" class="small d-inline-block mt-2"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pełny katalog oprogramowania i wszystkie przypisania</a>
     </div>
+
+    <!-- ── Zakładka: Usługi i produkty (domeny, hosting, inne) ─────────── -->
+    <?php include __DIR__ . '/_konta_produkty.php'; ?>
 
     <!-- ── Zakładka: Opiekun / Rodzic ───────────────────────────────────── -->
     <div class="tab-pane fade <?= $active_tab === 'opiekun' ? 'show active' : '' ?>" id="tab-opiekun" role="tabpanel" aria-labelledby="tab-btn-opiekun" tabindex="0">
