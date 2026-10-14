@@ -1,0 +1,63 @@
+/* Stałe menu boczne panelu dydaktyka (modules/ti_dyd_menu). Styl paska górnego: granat, złota krawędź, aktywna pozycja jako
+   biała „zakładka”. Desktop (≥992px): przyklejone do lewej, własne przewijanie, treść przesunięta. Telefon: wysuwane. */
+:root { --dyd-side-w: 256px; --dyd-side-top: 56px; }
+
+.dyd-side, body.ti-skin .dyd-side {
+  position: fixed; left: 0; top: var(--dyd-side-top); bottom: 0; width: var(--dyd-side-w); z-index: 1035;
+  background: var(--ti-navy, #10335c); border-top: 3px solid #c8a11a; color: #fff;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+.dyd-side-in { padding: .4rem .5rem 1.5rem; }
+.dyd-side-sec { margin-top: .55rem; }
+.dyd-side h2, body.ti-skin .dyd-side h2 {
+  font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #ffd863;
+  margin: 0 .45rem .2rem; padding: 0; border: 0; background: none;
+}
+.dyd-side-sub { font-size: .72rem; color: rgba(255,255,255,.75); margin: -.1rem .45rem .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dyd-side-band {
+  margin: 1rem .2rem .1rem; padding: .3rem .45rem; font-size: .7rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ti-navy, #10335c); background: #ffd863; border-radius: 2px;
+}
+.dyd-side ul { list-style: none; margin: 0; padding: 0; }
+.dyd-side a, body.ti-skin .dyd-side a {
+  display: flex; align-items: center; gap: .55rem; padding: .3rem .5rem; min-height: 32px;
+  border: 1px solid transparent; border-radius: 2px; font-size: .8rem; font-weight: 500; line-height: 1.2;
+  color: #fff; text-decoration: none;
+}
+.dyd-side a:hover, body.ti-skin .dyd-side a:hover { background: rgba(255,255,255,.1); text-decoration: underline; }
+.dyd-side a:focus-visible, body.ti-skin .dyd-side a:focus-visible { outline: 3px solid #ffd863; outline-offset: -1px; }
+.dyd-side a.active, body.ti-skin .dyd-side a.active { background: #fff; border-color: #fff; color: var(--ti-blue, #1d4ed8); font-weight: 700; }
+.dyd-side a .bi { width: 1.1rem; text-align: center; flex-shrink: 0; opacity: .9; }
+.dyd-side a span:not(.badge):not(.visually-hidden) { flex: 1 1 auto; min-width: 0; }
+.dyd-side a .badge { margin-left: auto; font-size: .62rem; }
+.dyd-side a .badge.text-bg-danger, body.ti-skin .dyd-side a .badge.text-bg-danger { background: #ffd6d6 !important; color: #8a1c1c !important; }
+.dyd-side a .badge.text-bg-secondary { background: rgba(255,255,255,.85) !important; color: #10335c !important; }
+.dyd-side .dyd-side-ext { font-size: .62rem; width: auto; margin-left: auto; }
+
+.dyd-side-toggle { display: none; }
+.dyd-side-overlay { display: none; }
+
+@media (min-width: 992px) {
+  /* Treść obok menu; pasek górny na całą szerokość. Dawne paski boczne (_kierownik_bar, dyd-sidebar) nie są już rysowane. */
+  body.dyd-side-on { padding-left: var(--dyd-side-w) !important; }
+  body.dyd-side-on > header, body.dyd-side-on > .alert.rounded-0 { margin-left: calc(-1 * var(--dyd-side-w)); }
+  body.dyd-side-on main.dyd-wrap, body.dyd-side-on.dyd-usos main.dyd-content.dyd-wrap { margin-left: 0 !important; width: auto !important; }
+  body.dyd-side-on .skin-crumbs { margin-left: 0; }
+  body.dyd-side-on .dyd-sidebar, body.dyd-side-on .dyd-sb-overlay, body.dyd-side-on .kier-sidenav, body.dyd-side-on .kier-side-show { display: none !important; }
+}
+
+@media (max-width: 991.98px) {
+  .dyd-side, body.ti-skin .dyd-side {
+    top: 0; width: min(86vw, 320px); transform: translateX(-105%); transition: transform .2s ease; box-shadow: 4px 0 18px rgba(0,0,0,.25);
+  }
+  html.dyd-side-open .dyd-side { transform: none; }
+  html.dyd-side-open .dyd-side-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 1034; }
+  .dyd-side-toggle {
+    display: inline-flex; align-items: center; gap: .4rem; margin: .5rem 0 0 .75rem; padding: .35rem .8rem;
+    background: var(--ti-navy, #10335c); color: #fff; border: 0; border-radius: 2px; font-size: .85rem; font-weight: 600;
+  }
+  .dyd-side-toggle:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+  body.dyd-side-on .dyd-sidebar, body.dyd-side-on .kier-sidenav, body.dyd-side-on .kier-side-show { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) { .dyd-side { transition: none; } }
+@media print { .dyd-side, .dyd-side-toggle { display: none !important; } body.dyd-side-on { padding-left: 0 !important; } body.dyd-side-on > header { margin-left: 0; } }

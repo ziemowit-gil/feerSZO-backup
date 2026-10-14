@@ -13,8 +13,16 @@ $KP_TOPBAR     = $KP_TOPBAR     ?? null;
 $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 // Panel dydaktyka: sekcje w pasku + menu użytkownika (dydaktyk/_nav.php).
 // Panel kursanta nie ładuje tej funkcji — jego pasek zostaje jak był.
+// Stałe menu boczne (modules/ti_dyd_menu): w skórce ti-skin cała nawigacja panelu jest w menu bocznym, więc pasek
+// górny dostaje tylko menu użytkownika (bez rzędu sekcji).
+$KP_SIDE_MENU = '';
+if ($KP_TOPBAR && function_exists('dyd_current') && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka' && empty($KP_TOPBAR['no_enrich'])) {
+    require_once dirname(__DIR__, 3) . '/modules/ti_dyd_menu/logic/dydMenu.php';
+    $KP_SIDE_MENU = dydMenuBoot($KP_TOPBAR, (string)$KP_BODY_CLASS);
+    if ($KP_SIDE_MENU !== '') $KP_BODY_CLASS = trim($KP_BODY_CLASS . ' ' . $KP_SIDE_MENU);
+}
 if ($KP_TOPBAR && function_exists('dyd_topbar_enrich') && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka') {
-    $KP_TOPBAR = dyd_topbar_enrich($KP_TOPBAR, str_contains((string)$KP_BODY_CLASS, 'ti-skin'));
+    $KP_TOPBAR = dyd_topbar_enrich($KP_TOPBAR, $KP_SIDE_MENU === '' && str_contains((string)$KP_BODY_CLASS, 'ti-skin'));
 }
 $KP_EXTRA_CSS  = $KP_EXTRA_CSS  ?? [];
 ?><!DOCTYPE html>
@@ -242,6 +250,9 @@ a.kp-dash-card:focus-visible { outline:3px solid rgba(var(--bs-primary-rgb),.55)
 <link rel="stylesheet" href="<?= h($_css) ?>">
 <?php endforeach; ?>
 <script src="<?= h(APP_URL) ?>/karty30/ti/assets/ti_busy.js?v=1" defer></script>
+<?php if ($KP_SIDE_MENU !== ''): $_dsm = dirname(__DIR__) . '/assets/dyd_side_menu.css'; ?>
+<link rel="stylesheet" href="<?= h(APP_URL) ?>/karty30/ti/assets/dyd_side_menu.css?v=<?= is_file($_dsm) ? (int)filemtime($_dsm) : 1 ?>">
+<?php endif; ?>
 </head>
 <body class="<?= h($KP_BODY_CLASS) ?>"<?php if (!empty($vapid_public_key ?? '')): ?> data-vapid-key="<?= h($vapid_public_key) ?>"<?php endif; ?>>
 <?php
@@ -291,6 +302,7 @@ if (function_exists('dyd_current') && dyd_current()) {
   document.documentElement.classList.forEach(function (k) { document.body && document.body.classList.add(k); });
 </script>
 <a class="skip-link btn btn-primary btn-sm" href="#main">Przejdź do treści</a>
+<?php if ($KP_SIDE_MENU !== ''): ?><a class="skip-link btn btn-primary btn-sm" href="#dydSide">Przejdź do menu panelu</a><?php endif; ?>
 
 <?php $KP_IMP = function_exists('student_impersonator') ? student_impersonator() : null; if ($KP_IMP): ?>
 <div class="alert alert-warning border-0 rounded-0 mb-0 py-2" role="alert">
@@ -386,4 +398,8 @@ if ($KP_TOPBAR && empty($KP_TOPBAR['no_enrich']) && function_exists('dyd_current
   </nav>
 </header>
 <?php else: ?>
+<?php endif; ?>
+<?php if ($KP_SIDE_MENU !== ''): ?>
+<button type="button" class="dyd-side-toggle" id="dydSideToggle" aria-controls="dydSide" aria-expanded="false"><i class="bi bi-list" aria-hidden="true"></i>Menu</button>
+<div class="dyd-side-overlay" id="dydSideOverlay" aria-hidden="true"></div>
 <?php endif; ?>

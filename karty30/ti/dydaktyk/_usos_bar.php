@@ -214,7 +214,9 @@ foreach ($_cur_sec['items'] as $_i) {
 </nav>
 <?php endif; ?>
 
-<?php if ($_usos_cur === 'kierownik' || (function_exists('dyd_is_staff') && dyd_is_staff())):
+<?php if (function_exists('dydMenuOn') && dydMenuOn()):
+  // Stałe menu boczne (modules/ti_dyd_menu) ma całą nawigację — tu zostają tylko okruszki poniżej.
+elseif ($_usos_cur === 'kierownik' || (function_exists('dyd_is_staff') && dyd_is_staff())):
   // Pozycje sekcji Kierownik idą do MENU BOCZNEGO (jak na stronach zetony/okresy/
   // billing), nie do poziomego rzędu — lista jest za długa na jeden wiersz.
   // W roli „Kierownik Instytucji” menu boczne mają też pozostałe sekcje (Mój panel, Kurs,

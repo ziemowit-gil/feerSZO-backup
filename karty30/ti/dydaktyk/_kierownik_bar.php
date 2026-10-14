@@ -28,6 +28,19 @@ $KIER_EXTRA_HTML = $KIER_EXTRA_HTML ?? '';
 $KIER_TITLE = $KIER_TITLE ?? 'Kierownik';                       // nazwa menu (np. „Planista”)
 $KIER_CRUMB = $KIER_CRUMB ?? ['Kierownik', 'index.php?tab=grupy']; // drugi okruszek
 
+// Stałe menu boczne panelu (modules/ti_dyd_menu) zastępuje ten pasek — zostają okruszki i dodatki sekcji.
+if (function_exists('dydMenuOn') && dydMenuOn()) {
+    if (!$KIER_EMBED): ?>
+<div class="skin-crumbs">
+  <a href="index.php?tab=pulpit">Panel dydaktyka</a>
+  &rsaquo; <a href="<?= h($KIER_CRUMB[1]) ?>"><?= h($KIER_CRUMB[0]) ?></a>
+  <?php if ($KIER_LABEL !== ''): ?>&rsaquo; <strong><?= h($KIER_LABEL) ?></strong><?php endif; ?>
+</div>
+<?php endif;
+    unset($KIER_ITEMS, $KIER_GRUPY);
+    return;
+}
+
 if (!empty($KIER_ITEMS)) {
     $_kier_norm = $KIER_ITEMS;
 } else {
