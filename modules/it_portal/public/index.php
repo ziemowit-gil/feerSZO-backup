@@ -1,0 +1,68 @@
+<?php
+/**
+ * modules/it_portal/public/index.php — Portal Usług IT: Start.
+ * Adres: <APP_URL>/uslugi-it/ (reguła w .htaccess). Wyszukiwarka, „Najczęściej wyszukiwane”,
+ * baner ostrzegawczy (ustawienia), ostatnie komunikaty ze statusem i legenda.
+ */
+require_once __DIR__ . '/_layout.php';
+
+$popular = itPortalPopular(12);
+$notices = itPortalNotices(3);
+$banner  = itPortalSetting('banner_on') === '1' ? itPortalSanitizeHtml(itPortalSetting('banner_html')) : '';
+
+itPortalPageStart('', 'start', 'Instrukcje, usługi informatyczne i komunikaty o awariach — ' . ORG_NAME);
+?>
+<h1 class="itp-sr"><?= h(itPortalSetting('title')) ?></h1>
+<form class="itp-search" role="search" action="<?= h(itPortalUrl('szukaj')) ?>" method="get">
+  <label class="itp-sr" for="itp-q">Szukaj na stronie</label>
+  <input id="itp-q" type="search" name="q" placeholder="Szukaj na stronie…" autocomplete="off">
+  <button type="submit">Szukaj</button>
+</form>
+
+<div class="itp-start">
+  <section aria-labelledby="itp-pop-h">
+    <h2 class="itp-h" id="itp-pop-h">Najczęściej wyszukiwane:</h2>
+    <div class="itp-panel itp-panel--tall">
+      <?php if ($popular): ?>
+        <ul class="itp-circles">
+          <?php foreach ($popular as $a): ?>
+            <li><a href="<?= h(itPortalUrl('uslugi/' . rawurlencode($a['category_slug']) . '/' . rawurlencode($a['slug']))) ?>"><?= h($a['title']) ?></a></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php else: ?>
+        <p>Instrukcje pojawią się wkrótce. Zobacz <a href="<?= h(itPortalUrl('uslugi')) ?>">listę usług</a>.</p>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <div>
+    <?php if ($banner !== ''): ?>
+      <div class="itp-alert" role="note"><?= $banner ?></div>
+    <?php endif; ?>
+    <section aria-labelledby="itp-not-h">
+      <h2 class="itp-h" id="itp-not-h">Komunikaty:</h2>
+      <div class="itp-notes">
+        <?php if (!$notices): ?>
+          <p class="itp-note">Brak bieżących komunikatów — wszystkie usługi działają normalnie.</p>
+        <?php endif; ?>
+        <?php foreach ($notices as $n): ?>
+          <article class="itp-note">
+            <div class="itp-note__head">
+              <h3 class="itp-note__title"><?= itPortalStatusDot($n['status']) ?><?= h($n['title']) ?></h3>
+              <time class="itp-note__date" datetime="<?= h($n['notice_date']) ?>"><?= h($n['notice_date']) ?></time>
+            </div>
+            <p class="itp-note__lead"><?= h(itPortalExcerpt($n['body_plain'], 330)) ?></p>
+            <p class="itp-note__more"><a href="<?= h(itPortalUrl('komunikaty/' . (int)$n['id'])) ?>">więcej &gt;<span class="itp-sr"> o: <?= h($n['title']) ?></span></a></p>
+          </article>
+        <?php endforeach; ?>
+      </div>
+      <ul class="itp-legend" aria-label="Legenda statusów">
+        <?php foreach (['zgloszone', 'w_toku', 'naprawione'] as $s): ?>
+          <li><span class="itp-dot" style="background:<?= h(ITP_NOTICE_STATUSES[$s]['color']) ?>"></span><?= h(ITP_NOTICE_STATUSES[$s]['label']) ?></li>
+        <?php endforeach; ?>
+      </ul>
+    </section>
+  </div>
+</div>
+<?php
+itPortalPageEnd();

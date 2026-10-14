@@ -175,4 +175,38 @@ return [
         },
     ],
 
+    '2026-10_it_portal_seed' => [
+        'desc' => 'Portal Usług IT: grupy „Dostępność usługi”, startowe kafle usług i wstęp strony Kontakt (tylko gdy portal jest pusty)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/logic/itPortal.php';
+            itPortalMigrate();
+            if (!db_one("SELECT 1 FROM itp_audiences LIMIT 1")) {
+                foreach ([['Pracownik', 'user'], ['Wolontariusz', 'volunteer'], ['Kursant', 'student'], ['IT', 'it']] as $i => [$name, $icon]) {
+                    itPortalAudienceSave(['name' => $name, 'icon' => $icon, 'sort_order' => $i + 1]);
+                }
+            }
+            if (db_one("SELECT 1 FROM itp_categories LIMIT 1")) return;
+            $aud = array_column(itPortalAudiences(), 'id', 'name');
+            $all = array_values($aud);
+            $staff = array_values(array_filter([$aud['Pracownik'] ?? 0, $aud['Wolontariusz'] ?? 0, $aud['IT'] ?? 0]));
+            $app = rtrim(APP_URL, '/');
+            $seed = [
+                ['Mój login', 'moj-login', 'user', '', $all],
+                ['Moja poczta', 'moja-poczta', 'mail', '<p>Pocztę służbową odczytasz w przeglądarce: <a href="https://poczta.feer.org.pl">poczta.feer.org.pl</a>.</p>', $staff],
+                ['Helpdesk', 'helpdesk', 'help', '', $all, $app . '/helpdesk/new.php'],
+                ['Microsoft 365', 'microsoft-365', 'cloud', '', $all],
+                ['EZD', 'ezd', 'folder', '', $staff],
+                ['VPN', 'vpn', 'lock', '', $staff],
+                ['Bezpieczeństwo', 'bezpieczenstwo', 'shield', '', $all],
+            ];
+            foreach ($seed as $i => $c) {
+                itPortalCategorySave(['name' => $c[0], 'slug' => $c[1], 'icon' => $c[2], 'intro_html' => $c[3], 'audiences' => $c[4],
+                                      'external_url' => $c[5] ?? '', 'sort_order' => ($i + 1) * 10, 'is_active' => 1]);
+            }
+            if (org_setting('itp_contact_intro') === '') {
+                itPortalSettingSet('contact_intro', '<h2>Helpdesk</h2><p><a href="' . $app . '/helpdesk/new.php">Zgłoś problem w systemie obsługi pomocy</a></p>');
+            }
+        },
+    ],
+
 ];

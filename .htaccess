@@ -35,6 +35,19 @@ RewriteRule ^klauzule\.json$ /modules/gdpr_clauses/public/list.php [QSA,L]
 # więc /klauzule.json nie dochodzi do tej reguły — /klauzule działa zawsze.
 RewriteRule ^klauzule/?$ /modules/gdpr_clauses/public/list.php [QSA,L]
 
+# ── Portal Usług IT: /uslugi-it/… → modules/it_portal/public (bez logowania) ──
+# Linkowany z it.feer.org.pl. Edycja treści: /modules/it_portal/index.php.
+# Musi być PRZED regułami subdomen, żeby ich catch-all tego nie przechwycił.
+RewriteRule ^uslugi-it$ /uslugi-it/ [R=301,L]
+RewriteRule ^uslugi-it/$ /modules/it_portal/public/index.php [QSA,L]
+RewriteRule ^uslugi-it/uslugi/?$ /modules/it_portal/public/uslugi.php [QSA,L]
+RewriteRule ^uslugi-it/uslugi/([a-z0-9-]{1,80})/?$ /modules/it_portal/public/usluga.php?k=$1 [QSA,L]
+RewriteRule ^uslugi-it/uslugi/([a-z0-9-]{1,80})/([a-z0-9-]{1,80})/?$ /modules/it_portal/public/usluga.php?k=$1&a=$2 [QSA,L]
+RewriteRule ^uslugi-it/komunikaty/?$ /modules/it_portal/public/komunikaty.php [QSA,L]
+RewriteRule ^uslugi-it/komunikaty/([0-9]{1,9})/?$ /modules/it_portal/public/komunikaty.php?id=$1 [QSA,L]
+RewriteRule ^uslugi-it/kontakt/?$ /modules/it_portal/public/kontakt.php [QSA,L]
+RewriteRule ^uslugi-it/szukaj/?$ /modules/it_portal/public/szukaj.php [QSA,L]
+
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
 # (URL w przeglądarce zostaje czysty). Krótkie adresy:

@@ -422,6 +422,8 @@ function _menu_editor(): array {
         if ($cnt['alias_op'])
             $obs_g[] = _mi('Aliasy e-mail','/admin/email_aliasy.php','bi-at',['match'=>'/admin/email_aliasy','badge'=>$cnt['alias'],'kw'=>'alias email']);
     }
+    if (is_admin() || (current_user()['role'] ?? '') === 'editor')
+        $obs_g[] = _mi('Portal Usług IT','/modules/it_portal/index.php','bi-life-preserver',['match'=>'/modules/it_portal/','kw'=>'portal usługi it instrukcje komunikaty awarie phishing baza wiedzy it.feer.org.pl']);
     if (module_enabled('rekrutacja_enabled')
         && (is_admin() || !empty(current_user()['rekrutacja_operator'])))
         $obs_g[] = _mi('Nabór','/rekrutacja/index.php','bi-person-plus',['match'=>'/rekrutacja/','kw'=>'nabór rekrutacja kandydaci cv wolontariusze pracownicy zgłoszenia']);
