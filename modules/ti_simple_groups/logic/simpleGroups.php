@@ -207,7 +207,7 @@ final class TiSimpleGroups
     public static function listGroups(bool $active = true): array
     {
         return db_all(
-            "SELECT c.id, c.name, c.internal_desc, c.simple_mode, c.class_type, c.is_active, c.status, u.name AS instructor_name,
+            "SELECT c.id, c.name, c.internal_desc, c.simple_mode, c.class_type, c.is_active, c.status, u.name AS instructor_name, c.zoom_meeting_id, c.default_meeting_url,
                     (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS people,
                     (SELECT GROUP_CONCAT(cl.name, ', ') FROM k30_ti_enrollments e JOIN k30_clients cl ON cl.id = e.client_id
                       WHERE e.course_id = c.id AND e.status = 'active') AS people_names,
@@ -367,5 +367,66 @@ final class TiSimpleGroups
               . ($desc !== $oldDesc ? '; opis: ' . ($desc !== '' ? $desc : '(usunięty)') : '');
         ti_course_log($courseId, 'convert_simple', 'Konwerter grup: ' . $det, $uid, $byName);
         return ['ok' => true, 'msg' => ($from !== $to ? 'Grupa przekonwertowana: ' : 'Zapisano zmiany grupy: ') . $det . '.'];
+    }
+
+    /**
+     * Stały link Zoom szkolenia krótkiego (jak kurs.php → gen_course_zoom): spotkanie Zoom typu 3 na koncie
+     * organizacji z prowadzącym i współprowadzącymi jako alternative hosts; link trafia do grupy (default_meeting_url,
+     * zoom_meeting_id) i do przyszłych zajęć „Online — Zoom” bez własnego linku (albo ze starym linkiem grupy).
+     * Ponowne generowanie usuwa poprzednie spotkanie. @return array{ok:bool, msg:string, url:string}
+     */
+    public static function zoomGenerate(int $courseId, int $uid, string $byName = ''): array
+    {
+        require_once dirname(__DIR__, 3) . '/includes/zoom.php';
+        $c = db_one("SELECT id, name, internal_desc, zoom_meeting_id, default_meeting_url FROM k30_ti_courses WHERE id = ?", [$courseId]);
+        if (!$c) return ['ok' => false, 'msg' => 'Nie znaleziono grupy.', 'url' => ''];
+        if (!zoom_enabled()) return ['ok' => false, 'msg' => 'Integracja Zoom nie jest skonfigurowana (Ustawienia → Zoom).', 'url' => ''];
+        $api = new ZoomAPI();
+        $oldUrl = (string)$c['default_meeting_url'];
+        if (!empty($c['zoom_meeting_id'])) {
+            try { $api->delete_meeting((string)$c['zoom_meeting_id']); $api->log('delete', (string)$c['zoom_meeting_id'], 'ok', 'SzK: przed ponownym wygenerowaniem', $courseId, $uid); } catch (\Throwable $e) {}
+        }
+        $alt = k30_ti_course_zoom_alt_hosts($courseId);
+        $host = (string)(db_one("SELECT u.email FROM k30_ti_courses c JOIN users u ON u.id = c.instructor_id WHERE c.id = ?", [$courseId])['email'] ?? '');
+        $warn = '';
+        if ($host !== '') {
+            try { $api->validate_user_email($host); }
+            catch (\RuntimeException $ex) { $warn = ' ' . $ex->getMessage() . ' Link utworzono bez współgospodarzy.'; $alt = ''; $host = ''; }
+        }
+        try {
+            $m = $api->create_meeting((string)$c['name'], 'Szkolenie krótkie TI — stały link grupy', $alt);
+        } catch (\RuntimeException $ex) {
+            $api->log('create', '', 'error', $ex->getMessage(), $courseId, $uid);
+            return ['ok' => false, 'msg' => 'Błąd Zoom: ' . $ex->getMessage(), 'url' => ''];
+        }
+        db()->prepare("UPDATE k30_ti_courses SET zoom_meeting_id = ?, default_meeting_url = ?, zoom_host_email = ? WHERE id = ?")
+            ->execute([$m['meeting_id'], $m['join_url'], $host, $courseId]);
+        $st = db()->prepare("UPDATE k30_ti_sessions SET meeting_url = ? WHERE course_id = ? AND lesson_method = 'zdalna_zoom'
+                               AND status IN ('planned','draft','reserved') AND lesson_date >= date('now')
+                               AND (meeting_url = '' OR meeting_url = ?)");
+        $st->execute([$m['join_url'], $courseId, $oldUrl]);
+        $n = $st->rowCount();
+        $api->log('create', $m['meeting_id'], 'ok', 'SzK alt_hosts=' . $alt, $courseId, $uid);
+        ti_course_log($courseId, 'zoom', 'Wygenerowano stały link Zoom grupy' . ($n ? " (zajęcia online: $n)" : '') . '.', $uid, $byName);
+        return ['ok' => true, 'msg' => 'Link Zoom wygenerowany' . ($n ? " i wpisany do zajęć online ($n)" : '') . '.' . $warn, 'url' => $m['join_url']];
+    }
+
+    /** Usuwa stały link Zoom grupy (spotkanie w Zoom, link grupy i ten sam link w przyszłych zajęciach). */
+    public static function zoomClear(int $courseId, int $uid, string $byName = ''): array
+    {
+        require_once dirname(__DIR__, 3) . '/includes/zoom.php';
+        $c = db_one("SELECT id, zoom_meeting_id, default_meeting_url FROM k30_ti_courses WHERE id = ?", [$courseId]);
+        if (!$c) return ['ok' => false, 'msg' => 'Nie znaleziono grupy.'];
+        if (!empty($c['zoom_meeting_id']) && zoom_enabled()) {
+            $api = new ZoomAPI();
+            try { $api->delete_meeting((string)$c['zoom_meeting_id']); $api->log('delete', (string)$c['zoom_meeting_id'], 'ok', 'SzK: usunięty przez kierownika', $courseId, $uid); } catch (\Throwable $e) {}
+        }
+        if ((string)$c['default_meeting_url'] !== '') {
+            db()->prepare("UPDATE k30_ti_sessions SET meeting_url = '' WHERE course_id = ? AND meeting_url = ? AND lesson_date >= date('now') AND status IN ('planned','draft','reserved')")
+                ->execute([$courseId, (string)$c['default_meeting_url']]);
+        }
+        db()->prepare("UPDATE k30_ti_courses SET zoom_meeting_id = '', default_meeting_url = '', zoom_host_email = '' WHERE id = ?")->execute([$courseId]);
+        ti_course_log($courseId, 'zoom', 'Usunięto stały link Zoom grupy.', $uid, $byName);
+        return ['ok' => true, 'msg' => 'Link Zoom usunięty.'];
     }
 }

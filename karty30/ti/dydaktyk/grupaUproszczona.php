@@ -46,9 +46,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set($res['warnings'] || $res['no_account'] ? 'warning' : 'success', $msg);
             // Loginy i hasła nowych kont — pokazujemy raz, na tej stronie
             $_SESSION['gu_creds'] = ['course_id' => $res['course_id'], 'name' => $res['name'], 'rows' => $res['accounts']];
+            // Stały link Zoom grupy — gdy zaznaczono i są zajęcia „Online — Zoom”
+            if (!empty($_POST['gen_zoom']) && in_array('zdalna_zoom', array_column($lessons, 'method'), true)) {
+                $z = TiSimpleGroups::zoomGenerate((int)$res['course_id'], $uid, $byName);
+                flash_set($z['ok'] ? 'success' : 'warning', $z['ok'] ? $z['msg'] : 'Grupa utworzona, ale linku Zoom nie wygenerowano: ' . $z['msg']);
+            }
             header('Location: grupaUproszczona.php?utworzono=' . $res['course_id']); exit;
         }
         $errors = $res['errors']; $warnings = $res['warnings'];
+    } elseif ($op === 'zoom_gen' || $op === 'zoom_clear') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        if (!db_one("SELECT 1 FROM k30_ti_courses WHERE id = ? AND simple_mode > 0", [$cid])) flash_set('danger', 'To nie jest szkolenie krótkie.');
+        else {
+            $z = $op === 'zoom_gen' ? TiSimpleGroups::zoomGenerate($cid, $uid, $byName) : TiSimpleGroups::zoomClear($cid, $uid, $byName);
+            flash_set($z['ok'] ? 'success' : 'danger', $z['msg']);
+        }
+        header('Location: grupaUproszczona.php' . (!empty($_POST['all']) ? '?wszystkie=1' : '') . '#lista'); exit;
     } elseif ($op === 'convert') {
         $cid  = (int)($_POST['course_id'] ?? 0);
         $mode = (int)($_POST['mode'] ?? 0);
@@ -74,6 +87,8 @@ unset($_SESSION['gu_creds']);
 // Do wydruku PDF hasła zostają w sesji jeszcze 30 minut (grupaUproszczonaPdf.php), potem znikają
 if ($creds && $creds['rows']) $_SESSION['gu_creds_pdf'][(int)$creds['course_id']] = ['rows' => $creds['rows'], 'ts' => time()];
 $showAll = !empty($_GET['wszystkie']);
+require_once dirname(__DIR__, 3) . '/includes/zoom.php';
+$zoomOn  = zoom_enabled();
 $groups  = TiSimpleGroups::listGroups(!$showAll);
 
 $conv = (int)($_GET['konwertuj'] ?? 0);
@@ -167,7 +182,23 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <td class="text-end small"><?= (int)$g['held'] ?> / <?= (int)$g['lessons'] ?><span class="visually-hidden"> odbytych</span></td>
       <td class="small text-nowrap"><?= $g['next_lesson'] ? h(date('d.m.Y', strtotime(substr((string)$g['next_lesson'], 0, 10))) . ' ' . substr((string)$g['next_lesson'], 11, 5)) : '—' ?></td>
       <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" href="konsultacje.php?course=<?= (int)$g['id'] ?>" title="Karty konsultacji i zamknięcie szkolenia <?= h($g['name']) ?>"><i class="bi bi-clipboard2-check" aria-hidden="true"></i><span class="visually-hidden">Karty konsultacji</span></a>
-        <a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$g['id'] ?>#konwerter" title="Konwertuj grupę <?= h($g['name']) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Konwertuj</span></a></td>
+        <a class="btn btn-sm btn-outline-secondary" href="grupaUproszczona.php?konwertuj=<?= (int)$g['id'] ?>#konwerter" title="Konwertuj grupę <?= h($g['name']) ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Konwertuj</span></a>
+        <?php if ($zoomOn): $hasZoom = trim((string)$g['zoom_meeting_id']) !== ''; ?>
+        <form method="post" class="d-inline"<?= $hasZoom ? ' onsubmit="return confirm(\'Wygenerować nowy link Zoom? Poprzedni przestanie działać.\')"' : '' ?>>
+          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="zoom_gen"><input type="hidden" name="course_id" value="<?= (int)$g['id'] ?>"><?= $showAll ? '<input type="hidden" name="all" value="1">' : '' ?>
+          <button class="btn btn-sm <?= $hasZoom ? 'btn-outline-secondary' : 'btn-outline-primary' ?>" title="<?= $hasZoom ? 'Wygeneruj nowy link Zoom' : 'Wygeneruj link Zoom' ?> — <?= h($g['name']) ?>"><i class="bi bi-camera-video" aria-hidden="true"></i><span class="visually-hidden"><?= $hasZoom ? 'Wygeneruj nowy link Zoom' : 'Wygeneruj link Zoom' ?></span></button>
+        </form>
+        <?php endif; ?>
+        <?php if (trim((string)$g['default_meeting_url']) !== ''): ?>
+        <div class="small mt-1 text-start"><a href="<?= h($g['default_meeting_url']) ?>" target="_blank" rel="noopener"><i class="bi bi-camera-video me-1" aria-hidden="true"></i><?= trim((string)$g['zoom_meeting_id']) !== '' ? 'Zoom' : 'Link online' ?></a>
+          <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" onclick="navigator.clipboard.writeText(<?= h(json_encode((string)$g['default_meeting_url'])) ?>);this.textContent='skopiowano'">kopiuj</button>
+          <?php if (trim((string)$g['zoom_meeting_id']) !== ''): ?>
+          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć link Zoom tej grupy? Spotkanie zostanie skasowane w Zoom.')">
+            <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="zoom_clear"><input type="hidden" name="course_id" value="<?= (int)$g['id'] ?>"><?= $showAll ? '<input type="hidden" name="all" value="1">' : '' ?>
+            <button class="btn btn-link btn-sm p-0 ms-1 align-baseline text-danger">usuń</button>
+          </form>
+          <?php endif; ?></div>
+        <?php endif; ?></td>
     </tr>
     <?php endforeach; ?>
     </tbody>
@@ -225,7 +256,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </div>
         <div class="col-sm-4 small text-body-secondary d-flex align-items-end">Formę (stacjonarnie / online) wybierasz przy każdym terminie — można mieszać.</div>
         <div class="col-sm-6"><label class="form-label small mb-0" for="gu-loc">Miejsce (zajęcia stacjonarne)</label><input class="form-control form-control-sm" id="gu-loc" name="location" value="<?= h((string)$o('location')) ?>"></div>
-        <div class="col-sm-6"><label class="form-label small mb-0" for="gu-url">Link do spotkania (zajęcia online)</label><input class="form-control form-control-sm" id="gu-url" name="meeting_url" type="url" value="<?= h((string)$o('meeting_url')) ?>"></div>
+        <div class="col-sm-6"><label class="form-label small mb-0" for="gu-url">Link do spotkania (zajęcia online)</label><input class="form-control form-control-sm" id="gu-url" name="meeting_url" type="url" value="<?= h((string)$o('meeting_url')) ?>">
+          <?php if ($zoomOn): ?><div class="form-check mt-1"><input class="form-check-input" type="checkbox" id="gu-zoom" name="gen_zoom" value="1"<?= !$old || $o('gen_zoom') ? ' checked' : '' ?>>
+            <label class="form-check-label small" for="gu-zoom">Wygeneruj link Zoom dla zajęć „Online — Zoom” (zastąpi link wpisany wyżej)</label></div><?php endif; ?></div>
       </div>
     </fieldset>
 
