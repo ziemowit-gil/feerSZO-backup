@@ -69,6 +69,12 @@ final class TiStudentDocs
         db()->prepare("UPDATE k30_ti_student_accounts SET doc_status='scan', doc_path=?, doc_name=?, doc_at=datetime('now'), doc_decl_text='', updated_at=datetime('now') WHERE id=?")
            ->execute(['ti_dokumenty/' . $name, mb_substr(basename((string)$file['name']), 0, 150), $accountId]);
         self::log($accountId, 'Przesłano skan dokumentu potwierdzającego.');
+        // Kopia wpisu w teczce „Dokumenty kursanta” (plik zostaje tutaj, teczka tylko na niego wskazuje)
+        try {
+            require_once dirname(__DIR__, 2) . '/ti_student_folder/logic/studentFolder.php';
+            $r = self::get($accountId) ?: [];
+            TiStudentFolder::addLegacyScan($accountId, 'ti_dokumenty/' . $name, mb_substr(basename((string)$file['name']), 0, 150), self::label($r));
+        } catch (\Throwable $e) { error_log('TiStudentFolder::addLegacyScan: ' . $e->getMessage()); }
         return '';
     }
 

@@ -34,6 +34,7 @@ if (!$_minor) {
     $_sprawy_items[] = $_it('upowaznieni', 'Upoważnieni', $_g('upowaznieni'));
 }
 $_sprawy_items[] = $_it('regulaminy', 'Regulaminy', $_g('regulaminy'), $_n_terms, 'danger');
+$_sprawy_items[] = $_it('dokumenty', 'Dokumenty', 'dokumenty.php', (int)($sf_pending ?? 0), 'warning');
 
 /** Ikony kafli (Bootstrap Icons) wg zakładki; nieznana zakładka dostaje kółko. */
 $_ikony = [
@@ -42,7 +43,7 @@ $_ikony = [
   'testy' => 'pencil-square', 'komunikaty' => 'megaphone', 'wiadomosci' => 'chat-dots',
   'problem' => 'question-circle', 'online' => 'camera-video', 'vlab' => 'pc-display', 'dysk' => 'cloud',
   'licencje' => 'key', 'pfron' => 'people', 'zapisy' => 'person-plus', 'rozliczenia' => 'receipt',
-  'portfel' => 'wallet2', 'upowaznieni' => 'person-check', 'regulaminy' => 'file-text', 'ustawienia' => 'gear', 'office' => 'microsoft',
+  'portfel' => 'wallet2', 'upowaznieni' => 'person-check', 'dokumenty' => 'folder2-open', 'regulaminy' => 'file-text', 'ustawienia' => 'gear', 'office' => 'microsoft',
 ];
 
 $_alt_sections = [

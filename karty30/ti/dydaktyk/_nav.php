@@ -37,7 +37,7 @@ const DYD_NAV_PAGES = [
                       'konsultacjeZestawienia.php', 'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php',
                       'konsultacjePfronDokumenty.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
-    'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'billing.php', 'protokoly.php',
+    'kierownik' => ['klienci.php', 'konta.php', 'microsoft365.php', 'licencjeKursantow.php', 'dokumentyKursanta.php', 'billing.php', 'protokoly.php',
                     'audyt_dziennikow.php', 'polecenia.php', 'log_grup.php', 'wydruki.php', 'zetony.php',
                     'dostepnosci.php', 'sale.php', 'sale_rezerwacje.php', 'okresy.php', 'przedmioty.php',
                     'dni_wolne.php', 'wylaczenia.php', 'zespol.php', 'testy.php', 'overpayments.php', 'przypomnieniaWplat.php', 'pricing.php',

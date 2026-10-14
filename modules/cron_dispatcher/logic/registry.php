@@ -258,6 +258,11 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 7:00 bez dryfu (przy 86400 przesuwałby się o minutę dziennie — dyspozytor tyka co minutę)
             'schedule' => [7, 8],       // okno 7:00–8:00 — przypomnienia o braku wpłaty za zajęcia TI (e-mail + SMS); wyłączone, póki ich nie włączy kierownik
         ],
+        'ti_student_folder_expiry' => [
+            'file'     => $cronDir . '/ti_student_folder_expiry.php',
+            'interval' => 82800,        // 23 h, start o 7:00 bez dryfu
+            'schedule' => [7, 8],       // przypomnienia o kończącej się ważności dokumentów w teczkach kursantów; wyłączone, póki ich nie włączy kierownik
+        ],
         'ti_product_reminders' => [
             'file'     => $cronDir . '/ti_product_reminders.php',
             'interval' => 82800,        // 23 h: start o 8:00 bez dryfu

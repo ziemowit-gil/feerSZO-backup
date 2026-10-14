@@ -1007,7 +1007,7 @@ foreach ($accounts as $a) {
 }
 
 $active_tab = $_GET['ptab'] ?? (isset($_GET['guardian']) ? 'opiekun' : (isset($_GET['authp']) ? 'upowaznieni' : 'ogolne'));
-if (!in_array($active_tab, ['ogolne', 'platnosci', 'licencje', 'produkty', 'opiekun', 'upowaznieni'], true)) $active_tab = 'ogolne';
+if (!in_array($active_tab, ['ogolne', 'platnosci', 'licencje', 'produkty', 'dokumenty', 'opiekun', 'upowaznieni'], true)) $active_tab = 'ogolne';
 
 // Opiekun/rodzic — te same kolumny co $selected_acc (k30_ti_student_accounts),
 // więc bez osobnego zapytania.
@@ -1307,6 +1307,15 @@ function printBulk(){
     <li class="nav-item" role="presentation">
       <button class="nav-link <?= $active_tab === 'produkty' ? 'active' : '' ?>" id="tab-btn-produkty" data-bs-toggle="tab" data-bs-target="#tab-produkty" type="button" role="tab" aria-controls="tab-produkty" aria-selected="<?= $active_tab === 'produkty' ? 'true' : 'false' ?>">
         <i class="bi bi-globe2 me-1" aria-hidden="true"></i>Usługi i produkty
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <?php require_once dirname(__DIR__, 3) . '/modules/ti_student_folder/logic/studentFolder.php';
+            TiStudentFolder::migrate();
+            $_sf_badge = (int)(db_one("SELECT COUNT(*) AS c FROM k30_ti_sfile WHERE account_id=? AND status='pending' AND deleted_at IS NULL", [(int)$sa['id']])['c'] ?? 0); ?>
+      <button class="nav-link <?= $active_tab === 'dokumenty' ? 'active' : '' ?>" id="tab-btn-dokumenty" data-bs-toggle="tab" data-bs-target="#tab-dokumenty" type="button" role="tab" aria-controls="tab-dokumenty" aria-selected="<?= $active_tab === 'dokumenty' ? 'true' : 'false' ?>">
+        <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Dokumenty
+        <?php if ($_sf_badge): ?><span class="badge bg-warning text-dark ms-1" title="Do zatwierdzenia"><?= $_sf_badge ?></span><?php endif; ?>
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -1819,6 +1828,11 @@ function printBulk(){
         </form>
         <?php endif; ?>
       </div>
+    </div>
+
+    <!-- ── Zakładka: Dokumenty (teczka + do akceptacji) — modules/ti_student_folder ── -->
+    <div class="tab-pane fade <?= $active_tab === 'dokumenty' ? 'show active' : '' ?>" id="tab-dokumenty" role="tabpanel" aria-labelledby="tab-btn-dokumenty" tabindex="0">
+      <?php include dirname(__DIR__, 3) . '/modules/ti_student_folder/ui/staffTab.php'; ?>
     </div>
 
     <?php if ($authp_account): ?>

@@ -607,6 +607,14 @@ include __DIR__ . '/_layout_head.php';
         </a>
       </li>
       <li class="nav-item">
+        <?php require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_student_folder/logic/studentFolder.php';
+              $_sf_p = TiStudentFolder::pendingRequestCount((int)$parent['student_id']); ?>
+        <a class="nav-link" href="dokumenty.php?as=parent">
+          <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Dokumenty
+          <?php if ($_sf_p): ?><span class="badge text-bg-warning ms-1"><?= $_sf_p ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?>
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link <?= $ptab==='vlab'?'active':'' ?>" href="?ptab=vlab" <?= $ptab==='vlab'?'aria-current="page"':'' ?>>
           <i class="bi bi-hdd-stack me-1" aria-hidden="true"></i>Regulamin VLab
           <?php if ($vlab_term_pending_parent): ?><span class="badge text-bg-warning ms-1" title="Wymaga akceptacji"><i class="bi bi-exclamation-lg" aria-hidden="true"></i></span><?php endif; ?>

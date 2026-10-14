@@ -1145,6 +1145,9 @@ $cal_gcal   = 'https://calendar.google.com/calendar/r?cid=' . rawurlencode($cal_
 
 $org        = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
 $is_minor   = !empty($account['is_minor']);
+// Dokumenty kursanta (modules/ti_student_folder): ile dokumentów czeka na akceptację — licznik w menu i baner
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_student_folder/logic/studentFolder.php';
+$sf_pending = TiStudentFolder::pendingRequestCount((int)$student['id']);
 $months_pl  = [1=>'Sty',2=>'Lut',3=>'Mar',4=>'Kwi',5=>'Maj',6=>'Cze',
                7=>'Lip',8=>'Sie',9=>'Wrz',10=>'Paź',11=>'Lis',12=>'Gru'];
 
@@ -1326,7 +1329,7 @@ include __DIR__ . '/_layout_head.php';
                       ['oceny','table','Oceny'], ['plan','list-check','Plan nauczania'], ['egzaminy','card-checklist','Testy'], ['testy','clock-history','Testy (starsze)']],
       'Komunikacja' => [['komunikaty','megaphone','Komunikaty'], ['wiadomosci','envelope','Wiadomości']],
       'Konto' => array_merge($is_minor ? [] : [['platnosci','cash-coin','Płatności'], ['rozliczenia','receipt','Rozliczenia'],
-                      ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['ustawienia','gear','Ustawienia']]),
+                      ['portfel','wallet2','Portfel'], ['upowaznieni','person-check','Upoważnieni']], [['dokumenty','folder2-open','Dokumenty','dokumenty.php'], ['ustawienia','gear','Ustawienia']]),
       'Dostępy' => [['licencje','key','Licencje i usługi'], ['pfron','shield-lock','PFRON (konsultacje)']],
       'Inne' => [['problem','life-preserver','Pomoc'], ['aktywnosc','clock-history','Aktywność konta'], ['regulaminy','file-earmark-text','Regulaminy']],
   ];
@@ -1412,6 +1415,8 @@ include __DIR__ . '/_layout_head.php';
         <i class="bi bi-person-lines-fill me-1" aria-hidden="true"></i>Konto<?= $kp_cur($konto_active) ?>
       </a>
       <ul class="dropdown-menu">
+        <li><a class="dropdown-item <?= $mc() ?>" href="dokumenty.php">
+          <i class="bi bi-folder2-open me-2" aria-hidden="true"></i>Dokumenty<?php if ($sf_pending): ?> <span class="badge text-bg-warning ms-1"><?= $sf_pending ?><span class="visually-hidden"> do akceptacji</span></span><?php endif; ?></a></li>
         <?php if (!$is_minor): ?>
         <li><a class="dropdown-item <?= $mc() ?> <?= $tab==='platnosci'?'active':'' ?>" href="?tab=platnosci" <?= $tab==='platnosci'?'aria-current="page"':'' ?>>
           <i class="bi bi-cash-coin me-2" aria-hidden="true"></i>Płatności</a></li>
@@ -1473,6 +1478,13 @@ include __DIR__ . '/_layout_head.php';
 <?php if ($KUR_UI === 'alt' && $tab === 'start') include __DIR__ . '/_alt_start.php'; ?>
 
 <main id="main" class="container-xl px-3 py-4<?= ($tab === 'dane' && $KUR_UI === 'alt') ? ' kp-dane-grid' : '' ?><?= ($tab === 'lekcje' && $KUR_UI === 'alt') ? ' kp-lekcje-uklad' : '' ?>">
+<?php if ($sf_pending): ?>
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2" role="status">
+  <i class="bi bi-pen" aria-hidden="true"></i>
+  <span><?= $sf_pending === 1 ? 'Czeka na Ciebie dokument' : 'Czekają na Ciebie dokumenty (' . $sf_pending . ')' ?> do zapoznania się<?= $is_minor ? ' — akceptuje go Twój opiekun' : ' i akceptacji' ?>.</span>
+  <a class="btn btn-sm btn-warning ms-auto" href="dokumenty.php">Przejdź do dokumentów</a>
+</div>
+<?php endif; ?>
 
 <!-- ── Pytanie o czytnik ekranu (jednorazowe, localStorage) ──────────── -->
 <div id="kpSrBanner" class="alert alert-primary alert-dismissible d-flex align-items-center gap-3 mb-3" role="dialog"
