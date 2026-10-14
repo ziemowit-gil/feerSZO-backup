@@ -5,7 +5,7 @@
  * tworzenie/usuwanie konta MS jest tylko jedną z akcji dla pojedynczego kursanta).
  *
  * Tu widać WSZYSTKICH kursantów z jednego miejsca — bez wybierania każdego
- * z osobna w Konta kursantów. Konfiguracja samego tenanta/licencji (dane
+ * z osobna w Ewidencji Uczestników. Konfiguracja samego tenanta/licencji (dane
  * dostępowe do Graph API) zostaje w karty30/ti/online_admin.php — to ekran
  * administracji SZO (k30_require_access()/can_write), kierownik nie ma tam
  * dostępu, bo operuje na osobnym systemie logowania (dyd_require()).

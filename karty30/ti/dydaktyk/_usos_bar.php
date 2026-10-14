@@ -116,7 +116,7 @@ if (dyd_is_staff()) {
         'items' => [
             $_it('grupy',        'Przegląd grup',         $_g('grupy')),
             $_it('',             'Podgląd klientów',      'klienci.php'),
-            $_it('',             'Konta kursantów',       'konta.php'),
+            $_it('',             'Ewidencja Uczestników',  'konta.php'),
             $_it('rozliczenia',  'Rozliczenia grupy',     $_ct('rozliczenia'), (int)($_sb_roz_debt ?? 0), 'danger'),
             $_it('',             'Rozliczenia kursantów', 'billing.php'),
             $_it('',             'Nadpłaty uczestników',  'overpayments.php'),
@@ -222,7 +222,7 @@ foreach ($_cur_sec['items'] as $_i) {
   $_kier_icons = [
       'Przegląd grup'             => 'people',
       'Podgląd klientów'          => 'person-lines-fill',
-      'Konta kursantów'           => 'person-badge',
+      'Ewidencja Uczestników'      => 'person-badge',
       'Rozliczenia grupy'         => 'receipt-cutoff',
       'Rozliczenia kursantów'     => 'receipt',
       'Nadpłaty uczestników'      => 'piggy-bank',

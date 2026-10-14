@@ -35,7 +35,7 @@ if (!empty($KIER_ITEMS)) {
     $_kier_defaults = [
         ['Przegląd grup',             'index.php?tab=grupy',        'people'],
         ['Podgląd klientów',          'klienci.php',                'person-lines-fill'],
-        ['Konta kursantów',           'konta.php',                  'person-badge'],
+        ['Ewidencja Uczestników',     'konta.php',                  'person-badge'],
         ['Microsoft 365',             'microsoft365.php',           'microsoft'],
         ['Licencje',                  'licencjeKursantow.php',      'key'],
         ['Dokumenty kursantów',       'dokumentyKursanta.php',      'folder2-open'],

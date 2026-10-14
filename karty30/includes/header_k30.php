@@ -184,7 +184,7 @@ function _k30_active(string $path): bool {
   }
   if (is_admin()) {
       $K30_NAV[] = ['section', 'Administracja TI'];
-      $K30_NAV[] = ['link', 'Konta kursantów',   'person-badge',    '/karty30/ti/kursant/accounts.php', ['/karty30/ti/kursant/accounts']];
+      $K30_NAV[] = ['link', 'Ewidencja Uczestników', 'person-badge',    '/karty30/ti/kursant/accounts.php', ['/karty30/ti/kursant/accounts']];
       $K30_NAV[] = ['link', 'Dostępność prowadzących', 'clock-history', '/karty30/ti/availability.php', ['/karty30/ti/availability']];
       $K30_NAV[] = ['link', 'Nauka online',      'camera-video',    '/karty30/ti/online_admin.php',     ['/karty30/ti/online_admin']];
       $K30_NAV[] = ['link', 'Licencje',          'key',             '/karty30/ti/licencje_admin.php',   ['/karty30/ti/licencje_admin']];

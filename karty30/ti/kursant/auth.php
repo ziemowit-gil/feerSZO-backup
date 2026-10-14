@@ -117,7 +117,7 @@ function student_require(): array {
         header('Location: login.php');
         exit;
     }
-    // „Wymaga dokumentu potwierdzającego” (Konta kursantów): do czasu skanu albo oświadczenia — tylko kursant/dokument.php
+    // „Wymaga dokumentu potwierdzającego” (Ewidencja Uczestników): do czasu skanu albo oświadczenia — tylko kursant/dokument.php
     // (podgląd administratora „zaloguj jako” nie jest blokowany)
     if (empty($s['imp']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), ['dokument.php', 'login.php'], true)) {
         require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_student_docs/logic/studentDocs.php';

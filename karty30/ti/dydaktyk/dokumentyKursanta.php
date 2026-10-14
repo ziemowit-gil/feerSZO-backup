@@ -1,7 +1,7 @@
 <?php
 /**
  * karty30/ti/dydaktyk/dokumentyKursanta.php — „Dokumenty kursantów” (kierownik): przegląd zbiorczy, obsługa formularzy
- * zakładki „Dokumenty” z Kont kursantów i pobieranie plików teczki.
+ * zakładki „Dokumenty” z Ewidencji Uczestników i pobieranie plików teczki.
  *   GET  ?file=ID        → plik z teczki (dziennik dostępu k30_log_access)
  *   POST _op=…           → operacje teczki / dokumentów do akceptacji; back=konta wraca do konta kursanta
  *   GET  (bez parametrów) → do zatwierdzenia, wygasające, czekające na akceptację, odmowy + ustawienia przypomnień
@@ -88,7 +88,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1200px">
   <h1 class="h4 fw-bold mb-1"><i class="bi bi-folder2-open text-primary me-2" aria-hidden="true"></i>Dokumenty kursantów</h1>
-  <p class="small text-body-secondary mb-3">Teczki i dokumenty do akceptacji prowadzisz w <a href="konta.php">Kontach kursantów</a> → zakładka „Dokumenty”. Tu widać, co wymaga Twojej uwagi.</p>
+  <p class="small text-body-secondary mb-3">Teczki i dokumenty do akceptacji prowadzisz w <a href="konta.php">Ewidencji Uczestników</a> → zakładka „Dokumenty”. Tu widać, co wymaga Twojej uwagi.</p>
   <?= flash_html() ?>
 
   <div class="row g-3">

@@ -17,7 +17,7 @@ $data = $_SESSION['gu_creds_pdf'][$cid] ?? null;
 if (!$data || time() - (int)$data['ts'] > 1800) {
     unset($_SESSION['gu_creds_pdf'][$cid]);
     http_response_code(410);
-    exit('Hasła nie są już dostępne (minęło 30 minut albo sesja wygasła). Nowe hasła nadasz w Kontach kursantów („Resetuj hasło”).');
+    exit('Hasła nie są już dostępne (minęło 30 minut albo sesja wygasła). Nowe hasła nadasz w Ewidencji Uczestników („Resetuj hasło”).');
 }
 try {
     $pdf = TiSimpleGroups::credentialsPdf($cid, $data['rows']);

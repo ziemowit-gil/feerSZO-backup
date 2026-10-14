@@ -342,7 +342,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
       <?php if ($_unr_cnt): ?><span class="badge bg-danger ms-1"><?= (int)$_unr_cnt ?></span><?php endif; ?>
     </button>
     <ul class="dropdown-menu dropdown-menu-end">
-      <li><a class="dropdown-item" href="kursant/accounts.php"><i class="bi bi-people me-2"></i>Konta kursantów</a></li>
+      <li><a class="dropdown-item" href="kursant/accounts.php"><i class="bi bi-people me-2"></i>Ewidencja Uczestników</a></li>
       <li><a class="dropdown-item" href="unenroll_admin.php"><i class="bi bi-box-arrow-left me-2"></i>Wnioski wypisania
         <?php if ($_unr_cnt): ?><span class="badge bg-danger ms-1"><?= (int)$_unr_cnt ?></span><?php endif; ?>
       </a></li>

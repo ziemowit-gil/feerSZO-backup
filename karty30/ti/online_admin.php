@@ -143,7 +143,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
 
 <p class="text-muted small">
   Konta Microsoft tworzone są dla pojedynczych kursantów w
-  <a href="kursant/accounts.php">Kontach kursantów</a> oraz samoobsługą w panelu kursanta.
+  <a href="kursant/accounts.php">Ewidencji Uczestników</a> oraz samoobsługą w panelu kursanta.
 </p>
 
 <div class="row g-4">

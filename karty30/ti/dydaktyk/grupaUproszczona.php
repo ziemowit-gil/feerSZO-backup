@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($res['ok']) {
             $msg = 'Utworzono grupę uproszczoną ' . $res['name'] . '.';
             if ($res['warnings']) $msg .= ' Uwaga: ' . implode(' ', $res['warnings']);
-            if ($res['no_account']) $msg .= ' Bez konta w panelu kursanta (załóż w Kontach kursantów): ' . implode(', ', $res['no_account']) . '.';
+            if ($res['no_account']) $msg .= ' Bez konta w panelu kursanta (załóż w Ewidencji Uczestników): ' . implode(', ', $res['no_account']) . '.';
             if ($res['accounts']) $msg .= ' Założono konta panelu kursanta: ' . count($res['accounts']) . '.';
             flash_set($res['warnings'] || $res['no_account'] ? 'warning' : 'success', $msg);
             // Loginy i hasła nowych kont — pokazujemy raz, na tej stronie

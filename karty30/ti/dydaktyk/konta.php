@@ -1,6 +1,6 @@
 <?php
 /**
- * karty30/ti/dydaktyk/konta.php — Zarządzanie kontami kursantów (panel kierownika).
+ * karty30/ti/dydaktyk/konta.php — Ewidencja Uczestników: konta kursantów w panelu (panel kierownika).
  *
  * Przeniesione z modułu administracyjnego (karty30/ti/kursant/accounts.php, teraz
  * przekierowanie) — wzorzec jak urlopy.php/klienci.php. dyd_is_staff() zastępuje
@@ -1028,7 +1028,7 @@ $authp_list_admin  = $authp_account ? db_all(
 // renderuje) — wróć do Ogólnych zamiast pustego panelu bez aktywnej zakładki.
 if ($active_tab === 'upowaznieni' && !$authp_account) $active_tab = 'ogolne';
 
-$KP_TITLE  = 'Konta kursantów — Panel dydaktyka';
+$KP_TITLE  = 'Ewidencja Uczestników — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $dyd_name, 'logout' => 'logout.php'];
 $KP_BODY_CLASS = 'dyd-usos ti-skin';
 include dirname(__DIR__) . '/kursant/_layout_head.php';
@@ -1036,11 +1036,11 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
 
-<?php $KIER_CUR = 'konta.php'; $KIER_LABEL = 'Konta kursantów';
+<?php $KIER_CUR = 'konta.php'; $KIER_LABEL = 'Ewidencja Uczestników';
    include __DIR__ . '/_kierownik_bar.php'; ?>
 
 <style>
-  /* Konta kursantów — szczegóły konta w tej samej szacie co karty po lewej (ti-skin): jasny nagłówek, pasek szybkich akcji,
+  /* Ewidencja Uczestników — szczegóły konta w tej samej szacie co karty po lewej (ti-skin): jasny nagłówek, pasek szybkich akcji,
      zakładki poziomo, a w „Ogólne” sekcje wierszami „opis | akcja” zamiast rozsypanych przycisków. */
   #detail-panel > .card-header { gap: .5rem; padding: .55rem .8rem !important; font-size: .95rem; }
   #detail-panel .kk-name { font-size: 1.05rem; font-weight: 700; color: var(--ti-navy); }
@@ -1074,7 +1074,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="container-fluid py-3" style="max-width:<?= !empty($selected_acc) ? '1600px' : '1200px' ?>">
 
 <div class="d-flex align-items-center mb-3 gap-2">
-  <h1 class="h4 mb-0 fw-bold"><i class="bi bi-person-badge text-primary me-2" aria-hidden="true"></i>Konta kursantów</h1>
+  <h1 class="h4 mb-0 fw-bold"><i class="bi bi-person-badge text-primary me-2" aria-hidden="true"></i>Ewidencja Uczestników</h1>
   <div class="ms-auto d-flex gap-2">
     <a href="<?= h($parent_portal_url) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-people me-1" aria-hidden="true"></i>Panel rodzica
@@ -1160,7 +1160,7 @@ function printCredCard(title, rows, portalUrl){
 <script>
 function printBulk(){
   var w = window.open('', '_blank');
-  w.document.write('<html><head><title>Konta kursantów</title>'
+  w.document.write('<html><head><title>Ewidencja Uczestników</title>'
     + '<style>body{font-family:Arial,sans-serif;font-size:13px}table{border-collapse:collapse;width:100%}'
     + 'th,td{border:1px solid #999;padding:4px 8px;text-align:left}th{background:#eee}</style></head><body>'
     + '<h3><?= h(addslashes(ORG_NAME ?? 'Panel kursanta')) ?> — dane dostępowe do panelu kursanta</h3>'
@@ -2123,7 +2123,7 @@ function printBulk(){
   <div>
     <div class="card border-0 shadow-sm">
       <div class="card-header fw-semibold d-flex align-items-center">
-        <i class="bi bi-people me-2 text-primary" aria-hidden="true"></i>Konta kursantów
+        <i class="bi bi-people me-2 text-primary" aria-hidden="true"></i>Uczestnicy
         <span class="badge bg-secondary ms-2"><?= count($accounts) ?></span>
       </div>
       <?php if (!$accounts): ?>
