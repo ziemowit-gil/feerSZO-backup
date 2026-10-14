@@ -37,6 +37,33 @@ if (($profile['role'] ?? '') !== 'admin' && empty($_SESSION[DYD_2FA_KEY]['totp_o
 
 $has_key = webauthn_user_has_keys($uid);
 $action  = (string)($_GET['action'] ?? '');
+foreach (['/includes/approval.php', '/modules/audit_logs/logic/audit_logs.php'] as $_lib) {   // log_user_action(), audit_log()
+    if (is_file(dirname(__DIR__, 3) . $_lib)) require_once dirname(__DIR__, 3) . $_lib;
+}
+
+// Kierownik / zastępca bez klucza przy sobie: wejście po wpisaniu uzasadnienia (TOTP już sprawdzone).
+// Administrator — zawsze kluczem. Każde takie wejście trafia do dziennika konta i audytu z treścią uzasadnienia.
+$bypass_allowed = ($profile['role'] ?? '') !== 'admin';
+$bypass_error   = '';
+if ($bypass_allowed && $action === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'bypass') {
+    dyd_token_check();
+    $reason = trim(preg_replace('/\s+/u', ' ', (string)($_POST['reason'] ?? '')));
+    if (mb_strlen($reason) < 15) {
+        $bypass_error = 'Napisz konkretnie, dlaczego logujesz się bez klucza (co najmniej 15 znaków).';
+    } else {
+        $reason = mb_substr($reason, 0, 500);
+        $note   = 'Wejście do panelu dydaktyka BEZ klucza sprzętowego — uzasadnienie: ' . $reason;
+        if (function_exists('log_user_action')) log_user_action($uid, $uid, 'dyd_login_yk_bypass', $note);
+        if (function_exists('audit_log')) { try { audit_log('dyd.login_yk_bypass', ['user_id' => $uid, 'reason' => $reason, 'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? '')], $uid); } catch (\Throwable $e) {} }
+        error_log('[dyd] yk bypass uid=' . $uid . ' ip=' . ($_SERVER['REMOTE_ADDR'] ?? '') . ' reason=' . $reason);
+        $go = dyd_2fa_next();
+        $profile['yk_ok']     = 1;
+        $profile['yk_bypass'] = $reason;
+        dyd_login_user($profile);
+        dyd_2fa_clear_pending();
+        header('Location: ' . $go); exit;
+    }
+}
 
 if ($action !== '') {
     header('Content-Type: application/json; charset=utf-8');
@@ -134,6 +161,22 @@ body.kp-login-split-page { background: var(--bg); color: var(--text); font-famil
     Najlepiej zarejestruj potem drugi, zapasowy klucz (Mój certyfikat → Klucz YubiKey).
   </p>
   <button type="button" class="tg-btn" id="ykBtn"><i class="bi bi-plus-circle" aria-hidden="true"></i>Zarejestruj klucz i zaloguj się</button>
+<?php endif; ?>
+
+<?php if ($bypass_allowed): ?>
+  <details class="mt-3"<?= $bypass_error !== '' ? ' open' : '' ?>>
+    <summary class="small fw-semibold" style="cursor:pointer;color:var(--accent)">Nie mam klucza przy sobie</summary>
+    <form method="post" class="mt-2">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="bypass">
+      <?php if ($bypass_error !== ''): ?><div class="alert alert-danger py-2 small mb-2" role="alert"><?= h($bypass_error) ?></div><?php endif; ?>
+      <label class="form-label small mb-1" for="ykReason">Uzasadnienie wejścia bez klucza</label>
+      <textarea class="form-control form-control-sm" id="ykReason" name="reason" rows="3" minlength="15" maxlength="500" required
+                aria-describedby="ykReasonHelp" placeholder="np. klucz został w biurze, pilne zatwierdzenie protokołów"><?= h((string)($_POST['reason'] ?? '')) ?></textarea>
+      <div class="small mt-1" id="ykReasonHelp" style="color:var(--muted)">Wejście bez klucza zapisujemy w dzienniku konta i audycie razem z uzasadnieniem, datą i adresem IP.</div>
+      <button type="submit" class="tg-btn" style="background:var(--card-bg);color:var(--accent)"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Wejdź bez klucza</button>
+    </form>
+  </details>
 <?php endif; ?>
 
 <p class="text-center mt-3 mb-0"><a href="logout.php" style="color:var(--muted);font-size:.8rem">Anuluj i wróć do logowania</a></p>
