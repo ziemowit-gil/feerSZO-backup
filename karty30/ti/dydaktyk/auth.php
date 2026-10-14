@@ -52,6 +52,9 @@ function dyd_start(): void {
             } catch (\Throwable $e) { /* fallback: domyślny handler PHP */ }
         }
         session_name('k30_dydaktyk');
+        // Sesja w bazie żyje tyle, co panel (DYD_SESSION_TTL), a nie domyślne 24 min (gc_maxlifetime): inaczej długie
+        // wypełnianie dokumentacji lekcji kończyło się nową sesją (cichy token) — bez wyboru trybu i z nowym CSRF, zapis przepadał.
+        if ((int)ini_get('session.gc_maxlifetime') < DYD_SESSION_TTL) ini_set('session.gc_maxlifetime', (string)DYD_SESSION_TTL);
         session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         session_start();
     }
@@ -80,7 +83,7 @@ function dyd_current(): ?array {
     if ($rem) {
         $u = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$rem['account_id']]);
         $profile = $u ? dyd_profile_from_user($u) : null;
-        if ($profile) { dyd_login_user($profile); return $_SESSION[DYD_SESSION_KEY]; }
+        if ($profile) { dyd_login_user($profile); $_SESSION['k30_dyd_resumed'] = 1; return $_SESSION[DYD_SESSION_KEY]; }
         ti_remember_forget('dyd');
     }
     return null;
@@ -222,6 +225,14 @@ function dyd_require(): array {
     // Wspólny ekran wyboru (choose_mode.php): rola Kierownik / Prowadzący (kierownik z własnymi grupami)
     // i tryb pracy Szkolenia / Konsultacje (gdy dostępne oba — TiWorkModes). Raz na sesję; gdy wyboru nie ma, ustawiane same.
     $_need = false;
+    // Wznowiona sesja (cichy token) albo zapis formularza: przywróć ostatni wybór (choose_mode.php zapisuje go w user_prefs),
+    // zamiast odsyłać na ekran wyboru — przekierowanie gubiło wysyłany formularz (np. dokumentację lekcji).
+    if (!empty($_SESSION['k30_dyd_resumed']) || ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+        $_pr = dyd_pref((int)$s['user_id'], 'dyd_ctx_role');
+        if (!isset($_SESSION['k30_dyd_ctx']['role']) && !empty($s['is_staff']) && in_array($_pr, ['staff', 'instructor'], true)) $_SESSION['k30_dyd_ctx']['role'] = $_pr;
+        $_pm = dyd_pref((int)$s['user_id'], 'dyd_ctx_mode');
+        if (!isset($_SESSION['k30_dyd_ctx']['mode']) && in_array($_pm, dyd_modes_available($s), true)) $_SESSION['k30_dyd_ctx']['mode'] = $_pm;
+    }
     if (!empty($s['is_staff']) && !isset($_SESSION['k30_dyd_ctx']['role'])) {
         if (k30_ti_instructor_courses((int)$s['user_id'], false)) $_need = true;
         else $_SESSION['k30_dyd_ctx']['role'] = 'staff'; // nic do wyboru — ustal raz i nie pytaj więcej

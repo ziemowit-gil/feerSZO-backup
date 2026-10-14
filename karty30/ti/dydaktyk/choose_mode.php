@@ -18,12 +18,17 @@ $ownCount = !empty($s['is_staff']) ? count(k30_ti_instructor_courses((int)$s['us
 $askRole  = $ownCount > 0;
 $askMode  = count($modes) > 1;
 
-$apply = function (?string $role, ?string $mode) use ($modes, $askRole): void {
+$apply = function (?string $role, ?string $mode) use ($modes, $askRole, $s): void {
     if ($askRole && in_array($role, ['staff', 'instructor'], true)) {
         $_SESSION['k30_dyd_ctx']['role'] = $role;
         unset($_SESSION['k30_dyd_ctx']['as_instructor_id']);   // powrót do siebie — koniec wcielenia
+        dyd_pref_set((int)$s['user_id'], 'dyd_ctx_role', $role);   // przywracane po cichym wznowieniu sesji (auth.php)
     }
-    if ($mode !== null && in_array($mode, $modes, true)) $_SESSION['k30_dyd_ctx']['mode'] = $mode;
+    if ($mode !== null && in_array($mode, $modes, true)) {
+        $_SESSION['k30_dyd_ctx']['mode'] = $mode;
+        dyd_pref_set((int)$s['user_id'], 'dyd_ctx_mode', $mode);
+    }
+    unset($_SESSION['k30_dyd_resumed']);
 };
 // Grupa, na której pracujesz (tryb Szkolenia): kierownik — wszystkie aktywne, prowadzący — własne; zapamiętywana jak wybór w panelu
 $groups = !empty($s['is_staff']) ? k30_ti_courses(true) : k30_ti_instructor_courses((int)$s['user_id'], true);
