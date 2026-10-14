@@ -332,6 +332,14 @@ class M365Graph {
         );
     }
 
+    /** Odbiera jedną licencję (SKU) użytkownikowi. */
+    public function remove_license(string $user_id, string $sku_id): void {
+        $this->http_post(
+            "https://graph.microsoft.com/v1.0/users/{$user_id}/assignLicense",
+            ['addLicenses' => [], 'removeLicenses' => [$sku_id]]
+        );
+    }
+
     // ── Usuń użytkownika ─────────────────────────────────────────────────────
 
     public function delete_user(string $user_id): void {

@@ -151,7 +151,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <main id="main" class="dyd-wrap">
 <div class="container-fluid py-3" style="max-width:1100px">
   <h1 class="h3 fw-bold mb-3"><i class="bi bi-people-fill me-2"></i>Konta M365 z listy <span class="fs-6 text-muted fw-normal">— bez zakładania kursantów w systemie</span></h1>
-  <?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear']], 'lista') ?>
+  <?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear'], 'feer' => ['Tenant FEER — licencje', 'kontaFeerM365.php', 'bi-microsoft']], 'lista') ?>
 <?= flash_html() ?>
   <?php foreach ($errors as $e): ?><div class="alert alert-danger py-2 small mb-2"><?= h($e) ?></div><?php endforeach; ?>
 

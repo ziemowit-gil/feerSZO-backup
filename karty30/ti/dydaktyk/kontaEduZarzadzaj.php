@@ -44,7 +44,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
     <h1 class="h4 mb-0 fw-bold"><i class="bi bi-person-gear text-primary me-2" aria-hidden="true"></i>Konta EDU — zarządzanie</h1>
   </div>
-  <?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear']], 'admin') ?>
+  <?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear'], 'feer' => ['Tenant FEER — licencje', 'kontaFeerM365.php', 'bi-microsoft']], 'admin') ?>
 <?= flash_html() ?>
   <?php include dirname(__DIR__, 3) . '/modules/ms_edu_bulk/views/zarzadzanie.php'; ?>
 </div>

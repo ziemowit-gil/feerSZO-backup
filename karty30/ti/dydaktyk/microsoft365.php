@@ -181,7 +181,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <span class="badge bg-secondary"><?= $ms_count ?>/<?= count($accounts) ?> z kontem</span>
 </div>
 
-<?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear']], 'konta') ?>
+<?= msEduBulkTabs(['konta' => ['Konta kursantów', 'microsoft365.php', 'bi-people-fill'], 'lista' => ['Konta z listy (bez kursantów)', 'kontaListaM365.php', 'bi-magic'], 'admin' => ['Administracja kont', 'kontaEduZarzadzaj.php', 'bi-person-gear'], 'feer' => ['Tenant FEER — licencje', 'kontaFeerM365.php', 'bi-microsoft']], 'konta') ?>
 <?= flash_html() ?>
 
 <?php if (!$ms_online_enabled): ?>
