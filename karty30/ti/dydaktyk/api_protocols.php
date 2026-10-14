@@ -27,6 +27,7 @@ function api_protocols_json(array $payload, int $code = 200): never {
 
 $me = dyd_current();
 if (!$me) { api_protocols_json(['error' => 'Brak sesji panelu dydaktyka.'], 401); }
+if (dyd_yk_required($me) && empty($me['yk_ok'])) { api_protocols_json(['error' => 'Potwierdź logowanie kluczem sprzętowym.'], 401); }
 $uid = (int)$me['user_id'];
 karty30_migrate();
 ti_protocols_migrate();

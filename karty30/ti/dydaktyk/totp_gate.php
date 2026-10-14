@@ -2,6 +2,7 @@
 /**
  * karty30/ti/dydaktyk/totp_gate.php — obowiązkowe 2FA (TOTP) dla panelu dydaktyka.
  *
+ * Kierownika, zastępcę i administratora dyd_2fa_finish() kieruje potem jeszcze na yk_gate.php (klucz sprzętowy).
  * Jedyne miejsce, które woła dyd_login_user() po świeżym logowaniu (hasłem —
  * login.php, albo Office SSO — office_enter.php): oba zapisują profil przez
  * dyd_2fa_stash() i przekierowują tutaj. Konto bez totp_confirmed przechodzi
@@ -60,10 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Krok końcowy: kody zapasowe pokazane, zakładamy pełną sesję ───────
     elseif ($action === 'finish' && $enrolled) {
-        $go = dyd_2fa_next();
-        dyd_login_user($profile);
-        dyd_2fa_clear_pending();
-        header('Location: ' . $go); exit;
+        dyd_2fa_finish($profile); // kierownik/zastępca → jeszcze klucz sprzętowy (yk_gate.php)
     }
 
     // ── Konto Z TOTP: weryfikacja kodu (albo kodu zapasowego) ─────────────
@@ -87,10 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($ok) {
-            $go = dyd_2fa_next();
-            dyd_login_user($profile);
-            dyd_2fa_clear_pending();
-            header('Location: ' . $go); exit;
+            dyd_2fa_finish($profile); // kierownik/zastępca → jeszcze klucz sprzętowy (yk_gate.php)
         }
         $error = 'Nieprawidłowy kod. Spróbuj ponownie.';
     }

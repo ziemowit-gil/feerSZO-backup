@@ -191,6 +191,36 @@ function dyd_2fa_clear_pending(): void {
 }
 
 /**
+ * Czy konto musi przy wejściu do panelu potwierdzić się kluczem sprzętowym (YubiKey, WebAuthn) — yk_gate.php.
+ * Dotyczy administratora (rola SZO admin) oraz kierownika i zastępcy (is_staff: rola panelu kierownik/zastepca
+ * albo zapis w karty30). Zwykły prowadzący — nie. Impersonacja (imp.php) jest zwolniona: administrator już się
+ * uwierzytelnił.
+ */
+function dyd_yk_required(array $p): bool {
+    if (!empty($p['imp'])) return false;
+    return ($p['role'] ?? '') === 'admin' || !empty($p['is_staff']);
+}
+
+/**
+ * Koniec kroku TOTP (albo krok pominięty u administratora): konto wymagające klucza idzie jeszcze na yk_gate.php,
+ * pozostałe dostają pełną sesję panelu i wracają tam, gdzie chciały wejść.
+ */
+function dyd_2fa_finish(array $profile): void {
+    dyd_start();
+    if (dyd_yk_required($profile) && empty($profile['yk_ok'])) {
+        if (empty($_SESSION[DYD_2FA_KEY])) dyd_2fa_stash($profile);
+        $_SESSION[DYD_2FA_KEY]['totp_ok'] = 1;
+        $_SESSION[DYD_2FA_KEY]['ts']      = time();
+        unset($_SESSION['k30_dyd_2fa_setup_secret'], $_SESSION['k30_dyd_2fa_backup_show']);
+        header('Location: yk_gate.php'); exit;
+    }
+    $go = dyd_2fa_next();
+    dyd_login_user($profile);
+    dyd_2fa_clear_pending();
+    header('Location: ' . $go); exit;
+}
+
+/**
  * Wymaga zalogowanego dydaktyka; przy braku sesji → strona logowania.
  *
  * Kierownik, który jest TEŻ prowadzącym (ma własne kursy jako instructor_id
@@ -220,6 +250,20 @@ function dyd_require(): array {
             ti_remember_forget('dyd');
             header('Location: totp_gate.php'); exit;
         }
+    }
+
+    // Klucz sprzętowy obowiązkowy dla administratora, kierownika i zastępcy (yk_gate.php). Sesja bez potwierdzenia
+    // kluczem (sprzed tej bramki, wznowiona z „zapamiętaj mnie”, odświeżona w dyd_current()) wraca na bramkę —
+    // TOTP sprawdzono wyżej, więc od razu krok klucza. Cel po kluczu: bieżący ekran (tylko GET).
+    if (dyd_yk_required($s) && empty($s['yk_ok'])) {
+        $_next = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+            ? basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) . (($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '')
+            : '';
+        dyd_2fa_stash($s, $_next);
+        $_SESSION[DYD_2FA_KEY]['totp_ok'] = 1;
+        unset($_SESSION[DYD_SESSION_KEY]);
+        ti_remember_forget('dyd'); // jak wyżej: bez tego cichy token wznawia sesję i powstaje pętla
+        header('Location: yk_gate.php'); exit;
     }
 
     // Wspólny ekran wyboru (choose_mode.php): rola Kierownik / Prowadzący (kierownik z własnymi grupami)

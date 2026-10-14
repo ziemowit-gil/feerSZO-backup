@@ -25,6 +25,7 @@ function api_helpdesk_json(array $payload, int $code = 200): never {
 
 $me = dyd_current();
 if (!$me) { api_helpdesk_json(['error' => 'Brak sesji panelu dydaktyka.'], 401); }
+if (dyd_yk_required($me) && empty($me['yk_ok'])) { api_helpdesk_json(['error' => 'Potwierdź logowanie kluczem sprzętowym.'], 401); }
 
 $action = (string)($_GET['action'] ?? '');
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
