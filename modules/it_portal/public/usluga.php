@@ -57,21 +57,17 @@ itPortalPageStart($art ? $art['title'] : $cat['name'], 'uslugi', $art ? $art['bo
     <div class="itp-pic"><?= itPortalIcon($cat['icon']) ?></div>
     <?php if ($audiences): ?>
       <section class="itp-avail" aria-labelledby="itp-av-h">
-        <h2 class="itp-h" id="itp-av-h">Dostępność usługi:</h2>
+        <h2 class="itp-h" id="itp-av-h">Dla kogo</h2>
         <ul class="itp-avail__list">
           <?php foreach ($audiences as $au): $on = in_array((int)$au['id'], $availIds, true); ?>
-            <li class="<?= $on ? 'is-on' : 'is-off' ?>"><?= itPortalAudienceIcon($au['icon']) ?><?= h($au['name']) ?><span class="itp-sr">: <?= $on ? 'dostępna' : 'niedostępna' ?></span></li>
+            <li class="<?= $on ? 'is-on' : 'is-off' ?>"><?= itPortalAudienceIcon($au['icon']) ?><span><?= h($au['name']) ?></span><span class="itp-sr">: <?= $on ? 'dostępna' : 'niedostępna' ?></span></li>
           <?php endforeach; ?>
         </ul>
-        <div class="itp-avail__legend" aria-hidden="true">
-          <span><span class="itp-dot" style="background:var(--itp-blue)"></span>Dostępna</span>
-          <span><span class="itp-dot" style="background:#3b3b3b"></span>Niedostępna</span>
-        </div>
       </section>
     <?php endif; ?>
     <?php if ($related): ?>
       <section class="itp-related" aria-labelledby="itp-rel-h">
-        <h2 class="itp-h" id="itp-rel-h">Powiązane tematy:</h2>
+        <h2 class="itp-h" id="itp-rel-h">Zobacz też</h2>
         <ul class="itp-circles">
           <?php foreach ($related as $r): ?>
             <li><a href="<?= h(itPortalUrl('uslugi/' . rawurlencode($r['category_slug']) . '/' . rawurlencode($r['slug']))) ?>"><?= h($r['title']) ?></a></li>

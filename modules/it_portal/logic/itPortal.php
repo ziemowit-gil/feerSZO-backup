@@ -56,7 +56,7 @@ function itPortalMigrate(): void {
         body_plain   TEXT    NOT NULL DEFAULT '',          -- do wyszukiwarki
         keywords     TEXT    NOT NULL DEFAULT '',          -- dodatkowe słowa dla wyszukiwarki
         related      TEXT    NOT NULL DEFAULT '[]',
-        is_pinned    INTEGER NOT NULL DEFAULT 0,           -- „Najczęściej wyszukiwane” na Start
+        is_pinned    INTEGER NOT NULL DEFAULT 0,           -- „Popularne instrukcje” na Start
         is_published INTEGER NOT NULL DEFAULT 1,
         sort_order   INTEGER NOT NULL DEFAULT 0,
         views        INTEGER NOT NULL DEFAULT 0,
@@ -294,7 +294,7 @@ function itPortalArticlesByIds(array $ids): array {
     return array_values(array_filter(array_map(fn($i) => $byId[$i] ?? null, $ids)));
 }
 
-/** „Najczęściej wyszukiwane” na Start: najpierw przypięte, potem najczęściej czytane. */
+/** „Popularne instrukcje” na Start: najpierw przypięte, potem najczęściej czytane. */
 function itPortalPopular(int $limit = 12): array {
     return db_all("SELECT a.id, a.slug, a.title, a.is_pinned, a.views, c.slug AS category_slug
                    FROM itp_articles a JOIN itp_categories c ON c.id = a.category_id

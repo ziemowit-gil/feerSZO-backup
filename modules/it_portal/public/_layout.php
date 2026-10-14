@@ -35,9 +35,6 @@ function itPortalPageStart(string $title, string $active = '', string $descripti
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($title !== '' ? $title . ' — ' . $siteTitle : $siteTitle . ' — ' . $subtitle) ?></title>
 <?php if ($description !== ''): ?><meta name="description" content="<?= h(itPortalExcerpt($description, 160)) ?>"><?php endif; ?>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&family=Cormorant+SC:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= h($css) ?>">
 <link rel="icon" href="<?= h(APP_URL) ?>/assets/img/icon-192.svg">
 </head>
@@ -49,10 +46,7 @@ function itPortalPageStart(string $title, string $active = '', string $descripti
       <?php if ($logo !== ''): ?>
         <img class="itp-brand__logo" src="<?= h($logo) ?>" alt="">
       <?php else: ?>
-        <svg class="itp-brand__logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-          <g fill="none" stroke-width="5"><circle cx="20" cy="16" r="7" stroke="#19b3c4"/><circle cx="44" cy="30" r="7" stroke="#8c8178"/><circle cx="18" cy="46" r="7" stroke="#3a5fae"/></g>
-          <path d="M25 20l13 7M38 34 24 42" stroke="#3a5fae" stroke-width="5" stroke-linecap="round"/>
-        </svg>
+        <span class="itp-brand__mark" aria-hidden="true">IT</span>
       <?php endif; ?>
       <span class="itp-brand__text">
         <span class="itp-brand__title"><?= h($siteTitle) ?></span>
@@ -102,11 +96,11 @@ function itPortalPageEnd(): void {
 <?php
 }
 
-/** Kropka statusu komunikatu + legenda (tekst dla czytników ekranu). */
+/** Plakietka statusu komunikatu: kropka w kolorze + nazwa (czytelna bez rozróżniania kolorów). */
 function itPortalStatusDot(string $status): string {
     $s = ITP_NOTICE_STATUSES[$status] ?? ITP_NOTICE_STATUSES['info'];
-    return '<span class="itp-dot" style="background:' . h($s['color']) . '" title="' . h($s['label']) . '"></span>'
-         . '<span class="itp-sr">Status: ' . h($s['label']) . '. </span>';
+    return '<span class="itp-status"><span class="itp-dot" style="background:' . h($s['color']) . '"></span>'
+         . '<span class="itp-sr">Status: </span>' . h($s['label']) . '</span>';
 }
 
 function itPortalNotFound(string $msg = 'Nie znaleźliśmy tej strony.'): void {

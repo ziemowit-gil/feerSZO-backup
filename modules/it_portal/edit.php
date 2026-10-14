@@ -144,7 +144,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
       </select></div>
     <div class="col-md-5 pt-md-4">
       <div class="form-check"><input class="form-check-input" type="checkbox" id="f-p" name="is_published" value="1"<?= $chk('is_published') ?>><label class="form-check-label" for="f-p">Opublikowany</label></div>
-      <div class="form-check"><input class="form-check-input" type="checkbox" id="f-pin" name="is_pinned" value="1"<?= $chk('is_pinned') ?>><label class="form-check-label" for="f-pin">Przypnij do „Najczęściej wyszukiwane” na Start</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="f-pin" name="is_pinned" value="1"<?= $chk('is_pinned') ?>><label class="form-check-label" for="f-pin">Przypnij do „Popularne instrukcje” na Start</label></div>
       <?php if ($id): ?><p class="small text-muted mt-2 mb-0">Wyświetlenia: <?= (int)($row['views'] ?? 0) ?></p><?php endif; ?>
     </div>
   </div>

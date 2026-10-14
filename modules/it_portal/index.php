@@ -147,7 +147,7 @@ $edit = fn(string $type, int $id = 0) => APP_URL . '/modules/it_portal/edit.php?
       <tr class="<?= $r['is_published'] ? '' : 'text-muted' ?>">
         <td class="small"><?= h($r['category_name']) ?></td>
         <td><a href="<?= h($edit('article', (int)$r['id'])) ?>"><?= h($r['title']) ?></a>
-          <?= $r['is_pinned'] ? ' <span class="badge text-bg-info" title="Na liście „Najczęściej wyszukiwane”">przypięty</span>' : '' ?>
+          <?= $r['is_pinned'] ? ' <span class="badge text-bg-info" title="Na liście „Popularne instrukcje”">przypięty</span>' : '' ?>
           <?= $r['is_published'] ? '' : ' <span class="badge bg-secondary">szkic</span>' ?></td>
         <td class="text-end"><?= (int)$r['views'] ?></td>
         <td class="text-end"><?= (int)$r['sort_order'] ?></td>

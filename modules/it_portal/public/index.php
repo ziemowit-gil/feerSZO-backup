@@ -1,8 +1,8 @@
 <?php
 /**
  * modules/it_portal/public/index.php — Portal Usług IT: Start.
- * Adres: <APP_URL>/uslugi-it/ (reguła w .htaccess). Wyszukiwarka, „Najczęściej wyszukiwane”,
- * baner ostrzegawczy (ustawienia), ostatnie komunikaty ze statusem i legenda.
+ * Adres: <APP_URL>/uslugi-it/ (reguła w .htaccess). Wyszukiwarka, „Popularne instrukcje”,
+ * baner ostrzegawczy (ustawienia), ostatnie komunikaty z plakietką statusu i linkiem do wszystkich.
  */
 require_once __DIR__ . '/_layout.php';
 
@@ -21,7 +21,7 @@ itPortalPageStart('', 'start', 'Instrukcje, usługi informatyczne i komunikaty o
 
 <div class="itp-start">
   <section aria-labelledby="itp-pop-h">
-    <h2 class="itp-h" id="itp-pop-h">Najczęściej wyszukiwane:</h2>
+    <h2 class="itp-h" id="itp-pop-h">Popularne instrukcje</h2>
     <div class="itp-panel itp-panel--tall">
       <?php if ($popular): ?>
         <ul class="itp-circles">
@@ -40,10 +40,10 @@ itPortalPageStart('', 'start', 'Instrukcje, usługi informatyczne i komunikaty o
       <div class="itp-alert" role="note"><?= $banner ?></div>
     <?php endif; ?>
     <section aria-labelledby="itp-not-h">
-      <h2 class="itp-h" id="itp-not-h">Komunikaty:</h2>
+      <h2 class="itp-h" id="itp-not-h">Komunikaty</h2>
       <div class="itp-notes">
         <?php if (!$notices): ?>
-          <p class="itp-note">Brak bieżących komunikatów — wszystkie usługi działają normalnie.</p>
+          <p class="itp-note" style="margin:0">Brak bieżących komunikatów — wszystkie usługi działają normalnie.</p>
         <?php endif; ?>
         <?php foreach ($notices as $n): ?>
           <article class="itp-note">
@@ -52,15 +52,11 @@ itPortalPageStart('', 'start', 'Instrukcje, usługi informatyczne i komunikaty o
               <time class="itp-note__date" datetime="<?= h($n['notice_date']) ?>"><?= h($n['notice_date']) ?></time>
             </div>
             <p class="itp-note__lead"><?= h(itPortalExcerpt($n['body_plain'], 330)) ?></p>
-            <p class="itp-note__more"><a href="<?= h(itPortalUrl('komunikaty/' . (int)$n['id'])) ?>">więcej &gt;<span class="itp-sr"> o: <?= h($n['title']) ?></span></a></p>
+            <p class="itp-note__more"><a href="<?= h(itPortalUrl('komunikaty/' . (int)$n['id'])) ?>">Czytaj dalej<span class="itp-sr"> o: <?= h($n['title']) ?></span></a></p>
           </article>
         <?php endforeach; ?>
       </div>
-      <ul class="itp-legend" aria-label="Legenda statusów">
-        <?php foreach (['zgloszone', 'w_toku', 'naprawione'] as $s): ?>
-          <li><span class="itp-dot" style="background:<?= h(ITP_NOTICE_STATUSES[$s]['color']) ?>"></span><?= h(ITP_NOTICE_STATUSES[$s]['label']) ?></li>
-        <?php endforeach; ?>
-      </ul>
+      <p class="itp-all"><a href="<?= h(itPortalUrl('komunikaty')) ?>">Wszystkie komunikaty →</a></p>
     </section>
   </div>
 </div>
