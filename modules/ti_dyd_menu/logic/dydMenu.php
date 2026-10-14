@@ -5,7 +5,8 @@
  * Jedno menu na KAŻDEJ stronie panelu (skórka ti-skin): sekcje prowadzącego (Mój panel, Kurs, Komunikacja, Zasoby)
  * oraz — dla kierownika, zastępcy i administratora (dyd_is_staff) — grupy kierownika ułożone wg rodzaju pracy,
  * od najczęściej używanych. Tryb Konsultacje (choose_mode.php) pokazuje sekcje konsultacji zamiast szkoleń.
- * Menu jest przyklejone do lewej krawędzi i zawsze rozwinięte (bez chowania i zwijania grup); na telefonie wysuwane.
+ * Menu jest przyklejone do lewej krawędzi i zawsze widoczne (bez chowania); grupy to akordeon — otwarta ta z bieżącą stroną,
+ * zwinięte pokazują sumę liczników — dzięki temu mieści się bez przewijania. Na telefonie wysuwane.
  *
  * Włączane w kursant/_layout_head.php (dydMenuBoot: klasa body + arkusz), rysowane w kursant/_layout_foot.php
  * (dydMenuRender) — w stopce, bo liczniki zakładek kursu ($_sb_ctabs w index.php) powstają po nagłówku strony.
@@ -225,26 +226,39 @@ function dydMenuIsActive(array $i): bool
     return true;
 }
 
-/** HTML menu (wołane w _layout_foot.php). */
+/** HTML menu (wołane w _layout_foot.php). Grupy jako akordeon: otwarta jedna (z bieżącą stroną), reszta jednym kliknięciem. */
 function dydMenuRender(): string
 {
     $secs = dydMenuSections();
-    // Gdy kilka pozycji pasuje (np. ten sam plik w dwóch grupach), podświetl tylko pierwszą
-    $done = false;
+    // Bieżąca pozycja (pierwsza pasująca) i grupa, która ją zawiera — ta grupa jest otwarta
+    $activeKey = '';
+    foreach ($secs as $si => $s) {
+        foreach ($s['items'] as $ii => $i) {
+            if ($activeKey === '' && dydMenuIsActive($i)) { $activeKey = $s['key']; $secs[$si]['items'][$ii]['active'] = true; }
+        }
+    }
+    if ($activeKey === '') $activeKey = (string)($secs[0]['key'] ?? '');
     ob_start(); ?>
 <nav class="dyd-side" id="dydSide" aria-label="Menu panelu dydaktyka">
   <div class="dyd-side-in">
   <?php $staffHead = false; foreach ($secs as $s):
+    $open = $s['key'] === $activeKey;
+    $sum  = array_sum(array_map(fn($i) => (int)$i['n'], $s['items']));
+    $warn = $sum > 0 && array_filter($s['items'], fn($i) => $i['n'] > 0 && $i['v'] === 'danger');
     if (!empty($s['staff']) && !$staffHead): $staffHead = true; ?>
     <div class="dyd-side-band" aria-hidden="true">Kierownik</div>
   <?php endif; ?>
-    <section class="dyd-side-sec" aria-labelledby="dydSide-<?= h($s['key']) ?>">
-      <h2 id="dydSide-<?= h($s['key']) ?>"><?= !empty($s['staff']) ? '<span class="visually-hidden">Kierownik: </span>' : '' ?><?= h($s['label']) ?></h2>
-      <?php if (($s['sub'] ?? '') !== ''): ?><div class="dyd-side-sub"><?= h($s['sub']) ?></div><?php endif; ?>
-      <ul>
-      <?php foreach ($s['items'] as $i): $act = !$done && dydMenuIsActive($i); if ($act) $done = true; ?>
+    <section class="dyd-side-sec<?= $open ? ' is-open' : '' ?>">
+      <h2><button type="button" class="dyd-side-grp" id="dydSideB-<?= h($s['key']) ?>" aria-expanded="<?= $open ? 'true' : 'false' ?>" aria-controls="dydSideL-<?= h($s['key']) ?>">
+        <span class="dyd-side-grp-l"><?= !empty($s['staff']) ? '<span class="visually-hidden">Kierownik: </span>' : '' ?><?= h($s['label']) ?></span>
+        <?php if ($sum > 0): ?><span class="badge <?= $warn ? 'text-bg-danger' : 'text-bg-warning' ?>"><?= $sum ?><span class="visually-hidden"> do uwagi</span></span><?php endif; ?>
+        <i class="bi bi-chevron-down dyd-side-chev" aria-hidden="true"></i>
+      </button></h2>
+      <ul id="dydSideL-<?= h($s['key']) ?>"<?= $open ? '' : ' hidden' ?>>
+      <?php if (($s['sub'] ?? '') !== ''): ?><li class="dyd-side-sub"><?= h($s['sub']) ?></li><?php endif; ?>
+      <?php foreach ($s['items'] as $i): $act = !empty($i['active']); ?>
         <li><a href="<?= h($i['href']) ?>"<?= $act ? ' class="active" aria-current="page"' : '' ?><?= $i['blank'] ? ' target="_blank" rel="noopener"' : '' ?><?= $i['js'] !== '' ? ' role="button" onclick="' . h($i['js']) . '; return false;"' : '' ?>>
-          <i class="bi bi-<?= h($i['icon']) ?>" aria-hidden="true"></i><span><?= h($i['label']) ?></span>
+          <i class="bi bi-<?= h($i['icon']) ?>" aria-hidden="true"></i><span class="dyd-side-t"><?= h($i['label']) ?></span>
           <?php if ($i['n'] > 0): ?><span class="badge text-bg-<?= h($i['v']) ?>"><?= (int)$i['n'] ?></span><?php endif; ?>
           <?php if ($i['blank']): ?><i class="bi bi-box-arrow-up-right dyd-side-ext" aria-hidden="true"></i><span class="visually-hidden"> (otwiera się w nowej karcie)</span><?php endif; ?>
         </a></li>
@@ -263,11 +277,20 @@ function dydMenuRender(): string
   function place() { tick = false; var b = hdr ? Math.max(0, hdr.getBoundingClientRect().bottom) : 0; document.documentElement.style.setProperty('--dyd-side-top', b + 'px'); }
   function req() { if (!tick) { tick = true; requestAnimationFrame(place); } }
   place(); window.addEventListener('scroll', req, { passive: true }); window.addEventListener('resize', req);
-  // Bieżąca pozycja widoczna w menu (menu ma własne przewijanie)
-  var a = nav.querySelector('a.active'); if (a) { var r = a.getBoundingClientRect(), n = nav.getBoundingClientRect(); if (r.bottom > n.bottom - 40) nav.scrollTop += r.top - n.top - 120; }
+  // Akordeon: otwarta jedna grupa; otwarcie innej zamyka poprzednią (menu mieści się bez przewijania)
+  nav.addEventListener('click', function (e) {
+    var b = e.target.closest('.dyd-side-grp'); if (!b) return;
+    var willOpen = b.getAttribute('aria-expanded') !== 'true';
+    nav.querySelectorAll('.dyd-side-grp[aria-expanded="true"]').forEach(function (o) {
+      if (o === b) return; o.setAttribute('aria-expanded', 'false'); document.getElementById(o.getAttribute('aria-controls')).hidden = true; o.closest('.dyd-side-sec').classList.remove('is-open');
+    });
+    b.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    document.getElementById(b.getAttribute('aria-controls')).hidden = !willOpen;
+    b.closest('.dyd-side-sec').classList.toggle('is-open', willOpen);
+  });
   // Telefon: menu wysuwane przyciskiem „Menu”; Esc zamyka, fokus wraca na przycisk
   function open(on) { document.documentElement.classList.toggle('dyd-side-open', on); if (btn) btn.setAttribute('aria-expanded', on ? 'true' : 'false');
-    if (on) { var f = nav.querySelector('a.active') || nav.querySelector('a'); if (f) f.focus(); } else if (btn) btn.focus(); }
+    if (on) { var f = nav.querySelector('a.active') || nav.querySelector('.dyd-side-grp'); if (f) f.focus(); } else if (btn) btn.focus(); }
   if (btn) btn.addEventListener('click', function () { open(!document.documentElement.classList.contains('dyd-side-open')); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.documentElement.classList.contains('dyd-side-open')) open(false); });
   var ov = document.getElementById('dydSideOverlay'); if (ov) ov.addEventListener('click', function () { open(false); });

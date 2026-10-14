@@ -13,8 +13,7 @@ $KP_TOPBAR     = $KP_TOPBAR     ?? null;
 $KP_BODY_CLASS = $KP_BODY_CLASS ?? '';
 // Panel dydaktyka: sekcje w pasku + menu użytkownika (dydaktyk/_nav.php).
 // Panel kursanta nie ładuje tej funkcji — jego pasek zostaje jak był.
-// Stałe menu boczne (modules/ti_dyd_menu): w skórce ti-skin cała nawigacja panelu jest w menu bocznym, więc pasek
-// górny dostaje tylko menu użytkownika (bez rzędu sekcji).
+// Stałe menu boczne (modules/ti_dyd_menu) w skórce ti-skin; pasek górny z sekcjami bez zmian.
 $KP_SIDE_MENU = '';
 if ($KP_TOPBAR && function_exists('dyd_current') && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka' && empty($KP_TOPBAR['no_enrich'])) {
     require_once dirname(__DIR__, 3) . '/modules/ti_dyd_menu/logic/dydMenu.php';
@@ -22,7 +21,7 @@ if ($KP_TOPBAR && function_exists('dyd_current') && ($KP_TOPBAR['brand'] ?? '') 
     if ($KP_SIDE_MENU !== '') $KP_BODY_CLASS = trim($KP_BODY_CLASS . ' ' . $KP_SIDE_MENU);
 }
 if ($KP_TOPBAR && function_exists('dyd_topbar_enrich') && ($KP_TOPBAR['brand'] ?? '') === 'Panel dydaktyka') {
-    $KP_TOPBAR = dyd_topbar_enrich($KP_TOPBAR, $KP_SIDE_MENU === '' && str_contains((string)$KP_BODY_CLASS, 'ti-skin'));
+    $KP_TOPBAR = dyd_topbar_enrich($KP_TOPBAR, str_contains((string)$KP_BODY_CLASS, 'ti-skin'));
 }
 $KP_EXTRA_CSS  = $KP_EXTRA_CSS  ?? [];
 ?><!DOCTYPE html>
