@@ -1040,29 +1040,34 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
    include __DIR__ . '/_kierownik_bar.php'; ?>
 
 <style>
-  /* Konta kursantów (METRO): w szczegółach konta treść zakładki po lewej, menu (zakładki + szybkie akcje) po prawej.
-     W kodzie kolejność bez zmian: szybkie akcje → lista zakładek → treść (wzorzec ARIA tabs). Na węższych ekranach układ jak dotąd. */
-  #detail-panel { border: 2px solid #1d1d1d !important; border-radius: 0 !important; box-shadow: none !important; }
-  #detail-panel > .card-header { background: #fff; border-bottom: 5px solid #1ba1e2; border-radius: 0; }
-  #detail-panel .kk-akcje .btn, #detail-panel #detailTabs .nav-link { border-radius: 0; }
-  #detail-panel #detailTabs .nav-link:focus-visible, #detail-panel .kk-akcje .btn:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; box-shadow: none; }
-  @media (min-width: 1400px) {
-    #detail-panel { display: grid; grid-template-columns: minmax(0, 1fr) 250px;
-      grid-template-areas: "naglowek naglowek" "tresc zakladki" "tresc akcje" "tresc ."; grid-template-rows: auto auto auto 1fr; }
-    #detail-panel > .card-header { grid-area: naglowek; }
-    #detail-panel > .tab-content { grid-area: tresc; min-width: 0; border-right: 2px solid #1d1d1d; }
-    #detail-panel > #detailTabs { grid-area: zakladki; flex-direction: column; flex-wrap: nowrap; gap: .4rem; border: 0; padding: .9rem .9rem 0 !important; }
-    #detail-panel > #detailTabs .nav-link { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 48px; text-align: left; margin: 0;
-      border: 2px solid #1d1d1d; border-bottom: 5px solid #1ba1e2; background: #fff; color: #1d1d1d; font-weight: 600; }
-    #detail-panel > #detailTabs .nav-link:hover { background: #eef6fc; }
-    #detail-panel > #detailTabs .nav-link.active { background: #0f6fa8; color: #fff; border-color: #0f6fa8; border-bottom-color: #facc15; }
-    #detail-panel > #detailTabs .nav-link.active .text-body-secondary, #detail-panel > #detailTabs .nav-link.active .badge { color: #fff !important; }
-    #detail-panel > .kk-akcje { grid-area: akcje; border-bottom: 0 !important; padding: .9rem; }
-    #detail-panel > .kk-akcje::before { content: "Szybkie akcje" / ""; display: block; font-weight: 700; font-size: .85rem; margin-bottom: .4rem; }
-    #detail-panel > .kk-akcje > .d-flex { flex-direction: column; flex-wrap: nowrap !important; gap: .4rem !important; }
-    #detail-panel > .kk-akcje form, #detail-panel > .kk-akcje .btn { width: 100%; }
-    #detail-panel > .kk-akcje .btn { min-height: 44px; text-align: left; white-space: normal; }
-  }
+  /* Konta kursantów — szczegóły konta w tej samej szacie co karty po lewej (ti-skin): jasny nagłówek, pasek szybkich akcji,
+     zakładki poziomo, a w „Ogólne” sekcje wierszami „opis | akcja” zamiast rozsypanych przycisków. */
+  #detail-panel > .card-header { gap: .5rem; padding: .55rem .8rem !important; font-size: .95rem; }
+  #detail-panel .kk-name { font-size: 1.05rem; font-weight: 700; color: var(--ti-navy); }
+  #detail-panel .kk-akcje { background: #f7f9fc; border-bottom: 1px solid var(--ti-grid); padding: .5rem .8rem !important; }
+  #detail-panel .kk-akcje .btn { background: #fff; }
+  #detail-panel #detailTabs { padding: .5rem .8rem 0 !important; border-bottom: 1px solid var(--ti-bar-border); gap: .15rem; }
+  #detail-panel #detailTabs .nav-link { color: var(--ti-link); font-weight: 600; font-size: .85rem; padding: .45rem .8rem; border-radius: 6px 6px 0 0; }
+  #detail-panel #detailTabs .nav-link.active { color: var(--ti-navy); background: #fff; border-color: var(--ti-bar-border) var(--ti-bar-border) #fff; }
+  #detail-panel #detailTabs .nav-link:focus-visible { outline: 3px solid #facc15; outline-offset: 1px; box-shadow: none; }
+  #detail-panel > .tab-content { padding: 1rem .9rem !important; }
+  .kk-sec { border: 1px solid var(--ti-grid); border-radius: 6px; margin-bottom: 1rem; background: #fff; }
+  .kk-sec > h3 { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ti-navy);
+    background: var(--ti-zebra); border-bottom: 1px solid var(--ti-grid); margin: 0; padding: .45rem .8rem; border-radius: 6px 6px 0 0; }
+  .kk-sec > h3 .bi { margin-right: .35rem; }
+  .kk-row { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; padding: .6rem .8rem; border-top: 1px solid #e6ebf1; }
+  .kk-sec > h3 + .kk-row { border-top: 0; }
+  .kk-row-info { flex: 1 1 260px; min-width: 0; }
+  .kk-row-title { font-weight: 600; font-size: .88rem; }
+  .kk-row-desc { font-size: .78rem; color: #5b6576; }
+  .kk-row-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+  .kk-row-ctl form { margin: 0; }
+  .kk-val { font-size: .88rem; }
+  .kk-sec-danger { border-color: #f1b8b8; }
+  .kk-sec-danger > h3 { background: #fdf1f1; color: #9b1c1c; border-bottom-color: #f1b8b8; }
+  .kk-state { font-size: .72rem; font-weight: 600; padding: .1rem .45rem; border-radius: 999px; border: 1px solid; }
+  .kk-state-on  { color: #8a4b00; background: #fff6e5; border-color: #f3cf8b; }
+  .kk-state-off { color: #4b5563; background: #f3f4f6; border-color: #d1d5db; }
 </style>
 
 <main id="main" class="dyd-wrap">
@@ -1220,8 +1225,8 @@ function printBulk(){
 <?php if ($selected_acc): $sa = $selected_acc; $sa_has_ms = !empty($sa['ms_user_id']); ?>
 <div class="card border-0 shadow-sm mb-4" id="detail-panel">
   <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2">
-    <i class="bi bi-person-badge me-2 text-primary" aria-hidden="true"></i>
-    <span><?= h($sa['client_name']) ?></span>
+    <i class="bi bi-person-badge text-primary" aria-hidden="true"></i>
+    <span class="kk-name"><?= h($sa['client_name']) ?></span>
     <span class="badge <?= $sa['is_active'] ? 'bg-success' : 'bg-secondary' ?>"><?= $sa['is_active'] ? 'Aktywne' : 'Zablokowane' ?></span>
     <?php if (!empty($sa['is_minor'])): ?>
     <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-people" aria-hidden="true"></i> małoletni</span>
@@ -1237,7 +1242,7 @@ function printBulk(){
   </div>
 
   <!-- Szybkie akcje — bez przechodzenia do zakładek -->
-  <div class="card-body border-bottom pb-3 kk-akcje" role="group" aria-label="Szybkie akcje">
+  <div class="kk-akcje" role="group" aria-label="Szybkie akcje">
     <div class="d-flex flex-wrap gap-2">
       <?php if ($sa['is_active']): ?>
       <form method="post" target="_blank" onsubmit="return confirm('Otworzyć panel kursanta jako ten użytkownik? Twoja sesja panelu pozostanie aktywna w tej karcie.')">
@@ -1283,7 +1288,7 @@ function printBulk(){
   </div>
 
   <!-- Zakładki -->
-  <ul class="nav nav-tabs px-3 pt-2" id="detailTabs" role="tablist">
+  <ul class="nav nav-tabs" id="detailTabs" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link <?= $active_tab === 'ogolne' ? 'active' : '' ?>" id="tab-btn-ogolne" data-bs-toggle="tab" data-bs-target="#tab-ogolne" type="button" role="tab" aria-controls="tab-ogolne" aria-selected="<?= $active_tab === 'ogolne' ? 'true' : 'false' ?>">
         <i class="bi bi-sliders me-1" aria-hidden="true"></i>Ogólne
@@ -1321,205 +1326,227 @@ function printBulk(){
 
   <div class="tab-content card-body">
 
-    <!-- ── Zakładka: Ogólne ─────────────────────────────────────────────── -->
+    <!-- ── Zakładka: Ogólne — sekcje wierszami „opis | akcja” (formularze i operacje bez zmian) ── -->
     <div class="tab-pane fade <?= $active_tab === 'ogolne' ? 'show active' : '' ?>" id="tab-ogolne" role="tabpanel" aria-labelledby="tab-btn-ogolne" tabindex="0">
-      <ul class="nav nav-pills gap-1 mb-3" role="tablist" aria-label="Sekcje konta kursanta">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="og-btn-dane" data-bs-toggle="pill" data-bs-target="#og-dane" type="button" role="tab" aria-controls="og-dane" aria-selected="true">Dane i nauka</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="og-btn-haslo" data-bs-toggle="pill" data-bs-target="#og-haslo" type="button" role="tab" aria-controls="og-haslo" aria-selected="false">Logowanie i dostęp</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="og-btn-usun" data-bs-toggle="pill" data-bs-target="#og-usun" type="button" role="tab" aria-controls="og-usun" aria-selected="false">Usuwanie konta</button>
-        </li>
-      </ul>
+      <?php
+        require_once dirname(__DIR__, 3) . '/modules/ti_student_docs/logic/studentDocs.php';
+        $_doc   = TiStudentDocs::get((int)$sa['id']) ?: [];
+        $pu     = pp_user((int)$sa['client_id']);
+        $stored = preg_replace('/\D/', '', (string)($pu['individual_nrb'] ?? ''));
+        $_sid   = (int)$sa['id'];
+      ?>
 
-      <div class="tab-content">
-      <div class="tab-pane fade show active d-flex flex-column gap-3" id="og-dane" role="tabpanel" aria-labelledby="og-btn-dane" tabindex="0">
-        <div>
-          <div class="small fw-semibold text-body-secondary mb-1">Dane</div>
-          <div class="row g-3 align-items-end">
-            <div class="col-auto">
-              <form method="post" class="d-flex gap-1">
-                <input type="hidden" name="_token"      value="<?= h(dyd_token()) ?>">
-                <input type="hidden" name="_op"         value="set_no">
-                <input type="hidden" name="account_id"  value="<?= (int)$sa['id'] ?>">
-                <div>
-                  <label class="form-label small mb-0" for="no<?= (int)$sa['id'] ?>">Nr kursanta</label>
-                  <div class="d-flex gap-1">
-                    <input type="text" id="no<?= (int)$sa['id'] ?>" name="student_no" value="<?= h($sa['student_no'] ?? '') ?>"
-                           class="form-control form-control-sm font-monospace" style="width:110px" placeholder="—">
-                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Zapisz numer kursanta" aria-label="Zapisz numer kursanta"><i class="bi bi-save" aria-hidden="true"></i></button>
-                  </div>
-                </div>
-              </form>
+      <section class="kk-sec" aria-labelledby="kk-h-dane">
+        <h3 id="kk-h-dane"><i class="bi bi-person-vcard" aria-hidden="true"></i>Dane konta</h3>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <label class="kk-row-title" for="no<?= $_sid ?>">Numer kursanta</label>
+            <div class="kk-row-desc">Numer w ewidencji, widoczny na wydrukach.</div>
+          </div>
+          <form method="post" class="kk-row-ctl">
+            <input type="hidden" name="_token"      value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"         value="set_no">
+            <input type="hidden" name="account_id"  value="<?= $_sid ?>">
+            <input type="text" id="no<?= $_sid ?>" name="student_no" value="<?= h($sa['student_no'] ?? '') ?>"
+                   class="form-control form-control-sm font-monospace" style="width:120px" placeholder="—">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
+          </form>
+        </div>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <label class="kk-row-title" for="vn<?= $_sid ?>">Numer rachunku do wpłat</label>
+            <?= $stored !== '' ? '<span class="badge text-bg-success ms-1">nadany</span>' : '<span class="badge text-bg-secondary ms-1">brak</span>' ?>
+            <div class="kk-row-desc">
+              <?php if ($stored === ''): ?>Bez numeru kursant płaci na rachunek grupy albo organizacji.
+              <?php else: ?><i class="bi bi-lock" aria-hidden="true"></i> Nadany w Płatnościach — zmiana tylko w <a href="../../../platnosci/admin.php?q=<?= urlencode((string)$sa['client_name']) ?>">panelu płatności</a> ·
+                <a href="rachunki_wirtualne.php?scope=notice&amp;kind=client&amp;client=<?= (int)$sa['client_id'] ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF z informacją</a><?php endif; ?>
             </div>
-            <div class="col-auto">
-              <?php $pu = pp_user((int)$sa['client_id']); $stored = preg_replace('/\D/', '', (string)($pu['individual_nrb'] ?? '')); ?>
-              <form method="post" class="d-flex flex-column gap-1">
-                <input type="hidden" name="_token"      value="<?= h(dyd_token()) ?>">
-                <input type="hidden" name="account_id"  value="<?= (int)$sa['id'] ?>">
-                <label class="form-label small mb-0" for="vn<?= (int)$sa['id'] ?>">Numer rachunku do wpłat <?= $stored !== '' ? '<span class="badge text-bg-success">nadany</span>' : '<span class="badge text-bg-secondary">brak</span>' ?></label>
-                <div class="d-flex gap-1">
-                  <input type="text" id="vn<?= (int)$sa['id'] ?>" name="vnrb" value="<?= h($stored !== '' ? pp_nrb_format($stored) : '') ?>"
-                         class="form-control form-control-sm font-monospace user-select-all" style="width:330px" placeholder="26 cyfr" <?= $stored !== '' ? 'readonly aria-readonly="true"' : '' ?>>
-                  <?php if ($stored !== ''): ?><span class="input-group-text border-0 bg-transparent px-1" title="Numer nadany w Płatnościach — edycja zablokowana"><i class="bi bi-lock-fill text-secondary" aria-hidden="true"></i></span>
-                  <?php else: ?><button type="submit" name="_op" value="set_vnrb" class="btn btn-sm btn-outline-secondary" title="Zapisz numer" aria-label="Zapisz numer rachunku"><i class="bi bi-save" aria-hidden="true"></i></button><?php endif; ?>
-                  <?php if ($stored === ''): ?><button type="submit" name="_op" value="assign_vnrb_pool" class="btn btn-sm btn-outline-primary" title="Nadaj kolejny wolny numer z puli TI">Z puli</button><?php endif; ?>
-                </div>
-                <?php if ($stored === ''): ?><div class="small text-muted">Bez numeru kursant płaci na rachunek grupy/organizacji.</div>
-                <?php else: ?><div class="small text-muted"><a class="me-2" href="rachunki_wirtualne.php?scope=notice&amp;kind=client&amp;client=<?= (int)$sa['client_id'] ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> PDF z informacją</a><i class="bi bi-lock" aria-hidden="true"></i> Nadany w Płatnościach — zmiana tylko w <a href="../../../platnosci/admin.php?q=<?= urlencode((string)$sa['client_name']) ?>">panelu płatności</a>.</div><?php endif; ?>
-              </form>
-            </div>
-            <div class="col-auto">
-              <div class="small text-muted mb-0">Ostatnie logowanie</div>
-              <div>
-                <?php if ($sa['last_login']): ?>
-                <?= h(date('d.m.Y H:i', strtotime($sa['last_login']))) ?>
-                <?php if (!empty($sa['last_login_ip'])): ?>
-                <span class="font-monospace text-muted small"><i class="bi bi-geo-alt" aria-hidden="true"></i> <?= h($sa['last_login_ip']) ?></span>
-                <?php endif; ?>
-                <?php else: ?>
-                <span class="text-muted">—</span>
-                <?php endif; ?>
-              </div>
-            </div>
-            <?php if (!empty($sa['login_alias'])): ?>
-            <div class="col-auto">
-              <div class="small text-muted mb-0">Alias logowania</div>
-              <div class="text-info"><i class="bi bi-arrow-return-right" aria-hidden="true"></i> <?= h($sa['login_alias']) ?></div>
-            </div>
+          </div>
+          <form method="post" class="kk-row-ctl">
+            <input type="hidden" name="_token"      value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="account_id"  value="<?= $_sid ?>">
+            <input type="text" id="vn<?= $_sid ?>" name="vnrb" value="<?= h($stored !== '' ? pp_nrb_format($stored) : '') ?>"
+                   class="form-control form-control-sm font-monospace user-select-all" style="width:300px;max-width:100%" placeholder="26 cyfr" <?= $stored !== '' ? 'readonly aria-readonly="true"' : '' ?>>
+            <?php if ($stored === ''): ?>
+            <button type="submit" name="_op" value="set_vnrb" class="btn btn-sm btn-outline-secondary">Zapisz</button>
+            <button type="submit" name="_op" value="assign_vnrb_pool" class="btn btn-sm btn-outline-primary" title="Nadaj kolejny wolny numer z puli TI">Nadaj z puli</button>
             <?php endif; ?>
+          </form>
+        </div>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Ostatnie logowanie</div>
+            <?php if (!empty($sa['login_alias'])): ?><div class="kk-row-desc">Alias logowania: <strong><?= h($sa['login_alias']) ?></strong></div><?php endif; ?>
+          </div>
+          <div class="kk-val">
+            <?php if ($sa['last_login']): ?>
+            <?= h(date('d.m.Y H:i', strtotime($sa['last_login']))) ?>
+            <?php if (!empty($sa['last_login_ip'])): ?><span class="font-monospace text-body-secondary small ms-1"><i class="bi bi-geo-alt" aria-hidden="true"></i> <?= h($sa['last_login_ip']) ?></span><?php endif; ?>
+            <?php else: ?><span class="text-body-secondary">jeszcze się nie logował(a)</span><?php endif; ?>
           </div>
         </div>
+      </section>
 
-        <?php if ($ms_online_enabled): ?>
-        <div>
-          <div class="small fw-semibold text-body-secondary mb-1">Nauka online</div>
-          <?php if ($sa_has_ms): ?>
-          <div class="small mb-2">
-            <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
-              <i class="bi bi-microsoft" aria-hidden="true"></i> <span class="font-monospace"><?= h($sa['ms_upn']) ?></span>
-            </span>
+      <section class="kk-sec" aria-labelledby="kk-h-haslo">
+        <h3 id="kk-h-haslo"><i class="bi bi-key" aria-hidden="true"></i>Logowanie i hasło</h3>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Hasło</div>
+            <div class="kk-row-desc">Nowe hasło losowe albo serwisowe (8 znaków)<?= $sa_has_ms ? ' — serwisowe nadpisuje też hasło konta Microsoft' : '' ?>. Reset do 1 logowania: następne wejście kodem SMS.</div>
           </div>
-          <?php endif; ?>
-          <div class="d-flex flex-wrap gap-2">
-            <form method="post" <?= $sa_has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
-              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="<?= $sa_has_ms ? 'ms_delete' : 'ms_create' ?>">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm <?= $sa_has_ms ? 'btn-outline-danger' : 'btn-outline-primary' ?>">
-                <i class="bi bi-microsoft me-1" aria-hidden="true"></i><?= $sa_has_ms ? 'Usuń konto Microsoft' : 'Utwórz konto Microsoft' ?>
-              </button>
-            </form>
-          </div>
-        </div>
-        <?php endif; ?>
-
-        </div>
-
-        <div class="tab-pane fade d-flex flex-column gap-3" id="og-haslo" role="tabpanel" aria-labelledby="og-btn-haslo" tabindex="0">
-        <div>
-          <div class="small fw-semibold text-body-secondary mb-1">Hasło i dostęp</div>
-          <div class="d-flex flex-wrap gap-2">
+          <div class="kk-row-ctl">
             <form method="post" onsubmit="return confirm('Zresetować hasło?')">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op"        value="reset_pass">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło</button>
-            </form>
-            <form method="post" onsubmit="return confirm('Przywrócić konto do 1 logowania? Następne wejście będzie kodem SMS.')">
-              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="reset_first_login">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Reset do 1 logowania</button>
+              <input type="hidden" name="account_id" value="<?= $_sid ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-key me-1" aria-hidden="true"></i>Resetuj hasło</button>
             </form>
             <form method="post" onsubmit="return confirm('Ustawić hasło serwisowe (8 znaków)?<?= $sa_has_ms ? ' Nadpisze też hasło konta Microsoft tego kursanta.' : '' ?>')">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op"        value="service_pass">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-warning"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Hasło serwisowe <span class="text-body-secondary small">(8 znaków<?= $sa_has_ms ? ', nadpisuje też MS' : '' ?>)</span></button>
+              <input type="hidden" name="account_id" value="<?= $_sid ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Hasło serwisowe</button>
             </form>
-            <form method="post">
+            <form method="post" onsubmit="return confirm('Przywrócić konto do 1 logowania? Następne wejście będzie kodem SMS.')">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="toggle">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-secondary">
-                <i class="bi <?= $sa['is_active'] ? 'bi-lock' : 'bi-unlock text-success' ?> me-1" aria-hidden="true"></i><?= $sa['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
-              </button>
+              <input type="hidden" name="_op"        value="reset_first_login">
+              <input type="hidden" name="account_id" value="<?= $_sid ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Reset do 1 logowania</button>
             </form>
-            <?php require_once dirname(__DIR__, 3) . '/modules/ti_student_docs/logic/studentDocs.php'; $_doc = TiStudentDocs::get((int)$sa['id']) ?: []; ?>
-            <form method="post" class="d-flex flex-wrap align-items-center gap-2 border rounded px-2 py-1">
-              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="doc_required">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="requires_doc" value="1" id="kk-rd-<?= (int)$sa['id'] ?>"<?= !empty($_doc['requires_doc']) ? ' checked' : '' ?>>
-                <label class="form-check-label small" for="kk-rd-<?= (int)$sa['id'] ?>">Wymaga dokumentu potwierdzającego</label></div>
-              <label class="visually-hidden" for="kk-rdl-<?= (int)$sa['id'] ?>">Jaki dokument</label>
-              <input class="form-control form-control-sm w-auto" id="kk-rdl-<?= (int)$sa['id'] ?>" name="requires_doc_label" size="28" placeholder="np. orzeczenie o niepełnosprawności" value="<?= h((string)($_doc['requires_doc_label'] ?? '')) ?>">
-              <span class="small">
-                <?php if (empty($_doc['requires_doc'])): ?><span class="text-body-secondary">nie wymaga</span>
-                <?php elseif (($_doc['doc_status'] ?? '') === 'scan'): ?><span class="badge text-bg-success">skan</span> <?= h(substr((string)$_doc['doc_at'], 0, 10)) ?> · <a href="konta.php?doc_view=<?= (int)$sa['id'] ?>" target="_blank" rel="noopener">pokaż</a>
-                <?php elseif (($_doc['doc_status'] ?? '') === 'declared'): ?><span class="badge text-bg-info">oświadczenie</span> <?= h(substr((string)$_doc['doc_at'], 0, 10)) ?>
-                <?php else: ?><span class="badge text-bg-warning">czeka na kursanta</span><?php endif; ?>
-              </span>
-              <?php if (!empty($_doc['requires_doc']) && ($_doc['doc_status'] ?? '') !== ''): ?><div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="doc_reset" value="1" id="kk-rr-<?= (int)$sa['id'] ?>"><label class="form-check-label small" for="kk-rr-<?= (int)$sa['id'] ?>">poproś ponownie</label></div><?php endif; ?>
-              <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
-            </form>
-            <form method="post" class="d-flex align-items-center gap-1">
-              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="set_simple">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <label class="small text-nowrap" for="kk-simple-<?= (int)$sa['id'] ?>"><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>Panel kursanta:</label>
-              <select class="form-select form-select-sm w-auto" id="kk-simple-<?= (int)$sa['id'] ?>" name="simple_mode"
-                      title="Kursant uproszczony widzi tylko terminy zajęć (odwołanie, przesunięcie, usprawiedliwienie, plan i wydruk lekcji); wariant z płatnościami dodaje Płatności, Rozliczenia i Portfel; płatności uproszczone to jeden ekran: ile do zapłaty i jak zapłacić">
-                <?php foreach (KK_SIMPLE_MODES as $_m => $_ml): ?><option value="<?= $_m ?>"<?= (int)($sa['simple_mode'] ?? 0) === $_m ? ' selected' : '' ?>><?= h(mb_strtoupper(mb_substr($_ml, 0, 1)) . mb_substr($_ml, 1)) ?></option><?php endforeach; ?>
-              </select>
-              <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
-            </form>
-            <form method="post">
-              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="toggle_virtual">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-secondary" title="Kursant wirtualny nie dostaje rachunku wirtualnego z puli; już nadany numer zostaje">
-                <i class="bi bi-person-badge me-1" aria-hidden="true"></i><?= !empty($sa['is_virtual']) ? 'Kursant wirtualny: TAK (wyłącz)' : 'Oznacz jako kursanta wirtualnego' ?>
-              </button>
-            </form>
-            <form method="post" onsubmit="return confirm('<?= !empty($sa['no_billing']) ? 'Włączyć z powrotem rozliczenia i powiadomienia dla tego kursanta?' : 'Wyłączyć rozliczenia oraz SMS i e-mail dla tego kursanta? Istniejące rozliczenia zostają.' ?>')">
-              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
-              <input type="hidden" name="_op"        value="toggle_no_billing">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-secondary" title="Nie naliczamy należności, nie wysyłamy SMS ani e-maili">
-                <i class="bi bi-slash-circle me-1" aria-hidden="true"></i><?= !empty($sa['no_billing']) ? 'Bez rozliczeń i powiadomień: TAK (wyłącz)' : 'Wyłącz rozliczenia i powiadomienia' ?>
-              </button>
-            </form>
+          </div>
+        </div>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Dostęp do panelu
+              <span class="kk-state <?= $sa['is_active'] ? 'kk-state-off' : 'kk-state-on' ?> ms-1"><?= $sa['is_active'] ? 'aktywny' : 'zablokowany' ?></span>
+              <?php if (!empty($sa['child_access_blocked'])): ?><span class="kk-state kk-state-on ms-1">wstrzymany przez opiekuna</span><?php endif; ?>
+            </div>
+            <div class="kk-row-desc">Zablokowany kursant nie zaloguje się do panelu; dane i rozliczenia zostają.</div>
+          </div>
+          <div class="kk-row-ctl">
             <?php if (!empty($sa['child_access_blocked'])): ?>
             <form method="post" onsubmit="return confirm('Przywrócić kursantowi dostęp do panelu? Dostęp został wstrzymany przez opiekuna.')">
               <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
               <input type="hidden" name="_op"        value="child_unblock">
-              <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Odblokuj dostęp <span class="text-body-secondary small">(wstrzymany przez opiekuna)</span></button>
+              <input type="hidden" name="account_id" value="<?= $_sid ?>">
+              <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-unlock me-1" aria-hidden="true"></i>Przywróć dostęp</button>
             </form>
             <?php endif; ?>
+            <form method="post">
+              <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+              <input type="hidden" name="_op"        value="toggle">
+              <input type="hidden" name="account_id" value="<?= $_sid ?>">
+              <button type="submit" class="btn btn-sm <?= $sa['is_active'] ? 'btn-outline-secondary' : 'btn-outline-success' ?>">
+                <i class="bi <?= $sa['is_active'] ? 'bi-lock' : 'bi-unlock' ?> me-1" aria-hidden="true"></i><?= $sa['is_active'] ? 'Zablokuj konto' : 'Odblokuj konto' ?>
+              </button>
+            </form>
           </div>
         </div>
+      </section>
 
+      <section class="kk-sec" aria-labelledby="kk-h-panel">
+        <h3 id="kk-h-panel"><i class="bi bi-layout-text-sidebar" aria-hidden="true"></i>Panel kursanta</h3>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <label class="kk-row-title" for="kk-simple-<?= $_sid ?>">Wariant panelu</label>
+            <div class="kk-row-desc">Uproszczony: tylko terminy zajęć (odwołanie, przesunięcie, usprawiedliwienie, plan); warianty z płatnościami dodają Płatności, Rozliczenia i Portfel albo jeden ekran „ile i jak zapłacić”.</div>
+          </div>
+          <form method="post" class="kk-row-ctl">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="set_simple">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <select class="form-select form-select-sm w-auto" id="kk-simple-<?= $_sid ?>" name="simple_mode">
+              <?php foreach (KK_SIMPLE_MODES as $_m => $_ml): ?><option value="<?= $_m ?>"<?= (int)($sa['simple_mode'] ?? 0) === $_m ? ' selected' : '' ?>><?= h(mb_strtoupper(mb_substr($_ml, 0, 1)) . mb_substr($_ml, 1)) ?></option><?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
+          </form>
         </div>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Dokument potwierdzający
+              <?php if (empty($_doc['requires_doc'])): ?><span class="kk-state kk-state-off ms-1">nie wymaga</span>
+              <?php elseif (($_doc['doc_status'] ?? '') === 'scan'): ?><span class="badge text-bg-success ms-1">skan</span> <span class="small"><?= h(substr((string)$_doc['doc_at'], 0, 10)) ?> · <a href="konta.php?doc_view=<?= $_sid ?>" target="_blank" rel="noopener">pokaż</a></span>
+              <?php elseif (($_doc['doc_status'] ?? '') === 'declared'): ?><span class="badge text-bg-info ms-1">oświadczenie</span> <span class="small"><?= h(substr((string)$_doc['doc_at'], 0, 10)) ?></span>
+              <?php else: ?><span class="kk-state kk-state-on ms-1">czeka na kursanta</span><?php endif; ?>
+            </div>
+            <div class="kk-row-desc">Po zalogowaniu kursant wgrywa skan albo składa oświadczenie.</div>
+          </div>
+          <form method="post" class="kk-row-ctl">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="doc_required">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="requires_doc" value="1" id="kk-rd-<?= $_sid ?>"<?= !empty($_doc['requires_doc']) ? ' checked' : '' ?>>
+              <label class="form-check-label small" for="kk-rd-<?= $_sid ?>">wymagaj</label></div>
+            <label class="visually-hidden" for="kk-rdl-<?= $_sid ?>">Jaki dokument</label>
+            <input class="form-control form-control-sm w-auto" id="kk-rdl-<?= $_sid ?>" name="requires_doc_label" size="26" placeholder="np. orzeczenie o niepełnosprawności" value="<?= h((string)($_doc['requires_doc_label'] ?? '')) ?>">
+            <?php if (!empty($_doc['requires_doc']) && ($_doc['doc_status'] ?? '') !== ''): ?><div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="doc_reset" value="1" id="kk-rr-<?= $_sid ?>"><label class="form-check-label small" for="kk-rr-<?= $_sid ?>">poproś ponownie</label></div><?php endif; ?>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Zapisz</button>
+          </form>
+        </div>
+        <?php if ($ms_online_enabled): ?>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Konto Microsoft (nauka online)</div>
+            <div class="kk-row-desc"><?php if ($sa_has_ms): ?><i class="bi bi-microsoft" aria-hidden="true"></i> <span class="font-monospace"><?= h($sa['ms_upn']) ?></span><?php else: ?>Kursant nie ma konta Microsoft.<?php endif; ?></div>
+          </div>
+          <form method="post" class="kk-row-ctl" <?= $sa_has_ms ? "onsubmit=\"return confirm('Usunąć konto Microsoft tego kursanta?')\"" : '' ?>>
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="<?= $sa_has_ms ? 'ms_delete' : 'ms_create' ?>">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <button type="submit" class="btn btn-sm <?= $sa_has_ms ? 'btn-outline-danger' : 'btn-outline-primary' ?>">
+              <i class="bi bi-microsoft me-1" aria-hidden="true"></i><?= $sa_has_ms ? 'Usuń konto Microsoft' : 'Utwórz konto Microsoft' ?>
+            </button>
+          </form>
+        </div>
+        <?php endif; ?>
+      </section>
 
-        <div class="tab-pane fade d-flex flex-column gap-3" id="og-usun" role="tabpanel" aria-labelledby="og-btn-usun" tabindex="0">
-        <div class="border-top pt-3">
-          <form method="post" onsubmit="return confirm('Usunąć konto „<?= h(addslashes($sa['client_name'])) ?>”? Tej operacji nie można cofnąć.')">
+      <section class="kk-sec" aria-labelledby="kk-h-rozl">
+        <h3 id="kk-h-rozl"><i class="bi bi-cash-stack" aria-hidden="true"></i>Rozliczenia</h3>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Kursant wirtualny
+              <span class="kk-state <?= !empty($sa['is_virtual']) ? 'kk-state-on' : 'kk-state-off' ?> ms-1"><?= !empty($sa['is_virtual']) ? 'tak' : 'nie' ?></span></div>
+            <div class="kk-row-desc">Nie dostaje rachunku wirtualnego z puli; już nadany numer zostaje.</div>
+          </div>
+          <form method="post" class="kk-row-ctl">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="toggle_virtual">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <button type="submit" class="btn btn-sm btn-outline-secondary"><?= !empty($sa['is_virtual']) ? 'Wyłącz' : 'Włącz' ?></button>
+          </form>
+        </div>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Bez rozliczeń i powiadomień
+              <span class="kk-state <?= !empty($sa['no_billing']) ? 'kk-state-on' : 'kk-state-off' ?> ms-1"><?= !empty($sa['no_billing']) ? 'tak' : 'nie' ?></span></div>
+            <div class="kk-row-desc">Nie naliczamy należności, nie wysyłamy SMS ani e-maili. Istniejące rozliczenia zostają.</div>
+          </div>
+          <form method="post" class="kk-row-ctl" onsubmit="return confirm('<?= !empty($sa['no_billing']) ? 'Włączyć z powrotem rozliczenia i powiadomienia dla tego kursanta?' : 'Wyłączyć rozliczenia oraz SMS i e-mail dla tego kursanta? Istniejące rozliczenia zostają.' ?>')">
+            <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
+            <input type="hidden" name="_op"        value="toggle_no_billing">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
+            <button type="submit" class="btn btn-sm btn-outline-secondary"><?= !empty($sa['no_billing']) ? 'Wyłącz' : 'Włącz' ?></button>
+          </form>
+        </div>
+      </section>
+
+      <section class="kk-sec kk-sec-danger" aria-labelledby="kk-h-usun">
+        <h3 id="kk-h-usun"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i>Usuwanie konta</h3>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <div class="kk-row-title">Usuń konto kursanta</div>
+            <div class="kk-row-desc">Tej operacji nie można cofnąć. Jeśli kursant ma tylko przestać się logować, użyj „Zablokuj konto”.</div>
+          </div>
+          <form method="post" class="kk-row-ctl" onsubmit="return confirm('Usunąć konto „<?= h(addslashes($sa['client_name'])) ?>”? Tej operacji nie można cofnąć.')">
             <input type="hidden" name="_token"     value="<?= h(dyd_token()) ?>">
             <input type="hidden" name="_op"        value="delete">
-            <input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
+            <input type="hidden" name="account_id" value="<?= $_sid ?>">
             <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konto</button>
           </form>
         </div>
-
-        </div>
-      </div>
-      </div>
+      </section>
+    </div>
 
     <!-- ── Zakładka: Płatności (nadpłata/metody + numer konta do wpłat) ──── -->
     <div class="tab-pane fade <?= $active_tab === 'platnosci' ? 'show active' : '' ?>" id="tab-platnosci" role="tabpanel" aria-labelledby="tab-btn-platnosci" tabindex="0">
