@@ -5629,6 +5629,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $rv_lic_redirect_tab  = 'licencje';
     include __DIR__ . '/_licencje_view.php';
     include __DIR__ . '/_uslugi_view.php';   // domeny, hosting i inne usługi (modules/ti_products)
+    include __DIR__ . '/_feer_m365_view.php'; // konto Microsoft 365 na tenancie FEER
   ?>
 
 <?php elseif ($tab === 'dysk'):
@@ -5876,6 +5877,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div id="online-content" aria-live="polite">
       <div class="text-body-secondary py-4 text-center">Ładowanie…</div>
     </div>
+    <?php include __DIR__ . '/_feer_m365_view.php'; /* konto Microsoft 365 na tenancie FEER (jeśli założone) */ ?>
   </div>
 
   <script>
