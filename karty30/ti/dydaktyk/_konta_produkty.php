@@ -57,14 +57,18 @@ foreach ($tp_list as $p) $tp_by_type[$p['product_type']][] = $p;
   </table></div>
   <?php endforeach; endif; ?>
 
-  <details class="small mt-2"><summary>Kopia powiadomień o nowych usługach — do administratora</summary>
-    <form method="post" class="d-flex flex-wrap gap-2 align-items-end mt-2">
+  <details class="small mt-2"><summary>Powiadomienia: kopia do administratora i przypomnienia o wygasających domenach i hostingu</summary>
+    <form method="post" class="d-flex flex-wrap gap-3 align-items-end mt-2">
       <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="product_admin_email"><input type="hidden" name="account_id" value="<?= (int)$sa['id'] ?>">
-      <div><label class="form-label small mb-0" for="tp-adm">Adres(y) e-mail, po przecinku</label>
+      <div><label class="form-label small mb-0" for="tp-adm">Kopia do administratora — adres(y) e-mail, po przecinku</label>
         <input class="form-control form-control-sm" id="tp-adm" name="admin_email" value="<?= h(org_setting('ti_products_admin_email')) ?>" style="min-width:320px" placeholder="puste = konta z rolą admin"></div>
+      <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="tp-rem-on" name="rem_enabled" value="1"<?= TiProductReminders::enabled() ? ' checked' : '' ?>>
+        <label class="form-check-label" for="tp-rem-on">Przypominaj o wygasających domenach i hostingu (codziennie o 8:00)</label></div>
+      <div><label class="form-label small mb-0" for="tp-rem-days">Ile dni przed wygaśnięciem</label>
+        <input class="form-control form-control-sm" id="tp-rem-days" name="rem_days" value="<?= h(implode(', ', TiProductReminders::days())) ?>" style="width:160px" aria-describedby="tp-rem-h"></div>
       <button class="btn btn-sm btn-outline-primary">Zapisz</button>
     </form>
-    <div class="form-text">Teraz kopia trafia do: <?= h(implode(', ', TiProducts::adminEmails()) ?: 'nikogo — brak adresu') ?>.</div>
+    <div class="form-text" id="tp-rem-h">Kursant (małoletni — także opiekun) dostaje e-mail przy każdym progu raz na dany termin; 0 = w dniu wygaśnięcia. Administrator dostaje jedno zestawienie dziennie. Teraz kopia trafia do: <?= h(implode(', ', TiProducts::adminEmails()) ?: 'nikogo — brak adresu') ?>.</div>
   </details>
 
   <?php if ($tp_open): ?>

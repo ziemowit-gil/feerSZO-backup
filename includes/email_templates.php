@@ -1223,6 +1223,61 @@ HTML,
             ],
         ],
 
+        'ti_product_expiring' => [
+            'label'       => 'TI: przypomnienie — wygasa domena / hosting kursanta',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-hourglass-split',
+            'auto'        => true,
+            'description' => 'Codzienne przypomnienie (CRON ti_product_reminders, 8:00) dla kursanta — a gdy jest małoletni, także opiekuna — o zbliżającym się wygaśnięciu domeny lub hostingu. Progi: ustawienie w zakładce „Usługi i produkty” (domyślnie 30, 14, 7, 1 dzień i dzień wygaśnięcia); każdy próg raz na termin.',
+            'subject'     => '{{org}}: {{type}} {{name}} wygasa {{days_text}} ({{expires}})',
+            'body'        => <<<'HTML'
+<p>Dzień dobry{{greeting}},</p>
+<p>przypominamy, że usługa uruchomiona w imieniu <strong>{{student}}</strong> wygasa <strong>{{days_text}}</strong>:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.95em">
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Usługa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{type}}: {{name}}</td></tr>
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Dostawca</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{provider}}</td></tr>
+  {{details_row}}
+  <tr><td style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:38%"><strong>Wygasa</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">{{expires}}</td></tr>
+</table>
+<p>Jeśli usługa ma działać dalej, skontaktuj się z nami — przedłużymy ją. Po terminie domena lub hosting mogą przestać działać, a dane mogą zostać usunięte przez dostawcę.</p>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość automatyczna z systemu {{org}}.</p>
+HTML,
+            'vars'        => [
+                'org'         => ['label' => 'Nazwa organizacji',                 'sample' => 'Dydaktyka TI'],
+                'greeting'    => ['label' => 'Zwrot (spacja + imię albo puste)',  'sample' => ' Anna'],
+                'student'     => ['label' => 'Kursant',                           'sample' => 'Anna Nowak'],
+                'type'        => ['label' => 'Typ (Domena / Hosting)',            'sample' => 'Domena'],
+                'name'        => ['label' => 'Nazwa',                             'sample' => 'mojafirma.pl'],
+                'provider'    => ['label' => 'Dostawca',                          'sample' => 'OVH'],
+                'details_row' => ['label' => 'Wiersz „Pakiet / serwer” (HTML lub pusty)', 'sample' => ''],
+                'expires'     => ['label' => 'Data wygaśnięcia',                  'sample' => '31.10.2026'],
+                'days_text'   => ['label' => 'Kiedy (dziś / jutro / za N dni)',   'sample' => 'za 7 dni'],
+            ],
+        ],
+
+        'ti_product_expiring_admin' => [
+            'label'       => 'TI: przypomnienia o wygasających usługach — zestawienie dla administratora',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-hourglass-split',
+            'auto'        => true,
+            'description' => 'Jedno zestawienie z przebiegu przypomnień o wygasających domenach i hostingu: komu i o czym przypomniano. Adres: ustawienie w zakładce „Usługi i produkty”, a gdy puste — konta z rolą admin.',
+            'subject'     => '{{org}}: wygasające domeny i hosting — {{count}} przypomn. ({{date}})',
+            'body'        => <<<'HTML'
+<p>Wysłane dziś ({{date}}) przypomnienia o wygasających usługach kursantów: <strong>{{count}}</strong>.</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.9em">
+  <tr style="background:#f8fafc"><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Kursant</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Usługa</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Dostawca</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Wygasa</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Zostało</th><th style="padding:6px 10px;border:1px solid #e2e8f0;text-align:left">Powiadomiono</th></tr>
+  {{rows}}
+</table>
+<p style="font-size:.8em;color:#6c757d;margin-top:20px;padding-top:12px;border-top:1px solid #dee2e6">Wiadomość automatyczna z systemu {{org}}.</p>
+HTML,
+            'vars'        => [
+                'org'   => ['label' => 'Nazwa organizacji',           'sample' => 'Dydaktyka TI'],
+                'date'  => ['label' => 'Dzień przebiegu',             'sample' => '14.10.2026'],
+                'count' => ['label' => 'Liczba przypomnień',          'sample' => '2'],
+                'rows'  => ['label' => 'Wiersze tabeli (HTML)',       'sample' => '<tr><td>Anna Nowak</td><td>Domena: <strong>mojafirma.pl</strong></td><td>OVH</td><td>21.10.2026</td><td>7 dni</td><td>a***@example.com</td></tr>'],
+            ],
+        ],
+
         'ti_plan_link' => [
             'label'       => 'TI: link do planu zajęć grupy',
             'group'       => 'TI — Zajęcia',

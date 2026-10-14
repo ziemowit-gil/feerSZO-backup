@@ -18,7 +18,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payment_account_
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/payment_portal/logic/paymentPortal.php'; // rachunek wirtualny z nr kursanta
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/sprawdz_konto/logic/sprawdz_konto.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_licencje/logic/tiLicencjeManager.php'; // licencje kursantów: przypisanie, forma rozliczenia
-require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_products/logic/tiProducts.php'; // usługi i produkty: domeny, hosting, inne
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_products/logic/tiProductReminders.php'; // usługi i produkty: domeny, hosting, inne + przypomnienia
 
 $me       = dyd_require();
 /** Tryby panelu kursanta (k30_ti_student_accounts.simple_mode) — te same wartości co STUDENT_SIMPLE_MODES w kursant/auth.php. */
@@ -632,7 +632,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $em  = array_filter(array_map('trim', preg_split('/[\s,;]+/', (string)($_POST['admin_email'] ?? ''))));
         $bad = array_filter($em, fn($e) => !filter_var($e, FILTER_VALIDATE_EMAIL));
         if ($bad) flash_set('danger', 'Nieprawidłowy adres e-mail: ' . implode(', ', $bad));
-        else { org_setting_set('ti_products_admin_email', implode(', ', $em)); flash_set('success', 'Adres kopii powiadomień zapisany.'); }
+        else {
+            org_setting_set('ti_products_admin_email', implode(', ', $em));
+            // przypomnienia o wygasających domenach i hostingu (cron/ti_product_reminders.php)
+            org_setting_set('ti_prodrem_enabled', !empty($_POST['rem_enabled']) ? '1' : '0');
+            $rd = array_values(array_unique(array_filter(array_map('intval', preg_split('/[\s,;]+/', (string)($_POST['rem_days'] ?? ''))), fn($x) => $x >= 0 && $x <= 365)));
+            rsort($rd);
+            org_setting_set('ti_prodrem_days', $rd ? implode(',', $rd) : TiProductReminders::DEFAULT_DAYS);
+            flash_set('success', 'Ustawienia powiadomień o usługach zapisane.');
+        }
         header('Location: konta.php?selected=' . $aid . '&ptab=produkty#tab-produkty'); exit;
     }
     if ($op === 'product_save' || $op === 'product_delete') {
