@@ -92,3 +92,13 @@ function ti_audit_notify_instructor(array $instructor, array $gap): bool {
         return false;
     }
 }
+
+/**
+ * Wynik Kontroli Lekcji i Wpisów (modules/ti_lesson_control) per prowadzący:
+ * [instructor_id => ['late' => wpisy po terminie z brakami, 'returned' => zwrócone do poprawy]].
+ * Audyt dzienników pokazuje to obok własnych braków i linkuje do panelu audytora (kontrolaWpisow.php).
+ */
+function ti_audit_lesson_control_gaps(): array {
+    require_once dirname(__DIR__) . '/modules/ti_lesson_control/logic/lessonControl.php';
+    return tiLcGapsByInstructor();
+}

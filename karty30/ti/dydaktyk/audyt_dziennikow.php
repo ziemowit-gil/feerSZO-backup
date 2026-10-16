@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $gaps = ti_audit_gaps_by_instructor();
+$lc_gaps = ti_audit_lesson_control_gaps();   // Kontrola Lekcji i Wpisów (kontrolaWpisow.php)
 $instructors = [];
 foreach (k30_ti_instructors() as $ins) { $instructors[(int)$ins['id']] = $ins; }
 
@@ -81,6 +82,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <p class="text-body-secondary small mb-3">
   Prowadzący z niekompletną dokumentacją odbytych lekcji albo kursantami bez żadnej oceny w e-dzienniku.
   Wysłanie przypomnienia nie zmienia niczego w danych — to tylko e-mail do prowadzącego.
+  Szczegóły każdego wpisu (termin, czego brakuje, zatwierdzanie i zwrot do poprawy) są w
+  <a href="kontrolaWpisow.php">Kontroli wpisów</a>.
 </p>
 
 <?php if (!$rows): ?>
@@ -106,6 +109,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <th>Prowadzący</th>
           <th>Niekompletna dokumentacja</th>
           <th>Brak ocen</th>
+          <th>Kontrola wpisów</th>
           <th class="text-end">Akcja</th>
         </tr>
       </thead>
@@ -135,6 +139,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <?php else: ?>
             <span class="text-body-secondary">—</span>
             <?php endif; ?>
+          </td>
+          <td>
+            <?php $lc = $lc_gaps[(int)$ins['id']] ?? null; if ($lc): ?>
+            <a class="text-decoration-none" href="kontrolaWpisow.php?v=wszystkie&amp;i=<?= (int)$ins['id'] ?>">
+              <?php if ($lc['late']): ?><span class="badge text-bg-danger"><?= (int)$lc['late'] ?> po terminie</span><?php endif; ?>
+              <?php if ($lc['returned']): ?><span class="badge text-bg-warning"><?= (int)$lc['returned'] ?> do poprawy</span><?php endif; ?>
+            </a>
+            <?php else: ?><span class="text-body-secondary">—</span><?php endif; ?>
           </td>
           <td class="text-end">
             <form method="post">
