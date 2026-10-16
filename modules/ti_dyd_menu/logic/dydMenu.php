@@ -55,6 +55,12 @@ function dydMenuSections(): array
     $isAdm  = function_exists('dyd_is_admin') && dyd_is_admin();
     $isKier = (function_exists('is_admin') && is_admin()) || (function_exists('ti_panel_role') && ti_panel_role($uid) === 'kierownik');
     $modes  = function_exists('dyd_modes_available') ? dyd_modes_available($s) : ['kursy'];
+    $nLcMine = 0; $nLcQueue = 0;   // Kontrola Lekcji i Wpisów: moje zaległe / kolejka audytora
+    try {
+        require_once dirname(__DIR__, 3) . '/modules/ti_lesson_control/logic/lessonControl.php';
+        $nLcMine = tiLcInstructorPendingCount($uid);
+        if ($staff) $nLcQueue = tiLcAuditorQueueCount();
+    } catch (\Throwable $e) {}
 
     $sec = [];
 
@@ -85,6 +91,7 @@ function dydMenuSections(): array
             $it('pulpit',          'Pulpit',            $gt('pulpit'),          'house'),
             $it('dostepnosc',      'Moja dostępność',   $gt('dostepnosc'),      'calendar-check', $nAvail),
             $it('',                'Moje protokoły',    'protokoly_moje.php',   'clipboard-check', $nProt, 'warning'),
+            $it('',                'Moje wpisy',        'kontrolaWpisow.php',   'journal-check', $nLcMine, 'danger'),
             $it('',                'Protokoły zajęć',   'protokoly_zajec.php',  'journal-check'),
             $it('',                'Moje godziny',      'godziny.php',          'hourglass-split'),
             $it('frekwencja_grup', 'Frekwencja grup',   $gt('frekwencja_grup'), 'graph-up'),
@@ -175,6 +182,7 @@ function dydMenuSections(): array
     $sec[] = ['key' => 'k_kontrola', 'staff' => true, 'label' => 'Kontrola i raporty', 'items' => array_values(array_filter([
         $it('', 'Zaległe protokoły',  'protokoly.php',         'exclamation-octagon'),
         $it('', 'Audyt dzienników',   'audyt_dziennikow.php',  'clipboard2-check'),
+        $it('', 'Kontrola wpisów',    'kontrolaWpisow.php',    'journal-check', $nLcQueue, 'warning'),
         $it('', 'Hospitacje i wizytacje', 'hospitacje.php',    'clipboard2-pulse'),
         $it('', 'Wydruki i raporty',  'wydruki.php',           'printer'),
         $it('', 'Raport odwołanych',  'raport_odwolanych.php', 'calendar-x'),
