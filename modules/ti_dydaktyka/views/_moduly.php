@@ -2,20 +2,25 @@
 /**
  * Sekcja „Postępy w modułach” karty kursanta — status opanowania punktów planu kursu (k30_ti_curriculum), osobno dla każdej grupy.
  * Zmienne: $clientId, $courseCtx, $courses, $modulesByCourse[course_id] = ['rows' => …, 'sum' => …].
+ * Kolumna „Na zajęciach”: realizacja punktu na lekcjach a obecność kursanta (modules/ti_edziennik/logic/syllabusCoverage.php).
  */
+require_once dirname(__DIR__, 2) . '/ti_edziennik/logic/syllabusCoverage.php';
 ?>
 <section id="moduly" aria-labelledby="h-moduly" class="card border-0 shadow-sm mb-4">
   <div class="card-header"><h2 class="h5 mb-0" id="h-moduly"><i class="bi bi-list-check text-primary me-2" aria-hidden="true"></i>Postępy w modułach</h2></div>
   <div class="card-body">
-    <p class="small text-body-secondary">Moduły to punkty planu nauczania grupy. Status zapisuje się dla całej grupy naraz; zmieniony status dostaje dzisiejszą datę.</p>
+    <p class="small text-body-secondary">Moduły to punkty planu nauczania grupy. „Na zajęciach” wynika z realizacji sylabusa na lekcjach i obecności kursanta;
+      „Do nadrobienia” to punkty opuszczone lub zrealizowane przed zapisem, których nie oznaczono jako opanowane. Status zapisuje się dla całej grupy naraz; zmieniony status dostaje dzisiejszą datę.</p>
     <?php if (!$courses): ?><p class="text-body-secondary mb-0">Kursant nie jest zapisany do żadnej z Twoich grup.</p><?php endif; ?>
     <?php foreach ($courses as $c):
-      $cid = (int)$c['id']; $rows = $modulesByCourse[$cid]['rows']; $sum = $modulesByCourse[$cid]['sum']; $active = $c['enroll_status'] === 'active'; ?>
+      $cid = (int)$c['id']; $rows = $modulesByCourse[$cid]['rows']; $sum = $modulesByCourse[$cid]['sum']; $active = $c['enroll_status'] === 'active';
+      $cov = tiSyllabusCoverage($clientId, $cid); $catch = tiSyllabusToCatchUp($cov, $rows); ?>
     <details id="moduly-<?= $cid ?>" class="mb-3 border rounded p-2"<?= $active ? ' open' : '' ?>>
       <summary class="fw-semibold" style="cursor:pointer">
         <?= h($c['name']) ?><?= $c['group_code'] !== '' ? ' <span class="text-body-secondary fw-normal">(' . h($c['group_code']) . ')</span>' : '' ?>
         <?= $active ? '' : dk_badge('bi-person-dash', 'dk-muted', 'wypisany') ?>
         <span class="ms-2 fw-normal small">Opanowane: <?= (int)$sum['mastered'] ?> z <?= (int)$sum['total'] ?> (<?= (int)$sum['pct'] ?>%)</span>
+        <?php if ($catch > 0): ?><span class="ms-1"><?= dk_badge('bi-exclamation-circle', 'dk-bad', 'Do nadrobienia: ' . $catch) ?></span><?php endif; ?>
       </summary>
       <?php if (!$rows): ?>
         <p class="small text-body-secondary mt-2 mb-0">Ta grupa nie ma jeszcze planu nauczania. <a href="index.php?course=<?= $cid ?>&amp;tab=program">Dodaj punkty planu</a>.</p>
@@ -27,15 +32,22 @@
         <div class="table-responsive">
           <table class="table table-sm align-middle" style="font-size:.88rem">
             <caption class="visually-hidden">Statusy modułów kursanta w grupie <?= h($c['name']) ?></caption>
-            <thead class="table-light"><tr><th scope="col">Moduł</th><th scope="col" style="width:13rem">Status</th><th scope="col" class="text-nowrap">Ostatnia zmiana</th><th scope="col">Notatka</th></tr></thead>
+            <thead class="table-light"><tr><th scope="col">Moduł</th><th scope="col">Na zajęciach</th><th scope="col" style="width:13rem">Status</th><th scope="col" class="text-nowrap">Ostatnia zmiana</th><th scope="col">Notatka</th></tr></thead>
             <?php $prevSec = null; $open_tb = false;
             foreach ($rows as $m):
               if ($prevSec !== $m['section']): if ($open_tb) echo '</tbody>'; $prevSec = $m['section']; $open_tb = true; ?>
             <tbody>
-              <?php if ($m['section'] !== ''): ?><tr class="table-secondary"><th colspan="4" scope="rowgroup"><?= h($m['section']) ?></th></tr><?php endif; ?>
+              <?php if ($m['section'] !== ''): ?><tr class="table-secondary"><th colspan="5" scope="rowgroup"><?= h($m['section']) ?></th></tr><?php endif; ?>
             <?php endif; ?>
               <tr>
                 <th scope="row" class="fw-normal"><?= h($m['title']) ?><?= (int)$m['est_minutes'] > 0 ? ' <span class="small text-body-secondary">(' . (int)$m['est_minutes'] . ' min)</span>' : '' ?></th>
+                <td class="small">
+                  <?php $cv = $cov[(int)$m['id']] ?? ['state' => 'none', 'held' => 0, 'present' => 0, 'last' => null, 'next' => null];
+                        [$cvl, $cvi, $cvc] = TI_COVERAGE_LABELS[$cv['state']]; ?>
+                  <?= dk_badge('bi-' . $cvi, $cvc, $cvl) ?>
+                  <?php if ($cv['held'] > 0): ?><div class="text-body-secondary">obecny na <?= (int)$cv['present'] ?> z <?= (int)$cv['held'] ?> lekcji<?= $cv['last'] ? ', ostatnio ' . h(dk_date($cv['last'])) : '' ?></div>
+                  <?php elseif ($cv['next']): ?><div class="text-body-secondary">najbliżej <?= h(dk_date($cv['next'])) ?></div><?php endif; ?>
+                </td>
                 <td>
                   <label class="visually-hidden" for="ms-<?= (int)$m['id'] ?>">Status modułu: <?= h($m['title']) ?></label>
                   <select class="form-select form-select-sm" id="ms-<?= (int)$m['id'] ?>" name="modules[<?= (int)$m['id'] ?>][status]">
