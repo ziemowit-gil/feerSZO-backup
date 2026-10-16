@@ -10,6 +10,11 @@
  * o stałych wymiarach) rozjeżdżała się w panelu i nie mieściła na stronie —
  * trend miesięczny jest teraz tabelą, bo tabela skaluje się zawsze.
  *
+ * Od 2026-10-16 uproszczony: baner powitalny z grafiką pory dnia (modules/ti_dyd_welcome),
+ * pod nim tylko „Dziś” i „Do zrobienia” (u kierownika z dopisanymi sprawami instytucji
+ * z _tab_pulpit_kierownik.php). Najbliższe zajęcia, komunikaty, frekwencja, trend, stan
+ * instytucji, nieobecni i skróty — w zwijanym „Pokaż więcej” (stan w localStorage).
+ *
  * Wymaga z index.php: $dash_today, $dash_upcoming, $dash_pending_cancel,
  * $dyd_wizard_sessions, $dyd_notices, $dyd_notices_unread, $dyd_msg_unread_total,
  * $course_ids, $my_avail, $courses.
@@ -141,121 +146,48 @@ if (!empty($course_ids)) {
 .dyd-card-accent { border-left: 4px solid transparent; }
 </style>
 
-<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
-  <h1 class="h5 fw-bold mb-0"><i class="bi bi-house me-2" aria-hidden="true"></i>Pulpit</h1>
-  <span class="badge text-bg-light border text-dark">
-    <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?>
-  </span>
-  <?php if (!empty($courses)): ?>
-  <span class="badge bg-secondary"><?= count($courses) ?> <?= count($courses) === 1 ? 'grupa' : 'grup' ?></span>
-  <?php endif; ?>
-</div>
-
 <?php
+// Kierownik: dane „Wymaga uwagi” itd. (rysowane niżej w Do zrobienia i w „Pokaż więcej”)
+$_kp_attn = [];
+if (function_exists('dyd_is_staff') && dyd_is_staff()) include __DIR__ . '/_tab_pulpit_kierownik.php';
 // Przypomnienie o protokole za POPRZEDNI miesiąc — tylko między 1. a 5. dniem
 // bieżącego miesiąca (wtedy zwykle trzeba go domknąć), patrz includes/ti_protocols.php.
 $_prev_ym = date('Y-m', strtotime('first day of last month'));
 $_prot_prev = ((int)date('j') <= 5)
     ? array_values(array_filter($_my_pending_protocols ?? [], fn($p) => $p['year_month'] === $_prev_ym))
     : [];
-if ($_prot_prev):
+if ($_prot_prev) {
+    array_unshift($_todo, ['danger', 'journal-check', 'Zamknij protokół za poprzedni miesiąc: ' . implode(', ', array_map(fn($p) => (string)$p['course_name'], $_prot_prev)), 'protokoly_moje.php', 'Kreator protokołów']);
+}
 ?>
-<div class="alert alert-warning d-flex align-items-start gap-2 flex-wrap" role="alert">
-  <i class="bi bi-journal-check flex-shrink-0 mt-1" aria-hidden="true"></i>
-  <div class="flex-grow-1">
-    <strong>Zamknij protokół za poprzedni miesiąc</strong> —
-    <?= implode(', ', array_map(fn($p) => h($p['course_name']), $_prot_prev)) ?>.
-  </div>
-  <a href="protokoly_moje.php" class="btn btn-sm btn-warning text-nowrap">
-    <i class="bi bi-journal-check me-1" aria-hidden="true"></i>Otwórz kreator protokołów
-  </a>
-</div>
-<?php endif; ?>
 
-<?php // Kierownik (rola „Kierownik Instytucji”): stan instytucji nad częścią wspólną
-if (function_exists('dyd_is_staff') && dyd_is_staff()) include __DIR__ . '/_tab_pulpit_kierownik.php'; ?>
-
-<?php /* ── Pasek szybkich statystyk: fluid Bootstrap grid, bez stałych szerokości ── */
-  $_stat_pct_all = null;
-  if (!empty($_att_rows)) {
-      $_sp = 0; $_sa = 0;
-      foreach ($_att_rows as $_ar0) { $_sp += (int)$_ar0['present']; $_sa += (int)$_ar0['absent']; }
-      if ($_sp + $_sa > 0) $_stat_pct_all = (int)round($_sp / ($_sp + $_sa) * 100);
-  }
+<?php
+// ── Baner powitalny (modules/ti_dyd_welcome) — zastępuje nagłówek i linię podsumowania ──
+require_once dirname(__DIR__, 3) . '/modules/ti_dyd_welcome/logic/dydWelcome.php';
+$_todo_n  = count($_todo) + count($_kp_attn);
+$_mon_gen = [1=>'stycznia',2=>'lutego',3=>'marca',4=>'kwietnia',5=>'maja',6=>'czerwca',7=>'lipca',8=>'sierpnia',9=>'września',10=>'października',11=>'listopada',12=>'grudnia'];
+$_now_hm  = date('H:i');
+$_next    = null;
+foreach ($dash_today as $_s) {
+    $_tf = substr((string)($_s['time_from'] ?? ''), 0, 5);
+    if ($_tf !== '' && $_tf >= $_now_hm && !in_array((string)$_s['status'], ['cancelled', 'held', 'individual_change', 'remote_material'], true)) { $_next = $_s; break; }
+}
+$_nt = count($dash_today);
+$_facts = [];
+$_facts[] = ['calendar-day', $_nt ? 'Dziś ' . $_nt . ' ' . ($_nt === 1 ? 'zajęcia' : 'zajęć') : 'Dziś bez zajęć', ''];
+if ($_next) $_facts[] = ['clock', 'Najbliższe o ' . substr((string)$_next['time_from'], 0, 5) . ' — ' . (string)$_next['course_name'], ''];
+$_facts[] = $_todo_n
+    ? ['list-check', $_todo_n . ' ' . ($_todo_n === 1 ? 'sprawa' : ($_todo_n % 10 >= 2 && $_todo_n % 10 <= 4 && ($_todo_n % 100 < 10 || $_todo_n % 100 >= 20) ? 'sprawy' : 'spraw')) . ' do zrobienia', 'warn']
+    : ['check2-circle', 'Wszystko uzupełnione', ''];
+if (!empty($_kp_counts)) $_facts[] = ['building', 'Instytucja: ' . (int)$_kp_counts['groups'] . ' grup · ' . (int)$_kp_counts['students'] . ' kursantów', ''];
+echo dydWelcomeHero((string)(dyd_current()['name'] ?? ''), ($_day_pl[date('D')] ?? '') . ', ' . date('j') . ' ' . $_mon_gen[(int)date('n')] . ' ' . date('Y'), $_facts);
 ?>
-<?php /* Zamiast kafli z dużymi liczbami — jedna linia podsumowania (styl USOS) */ ?>
-<p class="dyd-pulpit-sum small mb-2" aria-label="Podsumowanie">
-  <span class="<?= $_todo ? 'fw-semibold text-warning-emphasis' : 'text-body-secondary' ?>"><i class="bi bi-list-check me-1" aria-hidden="true"></i>Do zrobienia: <?= count($_todo) ?></span>
-  <span class="text-body-secondary"> · </span>
-  <span><i class="bi bi-calendar-day me-1" aria-hidden="true"></i>Dziś: <?= count($dash_today) ?></span>
-  <span class="text-body-secondary"> · </span>
-  <span><i class="bi bi-calendar-week me-1" aria-hidden="true"></i>Następne 7 dni: <?= count($dash_upcoming) ?></span>
-  <span class="text-body-secondary"> · </span>
-  <span><i class="bi bi-graph-up me-1" aria-hidden="true"></i>Frekwencja <?= h(date('m.Y')) ?>: <?= $_stat_pct_all === null ? '—' : $_stat_pct_all . '%' ?></span>
-</p>
 
 <div class="row g-3 dyd-pulpit-cols">
-<div class="col-lg-7">
-<?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
-<div class="card dyd-card-accent <?= $_todo ? 'border-warning' : '' ?>">
-  <div class="card-header d-flex align-items-center gap-2">
-    <i class="bi bi-list-check text-warning" aria-hidden="true"></i>Do zrobienia
-  </div>
-  <?php if (!$_todo): ?>
-  <div class="card-body small text-body-secondary">
-    <i class="bi bi-check2-circle me-1 text-success" aria-hidden="true"></i>Nic nie czeka — wszystko uzupełnione.
-  </div>
-  <?php else: ?>
-  <div class="table-responsive">
-    <table class="table table-sm align-middle mb-0">
-      <caption class="visually-hidden">Zadania czekające na prowadzącego</caption>
-      <tbody>
-        <?php foreach ($_todo as $_row): [$_v, $_ico, $_txt, $_href, $_lbl] = $_row; $_onclick = $_row[5] ?? null; ?>
-        <tr>
-          <td style="width:2rem"><i class="bi bi-<?= h($_ico) ?> text-<?= h($_v) ?>" aria-hidden="true"></i></td>
-          <td class="small"><?= h($_txt) ?></td>
-          <td class="text-end text-nowrap" style="width:11rem">
-            <?php if ($_href): ?>
-              <a href="<?= h($_href) ?>" class="btn btn-sm btn-outline-primary"><?= h($_lbl) ?></a>
-            <?php elseif ($_onclick): ?>
-              <button type="button" class="btn btn-sm btn-danger" onclick="<?= h($_onclick) ?>">
-                <i class="bi bi-check2-all me-1" aria-hidden="true"></i><?= h($_lbl) ?>
-              </button>
-            <?php else: ?>
-              <button type="button" class="btn btn-sm btn-primary" aria-haspopup="dialog"
-                      onclick="wizOpen(<?= count($dyd_wizard_sessions) === 1 ? (int)$dyd_wizard_sessions[0]['id'] : 'null' ?>)">
-                <i class="bi bi-magic me-1" aria-hidden="true"></i><?= h($_lbl) ?>
-              </button>
-            <?php endif; ?>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <?php endif; ?>
-</div>
-
-<?php if (!empty($dash_overdue)): ?>
-<form method="post" id="bulkOverdueForm" class="d-none">
-  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-  <input type="hidden" name="_op" value="bulk_complete_overdue">
-  <?php foreach ($dash_overdue as $_ov): ?>
-  <input type="hidden" name="session_ids[]" value="<?= (int)$_ov['id'] ?>">
-  <?php endforeach; ?>
-</form>
-<script>
-function dydBulkOverdue(n) {
-  if (confirm('Uzupełnić ' + n + ' zaległ' + (n === 1 ? 'ą lekcję' : 'ych lekcji') + ' — wszyscy obecni? Temat trzeba będzie dopisać osobno.')) {
-    document.getElementById('bulkOverdueForm').submit();
-  }
-}
-</script>
-<?php endif; ?>
-
+<div class="col-xl-7">
 <?php /* ── Dziś ──────────────────────────────────────────────────────────── */ ?>
 <div class="card">
-  <div class="card-header"><i class="bi bi-calendar-day text-primary me-1" aria-hidden="true"></i>Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></div>
+  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-calendar-day text-primary me-1" aria-hidden="true"></i>Dziś — <?= h($_day_pl[date('D')] ?? '') ?>, <?= h(date('j.m.Y')) ?></h2></div>
   <?php if (!$dash_today): ?>
   <div class="card-body small text-body-secondary">Brak zaplanowanych zajęć na dziś.</div>
   <?php else: ?>
@@ -319,7 +251,83 @@ function dydBulkOverdue(n) {
   </div>
   <?php endif; ?>
 </div>
+</div><?php /* /Dziś */ ?>
+<div class="col-xl-5">
+<?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
+<div class="card dyd-card-accent <?= $_todo_n ? 'border-warning' : '' ?>">
+  <div class="card-header d-flex align-items-center gap-2">
+    <h2 class="h6 mb-0 fw-semibold"><i class="bi bi-list-check text-warning me-1" aria-hidden="true"></i>Do zrobienia</h2>
+    <span class="badge <?= $_todo_n ? 'text-bg-warning' : 'text-bg-success' ?> ms-auto"><?= $_todo_n ?></span>
+  </div>
+  <?php if (!$_todo && !$_kp_attn): ?>
+  <div class="card-body small text-body-secondary">
+    <i class="bi bi-check2-circle me-1 text-success" aria-hidden="true"></i>Nic nie czeka — wszystko uzupełnione.
+  </div>
+  <?php else: ?>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Zadania czekające na prowadzącego</caption>
+      <tbody>
+        <?php foreach ($_todo as $_row): [$_v, $_ico, $_txt, $_href, $_lbl] = $_row; $_onclick = $_row[5] ?? null; ?>
+        <tr>
+          <td style="width:2rem"><i class="bi bi-<?= h($_ico) ?> text-<?= h($_v) ?>" aria-hidden="true"></i></td>
+          <td class="small"><?= h($_txt) ?></td>
+          <td class="text-end text-nowrap" style="width:11rem">
+            <?php if ($_href): ?>
+              <a href="<?= h($_href) ?>" class="btn btn-sm btn-outline-primary"><?= h($_lbl) ?></a>
+            <?php elseif ($_onclick): ?>
+              <button type="button" class="btn btn-sm btn-danger" onclick="<?= h($_onclick) ?>">
+                <i class="bi bi-check2-all me-1" aria-hidden="true"></i><?= h($_lbl) ?>
+              </button>
+            <?php else: ?>
+              <button type="button" class="btn btn-sm btn-primary" aria-haspopup="dialog"
+                      onclick="wizOpen(<?= count($dyd_wizard_sessions) === 1 ? (int)$dyd_wizard_sessions[0]['id'] : 'null' ?>)">
+                <i class="bi bi-magic me-1" aria-hidden="true"></i><?= h($_lbl) ?>
+              </button>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+        <?php if ($_kp_attn): ?>
+        <tr class="table-light"><th scope="rowgroup" colspan="3" class="small text-uppercase text-body-secondary" style="letter-spacing:.04em">Instytucja</th></tr>
+        <?php foreach ($_kp_attn as [$_l, $_n, $_d, $_h, $_i, $_v]): ?>
+        <tr>
+          <td style="width:2rem"><i class="bi bi-<?= h($_i) ?> text-<?= h($_v) ?>" aria-hidden="true"></i></td>
+          <td class="small"><span class="fw-semibold"><?= h($_l) ?></span> <span class="badge text-bg-<?= h($_v) ?>"><?= (int)$_n ?></span>
+            <div class="text-body-secondary"><?= h($_d) ?></div></td>
+          <td class="text-end text-nowrap"><a href="<?= h($_h) ?>" class="btn btn-sm btn-outline-primary">Przejdź<span class="visually-hidden">: <?= h($_l) ?></span></a></td>
+        </tr>
+        <?php endforeach; endif; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
+</div>
 
+<?php if (!empty($dash_overdue)): ?>
+<form method="post" id="bulkOverdueForm" class="d-none">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <input type="hidden" name="_op" value="bulk_complete_overdue">
+  <?php foreach ($dash_overdue as $_ov): ?>
+  <input type="hidden" name="session_ids[]" value="<?= (int)$_ov['id'] ?>">
+  <?php endforeach; ?>
+</form>
+<script>
+function dydBulkOverdue(n) {
+  if (confirm('Uzupełnić ' + n + ' zaległ' + (n === 1 ? 'ą lekcję' : 'ych lekcji') + ' — wszyscy obecni? Temat trzeba będzie dopisać osobno.')) {
+    document.getElementById('bulkOverdueForm').submit();
+  }
+}
+</script>
+<?php endif; ?>
+</div><?php /* /Do zrobienia */ ?>
+</div><?php /* /row */ ?>
+
+<?php /* ── Pokaż więcej: reszta dawnego pulpitu, zwinięta (stan zapamiętany w przeglądarce) ── */ ?>
+<details class="dyd-more mt-3" id="dydPulpitMore">
+  <summary class="dyd-more-sum">Pokaż więcej <span class="fw-normal text-body-secondary">— najbliższe zajęcia, komunikaty, frekwencja, trend<?= $_kp_attn !== [] || !empty($_kp_counts) ? ', instytucja' : '' ?></span></summary>
+  <div class="row g-3 dyd-pulpit-cols mt-1">
+  <div class="col-lg-7">
 <?php /* ── Najbliższe 7 dni ──────────────────────────────────────────────── */ ?>
 <div class="card">
   <div class="card-header"><i class="bi bi-calendar-week text-secondary me-1" aria-hidden="true"></i>Najbliższe zajęcia <span class="badge bg-secondary ms-1"><?= count($dash_upcoming) ?></span>
@@ -360,8 +368,44 @@ function dydBulkOverdue(n) {
   <?php endif; ?>
 </div>
 
-</div><?php /* /lewa kolumna */ ?>
-<div class="col-lg-5">
+<?php if (!empty($_kp_counts) || !empty($_kp_ok) || isset($_kp_leaves)): ?>
+<div class="card">
+  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-shield-fill-check me-1" aria-hidden="true"></i>Instytucja — stan na <?= h(date('d.m.Y')) ?>, <?= h($_kp_at ?? date('H:i')) ?></h2></div>
+  <div class="card-body small">
+    <?php if (!empty($_kp_counts)): ?>
+    <p class="mb-2"><?= (int)$_kp_counts['groups'] ?> aktywnych grup · <?= (int)$_kp_counts['students'] ?> kursantów · dziś prowadzi <?= (int)$_kp_counts['instr_today'] ?> os.</p>
+    <?php endif; ?>
+    <?php if (!empty($_kp_ok)): ?>
+    <p class="mb-2 text-body-secondary"><i class="bi bi-check2 text-success me-1" aria-hidden="true"></i>W porządku: <?= h(implode(' · ', array_map(fn($r) => $r[0], $_kp_ok))) ?></p>
+    <?php endif; ?>
+    <p class="fw-semibold mb-1"><i class="bi bi-airplane text-secondary me-1" aria-hidden="true"></i>Dziś nieobecni prowadzący</p>
+    <?php if (empty($_kp_leaves)): ?>
+    <p class="text-body-secondary mb-0">Wszyscy prowadzący są dziś dostępni.</p>
+    <?php else: ?>
+    <ul class="mb-1 ps-3">
+      <?php foreach ($_kp_leaves as $_lv): ?><li><?= h((string)$_lv['instructor_name']) ?> <span class="text-body-secondary">— do <?= h(date('d.m', strtotime((string)$_lv['date_to']))) ?></span></li><?php endforeach; ?>
+    </ul>
+    <a href="urlopy.php">Urlopy prowadzących</a>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+  </div>
+  <div class="col-lg-5">
+<?php if (isset($_kp_leaves)): ?>
+<div class="card">
+  <div class="card-header"><h2 class="h6 mb-0 fw-semibold"><i class="bi bi-lightning-charge text-warning me-1" aria-hidden="true"></i>Skróty kierownika</h2></div>
+  <div class="card-body d-flex flex-wrap gap-1">
+    <?php foreach ([
+        ['Przegląd grup', 'index.php?tab=grupy', 'people'], ['Rozliczenia kursantów', 'billing.php', 'receipt'],
+        ['Wydruki i raporty', 'wydruki.php', 'printer'], ['Wypłaty', 'index.php?tab=wypłaty', 'cash-stack'],
+        ['Zespół i role', 'zespol.php', 'person-gear'], ['Testy', 'testy.php', 'bug'],
+    ] as [$_l, $_h, $_i]): ?>
+    <a href="<?= h($_h) ?>" class="btn btn-sm btn-outline-secondary"><i class="bi bi-<?= h($_i) ?> me-1" aria-hidden="true"></i><?= h($_l) ?></a>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php /* ── Ostatnie komunikaty ───────────────────────────────────────────── */ ?>
 <?php $_notices = array_slice($dyd_notices ?? [], 0, 5); ?>
@@ -509,9 +553,21 @@ if (!empty($course_ids)) {
   </div>
 </div>
 <?php endif; ?>
-
-</div><?php /* /prawa kolumna */ ?>
-</div><?php /* /row */ ?>
+  </div>
+  </div>
+</details>
+<style>
+.dyd-more { border-top: 1px solid #dde6f0; padding-top: .5rem; }
+.dyd-more-sum { cursor: pointer; font-weight: 600; color: #10335c; padding: .35rem 0; }
+.dyd-more-sum:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+</style>
+<script>
+(function () {
+  var d = document.getElementById('dydPulpitMore'); if (!d) return;
+  try { if (localStorage.getItem('dydPulpitMore') === '1') d.open = true; } catch (e) {}
+  d.addEventListener('toggle', function () { try { localStorage.setItem('dydPulpitMore', d.open ? '1' : '0'); } catch (e) {} });
+})();
+</script>
 
 <?php /* ── Okna obecności — POZA tabelami, żeby overflow ich nie ucinał ──── */ ?>
 <?php foreach ($dash_today as $_s):
