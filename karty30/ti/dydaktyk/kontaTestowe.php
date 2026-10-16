@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_test_accounts/logic/testAccounts.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_test_accounts/logic/testProtocols.php';
 $me = dyd_require();
 $uid = (int)$me['user_id'];
 if (!dyd_is_admin()) { flash_set('danger', 'Konta testowe zakłada administrator.'); header('Location: index.php'); exit; }
@@ -30,6 +31,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['ti_test_creds'] = ['rows' => $rows, 'ts' => time()];
             flash_set('success', 'Konta testowe gotowe: ' . count($rows) . '. Nadano nowe hasła — pobierz PDF z danymi logowania.');
         } catch (\Throwable $e) { error_log('kontaTestowe: ' . $e->getMessage()); flash_set('danger', 'Nie udało się założyć kont testowych: ' . $e->getMessage()); }
+    } elseif ($op === 'purge_protocols') {
+        if (trim((string)($_POST['confirm_word'] ?? '')) !== 'USUŃ') {
+            flash_set('danger', 'Aby usunąć protokoły, wpisz w polu słowo USUŃ.');
+        } else {
+            try {
+                $r = TiTestProtocols::purge($uid, (string)($me['name'] ?? ''));
+                flash_set('success', 'Usunięto protokoły grup TEST/DEMO: grupy ' . $r['courses'] . ', protokoły ' . $r['protocols'] . ', wpisy ' . $r['entries'] . '.');
+            } catch (\Throwable $e) { error_log('kontaTestowe purge_protocols: ' . $e->getMessage()); flash_set('danger', 'Nie udało się usunąć protokołów (nic nie zmieniono): ' . $e->getMessage()); }
+        }
     } elseif ($op === 'purge') {
         if (trim((string)($_POST['confirm_word'] ?? '')) !== 'USUŃ') {
             flash_set('danger', 'Aby usunąć konta testowe, wpisz w polu słowo USUŃ.');
@@ -119,6 +129,33 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </details>
 </div>
 <?php endif; ?>
+
+<?php $protCands = TiTestProtocols::candidates(); ?>
+<section class="mt-4" aria-labelledby="tt-prot-h">
+  <h2 class="h6 fw-bold" id="tt-prot-h"><i class="bi bi-file-earmark-x me-1" aria-hidden="true"></i>Protokoły grup testowych i demonstracyjnych</h2>
+  <p class="small text-body-secondary mb-2">Grupy z „TEST” albo „DEMO” (wielkimi literami) w nazwie. Usuwamy tylko protokoły miesięczne z ich wpisami —
+    grupy, lekcje i rozliczenia zostają; dokumenty już zarejestrowane w EZD nie są ruszane.</p>
+  <?php if (!$protCands): ?>
+  <p class="small">Brak protokołów w grupach TEST/DEMO.</p>
+  <?php else: ?>
+  <div class="table-responsive"><table class="table table-sm align-middle" style="max-width:720px">
+    <caption class="visually-hidden">Grupy TEST/DEMO z protokołami</caption>
+    <thead><tr><th scope="col">Grupa</th><th scope="col" class="text-end">Protokoły</th><th scope="col" class="text-end">w tym zatwierdzone</th></tr></thead>
+    <tbody>
+    <?php foreach ($protCands as $pc): ?>
+      <tr><td><?= h($pc['name']) ?></td><td class="text-end"><?= (int)$pc['protocols'] ?></td><td class="text-end"><?= (int)$pc['approved'] ?></td></tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table></div>
+  <form method="post" class="d-flex flex-wrap align-items-end gap-2"
+        onsubmit="return confirm('Usunąć NIEODWRACALNIE <?= array_sum(array_column($protCands, 'protocols')) ?> protokołów z <?= count($protCands) ?> grup TEST/DEMO?')">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="purge_protocols">
+    <div><label class="form-label small mb-1" for="tt-prot-confirm">Wpisz <strong>USUŃ</strong>, aby potwierdzić</label>
+      <input class="form-control form-control-sm" id="tt-prot-confirm" name="confirm_word" autocomplete="off" required style="max-width:140px"></div>
+    <button class="btn btn-sm btn-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń protokoły (<?= array_sum(array_column($protCands, 'protocols')) ?>)</button>
+  </form>
+  <?php endif; ?>
+</section>
 </div>
 </main>
 <?php include dirname(__DIR__) . '/kursant/_layout_foot.php'; ?>
