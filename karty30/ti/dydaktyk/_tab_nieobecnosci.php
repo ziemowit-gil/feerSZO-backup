@@ -12,7 +12,63 @@
      ORDER BY s.lesson_date DESC, s.time_from DESC, cl.name COLLATE NOCASE",
     [$cur_course]) : [];
   $abs_unexcused = array_filter($absences, fn($r) => (int)($r['cancelled'] ?? 0) === 0 && (int)($r['no_show'] ?? 0) === 0);
+
+  // Frekwencja względem progu grupy (modules/ti_edziennik/logic/attendanceThreshold.php)
+  require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/attendanceThreshold.php';
+  $att_over = tiAttCourseOverview((int)$cur_course);
+  $att_thr  = tiAttThreshold((int)$cur_course);
+  $att_own  = tiAttCourseThreshold((int)$cur_course);
+  $att_names = $att_over ? array_column(db_all("SELECT id, name FROM k30_clients WHERE id IN (" . implode(',', array_map('intval', array_keys($att_over))) . ")"), 'name', 'id') : [];
+  uasort($att_over, fn($a, $b) => $a['pct'] <=> $b['pct']);
+  $att_flagged = count(array_filter($att_over, fn($s) => in_array($s['level'], ['warn', 'low'], true)));
 ?>
+<?php if (k30_ti_course_tracks_attendance((int)$cur_course)): ?>
+<section class="card border-0 shadow-sm mb-3" aria-labelledby="h-att-thr">
+  <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
+    <h3 class="h6 mb-0 fw-semibold" id="h-att-thr"><i class="bi bi-graph-down-arrow me-2" aria-hidden="true"></i>Frekwencja względem progu</h3>
+    <span class="badge <?= $att_flagged ? 'bg-warning text-dark' : 'bg-success' ?>"><?= $att_flagged ?> do uwagi</span>
+    <span class="small text-body-secondary ms-auto">Próg grupy: <strong><?= $att_thr ?>%</strong><?= $att_own === null ? ' (globalny)' : '' ?> · ostrzeżenie poniżej <?= min(100, $att_thr + TI_ATT_WARN_MARGIN) ?>%</span>
+  </div>
+  <div class="card-body">
+    <?php if (dyd_is_staff()): ?>
+    <form method="post" class="d-flex flex-wrap align-items-end gap-2 mb-3">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="att_threshold_save">
+      <input type="hidden" name="course_id" value="<?= (int)$cur_course ?>">
+      <div>
+        <label class="form-label small mb-1" for="att-thr">Własny próg frekwencji tej grupy (%)</label>
+        <input type="number" class="form-control form-control-sm" id="att-thr" name="min_attendance_pct" min="1" max="100" style="width:8rem"
+               value="<?= $att_own ?? '' ?>" placeholder="<?= k30_ti_low_attendance_threshold() ?> (globalny)" aria-describedby="att-thr-help">
+      </div>
+      <button type="submit" class="btn btn-sm btn-outline-primary">Zapisz próg</button>
+      <p id="att-thr-help" class="small text-body-secondary mb-0 w-100">Puste = próg globalny z ustawień TI. Np. 80% dla grup finansowanych z PFRON. Prowadzący i kierownik dostają powiadomienie w dzwonku, gdy kursant zbliży się do progu lub spadnie poniżej.</p>
+    </form>
+    <?php endif; ?>
+    <?php if (!$att_over): ?>
+    <p class="text-body-secondary small mb-0">Brak aktywnych kursantów.</p>
+    <?php else: ?>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
+        <caption class="visually-hidden">Frekwencja kursantów względem progu grupy</caption>
+        <thead class="table-light"><tr><th scope="col">Kursant</th><th scope="col" class="text-center">Obecny / lekcji</th><th scope="col" class="text-center">Frekwencja</th><th scope="col">Stan</th></tr></thead>
+        <tbody>
+        <?php foreach ($att_over as $_cid => $_st): ?>
+          <tr>
+            <th scope="row" class="fw-semibold"><?= h($att_names[$_cid] ?? ('#' . $_cid)) ?></th>
+            <td class="text-center"><?= (int)$_st['present'] ?> / <?= (int)$_st['countable'] ?></td>
+            <td class="text-center fw-semibold"><?= $_st['countable'] ? (int)$_st['pct'] . '%' : '—' ?></td>
+            <td><?php if ($_st['level'] === '') { echo '<span class="small text-body-secondary">za mało lekcji (min. ' . TI_ATT_MIN_LESSONS . ')</span>'; }
+                      elseif ($_st['level'] === 'ok') { echo '<span class="small text-success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>w normie</span>'; }
+                      else { echo tiAttBadge($_st, $att_thr); } ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
+  </div>
+</section>
+<?php endif; ?>
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-transparent d-flex align-items-center flex-wrap gap-2">
     <span class="fw-semibold"><i class="bi bi-person-x me-2"></i>Nieobecności</span>

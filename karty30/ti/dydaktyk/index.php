@@ -1737,6 +1737,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ' . dyd_back($course_id, 'oceny')); exit;
     }
+    // Własny próg frekwencji grupy (tylko kierownik) — modules/ti_edziennik/logic/attendanceThreshold.php
+    if ($op === 'att_threshold_save') {
+        if (!dyd_is_staff()) { http_response_code(403); exit('Brak uprawnień.'); }
+        require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/attendanceThreshold.php';
+        $_p = trim((string)($_POST['min_attendance_pct'] ?? ''));
+        tiAttSetThreshold($course_id, $_p === '' ? null : (int)$_p);
+        if (function_exists('audit_log')) audit_log('ti.att_threshold', ['course_id' => $course_id, 'pct' => $_p], $uid ?: null);
+        flash_set('success', $_p === '' ? 'Grupa używa globalnego progu frekwencji.' : 'Próg frekwencji grupy: ' . tiAttThreshold($course_id) . '%.');
+        header('Location: ' . dyd_back($course_id, 'nieobecnosci')); exit;
+    }
     // Wynik kursu (ocena końcowa + zaliczenie) — modules/ti_edziennik/logic/courseResults.php
     if ($op === 'course_results_save') {
         require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/courseResults.php';

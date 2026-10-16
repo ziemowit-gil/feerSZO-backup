@@ -23,6 +23,11 @@
   $g_by_client = [];
   foreach ($g_rows as $g) $g_by_client[(int)$g['client_id']][] = $g;
 
+  // Oznaczenie kursantów blisko / poniżej progu frekwencji (modules/ti_edziennik)
+  require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/attendanceThreshold.php';
+  $g_att     = tiAttCourseOverview($cur_course);
+  $g_att_thr = tiAttThreshold($cur_course);
+
   $g_edit_id = (int)($_GET['edit'] ?? 0);
   $g_edit    = $g_edit_id ? k30_ti_grade_get($g_edit_id) : null;
   if ($g_edit && (int)$g_edit['course_id'] !== $cur_course) $g_edit = null;
@@ -187,7 +192,7 @@
         ?>
         <tr>
           <td class="col-name<?= $person_on ? '' : ' text-muted' ?>">
-            <?= h($en['name']) ?>
+            <?= h($en['name']) ?><?= isset($g_att[$cid]) ? tiAttBadge($g_att[$cid], $g_att_thr) : '' ?>
             <?php if (!$person_on): ?>
             <i class="bi bi-slash-circle text-warning ms-1" title="Oceny wyłączone globalnie dla tej osoby"></i>
             <?php endif; ?>

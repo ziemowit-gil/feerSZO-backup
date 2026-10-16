@@ -58,10 +58,11 @@ function tiCourseProtocolFinals(int $courseId): array
     return $out;
 }
 
-/** Próg frekwencji grupy (%): własny grupy, jeśli moduł progu jest wgrany, inaczej globalny. */
+/** Próg frekwencji grupy (%): własny grupy albo globalny (attendanceThreshold.php). */
 function tiCourseResultsThreshold(int $courseId): int
 {
-    return function_exists('tiAttThreshold') ? tiAttThreshold($courseId) : k30_ti_low_attendance_threshold();
+    require_once __DIR__ . '/attendanceThreshold.php';
+    return tiAttThreshold($courseId);
 }
 
 /**

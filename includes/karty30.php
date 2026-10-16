@@ -7488,13 +7488,16 @@ function k30_ti_client_course_attendance(int $course_id, int $client_id): array 
  * frekwencja wróci powyżej progu. Wołane po zapisie obecności.
  */
 function k30_ti_check_low_attendance(int $course_id, int $client_id): void {
-    if (!k30_ti_low_attendance_enabled())            return;
     if (!k30_ti_course_tracks_attendance($course_id)) return;
+    // Próg grupy + ostrzeżenia dla prowadzącego i kierownika (dzwonek) — niezależnie od wysyłki do kursanta
+    require_once dirname(__DIR__) . '/modules/ti_edziennik/logic/attendanceThreshold.php';
+    try { tiAttCheck($course_id, $client_id); } catch (\Throwable $e) { error_log('tiAttCheck: ' . $e->getMessage()); }
+    if (!k30_ti_low_attendance_enabled())            return;
 
     $st = k30_ti_client_course_attendance($course_id, $client_id);
     if ($st['countable'] < 3) return; // za mało lekcji, by liczyć frekwencję
 
-    $threshold = k30_ti_low_attendance_threshold();
+    $threshold = tiAttThreshold($course_id);
     $enr = db_one("SELECT id, COALESCE(low_att_alerted,0) AS alerted FROM k30_ti_enrollments WHERE course_id=? AND client_id=? AND status='active'", [$course_id, $client_id]);
     if (!$enr) return;
     $already = (int)$enr['alerted'] === 1;

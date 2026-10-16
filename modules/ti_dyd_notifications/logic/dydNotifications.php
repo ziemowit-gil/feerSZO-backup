@@ -40,10 +40,11 @@ const DYD_NOTIF_LABELS = [
     'odwolanie' => ['prośba o odwołanie udziału', 'prośby o odwołanie udziału', 'próśb o odwołanie udziału'],
     'praca'     => ['praca do sprawdzenia', 'prace do sprawdzenia', 'prac do sprawdzenia'],
     'egzamin'   => ['egzamin do oceny', 'egzaminy do oceny', 'egzaminów do oceny'],
+    'frekwencja' => ['alert frekwencji', 'alerty frekwencji', 'alertów frekwencji'],
 ];
 const DYD_NOTIF_TONES = [
     'wiadomosc' => ['#FCE7F3', '#9D174D'], 'termin' => ['#DCFCE7', '#166534'], 'odwolanie' => ['#FEE2E2', '#991B1B'],
-    'praca' => ['#DBEAFE', '#1E40AF'], 'egzamin' => ['#FEF3C7', '#92400E'], 'hospitacja' => ['#E0E7FF', '#3730A3'],
+    'praca' => ['#DBEAFE', '#1E40AF'], 'egzamin' => ['#FEF3C7', '#92400E'], 'hospitacja' => ['#E0E7FF', '#3730A3'], 'frekwencja' => ['#FFEDD5', '#9A3412'],
 ];
 
 /** Feed prowadzącego (posortowany malejąco, maks. $limit pozycji). */
@@ -125,6 +126,18 @@ function dyd_notifications_for(int $uid, int $limit = 30): array {
                         ? $rodz . ' zaplanowana na ' . date('d.m', strtotime((string)$r['data'])) . ($r['godzina'] ? ', ' . $r['godzina'] : '')
                         : $rodz . ' z ' . date('d.m', strtotime((string)$r['data'])) . ' — zapoznaj się z arkuszem'];
     }
+
+    // 7) Frekwencja kursanta blisko / poniżej progu grupy — prowadzący swoich grup, kierownik wszystkich
+    try {
+        require_once dirname(__DIR__, 2) . '/ti_edziennik/logic/attendanceThreshold.php';
+        $staff = function_exists('dyd_is_staff') && dyd_is_staff();
+        foreach (tiAttAlertsFor($uid, $staff, $since) as $r) {
+            $items[] = ['ts' => $r['ts'], 'kind' => 'frekwencja', 'icon' => 'graph-down-arrow', 'course' => (string)$r['course'],
+                        'url' => 'index.php?course=' . (int)$r['course_id'] . '&tab=nieobecnosci', 'detail' => (string)$r['who'],
+                        'title' => ($r['level'] === 'low' ? 'Frekwencja poniżej progu' : 'Frekwencja blisko progu')
+                                 . ($r['who'] ? ' — ' . $r['who'] : '') . ' (' . (int)$r['pct'] . '%, próg ' . (int)$r['threshold'] . '%)'];
+        }
+    } catch (\Throwable $e) {}
 
     usort($items, fn($a, $b) => strcmp((string)$b['ts'], (string)$a['ts']));
     return array_slice($items, 0, $limit);
