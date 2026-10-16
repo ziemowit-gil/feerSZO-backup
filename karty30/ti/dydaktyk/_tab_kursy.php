@@ -342,7 +342,7 @@ $ku_flash = $_SESSION['dyd_flash'] ?? null;
 unset($_SESSION['dyd_flash']);
 ?>
 
-<section aria-label="Zarządzanie kursami TI" class="dyd-ku-wrap<?= $ku_view === 'tabela' ? ' dyd-ku-wrap--wide' : '' ?>">
+<section aria-label="Wykaz kursów i zajęć" class="dyd-ku-wrap<?= $ku_view === 'tabela' ? ' dyd-ku-wrap--wide' : '' ?>">
 <style>
 .dyd-ku-wrap { padding: 1.1rem 0 2.5rem; max-width: 960px; }
 /* Widok tabeli: pełna szerokość + przyciski akcji z podpisami */
@@ -430,7 +430,7 @@ unset($_SESSION['dyd_flash']);
 <!-- Pasek narzędzi -->
 <div class="dyd-ku-toolbar">
   <div class="dyd-ku-toolbar-title">
-    <i class="bi bi-mortarboard text-primary me-2" aria-hidden="true"></i>Kursy TI
+    <i class="bi bi-mortarboard text-primary me-2" aria-hidden="true"></i>Wykaz kursów i zajęć
     <span class="badge bg-secondary ms-1" style="font-size:.72rem"><?= count($ku_all) ?></span>
   </div>
   <div class="btn-group btn-group-sm" role="group" aria-label="Widok listy kursów">
@@ -932,7 +932,7 @@ function dydKuMoveOpen(fromId, fromName) {
 <div class="card">
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
-      <caption class="visually-hidden">Kursy TI: rodzaj, prowadzący, kursanci, stawka BB i status</caption>
+      <caption class="visually-hidden">Wykaz kursów i zajęć: rodzaj, prowadzący, kursanci, stawka BB i status</caption>
       <thead class="table-light">
         <tr>
           <th scope="col">Kurs</th>
