@@ -192,13 +192,12 @@ function dyd_2fa_clear_pending(): void {
 
 /**
  * Czy konto musi przy wejściu do panelu potwierdzić się kluczem sprzętowym (YubiKey, WebAuthn) — yk_gate.php.
- * Dotyczy administratora (rola SZO admin) oraz kierownika i zastępcy (is_staff: rola panelu kierownik/zastepca
- * albo zapis w karty30). Zwykły prowadzący — nie. Impersonacja (imp.php) jest zwolniona: administrator już się
- * uwierzytelnił.
+ * Dotyczy wyłącznie administratora (rola SZO admin). Kierownik, zastępca i prowadzący — nie (wystarcza im TOTP).
+ * Impersonacja (imp.php) jest zwolniona: administrator już się uwierzytelnił.
  */
 function dyd_yk_required(array $p): bool {
     if (!empty($p['imp'])) return false;
-    return ($p['role'] ?? '') === 'admin' || !empty($p['is_staff']);
+    return ($p['role'] ?? '') === 'admin';
 }
 
 /**
@@ -252,7 +251,7 @@ function dyd_require(): array {
         }
     }
 
-    // Klucz sprzętowy obowiązkowy dla administratora, kierownika i zastępcy (yk_gate.php). Sesja bez potwierdzenia
+    // Klucz sprzętowy obowiązkowy dla administratora (yk_gate.php). Sesja bez potwierdzenia
     // kluczem (sprzed tej bramki, wznowiona z „zapamiętaj mnie”, odświeżona w dyd_current()) wraca na bramkę —
     // TOTP sprawdzono wyżej, więc od razu krok klucza. Cel po kluczu: bieżący ekran (tylko GET).
     if (dyd_yk_required($s) && empty($s['yk_ok'])) {

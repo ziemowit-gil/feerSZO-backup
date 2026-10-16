@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Krok końcowy: kody zapasowe pokazane, zakładamy pełną sesję ───────
     elseif ($action === 'finish' && $enrolled) {
-        dyd_2fa_finish($profile); // kierownik/zastępca → jeszcze klucz sprzętowy (yk_gate.php)
+        dyd_2fa_finish($profile); // administrator → jeszcze klucz sprzętowy (yk_gate.php)
     }
 
     // ── Konto Z TOTP: weryfikacja kodu (albo kodu zapasowego) ─────────────
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($ok) {
-            dyd_2fa_finish($profile); // kierownik/zastępca → jeszcze klucz sprzętowy (yk_gate.php)
+            dyd_2fa_finish($profile); // administrator → jeszcze klucz sprzętowy (yk_gate.php)
         }
         $error = 'Nieprawidłowy kod. Spróbuj ponownie.';
     }
