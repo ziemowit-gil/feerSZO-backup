@@ -960,6 +960,22 @@ $accounts = db_all(
      ORDER BY cl.name"
 );
 $ti_org_accounts = k30_ti_org_accounts_list();
+// Grupy kursantów do tabeli ewidencji i filtra „Grupa” — tylko aktywne zapisy
+// w niezamkniętych grupach. client_id => [course_id => etykieta].
+$acc_groups = []; $group_opts = [];
+$_acc_cids = array_flip(array_map('intval', array_column($accounts, 'client_id')));
+foreach (db_all(
+    "SELECT e.client_id, c.id AS course_id, c.name, c.display_name, c.group_code
+     FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+     WHERE e.status='active' AND c.closed_at IS NULL"
+) as $_g) {
+    if (!isset($_acc_cids[(int)$_g['client_id']])) continue;
+    $_lbl = trim((string)$_g['display_name']) !== '' ? $_g['display_name'] : $_g['name'];
+    if (trim((string)$_g['group_code']) !== '') $_lbl = $_g['group_code'] . ' · ' . $_lbl;
+    $acc_groups[(int)$_g['client_id']][(int)$_g['course_id']] = $_lbl;
+    $group_opts[(int)$_g['course_id']] = $_lbl;
+}
+uasort($group_opts, fn($a, $b) => strcasecmp($a, $b));
 $taken_ids   = array_column($accounts, 'client_id');
 $all_clients = db_all("SELECT id, name FROM k30_clients ORDER BY name");
 $no_account  = array_filter($all_clients, fn($c) => !in_array((int)$c['id'], $taken_ids));
@@ -1068,14 +1084,30 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .kk-state { font-size: .72rem; font-weight: 600; padding: .1rem .45rem; border-radius: 999px; border: 1px solid; }
   .kk-state-on  { color: #8a4b00; background: #fff6e5; border-color: #f3cf8b; }
   .kk-state-off { color: #4b5563; background: #f3f4f6; border-color: #d1d5db; }
+  /* Ewidencja — tabela uczestników na całą szerokość */
+  .ewid-table thead th { background: var(--ti-zebra); color: var(--ti-navy); font-size: .8rem; white-space: nowrap; vertical-align: bottom; }
+  .ewid-sort { all: unset; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; border-radius: 3px; }
+  .ewid-sort:hover { text-decoration: underline; }
+  .ewid-sort:focus-visible, .ewid-link:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+  .ewid-table tbody tr { cursor: pointer; }
+  .ewid-table tbody tr.ewid-off td { color: #5b6576; }
+  .ewid-link { color: var(--ti-link); }
 </style>
 
 <main id="main" class="dyd-wrap">
-<div class="container-fluid py-3" style="max-width:<?= !empty($selected_acc) ? '1600px' : '1200px' ?>">
+<div class="container-fluid py-3" style="max-width:1600px">
 
-<div class="d-flex align-items-center mb-3 gap-2">
+<div class="d-flex align-items-center flex-wrap mb-3 gap-2">
   <h1 class="h4 mb-0 fw-bold"><i class="bi bi-person-badge text-primary me-2" aria-hidden="true"></i>Ewidencja Uczestników</h1>
-  <div class="ms-auto d-flex gap-2">
+  <div class="ms-auto d-flex flex-wrap gap-2">
+    <?php if ($no_account): ?>
+    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#createAccModal">
+      <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz konto
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#bulkCreateModal">
+      <i class="bi bi-people me-1" aria-hidden="true"></i>Utwórz zbiorczo (<?= count($no_account) ?>)
+    </button>
+    <?php endif; ?>
     <a href="<?= h($parent_portal_url) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-people me-1" aria-hidden="true"></i>Panel rodzica
     </a>
@@ -1205,24 +1237,20 @@ function printBulk(){
 <?php endif; ?>
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     Master-detail: lista (lewa kolumna) + szczegóły wybranego kursanta w
-     zakładkach (prawa kolumna) — zamiast modali/osobnych podstron, jak w
-     karty30/ti/curriculum.php (a11y: nav-tabs to NIE modal — bez focus trap,
-     bez aria-hidden na resztę strony). Na wąskich ekranach kolumny się
-     składają (Bootstrap col-lg-*) — najpierw lista, potem szczegóły.
-     Wszystkie akcje poniżej to te same formularze/handlery co dotąd —
-     zmienił się tylko układ, nie logika. ═══════════════════════════════════ -->
-<div class="row g-4">
-
-<!-- ── Prawa kolumna (detail) — order-2: na mobile DRUGA (pod listą), na
-     desktopie po PRAWEJ (bo col-lg-* układa się w rząd dopiero od lg) ── -->
-<div class="col-12 col-lg-7 col-xxl-8 order-2">
+     Dwa widoki na całą szerokość: bez ?selected= — tabela uczestników z
+     wyszukiwarką, filtrami i sortowaniem; z ?selected=ID — kartoteka kursanta
+     w zakładkach (a11y: nav-tabs to NIE modal — bez focus trap) z linkiem
+     „Wróć do listy”. Wszystkie akcje kartoteki to te same formularze/handlery
+     co dotąd (przekierowują na ?selected=ID#detail-panel). ═════════════════ -->
 <?php foreach (pp_pool_alarms() as $_al): if ($_al['grp'] !== 'ti') continue; ?>
 <div class="alert <?= $_al['level'] === 'crit' ? 'alert-danger' : 'alert-warning' ?> py-2 small" role="alert">
   <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i><strong>Pula rachunków TI:</strong> <?= h($_al['msg']) ?> Nowi kursanci mogą zostać bez numeru — zgłoś administratorowi zamówienie numerów w banku.
 </div>
 <?php endforeach; ?>
 <?php if ($selected_acc): $sa = $selected_acc; $sa_has_ms = !empty($sa['ms_user_id']); ?>
+<a href="konta.php?last=<?= (int)$sa['id'] ?>" class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do listy uczestników
+</a>
 <div class="card border-0 shadow-sm mb-4" id="detail-panel">
   <div class="card-header fw-semibold d-flex align-items-center flex-wrap gap-2">
     <i class="bi bi-person-badge text-primary" aria-hidden="true"></i>
@@ -2023,157 +2051,190 @@ function printBulk(){
 
   </div>
 </div>
-<?php else: ?>
-<div class="card border-0 shadow-sm mb-4 text-center text-muted py-5">
-  <i class="bi bi-person-badge fs-1 d-block mb-2 opacity-25" aria-hidden="true"></i>
-  Wybierz kursanta z listy, aby zobaczyć jego kartotekę.
-</div>
 <?php endif; // selected_acc ?>
-</div>
-<!-- ── /Prawa kolumna ──────────────────────────────────────────────────── -->
 
-<!-- ── Lewa kolumna (master: wyszukiwarka, filtry, lista) — order-1: zawsze
-     pierwsza (na mobile na górze, na desktopie po lewej) ─────────────── -->
-<div class="col-12 col-lg-5 col-xxl-4 order-1">
+<?php if (!$selected_acc): ?>
+<!-- ── Lista uczestników na całą szerokość: wyszukiwarka, filtry, sortowanie
+     (po stronie klienta — wszystkie wiersze są już w DOM) ── -->
+<section class="card border-0 shadow-sm" aria-labelledby="ewid-h">
+  <div class="card-header fw-semibold d-flex align-items-center">
+    <i class="bi bi-people me-2 text-primary" aria-hidden="true"></i><h2 class="h6 mb-0 fw-semibold" id="ewid-h">Uczestnicy</h2>
+    <span class="badge bg-secondary ms-2"><?= count($accounts) ?></span>
+  </div>
+  <?php if (!$accounts): ?>
+  <div class="card-body text-muted">Brak kont. Utwórz pierwsze konto dla beneficjenta przyciskiem „Utwórz konto” powyżej.</div>
+  <?php else: ?>
+  <div class="card-body pb-2 ewid-filters">
+    <form class="row g-2 align-items-end" role="search" aria-label="Filtruj uczestników" onsubmit="return false">
+      <div class="col-12 col-md-4 col-xl-4">
+        <label class="form-label small fw-semibold mb-1" for="studentSearch">Szukaj po nazwisku, loginie lub nr kursanta</label>
+        <input type="search" id="studentSearch" class="form-control form-control-sm" autocomplete="off" placeholder="np. Kowalska lub a.kowalska">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-semibold mb-1" for="fltState">Stan konta</label>
+        <select id="fltState" class="form-select form-select-sm">
+          <option value="">wszystkie</option>
+          <option value="aktywne">aktywne</option>
+          <option value="zablokowane">zablokowane</option>
+          <option value="wstrzymane">wstrzymane przez opiekuna</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-semibold mb-1" for="fltMinor">Małoletni</label>
+        <select id="fltMinor" class="form-select form-select-sm">
+          <option value="">wszyscy</option>
+          <option value="1">tylko małoletni</option>
+          <option value="0">tylko pełnoletni</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label small fw-semibold mb-1" for="fltGroup">Grupa</label>
+        <select id="fltGroup" class="form-select form-select-sm">
+          <option value="">wszystkie grupy</option>
+          <option value="none">bez aktywnej grupy</option>
+          <?php foreach ($group_opts as $_gid => $_glbl): ?>
+          <option value="<?= (int)$_gid ?>"><?= h($_glbl) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-12 col-md-1 d-grid">
+        <button type="button" id="fltReset" class="btn btn-sm btn-outline-secondary">Wyczyść</button>
+      </div>
+    </form>
+    <p class="small text-muted mt-2 mb-0" id="ewidCount" role="status" aria-live="polite"></p>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 ewid-table" id="accounts-table">
+      <caption class="visually-hidden">Uczestnicy z kontem w panelu kursanta. Kolumny z przyciskiem w nagłówku można sortować; wybierz imię i nazwisko, aby otworzyć kartotekę.</caption>
+      <thead>
+        <tr>
+          <th scope="col" aria-sort="ascending"><button type="button" class="ewid-sort" data-key="name">Imię i nazwisko<i class="bi" aria-hidden="true"></i></button></th>
+          <th scope="col" aria-sort="none"><button type="button" class="ewid-sort" data-key="login">Login<i class="bi" aria-hidden="true"></i></button></th>
+          <th scope="col" aria-sort="none"><button type="button" class="ewid-sort" data-key="no">Nr kursanta<i class="bi" aria-hidden="true"></i></button></th>
+          <th scope="col" aria-sort="none"><button type="button" class="ewid-sort" data-key="state">Stan konta<i class="bi" aria-hidden="true"></i></button></th>
+          <th scope="col" aria-sort="none"><button type="button" class="ewid-sort" data-key="minor">Małoletni<i class="bi" aria-hidden="true"></i></button></th>
+          <th scope="col">Grupy</th>
+          <th scope="col" aria-sort="none"><button type="button" class="ewid-sort" data-key="last">Ostatnie logowanie<i class="bi" aria-hidden="true"></i></button></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($accounts as $a):
+          $_aid = (int)$a['id'];
+          $_grp = $acc_groups[(int)$a['client_id']] ?? [];
+          $_state = !$a['is_active'] ? 'zablokowane' : (!empty($a['child_access_blocked']) ? 'wstrzymane' : 'aktywne');
+          $_ll = (string)($a['last_login'] ?? '');
+          $_llts = $_ll !== '' ? strtotime($_ll) : false;
+        ?>
+        <tr id="acc-row-<?= $_aid ?>" class="<?= $a['is_active'] ? '' : 'ewid-off' ?>"
+            data-name="<?= h(mb_strtolower($a['client_name'])) ?>"
+            data-login="<?= h(mb_strtolower($a['login'] . ' ' . ($a['login_alias'] ?? ''))) ?>"
+            data-no="<?= h((string)($a['student_no'] ?? '')) ?>"
+            data-state="<?= $_state ?>"
+            data-minor="<?= !empty($a['is_minor']) ? 1 : 0 ?>"
+            data-groups=" <?= h(implode(' ', array_keys($_grp))) ?> "
+            data-last="<?= $_llts ? (int)$_llts : 0 ?>">
+          <td><a class="fw-semibold ewid-link" href="?selected=<?= $_aid ?>#detail-panel"><?= h($a['client_name']) ?></a></td>
+          <td class="font-monospace small"><?= h($a['login']) ?></td>
+          <td class="font-monospace small text-body-secondary"><?= h((string)($a['student_no'] ?? '')) ?: '—' ?></td>
+          <td>
+            <?php if ($_state === 'aktywne'): ?><span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">Aktywne</span>
+            <?php elseif ($_state === 'wstrzymane'): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Wstrzymane przez opiekuna</span>
+            <?php else: ?><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">Zablokowane</span><?php endif; ?>
+          </td>
+          <td><?= !empty($a['is_minor']) ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">tak</span>' : '<span class="text-body-secondary">nie</span>' ?></td>
+          <td class="small"><?= $_grp ? h(implode(', ', $_grp)) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="small text-nowrap"><?= $_llts ? h(date('d.m.Y H:i', $_llts)) : '<span class="text-body-secondary">nigdy</span>' ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <p class="card-body text-muted mb-0 d-none" id="ewidEmpty">Żaden uczestnik nie pasuje do wybranych filtrów.</p>
+  <?php endif; ?>
+</section>
+<?php endif; // !selected_acc ?>
 
-  <!-- Utwórz konto -->
-  <?php if ($no_account): ?>
-  <div class="mb-4">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold"><i class="bi bi-person-plus me-2 text-success" aria-hidden="true"></i>Utwórz konto</div>
-      <div class="card-body">
+<?php if ($no_account): ?>
+<!-- Okno: utwórz konto (poza zakładkami kartoteki) -->
+<div class="modal fade" id="createAccModal" tabindex="-1" aria-labelledby="createAccModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op"   value="create">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="createAccModalLabel"><i class="bi bi-person-plus text-success me-2" aria-hidden="true"></i>Utwórz konto</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
         <p class="text-muted small mb-3">
           Login i hasło generowane automatycznie.
           Kursant ma dostęp <strong>tylko</strong> do panelu kursanta.
         </p>
-        <form method="post">
-          <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-          <input type="hidden" name="_op"   value="create">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Beneficjent <span class="text-danger">*</span></label>
-            <select class="form-select" name="client_id" required>
-              <option value="">— wybierz —</option>
-              <?php foreach ($no_account as $c): ?>
-              <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <?php if (ti_referral_settings()['enabled']): ?>
-          <div class="mb-3">
-            <label class="form-label small">Kod polecający (opcjonalnie)</label>
-            <input type="text" class="form-control text-uppercase" name="referral_code" maxlength="6"
-                   placeholder="np. AB12CD" style="letter-spacing:.15em">
-            <div class="form-text">Jeśli ktoś polecił zajęcia temu kursantowi — rabat dla obu stron naliczy się automatycznie.</div>
-          </div>
-          <?php endif; ?>
-          <button type="submit" class="btn btn-success w-100">
-            <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz konto
-          </button>
-        </form>
-
-        <hr class="my-3">
-
-        <button type="button" class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#bulkCreateModal">
-          <i class="bi bi-people me-1" aria-hidden="true"></i>Utwórz zbiorczo (<?= count($no_account) ?>)
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: zbiorcze tworzenie kont -->
-  <div class="modal fade" id="bulkCreateModal" tabindex="-1" aria-labelledby="bulkCreateModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <form method="post" class="modal-content">
-        <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-        <input type="hidden" name="_op"   value="bulk_create">
-        <div class="modal-header">
-          <h2 class="modal-title h5" id="bulkCreateModalLabel"><i class="bi bi-people text-success me-2" aria-hidden="true"></i>Utwórz konta zbiorczo</h2>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
-        </div>
-        <div class="modal-body">
-          <p class="text-muted small mt-0 mb-2">Zaznacz beneficjentów — dla każdego powstanie konto z loginem i hasłem (pokazane raz).</p>
-          <div class="form-check mb-1">
-            <input class="form-check-input" type="checkbox" id="bulk_all"
-                   onclick="var v=this.checked;document.querySelectorAll('.bulk-cb').forEach(function(c){c.checked=v});">
-            <label class="form-check-label small fw-semibold" for="bulk_all">Zaznacz wszystkich (<?= count($no_account) ?>)</label>
-          </div>
-          <div class="border rounded p-2 mb-2" style="max-height:320px;overflow:auto">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="createAccClient">Beneficjent <span class="text-danger" aria-hidden="true">*</span></label>
+          <select class="form-select" id="createAccClient" name="client_id" required aria-required="true">
+            <option value="">— wybierz —</option>
             <?php foreach ($no_account as $c): ?>
-            <div class="form-check">
-              <input class="form-check-input bulk-cb" type="checkbox" name="client_ids[]" value="<?= (int)$c['id'] ?>" id="bc<?= (int)$c['id'] ?>">
-              <label class="form-check-label small" for="bc<?= (int)$c['id'] ?>"><?= h($c['name']) ?></label>
-            </div>
+            <option value="<?= (int)$c['id'] ?>"><?= h($c['name']) ?></option>
             <?php endforeach; ?>
-          </div>
-          <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" name="send_sms" id="bulk_sms" checked>
-            <label class="form-check-label small" for="bulk_sms">Wyślij dane SMS-em (gdy jest numer telefonu)</label>
-          </div>
+          </select>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
-          <button type="submit" class="btn btn-success"><i class="bi bi-people me-1" aria-hidden="true"></i>Utwórz zaznaczonym</button>
+        <?php if (ti_referral_settings()['enabled']): ?>
+        <div class="mb-1">
+          <label class="form-label small" for="createAccRef">Kod polecający (opcjonalnie)</label>
+          <input type="text" class="form-control text-uppercase" id="createAccRef" name="referral_code" maxlength="6"
+                 placeholder="np. AB12CD" style="letter-spacing:.15em" aria-describedby="createAccRefHelp">
+          <div class="form-text" id="createAccRefHelp">Jeśli ktoś polecił zajęcia temu kursantowi — rabat dla obu stron naliczy się automatycznie.</div>
         </div>
-      </form>
-    </div>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-success"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz konto</button>
+      </div>
+    </form>
   </div>
-  <?php endif; ?>
-
-  <!-- Lista kont -->
-  <div>
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold d-flex align-items-center">
-        <i class="bi bi-people me-2 text-primary" aria-hidden="true"></i>Uczestnicy
-        <span class="badge bg-secondary ms-2"><?= count($accounts) ?></span>
-      </div>
-      <?php if (!$accounts): ?>
-      <div class="card-body text-muted">Brak kont. Utwórz pierwsze konto dla beneficjenta.</div>
-      <?php else: ?>
-      <div class="card-body pb-2">
-        <label class="visually-hidden" for="studentSearch">Szukaj kursanta po nazwisku lub loginie</label>
-        <input type="search" id="studentSearch" class="form-control form-control-sm mb-2"
-               placeholder="Szukaj po nazwisku lub loginie…">
-        <div class="d-flex flex-wrap gap-1" role="group" aria-label="Filtruj po statusie">
-          <button type="button" class="btn btn-sm btn-outline-secondary student-filter-chip active" data-status="all" aria-pressed="true">Wszyscy</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary student-filter-chip" data-status="aktywne" aria-pressed="false">Aktywni</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary student-filter-chip" data-status="zablokowane" aria-pressed="false">Zablokowani</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary student-filter-chip" data-status="maloletni" aria-pressed="false">Małoletni</button>
-        </div>
-      </div>
-      <!-- Zwarta lista — bez tabeli/przewijania w poziomie (kolumna jest teraz
-           węższa niż dawniej, pełna tabela by się nie mieściła). Nr kursanta,
-           MS365 i ostatnie logowanie przeniesione do zakładki „Ogólne". -->
-      <div class="list-group list-group-flush" id="accounts-table">
-        <?php foreach ($accounts as $a): $is_sel = $selected_id === (int)$a['id'];
-          $_status_flags = trim(($a['is_active'] ? 'aktywne' : 'zablokowane') . (!empty($a['is_minor']) ? ' maloletni' : ''));
-        ?>
-        <a href="?selected=<?= (int)$a['id'] ?>#detail-panel"
-           class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-2 <?= $is_sel ? 'active' : '' ?> <?= $a['is_active'] ? '' : 'opacity-75' ?>"
-           data-name="<?= h(mb_strtolower($a['client_name'])) ?>"
-           data-login="<?= h(mb_strtolower($a['login'])) ?>"
-           data-status="<?= h($_status_flags) ?>"
-           <?= $is_sel ? 'aria-current="true"' : '' ?>>
-          <span class="text-truncate">
-            <span class="fw-semibold d-block text-truncate"><?= h($a['client_name']) ?></span>
-            <span class="small font-monospace <?= $is_sel ? '' : 'text-muted' ?>"><?= h($a['login']) ?></span>
-          </span>
-          <span class="text-end small flex-shrink-0 <?= $is_sel ? '' : 'text-muted' ?>">
-            <?php
-              $_status_words = [$a['is_active'] ? 'Aktywne' : 'Zablokowane'];
-              if (!empty($a['is_minor'])) $_status_words[] = 'małoletni';
-              if (!empty($a['child_access_blocked'])) $_status_words[] = 'wstrzymany przez opiekuna';
-            ?>
-            <?= h(implode(' · ', $_status_words)) ?>
-          </span>
-        </a>
-        <?php endforeach; ?>
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
-
 </div>
-<!-- ── /Lewa kolumna (zamyka się poniżej razem z row — patrz koniec pliku) ── -->
+
+<!-- Okno: zbiorcze tworzenie kont -->
+<div class="modal fade" id="bulkCreateModal" tabindex="-1" aria-labelledby="bulkCreateModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <form method="post" class="modal-content">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op"   value="bulk_create">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="bulkCreateModalLabel"><i class="bi bi-people text-success me-2" aria-hidden="true"></i>Utwórz konta zbiorczo</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mt-0 mb-2">Zaznacz beneficjentów — dla każdego powstanie konto z loginem i hasłem (pokazane raz).</p>
+        <div class="form-check mb-1">
+          <input class="form-check-input" type="checkbox" id="bulk_all"
+                 onclick="var v=this.checked;document.querySelectorAll('.bulk-cb').forEach(function(c){c.checked=v});">
+          <label class="form-check-label small fw-semibold" for="bulk_all">Zaznacz wszystkich (<?= count($no_account) ?>)</label>
+        </div>
+        <fieldset class="border rounded p-2 mb-2" style="max-height:320px;overflow:auto">
+          <legend class="visually-hidden">Beneficjenci bez konta</legend>
+          <?php foreach ($no_account as $c): ?>
+          <div class="form-check">
+            <input class="form-check-input bulk-cb" type="checkbox" name="client_ids[]" value="<?= (int)$c['id'] ?>" id="bc<?= (int)$c['id'] ?>">
+            <label class="form-check-label small" for="bc<?= (int)$c['id'] ?>"><?= h($c['name']) ?></label>
+          </div>
+          <?php endforeach; ?>
+        </fieldset>
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" name="send_sms" id="bulk_sms" checked>
+          <label class="form-check-label small" for="bulk_sms">Wyślij dane SMS-em (gdy jest numer telefonu)</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-success"><i class="bi bi-people me-1" aria-hidden="true"></i>Utwórz zaznaczonym</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <script>
 // Numer konta do wpłat — teraz jedna instancja w zakładce Płatności (nie
@@ -2222,37 +2283,106 @@ function tiPayAccBack() {
   document.getElementById('payAccSubmitBtn').classList.add('d-none');
 }
 
-// Filtr master-listy: szukaj po nazwisku/loginie + chipy statusu (klient,
-// bez przeładowania — dane już są w DOM, to tylko widoczność wierszy).
+// Ewidencja: wyszukiwarka + filtry (stan, małoletni, grupa) + sortowanie
+// kolumn. Po stronie klienta — wszystkie wiersze są już w DOM. Stan filtrów
+// pamiętany w sessionStorage, żeby „Wróć do listy” z kartoteki go odtwarzał.
 (function () {
+  var table = document.getElementById('accounts-table');
+  if (!table) return;
+  var tbody  = table.tBodies[0];
+  var rows   = Array.prototype.slice.call(tbody.rows);
   var search = document.getElementById('studentSearch');
-  var chips  = document.querySelectorAll('.student-filter-chip');
-  var rows   = document.querySelectorAll('#accounts-table .list-group-item[data-name]');
-  var activeStatus = 'all';
+  var fState = document.getElementById('fltState');
+  var fMinor = document.getElementById('fltMinor');
+  var fGroup = document.getElementById('fltGroup');
+  var count  = document.getElementById('ewidCount');
+  var empty  = document.getElementById('ewidEmpty');
+  var KEY = 'tiEwidFilters';
+  var sortKey = 'name', sortDir = 1;
 
-  function apply() {
-    var q = (search && search.value || '').trim().toLowerCase();
-    rows.forEach(function (row) {
-      var matchesText = !q || row.dataset.name.indexOf(q) !== -1 || row.dataset.login.indexOf(q) !== -1;
-      var matchesStatus = activeStatus === 'all' || row.dataset.status.indexOf(activeStatus) !== -1;
-      row.style.display = (matchesText && matchesStatus) ? '' : 'none';
-    });
+  function save() {
+    try { sessionStorage.setItem(KEY, JSON.stringify({q: search.value, s: fState.value, m: fMinor.value, g: fGroup.value, k: sortKey, d: sortDir})); } catch (e) {}
+  }
+  function restore() {
+    var st = null;
+    try { st = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) {}
+    if (!st) return;
+    search.value = st.q || ''; fState.value = st.s || ''; fMinor.value = st.m || '';
+    fGroup.value = st.g || ''; if (fGroup.selectedIndex < 0) fGroup.value = '';
+    if (st.k) { sortKey = st.k; sortDir = st.d === -1 ? -1 : 1; }
   }
 
-  if (search) search.addEventListener('input', apply);
-  chips.forEach(function (chip) {
-    chip.addEventListener('click', function () {
-      chips.forEach(function (c) { c.classList.remove('active'); c.setAttribute('aria-pressed', 'false'); });
-      chip.classList.add('active');
-      chip.setAttribute('aria-pressed', 'true');
-      activeStatus = chip.dataset.status;
-      apply();
+  function apply() {
+    var q = search.value.trim().toLowerCase(), s = fState.value, m = fMinor.value, g = fGroup.value, shown = 0;
+    rows.forEach(function (r) {
+      var d = r.dataset;
+      var ok = (!q || d.name.indexOf(q) !== -1 || d.login.indexOf(q) !== -1 || d.no.indexOf(q) !== -1)
+        && (!s || d.state === s)
+        && (!m || d.minor === m)
+        && (!g || (g === 'none' ? d.groups.trim() === '' : d.groups.indexOf(' ' + g + ' ') !== -1));
+      r.hidden = !ok;
+      if (ok) shown++;
+    });
+    count.textContent = 'Wyświetlono ' + shown + ' z ' + rows.length + ' uczestników.';
+    if (empty) empty.classList.toggle('d-none', shown > 0);
+    save();
+  }
+
+  function sortBy(key, dir) {
+    sortKey = key; sortDir = dir;
+    var num = key === 'last' || key === 'minor';
+    rows.sort(function (a, b) {
+      var x = a.dataset[key] || '', y = b.dataset[key] || '';
+      var c = num ? (Number(x) - Number(y)) : x.localeCompare(y, 'pl', {sensitivity: 'base', numeric: true});
+      if (c === 0 && key !== 'name') c = a.dataset.name.localeCompare(b.dataset.name, 'pl');
+      return c * dir;
+    });
+    rows.forEach(function (r) { tbody.appendChild(r); });
+    table.querySelectorAll('thead th').forEach(function (th) {
+      var btn = th.querySelector('.ewid-sort');
+      if (!btn) return;
+      var on = btn.dataset.key === key;
+      th.setAttribute('aria-sort', on ? (dir === 1 ? 'ascending' : 'descending') : 'none');
+      btn.querySelector('.bi').className = 'bi ms-1 ' + (on ? (dir === 1 ? 'bi-sort-up' : 'bi-sort-down') : 'bi-arrow-down-up opacity-50');
+    });
+    save();
+  }
+
+  table.querySelectorAll('.ewid-sort').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var k = btn.dataset.key;
+      sortBy(k, k === sortKey ? -sortDir : 1);
     });
   });
+  // Klik w dowolne miejsce wiersza = wejście w kartotekę (mysz); z klawiatury
+  // służy do tego link z imieniem i nazwiskiem w pierwszej kolumnie.
+  tbody.addEventListener('click', function (e) {
+    if (e.target.closest('a, button, input, select')) return;
+    var tr = e.target.closest('tr');
+    var a  = tr && tr.querySelector('.ewid-link');
+    if (a && !(window.getSelection && String(window.getSelection()))) window.location.href = a.href;
+  });
+  [search, fState, fMinor, fGroup].forEach(function (el) { el.addEventListener(el === search ? 'input' : 'change', apply); });
+  document.getElementById('fltReset').addEventListener('click', function () {
+    search.value = ''; fState.value = ''; fMinor.value = ''; fGroup.value = '';
+    apply(); search.focus();
+  });
+
+  restore();
+  sortBy(sortKey, sortDir);
+  apply();
+
+  // Powrót z kartoteki (?last=ID): fokus na link kursanta, z którego wyszliśmy.
+  var last = new URLSearchParams(window.location.search).get('last');
+  var row  = last && document.getElementById('acc-row-' + last);
+  if (row && !row.hidden) {
+    var link = row.querySelector('.ewid-link');
+    row.scrollIntoView({block: 'center'});
+    if (link) link.focus();
+  }
 })();
 </script>
 
-</div>
 </div>
 </main>
 
