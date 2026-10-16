@@ -253,6 +253,7 @@ echo dydWelcomeHero((string)(dyd_current()['name'] ?? ''), ($_day_pl[date('D')] 
 </div>
 </div><?php /* /Dziś */ ?>
 <div class="col-xl-5">
+<?php include __DIR__ . '/_widget_zalegle_wpisy.php'; /* Kontrola Lekcji i Wpisów */ ?>
 <?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
 <div class="card dyd-card-accent <?= $_todo_n ? 'border-warning' : '' ?>">
   <div class="card-header d-flex align-items-center gap-2">
