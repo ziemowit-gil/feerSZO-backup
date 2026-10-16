@@ -192,12 +192,11 @@ function dyd_2fa_clear_pending(): void {
 
 /**
  * Czy konto musi przy wejściu do panelu potwierdzić się kluczem sprzętowym (YubiKey, WebAuthn) — yk_gate.php.
- * Dotyczy wyłącznie administratora (rola SZO admin). Kierownik, zastępca i prowadzący — nie (wystarcza im TOTP).
- * Impersonacja (imp.php) jest zwolniona: administrator już się uwierzytelnił.
+ * Obecnie nikt: administrator, kierownik, zastępca i prowadzący wchodzą po TOTP. Bramka zostaje na wypadek
+ * ponownego włączenia wymogu.
  */
 function dyd_yk_required(array $p): bool {
-    if (!empty($p['imp'])) return false;
-    return ($p['role'] ?? '') === 'admin';
+    return false;
 }
 
 /**
@@ -236,9 +235,9 @@ function dyd_require(): array {
     // Sesja mogła powstać przed wprowadzeniem tej bramki albo wznowić się cicho
     // przez „zapamiętaj mnie" (dyd_current()) — sprawdzamy więc stan konta w
     // bazie przy każdym żądaniu, nie tylko przy świeżym logowaniu. Zwolnieni:
-    // impersonacja (imp.php, $s['imp']) — administrator już się uwierzytelnił —
-    // oraz konta z rolą SZO „admin", które mają pełny dostęp niezależnie od TOTP.
-    if (empty($s['imp']) && ($s['role'] ?? '') !== 'admin') {
+    // impersonacja (imp.php, $s['imp']) — administrator już się uwierzytelnił.
+    // Administrator SZO też przechodzi TOTP (klucz sprzętowy nie jest już wymagany).
+    if (empty($s['imp'])) {
         $totp = db_one("SELECT totp_confirmed, totp_secret FROM users WHERE id=?", [(int)$s['user_id']]);
         if (!$totp || empty($totp['totp_confirmed']) || empty($totp['totp_secret'])) {
             dyd_2fa_stash($s);

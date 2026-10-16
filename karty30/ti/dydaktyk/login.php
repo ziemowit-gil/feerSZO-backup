@@ -37,14 +37,7 @@ if ($data) {
             ->execute([$data['user_id']]);
     } catch (\Throwable $e) {}
 
-    // Role SZO "admin" pomijają obowiązkowe TOTP (patrz dyd_require()), ale muszą
-    // potwierdzić się kluczem sprzętowym — sesję zakłada dopiero yk_gate.php.
-    if (($data['role'] ?? '') === 'admin') {
-        dyd_2fa_stash($data);
-        dyd_2fa_finish($data);
-    }
-
-    // Pozostałe konta: dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe.
+    // Każde konto (także administrator): dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe.
     // Sesję panelu zakłada dopiero totp_gate.php, po weryfikacji (albo
     // pierwszym założeniu) kodu.
     dyd_2fa_stash($data);

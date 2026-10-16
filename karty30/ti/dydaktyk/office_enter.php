@@ -68,14 +68,7 @@ if ($open && (int)($open['user_id'] ?? 0) === (int)$data['user_id']) {
 // 3) Logowanie Office poprawne.
 try { db()->prepare("UPDATE users SET last_login=datetime('now') WHERE id=?")->execute([$data['user_id']]); } catch (\Throwable $e) {}
 
-// Role SZO "admin" pomijają obowiązkowe TOTP (patrz dyd_require()), ale muszą
-// potwierdzić się kluczem sprzętowym — sesję zakłada dopiero yk_gate.php.
-if (($data['role'] ?? '') === 'admin') {
-    dyd_2fa_stash($data, $target);
-    dyd_2fa_finish($data);
-}
-
-// Pozostałe konta: dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe, tak
+// Każde konto (także administrator): dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe, tak
 // samo jak przy haśle. Sesję panelu zakłada dopiero totp_gate.php, po
 // weryfikacji kodu.
 dyd_2fa_stash($data, $target);

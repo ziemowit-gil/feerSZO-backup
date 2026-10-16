@@ -1,7 +1,7 @@
 <?php
 /**
  * karty30/ti/dydaktyk/yk_gate.php — obowiązkowy klucz sprzętowy (YubiKey, WebAuthn) przy wejściu do panelu
- * dla administratora (dyd_yk_required()).
+ * — obecnie wyłączony dla wszystkich (dyd_yk_required() zwraca false), bramka od razu kończy logowanie.
  *
  * Trafia się tu po TOTP (totp_gate.php → dyd_2fa_finish()), a administrator — od razu po haśle albo Office
  * (TOTP go nie dotyczy). Sesję panelu zakłada dopiero poprawny podpis klucza; profil dostaje wtedy yk_ok,
