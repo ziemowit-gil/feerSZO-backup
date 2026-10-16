@@ -284,23 +284,24 @@ if ($_sms_enabled && $cur_course) {
       </button>
     </div>
     <?php if ($sessions): ?>
-    <div class="w-100 d-flex flex-wrap gap-2" id="dyd-lekcje-filters" style="display:none">
-      <input type="search" class="form-control form-control-sm flex-grow-1" id="lek_search" style="min-width:220px"
-             placeholder="Szukaj lekcji (temat, status…)" aria-label="Filtruj lekcje po tekście">
+    <div class="w-100 lek-filters" id="dyd-lekcje-filters" style="display:none" role="search" aria-label="Filtry lekcji">
+      <div class="lek-f-search"><i class="bi bi-search" aria-hidden="true"></i>
+      <input type="search" class="form-control form-control-sm" id="lek_search"
+             placeholder="Szukaj: temat, status, prowadzący…" aria-label="Filtruj lekcje po tekście"></div>
       <?php
         $_lek_months = [];
         foreach ($sessions as $_ls) { $_ym = substr((string)$_ls['lesson_date'], 0, 7); if ($_ym !== '') $_lek_months[$_ym] = true; }
         krsort($_lek_months);
         $_months_pl_short = [1=>'sty',2=>'lut',3=>'mar',4=>'kwi',5=>'maj',6=>'cze',7=>'lip',8=>'sie',9=>'wrz',10=>'paź',11=>'lis',12=>'gru'];
       ?>
-      <select class="form-select form-select-sm" id="lek_month" style="max-width:160px" aria-label="Filtruj po miesiącu">
-        <option value="">— wszystkie miesiące —</option>
+      <select class="form-select form-select-sm lek-f-month" id="lek_month" aria-label="Filtruj po miesiącu">
+        <option value="">Wszystkie miesiące</option>
         <?php foreach (array_keys($_lek_months) as $_ym): [$_yy,$_mm] = explode('-', $_ym); ?>
         <option value="<?= h($_ym) ?>"><?= $_months_pl_short[(int)$_mm] ?> <?= $_yy ?></option>
         <?php endforeach; ?>
       </select>
-      <input type="date" class="form-control form-control-sm" id="lek_date" style="max-width:160px" aria-label="Filtruj po konkretnej dacie">
-      <button type="button" class="btn btn-sm btn-outline-secondary" id="lek_filter_reset">Wyczyść filtry</button>
+      <input type="date" class="form-control form-control-sm lek-f-date" id="lek_date" aria-label="Filtruj po konkretnej dacie">
+      <button type="button" class="btn btn-sm btn-link lek-f-reset" id="lek_filter_reset"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Wyczyść</button>
     </div>
     <?php endif; ?>
   </div>
@@ -356,23 +357,22 @@ if ($_sms_enabled && $cur_course) {
     'remote_material'   => 'praca prowadzącego — bez listy obecności, liczona do rozliczenia',
     'cancelled'         => 'odwołana — nie jest liczona do rozliczenia',
   ]; ?>
-  <div class="px-3 pt-2 pb-2 border-bottom">
-    <div class="small fw-semibold mb-1">Co znaczą statusy</div>
-    <ul class="list-unstyled small mb-2">
-      <?php foreach ($STATUS as $_sk => $_sv): ?>
-      <li class="d-flex align-items-start gap-2 py-1">
-        <span class="badge flex-shrink-0" style="background:<?= h($_sv['bg']) ?>;color:<?= h($_sv['color']) ?>;border:1px solid <?= h($_sv['color']) ?>44;min-width:7.5rem"><?= h($_sv['label']) ?></span>
-        <span class="text-body-secondary"><?= h($_sdesc[$_sk] ?? '') ?></span>
-      </li>
-      <?php endforeach; ?>
-    </ul>
-    <div class="small fw-semibold mb-1">Ikony formy zajęć (obok statusu)</div>
-    <ul class="list-unstyled small mb-0">
-      <li class="py-1"><i class="bi bi-geo-alt-fill me-2" style="color:#065F46" aria-hidden="true"></i>stacjonarne — na miejscu</li>
-      <li class="py-1"><i class="bi bi-camera-video-fill me-2" style="color:#1D4ED8" aria-hidden="true"></i>zdalne przez Zoom — obciąża konto Zoom (patrz „Zajętość Zoom")</li>
-      <li class="py-1"><i class="bi bi-display me-2" style="color:#6B21A8" aria-hidden="true"></i>zdalne inaczej — Teams, telefon, własny link</li>
-    </ul>
-  </div>
+  <details class="lek-legend">
+    <summary><i class="bi bi-info-circle" aria-hidden="true"></i>Legenda: statusy i formy zajęć</summary>
+    <div class="lek-legend-in">
+      <ul class="lek-legend-grid" aria-label="Statusy lekcji">
+        <?php foreach ($STATUS as $_sk => $_sv): ?>
+        <li><span class="badge" style="background:<?= h($_sv['bg']) ?>;color:<?= h($_sv['color']) ?>;border:1px solid <?= h($_sv['color']) ?>44"><?= h($_sv['label']) ?></span>
+          <span><?= h($_sdesc[$_sk] ?? '') ?></span></li>
+        <?php endforeach; ?>
+      </ul>
+      <ul class="lek-legend-forms" aria-label="Formy zajęć">
+        <li><i class="bi bi-geo-alt-fill" style="color:#065F46" aria-hidden="true"></i>stacjonarne</li>
+        <li><i class="bi bi-camera-video-fill" style="color:#1D4ED8" aria-hidden="true"></i>Zoom — obciąża konto Zoom</li>
+        <li><i class="bi bi-display" style="color:#6B21A8" aria-hidden="true"></i>zdalne inaczej (Teams, telefon, link)</li>
+      </ul>
+    </div>
+  </details>
 
   <?php
     $_today   = date('Y-m-d');
@@ -382,11 +382,8 @@ if ($_sms_enabled && $cur_course) {
     foreach (k30_ti_instructors() as $_ins) $_instr_names[(int)$_ins['id']] = (string)$_ins['name'];
   ?>
   <?php if ($recurring_rules): ?>
-  <div class="mb-3">
-    <div class="d-flex align-items-center gap-2 mb-2">
-      <span class="fw-semibold small"><i class="bi bi-arrow-repeat text-primary me-1"></i>Zajęcia stałe</span>
-      <span class="badge bg-primary rounded-pill"><?= count($recurring_rules) ?></span>
-    </div>
+  <div class="lek-recur">
+    <h3 class="lek-recur-h"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Zajęcia stałe <span class="badge rounded-pill"><?= count($recurring_rules) ?></span></h3>
     <div class="row g-2">
       <?php
         $_rec_pos_lbl = ['1'=>'Pierwszy','2'=>'Drugi','3'=>'Trzeci','4'=>'Czwarty','last'=>'Ostatni'];
@@ -401,21 +398,26 @@ if ($_sms_enabled && $cur_course) {
             : 'Co ' . (int)$rr['interval_weeks'] . ' tyg. · ' . $rr_dow;
         $rr_upcoming = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'", [(int)$rr['id']])['n'] ?? 0);
       ?>
-      <div class="col-md-6">
-        <div class="card card-body py-2 px-3 border">
-          <div class="d-flex align-items-start gap-2">
-            <div class="flex-grow-1">
-              <div class="fw-semibold small"><?= h($rr['topic'] ?: '—') ?></div>
-              <div class="text-body-secondary small">
-                <?= h($rr_pattern) ?>
-                <?= $rr['time_from'] ? ' · ' . h($rr['time_from']) . '–' . h($rr['time_to']) : '' ?>
-                · <?= h($rr['date_from']) ?> → <?= h($rr['date_to']) ?>
-              </div>
-              <div class="text-body-secondary small"><?= $rr_upcoming ?> nadchodzących lekcji</div>
+      <?php
+        $_rr_dfull = ['Nd' => 'niedziele', 'Pn' => 'poniedziałki', 'Wt' => 'wtorki', 'Śr' => 'środy', 'Cz' => 'czwartki', 'Pt' => 'piątki', 'So' => 'soboty'];
+        $_rr_title = $rr['topic'] ?: (($rr_monthly ? $rr_pattern : ((int)$rr['interval_weeks'] > 1 ? 'Co ' . (int)$rr['interval_weeks'] . ' tyg. — ' : '') . ($_rr_dfull[$rr_dow] ?? $rr_dow))
+                     . ($rr['time_from'] ? ', ' . $rr['time_from'] . '–' . $rr['time_to'] : ''));
+        $_rr_fmt = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '…';
+      ?>
+      <div class="col-md-6 col-xl-4">
+        <div class="lek-recur-card">
+          <span class="lek-recur-ico" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>
+          <div class="flex-grow-1 min-w-0">
+            <div class="lek-recur-t"><?= h(mb_strtoupper(mb_substr($_rr_title, 0, 1)) . mb_substr($_rr_title, 1)) ?></div>
+            <div class="lek-recur-d">
+              <?php if ($rr['topic']): ?><?= h($rr_pattern) ?><?= $rr['time_from'] ? ' · ' . h($rr['time_from']) . '–' . h($rr['time_to']) : '' ?> · <?php endif; ?>
+              <?= h($_rr_fmt($rr['date_from'])) ?> – <?= h($_rr_fmt($rr['date_to'])) ?>
             </div>
+            <div class="lek-recur-n"><?= $rr_upcoming ?> <?= $rr_upcoming === 1 ? 'nadchodząca lekcja' : (($rr_upcoming % 10 >= 2 && $rr_upcoming % 10 <= 4 && ($rr_upcoming % 100 < 10 || $rr_upcoming % 100 >= 20)) ? 'nadchodzące lekcje' : 'nadchodzących lekcji') ?></div>
+          </div>
             <div class="dropdown">
-              <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-three-dots-vertical"></i>
+              <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Akcje: <?= h($_rr_title) ?>">
+                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
@@ -455,6 +457,35 @@ if ($_sms_enabled && $cur_course) {
 
 
   <style>
+  /* ── Nagłówek Lekcji: filtry w jednym rzędzie, zwijana legenda, karty zajęć stałych ── */
+  .lek-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+  .lek-filters[style*="display: none"], .lek-filters[style*="display:none"] { display: none !important; }
+  .lek-f-search { position: relative; flex: 1 1 260px; min-width: 200px; }
+  .lek-f-search .bi { position: absolute; left: .6rem; top: 50%; transform: translateY(-50%); color: #6b7685; font-size: .85rem; pointer-events: none; }
+  .lek-f-search input { padding-left: 1.9rem; }
+  .lek-f-month { flex: 0 0 auto; width: auto; min-width: 11.5rem; }
+  .lek-f-date { flex: 0 0 auto; width: 10.5rem; }
+  .lek-f-reset { text-decoration: none; padding-left: .25rem; padding-right: .25rem; }
+  .lek-legend { border-bottom: 1px solid #e3e8ef; }
+  .lek-legend > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; padding: .5rem 1rem; font-size: .8rem; font-weight: 600; color: #0b4a8f; }
+  .lek-legend > summary::-webkit-details-marker { display: none; }
+  .lek-legend > summary::after { content: '▸'; font-size: .7rem; }
+  .lek-legend[open] > summary::after { content: '▾'; }
+  .lek-legend > summary:focus-visible { outline: 2px solid #0b4a8f; outline-offset: -2px; }
+  .lek-legend-in { padding: 0 1rem .75rem; }
+  .lek-legend-grid { list-style: none; margin: 0 0 .5rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: .35rem 1.25rem; font-size: .78rem; color: #3d4757; }
+  .lek-legend-grid li { display: flex; align-items: baseline; gap: .5rem; }
+  .lek-legend-grid .badge { flex: 0 0 9.5rem; white-space: normal; text-align: center; }
+  .lek-legend-forms { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem 1.25rem; font-size: .78rem; color: #3d4757; }
+  .lek-legend-forms .bi { margin-right: .35rem; }
+  .lek-recur { padding: .75rem 1rem .25rem; }
+  .lek-recur-h { font-size: .82rem; font-weight: 700; color: #10335c; margin: 0 0 .5rem; display: flex; align-items: center; gap: .4rem; }
+  .lek-recur-h .badge { background: #10335c; font-size: .66rem; }
+  .lek-recur-card { display: flex; align-items: flex-start; gap: .65rem; padding: .6rem .7rem; border: 1px solid #d3dce7; border-left: 3px solid #0b4a8f; border-radius: 4px; background: #fff; height: 100%; }
+  .lek-recur-ico { flex: 0 0 auto; width: 2rem; height: 2rem; border-radius: 6px; display: grid; place-items: center; background: #e6f1fc; color: #0b4a8f; }
+  .lek-recur-t { font-weight: 700; font-size: .86rem; color: #10335c; }
+  .lek-recur-d { font-size: .78rem; color: #4a5566; }
+  .lek-recur-n { font-size: .74rem; color: #6b7685; margin-top: .1rem; }
   /* ── Widok „Sekcje”: nagłówki sekcji w tabeli ─────────────────────────── */
   #dyd-table-lekcje .dyd-lek-sec > th { background: #f3f6fa; border-top: 2px solid #d3dce7; padding: 0 !important; }
   #dyd-table-lekcje .dyd-lek-sec-btn { all: unset; box-sizing: border-box; width: 100%; cursor: pointer;
