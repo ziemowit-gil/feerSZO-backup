@@ -8,7 +8,9 @@
 $egz_list   = ti_exams_list($cur_course);
 $egz_review = ti_exam_pending_review_count($cur_course);
 $egz_health = ti_exam_engine_health();
+require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/accommodations.php';
 ?>
+<?= tiAccomCourseNotice((int)$cur_course) ?>
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h5 class="mb-0 fw-semibold">
     <i class="bi bi-patch-question me-1" aria-hidden="true"></i>Egzaminy

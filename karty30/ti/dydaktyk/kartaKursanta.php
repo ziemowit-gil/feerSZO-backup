@@ -2,7 +2,7 @@
 /**
  * karty30/ti/dydaktyk/kartaKursanta.php — Karta kursanta (panel dydaktyka): dydaktyka i postępy kursanta TI.
  *
- * Jedno miejsce pracy prowadzącego z kursantem: profil tyflo (narzędzia, technologie, formaty), sprzęt i licencje,
+ * Jedno miejsce pracy prowadzącego z kursantem: profil tyflo (narzędzia, technologie, formaty), dostosowania w ocenianiu, sprzęt i licencje,
  * statusy opanowania modułów (punktów planu kursu), dziennik lekcji z obecnością (odczyt), notatki o postępach
  * i trudnościach (wewnętrzne albo „dla kursanta”) oraz materiały przypisane kursantowi.
  *
@@ -14,6 +14,7 @@
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_dydaktyka/logic/tiDydaktykaManager.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_dydaktyka/views/_helpers.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/accommodations.php';
 
 $me  = dyd_require();
 $uid = (int)$me['user_id'];
@@ -44,6 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $res = $M::saveProfile($actor, $clientId, $_POST);
             if ($res['ok']) $done('success', 'Profil tyflo zapisany.', '#profil');
             $fail($res, 'profil'); break;
+        case 'save_accommodations':
+            $res = tiAccomSave($actor, $clientId, $_POST);
+            if ($res['ok']) $done('success', 'Dostosowania zapisane.', '#dostosowania');
+            $fail($res, 'dostosowania'); break;
         case 'save_equipment':
             $res = $M::saveEquipment($actor, $clientId, $_POST, (int)($_POST['equipment_id'] ?? 0));
             if ($res['ok']) $done('success', 'Sprzęt zapisany.', '#sprzet');
@@ -82,6 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $client  = $M::client($clientId);
 $courses = $M::courses($actor, $clientId);
 $profile = $M::profile($clientId); $profile_mode = $M::profileMode();
+$accom = tiAccomGet($clientId);
+if ($open === 'dostosowania' && $old) {
+    $accom['extra_time_pct'] = (int)($old['extra_time_pct'] ?? 0); $accom['other'] = (string)($old['other'] ?? '');
+    foreach (TI_ACCOM_FLAGS as $k => $_) $accom[$k] = !empty($old[$k]) ? 1 : 0;
+}
 $equipment = $M::equipment($clientId); $licenses = $M::licenses($clientId); $licenseOptions = $M::licenseOptions($clientId);
 $modulesByCourse = [];
 foreach ($courses as $c) { $rows = $M::modules($clientId, (int)$c['id']); $modulesByCourse[(int)$c['id']] = ['rows' => $rows, 'sum' => $M::moduleSummary($rows)]; }
@@ -180,6 +190,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <nav aria-label="Sekcje karty kursanta" class="dk-menu">
   <ul class="list-unstyled mb-0 dk-sections">
     <li><a href="#profil"><i class="bi bi-person-badge" aria-hidden="true"></i>Profil tyflo</a></li>
+    <li><a href="#dostosowania"><i class="bi bi-sliders" aria-hidden="true"></i>Dostosowania</a></li>
     <li><a href="#sprzet"><i class="bi bi-laptop" aria-hidden="true"></i>Sprzęt i licencje</a></li>
     <li><a href="#moduly"><i class="bi bi-diagram-3" aria-hidden="true"></i>Postępy w modułach</a></li>
     <li><a href="#dziennik"><i class="bi bi-journal-text" aria-hidden="true"></i>Dziennik zajęć</a></li>
@@ -192,6 +203,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php
 $_v = dirname(__DIR__, 3) . '/modules/ti_dydaktyka/views/';
 include $_v . '_profil.php';
+include $_v . '_dostosowania.php';
 include $_v . '_sprzet.php';
 include $_v . '_moduly.php';
 include $_v . '_dziennik.php';

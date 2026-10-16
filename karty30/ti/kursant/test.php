@@ -19,6 +19,9 @@ $test    = $test_id ? k30_ti_test_get($test_id) : null;
 
 // Test musi istnieć, być aktywny i dotyczyć kursu, na który kursant jest zapisany
 $enrolled_courses = array_map(fn($c)=>(int)$c['course_id'], k30_ti_client_courses((int)$student['client_id']));
+// Dostosowania kursanta (modules/ti_edziennik): wydłużony czas sugerowany
+require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/accommodations.php';
+$acc_extra = tiAccomExtraTime((int)$student['client_id']);
 if (!$test || empty($test['is_active']) || !in_array((int)$test['course_id'], $enrolled_courses, true)) {
     header('Location: index.php?tab=testy&err=unavailable'); exit;
 }
@@ -103,7 +106,7 @@ include __DIR__ . '/_layout_head.php';
       <h1 class="h5 fw-bold mb-1"><?= h($test['title']) ?></h1>
       <?php if ($retake): ?><span class="badge bg-warning text-dark mb-2">poprawa</span><?php endif; ?>
       <p class="text-body-secondary small mb-3">
-        <?= $est_q ?> pytań<?php if ($bank_draw_n > 0 || $fixed_draw_n > 0): ?> <span class="text-info">(losowane)</span><?php endif; ?><?php if ((int)$test['time_limit_min']>0): ?> · <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
+        <?= $est_q ?> pytań<?php if ($bank_draw_n > 0 || $fixed_draw_n > 0): ?> <span class="text-info">(losowane)</span><?php endif; ?><?php if ((int)$test['time_limit_min']>0): ?> · <?= tiAccomMinutes((int)$test['time_limit_min'], $acc_extra) ?> min<?= $acc_extra > 0 ? ' (wydłużony: +' . $acc_extra . '%)' : '' ?><?php endif; ?>
         <?php if ($retake && $retake_pass > 0): ?> · <strong>próg poprawa: <?= $retake_pass ?>%</strong><?php endif; ?>
       </p>
       <?php if (trim((string)$test['description']) !== ''): ?>
@@ -200,7 +203,7 @@ include __DIR__ . '/_layout_head.php';
   <div class="alert alert-info"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><?= nl2br(h($test['description'])) ?></div>
   <?php endif; ?>
   <p class="text-body-secondary small">
-    <?= count($questions) ?> pytań · <?= rtrim(rtrim(number_format($max_score = k30_ti_test_max_score($test_id),2,'.',''),'0'),'.') ?> pkt<?php if ((int)$test['time_limit_min']>0): ?> · sugerowany czas <?= (int)$test['time_limit_min'] ?> min<?php endif; ?>
+    <?= count($questions) ?> pytań · <?= rtrim(rtrim(number_format($max_score = k30_ti_test_max_score($test_id),2,'.',''),'0'),'.') ?> pkt<?php if ((int)$test['time_limit_min']>0): ?> · sugerowany czas <?= tiAccomMinutes((int)$test['time_limit_min'], $acc_extra) ?> min<?= $acc_extra > 0 ? ' (wydłużony: +' . $acc_extra . '%)' : '' ?><?php endif; ?>
   </p>
 
   <?php $n_q = count($questions); ?>

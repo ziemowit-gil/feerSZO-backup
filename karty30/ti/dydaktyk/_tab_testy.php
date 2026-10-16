@@ -11,6 +11,8 @@
        JOIN k30_ti_tests t ON t.id=a.test_id
        WHERE t.course_id=? AND a.needs_review=1 AND a.status='submitted'",
       [$cur_course]);
+  require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/accommodations.php';
+  $dyd_accom = tiAccomMany(array_column($dyd_students, 'id'));
 ?>
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h5 class="mb-0 fw-semibold"><i class="bi bi-card-checklist me-1" aria-hidden="true"></i>Testy</h5>
@@ -23,6 +25,7 @@
   <i class="bi bi-tools fs-5 flex-shrink-0 mt-1" aria-hidden="true"></i>
   <span><strong>Kreator testów chwilowo niedostępny.</strong> Trwają prace serwisowe — możliwość tworzenia i edytowania testów zostanie przywrócona wkrótce. Istniejące testy działają normalnie.</span>
 </div>
+<?= tiAccomCourseNotice((int)$cur_course) ?>
 <?php if ($dyd_need_review > 0): ?>
 <div class="alert alert-warning d-flex align-items-center gap-2 py-2 small">
   <i class="bi bi-clipboard-check fs-5 flex-shrink-0" aria-hidden="true"></i>
@@ -108,7 +111,7 @@
         }
       ?>
       <tr>
-        <td><?= h($ds['name']) ?></td>
+        <td><?= h($ds['name']) ?><?= tiAccomBadge($dyd_accom[(int)$ds['id']] ?? null) ?></td>
         <td class="text-center"><?= $stage ?></td>
         <td class="text-center">
           <?php if ($best_pct !== null): ?>

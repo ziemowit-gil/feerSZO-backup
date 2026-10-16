@@ -664,6 +664,11 @@ function ti_exam_start_attempt(int $exam_id, int $client_id): ?array {
     $ids       = array_map('intval', (array)$plan['questionOrder']);
     $max_score = ti_exam_max_score($exam_id, $ids);
     $limit     = (int)$exam['time_limit_min'];
+    // Dostosowania kursanta (modules/ti_edziennik): wydłużony czas egzaminu, np. +50%
+    if ($limit > 0) {
+        require_once dirname(__DIR__) . '/modules/ti_edziennik/logic/accommodations.php';
+        $limit = tiAccomMinutes($limit, tiAccomExtraTime($client_id));
+    }
     $now       = time();
 
     $attempt_no = 1 + (int)(db_one(

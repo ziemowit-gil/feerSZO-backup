@@ -27,6 +27,9 @@ require_once __DIR__ . '/auth.php';
 karty30_migrate();
 $student   = student_require();
 $client_id = (int)$student['client_id'];
+// Dostosowania kursanta (modules/ti_edziennik): wydłużony czas — taki sam nalicza ti_exam_start_attempt()
+require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/accommodations.php';
+$acc_extra = tiAccomExtraTime($client_id);
 
 $enrolled = array_map(fn($c) => (int)$c['course_id'], k30_ti_client_courses($client_id));
 
@@ -174,7 +177,7 @@ include __DIR__ . '/_layout_head.php';
     </li>
     <li class="list-group-item bg-transparent d-flex gap-2">
       <i class="bi bi-clock text-body-secondary" aria-hidden="true"></i>
-      <span>Czas: <strong><?= (int)$exam['time_limit_min'] > 0 ? (int)$exam['time_limit_min'] . ' min' : 'bez limitu' ?></strong></span>
+      <span>Czas: <strong><?= (int)$exam['time_limit_min'] > 0 ? tiAccomMinutes((int)$exam['time_limit_min'], $acc_extra) . ' min' : 'bez limitu' ?></strong><?= $acc_extra > 0 ? ' (wydłużony: +' . $acc_extra . '%)' : '' ?></span>
     </li>
     <li class="list-group-item bg-transparent d-flex gap-2">
       <i class="bi bi-arrow-repeat text-body-secondary" aria-hidden="true"></i>
@@ -219,7 +222,7 @@ include __DIR__ . '/_layout_head.php';
       </button>
       <?php if ((int)$exam['time_limit_min'] > 0): ?>
       <p class="form-text mt-2">
-        Po kliknięciu ruszy licznik <?= (int)$exam['time_limit_min'] ?> minut. Przygotuj się przed startem.
+        Po kliknięciu ruszy licznik <?= tiAccomMinutes((int)$exam['time_limit_min'], $acc_extra) ?> minut<?= $acc_extra > 0 ? ' (wydłużony: +' . $acc_extra . '%)' : '' ?>. Przygotuj się przed startem.
       </p>
       <?php endif; ?>
     </form>

@@ -27,6 +27,9 @@
   require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/attendanceThreshold.php';
   $g_att     = tiAttCourseOverview($cur_course);
   $g_att_thr = tiAttThreshold($cur_course);
+  // Dostosowania kursanta (IPET) — plakietka przy nazwisku
+  require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/accommodations.php';
+  $g_accom = tiAccomMany(array_column($g_enrollees, 'id'));
 
   $g_edit_id = (int)($_GET['edit'] ?? 0);
   $g_edit    = $g_edit_id ? k30_ti_grade_get($g_edit_id) : null;
@@ -192,7 +195,7 @@
         ?>
         <tr>
           <td class="col-name<?= $person_on ? '' : ' text-muted' ?>">
-            <?= h($en['name']) ?><?= isset($g_att[$cid]) ? tiAttBadge($g_att[$cid], $g_att_thr) : '' ?>
+            <?= h($en['name']) ?><?= isset($g_att[$cid]) ? tiAttBadge($g_att[$cid], $g_att_thr) : '' ?><?= tiAccomBadge($g_accom[$cid] ?? null) ?>
             <?php if (!$person_on): ?>
             <i class="bi bi-slash-circle text-warning ms-1" title="Oceny wyłączone globalnie dla tej osoby"></i>
             <?php endif; ?>
