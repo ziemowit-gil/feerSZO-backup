@@ -863,6 +863,7 @@ function dydKuMoveOpen(fromId, fromName) {
   <div>
     <label for="kuF_status" class="form-label small mb-1">Status</label>
     <select id="kuF_status" class="form-select form-select-sm">
+      <option value="noarch" selected>Bez zarchiwizowanych</option>
       <option value="">Wszystkie</option>
       <option value="current">Bieżące (aktywne + nieaktywne)</option>
       <option value="active">Aktywne</option>
@@ -1154,7 +1155,7 @@ function dydKuMoveOpen(fromId, fromName) {
 </div>
 <script>
 (function () {
-  var KEY = 'dydKuTable.v1';
+  var KEY = 'dydKuTable.v2';
   var root = document.getElementById('kuFilters');
   if (!root) return;
   var rows = Array.prototype.slice.call(document.querySelectorAll('tr.ku-row'));
@@ -1187,7 +1188,9 @@ function dydKuMoveOpen(fromId, fromName) {
       var d = r.dataset, ok = true;
       if (q && d.q.indexOf(q) === -1) ok = false;
       if (ok && f.status.value) {
-        ok = f.status.value === 'current' ? (d.status === 'active' || d.status === 'inactive') : d.status === f.status.value;
+        ok = f.status.value === 'noarch'  ? d.status !== 'archived'
+           : f.status.value === 'current' ? (d.status === 'active' || d.status === 'inactive')
+           : d.status === f.status.value;
       }
       if (ok && f.subj.value && d.subj !== f.subj.value) ok = false;
       if (ok && f.instr.value && d.instr !== f.instr.value) ok = false;
@@ -1212,7 +1215,7 @@ function dydKuMoveOpen(fromId, fromName) {
     b.addEventListener('change', function () { applyCols(); save(); });
   });
   document.getElementById('kuF_reset').addEventListener('click', function () {
-    Object.keys(f).forEach(function (k) { f[k].value = ''; });
+    Object.keys(f).forEach(function (k) { f[k].value = k === 'status' ? 'noarch' : ''; });
     applyFilters(); save();
   });
   document.getElementById('kuColsReset').addEventListener('click', function () {
