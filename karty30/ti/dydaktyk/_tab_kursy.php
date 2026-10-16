@@ -188,6 +188,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         }
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
     }
+    // Dziennik zamkniętej grupy → EZD jeszcze raz (modules/ti_edziennik/logic/closeArchive.php).
+    // Parametr ezd_course (nie course_id): strażnik zamkniętych grup blokuje POST z course_id, a to tylko odczyt grupy.
+    if ($ku_op === 'close_ezd_resend' && $ku_can_write) {
+        $cid = (int)($_POST['ezd_course'] ?? 0);
+        require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/closeArchive.php';
+        $g = $cid ? db_one("SELECT id, closed_at FROM k30_ti_courses WHERE id=?", [$cid]) : null;
+        $sid = ($g && !empty($g['closed_at'])) ? tiCloseArchiveRegister($cid, (int)($uid ?? 0)) : null;
+        $_SESSION['dyd_flash'] = $sid
+            ? ['type' => 'success', 'msg' => 'Dziennik zajęć wysłany do EZD (koszulka #' . $sid . ').']
+            : ['type' => 'warning', 'msg' => 'Nie wysłano dziennika do EZD — grupa nie jest zamknięta albo EZD / automatyczne przekazywanie protokołów jest wyłączone.'];
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+    }
 
     // Trwałe usunięcie — TYLKO dla grup już wyłączonych (status=cancelled) i BEZ
     // jakiejkolwiek historii (ani jednej lekcji, ani jednego zapisu — choćby
@@ -921,6 +933,16 @@ function dydKuMoveOpen(fromId, fromName) {
                 <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span class="visually-hidden">Przywróć z archiwum</span>
               </button>
             </form>
+            <?php if (!empty($c['closed_at'])): ?>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+              <input type="hidden" name="_op" value="close_ezd_resend">
+              <input type="hidden" name="ezd_course" value="<?= $cid ?>">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Wyślij dziennik zajęć do EZD ponownie">
+                <i class="bi bi-send" aria-hidden="true"></i><span class="visually-hidden">Wyślij dziennik zajęć do EZD ponownie</span>
+              </button>
+            </form>
+            <?php endif; ?>
             <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy kursu">
               <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
             <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ustawienia kursu">
@@ -1287,6 +1309,16 @@ function dydKuMoveOpen(fromId, fromName) {
         <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
       </button>
     </form>
+    <?php if (!empty($c['closed_at'])): ?>
+    <form method="post" class="flex-shrink-0">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>">
+      <input type="hidden" name="_op" value="close_ezd_resend">
+      <input type="hidden" name="ezd_course" value="<?= $cid ?>">
+      <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Wyślij dziennik zajęć do EZD ponownie">
+        <i class="bi bi-send" aria-hidden="true"></i><span class="visually-hidden">Wyślij dziennik zajęć do EZD ponownie</span>
+      </button>
+    </form>
+    <?php endif; ?>
     <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ustawienia kursu">
       <i class="bi bi-gear" aria-hidden="true"></i>

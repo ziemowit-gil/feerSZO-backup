@@ -315,6 +315,7 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
         ['Rodzaj zajęć', ($c['subject_name'] ?? '') ?: '—'],
         ['Data rozpoczęcia zajęć', $done ? $d($done[0]['lesson_date']) : '—'],
     ];
+    if (!empty($c['closed_at'])) $kv[] = ['Zamknięcie grupy', $d($c['closed_at']) . (!empty($c['closed_name']) ? ' — ' . $c['closed_name'] : '')];
     $pdf->SetFont('DejaVu', '', 9);
     foreach ($kv as [$k, $v]) { $pdf->SetFont('DejaVu', 'B', 9); $pdf->Cell(55, 7, $pl($k . ':'), 0, 0); $pdf->SetFont('DejaVu', '', 9); $pdf->MultiCell($W() - 55, 7, $pl($v), 0, 'L'); }
     $pdf->Ln(4);
@@ -324,10 +325,13 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
              rtrim(rtrim(number_format($hours, 1, ',', ''), '0'), ','), count($students), $ended, count($certs), '']], 8);
     $pdf->Ln(24);
     $pdf->SetFont('DejaVu', '', 9);
-    $pdf->Cell($W() / 2, 6, $pl(((string)org_setting('org_miejscowosc') ?: '') . ', dnia ' . date('d.m.Y')), 0, 0, 'L');
-    $pdf->Cell($W() / 2, 6, '', 'B', 1);
+    $pdf->Cell($W(), 6, $pl(((string)org_setting('org_miejscowosc') ?: '') . ', dnia ' . date('d.m.Y')), 0, 1, 'L');
+    $pdf->Ln(14);
+    $_sw = ($W() - 20) / 2;   // dwa pola podpisu z odstępem 20 mm
+    $pdf->Cell($_sw, 6, '', 'B', 0); $pdf->Cell(20, 6, '', 0, 0); $pdf->Cell($_sw, 6, '', 'B', 1);
     $pdf->SetFont('DejaVu', '', 8); $pdf->SetTextColor(100, 100, 100);
-    $pdf->Cell($W() / 2, 5, '', 0, 0); $pdf->Cell($W() / 2, 5, $pl('podpis kierownika'), 0, 1, 'C');
+    $pdf->Cell($_sw, 5, $pl('podpis prowadzącego' . (!empty($c['instructor_name']) ? ' (' . $c['instructor_name'] . ')' : '')), 0, 0, 'C');
+    $pdf->Cell(20, 5, '', 0, 0); $pdf->Cell($_sw, 5, $pl('podpis kierownika'), 0, 1, 'C');
 
     return $pdf->Output('S');
 }

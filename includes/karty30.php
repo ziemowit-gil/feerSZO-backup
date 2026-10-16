@@ -3379,6 +3379,11 @@ function ti_course_close(int $course_id, int $by, string $by_name): void {
     )->execute([$by ?: null, $by_name, $course_id]);
     ti_course_log($course_id, 'close', '', $by, $by_name);
     ti_course_closed($course_id, true);
+    // Dziennik zajęć grupy → EZD (modules/ti_edziennik); błąd nie cofa zamknięcia
+    try {
+        require_once dirname(__DIR__) . '/modules/ti_edziennik/logic/closeArchive.php';
+        tiCloseArchiveRegister($course_id, $by ?: null);
+    } catch (\Throwable $e) { error_log('ti_course_close EZD #' . $course_id . ': ' . $e->getMessage()); }
 }
 
 /** Liczba grup ze statusem planowania „Planowana do wygaszenia” (plan_status='to_phase_out'), jeszcze nie zamkniętych. */
