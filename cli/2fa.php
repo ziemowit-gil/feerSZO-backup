@@ -5,8 +5,8 @@
  *
  * Użycie:
  *   php cli/2fa.php                     # lista użytkowników ze statusem 2FA
- *   php cli/2fa.php disable <email>     # wyłącz 2FA (TOTP + SMS)
- *   php cli/2fa.php disable --all       # wyłącz 2FA wszystkim
+ *   php cli/2fa.php disable <email>     # wyłącz 2FA (TOTP + SMS) — także w panelu dydaktyka (zwolnienie z TOTP)
+ *   php cli/2fa.php disable --all       # wyłącz 2FA wszystkim (j.w.)
  *   php cli/2fa.php status <email>      # szczegółowy status dla użytkownika
  *   php cli/2fa.php dyd-exempt <email> [powód]  # panel dydaktyka: wejście BEZ TOTP dla tego konta
  *   php cli/2fa.php dyd-require <email>         # panel dydaktyka: przywróć obowiązkowe TOTP
@@ -55,9 +55,11 @@ function twofa_status(array $u): string {
 }
 
 function disable_2fa(array $u): void {
+    // Panel dydaktyka wymusza TOTP — bez zwolnienia kazałby je od razu założyć od nowa.
+    dydTotpExemptSet((int)$u['id'], true, 'cli: 2fa disable');
     $method = $u['twofa_method'] ?? '';
     if (empty($method)) {
-        info("{$u['name']} ({$u['email']}) — 2FA nie było włączone.");
+        info("{$u['name']} ({$u['email']}) — 2FA nie było włączone; panel dydaktyka: wejście bez TOTP.");
         return;
     }
     db()->prepare(
@@ -67,7 +69,7 @@ function disable_2fa(array $u): void {
     )->execute([$u['id']]);
 
     $label = $method === 'totp' ? 'TOTP' : 'SMS';
-    ok("Wyłączono 2FA ({$label}) dla {$u['name']} ({$u['email']}).");
+    ok("Wyłączono 2FA ({$label}) dla {$u['name']} ({$u['email']}), także w panelu dydaktyka (przywrócenie: dyd-require).");
 }
 
 // ── Komendy ───────────────────────────────────────────────────────────────────
