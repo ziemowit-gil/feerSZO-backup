@@ -2793,98 +2793,13 @@ $matFormHtml = function(?array $r, string $pfx) use ($cur_course, $TYPES, $dtv, 
 
 $KP_TITLE  = 'Panel dydaktyka';
 
-// Selektor grupy w pasku górnym (tylko gdy >1 kurs)
+// Selektor grupy w pasku górnym (tylko gdy >1 kurs) — okno z wyszukiwarką i filtrami
+// Aktywne / Nieaktywne / Archiwum (+ Moje / Wszystkie dla kierownika z własnymi grupami).
 $_dyd_course_switcher = '';
 if (count($courses) + count($courses_archived) > 1) {
-    // Selektor grupy w stylu paska: przycisk „GRUPA ▾ nazwa” na granacie,
-    // panel z wyszukiwarką (nazwa grupy / prowadzący) i listą linków — zmiana =
-    // ta sama zakładka w wybranej grupie. Kierownik z własnymi grupami: podział
-    // Twoje / innych. Klawiatura: ↓/↑ po liście, Enter, Esc (Bootstrap dropdown).
-    $split_view = dyd_is_staff() && !empty($my_course_ids_set);
-    $cur_c = null;
-    foreach (array_merge($courses, $courses_archived) as $_c) if ((int)$_c['id'] === $cur_course) { $cur_c = $_c; break; }
-    $_arch_ids = array_flip(array_map(fn($c) => (int)$c['id'], $courses_archived));
-    $_live     = array_values(array_filter($courses, fn($c) => !isset($_arch_ids[(int)$c['id']])));
-    $_item = function (array $c, bool $with_instructor) use ($cur_course, $tab): string {
-        $act      = (int)$c['id'] === $cur_course;
-        $archived = ($c['status'] ?? '') === 'archived';
-        $closed   = $archived && !empty($c['closed_at']);
-        $inactive = $archived || ($c['status'] ?? '') === 'cancelled' || empty($c['is_active']);
-        $meta     = $closed ? 'zamknięta' : ($archived ? 'archiwum' : ($inactive ? 'nieaktywna' : ''));
-        $meta     = $meta !== '' ? $meta
-                  : ($with_instructor ? (string)($c['instructor_name'] ?: '—') : (int)($c['enrolled_count'] ?? 0) . ' os.');
-        $search   = mb_strtolower((string)$c['name'] . ' ' . (string)($c['instructor_name'] ?? ''));
-        return '<li' . ($archived ? ' class="dyd-cs-arch" hidden' : '') . '><a class="dropdown-item dyd-cs-item d-flex align-items-center gap-2' . ($act ? ' active' : '') . ($inactive ? ' dyd-cs-off' : '') . '"'
-             . ' href="index.php?course=' . (int)$c['id'] . '&amp;tab=' . h($tab) . '" data-search="' . h($search) . '"' . ($act ? ' aria-current="true"' : '') . '>'
-             . '<i class="bi bi-' . ($act ? 'check2' : ($closed ? 'lock' : ($inactive ? 'archive' : 'people'))) . ' flex-shrink-0" aria-hidden="true"></i>'
-             . '<span class="text-truncate">' . h((string)$c['name']) . '</span>'
-             . '<span class="ms-auto small dyd-cs-meta flex-shrink-0">' . h($meta) . '</span></a></li>';
-    };
-    ob_start(); ?>
-<div class="dropdown dyd-cs">
-  <button type="button" class="dyd-cs-btn dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside"
-          aria-expanded="false" aria-haspopup="true" title="Zmień grupę">
-    <span class="dyd-cs-lbl">Grupa</span>
-    <span class="dyd-cs-name text-truncate"><?= h($cur_c ? (string)$cur_c['name'] : 'wybierz grupę') ?></span>
-    <span class="visually-hidden">— zmień grupę</span>
-  </button>
-  <div class="dropdown-menu dropdown-menu-end dyd-cs-menu p-0">
-    <div class="p-2 border-bottom">
-      <label for="dydCsSearch" class="visually-hidden">Szukaj grupy</label>
-      <input type="search" id="dydCsSearch" class="form-control form-control-sm" placeholder="Szukaj grupy lub prowadzącego…" autocomplete="off">
-    </div>
-    <ul class="list-unstyled mb-0 dyd-cs-list" role="list">
-      <?php if ($split_view): ?>
-      <li><h6 class="dropdown-header">Twoje grupy</h6></li>
-      <?php foreach ($_live as $_c) if (isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, false); ?>
-      <li><h6 class="dropdown-header">Grupy innych prowadzących</h6></li>
-      <?php foreach ($_live as $_c) if (!isset($my_course_ids_set[(int)$_c['id']])) echo $_item($_c, true); ?>
-      <?php else: foreach ($_live as $_c) echo $_item($_c, dyd_is_staff()); endif; ?>
-      <?php if ($courses_archived): $_arch_open = isset($_arch_ids[$cur_course]); ?>
-      <li class="dyd-cs-arch-toggle-li"><button type="button" class="dropdown-item dyd-cs-arch-toggle d-flex align-items-center gap-2" aria-expanded="false">
-        <i class="bi bi-archive" aria-hidden="true"></i>Archiwum <span class="badge text-bg-secondary"><?= count($courses_archived) ?></span>
-        <i class="bi bi-chevron-down ms-auto" aria-hidden="true"></i></button></li>
-      <?php foreach ($courses_archived as $_c) echo $_item($_c, dyd_is_staff()); ?>
-      <?php endif; ?>
-      <li class="dyd-cs-empty px-3 py-2 small text-body-secondary" hidden>Brak grup pasujących do wyszukiwania.</li>
-    </ul>
-  </div>
-</div>
-<script>
-(function () {
-  var root = document.currentScript.previousElementSibling;
-  var q = root.querySelector('#dydCsSearch'), items = root.querySelectorAll('.dyd-cs-item'),
-      empty = root.querySelector('.dyd-cs-empty'), heads = root.querySelectorAll('.dropdown-header'),
-      tog = root.querySelector('.dyd-cs-arch-toggle'), arch = root.querySelectorAll('.dyd-cs-arch'), archOpen = false;
-  function setArch(open) {
-    archOpen = open; arch.forEach(function (li) { li.hidden = !open; });
-    if (tog) { tog.setAttribute('aria-expanded', open ? 'true' : 'false'); tog.querySelector('.bi-chevron-down, .bi-chevron-up').className = 'bi bi-chevron-' + (open ? 'up' : 'down') + ' ms-auto'; }
-  }
-  if (tog) {
-    tog.addEventListener('click', function (e) { e.preventDefault(); setArch(!archOpen); });
-    if (root.querySelector('.dyd-cs-arch .dyd-cs-item.active')) setArch(true);   // bieżąca grupa jest w archiwum
-  }
-  root.addEventListener('shown.bs.dropdown', function () {
-    q.focus(); var a = root.querySelector('.dyd-cs-item.active'); if (a) a.scrollIntoView({block: 'nearest'});
-  });
-  q.addEventListener('input', function () {
-    var t = q.value.trim().toLowerCase(), n = 0;
-    items.forEach(function (a) {
-      var li = a.parentElement, inArch = li.classList.contains('dyd-cs-arch');
-      var ok = t ? a.dataset.search.indexOf(t) !== -1 : (!inArch || archOpen);   // szukanie obejmuje też archiwum
-      li.hidden = !ok; if (ok) n++;
-    });
-    heads.forEach(function (h) { h.parentElement.hidden = !!t; });
-    if (tog) tog.parentElement.hidden = !!t;
-    empty.hidden = n > 0;
-  });
-  q.addEventListener('keydown', function (e) {
-    if (e.key === 'ArrowDown') { var f = root.querySelector('.dyd-cs-list li:not([hidden]) .dyd-cs-item'); if (f) { e.preventDefault(); f.focus(); } }
-    if (e.key === 'Enter') { var v = root.querySelectorAll('.dyd-cs-list li:not([hidden]) .dyd-cs-item'); if (v.length === 1) { e.preventDefault(); location.href = v[0].href; } }
-  });
-})();
-</script>
-<?php $_dyd_course_switcher = ob_get_clean();
+    require_once dirname(__DIR__, 3) . '/modules/ti_dyd_group_picker/logic/dydGroupPicker.php';
+    $_dyd_course_switcher = dydGroupPickerRender($courses, $courses_archived,
+        dyd_is_staff() ? ($my_course_ids_set ?? []) : [], dyd_is_staff(), $cur_course, (string)$tab);
 }
 
 // Rola (kierownik / prowadzący / w zastępstwie) pokazuje się w menu użytkownika
