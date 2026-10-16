@@ -64,7 +64,7 @@ function tiLcCliMain(array $args): int {
             $n = new LessonControlNotifier();
             $rem = $n->remindInstructors($now, $o['dry'], $o['force']);
             echo "  Przypomnienia: " . ($o['dry'] ? 'wyszłoby ' : 'wysłano ') . $rem['sent'] . "\n";
-            foreach ($rem['items'] as $i) echo "    → {$i['name']} <{$i['email']}>: {$i['count']} lekcji" . ($i['mail_id'] ? " (mail #{$i['mail_id']})" : '') . "\n";
+            foreach ($rem['items'] as $i) echo "    → {$i['name']} <{$i['email']}>: {$i['count']} lekcji" . ($i['mail_id'] ? " (mail #{$i['mail_id']})" : '') . ($i['sms'] !== '' ? " · SMS: {$i['sms']}" : '') . "\n";
             foreach ($rem['skipped'] as $s) echo "    · pominięto: {$s}\n";
             $rep = $n->sendSupervisorReport($now, $o['dry'], $o['force']);
             echo "  Raport ({$rep['period']['label']}): " . ($o['dry'] ? 'wyszedłby do ' . count($rep['recipients']) : 'wysłano ' . $rep['sent']) . "\n";

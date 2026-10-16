@@ -107,7 +107,9 @@ final class LessonControlMailTemplates
      */
     public static function supervisorReport(array $r): array {
         $a = $r['auto']; $v = $r['review'];
-        $subject = '[TI] Kontrola wpisów ' . $r['period_label'] . ': ' . $r['pct_ok'] . '% prawidłowych, ' . $r['problems'] . ' do działania';
+        $subject = '[TI] Kontrola wpisów ' . $r['period_label'] . ': '
+                 . ($r['total'] ? $r['pct_ok'] . '% prawidłowych, ' . $r['problems'] . ' do działania' : 'brak lekcji w okresie')
+                 . ($r['backlog'] ? ' · zaległości ogółem: ' . $r['backlog'] : '');
         $kpi = fn(string $label, int $n, string $color) => '<td align="center" style="padding:10px;border:1px solid #e5e7eb;border-radius:8px">'
             . '<div style="font-size:22px;font-weight:bold;color:' . $color . '">' . $n . '</div><div style="font-size:12px;color:#6b7280">' . $label . '</div></td>';
 
@@ -135,20 +137,25 @@ final class LessonControlMailTemplates
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="6" style="border-collapse:separate"><tr>'
             . $kpi('skontrolowane', $r['total'], '#111827') . $kpi('prawidłowe', $a['PRAWIDLOWY'], '#166534') . $kpi('opóźnione', $a['OPOZNIONY'], '#92400e')
             . $kpi('niepełne', $a['NIEPELNY_WPIS'], '#92400e') . $kpi('brak wpisu', $a['BRAK_WPISU'], '#991b1b') . '</tr></table>'
+            . ($r['total'] ? '' : '<p style="color:#6b7280">W tym okresie nie było lekcji do kontroli.</p>')
+            . '<p style="margin:12px 0 4px"><strong>Zaległości ogółem</strong> (wszystkie otwarte braki po terminie, z ostatnich ' . (int)$r['lookback_days'] . ' dni): '
+            . '<strong style="color:' . ($r['backlog'] ? '#991b1b' : '#166534') . '">' . (int)$r['backlog'] . '</strong></p>'
             . '<p style="margin:12px 0 4px"><strong>Weryfikacja:</strong> zatwierdzone ' . $v['ZATWIERDZONY'] . ' · do poprawy ' . $v['DO_POPRAWY']
             . ' · zakwestionowane ' . $v['ZAKWESTIONOWANY'] . ' · czeka na weryfikację ' . $r['awaiting'] . '</p>'
-            . '<h3 style="font-size:15px;margin:18px 0 6px">Prowadzący z zaległościami</h3>'
+            . '<h3 style="font-size:15px;margin:18px 0 6px">Prowadzący z zaległościami w tym okresie</h3>'
             . ($instr !== '' ? '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px"><tr>'
                 . self::th('Prowadzący') . self::th('Braki') . self::th('Niepełne') . self::th('Opóźnione') . self::th('Śr. opóźnienie') . self::th('Przypomnienia')
-                . '</tr>' . $instr . '</table>' : '<p style="color:#166534">Wszyscy prowadzący mają wpisy na bieżąco.</p>')
+                . '</tr>' . $instr . '</table>' : '<p style="color:#166534">Brak zaległości z lekcji tego okresu.</p>')
             . '<h3 style="font-size:15px;margin:18px 0 6px">Wymaga Twojej decyzji (zakwestionowane)</h3>' . $dispH
             . '<h3 style="font-size:15px;margin:18px 0 6px">Eskalacje (≥ ' . (int)$r['escalate_after'] . ' przypomnień bez reakcji)</h3>' . $escH;
         $html = self::layout('Raport kontroli wpisów — ' . $r['period_label'], $inner, self::panelUrl(), 'Otwórz panel audytora');
 
         $text = "Raport kontroli wpisów za {$r['period_label']} ({$r['from_pl']} – {$r['to_pl']})\n\n"
               . "Podsumowanie: skontrolowane {$r['total']} · PRAWIDŁOWY {$a['PRAWIDLOWY']} · OPÓŹNIONY {$a['OPOZNIONY']} · NIEPEŁNY WPIS {$a['NIEPELNY_WPIS']} · BRAK WPISU {$a['BRAK_WPISU']}\n"
+              . ($r['total'] ? '' : "W tym okresie nie było lekcji do kontroli.\n")
+              . "Zaległości ogółem (otwarte braki po terminie, ostatnie {$r['lookback_days']} dni): {$r['backlog']}\n"
               . "Weryfikacja: zatwierdzone {$v['ZATWIERDZONY']} · do poprawy {$v['DO_POPRAWY']} · zakwestionowane {$v['ZAKWESTIONOWANY']} · czeka na weryfikację {$r['awaiting']}\n\n"
-              . "Prowadzący z zaległościami:\n" . ($instrTxt ? implode("\n", $instrTxt) : '  Wszyscy na bieżąco.') . "\n\n"
+              . "Prowadzący z zaległościami w tym okresie:\n" . ($instrTxt ? implode("\n", $instrTxt) : '  Brak zaległości z lekcji tego okresu.') . "\n\n"
               . "Wymaga Twojej decyzji (zakwestionowane):\n" . implode("\n", $dispT) . "\n\n"
               . "Eskalacje (≥ {$r['escalate_after']} przypomnień bez reakcji):\n" . implode("\n", $escT) . "\n\n"
               . "Panel audytora: " . self::panelUrl() . "\n\n— Kontrola Lekcji i Wpisów, " . self::org();
@@ -195,7 +202,7 @@ final class LessonControlNotifier
             $nr = max(array_map(fn($i) => (int)$i['reminder_count'], $items)) + 1;
             $mail = LessonControlMailTemplates::instructorReminder((string)$u['name'], $items,
                 ['reminder_no' => $nr, 'escalate_after' => $escAfter, 'deadline_label' => $policyLabel]);
-            $entry = ['instructor_id' => $iid, 'name' => $u['name'], 'email' => $u['email'], 'count' => count($items), 'subject' => $mail['subject'], 'mail_id' => null, 'sms' => false];
+            $entry = ['instructor_id' => $iid, 'name' => $u['name'], 'email' => $u['email'], 'count' => count($items), 'subject' => $mail['subject'], 'mail_id' => null, 'sms' => ''];
             if (!$dryRun) {
                 require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
                 $entry['mail_id'] = mail_queue_add((string)$u['email'], (string)$u['name'], $mail['subject'], $mail['html'], $mail['text'], 'ti_lesson_control', $iid);
@@ -225,11 +232,12 @@ final class LessonControlNotifier
         }
     }
 
-    private function sms(string $phone, string $text): bool {
+    /** Wynik wysyłki SMS: klucz dostawcy, 'odlozony' (cisza nocna), '' (pominięto) albo 'błąd: …'. */
+    private function sms(string $phone, string $text): string {
         try {
             require_once dirname(__DIR__, 3) . '/includes/sms.php';
-            return sms_send($phone, $text, 'ti_lesson_entry_reminder') !== '';
-        } catch (\Throwable $e) { return false; }
+            return sms_send($phone, $text, 'ti_lesson_entry_reminder');
+        } catch (\Throwable $e) { return 'błąd: ' . $e->getMessage(); }
     }
 
     /** E-mail do prowadzącego po decyzji „do poprawy” (gdy włączone). */
@@ -296,6 +304,9 @@ final class LessonControlNotifier
             'disputed' => db_all($detail . " WHERE k.review_status = 'ZAKWESTIONOWANY' ORDER BY k.lesson_date LIMIT 50"),
             'escalations' => db_all($detail . " WHERE k.escalated_at IS NOT NULL AND k.auto_status IN ('BRAK_WPISU','NIEPELNY_WPIS') ORDER BY k.lesson_date LIMIT 50"),
             'escalate_after' => LessonControlSettings::int('ti_lc_escalate_after'),
+            'lookback_days' => LessonControlSettings::int('ti_lc_lookback_days'),
+            'backlog' => (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_lc_checks WHERE auto_status IN ('BRAK_WPISU','NIEPELNY_WPIS') AND lesson_date >= ?",
+                [date('Y-m-d', strtotime('-' . max(1, LessonControlSettings::int('ti_lc_lookback_days')) . ' days'))])['n'] ?? 0),
         ];
     }
 
