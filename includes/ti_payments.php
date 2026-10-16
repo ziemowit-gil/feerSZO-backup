@@ -1029,6 +1029,44 @@ function ti_clients_with_debt(): array {
 }
 
 /**
+ * Nieopłacone godziny kursantów i koszt prowadzącego za te godziny — do tabeli „Niedopłaty”.
+ * Z każdego niedopłaconego rozliczenia bierzemy część godzin proporcjonalną do brakującej
+ * kwoty: hours_billed × (należność − wpłacono) / należność. Koszt prowadzącego = te godziny
+ * × stawka prowadzącego z kursu rozliczenia (lesson_payout_bb, zł za zajęcia = godzinę).
+ * Rozliczenia bez godzin (sama korekta, np. przeniesiona niedopłata) nie dokładają godzin;
+ * rozliczenia łączne / z kursu bez stawki trafiają do 'hours_no_rate'.
+ * @return array<int,array{hours:float,payout:float,hours_no_rate:float}>
+ */
+function ti_debt_hours(array $client_ids): array {
+    $client_ids = array_values(array_unique(array_filter(array_map('intval', $client_ids))));
+    if (!$client_ids) return [];
+    $in   = implode(',', array_fill(0, count($client_ids), '?'));
+    $rows = db_all(
+        "SELECT b.client_id, COALESCE(b.hours_billed,0) AS hours,
+                (b.amount + COALESCE(b.adjustment,0)) AS due, COALESCE(b.paid_amount,0) AS paid,
+                COALESCE(c.lesson_payout_bb,0) AS bb
+         FROM k30_ti_billing b
+         LEFT JOIN k30_ti_courses c ON c.id = b.course_id
+         WHERE b.client_id IN ($in) AND b.status IN ('issued','paid') AND COALESCE(b.hours_only,0)=0
+           AND (b.amount + COALESCE(b.adjustment,0)) - COALESCE(b.paid_amount,0) > 0.005",
+        $client_ids
+    );
+    $out = [];
+    foreach ($rows as $r) {
+        $cid = (int)$r['client_id'];
+        $out[$cid] ??= ['hours' => 0.0, 'payout' => 0.0, 'hours_no_rate' => 0.0];
+        $due = (float)$r['due'];
+        if ($due <= 0 || (float)$r['hours'] <= 0) continue;
+        $h = (float)$r['hours'] * min(1, ((float)$r['due'] - (float)$r['paid']) / $due);
+        $out[$cid]['hours'] += $h;
+        if ((float)$r['bb'] > 0) $out[$cid]['payout'] += $h * (float)$r['bb'];
+        else                     $out[$cid]['hours_no_rate'] += $h;
+    }
+    foreach ($out as &$o) { $o = array_map(fn($v) => round($v, 2), $o); }
+    return $out;
+}
+
+/**
  * Prognoza "nadpłaty do końca roku": szacowana suma należności za WSZYSTKIE
  * pozostałe zajęcia (jeszcze nieodbyte, zaplanowane) we wszystkich aktywnych
  * zapisach kursanta, do 31 grudnia bieżącego roku, pomniejszona o obecne

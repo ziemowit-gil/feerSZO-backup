@@ -778,6 +778,7 @@ foreach ($billings as $b) {
 
 // Kursanci z niedopłatą (globalnie) — flaga dla panelu admina
 $debtors = ti_clients_with_debt();
+$debt_hours = ti_debt_hours(array_column($debtors, 'client_id'));
 
 // Oczekujące wnioski o przeniesienie płatności
 $pending_deferrals = ti_deferrals_pending();
@@ -938,7 +939,9 @@ echo '<main id="main" class="dyd-wrap">';
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0" style="font-size:.86rem">
       <caption class="visually-hidden">Kursanci z niedopłatą</caption>
-      <thead class="table-light"><tr><th>Kursant</th><th>Należności</th><th>Wpłacono</th><th>Brakuje</th></tr></thead>
+      <thead class="table-light"><tr><th>Kursant</th><th>Należności</th><th>Wpłacono</th><th>Brakuje</th>
+        <th class="text-end">Nieopłacone godziny</th>
+        <th class="text-end" title="Stawka prowadzącego z kursu (BB zł/zajęcia) × nieopłacone godziny">Stawka prowadzącego × godziny</th></tr></thead>
       <tbody>
         <?php foreach ($debtors as $d): ?>
         <tr>
@@ -946,6 +949,15 @@ echo '<main id="main" class="dyd-wrap">';
           <td><?= number_format((float)$d['charges'],2,',',' ') ?> zł</td>
           <td><?= number_format((float)$d['paid'],2,',',' ') ?> zł</td>
           <td class="fw-bold text-danger"><?= number_format((float)$d['debt'],2,',',' ') ?> zł</td>
+          <?php $_dh = $debt_hours[(int)$d['client_id']] ?? ['hours' => 0, 'payout' => 0, 'hours_no_rate' => 0]; ?>
+          <td class="text-end"><?= $_dh['hours'] > 0 ? rtrim(rtrim(number_format((float)$_dh['hours'], 2, ',', ' '), '0'), ',') . ' h' : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="text-end">
+            <?= $_dh['payout'] > 0 ? number_format((float)$_dh['payout'], 2, ',', ' ') . ' zł' : '<span class="text-body-secondary">—</span>' ?>
+            <?php if ($_dh['hours_no_rate'] > 0): ?>
+            <div class="small text-warning-emphasis" title="Rozliczenia łączne albo kursy bez stawki prowadzącego — nie wliczone w kwotę">
+              + <?= rtrim(rtrim(number_format((float)$_dh['hours_no_rate'], 2, ',', ' '), '0'), ',') ?> h bez stawki</div>
+            <?php endif; ?>
+          </td>
         </tr>
         <?php endforeach; ?>
       </tbody>
