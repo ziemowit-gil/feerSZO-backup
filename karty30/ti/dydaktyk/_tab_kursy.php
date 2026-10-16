@@ -350,6 +350,8 @@ unset($_SESSION['dyd_flash']);
 .dyd-ku-acts-td { min-width: 340px; }
 .dyd-ku-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
 .dyd-ku-acts form { margin: 0; }
+.dyd-ku-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem .8rem; margin-bottom: .8rem; }
+.dyd-ku-filters .form-select { min-width: 140px; }
 .dyd-ku-acts .btn { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; white-space: nowrap; }
 
 .dyd-p-banner {
@@ -840,7 +842,92 @@ function dydKuMoveOpen(fromId, fromName) {
 ?>
 <?php if ($ku_view === 'tabela'): ?>
 
-<?php /* ── Widok tabeli: wszystkie kursy w jednym, gęstym zestawieniu ── */ ?>
+<?php /* ── Widok tabeli: wszystkie kursy w jednym, gęstym zestawieniu ── */
+  $ku_f_subj  = array_values(array_unique(array_filter(array_map(fn($c) => (string)($c['subject_abbr'] ?? ''), $ku_all))));
+  $ku_f_instr = array_values(array_unique(array_filter(array_map(fn($c) => (string)($c['instructor_name'] ?? ''), $ku_all))));
+  sort($ku_f_subj); sort($ku_f_instr);
+  // Kolumny do wyboru: klucz => [etykieta, domyślnie widoczna]
+  $ku_cols = [
+    'subj'    => ['Rodzaj', true],      'instr' => ['Prowadzący', true],  'enr'  => ['Kursanci', true],
+    'bb'      => ['BB zł/lekcja', true], 'status' => ['Status', true],
+    'forma'   => ['Forma', false],      'term'  => ['Termin', false],     'loc'  => ['Miejsce', false],
+    'plan'    => ['Planowanie', false], 'created' => ['Utworzono', false],
+    'acts'    => ['Akcje', true],
+  ];
+?>
+<div class="dyd-ku-filters" id="kuFilters" role="search" aria-label="Filtry listy kursów">
+  <div>
+    <label for="kuF_q" class="form-label small mb-1">Szukaj</label>
+    <input type="search" id="kuF_q" class="form-control form-control-sm" placeholder="Nazwa lub kod grupy" style="min-width:190px">
+  </div>
+  <div>
+    <label for="kuF_status" class="form-label small mb-1">Status</label>
+    <select id="kuF_status" class="form-select form-select-sm">
+      <option value="">Wszystkie</option>
+      <option value="current">Bieżące (aktywne + nieaktywne)</option>
+      <option value="active">Aktywne</option>
+      <option value="inactive">Nieaktywne</option>
+      <option value="cancelled">Anulowane</option>
+      <option value="archived">Zarchiwizowane</option>
+    </select>
+  </div>
+  <div>
+    <label for="kuF_subj" class="form-label small mb-1">Rodzaj</label>
+    <select id="kuF_subj" class="form-select form-select-sm">
+      <option value="">Wszystkie</option>
+      <?php foreach ($ku_f_subj as $_s): ?><option value="<?= h($_s) ?>"><?= h($_s) ?></option><?php endforeach; ?>
+      <option value="-">— bez rodzaju</option>
+    </select>
+  </div>
+  <div>
+    <label for="kuF_instr" class="form-label small mb-1">Prowadzący</label>
+    <select id="kuF_instr" class="form-select form-select-sm">
+      <option value="">Wszyscy</option>
+      <?php foreach ($ku_f_instr as $_s): ?><option value="<?= h($_s) ?>"><?= h($_s) ?></option><?php endforeach; ?>
+      <option value="-">— bez prowadzącego</option>
+    </select>
+  </div>
+  <div>
+    <label for="kuF_forma" class="form-label small mb-1">Forma</label>
+    <select id="kuF_forma" class="form-select form-select-sm">
+      <option value="">Wszystkie</option>
+      <option value="individual">Nauczanie indywidualne</option>
+      <option value="group">Zajęcia grupowe</option>
+      <option value="hybrid">Hybryda</option>
+      <option value="online">Online</option>
+      <option value="oneoff">Jednorazowe</option>
+    </select>
+  </div>
+  <div>
+    <label for="kuF_plan" class="form-label small mb-1">Planowanie</label>
+    <select id="kuF_plan" class="form-select form-select-sm">
+      <option value="">Wszystkie</option>
+      <?php foreach (K30_TI_COURSE_PLAN_STATUSES as $_k => $_ps): ?><option value="<?= h($_k) ?>"><?= h($_ps['label']) ?></option><?php endforeach; ?>
+      <option value="-">— bez statusu</option>
+    </select>
+  </div>
+  <div class="d-flex gap-2 align-items-end">
+    <div class="dropdown">
+      <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+        <i class="bi bi-layout-three-columns me-1" aria-hidden="true"></i>Kolumny
+      </button>
+      <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:200px">
+        <?php foreach ($ku_cols as $_k => [$_lbl, $_def]): ?>
+        <label class="form-check small mb-1">
+          <input type="checkbox" class="form-check-input" data-ku-col="<?= $_k ?>"<?= $_def ? ' checked' : '' ?> data-default="<?= $_def ? 1 : 0 ?>">
+          <span class="form-check-label"><?= h($_lbl) ?></span>
+        </label>
+        <?php endforeach; ?>
+        <hr class="my-2">
+        <button type="button" class="btn btn-link btn-sm p-0" id="kuColsReset">Przywróć domyślne kolumny</button>
+      </div>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="kuF_reset" title="Wyczyść wszystkie filtry">
+      <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Wyczyść
+    </button>
+  </div>
+  <div class="small text-body-secondary ms-auto align-self-end" id="kuF_count" aria-live="polite"></div>
+</div>
 <div class="card">
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
@@ -848,12 +935,17 @@ function dydKuMoveOpen(fromId, fromName) {
       <thead class="table-light">
         <tr>
           <th scope="col">Kurs</th>
-          <th scope="col">Rodzaj</th>
-          <th scope="col">Prowadzący</th>
-          <th scope="col" class="text-end">Kursanci</th>
-          <th scope="col" class="text-end">BB zł/lekcja</th>
-          <th scope="col">Status</th>
-          <th scope="col" class="text-end">Akcje</th>
+          <th scope="col" data-col="subj">Rodzaj</th>
+          <th scope="col" data-col="instr">Prowadzący</th>
+          <th scope="col" class="text-end" data-col="enr">Kursanci</th>
+          <th scope="col" class="text-end" data-col="bb">BB zł/lekcja</th>
+          <th scope="col" data-col="status">Status</th>
+          <th scope="col" data-col="forma">Forma</th>
+          <th scope="col" data-col="term">Termin</th>
+          <th scope="col" data-col="loc">Miejsce</th>
+          <th scope="col" data-col="plan">Planowanie</th>
+          <th scope="col" data-col="created">Utworzono</th>
+          <th scope="col" class="text-end" data-col="acts">Akcje</th>
         </tr>
       </thead>
       <tbody>
@@ -864,14 +956,23 @@ function dydKuMoveOpen(fromId, fromName) {
             array_map(fn($c) => $c + ['_active' => false], array_values($ku_archived))
         );
         if (!$ku_rows): ?>
-        <tr><td colspan="7" class="text-center text-body-secondary py-4">Brak kursów TI — utwórz pierwszy przyciskiem „Nowy kurs".</td></tr>
+        <tr><td colspan="12" class="text-center text-body-secondary py-4">Brak kursów TI — utwórz pierwszy przyciskiem „Nowy kurs".</td></tr>
         <?php endif; ?>
         <?php foreach ($ku_rows as $c):
           $cid       = (int)$c['id'];
           $cancelled = ($c['status'] ?? '') === 'cancelled';
           $archived  = ($c['status'] ?? '') === 'archived';
+          $_st = $archived ? 'archived' : ($cancelled ? 'cancelled' : ($c['_active'] ? 'active' : 'inactive'));
+          $_forma = array_filter([
+            (string)($c['class_type'] ?? '') ?: null,
+            !empty($c['is_online']) ? 'online' : null,
+            !empty($c['is_oneoff']) ? 'oneoff' : null,
+          ]);
         ?>
-        <tr<?= $c['_active'] ? '' : ' class="text-muted"' ?>>
+        <tr class="ku-row<?= $c['_active'] ? '' : ' text-muted' ?>" data-status="<?= $_st ?>"
+            data-subj="<?= h((string)($c['subject_abbr'] ?? '') ?: '-') ?>" data-instr="<?= h((string)($c['instructor_name'] ?? '') ?: '-') ?>"
+            data-forma="<?= h(implode(' ', $_forma)) ?>" data-plan="<?= h((string)($c['plan_status'] ?? '') ?: '-') ?>"
+            data-q="<?= h(mb_strtolower($c['name'] . ' ' . ($c['group_code'] ?? '') . ' ' . ($c['display_name'] ?? ''))) ?>">
           <th scope="row" class="fw-semibold">
             <?= h($c['name']) ?>
             <?php if ($c['group_code']): ?>
@@ -909,15 +1010,15 @@ function dydKuMoveOpen(fromId, fromName) {
               <i class="bi bi-signpost-split" aria-hidden="true"></i> <?= h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['label']) ?></span>
             <?php endif; ?>
           </th>
-          <td class="small"><?= $c['subject_abbr'] ? h($c['subject_abbr']) : '<span class="text-body-secondary">—</span>' ?></td>
-          <td class="small"><?= $c['instructor_name'] ? h($c['instructor_name']) : '<span class="text-body-secondary">—</span>' ?></td>
-          <td class="text-end"><?= (int)$c['enrolled_count'] ?></td>
-          <td class="text-end small">
+          <td class="small" data-col="subj"><?= $c['subject_abbr'] ? h($c['subject_abbr']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="small" data-col="instr"><?= $c['instructor_name'] ? h($c['instructor_name']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="text-end" data-col="enr"><?= (int)$c['enrolled_count'] ?></td>
+          <td class="text-end small" data-col="bb">
             <?= !empty($c['lesson_payout_bb']) && $c['lesson_payout_bb'] > 0
                 ? number_format((float)$c['lesson_payout_bb'], 2, ',', ' ')
                 : '<span class="text-body-secondary">—</span>' ?>
           </td>
-          <td>
+          <td data-col="status">
             <?php if ($archived): ?>
             <span class="badge bg-secondary" style="font-size:.62rem"><i class="bi bi-archive me-1" aria-hidden="true"></i>zarchiwizowany</span>
             <?php if (!empty($c['closed_at'])): ?><span class="badge text-bg-dark" style="font-size:.62rem"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>zamknięta</span><?php endif; ?>
@@ -929,7 +1030,23 @@ function dydKuMoveOpen(fromId, fromName) {
             <span class="badge bg-secondary" style="font-size:.62rem">nieaktywny</span>
             <?php endif; ?>
           </td>
-          <td class="dyd-ku-acts-td">
+          <td class="small" data-col="forma">
+            <?= h(['individual' => 'NI', 'group' => 'grupowe', 'hybrid' => 'hybryda'][$c['class_type'] ?? ''] ?? '—') ?><?=
+              !empty($c['is_online']) ? ' · online' : '' ?><?= !empty($c['is_oneoff']) ? ' · jednorazowe' : '' ?>
+          </td>
+          <td class="small text-nowrap" data-col="term">
+            <?php $_d = $c['day_of_week'] ?? null; $_tf = trim((string)($c['time_from'] ?? '')); $_tt = trim((string)($c['time_to'] ?? '')); ?>
+            <?= ($_d !== null && $_d !== '' && isset(K30_TI_DAYS[(int)$_d])) ? h(K30_TI_DAYS[(int)$_d]) : '' ?>
+            <?= $_tf !== '' ? h($_tf . ($_tt !== '' ? '–' . $_tt : '')) : '' ?>
+            <?= (($_d === null || $_d === '') && $_tf === '') ? '<span class="text-body-secondary">—</span>' : '' ?>
+          </td>
+          <td class="small" data-col="loc"><?= trim((string)($c['location'] ?? '')) !== '' ? h($c['location']) : '<span class="text-body-secondary">—</span>' ?></td>
+          <td class="small" data-col="plan">
+            <?= (!empty($c['plan_status']) && isset(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]))
+                ? h(K30_TI_COURSE_PLAN_STATUSES[$c['plan_status']]['label']) : '<span class="text-body-secondary">—</span>' ?>
+          </td>
+          <td class="small text-nowrap" data-col="created"><?= !empty($c['created_at']) ? h(date('d.m.Y', strtotime((string)$c['created_at']))) : '—' ?></td>
+          <td class="dyd-ku-acts-td" data-col="acts">
             <div class="dyd-ku-acts">
             <?php if ($archived): ?>
             <form method="post" class="d-inline"<?= !empty($c['closed_at']) ? ' onsubmit="return confirm(\'Przywrócić grupę z archiwum? Zdejmie to blokadę protokołów i modyfikacji.\')"' : '' ?>>
@@ -1030,10 +1147,81 @@ function dydKuMoveOpen(fromId, fromName) {
           </td>
         </tr>
         <?php endforeach; ?>
+        <tr id="kuF_empty" hidden><td colspan="12" class="text-center text-body-secondary py-4">Żaden kurs nie pasuje do filtrów.</td></tr>
       </tbody>
     </table>
   </div>
 </div>
+<script>
+(function () {
+  var KEY = 'dydKuTable.v1';
+  var root = document.getElementById('kuFilters');
+  if (!root) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll('tr.ku-row'));
+  var f = {
+    q: document.getElementById('kuF_q'), status: document.getElementById('kuF_status'),
+    subj: document.getElementById('kuF_subj'), instr: document.getElementById('kuF_instr'),
+    forma: document.getElementById('kuF_forma'), plan: document.getElementById('kuF_plan')
+  };
+  var colBoxes = Array.prototype.slice.call(root.querySelectorAll('[data-ku-col]'));
+
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function save() {
+    var s = { f: {}, cols: {} };
+    Object.keys(f).forEach(function (k) { s.f[k] = f[k].value; });
+    colBoxes.forEach(function (b) { s.cols[b.dataset.kuCol] = b.checked; });
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+  }
+
+  function applyCols() {
+    colBoxes.forEach(function (b) {
+      document.querySelectorAll('[data-col="' + b.dataset.kuCol + '"]').forEach(function (el) {
+        el.style.display = b.checked ? '' : 'none';
+      });
+    });
+  }
+
+  function applyFilters() {
+    var q = f.q.value.trim().toLowerCase(), n = 0;
+    rows.forEach(function (r) {
+      var d = r.dataset, ok = true;
+      if (q && d.q.indexOf(q) === -1) ok = false;
+      if (ok && f.status.value) {
+        ok = f.status.value === 'current' ? (d.status === 'active' || d.status === 'inactive') : d.status === f.status.value;
+      }
+      if (ok && f.subj.value && d.subj !== f.subj.value) ok = false;
+      if (ok && f.instr.value && d.instr !== f.instr.value) ok = false;
+      if (ok && f.forma.value && (' ' + d.forma + ' ').indexOf(' ' + f.forma.value + ' ') === -1) ok = false;
+      if (ok && f.plan.value && d.plan !== f.plan.value) ok = false;
+      r.hidden = !ok;
+      if (ok) n++;
+    });
+    var empty = document.getElementById('kuF_empty');
+    if (empty) empty.hidden = n > 0 || rows.length === 0;
+    document.getElementById('kuF_count').textContent = 'Widoczne: ' + n + ' z ' + rows.length;
+  }
+
+  var s = load();
+  Object.keys(f).forEach(function (k) {
+    var v = s.f ? s.f[k] : null;   // zapamiętana opcja mogła zniknąć (np. prowadzący bez kursów)
+    if (v != null && (!f[k].options || Array.prototype.some.call(f[k].options, function (o) { return o.value === v; }))) f[k].value = v;
+    f[k].addEventListener(k === 'q' ? 'input' : 'change', function () { applyFilters(); save(); });
+  });
+  colBoxes.forEach(function (b) {
+    if (s.cols && typeof s.cols[b.dataset.kuCol] === 'boolean') b.checked = s.cols[b.dataset.kuCol];
+    b.addEventListener('change', function () { applyCols(); save(); });
+  });
+  document.getElementById('kuF_reset').addEventListener('click', function () {
+    Object.keys(f).forEach(function (k) { f[k].value = ''; });
+    applyFilters(); save();
+  });
+  document.getElementById('kuColsReset').addEventListener('click', function () {
+    colBoxes.forEach(function (b) { b.checked = b.dataset.default === '1'; });
+    applyCols(); save();
+  });
+  applyCols(); applyFilters();
+})();
+</script>
 
 <?php else: ?>
 
