@@ -34,6 +34,30 @@ if (dydTotpIsExempt($uid)) dyd_2fa_finish($profile);
 $enrolled = !empty($u['totp_confirmed']) && !empty($u['totp_secret']);
 $error    = '';
 
+// Kierownik / zastępca bez dostępu do aplikacji uwierzytelniającej: wejście po wpisaniu uzasadnienia (hasło / Office już
+// sprawdzone). Administrator — zawsze kodem. Wpis w dzienniku konta, audycie i logu serwera; sesja dostaje totp_bypass,
+// który dyd_require() honoruje do końca tej sesji (następne logowanie znów pyta o kod).
+$bypass_allowed = !empty($profile['is_staff']) && ($profile['role'] ?? '') !== 'admin' && empty($profile['imp']);
+$bypass_error   = '';
+if ($bypass_allowed && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'bypass') {
+    dyd_token_check();
+    $reason = trim(preg_replace('/\s+/u', ' ', (string)($_POST['reason'] ?? '')));
+    if (mb_strlen($reason) < 15) {
+        $bypass_error = 'Napisz konkretnie, dlaczego logujesz się bez kodu (co najmniej 15 znaków).';
+    } else {
+        $reason = mb_substr($reason, 0, 500);
+        foreach (['/includes/approval.php', '/modules/audit_logs/logic/audit_logs.php'] as $_lib) {   // log_user_action(), audit_log()
+            if (is_file(dirname(__DIR__, 3) . $_lib)) require_once dirname(__DIR__, 3) . $_lib;
+        }
+        if (function_exists('log_user_action')) log_user_action($uid, $uid, 'dyd_login_totp_bypass', 'Wejście do panelu dydaktyka BEZ kodu TOTP — uzasadnienie: ' . $reason);
+        if (function_exists('audit_log')) { try { audit_log('dyd.login_totp_bypass', ['user_id' => $uid, 'reason' => $reason, 'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? '')], $uid); } catch (\Throwable $e) {} }
+        error_log('[dyd] totp bypass uid=' . $uid . ' ip=' . ($_SERVER['REMOTE_ADDR'] ?? '') . ' reason=' . $reason);
+        $profile['totp_bypass'] = $reason;
+        $_SESSION[DYD_2FA_KEY]['profile'] = $profile;
+        dyd_2fa_finish($profile);
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
     $action = $_POST['_action'] ?? '';
@@ -215,6 +239,22 @@ body.kp-login-split-page { background: var(--bg); color: var(--text); font-famil
            placeholder="______" autofocus required aria-required="true">
     <button type="submit" class="tg-btn"><i class="bi bi-shield-check" aria-hidden="true"></i>Zaloguj się</button>
   </form>
+<?php endif; ?>
+
+<?php if ($bypass_allowed && $backup_show === null): ?>
+  <details class="mt-3"<?= $bypass_error !== '' ? ' open' : '' ?>>
+    <summary class="small fw-semibold" style="cursor:pointer;color:var(--accent)">Nie mam dostępu do aplikacji z kodem</summary>
+    <form method="post" class="mt-2">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_action" value="bypass">
+      <?php if ($bypass_error !== ''): ?><div class="alert alert-danger py-2 small mb-2" role="alert"><?= h($bypass_error) ?></div><?php endif; ?>
+      <label class="form-label small mb-1" for="tgReason">Uzasadnienie wejścia bez kodu</label>
+      <textarea class="form-control form-control-sm" id="tgReason" name="reason" rows="3" minlength="15" maxlength="500" required
+                aria-describedby="tgReasonHelp" placeholder="np. telefon rozładowany, pilne zatwierdzenie protokołów"><?= h((string)($_POST['reason'] ?? '')) ?></textarea>
+      <div class="small mt-1" id="tgReasonHelp" style="color:var(--muted)">Wejście bez kodu zapisujemy w dzienniku konta i audycie razem z uzasadnieniem, datą i adresem IP. Przy następnym logowaniu kod znów będzie potrzebny.</div>
+      <button type="submit" class="tg-btn" style="background:var(--card-bg);color:var(--accent)"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Wejdź bez kodu</button>
+    </form>
+  </details>
 <?php endif; ?>
 
 <p class="text-center mt-3 mb-0"><a href="login.php" style="color:var(--muted);font-size:.8rem">Anuluj i wróć do logowania</a></p>

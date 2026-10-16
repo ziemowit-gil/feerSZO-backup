@@ -239,7 +239,8 @@ function dyd_require(): array {
     // impersonacja (imp.php, $s['imp']) — administrator już się uwierzytelnił.
     // Administrator SZO też przechodzi TOTP (klucz sprzętowy nie jest już wymagany).
     // Zwolnione z CLI (php cli/2fa.php dyd-exempt <email>) — bez TOTP.
-    if (empty($s['imp']) && !dydTotpIsExempt((int)$s['user_id'])) {
+    // Wejście po uzasadnieniu (totp_gate.php, kierownik/zastępca): ta sesja bez kodu — kolejne logowanie znów z kodem.
+    if (empty($s['imp']) && empty($s['totp_bypass']) && !dydTotpIsExempt((int)$s['user_id'])) {
         $totp = db_one("SELECT totp_confirmed, totp_secret FROM users WHERE id=?", [(int)$s['user_id']]);
         if (!$totp || empty($totp['totp_confirmed']) || empty($totp['totp_secret'])) {
             dyd_2fa_stash($s);
