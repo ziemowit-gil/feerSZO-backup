@@ -13,6 +13,15 @@
 require_once __DIR__ . '/karty30.php';
 
 /**
+ * Od kiedy Audyt liczy braki dokumentacji lekcji (Y-m-d): to samo ustawienie co Kontrola wpisów
+ * (ti_lc_start_date, domyślnie 2026-09-01; zmiana w Kontroli wpisów → Ustawienia). Puste = od zawsze.
+ */
+function ti_audit_start_date(): string {
+    require_once dirname(__DIR__) . '/modules/ti_lesson_control/logic/lessonControlSettings.php';
+    return LessonControlSettings::startDate() ?: '0000-01-01';
+}
+
+/**
  * Braki pogrupowane po prowadzącym (instructor_id kursu). Zwraca:
  * [instructor_id => ['docs' => [...], 'docs_total' => n, 'grades' => [...], 'grades_total' => n]]
  * Wpisy 'docs'/'grades' to listy ['course_id','course_name','n'].
@@ -26,8 +35,9 @@ function ti_audit_gaps_by_instructor(): array {
           WHERE s.status IN ('held','individual_change','remote_material')
             AND " . k30_ti_docs_complete_sql() . " = 0
             AND c.instructor_id IS NOT NULL
+            AND s.lesson_date >= ?
           GROUP BY c.instructor_id, c.id
-          ORDER BY c.name COLLATE NOCASE"
+          ORDER BY c.name COLLATE NOCASE", [ti_audit_start_date()]
     );
     foreach ($docs as $r) {
         $iid = (int)$r['instructor_id'];

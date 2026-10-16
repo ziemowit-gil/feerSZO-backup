@@ -63,7 +63,7 @@ final class LessonControlSettings
     public const DEFAULTS = [
         'ti_lc_enabled'             => '1',        // automatyczne oznaczanie statusów
         'ti_lc_lookback_days'       => '30',       // ile dni wstecz kontroluje agent
-        'ti_lc_start_date'          => '',         // lekcje sprzed tej daty pomijane (Y-m-d)
+        'ti_lc_start_date'          => '2026-09-01', // lekcje sprzed tej daty pomijane (Y-m-d) — też w Audycie dzienników
         'ti_lc_remind_enabled'      => '0',        // e-mail do prowadzącego
         'ti_lc_sms_enabled'         => '0',        // dodatkowo SMS do prowadzącego
         'ti_lc_remind_hour'         => '8',        // od tej godziny wychodzą przypomnienia
@@ -88,6 +88,12 @@ final class LessonControlSettings
     }
 
     public static function int(string $key): int { return (int)self::get($key); }
+
+    /** Początek kontroli (Y-m-d) albo '' = bez ograniczenia. Wspólny dla Kontroli wpisów i Audytu dzienników. */
+    public static function startDate(): string {
+        $d = self::get('ti_lc_start_date');
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : '';
+    }
     public static function on(string $key): bool { return self::get($key) === '1'; }
 
     public static function set(string $key, string $value): void {

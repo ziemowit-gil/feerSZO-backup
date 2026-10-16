@@ -80,7 +80,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </div>
 
 <p class="text-body-secondary small mb-3">
-  Prowadzący z niekompletną dokumentacją odbytych lekcji albo kursantami bez żadnej oceny w e-dzienniku.
+  Prowadzący z niekompletną dokumentacją odbytych lekcji<?php $_from = ti_audit_start_date(); if ($_from > '0000-01-01'): ?>
+  <strong>od <?= h(date('d.m.Y', strtotime($_from))) ?></strong><?php endif; ?> albo kursantami bez żadnej oceny w e-dzienniku.
   Wysłanie przypomnienia nie zmienia niczego w danych — to tylko e-mail do prowadzącego.
   Szczegóły każdego wpisu (termin, czego brakuje, zatwierdzanie i zwrot do poprawy) są w
   <a href="kontrolaWpisow.php">Kontroli wpisów</a>.

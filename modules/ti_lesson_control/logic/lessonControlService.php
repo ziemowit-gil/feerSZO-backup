@@ -61,8 +61,8 @@ final class LessonControlService
     public static function defaultRange(?\DateTimeImmutable $now = null): array {
         $now ??= new \DateTimeImmutable();
         $from = $now->modify('-' . max(1, LessonControlSettings::int('ti_lc_lookback_days')) . ' days')->format('Y-m-d');
-        $start = LessonControlSettings::get('ti_lc_start_date');
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) && $start > $from) $from = $start;
+        $start = LessonControlSettings::startDate();
+        if ($start !== '' && $start > $from) $from = $start;
         return [$from, $now->format('Y-m-d')];
     }
 

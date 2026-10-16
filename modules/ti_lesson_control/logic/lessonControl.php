@@ -19,6 +19,11 @@
 require_once __DIR__ . '/lessonControlNotifier.php';
 require_once __DIR__ . '/reviewWorkflow.php';
 
+/** Dolna granica dat dla odczytów zbiorczych: początek kontroli (ti_lc_start_date, domyślnie 01.09.2026) albo „od zawsze”. */
+function tiLcFloorDate(): string {
+    return LessonControlSettings::startDate() ?: '0000-01-01';
+}
+
 /** Zaległe wpisy prowadzącego (widżet „Moje zaległe wpisy”): braki po terminie + zwrócone do poprawy. */
 function tiLcInstructorPending(int $userId, int $limit = 20): array {
     if ($userId <= 0) return [];
@@ -28,25 +33,25 @@ function tiLcInstructorPending(int $userId, int $limit = 20): array {
                FROM k30_ti_lc_checks k
                JOIN k30_ti_sessions s ON s.id = k.session_id
                JOIN k30_ti_courses c ON c.id = k.course_id
-              WHERE k.instructor_id = ?
+              WHERE k.instructor_id = ? AND k.lesson_date >= ?
                 AND (k.auto_status IN ('BRAK_WPISU','NIEPELNY_WPIS') OR k.review_status IN ('DO_POPRAWY','ZAKWESTIONOWANY'))
               ORDER BY (k.review_status = 'DO_POPRAWY') DESC, k.lesson_date ASC
-              LIMIT " . max(1, $limit), [$userId]);
+              LIMIT " . max(1, $limit), [$userId, tiLcFloorDate()]);
     } catch (\Throwable $e) { return []; }
 }
 
 function tiLcInstructorPendingCount(int $userId): int {
     if ($userId <= 0) return 0;
     try {
-        return (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_lc_checks WHERE instructor_id = ?
-                              AND (auto_status IN ('BRAK_WPISU','NIEPELNY_WPIS') OR review_status IN ('DO_POPRAWY','ZAKWESTIONOWANY'))", [$userId])['n'] ?? 0);
+        return (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_lc_checks WHERE instructor_id = ? AND lesson_date >= ?
+                              AND (auto_status IN ('BRAK_WPISU','NIEPELNY_WPIS') OR review_status IN ('DO_POPRAWY','ZAKWESTIONOWANY'))", [$userId, tiLcFloorDate()])['n'] ?? 0);
     } catch (\Throwable $e) { return 0; }
 }
 
 /** Licznik dla audytora w menu: czeka na weryfikację (poprawione + zakwestionowane). */
 function tiLcAuditorQueueCount(): int {
     try {
-        return (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_lc_checks WHERE review_status IN ('POPRAWIONY','ZAKWESTIONOWANY')")['n'] ?? 0);
+        return (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_lc_checks WHERE review_status IN ('POPRAWIONY','ZAKWESTIONOWANY') AND lesson_date >= ?", [tiLcFloorDate()])['n'] ?? 0);
     } catch (\Throwable $e) { return 0; }
 }
 
@@ -57,7 +62,7 @@ function tiLcGapsByInstructor(): array {
         foreach (db_all("SELECT instructor_id,
                                 SUM(CASE WHEN auto_status IN ('BRAK_WPISU','NIEPELNY_WPIS') THEN 1 ELSE 0 END) AS late,
                                 SUM(CASE WHEN review_status = 'DO_POPRAWY' THEN 1 ELSE 0 END) AS returned
-                           FROM k30_ti_lc_checks WHERE instructor_id IS NOT NULL GROUP BY instructor_id") as $r) {
+                           FROM k30_ti_lc_checks WHERE instructor_id IS NOT NULL AND lesson_date >= ? GROUP BY instructor_id", [tiLcFloorDate()]) as $r) {
             if ((int)$r['late'] + (int)$r['returned'] > 0) $out[(int)$r['instructor_id']] = ['late' => (int)$r['late'], 'returned' => (int)$r['returned']];
         }
     } catch (\Throwable $e) {}
