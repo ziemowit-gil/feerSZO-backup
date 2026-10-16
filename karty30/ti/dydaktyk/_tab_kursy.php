@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
             ti_course_log($cid, $act ? ($_was_cancelled ? 'restore' : 'activate') : 'deactivate',
                 '', $uid ?? 0, (string)($me['name'] ?? ''));
         }
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : ''));
         exit;
     }
 
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
             ti_course_log($cid, 'delete', '', $uid ?? 0, (string)($me['name'] ?? ''));
             $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Grupa wyłączona i usunięta z list. Można ją przywrócić przyciskiem „Aktywuj" w sekcji Nieaktywne.'];
         }
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : ''));
         exit;
     }
 
@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
             ti_course_log($cid, 'archive', '', $uid ?? 0, (string)($me['name'] ?? ''));
             $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Grupa zarchiwizowana. Historia (frekwencja, rozliczenia, oceny) zostaje — można ją przywrócić przyciskiem „Przywróć z archiwum".'];
         }
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
     // „Zamknij i archiwizuj" — archiwizacja + blokada protokołów i wszelkich
     // modyfikacji grupy (ti_course_closed_guard() w punktach zapisu,
@@ -154,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Zamknięto grup „Planowana do wygaszenia”: ' . $rr['closed']
             . ($rr['skipped'] ? '. Pominięto (mają przyszłe lekcje): ' . implode('; ', $rr['skipped']) : '')
             . '. Zamknięte grupy są zarchiwizowane i zablokowane — odblokowuje je „Przywróć z archiwum”.'];
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
     if ($ku_op === 'close_course' && $ku_can_write) {
         $cid = (int)($_POST['course_id'] ?? 0);
@@ -162,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
             ti_course_close($cid, (int)($uid ?? 0), (string)($me['name'] ?? ''));
             $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Grupa zamknięta i zarchiwizowana. Protokoły i modyfikacje są zablokowane — odblokowuje je tylko „Przywróć z archiwum".'];
         }
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
     // Masowe przywracanie nieaktywnych / zarchiwizowanych / usuniętych (anulowanych) grup
     if ($ku_op === 'restore_groups' && $ku_can_write) {
@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
             ti_course_log($cid, 'restore', '', $uid ?? 0, (string)($me['name'] ?? ''));
             $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Grupa przywrócona z archiwum.'];
         }
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
     // Dziennik zamkniętej grupy → EZD jeszcze raz (modules/ti_edziennik/logic/closeArchive.php).
     // Parametr ezd_course (nie course_id): strażnik zamkniętych grup blokuje POST z course_id, a to tylko odczyt grupy.
@@ -198,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         $_SESSION['dyd_flash'] = $sid
             ? ['type' => 'success', 'msg' => 'Dziennik zajęć wysłany do EZD (koszulka #' . $sid . ').']
             : ['type' => 'warning', 'msg' => 'Nie wysłano dziennika do EZD — grupa nie jest zamknięta albo EZD / automatyczne przekazywanie protokołów jest wyłączone.'];
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
 
     // Trwałe usunięcie — TYLKO dla grup już wyłączonych (status=cancelled) i BEZ
@@ -235,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
                 }
             }
         }
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
 
     // Trwałe usunięcie WSZYSTKICH kwalifikujących się grup naraz (masowe
@@ -264,7 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         $_SESSION['dyd_flash'] = $_deleted > 0
             ? ['type'=>'success','msg'=>"Usunięto na zawsze {$_deleted} grup(ę/y) bez lekcji i zapisów."]
             : ['type'=>'info','msg'=>'Brak grup kwalifikujących się do trwałego usunięcia (bez lekcji i zapisów).'];
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : '')); exit;
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
 
     // Przenieś przyszłe zajęcia i/lub stały link do zajęć online do innej grupy —
@@ -285,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
 
         if (!$mv_from || !$mv_to_ok || $mv_from_id === $mv_to_id || (!$mv_sessions && !$mv_link)) {
             $_SESSION['dyd_flash'] = ['type'=>'danger','msg'=>'Nie udało się przenieść — wybierz aktywną grupę docelową (inną niż źródłowa) i co najmniej jedną rzecz do przeniesienia.'];
-            header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
+            header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : ''));
             exit;
         }
 
@@ -310,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         ti_course_log($mv_from_id, 'transfer_out', 'Do „' . $mv_to['name'] . '": ' . $mv_summary . '.', $uid ?? 0, (string)($me['name'] ?? ''));
         ti_course_log($mv_to_id,   'transfer_in',  'Z „' . $mv_from['name'] . '": ' . $mv_summary . '.', $uid ?? 0, (string)($me['name'] ?? ''));
         $_SESSION['dyd_flash'] = ['type'=>'success','msg'=>'Przeniesiono do grupy „' . $mv_to['name'] . '": ' . $mv_summary . '.'];
-        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'tabela' ? '&v=tabela' : ''));
+        header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : ''));
         exit;
     }
 }
@@ -336,15 +336,21 @@ $ku_hard_del_eligible_ids = array_keys(array_filter($ku_hard_del_ok));
 
 $ku_show_new = isset($_GET['new_course']);
 // Widok listy: karty (domyślny) / tabela — przełącznik w pasku narzędzi
-$ku_view = ($_GET['v'] ?? 'karty') === 'tabela' ? 'tabela' : 'karty';
+$ku_view = ($_GET['v'] ?? 'tabela') === 'karty' ? 'karty' : 'tabela';  // domyślnie tabela
 
 $ku_flash = $_SESSION['dyd_flash'] ?? null;
 unset($_SESSION['dyd_flash']);
 ?>
 
-<section aria-label="Zarządzanie kursami TI" class="dyd-ku-wrap">
+<section aria-label="Zarządzanie kursami TI" class="dyd-ku-wrap<?= $ku_view === 'tabela' ? ' dyd-ku-wrap--wide' : '' ?>">
 <style>
 .dyd-ku-wrap { padding: 1.1rem 0 2.5rem; max-width: 960px; }
+/* Widok tabeli: pełna szerokość + przyciski akcji z podpisami */
+.dyd-ku-wrap--wide { max-width: none; }
+.dyd-ku-acts-td { min-width: 340px; }
+.dyd-ku-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
+.dyd-ku-acts form { margin: 0; }
+.dyd-ku-acts .btn { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; white-space: nowrap; }
 
 .dyd-p-banner {
   display: flex; align-items: flex-start; gap: .75rem;
@@ -923,14 +929,15 @@ function dydKuMoveOpen(fromId, fromName) {
             <span class="badge bg-secondary" style="font-size:.62rem">nieaktywny</span>
             <?php endif; ?>
           </td>
-          <td class="text-end text-nowrap">
+          <td class="dyd-ku-acts-td">
+            <div class="dyd-ku-acts">
             <?php if ($archived): ?>
             <form method="post" class="d-inline"<?= !empty($c['closed_at']) ? ' onsubmit="return confirm(\'Przywrócić grupę z archiwum? Zdejmie to blokadę protokołów i modyfikacji.\')"' : '' ?>>
               <input type="hidden" name="_token" value="<?= dyd_token() ?>">
               <input type="hidden" name="_op" value="unarchive_course">
               <input type="hidden" name="course_id" value="<?= $cid ?>">
               <button class="btn btn-sm btn-outline-success py-0 px-2" title="Przywróć z archiwum">
-                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span class="visually-hidden">Przywróć z archiwum</span>
+                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span class="dyd-ku-lbl">Przywróć</span>
               </button>
             </form>
             <?php if (!empty($c['closed_at'])): ?>
@@ -939,14 +946,14 @@ function dydKuMoveOpen(fromId, fromName) {
               <input type="hidden" name="_op" value="close_ezd_resend">
               <input type="hidden" name="ezd_course" value="<?= $cid ?>">
               <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Wyślij dziennik zajęć do EZD ponownie">
-                <i class="bi bi-send" aria-hidden="true"></i><span class="visually-hidden">Wyślij dziennik zajęć do EZD ponownie</span>
+                <i class="bi bi-send" aria-hidden="true"></i><span class="dyd-ku-lbl">Wyślij do EZD</span>
               </button>
             </form>
             <?php endif; ?>
             <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy kursu">
-              <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
+              <i class="bi bi-people" aria-hidden="true"></i><span class="dyd-ku-lbl">Uczestnicy</span></a>
             <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ustawienia kursu">
-              <i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Ustawienia</span></a>
+              <i class="bi bi-gear" aria-hidden="true"></i><span class="dyd-ku-lbl">Ustawienia</span></a>
             <?php else: ?>
             <?php /* Cancelled (po „Wyłącz i usuń grupę") dostaje Przywróć zamiast Dezaktywuj/Aktywuj —
                      operacja ma być odwracalna, nie ślepym zaułkiem. */ ?>
@@ -958,22 +965,22 @@ function dydKuMoveOpen(fromId, fromName) {
               <button class="btn btn-sm btn-outline-<?= ($cancelled || !$c['_active']) ? 'success' : 'secondary' ?> py-0 px-2"
                       title="<?= $cancelled ? 'Przywróć grupę' : ($c['_active'] ? 'Dezaktywuj kurs' : 'Aktywuj kurs') ?>">
                 <i class="bi bi-<?= $cancelled ? 'arrow-counterclockwise' : ($c['_active'] ? 'pause-circle' : 'play-circle') ?>" aria-hidden="true"></i>
-                <span class="visually-hidden"><?= $cancelled ? 'Przywróć' : ($c['_active'] ? 'Dezaktywuj' : 'Aktywuj') ?></span>
+                <span class="dyd-ku-lbl"><?= $cancelled ? 'Przywróć' : ($c['_active'] ? 'Dezaktywuj' : 'Aktywuj') ?></span>
               </button>
             </form>
             <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy kursu">
-              <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
+              <i class="bi bi-people" aria-hidden="true"></i><span class="dyd-ku-lbl">Uczestnicy</span></a>
             <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
-              <i class="bi bi-gear" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
+              <i class="bi bi-gear" aria-hidden="true"></i><span class="dyd-ku-lbl">Zarządzaj</span></a>
             <?php if ($ku_can_write && !$cancelled && !$archived): $_pl = $ku_plan_links[$cid] ?? null; $_pl_on = $_pl && (int)$_pl['is_enabled'] === 1; ?>
             <a href="planLinki.php?course_id=<?= $cid ?>#g<?= $cid ?>" class="btn btn-sm btn-outline-<?= $_pl_on ? 'success' : 'secondary' ?> py-0 px-2"
                title="<?= $_pl_on ? 'Publiczny link do planu — opublikowany' : 'Publiczny link do planu — nieopublikowany' ?>">
-              <i class="bi bi-link-45deg" aria-hidden="true"></i><span class="visually-hidden">Link do planu<?= $_pl_on ? ' (opublikowany)' : '' ?></span></a>
+              <i class="bi bi-link-45deg" aria-hidden="true"></i><span class="dyd-ku-lbl">Link planu</span></a>
             <?php endif; ?>
             <?php if ($ku_can_write && $c['_active'] && !$cancelled && count($ku_active) > 1): ?>
             <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" title="Przenieś zajęcia/link do innej grupy"
                     onclick="dydKuMoveOpen(<?= $cid ?>, '<?= h(addslashes($c['name'])) ?>')">
-              <i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="visually-hidden">Przenieś zajęcia/link</span>
+              <i class="bi bi-arrow-left-right" aria-hidden="true"></i><span class="dyd-ku-lbl">Przenieś</span>
             </button>
             <?php endif; ?>
             <?php if ($ku_can_write && !$cancelled && !$archived): /* także nieaktywne — zakończoną grupę zwykle najpierw się dezaktywuje */ ?>
@@ -983,7 +990,7 @@ function dydKuMoveOpen(fromId, fromName) {
               <input type="hidden" name="_op" value="archive_course">
               <input type="hidden" name="course_id" value="<?= $cid ?>">
               <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Archiwizuj grupę">
-                <i class="bi bi-archive" aria-hidden="true"></i><span class="visually-hidden">Archiwizuj</span>
+                <i class="bi bi-archive" aria-hidden="true"></i><span class="dyd-ku-lbl">Archiwizuj</span>
               </button>
             </form>
             <form method="post" class="d-inline"
@@ -992,7 +999,7 @@ function dydKuMoveOpen(fromId, fromName) {
               <input type="hidden" name="_op" value="close_course">
               <input type="hidden" name="course_id" value="<?= $cid ?>">
               <button class="btn btn-sm btn-outline-dark py-0 px-2" title="Zamknij i archiwizuj (blokuje protokoły i zmiany)">
-                <i class="bi bi-lock" aria-hidden="true"></i><span class="visually-hidden">Zamknij i archiwizuj</span>
+                <i class="bi bi-lock" aria-hidden="true"></i><span class="dyd-ku-lbl">Zamknij</span>
               </button>
             </form>
             <?php endif; ?>
@@ -1003,7 +1010,7 @@ function dydKuMoveOpen(fromId, fromName) {
               <input type="hidden" name="_op" value="delete_course">
               <input type="hidden" name="course_id" value="<?= $cid ?>">
               <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Wyłącz i usuń grupę (odwracalne)">
-                <i class="bi bi-trash3" aria-hidden="true"></i><span class="visually-hidden">Wyłącz i usuń grupę</span>
+                <i class="bi bi-trash3" aria-hidden="true"></i><span class="dyd-ku-lbl">Usuń</span>
               </button>
             </form>
             <?php endif; ?>
@@ -1014,11 +1021,12 @@ function dydKuMoveOpen(fromId, fromName) {
               <input type="hidden" name="_op" value="hard_delete_course">
               <input type="hidden" name="course_id" value="<?= $cid ?>">
               <button class="btn btn-sm btn-danger py-0 px-2" title="Usuń na zawsze (nieodwracalne)">
-                <i class="bi bi-trash3-fill" aria-hidden="true"></i><span class="visually-hidden">Usuń na zawsze</span>
+                <i class="bi bi-trash3-fill" aria-hidden="true"></i><span class="dyd-ku-lbl">Usuń na zawsze</span>
               </button>
             </form>
             <?php endif; ?>
             <?php endif; ?>
+            </div>
           </td>
         </tr>
         <?php endforeach; ?>
