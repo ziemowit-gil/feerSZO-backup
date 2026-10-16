@@ -400,6 +400,21 @@ function cron_dispatcher_registry(): array
             'interval' => 3600,         // co godzinę — nowe faktury zakupu do obiegu EODoK (jeśli włączone)
             'schedule' => [6, 23],      // w godzinach pracy
         ],
+        'it_control_logs' => [
+            'file'     => $cronDir . '/agents/itControl.php',
+            'interval' => 3600,         // co godzinę — Kontrola Dzienników (logi PHP/CRON, logowania, 2FA, API, poczta, skoki błędów) + alert krytyczny
+            'args'     => '--suite=logs',
+        ],
+        'it_control_ops' => [
+            'file'     => $cronDir . '/agents/itControl.php',
+            'interval' => 3600,         // co godzinę — Kontrola ogólna IT (baza, dysk, kolejka, backup, certyfikaty, CRON, 2FA adminów) + alert krytyczny
+            'args'     => '--suite=ops',
+        ],
+        'it_control_report' => [
+            'file'     => $cronDir . '/agents/itControl.php',
+            'interval' => 3600,         // co godzinę sprawdza, czy raport dzienny/tygodniowy jest należny (ustawienia modułu); domyślnie wysyłka WYŁĄCZONA
+            'args'     => '--report',
+        ],
         'redmine_sync' => [
             'file'     => $cronDir . '/redmine_sync.php',
             'interval' => 600,          // co 10 min — notatki i statusy z Redmine → Helpdesk
