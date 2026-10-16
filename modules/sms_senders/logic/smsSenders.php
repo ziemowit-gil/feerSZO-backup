@@ -56,6 +56,7 @@ final class SmsSenders
         'ti_waiting_list'        => [self::G_TI, 'Lista oczekujących — kontakt', 'SMS do osoby z listy oczekujących.'],
         'ti_consult_message'     => [self::G_TI, 'Wiadomość do beneficjentów konsultacji', 'Komunikacja w trybie Konsultacje panelu dydaktyka: przypomnienia o terminach, zmiany, zaproszenia z kolejki.'],
         'ti_exam_notice'         => [self::G_TI, 'Powiadomienie o egzaminie', 'Agent ti_exam_notify: egzamin udostępniony / zamyka się w ciągu 24 h (treść: szablony ti_exam_open, ti_exam_closing).'],
+        'ti_lesson_entry_reminder' => [self::G_TI, 'Zaległe wpisy z zajęć — przypomnienie dla prowadzącego', 'Agent ti_lesson_control: zbiorcze przypomnienie o brakującym lub niepełnym wpisie z lekcji (Kontrola wpisów; wyłączone, póki nie włączy kierownik).'],
 
         'ti_billing_notice'      => [self::G_TI_PAY, 'Rozliczenie za miesiąc', 'Powiadomienie o należności za zajęcia (kwota, termin, rachunek).'],
         'payment_account_notice' => [self::G_TI_PAY, 'Numer rachunku do wpłat', 'Portal płatności: nowy lub skorygowany numer rachunku.'],
