@@ -306,6 +306,11 @@ body.ti-skin header .navbar .navbar-brand,
 body.ti-skin header .navbar .text-body-secondary,
 body.ti-skin header .navbar .navbar-text { color: #fff !important; }
 body.ti-skin header .navbar .kp-brand i { color: #ffd863 !important; }
+/* „Wyloguj” na pasku — złoty (#ffd863 na granatowym napisie: kontrast 9,7:1) */
+body.ti-skin header .navbar .btn.kp-logout { color: #10335c; background: #ffd863; border-color: #ffd863; font-weight: 600; }
+body.ti-skin header .navbar .btn.kp-logout:hover,
+body.ti-skin header .navbar .btn.kp-logout:focus { color: #10335c; background: #ffe58f; border-color: #ffe58f; }
+body.ti-skin header .navbar .btn.kp-logout:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 body.ti-skin header .navbar .btn-outline-secondary,
 body.ti-skin header .navbar .btn-outline-primary,
 body.ti-skin header .navbar .btn-outline-dark {
