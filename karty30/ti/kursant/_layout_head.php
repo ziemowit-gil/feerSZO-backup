@@ -374,12 +374,13 @@ if ($KP_TOPBAR && empty($KP_TOPBAR['no_enrich']) && function_exists('dyd_current
             <?php foreach (($_um['items'] ?? []) as [$_l, $_h, $_i]): ?>
             <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= h($_h) ?>"><i class="bi bi-<?= h($_i) ?>" aria-hidden="true"></i><?= h($_l) ?></a></li>
             <?php endforeach; ?>
-            <?php if (!empty($KP_TOPBAR['logout'])): ?>
-            <li><hr class="dropdown-divider my-1"></li>
-            <li><a class="dropdown-item d-flex align-items-center gap-2 text-danger" href="<?= h($KP_TOPBAR['logout']) ?>"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>Wyloguj</a></li>
-            <?php endif; ?>
           </ul>
         </div>
+        <?php if (!empty($KP_TOPBAR['logout'])): // Wyloguj zawsze widoczne na pasku (nie schowane w menu użytkownika) ?>
+        <a href="<?= h($KP_TOPBAR['logout']) ?>" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 py-1 kp-logout">
+          <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span class="d-none d-sm-inline">Wyloguj</span><span class="visually-hidden d-sm-none">Wyloguj</span>
+        </a>
+        <?php endif; ?>
         <?php else: ?>
         <?php if (!empty($KP_TOPBAR['user'])): ?>
         <span class="text-body-secondary small d-flex align-items-center gap-1">

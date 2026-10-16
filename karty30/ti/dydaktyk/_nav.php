@@ -150,8 +150,16 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
             $work_as = ['label' => $_lbl, 'icon' => ($own && $ctx !== '') ? 'person-gear' : $icon]
                      + (($own && $ctx !== '') || $_two ? ['change_href' => 'choose_mode.php', 'change_label' => 'Zmień'] : []);
         }
+        // Przy stałym menu bocznym (modules/ti_dyd_menu) wszystkie ekrany są w nim — tu zostają tylko sprawy konta.
+        $side = function_exists('dydMenuOn') && dydMenuOn();
+        if ($side) {
+            $items[] = ['Mój certyfikat', 'moj_certyfikat.php', 'shield-check'];
+            $items[] = ['Obrazek bezpieczeństwa', 'sec_choose.php', 'image'];
+        }
         // Planowanie — skróty w menu użytkownika (kierownik: planista i narzędzia; prowadzący: własne zgłoszenia)
-        if ($staff && !$acting) {
+        if ($side) {
+            // nic więcej — reszta w menu bocznym
+        } elseif ($staff && !$acting) {
             $items[] = ['Planista zajęć', 'planista.php', 'calendar3-range'];
             $items[] = ['Zgłoszenia trenerów', 'zgloszenia.php', 'inbox'];
             $items[] = ['Generator ciągów zajęć', 'generatorCiagow.php', 'magic'];
@@ -160,18 +168,20 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
             $items[] = ['Moje zgłoszenia (niedostępność, zmiana terminu)', 'mojeZgloszenia.php', 'envelope-exclamation'];
         }
         // Konsultacje — w menu użytkownika w każdym trybie (osoby z uprawnieniem do Konsultacji, TiWorkModes)
-        if (function_exists('dyd_modes_available') && in_array('konsultacje', dyd_modes_available($s), true)) {
+        if (!$side && function_exists('dyd_modes_available') && in_array('konsultacje', dyd_modes_available($s), true)) {
             $items[] = ['Rezerwacje terminów', 'rezerwacje.php', 'calendar-check'];
             $items[] = ['Karty konsultacji', 'konsultacje.php', 'clipboard2-check'];
         }
-        if (function_exists('dyd_can_analytics') && dyd_can_analytics($s)) $items[] = ['Analityka TI', 'analityka.php', 'speedometer2'];
-        $items[] = ['Mój certyfikat', 'moj_certyfikat.php', 'shield-check'];
-        $items[] = ['Obrazek bezpieczeństwa', 'sec_choose.php', 'image'];
-        if (function_exists('ti_panel_role') && (is_admin() || ti_panel_role((int)($s['user_id'] ?? 0)) === 'kierownik')) {
-            $items[] = ['Certyfikaty prowadzących', 'certyfikaty.php', 'key'];
+        if (!$side) {
+            if (function_exists('dyd_can_analytics') && dyd_can_analytics($s)) $items[] = ['Analityka TI', 'analityka.php', 'speedometer2'];
+            $items[] = ['Mój certyfikat', 'moj_certyfikat.php', 'shield-check'];
+            $items[] = ['Obrazek bezpieczeństwa', 'sec_choose.php', 'image'];
+            if (function_exists('ti_panel_role') && (is_admin() || ti_panel_role((int)($s['user_id'] ?? 0)) === 'kierownik')) {
+                $items[] = ['Certyfikaty prowadzących', 'certyfikaty.php', 'key'];
+            }
+            $items[] = ['Komunikaty', 'index.php?tab=komunikaty', 'megaphone'];
+            $items[] = ['Gdzie co jest', 'index.php?tab=pomoc', 'signpost-split'];
         }
-        $items[] = ['Komunikaty', 'index.php?tab=komunikaty', 'megaphone'];
-        $items[] = ['Gdzie co jest', 'index.php?tab=pomoc', 'signpost-split'];
         $tb['user_menu'] = [
             'name'  => (string)($tb['user'] ?? ($s['name'] ?? '')),
             'role'  => $role,
