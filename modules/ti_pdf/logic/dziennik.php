@@ -71,6 +71,13 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
             $finals[(int)$r['client_id']] = (string)$r['value_text'];               // ostatni zatwierdzony
         }
     } catch (\Throwable $e) {}
+    // Wynik kursu (modules/ti_edziennik): wystawiona ocena końcowa ma pierwszeństwo przed protokołem
+    $results = [];
+    try {
+        require_once dirname(__DIR__, 2) . '/ti_edziennik/logic/courseResults.php';
+        $results = tiCourseResults($course_id);
+        foreach ($results as $_cid => $_r) if ((string)$_r['final_grade'] !== '') $finals[$_cid] = (string)$_r['final_grade'];
+    } catch (\Throwable $e) { $results = []; }
     $grades = [];
     foreach (db_all("SELECT client_id, value_num, weight FROM k30_ti_grades WHERE course_id = ?", [$course_id]) as $g) {
         $grades[(int)$g['client_id']][] = $g;
@@ -273,12 +280,13 @@ function ti_dziennik_pdf(int $course_id, array $opts = []): ?string
     foreach ($students as $i => $st) {
         $gs = $grades[(int)$st['client_id']] ?? []; $sw = 0; $sv = 0; $cnt = 0;
         foreach ($gs as $g) { if ($g['value_num'] === null) continue; $w = max(1, (int)$g['weight']); $sv += (float)$g['value_num'] * $w; $sw += $w; $cnt++; }
-        $rows[] = [$i + 1, $st['name'], $cnt ?: '', $sw ? number_format($sv / $sw, 2, ',', '') : '—', $finals[(int)$st['client_id']] ?? '—', isset($certs[(int)$st['client_id']]) ? 'tak' : ''];
+        $rows[] = [$i + 1, $st['name'], $cnt ?: '', $sw ? number_format($sv / $sw, 2, ',', '') : '—', $finals[(int)$st['client_id']] ?? '—',
+                   isset($results[(int)$st['client_id']]) ? (TI_COURSE_RESULTS[$results[(int)$st['client_id']]['result']] ?? '') : '', isset($certs[(int)$st['client_id']]) ? 'tak' : ''];
     }
-    $rows ? $table([['Nr', 8, 'C'], ['Nazwisko i imię', $W() - 118, 'L'], ['Ocen', 18, 'C'], ['Średnia ważona', 30, 'C'], ['Ocena końcowa', 36, 'C'], ['Zaświadcz.', 26, 'C']], $rows, 6)
+    $rows ? $table([['Nr', 8, 'C'], ['Nazwisko i imię', $W() - 144, 'L'], ['Ocen', 14, 'C'], ['Średnia ważona', 28, 'C'], ['Ocena końcowa', 28, 'C'], ['Wynik kursu', 44, 'C'], ['Zaświadcz.', 22, 'C']], $rows, 6)
           : $pdf->Cell($W(), 6, $pl('Brak uczestników.'), 0, 1);
     $pdf->Ln(2); $pdf->SetFont('DejaVu', '', 7); $pdf->SetTextColor(90, 90, 90);
-    $pdf->MultiCell($W(), 4, $pl('Średnia ważona z ocen cząstkowych dziennika; ocena końcowa z ostatniego zatwierdzonego protokołu zajęć.'), 0, 'L');
+    $pdf->MultiCell($W(), 4, $pl('Średnia ważona z ocen cząstkowych dziennika; ocena końcowa i wynik kursu wystawione w e-dzienniku (gdy brak — ocena z ostatniego zatwierdzonego protokołu zajęć).'), 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
 
     // 8. Hospitacje i wizytacje — przeprowadzone z modułu kierownika (hospitacje.php), resztę wierszy do wypełnienia ręcznie

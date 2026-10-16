@@ -275,6 +275,76 @@
   <?php endforeach; ?>
 </div>
 
+<!-- ── Wynik kursu: ocena końcowa + zaliczenie (modules/ti_edziennik) ── -->
+<?php
+  require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/courseResults.php';
+  $cr_rows   = tiCourseResults($cur_course);
+  $cr_finals = tiCourseProtocolFinals($cur_course);
+  $cr_closed = !empty($course_row['closed_at']);
+?>
+<section id="wynik-kursu" class="card border-0 shadow-sm mb-3" aria-labelledby="h-wynik-kursu">
+  <div class="card-header d-flex align-items-center gap-2">
+    <h3 class="h6 mb-0" id="h-wynik-kursu"><i class="bi bi-award me-1 text-primary" aria-hidden="true"></i>Wynik kursu — ocena końcowa i zaliczenie</h3>
+    <span class="ms-auto small text-body-secondary"><?= count($cr_rows) ?> z <?= count($g_enrollees) ?> wystawionych</span>
+  </div>
+  <div class="card-body">
+    <p class="small text-body-secondary mb-2">Formalny wynik całego kursu — trafia do dziennika zajęć (PDF) i na wydruk przy zamknięciu grupy.
+      Propozycja systemu: ocena z ostatniego zatwierdzonego protokołu (albo zaokrąglona średnia ważona) i frekwencja względem progu grupy.
+      Pusty wynik = nie wystawiono.</p>
+    <form method="post">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="course_results_save">
+      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-2" style="font-size:.85rem">
+          <caption class="visually-hidden">Wynik kursu dla każdego kursanta</caption>
+          <thead class="table-light"><tr>
+            <th scope="col">Kursant</th><th scope="col">Propozycja systemu</th>
+            <th scope="col" style="width:7rem">Ocena końcowa</th><th scope="col" style="width:11rem">Wynik</th>
+            <th scope="col">Uwagi</th><th scope="col" class="text-nowrap">Wystawił(a)</th>
+          </tr></thead>
+          <tbody>
+          <?php foreach ($g_enrollees as $en):
+            $cid = (int)$en['id']; $r = $cr_rows[$cid] ?? null;
+            $sg  = tiCourseResultSuggest($cur_course, $cid, $g_by_client[$cid] ?? [], $cr_finals[$cid] ?? null);
+            $vg  = $r ? (string)$r['final_grade'] : $sg['grade'];
+            $vr  = $r ? (string)$r['result'] : ''; ?>
+            <tr>
+              <th scope="row" class="fw-semibold"><?= h($en['name']) ?></th>
+              <td class="small">
+                <?php if ($sg['result']): ?><strong><?= h(TI_COURSE_RESULTS[$sg['result']]) ?></strong><?= $sg['grade'] !== '' ? ', ocena ' . h($sg['grade']) : '' ?><?php else: ?><span class="text-body-secondary">brak danych</span><?php endif; ?>
+                <?php if ($sg['why'] !== ''): ?><div class="text-body-secondary"><?= h($sg['why']) ?></div><?php endif; ?>
+              </td>
+              <td>
+                <label class="visually-hidden" for="crg-<?= $cid ?>">Ocena końcowa: <?= h($en['name']) ?></label>
+                <input type="text" class="form-control form-control-sm" id="crg-<?= $cid ?>" name="res[<?= $cid ?>][grade]" value="<?= h($vg) ?>" maxlength="10"<?= $cr_closed ? ' disabled' : '' ?>>
+              </td>
+              <td>
+                <label class="visually-hidden" for="crr-<?= $cid ?>">Wynik kursu: <?= h($en['name']) ?></label>
+                <select class="form-select form-select-sm" id="crr-<?= $cid ?>" name="res[<?= $cid ?>][result]"<?= $cr_closed ? ' disabled' : '' ?>>
+                  <option value="">— nie wystawiono —</option>
+                  <?php foreach (TI_COURSE_RESULTS as $k => $l): ?><option value="<?= $k ?>"<?= $vr === $k ? ' selected' : '' ?>><?= h($l) ?><?= !$r && $sg['result'] === $k ? ' (propozycja)' : '' ?></option><?php endforeach; ?>
+                </select>
+              </td>
+              <td>
+                <label class="visually-hidden" for="crn-<?= $cid ?>">Uwagi do wyniku: <?= h($en['name']) ?></label>
+                <input type="text" class="form-control form-control-sm" id="crn-<?= $cid ?>" name="res[<?= $cid ?>][note]" value="<?= h($r['note'] ?? '') ?>" maxlength="300"<?= $cr_closed ? ' disabled' : '' ?>>
+              </td>
+              <td class="small text-body-secondary text-nowrap"><?= $r ? h($r['decided_name']) . '<br>' . h(substr((string)$r['decided_at'], 0, 10)) : '—' ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php if ($cr_closed): ?>
+      <p class="small text-body-secondary mb-0"><i class="bi bi-lock me-1" aria-hidden="true"></i>Grupa jest zamknięta — wynik można zmienić po przywróceniu jej z archiwum.</p>
+      <?php else: ?>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz wynik kursu</button>
+      <?php endif; ?>
+    </form>
+  </div>
+</section>
+
 <!-- ── Legenda ─────────────────────────────────────────────── -->
 <div class="card border-0 shadow-sm">
   <div class="card-body py-2 px-3">

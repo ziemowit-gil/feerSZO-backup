@@ -1684,7 +1684,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── OCENY (e-dziennik) ──────────────────────────────────────────────────────
     // Dziennik wyłączony na czas okna prac — żadnego wpisu ani zmiany oceny
-    if ($dziennik_off && in_array($op, ['grade_save', 'grade_delete', 'grade_toggle_course', 'hw_grade'], true)) {
+    if ($dziennik_off && in_array($op, ['grade_save', 'grade_delete', 'grade_toggle_course', 'hw_grade', 'course_results_save'], true)) {
         flash_set('danger', 'Dziennik ocen jest wyłączony ' . ti_blackout_range_text($dziennik_off) . '. ' . ti_blackout_message($dziennik_off));
         header('Location: ' . dyd_back($course_id, 'pulpit')); exit;
     }
@@ -1736,6 +1736,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', $new ? 'Oceny w tym kursie włączone.' : 'Oceny w tym kursie wyłączone.');
         }
         header('Location: ' . dyd_back($course_id, 'oceny')); exit;
+    }
+    // Wynik kursu (ocena końcowa + zaliczenie) — modules/ti_edziennik/logic/courseResults.php
+    if ($op === 'course_results_save') {
+        require_once dirname(__DIR__, 3) . '/modules/ti_edziennik/logic/courseResults.php';
+        $_enr = array_flip(array_map('intval', array_column(db_all("SELECT client_id FROM k30_ti_enrollments WHERE course_id=?", [$course_id]), 'client_id')));
+        $_n = 0;
+        foreach ((array)($_POST['res'] ?? []) as $_cid => $_r) {
+            if (!isset($_enr[(int)$_cid]) || !is_array($_r)) continue;
+            if (tiCourseResultSave($course_id, (int)$_cid, (string)($_r['result'] ?? ''), (string)($_r['grade'] ?? ''), (string)($_r['note'] ?? ''), $uid, (string)($me['name'] ?? ''))) $_n++;
+        }
+        if ($_n && function_exists('audit_log')) audit_log('ti.course_results_save', ['course_id' => $course_id, 'changed' => $_n], $uid ?: null);
+        flash_set($_n ? 'success' : 'info', $_n ? "Zapisano wynik kursu ($_n " . ($_n === 1 ? 'kursant' : 'kursantów') . ').' : 'Bez zmian w wynikach kursu.');
+        header('Location: ' . dyd_back($course_id, 'oceny') . '#wynik-kursu'); exit;
     }
 
     // ── ZADANIA: ocena oddanej pracy domowej ────────────────────────────────────
