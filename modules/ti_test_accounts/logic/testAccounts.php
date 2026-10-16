@@ -142,6 +142,71 @@ final class TiTestAccounts
         return $st->rowCount();
     }
 
+    /**
+     * Usuwa osoby testowe RAZEM z danymi: konta panelu, rezerwacje, karty konsultacji, zapisy, rozliczenia, wiadomości,
+     * dokumenty — wszystkie wiersze tabel k30_* wskazujące na te osoby lub ich konta — oraz testowe szkolenia SzK
+     * (opis z SZK), o ile nie ma w nich nikogo spoza osób testowych. Dopasowanie WYŁĄCZNIE po znaczniku MARKER.
+     * Jedna transakcja. @return array{clients:int,accounts:int,courses:int,rows:int}
+     */
+    public static function purge(): array
+    {
+        $cids = array_map('intval', array_column(db_all("SELECT id FROM k30_clients WHERE notes=?", [self::MARKER]), 'id'));
+        if (!$cids) return ['clients' => 0, 'accounts' => 0, 'courses' => 0, 'rows' => 0];
+        $in   = fn(array $ids) => implode(',', array_map('intval', $ids)) ?: '0';
+        $aids = array_map('intval', array_column(db_all("SELECT id FROM k30_ti_student_accounts WHERE client_id IN (" . $in($cids) . ")"), 'id'));
+        $descs = array_column(self::SZK, 'desc');
+        $courses = [];
+        foreach (db_all("SELECT id FROM k30_ti_courses WHERE internal_desc IN (" . implode(',', array_fill(0, count($descs), '?')) . ")", $descs) as $c) {
+            $foreign = db_one("SELECT 1 FROM k30_ti_enrollments WHERE course_id=? AND client_id NOT IN (" . $in($cids) . ") LIMIT 1", [(int)$c['id']]);
+            if (!$foreign) $courses[] = (int)$c['id'];
+        }
+        $sessions = $courses ? array_map('intval', array_column(db_all("SELECT id FROM k30_ti_sessions WHERE course_id IN (" . $in($courses) . ")"), 'id')) : [];
+
+        // Tabele k30_* z daną kolumną (SQLite: PRAGMA, MySQL: information_schema)
+        $mysql = defined('DB_TYPE') && DB_TYPE === 'mysql';
+        $tables = $mysql
+            ? array_column(db_all("SELECT TABLE_NAME AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'k30\\_%'"), 'n')
+            : array_column(db_all("SELECT name AS n FROM sqlite_master WHERE type='table' AND name LIKE 'k30\\_%' ESCAPE '\\'"), 'n');
+        $cols = [];
+        foreach ($tables as $t) {
+            $cs = $mysql ? array_column(db_all("SHOW COLUMNS FROM `$t`"), 'Field') : array_column(db_all("PRAGMA table_info(\"$t\")"), 'name');
+            foreach ($cs as $c) $cols[$c][] = $t;
+        }
+        $skip = ['k30_clients', 'k30_ti_student_accounts', 'k30_ti_courses', 'k30_ti_remember_tokens'];   // te na końcu; tokeny „zapamiętaj” mają account_id także dydaktyków
+        $plan = [['session_id', $sessions, fn($t) => str_starts_with($t, 'k30_ti_') || str_starts_with($t, 'k30_sc_') || str_starts_with($t, 'k30_pl_')],
+                 ['course_id', $courses, fn($t) => true],
+                 ['client_id', $cids, fn($t) => true],
+                 ['student_id', $aids, fn($t) => str_starts_with($t, 'k30_ti_')],
+                 ['student_account_id', $aids, fn($t) => true]];
+        $rows = 0;
+        db()->beginTransaction();
+        try {
+            // Pliki teczek (Dokumenty kursanta) — przed usunięciem wpisów
+            if ($aids && in_array('k30_ti_sfile', $tables, true)) {
+                foreach (db_all("SELECT file_path FROM k30_ti_sfile WHERE account_id IN (" . $in($aids) . ")") as $f) {
+                    if (preg_match('#^ti_teczka/[0-9]+_[a-f0-9]{16}\.[a-z]+$#', (string)$f['file_path'])) @unlink(rtrim(UPLOAD_DIR, '/') . '/' . $f['file_path']);
+                }
+                foreach (['k30_ti_sfile', 'k30_ti_srequest'] as $t) if (in_array($t, $tables, true)) { $st = db()->prepare("DELETE FROM $t WHERE account_id IN (" . $in($aids) . ")"); $st->execute(); $rows += $st->rowCount(); }
+            }
+            foreach ($plan as [$col, $ids, $ok]) {
+                if (!$ids) continue;
+                foreach ($cols[$col] ?? [] as $t) {
+                    if (in_array($t, $skip, true) || !$ok($t)) continue;
+                    $st = db()->prepare("DELETE FROM $t WHERE $col IN (" . $in($ids) . ")"); $st->execute(); $rows += $st->rowCount();
+                }
+            }
+            if ($aids) db()->exec("DELETE FROM k30_ti_student_accounts WHERE id IN (" . $in($aids) . ")");
+            if ($courses) db()->exec("DELETE FROM k30_ti_courses WHERE id IN (" . $in($courses) . ")");
+            db()->exec("DELETE FROM k30_clients WHERE id IN (" . $in($cids) . ") AND notes=" . db()->quote(self::MARKER));
+            db()->commit();
+        } catch (\Throwable $e) {
+            db()->rollBack();
+            throw $e;
+        }
+        if (function_exists('audit_log')) { try { audit_log('ti_test_accounts.purge', ['clients' => count($cids), 'accounts' => count($aids), 'courses' => $courses, 'rows' => $rows]); } catch (\Throwable $e) {} }
+        return ['clients' => count($cids), 'accounts' => count($aids), 'courses' => count($courses), 'rows' => $rows];
+    }
+
     /** Osoby i konta testowe (bez haseł). */
     public static function list(): array
     {

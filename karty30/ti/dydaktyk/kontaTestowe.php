@@ -30,6 +30,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['ti_test_creds'] = ['rows' => $rows, 'ts' => time()];
             flash_set('success', 'Konta testowe gotowe: ' . count($rows) . '. Nadano nowe hasła — pobierz PDF z danymi logowania.');
         } catch (\Throwable $e) { error_log('kontaTestowe: ' . $e->getMessage()); flash_set('danger', 'Nie udało się założyć kont testowych: ' . $e->getMessage()); }
+    } elseif ($op === 'purge') {
+        if (trim((string)($_POST['confirm_word'] ?? '')) !== 'USUŃ') {
+            flash_set('danger', 'Aby usunąć konta testowe, wpisz w polu słowo USUŃ.');
+        } else {
+            try {
+                $r = TiTestAccounts::purge();
+                flash_set('success', 'Usunięto konta testowe: osoby ' . $r['clients'] . ', konta ' . $r['accounts'] . ', szkolenia SzK ' . $r['courses']
+                    . ', powiązane wpisy ' . $r['rows'] . '. „Załóż / odśwież” założy je od nowa.');
+            } catch (\Throwable $e) { error_log('kontaTestowe purge: ' . $e->getMessage()); flash_set('danger', 'Nie udało się usunąć kont testowych (nic nie zmieniono): ' . $e->getMessage()); }
+        }
+        unset($_SESSION['ti_test_creds']);
     } elseif ($op === 'deactivate') {
         flash_set('success', 'Dezaktywowano konta testowe: ' . TiTestAccounts::deactivate() . '. Dane (rezerwacje, karty, szkolenia) zostają.');
         unset($_SESSION['ti_test_creds']);
@@ -89,10 +100,24 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </table></div>
 <?php if (!$creds && $list): ?><p class="small text-body-secondary">Hasła pokazujemy tylko przez 30 minut po „Załóż / odśwież”.</p><?php endif; ?>
 <?php if ($list): ?>
+<div class="d-flex flex-wrap align-items-start gap-3">
 <form method="post" onsubmit="return confirm('Dezaktywować wszystkie konta testowe? Dane zostają, można je potem odświeżyć.')">
   <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="deactivate">
   <button class="btn btn-sm btn-outline-danger">Dezaktywuj konta testowe</button>
 </form>
+<details>
+  <summary class="btn btn-sm btn-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń konta testowe</summary>
+  <form method="post" class="border border-danger rounded p-2 mt-2" style="max-width:460px"
+        onsubmit="return confirm('Usunąć NIEODWRACALNIE wszystkie osoby i konta testowe razem z rezerwacjami, kartami konsultacji i testowymi szkoleniami SzK?')">
+    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="purge">
+    <p class="small mb-2">Usuwa na stałe <?= count($list) ?> osób testowych, ich konta panelu, rezerwacje, karty konsultacji, rozliczenia, wiadomości, dokumenty
+      i testowe szkolenia SzK (te, w których nie ma nikogo spoza kont testowych). Inne dane nie są zmieniane.</p>
+    <label class="form-label small mb-1" for="tt-confirm">Wpisz <strong>USUŃ</strong>, aby potwierdzić</label>
+    <div class="d-flex gap-2"><input class="form-control form-control-sm" id="tt-confirm" name="confirm_word" autocomplete="off" required style="max-width:140px">
+      <button class="btn btn-sm btn-danger">Usuń na stałe</button></div>
+  </form>
+</details>
+</div>
 <?php endif; ?>
 </div>
 </main>
