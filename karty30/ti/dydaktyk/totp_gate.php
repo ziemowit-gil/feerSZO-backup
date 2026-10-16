@@ -28,6 +28,9 @@ $uid = (int)$profile['user_id'];
 $u   = db_one("SELECT * FROM users WHERE id=? AND is_active=1", [$uid]);
 if (!$u) { dyd_2fa_clear_pending(); header('Location: login.php'); exit; }
 
+// Konto zwolnione z TOTP z CLI (php cli/2fa.php dyd-exempt <email>) — logowanie kończy się bez kodu.
+if (dydTotpIsExempt($uid)) dyd_2fa_finish($profile);
+
 $enrolled = !empty($u['totp_confirmed']) && !empty($u['totp_secret']);
 $error    = '';
 

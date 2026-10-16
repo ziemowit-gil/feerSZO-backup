@@ -18,6 +18,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/dyd_totp_exempt/logic/dydTotpExempt.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/analytics/logic/analyticsManager.php';   // dostęp do Analityki TI (dyd_can_analytics)
 require_once __DIR__ . '/_nav.php';
 
@@ -237,7 +238,8 @@ function dyd_require(): array {
     // bazie przy każdym żądaniu, nie tylko przy świeżym logowaniu. Zwolnieni:
     // impersonacja (imp.php, $s['imp']) — administrator już się uwierzytelnił.
     // Administrator SZO też przechodzi TOTP (klucz sprzętowy nie jest już wymagany).
-    if (empty($s['imp'])) {
+    // Zwolnione z CLI (php cli/2fa.php dyd-exempt <email>) — bez TOTP.
+    if (empty($s['imp']) && !dydTotpIsExempt((int)$s['user_id'])) {
         $totp = db_one("SELECT totp_confirmed, totp_secret FROM users WHERE id=?", [(int)$s['user_id']]);
         if (!$totp || empty($totp['totp_confirmed']) || empty($totp['totp_secret'])) {
             dyd_2fa_stash($s);

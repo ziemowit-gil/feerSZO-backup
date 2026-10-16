@@ -8,6 +8,9 @@
  *   php cli/2fa.php disable <email>     # wyłącz 2FA (TOTP + SMS)
  *   php cli/2fa.php disable --all       # wyłącz 2FA wszystkim
  *   php cli/2fa.php status <email>      # szczegółowy status dla użytkownika
+ *   php cli/2fa.php dyd-exempt <email> [powód]  # panel dydaktyka: wejście BEZ TOTP dla tego konta
+ *   php cli/2fa.php dyd-require <email>         # panel dydaktyka: przywróć obowiązkowe TOTP
+ *   php cli/2fa.php dyd-list                    # konta zwolnione z TOTP w panelu dydaktyka
  */
 
 if (php_sapi_name() !== 'cli') {
@@ -18,6 +21,7 @@ if (!defined('APP_INSTALLED')) define('APP_INSTALLED', true);
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
+require_once dirname(__DIR__) . '/modules/dyd_totp_exempt/logic/dydTotpExempt.php';
 
 // ── Kolory ANSI ───────────────────────────────────────────────────────────────
 
@@ -72,7 +76,7 @@ $cmd  = $argv[1] ?? 'list';
 $arg2 = $argv[2] ?? '';
 
 // ── LIST ──────────────────────────────────────────────────────────────────────
-if ($cmd === 'list' || !in_array($cmd, ['disable', 'status'], true)) {
+if ($cmd === 'list' || !in_array($cmd, ['disable', 'status', 'dyd-exempt', 'dyd-require', 'dyd-list'], true)) {
     $users = db_all(
         "SELECT id, name, email, role, is_active, twofa_method, totp_confirmed, twofa_phone, totp_backup_codes
          FROM users
@@ -108,6 +112,31 @@ if ($cmd === 'list' || !in_array($cmd, ['disable', 'status'], true)) {
         );
     }
     echo PHP_EOL;
+    exit(0);
+}
+
+// ── PANEL DYDAKTYKA: zwolnienie z TOTP ────────────────────────────────────────
+if ($cmd === 'dyd-list') {
+    $rows = dydTotpExemptList();
+    if (!$rows) { ok('Brak kont zwolnionych z TOTP w panelu dydaktyka.'); exit(0); }
+    echo PHP_EOL;
+    foreach ($rows as $r) {
+        echo ($r['name'] ?? '?') . ' <' . ($r['email'] ?? 'usunięte konto #' . $r['user_id'] . '') . '>  '
+            . c($r['created_at'], 'gray') . ($r['reason'] !== '' ? '  ' . $r['reason'] : '') . PHP_EOL;
+    }
+    echo PHP_EOL;
+    exit(0);
+}
+if ($cmd === 'dyd-exempt' || $cmd === 'dyd-require') {
+    if (!$arg2) { err("Podaj e-mail: php cli/2fa.php {$cmd} <email>"); exit(1); }
+    $u = find_user($arg2);
+    if (!$u) { err("Nie znaleziono użytkownika: {$arg2}"); exit(1); }
+    $exempt = $cmd === 'dyd-exempt';
+    $reason = trim(implode(' ', array_slice($argv, 3)));
+    dydTotpExemptSet((int)$u['id'], $exempt, $reason);
+    if (function_exists('audit_log')) { try { audit_log('dyd.totp_exempt', ['user_id' => (int)$u['id'], 'exempt' => $exempt, 'reason' => $reason, 'via' => 'cli']); } catch (\Throwable $e) {} }
+    $exempt ? ok("Panel dydaktyka: {$u['name']} ({$u['email']}) wchodzi BEZ TOTP.")
+            : ok("Panel dydaktyka: {$u['name']} ({$u['email']}) — TOTP znów obowiązkowe.");
     exit(0);
 }
 
