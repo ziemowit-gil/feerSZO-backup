@@ -59,11 +59,10 @@ function dydGroupPickerRender(array $courses, array $archived, array $mineSet, b
 
     ob_start(); ?>
 <div class="dyd-cs">
-  <button type="button" class="dyd-cs-btn" aria-haspopup="dialog" aria-controls="dydGp" aria-expanded="false" title="Zmień grupę">
-    <span class="dyd-cs-lbl">Grupa</span>
-    <span class="dyd-cs-name text-truncate"><?= h($curRow ? $curRow['name'] : 'wybierz grupę') ?></span>
-    <i class="bi bi-chevron-down" aria-hidden="true"></i>
-    <span class="visually-hidden">— zmień grupę</span>
+  <?php $_cs_lbl = 'Grupa: ' . ($curRow ? $curRow['name'] : 'nie wybrano') . ' — zmień grupę'; ?>
+  <button type="button" class="dyd-cs-btn dyd-cs-icon" aria-haspopup="dialog" aria-controls="dydGp" aria-expanded="false" title="<?= h($_cs_lbl) ?>">
+    <i class="bi bi-collection" aria-hidden="true"></i><i class="bi bi-chevron-down dyd-cs-chev" aria-hidden="true"></i>
+    <span class="visually-hidden"><?= h($_cs_lbl) ?></span>
   </button>
   <dialog id="dydGp" class="dgp" aria-labelledby="dydGpTitle">
     <div class="dgp-head">

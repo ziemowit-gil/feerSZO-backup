@@ -454,6 +454,16 @@ body.ti-skin header .navbar .dyd-cs-lbl {
 }
 body.ti-skin header .navbar .dyd-cs-name { font-weight: 700; max-width: 15rem; }
 @media (max-width: 767.98px) { body.ti-skin header .navbar .dyd-cs-name { max-width: 9rem; } }
+/* Wersja ikonowa (od 2026-10-16): wybór grupy i „Pracujesz jako” jako kwadratowe ikony z podpowiedzią */
+body.ti-skin header .navbar .dyd-cs-btn.dyd-cs-icon { gap: .2rem; padding: .22rem .45rem; min-height: 30px; font-size: 1rem; }
+body.ti-skin header .navbar .dyd-cs-icon .dyd-cs-chev { font-size: .6rem; opacity: .85; }
+body.ti-skin header .navbar .kp-work-as.kp-work-icon {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; font-size: 1rem;
+  color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 2px; text-decoration: none;
+}
+body.ti-skin header .navbar a.kp-work-as.kp-work-icon:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.7); color: #fff; }
+body.ti-skin header .navbar a.kp-work-as.kp-work-icon:focus-visible { outline: 2px solid #ffd863; outline-offset: 1px; }
+body.ti-skin header .navbar .kp-work-as.kp-work-icon.kp-acting { background: #fdba74; color: #7c2d12; border-color: #fdba74; padding: 0; }
 
 /* „Pracujesz jako: …” w pasku (obok menu użytkownika); wariant zastępstwa — pomarańczowy */
 body.ti-skin header .navbar .kp-work-as { font-size: .74rem; color: rgba(255,255,255,.85); white-space: nowrap; }
