@@ -1010,21 +1010,28 @@ function ti_deferrals_pending(): array {
     );
 }
 
-/** Lista klientów z niedopłatą (saldo ujemne) — dla panelu admina. */
+/**
+ * Lista klientów z niedopłatą — dla panelu admina, raportów i przypomnień.
+ * Liczona z żywej alokacji (ti_client_allocation) — te same liczby co saldo kursanta,
+ * niezależnie od tego, czy zapisane paid_amount jest aktualne; grupy „tylko godziny”
+ * pominięte, konta „bez rozliczeń” (no_billing) wykluczone.
+ */
 function ti_clients_with_debt(): array {
     ti_payments_migrate();
-    $rows = db_all(
-        "SELECT b.client_id, cl.name AS client_name,
-                SUM(b.amount + COALESCE(b.adjustment,0)) AS charges,
-                SUM(COALESCE(b.paid_amount,0)) AS paid
+    $cands = db_all(
+        "SELECT DISTINCT b.client_id, cl.name AS client_name
          FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
          WHERE b.status IN ('issued','paid')
-           AND NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts na WHERE na.client_id=b.client_id AND COALESCE(na.no_billing,0)=1)
-         GROUP BY b.client_id
-         HAVING charges - paid > 0.005
-         ORDER BY (charges - paid) DESC"
+           AND NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts na WHERE na.client_id=b.client_id AND COALESCE(na.no_billing,0)=1)"
     );
-    foreach ($rows as &$r) { $r['debt'] = round((float)$r['charges'] - (float)$r['paid'], 2); }
+    $rows = [];
+    foreach ($cands as $c) {
+        $a = ti_client_allocation((int)$c['client_id']);
+        if ($a['debt'] <= 0.005) continue;
+        $rows[] = ['client_id' => (int)$c['client_id'], 'client_name' => $c['client_name'],
+                   'charges' => $a['charges'], 'paid' => $a['paid'], 'debt' => $a['debt']];
+    }
+    usort($rows, fn($x, $y) => $y['debt'] <=> $x['debt']);
     return $rows;
 }
 
