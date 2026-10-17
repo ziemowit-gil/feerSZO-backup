@@ -427,6 +427,10 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
     } elseif (isset($filter['room'])) {
         $where = "s.room_id = ? AND c.status NOT IN ('archived','cancelled')";
         $args[] = (int)$filter['room'];
+    } elseif (!empty($filter['online'])) {   // „Sala online”: wszystkie zajęcia zdalne
+        $where = "(s.lesson_method IN ('zdalna_zoom','zdalna_inne') OR (COALESCE(s.lesson_method,'')='' AND c.is_online=1)) AND c.status NOT IN ('archived','cancelled')";
+    } elseif (!empty($filter['all'])) {      // widok pełny: wszystkie aktywne grupy
+        $where = "c.status NOT IN ('archived','cancelled')";
     } else {
         $ids = array_values(array_filter(array_map('intval', (array)($filter['courses'] ?? []))));
         if (!$ids) return [];
@@ -437,7 +441,7 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
     $rows = db_all(
         "SELECT s.id, s.course_id, s.room_id, s.room_reservation_status, s.lesson_date, s.time_from, s.time_to, s.status, s.lesson_method, s.date_flag, s.meeting_url,
                 s.rescheduled_from_date, s.rescheduled_from_time_from,
-                c.name AS course_name, pl.public_name, c.default_meeting_url, c.location AS course_location, c.is_online AS course_online,
+                c.name AS course_name, c.simple_mode, pl.public_name, c.default_meeting_url, c.location AS course_location, c.is_online AS course_online,
                 st.name AS subject_name, u.name AS instr_name, COALESCE(s.instructor_id, c.instructor_id) AS instr_id,
                 r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
            FROM k30_ti_sessions s
@@ -447,7 +451,8 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
            LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
            LEFT JOIN k30_ti_plan_public_links pl ON pl.course_id = c.id
           WHERE $where AND s.lesson_date BETWEEN ? AND ?
-            AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved')
+            AND s.draft_id IS NULL AND s.status <> 'draft'
+            AND (s.status <> 'reserved' OR c.simple_mode > 0)   -- SzK / konsultacje: terminy zarezerwowane też są w planie
           ORDER BY s.lesson_date, s.time_from, c.name",
         $args);
     $methods = ['stacjonarna' => 'stacjonarnie', 'zdalna_zoom' => 'online', 'zdalna_inne' => 'online'];
@@ -481,9 +486,56 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
             'room_id'   => $method !== 'online' ? (int)$r['room_id'] : 0,
             // rezerwacja sali u operatora przestrzeni (k30_ti_sessions.room_reservation_status)
             'room_ok'   => (string)($r['room_reservation_status'] ?? '') === 'potwierdzone',
+            'kind'      => (int)$r['simple_mode'] > 0 ? 'szk' : 'course',   // SzK / konsultacje grupowe
+        ];
+    }
+    // Konsultacje indywidualne (rezerwacje k30_schedules) — plan prowadzącego, „Sala online”, widok pełny
+    if (isset($filter['instructor']) || !empty($filter['online']) || !empty($filter['all'])) {
+        $out = array_merge($out, tiPlanPublicConsultations($filter, $from, $to));
+        usort($out, fn($a, $b) => [$a['date'], $a['tf'], $a['course']] <=> [$b['date'], $b['tf'], $b['course']]);
+    }
+    return $out;
+}
+
+/**
+ * Konsultacje indywidualne z rezerwacji (k30_schedules, moduł ti_bookings) jako wpisy planu.
+ * RODO: bez danych beneficjenta — tytuł „Konsultacja”, grupa „konsultacja indywidualna”.
+ */
+function tiPlanPublicConsultations(array $filter, string $from, string $to): array {
+    try {
+        $where = "date(s.start_time) BETWEEN ? AND ? AND s.status IN ('preliminary','confirmed','attended','cancelled_by_feer','cancelled_by_client','cancelled')";
+        $args = [$from, $to];
+        if (isset($filter['instructor'])) { $where .= ' AND s.assigned_to = CAST(? AS INTEGER)'; $args[] = (int)$filter['instructor']; }
+        if (!empty($filter['online'])) $where .= ' AND s.is_remote = 1';
+        $rows = db_all("SELECT s.id, s.start_time, s.duration_minutes, s.time_from, s.time_to, s.status, s.is_remote, s.assigned_to,
+                               u.name AS instr_name, r.name AS res_name
+                          FROM k30_schedules s
+                          LEFT JOIN users u ON u.id = s.assigned_to
+                          LEFT JOIN resources r ON r.id = s.resource_id
+                         WHERE $where ORDER BY s.start_time", $args);
+    } catch (\Throwable $e) { return []; }   // brak modułu rezerwacji w tej instalacji
+    $out = [];
+    foreach ($rows as $r) {
+        $t  = strtotime((string)$r['start_time']);
+        $tf = trim((string)$r['time_from']) !== '' ? substr((string)$r['time_from'], 0, 5) : date('H:i', $t);
+        $tt = trim((string)$r['time_to']) !== '' ? substr((string)$r['time_to'], 0, 5) : date('H:i', $t + 60 * max(15, (int)$r['duration_minutes']));
+        $online = (int)$r['is_remote'] === 1;
+        $out[] = [
+            'date' => date('Y-m-d', $t), 'dow' => (int)date('N', $t), 'tf' => $tf, 'tt' => $tt, 'time' => $tf . '–' . $tt,
+            'course_id' => 0, 'course' => 'konsultacja indywidualna', 'subject' => 'Konsultacja',
+            'instr' => tiPlanPublicPerson((string)($r['instr_name'] ?? '')), 'instr_id' => (int)$r['assigned_to'],
+            'method' => $online ? 'online' : 'stacjonarnie', 'room' => $online ? '' : (string)($r['res_name'] ?? ''),
+            'url' => '', 'cancelled' => str_starts_with((string)$r['status'], 'cancelled'),
+            'flag' => (string)$r['status'] === 'preliminary' ? 'tentative' : '', 'moved' => '',
+            'room_id' => 0, 'room_ok' => true, 'kind' => 'consult',
         ];
     }
     return $out;
+}
+
+/** Liczba zajęć zdalnych (sesje + konsultacje) w najbliższych $weeks tygodniach — do kafla „Sala online”. */
+function tiPlanPublicOnlineCount(int $weeks = 8): int {
+    return count(array_filter(tiPlanPublicLessons(['online' => true], date('Y-m-d'), date('Y-m-d', strtotime('+' . (7 * $weeks) . ' days'))), fn($l) => !$l['cancelled']));
 }
 
 /** Poniedziałek tygodnia zawierającego datę (Y-m-d). */

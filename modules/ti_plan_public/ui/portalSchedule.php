@@ -20,7 +20,8 @@ function tiPlanPortalCard(array $l, array $o, bool $withTime = false): string {
     $full = tiPlanPublicFull();   // widok pełny: linki do każdej grupy (?c=) i prowadzącego (?u=)
     if ($mode !== 'group') {
         $tok = $o['groupLinks'][$l['course_id']] ?? null;
-        $parts[] = $full || $tok !== null
+        if (($l['kind'] ?? '') === 'consult') $parts[] = '<span class="k">(konsultacja indywidualna)</span>';
+        else $parts[] = ($full && $l['course_id']) || $tok !== null
             ? '<a class="k" href="' . tiPlanPortalUrl($self, $full ? ['c' => $l['course_id']] : ['g' => $tok]) . '" title="Plan grupy">' . h($l['course']) . '</a>'
             : '<span class="k">' . h($l['course'] === 'niepubliczna' ? '(grupa niepubliczna)' : $l['course']) . '</span>';
     }
@@ -31,7 +32,9 @@ function tiPlanPortalCard(array $l, array $o, bool $withTime = false): string {
             : '<span class="n">' . h($l['instr']) . '</span>';
     }
     if ($mode !== 'room') {
-        if ($l['method'] === 'online') $parts[] = '<span class="s">online</span>';
+        if ($l['method'] === 'online') $parts[] = !empty($o['roomLinks'])
+            ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Sala online — zajęcia zdalne, bez rezerwacji sali">zdalnie (online)</a>'
+            : '<span class="s">zdalnie (online)</span>';
         elseif ($l['room'] !== '') $parts[] = !empty($o['roomLinks']) && $l['room_id']
             ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => $l['room_id']]) . '" title="Plan sali">' . h($l['room']) . '</a>'
             : '<span class="s">' . h($l['room']) . '</span>';
@@ -41,7 +44,9 @@ function tiPlanPortalCard(array $l, array $o, bool $withTime = false): string {
     if ($l['moved'] !== '')               $st[] = '<span class="st st-info">przeniesione z ' . h($l['moved']) . '</span>';
     if ($l['flag'] === 'tentative')       $st[] = '<span class="st st-warn">termin niepewny</span>';
     if ($l['flag'] === 'change_possible') $st[] = '<span class="st st-info">możliwa zmiana terminu</span>';
-    if ($mode === 'room' && !$l['cancelled']) $st[] = $l['room_ok'] ? '<span class="st st-ok">sala zarezerwowana</span>' : '<span class="st st-warn">rezerwacja do potwierdzenia</span>';
+    if (($l['kind'] ?? '') === 'szk')     $st[] = '<span class="st st-info">szkolenie krótkie (SzK)</span>';
+    if (($l['kind'] ?? '') === 'consult' && $l['flag'] === '') $st[] = '<span class="st st-info">konsultacja</span>';
+    if ($mode === 'room' && !$l['cancelled'] && $l['room_id'] > 0) $st[] = $l['room_ok'] ? '<span class="st st-ok">sala zarezerwowana</span>' : '<span class="st st-warn">rezerwacja do potwierdzenia</span>';
     $join = $l['url'] !== '' && !$l['cancelled'] ? ' <a class="join" href="' . h($l['url']) . '" target="_blank" rel="noopener">dołącz<span class="sr"> do zajęć online ' . h(date('d.m', strtotime($l['date']))) . '</span></a>' : '';
     return '<div class="lesson' . ($l['cancelled'] ? ' is-cancelled' : '') . '">'
          . ($withTime ? '<span class="sr">' . h($l['time']) . ' </span>' : '')

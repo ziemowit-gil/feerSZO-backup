@@ -70,6 +70,9 @@ $rooms = tiPlanPublicRoomsEnabled() || $full;
 $dirR  = $rooms ? tiPlanPublicDirectoryRooms(8) : [];
 $links = ['self' => $self, 'groupLinks' => tiPlanPublicDirectoryTokens(), 'instrLinks' => tiPlanPublicDirectoryInstrTokens(), 'roomLinks' => $rooms];
 $roomName = fn(array $r) => trim((string)$r['short_label']) !== '' ? (string)$r['short_label'] : (string)$r['name'];
+// „Sala online” — wirtualna sala zajęć zdalnych (nie wymaga rezerwacji), zawsze pierwsza na liście sal
+if ($rooms) array_unshift($dirR, ['id' => 'online', 'name' => 'Online (zdalnie)', 'short_label' => 'Sala online', 'building' => '', 'location' => 'zajęcia zdalne — nie wymaga rezerwacji sali',
+                                  'n_lessons' => tiPlanPublicOnlineCount(8)]);
 // Widok pełny: wszystkie aktywne grupy (?c=id) i prowadzący (?u=id) z prawdziwymi nazwami
 $allG = $full ? tiPlanPublicAllGroups() : [];
 $allI = $full ? tiPlanPublicInstructors() : [];
@@ -281,18 +284,22 @@ if (isset($_GET['p']) || ($full && isset($_GET['u']))) {
 
 /* ───────────── Sala: zajętość i rezerwacje ───────────── */
 if (isset($_GET['s'])) {
-    $room = $rooms ? tiPlanPublicRoom((int)$_GET['s']) : null;
+    $isOnline = (string)$_GET['s'] === 'online';
+    $room = !$rooms ? null : ($isOnline
+        ? ['id' => 'online', 'name' => 'Sala online', 'short_label' => '', 'location' => 'zajęcia zdalne (Zoom / Teams) — nie wymaga rezerwacji sali', 'building' => '', 'building_address' => '', 'capacity' => 0]
+        : tiPlanPublicRoom((int)$_GET['s']));
     if (!$room) $notFound('Nie ma takiej sali albo podgląd sal jest wyłączony.');
     $weeks   = 8;
-    $lessons = tiPlanPublicLessons(['room' => (int)$room['id']], $from, date('Y-m-d', strtotime("+{$weeks} weeks")));
+    $lessons = tiPlanPublicLessons($isOnline ? ['online' => true] : ['room' => (int)$room['id']], $from, date('Y-m-d', strtotime("+{$weeks} weeks")));
     if (!$full) foreach ($lessons as $i => $l) { $lessons[$i]['url'] = ''; if (!isset($links['groupLinks'][$l['course_id']])) $lessons[$i] = $hideGroup($l); }
     $name = $roomName($room);
     $sub  = implode(' · ', array_filter([$name !== (string)$room['name'] ? (string)$room['name'] : '', (string)$room['location'], (string)($room['building'] ?? ''), (string)($room['building_address'] ?? ''), (int)$room['capacity'] ? 'miejsc: ' . (int)$room['capacity'] : '']));
-    tiPlanPortalOpen($base + ['title' => $roomTitle($name), 'heading' => $roomTitle($name), 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, ['s' => (int)$room['id']])]);
-    $pending = count(array_filter($lessons, fn($l) => !$l['cancelled'] && !$l['room_ok'] && $l['date'] >= date('Y-m-d')));
+    tiPlanPortalOpen($base + ['title' => $roomTitle($name), 'heading' => $roomTitle($name), 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, ['s' => $room['id']])]);
+    if ($isOnline) echo '<div class="box note" role="note"><strong>Zajęcia zdalne</strong> — odbywają się online (Zoom / Teams), nie wymagają rezerwacji sali. Link do spotkania uczestnicy dostają od prowadzącego lub w panelu kursanta.</div>';
+    $pending = count(array_filter($lessons, fn($l) => !$l['cancelled'] && !$l['room_ok'] && $l['room_id'] > 0 && $l['date'] >= date('Y-m-d')));
     if ($pending) echo '<div class="box note" role="note">Terminy oznaczone „rezerwacja do potwierdzenia” (' . $pending . ') czekają na potwierdzenie sali u operatora przestrzeni.</div>';
-    tiPlanPortalSchedule($links + ['lessons' => $lessons, 'weeks' => $weeks, 'q' => ['s' => (int)$room['id']], 'mode' => 'room', 'label' => 'sali ' . $name]);
-    echo '<p class="legend"><span class="st-ok"><strong>sala zarezerwowana</strong></span> — rezerwacja potwierdzona; <span class="st-warn"><strong>rezerwacja do potwierdzenia</strong></span> — zgłoszona, jeszcze niepotwierdzona</p>';
+    tiPlanPortalSchedule($links + ['lessons' => $lessons, 'weeks' => $weeks, 'q' => ['s' => $room['id']], 'mode' => 'room', 'label' => 'sali ' . $name]);
+    if (!$isOnline) echo '<p class="legend"><span class="st-ok"><strong>sala zarezerwowana</strong></span> — rezerwacja potwierdzona; <span class="st-warn"><strong>rezerwacja do potwierdzenia</strong></span> — zgłoszona, jeszcze niepotwierdzona</p>';
     tiPlanPortalClose($base);
     exit;
 }
@@ -338,7 +345,7 @@ if (!$full && !$dirG && !$dirI && !$rooms && !$dutyOn): ?>
   <?php
   // Dziś i jutro we wszystkich grupach z katalogu — szybki podgląd jak tablica ogłoszeń
   $ids = $full ? array_map(fn($g) => (int)$g['id'], $allG) : array_map(fn($g) => (int)$g['course_id'], $dirG);
-  $soon = $ids ? array_values(array_filter(tiPlanPublicLessons(['courses' => $ids], date('Y-m-d'), date('Y-m-d', strtotime('+1 day'))), fn($l) => !$l['cancelled'])) : [];
+  $soon = ($full || $ids) ? array_values(array_filter(tiPlanPublicLessons($full ? ['all' => true] : ['courses' => $ids], date('Y-m-d'), date('Y-m-d', strtotime('+1 day'))), fn($l) => !$l['cancelled'])) : [];
   if (!$full) foreach ($soon as $i => $l) $soon[$i]['url'] = '';   // strona publiczna — bez linków do spotkań online
   if ($soon): $byDay = []; foreach ($soon as $l) $byDay[$l['date']][] = $l; ?>
   <h2 class="tiles-head">Dziś i jutro</h2>
