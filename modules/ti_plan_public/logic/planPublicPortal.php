@@ -105,6 +105,37 @@ function tiPlanPublicInstructors(): array {
           ORDER BY u.name COLLATE NOCASE");
 }
 
+/**
+ * Publikuje naraz plany wszystkich aktywnych grup (bez zarchiwizowanych/odwołanych).
+ * Istniejące tokeny zostają; $dir = także „w katalogu portalu”. Zwraca [opublikowano nowych, łącznie].
+ */
+function tiPlanPublicEnableAll(int $by, bool $dir): array {
+    tiPlanPublicMigrate();
+    $new = 0; $all = 0;
+    foreach (k30_ti_courses(false) as $c) {
+        $cid = (int)$c['id'];
+        $row = tiPlanPublicGet($cid);
+        if (!$row || (int)$row['is_enabled'] !== 1) { tiPlanPublicEnable($cid, $by); $new++; }
+        if ($dir) db()->prepare("UPDATE k30_ti_plan_public_links SET in_directory=1, updated_at=datetime('now') WHERE course_id=?")->execute([$cid]);
+        $all++;
+    }
+    return [$new, $all];
+}
+
+/** Publikuje naraz plany wszystkich prowadzących aktywnych grup; $dir = także w katalogu. */
+function tiPlanPublicInstrEnableAll(int $by, bool $dir): array {
+    tiPlanPublicMigrate();
+    $new = 0; $all = 0;
+    foreach (tiPlanPublicInstructors() as $u) {
+        $uid = (int)$u['id'];
+        $row = tiPlanPublicInstrGet($uid);
+        if (!$row || (int)$row['is_enabled'] !== 1) { tiPlanPublicInstrEnable($uid, $by); $new++; }
+        if ($dir) db()->prepare("UPDATE k30_ti_plan_public_instr SET in_directory=1, updated_at=datetime('now') WHERE user_id=?")->execute([$uid]);
+        $all++;
+    }
+    return [$new, $all];
+}
+
 /* ───────────────────────── Katalog portalu ───────────────────────── */
 
 /** Grupy w katalogu: link włączony + in_directory + grupa aktywna. */

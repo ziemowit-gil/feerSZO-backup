@@ -20,9 +20,16 @@ tiPlanPublicMigrate();
 $focus = (int)($_GET['course_id'] ?? 0);
 
 // Portal (/plan/): zakładka Sale i linki prowadzących
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['rooms', 'i_enable', 'i_disable', 'i_regenerate', 'i_options'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['rooms', 'i_enable', 'i_disable', 'i_regenerate', 'i_options', 'all_groups', 'all_instr'], true)) {
     dyd_token_check();
     $op = (string)$_POST['_op'];
+    if ($op === 'all_groups' || $op === 'all_instr') {
+        $dir = !empty($_POST['in_directory']);
+        [$n, $all] = $op === 'all_groups' ? tiPlanPublicEnableAll($uid, $dir) : tiPlanPublicInstrEnableAll($uid, $dir);
+        $what = $op === 'all_groups' ? 'grup' : 'prowadzących';
+        flash_set('success', 'Opublikowano plany ' . $what . ': nowych ' . $n . ', łącznie aktywnych ' . $all . ($dir ? ' — wszystkie widoczne w katalogu portalu.' : '.'));
+        header('Location: planLinki.php' . ($op === 'all_instr' ? '?tab=prowadzacy' : '')); exit;
+    }
     if ($op === 'rooms') {
         org_setting_set('ti_plan_public_rooms', !empty($_POST['on']) ? '1' : '0');
         flash_set('success', !empty($_POST['on']) ? 'Zakładka „Sale” w portalu planu włączona.' : 'Zakładka „Sale” w portalu planu wyłączona.');
@@ -177,6 +184,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <?php if ($tab === 'prowadzacy'): ?>
 <p class="small text-body-secondary">Tajny link do planu prowadzącego pokazuje wszystkie jego zajęcia (także zastępstwa), prowadzący inicjałami.
   Zaznaczenie „w katalogu” dodaje go do portalu — wtedy nazwy grup spoza katalogu są ukryte („niepubliczna”).</p>
+<?php if ($instructors): $nIOn = count(array_filter($instructors, fn($x) => isset($iLinks[(int)$x['id']]) && (int)$iLinks[(int)$x['id']]['is_enabled'] === 1)); ?>
+<form method="post" class="d-flex flex-wrap gap-2 align-items-center mb-3 p-2 border rounded bg-body-tertiary"
+      onsubmit="return confirm('Opublikować plany WSZYSTKICH prowadzących (<?= count($instructors) ?>)?' + (this.in_directory.checked ? '\n\nWszyscy trafią też do publicznego katalogu portalu.' : ''))">
+  <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="all_instr">
+  <button class="btn btn-sm btn-success"><i class="bi bi-globe2 me-1" aria-hidden="true"></i>Opublikuj wszystkich prowadzących</button>
+  <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="all-i-dir" name="in_directory" value="1"><label class="form-check-label small" for="all-i-dir">także pokaż w katalogu portalu</label></div>
+  <span class="small text-body-secondary">opublikowanych: <?= $nIOn ?> z <?= count($instructors) ?>; istniejące linki się nie zmieniają</span>
+</form>
+<?php endif; ?>
 <?php if (!$instructors): ?><div class="alert alert-secondary">Brak prowadzących w aktywnych grupach.</div><?php endif; ?>
 <?php foreach ($instructors as $ins): $iu = (int)$ins['id']; $il = $iLinks[$iu] ?? null; $ion = $il && (int)$il['is_enabled'] === 1;
   $iurl = $il ? tiPlanPublicInstrUrl($il) : ''; $ishort = $il ? tiPlanPublicInstrShortUrl($il) : null; ?>
@@ -232,6 +248,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </section>
 <?php endforeach; ?>
 <?php else: /* zakładka Grupy */ ?>
+
+<form method="post" class="d-flex flex-wrap gap-2 align-items-center mb-3 p-2 border rounded bg-body-tertiary"
+      onsubmit="return confirm('Opublikować plany WSZYSTKICH aktywnych grup (<?= count($courses) ?>)?' + (this.in_directory.checked ? '\n\nWszystkie trafią też do publicznego katalogu portalu (nazwy grup widoczne publicznie).' : ''))">
+  <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="all_groups">
+  <button class="btn btn-sm btn-success"><i class="bi bi-globe2 me-1" aria-hidden="true"></i>Opublikuj wszystkie grupy</button>
+  <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="all-g-dir" name="in_directory" value="1"><label class="form-check-label small" for="all-g-dir">także pokaż w katalogu portalu</label></div>
+  <span class="small text-body-secondary">opublikowanych: <?= $nOn ?> z <?= count($courses) ?>; istniejące linki się nie zmieniają</span>
+</form>
 
 <form method="get" class="row g-2 align-items-end mb-3" role="search">
   <div class="col-sm-5">
