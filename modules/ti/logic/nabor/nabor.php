@@ -739,7 +739,13 @@ function naborPanelUrl(string $route = '/'): string {
 }
 
 function naborEzdUrl(?int $caseId): ?string {
-    return $caseId ? rtrim(APP_URL, '/') . '/ezd/sprawy/view.php?id=' . $caseId : null;
+    return $caseId ? naborSzoUrl('/ezd/sprawy/view.php?id=' . $caseId) : null;
+}
+
+/** Adres w SZO (CRM, EZD) — ustawienie ti_nabor_szo_url, domyślnie https://szo.feer.org.pl (panel naboru działa na ti.*). */
+function naborSzoUrl(string $path): string {
+    $b = trim(org_setting('ti_nabor_szo_url'));
+    return rtrim($b !== '' ? $b : 'https://szo.feer.org.pl', '/') . '/' . ltrim($path, '/');
 }
 
 /** Dostawca SMS naboru (kody, statusy, dane logowania): ustawienie ti_nabor_sms_provider, domyślnie Sendly. */

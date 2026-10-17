@@ -28,7 +28,7 @@ include __DIR__ . '/_head.php';
       <form method="post" action="<?= $upd ?>"><?= Router::csrfField() ?><input type="hidden" name="_op" value="ezd"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-folder-plus"></i> Zarejestruj w EZD</button></form>
     <?php endif; ?>
     <?php if ($s['crm_contact_id']): ?>
-      <a class="btn btn-sm btn-outline-primary" href="<?= h(rtrim(APP_URL, '/') . '/crm/contact/view.php?id=' . (int)$s['crm_contact_id']) ?>"><i class="bi bi-person-lines-fill"></i> Kontakt CRM</a>
+      <a class="btn btn-sm btn-outline-primary" href="<?= h(naborSzoUrl('/crm/contact/view.php?id=' . (int)$s['crm_contact_id'])) ?>"><i class="bi bi-person-lines-fill"></i> Kontakt CRM</a>
     <?php elseif ($s['status'] !== 'unconfirmed' && !$s['is_test']): ?>
       <form method="post" action="<?= $upd ?>"><?= Router::csrfField() ?><input type="hidden" name="_op" value="crm"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-plus"></i> Dodaj do CRM</button></form>
     <?php endif; ?>
