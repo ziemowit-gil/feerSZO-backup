@@ -320,7 +320,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <td class="font-monospace small"><?= $c['student_no'] !== '' ? h($c['student_no']) : '<span class="text-body-secondary">—</span>' ?></td>
             <td>
               <?php foreach ($c['courses'] as $co): ?>
-              <span class="badge bg-light text-secondary border me-1 mb-1"><?= h($co['course_name']) ?></span>
+              <span class="badge bg-light text-secondary border me-1 mb-1"><?php if (trim((string)($co['group_code'] ?? '')) !== ''): ?><span class="font-monospace text-dark">nr <?= h($co['group_code']) ?></span> · <?php endif; ?><?= h($co['course_name']) ?></span>
               <?php endforeach; ?>
               <?php if (!$c['courses']): ?><span class="text-body-secondary small">—</span><?php endif; ?>
             </td>

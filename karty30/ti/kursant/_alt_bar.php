@@ -229,10 +229,11 @@ foreach ($_cur_sec['items'] as $_i) {
   </span>
   <?php if (!empty($ti_ctx_multi)): /* kursant w kilku grupach: aktywna grupa + zmiana bez wylogowania */
     $_ctx_nazwa = '';
-    foreach (($ti_ctx_courses ?? []) as $_cc) if ((int)$_cc['course_id'] === (int)($ti_ctx_course_id ?? 0)) $_ctx_nazwa = (string)$_cc['course_name']; ?>
+    $_ctx_nr = '';
+    foreach (($ti_ctx_courses ?? []) as $_cc) if ((int)$_cc['course_id'] === (int)($ti_ctx_course_id ?? 0)) { $_ctx_nazwa = (string)$_cc['course_name']; $_ctx_nr = trim((string)($_cc['group_code'] ?? '')); } ?>
   <span class="kp-grupa-ctx ms-auto">
     <i class="bi bi-people" aria-hidden="true"></i>
-    <span>Grupa: <strong><?= h($_ctx_nazwa) ?></strong></span>
+    <span>Grupa: <?php if ($_ctx_nr !== ''): ?><strong>nr <?= h($_ctx_nr) ?></strong> — <?php endif; ?><?= h($_ctx_nazwa) ?></span>
     <a class="kp-grupa-zmien" href="choose_group.php?tab=<?= h((string)($_GET['tab'] ?? '')) ?>">Zmień grupę<span class="visually-hidden"> (masz <?= count($ti_ctx_courses) ?> grupy)</span></a>
   </span>
   <?php endif; ?>

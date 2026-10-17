@@ -3673,7 +3673,7 @@ function k30_ti_enrollments(int $course_id): array {
 
 function k30_ti_client_courses(int $client_id): array {
     return db_all(
-        "SELECT e.*, c.name AS course_name, c.time_from, c.time_to, c.day_of_week,
+        "SELECT e.*, c.name AS course_name, c.group_code, c.time_from, c.time_to, c.day_of_week,
                 u.name AS instructor_name
          FROM k30_ti_enrollments e
          JOIN k30_ti_courses c ON c.id=e.course_id

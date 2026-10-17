@@ -176,6 +176,7 @@ $u_not_enrolled = $u_can_enroll
 
 <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
   <h1 class="h5 fw-bold mb-0"><i class="bi bi-people me-2" aria-hidden="true"></i>Uczestnicy — <?= h($course['name']) ?></h1>
+  <?php if (trim((string)($course['group_code'] ?? '')) !== ''): ?><span class="badge text-bg-dark font-monospace">Nr grupy: <?= h($course['group_code']) ?></span><?php endif; ?>
   <span class="badge bg-secondary"><?= (int)$u_active ?> aktywnych z <?= count($u_parts) ?></span>
   <div class="ms-auto d-flex gap-2 usos-noprint">
     <a href="index.php?course=<?= (int)$cur_course ?>&tab=protokol" class="btn btn-sm btn-outline-primary">

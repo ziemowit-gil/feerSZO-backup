@@ -80,6 +80,7 @@ include __DIR__ . '/_layout_head.php';
           <i class="bi bi-mortarboard fs-5" aria-hidden="true"></i>
           <span>
             <span class="d-block fw-semibold"><?= h($c['course_name']) ?></span>
+            <?php if (trim((string)($c['group_code'] ?? '')) !== ''): ?><span class="d-block small">Nr grupy: <strong class="font-monospace"><?= h($c['group_code']) ?></strong></span><?php endif; ?>
             <?php if (!empty($c['instructor_name'])): ?>
             <span class="d-block small text-body-secondary">Prowadzący: <?= h($c['instructor_name']) ?></span>
             <?php endif; ?>

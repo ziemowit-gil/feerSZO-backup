@@ -115,6 +115,15 @@ if ($ti_ctx_multi) {
         . h($_ti_ctx_name) . '</strong> &middot; <a href="choose_group.php?tab=' . h((string)($_GET['tab'] ?? 'dane')) . '">Zmień grupę</a></p>';
 }
 
+// Numer grupy (group_code z panelu dydaktyka, np. 23926) w widocznym miejscu na górze panelu:
+// aktywna grupa (kursant w kilku grupach) albo wszystkie aktywne grupy kursanta.
+$ti_group_no = fn(array $c): string => trim((string)($c['group_code'] ?? ''));
+$ti_group_strip = [];
+foreach ($ti_ctx_courses as $_cc) {
+    if ($ti_ctx_multi && (int)$_cc['course_id'] !== $ti_ctx_course_id) continue;
+    $ti_group_strip[] = ['no' => $ti_group_no($_cc), 'name' => (string)$_cc['course_name']];
+}
+
 $tab        = $_GET['tab'] ?? 'dane';
 $vlab_token = student_token();
 
@@ -1478,6 +1487,19 @@ include __DIR__ . '/_layout_head.php';
 <?php if ($KUR_UI === 'alt' && $tab === 'start') include __DIR__ . '/_alt_start.php'; ?>
 
 <main id="main" class="container-xl px-3 py-4<?= ($tab === 'dane' && $KUR_UI === 'alt') ? ' kp-dane-grid' : '' ?><?= ($tab === 'lekcje' && $KUR_UI === 'alt') ? ' kp-lekcje-uklad' : '' ?>">
+<?php if ($ti_group_strip): /* nr grupy — zawsze widoczny na górze panelu */ ?>
+<section class="kp-group-no d-flex flex-wrap align-items-center gap-2 mb-3 p-2 px-3 border border-2 rounded" aria-label="Twoja grupa" style="grid-column:1/-1">
+  <i class="bi bi-people-fill fs-5" aria-hidden="true"></i>
+  <span class="fw-semibold"><?= count($ti_group_strip) > 1 ? 'Twoje grupy:' : 'Twoja grupa:' ?></span>
+  <?php foreach ($ti_group_strip as $_g): ?>
+  <span class="d-inline-flex align-items-center gap-2 me-2">
+    <?php if ($_g['no'] !== ''): ?><span class="badge text-bg-dark fs-6 font-monospace">Nr grupy: <?= h($_g['no']) ?></span><?php endif; ?>
+    <span><?= h($_g['name']) ?></span>
+  </span>
+  <?php endforeach; ?>
+  <?php if ($ti_ctx_multi): ?><a class="ms-auto small" href="choose_group.php?tab=<?= h((string)($_GET['tab'] ?? 'dane')) ?>">Zmień grupę</a><?php endif; ?>
+</section>
+<?php endif; ?>
 <?php if ($sf_pending): ?>
 <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2" role="status">
   <i class="bi bi-pen" aria-hidden="true"></i>
