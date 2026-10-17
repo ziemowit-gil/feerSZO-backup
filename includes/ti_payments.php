@@ -149,6 +149,9 @@ function ti_charges_total(int $client_id): float {
  *         source_type='writeoff' z source_id > 0 — ti_balance_zero_out) pokrywają najpierw
  *         to rozliczenie; reszta trafia do grupy wpłaty (course_id) albo do wpłat ogólnych.
  * Faza 1: wpłaty znaczone na grupę (course_id > 0) pokrywają FIFO tylko należności tej grupy.
+ * Faza 1b: „Płatne z subkonta” (modules/ti_subaccount) — wpłaty ogólne na subkonto (source_type
+ *          'subaccount' lub 'bank_tx') pokrywają FIFO tylko należności grup wybranych przez kierownika;
+ *          reszta zostaje na subkoncie (sub_credit) i nie pokrywa innych grup.
  * Faza 2: wpłaty ogólne (course_id = 0) pokrywają FIFO wszystko, co pozostało niedopłacone.
  *
  * @return array{
@@ -181,6 +184,20 @@ function ti_client_allocation(int $client_id): array {
         [$client_id]
     );
 
+    // „Płatne z subkonta”: grupy, które pokrywają wpłaty na subkonto (brak tabel / opcji wyłączonej = [])
+    $sub_groups = [];
+    try {
+        $sub_groups = array_map('intval', array_column(db_all(
+            "SELECT g.course_id FROM ti_subaccount_pay_groups g JOIN ti_subaccount_pay p ON p.client_id=g.client_id AND p.enabled=1
+             WHERE g.client_id=?", [$client_id]), 'course_id'));
+    } catch (\Throwable $e) {}
+    $sub_pool = 0.0;
+    if ($sub_groups) {
+        $sub_pool = round((float)(db_one(
+            "SELECT COALESCE(SUM(amount),0) AS s FROM k30_ti_payments
+             WHERE client_id=? AND COALESCE(course_id,0)=0 AND source_type IN ('subaccount','bank_tx')", [$client_id])['s'] ?? 0), 2);
+    }
+
     $earmarked = [];     // course_id > 0 => kwota wpłat znaczonych
     $general   = 0.0;    // wpłaty ogólne
     $payments  = 0.0;
@@ -191,6 +208,7 @@ function ti_client_allocation(int $client_id): array {
         if ($cid > 0) $earmarked[$cid] = round(($earmarked[$cid] ?? 0) + $sum, 2);
         else          $general = round($general + $sum, 2);
     }
+    $general = round($general - $sub_pool, 2);   // wpłaty na subkonto idą osobno (faza 1b)
 
     $rows = [];
     foreach ($charges as $c) {
@@ -232,6 +250,19 @@ function ti_client_allocation(int $client_id): array {
         }
         $group_credit_map[$cid] = round(max(0, $rem), 2);
     }
+
+    // Faza 1b — wpłaty na subkonto, FIFO tylko po grupach „Płatne z subkonta”
+    $rem = $sub_pool;
+    foreach ($rows as $k => $r) {
+        if ($rem <= 0) break;
+        if (!in_array($r['course_id'], $sub_groups, true)) continue;
+        $need = round($r['due'] - $rows[$k]['paid'], 2);
+        if ($need <= 0) continue;
+        $take = min($rem, $need);
+        $rows[$k]['paid'] = round($rows[$k]['paid'] + $take, 2);
+        $rem = round($rem - $take, 2);
+    }
+    $sub_credit = round(max(0, $rem), 2);
 
     // Faza 2 — wpłaty ogólne, FIFO po wszystkich należnościach
     $rem = $general;
@@ -279,9 +310,10 @@ function ti_client_allocation(int $client_id): array {
         'charges'        => $tot_due,
         'paid'           => $tot_paid,
         'debt'           => $tot_debt,
-        'credit'         => round($general_credit + $group_credit, 2),
+        'credit'         => round($general_credit + $group_credit + $sub_credit, 2),
         'general_credit' => $general_credit,
         'group_credit'   => $group_credit,
+        'sub_credit'     => $sub_credit,      // środki na subkoncie dla grup „Płatne z subkonta”
         'rows'           => $rows,
         'groups'         => $groups,
     ];
@@ -346,6 +378,7 @@ function ti_client_group_balances(int $client_id): array {
     return [
         'groups'         => $out,
         'general_credit' => $a['general_credit'],
+        'sub_credit'     => $a['sub_credit'] ?? 0.0,
         'total'          => ['charges'=>$a['charges'], 'paid'=>$a['paid'], 'debt'=>$a['debt'],
                              'payments'=>$a['payments'], 'credit'=>$a['credit']],
     ];
