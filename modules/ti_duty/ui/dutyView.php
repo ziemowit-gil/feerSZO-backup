@@ -23,7 +23,7 @@ function tiDutyItemHtml(array $it, bool $special): string {
          . '<span class="p">' . h(tiDutyPersonLabel($it)) . '</span>'
          . (trim((string)$it['place']) !== '' ? ' <span class="s">' . h($it['place']) . '</span>' : '')
          . ($c ? '<br>' . implode(' · ', $c) : '')
-         . (trim((string)$it['note']) !== '' ? '<span class="st st-info">' . h(tiPlanPublicAnonymize((string)$it['note'])) . '</span>' : '')
+         . (trim((string)$it['note']) !== '' ? '<div class="st st-info">' . tiPlanPublicTextHtml((string)$it['note']) . '</div>' : '')
          . ($special ? '<span class="st st-warn">dyżur w tym dniu zmieniony</span>' : '')
          . '</div>';
 }

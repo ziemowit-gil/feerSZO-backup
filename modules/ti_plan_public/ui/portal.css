@@ -87,6 +87,9 @@ table.tabela { border-collapse: collapse; border: 1px solid var(--line); backgro
 .box h2 { font: bold 13px Verdana, sans-serif; color: var(--link); margin: 0 0 4px; }
 .box ul { margin: 0; padding-left: 18px; }
 .box.note { background: #fff6d6; border-color: #e0c060; }
+.note-p { margin: 0 0 4px; } .note-p:last-child { margin-bottom: 0; }
+.note-ul { margin: 2px 0 4px; padding-left: 20px; } .note-ul li { margin: 1px 0; }
+.lesson .st .note-p, .lesson .st .note-ul { font-weight: normal; }
 .next .when { font-weight: bold; }
 .dir-list { columns: 3 220px; margin: 0; padding-left: 20px; }
 .dir-list li { break-inside: avoid; margin-bottom: 3px; }

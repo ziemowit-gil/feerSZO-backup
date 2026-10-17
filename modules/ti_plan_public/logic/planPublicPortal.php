@@ -558,6 +558,25 @@ function tiPlanPublicOnlineCount(int $weeks = 8): int {
     return count(array_filter(tiPlanPublicLessons(['online' => true], date('Y-m-d'), date('Y-m-d', strtotime('+' . (7 * $weeks) . ' days'))), fn($l) => !$l['cancelled']));
 }
 
+/**
+ * Tekst komunikatu → bezpieczny HTML: wiersze zaczynające się od „-” (także „–”, „•”, „*”) stają się listą punktowaną,
+ * pozostałe akapitami z <br>. Przed escapowaniem: RODO (inicjały imion i nazwisk).
+ */
+function tiPlanPublicTextHtml(string $text): string {
+    $lines = preg_split('/\R/u', trim(tiPlanPublicAnonymize($text))) ?: [];
+    $out = ''; $list = []; $para = [];
+    $flushPara = function () use (&$para, &$out) { if ($para) { $out .= '<p class="note-p">' . implode('<br>', $para) . '</p>'; $para = []; } };
+    $flushList = function () use (&$list, &$out) { if ($list) { $out .= '<ul class="note-ul">' . implode('', $list) . '</ul>'; $list = []; } };
+    foreach ($lines as $ln) {
+        if (preg_match('/^\s*[-–•*]\s*(.*)$/u', $ln, $m) && trim($m[1]) !== '') { $flushPara(); $list[] = '<li>' . h(trim($m[1])) . '</li>'; continue; }
+        $flushList();
+        if (trim($ln) === '') { $flushPara(); continue; }
+        $para[] = h(trim($ln));
+    }
+    $flushPara(); $flushList();
+    return $out;
+}
+
 /** Poniedziałek tygodnia zawierającego datę (Y-m-d). */
 function tiPlanPublicMonday(string $date): string {
     $t = strtotime($date);

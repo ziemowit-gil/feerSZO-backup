@@ -137,7 +137,7 @@ $nextBox = function (?array $nx, bool $hasAny) use ($dayWord): void {
     <?php endif;
 };
 $noteBox = function (string $note): void {
-    if (trim($note) !== '') echo '<div class="box note" role="note">' . nl2br(h(tiPlanPublicAnonymize($note))) . '</div>';   // RODO: imiona/nazwiska → inicjały
+    if (trim($note) !== '') echo '<div class="box note" role="note">' . tiPlanPublicTextHtml($note) . '</div>';   // RODO + wiersze od „-” jako lista
 };
 $sendIcs = function (array $lessons, string $calName, string $seed, string $file): void {
     header('Content-Type: text/calendar; charset=utf-8');

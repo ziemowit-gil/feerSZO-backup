@@ -71,7 +71,20 @@ function tiDutyAdminRender(string $selfUrl, string $tokenHtml, string $publicUrl
       <div class="col-md-3"><label class="form-label small mb-0" for="dk-pl">Miejsce / forma</label><input type="text" class="form-control form-control-sm" id="dk-pl" name="place" maxlength="200" value="<?= $ev('place') ?>" placeholder="np. biuro, pok. 12 / telefonicznie / Teams"></div>
       <div class="col-md-2"><label class="form-label small mb-0" for="dk-ph">Telefon dyżurowy</label><input type="tel" class="form-control form-control-sm" id="dk-ph" name="contact_phone" maxlength="40" value="<?= $ev('contact_phone') ?>"></div>
       <div class="col-md-3"><label class="form-label small mb-0" for="dk-em">E-mail dyżurowy</label><input type="email" class="form-control form-control-sm" id="dk-em" name="contact_email" maxlength="120" value="<?= $ev('contact_email') ?>"></div>
-      <div class="col-md-5"><label class="form-label small mb-0" for="dk-nt">Uwaga (opcjonalna)</label><input type="text" class="form-control form-control-sm" id="dk-nt" name="note" maxlength="300" value="<?= $ev('note') ?>"></div>
+      <div class="col-md-5"><label class="form-label small mb-0" for="dk-nt">Uwaga (opcjonalna)</label><textarea class="form-control form-control-sm" id="dk-nt" name="note" maxlength="300" rows="2"><?= $ev('note') ?></textarea>
+        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" data-list-for="dk-nt" title="Zamień zaznaczone wiersze na listę punktowaną (albo z powrotem)"><i class="bi bi-list-ul me-1" aria-hidden="true"></i>• Lista</button><span class="form-text small ms-2">wiersze zaczynające się od „-” pokażą się jako lista</span>
+        <script>
+        document.addEventListener('click', function (e) {
+          var lb = e.target.closest('[data-list-for]'); if (!lb) return;
+          var ta = document.getElementById(lb.getAttribute('data-list-for')); if (!ta) return;
+          var v = ta.value, s = ta.selectionStart, en = ta.selectionEnd;
+          var a = v.lastIndexOf('\n', s - 1) + 1, z = v.indexOf('\n', en); if (z < 0) z = v.length;
+          var lines = v.slice(a, z).split('\n');
+          var all = lines.every(function (l) { return /^\s*[-–•*]\s/.test(l) || l.trim() === ''; });
+          lines = lines.map(function (l) { if (l.trim() === '') return l; return all ? l.replace(/^\s*[-–•*]\s?/, '') : '- ' + l.replace(/^\s*[-–•*]\s?/, ''); });
+          var mid = lines.join('\n'); ta.value = v.slice(0, a) + mid + v.slice(z); ta.focus(); ta.setSelectionRange(a, a + mid.length);
+        });
+        </script></div>
       <div class="col-auto"><button class="btn btn-sm btn-primary"><?= $ed ? 'Zapisz' : 'Dodaj dyżur' ?></button></div>
     </form>
     <p class="small text-body-secondary mb-0 mt-2">Kontakt dyżurowy wpisuj służbowy (nie prywatny) — trafia na stronę publiczną.</p>

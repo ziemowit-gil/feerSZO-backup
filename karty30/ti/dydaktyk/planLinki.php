@@ -306,7 +306,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <div class="col-sm-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="id<?= $iu ?>" name="in_directory" value="1" <?= (int)$il['in_directory'] ? 'checked' : '' ?>><label class="form-check-label small" for="id<?= $iu ?>">Pokaż w katalogu portalu</label></div></div>
       <div class="col-sm">
         <label class="form-label small mb-0" for="in<?= $iu ?>">Komunikat (opcjonalny)</label>
-        <input type="text" class="form-control form-control-sm" id="in<?= $iu ?>" name="note" maxlength="500" value="<?= h($il['note']) ?>">
+        <textarea class="form-control form-control-sm" id="in<?= $iu ?>" name="note" maxlength="500" rows="2"><?= h($il['note']) ?></textarea>
+        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" data-list-for="in<?= $iu ?>" title="Zamień zaznaczone wiersze na listę punktowaną (albo z powrotem)"><i class="bi bi-list-ul me-1" aria-hidden="true"></i>• Lista</button><span class="form-text small ms-2">wiersze zaczynające się od „-” pokażą się jako lista</span>
       </div>
       <div class="col-sm-auto"><button class="btn btn-sm btn-primary">Zapisz</button></div>
     </form>
@@ -488,7 +489,8 @@ document.addEventListener('click', function (e) {
         </div>
         <div class="col-sm-6 col-md-4">
           <label class="form-label small mb-0" for="n<?= $cid ?>">Komunikat na stronie planu (opcjonalny)</label>
-          <input type="text" class="form-control form-control-sm" id="n<?= $cid ?>" name="note" maxlength="500" value="<?= h($l['note']) ?>" placeholder="np. plan może się zmienić do 15 października">
+          <textarea class="form-control form-control-sm" id="n<?= $cid ?>" name="note" maxlength="500" rows="3" placeholder="np. plan może się zmienić do 15 października&#10;- zajęcia 1.11 odwołane&#10;- 8.11 w sali 12"><?= h($l['note']) ?></textarea>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" data-list-for="n<?= $cid ?>" title="Zamień zaznaczone wiersze na listę punktowaną (albo z powrotem)"><i class="bi bi-list-ul me-1" aria-hidden="true"></i>• Lista</button><span class="form-text small ms-2">wiersze zaczynające się od „-” pokażą się jako lista</span>
         </div>
         <div class="col-sm-auto"><button class="btn btn-sm btn-primary">Zapisz</button></div>
       </form>
@@ -541,6 +543,18 @@ document.addEventListener('click', function (e) {
 </div>
 </main>
 <script>
+// „• Lista”: dodaje „- ” na początku zaznaczonych wierszy (albo bieżącego), a gdy wszystkie już je mają — usuwa
+document.addEventListener('click', function (e) {
+  var lb = e.target.closest('[data-list-for]'); if (!lb) return;
+  var ta = document.getElementById(lb.getAttribute('data-list-for')); if (!ta) return;
+  var v = ta.value, s = ta.selectionStart, en = ta.selectionEnd;
+  var a = v.lastIndexOf('\n', s - 1) + 1, z = v.indexOf('\n', en); if (z < 0) z = v.length;
+  var lines = v.slice(a, z).split('\n');
+  var all = lines.every(function (l) { return /^\s*[-–•*]\s/.test(l) || l.trim() === ''; });
+  lines = lines.map(function (l) { if (l.trim() === '') return l; return all ? l.replace(/^\s*[-–•*]\s?/, '') : '- ' + l.replace(/^\s*[-–•*]\s?/, ''); });
+  var mid = lines.join('\n'); ta.value = v.slice(0, a) + mid + v.slice(z);
+  ta.focus(); ta.setSelectionRange(a, a + mid.length);
+});
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-copy]'); if (!b) return;
   var inp = document.getElementById(b.getAttribute('data-copy')); if (!inp) return;
