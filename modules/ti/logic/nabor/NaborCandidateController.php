@@ -40,6 +40,45 @@ final class NaborCandidateController
         return Router::redirect(route('nabor.login'));
     }
 
+    public function registerForm(array $errors = [], array $old = []): string
+    {
+        if (naborAccountCurrent()) { Router::redirect(route('nabor.account')); return ''; }
+        require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+        return $this->view('rejestracja.php', ['errors' => $errors, 'old' => $old, 'done' => false,
+            'verified' => phoneVerifiedInSession(NABOR_REG_PURPOSE), 'smsUrl' => route('nabor.register.sms'), 'csrf' => Router::csrfToken()]);
+    }
+
+    public function register(): string
+    {
+        if (trim((string)($_POST['www'] ?? '')) !== '') return $this->view('rejestracja.php', ['errors' => [], 'old' => [], 'done' => true, 'verified' => null, 'smsUrl' => '', 'csrf' => '']);
+        [$errors, $id] = naborAccountRegister($_POST);
+        if ($errors) return $this->registerForm($errors, $_POST);
+        return $this->view('rejestracja.php', ['errors' => [], 'old' => ['email' => (string)$_POST['email']], 'done' => true, 'verified' => null, 'smsUrl' => '', 'csrf' => '']);
+    }
+
+    /** AJAX kodu SMS przy rejestracji (działa także przy zamkniętym naborze). */
+    public function registerSms(): array
+    {
+        require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+        header('Cache-Control: no-store');
+        $phone = (string)($_POST['phone'] ?? '');
+        $err = match ((string)($_POST['action'] ?? '')) {
+            'send'   => phoneVerifySend(NABOR_REG_PURPOSE, $phone, 'zakladania konta kandydata', naborSmsProvider()),
+            'verify' => phoneVerifyCheck(NABOR_REG_PURPOSE, $phone, (string)($_POST['code'] ?? '')),
+            default  => 'Nieznana operacja.',
+        };
+        return ['ok' => $err === '', 'error' => $err];
+    }
+
+    public function activate(): ?string
+    {
+        header('Referrer-Policy: no-referrer');
+        $err = naborAccountActivate((string)($_GET['t'] ?? ''));
+        if ($err !== '') return $this->view('haslo.php', ['mode' => 'invalid', 'error' => $err, 'email' => '', 'sent' => false]);
+        flash_set('success', 'Konto aktywne — jesteś zalogowany(-a). Możesz złożyć zgłoszenie na zajęcia.');
+        return Router::redirect(route('nabor.account'));
+    }
+
     public function passwordForm(): string
     {
         header('Referrer-Policy: no-referrer');

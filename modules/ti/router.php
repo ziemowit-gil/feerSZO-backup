@@ -42,6 +42,10 @@ if (!$panel) {
         $r->post('/wyloguj',    [NaborCandidateController::class, 'logout'])->name('nabor.logout');
         $r->get('/haslo',       [NaborCandidateController::class, 'passwordForm'])->name('nabor.password');
         $r->post('/haslo',      [NaborCandidateController::class, 'passwordSave']);
+        $r->get('/rejestracja',      [NaborCandidateController::class, 'registerForm'])->name('nabor.register');
+        $r->post('/rejestracja',     [NaborCandidateController::class, 'register']);
+        $r->post('/rejestracja/sms', [NaborCandidateController::class, 'registerSms'])->name('nabor.register.sms');
+        $r->get('/aktywuj',          [NaborCandidateController::class, 'activate'])->name('nabor.activate');
         $r->get('/przypomnij',  [NaborCandidateController::class, 'forgotForm'])->name('nabor.forgot');
         $r->post('/przypomnij', [NaborCandidateController::class, 'forgot']);
         $r->group(['cand'], function (Router $r) {

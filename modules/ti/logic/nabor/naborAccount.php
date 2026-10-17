@@ -92,6 +92,10 @@ function naborAccountLogin(string $email, string $pass): string {
     if (!$acc) { password_verify($pass, password_hash('brak-konta', PASSWORD_DEFAULT)); return $bad; }   // podobny czas odpowiedzi
     if ($acc['locked_until'] && $acc['locked_until'] > gmdate('Y-m-d H:i:s')) return 'Zbyt wiele nieudanych prób. Spróbuj ponownie za kilkanaście minut.';
     if (!$acc['password_hash']) return 'Konto nie ma jeszcze hasła — użyj linku z e-maila albo „Nie pamiętam hasła”.';
+    if (!$acc['email_verified_at'] && password_verify($pass, $acc['password_hash'])) {
+        naborAccountSendActivation($acc);
+        return 'Konto nie jest jeszcze aktywne — wysłaliśmy ponownie link aktywacyjny na ' . $acc['email'] . '.';
+    }
     if (!password_verify($pass, $acc['password_hash'])) {
         $f = (int)$acc['failed_logins'] + 1;
         db_exec("UPDATE ti_nabor_accounts SET failed_logins=?, locked_until=? WHERE id=?",
@@ -334,4 +338,55 @@ function naborStaffNotify(int $sid, string $subject, string $text): void {
     $body = '<p>' . nl2br(h($text)) . '</p><p><a href="' . h($url) . '">Otwórz zgłoszenie ' . h($s['registration_number']) . ' w panelu dydaktyka</a></p>';
     try { mail_queue_add($to, 'Nabór TI', $subject . ' — ' . $s['registration_number'], naborMailHtml($subject, $body), '', 'ti_nabor', $sid); }
     catch (\Throwable $e) { error_log('[ti_nabor] powiadomienie kierownika: ' . $e->getMessage()); }
+}
+
+/* ─────────────── Samodzielne założenie konta (jak IRK: konto najpierw, zgłoszenia później) ─────────────── */
+
+const NABOR_REG_PURPOSE = 'ti_nabor_konto';
+
+/**
+ * Rejestracja: imię i nazwisko, e-mail, telefon potwierdzony kodem SMS (w tej sesji), hasło, zgoda RODO.
+ * Konto bez potwierdzonego e-maila — link aktywacyjny (48 h). Zwraca [błędy, id konta|null].
+ */
+function naborAccountRegister(array $p): array {
+    require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+    $e = [];
+    $name  = mb_substr(trim((string)($p['name'] ?? '')), 0, 200);
+    $email = mb_strtolower(trim((string)($p['email'] ?? '')));
+    $phone = phoneVerifyNormalize((string)($p['phone'] ?? ''));
+    $pass  = (string)($p['password'] ?? '');
+    if (mb_strlen($name) < 3) $e[] = 'Podaj imię i nazwisko.';
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $e[] = 'Podaj poprawny adres e-mail.';
+    if ($phone === '') $e[] = 'Podaj numer telefonu komórkowego (9 cyfr).';
+    elseif (phoneVerifiedInSession(NABOR_REG_PURPOSE) !== $phone) $e[] = 'Potwierdź numer telefonu kodem SMS.';
+    if (mb_strlen($pass) < NABOR_PASS_MIN) $e[] = 'Hasło musi mieć co najmniej ' . NABOR_PASS_MIN . ' znaków.';
+    elseif ($pass !== (string)($p['password2'] ?? '')) $e[] = 'Hasła nie są takie same.';
+    if (empty($p['gdpr'])) $e[] = 'Zgoda na przetwarzanie danych w celu prowadzenia konta jest wymagana.';
+    if (!$e && naborAccountByEmail($email)) $e[] = 'Konto z tym adresem już istnieje — zaloguj się albo użyj „Nie pamiętam hasła”.';
+    if ($e) return [$e, null];
+    $id = db_insert('ti_nabor_accounts', ['email' => $email, 'name' => $name, 'phone' => $phone,
+                                          'password_hash' => password_hash($pass, PASSWORD_DEFAULT), 'phone_verified_at' => gmdate('Y-m-d H:i:s')]);
+    phoneVerifyForget(NABOR_REG_PURPOSE);
+    naborAccountSendActivation(naborAccountGet($id));
+    return [[], $id];
+}
+
+function naborAccountSendActivation(array $acc): void {
+    require_once __DIR__ . '/naborNotify.php';
+    $t = naborAccountIssueToken((int)$acc['id'], 2 * 86400);
+    $url = naborLink('/aktywuj', ['t' => $t]);
+    $body = '<p>Dzień dobry,</p><p>dziękujemy za założenie <strong>konta kandydata</strong>. Kliknij, żeby potwierdzić adres e-mail i aktywować konto:</p>'
+          . '<p style="text-align:center;margin:24px 0"><a href="' . h($url) . '" style="background:#0b5ea8;color:#fcc634;padding:12px 22px;text-decoration:none;font-weight:bold">Aktywuj konto</a></p>'
+          . '<p style="font-size:13px;color:#5b6472">Link jest ważny 48 godzin. Jeśli to nie Ty zakładałeś(-aś) konto — zignoruj wiadomość.</p>';
+    try { mail_queue_add($acc['email'], $acc['name'], 'Aktywuj konto kandydata', naborMailHtml('Aktywuj konto kandydata', $body), '', 'ti_nabor_account', (int)$acc['id'], '', true); }
+    catch (\Throwable $e) { error_log('[ti_nabor] aktywacja: ' . $e->getMessage()); }
+}
+
+/** Aktywacja z linku: potwierdza e-mail i loguje. Zwraca błąd albo ''. */
+function naborAccountActivate(string $token): string {
+    $acc = naborAccountByToken($token);
+    if (!$acc) return 'Link aktywacyjny wygasł albo był już użyty.';
+    db_exec("UPDATE ti_nabor_accounts SET email_verified_at=COALESCE(email_verified_at, datetime('now')), token_hash=NULL, token_expires_at=NULL WHERE id=?", [$acc['id']]);
+    naborAccountStartSession((int)$acc['id']);
+    return '';
 }

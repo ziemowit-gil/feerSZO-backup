@@ -35,7 +35,7 @@ $error = $ERR[$ec] ?? null;
 
 // ── Aktywna zakładka i krok ───────────────────────────────────────────────────
 $tab   = in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up','kandydat'], true) ? $_GET['tab'] : 'kursant';
-$krok1 = !in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up','kandydat'], true);
+$krok1 = false;   // układ portalowy: role w zakładkach nad formularzem, domyślnie kursant (dawny krok 1 z kaflami usunięty)
 
 // ── Prefill pól po błędzie ────────────────────────────────────────────────────
 $prefill_login = h($_GET['l'] ?? '');
@@ -111,105 +111,41 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
 <title><?= h($krok1 ? 'Logowanie — Dydaktyka 3' : $_titles[$tab] . ' — Logowanie') ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php include dirname(__DIR__, 2) . '/modules/ti/view/portal/_style.php'; ?>
 <style>
-  body { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; margin: 0; color: #1d1d1d; }
-  .tz-split { display: flex; flex-direction: column; min-height: 100vh; }
-  /* Telefon: najpierw formularz, potem panel z instrukcją. */
-  @media (max-width: 767.98px) { .tz-main { order: 1; } .tz-side { order: 2; } }
-  @media (min-width: 768px) { .tz-split { flex-direction: row; } }
-  .tz-side { background: #1d1d1d; color: #fff; padding: 2.5rem 2rem; flex: 1 1 50%; display: flex; flex-direction: column; justify-content: center; }
-  .tz-side h2 { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; }
-  .tz-side .sub { color: #cbd5e1; font-size: .95rem; }
-  .tz-side ul { padding-left: 1.1rem; margin: 1.25rem 0 0; font-size: .92rem; }
-  .tz-side li { margin-bottom: .5rem; }
-  .tz-side a { color: #7dd3fc; }
-  .tz-main { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
-  .tz-card { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; width: 100%; max-width: 420px; }
-  .tz-card.tz-wide { max-width: 640px; }
-  .tz-card .form-control { border-radius: 0; box-shadow: none; padding: .7rem .9rem; font-size: 1.05rem; }
-  .tz-card label { font-weight: 600; font-size: .92rem; margin-bottom: .3rem; }
-  .tz-btn { border-radius: 0; background: #0f6fa8; border: 0; color: #fff; font-weight: 600; padding: .75rem 1rem; width: 100%; text-align: center; text-decoration: none; display: block; }
-  .tz-btn:hover { background: #0c5b8a; color: #fff; }
-  .tz-btn-ghost { background: #fff; color: #1d1d1d; border: 2px solid #0f6fa8; }
-  .tz-btn-ghost:hover { background: #e6f6fc; color: #1d1d1d; }
-  .tz-tile { display: block; height: 100%; padding: 1rem; text-decoration: none; color: #fff; border-radius: 0; font-family: "Segoe UI", system-ui, sans-serif; }
+  /* Formularze ról — w stylu portalu (pp-): pola bez zaokrągleń, żółty przycisk „Zaloguj się” */
+  .pp-form .form-control { border-radius: 0; box-shadow: none; padding: .6rem .8rem; font-size: 1rem; border-color: var(--pp-line); }
+  .pp-form .form-control:focus { border-color: var(--pp-blue); outline: 3px solid var(--pp-yellow); }
+  .pp-form label { font-weight: 600; font-size: 1.02rem; margin-bottom: .55rem; }
+  .tz-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 200px; padding: .5rem 1.5rem; border: 0; border-radius: 0;
+            background: var(--pp-yellow); color: var(--pp-blue); font-weight: 600; text-decoration: none; }
+  .tz-btn:hover { filter: brightness(.95); color: var(--pp-blue); }
+  .tz-btn-ghost { background: #fff; color: var(--pp-blue); border: 2px solid var(--pp-blue); }
+  .tz-tile { display: block; height: 100%; padding: 1rem; text-decoration: none; color: #fff; }
   .tz-tile:hover { color: #fff; filter: brightness(.92); }
   .tz-choice { position: relative; padding: 1rem 1.1rem; min-height: 88px; }
   .tz-choice-badge { position: absolute; top: .6rem; right: .6rem; background: #fff; color: #1d1d1d; font-size: .75rem; font-weight: 700; padding: .1rem .45rem; }
-  .tz-tile:focus-visible, .tz-card :focus-visible, .tz-side a:focus-visible, .tz-btn:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
-  .tz-footer { text-align: center; font-size: .85rem; color: #4b5563; padding: 1rem; }
-  .tz-footer a { color: #1d4ed8; text-decoration: none; margin: 0 .5rem; }
-  .tz-hint { font-size: .85rem; color: #4b5563; margin-top: .75rem; }
-  .pass-wrap { position: relative; }
-  .pass-wrap .form-control { padding-right: 3rem; }
+  .tz-hint { font-size: .85rem; color: var(--pp-muted); margin-top: .75rem; }
+  .pass-wrap { position: relative; } .pass-wrap .form-control { padding-right: 3rem; }
   .pass-toggle { position: absolute; right: 0; top: 0; height: 100%; width: 3rem; border: 0; background: transparent; }
 </style>
 </head>
-<body>
-<div role="region" aria-label="Informacja o logowaniu" style="background:#0f6fa8;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
-  Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
-  <a href="<?= h($TI_BASE) ?>sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
-</div>
-<div class="tz-split">
-  <aside class="tz-side" aria-labelledby="tz-side-h">
-    <div class="small fw-bold mb-2" style="letter-spacing:.06em">FEER · System Tożsamości</div>
-    <h2 id="tz-side-h"><?= h($krok1 ? 'Dydaktyka 3' : $_titles[$tab]) ?></h2>
-    <p class="sub mb-0">Jak się zalogować:</p>
-    <ol>
-      <?php foreach ($_side_steps as $_st): ?><li><?= h($_st) ?></li><?php endforeach; ?>
-    </ol>
-  </aside>
-
-  <main class="tz-main" id="ti-login-main">
-    <div class="tz-card<?= $krok1 ? ' tz-wide' : '' ?>">
-      <h1 class="h4 fw-bold mb-2"><?= h($krok1 ? 'Logowanie — Dydaktyka 3' : org_login_title($_titles[$tab])) ?></h1>
-
-      <?php if ($error): ?>
-      <div class="alert alert-danger small py-2 rounded-0" role="alert" aria-live="assertive"><?= h($error) ?></div>
-      <?php endif; ?>
-
-      <?php if ($krok1): ?>
-      <h2 class="h6 fw-semibold mb-3">Krok 1 z 2: wybierz, kim jesteś i z czego korzystasz</h2>
-      <?php foreach ($_groups as $_g): ?>
-      <h3 class="small text-uppercase fw-bold text-body-secondary mt-3 mb-2" style="letter-spacing:.05em"><?= h($_g['title']) ?></h3>
-      <div class="row g-2" role="list" aria-label="<?= h($_g['title']) ?>">
-        <?php foreach ($_g['items'] as $_i): ?>
-        <div class="col-6 col-sm-4" role="listitem">
-          <a class="tz-tile" href="login.php?tab=<?= h($_i['tab']) ?><?= $_i['fn'] !== '' ? '&amp;fn=' . h($_i['fn']) : '' ?>" style="background:<?= h($_i['kolor']) ?>">
-            <i class="bi <?= h($_i['icon']) ?> fs-4" aria-hidden="true"></i>
-            <span class="d-block fw-semibold mt-1"><?= h($_i['label']) ?></span>
-            <span class="d-block small"><?= h($_i['who']) ?></span>
-          </a>
-        </div>
-        <?php endforeach; ?>
-      </div>
-      <?php endforeach; ?>
-
-      <?php /* Nabór do grup TI (modules/ti): formularz dla rodziców i konto kandydata — adresy względne, zostają na bieżącym hoście */ ?>
-      <h3 class="small text-uppercase fw-bold text-body-secondary mt-3 mb-2" style="letter-spacing:.05em">Zapisy na zajęcia</h3>
-      <div class="row g-2" role="list" aria-label="Zapisy na zajęcia">
-        <?php if (org_setting('ti_nabor_enabled') === '1'): ?>
-        <div class="col-6 col-sm-4" role="listitem">
-          <a class="tz-tile" href="/nabor" style="background:#1d68f2">
-            <i class="bi bi-person-plus fs-4" aria-hidden="true"></i>
-            <span class="d-block fw-semibold mt-1">Zapisz się na zajęcia</span>
-            <span class="d-block small">Formularz zgłoszenia dla rodziców i opiekunów</span>
-          </a>
-        </div>
-        <?php endif; ?>
-        <div class="col-6 col-sm-4" role="listitem">
-          <a class="tz-tile" href="login.php?tab=kandydat" style="background:#164eb6">
-            <i class="bi bi-person-badge fs-4" aria-hidden="true"></i>
-            <span class="d-block fw-semibold mt-1">Konto kandydata</span>
-            <span class="d-block small">Status zgłoszeń, wiadomości, dokumenty</span>
-          </a>
-        </div>
-      </div>
-
-      <?php else: ?>
-      <p class="small mb-3">Krok 2 z 2: wpisz dane logowania dla roli: <strong><?= h($_tabs[$tab]['label']) ?></strong>.
-        <a href="login.php">Zmień rolę</a></p>
-
+<body class="pp">
+<?php
+$ppTitle = 'Panel zajęć'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie';
+$ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
+include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
+$_ppRoles = ['kursant' => 'Kursant', 'rodzic' => 'Rodzic / opiekun', 'up' => 'Osoba upoważniona', 'kandydat' => 'Kandydat (zapisy)', 'dydaktyk' => 'Prowadzący / kadra'];
+?>
+<main id="pp-main" class="pp-wrap">
+  <h1 class="pp-h1">Wybierz sposób logowania</h1>
+  <ul class="pp-tabs" aria-label="Kim jesteś">
+    <?php foreach ($_ppRoles as $_rk => $_rl): ?><li><a href="login.php?tab=<?= $_rk ?>"<?= $tab === $_rk ? ' aria-current="page"' : '' ?>><?= h($_rl) ?></a></li><?php endforeach; ?>
+  </ul>
+  <?php if ($error): ?><div class="pp-error" role="alert" aria-live="assertive"><?= h($error) ?></div><?php endif; ?>
+  <div class="pp-cols">
+    <div class="pp-form">
+      <p class="tz-hint mt-0 mb-3"><?= h(implode(' ', array_slice($_side[$tab], 1))) ?></p>
       <?php if ($tab === 'kursant'): ?>
       <form method="post" action="<?= h(rtrim(APP_URL, '/')) ?>/tozsamosc/kursant.php" autocomplete="on">
         <div class="mb-3">
@@ -364,18 +300,27 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
       </form>
       <p class="tz-hint">Dostęp do rozliczeń, frekwencji i harmonogramu kursanta, który Cię upoważnił.</p>
       <?php endif; ?>
-      <?php endif; ?>
     </div>
-  </main>
-</div>
 
-<footer class="tz-footer" aria-label="Linki">
-  <a href="<?= h($TI_BASE) ?>nowosci.php"><strong>Co nowego w panelu kursanta</strong></a>
-  <a href="/nabor/logowanie">Konto kandydata (zapisy)</a>
-  <a href="https://feer.org.pl">Strona Fundacji FEER</a>
-  <a href="<?= h(rtrim(APP_URL, '/')) ?>/panel/index.php">Panel wolontariusza</a>
-  <a href="<?= h(rtrim(APP_URL, '/')) ?>/auth/login.php">Logowanie do systemu (SZO)</a>
-</footer>
+    <aside aria-labelledby="pp-alt-h">
+      <p id="pp-alt-h" class="pp-note mb-1">Zaloguj się przez:</p>
+      <a class="pp-alt" href="<?= h($office_login_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Microsoft 365</a>
+      <p class="pp-note">Dla prowadzących i pracowników z pocztą w domenie fundacji (@feer.org.pl). Po wybraniu tej opcji nastąpi przekierowanie na stronę logowania Microsoft.</p>
+      <a class="pp-alt" href="kursant/parent.php" style="min-height:70px;font-size:1.3rem"><i class="bi bi-phone" aria-hidden="true"></i> Kod SMS</a>
+      <p class="pp-note">Dla rodziców i opiekunów bez hasła — jednorazowy kod na numer telefonu zapisany w placówce.</p>
+      <div class="pp-note" style="border-top:1px solid var(--pp-line);margin-top:1.6rem;padding-top:1.2rem">
+        <strong>Nie masz jeszcze konta?</strong><br>
+        <?php if (org_setting('ti_nabor_enabled') === '1'): ?><a href="/nabor">Zapisz dziecko na zajęcia</a> — po potwierdzeniu zgłoszenia założymy konto kandydata, a po przyjęciu dostaniesz login do panelu.<br><?php endif; ?>
+        <a href="/nabor/rejestracja">Załóż konto kandydata</a> · <a href="/nabor/logowanie">Zaloguj się na konto kandydata</a>
+      </div>
+    </aside>
+  </div>
+</main>
+<?php
+$ppFootLinks = ['Co nowego w panelu' => $TI_BASE . 'nowosci.php', 'Czym jest SSO' => $TI_BASE . 'sso.php', 'Strona Fundacji FEER' => 'https://feer.org.pl',
+                'Panel wolontariusza' => rtrim(APP_URL, '/') . '/panel/index.php', 'Logowanie do systemu (SZO)' => rtrim(APP_URL, '/') . '/auth/login.php'];
+include dirname(__DIR__, 2) . '/modules/ti/view/portal/_footer.php';
+?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
