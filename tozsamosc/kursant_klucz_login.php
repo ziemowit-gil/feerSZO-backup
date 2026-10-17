@@ -39,9 +39,9 @@ try {
         if (!$acc) throw new \RuntimeException('Konto jest nieaktywne.');
         student_login_user($acc, 'webauthn', 'klucz sprzętowy (Tożsamość)');
         $wybrany = db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [$account_id]);
-        echo json_encode(['ok' => true, 'redirect' => APP_URL . (empty($wybrany['sec_chosen'])
-            ? '/karty30/ti/kursant/sec_choose.php'
-            : '/karty30/ti/kursant/index.php')]);
+        echo json_encode(['ok' => true, 'redirect' => tiPanelUrl('kursant', (empty($wybrany['sec_chosen'])
+            ? 'sec_choose.php'
+            : 'index.php'))]);
     } else {
         throw new \RuntimeException('Nieznana operacja.');
     }

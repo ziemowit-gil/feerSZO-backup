@@ -79,26 +79,60 @@ RewriteRule ^plan/s/online/?$ /karty30/ti/dydaktyk/planPubliczny.php?s=online [Q
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^dyzury/?$ /karty30/ti/dydaktyk/dyzury.php [QSA,L]
 
+# ── Czyste adresy paneli TI na ti*. i kurs*.: bez /karty30/ti/ w pasku adresu ──
+# Panel uczestnika jest w korzeniu (ti.feer.org.pl/index.php?tab=lekcje), panel
+# dydaktyka pod /dydaktyk/, logowanie pod /login.php. Stare pełne adresy (linki
+# z e-maili, zakładki, APP_URL . '/karty30/ti/...' w kodzie) przekierowujemy
+# na krótkie. Tylko GET/HEAD — POST (formularze, AJAX) idzie dalej bez zmian,
+# a jego odpowiedź zwykle i tak przekierowuje względnie (PRG) na czysty adres.
+# THE_REQUEST = pierwotna linia żądania, więc wewnętrzne przepisania niżej
+# (/dydaktyk/x → /karty30/ti/dydaktyk/x) nie wpadają tu ponownie (brak pętli).
+# 302, nie 301: przeglądarki nie zapamiętują go na stałe, gdyby trzeba było cofnąć.
+# Funkcja tiPanelUrl() (modules/ti_panel_urls) od razu buduje krótkie adresy.
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
+RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+RewriteCond %{THE_REQUEST} \s/karty30/ti/kursant/ [NC]
+RewriteRule ^karty30/ti/kursant/(.*)$ /$1 [R=302,L]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
+RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+RewriteCond %{THE_REQUEST} \s/karty30/ti/dydaktyk/ [NC]
+RewriteRule ^karty30/ti/dydaktyk/(.*)$ /dydaktyk/$1 [R=302,L]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
+RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$
+RewriteCond %{THE_REQUEST} \s/karty30/ti/login\.php [NC]
+RewriteRule ^karty30/ti/login\.php$ /login.php [R=302,L]
+
 # /dydaktyk → wymuś końcowy ukośnik, aby ścieżki względne w panelu (login.php,
 # logout.php) rozwiązywały się względem /dydaktyk/ (to nie jest panel domyślny).
-RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^dydaktyk$        /dydaktyk/ [R=301,L]
-RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^dydaktyk/$       /karty30/ti/dydaktyk/index.php [L]
-RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^dydaktyk/(.+)$   /karty30/ti/dydaktyk/$1 [L]
 
 # /kursant → jawny alias panelu kursanta (domyślnie i tak trafia tu cała subdomena).
-RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^kursant/?$       /karty30/ti/kursant/index.php [L]
-RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^kursant/(.+)$    /karty30/ti/kursant/$1 [L]
 
-# login.php na subdomenie ti.* → centralny formularz logowania TI (kursant+dydaktyk).
+# login.php na subdomenie ti.*/kurs.* → centralny formularz logowania TI (kursant+dydaktyk).
 # Musi być PRZED catch-all'em; bez tego kursant/login.php → ../login.php → catch-all
 # → kursant/login.php → pętla nieskończona.
-RewriteCond %{HTTP_HOST} ^ti[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
 RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
+
+# Pliki „obok” paneli (karty30/ti/assets/ti_skin.css, karty30/ti/ext/…, nowosci.php)
+# — panele linkują do nich względnie („../assets/…”), co przy krótkich adresach
+# daje /assets/ti_skin.css. Serwujemy je z karty30/ti/, o ile plik nie istnieje
+# w korzeniu ani w panelu uczestnika (ten ma pierwszeństwo — catch-all niżej).
+RewriteCond %{HTTP_HOST} ^(ti|kurs)[^.]*\. [NC]
+RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
+RewriteCond %{DOCUMENT_ROOT}/$1 !-f
+RewriteCond %{DOCUMENT_ROOT}/karty30/ti/kursant/$1 !-f
+RewriteCond %{DOCUMENT_ROOT}/karty30/ti/$1 -f
+RewriteRule ^(.+)$ /karty30/ti/$1 [L]
 
 # Domyślnie cała subdomena ti.* serwuje panel kursanta. Wykluczamy już-przepisane
 # ścieżki /karty30/ (kursant i dydaktyk — by nie zapętlić), statykę oraz /auth/
@@ -115,12 +149,9 @@ RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
 RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
-# ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
+# ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl, kursant.feer.org.pl) ──
 # Identyczny mechanizm jak ti*. (w tym wyjątek /auth/ dla logowania Microsoft
-# 365), tylko bez aliasu /dydaktyk.
-RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
-RewriteRule ^login\.php$ /karty30/ti/login.php [QSA,L]
-
+# 365); przekierowania, /dydaktyk, /kursant i login.php — wspólne reguły wyżej.
 RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|tozsamosc)/ [NC]

@@ -431,7 +431,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Zamknij sesję panelu kierownika, otwórz osobną sesję kursanta (k30_student).
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
         student_impersonate($acc, $uid, $dyd_name);
-        header('Location: ' . rtrim(APP_URL, '/') . '/karty30/ti/kursant/index.php');
+        header('Location: ' . tiPanelUrl('kursant', 'index.php'));
         exit;
     }
 
@@ -674,7 +674,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acc = $aid ? db_one("SELECT * FROM k30_ti_student_accounts WHERE id=?", [$aid]) : null;
         if ($acc) {
             $token = parent_make_token($aid);
-            $url   = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?t=' . $token;
+            $url   = tiPanelUrl('kursant', 'parent.php?t=' . $token);
             $_SESSION['parent_link'] = $url;
             $email = trim($acc['guardian_email'] ?? '');
             if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -843,7 +843,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     require_once dirname(dirname(dirname(__DIR__))) . '/includes/mail_queue.php';
                     $org_name    = defined('ORG_NAME') ? ORG_NAME : 'Organizacja';
-                    $portal_link = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?role=up';
+                    $portal_link = tiPanelUrl('kursant', 'parent.php?role=up');
                     $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES);
                     $mail_html   = '<html><body style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:600px;margin:0 auto;padding:24px">'
                         . '<p>Dzień dobry,</p>'
@@ -1029,8 +1029,8 @@ if (!in_array($active_tab, ['ogolne', 'platnosci', 'licencje', 'produkty', 'doku
 // więc bez osobnego zapytania.
 $guardian_acc = $selected_acc;
 
-$portal_url         = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
-$parent_portal_url  = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php';
+$portal_url         = tiPanelUrl('kursant', 'login.php');
+$parent_portal_url  = tiPanelUrl('kursant', 'parent.php');
 
 // Upoważnieni — tylko dla pełnoletnich (jak dawniej COALESCE(is_minor,0)=0).
 $authp_account     = ($selected_acc && empty($selected_acc['is_minor'])) ? $selected_acc : null;

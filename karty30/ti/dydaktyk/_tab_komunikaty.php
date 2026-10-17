@@ -33,7 +33,7 @@ if ($_ann_dyd): ?>
       <?php if ($_read): ?>
       <span class="badge text-bg-success flex-shrink-0">przeczytane</span>
       <?php else: ?>
-      <form method="post" action="<?= h(APP_URL) ?>/karty30/ti/dydaktyk/ann_read.php" class="flex-shrink-0">
+      <form method="post" action="<?= h(tiPanelUrl('dydaktyk', 'ann_read.php')) ?>" class="flex-shrink-0">
         <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
         <input type="hidden" name="id" value="<?= (int)$_a['id'] ?>">
         <button type="submit" class="btn btn-sm btn-primary">Przeczytane</button>

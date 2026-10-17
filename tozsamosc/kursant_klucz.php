@@ -84,7 +84,7 @@ $ok     = $_GET['ok'] ?? '';
   <?php /* Dwa duże przyciski wyboru pod opisem: dodanie klucza (przewija do formularza) albo rezygnacja — bez klucza wszystko działa po staremu (SMS). */ ?>
   <div class="d-grid gap-2 mb-3">
     <a class="btn btn-lg metro-btn" href="#kl-form" id="kl-chce">Chcę dodać klucz</a>
-    <a class="btn btn-lg btn-outline-dark rounded-0 fw-semibold" href="<?= h(APP_URL) ?>/karty30/ti/kursant/index.php">Nie mam klucza albo nie chcę korzystać<span class="d-block small fw-normal">Przejdź do panelu — logowanie zostaje jak dotąd (hasło i kod SMS)</span></a>
+    <a class="btn btn-lg btn-outline-dark rounded-0 fw-semibold" href="<?= h(tiPanelUrl('kursant', 'index.php')) ?>">Nie mam klucza albo nie chcę korzystać<span class="d-block small fw-normal">Przejdź do panelu — logowanie zostaje jak dotąd (hasło i kod SMS)</span></a>
   </div>
 
   <?php if (($_GET['nowy'] ?? '') === '1'): ?>
@@ -118,7 +118,7 @@ $ok     = $_GET['ok'] ?? '';
     <input type="text" class="form-control" id="kl-name" maxlength="60" value="Mój klucz" required>
     <button type="submit" class="btn metro-btn mt-2" id="kl-dodaj">Dodaj klucz</button>
   </form>
-  <p class="small mt-3 mb-0"><a href="<?= h(APP_URL) ?>/karty30/ti/kursant/index.php">Wróć do panelu kursanta</a></p>
+  <p class="small mt-3 mb-0"><a href="<?= h(tiPanelUrl('kursant', 'index.php')) ?>">Wróć do panelu kursanta</a></p>
 </main>
 
 <script>

@@ -3,6 +3,7 @@
  * Autoryzacja kursantów TI — osobny system sesji, bez dostępu do reszty aplikacji.
  */
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_panel_urls/lib/tiPanelUrl.php';
 
 const STUDENT_SESSION_KEY = 'k30_ti_student';
 const STUDENT_SESSION_TTL = 3600 * 2; // 120 min bezczynności — dłużej trzyma cichy token „zapamiętaj mnie" (patrz niżej)
@@ -122,7 +123,7 @@ function student_require(): array {
     if (empty($s['imp']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), ['dokument.php', 'login.php'], true)) {
         require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_student_docs/logic/studentDocs.php';
         if (TiStudentDocs::pending((int)$s['id'])) {
-            header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'dokument.php'); exit;
+            header('Location: ' . tiPanelUrl('kursant') . 'dokument.php'); exit;
         }
     }
     // Regulaminy blokujące panel (warunek „blokuje panel do akceptacji”) — zaraz po zalogowaniu, przed resztą panelu
@@ -130,13 +131,13 @@ function student_require(): array {
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_terms.php';
         try {
             if (ti_terms_gate_pending((int)$s['client_id'])) {
-                header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'regulaminyStart.php'); exit;
+                header('Location: ' . tiPanelUrl('kursant') . 'regulaminyStart.php'); exit;
             }
         } catch (\Throwable $e) { error_log('regulaminy — bramka: ' . $e->getMessage()); }
     }
     // „Kursant uproszczony” widzi tylko terminy zajęć — każda inna strona panelu wraca do Moich lekcji
     if (student_is_simple((int)$s['id']) && !in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), student_simple_allowed((int)$s['id'], 'pages'), true)) {
-        header('Location: ' . (defined('APP_URL') ? rtrim(APP_URL, '/') . '/karty30/ti/kursant/' : '') . 'index.php?tab=' . student_simple_home((int)$s['id']));
+        header('Location: ' . tiPanelUrl('kursant') . 'index.php?tab=' . student_simple_home((int)$s['id']));
         exit;
     }
     return $s;

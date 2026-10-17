@@ -17,6 +17,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/owncloud.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_remember.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_panel_urls/lib/tiPanelUrl.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_blackout.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/dyd_totp_exempt/logic/dydTotpExempt.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/analytics/logic/analyticsManager.php';   // dostęp do Analityki TI (dyd_can_analytics)

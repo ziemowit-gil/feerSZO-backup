@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'wallet_t
         require_once dirname(dirname(dirname(__DIR__))) . '/includes/p24.php';
         $wl_amount   = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
         $wl_provider = (string)($_POST['provider'] ?? '');
-        $wl_back     = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?ptab=portfel';
+        $wl_back     = tiPanelUrl('kursant', 'parent.php?ptab=portfel');
         if ($wl_amount < 1 || $wl_amount > 20000) {
             $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę doładowania od 1 do 20 000 zł.'];
             header('Location: parent.php?ptab=portfel'); exit;
@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'year_end
         $ye_amount   = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
         $ye_provider = (string)($_POST['provider'] ?? '');
         $ye_allowed  = k30_ti_student_allowed_payment_methods((int)$p['student_id']);
-        $ye_back     = rtrim(APP_URL, '/') . '/karty30/ti/kursant/parent.php?ptab=portfel';
+        $ye_back     = tiPanelUrl('kursant', 'parent.php?ptab=portfel');
         if ($ye_amount < 1 || $ye_amount > 50000) {
             $_SESSION['wallet_flash'] = ['err', 'Podaj kwotę nadpłaty od 1 do 50 000 zł.'];
             header('Location: parent.php?ptab=portfel'); exit;
@@ -1053,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php elseif ($ptab === 'dostep'):
     $pmsg      = $_SESSION['k30_parent_msg'] ?? null;      unset($_SESSION['k30_parent_msg']);
     $pnewpass  = $_SESSION['k30_parent_newpass'] ?? null;  unset($_SESSION['k30_parent_newpass']);
-    $login_url = rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php';
+    $login_url = tiPanelUrl('kursant', 'login.php');
     $ptok      = student_token();
 ?>
   <div class="card border-0 shadow-sm">

@@ -7,6 +7,7 @@
  *   $KP_BODY_CLASS — dodatkowe klasy <body>,
  *   $KP_EXTRA_CSS  — lista arkuszy dokładanych PO bloku <style> (skórki panelu).
  */
+require_once dirname(__DIR__, 3) . '/modules/ti_panel_urls/lib/tiPanelUrl.php';   // nagłówek dołączają też rozliczenia/ i nabór
 $KP_ORG        = defined('ORG_NAME') ? ORG_NAME : 'Zajęcia TI';
 $KP_TITLE      = $KP_TITLE      ?? 'Panel kursanta';
 $KP_TOPBAR     = $KP_TOPBAR     ?? null;
@@ -268,7 +269,7 @@ if (function_exists('dyd_current') && dyd_current()) {
     <div class="small" style="white-space:pre-wrap"><?= h($_db['body']) ?></div>
     <?php endif; ?>
   </div>
-  <form method="post" action="<?= h(APP_URL) ?>/karty30/ti/dydaktyk/ann_read.php" class="flex-shrink-0">
+  <form method="post" action="<?= h(tiPanelUrl('dydaktyk', 'ann_read.php')) ?>" class="flex-shrink-0">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
     <input type="hidden" name="id" value="<?= (int)$_db['id'] ?>">
     <button type="submit" class="btn btn-sm btn-primary">Przeczytane</button>
@@ -308,7 +309,7 @@ if (function_exists('dyd_current') && dyd_current()) {
   <div class="container-fluid d-flex flex-wrap align-items-center gap-2 small">
     <i class="bi bi-incognito" aria-hidden="true"></i>
     <span>Podgląd panelu jako kursant — zalogowano przez administratora<?= !empty($KP_IMP['name']) ? ' (' . h($KP_IMP['name']) . ')' : '' ?>.</span>
-    <a href="<?= APP_URL ?>/karty30/ti/dydaktyk/index.php"
+    <a href="<?= h(tiPanelUrl('dydaktyk', 'index.php')) ?>"
        class="btn btn-sm btn-outline-dark py-0 ms-auto"
        title="Pełny interfejs modułu Dydaktyka">
       <i class="bi bi-grid-1x2-fill me-1" aria-hidden="true"></i>Pełny interfejs

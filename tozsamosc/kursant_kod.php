@@ -37,9 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $acc['must_change_password'] = 1;
         student_login_user($acc, 'otp', 'pierwsze logowanie (kod SMS, Tożsamość)');
         $wybrany = db_one("SELECT sec_chosen FROM k30_ti_student_accounts WHERE id = ?", [(int)$acc['id']]);
-        header('Location: ' . APP_URL . (empty($wybrany['sec_chosen']) && ti_sec_image_required((int)$acc['id'])
-            ? '/karty30/ti/kursant/sec_choose.php'
-            : '/karty30/ti/kursant/index.php')); exit;
+        header('Location: ' . tiPanelUrl('kursant', (empty($wybrany['sec_chosen']) && ti_sec_image_required((int)$acc['id'])
+            ? 'sec_choose.php'
+            : 'index.php'))); exit;
     }
     $blad = 'Nieprawidłowy kod albo kod wygasł. Wróć do logowania, aby dostać nowy.';
 }

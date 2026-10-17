@@ -20,13 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     student_nav_set($acc_id, (string)($_POST['nav'] ?? 'zakladki'));
     // Pierwszy wybór przy logowaniu wraca od razu do panelu; zmiana w Tożsamości zostaje tutaj.
     if (($_POST['wroc'] ?? '') === 'ustawienia') {   // sekcja „Menu panelu” w Ustawieniach kursanta
-        header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php?tab=ustawienia&menu_ok=1#ust-menu'); exit;
+        header('Location: ' . tiPanelUrl('kursant', 'index.php?tab=ustawienia&menu_ok=1#ust-menu')); exit;
     }
     if (($_POST['wroc'] ?? '') === 'panel') {
-        header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php'); exit;
+        header('Location: ' . tiPanelUrl('kursant', 'index.php')); exit;
     }
     if (($_POST['pierwszy'] ?? '') === '1') {
-        header('Location: ' . APP_URL . '/karty30/ti/kursant/index.php?ui=alt'); exit;
+        header('Location: ' . tiPanelUrl('kursant', 'index.php?ui=alt')); exit;
     }
     header('Location: ' . APP_URL . '/tozsamosc/kursant_ustawienia.php?ok=1'); exit;
 }
@@ -86,7 +86,7 @@ $pierwszy = isset($_GET['pierwszy']) || !student_nav_chosen($acc_id);
     <button type="submit" class="btn btn-lg metro-btn w-100 mt-3">Zapisz wybór</button>
   </form>
   <p class="small mt-3 mb-1"><a href="<?= h(APP_URL) ?>/tozsamosc/kursant_haslo.php">Zmiana hasła</a></p>
-  <p class="small mt-2 mb-0"><a href="<?= h(APP_URL) ?>/karty30/ti/kursant/index.php">Wróć do panelu kursanta</a></p>
+  <p class="small mt-2 mb-0"><a href="<?= h(tiPanelUrl('kursant', 'index.php')) ?>">Wróć do panelu kursanta</a></p>
 </main>
 </body>
 </html>

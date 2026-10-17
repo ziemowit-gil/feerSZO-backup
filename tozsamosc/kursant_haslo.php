@@ -133,7 +133,7 @@ $ok = isset($_GET['ok']);
   </form>
   <p class="small mt-3 mb-1"><a href="<?= h(APP_URL) ?>/tozsamosc/kursant_klucz.php">Klucze sprzętowe i passkey</a></p>
   <p class="small mt-1 mb-1"><a href="<?= h(APP_URL) ?>/tozsamosc/kursant_ustawienia.php">Menu panelu: zakładki czy rozwijane</a></p>
-  <p class="small mt-2 mb-0"><a href="<?= h(APP_URL) ?>/karty30/ti/kursant/index.php">Wróć do panelu kursanta</a></p>
+  <p class="small mt-2 mb-0"><a href="<?= h(tiPanelUrl('kursant', 'index.php')) ?>">Wróć do panelu kursanta</a></p>
 </main>
 
 <script>
