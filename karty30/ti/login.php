@@ -55,7 +55,7 @@ $dyd_haslo = !$office_available || $ec > 0 || ($_GET['konto'] ?? '') === 'prywat
 // Lewa kolumna: instrukcja zależna od roli.
 $_side = [
     'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
-        ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a.', 'Pierwszy raz? Nie wpisuj hasła — dostaniesz kod SMS.']
+        ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a.', 'Pierwsze hasło to kod z SMS-a.']
         : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Sprawdź, czy widzisz swój obrazek.', 'Wpisz hasło.'],
     'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz adres @feer.org.pl? Kliknij „Microsoft 365”.', 'Inny adres? Wpisz e-mail i hasło.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login rodzica.', 'Wpisz hasło albo zaloguj się kodem SMS.'],
@@ -181,7 +181,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
               <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
           </div>
-          <div class="form-text">Pierwszy raz? Zostaw puste.</div>
+          <div class="form-text">Pierwsze hasło to kod z SMS-a.</div>
         </div>
         <button type="submit" class="tz-btn">Dalej</button>
       </form>
@@ -310,16 +310,16 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
       <?php elseif ($_ppActive === 'szk'): ?>
         <p id="pp-alt-h" style="margin-top:0"><strong>Szkolenie krótkie (SzK)</strong> — dla uczestników krótkich szkoleń.</p>
         <p>Login dostaniesz SMS-em albo od prowadzącego.</p>
-        <p>Pierwszy raz? Wpisz tylko login. Dostaniesz kod SMS i ustawisz hasło.</p>
+        <p>Pierwsze hasło to kod z SMS-a. Potem ustawisz własne.</p>
         <p>Potem sprawdzaj swój obrazek. Widzisz inny? Nie wpisuj hasła.</p>
       <?php elseif ($_ppActive === 'konsultacje'): ?>
         <p id="pp-alt-h" style="margin-top:0"><strong>Konsultacje</strong> — masz umówioną konsultację.</p>
         <p>Login dostaniesz SMS-em, np. <span style="font-family:monospace">k1234</span>.</p>
-        <p>Pierwszy raz? Wpisz tylko login. Dostaniesz kod SMS i ustawisz hasło.</p>
+        <p>Pierwsze hasło to kod z SMS-a. Potem ustawisz własne.</p>
         <p>W panelu są terminy, notatki i materiały.</p>
       <?php else: ?>
         <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Twój obrazek.</strong> Po wpisaniu loginu zobaczysz swój obrazek (czytnik ekranu go opisze). Widzisz inny albo żaden? Nie wpisuj hasła.</p>
-        <p>Pierwszy raz? Wpisz tylko login. Dostaniesz kod SMS i ustawisz hasło.</p>
+        <p>Pierwsze hasło to kod z SMS-a. Potem ustawisz własne.</p>
       <?php endif; ?>
       <?php if ($tab !== 'kandydat'): ?>
       <div style="border-top:1px solid var(--pp-line);margin-top:1.4rem;padding-top:1.1rem">
