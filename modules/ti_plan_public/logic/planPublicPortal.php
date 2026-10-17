@@ -101,6 +101,7 @@ function tiPlanPublicFirstNames(): array {
     // Słowa z wykazu, które w nazwach grup/kursów zwykle NIE są imionami (angielskie / techniczne / miesiące)
     foreach (['can', 'long', 'man', 'son', 'neo', 'dev', 'ram', 'bin', 'pal', 'das', 'dat', 'sing', 'made', 'gene', 'mark', 'ray', 'guy', 'said',
               'wolf', 'earl', 'nick', 'max', 'lee', 'van', 'jay', 'jack', 'ross', 'dean', 'kim', 'nur', 'won', 'min', 'han', 'lam', 'tan', 'sai',
+              'sali', 'sala', 'sale', 'salo', 'grupa', 'kurs',
               'maj', 'luty', 'marzec', 'kwiecien', 'czerwiec', 'lipiec', 'sierpien', 'wrzesien', 'pazdziernik', 'listopad', 'grudzien', 'styczen'] as $w) unset($set[$w]);
     return $set;
 }
@@ -135,6 +136,28 @@ function tiPlanPublicSurnameExceptions(): array {
     return $ex;
 }
 
+/** Odmienione imię (zapis porównawczy): Annę/Anny/Annie/Anną → Anna; Jana/Janowi/Janem/Janie/Janu → Jan; Marka → Marek. */
+function tiPlanPublicInflectedName(string $f, array $first): bool {
+    if (mb_strlen($f) < 4) return false;
+    foreach (['ie' => 'a', 'e' => 'a', 'y' => 'a', 'i' => 'a', 'a' => ''] as $end => $base) {   // żeńskie: Annie/Annę(e po fold.)/Anny/Ani…
+        if (str_ends_with($f, $end) && isset($first[mb_substr($f, 0, -mb_strlen($end)) . $base])) return true;
+    }
+    foreach (['owi', 'em', 'ie', 'u', 'a'] as $end) {                                        // męskie: Janowi/Janem/Janie/Janu/Jana
+        $stem = mb_substr($f, 0, -mb_strlen($end));
+        if (str_ends_with($f, $end) && (isset($first[$stem]) || (str_ends_with($stem, 'k') && isset($first[mb_substr($stem, 0, -1) . 'ek'])))) return true;   // Marka → Marek
+    }
+    return false;
+}
+
+/** Odmienione nazwisko z listy data/nazwiska_*.txt: Nowakiem/Nowaka/Nowakowi → Nowak; Mazurem → Mazur. */
+function tiPlanPublicInflectedSurname(string $f, array $sur): bool {
+    if (mb_strlen($f) < 4) return false;
+    foreach (['iem', 'owi', 'em', 'ie', 'ej', 'a', 'u', 'y'] as $end) {
+        if (str_ends_with($f, $end) && isset($sur[mb_substr($f, 0, -mb_strlen($end))])) return true;
+    }
+    return false;
+}
+
 /**
  * RODO: w tekście publicznym skraca do inicjałów słowa pisane wielką literą, które są imionami
  * (wykaz PESEL w data/imiona_*.txt), są na liście nazwisk (data/nazwiska_*.txt) albo wyglądają na nazwiska
@@ -152,8 +175,10 @@ function tiPlanPublicAnonymize(string $text): string {
         $hit = false;
         foreach ($parts as $w) {
             $f = tiPlanPublicFold($w);
-            if ((mb_strlen($w) >= 3 && (isset($first[$f]) || isset($sur[$f])))
-                || (mb_strlen($w) >= 5 && !isset($ex[$f]) && preg_match('/(icki|icka|cki|cka|dzki|dzka|ski|ska|wicz|czyk|czak|iak)$/u', $f))) { $hit = true; break; }
+            if ((mb_strlen($w) >= 3 && (isset($first[$f]) || isset($sur[$f]) || tiPlanPublicInflectedName($f, $first)))
+                || (mb_strlen($w) >= 3 && tiPlanPublicInflectedSurname($f, $sur))
+                || (mb_strlen($w) >= 5 && !isset($ex[preg_replace('/(sk|ck|dzk)(iego|iej|iemu|imi|ich|im|a|i)$/u', '$1i', $f)])
+                    && preg_match('/((sk|ck|dzk)(i|a|iego|iej|iemu|imi|ich|im)|wicz(a|owi|em|u)?|(czyk|czak|iak)(a|owi|iem|u)?)$/u', $f))) { $hit = true; break; }
         }
         // nazwisko dwuczłonowe: gdy którykolwiek człon pasuje — inicjały wszystkich („Nowak-Wiśniewska” → „N.-W.”)
         return $hit ? implode('-', array_map(fn($w) => mb_strtoupper(mb_substr($w, 0, 1)) . '.', $parts)) : $m[0];
