@@ -8,12 +8,22 @@ if (!in_array((($USER ?? null) ?: current_user())['role'] ?? '', ['admin', 'edit
 require_once dirname(__DIR__) . '/logic/skierowania.php';
 $_skbBase = rtrim(APP_URL, '/') . '/modules/skierowania_badania/router.php';
 try { $_skbRows = skbForContract($TYPE, (int)$id); } catch (\Throwable $e) { $_skbRows = []; }
+// Skierowania wystawione tej osobie przed zawarciem umowy (PESEL / imię i nazwisko) — do podpięcia jednym kliknięciem
+try { $_skbPre = isset($row) && is_array($row) ? skbPreMatches($row, $TYPE) : []; } catch (\Throwable $e) { $_skbPre = []; }
 ?>
 <div class="card mb-3" id="contract-skb-panel">
   <div class="card-header d-flex align-items-center gap-2">
     <i class="bi bi-heart-pulse text-primary" aria-hidden="true"></i><strong>Badania lekarskie (medycyna pracy)</strong>
     <a class="btn btn-sm btn-outline-primary ms-auto" href="<?= h($_skbBase . '/nowe?' . http_build_query(['type' => $TYPE, 'id' => (int)$id])) ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Skierowanie</a>
   </div>
+  <?php foreach ($_skbPre as $_p): ?>
+  <form method="post" action="<?= h($_skbBase . '/' . (int)$_p['id'] . '/umowa') ?>" class="card-body border-bottom bg-warning-subtle small d-flex flex-wrap align-items-center gap-2">
+    <?= csrf_field() ?><input type="hidden" name="contract" value="<?= h($TYPE . ':' . (int)$id) ?>"><input type="hidden" name="back" value="umowa">
+    <span>Skierowanie <a href="<?= h($_skbBase . '/' . (int)$_p['id']) ?>"><?= h($_p['numer']) ?></a> wystawione tej osobie przed zawarciem umowy
+      (<?= h(date('d.m.Y', strtotime((string)$_p['data_wystawienia']))) ?>).</span>
+    <button class="btn btn-sm btn-warning ms-auto">Powiąż z tą umową</button>
+  </form>
+  <?php endforeach; ?>
   <?php if ($_skbRows): ?>
   <ul class="list-group list-group-flush small">
   <?php foreach ($_skbRows as $_s): [$_sl, $_sc] = SKB_STATUSY[$_s['status']] ?? [$_s['status'], 'secondary']; ?>

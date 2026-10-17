@@ -17,24 +17,35 @@ final class SkierowaniaController
         return Router::view(self::VIEW . 'index.php', ['rows' => skbList($f), 'f' => $f, 'expiring' => $expiring]);
     }
 
-    /** Nowe skierowanie: bez umowy → wybór umowy; z umową → formularz z danymi z umowy. */
+    /**
+     * Nowe skierowanie: bez parametrów → wybór umowy / kandydata; ?type&id → z umowy;
+     * ?pre=1[&type][&rekr] → przed zawarciem umowy (dane ręcznie albo z kandydata Naboru).
+     */
     public function create(): string {
         skbMigrate();
         $type = (string)($_GET['type'] ?? '');
         $cid  = (int)($_GET['id'] ?? 0);
+        $q    = (string)($_GET['q'] ?? '');
+        if (!empty($_GET['pre'])) {
+            $app = skbRekrApp((int)($_GET['rekr'] ?? 0));
+            if (!isset(SKB_TYPY[$type])) $type = ($app && $app['type'] !== 'wolontariat') ? 'zlecenie' : 'wolontariat';
+            return Router::view(self::VIEW . 'form.php', ['s' => skbPrefillPre($type, $app), 'c' => [], 'history' => [], 'app' => $app, 'linkable' => []]);
+        }
         $c = skbContract($type, $cid);
-        if (!$c) return Router::view(self::VIEW . 'wybor.php', ['q' => (string)($_GET['q'] ?? ''), 'contracts' => skbContractsSearch((string)($_GET['q'] ?? ''))]);
-        return Router::view(self::VIEW . 'form.php', ['s' => skbPrefill($type, $c), 'c' => $c, 'history' => skbForContract($type, $cid)]);
+        if (!$c) return Router::view(self::VIEW . 'wybor.php', ['q' => $q, 'contracts' => skbContractsSearch($q), 'candidates' => skbRekrSearch($q)]);
+        return Router::view(self::VIEW . 'form.php', ['s' => skbPrefill($type, $c), 'c' => $c, 'history' => skbForContract($type, $cid), 'app' => null, 'linkable' => []]);
     }
 
     public function store(): ?string {
         $user = current_user();
         $type = (string)($_POST['contract_type'] ?? '');
         $cid  = (int)($_POST['contract_id'] ?? 0);
+        $rekr = (int)($_POST['rekr_application_id'] ?? 0) ?: null;
+        $back = $cid > 0 ? ['type' => $type, 'id' => $cid] : ['pre' => 1, 'type' => $type, 'rekr' => $rekr];
         $d = skbValidate($_POST, $_POST);
-        if (is_string($d)) { flash_set('danger', $d); return Router::redirect(route('skb.create', ['type' => $type, 'id' => $cid])); }
-        $id = skbCreate($type, $cid, $d, $user);
-        if (is_string($id)) { flash_set('danger', $id); return Router::redirect(route('skb.create', ['type' => $type, 'id' => $cid])); }
+        if (is_string($d)) { flash_set('danger', $d); return Router::redirect(route('skb.create', $back)); }
+        $id = skbCreate($type, $cid, $d, $user, $rekr);
+        if (is_string($id)) { flash_set('danger', $id); return Router::redirect(route('skb.create', $back)); }
         $msg = 'Wystawiono skierowanie ' . skbGet($id)['numer'] . '.';
         if (skbEzdActive() && skbSetting('ezd_auto') !== '0') {
             $r = skbEzdRegister($id, $user);
@@ -47,12 +58,30 @@ final class SkierowaniaController
     public function show(int $id): string {
         $s = skbGet($id);
         if (!$s) { http_response_code(404); return 'Nie znaleziono skierowania.'; }
-        $c = skbContract((string)$s['contract_type'], (int)$s['contract_id']) ?: [];
-        return Router::view(self::VIEW . 'form.php', ['s' => $s, 'c' => $c, 'history' => skbForContract((string)$s['contract_type'], (int)$s['contract_id'])]);
+        $pre = skbIsPre($s);
+        $c = $pre ? [] : (skbContract((string)$s['contract_type'], (int)$s['contract_id']) ?: []);
+        $linkable = [];
+        if ($pre) {   // umowy do podpięcia: ta sama osoba najpierw, potem wyszukiwanie
+            $q = trim((string)($_GET['uq'] ?? ''));
+            $linkable = skbContractsSearch($q !== '' ? $q : (string)$s['imie_nazwisko']);
+        }
+        return Router::view(self::VIEW . 'form.php', ['s' => $s, 'c' => $c, 'history' => $pre ? [] : skbForContract((string)$s['contract_type'], (int)$s['contract_id']),
+                                                      'app' => skbRekrApp((int)($s['rekr_application_id'] ?? 0)), 'linkable' => $linkable]);
+    }
+
+    /** Powiązanie skierowania sprzed umowy z zawartą umową (contract = "typ:id"). */
+    public function link(int $id): ?string {
+        [$type, $cid] = array_pad(explode(':', (string)($_POST['contract'] ?? ''), 2), 2, '0');
+        $err = skbLinkContract($id, $type, (int)$cid, current_user());
+        flash_set($err ? 'warning' : 'success', $err ?? 'Powiązano skierowanie z umową.');
+        $back = (string)($_POST['back'] ?? '');
+        return Router::redirect($back === 'umowa' && !$err ? skbContractUrl($type, (int)$cid) : route('skb.show', ['id' => $id]));
     }
 
     public function update(int $id): ?string {
         $d = skbValidate($_POST, $_POST);
+        $cur = skbGet($id);
+        if (is_array($d) && $cur && skbIsPre($cur) && isset(SKB_TYPY[$_POST['contract_type'] ?? ''])) $d['contract_type'] = $_POST['contract_type'];   // planowany rodzaj umowy
         $err = is_string($d) ? $d : skbUpdate($id, $d, current_user());
         flash_set($err ? 'danger' : 'success', $err ?? 'Zapisano zmiany. Jeśli skierowanie było już w EZD, zarejestruj nową wersję.');
         return Router::redirect(route('skb.show', ['id' => $id]));

@@ -24,6 +24,7 @@ $fmt = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '—';
   <div class="col-sm-4"><label class="form-label small" for="f-q">Szukaj</label><input id="f-q" class="form-control form-control-sm" name="q" value="<?= h($f['q']) ?>" placeholder="osoba, numer, stanowisko"></div>
   <div class="col-sm-2"><label class="form-label small" for="f-t">Umowa</label>
     <select id="f-t" class="form-select form-select-sm" name="typ"><option value="">wszystkie</option>
+      <option value="pre" <?= $f['typ'] === 'pre' ? 'selected' : '' ?>>przed zawarciem</option>
       <?php foreach (SKB_TYPY as $k => $l): ?><option value="<?= h($k) ?>" <?= $f['typ'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
   <div class="col-sm-3"><label class="form-label small" for="f-s">Status</label>
     <select id="f-s" class="form-select form-select-sm" name="status"><option value="">wszystkie</option>
@@ -41,7 +42,8 @@ $fmt = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '—';
     <tr>
       <td><a href="<?= h(route('skb.show', ['id' => $s['id']])) ?>"><?= h($s['numer']) ?></a></td>
       <td><?= h($s['imie_nazwisko']) ?><div class="small text-body-secondary"><?= h(mb_strimwidth((string)$s['stanowisko'], 0, 60, '…')) ?></div></td>
-      <td><a href="<?= h(skbContractUrl($s['contract_type'], (int)$s['contract_id'])) ?>"><?= h(SKB_TYPY[$s['contract_type']] ?? $s['contract_type']) ?> #<?= (int)$s['contract_id'] ?></a></td>
+      <td><?php if (skbIsPre($s)): ?><span class="badge text-bg-warning">przed zawarciem</span> <span class="small"><?= h(mb_strtolower(SKB_TYPY[$s['contract_type']] ?? '')) ?></span>
+        <?php else: ?><a href="<?= h(skbContractUrl($s['contract_type'], (int)$s['contract_id'])) ?>"><?= h(SKB_TYPY[$s['contract_type']] ?? $s['contract_type']) ?> #<?= (int)$s['contract_id'] ?></a><?php endif; ?></td>
       <td><?= h(SKB_RODZAJE[$s['rodzaj']] ?? $s['rodzaj']) ?></td>
       <td><?= $fmt($s['data_wystawienia']) ?></td>
       <td><span class="badge text-bg-<?= h($sc) ?>"><?= h($sl) ?></span></td>

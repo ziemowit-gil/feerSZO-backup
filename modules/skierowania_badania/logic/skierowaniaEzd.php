@@ -4,7 +4,9 @@
  *
  * Skierowanie trafia do koszulki umowy (contract_ezd: umowa ↔ koszulka); gdy umowa nie ma koszulki,
  * zakładamy ją i wiążemy (contract_ezd_create_and_link). W koszulce powstaje pismo wewnętrzne z PDF
- * skierowania (bez korespondencji/książki nadawczej — skierowanie wręcza się osobie). Ponowna rejestracja
+ * skierowania (bez korespondencji/książki nadawczej — skierowanie wręcza się osobie). Skierowanie PRZED zawarciem
+ * umowy dostaje własną koszulkę (ref_type 'skierowanie_badania') w segregatorze umów; po powiązaniu z umową bez
+ * koszulki umowa ją przejmuje (skbLinkContract). Ponowna rejestracja
  * po zmianach dodaje kolejne pismo z nową wersją PDF. Automatycznie przy wystawieniu, gdy skb_ezd_auto != 0.
  */
 
@@ -27,21 +29,31 @@ function skbEzdRegister(int $id, array $user): int|string {
     $cid  = (int)$s['contract_id'];
     $uid  = (int)_contract_ezd_actor_id((int)($user['id'] ?? 0));
     try {
-        $c = skbContract($type, $cid);
-        if (!$c) return 'Umowa nie istnieje.';
-        $sid = contract_ezd_get_sprawa_id($type, $cid);
+        $pre = skbIsPre($s);
+        $c = $pre ? [] : skbContract($type, $cid);
+        if (!$pre && !$c) return 'Umowa nie istnieje.';
+        $sid = $pre ? (int)($s['ezd_sprawa_id'] ?? 0) : contract_ezd_get_sprawa_id($type, $cid);
         $sprawa = $sid ? ezd_sprawa_get($sid) : null;
         if (!$sprawa || ($sprawa['status'] ?? '') === 'closed') {
-            if ($sprawa) return 'Koszulka EZD umowy (' . ($sprawa['znak_sprawy'] ?? '#' . $sid) . ') jest zamknięta — otwórz ją albo powiąż umowę z inną.';
-            $sid = contract_ezd_create_and_link($type, $cid, $uid, $c);
+            if ($sprawa) return 'Koszulka EZD (' . ($sprawa['znak_sprawy'] ?? '#' . $sid) . ') jest zamknięta — otwórz ją' . ($pre ? '.' : ' albo powiąż umowę z inną.');
+            $sid = $pre ? ezd_sprawa_create([
+                'teczka_id'   => _contract_ezd_teczka_id($uid),
+                'title'       => 'Skierowanie na badania lekarskie — ' . $s['imie_nazwisko'] . ' (przed zawarciem: ' . mb_strtolower(SKB_TYPY[$type]) . ')',
+                'description' => 'Skierowanie ' . $s['numer'] . ' wystawione przed zawarciem umowy. Po zawarciu umowy koszulkę przejmuje umowa.',
+                'status'      => 'open',
+                'priority'    => 'normal',
+                'owner_id'    => $uid ?: null,
+                'ref_type'    => 'skierowanie_badania',
+                'ref_id'      => $id,
+            ], $uid) : contract_ezd_create_and_link($type, $cid, $uid, $c);
         }
         $again = !empty($s['ezd_pismo_id']);
         $pid = ezd_pismo_create([
             'sprawa_id'     => $sid,
             'kierunek'      => 'wewnetrzne',
             'title'         => 'Skierowanie na badania lekarskie ' . SKB_RODZAJE[$s['rodzaj']] . ' ' . $s['numer'] . ' — ' . $s['imie_nazwisko'] . ($again ? ' (wersja po zmianach)' : ''),
-            'tresc'         => 'Skierowanie na badania lekarskie (medycyna pracy) do umowy: ' . SKB_TYPY[$type]
-                             . (skbContractNumber($c) !== '' ? ' nr ' . skbContractNumber($c) : '') . '. Stanowisko: ' . $s['stanowisko']
+            'tresc'         => 'Skierowanie na badania lekarskie (medycyna pracy) ' . ($pre ? 'przed zawarciem umowy (planowana: ' . mb_strtolower(SKB_TYPY[$type]) . ')' : 'do umowy: ' . SKB_TYPY[$type]
+                             . (skbContractNumber($c) !== '' ? ' nr ' . skbContractNumber($c) : '')) . '. Stanowisko: ' . $s['stanowisko']
                              . '. Liczba czynników: ' . (int)$s['liczba_czynnikow'] . '. PDF dołączony automatycznie z modułu Skierowania na badania.',
             'nadawca'       => (string)org_setting('org_name'),
             'odbiorca'      => (string)$s['imie_nazwisko'],

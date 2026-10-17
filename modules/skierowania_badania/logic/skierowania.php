@@ -8,8 +8,10 @@
  * ust. 1 pkt 2 ustawy o działalności pożytku publicznego i o wolontariacie) — podstawy prawne edytowalne w ustawieniach.
  * Wykaz czynników = SKB_CZYNNIKI (pięć grup jak na skierowaniu); przy każdym zaznaczonym można wpisać wielkość narażenia.
  *
- * Numer: SKB/{kolejny w roku}/{RRRR}. Każde skierowanie przypięte do umowy (contract_type + contract_id);
- * dane osoby kopiowane z umowy w chwili wystawienia (później edytowalne). Rejestracja w EZD: skierowaniaEzd.php.
+ * Numer: SKB/{kolejny w roku}/{RRRR}. Skierowanie przypięte do umowy (contract_type + contract_id) albo wystawione
+ * PRZED ZAWARCIEM umowy: contract_id = 0, contract_type = planowany rodzaj umowy, dane wpisane ręcznie lub z kandydata
+ * Naboru (rekr_application_id). Po zawarciu umowy wiąże się je z nią (skbLinkContract). Dane osoby kopiowane w chwili
+ * wystawienia (później edytowalne). Rejestracja w EZD: skierowaniaEzd.php.
  */
 
 require_once dirname(__DIR__, 3) . '/modules/audit_logs/logic/audit_logs.php';
@@ -112,6 +114,9 @@ function skbMigrate(): void {
         created_at       DATETIME DEFAULT (datetime('now')),
         updated_at       DATETIME
     )");
+    foreach (['rekr_application_id' => 'INTEGER', 'linked_at' => 'DATETIME'] as $col => $def) {
+        try { db()->exec("ALTER TABLE skierowania_badania ADD COLUMN {$col} {$def}"); } catch (\Throwable $e) {}
+    }
     db()->exec("CREATE INDEX IF NOT EXISTS idx_skb_contract ON skierowania_badania(contract_type, contract_id)");
     db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_skb_numer ON skierowania_badania(rok, kolejny)");
 }
@@ -136,6 +141,11 @@ function skbSettingsSave(array $in): void {
         $v = $k === 'ezd_auto' ? (!empty($in[$k]) ? '1' : '0') : trim((string)($in[$k] ?? ''));
         org_setting_set('skb_' . $k, $v);
     }
+}
+
+/** Czy skierowanie wystawiono przed zawarciem umowy (jeszcze bez powiązania). */
+function skbIsPre(array $s): bool {
+    return (int)($s['contract_id'] ?? 0) <= 0;
 }
 
 /** Wiersz umowy (tylko wolontariat / zlecenie) albo null. */
@@ -196,6 +206,47 @@ function skbPrefill(string $type, array $c): array {
     ];
 }
 
+/** Kandydat z Naboru (rekr_applications) albo null. */
+function skbRekrApp(int $id): ?array {
+    if ($id <= 0) return null;
+    try {
+        return db_one("SELECT a.*, p.name AS position_name FROM rekr_applications a LEFT JOIN rekr_positions p ON p.id=a.position_id WHERE a.id=?", [$id]) ?: null;
+    } catch (\Throwable $e) { return null; }
+}
+
+/** Kandydaci z Naboru do wyboru (najnowsi, z wyszukiwaniem). */
+function skbRekrSearch(string $q): array {
+    $p = []; $w = '1=1';
+    if ($q !== '') { $w = "(a.imie LIKE ? OR a.nazwisko LIKE ? OR (a.imie || ' ' || a.nazwisko) LIKE ? OR a.email LIKE ?)"; array_push($p, "%$q%", "%$q%", "%$q%", "%$q%"); }
+    try {
+        return db_all("SELECT a.id, a.imie, a.nazwisko, a.type, a.status, a.created_at, p.name AS position_name FROM rekr_applications a
+                        LEFT JOIN rekr_positions p ON p.id=a.position_id WHERE {$w} ORDER BY a.id DESC LIMIT 50", $p);
+    } catch (\Throwable $e) { return []; }
+}
+
+/** Dane do skierowania przed zawarciem umowy: $type = planowany rodzaj umowy, opcjonalnie kandydat z Naboru. */
+function skbPrefillPre(string $type, ?array $app): array {
+    $name = $app ? trim(trim((string)$app['imie']) . ' ' . trim((string)$app['nazwisko'])) : '';
+    $pos  = trim((string)($app['position_name'] ?? ''));
+    return [
+        'contract_type' => $type, 'contract_id' => 0, 'rekr_application_id' => $app ? (int)$app['id'] : null,
+        'rodzaj' => 'wstepne', 'imie_nazwisko' => $name, 'pesel' => '', 'dokument' => '', 'adres' => '', 'podejmujacy' => 1,
+        'stanowisko' => $pos !== '' ? $pos : ($type === 'wolontariat' ? 'Wolontariusz' : 'Zleceniobiorca'),
+        'opis_warunkow' => '', 'czynniki' => [], 'placowka' => skbSetting('placowka'), 'miejscowosc' => skbSetting('miejscowosc'),
+        'data_wystawienia' => date('Y-m-d'), 'podpisujacy' => skbSetting('podpisujacy'), 'uwagi' => '',
+    ];
+}
+
+/** Skierowania sprzed umowy pasujące do osoby z umowy (PESEL albo imię i nazwisko) — do podpięcia po zawarciu. */
+function skbPreMatches(array $c, string $type): array {
+    skbMigrate();
+    $pesel = preg_replace('/\D/', '', (string)($c['pesel'] ?? ''));
+    $name  = trim((string)($c['imie_nazwisko'] ?? ''));
+    if ($pesel === '' && $name === '') return [];
+    return db_all("SELECT * FROM skierowania_badania WHERE contract_id=0 AND status!='anulowane'
+                    AND ((? != '' AND pesel=?) OR (? != '' AND lower(trim(imie_nazwisko))=lower(?))) ORDER BY id DESC", [$pesel, $pesel, $name, $name]);
+}
+
 /** Czynniki z formularza: czynnik[GR][i]=1, wielkosc[GR][i]=..., inne[GR]=linie. → lista [{g,name,wielkosc}]. */
 function skbFactorsFromPost(array $post): array {
     $out = [];
@@ -242,7 +293,8 @@ function skbList(array $f): array {
     $w = []; $p = [];
     if (($q = trim((string)($f['q'] ?? ''))) !== '') { $w[] = "(imie_nazwisko LIKE ? OR numer LIKE ? OR stanowisko LIKE ?)"; array_push($p, "%$q%", "%$q%", "%$q%"); }
     if (isset(SKB_STATUSY[$f['status'] ?? ''])) { $w[] = "status=?"; $p[] = $f['status']; }
-    if (isset(SKB_TYPY[$f['typ'] ?? '']))       { $w[] = "contract_type=?"; $p[] = $f['typ']; }
+    if (isset(SKB_TYPY[$f['typ'] ?? '']))       { $w[] = "contract_type=? AND contract_id>0"; $p[] = $f['typ']; }
+    if (($f['typ'] ?? '') === 'pre')            { $w[] = "contract_id=0"; }
     if (!empty($f['wygasa'])) { $w[] = "status='zrealizowane' AND wazne_do IS NOT NULL AND wazne_do <= date('now', ?)"; $p[] = '+' . (int)$f['wygasa'] . ' days'; }
     return db_all("SELECT * FROM skierowania_badania" . ($w ? ' WHERE ' . implode(' AND ', $w) : '') . " ORDER BY id DESC LIMIT 500", $p);
 }
@@ -290,14 +342,15 @@ function skbValidate(array $in, array $post): array|string {
 }
 
 /** Nowe skierowanie do umowy. @return int|string id albo komunikat błędu */
-function skbCreate(string $type, int $contractId, array $d, array $user): int|string {
+function skbCreate(string $type, int $contractId, array $d, array $user, ?int $rekrId = null): int|string {
     skbMigrate();
-    if (!skbContract($type, $contractId)) return 'Nie znaleziono umowy wolontariackiej ani zlecenia.';
+    if ($contractId > 0 && !skbContract($type, $contractId)) return 'Nie znaleziono umowy wolontariackiej ani zlecenia.';
+    if (!isset(SKB_TYPY[$type])) return 'Wybierz rodzaj umowy (wolontariat albo zlecenie).';
     $rok = (int)substr($d['data_wystawienia'], 0, 4);
     db()->beginTransaction();
     try {
         $n = (int)(db_one("SELECT MAX(kolejny) m FROM skierowania_badania WHERE rok=?", [$rok])['m'] ?? 0) + 1;
-        $cols = $d + ['numer' => "SKB/{$n}/{$rok}", 'rok' => $rok, 'kolejny' => $n, 'contract_type' => $type, 'contract_id' => $contractId,
+        $cols = $d + ['numer' => "SKB/{$n}/{$rok}", 'rekr_application_id' => $rekrId, 'rok' => $rok, 'kolejny' => $n, 'contract_type' => $type, 'contract_id' => $contractId,
                       'status' => 'wystawione', 'created_by' => (int)($user['id'] ?? 0) ?: null, 'created_name' => (string)($user['name'] ?? ''),
                       'updated_at' => date('Y-m-d H:i:s')];
         db()->prepare("INSERT INTO skierowania_badania (" . implode(',', array_keys($cols)) . ") VALUES (" . rtrim(str_repeat('?,', count($cols)), ',') . ")")
@@ -309,8 +362,8 @@ function skbCreate(string $type, int $contractId, array $d, array $user): int|st
         error_log('skbCreate: ' . $e->getMessage());
         return 'Nie udało się zapisać skierowania.';
     }
-    audit_log('skierowania.create', ['id' => $id, 'numer' => "SKB/{$n}/{$rok}", 'contract' => "{$type}#{$contractId}"], (int)($user['id'] ?? 0) ?: null);
-    try { log_contract_action($type, $contractId, (int)($user['id'] ?? 0), 'skierowanie_badania', "Wystawiono skierowanie na badania lekarskie SKB/{$n}/{$rok}"); } catch (\Throwable $e) {}
+    audit_log('skierowania.create', ['id' => $id, 'numer' => "SKB/{$n}/{$rok}", 'contract' => $contractId > 0 ? "{$type}#{$contractId}" : "przed zawarciem ({$type})"], (int)($user['id'] ?? 0) ?: null);
+    if ($contractId > 0) try { log_contract_action($type, $contractId, (int)($user['id'] ?? 0), 'skierowanie_badania', "Wystawiono skierowanie na badania lekarskie SKB/{$n}/{$rok}"); } catch (\Throwable $e) {}
     return $id;
 }
 
@@ -345,6 +398,34 @@ function skbCancel(int $id, array $user): ?string {
     if (!$s) return 'Nie znaleziono skierowania.';
     db()->prepare("UPDATE skierowania_badania SET status='anulowane', updated_at=datetime('now') WHERE id=?")->execute([$id]);
     audit_log('skierowania.cancel', ['id' => $id, 'numer' => $s['numer']], (int)($user['id'] ?? 0) ?: null);
+    return null;
+}
+
+/**
+ * Wiąże skierowanie sprzed umowy z zawartą umową. Koszulka EZD: gdy umowa jeszcze jej nie ma, przejmuje koszulkę
+ * skierowania; gdy ma własną — skierowanie zostaje zarejestrowane także w niej (skbEzdRegister).
+ */
+function skbLinkContract(int $id, string $type, int $contractId, array $user): ?string {
+    $s = skbGet($id);
+    if (!$s) return 'Nie znaleziono skierowania.';
+    if (!skbIsPre($s)) return 'Skierowanie jest już powiązane z umową.';
+    $c = skbContract($type, $contractId);
+    if (!$c) return 'Nie znaleziono umowy wolontariackiej ani zlecenia.';
+    db()->prepare("UPDATE skierowania_badania SET contract_type=?, contract_id=?, linked_at=datetime('now'), updated_at=datetime('now') WHERE id=?")
+        ->execute([$type, $contractId, $id]);
+    $uid = (int)($user['id'] ?? 0);
+    audit_log('skierowania.link', ['id' => $id, 'numer' => $s['numer'], 'contract' => "{$type}#{$contractId}"], $uid ?: null);
+    try { log_contract_action($type, $contractId, $uid, 'skierowanie_badania', "Powiązano skierowanie na badania {$s['numer']} wystawione przed zawarciem umowy"); } catch (\Throwable $e) {}
+    if (!empty($s['ezd_sprawa_id']) && function_exists('module_enabled') && module_enabled('ezd_enabled')) {
+        require_once dirname(__DIR__, 3) . '/includes/contract_ezd.php';
+        $own = contract_ezd_get_sprawa_id($type, $contractId);
+        if (!$own) contract_ezd_link($type, $contractId, (int)$s['ezd_sprawa_id'], $uid);
+        elseif ($own !== (int)$s['ezd_sprawa_id']) {
+            require_once __DIR__ . '/skierowaniaEzd.php';
+            $r = skbEzdRegister($id, $user);
+            if (is_string($r)) return 'Powiązano z umową, ale EZD: ' . $r;
+        }
+    }
     return null;
 }
 

@@ -12,7 +12,7 @@ function skbPdfHtml(array $s, string $egz): string {
     $line = fn($v, $ph = '') => trim((string)$v) !== '' ? '<b>' . $e($v) . '</b>' : '<span class="ph">' . $ph . '</span>';
     $box = fn(bool $on) => $on ? '&#9746;' : '&#9744;';
     $type = (string)$s['contract_type'];
-    $c = skbContract($type, (int)$s['contract_id']) ?: [];
+    $c = skbIsPre($s) ? [] : (skbContract($type, (int)$s['contract_id']) ?: []);
     $nrUmowy = skbContractNumber($c);
     $podstawa = skbSetting($type === 'wolontariat' ? 'podstawa_wolontariat' : 'podstawa_zlecenie');
     $data = date('d.m.Y', strtotime((string)$s['data_wystawienia']));
@@ -31,7 +31,9 @@ function skbPdfHtml(array $s, string $egz): string {
     }
 
     $who = $type === 'wolontariat' ? 'wolontariusza / wolontariuszkę' : 'zleceniobiorcę';
-    $rel = SKB_TYPY[$type] . ($nrUmowy !== '' ? ' nr ' . $e($nrUmowy) : '');
+    $rel = skbIsPre($s)
+        ? ($type === 'wolontariat' ? 'porozumienia wolontariackiego' : 'umowy zlecenia') . ' (przed zawarciem umowy)'
+        : SKB_TYPY[$type] . ($nrUmowy !== '' ? ' nr ' . $e($nrUmowy) : '');
     $tozs = trim((string)$s['pesel']) !== ''
         ? 'nr PESEL ' . $line($s['pesel'])
         : 'nr PESEL —, dokument tożsamości: ' . $line($s['dokument']);

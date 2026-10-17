@@ -1,12 +1,15 @@
 <?php
 /**
  * modules/skierowania_badania/view/form.php — formularz nowego skierowania i karta istniejącego (edycja, PDF, EZD, wynik).
- * Zmienne: $s (dane / wiersz; bez 'id' = nowe), $c (umowa), $history (skierowania tej umowy).
+ * Zmienne: $s (dane / wiersz; bez 'id' = nowe), $c (umowa; [] przed zawarciem), $history (skierowania tej umowy),
+ * $app (kandydat Naboru albo null), $linkable (umowy do podpięcia skierowania sprzed umowy).
  */
+$app = $app ?? null; $linkable = $linkable ?? [];
 $isNew  = empty($s['id']);
 $type   = (string)$s['contract_type'];
 $cid    = (int)$s['contract_id'];
 $locked = !$isNew && $s['status'] === 'anulowane';
+$pre    = skbIsPre($s);
 $v      = fn($k) => h((string)($s[$k] ?? ''));
 $fmt    = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '—';
 $saved  = [];   // [grupa][nazwa] => wielkość
@@ -35,17 +38,31 @@ include dirname(__DIR__, 3) . '/includes/header.php';
   <?php endif; ?>
 </div>
 <p class="text-body-secondary small mb-3">
+  <?php if ($pre): ?>
+  <span class="badge text-bg-warning">Przed zawarciem umowy</span> planowana: <?= h(mb_strtolower(SKB_TYPY[$type] ?? $type)) ?>
+  <?php if ($app): ?> — kandydat z Naboru: <a href="<?= h(rtrim(APP_URL, '/') . '/rekrutacja/view.php?id=' . (int)$app['id']) ?>"><?= h(trim($app['imie'] . ' ' . $app['nazwisko'])) ?></a><?php endif; ?>
+  <?php else: ?>
   <?= h(SKB_TYPY[$type] ?? $type) ?><?= $nrUmowy !== '' ? ' nr ' . h($nrUmowy) : '' ?> —
   <a href="<?= h(skbContractUrl($type, $cid)) ?>"><?= h((string)($c['imie_nazwisko'] ?? '')) ?></a>
+  <?php endif; ?>
   <?php if (!$isNew): ?> · wystawiono <?= $fmt($s['data_wystawienia']) ?> (<?= h($s['created_name']) ?>)<?php if ($s['ezd_at']): ?> · w EZD od <?= h(substr((string)$s['ezd_at'], 0, 16)) ?><?php endif; ?><?php endif; ?>
 </p>
 <?= flash_html() ?>
 
 <form method="post" action="<?= h($isNew ? route('skb.store') : route('skb.update', ['id' => $s['id']])) ?>" id="skb-form">
   <?= csrf_field() ?>
-  <input type="hidden" name="contract_type" value="<?= h($type) ?>"><input type="hidden" name="contract_id" value="<?= $cid ?>">
+  <input type="hidden" name="contract_id" value="<?= $cid ?>">
+  <?php if (!$pre): ?><input type="hidden" name="contract_type" value="<?= h($type) ?>"><?php endif; ?>
+  <?php if ($isNew && $app): ?><input type="hidden" name="rekr_application_id" value="<?= (int)$app['id'] ?>"><?php endif; ?>
   <fieldset <?= $locked ? 'disabled' : '' ?>>
   <div class="card mb-3"><div class="card-header">Osoba kierowana</div><div class="card-body row g-3">
+    <?php if ($pre): ?>
+    <div class="col-12"><span class="form-label d-block">Planowana umowa (przed zawarciem)</span>
+      <?php foreach (SKB_TYPY as $k => $l): ?>
+      <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="contract_type" id="ct-<?= $k ?>" value="<?= $k ?>" <?= $type === $k ? 'checked' : '' ?>><label class="form-check-label" for="ct-<?= $k ?>"><?= h($l) ?></label></div>
+      <?php endforeach; ?>
+      <div class="form-text">Od rodzaju umowy zależy podstawa prawna na skierowaniu. Po zawarciu umowy powiąż z nią skierowanie.</div></div>
+    <?php endif; ?>
     <div class="col-md-4"><span class="form-label d-block">Rodzaj badania</span>
       <div class="btn-group" role="group" aria-label="Rodzaj badania">
       <?php foreach (SKB_RODZAJE as $k => $l): ?>
@@ -116,6 +133,26 @@ include dirname(__DIR__, 3) . '/includes/header.php';
     <div class="card-header">Anulowanie</div><div class="card-body"><p class="small">Skierowanie wystawione błędnie albo niewykorzystane. Wpis w EZD zostaje.</p>
     <button class="btn btn-sm btn-outline-danger">Anuluj skierowanie</button></div></form></div>
 </div>
+<?php endif; ?>
+
+<?php if (!$isNew && $pre && !$locked): ?>
+<div class="card mt-3 border-warning"><div class="card-header">Umowa zawarta? Powiąż z nią skierowanie</div><div class="card-body">
+  <form method="get" action="<?= h(route('skb.show', ['id' => $s['id']])) ?>" class="d-flex gap-2 mb-2" role="search">
+    <label class="visually-hidden" for="uq">Szukaj umowy</label>
+    <input id="uq" class="form-control form-control-sm" name="uq" value="<?= h((string)($_GET['uq'] ?? '')) ?>" placeholder="imię i nazwisko albo numer umowy (domyślnie: <?= h($s['imie_nazwisko']) ?>)">
+    <button class="btn btn-sm btn-outline-secondary">Szukaj</button></form>
+  <?php if ($linkable): ?>
+  <form method="post" action="<?= h(route('skb.link', ['id' => $s['id']])) ?>" class="d-flex flex-wrap gap-2 align-items-end"><?= csrf_field() ?>
+    <div class="flex-grow-1"><label class="form-label small" for="lk">Umowa</label>
+      <select id="lk" class="form-select form-select-sm" name="contract" required>
+      <?php foreach ($linkable as $lc): $ln = skbContractNumber($lc); ?>
+        <option value="<?= h($lc['type'] . ':' . $lc['id']) ?>"><?= h($lc['imie_nazwisko'] . ' — ' . SKB_TYPY[$lc['type']] . ($ln !== '' ? ' nr ' . $ln : ' #' . $lc['id']) . ' (' . ($lc['status'] ?: '—') . ')') ?></option>
+      <?php endforeach; ?></select></div>
+    <button class="btn btn-sm btn-warning">Powiąż</button>
+  </form>
+  <div class="form-text">Koszulka EZD skierowania przechodzi do umowy, jeśli umowa jeszcze nie ma własnej; w przeciwnym razie skierowanie rejestrujemy także w koszulce umowy.</div>
+  <?php else: ?><div class="small text-body-secondary">Nie znaleziono pasującej umowy — wyszukaj inaczej albo wróć tu po zawarciu umowy.</div><?php endif; ?>
+</div></div>
 <?php endif; ?>
 
 <?php $others = array_values(array_filter($history, fn($h) => (int)$h['id'] !== (int)($s['id'] ?? 0))); if ($others): ?>

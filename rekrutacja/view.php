@@ -165,9 +165,16 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php endif; ?>
       </div>
     </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#emailModal">
-      <i class="bi bi-send me-1" aria-hidden="true"></i>Napisz do kandydata
-    </button>
+    <div class="d-flex flex-wrap gap-2">
+      <?php if (in_array(current_user()['role'] ?? '', ['admin', 'editor', 'manager'], true)): ?>
+      <a class="btn btn-outline-secondary" href="<?= h(APP_URL) ?>/modules/skierowania_badania/router.php/nowe?<?= h(http_build_query(['pre' => 1, 'type' => $app['type'] === 'wolontariat' ? 'wolontariat' : 'zlecenie', 'rekr' => (int)$app['id']])) ?>">
+        <i class="bi bi-heart-pulse me-1" aria-hidden="true"></i>Skierowanie na badania
+      </a>
+      <?php endif; ?>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#emailModal">
+        <i class="bi bi-send me-1" aria-hidden="true"></i>Napisz do kandydata
+      </button>
+    </div>
   </div>
 
   <?php if ($app['type'] === 'zajecia'): ?>

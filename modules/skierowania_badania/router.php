@@ -25,6 +25,7 @@ $r->group(['role:admin,editor,manager'], function (Router $r) {
     $r->get('/{id}/pdf',        [SkierowaniaController::class, 'pdf'])->name('skb.pdf');
     $r->post('/{id}/ezd',       [SkierowaniaController::class, 'ezd'])->name('skb.ezd');
     $r->post('/{id}/wynik',     [SkierowaniaController::class, 'result'])->name('skb.result');
+    $r->post('/{id}/umowa',     [SkierowaniaController::class, 'link'])->name('skb.link');
     $r->post('/{id}/anuluj',    [SkierowaniaController::class, 'cancel'])->name('skb.cancel');
 });
 
