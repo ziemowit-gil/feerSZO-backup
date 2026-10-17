@@ -297,7 +297,7 @@ include dirname(__DIR__, 2) . '/portal/_header.php';
 <script>
 function naborForm(init) {
   return {
-    ...init, err: '', code: '', codeSent: false, busy: false, cooldown: 0, smsInfo: '',
+    ...init, err: '', code: '', codeSent: false, busy: false, cooldown: 0, smsInfo: '', sentTo: '', _autoT: null,
     titles: Object.values(init.steps),
     /** Pole zależne: warunek z edytora (jak naborCondMet() po stronie serwera). */
     show(key) {
@@ -320,7 +320,15 @@ function naborForm(init) {
     need(k) { return this.req[k] && this.show(k); },
     norm(p) { let d = String(p || '').replace(/\D/g, ''); if (d.length === 9) d = '48' + d; return d; },
     isVerified() { return this.verified && this.verified === this.norm(this.f.guardian_phone); },
-    phoneChanged() { if (!this.isVerified()) this.codeSent = false; },
+    /** Po wpisaniu pełnego numeru (9 cyfr) kod SMS wysyła się sam — przycisk zostaje do ponownej wysyłki. */
+    phoneChanged() {
+      if (this.isVerified()) return;
+      const n = this.norm(this.f.guardian_phone);
+      if (n !== this.sentTo) this.codeSent = false;
+      clearTimeout(this._autoT);
+      if (/^48\d{9}$/.test(n) && n !== this.sentTo && !this.preview && !this.busy && this.cooldown <= 0)
+        this._autoT = setTimeout(() => { if (this.norm(this.f.guardian_phone) === n) this.sendCode(); }, 700);
+    },
     peselOrDate(v) {
       v = String(v).trim();
       if (/^\d{11}$/.test(v)) { const w = [1,3,7,9,1,3,7,9,1,3]; let s = 0; for (let i = 0; i < 10; i++) s += w[i] * +v[i]; return (10 - s % 10) % 10 === +v[10]; }
@@ -369,7 +377,8 @@ function naborForm(init) {
       const r = await this.post({ action: 'send', phone: this.f.guardian_phone });
       this.busy = false;
       if (!r.ok) { this.err = r.error; return; }
-      this.codeSent = true; this.smsInfo = 'Wysłaliśmy SMS z 6-cyfrowym kodem (ważny 10 minut).';
+      this.codeSent = true; this.sentTo = this.norm(this.f.guardian_phone);
+      this.smsInfo = 'Wysłaliśmy SMS z 6-cyfrowym kodem na numer ' + this.f.guardian_phone + ' (ważny 10 minut).';
       this.cooldown = 60; const t = setInterval(() => { if (--this.cooldown <= 0) clearInterval(t); }, 1000);
       this.$nextTick(() => this.$refs.code?.focus());
     },

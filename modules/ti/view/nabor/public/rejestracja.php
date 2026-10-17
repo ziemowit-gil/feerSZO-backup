@@ -67,7 +67,7 @@ $o = fn($k) => h((string)($old[$k] ?? ''));
     send.disabled = true; msg.textContent = '';
     post({ action: 'send', phone: ph.value }).then(function (r) {
       if (!r.ok) { msg.textContent = r.error; send.disabled = false; return; }
-      box.style.display = ''; msg.textContent = 'Wysłaliśmy SMS z 6-cyfrowym kodem (ważny 10 minut).'; document.getElementById('rg-c').focus();
+      sentTo = norm(ph.value); box.style.display = ''; msg.textContent = 'Wysłaliśmy SMS z 6-cyfrowym kodem na numer ' + ph.value + ' (ważny 10 minut).'; document.getElementById('rg-c').focus();
       setTimeout(function () { send.disabled = false; send.textContent = 'Wyślij ponownie'; }, 60000);
     });
   });
@@ -77,7 +77,15 @@ $o = fn($k) => h((string)($old[$k] ?? ''));
       verified = norm(ph.value); msg.textContent = ''; sync();
     });
   });
-  ph.addEventListener('input', sync); sync();
+  // Po wpisaniu pełnego numeru (9 cyfr) kod SMS wysyła się sam; przycisk zostaje do ponownej wysyłki
+  var sentTo = '', autoT = null;
+  ph.addEventListener('input', function () {
+    sync(); clearTimeout(autoT);
+    var n = norm(ph.value);
+    if (/^48\d{9}$/.test(n) && n !== sentTo && !(verified && verified === n) && !send.disabled)
+      autoT = setTimeout(function () { if (norm(ph.value) === n) send.click(); }, 700);
+  });
+  sync();
   f.addEventListener('submit', function (e) { if (!(verified && verified === norm(ph.value))) { e.preventDefault(); msg.textContent = 'Potwierdź numer telefonu kodem SMS.'; ph.focus(); } });
 })();
 </script>
