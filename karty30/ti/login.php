@@ -22,13 +22,13 @@ $TI_BASE = rtrim((string)(parse_url(APP_URL, PHP_URL_PATH) ?: ''), '/') . '/kart
 
 // ── Komunikaty błędów ─────────────────────────────────────────────────────────
 $ERR = [
-    1 => 'Nieprawidłowy login lub hasło.',
-    2 => 'Dostęp do panelu wstrzymany przez opiekuna. Skontaktuj się z rodzicem lub opiekunem.',
-    3 => 'Konto jest nieaktywne. Skontaktuj się z prowadzącym.',
-    4 => 'To konto nie ma uprawnień dydaktyka TI. Skontaktuj się z administratorem.',
-    5 => 'Zbyt wiele nieudanych prób logowania. Odczekaj chwilę i spróbuj ponownie.',
-    6 => 'Nieprawidłowy login lub hasło konta opiekuna.',
-    7 => 'Nieprawidłowy login lub hasło osoby upoważnionej.',
+    1 => 'Błędny login lub hasło.',
+    2 => 'Rodzic lub opiekun wstrzymał dostęp do panelu.',
+    3 => 'Konto jest wyłączone. Napisz do prowadzącego.',
+    4 => 'To konto nie ma dostępu do panelu prowadzącego.',
+    5 => 'Za dużo prób. Spróbuj za kilka minut.',
+    6 => 'Błędny login lub hasło rodzica.',
+    7 => 'Błędny login lub hasło.',
 ];
 $ec    = (int)($_GET['e'] ?? 0);
 $error = $ERR[$ec] ?? null;
@@ -55,12 +55,12 @@ $dyd_haslo = !$office_available || $ec > 0 || ($_GET['konto'] ?? '') === 'prywat
 // Lewa kolumna: instrukcja zależna od roli.
 $_side = [
     'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
-        ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a albo z wydruku.', 'Logujesz się pierwszy raz? Zostaw hasło puste — dostaniesz kod SMS i ustawisz własne hasło. Później wpisuj już swoje hasło.']
-        : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.', 'Wpisz hasło.'],
-    'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Microsoft 365” obok.', 'Nie masz poczty w domenie fundacji? Wpisz e-mail i hasło.'],
-    'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login opiekuna nadany w placówce.', 'Wpisz hasło. Nie masz hasła? Zaloguj się kodem SMS.'],
-    'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło nadane przez kursanta.'],
-    'kandydat' => ['Wybierz „Kandydat”.', 'Wpisz e-mail podany w zgłoszeniu.', 'Wpisz hasło ustawione z linku w e-mailu. Nie masz hasła? Wybierz „Nie pamiętam hasła”.'],
+        ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a.', 'Pierwszy raz? Nie wpisuj hasła — dostaniesz kod SMS.']
+        : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Sprawdź, czy widzisz swój obrazek.', 'Wpisz hasło.'],
+    'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz adres @feer.org.pl? Kliknij „Microsoft 365”.', 'Inny adres? Wpisz e-mail i hasło.'],
+    'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login rodzica.', 'Wpisz hasło albo zaloguj się kodem SMS.'],
+    'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło od kursanta.'],
+    'kandydat' => ['Wybierz „Kandydat”.', 'Wpisz e-mail ze zgłoszenia.', 'Wpisz hasło. Nie masz? Kliknij „Nie pamiętam hasła”.'],
 ];
 $_side_steps = $krok1 ? $_side['kursant'] : $_side[$tab];
 
@@ -76,7 +76,7 @@ $_tabs = [
     'dydaktyk' => ['label' => 'Prowadzący',  'icon' => 'bi-easel2',       'who' => 'Prowadzę zajęcia',                 'kolor' => '#1d1d1d'],
     'rodzic'   => ['label' => 'Rodzic',      'icon' => 'bi-people',       'who' => 'Opiekun kursanta',                 'kolor' => '#00a300'],
     'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check', 'who' => 'Osoba upoważniona przez kursanta', 'kolor' => '#7e3878'],
-    'kandydat' => ['label' => 'Kandydat',    'icon' => 'bi-person-badge', 'who' => 'Rodzic / opiekun ze zgłoszeniem z naboru', 'kolor' => '#164eb6'],
+    'kandydat' => ['label' => 'Kandydat',    'icon' => 'bi-person-badge', 'who' => 'Mam zgłoszenie z naboru', 'kolor' => '#164eb6'],
 ];
 // Krok 1 z podziałem wg roli (kto) i funkcji (co robi): każdy kafel to rola ($tab) + funkcja (fn),
 // która podpowiada login (kursant) albo tryb pracy po zalogowaniu (prowadzący/konsultant → choose_mode.php).
@@ -84,7 +84,7 @@ $_fn = in_array($_GET['fn'] ?? '', ['szkolenia', 'szk', 'konsultacje', 'kierowni
 $_groups = [
     ['title' => 'Uczestnicy', 'items' => [
         ['tab' => 'kursant', 'fn' => 'szkolenia',   'kolor' => '#0f6fa8', 'icon' => 'bi-pc-display',       'label' => 'Uczestnik szkoleń',          'who' => 'Chodzę na zajęcia w grupie'],
-        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Uczestnik szkolenia krótkiego', 'who' => 'Mam kilka spotkań w małej grupie'],
+        ['tab' => 'kursant', 'fn' => 'szk',         'kolor' => '#0c5b8a', 'icon' => 'bi-lightning-charge', 'label' => 'Uczestnik szkolenia krótkiego', 'who' => 'Uczę się na krótkim szkoleniu (SzK)'],
         ['tab' => 'kursant', 'fn' => 'konsultacje', 'kolor' => '#2b6cb0', 'icon' => 'bi-clipboard2-check', 'label' => 'Beneficjent konsultacji',    'who' => 'Mam umówioną konsultację'],
     ]],
     ['title' => 'Rodzina i osoby bliskie', 'items' => [
@@ -181,14 +181,14 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
               <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
           </div>
-          <div class="form-text">Przy pierwszym logowaniu hasła nie wpisujesz.</div>
+          <div class="form-text">Pierwszy raz? Zostaw puste.</div>
         </div>
         <button type="submit" class="tz-btn">Dalej</button>
       </form>
       <?php if (org_setting('ti_nabor_enabled') === '1'): ?>
-      <p class="tz-hint">Nie masz konta? <a href="/nabor">Zapisz się na zajęcia</a> — po przyjęciu dostaniesz login i hasło. Złożone zgłoszenie sprawdzisz w <a href="/nabor/logowanie">koncie kandydata</a>.</p>
+      <p class="tz-hint">Nie masz konta? <a href="/nabor">Zapisz się na zajęcia</a>. Zgłoszenie sprawdzisz w <a href="/nabor/logowanie">koncie kandydata</a>.</p>
       <?php else: ?>
-      <p class="tz-hint">Nie masz konta? <a href="<?= h($TI_BASE) ?>zapisy.php">Zostaw kontakt</a> — odezwiemy się w sprawie zapisów.</p>
+      <p class="tz-hint">Nie masz konta? <a href="<?= h($TI_BASE) ?>zapisy.php">Zostaw kontakt</a> — odezwiemy się.</p>
       <?php endif; ?>
       <?php if (k30_pfron_enabled()): ?>
       <a href="kursant/pfron.php" class="tz-btn tz-btn-ghost mt-3">Rozliczenia PFRON (Aktywny Samorząd)</a>
@@ -214,7 +214,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
         <button type="submit" class="tz-btn">Zaloguj się</button>
       </form>
       <p class="tz-hint"><a href="/nabor/przypomnij">Nie pamiętam hasła / nie mam hasła</a></p>
-      <p class="tz-hint">Konto kandydata powstaje po potwierdzeniu pierwszego zgłoszenia.<?= org_setting('ti_nabor_enabled') === '1' ? ' <a href="/nabor">Złóż zgłoszenie na zajęcia</a>.' : '' ?></p>
+      <p class="tz-hint">Konto kandydata dostaniesz po potwierdzeniu zgłoszenia.<?= org_setting('ti_nabor_enabled') === '1' ? ' <a href="/nabor">Złóż zgłoszenie na zajęcia</a>.' : '' ?></p>
 
       <?php elseif ($tab === 'dydaktyk'): ?>
       <?php /* Microsoft 365 — w prawej kolumnie (bez duplikatu); tu e-mail i hasło */ ?>
@@ -239,7 +239,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
           </div>
           <button type="submit" class="tz-btn">Zaloguj się</button>
         </form>
-        <p class="tz-hint">Prywatny adres e-mail: użyj danych logowania do Systemu Wspomagania Zarządzania Organizacją.</p>
+        <p class="tz-hint">Inny adres e-mail? Użyj hasła do systemu SZO.</p>
 
       <?php elseif ($tab === 'rodzic'): ?>
       <form method="post" action="kursant/parent_login.php" autocomplete="on">
@@ -249,7 +249,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
                  value="<?= $prefill_login ?>" required autofocus autocomplete="username"
                  placeholder="Login opiekuna nadany w placówce"
                  <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-          <p class="tz-hint">Login konta opiekuna nadany w placówce.</p>
+          <p class="tz-hint">Login dostajesz od placówki.</p>
         </div>
         <div class="mb-4">
           <label for="par-password">Hasło</label>
@@ -263,7 +263,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
         </div>
         <button type="submit" class="tz-btn">Zaloguj się</button>
       </form>
-      <p class="tz-hint">Nie masz hasła? Zaloguj się kodem SMS wysłanym na Twój numer telefonu.</p>
+      <p class="tz-hint">Nie masz hasła? Zaloguj się kodem SMS.</p>
       <a href="kursant/parent.php" class="tz-btn tz-btn-ghost mt-2">Logowanie kodem SMS</a>
 
       <?php else: /* up */ ?>
@@ -274,7 +274,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
                  value="<?= $prefill_login ?>" required autofocus autocomplete="username"
                  placeholder="Login nadany przez kursanta"
                  <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-          <p class="tz-hint">Login i hasło nadane przez kursanta w zakładce „Upoważnieni”.</p>
+          <p class="tz-hint">Login i hasło da Ci kursant.</p>
         </div>
         <div class="mb-4">
           <label for="up-password">Hasło</label>
@@ -288,7 +288,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
         </div>
         <button type="submit" class="tz-btn">Zaloguj się</button>
       </form>
-      <p class="tz-hint">Dostęp do rozliczeń, frekwencji i harmonogramu kursanta, który Cię upoważnił.</p>
+      <p class="tz-hint">Zobaczysz rozliczenia, obecności i plan zajęć kursanta.</p>
       <?php endif; ?>
     </div>
 
@@ -296,30 +296,30 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
       <?php if ($tab === 'dydaktyk'): ?>
         <p id="pp-alt-h" style="margin:0 0 .3rem">Masz pocztę w domenie fundacji?</p>
         <a class="pp-alt" href="<?= h($office_login_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365</a>
-        <p>Dla prowadzących i pracowników z adresem @feer.org.pl — nastąpi przekierowanie na stronę logowania Microsoft.</p>
+        <p>Dla osób z adresem @feer.org.pl.</p>
       <?php elseif ($tab === 'rodzic'): ?>
         <p id="pp-alt-h" style="margin:0 0 .3rem">Nie masz hasła albo go nie pamiętasz?</p>
         <a class="pp-alt" href="kursant/parent.php"><i class="bi bi-chat-dots" aria-hidden="true"></i> Zaloguj kodem SMS</a>
-        <p>Jednorazowy kod na numer telefonu opiekuna zapisany w placówce.</p>
+        <p>Kod przyjdzie na telefon rodzica.</p>
       <?php elseif ($tab === 'kandydat'): ?>
         <p id="pp-alt-h" style="margin:0 0 .3rem">Nie masz jeszcze konta kandydata?</p>
         <a class="pp-alt" href="/nabor/rejestracja"><i class="bi bi-person-plus" aria-hidden="true"></i> Załóż konto</a>
-        <p>Albo <?= org_setting('ti_nabor_enabled') === '1' ? '<a href="/nabor">złóż zgłoszenie na zajęcia</a> — konto założymy po jego potwierdzeniu.' : 'zaczekaj na otwarcie naboru.' ?></p>
+        <p>Albo <?= org_setting('ti_nabor_enabled') === '1' ? '<a href="/nabor">złóż zgłoszenie na zajęcia</a> — konto założymy po potwierdzeniu.' : 'zaczekaj na otwarcie naboru.' ?></p>
       <?php elseif ($tab === 'up'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Osoba upoważniona</strong> widzi rozliczenia, frekwencję i plan zajęć kursanta, który nadał jej dostęp w zakładce „Upoważnieni”.</p>
+        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Osoba upoważniona</strong> widzi rozliczenia, obecności i plan zajęć kursanta, który dał jej dostęp.</p>
       <?php elseif ($_ppActive === 'szk'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong>Szkolenie krótkie</strong> — kilka spotkań w małej grupie (szkolenia oznaczone SzK).</p>
-        <p>Login dostajesz SMS-em albo na wydruku od prowadzącego.</p>
-        <p>Pierwsze logowanie: wpisz sam login i zostaw hasło puste. Przyjdzie kod SMS, a po nim ustawisz własne hasło.</p>
-        <p>Przy kolejnych logowaniach po wpisaniu loginu zobaczysz swój obrazek bezpieczeństwa. Jeśli widzisz inny — nie wpisuj hasła.</p>
+        <p id="pp-alt-h" style="margin-top:0"><strong>Szkolenie krótkie (SzK)</strong> — dla uczestników krótkich szkoleń.</p>
+        <p>Login dostaniesz SMS-em albo od prowadzącego.</p>
+        <p>Pierwszy raz? Wpisz tylko login. Dostaniesz kod SMS i ustawisz hasło.</p>
+        <p>Potem sprawdzaj swój obrazek. Widzisz inny? Nie wpisuj hasła.</p>
       <?php elseif ($_ppActive === 'konsultacje'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong>Konsultacje</strong> — dla osób, które umówiły konsultację.</p>
-        <p>Login dostaniesz SMS-em po umówieniu pierwszej konsultacji. To litera „k” i cztery cyfry, np. <span style="font-family:monospace">k1234</span>.</p>
-        <p>Pierwsze logowanie: wpisz sam login i zostaw hasło puste. Przyjdzie kod SMS, a po nim ustawisz własne hasło.</p>
-        <p>W panelu znajdziesz terminy konsultacji, notatki i materiały.</p>
+        <p id="pp-alt-h" style="margin-top:0"><strong>Konsultacje</strong> — masz umówioną konsultację.</p>
+        <p>Login dostaniesz SMS-em, np. <span style="font-family:monospace">k1234</span>.</p>
+        <p>Pierwszy raz? Wpisz tylko login. Dostaniesz kod SMS i ustawisz hasło.</p>
+        <p>W panelu są terminy, notatki i materiały.</p>
       <?php else: ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Obrazek bezpieczeństwa.</strong> Po wpisaniu loginu zobaczysz swój obrazek (z opisem dla czytnika ekranu). Jeśli go nie widzisz albo widzisz inny — nie wpisuj hasła.</p>
-        <p>Pierwsze logowanie: wpisz sam login i zostaw hasło puste. Przyjdzie kod SMS, a po nim ustawisz własne hasło.</p>
+        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Twój obrazek.</strong> Po wpisaniu loginu zobaczysz swój obrazek (czytnik ekranu go opisze). Widzisz inny albo żaden? Nie wpisuj hasła.</p>
+        <p>Pierwszy raz? Wpisz tylko login. Dostaniesz kod SMS i ustawisz hasło.</p>
       <?php endif; ?>
       <?php if ($tab !== 'kandydat'): ?>
       <div style="border-top:1px solid var(--pp-line);margin-top:1.4rem;padding-top:1.1rem">
