@@ -13,12 +13,12 @@
 <title><?= h($title) ?> — <?= h($org) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Montserrat:wght@700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { prefix: 'tw-', theme: { extend: { colors: { feer: { DEFAULT: '#1d68f2', dark: '#164eb6', bg: '#edf3fe', line: '#d8e2f3' } } } } }</script>
 <style type="text/tailwindcss">
   body { font-family: 'Ubuntu', ui-sans-serif, system-ui, sans-serif; }
-  h1, h2, h3 { font-family: 'Montserrat', 'Ubuntu', sans-serif; }
+  h1, h2, h3 { font-family: 'Ubuntu', sans-serif; font-weight: 500; }
   .k-card  { @apply tw-bg-white tw-border tw-border-solid tw-border-gray-300 tw-p-5 sm:tw-p-6 tw-mb-5; }
   .k-label { @apply tw-block tw-text-sm tw-font-medium tw-mb-1; }
   .k-input { @apply tw-w-full tw-rounded-none tw-border tw-border-solid tw-border-feer-line tw-px-3 tw-py-2 tw-bg-white focus:tw-outline-none focus:tw-ring-4 focus:tw-ring-blue-200 focus:tw-border-feer; }

@@ -50,13 +50,13 @@ $customQs = function (int $n) use ($form, $customQ): string {
 <title>Zapisy na zajęcia — <?= h($org) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Montserrat:wght@700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { prefix: 'tw-', theme: { extend: { colors: { feer: { DEFAULT: '#1d68f2', dark: '#164eb6', bg: '#edf3fe', line: '#d8e2f3' } } } } }</script>
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
 <style type="text/tailwindcss">
   body { font-family: 'Ubuntu', ui-sans-serif, system-ui, sans-serif; }
-  h1, h2, legend { font-family: 'Montserrat', 'Ubuntu', sans-serif; }
+  h1, h2, legend { font-family: 'Ubuntu', sans-serif; font-weight: 500; }
   [x-cloak] { display: none !important; }
   .zp-label { @apply tw-block tw-text-sm tw-font-medium tw-mb-1; }
   .zp-input { @apply tw-w-full tw-rounded-lg tw-border tw-border-feer-line tw-px-3 tw-py-2 tw-bg-white focus:tw-outline-none focus:tw-ring-4 focus:tw-ring-blue-200 focus:tw-border-feer; }
@@ -80,7 +80,7 @@ $customQs = function (int $n) use ($form, $customQ): string {
   <header class="tw-mb-6 tw-flex tw-items-center tw-gap-4">
     <?php if ($logo): ?><img src="<?= h($logo) ?>" alt="<?= h($org) ?>" class="tw-h-12 tw-bg-white tw-rounded-lg tw-p-1"><?php endif; ?>
     <div>
-      <h1 class="tw-text-2xl tw-font-extrabold"><?= h($form['texts']['title']) ?></h1>
+      <h1 class="tw-text-2xl tw-font-medium"><?= h($form['texts']['title']) ?></h1>
       <p class="tw-text-gray-600"><?= h($org) ?></p>
     </div>
   </header>
@@ -90,7 +90,7 @@ $customQs = function (int $n) use ($form, $customQ): string {
     <div class="tw-text-5xl tw-mb-3" aria-hidden="true">📨</div>
     <h2 class="tw-text-xl tw-font-bold tw-mb-2"><?= h($form['texts']['thanks']) ?></h2>
     <p class="tw-text-gray-600">Numer zgłoszenia:</p>
-    <p class="tw-text-3xl tw-font-extrabold tw-text-feer tw-my-3"><?= h($done) ?></p>
+    <p class="tw-text-3xl tw-font-medium tw-text-feer tw-my-3"><?= h($done) ?></p>
     <div class="tw-bg-amber-50 tw-border tw-border-amber-300 tw-rounded-xl tw-p-4 tw-text-left tw-mt-6" role="status">
       <p class="tw-font-bold tw-mb-1">Ostatni krok: potwierdź adres e-mail</p>
       <p>Na adres <strong><?= h($doneMail ?: 'podany w formularzu') ?></strong> wysłaliśmy link. Zgłoszenie trafi do rozpatrzenia dopiero po jego kliknięciu (link jest ważny <?= NABOR_CONFIRM_HOURS ?> godz.). Sprawdź też folder SPAM.</p>

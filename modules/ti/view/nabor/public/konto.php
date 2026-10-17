@@ -10,7 +10,7 @@ $badge = ['new' => 'tw-bg-blue-100 tw-text-blue-900', 'pending_review' => 'tw-bg
           'cancelled' => 'tw-bg-gray-200 tw-text-gray-800', 'archived' => 'tw-bg-gray-100 tw-text-gray-700'];
 ?>
 <div class="tw-flex tw-items-center tw-gap-3 tw-mb-4">
-  <h1 class="tw-text-2xl tw-font-extrabold tw-mr-auto">Moje zgłoszenia</h1>
+  <h1 class="tw-text-2xl tw-font-medium tw-mr-auto">Moje zgłoszenia</h1>
   <a class="k-btn" href="<?= h(naborUrl('/zapisy')) ?>">+ Nowe zgłoszenie</a>
 </div>
 <?php if (!empty($notFound)): ?><div class="tw-bg-red-50 tw-border tw-border-red-300 tw-rounded-xl tw-p-3 tw-mb-4" role="alert">Nie znaleziono zgłoszenia.</div><?php endif; ?>

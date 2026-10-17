@@ -14,7 +14,7 @@ $docBadge = ['requested' => 'tw-bg-amber-100 tw-text-amber-900', 'uploaded' => '
 <p class="tw-text-sm tw-mb-2"><a href="<?= h(naborUrl('/konto')) ?>">← Moje zgłoszenia</a></p>
 <div class="k-card">
   <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
-    <h1 class="tw-text-2xl tw-font-extrabold tw-mr-auto"><?= h($s['participant_name']) ?></h1>
+    <h1 class="tw-text-2xl tw-font-medium tw-mr-auto"><?= h($s['participant_name']) ?></h1>
     <span class="k-badge tw-bg-feer tw-text-white tw-text-sm"><?= h(naborStatusLabel($s['status'])) ?></span>
   </div>
   <p class="tw-text-gray-600 tw-mt-1"><?= h($s['registration_number']) ?> · <?= h($s['course_name'] ?: 'termin do ustalenia') ?><?= $s['course_schedule'] ? ' · ' . h($s['course_schedule']) : '' ?> · zajęcia online</p>

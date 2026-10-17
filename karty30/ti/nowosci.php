@@ -41,7 +41,7 @@ function nwCard(string $icon, string $title, string $html, string $tip = ''): st
   .nw-toc a { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem 1rem; border-radius: .7rem; text-decoration: none; color: var(--pp-ink); font-weight: 500; }
   .nw-toc a:hover { background: #fff; color: var(--pp-blue); }
   .nw-sec { margin-top: 2.4rem; scroll-margin-top: 1rem; }
-  .nw-sec > h2 { font-size: 1.45rem; font-weight: 800; display: flex; align-items: center; gap: .55rem; margin: 0 0 1rem; }
+  .nw-sec > h2 { font-size: 1.45rem; font-weight: 500; display: flex; align-items: center; gap: .55rem; margin: 0 0 1rem; }
   .nw-sec > h2 .bi { color: var(--pp-blue); }
   .nw-alert { background: var(--pp-bg); border-left: 5px solid var(--pp-blue); border-radius: .8rem; padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
   .nw-alert h3 { margin: 0 0 .4rem; font-size: 1.05rem; }
