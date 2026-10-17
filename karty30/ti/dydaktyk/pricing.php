@@ -271,7 +271,16 @@ if ($tab === 'settle') {
         $sm = ti_course_billing_summary((int)$c['id'], $st_y, $st_m);
         if (!$sm['participants']) continue;
         $st_groups[] = ['c' => $c, 't' => $sm['totals'], 'p' => $sm['participants']];
-        foreach (['charges', 'paid', 'debt', 'credit'] as $k) $st_tot[$k] = round($st_tot[$k] + $sm['totals'][$k], 2);
+    }
+    // Sumy KPI z kanonicznej alokacji per kursant (jak ti_clients_with_debt): obejmują też rozliczenia
+    // łączne / opłaty poza zajęciami (course_id=0) i nadpłatę ogólną, których nie ma w sumach grup.
+    $st_tot['general_credit'] = 0.0;
+    foreach (db_all("SELECT cl.id FROM k30_clients cl
+                     WHERE (cl.id IN (SELECT client_id FROM k30_ti_billing WHERE status IN ('issued','paid'))
+                            OR cl.id IN (SELECT client_id FROM k30_ti_payments))
+                       AND NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts na WHERE na.client_id=cl.id AND COALESCE(na.no_billing,0)=1)") as $stc) {
+        $sa = ti_client_allocation((int)$stc['id']);
+        foreach (['charges', 'paid', 'debt', 'credit', 'general_credit'] as $k) $st_tot[$k] = round($st_tot[$k] + $sa[$k], 2);
     }
     $st_debtors = array_slice(ti_clients_with_debt(), 0, 50);
     $st_op = array_values(array_filter(ti_op_list(), fn($o) => $o['status'] === 'available'));
@@ -803,6 +812,7 @@ $gv = ($_GET['v'] ?? 'tabela') === 'karty' ? 'karty' : 'tabela';
     <div class="card"><div class="text-xs uppercase tracking-wide text-slate-500">Wpłacono</div><div class="text-2xl font-semibold tabular-nums text-emerald-700"><?= $fmt($st_tot['paid']) ?> <span class="text-sm font-normal">zł</span></div></div>
     <div class="card"><div class="text-xs uppercase tracking-wide text-slate-500">Niedopłaty</div><div class="text-2xl font-semibold tabular-nums text-red-700"><?= $fmt($st_tot['debt']) ?> <span class="text-sm font-normal">zł</span></div></div>
     <div class="card"><div class="text-xs uppercase tracking-wide text-slate-500">Nadpłaty (do dyspozycji)</div><div class="text-2xl font-semibold tabular-nums text-sky-700"><?= $fmt($st_opsum['by_status']['available'] ?? 0) ?> <span class="text-sm font-normal">zł</span></div>
+      <div class="text-xs text-slate-500">w saldach kursantów: <?= $fmt($st_tot['credit']) ?> zł<?= $st_tot['general_credit'] > 0.005 ? ', w tym ogólna (bez grupy) ' . $fmt($st_tot['general_credit']) . ' zł' : '' ?></div>
       <?php if (!empty($st_opsum['unreconciled'])): ?><div class="text-xs text-amber-700">niezgodne salda: <?= (int)$st_opsum['unreconciled'] ?></div><?php endif; ?></div>
   </div>
 
