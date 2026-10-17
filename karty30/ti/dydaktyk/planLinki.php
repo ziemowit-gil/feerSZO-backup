@@ -20,6 +20,32 @@ tiPlanPublicMigrate();
 
 $focus = (int)($_GET['course_id'] ?? 0);
 
+// Akcje masowe na linkach zaznaczonych grup (widok „Lista”)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'bulk_links') {
+    dyd_token_check();
+    $act = (string)($_POST['bulk_action'] ?? '');
+    $ids = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['ids'] ?? [])))));
+    $back = 'Location: planLinki.php?lv=lista' . (($_POST['q'] ?? '') !== '' ? '&q=' . urlencode((string)$_POST['q']) : '') . (($_POST['only'] ?? '') !== '' ? '&only=' . urlencode((string)$_POST['only']) : '');
+    if (!$ids) { flash_set('warning', 'Nie zaznaczono żadnej grupy.'); header($back); exit; }
+    $n = 0;
+    foreach ($ids as $cid) {
+        if (!db_one("SELECT 1 FROM k30_ti_courses WHERE id=?", [$cid])) continue;
+        switch ($act) {
+            case 'publish':    tiPlanPublicEnable($cid, $uid); break;
+            case 'disable':    if (!tiPlanPublicGet($cid)) continue 2; tiPlanPublicDisable($cid); break;
+            case 'dir_on':     tiPlanPublicEnable($cid, $uid);
+                               db()->prepare("UPDATE k30_ti_plan_public_links SET in_directory=1, updated_at=datetime('now') WHERE course_id=?")->execute([$cid]); break;
+            case 'dir_off':    db()->prepare("UPDATE k30_ti_plan_public_links SET in_directory=0, updated_at=datetime('now') WHERE course_id=?")->execute([$cid]); break;
+            case 'regenerate': if (!tiPlanPublicGet($cid)) continue 2; tiPlanPublicRegenerate($cid, $uid); break;
+            default: flash_set('warning', 'Wybierz akcję.'); header($back); exit;
+        }
+        $n++;
+    }
+    $lbl = ['publish' => 'Opublikowano plany', 'disable' => 'Wyłączono linki', 'dir_on' => 'Dodano do katalogu portalu', 'dir_off' => 'Usunięto z katalogu portalu', 'regenerate' => 'Wygenerowano nowe adresy'];
+    flash_set($n ? 'success' : 'warning', ($lbl[$act] ?? 'Wykonano') . ' — grup: ' . $n . '.');
+    header($back); exit;
+}
+
 // DK — dyżury kierownika / Zarządu
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['duty_save', 'duty_delete', 'duty_public'], true)) {
     dyd_token_check();
@@ -143,6 +169,8 @@ foreach ($courses as $c) {
 $nOn = count(array_filter($links, fn($l) => (int)$l['is_enabled'] === 1));
 $nDir = count(array_filter($links, fn($l) => (int)$l['is_enabled'] === 1 && (int)($l['in_directory'] ?? 0) === 1));
 $tab = in_array($_GET['tab'] ?? '', ['prowadzacy', 'dk'], true) ? (string)$_GET['tab'] : 'grupy';
+// Zakładka Grupy: widok „Lista” (tabela + akcje masowe, domyślny) albo „Karty” (ustawienia, wysyłka linku)
+$lv = (($_GET['lv'] ?? '') === 'karty' || $focus) ? 'karty' : 'lista';
 $instructors = $tab === 'prowadzacy' ? tiPlanPublicInstructors() : [];
 $iLinks = tiPlanPublicInstrMap();
 $roomsOn = tiPlanPublicRoomsEnabled();
@@ -398,8 +426,14 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <option value="off" <?= $only === 'off' ? 'selected' : '' ?>>tylko nieopublikowane</option>
     </select>
   </div>
-  <div class="col-sm-auto"><button class="btn btn-sm btn-outline-primary">Filtruj</button>
-    <?php if ($q !== '' || $only !== ''): ?><a class="btn btn-sm btn-link" href="planLinki.php">Wyczyść</a><?php endif; ?></div>
+  <div class="col-sm-auto"><input type="hidden" name="lv" value="<?= h($lv) ?>"><button class="btn btn-sm btn-outline-primary">Filtruj</button>
+    <?php if ($q !== '' || $only !== ''): ?><a class="btn btn-sm btn-link" href="planLinki.php?lv=<?= h($lv) ?>">Wyczyść</a><?php endif; ?></div>
+  <div class="col-sm-auto ms-auto">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Widok listy grup">
+      <a class="btn <?= $lv === 'lista' ? 'btn-primary' : 'btn-outline-primary' ?>" href="planLinki.php?lv=lista&amp;q=<?= h(urlencode($q)) ?>&amp;only=<?= h(urlencode($only)) ?>"<?= $lv === 'lista' ? ' aria-current="page"' : '' ?>><i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lista</a>
+      <a class="btn <?= $lv === 'karty' ? 'btn-primary' : 'btn-outline-primary' ?>" href="planLinki.php?lv=karty&amp;q=<?= h(urlencode($q)) ?>&amp;only=<?= h(urlencode($only)) ?>"<?= $lv === 'karty' ? ' aria-current="page"' : '' ?>><i class="bi bi-card-list me-1" aria-hidden="true"></i>Karty</a>
+    </div>
+  </div>
 </form>
 
 <div role="status" class="visually-hidden">Wyświetlono <?= count($rows) ?> grup.</div>
@@ -408,6 +442,75 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <div class="alert alert-secondary">Brak grup spełniających kryteria.</div>
 <?php endif; ?>
 
+<?php if ($lv === 'lista'): /* ── Widok Lista: tabela + akcje masowe ── */
+  $bl_opts = [
+      'publish'    => ['Opublikuj plan', 'Włącza tajny link do planu grupy (istniejący adres zostaje bez zmian).'],
+      'dir_on'     => ['Dodaj do katalogu portalu', 'Grupa pojawi się w portalu /plan/ (Grupy) — nazwa publicznie, z ochroną RODO (inicjały / nazwa zastępcza). Nieopublikowane zostaną też opublikowane.'],
+      'dir_off'    => ['Usuń z katalogu portalu', 'Grupa znika z katalogu; tajny link dalej działa dla osób, które go mają.'],
+      'disable'    => ['Wyłącz link', 'Adres przestaje działać natychmiast (ponowne włączenie przywraca ten sam adres).'],
+      'regenerate' => ['Nowy adres', 'Unieważnia dotychczasowe linki (np. gdy trafiły do niepowołanych osób) — trzeba rozesłać nowe.'],
+  ]; ?>
+<form method="post" id="pl-bulk" class="d-flex flex-wrap align-items-end gap-2 mb-2 p-2 border rounded bg-body-tertiary"
+      onsubmit="var n=document.querySelectorAll('input[name=&quot;ids[]&quot;][form=pl-bulk]:checked').length; if(!n){alert('Zaznacz co najmniej jedną grupę.');return false;} if(!this.bulk_action.value){alert('Wybierz akcję.');return false;} var o=this.bulk_action.options[this.bulk_action.selectedIndex]; return confirm(o.text+' — zaznaczonych grup: '+n+'?\n\n'+o.getAttribute('data-desc'));">
+  <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="bulk_links">
+  <input type="hidden" name="q" value="<?= h($q) ?>"><input type="hidden" name="only" value="<?= h($only) ?>">
+  <span class="small fw-semibold mb-1" id="pl-bulk-n" role="status" aria-live="polite">Zaznaczone: 0</span>
+  <div>
+    <label class="form-label small mb-0" for="pl-bulk-act">Akcja dla zaznaczonych</label>
+    <select class="form-select form-select-sm" id="pl-bulk-act" name="bulk_action" aria-describedby="pl-bulk-desc"
+            onchange="var o=this.options[this.selectedIndex]; document.getElementById('pl-bulk-desc').textContent=o.getAttribute('data-desc')||'Zaznacz grupy w tabeli i wybierz akcję — tu pojawi się jej opis.';">
+      <option value="" data-desc="">— wybierz —</option>
+      <?php foreach ($bl_opts as $k => $o): ?><option value="<?= $k ?>" data-desc="<?= h($o[1]) ?>"><?= h($o[0]) ?></option><?php endforeach; ?>
+    </select>
+  </div>
+  <button class="btn btn-sm btn-primary"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>Wykonaj</button>
+  <p class="small text-body-secondary mb-0 w-100" id="pl-bulk-desc">Zaznacz grupy w tabeli i wybierz akcję — tu pojawi się jej opis.</p>
+</form>
+<div class="table-responsive mb-3">
+  <table class="table table-sm table-hover align-middle bg-white border">
+    <caption class="visually-hidden">Linki do planów grup: publikacja, katalog portalu, nazwa publiczna i wyświetlenia</caption>
+    <thead class="table-light"><tr>
+      <th scope="col" style="width:2rem"><input type="checkbox" class="form-check-input" aria-label="Zaznacz wszystkie grupy"
+        onclick="document.querySelectorAll('input[name=&quot;ids[]&quot;][form=pl-bulk]').forEach(function(x){x.checked=this.checked}.bind(this)); plBulkCount()"></th>
+      <th scope="col">Grupa</th><th scope="col">Nr</th><th scope="col">Prowadzący</th><th scope="col">Plan</th><th scope="col">Katalog</th>
+      <th scope="col">Publicznie jako</th><th scope="col" class="text-end">Wyśw.</th><th scope="col" class="text-end">Akcje</th>
+    </tr></thead>
+    <tbody>
+    <?php foreach ($rows as $r): $c = $r['c']; $l = $r['l']; $cid = (int)$c['id']; $on = $r['on'];
+      $pubLabel = tiPlanPublicGroupLabel($cid, (string)$c['name'], (string)($l['public_name'] ?? ''), (string)($c['subject_name'] ?? ''));
+      $url = $l ? (tiPlanPublicShortUrl($l) ?? tiPlanPublicUrl($l)) : ''; ?>
+    <tr<?= $on ? '' : ' class="text-body-secondary"' ?>>
+      <td><input type="checkbox" name="ids[]" value="<?= $cid ?>" form="pl-bulk" class="form-check-input" aria-label="Zaznacz grupę <?= h($c['name']) ?>"></td>
+      <th scope="row" class="fw-semibold"><?= h($c['name']) ?></th>
+      <td class="font-monospace small"><?= h((string)($c['group_code'] ?? '')) ?></td>
+      <td class="small"><?= h((string)($c['instructor_name'] ?? '')) ?></td>
+      <td><?= $on ? '<span class="badge pl-b pl-on">opublikowany</span>' : '<span class="badge pl-b pl-off">—</span>' ?></td>
+      <td><?= $on && (int)($l['in_directory'] ?? 0) ? '<span class="badge pl-b pl-on">w katalogu</span>' : '<span class="text-body-secondary">—</span>' ?></td>
+      <td class="small"><?= $pubLabel !== (string)$c['name'] ? '<i class="bi bi-shield-lock me-1" aria-hidden="true"></i>' . h($pubLabel) : '<span class="text-body-secondary">bez zmian</span>' ?></td>
+      <td class="text-end small"><?= $l ? (int)$l['views'] : '' ?></td>
+      <td class="text-end text-nowrap">
+        <?php if ($on): ?>
+        <a class="btn btn-sm btn-outline-primary py-0 px-2" href="<?= h($url) ?>" target="_blank" rel="noopener" title="Otwórz plan grupy"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" data-copy-text="<?= h($url) ?>" title="Kopiuj adres planu"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
+        <?php endif; ?>
+        <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="planLinki.php?lv=karty&amp;course_id=<?= $cid ?>#g<?= $cid ?>" title="Ustawienia linku, nazwa publiczna, wysyłka do kursantów"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Ustawienia</a>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+<script>
+function plBulkCount(){ var n=document.querySelectorAll('input[name="ids[]"][form=pl-bulk]:checked').length; document.getElementById('pl-bulk-n').textContent='Zaznaczone: '+n; }
+document.addEventListener('change', function(e){ if (e.target.matches('input[name="ids[]"][form=pl-bulk]')) plBulkCount(); });
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-copy-text]'); if (!b) return;
+  var v = b.getAttribute('data-copy-text'), t = b.innerHTML;
+  var done = function () { b.innerHTML = '<i class="bi bi-check2 me-1" aria-hidden="true"></i>Skopiowano'; setTimeout(function () { b.innerHTML = t; }, 1600); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done); else { prompt('Adres planu:', v); }
+});
+</script>
+<?php else: /* ── Widok Karty ── */ ?>
 <?php foreach ($rows as $r): $c = $r['c']; $l = $r['l']; $cid = (int)$c['id']; $on = $r['on'];
   $url = $l ? tiPlanPublicUrl($l) : ''; $short = $l ? tiPlanPublicShortUrl($l) : null; $open = $on && ($focus === $cid || $focus === 0 && count($rows) <= 3); ?>
 <section class="pl-card <?= $on ? 'is-on' : 'is-off' ?>" id="g<?= $cid ?>" aria-labelledby="g<?= $cid ?>-h">
@@ -521,6 +624,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <?php endif; ?>
 </section>
 <?php endforeach; ?>
+<?php endif; /* lista / karty */ ?>
 <?php endif; /* zakładki */ ?>
 
 </div>
