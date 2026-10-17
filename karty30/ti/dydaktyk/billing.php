@@ -226,9 +226,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'set_paid') {
         $bid = (int)($_POST['billing_id'] ?? 0);
         $b   = $bid ? db_one("SELECT * FROM k30_ti_billing WHERE id=?", [$bid]) : null;
-        if ($b) {
-            $due       = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
-            $remaining = round($due - (float)($b['paid_amount'] ?? 0), 2);
+        if ($b && !in_array($b['status'], ['issued', 'paid'], true)) {
+            flash_set('danger', 'Wpłatę można zarejestrować tylko do wystawionego rozliczenia.');
+        } elseif ($b) {
+            // Pozostało do zapłaty — z żywej alokacji (zapisane paid_amount mogło się zdezaktualizować)
+            $_row = null;
+            foreach (ti_client_allocation((int)$b['client_id'])['rows'] as $_r) { if ($_r['id'] === $bid) { $_row = $_r; break; } }
+            $remaining = $_row ? round($_row['due'] - $_row['paid'], 2)
+                               : round((float)$b['amount'] + (float)($b['adjustment'] ?? 0) - (float)($b['paid_amount'] ?? 0), 2);
             if ($remaining > 0) {
                 $r = ti_payment_add((int)$b['client_id'], $remaining, date('Y-m-d'), 'manual',
                                     'Oznaczono jako opłacone (rozl. '.$b['month'].'/'.$b['year'].')',
@@ -549,7 +554,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     if ($op === 'delete') {
         if (!$can_delete) { http_response_code(403); die('Brak uprawnień.'); }
         $bid = (int)($_POST['billing_id'] ?? 0);
-        if ($bid) db()->prepare("UPDATE k30_ti_billing SET status='cancelled' WHERE id=?")->execute([$bid]);
+        if ($bid) {
+            db()->prepare("UPDATE k30_ti_billing SET status='cancelled' WHERE id=?")->execute([$bid]);
+            // Wpłaty pokrywające usunięte rozliczenie przechodzą FIFO na inne należności / nadpłatę
+            $_dcl = (int)(db_one("SELECT client_id FROM k30_ti_billing WHERE id=?", [$bid])['client_id'] ?? 0);
+            if ($_dcl) ti_billing_recompute($_dcl);
+        }
         flash_set('success','Rozliczenie usunięte.');
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -712,6 +722,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         flash_set($ok ? 'warning' : 'danger', $ok ? 'Wniosek odrzucony.' : 'Błąd — wniosek nie istnieje.');
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
+}
+
+// Odśwież zapisane pokrycie (paid_amount/status) kursantów z rozliczeniami w tym miesiącu —
+// kolumny „wpłacono / brakuje” czytają je wprost i muszą zgadzać się z saldem
+foreach (db_all("SELECT DISTINCT client_id FROM k30_ti_billing WHERE month=? AND year=? AND status IN ('issued','paid')", [$month, $year]) as $_rc) {
+    ti_billing_recompute((int)$_rc['client_id']);
 }
 
 // Pobierz rozliczenia za wybrany miesiąc
