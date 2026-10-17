@@ -283,8 +283,8 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
     ];
     // Konfiguracja formularza (edytor kierownika): pola ukryte są puste, wymagane — sprawdzane; zgody ukryte = brak zgody
     $form = naborForm(); $fl = $form['fields'];
-    $vis = fn($k) => !empty($fl[$k]['visible']);
-    $req = fn($k) => !empty($fl[$k]['visible']) && !empty($fl[$k]['required']);
+    $vis = fn($k) => !empty($fl[$k]['visible']) && naborCondMet($fl[$k]['cond'] ?? null, $p);   // ukryte albo niespełniony warunek
+    $req = fn($k) => $vis($k) && !empty($fl[$k]['required']);
     foreach (['participant_school_class', 'participant_medical_notes', 'equipment_notes'] as $k) if (!$vis($k)) $d[$k] = '';
     if (!$vis('equipment')) $d['equipment'] = [];
     if (!$vis('guardian_address')) { $d['guardian_street'] = $d['guardian_postal_code'] = $d['guardian_city'] = ''; }
@@ -306,7 +306,9 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
         if ($req('payment_method') && $d['payment_method'] === '') $e[] = 'Wybierz formę płatności.';
     }
     if (mb_strlen($d['participant_name']) < 3)                    $e[] = 'Podaj imię i nazwisko uczestnika.';
-    if (!naborValidPeselOrDate($d['participant_birth_date_or_pesel'])) $e[] = 'Podaj poprawny PESEL albo datę urodzenia uczestnika (RRRR-MM-DD).';
+    if (!$vis('participant_birth_date_or_pesel')) $d['participant_birth_date_or_pesel'] = '';
+    elseif (($req('participant_birth_date_or_pesel') || $d['participant_birth_date_or_pesel'] !== '') && !naborValidPeselOrDate($d['participant_birth_date_or_pesel']))
+        $e[] = 'Podaj poprawny PESEL albo datę urodzenia uczestnika (RRRR-MM-DD).';
     if (mb_strlen($d['guardian_name']) < 3)                       $e[] = 'Podaj imię i nazwisko opiekuna.';
     if (!filter_var($d['guardian_email'], FILTER_VALIDATE_EMAIL)) $e[] = 'Podaj poprawny adres e-mail opiekuna.';
     $phone = preg_replace('/\D/', '', $d['guardian_phone']);
@@ -660,7 +662,7 @@ function naborUpdateData(int $sid, array $p, int $userId, string $userName = '')
     ];
     $e = [];
     if (mb_strlen($d['participant_name']) < 3) $e[] = 'imię i nazwisko uczestnika';
-    if (!naborValidPeselOrDate($d['participant_birth_date_or_pesel'])) $e[] = 'PESEL albo data urodzenia (RRRR-MM-DD)';
+    if ($d['participant_birth_date_or_pesel'] !== '' && !naborValidPeselOrDate($d['participant_birth_date_or_pesel'])) $e[] = 'PESEL albo data urodzenia (RRRR-MM-DD)';
     if (mb_strlen($d['guardian_name']) < 3) $e[] = 'imię i nazwisko opiekuna';
     if (!preg_match('/^48\d{9}$/', $d['guardian_phone'])) $e[] = 'telefon opiekuna (9 cyfr)';
     if (!filter_var($d['guardian_email'], FILTER_VALIDATE_EMAIL)) $e[] = 'e-mail opiekuna';

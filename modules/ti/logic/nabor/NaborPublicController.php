@@ -116,6 +116,15 @@ final class NaborPublicController
         if (!naborPublicOpen()) { http_response_code(404); exit('Nabór do grup jest obecnie zamknięty.'); }
     }
 
+    /** Warunki pól zależnych dla przeglądarki: klucz pola albo 'q:<id>' => warunek. */
+    private function conds(): object
+    {
+        $c = [];
+        foreach (naborForm()['fields'] as $k => $f) if (!empty($f['cond'])) $c[$k] = $f['cond'];
+        foreach (naborForm()['custom'] as $q) if (!empty($q['cond'])) $c['q:' . $q['id']] = $q['cond'];
+        return (object)$c;
+    }
+
     /** Stan początkowy Alpine (po błędzie walidacji — wartości z POST, krok 5). */
     private function initState(array $errors, array $old, bool $preview = false): array
     {
@@ -138,6 +147,7 @@ final class NaborPublicController
             'req'     => array_map(fn($f) => $f['visible'] && $f['required'] ? $f['label'] : '', naborForm()['fields']),
             'vis'     => array_map(fn($f) => (bool)$f['visible'], naborForm()['fields']),
             'custom'  => array_map(fn($q) => ['id' => $q['id'], 'step' => (int)$q['step'], 'label' => $q['label'], 'required' => (bool)$q['required']], naborForm()['custom']),
+            'conds'   => $this->conds(),
             'verified' => phoneVerifiedInSession(NABOR_PHONE_PURPOSE),
             'f' => [
                 'course_id' => $s('course_id'), 'is_custom_schedule' => $b('is_custom_schedule'),

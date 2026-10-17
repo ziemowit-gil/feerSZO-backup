@@ -11,11 +11,11 @@ $on  = fn($k) => !empty($F[$k]['visible']);
 $lbl = fn($k) => h($F[$k]['label']) . (!empty($F[$k]['required']) ? ' *' : '');
 $hlp = fn($k, $id) => trim((string)$F[$k]['help']) !== '' ? '<p id="' . $id . '" class="zp-help">' . h($F[$k]['help']) . '</p>' : '';
 $dsc = fn($k, $id) => trim((string)$F[$k]['help']) !== '' ? ' aria-describedby="' . $id . '"' : '';
-/** Pytania dodatkowe kroku $n (x-model f.extra[id], nazwa extra[id]). */
-$customQs = function (int $n) use ($form): string {
-    $o = '';
+/** Jedno pytanie dodatkowe (x-model f.extra[id], nazwa extra[id]) w kontenerze pola zależnego show('q:id'). */
+$customQ = function (string $qid) use ($form): string {
     foreach ($form['custom'] as $q) {
-        if ((int)$q['step'] !== $n) continue;
+        if ($q['id'] !== $qid) continue;
+        $o = '';
         $id = 'zx-' . h($q['id']); $m = "f.extra['" . h($q['id']) . "']"; $nm = 'extra[' . h($q['id']) . ']';
         $l = h($q['label']) . ($q['required'] ? ' *' : '');
         $hp = trim((string)$q['help']) !== '' ? '<p id="' . $id . '-h" class="zp-help">' . h($q['help']) . '</p>' : '';
@@ -31,7 +31,14 @@ $customQs = function (int $n) use ($form): string {
         } else {
             $o .= '<div><label class="zp-label" for="' . $id . '">' . $l . '</label><input id="' . $id . '" name="' . $nm . '" class="zp-input" x-model="' . $m . '"' . $ad . '>' . $hp . '</div>';
         }
+        return '<div x-show="show(\'q:' . h($q['id']) . '\')">' . $o . '</div>';
     }
+    return '';
+};
+/** Pytania dodatkowe kroku $n (kroki 1 i 4 — bez ręcznej kolejności). */
+$customQs = function (int $n) use ($form, $customQ): string {
+    $o = '';
+    foreach ($form['custom'] as $q) if ((int)$q['step'] === $n) $o .= $customQ($q['id']);
     return $o;
 };
 ?><!doctype html>
@@ -155,78 +162,67 @@ $customQs = function (int $n) use ($form): string {
         <div class="tw-mt-5 tw-grid tw-gap-4"><?= $customQs(1) ?></div>
       </fieldset>
 
-      <!-- Krok 2: uczestnik -->
-      <fieldset x-show="step === 2" class="tw-grid tw-gap-4">
-        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h2" tabindex="-1"><?= h($form['step_titles'][2]) ?></legend>
-        <div><label class="zp-label" for="zp-pn"><?= $lbl('participant_name') ?></label><input id="zp-pn" name="participant_name" class="zp-input" x-model="f.participant_name" autocomplete="off" required></div>
-        <div class="tw-grid sm:tw-grid-cols-2 tw-gap-4">
-          <div><label class="zp-label" for="zp-pp"><?= $lbl('participant_birth_date_or_pesel') ?></label><input id="zp-pp" name="participant_birth_date_or_pesel" class="zp-input" x-model="f.participant_birth_date_or_pesel" inputmode="numeric"<?= $dsc('participant_birth_date_or_pesel', 'zp-pp-h') ?> required>
-            <?= $hlp('participant_birth_date_or_pesel', 'zp-pp-h') ?></div>
-          <?php if ($on('participant_school_class')): ?>
-          <div><label class="zp-label" for="zp-pc"><?= $lbl('participant_school_class') ?></label><input id="zp-pc" name="participant_school_class" class="zp-input" x-model="f.participant_school_class" placeholder="np. SP 12, kl. 4b"<?= $dsc('participant_school_class', 'zp-pc-h') ?>>
-            <?= $hlp('participant_school_class', 'zp-pc-h') ?></div>
-          <?php endif; ?>
-        </div>
-        <?php if ($on('participant_medical_notes')): ?>
-        <div><label class="zp-label" for="zp-pm"><?= $lbl('participant_medical_notes') ?></label>
-          <textarea id="zp-pm" name="participant_medical_notes" rows="4" class="zp-input" x-model="f.participant_medical_notes"<?= $dsc('participant_medical_notes', 'zp-pm-h') ?>></textarea>
-          <?= $hlp('participant_medical_notes', 'zp-pm-h') ?></div>
-        <?php endif; ?>
-        <?php if ($on('equipment') || $on('equipment_notes')): ?>
-        <fieldset class="tw-bg-feer-bg tw-rounded-xl tw-p-4"><legend class="zp-label"><?= $lbl('equipment') ?></legend>
-          <?php if ($on('equipment')): ?>
-          <?= str_replace('zp-help', 'zp-help tw-mt-0 tw-mb-2', $hlp('equipment', 'zp-eqs-h')) ?>
-          <div class="tw-grid sm:tw-grid-cols-2 tw-gap-x-4">
-            <template x-for="(l, k) in equipment" :key="k"><label class="zp-check"><input type="checkbox" name="equipment[]" :value="k" x-model="f.equipment"><span x-text="l"></span></label></template>
-          </div>
-          <?php endif; ?>
-          <?php if ($on('equipment_notes')): ?>
-          <label class="zp-label tw-mt-2" for="zp-eq"><?= $lbl('equipment_notes') ?></label>
-          <input id="zp-eq" name="equipment_notes" class="zp-input" x-model="f.equipment_notes" placeholder="np. NVDA, monitor brajlowski, tylko tablet"<?= $dsc('equipment_notes', 'zp-eqn-h') ?>>
-          <?= $hlp('equipment_notes', 'zp-eqn-h') ?>
-          <?php endif; ?>
-        </fieldset>
-        <?php endif; ?>
-        <?= $customQs(2) ?>
-      </fieldset>
-
-      <!-- Krok 3: opiekun -->
-      <fieldset x-show="step === 3" class="tw-grid tw-gap-4">
-        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h3" tabindex="-1"><?= h($form['step_titles'][3]) ?></legend>
-        <div><label class="zp-label" for="zp-gn"><?= $lbl('guardian_name') ?></label><input id="zp-gn" name="guardian_name" class="zp-input" x-model="f.guardian_name" autocomplete="name" required></div>
-        <div class="tw-grid sm:tw-grid-cols-2 tw-gap-4">
-          <div><label class="zp-label" for="zp-ge"><?= $lbl('guardian_email') ?></label><input id="zp-ge" type="email" name="guardian_email" class="zp-input" x-model="f.guardian_email" autocomplete="email"<?= $dsc('guardian_email', 'zp-ge-h') ?> required>
-            <?= $hlp('guardian_email', 'zp-ge-h') ?></div>
-          <div><label class="zp-label" for="zp-gp"><?= $lbl('guardian_phone') ?></label>
+      <!-- Krok 2 i 3: pola w kolejności z edytora kierownika (naborForm()['order']); pola zależne przez show() -->
+      <?php foreach ([2, 3] as $n): ?>
+      <fieldset x-show="step === <?= $n ?>" class="tw-grid tw-gap-4">
+        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h<?= $n ?>" tabindex="-1"><?= h($form['step_titles'][$n]) ?></legend>
+        <?php foreach ($form['order'][$n] as $key): ?>
+          <?php if (str_starts_with($key, 'q:')) { echo $customQ(substr($key, 2)); continue; } ?>
+          <?php if (!$on($key)) continue; ?>
+          <div x-show="show('<?= h($key) ?>')">
+          <?php switch ($key):
+            case 'participant_name': ?>
+            <label class="zp-label" for="zp-pn"><?= $lbl($key) ?></label><input id="zp-pn" name="participant_name" class="zp-input" x-model="f.participant_name" autocomplete="off"<?= $dsc($key, 'zp-pn-h') ?> required><?= $hlp($key, 'zp-pn-h') ?>
+            <?php break; case 'participant_birth_date_or_pesel': ?>
+            <label class="zp-label" for="zp-pp"><?= $lbl($key) ?></label><input id="zp-pp" name="participant_birth_date_or_pesel" class="zp-input" x-model="f.participant_birth_date_or_pesel" inputmode="numeric"<?= $dsc($key, 'zp-pp-h') ?>><?= $hlp($key, 'zp-pp-h') ?>
+            <?php break; case 'participant_school_class': ?>
+            <label class="zp-label" for="zp-pc"><?= $lbl($key) ?></label><input id="zp-pc" name="participant_school_class" class="zp-input" x-model="f.participant_school_class" placeholder="np. SP 12, kl. 4b"<?= $dsc($key, 'zp-pc-h') ?>><?= $hlp($key, 'zp-pc-h') ?>
+            <?php break; case 'participant_medical_notes': ?>
+            <label class="zp-label" for="zp-pm"><?= $lbl($key) ?></label><textarea id="zp-pm" name="participant_medical_notes" rows="4" class="zp-input" x-model="f.participant_medical_notes"<?= $dsc($key, 'zp-pm-h') ?>></textarea><?= $hlp($key, 'zp-pm-h') ?>
+            <?php break; case 'equipment': ?>
+            <fieldset class="tw-bg-feer-bg tw-rounded-xl tw-p-4"><legend class="zp-label"><?= $lbl($key) ?></legend>
+              <?= str_replace('zp-help', 'zp-help tw-mt-0 tw-mb-2', $hlp($key, 'zp-eqs-h')) ?>
+              <div class="tw-grid sm:tw-grid-cols-2 tw-gap-x-4">
+                <template x-for="(l, k) in equipment" :key="k"><label class="zp-check"><input type="checkbox" name="equipment[]" :value="k" x-model="f.equipment"><span x-text="l"></span></label></template>
+              </div>
+            </fieldset>
+            <?php break; case 'equipment_notes': ?>
+            <label class="zp-label" for="zp-eq"><?= $lbl($key) ?></label><input id="zp-eq" name="equipment_notes" class="zp-input" x-model="f.equipment_notes" placeholder="np. NVDA, monitor brajlowski, tylko tablet"<?= $dsc($key, 'zp-eqn-h') ?>><?= $hlp($key, 'zp-eqn-h') ?>
+            <?php break; case 'guardian_name': ?>
+            <label class="zp-label" for="zp-gn"><?= $lbl($key) ?></label><input id="zp-gn" name="guardian_name" class="zp-input" x-model="f.guardian_name" autocomplete="name"<?= $dsc($key, 'zp-gn-h') ?> required><?= $hlp($key, 'zp-gn-h') ?>
+            <?php break; case 'guardian_email': ?>
+            <label class="zp-label" for="zp-ge"><?= $lbl($key) ?></label><input id="zp-ge" type="email" name="guardian_email" class="zp-input" x-model="f.guardian_email" autocomplete="email"<?= $dsc($key, 'zp-ge-h') ?> required><?= $hlp($key, 'zp-ge-h') ?>
+            <?php break; case 'guardian_phone': ?>
+            <label class="zp-label" for="zp-gp"><?= $lbl($key) ?></label>
             <div class="tw-flex tw-gap-2">
-              <input id="zp-gp" type="tel" name="guardian_phone" class="zp-input" x-model="f.guardian_phone" @input="phoneChanged()" autocomplete="tel" inputmode="tel" required>
+              <input id="zp-gp" type="tel" name="guardian_phone" class="zp-input" x-model="f.guardian_phone" @input="phoneChanged()" autocomplete="tel" inputmode="tel"<?= $dsc($key, 'zp-gp-h') ?> required>
               <button type="button" class="zp-btn-ghost tw-whitespace-nowrap tw-text-sm" x-show="!isVerified()" @click="sendCode()" :disabled="preview || busy || cooldown > 0"
                       x-text="cooldown > 0 ? 'Ponów za ' + cooldown + ' s' : (codeSent ? 'Wyślij ponownie' : 'Wyślij kod SMS')"></button>
             </div>
+            <?= $hlp($key, 'zp-gp-h') ?>
             <p class="tw-text-sm tw-text-green-700 tw-font-bold tw-mt-1" x-show="isVerified()" role="status">✓ Numer potwierdzony</p>
+            <div x-show="codeSent && !isVerified()" class="tw-bg-feer-bg tw-rounded-xl tw-p-4 tw-mt-2">
+              <label class="zp-label" for="zp-code">Kod z SMS-a</label>
+              <div class="tw-flex tw-gap-2 tw-max-w-xs">
+                <input id="zp-code" x-ref="code" class="zp-input tw-tracking-widest tw-text-center" x-model="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" @keydown.enter.prevent="verifyCode()">
+                <button type="button" class="zp-btn-primary tw-text-sm" @click="verifyCode()" :disabled="busy">Potwierdź</button>
+              </div>
+              <p class="zp-help" role="status" x-text="smsInfo"></p>
+            </div>
+            <?php break; case 'guardian_address': $ra = !empty($F[$key]['required']) ? ' *' : ''; ?>
+            <fieldset class="tw-grid tw-gap-4"><legend class="zp-label"><?= h($F[$key]['label']) ?></legend>
+              <?= $hlp($key, 'zp-ga-h') ?>
+              <div><label class="zp-label" for="zp-gs">Ulica i numer<?= $ra ?></label><input id="zp-gs" name="guardian_street" class="zp-input" x-model="f.guardian_street" autocomplete="street-address"></div>
+              <div class="tw-grid tw-grid-cols-3 tw-gap-4">
+                <div><label class="zp-label" for="zp-gz">Kod pocztowy<?= $ra ?></label><input id="zp-gz" name="guardian_postal_code" class="zp-input" x-model="f.guardian_postal_code" autocomplete="postal-code" placeholder="00-000"></div>
+                <div class="tw-col-span-2"><label class="zp-label" for="zp-gc">Miejscowość<?= $ra ?></label><input id="zp-gc" name="guardian_city" class="zp-input" x-model="f.guardian_city" autocomplete="address-level2"></div>
+              </div>
+            </fieldset>
+            <?php break; endswitch; ?>
           </div>
-        </div>
-        <div x-show="codeSent && !isVerified()" class="tw-bg-feer-bg tw-rounded-xl tw-p-4">
-          <label class="zp-label" for="zp-code">Kod z SMS-a</label>
-          <div class="tw-flex tw-gap-2 tw-max-w-xs">
-            <input id="zp-code" x-ref="code" class="zp-input tw-tracking-widest tw-text-center" x-model="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" @keydown.enter.prevent="verifyCode()">
-            <button type="button" class="zp-btn-primary tw-text-sm" @click="verifyCode()" :disabled="busy">Potwierdź</button>
-          </div>
-          <p class="zp-help" role="status" x-text="smsInfo"></p>
-        </div>
-        <?php if ($on('guardian_address')): $ra = !empty($F['guardian_address']['required']) ? ' *' : ''; ?>
-        <fieldset class="tw-grid tw-gap-4"><legend class="zp-label"><?= h($F['guardian_address']['label']) ?></legend>
-        <?= $hlp('guardian_address', 'zp-ga-h') ?>
-        <div><label class="zp-label" for="zp-gs">Ulica i numer<?= $ra ?></label><input id="zp-gs" name="guardian_street" class="zp-input" x-model="f.guardian_street" autocomplete="street-address"></div>
-        <div class="tw-grid tw-grid-cols-3 tw-gap-4">
-          <div><label class="zp-label" for="zp-gz">Kod pocztowy<?= $ra ?></label><input id="zp-gz" name="guardian_postal_code" class="zp-input" x-model="f.guardian_postal_code" autocomplete="postal-code" placeholder="00-000"></div>
-          <div class="tw-col-span-2"><label class="zp-label" for="zp-gc">Miejscowość<?= $ra ?></label><input id="zp-gc" name="guardian_city" class="zp-input" x-model="f.guardian_city" autocomplete="address-level2"></div>
-        </div>
-        </fieldset>
-        <?php endif; ?>
-        <?= $customQs(3) ?>
-
+        <?php endforeach; ?>
       </fieldset>
+      <?php endforeach; ?>
 
       <!-- Krok 4: zgody -->
       <fieldset x-show="step === 4">
@@ -297,8 +293,25 @@ function naborForm(init) {
   return {
     ...init, err: '', code: '', codeSent: false, busy: false, cooldown: 0, smsInfo: '',
     titles: Object.values(init.steps),
-    /** Pytania dodatkowe kroku s — wymagane bez odpowiedzi. */
-    missingExtra(s) { const q = this.custom.find(q => q.step == s && q.required && !this.f.extra[q.id]); return q ? 'Uzupełnij: „' + q.label + '”.' : ''; },
+    /** Pole zależne: warunek z edytora (jak naborCondMet() po stronie serwera). */
+    show(key) {
+      const c = this.conds[key]; if (!c) return true;
+      let v = c.src.startsWith('q:') ? this.f.extra[c.src.slice(2)] : (c.src === 'equipment' ? this.f.equipment : (this.f.is_custom_schedule ? '1' : ''));
+      if (v === true) v = 'tak'; if (v === false || v == null) v = '';
+      const arr = Array.isArray(v), s = arr ? '' : String(v).trim().toLowerCase(), val = String(c.val || '').toLowerCase();
+      const filled = arr ? v.length > 0 : s !== '';
+      switch (c.op) {
+        case 'filled': return filled;
+        case 'empty':  return !filled;
+        case 'eq':     return arr ? v.includes(c.val) : s === val;
+        case 'neq':    return arr ? !v.includes(c.val) : s !== val;
+        case 'has':    return arr ? v.includes(c.val) : (val !== '' && s.includes(val));
+      }
+      return true;
+    },
+    /** Pytania dodatkowe kroku s — wymagane (i widoczne) bez odpowiedzi. */
+    missingExtra(s) { const q = this.custom.find(q => q.step == s && q.required && this.show('q:' + q.id) && !this.f.extra[q.id]); return q ? 'Uzupełnij: „' + q.label + '”.' : ''; },
+    need(k) { return this.req[k] && this.show(k); },
     norm(p) { let d = String(p || '').replace(/\D/g, ''); if (d.length === 9) d = '48' + d; return d; },
     isVerified() { return this.verified && this.verified === this.norm(this.f.guardian_phone); },
     phoneChanged() { if (!this.isVerified()) this.codeSent = false; },
@@ -315,21 +328,22 @@ function naborForm(init) {
       }
       if (s === 2) {
         if (f.participant_name.trim().length < 3) return 'Podaj imię i nazwisko uczestnika.';
-        if (!this.peselOrDate(f.participant_birth_date_or_pesel)) return 'Podaj poprawny PESEL albo datę urodzenia (RRRR-MM-DD).';
+        if (this.vis.participant_birth_date_or_pesel && this.show('participant_birth_date_or_pesel') && (this.need('participant_birth_date_or_pesel') || f.participant_birth_date_or_pesel.trim())
+            && !this.peselOrDate(f.participant_birth_date_or_pesel)) return 'Podaj poprawny PESEL albo datę urodzenia (RRRR-MM-DD).';
         for (const k of ['participant_school_class', 'participant_medical_notes', 'equipment_notes'])
-          if (this.req[k] && !String(f[k] || '').trim()) return 'Uzupełnij: „' + this.req[k] + '”.';
-        if (this.req.equipment && !f.equipment.length) return 'Zaznacz sprzęt do zajęć online.';
+          if (this.need(k) && !String(f[k] || '').trim()) return 'Uzupełnij: „' + this.req[k] + '”.';
+        if (this.need('equipment') && !f.equipment.length) return 'Zaznacz sprzęt do zajęć online.';
       }
       if (s === 3) {
         if (f.guardian_name.trim().length < 3) return 'Podaj imię i nazwisko opiekuna.';
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.guardian_email)) return 'Podaj poprawny adres e-mail.';
         if (!/^48\d{9}$/.test(this.norm(f.guardian_phone))) return 'Podaj numer telefonu komórkowego (9 cyfr).';
         if (!this.preview && !this.isVerified()) return 'Potwierdź numer telefonu kodem SMS.';
-        if (this.req.guardian_address && (!f.guardian_street.trim() || !f.guardian_city.trim())) return 'Podaj adres zamieszkania.';
+        if (this.need('guardian_address') && (!f.guardian_street.trim() || !f.guardian_city.trim())) return 'Podaj adres zamieszkania.';
         if ((this.req.guardian_address || f.guardian_postal_code.trim()) && this.vis.guardian_address && !/^\d{2}-\d{3}$/.test(f.guardian_postal_code.trim())) return 'Podaj kod pocztowy w formacie 00-000.';
       }
       if (s === 4 && (!f.terms_accepted || !f.gdpr_accepted)) return 'Zaznacz wymagane zgody (regulamin i RODO).';
-      if (s === 5 && this.req.payment_method && !f.is_custom_schedule && !f.payment_method) return 'Wybierz formę płatności.';
+      if (s === 5 && this.need('payment_method') && !f.is_custom_schedule && !f.payment_method) return 'Wybierz formę płatności.';
       return s <= 4 ? this.missingExtra(s) : '';
     },
     go(s) { this.err = ''; this.step = s; this.$nextTick(() => { this.$refs['h' + s]?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); }); },
