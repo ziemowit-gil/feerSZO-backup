@@ -1245,6 +1245,7 @@ function ti_year_end_projection(int $client_id): array {
 
     $total   = 0.0;
     $courses = [];
+    $proj_by = [];   // course_id => prognoza (do limitu nadpłaty grupy)
     foreach ($enrs as $e) {
         if (ti_course_hours_only((int)$e['course_id'])) continue;   // „tylko godziny” — bez prognozy kwot
         $eff = k30_ti_effective_billing($e, [
@@ -1286,6 +1287,7 @@ function ti_year_end_projection(int $client_id): array {
             ];
         }
         $total += $course_amount;
+        $proj_by[$cid_e] = round(($proj_by[$cid_e] ?? 0) + $course_amount, 2);
     }
 
     // Saldo z kanonicznej alokacji: wpłata „do końca roku” jest ogólna, więc najpierw pokrywa
@@ -1321,7 +1323,6 @@ function ti_year_end_projection(int $client_id): array {
 function ti_year_end_overpay_notify_admin(int $client_id, float $amount, string $gateway): void {
     $admins = db_all("SELECT email, name FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL AND email != ''");
     if (!$admins) return;
-    $proj_by = [];   // course_id => prognoza (do limitu nadpłaty grupy)
     $client = db_one("SELECT name FROM k30_clients WHERE id=?", [$client_id]) ?: [];
     require_once __DIR__ . '/mail_queue.php';
     $amt = number_format($amount, 2, ',', ' ');
@@ -1337,4 +1338,3 @@ function ti_year_end_overpay_notify_admin(int $client_id, float $amount, string 
         } catch (\Throwable $e) {}
     }
 }
-        $proj_by[$cid_e] = round(($proj_by[$cid_e] ?? 0) + $course_amount, 2);
