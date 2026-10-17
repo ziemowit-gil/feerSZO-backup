@@ -35,6 +35,24 @@ function tiPlanPublicMigrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_plan_public_tok ON k30_ti_plan_public_links(token)");
     $have = array_column($pdo->query("PRAGMA table_info(k30_ti_plan_public_links)")->fetchAll(), 'name');
     if (!in_array('notified_at', $have, true)) $pdo->exec("ALTER TABLE k30_ti_plan_public_links ADD COLUMN notified_at DATETIME");   // ostatnia wysyłka linku do kursantów
+    // Grupa widoczna w publicznym katalogu portalu planu (/plan/) — domyślnie NIE (link zostaje tajny)
+    if (!in_array('in_directory', $have, true)) $pdo->exec("ALTER TABLE k30_ti_plan_public_links ADD COLUMN in_directory INTEGER NOT NULL DEFAULT 0");
+
+    // Linki do planów PROWADZĄCYCH (wszystkie jego zajęcia) — tajny token, opcjonalnie w katalogu portalu.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_plan_public_instr (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id       INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        token         TEXT    NOT NULL UNIQUE,
+        is_enabled    INTEGER NOT NULL DEFAULT 1,
+        in_directory  INTEGER NOT NULL DEFAULT 0,
+        weeks         INTEGER NOT NULL DEFAULT 12,
+        note          TEXT    NOT NULL DEFAULT '',
+        views         INTEGER NOT NULL DEFAULT 0,
+        last_view_at  DATETIME,
+        created_by    INTEGER,
+        created_at    DATETIME NOT NULL DEFAULT (datetime('now')),
+        updated_at    DATETIME NOT NULL DEFAULT (datetime('now'))
+    )");
 
     // Dziennik wysyłek linku do kursantów / opiekunów (wysłano / błąd / pominięto + powód); adresat zamaskowany.
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_plan_public_sends (

@@ -8,7 +8,7 @@
  * Logika: modules/ti_plan_public/logic/.
  */
 require_once __DIR__ . '/auth.php';
-require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicManager.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicPortal.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicNotify.php';
 
 $me = dyd_require();
@@ -18,6 +18,28 @@ $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
 tiPlanPublicMigrate();
 
 $focus = (int)($_GET['course_id'] ?? 0);
+
+// Portal (/plan/): zakładka Sale i linki prowadzących
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['rooms', 'i_enable', 'i_disable', 'i_regenerate', 'i_options'], true)) {
+    dyd_token_check();
+    $op = (string)$_POST['_op'];
+    if ($op === 'rooms') {
+        org_setting_set('ti_plan_public_rooms', !empty($_POST['on']) ? '1' : '0');
+        flash_set('success', !empty($_POST['on']) ? 'Zakładka „Sale” w portalu planu włączona.' : 'Zakładka „Sale” w portalu planu wyłączona.');
+        header('Location: planLinki.php#portal'); exit;
+    }
+    $iu = (int)($_POST['user_id'] ?? 0);
+    $u  = $iu ? db_one("SELECT name FROM users WHERE id=?", [$iu]) : null;
+    if (!$u) { flash_set('danger', 'Nie znaleziono prowadzącego.'); header('Location: planLinki.php#prowadzacy'); exit; }
+    switch ($op) {
+        case 'i_enable':     tiPlanPublicInstrEnable($iu, $uid); flash_set('success', 'Plan prowadzącego ' . $u['name'] . ' opublikowany — skopiuj link.'); break;
+        case 'i_disable':    tiPlanPublicInstrDisable($iu); flash_set('warning', 'Link do planu prowadzącego ' . $u['name'] . ' wyłączony.'); break;
+        case 'i_regenerate': tiPlanPublicInstrRegenerate($iu, $uid); flash_set('success', 'Nowy adres planu prowadzącego ' . $u['name'] . ' — poprzedni już nie działa.'); break;
+        case 'i_options':    if (!tiPlanPublicInstrGet($iu)) tiPlanPublicInstrEnable($iu, $uid);
+                             tiPlanPublicInstrUpdateOptions($iu, $_POST); flash_set('success', 'Ustawienia planu prowadzącego ' . $u['name'] . ' zapisane.'); break;
+    }
+    header('Location: planLinki.php?tab=prowadzacy#i' . $iu); exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dyd_token_check();
@@ -77,6 +99,12 @@ foreach ($courses as $c) {
     $rows[] = ['c' => $c, 'l' => $l, 'on' => $on];
 }
 $nOn = count(array_filter($links, fn($l) => (int)$l['is_enabled'] === 1));
+$nDir = count(array_filter($links, fn($l) => (int)$l['is_enabled'] === 1 && (int)($l['in_directory'] ?? 0) === 1));
+$tab = ($_GET['tab'] ?? '') === 'prowadzacy' ? 'prowadzacy' : 'grupy';
+$instructors = $tab === 'prowadzacy' ? tiPlanPublicInstructors() : [];
+$iLinks = tiPlanPublicInstrMap();
+$roomsOn = tiPlanPublicRoomsEnabled();
+$portalUrl = tiPlanPublicPortalUrl();
 
 $KP_TITLE  = 'Linki do planów grup — Panel dydaktyka';
 $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => $dyd_name, 'logout' => 'logout.php'];
@@ -107,10 +135,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
 <div class="d-flex align-items-center mb-2 gap-2 flex-wrap">
   <h1 class="h4 mb-0 fw-bold"><i class="bi bi-link-45deg text-primary me-2" aria-hidden="true"></i>Publiczne linki do planów grup</h1>
-  <span class="text-body-secondary small">osobny tajny adres dla każdej grupy — bez logowania, bez danych kursantów</span>
+  <span class="text-body-secondary small">osobny tajny adres dla każdej grupy i prowadzącego, portal z katalogiem — bez logowania, bez danych kursantów</span>
 </div>
 <p class="small text-body-secondary mb-3">
-  Link pokazuje siatkę tygodnia (jak wydruk „Siatka”) i listę nadchodzących terminów danej grupy.
+  Link pokazuje plan grupy tydzień po tygodniu (siatka z kartami zajęć, na telefonie dzień pod dniem) i listę terminów.
   Odbiorca widzi zawsze aktualny stan — nie trzeba rozsyłać nowych PDF-ów po zmianie terminu.
   Wyłączenie linku blokuje go natychmiast; „Nowy adres” unieważnia stary (np. gdy trafił do niepowołanych osób).
   Link można też wysłać kursantom grupy e-mailem / SMS-em (szablon <em>ti_plan_link</em>, wg zgód z kont kursantów).
@@ -118,6 +146,92 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </p>
 
 <?= flash_html() ?>
+
+<section class="pl-card is-on" id="portal" aria-labelledby="portal-h">
+  <div class="pl-head">
+    <h2 class="h6 mb-0 fw-bold" id="portal-h"><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>Portal planu zajęć</h2>
+    <span class="small text-body-secondary">katalog Grupy / Prowadzący / Sale — pokazuje TYLKO grupy i prowadzących z zaznaczonym „w katalogu” (grup w katalogu: <?= $nDir ?>)</span>
+    <div class="ms-auto d-flex gap-1 flex-wrap">
+      <a class="btn btn-sm btn-outline-primary" href="<?= h($portalUrl) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz portal</a>
+      <form method="post" class="d-inline">
+        <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="rooms"><input type="hidden" name="on" value="<?= $roomsOn ? '' : '1' ?>">
+        <button class="btn btn-sm <?= $roomsOn ? 'btn-outline-danger' : 'btn-outline-success' ?>"><i class="bi bi-door-open me-1" aria-hidden="true"></i><?= $roomsOn ? 'Wyłącz zakładkę Sale' : 'Włącz zakładkę Sale' ?></button>
+      </form>
+    </div>
+  </div>
+  <div class="pl-body">
+    <div class="input-group input-group-sm">
+      <span class="input-group-text">adres portalu</span>
+      <input type="text" class="form-control pl-url" id="portal-url" value="<?= h($portalUrl) ?>" readonly onfocus="this.select()" aria-label="Adres portalu planu">
+      <button type="button" class="btn btn-outline-secondary" data-copy="portal-url"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
+    </div>
+    <p class="small text-body-secondary mb-0 mt-1">Sale: <?= $roomsOn ? '<strong>włączone</strong>' : 'wyłączone' ?> — zajętość sal z terminów TI i stan rezerwacji (zarezerwowana / do potwierdzenia); grupy spoza katalogu widoczne jako „niepubliczna”.</p>
+  </div>
+</section>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item"><a class="nav-link<?= $tab === 'grupy' ? ' active' : '' ?>"<?= $tab === 'grupy' ? ' aria-current="page"' : '' ?> href="planLinki.php">Grupy</a></li>
+  <li class="nav-item"><a class="nav-link<?= $tab === 'prowadzacy' ? ' active' : '' ?>"<?= $tab === 'prowadzacy' ? ' aria-current="page"' : '' ?> href="planLinki.php?tab=prowadzacy" id="prowadzacy">Prowadzący</a></li>
+</ul>
+
+<?php if ($tab === 'prowadzacy'): ?>
+<p class="small text-body-secondary">Tajny link do planu prowadzącego pokazuje wszystkie jego zajęcia (także zastępstwa), prowadzący inicjałami.
+  Zaznaczenie „w katalogu” dodaje go do portalu — wtedy nazwy grup spoza katalogu są ukryte („niepubliczna”).</p>
+<?php if (!$instructors): ?><div class="alert alert-secondary">Brak prowadzących w aktywnych grupach.</div><?php endif; ?>
+<?php foreach ($instructors as $ins): $iu = (int)$ins['id']; $il = $iLinks[$iu] ?? null; $ion = $il && (int)$il['is_enabled'] === 1;
+  $iurl = $il ? tiPlanPublicInstrUrl($il) : ''; $ishort = $il ? tiPlanPublicInstrShortUrl($il) : null; ?>
+<section class="pl-card <?= $ion ? 'is-on' : 'is-off' ?>" id="i<?= $iu ?>" aria-labelledby="i<?= $iu ?>-h">
+  <div class="pl-head">
+    <h2 class="h6 mb-0 fw-bold" id="i<?= $iu ?>-h"><?= h($ins['name']) ?></h2>
+    <span class="small text-body-secondary">grup: <?= (int)$ins['n_courses'] ?></span>
+    <?php if ($ion): ?><span class="badge pl-b pl-on">opublikowany</span><?= (int)$il['in_directory'] ? '<span class="badge pl-b pl-on">w katalogu</span>' : '' ?>
+    <?php else: ?><span class="badge pl-b pl-off">nieopublikowany</span><?php endif; ?>
+    <?php if ($il): ?><span class="pl-stats">wyświetleń: <?= (int)$il['views'] ?></span><?php endif; ?>
+    <div class="ms-auto d-flex gap-1 flex-wrap">
+      <?php if ($ion): ?>
+        <a class="btn btn-sm btn-outline-primary" href="<?= h($iurl) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz</a>
+        <form method="post" class="d-inline" onsubmit="return confirm('Wygenerować nowy adres? Dotychczasowy link przestanie działać.')">
+          <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="i_regenerate"><input type="hidden" name="user_id" value="<?= $iu ?>">
+          <button class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Nowy adres</button>
+        </form>
+        <form method="post" class="d-inline" onsubmit="return confirm('Wyłączyć link do planu prowadzącego?')">
+          <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="i_disable"><input type="hidden" name="user_id" value="<?= $iu ?>">
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Wyłącz</button>
+        </form>
+      <?php else: ?>
+        <form method="post" class="d-inline">
+          <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="i_enable"><input type="hidden" name="user_id" value="<?= $iu ?>">
+          <button class="btn btn-sm btn-success"><i class="bi bi-globe2 me-1" aria-hidden="true"></i>Opublikuj plan</button>
+        </form>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php if ($ion): ?>
+  <div class="pl-body">
+    <div class="input-group input-group-sm mb-1">
+      <input type="text" class="form-control pl-url" id="iurl<?= $iu ?>" value="<?= h($ishort ?? $iurl) ?>" readonly onfocus="this.select()" aria-label="Adres planu prowadzącego">
+      <button type="button" class="btn btn-outline-secondary" data-copy="iurl<?= $iu ?>"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
+    </div>
+    <form method="post" class="row g-2 align-items-end mt-1">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="i_options"><input type="hidden" name="user_id" value="<?= $iu ?>">
+      <div class="col-sm-3 col-md-2">
+        <label class="form-label small mb-0" for="iw<?= $iu ?>">Zakres</label>
+        <select class="form-select form-select-sm" id="iw<?= $iu ?>" name="weeks">
+          <?php foreach (TI_PLAN_PUBLIC_WEEKS as $w): ?><option value="<?= $w ?>" <?= (int)$il['weeks'] === $w ? 'selected' : '' ?>><?= $w ?> tyg.</option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-sm-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="id<?= $iu ?>" name="in_directory" value="1" <?= (int)$il['in_directory'] ? 'checked' : '' ?>><label class="form-check-label small" for="id<?= $iu ?>">Pokaż w katalogu portalu</label></div></div>
+      <div class="col-sm">
+        <label class="form-label small mb-0" for="in<?= $iu ?>">Komunikat (opcjonalny)</label>
+        <input type="text" class="form-control form-control-sm" id="in<?= $iu ?>" name="note" maxlength="500" value="<?= h($il['note']) ?>">
+      </div>
+      <div class="col-sm-auto"><button class="btn btn-sm btn-primary">Zapisz</button></div>
+    </form>
+  </div>
+  <?php endif; ?>
+</section>
+<?php endforeach; ?>
+<?php else: /* zakładka Grupy */ ?>
 
 <form method="get" class="row g-2 align-items-end mb-3" role="search">
   <div class="col-sm-5">
@@ -148,7 +262,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="pl-head">
     <h2 class="h6 mb-0 fw-bold" id="g<?= $cid ?>-h"><?= h($c['name']) ?></h2>
     <span class="small text-body-secondary"><?= h($c['instructor_name'] ?? '') ?></span>
-    <?php if ($on): ?><span class="badge pl-b pl-on"><i class="bi bi-globe2 me-1" aria-hidden="true"></i>opublikowany</span>
+    <?php if ($on): ?><span class="badge pl-b pl-on"><i class="bi bi-globe2 me-1" aria-hidden="true"></i>opublikowany</span><?= (int)($l['in_directory'] ?? 0) ? '<span class="badge pl-b pl-on"><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>w katalogu</span>' : '' ?>
     <?php else: ?><span class="badge pl-b pl-off"><i class="bi bi-eye-slash me-1" aria-hidden="true"></i>nieopublikowany</span><?php endif; ?>
     <?php if ($l): ?><span class="pl-stats">wyświetleń: <?= (int)$l['views'] ?><?= $l['last_view_at'] ? ', ostatnio ' . h(date('d.m.Y H:i', strtotime((string)$l['last_view_at']))) : '' ?></span><?php endif; ?>
     <div class="ms-auto d-flex gap-1 flex-wrap">
@@ -197,6 +311,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         <div class="col-sm-4 col-md-3">
           <div class="form-check"><input class="form-check-input" type="checkbox" id="sl<?= $cid ?>" name="show_list" value="1" <?= (int)$l['show_list'] ? 'checked' : '' ?>><label class="form-check-label small" for="sl<?= $cid ?>">Lista terminów pod siatką</label></div>
           <div class="form-check"><input class="form-check-input" type="checkbox" id="sc<?= $cid ?>" name="show_contacts" value="1" <?= (int)$l['show_contacts'] ? 'checked' : '' ?>><label class="form-check-label small" for="sc<?= $cid ?>">Kontakty do prowadzących (telefon, e-mail)</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" id="cd<?= $cid ?>" name="in_directory" value="1" <?= (int)($l['in_directory'] ?? 0) ? 'checked' : '' ?>><label class="form-check-label small" for="cd<?= $cid ?>">Pokaż w katalogu portalu (nazwa grupy publicznie)</label></div>
         </div>
         <div class="col-sm-5 col-md-5">
           <label class="form-label small mb-0" for="n<?= $cid ?>">Komunikat na stronie planu (opcjonalny)</label>
@@ -247,6 +362,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <?php endif; ?>
 </section>
 <?php endforeach; ?>
+<?php endif; /* zakładki */ ?>
 
 </div>
 </main>
