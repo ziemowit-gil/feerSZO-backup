@@ -24,6 +24,8 @@ if ($gr_all_courses) {
         "SELECT e.course_id, COUNT(DISTINCT e.client_id) AS n
          FROM k30_ti_enrollments e
          JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
+              AND COALESCE(b.course_id,0) IN (0, e.course_id) AND COALESCE(b.hours_only,0)=0
+              AND (b.amount + COALESCE(b.adjustment,0)) - COALESCE(b.paid_amount,0) > 0.005   -- niedopłata W TEJ grupie (lub w rozliczeniu łącznym)
          WHERE e.course_id IN ($ph) AND e.status='active'
          GROUP BY e.course_id",
         $ids

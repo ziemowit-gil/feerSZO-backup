@@ -3197,6 +3197,8 @@ if ($cur_course && dyd_is_staff()) {
     $_sb_roz_debt = (int)(db_one(
         "SELECT COUNT(DISTINCT e.client_id) AS n FROM k30_ti_enrollments e
          JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
+              AND COALESCE(b.course_id,0) IN (0, e.course_id) AND COALESCE(b.hours_only,0)=0
+              AND (b.amount + COALESCE(b.adjustment,0)) - COALESCE(b.paid_amount,0) > 0.005   -- niedopłata W TEJ grupie (lub w rozliczeniu łącznym)
          WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
 }
 // [icon, label, count, badge-variant]
@@ -3368,6 +3370,8 @@ if ($cur_course && dyd_is_staff()) {
             "SELECT COUNT(DISTINCT e.client_id) AS n
              FROM k30_ti_enrollments e
              JOIN k30_ti_billing b ON b.client_id=e.client_id AND b.status='issued'
+              AND COALESCE(b.course_id,0) IN (0, e.course_id) AND COALESCE(b.hours_only,0)=0
+              AND (b.amount + COALESCE(b.adjustment,0)) - COALESCE(b.paid_amount,0) > 0.005   -- niedopłata W TEJ grupie (lub w rozliczeniu łącznym)
              WHERE e.course_id=? AND e.status='active'", [$cur_course])['n'] ?? 0);
     }
   ?>
