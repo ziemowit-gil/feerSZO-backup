@@ -1,12 +1,12 @@
 <?php
 /**
- * modules/ti/view/portal/_header.php — nagłówek portalu (tytuł, ZAŁÓŻ KONTO / ZALOGUJ, nawigacja, okruszki).
- * Wejście: $ppTitle (np. „Panel zajęć”), $ppOrg, $ppLogo (URL albo ''), $ppCrumb (ostatni element okruszków),
- *          $ppAccount (zalogowany kandydat albo null), $ppLoginUrl (domyślnie /login.php).
+ * modules/ti/view/portal/_header.php — nagłówek portalu TI w stylu METRO: cienki biały pasek z logo i tytułem,
+ * po prawej „Ułatwienia dostępu” (rozwijane), konto kandydata i logowanie / wylogowanie.
+ * Wejście: $ppTitle, $ppOrg, $ppLogo (URL albo '' = z ustawień), $ppCrumb (podtytuł strony — tylko w <title>/okruszkach
+ * niewidocznych), $ppAccount (zalogowany kandydat albo null), $ppCsrf, $ppLoginUrl (domyślnie /login.php).
  * Adresy względne — zostają na bieżącym hoście (kursant.*, ti.*, szo.*).
  */
 $ppLoginUrl = $ppLoginUrl ?? '/login.php';
-// Logo fundacji z ustawień (branding) — pokazywane na białym tle niebieskiego znaku (filtr do bieli w _style.php)
 if (empty($ppLogo)) {
     try {
         if (!function_exists('branding_load')) require_once dirname(__DIR__, 4) . '/includes/branding.php';
@@ -15,34 +15,28 @@ if (empty($ppLogo)) {
 }
 // Adres względny do /assets/… — na kursant.* i ti.* katalog assets jest wyłączony z przepisywania
 if ($ppLogo !== '') $ppLogo = (string)(parse_url($ppLogo, PHP_URL_PATH) ?: $ppLogo);
-$ppOpen = function_exists('org_setting') && org_setting('ti_nabor_enabled') === '1';
 ?>
 <a class="pp-skip" href="#pp-main">Przejdź do treści</a>
-<div class="pp-wrap">
-  <?php include __DIR__ . '/_a11y.php'; ?>
-  <header class="pp-head">
+<header class="pp-top">
+  <div class="pp-wrap pp-top-in">
     <a class="pp-brand" href="<?= h($ppLoginUrl) ?>">
-      <span class="pp-logo-box"><?php if (!empty($ppLogo)): ?><img src="<?= h($ppLogo) ?>" alt="FEER — Fundacja Edukacji Empatii Rozwoju"><?php else: ?><span class="pp-mark" aria-hidden="true">FEER</span><?php endif; ?></span>
-      <?php if (!empty($ppLogo)): ?><span class="pp-title-sep" aria-hidden="true"></span><?php endif; ?>
-      <span class="pp-title"><?= h($ppTitle) ?><?php if (empty($ppLogo)): ?><small><?= h($ppOrg) ?></small><?php endif; ?></span>
+      <?php if (!empty($ppLogo)): ?><img src="<?= h($ppLogo) ?>" alt="FEER — Fundacja Edukacji Empatii Rozwoju"><span class="pp-title-sep" aria-hidden="true"></span>
+      <?php else: ?><span class="pp-mark" aria-hidden="true">FEER</span><?php endif; ?>
+      <span class="pp-title"><?= h($ppTitle) ?></span>
     </a>
-    <div class="pp-cta">
+    <nav class="pp-top-nav" aria-label="Menu">
+      <details class="pp-a11y-menu">
+        <summary><i class="bi bi-universal-access" aria-hidden="true"></i> <span>Ułatwienia dostępu</span></summary>
+        <div class="pp-a11y-pop"><?php include __DIR__ . '/_a11y.php'; ?></div>
+      </details>
       <?php if (!empty($ppAccount)): ?>
-        <a class="pp-btn-acc" href="/nabor/konto"><i class="bi bi-person-badge" aria-hidden="true"></i> Moje konto</a>
-        <form method="post" action="/nabor/wyloguj" style="margin:0;display:flex"><input type="hidden" name="_csrf" value="<?= h($ppCsrf ?? '') ?>"><button class="pp-btn-log" style="cursor:pointer;font-family:inherit">Wyloguj</button></form>
+        <a class="pp-top-link" href="/nabor/konto"><i class="bi bi-person-badge" aria-hidden="true"></i> Moje konto</a>
+        <form method="post" action="/nabor/wyloguj" class="pp-top-form"><input type="hidden" name="_csrf" value="<?= h($ppCsrf ?? '') ?>"><button class="pp-btn-log">Wyloguj</button></form>
       <?php else: ?>
+        <a class="pp-top-link" href="/nabor/logowanie"><i class="bi bi-person-badge" aria-hidden="true"></i> Konto kandydata</a>
         <a class="pp-btn-acc" href="/nabor/rejestracja">Załóż konto</a>
-        <a class="pp-btn-log" href="<?= h($ppLoginUrl) ?>"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj</a>
+        <a class="pp-btn-log" href="<?= h($ppLoginUrl) ?>">Zaloguj</a>
       <?php endif; ?>
-    </div>
-  </header>
-  <nav class="pp-nav" aria-label="Menu główne">
-    <div class="pp-menu">
-      <a href="<?= h($ppLoginUrl) ?>"><i class="bi bi-house" aria-hidden="true"></i> Panel zajęć</a>
-      <?php if ($ppOpen): ?><a href="/nabor">Zapisy na zajęcia</a><?php endif; ?>
-      <a href="/nabor/logowanie">Konto kandydata</a>
-      <a href="https://feer.org.pl/kontakt/">Kontakt</a>
-    </div>
-  </nav>
-  <div class="pp-crumb"><a href="<?= h($ppLoginUrl) ?>" style="text-decoration:none"><?= h($ppTitle) ?></a> › <span><?= h($ppCrumb) ?></span></div>
-</div>
+    </nav>
+  </div>
+</header>

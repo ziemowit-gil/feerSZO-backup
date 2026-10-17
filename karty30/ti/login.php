@@ -132,7 +132,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
 </head>
 <body class="pp">
 <?php
-$ppTitle = 'Panel zajęć'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie';
+$ppTitle = 'Panel Kursanta SSO'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie';
 $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
 include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
 $_ppRoles = ['kursant' => 'Kursant', 'rodzic' => 'Rodzic / opiekun', 'up' => 'Osoba upoważniona', 'kandydat' => 'Kandydat (zapisy)', 'dydaktyk' => 'Prowadzący / kadra'];

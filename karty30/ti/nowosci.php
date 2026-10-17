@@ -60,7 +60,7 @@ function nwCard(string $icon, string $title, string $html, string $tip = ''): st
 </head>
 <body class="pp">
 <?php
-$ppTitle = 'Panel zajęć'; $ppOrg = $_org; $ppCrumb = 'Co nowego'; $ppLogo = ''; $ppLoginUrl = $_login; $ppAccount = null;
+$ppTitle = 'Panel Kursanta SSO'; $ppOrg = $_org; $ppCrumb = 'Co nowego'; $ppLogo = ''; $ppLoginUrl = $_login; $ppAccount = null;
 include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
 ?>
 <main id="pp-main" class="pp-wrap">

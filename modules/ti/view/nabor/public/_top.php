@@ -33,7 +33,7 @@
 </head>
 <body class="pp tw-text-gray-900">
 <?php
-$ppTitle = 'Panel zajęć'; $ppOrg = $org; $ppCrumb = $title; $ppLogo = ''; $ppLoginUrl = '/login.php';
+$ppTitle = 'Panel Kursanta SSO'; $ppOrg = $org; $ppCrumb = $title; $ppLogo = ''; $ppLoginUrl = '/login.php';
 $ppAccount = $acc ?? null; $ppCsrf = Router::csrfToken();
 include dirname(__DIR__, 3) . '/view/portal/_header.php';
 ?>

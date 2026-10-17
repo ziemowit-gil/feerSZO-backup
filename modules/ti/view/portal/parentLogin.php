@@ -5,7 +5,7 @@
  * Formularze i pola bez zmian względem dawnego widoku: _op = otp_request | otp_verify | choose | pwd_login | up_login
  * (obsługa w parent.php). Wejście: $stage (phone|code|choose|pwd), $role (rodzic|up), $err, $info, $org.
  */
-$ppTitle = 'Panel zajęć'; $ppOrg = $org; $ppCrumb = 'Panel rodzica'; $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
+$ppTitle = 'Panel Kursanta SSO'; $ppOrg = $org; $ppCrumb = 'Panel rodzica'; $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>

@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body class="pp">
 <?php
-$ppTitle = 'Panel zajęć'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie kursanta';
+$ppTitle = 'Panel Kursanta SSO'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie kursanta';
 $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
 include dirname(__DIR__) . '/modules/ti/view/portal/_header.php';
 ?>

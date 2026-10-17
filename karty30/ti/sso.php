@@ -32,7 +32,7 @@ $_org = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'F
 </head>
 <body class="pp">
 <?php
-$ppTitle = 'Panel zajęć'; $ppOrg = $_org; $ppCrumb = 'Czym jest SSO?'; $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
+$ppTitle = 'Panel Kursanta SSO'; $ppOrg = $_org; $ppCrumb = 'Czym jest SSO?'; $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
 include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
 ?>
 <main id="pp-main" class="pp-wrap">

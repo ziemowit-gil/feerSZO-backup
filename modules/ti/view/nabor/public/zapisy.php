@@ -72,18 +72,16 @@ $customQs = function (int $n) use ($form, $customQ): string {
   .zp-sum dd { @apply tw-font-medium tw-whitespace-pre-line; }
 </style>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<?php include dirname(__DIR__, 2) . '/portal/_a11yHead.php'; ?>
+<?php include dirname(__DIR__, 2) . '/portal/_style.php'; ?>
 </head>
-<body class="tw-bg-feer-bg tw-text-gray-900">
+<body class="pp tw-text-gray-900">
+<?php
+$ppTitle = 'Panel Kursanta SSO'; $ppOrg = $org; $ppCrumb = $form['texts']['title']; $ppLogo = ''; $ppLoginUrl = '/login.php';
+$ppAccount = $acc ?? null; $ppCsrf = Router::csrfToken();
+include dirname(__DIR__, 2) . '/portal/_header.php';
+?>
 <div class="tw-max-w-3xl tw-mx-auto tw-px-4 tw-py-8">
-  <?php include dirname(__DIR__, 2) . '/portal/_a11y.php'; ?>
-  <header class="tw-mb-6 tw-flex tw-items-center tw-gap-4">
-    <?php if ($logo): ?><img src="<?= h($logo) ?>" alt="<?= h($org) ?>" class="tw-h-12 tw-bg-white tw-rounded-lg tw-p-1"><?php endif; ?>
-    <div>
-      <h1 class="tw-text-2xl tw-font-medium"><?= h($form['texts']['title']) ?></h1>
-      <p class="tw-text-gray-600"><?= h($org) ?></p>
-    </div>
-  </header>
+  <h1 class="pp-h1"><?= h($form['texts']['title']) ?></h1>
 
 <?php if ($done): ?>
   <main class="tw-bg-white tw-rounded-2xl tw-shadow-lg tw-p-8 tw-text-center">
