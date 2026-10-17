@@ -1,6 +1,6 @@
 <?php
 /**
- * tozsamosc/kursant.php — logowanie kursanta w module Tożsamość (wygląd METRO UI, układ dwukolumnowy jak w iPKO).
+ * tozsamosc/kursant.php — logowanie kursanta w module Tożsamość (wygląd portalu FEER: modules/ti/view/portal, dwie kolumny).
  * Pierwsze logowanie (konto nigdy nie logowało się): login → kod SMS (tozsamosc/kursant_kod.php).
  * Kolejne logowania: login + hasło. Sesja kursanta jest tworzona jak dotychczas (student_login_user).
  */
@@ -57,113 +57,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Logowanie kursanta — System Tożsamości</title>
+<title>Logowanie kursanta — Panel zajęć — <?= htmlspecialchars((string)(org_setting('org_name') ?: 'FEER'), ENT_QUOTES, 'UTF-8') ?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php include dirname(__DIR__) . '/modules/ti/view/portal/_style.php'; ?>
 <style>
-  body { font-family: "Segoe UI", system-ui, sans-serif; background: #f3f4f6; margin: 0; }
-  .metro-split { display: flex; flex-direction: column; min-height: 100vh; }
-  /* Telefon: najpierw formularz, potem panel z instrukcją. */
-  @media (max-width: 767.98px) { .metro-main { order: 1; } .metro-side { order: 2; } }
-  @media (min-width: 768px) { .metro-split { flex-direction: row; } }
-  .metro-side { background: #1d1d1d; color: #fff; padding: 2.5rem 2rem; flex: 1 1 50%; display: flex; flex-direction: column; justify-content: center; }
-  .metro-side h2 { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; }
-  .metro-side .lead-sub { color: #cbd5e1; font-size: .95rem; }
-  .metro-side ul { padding-left: 1.1rem; margin: 1.25rem 0 0; font-size: .92rem; }
-  .metro-side li { margin-bottom: .5rem; }
-  .metro-main { flex: 1 1 50%; display: flex; align-items: center; justify-content: center; padding: 2rem 1.25rem; }
-  .metro-card { background: #fff; border: 0; border-radius: 0; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 2.5rem 2rem; width: 100%; max-width: 420px; }
-  .metro-card .form-control-lg { font-size: 1.1rem; padding: .75rem 1rem; border-radius: 0; box-shadow: none; }
-  .metro-btn { border-radius: 0; background: #0f6fa8; border-color: #0f6fa8; color: #fff; font-weight: 600; }
-  .metro-btn:hover { background: #0c5b8a; border-color: #0c5b8a; color: #fff; }
-  .metro-btn:focus-visible, .form-control:focus-visible, .metro-side a:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
-  .metro-footer { text-align: center; font-size: .85rem; color: #4b5563; padding: 1rem; }
-  .metro-footer a { color: #1d4ed8; text-decoration: none; margin: 0 .5rem; }
-  .metro-side a { color: #7dd3fc; }
+  .kur-sec { gap: .6rem; align-items: center; background: var(--pp-bg); border-radius: .7rem; padding: .5rem .7rem; margin-top: .6rem; }
+  .kur-note { background: var(--pp-bg); border-radius: .7rem; padding: .7rem .9rem; font-size: .88rem; color: var(--pp-ink); margin-top: .7rem; }
+  .pp details { border: 1px solid var(--pp-line); border-radius: var(--pp-radius); padding: .9rem 1.1rem; margin-top: 1.2rem; }
+  .pp details summary { font-weight: 700; cursor: pointer; color: var(--pp-ink); }
+  .pp details h2 { font-size: 1rem; font-weight: 700; margin: 1rem 0 .4rem; }
+  .pp-btn-key { display: inline-flex; align-items: center; gap: .5rem; min-height: 44px; padding: .45rem 1.2rem; border: 2px solid var(--pp-blue); border-radius: .7rem;
+                background: #fff; color: var(--pp-blue); font: inherit; font-weight: 700; cursor: pointer; }
+  .pp-btn-key:disabled { opacity: .5; cursor: not-allowed; }
 </style>
 </head>
-<body>
-<div role="region" aria-label="Informacja o logowaniu" style="background:#0f6fa8;color:#fff;padding:.6rem 1rem;text-align:center;font-weight:600;font-size:.95rem">
-  Logowanie centralne przez System Tożsamości — adresy i zapisane linki bez zmian.
-  <a href="../karty30/ti/sso.php" style="color:#fff;text-decoration:underline;margin-left:.5rem">Czym jest SSO?</a>
-</div>
-<div class="metro-split">
-  <aside class="metro-side" aria-labelledby="side-h">
-    <div class="small fw-bold mb-2" style="letter-spacing:.06em">FEER · System Tożsamości</div>
-    <h2 id="side-h">Panel kursanta</h2>
-    <p class="lead-sub mb-0">Logowanie jest obsługiwane centralnie przez System Tożsamości. Adresy i zapisane linki się nie zmieniają.</p>
-    <ul>
-      <li><strong>Pierwsze logowanie:</strong> wpisujesz tylko login. Kod przychodzi SMS-em na Twój telefon.</li>
-      <li><strong>Obrazek bezpieczeństwa:</strong> po wpisaniu loginu pojawia się Twój obrazek. Każdy ma opis tekstowy, który czyta czytnik ekranu.</li>
-      <li><strong>Jeśli nie widzisz obrazka albo widzisz inny,</strong> nie wpisuj hasła.</li>
-      <li><strong>Login:</strong> kursant szkoleń — np. <span class="font-monospace">j.kowalski</span>; osoba korzystająca z konsultacji — „k” i 4 cyfry, np. <span class="font-monospace">k1234</span>. <a href="#jak-logowac" style="color:inherit" onclick="document.getElementById('jak-logowac').open=true">Więcej o logowaniu</a></li>
-    </ul>
-  </aside>
-
-  <main class="metro-main" id="main">
-    <div class="metro-card">
-      <h1 class="h5 fw-bold mb-3">Zaloguj się do panelu kursanta</h1>
-
-      <?php if ($blad !== ''): ?>
-      <div class="alert alert-danger small py-2 rounded-0" role="alert"><?= htmlspecialchars($blad, ENT_QUOTES, 'UTF-8') ?></div>
-      <?php endif; ?>
-
+<body class="pp">
+<?php
+$ppTitle = 'Panel zajęć'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie kursanta';
+$ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
+include dirname(__DIR__) . '/modules/ti/view/portal/_header.php';
+?>
+<main id="pp-main" class="pp-wrap">
+  <h1 class="pp-h1">Zaloguj się do panelu kursanta</h1>
+  <?php if ($blad !== ''): ?><div class="pp-error" role="alert"><?= htmlspecialchars($blad, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+  <div class="pp-cols">
+    <div>
       <form method="post" action="" autocomplete="on">
-        <div class="mb-3">
-          <label for="kur-login" class="form-label fw-semibold">Login</label>
-          <div class="d-flex align-items-start gap-3">
-            <div class="flex-grow-1 min-w-0">
-              <input type="text" class="form-control form-control-lg" id="kur-login" name="login"
-                     value="<?= htmlspecialchars($login, ENT_QUOTES, 'UTF-8') ?>" required autocomplete="username" autofocus>
-            </div>
-            <div class="align-items-center gap-2 d-none" id="kur-sec" style="max-width:11rem" aria-live="polite">
-              <div id="kur-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
-              <div class="small" id="kur-sec-label"></div>
-            </div>
+        <div class="pp-field">
+          <label for="kur-login">Login</label>
+          <input type="text" class="pp-input" id="kur-login" name="login" value="<?= htmlspecialchars($login, ENT_QUOTES, 'UTF-8') ?>" required autocomplete="username" autofocus aria-describedby="kur-login-h">
+          <p id="kur-login-h" class="pp-note" style="margin:.35rem 0 0">np. <span class="font-monospace">j.kowalski</span> albo <span class="font-monospace">k1234</span> (konsultacje), lub własny alias.</p>
+          <div class="kur-sec d-none" id="kur-sec" aria-live="polite">
+            <div id="kur-sec-img" style="width:56px;height:56px;flex-shrink:0" aria-hidden="true"></div>
+            <div><div class="pp-note" style="margin:0">Twój obrazek bezpieczeństwa:</div><strong id="kur-sec-label"></strong></div>
           </div>
         </div>
-        <div class="mb-4">
-          <label for="kur-password" class="form-label fw-semibold">Hasło</label>
-          <input type="password" class="form-control form-control-lg" id="kur-password" name="password" autocomplete="current-password">
-          <div class="form-text">Przy pierwszym logowaniu hasła nie wpisujesz.</div>
-          <div class="alert alert-info small py-2 rounded-0 mt-2 mb-0" role="note">Konta założone przed 10.10.2026 traktujemy jak nowe. Dotychczasowych haseł nie da się przenieść, więc przy tym logowaniu potwierdzisz się kodem SMS i ustawisz nowe hasło. SMS-y obsługuje Sendly, który jest też nadawcą wiadomości.</div>
+        <div class="pp-field">
+          <label for="kur-password">Hasło</label>
+          <input type="password" class="pp-input" id="kur-password" name="password" autocomplete="current-password" aria-describedby="kur-pass-h">
+          <p id="kur-pass-h" class="pp-note" style="margin:.35rem 0 0">Przy pierwszym logowaniu hasła nie wpisujesz — kod przyjdzie SMS-em.</p>
+          <div class="kur-note" role="note">Konta założone przed 10.10.2026 traktujemy jak nowe: przy tym logowaniu potwierdzisz się kodem SMS i ustawisz nowe hasło. SMS-y wysyła Sendly.</div>
         </div>
-        <button type="submit" class="btn btn-lg metro-btn w-100">Dalej</button>
+        <button type="submit" class="pp-submit">Dalej</button>
       </form>
-      <details class="mt-3 border p-3" id="jak-logowac">
-        <summary class="fw-semibold">Jak się zalogować? Jaki mam login?</summary>
-        <h2 class="h6 fw-bold mt-3">Twój login</h2>
-        <ul class="small mb-2">
-          <li><strong>Kursant szkoleń</strong> (zajęcia w grupie, szkolenie krótkie): login to pierwsza litera imienia, kropka i nazwisko bez polskich znaków, np. <span class="font-monospace">j.kowalski</span>. Jeśli ktoś ma już taki login, na końcu jest cyfra, np. <span class="font-monospace">j.kowalski2</span>. Możesz też logować się własnym aliasem, jeśli go ustawiłeś.</li>
-          <li><strong>Osoba korzystająca z konsultacji</strong>: login to litera „k” i cztery cyfry, np. <span class="font-monospace">k1234</span>. Dostajesz go SMS-em po umówieniu pierwszej konsultacji.</li>
-          <li>Login i pierwsze hasło przychodzą SMS-em albo dostajesz je od nas na wydruku.</li>
-        </ul>
-        <h2 class="h6 fw-bold">Pierwsze logowanie</h2>
-        <ol class="small mb-2">
-          <li>Wpisz login i wybierz „Dalej”.</li>
-          <li>Sprawdź swój obrazek bezpieczeństwa. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła i skontaktuj się z nami.</li>
-          <li>Potwierdź się kodem z SMS-a (albo hasłem jednorazowym, jeśli je dostałeś).</li>
-          <li>Ustaw własne hasło — będziesz go używać przy kolejnych logowaniach.</li>
-        </ol>
-        <h2 class="h6 fw-bold">Nie pamiętasz hasła albo loginu?</h2>
-        <p class="small mb-2">Wpisz login — dostaniesz kod SMS na numer zapisany w Twoim koncie. Jeśli nie pamiętasz loginu albo zmieniłeś numer telefonu, zadzwoń lub napisz do placówki — wyślemy nowe dane.</p>
-        <h2 class="h6 fw-bold">Inne osoby logują się gdzie indziej</h2>
-        <ul class="small mb-0">
-          <li><strong>Rodzic lub opiekun</strong> małoletniego kursanta — <a href="../karty30/ti/login.php?tab=rodzic">logowanie rodzica</a> (login opiekuna nadany w placówce).</li>
-          <li><strong>Osoba upoważniona</strong> przez kursanta — <a href="../karty30/ti/login.php?tab=up">logowanie upoważnionego</a>.</li>
-          <li><strong>Prowadzący zajęcia i konsultanci</strong> — <a href="../karty30/ti/login.php?tab=dydaktyk">panel prowadzącego</a>.</li>
-        </ul>
-      </details>
-      <div class="mt-3 text-center">
-        <button type="button" class="btn btn-outline-dark rounded-0 w-100" id="kur-klucz">Zaloguj kluczem sprzętowym</button>
-        <p class="small text-body-secondary mt-2 mb-0">Działa po pierwszym logowaniu, gdy masz zarejestrowany klucz.</p>
-        <div class="alert alert-danger small py-2 rounded-0 mt-2 d-none" id="kur-klucz-blad" role="alert"></div>
+      <div style="margin-top:1.4rem">
+        <button type="button" class="pp-btn-key" id="kur-klucz"><i class="bi bi-usb-drive" aria-hidden="true"></i> Zaloguj kluczem sprzętowym</button>
+        <p class="pp-note" style="margin:.4rem 0 0">Działa po pierwszym logowaniu, gdy masz zarejestrowany klucz.</p>
+        <div class="pp-error d-none" id="kur-klucz-blad" role="alert" style="margin-top:.6rem"></div>
       </div>
     </div>
-  </main>
-</div>
-<footer class="metro-footer" aria-label="Linki">
-  <a href="https://feer.org.pl">Strona Fundacji</a>
-</footer>
+
+    <aside class="pp-note" aria-labelledby="kur-side-h">
+      <p id="kur-side-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Obrazek bezpieczeństwa.</strong> Po wpisaniu loginu pojawi się Twój obrazek — każdy ma opis tekstowy dla czytnika ekranu. <strong>Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.</strong></p>
+      <details id="jak-logowac">
+        <summary>Jak się zalogować? Jaki mam login?</summary>
+        <h2>Twój login</h2>
+        <ul>
+          <li><strong>Kursant szkoleń</strong>: pierwsza litera imienia, kropka i nazwisko bez polskich znaków, np. <span class="font-monospace">j.kowalski</span> (przy powtórzeniu z cyfrą: <span class="font-monospace">j.kowalski2</span>), albo własny alias.</li>
+          <li><strong>Osoba korzystająca z konsultacji</strong>: „k” i cztery cyfry, np. <span class="font-monospace">k1234</span> — przychodzi SMS-em po umówieniu pierwszej konsultacji.</li>
+          <li>Login i pierwsze hasło przychodzą SMS-em albo dostajesz je od nas na wydruku.</li>
+        </ul>
+        <h2>Pierwsze logowanie</h2>
+        <ol>
+          <li>Wpisz login i wybierz „Dalej”.</li>
+          <li>Sprawdź obrazek bezpieczeństwa.</li>
+          <li>Potwierdź się kodem z SMS-a (albo hasłem jednorazowym).</li>
+          <li>Ustaw własne hasło.</li>
+        </ol>
+        <h2>Nie pamiętasz hasła albo loginu?</h2>
+        <p>Wpisz login — dostaniesz kod SMS na numer zapisany w koncie. Jeśli nie pamiętasz loginu albo zmieniłeś numer, skontaktuj się z placówką.</p>
+      </details>
+      <div style="border-top:1px solid var(--pp-line);margin-top:1.4rem;padding-top:1.1rem">
+        <strong style="color:var(--pp-ink)">Inne osoby logują się gdzie indziej:</strong>
+        <ul style="padding-left:1.1rem;margin:.4rem 0 0">
+          <li><a href="/login.php?tab=rodzic">Rodzic lub opiekun</a></li>
+          <li><a href="/login.php?tab=up">Osoba upoważniona</a></li>
+          <li><a href="/login.php?tab=kandydat">Kandydat (zapisy)</a></li>
+          <li><a href="/login.php?tab=dydaktyk">Prowadzący i kadra</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</main>
+<?php
+$ppFootLinks = ['Panel zajęć' => '/login.php', 'Czym jest SSO' => '/karty30/ti/sso.php', 'Konto kandydata' => '/nabor/logowanie', 'Strona Fundacji FEER' => 'https://feer.org.pl'];
+include dirname(__DIR__) . '/modules/ti/view/portal/_footer.php';
+?>
 <script>
 (function () {
   // Logowanie kluczem (WebAuthn): tylko dla kont z zarejestrowanym kluczem.

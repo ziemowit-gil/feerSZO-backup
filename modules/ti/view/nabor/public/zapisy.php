@@ -71,9 +71,12 @@ $customQs = function (int $n) use ($form, $customQ): string {
   .zp-sum dt { @apply tw-text-xs tw-uppercase tw-tracking-wide tw-text-gray-500 tw-mt-3; }
   .zp-sum dd { @apply tw-font-medium tw-whitespace-pre-line; }
 </style>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<?php include dirname(__DIR__, 2) . '/portal/_a11yHead.php'; ?>
 </head>
 <body class="tw-bg-feer-bg tw-text-gray-900">
 <div class="tw-max-w-3xl tw-mx-auto tw-px-4 tw-py-8">
+  <?php include dirname(__DIR__, 2) . '/portal/_a11y.php'; ?>
   <header class="tw-mb-6 tw-flex tw-items-center tw-gap-4">
     <?php if ($logo): ?><img src="<?= h($logo) ?>" alt="<?= h($org) ?>" class="tw-h-12 tw-bg-white tw-rounded-lg tw-p-1"><?php endif; ?>
     <div>

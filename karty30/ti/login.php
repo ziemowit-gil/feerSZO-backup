@@ -57,7 +57,7 @@ $_side = [
     'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
         ? ['Wybierz, kim jesteś.', 'Wpisz login, który dostałeś SMS-em albo na wydruku.', 'Wpisz hasło. Przy pierwszym logowaniu dostaniesz kod SMS i ustawisz własne hasło.']
         : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.', 'Wpisz hasło.'],
-    'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Mam pocztę w domenie fundacji” — zalogujesz się kontem Microsoft 365.', 'Nie masz poczty w domenie fundacji? Wybierz „Mam prywatny e-mail” i wpisz e-mail oraz hasło.'],
+    'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Microsoft 365” obok.', 'Nie masz poczty w domenie fundacji? Wpisz e-mail i hasło.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login opiekuna nadany w placówce.', 'Wpisz hasło. Nie masz hasła? Zaloguj się kodem SMS.'],
     'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło nadane przez kursanta.'],
     'kandydat' => ['Wybierz „Kandydat”.', 'Wpisz e-mail podany w zgłoszeniu.', 'Wpisz hasło ustawione z linku w e-mailu. Nie masz hasła? Wybierz „Nie pamiętam hasła”.'],
@@ -207,23 +207,7 @@ $_ppRoles = ['kursant' => 'Kursant', 'rodzic' => 'Rodzic / opiekun', 'up' => 'Os
       <p class="tz-hint">Konto kandydata powstaje po potwierdzeniu pierwszego zgłoszenia.<?= org_setting('ti_nabor_enabled') === '1' ? ' <a href="/nabor">Złóż zgłoszenie na zajęcia</a>.' : '' ?></p>
 
       <?php elseif ($tab === 'dydaktyk'): ?>
-      <?php if (!$dyd_haslo): ?>
-      <p class="mb-3">Prowadzący zwykle logują się kontem <strong>Microsoft 365</strong>. Jaki adres e-mail masz?</p>
-      <div class="d-grid gap-2" role="list" aria-label="Rodzaj adresu e-mail">
-        <a role="listitem" class="tz-tile tz-choice" href="<?= h($office_login_url) ?>" style="background:#0f6fa8"
-           aria-label="Mam pocztę w domenie fundacji — zalecane. Zaloguj przez Microsoft 365, zostaniesz przekierowany do Microsoft">
-          <span class="tz-choice-badge">Zalecane</span>
-          <i class="bi bi-building fs-4" aria-hidden="true"></i>
-          <span class="d-block fw-semibold mt-1">Mam pocztę w domenie fundacji</span>
-          <span class="d-block small">Adres @feer.org.pl — logowanie przez Microsoft 365</span>
-        </a>
-        <a role="listitem" class="tz-tile tz-choice" href="login.php?tab=dydaktyk&amp;konto=prywatny" style="background:#1d1d1d">
-          <i class="bi bi-envelope fs-4" aria-hidden="true"></i>
-          <span class="d-block fw-semibold mt-1">Mam prywatny adres e-mail</span>
-          <span class="d-block small">Logowanie e-mailem i hasłem</span>
-        </a>
-      </div>
-      <?php else: ?>
+      <?php /* Microsoft 365 — w prawej kolumnie (bez duplikatu); tu e-mail i hasło */ ?>
         <form method="post" action="dydaktyk/login.php" autocomplete="on">
           <div class="mb-3">
             <label for="dyd-email">Adres e-mail</label>
@@ -245,11 +229,7 @@ $_ppRoles = ['kursant' => 'Kursant', 'rodzic' => 'Rodzic / opiekun', 'up' => 'Os
           </div>
           <button type="submit" class="tz-btn">Zaloguj się</button>
         </form>
-        <p class="tz-hint">Użyj danych logowania do Systemu Wspomagania Zarządzania Organizacją.</p>
-        <?php if ($office_available): ?>
-        <p class="tz-hint"><a href="<?= h($office_login_url) ?>">Mam pocztę @feer.org.pl — zaloguj przez Microsoft 365</a></p>
-        <?php endif; ?>
-      <?php endif; ?>
+        <p class="tz-hint">Prywatny adres e-mail: użyj danych logowania do Systemu Wspomagania Zarządzania Organizacją.</p>
 
       <?php elseif ($tab === 'rodzic'): ?>
       <form method="post" action="kursant/parent_login.php" autocomplete="on">
@@ -302,17 +282,31 @@ $_ppRoles = ['kursant' => 'Kursant', 'rodzic' => 'Rodzic / opiekun', 'up' => 'Os
       <?php endif; ?>
     </div>
 
-    <aside aria-labelledby="pp-alt-h">
-      <p id="pp-alt-h" class="pp-note mb-1">Zaloguj się przez:</p>
-      <a class="pp-alt" href="<?= h($office_login_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Microsoft 365</a>
-      <p class="pp-note">Dla prowadzących i pracowników z pocztą w domenie fundacji (@feer.org.pl). Po wybraniu tej opcji nastąpi przekierowanie na stronę logowania Microsoft.</p>
-      <a class="pp-alt" href="kursant/parent.php" style="min-height:70px;font-size:1.3rem"><i class="bi bi-phone" aria-hidden="true"></i> Kod SMS</a>
-      <p class="pp-note">Dla rodziców i opiekunów bez hasła — jednorazowy kod na numer telefonu zapisany w placówce.</p>
-      <div class="pp-note" style="border-top:1px solid var(--pp-line);margin-top:1.6rem;padding-top:1.2rem">
-        <strong>Nie masz jeszcze konta?</strong><br>
-        <?php if (org_setting('ti_nabor_enabled') === '1'): ?><a href="/nabor">Zapisz dziecko na zajęcia</a> — po potwierdzeniu zgłoszenia założymy konto kandydata, a po przyjęciu dostaniesz login do panelu.<br><?php endif; ?>
-        <a href="/nabor/rejestracja">Załóż konto kandydata</a> · <a href="/nabor/logowanie">Zaloguj się na konto kandydata</a>
+    <aside aria-labelledby="pp-alt-h" class="pp-note">
+      <?php if ($tab === 'dydaktyk'): ?>
+        <p id="pp-alt-h" style="margin:0 0 .3rem">Masz pocztę w domenie fundacji?</p>
+        <a class="pp-alt" href="<?= h($office_login_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365</a>
+        <p>Dla prowadzących i pracowników z adresem @feer.org.pl — nastąpi przekierowanie na stronę logowania Microsoft.</p>
+      <?php elseif ($tab === 'rodzic'): ?>
+        <p id="pp-alt-h" style="margin:0 0 .3rem">Nie masz hasła albo go nie pamiętasz?</p>
+        <a class="pp-alt" href="kursant/parent.php"><i class="bi bi-chat-dots" aria-hidden="true"></i> Zaloguj kodem SMS</a>
+        <p>Jednorazowy kod na numer telefonu opiekuna zapisany w placówce.</p>
+      <?php elseif ($tab === 'kandydat'): ?>
+        <p id="pp-alt-h" style="margin:0 0 .3rem">Nie masz jeszcze konta kandydata?</p>
+        <a class="pp-alt" href="/nabor/rejestracja"><i class="bi bi-person-plus" aria-hidden="true"></i> Załóż konto</a>
+        <p>Albo <?= org_setting('ti_nabor_enabled') === '1' ? '<a href="/nabor">złóż zgłoszenie na zajęcia</a> — konto założymy po jego potwierdzeniu.' : 'zaczekaj na otwarcie naboru.' ?></p>
+      <?php elseif ($tab === 'up'): ?>
+        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Osoba upoważniona</strong> widzi rozliczenia, frekwencję i plan zajęć kursanta, który nadał jej dostęp w zakładce „Upoważnieni”.</p>
+      <?php else: ?>
+        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Obrazek bezpieczeństwa.</strong> Po wpisaniu loginu zobaczysz swój obrazek (z opisem dla czytnika ekranu). Jeśli go nie widzisz albo widzisz inny — nie wpisuj hasła.</p>
+        <p>Pierwsze logowanie: wpisz tylko login, kod przyjdzie SMS-em.</p>
+      <?php endif; ?>
+      <?php if ($tab !== 'kandydat'): ?>
+      <div style="border-top:1px solid var(--pp-line);margin-top:1.4rem;padding-top:1.1rem">
+        <strong style="color:var(--pp-ink)">Nie masz jeszcze konta?</strong><br>
+        <?php if (org_setting('ti_nabor_enabled') === '1'): ?><a href="/nabor">Zapisz dziecko na zajęcia</a> · <?php endif; ?><a href="/nabor/rejestracja">Załóż konto kandydata</a>
       </div>
+      <?php endif; ?>
     </aside>
   </div>
 </main>

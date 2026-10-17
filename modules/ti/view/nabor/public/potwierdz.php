@@ -12,6 +12,7 @@
 <title>Potwierdzenie zgłoszenia — <?= h($org) ?></title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { prefix: 'tw-' }</script>
+<?php include dirname(__DIR__, 2) . '/portal/_a11yHead.php'; ?>
 </head>
 <body class="tw-bg-[#edf3fe] tw-text-gray-900 tw-font-sans">
 <main class="tw-max-w-lg tw-mx-auto tw-px-4 tw-py-16">

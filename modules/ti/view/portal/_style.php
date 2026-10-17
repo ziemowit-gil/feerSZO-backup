@@ -10,9 +10,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Montserrat:wght@600;700;800&display=swap">
+<?php include __DIR__ . '/_a11yHead.php'; ?>
 <style>
   :root { --pp-blue: #1d68f2; --pp-blue-dark: #164eb6; --pp-bg: #edf3fe; --pp-green: #3f9a2d; --pp-ink: #111827; --pp-line: #d8e2f3; --pp-muted: #5b6472; --pp-radius: 1rem; }
-  body.pp { margin: 0; background: var(--pp-bg); color: var(--pp-ink); font-family: 'Ubuntu', ui-sans-serif, system-ui, sans-serif; font-size: 16px; line-height: 1.55; }
+  body.pp { margin: 0; background: var(--pp-bg); color: var(--pp-ink); font-family: 'Ubuntu', ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1.55; }
   .pp h1, .pp h2, .pp h3, .pp-title { font-family: 'Montserrat', 'Ubuntu', sans-serif; }
   .pp a { color: var(--pp-blue); }
   .pp-wrap { max-width: 1140px; margin: 0 auto; padding: 0 1.25rem; }
@@ -21,7 +22,8 @@
   .pp-util a { color: var(--pp-muted); text-decoration: none; } .pp-util a:hover { color: var(--pp-blue); }
   .pp-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 1.5rem; padding: 1rem 0 1.2rem; }
   .pp-brand { display: flex; align-items: center; gap: .9rem; text-decoration: none; color: var(--pp-ink); min-width: 0; }
-  .pp-brand img { height: 56px; width: auto; background: #fff; border-radius: .6rem; padding: .35rem .6rem; }
+  .pp-logo-box { display: inline-flex; align-items: center; background: var(--pp-blue); border-radius: .9rem; padding: .55rem .9rem; flex: none; }
+  .pp-brand img { height: 48px; width: auto; filter: brightness(0) invert(1); }   /* logo FEER w bieli na niebieskim */
   .pp-mark { width: 52px; height: 52px; flex: none; border-radius: .8rem; background: var(--pp-blue); color: #fff; display: grid; place-items: center;
              font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 1.05rem; letter-spacing: .02em; }
   .pp-title { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; line-height: 1.15; }
@@ -73,6 +75,6 @@
     .pp-cols { grid-template-columns: 1fr; gap: 1.8rem; }
     #pp-main { padding: 1.25rem; }
     .pp-cta { width: 100%; } .pp-btn-acc, .pp-btn-log { flex: 1; }
-    .pp-brand img { height: 44px; } .pp-mark { width: 42px; height: 42px; font-size: .9rem; }
+    .pp-brand img { height: 36px; } .pp-mark { width: 42px; height: 42px; font-size: .9rem; }
   }
 </style>

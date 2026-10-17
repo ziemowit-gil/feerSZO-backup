@@ -6,17 +6,23 @@
  * Adresy względne — zostają na bieżącym hoście (kursant.*, ti.*, szo.*).
  */
 $ppLoginUrl = $ppLoginUrl ?? '/login.php';
+// Logo fundacji z ustawień (branding) — pokazywane na białym tle niebieskiego znaku (filtr do bieli w _style.php)
+if (empty($ppLogo)) {
+    try {
+        if (!function_exists('branding_load')) require_once dirname(__DIR__, 4) . '/includes/branding.php';
+        $ppLogo = (string)(branding_load()['logo_url'] ?? '');
+    } catch (\Throwable $e) { $ppLogo = ''; }
+}
+// Adres względny do /assets/… — na kursant.* i ti.* katalog assets jest wyłączony z przepisywania
+if ($ppLogo !== '') $ppLogo = (string)(parse_url($ppLogo, PHP_URL_PATH) ?: $ppLogo);
 $ppOpen = function_exists('org_setting') && org_setting('ti_nabor_enabled') === '1';
 ?>
 <a class="pp-skip" href="#pp-main">Przejdź do treści</a>
 <div class="pp-wrap">
-  <div class="pp-util" aria-label="Narzędzia">
-    <a href="https://feer.org.pl/deklaracja-dostepnosci/">Dostępność</a>
-    <a href="https://feer.org.pl">feer.org.pl</a>
-  </div>
+  <?php include __DIR__ . '/_a11y.php'; ?>
   <header class="pp-head">
     <a class="pp-brand" href="<?= h($ppLoginUrl) ?>">
-      <?php if (!empty($ppLogo)): ?><img src="<?= h($ppLogo) ?>" alt=""><?php else: ?><span class="pp-mark" aria-hidden="true">FEER</span><?php endif; ?>
+      <span class="pp-logo-box"><?php if (!empty($ppLogo)): ?><img src="<?= h($ppLogo) ?>" alt="FEER — Fundacja Edukacji Empatii Rozwoju"><?php else: ?><span class="pp-mark" aria-hidden="true">FEER</span><?php endif; ?></span>
       <span class="pp-title"><?= h($ppTitle) ?><small><?= h($ppOrg) ?></small></span>
     </a>
     <div class="pp-cta">
