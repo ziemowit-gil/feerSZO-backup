@@ -55,17 +55,17 @@ RewriteRule ^uslugi-it/szukaj/?$ /modules/it_portal/public/szukaj.php [QSA,L]
 #   ti.feer.org.pl/kursant     → panel kursanta
 #   ti.feer.org.pl/dydaktyk    → panel dydaktyka (prowadzącego)
 
-# /plan/<token> → publiczny plan zajęć grupy (bez logowania; token z panelu dydaktyka) — na ti.* i szo.*
-RewriteCond %{HTTP_HOST} ^(ti|szo)[^.]*\. [NC]
+# /plan/<token> → publiczny plan zajęć grupy (bez logowania; token z panelu dydaktyka) — na ti.*, szo.* i kurs*.* (kursant.feer.org.pl)
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/([a-z0-9]{24})/?$ /karty30/ti/dydaktyk/planPubliczny.php?g=$1 [QSA,L]
 # /plan/ (portal), /plan/grupy|prowadzacy|sale (katalogi), /plan/p/<token> (prowadzący), /plan/s/<id> (sala)
-RewriteCond %{HTTP_HOST} ^(ti|szo)[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/?$ /karty30/ti/dydaktyk/planPubliczny.php [QSA,L]
-RewriteCond %{HTTP_HOST} ^(ti|szo)[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/(grupy|prowadzacy|sale)/?$ /karty30/ti/dydaktyk/planPubliczny.php?k=$1 [QSA,L]
-RewriteCond %{HTTP_HOST} ^(ti|szo)[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/p/([a-z0-9]{24})/?$ /karty30/ti/dydaktyk/planPubliczny.php?p=$1 [QSA,L]
-RewriteCond %{HTTP_HOST} ^(ti|szo)[^.]*\. [NC]
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/s/([0-9]+)/?$ /karty30/ti/dydaktyk/planPubliczny.php?s=$1 [QSA,L]
 
 # /dydaktyk → wymuś końcowy ukośnik, aby ścieżki względne w panelu (login.php,

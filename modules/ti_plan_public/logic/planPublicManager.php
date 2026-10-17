@@ -104,10 +104,10 @@ function tiPlanPublicUrl(array $row): string {
     return $base . '/karty30/ti/dydaktyk/planPubliczny.php?g=' . rawurlencode((string)$row['token']);
 }
 
-/** Krótki adres na subdomenie ti.* / szo.* (gdy panel działa na takim hoście), inaczej null. */
+/** Krótki adres na subdomenie ti.* / szo.* / kurs*.* (gdy panel działa na takim hoście), inaczej null. */
 function tiPlanPublicShortUrl(array $row): ?string {
     $host = (string)($_SERVER['HTTP_HOST'] ?? '');
-    if (!preg_match('/^(ti|szo)[^.]*\./i', $host)) return null;
+    if (!preg_match('/^(ti|szo|kurs)[^.]*\./i', $host)) return null;
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
     return $scheme . '://' . $host . '/plan/' . (string)$row['token'];
 }
