@@ -20,9 +20,23 @@ tiPlanPublicMigrate();
 $focus = (int)($_GET['course_id'] ?? 0);
 
 // Portal (/plan/): zakładka Sale i linki prowadzących
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['rooms', 'i_enable', 'i_disable', 'i_regenerate', 'i_options', 'all_groups', 'all_instr'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['rooms', 'privacy', 'full_pw', 'i_enable', 'i_disable', 'i_regenerate', 'i_options', 'all_groups', 'all_instr'], true)) {
     dyd_token_check();
     $op = (string)$_POST['_op'];
+    if ($op === 'full_pw') {
+        $pw = (string)($_POST['full_pw'] ?? '');
+        if (!empty($_POST['clear'])) { tiPlanPublicFullSetPassword(''); flash_set('warning', 'Widok pełny planu wyłączony — dotychczasowe zalogowania wygasły.'); }
+        elseif (mb_strlen($pw) < 10) { flash_set('danger', 'Hasło do pełnego planu musi mieć co najmniej 10 znaków.'); }
+        else { tiPlanPublicFullSetPassword($pw); flash_set('success', 'Hasło do pełnego planu ustawione — poprzednie zalogowania wygasły. Przekaż je pracownikom bezpiecznym kanałem.'); }
+        header('Location: planLinki.php#portal'); exit;
+    }
+    if ($op === 'privacy') {
+        $pu = trim((string)($_POST['privacy_url'] ?? ''));
+        if ($pu !== '' && !preg_match('#^https?://#i', $pu)) { flash_set('danger', 'Adres klauzuli musi zaczynać się od https://'); header('Location: planLinki.php#portal'); exit; }
+        org_setting_set('ti_plan_public_privacy_url', mb_substr($pu, 0, 300));
+        flash_set('success', 'Adres informacji o przetwarzaniu danych zapisany.');
+        header('Location: planLinki.php#portal'); exit;
+    }
     if ($op === 'all_groups' || $op === 'all_instr') {
         $dir = !empty($_POST['in_directory']);
         [$n, $all] = $op === 'all_groups' ? tiPlanPublicEnableAll($uid, $dir) : tiPlanPublicInstrEnableAll($uid, $dir);
@@ -173,6 +187,24 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <button type="button" class="btn btn-outline-secondary" data-copy="portal-url"><i class="bi bi-clipboard me-1" aria-hidden="true"></i>Kopiuj</button>
     </div>
     <p class="small text-body-secondary mb-0 mt-1">Sale: <?= $roomsOn ? '<strong>włączone</strong>' : 'wyłączone' ?> — zajętość sal z terminów TI i stan rezerwacji (zarezerwowana / do potwierdzenia); grupy spoza katalogu widoczne jako „niepubliczna”.</p>
+    <p class="small mb-1 mt-2"><strong>RODO na stronach publicznych:</strong> bez danych uczestników, prowadzący inicjałami, nazwy grup zawierające imię lub nazwisko uczestnika
+      zastępowane („przedmiot — grupa nr …”) albo „nazwą publiczną” z ustawień grupy; w katalogu bez linków do spotkań online i bez kontaktów prowadzących; bez plików cookie i analityki.</p>
+    <form method="post" class="input-group input-group-sm">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="privacy">
+      <label class="input-group-text" for="privacy-url">klauzula RODO (link w stopce)</label>
+      <input type="url" class="form-control" id="privacy-url" name="privacy_url" maxlength="300" placeholder="https://…/klauzula/…" value="<?= h((string)org_setting('ti_plan_public_privacy_url')) ?>">
+      <button class="btn btn-outline-primary">Zapisz</button>
+    </form>
+    <?php $hasFull = tiPlanPublicFullHash() !== ''; ?>
+    <form method="post" class="input-group input-group-sm mt-2" autocomplete="off">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="full_pw">
+      <label class="input-group-text" for="full-pw">hasło do pełnego planu</label>
+      <input type="password" class="form-control" id="full-pw" name="full_pw" minlength="10" autocomplete="new-password" placeholder="<?= $hasFull ? 'ustawione — wpisz nowe, aby zmienić' : 'min. 10 znaków' ?>">
+      <button class="btn btn-outline-primary" name="set" value="1">Ustaw</button>
+      <?php if ($hasFull): ?><button class="btn btn-outline-danger" name="clear" value="1" formnovalidate onclick="return confirm('Wyłączyć widok pełny? Wszyscy zalogowani zostaną wylogowani.')">Wyłącz</button><?php endif; ?>
+    </form>
+    <p class="small text-body-secondary mb-0 mt-1">Widok pełny (<?= $hasFull ? '<strong>włączony</strong>' : 'wyłączony' ?>): po wpisaniu hasła na stronie portalu (link „Pełny plan — dla pracowników”) widać wszystkie grupy z prawdziwymi nazwami, pełne nazwiska prowadzących,
+      linki do zajęć online i kontakty. Zalogowanie wygasa po zamknięciu przeglądarki lub po 12 h; zmiana hasła wylogowuje wszystkich.</p>
   </div>
 </section>
 
@@ -286,6 +318,8 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="pl-head">
     <h2 class="h6 mb-0 fw-bold" id="g<?= $cid ?>-h"><?= h($c['name']) ?></h2>
     <span class="small text-body-secondary"><?= h($c['instructor_name'] ?? '') ?></span>
+    <?php $pubLabel = tiPlanPublicGroupLabel($cid, (string)$c['name'], (string)($l['public_name'] ?? ''), (string)($c['subject_name'] ?? ''));
+      if ($pubLabel !== (string)$c['name']): ?><span class="badge pl-b pl-off" title="Tak grupa wygląda na stronach publicznych"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>publicznie: <?= h($pubLabel) ?></span><?php endif; ?>
     <?php if ($on): ?><span class="badge pl-b pl-on"><i class="bi bi-globe2 me-1" aria-hidden="true"></i>opublikowany</span><?= (int)($l['in_directory'] ?? 0) ? '<span class="badge pl-b pl-on"><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>w katalogu</span>' : '' ?>
     <?php else: ?><span class="badge pl-b pl-off"><i class="bi bi-eye-slash me-1" aria-hidden="true"></i>nieopublikowany</span><?php endif; ?>
     <?php if ($l): ?><span class="pl-stats">wyświetleń: <?= (int)$l['views'] ?><?= $l['last_view_at'] ? ', ostatnio ' . h(date('d.m.Y H:i', strtotime((string)$l['last_view_at']))) : '' ?></span><?php endif; ?>
@@ -334,10 +368,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
         </div>
         <div class="col-sm-4 col-md-3">
           <div class="form-check"><input class="form-check-input" type="checkbox" id="sl<?= $cid ?>" name="show_list" value="1" <?= (int)$l['show_list'] ? 'checked' : '' ?>><label class="form-check-label small" for="sl<?= $cid ?>">Lista terminów pod siatką</label></div>
-          <div class="form-check"><input class="form-check-input" type="checkbox" id="sc<?= $cid ?>" name="show_contacts" value="1" <?= (int)$l['show_contacts'] ? 'checked' : '' ?>><label class="form-check-label small" for="sc<?= $cid ?>">Kontakty do prowadzących (telefon, e-mail)</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" id="sc<?= $cid ?>" name="show_contacts" value="1" <?= (int)$l['show_contacts'] ? 'checked' : '' ?>><label class="form-check-label small" for="sc<?= $cid ?>">Kontakty do prowadzących (telefon, e-mail) — tylko gdy grupy nie ma w katalogu</label></div>
           <div class="form-check"><input class="form-check-input" type="checkbox" id="cd<?= $cid ?>" name="in_directory" value="1" <?= (int)($l['in_directory'] ?? 0) ? 'checked' : '' ?>><label class="form-check-label small" for="cd<?= $cid ?>">Pokaż w katalogu portalu (nazwa grupy publicznie)</label></div>
         </div>
-        <div class="col-sm-5 col-md-5">
+        <div class="col-sm-6 col-md-4">
+          <label class="form-label small mb-0" for="pn<?= $cid ?>">Nazwa publiczna (opcjonalna)</label>
+          <input type="text" class="form-control form-control-sm" id="pn<?= $cid ?>" name="public_name" maxlength="120" value="<?= h($l['public_name'] ?? '') ?>" placeholder="<?= h($pubLabel) ?>" aria-describedby="pnh<?= $cid ?>">
+          <div class="form-text small" id="pnh<?= $cid ?>"><?= tiPlanPublicNameHasPerson($cid, (string)$c['name']) ? '<strong class="text-danger">Nazwa grupy zawiera dane uczestnika</strong> — publicznie pokazujemy nazwę zastępczą albo tę z pola.' : 'Puste = nazwa grupy.' ?></div>
+        </div>
+        <div class="col-sm-6 col-md-4">
           <label class="form-label small mb-0" for="n<?= $cid ?>">Komunikat na stronie planu (opcjonalny)</label>
           <input type="text" class="form-control form-control-sm" id="n<?= $cid ?>" name="note" maxlength="500" value="<?= h($l['note']) ?>" placeholder="np. plan może się zmienić do 15 października">
         </div>

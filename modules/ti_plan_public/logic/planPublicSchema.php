@@ -37,6 +37,8 @@ function tiPlanPublicMigrate(): void {
     if (!in_array('notified_at', $have, true)) $pdo->exec("ALTER TABLE k30_ti_plan_public_links ADD COLUMN notified_at DATETIME");   // ostatnia wysyłka linku do kursantów
     // Grupa widoczna w publicznym katalogu portalu planu (/plan/) — domyślnie NIE (link zostaje tajny)
     if (!in_array('in_directory', $have, true)) $pdo->exec("ALTER TABLE k30_ti_plan_public_links ADD COLUMN in_directory INTEGER NOT NULL DEFAULT 0");
+    // RODO: nazwa grupy na stronach publicznych (pusta = nazwa grupy, chyba że zawiera imię/nazwisko uczestnika — wtedy zastępcza)
+    if (!in_array('public_name', $have, true)) $pdo->exec("ALTER TABLE k30_ti_plan_public_links ADD COLUMN public_name TEXT NOT NULL DEFAULT ''");
 
     // Linki do planów PROWADZĄCYCH (wszystkie jego zajęcia) — tajny token, opcjonalnie w katalogu portalu.
     $pdo->exec("CREATE TABLE IF NOT EXISTS k30_ti_plan_public_instr (

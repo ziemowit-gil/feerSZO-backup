@@ -75,10 +75,10 @@ function tiPlanPublicUpdateOptions(int $courseId, array $in): void {
     $weeks = (int)($in['weeks'] ?? 12);
     if (!in_array($weeks, TI_PLAN_PUBLIC_WEEKS, true)) $weeks = 12;
     db()->prepare("UPDATE k30_ti_plan_public_links
-                      SET weeks=?, show_contacts=?, show_list=?, in_directory=?, note=?, updated_at=datetime('now')
+                      SET weeks=?, show_contacts=?, show_list=?, in_directory=?, note=?, public_name=?, updated_at=datetime('now')
                     WHERE course_id=?")
         ->execute([$weeks, !empty($in['show_contacts']) ? 1 : 0, !empty($in['show_list']) ? 1 : 0, !empty($in['in_directory']) ? 1 : 0,
-                   mb_substr(trim((string)($in['note'] ?? '')), 0, 500), $courseId]);
+                   mb_substr(trim((string)($in['note'] ?? '')), 0, 500), mb_substr(trim((string)($in['public_name'] ?? '')), 0, 120), $courseId]);
 }
 
 /** Wiersz linku po tokenie — tylko włączone i tylko dla istniejącej grupy. */

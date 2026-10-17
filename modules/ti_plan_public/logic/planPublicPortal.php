@@ -15,6 +15,162 @@
  */
 require_once __DIR__ . '/planPublicManager.php';
 
+/* ───────────────────────── Widok pełny (hasło kierownika) ───────────────────────── */
+
+/** Tryb widoku pełnego w bieżącym żądaniu: prawdziwe nazwy grup, pełne nazwiska, linki do spotkań, wszystkie grupy. */
+function tiPlanPublicFull(?bool $set = null): bool {
+    static $on = false;
+    if ($set !== null) $on = $set;
+    return $on;
+}
+
+/** Prowadzący na stronie: pełne imię i nazwisko w widoku pełnym, inaczej inicjały. */
+function tiPlanPublicPerson(string $name): string {
+    return tiPlanPublicFull() ? trim($name) : tiPlanPublicInitials($name);
+}
+
+/** Hash hasła widoku pełnego (pusty = funkcja wyłączona). */
+function tiPlanPublicFullHash(): string {
+    return (string)org_setting('ti_plan_public_full_hash');
+}
+
+function tiPlanPublicFullSetPassword(string $pw): void {
+    org_setting_set('ti_plan_public_full_hash', $pw === '' ? '' : password_hash($pw, PASSWORD_DEFAULT));
+}
+
+/** Sprawdza hasło; globalna blokada po 10 błędach w 15 min (bez zapisywania IP odwiedzających). */
+function tiPlanPublicFullCheck(string $pw): array {
+    $hash = tiPlanPublicFullHash();
+    if ($hash === '') return [false, 'Widok pełny jest wyłączony.'];
+    $st = json_decode((string)org_setting('ti_plan_public_full_fail'), true) ?: ['n' => 0, 'since' => 0];
+    if (time() - (int)$st['since'] > 900) $st = ['n' => 0, 'since' => time()];
+    if ((int)$st['n'] >= 10) return [false, 'Za dużo nieudanych prób — spróbuj za kilkanaście minut.'];
+    if (password_verify($pw, $hash)) { org_setting_set('ti_plan_public_full_fail', ''); return [true, '']; }
+    $st['n'] = (int)$st['n'] + 1;
+    org_setting_set('ti_plan_public_full_fail', json_encode($st));
+    usleep(800000);
+    return [false, 'Nieprawidłowe hasło.'];
+}
+
+/** Wszystkie aktywne grupy (widok pełny). */
+function tiPlanPublicAllGroups(): array {
+    return db_all("SELECT c.id, c.name, st.name AS subject_name, u.name AS instr_name FROM k30_ti_courses c
+                     LEFT JOIN k30_ti_subject_types st ON st.id=c.subject_type_id LEFT JOIN users u ON u.id=c.instructor_id
+                    WHERE c.status NOT IN ('archived','cancelled') ORDER BY c.name COLLATE NOCASE");
+}
+
+/* ───────────────────────── RODO: nazwy grup ───────────────────────── */
+
+/** Zapis porównawczy: małe litery, bez polskich znaków. */
+function tiPlanPublicFold(string $s): string {
+    $s = mb_strtolower($s);
+    return strtr($s, ['ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z']);
+}
+
+/**
+ * Czy nazwa grupy zawiera imię lub nazwisko któregoś z jej uczestników (zapisy w dowolnym statusie)?
+ * Grupy indywidualne bywają nazywane nazwiskiem kursanta — takiej nazwy nie wolno pokazać publicznie.
+ * Porównanie całych słów (min. 3 litery), bez polskich znaków.
+ */
+function tiPlanPublicNameHasPerson(int $courseId, string $courseName): bool {
+    static $cache = [];
+    if (isset($cache[$courseId])) return $cache[$courseId];
+    $words = preg_split('/[^\p{L}]+/u', tiPlanPublicFold($courseName), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $words = array_flip($words);
+    $hit = false;
+    foreach (db_all("SELECT cl.name FROM k30_ti_enrollments e JOIN k30_clients cl ON cl.id=e.client_id WHERE e.course_id=?", [$courseId]) as $r) {
+        foreach (preg_split('/[^\p{L}]+/u', tiPlanPublicFold((string)$r['name']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $w) {
+            if (mb_strlen($w) >= 3 && isset($words[$w])) { $hit = true; break 2; }
+        }
+    }
+    return $cache[$courseId] = $hit;
+}
+
+/** Imiona z plików modules/ti_plan_public/data/imiona_*.txt (jedno na linię, # = komentarz) — zapis porównawczy => true. */
+function tiPlanPublicFirstNames(): array {
+    static $set = null;
+    if ($set !== null) return $set;
+    $set = [];
+    foreach (glob(dirname(__DIR__) . '/data/imiona_*.txt') ?: [] as $f) {
+        foreach (file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#' || mb_strlen($line) < 3) continue;
+            $set[tiPlanPublicFold($line)] = true;
+        }
+    }
+    // Słowa z wykazu, które w nazwach grup/kursów zwykle NIE są imionami (angielskie / techniczne / miesiące)
+    foreach (['can', 'long', 'man', 'son', 'neo', 'dev', 'ram', 'bin', 'pal', 'das', 'dat', 'sing', 'made', 'gene', 'mark', 'ray', 'guy', 'said',
+              'wolf', 'earl', 'nick', 'max', 'lee', 'van', 'jay', 'jack', 'ross', 'dean', 'kim', 'nur', 'won', 'min', 'han', 'lam', 'tan', 'sai',
+              'maj', 'luty', 'marzec', 'kwiecien', 'czerwiec', 'lipiec', 'sierpien', 'wrzesien', 'pazdziernik', 'listopad', 'grudzien', 'styczen'] as $w) unset($set[$w]);
+    return $set;
+}
+
+/** Nazwiska bez typowej końcówki z plików data/nazwiska_*.txt — zapis porównawczy => true. */
+function tiPlanPublicSurnames(): array {
+    static $set = null;
+    if ($set !== null) return $set;
+    $set = [];
+    foreach (glob(dirname(__DIR__) . '/data/nazwiska_*.txt') ?: [] as $f) {
+        foreach (file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '' && $line[0] !== '#' && mb_strlen($line) >= 3) $set[tiPlanPublicFold($line)] = true;
+        }
+    }
+    return $set;
+}
+
+/** Przymiotniki z końcówkami nazwiskowymi (-ski/-cki…), które NIE są nazwiskami: języki, regiony, miasta. */
+function tiPlanPublicSurnameExceptions(): array {
+    static $ex = null;
+    if ($ex !== null) return $ex;
+    $base = ['angielski', 'polski', 'niemiecki', 'hiszpanski', 'wloski', 'francuski', 'rosyjski', 'ukrainski', 'bialoruski', 'czeski', 'slowacki',
+             'litewski', 'lotewski', 'szwedzki', 'norweski', 'dunski', 'finski', 'portugalski', 'japonski', 'chinski', 'koreanski', 'arabski', 'turecki',
+             'grecki', 'lacinski', 'wegierski', 'rumunski', 'chorwacki', 'serbski', 'brajlowski', 'migowski', 'europejski', 'miejski', 'wiejski',
+             'slaski', 'mazowiecki', 'malopolski', 'pomorski', 'wielkopolski', 'podkarpacki', 'lubelski', 'lodzki', 'swietokrzyski', 'kujawski',
+             'lubuski', 'opolski', 'podlaski', 'dolnoslaski', 'zachodniopomorski', 'warminski', 'mazurski', 'krakowski', 'warszawski', 'gdanski',
+             'poznanski', 'wroclawski', 'szczecinski', 'bydgoski', 'torunski', 'katowicki', 'sadecki', 'rzeszowski', 'bialostocki', 'kielecki',
+             'olsztynski', 'gorski', 'morski', 'swiecki', 'akademicki', 'techniczny', 'praktyczny', 'specjalistyczny', 'indywidualny'];
+    $ex = [];
+    foreach ($base as $w) { $ex[$w] = true; $ex[preg_replace('/i$/', 'a', $w)] = true; }   // polski → polska
+    return $ex;
+}
+
+/**
+ * RODO: w tekście publicznym skraca do inicjałów słowa pisane wielką literą, które są imionami
+ * (wykaz PESEL w data/imiona_*.txt), są na liście nazwisk (data/nazwiska_*.txt) albo wyglądają na nazwiska
+ * (-icki/-icka, -cki/-cka, -dzki/-dzka, -ski/-ska, -wicz, -czyk, -czak, -iak). W widoku pełnym — bez zmian.
+ * „Kurs Jan Kowalski — gr. 2” → „Kurs J. K. — gr. 2”.
+ */
+function tiPlanPublicAnonymize(string $text): string {
+    if ($text === '') return $text;
+    if (tiPlanPublicFull()) return $text;   // widok pełny (hasło kierownika)
+    $first = tiPlanPublicFirstNames();
+    $sur   = tiPlanPublicSurnames();
+    $ex    = tiPlanPublicSurnameExceptions();
+    return (string)preg_replace_callback('/\p{Lu}[\p{L}]*(?:-\p{Lu}[\p{L}]*)*/u', function ($m) use ($first, $sur, $ex) {
+        $parts = explode('-', $m[0]);
+        $hit = false;
+        foreach ($parts as $w) {
+            $f = tiPlanPublicFold($w);
+            if ((mb_strlen($w) >= 3 && (isset($first[$f]) || isset($sur[$f])))
+                || (mb_strlen($w) >= 5 && !isset($ex[$f]) && preg_match('/(icki|icka|cki|cka|dzki|dzka|ski|ska|wicz|czyk|czak|iak)$/u', $f))) { $hit = true; break; }
+        }
+        // nazwisko dwuczłonowe: gdy którykolwiek człon pasuje — inicjały wszystkich („Nowak-Wiśniewska” → „N.-W.”)
+        return $hit ? implode('-', array_map(fn($w) => mb_strtoupper(mb_substr($w, 0, 1)) . '.', $parts)) : $m[0];
+    }, $text);
+}
+
+/**
+ * Nazwa grupy na stronach publicznych: „nazwa publiczna” z planLinki.php, a gdy pusta — nazwa grupy,
+ * chyba że zawiera dane uczestnika: wtedy zastępcza „<przedmiot> — grupa nr <id>”. Zawsze przez tiPlanPublicAnonymize().
+ */
+function tiPlanPublicGroupLabel(int $courseId, string $courseName, string $publicName = '', string $subject = ''): string {
+    if (tiPlanPublicFull()) return $courseName;
+    if (trim($publicName) !== '') return tiPlanPublicAnonymize(trim($publicName));
+    if (!tiPlanPublicNameHasPerson($courseId, $courseName)) return tiPlanPublicAnonymize($courseName);
+    return (trim($subject) !== '' ? tiPlanPublicAnonymize(trim($subject)) . ' — ' : '') . 'grupa nr ' . $courseId;
+}
+
 /* ───────────────────────── Linki prowadzących ───────────────────────── */
 
 function tiPlanPublicInstrGet(int $userId): ?array {
@@ -142,7 +298,7 @@ function tiPlanPublicInstrEnableAll(int $by, bool $dir): array {
 function tiPlanPublicDirectoryGroups(): array {
     tiPlanPublicMigrate();
     $rows = db_all(
-        "SELECT l.token, c.id AS course_id, c.name, u.name AS instr_name, st.name AS subject_name,
+        "SELECT l.token, l.public_name, c.id AS course_id, c.name, u.name AS instr_name, st.name AS subject_name,
                 (SELECT MIN(s.lesson_date) FROM k30_ti_sessions s
                   WHERE s.course_id=c.id AND s.lesson_date >= date('now') AND s.draft_id IS NULL
                     AND s.status NOT IN ('draft','reserved','cancelled')) AS next_date
@@ -152,7 +308,12 @@ function tiPlanPublicDirectoryGroups(): array {
            LEFT JOIN k30_ti_subject_types st ON st.id = c.subject_type_id
           WHERE l.is_enabled=1 AND l.in_directory=1 AND c.status NOT IN ('archived','cancelled')
           ORDER BY c.name COLLATE NOCASE");
-    foreach ($rows as &$r) $r['instr'] = tiPlanPublicInitials((string)$r['instr_name']);
+    foreach ($rows as &$r) {
+        $r['instr'] = tiPlanPublicInitials((string)$r['instr_name']);
+        $r['name']  = tiPlanPublicGroupLabel((int)$r['course_id'], (string)$r['name'], (string)$r['public_name'], (string)$r['subject_name']);
+    }
+    unset($r);
+    usort($rows, fn($a, $b) => strcasecmp($a['name'], $b['name']));
     return $rows;
 }
 
@@ -231,6 +392,7 @@ function tiPlanPublicRoom(int $id): ?array {
  * Zwraca znormalizowane wpisy gotowe do widoku publicznego.
  */
 function tiPlanPublicLessons(array $filter, string $from, string $to): array {
+    tiPlanPublicMigrate();
     ti_planner_ext_migrate();
     k30_ti_reschedule_migrate();
     $where = ''; $args = [];
@@ -250,7 +412,7 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
     $rows = db_all(
         "SELECT s.id, s.course_id, s.room_id, s.room_reservation_status, s.lesson_date, s.time_from, s.time_to, s.status, s.lesson_method, s.date_flag, s.meeting_url,
                 s.rescheduled_from_date, s.rescheduled_from_time_from,
-                c.name AS course_name, c.default_meeting_url, c.location AS course_location, c.is_online AS course_online,
+                c.name AS course_name, pl.public_name, c.default_meeting_url, c.location AS course_location, c.is_online AS course_online,
                 st.name AS subject_name, u.name AS instr_name, COALESCE(s.instructor_id, c.instructor_id) AS instr_id,
                 r.name AS room_name, r.location AS room_location, r.short_label AS room_short_label
            FROM k30_ti_sessions s
@@ -258,6 +420,7 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
            LEFT JOIN k30_ti_subject_types st ON st.id = c.subject_type_id
            LEFT JOIN users u ON u.id = COALESCE(s.instructor_id, c.instructor_id)
            LEFT JOIN k30_pl_rooms r ON r.id = s.room_id
+           LEFT JOIN k30_ti_plan_public_links pl ON pl.course_id = c.id
           WHERE $where AND s.lesson_date BETWEEN ? AND ?
             AND s.draft_id IS NULL AND s.status NOT IN ('draft','reserved')
           ORDER BY s.lesson_date, s.time_from, c.name",
@@ -279,9 +442,10 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
             'tt'        => $tt,
             'time'      => $tf !== '' ? $tf . '–' . $tt : '',
             'course_id' => (int)$r['course_id'],
-            'course'    => (string)$r['course_name'],
-            'subject'   => trim((string)$r['subject_name']) !== '' ? (string)$r['subject_name'] : (string)$r['course_name'],
-            'instr'     => tiPlanPublicInitials((string)($r['instr_name'] ?? '')),
+            // RODO: nazwa publiczna / zastępcza, gdy nazwa grupy zawiera dane uczestnika
+            'course'    => $label = tiPlanPublicGroupLabel((int)$r['course_id'], (string)$r['course_name'], (string)($r['public_name'] ?? ''), (string)$r['subject_name']),
+            'subject'   => trim((string)$r['subject_name']) !== '' ? (string)$r['subject_name'] : $label,
+            'instr'     => tiPlanPublicPerson((string)($r['instr_name'] ?? '')),
             'instr_id'  => (int)$r['instr_id'],
             'method'    => $method,
             'room'      => $room !== '—' && $method !== 'online' ? $room : '',
