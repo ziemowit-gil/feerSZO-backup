@@ -237,6 +237,18 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
 <?php else: ?>
   <!-- ═══ Układ: podsumowanie + zakładki (Do zapłaty / Wpłać / Historia / Informacje) ═══ -->
   <?php $bd = (float)($bal_ti['debt'] ?? 0); $bc = (float)($bal_ti['credit'] ?? 0); $due_sum = 0.0; foreach ($items as $it0) { if ($it0['status'] === 'pending') $due_sum += (float)$it0['amount']; }
+        // „Do zapłaty” = otwarte pozycje portalu, „Saldo” = alokacja TI — mogą się różnić; rozbijamy różnicę
+        $dz_ti = 0.0; $dz_proc = 0.0;
+        foreach ($items as $it0) {
+            if ($it0['reference_type'] !== 'ti_billing') continue;
+            if ($it0['status'] === 'pending') $dz_ti += (float)$it0['amount']; else $dz_proc += (float)$it0['amount'];
+        }
+        $dz_other   = round($due_sum - $dz_ti, 2);                      // pozycje spoza zajęć TI (nie w saldzie)
+        $dz_unlisted = round(max(0, $bd - $dz_ti - $dz_proc), 2);       // niedopłata TI bez pozycji w portalu
+        $dz_notes = [];
+        if ($dz_other > 0.005)    $dz_notes[] = 'w tym ' . pp_fmt($dz_other) . ' za pozycje spoza zajęć TI (nie wchodzą do salda)';
+        if ($dz_proc > 0.005)     $dz_notes[] = pp_fmt($dz_proc) . ' w trakcie opłacania (wliczone w saldo)';
+        if ($dz_unlisted > 0.005) $dz_notes[] = pp_fmt($dz_unlisted) . ' niedopłaty TI nie ma jeszcze na liście — możesz ją wpłacić przelewem (zakładka „Wpłać”)';
         $acc_txt = (string)($pay_info['account'] ?? ''); $acc_d = preg_replace('/\D/', '', $acc_txt); ?>
   <div x-data="{ tab: location.hash.slice(1) || '<?= $items ? 'zaplac' : 'wplac' ?>', go(t) { this.tab = t; try { history.replaceState(null, '', '#' + t); } catch (e) {} } }" class="space-y-6">
     <div class="grid gap-4 md:grid-cols-3" aria-label="Podsumowanie">
@@ -249,6 +261,7 @@ $stx  = in_array($view, ['status', 'sim'], true) ? pp_transaction_view((string)(
         <div class="text-xs uppercase tracking-wide text-slate-500">Do zapłaty</div>
         <div class="mt-1 text-3xl font-semibold tabular-nums <?= $due_sum > 0.005 ? 'text-amber-700' : 'text-emerald-700' ?>"><?= h(pp_fmt($due_sum)) ?></div>
         <div class="text-xs text-slate-500"><?= count(array_filter($items, fn($i0) => $i0['status'] === 'pending')) ?> pozycji · kliknij, aby zapłacić</div>
+        <?php if ($dz_notes): ?><div class="mt-1 text-xs text-slate-600">Różnica względem salda: <?= h(implode('; ', $dz_notes)) ?>.</div><?php endif; ?>
       </button>
       <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200" x-data="{ c: false }">
         <div class="text-xs uppercase tracking-wide text-slate-500"><?= !empty($pay_info['virtual']) ? 'Twój numer rachunku' : 'Rachunek do wpłat' ?></div>
