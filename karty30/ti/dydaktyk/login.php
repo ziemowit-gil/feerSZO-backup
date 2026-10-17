@@ -40,7 +40,10 @@ if ($data) {
     // Każde konto (także administrator): dwuetapowe uwierzytelnianie (TOTP) jest obowiązkowe.
     // Sesję panelu zakłada dopiero totp_gate.php, po weryfikacji (albo
     // pierwszym założeniu) kodu.
-    dyd_2fa_stash($data);
+    // Powrót na stronę, z której przyszło logowanie (np. pełny plan zajęć: ciasteczko k30_dyd_next, 15 min)
+    $next = (string)($_COOKIE['k30_dyd_next'] ?? '');
+    if ($next !== '') setcookie('k30_dyd_next', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    dyd_2fa_stash($data, $next);
     header('Location: totp_gate.php'); exit;
 }
 

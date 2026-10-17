@@ -46,11 +46,26 @@ $fullOk = false;
 if ($fullHash !== '' && preg_match('/^(\d{9,11})\.([a-f0-9]{64})$/', (string)($_COOKIE['TIPLAN_FULL'] ?? ''), $fm)) {
     $fullOk = (int)$fm[1] > time() && hash_equals($fullSig((int)$fm[1]), $fm[2]);
 }
+// Zalogowany w panelu dydaktyka (prowadzący / kierownik, po TOTP) też widzi pełny plan — bez osobnego hasła.
+// Sesję panelu sprawdzamy tylko, gdy jest jego ciasteczko: zwykły odwiedzający nie dostaje sesji ani ciasteczka.
+$fullDyd = false;
+if (!$fullOk && PHP_SAPI !== 'cli' && (isset($_COOKIE['k30_dydaktyk']) || isset($_COOKIE['k30_ti_remember_dyd']))) {
+    require_once __DIR__ . '/auth.php';
+    $fullDyd = $fullOk = dyd_current() !== null;
+}
 tiPlanPublicFull($fullOk);
 if ($fullOk) header('Cache-Control: no-store, private');
 
+// „Zaloguj kontem panelu dydaktyka (TI)”: po logowaniu (i TOTP) powrót na plan — dyd_safe_next() w panelu
+if (isset($_GET['login_ti'])) {
+    if (PHP_SAPI !== 'cli') setcookie('k30_dyd_next', basename($self), ['expires' => time() + 900, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Lax']);
+    header('Location: ' . (str_starts_with($self, '/karty30/') ? '/karty30/ti/login.php?tab=dydaktyk' : rtrim(APP_URL, '/') . '/karty30/ti/login.php?tab=dydaktyk')); exit;
+}
+
 if (isset($_GET['logout'])) {
     $fullCookie('', time() - 3600);
+    // Pełny widok z sesji panelu dydaktyka — wylogowanie z panelu
+    if ($fullDyd) { header('Location: /karty30/ti/dydaktyk/logout.php'); exit; }
     header('Location: ' . html_entity_decode($home)); exit;
 }
 $loginErr = '';
@@ -95,14 +110,20 @@ $base = ['self' => $self, 'org' => $org, 'side' => $side, 'full' => $full, 'canL
 /* ───────────── Logowanie do widoku pełnego ───────────── */
 if (isset($_GET['login'])) {
     tiPlanPortalOpen($base + ['title' => 'Pełny plan — logowanie', 'heading' => 'Pełny plan zajęć']);
+    ?>
+    <section class="box" style="max-width:420px">
+      <h2>Prowadzący i kierownicy TI</h2>
+      <p>Zaloguj się jak do panelu dydaktyka (hasło lub konto Microsoft, z kodem weryfikacyjnym) — wrócisz tu z pełnym planem.</p>
+      <p><a class="login-btn" style="position:static;display:inline-block;border-color:#9aa6cf" href="<?= tiPlanPortalUrl($self, ['login_ti' => 1]) ?>">Zaloguj kontem panelu dydaktyka (TI)</a></p>
+    </section>
+    <?php
     if ($fullHash === '') {
-        echo '<p class="empty">Logowanie do pełnego planu nie jest jeszcze włączone — kierownik ustawia hasło w panelu dydaktyka (Linki do planów → Portal planu zajęć).</p>';
         tiPlanPortalClose($base);
         exit;
     }
     ?>
     <form method="post" action="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>" class="box" style="max-width:420px">
-      <h2>Logowanie dla pracowników</h2>
+      <h2>Albo hasłem do pełnego planu</h2>
       <p>Hasło nadaje kierownik. Po zalogowaniu widać wszystkie grupy, pełne nazwiska i linki do zajęć online — <strong>nie udostępniaj ekranu osobom postronnym</strong>.
         Zalogowanie jest pamiętane na tym urządzeniu przez 90 dni (albo do wylogowania lub zmiany hasła) — nie loguj się na komputerze publicznym.</p>
       <?php if ($loginErr !== ''): ?><p class="st-bad" role="alert"><strong><?= h($loginErr) ?></strong></p><?php endif; ?>

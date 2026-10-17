@@ -55,7 +55,8 @@ if (!$data) {
 
 // Opcjonalny skok na wskazany ekran panelu (np. ze starych ekranów karty30 albo z launchera): tylko istniejący plik
 // .php z tego katalogu + prosty query (dyd_safe_next()). Konta z TOTP trafiają tam dopiero po kodzie (totp_gate.php).
-$target = dyd_safe_next((string)($_GET['next'] ?? ''));
+$target = dyd_safe_next((string)($_GET['next'] ?? ($_COOKIE['k30_dyd_next'] ?? '')));   // ciasteczko: powrót na plan zajęć
+if (isset($_COOKIE['k30_dyd_next'])) setcookie('k30_dyd_next', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
 
 // Panel jest już otwarty na tym samym koncie (drugi link z SZO, launcher, stara zakładka): sesji nie zakładamy od nowa —
 // nowy token CSRF unieważniłby formularze otwarte w innych kartach panelu, a TOTP był już sprawdzony.

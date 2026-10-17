@@ -5,7 +5,7 @@
  * Wygląd jak plan zajęć TI (styl Optivum: lista z lewej, niebieski pasek, tabela tygodnia) — te same dane
  * co zakładka DK w planie (k30_ti_duty), publikacja: org_setting ti_duty_public (SZO → Dyżury).
  * Wejście: karty30/ti/dydaktyk/dyzury.php; krótko https://<ti|szo|kursant>.…/dyzury (.htaccess).  &t=<data> — tydzień.
- * Dyżurni inicjałami + funkcja; pełne dane w widoku pełnym (to samo ciasteczko co plan: TIPLAN_FULL).
+ * Dyżurni inicjałami + funkcja; pełne dane w widoku pełnym (ciasteczko planu TIPLAN_FULL albo sesja panelu dydaktyka).
  */
 require_once dirname(__DIR__, 3) . '/config.php';
 require_once dirname(__DIR__, 3) . '/includes/db.php';
@@ -28,6 +28,11 @@ if ($fullHash !== '' && preg_match('/^(\d{9,11})\.([a-f0-9]{64})$/', (string)($_
     && (int)$fm[1] > time() && hash_equals(hash_hmac('sha256', 'tiplan-full|' . (int)$fm[1], $fullHash), $fm[2])) {
     tiPlanPublicFull(true);
     header('Cache-Control: no-store, private');
+}
+// …albo sesja panelu dydaktyka (prowadzący / kierownik) — sprawdzana tylko, gdy jest jej ciasteczko
+if (!tiPlanPublicFull() && PHP_SAPI !== 'cli' && (isset($_COOKIE['k30_dydaktyk']) || isset($_COOKIE['k30_ti_remember_dyd']))) {
+    require_once dirname(__DIR__, 3) . '/karty30/ti/dydaktyk/auth.php';
+    if (dyd_current() !== null) { tiPlanPublicFull(true); header('Cache-Control: no-store, private'); }
 }
 
 $self   = (string)($_SERVER['SCRIPT_NAME'] ?? '/modules/ti_duty/public/index.php');
