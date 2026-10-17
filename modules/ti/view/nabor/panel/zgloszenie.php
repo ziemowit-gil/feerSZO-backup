@@ -35,6 +35,16 @@ include __DIR__ . '/_head.php';
   </div>
 </div>
 <?= flash_html() ?>
+<?php if (!empty($creds)): ?>
+  <div class="alert alert-success" role="status">
+    <strong>Założono dostęp do panelu</strong> — hasła jednorazowe widać tylko teraz (opiekun dostał je SMS-em, jeśli zaznaczono powiadomienie):
+    <ul class="mb-1 mt-1">
+      <?php if ($creds['child']): ?><li>Panel uczestnika: login <code><?= h($creds['child']['login']) ?></code>, hasło <code><?= h($creds['child']['password']) ?></code></li><?php endif; ?>
+      <?php if ($creds['parent']): ?><li>Panel rodzica: login <code><?= h($creds['parent']['login']) ?></code>, hasło <code><?= h($creds['parent']['password']) ?></code></li><?php endif; ?>
+    </ul>
+    <span class="small">Reset haseł i dalsze zarządzanie: <a href="konta.php">Ewidencja Uczestników</a>.</span>
+  </div>
+<?php endif; ?>
 <?php if ($s['is_test']): ?>
   <div class="alert alert-warning small">Zgłoszenie testowe: zmiany statusu działają jak zwykle, ale bez SMS/e-maili, EZD i CRM, a „Przyjęte” nie zakłada uczestnika ani zapisu do grupy.</div>
 <?php endif; ?>
@@ -54,6 +64,7 @@ include __DIR__ . '/_head.php';
           ] : [
             'Grupa' => h((string)$s['course_name']), 'Harmonogram' => h((string)$s['course_schedule']),
             'Uczestnik TI' => $s['client_id'] ? '#' . (int)$s['client_id'] . ' — zapisany do grupy' : '',
+            'Konto panelu' => $account ? 'uczestnik: <code>' . h($account['login']) . '</code>' . (!empty($account['parent_login']) ? ' · rodzic: <code>' . h($account['parent_login']) . '</code>' : '') : '',
             'Płatność (deklaracja)' => h(NABOR_PAYMENT[$s['payment_method']] ?? ''),
           ]) ?>
       <form method="post" action="<?= $upd ?>" class="d-flex gap-2 mt-3"><?= Router::csrfField() ?><input type="hidden" name="_op" value="course">

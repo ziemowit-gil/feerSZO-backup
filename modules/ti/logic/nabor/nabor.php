@@ -434,7 +434,25 @@ function naborChangeStatus(int $sid, string $to, int $userId, string $comment = 
         throw $e;
     }
 
-    if (!empty($s['is_test'])) return true;          // test: bez CRM i powiadomień
+    if (!empty($s['is_test'])) return true;          // test: bez kont, CRM i powiadomień
+    if ($to === 'accepted') {
+        // Konto panelu uczestnika + dostęp rodzica; hasła jednorazowo dla kierownika (karta zgłoszenia), SMS/e-mail do opiekuna
+        require_once __DIR__ . '/naborAccounts.php';
+        try {
+            $acc = naborCreateAccounts($sid, $userId);
+            if ($acc['child'] || $acc['parent']) {
+                if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['nabor_creds'][$sid] = $acc;
+                $sent = $notify ? naborSendAccounts(naborSubmissionGet($sid), $acc) : 'bez wysyłki — przekaż dane ręcznie';
+                naborHistoryNote($sid, 'Założono dostęp: ' . implode(', ', array_filter([
+                    $acc['child'] ? 'panel uczestnika (' . $acc['child']['login'] . ')' : '',
+                    $acc['parent'] ? 'panel rodzica (' . $acc['parent']['login'] . ')' : '',
+                ])) . ' — ' . $sent . '.', $userId, $userName);
+            }
+            foreach ($acc['notes'] as $n) naborHistoryNote($sid, $n, $userId, $userName);
+        } catch (\Throwable $e) {
+            naborHistoryNote($sid, 'Nie udało się założyć konta panelu: ' . $e->getMessage(), $userId, $userName);
+        }
+    }
     require_once __DIR__ . '/naborCrm.php';
     naborCrmSync($sid, 'Status: ' . naborStatusLabel($s['status']) . ' → ' . naborStatusLabel($to) . ($comment !== '' ? ' — ' . $comment : ''));
     if ($notify) {

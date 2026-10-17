@@ -86,7 +86,11 @@ final class NaborPanelController
         if ($s['ezd_case_id']) {
             try { $ezdZnak = db_one("SELECT znak_sprawy FROM ezd_sprawy WHERE id=?", [(int)$s['ezd_case_id']])['znak_sprawy'] ?? null; } catch (\Throwable $e) {}
         }
+        $creds = $_SESSION['nabor_creds'][$id] ?? null;           // hasła pokazujemy raz, po przyjęciu
+        unset($_SESSION['nabor_creds'][$id]);
+        $account = $s['client_id'] ? db_one("SELECT login, parent_login, is_minor FROM k30_ti_student_accounts WHERE client_id=?", [(int)$s['client_id']]) : null;
         return Router::view(self::VIEW . 'zgloszenie.php', [
+            'creds' => $creds, 'account' => $account,
             'me' => $this->me(), 's' => $s, 'cons' => naborConsents($id) ?: [], 'hist' => naborHistory($id),
             'courses' => naborCourses(), 'ezdZnak' => $ezdZnak,
         ]);
