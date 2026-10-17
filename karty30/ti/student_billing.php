@@ -198,10 +198,10 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
         <?php if ($balance['credit'] > 0.005): ?>
         <div class="fs-4 fw-bold lh-1 text-success"><?= number_format($balance['credit'], 2, ',', ' ') ?> zł</div>
         <div class="text-body-secondary small mt-1"><i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>Nadpłata</div>
-        <?php elseif ($balance['debt'] > 0.005): ?>
+        <?php endif; ?><?php if ($balance['debt'] > 0.005): ?>
         <div class="fs-4 fw-bold lh-1 text-danger"><?= number_format($balance['debt'], 2, ',', ' ') ?> zł</div>
         <div class="text-body-secondary small mt-1">Niedopłata (do zapłaty)</div>
-        <?php else: ?>
+        <?php endif; ?><?php if ($balance['credit'] <= 0.005 && $balance['debt'] <= 0.005): ?>
         <div class="fs-4 fw-bold lh-1">0,00 zł</div>
         <div class="text-body-secondary small mt-1">Saldo rozliczone</div>
         <?php endif; ?>
@@ -223,7 +223,7 @@ include dirname(dirname(__DIR__)) . '/karty30/includes/header_k30.php';
   <i class="bi bi-piggy-bank-fill" aria-hidden="true"></i>
   <span>Nadpłata <strong><?= number_format($balance['credit'], 2, ',', ' ') ?> zł</strong> — zostanie automatycznie zaliczona na poczet kolejnych zajęć.</span>
 </div>
-<?php elseif ($balance['debt'] > 0.005): ?>
+<?php endif; ?><?php if ($balance['debt'] > 0.005): ?>
 <div class="alert alert-danger d-flex align-items-center gap-2 mb-4" role="status">
   <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
   <span>Niedopłata <strong><?= number_format($balance['debt'], 2, ',', ' ') ?> zł</strong> — kursant ma zaległości.</span>

@@ -135,10 +135,10 @@ unset($_mg);
       <?php if ($rv_bal['credit'] > 0.005): ?>
       <div class="fs-4 fw-bold lh-1 text-success"><?= number_format($rv_bal['credit'], 2, ',', ' ') ?> zł</div>
       <div class="text-body-secondary small mt-1"><i class="bi bi-piggy-bank me-1" aria-hidden="true"></i>Nadpłata (na kolejne zajęcia)</div>
-      <?php elseif ($rv_bal['debt'] > 0.005): ?>
+      <?php endif; ?><?php if ($rv_bal['debt'] > 0.005): ?>
       <div class="fs-4 fw-bold lh-1 text-danger"><?= number_format($rv_bal['debt'], 2, ',', ' ') ?> zł</div>
       <div class="text-body-secondary small mt-1">Do zapłaty</div>
-      <?php else: ?>
+      <?php endif; ?><?php if ($rv_bal['credit'] <= 0.005 && $rv_bal['debt'] <= 0.005): ?>
       <div class="fs-4 fw-bold lh-1">0,00 zł</div>
       <div class="text-body-secondary small mt-1">Saldo rozliczone</div>
       <?php endif; ?>

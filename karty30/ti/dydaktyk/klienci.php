@@ -328,9 +328,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <td class="text-end">
               <?php if ($b['credit'] > 0.005): ?>
                 <span class="text-success fw-semibold">+<?= number_format($b['credit'], 2, ',', ' ') ?> zł</span>
-              <?php elseif ($b['debt'] > 0.005): ?>
+              <?php endif; ?><?php if ($b['debt'] > 0.005): ?>
                 <span class="text-danger fw-semibold">−<?= number_format($b['debt'], 2, ',', ' ') ?> zł</span>
-              <?php else: ?>
+              <?php endif; ?><?php if ($b['credit'] <= 0.005 && $b['debt'] <= 0.005): ?>
                 <span class="text-body-secondary">0,00 zł</span>
               <?php endif; ?>
             </td>

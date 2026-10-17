@@ -1590,8 +1590,8 @@ echo '<main id="main" class="dyd-wrap">';
         <p class="text-body-secondary small mb-3">
           Okres: <strong><?= h($period) ?></strong> · Do zapłaty: <strong><?= number_format($tot,2,',',' ') ?> zł</strong>
           <?php if ($cbal['credit'] > 0.005): ?> · <span class="text-success fw-semibold">nadpłata: <?= number_format($cbal['credit'],2,',',' ') ?> zł</span>
-          <?php elseif ($cbal['debt'] > 0.005): ?> · <span class="text-danger fw-semibold">niedopłata: <?= number_format($cbal['debt'],2,',',' ') ?> zł</span>
-          <?php else: ?> · <span class="text-success">saldo rozliczone</span><?php endif; ?>
+          <?php endif; ?><?php if ($cbal['debt'] > 0.005): ?> · <span class="text-danger fw-semibold">niedopłata: <?= number_format($cbal['debt'],2,',',' ') ?> zł</span>
+          <?php endif; ?><?php if ($cbal['credit'] <= 0.005 && $cbal['debt'] <= 0.005): ?> · <span class="text-success">saldo rozliczone</span><?php endif; ?>
         </p>
 
         <!-- Saldo per grupa (model kombinowany) -->
