@@ -168,6 +168,47 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
   </a>
 </div>
 
+<?php if (dyd_is_staff() && $gr_all_courses): /* ── Masowe akcje na zaznaczonych grupach ── */
+  $gr_bulk_opts = [
+      'close'       => ['Zamknij i zarchiwizuj', 'Archiwizuje grupy i blokuje protokoły oraz wszelkie zmiany. Grupy z przyszłymi lekcjami są pomijane, chyba że zaznaczysz „także z przyszłymi lekcjami”. Odblokowuje tylko „Przywróć z archiwum”.'],
+      'plan_out'    => ['Oznacz: Planowana do wygaszenia', 'Informacja dla kierownika — grupa działa dalej normalnie. Wymaga uzasadnienia. Potem można ją zamknąć przyciskiem „Zamknij „Planowana do wygaszenia”".'],
+      'plan_launch' => ['Oznacz: Planowana do uruchomienia', 'Informacja dla kierownika o planowanym starcie grupy. Wymaga uzasadnienia.'],
+      'plan_clear'  => ['Usuń oznaczenie planu', 'Zdejmuje status „Planowana do wygaszenia / uruchomienia” wraz z uzasadnieniem.'],
+      'deactivate'  => ['Dezaktywuj', 'Grupa znika z list aktywnych (bez archiwizacji i blokady); historia zostaje. Można ją potem aktywować.'],
+      'activate'    => ['Aktywuj', 'Przywraca nieaktywną (niezarchiwizowaną) grupę do list aktywnych.'],
+      'restore'     => ['Przywróć z archiwum', 'Odblokowuje zamkniętą lub zarchiwizowaną grupę i ustawia ją jako aktywną.'],
+  ]; ?>
+<form method="post" action="index.php?tab=kursy" id="gr-bulk" class="card card-body py-2 px-3 mb-3 d-flex flex-row flex-wrap align-items-end gap-2"
+      onsubmit="var n=document.querySelectorAll('input[name=&quot;ids[]&quot;][form=gr-bulk]:checked').length; if(!n){alert('Zaznacz co najmniej jedną grupę.');return false;} var o=this.bulk_action.options[this.bulk_action.selectedIndex]; if(!this.bulk_action.value){alert('Wybierz akcję.');return false;} return confirm(o.text+' — zaznaczonych grup: '+n+'?\n\n'+o.getAttribute('data-desc'));">
+  <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="bulk_groups"><input type="hidden" name="v" value="<?= h($gr_view) ?>">
+  <label class="form-check small mb-1 me-1"><input type="checkbox" class="form-check-input" id="gr-bulk-all"
+    onclick="document.querySelectorAll('input[name=&quot;ids[]&quot;][form=gr-bulk]').forEach(function(x){x.checked=this.checked}.bind(this)); grBulkCount()"> <span class="form-check-label">zaznacz wszystkie</span></label>
+  <span class="small fw-semibold mb-1" id="gr-bulk-n" role="status" aria-live="polite">Zaznaczone: 0</span>
+  <div>
+    <label class="form-label small mb-0" for="gr-bulk-act">Akcja dla zaznaczonych</label>
+    <select class="form-select form-select-sm" id="gr-bulk-act" name="bulk_action" aria-describedby="gr-bulk-desc" onchange="grBulkDesc()">
+      <option value="" data-desc="">— wybierz —</option>
+      <?php foreach ($gr_bulk_opts as $k => $o): ?><option value="<?= $k ?>" data-desc="<?= h($o[1]) ?>"><?= h($o[0]) ?></option><?php endforeach; ?>
+    </select>
+  </div>
+  <div id="gr-bulk-note-wrap" hidden>
+    <label class="form-label small mb-0" for="gr-bulk-note">Uzasadnienie (wymagane)</label>
+    <input type="text" class="form-control form-control-sm" id="gr-bulk-note" name="bulk_note" maxlength="500" style="min-width:16rem">
+  </div>
+  <label class="form-check small mb-1" id="gr-bulk-fut-wrap" hidden><input type="checkbox" class="form-check-input" name="include_future" value="1"> <span class="form-check-label">także z przyszłymi lekcjami</span></label>
+  <button class="btn btn-sm btn-primary mb-0"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>Wykonaj</button>
+  <p class="small text-body-secondary mb-0 w-100" id="gr-bulk-desc">Zaznacz grupy na liście (pole wyboru przy nazwie), wybierz akcję — tu pojawi się jej opis.</p>
+</form>
+<script>
+function grBulkCount(){ var n=document.querySelectorAll('input[name="ids[]"][form=gr-bulk]:checked').length; document.getElementById('gr-bulk-n').textContent='Zaznaczone: '+n; }
+function grBulkDesc(){ var s=document.getElementById('gr-bulk-act'), o=s.options[s.selectedIndex];
+  document.getElementById('gr-bulk-desc').textContent = o.getAttribute('data-desc') || 'Zaznacz grupy na liście (pole wyboru przy nazwie), wybierz akcję — tu pojawi się jej opis.';
+  var needNote = s.value==='plan_out' || s.value==='plan_launch'; document.getElementById('gr-bulk-note-wrap').hidden=!needNote; document.getElementById('gr-bulk-note').required=needNote;
+  document.getElementById('gr-bulk-fut-wrap').hidden = s.value!=='close'; }
+document.addEventListener('change', function(e){ if (e.target.matches('input[name="ids[]"][form=gr-bulk]')) grBulkCount(); });
+</script>
+<?php endif; ?>
+
 <?php if (!$gr_all_courses): ?>
 <div class="card border-0 shadow-sm">
   <div class="dyd-gr-empty">
@@ -184,6 +225,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
       <caption class="visually-hidden">Przegląd grup TI: prowadzący, kursanci, niedopłaty i najbliższa lekcja</caption>
       <thead class="table-light">
         <tr>
+          <?php if (dyd_is_staff()): ?><th scope="col" style="width:2rem"><span class="visually-hidden">Zaznacz</span></th><?php endif; ?>
           <th scope="col">Grupa</th>
           <th scope="col">Rodzaj</th>
           <th scope="col">Prowadzący</th>
@@ -206,6 +248,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
           $nl   = $gr_next_map[$cid] ?? null;
         ?>
         <tr<?= $c['_active'] ? '' : ' class="text-muted"' ?>>
+          <?php if (dyd_is_staff()): ?><td><input type="checkbox" name="ids[]" value="<?= $cid ?>" form="gr-bulk" class="form-check-input" aria-label="Zaznacz grupę <?= h($c['name']) ?>"></td><?php endif; ?>
           <th scope="row" class="fw-semibold">
             <?= h($c['name']) ?>
             <?php if (!empty($c['group_code'])): ?>
@@ -261,13 +304,13 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
           </td>
           <td class="text-end text-nowrap">
             <?php if ($debt > 0): ?>
-            <a href="index.php?course=<?= $cid ?>&tab=rozliczenia" class="btn btn-sm btn-danger py-0 px-2" title="Rozliczenia grupy">
-              <i class="bi bi-receipt" aria-hidden="true"></i><span class="visually-hidden">Rozliczenia grupy</span></a>
+            <a href="index.php?course=<?= $cid ?>&tab=rozliczenia" class="btn btn-sm btn-danger py-0 px-2" title="Rozliczenia grupy — są niedopłaty">
+              <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia<span class="visually-hidden"> grupy <?= h($c['name']) ?></span></a>
             <?php endif; ?>
-            <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Uczestnicy grupy">
-              <i class="bi bi-people" aria-hidden="true"></i><span class="visually-hidden">Uczestnicy</span></a>
-            <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Zarządzaj kursem">
-              <i class="bi bi-arrow-right" aria-hidden="true"></i><span class="visually-hidden">Zarządzaj</span></a>
+            <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Lista uczestników grupy">
+              <i class="bi bi-people me-1" aria-hidden="true"></i>Uczestnicy<span class="visually-hidden"> grupy <?= h($c['name']) ?></span></a>
+            <a href="kurs.php?id=<?= $cid ?>" class="btn btn-sm btn-primary py-0 px-2" title="Ustawienia, lekcje i zapisy grupy">
+              <i class="bi bi-arrow-right me-1" aria-hidden="true"></i>Zarządzaj<span class="visually-hidden"> grupą <?= h($c['name']) ?></span></a>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -290,6 +333,7 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
   $subj  = $c['subject_abbr'] ? h($c['subject_abbr']) : null;
 ?>
 <div class="dyd-gr-card">
+  <?php if (dyd_is_staff()): ?><input type="checkbox" name="ids[]" value="<?= $cid ?>" form="gr-bulk" class="form-check-input flex-shrink-0 mt-0" aria-label="Zaznacz grupę <?= h($c['name']) ?>"><?php endif; ?>
   <div class="dyd-gr-icon" aria-hidden="true"><i class="bi bi-pc-display-horizontal"></i></div>
   <div class="dyd-gr-body">
     <div class="dyd-gr-name"><?= h($c['name']) ?></div>
@@ -345,14 +389,17 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
     <?php if ($debt > 0): ?>
     <a href="index.php?course=<?= $cid ?>&tab=rozliczenia"
        class="btn btn-sm btn-danger py-0 px-2"
-       title="Rozliczenia grupy">
-      <i class="bi bi-receipt" aria-hidden="true"></i>
+       title="Rozliczenia grupy — są niedopłaty">
+      <i class="bi bi-receipt me-1" aria-hidden="true"></i>Rozliczenia
     </a>
     <?php endif; ?>
+    <a href="index.php?course=<?= $cid ?>&tab=uczestnicy" class="btn btn-sm btn-outline-primary py-0 px-2" title="Lista uczestników grupy">
+      <i class="bi bi-people me-1" aria-hidden="true"></i>Uczestnicy
+    </a>
     <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-primary py-0 px-2"
-       title="Zarządzaj kursem">
-      <i class="bi bi-arrow-right" aria-hidden="true"></i>
+       title="Ustawienia, lekcje i zapisy grupy">
+      <i class="bi bi-arrow-right me-1" aria-hidden="true"></i>Zarządzaj
     </a>
   </div>
 </div>
@@ -363,22 +410,14 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
 <?php if ($gr_inactive && $gr_filter === 'all'): ?>
 <div class="dyd-gr-section-head d-flex flex-wrap align-items-center gap-2" aria-label="Sekcja Nieaktywne">
   <span>Nieaktywne / archiwum (<?= count($gr_inactive) ?>)</span>
-  <?php if (dyd_is_staff()): ?>
-  <form method="post" action="index.php?tab=kursy" id="gr-restore" class="d-inline-flex align-items-center gap-2 ms-auto"
-        onsubmit="return confirm('Przywrócić zaznaczone grupy (aktywne i odblokowane)?')">
-    <input type="hidden" name="_token" value="<?= dyd_token() ?>">
-    <input type="hidden" name="_op" value="restore_groups">
-    <label class="form-check small mb-0"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=&quot;ids[]&quot;][form=gr-restore]').forEach(function(x){x.checked=this.checked}.bind(this))"> <span class="form-check-label">zaznacz wszystkie</span></label>
-    <button class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Przywróć zaznaczone</button>
-  </form>
-  <?php endif; ?>
+  <?php if (dyd_is_staff()): ?><span class="small fw-normal text-body-secondary ms-auto">kilka naraz: zaznacz i wybierz „Przywróć z archiwum” w pasku akcji powyżej</span><?php endif; ?>
 </div>
 <?php foreach ($gr_inactive as $c):
   $cid  = (int)$c['id'];
   $debt = $gr_debt_map[$cid] ?? 0;
 ?>
 <div class="dyd-gr-card inactive">
-  <?php if (dyd_is_staff()): ?><input type="checkbox" name="ids[]" value="<?= $cid ?>" form="gr-restore" class="form-check-input flex-shrink-0 mt-0" aria-label="Zaznacz grupę <?= h($c['name']) ?>"><?php endif; ?>
+  <?php if (dyd_is_staff()): ?><input type="checkbox" name="ids[]" value="<?= $cid ?>" form="gr-bulk" class="form-check-input flex-shrink-0 mt-0" aria-label="Zaznacz grupę <?= h($c['name']) ?>"><?php endif; ?>
   <div class="dyd-gr-icon" aria-hidden="true"><i class="bi bi-archive"></i></div>
   <div class="dyd-gr-body">
     <div class="dyd-gr-name"><?= h($c['name']) ?></div>
@@ -410,8 +449,8 @@ $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb
     <?php endif; ?>
     <a href="kurs.php?id=<?= $cid ?>"
        class="btn btn-sm btn-outline-secondary py-0 px-2"
-       title="Zarządzaj kursem">
-      <i class="bi bi-arrow-right" aria-hidden="true"></i>
+       title="Ustawienia i historia grupy">
+      <i class="bi bi-arrow-right me-1" aria-hidden="true"></i>Zarządzaj
     </a>
   </div>
 </div>

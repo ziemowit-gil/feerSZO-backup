@@ -164,6 +164,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ku_can_write) {
         }
         header('Location: index.php?tab=kursy' . (($_GET['v'] ?? '') === 'karty' ? '&v=karty' : '')); exit;
     }
+    // Masowe akcje na zaznaczonych grupach (Przegląd grup → pasek „Zaznaczone”)
+    if ($ku_op === 'bulk_groups' && $ku_can_write) {
+        $act  = (string)($_POST['bulk_action'] ?? '');
+        $ids  = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['ids'] ?? [])))));
+        $who  = (string)($me['name'] ?? '');
+        $note = mb_substr(trim((string)($_POST['bulk_note'] ?? '')), 0, 500);
+        $back = 'Location: index.php?tab=grupy&f=all' . (($_POST['v'] ?? '') === 'tabela' ? '&v=tabela' : '');
+        if (!$ids) { $_SESSION['dyd_flash'] = ['type' => 'warning', 'msg' => 'Nie zaznaczono żadnej grupy.']; header($back); exit; }
+        if (in_array($act, ['plan_out', 'plan_launch'], true) && $note === '') {
+            $_SESSION['dyd_flash'] = ['type' => 'warning', 'msg' => 'Podaj uzasadnienie — status planowania grupy go wymaga.']; header($back); exit;
+        }
+        $n = 0; $skipped = [];
+        foreach ($ids as $cid) {
+            $g = db_one("SELECT id, name, status, is_active, closed_at,
+                                (SELECT COUNT(*) FROM k30_ti_sessions s WHERE s.course_id=c.id AND s.lesson_date>=date('now') AND s.status!='cancelled') AS fut
+                           FROM k30_ti_courses c WHERE id=?", [$cid]);
+            if (!$g) continue;
+            switch ($act) {
+                case 'close':        // archiwizacja + blokada (jak „Zamknij i archiwizuj”)
+                    if (!empty($g['closed_at'])) { $skipped[] = $g['name'] . ' (już zamknięta)'; continue 2; }
+                    if ((int)$g['fut'] > 0 && empty($_POST['include_future'])) { $skipped[] = $g['name'] . ' (' . (int)$g['fut'] . ' przyszłych lekcji)'; continue 2; }
+                    ti_course_close($cid, (int)($uid ?? 0), $who);
+                    break;
+                case 'plan_out':
+                case 'plan_launch':
+                    db()->prepare("UPDATE k30_ti_courses SET plan_status=?, plan_note=? WHERE id=?")->execute([$act === 'plan_out' ? 'to_phase_out' : 'to_launch', $note, $cid]);
+                    ti_course_log($cid, 'update', 'Status planowania: ' . ($act === 'plan_out' ? 'Planowana do wygaszenia' : 'Planowana do uruchomienia') . ' — ' . $note, $uid ?? 0, $who);
+                    break;
+                case 'plan_clear':
+                    db()->prepare("UPDATE k30_ti_courses SET plan_status='', plan_note='' WHERE id=?")->execute([$cid]);
+                    ti_course_log($cid, 'update', 'Usunięto status planowania', $uid ?? 0, $who);
+                    break;
+                case 'deactivate':
+                    if (!empty($g['closed_at'])) { $skipped[] = $g['name'] . ' (zamknięta)'; continue 2; }
+                    db()->prepare("UPDATE k30_ti_courses SET is_active=0 WHERE id=?")->execute([$cid]);
+                    ti_course_log($cid, 'deactivate', '', $uid ?? 0, $who);
+                    break;
+                case 'activate':
+                    if (!empty($g['closed_at']) || in_array((string)$g['status'], ['archived', 'cancelled'], true)) { $skipped[] = $g['name'] . ' (w archiwum — użyj „Przywróć”)'; continue 2; }
+                    db()->prepare("UPDATE k30_ti_courses SET is_active=1 WHERE id=?")->execute([$cid]);
+                    ti_course_log($cid, 'activate', '', $uid ?? 0, $who);
+                    break;
+                case 'restore':
+                    ti_course_reopen($cid);
+                    db()->prepare("UPDATE k30_ti_courses SET status='active', is_active=1 WHERE id=?")->execute([$cid]);
+                    ti_course_log($cid, 'restore', '', $uid ?? 0, $who);
+                    break;
+                default:
+                    $_SESSION['dyd_flash'] = ['type' => 'warning', 'msg' => 'Wybierz akcję.']; header($back); exit;
+            }
+            if (function_exists('audit_log')) audit_log('ti.course_bulk_' . $act, ['course_id' => $cid, 'name' => $g['name'], 'by' => $who], ($uid ?? 0) ?: null);
+            $n++;
+        }
+        $labels = ['close' => 'Zamknięto i zarchiwizowano', 'plan_out' => 'Oznaczono do wygaszenia', 'plan_launch' => 'Oznaczono do uruchomienia',
+                   'plan_clear' => 'Usunięto oznaczenie planu', 'deactivate' => 'Dezaktywowano', 'activate' => 'Aktywowano', 'restore' => 'Przywrócono'];
+        $_SESSION['dyd_flash'] = ['type' => $n ? 'success' : 'warning', 'msg' => ($labels[$act] ?? 'Wykonano') . ' grup: ' . $n . ($skipped ? '. Pominięto: ' . implode('; ', $skipped) : '') . '.'];
+        header($back); exit;
+    }
     // Masowe przywracanie nieaktywnych / zarchiwizowanych / usuniętych (anulowanych) grup
     if ($ku_op === 'restore_groups' && $ku_can_write) {
         $n = 0;
