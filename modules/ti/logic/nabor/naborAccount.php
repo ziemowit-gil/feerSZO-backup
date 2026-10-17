@@ -62,11 +62,11 @@ function naborAccountByToken(string $t): ?array {
 function naborAccountSendSetup(array $acc, ?array $s = null): void {
     require_once __DIR__ . '/naborNotify.php';
     $t = naborAccountIssueToken((int)$acc['id'], 7 * 86400);
-    $url = naborUrl('/haslo', ['t' => $t]);
+    $url = naborLink('/haslo', ['t' => $t]);
     $body = '<p>Dzień dobry,</p><p>założyliśmy dla Ciebie <strong>konto kandydata</strong>' . ($s ? ' (zgłoszenie ' . h($s['registration_number']) . ')' : '') . '. '
           . 'Na koncie zobaczysz status zgłoszeń, wiadomości od organizatora, prośby o dokumenty i — po przyjęciu — potwierdzenie miejsca.</p>'
           . '<p style="text-align:center;margin:24px 0"><a href="' . h($url) . '" style="background:#1d68f2;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Ustaw hasło</a></p>'
-          . '<p style="font-size:13px;color:#5b6472">Login: ' . h($acc['email']) . '. Link jest ważny 7 dni. Adres logowania: ' . h(naborUrl('/logowanie')) . '</p>';
+          . '<p style="font-size:13px;color:#5b6472">Login: ' . h($acc['email']) . '. Link jest ważny 7 dni. Adres logowania: ' . h(naborLink('/logowanie')) . '</p>';
     try {
         mail_queue_add($acc['email'], $acc['name'], 'Konto kandydata — ustaw hasło', naborMailHtml('Konto kandydata', $body), '', 'ti_nabor_account', (int)$acc['id']);
     } catch (\Throwable $e) { error_log('[ti_nabor] mail konta: ' . $e->getMessage()); }
@@ -133,7 +133,7 @@ function naborAccountRequestReset(string $email): void {
     if (!$acc) return;
     require_once __DIR__ . '/naborNotify.php';
     $t = naborAccountIssueToken((int)$acc['id'], 7200);
-    $url = naborUrl('/haslo', ['t' => $t]);
+    $url = naborLink('/haslo', ['t' => $t]);
     $body = '<p>Dzień dobry,</p><p>otrzymaliśmy prośbę o ustawienie nowego hasła do konta kandydata <strong>' . h($acc['email']) . '</strong>.</p>'
           . '<p style="text-align:center;margin:24px 0"><a href="' . h($url) . '" style="background:#1d68f2;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Ustaw nowe hasło</a></p>'
           . '<p style="font-size:13px;color:#5b6472">Link jest ważny 2 godziny. Jeśli to nie Ty — zignoruj wiadomość, hasło się nie zmieni.</p>';
@@ -311,7 +311,7 @@ function naborCandidateNotify(int $sid, string $subject, string $html, string $k
     require_once __DIR__ . '/naborNotify.php';
     $s = naborSubmissionGet($sid);
     if (!$s || !empty($s['is_test'])) return;
-    $url = naborUrl('/konto/zgloszenia/' . $sid);
+    $url = naborLink('/konto/zgloszenia/' . $sid);
     $body = '<p>Dzień dobry,</p><p>' . $html . '</p><p style="text-align:center;margin:24px 0"><a href="' . h($url) . '" style="background:#1d68f2;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Przejdź do konta kandydata</a></p>'
           . '<p style="font-size:13px;color:#5b6472">Zgłoszenie ' . h($s['registration_number']) . ' — ' . h($s['participant_name']) . '</p>';
     try { mail_queue_add($s['guardian_email'], $s['guardian_name'], $subject . ' — ' . $s['registration_number'], naborMailHtml($subject, $body), '', 'ti_nabor', $sid); }
@@ -330,7 +330,7 @@ function naborStaffNotify(int $sid, string $subject, string $text): void {
     require_once __DIR__ . '/naborNotify.php';
     $s = naborSubmissionGet($sid);
     if (!$s) return;
-    $url = rtrim(APP_URL, '/') . NABOR_PANEL_ENTRY . '?' . http_build_query(['_route' => '/zgloszenia/' . $sid]);
+    $url = naborPanelUrl('/zgloszenia/' . $sid);
     $body = '<p>' . nl2br(h($text)) . '</p><p><a href="' . h($url) . '">Otwórz zgłoszenie ' . h($s['registration_number']) . ' w panelu dydaktyka</a></p>';
     try { mail_queue_add($to, 'Nabór TI', $subject . ' — ' . $s['registration_number'], naborMailHtml($subject, $body), '', 'ti_nabor', $sid); }
     catch (\Throwable $e) { error_log('[ti_nabor] powiadomienie kierownika: ' . $e->getMessage()); }

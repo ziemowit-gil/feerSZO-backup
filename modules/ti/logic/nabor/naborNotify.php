@@ -23,7 +23,7 @@ function naborMailHtml(string $title, string $body): string {
 
 function naborNotifyConfirmEmail(?array $s, string $token): void {
     if (!$s) return;
-    $url = naborUrl('/potwierdz', ['t' => $token]);
+    $url = naborLink('/potwierdz', ['t' => $token]);
     $body = '<p>Dzień dobry,</p><p>otrzymaliśmy zgłoszenie <strong>' . h($s['participant_name']) . '</strong> na zajęcia '
           . '(numer <strong>' . h($s['registration_number']) . '</strong>).</p>'
           . '<p><strong>Aby zgłoszenie trafiło do rozpatrzenia, potwierdź adres e-mail w ciągu ' . NABOR_CONFIRM_HOURS . ' godzin:</strong></p>'

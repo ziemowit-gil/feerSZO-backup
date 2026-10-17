@@ -104,5 +104,5 @@ naborHistoryNote($res['id'], 'Zgłoszenie przykładowe utworzone z CLI (cli/seed
 $s = naborConfirmSubmission($res['id'], 'Zgłoszenie przykładowe — wprowadzone do obiegu z CLI');
 echo "\nUtworzono {$res['registration_number']} (#{$res['id']}) — status: " . naborStatusLabel((string)($s['status'] ?? '?'))
    . ($s['ezd_case_id'] ?? null ? ', EZD #' . $s['ezd_case_id'] : '') . ($s['crm_contact_id'] ?? null ? ', CRM #' . $s['crm_contact_id'] : '') . "\n";
-echo "Panel: " . rtrim(APP_URL, '/') . NABOR_PANEL_ENTRY . '?_route=/zgloszenia/' . $res['id'] . "\n";
-echo "Konto kandydata: " . naborUrl('/logowanie') . "\n";
+echo "Panel: " . naborPanelUrl('/zgloszenia/' . $res['id']) . "\n";
+echo "Konto kandydata: " . naborLink('/logowanie') . "\n";

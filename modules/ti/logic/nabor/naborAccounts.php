@@ -80,7 +80,7 @@ function naborSendAccounts(array $s, array $acc): string {
     if (!$acc['child'] && !$acc['parent']) return '';
     require_once __DIR__ . '/naborNotify.php';
     require_once dirname(__DIR__, 4) . '/includes/sms.php';
-    $base = rtrim(APP_URL, '/') . '/karty30/ti/kursant/';
+    $base = naborBaseUrl() . '/karty30/ti/kursant/';
     $log  = [];
 
     $sms = [];

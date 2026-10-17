@@ -34,7 +34,12 @@ final class Router
     private string $csrfFieldName = '_csrf';
     private string $prefix = '';
 
-    public function __construct(private string $entry, private string $mode = 'path')
+    /**
+     * $entry — plik wejścia (np. '/modules/ti/router.php'); $mode — 'path' albo 'query';
+     * $publicBase — dla czystych adresów z .htaccess (np. '' przy regule ^nabor(/.*)?$): adresy tras budowane jako
+     * ścieżki od korzenia bieżącego hosta ('/nabor/zapisy'), bez pliku wejścia i bez APP_URL. null = zwykłe adresy.
+     */
+    public function __construct(private string $entry, private string $mode = 'path', private ?string $publicBase = null)
     {
         self::$current = $this;
         $this->csrfCheck = fn() => csrf_check();
@@ -110,6 +115,9 @@ final class Router
     public function url(string $path = '/', array $query = []): string
     {
         $path = '/' . ltrim($path, '/');
+        if ($this->publicBase !== null) {
+            return rtrim($this->publicBase, '/') . $path . ($query ? '?' . http_build_query($query) : '');
+        }
         $base = rtrim(APP_URL, '/') . $this->entry;
         if ($this->mode === 'query') {
             return $base . '?' . http_build_query(($path === '/' ? [] : ['_route' => $path]) + $query);

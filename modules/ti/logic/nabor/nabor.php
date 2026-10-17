@@ -713,9 +713,29 @@ function phoneDigits48(string $v): string {
     return strlen($p) === 9 ? '48' . $p : $p;
 }
 
-/** Publiczny adres naboru poza kontekstem routera (e-maile, panel): naborUrl('/potwierdz') → …/router.php/nabor/potwierdz. */
+/**
+ * Publiczny adres naboru w linkach (e-maile, SMS, CLI): ustawienie ti_nabor_base_url, domyślnie https://kursant.feer.org.pl.
+ * Nie APP_URL — w CLI (seeder, cron) to localhost, a linki dla rodziców mają prowadzić na stronę kursanta.
+ */
+function naborBaseUrl(): string {
+    $b = trim(org_setting('ti_nabor_base_url'));
+    return rtrim($b !== '' ? $b : 'https://kursant.feer.org.pl', '/');
+}
+
+/** Adres strony naboru na BIEŻĄCYM hoście (linki i formularze na stronach): naborUrl('/konto') → /nabor/konto (.htaccess ^nabor(/.*)?$). */
 function naborUrl(string $path = '/', array $q = []): string {
-    return rtrim(APP_URL, '/') . NABOR_ENTRY . '/nabor/' . ltrim($path, '/') . ($q ? '?' . http_build_query($q) : '');
+    $path = trim($path, '/');
+    return '/nabor' . ($path !== '' ? '/' . $path : '') . ($q ? '?' . http_build_query($q) : '');
+}
+
+/** Pełny adres do e-maili, SMS i CLI: naborLink('/potwierdz') → https://kursant.feer.org.pl/nabor/potwierdz. */
+function naborLink(string $path = '/', array $q = []): string {
+    return naborBaseUrl() . naborUrl($path, $q);
+}
+
+/** Panel kierownika (panel dydaktyka) dla linków w e-mailach i CLI. */
+function naborPanelUrl(string $route = '/'): string {
+    return naborBaseUrl() . NABOR_PANEL_ENTRY . ($route !== '/' ? '?' . http_build_query(['_route' => $route]) : '');
 }
 
 function naborEzdUrl(?int $caseId): ?string {

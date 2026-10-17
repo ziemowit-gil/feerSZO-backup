@@ -34,11 +34,13 @@ $ec    = (int)($_GET['e'] ?? 0);
 $error = $ERR[$ec] ?? null;
 
 // ── Aktywna zakładka i krok ───────────────────────────────────────────────────
-$tab   = in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up'], true) ? $_GET['tab'] : 'kursant';
-$krok1 = !in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up'], true);
+$tab   = in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up','kandydat'], true) ? $_GET['tab'] : 'kursant';
+$krok1 = !in_array($_GET['tab'] ?? '', ['kursant','dydaktyk','rodzic','up','kandydat'], true);
 
 // ── Prefill pól po błędzie ────────────────────────────────────────────────────
 $prefill_login = h($_GET['l'] ?? '');
+// Token CSRF dla formularza kandydata (/nabor/logowanie) — sesja musi wystartować przed wysłaniem HTML
+$_kd_csrf = $tab === 'kandydat' ? csrf_token() : '';
 $prefill_email = h($_GET['m'] ?? '');
 
 // ── Microsoft 365 dla prowadzącego ────────────────────────────────────────────
@@ -58,6 +60,7 @@ $_side = [
     'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Mam pocztę w domenie fundacji” — zalogujesz się kontem Microsoft 365.', 'Nie masz poczty w domenie fundacji? Wybierz „Mam prywatny e-mail” i wpisz e-mail oraz hasło.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login opiekuna nadany w placówce.', 'Wpisz hasło. Nie masz hasła? Zaloguj się kodem SMS.'],
     'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło nadane przez kursanta.'],
+    'kandydat' => ['Wybierz „Kandydat”.', 'Wpisz e-mail podany w zgłoszeniu.', 'Wpisz hasło ustawione z linku w e-mailu. Nie masz hasła? Wybierz „Nie pamiętam hasła”.'],
 ];
 $_side_steps = $krok1 ? $_side['kursant'] : $_side[$tab];
 
@@ -66,12 +69,14 @@ $_titles = [
     'dydaktyk' => 'Panel prowadzącego',
     'rodzic'   => 'Panel rodzica',
     'up'       => 'Dostęp upoważnionego',
+    'kandydat' => 'Konto kandydata',
 ];
 $_tabs = [
     'kursant'  => ['label' => 'Kursant',     'icon' => 'bi-pc-display',   'who' => 'Uczestnik zajęć',                  'kolor' => '#0f6fa8'],
     'dydaktyk' => ['label' => 'Prowadzący',  'icon' => 'bi-easel2',       'who' => 'Prowadzę zajęcia',                 'kolor' => '#1d1d1d'],
     'rodzic'   => ['label' => 'Rodzic',      'icon' => 'bi-people',       'who' => 'Opiekun kursanta',                 'kolor' => '#00a300'],
     'up'       => ['label' => 'Upoważniony', 'icon' => 'bi-person-check', 'who' => 'Osoba upoważniona przez kursanta', 'kolor' => '#7e3878'],
+    'kandydat' => ['label' => 'Kandydat',    'icon' => 'bi-person-badge', 'who' => 'Rodzic / opiekun ze zgłoszeniem z naboru', 'kolor' => '#164eb6'],
 ];
 // Krok 1 z podziałem wg roli (kto) i funkcji (co robi): każdy kafel to rola ($tab) + funkcja (fn),
 // która podpowiada login (kursant) albo tryb pracy po zalogowaniu (prowadzący/konsultant → choose_mode.php).
@@ -193,7 +198,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
         </div>
         <?php endif; ?>
         <div class="col-6 col-sm-4" role="listitem">
-          <a class="tz-tile" href="/nabor/logowanie" style="background:#164eb6">
+          <a class="tz-tile" href="login.php?tab=kandydat" style="background:#164eb6">
             <i class="bi bi-person-badge fs-4" aria-hidden="true"></i>
             <span class="d-block fw-semibold mt-1">Konto kandydata</span>
             <span class="d-block small">Status zgłoszeń, wiadomości, dokumenty</span>
@@ -242,6 +247,28 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
       <?php if (k30_pfron_enabled()): ?>
       <a href="kursant/pfron.php" class="tz-btn tz-btn-ghost mt-3">Rozliczenia PFRON (Aktywny Samorząd)</a>
       <?php endif; ?>
+
+      <?php elseif ($tab === 'kandydat'): ?>
+      <?php /* Konto kandydata (nabór do grup, modules/ti) — formularz wysyła do /nabor/logowanie (ta sama sesja SZO, CSRF _csrf) */ ?>
+      <form method="post" action="/nabor/logowanie" autocomplete="on">
+        <input type="hidden" name="_csrf" value="<?= h($_kd_csrf) ?>"><input type="hidden" name="next" value="/konto">
+        <div class="mb-3">
+          <label for="kd-email">E-mail</label>
+          <input type="email" class="form-control form-control-lg" id="kd-email" name="email" required autofocus autocomplete="username">
+        </div>
+        <div class="mb-4">
+          <label for="kd-password">Hasło</label>
+          <div class="pass-wrap">
+            <input type="password" class="form-control form-control-lg" id="kd-password" name="password" required autocomplete="current-password">
+            <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" onclick="tzPokaz('kd-password', this)">
+              <i class="bi bi-eye" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="tz-btn">Zaloguj się</button>
+      </form>
+      <p class="tz-hint"><a href="/nabor/przypomnij">Nie pamiętam hasła / nie mam hasła</a></p>
+      <p class="tz-hint">Konto kandydata powstaje po potwierdzeniu pierwszego zgłoszenia.<?= org_setting('ti_nabor_enabled') === '1' ? ' <a href="/nabor">Złóż zgłoszenie na zajęcia</a>.' : '' ?></p>
 
       <?php elseif ($tab === 'dydaktyk'): ?>
       <?php if (!$dyd_haslo): ?>

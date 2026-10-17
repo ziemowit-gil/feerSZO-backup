@@ -20,7 +20,7 @@ $panel = defined('TI_ROUTER_PANEL');
 if (!$panel) {
     require_once __DIR__ . '/logic/nabor/NaborPublicController.php';
     require_once __DIR__ . '/logic/nabor/NaborCandidateController.php';
-    $r = new Router(NABOR_ENTRY);
+    $r = new Router(NABOR_ENTRY, 'path', '');   // czyste adresy /nabor/… (.htaccess ^nabor(/.*)?$ → ten plik)
     // Konto kandydata (IRK): niezalogowany → logowanie z powrotem na żądaną stronę
     $r->aliasMiddleware('cand', function () {
         if (!naborAccountCurrent()) {
