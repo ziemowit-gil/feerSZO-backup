@@ -66,6 +66,9 @@ function naborMigrate(): void {
         created_at                      DATETIME NOT NULL DEFAULT (datetime('now')),
         updated_at                      DATETIME NOT NULL DEFAULT (datetime('now'))
     )");
+    $have = array_column($pdo->query("PRAGMA table_info(ti_nabor_submissions)")->fetchAll(), 'name');
+    // Zgłoszenie testowe z panelu: bez SMS/e-maili, EZD, CRM i zapisu do grupy
+    if (!in_array('is_test', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_status ON ti_nabor_submissions(status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_course ON ti_nabor_submissions(course_id, status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_token ON ti_nabor_submissions(email_token_hash)");

@@ -44,6 +44,7 @@ if (!$panel) {
         $r->post('/zgloszenia/masowo',   [NaborPanelController::class, 'bulk'])->name('nabor.bulk');
         $r->post('/zgloszenia/przenies', [NaborPanelController::class, 'move'])->name('nabor.move');
         $r->post('/przelacz',            [NaborPanelController::class, 'toggleOpen'])->name('nabor.toggle');
+        $r->post('/zgloszenia/testowe',  [NaborPanelController::class, 'createTest'])->name('nabor.test');
         $r->get('/zgloszenia/{id}',      [NaborPanelController::class, 'show'])->name('nabor.show');
         $r->post('/zgloszenia/{id}',     [NaborPanelController::class, 'update'])->name('nabor.update');
         $r->get('/zgloszenia/{id}/pdf',  [NaborPanelController::class, 'pdf'])->name('nabor.pdf');

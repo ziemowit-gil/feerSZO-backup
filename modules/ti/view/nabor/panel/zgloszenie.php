@@ -19,22 +19,25 @@ include __DIR__ . '/_head.php';
 ?>
 <nav aria-label="breadcrumb"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="<?= h(route('nabor.index')) ?>">Nabór do grup</a></li><li class="breadcrumb-item active"><?= h($s['registration_number']) ?></li></ol></nav>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h4 class="mb-0"><?= h($s['participant_name']) ?> <small class="text-muted"><?= h($s['registration_number']) ?></small> <?= naborStatusBadge($s['status']) ?></h4>
+  <h4 class="mb-0"><?= h($s['participant_name']) ?> <small class="text-muted"><?= h($s['registration_number']) ?></small> <?= naborStatusBadge($s['status']) ?><?= $s['is_test'] ? ' <span class="badge text-bg-warning">TEST</span>' : '' ?></h4>
   <div class="d-flex gap-2">
     <a class="btn btn-sm btn-outline-secondary" href="<?= h(route('nabor.pdf', ['id' => $id])) ?>" target="_blank"><i class="bi bi-filetype-pdf"></i> PDF zgłoszenia</a>
     <?php if ($s['ezd_case_id']): ?>
       <a class="btn btn-sm btn-outline-danger" href="<?= h(naborEzdUrl((int)$s['ezd_case_id'])) ?>"><i class="bi bi-folder2-open"></i> Sprawa EZD <?= h($ezdZnak ?? '') ?></a>
-    <?php elseif ($s['status'] !== 'unconfirmed'): ?>
+    <?php elseif ($s['status'] !== 'unconfirmed' && !$s['is_test']): ?>
       <form method="post" action="<?= $upd ?>"><?= Router::csrfField() ?><input type="hidden" name="_op" value="ezd"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-folder-plus"></i> Zarejestruj w EZD</button></form>
     <?php endif; ?>
     <?php if ($s['crm_contact_id']): ?>
       <a class="btn btn-sm btn-outline-primary" href="<?= h(rtrim(APP_URL, '/') . '/crm/contact/view.php?id=' . (int)$s['crm_contact_id']) ?>"><i class="bi bi-person-lines-fill"></i> Kontakt CRM</a>
-    <?php elseif ($s['status'] !== 'unconfirmed'): ?>
+    <?php elseif ($s['status'] !== 'unconfirmed' && !$s['is_test']): ?>
       <form method="post" action="<?= $upd ?>"><?= Router::csrfField() ?><input type="hidden" name="_op" value="crm"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-person-plus"></i> Dodaj do CRM</button></form>
     <?php endif; ?>
   </div>
 </div>
 <?= flash_html() ?>
+<?php if ($s['is_test']): ?>
+  <div class="alert alert-warning small">Zgłoszenie testowe: zmiany statusu działają jak zwykle, ale bez SMS/e-maili, EZD i CRM, a „Przyjęte” nie zakłada uczestnika ani zapisu do grupy.</div>
+<?php endif; ?>
 <?php if ($s['status'] === 'unconfirmed'): ?>
   <div class="alert alert-secondary small">Opiekun nie potwierdził jeszcze adresu e-mail. Zgłoszenie wygaśnie po <?= NABOR_CONFIRM_HOURS ?> godz. od złożenia (<?= h($s['created_at']) ?> UTC).</div>
 <?php endif; ?>

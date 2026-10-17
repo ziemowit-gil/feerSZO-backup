@@ -35,6 +35,7 @@ final class NaborEzdService
         $s = naborSubmissionGet($submissionId);
         if (!$s) throw new RuntimeException('Zgłoszenie nie istnieje.');
         if ($s['ezd_case_id']) return (int)$s['ezd_case_id'];
+        if (!empty($s['is_test'])) throw new RuntimeException('Zgłoszenie testowe nie jest rejestrowane w EZD.');
         $uid = $this->systemUserId();
 
         $existing = ezd_sprawy_by_ref(self::REF_TYPE, $submissionId);

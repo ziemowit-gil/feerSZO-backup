@@ -62,6 +62,15 @@ final class NaborPanelController
         }
     }
 
+    /** Przycisk „Utwórz zgłoszenie testowe”. */
+    public function createTest(): ?string
+    {
+        $me = $this->me();
+        $id = naborCreateTest($me['id'], $me['name']);
+        flash_set('success', 'Utworzono zgłoszenie testowe (bez SMS/e-maili, EZD i CRM).');
+        return Router::redirect(route('nabor.show', ['id' => $id]));
+    }
+
     public function toggleOpen(): ?string
     {
         $open = !naborPublicOpen();

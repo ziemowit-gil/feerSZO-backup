@@ -419,7 +419,9 @@ function naborChangeStatus(int $sid, string $to, int $userId, string $comment = 
     try {
         db_exec("UPDATE ti_nabor_submissions SET status=?, updated_at=datetime('now') WHERE id=?", [$to, $sid]);
         naborHistoryAdd($sid, $userId, $s['status'], $to, $comment, $userName);
-        if ($to === 'accepted') {
+        if (!empty($s['is_test'])) {
+            if ($to === 'accepted') naborHistoryNote($sid, 'Zgłoszenie testowe — bez zakładania uczestnika i zapisu do grupy.', $userId, $userName);
+        } elseif ($to === 'accepted') {
             $cid = naborEnroll($sid, $userId, $userName);
             naborHistoryNote($sid, 'Uczestnik TI #' . $cid . ' zapisany do grupy.', $userId, $userName);
         } elseif ($s['status'] === 'accepted') {
@@ -432,6 +434,7 @@ function naborChangeStatus(int $sid, string $to, int $userId, string $comment = 
         throw $e;
     }
 
+    if (!empty($s['is_test'])) return true;          // test: bez CRM i powiadomień
     require_once __DIR__ . '/naborCrm.php';
     naborCrmSync($sid, 'Status: ' . naborStatusLabel($s['status']) . ' → ' . naborStatusLabel($to) . ($comment !== '' ? ' — ' . $comment : ''));
     if ($notify) {
@@ -449,6 +452,56 @@ function naborAssignCourse(int $sid, ?int $courseId, int $userId, string $userNa
     $c = $courseId ? naborCourseGet($courseId) : null;
     db_exec("UPDATE ti_nabor_submissions SET course_id=?, updated_at=datetime('now') WHERE id=?", [$c ? (int)$c['id'] : null, $sid]);
     naborHistoryNote($sid, 'Przypisano do grupy: ' . ($c['title'] ?? '— brak —'), $userId, $userName);
+}
+
+/**
+ * Zgłoszenie testowe z panelu (przycisk „Utwórz zgłoszenie testowe”): status „new” od razu, dane fikcyjne,
+ * znacznik is_test. Bez SMS/e-maili, EZD, CRM; przyjęcie nie zakłada uczestnika ani zapisu do grupy. Zwraca id.
+ */
+function naborCreateTest(int $userId, string $userName = ''): int {
+    naborMigrate();
+    $open = array_values(array_filter(naborCourses(), fn($c) => $c['is_open']));
+    $c    = $open ? $open[array_rand($open)] : null;
+    $n    = random_int(100, 999);
+    $kids = ['Ola', 'Kuba', 'Zosia', 'Antek', 'Hania', 'Staś', 'Lena', 'Franek'];
+    $pdo  = db();
+    $pdo->beginTransaction();
+    try {
+        $nr = naborNextRegistrationNumber();
+        $id = db_insert('ti_nabor_submissions', [
+            'registration_number'             => $nr,
+            'course_id'                       => $c ? (int)$c['id'] : null,
+            'status'                          => $c ? 'new' : 'custom_schedule',
+            'is_test'                         => 1,
+            'is_custom_schedule'              => $c ? 0 : 1,
+            'preferred_days'                  => json_encode($c ? [] : ['wt', 'cz']),
+            'preferred_time_slots'            => json_encode($c ? [] : ['popoludnie']),
+            'notes_availability'              => $c ? '' : 'Zgłoszenie testowe — dowolne popołudnie.',
+            'participant_name'                => '[TEST] ' . $kids[array_rand($kids)] . ' Testowy ' . $n,
+            'participant_birth_date_or_pesel' => date('Y-m-d', strtotime('-' . random_int(8, 15) . ' years')),
+            'participant_school_class'        => 'SP ' . random_int(1, 50) . ', kl. ' . random_int(1, 8) . 'a',
+            'participant_medical_notes'       => 'Dane testowe.',
+            'guardian_name'                   => '[TEST] Opiekun Testowy ' . $n,
+            'guardian_phone'                  => '48000000' . $n,
+            'guardian_email'                  => 'test' . $n . '@example.invalid',
+            'guardian_street'                 => 'Testowa ' . $n,
+            'guardian_postal_code'            => '00-000',
+            'guardian_city'                   => 'Testowo',
+            'pickup_type'                     => 'guardians_only',
+            'payment_method'                  => $c ? 'transfer' : '',
+            'phone_verified_at'               => date('Y-m-d H:i:s'),
+            'email_confirmed_at'              => gmdate('Y-m-d H:i:s'),
+            'ip_address'                      => naborClientIp(),
+        ]);
+        db_insert('ti_nabor_consents', ['submission_id' => $id, 'ip_address' => naborClientIp(), 'user_agent' => 'zgłoszenie testowe z panelu',
+                                        'terms_accepted' => 1, 'gdpr_accepted' => 1]);
+        naborHistoryAdd($id, $userId, '', $c ? 'new' : 'custom_schedule', 'Zgłoszenie testowe utworzone w panelu (bez SMS/e-maili, EZD i CRM).', $userName);
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    return $id;
 }
 
 /** Masowa zmiana statusu. Zwraca ['changed'=>n, 'errors'=>[...]]. */
@@ -487,7 +540,7 @@ function naborSubmissionsList(array $f = []): array {
     $ezd = (bool)db_one("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ezd_sprawy'");
     return db_all(
         "SELECT s.id, s.registration_number, s.status, s.participant_name, s.participant_school_class, s.guardian_name,
-                s.guardian_phone, s.guardian_email, s.is_custom_schedule, s.ezd_case_id, s.created_at, s.course_id,
+                s.guardian_phone, s.guardian_email, s.is_custom_schedule, s.ezd_case_id, s.created_at, s.course_id, s.is_test,
                 COALESCE(NULLIF(n.public_name,''), NULLIF(c.display_name,''), c.name) AS course_name, " . ($ezd ? 'e.znak_sprawy' : 'NULL AS znak_sprawy') . "
            FROM ti_nabor_submissions s
       LEFT JOIN k30_ti_courses c ON c.id=s.course_id

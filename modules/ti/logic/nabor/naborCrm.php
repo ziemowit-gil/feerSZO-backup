@@ -31,7 +31,7 @@ function naborCrmSync(int $sid, string $event): int {
         require_once dirname(__DIR__, 4) . '/includes/crm.php';
         crm_migrate();
         $s = naborSubmissionGet($sid);
-        if (!$s) return 0;
+        if (!$s || !empty($s['is_test'])) return 0;
 
         $cid = (int)($s['crm_contact_id'] ?? 0);
         if ($cid && !db_one("SELECT id FROM crm_contacts WHERE id=? AND crm_active=1", [$cid])) $cid = 0;

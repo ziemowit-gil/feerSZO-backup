@@ -5,7 +5,7 @@
  */
 $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $kanbanData = array_map(fn($r) => [
-    'id' => (int)$r['id'], 'nr' => $r['registration_number'], 'status' => $r['status'], 'name' => $r['participant_name'],
+    'id' => (int)$r['id'], 'test' => (bool)$r['is_test'], 'nr' => $r['registration_number'], 'status' => $r['status'], 'name' => $r['participant_name'],
     'course' => $r['is_custom_schedule'] ? 'Termin do ustalenia' : (string)$r['course_name'], 'ezd' => $r['znak_sprawy'],
 ], $rows);
 $publicUrl = naborUrl('/zapisy');
@@ -18,6 +18,8 @@ include __DIR__ . '/_head.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h4 class="mb-0"><i class="bi bi-person-plus text-primary"></i> Nabór do grup — zgłoszenia</h4>
   <div class="d-flex gap-2 flex-wrap">
+    <form method="post" action="<?= h(route('nabor.test')) ?>" class="d-inline"><?= Router::csrfField() ?>
+      <button class="btn btn-sm btn-outline-warning" title="Fikcyjne dane, bez SMS/e-maili, EZD i CRM; przyjęcie nie zapisuje do grupy"><i class="bi bi-bug"></i> Utwórz zgłoszenie testowe</button></form>
     <form method="post" action="<?= h(route('nabor.toggle')) ?>" class="d-inline"><?= Router::csrfField() ?><?= $back() ?>
       <button class="btn btn-sm <?= naborPublicOpen() ? 'btn-success' : 'btn-outline-secondary' ?>" title="Przełącz dostępność formularza">
         <i class="bi bi-<?= naborPublicOpen() ? 'unlock' : 'lock' ?>"></i> Formularz <?= naborPublicOpen() ? 'otwarty' : 'zamknięty' ?></button></form>
@@ -66,7 +68,7 @@ include __DIR__ . '/_head.php';
       <template x-for="i in items.filter(i => i.status === '<?= $col ?>')" :key="i.id">
         <article class="tw-bg-white tw-rounded-lg tw-p-2 tw-mb-2 tw-shadow-sm tw-cursor-grab" draggable="true" @dragstart="drag = i">
           <a :href="showUrl.replace(/\/0$/, '/' + i.id)" class="tw-font-semibold tw-no-underline" x-text="i.name"></a>
-          <div class="small text-muted" x-text="i.nr"></div>
+          <div class="small text-muted"><span x-text="i.nr"></span> <span class="badge text-bg-warning" x-show="i.test">TEST</span></div>
           <div class="small" x-text="i.course"></div>
           <div class="small text-danger" x-show="i.ezd" x-text="'EZD: ' + i.ezd"></div>
           <label class="visually-hidden" :for="'mv' + i.id">Przenieś</label>
@@ -121,7 +123,7 @@ function naborKanban(init) {
     <?php foreach ($rows as $r): ?>
       <tr>
         <td><input type="checkbox" class="form-check-input zp-row" name="ids[]" value="<?= (int)$r['id'] ?>" x-model="sel" aria-label="Zaznacz <?= h($r['registration_number']) ?>"></td>
-        <td><a href="<?= h(route('nabor.show', ['id' => (int)$r['id']])) ?>"><?= h($r['registration_number']) ?></a></td>
+        <td><a href="<?= h(route('nabor.show', ['id' => (int)$r['id']])) ?>"><?= h($r['registration_number']) ?></a><?= $r['is_test'] ? ' <span class="badge text-bg-warning">TEST</span>' : '' ?></td>
         <td><?= h($r['participant_name']) ?><?= $r['participant_school_class'] !== '' ? '<div class="small text-muted">' . h($r['participant_school_class']) . '</div>' : '' ?></td>
         <td><?= $r['is_custom_schedule'] && !$r['course_id'] ? '<span class="text-warning-emphasis">Termin do ustalenia</span>' : h((string)$r['course_name']) ?></td>
         <td><?= h($r['guardian_name']) ?><div class="small text-muted"><?= h($r['guardian_email']) ?> · +<?= h($r['guardian_phone']) ?></div></td>
