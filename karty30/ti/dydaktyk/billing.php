@@ -374,8 +374,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             db()->prepare("UPDATE k30_ti_billing SET adjustment=?, adjustment_note=?, adjustment_by_name=?, adjustment_at=datetime('now') WHERE id=?")
                ->execute([$adj, abs($adj) > 0.005 ? $note : '', $dyd_name, $bid]);
             ti_billing_recompute((int)$b0['client_id']);
+            $_mailed = false;
+            if (!empty($_POST['notify_mail']) && abs($adj - (float)$b0['adjustment']) > 0.005) {
+                // Tekstowy e-mail do kursanta (małoletni: opiekun) — ręczna korekta + powód
+                require_once dirname(__DIR__, 3) . '/modules/ti_subaccount/logic/subaccountManager.php';
+                $_old = round((float)$b0['amount'] + (float)$b0['adjustment'], 2);
+                $_mailed = tiSubCorrectionMail((int)$b0['client_id'], [[
+                    'label'  => tiSubCourseName((int)($b0['course_id'] ?? 0)) . ', ' . tiSubMonthLabel((int)$b0['month'], (int)$b0['year']),
+                    'old'    => $_old, 'new' => round((float)$b0['amount'] + $adj, 2),
+                    'reason' => abs($adj) > 0.005 ? $note : 'usunięcie wcześniejszej korekty' . ($b0['adjustment_note'] ? ' („' . $b0['adjustment_note'] . '”)' : ''),
+                ]]);
+            }
             flash_set('success', abs($adj) <= 0.005 ? 'Korekta usunięta.' : 'Korekta zapisana ('
-                . ($adj > 0 ? '+' : '−') . number_format(abs($adj), 2, ',', ' ') . ' zł, uzasadnienie: ' . $note . ').');
+                . ($adj > 0 ? '+' : '−') . number_format(abs($adj), 2, ',', ' ') . ' zł, uzasadnienie: ' . $note . ').'
+                . ($_mailed ? ' Kursant dostał e-mail o korekcie.' : (!empty($_POST['notify_mail']) ? ' E-maila nie wysłano (brak adresu albo kwota bez zmian).' : '')));
         }
         header('Location: billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'')); exit;
     }
@@ -964,7 +976,8 @@ echo '<main id="main" class="dyd-wrap">';
       <tbody>
         <?php foreach ($debtors as $d): ?>
         <tr>
-          <td class="fw-semibold"><?= h($d['client_name']) ?></td>
+          <td class="fw-semibold"><?= h($d['client_name']) ?>
+            <a href="subkonto.php?client=<?= (int)$d['client_id'] ?>" class="ms-1 small fw-normal" title="Wpłata na subkonto kursanta / wyciąg">subkonto</a></td>
           <td><?= number_format((float)$d['charges'],2,',',' ') ?> zł</td>
           <td><?= number_format((float)$d['paid'],2,',',' ') ?> zł</td>
           <td class="fw-bold text-danger"><?= number_format((float)$d['debt'],2,',',' ') ?> zł</td>
@@ -1779,6 +1792,8 @@ echo '<main id="main" class="dyd-wrap">';
             </div>
             <div class="col-12 d-flex align-items-center gap-2">
               <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz korektę</button>
+              <label class="form-check small mb-0"><input type="checkbox" name="notify_mail" value="1" class="form-check-input" checked>
+                <span class="form-check-label">wyślij kursantowi e-mail o korekcie z uzasadnieniem</span></label>
               <span class="form-text mb-0">Wpisz 0, aby usunąć korektę. Korekta wymaga uzasadnienia.<?php if (($b['adjustment_by_name'] ?? '') !== ''): ?>
                 Ostatnio: <?= h($b['adjustment_by_name']) ?><?= !empty($b['adjustment_at']) ? ', ' . h(date('d.m.Y H:i', strtotime((string)$b['adjustment_at']))) : '' ?>.<?php endif; ?></span>
             </div>
