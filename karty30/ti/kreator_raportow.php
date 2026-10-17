@@ -73,7 +73,11 @@ $zal_rows = []; $zal_total_due = 0; $zal_total_paid = 0; $zal_total_debt = 0;
 
 if ($report === 'zaleglosci' || $export) {
     $zal_params = [$from_key, $to_key];
-    $zal_where  = "b.status IN ('issued','paid') AND (b.year*100 + b.month) BETWEEN ? AND ?";
+    $zal_where  = "b.status IN ('issued','paid') AND COALESCE(b.hours_only,0)=0 AND (b.year*100 + b.month) BETWEEN ? AND ?";
+    require_once dirname(__DIR__, 2) . '/includes/ti_payments.php';
+    foreach (db_all("SELECT DISTINCT client_id FROM k30_ti_billing WHERE status IN ('issued','paid') AND (year*100 + month) BETWEEN ? AND ?", [$from_key, $to_key]) as $_rc) {
+        ti_billing_recompute((int)$_rc['client_id']);   // paid_amount z aktualnej alokacji
+    }
     if ($course_id > 0) { $zal_where .= " AND b.course_id=?"; $zal_params[] = $course_id; }
 
     $zal_raw = db_all(
@@ -125,22 +129,19 @@ if ($report === 'zaleglosci' || $export) {
 $nad_rows = []; $nad_total_charge = 0; $nad_total_paid = 0; $nad_total_credit = 0;
 
 if ($report === 'nadplaty' || $export) {
-    // Nadpłata = globalne saldo (niezależne od okresu — FIFO alokacja jest globalna)
-    $nad_raw = db_all(
-        "SELECT cl.id AS client_id, cl.name AS klient, cl.email,
-                ROUND(COALESCE(p.total_paid,0), 2) AS zaplacono,
-                ROUND(COALESCE(ch.total_due,0), 2) AS naleznosci,
-                ROUND(COALESCE(p.total_paid,0) - COALESCE(ch.total_due,0), 2) AS nadplata
-         FROM k30_clients cl
-         JOIN (SELECT client_id, SUM(amount) AS total_paid FROM k30_ti_payments GROUP BY client_id) p
-              ON p.client_id=cl.id
-         LEFT JOIN (SELECT client_id, SUM(amount+COALESCE(adjustment,0)) AS total_due
-                    FROM k30_ti_billing WHERE status IN ('issued','paid') GROUP BY client_id) ch
-              ON ch.client_id=cl.id
-         WHERE COALESCE(p.total_paid,0) - COALESCE(ch.total_due,0) > 0.01
-         ORDER BY nadplata DESC",
-        []
-    );
+    // Nadpłata = nadpłata z alokacji (ti_client_allocation): ogólna + przypisana do grup.
+    // Model kombinowany — nadpłata w jednej grupie nie znika przez niedopłatę w innej
+    // (tę pokazuje raport Zaległości), więc nie liczymy „wpłaty − należności”.
+    require_once dirname(__DIR__, 2) . '/includes/ti_payments.php';
+    $nad_raw = [];
+    foreach (db_all("SELECT DISTINCT p.client_id, cl.name AS klient, cl.email
+                     FROM k30_ti_payments p JOIN k30_clients cl ON cl.id=p.client_id") as $c) {
+        $a = ti_client_allocation((int)$c['client_id']);
+        if ($a['credit'] <= 0.01) continue;
+        $nad_raw[] = ['client_id' => (int)$c['client_id'], 'klient' => $c['klient'], 'email' => $c['email'],
+                      'zaplacono' => $a['payments'], 'naleznosci' => $a['charges'], 'nadplata' => $a['credit']];
+    }
+    usort($nad_raw, fn($x, $y) => $y['nadplata'] <=> $x['nadplata']);
     $nad_rows = $nad_raw;
     foreach ($nad_rows as $r) {
         $nad_total_charge += (float)$r['naleznosci'];

@@ -79,6 +79,10 @@ if ($bi_course_id) {
     $bi_where[] = "b.client_id IN (SELECT client_id FROM k30_ti_enrollments WHERE course_id=?)";
     $bi_params[] = $bi_course_id;
 }
+// Odśwież pokrycie (paid_amount/status) — statystyki i wiersze czytają je wprost
+foreach (db_all("SELECT DISTINCT client_id FROM k30_ti_billing WHERE month=? AND year=? AND status IN ('issued','paid')", [$bi_mon, $bi_year]) as $_rc) {
+    ti_billing_recompute((int)$_rc['client_id']);
+}
 $bi_records = db_all(
     "SELECT b.*, cl.name AS client_name
      FROM k30_ti_billing b
@@ -94,9 +98,11 @@ foreach (array_unique(array_column($bi_records, 'client_id')) as $cid) {
 }
 
 // Statystyki
-$bi_total_amount = array_sum(array_column($bi_records, 'amount'));
+// Należność = kwota + korekta (rabat / opłata dodatkowa / przeniesiona niedopłata) — jak w saldzie
+$bi_due          = fn($b) => (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+$bi_total_amount = array_sum(array_map($bi_due, $bi_records));
 $bi_total_paid   = array_sum(array_column($bi_records, 'paid_amount'));
-$bi_paid_count   = count(array_filter($bi_records, fn($b) => (float)$b['paid_amount'] >= (float)$b['amount'] - 0.01));
+$bi_paid_count   = count(array_filter($bi_records, fn($b) => (float)$b['paid_amount'] >= $bi_due($b) - 0.01));
 $bi_debt_count   = count($bi_records) - $bi_paid_count;
 
 // Podgląd nieopłaconych (do wystawienia)
