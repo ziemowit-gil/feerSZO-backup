@@ -72,7 +72,10 @@ function ti_lesson_ledger(int $client_id, string $from = '', string $to = ''): a
         $calc  = k30_ti_calculate_billing($client_id, $m, $y);
         $bills = db_all("SELECT * FROM k30_ti_billing WHERE client_id=? AND month=? AND year=? AND status IN ('issued','paid')", [$client_id, $m, $y]);
         $billed_course = []; $has_total = false;
-        foreach ($bills as $b) { if ((int)$b['course_id'] > 0) $billed_course[(int)$b['course_id']] = $b; else $has_total = true; }
+        // Wiersz łączny (course_id=0) obejmuje lekcje grup BEZ własnego rozliczenia. Wiersz samej
+        // opłaty poza zajęciami (ti_billing_add_charge: amount=0, 0 godzin) lekcji nie obejmuje.
+        $fee_only = fn(array $b): bool => (float)$b['amount'] <= 0.005 && (float)$b['hours_billed'] <= 0.005 && ($b['manual_amount'] ?? null) === null;
+        foreach ($bills as $b) { if ((int)$b['course_id'] > 0) $billed_course[(int)$b['course_id']] = $b; elseif (!$fee_only($b)) $has_total = true; }
         $sum_by = [];   // course_id => suma pobrań z lekcji (do rozliczenia różnicy)
 
         foreach ($calc['courses'] as $cc) {
@@ -111,7 +114,8 @@ function ti_lesson_ledger(int $client_id, string $from = '', string $to = ''): a
         foreach ($bills as $b) {
             $due  = round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2);
             $cid  = (int)$b['course_id'];
-            $done = $cid > 0 ? ($sum_by[$cid] ?? 0.0) : array_sum($sum_by);
+            $done = $cid > 0 ? ($sum_by[$cid] ?? 0.0)
+                  : ($fee_only($b) ? 0.0 : array_sum(array_diff_key($sum_by, $billed_course)));
             $diff = round($due - $done, 2);
             if (abs($diff) < 0.005) continue;
             $why = [];
