@@ -123,11 +123,12 @@ final class NaborPublicController
             'csrf'     => csrf_token(),
             'smsUrl'   => route('nabor.sms'),
             'courses'  => array_map(fn($c) => [
-                'id' => (int)$c['id'], 'name' => $c['title'], 'category' => $c['category'], 'location' => (string)$c['location'],
+                'id' => (int)$c['id'], 'name' => $c['title'], 'category' => $c['category'], 'location' => 'zajęcia online',
+                'first' => $c['first_label'], 'planned' => (int)$c['planned'],
                 'age' => $c['age_group'], 'schedule' => $c['schedule'], 'price' => $c['price_info'],
                 'max' => (int)$c['max_students'], 'free' => $c['free'],
             ], naborCourses(true)),
-            'days' => NABOR_DAYS, 'slots' => NABOR_SLOTS, 'pickup' => NABOR_PICKUP, 'payment' => NABOR_PAYMENT,
+            'days' => NABOR_DAYS, 'slots' => NABOR_SLOTS, 'equipment' => NABOR_EQUIPMENT, 'payment' => NABOR_PAYMENT,
             'verified' => phoneVerifiedInSession(NABOR_PHONE_PURPOSE),
             'f' => [
                 'course_id' => $s('course_id'), 'is_custom_schedule' => $b('is_custom_schedule'),
@@ -137,7 +138,7 @@ final class NaborPublicController
                 'participant_school_class' => $s('participant_school_class'), 'participant_medical_notes' => $s('participant_medical_notes'),
                 'guardian_name' => $s('guardian_name'), 'guardian_phone' => $s('guardian_phone'), 'guardian_email' => $s('guardian_email'),
                 'guardian_street' => $s('guardian_street'), 'guardian_postal_code' => $s('guardian_postal_code'), 'guardian_city' => $s('guardian_city'),
-                'pickup_type' => $s('pickup_type'), 'authorized_persons_details' => $s('authorized_persons_details'),
+                'equipment' => $a('equipment'), 'equipment_notes' => $s('equipment_notes'),
                 'terms_accepted' => $b('terms_accepted'), 'gdpr_accepted' => $b('gdpr_accepted'),
                 'image_consent' => $b('image_consent'), 'marketing_consent' => $b('marketing_consent'),
                 'payment_method' => $s('payment_method'),

@@ -10,21 +10,22 @@ include __DIR__ . '/_head.php';
 ?>
 <nav aria-label="breadcrumb"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="<?= h(route('nabor.index')) ?>">Nabór do grup</a></li><li class="breadcrumb-item active">Grupy w naborze</li></ol></nav>
 <h4 class="mb-1"><i class="bi bi-collection text-primary"></i> Grupy w naborze</h4>
-<p class="text-muted small mb-3">Otwórz grupy, do których rodzice mogą zgłaszać uczestników. Limit miejsc to „maks. uczestników” grupy; zajęte miejsca to aktywne zapisy. Opis widzą rodzice w formularzu.</p>
+<p class="text-muted small mb-3">Otwórz grupy, do których rodzice mogą zgłaszać uczestników. Nabór wymaga zaplanowanych zajęć grupy (grupa bez przyszłych lekcji nie pojawi się w formularzu). Limit miejsc to „maks. uczestników” grupy; zajęte miejsca to aktywne zapisy. Opis widzą rodzice w formularzu.</p>
 <?= flash_html() ?>
 
 <div class="table-responsive"><table class="table table-sm align-middle">
-  <thead><tr><th>Grupa</th><th>Prowadzący</th><th>Terminy</th><th>Miejsca</th><th>W naborze</th><th></th></tr></thead>
+  <thead><tr><th>Grupa</th><th>Prowadzący</th><th>Plan zajęć</th><th>Miejsca</th><th>W naborze</th><th></th></tr></thead>
   <tbody>
   <?php foreach ($courses as $c): $cid = (int)$c['id']; ?>
     <tr>
       <td><strong><?= h($c['title']) ?></strong><?php if ($c['title'] !== $c['name']): ?><div class="small text-muted"><?= h($c['name']) ?></div><?php endif; ?>
         <div class="small text-muted"><?= h(implode(' · ', array_filter([$c['category'], $c['age_group']]))) ?></div></td>
       <td class="small"><?= h((string)$c['instructor_name']) ?></td>
-      <td class="small"><?= h($c['schedule']) ?><div class="text-muted"><?= h((string)$c['location']) ?></div></td>
+      <td class="small"><?php if ((int)$c['planned']): ?><?= (int)$c['planned'] ?> zaplanowanych · od <?= h($c['first_label']) ?><div class="text-muted"><?= h($c['schedule']) ?></div>
+        <?php else: ?><span class="text-danger">brak zaplanowanych zajęć</span><div class="text-muted">najpierw plan, potem nabór</div><?php endif; ?></td>
       <td class="small"><?= (int)$c['taken'] ?><?= (int)$c['max_students'] ? ' / ' . (int)$c['max_students'] : '' ?>
         <?php if ((int)$c['queued']): ?><div class="text-muted"><?= (int)$c['queued'] ?> zgłoszeń w kolejce</div><?php endif; ?></td>
-      <td><?= $c['is_open'] ? '<span class="badge text-bg-success">otwarta</span>' : '<span class="badge text-bg-secondary">nie</span>' ?></td>
+      <td><?= $c['is_open'] ? ((int)$c['planned'] ? '<span class="badge text-bg-success">otwarta</span>' : '<span class="badge text-bg-warning" title="Ukryta w formularzu — brak zaplanowanych zajęć">otwarta, bez planu</span>') : '<span class="badge text-bg-secondary">nie</span>' ?></td>
       <td class="text-end text-nowrap">
         <a class="btn btn-sm btn-outline-secondary" href="<?= h(route('nabor.index', ['course' => $cid])) ?>" title="Zgłoszenia do grupy"><i class="bi bi-people"></i><span class="visually-hidden">Zgłoszenia do grupy</span></a>
         <a class="btn btn-sm btn-outline-primary" href="<?= h(route('nabor.courses', ['id' => $cid])) ?>#g<?= $cid ?>"><i class="bi bi-pencil"></i> Ustawienia</a>
@@ -34,8 +35,9 @@ include __DIR__ . '/_head.php';
     <tr id="g<?= $cid ?>"><td colspan="6" class="bg-light">
       <form method="post" action="<?= h(route('nabor.courses.save', ['id' => $cid])) ?>" class="row g-2 py-2">
         <?= Router::csrfField() ?>
-        <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="o<?= $cid ?>" name="is_open" value="1" <?= $c['is_open'] ? 'checked' : '' ?>>
-          <label class="form-check-label fw-bold" for="o<?= $cid ?>">Grupa widoczna w formularzu naboru</label></div></div>
+        <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="o<?= $cid ?>" name="is_open" value="1" <?= $c['is_open'] ? 'checked' : '' ?> <?= (int)$c['planned'] ? '' : 'disabled aria-describedby="np' . $cid . '"' ?>>
+          <label class="form-check-label fw-bold" for="o<?= $cid ?>">Grupa widoczna w formularzu naboru</label></div>
+          <?php if (!(int)$c['planned']): ?><div id="np<?= $cid ?>" class="small text-danger">Grupa nie ma zaplanowanych przyszłych zajęć — ustal plan w karcie grupy, potem otwórz nabór.</div><?php endif; ?></div>
         <div class="col-md-6"><label class="form-label small" for="pn<?= $cid ?>">Nazwa dla rodziców</label>
           <input id="pn<?= $cid ?>" class="form-control form-control-sm" name="public_name" value="<?= h($c['public_name']) ?>" placeholder="<?= h(trim((string)$c['display_name']) !== '' ? $c['display_name'] : $c['name']) ?>"></div>
         <div class="col-md-3"><label class="form-label small" for="ct<?= $cid ?>">Kategoria</label>

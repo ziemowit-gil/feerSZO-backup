@@ -44,6 +44,20 @@ const NABOR_PICKUP = [
     'guardians_only'     => 'Odbiór wyłącznie przez rodziców / opiekunów prawnych',
     'authorized_persons' => 'Odbiór także przez osoby upoważnione',
 ];
+/** Zajęcia online — sprzęt i dostęp uczestnika (zamiast zasad odbioru). */
+const NABOR_EQUIPMENT = [
+    'komputer' => 'Komputer lub laptop',
+    'kamera'   => 'Kamera internetowa',
+    'mikrofon' => 'Mikrofon / słuchawki',
+    'internet' => 'Stabilne łącze internetowe',
+    'czytnik'  => 'Czytnik ekranu lub program powiększający',
+    'pomoc'    => 'Potrzebna pomoc w konfiguracji sprzętu',
+];
+/** Lista sprzętu (JSON z bazy) jako tekst. */
+function naborEquipmentLabel(?string $json): string {
+    return implode(', ', array_map(fn($k) => NABOR_EQUIPMENT[$k] ?? $k, json_decode($json ?: '[]', true) ?: []));
+}
+
 const NABOR_DAYS  = ['pn' => 'poniedziałek', 'wt' => 'wtorek', 'sr' => 'środa', 'cz' => 'czwartek', 'pt' => 'piątek', 'sb' => 'sobota'];
 const NABOR_SLOTS = ['rano' => 'przed południem (8–12)', 'popoludnie' => 'po południu (12–16)', 'wieczor' => 'późne popołudnie (16–19)'];
 const NABOR_PAYMENT = ['transfer' => 'Przelew na rachunek organizacji', 'cash' => 'Gotówka na pierwszych zajęciach', 'exempt' => 'Wnioskuję o zwolnienie z opłaty'];
@@ -70,16 +84,23 @@ function naborCourses(bool $publicOnly = false): array {
                 COALESCE(n.age_group, '') AS age_group, COALESCE(n.schedule, '') AS schedule_note, COALESCE(n.price_info, '') AS price_info,
                 COALESCE(n.sort_order, 0) AS sort_order, (n.course_id IS NOT NULL) AS configured,
                 (SELECT COUNT(*) FROM k30_ti_enrollments e WHERE e.course_id=c.id AND e.status='active') AS taken,
-                (SELECT COUNT(*) FROM ti_nabor_submissions s WHERE s.course_id=c.id AND s.status IN ('new','pending_review','waitlist')) AS queued
+                (SELECT COUNT(*) FROM ti_nabor_submissions s WHERE s.course_id=c.id AND s.status IN ('new','pending_review','waitlist')) AS queued,
+                (SELECT COUNT(*) FROM k30_ti_sessions ss WHERE ss.course_id=c.id AND ss.draft_id IS NULL AND ss.lesson_date >= date('now')
+                    AND ss.status NOT IN ('draft','reserved','cancelled')) AS planned,
+                (SELECT MIN(ss.lesson_date || ' ' || COALESCE(ss.time_from,'')) FROM k30_ti_sessions ss WHERE ss.course_id=c.id AND ss.draft_id IS NULL
+                    AND ss.lesson_date >= date('now') AND ss.status NOT IN ('draft','reserved','cancelled')) AS first_lesson
            FROM k30_ti_courses c
       LEFT JOIN ti_nabor_courses n ON n.course_id=c.id
       LEFT JOIN users u ON u.id=c.instructor_id
           WHERE c.status NOT IN ('cancelled','archived') AND c.is_active=1 AND c.closed_at IS NULL
                 " . ($publicOnly ? 'AND n.is_open=1' : '') . "
        ORDER BY COALESCE(n.is_open,0) DESC, COALESCE(n.sort_order,0), c.name");
+    // Formularz publiczny: tylko grupy z zaplanowanymi przyszłymi lekcjami (plan zajęć ustala kierownik przed naborem)
+    if ($publicOnly) $rows = array_values(array_filter($rows, fn($r) => (int)$r['planned'] > 0));
     foreach ($rows as &$r) {
         $r['title']    = $r['public_name'] !== '' ? $r['public_name'] : (trim((string)$r['display_name']) !== '' ? $r['display_name'] : $r['name']);
         $r['schedule'] = $r['schedule_note'] !== '' ? $r['schedule_note'] : naborCourseDefaultSchedule($r);
+        $r['first_label'] = naborFirstLessonLabel((string)($r['first_lesson'] ?? ''));
         $r['free']     = (int)$r['max_students'] > 0 ? max(0, (int)$r['max_students'] - (int)$r['taken']) : null;
     }
     return $rows;
@@ -91,6 +112,13 @@ function naborCourseDefaultSchedule(array $c): string {
     return K30_TI_DAYS[(int)$c['day_of_week']] . ($c['time_from'] ? ' ' . substr((string)$c['time_from'], 0, 5) . ($c['time_to'] ? '–' . substr((string)$c['time_to'], 0, 5) : '') : '');
 }
 
+/** „wt 4.11.2026, 15:00” z „2026-11-04 15:00” ('' gdy brak). */
+function naborFirstLessonLabel(string $v): string {
+    if (!preg_match('/^(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})?/', $v, $m)) return '';
+    $d = strtotime($m[1]);
+    return ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'][(int)date('w', $d)] . ' ' . date('j.m.Y', $d) . (!empty($m[2]) ? ', ' . $m[2] : '');
+}
+
 function naborCourseGet(int $id): ?array {
     foreach (naborCourses() as $c) if ((int)$c['id'] === $id) return $c;
     return null;
@@ -99,7 +127,10 @@ function naborCourseGet(int $id): ?array {
 /** Ustawienia naboru dla grupy TI (upsert). */
 function naborCourseSettingsSave(int $courseId, array $d): void {
     naborMigrate();
-    if (!db_one("SELECT id FROM k30_ti_courses WHERE id=?", [$courseId])) throw new InvalidArgumentException('Grupa nie istnieje.');
+    $c = naborCourseGet($courseId);
+    if (!$c) throw new InvalidArgumentException('Grupa nie istnieje albo jest nieaktywna.');
+    if (!empty($d['is_open']) && (int)$c['planned'] === 0)
+        throw new InvalidArgumentException('Grupa „' . $c['title'] . '” nie ma zaplanowanych przyszłych zajęć — najpierw ustal plan zajęć grupy, potem otwórz nabór.');
     $t = fn($k, $max = 300) => mb_substr(trim((string)($d[$k] ?? '')), 0, $max);
     db_exec("INSERT INTO ti_nabor_courses (course_id, is_open, public_name, category, age_group, schedule, price_info, sort_order, updated_at)
              VALUES (?,?,?,?,?,?,?,?,datetime('now'))
@@ -145,7 +176,7 @@ function naborEnroll(int $sid, int $uid, string $byName = ''): int {
     if (!$cid && $pesel !== '') $cid = (int)(db_one("SELECT id FROM k30_clients WHERE pesel=? ORDER BY id LIMIT 1", [$pesel])['id'] ?? 0);
     if (!$cid) {
         $notes = 'Zgłoszenie z naboru ' . $s['registration_number'] . '. Opiekun: ' . $s['guardian_name'] . ', +' . $s['guardian_phone'] . ', ' . $s['guardian_email']
-               . "\nOdbiór: " . (NABOR_PICKUP[$s['pickup_type']] ?? '') . ($s['authorized_persons_details'] !== '' ? ' — ' . $s['authorized_persons_details'] : '')
+               . "\nZajęcia online — sprzęt: " . (naborEquipmentLabel($s['equipment'] ?? '[]') ?: 'nie podano') . (($s['equipment_notes'] ?? '') !== '' ? ' — ' . $s['equipment_notes'] : '')
                . ($s['participant_school_class'] !== '' ? "\nSzkoła/klasa: " . $s['participant_school_class'] : '');
         $cid = db_insert('k30_clients', [
             'name'          => $s['participant_name'],
@@ -241,8 +272,8 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
         'guardian_street'                 => $t('guardian_street', 200),
         'guardian_postal_code'            => $t('guardian_postal_code', 10),
         'guardian_city'                   => $t('guardian_city', 100),
-        'pickup_type'                     => array_key_exists($p['pickup_type'] ?? '', NABOR_PICKUP) ? $p['pickup_type'] : '',
-        'authorized_persons_details'      => $t('authorized_persons_details', 2000),
+        'equipment'                       => array_values(array_intersect(array_keys(NABOR_EQUIPMENT), (array)($p['equipment'] ?? []))),
+        'equipment_notes'                 => $t('equipment_notes', 1000),
         'payment_method'                  => $custom ? '' : (array_key_exists($p['payment_method'] ?? '', NABOR_PAYMENT) ? $p['payment_method'] : ''),
         'terms_accepted'                  => !empty($p['terms_accepted']),
         'gdpr_accepted'                   => !empty($p['gdpr_accepted']),
@@ -269,9 +300,6 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
     $d['guardian_phone'] = $phone;
     if ($d['guardian_street'] === '' || $d['guardian_city'] === '') $e[] = 'Podaj adres zamieszkania (ulica, miejscowość).';
     if (!preg_match('/^\d{2}-\d{3}$/', $d['guardian_postal_code'])) $e[] = 'Podaj kod pocztowy w formacie 00-000.';
-    if ($d['pickup_type'] === '')                                 $e[] = 'Wybierz zasady odbioru uczestnika.';
-    if ($d['pickup_type'] === 'authorized_persons' && mb_strlen($d['authorized_persons_details']) < 5)
-        $e[] = 'Wpisz osoby upoważnione do odbioru (imię, nazwisko, nr dokumentu lub telefon).';
     if (!$d['terms_accepted']) $e[] = 'Akceptacja regulaminu jest wymagana.';
     if (!$d['gdpr_accepted'])  $e[] = 'Zgoda na przetwarzanie danych osobowych jest wymagana.';
     return [$d, $e];
@@ -307,8 +335,9 @@ function naborSubmissionCreate(array $d): array {
             'guardian_street'                 => $d['guardian_street'],
             'guardian_postal_code'            => $d['guardian_postal_code'],
             'guardian_city'                   => $d['guardian_city'],
-            'pickup_type'                     => $d['pickup_type'],
-            'authorized_persons_details'      => $d['pickup_type'] === 'authorized_persons' ? $d['authorized_persons_details'] : '',
+            'pickup_type'                     => '',
+            'equipment'                       => json_encode($d['equipment']),
+            'equipment_notes'                 => $d['equipment_notes'],
             'payment_method'                  => $d['payment_method'],
             'phone_verified_at'               => gmdate('Y-m-d H:i:s'),
             'email_token_hash'                => hash('sha256', $token),
@@ -505,7 +534,8 @@ function naborCreateTest(int $userId, string $userName = ''): int {
             'guardian_street'                 => 'Testowa ' . $n,
             'guardian_postal_code'            => '00-000',
             'guardian_city'                   => 'Testowo',
-            'pickup_type'                     => 'guardians_only',
+            'pickup_type'                     => '',
+            'equipment'                       => json_encode(['komputer', 'mikrofon', 'internet']),
             'payment_method'                  => $c ? 'transfer' : '',
             'phone_verified_at'               => gmdate('Y-m-d H:i:s'),
             'email_confirmed_at'              => gmdate('Y-m-d H:i:s'),
@@ -586,7 +616,7 @@ const NABOR_EDITABLE = [
     'participant_school_class' => 'Szkoła / klasa', 'participant_medical_notes' => 'Uwagi medyczne',
     'guardian_name' => 'Opiekun', 'guardian_phone' => 'Telefon opiekuna', 'guardian_email' => 'E-mail opiekuna',
     'guardian_street' => 'Ulica', 'guardian_postal_code' => 'Kod pocztowy', 'guardian_city' => 'Miejscowość',
-    'pickup_type' => 'Odbiór', 'authorized_persons_details' => 'Osoby upoważnione',
+    'equipment' => 'Sprzęt', 'equipment_notes' => 'Uwagi o sprzęcie',
     'notes_availability' => 'Dyspozycyjność', 'payment_method' => 'Płatność',
 ];
 
@@ -605,8 +635,8 @@ function naborUpdateData(int $sid, array $p, int $userId, string $userName = '')
         'guardian_name' => $t('guardian_name', 200), 'guardian_phone' => phoneDigits48($t('guardian_phone', 30)),
         'guardian_email' => mb_strtolower($t('guardian_email', 200)), 'guardian_street' => $t('guardian_street', 200),
         'guardian_postal_code' => $t('guardian_postal_code', 10), 'guardian_city' => $t('guardian_city', 100),
-        'pickup_type' => array_key_exists($p['pickup_type'] ?? '', NABOR_PICKUP) ? $p['pickup_type'] : '',
-        'authorized_persons_details' => $t('authorized_persons_details', 2000),
+        'equipment' => json_encode(array_values(array_intersect(array_keys(NABOR_EQUIPMENT), (array)($p['equipment'] ?? [])))),
+        'equipment_notes' => $t('equipment_notes', 1000),
         'notes_availability' => $t('notes_availability', 2000),
         'payment_method' => array_key_exists($p['payment_method'] ?? '', NABOR_PAYMENT) ? $p['payment_method'] : '',
     ];
@@ -617,9 +647,7 @@ function naborUpdateData(int $sid, array $p, int $userId, string $userName = '')
     if (!preg_match('/^48\d{9}$/', $d['guardian_phone'])) $e[] = 'telefon opiekuna (9 cyfr)';
     if (!filter_var($d['guardian_email'], FILTER_VALIDATE_EMAIL)) $e[] = 'e-mail opiekuna';
     if (!preg_match('/^\d{2}-\d{3}$/', $d['guardian_postal_code'])) $e[] = 'kod pocztowy 00-000';
-    if ($d['pickup_type'] === '') $e[] = 'zasady odbioru';
     if ($e) throw new InvalidArgumentException('Popraw: ' . implode(', ', $e) . '.');
-    if ($d['pickup_type'] !== 'authorized_persons') $d['authorized_persons_details'] = '';
 
     $changed = [];
     foreach ($d as $k => $v) if ((string)$s[$k] !== (string)$v) $changed[] = $k;

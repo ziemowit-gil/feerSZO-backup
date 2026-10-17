@@ -97,6 +97,7 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
                         x-text="c.free === null ? 'bez limitu miejsc' : (c.free > 0 ? 'wolne miejsca: ' + c.free + ' z ' + c.max : 'brak miejsc — lista rezerwowa')"></span>
                 </span>
                 <span class="tw-block tw-text-sm tw-text-gray-600" x-text="[c.category, c.age, c.location].filter(Boolean).join(' · ')"></span>
+                <span class="tw-block tw-text-sm tw-font-medium" x-show="c.first" x-text="'Pierwsze zajęcia: ' + c.first + ' · zaplanowanych terminów: ' + c.planned"></span>
                 <span class="tw-block tw-text-sm" x-show="c.schedule" x-text="c.schedule"></span>
                 <span class="tw-block tw-text-sm tw-text-gray-600" x-show="c.price" x-text="'Opłata: ' + c.price"></span>
               </span>
@@ -134,6 +135,14 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
         <div><label class="zp-label" for="zp-pm">Uwagi medyczne i dostępnościowe</label>
           <textarea id="zp-pm" name="participant_medical_notes" rows="4" class="zp-input" x-model="f.participant_medical_notes" aria-describedby="zp-pm-h"></textarea>
           <p id="zp-pm-h" class="zp-help">Alergie, leki, choroby przewlekłe, potrzeby wynikające z niepełnosprawności — wszystko, co pomoże zapewnić bezpieczeństwo i dostosować zajęcia.</p></div>
+        <fieldset class="tw-bg-feer-bg tw-rounded-xl tw-p-4"><legend class="zp-label">Sprzęt do zajęć online</legend>
+          <p class="zp-help tw-mt-0 tw-mb-2">Zajęcia odbywają się online. Zaznacz, co uczestnik ma do dyspozycji — pomożemy przygotować stanowisko.</p>
+          <div class="tw-grid sm:tw-grid-cols-2 tw-gap-x-4">
+            <template x-for="(l, k) in equipment" :key="k"><label class="zp-check"><input type="checkbox" name="equipment[]" :value="k" x-model="f.equipment"><span x-text="l"></span></label></template>
+          </div>
+          <label class="zp-label tw-mt-2" for="zp-eq">Uwagi o sprzęcie</label>
+          <input id="zp-eq" name="equipment_notes" class="zp-input" x-model="f.equipment_notes" placeholder="np. NVDA, monitor brajlowski, tylko tablet">
+        </fieldset>
       </fieldset>
 
       <!-- Krok 3: opiekun -->
@@ -165,13 +174,7 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
           <div><label class="zp-label" for="zp-gz">Kod pocztowy *</label><input id="zp-gz" name="guardian_postal_code" class="zp-input" x-model="f.guardian_postal_code" autocomplete="postal-code" placeholder="00-000" required></div>
           <div class="tw-col-span-2"><label class="zp-label" for="zp-gc">Miejscowość *</label><input id="zp-gc" name="guardian_city" class="zp-input" x-model="f.guardian_city" autocomplete="address-level2" required></div>
         </div>
-        <fieldset><legend class="zp-label">Zasady odbioru uczestnika po zajęciach *</legend>
-          <template x-for="(l, k) in pickup" :key="k">
-            <label class="zp-check"><input type="radio" name="pickup_type" :value="k" x-model="f.pickup_type"><span x-text="l"></span></label>
-          </template>
-        </fieldset>
-        <div x-show="f.pickup_type === 'authorized_persons'"><label class="zp-label" for="zp-ap">Osoby upoważnione do odbioru *</label>
-          <textarea id="zp-ap" name="authorized_persons_details" rows="3" class="zp-input" x-model="f.authorized_persons_details" placeholder="Imię i nazwisko, stopień pokrewieństwa, telefon lub nr dokumentu — każda osoba w osobnym wierszu"></textarea></div>
+
       </fieldset>
 
       <!-- Krok 4: zgody -->
@@ -202,7 +205,7 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
           <div><dt>Uczestnik</dt><dd x-text="f.participant_name + '\n' + f.participant_birth_date_or_pesel + (f.participant_school_class ? ', ' + f.participant_school_class : '')"></dd></div>
           <div><dt>Opiekun</dt><dd x-text="f.guardian_name + '\n' + f.guardian_email + '\n' + f.guardian_phone"></dd></div>
           <div><dt>Adres</dt><dd x-text="f.guardian_street + '\n' + f.guardian_postal_code + ' ' + f.guardian_city"></dd></div>
-          <div><dt>Odbiór</dt><dd x-text="pickup[f.pickup_type] || '—'"></dd></div>
+          <div><dt>Sprzęt do zajęć online</dt><dd x-text="(f.equipment.map(k => equipment[k]).join(', ') || '—') + (f.equipment_notes ? '\n' + f.equipment_notes : '')"></dd></div>
           <div><dt>Zgody</dt><dd x-text="consentsLabel()"></dd></div>
           <div class="sm:tw-col-span-2" x-show="f.participant_medical_notes"><dt>Uwagi medyczne</dt><dd x-text="f.participant_medical_notes"></dd></div>
         </dl>
@@ -257,8 +260,6 @@ function naborForm(init) {
         if (!this.isVerified()) return 'Potwierdź numer telefonu kodem SMS.';
         if (!f.guardian_street.trim() || !f.guardian_city.trim()) return 'Podaj adres zamieszkania.';
         if (!/^\d{2}-\d{3}$/.test(f.guardian_postal_code.trim())) return 'Podaj kod pocztowy w formacie 00-000.';
-        if (!f.pickup_type) return 'Wybierz zasady odbioru uczestnika.';
-        if (f.pickup_type === 'authorized_persons' && f.authorized_persons_details.trim().length < 5) return 'Wpisz osoby upoważnione do odbioru.';
       }
       if (s === 4 && (!f.terms_accepted || !f.gdpr_accepted)) return 'Zaznacz wymagane zgody (regulamin i RODO).';
       if (s === 5 && !f.is_custom_schedule && !f.payment_method) return 'Wybierz formę płatności.';

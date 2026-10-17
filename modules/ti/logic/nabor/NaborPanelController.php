@@ -175,7 +175,7 @@ final class NaborPanelController
         $byCourse = [];
         if ($ids = array_map(fn($c) => (int)$c['id'], $courses)) {
             $rows = db_all("SELECT course_id, participant_name, participant_school_class, participant_medical_notes,
-                                   pickup_type, authorized_persons_details, guardian_name, guardian_phone
+                                   equipment, equipment_notes, guardian_name, guardian_phone
                               FROM ti_nabor_submissions WHERE status='accepted' AND course_id IN (" . implode(',', $ids) . ")
                           ORDER BY participant_name");
             foreach ($rows as $r) $byCourse[(int)$r['course_id']][] = $r;

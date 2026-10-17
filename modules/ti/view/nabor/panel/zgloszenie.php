@@ -92,8 +92,8 @@ include __DIR__ . '/_head.php';
         'Telefon' => '<a href="tel:+' . h($s['guardian_phone']) . '">+' . h($s['guardian_phone']) . '</a>' . ($s['phone_verified_at'] ? ' <span class="badge text-bg-success">SMS ✓ ' . h(naborTime($s['phone_verified_at'])) . '</span>' : ' <span class="badge text-bg-secondary">niezweryfikowany</span>'),
         'E-mail' => '<a href="mailto:' . h($s['guardian_email']) . '">' . h($s['guardian_email']) . '</a>' . ($s['email_confirmed_at'] ? ' <span class="badge text-bg-success">e-mail ✓ ' . h(naborTime($s['email_confirmed_at'])) . '</span>' : ' <span class="badge text-bg-secondary">niepotwierdzony</span>'),
         'Adres' => h($s['guardian_street'] . ', ' . $s['guardian_postal_code'] . ' ' . $s['guardian_city']),
-        'Odbiór' => h(NABOR_PICKUP[$s['pickup_type']] ?? ''),
-        'Osoby upoważnione' => nl2br(h($s['authorized_persons_details'])),
+        'Sprzęt do zajęć online' => h(naborEquipmentLabel($s['equipment'] ?? '[]')) . (($s['equipment_notes'] ?? '') !== '' ? '<div class="text-muted">' . h($s['equipment_notes']) . '</div>' : ''),
+        'Odbiór (starsze zgłoszenie)' => ($s['pickup_type'] ?? '') !== '' ? h(NABOR_PICKUP[$s['pickup_type']] ?? '') . ($s['authorized_persons_details'] !== '' ? ' — ' . h($s['authorized_persons_details']) : '') : '',
       ]) ?>
     </div></div>
 
@@ -114,12 +114,13 @@ include __DIR__ . '/_head.php';
         <div class="col-md-6"><label class="form-label small" for="e-gs">Ulica i numer</label><input id="e-gs" class="form-control form-control-sm" name="guardian_street" value="<?= $ev('guardian_street') ?>"></div>
         <div class="col-md-2"><label class="form-label small" for="e-gz">Kod</label><input id="e-gz" class="form-control form-control-sm" name="guardian_postal_code" value="<?= $ev('guardian_postal_code') ?>" placeholder="00-000"></div>
         <div class="col-md-4"><label class="form-label small" for="e-gc">Miejscowość</label><input id="e-gc" class="form-control form-control-sm" name="guardian_city" value="<?= $ev('guardian_city') ?>"></div>
-        <div class="col-md-6"><label class="form-label small" for="e-pt">Odbiór</label>
-          <select id="e-pt" class="form-select form-select-sm" name="pickup_type"><?php foreach (NABOR_PICKUP as $k => $l): ?><option value="<?= $k ?>" <?= $s['pickup_type'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+        <div class="col-md-6"><fieldset><legend class="form-label small mb-1">Sprzęt do zajęć online</legend>
+          <?php $eq = json_decode($s['equipment'] ?? '[]', true) ?: []; foreach (NABOR_EQUIPMENT as $k => $l): ?>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="equipment[]" value="<?= $k ?>" id="eq-<?= $k ?>" <?= in_array($k, $eq, true) ? 'checked' : '' ?>><label class="form-check-label small" for="eq-<?= $k ?>"><?= h($l) ?></label></div>
+          <?php endforeach; ?></fieldset></div>
         <div class="col-md-6"><label class="form-label small" for="e-pay">Płatność (deklaracja)</label>
           <select id="e-pay" class="form-select form-select-sm" name="payment_method"><option value="">—</option><?php foreach (NABOR_PAYMENT as $k => $l): ?><option value="<?= $k ?>" <?= $s['payment_method'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
-        <div class="col-12"><label class="form-label small" for="e-ap">Osoby upoważnione do odbioru</label><textarea id="e-ap" class="form-control form-control-sm" name="authorized_persons_details" rows="2" aria-describedby="e-ap-h"><?= $ev('authorized_persons_details') ?></textarea>
-          <div id="e-ap-h" class="form-text">Zapisywane tylko przy odbiorze „także przez osoby upoważnione”.</div></div>
+        <div class="col-12"><label class="form-label small" for="e-eqn">Uwagi o sprzęcie</label><input id="e-eqn" class="form-control form-control-sm" name="equipment_notes" value="<?= $ev('equipment_notes') ?>"></div>
         <div class="col-12"><label class="form-label small" for="e-na">Dyspozycyjność (termin do ustalenia)</label><textarea id="e-na" class="form-control form-control-sm" name="notes_availability" rows="2"><?= $ev('notes_availability') ?></textarea></div>
         <div class="col-12 small text-muted">Zmiana telefonu albo e-maila zdejmuje znacznik weryfikacji. Zmiana trafia do historii obiegu.<?= $s['client_id'] ? ' Uczestnik TI jest już założony — jego dane popraw w Ewidencji Uczestników.' : '' ?></div>
         <div class="col-12"><button class="btn btn-sm btn-primary">Zapisz zmiany</button></div>

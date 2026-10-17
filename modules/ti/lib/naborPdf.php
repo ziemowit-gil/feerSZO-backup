@@ -67,7 +67,7 @@ function naborSubmissionPdf(int $sid): string {
         $row('Dyspozycyjność', (string)$s['notes_availability']);
     } else {
         $row('Grupa', (string)$s['course_name']);
-        $row('Miejsce', (string)$s['course_location']);
+        $row('Forma', 'zajęcia online');
         $row('Harmonogram', (string)$s['course_schedule']);
         $row('Płatność (deklaracja)', NABOR_PAYMENT[$s['payment_method']] ?? '');
     }
@@ -83,8 +83,9 @@ function naborSubmissionPdf(int $sid): string {
     $row('Telefon', '+' . $s['guardian_phone'] . ($s['phone_verified_at'] ? '  (potwierdzony kodem SMS ' . naborTime($s['phone_verified_at']) . ')' : ''));
     $row('E-mail', $s['guardian_email'] . ($s['email_confirmed_at'] ? '  (potwierdzony linkiem ' . naborTime($s['email_confirmed_at']) . ')' : '  (niepotwierdzony)'));
     $row('Adres zamieszkania', $s['guardian_street'] . ', ' . $s['guardian_postal_code'] . ' ' . $s['guardian_city']);
-    $row('Odbiór uczestnika', NABOR_PICKUP[$s['pickup_type']] ?? '');
-    if ($s['pickup_type'] === 'authorized_persons') $row('Osoby upoważnione', $s['authorized_persons_details']);
+    if (($s['pickup_type'] ?? '') !== '') $row('Odbiór uczestnika', NABOR_PICKUP[$s['pickup_type']] ?? '');   // zgłoszenia sprzed przejścia na online
+    $row('Sprzęt do zajęć online', naborEquipmentLabel($s['equipment'] ?? '[]'));
+    $row('Uwagi o sprzęcie', (string)($s['equipment_notes'] ?? ''));
 
     $section('4. Zgody i oświadczenia');
     $row('Regulamin zajęć', $yn($c['terms_accepted'] ?? 0));
