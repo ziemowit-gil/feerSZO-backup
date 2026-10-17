@@ -11,6 +11,11 @@
  * konto kandydata (e-mail „Ustaw hasło”, jeśli konto nie ma hasła), PDF, koszulka EZD, kontakt w CRM, e-mail z PDF.
  * Numer telefonu traktujemy jak potwierdzony (dane przykładowe) — bez --phone SMS-y statusów pójdą na numer zastępczy.
  * Każde uruchomienie z --apply tworzy NOWE zgłoszenie (numer REK/…), w historii oznaczone jako przykładowe.
+ *
+ * Usuwanie przykładowych zgłoszeń (tylko utworzonych tym seederem; naborDeleteSubmission — sprząta konto, pliki, CRM,
+ * uczestnika TI bez historii; koszulkę EZD zamyka i ukrywa):
+ *   php cli/seedNaborZgloszenie.php --delete [--email=…]            # lista do usunięcia (podgląd)
+ *   php cli/seedNaborZgloszenie.php --delete [--email=…] --apply    # usunięcie
  */
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Tylko z CLI.'); }
 define('APP_CLI', true);
@@ -21,8 +26,24 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/modules/ti/logic/nabor/nabor.php';
 require_once dirname(__DIR__) . '/modules/ti/logic/nabor/naborAccount.php';
 
-$o     = getopt('', ['email:', 'phone:', 'course:', 'apply']);
+$o     = getopt('', ['email:', 'phone:', 'course:', 'apply', 'delete']);
 $email = mb_strtolower(trim((string)($o['email'] ?? '')));
+
+if (array_key_exists('delete', $o)) {
+    require_once dirname(__DIR__) . '/modules/ti/logic/nabor/naborDelete.php';
+    naborMigrate();
+    $rows = db_all("SELECT s.id, s.registration_number, s.status, s.guardian_email, s.participant_name FROM ti_nabor_submissions s
+                     WHERE EXISTS (SELECT 1 FROM ti_nabor_history h WHERE h.submission_id=s.id AND h.comment LIKE 'Zgłoszenie przykładowe utworzone z CLI%')
+                       " . ($email !== '' ? 'AND LOWER(s.guardian_email)=?' : '') . " ORDER BY s.id", $email !== '' ? [$email] : []);
+    if (!$rows) { echo "Brak przykładowych zgłoszeń do usunięcia.\n"; exit(0); }
+    foreach ($rows as $r) echo "  {$r['registration_number']} (#{$r['id']}) — {$r['participant_name']}, {$r['guardian_email']}, " . naborStatusLabel($r['status']) . "\n";
+    if (!array_key_exists('apply', $o)) { echo "\nPodgląd — nic nie usunięto. Dodaj --apply.\n"; exit(0); }
+    foreach ($rows as $r) {
+        $rep = naborDeleteSubmission((int)$r['id'], 0, 'cli/seedNaborZgloszenie.php', 'przykładowe zgłoszenie (seeder)');
+        echo "\n{$r['registration_number']}:\n  - " . implode("\n  - ", $rep) . "\n";
+    }
+    exit(0);
+}
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { fwrite(STDERR, "Podaj poprawny --email=adres\n"); exit(1); }
 $phone = preg_replace('/\D/', '', (string)($o['phone'] ?? ''));
 if (strlen($phone) === 9) $phone = '48' . $phone;

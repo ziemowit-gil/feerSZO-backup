@@ -139,6 +139,13 @@ final class NaborPanelController
                     if ($acc && $acc['password_hash']) naborAccountRequestReset($acc['email']);
                     flash_set($acc ? 'success' : 'warning', $acc ? 'Wysłano opiekunowi link do konta kandydata (' . $acc['email'] . ').' : 'Nie udało się przygotować konta.');
                     break;
+                case 'delete':
+                    require_once __DIR__ . '/naborDelete.php';
+                    if (trim((string)($_POST['confirm_nr'] ?? '')) !== naborSubmissionGet($id)['registration_number'])
+                        throw new InvalidArgumentException('Wpisz numer zgłoszenia, żeby potwierdzić usunięcie.');
+                    $rep = naborDeleteSubmission($id, $me['id'], $me['name'], trim((string)($_POST['reason'] ?? '')));
+                    flash_set('success', 'Usunięto zgłoszenie: ' . implode('; ', $rep) . '.');
+                    return Router::redirect(route('nabor.index'));
                 case 'note':
                     if (($n = trim((string)($_POST['note'] ?? ''))) !== '') naborHistoryNote($id, $n, $me['id'], $me['name']);
                     break;

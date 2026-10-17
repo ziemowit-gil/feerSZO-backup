@@ -238,4 +238,16 @@ include __DIR__ . '/_head.php';
     </div>
   </div>
 </div>
+<details class="card border-danger mt-3" id="usun">
+  <summary class="card-header text-danger fw-bold" style="cursor:pointer"><i class="bi bi-trash"></i> Usuń zgłoszenie</summary>
+  <form method="post" action="<?= $upd ?>" class="card-body row g-2 small" onsubmit="return confirm('Usunąć zgłoszenie <?= h($s['registration_number']) ?> bezpowrotnie?')">
+    <?= Router::csrfField() ?><input type="hidden" name="_op" value="delete">
+    <p class="col-12 mb-1">Usuwa zgłoszenie z historią, zgodami, wiadomościami, dokumentami i plikami, konto kandydata bez innych zgłoszeń
+      i aktywności CRM. Uczestnik TI założony przy przyjęciu znika tylko wtedy, gdy nie ma żadnej historii (inaczej zostaje, a zapis do grupy jest wycofywany).
+      Koszulka EZD nie jest kasowana — zostaje zamknięta i ukryta z adnotacją.</p>
+    <div class="col-md-5"><label class="form-label small" for="dl-r">Powód (do dziennika)</label><input id="dl-r" name="reason" class="form-control form-control-sm" placeholder="np. zgłoszenie testowe, wycofane, RODO — żądanie usunięcia"></div>
+    <div class="col-md-4"><label class="form-label small" for="dl-n">Wpisz numer: <strong><?= h($s['registration_number']) ?></strong></label><input id="dl-n" name="confirm_nr" class="form-control form-control-sm" autocomplete="off" required></div>
+    <div class="col-md-3 d-flex align-items-end"><button class="btn btn-sm btn-danger w-100">Usuń zgłoszenie</button></div>
+  </form>
+</details>
 <?php include __DIR__ . '/_foot.php'; ?>
