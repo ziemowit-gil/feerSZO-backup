@@ -20,6 +20,8 @@ require_once dirname(dirname(dirname(__DIR__))) . '/includes/karty30.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_plan_public/logic/planPublicPortal.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_plan_public/ui/portalLayout.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_plan_public/ui/portalSchedule.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_duty/logic/dutyManager.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_duty/ui/dutyView.php';
 
 header('X-Robots-Tag: noindex, nofollow');
 header('Referrer-Policy: no-referrer');
@@ -81,12 +83,19 @@ $side = $full ? [
     'prowadzacy' => $dirI ? array_map(fn($i) => [(string)$i['initials'], tiPlanPortalUrl($self, ['p' => $i['token']])], $dirI) : null,
     'sale'       => $rooms ? array_map(fn($r) => [$roomName($r), tiPlanPortalUrl($self, ['s' => $r['id']])], $dirR) : null,
 ];
+// DK — dyżury kierownika / Zarządu (publikacja: przełącznik w planLinki.php; w widoku pełnym zawsze)
+$dutyOn = tiDutyPublic() || $full;
+if ($dutyOn) $side['dk'] = [['Dyżur kierownika / Zarządu', tiPlanPortalUrl($self, ['k' => 'dk'])]];
 $base = ['self' => $self, 'org' => $org, 'side' => $side, 'full' => $full, 'canLogin' => $fullHash !== ''];
 
 /* ───────────── Logowanie do widoku pełnego ───────────── */
 if (isset($_GET['login'])) {
-    if ($fullHash === '') { header('Location: ' . html_entity_decode($home)); exit; }
     tiPlanPortalOpen($base + ['title' => 'Pełny plan — logowanie', 'heading' => 'Pełny plan zajęć']);
+    if ($fullHash === '') {
+        echo '<p class="empty">Logowanie do pełnego planu nie jest jeszcze włączone — kierownik ustawia hasło w panelu dydaktyka (Linki do planów → Portal planu zajęć).</p>';
+        tiPlanPortalClose($base);
+        exit;
+    }
     ?>
     <form method="post" action="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>" class="box" style="max-width:420px">
       <h2>Logowanie dla pracowników</h2>
@@ -288,6 +297,18 @@ if (isset($_GET['s'])) {
     exit;
 }
 
+/* ───────────── DK: dyżury kierownika / Zarządu ───────────── */
+if (($_GET['k'] ?? '') === 'dk') {
+    if (!$dutyOn) $notFound('Grafik dyżurów nie jest publikowany.');
+    tiPlanPortalOpen($base + ['title' => 'Dyżury kierownika i Zarządu', 'heading' => 'Dyżur kierownika / Zarządu',
+        'sub' => h('kiedy i gdzie można zastać kierownika lub członka Zarządu'), 'current' => tiPlanPortalUrl($self, ['k' => 'dk'])]);
+    tiDutyNowBox($self);
+    tiDutyRenderWeek($self);
+    echo '<p class="legend">Dyżurni oznaczeni inicjałami i funkcją; kontakt — telefon / e-mail dyżurowy. Zmiany w konkretnych dniach są oznaczone.</p>';
+    tiPlanPortalClose($base);
+    exit;
+}
+
 /* ───────────── Pełne listy jako kafelki ───────────── */
 $k = (string)($_GET['k'] ?? '');
 if (in_array($k, ['grupy', 'prowadzacy', 'sale'], true)) {
@@ -303,11 +324,17 @@ if (in_array($k, ['grupy', 'prowadzacy', 'sale'], true)) {
 /* ───────────── Strona startowa ───────────── */
 $orgName = trim((string)($org['name'] ?? ''));
 tiPlanPortalOpen($base + ['title' => 'Plan zajęć', 'heading' => 'Plan zajęć', 'sub' => h($orgName)]);
-if (!$full && !$dirG && !$dirI && !$rooms): ?>
+if (!$full && !$dirG && !$dirI && !$rooms && !$dutyOn): ?>
   <p class="empty">Plan nie jest jeszcze publikowany w katalogu. Jeśli masz link do planu swojej grupy, otwórz go bezpośrednio.</p>
 <?php else: ?>
   <p class="empty">Wybierz grupę, prowadzącego lub salę, aby zobaczyć plan zajęć tydzień po tygodniu.</p>
+  <?php if ($dutyOn) tiDutyNowBox($self); ?>
   <?php foreach (['grupy', 'prowadzacy', 'sale'] as $_k) $printTiles($_k, 24); ?>
+  <?php if ($dutyOn): $_n = tiDutyCurrentOrNext(); ?>
+  <h2 class="tiles-head" id="h-dk"><span>DK</span></h2>
+  <ul class="tiles" aria-labelledby="h-dk"><li><a class="tile t-duty" href="<?= tiPlanPortalUrl($self, ['k' => 'dk']) ?>"><strong>Dyżur kierownika / Zarządu</strong>
+    <small><?= $_n ? h(($_n['now'] ? 'teraz: ' : 'najbliższy: ') . date('d.m', strtotime($_n['date'])) . ' ' . $_n['item']['time_from'] . '–' . $_n['item']['time_to'] . ', ' . tiDutyPersonLabel($_n['item'])) : 'grafik dyżurów' ?></small></a></li></ul>
+  <?php endif; ?>
   <?php
   // Dziś i jutro we wszystkich grupach z katalogu — szybki podgląd jak tablica ogłoszeń
   $ids = $full ? array_map(fn($g) => (int)$g['id'], $allG) : array_map(fn($g) => (int)$g['course_id'], $dirG);

@@ -46,7 +46,7 @@ function tiPlanPortalOpen(array $o): void {
       <label class="sr" for="sideSearch">Szukaj na liście</label>
       <input type="search" class="search" id="sideSearch" placeholder="szukaj…" autocomplete="off" data-side-search>
       <?php endif; ?>
-      <?php foreach (['grupy' => 'Grupy', 'prowadzacy' => 'Prowadzący', 'sale' => 'Sale'] as $k => $lbl): if (!isset($side[$k]) || $side[$k] === null) continue; ?>
+      <?php foreach (['grupy' => 'Grupy', 'prowadzacy' => 'Prowadzący', 'sale' => 'Sale', 'dk' => 'DK — dyżury'] as $k => $lbl): if (!isset($side[$k]) || $side[$k] === null) continue; ?>
       <h2><a href="<?= tiPlanPortalUrl($self, ['k' => $k]) ?>" style="color:inherit;text-decoration:none"><?= $lbl ?></a></h2>
       <?php if (!$side[$k]): ?><p class="none">brak</p><?php else: ?>
       <ul>
@@ -56,15 +56,17 @@ function tiPlanPortalOpen(array $o): void {
       </ul>
       <?php endif; ?>
       <?php endforeach; ?>
-      <?php if (!empty($o['full'])): ?>
-      <p style="margin-top:16px"><a href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj (widok pełny)</a></p>
-      <?php elseif (!empty($o['canLogin'])): ?>
-      <p style="margin-top:16px;font-size:11px"><a href="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>">Pełny plan — dla pracowników</a></p>
-      <?php endif; ?>
     </div>
   </nav>
   <main class="page" id="tresc">
-    <h1 class="title"><?= h($o['heading'] ?? $o['title']) ?></h1>
+    <div class="titlebar">
+      <h1 class="title"><?= h($o['heading'] ?? $o['title']) ?></h1>
+      <?php if (!empty($o['full'])): ?>
+      <a class="login-btn" href="<?= tiPlanPortalUrl($self, ['logout' => 1]) ?>">Wyloguj</a>
+      <?php else: ?>
+      <a class="login-btn" href="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>" title="Pełny plan dla pracowników (hasło od kierownika)">Zaloguj</a>
+      <?php endif; ?>
+    </div>
     <?php if (trim((string)($o['sub'] ?? '')) !== ''): ?><p class="subtitle"><?= $o['sub'] /* HTML z wywołującego (już escapowany) */ ?></p><?php endif; ?>
     <?php if (!empty($o['crumbs'])): ?>
     <nav class="crumbs" aria-label="Okruszki">

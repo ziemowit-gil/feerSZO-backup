@@ -9,6 +9,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicPortal.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_duty/logic/dutyManager.php';
 require_once dirname(__DIR__, 3) . '/modules/ti_plan_public/logic/planPublicNotify.php';
 
 $me = dyd_require();
@@ -18,6 +19,26 @@ $dyd_name = (string)($me['name'] ?? '') ?: 'Kierownik';
 tiPlanPublicMigrate();
 
 $focus = (int)($_GET['course_id'] ?? 0);
+
+// DK — dyżury kierownika / Zarządu
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['duty_save', 'duty_delete', 'duty_public'], true)) {
+    dyd_token_check();
+    $op = (string)$_POST['_op'];
+    if ($op === 'duty_public') {
+        org_setting_set('ti_duty_public', !empty($_POST['on']) ? '1' : '0');
+        flash_set('success', !empty($_POST['on']) ? 'Zakładka DK opublikowana w portalu planu.' : 'Zakładka DK ukryta w portalu planu.');
+    } elseif ($op === 'duty_delete') {
+        tiDutyDelete((int)($_POST['id'] ?? 0));
+        flash_set('warning', 'Dyżur usunięty.');
+    } else {
+        [$d, $err] = tiDutyValidate($_POST);
+        $id = (int)($_POST['id'] ?? 0);
+        if ($err !== '') { flash_set('danger', $err); header('Location: planLinki.php?tab=dk' . ($id ? '&edit=' . $id : '') . '#dk-form'); exit; }
+        tiDutySave($d, $uid, $id ?: null);
+        flash_set('success', $id ? 'Dyżur zapisany.' : 'Dyżur dodany.');
+    }
+    header('Location: planLinki.php?tab=dk'); exit;
+}
 
 // Portal (/plan/): zakładka Sale i linki prowadzących
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array((string)($_POST['_op'] ?? ''), ['rooms', 'privacy', 'full_pw', 'i_enable', 'i_disable', 'i_regenerate', 'i_options', 'all_groups', 'all_instr'], true)) {
@@ -121,7 +142,7 @@ foreach ($courses as $c) {
 }
 $nOn = count(array_filter($links, fn($l) => (int)$l['is_enabled'] === 1));
 $nDir = count(array_filter($links, fn($l) => (int)$l['is_enabled'] === 1 && (int)($l['in_directory'] ?? 0) === 1));
-$tab = ($_GET['tab'] ?? '') === 'prowadzacy' ? 'prowadzacy' : 'grupy';
+$tab = in_array($_GET['tab'] ?? '', ['prowadzacy', 'dk'], true) ? (string)$_GET['tab'] : 'grupy';
 $instructors = $tab === 'prowadzacy' ? tiPlanPublicInstructors() : [];
 $iLinks = tiPlanPublicInstrMap();
 $roomsOn = tiPlanPublicRoomsEnabled();
@@ -211,9 +232,84 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item"><a class="nav-link<?= $tab === 'grupy' ? ' active' : '' ?>"<?= $tab === 'grupy' ? ' aria-current="page"' : '' ?> href="planLinki.php">Grupy</a></li>
   <li class="nav-item"><a class="nav-link<?= $tab === 'prowadzacy' ? ' active' : '' ?>"<?= $tab === 'prowadzacy' ? ' aria-current="page"' : '' ?> href="planLinki.php?tab=prowadzacy" id="prowadzacy">Prowadzący</a></li>
+  <li class="nav-item"><a class="nav-link<?= $tab === 'dk' ? ' active' : '' ?>"<?= $tab === 'dk' ? ' aria-current="page"' : '' ?> href="planLinki.php?tab=dk" id="dk">DK — dyżury kierownika / Zarządu</a></li>
 </ul>
 
-<?php if ($tab === 'prowadzacy'): ?>
+<?php if ($tab === 'dk'):
+  $duties = tiDutyAll(); $dutyPub = tiDutyPublic();
+  $ed = isset($_GET['edit']) ? tiDutyGet((int)$_GET['edit']) : null;
+  $ev = fn(string $k, $def = '') => h((string)($ed[$k] ?? $def)); ?>
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3 p-2 border rounded bg-body-tertiary">
+  <span class="small">Zakładka DK w portalu planu: <?= $dutyPub ? '<strong>opublikowana</strong>' : 'ukryta' ?></span>
+  <form method="post" class="d-inline">
+    <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="duty_public"><input type="hidden" name="on" value="<?= $dutyPub ? '' : '1' ?>">
+    <button class="btn btn-sm <?= $dutyPub ? 'btn-outline-danger' : 'btn-success' ?>"><?= $dutyPub ? 'Ukryj w portalu' : 'Opublikuj w portalu' ?></button>
+  </form>
+  <?php if ($dutyPub): ?><a class="btn btn-sm btn-outline-primary" href="<?= h(str_ends_with(tiPlanPublicPortalUrl(), '/plan/') ? tiPlanPublicPortalUrl() . 'dk' : tiPlanPublicPortalUrl() . '?k=dk') ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz DK</a><?php endif; ?>
+  <span class="small text-body-secondary">Publicznie: inicjały + funkcja + kontakt dyżurowy; pełne imię i nazwisko tylko w widoku pełnym (po haśle).</span>
+</div>
+
+<section class="pl-card is-on" id="dk-form" aria-labelledby="dk-form-h">
+  <div class="pl-head"><h2 class="h6 mb-0 fw-bold" id="dk-form-h"><?= $ed ? 'Edycja dyżuru' : 'Dodaj dyżur' ?></h2>
+    <?php if ($ed): ?><a class="small ms-auto" href="planLinki.php?tab=dk">anuluj edycję</a><?php endif; ?></div>
+  <div class="pl-body">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="duty_save"><input type="hidden" name="id" value="<?= (int)($ed['id'] ?? 0) ?>">
+      <fieldset class="col-12 mb-1"><legend class="form-label small mb-0">Rodzaj</legend>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="kind" id="dk-w" value="weekly" <?= ($ed['kind'] ?? 'weekly') === 'weekly' ? 'checked' : '' ?>><label class="form-check-label small" for="dk-w">stały (co tydzień)</label></div>
+        <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="kind" id="dk-d" value="date" <?= ($ed['kind'] ?? '') === 'date' ? 'checked' : '' ?>><label class="form-check-label small" for="dk-d">w konkretnym dniu (zastępuje stałe dyżury tego dnia)</label></div>
+      </fieldset>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0" for="dk-dow">Dzień tygodnia (stały)</label>
+        <select class="form-select form-select-sm" id="dk-dow" name="dow"><?php foreach (TI_DAYS_PL_FULL as $n => $lbl): ?><option value="<?= $n ?>" <?= (int)($ed['dow'] ?? 1) === $n ? 'selected' : '' ?>><?= h($lbl) ?></option><?php endforeach; ?></select></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0" for="dk-vf">obowiązuje od</label><input type="date" class="form-control form-control-sm" id="dk-vf" name="valid_from" value="<?= $ev('valid_from') ?>"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0" for="dk-vt">do</label><input type="date" class="form-control form-control-sm" id="dk-vt" name="valid_to" value="<?= $ev('valid_to') ?>"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0" for="dk-date">Data (konkretny dzień)</label><input type="date" class="form-control form-control-sm" id="dk-date" name="duty_date" value="<?= $ev('duty_date') ?>"></div>
+      <div class="col-6 col-md-2 d-flex align-items-end"><div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="dk-cn" name="is_cancelled" value="1" <?= (int)($ed['is_cancelled'] ?? 0) ? 'checked' : '' ?>><label class="form-check-label small" for="dk-cn">brak dyżuru w tym dniu</label></div></div>
+      <div class="w-100"></div>
+      <div class="col-6 col-md-1"><label class="form-label small mb-0" for="dk-tf">od</label><input type="time" class="form-control form-control-sm" id="dk-tf" name="time_from" value="<?= $ev('time_from') ?>"></div>
+      <div class="col-6 col-md-1"><label class="form-label small mb-0" for="dk-tt">do</label><input type="time" class="form-control form-control-sm" id="dk-tt" name="time_to" value="<?= $ev('time_to') ?>"></div>
+      <div class="col-md-3"><label class="form-label small mb-0" for="dk-pn">Osoba (imię i nazwisko)</label><input type="text" class="form-control form-control-sm" id="dk-pn" name="person_name" maxlength="120" value="<?= $ev('person_name') ?>"></div>
+      <div class="col-md-2"><label class="form-label small mb-0" for="dk-rl">Funkcja</label><input type="text" class="form-control form-control-sm" id="dk-rl" name="role_label" maxlength="80" list="dk-roles" value="<?= $ev('role_label') ?>">
+        <datalist id="dk-roles"><?php foreach (TI_DUTY_ROLES as $r): ?><option value="<?= h($r) ?>"><?php endforeach; ?></datalist></div>
+      <div class="col-md-3"><label class="form-label small mb-0" for="dk-pl">Miejsce / forma</label><input type="text" class="form-control form-control-sm" id="dk-pl" name="place" maxlength="200" value="<?= $ev('place') ?>" placeholder="np. biuro, pok. 12 / telefonicznie / Teams"></div>
+      <div class="col-md-2"><label class="form-label small mb-0" for="dk-ph">Telefon dyżurowy</label><input type="tel" class="form-control form-control-sm" id="dk-ph" name="contact_phone" maxlength="40" value="<?= $ev('contact_phone') ?>"></div>
+      <div class="col-md-3"><label class="form-label small mb-0" for="dk-em">E-mail dyżurowy</label><input type="email" class="form-control form-control-sm" id="dk-em" name="contact_email" maxlength="120" value="<?= $ev('contact_email') ?>"></div>
+      <div class="col-md-5"><label class="form-label small mb-0" for="dk-nt">Uwaga (opcjonalna)</label><input type="text" class="form-control form-control-sm" id="dk-nt" name="note" maxlength="300" value="<?= $ev('note') ?>"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-primary"><?= $ed ? 'Zapisz' : 'Dodaj dyżur' ?></button></div>
+    </form>
+    <p class="small text-body-secondary mb-0 mt-2">Kontakt dyżurowy wpisuj służbowy (nie prywatny) — trafia na stronę publiczną.</p>
+  </div>
+</section>
+
+<?php foreach (['weekly' => 'Dyżury stałe (co tydzień)', 'date' => 'Dyżury w konkretnych dniach'] as $kk => $kl): $rows = array_values(array_filter($duties, fn($r) => $r['kind'] === $kk)); ?>
+<h2 class="h6 fw-bold mt-3"><?= h($kl) ?> (<?= count($rows) ?>)</h2>
+<?php if (!$rows): ?><p class="small text-body-secondary">Brak.</p><?php else: ?>
+<div class="table-responsive"><table class="table table-sm align-middle">
+  <thead><tr><th scope="col"><?= $kk === 'weekly' ? 'Dzień' : 'Data' ?></th><th scope="col">Godziny</th><th scope="col">Dyżurny</th><th scope="col">Miejsce</th><th scope="col">Kontakt</th><th scope="col"><?= $kk === 'weekly' ? 'Obowiązuje' : 'Uwaga' ?></th><th scope="col"><span class="visually-hidden">Akcje</span></th></tr></thead>
+  <tbody>
+  <?php foreach ($rows as $r): $past = $kk === 'date' ? (string)$r['duty_date'] < date('Y-m-d') : (!empty($r['valid_to']) && (string)$r['valid_to'] < date('Y-m-d')); ?>
+  <tr<?= $past ? ' class="text-body-secondary"' : '' ?>>
+    <td><?= $kk === 'weekly' ? h(TI_DAYS_PL_FULL[(int)$r['dow']] ?? '') : h(date('d.m.Y', strtotime((string)$r['duty_date'])) . ' (' . (TI_DAYS_PL_FULL[(int)date('N', strtotime((string)$r['duty_date']))] ?? '') . ')') ?></td>
+    <td><?= (int)$r['is_cancelled'] ? '<span class="badge text-bg-danger">brak dyżuru</span>' : h($r['time_from'] . '–' . $r['time_to']) ?></td>
+    <td><?= h($r['person_name']) ?><?= $r['role_label'] !== '' ? '<br><span class="small text-body-secondary">' . h($r['role_label']) . '</span>' : '' ?></td>
+    <td><?= h($r['place']) ?></td>
+    <td class="small"><?= h(implode(' · ', array_filter([(string)$r['contact_phone'], (string)$r['contact_email']]))) ?></td>
+    <td class="small"><?= $kk === 'weekly' ? h(($r['valid_from'] ? 'od ' . date('d.m.Y', strtotime((string)$r['valid_from'])) . ' ' : '') . ($r['valid_to'] ? 'do ' . date('d.m.Y', strtotime((string)$r['valid_to'])) : '') ?: 'bez ograniczeń') : h($r['note']) ?><?= $past ? ' <span class="badge text-bg-secondary">minął</span>' : '' ?></td>
+    <td class="text-nowrap">
+      <a class="btn btn-sm btn-outline-secondary" href="planLinki.php?tab=dk&amp;edit=<?= (int)$r['id'] ?>#dk-form">Edytuj<span class="visually-hidden"> dyżur <?= h($r['person_name']) ?></span></a>
+      <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ten dyżur?')">
+        <input type="hidden" name="_token" value="<?= dyd_token() ?>"><input type="hidden" name="_op" value="duty_delete"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+        <button class="btn btn-sm btn-outline-danger">Usuń<span class="visually-hidden"> dyżur <?= h($r['person_name']) ?></span></button>
+      </form>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  </tbody>
+</table></div>
+<?php endif; ?>
+<?php endforeach; ?>
+
+<?php elseif ($tab === 'prowadzacy'): ?>
 <p class="small text-body-secondary">Tajny link do planu prowadzącego pokazuje wszystkie jego zajęcia (także zastępstwa), prowadzący inicjałami.
   Zaznaczenie „w katalogu” dodaje go do portalu — wtedy nazwy grup spoza katalogu są ukryte („niepubliczna”).</p>
 <?php if ($instructors): $nIOn = count(array_filter($instructors, fn($x) => isset($iLinks[(int)$x['id']]) && (int)$iLinks[(int)$x['id']]['is_enabled'] === 1)); ?>

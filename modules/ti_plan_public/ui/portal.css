@@ -32,6 +32,12 @@ a:hover { text-decoration: none; }
 main.page { min-width: 0; }
 
 /* Pasek tytułu jak w Optivum */
+.titlebar { position: relative; }
+.login-btn { position: absolute; top: 10px; right: 12px; background: #fff; color: var(--link) !important; border: 1px solid #fff; padding: 4px 12px;
+  font: bold 12px Verdana, sans-serif; text-decoration: none; border-radius: 2px; }
+.login-btn:hover, .login-btn:focus-visible { background: var(--head-bg); }
+@media (max-width: 760px) { .login-btn { position: static; display: block; text-align: center; border-radius: 0; border: 0; border-bottom: 1px solid var(--line); } }
+@media print { .login-btn { display: none; } }
 h1.title { margin: 0; background: var(--title-bg); color: var(--title-ink); font: bold 30px/1.2 Verdana, sans-serif; text-align: center;
   padding: 22px 12px; border-bottom: 2px solid var(--line); overflow-wrap: anywhere; }
 .subtitle { margin: 0; text-align: center; padding: 6px 12px; background: var(--hour-bg); border-bottom: 1px solid var(--line); color: var(--muted); }
@@ -93,7 +99,7 @@ table.tabela { border-collapse: collapse; border: 1px solid var(--line); backgro
 .tile:hover, .tile:focus-visible { background: var(--head-bg); border-color: var(--title-bg); }
 .tile strong { color: var(--link); font-size: 14px; line-height: 1.25; overflow-wrap: anywhere; }
 .tile small { color: var(--muted); font-size: 11px; line-height: 1.35; }
-.tile.t-instr { border-top-color: #2f8f6a; } .tile.t-room { border-top-color: #b26b00; }
+.tile.t-instr { border-top-color: #2f8f6a; } .tile.t-room { border-top-color: #b26b00; } .tile.t-duty { border-top-color: #9b2c2c; }
 .legend { text-align: center; font-size: 11px; color: var(--muted); margin-top: 8px; }
 
 footer.site-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 10px; color: var(--muted); padding: 8px 14px 16px; border-top: 1px solid #e3e3e3; margin-top: 16px; }

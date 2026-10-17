@@ -62,7 +62,7 @@ RewriteRule ^plan/([a-z0-9]{24})/?$ /karty30/ti/dydaktyk/planPubliczny.php?g=$1 
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/?$ /karty30/ti/dydaktyk/planPubliczny.php [QSA,L]
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
-RewriteRule ^plan/(grupy|prowadzacy|sale)/?$ /karty30/ti/dydaktyk/planPubliczny.php?k=$1 [QSA,L]
+RewriteRule ^plan/(grupy|prowadzacy|sale|dk)/?$ /karty30/ti/dydaktyk/planPubliczny.php?k=$1 [QSA,L]
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/p/([a-z0-9]{24})/?$ /karty30/ti/dydaktyk/planPubliczny.php?p=$1 [QSA,L]
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
