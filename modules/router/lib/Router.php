@@ -2,29 +2,43 @@
 /**
  * modules/router/lib/Router.php — router modułów na wzór Laravela (funkcjonalność współdzielona).
  *
- * Moduł ma jeden plik wejścia modules/{nazwa}/router.php:
+ * Moduł ma plik tras modules/{moduł}/router.php:
  *
- *   $r = new Router('/modules/zajecia_pozalekcyjne/router.php');
- *   $r->get('/', [ZpAdminController::class, 'index'])->name('zp.index')->middleware('role:admin,editor');
- *   $r->post('/zgloszenia/{id}', [ZpAdminController::class, 'update'])->middleware('role:admin,editor');
+ *   $r = new Router('/modules/ti/router.php');
+ *   $r->get('/nabor/zapisy', [NaborPublicController::class, 'form'])->name('nabor.form');
+ *   $r->group(['dyd.staff'], function (Router $r) {
+ *       $r->post('/nabor/zgloszenia/{id}', [NaborPanelController::class, 'update'])->name('nabor.update');
+ *   });
  *   $r->dispatch();
  *
- * Adres trasy = plik wejścia + ścieżka w PATH_INFO: /modules/x/router.php/zgloszenia/12 (działa bez
- * mod_rewrite; awaryjnie ?_route=/zgloszenia/12). Parametry {id} trafiają do akcji jako argumenty
- * (liczby całkowite rzutowane na int). Akcja: [Klasa::class, 'metoda'] (nowa instancja) albo Closure.
- * Middleware: 'auth' (require_login), 'role:a,b' (require_role), 'guest' (bez wymagań).
- * Każdy POST przechodzi przez csrf_check() (jak VerifyCsrfToken), chyba że trasa ma ->withoutCsrf().
- * Wynik akcji: string = HTML, tablica = JSON, null = akcja sama wysłała odpowiedź.
+ * Adresowanie:
+ *   'path'  (domyślne) — trasa w PATH_INFO: /modules/ti/router.php/nabor/zapisy (bez mod_rewrite);
+ *   'query'            — trasa w ?_route=/nabor/zapisy — dla wejść osadzonych w istniejących katalogach
+ *                        (np. panel dydaktyka), gdzie względne linki menu muszą zostać poprawne.
+ * Parametry {id} trafiają do akcji jako argumenty (cyfry → int). Akcja: [Klasa::class, 'metoda'] albo Closure.
+ * Middleware: 'auth' (require_login), 'role:a,b' (require_role), 'guest', oraz własne aliasy (aliasMiddleware).
+ * Każdy POST przechodzi przez weryfikację CSRF (domyślnie csrf_check() SZO, pole _csrf; inne przez csrfUsing()),
+ * pusty token jest zawsze odrzucany. Wynik akcji: string = HTML, tablica = JSON, null = akcja sama wysłała odpowiedź.
  */
 final class Router
 {
     /** @var array<int, array{method:string, path:string, regex:string, params:array, action:mixed, middleware:array, name:?string, csrf:bool}> */
     private array $routes = [];
+    /** @var array<string, callable> */
+    private array $aliases = [];
     private static ?Router $current = null;
+    /** @var callable */
+    private $csrfCheck;
+    /** @var callable */
+    private $csrfToken;
+    private string $csrfFieldName = '_csrf';
+    private string $prefix = '';
 
-    public function __construct(private string $entry)
+    public function __construct(private string $entry, private string $mode = 'path')
     {
         self::$current = $this;
+        $this->csrfCheck = fn() => csrf_check();
+        $this->csrfToken = fn() => csrf_token();
     }
 
     public static function current(): ?Router { return self::$current; }
@@ -34,7 +48,7 @@ final class Router
 
     private function add(string $method, string $path, $action): self
     {
-        $path = '/' . trim($path, '/');
+        $path = '/' . trim($this->prefix . '/' . trim($path, '/'), '/');
         preg_match_all('/\{(\w+)\}/', $path, $m);
         $regex = '#^' . preg_replace('/\\\{(\w+)\\\}/', '([^/]+)', preg_quote($path, '#')) . '$#';
         $this->routes[] = ['method' => $method, 'path' => $path, 'regex' => $regex, 'params' => $m[1],
@@ -48,15 +62,37 @@ final class Router
     public function name(string $name): self        { $r = &$this->last(); $r['name'] = $name; return $this; }
     public function withoutCsrf(): self             { $r = &$this->last(); $r['csrf'] = false; return $this; }
 
-    /** Grupa tras ze wspólnym middleware (jak Route::middleware(...)->group()). */
-    public function group(array $middleware, callable $define): void
+    /** Grupa tras ze wspólnym middleware i prefiksem ścieżki (jak Route::prefix()->middleware()->group()). */
+    public function group(array $middleware, callable $define, string $prefix = ''): void
     {
         $from = count($this->routes);
+        $keep = $this->prefix;
+        $this->prefix = rtrim($keep . '/' . trim($prefix, '/'), '/');
         $define($this);
+        $this->prefix = $keep;
         for ($i = $from; $i < count($this->routes); $i++) array_unshift($this->routes[$i]['middleware'], ...$middleware);
     }
 
-    /** Adres trasy po nazwie (jak route('zp.show', ['id' => 5])) — pozostałe parametry idą do query stringu. */
+    /** Własne middleware (np. sesja panelu dydaktyka): callable bez argumentów albo z argumentem po dwukropku. */
+    public function aliasMiddleware(string $name, callable $fn): self { $this->aliases[$name] = $fn; return $this; }
+
+    /** Inna ochrona CSRF (np. dyd_token_check() i pole _token w panelu dydaktyka). */
+    public function csrfUsing(callable $check, callable $token, string $field): self
+    {
+        $this->csrfCheck = $check; $this->csrfToken = $token; $this->csrfFieldName = $field;
+        return $this;
+    }
+
+    /** Ukryte pole CSRF bieżącego routera (do formularzy w widokach). */
+    public static function csrfField(): string
+    {
+        $r = self::$current;
+        return '<input type="hidden" name="' . htmlspecialchars($r->csrfFieldName, ENT_QUOTES) . '" value="' . htmlspecialchars(($r->csrfToken)(), ENT_QUOTES) . '">';
+    }
+
+    public static function csrfToken(): string { return (string)(self::$current->csrfToken)(); }
+
+    /** Adres trasy po nazwie (jak route('nabor.show', ['id' => 5])) — pozostałe parametry idą do query stringu. */
     public function route(string $name, array $params = []): string
     {
         foreach ($this->routes as $r) {
@@ -74,12 +110,16 @@ final class Router
     public function url(string $path = '/', array $query = []): string
     {
         $path = '/' . ltrim($path, '/');
-        return rtrim(APP_URL, '/') . $this->entry . ($path === '/' ? '' : $path) . ($query ? '?' . http_build_query($query) : '');
+        $base = rtrim(APP_URL, '/') . $this->entry;
+        if ($this->mode === 'query') {
+            return $base . '?' . http_build_query(($path === '/' ? [] : ['_route' => $path]) + $query);
+        }
+        return $base . ($path === '/' ? '' : $path) . ($query ? '?' . http_build_query($query) : '');
     }
 
     public function currentPath(): string
     {
-        $p = (string)($_SERVER['PATH_INFO'] ?? ($_GET['_route'] ?? '/'));
+        $p = $this->mode === 'query' ? (string)($_GET['_route'] ?? '/') : (string)($_SERVER['PATH_INFO'] ?? ($_GET['_route'] ?? '/'));
         return '/' . trim($p, '/');
     }
 
@@ -94,8 +134,10 @@ final class Router
             foreach ($r['middleware'] as $mw) $this->runMiddleware($mw);
             if ($method === 'POST' && $r['csrf']) {
                 // csrf_check() przepuszcza pusty token, gdy sesja jeszcze go nie ma — pusty zawsze odrzucamy
-                if ((string)($_POST['_csrf'] ?? '') === '') { http_response_code(403); echo 'Błąd CSRF. Odśwież stronę i spróbuj ponownie.'; return; }
-                csrf_check();
+                if ((string)($_POST[$this->csrfFieldName] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) === '') {
+                    http_response_code(403); echo 'Błąd CSRF. Odśwież stronę i spróbuj ponownie.'; return;
+                }
+                ($this->csrfCheck)();
             }
             $args = [];
             foreach ($r['params'] as $i => $name) $args[] = ctype_digit($m[$i + 1]) ? (int)$m[$i + 1] : rawurldecode($m[$i + 1]);
@@ -117,6 +159,7 @@ final class Router
     private function runMiddleware(string $mw): void
     {
         [$name, $arg] = array_pad(explode(':', $mw, 2), 2, '');
+        if (isset($this->aliases[$name])) { ($this->aliases[$name])($arg); return; }
         match ($name) {
             'auth'  => require_login(),
             'role'  => require_role(...array_map('trim', explode(',', $arg))),
