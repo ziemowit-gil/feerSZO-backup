@@ -543,6 +543,7 @@ function _menu_editor(): array {
             _mi('Portal płatności','/platnosci/admin.php','bi-credit-card-2-front',['match'=>'/platnosci/admin','kw'=>'portal płatności nrb rachunek wirtualny przelew koszyk']),
             _mi('Magazyn plików / ownCloud','/admin/owncloud_settings.php','bi-cloud-arrow-up',['match'=>'/admin/owncloud_settings','kw'=>'owncloud magazyn']),
             _mi('API i webhooki','/admin/api_manage.php','bi-key',['match'=>'/admin/api_manage','kw'=>'api webhooki klucze']),
+            _mi('Dyżury kierownika / Zarządu (DK)','/modules/ti_duty/index.php','bi-person-badge',['match'=>'/modules/ti_duty/','kw'=>'dyżury dyżur kierownika zarządu dk grafik prezes dostępność']),
             _mi('Panel dydaktyka (TI)','/karty30/ti/dydaktyk/wylaczenia.php','bi-easel2',['match'=>'/karty30/ti/dydaktyk/wylaczenia','kw'=>'panel dydaktyka ti przerwa komunikat wyłączenia']),
             _mi('Wiad. od prowadzących','/admin/ti_admin_msgs.php','bi-envelope-exclamation',['match'=>'/admin/ti_admin_msgs','kw'=>'wiadomości prowadzący kierownictwo','badge'=>(function(){ if(!function_exists('ti_admin_msg_unread_count')){@require_once __DIR__.'/ti_messages.php';} return function_exists('ti_admin_msg_unread_count')?ti_admin_msg_unread_count():0; })()]),
         ];

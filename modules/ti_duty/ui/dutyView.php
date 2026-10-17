@@ -1,6 +1,7 @@
 <?php
 /**
- * modules/ti_duty/ui/dutyView.php — DK w portalu planu: tydzień dyżurów kierownika / Zarządu (styl tabeli Optivum).
+ * modules/ti_duty/ui/dutyView.php — DK: tydzień dyżurów kierownika / Zarządu (styl tabeli Optivum) — w planie TI (?k=dk)
+ * i na osobnej stronie „Dyżury” (modules/ti_duty/public/index.php).
  * Wymaga: modules/ti_duty/logic/dutyManager.php, modules/ti_plan_public/ui/portalLayout.php (tiPlanPortalUrl),
  * planPublicPortal.php (tiPlanPublicFull, tiPlanPublicInitials).
  */
@@ -28,7 +29,7 @@ function tiDutyItemHtml(array $it, bool $special): string {
 }
 
 /** Ramka „Dyżur teraz / najbliższy dyżur” (strona startowa i DK). */
-function tiDutyNowBox(string $self): void {
+function tiDutyNowBox(string $self, array $q = ['k' => 'dk']): void {
     $n = tiDutyCurrentOrNext();
     if (!$n) return;
     $it = $n['item'];
@@ -36,11 +37,11 @@ function tiDutyNowBox(string $self): void {
        . h(TI_DAYS_PL_FULL[(int)date('N', strtotime($n['date']))]) . ', ' . h(date('d.m', strtotime($n['date']))) . ', ' . h($it['time_from'] . '–' . $it['time_to'])
        . ' — ' . h(tiDutyPersonLabel($it)) . (trim((string)$it['place']) !== '' ? ', ' . h($it['place']) : '')
        . (trim((string)$it['contact_phone']) !== '' ? ', tel. <a href="tel:' . h(preg_replace('/[^\d+]/', '', (string)$it['contact_phone'])) . '">' . h($it['contact_phone']) . '</a>' : '')
-       . ' <a href="' . tiPlanPortalUrl($self, ['k' => 'dk']) . '">grafik dyżurów »</a></section>';
+       . ' <a href="' . tiPlanPortalUrl($self, $q) . '">grafik dyżurów »</a></section>';
 }
 
 /** Tydzień dyżurów: Godz | dni (Pn–Pt zawsze, Sb/Nd gdy są dyżury). */
-function tiDutyRenderWeek(string $self): void {
+function tiDutyRenderWeek(string $self, array $q = ['k' => 'dk']): void {
     $first = tiPlanPublicMonday(date('Y-m-d'));
     $last  = tiPlanPublicMonday(date('Y-m-d', strtotime('+12 weeks')));
     $t = (string)($_GET['t'] ?? '');
@@ -68,9 +69,9 @@ function tiDutyRenderWeek(string $self): void {
     ?>
     <div class="plan-tools">
       <span class="week-nav" role="navigation" aria-label="Wybór tygodnia">
-        <?php if ($prev): ?><a href="<?= tiPlanPortalUrl($self, ['k' => 'dk', 't' => $prev]) ?>">« poprzedni</a><?php else: ?><span class="dis" aria-hidden="true">« poprzedni</span><?php endif; ?>
+        <?php if ($prev): ?><a href="<?= tiPlanPortalUrl($self, $q + ['t' => $prev]) ?>">« poprzedni</a><?php else: ?><span class="dis" aria-hidden="true">« poprzedni</span><?php endif; ?>
         <strong>tydzień <?= h($range) ?></strong>
-        <?php if ($next): ?><a href="<?= tiPlanPortalUrl($self, ['k' => 'dk', 't' => $next]) ?>">następny »</a><?php else: ?><span class="dis" aria-hidden="true">następny »</span><?php endif; ?>
+        <?php if ($next): ?><a href="<?= tiPlanPortalUrl($self, $q + ['t' => $next]) ?>">następny »</a><?php else: ?><span class="dis" aria-hidden="true">następny »</span><?php endif; ?>
       </span>
       <button class="linkbtn" type="button" data-print>Drukuj</button>
     </div>

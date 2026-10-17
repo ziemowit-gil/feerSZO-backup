@@ -67,6 +67,11 @@ RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/p/([a-z0-9]{24})/?$ /karty30/ti/dydaktyk/planPubliczny.php?p=$1 [QSA,L]
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/s/([0-9]+)/?$ /karty30/ti/dydaktyk/planPubliczny.php?s=$1 [QSA,L]
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
+RewriteRule ^plan/s/online/?$ /karty30/ti/dydaktyk/planPubliczny.php?s=online [QSA,L]
+# /dyzury → publiczna strona „Dyżury kierownika / Zarządu” (modules/ti_duty, wejście w /karty30/)
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
+RewriteRule ^dyzury/?$ /karty30/ti/dydaktyk/dyzury.php [QSA,L]
 
 # /dydaktyk → wymuś końcowy ukośnik, aby ścieżki względne w panelu (login.php,
 # logout.php) rozwiązywały się względem /dydaktyk/ (to nie jest panel domyślny).
