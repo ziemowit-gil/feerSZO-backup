@@ -48,6 +48,12 @@ RewriteRule ^uslugi-it/komunikaty/([0-9]{1,9})/?$ /modules/it_portal/public/komu
 RewriteRule ^uslugi-it/kontakt/?$ /modules/it_portal/public/kontakt.php [QSA,L]
 RewriteRule ^uslugi-it/szukaj/?$ /modules/it_portal/public/szukaj.php [QSA,L]
 
+# ── Nabór do grup TI: /nabor → publiczny formularz zgłoszenia (modules/ti/router.php) ──
+# Krótki adres na każdym hoście (szo.feer.org.pl/nabor, ti.feer.org.pl/nabor). Trasa idzie w ?_route=
+# (Router w trybie path czyta ją, gdy brak PATH_INFO); formularz po wysłaniu wraca na pełny adres routera.
+RewriteRule ^nabor/?$            /modules/ti/router.php?_route=/nabor/zapisy [QSA,L]
+RewriteRule ^nabor/potwierdz/?$  /modules/ti/router.php?_route=/nabor/potwierdz [QSA,L]
+
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
 # (URL w przeglądarce zostaje czysty). Krótkie adresy:
@@ -105,6 +111,8 @@ RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|newUI|to
 RewriteCond %{REQUEST_URI} !^/rozliczenia(/|$) [NC]
 # Portal płatności (/platnosci) — wejście z panelu kursanta/rodzica jednym kliknięciem
 RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
+# Router modułu TI (nabór do grup: /nabor → modules/ti/router.php) — publiczny, nie ścieżka panelu kursanta
+RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena kurs*. → panel kursanta TI (kurs.ngosystem.pl itp.) ───────────
@@ -117,6 +125,8 @@ RewriteCond %{HTTP_HOST} ^kurs[^.]*\. [NC]
 RewriteCond %{REQUEST_URI} !^/karty30/ [NC]
 RewriteCond %{REQUEST_URI} !^/(auth|contracts|assets|uploads|errors|api|tozsamosc)/ [NC]
 RewriteCond %{REQUEST_URI} !^/platnosci(/|$) [NC]
+# Router modułu TI (nabór do grup: /nabor → modules/ti/router.php) — publiczny, nie ścieżka panelu kursanta
+RewriteCond %{REQUEST_URI} !^/modules/ti/router\.php [NC]
 RewriteRule ^(.*)$ /karty30/ti/kursant/$1 [L]
 
 # ── Subdomena crm. → moduł CRM ──────────────────────────────────────────────
