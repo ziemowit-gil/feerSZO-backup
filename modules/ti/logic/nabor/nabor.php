@@ -332,7 +332,7 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
  * $accountId — zgłoszenie złożone z konta kandydata (e-mail i telefon zweryfikowane wcześniej): bez linku e-mail,
  * od razu wchodzi do obiegu (naborConfirmSubmission).
  */
-function naborSubmissionCreate(array $d, ?int $accountId = null): array {
+function naborSubmissionCreate(array $d, ?int $accountId = null, bool $sendConfirm = true): array {
     naborMigrate();
     $token = bin2hex(random_bytes(24));
     $ip    = naborClientIp();
@@ -386,7 +386,7 @@ function naborSubmissionCreate(array $d, ?int $accountId = null): array {
     if ($accountId) {
         db_exec("UPDATE ti_nabor_submissions SET account_id=?, email_confirmed_at=datetime('now') WHERE id=?", [$accountId, $id]);
         naborConfirmSubmission($id, 'Zgłoszenie złożone z konta kandydata (e-mail i telefon zweryfikowane)');
-    } else {
+    } elseif ($sendConfirm) {
         naborNotifyConfirmEmail(naborSubmissionGet($id), $token);
     }
     return ['id' => $id, 'registration_number' => $nr];
