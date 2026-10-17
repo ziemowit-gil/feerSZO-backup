@@ -51,8 +51,8 @@ RewriteRule ^uslugi-it/szukaj/?$ /modules/it_portal/public/szukaj.php [QSA,L]
 # ── Nabór do grup TI: /nabor → publiczny formularz zgłoszenia (modules/ti/router.php) ──
 # Krótki adres na każdym hoście (szo.feer.org.pl/nabor, ti.feer.org.pl/nabor). Trasa idzie w ?_route=
 # (Router w trybie path czyta ją, gdy brak PATH_INFO); formularz po wysłaniu wraca na pełny adres routera.
-RewriteRule ^nabor/?$            /modules/ti/router.php?_route=/nabor/zapisy [QSA,L]
-RewriteRule ^nabor/potwierdz/?$  /modules/ti/router.php?_route=/nabor/potwierdz [QSA,L]
+# Całe /nabor/… (formularz, potwierdzenie, konto kandydata) — router bierze trasę ze ścieżki żądania.
+RewriteRule ^nabor(/.*)?$        /modules/ti/router.php [QSA,L]
 
 # ── Subdomena ti*. → panele TI (kursant / dydaktyk) ─────────────────────────
 # Host zaczynający się od „ti" (np. ti.feer.org.pl) WEWNĘTRZNIE serwuje panele TI
