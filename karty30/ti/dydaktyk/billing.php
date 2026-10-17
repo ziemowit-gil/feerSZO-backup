@@ -230,10 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
             flash_set('danger', 'Wpłatę można zarejestrować tylko do wystawionego rozliczenia.');
         } elseif ($b) {
             // Pozostało do zapłaty — z żywej alokacji (zapisane paid_amount mogło się zdezaktualizować)
-            $_row = null;
-            foreach (ti_client_allocation((int)$b['client_id'])['rows'] as $_r) { if ($_r['id'] === $bid) { $_row = $_r; break; } }
-            $remaining = $_row ? round($_row['due'] - $_row['paid'], 2)
-                               : round((float)$b['amount'] + (float)($b['adjustment'] ?? 0) - (float)($b['paid_amount'] ?? 0), 2);
+            $remaining = ti_billing_remaining($bid);
             if ($remaining > 0) {
                 $r = ti_payment_add((int)$b['client_id'], $remaining, date('Y-m-d'), 'manual',
                                     'Oznaczono jako opłacone (rozl. '.$b['month'].'/'.$b['year'].')',
@@ -283,8 +280,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $b   = $bid ? db_one("SELECT b.*, cl.name AS client_name, cl.email AS client_email FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$bid]) : null;
         if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
         elseif (!stripe_enabled()) { flash_set('danger','Płatności Stripe nie są skonfigurowane (Administracja → Płatności / Stripe).'); }
+        elseif (ti_billing_remaining($bid) <= 0) { flash_set('info', 'Rozliczenie jest już w pełni pokryte (wpłaty / nadpłata) — link do zapłaty niepotrzebny.'); }
         else {
-            $amount = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            $amount = ti_billing_remaining($bid);   // pozostało do zapłaty, nie kwota brutto rozliczenia
             $back   = rtrim(APP_URL,'/') . '/karty30/ti/billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'');
             try {
                 $r = stripe_create_checkout(
@@ -307,8 +305,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $b   = $bid ? db_one("SELECT b.*, cl.name AS client_name, cl.email AS client_email FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$bid]) : null;
         if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
         elseif (!payu_enabled()) { flash_set('danger','Płatności PayU nie są skonfigurowane (Integracje → Płatności / PayU).'); }
+        elseif (ti_billing_remaining($bid) <= 0) { flash_set('info', 'Rozliczenie jest już w pełni pokryte (wpłaty / nadpłata) — link do zapłaty niepotrzebny.'); }
         else {
-            $amount = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            $amount = ti_billing_remaining($bid);   // pozostało do zapłaty, nie kwota brutto rozliczenia
             $back   = rtrim(APP_URL,'/') . '/karty30/ti/billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'');
             $notify = rtrim(APP_URL,'/') . '/api/payu_webhook.php';
             try {
@@ -332,8 +331,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
         $b   = $bid ? db_one("SELECT b.*, cl.name AS client_name, cl.email AS client_email FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id WHERE b.id=?", [$bid]) : null;
         if (!$b) { flash_set('danger','Nie znaleziono rozliczenia.'); }
         elseif (!p24_enabled()) { flash_set('danger','Płatności Przelewy24 nie są skonfigurowane (Integracje → Płatności / Przelewy24).'); }
+        elseif (ti_billing_remaining($bid) <= 0) { flash_set('info', 'Rozliczenie jest już w pełni pokryte (wpłaty / nadpłata) — link do zapłaty niepotrzebny.'); }
         else {
-            $amount = (float)$b['amount'] + (float)($b['adjustment'] ?? 0);
+            $amount = ti_billing_remaining($bid);   // pozostało do zapłaty, nie kwota brutto rozliczenia
             $back   = rtrim(APP_URL,'/') . '/karty30/ti/billing.php?month='.$month.'&year='.$year.($course_id?'&course_id='.$course_id:'');
             $notify = rtrim(APP_URL,'/') . '/api/p24_webhook.php';
             try {

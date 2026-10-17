@@ -257,6 +257,19 @@ function ti_client_allocation(int $client_id): array {
 }
 
 /**
+ * Kwota pozostała do zapłaty za jedno rozliczenie — z żywej alokacji (wpłaty znaczone
+ * na grupę + ogólne FIFO). 0 dla rozliczeń niewystawionych / anulowanych / pokrytych.
+ */
+function ti_billing_remaining(int $billing_id): float {
+    $cl = (int)(db_one("SELECT client_id FROM k30_ti_billing WHERE id=?", [$billing_id])['client_id'] ?? 0);
+    if (!$cl) return 0.0;
+    foreach (ti_client_allocation($cl)['rows'] as $r) {
+        if ($r['id'] === $billing_id) return round(max(0, $r['due'] - $r['paid']), 2);
+    }
+    return 0.0;
+}
+
+/**
  * Alokuje wpłaty na należności (patrz ti_client_allocation) i ZAPISUJE wynik:
  * paid_amount + status na każdym rozliczeniu. Idempotentne.
  * Zwraca ['payments','charges','credit','debt','general_credit','group_credit','groups'].
