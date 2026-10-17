@@ -27,7 +27,9 @@ $errors   = []; $posted = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_pay') {
     dyd_token_check();
-    $res = tiSubPaySave($clientId, !empty($_POST['enabled']), (array)($_POST['groups'] ?? []), $dyd_name);
+    // Datę „od” może korygować tylko administrator
+    $since = dyd_is_admin() ? trim((string)($_POST['since'] ?? '')) : null;
+    $res = tiSubPaySave($clientId, !empty($_POST['enabled']), (array)($_POST['groups'] ?? []), $dyd_name, $since);
     if ($res['ok']) {
         flash_set('success', 'Zapisano opcję „Płatne z subkonta”.' . (!empty($res['turned_on'])
             ? ($res['mailed'] ? ' Wysłano informację e-mailem (' . $res['mailed'] . ' ' . ($res['mailed'] === 1 ? 'adresat' : 'adresatów') . ').' : ' Brak adresu e-mail — kursant nie dostał informacji.')
@@ -168,7 +170,15 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <input class="form-check-input" type="checkbox" role="switch" id="sk-pay-on" name="enabled" value="1"<?= $sp['enabled'] ? ' checked' : '' ?>>
       <label class="form-check-label" for="sk-pay-on"><?= $sp['enabled'] ? 'włączone' : 'wyłączone' ?></label>
     </div>
-    <?php if ($sp['enabled'] && $sp['enabled_at']): ?><span class="small text-body-secondary">od <?= h(date('d.m.Y', strtotime((string)$sp['enabled_at']))) ?><?= $sp['notified_at'] ? ' · e-mail wysłany ' . h(date('d.m.Y', strtotime((string)$sp['notified_at']))) : '' ?></span><?php endif; ?>
+    <?php if (dyd_is_admin()): ?>
+    <div class="d-flex align-items-center gap-1">
+      <label class="small text-body-secondary mb-0" for="sk-pay-since">od</label>
+      <input type="date" class="form-control form-control-sm" style="width:auto" id="sk-pay-since" name="since"
+             value="<?= h($sp['enabled_at'] ? substr((string)$sp['enabled_at'], 0, 10) : '') ?>" aria-describedby="sk-pay-since-h">
+      <span class="small text-body-secondary" id="sk-pay-since-h">wpłaty od tego dnia pokrywają wybrane grupy (puste = dziś przy włączeniu)</span>
+    </div>
+    <?php if ($sp['notified_at']): ?><span class="small text-body-secondary">e-mail wysłany <?= h(date('d.m.Y', strtotime((string)$sp['notified_at']))) ?></span><?php endif; ?>
+    <?php elseif ($sp['enabled'] && $sp['enabled_at']): ?><span class="small text-body-secondary">od <?= h(date('d.m.Y', strtotime((string)$sp['enabled_at']))) ?><?= $sp['notified_at'] ? ' · e-mail wysłany ' . h(date('d.m.Y', strtotime((string)$sp['notified_at']))) : '' ?></span><?php endif; ?>
   </div>
   <fieldset class="mt-2">
     <legend class="small mb-1">Grupy, za które opłaty pobierają się z subkonta</legend>

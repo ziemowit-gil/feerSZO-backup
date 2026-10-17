@@ -381,14 +381,20 @@ function tiSubPayCourses(int $clientId): array {
 
 /**
  * Zapis opcji. Włączenie (z wyłączonej) wysyła e-mail do kursanta i opiekuna (szablon ti_subaccount_enabled).
+ * $since ('Y-m-d', tylko administrator) — korekta daty „od”: wpłaty na subkonto od tego dnia pokrywają
+ * wybrane grupy (faza 1b alokacji), wcześniejsze liczą się jak wpłaty ogólne. null = bez zmiany daty.
  * @return array{ok:bool, error?:string, turned_on?:bool, mailed?:int}
  */
-function tiSubPaySave(int $clientId, bool $enabled, array $groups, string $by): array {
+function tiSubPaySave(int $clientId, bool $enabled, array $groups, string $by, ?string $since = null): array {
     tiSubPayMigrate();
     if (!tiSubNrb($clientId)) return ['ok' => false, 'error' => 'Kursant nie ma nadanego subkonta (rachunku wirtualnego).'];
     $allowed = tiSubPayCourses($clientId);
     $groups  = array_values(array_intersect(array_unique(array_map('intval', $groups)), array_keys($allowed)));
     if ($enabled && !$groups) return ['ok' => false, 'error' => 'Wybierz co najmniej jedną grupę płatną z subkonta.'];
+    if ($since !== null && $since !== '') {
+        $d = DateTime::createFromFormat('!Y-m-d', $since);
+        if (!$d || $d->format('Y-m-d') !== $since) return ['ok' => false, 'error' => 'Niepoprawna data „od”.'];
+    } else $since = null;
     $prev = tiSubPayGet($clientId);
     $pdo  = db();
     $pdo->beginTransaction();
@@ -400,6 +406,11 @@ function tiSubPaySave(int $clientId, bool $enabled, array $groups, string $by): 
                            enabled_by=CASE WHEN excluded.enabled=1 AND ti_subaccount_pay.enabled=0 THEN excluded.enabled_by ELSE ti_subaccount_pay.enabled_by END,
                            updated_at=excluded.updated_at")
             ->execute([$clientId, $enabled ? 1 : 0, $enabled ? date('Y-m-d H:i:s') : null, $enabled ? $by : '']);
+        $prevSince = substr((string)(db_one("SELECT enabled_at FROM ti_subaccount_pay WHERE client_id=?", [$clientId])['enabled_at'] ?? ''), 0, 10) ?: null;
+        if ($enabled && $since !== null && $since !== $prevSince) {
+            $pdo->prepare("UPDATE ti_subaccount_pay SET enabled_at=? WHERE client_id=?")->execute([$since . ' 00:00:00', $clientId]);
+            if (function_exists('audit_log')) audit_log('ti_subaccount.pay_since', ['client_id' => $clientId, 'from' => $prevSince, 'to' => $since, 'by' => $by], null);
+        }
         $pdo->prepare("DELETE FROM ti_subaccount_pay_groups WHERE client_id=?")->execute([$clientId]);
         $ins = $pdo->prepare("INSERT INTO ti_subaccount_pay_groups (client_id, course_id) VALUES (?,?)");
         foreach ($groups as $g) $ins->execute([$clientId, $g]);

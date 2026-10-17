@@ -150,7 +150,8 @@ function ti_charges_total(int $client_id): float {
  *         to rozliczenie; reszta trafia do grupy wpłaty (course_id) albo do wpłat ogólnych.
  * Faza 1: wpłaty znaczone na grupę (course_id > 0) pokrywają FIFO tylko należności tej grupy.
  * Faza 1b: „Płatne z subkonta” (modules/ti_subaccount) — wpłaty ogólne na subkonto (source_type
- *          'subaccount' lub 'bank_tx') pokrywają FIFO tylko należności grup wybranych przez kierownika;
+ *          'subaccount' lub 'bank_tx', wpłacone od daty „od” opcji — enabled_at) pokrywają FIFO tylko
+ *          należności grup wybranych przez kierownika; wcześniejsze wpłaty liczą się jak ogólne;
  *          reszta zostaje na subkoncie (sub_credit) i nie pokrywa innych grup.
  * Faza 2: wpłaty ogólne (course_id = 0) pokrywają FIFO wszystko, co pozostało niedopłacone.
  *
@@ -185,8 +186,9 @@ function ti_client_allocation(int $client_id): array {
     );
 
     // „Płatne z subkonta”: grupy, które pokrywają wpłaty na subkonto (brak tabel / opcji wyłączonej = [])
-    $sub_groups = [];
+    $sub_groups = []; $sub_since = '';
     try {
+        $sub_since = substr((string)(db_one("SELECT enabled_at FROM ti_subaccount_pay WHERE client_id=? AND enabled=1", [$client_id])['enabled_at'] ?? ''), 0, 10);
         $sub_groups = array_map('intval', array_column(db_all(
             "SELECT g.course_id FROM ti_subaccount_pay_groups g JOIN ti_subaccount_pay p ON p.client_id=g.client_id AND p.enabled=1
              WHERE g.client_id=?", [$client_id]), 'course_id'));
@@ -195,7 +197,8 @@ function ti_client_allocation(int $client_id): array {
     if ($sub_groups) {
         $sub_pool = round((float)(db_one(
             "SELECT COALESCE(SUM(amount),0) AS s FROM k30_ti_payments
-             WHERE client_id=? AND COALESCE(course_id,0)=0 AND source_type IN ('subaccount','bank_tx')", [$client_id])['s'] ?? 0), 2);
+             WHERE client_id=? AND COALESCE(course_id,0)=0 AND source_type IN ('subaccount','bank_tx')
+               AND substr(COALESCE(paid_at, created_at),1,10) >= ?", [$client_id, $sub_since])['s'] ?? 0), 2);
     }
 
     $earmarked = [];     // course_id > 0 => kwota wpłat znaczonych
