@@ -1029,40 +1029,55 @@ function ti_clients_with_debt(): array {
 }
 
 /**
- * Nieopłacone godziny kursantów i koszt prowadzącego za te godziny — do tabeli „Niedopłaty”.
- * Z każdego niedopłaconego rozliczenia bierzemy część godzin proporcjonalną do brakującej
- * kwoty: hours_billed × (należność − wpłacono) / należność. Koszt prowadzącego = te godziny
- * × stawka prowadzącego z kursu rozliczenia (lesson_payout_bb, zł za zajęcia = godzinę).
- * Rozliczenia bez godzin (sama korekta, np. przeniesiona niedopłata) nie dokładają godzin;
- * rozliczenia łączne / z kursu bez stawki trafiają do 'hours_no_rate'.
- * @return array<int,array{hours:float,payout:float,hours_no_rate:float}>
+ * Nieopłacone godziny kursantów i koszt prowadzącego za nie — do tabeli „Niedopłaty”.
+ *
+ * Wpłacono = żywa alokacja (ti_client_allocation), nie zapisane paid_amount. Z każdego
+ * niedopłaconego rozliczenia bierzemy część proporcjonalną do brakującej kwoty
+ * f = (należność − pokryte) / należność. Lekcje rozliczenia = te same, z których liczy się
+ * należność (obecność albo no-show na odbytych zajęciach kursu w miesiącu rozliczenia;
+ * rozliczenie łączne course_id=0 — wszystkie kursy kursanta). Godziny jak w modelu:
+ * pełne rozpoczęte godziny czasu trwania zajęć (no-show „1h” = 1 h).
+ * Koszt prowadzącego: stawka za zajęcia (lesson_payout_bb) dzielona na liczbę rozliczanych
+ * uczestników tych zajęć — w grupie jednoosobowej cała stawka, w grupie N-osobowej 1/N.
+ * @return array<int,array{hours:float,lessons:float,payout:float,hours_no_rate:float}>
  */
 function ti_debt_hours(array $client_ids): array {
     $client_ids = array_values(array_unique(array_filter(array_map('intval', $client_ids))));
-    if (!$client_ids) return [];
-    $in   = implode(',', array_fill(0, count($client_ids), '?'));
-    $rows = db_all(
-        "SELECT b.client_id, COALESCE(b.hours_billed,0) AS hours,
-                (b.amount + COALESCE(b.adjustment,0)) AS due, COALESCE(b.paid_amount,0) AS paid,
-                COALESCE(c.lesson_payout_bb,0) AS bb
-         FROM k30_ti_billing b
-         LEFT JOIN k30_ti_courses c ON c.id = b.course_id
-         WHERE b.client_id IN ($in) AND b.status IN ('issued','paid') AND COALESCE(b.hours_only,0)=0
-           AND (b.amount + COALESCE(b.adjustment,0)) - COALESCE(b.paid_amount,0) > 0.005",
-        $client_ids
-    );
     $out = [];
-    foreach ($rows as $r) {
-        $cid = (int)$r['client_id'];
-        $out[$cid] ??= ['hours' => 0.0, 'payout' => 0.0, 'hours_no_rate' => 0.0];
-        $due = (float)$r['due'];
-        if ($due <= 0 || (float)$r['hours'] <= 0) continue;
-        $h = (float)$r['hours'] * min(1, ((float)$r['due'] - (float)$r['paid']) / $due);
-        $out[$cid]['hours'] += $h;
-        if ((float)$r['bb'] > 0) $out[$cid]['payout'] += $h * (float)$r['bb'];
-        else                     $out[$cid]['hours_no_rate'] += $h;
+    foreach ($client_ids as $cl) {
+        $acc = ['hours' => 0.0, 'lessons' => 0.0, 'payout' => 0.0, 'hours_no_rate' => 0.0];
+        foreach (ti_client_allocation($cl)['rows'] as $r) {
+            if (!empty($r['ho']) || $r['due'] <= 0.005) continue;
+            $f = min(1, max(0, ($r['due'] - $r['paid']) / $r['due']));
+            if ($f <= 0.0001) continue;
+            $b = db_one("SELECT year, month, COALESCE(course_id,0) AS course_id FROM k30_ti_billing WHERE id=?", [$r['id']]);
+            if (!$b) continue;
+            $from = sprintf('%04d-%02d-01', (int)$b['year'], (int)$b['month']);
+            $to   = date('Y-m-t', strtotime($from));
+            $cw   = (int)$b['course_id'] > 0 ? ' AND s.course_id=' . (int)$b['course_id'] : '';
+            $less = db_all(
+                "SELECT s.id, s.duration_min, COALESCE(c.lesson_payout_bb,0) AS bb,
+                        CASE WHEN COALESCE(a.attended,0)=0 AND a.no_show_billing='1h' THEN 1 ELSE 0 END AS ns1h,
+                        (SELECT COUNT(*) FROM k30_ti_attendance a2
+                          WHERE a2.session_id=s.id AND COALESCE(a2.cancelled,0)=0
+                            AND (a2.attended=1 OR COALESCE(a2.no_show,0)=1)) AS n_part
+                 FROM k30_ti_attendance a
+                 JOIN k30_ti_sessions s ON s.id=a.session_id AND s.status IN ('held','individual_change','remote_material')
+                 JOIN k30_ti_courses c ON c.id=s.course_id
+                 WHERE a.client_id=? AND COALESCE(a.cancelled,0)=0 AND s.lesson_date BETWEEN ? AND ?
+                   AND (a.attended=1 OR COALESCE(a.no_show,0)=1) $cw",
+                [$cl, $from, $to]
+            );
+            foreach ($less as $l) {
+                $h = $l['ns1h'] ? 1.0 : (float)ceil((int)$l['duration_min'] / 60);
+                $acc['hours']   += $f * $h;
+                $acc['lessons'] += $f;
+                if ((float)$l['bb'] > 0) $acc['payout'] += $f * (float)$l['bb'] / max(1, (int)$l['n_part']);
+                else                     $acc['hours_no_rate'] += $f * $h;
+            }
+        }
+        $out[$cl] = array_map(fn($v) => round($v, 2), $acc);
     }
-    foreach ($out as &$o) { $o = array_map(fn($v) => round($v, 2), $o); }
     return $out;
 }
 
