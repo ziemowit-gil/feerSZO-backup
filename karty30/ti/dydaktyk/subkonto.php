@@ -25,6 +25,19 @@ $amountIn = (string)($_REQUEST['amount'] ?? '');
 $amount   = tiSubNum($amountIn);
 $errors   = []; $posted = null;
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'save_pay') {
+    dyd_token_check();
+    $res = tiSubPaySave($clientId, !empty($_POST['enabled']), (array)($_POST['groups'] ?? []), $dyd_name);
+    if ($res['ok']) {
+        flash_set('success', 'Zapisano opcję „Płatne z subkonta”.' . (!empty($res['turned_on'])
+            ? ($res['mailed'] ? ' Wysłano informację e-mailem (' . $res['mailed'] . ' ' . ($res['mailed'] === 1 ? 'adresat' : 'adresatów') . ').' : ' Brak adresu e-mail — kursant nie dostał informacji.')
+            : ''));
+    } else {
+        flash_set('danger', $res['error']);
+    }
+    header('Location: ' . $SELF . '?client=' . $clientId . '&tab=' . $tab); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_op'] ?? '') === 'apply') {
     dyd_token_check();
     $res = tiSubApply($clientId, $_POST, $dyd_name);
@@ -143,6 +156,33 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 </ul>
 <?php if (!$nrb): ?>
 <div class="alert alert-warning">Kursant nie ma nadanego subkonta (rachunku wirtualnego) — wpłata na subkonto i wyciąg są niedostępne.</div>
+<?php else: $sp = tiSubPayGet($clientId); $spc = tiSubPayCourses($clientId); ?>
+<form method="post" class="card card-body mb-3 no-print" aria-labelledby="sk-pay-h"
+      onsubmit="return !this.enabled.checked || <?= $sp['enabled'] ? 'true' : 'false' ?> || confirm('Włączyć „Płatne z subkonta”?\n\nKursant (i opiekun, jeśli ma adres) dostanie e-mail z informacją o nowej formie płatności.')">
+  <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+  <input type="hidden" name="_op" value="save_pay">
+  <input type="hidden" name="client" value="<?= $clientId ?>">
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <h2 class="h6 mb-0" id="sk-pay-h"><i class="bi bi-wallet2 me-1" aria-hidden="true"></i>Płatne z subkonta</h2>
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" role="switch" id="sk-pay-on" name="enabled" value="1"<?= $sp['enabled'] ? ' checked' : '' ?>>
+      <label class="form-check-label" for="sk-pay-on"><?= $sp['enabled'] ? 'włączone' : 'wyłączone' ?></label>
+    </div>
+    <?php if ($sp['enabled'] && $sp['enabled_at']): ?><span class="small text-body-secondary">od <?= h(date('d.m.Y', strtotime((string)$sp['enabled_at']))) ?><?= $sp['notified_at'] ? ' · e-mail wysłany ' . h(date('d.m.Y', strtotime((string)$sp['notified_at']))) : '' ?></span><?php endif; ?>
+  </div>
+  <fieldset class="mt-2">
+    <legend class="small mb-1">Grupy, za które opłaty pobierają się z subkonta</legend>
+    <?php if (!$spc): ?><div class="small text-body-secondary">Kursant nie ma aktywnych zapisów do grup.</div><?php endif; ?>
+    <div class="d-flex flex-wrap gap-3">
+      <?php foreach ($spc as $gid => $gname): ?>
+      <label class="form-check mb-0"><input type="checkbox" class="form-check-input" name="groups[]" value="<?= (int)$gid ?>"<?= in_array($gid, $sp['groups'], true) ? ' checked' : '' ?>>
+        <span class="form-check-label"><?= h($gname) ?></span></label>
+      <?php endforeach; ?>
+    </div>
+    <div class="form-text">Wpływy na subkonto pokrywają wtedy tylko te grupy (od najstarszej należności); niewykorzystana kwota zostaje na subkoncie. Po włączeniu kursant i opiekun dostają e-mail (szablon „TI: włączono Płatne z subkonta”).</div>
+  </fieldset>
+  <div class="mt-2"><button class="btn btn-sm btn-primary"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz</button></div>
+</form>
 <?php endif; ?>
 <?php endif; ?>
 
@@ -326,6 +366,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
           <td class="text-end<?= $g['debt'] > 0.005 ? ' text-danger fw-semibold' : '' ?>"><?= $zl($g['debt']) ?></td><td class="text-end"><?= $zl($g['credit']) ?></td></tr>
       <?php endforeach; ?>
       <tr class="table-light"><td>Nadpłata ogólna (na dowolną grupę)</td><td colspan="3"></td><td class="text-end fw-semibold"><?= $zl($stmt['balance']['general_credit']) ?></td></tr>
+      <?php if (($stmt['balance']['sub_credit'] ?? 0) > 0.005): ?>
+      <tr class="table-light"><td>Środki na subkoncie (na grupy „Płatne z subkonta”)</td><td colspan="3"></td><td class="text-end fw-semibold"><?= $zl($stmt['balance']['sub_credit']) ?></td></tr>
+      <?php endif; ?>
     </tbody>
   </table>
 </section>

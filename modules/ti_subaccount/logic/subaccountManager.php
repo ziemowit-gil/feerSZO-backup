@@ -337,3 +337,106 @@ function tiSubStatement(int $clientId, string $from = '', string $to = ''): arra
     return ['nrb' => tiSubNrb($clientId), 'client' => (string)($c['name'] ?? ''), 'opening' => $open, 'lines' => $out,
             'payments' => round($sp, 2), 'charges' => round($sc, 2), 'balance' => ti_client_group_balances($clientId)];
 }
+
+// ── „Płatne z subkonta”: opcja kursanta + grupy pokrywane z subkonta ─────────────
+
+function tiSubPayMigrate(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (function_exists('szo_schema_current') && szo_schema_current('ti_subaccount_pay', __FILE__)) return;
+    db()->exec("CREATE TABLE IF NOT EXISTS ti_subaccount_pay (
+        client_id   INTEGER PRIMARY KEY REFERENCES k30_clients(id) ON DELETE CASCADE,
+        enabled     INTEGER NOT NULL DEFAULT 0,
+        enabled_at  DATETIME,
+        enabled_by  TEXT    NOT NULL DEFAULT '',
+        notified_at DATETIME,
+        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    db()->exec("CREATE TABLE IF NOT EXISTS ti_subaccount_pay_groups (
+        client_id INTEGER NOT NULL REFERENCES k30_clients(id) ON DELETE CASCADE,
+        course_id INTEGER NOT NULL REFERENCES k30_ti_courses(id) ON DELETE CASCADE,
+        PRIMARY KEY (client_id, course_id)
+    )");
+}
+
+/** @return array{enabled:bool, groups:list<int>, enabled_at:?string, notified_at:?string} */
+function tiSubPayGet(int $clientId): array {
+    tiSubPayMigrate();
+    $r = db_one("SELECT * FROM ti_subaccount_pay WHERE client_id=?", [$clientId]);
+    return ['enabled' => $r && (int)$r['enabled'] === 1,
+            'groups'  => array_map('intval', array_column(db_all("SELECT course_id FROM ti_subaccount_pay_groups WHERE client_id=?", [$clientId]), 'course_id')),
+            'enabled_at' => $r['enabled_at'] ?? null, 'notified_at' => $r['notified_at'] ?? null];
+}
+
+/** Grupy kursanta do wyboru (aktywne zapisy + już wybrane). @return array<int,string> */
+function tiSubPayCourses(int $clientId): array {
+    tiSubPayMigrate();
+    $out = [];
+    foreach (db_all("SELECT c.id, c.name FROM k30_ti_enrollments e JOIN k30_ti_courses c ON c.id=e.course_id
+                     WHERE e.client_id=? AND (e.status='active' OR c.id IN (SELECT course_id FROM ti_subaccount_pay_groups WHERE client_id=?))
+                     ORDER BY c.name COLLATE NOCASE", [$clientId, $clientId]) as $c) $out[(int)$c['id']] = (string)$c['name'];
+    return $out;
+}
+
+/**
+ * Zapis opcji. Włączenie (z wyłączonej) wysyła e-mail do kursanta i opiekuna (szablon ti_subaccount_enabled).
+ * @return array{ok:bool, error?:string, turned_on?:bool, mailed?:int}
+ */
+function tiSubPaySave(int $clientId, bool $enabled, array $groups, string $by): array {
+    tiSubPayMigrate();
+    if (!tiSubNrb($clientId)) return ['ok' => false, 'error' => 'Kursant nie ma nadanego subkonta (rachunku wirtualnego).'];
+    $allowed = tiSubPayCourses($clientId);
+    $groups  = array_values(array_intersect(array_unique(array_map('intval', $groups)), array_keys($allowed)));
+    if ($enabled && !$groups) return ['ok' => false, 'error' => 'Wybierz co najmniej jedną grupę płatną z subkonta.'];
+    $prev = tiSubPayGet($clientId);
+    $pdo  = db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("INSERT INTO ti_subaccount_pay (client_id, enabled, enabled_at, enabled_by, updated_at)
+                       VALUES (?,?,?,?,datetime('now'))
+                       ON CONFLICT(client_id) DO UPDATE SET enabled=excluded.enabled,
+                           enabled_at=CASE WHEN excluded.enabled=1 AND ti_subaccount_pay.enabled=0 THEN excluded.enabled_at ELSE ti_subaccount_pay.enabled_at END,
+                           enabled_by=CASE WHEN excluded.enabled=1 AND ti_subaccount_pay.enabled=0 THEN excluded.enabled_by ELSE ti_subaccount_pay.enabled_by END,
+                           updated_at=excluded.updated_at")
+            ->execute([$clientId, $enabled ? 1 : 0, $enabled ? date('Y-m-d H:i:s') : null, $enabled ? $by : '']);
+        $pdo->prepare("DELETE FROM ti_subaccount_pay_groups WHERE client_id=?")->execute([$clientId]);
+        $ins = $pdo->prepare("INSERT INTO ti_subaccount_pay_groups (client_id, course_id) VALUES (?,?)");
+        foreach ($groups as $g) $ins->execute([$clientId, $g]);
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        return ['ok' => false, 'error' => 'Nie zapisano: ' . $e->getMessage()];
+    }
+    ti_billing_recompute($clientId);   // wpłaty na subkonto przechodzą na wybrane grupy
+    $turnedOn = $enabled && !$prev['enabled'];
+    $mailed = $turnedOn ? tiSubPayMail($clientId, array_map(fn($g) => $allowed[$g], $groups)) : 0;
+    return ['ok' => true, 'turned_on' => $turnedOn, 'mailed' => $mailed];
+}
+
+/** E-mail „Włączyliśmy opcję Płatne z subkonta” — do kursanta i (gdy jest) opiekuna. Zwraca liczbę zakolejkowanych. */
+function tiSubPayMail(int $clientId, array $groupNames): int {
+    if (!function_exists('email_tpl_render')) require_once dirname(__DIR__, 3) . '/includes/email_templates.php';
+    require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+    $c   = db_one("SELECT name, email FROM k30_clients WHERE id=?", [$clientId]) ?: [];
+    $acc = db_one("SELECT guardian_name, guardian_email FROM k30_ti_student_accounts WHERE client_id=? ORDER BY id LIMIT 1", [$clientId]) ?: [];
+    $name  = trim((string)($c['name'] ?? ''));
+    $first = $name !== '' ? preg_split('/\s+/u', $name)[0] : '';
+    $org   = function_exists('org_setting') ? (string)(org_setting('org_name') ?: '') : '';
+    if ($org === '' && defined('ORG_NAME')) $org = ORG_NAME;
+    $vars = ['imie' => htmlspecialchars($first, ENT_QUOTES, 'UTF-8'), 'student' => htmlspecialchars($name, ENT_QUOTES, 'UTF-8'),
+             'grupy' => htmlspecialchars(implode(', ', $groupNames), ENT_QUOTES, 'UTF-8'), 'nrb' => (string)tiSubNrb($clientId),
+             'portal' => rtrim(APP_URL, '/') . '/karty30/ti/kursant/login.php', 'org' => htmlspecialchars($org, ENT_QUOTES, 'UTF-8')];
+    $r = email_tpl_render('ti_subaccount_enabled', $vars);
+    if (empty($r['enabled']) || $r['html'] === '') return 0;
+    $sent = 0; $seen = [];
+    foreach ([[(string)($c['email'] ?? ''), $name], [(string)($acc['guardian_email'] ?? ''), (string)($acc['guardian_name'] ?? '')]] as [$to, $toName]) {
+        $key = mb_strtolower(trim($to));
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL) || isset($seen[$key])) continue;
+        $seen[$key] = true;
+        mail_queue_add($to, $toName, $r['subject'], $r['html'], '', 'ti_subaccount_enabled', $clientId);
+        $sent++;
+    }
+    if ($sent) db()->prepare("UPDATE ti_subaccount_pay SET notified_at=datetime('now') WHERE client_id=?")->execute([$clientId]);
+    return $sent;
+}

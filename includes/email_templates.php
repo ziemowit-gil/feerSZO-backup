@@ -637,6 +637,21 @@ HTML;
 </p>
 HTML;
 
+    // ── TI: włączono „Płatne z subkonta” (do kursanta i opiekuna) ─────
+    $ti_subaccount_enabled_body = <<<'HTML'
+<p>Cześć {{imie}},</p>
+<p>Informujemy, że dla Twojego konta została uruchomiona opcja <strong>„Płatne z subkonta”</strong>.</p>
+<p>Od teraz opłaty za uczestnictwo w wybranych grupach zajęciowych będą automatycznie pobierane z Twoich zgromadzonych i wpłaconych środków na subkoncie.</p>
+<p><strong>Co to dla Ciebie oznacza?</strong></p>
+<ul>
+  <li><strong>Automatyczne rozliczenia:</strong> Opłaty za zajęcia w wyznaczonych grupach pobierają się bezpośrednio z Twojego salda.</li>
+  <li><strong>Wybór grup:</strong> Grupy objęte tą formą płatności są przypisywane przez administratora systemu podczas aktywacji usługi.</li>
+  <li><strong>Bieżący podgląd:</strong> Stan środków oraz historię pobrań możesz w każdej chwili sprawdzić po zalogowaniu się na swoje konto.</li>
+</ul>
+<p>W razie pytań dotyczących salda lub przypisanych grup, skontaktuj się z nami, odpowiadając na tę wiadomość.</p>
+<p style="margin-top:18px">Pozdrawiamy,<br>{{org}}</p>
+HTML;
+
     // ── TI: egzamin udostępniony (do kursanta) ────────────────────────
     $ti_exam_open_body = <<<'HTML'
 <p>Cześć <strong>{{imie}}</strong>,</p>
@@ -1344,6 +1359,24 @@ HTML,
                 'account'     => ['label' => 'Numer rachunku do wpłat',                 'sample' => 'PL61 1090 1014 0000 0712 1981 2874'],
                 'title'       => ['label' => 'Tytuł przelewu',                          'sample' => 'TI/105 Jan Kowalski'],
                 'portal'      => ['label' => 'URL logowania do panelu kursanta',        'sample' => $base . '/karty30/ti/kursant/login.php'],
+            ],
+        ],
+
+        'ti_subaccount_enabled' => [
+            'label'       => 'TI: włączono „Płatne z subkonta” (do kursanta i opiekuna)',
+            'group'       => 'TI — Zajęcia',
+            'icon'        => 'bi-bank',
+            'auto'        => true,
+            'description' => 'Wysyłany raz, gdy kierownik włączy kursantowi opcję „Płatne z subkonta” (Panel dydaktyka → Subkonto kursanta) — do kursanta i, gdy jest podany, do opiekuna.',
+            'subject'     => 'Włączyliśmy opcję „Płatne z subkonta” dla Twojego konta',
+            'body'        => $ti_subaccount_enabled_body,
+            'vars'        => [
+                'imie'    => ['label' => 'Imię kursanta',                       'sample' => 'Jan'],
+                'student' => ['label' => 'Kursant (imię i nazwisko)',           'sample' => 'Jan Kowalski'],
+                'grupy'   => ['label' => 'Grupy płatne z subkonta (lista)',     'sample' => 'Angielski B1, Informatyka'],
+                'nrb'     => ['label' => 'Numer subkonta',                      'sample' => 'PL12 3456 7890 1234 5678 9012 3456'],
+                'portal'  => ['label' => 'URL logowania do panelu kursanta',    'sample' => $base . '/karty30/ti/kursant/login.php'],
+                'org'     => ['label' => 'Nazwa organizacji / fundacji',        'sample' => 'Fundacja Edukacji Empatii Rozwoju „FEER”'],
             ],
         ],
 
