@@ -22,8 +22,10 @@
   .pp-util a { color: var(--pp-muted); text-decoration: none; } .pp-util a:hover { color: var(--pp-blue); }
   .pp-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 1.5rem; padding: 1rem 0 1.2rem; }
   .pp-brand { display: flex; align-items: center; gap: .9rem; text-decoration: none; color: var(--pp-ink); min-width: 0; }
-  .pp-logo-box { display: inline-flex; align-items: center; background: var(--pp-blue); border-radius: .9rem; padding: .55rem .9rem; flex: none; }
-  .pp-brand img { height: 48px; width: auto; filter: brightness(0) invert(1); }   /* logo FEER w bieli na niebieskim */
+  .pp-logo-box { display: inline-flex; align-items: center; flex: none; }
+  .pp-brand img { height: 60px; width: auto; }   /* logo FEER w oryginalnych kolorach, bez tła */
+  .pp-brand .pp-title-sep { width: 1px; align-self: stretch; background: var(--pp-line); margin: .2rem .2rem; }
+  html.pp-contrast .pp-brand img { filter: brightness(0) invert(1); }   /* tryb kontrastu: logo białe na czarnym */
   .pp-mark { width: 52px; height: 52px; flex: none; border-radius: .8rem; background: var(--pp-blue); color: #fff; display: grid; place-items: center;
              font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 1.05rem; letter-spacing: .02em; }
   .pp-title { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; line-height: 1.15; }
@@ -75,6 +77,6 @@
     .pp-cols { grid-template-columns: 1fr; gap: 1.8rem; }
     #pp-main { padding: 1.25rem; }
     .pp-cta { width: 100%; } .pp-btn-acc, .pp-btn-log { flex: 1; }
-    .pp-brand img { height: 36px; } .pp-mark { width: 42px; height: 42px; font-size: .9rem; }
+    .pp-brand img { height: 44px; } .pp-mark { width: 42px; height: 42px; font-size: .9rem; }
   }
 </style>

@@ -23,7 +23,8 @@ $ppOpen = function_exists('org_setting') && org_setting('ti_nabor_enabled') === 
   <header class="pp-head">
     <a class="pp-brand" href="<?= h($ppLoginUrl) ?>">
       <span class="pp-logo-box"><?php if (!empty($ppLogo)): ?><img src="<?= h($ppLogo) ?>" alt="FEER — Fundacja Edukacji Empatii Rozwoju"><?php else: ?><span class="pp-mark" aria-hidden="true">FEER</span><?php endif; ?></span>
-      <span class="pp-title"><?= h($ppTitle) ?><small><?= h($ppOrg) ?></small></span>
+      <?php if (!empty($ppLogo)): ?><span class="pp-title-sep" aria-hidden="true"></span><?php endif; ?>
+      <span class="pp-title"><?= h($ppTitle) ?><?php if (empty($ppLogo)): ?><small><?= h($ppOrg) ?></small><?php endif; ?></span>
     </a>
     <div class="pp-cta">
       <?php if (!empty($ppAccount)): ?>
