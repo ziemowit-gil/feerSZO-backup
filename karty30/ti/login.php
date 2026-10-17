@@ -55,7 +55,7 @@ $dyd_haslo = !$office_available || $ec > 0 || ($_GET['konto'] ?? '') === 'prywat
 // Lewa kolumna: instrukcja zależna od roli.
 $_side = [
     'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
-        ? ['Wybierz, kim jesteś.', 'Wpisz login, który dostałeś SMS-em albo na wydruku.', 'Wpisz hasło. Przy pierwszym logowaniu dostaniesz kod SMS i ustawisz własne hasło.']
+        ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a albo z wydruku.', 'Logujesz się pierwszy raz? Zostaw hasło puste — dostaniesz kod SMS i ustawisz własne hasło. Później wpisuj już swoje hasło.']
         : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Zobaczysz swój obrazek. Jeśli go nie widzisz albo widzisz inny, nie wpisuj hasła.', 'Wpisz hasło.'],
     'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz pocztę @feer.org.pl? Wybierz „Microsoft 365” obok.', 'Nie masz poczty w domenie fundacji? Wpisz e-mail i hasło.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login opiekuna nadany w placówce.', 'Wpisz hasło. Nie masz hasła? Zaloguj się kodem SMS.'],
@@ -308,16 +308,18 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
       <?php elseif ($tab === 'up'): ?>
         <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Osoba upoważniona</strong> widzi rozliczenia, frekwencję i plan zajęć kursanta, który nadał jej dostęp w zakładce „Upoważnieni”.</p>
       <?php elseif ($_ppActive === 'szk'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong>Szkolenie krótkie</strong> (kilka spotkań w małej grupie, numer SzK).</p>
-        <p>Login i hasło dostajesz SMS-em albo na wydruku od prowadzącego. Przy pierwszym logowaniu potwierdzisz się kodem SMS i ustawisz własne hasło.</p>
-        <p>Po wpisaniu loginu zobaczysz obrazek bezpieczeństwa — jeśli widzisz inny, nie wpisuj hasła.</p>
+        <p id="pp-alt-h" style="margin-top:0"><strong>Szkolenie krótkie</strong> — kilka spotkań w małej grupie (szkolenia oznaczone SzK).</p>
+        <p>Login dostajesz SMS-em albo na wydruku od prowadzącego.</p>
+        <p>Pierwsze logowanie: wpisz sam login i zostaw hasło puste. Przyjdzie kod SMS, a po nim ustawisz własne hasło.</p>
+        <p>Przy kolejnych logowaniach po wpisaniu loginu zobaczysz swój obrazek bezpieczeństwa. Jeśli widzisz inny — nie wpisuj hasła.</p>
       <?php elseif ($_ppActive === 'konsultacje'): ?>
         <p id="pp-alt-h" style="margin-top:0"><strong>Konsultacje</strong> — dla osób, które umówiły konsultację.</p>
-        <p>Login to litera „k” i cztery cyfry, np. <span style="font-family:monospace">k1234</span>. Przychodzi SMS-em po umówieniu pierwszej konsultacji. Pierwsze logowanie: wpisz login — kod przyjdzie SMS-em.</p>
-        <p>W panelu zobaczysz terminy konsultacji, notatki i materiały.</p>
+        <p>Login dostaniesz SMS-em po umówieniu pierwszej konsultacji. To litera „k” i cztery cyfry, np. <span style="font-family:monospace">k1234</span>.</p>
+        <p>Pierwsze logowanie: wpisz sam login i zostaw hasło puste. Przyjdzie kod SMS, a po nim ustawisz własne hasło.</p>
+        <p>W panelu znajdziesz terminy konsultacji, notatki i materiały.</p>
       <?php else: ?>
         <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Obrazek bezpieczeństwa.</strong> Po wpisaniu loginu zobaczysz swój obrazek (z opisem dla czytnika ekranu). Jeśli go nie widzisz albo widzisz inny — nie wpisuj hasła.</p>
-        <p>Pierwsze logowanie: wpisz tylko login, kod przyjdzie SMS-em.</p>
+        <p>Pierwsze logowanie: wpisz sam login i zostaw hasło puste. Przyjdzie kod SMS, a po nim ustawisz własne hasło.</p>
       <?php endif; ?>
       <?php if ($tab !== 'kandydat'): ?>
       <div style="border-top:1px solid var(--pp-line);margin-top:1.4rem;padding-top:1.1rem">
