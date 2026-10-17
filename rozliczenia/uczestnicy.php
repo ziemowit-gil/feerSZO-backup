@@ -17,15 +17,18 @@ $where  = "(cl.id IN (SELECT client_id FROM k30_ti_enrollments WHERE status='act
 if ($q !== '') { $where .= " AND cl.name LIKE ?"; $params[] = '%' . $q . '%'; }
 $rows = db_all("SELECT cl.id, cl.name FROM k30_clients cl WHERE $where ORDER BY cl.name", $params);
 
+require_once dirname(__DIR__) . '/includes/ti_virtual.php';   // ti_client_no_billing()
 $list = [];
 foreach ($rows as $r) {
     $cid = (int)$r['id'];
     $a   = ti_client_allocation($cid);
+    $nb  = ti_client_no_billing($cid);   // „bez rozliczeń” — jak ti_clients_with_debt(): poza filtrami zaległości/nadpłat
+    if ($only !== '' && $nb) continue;
     if ($only === 'debt'   && $a['debt']   <= 0.005) continue;
     if ($only === 'credit' && $a['credit'] <= 0.005) continue;
     $groups = array_filter(array_keys($a['groups']), fn($g) => $g > 0);
     $list[] = ['client_id'=>$cid, 'name'=>(string)$r['name'], 'charges'=>$a['charges'], 'paid'=>$a['paid'],
-               'debt'=>$a['debt'], 'credit'=>$a['credit'], 'groups'=>count($groups)];
+               'debt'=>$a['debt'], 'credit'=>$a['credit'], 'groups'=>count($groups), 'no_billing'=>$nb];
 }
 
 $PAGE_TITLE = 'Uczestnicy';
@@ -84,6 +87,7 @@ include __DIR__ . '/_head.php';
         <tr>
           <th scope="row" style="font-weight:600">
             <a href="uczestnik.php?client_id=<?= (int)$p['client_id'] ?>&amp;m=<?= h($rz_ym) ?>"><?= h($p['name']) ?></a>
+            <?php if ($p['no_billing']): ?><span class="badge text-bg-secondary ms-1" title="Konto bez rozliczeń — poza listami zaległości">bez rozliczeń</span><?php endif; ?>
           </th>
           <td class="rz-num"><?= (int)$p['groups'] ?></td>
           <td class="rz-num"><?= h(rz_zl($p['charges'])) ?></td>

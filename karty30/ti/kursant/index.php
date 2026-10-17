@@ -2091,7 +2091,8 @@ document.addEventListener('DOMContentLoaded', function() {
         );
     } catch (\Throwable $e) { $kp_upcoming = []; }
     $kp_bal = null;
-    if (!$is_minor && !ti_client_only_hours_only((int)$student['client_id'])) {   // „tylko godziny” — bez kafla salda
+    // „tylko godziny” i konto „bez rozliczeń” (no_billing) — bez kafla salda (jak _oplaty_view.php)
+    if (!$is_minor && empty($account['no_billing']) && !ti_client_only_hours_only((int)$student['client_id'])) {
         try {
             require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
             $kp_bal = ti_client_balance((int)$student['client_id']);

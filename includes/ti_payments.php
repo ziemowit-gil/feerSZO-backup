@@ -544,6 +544,7 @@ function ti_group_year_billing(int $client_id, int $course_id, int $year): array
  */
 function ti_course_billing_summary(int $course_id, int $year = 0, int $month = 0): array {
     ti_payments_migrate();
+    require_once __DIR__ . '/ti_virtual.php';   // ti_client_no_billing()
     $rows = db_all(
         "SELECT DISTINCT cl.id AS client_id, cl.name AS client_name
          FROM k30_clients cl
@@ -560,14 +561,18 @@ function ti_course_billing_summary(int $course_id, int $year = 0, int $month = 0
         $g   = ti_group_balance($cid, $course_id);
         $m   = ($year && $month) ? ti_group_month_billing($cid, $course_id, $year, $month)
                                  : ['charges'=>0.0,'paid'=>0.0,'payments'=>0.0];
+        // Konto „bez rozliczeń”: na liście (np. do zerowania), ale poza sumami grupy — jak ti_clients_with_debt()
+        $nb  = ti_client_no_billing($cid);
         $participants[$cid] = [
             'client_id'   => $cid,
             'client_name' => (string)$r['client_name'],
+            'no_billing'  => $nb,
             'charges'     => $g['charges'], 'paid' => $g['paid'],
             'debt'        => $g['debt'],    'credit' => $g['credit'],
             'payments'    => $g['payments'],
             'm_charges'   => $m['charges'], 'm_paid' => $m['paid'], 'm_payments' => $m['payments'],
         ];
+        if ($nb) continue;
         foreach (['charges','paid','debt','credit'] as $k) $totals[$k] = round($totals[$k] + $g[$k], 2);
         $totals['m_charges']  = round($totals['m_charges']  + $m['charges'], 2);
         $totals['m_paid']     = round($totals['m_paid']     + $m['paid'], 2);

@@ -11,6 +11,7 @@
  */
 require_once __DIR__ . '/auth.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_payments.php';
+require_once dirname(dirname(dirname(__DIR__))) . '/includes/ti_virtual.php';
 require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_overpayments/logic/overpayments.php';
 
 $me = dyd_require();
@@ -143,6 +144,7 @@ foreach ($rows as $r) {
     $cid = (int)$r['id'];
     $courses = k30_ti_client_courses($cid);
     $bal     = ti_client_balance($cid);
+    $bal['no_billing'] = ti_client_no_billing($cid);   // „bez rozliczeń” — saldo tylko informacyjnie
     $clients[] = [
         'id' => $cid, 'name' => (string)$r['name'], 'email' => (string)$r['email'], 'phone' => (string)$r['phone'],
         'student_no' => (string)($r['student_no'] ?? ''),
@@ -326,12 +328,16 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
               <?= h($c['email']) ?><?php if ($c['email'] !== '' && $c['phone'] !== ''): ?><br><?php endif; ?><?= h($c['phone']) ?>
             </td>
             <td class="text-end">
+              <?php if ($b['no_billing']): ?>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis border" title="Konto bez rozliczeń — poza listami zaległości">bez rozliczeń</span><?php if ($b['credit'] > 0.005 || $b['debt'] > 0.005): ?><br><span class="small text-body-secondary">pozostałe saldo: <?= $b['debt'] > 0.005 ? '−' . number_format($b['debt'], 2, ',', ' ') : '+' . number_format($b['credit'], 2, ',', ' ') ?> zł</span><?php endif; ?>
+              <?php else: ?>
               <?php if ($b['credit'] > 0.005): ?>
                 <span class="text-success fw-semibold">+<?= number_format($b['credit'], 2, ',', ' ') ?> zł</span>
               <?php endif; ?><?php if ($b['debt'] > 0.005): ?>
                 <span class="text-danger fw-semibold">−<?= number_format($b['debt'], 2, ',', ' ') ?> zł</span>
               <?php endif; ?><?php if ($b['credit'] <= 0.005 && $b['debt'] <= 0.005): ?>
                 <span class="text-body-secondary">0,00 zł</span>
+              <?php endif; ?>
               <?php endif; ?>
             </td>
             <td class="text-end">

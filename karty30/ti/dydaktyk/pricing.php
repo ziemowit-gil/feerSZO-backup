@@ -843,7 +843,7 @@ $gv = ($_GET['v'] ?? 'tabela') === 'karty' ? 'karty' : 'tabela';
             <div class="divide-y divide-slate-100 border-t border-slate-200">
             <?php foreach ($g['p'] as $pr): $gid = (int)$g['c']['id']; $cid = (int)$pr['client_id']; ?>
               <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 text-sm">
-                <div class="min-w-[10rem] flex-1 font-medium"><?= h($pr['client_name']) ?>
+                <div class="min-w-[10rem] flex-1 font-medium"><?= h($pr['client_name']) ?><?php if (!empty($pr['no_billing'])): ?> <span class="rounded bg-slate-200 px-1.5 text-xs font-normal text-slate-700" title="Konto bez rozliczeń — poza sumami">bez rozliczeń</span><?php endif; ?>
                   <div class="text-xs font-normal text-slate-500">nal. <?= $fmt($pr['m_charges']) ?> · wpł. <?= $fmt($pr['m_paid']) ?> w <?= h($st_ym) ?></div></div>
                 <div class="tabular-nums text-xs"><?= $pr['debt'] > 0.005 ? '<span class="font-semibold text-red-700">−' . $fmt($pr['debt']) . '</span>' : ($pr['credit'] > 0.005 ? '<span class="font-semibold text-sky-700">+' . $fmt($pr['credit']) . '</span>' : '<span class="text-slate-400">0,00</span>') ?></div>
                 <form method="post" class="flex items-center gap-1" onsubmit="return confirm('Wystawić rozliczenie za <?= h($st_ym) ?> dla: <?= h(addslashes($pr['client_name'])) ?>?')">

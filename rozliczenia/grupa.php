@@ -98,6 +98,7 @@ include __DIR__ . '/_head.php';
         <tr>
           <th scope="row" style="font-weight:600">
             <a href="uczestnik.php?client_id=<?= (int)$p['client_id'] ?>&amp;m=<?= h($rz_ym) ?>"><?= h($p['client_name']) ?></a>
+            <?php if (!empty($p['no_billing'])): ?><span class="badge text-bg-secondary ms-1" title="Konto bez rozliczeń — poza sumami grupy i listami zaległości">bez rozliczeń</span><?php endif; ?>
           </th>
           <td class="rz-num"><?= $p['m_charges'] > 0.005 ? h(rz_zl($p['m_charges'])) : '<span class="rz-zero">—</span>' ?></td>
           <td class="rz-num"><?= h(rz_zl($p['paid'])) ?></td>
