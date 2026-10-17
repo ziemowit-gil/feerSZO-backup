@@ -284,6 +284,7 @@ if ($tab === 'settle') {
     }
     $st_debtors = array_slice(ti_clients_with_debt(), 0, 50);
     $st_op = array_values(array_filter(ti_op_list(), fn($o) => $o['status'] === 'available'));
+    ti_op_refresh_all_balances();   // migawki sald aktualne przed podsumowaniem nadpłat
     $st_opsum = ti_op_summary();
 }
 // ── Wydruk: grupy ze stawkami i rozliczeniami (?print=groups[&course=ID]) ──────────────

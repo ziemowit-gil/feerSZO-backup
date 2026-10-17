@@ -87,6 +87,22 @@ function ti_op_refresh_balance(int $client_id): void {
     )->execute([$client_id, round($a['payments'] - $a['charges'], 2), $a['credit'], round((float)($reg['s'] ?? 0), 2), $a['debt']]);
 }
 
+/**
+ * Odświeża migawki virtual_account_balances wszystkich uczestników z należnościami, wpłatami lub
+ * rejestrem nadpłat — wołane przy odczycie (ekran nadpłat, podsumowanie), bo migawka zapisywana
+ * tylko przy operacjach rejestru dezaktualizuje się po każdej wpłacie / zmianie rozliczenia.
+ * Rejestru NIE zmienia (to robi ti_op_reconcile / „Wykryj nadpłaty”). Zwraca liczbę kont.
+ */
+function ti_op_refresh_all_balances(): int {
+    ti_op_migrate();
+    $ids = array_map('intval', array_column(db_all(
+        "SELECT client_id AS id FROM k30_ti_payments UNION SELECT client_id FROM k30_ti_billing WHERE status IN ('issued','paid')
+         UNION SELECT participant_id FROM overpayment_transactions UNION SELECT participant_id FROM virtual_account_balances"
+    ), 'id'));
+    foreach ($ids as $cid) if ($cid > 0) ti_op_refresh_balance($cid);
+    return count($ids);
+}
+
 /** Rozliczenie źródłowe dla wykrytej nadpłaty: ostatnie z FVAT (numer/skan/produkcyjna) w koszyku, inaczej ostatnie. */
 function ti_op_source_billing(int $client_id, int $course_id): array {
     $rows = db_all("SELECT * FROM k30_ti_billing WHERE client_id=? AND status IN ('issued','paid')" . ($course_id > 0 ? " AND course_id=?" : '') . "

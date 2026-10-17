@@ -90,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ── Dane widoku ─────────────────────────────────────────────────────────────
+ti_op_refresh_all_balances();   // migawki sald z żywej alokacji — podsumowanie i „niezarejestrowane” aktualne
 $list    = ti_op_list();
 $summary = ti_op_summary();
 $flash   = flash_get();
