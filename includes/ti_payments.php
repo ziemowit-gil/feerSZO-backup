@@ -144,6 +144,9 @@ function ti_charges_total(int $client_id): float {
 /**
  * Wylicza alokację wpłat na należności kursanta — BEZ zapisu do bazy (do raportów i podglądu).
  *
+ * Faza 0: wpłaty przypisane ręcznie do rozliczenia (source_type='billing_match', source_id = id
+ *         rozliczenia — „Przypisz i popraw rozliczenia” przy wpłacie na subkonto) pokrywają najpierw
+ *         to rozliczenie; reszta trafia do grupy wpłaty (course_id) albo do wpłat ogólnych.
  * Faza 1: wpłaty znaczone na grupę (course_id > 0) pokrywają FIFO tylko należności tej grupy.
  * Faza 2: wpłaty ogólne (course_id = 0) pokrywają FIFO wszystko, co pozostało niedopłacone.
  *
@@ -165,7 +168,13 @@ function ti_client_allocation(int $client_id): array {
     );
     $pay_rows = db_all(
         "SELECT COALESCE(course_id,0) AS course_id, COALESCE(SUM(amount),0) AS s
-         FROM k30_ti_payments WHERE client_id=? GROUP BY COALESCE(course_id,0)",
+         FROM k30_ti_payments WHERE client_id=? AND COALESCE(source_type,'')!='billing_match' GROUP BY COALESCE(course_id,0)",
+        [$client_id]
+    );
+    $match_rows = db_all(
+        "SELECT source_id AS billing_id, COALESCE(course_id,0) AS course_id, COALESCE(SUM(amount),0) AS s
+         FROM k30_ti_payments WHERE client_id=? AND source_type='billing_match'
+         GROUP BY source_id, COALESCE(course_id,0)",
         [$client_id]
     );
 
@@ -184,6 +193,25 @@ function ti_client_allocation(int $client_id): array {
     foreach ($charges as $c) {
         $rows[] = ['id' => (int)$c['id'], 'course_id' => (int)$c['course_id'], 'ho' => (int)$c['ho'],
                    'due' => round((float)$c['due'], 2), 'paid' => 0.0, 'status' => 'issued'];
+    }
+
+    // Faza 0 — wpłaty przypisane do konkretnego rozliczenia
+    foreach ($match_rows as $mr) {
+        $sum = round((float)$mr['s'], 2);
+        $payments = round($payments + $sum, 2);
+        $rem = $sum;
+        foreach ($rows as $k => $r) {
+            if ($r['id'] !== (int)$mr['billing_id']) continue;
+            $take = max(0, min($rem, round($r['due'] - $r['paid'], 2)));
+            $rows[$k]['paid'] = round($r['paid'] + $take, 2);
+            $rem = round($rem - $take, 2);
+            break;
+        }
+        if ($rem > 0.005) {   // nadwyżka (albo rozliczenie anulowane) — jak zwykła wpłata grupy / ogólna
+            $cid = (int)$mr['course_id'];
+            if ($cid > 0) $earmarked[$cid] = round(($earmarked[$cid] ?? 0) + $rem, 2);
+            else          $general = round($general + $rem, 2);
+        }
     }
 
     // Faza 1 — wpłaty znaczone na grupę
