@@ -221,6 +221,7 @@ function dydMenuSections(): array
     $sec[] = ['key' => 'k_system', 'staff' => true, 'label' => 'System', 'items' => array_values(array_filter([
         $it('', 'Wyłączenia panelu', 'wylaczenia.php', 'moon'),
         $it('', 'Testy',             'testy.php',      'bug'),
+        $it('', 'Umowa szkoleniowa (test)', 'umowaSzkolenia.php', 'file-earmark-word'),
         $isAdm ? $it('', 'Konta testowe', 'kontaTestowe.php', 'person-badge') : null,
         $it('', 'Pełny moduł TI', rtrim(APP_URL, '/') . '/karty30/ti/index.php', 'box-arrow-up-right', 0, 'secondary', true),
     ]))];
