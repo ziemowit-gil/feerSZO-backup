@@ -53,6 +53,8 @@ if (!$panel) {
             $r->get('/konto/zgloszenia/{id}',              [NaborCandidateController::class, 'show'])->name('nabor.account.show');
             $r->post('/konto/zgloszenia/{id}',             [NaborCandidateController::class, 'update'])->name('nabor.account.update');
             $r->get('/konto/zgloszenia/{id}/dokument/{doc}', [NaborCandidateController::class, 'document'])->name('nabor.account.doc');
+            $r->get('/konto/zgloszenia/{id}/czat',  [NaborCandidateController::class, 'chat'])->name('nabor.account.chat');
+            $r->post('/konto/zgloszenia/{id}/czat', [NaborCandidateController::class, 'chatPost']);
         });
     }, '/nabor');
 } else {
@@ -77,6 +79,8 @@ if (!$panel) {
         $r->post('/zgloszenia/{id}',     [NaborPanelController::class, 'update'])->name('nabor.update');
         $r->get('/zgloszenia/{id}/pdf',  [NaborPanelController::class, 'pdf'])->name('nabor.pdf');
         $r->get('/zgloszenia/{id}/dokument/{doc}', [NaborPanelController::class, 'document'])->name('nabor.doc');
+        $r->get('/zgloszenia/{id}/czat',  [NaborPanelController::class, 'chat'])->name('nabor.chat');
+        $r->post('/zgloszenia/{id}/czat', [NaborPanelController::class, 'chatPost']);
         $r->get('/formularz',            [NaborPanelController::class, 'formEditor'])->name('nabor.form.edit');
         $r->post('/formularz',           [NaborPanelController::class, 'formSave'])->name('nabor.form.save');
         $r->get('/grupy',                [NaborPanelController::class, 'courses'])->name('nabor.courses');

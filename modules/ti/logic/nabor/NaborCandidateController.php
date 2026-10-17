@@ -125,7 +125,7 @@ final class NaborCandidateController
         $acc = naborAccountCurrent();
         $s = naborAccountSubmission((int)$acc['id'], $id);
         if (!$s) { http_response_code(404); return $this->view('konto.php', ['rows' => naborAccountSubmissions((int)$acc['id']), 'notFound' => true]); }
-        naborMessagesMarkRead($id, 'candidate');
+        naborMessagesMarkRead($id, 'candidate', 'comment');
         $pay = null;
         if ($s['status'] === 'accepted' && $s['place_confirmed_at'] && $s['client_id']) {
             try {
@@ -187,6 +187,24 @@ final class NaborCandidateController
             flash_set('danger', $e->getMessage());
         }
         return Router::redirect($back);
+    }
+
+    /** Czat (JSON): GET — nowe wiadomości po ?after=, POST body — wysyłka. */
+    public function chat(int $id): array
+    {
+        $acc = naborAccountCurrent();
+        if (!naborAccountSubmission((int)$acc['id'], $id)) { http_response_code(404); return ['ok' => false]; }
+        return ['ok' => true, 'msgs' => naborChatJson($id, (int)($_GET['after'] ?? 0), 'candidate')];
+    }
+
+    public function chatPost(int $id): array
+    {
+        $acc = naborAccountCurrent();
+        $s = naborAccountSubmission((int)$acc['id'], $id);
+        if (!$s) { http_response_code(404); return ['ok' => false]; }
+        try { naborMessageAdd($id, 'candidate', (string)($_POST['body'] ?? ''), null, $s['guardian_name'], 'chat'); }
+        catch (InvalidArgumentException $e) { return ['ok' => false, 'error' => $e->getMessage()]; }
+        return ['ok' => true, 'msgs' => naborChatJson($id, (int)($_POST['after'] ?? 0), 'candidate')];
     }
 
     /** Pobranie własnego wgranego dokumentu. */

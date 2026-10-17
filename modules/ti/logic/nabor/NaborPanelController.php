@@ -90,7 +90,7 @@ final class NaborPanelController
         $creds = $_SESSION['nabor_creds'][$id] ?? null;           // hasła pokazujemy raz, po przyjęciu
         unset($_SESSION['nabor_creds'][$id]);
         $account = $s['client_id'] ? db_one("SELECT login, parent_login, is_minor FROM k30_ti_student_accounts WHERE client_id=?", [(int)$s['client_id']]) : null;
-        naborMessagesMarkRead($id, 'staff');
+        naborMessagesMarkRead($id, 'staff', 'comment');
         return Router::view(self::VIEW . 'zgloszenie.php', [
             'msgs' => naborMessages($id), 'docs' => naborDocuments($id),
             'candAcc' => $s['account_id'] ? naborAccountGet((int)$s['account_id']) : null,
@@ -173,6 +173,23 @@ final class NaborPanelController
         $this->find($id);
         require_once __DIR__ . '/NaborCandidateController.php';
         return naborSendDocument($id, $doc);
+    }
+
+    /** Czat (JSON): GET — nowe wiadomości po ?after=, POST body — wysyłka. */
+    public function chat(int $id): array
+    {
+        $this->find($id);
+        return ['ok' => true, 'msgs' => naborChatJson($id, (int)($_GET['after'] ?? 0), 'staff')];
+    }
+
+    public function chatPost(int $id): array
+    {
+        $s = $this->find($id);
+        if (!empty($s['is_test'])) return ['ok' => false, 'error' => 'Zgłoszenie testowe — czat wyłączony.'];
+        $me = $this->me();
+        try { naborMessageAdd($id, 'staff', (string)($_POST['body'] ?? ''), $me['id'], $me['name'], 'chat'); }
+        catch (InvalidArgumentException $e) { return ['ok' => false, 'error' => $e->getMessage()]; }
+        return ['ok' => true, 'msgs' => naborChatJson($id, (int)($_POST['after'] ?? 0), 'staff')];
     }
 
     public function pdf(int $id): ?string

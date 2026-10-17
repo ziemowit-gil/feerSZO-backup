@@ -76,6 +76,8 @@ function naborMigrate(): void {
     if (!in_array('place_confirmed_at', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN place_confirmed_at DATETIME");
     if (!in_array('agreement_accepted_at', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN agreement_accepted_at DATETIME");
     if (!in_array('agreement_ip', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN agreement_ip TEXT NOT NULL DEFAULT ''");
+    $mh = array_column($pdo->query("PRAGMA table_info(ti_nabor_messages)")->fetchAll(), 'name');
+    if ($mh && !in_array('channel', $mh, true)) $pdo->exec("ALTER TABLE ti_nabor_messages ADD COLUMN channel TEXT NOT NULL DEFAULT 'comment'");   // comment | chat
     if (!in_array('equipment_notes', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN equipment_notes TEXT NOT NULL DEFAULT ''");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_status ON ti_nabor_submissions(status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_course ON ti_nabor_submissions(course_id, status)");

@@ -76,6 +76,12 @@ $docBadge = ['requested' => 'tw-bg-amber-100 tw-text-amber-900', 'uploaded' => '
   </form>
 </section>
 
+<?php
+$chatUrl = naborUrl('/konto/zgloszenia/' . (int)$s['id'] . '/czat'); $chatCsrfField = '_csrf'; $chatCsrf = Router::csrfToken();
+$chatTitle = 'Czat z organizatorem'; $chatPeer = 'organizatorem'; $chatDisabled = '';
+include dirname(__DIR__, 2) . '/portal/_chat.php';
+?>
+
 <section class="k-card" id="dokumenty" aria-labelledby="dc-h">
   <h2 id="dc-h" class="tw-text-lg tw-font-bold tw-mb-3">Dokumenty</h2>
   <?php if (!$docs): ?><p class="tw-text-sm tw-text-gray-600 tw-mb-3">Organizator nie prosi o dokumenty. Możesz dołączyć własny (np. orzeczenie, opinię).</p><?php endif; ?>

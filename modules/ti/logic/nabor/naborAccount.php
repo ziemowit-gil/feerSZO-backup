@@ -293,26 +293,56 @@ function naborDocReview(int $sid, int $docId, bool $ok, string $note, int $uid, 
 
 /* ─────────────── Wiadomości ─────────────── */
 
-function naborMessages(int $sid): array {
-    return db_all("SELECT * FROM ti_nabor_messages WHERE submission_id=? ORDER BY id", [$sid]);
+/** Wiadomości zgłoszenia: $channel 'comment' (oś czasu), 'chat' (czat na żywo) albo null (wszystkie). $afterId — tylko nowsze. */
+function naborMessages(int $sid, ?string $channel = 'comment', int $afterId = 0): array {
+    $w = 'submission_id=? AND id>?'; $p = [$sid, $afterId];
+    if ($channel !== null) { $w .= " AND COALESCE(channel,'comment')=?"; $p[] = $channel; }
+    return db_all("SELECT * FROM ti_nabor_messages WHERE $w ORDER BY id", $p);
 }
 
-/** Nowa wiadomość: 'staff' → powiadomienie kandydata (e-mail + SMS), 'candidate' → powiadomienie kierownika (e-mail). */
-function naborMessageAdd(int $sid, string $author, string $body, ?int $uid, string $name): void {
+/**
+ * Nowa wiadomość. Komentarz ('comment'): 'staff' → kandydat dostaje e-mail + SMS, 'candidate' → e-mail do kierownika.
+ * Czat ('chat'): bez SMS; e-mail do drugiej strony najwyżej raz na 15 min na zgłoszenie (i tylko gdy poprzednia wiadomość
+ * tej strony w czacie jest nieprzeczytana albo starsza niż 15 min). Zwraca id wiadomości.
+ */
+function naborMessageAdd(int $sid, string $author, string $body, ?int $uid, string $name, string $channel = 'comment'): int {
     $body = mb_substr(trim($body), 0, 5000);
     if ($body === '') throw new InvalidArgumentException('Wpisz treść wiadomości.');
-    db_insert('ti_nabor_messages', ['submission_id' => $sid, 'author' => $author === 'staff' ? 'staff' : 'candidate', 'user_id' => $uid, 'author_name' => $name, 'body' => $body]);
+    $channel = $channel === 'chat' ? 'chat' : 'comment';
+    $author  = $author === 'staff' ? 'staff' : 'candidate';
+    $prev = $channel === 'chat' ? db_one("SELECT created_at FROM ti_nabor_messages WHERE submission_id=? AND author=? AND channel='chat' ORDER BY id DESC LIMIT 1", [$sid, $author]) : null;
+    $id = db_insert('ti_nabor_messages', ['submission_id' => $sid, 'author' => $author, 'user_id' => $uid, 'author_name' => $name, 'body' => $body, 'channel' => $channel]);
+    if ($channel === 'chat') {
+        if ($prev && strtotime($prev['created_at'] . ' UTC') > time() - 900) return $id;   // rozmowa trwa — bez kolejnego e-maila
+        if ($author === 'staff') naborCandidateNotify($sid, 'Nowa wiadomość na czacie', nl2br(h($body)), 'ti_nabor_status', false);
+        else naborStaffNotify($sid, 'Nowa wiadomość na czacie od kandydata', $body);
+        return $id;
+    }
     if ($author === 'staff') {
         naborCandidateNotify($sid, 'Nowy komentarz organizatora', nl2br(h($body)), 'ti_nabor_status', true);
     } else {
-        naborStaffNotify($sid, 'Nowa wiadomość od kandydata', $body);
+        naborStaffNotify($sid, 'Nowy komentarz kandydata', $body);
     }
+    return $id;
+}
+
+/** Wiadomości czatu do JSON (dla widoku kandydata albo kierownika). */
+function naborChatJson(int $sid, int $afterId, string $viewer): array {
+    $out = [];
+    foreach (naborMessages($sid, 'chat', $afterId) as $m) {
+        $mine = ($viewer === 'staff') === ($m['author'] === 'staff');
+        $out[] = ['id' => (int)$m['id'], 'mine' => $mine, 'who' => $mine ? 'Ty' : ($m['author'] === 'staff' ? ($m['author_name'] ?: 'Organizator') : ($m['author_name'] ?: 'Opiekun')),
+                  'body' => $m['body'], 'at' => naborTime($m['created_at']), 'read' => (bool)$m['read_at']];
+    }
+    naborMessagesMarkRead($sid, $viewer, 'chat');
+    return $out;
 }
 
 /** Oznacza wiadomości drugiej strony jako przeczytane. */
-function naborMessagesMarkRead(int $sid, string $reader): void {
-    db_exec("UPDATE ti_nabor_messages SET read_at=datetime('now') WHERE submission_id=? AND author=? AND read_at IS NULL",
-            [$sid, $reader === 'staff' ? 'candidate' : 'staff']);
+function naborMessagesMarkRead(int $sid, string $reader, ?string $channel = null): void {
+    db_exec("UPDATE ti_nabor_messages SET read_at=datetime('now') WHERE submission_id=? AND author=? AND read_at IS NULL"
+            . ($channel ? " AND COALESCE(channel,'comment')=?" : ''),
+            $channel ? [$sid, $reader === 'staff' ? 'candidate' : 'staff', $channel] : [$sid, $reader === 'staff' ? 'candidate' : 'staff']);
 }
 
 /* ─────────────── Po przyjęciu: potwierdzenie miejsca i umowa ─────────────── */

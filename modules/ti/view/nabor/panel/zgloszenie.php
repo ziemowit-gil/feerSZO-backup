@@ -206,7 +206,13 @@ include __DIR__ . '/_head.php';
         <button class="btn btn-sm btn-outline-primary">Wyślij prośbę</button></form></div>
     </div>
 
-    <div class="card mb-3" id="wiadomosci"><div class="card-header fw-bold">Wiadomości z opiekunem</div>
+    <?php
+    $chatUrl = route('nabor.chat', ['id' => (int)$s['id']]); $chatCsrfField = '_token'; $chatCsrf = Router::csrfToken();
+    $chatTitle = 'Czat z opiekunem'; $chatPeer = 'opiekunem';
+    $chatDisabled = $s['is_test'] ? 'Zgłoszenie testowe — czat wyłączony.' : '';
+    include dirname(__DIR__, 2) . '/portal/_chat.php';
+    ?>
+    <div class="card mb-3" id="wiadomosci"><div class="card-header fw-bold">Komentarze do zgłoszenia</div>
       <div class="card-body small" style="max-height:22rem;overflow-y:auto" role="log">
         <?php foreach ($msgs as $m): $st = $m['author'] === 'staff'; ?>
           <div class="rounded p-2 mb-2 <?= $st ? 'bg-primary-subtle ms-4' : 'bg-light me-4' ?>">
@@ -218,7 +224,7 @@ include __DIR__ . '/_head.php';
       </div>
       <div class="card-body pt-0"><form method="post" action="<?= $upd ?>" class="d-grid gap-1"><?= Router::csrfField() ?><input type="hidden" name="_op" value="message">
         <label class="visually-hidden" for="mb">Wiadomość do opiekuna</label>
-        <textarea id="mb" name="body" rows="2" class="form-control form-control-sm" placeholder="Wiadomość do opiekuna (e-mail + SMS z powiadomieniem)" required></textarea>
+        <textarea id="mb" name="body" rows="2" class="form-control form-control-sm" placeholder="Komentarz dla opiekuna — trafi do historii zgłoszenia (e-mail + SMS)" required></textarea>
         <button class="btn btn-sm btn-primary" <?= $s['is_test'] ? 'disabled title="Zgłoszenie testowe"' : '' ?>>Wyślij</button></form></div>
     </div>
 
