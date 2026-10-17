@@ -653,6 +653,18 @@ function naborEzdUrl(?int $caseId): ?string {
     return $caseId ? rtrim(APP_URL, '/') . '/ezd/sprawy/view.php?id=' . $caseId : null;
 }
 
+/** Dostawca SMS naboru (kody, statusy, dane logowania): ustawienie ti_nabor_sms_provider, domyślnie Sendly. */
+function naborSmsProvider(): string {
+    $p = trim(org_setting('ti_nabor_sms_provider'));
+    return $p !== '' ? ($p === 'chain' ? '' : $p) : 'sendly';
+}
+
+/** SMS naboru: preferowany dostawca (Sendly), przy błędzie łańcuch systemowy. Zwraca klucz dostawcy. */
+function naborSms(string $phone, string $message, string $kind): string {
+    require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+    return smsSendPreferred(naborSmsProvider(), $phone, $message, $kind);
+}
+
 /** Publiczny formularz otwarty — przełącznik w panelu (ustawienie ti_nabor_enabled, domyślnie zamknięty). */
 function naborPublicOpen(): bool {
     return org_setting('ti_nabor_enabled') === '1';

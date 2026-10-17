@@ -9,6 +9,7 @@
  *
  * Bezpieczeństwo: w bazie tylko sha256(sesja|kod); kod ważny 10 min, maks. 5 prób; limity:
  * 3 kody na numer/godz., 10 kodów z IP/dobę, 60 s odstępu w sesji. Rodzaj SMS phone_verify_code.
+ * Dostawca: opcjonalnie preferowany (np. 'sendly' — smsSendPreferred), przy błędzie zwykły łańcuch sms_send().
  * Tabela: phone_verify_codes.
  */
 require_once dirname(__DIR__, 3) . '/includes/db.php';
@@ -38,6 +39,35 @@ function phoneVerifyMigrate(): void {
     db()->exec("CREATE INDEX IF NOT EXISTS idx_phone_verify_phone ON phone_verify_codes(phone, created_at)");
 }
 
+/**
+ * Wysyłka SMS przez preferowanego dostawcę (np. 'sendly'), a gdy nie jest skonfigurowany albo zgłosi błąd —
+ * przez zwykły łańcuch sms_send() (główny + zapasowy). Zwraca klucz dostawcy, który wysłał; rzuca wyjątek, gdy
+ * zawiodą wszyscy (komunikaty obu prób w treści). '' = sam łańcuch (bez preferencji).
+ */
+function smsSendPreferred(string $preferred, string $phone, string $message, string $kind): string {
+    $errors = [];
+    if ($preferred !== '' && sms_provider_ready($preferred)) {
+        try {
+            sms_send_via($preferred, $phone, $message, $kind);
+            return $preferred;
+        } catch (\Throwable $e) {
+            $errors[] = sms_provider_label($preferred) . ': ' . $e->getMessage();
+            sms_log_event('preferred_failed', sms_normalize_phone($phone), $errors, '', $kind);
+        }
+    }
+    try {
+        return sms_send($phone, $message, $kind);
+    } catch (\Throwable $e) {
+        $errors[] = $e->getMessage();
+        throw new RuntimeException(implode(' | ', $errors));
+    }
+}
+
+/** Kanał gotowy: preferowany dostawca skonfigurowany albo działa łańcuch główny/zapasowy. */
+function smsPreferredReady(string $preferred): bool {
+    return ($preferred !== '' && sms_provider_ready($preferred)) || sms_channel_ready();
+}
+
 /** Polski numer komórkowy → 48XXXXXXXXX albo ''. */
 function phoneVerifyNormalize(string $phone): string {
     $p = preg_replace('/\D/', '', $phone);
@@ -46,12 +76,12 @@ function phoneVerifyNormalize(string $phone): string {
 }
 
 /** Wysyła kod. Zwraca komunikat błędu albo '' przy sukcesie. $label — czego dotyczy kod (w treści SMS, ASCII). */
-function phoneVerifySend(string $purpose, string $rawPhone, string $label = 'potwierdzenia numeru'): string {
+function phoneVerifySend(string $purpose, string $rawPhone, string $label = 'potwierdzenia numeru', string $provider = ''): string {
     phoneVerifyMigrate();
     auth_start();
     $phone = phoneVerifyNormalize($rawPhone);
     if ($phone === '') return 'Podaj polski numer telefonu komórkowego (9 cyfr).';
-    if (!sms_channel_ready()) return 'Wysyłka SMS jest chwilowo niedostępna. Spróbuj później.';
+    if (!smsPreferredReady($provider)) return 'Wysyłka SMS jest chwilowo niedostępna. Spróbuj później.';
     $key = 'pv_last_' . $purpose;
     if (time() - (int)($_SESSION[$key] ?? 0) < 60) return 'Kod został właśnie wysłany. Nowy możesz wysłać za minutę.';
     $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
@@ -70,7 +100,7 @@ function phoneVerifySend(string $purpose, string $rawPhone, string $label = 'pot
         'expires_at' => gmdate('Y-m-d H:i:s', time() + PHONE_VERIFY_TTL_MIN * 60),
     ]);
     try {
-        sms_send($phone, 'Kod ' . sms_ascii($label) . ': ' . $code . '. Wazny ' . PHONE_VERIFY_TTL_MIN . ' min. Nie przekazuj go nikomu.', 'phone_verify_code');
+        smsSendPreferred($provider, $phone, 'Kod ' . sms_ascii($label) . ': ' . $code . '. Wazny ' . PHONE_VERIFY_TTL_MIN . ' min. Nie przekazuj go nikomu.', 'phone_verify_code');
     } catch (\Throwable $e) {
         error_log('[phone_verify] ' . $purpose . ': ' . $e->getMessage());
         return 'Nie udało się wysłać SMS-a. Sprawdź numer i spróbuj ponownie.';

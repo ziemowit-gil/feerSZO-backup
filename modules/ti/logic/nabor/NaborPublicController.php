@@ -74,7 +74,7 @@ final class NaborPublicController
         if (!naborPublicOpen()) return ['ok' => false, 'error' => 'Zapisy są zamknięte.'];
         $phone = (string)($_POST['phone'] ?? '');
         $err = match ((string)($_POST['action'] ?? '')) {
-            'send'   => phoneVerifySend(NABOR_PHONE_PURPOSE, $phone, 'potwierdzajacy zgloszenie na zajecia'),
+            'send'   => phoneVerifySend(NABOR_PHONE_PURPOSE, $phone, 'potwierdzajacy zgloszenie na zajecia', naborSmsProvider()),
             'verify' => phoneVerifyCheck(NABOR_PHONE_PURPOSE, $phone, (string)($_POST['code'] ?? '')),
             default  => 'Nieznana operacja.',
         };

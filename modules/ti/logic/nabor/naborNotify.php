@@ -104,9 +104,12 @@ function naborNotifyStatus(?array $s, string $comment = ''): void {
     }
     try {
         require_once dirname(__DIR__, 4) . '/includes/sms.php';
-        if (sms_channel_ready()) {
-            sms_send($s['guardian_phone'], naborOrgName() . ': zgloszenie ' . $s['registration_number'] . ' - ' . sms_ascii($short) . '. Szczegoly w e-mailu.', 'ti_nabor_status');
-            $log[] = 'SMS';
+        require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+        if (smsPreferredReady(naborSmsProvider())) {
+            $via = naborSms($s['guardian_phone'], naborOrgName() . ': zgloszenie ' . $s['registration_number'] . ' - ' . sms_ascii($short) . '. Szczegoly w e-mailu.', 'ti_nabor_status');
+            $log[] = 'SMS (' . sms_provider_label($via ?: '—') . ')';
+        } else {
+            $log[] = 'SMS: brak skonfigurowanego dostawcy';
         }
     } catch (\Throwable $e) {
         $log[] = 'SMS: błąd (' . $e->getMessage() . ')';

@@ -87,9 +87,10 @@ function naborSendAccounts(array $s, array $acc): string {
     if ($acc['child'])  $sms[] = 'Panel uczestnika: login ' . $acc['child']['login'] . ', haslo ' . $acc['child']['password'];
     if ($acc['parent']) $sms[] = 'Panel rodzica: login ' . $acc['parent']['login'] . ', haslo ' . $acc['parent']['password'];
     try {
-        if (sms_channel_ready()) {
-            sms_send($s['guardian_phone'], naborOrgName() . ' - ' . implode('. ', $sms) . '. Haslo zmienisz przy 1. logowaniu.', 'access_data');
-            $log[] = 'SMS z hasłami';
+        require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+        if (smsPreferredReady(naborSmsProvider())) {
+            $via = naborSms($s['guardian_phone'], naborOrgName() . ' - ' . implode('. ', $sms) . '. Haslo zmienisz przy 1. logowaniu.', 'access_data');
+            $log[] = 'SMS z hasłami (' . sms_provider_label($via ?: '—') . ')';
         } else {
             $log[] = 'SMS wyłączony — przekaż hasła ręcznie';
         }
