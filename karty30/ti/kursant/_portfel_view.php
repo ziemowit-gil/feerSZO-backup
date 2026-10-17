@@ -433,8 +433,11 @@ usort($pw_ops, fn($a, $b) => strcmp($b['date'], $a['date']));
     </div>
     <p class="small text-body-secondary mb-3">
       Suma szacunkowa: <strong><?= number_format($pw_year_end_proj['projected_total'], 2, ',', ' ') ?> zł</strong>
+      <?php if (($pw_year_end_proj['current_debt'] ?? 0) > 0.005): ?>
+      &mdash; powiększona o bieżącą zaległość (<?= number_format($pw_year_end_proj['current_debt'], 2, ',', ' ') ?> zł), którą wpłata pokryje w pierwszej kolejności<?= $pw_year_end_proj['current_credit'] > 0.005 ? '' : '.' ?>
+      <?php endif; ?>
       <?php if ($pw_year_end_proj['current_credit'] > 0.005): ?>
-      &mdash; pomniejszona o obecną nadpłatę w portfelu (<?= number_format($pw_year_end_proj['current_credit'], 2, ',', ' ') ?> zł).
+      &mdash; pomniejszona o obecną nadpłatę możliwą do wykorzystania na te zajęcia (<?= number_format($pw_year_end_proj['current_credit'], 2, ',', ' ') ?> zł).
       <?php endif; ?>
       To szacunek na podstawie zaplanowanych zajęć — nie uwzględnia ewentualnych pojedynczych odwołań w przyszłości. Kwotę możesz zmienić poniżej.
     </p>

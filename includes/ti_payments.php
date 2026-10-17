@@ -1177,8 +1177,8 @@ function ti_debt_hours(array $client_ids): array {
 /**
  * Prognoza "nadpłaty do końca roku": szacowana suma należności za WSZYSTKIE
  * pozostałe zajęcia (jeszcze nieodbyte, zaplanowane) we wszystkich aktywnych
- * zapisach kursanta, do 31 grudnia bieżącego roku, pomniejszona o obecne
- * saldo portfela (jeśli już jest nadpłata). To SZACUNEK, nie rozliczenie:
+ * zapisach kursanta, do 31 grudnia bieżącego roku, powiększona o bieżącą niedopłatę
+ * i pomniejszona o nadpłatę, którą da się na te zajęcia zużyć. To SZACUNEK, nie rozliczenie:
  * nie uwzględnia pojedynczych odwołań zajęć, które jeszcze nie zaistniały
  * (k30_ti_attendance dla przyszłych lekcji zwykle jeszcze nie ma wierszy).
  *
@@ -1190,7 +1190,7 @@ function ti_debt_hours(array $client_ids): array {
  *
  * @return array{
  *   year:int, deadline:string, courses:array, projected_total:float,
- *   current_credit:float, suggested_amount:float
+ *   current_credit:float, current_debt:float, suggested_amount:float
  * }
  */
 function ti_year_end_projection(int $client_id): array {
@@ -1255,15 +1255,25 @@ function ti_year_end_projection(int $client_id): array {
         $total += $course_amount;
     }
 
-    $bal       = ti_client_balance($client_id);
-    $suggested = max(0.0, round($total - (float)$bal['credit'], 2));
+    // Saldo z kanonicznej alokacji: wpłata „do końca roku” jest ogólna, więc najpierw pokrywa
+    // bieżącą niedopłatę (FIFO). Na przyszłe zajęcia działa nadpłata ogólna oraz nadpłata grupy —
+    // ta ostatnia tylko do wysokości prognozy TEJ grupy (nie pokryje zajęć innych grup).
+    $a      = ti_client_allocation($client_id);
+    $credit = (float)$a['general_credit'];
+    foreach ($a['groups'] as $gcid => $g) {
+        if ($gcid > 0 && (float)$g['credit'] > 0.005) $credit += min((float)$g['credit'], $proj_by[$gcid] ?? 0.0);
+    }
+    $credit    = round($credit, 2);
+    $debt      = round((float)$a['debt'], 2);
+    $suggested = max(0.0, round($total + $debt - $credit, 2));
 
     return [
         'year'             => $cur_year,
         'deadline'         => $year_end,
         'courses'          => $courses,
         'projected_total'  => round($total, 2),
-        'current_credit'   => (float)$bal['credit'],
+        'current_credit'   => $credit,   // nadpłata możliwa do wykorzystania na prognozowane zajęcia
+        'current_debt'     => $debt,     // bieżąca niedopłata — doliczana do sugerowanej kwoty
         'suggested_amount' => $suggested,
     ];
 }
@@ -1278,6 +1288,7 @@ function ti_year_end_projection(int $client_id): array {
 function ti_year_end_overpay_notify_admin(int $client_id, float $amount, string $gateway): void {
     $admins = db_all("SELECT email, name FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL AND email != ''");
     if (!$admins) return;
+    $proj_by = [];   // course_id => prognoza (do limitu nadpłaty grupy)
     $client = db_one("SELECT name FROM k30_clients WHERE id=?", [$client_id]) ?: [];
     require_once __DIR__ . '/mail_queue.php';
     $amt = number_format($amount, 2, ',', ' ');
@@ -1293,3 +1304,4 @@ function ti_year_end_overpay_notify_admin(int $client_id, float $amount, string 
         } catch (\Throwable $e) {}
     }
 }
+        $proj_by[$cid_e] = round(($proj_by[$cid_e] ?? 0) + $course_amount, 2);

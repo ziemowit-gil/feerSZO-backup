@@ -1318,6 +1318,7 @@ switch ($action) {
             'courses'          => $proj['courses'],
             'projected_total'  => $proj['projected_total'],
             'current_credit'   => $proj['current_credit'],
+            'current_debt'     => $proj['current_debt'],
             'suggested_amount' => $proj['suggested_amount'],
             'gateways'         => $gateways,
             'transfer_allowed' => $transfer_allowed,
