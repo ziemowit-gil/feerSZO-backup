@@ -547,7 +547,8 @@ function tiPlanPublicOnlineRoomIds(): array {
     $ids = [];
     foreach (db_all("SELECT id, name, short_label, location, mode_support FROM k30_pl_rooms") as $r) {
         $txt = tiPlanPublicFold(implode(' ', [(string)$r['name'], (string)$r['short_label'], (string)$r['location']]));
-        if ((string)$r['mode_support'] === 'online' || preg_match('/\b(on-?line|zdaln\w*|zoom|teams)\b/u', $txt)) $ids[] = (int)$r['id'];
+        // także literówki typu „onlline”, „onlin”, „on-line”
+        if ((string)$r['mode_support'] === 'online' || preg_match('/\b(on-?l+i+n+e?|zdaln\w*|zoom|teams|wirtualn\w*)\b/u', $txt)) $ids[] = (int)$r['id'];
     }
     return $ids;
 }

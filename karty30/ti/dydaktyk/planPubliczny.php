@@ -72,7 +72,7 @@ $dirR  = $rooms ? tiPlanPublicDirectoryRooms(8) : [];
 $links = ['self' => $self, 'groupLinks' => tiPlanPublicDirectoryTokens(), 'instrLinks' => tiPlanPublicDirectoryInstrTokens(), 'roomLinks' => $rooms];
 $roomName = fn(array $r) => trim((string)$r['short_label']) !== '' ? (string)$r['short_label'] : (string)$r['name'];
 // „Sala online” — wirtualna sala zajęć zdalnych (nie wymaga rezerwacji), zawsze pierwsza na liście sal
-if ($rooms) array_unshift($dirR, ['id' => 'online', 'name' => 'Online (zdalnie)', 'short_label' => 'Sala online', 'building' => '', 'location' => 'zajęcia zdalne — nie wymaga rezerwacji sali',
+if ($rooms) array_unshift($dirR, ['id' => 'online', 'name' => 'Sala online', 'short_label' => '', 'building' => '', 'location' => 'zajęcia zdalne — nie wymaga rezerwacji sali',
                                   'n_lessons' => tiPlanPublicOnlineCount(8)]);
 // Widok pełny: wszystkie aktywne grupy (?c=id) i prowadzący (?u=id) z prawdziwymi nazwami
 $allG = $full ? tiPlanPublicAllGroups() : [];
