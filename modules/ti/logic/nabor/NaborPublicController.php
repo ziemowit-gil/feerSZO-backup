@@ -20,7 +20,9 @@ final class NaborPublicController
 
     public function form(array $errors = [], array $old = []): string
     {
-        $this->requireOpen();
+        // Podgląd kierownika (edytor formularza): token dnia pozwala zobaczyć formularz także przy zamkniętym naborze
+        $preview = naborPreviewValid((string)($_GET['podglad'] ?? ''));
+        if (!$preview) $this->requireOpen();
         auth_start();
         $done = isset($_GET['done']) ? ($_SESSION['ti_nabor_done'] ?? null) : null;
         $brand = branding_load();
@@ -32,7 +34,9 @@ final class NaborPublicController
             'errors'   => $errors,
             'done'     => $done,
             'doneMail' => $_SESSION['ti_nabor_done_email'] ?? '',
-            'init'     => $done ? [] : $this->initState($errors, $old),
+            'init'     => $done ? [] : $this->initState($errors, $old, $preview),
+            'form'     => naborForm(),
+            'preview'  => $preview,
         ]);
     }
 
@@ -113,7 +117,7 @@ final class NaborPublicController
     }
 
     /** Stan początkowy Alpine (po błędzie walidacji — wartości z POST, krok 5). */
-    private function initState(array $errors, array $old): array
+    private function initState(array $errors, array $old, bool $preview = false): array
     {
         $s = fn($k) => (string)($old[$k] ?? '');
         $b = fn($k) => !empty($old[$k]);
@@ -128,7 +132,12 @@ final class NaborPublicController
                 'age' => $c['age_group'], 'schedule' => $c['schedule'], 'price' => $c['price_info'],
                 'max' => (int)$c['max_students'], 'free' => $c['free'],
             ], naborCourses(true)),
-            'days' => NABOR_DAYS, 'slots' => NABOR_SLOTS, 'equipment' => NABOR_EQUIPMENT, 'payment' => NABOR_PAYMENT,
+            'days' => NABOR_DAYS, 'slots' => NABOR_SLOTS, 'equipment' => naborEquipmentOptions(), 'payment' => NABOR_PAYMENT,
+            'preview' => $preview,
+            'steps'   => naborForm()['steps'],
+            'req'     => array_map(fn($f) => $f['visible'] && $f['required'] ? $f['label'] : '', naborForm()['fields']),
+            'vis'     => array_map(fn($f) => (bool)$f['visible'], naborForm()['fields']),
+            'custom'  => array_map(fn($q) => ['id' => $q['id'], 'step' => (int)$q['step'], 'label' => $q['label'], 'required' => (bool)$q['required']], naborForm()['custom']),
             'verified' => phoneVerifiedInSession(NABOR_PHONE_PURPOSE),
             'f' => [
                 'course_id' => $s('course_id'), 'is_custom_schedule' => $b('is_custom_schedule'),
@@ -142,6 +151,7 @@ final class NaborPublicController
                 'terms_accepted' => $b('terms_accepted'), 'gdpr_accepted' => $b('gdpr_accepted'),
                 'image_consent' => $b('image_consent'), 'marketing_consent' => $b('marketing_consent'),
                 'payment_method' => $s('payment_method'),
+                'extra' => (object)array_map('strval', (array)($old['extra'] ?? [])),
             ],
         ];
     }

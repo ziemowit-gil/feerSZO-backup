@@ -86,6 +86,11 @@ include __DIR__ . '/_head.php';
       ]) ?>
     </div></div>
 
+    <?php if ($xr = naborExtraRows($s['extra'] ?? '{}')): ?>
+    <div class="card mb-3"><div class="card-header fw-bold">Pytania dodatkowe</div><div class="card-body">
+      <?php $xp = []; foreach ($xr as [$q, $a]) $xp[$q] = nl2br(h($a)); echo $dl($xp); ?>
+    </div></div>
+    <?php endif; ?>
     <div class="card mb-3"><div class="card-header fw-bold">Rodzic / opiekun</div><div class="card-body">
       <?= $dl([
         'Imię i nazwisko' => h($s['guardian_name']),

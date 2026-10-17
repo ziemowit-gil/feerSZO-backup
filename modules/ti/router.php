@@ -49,6 +49,8 @@ if (!$panel) {
         $r->get('/zgloszenia/{id}',      [NaborPanelController::class, 'show'])->name('nabor.show');
         $r->post('/zgloszenia/{id}',     [NaborPanelController::class, 'update'])->name('nabor.update');
         $r->get('/zgloszenia/{id}/pdf',  [NaborPanelController::class, 'pdf'])->name('nabor.pdf');
+        $r->get('/formularz',            [NaborPanelController::class, 'formEditor'])->name('nabor.form.edit');
+        $r->post('/formularz',           [NaborPanelController::class, 'formSave'])->name('nabor.form.save');
         $r->get('/grupy',                [NaborPanelController::class, 'courses'])->name('nabor.courses');
         $r->post('/grupy/{id}',          [NaborPanelController::class, 'courseSave'])->name('nabor.courses.save');
     });

@@ -71,6 +71,7 @@ function naborMigrate(): void {
     if (!in_array('is_test', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0");
     // Zajęcia online: sprzęt uczestnika zamiast zasad odbioru (pickup_* zostają dla starszych zgłoszeń)
     if (!in_array('equipment', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN equipment TEXT NOT NULL DEFAULT '[]'");
+    if (!in_array('extra', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'");   // pytania dodatkowe z edytora
     if (!in_array('equipment_notes', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN equipment_notes TEXT NOT NULL DEFAULT ''");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_status ON ti_nabor_submissions(status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_course ON ti_nabor_submissions(course_id, status)");

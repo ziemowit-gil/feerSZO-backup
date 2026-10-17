@@ -166,6 +166,31 @@ final class NaborPanelController
         return Router::redirect(route('nabor.courses'));
     }
 
+    /** Edytor wizualny formularza publicznego. */
+    public function formEditor(): string
+    {
+        return Router::view(self::VIEW . 'formularz.php', [
+            'me' => $this->me(), 'form' => naborForm(), 'defaults' => naborFormDefaults(),
+            'previewUrl' => naborUrl('/zapisy', ['podglad' => naborPreviewToken()]),
+        ]);
+    }
+
+    /** Zapis konfiguracji z edytora (pole config = JSON). */
+    public function formSave(): ?string
+    {
+        $cfg = json_decode((string)($_POST['config'] ?? ''), true);
+        if (!is_array($cfg)) {
+            flash_set('danger', 'Nie udało się odczytać zmian formularza.');
+        } elseif (!empty($_POST['reset'])) {
+            org_setting_set('ti_nabor_form', '');
+            flash_set('success', 'Przywrócono domyślny wygląd formularza.');
+        } else {
+            naborFormSave($cfg);
+            flash_set('success', 'Zapisano formularz. Zmiany widać od razu w formularzu publicznym.');
+        }
+        return Router::redirect(route('nabor.form.edit'));
+    }
+
     /** Prowadzący: przyjęci uczestnicy własnych grup (kierownik widzi wszystkie). */
     public function instructor(): string
     {

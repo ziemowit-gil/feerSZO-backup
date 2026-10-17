@@ -87,6 +87,11 @@ function naborSubmissionPdf(int $sid): string {
     $row('Sprzęt do zajęć online', naborEquipmentLabel($s['equipment'] ?? '[]'));
     $row('Uwagi o sprzęcie', (string)($s['equipment_notes'] ?? ''));
 
+    if ($xr = naborExtraRows($s['extra'] ?? '{}')) {
+        $section('Pytania dodatkowe');
+        foreach ($xr as [$q, $a]) $row($q, $a);
+    }
+
     $section('4. Zgody i oświadczenia');
     $row('Regulamin zajęć', $yn($c['terms_accepted'] ?? 0));
     $row('Przetwarzanie danych osobowych (RODO)', $yn($c['gdpr_accepted'] ?? 0));

@@ -5,6 +5,35 @@
  * Krok 3 potwierdza numer opiekuna kodem SMS (trasa nabor.sms → modules/weryfikacja_sms).
  */
 $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+// Konfiguracja z edytora kierownika (naborForm): etykiety, podpowiedzi, widoczność, wymagalność, zgody, pytania dodatkowe
+$F   = $form['fields'];
+$on  = fn($k) => !empty($F[$k]['visible']);
+$lbl = fn($k) => h($F[$k]['label']) . (!empty($F[$k]['required']) ? ' *' : '');
+$hlp = fn($k, $id) => trim((string)$F[$k]['help']) !== '' ? '<p id="' . $id . '" class="zp-help">' . h($F[$k]['help']) . '</p>' : '';
+$dsc = fn($k, $id) => trim((string)$F[$k]['help']) !== '' ? ' aria-describedby="' . $id . '"' : '';
+/** Pytania dodatkowe kroku $n (x-model f.extra[id], nazwa extra[id]). */
+$customQs = function (int $n) use ($form): string {
+    $o = '';
+    foreach ($form['custom'] as $q) {
+        if ((int)$q['step'] !== $n) continue;
+        $id = 'zx-' . h($q['id']); $m = "f.extra['" . h($q['id']) . "']"; $nm = 'extra[' . h($q['id']) . ']';
+        $l = h($q['label']) . ($q['required'] ? ' *' : '');
+        $hp = trim((string)$q['help']) !== '' ? '<p id="' . $id . '-h" class="zp-help">' . h($q['help']) . '</p>' : '';
+        $ad = $hp !== '' ? ' aria-describedby="' . $id . '-h"' : '';
+        if ($q['type'] === 'checkbox') {
+            $o .= '<div><label class="zp-check"><input type="checkbox" name="' . $nm . '" value="1" x-model="' . $m . '"' . $ad . '><span>' . $l . '</span></label>' . $hp . '</div>';
+        } elseif ($q['type'] === 'select') {
+            $opts = '<option value="">— wybierz —</option>';
+            foreach ($q['options'] as $op) $opts .= '<option>' . h($op) . '</option>';
+            $o .= '<div><label class="zp-label" for="' . $id . '">' . $l . '</label><select id="' . $id . '" name="' . $nm . '" class="zp-input" x-model="' . $m . '"' . $ad . '>' . $opts . '</select>' . $hp . '</div>';
+        } elseif ($q['type'] === 'textarea') {
+            $o .= '<div><label class="zp-label" for="' . $id . '">' . $l . '</label><textarea id="' . $id . '" name="' . $nm . '" rows="3" class="zp-input" x-model="' . $m . '"' . $ad . '></textarea>' . $hp . '</div>';
+        } else {
+            $o .= '<div><label class="zp-label" for="' . $id . '">' . $l . '</label><input id="' . $id . '" name="' . $nm . '" class="zp-input" x-model="' . $m . '"' . $ad . '>' . $hp . '</div>';
+        }
+    }
+    return $o;
+};
 ?><!doctype html>
 <html lang="pl">
 <head>
@@ -41,7 +70,7 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
   <header class="tw-mb-6 tw-flex tw-items-center tw-gap-4">
     <?php if ($logo): ?><img src="<?= h($logo) ?>" alt="<?= h($org) ?>" class="tw-h-12 tw-bg-white tw-rounded-lg tw-p-1"><?php endif; ?>
     <div>
-      <h1 class="tw-text-2xl tw-font-extrabold">Zapisy na zajęcia</h1>
+      <h1 class="tw-text-2xl tw-font-extrabold"><?= h($form['texts']['title']) ?></h1>
       <p class="tw-text-gray-600"><?= h($org) ?></p>
     </div>
   </header>
@@ -49,7 +78,7 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
 <?php if ($done): ?>
   <main class="tw-bg-white tw-rounded-2xl tw-shadow-lg tw-p-8 tw-text-center">
     <div class="tw-text-5xl tw-mb-3" aria-hidden="true">📨</div>
-    <h2 class="tw-text-xl tw-font-bold tw-mb-2">Dziękujemy! Zgłoszenie zostało zarejestrowane</h2>
+    <h2 class="tw-text-xl tw-font-bold tw-mb-2"><?= h($form['texts']['thanks']) ?></h2>
     <p class="tw-text-gray-600">Numer zgłoszenia:</p>
     <p class="tw-text-3xl tw-font-extrabold tw-text-feer tw-my-3"><?= h($done) ?></p>
     <div class="tw-bg-amber-50 tw-border tw-border-amber-300 tw-rounded-xl tw-p-4 tw-text-left tw-mt-6" role="status">
@@ -58,6 +87,8 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
     </div>
   </main>
 <?php else: ?>
+  <?php if ($preview): ?><div class="tw-bg-amber-100 tw-border tw-border-amber-400 tw-rounded-xl tw-p-3 tw-mb-4 tw-text-sm" role="status"><strong>Podgląd formularza.</strong> Wysyłka i kody SMS są wyłączone<?= naborPublicOpen() ? '' : ' — nabór jest zamknięty' ?>.</div><?php endif; ?>
+  <?php if (trim($form['texts']['intro']) !== ''): ?><div class="tw-bg-white tw-rounded-2xl tw-p-5 tw-mb-4 tw-whitespace-pre-line"><?= h($form['texts']['intro']) ?></div><?php endif; ?>
   <main x-data="naborForm(<?= h(json_encode($init, $J)) ?>)" x-cloak class="tw-bg-white tw-rounded-2xl tw-shadow-lg tw-p-5 sm:tw-p-8">
     <ol class="tw-flex tw-gap-1 tw-mb-6" aria-label="Kroki formularza">
       <template x-for="(t, i) in titles" :key="i">
@@ -84,7 +115,7 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
 
       <!-- Krok 1: zajęcia / termin -->
       <fieldset x-show="step === 1">
-        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h1" tabindex="-1">Wybierz zajęcia</legend>
+        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h1" tabindex="-1"><?= h($form['step_titles'][1]) ?></legend>
         <div class="tw-grid tw-gap-3">
           <template x-for="c in courses" :key="c.id">
             <label class="zp-pick" :class="!f.is_custom_schedule && f.course_id == c.id && 'zp-pick-on'">
@@ -121,41 +152,55 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
           <div><label class="zp-label" for="zp-na">Uwagi do dyspozycyjności</label>
             <textarea id="zp-na" name="notes_availability" rows="3" class="zp-input" x-model="f.notes_availability" placeholder="np. wtorki po 15:00, poza okresem ferii"></textarea></div>
         </div>
+        <div class="tw-mt-5 tw-grid tw-gap-4"><?= $customQs(1) ?></div>
       </fieldset>
 
       <!-- Krok 2: uczestnik -->
       <fieldset x-show="step === 2" class="tw-grid tw-gap-4">
-        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h2" tabindex="-1">Dane uczestnika</legend>
-        <div><label class="zp-label" for="zp-pn">Imię i nazwisko *</label><input id="zp-pn" name="participant_name" class="zp-input" x-model="f.participant_name" autocomplete="off" required></div>
+        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h2" tabindex="-1"><?= h($form['step_titles'][2]) ?></legend>
+        <div><label class="zp-label" for="zp-pn"><?= $lbl('participant_name') ?></label><input id="zp-pn" name="participant_name" class="zp-input" x-model="f.participant_name" autocomplete="off" required></div>
         <div class="tw-grid sm:tw-grid-cols-2 tw-gap-4">
-          <div><label class="zp-label" for="zp-pp">PESEL lub data urodzenia *</label><input id="zp-pp" name="participant_birth_date_or_pesel" class="zp-input" x-model="f.participant_birth_date_or_pesel" inputmode="numeric" aria-describedby="zp-pp-h" required>
-            <p id="zp-pp-h" class="zp-help">11 cyfr PESEL albo data w formacie RRRR-MM-DD.</p></div>
-          <div><label class="zp-label" for="zp-pc">Szkoła i klasa</label><input id="zp-pc" name="participant_school_class" class="zp-input" x-model="f.participant_school_class" placeholder="np. SP 12, kl. 4b"></div>
+          <div><label class="zp-label" for="zp-pp"><?= $lbl('participant_birth_date_or_pesel') ?></label><input id="zp-pp" name="participant_birth_date_or_pesel" class="zp-input" x-model="f.participant_birth_date_or_pesel" inputmode="numeric"<?= $dsc('participant_birth_date_or_pesel', 'zp-pp-h') ?> required>
+            <?= $hlp('participant_birth_date_or_pesel', 'zp-pp-h') ?></div>
+          <?php if ($on('participant_school_class')): ?>
+          <div><label class="zp-label" for="zp-pc"><?= $lbl('participant_school_class') ?></label><input id="zp-pc" name="participant_school_class" class="zp-input" x-model="f.participant_school_class" placeholder="np. SP 12, kl. 4b"<?= $dsc('participant_school_class', 'zp-pc-h') ?>>
+            <?= $hlp('participant_school_class', 'zp-pc-h') ?></div>
+          <?php endif; ?>
         </div>
-        <div><label class="zp-label" for="zp-pm">Uwagi medyczne i dostępnościowe</label>
-          <textarea id="zp-pm" name="participant_medical_notes" rows="4" class="zp-input" x-model="f.participant_medical_notes" aria-describedby="zp-pm-h"></textarea>
-          <p id="zp-pm-h" class="zp-help">Alergie, leki, choroby przewlekłe, potrzeby wynikające z niepełnosprawności — wszystko, co pomoże zapewnić bezpieczeństwo i dostosować zajęcia.</p></div>
-        <fieldset class="tw-bg-feer-bg tw-rounded-xl tw-p-4"><legend class="zp-label">Sprzęt do zajęć online</legend>
-          <p class="zp-help tw-mt-0 tw-mb-2">Zajęcia odbywają się online. Zaznacz, co uczestnik ma do dyspozycji — pomożemy przygotować stanowisko.</p>
+        <?php if ($on('participant_medical_notes')): ?>
+        <div><label class="zp-label" for="zp-pm"><?= $lbl('participant_medical_notes') ?></label>
+          <textarea id="zp-pm" name="participant_medical_notes" rows="4" class="zp-input" x-model="f.participant_medical_notes"<?= $dsc('participant_medical_notes', 'zp-pm-h') ?>></textarea>
+          <?= $hlp('participant_medical_notes', 'zp-pm-h') ?></div>
+        <?php endif; ?>
+        <?php if ($on('equipment') || $on('equipment_notes')): ?>
+        <fieldset class="tw-bg-feer-bg tw-rounded-xl tw-p-4"><legend class="zp-label"><?= $lbl('equipment') ?></legend>
+          <?php if ($on('equipment')): ?>
+          <?= str_replace('zp-help', 'zp-help tw-mt-0 tw-mb-2', $hlp('equipment', 'zp-eqs-h')) ?>
           <div class="tw-grid sm:tw-grid-cols-2 tw-gap-x-4">
             <template x-for="(l, k) in equipment" :key="k"><label class="zp-check"><input type="checkbox" name="equipment[]" :value="k" x-model="f.equipment"><span x-text="l"></span></label></template>
           </div>
-          <label class="zp-label tw-mt-2" for="zp-eq">Uwagi o sprzęcie</label>
-          <input id="zp-eq" name="equipment_notes" class="zp-input" x-model="f.equipment_notes" placeholder="np. NVDA, monitor brajlowski, tylko tablet">
+          <?php endif; ?>
+          <?php if ($on('equipment_notes')): ?>
+          <label class="zp-label tw-mt-2" for="zp-eq"><?= $lbl('equipment_notes') ?></label>
+          <input id="zp-eq" name="equipment_notes" class="zp-input" x-model="f.equipment_notes" placeholder="np. NVDA, monitor brajlowski, tylko tablet"<?= $dsc('equipment_notes', 'zp-eqn-h') ?>>
+          <?= $hlp('equipment_notes', 'zp-eqn-h') ?>
+          <?php endif; ?>
         </fieldset>
+        <?php endif; ?>
+        <?= $customQs(2) ?>
       </fieldset>
 
       <!-- Krok 3: opiekun -->
       <fieldset x-show="step === 3" class="tw-grid tw-gap-4">
-        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h3" tabindex="-1">Rodzic / opiekun prawny</legend>
-        <div><label class="zp-label" for="zp-gn">Imię i nazwisko *</label><input id="zp-gn" name="guardian_name" class="zp-input" x-model="f.guardian_name" autocomplete="name" required></div>
+        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h3" tabindex="-1"><?= h($form['step_titles'][3]) ?></legend>
+        <div><label class="zp-label" for="zp-gn"><?= $lbl('guardian_name') ?></label><input id="zp-gn" name="guardian_name" class="zp-input" x-model="f.guardian_name" autocomplete="name" required></div>
         <div class="tw-grid sm:tw-grid-cols-2 tw-gap-4">
-          <div><label class="zp-label" for="zp-ge">E-mail *</label><input id="zp-ge" type="email" name="guardian_email" class="zp-input" x-model="f.guardian_email" autocomplete="email" aria-describedby="zp-ge-h" required>
-            <p id="zp-ge-h" class="zp-help">Wyślemy na niego link potwierdzający — bez kliknięcia zgłoszenie nie zostanie rozpatrzone.</p></div>
-          <div><label class="zp-label" for="zp-gp">Telefon komórkowy *</label>
+          <div><label class="zp-label" for="zp-ge"><?= $lbl('guardian_email') ?></label><input id="zp-ge" type="email" name="guardian_email" class="zp-input" x-model="f.guardian_email" autocomplete="email"<?= $dsc('guardian_email', 'zp-ge-h') ?> required>
+            <?= $hlp('guardian_email', 'zp-ge-h') ?></div>
+          <div><label class="zp-label" for="zp-gp"><?= $lbl('guardian_phone') ?></label>
             <div class="tw-flex tw-gap-2">
               <input id="zp-gp" type="tel" name="guardian_phone" class="zp-input" x-model="f.guardian_phone" @input="phoneChanged()" autocomplete="tel" inputmode="tel" required>
-              <button type="button" class="zp-btn-ghost tw-whitespace-nowrap tw-text-sm" x-show="!isVerified()" @click="sendCode()" :disabled="busy || cooldown > 0"
+              <button type="button" class="zp-btn-ghost tw-whitespace-nowrap tw-text-sm" x-show="!isVerified()" @click="sendCode()" :disabled="preview || busy || cooldown > 0"
                       x-text="cooldown > 0 ? 'Ponów za ' + cooldown + ' s' : (codeSent ? 'Wyślij ponownie' : 'Wyślij kod SMS')"></button>
             </div>
             <p class="tw-text-sm tw-text-green-700 tw-font-bold tw-mt-1" x-show="isVerified()" role="status">✓ Numer potwierdzony</p>
@@ -169,27 +214,42 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
           </div>
           <p class="zp-help" role="status" x-text="smsInfo"></p>
         </div>
-        <div><label class="zp-label" for="zp-gs">Ulica i numer *</label><input id="zp-gs" name="guardian_street" class="zp-input" x-model="f.guardian_street" autocomplete="street-address" required></div>
+        <?php if ($on('guardian_address')): $ra = !empty($F['guardian_address']['required']) ? ' *' : ''; ?>
+        <fieldset class="tw-grid tw-gap-4"><legend class="zp-label"><?= h($F['guardian_address']['label']) ?></legend>
+        <?= $hlp('guardian_address', 'zp-ga-h') ?>
+        <div><label class="zp-label" for="zp-gs">Ulica i numer<?= $ra ?></label><input id="zp-gs" name="guardian_street" class="zp-input" x-model="f.guardian_street" autocomplete="street-address"></div>
         <div class="tw-grid tw-grid-cols-3 tw-gap-4">
-          <div><label class="zp-label" for="zp-gz">Kod pocztowy *</label><input id="zp-gz" name="guardian_postal_code" class="zp-input" x-model="f.guardian_postal_code" autocomplete="postal-code" placeholder="00-000" required></div>
-          <div class="tw-col-span-2"><label class="zp-label" for="zp-gc">Miejscowość *</label><input id="zp-gc" name="guardian_city" class="zp-input" x-model="f.guardian_city" autocomplete="address-level2" required></div>
+          <div><label class="zp-label" for="zp-gz">Kod pocztowy<?= $ra ?></label><input id="zp-gz" name="guardian_postal_code" class="zp-input" x-model="f.guardian_postal_code" autocomplete="postal-code" placeholder="00-000"></div>
+          <div class="tw-col-span-2"><label class="zp-label" for="zp-gc">Miejscowość<?= $ra ?></label><input id="zp-gc" name="guardian_city" class="zp-input" x-model="f.guardian_city" autocomplete="address-level2"></div>
         </div>
+        </fieldset>
+        <?php endif; ?>
+        <?= $customQs(3) ?>
 
       </fieldset>
 
       <!-- Krok 4: zgody -->
       <fieldset x-show="step === 4">
-        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h4" tabindex="-1">Zgody i oświadczenia</legend>
+        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h4" tabindex="-1"><?= h($form['step_titles'][4]) ?></legend>
+        <?php $C = $form['consents']; ?>
         <label class="zp-check"><input type="checkbox" name="terms_accepted" value="1" x-model="f.terms_accepted">
-          <span>Akceptuję <?= $terms !== '' ? '<a class="tw-text-feer tw-underline" href="' . h($terms) . '" target="_blank" rel="noopener">regulamin zajęć</a>' : 'regulamin zajęć' ?>. <strong>(wymagane)</strong></span></label>
+          <span><?= h($C['terms']['label']) ?><?= $terms !== '' ? ' <a class="tw-text-feer tw-underline" href="' . h($terms) . '" target="_blank" rel="noopener">Regulamin</a>' : '' ?> <strong>(wymagane)</strong></span></label>
         <label class="zp-check"><input type="checkbox" name="gdpr_accepted" value="1" x-model="f.gdpr_accepted">
-          <span>Wyrażam zgodę na przetwarzanie danych osobowych moich i uczestnika w celu rekrutacji i organizacji zajęć, w tym danych o zdrowiu podanych w uwagach. <strong>(wymagane)</strong></span></label>
+          <span><?= h($C['gdpr']['label']) ?> <strong>(wymagane)</strong></span></label>
+        <?php if (!empty($C['image']['visible'])): ?>
         <label class="zp-check"><input type="checkbox" name="image_consent" value="1" x-model="f.image_consent">
-          <span>Zgadzam się na nieodpłatne wykorzystanie wizerunku uczestnika w materiałach informacyjnych organizacji. (dobrowolne)</span></label>
+          <span><?= h($C['image']['label']) ?> (dobrowolne)</span></label>
+        <?php endif; ?>
+        <?php if (!empty($C['marketing']['visible'])): ?>
         <label class="zp-check"><input type="checkbox" name="marketing_consent" value="1" x-model="f.marketing_consent">
-          <span>Chcę otrzymywać e-mailem informacje o kolejnych zajęciach i wydarzeniach. (dobrowolne)</span></label>
+          <span><?= h($C['marketing']['label']) ?> (dobrowolne)</span></label>
+        <?php endif; ?>
+        <?= $customQs(4) ?>
         <div class="tw-mt-4 tw-text-xs tw-text-gray-600 tw-bg-gray-50 tw-rounded-xl tw-p-4 tw-leading-relaxed">
-          <?php if ($clause): ?>
+          <?php if (trim($form['texts']['clause']) !== ''): ?>
+            <div class="tw-whitespace-pre-line"><?= h($form['texts']['clause']) ?></div>
+            <?php if ($clause): ?><details class="tw-mt-2"><summary class="tw-cursor-pointer tw-font-bold">Pełna klauzula informacyjna</summary><div class="tw-mt-2"><?= $clause['html'] ?></div></details><?php endif; ?>
+          <?php elseif ($clause): ?>
             <details><summary class="tw-cursor-pointer tw-font-bold">Klauzula informacyjna</summary><div class="tw-mt-2"><?= $clause['html'] ?></div></details>
           <?php else: ?>
             Administratorem danych jest <?= h($org) ?>. Dane przetwarzamy w celu rekrutacji i organizacji zajęć (art. 6 ust. 1 lit. a, b i c oraz art. 9 ust. 2 lit. a RODO) przez okres zajęć i rozliczeń, a dane z dobrowolnych zgód — do ich wycofania. Masz prawo dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania, przenoszenia, wycofania zgody w dowolnym momencie oraz skargi do Prezesa UODO. Zgody są zapisywane razem z adresem IP i czasem ich udzielenia.
@@ -199,31 +259,33 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
 
       <!-- Krok 5: podsumowanie -->
       <section x-show="step === 5" aria-labelledby="zp-h5">
-        <h2 id="zp-h5" class="tw-text-lg tw-font-bold tw-mb-2" x-ref="h5" tabindex="-1">Podsumowanie</h2>
+        <h2 id="zp-h5" class="tw-text-lg tw-font-bold tw-mb-2" x-ref="h5" tabindex="-1"><?= h($form['step_titles'][5]) ?></h2>
         <dl class="zp-sum tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
           <div><dt>Zajęcia</dt><dd x-text="courseLabel()"></dd></div>
           <div><dt>Uczestnik</dt><dd x-text="f.participant_name + '\n' + f.participant_birth_date_or_pesel + (f.participant_school_class ? ', ' + f.participant_school_class : '')"></dd></div>
           <div><dt>Opiekun</dt><dd x-text="f.guardian_name + '\n' + f.guardian_email + '\n' + f.guardian_phone"></dd></div>
-          <div><dt>Adres</dt><dd x-text="f.guardian_street + '\n' + f.guardian_postal_code + ' ' + f.guardian_city"></dd></div>
-          <div><dt>Sprzęt do zajęć online</dt><dd x-text="(f.equipment.map(k => equipment[k]).join(', ') || '—') + (f.equipment_notes ? '\n' + f.equipment_notes : '')"></dd></div>
+          <?php if ($on('guardian_address')): ?><div><dt>Adres</dt><dd x-text="f.guardian_street + '\n' + f.guardian_postal_code + ' ' + f.guardian_city"></dd></div><?php endif; ?>
+          <div x-show="f.equipment.length || f.equipment_notes"><dt><?= h($F['equipment']['label']) ?></dt><dd x-text="(f.equipment.map(k => equipment[k]).join(', ') || '—') + (f.equipment_notes ? '\n' + f.equipment_notes : '')"></dd></div>
           <div><dt>Zgody</dt><dd x-text="consentsLabel()"></dd></div>
           <div class="sm:tw-col-span-2" x-show="f.participant_medical_notes"><dt>Uwagi medyczne</dt><dd x-text="f.participant_medical_notes"></dd></div>
         </dl>
+        <?php if ($on('payment_method')): ?>
         <fieldset class="tw-mt-6" x-show="!f.is_custom_schedule">
-          <legend class="zp-label">Forma płatności *</legend>
+          <legend class="zp-label"><?= $lbl('payment_method') ?></legend>
           <template x-for="(l, k) in payment" :key="k">
             <label class="zp-check"><input type="radio" name="payment_method" :value="k" x-model="f.payment_method"><span x-text="l"></span></label>
           </template>
-          <p class="zp-help">To deklaracja — szczegóły płatności prześlemy po przyjęciu zgłoszenia.</p>
+          <?= $hlp('payment_method', 'zp-pay-h') ?>
         </fieldset>
         <p class="tw-mt-4 tw-text-sm tw-text-gray-600" x-show="f.is_custom_schedule">Przy terminie do ustalenia płatność ustalimy razem z terminem.</p>
+        <?php endif; ?>
       </section>
 
       <div class="tw-flex tw-justify-between tw-gap-3 tw-mt-8 tw-pt-5 tw-border-t tw-border-feer-line">
         <button type="button" class="zp-btn-ghost" x-show="step > 1" @click="go(step - 1)">← Wstecz</button>
         <span x-show="step === 1"></span>
         <button type="button" class="zp-btn-primary" x-show="step < 5" @click="next()">Dalej →</button>
-        <button type="submit" class="zp-btn-primary" x-show="step === 5">Wyślij zgłoszenie</button>
+        <button type="submit" class="zp-btn-primary" x-show="step === 5" :disabled="preview" :title="preview ? 'Podgląd — wysyłka wyłączona' : null">Wyślij zgłoszenie</button>
       </div>
     </form>
   </main>
@@ -234,7 +296,9 @@ $J = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON
 function naborForm(init) {
   return {
     ...init, err: '', code: '', codeSent: false, busy: false, cooldown: 0, smsInfo: '',
-    titles: ['Zajęcia', 'Uczestnik', 'Opiekun', 'Zgody', 'Podsumowanie'],
+    titles: Object.values(init.steps),
+    /** Pytania dodatkowe kroku s — wymagane bez odpowiedzi. */
+    missingExtra(s) { const q = this.custom.find(q => q.step == s && q.required && !this.f.extra[q.id]); return q ? 'Uzupełnij: „' + q.label + '”.' : ''; },
     norm(p) { let d = String(p || '').replace(/\D/g, ''); if (d.length === 9) d = '48' + d; return d; },
     isVerified() { return this.verified && this.verified === this.norm(this.f.guardian_phone); },
     phoneChanged() { if (!this.isVerified()) this.codeSent = false; },
@@ -252,18 +316,21 @@ function naborForm(init) {
       if (s === 2) {
         if (f.participant_name.trim().length < 3) return 'Podaj imię i nazwisko uczestnika.';
         if (!this.peselOrDate(f.participant_birth_date_or_pesel)) return 'Podaj poprawny PESEL albo datę urodzenia (RRRR-MM-DD).';
+        for (const k of ['participant_school_class', 'participant_medical_notes', 'equipment_notes'])
+          if (this.req[k] && !String(f[k] || '').trim()) return 'Uzupełnij: „' + this.req[k] + '”.';
+        if (this.req.equipment && !f.equipment.length) return 'Zaznacz sprzęt do zajęć online.';
       }
       if (s === 3) {
         if (f.guardian_name.trim().length < 3) return 'Podaj imię i nazwisko opiekuna.';
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.guardian_email)) return 'Podaj poprawny adres e-mail.';
         if (!/^48\d{9}$/.test(this.norm(f.guardian_phone))) return 'Podaj numer telefonu komórkowego (9 cyfr).';
-        if (!this.isVerified()) return 'Potwierdź numer telefonu kodem SMS.';
-        if (!f.guardian_street.trim() || !f.guardian_city.trim()) return 'Podaj adres zamieszkania.';
-        if (!/^\d{2}-\d{3}$/.test(f.guardian_postal_code.trim())) return 'Podaj kod pocztowy w formacie 00-000.';
+        if (!this.preview && !this.isVerified()) return 'Potwierdź numer telefonu kodem SMS.';
+        if (this.req.guardian_address && (!f.guardian_street.trim() || !f.guardian_city.trim())) return 'Podaj adres zamieszkania.';
+        if ((this.req.guardian_address || f.guardian_postal_code.trim()) && this.vis.guardian_address && !/^\d{2}-\d{3}$/.test(f.guardian_postal_code.trim())) return 'Podaj kod pocztowy w formacie 00-000.';
       }
       if (s === 4 && (!f.terms_accepted || !f.gdpr_accepted)) return 'Zaznacz wymagane zgody (regulamin i RODO).';
-      if (s === 5 && !f.is_custom_schedule && !f.payment_method) return 'Wybierz formę płatności.';
-      return '';
+      if (s === 5 && this.req.payment_method && !f.is_custom_schedule && !f.payment_method) return 'Wybierz formę płatności.';
+      return s <= 4 ? this.missingExtra(s) : '';
     },
     go(s) { this.err = ''; this.step = s; this.$nextTick(() => { this.$refs['h' + s]?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); }); },
     next() { this.err = this.check(this.step); if (!this.err) this.go(this.step + 1); },

@@ -55,7 +55,8 @@ const NABOR_EQUIPMENT = [
 ];
 /** Lista sprzętu (JSON z bazy) jako tekst. */
 function naborEquipmentLabel(?string $json): string {
-    return implode(', ', array_map(fn($k) => NABOR_EQUIPMENT[$k] ?? $k, json_decode($json ?: '[]', true) ?: []));
+    $o = function_exists('naborEquipmentOptions') ? naborEquipmentOptions() + NABOR_EQUIPMENT : NABOR_EQUIPMENT;
+    return implode(', ', array_map(fn($k) => $o[$k] ?? $k, json_decode($json ?: '[]', true) ?: []));
 }
 
 const NABOR_DAYS  = ['pn' => 'poniedziałek', 'wt' => 'wtorek', 'sr' => 'środa', 'cz' => 'czwartek', 'pt' => 'piątek', 'sb' => 'sobota'];
@@ -184,7 +185,7 @@ function naborEnroll(int $sid, int $uid, string $byName = ''): int {
             'phone'         => '+' . $s['guardian_phone'],
             'pesel'         => $pesel,
             'date_of_birth' => $dob,
-            'address'       => $s['guardian_street'] . ', ' . $s['guardian_postal_code'] . ' ' . $s['guardian_city'],
+            'address'       => trim($s['guardian_street'] . ', ' . trim($s['guardian_postal_code'] . ' ' . $s['guardian_city']), ', '),
             'problem'       => $s['participant_medical_notes'],
             'notes'         => $notes,
             'status'        => 'enrolled',
@@ -272,7 +273,7 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
         'guardian_street'                 => $t('guardian_street', 200),
         'guardian_postal_code'            => $t('guardian_postal_code', 10),
         'guardian_city'                   => $t('guardian_city', 100),
-        'equipment'                       => array_values(array_intersect(array_keys(NABOR_EQUIPMENT), (array)($p['equipment'] ?? []))),
+        'equipment'                       => array_values(array_intersect(array_keys(naborEquipmentOptions()), (array)($p['equipment'] ?? []))),
         'equipment_notes'                 => $t('equipment_notes', 1000),
         'payment_method'                  => $custom ? '' : (array_key_exists($p['payment_method'] ?? '', NABOR_PAYMENT) ? $p['payment_method'] : ''),
         'terms_accepted'                  => !empty($p['terms_accepted']),
@@ -280,6 +281,21 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
         'image_consent'                   => !empty($p['image_consent']),
         'marketing_consent'               => !empty($p['marketing_consent']),
     ];
+    // Konfiguracja formularza (edytor kierownika): pola ukryte są puste, wymagane — sprawdzane; zgody ukryte = brak zgody
+    $form = naborForm(); $fl = $form['fields'];
+    $vis = fn($k) => !empty($fl[$k]['visible']);
+    $req = fn($k) => !empty($fl[$k]['visible']) && !empty($fl[$k]['required']);
+    foreach (['participant_school_class', 'participant_medical_notes', 'equipment_notes'] as $k) if (!$vis($k)) $d[$k] = '';
+    if (!$vis('equipment')) $d['equipment'] = [];
+    if (!$vis('guardian_address')) { $d['guardian_street'] = $d['guardian_postal_code'] = $d['guardian_city'] = ''; }
+    if (!$vis('payment_method')) $d['payment_method'] = '';
+    if (empty($form['consents']['image']['visible'])) $d['image_consent'] = false;
+    if (empty($form['consents']['marketing']['visible'])) $d['marketing_consent'] = false;
+    foreach (['participant_school_class', 'participant_medical_notes', 'equipment_notes'] as $k)
+        if ($req($k) && $d[$k] === '') $e[] = 'Uzupełnij: „' . $fl[$k]['label'] . '”.';
+    if ($req('equipment') && !$d['equipment']) $e[] = 'Zaznacz sprzęt do zajęć online.';
+    [$d['extra'], $ee] = naborFormValidateExtra($p);
+    array_push($e, ...$ee);
 
     if ($custom) {
         if (!$d['preferred_days'] && !$d['preferred_time_slots'] && $d['notes_availability'] === '')
@@ -287,7 +303,7 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
     } else {
         $c = $d['course_id'] ? naborCourseGet($d['course_id']) : null;
         if (!$c || !$c['is_open']) $e[] = 'Wybierz zajęcia z listy albo opcję „Termin do ustalenia”.';
-        if ($d['payment_method'] === '') $e[] = 'Wybierz formę płatności.';
+        if ($req('payment_method') && $d['payment_method'] === '') $e[] = 'Wybierz formę płatności.';
     }
     if (mb_strlen($d['participant_name']) < 3)                    $e[] = 'Podaj imię i nazwisko uczestnika.';
     if (!naborValidPeselOrDate($d['participant_birth_date_or_pesel'])) $e[] = 'Podaj poprawny PESEL albo datę urodzenia uczestnika (RRRR-MM-DD).';
@@ -298,8 +314,9 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
     if (!preg_match('/^48\d{9}$/', $phone))                       $e[] = 'Podaj polski numer telefonu opiekuna (9 cyfr).';
     elseif ($verifiedPhone !== $phone)                            $e[] = 'Potwierdź numer telefonu opiekuna kodem SMS.';
     $d['guardian_phone'] = $phone;
-    if ($d['guardian_street'] === '' || $d['guardian_city'] === '') $e[] = 'Podaj adres zamieszkania (ulica, miejscowość).';
-    if (!preg_match('/^\d{2}-\d{3}$/', $d['guardian_postal_code'])) $e[] = 'Podaj kod pocztowy w formacie 00-000.';
+    if ($req('guardian_address') && ($d['guardian_street'] === '' || $d['guardian_city'] === '')) $e[] = 'Podaj adres zamieszkania (ulica, miejscowość).';
+    if ($vis('guardian_address') && ($req('guardian_address') || $d['guardian_postal_code'] !== '') && !preg_match('/^\d{2}-\d{3}$/', $d['guardian_postal_code']))
+        $e[] = 'Podaj kod pocztowy w formacie 00-000.';
     if (!$d['terms_accepted']) $e[] = 'Akceptacja regulaminu jest wymagana.';
     if (!$d['gdpr_accepted'])  $e[] = 'Zgoda na przetwarzanie danych osobowych jest wymagana.';
     return [$d, $e];
@@ -338,6 +355,7 @@ function naborSubmissionCreate(array $d): array {
             'pickup_type'                     => '',
             'equipment'                       => json_encode($d['equipment']),
             'equipment_notes'                 => $d['equipment_notes'],
+            'extra'                           => json_encode($d['extra'] ?: new stdClass(), JSON_UNESCAPED_UNICODE),
             'payment_method'                  => $d['payment_method'],
             'phone_verified_at'               => gmdate('Y-m-d H:i:s'),
             'email_token_hash'                => hash('sha256', $token),
@@ -635,7 +653,7 @@ function naborUpdateData(int $sid, array $p, int $userId, string $userName = '')
         'guardian_name' => $t('guardian_name', 200), 'guardian_phone' => phoneDigits48($t('guardian_phone', 30)),
         'guardian_email' => mb_strtolower($t('guardian_email', 200)), 'guardian_street' => $t('guardian_street', 200),
         'guardian_postal_code' => $t('guardian_postal_code', 10), 'guardian_city' => $t('guardian_city', 100),
-        'equipment' => json_encode(array_values(array_intersect(array_keys(NABOR_EQUIPMENT), (array)($p['equipment'] ?? [])))),
+        'equipment' => json_encode(array_values(array_intersect(array_keys(naborEquipmentOptions() + NABOR_EQUIPMENT), (array)($p['equipment'] ?? [])))),
         'equipment_notes' => $t('equipment_notes', 1000),
         'notes_availability' => $t('notes_availability', 2000),
         'payment_method' => array_key_exists($p['payment_method'] ?? '', NABOR_PAYMENT) ? $p['payment_method'] : '',
@@ -646,7 +664,7 @@ function naborUpdateData(int $sid, array $p, int $userId, string $userName = '')
     if (mb_strlen($d['guardian_name']) < 3) $e[] = 'imię i nazwisko opiekuna';
     if (!preg_match('/^48\d{9}$/', $d['guardian_phone'])) $e[] = 'telefon opiekuna (9 cyfr)';
     if (!filter_var($d['guardian_email'], FILTER_VALIDATE_EMAIL)) $e[] = 'e-mail opiekuna';
-    if (!preg_match('/^\d{2}-\d{3}$/', $d['guardian_postal_code'])) $e[] = 'kod pocztowy 00-000';
+    if ($d['guardian_postal_code'] !== '' && !preg_match('/^\d{2}-\d{3}$/', $d['guardian_postal_code'])) $e[] = 'kod pocztowy 00-000';
     if ($e) throw new InvalidArgumentException('Popraw: ' . implode(', ', $e) . '.');
 
     $changed = [];
@@ -697,3 +715,5 @@ function naborSms(string $phone, string $message, string $kind): string {
 function naborPublicOpen(): bool {
     return org_setting('ti_nabor_enabled') === '1';
 }
+
+require_once __DIR__ . '/naborForm.php';   // konfiguracja formularza (edytor kierownika) — po stałych, z których korzysta

@@ -25,6 +25,7 @@ include __DIR__ . '/_head.php';
         <i class="bi bi-<?= naborPublicOpen() ? 'unlock' : 'lock' ?>"></i> Formularz <?= naborPublicOpen() ? 'otwarty' : 'zamknięty' ?></button></form>
     <a class="btn btn-sm btn-outline-primary" href="<?= h($publicUrl) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Formularz</a>
     <a class="btn btn-sm btn-outline-primary" href="<?= h(route('nabor.courses')) ?>"><i class="bi bi-collection"></i> Grupy w naborze</a>
+    <a class="btn btn-sm btn-outline-primary" href="<?= h(route('nabor.form.edit')) ?>"><i class="bi bi-ui-checks"></i> Edytuj formularz</a>
     <a class="btn btn-sm btn-outline-secondary" href="<?= h(route('nabor.instructor')) ?>"><i class="bi bi-person-video3"></i> Widok prowadzącego</a>
   </div>
 </div>
