@@ -119,10 +119,9 @@ final class Router
 
     public function currentPath(): string
     {
-        // Tryb path: PATH_INFO, a gdy pusty (np. wejście przez RewriteRule …/router.php?_route=… — serwer ustawia
-        // PATH_INFO na '' albo '/') — ?_route=
-        $pi = (string)($_SERVER['PATH_INFO'] ?? '');
-        $p  = $this->mode === 'query' || trim($pi, '/') === '' ? (string)($_GET['_route'] ?? '/') : $pi;
+        // Jawne ?_route= ma pierwszeństwo (tryb query oraz wejścia przez RewriteRule …/router.php?_route=…, gdzie serwer
+        // potrafi ustawić PATH_INFO na '' albo na pierwotny adres, np. /nabor); w trybie path poza tym PATH_INFO.
+        $p = isset($_GET['_route']) || $this->mode === 'query' ? (string)($_GET['_route'] ?? '/') : (string)($_SERVER['PATH_INFO'] ?? '/');
         return '/' . trim($p, '/');
     }
 
