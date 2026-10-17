@@ -25,7 +25,7 @@ function skbEzdRegister(int $id, array $user): int|string {
     require_once dirname(__DIR__, 3) . '/includes/contract_ezd.php';
     $type = (string)$s['contract_type'];
     $cid  = (int)$s['contract_id'];
-    $uid  = (int)($user['id'] ?? 0) ?: 1;
+    $uid  = (int)_contract_ezd_actor_id((int)($user['id'] ?? 0));
     try {
         $c = skbContract($type, $cid);
         if (!$c) return 'Umowa nie istnieje.';

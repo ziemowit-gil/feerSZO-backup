@@ -114,7 +114,14 @@ function _contract_ezd_jrwa_id(): int {
     return (int)db()->lastInsertId();
 }
 
-function _contract_ezd_teczka_id(): int {
+/** Autor wpisów EZD: podany użytkownik, jeśli istnieje, inaczej pierwszy admin (id 1 nie musi istnieć — FK users). */
+function _contract_ezd_actor_id(int $user_id = 0): ?int {
+    if ($user_id > 0 && db_one("SELECT 1 FROM users WHERE id=?", [$user_id])) return $user_id;
+    $a = db_one("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1");
+    return $a ? (int)$a['id'] : null;
+}
+
+function _contract_ezd_teczka_id(int $user_id = 0): int {
     if (!function_exists('ezd_teczka_create')) require_once __DIR__ . '/ezd.php';
 
     $jrwa_id = _contract_ezd_jrwa_id();
@@ -130,7 +137,7 @@ function _contract_ezd_teczka_id(): int {
         'title'    => 'Umowy ' . $year,
         'rok'      => $year,
         'owner_id' => null,
-    ], 1); // system user
+    ], (int)_contract_ezd_actor_id($user_id));
 }
 
 /**
@@ -141,7 +148,7 @@ function _contract_ezd_teczka_id(): int {
 function contract_ezd_create_and_link(string $type, int $id, int $user_id, array $row): int {
     if (!function_exists('ezd_sprawa_create')) require_once __DIR__ . '/ezd.php';
 
-    $teczka_id = _contract_ezd_teczka_id();
+    $teczka_id = _contract_ezd_teczka_id($user_id);
     $title     = contract_ezd_label($type, $row);
 
     $sprawa_id = ezd_sprawa_create([
