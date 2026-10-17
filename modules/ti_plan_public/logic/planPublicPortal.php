@@ -538,7 +538,7 @@ function tiPlanPublicConsultations(array $filter, string $from, string $to): arr
 
 /**
  * Sale z rejestru, które w rzeczywistości oznaczają zajęcia zdalne (nazwa / skrót / lokalizacja „online”, „zdalnie”
- * albo tryb sali 'online') — scalane z wirtualną „Salą online” (?s=online), żeby nie było dwóch takich samych pozycji.
+ * albo tryb sali „Zdalny” = mode_support 'remote') — scalane z wirtualną „Salą online” (?s=online), żeby nie było dwóch takich samych pozycji.
  */
 function tiPlanPublicOnlineRoomIds(): array {
     static $ids = null;
@@ -548,7 +548,7 @@ function tiPlanPublicOnlineRoomIds(): array {
     foreach (db_all("SELECT id, name, short_label, location, mode_support FROM k30_pl_rooms") as $r) {
         $txt = tiPlanPublicFold(implode(' ', [(string)$r['name'], (string)$r['short_label'], (string)$r['location']]));
         // także literówki typu „onlline”, „onlin”, „on-line”
-        if ((string)$r['mode_support'] === 'online' || preg_match('/\b(on-?l+i+n+e?|zdaln\w*|zoom|teams|wirtualn\w*)\b/u', $txt)) $ids[] = (int)$r['id'];
+        if (in_array((string)$r['mode_support'], ['remote', 'online'], true) || preg_match('/\b(on-?l+i+n+e?|zdaln\w*|zoom|teams|wirtualn\w*)\b/u', $txt)) $ids[] = (int)$r['id'];
     }
     return $ids;
 }

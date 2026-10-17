@@ -1,6 +1,9 @@
 <?php
 /**
- * karty30/ti/dydaktyk/sale.php — Wykaz sal / lokalizacji (panel kierownika).
+ * karty30/ti/dydaktyk/sale.php — Wykaz sal / lokalizacji (kierownik i prowadzący).
+ *
+ * Kierownik: pełne zarządzanie (sale, budynki, aktywność). Prowadzący: dodawanie i edycja sal
+ * (bez budynków i bez wyłączania sal). Tryb „Zdalny” = sala online w planie publicznym (bez rezerwacji).
  *
  * CRUD nad k30_pl_rooms (istniejąca tabela z includes/ti_planner_ext.php —
  * dotąd bez ekranu administracyjnego). Sale wybiera się potem przy lekcji
@@ -16,7 +19,7 @@ karty30_migrate();
 ti_planner_ext_migrate();
 
 $me = dyd_require();
-if (!dyd_is_staff()) { header('Location: index.php'); exit; }
+$isStaff = dyd_is_staff();   // prowadzący: tylko dodawanie / edycja sal
 
 $dyd_uid  = (int)$me['user_id'];
 $dyd_name = (string)($me['name'] ?? '');
@@ -26,8 +29,12 @@ $op = $_POST['_op'] ?? '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
+    if (!$isStaff && $op !== 'save') { flash_set('danger', 'Tę operację wykonuje kierownik.'); header('Location: sale.php'); exit; }
     if ($op === 'save') {
         $id = (int)($_POST['id'] ?? 0);
+        if (!$isStaff) {   // prowadzący nie zmienia aktywności sali — nowa jest aktywna, istniejąca zachowuje stan
+            $_POST['is_active'] = $id ? (int)(pl_room_get($id)['is_active'] ?? 1) : 1;
+        }
         if (trim($_POST['name'] ?? '') === '') {
             $form_err[] = 'Podaj nazwę sali.';
         } else {
@@ -85,10 +92,10 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
 
-<?php $KIER_CUR = 'sale.php'; $KIER_LABEL = 'Sale / lokalizacje';
-   include __DIR__ . '/_kierownik_bar.php'; ?>
+<?php if ($isStaff) { $KIER_CUR = 'sale.php'; $KIER_LABEL = 'Sale / lokalizacje'; include __DIR__ . '/_kierownik_bar.php'; } ?>
 
 <main id="main" class="dyd-wrap">
+<?php if (!$isStaff): ?><nav class="small mb-2" aria-label="Okruszki"><a href="index.php">Panel dydaktyka</a> › <strong>Sale / lokalizacje</strong></nav><?php endif; ?>
 <?= flash_html() ?>
 
 <?php if ($form_err): ?>
@@ -109,6 +116,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <a href="raport_przestrzenie.php">Raport przestrzeni</a>.
 </p>
 
+<?php if ($isStaff): /* budynki — tylko kierownik */ ?>
 <div class="card border-0 shadow-sm mb-4">
   <div class="card-header fw-semibold bg-body-tertiary d-flex align-items-center">
     <i class="bi bi-building me-1"></i>Budynki
@@ -158,6 +166,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <div class="card-body text-body-secondary"><i class="bi bi-info-circle me-1"></i>Brak zdefiniowanych budynków — opcjonalne, sale działają też bez przypisania.</div>
   <?php endif; ?>
 </div>
+<?php endif; /* budynki */ ?>
 
 <div class="card border-0 shadow-sm mb-4">
   <div class="card-header fw-semibold bg-body-tertiary"><i class="bi bi-list-ul me-1"></i>Zdefiniowane sale</div>
@@ -210,7 +219,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <?php else: ?><span class="badge text-bg-secondary">nieaktywna</span><?php endif; ?>
           </td>
           <td class="text-end text-nowrap">
-            <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick='roomEdit(<?= json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_TAG|JSON_HEX_AMP) ?>)'><i class="bi bi-pencil"></i></button>
+            <a class="btn btn-sm btn-outline-primary py-0 px-2" href="planPubliczny.php?s=<?= $r['mode_support'] === 'remote' ? 'online' : (int)$r['id'] ?>" target="_blank" rel="noopener" title="Zajętość sali w planie zajęć (tydzień po tygodniu)"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Plan sali</a>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick='roomEdit(<?= json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_TAG|JSON_HEX_AMP) ?>)' title="Edytuj salę"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edytuj</button>
+            <?php if ($isStaff): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('<?= $r['is_active'] ? 'Dezaktywować' : 'Aktywować' ?> salę „<?= h(addslashes($r['name'])) ?>”<?= $n_up ? " ({$n_up} nadchodzących terminów)" : '' ?>?')">
               <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op" value="toggle_active">
@@ -219,6 +230,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
                 <i class="bi bi-<?= $r['is_active'] ? 'slash-circle' : 'check-circle' ?>"></i>
               </button>
             </form>
+            <?php endif; ?>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -306,7 +318,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <label class="form-label">Tryb obsługiwany</label>
             <select class="form-select" name="mode_support" id="rf_mode">
               <option value="onsite">Stacjonarny</option>
-              <option value="remote">Zdalny</option>
+              <option value="remote">Zdalny (sala online — bez rezerwacji)</option>
               <option value="hybrid">Hybrydowy</option>
               <option value="all">Dowolny</option>
             </select>
@@ -316,7 +328,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
             <textarea class="form-control" name="notes" id="rf_notes" rows="2" maxlength="500"></textarea>
           </div>
           <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" name="is_active" id="rf_active" value="1" checked>
+            <input class="form-check-input" type="checkbox" role="switch" name="is_active" id="rf_active" value="1" checked<?= $isStaff ? '' : ' disabled title="Aktywność sali zmienia kierownik"' ?>>
             <label class="form-check-label" for="rf_active">Aktywna (widoczna przy wyborze sali dla lekcji)</label>
           </div>
         </div>
@@ -329,6 +341,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   </div>
 </div>
 
+<?php if ($isStaff): /* modal budynku — tylko kierownik */ ?>
 <div class="modal fade" id="buildingModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -366,6 +379,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     </div>
   </div>
 </div>
+<?php endif; ?>
 <script>
 function roomEdit(r) {
   document.getElementById('rf_id').value = r.id;
@@ -412,7 +426,7 @@ function buildingEdit(b) {
   document.getElementById('bf_title').textContent = 'Edytuj budynek';
   new bootstrap.Modal(document.getElementById('buildingModal')).show();
 }
-document.getElementById('btnAddBuilding').addEventListener('click', function() {
+if (document.getElementById('btnAddBuilding')) document.getElementById('btnAddBuilding').addEventListener('click', function() {
   document.getElementById('bf_id').value = '0';
   document.getElementById('bf_name').value = '';
   document.getElementById('bf_address').value = '';

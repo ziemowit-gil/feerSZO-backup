@@ -134,6 +134,7 @@ function dydMenuSections(): array
             $it('dysk', 'Mój dysk',              $gt('dysk'),               'hdd'),
             $it('zoom', 'Zajętość Zoom',         $gt('zoom'),               'camera-video'),
             $it('',     'Biblioteka materiałów', '../ext/index.php?as=dyd', 'collection'),
+            $it('',     'Sale / lokalizacje',    'sale.php',                'geo-alt'),
         ];
         if (in_array('konsultacje', $modes, true)) {
             $zasoby[] = $it('', 'Rezerwacje konsultacji', 'rezerwacje.php', 'calendar-check');
