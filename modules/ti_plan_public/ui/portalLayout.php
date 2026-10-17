@@ -88,7 +88,7 @@ function tiPlanPortalClose(array $o = []): void {
     </div>
     <footer class="site-foot">
       <span>Plan może ulec zmianie — aktualna wersja zawsze pod tym adresem. Wygenerowano <?= h(date('d.m.Y H:i')) ?>.<br>
-        Prywatność: strona nie używa narzędzi analitycznych i nie zapisuje danych odwiedzających (liczona jest tylko łączna liczba wyświetleń); plik cookie sesji powstaje wyłącznie po zalogowaniu pracownika do widoku pełnego.
+        Prywatność: strona nie używa narzędzi analitycznych i nie zapisuje danych odwiedzających (liczona jest tylko łączna liczba wyświetleń); plik cookie logowania (ważny do 90 dni) powstaje wyłącznie po zalogowaniu pracownika do widoku pełnego.
         Nie publikujemy danych uczestników; prowadzący oznaczeni inicjałami, nazwy grup zawierające dane osobowe są zastępowane.<?php
         $pu = trim((string)org_setting('ti_plan_public_privacy_url'));
         if ($pu !== '' && preg_match('#^https?://#i', $pu)): ?> <a href="<?= h($pu) ?>">Informacja o przetwarzaniu danych osobowych</a>.<?php endif; ?></span>

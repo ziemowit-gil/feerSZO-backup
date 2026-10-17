@@ -399,7 +399,8 @@ function tiPlanPublicDirectoryRooms(int $weeks = 8): array {
           WHERE r.is_active=1
           ORDER BY COALESCE(b.name, r.location) COLLATE NOCASE, r.name COLLATE NOCASE",
         ['+' . (7 * max(1, $weeks)) . ' days']);
-    return array_values(array_filter($rows, fn($r) => (int)$r['n_lessons'] > 0));
+    $oids = tiPlanPublicOnlineRoomIds();
+    return array_values(array_filter($rows, fn($r) => (int)$r['n_lessons'] > 0 && !in_array((int)$r['id'], $oids, true)));
 }
 
 /** Jedna aktywna sala (do strony planu sali) albo null. */
@@ -427,8 +428,10 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
     } elseif (isset($filter['room'])) {
         $where = "s.room_id = ? AND c.status NOT IN ('archived','cancelled')";
         $args[] = (int)$filter['room'];
-    } elseif (!empty($filter['online'])) {   // „Sala online”: wszystkie zajęcia zdalne
-        $where = "(s.lesson_method IN ('zdalna_zoom','zdalna_inne') OR (COALESCE(s.lesson_method,'')='' AND c.is_online=1)) AND c.status NOT IN ('archived','cancelled')";
+    } elseif (!empty($filter['online'])) {   // „Sala online”: wszystkie zajęcia zdalne (+ terminy w salach „online” z rejestru)
+        $oids = tiPlanPublicOnlineRoomIds();
+        $where = "(s.lesson_method IN ('zdalna_zoom','zdalna_inne') OR (COALESCE(s.lesson_method,'')='' AND c.is_online=1)"
+               . ($oids ? ' OR s.room_id IN (' . implode(',', $oids) . ')' : '') . ") AND c.status NOT IN ('archived','cancelled')";
     } elseif (!empty($filter['all'])) {      // widok pełny: wszystkie aktywne grupy
         $where = "c.status NOT IN ('archived','cancelled')";
     } else {
@@ -531,6 +534,22 @@ function tiPlanPublicConsultations(array $filter, string $from, string $to): arr
         ];
     }
     return $out;
+}
+
+/**
+ * Sale z rejestru, które w rzeczywistości oznaczają zajęcia zdalne (nazwa / skrót / lokalizacja „online”, „zdalnie”
+ * albo tryb sali 'online') — scalane z wirtualną „Salą online” (?s=online), żeby nie było dwóch takich samych pozycji.
+ */
+function tiPlanPublicOnlineRoomIds(): array {
+    static $ids = null;
+    if ($ids !== null) return $ids;
+    ti_planner_ext_migrate();
+    $ids = [];
+    foreach (db_all("SELECT id, name, short_label, location, mode_support FROM k30_pl_rooms") as $r) {
+        $txt = tiPlanPublicFold(implode(' ', [(string)$r['name'], (string)$r['short_label'], (string)$r['location']]));
+        if ((string)$r['mode_support'] === 'online' || preg_match('/\b(on-?line|zdaln\w*|zoom|teams)\b/u', $txt)) $ids[] = (int)$r['id'];
+    }
+    return $ids;
 }
 
 /** Liczba zajęć zdalnych (sesje + konsultacje) w najbliższych $weeks tygodniach — do kafla „Sala online”. */

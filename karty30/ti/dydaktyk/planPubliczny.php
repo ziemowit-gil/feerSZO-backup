@@ -32,32 +32,33 @@ $self  = (string)($_SERVER['SCRIPT_NAME'] ?? '/karty30/ti/dydaktyk/planPubliczny
 $home  = tiPlanPortalUrl($self);
 
 // ── Widok pełny (hasło ustawione przez kierownika w planLinki.php) ──
-// Osobne ciasteczko sesji TIPLAN powstaje WYŁĄCZNIE po zalogowaniu — zwykły odwiedzający nie dostaje żadnego ciasteczka.
-$https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-if (PHP_SAPI !== 'cli') {
-    session_name('TIPLAN');
-    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Lax']);
-    if (isset($_COOKIE['TIPLAN']) && session_status() === PHP_SESSION_NONE) session_start();
-}
+// Zalogowanie trzymane 90 dni w podpisanym ciasteczku TIPLAN_FULL („ważne do|HMAC”), bez sesji na serwerze
+// (sesję PHP sprząta GC po kilkudziesięciu minutach). Kluczem HMAC jest hash hasła — zmiana hasła unieważnia
+// wszystkie zalogowania. Ciasteczko powstaje WYŁĄCZNIE po zalogowaniu — zwykły odwiedzający nie dostaje żadnego.
+const TI_PLAN_FULL_DAYS = 90;
+$https    = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 $fullHash = tiPlanPublicFullHash();
-$fullVer  = $fullHash !== '' ? substr(hash('sha256', $fullHash), 0, 16) : '';   // zmiana hasła unieważnia zalogowania
-$fullOk   = $fullVer !== '' && isset($_SESSION['tiplan_full']) && hash_equals($fullVer, (string)($_SESSION['tiplan_full']['v'] ?? ''))
-            && time() - (int)($_SESSION['tiplan_full']['at'] ?? 0) < 12 * 3600;
+$fullSig  = fn(int $exp): string => hash_hmac('sha256', 'tiplan-full|' . $exp, $fullHash);
+$fullCookie = function (string $val, int $exp) use ($https): void {
+    if (PHP_SAPI !== 'cli') setcookie('TIPLAN_FULL', $val, ['expires' => $exp, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Lax']);
+};
+$fullOk = false;
+if ($fullHash !== '' && preg_match('/^(\d{9,11})\.([a-f0-9]{64})$/', (string)($_COOKIE['TIPLAN_FULL'] ?? ''), $fm)) {
+    $fullOk = (int)$fm[1] > time() && hash_equals($fullSig((int)$fm[1]), $fm[2]);
+}
 tiPlanPublicFull($fullOk);
 if ($fullOk) header('Cache-Control: no-store, private');
 
 if (isset($_GET['logout'])) {
-    if (session_status() === PHP_SESSION_ACTIVE) { $_SESSION = []; session_destroy(); }
-    if (PHP_SAPI !== 'cli') setcookie('TIPLAN', '', ['expires' => time() - 3600, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Lax']);
+    $fullCookie('', time() - 3600);
     header('Location: ' . html_entity_decode($home)); exit;
 }
 $loginErr = '';
 if (isset($_GET['login']) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     [$ok, $loginErr] = tiPlanPublicFullCheck((string)($_POST['haslo'] ?? ''));
     if ($ok) {
-        if (session_status() === PHP_SESSION_NONE) session_start();
-        session_regenerate_id(true);
-        $_SESSION['tiplan_full'] = ['v' => $fullVer, 'at' => time()];
+        $exp = time() + TI_PLAN_FULL_DAYS * 86400;
+        $fullCookie($exp . '.' . $fullSig($exp), $exp);
         header('Location: ' . html_entity_decode($home)); exit;
     }
 }
@@ -103,7 +104,7 @@ if (isset($_GET['login'])) {
     <form method="post" action="<?= tiPlanPortalUrl($self, ['login' => 1]) ?>" class="box" style="max-width:420px">
       <h2>Logowanie dla pracowników</h2>
       <p>Hasło nadaje kierownik. Po zalogowaniu widać wszystkie grupy, pełne nazwiska i linki do zajęć online — <strong>nie udostępniaj ekranu osobom postronnym</strong>.
-        Zalogowanie wygasa po zamknięciu przeglądarki (najpóźniej po 12 godzinach).</p>
+        Zalogowanie jest pamiętane na tym urządzeniu przez 90 dni (albo do wylogowania lub zmiany hasła) — nie loguj się na komputerze publicznym.</p>
       <?php if ($loginErr !== ''): ?><p class="st-bad" role="alert"><strong><?= h($loginErr) ?></strong></p><?php endif; ?>
       <p><label for="haslo"><strong>Hasło</strong></label><br>
         <input type="password" id="haslo" name="haslo" required autocomplete="current-password" style="font:inherit;padding:4px 6px;width:100%" autofocus></p>
@@ -284,6 +285,10 @@ if (isset($_GET['p']) || ($full && isset($_GET['u']))) {
 
 /* ───────────── Sala: zajętość i rezerwacje ───────────── */
 if (isset($_GET['s'])) {
+    // Sala „online” z rejestru = ta sama „Sala online” (jedna pozycja zamiast dwóch)
+    if ((string)$_GET['s'] !== 'online' && in_array((int)$_GET['s'], tiPlanPublicOnlineRoomIds(), true)) {
+        header('Location: ' . html_entity_decode(tiPlanPortalUrl($self, ['s' => 'online'] + array_intersect_key($_GET, ['t' => 1, 'v' => 1]))), true, 301); exit;
+    }
     $isOnline = (string)$_GET['s'] === 'online';
     $room = !$rooms ? null : ($isOnline
         ? ['id' => 'online', 'name' => 'Sala online', 'short_label' => '', 'location' => 'zajęcia zdalne (Zoom / Teams) — nie wymaga rezerwacji sali', 'building' => '', 'building_address' => '', 'capacity' => 0]
@@ -296,7 +301,7 @@ if (isset($_GET['s'])) {
     $sub  = implode(' · ', array_filter([$name !== (string)$room['name'] ? (string)$room['name'] : '', (string)$room['location'], (string)($room['building'] ?? ''), (string)($room['building_address'] ?? ''), (int)$room['capacity'] ? 'miejsc: ' . (int)$room['capacity'] : '']));
     tiPlanPortalOpen($base + ['title' => $roomTitle($name), 'heading' => $roomTitle($name), 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, ['s' => $room['id']])]);
     if ($isOnline) echo '<div class="box note" role="note"><strong>Zajęcia zdalne</strong> — odbywają się online (Zoom / Teams), nie wymagają rezerwacji sali. Link do spotkania uczestnicy dostają od prowadzącego lub w panelu kursanta.</div>';
-    $pending = count(array_filter($lessons, fn($l) => !$l['cancelled'] && !$l['room_ok'] && $l['room_id'] > 0 && $l['date'] >= date('Y-m-d')));
+    $pending = $isOnline ? 0 : count(array_filter($lessons, fn($l) => !$l['cancelled'] && !$l['room_ok'] && $l['room_id'] > 0 && $l['date'] >= date('Y-m-d')));
     if ($pending) echo '<div class="box note" role="note">Terminy oznaczone „rezerwacja do potwierdzenia” (' . $pending . ') czekają na potwierdzenie sali u operatora przestrzeni.</div>';
     tiPlanPortalSchedule($links + ['lessons' => $lessons, 'weeks' => $weeks, 'q' => ['s' => $room['id']], 'mode' => 'room', 'label' => 'sali ' . $name]);
     if (!$isOnline) echo '<p class="legend"><span class="st-ok"><strong>sala zarezerwowana</strong></span> — rezerwacja potwierdzona; <span class="st-warn"><strong>rezerwacja do potwierdzenia</strong></span> — zgłoszona, jeszcze niepotwierdzona</p>';

@@ -225,7 +225,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
       <?php if ($hasFull): ?><button class="btn btn-outline-danger" name="clear" value="1" formnovalidate onclick="return confirm('Wyłączyć widok pełny? Wszyscy zalogowani zostaną wylogowani.')">Wyłącz</button><?php endif; ?>
     </form>
     <p class="small text-body-secondary mb-0 mt-1">Widok pełny (<?= $hasFull ? '<strong>włączony</strong>' : 'wyłączony' ?>): po wpisaniu hasła na stronie portalu (link „Pełny plan — dla pracowników”) widać wszystkie grupy z prawdziwymi nazwami, pełne nazwiska prowadzących,
-      linki do zajęć online i kontakty. Zalogowanie wygasa po zamknięciu przeglądarki lub po 12 h; zmiana hasła wylogowuje wszystkich.</p>
+      linki do zajęć online i kontakty. Zalogowanie jest pamiętane 90 dni na danym urządzeniu; zmiana hasła wylogowuje wszystkich.</p>
   </div>
 </section>
 

@@ -35,6 +35,9 @@ function tiPlanPortalCard(array $l, array $o, bool $withTime = false): string {
         if ($l['method'] === 'online') $parts[] = !empty($o['roomLinks'])
             ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Sala online — zajęcia zdalne, bez rezerwacji sali">zdalnie (online)</a>'
             : '<span class="s">zdalnie (online)</span>';
+        elseif ($l['room_id'] && in_array((int)$l['room_id'], tiPlanPublicOnlineRoomIds(), true)) $parts[] = !empty($o['roomLinks'])
+            ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => 'online']) . '" title="Sala online — zajęcia zdalne, bez rezerwacji sali">zdalnie (online)</a>'
+            : '<span class="s">zdalnie (online)</span>';
         elseif ($l['room'] !== '') $parts[] = !empty($o['roomLinks']) && $l['room_id']
             ? '<a class="s" href="' . tiPlanPortalUrl($self, ['s' => $l['room_id']]) . '" title="Plan sali">' . h($l['room']) . '</a>'
             : '<span class="s">' . h($l['room']) . '</span>';
@@ -46,7 +49,7 @@ function tiPlanPortalCard(array $l, array $o, bool $withTime = false): string {
     if ($l['flag'] === 'change_possible') $st[] = '<span class="st st-info">możliwa zmiana terminu</span>';
     if (($l['kind'] ?? '') === 'szk')     $st[] = '<span class="st st-info">szkolenie krótkie (SzK)</span>';
     if (($l['kind'] ?? '') === 'consult' && $l['flag'] === '') $st[] = '<span class="st st-info">konsultacja</span>';
-    if ($mode === 'room' && !$l['cancelled'] && $l['room_id'] > 0) $st[] = $l['room_ok'] ? '<span class="st st-ok">sala zarezerwowana</span>' : '<span class="st st-warn">rezerwacja do potwierdzenia</span>';
+    if ($mode === 'room' && !$l['cancelled'] && $l['room_id'] > 0 && !in_array((int)$l['room_id'], tiPlanPublicOnlineRoomIds(), true)) $st[] = $l['room_ok'] ? '<span class="st st-ok">sala zarezerwowana</span>' : '<span class="st st-warn">rezerwacja do potwierdzenia</span>';
     $join = $l['url'] !== '' && !$l['cancelled'] ? ' <a class="join" href="' . h($l['url']) . '" target="_blank" rel="noopener">dołącz<span class="sr"> do zajęć online ' . h(date('d.m', strtotime($l['date']))) . '</span></a>' : '';
     return '<div class="lesson' . ($l['cancelled'] ? ' is-cancelled' : '') . '">'
          . ($withTime ? '<span class="sr">' . h($l['time']) . ' </span>' : '')
