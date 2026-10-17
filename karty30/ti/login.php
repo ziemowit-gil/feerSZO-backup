@@ -180,6 +180,27 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
       </div>
       <?php endforeach; ?>
 
+      <?php /* Nabór do grup TI (modules/ti): formularz dla rodziców i konto kandydata — adresy względne, zostają na bieżącym hoście */ ?>
+      <h3 class="small text-uppercase fw-bold text-body-secondary mt-3 mb-2" style="letter-spacing:.05em">Zapisy na zajęcia</h3>
+      <div class="row g-2" role="list" aria-label="Zapisy na zajęcia">
+        <?php if (org_setting('ti_nabor_enabled') === '1'): ?>
+        <div class="col-6 col-sm-4" role="listitem">
+          <a class="tz-tile" href="/nabor" style="background:#1d68f2">
+            <i class="bi bi-person-plus fs-4" aria-hidden="true"></i>
+            <span class="d-block fw-semibold mt-1">Zapisz się na zajęcia</span>
+            <span class="d-block small">Formularz zgłoszenia dla rodziców i opiekunów</span>
+          </a>
+        </div>
+        <?php endif; ?>
+        <div class="col-6 col-sm-4" role="listitem">
+          <a class="tz-tile" href="/nabor/logowanie" style="background:#164eb6">
+            <i class="bi bi-person-badge fs-4" aria-hidden="true"></i>
+            <span class="d-block fw-semibold mt-1">Konto kandydata</span>
+            <span class="d-block small">Status zgłoszeń, wiadomości, dokumenty</span>
+          </a>
+        </div>
+      </div>
+
       <?php else: ?>
       <p class="small mb-3">Krok 2 z 2: wpisz dane logowania dla roli: <strong><?= h($_tabs[$tab]['label']) ?></strong>.
         <a href="login.php">Zmień rolę</a></p>
@@ -213,7 +234,11 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
         </div>
         <button type="submit" class="tz-btn">Dalej</button>
       </form>
+      <?php if (org_setting('ti_nabor_enabled') === '1'): ?>
+      <p class="tz-hint">Nie masz konta? <a href="/nabor">Zapisz się na zajęcia</a> — po przyjęciu dostaniesz login i hasło. Złożone zgłoszenie sprawdzisz w <a href="/nabor/logowanie">koncie kandydata</a>.</p>
+      <?php else: ?>
       <p class="tz-hint">Nie masz konta? <a href="<?= h($TI_BASE) ?>zapisy.php">Zostaw kontakt</a> — odezwiemy się w sprawie zapisów.</p>
+      <?php endif; ?>
       <?php if (k30_pfron_enabled()): ?>
       <a href="kursant/pfron.php" class="tz-btn tz-btn-ghost mt-3">Rozliczenia PFRON (Aktywny Samorząd)</a>
       <?php endif; ?>
@@ -319,6 +344,7 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
 
 <footer class="tz-footer" aria-label="Linki">
   <a href="<?= h($TI_BASE) ?>nowosci.php"><strong>Co nowego w panelu kursanta</strong></a>
+  <a href="/nabor/logowanie">Konto kandydata (zapisy)</a>
   <a href="https://feer.org.pl">Strona Fundacji FEER</a>
   <a href="<?= h(rtrim(APP_URL, '/')) ?>/panel/index.php">Panel wolontariusza</a>
   <a href="<?= h(rtrim(APP_URL, '/')) ?>/auth/login.php">Logowanie do systemu (SZO)</a>
