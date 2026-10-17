@@ -346,6 +346,11 @@ $ptab   = $_GET['ptab'] ?? 'rozliczenia';
 if (!in_array($ptab, ['rozliczenia','portfel','frekwencja','oceny','postepy','licencje','dostep','harmonogram','wiadomosci','vlab'], true)) $ptab = 'rozliczenia';
 $vlab_term_pending_parent = $parent ? !ti_term_accepted((int)$parent['client_id'], 'vlab') : false;
 $org = defined('ORG_NAME') ? ORG_NAME : 'Panel rodzica';
+// Niezalogowany opiekun: logowanie w wyglądzie FEER (te same formularze i pola _op) — osobna strona, bez układu panelu
+if (!$parent) {
+    include dirname(__DIR__, 3) . '/modules/ti/view/portal/parentLogin.php';
+    exit;
+}
 $KP_TITLE  = 'Panel rodzica';
 $KP_TOPBAR = [
     'brand' => $org . ' — panel rodzica',
@@ -357,184 +362,7 @@ $KP_BODY_CLASS = $parent ? '' : 'd-flex align-items-center justify-content-cente
 include __DIR__ . '/_layout_head.php';
 ?>
 
-<?php if (!$parent): ?>
-<main id="main" class="kp-auth-wrap">
-  <div class="card kp-auth-card shadow-lg border-0">
-    <div class="row g-0">
-
-      <!-- ── Panel marki: mockup terminala (ukryty na telefonie) ───────────── -->
-      <div class="col-md-5 kp-term-hero p-4 p-lg-5" aria-hidden="true">
-        <div>
-          <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
-            <i class="bi bi-people-fill fs-3"></i>
-          </span>
-          <h2 class="h4 fw-bold mb-1">Panel rodzica</h2>
-          <p class="mb-0" style="color:rgba(255,255,255,.6)"><?= h($org) ?></p>
-        </div>
-        <div class="kp-term-window mt-4">
-          <div class="kp-term-bar">
-            <span class="kp-term-dot kp-term-dot-r"></span><span class="kp-term-dot kp-term-dot-y"></span><span class="kp-term-dot kp-term-dot-g"></span>
-            <span class="kp-term-title">rodzic@feer:~</span>
-          </div>
-          <div class="kp-term-body">
-            <div class="kp-term-line"><span class="kp-term-prompt">$</span>whoami</div>
-            <div class="kp-term-line kp-term-dim">rodzic</div>
-            <div class="kp-term-line"><span class="kp-term-prompt">$</span>ls</div>
-            <div class="kp-term-line kp-term-dim">rozliczenia  frekwencja  dostep</div>
-            <div class="kp-term-line"><span class="kp-term-prompt">$</span><span class="kp-term-cursor"></span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Logowanie opiekuna (SMS / link) ──────────────────────────────── -->
-      <div class="col-md-7">
-        <div class="card-body p-4 p-lg-5">
-          <div class="text-center mb-4 d-md-none">
-            <span class="d-inline-flex align-items-center justify-content-center kp-auth-logo mb-3">
-              <i class="bi bi-people-fill fs-3"></i>
-            </span>
-            <h1 class="h4 fw-bold mb-1">Panel rodzica</h1>
-            <p class="text-body-secondary small mb-0"><?= h($org) ?> · Dostęp zewnętrzny</p>
-          </div>
-          <div class="d-none d-md-block mb-4">
-            <h1 class="h4 fw-bold mb-1">Dostęp zewnętrzny</h1>
-          </div>
-
-          <!-- Wybór roli -->
-          <?php if (in_array($stage, ['phone', 'pwd'], true) || $role === 'up'): ?>
-          <div class="btn-group w-100 mb-4" role="group" aria-label="Wybierz rolę">
-            <a href="parent.php" class="btn btn-lg <?= $role==='rodzic'?'btn-primary':'btn-outline-primary' ?>"
-               <?= $role==='rodzic'?'aria-current="true"':'' ?>>
-              <i class="bi bi-people me-1" aria-hidden="true"></i>Rodzic / opiekun
-            </a>
-            <a href="parent.php?role=up" class="btn btn-lg <?= $role==='up'?'btn-primary':'btn-outline-primary' ?>"
-               <?= $role==='up'?'aria-current="true"':'' ?>>
-              <i class="bi bi-person-check me-1" aria-hidden="true"></i>Osoba upoważniona
-            </a>
-          </div>
-          <?php endif; ?>
-
-          <?php if ($err): ?><div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert"><i class="bi bi-exclamation-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($err) ?></span></div><?php endif; ?>
-          <?php if ($info): ?><div class="alert alert-success d-flex align-items-center gap-2 py-2" role="status"><i class="bi bi-check-circle-fill flex-shrink-0" aria-hidden="true"></i><span><?= h($info) ?></span></div><?php endif; ?>
-
-          <?php if ($role === 'up'): ?>
-          <!-- ── Logowanie osoby upoważnionej ──────────────────────────────── -->
-          <p class="text-body-secondary mb-3 small">
-            Zaloguj się danymi logowania podanymi w upoważnieniu.
-          </p>
-          <form method="post" autocomplete="on">
-            <input type="hidden" name="_op" value="up_login">
-            <label class="form-label fw-semibold" for="up-login">Login</label>
-            <div class="input-group input-group-lg mb-3">
-              <span class="input-group-text" aria-hidden="true"><i class="bi bi-person"></i></span>
-              <input class="form-control form-control-lg" id="up-login" name="login"
-                     autocomplete="username" value="<?= h($_POST['login'] ?? '') ?>" required autofocus>
-            </div>
-            <label class="form-label fw-semibold" for="up-pass">Hasło</label>
-            <div class="input-group input-group-lg mb-4">
-              <span class="input-group-text" aria-hidden="true"><i class="bi bi-lock"></i></span>
-              <input class="form-control form-control-lg" id="up-pass" name="password"
-                     type="password" autocomplete="current-password" placeholder="••••••••" required>
-            </div>
-            <button class="btn btn-primary btn-lg w-100">
-              <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj się
-            </button>
-          </form>
-
-          <?php else: ?>
-          <!-- ── Logowanie rodzica / opiekuna ─────────────────────────────── -->
-          <p class="text-body-secondary mb-4 small">
-            <?= $stage === 'pwd'
-              ? 'Zaloguj się loginem i hasłem konta opiekuna nadanym w placówce.'
-              : 'Zaloguj się kodem SMS wysłanym na numer opiekuna podany w placówce, lub skorzystaj z linku z e-maila.' ?>
-          </p>
-
-          <?php // Przełącznik sposobu logowania opiekuna: SMS albo login+hasło
-          if (in_array($stage, ['phone', 'pwd'], true)): ?>
-          <div class="btn-group w-100 mb-4" role="group" aria-label="Sposób logowania opiekuna">
-            <a href="parent.php" class="btn <?= $stage==='phone'?'btn-secondary':'btn-outline-secondary' ?>"
-               <?= $stage==='phone'?'aria-current="true"':'' ?>>
-              <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Kod SMS
-            </a>
-            <a href="parent.php?m=pwd" class="btn <?= $stage==='pwd'?'btn-secondary':'btn-outline-secondary' ?>"
-               <?= $stage==='pwd'?'aria-current="true"':'' ?>>
-              <i class="bi bi-person-lock me-1" aria-hidden="true"></i>Login i hasło
-            </a>
-          </div>
-          <?php endif; ?>
-
-          <?php if ($stage === 'choose'):
-            $kids = $_SESSION['k30_parent_choose'] ?? []; ?>
-            <form method="post">
-              <input type="hidden" name="_op" value="choose">
-              <fieldset>
-                <legend class="form-label fw-semibold">Wybierz kursanta:</legend>
-                <?php foreach ($kids as $k): ?>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="student_id" id="k<?= (int)$k['id'] ?>" value="<?= (int)$k['id'] ?>" required>
-                  <label class="form-check-label" for="k<?= (int)$k['id'] ?>"><?= h($k['name']) ?></label>
-                </div>
-                <?php endforeach; ?>
-              </fieldset>
-              <button class="btn btn-primary btn-lg w-100 mt-3">Pokaż rozliczenia</button>
-            </form>
-          <?php elseif ($stage === 'pwd'): ?>
-            <form method="post" autocomplete="on">
-              <input type="hidden" name="_op" value="pwd_login">
-              <label class="form-label fw-semibold" for="plogin">Login rodzica</label>
-              <div class="input-group input-group-lg mb-3">
-                <span class="input-group-text" aria-hidden="true"><i class="bi bi-person"></i></span>
-                <input class="form-control form-control-lg" id="plogin" name="login" autocomplete="username"
-                       value="<?= h($_POST['login'] ?? '') ?>" placeholder="np. j.kowalski-r" required autofocus>
-              </div>
-              <label class="form-label fw-semibold" for="ppass">Hasło</label>
-              <div class="input-group input-group-lg mb-3">
-                <span class="input-group-text" aria-hidden="true"><i class="bi bi-lock"></i></span>
-                <input class="form-control form-control-lg" id="ppass" name="password" type="password"
-                       autocomplete="current-password" placeholder="••••••••" required>
-              </div>
-              <button class="btn btn-primary btn-lg w-100"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj</button>
-            </form>
-          <?php elseif ($stage === 'code'): ?>
-            <form method="post">
-              <input type="hidden" name="_op" value="otp_verify">
-              <label class="form-label fw-semibold" for="code">Kod z SMS</label>
-              <div class="input-group input-group-lg mb-3">
-                <span class="input-group-text" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
-                <input class="form-control form-control-lg" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-cyfrowy kod" required autofocus>
-              </div>
-              <button class="btn btn-primary btn-lg w-100">Zaloguj</button>
-            </form>
-            <form method="post" class="mt-2 text-center">
-              <input type="hidden" name="_op" value="otp_request">
-              <input type="hidden" name="phone" value="<?= h($_POST['phone'] ?? '') ?>">
-              <button class="btn btn-link btn-sm">Wyślij kod ponownie</button>
-            </form>
-          <?php else: ?>
-            <form method="post">
-              <input type="hidden" name="_op" value="otp_request">
-              <label class="form-label fw-semibold" for="phone">Numer telefonu opiekuna</label>
-              <div class="input-group input-group-lg mb-3">
-                <span class="input-group-text" aria-hidden="true"><i class="bi bi-telephone"></i></span>
-                <input class="form-control form-control-lg" id="phone" name="phone" inputmode="tel" autocomplete="tel" placeholder="np. 600 100 200" required autofocus>
-              </div>
-              <button class="btn btn-primary btn-lg w-100"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i>Wyślij kod SMS</button>
-            </form>
-          <?php endif; ?>
-
-          <?php endif; // end role === 'up' / else ?>
-
-          <hr class="my-4">
-          <a href="login.php" class="btn btn-outline-secondary w-100">
-            <i class="bi bi-pc-display me-1" aria-hidden="true"></i>Jesteś kursantem? Zaloguj się hasłem
-          </a>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</main>
-
+<?php if (!$parent): /* logowanie: modules/ti/view/portal/parentLogin.php (wyżej, exit) */ ?>
 <?php else:
   $childAcc = db_one("SELECT login, child_access_blocked, parent_login FROM k30_ti_student_accounts WHERE id=?", [(int)$parent['student_id']]);
   $blocked  = !empty($childAcc['child_access_blocked']);

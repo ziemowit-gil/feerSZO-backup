@@ -16,27 +16,26 @@ $ppOpen = function_exists('org_setting') && org_setting('ti_nabor_enabled') === 
   </div>
   <header class="pp-head">
     <a class="pp-brand" href="<?= h($ppLoginUrl) ?>">
-      <?php if (!empty($ppLogo)): ?><img src="<?= h($ppLogo) ?>" alt=""><?php else: ?><span class="pp-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><?php endif; ?>
+      <?php if (!empty($ppLogo)): ?><img src="<?= h($ppLogo) ?>" alt=""><?php else: ?><span class="pp-mark" aria-hidden="true">FEER</span><?php endif; ?>
       <span class="pp-title"><?= h($ppTitle) ?><small><?= h($ppOrg) ?></small></span>
     </a>
     <div class="pp-cta">
       <?php if (!empty($ppAccount)): ?>
         <a class="pp-btn-acc" href="/nabor/konto"><i class="bi bi-person-badge" aria-hidden="true"></i> Moje konto</a>
-        <form method="post" action="/nabor/wyloguj" style="margin:0"><input type="hidden" name="_csrf" value="<?= h($ppCsrf ?? '') ?>"><button class="pp-btn-log" style="width:100%;border:0;cursor:pointer;font-family:inherit">Wyloguj</button></form>
+        <form method="post" action="/nabor/wyloguj" style="margin:0;display:flex"><input type="hidden" name="_csrf" value="<?= h($ppCsrf ?? '') ?>"><button class="pp-btn-log" style="cursor:pointer;font-family:inherit">Wyloguj</button></form>
       <?php else: ?>
         <a class="pp-btn-acc" href="/nabor/rejestracja">Załóż konto</a>
-        <a class="pp-btn-log" href="<?= h($ppLoginUrl) ?>"><i class="bi bi-star-fill" aria-hidden="true"></i> Zaloguj</a>
+        <a class="pp-btn-log" href="<?= h($ppLoginUrl) ?>"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Zaloguj</a>
       <?php endif; ?>
     </div>
   </header>
   <nav class="pp-nav" aria-label="Menu główne">
     <div class="pp-menu">
-      <a href="<?= h($ppLoginUrl) ?>" title="Strona główna" aria-label="Strona główna"><i class="bi bi-house-fill" aria-hidden="true"></i></a>
+      <a href="<?= h($ppLoginUrl) ?>"><i class="bi bi-house" aria-hidden="true"></i> Panel zajęć</a>
       <?php if ($ppOpen): ?><a href="/nabor">Zapisy na zajęcia</a><?php endif; ?>
       <a href="/nabor/logowanie">Konto kandydata</a>
       <a href="https://feer.org.pl/kontakt/">Kontakt</a>
     </div>
-    <div aria-hidden="true"></div>
   </nav>
-  <div class="pp-crumb"><a href="<?= h($ppLoginUrl) ?>" style="text-decoration:none"><?= h($ppTitle) ?></a> &gt; <span><?= h($ppCrumb) ?></span></div>
+  <div class="pp-crumb"><a href="<?= h($ppLoginUrl) ?>" style="text-decoration:none"><?= h($ppTitle) ?></a> › <span><?= h($ppCrumb) ?></span></div>
 </div>
