@@ -135,12 +135,22 @@ $_kursant_hint = ['szkolenia' => 'Login (albo własny alias)', 'szk' => 'Login z
 $ppTitle = 'Panel Kursanta SSO'; $ppOrg = (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'FEER')); $ppCrumb = 'Logowanie';
 $ppLogo = ''; $ppLoginUrl = '/login.php'; $ppAccount = null;
 include dirname(__DIR__, 2) . '/modules/ti/view/portal/_header.php';
-$_ppRoles = ['kursant' => 'Kursant', 'rodzic' => 'Rodzic / opiekun', 'up' => 'Osoba upoważniona', 'kandydat' => 'Kandydat (zapisy)', 'dydaktyk' => 'Prowadzący / kadra'];
+// Zakładki: rola (tab) + opcjonalnie funkcja (fn) — szkolenie krótkie i konsultacje logują się jak kursant, z własną podpowiedzią
+$_ppRoles = [
+    'kursant'     => ['Kursant', 'kursant', ''],
+    'szk'         => ['Szkolenie krótkie', 'kursant', 'szk'],
+    'konsultacje' => ['Konsultacje', 'kursant', 'konsultacje'],
+    'rodzic'      => ['Rodzic / opiekun', 'rodzic', ''],
+    'up'          => ['Osoba upoważniona', 'up', ''],
+    'kandydat'    => ['Kandydat (zapisy)', 'kandydat', ''],
+    'dydaktyk'    => ['Prowadzący / kadra', 'dydaktyk', ''],
+];
+$_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) ? $_fn : $tab;
 ?>
 <main id="pp-main" class="pp-wrap">
   <h1 class="pp-h1">Wybierz sposób logowania</h1>
   <ul class="pp-tabs" aria-label="Kim jesteś">
-    <?php foreach ($_ppRoles as $_rk => $_rl): ?><li><a href="login.php?tab=<?= $_rk ?>"<?= $tab === $_rk ? ' aria-current="page"' : '' ?>><?= h($_rl) ?></a></li><?php endforeach; ?>
+    <?php foreach ($_ppRoles as $_rk => [$_rl, $_rt, $_rf]): ?><li><a href="login.php?tab=<?= $_rt ?><?= $_rf !== '' ? '&amp;fn=' . $_rf : '' ?>"<?= $_ppActive === $_rk ? ' aria-current="page"' : '' ?>><?= h($_rl) ?></a></li><?php endforeach; ?>
   </ul>
   <?php if ($error): ?><div class="pp-error" role="alert" aria-live="assertive"><?= h($error) ?></div><?php endif; ?>
   <div class="pp-cols">
@@ -297,6 +307,14 @@ $_ppRoles = ['kursant' => 'Kursant', 'rodzic' => 'Rodzic / opiekun', 'up' => 'Os
         <p>Albo <?= org_setting('ti_nabor_enabled') === '1' ? '<a href="/nabor">złóż zgłoszenie na zajęcia</a> — konto założymy po jego potwierdzeniu.' : 'zaczekaj na otwarcie naboru.' ?></p>
       <?php elseif ($tab === 'up'): ?>
         <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Osoba upoważniona</strong> widzi rozliczenia, frekwencję i plan zajęć kursanta, który nadał jej dostęp w zakładce „Upoważnieni”.</p>
+      <?php elseif ($_ppActive === 'szk'): ?>
+        <p id="pp-alt-h" style="margin-top:0"><strong>Szkolenie krótkie</strong> (kilka spotkań w małej grupie, numer SzK).</p>
+        <p>Login i hasło dostajesz SMS-em albo na wydruku od prowadzącego. Przy pierwszym logowaniu potwierdzisz się kodem SMS i ustawisz własne hasło.</p>
+        <p>Po wpisaniu loginu zobaczysz obrazek bezpieczeństwa — jeśli widzisz inny, nie wpisuj hasła.</p>
+      <?php elseif ($_ppActive === 'konsultacje'): ?>
+        <p id="pp-alt-h" style="margin-top:0"><strong>Konsultacje</strong> — dla osób, które umówiły konsultację.</p>
+        <p>Login to litera „k” i cztery cyfry, np. <span style="font-family:monospace">k1234</span>. Przychodzi SMS-em po umówieniu pierwszej konsultacji. Pierwsze logowanie: wpisz login — kod przyjdzie SMS-em.</p>
+        <p>W panelu zobaczysz terminy konsultacji, notatki i materiały.</p>
       <?php else: ?>
         <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Obrazek bezpieczeństwa.</strong> Po wpisaniu loginu zobaczysz swój obrazek (z opisem dla czytnika ekranu). Jeśli go nie widzisz albo widzisz inny — nie wpisuj hasła.</p>
         <p>Pierwsze logowanie: wpisz tylko login, kod przyjdzie SMS-em.</p>
