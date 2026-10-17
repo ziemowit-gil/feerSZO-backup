@@ -83,6 +83,7 @@ if (!$panel) {
         $r->post('/zgloszenia/{id}/czat', [NaborPanelController::class, 'chatPost']);
         $r->get('/formularz',            [NaborPanelController::class, 'formEditor'])->name('nabor.form.edit');
         $r->post('/formularz',           [NaborPanelController::class, 'formSave'])->name('nabor.form.save');
+        $r->post('/formularz/test-sms',  [NaborPanelController::class, 'smsTest'])->name('nabor.sms.test');
         $r->get('/grupy',                [NaborPanelController::class, 'courses'])->name('nabor.courses');
         $r->post('/grupy/{id}',          [NaborPanelController::class, 'courseSave'])->name('nabor.courses.save');
     });

@@ -253,6 +253,24 @@ include __DIR__ . '/_head.php';
 </form>
 </div>
 
+<?php require_once dirname(__DIR__, 5) . '/includes/sms.php'; $prefSms = naborSmsProvider(); ?>
+<section class="card mt-3" id="sms" aria-labelledby="sms-h">
+  <div class="card-header fw-bold" id="sms-h"><i class="bi bi-phone"></i> Test wysyłki SMS naboru</div>
+  <div class="card-body small">
+    <ul class="mb-3">
+      <li>Dostawca naboru: <strong><?= h($prefSms === '' ? 'łańcuch systemowy' : sms_provider_label($prefSms)) ?></strong>
+        <?php if ($prefSms !== ''): ?> — <?= sms_provider_ready($prefSms) ? '<span class="text-success">skonfigurowany</span>' : '<span class="text-danger">NIESKONFIGUROWANY (brak tokenu w Ustawieniach SMS)</span>' ?><?php endif; ?></li>
+      <li>Łańcuch systemowy (przy błędzie): <strong><?= h(implode(' → ', array_map('sms_provider_label', sms_provider_chain())) ?: 'brak skonfigurowanego dostawcy') ?></strong></li>
+    </ul>
+    <form method="post" action="<?= h(route('nabor.sms.test')) ?>" class="d-flex flex-wrap gap-2 align-items-end">
+      <?= Router::csrfField() ?>
+      <div><label class="form-label small mb-1" for="tsp">Twój numer telefonu</label><input id="tsp" name="test_phone" class="form-control form-control-sm" inputmode="tel" placeholder="600 100 200" required></div>
+      <button class="btn btn-sm btn-primary">Wyślij testowy SMS</button>
+    </form>
+    <p class="text-muted mt-2 mb-0">Wynik (z dokładnym komunikatem każdego dostawcy) pojawi się u góry strony. SMS kodów wychodzi także w godzinach ciszy nocnej.</p>
+  </div>
+</section>
+
 <script>
 function formEditor(init) {
   return {

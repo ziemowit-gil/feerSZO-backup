@@ -251,6 +251,40 @@ final class NaborPanelController
         return Router::redirect(route('nabor.form.edit'));
     }
 
+    /** Diagnostyka SMS naboru: stan dostawców + próbny SMS na podany numer (dokładne błędy każdego dostawcy). */
+    public function smsTest(): ?string
+    {
+        require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+        require_once __DIR__ . '/naborNotify.php';
+        $phone = phoneVerifyNormalize((string)($_POST['test_phone'] ?? ''));
+        if ($phone === '') {
+            flash_set('danger', 'Test SMS: podaj polski numer komórkowy (9 cyfr).');
+            return Router::redirect(route('nabor.form.edit') . '#sms');
+        }
+        $pref = naborSmsProvider();
+        $msg  = naborOrgName() . ': test SMS naboru (' . date('H:i') . ').';
+        $res  = [];
+        if ($pref !== '') {
+            if (!sms_provider_ready($pref)) $res[] = sms_provider_label($pref) . ': nieskonfigurowany (brak tokenu w Ustawieniach SMS).';
+            else {
+                try { sms_send_via($pref, $phone, $msg, 'phone_verify_code'); $res[] = sms_provider_label($pref) . ': WYSŁANO.'; }
+                catch (\Throwable $e) { $res[] = sms_provider_label($pref) . ': BŁĄD — ' . $e->getMessage(); }
+            }
+        }
+        if ($pref === '' || !str_contains(implode(' ', $res), 'WYSŁANO')) {
+            $chain = sms_provider_chain();
+            if (!$chain) $res[] = 'Łańcuch systemowy: brak skonfigurowanego dostawcy (główny / zapasowy).';
+            else {
+                try { $via = sms_send($phone, $msg, 'phone_verify_code'); $res[] = 'Łańcuch systemowy (' . implode(' → ', array_map('sms_provider_label', $chain)) . '): '
+                      . ($via === '' ? 'pominięto (numer zablokowany jako wirtualny)' : ($via === 'odlozony' ? 'odłożono do 7:00 (godziny ciszy)' : 'WYSŁANO przez ' . sms_provider_label($via))) . '.'; }
+                catch (\Throwable $e) { $res[] = 'Łańcuch systemowy: BŁĄD — ' . $e->getMessage(); }
+            }
+        }
+        $ok = str_contains(implode(' ', $res), 'WYSŁANO');
+        flash_set($ok ? 'success' : 'danger', 'Test SMS na +' . $phone . ': ' . implode(' | ', $res));
+        return Router::redirect(route('nabor.form.edit') . '#sms');
+    }
+
     /** Prowadzący: przyjęci uczestnicy własnych grup (kierownik widzi wszystkie). */
     public function instructor(): string
     {
