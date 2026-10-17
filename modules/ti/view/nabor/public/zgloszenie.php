@@ -1,7 +1,7 @@
 <?php
 /**
  * modules/ti/view/nabor/public/zgloszenie.php — karta zgłoszenia w koncie kandydata.
- * Sekcje: po przyjęciu (potwierdzenie miejsca, warunki, płatność) → oś czasu → dokumenty → wiadomości → dane (edycja do rozpatrzenia).
+ * Sekcje: po przyjęciu (potwierdzenie miejsca, warunki, płatność) → historia zgłoszenia i komentarze → dokumenty → dane (edycja do rozpatrzenia).
  * Zmienne: $s, $timeline, $docs, $msgs, $canEdit, $agreement, $pay, $org, $acc, $form. Kontroler: NaborCandidateController::show.
  */
 $title = 'Zgłoszenie ' . $s['registration_number'];
@@ -45,17 +45,35 @@ $docBadge = ['requested' => 'tw-bg-amber-100 tw-text-amber-900', 'uploaded' => '
 </section>
 <?php endif; ?>
 
-<section class="k-card" aria-labelledby="tl-h">
-  <h2 id="tl-h" class="tw-text-lg tw-font-bold tw-mb-3">Przebieg zgłoszenia</h2>
-  <ol class="tw-border-l-2 tw-border-feer-line tw-pl-4 tw-grid tw-gap-3 tw-list-none">
-    <li><span class="tw-text-xs tw-text-gray-500"><?= h(naborTime($s['created_at'])) ?></span><div class="tw-font-semibold">Zgłoszenie złożone</div></li>
-    <?php foreach ($timeline as $t): if ($t['from_status'] === '') continue; ?>
-      <li><span class="tw-text-xs tw-text-gray-500"><?= h(naborTime($t['created_at'])) ?></span>
-        <div class="tw-font-semibold"><?= h(naborStatusLabel($t['to_status'])) ?></div>
-        <?php if (trim($t['comment']) !== '' && !preg_match('/^(Zmiana w kanbanie|Adres e-mail potwierdzony|Zgłoszenie złożone z konta)/u', $t['comment'])): ?><div class="tw-text-sm tw-text-gray-700"><?= nl2br(h($t['comment'])) ?></div><?php endif; ?>
+<section class="k-card" id="historia" aria-labelledby="tl-h">
+  <h2 id="tl-h" class="tw-text-lg tw-font-bold tw-mb-3">Historia zgłoszenia i komentarze</h2>
+  <?php
+  $ico = ['submitted' => 'bi-send', 'status' => 'bi-flag', 'staff' => 'bi-chat-left-text', 'candidate' => 'bi-chat-right-text',
+          'doc_request' => 'bi-file-earmark-plus', 'doc_upload' => 'bi-file-earmark-arrow-up', 'doc_ok' => 'bi-file-earmark-check',
+          'doc_bad' => 'bi-file-earmark-x', 'place' => 'bi-patch-check'];
+  $bg  = ['staff' => 'tw-bg-[#eef4fb]', 'candidate' => 'tw-bg-[#fff8e1]', 'doc_bad' => 'tw-bg-red-50', 'doc_ok' => 'tw-bg-green-50', 'place' => 'tw-bg-green-50'];
+  ?>
+  <ol class="tw-list-none tw-p-0 tw-m-0 tw-grid tw-gap-3" role="log" aria-live="polite">
+    <?php foreach ($timeline as $t): ?>
+      <li class="tw-flex tw-gap-3">
+        <span class="tw-flex-none tw-w-9 tw-h-9 tw-grid tw-place-items-center tw-rounded-full tw-bg-[#0b5ea8] tw-text-white" aria-hidden="true"><i class="bi <?= $ico[$t['kind']] ?? 'bi-dot' ?>"></i></span>
+        <div class="tw-flex-1 tw-border tw-border-solid tw-border-gray-200 tw-p-3 <?= $bg[$t['kind']] ?? '' ?>">
+          <div class="tw-flex tw-flex-wrap tw-justify-between tw-gap-2">
+            <strong><?= h($t['title']) ?></strong>
+            <span class="tw-text-xs tw-text-gray-500"><?= h(naborTime($t['at'])) ?><?= $t['who'] !== '' ? ' · ' . h($t['who']) : '' ?></span>
+          </div>
+          <?php if (trim((string)$t['text']) !== ''): ?><div class="tw-text-sm tw-mt-1 tw-whitespace-pre-line"><?= h($t['text']) ?></div><?php endif; ?>
+        </div>
       </li>
     <?php endforeach; ?>
   </ol>
+  <form method="post" action="<?= $upd ?>" class="tw-grid tw-gap-2 tw-mt-5">
+    <?= Router::csrfField() ?><input type="hidden" name="_op" value="message">
+    <label class="k-label" for="ms-b">Dodaj komentarz do zgłoszenia</label>
+    <textarea id="ms-b" name="body" rows="3" class="k-input" required maxlength="5000" aria-describedby="ms-h2"></textarea>
+    <p id="ms-h2" class="k-help tw-mt-0">Komentarz zobaczy organizator (dostanie powiadomienie). Odpowiedź pojawi się w historii, a na e-mail i SMS przyjdzie informacja.</p>
+    <div><button class="k-btn">Dodaj komentarz</button></div>
+  </form>
 </section>
 
 <section class="k-card" id="dokumenty" aria-labelledby="dc-h">
@@ -91,25 +109,6 @@ $docBadge = ['requested' => 'tw-bg-amber-100 tw-text-amber-900', 'uploaded' => '
       <div><button class="k-btn-ghost tw-text-sm">Wgraj</button></div>
     </form>
   </details>
-</section>
-
-<section class="k-card" id="wiadomosci" aria-labelledby="ms-h">
-  <h2 id="ms-h" class="tw-text-lg tw-font-bold tw-mb-3">Wiadomości z organizatorem</h2>
-  <div class="tw-grid tw-gap-2 tw-mb-3" role="log" aria-live="polite">
-    <?php if (!$msgs): ?><p class="tw-text-sm tw-text-gray-600">Brak wiadomości. Masz pytanie? Napisz poniżej.</p><?php endif; ?>
-    <?php foreach ($msgs as $m): $mine = $m['author'] === 'candidate'; ?>
-      <div class="tw-rounded-xl tw-p-3 tw-max-w-[85%] <?= $mine ? 'tw-bg-feer-bg tw-ml-auto' : 'tw-bg-gray-100' ?>">
-        <div class="tw-text-xs tw-text-gray-500"><?= $mine ? 'Ty' : 'Organizator' . ($m['author_name'] ? ' (' . h($m['author_name']) . ')' : '') ?> · <?= h(naborTime($m['created_at'])) ?></div>
-        <div class="tw-text-sm tw-whitespace-pre-line"><?= h($m['body']) ?></div>
-      </div>
-    <?php endforeach; ?>
-  </div>
-  <form method="post" action="<?= $upd ?>" class="tw-grid tw-gap-2">
-    <?= Router::csrfField() ?><input type="hidden" name="_op" value="message">
-    <label class="k-label" for="ms-b">Nowa wiadomość</label>
-    <textarea id="ms-b" name="body" rows="3" class="k-input" required maxlength="5000"></textarea>
-    <div><button class="k-btn">Wyślij</button></div>
-  </form>
 </section>
 
 <section class="k-card" aria-labelledby="dt-h">

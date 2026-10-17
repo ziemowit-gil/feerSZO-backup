@@ -162,8 +162,8 @@ final class NaborCandidateController
                     break;
                 case 'message':
                     naborMessageAdd($id, 'candidate', (string)($_POST['body'] ?? ''), null, $s['guardian_name']);
-                    flash_set('success', 'Wiadomość wysłana do organizatora.');
-                    $back .= '#wiadomosci';
+                    flash_set('success', 'Komentarz dodany — organizator dostał powiadomienie.');
+                    $back .= '#historia';
                     break;
                 case 'upload':
                     $err = naborDocUpload($id, (int)($_POST['doc_id'] ?? 0), $_FILES['file'] ?? [], (string)($_POST['doc_name'] ?? ''));

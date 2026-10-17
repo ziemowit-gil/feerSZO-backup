@@ -172,10 +172,47 @@ function naborCandidateCanEdit(array $s): bool {
     return in_array($s['status'], ['new', 'pending_review', 'custom_schedule', 'waitlist'], true);
 }
 
-/** Oś czasu dla kandydata: zmiany statusów (z komentarzem dla opiekuna) — bez notatek wewnętrznych. */
+/**
+ * Historia zgłoszenia i komentarze dla kandydata — jedna oś czasu (najstarsze najpierw):
+ * złożenie, zmiany statusu (komentarz tylko wpisany przez kierownika — ten sam trafia do opiekuna w e-mailu),
+ * komentarze obu stron (wiadomości), prośby o dokumenty, wgrane pliki i ich ocena, potwierdzenie miejsca.
+ * Notatki wewnętrzne i wpisy techniczne systemu (EZD, CRM, CLI, powiadomienia) są pomijane.
+ * Wpis: ['at', 'kind' (submitted|status|staff|candidate|doc_request|doc_upload|doc_ok|doc_bad|place), 'title', 'text', 'who'].
+ */
 function naborCandidateTimeline(int $sid): array {
-    return db_all("SELECT from_status, to_status, comment, created_at FROM ti_nabor_history
-                    WHERE submission_id=? AND from_status <> to_status ORDER BY id", [$sid]);
+    $s = naborSubmissionGet($sid);
+    if (!$s) return [];
+    $t = [['at' => $s['created_at'], 'kind' => 'submitted', 'title' => 'Zgłoszenie złożone', 'text' => '', 'who' => '']];
+    foreach (db_all("SELECT from_status, to_status, comment, user_id, created_at FROM ti_nabor_history
+                      WHERE submission_id=? AND from_status <> to_status AND from_status <> '' ORDER BY id", [$sid]) as $h) {
+        $t[] = ['at' => $h['created_at'], 'kind' => 'status', 'title' => naborStatusLabel($h['to_status']),
+                'text' => ($h['user_id'] && $h['comment'] !== 'Zmiana w kanbanie') ? $h['comment'] : naborStatusPublicNote($h['from_status'], $h['to_status']),
+                'who' => $h['user_id'] ? 'Organizator' : ''];
+    }
+    foreach (naborMessages($sid) as $m) {
+        $staff = $m['author'] === 'staff';
+        $t[] = ['at' => $m['created_at'], 'kind' => $staff ? 'staff' : 'candidate', 'title' => $staff ? 'Komentarz organizatora' : 'Twój komentarz',
+                'text' => $m['body'], 'who' => $staff ? ($m['author_name'] ?: 'Organizator') : 'Ty'];
+    }
+    foreach (naborDocuments($sid) as $d) {
+        if ($d['requested_by']) $t[] = ['at' => $d['created_at'], 'kind' => 'doc_request', 'title' => 'Prośba o dokument: ' . $d['name'], 'text' => $d['note'], 'who' => 'Organizator'];
+        if ($d['uploaded_at']) $t[] = ['at' => $d['uploaded_at'], 'kind' => 'doc_upload', 'title' => 'Wgrano dokument: ' . $d['name'], 'text' => (string)$d['file_name'], 'who' => 'Ty'];
+        if ($d['reviewed_at']) $t[] = ['at' => $d['reviewed_at'], 'kind' => $d['status'] === 'accepted' ? 'doc_ok' : 'doc_bad',
+                                       'title' => ($d['status'] === 'accepted' ? 'Dokument zaakceptowany: ' : 'Dokument do poprawy: ') . $d['name'], 'text' => $d['review_note'], 'who' => 'Organizator'];
+    }
+    if ($s['place_confirmed_at']) $t[] = ['at' => $s['place_confirmed_at'], 'kind' => 'place', 'title' => 'Miejsce potwierdzone' . ($s['agreement_accepted_at'] ? ' i warunki zaakceptowane' : ''), 'text' => '', 'who' => 'Ty'];
+    usort($t, fn($a, $b) => strcmp((string)$a['at'], (string)$b['at']));
+    return $t;
+}
+
+/** Opis zmiany statusu dla opiekuna, gdy nie ma komentarza kierownika (wpisy systemowe). */
+function naborStatusPublicNote(string $from, string $to): string {
+    return match (true) {
+        $from === 'unconfirmed' && $to === 'cancelled' => 'Zgłoszenie wygasło — adres e-mail nie został potwierdzony.',
+        $from === 'unconfirmed' && $to === 'waitlist'  => 'Zgłoszenie potwierdzone — w grupie nie ma wolnych miejsc, jesteś na liście rezerwowej.',
+        $from === 'unconfirmed'                        => 'Zgłoszenie potwierdzone i przekazane do rozpatrzenia.',
+        default                                       => '',
+    };
 }
 
 /* ─────────────── Dokumenty (prośby kierownika, pliki kandydata) ─────────────── */
@@ -266,7 +303,7 @@ function naborMessageAdd(int $sid, string $author, string $body, ?int $uid, stri
     if ($body === '') throw new InvalidArgumentException('Wpisz treść wiadomości.');
     db_insert('ti_nabor_messages', ['submission_id' => $sid, 'author' => $author === 'staff' ? 'staff' : 'candidate', 'user_id' => $uid, 'author_name' => $name, 'body' => $body]);
     if ($author === 'staff') {
-        naborCandidateNotify($sid, 'Nowa wiadomość od organizatora', nl2br(h($body)), 'ti_nabor_status', true);
+        naborCandidateNotify($sid, 'Nowy komentarz organizatora', nl2br(h($body)), 'ti_nabor_status', true);
     } else {
         naborStaffNotify($sid, 'Nowa wiadomość od kandydata', $body);
     }
