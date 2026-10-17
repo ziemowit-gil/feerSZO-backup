@@ -174,6 +174,7 @@ function dydMenuSections(): array
         $it('',            'Rozliczenia kursantów',    'billing.php',            'receipt'),
         $it('rozliczenia', 'Rozliczenia grupy',        $ct('rozliczenia'),       'receipt-cutoff', $rozDebt, 'danger'),
         $it('',            'Przypomnienia o wpłatach', 'przypomnieniaWplat.php', 'cash-coin'),
+        $it('',            'Subkonto kursanta',        'subkonto.php',           'bank'),
         $it('',            'Nadpłaty uczestników',     'overpayments.php',       'piggy-bank'),
         $it('',            'Cenniki i rabaty',         'pricing.php',            'tags'),
         $it('wypłaty',     'Wypłaty prowadzących',     $gt('wypłaty'),           'cash-stack'),
