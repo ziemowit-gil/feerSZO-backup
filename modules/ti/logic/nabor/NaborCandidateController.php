@@ -51,8 +51,13 @@ final class NaborCandidateController
     public function register(): string
     {
         if (trim((string)($_POST['www'] ?? '')) !== '') return $this->view('rejestracja.php', ['errors' => [], 'old' => [], 'done' => true, 'verified' => null, 'smsUrl' => '', 'csrf' => '']);
-        [$errors, $id] = naborAccountRegister($_POST);
+        [$errors, $id, $via] = naborAccountRegister($_POST);
         if ($errors) return $this->registerForm($errors, $_POST);
+        if ($via === 'email') {
+            flash_set('success', 'Konto aktywne — adres e-mail potwierdzony kodem. Numer telefonu potwierdzisz później.');
+            Router::redirect(route('nabor.account'));
+            return '';
+        }
         return $this->view('rejestracja.php', ['errors' => [], 'old' => ['email' => (string)$_POST['email']], 'done' => true, 'verified' => null, 'smsUrl' => '', 'csrf' => '']);
     }
 
@@ -64,6 +69,7 @@ final class NaborCandidateController
         $phone = (string)($_POST['phone'] ?? '');
         $err = match ((string)($_POST['action'] ?? '')) {
             'send'   => phoneVerifySend(NABOR_REG_PURPOSE, $phone, 'zakladania konta kandydata', naborSmsProvider()),
+            'send_email' => phoneVerifySendEmail(NABOR_REG_PURPOSE, $phone, (string)($_POST['email'] ?? ''), 'zakładania konta kandydata'),
             'verify' => phoneVerifyCheck(NABOR_REG_PURPOSE, $phone, (string)($_POST['code'] ?? '')),
             default  => 'Nieznana operacja.',
         };

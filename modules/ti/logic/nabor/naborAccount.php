@@ -425,17 +425,23 @@ function naborAccountRegister(array $p): array {
     if (mb_strlen($name) < 3) $e[] = 'Podaj imię i nazwisko.';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $e[] = 'Podaj poprawny adres e-mail.';
     if ($phone === '') $e[] = 'Podaj numer telefonu komórkowego (9 cyfr).';
-    elseif (phoneVerifiedInSession(NABOR_REG_PURPOSE) !== $phone) $e[] = 'Potwierdź numer telefonu kodem SMS.';
+    elseif (phoneVerifiedInSession(NABOR_REG_PURPOSE) !== $phone) $e[] = 'Potwierdź numer telefonu kodem SMS (albo kodem wysłanym e-mailem).';
+    $via = phoneVerifiedVia(NABOR_REG_PURPOSE) ?? 'sms';
+    if ($via === 'email' && $email !== phoneVerifiedEmail(NABOR_REG_PURPOSE)) $e[] = 'Adres e-mail różni się od tego, na który wysłaliśmy kod — wyślij kod ponownie.';
     if (mb_strlen($pass) < NABOR_PASS_MIN) $e[] = 'Hasło musi mieć co najmniej ' . NABOR_PASS_MIN . ' znaków.';
     elseif ($pass !== (string)($p['password2'] ?? '')) $e[] = 'Hasła nie są takie same.';
     if (empty($p['gdpr'])) $e[] = 'Zgoda na przetwarzanie danych w celu prowadzenia konta jest wymagana.';
     if (!$e && naborAccountByEmail($email)) $e[] = 'Konto z tym adresem już istnieje — zaloguj się albo użyj „Nie pamiętam hasła”.';
-    if ($e) return [$e, null];
+    if ($e) return [$e, null, $via];
+    // Kod e-mailem: adres potwierdzony od razu (bez linku aktywacyjnego), telefon niezweryfikowany
     $id = db_insert('ti_nabor_accounts', ['email' => $email, 'name' => $name, 'phone' => $phone,
-                                          'password_hash' => password_hash($pass, PASSWORD_DEFAULT), 'phone_verified_at' => gmdate('Y-m-d H:i:s')]);
+                                          'password_hash' => password_hash($pass, PASSWORD_DEFAULT),
+                                          'phone_verified_at' => $via === 'email' ? null : gmdate('Y-m-d H:i:s'),
+                                          'email_verified_at' => $via === 'email' ? gmdate('Y-m-d H:i:s') : null]);
     phoneVerifyForget(NABOR_REG_PURPOSE);
-    naborAccountSendActivation(naborAccountGet($id));
-    return [[], $id];
+    if ($via === 'email') naborAccountStartSession($id);
+    else naborAccountSendActivation(naborAccountGet($id));
+    return [[], $id, $via];
 }
 
 function naborAccountSendActivation(array $acc): void {

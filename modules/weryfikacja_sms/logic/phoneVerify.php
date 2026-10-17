@@ -37,6 +37,10 @@ function phoneVerifyMigrate(): void {
         created_at  DATETIME NOT NULL DEFAULT (datetime('now'))
     )");
     db()->exec("CREATE INDEX IF NOT EXISTS idx_phone_verify_phone ON phone_verify_codes(phone, created_at)");
+    $have = array_column(db()->query("PRAGMA table_info(phone_verify_codes)")->fetchAll(), 'name');
+    // Kod wysłany e-mailem (gdy SMS nie dochodzi): kanał i adres
+    if (!in_array('channel', $have, true)) db()->exec("ALTER TABLE phone_verify_codes ADD COLUMN channel TEXT NOT NULL DEFAULT 'sms'");
+    if (!in_array('email', $have, true)) db()->exec("ALTER TABLE phone_verify_codes ADD COLUMN email TEXT NOT NULL DEFAULT ''");
 }
 
 /**
@@ -110,6 +114,47 @@ function phoneVerifySend(string $purpose, string $rawPhone, string $label = 'pot
     return '';
 }
 
+/**
+ * Kod na e-mail — gdy SMS nie dochodzi. Ten sam mechanizm i ten sam formularz kodu (wiązany z numerem i sesją),
+ * ale po sprawdzeniu phoneVerifiedVia() zwraca 'email' — numer telefonu NIE jest wtedy uznany za zweryfikowany
+ * (wywołujący zapisuje, że potwierdzono adres e-mail). Limity: 3 kody na adres / godz., 10 z IP / dobę. Zwraca błąd albo ''.
+ */
+function phoneVerifySendEmail(string $purpose, string $rawPhone, string $email, string $label = 'potwierdzenia'): string {
+    phoneVerifyMigrate();
+    auth_start();
+    $phone = phoneVerifyNormalize($rawPhone);
+    $email = mb_strtolower(trim($email));
+    if ($phone === '') return 'Najpierw wpisz numer telefonu komórkowego (9 cyfr).';
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return 'Wpisz poprawny adres e-mail — tam wyślemy kod.';
+    $key = 'pv_last_mail_' . $purpose;
+    if (time() - (int)($_SESSION[$key] ?? 0) < 60) return 'Kod został właśnie wysłany e-mailem. Nowy możesz wysłać za minutę.';
+    $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
+    if ((int)db_one("SELECT COUNT(*) n FROM phone_verify_codes WHERE email=? AND created_at>?", [$email, gmdate('Y-m-d H:i:s', time() - 3600)])['n'] >= 3)
+        return 'Wysłano już 3 kody na ten adres w ciągu godziny. Spróbuj później.';
+    if ($ip !== '' && (int)db_one("SELECT COUNT(*) n FROM phone_verify_codes WHERE ip_address=? AND created_at>?", [$ip, gmdate('Y-m-d H:i:s', time() - 86400)])['n'] >= 10)
+        return 'Przekroczono dzienny limit kodów. Spróbuj jutro.';
+    $code = (string)random_int(100000, 999999);
+    db_insert('phone_verify_codes', ['purpose' => $purpose, 'phone' => $phone, 'code_hash' => hash('sha256', session_id() . '|' . $code),
+        'session_id' => hash('sha256', session_id()), 'ip_address' => $ip, 'channel' => 'email', 'email' => $email,
+        'expires_at' => gmdate('Y-m-d H:i:s', time() + PHONE_VERIFY_TTL_MIN * 60)]);
+    try {
+        require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+        $org = function_exists('org_setting') ? (org_setting('org_name') ?: 'FEER') : 'FEER';
+        $html = '<div style="font-family:Segoe UI,Arial,sans-serif;max-width:520px">'
+              . '<p>Kod ' . htmlspecialchars($label, ENT_QUOTES) . ':</p>'
+              . '<p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0">' . $code . '</p>'
+              . '<p style="color:#4b5563;font-size:14px">Kod jest ważny ' . PHONE_VERIFY_TTL_MIN . ' minut. Nie przekazuj go nikomu. Jeśli to nie Ty — zignoruj wiadomość.</p>'
+              . '<p style="color:#4b5563;font-size:13px">' . htmlspecialchars($org, ENT_QUOTES) . '</p></div>';
+        mail_queue_add($email, '', 'Kod: ' . $code . ' — ' . $org, $html, '', 'phone_verify', null, '', true);
+    } catch (\Throwable $e) {
+        error_log('[phone_verify] e-mail ' . $purpose . ': ' . $e->getMessage());
+        return 'Nie udało się wysłać e-maila. Sprawdź adres i spróbuj ponownie.';
+    }
+    $_SESSION[$key] = time();
+    unset($_SESSION['pv_ok'][$purpose]);
+    return '';
+}
+
 /** Sprawdza kod. Zwraca komunikat błędu albo '' (numer zapamiętany w sesji dla celu). */
 function phoneVerifyCheck(string $purpose, string $rawPhone, string $code): string {
     phoneVerifyMigrate();
@@ -127,7 +172,20 @@ function phoneVerifyCheck(string $purpose, string $rawPhone, string $code): stri
     }
     db_exec("UPDATE phone_verify_codes SET verified_at=datetime('now') WHERE id=?", [$row['id']]);
     $_SESSION['pv_ok'][$purpose] = $phone;
+    $_SESSION['pv_via'][$purpose] = ($row['channel'] ?? 'sms') === 'email' ? 'email' : 'sms';
+    $_SESSION['pv_email'][$purpose] = (string)($row['email'] ?? '');
     return '';
+}
+
+/** Kanał, którym potwierdzono kod w tej sesji: 'sms' | 'email' | null. Przy 'email' — adres w phoneVerifiedEmail(). */
+function phoneVerifiedVia(string $purpose): ?string {
+    auth_start();
+    return isset($_SESSION['pv_ok'][$purpose]) ? ($_SESSION['pv_via'][$purpose] ?? 'sms') : null;
+}
+
+function phoneVerifiedEmail(string $purpose): string {
+    auth_start();
+    return (string)($_SESSION['pv_email'][$purpose] ?? '');
 }
 
 function phoneVerifiedInSession(string $purpose): ?string {
@@ -138,5 +196,5 @@ function phoneVerifiedInSession(string $purpose): ?string {
 /** Po wykorzystaniu (zapis formularza) — kolejne zgłoszenie wymaga nowej weryfikacji. */
 function phoneVerifyForget(string $purpose): void {
     auth_start();
-    unset($_SESSION['pv_ok'][$purpose]);
+    unset($_SESSION['pv_ok'][$purpose], $_SESSION['pv_via'][$purpose], $_SESSION['pv_email'][$purpose]);
 }

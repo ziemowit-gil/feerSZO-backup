@@ -32,6 +32,7 @@ $o = fn($k) => h((string)($old[$k] ?? ''));
         <div style="display:flex;gap:.5rem;max-width:320px"><input id="rg-c" class="pp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6"><button type="button" class="pp-submit" id="rg-verify" style="min-width:auto">Potwierdź</button></div>
       </div>
       <p id="rg-msg" class="pp-note" role="status" aria-live="polite"></p>
+      <p id="rg-mailbox" style="margin:.2rem 0 0"><button type="button" id="rg-mail" style="background:none;border:0;padding:0;color:#0b5f91;text-decoration:underline;cursor:pointer;font:inherit">Nie dostałem SMS-a — wyślij kod na adres e-mail</button></p>
     </div>
     <div class="pp-field"><label for="rg-1">Hasło</label><input id="rg-1" type="password" name="password" class="pp-input" autocomplete="new-password" minlength="<?= NABOR_PASS_MIN ?>" required aria-describedby="rg-1h">
       <p id="rg-1h" class="pp-note" style="font-size:.82rem">Co najmniej <?= NABOR_PASS_MIN ?> znaków — najlepiej kilka słów.</p></div>
@@ -63,9 +64,20 @@ $o = fn($k) => h((string)($old[$k] ?? ''));
     Object.keys(data).forEach(function (k) { fd.append(k, data[k]); });
     return fetch(<?= json_encode((string)$smsUrl) ?>, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'Błąd połączenia.' }; });
   }
+  var mailbox = document.getElementById('rg-mailbox'), mailBtn = document.getElementById('rg-mail'), em = document.getElementById('rg-e');
+  mailBtn.addEventListener('click', function () {
+    msg.textContent = '';
+    if (!em.value.trim()) { msg.textContent = 'Najpierw wpisz adres e-mail (wyżej).'; em.focus(); return; }
+    post({ action: 'send_email', phone: ph.value, email: em.value }).then(function (r) {
+      if (!r.ok) { msg.textContent = r.error; return; }
+      sentTo = norm(ph.value); box.style.display = ''; document.querySelector('label[for=rg-c]').textContent = 'Kod z e-maila';
+      msg.textContent = 'Wysłaliśmy kod na adres ' + em.value + ' (ważny 10 minut). Sprawdź też folder SPAM.'; document.getElementById('rg-c').focus();
+    });
+  });
   send.addEventListener('click', function () {
     send.disabled = true; msg.textContent = '';
     post({ action: 'send', phone: ph.value }).then(function (r) {
+      mailbox.style.display = '';
       if (!r.ok) { msg.textContent = r.error; send.disabled = false; return; }
       sentTo = norm(ph.value); box.style.display = ''; msg.textContent = 'Wysłaliśmy SMS z 6-cyfrowym kodem na numer ' + ph.value + ' (ważny 10 minut).'; document.getElementById('rg-c').focus();
       setTimeout(function () { send.disabled = false; send.textContent = 'Wyślij ponownie'; }, 60000);

@@ -363,7 +363,8 @@ function naborSubmissionCreate(array $d, ?int $accountId = null, bool $sendConfi
             'equipment_notes'                 => $d['equipment_notes'],
             'extra'                           => json_encode($d['extra'] ?: new stdClass(), JSON_UNESCAPED_UNICODE),
             'payment_method'                  => $d['payment_method'],
-            'phone_verified_at'               => gmdate('Y-m-d H:i:s'),
+            // Kod e-mailem (SMS nie dochodził) — telefon niezweryfikowany
+            'phone_verified_at'               => ($d['phone_via'] ?? 'sms') === 'email' ? null : gmdate('Y-m-d H:i:s'),
             'email_token_hash'                => hash('sha256', $token),
             'ip_address'                      => $ip,
         ]);
@@ -376,7 +377,8 @@ function naborSubmissionCreate(array $d, ?int $accountId = null, bool $sendConfi
             'image_consent'     => $d['image_consent'] ? 1 : 0,
             'marketing_consent' => $d['marketing_consent'] ? 1 : 0,
         ]);
-        naborHistoryAdd($id, null, '', 'unconfirmed', 'Zgłoszenie z formularza; numer telefonu potwierdzony kodem SMS. IP: ' . $ip);
+        naborHistoryAdd($id, null, '', 'unconfirmed', 'Zgłoszenie z formularza; ' . (($d['phone_via'] ?? 'sms') === 'email'
+            ? 'kod potwierdzony e-mailem (SMS nie dotarł — numer telefonu NIEZWERYFIKOWANY)' : 'numer telefonu potwierdzony kodem SMS') . '. IP: ' . $ip);
         $pdo->commit();
     } catch (\Throwable $e) {
         $pdo->rollBack();

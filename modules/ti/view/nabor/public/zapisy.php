@@ -208,12 +208,17 @@ include dirname(__DIR__, 2) . '/portal/_header.php';
             <?= $hlp($key, 'zp-gp-h') ?>
             <p class="tw-text-sm tw-text-green-700 tw-font-bold tw-mt-1" x-show="isVerified()" role="status">✓ Numer potwierdzony</p>
             <div x-show="codeSent && !isVerified()" class="tw-bg-feer-bg tw-rounded-xl tw-p-4 tw-mt-2">
-              <label class="zp-label" for="zp-code">Kod z SMS-a</label>
+              <label class="zp-label" for="zp-code" x-text="viaEmail ? 'Kod z e-maila' : 'Kod z SMS-a'">Kod z SMS-a</label>
               <div class="tw-flex tw-gap-2 tw-max-w-xs">
                 <input id="zp-code" x-ref="code" class="zp-input tw-tracking-widest tw-text-center" x-model="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" @keydown.enter.prevent="verifyCode()">
                 <button type="button" class="zp-btn-primary tw-text-sm" @click="verifyCode()" :disabled="busy">Potwierdź</button>
               </div>
               <p class="zp-help" role="status" x-text="smsInfo"></p>
+            </div>
+            <div x-show="!isVerified() && !preview" class="tw-mt-2">
+              <button type="button" class="tw-text-sm tw-underline tw-text-[#0b5f91] tw-bg-transparent tw-border-0 tw-p-0 tw-cursor-pointer" @click="sendEmailCode()" :disabled="busy">
+                Nie dostałem SMS-a — wyślij kod na adres e-mail</button>
+              <p class="zp-help" x-show="!f.guardian_email">Najpierw wpisz adres e-mail opiekuna (wyżej).</p>
             </div>
             <?php break; case 'guardian_address': $ra = !empty($F[$key]['required']) ? ' *' : ''; ?>
             <fieldset class="tw-grid tw-gap-4"><legend class="zp-label"><?= h($F[$key]['label']) ?></legend>
@@ -297,7 +302,7 @@ include dirname(__DIR__, 2) . '/portal/_header.php';
 <script>
 function naborForm(init) {
   return {
-    ...init, err: '', code: '', codeSent: false, busy: false, cooldown: 0, smsInfo: '', sentTo: '', _autoT: null,
+    ...init, err: '', code: '', codeSent: false, busy: false, cooldown: 0, smsInfo: '', sentTo: '', _autoT: null, smsTrouble: false, viaEmail: false,
     titles: Object.values(init.steps),
     /** Pole zależne: warunek z edytora (jak naborCondMet() po stronie serwera). */
     show(key) {
@@ -376,10 +381,20 @@ function naborForm(init) {
       this.err = ''; this.busy = true;
       const r = await this.post({ action: 'send', phone: this.f.guardian_phone });
       this.busy = false;
-      if (!r.ok) { this.err = r.error; return; }
-      this.codeSent = true; this.sentTo = this.norm(this.f.guardian_phone);
+      if (!r.ok) { this.err = r.error; this.smsTrouble = true; return; }
+      this.codeSent = true; this.viaEmail = false; this.sentTo = this.norm(this.f.guardian_phone);
       this.smsInfo = 'Wysłaliśmy SMS z 6-cyfrowym kodem na numer ' + this.f.guardian_phone + ' (ważny 10 minut).';
       this.cooldown = 60; const t = setInterval(() => { if (--this.cooldown <= 0) clearInterval(t); }, 1000);
+      this.$nextTick(() => this.$refs.code?.focus());
+    },
+    /** Gdy SMS nie dochodzi: ten sam kod na e-mail opiekuna (telefon zostaje niezweryfikowany — zapisze to zgłoszenie). */
+    async sendEmailCode() {
+      this.err = ''; this.busy = true;
+      const r = await this.post({ action: 'send_email', phone: this.f.guardian_phone, email: this.f.guardian_email });
+      this.busy = false;
+      if (!r.ok) { this.err = r.error; return; }
+      this.codeSent = true; this.viaEmail = true; this.sentTo = this.norm(this.f.guardian_phone);
+      this.smsInfo = 'Wysłaliśmy 6-cyfrowy kod na adres ' + this.f.guardian_email + ' (ważny 10 minut). Sprawdź też folder SPAM.';
       this.$nextTick(() => this.$refs.code?.focus());
     },
     async verifyCode() {

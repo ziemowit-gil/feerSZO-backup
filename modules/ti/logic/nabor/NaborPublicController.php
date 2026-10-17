@@ -58,6 +58,10 @@ final class NaborPublicController
             if ($acc['phone_verified_at'] && phoneVerifyNormalize((string)($_POST['guardian_phone'] ?? '')) === $acc['phone']) $verified = $acc['phone'];
         }
         [$data, $errors] = naborValidate($_POST, $verified);
+        // Kod potwierdzony e-mailem (SMS nie dotarł): telefon niezweryfikowany, a adres musi być tym, na który wysłano kod
+        $data['phone_via'] = ($acc && $verified === ($acc['phone'] ?? null)) ? 'sms' : (phoneVerifiedVia(NABOR_PHONE_PURPOSE) ?? 'sms');
+        if ($data['phone_via'] === 'email' && mb_strtolower(trim((string)$data['guardian_email'])) !== phoneVerifiedEmail(NABOR_PHONE_PURPOSE))
+            $errors[] = 'Adres e-mail różni się od tego, na który wysłaliśmy kod — wyślij kod ponownie.';
         $n = (int)db_one("SELECT COUNT(*) n FROM ti_nabor_submissions WHERE ip_address=? AND created_at>?", [$ip, gmdate('Y-m-d H:i:s', time() - 86400)])['n'];
         if ($ip !== '' && $n >= 5) $errors = ['Przekroczono dzienny limit zgłoszeń z tego urządzenia. Spróbuj jutro lub napisz do nas.'];
         if (!$errors) {
@@ -92,6 +96,7 @@ final class NaborPublicController
         $phone = (string)($_POST['phone'] ?? '');
         $err = match ((string)($_POST['action'] ?? '')) {
             'send'   => phoneVerifySend(NABOR_PHONE_PURPOSE, $phone, 'potwierdzajacy zgloszenie na zajecia', naborSmsProvider()),
+            'send_email' => phoneVerifySendEmail(NABOR_PHONE_PURPOSE, $phone, (string)($_POST['email'] ?? ''), 'potwierdzający zgłoszenie na zajęcia'),
             'verify' => phoneVerifyCheck(NABOR_PHONE_PURPOSE, $phone, (string)($_POST['code'] ?? '')),
             default  => 'Nieznana operacja.',
         };
