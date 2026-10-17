@@ -22,7 +22,7 @@ require_once dirname(dirname(dirname(__DIR__))) . '/modules/ti_plan_public/ui/po
 
 header('X-Robots-Tag: noindex, nofollow');
 header('Referrer-Policy: no-referrer');
-header('Cache-Control: private, max-age=120');
+header('Cache-Control: no-cache, private');   // publikacja w planLinki.php ma być widoczna od razu
 tiPlanPublicMigrate();
 
 $self  = (string)($_SERVER['SCRIPT_NAME'] ?? '/karty30/ti/dydaktyk/planPubliczny.php');
