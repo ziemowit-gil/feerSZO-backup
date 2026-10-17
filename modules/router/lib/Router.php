@@ -121,8 +121,25 @@ final class Router
     {
         // Jawne ?_route= ma pierwszeństwo (tryb query oraz wejścia przez RewriteRule …/router.php?_route=…, gdzie serwer
         // potrafi ustawić PATH_INFO na '' albo na pierwotny adres, np. /nabor); w trybie path poza tym PATH_INFO.
-        $p = isset($_GET['_route']) || $this->mode === 'query' ? (string)($_GET['_route'] ?? '/') : (string)($_SERVER['PATH_INFO'] ?? '/');
+        if (isset($_GET['_route']) || $this->mode === 'query') {
+            $p = (string)($_GET['_route'] ?? '/');
+        } elseif (trim((string)($_SERVER['PATH_INFO'] ?? ''), '/') !== '' && !$this->isShortUrl()) {
+            $p = (string)$_SERVER['PATH_INFO'];
+        } else {
+            // Krótki adres przepisany w .htaccess (np. /nabor → router.php): serwer potrafi zgubić query z reguły
+            // i ustawić PATH_INFO na pierwotny adres — wtedy trasą jest sama ścieżka żądania.
+            $uri = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+            $p = $this->isShortUrl() ? $uri : '/';
+        }
         return '/' . trim($p, '/');
+    }
+
+    /** Żądanie przyszło krótkim adresem (ścieżka nie zaczyna się od pliku wejścia routera). */
+    private function isShortUrl(): bool
+    {
+        $uri = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+        $entryPath = (string)parse_url(rtrim(APP_URL, '/') . $this->entry, PHP_URL_PATH);
+        return $uri !== '' && !str_starts_with($uri, $entryPath) && !str_ends_with($uri, '.php');
     }
 
     public function dispatch(): void

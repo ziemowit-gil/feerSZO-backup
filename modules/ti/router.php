@@ -21,6 +21,7 @@ if (!$panel) {
     require_once __DIR__ . '/logic/nabor/NaborPublicController.php';
     $r = new Router(NABOR_ENTRY);
     $r->group([], function (Router $r) {
+        $r->get('/',           [NaborPublicController::class, 'form']);                    // krótki adres /nabor (.htaccess)
         $r->get('/zapisy',     [NaborPublicController::class, 'form'])->name('nabor.form');
         $r->post('/zapisy',    [NaborPublicController::class, 'submit']);
         $r->post('/zapisy/sms', [NaborPublicController::class, 'sms'])->name('nabor.sms');
