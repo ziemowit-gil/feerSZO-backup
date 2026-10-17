@@ -1556,7 +1556,7 @@ echo '<main id="main" class="dyd-wrap">';
               </button>
             </form>
             <?php endif; ?>
-            <?php if ($can_write && in_array($b['status'], ['issued','draft'], true)): ?>
+            <?php if ($can_write && $b['status'] === 'issued'): ?>
             <button type="button" class="btn btn-xs btn-sm btn-outline-warning py-0 px-2"
                     title="Złóż wniosek o przeniesienie płatności na następny miesiąc"
                     data-bs-toggle="modal" data-bs-target="#deferBill<?= (int)$b['id'] ?>">
@@ -1946,10 +1946,10 @@ echo '<main id="main" class="dyd-wrap">';
   $months_pl_def = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                     7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
   foreach ($billings as $b):
-    if (!in_array($b['status'], ['issued','draft'], true)) continue;
+    if ($b['status'] !== 'issued') continue;
     $def_to_m = (int)$b['month'] === 12 ? 1 : (int)$b['month'] + 1;
     $def_to_y = (int)$b['month'] === 12 ? (int)$b['year'] + 1 : (int)$b['year'];
-    $def_amount = round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2);
+    $def_amount = ti_billing_remaining((int)$b['id']);   // pozostało do zapłaty — pokryta część zostaje
 ?>
 <div class="modal fade" id="deferBill<?= (int)$b['id'] ?>" tabindex="-1" aria-labelledby="deferBillLbl<?= (int)$b['id'] ?>" aria-hidden="true">
   <div class="modal-dialog">
@@ -1967,10 +1967,10 @@ echo '<main id="main" class="dyd-wrap">';
       </div>
       <div class="modal-body">
         <p class="small text-body-secondary mb-3">
-          Kwota <strong><?= number_format($def_amount,2,',',' ') ?> zł</strong>
+          Pozostała do zapłaty kwota <strong><?= number_format($def_amount,2,',',' ') ?> zł</strong>
           za <strong><?= ($months_pl_def[(int)$b['month']] ?? $b['month']) . ' ' . (int)$b['year'] ?></strong>
           zostanie przeniesiona na <strong><?= ($months_pl_def[$def_to_m] ?? '?') . ' ' . $def_to_y ?></strong>
-          i pojawi się jako pozycja na saldzie kursanta z adnotacją okresu.
+          i pojawi się jako pozycja na saldzie kursanta z adnotacją okresu. Część już pokryta wpłatami zostaje na tym rozliczeniu.
         </p>
         <div class="alert alert-warning py-2 small d-flex gap-2 align-items-start">
           <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>

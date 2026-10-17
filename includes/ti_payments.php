@@ -994,11 +994,17 @@ function ti_payment_notify_overpay(int $client_id, float $payment_amount, float 
 
 // ── Przeniesienie płatności na następny miesiąc ─────────────────────────────
 
-/** Tworzy wniosek o przeniesienie rozliczenia $billing_id na następny miesiąc. */
+/**
+ * Tworzy wniosek o przeniesienie rozliczenia $billing_id na następny miesiąc.
+ * Przenoszona jest kwota POZOSTAŁA do zapłaty (żywa alokacja), nie należność brutto —
+ * pokryta część zostaje na pierwotnym rozliczeniu. Tylko rozliczenia wystawione (nie robocze).
+ */
 function ti_deferral_request(int $billing_id, string $reason, int $requested_by): int {
     ti_payments_migrate();
-    $b = db_one("SELECT id, client_id, month, year, amount, adjustment, status FROM k30_ti_billing WHERE id=?", [$billing_id]);
-    if (!$b || !in_array($b['status'], ['issued', 'draft'], true)) return 0;
+    $b = db_one("SELECT id, client_id, month, year, status FROM k30_ti_billing WHERE id=?", [$billing_id]);
+    if (!$b || $b['status'] !== 'issued') return 0;
+    $amount = ti_billing_remaining($billing_id);
+    if ($amount <= 0.005) return 0;   // nic do przeniesienia — rozliczenie pokryte
     // Czy już istnieje oczekujący wniosek dla tego rozliczenia?
     $exists = db_one("SELECT id FROM k30_ti_payment_deferrals WHERE billing_id=? AND status='pending'", [$billing_id]);
     if ($exists) return (int)$exists['id'];
@@ -1007,7 +1013,6 @@ function ti_deferral_request(int $billing_id, string $reason, int $requested_by)
     $from_year  = (int)$b['year'];
     $to_month   = $from_month === 12 ? 1  : $from_month + 1;
     $to_year    = $from_month === 12 ? $from_year + 1 : $from_year;
-    $amount     = round((float)$b['amount'] + (float)($b['adjustment'] ?? 0), 2);
 
     return db_insert('k30_ti_payment_deferrals', [
         'billing_id'   => $billing_id,
@@ -1024,27 +1029,43 @@ function ti_deferral_request(int $billing_id, string $reason, int $requested_by)
     ]);
 }
 
-/** Zatwierdza wniosek — anuluje oryginalne rozliczenie i tworzy dopłatę w następnym miesiącu. */
+/**
+ * Zatwierdza wniosek — zmniejsza pierwotne rozliczenie (korekta) o kwotę pozostałą do zapłaty
+ * i dopisuje ją jako należność w następnym miesiącu. Rozliczenie NIE jest anulowane: wpłaty,
+ * które je już (częściowo) pokryły, zostają na nim, więc łączna należność kursanta się nie zmienia.
+ * Kwota = min(kwota wniosku, pozostało teraz) — wpłaty po złożeniu wniosku ją zmniejszają.
+ */
 function ti_deferral_approve(int $deferral_id, int $decided_by, string $note = ''): bool {
     ti_payments_migrate();
     $d = db_one("SELECT * FROM k30_ti_payment_deferrals WHERE id=? AND status='pending'", [$deferral_id]);
     if (!$d) return false;
+    $b = db_one("SELECT id, status, adjustment, adjustment_note FROM k30_ti_billing WHERE id=?", [(int)$d['billing_id']]);
+    if (!$b || $b['status'] !== 'issued') return false;
+    $amount = round(min((float)$d['amount'], ti_billing_remaining((int)$d['billing_id'])), 2);
+    if ($amount <= 0.005) return false;
 
     $months_pl = [1=>'styczeń',2=>'luty',3=>'marzec',4=>'kwiecień',5=>'maj',6=>'czerwiec',
                   7=>'lipiec',8=>'sierpień',9=>'wrzesień',10=>'październik',11=>'listopad',12=>'grudzień'];
     $from_label = $months_pl[(int)$d['from_month']] . ' ' . $d['from_year'];
+    $to_label   = $months_pl[(int)$d['to_month']] . ' ' . $d['to_year'];
 
-    db()->prepare("UPDATE k30_ti_billing SET status='cancelled' WHERE id=?")->execute([(int)$d['billing_id']]);
+    $prev = trim((string)($b['adjustment_note'] ?? ''));
+    $add  = 'Przeniesiono ' . number_format($amount, 2, ',', ' ') . ' zł na ' . $to_label;
+    db()->prepare("UPDATE k30_ti_billing SET adjustment=?, adjustment_note=? WHERE id=?")->execute([
+        round((float)$b['adjustment'] - $amount, 2),
+        mb_substr($prev !== '' ? $prev . ' · ' . $add : $add, 0, 500),
+        (int)$b['id'],
+    ]);
     ti_billing_add_charge(
         (int)$d['client_id'],
-        (float)$d['amount'],
+        $amount,
         'Przeniesienie płatności za ' . $from_label,
         (int)$d['to_month'],
         (int)$d['to_year']
     );
     db()->prepare(
-        "UPDATE k30_ti_payment_deferrals SET status='approved', decided_by=?, decided_at=datetime('now'), decide_note=? WHERE id=?"
-    )->execute([$decided_by, mb_substr(trim($note), 0, 500), $deferral_id]);
+        "UPDATE k30_ti_payment_deferrals SET status='approved', amount=?, decided_by=?, decided_at=datetime('now'), decide_note=? WHERE id=?"
+    )->execute([$amount, $decided_by, mb_substr(trim($note), 0, 500), $deferral_id]);
     return true;
 }
 
