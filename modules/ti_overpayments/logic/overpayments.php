@@ -442,7 +442,8 @@ function ti_op_summary(): array {
 
 
 /**
- * Zerowanie stanu konta: niedopłata → wpis „umorzenie” (wpłata 'other', source 'writeoff'), nadpłata → wpis
+ * Zerowanie stanu konta: niedopłata → wpis „umorzenie” (wpłata 'other', source 'writeoff', source_id = id
+ * umarzanego rozliczenia — po jednym wpisie na rozliczenie), nadpłata → wpis
  * rozchodowy (ujemna wpłata 'internal', source 'writeoff'). Historia zostaje; nic nie jest kasowane.
  * $course_id: >0 = jedna grupa, 0 = rozliczenie łączne/konto ogólne, -1 = wszystkie grupy i konto ogólne kursanta.
  * @return array{ok:bool, msg:string, rows:list<array{course_id:int,name:string,debt:float,credit:float}>}
@@ -466,7 +467,19 @@ function ti_balance_zero_out(int $client_id, int $course_id, string $reason, str
     try {
         $note = trim($reason) . ' (' . $by . ')';
         foreach ($rows as $r) {
-            if ($r['debt'] > 0.005)   ti_payment_add($client_id, $r['debt'], date('Y-m-d'), 'other', 'Umorzenie niedopłaty: ' . $note, 'writeoff', 0, $r['course_id']);
+            // Umorzenie przypisane do konkretnych rozliczeń (faza 0 alokacji) — wpłata ogólna przy
+            // course_id=0 pokryłaby FIFO także należności INNYCH grup
+            if ($r['debt'] > 0.005) {
+                $left = $r['debt'];
+                foreach (ti_client_allocation($client_id)['rows'] as $ar) {
+                    if ($left <= 0.005) break;
+                    if (!empty($ar['ho']) || $ar['course_id'] !== $r['course_id']) continue;
+                    $need = round(min($left, $ar['due'] - $ar['paid']), 2);
+                    if ($need <= 0.005) continue;
+                    ti_payment_add($client_id, $need, date('Y-m-d'), 'other', 'Umorzenie niedopłaty: ' . $note, 'writeoff', $ar['id'], $r['course_id']);
+                    $left = round($left - $need, 2);
+                }
+            }
             if ($r['credit'] > 0.005) ti_payment_add($client_id, -$r['credit'], date('Y-m-d'), 'internal', 'Wyzerowanie nadpłaty: ' . $note, 'writeoff', 0, $r['course_id']);
         }
         ti_billing_recompute($client_id);

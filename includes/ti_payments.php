@@ -145,7 +145,8 @@ function ti_charges_total(int $client_id): float {
  * Wylicza alokację wpłat na należności kursanta — BEZ zapisu do bazy (do raportów i podglądu).
  *
  * Faza 0: wpłaty przypisane ręcznie do rozliczenia (source_type='billing_match', source_id = id
- *         rozliczenia — „Przypisz i popraw rozliczenia” przy wpłacie na subkonto) pokrywają najpierw
+ *         rozliczenia — „Przypisz i popraw rozliczenia” przy wpłacie na subkonto; także umorzenia
+ *         source_type='writeoff' z source_id > 0 — ti_balance_zero_out) pokrywają najpierw
  *         to rozliczenie; reszta trafia do grupy wpłaty (course_id) albo do wpłat ogólnych.
  * Faza 1: wpłaty znaczone na grupę (course_id > 0) pokrywają FIFO tylko należności tej grupy.
  * Faza 2: wpłaty ogólne (course_id = 0) pokrywają FIFO wszystko, co pozostało niedopłacone.
@@ -166,14 +167,16 @@ function ti_client_allocation(int $client_id): array {
          ORDER BY year ASC, month ASC, id ASC",
         [$client_id]
     );
+    // Faza 0 obejmuje też umorzenia przypisane do rozliczenia (writeoff z source_id = id rozliczenia)
+    $matched  = "source_type='billing_match' OR (source_type='writeoff' AND COALESCE(source_id,0)>0)";
     $pay_rows = db_all(
         "SELECT COALESCE(course_id,0) AS course_id, COALESCE(SUM(amount),0) AS s
-         FROM k30_ti_payments WHERE client_id=? AND COALESCE(source_type,'')!='billing_match' GROUP BY COALESCE(course_id,0)",
+         FROM k30_ti_payments WHERE client_id=? AND NOT ($matched) GROUP BY COALESCE(course_id,0)",
         [$client_id]
     );
     $match_rows = db_all(
         "SELECT source_id AS billing_id, COALESCE(course_id,0) AS course_id, COALESCE(SUM(amount),0) AS s
-         FROM k30_ti_payments WHERE client_id=? AND source_type='billing_match'
+         FROM k30_ti_payments WHERE client_id=? AND ($matched)
          GROUP BY source_id, COALESCE(course_id,0)",
         [$client_id]
     );
@@ -642,7 +645,7 @@ function ti_payment_add(int $client_id, float $amount, string $paid_at = '', str
     $emailed = false;
 
     // Nadpłata powstała/wzrosła wskutek tej wpłaty → powiadom opiekuna/kursanta
-    if ($credit > 0 && $credit + 0.001 >= $credit_before && $amount > 0) {
+    if ($credit > 0 && $credit + 0.001 >= $credit_before && $amount > 0 && $source_type !== 'writeoff') {
         $emailed = ti_payment_notify_overpay($client_id, $amount, $credit, $pid, max(0, $course_id));
     }
     return ['payment_id' => $pid, 'credit' => $credit, 'debt' => $res['debt'], 'emailed' => $emailed];
