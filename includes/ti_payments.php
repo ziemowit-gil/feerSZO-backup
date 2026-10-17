@@ -384,6 +384,8 @@ function ti_group_month_billing(int $client_id, int $course_id, int $year, int $
  */
 function ti_month_overview(int $year, int $month): array {
     ti_payments_migrate();
+    // Konta „bez rozliczeń” (no_billing) nie wchodzą ani do sum miesiąca, ani do sald
+    $nb = "NOT EXISTS (SELECT 1 FROM k30_ti_student_accounts na WHERE na.client_id=%s AND COALESCE(na.no_billing,0)=1)";
 
     // Sumy miesiąca per grupa
     $sums = db_all(
@@ -391,10 +393,9 @@ function ti_month_overview(int $year, int $month): array {
                 COUNT(DISTINCT b.client_id)                    AS participants,
                 COUNT(*)                                       AS billings,
                 COALESCE(SUM(b.amount + COALESCE(b.adjustment,0)),0) AS charges,
-                COALESCE(SUM(COALESCE(b.paid_amount,0)),0)     AS paid,
                 SUM(CASE WHEN COALESCE(b.invoice_path,'')='' THEN 1 ELSE 0 END) AS no_invoice
          FROM k30_ti_billing b
-         WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid')
+         WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid') AND " . sprintf($nb, 'b.client_id') . "
          GROUP BY COALESCE(b.course_id,0)",
         [$year, $month]
     );
@@ -418,27 +419,47 @@ function ti_month_overview(int $year, int $month): array {
             'billings'     => (int)$r['billings'],
             'no_invoice'   => (int)$r['no_invoice'],
             'charges'      => round((float)$r['charges'], 2),
-            'paid'         => round((float)$r['paid'], 2),
+            'paid'         => 0.0,   // pokrycie należności miesiąca — z żywej alokacji poniżej
             'debt'         => 0.0,   // bieżące saldo grupy — z alokacji poniżej
             'credit'       => 0.0,
         ];
         $kpi['charges']  = round($kpi['charges'] + (float)$r['charges'], 2);
-        $kpi['paid']     = round($kpi['paid'] + (float)$r['paid'], 2);
         $kpi['billings'] += (int)$r['billings'];
     }
 
-    // Bieżące salda — alokacja per kursant rozliczany w tym miesiącu
-    $clients = db_all(
-        "SELECT DISTINCT b.client_id, cl.name
-         FROM k30_ti_billing b JOIN k30_clients cl ON cl.id=b.client_id
-         WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid') ORDER BY cl.name",
+    // Uczestnicy rozliczani w tym miesiącu (licznik KPI)
+    $kpi['clients'] = (int)(db_one(
+        "SELECT COUNT(DISTINCT b.client_id) AS n FROM k30_ti_billing b
+         WHERE b.year=? AND b.month=? AND b.status IN ('issued','paid') AND " . sprintf($nb, 'b.client_id'),
         [$year, $month]
+    )['n'] ?? 0);
+
+    // Bieżące salda — jak ti_clients_with_debt(): WSZYSCY kursanci z należnościami lub wpłatami
+    // (także bez rozliczenia w wybranym miesiącu), konta „bez rozliczeń” (no_billing) wykluczone.
+    $clients = db_all(
+        "SELECT cl.id AS client_id, cl.name
+         FROM k30_clients cl
+         WHERE (cl.id IN (SELECT client_id FROM k30_ti_billing WHERE status IN ('issued','paid'))
+                OR cl.id IN (SELECT client_id FROM k30_ti_payments))
+           AND " . sprintf($nb, 'cl.id') . "
+         ORDER BY cl.name"
     );
-    $kpi['clients'] = count($clients);
+    // Rozliczenia tego miesiąca: id => grupa (pokrycie z alokacji, nie z zapisanego paid_amount)
+    $month_rows = [];
+    foreach (db_all("SELECT id, COALESCE(course_id,0) AS course_id FROM k30_ti_billing
+                     WHERE year=? AND month=? AND status IN ('issued','paid')", [$year, $month]) as $mr) {
+        $month_rows[(int)$mr['id']] = (int)$mr['course_id'];
+    }
     $debtors = [];
     foreach ($clients as $c) {
         $cid_client = (int)$c['client_id'];
         $a = ti_client_allocation($cid_client);
+        foreach ($a['rows'] as $ar) {
+            if (!isset($month_rows[$ar['id']])) continue;
+            $gc = $month_rows[$ar['id']];
+            $kpi['paid'] = round($kpi['paid'] + $ar['paid'], 2);
+            if (isset($groups[$gc])) $groups[$gc]['paid'] = round($groups[$gc]['paid'] + $ar['paid'], 2);
+        }
         $kpi['debt']   = round($kpi['debt'] + $a['debt'], 2);
         $kpi['credit'] = round($kpi['credit'] + $a['credit'], 2);
         foreach ($a['groups'] as $gc => $g) {
