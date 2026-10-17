@@ -92,9 +92,14 @@ $customQs = function (int $n) use ($form, $customQ): string {
       <p class="tw-font-bold tw-mb-1">Ostatni krok: potwierdź adres e-mail</p>
       <p>Na adres <strong><?= h($doneMail ?: 'podany w formularzu') ?></strong> wysłaliśmy link. Zgłoszenie trafi do rozpatrzenia dopiero po jego kliknięciu (link jest ważny <?= NABOR_CONFIRM_HOURS ?> godz.). Sprawdź też folder SPAM.</p>
     </div>
+    <p class="tw-text-sm tw-text-gray-600 tw-mt-4">Po potwierdzeniu założymy <strong>konto kandydata</strong> — zobaczysz w nim status zgłoszenia, wiadomości od nas i dokumenty.</p>
   </main>
 <?php else: ?>
   <?php if ($preview): ?><div class="tw-bg-amber-100 tw-border tw-border-amber-400 tw-rounded-xl tw-p-3 tw-mb-4 tw-text-sm" role="status"><strong>Podgląd formularza.</strong> Wysyłka i kody SMS są wyłączone<?= naborPublicOpen() ? '' : ' — nabór jest zamknięty' ?>.</div><?php endif; ?>
+  <?php if (!empty($acc)): ?><div class="tw-bg-white tw-border tw-border-feer-line tw-rounded-xl tw-p-3 tw-mb-4 tw-text-sm tw-flex tw-flex-wrap tw-gap-2 tw-items-center" role="status">
+    <span class="tw-mr-auto">Zalogowano na konto kandydata: <strong><?= h($acc['email']) ?></strong> — dane opiekuna uzupełniliśmy, a zgłoszenie trafi od razu do rozpatrzenia.</span>
+    <a href="<?= h(naborUrl('/konto')) ?>" class="tw-font-bold tw-text-feer">Moje zgłoszenia</a></div>
+  <?php else: ?><p class="tw-text-sm tw-mb-3 tw-text-right">Masz już konto kandydata? <a class="tw-text-feer tw-font-bold" href="<?= h(naborUrl('/logowanie', ['next' => '/zapisy'])) ?>">Zaloguj się</a> — nie będzie potrzebny kod SMS ani link.</p><?php endif; ?>
   <?php if (trim($form['texts']['intro']) !== ''): ?><div class="tw-bg-white tw-rounded-2xl tw-p-5 tw-mb-4 tw-whitespace-pre-line"><?= h($form['texts']['intro']) ?></div><?php endif; ?>
   <main x-data="naborForm(<?= h(json_encode($init, $J)) ?>)" x-cloak class="tw-bg-white tw-rounded-2xl tw-shadow-lg tw-p-5 sm:tw-p-8">
     <ol class="tw-flex tw-gap-1 tw-mb-6" aria-label="Kroki formularza">
@@ -191,7 +196,7 @@ $customQs = function (int $n) use ($form, $customQ): string {
             <?php break; case 'guardian_name': ?>
             <label class="zp-label" for="zp-gn"><?= $lbl($key) ?></label><input id="zp-gn" name="guardian_name" class="zp-input" x-model="f.guardian_name" autocomplete="name"<?= $dsc($key, 'zp-gn-h') ?> required><?= $hlp($key, 'zp-gn-h') ?>
             <?php break; case 'guardian_email': ?>
-            <label class="zp-label" for="zp-ge"><?= $lbl($key) ?></label><input id="zp-ge" type="email" name="guardian_email" class="zp-input" x-model="f.guardian_email" autocomplete="email"<?= $dsc($key, 'zp-ge-h') ?> required><?= $hlp($key, 'zp-ge-h') ?>
+            <label class="zp-label" for="zp-ge"><?= $lbl($key) ?></label><input id="zp-ge" type="email" name="guardian_email" class="zp-input" x-model="f.guardian_email" :readonly="!!accEmail" autocomplete="email"<?= $dsc($key, 'zp-ge-h') ?> required><?= $hlp($key, 'zp-ge-h') ?>
             <?php break; case 'guardian_phone': ?>
             <label class="zp-label" for="zp-gp"><?= $lbl($key) ?></label>
             <div class="tw-flex tw-gap-2">

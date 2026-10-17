@@ -8,6 +8,7 @@
  * i adresu opiekuna, PESEL, zgód, historii, EZD i CRM).
  */
 require_once __DIR__ . '/nabor.php';
+require_once __DIR__ . '/naborAccount.php';
 
 final class NaborPanelController
 {
@@ -89,7 +90,10 @@ final class NaborPanelController
         $creds = $_SESSION['nabor_creds'][$id] ?? null;           // hasła pokazujemy raz, po przyjęciu
         unset($_SESSION['nabor_creds'][$id]);
         $account = $s['client_id'] ? db_one("SELECT login, parent_login, is_minor FROM k30_ti_student_accounts WHERE client_id=?", [(int)$s['client_id']]) : null;
+        naborMessagesMarkRead($id, 'staff');
         return Router::view(self::VIEW . 'zgloszenie.php', [
+            'msgs' => naborMessages($id), 'docs' => naborDocuments($id),
+            'candAcc' => $s['account_id'] ? naborAccountGet((int)$s['account_id']) : null,
             'creds' => $creds, 'account' => $account,
             'me' => $this->me(), 's' => $s, 'cons' => naborConsents($id) ?: [], 'hist' => naborHistory($id),
             'courses' => naborCourses(), 'ezdZnak' => $ezdZnak,
@@ -115,6 +119,26 @@ final class NaborPanelController
                     $ch = naborUpdateData($id, $_POST, $me['id'], $me['name']);
                     flash_set($ch ? 'success' : 'info', $ch ? 'Zapisano zmiany: ' . implode(', ', $ch) . '.' : 'Bez zmian.');
                     break;
+                case 'message':
+                    naborMessageAdd($id, 'staff', (string)($_POST['body'] ?? ''), $me['id'], $me['name']);
+                    naborHistoryNote($id, 'Wiadomość do opiekuna wysłana z panelu.', $me['id'], $me['name']);
+                    flash_set('success', 'Wiadomość wysłana — opiekun dostał powiadomienie e-mail i SMS.');
+                    break;
+                case 'doc_request':
+                    naborDocRequest($id, (string)($_POST['doc_name'] ?? ''), (string)($_POST['doc_note'] ?? ''), $me['id'], $me['name']);
+                    flash_set('success', 'Prośba o dokument wysłana do opiekuna.');
+                    break;
+                case 'doc_review':
+                    naborDocReview($id, (int)($_POST['doc_id'] ?? 0), ($_POST['verdict'] ?? '') === 'ok', (string)($_POST['review_note'] ?? ''), $me['id'], $me['name']);
+                    flash_set('success', 'Zapisano ocenę dokumentu.');
+                    break;
+                case 'account_invite':
+                    $s = naborSubmissionGet($id);
+                    $accId = naborAccountLinkSubmission($id);
+                    $acc = $accId ? naborAccountGet($accId) : null;
+                    if ($acc && $acc['password_hash']) naborAccountRequestReset($acc['email']);
+                    flash_set($acc ? 'success' : 'warning', $acc ? 'Wysłano opiekunowi link do konta kandydata (' . $acc['email'] . ').' : 'Nie udało się przygotować konta.');
+                    break;
                 case 'note':
                     if (($n = trim((string)($_POST['note'] ?? ''))) !== '') naborHistoryNote($id, $n, $me['id'], $me['name']);
                     break;
@@ -135,6 +159,13 @@ final class NaborPanelController
             flash_set('danger', $e->getMessage());
         }
         return Router::redirect(route('nabor.show', ['id' => $id]));
+    }
+
+    public function document(int $id, int $doc): ?string
+    {
+        $this->find($id);
+        require_once __DIR__ . '/NaborCandidateController.php';
+        return naborSendDocument($id, $doc);
     }
 
     public function pdf(int $id): ?string
@@ -172,6 +203,7 @@ final class NaborPanelController
         return Router::view(self::VIEW . 'formularz.php', [
             'me' => $this->me(), 'form' => naborForm(), 'defaults' => naborFormDefaults(),
             'previewUrl' => naborUrl('/zapisy', ['podglad' => naborPreviewToken()]),
+            'staffEmail' => org_setting('ti_nabor_staff_email'), 'smsProvider' => naborSmsProvider() ?: 'chain',
         ]);
     }
 
@@ -186,6 +218,10 @@ final class NaborPanelController
             flash_set('success', 'Przywrócono domyślny wygląd formularza.');
         } else {
             naborFormSave($cfg);
+            $mail = trim((string)($_POST['staff_email'] ?? ''));
+            org_setting_set('ti_nabor_staff_email', filter_var($mail, FILTER_VALIDATE_EMAIL) ? $mail : '');
+            $prov = (string)($_POST['sms_provider'] ?? 'sendly');
+            org_setting_set('ti_nabor_sms_provider', $prov === 'chain' || isset(sms_providers()[$prov]) ? $prov : 'sendly');
             flash_set('success', 'Zapisano formularz. Zmiany widać od razu w formularzu publicznym.');
         }
         return Router::redirect(route('nabor.form.edit'));

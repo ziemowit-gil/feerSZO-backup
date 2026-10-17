@@ -29,6 +29,10 @@
     <?php else: ?>
       <p class="tw-text-gray-600">Zgłoszenie trafiło do rozpatrzenia. PDF z danymi wysłaliśmy na adres e-mail.</p>
     <?php endif; ?>
+    <div class="tw-bg-[#edf3fe] tw-rounded-xl tw-p-4 tw-mt-5 tw-text-sm tw-text-left">
+      <strong>Konto kandydata.</strong> Wysłaliśmy e-mail z linkiem do ustawienia hasła (jeśli konto nie miało jeszcze hasła). Na koncie zobaczysz status, wiadomości i dokumenty.
+      <div class="tw-mt-2"><a class="tw-text-[#1d68f2] tw-font-bold" href="<?= h(naborUrl('/logowanie')) ?>">Zaloguj się na konto kandydata →</a></div>
+    </div>
   <?php else: ?>
     <h1 class="tw-text-xl tw-font-bold tw-mb-3">Potwierdź zgłoszenie</h1>
     <p class="tw-text-gray-600 tw-mb-6">Zgłoszenie <strong><?= h($sub['registration_number']) ?></strong>. Kliknij, aby potwierdzić adres e-mail i przekazać zgłoszenie do rozpatrzenia.</p>

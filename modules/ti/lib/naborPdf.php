@@ -109,3 +109,31 @@ function naborSubmissionPdf(int $sid): string {
         . 'Zgody można wycofać w każdej chwili, kontaktując się z administratorem danych.'), 0, 'L');
     return $pdf->Output('S');
 }
+
+/** PDF akceptacji warunków uczestnictwa (konto kandydata) — treść, uczestnik, opiekun, IP i czas akceptacji. */
+function naborAgreementPdf(int $sid): string {
+    $s = naborSubmissionGet($sid);
+    if (!$s) throw new RuntimeException('Zgłoszenie nie istnieje.');
+    $p = fn($t) => TiPdf::pl($t);
+    $pdf = new TiPdf('P', 'mm', 'A4');
+    $pdf->SetMargins(15, 15, 15);
+    $pdf->SetAutoPageBreak(true, 18);
+    $pdf->AddPage();
+    $pdf->SetFillColor(15, 80, 150);
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont('DejaVu', 'B', 13);
+    $pdf->Cell(0, 10, $p('Warunki uczestnictwa — akceptacja'), 0, 1, 'L', true);
+    $pdf->Ln(3);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFont('DejaVu', '', 9.5);
+    $pdf->MultiCell(0, 5.5, $p('Zgłoszenie: ' . $s['registration_number'] . "\nUczestnik: " . $s['participant_name']
+        . ($s['course_name'] ? "\nGrupa: " . $s['course_name'] : '') . "\nOpiekun: " . $s['guardian_name'] . ', ' . $s['guardian_email']), 0, 'L');
+    $pdf->Ln(3);
+    $pdf->SetFont('DejaVu', '', 9);
+    $pdf->MultiCell(0, 5, $p(naborAgreementText()), 0, 'L');
+    $pdf->Ln(4);
+    $pdf->SetFont('DejaVu', 'B', 9);
+    $pdf->MultiCell(0, 5, $p('Zaakceptowano w koncie kandydata: ' . naborTime($s['agreement_accepted_at'] ?? gmdate('Y-m-d H:i:s'), true)
+        . ' · IP ' . ($s['agreement_ip'] ?: naborClientIp()) . ' · konto ' . $s['guardian_email']), 0, 'L');
+    return $pdf->Output('S');
+}

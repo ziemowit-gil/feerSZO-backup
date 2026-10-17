@@ -124,7 +124,10 @@ function naborKanban(init) {
     <?php foreach ($rows as $r): ?>
       <tr>
         <td><input type="checkbox" class="form-check-input zp-row" name="ids[]" value="<?= (int)$r['id'] ?>" x-model="sel" aria-label="Zaznacz <?= h($r['registration_number']) ?>"></td>
-        <td><a href="<?= h(route('nabor.show', ['id' => (int)$r['id']])) ?>"><?= h($r['registration_number']) ?></a><?= $r['is_test'] ? ' <span class="badge text-bg-warning">TEST</span>' : '' ?></td>
+        <td><a href="<?= h(route('nabor.show', ['id' => (int)$r['id']])) ?>"><?= h($r['registration_number']) ?></a><?= $r['is_test'] ? ' <span class="badge text-bg-warning">TEST</span>' : '' ?>
+          <?= (int)$r['unread'] ? ' <span class="badge text-bg-primary" title="Nieprzeczytane wiadomości od opiekuna"><i class="bi bi-envelope"></i> ' . (int)$r['unread'] . '</span>' : '' ?>
+          <?= (int)$r['docs_review'] ? ' <span class="badge text-bg-info" title="Dokumenty do sprawdzenia"><i class="bi bi-file-earmark-arrow-up"></i> ' . (int)$r['docs_review'] . '</span>' : '' ?>
+          <?= $r['place_confirmed_at'] ? ' <span class="badge text-bg-success" title="Miejsce potwierdzone przez opiekuna"><i class="bi bi-patch-check"></i></span>' : '' ?></td>
         <td><?= h($r['participant_name']) ?><?= $r['participant_school_class'] !== '' ? '<div class="small text-muted">' . h($r['participant_school_class']) . '</div>' : '' ?></td>
         <td><?= $r['is_custom_schedule'] && !$r['course_id'] ? '<span class="text-warning-emphasis">Termin do ustalenia</span>' : h((string)$r['course_name']) ?></td>
         <td><?= h($r['guardian_name']) ?><div class="small text-muted"><?= h($r['guardian_email']) ?> · +<?= h($r['guardian_phone']) ?></div></td>

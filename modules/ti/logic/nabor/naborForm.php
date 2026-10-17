@@ -42,6 +42,8 @@ function naborFormDefaults(): array {
             'intro'  => '',
             'thanks' => 'Dziękujemy! Zgłoszenie zostało zarejestrowane',
             'clause' => '',   // '' = tekst wbudowany albo klauzula z rejestru RODO
+            'agreement' => '', // warunki uczestnictwa / umowa do akceptacji po przyjęciu ('' = samo potwierdzenie miejsca)
+            'payment_info' => '', // informacja o opłatach w koncie kandydata po potwierdzeniu miejsca
         ],
         'steps' => [1 => 'Zajęcia', 2 => 'Uczestnik', 3 => 'Opiekun', 4 => 'Zgody', 5 => 'Podsumowanie'],
         'step_titles' => [1 => 'Wybierz zajęcia', 2 => 'Dane uczestnika', 3 => 'Rodzic / opiekun prawny', 4 => 'Zgody i oświadczenia', 5 => 'Podsumowanie'],
@@ -79,7 +81,7 @@ function naborForm(): array {
     $def = naborFormDefaults();
     $saved = json_decode(org_setting('ti_nabor_form') ?: '[]', true) ?: [];
     $f = $def;
-    foreach (['title', 'intro', 'thanks', 'clause'] as $k) if (isset($saved['texts'][$k])) $f['texts'][$k] = (string)$saved['texts'][$k];
+    foreach (['title', 'intro', 'thanks', 'clause', 'agreement', 'payment_info'] as $k) if (isset($saved['texts'][$k])) $f['texts'][$k] = (string)$saved['texts'][$k];
     foreach ([1, 2, 3, 4, 5] as $i) {
         if (trim((string)($saved['steps'][$i] ?? '')) !== '') $f['steps'][$i] = (string)$saved['steps'][$i];
         if (trim((string)($saved['step_titles'][$i] ?? '')) !== '') $f['step_titles'][$i] = (string)$saved['step_titles'][$i];
@@ -121,7 +123,7 @@ function naborFormSave(array $in): array {
     $t = fn($v, $max = 500) => mb_substr(trim(strip_tags((string)$v)), 0, $max);
     $def = naborFormDefaults();
     $out = ['texts' => [], 'steps' => [], 'step_titles' => [], 'fields' => [], 'consents' => [], 'equipment' => [], 'custom' => [], 'order' => []];
-    foreach (['title' => 120, 'intro' => 2000, 'thanks' => 300, 'clause' => 4000] as $k => $max) $out['texts'][$k] = $t($in['texts'][$k] ?? $def['texts'][$k], $max);
+    foreach (['title' => 120, 'intro' => 2000, 'thanks' => 300, 'clause' => 4000, 'agreement' => 20000, 'payment_info' => 3000] as $k => $max) $out['texts'][$k] = $t($in['texts'][$k] ?? $def['texts'][$k], $max);
     foreach ([1, 2, 3, 4, 5] as $i) {
         $out['steps'][$i] = $t($in['steps'][$i] ?? '', 40) ?: $def['steps'][$i];
         $out['step_titles'][$i] = $t($in['step_titles'][$i] ?? '', 120) ?: $def['step_titles'][$i];

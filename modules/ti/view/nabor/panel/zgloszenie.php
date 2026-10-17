@@ -156,6 +156,72 @@ include __DIR__ . '/_head.php';
       </form>
     </div></div>
 
+    <?php if ($s['status'] === 'accepted'): ?>
+    <div class="card mb-3 border-success"><div class="card-header fw-bold">Po przyjęciu</div><div class="card-body small">
+      <?php if ($s['place_confirmed_at']): ?>
+        <div class="text-success fw-bold"><i class="bi bi-patch-check"></i> Miejsce potwierdzone <?= h(naborTime($s['place_confirmed_at'])) ?></div>
+        <?php if ($s['agreement_accepted_at']): ?><div>Warunki zaakceptowane <?= h(naborTime($s['agreement_accepted_at'])) ?> (IP <?= h($s['agreement_ip']) ?>) — PDF w koszulce EZD.</div><?php endif; ?>
+      <?php else: ?>
+        <div class="text-warning-emphasis">Opiekun jeszcze nie potwierdził miejsca w koncie kandydata.</div>
+      <?php endif; ?>
+    </div></div>
+    <?php endif; ?>
+
+    <div class="card mb-3"><div class="card-header fw-bold">Konto kandydata</div><div class="card-body small">
+      <?php if ($candAcc): ?>
+        <div><?= h($candAcc['email']) ?> · <?= $candAcc['password_hash'] ? 'hasło ustawione' : '<span class="text-warning-emphasis">hasło nieustawione</span>' ?></div>
+        <div class="text-muted">Ostatnie logowanie: <?= h(naborTime($candAcc['last_login_at']) ?: '—') ?></div>
+      <?php else: ?>
+        <div class="text-muted">Zgłoszenie nie jest jeszcze powiązane z kontem.</div>
+      <?php endif; ?>
+      <?php if (!$s['is_test'] && $s['status'] !== 'unconfirmed'): ?>
+        <form method="post" action="<?= $upd ?>" class="mt-2"><?= Router::csrfField() ?><input type="hidden" name="_op" value="account_invite">
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-envelope"></i> <?= $candAcc && $candAcc['password_hash'] ? 'Wyślij link do zmiany hasła' : 'Wyślij link do ustawienia hasła' ?></button></form>
+      <?php endif; ?>
+    </div></div>
+
+    <div class="card mb-3" id="dokumenty"><div class="card-header fw-bold">Dokumenty</div>
+      <ul class="list-group list-group-flush small">
+        <?php foreach ($docs as $d): ?>
+        <li class="list-group-item">
+          <div class="d-flex justify-content-between gap-2"><strong><?= h($d['name']) ?></strong>
+            <span class="badge text-bg-<?= NABOR_DOC_STATUSES[$d['status']][1] ?? 'secondary' ?>"><?= h(NABOR_DOC_STATUSES[$d['status']][0] ?? $d['status']) ?></span></div>
+          <?php if ($d['file_path']): ?><div><a href="<?= h(route('nabor.doc', ['id' => (int)$s['id'], 'doc' => (int)$d['id']])) ?>" target="_blank"><i class="bi bi-paperclip"></i> <?= h($d['file_name']) ?></a> · <?= h(naborTime($d['uploaded_at'])) ?></div><?php endif; ?>
+          <?php if ($d['review_note'] !== ''): ?><div class="text-muted"><?= h($d['review_note']) ?></div><?php endif; ?>
+          <?php if ($d['status'] === 'uploaded'): ?>
+            <form method="post" action="<?= $upd ?>" class="d-flex gap-1 mt-1"><?= Router::csrfField() ?><input type="hidden" name="_op" value="doc_review"><input type="hidden" name="doc_id" value="<?= (int)$d['id'] ?>">
+              <label class="visually-hidden" for="rn<?= (int)$d['id'] ?>">Uwaga</label><input id="rn<?= (int)$d['id'] ?>" name="review_note" class="form-control form-control-sm" placeholder="uwaga (przy odrzuceniu)">
+              <button class="btn btn-sm btn-outline-success" name="verdict" value="ok" title="Akceptuj"><i class="bi bi-check-lg"></i><span class="visually-hidden">Akceptuj</span></button>
+              <button class="btn btn-sm btn-outline-danger" name="verdict" value="bad" title="Do poprawy"><i class="bi bi-x-lg"></i><span class="visually-hidden">Do poprawy</span></button>
+            </form>
+          <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+        <?php if (!$docs): ?><li class="list-group-item text-muted">Brak dokumentów.</li><?php endif; ?>
+      </ul>
+      <div class="card-body"><form method="post" action="<?= $upd ?>" class="d-grid gap-1"><?= Router::csrfField() ?><input type="hidden" name="_op" value="doc_request">
+        <label class="small fw-semibold" for="dr-n">Poproś o dokument</label>
+        <input id="dr-n" name="doc_name" class="form-control form-control-sm" placeholder="np. Orzeczenie o niepełnosprawności" required>
+        <label class="visually-hidden" for="dr-o">Opis</label><input id="dr-o" name="doc_note" class="form-control form-control-sm" placeholder="opis dla opiekuna (opcjonalny)">
+        <button class="btn btn-sm btn-outline-primary">Wyślij prośbę</button></form></div>
+    </div>
+
+    <div class="card mb-3" id="wiadomosci"><div class="card-header fw-bold">Wiadomości z opiekunem</div>
+      <div class="card-body small" style="max-height:22rem;overflow-y:auto" role="log">
+        <?php foreach ($msgs as $m): $st = $m['author'] === 'staff'; ?>
+          <div class="rounded p-2 mb-2 <?= $st ? 'bg-primary-subtle ms-4' : 'bg-light me-4' ?>">
+            <div class="text-muted" style="font-size:.75rem"><?= $st ? h($m['author_name'] ?: 'Kierownik') : 'Opiekun' ?> · <?= h(naborTime($m['created_at'])) ?><?= $st && $m['read_at'] ? ' · przeczytana' : '' ?></div>
+            <div style="white-space:pre-line"><?= h($m['body']) ?></div>
+          </div>
+        <?php endforeach; ?>
+        <?php if (!$msgs): ?><div class="text-muted">Brak wiadomości.</div><?php endif; ?>
+      </div>
+      <div class="card-body pt-0"><form method="post" action="<?= $upd ?>" class="d-grid gap-1"><?= Router::csrfField() ?><input type="hidden" name="_op" value="message">
+        <label class="visually-hidden" for="mb">Wiadomość do opiekuna</label>
+        <textarea id="mb" name="body" rows="2" class="form-control form-control-sm" placeholder="Wiadomość do opiekuna (e-mail + SMS z powiadomieniem)" required></textarea>
+        <button class="btn btn-sm btn-primary" <?= $s['is_test'] ? 'disabled title="Zgłoszenie testowe"' : '' ?>>Wyślij</button></form></div>
+    </div>
+
     <div class="card"><div class="card-header fw-bold">Historia obiegu</div>
       <ul class="list-group list-group-flush small">
       <?php foreach (array_reverse($hist) as $hrow): ?>

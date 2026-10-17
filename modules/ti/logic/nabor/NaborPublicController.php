@@ -11,6 +11,7 @@
  */
 require_once __DIR__ . '/nabor.php';
 require_once dirname(__DIR__, 4) . '/modules/weryfikacja_sms/logic/phoneVerify.php';
+require_once __DIR__ . '/naborAccount.php';
 require_once dirname(__DIR__, 4) . '/includes/branding.php';
 require_once dirname(__DIR__, 4) . '/modules/gdpr_clauses/logic/gdpr_clauses.php';
 
@@ -34,7 +35,8 @@ final class NaborPublicController
             'errors'   => $errors,
             'done'     => $done,
             'doneMail' => $_SESSION['ti_nabor_done_email'] ?? '',
-            'init'     => $done ? [] : $this->initState($errors, $old, $preview),
+            'init'     => $done ? [] : $this->initState($errors, $old ?: $this->accountPrefill(), $preview),
+            'acc'      => naborAccountCurrent(),
             'form'     => naborForm(),
             'preview'  => $preview,
         ]);
@@ -48,17 +50,28 @@ final class NaborPublicController
             return Router::redirect(route('nabor.form', ['done' => 1]));
         }
         $ip = naborClientIp();
-        [$data, $errors] = naborValidate($_POST, phoneVerifiedInSession(NABOR_PHONE_PURPOSE));
+        // Zalogowany kandydat: e-mail z konta, telefon konta uznany za zweryfikowany — bez kodu SMS i linku e-mail
+        $acc = naborAccountCurrent();
+        $verified = phoneVerifiedInSession(NABOR_PHONE_PURPOSE);
+        if ($acc) {
+            $_POST['guardian_email'] = $acc['email'];
+            if ($acc['phone_verified_at'] && phoneVerifyNormalize((string)($_POST['guardian_phone'] ?? '')) === $acc['phone']) $verified = $acc['phone'];
+        }
+        [$data, $errors] = naborValidate($_POST, $verified);
         $n = (int)db_one("SELECT COUNT(*) n FROM ti_nabor_submissions WHERE ip_address=? AND created_at>?", [$ip, gmdate('Y-m-d H:i:s', time() - 86400)])['n'];
         if ($ip !== '' && $n >= 5) $errors = ['Przekroczono dzienny limit zgłoszeń z tego urządzenia. Spróbuj jutro lub napisz do nas.'];
         if (!$errors) {
             try {
-                $res = naborSubmissionCreate($data);
+                $res = naborSubmissionCreate($data, $acc ? (int)$acc['id'] : null);
                 if ($clause = gdpr_clause_resolve(null, 'ti_nabor')) {
                     gdpr_clause_accept_from_post($clause['clause']['slug'], 'ti_nabor',
                         ['name' => $data['guardian_name'], 'email' => $data['guardian_email']], ['ti_nabor', $res['id']]);
                 }
                 phoneVerifyForget(NABOR_PHONE_PURPOSE);
+                if ($acc) {
+                    flash_set('success', 'Zgłoszenie ' . $res['registration_number'] . ' zostało przyjęte do rozpatrzenia.');
+                    return Router::redirect(naborUrl('/konto/zgloszenia/' . $res['id']));
+                }
                 $_SESSION['ti_nabor_done'] = $res['registration_number'];
                 $_SESSION['ti_nabor_done_email'] = $data['guardian_email'];
                 return Router::redirect(route('nabor.form', ['done' => 1]));
@@ -116,6 +129,17 @@ final class NaborPublicController
         if (!naborPublicOpen()) { http_response_code(404); exit('Nabór do grup jest obecnie zamknięty.'); }
     }
 
+    /** Zalogowany kandydat: dane opiekuna z konta i ostatniego zgłoszenia (adres). */
+    private function accountPrefill(): array
+    {
+        $acc = naborAccountCurrent();
+        if (!$acc) return [];
+        $last = db_one("SELECT guardian_name, guardian_street, guardian_postal_code, guardian_city FROM ti_nabor_submissions
+                         WHERE account_id=? ORDER BY id DESC LIMIT 1", [$acc['id']]) ?: [];
+        return ['guardian_name' => $last['guardian_name'] ?? $acc['name'], 'guardian_email' => $acc['email'], 'guardian_phone' => $acc['phone'],
+                'guardian_street' => $last['guardian_street'] ?? '', 'guardian_postal_code' => $last['guardian_postal_code'] ?? '', 'guardian_city' => $last['guardian_city'] ?? ''];
+    }
+
     /** Warunki pól zależnych dla przeglądarki: klucz pola albo 'q:<id>' => warunek. */
     private function conds(): object
     {
@@ -131,6 +155,7 @@ final class NaborPublicController
         $s = fn($k) => (string)($old[$k] ?? '');
         $b = fn($k) => !empty($old[$k]);
         $a = fn($k) => array_values((array)($old[$k] ?? []));
+        $acc = naborAccountCurrent();
         return [
             'step'     => $errors ? 5 : 1,
             'csrf'     => csrf_token(),
@@ -148,7 +173,8 @@ final class NaborPublicController
             'vis'     => array_map(fn($f) => (bool)$f['visible'], naborForm()['fields']),
             'custom'  => array_map(fn($q) => ['id' => $q['id'], 'step' => (int)$q['step'], 'label' => $q['label'], 'required' => (bool)$q['required']], naborForm()['custom']),
             'conds'   => $this->conds(),
-            'verified' => phoneVerifiedInSession(NABOR_PHONE_PURPOSE),
+            'verified' => $acc && $acc['phone_verified_at'] ? $acc['phone'] : phoneVerifiedInSession(NABOR_PHONE_PURPOSE),
+            'accEmail' => $acc ? $acc['email'] : '',
             'f' => [
                 'course_id' => $s('course_id'), 'is_custom_schedule' => $b('is_custom_schedule'),
                 'preferred_days' => $a('preferred_days'), 'preferred_time_slots' => $a('preferred_time_slots'),

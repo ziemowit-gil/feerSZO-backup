@@ -72,6 +72,10 @@ function naborMigrate(): void {
     // Zajęcia online: sprzęt uczestnika zamiast zasad odbioru (pickup_* zostają dla starszych zgłoszeń)
     if (!in_array('equipment', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN equipment TEXT NOT NULL DEFAULT '[]'");
     if (!in_array('extra', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'");   // pytania dodatkowe z edytora
+    if (!in_array('account_id', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN account_id INTEGER");   // konto kandydata (IRK)
+    if (!in_array('place_confirmed_at', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN place_confirmed_at DATETIME");
+    if (!in_array('agreement_accepted_at', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN agreement_accepted_at DATETIME");
+    if (!in_array('agreement_ip', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN agreement_ip TEXT NOT NULL DEFAULT ''");
     if (!in_array('equipment_notes', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN equipment_notes TEXT NOT NULL DEFAULT ''");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_status ON ti_nabor_submissions(status)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_sub_course ON ti_nabor_submissions(course_id, status)");
@@ -101,4 +105,50 @@ function naborMigrate(): void {
         created_at    DATETIME NOT NULL DEFAULT (datetime('now'))
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_hist_sub ON ti_nabor_history(submission_id)");
+
+    // Konto kandydata (IRK): opiekun loguje się e-mailem i hasłem, widzi wszystkie swoje zgłoszenia
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ti_nabor_accounts (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        email             TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        name              TEXT    NOT NULL DEFAULT '',
+        phone             TEXT    NOT NULL DEFAULT '',
+        password_hash     TEXT,                              -- NULL = hasło jeszcze nieustawione
+        email_verified_at DATETIME,
+        phone_verified_at DATETIME,
+        token_hash        TEXT,                              -- ustawienie / reset hasła (sha256)
+        token_expires_at  DATETIME,
+        failed_logins     INTEGER NOT NULL DEFAULT 0,
+        locked_until      DATETIME,
+        last_login_at     DATETIME,
+        created_at        DATETIME NOT NULL DEFAULT (datetime('now'))
+    )");
+    // Wiadomości w zgłoszeniu (kandydat ↔ kierownik)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ti_nabor_messages (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        submission_id INTEGER NOT NULL REFERENCES ti_nabor_submissions(id) ON DELETE CASCADE,
+        author        TEXT    NOT NULL,                      -- staff | candidate
+        user_id       INTEGER,
+        author_name   TEXT    NOT NULL DEFAULT '',
+        body          TEXT    NOT NULL,
+        read_at       DATETIME,                              -- przeczytana przez drugą stronę
+        created_at    DATETIME NOT NULL DEFAULT (datetime('now'))
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_msg_sub ON ti_nabor_messages(submission_id)");
+    // Dokumenty: prośby kierownika i pliki kandydata
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ti_nabor_documents (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        submission_id INTEGER NOT NULL REFERENCES ti_nabor_submissions(id) ON DELETE CASCADE,
+        name          TEXT    NOT NULL,                      -- np. „Orzeczenie o niepełnosprawności”
+        note          TEXT    NOT NULL DEFAULT '',
+        status        TEXT    NOT NULL DEFAULT 'requested',  -- requested | uploaded | accepted | rejected
+        file_path     TEXT,                                  -- względnie wobec UPLOAD_DIR
+        file_name     TEXT,
+        file_size     INTEGER,
+        uploaded_at   DATETIME,
+        reviewed_at   DATETIME,
+        review_note   TEXT    NOT NULL DEFAULT '',
+        requested_by  INTEGER,
+        created_at    DATETIME NOT NULL DEFAULT (datetime('now'))
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ti_nabor_doc_sub ON ti_nabor_documents(submission_id)");
 }

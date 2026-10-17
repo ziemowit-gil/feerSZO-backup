@@ -197,6 +197,32 @@ include __DIR__ . '/_head.php';
       </section>
     </template>
 
+    <!-- Po przyjęciu (konto kandydata) -->
+    <section class="fe-step" aria-label="Po przyjęciu">
+      <header><i class="bi bi-patch-check"></i><strong>Po przyjęciu — konto kandydata</strong></header>
+      <div class="fe-body">
+        <div><span class="fe-tag">Warunki uczestnictwa / umowa do akceptacji</span>
+          <textarea class="form-control form-control-sm" rows="6" x-model="cfg.texts.agreement" placeholder="Puste = opiekun tylko potwierdza miejsce. Treść zaakceptowana w koncie kandydata trafia jako PDF (z IP i czasem) do koszulki EZD." aria-label="Warunki uczestnictwa"></textarea></div>
+        <div><span class="fe-tag">Informacja o opłatach (pokazywana po potwierdzeniu miejsca)</span>
+          <textarea class="form-control form-control-sm" rows="3" x-model="cfg.texts.payment_info" placeholder="np. Opłata 120 zł miesięcznie, do 10. dnia miesiąca. Przelew na indywidualny rachunek albo płatność online." aria-label="Informacja o opłatach"></textarea></div>
+      </div>
+    </section>
+
+    <!-- Powiadomienia -->
+    <section class="fe-step" aria-label="Powiadomienia">
+      <header><i class="bi bi-bell"></i><strong>Powiadomienia</strong></header>
+      <div class="fe-body row g-2">
+        <div class="col-md-7"><label class="form-label small" for="se">E-mail kierownika (wiadomości, dokumenty, potwierdzenia miejsca)</label>
+          <input id="se" type="email" name="staff_email" class="form-control form-control-sm" value="<?= h($staffEmail) ?>" placeholder="puste = bez powiadomień e-mail"></div>
+        <div class="col-md-5"><label class="form-label small" for="sp">Dostawca SMS naboru</label>
+          <select id="sp" name="sms_provider" class="form-select form-select-sm">
+            <?php require_once dirname(__DIR__, 5) . '/includes/sms.php'; foreach (['chain' => 'Łańcuch systemowy (główny + zapasowy)'] + sms_providers() as $k => $l): ?>
+              <option value="<?= h($k) ?>" <?= $smsProvider === $k ? 'selected' : '' ?>><?= h($l) ?><?= $k !== 'chain' && !sms_provider_ready($k) ? ' — nieskonfigurowany' : '' ?></option>
+            <?php endforeach; ?>
+          </select><div class="form-text">Przy błędzie wybranego dostawcy SMS idzie łańcuchem systemowym.</div></div>
+      </div>
+    </section>
+
     <!-- Sprzęt do zajęć online -->
     <section class="fe-step" aria-label="Sprzęt do zajęć online">
       <header><i class="bi bi-laptop"></i><strong>Lista sprzętu do zajęć online</strong><span class="small text-muted ms-auto">pole „<span x-text="cfg.fields.equipment.label"></span>” w kroku 2</span></header>

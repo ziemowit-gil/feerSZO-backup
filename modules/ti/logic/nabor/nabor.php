@@ -328,7 +328,11 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
  * Zapis zgłoszenia (status unconfirmed) + zgody + historia; wysyła e-mail z linkiem potwierdzającym.
  * Zwraca ['id','registration_number'].
  */
-function naborSubmissionCreate(array $d): array {
+/**
+ * $accountId — zgłoszenie złożone z konta kandydata (e-mail i telefon zweryfikowane wcześniej): bez linku e-mail,
+ * od razu wchodzi do obiegu (naborConfirmSubmission).
+ */
+function naborSubmissionCreate(array $d, ?int $accountId = null): array {
     naborMigrate();
     $token = bin2hex(random_bytes(24));
     $ip    = naborClientIp();
@@ -379,7 +383,12 @@ function naborSubmissionCreate(array $d): array {
         throw $e;
     }
     require_once __DIR__ . '/naborNotify.php';
-    naborNotifyConfirmEmail(naborSubmissionGet($id), $token);
+    if ($accountId) {
+        db_exec("UPDATE ti_nabor_submissions SET account_id=?, email_confirmed_at=datetime('now') WHERE id=?", [$accountId, $id]);
+        naborConfirmSubmission($id, 'Zgłoszenie złożone z konta kandydata (e-mail i telefon zweryfikowane)');
+    } else {
+        naborNotifyConfirmEmail(naborSubmissionGet($id), $token);
+    }
     return ['id' => $id, 'registration_number' => $nr];
 }
 
@@ -409,9 +418,17 @@ function naborConfirmEmail(string $token): ?array {
     if (!preg_match('/^[a-f0-9]{48}$/', $token)) return null;
     $s = db_one("SELECT id, status FROM ti_nabor_submissions WHERE email_token_hash=?", [hash('sha256', $token)]);
     if (!$s) return null;
-    if ($s['status'] !== 'unconfirmed') return naborSubmissionGet((int)$s['id']);
+    return naborConfirmSubmission((int)$s['id'], 'Adres e-mail potwierdzony przez opiekuna');
+}
 
-    $sub = naborSubmissionGet((int)$s['id']);
+/**
+ * Wprowadzenie zgłoszenia do obiegu (status new / waitlist / custom_schedule) + konto kandydata, EZD, CRM, e-mail z PDF.
+ * Wołane po kliknięciu linku albo od razu, gdy zgłoszenie złożył zalogowany kandydat (e-mail i telefon już zweryfikowane).
+ */
+function naborConfirmSubmission(int $id, string $why): ?array {
+    $sub = naborSubmissionGet($id);
+    if (!$sub) return null;
+    if ($sub['status'] !== 'unconfirmed') return $sub;
     if ($sub['is_custom_schedule']) {
         $to = 'custom_schedule';
     } else {
@@ -424,8 +441,10 @@ function naborConfirmEmail(string $token): ?array {
     $st->execute([$to, $sub['id']]);
     if ($st->rowCount() !== 1) return naborSubmissionGet((int)$sub['id']);
     naborHistoryAdd((int)$sub['id'], null, 'unconfirmed', $to,
-        'Adres e-mail potwierdzony przez opiekuna' . ($to === 'waitlist' ? ' — brak wolnych miejsc, lista rezerwowa.' : '.'));
+        $why . ($to === 'waitlist' ? ' — brak wolnych miejsc, lista rezerwowa.' : '.'));
 
+    require_once __DIR__ . '/naborAccount.php';
+    naborAccountLinkSubmission((int)$sub['id']);
     naborAfterConfirm((int)$sub['id']);
     return naborSubmissionGet((int)$sub['id']);
 }
@@ -608,7 +627,9 @@ function naborSubmissionsList(array $f = []): array {
     $ezd = (bool)db_one("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ezd_sprawy'");
     return db_all(
         "SELECT s.id, s.registration_number, s.status, s.participant_name, s.participant_school_class, s.guardian_name,
-                s.guardian_phone, s.guardian_email, s.is_custom_schedule, s.ezd_case_id, s.created_at, s.course_id, s.is_test,
+                s.guardian_phone, s.guardian_email, s.is_custom_schedule, s.ezd_case_id, s.created_at, s.course_id, s.is_test, s.place_confirmed_at,
+                (SELECT COUNT(*) FROM ti_nabor_messages m WHERE m.submission_id=s.id AND m.author='candidate' AND m.read_at IS NULL) AS unread,
+                (SELECT COUNT(*) FROM ti_nabor_documents d WHERE d.submission_id=s.id AND d.status='uploaded') AS docs_review,
                 COALESCE(NULLIF(n.public_name,''), NULLIF(c.display_name,''), c.name) AS course_name, " . ($ezd ? 'e.znak_sprawy' : 'NULL AS znak_sprawy') . "
            FROM ti_nabor_submissions s
       LEFT JOIN k30_ti_courses c ON c.id=s.course_id
