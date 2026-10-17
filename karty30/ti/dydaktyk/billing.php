@@ -912,7 +912,10 @@ echo '<main id="main" class="dyd-wrap">';
   </form>
   <?php endif; ?>
   <?php if ($preview && $can_write): ?>
-  <form method="post" class="<?= $billings ? '' : 'ms-auto' ?>" onsubmit="return confirm('Wystawić rozliczenia dla wszystkich klientów z lekcjami w tym miesiącu?')">
+  <?php $_pv_sum = array_sum(array_map(fn($p) => (float)$p['amount'], $preview)); ?>
+  <form method="post" class="<?= $billings ? '' : 'ms-auto' ?>"
+        data-confirm-n="<?= count($preview) ?>" data-confirm-sum="<?= h(number_format($_pv_sum, 2, ',', ' ')) ?>"
+        onsubmit="var s=event.submitter&&event.submitter.value==='statement';return confirm('Wystawić '+this.dataset.confirmN+' rozliczeń za <?= h($months_pl[$month] . ' ' . $year) ?> na łącznie '+this.dataset.confirmSum+' zł?\n\nTryb: '+(s?'tylko zestawienia (bez faktur VAT)':'z fakturami VAT (FVAT)')+'.\nKursanci dostaną powiadomienia o rozliczeniu.')">
     <input type="hidden" name="_csrf"  value="<?= h(csrf_token()) ?>">
     <input type="hidden" name="_op"    value="issue_all">
     <div class="btn-group btn-group-sm" role="group" aria-label="Tryb wystawiania">
@@ -941,7 +944,7 @@ echo '<main id="main" class="dyd-wrap">';
       <caption class="visually-hidden">Kursanci z niedopłatą</caption>
       <thead class="table-light"><tr><th>Kursant</th><th>Należności</th><th>Wpłacono</th><th>Brakuje</th>
         <th class="text-end">Nieopłacone godziny</th>
-        <th class="text-end" title="Stawka prowadzącego z kursu (BB zł/zajęcia) × nieopłacone godziny">Stawka prowadzącego × godziny</th></tr></thead>
+        <th class="text-end" title="Stawka prowadzącego za zajęcia (BB) za nieopłacone lekcje; w grupie wieloosobowej — część stawki przypadająca na kursanta (stawka ÷ liczba uczestników zajęć)">Stawka prowadzącego × godziny</th></tr></thead>
       <tbody>
         <?php foreach ($debtors as $d): ?>
         <tr>
@@ -954,7 +957,7 @@ echo '<main id="main" class="dyd-wrap">';
           <td class="text-end">
             <?= $_dh['payout'] > 0 ? number_format((float)$_dh['payout'], 2, ',', ' ') . ' zł' : '<span class="text-body-secondary">—</span>' ?>
             <?php if ($_dh['hours_no_rate'] > 0): ?>
-            <div class="small text-warning-emphasis" title="Rozliczenia łączne albo kursy bez stawki prowadzącego — nie wliczone w kwotę">
+            <div class="small text-warning-emphasis" title="Lekcje z kursów bez ustawionej stawki prowadzącego — nie wliczone w kwotę">
               + <?= rtrim(rtrim(number_format((float)$_dh['hours_no_rate'], 2, ',', ' '), '0'), ',') ?> h bez stawki</div>
             <?php endif; ?>
           </td>
@@ -1295,7 +1298,8 @@ echo '<main id="main" class="dyd-wrap">';
                   <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:.72rem">przełącz na FVAT</button>
                 </form>
               <?php elseif ((float)$b['amount'] > 0): ?>
-                <form method="post" class="d-inline">
+                <form method="post" class="d-inline"
+                      onsubmit="return confirm('Wystawić fakturę VAT<?= $bf_backend ? ' w Betterfly' : '' ?> do tego rozliczenia?\n\nFaktury nie da się później po prostu usunąć — wymaga korekty.')">
                   <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
                   <input type="hidden" name="_op" value="make_invoice">
                   <input type="hidden" name="billing_id" value="<?= (int)$b['id'] ?>">
@@ -2007,7 +2011,9 @@ echo '<main id="main" class="dyd-wrap">';
           <td class="fw-semibold"><?= (($p['billable_hours'] ?? 1) <= 0 && $p['amount'] <= 0) ? '<span class="text-body-secondary fw-normal">tylko godziny</span>' : number_format($p['amount'],2,',','') . ' zł' ?></td>
           <td class="text-end">
             <?php if ($can_write): ?>
-            <form method="post" class="d-inline">
+            <form method="post" class="d-inline"
+                  data-confirm-who="<?= h($p['client_name']) ?>" data-confirm-sum="<?= h(number_format((float)$p['amount'], 2, ',', ' ')) ?>"
+                  onsubmit="var s=event.submitter&&event.submitter.value==='statement';return confirm('Wystawić rozliczenie: '+this.dataset.confirmWho+' — '+this.dataset.confirmSum+' zł?\n\nTryb: '+(s?'tylko zestawienie (bez faktury VAT)':'z fakturą VAT (FVAT)')+'.')">
               <input type="hidden" name="_csrf"      value="<?= h(csrf_token()) ?>">
               <input type="hidden" name="_op"        value="issue">
               <input type="hidden" name="client_id"  value="<?= $cid ?>">
