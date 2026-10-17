@@ -49,7 +49,7 @@ include __DIR__ . '/_head.php';
   <div class="alert alert-warning small">Zgłoszenie testowe: zmiany statusu działają jak zwykle, ale bez SMS/e-maili, EZD i CRM, a „Przyjęte” nie zakłada uczestnika ani zapisu do grupy.</div>
 <?php endif; ?>
 <?php if ($s['status'] === 'unconfirmed'): ?>
-  <div class="alert alert-secondary small">Opiekun nie potwierdził jeszcze adresu e-mail. Zgłoszenie wygaśnie po <?= NABOR_CONFIRM_HOURS ?> godz. od złożenia (<?= h($s['created_at']) ?> UTC).</div>
+  <div class="alert alert-secondary small">Opiekun nie potwierdził jeszcze adresu e-mail. Zgłoszenie wygaśnie po <?= NABOR_CONFIRM_HOURS ?> godz. od złożenia (<?= h(naborTime($s['created_at'])) ?>).</div>
 <?php endif; ?>
 
 <div class="row g-3">
@@ -89,19 +89,48 @@ include __DIR__ . '/_head.php';
     <div class="card mb-3"><div class="card-header fw-bold">Rodzic / opiekun</div><div class="card-body">
       <?= $dl([
         'Imię i nazwisko' => h($s['guardian_name']),
-        'Telefon' => '<a href="tel:+' . h($s['guardian_phone']) . '">+' . h($s['guardian_phone']) . '</a>' . ($s['phone_verified_at'] ? ' <span class="badge text-bg-success">SMS ✓ ' . h($s['phone_verified_at']) . '</span>' : ''),
-        'E-mail' => '<a href="mailto:' . h($s['guardian_email']) . '">' . h($s['guardian_email']) . '</a>' . ($s['email_confirmed_at'] ? ' <span class="badge text-bg-success">e-mail ✓ ' . h($s['email_confirmed_at']) . '</span>' : ' <span class="badge text-bg-secondary">niepotwierdzony</span>'),
+        'Telefon' => '<a href="tel:+' . h($s['guardian_phone']) . '">+' . h($s['guardian_phone']) . '</a>' . ($s['phone_verified_at'] ? ' <span class="badge text-bg-success">SMS ✓ ' . h(naborTime($s['phone_verified_at'])) . '</span>' : ' <span class="badge text-bg-secondary">niezweryfikowany</span>'),
+        'E-mail' => '<a href="mailto:' . h($s['guardian_email']) . '">' . h($s['guardian_email']) . '</a>' . ($s['email_confirmed_at'] ? ' <span class="badge text-bg-success">e-mail ✓ ' . h(naborTime($s['email_confirmed_at'])) . '</span>' : ' <span class="badge text-bg-secondary">niepotwierdzony</span>'),
         'Adres' => h($s['guardian_street'] . ', ' . $s['guardian_postal_code'] . ' ' . $s['guardian_city']),
         'Odbiór' => h(NABOR_PICKUP[$s['pickup_type']] ?? ''),
         'Osoby upoważnione' => nl2br(h($s['authorized_persons_details'])),
       ]) ?>
     </div></div>
 
+    <details class="card mb-3" id="edycja">
+      <summary class="card-header fw-bold" style="cursor:pointer"><i class="bi bi-pencil"></i> Edytuj dane zgłoszenia</summary>
+      <form method="post" action="<?= $upd ?>" class="card-body row g-2">
+        <?= Router::csrfField() ?><input type="hidden" name="_op" value="edit">
+        <?php $ev = fn($k) => h((string)$s[$k]); ?>
+        <div class="col-12 fw-semibold small text-muted">Uczestnik</div>
+        <div class="col-md-6"><label class="form-label small" for="e-pn">Imię i nazwisko</label><input id="e-pn" class="form-control form-control-sm" name="participant_name" value="<?= $ev('participant_name') ?>" required></div>
+        <div class="col-md-3"><label class="form-label small" for="e-pp">PESEL / data ur.</label><input id="e-pp" class="form-control form-control-sm" name="participant_birth_date_or_pesel" value="<?= $ev('participant_birth_date_or_pesel') ?>" required></div>
+        <div class="col-md-3"><label class="form-label small" for="e-pc">Szkoła / klasa</label><input id="e-pc" class="form-control form-control-sm" name="participant_school_class" value="<?= $ev('participant_school_class') ?>"></div>
+        <div class="col-12"><label class="form-label small" for="e-pm">Uwagi medyczne i dostępnościowe</label><textarea id="e-pm" class="form-control form-control-sm" name="participant_medical_notes" rows="2"><?= $ev('participant_medical_notes') ?></textarea></div>
+        <div class="col-12 fw-semibold small text-muted mt-2">Rodzic / opiekun</div>
+        <div class="col-md-4"><label class="form-label small" for="e-gn">Imię i nazwisko</label><input id="e-gn" class="form-control form-control-sm" name="guardian_name" value="<?= $ev('guardian_name') ?>" required></div>
+        <div class="col-md-4"><label class="form-label small" for="e-gp">Telefon</label><input id="e-gp" class="form-control form-control-sm" name="guardian_phone" value="<?= $ev('guardian_phone') ?>" inputmode="tel" required></div>
+        <div class="col-md-4"><label class="form-label small" for="e-ge">E-mail</label><input id="e-ge" type="email" class="form-control form-control-sm" name="guardian_email" value="<?= $ev('guardian_email') ?>" required></div>
+        <div class="col-md-6"><label class="form-label small" for="e-gs">Ulica i numer</label><input id="e-gs" class="form-control form-control-sm" name="guardian_street" value="<?= $ev('guardian_street') ?>"></div>
+        <div class="col-md-2"><label class="form-label small" for="e-gz">Kod</label><input id="e-gz" class="form-control form-control-sm" name="guardian_postal_code" value="<?= $ev('guardian_postal_code') ?>" placeholder="00-000"></div>
+        <div class="col-md-4"><label class="form-label small" for="e-gc">Miejscowość</label><input id="e-gc" class="form-control form-control-sm" name="guardian_city" value="<?= $ev('guardian_city') ?>"></div>
+        <div class="col-md-6"><label class="form-label small" for="e-pt">Odbiór</label>
+          <select id="e-pt" class="form-select form-select-sm" name="pickup_type"><?php foreach (NABOR_PICKUP as $k => $l): ?><option value="<?= $k ?>" <?= $s['pickup_type'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+        <div class="col-md-6"><label class="form-label small" for="e-pay">Płatność (deklaracja)</label>
+          <select id="e-pay" class="form-select form-select-sm" name="payment_method"><option value="">—</option><?php foreach (NABOR_PAYMENT as $k => $l): ?><option value="<?= $k ?>" <?= $s['payment_method'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?></select></div>
+        <div class="col-12"><label class="form-label small" for="e-ap">Osoby upoważnione do odbioru</label><textarea id="e-ap" class="form-control form-control-sm" name="authorized_persons_details" rows="2" aria-describedby="e-ap-h"><?= $ev('authorized_persons_details') ?></textarea>
+          <div id="e-ap-h" class="form-text">Zapisywane tylko przy odbiorze „także przez osoby upoważnione”.</div></div>
+        <div class="col-12"><label class="form-label small" for="e-na">Dyspozycyjność (termin do ustalenia)</label><textarea id="e-na" class="form-control form-control-sm" name="notes_availability" rows="2"><?= $ev('notes_availability') ?></textarea></div>
+        <div class="col-12 small text-muted">Zmiana telefonu albo e-maila zdejmuje znacznik weryfikacji. Zmiana trafia do historii obiegu.<?= $s['client_id'] ? ' Uczestnik TI jest już założony — jego dane popraw w Ewidencji Uczestników.' : '' ?></div>
+        <div class="col-12"><button class="btn btn-sm btn-primary">Zapisz zmiany</button></div>
+      </form>
+    </details>
+
     <div class="card mb-3"><div class="card-header fw-bold">Zgody RODO</div><div class="card-body">
       <?= $dl([
         'Regulamin' => $yn($cons['terms_accepted'] ?? 0), 'Przetwarzanie danych' => $yn($cons['gdpr_accepted'] ?? 0),
         'Wizerunek' => $yn($cons['image_consent'] ?? 0), 'Marketing' => $yn($cons['marketing_consent'] ?? 0),
-        'Adres IP' => h((string)($cons['ip_address'] ?? '')), 'Czas' => h((string)($cons['created_at'] ?? '')) . ' UTC',
+        'Adres IP' => h((string)($cons['ip_address'] ?? '')), 'Czas' => h(naborTime($cons['created_at'] ?? null, true)),
         'Przeglądarka' => '<span class="text-muted">' . h((string)($cons['user_agent'] ?? '')) . '</span>',
       ]) ?>
     </div></div>
@@ -125,7 +154,7 @@ include __DIR__ . '/_head.php';
       <ul class="list-group list-group-flush small">
       <?php foreach (array_reverse($hist) as $hrow): ?>
         <li class="list-group-item">
-          <div class="d-flex justify-content-between"><span class="text-muted"><?= h(substr($hrow['created_at'], 0, 16)) ?></span><span><?= h($hrow['user_name'] ?? 'system / opiekun') ?></span></div>
+          <div class="d-flex justify-content-between"><span class="text-muted"><?= h(naborTime($hrow['created_at'])) ?></span><span><?= h($hrow['user_name'] ?? 'system / opiekun') ?></span></div>
           <?php if ($hrow['from_status'] !== $hrow['to_status']): ?><div><?= $hrow['from_status'] !== '' ? naborStatusBadge($hrow['from_status']) . ' → ' : '' ?><?= naborStatusBadge($hrow['to_status']) ?></div><?php endif; ?>
           <?php if ($hrow['comment'] !== ''): ?><div class="mt-1"><?= nl2br(h($hrow['comment'])) ?></div><?php endif; ?>
         </li>

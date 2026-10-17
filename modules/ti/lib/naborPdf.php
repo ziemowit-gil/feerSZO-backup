@@ -36,7 +36,7 @@ function naborSubmissionPdf(int $sid): string {
     $pdf->Cell(0, 6, $p('Numer zgłoszenia: ' . $s['registration_number']), 0, 1);
     $pdf->SetFont('DejaVu', '', 9);
     $pdf->SetTextColor(100, 100, 100);
-    $pdf->Cell(0, 5, $p('Złożono: ' . $s['created_at'] . ' UTC · status: ' . naborStatusLabel($s['status'])), 0, 1);
+    $pdf->Cell(0, 5, $p('Złożono: ' . naborTime($s['created_at']) . ' · status: ' . naborStatusLabel($s['status'])), 0, 1);
     $pdf->SetTextColor(0, 0, 0);
 
     $section = function (string $title) use ($pdf, $p) {
@@ -80,8 +80,8 @@ function naborSubmissionPdf(int $sid): string {
 
     $section('3. Rodzic / opiekun prawny');
     $row('Imię i nazwisko', $s['guardian_name']);
-    $row('Telefon', '+' . $s['guardian_phone'] . ($s['phone_verified_at'] ? '  (potwierdzony kodem SMS ' . $s['phone_verified_at'] . ')' : ''));
-    $row('E-mail', $s['guardian_email'] . ($s['email_confirmed_at'] ? '  (potwierdzony linkiem ' . $s['email_confirmed_at'] . ' UTC)' : '  (niepotwierdzony)'));
+    $row('Telefon', '+' . $s['guardian_phone'] . ($s['phone_verified_at'] ? '  (potwierdzony kodem SMS ' . naborTime($s['phone_verified_at']) . ')' : ''));
+    $row('E-mail', $s['guardian_email'] . ($s['email_confirmed_at'] ? '  (potwierdzony linkiem ' . naborTime($s['email_confirmed_at']) . ')' : '  (niepotwierdzony)'));
     $row('Adres zamieszkania', $s['guardian_street'] . ', ' . $s['guardian_postal_code'] . ' ' . $s['guardian_city']);
     $row('Odbiór uczestnika', NABOR_PICKUP[$s['pickup_type']] ?? '');
     if ($s['pickup_type'] === 'authorized_persons') $row('Osoby upoważnione', $s['authorized_persons_details']);
@@ -92,7 +92,7 @@ function naborSubmissionPdf(int $sid): string {
     $row('Wykorzystanie wizerunku', $yn($c['image_consent'] ?? 0));
     $row('Informacje marketingowe', $yn($c['marketing_consent'] ?? 0));
     $row('Adres IP', (string)($c['ip_address'] ?? $s['ip_address']));
-    $row('Znacznik czasu zgód', (string)($c['created_at'] ?? '') . ' UTC');
+    $row('Znacznik czasu zgód', naborTime($c['created_at'] ?? null, true));
     $row('Przeglądarka', (string)($c['user_agent'] ?? ''));
 
     $pdf->Ln(4);

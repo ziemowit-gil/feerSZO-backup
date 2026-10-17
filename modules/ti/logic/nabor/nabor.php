@@ -310,7 +310,7 @@ function naborSubmissionCreate(array $d): array {
             'pickup_type'                     => $d['pickup_type'],
             'authorized_persons_details'      => $d['pickup_type'] === 'authorized_persons' ? $d['authorized_persons_details'] : '',
             'payment_method'                  => $d['payment_method'],
-            'phone_verified_at'               => date('Y-m-d H:i:s'),
+            'phone_verified_at'               => gmdate('Y-m-d H:i:s'),
             'email_token_hash'                => hash('sha256', $token),
             'ip_address'                      => $ip,
         ]);
@@ -507,7 +507,7 @@ function naborCreateTest(int $userId, string $userName = ''): int {
             'guardian_city'                   => 'Testowo',
             'pickup_type'                     => 'guardians_only',
             'payment_method'                  => $c ? 'transfer' : '',
-            'phone_verified_at'               => date('Y-m-d H:i:s'),
+            'phone_verified_at'               => gmdate('Y-m-d H:i:s'),
             'email_confirmed_at'              => gmdate('Y-m-d H:i:s'),
             'ip_address'                      => naborClientIp(),
         ]);
@@ -566,6 +566,82 @@ function naborSubmissionsList(array $f = []): array {
       " . ($ezd ? 'LEFT JOIN ezd_sprawy e ON e.id=s.ezd_case_id' : '') . "
           " . ($w ? 'WHERE ' . implode(' AND ', $w) : '') . "
        ORDER BY s.id DESC LIMIT 500", $p);
+}
+
+/** Znacznik czasu z bazy (UTC, jak datetime('now')) → czas lokalny „RRRR-MM-DD GG:MM[:SS]” ('' gdy brak). */
+function naborTime(?string $utc, bool $seconds = false): string {
+    if (!$utc) return '';
+    try {
+        $d = new DateTime($utc, new DateTimeZone('UTC'));
+        $d->setTimezone(new DateTimeZone(date_default_timezone_get()));
+        return $d->format($seconds ? 'Y-m-d H:i:s' : 'Y-m-d H:i');
+    } catch (\Throwable $e) {
+        return (string)$utc;
+    }
+}
+
+/** Pola edytowalne w panelu: klucz => etykieta (do walidacji i wpisu w historii). */
+const NABOR_EDITABLE = [
+    'participant_name' => 'Imię i nazwisko uczestnika', 'participant_birth_date_or_pesel' => 'PESEL / data urodzenia',
+    'participant_school_class' => 'Szkoła / klasa', 'participant_medical_notes' => 'Uwagi medyczne',
+    'guardian_name' => 'Opiekun', 'guardian_phone' => 'Telefon opiekuna', 'guardian_email' => 'E-mail opiekuna',
+    'guardian_street' => 'Ulica', 'guardian_postal_code' => 'Kod pocztowy', 'guardian_city' => 'Miejscowość',
+    'pickup_type' => 'Odbiór', 'authorized_persons_details' => 'Osoby upoważnione',
+    'notes_availability' => 'Dyspozycyjność', 'payment_method' => 'Płatność',
+];
+
+/**
+ * Edycja danych zgłoszenia przez kierownika. Zmiana telefonu / e-maila kasuje znacznik weryfikacji (dane wpisane
+ * w panelu, nie potwierdzone przez opiekuna). Uczestnika TI (k30_clients) już założonego NIE zmienia — wpis w historii
+ * przypomina o poprawie w Ewidencji Uczestników. Zwraca listę zmienionych pól (etykiety).
+ */
+function naborUpdateData(int $sid, array $p, int $userId, string $userName = ''): array {
+    $s = naborSubmissionGet($sid);
+    if (!$s) throw new InvalidArgumentException('Zgłoszenie nie istnieje.');
+    $t = fn($k, $max = 500) => mb_substr(trim((string)($p[$k] ?? '')), 0, $max);
+    $d = [
+        'participant_name' => $t('participant_name', 200), 'participant_birth_date_or_pesel' => $t('participant_birth_date_or_pesel', 20),
+        'participant_school_class' => $t('participant_school_class', 50), 'participant_medical_notes' => $t('participant_medical_notes', 3000),
+        'guardian_name' => $t('guardian_name', 200), 'guardian_phone' => phoneDigits48($t('guardian_phone', 30)),
+        'guardian_email' => mb_strtolower($t('guardian_email', 200)), 'guardian_street' => $t('guardian_street', 200),
+        'guardian_postal_code' => $t('guardian_postal_code', 10), 'guardian_city' => $t('guardian_city', 100),
+        'pickup_type' => array_key_exists($p['pickup_type'] ?? '', NABOR_PICKUP) ? $p['pickup_type'] : '',
+        'authorized_persons_details' => $t('authorized_persons_details', 2000),
+        'notes_availability' => $t('notes_availability', 2000),
+        'payment_method' => array_key_exists($p['payment_method'] ?? '', NABOR_PAYMENT) ? $p['payment_method'] : '',
+    ];
+    $e = [];
+    if (mb_strlen($d['participant_name']) < 3) $e[] = 'imię i nazwisko uczestnika';
+    if (!naborValidPeselOrDate($d['participant_birth_date_or_pesel'])) $e[] = 'PESEL albo data urodzenia (RRRR-MM-DD)';
+    if (mb_strlen($d['guardian_name']) < 3) $e[] = 'imię i nazwisko opiekuna';
+    if (!preg_match('/^48\d{9}$/', $d['guardian_phone'])) $e[] = 'telefon opiekuna (9 cyfr)';
+    if (!filter_var($d['guardian_email'], FILTER_VALIDATE_EMAIL)) $e[] = 'e-mail opiekuna';
+    if (!preg_match('/^\d{2}-\d{3}$/', $d['guardian_postal_code'])) $e[] = 'kod pocztowy 00-000';
+    if ($d['pickup_type'] === '') $e[] = 'zasady odbioru';
+    if ($e) throw new InvalidArgumentException('Popraw: ' . implode(', ', $e) . '.');
+    if ($d['pickup_type'] !== 'authorized_persons') $d['authorized_persons_details'] = '';
+
+    $changed = [];
+    foreach ($d as $k => $v) if ((string)$s[$k] !== (string)$v) $changed[] = $k;
+    if (!$changed) return [];
+    $set = $d;
+    if (in_array('guardian_phone', $changed, true)) $set['phone_verified_at'] = null;
+    if (in_array('guardian_email', $changed, true)) $set['email_confirmed_at'] = null;
+    $cols = implode(', ', array_map(fn($k) => "$k=?", array_keys($set)));
+    db_exec("UPDATE ti_nabor_submissions SET $cols, updated_at=datetime('now') WHERE id=?", [...array_values($set), $sid]);
+
+    $labels = array_map(fn($k) => NABOR_EDITABLE[$k], $changed);
+    $note = 'Edycja danych w panelu: ' . implode(', ', $labels) . '.';
+    if (array_intersect($changed, ['guardian_phone', 'guardian_email'])) $note .= ' Nowy telefon / e-mail nie jest zweryfikowany przez opiekuna.';
+    if ($s['client_id']) $note .= ' Uczestnik TI #' . $s['client_id'] . ' już istnieje — popraw jego dane w Ewidencji Uczestników.';
+    naborHistoryNote($sid, $note, $userId, $userName);
+    return $labels;
+}
+
+/** Numer w formacie 48XXXXXXXXX (9 cyfr → z prefiksem), inne pozostawia jako same cyfry. */
+function phoneDigits48(string $v): string {
+    $p = preg_replace('/\D/', '', $v);
+    return strlen($p) === 9 ? '48' . $p : $p;
 }
 
 /** Publiczny adres naboru poza kontekstem routera (e-maile, panel): naborUrl('/potwierdz') → …/router.php/nabor/potwierdz. */

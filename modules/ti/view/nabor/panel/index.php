@@ -129,7 +129,7 @@ function naborKanban(init) {
         <td><?= h($r['guardian_name']) ?><div class="small text-muted"><?= h($r['guardian_email']) ?> · +<?= h($r['guardian_phone']) ?></div></td>
         <td><?= naborStatusBadge($r['status']) ?></td>
         <td><?= $r['ezd_case_id'] ? '<a href="' . h(naborEzdUrl((int)$r['ezd_case_id'])) . '">' . h($r['znak_sprawy'] ?: '#' . $r['ezd_case_id']) . '</a>' : '<span class="text-muted">—</span>' ?></td>
-        <td class="small text-nowrap"><?= h(substr($r['created_at'], 0, 16)) ?></td>
+        <td class="small text-nowrap"><?= h(naborTime($r['created_at'])) ?></td>
       </tr>
     <?php endforeach; ?>
     <?php if (!$rows): ?><tr><td colspan="8" class="text-center text-muted py-4">Brak zgłoszeń.</td></tr><?php endif; ?>

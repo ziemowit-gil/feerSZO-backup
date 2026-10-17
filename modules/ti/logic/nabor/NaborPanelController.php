@@ -96,7 +96,7 @@ final class NaborPanelController
         ]);
     }
 
-    /** Operacje z karty zgłoszenia (pole _op): status | course | note | ezd | crm. */
+    /** Operacje z karty zgłoszenia (pole _op): status | course | edit | note | ezd | crm. */
     public function update(int $id): ?string
     {
         $this->find($id);
@@ -110,6 +110,10 @@ final class NaborPanelController
                 case 'course':
                     naborAssignCourse($id, (int)($_POST['course_id'] ?? 0) ?: null, $me['id'], $me['name']);
                     flash_set('success', 'Przypisanie do grupy zapisane.');
+                    break;
+                case 'edit':
+                    $ch = naborUpdateData($id, $_POST, $me['id'], $me['name']);
+                    flash_set($ch ? 'success' : 'info', $ch ? 'Zapisano zmiany: ' . implode(', ', $ch) . '.' : 'Bez zmian.');
                     break;
                 case 'note':
                     if (($n = trim((string)($_POST['note'] ?? ''))) !== '') naborHistoryNote($id, $n, $me['id'], $me['name']);

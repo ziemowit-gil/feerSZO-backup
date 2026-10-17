@@ -59,7 +59,7 @@ final class NaborEzdService
             'kierunek'      => 'przychodzace',
             'title'         => 'Zgłoszenie do grupy TI ' . $s['registration_number'],
             'tresc'         => 'Zgłoszenie z formularza internetowego. Numer telefonu opiekuna potwierdzony kodem SMS ('
-                             . $s['phone_verified_at'] . '), adres e-mail potwierdzony linkiem (' . $s['email_confirmed_at'] . '). '
+                             . naborTime($s['phone_verified_at']) . '), adres e-mail potwierdzony linkiem (' . naborTime($s['email_confirmed_at']) . '). '
                              . 'Dokument główny: PDF zgłoszenia ze zgodami RODO, adresem IP i znacznikiem czasu.',
             'nadawca'       => $s['guardian_name'] . ' <' . $s['guardian_email'] . '>',
             'odbiorca'      => '',
