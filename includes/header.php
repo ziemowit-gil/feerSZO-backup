@@ -118,6 +118,7 @@ $_contract_icons = [
     'praca'       => 'bi-building',
     'powierzenie' => 'bi-bank',
     'inne'        => 'bi-file-text',
+    'szkolenie_ti' => 'bi-mortarboard',
 ];
 
 // Branding settings

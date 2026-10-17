@@ -64,7 +64,7 @@ include dirname(__DIR__) . '/includes/header.php';
           <label class="form-label small mb-1">Typ umowy</label>
           <select name="typ" class="form-select form-select-sm">
             <option value="">— wszystkie —</option>
-            <?php foreach (CONTRACT_TYPES as $k => $l): ?>
+            <?php foreach (CONTRACT_TYPES + array_map(fn($x) => $x['label'], CONTRACT_REGISTRY_EXTRA) as $k => $l): ?>
             <option value="<?= h($k) ?>" <?= $filters['typ'] === $k ? 'selected' : '' ?>><?= h($l) ?></option>
             <?php endforeach; ?>
           </select>
@@ -146,7 +146,7 @@ include dirname(__DIR__) . '/includes/header.php';
             <td><?= $r['data_zawarcia'] ? date('d.m.Y', strtotime($r['data_zawarcia'])) : '—' ?></td>
             <td><?= status_badge($r['status']) ?></td>
             <td class="text-end">
-              <a href="<?= APP_URL ?>/contracts/<?= h($r['contract_type']) ?>/view.php?id=<?= (int)$r['id'] ?>" class="btn btn-xs btn-outline-secondary btn-sm" title="Podgląd umowy"><i class="bi bi-eye"></i></a>
+              <a href="<?= h($r['url'] ?? (APP_URL . '/contracts/' . $r['contract_type'] . '/view.php?id=' . (int)$r['id'])) ?>" class="btn btn-xs btn-outline-secondary btn-sm" title="Podgląd umowy"><i class="bi bi-eye"></i></a>
             </td>
           </tr>
           <?php endforeach; ?>

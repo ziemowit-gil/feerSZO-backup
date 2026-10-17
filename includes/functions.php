@@ -640,6 +640,13 @@ function suggest_nr_rejestru(string $opiekun = ''): string {
             $n += (int)($row['c'] ?? 0);
         } catch (\Exception $e) {}
     }
+    foreach (CONTRACT_REGISTRY_EXTRA as $x) {
+        try {
+            $row = db_one("SELECT COUNT(*) AS c FROM {$x['table']}"
+                        . " WHERE nr_rejestru IS NOT NULL AND nr_rejestru != ''" . ($x['count_where'] ? " AND {$x['count_where']}" : ''));
+            $n += (int)($row['c'] ?? 0);
+        } catch (\Exception $e) {}
+    }
     $n++;
     return sprintf('RU/%04d/%s/%s', $n, $year, get_opiekun_initials($opiekun));
 }
@@ -662,6 +669,16 @@ const CONTRACT_REGISTRY_FIELDS = [
     'inne'        => ['name_col' => 'strona_umowy',    'opiekun_col' => 'opiekun'],
 ];
 
+// Dodatkowe źródła Rejestru Umów spoza CONTRACT_TYPES (własne moduły, własny widok umowy). Liczą się do globalnego
+// licznika RU (count_where — np. bez umów testowych) i pokazują się w contracts/rejestr.php; {id} w url = id umowy.
+const CONTRACT_REGISTRY_EXTRA = [
+    'szkolenie_ti' => [
+        'table' => 'umowy_szkolenie_ti', 'label' => 'Umowa szkoleniowa TI',
+        'name_col' => 'imie_nazwisko', 'opiekun_col' => 'opiekun', 'count_where' => 'is_test = 0',
+        'url' => '/karty30/ti/dydaktyk/office_enter.php?next=umowaSzkolenia.php%3Fid%3D{id}',
+    ],
+];
+
 /**
  * Rejestr Umów (RU) — wszystkie umowy z przydzielonym numerem rejestru (nr_rejestru),
  * ze wszystkich typów, w kolejności rejestru. Umowy techniczne/bez numeru są wykluczone
@@ -681,6 +698,21 @@ function all_contracts_registry(): array {
             );
         } catch (\Throwable $e) { continue; }
         foreach ($r as &$row) { $row['contract_type'] = $slug; $row['contract_type_label'] = $label; }
+        unset($row);
+        $rows = array_merge($rows, $r);
+    }
+    foreach (CONTRACT_REGISTRY_EXTRA as $slug => $x) {
+        try {
+            $r = db_all(
+                "SELECT id, nr_rejestru, numer_umowy, status, data_zawarcia,
+                        {$x['name_col']} AS strona, {$x['opiekun_col']} AS opiekun
+                 FROM {$x['table']} WHERE nr_rejestru IS NOT NULL AND nr_rejestru != ''"
+            );
+        } catch (\Throwable $e) { continue; }
+        foreach ($r as &$row) {
+            $row['contract_type'] = $slug; $row['contract_type_label'] = $x['label'];
+            $row['url'] = APP_URL . str_replace('{id}', (string)(int)$row['id'], $x['url']);
+        }
         unset($row);
         $rows = array_merge($rows, $r);
     }

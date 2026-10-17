@@ -169,6 +169,7 @@ function dydMenuSections(): array
         $it('', 'Zapisy na zajęcia',     'rekrutacja.php',        'ticket-perforated'),
         $it('', 'Nabór do grup',         'nabor.php',             'person-plus', $nNabor, 'primary'),
         $it('', 'Dokumenty kursantów',   'dokumentyKursanta.php', 'folder2-open', $sfPending, 'warning'),
+        $it('', 'Umowy szkoleniowe',     'umowaSzkolenia.php',    'file-earmark-text'),
         $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),
         $it('', 'Regulaminy',            'regulaminy.php',        'file-earmark-text'),
@@ -221,7 +222,6 @@ function dydMenuSections(): array
     $sec[] = ['key' => 'k_system', 'staff' => true, 'label' => 'System', 'items' => array_values(array_filter([
         $it('', 'Wyłączenia panelu', 'wylaczenia.php', 'moon'),
         $it('', 'Testy',             'testy.php',      'bug'),
-        $it('', 'Umowa szkoleniowa (test)', 'umowaSzkolenia.php', 'file-earmark-word'),
         $isAdm ? $it('', 'Konta testowe', 'kontaTestowe.php', 'person-badge') : null,
         $it('', 'Pełny moduł TI', rtrim(APP_URL, '/') . '/karty30/ti/index.php', 'box-arrow-up-right', 0, 'secondary', true),
     ]))];
