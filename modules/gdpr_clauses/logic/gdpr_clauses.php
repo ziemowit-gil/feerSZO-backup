@@ -972,6 +972,7 @@ function gdpr_clauses_diff_html(string $old, string $new): string {
 const GDPR_INTEGRATION_CONTEXTS = [
     'volunteer_offer' => 'Oferty wolontariatu — formularz zgłoszeniowy',
     'event'           => 'Zapisy na wydarzenia',
+    'ti_nabor'        => 'TI — nabór do grup (formularz dla rodziców)',
     'onboarding'      => 'Onboarding (formularz danych)',
     'crm_form'        => 'Formularze CRM (cele zgód bez własnej klauzuli)',
     'mail_footer'     => 'Stopka korespondencji CRM — link do pełnej klauzuli',

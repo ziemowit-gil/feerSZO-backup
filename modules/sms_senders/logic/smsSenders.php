@@ -58,6 +58,8 @@ final class SmsSenders
         'ti_exam_notice'         => [self::G_TI, 'Powiadomienie o egzaminie', 'Agent ti_exam_notify: egzamin udostępniony / zamyka się w ciągu 24 h (treść: szablony ti_exam_open, ti_exam_closing).'],
         'ti_lesson_entry_reminder' => [self::G_TI, 'Zaległe wpisy z zajęć — przypomnienie dla prowadzącego', 'Agent ti_lesson_control: zbiorcze przypomnienie o brakującym lub niepełnym wpisie z lekcji (Kontrola wpisów; wyłączone, póki nie włączy kierownik).'],
 
+        'ti_nabor_status'        => [self::G_TI, 'Nabór do grup — status zgłoszenia', 'Nabór do grup TI: zmiana statusu zgłoszenia (SMS do rodzica / opiekuna).'],
+
         'ti_billing_notice'      => [self::G_TI_PAY, 'Rozliczenie za miesiąc', 'Powiadomienie o należności za zajęcia (kwota, termin, rachunek).'],
         'payment_account_notice' => [self::G_TI_PAY, 'Numer rachunku do wpłat', 'Portal płatności: nowy lub skorygowany numer rachunku.'],
         'payment_notice'         => [self::G_TI_PAY, 'Komunikat portalu płatności', 'Zbiorcze komunikaty do płacących.'],

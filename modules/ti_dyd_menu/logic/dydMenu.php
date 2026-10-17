@@ -92,6 +92,7 @@ function dydMenuSections(): array
             $it('dostepnosc',      'Moja dostępność',   $gt('dostepnosc'),      'calendar-check', $nAvail),
             $it('',                'Moje protokoły',    'protokoly_moje.php',   'clipboard-check', $nProt, 'warning'),
             $it('',                'Moje wpisy',        'kontrolaWpisow.php',   'journal-check', $nLcMine, 'danger'),
+            $it('',                'Nowi z naboru',     'nabor.php?_route=/prowadzacy', 'person-plus'),
             $it('',                'Protokoły zajęć',   'protokoly_zajec.php',  'journal-check'),
             $it('',                'Moje godziny',      'godziny.php',          'hourglass-split'),
             $it('frekwencja_grup', 'Frekwencja grup',   $gt('frekwencja_grup'), 'graph-up'),
@@ -150,6 +151,8 @@ function dydMenuSections(): array
     try { require_once dirname(__DIR__, 3) . '/modules/ti_scheduler/logic/schedulerWorkflow.php'; $scPending = (int)sc_pending_count(); } catch (\Throwable $e) {}
     $sfPending = 0;
     try { $sfPending = (int)(db_one("SELECT COUNT(*) AS c FROM k30_ti_sfile WHERE status='pending' AND deleted_at IS NULL")['c'] ?? 0); } catch (\Throwable $e) {}
+    $nNabor = 0;   // Nabór do grup: nowe zgłoszenia potwierdzone przez opiekunów (modules/ti, tabela może jeszcze nie istnieć)
+    try { $nNabor = (int)(db_one("SELECT COUNT(*) AS c FROM ti_nabor_submissions WHERE status='new'")['c'] ?? 0); } catch (\Throwable $e) {}
     $rozDebt = (int)($g['_sb_roz_debt'] ?? 0);
 
     $sec[] = ['key' => 'k_grupy', 'staff' => true, 'label' => 'Grupy i zajęcia', 'items' => [
@@ -164,6 +167,7 @@ function dydMenuSections(): array
         $it('', 'Ewidencja Uczestników', 'konta.php',             'person-badge'),
         $it('', 'Podgląd klientów',      'klienci.php',           'person-lines-fill'),
         $it('', 'Zapisy na zajęcia',     'rekrutacja.php',        'ticket-perforated'),
+        $it('', 'Nabór do grup',         'nabor.php',             'person-plus', $nNabor, 'primary'),
         $it('', 'Dokumenty kursantów',   'dokumentyKursanta.php', 'folder2-open', $sfPending, 'warning'),
         $it('', 'Licencje',              'licencjeKursantow.php', 'key'),
         $it('', 'Microsoft 365',         'microsoft365.php',      'microsoft'),
