@@ -263,6 +263,7 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
         'preferred_days'                  => $custom ? array_values(array_intersect(array_keys(NABOR_DAYS), (array)($p['preferred_days'] ?? []))) : [],
         'preferred_time_slots'            => $custom ? array_values(array_intersect(array_keys(NABOR_SLOTS), (array)($p['preferred_time_slots'] ?? []))) : [],
         'notes_availability'              => $custom ? $t('notes_availability', 2000) : '',
+        'applicant_type'                  => ($p['applicant_type'] ?? '') === 'self' ? 'self' : 'guardian',
         'participant_name'                => $t('participant_name', 200),
         'participant_birth_date_or_pesel' => $t('participant_birth_date_or_pesel', 20),
         'participant_school_class'        => $t('participant_school_class', 50),
@@ -281,6 +282,8 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
         'image_consent'                   => !empty($p['image_consent']),
         'marketing_consent'               => !empty($p['marketing_consent']),
     ];
+    // Osoba pełnoletnia zgłasza siebie: dane kontaktowe są jej danymi (imię i nazwisko = uczestnik)
+    if ($d['applicant_type'] === 'self') $d['guardian_name'] = $d['participant_name'];
     // Konfiguracja formularza (edytor kierownika): pola ukryte są puste, wymagane — sprawdzane; zgody ukryte = brak zgody
     $form = naborForm(); $fl = $form['fields'];
     $vis = fn($k) => !empty($fl[$k]['visible']) && naborCondMet($fl[$k]['cond'] ?? null, $p);   // ukryte albo niespełniony warunek
@@ -310,6 +313,12 @@ function naborValidate(array $p, ?string $verifiedPhone): array {
     elseif (($req('participant_birth_date_or_pesel') || $d['participant_birth_date_or_pesel'] !== '') && !naborValidPeselOrDate($d['participant_birth_date_or_pesel']))
         $e[] = 'Podaj poprawny PESEL albo datę urodzenia uczestnika (RRRR-MM-DD).';
     if (mb_strlen($d['guardian_name']) < 3)                       $e[] = 'Podaj imię i nazwisko opiekuna.';
+    if ($d['applicant_type'] === 'self' && $d['participant_birth_date_or_pesel'] !== '' && naborValidPeselOrDate($d['participant_birth_date_or_pesel'])) {
+        $v = $d['participant_birth_date_or_pesel'];
+        $dob = preg_match('/^\d{11}$/', $v) ? naborPeselBirthDate($v) : naborDateIso($v);
+        if ($dob && (new DateTime($dob))->diff(new DateTime('today'))->y < 18)
+            $e[] = 'Osoba niepełnoletnia — zgłoszenie składa rodzic lub opiekun prawny (w „Kogo zgłaszasz?” wybierz „Dziecko lub podopiecznego”).';
+    }
     if (!filter_var($d['guardian_email'], FILTER_VALIDATE_EMAIL)) $e[] = 'Podaj poprawny adres e-mail opiekuna.';
     $phone = preg_replace('/\D/', '', $d['guardian_phone']);
     if (strlen($phone) === 9) $phone = '48' . $phone;
@@ -348,6 +357,7 @@ function naborSubmissionCreate(array $d, ?int $accountId = null, bool $sendConfi
             'preferred_days'                  => json_encode($d['preferred_days']),
             'preferred_time_slots'            => json_encode($d['preferred_time_slots']),
             'notes_availability'              => $d['notes_availability'],
+            'applicant_type'                  => $d['applicant_type'] ?? 'guardian',
             'participant_name'                => $d['participant_name'],
             'participant_birth_date_or_pesel' => $d['participant_birth_date_or_pesel'],
             'participant_school_class'        => $d['participant_school_class'],

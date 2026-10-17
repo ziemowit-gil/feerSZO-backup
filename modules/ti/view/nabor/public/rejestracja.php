@@ -18,7 +18,12 @@ $o = fn($k) => h((string)($old[$k] ?? ''));
   <form method="post" action="<?= h(naborUrl('/rejestracja')) ?>" id="rg-form" novalidate>
     <?= Router::csrfField() ?>
     <div style="position:absolute;left:-9999px" aria-hidden="true"><label>Strona www <input name="www" tabindex="-1" autocomplete="off"></label></div>
-    <div class="pp-field"><label for="rg-n">Imię i nazwisko (rodzic / opiekun)</label><input id="rg-n" name="name" class="pp-input" value="<?= $o('name') ?>" autocomplete="name" required></div>
+    <fieldset class="pp-field" style="border:0;padding:0;margin:0 0 1.35rem">
+      <legend class="pp-label">Zakładam konto jako</legend>
+      <label style="display:flex;gap:.6rem;font-weight:400;padding:.3rem 0"><input type="radio" name="kind" value="guardian" <?= ($old['kind'] ?? 'guardian') !== 'self' ? 'checked' : '' ?> style="width:1.2rem;height:1.2rem;margin-top:.25rem"> <span><strong>Rodzic lub opiekun prawny</strong> — będę zgłaszać dziecko lub podopiecznego</span></label>
+      <label style="display:flex;gap:.6rem;font-weight:400;padding:.3rem 0"><input type="radio" name="kind" value="self" <?= ($old['kind'] ?? '') === 'self' ? 'checked' : '' ?> style="width:1.2rem;height:1.2rem;margin-top:.25rem"> <span><strong>Osoba pełnoletnia</strong> — będę zgłaszać siebie</span></label>
+    </fieldset>
+    <div class="pp-field"><label for="rg-n">Imię i nazwisko</label><input id="rg-n" name="name" class="pp-input" value="<?= $o('name') ?>" autocomplete="name" required></div>
     <div class="pp-field"><label for="rg-e">E-mail (będzie loginem)</label><input id="rg-e" type="email" name="email" class="pp-input" value="<?= $o('email') ?>" autocomplete="email" required></div>
     <div class="pp-field">
       <label for="rg-p">Telefon komórkowy</label>

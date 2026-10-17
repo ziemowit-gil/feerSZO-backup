@@ -31,6 +31,7 @@ function naborAccountLinkSubmission(int $sid): ?int {
         if (!$acc) {
             $id = db_insert('ti_nabor_accounts', [
                 'email' => mb_strtolower($s['guardian_email']), 'name' => $s['guardian_name'], 'phone' => $s['guardian_phone'],
+                'kind' => ($s['applicant_type'] ?? 'guardian') === 'self' ? 'self' : 'guardian',
                 'email_verified_at' => gmdate('Y-m-d H:i:s'), 'phone_verified_at' => $s['phone_verified_at'],
             ]);
             $acc = naborAccountGet($id);
@@ -434,7 +435,7 @@ function naborAccountRegister(array $p): array {
     if (!$e && naborAccountByEmail($email)) $e[] = 'Konto z tym adresem już istnieje — zaloguj się albo użyj „Nie pamiętam hasła”.';
     if ($e) return [$e, null, $via];
     // Kod e-mailem: adres potwierdzony od razu (bez linku aktywacyjnego), telefon niezweryfikowany
-    $id = db_insert('ti_nabor_accounts', ['email' => $email, 'name' => $name, 'phone' => $phone,
+    $id = db_insert('ti_nabor_accounts', ['email' => $email, 'name' => $name, 'phone' => $phone, 'kind' => ($p['kind'] ?? '') === 'self' ? 'self' : 'guardian',
                                           'password_hash' => password_hash($pass, PASSWORD_DEFAULT),
                                           'phone_verified_at' => $via === 'email' ? null : gmdate('Y-m-d H:i:s'),
                                           'email_verified_at' => $via === 'email' ? gmdate('Y-m-d H:i:s') : null]);

@@ -52,6 +52,7 @@ function naborCreateAccounts(int $sid, int $uid): array {
 
 /** Małoletni: data urodzenia z PESEL albo z pola daty; nieznana → traktujemy jak małoletniego (formularz jest dla rodziców). */
 function naborIsMinor(array $s): bool {
+    if (($s['applicant_type'] ?? 'guardian') === 'self') return false;   // osoba pełnoletnia zgłosiła siebie — bez konta rodzica
     $v   = trim((string)$s['participant_birth_date_or_pesel']);
     $dob = preg_match('/^\d{11}$/', $v) ? naborPeselBirthDate($v) : naborDateIso($v);
     if (!$dob) return true;

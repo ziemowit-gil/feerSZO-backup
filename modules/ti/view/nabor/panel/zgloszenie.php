@@ -19,7 +19,7 @@ include __DIR__ . '/_head.php';
 ?>
 <nav aria-label="breadcrumb"><ol class="breadcrumb small"><li class="breadcrumb-item"><a href="<?= h(route('nabor.index')) ?>">Nabór do grup</a></li><li class="breadcrumb-item active"><?= h($s['registration_number']) ?></li></ol></nav>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h4 class="mb-0"><?= h($s['participant_name']) ?> <small class="text-muted"><?= h($s['registration_number']) ?></small> <?= naborStatusBadge($s['status']) ?><?= $s['is_test'] ? ' <span class="badge text-bg-warning">TEST</span>' : '' ?></h4>
+  <h4 class="mb-0"><?= h($s['participant_name']) ?><?= ($s['applicant_type'] ?? 'guardian') === 'self' ? ' <span class="badge text-bg-dark" title="Osoba pełnoletnia zgłosiła siebie">zgłasza siebie</span>' : '' ?> <small class="text-muted"><?= h($s['registration_number']) ?></small> <?= naborStatusBadge($s['status']) ?><?= $s['is_test'] ? ' <span class="badge text-bg-warning">TEST</span>' : '' ?></h4>
   <div class="d-flex gap-2">
     <a class="btn btn-sm btn-outline-secondary" href="<?= h(route('nabor.pdf', ['id' => $id])) ?>" target="_blank"><i class="bi bi-filetype-pdf"></i> PDF zgłoszenia</a>
     <?php if ($s['ezd_case_id']): ?>

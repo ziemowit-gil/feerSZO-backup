@@ -171,11 +171,19 @@ include dirname(__DIR__, 2) . '/portal/_header.php';
       <!-- Krok 2 i 3: pola w kolejności z edytora kierownika (naborForm()['order']); pola zależne przez show() -->
       <?php foreach ([2, 3] as $n): ?>
       <fieldset x-show="step === <?= $n ?>" class="tw-grid tw-gap-4">
-        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h<?= $n ?>" tabindex="-1"><?= h($form['step_titles'][$n]) ?></legend>
+        <legend class="tw-text-lg tw-font-bold tw-mb-4" x-ref="h<?= $n ?>" tabindex="-1"
+                x-text="f.applicant_type === 'self' ? <?= h(json_encode($n === 2 ? 'Twoje dane' : 'Twoje dane kontaktowe', JSON_UNESCAPED_UNICODE)) ?> : <?= h(json_encode($form['step_titles'][$n], JSON_UNESCAPED_UNICODE)) ?>"><?= h($form['step_titles'][$n]) ?></legend>
+        <?php if ($n === 2): ?>
+        <fieldset class="tw-bg-feer-bg tw-p-4">
+          <legend class="zp-label">Kogo zgłaszasz?</legend>
+          <label class="zp-check"><input type="radio" name="applicant_type" value="guardian" x-model="f.applicant_type"><span><strong>Dziecko lub podopiecznego</strong> — jestem rodzicem lub opiekunem prawnym</span></label>
+          <label class="zp-check"><input type="radio" name="applicant_type" value="self" x-model="f.applicant_type"><span><strong>Siebie</strong> — jestem osobą pełnoletnią</span></label>
+        </fieldset>
+        <?php endif; ?>
         <?php foreach ($form['order'][$n] as $key): ?>
           <?php if (str_starts_with($key, 'q:')) { echo $customQ(substr($key, 2)); continue; } ?>
           <?php if (!$on($key)) continue; ?>
-          <div x-show="show('<?= h($key) ?>')">
+          <div x-show="show('<?= h($key) ?>')<?= $key === 'guardian_name' ? " && f.applicant_type !== 'self'" : '' ?>">
           <?php switch ($key):
             case 'participant_name': ?>
             <label class="zp-label" for="zp-pn"><?= $lbl($key) ?></label><input id="zp-pn" name="participant_name" class="zp-input" x-model="f.participant_name" autocomplete="off"<?= $dsc($key, 'zp-pn-h') ?> required><?= $hlp($key, 'zp-pn-h') ?>
@@ -270,7 +278,7 @@ include dirname(__DIR__, 2) . '/portal/_header.php';
         <dl class="zp-sum tw-grid sm:tw-grid-cols-2 tw-gap-x-6">
           <div><dt>Zajęcia</dt><dd x-text="courseLabel()"></dd></div>
           <div><dt>Uczestnik</dt><dd x-text="f.participant_name + '\n' + f.participant_birth_date_or_pesel + (f.participant_school_class ? ', ' + f.participant_school_class : '')"></dd></div>
-          <div><dt>Opiekun</dt><dd x-text="f.guardian_name + '\n' + f.guardian_email + '\n' + f.guardian_phone"></dd></div>
+          <div><dt x-text="f.applicant_type === 'self' ? 'Kontakt' : 'Opiekun'">Opiekun</dt><dd x-text="f.guardian_name + '\n' + f.guardian_email + '\n' + f.guardian_phone"></dd></div>
           <?php if ($on('guardian_address')): ?><div><dt>Adres</dt><dd x-text="f.guardian_street + '\n' + f.guardian_postal_code + ' ' + f.guardian_city"></dd></div><?php endif; ?>
           <div x-show="f.equipment.length || f.equipment_notes"><dt><?= h($F['equipment']['label']) ?></dt><dd x-text="(f.equipment.map(k => equipment[k]).join(', ') || '—') + (f.equipment_notes ? '\n' + f.equipment_notes : '')"></dd></div>
           <div><dt>Zgody</dt><dd x-text="consentsLabel()"></dd></div>
@@ -354,6 +362,7 @@ function naborForm(init) {
         if (this.need('equipment') && !f.equipment.length) return 'Zaznacz sprzęt do zajęć online.';
       }
       if (s === 3) {
+        if (f.applicant_type === 'self') f.guardian_name = f.participant_name;
         if (f.guardian_name.trim().length < 3) return 'Podaj imię i nazwisko opiekuna.';
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.guardian_email)) return 'Podaj poprawny adres e-mail.';
         if (!/^48\d{9}$/.test(this.norm(f.guardian_phone))) return 'Podaj numer telefonu komórkowego (9 cyfr).';

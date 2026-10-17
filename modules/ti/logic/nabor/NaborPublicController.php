@@ -141,7 +141,9 @@ final class NaborPublicController
         if (!$acc) return [];
         $last = db_one("SELECT guardian_name, guardian_street, guardian_postal_code, guardian_city FROM ti_nabor_submissions
                          WHERE account_id=? ORDER BY id DESC LIMIT 1", [$acc['id']]) ?: [];
-        return ['guardian_name' => $last['guardian_name'] ?? $acc['name'], 'guardian_email' => $acc['email'], 'guardian_phone' => $acc['phone'],
+        $self = ($acc['kind'] ?? 'guardian') === 'self';
+        return ['applicant_type' => $self ? 'self' : 'guardian', 'participant_name' => $self ? $acc['name'] : '',
+                'guardian_name' => $last['guardian_name'] ?? $acc['name'], 'guardian_email' => $acc['email'], 'guardian_phone' => $acc['phone'],
                 'guardian_street' => $last['guardian_street'] ?? '', 'guardian_postal_code' => $last['guardian_postal_code'] ?? '', 'guardian_city' => $last['guardian_city'] ?? ''];
     }
 
@@ -184,6 +186,7 @@ final class NaborPublicController
                 'course_id' => $s('course_id'), 'is_custom_schedule' => $b('is_custom_schedule'),
                 'preferred_days' => $a('preferred_days'), 'preferred_time_slots' => $a('preferred_time_slots'),
                 'notes_availability' => $s('notes_availability'),
+                'applicant_type' => $s('applicant_type') === 'self' ? 'self' : 'guardian',
                 'participant_name' => $s('participant_name'), 'participant_birth_date_or_pesel' => $s('participant_birth_date_or_pesel'),
                 'participant_school_class' => $s('participant_school_class'), 'participant_medical_notes' => $s('participant_medical_notes'),
                 'guardian_name' => $s('guardian_name'), 'guardian_phone' => $s('guardian_phone'), 'guardian_email' => $s('guardian_email'),

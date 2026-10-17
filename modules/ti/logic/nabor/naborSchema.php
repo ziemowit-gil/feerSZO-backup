@@ -72,6 +72,10 @@ function naborMigrate(): void {
     // Zajęcia online: sprzęt uczestnika zamiast zasad odbioru (pickup_* zostają dla starszych zgłoszeń)
     if (!in_array('equipment', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN equipment TEXT NOT NULL DEFAULT '[]'");
     if (!in_array('extra', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'");   // pytania dodatkowe z edytora
+    // Kto zgłasza: guardian (rodzic / opiekun zgłasza dziecko) | self (osoba pełnoletnia zgłasza siebie)
+    if (!in_array('applicant_type', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN applicant_type TEXT NOT NULL DEFAULT 'guardian'");
+    $ah = array_column($pdo->query("PRAGMA table_info(ti_nabor_accounts)")->fetchAll(), 'name');
+    if ($ah && !in_array('kind', $ah, true)) $pdo->exec("ALTER TABLE ti_nabor_accounts ADD COLUMN kind TEXT NOT NULL DEFAULT 'guardian'");
     if (!in_array('account_id', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN account_id INTEGER");   // konto kandydata (IRK)
     if (!in_array('place_confirmed_at', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN place_confirmed_at DATETIME");
     if (!in_array('agreement_accepted_at', $have, true)) $pdo->exec("ALTER TABLE ti_nabor_submissions ADD COLUMN agreement_accepted_at DATETIME");
