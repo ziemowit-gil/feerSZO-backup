@@ -432,6 +432,38 @@ html[data-theme="hc"] .tzl .tz-side{background:#000;border-right:3px solid #fff}
 html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
 <?php endif; ?>
 </style>
+<?php if ($metro): ?>
+<style>
+  /* Nowy wygląd METRO (jak portal TI): biały pasek górny, ułatwienia w menu, Segoe UI, kwadratowe krawędzie, żółty fokus */
+  body.tzl { font-family: "Segoe UI", "Selawik", system-ui, -apple-system, Roboto, sans-serif; font-size: 1.0625rem; background: #f3f4f6; }
+  .szo-top { background: #fff; border-bottom: 1px solid #dde1e6; }
+  .szo-top-in { max-width: 1240px; margin: 0 auto; padding: 0 1.25rem; min-height: 68px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem 1rem; }
+  .szo-brand { display: flex; align-items: center; gap: .8rem; color: #1d1d1d !important; text-decoration: none; }
+  .szo-brand img { height: 40px; width: auto; }
+  html[data-theme="hc"] .szo-brand img { filter: brightness(0) invert(1); }
+  .szo-sep { width: 1px; height: 30px; background: #c8ccd2; }
+  .szo-title { font-size: 1.2rem; font-weight: 600; }
+  .szo-top-nav { display: flex; align-items: center; gap: .4rem; }
+  .szo-top-link { display: inline-flex; align-items: center; gap: .35rem; padding: .5rem .7rem; color: #1d1d1d !important; text-decoration: none; min-height: 44px; }
+  .szo-top-link:hover, .szo-a11y-menu > summary:hover, .szo-a11y-menu[open] > summary { background: #f3f4f6; }
+  .szo-a11y-menu { position: relative; }
+  .szo-a11y-menu > summary { list-style: none; display: inline-flex; align-items: center; gap: .35rem; padding: .5rem .7rem; cursor: pointer; min-height: 44px; }
+  .szo-a11y-menu > summary::-webkit-details-marker { display: none; }
+  .szo-a11y-pop { position: absolute; right: 0; top: 100%; z-index: 50; background: #fff; border: 2px solid #1d1d1d; padding: .8rem; width: min(92vw, 340px); }
+  .szo-a11y-pop .ks-a11y { position: static !important; background: transparent !important; color: #1d1d1d !important; border: 0 !important; padding: 0 !important; }
+  .szo-a11y-pop .ks-a11y .in { display: grid !important; gap: .7rem; padding: 0 !important; max-width: none !important; justify-content: stretch !important; }
+  .szo-a11y-pop .ks-a11y .grp { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+  .szo-a11y-pop .ks-a11y .lbl { color: #1d1d1d !important; flex: 1 0 100%; font-weight: 600; }
+  .szo-a11y-pop .ks-a11y button { border-radius: 0 !important; min-width: 44px; min-height: 40px; border: 1px solid #c8ccd2 !important; background: #fff !important; color: #1d1d1d !important; }
+  .szo-a11y-pop .ks-a11y button[aria-pressed="true"] { background: #0f6fa8 !important; border-color: #0f6fa8 !important; color: #fff !important; }
+  body.tzl .tz-card, body.tzl .tz-plain, body.tzl .ks-card { border-radius: 0 !important; }
+  body.tzl .form-control { border-radius: 0 !important; border: 2px solid #8a9099 !important; font-size: 1.05rem; padding: .7rem .85rem; }
+  body.tzl .ks-btn, body.tzl .ks-choice__item, body.tzl .tz-btn, body.tzl .btn { border-radius: 0 !important; }
+  body.tzl .ks-h1 { font-weight: 600; }
+  body.tzl :focus-visible { outline: 3px solid #facc15 !important; outline-offset: 2px !important; }
+  @media (max-width: 760px) { .szo-top-nav span, .szo-top-link span { display: none; } .szo-title { font-size: 1.05rem; } .szo-brand img { height: 32px; } }
+</style>
+<?php endif; ?>
 </head>
 <body<?= $metro ? ' class="tzl"' : '' ?>>
 
@@ -439,6 +471,9 @@ html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
 <div role="status" aria-live="polite"    aria-atomic="true" id="login-live"  class="sr"></div>
 <div role="alert"  aria-live="assertive" aria-atomic="true" id="login-alert" class="sr"></div>
 
+<?php
+// Pasek ułatwień (rozmiar tekstu, kontrast) — w METRO w rozwijanym menu górnego paska, poza METRO jak dotąd
+ob_start(); ?>
 <div class="ks-a11y">
   <div class="in">
     <div class="grp" role="group" aria-label="Rozmiar tekstu">
@@ -455,9 +490,28 @@ html[data-theme="hc"] .tzl .tz-card{border:3px solid #000;box-shadow:none}
     </div>
   </div>
 </div>
+<?php $__ks_a11y = ob_get_clean(); ?>
+<?php if ($metro): ?>
+<header class="szo-top">
+  <div class="szo-top-in">
+    <a class="szo-brand" href="<?= h(APP_URL) ?>/auth/login.php">
+      <?php if (!empty($b['logo_url'])): ?><img src="<?= h($b['logo_url']) ?>" alt="<?= h($org_name) ?>"><span class="szo-sep" aria-hidden="true"></span><?php endif; ?>
+      <span class="szo-title"><?= h($o['top_title'] ?? 'System Tożsamości') ?></span>
+    </a>
+    <nav class="szo-top-nav" aria-label="Menu">
+      <details class="szo-a11y-menu">
+        <summary><i class="bi bi-universal-access" aria-hidden="true"></i> <span>Ułatwienia dostępu</span></summary>
+        <div class="szo-a11y-pop"><?= $__ks_a11y ?></div>
+      </details>
+      <a class="szo-top-link" href="<?= h(rtrim(APP_URL, '/')) ?>/karty30/ti/sso.php"><i class="bi bi-question-circle" aria-hidden="true"></i> <span>Czym jest SSO?</span></a>
+    </nav>
+  </div>
+</header>
+<?php else: ?>
+<?= $__ks_a11y ?>
+<?php endif; ?>
 
 <?php if ($metro): ?>
-<?= loginShellBanner() ?>
 <div class="tz-split<?= ($mode !== 'card' && $width > 800) ? ' tz-split--wide' : '' ?>">
   <?php
   // Przyciski konta w lewej kolumnie zastępują zakładki Zaloguj/Rejestracja/Odzyskiwanie.
