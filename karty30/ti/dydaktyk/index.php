@@ -1212,19 +1212,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Usunięcie reguły zajęć stałych
     if ($op === 'delete_recurring_rule') {
         dyd_token_check();
-        $rule_id = (int)($_POST['rule_id'] ?? 0);
-        $rule = db_one("SELECT id FROM k30_ti_series WHERE id=? AND course_id=?", [$rule_id, $course_id]);
-        if ($rule) {
+        // Jedna reguła (rule_id) albo kilka zaznaczonych w tabeli zajęć stałych (rule_ids[])
+        $rule_ids = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['rule_ids'] ?? [$_POST['rule_id'] ?? 0])))));
+        $n_rules = 0;
+        foreach ($rule_ids as $rule_id) {
+            if (!db_one("SELECT id FROM k30_ti_series WHERE id=? AND course_id=?", [$rule_id, $course_id])) continue;
             if (!empty($_POST['del_future'])) {
                 db_exec("DELETE FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'", [$rule_id]);
-                db_exec("DELETE FROM k30_ti_series WHERE id=?", [$rule_id]);
-                flash_set('success', 'Usunięto reguły zajęć stałych i nadchodzące lekcje.');
             } else {
                 db_exec("UPDATE k30_ti_sessions SET series_id=NULL WHERE series_id=?", [$rule_id]);
-                db_exec("DELETE FROM k30_ti_series WHERE id=?", [$rule_id]);
-                flash_set('success', 'Usunięto reguły zajęć stałych (istniejące lekcje zachowane).');
             }
+            db_exec("DELETE FROM k30_ti_series WHERE id=?", [$rule_id]);
+            $n_rules++;
         }
+        if ($n_rules) flash_set('success', (!empty($_POST['del_future']) ? 'Usunięto reguły zajęć stałych i ich nadchodzące lekcje' : 'Usunięto reguły zajęć stałych (istniejące lekcje zachowane)') . ' — reguł: ' . $n_rules . '.');
+        else flash_set('warning', 'Nie zaznaczono żadnej reguły.');
         header('Location: ' . dyd_back($course_id, 'lekcje')); exit;
     }
 

@@ -381,77 +381,84 @@ if ($_sms_enabled && $cur_course) {
     $_instr_names = [];
     foreach (k30_ti_instructors() as $_ins) $_instr_names[(int)$_ins['id']] = (string)$_ins['name'];
   ?>
-  <?php if ($recurring_rules): ?>
+  <?php if ($recurring_rules):
+    $_rec_pos_lbl = ['1'=>'Pierwszy','2'=>'Drugi','3'=>'Trzeci','4'=>'Czwarty','last'=>'Ostatni'];
+    $_rr_fmt = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '…';
+    $_rr_rooms = [];
+    foreach (db_all("SELECT id, name, short_label FROM k30_pl_rooms") as $_rm) $_rr_rooms[(int)$_rm['id']] = trim((string)$_rm['short_label']) !== '' ? (string)$_rm['short_label'] : (string)$_rm['name'];
+  ?>
   <div class="lek-recur">
     <h3 class="lek-recur-h"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Zajęcia stałe <span class="badge rounded-pill"><?= count($recurring_rules) ?></span></h3>
-    <div class="row g-2">
-      <?php
-        $_rec_pos_lbl = ['1'=>'Pierwszy','2'=>'Drugi','3'=>'Trzeci','4'=>'Czwarty','last'=>'Ostatni'];
-      ?>
-      <?php foreach ($recurring_rules as $rr):
-        $rr_monthly = ($rr['recur_mode'] ?? 'weekly') === 'monthly';
-        $rr_dow = $rr_monthly
-            ? (K30_TI_DAYS[(int)($rr['recur_dow'] ?? 1)] ?? '?')
-            : ['Nd','Pn','Wt','Śr','Cz','Pt','So'][(int)date('w', strtotime((string)$rr['date_from']))];
-        $rr_pattern = $rr_monthly
-            ? ($_rec_pos_lbl[(string)($rr['recur_position'] ?? '1')] ?? '?') . ' ' . mb_strtolower($rr_dow) . ' miesiąca'
-            : 'Co ' . (int)$rr['interval_weeks'] . ' tyg. · ' . $rr_dow;
-        $rr_upcoming = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'", [(int)$rr['id']])['n'] ?? 0);
-      ?>
-      <?php
-        $_rr_dfull = ['Nd' => 'niedziele', 'Pn' => 'poniedziałki', 'Wt' => 'wtorki', 'Śr' => 'środy', 'Cz' => 'czwartki', 'Pt' => 'piątki', 'So' => 'soboty'];
-        $_rr_title = $rr['topic'] ?: (($rr_monthly ? $rr_pattern : ((int)$rr['interval_weeks'] > 1 ? 'Co ' . (int)$rr['interval_weeks'] . ' tyg. — ' : '') . ($_rr_dfull[$rr_dow] ?? $rr_dow))
-                     . ($rr['time_from'] ? ', ' . $rr['time_from'] . '–' . $rr['time_to'] : ''));
-        $_rr_fmt = fn($d) => $d ? date('d.m.Y', strtotime((string)$d)) : '…';
-      ?>
-      <div class="col-md-6 col-xl-4">
-        <div class="lek-recur-card">
-          <span class="lek-recur-ico" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>
-          <div class="flex-grow-1 min-w-0">
-            <div class="lek-recur-t"><?= h(mb_strtoupper(mb_substr($_rr_title, 0, 1)) . mb_substr($_rr_title, 1)) ?></div>
-            <div class="lek-recur-d">
-              <?php if ($rr['topic']): ?><?= h($rr_pattern) ?><?= $rr['time_from'] ? ' · ' . h($rr['time_from']) . '–' . h($rr['time_to']) : '' ?> · <?php endif; ?>
-              <?= h($_rr_fmt($rr['date_from'])) ?> – <?= h($_rr_fmt($rr['date_to'])) ?>
-            </div>
-            <div class="lek-recur-n"><?= $rr_upcoming ?> <?= $rr_upcoming === 1 ? 'nadchodząca lekcja' : (($rr_upcoming % 10 >= 2 && $rr_upcoming % 10 <= 4 && ($rr_upcoming % 100 < 10 || $rr_upcoming % 100 >= 20)) ? 'nadchodzące lekcje' : 'nadchodzących lekcji') ?></div>
-          </div>
-            <div class="dropdown">
-              <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Akcje: <?= h($_rr_title) ?>">
-                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-              </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                  <form method="post" onsubmit="return confirm('Usunąć tylko regułę (lekcje pozostają)?')">
-                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                    <input type="hidden" name="_op" value="delete_recurring_rule">
-                    <input type="hidden" name="_tab" value="lekcje">
-                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                    <input type="hidden" name="rule_id" value="<?= (int)$rr['id'] ?>">
-                    <button type="submit" class="dropdown-item">
-                      <i class="bi bi-x-circle me-2 text-warning"></i>Usuń regułę (lekcje zostają)
-                    </button>
-                  </form>
-                </li>
-                <li>
-                  <form method="post" onsubmit="return confirm('Usunąć regułę ORAZ nadchodzące zaplanowane lekcje z tej serii?')">
-                    <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-                    <input type="hidden" name="_op" value="delete_recurring_rule">
-                    <input type="hidden" name="_tab" value="lekcje">
-                    <input type="hidden" name="course_id" value="<?= $cur_course ?>">
-                    <input type="hidden" name="rule_id" value="<?= (int)$rr['id'] ?>">
-                    <input type="hidden" name="del_future" value="1">
-                    <button type="submit" class="dropdown-item text-danger">
-                      <i class="bi bi-trash me-2"></i>Usuń regułę + nadchodzące lekcje
-                    </button>
-                  </form>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-      <?php endforeach; ?>
+    <?php /* Akcje masowe na zaznaczonych regułach */ ?>
+    <form method="post" id="rrBulk" class="lek-recur-bulk"
+          onsubmit="var n=document.querySelectorAll('input[name=&quot;rule_ids[]&quot;][form=rrBulk]:checked').length; if(!n){alert('Zaznacz co najmniej jedną regułę.');return false;} var s=this.querySelector('#rrBulkAct'); if(!s.value){alert('Wybierz akcję.');return false;} if(s.value==='future') this.del_future.value='1'; else this.del_future.value=''; return confirm(s.options[s.selectedIndex].text+' — zaznaczonych reguł: '+n+'?\n\n'+s.options[s.selectedIndex].getAttribute('data-desc'));">
+      <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
+      <input type="hidden" name="_op" value="delete_recurring_rule">
+      <input type="hidden" name="_tab" value="lekcje">
+      <input type="hidden" name="course_id" value="<?= $cur_course ?>">
+      <input type="hidden" name="del_future" value="">
+      <span class="small fw-semibold" id="rrBulkN" role="status" aria-live="polite">Zaznaczone: 0</span>
+      <label class="visually-hidden" for="rrBulkAct">Akcja dla zaznaczonych reguł</label>
+      <select class="form-select form-select-sm w-auto" id="rrBulkAct" aria-describedby="rrBulkDesc"
+              onchange="var o=this.options[this.selectedIndex]; document.getElementById('rrBulkDesc').textContent=o.getAttribute('data-desc')||'Zaznacz reguły w tabeli i wybierz akcję — tu pojawi się jej opis.';">
+        <option value="" data-desc="">— akcja dla zaznaczonych —</option>
+        <option value="rule" data-desc="Usuwa same reguły; utworzone już lekcje zostają w planie jako zwykłe terminy.">Usuń reguły (lekcje zostają)</option>
+        <option value="future" data-desc="Usuwa reguły oraz ich nadchodzące zaplanowane lekcje. Odbyte i odwołane terminy oraz obecności nie są ruszane.">Usuń reguły + nadchodzące lekcje</option>
+      </select>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>Wykonaj</button>
+      <span class="small text-body-secondary" id="rrBulkDesc">Zaznacz reguły w tabeli i wybierz akcję — tu pojawi się jej opis.</span>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle lek-recur-table mb-2">
+        <caption class="visually-hidden">Zajęcia stałe grupy — reguły powtarzania terminów z akcjami</caption>
+        <thead><tr>
+          <th scope="col" style="width:2rem"><input type="checkbox" class="form-check-input" aria-label="Zaznacz wszystkie reguły"
+            onclick="document.querySelectorAll('input[name=&quot;rule_ids[]&quot;][form=rrBulk]').forEach(function(x){x.checked=this.checked}.bind(this)); rrBulkCount()"></th>
+          <th scope="col">Zajęcia</th><th scope="col">Powtarzanie</th><th scope="col">Godziny</th><th scope="col">Okres</th>
+          <th scope="col">Sala</th><th scope="col" class="text-end">Nadchodzące</th><th scope="col" class="text-end">Akcje</th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($recurring_rules as $rr):
+          $rr_monthly = ($rr['recur_mode'] ?? 'weekly') === 'monthly';
+          $rr_dow = $rr_monthly
+              ? (K30_TI_DAYS[(int)($rr['recur_dow'] ?? 1)] ?? '?')
+              : ['Nd','Pn','Wt','Śr','Cz','Pt','So'][(int)date('w', strtotime((string)$rr['date_from']))];
+          $rr_pattern = $rr_monthly
+              ? ($_rec_pos_lbl[(string)($rr['recur_position'] ?? '1')] ?? '?') . ' ' . mb_strtolower($rr_dow) . ' miesiąca'
+              : ((int)$rr['interval_weeks'] > 1 ? 'co ' . (int)$rr['interval_weeks'] . ' tyg. · ' : 'co tydzień · ') . $rr_dow;
+          $rr_upcoming = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE series_id=? AND lesson_date >= date('now') AND status='planned'", [(int)$rr['id']])['n'] ?? 0);
+          $_rr_title = trim((string)$rr['topic']) !== '' ? (string)$rr['topic'] : 'Zajęcia (' . $rr_pattern . ')';
+          $_rr_past = !empty($rr['date_to']) && (string)$rr['date_to'] < $_today;
+        ?>
+          <tr<?= $_rr_past ? ' class="text-body-secondary"' : '' ?>>
+            <td><input type="checkbox" name="rule_ids[]" value="<?= (int)$rr['id'] ?>" form="rrBulk" class="form-check-input" aria-label="Zaznacz regułę: <?= h($_rr_title) ?>"></td>
+            <th scope="row" class="fw-semibold"><?= h(mb_strtoupper(mb_substr($_rr_title, 0, 1)) . mb_substr($_rr_title, 1)) ?></th>
+            <td class="small"><?= h($rr_pattern) ?></td>
+            <td class="small text-nowrap"><?= $rr['time_from'] ? h($rr['time_from'] . '–' . $rr['time_to']) : '—' ?></td>
+            <td class="small text-nowrap"><?= h($_rr_fmt($rr['date_from'])) ?> – <?= h($_rr_fmt($rr['date_to'])) ?><?= $_rr_past ? ' <span class="badge text-bg-secondary">zakończona</span>' : '' ?></td>
+            <td class="small"><?= !empty($rr['room_id']) && isset($_rr_rooms[(int)$rr['room_id']]) ? h($_rr_rooms[(int)$rr['room_id']]) : '<span class="text-body-secondary">—</span>' ?></td>
+            <td class="text-end"><?= $rr_upcoming ?></td>
+            <td class="text-end text-nowrap">
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć regułę „<?= h(addslashes($_rr_title)) ?>”? Utworzone lekcje zostaną w planie.')">
+                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="delete_recurring_rule">
+                <input type="hidden" name="_tab" value="lekcje"><input type="hidden" name="course_id" value="<?= $cur_course ?>"><input type="hidden" name="rule_id" value="<?= (int)$rr['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2" title="Usuwa regułę; utworzone lekcje zostają"><i class="bi bi-x-circle me-1" aria-hidden="true"></i>Usuń regułę</button>
+              </form>
+              <form method="post" class="d-inline" onsubmit="return confirm('Usunąć regułę „<?= h(addslashes($_rr_title)) ?>” ORAZ jej nadchodzące zaplanowane lekcje (<?= $rr_upcoming ?>)?')">
+                <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>"><input type="hidden" name="_op" value="delete_recurring_rule">
+                <input type="hidden" name="_tab" value="lekcje"><input type="hidden" name="course_id" value="<?= $cur_course ?>"><input type="hidden" name="rule_id" value="<?= (int)$rr['id'] ?>"><input type="hidden" name="del_future" value="1">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuwa regułę i jej nadchodzące zaplanowane lekcje"><i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń z lekcjami</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
     </div>
+    <script>
+    function rrBulkCount(){ var n=document.querySelectorAll('input[name="rule_ids[]"][form=rrBulk]:checked').length; document.getElementById('rrBulkN').textContent='Zaznaczone: '+n; }
+    document.addEventListener('change', function(e){ if (e.target.matches('input[name="rule_ids[]"][form=rrBulk]')) rrBulkCount(); });
+    </script>
   </div>
   <?php endif; ?>
 
@@ -486,6 +493,10 @@ if ($_sms_enabled && $cur_course) {
   .lek-recur-t { font-weight: 700; font-size: .86rem; color: #10335c; }
   .lek-recur-d { font-size: .78rem; color: #4a5566; }
   .lek-recur-n { font-size: .74rem; color: #6b7685; margin-top: .1rem; }
+  .lek-recur-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .4rem .6rem; margin-bottom: .5rem; border: 1px solid #d3dce7; border-radius: 4px; background: #f6f9fc; }
+  .lek-recur-table { background: #fff; border: 1px solid #d3dce7; }
+  .lek-recur-table thead th { background: #eef3f9; color: #10335c; font-size: .78rem; }
+  .lek-recur-table td, .lek-recur-table th { font-size: .82rem; }
   /* ── Widok „Sekcje”: nagłówki sekcji w tabeli ─────────────────────────── */
   #dyd-table-lekcje .dyd-lek-sec > th { background: #f3f6fa; border-top: 2px solid #d3dce7; padding: 0 !important; }
   #dyd-table-lekcje .dyd-lek-sec-btn { all: unset; box-sizing: border-box; width: 100%; cursor: pointer;
