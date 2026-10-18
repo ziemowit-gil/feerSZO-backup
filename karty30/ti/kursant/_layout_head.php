@@ -253,8 +253,8 @@ a.kp-dash-card:focus-visible { outline:3px solid rgba(var(--bs-primary-rgb),.55)
 <?php if ($KP_SIDE_MENU !== ''): $_dsm = dirname(__DIR__) . '/assets/dyd_side_menu.css'; ?>
 <link rel="stylesheet" href="<?= h(APP_URL) ?>/karty30/ti/assets/dyd_side_menu.css?v=<?= is_file($_dsm) ? (int)filemtime($_dsm) : 1 ?>">
 <?php endif; ?>
-<?php if (str_contains(' ' . $KP_BODY_CLASS . ' ', ' dyd-usos ')): $_dmc = dirname(__DIR__) . '/assets/ti_metro_dyd.css'; ?>
-<?php /* Panel dydaktyka w szacie Metro — OSTATNI arkusz (po ti_skin.css i dyd_side_menu.css) */ ?>
+<?php if (preg_match('/(^|\s)(dyd-usos|ext-mod)(\s|$)/', (string)$KP_BODY_CLASS)): $_dmc = dirname(__DIR__) . '/assets/ti_metro_dyd.css'; $KP_BODY_CLASS = trim($KP_BODY_CLASS . ' ti-metro'); ?>
+<?php /* Panel dydaktyka i Materiały zewnętrzne w szacie Metro — OSTATNI arkusz (po ti_skin.css i dyd_side_menu.css); klasa body.ti-metro */ ?>
 <link rel="stylesheet" href="<?= h(APP_URL) ?>/karty30/ti/assets/ti_metro_dyd.css?v=<?= is_file($_dmc) ? (int)filemtime($_dmc) : 1 ?>">
 <?php endif; ?>
 </head>

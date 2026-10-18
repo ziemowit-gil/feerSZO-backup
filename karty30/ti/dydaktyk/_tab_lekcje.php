@@ -363,22 +363,6 @@ if ($_sms_enabled && $cur_course) {
     'remote_material'   => 'praca prowadzącego — bez listy obecności, liczona do rozliczenia',
     'cancelled'         => 'odwołana — nie jest liczona do rozliczenia',
   ]; ?>
-  <details class="lek-legend">
-    <summary><i class="bi bi-info-circle" aria-hidden="true"></i>Legenda: statusy i formy zajęć</summary>
-    <div class="lek-legend-in">
-      <ul class="lek-legend-grid" aria-label="Statusy lekcji">
-        <?php foreach ($STATUS as $_sk => $_sv): ?>
-        <li><span class="badge" style="background:<?= h($_sv['bg']) ?>;color:<?= h($_sv['color']) ?>;border:1px solid <?= h($_sv['color']) ?>44"><?= h($_sv['label']) ?></span>
-          <span><?= h($_sdesc[$_sk] ?? '') ?></span></li>
-        <?php endforeach; ?>
-      </ul>
-      <ul class="lek-legend-forms" aria-label="Formy zajęć">
-        <li><i class="bi bi-geo-alt-fill" style="color:#065F46" aria-hidden="true"></i>stacjonarne</li>
-        <li><i class="bi bi-camera-video-fill" style="color:#1D4ED8" aria-hidden="true"></i>Zoom — obciąża konto Zoom</li>
-        <li><i class="bi bi-display" style="color:#6B21A8" aria-hidden="true"></i>zdalne inaczej (Teams, telefon, link)</li>
-      </ul>
-    </div>
-  </details>
 
   <?php
     $_today   = date('Y-m-d');
@@ -820,6 +804,24 @@ if ($_sms_enabled && $cur_course) {
     </div>
     <?php endif; ?>
   </div><!-- /dyd-table-lekcje -->
+
+  <?php /* Legenda statusów i form — pod tabelą, tymi samymi znacznikami co w wierszach */ ?>
+  <details class="lek-legend lek-legend--below" open>
+    <summary><i class="bi bi-info-circle" aria-hidden="true"></i>Legenda: statusy i formy zajęć</summary>
+    <div class="lek-legend-in">
+      <ul class="lek-legend-grid" aria-label="Statusy lekcji">
+        <?php foreach ($STATUS as $_sk => $_sv): ?>
+        <li><span class="badge dyd-st" style="--st:<?= h($_sv['color']) ?>;background:<?= h($_sv['bg']) ?>;color:<?= h($_sv['color']) ?>;border:1px solid <?= h($_sv['color']) ?>44"><?= h($_sv['label']) ?></span>
+          <span><?= h($_sdesc[$_sk] ?? '') ?></span></li>
+        <?php endforeach; ?>
+      </ul>
+      <ul class="lek-legend-forms" aria-label="Formy zajęć">
+        <li><i class="bi bi-geo-alt-fill" style="color:#065F46" aria-hidden="true"></i>stacjonarne</li>
+        <li><i class="bi bi-camera-video-fill" style="color:#1D4ED8" aria-hidden="true"></i>Zoom — obciąża konto Zoom</li>
+        <li><i class="bi bi-display" style="color:#6B21A8" aria-hidden="true"></i>zdalne inaczej (Teams, telefon, link)</li>
+      </ul>
+    </div>
+  </details>
   </div><!-- /dyd-list-lekcje -->
 </div>
 <script>
