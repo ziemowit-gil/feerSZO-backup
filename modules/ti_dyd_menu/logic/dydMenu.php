@@ -105,6 +105,9 @@ function dydMenuSections(): array
         if (function_exists('dyd_plan_cykliczny_enabled') && dyd_plan_cykliczny_enabled()) $start[] = $it('cykliczne', 'Plan cykliczny', $gt('cykliczne'), 'arrow-repeat');
         if ($canAn && !$staff) $start[] = $it('', 'Analityka TI', 'analityka.php', 'speedometer2');
         $start[] = $it('pomoc', 'Gdzie co jest', $gt('pomoc'), 'signpost-split');
+        // Portal Usług IT (instrukcje, awarie, kontakt do IT) — nowy adres na hoście SZO, otwiera się w nowej karcie
+        require_once dirname(__DIR__, 2) . '/it_portal/lib/itPortalLink.php';
+        $start[] = $it('', 'Usługi IT', itPortalPublicUrl(), 'life-preserver', 0, 'secondary', true);
         $start[] = $it('', 'Powiadomienia',   '#', 'bell',     0, 'secondary', false, 'window.dydShowFlashPref && window.dydShowFlashPref()');
         $start[] = $it('', 'Tour powitalny',  '#', 'signpost', 0, 'secondary', false, 'window.dydStartTour && window.dydStartTour()');
         $sec[] = ['key' => 'start', 'label' => 'Mój panel', 'items' => $start];

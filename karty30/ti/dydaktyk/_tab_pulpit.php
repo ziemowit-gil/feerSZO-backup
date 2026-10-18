@@ -208,6 +208,25 @@ $_tl = [
 if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['groups'], 'Grup w instytucji',
     (int)$_kp_counts['students'] . ' kursantów', 'index.php?tab=grupy'];
 ?>
+<?php require_once dirname(__DIR__, 3) . '/modules/it_portal/lib/itPortalLink.php'; ?>
+<aside class="dyd-itp" aria-label="Usługi IT — nowy adres">
+  <i class="bi bi-life-preserver dyd-itp-ic" aria-hidden="true"></i>
+  <div class="dyd-itp-t">
+    <strong>Usługi IT mają nowy adres: <a href="<?= h(itPortalPublicUrl()) ?>" target="_blank" rel="noopener"><?= h(itPortalPublicLabel()) ?></a></strong>
+    <span>Instrukcje (poczta, Teams, Zoom, konta), komunikaty o awariach i kontakt do IT — w jednym miejscu, także bez logowania.</span>
+  </div>
+  <a class="dyd-itp-btn" href="<?= h(itPortalPublicUrl()) ?>" target="_blank" rel="noopener">Otwórz Portal Usług IT<span class="visually-hidden"> (nowa karta)</span> <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+</aside>
+<style>
+.dyd-itp { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem 1rem; background:#f2f2f2; border-left:6px solid #0f6fa8; padding:.8rem 1rem; margin:0 0 1rem; }
+.dyd-itp-ic { width:44px; height:44px; flex:0 0 44px; display:flex; align-items:center; justify-content:center; background:#0f6fa8; color:#fff; font-size:1.3rem; }
+.dyd-itp-t { flex:1 1 320px; min-width:0; display:flex; flex-direction:column; gap:.15rem; font-size:.9rem; color:#1d1d1d; }
+.dyd-itp-t strong { font-weight:600; }
+.dyd-itp-t a { color:#0b5582; }
+.dyd-itp-t span { color:#4b4b4b; font-size:.84rem; }
+.dyd-itp-btn { display:inline-flex; align-items:center; gap:.4rem; background:#1d1d1d; color:#fff !important; font-weight:600; font-size:.88rem; padding:.5rem .9rem; text-decoration:none !important; border:2px solid #1d1d1d; }
+.dyd-itp-btn:hover, .dyd-itp-btn:focus-visible { background:#fff; color:#1d1d1d !important; }
+</style>
 <nav class="dyd-tiles" aria-label="Skróty pulpitu">
   <?php foreach ($_tl as [$_tc, $_ti, $_tn, $_tlb, $_tsub, $_th]): ?>
   <a class="dyd-tile" href="<?= h($_th) ?>" style="--k:<?= h($_tc) ?>">
