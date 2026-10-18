@@ -1689,6 +1689,17 @@ function printBulk(){
           </form>
         </div>
       </div>
+      <?php /* Wnioski DOP1 (zwrot nadpłaty) i DOP2 (płatność z subkonta) — modules/ti_dop */
+        $_dopOpen = []; try { $_dopOpen = db_all("SELECT id, number, form, status FROM dop_requests WHERE client_id = ? AND status NOT IN ('done','rejected','cancelled') ORDER BY id DESC", [(int)$sa['client_id']]); } catch (\Throwable $_e) {} ?>
+      <div class="border-top pt-2 mt-3">
+        <div class="small fw-semibold text-body-secondary mb-1">Wnioski rozliczeniowe</div>
+        <div class="d-flex flex-wrap gap-1">
+          <a class="btn btn-sm btn-outline-success py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/nowy', 'form' => 'DOP1', 'klient' => (int)$sa['client_id']])) ?>">DOP1 — zwrot nadpłaty</a>
+          <a class="btn btn-sm btn-outline-primary py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/nowy', 'form' => 'DOP2', 'klient' => (int)$sa['client_id']])) ?>">DOP2 — płatność z subkonta</a>
+          <a class="btn btn-sm btn-outline-secondary py-0" href="wnioskiDop.php?<?= h(http_build_query(['klient' => (int)$sa['client_id']])) ?>">wszystkie wnioski uczestnika</a>
+        </div>
+        <?php if ($_dopOpen): ?><div class="small mt-1">Otwarte: <?php foreach ($_dopOpen as $_d): ?><a class="me-2" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/wnioski/' . (int)$_d['id']])) ?>"><?= h($_d['number']) ?></a><?php endforeach; ?></div><?php endif; ?>
+      </div>
     </div>
 
     <!-- ── Zakładka: Licencje ───────────────────────────────────────────── -->

@@ -168,6 +168,8 @@ function dydMenuSections(): array
     try { $nLd = (int)(db_one("SELECT (SELECT COUNT(*) FROM license_assignments WHERE status='submitted')
                                     + (SELECT COUNT(*) FROM licenses WHERE form_kind='AM7' AND request_status='started' AND decision_data LIKE '%prepared_at%') AS c")['c'] ?? 0); } catch (\Throwable $e) {}
     try { $nLd += (int)(db_one("SELECT COUNT(*) AS c FROM license_operations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
+    $nDop = 0;   // Wnioski DOP1/DOP2 czekające na obsługę (modules/ti_dop, tabela może jeszcze nie istnieć)
+    try { $nDop = (int)(db_one("SELECT COUNT(*) AS c FROM dop_requests WHERE status IN ('verify','approve','execute')")['c'] ?? 0); } catch (\Throwable $e) {}
     $nMsues = 0;   // Certyfikacja MSUES: oświadczenia kadry czekające na weryfikację (modules/ti_msues, tabela może jeszcze nie istnieć)
     try { $nMsues = (int)(db_one("SELECT COUNT(*) AS c FROM trainer_declarations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
 
@@ -199,6 +201,7 @@ function dydMenuSections(): array
         $it('',            'Przypomnienia o wpłatach', 'przypomnieniaWplat.php', 'cash-coin'),
         $it('',            'Subkonto kursanta',        'subkonto.php',           'bank'),
         $it('',            'Nadpłaty uczestników',     'overpayments.php',       'piggy-bank'),
+        $it('',            'Wnioski DOP (zwrot / subkonto)', 'wnioskiDop.php',     'file-earmark-check', $nDop, 'warning'),
         $it('',            'Cenniki i rabaty',         'pricing.php',            'tags'),
         $it('wypłaty',     'Wypłaty prowadzących',     $gt('wypłaty'),           'cash-stack'),
         $it('',            'Żetony SZO',               'zetony.php',             'ticket-detailed'),

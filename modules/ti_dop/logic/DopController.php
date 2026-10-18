@@ -1,0 +1,160 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * modules/ti_dop/logic/DopController.php — „Finanse › Wnioski DOP” w panelu dydaktyka: lista, nowy wniosek DOP1 / DOP2
+ * (podpis przez link albo wersja papierowa ze skanem), karta wniosku ze ścieżką obsługi, wydruk, puste wzory.
+ */
+require_once dirname(__DIR__) . '/lib/DopService.php';
+
+final class DopController
+{
+    private const VIEW = __DIR__ . '/../view/';
+    private DopService $svc;
+
+    public function __construct()
+    {
+        $this->svc = new DopService();
+    }
+
+    private function actor(): array
+    {
+        $me = dyd_require();
+        return ['id' => (int)$me['user_id'], 'name' => (string)($me['name'] ?? '')];
+    }
+
+    private function view(string $file, array $data): string
+    {
+        return Router::view(self::VIEW . $file, $data + ['actor' => $this->actor(), 'svc' => $this->svc, 'canApprove' => DopService::canApprove((int)$this->actor()['id'])]);
+    }
+
+    private function req(int $id): array
+    {
+        $r = $this->svc->get($id);
+        if (!$r) { http_response_code(404); exit('Nie ma takiego wniosku.'); }
+        return $r;
+    }
+
+    private function fail(\Throwable $e, string $to): ?string
+    {
+        $user = $e instanceof DomainException || $e instanceof InvalidArgumentException;
+        flash_set('danger', $user ? $e->getMessage() : 'Błąd: ' . $e->getMessage());
+        if (!$user) error_log('dop: ' . $e);
+        return Router::redirect($to);
+    }
+
+    private function send(array $out, string $name): ?string
+    {
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $out['mime'] . ($out['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $name) . '.' . $out['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $out['bytes'];
+        return null;
+    }
+
+    public function index(): string
+    {
+        $f = ['status' => (string)($_GET['status'] ?? ''), 'form' => (string)($_GET['form'] ?? ''), 'q' => (string)($_GET['q'] ?? ''), 'client' => (int)($_GET['klient'] ?? 0)];
+        return $this->view('index.php', ['list' => $this->svc->search($f), 'f' => $f, 'counts' => $this->svc->counts()]);
+    }
+
+    public function createForm(array $errors = [], ?array $old = null): string
+    {
+        $form = DopForm::tryFrom((string)($_GET['form'] ?? $_POST['form'] ?? '')) ?? DopForm::Dop1;
+        $cid = (int)($_GET['klient'] ?? $_POST['klient'] ?? 0);
+        $c = $cid ? DopService::client($cid) : null;
+        return $this->view('form.php', ['form' => $form, 'c' => $c, 'clients' => $c ? [] : DopService::clients((string)($_GET['q'] ?? '')), 'q' => (string)($_GET['q'] ?? ''),
+            'errors' => $errors, 'old' => $old ?? ($c ? DopService::defaults($form, $c, $this->actor()) + ['place' => (string)(org_setting('org_miasto') ?: ''), 'sign_mode' => 'link'] : [])]);
+    }
+
+    public function create(): ?string
+    {
+        $form = DopForm::tryFrom((string)($_POST['form'] ?? '')) ?? DopForm::Dop1;
+        try {
+            $r = $this->svc->create($form, (int)($_POST['klient'] ?? 0), $_POST, (string)($_POST['sign_mode'] ?? 'link'), $this->actor(), $_FILES['skan'] ?? null);
+        } catch (\Throwable $e) { return $this->fail($e, route('dop.index')); }
+        if ($r['errors']) { echo $this->createForm($r['errors'], $_POST); return null; }
+        flash_set('success', 'Złożono wniosek. ' . implode(' · ', $r['report']));
+        return Router::redirect(route('dop.show', ['id' => $r['id']]));
+    }
+
+    public function show(int $id): string
+    {
+        $r = $this->req($id);
+        return $this->view('show.php', ['r' => $r, 'c' => DopService::client((int)$r['client_id']), 'events' => $this->svc->events($id),
+            'notifs' => db_all("SELECT * FROM notification_logs WHERE module = 'ti_dop' AND ref_type = 'dop' AND ref_id = ? ORDER BY id DESC", [$id])]);
+    }
+
+    public function pdf(int $id): ?string
+    {
+        $r = $this->req($id);
+        return $this->send($this->svc->document($r), (string)$r['number']);
+    }
+
+    public function scan(int $id): ?string
+    {
+        $r = $this->req($id);
+        $p = DopService::fullPath((string)$r['scan_path']);
+        if (!$p) { http_response_code(404); return 'Brak skanu.'; }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . (['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'png' => 'image/png'][pathinfo($p, PATHINFO_EXTENSION)] ?? 'application/octet-stream'));
+        header('Cache-Control: no-store, private'); header('X-Content-Type-Options: nosniff');
+        readfile($p);
+        return null;
+    }
+
+    public function scanUpload(int $id): ?string
+    {
+        try {
+            if (($_FILES['skan']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new InvalidArgumentException('Wybierz plik skanu.');
+            flash_set('success', $this->svc->uploadScan($id, $_FILES['skan'], $this->actor()) . '.');
+        } catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
+        return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    public function signLink(int $id): ?string
+    {
+        try { flash_set('success', 'Link do podpisu: ' . $this->svc->sendSignLink($id, $this->actor(), true) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
+        return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    public function verify(int $id): ?string
+    {
+        try {
+            $err = $this->svc->verify($id, $_POST, $this->actor());
+            if ($err) { flash_set('danger', implode(' ', $err)); return Router::redirect(route('dop.show', ['id' => $id]) . '#obsluga'); }
+            flash_set('success', 'Zapisano weryfikację.');
+        } catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
+        return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    public function approve(int $id): ?string
+    {
+        try { $this->svc->approve($id, ($_POST['decision'] ?? '') === 'yes', trim((string)($_POST['uwagi'] ?? '')), $this->actor()); flash_set('success', 'Zapisano decyzję.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
+        return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    public function execute(int $id): ?string
+    {
+        try { flash_set('success', $this->svc->execute($id, (string)($_POST['data_przelewu'] ?? ''), (string)($_POST['transakcja'] ?? ''), $this->actor())); }
+        catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id]) . '#obsluga'); }
+        return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    public function cancel(int $id): ?string
+    {
+        try { $this->svc->cancel($id, trim((string)($_POST['reason'] ?? '')), $this->actor()); flash_set('success', 'Wycofano wniosek.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
+        return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    public function blank($form): ?string
+    {
+        $f = DopForm::tryFrom(strtoupper((string)$form));
+        if (!$f) { http_response_code(404); return 'Nie ma takiego wzoru.'; }
+        return $this->send(DopDocument::blank($f), $f->value . '-wzor');
+    }
+}
