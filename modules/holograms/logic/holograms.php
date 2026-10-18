@@ -103,9 +103,14 @@ function holograms_migrate(): void {
 /**
  * Przebudowa tabeli holograms z nowym CHECK (dodany status 'lost').
  * foreign_keys musi być wyłączone POZA transakcją — inaczej DROP TABLE
- * skasowałby kaskadowo holograms_log. Po przebudowie sprawdzamy spójność kluczy.
+ * skasowałby kaskadowo holograms_log. Po przebudowie sprawdzamy spójność kluczy
+ * TYLKO holograms_log (jedyna tabela wskazująca na holograms) i tylko NOWE
+ * naruszenia — samo PRAGMA foreign_key_check sprawdza całą bazę, a ta może mieć
+ * stare, niezwiązane osierocone wiersze (np. email_send_log → users), przez co
+ * migracja padała przy każdym wejściu w moduł.
  */
 function holograms_rebuild_with_lost(PDO $pdo): void {
+    $fkBefore = count($pdo->query("PRAGMA foreign_key_check(holograms_log)")->fetchAll());
     $pdo->exec('PRAGMA foreign_keys=OFF');
     $pdo->beginTransaction();
     try {
@@ -130,7 +135,7 @@ function holograms_rebuild_with_lost(PDO $pdo): void {
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_status   ON holograms(status)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_batch    ON holograms(batch_number)");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_holograms_contract ON holograms(contract_type, contract_id)");
-        if ($pdo->query("PRAGMA foreign_key_check")->fetch()) throw new RuntimeException('holograms v3: naruszenie kluczy obcych po przebudowie');
+        if (count($pdo->query("PRAGMA foreign_key_check(holograms_log)")->fetchAll()) > $fkBefore) throw new RuntimeException('holograms v3: naruszenie kluczy obcych po przebudowie');
         $pdo->commit();
     } catch (\Throwable $e) {
         $pdo->rollBack();
