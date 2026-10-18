@@ -115,6 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_select_contract'])) 
     if ($valid) {
         $ch = reset($valid);
         $_SESSION['panel_contract'] = ['type' => $ch['contract_type'], 'id' => (int)$ch['id'], 'numer' => $ch['numer_umowy']];
+        $_SESSION['panel_contract_chosen'] = 1; // wybór kontekstu załatwiony w tej sesji
     }
     header('Location: ' . APP_URL . '/panel/index.php'); exit;
 }
@@ -346,6 +347,13 @@ if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';
 } else {
     include dirname(__DIR__) . '/includes/header.php';
+}
+
+// ── Wybór kontekstu: więcej niż jedna umowa → najpierw ekran wyboru (raz na sesję albo ?wybierz=1) ──
+if (count($contracts) > 1 && (empty($_SESSION['panel_contract_chosen']) || isset($_GET['wybierz']))) {
+    include __DIR__ . '/includes/pv_contract_choose.php';
+    include $_is_volunteer_only ? __DIR__ . '/includes/footer_panel.php' : dirname(__DIR__) . '/includes/footer.php';
+    exit;
 }
 ?>
 
