@@ -5,6 +5,7 @@
  */
 require __DIR__ . '/_parts.php';
 require __DIR__ . '/_reqList.php';
+require_once dirname(__DIR__) . '/lib/MsuesCatalog.php';
 $c = $e['course']; $p = $e['profile']; $cid = (int)$c['id'];
 $title = 'Profil usługi MSUES — ' . MsuesSzoData::courseLabel($c);
 $kierLabel = 'Certyfikacja MSUES';
@@ -70,6 +71,18 @@ $v = fn(string $k) => h((string)($p[$k] ?? ''));
   <label class="form-label small mb-0" for="pfCd">Dokument wydawany po szkoleniu (zaświadczenie / certyfikat — wzór, podstawa)</label>
   <input class="form-control form-control-sm" id="pfCd" name="certificate_doc" maxlength="255" value="<?= $v('certificate_doc') ?>" placeholder="np. zaświadczenie o ukończeniu wg wzoru MEN / własny wzór Z-01">
   <div class="form-text">Program bierze się z planu nauczania grupy, lista obecności z dziennika („Licz frekwencję” w edycji kursu).</div>
+</div></section>
+<section class="card mb-3" id="catalog"><div class="card-header fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span>Katalog publiczny szkoleń</span>
+  <?php if (!empty($p['in_catalog'])): ?><a class="small" href="<?= h(MsuesCatalog::url($cid)) ?>" target="_blank" rel="noopener">Zobacz wpis w katalogu <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a><?php endif; ?>
+</div><div class="card-body row g-2">
+  <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="pfCat" name="in_catalog" value="1" <?= !empty($p['in_catalog']) ? 'checked' : '' ?>>
+    <label class="form-check-label" for="pfCat">Pokaż szkolenie w publicznym katalogu</label></div>
+    <div class="form-text">Katalog pokazuje efekty uczenia się, wymagania, program (plan nauczania), czas trwania, terminy, wsparcie i dokument po szkoleniu. Prowadzący tylko kodem — bez uczestników i kontaktów.</div></div>
+  <div class="col-md-9"><label class="form-label small mb-0" for="pfCt">Nazwa w katalogu</label><input class="form-control form-control-sm" id="pfCt" name="catalog_title" maxlength="190" value="<?= $v('catalog_title') ?>" placeholder="puste = nazwa grupy dla kursanta"></div>
+  <div class="col-md-3"><label class="form-label small mb-0" for="pfCo">Kolejność</label><input type="number" class="form-control form-control-sm" id="pfCo" name="catalog_order" value="<?= (int)($p['catalog_order'] ?? 0) ?>"></div>
+  <div class="col-12"><label class="form-label small mb-0" for="pfCs">Krótki opis</label><textarea class="form-control form-control-sm" id="pfCs" name="catalog_summary" rows="2"><?= $v('catalog_summary') ?></textarea></div>
+  <div class="col-12"><label class="form-label small mb-0" for="pfCa">Dla kogo</label><textarea class="form-control form-control-sm" id="pfCa" name="catalog_audience" rows="2"><?= $v('catalog_audience') ?></textarea></div>
 </div></section>
 <button class="btn btn-primary"><i class="bi bi-save"></i> Zapisz profil</button>
 </form>

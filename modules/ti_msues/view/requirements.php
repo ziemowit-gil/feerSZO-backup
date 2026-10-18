@@ -5,6 +5,7 @@
  */
 require __DIR__ . '/_parts.php';
 require __DIR__ . '/_reqList.php';
+require_once dirname(__DIR__) . '/lib/MsuesCatalog.php';
 $title = 'Wymagania usług MSUES';
 $kierLabel = 'Certyfikacja MSUES';
 include __DIR__ . '/_head.php';
@@ -16,6 +17,7 @@ $open = array_sum(array_map(fn($r) => $r['e']['missing'] + $r['e']['warn'], $row
   <div class="d-flex gap-2 flex-wrap">
     <a class="btn btn-sm btn-outline-primary" href="<?= h(route('msues.orgdocs')) ?>"><i class="bi bi-building"></i> Dokumenty instytucji</a>
     <a class="btn btn-sm btn-outline-primary" href="<?= h(route('msues.rooms')) ?>"><i class="bi bi-door-open"></i> Normy sal</a>
+    <a class="btn btn-sm btn-outline-primary" href="<?= h(MsuesCatalog::url()) ?>" target="_blank" rel="noopener"><i class="bi bi-journal-richtext"></i> Katalog publiczny (<?= MsuesCatalog::count() ?>)</a>
   </div>
 </div>
 <p class="small text-muted">Usługi MSUES: <?= count($rows) ?> · pozycji do uzupełnienia: <b><?= (int)$open ?></b>. Każdy brak ma przycisk prowadzący do miejsca, w którym się go uzupełnia.</p>

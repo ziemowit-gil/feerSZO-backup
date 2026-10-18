@@ -79,6 +79,11 @@ RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/s/([0-9]+)/?$ /karty30/ti/dydaktyk/planPubliczny.php?s=$1 [QSA,L]
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^plan/s/online/?$ /karty30/ti/dydaktyk/planPubliczny.php?s=online [QSA,L]
+# /katalog/ i /katalog/<id> → publiczny katalog szkoleń (MSUES, modules/ti_msues; wejście w /karty30/)
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
+RewriteRule ^katalog/?$ /karty30/ti/dydaktyk/katalog.php [QSA,L]
+RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
+RewriteRule ^katalog/([0-9]+)/?$ /karty30/ti/dydaktyk/katalog.php?u=$1 [QSA,L]
 # /dyzury → publiczna strona „Dyżury kierownika / Zarządu” (modules/ti_duty, wejście w /karty30/)
 RewriteCond %{HTTP_HOST} ^(ti|szo|kurs)[^.]*\. [NC]
 RewriteRule ^dyzury/?$ /karty30/ti/dydaktyk/dyzury.php [QSA,L]

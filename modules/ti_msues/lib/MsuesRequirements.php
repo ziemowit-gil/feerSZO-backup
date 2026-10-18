@@ -75,7 +75,8 @@ final class MsuesRequirements
             self::$profiles[$courseId] = $p ?: ['course_id' => $courseId, 'is_msues' => 0, 'service_kind' => 'open', 'opiekun_id' => null, 'koordynator_id' => null,
                 'needs_analysis_on' => '', 'needs_analysis_note' => '', 'learning_outcomes' => '', 'requirements' => '', 'materials_reviewed_on' => '',
                 'materials_note' => '', 'support_form' => '', 'evaluation_method' => '', 'evaluation_report_on' => '', 'evaluation_summary' => '',
-                'certificate_doc' => '', 'updated_name' => '', 'updated_at' => null];
+                'certificate_doc' => '', 'in_catalog' => 0, 'catalog_title' => '', 'catalog_summary' => '', 'catalog_audience' => '', 'catalog_order' => 0,
+                'updated_name' => '', 'updated_at' => null];
         }
         return self::$profiles[$courseId];
     }
@@ -101,6 +102,8 @@ final class MsuesRequirements
             'support_form' => $txt('support_form'), 'evaluation_method' => $txt('evaluation_method'),
             'evaluation_report_on' => $date('evaluation_report_on'), 'evaluation_summary' => $txt('evaluation_summary'),
             'certificate_doc' => $txt('certificate_doc', 255),
+            'in_catalog' => !empty($in['in_catalog']) ? 1 : 0, 'catalog_title' => $txt('catalog_title', 190),
+            'catalog_summary' => $txt('catalog_summary'), 'catalog_audience' => $txt('catalog_audience'), 'catalog_order' => (int)($in['catalog_order'] ?? 0),
             'updated_by' => $actor['id'] ?: null, 'updated_name' => (string)$actor['name'], 'updated_at' => msuesNow(),
         ];
         $exists = db_one("SELECT course_id FROM msues_service_profiles WHERE course_id = ?", [$courseId]);
@@ -172,6 +175,11 @@ final class MsuesRequirements
     {
         $o = [];
         foreach (self::ORG_DOCS as $k => [$area, $label, $hint]) $o[$k] = ['area' => $area, 'label' => $label, 'hint' => $hint, 'value' => msuesSetting($k)];
+        // Katalog: gdy nie wskazano innego, a wbudowany katalog publiczny ma wpisy — liczy się wbudowany
+        if ($o['msues_doc_katalog']['value'] === '') {
+            require_once __DIR__ . '/MsuesCatalog.php';
+            if (MsuesCatalog::count()) $o['msues_doc_katalog']['value'] = MsuesCatalog::url();
+        }
         return $o;
     }
 

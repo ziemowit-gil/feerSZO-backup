@@ -9,6 +9,7 @@ declare(strict_types=1);
  *   msues_staff_documents       — dokumenty kadry do checklisty: CV, dyplomy, certyfikaty, umowy spoza rejestru
  *   msues_service_profiles      — profil usługi MSUES (grupa TI): role, analiza potrzeb, efekty, materiały, wsparcie, ewaluacja
  *   k30_pl_rooms.msues_norms    — spełnione normy sali i wyposażenia (JSON kodów)
+ *   msues_service_profiles.in_catalog / catalog_* — wpis w publicznym katalogu szkoleń (MsuesCatalog)
  *
  * SQL przenośny (SQLite ↔ MySQL): znaczniki czasu liczy PHP (msuesNow()), bez funkcji dat bazy.
  * Ustawienia organizacji (tabela settings): require_trainer_formal_declaration, msues_ezd_jrwa, msues_ezd_auto, msues_launched_*.
@@ -121,6 +122,11 @@ function msuesMigrate(): void
         updated_name VARCHAR(190) NOT NULL DEFAULT '',
         updated_at VARCHAR(19)
     )");
+    // Katalog publiczny szkoleń (karty30/ti/dydaktyk/katalog.php, /katalog/ na ti.*): publikacja wpisu i jego treść
+    foreach (["in_catalog INTEGER NOT NULL DEFAULT 0", "catalog_title VARCHAR(190) NOT NULL DEFAULT ''", "catalog_summary TEXT",
+              "catalog_audience TEXT", "catalog_order INTEGER NOT NULL DEFAULT 0"] as $col) {
+        try { $db->exec("ALTER TABLE msues_service_profiles ADD COLUMN {$col}"); } catch (\Throwable $e) {}
+    }
     // Sala: spełnione normy MSUES (JSON listy kodów z MsuesRequirements::ROOM_NORMS) + kto i kiedy sprawdził
     foreach (["msues_norms TEXT", "msues_checked_at VARCHAR(19)", "msues_checked_by VARCHAR(190) NOT NULL DEFAULT ''"] as $col) {
         try { $db->exec("ALTER TABLE k30_pl_rooms ADD COLUMN {$col}"); } catch (\Throwable $e) {}
