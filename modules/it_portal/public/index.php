@@ -12,7 +12,9 @@ $banner  = itPortalSetting('banner_on') === '1' ? itPortalSanitizeHtml(itPortalS
 
 itPortalPageStart('', 'start', 'Instrukcje, usługi informatyczne i komunikaty o awariach — ' . ORG_NAME);
 ?>
-<h1 class="itp-sr"><?= h(itPortalSetting('title')) ?></h1>
+<div class="itp-kicker"><?= h(ORG_NAME) ?></div>
+<h1 class="itp-title"><?= h(itPortalSetting('title')) ?></h1>
+<p class="itp-lead">Instrukcje, usługi informatyczne i komunikaty o przerwach w działaniu.</p>
 <form class="itp-search" role="search" action="<?= h(itPortalUrl('szukaj')) ?>" method="get">
   <label class="itp-sr" for="itp-q">Szukaj na stronie</label>
   <input id="itp-q" type="search" name="q" placeholder="Szukaj na stronie…" autocomplete="off">

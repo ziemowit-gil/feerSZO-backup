@@ -11,7 +11,7 @@ $contacts = itPortalContacts();
 
 itPortalPageStart('Kontakt', 'kontakt', 'Kontakt z obsługą informatyczną ' . ORG_NAME . '.');
 ?>
-<h1 class="itp-sr">Kontakt</h1>
+<h1 class="itp-title">Kontakt</h1>
 <?php if ($intro !== ''): ?>
   <div class="itp-body itp-contact-intro"><?= $intro ?></div>
 <?php endif; ?>

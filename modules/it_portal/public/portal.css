@@ -219,3 +219,78 @@ a:hover { text-decoration: underline; }
   .itp-table td { border: 0; padding: 4px 0; }
   .itp-table td:empty { display: none; }
 }
+
+/* ══ METRO (jak System Tożsamości i Panel współpracownika) + dostępność ═══════════════
+   Nakładka na reguły wyżej: ciemny app-bar #1d1d1d, zero zaokrągleń i cieni, lekka duża
+   typografia, płaskie szare grupy, kolorowe kafle usług. Kolory kafli z kontrastem
+   białego tekstu ≥ 4,5:1 (WCAG AA), fokus 3px w kolorze bursztynowym na każdym tle. */
+:root {
+  --itp-accent: #0f6fa8; --itp-accent-dark: #0b5683; --itp-accent-soft: #f2f2f2;
+  --itp-ink: #111827; --itp-muted: #5f5f5f; --itp-line: #e1e1e1; --itp-sub: #f2f2f2;
+  --itp-link: #0b5683; --itp-max: 1100px; --itp-r: 0;
+  --m-dark: #1d1d1d;
+}
+:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
+a { text-decoration: underline; text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+.itp-skip { border-radius: 0; border-color: var(--m-dark); font-weight: 600; color: var(--m-dark); }
+
+.itp-brand { background: var(--m-dark); border-top: 0; }
+.itp-brand .itp-wrap { padding-top: 10px; padding-bottom: 10px; }
+.itp-brand__link, .itp-brand__link:hover { text-decoration: none; }
+.itp-brand__mark { width: 40px; height: 40px; font-size: 1rem; }
+.itp-brand__title { color: #fff; font-size: 1.1rem; font-weight: 700; }
+.itp-brand__sub { color: rgba(255,255,255,.72); font-size: .78rem; }
+.itp-brand__logo { background: #fff; padding: 4px; height: 44px; }
+
+.itp-nav__list a { font-size: 1.15rem; font-weight: 300; color: #4b5563; text-decoration: none; padding: 12px 12px 9px; }
+.itp-nav__list a:hover { color: var(--itp-ink); }
+.itp-nav__list a[aria-current="page"] { color: var(--itp-ink); font-weight: 600; border-bottom-color: var(--itp-accent); }
+.itp-nav__search { border: 2px solid #8a8a8a; }
+.itp-nav__search:focus-within { border-color: var(--itp-accent); }
+
+.itp-title { margin: 0 0 6px; font-size: clamp(1.9rem, 4vw, 2.5rem); font-weight: 300; letter-spacing: -.02em; line-height: 1.1; color: var(--itp-ink); }
+.itp-lead { margin: 0 0 24px; color: var(--itp-muted); font-weight: 300; max-width: 70ch; }
+.itp-kicker { font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .18em; color: var(--itp-muted); margin-bottom: 6px; }
+
+.itp-search { border: 2px solid #8a8a8a; }
+.itp-search:focus-within { box-shadow: none; border-color: var(--itp-accent); }
+.itp-search button { background: var(--itp-accent); }
+.itp-h { font-size: 1.35rem; font-weight: 300; text-transform: none; letter-spacing: -.01em; color: var(--itp-ink); }
+.itp-panel { padding: 10px 18px 14px; }
+.itp-alert { border-left-width: 8px; border-left-color: #a20025; background: #f2f2f2; }
+.itp-note, .itp-card { border: 0; background: var(--itp-sub); border-left: 8px solid var(--itp-accent); }
+.itp-status { border-radius: 0; background: #fff; }
+.itp-dot { border-radius: 0; }
+
+/* Kafle usług — Metro Start: pełny kolor, biała ikona i tekst */
+.itp-tiles { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.itp-tiles li { --c: #0f6fa8; }
+.itp-tiles li:nth-child(8n+2) { --c: #007a00; }
+.itp-tiles li:nth-child(8n+3) { --c: #c25100; }
+.itp-tiles li:nth-child(8n+4) { --c: #6a00ff; }
+.itp-tiles li:nth-child(8n+5) { --c: #00807e; }
+.itp-tiles li:nth-child(8n+6) { --c: #d80073; }
+.itp-tiles li:nth-child(8n+7) { --c: #0050ef; }
+.itp-tiles li:nth-child(8n+8) { --c: #a20025; }
+.itp-tile {
+  flex-direction: column; align-items: flex-start; justify-content: space-between; min-height: 150px; height: 100%;
+  background: var(--c); color: #fff; border: 0; font-size: 1.02rem; text-decoration: none; transition: filter .12s;
+}
+.itp-tile:hover { filter: brightness(1.1); box-shadow: none; color: #fff; text-decoration: none; }
+.itp-tile:focus-visible { outline-offset: -3px; }
+.itp-tile svg { width: 44px; height: 44px; padding: 0; background: transparent; color: #fff; }
+.itp-tile__ext { color: rgba(255,255,255,.9); }
+
+.itp-side { border-right-color: var(--itp-line); }
+.itp-axis li::before { border-radius: 0; }
+.itp-content h1 { font-size: 2rem; font-weight: 300; letter-spacing: -.02em; }
+.itp-pic { background: var(--itp-accent); }
+.itp-pic svg { color: #fff; }
+.itp-pager span[aria-current] { font-weight: 600; }
+.itp-footer { background: var(--m-dark); border-top: 0; }
+.itp-footer__links a, .itp-footer__links li, .itp-footer__org { color: rgba(255,255,255,.85); }
+.itp-footer :focus-visible { outline-color: #fbbf24; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+@media (forced-colors: active) { .itp-tile { border: 2px solid CanvasText; } }

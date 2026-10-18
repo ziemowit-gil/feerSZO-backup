@@ -23,7 +23,7 @@ if ($id > 0) {
 
 itPortalPageStart($id ? $items[0]['title'] : 'Komunikaty', 'komunikaty', $id ? $items[0]['body_plain'] : '');
 ?>
-<h1 class="itp-sr"><?= $id ? h($items[0]['title']) : 'Komunikaty' ?></h1>
+<h1 class="<?= $id ? 'itp-sr' : 'itp-title' ?>"><?= $id ? h($items[0]['title']) : 'Komunikaty' ?></h1>
 <?php if (!$items): ?>
   <div class="itp-empty"><p>Brak komunikatów — wszystkie usługi działają normalnie.</p></div>
 <?php else: ?>
