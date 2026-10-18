@@ -39,7 +39,7 @@ $_dpAvail = directoryProfileAvailableItems();
           </div></div>
           <?php endforeach; ?>
         </div>
-        <div class="form-text">Zdjęcie czekające na akceptację administratora liczy się jako dodane.</div>
+        <div class="form-text">Zdjęcie jest nieobowiązkowe. Każda osoba może raz wybrać „Uzupełnię w ciągu <?= DIR_PROFILE_DEFER_DAYS ?> dni” — do tego dnia pulpit nie jest blokowany.</div>
       </fieldset>
       <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Zapisz wymóg</button>
     </form>

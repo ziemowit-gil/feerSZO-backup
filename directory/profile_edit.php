@@ -37,6 +37,16 @@ $dpMark = fn(string $k): string => in_array($k, $dpReq, true)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
 
+    // „Uzupełnię w ciągu 14 dni” — jednorazowe odroczenie wymogu (tylko własny profil)
+    if (!empty($_POST['_dp_defer'])) {
+        $until = $is_own ? directoryProfileDefer($target_id) : null;
+        flash_set($until ? 'success' : 'warning', $until
+            ? 'Dobrze — masz czas do ' . date('d.m.Y', strtotime($until)) . '. Przypomnimy na pulpicie.'
+            : 'Termin na uzupełnienie profilu był już przesunięty — uzupełnij wymagane pola.');
+        header('Location: ' . APP_URL . ($until ? '/index.php' : '/directory/profile_edit.php'));
+        exit;
+    }
+
     $bio       = trim($_POST['bio'] ?? '');
     $phone_pub = isset($_POST['phone_public']) ? 1 : 0;
 
@@ -158,8 +168,17 @@ include __DIR__ . '/includes/header_dir.php';
     <strong><?= $dpStatus['mode'] === 'require'
         ? ($is_own ? 'Uzupełnij profil, aby korzystać z pulpitu.' : 'Profil nie spełnia wymogu organizacji.')
         : 'Organizacja prosi o uzupełnienie profilu w katalogu.' ?></strong>
-    <span>Brakuje: <?= h(implode(', ', $dpStatus['missing'])) ?>. Pola wymagane oznaczono gwiazdką (*).</span>
+    <span>Brakuje: <?= h(implode(', ', $dpStatus['missing'])) ?>. Pola wymagane oznaczono gwiazdką (*). Zdjęcie jest nieobowiązkowe.
+      <?php if ($dpStatus['deferred']): ?><br>Termin uzupełnienia: <b><?= h(date('d.m.Y', strtotime($dpStatus['deferUntil']))) ?></b>.<?php endif; ?></span>
   </div>
+  <?php if ($is_own && $dpStatus['canDefer']): ?>
+  <form method="post" style="margin-left:auto">
+    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+    <button type="submit" name="_dp_defer" value="1" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-clock me-1" aria-hidden="true"></i>Uzupełnię w ciągu <?= DIR_PROFILE_DEFER_DAYS ?> dni
+    </button>
+  </form>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 

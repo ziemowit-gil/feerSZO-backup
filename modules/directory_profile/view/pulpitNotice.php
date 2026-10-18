@@ -26,7 +26,7 @@ $_dpRequire = $dpStatus['mode'] === 'require';
   <span class="dpf-ic" aria-hidden="true"><i class="bi bi-person-lines-fill"></i></span>
   <div class="dpf-body">
     <h2 class="dpf-t" id="dpf-t"><?= $_dpRequire ? 'Wymagane: uzupełnij swój profil w katalogu' : 'Uzupełnij swój profil w katalogu' ?></h2>
-    <p class="dpf-s">Brakuje: <?= h(implode(', ', $dpStatus['missing'])) ?> · uzupełniono <?= (int)$dpStatus['done'] ?> z <?= (int)$dpStatus['total'] ?></p>
+    <p class="dpf-s"><?php if (!empty($dpStatus['deferred'])): ?>Termin: <b><?= h(date('d.m.Y', strtotime($dpStatus['deferUntil']))) ?></b> · <?php endif; ?>Brakuje: <?= h(implode(', ', $dpStatus['missing'])) ?> · uzupełniono <?= (int)$dpStatus['done'] ?> z <?= (int)$dpStatus['total'] ?></p>
     <div class="dpf-bar" role="progressbar" aria-label="Postęp uzupełnienia profilu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= (int)$dpStatus['pct'] ?>"><span style="width:<?= (int)$dpStatus['pct'] ?>%"></span></div>
   </div>
   <a class="dpf-btn" href="<?= APP_URL ?>/directory/profile_edit.php"><i class="bi bi-pencil-square" aria-hidden="true"></i>Uzupełnij profil</a>

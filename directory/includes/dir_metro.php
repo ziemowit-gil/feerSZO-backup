@@ -76,7 +76,7 @@ html body .dir-avatar, html body .dir-avatar img, html body .dir-content img.rou
 
 /* Wymóg uzupełnienia profilu (profile_edit.php) */
 html body .dir-req{color:var(--dm-red);font-weight:700}
-html body .dir-req-note{display:flex;gap:.9rem;align-items:center;background:var(--dm-light);border-left:6px solid var(--dm-orange);padding:.85rem 1.1rem;margin-bottom:1rem;max-width:720px}
+html body .dir-req-note{display:flex;flex-wrap:wrap;gap:.9rem;align-items:center;background:var(--dm-light);border-left:6px solid var(--dm-orange);padding:.85rem 1.1rem;margin-bottom:1rem;max-width:720px}
 html body .dir-req-note.is-require{border-left-color:var(--dm-red)}
 html body .dir-req-note > .bi{font-size:1.5rem;color:var(--dm-orange)}
 html body .dir-req-note.is-require > .bi{color:var(--dm-red)}
