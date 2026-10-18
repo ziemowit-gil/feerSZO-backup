@@ -14,6 +14,10 @@ require_once dirname(dirname(__DIR__)) . '/includes/asystent_ai.php';
 
 require_login();
 
+// Kreator pierwszego logowania (modules/first_run) — przekierowuje osobę, która go nie ukończyła.
+require_once dirname(dirname(__DIR__)) . '/modules/first_run/lib/firstRun.php';
+firstRunGate(current_user());
+
 $_pv_title  = $PAGE_TITLE ?? 'Panel współpracownika';
 $_pv_uri    = $_SERVER['REQUEST_URI'] ?? '';
 $_pv_org    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');

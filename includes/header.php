@@ -91,6 +91,12 @@ if ($_user && !defined('SKIP_CONSENT_CHECK')) {
     }
 }
 
+// ── Kreator pierwszego logowania (modules/first_run) — po zgodzie, przed treścią strony ──
+if ($_user && !defined('SKIP_CONSENT_CHECK')) {
+    require_once dirname(__DIR__) . '/modules/first_run/lib/firstRun.php';
+    firstRunGate($_user);
+}
+
 $_pending = 0;
 if ($_user && is_admin()) {
     require_once __DIR__ . '/amendments.php';
