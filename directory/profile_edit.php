@@ -92,8 +92,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare("UPDATE users SET phone_number=? WHERE id=?")
                 ->execute([$phone_new, $target_id]);
         } catch (\Throwable $e) {}
+        // Zostajemy w edycji (wcześniej: przejście na kartę profilu — kafle wyglądały jak pulpit)
         flash_set('success', 'Profil został zapisany.');
-        header('Location: ' . APP_URL . '/directory/profile.php?id=' . $target_id);
+        header('Location: ' . APP_URL . '/directory/profile_edit.php?zapisano=1' . ($is_own ? '' : '&id=' . $target_id));
         exit;
     }
 
@@ -124,8 +125,8 @@ include __DIR__ . '/includes/header_dir.php';
 <nav aria-label="Nawigacja strony" class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <a href="<?= APP_URL ?>/directory/profile.php?id=<?= $target_id ?>"
      class="btn btn-sm btn-outline-secondary"
-     aria-label="Wróć do profilu użytkownika <?= h($display) ?>">
-    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Wróć do profilu
+     aria-label="Zobacz profil w katalogu: <?= h($display) ?>">
+    <i class="bi bi-eye me-1" aria-hidden="true"></i>Zobacz profil
   </a>
   <div class="d-flex align-items-center gap-2 ms-1">
     <?php
