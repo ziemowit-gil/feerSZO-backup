@@ -112,10 +112,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         APP_URL . '/tasks/notifications.php',
                         'Przejdź do powiadomień →'
                     );
-                    $ok = (bool) approval_send_email($tu['email'], 'Test powiadomień — Zadania', $html, 'task_test', (int)$tu['id']);
+                    $via = ''; $err = '';
+                    $ok = task_mail_send($tu['email'], 'Test powiadomień — Zadania', $html, 'task_test', (int)$tu['id'], 20, $via, $err, (int)$tu['id'], 'test');
                     $admin_test_result = ['ok' => $ok, 'msg' => $ok
                         ? 'E-mail testowy wysłany na ' . $tu['email'] . ' (' . $tu['name'] . ')'
-                        : 'Nie udało się wysłać na ' . $tu['email'] . ' — sprawdź logi serwera.'];
+                        : 'Nie udało się wysłać na ' . $tu['email'] . ' przez Microsoft Graph: ' . $err];
                 }
             }
         }
@@ -148,9 +149,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     APP_URL . '/tasks/notifications.php',
                     'Przejdź do powiadomień →'
                 );
-                $ok = (bool) approval_send_email($notify_to, 'Test powiadomień — Zadania', $html, 'task_test', $uid);
+                $via = ''; $err = '';
+                $ok = task_mail_send($notify_to, 'Test powiadomień — Zadania', $html, 'task_test', $uid, 20, $via, $err, (int)$uid, 'test');
                 $test_result = ['ok' => $ok, 'channel' => 'email',
-                    'msg' => $ok ? 'E-mail testowy wysłany na ' . $notify_to : 'Nie udało się wysłać — sprawdź konfigurację M365/SMTP lub logi serwera.'];
+                    'msg' => $ok ? 'E-mail testowy wysłany na ' . $notify_to : 'Nie udało się wysłać przez Microsoft Graph: ' . $err];
             }
         }
     } else {

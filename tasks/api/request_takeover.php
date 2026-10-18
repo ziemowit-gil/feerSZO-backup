@@ -90,7 +90,8 @@ if ($message) {
 $body_txt .= "\nAkceptuj lub odrzuc prosbe w skrzynce zadan:\n{$url}\n";
 
 // E-mail
-@mail($target['email'], "[{$org}] Przekazanie zadania — wymagana decyzja: {$task['title']}", $body_txt, $headers);
+require_once dirname(__DIR__, 2) . '/includes/task_notify.php'; // e-maile Zadań tylko przez Graph
+task_mail_send_text((string)$target['email'], "[{$org}] Przekazanie zadania — wymagana decyzja: {$task['title']}", $body_txt, 'task', (int)($task['id'] ?? 0), (int)($target['id'] ?? 0), 'takeover_request');
 
 // Wiadomość wewnętrzna — subject z markerem 'transfer:task_id' odczytywanym przez inbox.php
 $internal_body  = "Chce przekazac Ci zadanie: **{$task['title']}**\n";

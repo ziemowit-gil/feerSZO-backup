@@ -89,7 +89,8 @@ HTML;
 $sent = 0;
 foreach ($recipients as $r) {
     if (!empty($r['email'])) {
-        $ok = approval_send_email($r['email'], $subject, $html_body, 'task', null, 10);
+        $via = ''; $err = '';
+        $ok = task_mail_send($r['email'], $subject, $html_body, 'task', null, 10, $via, $err, (int)($r['id'] ?? 0), 'notify_leader'); // tylko Graph
         if ($ok) $sent++;
     }
 }

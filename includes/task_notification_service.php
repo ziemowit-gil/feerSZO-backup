@@ -519,12 +519,14 @@ class TaskNotificationService
             $subject = $payload['subject'] ?? 'Powiadomienie: ' . ($payload['task_title'] ?? '#' . $taskId);
             $html    = $payload['html']    ?? '<p>' . htmlspecialchars($subject) . '</p>';
 
-            $ok = (bool)approval_send_email($user['email'], $subject, $html, 'task', null, 20);
+            require_once __DIR__ . '/task_notify.php';
+            $via = ''; $err = '';
+            $ok = task_mail_send((string)$user['email'], $subject, $html, 'task', $taskId, 20, $via, $err, $userId, $eventType); // tylko Graph
 
             if ($ok) {
                 _tn_log($userId, $eventType, $taskId, 'email');
             } else {
-                $this->logError($taskId, $userId, $eventType, 'email', 'approval_send_email() zwróciło false/0');
+                $this->logError($taskId, $userId, $eventType, 'email', 'Graph [' . $via . ']: ' . $err);
             }
 
             return $ok;
@@ -600,27 +602,20 @@ class TaskNotificationService
 
     private function checkEmailChannel(): array
     {
+        // E-maile Zadań idą WYŁĄCZNIE przez Microsoft Graph (task_mail_send) — bez SMTP i mail().
         try {
-            if (!function_exists('approval_send_email')) {
-                return ['test' => 'email_channel', 'pass' => false, 'msg' => 'approval_send_email() nie załadowana'];
+            require_once __DIR__ . '/m365.php';
+            $graph = new \M365Graph();
+            if (m365_setting('m365_enabled') !== '1') {
+                return ['test' => 'email_channel', 'pass' => false, 'msg' => 'E-mail: moduł Microsoft 365 wyłączony — e-maile Zadań nie wyjdą (tylko Graph)'];
             }
-
-            // Sprawdź M365
-            $m365 = $this->db->prepare("SELECT value FROM settings WHERE key_='m365_tenant_id' LIMIT 1");
-            $m365->execute();
-            if ($m365->fetchColumn()) {
-                return ['test' => 'email_channel', 'pass' => true, 'msg' => 'E-mail: M365 Graph API skonfigurowany'];
+            if (m365_setting('m365_sender_user_id') === '') {
+                return ['test' => 'email_channel', 'pass' => false, 'msg' => 'E-mail: brak nadawcy Graph (m365_sender_user_id) — e-maile Zadań nie wyjdą'];
             }
-
-            // Sprawdź SMTP
-            $smtp = $this->db->prepare("SELECT value FROM settings WHERE key_='smtp_host' LIMIT 1");
-            $smtp->execute();
-            if ($smtp->fetchColumn()) {
-                return ['test' => 'email_channel', 'pass' => true, 'msg' => 'E-mail: SMTP skonfigurowany'];
+            if (!$graph->is_configured()) {
+                return ['test' => 'email_channel', 'pass' => false, 'msg' => 'E-mail: niepełne dane aplikacji Graph (tenant/client/secret)'];
             }
-
-            return ['test' => 'email_channel', 'pass' => true, 'msg' => 'E-mail: dostępna funkcja mail() (ostatni fallback)'];
-
+            return ['test' => 'email_channel', 'pass' => true, 'msg' => 'E-mail: Microsoft Graph skonfigurowany (jedyny kanał e-maili Zadań)'];
         } catch (\Throwable $e) {
             return ['test' => 'email_channel', 'pass' => false, 'msg' => 'Błąd sprawdzania e-mail: ' . $e->getMessage()];
         }

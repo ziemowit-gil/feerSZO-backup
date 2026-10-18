@@ -51,10 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tu = db_one("SELECT email FROM users WHERE id=?", [$target_id]);
         $task = db_one("SELECT title FROM tasks WHERE id=?", [$task_id]);
         if ($tu && !empty($tu['email'])) {
-            @mail($tu['email'],
+            require_once dirname(__DIR__) . '/includes/task_notify.php'; // e-maile Zadań tylko przez Graph
+            task_mail_send_text($tu['email'],
                 "[{$org}] Nowa wiadomosc: " . ($task['title'] ?? ''),
                 "Wiadomosc od {$u['name']}:\n\n{$msg_body}\n\n---\n" . rtrim(APP_URL,'/').'/tasks/inbox.php',
-                $headers);
+                'task', $task_id, $target_id, 'inbox_message');
         }
         echo json_encode(['ok' => true, 'id' => $msg_id]); exit;
     }
@@ -92,10 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "Re: transfer:{$task_id}:{$task['title']}", $confirm_body);
             $su = db_one("SELECT email FROM users WHERE id=?", [$sender_id]);
             if ($su && !empty($su['email'])) {
-                @mail($su['email'],
+                require_once dirname(__DIR__) . '/includes/task_notify.php';
+                task_mail_send_text($su['email'],
                     "[{$org}] Zadanie przyjete: {$task['title']}",
                     "{$u['name']} przyjął/przyjęła przekazane zadanie: \"{$task['title']}\".\n\nZadanie jest teraz przypisane.",
-                    $headers);
+                    'task', null, (int)$sender_id, 'takeover_accepted');
             }
         }
 
@@ -131,11 +133,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "Odrzucono: {$task_title}", $reject_body);
             $su = db_one("SELECT email FROM users WHERE id=?", [$sender_id]);
             if ($su && !empty($su['email'])) {
-                @mail($su['email'],
+                require_once dirname(__DIR__) . '/includes/task_notify.php';
+                task_mail_send_text($su['email'],
                     "[{$org}] Odrzucono przekazanie: {$task_title}",
                     "{$u['name']} odrzucił/a przekazanie zadania \"{$task_title}\"."
                     . ($reason ? "\n\nPowód:\n{$reason}" : '') . "\n",
-                    $headers);
+                    'task', null, (int)$sender_id, 'takeover_rejected');
             }
         }
 

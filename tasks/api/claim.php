@@ -121,16 +121,17 @@ function _claim_notify(array $task, array $actor, string $event): void {
         $headers = "From: noreply@" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "\r\n"
                  . "Content-Type: text/plain; charset=utf-8\r\n";
 
+        require_once dirname(__DIR__, 2) . '/includes/task_notify.php'; // e-maile Zadań tylko przez Graph
         foreach ($recipients as $r) {
-            if (!empty($r['email'])) @mail($r['email'], $subject, $body, $headers);
+            if (!empty($r['email'])) task_mail_send_text($r['email'], $subject, $body, 'task', null, (int)($r['id'] ?? 0), 'claim');
         }
 
         if ($event === 'taken' && !empty($actor['email'])) {
-            @mail(
+            task_mail_send_text(
                 $actor['email'],
                 "[{$org}] Potwierdzenie przypisania zadania",
                 "Czesc {$name},\n\nPotwierdzamy przypisanie zadania \"{$title}\".\n\nSzczegoly: {$url}",
-                $headers
+                'task', null, (int)($actor['id'] ?? 0), 'claim'
             );
         }
     } catch (\Throwable $e) { /* nie blokuj */ }

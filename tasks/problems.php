@@ -113,11 +113,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $headers = "From: noreply@".($_SERVER['HTTP_HOST']??'localhost')."\r\n"
                      . "Reply-To: ".($actor['email']??'')."\r\n"
                      . "Content-Type: text/plain; charset=utf-8\r\n";
-            @mail(
+            require_once dirname(__DIR__) . '/includes/task_notify.php'; // e-maile Zadań tylko przez Graph
+            task_mail_send_text(
                 $reporter['email'],
                 "[{$org}] Odpowiedz lidera: {$task['title']}",
                 "{$actor['name']} odpowiedzial/a na Twoje zgloszenie:\n\n{$msg_body}\n\n---\nSkrzynka: {$url}",
-                $headers
+                'task', null, (int)$reporter_id, 'problem_reply'
             );
         }
 

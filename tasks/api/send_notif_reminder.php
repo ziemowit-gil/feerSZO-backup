@@ -74,7 +74,7 @@ if ($action === 'send') {
         exit;
     }
     $html = _snr_build_html($u['name']);
-    $ok   = (bool)approval_send_email(
+    $ok   = task_mail_send_html(
         $u['email'],
         'Skonfiguruj powiadomienia — Zadania',
         $html,
@@ -111,7 +111,7 @@ if ($action === 'bulk') {
     $sent = 0; $failed = 0;
     foreach ($unconfigured as $u) {
         $html = _snr_build_html($u['name']);
-        $ok   = (bool)approval_send_email(
+        $ok   = task_mail_send_html(
             $u['email'],
             'Skonfiguruj powiadomienia — Zadania',
             $html,

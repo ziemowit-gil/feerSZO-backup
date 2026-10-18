@@ -405,9 +405,10 @@ function task_notify_send_digests(): array {
             . '<p style="color:#64748b;font-size:13px">Podsumowania zamiast pojedynczych wiadomości włączasz i wyłączasz w ustawieniach powiadomień.</p>';
         $via = '';
         try {
-            $ok = (bool)approval_send_email($to, $subject,
+            $err = '';
+            $ok = task_mail_send($to, $subject,
                 _tn_tpl('Podsumowanie dnia', $subject, $content, rtrim(APP_URL, '/') . '/tasks/index.php'),
-                'task_digest', $uid, 20, $via);
+                'task_digest', $uid, 20, $via, $err, $uid, 'digest');
         } catch (\Throwable $e) { $ok = false; _tn_log_error($uid, 'digest', 'email', $e->getMessage()); }
         if ($ok) { $mark(); $sent++; } else { $errs++; }   // błąd → zostaje w kolejce na następny przebieg
     }
@@ -480,7 +481,8 @@ function task_notify_request_email_change(int $user_id, string $email, string $a
         $link,
         'Potwierdź adres →'
     );
-    $ok = (bool)approval_send_email($email, 'Potwierdź adres do powiadomień — Zadania', $html, 'task_email_verify', $user_id);
+    $via = ''; $err = '';
+    $ok = task_mail_send($email, 'Potwierdź adres do powiadomień — Zadania', $html, 'task_email_verify', $user_id, 20, $via, $err, $user_id, 'email_verify');
     if (!$ok) {
         return ['status' => 'error', 'msg' => 'Nie udało się wysłać linku weryfikacyjnego na ' . $email . '. Spróbuj ponownie później.'];
     }
@@ -671,6 +673,61 @@ function _tn_default_prefs(): array {
  * Dedup blokuje tylko e-mail — nie wpływa na SMS ani in-app.
  * Każda próba (sukces i błąd) jest zapisywana w task_notification_log.
  */
+/**
+ * Wysyłka e-maila modułu Zadania — WYŁĄCZNIE przez Microsoft Graph (sendMail w imieniu
+ * nadawcy z ustawień M365: m365_enabled=1 + m365_sender_user_id). Bez SMTP, mail_queue
+ * i mail(): gdy Graph nie jest skonfigurowany albo zwróci błąd, wiadomość nie wychodzi,
+ * a błąd trafia do task_notification_errors (+ email_log jako 'm365_failed').
+ * $via: 'm365' | 'rate_limited' | 'graph_not_configured' | 'graph_failed'; $err: opis błędu.
+ */
+function task_mail_send(string $to, string $subject, string $html, string $ctx_type = 'task', ?int $ctx_id = null,
+                        int $rate_limit = 20, string &$via = '', string &$err = '', int $user_id = 0, string $event = ''): bool {
+    $via = ''; $err = '';
+    $to = trim($to);
+    if ($to === '') { $via = 'no_address'; return false; }
+    if (function_exists('email_rate_limit_ok') && !email_rate_limit_ok($to, $rate_limit)) {
+        $via = 'rate_limited'; $err = "limit wysyłek na adres {$to}";
+        if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'rate_limited');
+        _tn_log_error($user_id, $event ?: $ctx_type, 'email', "Graph: {$err}");
+        return false;
+    }
+    try {
+        require_once __DIR__ . '/m365.php';
+        $sender = m365_setting('m365_sender_user_id');
+        $graph  = new M365Graph();
+        if (m365_setting('m365_enabled') !== '1' || $sender === '' || !$graph->is_configured()) {
+            $via = 'graph_not_configured';
+            $err = 'Microsoft Graph nie jest skonfigurowany do wysyłki (Admin → Microsoft 365: włączony moduł, nadawca m365_sender_user_id, dane aplikacji).';
+        } else {
+            $graph->send_raw_email($sender, $to, $subject, $html);
+            $via = 'm365';
+            if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
+            return true;
+        }
+    } catch (\Throwable $e) {
+        $via = 'graph_failed';
+        $err = $e->getMessage();
+    }
+    if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'm365_failed');
+    _tn_log_error($user_id, $event ?: $ctx_type, 'email', "Graph [{$via}] dla {$to}: " . mb_substr($err, 0, 800));
+    return false;
+}
+
+/** Skrót: task_mail_send() z domyślnymi parametrami (bez zwracania $via/$err). */
+function task_mail_send_html(string $to, string $subject, string $html, string $ctx_type = 'task', ?int $ctx_id = null): bool {
+    $via = ''; $err = '';
+    return task_mail_send($to, $subject, $html, $ctx_type, $ctx_id, 20, $via, $err, (int)($ctx_id ?? 0), $ctx_type);
+}
+
+/** Jak task_mail_send(), ale z treścią w zwykłym tekście (dawne wywołania mail() z text/plain). */
+function task_mail_send_text(string $to, string $subject, string $text, string $ctx_type = 'task', ?int $ctx_id = null,
+                             int $user_id = 0, string $event = ''): bool {
+    $html = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.55;color:#111827">'
+          . nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</div>';
+    $via = ''; $err = '';
+    return task_mail_send($to, $subject, $html, $ctx_type, $ctx_id, 20, $via, $err, $user_id, $event);
+}
+
 function _tn_email(int $user_id, ?string $to, string $event, int $ref_id,
                    string $subject, string $html): void {
     $to = task_notify_address($user_id, (string)$to);
@@ -700,13 +757,13 @@ function _tn_email(int $user_id, ?string $to, string $event, int $ref_id,
 
     $via = '';
     try {
-        $ok = (bool) approval_send_email($to, $subject, $html, 'task', $ref_id, 20, $via);
+        $err = '';
+        $ok = task_mail_send($to, $subject, $html, 'task', $ref_id, 20, $via, $err, $user_id, $event); // tylko Graph; błąd zapisuje task_mail_send()
         if ($ok) {
             _tn_dedup_mark($user_id, $event, $ref_id, 'email', $via ?: 'direct');
         } else {
             // Zawsze loguj nieudane próby — widoczne w historii jako "Błąd"
             _tn_dedup_mark($user_id, $event, $ref_id, 'email', $via ?: 'failed', true);
-            _tn_log_error($user_id, $event, 'email', "approval_send_email zwróciło false [{$via}] dla {$to}");
         }
     } catch (\Throwable $e) {
         _tn_dedup_mark($user_id, $event, $ref_id, 'email', 'failed', true);
