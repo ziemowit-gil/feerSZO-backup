@@ -72,59 +72,93 @@ $KP_TOPBAR = ['brand' => 'Panel dydaktyka', 'icon' => 'easel2', 'user' => (strin
 $KP_BODY_CLASS = 'dyd-usos ti-skin';
 include dirname(__DIR__) . '/kursant/_layout_head.php';
 $_skin_css = __DIR__ . '/../assets/ti_skin.css';
-$opt = function (string $name, string $value, bool $checked, string $icon, string $title, string $desc): void { ?>
-      <label class="list-group-item list-group-item-action d-flex gap-3 align-items-start py-3" style="cursor:pointer">
-        <input class="form-check-input flex-shrink-0 mt-1" type="radio" name="<?= h($name) ?>" value="<?= h($value) ?>"<?= $checked ? ' checked' : '' ?> required>
-        <i class="bi bi-<?= h($icon) ?> fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
-        <span><span class="d-block fw-bold"><?= h($title) ?></span><span class="d-block small text-body-secondary"><?= h($desc) ?></span></span>
+require_once dirname(__DIR__, 3) . '/modules/panel_metro/lib/panelMetro.php';
+// Kafel wyboru (Metro): radio ukryte wizualnie, cały kafel klikalny; zaznaczony = kolor + znacznik
+$opt = function (string $name, string $value, bool $checked, string $icon, string $title, string $desc, string $color): void { ?>
+      <label class="cm-opt" style="--c:<?= h(panelMetroColor($color)) ?>">
+        <input type="radio" name="<?= h($name) ?>" value="<?= h($value) ?>"<?= $checked ? ' checked' : '' ?> required>
+        <i class="bi bi-<?= h($icon) ?> ic" aria-hidden="true"></i>
+        <i class="bi bi-check-lg ok" aria-hidden="true"></i>
+        <span class="bd"><span class="lbl"><?= h($title) ?></span><span class="sub"><?= h($desc) ?></span></span>
       </label>
 <?php };
 ?>
 <link rel="stylesheet" href="../assets/ti_skin.css?v=<?= is_file($_skin_css) ? (int)filemtime($_skin_css) : 1 ?>">
+<?php panelMetroAssets(panelMetroColor('orange')); ?>
+<style>
+.pvm.cm{max-width:960px;padding:0 16px}
+.pvm .cm-sets{display:grid;gap:1.5rem;grid-template-columns:1fr;border:0;margin:0}
+@media(min-width:768px){.pvm .cm-sets--2{grid-template-columns:1fr 1fr}}
+.pvm fieldset.cm-set{border:0;margin:0;padding:0;min-width:0}
+.pvm .cm-set legend{float:none;width:auto;margin:0 0 .5rem;padding:0;font-size:1.05rem;font-weight:300;color:var(--pvm-muted);letter-spacing:.01em}
+.pvm .cm-opts{display:grid;gap:8px}
+.pvm .cm-opt{position:relative;display:flex;gap:14px;align-items:flex-start;min-height:120px;padding:16px 44px 16px 16px;background:var(--pvm-light);color:var(--pvm-ink);cursor:pointer;margin:0;transition:background .12s}
+.pvm .cm-opt:hover{background:var(--pvm-light-h)}
+.pvm .cm-opt input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.pvm .cm-opt .ic{font-size:2rem;line-height:1;color:var(--c);flex-shrink:0}
+.pvm .cm-opt .ok{position:absolute;top:10px;right:12px;font-size:1.4rem;line-height:1;display:none}
+.pvm .cm-opt .lbl{display:block;font-size:1.15rem;font-weight:600;line-height:1.2}
+.pvm .cm-opt .sub{display:block;font-size:.86rem;margin-top:.3rem;color:var(--pvm-muted);line-height:1.4}
+.pvm .cm-opt:has(input:checked){background:var(--c);color:#fff}
+.pvm .cm-opt:has(input:checked) .ic,.pvm .cm-opt:has(input:checked) .sub{color:#fff}
+.pvm .cm-opt:has(input:checked) .ok{display:block}
+.pvm .cm-opt:has(input:focus-visible){outline:3px solid #fbbf24;outline-offset:2px}
+.pvm .cm-group{margin-top:1.5rem}
+.pvm .cm-group label{display:block;margin:0 0 .5rem;font-size:1.05rem;font-weight:300;color:var(--pvm-muted)}
+.pvm .cm-group select{width:100%;max-width:32rem;border:2px solid #8a8a8a;border-radius:0;padding:.55rem .75rem;font:inherit;font-size:1rem;background:var(--pvm-bg);color:var(--pvm-ink);min-height:44px}
+.pvm .cm-group select:focus{border-color:var(--pvm-acc);outline:0}
+.pvm .cm-hint{font-size:.84rem;color:var(--pvm-muted);margin:.45rem 0 0;max-width:70ch}
+.pvm .cm-foot{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin-top:1.75rem}
+.pvm .cm-foot a.cm-alt{font-size:.9rem;font-weight:600;color:var(--pvm-ink);text-decoration:underline;text-underline-offset:3px}
+:root[data-theme="hc"] .pvm .cm-opt{border:2px solid #000}
+:root[data-theme="hc"] .pvm .cm-opt:has(input:checked){background:#000;color:#fff}
+@media(prefers-reduced-motion:reduce){.pvm .cm-opt{transition:none}}
+</style>
 <main id="main" class="dyd-wrap">
-<div class="container-fluid py-4" style="max-width:860px">
-  <h1 class="h4 fw-bold mb-1"><i class="bi bi-signpost-split text-primary me-2" aria-hidden="true"></i>Jak teraz pracujesz?</h1>
-  <p class="text-body-secondary small mb-3">Wybór dotyczy tej sesji — menu panelu dopasuje się do niego. Zmienisz go w każdej chwili: menu użytkownika → „Zmień rolę / tryb pracy”.</p>
+<div class="pvm cm py-4">
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker">Panel dydaktyka<?= !empty($s['name']) ? ' · ' . h((string)$s['name']) : '' ?></div>
+      <h1 class="mt-title">Jak teraz pracujesz?</h1>
+      <p class="mt-lead">Wybór dotyczy tej sesji — menu panelu dopasuje się do niego. Zmienisz go w każdej chwili: menu użytkownika → „Zmień rolę / tryb pracy”.</p>
+    </div>
+  </div>
   <?= flash_html() ?>
   <form method="post">
     <input type="hidden" name="_token" value="<?= h(dyd_token()) ?>">
-    <div class="row g-3">
+    <div class="cm-sets<?= $askRole && $askMode ? ' cm-sets--2' : '' ?>">
       <?php if ($askRole): ?>
-      <div class="col-md-6">
-        <fieldset class="card border-0 shadow-sm h-100">
-          <legend class="card-header fw-semibold fs-6 mb-0 w-100">Rola</legend>
-          <div class="list-group list-group-flush">
-            <?php $opt('role', 'staff', $curRole !== 'instructor', 'building', 'Kierownik Instytucji', 'Widzisz wszystkie grupy i całą organizację zajęć — rozliczenia, zapisy, zespół i ustawienia.'); ?>
-            <?php $opt('role', 'instructor', $curRole === 'instructor' && empty($s['acting_as_other']), 'mortarboard', 'Prowadzący', 'Widzisz tylko swoje grupy (' . $ownCount . '), tak jak każdy prowadzący.'); ?>
-          </div>
-        </fieldset>
-      </div>
+      <fieldset class="cm-set">
+        <legend>Rola</legend>
+        <div class="cm-opts">
+          <?php $opt('role', 'staff', $curRole !== 'instructor', 'building', 'Kierownik Instytucji', 'Widzisz wszystkie grupy i całą organizację zajęć — rozliczenia, zapisy, zespół i ustawienia.', 'indigo'); ?>
+          <?php $opt('role', 'instructor', $curRole === 'instructor' && empty($s['acting_as_other']), 'mortarboard', 'Prowadzący', 'Widzisz tylko swoje grupy (' . $ownCount . '), tak jak każdy prowadzący.', 'teal'); ?>
+        </div>
+      </fieldset>
       <?php endif; ?>
       <?php if ($askMode): ?>
-      <div class="col-md-6">
-        <fieldset class="card border-0 shadow-sm h-100">
-          <legend class="card-header fw-semibold fs-6 mb-0 w-100">Tryb pracy</legend>
-          <div class="list-group list-group-flush">
-            <?php $opt('mode', 'kursy', $curMode !== 'konsultacje', 'easel2', 'Szkolenia', 'Prowadzisz zajęcia: sprawdzasz obecność, uzupełniasz dziennik i zamykasz miesiąc protokołem.'); ?>
-            <?php $opt('mode', 'konsultacje', $curMode === 'konsultacje', 'clipboard2-check', 'Konsultacje', 'Umawiasz spotkania z beneficjentami i po każdym wypełniasz kartę konsultacji.'); ?>
-          </div>
-        </fieldset>
-      </div>
+      <fieldset class="cm-set">
+        <legend>Tryb pracy</legend>
+        <div class="cm-opts">
+          <?php $opt('mode', 'kursy', $curMode !== 'konsultacje', 'easel2', 'Szkolenia', 'Prowadzisz zajęcia: sprawdzasz obecność, uzupełniasz dziennik i zamykasz miesiąc protokołem.', 'orange'); ?>
+          <?php $opt('mode', 'konsultacje', $curMode === 'konsultacje', 'clipboard2-check', 'Konsultacje', 'Umawiasz spotkania z beneficjentami i po każdym wypełniasz kartę konsultacji.', 'violet'); ?>
+        </div>
+      </fieldset>
       <?php endif; ?>
     </div>
     <?php if ($groups): ?>
-    <div class="card border-0 shadow-sm mt-3" id="cm-group"><div class="card-body">
-      <label class="form-label fw-semibold mb-1" for="cm-course">Grupa, na której pracujesz <span class="fw-normal small text-body-secondary">(Szkolenia)</span></label>
-      <select class="form-select" id="cm-course" name="course" style="max-width:32rem">
+    <div class="cm-group" id="cm-group">
+      <label for="cm-course">Grupa, na której pracujesz <small>(Szkolenia)</small></label>
+      <select id="cm-course" name="course" aria-describedby="cm-course-hint">
         <option value="0">— wybiorę w panelu —</option>
         <?php foreach ($groups as $g): ?><option value="<?= (int)$g['id'] ?>"<?= (int)$g['id'] === $prefGroup ? ' selected' : '' ?>><?= h($g['name']) ?><?= trim((string)($g['display_name'] ?? '')) !== '' ? ' — ' . h($g['display_name']) : '' ?></option><?php endforeach; ?>
       </select>
-      <div class="form-text">Panel otworzy się od razu na tej grupie i zapamięta ją na kolejne logowania; zmienisz ją w każdej chwili przełącznikiem grupy u góry.</div>
-    </div></div>
+      <p class="cm-hint" id="cm-course-hint">Panel otworzy się od razu na tej grupie i zapamięta ją na kolejne logowania; zmienisz ją w każdej chwili przełącznikiem grupy u góry.</p>
+    </div>
     <?php endif; ?>
-    <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
-      <button type="submit" class="btn btn-primary"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Przejdź do panelu</button>
-      <?php if (!empty($s['is_staff'])): ?><a class="small" href="choose_context.php">Wejdź jako inny prowadzący…</a><?php endif; ?>
+    <div class="cm-foot">
+      <button type="submit" class="mt-btn"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Przejdź do panelu</button>
+      <?php if (!empty($s['is_staff'])): ?><a class="cm-alt" href="choose_context.php">Wejdź jako inny prowadzący…</a><?php endif; ?>
     </div>
   </form>
 </div>
