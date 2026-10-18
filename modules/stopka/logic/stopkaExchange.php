@@ -175,6 +175,7 @@ function stopkaExHttp(string $method, string $url, array $headers, string $body)
         $hint = '';
         if ($hdrs['www-authenticate'] ?? '') $hint .= ' WWW-Authenticate: ' . $hdrs['www-authenticate'] . '.';
         if ($hdrs['x-ms-diagnostics'] ?? '') $hint .= ' x-ms-diagnostics: ' . $hdrs['x-ms-diagnostics'] . '.';
+        if ($hdrs['request-id'] ?? '') $hint .= ' request-id: ' . $hdrs['request-id'] . '.';
         if ($code === 401 || $code === 403) {
             $hint .= ' Zwykle znaczy to brak roli administracyjnej aplikacji w Exchange (Entra ID → Role i administratorzy →'
                 . ' „Exchange Administrator” → Dodaj przypisania → wybierz TĘ aplikację) lub brak zgody administratora na Exchange.ManageAsApp;'
@@ -217,33 +218,58 @@ function stopkaExAnchorDomains(string $tenant): array {
     return array_values(array_unique(array_filter($out)));
 }
 
+/**
+ * Diagnostyka tokenu przy 401/403 z Exchange: czy token jest z certyfikatu (appidacr=2) i czy zawiera rolę
+ * katalogową Exchange Administrator (claim „wids”, szablon 29232cdf-…). Rola nadana aplikacji, ale nieaktywna
+ * (np. PIM „Kwalifikujące się”, przypisanie innej aplikacji o tej samej nazwie, jeszcze niezreplikowana)
+ * nie pojawia się w „wids” — wtedy Exchange odpowiada 403 bez treści mimo uprawnienia Exchange.ManageAsApp.
+ */
+function stopkaExTokenDiag(string $token): string {
+    $c = M365Graph::decode_jwt($token);
+    $wids = (array)($c['wids'] ?? []);
+    $exAdmin = in_array('29232cdf-9323-42fd-ade2-1d097af3e4de', $wids, true) || in_array('62e90394-69f5-4237-9190-012177145e10', $wids, true);
+    $acr = (string)($c['appidacr'] ?? $c['azpacr'] ?? '?');
+    $out = ' Token: aplikacja ' . ($c['appid'] ?? $c['azp'] ?? '?') . ', uwierzytelnienie ' . ($acr === '2' ? 'certyfikatem' : ($acr === '1' ? 'SEKRETEM (Exchange wymaga certyfikatu)' : $acr))
+         . ', role katalogowe w tokenie: ' . ($wids ? implode(', ', $wids) : 'brak') . '.';
+    $out .= $exAdmin
+        ? ' Rola Exchange Administrator (lub Global Administrator) JEST w tokenie — uprawnienia są dobre; 403 wynika z kierowania żądania (kotwica skrzynki) albo z blokady po stronie Exchange (np. zasady dostępu aplikacji / dostęp warunkowy).'
+        : ' Roli Exchange Administrator NIE MA w tokenie — Entra nie widzi jej jako aktywnej dla tej aplikacji: sprawdź, że przypisanie jest „Aktywne” (nie „Kwalifikujące się” w PIM), dotyczy aplikacji o identyfikatorze ' . ($c['appid'] ?? $c['azp'] ?? '?') . ' (a nie innej o tej samej nazwie), zakres „Katalog”, i odczekaj do 1 h na replikację.';
+    return $out;
+}
+
 /** Wywołuje cmdlet Exchange Online. Zwraca listę wyników; rzuca wyjątek z treścią błędu. */
 function stopkaExInvoke(string $token, string $cmdlet, array $params = []): array {
     $tenant = m365_setting('m365_tenant_id') ?: (defined('MS_TENANT_ID') ? MS_TENANT_ID : '');
     $body = json_encode(['CmdletInput' => ['CmdletName' => $cmdlet, 'Parameters' => (object)$params]], JSON_UNESCAPED_UNICODE);
     $last = null;
     $doms = stopkaExAnchorDomains($tenant);
+    // Prefiks kotwicy: moduł EXO V3 w trybie aplikacji używa „APP:”, część dzierżaw przyjmuje tylko „UPN:” — próbujemy obu
+    $prefixes = array_values(array_unique(array_filter([org_setting('stopka_ex_anchor_prefix'), 'APP', 'UPN'])));
     foreach ($doms as $dom) {
-        try {
-            $r = stopkaExHttp('POST', "https://outlook.office365.com/adminapi/beta/$tenant/InvokeCommand", [
-                'Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json;odata.metadata=minimal',
-                'X-ResponseFormat: json', 'X-CmdletName: ' . $cmdlet, 'X-ClientApplication: ExoManagementModule',
-                'X-AnchorMailbox: APP:SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@' . $dom,
-            ], $body);
-        } catch (RuntimeException $e) {
-            // 401/403 bez treści przy tej kotwicy — spróbuj następnej domeny; inne błędy przerywają
-            if (!preg_match('/HTTP 40[13] bez JSON/', $e->getMessage())) throw $e;
-            $last = $e;
-            continue;
+        foreach ($prefixes as $pfx) {
+            try {
+                $r = stopkaExHttp('POST', "https://outlook.office365.com/adminapi/beta/$tenant/InvokeCommand", [
+                    'Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json;odata.metadata=minimal',
+                    'X-ResponseFormat: json', 'X-CmdletName: ' . $cmdlet, 'X-ClientApplication: ExoManagementModule',
+                    'X-AnchorMailbox: ' . $pfx . ':SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@' . $dom,
+                ], $body);
+            } catch (RuntimeException $e) {
+                // 401/403 bez treści przy tej kotwicy — spróbuj następnej; inne błędy przerywają
+                if (!preg_match('/HTTP 40[13] bez JSON/', $e->getMessage())) throw $e;
+                $last = $e;
+                continue;
+            }
+            if (org_setting('stopka_ex_anchor_domain') !== $dom) org_setting_set('stopka_ex_anchor_domain', $dom);
+            if (org_setting('stopka_ex_anchor_prefix') !== $pfx) org_setting_set('stopka_ex_anchor_prefix', $pfx);
+            if (!empty($r['error'])) {
+                $m = $r['error']['message'] ?? ($r['error']['code'] ?? 'błąd');
+                throw new RuntimeException("$cmdlet: " . (is_string($m) ? $m : json_encode($m, JSON_UNESCAPED_UNICODE)));
+            }
+            return $r['value'] ?? [];
         }
-        if (org_setting('stopka_ex_anchor_domain') !== $dom) org_setting_set('stopka_ex_anchor_domain', $dom);
-        if (!empty($r['error'])) {
-            $m = $r['error']['message'] ?? ($r['error']['code'] ?? 'błąd');
-            throw new RuntimeException("$cmdlet: " . (is_string($m) ? $m : json_encode($m, JSON_UNESCAPED_UNICODE)));
-        }
-        return $r['value'] ?? [];
     }
-    if ($last) throw new RuntimeException($last->getMessage() . ' Sprawdzone kotwice skrzynki: ' . implode(', ', $doms) . '.');
+    if ($last) throw new RuntimeException($last->getMessage() . ' Sprawdzone kotwice skrzynki: ' . implode(', ', $doms)
+        . ' (prefiksy ' . implode('/', $prefixes) . ').' . stopkaExTokenDiag($token));
     throw new RuntimeException('Brak identyfikatora dzierżawy Microsoft 365.');
 }
 
