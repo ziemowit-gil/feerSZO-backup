@@ -2,8 +2,9 @@
 /**
  * komunikaty/index.php — Ogłoszenia organizacji + feed powiadomień użytkownika.
  *
- * Powłoka i komponenty: _shell.php (panel współpracownika / powłoka SZO, język
- * wizualny modułu „Tożsamość").
+ * Powłoka: _shell.php (panel współpracownika / powłoka SZO). Wygląd METRO jak System
+ * Tożsamości i pulpit panelu — wspólny zestaw modules/panel_metro: kafle liczników,
+ * zakładki pivot „ogłoszenia / powiadomienia”, filtr kategorii, karty z paskiem koloru.
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -59,62 +60,111 @@ foreach ($announcements as $a) {
 }
 
 require_once __DIR__ . '/_shell.php';
+require_once dirname(__DIR__) . '/modules/panel_metro/lib/panelMetro.php';
+panelMetroAssets($_vol_color ?? '#0f6fa8');
 
-$_actions = '';
-if (is_admin()) {
-    $_actions =
-        '<a href="' . APP_URL . '/komunikaty/compose.php" class="tz-btn">'
-        . '<i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe ogłoszenie</a> '
-        . '<a href="' . APP_URL . '/komunikaty/manage.php" class="tz-btn tz-btn--ghost">'
-        . '<i class="bi bi-sliders" aria-hidden="true"></i>Zarządzaj</a>';
-}
-
-pv_page_header('Komunikaty', [
-    'icon'    => 'bi-megaphone',
-    'sub'     => 'Ogłoszenia organizacji i Twoje powiadomienia',
-    'actions' => $_actions,
-]);
+$_ann_total = count($announcements);
+$_imp_count = count(array_filter($announcements, fn($a) => ($a['display_mode'] ?? 'feed') === 'important'));
+$_kat_all   = ann_kategoria_options();
 ?>
+<style>
+/* ── Komunikaty w METRO: filtr kategorii, karta ogłoszenia, powiadomienia ── */
+.pvm .kom-cats{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 1.1rem}
+.pvm .kom-cat{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .85rem;background:var(--pvm-light);color:var(--pvm-ink);text-decoration:none;font-size:.86rem;font-weight:500;min-height:40px;border-left:6px solid var(--c)}
+.pvm .kom-cat:hover{background:var(--pvm-light-h);color:var(--pvm-ink)}
+.pvm .kom-cat[aria-current="page"]{background:var(--c);color:var(--on,#fff);font-weight:600}
+.pvm .kom-ann{background:var(--pvm-light);border-left:8px solid var(--c);padding:1rem 1.15rem;margin-bottom:8px;min-width:0}
+.pvm .kom-ann--read{border-left-color:var(--pvm-line)}
+.pvm .kom-ann__meta{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .7rem;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--pvm-muted);margin-bottom:.35rem}
+.pvm .kom-ann__ttl{margin:0;font-size:1.15rem;font-weight:600;line-height:1.3}
+.pvm .kom-ann__ttl a{color:var(--pvm-ink);text-decoration:none}
+.pvm .kom-ann__ttl a:hover,.pvm .kom-ann__ttl a:focus-visible{text-decoration:underline}
+.pvm .kom-body{margin-top:.45rem;font-size:.92rem;line-height:1.6;color:var(--pvm-ink);white-space:pre-wrap;word-break:break-word}
+.pvm .kom-body--clip{max-height:5.2rem;overflow:hidden;-webkit-mask-image:linear-gradient(#000 60%,transparent);mask-image:linear-gradient(#000 60%,transparent)}
+.pvm .kom-body--clip.is-open{max-height:none;-webkit-mask-image:none;mask-image:none}
+.pvm .kom-more{background:none;border:0;padding:.2rem 0;margin-top:.3rem;font:inherit;font-size:.85rem;font-weight:600;color:var(--pvm-ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem}
+.pvm .kom-ann__ft{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem;margin-top:.8rem}
+.pvm .kom-ann__author{font-size:.8rem;color:var(--pvm-muted)}
+.pvm .kom-ann__acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pvm .mt-btn--sm{min-height:36px;padding:.3rem .8rem;font-size:.8rem}
+.pvm .mt-btn--danger{background:transparent;color:var(--m-red);border-color:var(--m-red)}
+.pvm .mt-btn--danger:hover{background:var(--m-red);color:#fff;filter:none}
+.pvm .mt-feed a{color:inherit;text-decoration:none;display:flex;gap:.75rem;flex:1;min-width:0}
+.pvm .mt-feed li:hover{background:var(--pvm-light-h)}
+.pvm .mt-feed .av{background:var(--c,var(--m-grey))}
+:root[data-theme="hc"] .pvm .kom-cat{border:2px solid #000;border-left-width:6px}
+:root[data-theme="hc"] .pvm .kom-cat[aria-current="page"]{background:#000;color:#fff}
+:root[data-theme="hc"] .pvm .kom-ann{border:2px solid #000;border-left-width:8px}
+</style>
 
-<?php if ($ann_unread_count > 0): ?>
-<div class="tz-note tz-note--info">
-  <i class="bi bi-bell-fill" aria-hidden="true"></i>
-  <div class="flex-grow-1">
-    Masz <strong><?= $ann_unread_count ?></strong>
-    <?= $ann_unread_count === 1 ? 'nieprzeczytane ogłoszenie' : ($ann_unread_count < 5 ? 'nieprzeczytane ogłoszenia' : 'nieprzeczytanych ogłoszeń') ?>.
+<div class="pvm">
+
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker">Komunikaty · <?= h(defined('ORG_NAME') ? ORG_NAME : '') ?></div>
+      <h1 class="mt-title">Komunikaty</h1>
+      <p class="mt-lead">Ogłoszenia organizacji i Twoje powiadomienia w jednym miejscu.</p>
+    </div>
+    <?php if (is_admin()): ?>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="<?= APP_URL ?>/komunikaty/compose.php" class="mt-btn"><i class="bi bi-plus-lg" aria-hidden="true"></i>Nowe ogłoszenie</a>
+      <a href="<?= APP_URL ?>/komunikaty/manage.php" class="mt-btn mt-btn--ghost"><i class="bi bi-sliders" aria-hidden="true"></i>Zarządzaj</a>
+    </div>
+    <?php endif; ?>
   </div>
-  <form method="post" class="flex-shrink-0">
-    <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-    <input type="hidden" name="mark_all_ann" value="1">
-    <button type="submit" class="tz-btn tz-btn--ghost kom-btn-sm">
-      <i class="bi bi-check2-all" aria-hidden="true"></i>Oznacz wszystkie
-    </button>
-  </form>
-</div>
-<?php endif; ?>
 
-<nav class="kom-chips" aria-label="Filtr kategorii">
-  <a href="<?= APP_URL ?>/komunikaty/index.php" class="kom-chip"
-     <?= $_kat === '' ? 'aria-current="page"' : '' ?>
-     style="--kom-accent:var(--tz)">
-    <span class="kom-chip__dot" aria-hidden="true"></span>Wszystkie
-  </a>
-  <?php foreach (ann_kategoria_options() as $_kk => $_kl): ?>
-  <a href="<?= APP_URL ?>/komunikaty/index.php?kat=<?= urlencode($_kk) ?>" class="kom-chip"
-     <?= $_kat === $_kk ? 'aria-current="page"' : '' ?>
-     style="--kom-accent:<?= h(ann_kategoria_color($_kk)) ?>">
-    <span class="kom-chip__dot" aria-hidden="true"></span><?= h($_kl) ?>
-  </a>
-  <?php endforeach; ?>
-</nav>
+  <?= function_exists('flash_html') ? flash_html() : '' ?>
 
-<div class="row g-3">
-  <!-- Lewa kolumna: ogłoszenia -->
-  <div class="col-lg-8">
+  <!-- ═══════════ KAFLE (Start) ═══════════ -->
+  <h2 class="visually-hidden">Podsumowanie</h2>
+  <div class="mt-grid mt-grid--sm">
+    <?php
+    panelMetroTile(['href'=>'#ogloszenia','go'=>'ogloszenia','icon'=>'bi-megaphone','label'=>'Nieprzeczytane ogłoszenia','val'=>(string)$ann_unread_count,
+                    'sub'=>$ann_unread_count ? 'do przeczytania' : 'wszystko przeczytane','color'=>$ann_unread_count ? 'orange' : 'green','size'=>'w']);
+    panelMetroTile(['href'=>'#powiadomienia','go'=>'powiadomienia','icon'=>'bi-bell','label'=>'Powiadomienia','val'=>(string)$notif_unread,
+                    'sub'=>$notif_unread ? 'nowych' : 'brak nowych','color'=>$notif_unread ? 'indigo' : 'blue']);
+    panelMetroTile(['href'=>'#ogloszenia','go'=>'ogloszenia','icon'=>'bi-exclamation-square','label'=>'Ważne informacje','val'=>(string)$_imp_count,
+                    'sub'=>'na pulpicie panelu','color'=>$_imp_count ? 'red' : 'grey']);
+    panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-collection','label'=>$_kat === '' ? 'Wszystkie ogłoszenia' : ann_kategoria_label($_kat),
+                    'val'=>(string)$_ann_total,'sub'=>$_kat === '' ? 'aktywne' : 'w tej kategorii','color'=>'teal']);
+    if (is_admin()) {
+        panelMetroTile(['href'=>APP_URL.'/komunikaty/compose.php','icon'=>'bi-plus-square','label'=>'Nowe ogłoszenie','sub'=>'lista, ważna info, baner, popup','color'=>'dark']);
+    }
+    ?>
+  </div>
+
+  <!-- ═══════════ PIVOT ═══════════ -->
+  <div class="mt-pivot" role="tablist" aria-label="Sekcje komunikatów" data-pvm-pivot>
+    <button type="button" role="tab" id="pvm-tab-ogloszenia" data-tab="ogloszenia" aria-controls="ogloszenia" aria-selected="true" tabindex="0">ogłoszenia<?php if ($ann_unread_count): ?><span class="cnt" aria-label="<?= $ann_unread_count ?> nieprzeczytanych"><?= $ann_unread_count ?></span><?php endif; ?></button>
+    <button type="button" role="tab" id="pvm-tab-powiadomienia" data-tab="powiadomienia" aria-controls="powiadomienia" aria-selected="false" tabindex="-1">powiadomienia<?php if ($notif_unread): ?><span class="cnt" aria-label="<?= (int)$notif_unread ?> nowych"><?= (int)$notif_unread ?></span><?php endif; ?></button>
+  </div>
+
+  <!-- ═══════════ OGŁOSZENIA ═══════════ -->
+  <section id="ogloszenia" data-pvm-panel="ogloszenia" role="tabpanel" aria-labelledby="pvm-tab-ogloszenia" tabindex="-1">
+    <nav class="kom-cats" aria-label="Filtr kategorii">
+      <?php $_acc = $_vol_color ?? '#0f6fa8'; ?>
+      <a href="<?= APP_URL ?>/komunikaty/index.php" class="kom-cat" style="--c:<?= h($_acc) ?>;--on:<?= h(panelMetroOnColor($_acc)) ?>"<?= $_kat === '' ? ' aria-current="page"' : '' ?>>Wszystkie</a>
+      <?php foreach ($_kat_all as $_kk => $_kl): $_kc = ann_kategoria_color($_kk); ?>
+      <a href="<?= APP_URL ?>/komunikaty/index.php?kat=<?= urlencode($_kk) ?>" class="kom-cat" style="--c:<?= h($_kc) ?>;--on:<?= h(panelMetroOnColor($_kc)) ?>"<?= $_kat === $_kk ? ' aria-current="page"' : '' ?>><?= h($_kl) ?></a>
+      <?php endforeach; ?>
+    </nav>
+
+    <?php if ($ann_unread_count > 0): ?>
+    <div class="mt-note">
+      <i class="bi bi-bell-fill" aria-hidden="true"></i>
+      <span style="flex:1">Masz <strong><?= $ann_unread_count ?></strong> <?= $ann_unread_count === 1 ? 'nieprzeczytane ogłoszenie' : ($ann_unread_count < 5 ? 'nieprzeczytane ogłoszenia' : 'nieprzeczytanych ogłoszeń') ?>.</span>
+      <form method="post" class="m-0">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="mark_all_ann" value="1">
+        <button type="submit" class="mt-btn mt-btn--ghost mt-btn--sm"><i class="bi bi-check2-all" aria-hidden="true"></i>Oznacz wszystkie</button>
+      </form>
+    </div>
+    <?php endif; ?>
+
     <?php if (empty($announcements)): ?>
-    <div class="tz-empty">
-      <i class="bi bi-megaphone" aria-hidden="true"></i>
-      <p class="fw-semibold mb-1">Brak aktywnych ogłoszeń</p>
+    <div class="mt-empty">
+      <i class="bi bi-megaphone" style="font-size:2rem;display:block;margin-bottom:.5rem" aria-hidden="true"></i>
+      <p class="fw-semibold mb-1" style="color:var(--pvm-ink)">Brak aktywnych ogłoszeń</p>
       <p class="small mb-0"><?= $_kat === '' ? 'Gdy pojawi się nowe ogłoszenie, zobaczysz je tutaj.' : 'W tej kategorii nic teraz nie ma — sprawdź pozostałe.' ?></p>
     </div>
     <?php else: ?>
@@ -122,80 +172,47 @@ pv_page_header('Komunikaty', [
       $ann_id    = (int)$ann['id'];
       $is_pinned = (int)($ann['is_pinned'] ?? 0);
       $is_read   = (int)($ann['is_read_by_me'] ?? 0);
+      $is_imp    = ($ann['display_mode'] ?? 'feed') === 'important';
       $kat       = $ann['kategoria'] ?? 'ogolne';
-      $kc        = ann_kategoria_color($kat);
-      $accent    = $is_pinned ? '#F59E0B' : ($is_read ? 'var(--tz-line)' : $kc);
-      $collapsed = mb_strlen((string)$ann['body']) > 300 && !$is_pinned;
-      // Kolor gradientu wygaszenia musi zgadzać się z tłem karty
-      $fade      = $is_read ? 'var(--tz-bg)' : 'var(--tz-bg-sub)';
+      $collapsed = mb_strlen((string)$ann['body']) > 300 && !$is_pinned && !$is_imp;
     ?>
-    <article class="tz-card kom-ann<?= $is_read ? '' : ' kom-ann--new' ?>"
-             style="--kom-accent:<?= h($accent) ?>;--kom-fade:<?= $fade ?>"
-             aria-labelledby="ann-ttl-<?= $ann_id ?>">
-      <div class="tz-card__bd">
-
-        <div class="kom-ann__top">
-          <div class="kom-ann__meta">
-            <?php if ($is_pinned): ?>
-            <span class="tz-badge tz-badge--warning"><i class="bi bi-pin-angle-fill" aria-hidden="true"></i>Przypięte</span>
-            <?php endif; ?>
-            <?php if (!$is_read): ?>
-            <span class="tz-badge" style="background:var(--tz);color:#fff;border-color:var(--tz)">Nowe</span>
-            <?php endif; ?>
-            <span class="tz-badge" style="background:<?= h($kc) ?>1A;color:<?= h($kc) ?>;border-color:<?= h($kc) ?>55">
-              <?= h(ann_kategoria_label($kat)) ?>
-            </span>
-            <span class="tz-badge tz-badge--muted">
-              <i class="bi bi-<?= ($ann['audience'] ?? '') === 'public' ? 'globe2' : 'people-fill' ?>" aria-hidden="true"></i>
-              <?= h(ann_audience_label($ann['audience'] ?? 'all')) ?>
-            </span>
-            <?php if (!empty($ann['expires_at'])): ?>
-            <span class="tz-badge tz-badge--wait">
-              <i class="bi bi-clock" aria-hidden="true"></i>Wygasa <?= h(date('d.m.Y', strtotime($ann['expires_at']))) ?>
-            </span>
-            <?php endif; ?>
-          </div>
-          <span class="kom-ann__date"><?= h(date('d.m.Y', strtotime($ann['created_at'] ?? 'now'))) ?></span>
-        </div>
-
-        <h2 class="kom-ann__ttl" id="ann-ttl-<?= $ann_id ?>">
-          <a href="<?= APP_URL ?>/komunikaty/announcement.php?id=<?= $ann_id ?>"><?= h($ann['title']) ?></a>
-        </h2>
-
-        <?php if ($ann['body']): ?>
-        <div class="kom-body<?= $collapsed ? ' kom-body--clip' : '' ?>" id="ann-body-<?= $ann_id ?>"><?= h($ann['body']) ?></div>
-        <?php if ($collapsed): ?>
-        <button type="button" class="kom-more" data-target="ann-body-<?= $ann_id ?>"
-                aria-expanded="false" aria-controls="ann-body-<?= $ann_id ?>">
-          <i class="bi bi-chevron-down" aria-hidden="true"></i><span>Rozwiń treść</span>
-        </button>
-        <?php endif; ?>
-        <?php endif; ?>
+    <article class="kom-ann<?= ($is_read && !$is_imp) ? ' kom-ann--read' : '' ?>" style="--c:<?= h(ann_kategoria_color($kat)) ?>" aria-labelledby="ann-ttl-<?= $ann_id ?>">
+      <div class="kom-ann__meta">
+        <?php if ($is_imp): ?><span class="mt-badge" style="background:var(--m-red)"><i class="bi bi-exclamation-lg" aria-hidden="true"></i>Ważna informacja</span><?php endif; ?>
+        <?php if ($is_pinned): ?><span class="mt-badge mt-badge--warn"><i class="bi bi-pin-angle-fill" aria-hidden="true"></i>Przypięte</span><?php endif; ?>
+        <?php if (!$is_read): ?><span class="mt-badge mt-badge--info">Nowe</span><?php endif; ?>
+        <span><?= h(ann_kategoria_label($kat)) ?></span>
+        <span><i class="bi bi-<?= ($ann['audience'] ?? '') === 'public' ? 'globe2' : 'people' ?>" aria-hidden="true"></i> <?= h(ann_audience_label($ann['audience'] ?? 'all')) ?></span>
+        <span><?= h(date('d.m.Y', strtotime($ann['created_at'] ?? 'now'))) ?></span>
+        <?php if (!empty($ann['expires_at'])): ?><span>ważne do <?= h(date('d.m.Y', strtotime($ann['expires_at']))) ?></span><?php endif; ?>
       </div>
-
-      <div class="tz-card__ft kom-ann__ft">
-        <span class="kom-ann__author"><i class="bi bi-person" aria-hidden="true"></i><?= h($ann['author_name'] ?? '') ?></span>
+      <h2 class="kom-ann__ttl" id="ann-ttl-<?= $ann_id ?>"><a href="<?= APP_URL ?>/komunikaty/announcement.php?id=<?= $ann_id ?>"><?= h($ann['title']) ?></a></h2>
+      <?php if ($ann['body']): ?>
+      <div class="kom-body<?= $collapsed ? ' kom-body--clip' : '' ?>" id="ann-body-<?= $ann_id ?>"><?= h($ann['body']) ?></div>
+      <?php if ($collapsed): ?>
+      <button type="button" class="kom-more" data-target="ann-body-<?= $ann_id ?>" aria-expanded="false" aria-controls="ann-body-<?= $ann_id ?>">
+        <i class="bi bi-chevron-down" aria-hidden="true"></i><span>Rozwiń treść</span>
+      </button>
+      <?php endif; ?>
+      <?php endif; ?>
+      <div class="kom-ann__ft">
+        <span class="kom-ann__author"><i class="bi bi-person" aria-hidden="true"></i> <?= h($ann['author_name'] ?? '') ?></span>
         <div class="kom-ann__acts">
-          <a href="<?= APP_URL ?>/komunikaty/announcement.php?id=<?= $ann_id ?>" class="tz-btn tz-btn--ghost kom-btn-sm">
-            <i class="bi bi-eye" aria-hidden="true"></i>Otwórz
-          </a>
+          <a href="<?= APP_URL ?>/komunikaty/announcement.php?id=<?= $ann_id ?>" class="mt-btn mt-btn--ghost mt-btn--sm"><i class="bi bi-eye" aria-hidden="true"></i>Otwórz<span class="visually-hidden">: <?= h($ann['title']) ?></span></a>
           <?php if (!$is_read): ?>
-          <form method="post" class="d-inline">
+          <form method="post" class="m-0">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="mark_ann" value="<?= $ann_id ?>">
-            <button type="submit" class="tz-btn kom-btn-sm"><i class="bi bi-check2" aria-hidden="true"></i>Przeczytane</button>
+            <button type="submit" class="mt-btn mt-btn--sm"><i class="bi bi-check2" aria-hidden="true"></i>Przeczytane<span class="visually-hidden">: <?= h($ann['title']) ?></span></button>
           </form>
           <?php else: ?>
-          <span class="tz-badge tz-badge--ok"><i class="bi bi-check2-all" aria-hidden="true"></i>Przeczytane</span>
+          <span class="mt-badge mt-badge--ok"><i class="bi bi-check2-all" aria-hidden="true"></i>Przeczytane</span>
           <?php endif; ?>
           <?php if (is_admin()): ?>
-          <form method="post" class="d-inline" onsubmit="return confirm('Usunąć ogłoszenie „<?= h(addslashes($ann['title'])) ?>”? Tej operacji nie można cofnąć.')">
+          <form method="post" class="m-0" onsubmit="return confirm('Usunąć ogłoszenie „<?= h(addslashes($ann['title'])) ?>”? Tej operacji nie można cofnąć.')">
             <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
             <input type="hidden" name="delete_ann" value="<?= $ann_id ?>">
-            <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń"
-                    aria-label="Usuń ogłoszenie <?= h($ann['title']) ?>">
-              <i class="bi bi-trash3" aria-hidden="true"></i>
-            </button>
+            <button type="submit" class="mt-btn mt-btn--danger mt-btn--sm" aria-label="Usuń ogłoszenie <?= h($ann['title']) ?>"><i class="bi bi-trash3" aria-hidden="true"></i></button>
           </form>
           <?php endif; ?>
         </div>
@@ -203,57 +220,36 @@ pv_page_header('Komunikaty', [
     </article>
     <?php endforeach; ?>
     <?php endif; ?>
-  </div>
+  </section>
 
-  <!-- Prawa kolumna: feed powiadomień -->
-  <div class="col-lg-4">
-    <section class="tz-card" style="position:sticky;top:1rem" aria-labelledby="kom-notif-h">
-      <div class="tz-card__hd">
-        <i class="bi bi-bell" aria-hidden="true"></i>
-        <span id="kom-notif-h">Powiadomienia</span>
-        <?php if ($notif_unread > 0): ?>
-        <span class="tz-badge tz-badge--muted ms-auto"><?= (int)$notif_unread ?> nowe</span>
-        <?php endif; ?>
-      </div>
-      <div class="kom-notif">
-        <?php if (empty($notifications)): ?>
-        <div class="pv-empty" style="padding:2rem 1rem">
-          <i class="bi bi-bell-slash" aria-hidden="true"></i>
-          <div class="pv-empty-sub mt-0">Brak powiadomień</div>
-        </div>
-        <?php else: ?>
-        <?php foreach ($notifications as $n):
-          $is_read_n = (int)($n['is_read'] ?? 0);
-          $n_color   = notif_type_color($n['type'] ?? 'system');
-        ?>
-        <a href="<?= h($n['url'] ?: APP_URL . '/komunikaty/index.php') ?>"
-           class="kom-notif-row notif-item<?= $is_read_n ? '' : ' kom-notif-row--new' ?>"
-           data-notif-id="<?= (int)$n['id'] ?>">
-          <span class="kom-notif-ico" style="background:<?= h($n_color) ?>22;color:<?= h($n_color) ?>">
-            <i class="bi <?= notif_type_icon($n['type'] ?? 'system') ?>" aria-hidden="true"></i>
+  <!-- ═══════════ POWIADOMIENIA ═══════════ -->
+  <section id="powiadomienia" data-pvm-panel="powiadomienia" role="tabpanel" aria-labelledby="pvm-tab-powiadomienia" tabindex="-1" hidden>
+    <h2 class="mt-h2">Twoje <b>powiadomienia</b></h2>
+    <?php if (empty($notifications)): ?>
+    <div class="mt-empty"><i class="bi bi-bell-slash" style="font-size:2rem;display:block;margin-bottom:.5rem" aria-hidden="true"></i><p class="mb-0">Brak powiadomień.</p></div>
+    <?php else: ?>
+    <ul class="mt-feed" aria-label="Ostatnie powiadomienia">
+      <?php foreach ($notifications as $n):
+        $is_read_n = (int)($n['is_read'] ?? 0);
+      ?>
+      <li class="notif-item<?= $is_read_n ? '' : ' unread' ?>">
+        <a href="<?= h($n['url'] ?: APP_URL . '/komunikaty/index.php') ?>" data-notif-id="<?= (int)$n['id'] ?>">
+          <span class="av" style="--c:<?= h(notif_type_color($n['type'] ?? 'system')) ?>" aria-hidden="true"><i class="bi <?= notif_type_icon($n['type'] ?? 'system') ?>"></i></span>
+          <span style="flex:1;min-width:0">
+            <span class="meta"><strong><?= h($n['title']) ?></strong><span><?= h(substr($n['created_at'] ?? '', 0, 16)) ?></span></span>
+            <?php if (!$is_read_n): ?><span class="mt-badge mt-badge--info notif-new">nowe</span><?php endif; ?>
           </span>
-          <span class="flex-grow-1" style="min-width:0">
-            <span class="d-block" style="word-break:break-word"><?= h($n['title']) ?></span>
-            <span class="kom-notif-date"><?= h(substr($n['created_at'] ?? '', 0, 16)) ?></span>
-          </span>
-          <?php if (!$is_read_n): ?>
-          <span class="kom-notif-dot" aria-hidden="true"></span>
-          <span class="visually-hidden">nieprzeczytane</span>
-          <?php endif; ?>
         </a>
-        <?php endforeach; ?>
-        <?php endif; ?>
-      </div>
-      <?php if ($notif_unread > 0): ?>
-      <div class="tz-card__ft">
-        <button type="button" class="tz-btn tz-btn--ghost kom-btn-sm w-100 justify-content-center" id="markAllRead">
-          <i class="bi bi-check2-all" aria-hidden="true"></i>Oznacz wszystkie powiadomienia
-        </button>
-      </div>
-      <?php endif; ?>
-    </section>
-  </div>
-</div>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php if ($notif_unread > 0): ?>
+    <button type="button" class="mt-btn mt-btn--ghost mt-3" id="markAllRead"><i class="bi bi-check2-all" aria-hidden="true"></i>Oznacz wszystkie powiadomienia</button>
+    <?php endif; ?>
+    <?php endif; ?>
+  </section>
+
+</div><!-- /.pvm -->
 
 <script>
 // Rozwijanie skróconej treści ogłoszenia
@@ -292,11 +288,11 @@ if (markAllBtn) {
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) return;
       document.querySelectorAll('.notif-item').forEach(function (el) {
-        el.classList.remove('kom-notif-row--new');
-        var dot = el.querySelector('.kom-notif-dot');
-        if (dot) dot.remove();
+        el.classList.remove('unread');
+        var b = el.querySelector('.notif-new');
+        if (b) b.remove();
       });
-      markAllBtn.closest('.tz-card__ft').remove();
+      markAllBtn.remove();
     });
   });
 }
