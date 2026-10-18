@@ -7,6 +7,7 @@ declare(strict_types=1);
  */
 require_once dirname(__DIR__) . '/lib/DopService.php';
 require_once dirname(__DIR__) . '/lib/RopStatement.php';
+require_once dirname(__DIR__) . '/lib/SettlementDocs.php';
 
 final class DopController
 {
@@ -150,6 +151,66 @@ final class DopController
         try { $this->svc->cancel($id, trim((string)($_POST['reason'] ?? '')), $this->actor()); flash_set('success', 'Wycofano wniosek.'); }
         catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
         return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    // ── RKO / PRZ / PRZ-P — dokumenty rozliczeniowe ─────────────────────────────
+
+    public function settleIndex(): string
+    {
+        $f = ['client' => (int)($_GET['klient'] ?? 0), 'kind' => (string)($_GET['kind'] ?? ''), 'status' => (string)($_GET['status'] ?? '')];
+        return $this->view('settle_index.php', ['list' => SettlementDocs::search($f), 'f' => $f]);
+    }
+
+    public function settleForm(array $errors = [], ?array $old = null): string
+    {
+        $kind = SettleKind::tryFrom((string)($_GET['kind'] ?? $_POST['kind'] ?? '')) ?? SettleKind::Rko;
+        $cid = (int)($_GET['klient'] ?? $_POST['klient'] ?? 0);
+        $c = $cid ? DopService::client($cid) : null;
+        $courses = $c ? SettlementDocs::courses($cid) : [];
+        return $this->view('settle_form.php', ['kind' => $kind, 'c' => $c, 'courses' => $courses, 'clients' => $c ? [] : DopService::clients((string)($_GET['q'] ?? '')), 'q' => (string)($_GET['q'] ?? ''),
+            'errors' => $errors, 'old' => $old ?? ['course_id' => (string)($_GET['grupa'] ?? ''), 'as_of' => ldToday(), 'mode' => 'approval', 'scope' => 'group'],
+            'baselines' => $c ? array_map(fn($x) => (int)$x['course_id'], SettlementDocs::search(['client' => $cid, 'kind' => 'PRZ-P', 'status' => 'applied'])) : [], 'requests' => $c ? RopStatement::requests($cid) : []]);
+    }
+
+    public function settleCreate(): ?string
+    {
+        $kind = SettleKind::tryFrom((string)($_POST['kind'] ?? '')) ?? SettleKind::Rko;
+        try {
+            $r = SettlementDocs::create($kind, (int)($_POST['klient'] ?? 0), $_POST, (string)($_POST['mode'] ?? 'approval'), $this->actor());
+            if ($r['errors']) { echo $this->settleForm($r['errors'], $_POST); return null; }
+            flash_set('success', 'Wystawiono ' . $kind->value . '. ' . implode(' · ', $r['report']));
+            return Router::redirect(route('settle.show', ['id' => $r['id']]));
+        } catch (\Throwable $e) { return $this->fail($e, route('settle.index')); }
+    }
+
+    public function settleShow(int $id): string
+    {
+        $r = SettlementDocs::get($id);
+        if (!$r) { http_response_code(404); return 'Nie ma takiego dokumentu.'; }
+        return $this->view('settle_show.php', ['r' => $r]);
+    }
+
+    public function settlePdf(int $id): ?string
+    {
+        $r = SettlementDocs::get($id);
+        if (!$r) { http_response_code(404); return 'Nie ma takiego dokumentu.'; }
+        $p = DopService::fullPath((string)$r['pdf_path']);
+        if ($p) { while (ob_get_level() > 0) ob_end_clean(); header('Content-Type: application/pdf'); header('Cache-Control: no-store, private'); header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $r['number']) . '.pdf"'); readfile($p); return null; }
+        return $this->send(SettlementDocs::render($r), (string)$r['number']);
+    }
+
+    public function settleDecide(int $id): ?string
+    {
+        try { flash_set('success', implode(' ', SettlementDocs::decide($id, ($_POST['decision'] ?? '') === 'approve', trim((string)($_POST['note'] ?? '')), $this->actor()))); }
+        catch (\Throwable $e) { return $this->fail($e, route('settle.show', ['id' => $id])); }
+        return Router::redirect(route('settle.show', ['id' => $id]));
+    }
+
+    public function settleSend(int $id): ?string
+    {
+        try { flash_set('success', 'Wysłano: ' . SettlementDocs::send($id, $this->actor()) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('settle.show', ['id' => $id])); }
+        return Router::redirect(route('settle.show', ['id' => $id]));
     }
 
     // ── ROP — stan subkonta na dzień wpłaty ─────────────────────────────────────

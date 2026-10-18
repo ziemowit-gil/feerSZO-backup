@@ -58,6 +58,13 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/rop/{id}',                      [DopController::class, 'ropShow'])->name('rop.show');
     $r->get('/rop/{id}/pdf',                  [DopController::class, 'ropPdf'])->name('rop.pdf');
     $r->post('/rop/{id}/wyslij',              [DopController::class, 'ropSend'])->name('rop.send');
+    $r->get('/rozliczenia',                   [DopController::class, 'settleIndex'])->name('settle.index');
+    $r->get('/rozliczenia/nowy',              [DopController::class, 'settleForm'])->name('settle.new');
+    $r->post('/rozliczenia/nowy',             [DopController::class, 'settleCreate']);
+    $r->get('/rozliczenia/{id}',              [DopController::class, 'settleShow'])->name('settle.show');
+    $r->get('/rozliczenia/{id}/pdf',          [DopController::class, 'settlePdf'])->name('settle.pdf');
+    $r->post('/rozliczenia/{id}/decyzja',     [DopController::class, 'settleDecide'])->name('settle.decide');
+    $r->post('/rozliczenia/{id}/wyslij',      [DopController::class, 'settleSend'])->name('settle.send');
     $r->get('/wzor/{form}',                   [DopController::class, 'blank'])->name('dop.blank');
 });
 $r->dispatch();
