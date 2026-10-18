@@ -3,7 +3,7 @@
  * includes/szo_metro.php — warstwa wizualna „Metro UI” samego SZO (powłoka #navbar + #content).
  *
  * Włączana przez includes/header.php jako ostatni blok <head>, gdy aktywna zakładka menu
- * (includes/menu.php) należy do SZO_METRO_GROUPS — Umowy, Wolontariat, Finanse, Ludzie i Admin.
+ * (includes/menu.php) należy do SZO_METRO_GROUPS — Umowy, Wolontariat, Finanse, Ludzie, Biuro i Admin.
  * Nagłówek (szo_metro_header_assets) jest w Metro na wszystkich stronach powłoki SZO.
  * Kolejne grupy dochodzą przez dopisanie identyfikatora węzła menu i koloru akcentu.
  *
@@ -11,7 +11,7 @@
  * ciemny app-bar #1d1d1d, Segoe UI, lekkie duże tytuły, ZERO zaokrągleń, cieni i gradientów,
  * płaskie szare powierzchnie #f2f2f2, kwadratowe przyciski/pola z ramką 2px, pasek zakładek
  * jak pivot, nagłówki tabel wersalikami z grubą linią, alerty jako pas z lewą krawędzią,
- * żółty fokus. Akcent zależy od grupy (Metro cobalt / magenta / green / violet / crimson, wszystkie AA z bielą).
+ * żółty fokus. Akcent zależy od grupy (Metro cobalt / magenta / green / violet / orange / crimson, wszystkie AA z bielą).
  *
  * Tylko CSS. Selektory zaczynają się od `html body`, bo Tailwind CDN (@apply w header.php
  * i klasy tw-*) wstrzykuje reguły dopiero po załadowaniu — przy równej specyficzności wygrałby.
@@ -23,6 +23,7 @@ const SZO_METRO_GROUPS = [
     'wolontariat' => ['#c0006a', '#8f004f', '#fbe5f1'],   // magenta (przyciemniona do AA)
     'finanse'     => ['#007a00', '#005700', '#e5f2e5'],   // green
     'ludzie'      => ['#6a00ff', '#4f00bf', '#f0e5ff'],   // violet
+    'biuro'       => ['#c25100', '#8f3c00', '#fbeee5'],   // orange (przyciemniony do AA)
     'admin'       => ['#a20025', '#76001b', '#f6e5e9'],   // crimson
 ];
 
@@ -33,7 +34,7 @@ function szo_metro_group(array $tree): ?string {
     return null;
 }
 
-/** Domyślny akcent poza grupami Metro (np. pulpit, IT, Biuro) — Metro cobalt. */
+/** Domyślny akcent poza grupami Metro (np. pulpit, IT) — Metro cobalt. */
 const SZO_METRO_DEFAULT = ['#0050ef', '#003bb0', '#e6eefd'];
 
 /**
