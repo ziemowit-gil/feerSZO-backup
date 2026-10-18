@@ -41,23 +41,17 @@ $krok1 = false;   // układ portalowy: role w zakładkach nad formularzem, domy�
 $prefill_login = h($_GET['l'] ?? '');
 // Token CSRF dla formularza kandydata (/nabor/logowanie) — sesja musi wystartować przed wysłaniem HTML
 $_kd_csrf = $tab === 'kandydat' ? csrf_token() : '';
-$prefill_email = h($_GET['m'] ?? '');
-
-// ── Microsoft 365 dla prowadzącego ────────────────────────────────────────────
-$office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
+// ── Kadra ─────────────────────────────────────────────────────────────────────
+// Kadra loguje się wyłącznie przez SZO: logowanie SZO → mostek office_enter.php zakłada sesję panelu dydaktyka.
+$szo_dyd_login_url = rtrim(APP_URL, '/') . '/auth/login.php?redirect='
     . urlencode(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/office_enter.php');
-$office_available = function_exists('ms_login_available') && ms_login_available();
-// Prowadzący zwykle mają konto Microsoft 365 — najpierw wybór (jak na logowaniu SZO):
-// poczta w domenie fundacji → od razu Microsoft 365; prywatny e-mail → formularz hasła.
-// Bez Microsoft 365 i po błędzie logowania od razu formularz hasła.
-$dyd_haslo = !$office_available || $ec > 0 || ($_GET['konto'] ?? '') === 'prywatny';
 
 // Lewa kolumna: instrukcja zależna od roli.
 $_side = [
     'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
         ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a.', 'Pierwsze hasło to kod z SMS-a.']
         : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Sprawdź, czy widzisz swój obrazek.', 'Wpisz hasło.'],
-    'dydaktyk' => ['Wybierz „Prowadzący”.', 'Masz adres @feer.org.pl? Kliknij „Microsoft 365”.', 'Inny adres? Wpisz e-mail i hasło.'],
+    'dydaktyk' => ['Wybierz „Prowadzący / kadra”.', 'Kadra loguje się tylko przez SZO.', 'Po zalogowaniu otworzy się panel prowadzącego.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login rodzica.', 'Wpisz hasło albo zaloguj się kodem SMS.'],
     'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło od kursanta.'],
     'kandydat' => ['Wybierz „Kandydat”.', 'Wpisz e-mail ze zgłoszenia.', 'Wpisz hasło. Nie masz? Kliknij „Nie pamiętam hasła”.'],
@@ -217,29 +211,9 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
       <p class="tz-hint">Konto kandydata dostaniesz po potwierdzeniu zgłoszenia.<?= org_setting('ti_nabor_enabled') === '1' ? ' <a href="/nabor">Złóż zgłoszenie na zajęcia</a>.' : '' ?></p>
 
       <?php elseif ($tab === 'dydaktyk'): ?>
-      <?php /* Microsoft 365 — w prawej kolumnie (bez duplikatu); tu e-mail i hasło */ ?>
-        <form method="post" action="dydaktyk/login.php" autocomplete="on">
-          <div class="mb-3">
-            <label for="dyd-email">Adres e-mail</label>
-            <input type="email" class="form-control form-control-lg" id="dyd-email" name="email"
-                   value="<?= $prefill_email ?>" required autocomplete="username"
-                   placeholder="imie.nazwisko@feer.org.pl"
-                   autofocus
-                   <?php if ($ec): ?>aria-invalid="true"<?php endif; ?>>
-          </div>
-          <div class="mb-4">
-            <label for="dyd-password">Hasło</label>
-            <div class="pass-wrap">
-              <input type="password" class="form-control form-control-lg" id="dyd-password" name="password"
-                     required autocomplete="current-password">
-              <button type="button" class="pass-toggle" aria-label="Pokaż hasło" aria-pressed="false" onclick="tzPokaz('dyd-password', this)">
-                <i class="bi bi-eye" aria-hidden="true"></i>
-              </button>
-            </div>
-          </div>
-          <button type="submit" class="tz-btn">Zaloguj się</button>
-        </form>
-        <p class="tz-hint">Inny adres e-mail? Użyj hasła do systemu SZO.</p>
+      <?php /* Kadra (prowadzący, konsultanci, kierownik) loguje się wyłącznie przez SZO — bez osobnego formularza tutaj */ ?>
+        <a class="tz-btn" href="<?= h($szo_dyd_login_url) ?>"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj się przez SZO</a>
+        <p class="tz-hint">Użyj tego samego konta co w SZO (także Microsoft 365).</p>
 
       <?php elseif ($tab === 'rodzic'): ?>
       <form method="post" action="kursant/parent_login.php" autocomplete="on">
@@ -294,9 +268,8 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
 
     <aside aria-labelledby="pp-alt-h" class="pp-note">
       <?php if ($tab === 'dydaktyk'): ?>
-        <p id="pp-alt-h" style="margin:0 0 .3rem">Masz pocztę w domenie fundacji?</p>
-        <a class="pp-alt" href="<?= h($office_login_url) ?>"><i class="bi bi-microsoft" aria-hidden="true"></i> Zaloguj przez Microsoft 365</a>
-        <p>Dla osób z adresem @feer.org.pl.</p>
+        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Kadra</strong> — prowadzący, konsultanci i kierownik — loguje się tylko przez SZO.</p>
+        <p>Nie masz konta w SZO? Napisz do kierownika.</p>
       <?php elseif ($tab === 'rodzic'): ?>
         <p id="pp-alt-h" style="margin:0 0 .3rem">Nie masz hasła albo go nie pamiętasz?</p>
         <a class="pp-alt" href="kursant/parent.php"><i class="bi bi-chat-dots" aria-hidden="true"></i> Zaloguj kodem SMS</a>
