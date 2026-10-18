@@ -1612,6 +1612,42 @@ function printBulk(){
         </div>
       </section>
 
+      <?php
+        // Rezygnacja i podania uczestnika (modules/ti_dop: REZ1, REZ2, ZPRO) — wystawienie i dotychczasowe dokumenty
+        $_rez = [];
+        try { $_rez = db_all("SELECT id, form, number, status, created_at FROM dop_requests WHERE client_id = ? AND form IN ('REZ1','REZ2','ZPRO') ORDER BY id DESC LIMIT 20", [(int)$sa['client_id']]); } catch (\Throwable $e) {}
+        $_rezSt = ['signing' => ['czeka na podpis', '#fa6800'], 'verify' => ['do decyzji kierownika', '#f0a30a'], 'execute' => ['do wykonania', '#1ba1e2'],
+                   'done' => ['zrealizowany', '#008a00'], 'rejected' => ['odmowa', '#a20025'], 'cancelled' => ['wycofany', '#647687']];
+        $_rezNew = fn(string $f) => 'wnioskiDop.php?' . http_build_query(['_route' => '/nowy', 'form' => $f, 'klient' => (int)$sa['client_id']]);
+      ?>
+      <section class="kk-sec" aria-labelledby="kk-h-rez">
+        <h3 id="kk-h-rez"><i class="bi bi-file-earmark-person" aria-hidden="true"></i>Rezygnacja i podania</h3>
+        <?php foreach ([['REZ1', 'Oświadczenie o rezygnacji', 'Podpis elektroniczny (ePodpis): link e-mailem i SMS-em do uczestnika albo rodzica. Po przyjęciu przez kierownika zapis kończy się z podanym dniem.', '#a20025'],
+                        ['REZ2', 'Prośba o rezygnację z dniem', 'Dokument odręczny: wydruk do podpisu i skan. Po przyjęciu przez kierownika zapis kończy się z podanym dniem.', '#d80073'],
+                        ['ZPRO', 'Podanie o zmianę prowadzącego zajęcia', 'Pismo z uzasadnieniem; decyzja kierownika, opcjonalnie nowy prowadzący grupy w systemie.', '#fa6800']] as [$_f, $_t, $_d, $_c]): ?>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <span class="kk-row-title"><span class="badge" style="background:<?= $_c ?>"><?= $_f ?></span> <?= h($_t) ?></span>
+            <div class="kk-row-desc"><?= h($_d) ?></div>
+          </div>
+          <div class="kk-row-ctl"><a class="btn btn-sm btn-outline-primary" href="<?= h($_rezNew($_f)) ?>"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Wystaw <?= $_f ?></a></div>
+        </div>
+        <?php endforeach; ?>
+        <?php if ($_rez): ?>
+        <div class="kk-row">
+          <div class="kk-row-info">
+            <span class="kk-row-title">Dokumenty uczestnika</span>
+            <ul class="list-unstyled small mb-0 mt-1">
+              <?php foreach ($_rez as $_x): [$_sl, $_sc] = $_rezSt[$_x['status']] ?? [$_x['status'], '#647687']; ?>
+              <li class="py-1"><a href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/wnioski/' . (int)$_x['id']])) ?>"><?= h($_x['number']) ?></a>
+                <span class="badge" style="background:<?= $_sc ?>"><?= h($_sl) ?></span> <span class="text-body-secondary"><?= h(date('d.m.Y', strtotime((string)$_x['created_at']))) ?></span></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        </div>
+        <?php endif; ?>
+      </section>
+
       <section class="kk-sec kk-sec-danger" aria-labelledby="kk-h-usun">
         <h3 id="kk-h-usun"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i>Usuwanie konta</h3>
         <div class="kk-row">
@@ -1746,9 +1782,6 @@ function printBulk(){
           <a class="btn btn-sm btn-outline-danger py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/nowy', 'kind' => 'RKO', 'klient' => (int)$sa['client_id']])) ?>">RKO</a>
           <a class="btn btn-sm btn-outline-success py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/nowy', 'kind' => 'RKS', 'klient' => (int)$sa['client_id']])) ?>" title="Ręczne księgowanie środków (kierownik)">RKS</a>
           <a class="btn btn-sm btn-outline-dark py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rozliczenia/nowy', 'kind' => 'SUB1', 'klient' => (int)$sa['client_id']])) ?>" title="Nowa procedura subkonta: wyczyść historię i księguj ręcznie">SUB1</a>
-          <a class="btn btn-sm btn-outline-danger py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/nowy', 'form' => 'REZ1', 'klient' => (int)$sa['client_id']])) ?>" title="Oświadczenie o rezygnacji — ePodpis">REZ1</a>
-          <a class="btn btn-sm btn-outline-danger py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/nowy', 'form' => 'REZ2', 'klient' => (int)$sa['client_id']])) ?>" title="Prośba o rezygnację z dniem — dokument odręczny">REZ2</a>
-          <a class="btn btn-sm btn-outline-warning py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/nowy', 'form' => 'ZPRO', 'klient' => (int)$sa['client_id']])) ?>" title="Podanie o zmianę prowadzącego zajęcia">ZPRO</a>
           <a class="btn btn-sm btn-outline-secondary py-0" href="wnioskiDop.php?<?= h(http_build_query(['klient' => (int)$sa['client_id']])) ?>">wszystkie wnioski uczestnika</a>
         </div>
         <?php if ($_dopOpen): ?><div class="small mt-1">Otwarte: <?php foreach ($_dopOpen as $_d): ?><a class="me-2" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/wnioski/' . (int)$_d['id']])) ?>"><?= h($_d['number']) ?></a><?php endforeach; ?></div><?php endif; ?>
