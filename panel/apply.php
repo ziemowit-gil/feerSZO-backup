@@ -172,30 +172,21 @@ panelMetroAssets($_vol_color ?? '#0f6fa8');
 $_ap_pal = array_values(panelMetroPalette());
 ?>
 <style>
-/* Wnioski — METRO: kafle typów, formularz po lewej, moje wnioski po prawej */
+/* Wnioski — METRO: kafle typów (otwierają kreator w oknie) po lewej, moje wnioski po prawej */
 .pvm .ap-cols{display:grid;gap:1.5rem;grid-template-columns:1fr;align-items:start}
 @media(min-width:1100px){.pvm .ap-cols{grid-template-columns:minmax(0,7fr) minmax(0,4fr)}}
-.pvm .ap-form{background:var(--pvm-light);padding:1.25rem}
-.pvm .ap-form .form-label{font-size:.82rem;font-weight:600;color:var(--pvm-ink)}
 .pvm .ap-types{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .pvm .ap-type{display:flex;flex-direction:column;justify-content:space-between;gap:.5rem;min-height:118px;margin:0;padding:.85rem 1rem;background:var(--pvm-bg);color:var(--pvm-ink);border-left:8px solid var(--c);cursor:pointer}
 .pvm .ap-type:hover{background:var(--pvm-light-h)}
 .pvm .ap-type .ic{font-size:1.6rem;line-height:1;color:var(--c)}
 .pvm .ap-type b{display:block;font-size:.92rem;font-weight:600;line-height:1.25}
 .pvm .ap-type small{display:block;font-size:.76rem;color:var(--pvm-muted);line-height:1.35}
-.pvm .btn-check:checked + .ap-type{background:var(--c);color:#fff}
-.pvm .btn-check:checked + .ap-type .ic,.pvm .btn-check:checked + .ap-type small{color:#fff}
-.pvm .btn-check:focus-visible + .ap-type{outline:3px solid #fbbf24;outline-offset:2px}
-.pvm .ap-fields{display:grid;gap:0 1rem;grid-template-columns:1fr}
-@media(min-width:576px){.pvm .ap-fields{grid-template-columns:1fr 1fr}}
-.pvm .ap-fields>.ap-full{grid-column:1/-1}
 .pvm .ap-side{position:sticky;top:5rem}
 .pvm .ap-h{display:flex;gap:.75rem;background:var(--pvm-light);border-left:6px solid var(--c);padding:.8rem 1rem;margin-bottom:6px}
 .pvm .ap-h__ttl{font-weight:600;font-size:.92rem;color:var(--pvm-ink)}
 .pvm .ap-h__meta{font-size:.76rem;color:var(--pvm-muted)}
 .pvm .ap-h__ans{margin-top:.4rem;background:var(--pvm-bg);padding:.5rem .65rem;font-size:.85rem}
 :root[data-theme="hc"] .pvm .ap-type{border:2px solid #000;border-left-width:8px}
-:root[data-theme="hc"] .pvm .btn-check:checked + .ap-type{background:#000}
 </style>
 
 <div class="pv-wrap pvm">
@@ -211,198 +202,67 @@ $_ap_pal = array_values(panelMetroPalette());
 
 <?= flash_html() ?>
 
-<?php if ($_is_volunteer_only): ?>
+<style>
+/* Kreator w okienku: kafle rodzajów na stronie → okno z krokami 1–3 (szata Metro, zero zaokrągleń) */
+.ap-wiz .modal-content{border:0;border-radius:0}
+.ap-wiz .modal-header{background:var(--c,#0f6fa8);color:#fff;border:0;border-radius:0;align-items:flex-start}
+.ap-wiz .modal-header .btn-close{filter:invert(1) grayscale(1) brightness(2);opacity:.9}
+.ap-wiz .ap-wiz__kicker{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+.ap-wiz .modal-title{font-weight:300;font-size:1.35rem;line-height:1.2}
+.ap-wiz .ap-steps{display:flex;gap:4px;margin:0 0 1.1rem;padding:0;list-style:none}
+.ap-wiz .ap-steps li{flex:1;display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;background:#f2f2f2;color:#5f5f5f;font-size:.78rem;font-weight:600}
+.ap-wiz .ap-steps li b{display:inline-flex;align-items:center;justify-content:center;width:1.5rem;height:1.5rem;background:#fff;color:#5f5f5f;font-size:.78rem}
+.ap-wiz .ap-steps li[aria-current="step"]{background:var(--c,#0f6fa8);color:#fff}
+.ap-wiz .ap-steps li[aria-current="step"] b{color:var(--c,#0f6fa8)}
+.ap-wiz .ap-steps li.is-done b{background:var(--m-green,#007a00);color:#fff}
+.ap-wiz .form-control,.ap-wiz .form-select{border:2px solid #8a8a8a;border-radius:0}
+.ap-wiz .form-label{font-size:.82rem;font-weight:600}
+.ap-wiz .ap-fields{display:grid;gap:0 1rem;grid-template-columns:1fr}
+@media(min-width:576px){.ap-wiz .ap-fields{grid-template-columns:1fr 1fr}}
+.ap-wiz .ap-fields>.ap-full{grid-column:1/-1}
+.ap-wiz .is-invalid{border-color:var(--m-red,#a20025)!important}
+.ap-wiz .ap-sum{margin:0;display:grid;grid-template-columns:minmax(8rem,auto) 1fr;gap:.35rem 1rem;font-size:.86rem}
+.ap-wiz .ap-sum dt{font-weight:600;color:#5f5f5f}
+.ap-wiz .ap-sum dd{margin:0;white-space:pre-line;word-break:break-word}
+.ap-wiz .modal-footer{border-top:1px solid #e1e1e1;justify-content:space-between}
+.ap-wiz .mt-btn{display:inline-flex;align-items:center;gap:.4rem;background:var(--c,#0f6fa8);color:#fff;border:2px solid var(--c,#0f6fa8);border-radius:0;padding:.45rem 1rem;font-weight:600;min-height:40px}
+.ap-wiz .mt-btn--ghost{background:transparent;color:#111827;border-color:#111827}
+.ap-wiz .mt-btn--ghost:hover{background:#111827;color:#fff}
+.pvm .ap-type{width:100%;text-align:left;border-top:0;border-right:0;border-bottom:0;font:inherit}
+</style>
 
 <?php if (!$types && ($contracts || !$_all_types_cnt)): ?>
-<div class="tz-card mb-4">
-  <div class="tz-card__hd"><i class="bi bi-tools me-2" aria-hidden="true"></i>Brak typów wniosków</div>
-  <div class="tz-card__bd">
-    <div class="tz-empty">
-      <i class="bi bi-tools" aria-hidden="true"></i>
-      <p class="mt-3 mb-0">Administrator jeszcze nie skonfigurował typów wniosków. Wróć później.</p>
-    </div>
-  </div>
-</div>
+<div class="mt-empty mb-4"><i class="bi bi-tools" style="font-size:2rem;display:block;margin-bottom:.4rem" aria-hidden="true"></i><p class="mb-0">Administrator jeszcze nie skonfigurował typów wniosków. Wróć później.</p></div>
 <?php elseif (!$types): ?>
-<div class="tz-card mb-4">
-  <div class="tz-card__hd"><i class="bi bi-exclamation-circle me-2" aria-hidden="true"></i>Brak umów</div>
-  <div class="tz-card__bd">
-    <div class="tz-empty">
-      <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-      <p class="mt-3 mb-0">Nie masz żadnych umów powiązanych z kontem. Skontaktuj się z administratorem.</p>
-    </div>
-  </div>
-</div>
+<div class="mt-empty mb-4"><i class="bi bi-exclamation-circle" style="font-size:2rem;display:block;margin-bottom:.4rem" aria-hidden="true"></i><p class="mb-0">Nie masz żadnych umów powiązanych z kontem. Skontaktuj się z administratorem.</p></div>
 <?php else: ?>
 
 <div class="ap-cols">
 <section aria-labelledby="ap-new-h">
   <h2 class="mt-h2" id="ap-new-h">Nowe <b>pismo / wniosek</b></h2>
-  <div class="ap-form">
-
-    <?php if ($errors): ?>
-    <div class="pv-alert pv-alert-err" role="alert">
-      <ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
-    </div>
-    <?php endif; ?>
-
-    <form method="post" enctype="multipart/form-data" novalidate id="apply-form">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-
-      <div class="mb-4">
-        <div class="form-label fw-semibold" id="ap-type-l">1. Wybierz rodzaj <span class="text-danger">*</span></div>
-        <div class="ap-types" role="radiogroup" aria-labelledby="ap-type-l">
-          <?php foreach ($types as $_ti => $t):
-              $sel = $selected_type_id === $t['id']; ?>
-          <div>
-            <input type="radio" class="btn-check type-radio" name="type_id"
-                   id="type_<?= $t['id'] ?>" value="<?= $t['id'] ?>"
-                   data-requires-contract="<?= $t['requires_contract'] ?>"
-                   data-allow-attachment="<?= $t['allow_attachment'] ?>"
-                   <?= $sel ? 'checked' : '' ?> required>
-            <label class="ap-type" for="type_<?= $t['id'] ?>" style="--c:<?= h($_ap_pal[$_ti % 8]) ?>">
-              <i class="bi <?= h($t['icon']) ?> ic" aria-hidden="true"></i>
-              <span><b><?= h($t['label']) ?></b>
-                <?php if ($t['description']): ?><small><?= h($t['description']) ?></small><?php endif; ?></span>
-            </label>
-          </div>
-          <?php endforeach; ?>
-        </div>
-        <?php if ($_term_module): ?>
-        <div class="tz-note mt-2">
-          <i class="bi bi-info-circle" aria-hidden="true"></i>
-          <span class="flex-grow-1">Chcesz rozwiązać umowę? Skorzystaj z dedykowanego modułu.</span>
-          <a href="<?= APP_URL ?>/panel/terminations.php" class="tz-btn tz-btn--ghost ms-2">
-            <i class="bi bi-file-earmark-x me-1" aria-hidden="true"></i>Zakończ współpracę
-          </a>
-        </div>
-        <?php endif; ?>
-      </div>
-
-      <div class="form-label fw-semibold mt-1">2. Uzupełnij szczegóły</div>
-      <div class="ap-fields">
-      <div class="mb-3" id="contract-row">
-        <label for="contract" class="form-label fw-semibold">
-          Powiązana umowa <span id="contract-req-star" class="text-danger" style="display:none">*</span>
-        </label>
-        <select name="contract" id="contract" class="form-select">
-          <option value="">— bez wskazania konkretnej umowy —</option>
-          <?php
-          $ct_labels = ['zlecenie' => 'Zlecenie', 'wolontariat' => 'Wolontariat', 'dzielo' => 'Dzieło', 'praca' => 'Praca'];
-          foreach ($contracts as $c):
-              $key = $c['contract_type'] . ':' . $c['id'];
-              $sel = ($_POST['contract'] ?? '') === $key;
-          ?>
-          <option value="<?= h($key) ?>"<?= $sel ? ' selected' : '' ?>>
-            <?= h($ct_labels[$c['contract_type']] ?? $c['contract_type']) ?>
-            <?= h($c['numer_umowy'] ?: '#' . $c['id']) ?>
-            <?php if ($c['data_zakonczenia']): ?>(do <?= h($c['data_zakonczenia']) ?>)<?php endif; ?>
-          </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-
-      <div class="mb-3">
-        <label for="tytul" class="form-label fw-semibold">Tytuł <span class="text-danger">*</span></label>
-        <input type="text" id="tytul" name="tytul" class="form-control"
-               value="<?= h($_POST['tytul'] ?? '') ?>"
-               placeholder="Krótki tytuł pisma lub wniosku" maxlength="255"
-               required aria-required="true">
-      </div>
-
-      </div>
-      <?php foreach ($types as $t) { ?>
-      <div class="type-fields" id="fields-<?= $t['id'] ?>"
-           style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
-        <div class="ap-fields">
-        <?php foreach ($t['fields'] as $f) {
-            $_lock = appDocsFieldLocked($t['name'] ?? null, $f['name']);
-            // Wzory ZSW/DOK: data sporządzenia = data złożenia, stała (bez pola w formularzu)
-            if ($f['name'] === 'miejscowosc' && appDocsTemplateFor($t['name'] ?? null)): ?>
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="fld_data_sp_<?= $t['id'] ?>">Data sporządzenia wniosku</label>
-          <input type="text" id="fld_data_sp_<?= $t['id'] ?>" class="form-control" value="<?= h(date('d.m.Y')) ?>" readonly aria-readonly="true"
-                 style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed" aria-describedby="fld_data_sp_<?= $t['id'] ?>_lock">
-          <div class="form-text" id="fld_data_sp_<?= $t['id'] ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Ustawiana automatycznie — data złożenia wniosku.</div>
-        </div>
-        <?php endif;
-            $val   = $_lock ? appDocsPrefill($t['name'] ?? null, $f['name'], $user)
-                            : ($_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user));
-            $ph    = h($f['placeholder']);
-            $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
-            $fname = 'field_' . h($f['name']);
-        ?>
-        <div class="mb-3<?= in_array($f['field_type'], ['date', 'number'], true) ? '' : ' ap-full' ?>">
-          <label class="form-label fw-semibold" for="<?= $fid ?>">
-            <?= h($f['label']) ?>
-            <?php if ($f['required']): ?><span class="text-danger">*</span><?php endif; ?>
-          </label>
-          <?php if ($f['field_type'] === 'textarea'): ?>
-          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="<?= $_lock ? 2 : 4 ?>"
-                    placeholder="<?= $ph ?>"
-                    <?= $_lock ? 'readonly aria-readonly="true" style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed;resize:none" aria-describedby="' . $fid . '_lock"' : '' ?>
-                    <?= $f['required'] ? 'aria-required="true"' : '' ?>><?= h($val) ?></textarea>
-          <?php if ($_lock): ?><div class="form-text" id="<?= $fid ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Adresat stały — wniosek trafia do organizacji.</div><?php endif; ?>
-          <?php elseif ($f['field_type'] === 'select'): ?>
-          <select name="<?= $fname ?>" id="<?= $fid ?>" class="form-select"
-                  <?= $f['required'] ? 'aria-required="true"' : '' ?>>
-            <option value="">— wybierz —</option>
-            <?php foreach (app_field_options($f) as $opt): ?>
-            <option value="<?= h($opt) ?>"<?= $val === $opt ? ' selected' : '' ?>><?= h($opt) ?></option>
-            <?php endforeach; ?>
-          </select>
-          <?php elseif ($f['field_type'] === 'checkbox'): ?>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="<?= $fname ?>"
-                   id="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>" value="tak"
-                   <?= $val === 'tak' ? 'checked' : '' ?>
-                   <?= $f['required'] ? 'aria-required="true"' : '' ?>>
-            <label class="form-check-label" for="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>">Tak</label>
-          </div>
-          <?php else: ?>
-          <input type="<?= $f['field_type'] === 'date' ? 'date' : ($f['field_type'] === 'number' ? 'number' : 'text') ?>"
-                 name="<?= $fname ?>" id="<?= $fid ?>" class="form-control"
-                 value="<?= h($val) ?>" placeholder="<?= $ph ?>"
-                 <?= $f['required'] ? 'aria-required="true"' : '' ?>>
-          <?php endif; ?>
-        </div>
-        <?php } ?>
-        <?php if (!$t['fields']): ?>
-        <div class="mb-3 ap-full">
-          <label class="form-label fw-semibold" for="fld_fallback_<?= $t['id'] ?>">
-            Treść / opis <span class="text-danger">*</span>
-          </label>
-          <textarea name="field__tresc_fallback" id="fld_fallback_<?= $t['id'] ?>"
-                    class="form-control" rows="5"
-                    placeholder="Opisz szczegółowo swoją sprawę..."
-                    aria-required="true"><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
-        </div>
-        <?php endif; ?>
-        </div>
-      </div>
-      <?php } ?>
-
-      <div class="mb-4" id="attachment-row" style="display:none">
-        <label for="plik" class="form-label fw-semibold">
-          Załącznik <span class="text-muted fw-normal">(opcjonalnie)</span>
-        </label>
-        <input type="file" id="plik" name="plik" class="form-control"
-               accept=".pdf,.docx,.jpg,.jpeg,.png">
-        <div class="form-text">Dozwolone formaty: PDF, DOCX, JPG, PNG. Maks. 30 MB.</div>
-      </div>
-
-      <div class="d-flex flex-wrap gap-2">
-        <button type="submit" class="mt-btn">
-          <i class="bi bi-send" aria-hidden="true"></i>Wyślij
-        </button>
-        <a href="<?= APP_URL ?>/panel/index.php" class="mt-btn mt-btn--ghost">Anuluj</a>
-      </div>
-    </form>
+  <p class="text-muted small mb-2">Wybierz rodzaj — otworzy się okno, które poprowadzi Cię krok po kroku.</p>
+  <div class="ap-types">
+    <?php foreach ($types as $_ti => $t): ?>
+    <button type="button" class="ap-type" data-ap-type="<?= (int)$t['id'] ?>" style="--c:<?= h($_ap_pal[$_ti % 8]) ?>">
+      <i class="bi <?= h($t['icon']) ?> ic" aria-hidden="true"></i>
+      <span><b><?= h($t['label']) ?></b>
+        <?php if ($t['description']): ?><small><?= h($t['description']) ?></small><?php endif; ?></span>
+    </button>
+    <?php endforeach; ?>
   </div>
+  <?php if ($_term_module): ?>
+  <div class="tz-note mt-3">
+    <i class="bi bi-info-circle" aria-hidden="true"></i>
+    <span class="flex-grow-1">Chcesz rozwiązać umowę? Skorzystaj z dedykowanego modułu.</span>
+    <a href="<?= APP_URL ?>/panel/terminations.php" class="tz-btn tz-btn--ghost ms-2">
+      <i class="bi bi-file-earmark-x me-1" aria-hidden="true"></i>Zakończ współpracę
+    </a>
+  </div>
+  <?php endif; ?>
 </section>
 
 <aside class="ap-side" aria-labelledby="ap-hist-h">
-  <h2 class="mt-h2" id="ap-hist-h">Moje <b>wnioski</b><?php if ($history): ?> <span class="mt-no" style="font-size:1rem">(<?= count($history) ?>)</span><?php endif; ?></h2>
+  <h2 class="mt-h2" id="ap-hist-h">Moje <b>pisma i wnioski</b><?php if ($history): ?> <span class="mt-no" style="font-size:1rem">(<?= count($history) ?>)</span><?php endif; ?></h2>
   <?php if (!$history): ?>
   <div class="mt-empty"><i class="bi bi-inboxes" style="font-size:2rem;display:block;margin-bottom:.4rem" aria-hidden="true"></i><p class="mb-0">Nie złożono jeszcze żadnego wniosku.</p></div>
   <?php endif; ?>
@@ -411,23 +271,21 @@ $_ap_pal = array_values(panelMetroPalette());
       $fields_data = json_decode($app['fields_json'] ?? '{}', true) ?: [];
       $st_icon_map = ['primary' => 'bi-clock', 'warning' => 'bi-hourglass-split', 'success' => 'bi-check-circle-fill', 'danger' => 'bi-x-circle-fill'];
       $st_icon = $st_icon_map[$st['class']] ?? 'bi-circle';
+      $_apc = ['primary'=>'var(--m-blue)','warning'=>'var(--m-orange)','success'=>'var(--m-green)','danger'=>'var(--m-red)'][$st['class']] ?? 'var(--m-grey)';
   ?>
-  <?php $_apc = ['primary'=>'var(--m-blue)','warning'=>'var(--m-orange)','success'=>'var(--m-green)','danger'=>'var(--m-red)'][$st['class']] ?? 'var(--m-grey)'; ?>
   <article class="ap-h" style="--c:<?= $_apc ?>">
-    <i class="bi <?= $st_icon ?>" style="font-size:1.15rem;color:<?= $_apc ?>" aria-hidden="true"></i>
+    <i class="bi <?= h($app['type_icon'] ?: $st_icon) ?>" style="font-size:1.15rem;color:<?= $_apc ?>" aria-hidden="true"></i>
     <div class="flex-grow-1" style="min-width:0">
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="ap-h__ttl"><?= h($app['tytul']) ?></span>
-        <span class="mt-badge" style="background:<?= $_apc ?>"><?= $st['label'] ?></span>
+        <span class="mt-badge" style="background:<?= $_apc ?>"><?= h($st['label']) ?></span>
       </div>
       <div class="ap-h__meta"><?= h($app['type_label'] ?? '') ?> · <?= h(date('d.m.Y', strtotime($app['created_at']))) ?></div>
       <?php if ($app['odpowiedz']): ?>
       <div class="ap-h__ans">
         <i class="bi bi-reply me-1" aria-hidden="true"></i>
         <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
-        <?php if ($app['odpowiedz_at']): ?>
-        <span class="text-muted ms-1"><?= h(substr($app['odpowiedz_at'], 0, 10)) ?></span>
-        <?php endif; ?>
+        <?php if ($app['odpowiedz_at']): ?><span class="text-muted ms-1"><?= h(substr($app['odpowiedz_at'], 0, 10)) ?></span><?php endif; ?>
       </div>
       <?php endif; ?>
       <?php $_adoc = appDocsTemplateFor($app['type_name'] ?? null); ?>
@@ -445,8 +303,7 @@ $_ap_pal = array_values(panelMetroPalette());
         </a>
         <?php endif; ?>
         <?php if ($app['plik']): ?>
-        <a href="<?= h(letter_file_url($app['plik'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem"
-           download target="_blank">
+        <a href="<?= h(letter_file_url($app['plik'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem" download target="_blank">
           <i class="bi bi-paperclip me-1" aria-hidden="true"></i>Załącznik
         </a>
         <?php endif; ?>
@@ -458,271 +315,251 @@ $_ap_pal = array_values(panelMetroPalette());
 </aside>
 </div><!-- /.ap-cols -->
 
-<?php endif; ?>
-
-<?php else: /* !$_is_volunteer_only — admin/editor layout */ ?>
-
-<?php if (!$types && ($contracts || !$_all_types_cnt)): ?>
-<div class="tz-card mb-4">
-  <div class="tz-card__bd">
-    <div class="tz-empty">
-      <i class="bi bi-tools" aria-hidden="true"></i>
-      <p class="mb-0">Administrator jeszcze nie skonfigurował typów wniosków. Wróć później.</p>
-    </div>
-  </div>
-</div>
-<?php elseif (!$types): ?>
-<div class="tz-card mb-4">
-  <div class="tz-card__bd">
-    <div class="tz-empty">
-      <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-      <p class="mb-0">Nie masz żadnych umów powiązanych z kontem. Skontaktuj się z administratorem.</p>
-    </div>
-  </div>
-</div>
-<?php else: ?>
-
-<!-- ── Formularz ─────────────────────────────────────────────────────────── -->
-<div class="tz-card mb-4">
-  <div class="tz-card__hd"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Nowe pismo / wniosek</div>
-  <div class="tz-card__bd">
-
-    <?php if ($errors): ?>
-    <div class="pv-alert pv-alert-err" role="alert">
-      <ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
-    </div>
-    <?php endif; ?>
-
-    <form method="post" enctype="multipart/form-data" novalidate id="apply-form">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-
-      <!-- Krok 1: Wybór typu -->
-      <div class="mb-4">
-        <label class="form-label fw-semibold">Typ pisma / wniosku <span class="text-danger">*</span></label>
-        <div class="row g-2">
-          <?php foreach ($types as $t):
-              $sel = $selected_type_id === $t['id']; ?>
-          <div class="col-sm-6 col-lg-4">
-            <input type="radio" class="btn-check type-radio" name="type_id"
-                   id="type_<?= $t['id'] ?>" value="<?= $t['id'] ?>"
-                   data-requires-contract="<?= $t['requires_contract'] ?>"
-                   data-allow-attachment="<?= $t['allow_attachment'] ?>"
-                   <?= $sel ? 'checked' : '' ?> required>
-            <label class="tz-btn tz-btn--ghost w-100 text-start d-flex align-items-center gap-2 py-2 px-3"
-                   for="type_<?= $t['id'] ?>">
-              <i class="bi <?= h($t['icon']) ?> fs-5 flex-shrink-0" aria-hidden="true"></i>
-              <div>
-                <div class="fw-semibold"><?= h($t['label']) ?></div>
-                <?php if ($t['description']): ?>
-                <div class="text-muted"><?= h($t['description']) ?></div>
-                <?php endif; ?>
-              </div>
-            </label>
-          </div>
-          <?php endforeach; ?>
+<!-- ═══ Okno kreatora: 1. Umowa i tytuł → 2. Szczegóły → 3. Załącznik i podsumowanie ═══ -->
+<div class="modal fade ap-wiz" id="apWizard" tabindex="-1" aria-labelledby="apWizTitle" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" method="post" enctype="multipart/form-data" novalidate id="apply-form">
+      <div class="modal-header">
+        <div>
+          <div class="ap-wiz__kicker">Nowe pismo / wniosek</div>
+          <h2 class="modal-title" id="apWizTitle">Wniosek</h2>
         </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij bez wysyłania"></button>
       </div>
+      <div class="modal-body">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <?php foreach ($types as $_ti => $t): ?>
+        <input type="radio" class="d-none type-radio" name="type_id" id="type_<?= (int)$t['id'] ?>" value="<?= (int)$t['id'] ?>"
+               data-label="<?= h($t['label']) ?>" data-color="<?= h($_ap_pal[$_ti % 8]) ?>"
+               data-requires-contract="<?= (int)$t['requires_contract'] ?>" data-allow-attachment="<?= (int)$t['allow_attachment'] ?>"
+               <?= $selected_type_id === (int)$t['id'] ? 'checked' : '' ?>>
+        <?php endforeach; ?>
 
-      <!-- Krok 2: Powiązana umowa -->
-      <div class="mb-3" id="contract-row">
-        <label for="contract" class="form-label fw-semibold">
-          Powiązana umowa <span id="contract-req-star" class="text-danger" style="display:none">*</span>
-        </label>
-        <select name="contract" id="contract" class="form-select">
-          <option value="">— bez wskazania konkretnej umowy —</option>
-          <?php
-          $ct_labels = ['zlecenie' => 'Zlecenie', 'wolontariat' => 'Wolontariat', 'dzielo' => 'Dzieło', 'praca' => 'Praca'];
-          foreach ($contracts as $c):
-              $key = $c['contract_type'] . ':' . $c['id'];
-              $sel = ($_POST['contract'] ?? '') === $key;
-          ?>
-          <option value="<?= h($key) ?>"<?= $sel ? ' selected' : '' ?>>
-            <?= h($ct_labels[$c['contract_type']] ?? $c['contract_type']) ?>
-            <?= h($c['numer_umowy'] ?: '#' . $c['id']) ?>
-            <?php if ($c['data_zakonczenia']): ?>(do <?= h($c['data_zakonczenia']) ?>)<?php endif; ?>
-          </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+        <ol class="ap-steps" aria-label="Kroki wniosku">
+          <li data-step-ind="1"><b>1</b>Umowa i tytuł</li>
+          <li data-step-ind="2"><b>2</b>Szczegóły</li>
+          <li data-step-ind="3"><b>3</b>Załącznik i wysyłka</li>
+        </ol>
 
-      <!-- Krok 3: Tytuł -->
-      <div class="mb-3">
-        <label for="tytul" class="form-label fw-semibold">Tytuł <span class="text-danger">*</span></label>
-        <input type="text" id="tytul" name="tytul" class="form-control"
-               value="<?= h($_POST['tytul'] ?? '') ?>"
-               placeholder="Krótki tytuł pisma lub wniosku" maxlength="255"
-               required aria-required="true">
-      </div>
-
-      <!-- Krok 4: Dynamiczne pola per typ -->
-      <?php foreach ($types as $t) { ?>
-      <div class="type-fields" id="fields-<?= $t['id'] ?>"
-           style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
-        <?php foreach ($t['fields'] as $f) {
-            $_lock = appDocsFieldLocked($t['name'] ?? null, $f['name']);
-            // Wzory ZSW/DOK: data sporządzenia = data złożenia, stała (bez pola w formularzu)
-            if ($f['name'] === 'miejscowosc' && appDocsTemplateFor($t['name'] ?? null)): ?>
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="fld_data_sp_<?= $t['id'] ?>">Data sporządzenia wniosku</label>
-          <input type="text" id="fld_data_sp_<?= $t['id'] ?>" class="form-control" value="<?= h(date('d.m.Y')) ?>" readonly aria-readonly="true"
-                 style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed" aria-describedby="fld_data_sp_<?= $t['id'] ?>_lock">
-          <div class="form-text" id="fld_data_sp_<?= $t['id'] ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Ustawiana automatycznie — data złożenia wniosku.</div>
-        </div>
-        <?php endif;
-            $val   = $_lock ? appDocsPrefill($t['name'] ?? null, $f['name'], $user)
-                            : ($_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user));
-            $ph    = h($f['placeholder']);
-            $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
-            $fname = 'field_' . h($f['name']);
-        ?>
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="<?= $fid ?>">
-            <?= h($f['label']) ?>
-            <?php if ($f['required']): ?><span class="text-danger">*</span><?php endif; ?>
-          </label>
-          <?php if ($f['field_type'] === 'textarea'): ?>
-          <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="<?= $_lock ? 2 : 4 ?>"
-                    placeholder="<?= $ph ?>"
-                    <?= $_lock ? 'readonly aria-readonly="true" style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed;resize:none" aria-describedby="' . $fid . '_lock"' : '' ?>
-                    <?= $f['required'] ? 'aria-required="true"' : '' ?>><?= h($val) ?></textarea>
-          <?php if ($_lock): ?><div class="form-text" id="<?= $fid ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Adresat stały — wniosek trafia do organizacji.</div><?php endif; ?>
-          <?php elseif ($f['field_type'] === 'select'): ?>
-          <select name="<?= $fname ?>" id="<?= $fid ?>" class="form-select"
-                  <?= $f['required'] ? 'aria-required="true"' : '' ?>>
-            <option value="">— wybierz —</option>
-            <?php foreach (app_field_options($f) as $opt): ?>
-            <option value="<?= h($opt) ?>"<?= $val === $opt ? ' selected' : '' ?>><?= h($opt) ?></option>
-            <?php endforeach; ?>
-          </select>
-          <?php elseif ($f['field_type'] === 'checkbox'): ?>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="<?= $fname ?>"
-                   id="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>" value="tak"
-                   <?= $val === 'tak' ? 'checked' : '' ?>
-                   <?= $f['required'] ? 'aria-required="true"' : '' ?>>
-            <label class="form-check-label" for="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>">Tak</label>
-          </div>
-          <?php else: ?>
-          <input type="<?= $f['field_type'] === 'date' ? 'date' : ($f['field_type'] === 'number' ? 'number' : 'text') ?>"
-                 name="<?= $fname ?>" id="<?= $fid ?>" class="form-control"
-                 value="<?= h($val) ?>" placeholder="<?= $ph ?>"
-                 <?= $f['required'] ? 'aria-required="true"' : '' ?>>
-          <?php endif; ?>
-        </div>
-        <?php } ?>
-        <?php if (!$t['fields']): ?>
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="fld_fallback_<?= $t['id'] ?>">
-            Treść / opis <span class="text-danger">*</span>
-          </label>
-          <textarea name="field__tresc_fallback" id="fld_fallback_<?= $t['id'] ?>"
-                    class="form-control" rows="5"
-                    placeholder="Opisz szczegółowo swoją sprawę..."
-                    aria-required="true"><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
+        <div aria-live="assertive" id="ap-wiz-err">
+        <?php if ($errors): ?>
+        <div class="pv-alert pv-alert-err" role="alert">
+          <ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul>
         </div>
         <?php endif; ?>
-      </div>
-      <?php } ?>
+        </div>
 
-      <!-- Załącznik -->
-      <div class="mb-4" id="attachment-row" style="display:none">
-        <label for="plik" class="form-label fw-semibold">
-          Załącznik <span class="text-muted fw-normal">(opcjonalnie)</span>
-        </label>
-        <input type="file" id="plik" name="plik" class="form-control"
-               accept=".pdf,.docx,.jpg,.jpeg,.png">
-        <div class="form-text">Dozwolone formaty: PDF, DOCX, JPG, PNG. Maks. 30 MB.</div>
-      </div>
+        <!-- Krok 1 -->
+        <div class="ap-step" data-step="1">
+          <div class="mb-3" id="contract-row">
+            <label for="contract" class="form-label">Powiązana umowa <span id="contract-req-star" class="text-danger" style="display:none">*</span></label>
+            <select name="contract" id="contract" class="form-select">
+              <option value="">— bez wskazania konkretnej umowy —</option>
+              <?php
+              $ct_labels = ['zlecenie' => 'Zlecenie', 'wolontariat' => 'Wolontariat', 'dzielo' => 'Dzieło', 'praca' => 'Praca'];
+              foreach ($contracts as $c):
+                  $key = $c['contract_type'] . ':' . $c['id'];
+                  $sel = ($_POST['contract'] ?? '') === $key;
+              ?>
+              <option value="<?= h($key) ?>"<?= $sel ? ' selected' : '' ?>>
+                <?= h($ct_labels[$c['contract_type']] ?? $c['contract_type']) ?>
+                <?= h($c['numer_umowy'] ?: '#' . $c['id']) ?>
+                <?php if ($c['data_zakonczenia']): ?>(do <?= h($c['data_zakonczenia']) ?>)<?php endif; ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-1">
+            <label for="tytul" class="form-label">Tytuł <span class="text-danger" id="tytul-req">*</span></label>
+            <input type="text" id="tytul" name="tytul" class="form-control" value="<?= h($_POST['tytul'] ?? '') ?>"
+                   placeholder="Krótki tytuł pisma lub wniosku" maxlength="255" aria-required="true">
+            <div class="form-text" id="tytul-auto" style="display:none">Dla wzorów urzędowych tytuł może zostać pusty — nadamy go z nazwy dokumentu.</div>
+          </div>
+        </div>
 
-      <div class="d-flex gap-2">
-        <button type="submit" class="tz-btn">
-          <i class="bi bi-send me-2" aria-hidden="true"></i>Wyślij
-        </button>
-        <a href="<?= APP_URL ?>/panel/index.php" class="tz-btn tz-btn--ghost">Anuluj</a>
+        <!-- Krok 2 -->
+        <div class="ap-step" data-step="2" hidden>
+        <?php foreach ($types as $t) { ?>
+          <div class="type-fields" id="fields-<?= (int)$t['id'] ?>" data-official="<?= appDocsTemplateFor($t['name'] ?? null) ? '1' : '0' ?>"
+               style="<?= $selected_type_id !== (int)$t['id'] ? 'display:none' : '' ?>">
+            <div class="ap-fields">
+            <?php foreach ($t['fields'] as $f) {
+                $_lock = appDocsFieldLocked($t['name'] ?? null, $f['name']);
+                // Wzory ZSW/DOK: data sporządzenia = data złożenia, stała (bez pola w formularzu)
+                if ($f['name'] === 'miejscowosc' && appDocsTemplateFor($t['name'] ?? null)): ?>
+            <div class="mb-3">
+              <label class="form-label" for="fld_data_sp_<?= $t['id'] ?>">Data sporządzenia wniosku</label>
+              <input type="text" id="fld_data_sp_<?= $t['id'] ?>" class="form-control" value="<?= h(date('d.m.Y')) ?>" readonly aria-readonly="true"
+                     style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed" aria-describedby="fld_data_sp_<?= $t['id'] ?>_lock">
+              <div class="form-text" id="fld_data_sp_<?= $t['id'] ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Ustawiana automatycznie — data złożenia wniosku.</div>
+            </div>
+            <?php endif;
+                $val   = $_lock ? appDocsPrefill($t['name'] ?? null, $f['name'], $user)
+                                : ($_POST['field_' . $f['name']] ?? appDocsPrefill($t['name'] ?? null, $f['name'], $user));
+                $ph    = h($f['placeholder']);
+                $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
+                $fname = 'field_' . h($f['name']);
+            ?>
+            <div class="mb-3<?= in_array($f['field_type'], ['date', 'number'], true) ? '' : ' ap-full' ?>">
+              <label class="form-label" for="<?= $fid ?>">
+                <?= h($f['label']) ?><?php if ($f['required']): ?> <span class="text-danger">*</span><?php endif; ?>
+              </label>
+              <?php if ($f['field_type'] === 'textarea'): ?>
+              <textarea name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" rows="<?= $_lock ? 2 : 4 ?>"
+                        placeholder="<?= $ph ?>" data-sum="<?= h($f['label']) ?>"
+                        <?= $_lock ? 'readonly aria-readonly="true" style="background:#f2f2f2;color:#5f5f5f;cursor:not-allowed;resize:none" aria-describedby="' . $fid . '_lock"' : '' ?>
+                        <?= $f['required'] ? 'aria-required="true"' : '' ?>><?= h($val) ?></textarea>
+              <?php if ($_lock): ?><div class="form-text" id="<?= $fid ?>_lock"><i class="bi bi-lock me-1" aria-hidden="true"></i>Adresat stały — wniosek trafia do organizacji.</div><?php endif; ?>
+              <?php elseif ($f['field_type'] === 'select'): ?>
+              <select name="<?= $fname ?>" id="<?= $fid ?>" class="form-select" data-sum="<?= h($f['label']) ?>"
+                      <?= $f['required'] ? 'aria-required="true"' : '' ?>>
+                <option value="">— wybierz —</option>
+                <?php foreach (app_field_options($f) as $opt): ?>
+                <option value="<?= h($opt) ?>"<?= $val === $opt ? ' selected' : '' ?>><?= h($opt) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <?php elseif ($f['field_type'] === 'checkbox'): ?>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="<?= $fname ?>" data-sum="<?= h($f['label']) ?>"
+                       id="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>" value="tak"
+                       <?= $val === 'tak' ? 'checked' : '' ?>
+                       <?= $f['required'] ? 'aria-required="true"' : '' ?>>
+                <label class="form-check-label" for="chk_<?= h($f['name']) ?>_<?= $t['id'] ?>">Tak</label>
+              </div>
+              <?php else: ?>
+              <input type="<?= $f['field_type'] === 'date' ? 'date' : ($f['field_type'] === 'number' ? 'number' : 'text') ?>"
+                     name="<?= $fname ?>" id="<?= $fid ?>" class="form-control" data-sum="<?= h($f['label']) ?>"
+                     value="<?= h($val) ?>" placeholder="<?= $ph ?>"
+                     <?= $f['required'] ? 'aria-required="true"' : '' ?>>
+              <?php endif; ?>
+            </div>
+            <?php } ?>
+            <?php if (!$t['fields']): ?>
+            <div class="mb-3 ap-full">
+              <label class="form-label" for="fld_fallback_<?= $t['id'] ?>">Treść / opis <span class="text-danger">*</span></label>
+              <textarea name="field__tresc_fallback" id="fld_fallback_<?= $t['id'] ?>" class="form-control" rows="5" data-sum="Treść"
+                        placeholder="Opisz szczegółowo swoją sprawę..." aria-required="true"><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
+            </div>
+            <?php endif; ?>
+            </div>
+          </div>
+        <?php } ?>
+        </div>
+
+        <!-- Krok 3 -->
+        <div class="ap-step" data-step="3" hidden>
+          <div class="mb-3" id="attachment-row" style="display:none">
+            <label for="plik" class="form-label">Załącznik <span class="text-muted fw-normal">(opcjonalnie)</span></label>
+            <input type="file" id="plik" name="plik" class="form-control" accept=".pdf,.docx,.jpg,.jpeg,.png">
+            <div class="form-text">Dozwolone formaty: PDF, DOCX, JPG, PNG. Maks. 30 MB.</div>
+          </div>
+          <h3 class="h6 fw-semibold mb-2">Sprawdź przed wysłaniem</h3>
+          <dl class="ap-sum" id="ap-sum"></dl>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="mt-btn mt-btn--ghost" id="ap-back"><i class="bi bi-arrow-left" aria-hidden="true"></i>Wstecz</button>
+        <div class="d-flex gap-2">
+          <button type="button" class="mt-btn mt-btn--ghost" data-bs-dismiss="modal">Anuluj</button>
+          <button type="button" class="mt-btn" id="ap-next">Dalej<i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+          <button type="submit" class="mt-btn" id="ap-send" hidden><i class="bi bi-send" aria-hidden="true"></i>Wyślij</button>
+        </div>
       </div>
     </form>
   </div>
 </div>
 
-<?php endif; ?>
-
-<!-- ── Historia ──────────────────────────────────────────────────────────── -->
-<?php if ($history): ?>
-<div class="tz-card">
-  <div class="tz-card__hd d-flex align-items-center gap-2">
-    <i class="bi bi-clock-history" aria-hidden="true"></i> Moje pisma i wnioski
-    <span class="tz-badge ms-auto"><?= count($history) ?></span>
-  </div>
-  <div class="tz-card__bd p-0">
-    <?php foreach ($history as $app):
-        $st = $status_map[$app['status']] ?? ['label' => $app['status'], 'class' => 'secondary'];
-        $fields_data = json_decode($app['fields_json'] ?? '{}', true) ?: [];
-    ?>
-    <div class="d-flex align-items-start gap-3 px-4 py-3 border-top">
-      <i class="bi <?= h($app['type_icon'] ?? 'bi-file-text') ?> text-primary mt-1 flex-shrink-0 fs-5" aria-hidden="true"></i>
-      <div class="flex-grow-1">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-          <span class="fw-semibold"><?= h($app['tytul']) ?></span>
-          <span class="pv-status-pill pv-sp-<?= $st['class'] ?>"><?= $st['label'] ?></span>
-          <span class="text-muted small ms-auto text-nowrap"><?= h(substr($app['created_at'], 0, 10)) ?></span>
-        </div>
-        <div class="text-muted small mb-2"><?= h($app['type_label'] ?? $app['type_id']) ?></div>
-        <?php if ($fields_data): ?>
-        <div class="small text-muted d-flex flex-wrap gap-3 mb-2">
-          <?php foreach ($fields_data as $k => $v) { if ($v): ?>
-          <span><strong><?= h(str_replace('_', ' ', $k)) ?>:</strong> <?= h($v) ?></span>
-          <?php endif; } ?>
-        </div>
-        <?php endif; ?>
-        <?php if ($app['odpowiedz']): ?>
-        <div class="pv-alert pv-alert-ok py-2 px-3 mb-0 mt-1 small">
-          <i class="bi bi-reply me-1" aria-hidden="true"></i>
-          <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
-          <?php if ($app['odpowiedz_at']): ?>
-          <span class="text-muted ms-2"><?= h(substr($app['odpowiedz_at'], 0, 10)) ?></span>
-          <?php endif; ?>
-        </div>
-        <?php endif; ?>
-        <?php if ($app['plik']): ?>
-        <div class="mt-1">
-          <a href="<?= h(letter_file_url($app['plik'])) ?>" class="tz-btn tz-btn--ghost py-0 px-2"
-             download target="_blank">
-            <i class="bi bi-paperclip me-1" aria-hidden="true"></i>Załącznik
-          </a>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
-    <?php endforeach; ?>
-  </div>
-</div>
-<?php endif; ?>
-
-<?php endif; /* $_is_volunteer_only */ ?>
-
 <script>
 (function () {
-    const radios   = document.querySelectorAll('.type-radio');
-    const allFields= document.querySelectorAll('.type-fields');
-    const attRow   = document.getElementById('attachment-row');
-    const contrRow = document.getElementById('contract-row');
-    const reqStar  = document.getElementById('contract-req-star');
+  const modalEl = document.getElementById('apWizard');
+  if (!modalEl || !window.bootstrap) return;
+  const modal   = bootstrap.Modal.getOrCreateInstance(modalEl);
+  const form    = document.getElementById('apply-form');
+  const steps   = Array.from(form.querySelectorAll('.ap-step'));
+  const inds    = Array.from(form.querySelectorAll('[data-step-ind]'));
+  const btnBack = document.getElementById('ap-back'), btnNext = document.getElementById('ap-next'), btnSend = document.getElementById('ap-send');
+  const errBox  = document.getElementById('ap-wiz-err');
+  let step = 1;
 
-    function switchType(radio) {
-        const tid = radio.value;
-        allFields.forEach(d => d.style.display = (d.id === 'fields-' + tid) ? '' : 'none');
-        attRow.style.display   = radio.dataset.allowAttachment  === '1' ? '' : 'none';
-        const reqC = radio.dataset.requiresContract === '1';
-        reqStar.style.display  = reqC ? '' : 'none';
-    }
+  function radio() { return form.querySelector('.type-radio:checked'); }
+  function curFields() { const r = radio(); return r ? document.getElementById('fields-' + r.value) : null; }
 
-    radios.forEach(r => r.addEventListener('change', () => switchType(r)));
+  function selectType(id) {
+    const r = document.getElementById('type_' + id);
+    if (!r) return;
+    r.checked = true;
+    form.querySelectorAll('.type-fields').forEach(d => d.style.display = d.id === 'fields-' + id ? '' : 'none');
+    document.getElementById('attachment-row').style.display = r.dataset.allowAttachment === '1' ? '' : 'none';
+    document.getElementById('contract-req-star').style.display = r.dataset.requiresContract === '1' ? '' : 'none';
+    const official = curFields() && curFields().dataset.official === '1';
+    document.getElementById('tytul-req').style.display = official ? 'none' : '';
+    document.getElementById('tytul-auto').style.display = official ? '' : 'none';
+    document.getElementById('apWizTitle').textContent = r.dataset.label;
+    modalEl.style.setProperty('--c', r.dataset.color);
+  }
 
-    // Init on page load
-    const checked = document.querySelector('.type-radio:checked');
-    if (checked) switchType(checked);
+  function go(n) {
+    step = n;
+    steps.forEach(s => s.hidden = Number(s.dataset.step) !== n);
+    inds.forEach(li => {
+      const k = Number(li.dataset.stepInd);
+      if (k === n) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+      li.classList.toggle('is-done', k < n);
+    });
+    btnBack.style.visibility = n > 1 ? 'visible' : 'hidden';
+    btnNext.hidden = n === 3; btnSend.hidden = n !== 3;
+    if (n === 3) summary();
+    const first = steps[n - 1].querySelector('input:not([type=hidden]):not([readonly]):not(.d-none),select,textarea:not([readonly])');
+    if (first) setTimeout(() => first.focus(), 50);
+  }
+
+  // Wymagane pola bieżącego kroku (formularz ma novalidate — serwer i tak sprawdza wszystko)
+  function check(n) {
+    const scope = n === 2 ? curFields() : steps[n - 1];
+    const bad = [];
+    scope.querySelectorAll('[aria-required="true"]').forEach(el => {
+      if (el.readOnly) return;
+      const empty = el.type === 'checkbox' ? !el.checked : !String(el.value).trim();
+      el.classList.toggle('is-invalid', empty);
+      if (empty) bad.push(el);
+    });
+    if (n === 1 && radio() && radio().dataset.requiresContract === '1' && !document.getElementById('contract').value) bad.push(document.getElementById('contract'));
+    if (n === 1 && !(curFields() && curFields().dataset.official === '1') && !document.getElementById('tytul').value.trim()) bad.push(document.getElementById('tytul'));
+    errBox.innerHTML = bad.length ? '<div class="pv-alert pv-alert-err" role="alert">Uzupełnij wymagane pola zaznaczone na czerwono.</div>' : '';
+    bad.forEach(el => el.classList.add('is-invalid'));
+    if (bad.length) bad[0].focus();
+    return !bad.length;
+  }
+
+  function summary() {
+    const dl = document.getElementById('ap-sum'), rows = [];
+    const add = (k, v) => { if (v) rows.push('<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>'); };
+    const c = document.getElementById('contract');
+    add('Rodzaj', radio() ? radio().dataset.label : '');
+    add('Umowa', c.value ? c.options[c.selectedIndex].text.trim() : 'bez wskazania umowy');
+    add('Tytuł', document.getElementById('tytul').value.trim() || '(nadany automatycznie)');
+    if (curFields()) curFields().querySelectorAll('[data-sum]').forEach(el => {
+      add(el.dataset.sum, el.type === 'checkbox' ? (el.checked ? 'Tak' : '') : (el.tagName === 'SELECT' ? (el.value ? el.options[el.selectedIndex].text : '') : el.value.trim()));
+    });
+    dl.innerHTML = rows.join('');
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]); }
+
+  document.querySelectorAll('[data-ap-type]').forEach(b => b.addEventListener('click', () => {
+    selectType(b.dataset.apType); errBox.innerHTML = ''; go(1); modal.show();
+  }));
+  btnNext.addEventListener('click', () => { if (check(step)) go(step + 1); });
+  btnBack.addEventListener('click', () => { errBox.innerHTML = ''; go(Math.max(1, step - 1)); });
+  form.addEventListener('input', e => e.target.classList && e.target.classList.remove('is-invalid'));
+  form.addEventListener('submit', e => { if (!check(1) ) { e.preventDefault(); go(1); return; } if (!check(2)) { e.preventDefault(); go(2); } else btnSend.disabled = true; });
+
+  // Po błędzie walidacji na serwerze: otwórz okno z poprzednio wybranym rodzajem
+  const pre = radio();
+  if (pre) { selectType(pre.value); go(1); <?= $errors ? 'modal.show();' : '' ?> } else go(1);
 })();
 </script>
+
+<?php endif; ?>
 
 </div><!-- /.pv-wrap -->
 
