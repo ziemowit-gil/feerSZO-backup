@@ -1092,6 +1092,50 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   .ewid-table tbody tr { cursor: pointer; }
   .ewid-table tbody tr.ewid-off td { color: #5b6576; }
   .ewid-link { color: var(--ti-link); }
+
+  /* Szata Metro UI dla szczegółów konta: płasko, zero zaokrągleń, ciemna belka z nazwiskiem, pivot zamiast kart, akcent cyan */
+  #detail-panel { font-family: "Segoe UI", "Open Sans", system-ui, sans-serif; box-shadow: none !important; border: 1px solid #d6d6d6 !important; }
+  #detail-panel, #detail-panel *, #detail-panel .btn, #detail-panel .badge, #detail-panel .form-control, #detail-panel .form-select, #detail-panel .nav-link { border-radius: 0 !important; }
+  #detail-panel > .card-header { background: #1d1d1d; color: #fff; border: 0; padding: .8rem 1rem !important; }
+  #detail-panel > .card-header .bi { color: #1ba1e2 !important; font-size: 1.3rem; }
+  #detail-panel .kk-name { color: #fff; font-size: 1.5rem; font-weight: 300; letter-spacing: .01em; }
+  #detail-panel > .card-header .font-monospace { color: #c8c8c8 !important; }
+  #detail-panel > .card-header .badge { font-weight: 600; letter-spacing: .03em; border: 0 !important; }
+  #detail-panel > .card-header .badge.bg-success { background: #008a00 !important; }
+  #detail-panel > .card-header .badge.bg-secondary { background: #647687 !important; }
+  #detail-panel > .card-header .btn-outline-secondary { color: #fff; border-color: #fff; background: transparent; }
+  #detail-panel > .card-header .btn-outline-secondary:hover, #detail-panel > .card-header .btn-outline-secondary:focus { background: #fff; color: #1d1d1d; }
+  #detail-panel .kk-akcje { background: #f4f4f4; border-bottom: 1px solid #d6d6d6; padding: .6rem 1rem !important; }
+  #detail-panel .kk-akcje .btn { background: #1ba1e2; color: #fff; border: 0; font-weight: 600; }
+  #detail-panel .kk-akcje .btn:hover, #detail-panel .kk-akcje .btn:focus { background: #0050ef; color: #fff; }
+  #detail-panel .kk-akcje .btn-outline-secondary { background: #1d1d1d; }
+  #detail-panel .kk-akcje .btn-outline-warning { background: #f0a30a; color: #1d1d1d; }
+  #detail-panel .kk-akcje .btn .text-body-secondary { color: rgba(255,255,255,.8) !important; }
+  #detail-panel #detailTabs { border-bottom: 1px solid #d6d6d6; gap: 1.2rem; padding: .6rem 1rem 0 !important; }
+  #detail-panel #detailTabs .nav-link { border: 0; background: none; color: #647687; font-size: 1.05rem; font-weight: 300; padding: .35rem 0; border-bottom: 3px solid transparent; }
+  #detail-panel #detailTabs .nav-link:hover { color: #1d1d1d; }
+  #detail-panel #detailTabs .nav-link.active { color: #1d1d1d; background: none; border-bottom-color: #1ba1e2; }
+  #detail-panel #detailTabs .nav-link .bi { color: inherit; }
+  #detail-panel .kk-sec { border: 1px solid #d6d6d6; border-left: 6px solid #1ba1e2; }
+  #detail-panel .kk-sec > h3 { background: #fff; color: #647687; font-size: .78rem; letter-spacing: .08em; border-bottom: 1px solid #e6e6e6; padding: .55rem .9rem; }
+  #detail-panel .kk-sec > h3 .bi { color: #1ba1e2; }
+  #detail-panel .kk-row { border-top-color: #eeeeee; padding: .65rem .9rem; }
+  #detail-panel .kk-row-title { font-weight: 600; color: #1d1d1d; }
+  #detail-panel .kk-row-desc { color: #647687; }
+  #detail-panel .kk-row-ctl .btn-outline-secondary, #detail-panel .kk-row-ctl .btn-outline-dark { background: #e6e6e6; color: #1d1d1d; border: 0; font-weight: 600; }
+  #detail-panel .kk-row-ctl .btn-outline-secondary:hover, #detail-panel .kk-row-ctl .btn-outline-dark:hover { background: #1d1d1d; color: #fff; }
+  #detail-panel .kk-row-ctl .btn-outline-primary { background: #1ba1e2; color: #fff; border: 0; font-weight: 600; }
+  #detail-panel .kk-row-ctl .btn-outline-primary:hover { background: #0050ef; }
+  #detail-panel .kk-row-ctl .btn-outline-danger { background: #a20025; color: #fff; border: 0; font-weight: 600; }
+  #detail-panel .badge.text-bg-success { background: #008a00 !important; }
+  #detail-panel .badge.text-bg-secondary { background: #647687 !important; }
+  #detail-panel .kk-state { border: 0; font-weight: 600; letter-spacing: .02em; }
+  #detail-panel .kk-state-on  { background: #f0a30a; color: #1d1d1d; }
+  #detail-panel .kk-state-off { background: #e6e6e6; color: #1d1d1d; }
+  #detail-panel .kk-sec-danger { border-color: #e6b3bf; border-left-color: #a20025; }
+  #detail-panel .kk-sec-danger > h3 { background: #fff; color: #a20025; }
+  #detail-panel .kk-sec-danger > h3 .bi { color: #a20025; }
+  #detail-panel .btn:focus-visible, #detail-panel .form-control:focus, #detail-panel .form-select:focus { outline: 3px solid #1ba1e2; outline-offset: 1px; box-shadow: none; }
 </style>
 
 <main id="main" class="dyd-wrap">
