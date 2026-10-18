@@ -121,6 +121,7 @@ include __DIR__ . '/partials/ui.php';
               <select id="t_chip" name="design[chip]" x-model="t.design.chip" class="f-input">
                 <?php foreach (SCARD_CHIPS as $k => $lbl): ?><option value="<?= h($k) ?>"><?= h($lbl) ?></option><?php endforeach; ?></select></div>
           </div>
+          <label class="f-check"><input type="checkbox" name="design[photo]" value="1" x-model="t.design.photo"> <span>Karta ze zdjęciem posiadacza <span class="sub">Wniosek o kartę tego wzoru wymaga dołączenia zdjęcia.</span></span></label>
           <label class="f-check"><input type="checkbox" name="is_default" value="1" x-model="t.is_default"> <span>Wzór domyślny <span class="sub">Podpowiadany przy zatwierdzaniu wniosków.</span></span></label>
         </div>
         <div>

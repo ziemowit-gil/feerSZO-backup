@@ -55,6 +55,23 @@ const SCARD_APP_STATUSES = [
     'rejected' => ['label' => 'Odrzucony',    'icon' => 'bi-x-circle'],
 ];
 
+/** Rodzaje wniosku; 'replaces' — wniosek dotyczy karty już wydanej (wskazanie dotychczasowej). */
+const SCARD_APP_TYPES = [
+    'new'         => ['label' => 'Wydanie pierwszej karty',              'short' => 'Nowa karta', 'replaces' => false],
+    'renewal'     => ['label' => 'Nowa karta po wygaśnięciu ważności',   'short' => 'Odnowienie', 'replaces' => true],
+    'replacement' => ['label' => 'Wymiana karty (zmiana danych, wzoru)', 'short' => 'Wymiana',    'replaces' => true],
+    'duplicate'   => ['label' => 'Duplikat — karta zniszczona',          'short' => 'Duplikat',   'replaces' => true],
+    'lost'        => ['label' => 'Karta zgubiona lub skradziona',        'short' => 'Zgubiona',   'replaces' => true],
+];
+
+/** Treść oświadczeń na wniosku (formularz, szczegóły i wydruk mają ten sam tekst). */
+const SCARD_CONSENTS = [
+    'responsibility' => 'Oświadczam, że będę używać karty wyłącznie osobiście i zgodnie z przeznaczeniem, nie udostępnię jej innym osobom, niezwłocznie zgłoszę jej utratę lub uszkodzenie oraz zwrócę kartę po ustaniu współpracy. Przyjmuję do wiadomości, że za wydanie duplikatu z mojej winy może zostać naliczona opłata.',
+    'rodo'           => 'Przyjmuję do wiadomości, że moje dane osobowe (imię i nazwisko, dane kontaktowe, jednostka, stanowisko, wizerunek — jeśli dotyczy) oraz rejestr użycia karty w strefach dostępu są przetwarzane przez administratora w celu wydania karty i kontroli dostępu do pomieszczeń (art. 6 ust. 1 lit. b i f RODO), przez okres posiadania karty i rozliczenia jej zwrotu.',
+];
+
+const SCARD_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
+
 const SCARD_LEVELS = [
     1 => 'Ogólnodostępna',
     2 => 'Wewnętrzna',
@@ -75,6 +92,7 @@ const SCARD_DEFAULT_DESIGN = [
     'chip'    => 'gold',
     'pattern' => 'waves',
     'label'   => 'KARTA DOSTĘPU',
+    'photo'   => false,   // wzór ze zdjęciem posiadacza — wniosek wymaga wtedy zdjęcia
 ];
 
 const SCARD_DEFAULT_VALIDITY_YEARS = 2;
@@ -121,6 +139,27 @@ function smart_cards_migrate(): void {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_card_apps_user   ON card_applications(user_id)");
     // jeden oczekujący wniosek na osobę
     $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uq_card_apps_pending ON card_applications(user_id) WHERE status = 'pending'");
+    // v3: rozbudowany wniosek — rodzaj, wnioskowany wzór/strefy/okres, dane osoby, przełożony, oświadczenia, zdjęcie
+    $cols = array_column($pdo->query("PRAGMA table_info(card_applications)")->fetchAll(PDO::FETCH_ASSOC), 'name');
+    foreach ([
+        'app_type'               => "TEXT NOT NULL DEFAULT 'new'",
+        'template_id'            => 'INTEGER',
+        'zone_ids'               => 'TEXT',
+        'valid_from'             => 'DATE',
+        'valid_to'               => 'DATE',
+        'org_unit'               => "TEXT NOT NULL DEFAULT ''",
+        'job_title'              => "TEXT NOT NULL DEFAULT ''",
+        'phone'                  => "TEXT NOT NULL DEFAULT ''",
+        'email'                  => "TEXT NOT NULL DEFAULT ''",
+        'supervisor_user_id'     => 'INTEGER',
+        'replaced_card_id'       => 'INTEGER',
+        'consent_responsibility' => 'INTEGER NOT NULL DEFAULT 0',
+        'consent_rodo'           => 'INTEGER NOT NULL DEFAULT 0',
+        'consent_at'             => 'DATETIME',
+        'photo_path'             => 'TEXT',
+    ] as $col => $def) {
+        if (!in_array($col, $cols, true)) $pdo->exec("ALTER TABLE card_applications ADD COLUMN {$col} {$def}");
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS smart_cards (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,6 +227,7 @@ function scard_normalize_design(array $in): array {
     if (isset($in['chip'], SCARD_CHIPS[$in['chip']])) $d['chip'] = $in['chip'];
     if (isset($in['pattern'], SCARD_PATTERNS[$in['pattern']])) $d['pattern'] = $in['pattern'];
     if (isset($in['label']) && is_string($in['label'])) $d['label'] = mb_substr(trim($in['label']), 0, 32);
+    $d['photo'] = !empty($in['photo']);
     return $d;
 }
 
@@ -410,24 +450,90 @@ class SmartCardService
 
     // ── Wnioski ───────────────────────────────────────────────────────────────
 
-    public function submitApplication(int $userId, string $reason): int
+    /**
+     * Złożenie wniosku. $data — pola formularza: type, reason, template_id, zones[], valid_from, valid_to,
+     * org_unit, job_title, phone, email, supervisor_user_id, replaced_card_id, consent_responsibility,
+     * consent_rodo. $photo — wpis z $_FILES (wymagany, gdy wnioskowany wzór ma zdjęcie posiadacza).
+     */
+    public function submitApplication(int $userId, array $data, ?array $photo = null): int
     {
-        $reason = mb_substr(trim($reason), 0, 2000);
+        $str = fn(string $k, int $max) => mb_substr(trim((string)($data[$k] ?? '')), 0, $max);
+        $type   = isset(SCARD_APP_TYPES[$data['type'] ?? '']) ? (string)$data['type'] : 'new';
+        $reason = $str('reason', 2000);
         if ($userId <= 0 || !$this->userExists($userId)) throw new SmartCardException('Wskaż osobę, dla której składany jest wniosek.');
         if (mb_strlen($reason) < 5) throw new SmartCardException('Uzasadnij wniosek (min. 5 znaków), np. „nowy pracownik — dostęp do biura”.');
 
+        $tplId = (int)($data['template_id'] ?? 0);
+        $tpl = $tplId ? $this->template($tplId) : null;
+        if ($tplId && !$tpl) throw new SmartCardException('Wybrany wzór karty nie istnieje.');
+        $zoneIds = $this->validZoneIds((array)($data['zones'] ?? []));
+
+        $from = $this->optDate((string)($data['valid_from'] ?? ''), 'Data „od”');
+        $to   = $this->optDate((string)($data['valid_to'] ?? ''), 'Data „do”');
+        if ($to !== null) {
+            if ($to < date('Y-m-d', strtotime('+1 day'))) throw new SmartCardException('Wnioskowana ważność musi kończyć się w przyszłości.');
+            if ($from !== null && $to <= $from) throw new SmartCardException('Data „do” musi być późniejsza niż data „od”.');
+            if ($to > date('Y-m-d', strtotime(($from ?? date('Y-m-d')) . ' +' . SCARD_MAX_VALIDITY_YEARS . ' years'))) {
+                throw new SmartCardException('Karta może być ważna najwyżej ' . SCARD_MAX_VALIDITY_YEARS . ' lat.');
+            }
+        }
+
+        $email = $str('email', 190);
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) throw new SmartCardException('Podaj poprawny adres e-mail.');
+        $phone = $str('phone', 40);
+        if ($phone !== '' && !preg_match('/^[0-9 +()\-]{6,40}$/', $phone)) throw new SmartCardException('Podaj poprawny numer telefonu.');
+
+        $supId = (int)($data['supervisor_user_id'] ?? 0);
+        if ($supId && !$this->userExists($supId)) throw new SmartCardException('Wskazany przełożony nie istnieje.');
+        if ($supId === $userId) throw new SmartCardException('Przełożonym akceptującym nie może być osoba, której dotyczy wniosek.');
+
+        $replacedId = (int)($data['replaced_card_id'] ?? 0);
+        if (!SCARD_APP_TYPES[$type]['replaces']) $replacedId = 0;
+        if ($replacedId) {
+            $c = $this->pdo->prepare("SELECT user_id FROM smart_cards WHERE id = ?");
+            $c->execute([$replacedId]);
+            if ((int)$c->fetchColumn() !== $userId) throw new SmartCardException('Wskazana dotychczasowa karta nie należy do tej osoby.');
+        }
+
+        if (empty($data['consent_responsibility']) || empty($data['consent_rodo'])) {
+            throw new SmartCardException('Wniosek wymaga obu oświadczeń: o odpowiedzialności za kartę i o przetwarzaniu danych osobowych.');
+        }
+
+        $photoTpl = $tpl ?: $this->template($this->defaultTemplateId());
+        $hasPhoto = $photo && ($photo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+        if (!$hasPhoto && !empty($photoTpl['design']['photo'])) {
+            throw new SmartCardException('Wzór „' . $photoTpl['name'] . '” ma zdjęcie posiadacza — dołącz zdjęcie (JPG lub PNG, do 3 MB).');
+        }
+        $photoSrc = $hasPhoto ? $this->checkPhoto($photo) : null;
+
+        $now = date('Y-m-d H:i:s');
+        $photoPath = null;
         $this->pdo->beginTransaction();
         try {
             $p = $this->pdo->prepare("SELECT COUNT(*) FROM card_applications WHERE user_id = ? AND status = 'pending'");
             $p->execute([$userId]);
             if ((int)$p->fetchColumn()) throw new SmartCardException('Ta osoba ma już oczekujący wniosek — poczekaj na decyzję.');
-            $this->pdo->prepare("INSERT INTO card_applications (user_id, reason, status, created_at, created_by) VALUES (?, ?, 'pending', ?, ?)")
-                ->execute([$userId, $reason, date('Y-m-d H:i:s'), $this->userId ?: null]);
+            $this->pdo->prepare(
+                "INSERT INTO card_applications (user_id, reason, status, created_at, created_by, app_type, template_id, zone_ids, valid_from, valid_to,
+                        org_unit, job_title, phone, email, supervisor_user_id, replaced_card_id, consent_responsibility, consent_rodo, consent_at)
+                 VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)"
+            )->execute([
+                $userId, $reason, $now, $this->userId ?: null, $type, $tplId ?: null, $zoneIds ? implode(',', $zoneIds) : null, $from, $to,
+                $str('org_unit', 190), $str('job_title', 190), $phone, $email, $supId ?: null, $replacedId ?: null, $now,
+            ]);
             $id = (int)$this->pdo->lastInsertId();
-            $this->audit('smart_cards.application_submitted', ['application_id' => $id, 'for_user_id' => $userId]);
+            if ($photoSrc) {
+                $photoPath = $this->storePhoto($id, $photoSrc);
+                $this->pdo->prepare("UPDATE card_applications SET photo_path = ? WHERE id = ?")->execute([$photoPath, $id]);
+            }
+            $this->audit('smart_cards.application_submitted', [
+                'application_id' => $id, 'for_user_id' => $userId, 'type' => $type, 'template_id' => $tplId ?: null,
+                'zones' => implode(',', $zoneIds), 'valid_to' => $to, 'replaced_card_id' => $replacedId ?: null, 'photo' => $photoPath ? 1 : null,
+            ]);
             $this->pdo->commit();
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
+            if ($photoPath) @unlink(self::photoDir() . $photoPath);
             throw $e;
         }
         return $id;
@@ -437,12 +543,14 @@ class SmartCardService
     {
         $w = isset(SCARD_APP_STATUSES[$status]) ? 'WHERE a.status = ?' : '';
         $s = $this->pdo->prepare(
-            "SELECT a.*, u.name AS user_name, u.email AS user_email, d.name AS decided_by_name,
+            "SELECT a.*, u.name AS user_name, u.email AS user_email, d.name AS decided_by_name, t.name AS template_name, sup.name AS supervisor_name,
                     c.card_uid, c.status AS card_status,
                     (SELECT COUNT(*) FROM smart_cards x WHERE x.user_id = a.user_id AND x.status IN ('active','blocked')) AS user_live_cards
              FROM card_applications a
              LEFT JOIN users u ON u.id = a.user_id
              LEFT JOIN users d ON d.id = a.decided_by
+             LEFT JOIN users sup ON sup.id = a.supervisor_user_id
+             LEFT JOIN card_templates t ON t.id = a.template_id
              LEFT JOIN smart_cards c ON c.id = a.card_id
              {$w}
              ORDER BY CASE a.status WHEN 'pending' THEN 0 ELSE 1 END, a.created_at DESC LIMIT ?"
@@ -451,6 +559,134 @@ class SmartCardService
         foreach ($params as $i => $v) $s->bindValue($i + 1, $v, is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR);
         $s->execute();
         return $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** Pojedynczy wniosek ze wszystkimi nazwami (osoba, składający, przełożony, decydent, wzór, karty). */
+    public function application(int $id): ?array
+    {
+        $s = $this->pdo->prepare(
+            "SELECT a.*, u.name AS user_name, u.email AS user_email, cr.name AS created_by_name, d.name AS decided_by_name,
+                    sup.name AS supervisor_name, sup.email AS supervisor_email, t.name AS template_name,
+                    c.card_uid, c.status AS card_status, c.expires_at AS card_expires_at, c.template_id AS card_template_id,
+                    rc.card_uid AS replaced_card_uid, rc.status AS replaced_card_status,
+                    (SELECT COUNT(*) FROM smart_cards x WHERE x.user_id = a.user_id AND x.status IN ('active','blocked')) AS user_live_cards
+             FROM card_applications a
+             LEFT JOIN users u   ON u.id = a.user_id
+             LEFT JOIN users cr  ON cr.id = a.created_by
+             LEFT JOIN users d   ON d.id = a.decided_by
+             LEFT JOIN users sup ON sup.id = a.supervisor_user_id
+             LEFT JOIN card_templates t ON t.id = a.template_id
+             LEFT JOIN smart_cards c  ON c.id = a.card_id
+             LEFT JOIN smart_cards rc ON rc.id = a.replaced_card_id
+             WHERE a.id = ?"
+        );
+        $s->execute([$id]);
+        $a = $s->fetch(PDO::FETCH_ASSOC);
+        if (!$a) return null;
+        $a['zone_list'] = self::idList((string)$a['zone_ids']);
+        $a['number']    = self::applicationNumber($a);
+        return $a;
+    }
+
+    /** Strefy przyznane karcie wydanej z wniosku (indywidualne + ze wzoru) — do wydruku decyzji. */
+    public function issuedZoneIds(array $app): array
+    {
+        if (!(int)$app['card_id']) return [];
+        $s = $this->pdo->prepare("SELECT zone_id FROM card_zone_permissions WHERE card_id = ? OR template_id = ?");
+        $s->execute([(int)$app['card_id'], (int)$app['card_template_id']]);
+        return array_values(array_unique(array_map('intval', $s->fetchAll(PDO::FETCH_COLUMN))));
+    }
+
+    /** Wpisy dziennika audytu dotyczące wniosku (złożenie, decyzja, wydanie karty). */
+    public function applicationHistory(int $appId, int $cardId = 0): array
+    {
+        $s = $this->pdo->prepare(
+            "SELECT l.*, u.name AS user_name FROM audit_logs l LEFT JOIN users u ON u.id = l.user_id
+             WHERE l.action LIKE 'smart_cards.%' AND (l.details LIKE ? OR (? > 0 AND l.action = 'smart_cards.card_issued' AND l.details LIKE ?))
+             ORDER BY l.id"
+        );
+        $s->execute(['%"application_id":' . $appId . ',%', $cardId, '%"card_id":' . $cardId . ',%']);
+        return $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** Numer wniosku do dokumentów: WK/2026/0007. */
+    public static function applicationNumber(array $a): string
+    {
+        return 'WK/' . date('Y', strtotime((string)$a['created_at'])) . '/' . str_pad((string)(int)$a['id'], 4, '0', STR_PAD_LEFT);
+    }
+
+    /** Dane osoby do podpowiedzi w formularzu: jednostka, stanowisko, telefon, e-mail, karty (do wskazania zastępowanej). */
+    public function applicantDefaults(int $userId): array
+    {
+        $s = $this->pdo->prepare("SELECT * FROM users WHERE id = ?");
+        $s->execute([$userId]);
+        $u = $s->fetch(PDO::FETCH_ASSOC) ?: [];
+        $unit = '';
+        if (!empty($u['org_unit_id'])) {
+            try {
+                $o = $this->pdo->prepare("SELECT name FROM org_units WHERE id = ?");
+                $o->execute([(int)$u['org_unit_id']]);
+                $unit = (string)$o->fetchColumn();
+            } catch (\PDOException $e) { /* brak tabeli org_units w tej instalacji */ }
+        }
+        $c = $this->pdo->prepare("SELECT id, card_uid, status, expires_at FROM smart_cards WHERE user_id = ? ORDER BY issued_at DESC");
+        $c->execute([$userId]);
+        return [
+            'org_unit'  => $unit,
+            'job_title' => (string)($u['crm_job_title'] ?? ''),
+            'phone'     => (string)($u['phone_number'] ?? ''),
+            'email'     => (string)($u['email'] ?? ''),
+            'cards'     => array_map(fn($r) => ['id' => (int)$r['id'], 'label' => scard_uid_display((string)$r['card_uid']) . ' — '
+                . mb_strtolower(SCARD_STATUSES[$r['status']]['label'] ?? $r['status']) . ', do ' . date('d.m.Y', strtotime((string)$r['expires_at']))], $c->fetchAll(PDO::FETCH_ASSOC)),
+        ];
+    }
+
+    /** Ścieżka do pliku zdjęcia z wniosku albo null. */
+    public static function photoFile(array $app): ?string
+    {
+        $p = basename((string)($app['photo_path'] ?? ''));
+        return $p !== '' && is_file(self::photoDir() . $p) ? self::photoDir() . $p : null;
+    }
+
+    public static function idList(string $csv): array
+    {
+        return array_values(array_filter(array_map('intval', explode(',', $csv))));
+    }
+
+    private static function photoDir(): string
+    {
+        return rtrim(UPLOAD_DIR, '/') . '/smart_cards/photos/';
+    }
+
+    /** Walidacja przesłanego zdjęcia — zwraca [tmp_path, ext]. */
+    private function checkPhoto(array $f): array
+    {
+        if (($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new SmartCardException('Nie udało się przesłać zdjęcia — spróbuj ponownie.');
+        if ((int)$f['size'] > SCARD_PHOTO_MAX_BYTES) throw new SmartCardException('Zdjęcie jest za duże (maks. 3 MB).');
+        $info = @getimagesize((string)$f['tmp_name']);
+        $ext = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png'][$info[2] ?? 0] ?? null;
+        if (!$ext) throw new SmartCardException('Zdjęcie musi być w formacie JPG lub PNG.');
+        if ($info[0] < 200 || $info[1] < 200) throw new SmartCardException('Zdjęcie ma zbyt małą rozdzielczość (min. 200×200 px).');
+        return [(string)$f['tmp_name'], $ext];
+    }
+
+    private function storePhoto(int $appId, array $src): string
+    {
+        $dir = self::photoDir();
+        if (!is_dir($dir) && !@mkdir($dir, 0750, true)) throw new SmartCardException('Brak miejsca na zdjęcia — skontaktuj się z administratorem.');
+        $name = 'app' . $appId . '_' . bin2hex(random_bytes(8)) . '.' . $src[1];
+        $ok = is_uploaded_file($src[0]) ? move_uploaded_file($src[0], $dir . $name) : copy($src[0], $dir . $name);
+        if (!$ok) throw new SmartCardException('Nie udało się zapisać zdjęcia.');
+        return $name;
+    }
+
+    private function optDate(string $v, string $label): ?string
+    {
+        $v = trim($v);
+        if ($v === '') return null;
+        $d = \DateTime::createFromFormat('!Y-m-d', $v);
+        if (!$d || $d->format('Y-m-d') !== $v) throw new SmartCardException($label . ' ma niepoprawny format.');
+        return $v;
     }
 
     /**
@@ -495,8 +731,12 @@ class SmartCardService
             $upd->execute([$this->userId ?: null, $now, $note !== '' ? $note : null, $appId]);
             if ($upd->rowCount() !== 1) throw new SmartCardException('Wniosek został właśnie rozpatrzony przez kogoś innego.');
 
+            // wniosek „karta zgubiona” — wskazana (albo każda żywa, gdy nie wskazano) karta idzie do stanu końcowego „zagubiona”
+            $lostIds = ($app['app_type'] ?? '') === 'lost' ? ((int)$app['replaced_card_id'] ? [(int)$app['replaced_card_id']] : array_map('intval', array_column($liveCards, 'id'))) : [];
             foreach ($liveCards as $old) {
-                $this->setStatus($old, 'blocked', 'Zastąpiona nową kartą (wniosek #' . $appId . ')', $now);
+                in_array((int)$old['id'], $lostIds, true)
+                    ? $this->setStatus($old, 'lost', 'Zgłoszona jako zgubiona we wniosku #' . $appId, $now)
+                    : $this->setStatus($old, 'blocked', 'Zastąpiona nową kartą (wniosek #' . $appId . ')', $now);
             }
 
             $this->pdo->prepare(
@@ -598,7 +838,7 @@ class SmartCardService
 
     public function userApplications(int $userId): array
     {
-        $s = $this->pdo->prepare("SELECT a.*, c.card_uid FROM card_applications a LEFT JOIN smart_cards c ON c.id = a.card_id
+        $s = $this->pdo->prepare("SELECT a.*, c.card_uid, t.name AS template_name FROM card_applications a LEFT JOIN smart_cards c ON c.id = a.card_id LEFT JOIN card_templates t ON t.id = a.template_id
                                   WHERE a.user_id = ? ORDER BY a.created_at DESC");
         $s->execute([$userId]);
         return $s->fetchAll(PDO::FETCH_ASSOC);
@@ -811,6 +1051,12 @@ class SmartCardService
         );
         $s->execute([$cardId]);
         return $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** Kandydaci na przełożonego akceptującego we wniosku składanym za siebie — tylko osoby z rolą admin/editor (bez ujawniania pełnej listy kont). */
+    public function supervisors(): array
+    {
+        return $this->pdo->query("SELECT id, name FROM users WHERE COALESCE(is_active, 1) = 1 AND role IN ('admin','editor') ORDER BY name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function users(): array

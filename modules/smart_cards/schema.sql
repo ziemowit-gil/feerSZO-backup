@@ -111,7 +111,10 @@ CREATE TABLE IF NOT EXISTS card_applications (
         decided_at    DATETIME,
         decision_note TEXT,
         card_id       INTEGER REFERENCES smart_cards(id) ON DELETE SET NULL
-    );
+    , app_type TEXT NOT NULL DEFAULT 'new', template_id INTEGER, zone_ids TEXT, valid_from DATE, valid_to DATE,
+      org_unit TEXT NOT NULL DEFAULT '', job_title TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '',
+      supervisor_user_id INTEGER, replaced_card_id INTEGER, consent_responsibility INTEGER NOT NULL DEFAULT 0,
+      consent_rodo INTEGER NOT NULL DEFAULT 0, consent_at DATETIME, photo_path TEXT);
 CREATE INDEX IF NOT EXISTS idx_card_apps_status ON card_applications(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_card_apps_user   ON card_applications(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_card_apps_pending ON card_applications(user_id) WHERE status = 'pending';
@@ -132,7 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_czp_zone ON card_zone_permissions(zone_id);
 
 -- Wzór domyślny — bez niego nie da się zatwierdzić pierwszego wniosku
 INSERT INTO card_templates (name, design_config, is_default)
-SELECT 'Standardowa', '{"bg_from":"#1e3a8a","bg_to":"#0f172a","angle":135,"text":"#ffffff","accent":"#38bdf8","chip":"gold","pattern":"waves","label":"KARTA DOSTĘPU"}', 1
+SELECT 'Standardowa', '{"bg_from":"#1e3a8a","bg_to":"#0f172a","angle":135,"text":"#ffffff","accent":"#38bdf8","chip":"gold","pattern":"waves","label":"KARTA DOSTĘPU","photo":false}', 1
 WHERE NOT EXISTS (SELECT 1 FROM card_templates);
 
 COMMIT;

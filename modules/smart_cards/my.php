@@ -8,6 +8,7 @@ require_once dirname(__DIR__, 2) . '/includes/db.php';
 require_once dirname(__DIR__, 2) . '/includes/auth.php';
 require_once dirname(__DIR__, 2) . '/includes/functions.php';
 require_once __DIR__ . '/logic/smart_cards.php';
+require_once __DIR__ . '/partials/application_form.php';
 
 require_login();
 ika_require();
@@ -22,11 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     try {
         // wniosek zawsze za siebie — user_id z sesji, nigdy z formularza
-        $svc->submitApplication($uid, (string)($_POST['reason'] ?? ''));
+        $svc->submitApplication($uid, ['user_id' => $uid] + $_POST, $_FILES['photo'] ?? null);
         flash_set('success', 'Wniosek złożony. Powiadomimy Cię o decyzji.');
         header('Location: ' . $SELF); exit;
     } catch (SmartCardException $e) {
         $error = $e->getMessage();
+    } catch (\Throwable $e) {
+        error_log('[smart_cards/my] ' . $e->getMessage());
+        $error = 'Nie udało się złożyć wniosku — nic nie zostało zapisane.';
     }
 }
 $cards = $svc->userCards($uid);
@@ -64,7 +68,7 @@ include __DIR__ . '/partials/ui.php';
   <?php endforeach; ?>
 </div>
 
-<div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-5">
+<div class="tw-grid tw-grid-cols-1 tw-gap-5">
   <section class="tz-card" aria-labelledby="h-new">
     <div class="tz-card__hd"><h2 id="h-new"><i class="bi bi-send" aria-hidden="true"></i> Wniosek o kartę</h2></div>
     <div class="tz-card__bd">
@@ -72,10 +76,12 @@ include __DIR__ . '/partials/ui.php';
       <?php if ($hasPending): ?>
         <p class="tw-m-0 tw-text-sm">Masz wniosek oczekujący na decyzję.</p>
       <?php else: ?>
-      <form method="post" action="<?= h($SELF) ?>" class="tw-space-y-3">
+      <form method="post" action="<?= h($SELF) ?>" enctype="multipart/form-data" class="tw-space-y-4">
         <?= csrf_field() ?>
-        <div><label for="m_reason" class="f-label">Uzasadnienie <span aria-hidden="true" style="color:#b91c1c">*</span></label>
-          <textarea id="m_reason" name="reason" rows="3" required minlength="5" maxlength="2000" class="f-input" placeholder="np. rozpoczynam pracę w biurze, wymiana zniszczonej karty"><?= h($_POST['reason'] ?? '') ?></textarea></div>
+        <?php scard_application_fields([
+            'users' => null, 'supervisors' => $svc->supervisors(), 'user_id' => $uid, 'old' => $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : [],
+            'defaults' => $svc->applicantDefaults($uid), 'templates' => $svc->templates(), 'zones' => $svc->zones(true), 'prefix' => 'm',
+        ]); ?>
         <button class="h-btn h-btn--primary" type="submit">Złóż wniosek</button>
       </form>
       <?php endif; ?>
@@ -87,7 +93,8 @@ include __DIR__ . '/partials/ui.php';
       <?php if (!$apps): ?><p class="tw-m-0 tw-text-sm" style="color:var(--tz-muted)">Brak wniosków.</p><?php else: ?>
       <ul class="tw-list-none tw-m-0 tw-p-0 tw-space-y-3">
         <?php foreach ($apps as $a): ?>
-        <li><?= scard_status_badge($a['status']) ?> <span class="sub tw-inline"><?= h(date('d.m.Y', strtotime($a['created_at']))) ?></span>
+        <li><?= scard_status_badge($a['status']) ?> <span class="sub tw-inline"><?= h(SmartCardService::applicationNumber($a)) ?> · <?= h(SCARD_APP_TYPES[$a['app_type']]['short'] ?? '') ?> · <?= h(date('d.m.Y', strtotime($a['created_at']))) ?></span>
+          <a class="sub tw-inline" href="<?= h(APP_URL . '/modules/smart_cards/application_pdf.php?id=' . (int)$a['id']) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> wydruk</a>
           <div class="tw-text-sm"><?= h($a['reason']) ?></div>
           <?php if ($a['status'] === 'rejected' && $a['decision_note']): ?><div class="sub"><strong>Powód odrzucenia:</strong> <?= h($a['decision_note']) ?></div><?php endif; ?></li>
         <?php endforeach; ?>
@@ -97,4 +104,5 @@ include __DIR__ . '/partials/ui.php';
   </section>
 </div>
 </div>
+<?php scard_application_form_js(); ?>
 <?php include dirname(__DIR__, 2) . '/includes/footer.php'; ?>
