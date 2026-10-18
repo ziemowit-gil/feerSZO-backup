@@ -222,7 +222,7 @@ document.querySelectorAll('.text-truncate[title=""],.text-truncate:not([title])'
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Escape') return;
   // Zamknij alert Flash (toast)
-  var toast = document.getElementById('_flash_toast_wrap');
+  var toast = document.getElementById('_flash_wrap') || document.getElementById('_flash_toast_wrap');
   if (toast) { toast.remove(); return; }
 });
 
