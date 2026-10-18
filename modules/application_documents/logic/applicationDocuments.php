@@ -136,14 +136,16 @@ function appDocsPrefill(?string $typeName, string $field, array $user): string {
     return '';
 }
 
-/** Pola wzoru zablokowane do edycji (wyszarzone) — adresatem zawsze jest organizacja. */
+/** Pola wzoru zablokowane do edycji (wyszarzone) — adresatem zawsze jest organizacja, wnioskodawcą zalogowana osoba. */
+const APP_DOCS_LOCKED_FIELDS = ['organ', 'wnioskodawca'];
+
 function appDocsFieldLocked(?string $typeName, string $field): bool {
-    return appDocsTemplateFor($typeName) !== null && $field === 'organ';
+    return appDocsTemplateFor($typeName) !== null && in_array($field, APP_DOCS_LOCKED_FIELDS, true);
 }
 
 /** Nadpisuje zablokowane pola wartościami z systemu (ochrona przed zmianą w żądaniu). */
 function appDocsApplyLocked(?string $typeName, array $fields, array $user): array {
-    foreach (['organ'] as $f) {
+    foreach (APP_DOCS_LOCKED_FIELDS as $f) {
         if (appDocsFieldLocked($typeName, $f)) $fields[$f] = appDocsPrefill($typeName, $f, $user);
     }
     return $fields;
