@@ -12,7 +12,8 @@ declare(strict_types=1);
  *     AM24 (przedłużenie: TiLicencjeManager::update / okres licencji AM),
  *   zadaniem dla IT (MANUAL_ADMIN_TASK, zgłoszenie Helpdesku): AM11 provisioning, AM13 aktywacja, AM21, AM22, AM23 po stronie
  *     dostawcy, Microsoft 365; AM12 — zadanie dla finansów (alert do biura). Zadanie ręczne zamyka „Oznacz jako wykonane”.
- * AM20 NIE wymaga akceptacji — wykonuje się od razu po złożeniu.
+ * AM20 NIE wymaga akceptacji kierownika: składa biuro, osoba POTWIERDZA wniosek przez link (e-mail + SMS, portal karty30/ti/licencja.php
+ * ?_route=/zmiana-platnika/{token}) — stempel potwierdzenia (imię i nazwisko, czas, IP) i dopiero wtedy wykonanie.
  * Wszczęcie (każda operacja): e-mail + SMS do osoby, której dotyczy, z numerem sprawy i terminem realizacji 7 dni.
  * Rekord JSON (operation_meta, user_context, action_payload, verification_and_execution) — record(), zapisywany w record_json.
  */
@@ -65,8 +66,8 @@ final class LicenseOperationService
 
     public function counts(): array
     {
-        $c = ['pending' => 0, 'approved' => 0];
-        foreach (db_all("SELECT status, COUNT(*) AS n FROM license_operations WHERE status IN ('pending', 'approved') GROUP BY status") as $r) $c[$r['status']] = (int)$r['n'];
+        $c = ['pending' => 0, 'approved' => 0, 'signing' => 0];
+        foreach (db_all("SELECT status, COUNT(*) AS n FROM license_operations WHERE status IN ('pending', 'approved', 'signing') GROUP BY status") as $r) $c[$r['status']] = (int)$r['n'];
         return $c;
     }
 
@@ -99,7 +100,10 @@ final class LicenseOperationService
                    'licencjobiorca' => ldOrgName(), 'wlasciciel' => ldOrgName() . ' (administrator konta / tenantu)', 'licencja' => $res['sku']];
             if ($res['expires_at'] !== '') $d['do_dnia'] = date('Y-m-d', strtotime($res['expires_at'] . ' +1 year'));
         }
-        if ($form === OperationForm::Am20) $d['tryb'] = $acc['kind'] === 'client' ? 'zajecia' : 'rachunek';
+        if ($form === OperationForm::Am20) {
+            $d['tryb'] = $acc['kind'] === 'client' ? 'zajecia' : 'rachunek';
+            $d['am20_1'] = LicenseResources::accountingDocs($acc, $res);   // AM20-1: podpowiedź z rejestru faktur i rozliczeń TI
+        }
         return $d;
     }
 
@@ -130,6 +134,23 @@ final class LicenseOperationService
                 if (($data['tryb'] ?? '') === 'zajecia' && $acc['kind'] !== 'client') $err['tryb'] = 'Doliczenie do opłaty za zajęcia jest możliwe tylko u uczestnika (kursanta).';
                 if (($data['tryb'] ?? '') === 'rachunek' && ($data['rachunek'] ?? '') === '') $err['rachunek'] = 'Podaj numer rachunku do wpłat.';
                 if (($data['kwota'] ?? '') !== '' && (float)$data['kwota'] <= 0) $err['kwota'] = 'Kwota musi być większa od zera.';
+                // AM20-1 — wykaz dokumentów księgowych wystawionych dotąd przez FEER w związku z opłatą
+                $rows = [];
+                foreach ((array)($in['am20_1'] ?? []) as $i => $row) {
+                    if (!is_array($row)) continue;
+                    $row = ['typ' => LdInput::str($row, 'typ', 60), 'numer' => LdInput::str($row, 'numer', 120), 'data' => LdInput::date($row, 'data'),
+                            'kwota' => str_replace([' ', ','], ['', '.'], LdInput::str($row, 'kwota', 20)), 'zrodlo' => LdInput::str($row, 'zrodlo', 60)];
+                    if ($row['typ'] === '' && $row['numer'] === '' && $row['kwota'] === '') continue;
+                    if ($row['numer'] === '' || $row['data'] === '') { $err['am20_1'] = 'AM20-1: każdy dokument musi mieć numer i datę.'; continue; }
+                    if ($row['kwota'] !== '' && !is_numeric($row['kwota'])) { $err['am20_1'] = 'AM20-1: nieprawidłowa kwota przy dokumencie ' . $row['numer'] . '.'; continue; }
+                    $row['kwota'] = $row['kwota'] === '' ? '' : number_format((float)$row['kwota'], 2, '.', '');
+                    if ($row['typ'] === '') $row['typ'] = 'faktura';
+                    $rows[] = $row;
+                }
+                usort($rows, fn($a, $b) => strcmp($a['data'], $b['data']));
+                $data['am20_1'] = $rows;
+                $data['am20_1_brak'] = LdInput::bool($in, 'am20_1_brak') ? '1' : '';
+                if (!$rows && $data['am20_1_brak'] === '' && !isset($err['am20_1'])) $err['am20_1'] = 'AM20-1: wpisz dokumenty księgowe wystawione dotąd przez FEER albo zaznacz, że ich nie było.';
                 $pe = LdInput::str($in, 'platnik_email', 190);
                 if ($pe !== '' && !filter_var($pe, FILTER_VALIDATE_EMAIL)) $err['platnik_email'] = 'Nieprawidłowy e-mail płatnika.';
                 $data['platnik_email'] = $pe;
@@ -184,11 +205,13 @@ final class LicenseOperationService
         }
         $op = $this->get($id);
         $this->event($id, 'op.create', 'Złożono ' . $form->value . ' — ' . $form->title() . ($res ? ' (' . $res['sku'] . ')' : '') . '. Stempel składającego: ' . $actor['name'] . ', ' . $now . ', IP ' . self::ip() . '.', $actor);
-        $report = ['Osoba: ' . $this->notifyStart($op, $actor)];
         if (!$form->needsApproval()) {
-            // AM20 — bez akceptacji: wykonanie od razu
-            $report = array_merge($report, $this->execute($id, $actor));
+            // AM20 — bez akceptacji kierownika: osoba potwierdza wniosek przez link (e-mail + SMS); wykonanie po potwierdzeniu
+            db_exec("UPDATE license_operations SET status = ? WHERE id = ?", [OperationStatus::Signing->value, $id]);
+            $report = ['Link do potwierdzenia: ' . $this->sendSignLink($id, $actor)];
+            $this->saveRecord($id);
         } else {
+            $report = ['Osoba: ' . $this->notifyStart($op, $actor)];
             $this->notify->alertOffice($form->value . ' do decyzji — ' . $op['number'],
                 '<p>' . htmlspecialchars((string)$actor['name']) . ' złożył(a) <b>' . htmlspecialchars($form->title()) . '</b> dla <b>' . htmlspecialchars($acc['name']) . '</b>'
                 . ($res ? ' (licencja ' . htmlspecialchars($res['sku']) . ')' : '') . '. Decyzję podejmuje kierownik w panelu dydaktyka › Licencje › Operacje — termin do ' . htmlspecialchars(ldDate(ldDue($now))) . '.</p>',
@@ -196,6 +219,81 @@ final class LicenseOperationService
             $this->saveRecord($id);
         }
         return ['id' => $id, 'errors' => [], 'report' => $report];
+    }
+
+    // ── AM20: potwierdzenie wniosku przez osobę (link) ──────────────────────────
+
+    public static function signUrl(string $token): string
+    {
+        return rtrim(APP_URL, '/') . '/karty30/ti/licencja.php?' . http_build_query(['_route' => '/zmiana-platnika/' . $token]);
+    }
+
+    /** Operacja czekająca na potwierdzenie po tokenie z linku (null = zły / wygasły / zużyty). */
+    public function bySignToken(string $token): ?array
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/', $token)) return null;
+        $r = db_one("SELECT * FROM license_operations WHERE sign_token_hash = ?", [hash('sha256', $token)]);
+        if (!$r || (string)$r['sign_token_expires'] < ldNow() || $r['status'] !== OperationStatus::Signing->value) return null;
+        return self::hydrate($r);
+    }
+
+    /** Nowy link (poprzedni traci ważność) — e-mail + SMS do osoby; kopia e-mailem do płatnika, jeśli podano jego adres. */
+    public function sendSignLink(int $id, array $actor, bool $reminder = false): string
+    {
+        $op = $this->get($id);
+        if (!$op || $op['statusEnum'] !== OperationStatus::Signing) throw new DomainException('Wniosek nie czeka na potwierdzenie.');
+        $token = bin2hex(random_bytes(24));
+        db_exec("UPDATE license_operations SET sign_token_hash = ?, sign_token_expires = ? WHERE id = ?", [hash('sha256', $token), date('Y-m-d H:i:s', time() + LD_TOKEN_DAYS * 86400), $id]);
+        $link = self::signUrl($token);
+        $r = $op['request'];
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $pay = $r['tryb'] === 'zajecia' ? 'doliczenie <b>' . $e(self::money((float)$r['kwota'])) . '</b> do opłaty za zajęcia' : 'wpłata <b>' . $e(self::money((float)$r['kwota'])) . '</b> na rachunek ' . $e(self::nrb((string)$r['rachunek']));
+        $subject = ($reminder ? 'Przypomnienie: ' : '') . 'Potwierdź zmianę płatnika licencji (AM20) — ' . $op['number'];
+        $body = '<p>Dzień dobry ' . $e($op['account_name']) . ',</p><p><b>' . $e($op['created_name']) . '</b> złożył(a) w Twoim imieniu wniosek <b>AM20</b> o zmianę płatnika licencji <b>'
+            . $e($op['state']['sku'] ?? '') . '</b>.</p><table style="border-collapse:collapse;margin:8px 0" cellpadding="6">'
+            . '<tr><td style="background:#f2f2f2;width:170px">Numer sprawy</td><td><b>' . $e($op['number']) . '</b></td></tr>'
+            . '<tr><td style="background:#f2f2f2">Nowy płatnik</td><td>' . $e($r['nowy_platnik']) . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Sposób płatności</td><td>' . $pay . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Od dnia</td><td>' . $e(ldDate($r['data_zmiany'])) . '</td></tr>'
+            . '<tr><td style="background:#f2f2f2">Termin potwierdzenia</td><td><b>do ' . LD_REALIZATION_DAYS . ' dni — do ' . $e(ldDate($op['due_on'])) . '</b></td></tr></table>'
+            . '<p>Zmiana wejdzie w życie dopiero po Twoim <b>potwierdzeniu wniosku</b> (przycisk poniżej). Link jest osobisty i ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
+        $sms = 'FEER: potwierdz zmiane platnika licencji (AM20, ' . $op['number'] . ') do ' . ldDate($op['due_on']) . ': ' . $link;
+        $html = LicenseNotificationService::layout('Zmiana płatnika — potwierdzenie', $body, $link, 'Sprawdź i potwierdź wniosek', 'AM20');
+        $res = $this->notify->send($reminder ? LicenseNotificationType::Reminder : LicenseNotificationType::RequestStarted,
+            ['name' => $op['account_name'], 'email' => $op['account_email'], 'phone' => $op['account_phone']], $subject, $html, $sms, ['type' => 'operation', 'id' => $id], $actor);
+        $out = (new LicenseManagementService($this->notify))->describe($res);
+        $pe = (string)($r['platnik_email'] ?? '');
+        if ($pe !== '' && strcasecmp($pe, (string)$op['account_email']) !== 0) {
+            $r2 = $this->notify->send(LicenseNotificationType::RequestStarted, ['name' => (string)$r['nowy_platnik'], 'email' => $pe], $subject,
+                str_replace('Dzień dobry ' . $e($op['account_name']), 'Dzień dobry', $html), '', ['type' => 'operation', 'id' => $id], $actor, false);
+            $out .= '; płatnik: ' . (new LicenseManagementService($this->notify))->describe($r2);
+        }
+        $this->event($id, $reminder ? 'op.sign_remind' : 'op.sign_link', 'Link do potwierdzenia AM20: ' . $out, $actor);
+        return $out;
+    }
+
+    /**
+     * Potwierdzenie wniosku AM20 przez osobę w portalu: stempel (imię i nazwisko, czas, IP, przeglądarka) → wykonanie.
+     * @return array errors
+     */
+    public function confirm(array $op, string $name, bool $accept): array
+    {
+        $err = [];
+        if (mb_strlen(trim($name)) < 3) $err['name'] = 'Wpisz imię i nazwisko — to Twój podpis.';
+        if (!$accept) $err['confirm'] = 'Zaznacz potwierdzenie wniosku.';
+        if ($err) return $err;
+        $id = (int)$op['id'];
+        $now = ldNow();
+        $req = $op['request'];
+        $req['potwierdzenie'] = '1';
+        db_exec("UPDATE license_operations SET request_data = ?, signed_at = ?, signed_ip = ?, signed_name = ?, signed_ua = ?, sign_token_hash = '', updated_at = ? WHERE id = ? AND status = ?",
+            [json_encode($req, JSON_UNESCAPED_UNICODE), $now, self::ip(), mb_substr(trim($name), 0, 190), mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255), $now, $id, OperationStatus::Signing->value]);
+        $actor = ['id' => 0, 'name' => trim($name) . ' (potwierdzenie przez link)'];
+        $this->event($id, 'op.signed', 'Osoba potwierdziła wniosek AM20: ' . trim($name) . ', ' . $now . ', IP ' . self::ip() . '.', $actor);
+        $report = $this->execute($id, $actor);
+        $this->notify->alertOffice('AM20 potwierdzony — ' . $op['number'], '<p><b>' . htmlspecialchars(trim($name)) . '</b> potwierdził(a) zmianę płatnika licencji <b>'
+            . htmlspecialchars((string)($op['state']['sku'] ?? '')) . '</b>. ' . htmlspecialchars(implode(' · ', $report)) . '</p>', ['type' => 'operation', 'id' => $id], $actor, LicenseNotificationType::DeclarationAdmin);
+        return [];
     }
 
     /** Wszczęcie: e-mail + SMS do osoby, której dotyczy operacja (kto, numer, termin 7 dni). */
@@ -349,8 +447,8 @@ final class LicenseOperationService
     public function cancel(int $id, string $reason, array $actor): void
     {
         $op = $this->get($id);
-        if (!$op || $op['statusEnum'] !== OperationStatus::Pending) throw new DomainException('Wycofać można tylko operację przed decyzją.');
-        db_exec("UPDATE license_operations SET status = ?, updated_at = ? WHERE id = ?", [OperationStatus::Cancelled->value, ldNow(), $id]);
+        if (!$op || !in_array($op['statusEnum'], [OperationStatus::Pending, OperationStatus::Signing], true)) throw new DomainException('Wycofać można tylko operację przed decyzją lub potwierdzeniem.');
+        db_exec("UPDATE license_operations SET status = ?, sign_token_hash = '', updated_at = ? WHERE id = ?", [OperationStatus::Cancelled->value, ldNow(), $id]);
         $this->event($id, 'op.cancel', 'Wycofano. ' . $reason, $actor);
         $this->saveRecord($id);
     }
@@ -485,6 +583,9 @@ final class LicenseOperationService
                     'new_budget_position_id' => ($r['pozycja'] ?? '') !== '' ? $r['pozycja'] : null,
                     'payment' => $f === OperationForm::Am20 ? ['mode' => $r['tryb'] === 'zajecia' ? 'ADD_TO_CLASS_FEES' : 'BANK_TRANSFER', 'amount' => (float)$r['kwota'],
                         'bank_account' => ($r['rachunek'] ?? '') !== '' ? $r['rachunek'] : null, 'effective_from' => $r['data_zmiany'], 'billing_id' => $op['billing_id'] ? (int)$op['billing_id'] : null] : null,
+                'accounting_documents' => $f === OperationForm::Am20 ? ['form' => 'AM20-1', 'documents' => array_map(fn($d) => ['type' => $d['typ'], 'number' => $d['numer'], 'date' => $d['data'], 'amount' => $d['kwota'] === '' ? null : (float)$d['kwota']], (array)($r['am20_1'] ?? [])),
+                    'count' => ($sum = LicenseResources::accountingSummary((array)($r['am20_1'] ?? [])))['count'], 'total_amount' => round($sum['sum'], 2),
+                    'first_invoice_date' => $sum['first_invoice'] ?: null, 'last_invoice_date' => $sum['last_invoice'] ?: null, 'none_issued' => !empty($r['am20_1_brak'])] : null,
                     'extended_until_date' => $f === OperationForm::Am24 ? ($r['do_dnia'] ?? null) : null,
                     'data_and_assets_policy' => $policy !== '' && in_array($f, [OperationForm::Am22, OperationForm::Am23], true) ? $policy : 'KEEP_AS_IS',
                     'reason_for_action' => (string)($r['uzasadnienie'] ?? $r['cel'] ?? '')],
@@ -494,6 +595,7 @@ final class LicenseOperationService
                 'asset_impact_assessment' => $asset, 'approval_status' => $f->needsApproval() ? $st->approval() : 'NOT_REQUIRED',
                 'approval_stamp' => $op['decided_at'] ? ['approver_id' => (int)$op['decided_by'], 'approver' => $op['decided_name'], 'timestamp' => $op['decided_at'], 'ip' => $op['decided_ip']] : null,
                 'submission_stamp' => ['submitter_id' => (int)$op['created_by'], 'submitter' => $op['created_name'], 'timestamp' => $op['created_at'], 'ip' => $op['created_ip']],
+                'confirmation_stamp' => !empty($op['signed_at']) ? ['confirmed_by' => $op['signed_name'], 'timestamp' => $op['signed_at'], 'ip' => $op['signed_ip']] : null,
                 'execution_mode' => $op['execution_mode'] !== '' ? $op['execution_mode'] : (in_array($f, [OperationForm::Am20, OperationForm::Am23, OperationForm::Am24], true) ? 'AUTOMATIC_WEBHOOK_API' : 'MANUAL_ADMIN_TASK'),
                 'assigned_administrator' => $op['helpdesk_number'] !== '' ? 'Dział IT — zgłoszenie ' . $op['helpdesk_number'] : 'Administrator SZO / Dział IT',
                 'executed_at' => $op['executed_at'] ?: null, 'execution_notes' => (string)$op['execution_notes'],

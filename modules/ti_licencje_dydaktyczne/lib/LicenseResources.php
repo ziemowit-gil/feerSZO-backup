@@ -130,6 +130,64 @@ final class LicenseResources
         return db_all("SELECT * FROM license_funding WHERE resource_key = ? ORDER BY effective_from DESC, id DESC", [$key]);
     }
 
+    /**
+     * AM20-1 — dokumenty księgowe wystawione dotąd przez FEER w związku z opłatą za licencję (podpowiedź do edycji przez biuro):
+     *   faktury z rejestru (invoices — z rozliczeń TI uczestnika albo na jego nazwisko) z pozycją zawierającą nazwę licencji,
+     *   numer faktury zapisany przy licencji z katalogu TI (billing_ref przy formie FAK/FAZ),
+     *   dopłaty w rozliczeniach TI z opisem licencji (np. wcześniejsze AM20 — doliczenie do zajęć).
+     * @return list<array{typ:string,numer:string,data:string,kwota:string,zrodlo:string}>
+     */
+    public static function accountingDocs(array $acc, ?array $res): array
+    {
+        if (!$res) return [];
+        $sku = trim((string)$res['sku']);
+        $out = []; $seen = [];
+        $add = function (string $typ, string $nr, string $date, ?float $amount, string $src) use (&$out, &$seen) {
+            $k = mb_strtolower($typ . '|' . $nr . '|' . $date);
+            if (isset($seen[$k])) return;
+            $seen[$k] = true;
+            $out[] = ['typ' => $typ, 'numer' => $nr, 'data' => substr($date, 0, 10), 'kwota' => $amount === null ? '' : number_format($amount, 2, '.', ''), 'zrodlo' => $src];
+        };
+        if ($sku !== '') {
+            try {
+                $like = '%' . mb_strtolower($sku) . '%';
+                $sql = "SELECT i.number, i.kind, i.issue_date, i.total_gross, SUM(it.line_gross) AS lic_gross FROM invoices i JOIN invoice_items it ON it.invoice_id = i.id
+                         WHERE i.deleted_at IS NULL AND COALESCE(i.is_test, 0) = 0 AND i.status <> 'draft' AND lower(it.name) LIKE ? AND ";
+                $rows = $acc['kind'] === 'client'
+                    ? db_all($sql . "((i.source = 'ti_billing' AND i.source_id IN (SELECT id FROM k30_ti_billing WHERE client_id = ?)) OR lower(i.buyer_name) = ?) GROUP BY i.id ORDER BY i.issue_date", [$like, $acc['id'], mb_strtolower($acc['name'])])
+                    : db_all($sql . "lower(i.buyer_name) = ? GROUP BY i.id ORDER BY i.issue_date", [$like, mb_strtolower($acc['name'])]);
+                foreach ($rows as $r) $add(($r['kind'] ?? '') === 'correction' ? 'faktura korygująca' : 'faktura', (string)$r['number'], (string)$r['issue_date'], (float)($r['lic_gross'] ?? $r['total_gross']), 'rejestr faktur');
+            } catch (\Throwable $e) {}
+        }
+        [$src, $rid] = array_pad(explode(':', (string)$res['key'], 2), 2, '0');
+        if ($src === 'ti') {
+            try {
+                $cl = db_one("SELECT billing_form, billing_ref, issued_at, assigned_at FROM k30_ti_client_licenses WHERE id = ?", [(int)$rid]);
+                if ($cl && in_array($cl['billing_form'], ['FAK', 'FAZ'], true) && trim((string)$cl['billing_ref']) !== '')
+                    $add($cl['billing_form'] === 'FAZ' ? 'faktura zbiorcza' : 'faktura', (string)$cl['billing_ref'], (string)($cl['issued_at'] ?: $cl['assigned_at']), null, 'przypisanie licencji');
+            } catch (\Throwable $e) {}
+        }
+        if ($acc['kind'] === 'client' && $sku !== '') {
+            try {
+                foreach (db_all("SELECT id, month, year, adjustment, adjustment_note, issued_at FROM k30_ti_billing WHERE client_id = ? AND status IN ('issued', 'paid') AND lower(COALESCE(adjustment_note, '')) LIKE ? ORDER BY year, month",
+                                [$acc['id'], '%' . mb_strtolower($sku) . '%']) as $b)
+                    $add('rozliczenie TI (dopłata)', 'rozliczenie #' . $b['id'] . ' za ' . sprintf('%02d.%d', $b['month'], $b['year']), (string)($b['issued_at'] ?: sprintf('%d-%02d-01', $b['year'], $b['month'])), (float)$b['adjustment'], 'rozliczenia TI');
+            } catch (\Throwable $e) {}
+        }
+        usort($out, fn($a, $b) => strcmp($a['data'], $b['data']));
+        return $out;
+    }
+
+    /** Podsumowanie AM20-1: liczba dokumentów, suma, data pierwszej i ostatniej faktury. */
+    public static function accountingSummary(array $rows): array
+    {
+        $inv = array_values(array_filter($rows, fn($r) => str_starts_with((string)$r['typ'], 'faktura') && $r['data'] !== ''));
+        $dates = array_column($inv, 'data');
+        sort($dates);
+        return ['count' => count($rows), 'sum' => array_sum(array_map(fn($r) => (float)$r['kwota'], $rows)),
+                'first_invoice' => $dates[0] ?? '', 'last_invoice' => $dates ? $dates[count($dates) - 1] : ''];
+    }
+
     /** Sprawdzenie limitu miejsc u dostawcy (tekst do rekordu: vendor_limit_check). */
     public static function vendorCheck(string $key): string
     {

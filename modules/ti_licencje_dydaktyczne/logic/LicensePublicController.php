@@ -11,6 +11,7 @@ declare(strict_types=1);
  * honeypot, limit prób z IP (10 nieudanych tokenów / 15 min), walidacja DTO, nagłówki noindex / no-referrer / DENY.
  */
 require_once dirname(__DIR__) . '/lib/LicenseManagementService.php';
+require_once dirname(__DIR__) . '/lib/LicenseOperationService.php';
 
 final class LicensePublicController
 {
@@ -93,6 +94,49 @@ final class LicensePublicController
         }
         if ($r['errors']) return $this->licensorForm($token, $r['errors'], $_POST);
         $_SESSION['ld_done'] = ['kind' => 'decision', 'grant' => $dto->grant, 'numbers' => [(string)$l['case_number']]];
+        return Router::redirect(route('ld.pub.done'));
+    }
+
+    // ── AM20: potwierdzenie zmiany płatnika przez osobę ─────────────────────────
+
+    public function paymentForm(string $token, array $errors = [], array $old = []): string
+    {
+        if ($this->throttled()) return $this->blocked();
+        $op = (new LicenseOperationService())->bySignToken((string)$token);
+        if (!$op) return $this->failToken();
+        return $this->view('payment.php', ['op' => $op, 'token' => $token, 'errors' => $errors, 'old' => $old ?: ['name' => $op['account_name']], 'sym' => 'AM20']);
+    }
+
+    public function paymentPdf(string $token): ?string
+    {
+        if ($this->throttled()) return $this->blocked();
+        $ops = new LicenseOperationService();
+        $op = $ops->bySignToken((string)$token);
+        if (!$op) return $this->failToken();
+        $out = $ops->document($op);
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $out['mime'] . ($out['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName((string)$op['number']) . '.' . $out['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $out['bytes'];
+        return null;
+    }
+
+    public function paymentSubmit(string $token): ?string
+    {
+        if ($this->throttled()) return $this->blocked();
+        $ops = new LicenseOperationService();
+        $op = $ops->bySignToken((string)$token);
+        if (!$op) return $this->failToken();
+        if (trim((string)($_POST['www'] ?? '')) !== '') return Router::redirect(route('ld.pub.done'));
+        try {
+            $errors = $ops->confirm($op, LdInput::str($_POST, 'name', 190), LdInput::bool($_POST, 'confirm'));
+        } catch (\Throwable $e) {
+            error_log('am20 confirm: ' . $e);
+            return $this->view('message.php', ['title' => 'Coś poszło nie tak', 'tone' => 'danger', 'text' => 'Nie zapisaliśmy potwierdzenia. Spróbuj ponownie za chwilę — link nadal działa.', 'sym' => 'AM20']);
+        }
+        if ($errors) return $this->paymentForm($token, $errors, $_POST);
+        $_SESSION['ld_done'] = ['kind' => 'payment', 'numbers' => [(string)$op['number']]];
         return Router::redirect(route('ld.pub.done'));
     }
 
@@ -180,6 +224,10 @@ final class LicensePublicController
         $d = $_SESSION['ld_done'] ?? null;
         unset($_SESSION['ld_done']);
         if (!$d) return $this->view('message.php', ['title' => 'Dziękujemy', 'tone' => 'success', 'text' => 'Zgłoszenie przyjęte.']);
+        if ($d['kind'] === 'payment') {
+            return $this->view('message.php', ['title' => 'Wniosek potwierdzony', 'tone' => 'success', 'numbers' => $d['numbers'], 'sym' => 'AM20',
+                'text' => 'Dziękujemy. Zmiana płatnika weszła w życie — potwierdzenie z dokumentem AM20 (PDF) wysłaliśmy e-mailem.']);
+        }
         if ($d['kind'] === 'request') {
             return $this->view('message.php', ['title' => 'Wniosek podpisany', 'tone' => 'success', 'numbers' => $d['numbers'],
                 'text' => 'Dziękujemy. Placówka rozpatrzy wniosek w ciągu ' . LD_REALIZATION_DAYS . ' dni — decyzję otrzymasz e-mailem w PDF.']);

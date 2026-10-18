@@ -38,6 +38,12 @@ $opVal = function (array $def, string $v): string {
       <div>płatnik przed operacją: <?= h(($op['state']['payer'] ?? '') . ' (' . ($op['state']['funding_source'] ?? '') . ')') ?></div></dd><?php endif; ?>
     <?php foreach ($f->requestFields() as $k => $def): ?><dt class="col-sm-4"><?= h($def[0]) ?></dt><dd class="col-sm-8" style="white-space:pre-line"><?= h($opVal($def, (string)($op['request'][$k] ?? ''))) ?></dd><?php endforeach; ?>
     <?php if ($op['proof_path'] !== ''): ?><dt class="col-sm-4">Dowód zakupu</dt><dd class="col-sm-8"><a href="<?= h(route('ld.op.proof', ['id' => $id])) ?>" target="_blank" rel="noopener"><?= h($op['proof_name']) ?></a></dd><?php endif; ?>
+    <?php if ($f === OperationForm::Am20): $am = (array)($op['request']['am20_1'] ?? []); $sm = LicenseResources::accountingSummary($am); ?>
+      <dt class="col-sm-4">AM20-1 — dokumenty księgowe</dt><dd class="col-sm-8"><?php if (!$am): ?><?= !empty($op['request']['am20_1_brak']) ? 'FEER nie wystawiała dokumentów' : '—' ?><?php else: ?>
+        <ul class="mb-1 ps-3"><?php foreach ($am as $dd): ?><li><?= h($dd['typ']) ?> <b><?= h($dd['numer']) ?></b>, <?= h(ldDate($dd['data'])) ?><?= $dd['kwota'] !== '' ? ', ' . h(LicenseOperationService::money((float)$dd['kwota'])) : '' ?></li><?php endforeach; ?></ul>
+        razem <?= h(LicenseOperationService::money($sm['sum'])) ?> · pierwsza faktura <?= h(ldDate($sm['first_invoice']) ?: '—') ?> · ostatnia <?= h(ldDate($sm['last_invoice']) ?: '—') ?><?php endif; ?></dd>
+      <dt class="col-sm-4">Potwierdzenie osoby</dt><dd class="col-sm-8"><?= $op['signed_at'] ? ldChip('potwierdzono', '#008a00') . ' ' . h($op['signed_name']) . ', ' . h(ldDt($op['signed_at'])) . ', IP ' . h($op['signed_ip']) : ldChip('czeka na potwierdzenie', '#fa6800') ?></dd>
+    <?php endif; ?>
     <dt class="col-sm-4">Złożył(a)</dt><dd class="col-sm-8"><?= h($op['created_name']) ?>, <?= h(ldDt($op['created_at'])) ?>, IP <?= h($op['created_ip']) ?></dd>
     <?php if ($op['decided_at']): ?><dt class="col-sm-4">Decyzja</dt><dd class="col-sm-8"><?= !empty($op['decision']['grant']) ? ldChip('zatwierdzono', '#008a00') : ldChip('odmowa', '#a20025') ?> <?= h($op['decided_name']) ?>, <?= h(ldDt($op['decided_at'])) ?>, IP <?= h($op['decided_ip']) ?>
       <?php foreach ($f->decisionFields() as $k => $def): if (($op['decision'][$k] ?? '') === '') continue; ?><div><span class="text-secondary"><?= h($def[0]) ?>:</span> <?= h($op['decision'][$k]) ?></div><?php endforeach; ?></dd><?php endif; ?>
@@ -66,6 +72,11 @@ $opVal = function (array $def, string $v): string {
     <?php else: ?><p class="small text-secondary">Decyzję podejmuje kierownik (rola „kierownik” panelu TI) albo administrator.</p><?php endif; ?>
     <form method="post" action="<?= h(route('ld.op.cancel', ['id' => $id])) ?>" class="d-flex gap-1 mt-3" onsubmit="return confirm('Wycofać operację?')"><?= Router::csrfField() ?>
       <label class="visually-hidden" for="cr">Powód</label><input class="form-control form-control-sm" id="cr" name="reason" placeholder="powód wycofania"><button class="btn btn-sm btn-outline-danger">Wycofaj</button></form>
+  <?php elseif ($st === OperationStatus::Signing): ?>
+    <p class="small">Czeka na potwierdzenie wniosku przez <b><?= h($op['account_name']) ?></b> (link e-mail + SMS, ważny <?= LD_TOKEN_DAYS ?> dni). Zmiana wejdzie w życie po potwierdzeniu.</p>
+    <?= ldPost(route('ld.op.signlink', ['id' => $id]), 'Wyślij link do potwierdzenia ponownie', 'btn-metro') ?>
+    <form method="post" action="<?= h(route('ld.op.cancel', ['id' => $id])) ?>" class="d-flex gap-1 mt-3" onsubmit="return confirm('Wycofać wniosek?')"><?= Router::csrfField() ?>
+      <label class="visually-hidden" for="cr2">Powód</label><input class="form-control form-control-sm" id="cr2" name="reason" placeholder="powód wycofania"><button class="btn btn-sm btn-outline-danger">Wycofaj</button></form>
   <?php elseif ($st === OperationStatus::Approved): ?>
     <form method="post" action="<?= h(route('ld.op.done', ['id' => $id])) ?>" class="d-grid gap-2"><?= Router::csrfField() ?>
       <label class="form-label small mb-0" for="dn">Co wykonano (u dostawcy / w finansach)</label><textarea class="form-control form-control-sm" id="dn" name="notes" rows="2"></textarea>
@@ -73,7 +84,7 @@ $opVal = function (array $def, string $v): string {
   <?php else: ?>
     <p class="small text-secondary mb-2"><?= h($st->label()) ?>.</p>
   <?php endif; ?>
-  <?php if (!in_array($st, [OperationStatus::Pending, OperationStatus::Cancelled], true)): ?><div class="mt-3"><?= ldPost(route('ld.op.resend', ['id' => $id]), 'Wyślij dokument ponownie (PDF e-mailem)', 'btn-metro', [], 'Wysłać dokument ponownie?') ?></div><?php endif; ?>
+  <?php if (!in_array($st, [OperationStatus::Pending, OperationStatus::Cancelled, OperationStatus::Signing], true)): ?><div class="mt-3"><?= ldPost(route('ld.op.resend', ['id' => $id]), 'Wyślij dokument ponownie (PDF e-mailem)', 'btn-metro', [], 'Wysłać dokument ponownie?') ?></div><?php endif; ?>
 </div></section>
 </div>
 

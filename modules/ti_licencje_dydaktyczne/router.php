@@ -9,7 +9,7 @@ declare(strict_types=1);
  *                 dydaktyka: dyd_token / _token; tylko kadra zarządzająca — dyd_is_staff),
  *   • publiczne — /karty30/ti/licencja.php?_route=<trasa> (definiuje LD_PUBLIC; sesja SZO, CSRF _csrf; dostęp po tokenie
  *                 z linku: licencjodawca AM5 → /decyzja/{token}, kursant AM7 (podpis wniosku) → /wniosek/{token},
- *                 licencjobiorca → /oswiadczenie/{token}).
+ *                 licencjobiorca → /oswiadczenie/{token}, osoba potwierdzająca zmianę płatnika AM20 → /zmiana-platnika/{token}).
  * Bez pliku wejścia — 404.
  */
 require_once dirname(__DIR__, 2) . '/config.php';
@@ -37,6 +37,9 @@ if (defined('LD_PUBLIC')) {
         $r->get('/wniosek/{token}',          [LicensePublicController::class, 'requesterForm'])->name('ld.pub.request');
         $r->post('/wniosek/{token}',         [LicensePublicController::class, 'requesterSubmit']);
         $r->get('/wniosek/{token}/pdf',      [LicensePublicController::class, 'requesterPdf'])->name('ld.pub.request.pdf');
+        $r->get('/zmiana-platnika/{token}',     [LicensePublicController::class, 'paymentForm'])->name('ld.pub.payment');
+        $r->post('/zmiana-platnika/{token}',    [LicensePublicController::class, 'paymentSubmit']);
+        $r->get('/zmiana-platnika/{token}/pdf', [LicensePublicController::class, 'paymentPdf'])->name('ld.pub.payment.pdf');
         $r->get('/gotowe',                   [LicensePublicController::class, 'done'])->name('ld.pub.done');
     });
     $r->dispatch();
@@ -97,6 +100,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/operacje/{id}/decyzja',           [LicenseOperationController::class, 'decide'])->name('ld.op.decide');
     $r->post('/operacje/{id}/wykonane',          [LicenseOperationController::class, 'done'])->name('ld.op.done');
     $r->post('/operacje/{id}/wycofaj',           [LicenseOperationController::class, 'cancel'])->name('ld.op.cancel');
+    $r->post('/operacje/{id}/link',              [LicenseOperationController::class, 'signLink'])->name('ld.op.signlink');
     $r->post('/operacje/{id}/ponownie',          [LicenseOperationController::class, 'resend'])->name('ld.op.resend');
     $r->get('/wzor-op/{form}',                   [LicenseOperationController::class, 'blank'])->name('ld.op.blank');
     $r->get('/wzor/{doc}',                       [LicenseAdminController::class, 'blank'])->name('ld.blank');

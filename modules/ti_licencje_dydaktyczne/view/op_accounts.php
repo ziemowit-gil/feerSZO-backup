@@ -16,6 +16,7 @@ include __DIR__ . '/_head.php';
 
 <nav class="tiles" aria-label="Kolejka">
   <a class="tile" style="background:#f0a30a" href="<?= h(route('ld.accounts', ['status' => 'pending'])) ?>"><span class="n"><?= (int)$counts['pending'] ?></span><span class="l">Czeka na decyzję</span></a>
+  <a class="tile" style="background:#fa6800" href="<?= h(route('ld.accounts', ['status' => 'signing'])) ?>"><span class="n"><?= (int)($counts['signing'] ?? 0) ?></span><span class="l">AM20 — czeka na potwierdzenie osoby</span></a>
   <a class="tile" style="background:#1ba1e2" href="<?= h(route('ld.accounts', ['status' => 'approved'])) ?>"><span class="n"><?= (int)$counts['approved'] ?></span><span class="l">W realizacji (IT / finanse)</span></a>
   <a class="tile" style="background:#647687" href="<?= h(route('ld.accounts')) ?>"><span class="n"><i class="bi bi-list-ul" aria-hidden="true"></i></span><span class="l">Wszystkie</span></a>
 </nav>

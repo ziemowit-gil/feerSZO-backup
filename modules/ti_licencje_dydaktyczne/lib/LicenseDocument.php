@@ -478,9 +478,47 @@ final class LicenseDocument
                 . '<tr>' . $this->fld('Licencjobiorca, użytkownik i właściciel konta po zmianie', 'pozostają bez zmian', ' width="60%"', true)
                 . $this->fld('Data wejścia zmiany w życie', self::e(ldDate($r['data_zmiany'] ?? '')), ' width="40%"', true) . '</tr>'
                 . '<tr><td class="pc" colspan="2" style="background:#e6e6e6"><div class="pt"><b>Potwierdzenie skutku:</b> ' . self::e($f->effect()) . '</div></td></tr>'
-                . '<tr>' . $this->fld('Rejestracja', $stampBox($op['created_name'], $op['created_at'], $op['created_ip'], 'Zarejestrowano w SZO (bez akceptacji)') . ($op['execution_notes'] ? '<div class="esig">' . self::e($op['execution_notes']) . '</div>' : ''), ' colspan="2" style="height:12mm"', true) . '</tr></table>';
+                . '<tr>' . $this->fld('Potwierdzenie wnioskodawcy', !empty($op['signed_at']) ? self::e($op['signed_name']) . $stampBox($op['signed_name'], $op['signed_at'], $op['signed_ip'], 'Potwierdzono elektronicznie przez link') : '<span class="ph">czeka na potwierdzenie przez link</span>', ' colspan="2" style="height:12mm"', true) . '</tr>'
+                . '<tr>' . $this->fld('Rejestracja', $stampBox($op['created_name'], $op['created_at'], $op['created_ip'], 'Złożono w SZO (bez akceptacji kierownika)') . ($op['execution_notes'] ? '<div class="esig">' . self::e($op['execution_notes']) . '</div>' : ''), ' colspan="2" style="height:12mm"', true) . '</tr></table>';
         }
+        if ($f === OperationForm::Am20) $h .= '<pagebreak />' . $this->am20AnnexHtml($op);
         return self::css() . $h;
+    }
+
+    /** AM20-1 — wykaz dokumentów księgowych wystawionych dotąd przez FEER w związku z opłatą za licencję. */
+    private function am20AnnexHtml(array $op): string
+    {
+        $r = $op['request'];
+        $rows = (array)($r['am20_1'] ?? []);
+        $sum = LicenseResources::accountingSummary($rows);
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer sprawy', '<span class="big">' . self::e($op['number']) . '</span>', ' width="52%"')
+           . $this->fld('Produkt i licencja', self::e((string)($op['state']['sku'] ?? $r['produkt'] ?? '')), ' width="28%"')
+           . '<td class="sym" width="20%" style="background:' . self::e(OperationForm::Am20->color()) . '"><div class="symb">AM20</div><div class="symp">-1</div><div class="symv">załącznik do AM20</div></td></tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">WYKAZ DOKUMENTÓW KSIĘGOWYCH</div><div class="ttl1">WYSTAWIONYCH DOTYCHCZAS PRZEZ FEER</div>'
+           . '<div class="ttl2">w związku z opłatą za licencję — załącznik AM20-1 do wniosku o zmianę sposobu płatności</div></td></tr>'
+           . '<tr><td class="lgd"><b>Licencjobiorca / użytkownik:</b> ' . self::e($op['account_name']) . '.&nbsp; <b>Obecny płatnik:</b> ' . self::e((string)($r['obecny_platnik'] ?? '')) . '.&nbsp; <b>Nowy płatnik od</b> '
+           . self::e(ldDate($r['data_zmiany'] ?? '')) . ': ' . self::e((string)($r['nowy_platnik'] ?? '')) . '.</td></tr></table>';
+        $body = '';
+        if (!$rows) {
+            $body = '<tr><td class="pc" colspan="5"><div class="pt">' . (!empty($r['am20_1_brak']) ? 'Fundacja FEER nie wystawiała dotąd dokumentów księgowych w związku z opłatą za tę licencję.' : '<span class="ph">brak pozycji</span>') . '</div></td></tr>';
+        }
+        foreach ($rows as $i => $d) {
+            $body .= '<tr><td class="f" style="text-align:center">' . ($i + 1) . '</td><td class="f">' . self::e($d['typ']) . '</td><td class="f"><b>' . self::e($d['numer']) . '</b></td>'
+                   . '<td class="f">' . self::e(ldDate($d['data'])) . '</td><td class="f" style="text-align:right">' . ($d['kwota'] !== '' ? self::e(number_format((float)$d['kwota'], 2, ',', ' ')) . ' zł' : '—') . '</td></tr>';
+        }
+        $h .= '<table class="t">' . self::sec('A', 'DOKUMENTY KSIĘGOWE', 5, '(faktury, faktury zbiorcze, korekty, rozliczenia)')
+            . '<tr><td class="lb" style="padding:1mm;width:7%"><b>Lp.</b></td><td class="lb" style="padding:1mm;width:23%"><b>Rodzaj dokumentu</b></td><td class="lb" style="padding:1mm;width:32%"><b>Numer</b></td>'
+            . '<td class="lb" style="padding:1mm;width:16%"><b>Data wystawienia</b></td><td class="lb" style="padding:1mm;width:22%;text-align:right"><b>Kwota brutto</b></td></tr>' . $body . '</table>';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('B', 'PODSUMOWANIE', 4) . '<tr>'
+            . $this->fld('Liczba dokumentów', self::e((string)$sum['count']), ' width="20%"')
+            . $this->fld('Łączna kwota', self::e(number_format($sum['sum'], 2, ',', ' ') . ' zł'), ' width="26%"')
+            . $this->fld('Data pierwszej faktury', self::val(ldDate($sum['first_invoice']), 'brak faktury'), ' width="27%"')
+            . $this->fld('Data ostatniej faktury', self::val(ldDate($sum['last_invoice']), 'brak faktury'), ' width="27%"')
+            . '</tr><tr>' . $this->fld('Sporządził(a) wykaz', self::e($op['created_name']) . '<div class="esig">Złożono elektronicznie w SZO: ' . self::e(ldDate(substr((string)$op['created_at'], 0, 10)) . ' ' . substr((string)$op['created_at'], 11, 5)) . '</div>', ' colspan="2"')
+            . $this->fld('Potwierdzenie wnioskodawcy', !empty($op['signed_at']) ? self::e($op['signed_name']) . '<div class="esig">Potwierdzono elektronicznie przez link: ' . self::e(ldDate(substr((string)$op['signed_at'], 0, 10)) . ' ' . substr((string)$op['signed_at'], 11, 5)) . ', IP ' . self::e($op['signed_ip']) . '</div>' : '<span class="ph">czeka na potwierdzenie</span>', ' colspan="2"')
+            . '</tr></table>';
+        return $h;
     }
 
     private static function css(): string

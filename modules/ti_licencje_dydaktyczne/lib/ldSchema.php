@@ -263,6 +263,11 @@ function ldMigrate(): void
         created_at VARCHAR(19),
         updated_at VARCHAR(19)
     )");
+    foreach (["sign_token_hash VARCHAR(64) NOT NULL DEFAULT ''", "sign_token_expires VARCHAR(19)", "signed_at VARCHAR(19)",
+              "signed_ip VARCHAR(64) NOT NULL DEFAULT ''", "signed_name VARCHAR(190) NOT NULL DEFAULT ''", "signed_ua VARCHAR(255) NOT NULL DEFAULT ''"] as $col) {
+        try { $db->exec("ALTER TABLE license_operations ADD COLUMN {$col}"); } catch (\Throwable $e) {}
+    }
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_ops_sign ON license_operations(sign_token_hash)");
     $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lic_ops_seq ON license_operations(op_seq)");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_ops_account ON license_operations(account_kind, account_id)");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_lic_ops_resource ON license_operations(resource_key)");

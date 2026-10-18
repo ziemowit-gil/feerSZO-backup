@@ -8,7 +8,8 @@ declare(strict_types=1);
  *           AM12 — zwrot kosztów / refaktura licencji (weryfikacja dowodu zakupu),
  *           AM13 — przypisanie licencji finansowanej zewnętrznie (grant / partner / własna).
  * Operacje na JUŻ PRZYPISANYCH licencjach (kody GEN):
- *           AM20 — zmiana płatnika / budżetu (BEZ akceptacji: wskazuje się doliczenie do zajęć z kwotą albo rachunek i kwotę wpłaty),
+ *           AM20 — zmiana płatnika / budżetu (BEZ akceptacji kierownika: składa biuro, osoba POTWIERDZA wniosek przez link (e-mail + SMS)
+ *                  — dopiero wtedy doliczenie do zajęć z kwotą albo dane do wpłaty na rachunek),
  *           AM21 — zmiana planu / upgrade / downgrade / add-on, AM22 — zawieszenie / reasygnacja,
  *           AM23 — cofnięcie / deprovisioning (polityka danych), AM24 — przedłużenie / odnowienie.
  * Numer sprawy: 4000-{symbol}/734350539/{6 cyfr}{2 losowe litery}/{rok}/{SubID = nr kursu/nr kursanta}.
@@ -163,7 +164,7 @@ enum OperationForm: string
                 'rachunek' => ['Numer rachunku do wpłat', 'account', false, null],
                 'uzasadnienie' => ['Uzasadnienie zmiany', 'textarea', true, null],
                 'dokumenty' => ['Dokumenty potwierdzające licencję i rozliczenie', 'textarea', false, null],
-                'potwierdzenie' => ['Potwierdzam treść oświadczenia (zmiana płatności nie przenosi licencji ani praw do konta)', 'check', true, null],
+                'potwierdzenie' => ['Potwierdzenie wnioskodawcy (składa osoba przez link — podpis elektroniczny)', 'check', false, null],
             ],
             self::Am21 => [
                 'rodzaj' => ['Rodzaj zmiany', 'select', true, ['upgrade' => 'upgrade (wyższy plan)', 'downgrade' => 'downgrade (niższy plan)', 'addon' => 'add-on / dodatkowe stanowisko', 'cykl' => 'zmiana cyklu (miesięczny ↔ roczny)']],
@@ -234,6 +235,7 @@ enum AssetPolicy: string
 /** Stan operacji w SZO; status() i approval() dają wartości rekordu JSON. */
 enum OperationStatus: string
 {
+    case Signing   = 'signing';     // AM20: złożona przez biuro, czeka na potwierdzenie osoby przez link
     case Pending   = 'pending';     // złożona, czeka na decyzję
     case Approved  = 'approved';    // zatwierdzona, czeka na wykonanie (zadanie IT)
     case Executed  = 'executed';
@@ -243,6 +245,7 @@ enum OperationStatus: string
     public function label(): string
     {
         return match ($this) {
+            self::Signing   => 'Czeka na potwierdzenie osoby',
             self::Pending   => 'Czeka na decyzję',
             self::Approved  => 'Zatwierdzona — w realizacji',
             self::Executed  => 'Wykonana',
@@ -254,6 +257,7 @@ enum OperationStatus: string
     public function color(): string
     {
         return match ($this) {
+            self::Signing   => '#fa6800',
             self::Pending   => '#f0a30a',
             self::Approved  => '#1ba1e2',
             self::Executed  => '#008a00',
@@ -265,6 +269,7 @@ enum OperationStatus: string
     public function jsonStatus(): string
     {
         return match ($this) {
+            self::Signing   => 'PENDING_CONFIRMATION',
             self::Pending, self::Approved => 'PENDING_EXECUTION',
             self::Executed  => 'EXECUTED',
             self::Rejected  => 'REJECTED',
@@ -275,7 +280,7 @@ enum OperationStatus: string
     public function approval(): string
     {
         return match ($this) {
-            self::Pending   => 'PENDING',
+            self::Signing, self::Pending => 'PENDING',
             self::Approved, self::Executed => 'APPROVED',
             self::Rejected  => 'REJECTED',
             self::Cancelled => 'CANCELLED',

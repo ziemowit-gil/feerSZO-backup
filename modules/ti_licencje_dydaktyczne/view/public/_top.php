@@ -40,10 +40,10 @@ $sym = $sym ?? (isset($l['form']) && $l['form'] instanceof LicenseForm ? $l['for
 <a class="skip" href="#tresc">Przejdź do treści</a>
 <header class="tw-bg-m-dark tw-text-white">
   <div class="tw-max-w-4xl tw-mx-auto tw-flex tw-items-stretch">
-    <div class="<?= $sym === 'AM7' ? 'tw-bg-m-cobalt' : 'tw-bg-m-cyan' ?> tw-px-4 tw-py-3 tw-text-2xl tw-font-semibold tw-tracking-wide" aria-hidden="true"><?= h($sym) ?></div>
+    <div class="<?= $sym === 'AM7' ? 'tw-bg-m-cobalt' : ($sym === 'AM20' ? 'tw-bg-m-green' : 'tw-bg-m-cyan') ?> tw-px-4 tw-py-3 tw-text-2xl tw-font-semibold tw-tracking-wide" aria-hidden="true"><?= h($sym) ?></div>
     <div class="tw-px-4 tw-py-2">
       <div class="tw-text-xs tw-uppercase tw-tracking-widest tw-opacity-80"><?= h($org) ?></div>
-      <div class="tw-text-lg tw-font-light"><?= $sym === 'AM7' ? 'Licencje do oprogramowania' : 'Licencje dydaktyczne' ?></div>
+      <div class="tw-text-lg tw-font-light"><?= $sym === 'AM7' ? 'Licencje do oprogramowania' : ($sym === 'AM20' ? 'Licencje — zmiana płatnika' : 'Licencje dydaktyczne') ?></div>
     </div>
   </div>
 </header>

@@ -130,10 +130,18 @@ final class LicenseOperationController
         return Router::redirect(route('ld.op', ['id' => $id]));
     }
 
+    /** AM20: ponowny link do potwierdzenia (poprzedni traci ważność). */
+    public function signLink(int $id): ?string
+    {
+        try { flash_set('success', 'Link do potwierdzenia: ' . $this->ops->sendSignLink($id, $this->actor(), true) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.op', ['id' => $id])); }
+        return Router::redirect(route('ld.op', ['id' => $id]));
+    }
+
     public function resend(int $id): ?string
     {
         $op = $this->op($id);
-        if ($op['statusEnum'] === OperationStatus::Pending || $op['statusEnum'] === OperationStatus::Cancelled) { flash_set('warning', 'Dokument wysyła się po decyzji.'); return Router::redirect(route('ld.op', ['id' => $id])); }
+        if (in_array($op['statusEnum'], [OperationStatus::Pending, OperationStatus::Cancelled, OperationStatus::Signing], true)) { flash_set('warning', 'Dokument wysyła się po decyzji.'); return Router::redirect(route('ld.op', ['id' => $id])); }
         try { flash_set('success', 'Dokument wysłany ponownie: ' . $this->ops->sendDecision($id, $this->actor()) . '.'); }
         catch (\Throwable $e) { return $this->fail($e, route('ld.op', ['id' => $id])); }
         return Router::redirect(route('ld.op', ['id' => $id]));
