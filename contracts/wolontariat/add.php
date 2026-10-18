@@ -1029,19 +1029,19 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <?php endif; ?>
 
 <!-- Nagłówek -->
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="d-flex align-items-center justify-content-center flex-shrink-0"
+<div class="wiz-head d-flex align-items-center gap-3 mb-4">
+  <div class="wiz-head-ico d-flex align-items-center justify-content-center flex-shrink-0"
        style="width:48px;height:48px;background:<?= $migracja_mode ? '#f3f0ff' : '#EFF4FF' ?>;border-radius:12px">
     <i class="bi <?= $migracja_mode ? 'bi-clock-history' : 'bi-file-earmark-person' ?> fs-4"
        style="color:<?= $migracja_mode ? '#7c3aed' : '#1E6DFF' ?>"></i>
   </div>
   <div>
-    <h4 class="mb-0 fw-bold"><?= $migracja_mode ? 'Migracja — porozumienie wolontariackie' : 'Nowe porozumienie wolontariackie' ?></h4>
+    <h4 class="wiz-head-title mb-0 fw-bold"><?= $migracja_mode ? 'Migracja — porozumienie wolontariackie' : 'Nowe porozumienie wolontariackie' ?></h4>
     <div class="text-muted small"><?= $migracja_mode ? 'Rejestracja historycznej współpracy przed 01.06.2026' : 'Wypełnij dane w kolejnych krokach i zapisz umowę' ?></div>
   </div>
   <?php if (!$migracja_mode): ?>
   <div class="ms-auto d-none d-md-block">
-    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+    <span class="wiz-head-num badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
       <i class="bi bi-hash me-1"></i><?= h($row['numer_umowy']) ?>
     </span>
   </div>
@@ -1064,6 +1064,14 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
   <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
+
+<div class="wiz-draft" id="wizDraft" hidden role="status">
+  <i class="bi bi-clock-history" aria-hidden="true"></i>
+  <div class="wiz-draft-t"><strong>Niezapisany szkic</strong> <span id="wizDraftWhen"></span><br>
+    <small>Szkic jest trzymany tylko w tej karcie przeglądarki, bez PESEL i numerów dokumentów.</small></div>
+  <button type="button" class="btn btn-primary btn-sm" id="wizDraftRestore">Przywróć</button>
+  <button type="button" class="btn btn-outline-secondary btn-sm" id="wizDraftDrop">Odrzuć</button>
+</div>
 
 <form method="post" enctype="multipart/form-data" id="wolontariatForm" novalidate x-data="contractFormGuard()" @submit="if (!$event.defaultPrevented) onSubmit()">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -2259,6 +2267,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="wiz-preview-row"><span class="wiz-preview-label">Miejsce</span><span class="wiz-preview-val" id="sum-miejsce">—</span></div>
       <div class="wiz-preview-row"><span class="wiz-preview-label">Opiekun</span><span class="wiz-preview-val" id="sum-opiekun">—</span></div>
     </div>
+    <div class="wiz-missing" id="wizMissing" hidden></div>
     <div class="p-3 border-top">
       <div class="d-grid gap-2">
         <button type="submit" class="btn btn-success fw-semibold" :disabled="submitting">
@@ -2280,7 +2289,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <span style="font-size:.8rem;color:#6B7280" id="progress-label">0%</span>
       </div>
       <div style="height:6px;background:#F3F4F6;border-radius:3px">
-        <div id="progress-bar" style="height:6px;border-radius:3px;background:#1E6DFF;width:0%;transition:width .3s"></div>
+        <div id="progress-bar" style="height:6px;border-radius:3px;background:var(--sm-acc,#1E6DFF);width:0%;transition:width .3s"></div>
       </div>
       <div class="d-flex justify-content-between mt-2">
         <?php for ($i = 1; $i <= 6; $i++): ?>
@@ -2300,6 +2309,8 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 <div class="wiz-sticky-nav">
   <button type="button" class="btn btn-outline-secondary" id="wizBack" style="display:none"><i class="bi bi-arrow-left me-1"></i>Wstecz</button>
   <a href="list.php" class="btn btn-link text-muted">Anuluj</a>
+  <span class="wiz-nav-info d-none d-md-inline" id="wizNavInfo" aria-live="polite"></span>
+  <span class="wiz-nav-keys d-none d-lg-inline" aria-hidden="true"><kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> kroki · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zapisz</span>
   <div class="ms-auto d-flex gap-2">
     <button type="button" class="btn btn-primary" id="wizNext">Dalej <i class="bi bi-arrow-right ms-1"></i></button>
     <button type="submit" id="wizSave" class="btn btn-success" style="display:none" :disabled="submitting"><span x-show="submitting" x-cloak class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span><i x-show="!submitting" x-cloak class="bi bi-check-lg me-1"></i><span x-text="submitting ? 'Zapisywanie…' : 'Zapisz porozumienie'"></span></button>
@@ -2509,7 +2520,7 @@ function goToStep(n) {
   document.getElementById('progress-label').textContent = pct + '%';
   for (var j = 1; j <= _totalSteps; j++) {
     var dot = document.getElementById('prog-step-' + j);
-    if (dot) dot.style.background = j <= n ? '#1E6DFF' : '#E5E7EB';
+    if (dot) dot.style.background = j <= n ? 'var(--sm-acc,#1E6DFF)' : '#E5E7EB';
   }
 
   // Sticky nav
@@ -2916,4 +2927,124 @@ function toggleCanvaInfo(on) {
 .autofilled{animation:fillPulse .8s ease}
 </style>
 
+<script>
+/* ── Usprawnienia kreatora (Metro): szkic w karcie, skróty klawiszowe, brakujące pola, „Krok X z 6” ── */
+(function () {
+  var form = document.getElementById('wolontariatForm');
+  if (!form || typeof goToStep !== 'function') return;
+  var steps = <?= json_encode(['Umowa', 'Wolontariusz', 'Szczegóły', 'BHP i ubezp.', 'Dostępy IT', 'Grupy IT'], JSON_UNESCAPED_UNICODE) ?>;
+  var hadErrors = <?= $errors ? 'true' : 'false' ?>;
+
+  // 1) „Krok X z 6” w dolnym pasku — po każdym przejściu
+  var info = document.getElementById('wizNavInfo');
+  var _go = goToStep;
+  goToStep = function (n) { _go(n); paintInfo(); markMissing(); };
+  window.goToStep = goToStep;
+  function paintInfo() { if (info) info.textContent = 'Krok ' + _currentStep + ' z ' + _totalSteps + ' · ' + (steps[_currentStep - 1] || ''); }
+
+  // 2) Brakujące pola wymagane: kropka z liczbą na kroku + lista w podglądzie (kliknięcie przenosi do pola)
+  function visible(el) { return !el.disabled && el.type !== 'hidden' && !el.closest('[hidden]') && getComputedStyle(el).display !== 'none'; }
+  function labelOf(el) {
+    var l = el.id && document.querySelector('label[for="' + el.id + '"]');
+    if (!l) { var w = el.closest('.col-sm-3,.col-sm-4,.col-sm-5,.col-sm-6,.col-sm-8,.col-12,.mb-3'); l = w && w.querySelector('.form-label'); }
+    return l ? l.textContent.replace(/\*/g, '').trim() : (el.name || 'pole');
+  }
+  function markMissing() {
+    var list = [];
+    for (var i = 1; i <= _totalSteps; i++) {
+      var sec = document.getElementById('wiz-step-' + i), n = 0;
+      if (sec) sec.querySelectorAll('[required]').forEach(function (el) {
+        if (el.disabled || el.type === 'hidden') return;
+        var empty = el.type === 'checkbox' ? !el.checked : String(el.value || '').trim() === '';
+        if (empty) { n++; list.push({ step: i, el: el, label: labelOf(el) }); }
+      });
+      var btn = document.getElementById('step-btn-' + i);
+      if (!btn) continue;
+      var dot = btn.querySelector('.wiz-hstep-miss');
+      if (n) { if (!dot) { dot = document.createElement('span'); dot.className = 'wiz-hstep-miss'; btn.appendChild(dot); } dot.textContent = n; dot.title = 'Brakuje wymaganych pól: ' + n; }
+      else if (dot) dot.remove();
+    }
+    var box = document.getElementById('wizMissing');
+    if (!box) return;
+    if (!list.length) { box.hidden = false; box.className = 'wiz-missing is-ok'; box.innerHTML = '<i class="bi bi-check2-circle"></i> Wymagane pola uzupełnione'; return; }
+    box.hidden = false; box.className = 'wiz-missing';
+    box.innerHTML = '<div class="wiz-missing-h">Brakuje (' + list.length + ')</div>';
+    list.slice(0, 6).forEach(function (m) {
+      var a = document.createElement('button'); a.type = 'button'; a.className = 'wiz-missing-i';
+      a.innerHTML = '<span>' + m.step + '</span>'; a.appendChild(document.createTextNode(m.label));
+      a.addEventListener('click', function () { goToStep(m.step); setTimeout(function () { m.el.focus(); }, 350); });
+      box.appendChild(a);
+    });
+  }
+
+  // 3) Szkic w sessionStorage (tylko ta karta) — bez PESEL, dokumentów, kont, haseł i plików
+  var KEY = 'szo:wolAddDraft:v2';
+  var SKIP = /^(_csrf|numer_umowy|pesel|.*(dowod|dokument|paszport|konto|iban|haslo|password|pesel).*)$/i;
+  function store() { try { return window.sessionStorage; } catch (e) { return null; } }
+  // Wartości po nazwie i KOLEJNOŚCI pól — formularz ma pola o tej samej nazwie (np. dwa „imie_nazwisko”
+  // w różnych trybach), więc słownik nazwa → wartość gubiłby wpisaną wartość na rzecz pustego bliźniaka.
+  function fields() {
+    return Array.prototype.filter.call(form.elements, function (el) {
+      return el.name && !SKIP.test(el.name) && ['file', 'password', 'submit', 'button', 'reset'].indexOf(el.type) === -1;
+    });
+  }
+  function collect() {
+    var d = {};
+    fields().forEach(function (el) {
+      var v;
+      if (el.type === 'checkbox' || el.type === 'radio') v = el.checked;
+      else if (el.tagName === 'SELECT' && el.multiple) v = Array.prototype.filter.call(el.options, function (o) { return o.selected; }).map(function (o) { return o.value; });
+      else v = el.value;
+      (d[el.name] = d[el.name] || []).push(v);
+    });
+    return d;
+  }
+  function apply(d) {
+    var idx = {};
+    fields().forEach(function (el) {
+      if (!Array.isArray(d[el.name])) return;
+      var i = idx[el.name] = (idx[el.name] || 0), v = d[el.name][i];
+      idx[el.name] = i + 1;
+      if (v === undefined) return;
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!v;
+      else if (el.tagName === 'SELECT' && el.multiple) Array.prototype.forEach.call(el.options, function (o) { o.selected = Array.isArray(v) && v.indexOf(o.value) !== -1; });
+      else { el.value = v; if (el.tomselect) el.tomselect.setValue(v, true); }
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+  var st = store(), saveT = null;
+  function save() {
+    if (!st) return;
+    clearTimeout(saveT);
+    saveT = setTimeout(function () { try { st.setItem(KEY, JSON.stringify({ at: Date.now(), step: _currentStep, d: collect() })); } catch (e) {} }, 400);
+  }
+  var banner = document.getElementById('wizDraft');
+  if (st && !hadErrors) {
+    var raw = null; try { raw = JSON.parse(st.getItem(KEY) || 'null'); } catch (e) {}
+    if (raw && raw.d && banner) {
+      document.getElementById('wizDraftWhen').textContent = 'z ' + new Date(raw.at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+      banner.hidden = false;
+      document.getElementById('wizDraftRestore').addEventListener('click', function () { apply(raw.d); banner.hidden = true; goToStep(raw.step || 1); });
+      document.getElementById('wizDraftDrop').addEventListener('click', function () { try { st.removeItem(KEY); } catch (e) {} banner.hidden = true; });
+    }
+  }
+  form.addEventListener('input', function () { save(); markMissing(); });
+  form.addEventListener('change', function () { save(); markMissing(); });
+  form.addEventListener('submit', function () { try { st && st.removeItem(KEY); } catch (e) {} });
+
+  // 4) Skróty: Alt+←/→ kroki, Ctrl/Cmd+Enter zapis (ten sam przycisk co w podglądzie — z jego walidacją)
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      var n = _currentStep + (e.key === 'ArrowRight' ? 1 : -1);
+      if (n >= 1 && n <= _totalSteps) { e.preventDefault(); goToStep(n); }
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      var b = form.querySelector('.wiz-preview button[type="submit"]');
+      if (b && !b.disabled) { e.preventDefault(); b.click(); }
+    }
+  });
+
+  paintInfo(); markMissing();
+})();
+</script>
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>

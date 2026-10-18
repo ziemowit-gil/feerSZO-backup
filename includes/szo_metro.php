@@ -48,7 +48,7 @@ function szo_metro_header_assets(?string $group): void {
 ?>
 <style id="szo-metro-head">
 :root{
-  --sm-acc:<?= $acc ?>;--sm-acc-d:<?= $accD ?>;--sm-acc-50:<?= $acc50 ?>;
+  --sm-acc:<?= $acc ?>;--sm-acc-d:<?= $accD ?>;--sm-acc-50:<?= $acc50 ?>;--sm-acc-d-rgb:<?= implode(',', sscanf($accD, '#%02x%02x%02x')) ?>;
   --sm-dark:#1d1d1d;--sm-light:#f2f2f2;--sm-light-h:#e6e6e6;--sm-line:#e1e1e1;--sm-muted:#5f5f5f;--sm-field:#8a8a8a;--sm-ink:#111827;
   --sm-red:#a20025;--sm-orange:#c25100;--sm-green:#007a00;--sm-blue:#0050ef;
   --sm-font:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -193,8 +193,9 @@ html body #content{padding:1.75rem 2rem 5rem}
 @media (max-width:768px){html body #content{padding:1rem .75rem 4rem}}
 html body #content h1,html body #content .h1,html body #content h2.h3,html body #content h1.h3,html body #content h1.h4,html body #content h2.h4{font-weight:300!important;letter-spacing:-.02em;color:var(--sm-dark)}
 html body #content h1,html body #content .h1{font-size:2rem;line-height:1.1}
-html body #content a:not(.btn):not(.dropdown-item):not(.nav-link):not(.page-link):not(.list-group-item){color:var(--sm-acc-d)}
-html body #content a:not(.btn):not(.dropdown-item):not(.nav-link):not(.page-link):not(.list-group-item):hover{color:var(--sm-dark)}
+/* Linki w akcencie przez zmienne Bootstrapa, nie selektorem po id — komponenty z własnym kolorem
+   (kafle .mt-tile, przyciski Helpdesku, linki na ciemnym tle) zachowują biały tekst. */
+html body #content{--bs-link-color-rgb:var(--sm-acc-d-rgb);--bs-link-hover-color-rgb:29,29,29}
 html body #content .text-primary{color:var(--sm-acc-d)!important}
 html body #content .bg-primary{background-color:var(--sm-acc)!important}
 html body #content .border-primary{border-color:var(--sm-acc)!important}
@@ -403,9 +404,40 @@ html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status
   html body #content .contract-hero>.contract-hero-stat--status{min-height:0;margin-top:.75rem}
 }
 
-/* ── Kreator umowy (contracts/wolontariat/add.php) — tylko elementy usprawnień:
-   znacznik brakujących pól na kroku, lista „Brakuje” w podglądzie, „Krok X z 6”, skróty, baner szkicu.
-   Wygląd samego kreatora (.wiz-root) jest w stylach strony. */
+/* ── Kreator umowy (contracts/wolontariat/add.php: .wiz-*) ───────────────────
+   Kroki jako kwadratowe kafle w akcencie (zrobione zielone), płaskie karty kroków, podgląd
+   z ciemnym nagłówkiem, dolny pasek jak app bar; znacznik brakujących pól, „Krok X z 6”, skróty, szkic. */
+html body #content .wiz-head-ico{background:var(--sm-acc)!important;width:56px!important;height:56px!important}
+html body #content .wiz-head-ico .bi{color:#fff!important}
+html body #content .wiz-head-title{font-size:2.1rem;font-weight:300!important;letter-spacing:-.02em;line-height:1.1}
+html body #content .wiz-head .text-muted{color:var(--sm-muted)!important}
+html body #content .wiz-head-num{background:var(--sm-dark)!important;color:#fff!important;border:0!important;font-size:.8rem;letter-spacing:.06em}
+html body #content .wiz-hsteps{background:none;border:0;border-bottom:1px solid var(--sm-line);padding:0 0 .75rem;gap:.25rem;margin-bottom:1.25rem}
+html body #content .wiz-hstep{position:relative;align-items:flex-start;max-width:none;padding:.35rem .4rem}
+html body #content .wiz-hstep:hover:not(.active){background:var(--sm-light)}
+html body #content .wiz-hstep-num{display:flex!important;align-items:center;justify-content:center;width:40px;height:40px;background:var(--sm-light-h);color:var(--sm-dark);font-size:.95rem;font-weight:400}
+html body #content .wiz-hstep.active .wiz-hstep-num{background:var(--sm-acc);color:#fff;box-shadow:none}
+html body #content .wiz-hstep.done .wiz-hstep-num{background:var(--sm-green);color:#fff}
+html body #content .wiz-hstep-label{color:var(--sm-muted);font-size:.78rem;max-width:none;text-align:left}
+html body #content .wiz-hstep.active .wiz-hstep-label{color:var(--sm-dark);font-weight:600}
+html body #content .wiz-hstep.done .wiz-hstep-label{color:var(--sm-green)}
+html body #content .wiz-hstep-sep{height:2px;max-width:none;background:var(--sm-light-h);align-self:flex-start;margin-top:1.45rem}
+html body #content .wiz-hstep-sep.done{background:var(--sm-green)}
+html body #content .wiz-card{border:1px solid var(--sm-line);box-shadow:none;margin-bottom:1rem}
+html body #content .wiz-card-header{background:var(--sm-light);border-bottom:0;padding:.85rem 1.2rem}
+html body #content .wiz-card-icon{background:var(--sm-acc)!important;color:#fff!important}
+html body #content .wiz-card-icon .bi{color:#fff!important}
+html body #content .wiz-card-title{font-size:1.2rem;font-weight:300;color:var(--sm-dark)}
+html body #content .wiz-card-subtitle{color:var(--sm-muted)}
+html body #content .wiz-preview{border:0;box-shadow:none;background:var(--sm-light)}
+html body #content .wiz-preview-header{background:var(--sm-dark);background-image:none;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;padding:.8rem 1.1rem}
+html body #content .wiz-preview-body{background:#fff;border:1px solid var(--sm-line);border-top:0}
+html body #content .wiz-preview-row{border-bottom-color:var(--sm-line);font-size:.84rem}
+html body #content .wiz-preview-label{color:var(--sm-muted)}
+html body #content .wiz-preview-val{color:var(--sm-dark)}
+html body #content .wiz-preview .border-top{border-top:0!important}
+html body #content .wiz-sticky-nav{background:var(--sm-light);backdrop-filter:none;border-top:0;box-shadow:none;margin:0 -2rem;padding:.6rem 2rem}
+html body #content #progress-bar{border-radius:0!important}
 html body #content .wiz-hstep-miss{position:absolute;top:0;left:34px;min-width:18px;height:18px;padding:0 .25rem;background:var(--sm-red);color:#fff;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center}
 html body #content .wiz-missing{background:#fff;border:1px solid var(--sm-line);border-top:0;border-left:6px solid var(--sm-red);padding:.6rem .8rem}
 html body #content .wiz-missing.is-ok{border-left-color:var(--sm-green);color:var(--sm-green);font-weight:600;font-size:.84rem}
