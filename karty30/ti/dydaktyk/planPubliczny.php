@@ -361,7 +361,7 @@ if (!$full && !$dirG && !$dirI && !$rooms && !$dutyOn): ?>
   <p class="empty">Plan nie jest jeszcze publikowany w katalogu. Jeśli masz link do planu swojej grupy, otwórz go bezpośrednio.</p>
 <?php else: ?>
   <p class="empty">Wybierz grupę, prowadzącego lub salę, aby zobaczyć plan zajęć tydzień po tygodniu.</p>
-  <?php if ($dutyOn) tiDutyNowBox($self); ?>
+  <?php /* bez ramki „Najbliższy dyżur” na stronie głównej planu — grafik dyżurów jest w kaflu i pod /plan/dk */ ?>
   <?php foreach (['grupy', 'prowadzacy', 'sale'] as $_k) $printTiles($_k, 24); ?>
   <?php if ($dutyOn): $_n = tiDutyCurrentOrNext(); ?>
   <h2 class="tiles-head" id="h-dk"><span>DK</span></h2>
