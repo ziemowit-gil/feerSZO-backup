@@ -43,6 +43,13 @@ $_on_own_profile = str_contains($_uri_rel, '/directory/profile.php') && ((int)($
 $_on_edit    = str_contains($_uri_rel, '/directory/profile_edit.php');
 $_on_org     = str_contains($_uri_rel, '/directory/org_chart.php');
 $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
+
+// Wymóg uzupełnienia profilu — licznik braków przy „Edytuj profil”
+$_dir_missing = 0;
+try {
+    require_once dirname(dirname(__DIR__)) . '/modules/directory_profile/lib/directoryProfile.php';
+    if ($_cu_id && directoryProfileMode() !== 'off') $_dir_missing = count(directoryProfileStatus($_cu_id)['missing']);
+} catch (\Throwable $e) {}
 ?><!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -79,6 +86,7 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
   padding: .6rem .75rem .2rem; display: block;
 }
 </style>
+<?php /* Szata Metro UI jak System Tożsamości — ostatni blok stylów */ require_once __DIR__ . '/dir_metro.php'; ?>
 </head>
 <body>
 
@@ -228,6 +236,7 @@ $_on_admin_fields = str_contains($_uri_rel, '/admin/profile_fields.php');
           <i class="bi bi-pencil-square"></i>
         </span>
         <span>Edytuj profil</span>
+        <?php if ($_dir_missing): ?><span class="dir-nav-badge" aria-label="brakuje <?= $_dir_missing ?> wymaganych pól"><?= $_dir_missing ?></span><?php endif; ?>
       </a>
     </div>
     <?php endif; ?>
