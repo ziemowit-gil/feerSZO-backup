@@ -316,7 +316,8 @@ function wydruki_dropdown_html(string $src_params, array $opts = []): string {
     $doc = function_exists('print_template_dropdown_html')
          ? print_template_dropdown_html($src_params, ['fragment' => true]) : '';
 
-    if ($env === '' && $doc === '') return '';
+    $extra = (string)($opts['extra'] ?? '');   // dodatkowe <li> na początku menu (np. „Karta umowy”)
+    if ($env === '' && $doc === '' && $extra === '') return '';
 
     ob_start(); ?>
     <div class="dropdown d-inline-block">
@@ -325,6 +326,10 @@ function wydruki_dropdown_html(string $src_params, array $opts = []): string {
         <i class="bi bi-printer"></i> <span><?= h($label) ?></span>
       </button>
       <ul class="dropdown-menu <?= $menu_end ?>" style="min-width:260px">
+        <?php if ($extra !== ''): ?>
+          <?= $extra ?>
+          <?php if ($env !== '' || $doc !== ''): ?><li><hr class="dropdown-divider"></li><?php endif; ?>
+        <?php endif; ?>
         <?php if ($env !== ''): ?>
           <?= $env ?>
         <?php endif; ?>

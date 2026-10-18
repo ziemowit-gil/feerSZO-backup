@@ -194,6 +194,8 @@ $_cvh_accent = match($_cvh_st['class']) {
       </div>
       <?php endif; ?>
 
+<?php // „Karta umowy — informacje o umowie” (modules/contract_card) — wydruk dla każdego typu umowy
+$_cvh_card_li = '<li><a class="dropdown-item" href="' . APP_URL . '/modules/contract_card/router.php/' . rawurlencode((string)($_cvh_type ?? '')) . '/' . (int)($_cvh_id ?? 0) . '" target="_blank"><i class="bi bi-card-text me-2 text-primary"></i>Karta umowy — informacje o umowie</a></li>'; ?>
       <?php if (($_cvh_type ?? '') === 'wolontariat'): ?>
       <!-- Dropdown: Dokumenty -->
       <?php $_cvh_wid = (int)($_cvh_id ?? 0); $_cvh_burl = APP_URL . '/contracts/wolontariat/potwierdzenie.php?id=' . $_cvh_wid; ?>
@@ -262,6 +264,7 @@ $_cvh_accent = match($_cvh_st['class']) {
               <i class="bi bi-file-earmark-text me-2 text-secondary"></i>Wydruk umowy (pełny)
             </a>
           </li>
+          <?= $_cvh_card_li ?>
           <?php
             // Koperty i szablony pism — wspólne wzory (zamiast osobnego dropdownu „Wydruki", bez duplikatu)
             $_cvh_frag_src = 'contract_id=' . $_cvh_wid . '&type=' . rawurlencode((string)$_cvh_type);
@@ -309,7 +312,7 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
       <?php $_cvh_src = 'contract_id=' . (int)($_cvh_id ?? 0) . '&type=' . rawurlencode((string)($_cvh_type ?? '')); ?>
       <?php if (($_cvh_type ?? '') !== 'wolontariat'): /* dla wolontariatu wydruki są w dropdownie „Dokumenty i wydruki" */ ?>
-      <?= wydruki_dropdown_html($_cvh_src) ?>
+      <?= wydruki_dropdown_html($_cvh_src, ['extra' => $_cvh_card_li]) ?>
       <?php endif; ?>
       <button onclick="window.print()" class="btn btn-sm btn-outline-dark" title="Drukuj tę stronę">
         <i class="bi bi-printer"></i> <span>Drukuj stronę</span>
