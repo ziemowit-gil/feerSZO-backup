@@ -57,6 +57,14 @@ $_dis = $locked ? ' disabled' : '';
       <div class="form-check"><input class="form-check-input" type="radio" name="finansowanie" id="u-f-<?= h($_k) ?>" value="<?= h($_k) ?>" <?= ($data['finansowanie'] ?? 'publiczne') === $_k ? 'checked' : '' ?>><label class="form-check-label" for="u-f-<?= h($_k) ?>"><?= h($_l) ?></label></div>
       <?php endforeach; ?>
     </div></div>
+    <?php elseif ($_sk === 'fundacja' && ($_org = array_filter(TiTrainingContract::orgDefaults(), fn($v) => $v !== ''))): ?>
+    <p class="small mb-2"><button type="button" class="btn btn-sm btn-outline-primary" id="u-org-fill" data-org="<?= h(json_encode($_org, JSON_UNESCAPED_UNICODE)) ?>"><i class="bi bi-building-down" aria-hidden="true"></i> Uzupełnij z danych Fundacji</button>
+      <span class="text-body-secondary ms-1" role="status">z ustawień organizacji: <?= h(implode(', ', array_map(fn($k) => mb_strtolower($_f[$k][0]), array_keys($_org)))) ?></span></p>
+    <script>document.getElementById('u-org-fill').addEventListener('click', function () {
+      var d = JSON.parse(this.dataset.org), n = 0;
+      Object.keys(d).forEach(function (k) { var el = document.getElementById('u-' + k); if (el && el.value !== d[k]) { el.value = d[k]; n++; } });
+      this.nextElementSibling.textContent = n ? 'Uzupełniono pól: ' + n + ' — zapisz umowę.' : 'Dane są już aktualne.';
+    });</script>
     <?php endif; ?>
     <div class="row g-2">
     <?php foreach ($_f as $_k => [$_lbl, , $_sec, $_type]): if ($_sec !== $_sk) continue; ?>

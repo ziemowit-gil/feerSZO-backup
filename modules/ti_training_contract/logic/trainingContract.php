@@ -109,7 +109,27 @@ class TiTrainingContract
     {
         $d = ['plec' => 'K', 'finansowanie' => 'publiczne', 'client_id' => 0];
         foreach (self::fields() as $k => $f) $d[$k] = $f[1];
+        foreach (self::orgDefaults() as $k => $v) if ($v !== '') $d[$k] = $v;
         return $d;
+    }
+
+    /**
+     * Dane Fundacji z ustawień organizacji (Ustawienia → Organizacja / Rachunki) — nadpisują wartości
+     * wpisane na sztywno w fields(), jeśli są uzupełnione. Reprezentant zostaje z fields() (odmiana „przez kogo?”).
+     */
+    public static function orgDefaults(): array
+    {
+        if (!function_exists('org_setting')) return [];
+        $email = trim(org_setting('org_email'));
+        $tel   = trim(org_setting('org_telefon')) ?: trim(org_setting('org_tel'));
+        $acc   = function_exists('k30_ti_org_account') ? k30_ti_org_account() : ['iban' => ''];
+        return [
+            'regon'          => trim(org_setting('org_regon')),
+            'fund_email'     => $email,
+            'email_wsparcie' => $email,
+            'fund_tel'       => $tel,
+            'rachunek'       => (string)$acc['iban'],
+        ];
     }
 
     /** Dane przykładowe — Pani (jak we wzorze) albo Pan. */
