@@ -149,6 +149,42 @@ $_cvh_accent = match($_cvh_st['class']) {
       </span>
       <?php endif; ?>
       <?php
+        // ── Koszulka EZD: otwiera powiązaną koszulkę albo prowadzi do panelu „Sprawa EZD” (utworzenie / powiązanie) ──
+        $_cvh_ezd = null; $_cvh_ezd_can = false;
+        if (module_enabled('ezd_enabled') && ($_cvh_type ?? '') !== 'canva_request') {
+            require_once __DIR__ . '/contract_ezd.php';
+            $_cvh_ezd_id  = contract_ezd_get_sprawa_id($_cvh_type, (int)($_cvh_id ?? 0));
+            $_cvh_ezd     = $_cvh_ezd_id ? db_one("SELECT id, znak_sprawy FROM ezd_sprawy WHERE id=?", [$_cvh_ezd_id]) : null;
+            $_cvh_ezd_can = in_array(current_user()['role'] ?? '', ['admin', 'editor', 'manager'], true); // jak w contracts/ezd_link.php
+        }
+      ?>
+      <?php if ($_cvh_ezd): ?>
+      <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$_cvh_ezd['id'] ?>" class="btn btn-sm btn-outline-primary" title="Otwórz koszulkę EZD tej umowy">
+        <i class="bi bi-folder2-open"></i> <span>Koszulka <?= h($_cvh_ezd['znak_sprawy']) ?></span>
+      </a>
+      <?php elseif ($_cvh_ezd_can): ?>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="cvhEzdBtn" title="Utwórz koszulkę EZD dla tej umowy albo powiąż istniejącą">
+        <i class="bi bi-folder-plus"></i> <span>Koszulka</span>
+      </button>
+      <script>
+      document.getElementById('cvhEzdBtn').addEventListener('click', function () {
+        // Panel „Sprawa EZD” siedzi w jednej z zakładek widoku — przełącz na nią i wskaż wybór segregatora
+        var panel = document.getElementById('contract-ezd-panel');
+        if (!panel) return;
+        var pane = panel.closest('.tab-pane');
+        if (pane && window.bootstrap) {
+          var trg = document.querySelector('[data-bs-target="#' + pane.id + '"],[href="#' + pane.id + '"]');
+          if (trg) bootstrap.Tab.getOrCreateInstance(trg).show();
+        }
+        setTimeout(function () {
+          panel.scrollIntoView({behavior: 'smooth', block: 'center'});
+          var f = document.getElementById('ezd-teczka-id') || panel.querySelector('[data-ezd-action="create"]');
+          if (f) f.focus({preventScroll: true});
+        }, 200);
+      });
+      </script>
+      <?php endif; ?>
+      <?php
         // ── Grupa "Umowa": akcje zmieniające cykl życia umowy (przedłużenie, rozwiązanie) ──
         $_cvh_show_renew     = can_edit() && ($_cvh_type ?? '') === 'wolontariat';
         $_cvh_show_terminate = can_edit() && ($_cvh_type ?? '') === 'wolontariat'
