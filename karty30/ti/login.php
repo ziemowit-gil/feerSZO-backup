@@ -41,9 +41,9 @@ $krok1 = false;   // układ portalowy: role w zakładkach nad formularzem, domy�
 $prefill_login = h($_GET['l'] ?? '');
 // Token CSRF dla formularza kandydata (/nabor/logowanie) — sesja musi wystartować przed wysłaniem HTML
 $_kd_csrf = $tab === 'kandydat' ? csrf_token() : '';
-// ── Kadra ─────────────────────────────────────────────────────────────────────
-// Kadra loguje się wyłącznie przez SZO: logowanie SZO → mostek office_enter.php zakłada sesję panelu dydaktyka.
-$szo_dyd_login_url = rtrim(APP_URL, '/') . '/auth/login.php?redirect='
+// ── Kadra (tylko Microsoft 365) ─────────────────────────────────────────────────────────────────────
+// Kadra loguje się wyłącznie przez Microsoft 365: logowanie MS365 → mostek office_enter.php zakłada sesję panelu dydaktyka.
+$office_login_url = rtrim(APP_URL, '/') . '/auth/ms365.php?redirect='
     . urlencode(rtrim(APP_URL, '/') . '/karty30/ti/dydaktyk/office_enter.php');
 
 // Lewa kolumna: instrukcja zależna od roli.
@@ -51,7 +51,7 @@ $_side = [
     'kursant'  => in_array($_GET['fn'] ?? '', ['szk', 'konsultacje'], true)
         ? ['Wybierz, kim jesteś.', 'Wpisz login z SMS-a.', 'Pierwsze hasło to kod z SMS-a.']
         : ['Wybierz, kim jesteś.', 'Wpisz login.', 'Sprawdź, czy widzisz swój obrazek.', 'Wpisz hasło.'],
-    'dydaktyk' => ['Wybierz „Prowadzący / kadra”.', 'Kadra loguje się tylko przez SZO.', 'Po zalogowaniu otworzy się panel prowadzącego.'],
+    'dydaktyk' => ['Wybierz „Prowadzący / kadra”.', 'Kadra loguje się tylko kontem Microsoft 365.', 'Po zalogowaniu otworzy się panel prowadzącego.'],
     'rodzic'   => ['Wybierz „Rodzic”.', 'Wpisz login rodzica.', 'Wpisz hasło albo zaloguj się kodem SMS.'],
     'up'       => ['Wybierz „Upoważniony”.', 'Wpisz login i hasło od kursanta.'],
     'kandydat' => ['Wybierz „Kandydat”.', 'Wpisz e-mail ze zgłoszenia.', 'Wpisz hasło. Nie masz? Kliknij „Nie pamiętam hasła”.'],
@@ -211,9 +211,9 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
       <p class="tz-hint">Konto kandydata dostaniesz po potwierdzeniu zgłoszenia.<?= org_setting('ti_nabor_enabled') === '1' ? ' <a href="/nabor">Złóż zgłoszenie na zajęcia</a>.' : '' ?></p>
 
       <?php elseif ($tab === 'dydaktyk'): ?>
-      <?php /* Kadra (prowadzący, konsultanci, kierownik) loguje się wyłącznie przez SZO — bez osobnego formularza tutaj */ ?>
-        <a class="tz-btn" href="<?= h($szo_dyd_login_url) ?>"><i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Zaloguj się przez SZO</a>
-        <p class="tz-hint">Użyj tego samego konta co w SZO (także Microsoft 365).</p>
+      <?php /* Kadra (prowadzący, konsultanci, kierownik) loguje się wyłącznie przez Microsoft 365 — bez formularza hasła */ ?>
+        <a class="tz-btn" href="<?= h($office_login_url) ?>"><i class="bi bi-microsoft me-1" aria-hidden="true"></i>Zaloguj przez Microsoft 365</a>
+        <p class="tz-hint">Użyj konta @feer.org.pl.</p>
 
       <?php elseif ($tab === 'rodzic'): ?>
       <form method="post" action="kursant/parent_login.php" autocomplete="on">
@@ -268,8 +268,8 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
 
     <aside aria-labelledby="pp-alt-h" class="pp-note">
       <?php if ($tab === 'dydaktyk'): ?>
-        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Kadra</strong> — prowadzący, konsultanci i kierownik — loguje się tylko przez SZO.</p>
-        <p>Nie masz konta w SZO? Napisz do kierownika.</p>
+        <p id="pp-alt-h" style="margin-top:0"><strong style="color:var(--pp-ink)">Kadra</strong> — prowadzący, konsultanci i kierownik — loguje się tylko kontem Microsoft 365.</p>
+        <p>Nie masz konta @feer.org.pl? Napisz do kierownika.</p>
       <?php elseif ($tab === 'rodzic'): ?>
         <p id="pp-alt-h" style="margin:0 0 .3rem">Nie masz hasła albo go nie pamiętasz?</p>
         <a class="pp-alt" href="kursant/parent.php"><i class="bi bi-chat-dots" aria-hidden="true"></i> Zaloguj kodem SMS</a>
