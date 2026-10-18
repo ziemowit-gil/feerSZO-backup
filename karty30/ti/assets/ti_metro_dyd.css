@@ -68,23 +68,44 @@ html body.dyd-usos .dropdown-item:hover i, html body.dyd-usos .dropdown-item:foc
 html body.dyd-usos .dropdown-item.active, html body.dyd-usos .dropdown-item:active { background:var(--dm-acc-50) !important; color:var(--dm-dark) !important; box-shadow:inset 3px 0 0 var(--dm-acc) !important; }
 html body.dyd-usos .dropdown-header { font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; color:var(--dm-muted); font-weight:700; }
 
-/* ── Stałe menu boczne (modules/ti_dyd_menu) — jasne, jak EZD ─────────── */
-html body.dyd-usos .dyd-side { background:var(--dm-light) !important; border-top:0 !important; border-right:1px solid var(--dm-line); color:var(--dm-dark); scrollbar-color:rgba(0,0,0,.25) transparent; }
-html body.dyd-usos .dyd-side .dyd-side-sec { border-bottom:1px solid var(--dm-line); }
-html body.dyd-usos .dyd-side .dyd-side-grp { color:var(--dm-muted) !important; font-size:.66rem; letter-spacing:.14em; min-height:36px; }
-html body.dyd-usos .dyd-side .dyd-side-grp:hover { background:var(--dm-light-h) !important; color:var(--dm-dark) !important; }
-html body.dyd-usos .dyd-side .dyd-side-grp[aria-expanded="true"] { color:var(--dm-dark) !important; }
-html body.dyd-usos .dyd-side .dyd-side-chev { color:var(--dm-muted); }
-html body.dyd-usos .dyd-side .dyd-side-band { background:var(--dm-dark); color:#fff; }
-html body.dyd-usos .dyd-side .dyd-side-sub { color:var(--dm-muted); }
-html body.dyd-usos .dyd-side a:not(.btn) { color:var(--dm-dark) !important; border:0 !important; min-height:32px; font-size:.84rem; font-weight:400; text-decoration:none !important; }
-html body.dyd-usos .dyd-side a:not(.btn) .bi { color:var(--dm-muted); opacity:1; }
+/* ── Stałe menu boczne (modules/ti_dyd_menu) ──────────────────────────
+   Sekcje prowadzącego: jasnoszare #f2f2f2, tekst #1d1d1d (16:1), ikony #3f3f3f.
+   Blok kierownika (pasek „Kierownik” + .dyd-side-sec--staff): Metro blue #0b5582 z białym
+   tekstem (7,4:1), aktywna pozycja biała z niebieskim tekstem. Aktywna pozycja prowadzącego:
+   pełny akcent #0f6fa8 z białym tekstem (5,4:1). */
+html body.dyd-usos .dyd-side { background:var(--dm-light) !important; border-top:0 !important; border-right:1px solid #d4d4d4; color:var(--dm-dark); scrollbar-color:rgba(0,0,0,.3) transparent; }
+html body.dyd-usos .dyd-side .dyd-side-in { padding:0 0 1rem; }
+html body.dyd-usos .dyd-side .dyd-side-sec { border-bottom:1px solid #d4d4d4; padding:0 .4rem; }
+html body.dyd-usos .dyd-side .dyd-side-sec.is-open { padding-bottom:.35rem; }
+html body.dyd-usos .dyd-side .dyd-side-grp { color:var(--dm-dark) !important; font-size:.68rem; letter-spacing:.14em; min-height:38px; }
+html body.dyd-usos .dyd-side .dyd-side-grp:hover { background:var(--dm-light-h) !important; }
+html body.dyd-usos .dyd-side .dyd-side-chev { color:#3f3f3f; }
+html body.dyd-usos .dyd-side .dyd-side-sub { color:#3f3f3f; }
+html body.dyd-usos .dyd-side a:not(.btn) { color:var(--dm-dark) !important; border:0 !important; min-height:32px; font-size:.86rem; font-weight:400; text-decoration:none !important; }
+html body.dyd-usos .dyd-side a:not(.btn) .bi { color:#3f3f3f; opacity:1; }
 html body.dyd-usos .dyd-side a:not(.btn):hover { background:var(--dm-light-h) !important; text-decoration:none !important; }
 html body.dyd-usos .dyd-side a.active:not(.btn) { background:var(--dm-acc) !important; color:#fff !important; font-weight:600; }
 html body.dyd-usos .dyd-side a.active:not(.btn) .bi { color:#fff; }
+html body.dyd-usos .dyd-side .badge { font-weight:700; }
 html body.dyd-usos .dyd-side .badge.text-bg-danger { background:var(--dm-red) !important; color:#fff !important; }
-html body.dyd-usos .dyd-side .badge.text-bg-secondary { background:var(--dm-light-h) !important; color:var(--dm-dark) !important; }
+html body.dyd-usos .dyd-side .badge.text-bg-warning { background:var(--dm-orange) !important; color:#fff !important; }
+html body.dyd-usos .dyd-side .badge.text-bg-secondary { background:#d4d4d4 !important; color:var(--dm-dark) !important; }
 html body.dyd-usos .dyd-side a.active .badge { background:#fff !important; color:var(--dm-acc-d) !important; }
+/* Blok kierownika — niebieski */
+html body.dyd-usos .dyd-side .dyd-side-band { margin:0; padding:.55rem .85rem .45rem; background:#0b5582; color:#fff; font-size:.66rem; letter-spacing:.16em; border-top:1px solid #0b5582; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff { background:#0b5582; border-bottom-color:rgba(255,255,255,.2); }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff .dyd-side-grp { color:#fff !important; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff .dyd-side-grp:hover { background:rgba(255,255,255,.14) !important; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff .dyd-side-chev,
+html body.dyd-usos .dyd-side .dyd-side-sec--staff .dyd-side-sub { color:rgba(255,255,255,.85); }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff a:not(.btn) { color:#fff !important; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff a:not(.btn) .bi { color:rgba(255,255,255,.9); }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff a:not(.btn):hover { background:rgba(255,255,255,.14) !important; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff a.active:not(.btn) { background:#fff !important; color:#0b5582 !important; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff a.active:not(.btn) .bi { color:#0b5582; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff .badge.text-bg-secondary { background:rgba(255,255,255,.9) !important; color:#0b5582 !important; }
+html body.dyd-usos .dyd-side .dyd-side-sec--staff .dyd-side-grp:focus-visible,
+html body.dyd-usos .dyd-side .dyd-side-sec--staff a:focus-visible { outline-color:#fbbf24 !important; }
 html body.dyd-usos .dyd-side-toggle { background:var(--dm-dark) !important; }
 
 /* ── Okruszki i podmenu sekcji → pivot ──────────────────────────────── */
@@ -193,6 +214,46 @@ html body.dyd-usos.ti-skin .alert-secondary, html body.dyd-usos.ti-skin .alert-l
 html body.dyd-usos.ti-skin .modal-content { border:0 !important; box-shadow:0 20px 50px -20px rgba(0,0,0,.45) !important; }
 html body.dyd-usos .modal-header, html body.dyd-usos .modal-footer { border-color:var(--dm-line); }
 html body.dyd-usos .modal-title { font-weight:300 !important; font-size:1.35rem; }
+
+/* ── Lista lekcji (dydaktyk/_tab_lekcje.php, #dyd-table-lekcje) ──────────
+   Data jako duża lekka liczba, status pełnym kolorem (kolor statusu przyciemniony do AA z bielą),
+   akcje w jednym rzędzie jako płaskie polecenia, nagłówki miesięcy i sekcji jak tytuły Metro. */
+html body.dyd-usos #dyd-table-lekcje .table > tbody > tr[data-filter-item] > td { padding-top:.7rem !important; padding-bottom:.7rem !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] { border-left-width:5px !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child a { color:var(--dm-dark) !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child .fw-semibold { font-size:1.3rem; font-weight:300 !important; letter-spacing:-.01em; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child .text-body-secondary { color:var(--dm-muted) !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:nth-child(2) { font-size:.9rem !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:nth-child(4) { font-size:.92rem !important; color:var(--dm-dark); }
+html body.dyd-usos #dyd-table-lekcje .badge.dyd-st { background:color-mix(in srgb, var(--st) 62%, #000) !important; color:#fff !important; border:0 !important;
+  font-size:.66rem !important; letter-spacing:.06em; text-transform:uppercase; padding:.3rem .5rem; }
+/* Akcje: jeden rząd płaskich poleceń */
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:last-child > .d-flex { flex-wrap:nowrap !important; gap:0 !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:last-child .btn { border:0 !important; background:transparent !important; color:var(--dm-dark) !important;
+  font-weight:400 !important; padding:.35rem .6rem !important; white-space:nowrap; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:last-child .btn:hover { background:var(--dm-light-h) !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:last-child .btn-outline-primary { color:var(--dm-acc-d) !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:last-child .btn-success { background:var(--dm-green) !important; color:#fff !important; font-weight:600 !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:last-child .btn-outline-danger { color:var(--dm-red) !important; font-weight:600 !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:last-child .btn[aria-expanded="true"] { background:var(--dm-acc) !important; color:#fff !important; }
+html body.dyd-usos #dyd-table-lekcje .table thead th:last-child { width:auto !important; }
+/* Nagłówki miesięcy i sekcji */
+html body.dyd-usos #dyd-table-lekcje tr.dyd-lek-month > th { background:#fff !important; color:var(--dm-dark) !important; text-transform:lowercase !important;
+  font-size:1.35rem !important; font-weight:300 !important; letter-spacing:-.01em !important; padding:1.1rem .5rem .35rem !important; border-bottom:2px solid var(--dm-dark) !important; }
+html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec > th { background:var(--dm-light) !important; border-top:0 !important; }
+html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-btn { color:var(--dm-dark); font-weight:400; font-size:1.15rem; padding:.6rem .7rem; }
+html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-btn .badge { background:var(--dm-dark) !important; font-size:.7rem; }
+html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-todo > th { background:#fbeee5 !important; }
+html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-todo .badge { background:var(--dm-orange) !important; }
+html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-d { color:var(--dm-muted); }
+/* Widok „Oś czasu”: karty bez zaokrągleń i cienia */
+html body.dyd-usos #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] { border-color:var(--dm-line) !important; box-shadow:none !important; }
+html body.dyd-usos #dyd-table-lekcje.dyd-lek-os tr.dyd-lek-month th { border-bottom:0 !important; }
+/* Karty zajęć cyklicznych i legenda */
+html body.dyd-usos .lek-recur-card { border-color:var(--dm-line); border-left:4px solid var(--dm-acc); }
+html body.dyd-usos .lek-recur-ico { background:var(--dm-acc); color:#fff; }
+html body.dyd-usos .lek-recur-h .badge { background:var(--dm-dark); }
+html body.dyd-usos .lek-legend > summary { color:var(--dm-acc-d); }
 
 @media (prefers-reduced-motion:reduce) { html body.dyd-usos main * { transition:none !important; animation:none !important; } }
 @media print { html body.dyd-usos header .navbar { background:#fff !important; } }

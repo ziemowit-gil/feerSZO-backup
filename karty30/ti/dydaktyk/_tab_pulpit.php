@@ -180,8 +180,57 @@ $_facts[] = $_todo_n
     ? ['list-check', $_todo_n . ' ' . ($_todo_n === 1 ? 'sprawa' : ($_todo_n % 10 >= 2 && $_todo_n % 10 <= 4 && ($_todo_n % 100 < 10 || $_todo_n % 100 >= 20) ? 'sprawy' : 'spraw')) . ' do zrobienia', 'warn']
     : ['check2-circle', 'Wszystko uzupełnione', ''];
 if (!empty($_kp_counts)) $_facts[] = ['building', 'Instytucja: ' . (int)$_kp_counts['groups'] . ' grup · ' . (int)$_kp_counts['students'] . ' kursantów', ''];
-echo dydWelcomeHero((string)(dyd_current()['name'] ?? ''), ($_day_pl[date('D')] ?? '') . ', ' . date('j') . ' ' . $_mon_gen[(int)date('n')] . ' ' . date('Y'), $_facts);
+echo dydWelcomeHero((string)(dyd_current()['name'] ?? ''), ($_day_pl[date('D')] ?? '') . ', ' . date('j') . ' ' . $_mon_gen[(int)date('n')] . ' ' . date('Y'), []); // liczby pokazują kafle Start poniżej ($_facts zostaje dla wariantu bez kafli)
 ?>
+
+<?php
+// ── Kafle Start (Metro): najważniejsze liczby jednym rzutem oka, każdy kafel prowadzi do miejsca pracy ──
+require_once dirname(__DIR__, 3) . '/modules/ti_lesson_control/logic/lessonControl.php';
+$_tl_uid   = (int)(dyd_current()['user_id'] ?? 0);
+$_tl_lc    = $_tl_uid ? tiLcInstructorPendingCount($_tl_uid) : 0;
+$_tl_prot  = count($_my_pending_protocols ?? []);
+$_tl_ap    = array_sum(array_map(fn($r) => (int)$r['present'], $_att_rows));
+$_tl_ab    = array_sum(array_map(fn($r) => (int)$r['absent'], $_att_rows));
+$_tl_freq  = ($_tl_ap + $_tl_ab) > 0 ? (int)round($_tl_ap / ($_tl_ap + $_tl_ab) * 100) : null;
+$_tl = [
+    // [kolor, ikona, liczba, etykieta, podpis, adres]
+    [$_nt ? '#0f6fa8' : '#6d6d6d', 'calendar-day', $_nt, 'Dziś zajęć',
+        $_next ? 'najbliższe o ' . substr((string)$_next['time_from'], 0, 5) : ($_nt ? 'na dziś to wszystko' : 'wolne od zajęć'), 'index.php?tab=plan'],
+    [$_todo_n ? '#c25100' : '#007a00', $_todo_n ? 'list-check' : 'check2-circle', $_todo_n, 'Do zrobienia',
+        $_todo_n ? 'zobacz listę' : 'wszystko uzupełnione', '#dyd-todo'],
+    [$_tl_lc ? '#a20025' : '#007a00', 'journal-x', $_tl_lc, 'Zaległe wpisy',
+        $_tl_lc ? 'do uzupełnienia' : 'wpisy w terminie', 'kontrolaWpisow.php'],
+    [$_tl_prot ? '#6a00ff' : '#6d6d6d', 'journal-check', $_tl_prot, 'Protokoły',
+        $_tl_prot ? 'miesiące do zamknięcia' : 'zamknięte', 'protokoly_moje.php'],
+    ['#00807e', 'graph-up', $_tl_freq === null ? '—' : $_tl_freq . '%', 'Frekwencja',
+        'w tym miesiącu', 'index.php?tab=frekwencja_grup'],
+];
+if (!empty($_kp_counts)) $_tl[] = ['#1d1d1d', 'building', (int)$_kp_counts['groups'], 'Grup w instytucji',
+    (int)$_kp_counts['students'] . ' kursantów', 'index.php?tab=grupy'];
+?>
+<nav class="dyd-tiles" aria-label="Skróty pulpitu">
+  <?php foreach ($_tl as [$_tc, $_ti, $_tn, $_tlb, $_tsub, $_th]): ?>
+  <a class="dyd-tile" href="<?= h($_th) ?>" style="--k:<?= h($_tc) ?>">
+    <i class="bi bi-<?= h($_ti) ?> dyd-tile-ic" aria-hidden="true"></i>
+    <span class="dyd-tile-n"><?= h((string)$_tn) ?></span>
+    <span class="dyd-tile-l"><?= h($_tlb) ?></span>
+    <span class="dyd-tile-s"><?= h($_tsub) ?></span>
+  </a>
+  <?php endforeach; ?>
+</nav>
+<style>
+/* Kafle Start: pełny kolor, biały tekst (wszystkie kolory ≥ 4,5:1 z bielą), zero zaokrągleń */
+.dyd-tiles { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin: 0 0 1.25rem; }
+.dyd-tile { position: relative; display: flex; flex-direction: column; min-height: 132px; padding: .85rem 1rem .8rem;
+  background: var(--k); color: #fff !important; text-decoration: none !important; border-radius: 0 !important; transition: filter .12s; }
+.dyd-tile:hover, .dyd-tile:focus-visible { color: #fff !important; filter: brightness(1.12); outline: 3px solid #1d1d1d; outline-offset: 2px; }
+.dyd-tile-ic { font-size: 1.45rem; line-height: 1; }
+.dyd-tile-n { margin-top: auto; font-size: 2.6rem; font-weight: 300; line-height: 1; }
+.dyd-tile-l { font-size: .86rem; font-weight: 600; margin-top: .3rem; }
+.dyd-tile-s { font-size: .74rem; opacity: .9; }
+@media (max-width: 575.98px) { .dyd-tiles { grid-template-columns: repeat(2, 1fr); } .dyd-tile-n { font-size: 2.1rem; } }
+@media (prefers-reduced-motion: reduce) { .dyd-tile { transition: none; } }
+</style>
 
 <div class="row g-3 dyd-pulpit-cols">
 <div class="col-xl-7">
@@ -255,7 +304,7 @@ echo dydWelcomeHero((string)(dyd_current()['name'] ?? ''), ($_day_pl[date('D')] 
 <div class="col-xl-5">
 <?php include __DIR__ . '/_widget_zalegle_wpisy.php'; /* Kontrola Lekcji i Wpisów */ ?>
 <?php /* ── Do zrobienia ──────────────────────────────────────────────────── */ ?>
-<div class="card dyd-card-accent <?= $_todo_n ? 'border-warning' : '' ?>">
+<div id="dyd-todo" class="card dyd-card-accent <?= $_todo_n ? 'border-warning' : '' ?>">
   <div class="card-header d-flex align-items-center gap-2">
     <h2 class="h6 mb-0 fw-semibold"><i class="bi bi-list-check text-warning me-1" aria-hidden="true"></i>Do zrobienia</h2>
     <span class="badge <?= $_todo_n ? 'text-bg-warning' : 'text-bg-success' ?> ms-auto"><?= $_todo_n ?></span>

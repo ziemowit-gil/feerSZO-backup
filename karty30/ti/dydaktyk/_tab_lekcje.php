@@ -612,7 +612,7 @@ if ($_sms_enabled && $cur_course) {
             <?php else: ?><span class="text-body-tertiary">—</span><?php endif; ?>
           </td>
           <td>
-            <span class="badge" style="background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.68rem"><?= h($st['label']) ?></span>
+            <span class="badge dyd-st" style="--st:<?= h($st['color']) ?>;background:<?= h($st['bg']) ?>;color:<?= h($st['color']) ?>;border:1px solid <?= h($st['color']) ?>44;font-size:.68rem"><?= h($st['label']) ?></span>
             <?php $_lm2 = (string)($s['lesson_method'] ?? ''); if ($_lm2 === 'stacjonarna'): ?>
             <i class="bi bi-geo-alt-fill ms-1" title="Stacjonarna" data-bs-toggle="tooltip" style="color:#065F46;font-size:.8rem"></i>
             <?php elseif ($_lm2 === 'zdalna_zoom'): ?>
