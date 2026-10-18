@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'acce
             auth_start();
             $_SESSION['user']['document_form_consent'] = 1;
 
-            header('Location: ' . APP_URL . '/panel/index.php');
+            header('Location: ' . auth_default_landing()); // dalej: kreator pierwszych kroków i oświadczenie RODO (bramki launchera)
             exit;
         }
     }

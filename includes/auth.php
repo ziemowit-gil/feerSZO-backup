@@ -496,9 +496,10 @@ function auth_generate_setup_token(int $user_id): string {
  */
 /**
  * Dokąd trafia użytkownik po zalogowaniu (każde wejście: hasło, kod SMS, 2FA, klucz, Microsoft 365).
- * Domyślnie — System Tożsamości (/tozsamosc/): decyzja użytkownika z 2026-10-05 („Tożsamość ma się
- * uruchamiać domyślnie po każdym logowaniu”). Wyjątki wynikają z zakresu konta, bo tam Tożsamość nie
- * jest dostępna: konto tylko-EZD → Wirtualne biurko, konto tylko-CRM → pulpit CRM. Jawny, bezpieczny
+ * Domyślnie — ekran startowy panelu (/panel/launcher.php, auth_default_landing()): decyzja użytkownika
+ * z 2026-10-18 (wcześniej System Tożsamości). Nowa osoba albo bez złożonych oświadczeń najpierw przechodzi
+ * zgodę, kreator pierwszych kroków i oświadczenie RODO — pilnują tego bramki w samym launcherze.
+ * Wyjątki wynikają z zakresu konta: konto tylko-EZD → Wirtualne biurko, konto tylko-CRM → pulpit CRM. Jawny, bezpieczny
  * $redirect (np. z linku, który wymagał logowania) zawsze wygrywa. Liczone z tablicy użytkownika,
  * bo w chwili wywołania sesja może jeszcze nie istnieć (current_user() = null).
  */
@@ -516,7 +517,12 @@ function auth_login_landing(array $user, string $redirect = ''): string {
     }
     if ($ezd_only) return APP_URL . '/ezd/index.php';
     if ($crm_only) return APP_URL . '/crm/dashboard.php';
-    return APP_URL . '/tozsamosc/index.php';
+    return auth_default_landing();
+}
+
+/** Domyślna strona startowa po zalogowaniu (bez jawnego celu) — ekran startowy panelu. */
+function auth_default_landing(): string {
+    return APP_URL . '/panel/launcher.php';
 }
 
 function login_user(array $user, bool $mobile_scope = false): void {

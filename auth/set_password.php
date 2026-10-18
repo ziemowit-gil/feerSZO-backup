@@ -15,7 +15,7 @@ require_once dirname(__DIR__) . '/includes/auth_screen.php';
 auth_start();
 
 if (current_user()) {
-    header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
+    header('Location: ' . auth_default_landing()); exit;
 }
 
 $token = trim($_GET['token'] ?? $_POST['token'] ?? '');
@@ -57,7 +57,7 @@ if (!$invalid_token && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (\Throwable $e) {}
 
         login_user($user);
-        header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit;
+        header('Location: ' . auth_default_landing()); exit;
     }
 }
 

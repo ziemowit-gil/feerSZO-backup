@@ -11,7 +11,7 @@ auth_start();
 
 // If already fully logged in, go home
 if (current_user()) {
-    header('Location: ' . APP_URL . '/tozsamosc/index.php');
+    header('Location: ' . auth_default_landing());
     exit;
 }
 
@@ -23,7 +23,7 @@ if (empty($_SESSION['2fa_uid'])) {
 
 $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
-    ? $raw_redirect : APP_URL . '/tozsamosc/index.php';
+    ? $raw_redirect : auth_default_landing();
 
 $uid    = (int)$_SESSION['2fa_uid'];
 $method = $_SESSION['2fa_method'] ?? '';
@@ -147,8 +147,8 @@ function _2fa_success(array $user, string $redirect): void
           $_SESSION['2fa_phone'], $_SESSION['2fa_attempts'],
           $_SESSION['2fa_sms_sent']);
     login_user($user);
-    $tz = APP_URL . '/tozsamosc/index.php';
-    // Domyślne lądowanie = System Tożsamości (konta tylko-EZD/CRM — ich pulpit); jawny, inny adres wygrywa.
+    $tz = auth_default_landing();
+    // Domyślne lądowanie = ekran startowy panelu (konta tylko-EZD/CRM — ich pulpit); jawny, inny adres wygrywa.
     header('Location: ' . auth_login_landing($user, ($redirect && $redirect !== $tz) ? $redirect : ''));
     exit;
 }

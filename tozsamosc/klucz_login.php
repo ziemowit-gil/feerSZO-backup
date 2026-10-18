@@ -91,7 +91,7 @@ if ($api === 'complete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         klucz_out(['ok' => true, 'redirect' => APP_URL . '/panel/password.php?force=1']);
     }
     $redirect = (string)($body['redirect'] ?? '');
-    if (!str_starts_with($redirect, APP_URL . '/')) $redirect = APP_URL . '/tozsamosc/index.php';
+    if (!str_starts_with($redirect, APP_URL . '/')) $redirect = '';
     klucz_out(['ok' => true, 'redirect' => auth_login_landing($user, $redirect)]);
 }
 

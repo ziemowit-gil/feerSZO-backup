@@ -17,7 +17,7 @@ if (defined('CRM_STANDALONE') && CRM_STANDALONE) {
     header('Location: ' . APP_URL . '/crm/login.php'); exit;
 }
 
-if (current_user()) { header('Location: ' . APP_URL . '/tozsamosc/index.php'); exit; }
+if (current_user()) { header('Location: ' . auth_default_landing()); exit; }
 
 $raw_redirect = $_GET['redirect'] ?? '';
 $redirect = ($raw_redirect && str_starts_with($raw_redirect, APP_URL . '/'))
@@ -31,7 +31,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && $redirect !== ''
     header('Location: ' . APP_URL . '/tozsamosc/login.php?redirect=' . urlencode($redirect)); exit;
 }
 
-// Gdzie po zalogowaniu — domyślnie System Tożsamości (wyjątki: konta tylko-EZD / tylko-CRM), patrz auth_login_landing()
+// Gdzie po zalogowaniu — domyślnie ekran startowy panelu /panel/launcher.php (wyjątki: konta tylko-EZD / tylko-CRM), patrz auth_login_landing()
 function _login_landing(array $user): string {
     return auth_login_landing($user);
 }
@@ -334,7 +334,7 @@ $konto = in_array($_GET['konto'] ?? '', ['fundacja', 'prywatny'], true) ? $_GET[
 if ($konto === '' && (!$ms_available || $emergency || ($error && $active_tab === 'local'))) $konto = 'prywatny';
 if ($konto === 'fundacja' && !$ms_available) $konto = 'prywatny';
 // Poczta w domenie fundacji = od razu Microsoft 365, bez pośredniego ekranu z drugim przyciskiem.
-$_ms_url = $ms_available ? ms_auth_url($redirect ?: APP_URL . '/tozsamosc/index.php') : '';
+$_ms_url = $ms_available ? ms_auth_url($redirect ?: auth_default_landing()) : '';
 if ($konto === 'fundacja') { header('Location: ' . $_ms_url); exit; }
 $_konto_url = function (string $k): string {
     $q = $_GET;
