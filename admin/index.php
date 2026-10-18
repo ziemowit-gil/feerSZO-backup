@@ -230,6 +230,7 @@ $groups = [
             ['icon'=>'bi-pen-fill',             'label'=>'Autenti eSign',            'url'=>'/admin/autenti_settings.php'],
             ['icon'=>'bi-pen-fill',             'label'=>'DocuSign eSign',           'url'=>'/admin/docusign_settings.php'],
             ['icon'=>'bi-calendar-x',           'label'=>'Wygasające umowy',         'url'=>'/admin/contract_expiry.php',   'badge'=>$cnt['expiring_7'] ?: ($cnt['expiring_30'] ?: null), 'badge_type'=>$cnt['expiring_7'] ? 'danger' : 'warning'],
+            ['icon'=>'bi-arrow-counterclockwise','label'=>'Status umowy — wycofanie', 'url'=>'/modules/contract_status/router.php', 'danger'=>true],
             ['icon'=>'bi-calendar3',            'label'=>'Kalendarz umów',           'url'=>'/admin/calendar.php'],
             ['icon'=>'bi-bar-chart-line',       'label'=>'Statystyki',               'url'=>'/reports/volunteer_stats.php'],
         ],

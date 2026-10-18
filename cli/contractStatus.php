@@ -43,22 +43,14 @@ if (!defined('APP_INSTALLED')) define('APP_INSTALLED', true);
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
-require_once dirname(__DIR__) . '/includes/approval.php';   // log_contract_action()
+require_once dirname(__DIR__) . '/modules/contract_status/logic/contractStatus.php';   // wspólne z widokiem admina
 
 // ── Umowa ─────────────────────────────────────────────────────────────────────
-$types = $type === '-' ? array_keys(CONTRACT_TYPES) : [$type];
 if ($type !== '-' && !isset(CONTRACT_TYPES[$type])) {
     fwrite(STDERR, "Nieznany typ umowy: {$type}. Dostępne: " . implode(', ', array_keys(CONTRACT_TYPES)) . "\n"); exit(2);
 }
-$found = [];
-foreach ($types as $t) {
-    try {
-        $r = ctype_digit($ident) && $type !== '-'
-            ? db_one('SELECT * FROM ' . table_for_type($t) . ' WHERE id=?', [(int)$ident])
-            : db_one('SELECT * FROM ' . table_for_type($t) . ' WHERE numer_umowy=? OR nr_rejestru=?', [$ident, $ident]);
-    } catch (\Throwable $e) { $r = null; }
-    if ($r) $found[] = [$t, $r];
-}
+$found = array_values(array_filter(contractStatusFind($type, $ident),
+    fn($f) => (string)$f[1]['numer_umowy'] === $ident || (string)($f[1]['nr_rejestru'] ?? '') === $ident || (ctype_digit($ident) && (int)$f[1]['id'] === (int)$ident)));
 if (!$found)          { fwrite(STDERR, "Nie znaleziono umowy: {$ident}\n"); exit(1); }
 if (count($found) > 1) {
     fwrite(STDERR, "Numer {$ident} pasuje do kilku umów — podaj typ:\n");
@@ -74,17 +66,7 @@ echo "Umowa:  " . (CONTRACT_TYPES[$type] ?? $type) . " #{$id}  {$row['numer_umow
 echo "Status: " . $lbl($cur) . "\n";
 
 // ── Historia zmian statusu (z dziennika) ──────────────────────────────────────
-$hist = [];
-foreach (db_all("SELECT id, created_at, user_snapshot, action, note FROM contract_audit_log
-                 WHERE contract_type=? AND contract_id=? ORDER BY id DESC LIMIT 200", [$type, $id]) as $h) {
-    $note = (string)$h['note'];
-    if (preg_match('/Zmiana statusu: (.+?) → (.+?)(?= \(|\.|$)/mu', $note, $m)
-        || preg_match('/^Status: \[(.*?)\] → \[(.*?)\]/mu', $note, $m)) {
-        $hist[] = ['at' => $h['created_at'], 'who' => $h['user_snapshot'], 'from' => trim($m[1]), 'to' => trim($m[2])];
-    } elseif (preg_match('/^Status → (.+)$/mu', $note, $m)) {
-        $hist[] = ['at' => $h['created_at'], 'who' => $h['user_snapshot'], 'from' => '', 'to' => trim($m[1])];
-    }
-}
+$hist = contractStatusHistory($type, $id);
 echo "\nOstatnie zmiany statusu:\n";
 if (!$hist) echo "  (brak w dzienniku)\n";
 foreach (array_slice($hist, 0, 10) as $h) echo "  {$h['at']}  {$h['who']}:  " . ($h['from'] !== '' ? $h['from'] : '?') . " → {$h['to']}\n";
@@ -114,15 +96,7 @@ if ($as !== null) {
 echo "\nZmiana: " . $lbl($cur) . "  →  " . $lbl($to) . "\n";
 if (!$yes) { echo "Podgląd — dopisz --yes, aby zapisać.\n"; exit(0); }
 
-$upd = ['status' => $to];
-try { db_one('SELECT updated_at FROM ' . table_for_type($type) . ' LIMIT 1'); $upd['updated_at'] = date('Y-m-d H:i:s'); } catch (\Throwable $e) {}
-// Wyjście z blokady ręcznie — zdejmij flagę, żeby umowa nie wróciła do „zablokowana”
-if ($cur === 'zablokowana' && $to !== 'zablokowana' && array_key_exists('is_blocked', $row)) $upd['is_blocked'] = 0;
-db_update(table_for_type($type), $upd, $id);
-
-log_contract_action($type, $id, (int)($admin['id'] ?? 0), 'status_change',
-    'CLI (administrator' . ($admin ? ': ' . $admin['name'] : '') . '): Zmiana statusu: ' . $cur . ' → ' . $to
-    . ($undo ? ' (cofnięcie)' : '') . ($why !== '' ? '. Powód: ' . $why : ''));
+contractStatusSet($type, $row, $to, $why, (int)($admin['id'] ?? 0), 'CLI', $undo);
 
 echo "Zapisano. Status: " . $lbl($to) . "\n";
 exit(0);
