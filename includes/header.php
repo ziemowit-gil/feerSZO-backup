@@ -504,6 +504,12 @@ $__bg_subtle = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ezd/') || !empty($A
 app_bg_css($__bg_subtle ? '#EFF1F5' : '#E8EBF0', $__bg_subtle ? 'subtle' : 'normal');
 /* EZD: szata Metro UI jak System Tożsamości — ostatni blok stylów (wygrywa z motywem i tłem) */
 if ($_ezd_shell) require __DIR__ . '/ezd_metro.php';
+/* ── Nawigacja z rejestru menu (includes/menu.php) — jedno źródło prawdy ──
+   Budowana już tu, bo od aktywnej zakładki zależy szata Metro (Umowy, Wolontariat, Finanse). */
+require_once __DIR__ . '/menu.php';
+$_menu = $_user ? menu_build() : ['mode' => 'guest', 'tree' => []];
+require_once __DIR__ . '/szo_metro.php';
+if (!$_ezd_shell && ($_szo_metro_group = szo_metro_group($_menu['tree']))) szo_metro_assets($_szo_metro_group);
 /* Tabele nie ucinają kolumn: przewijanie w poziomie + menu Bootstrapa „fixed” */
 require_once __DIR__ . '/table_overflow.php'; table_overflow_assets();
 ?>
@@ -522,9 +528,7 @@ if ($_user) {
         array_slice(explode(' ', $_user['name']), 0, 2)
     ));
 }
-// ── Nawigacja z rejestru menu (includes/menu.php) — jedno źródło prawdy ──
-require_once __DIR__ . '/menu.php';
-$_menu = $_user ? menu_build() : ['mode' => 'guest', 'tree' => []];
+// $_menu zbudowane w <head> (szata Metro zależy od aktywnej zakładki)
 $_nb_nav_rendered = $_user && !empty($_menu['tree']);
 $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/[a-z0-9_]+/index\.php#i', $_uri);
 ?>
