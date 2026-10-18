@@ -392,6 +392,7 @@ body {
 #tsk-notif-banner .tsk-nb-title { @apply tw-font-bold tw-text-[.88rem]; color: #065f46; }
 #tsk-notif-banner .tsk-nb-sub { @apply tw-text-[.77rem] tw-mt-[.1rem]; color: #047857; }
 </style>
+<?php /* Szata Metro UI jak System Tożsamości — ostatni blok stylów */ require_once __DIR__ . '/tasks_metro.php'; ?>
 </head>
 <body>
 
