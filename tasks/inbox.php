@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             task_mail_send_text($tu['email'],
                 "[{$org}] Nowa wiadomosc: " . ($task['title'] ?? ''),
                 "Wiadomosc od {$u['name']}:\n\n{$msg_body}\n\n---\n" . rtrim(APP_URL,'/').'/tasks/inbox.php',
-                'task', $task_id, $target_id, 'inbox_message');
+                'task', $task_id, $target_id, 'inbox_message', (string)($u['email'] ?? '')); // odpowiedź → do autora wiadomości
         }
         echo json_encode(['ok' => true, 'id' => $msg_id]); exit;
     }

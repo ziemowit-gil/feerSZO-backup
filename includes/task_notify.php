@@ -679,9 +679,12 @@ function _tn_default_prefs(): array {
  * i mail(): gdy Graph nie jest skonfigurowany albo zwróci błąd, wiadomość nie wychodzi,
  * a błąd trafia do task_notification_errors (+ email_log jako 'm365_failed').
  * $via: 'm365' | 'rate_limited' | 'graph_not_configured' | 'graph_failed'; $err: opis błędu.
+ * $reply_to: odpowiedź odbiorcy trafi na ten adres (np. do osoby, która przekazała zadanie). NIE ustawiać
+ * w powiadomieniach z [ZAD-…] — „odpowiedź e-mailem → komentarz” czyta skrzynkę nadawcy.
  */
 function task_mail_send(string $to, string $subject, string $html, string $ctx_type = 'task', ?int $ctx_id = null,
-                        int $rate_limit = 20, string &$via = '', string &$err = '', int $user_id = 0, string $event = ''): bool {
+                        int $rate_limit = 20, string &$via = '', string &$err = '', int $user_id = 0, string $event = '',
+                        string $reply_to = ''): bool {
     $via = ''; $err = '';
     $to = trim($to);
     if ($to === '') { $via = 'no_address'; return false; }
@@ -699,7 +702,7 @@ function task_mail_send(string $to, string $subject, string $html, string $ctx_t
             $via = 'graph_not_configured';
             $err = 'Microsoft Graph nie jest skonfigurowany do wysyłki (Admin → Microsoft 365: włączony moduł, nadawca m365_sender_user_id, dane aplikacji).';
         } else {
-            $graph->send_raw_email($sender, $to, $subject, $html);
+            $graph->send_raw_email($sender, $to, $subject, $html, $reply_to);
             $via = 'm365';
             if (function_exists('email_log')) email_log($to, $subject, $ctx_type, $ctx_id, 'sent');
             return true;
@@ -721,11 +724,11 @@ function task_mail_send_html(string $to, string $subject, string $html, string $
 
 /** Jak task_mail_send(), ale z treścią w zwykłym tekście (dawne wywołania mail() z text/plain). */
 function task_mail_send_text(string $to, string $subject, string $text, string $ctx_type = 'task', ?int $ctx_id = null,
-                             int $user_id = 0, string $event = ''): bool {
+                             int $user_id = 0, string $event = '', string $reply_to = ''): bool {
     $html = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.55;color:#111827">'
           . nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</div>';
     $via = ''; $err = '';
-    return task_mail_send($to, $subject, $html, $ctx_type, $ctx_id, 20, $via, $err, $user_id, $event);
+    return task_mail_send($to, $subject, $html, $ctx_type, $ctx_id, 20, $via, $err, $user_id, $event, $reply_to);
 }
 
 function _tn_email(int $user_id, ?string $to, string $event, int $ref_id,

@@ -360,17 +360,19 @@ class M365Graph {
 
     // ── Wyślij maila powitalnego ─────────────────────────────────────────────
 
-    public function send_raw_email(string $sender_user_id, string $to, string $subject, string $html_body): void {
+    /** $reply_to (opcjonalnie): adres, na który trafi odpowiedź odbiorcy (Graph message.replyTo). */
+    public function send_raw_email(string $sender_user_id, string $to, string $subject, string $html_body, string $reply_to = ''): void {
+        $message = [
+            'subject' => $subject,
+            'body'    => ['contentType' => 'HTML', 'content' => $html_body],
+            'toRecipients' => [['emailAddress' => ['address' => $to]]],
+        ];
+        if ($reply_to !== '' && filter_var($reply_to, FILTER_VALIDATE_EMAIL)) {
+            $message['replyTo'] = [['emailAddress' => ['address' => $reply_to]]];
+        }
         $this->http_post(
             "https://graph.microsoft.com/v1.0/users/{$sender_user_id}/sendMail",
-            [
-                'message' => [
-                    'subject' => $subject,
-                    'body'    => ['contentType' => 'HTML', 'content' => $html_body],
-                    'toRecipients' => [['emailAddress' => ['address' => $to]]],
-                ],
-                'saveToSentItems' => false,
-            ]
+            ['message' => $message, 'saveToSentItems' => false]
         );
         // Graph zwraca 202 bez body przy sukcesie; błąd to {'error':{...}}
         if ($this->last_error !== null) {

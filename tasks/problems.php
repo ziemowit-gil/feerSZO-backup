@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $reporter['email'],
                 "[{$org}] Odpowiedz lidera: {$task['title']}",
                 "{$actor['name']} odpowiedzial/a na Twoje zgloszenie:\n\n{$msg_body}\n\n---\nSkrzynka: {$url}",
-                'task', null, (int)$reporter_id, 'problem_reply'
+                'task', null, (int)$reporter_id, 'problem_reply', (string)($actor['email'] ?? '') // odpowiedź → do lidera
             );
         }
 
