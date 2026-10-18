@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/it_helpers.php';
+require_once dirname(__DIR__) . '/modules/panel_metro/lib/panelMetro.php';
 it_migrate();
 
 require_role('admin', 'editor');
@@ -38,171 +39,177 @@ $recent_passwords = db_all(
 
 $total_passwords = (int)(db_one("SELECT COUNT(*) AS c FROM it_service_passwords")['c'] ?? 0);
 
-include dirname(__DIR__) . '/includes/header.php';
-?>
-<div class="container-fluid py-4">
+// Kolor kafla serwisu: własny kolor serwisu, gdy biały tekst ma na nim kontrast ≥ 4,5:1,
+// inaczej kolor z palety Metro (przyciemnionej do WCAG AA) wg kolejności.
+$it_tile_color = function (string $color, int $i): string {
+    $pal = ['blue', 'teal', 'green', 'violet', 'indigo', 'magenta', 'red', 'dark'];
+    return preg_match('/^#[0-9a-f]{3,6}$/i', $color) && panelMetroOnColor($color) === '#ffffff'
+        ? $color : panelMetroColor($pal[$i % count($pal)]);
+};
+$total_active = array_sum(array_column($stats, 'active'));
 
-  <!-- Header -->
-  <div class="d-flex align-items-center gap-3 mb-4">
-    <div style="width:48px;height:48px;border-radius:12px;background:#fff3e0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#fd7e14;flex-shrink:0">
-      <i class="bi bi-hdd-network"></i>
-    </div>
+include dirname(__DIR__) . '/includes/header.php';
+panelMetroAssets(panelMetroColor('orange'));
+?>
+<style>
+.pvm.itm{max-width:1320px}
+.pvm .mt-grp{margin-bottom:1.75rem}
+.pvm .mt-grp-h{margin:0 0 .5rem;font-size:1.05rem;font-weight:300;color:var(--pvm-muted);letter-spacing:.01em}
+.pvm .itm-acts{display:flex;flex-wrap:wrap;gap:.5rem}
+.pvm .itm-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;margin:0 0 .6rem}
+.pvm .itm-bar .mt-h2{margin:0}
+.pvm .itm-rows{list-style:none;margin:0;padding:0}
+.pvm .itm-rows .mt-svc{margin-bottom:4px;align-items:center;padding:.7rem 1rem}
+.pvm .itm-rows .mt-svc>.ic{color:var(--c);font-size:1.35rem}
+.pvm .itm-rows h3 a{color:var(--pvm-ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;text-decoration:underline;text-underline-offset:3px;word-break:break-all}
+.pvm .itm-rows h3 a:hover{text-decoration-thickness:2px}
+.pvm .itm-rows h3 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}
+.pvm .itm-meta{display:flex;flex-wrap:wrap;gap:.2rem 1rem;margin:.2rem 0 0;font-size:.82rem;color:var(--pvm-muted)}
+.pvm .itm-meta a{color:var(--pvm-muted);text-decoration:underline;text-underline-offset:2px}
+.pvm .itm-meta a:hover{color:var(--pvm-ink)}
+.pvm .itm-date{font-size:.8rem;color:var(--pvm-muted);white-space:nowrap;flex-shrink:0}
+.pvm .itm-ok{color:var(--m-green);font-size:1.1rem}
+@media(max-width:575px){.pvm .itm-rows .mt-svc{flex-wrap:wrap}.pvm .itm-date{width:100%;padding-left:3.25rem}}
+:root[data-theme="hc"] .pvm .itm-rows .mt-svc>.ic{color:#000}
+</style>
+<div class="container-fluid py-4">
+<div class="pvm itm">
+
+  <div class="mt-head">
     <div>
-      <h1 class="h4 mb-0 fw-bold">Dostępy i Infrastruktura IT</h1>
-      <p class="text-muted mb-0 small">Zarządzanie kontami, dostępami i hasłami serwisów</p>
+      <div class="mt-kicker">Infrastruktura IT</div>
+      <h1 class="mt-title">Dostępy i Infrastruktura IT</h1>
+      <p class="mt-lead">Zarządzanie kontami, dostępami i hasłami serwisów</p>
     </div>
-    <div class="ms-auto d-flex gap-2">
-      <a href="<?= APP_URL ?>/it/accounts.php" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-list-ul me-1"></i> Wszystkie konta
-      </a>
-      <a href="<?= APP_URL ?>/it/passwords.php" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-key me-1"></i> Hasła
-      </a>
+    <div class="itm-acts">
+      <a href="<?= APP_URL ?>/it/accounts.php" class="mt-btn mt-btn--ghost"><i class="bi bi-list-ul" aria-hidden="true"></i> Wszystkie konta</a>
+      <a href="<?= APP_URL ?>/it/passwords.php" class="mt-btn mt-btn--ghost"><i class="bi bi-key" aria-hidden="true"></i> Hasła</a>
       <?php if (is_admin()): ?>
-      <a href="<?= APP_URL ?>/it/services.php" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-gear me-1"></i> Serwisy
-      </a>
+      <a href="<?= APP_URL ?>/it/services.php" class="mt-btn mt-btn--ghost"><i class="bi bi-gear" aria-hidden="true"></i> Serwisy</a>
       <?php endif; ?>
     </div>
   </div>
 
-  <!-- Kafelki serwisów -->
-  <div class="row g-3 mb-4">
-    <?php foreach ($stats as $slug => $s): ?>
-    <div class="col-sm-6 col-lg-3">
-      <a href="<?= APP_URL ?>/it/accounts.php?service=<?= urlencode($slug) ?>" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid <?= h($s['service']['color']) ?>!important;border-left-style:solid">
-          <div class="card-body">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <i class="bi <?= h($s['service']['icon']) ?>" style="color:<?= h($s['service']['color']) ?>;font-size:1.2rem"></i>
-              <span class="fw-semibold"><?= h($s['service']['name']) ?></span>
-            </div>
-            <div class="d-flex gap-3">
-              <div>
-                <div class="fs-4 fw-bold" style="color:<?= h($s['service']['color']) ?>"><?= $s['active'] ?></div>
-                <div class="text-muted" style="font-size:.72rem">aktywne</div>
-              </div>
-              <?php if ($s['inactive']): ?>
-              <div>
-                <div class="fs-4 fw-bold text-secondary"><?= $s['inactive'] ?></div>
-                <div class="text-muted" style="font-size:.72rem">nieaktywne</div>
-              </div>
-              <?php endif; ?>
-            </div>
-          </div>
-        </div>
-      </a>
-    </div>
-    <?php endforeach; ?>
-    <!-- Hasła -->
-    <div class="col-sm-6 col-lg-3">
-      <a href="<?= APP_URL ?>/it/passwords.php" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #fd7e14!important;border-left-style:solid">
-          <div class="card-body">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <i class="bi bi-key-fill" style="color:#fd7e14;font-size:1.2rem"></i>
-              <span class="fw-semibold">Wydane hasła</span>
-            </div>
-            <div class="fs-4 fw-bold" style="color:#fd7e14"><?= $total_passwords ?></div>
-            <div class="text-muted" style="font-size:.72rem">łącznie w historii</div>
-          </div>
-        </div>
-      </a>
-    </div>
+  <div class="mt-pivot" data-pvm-pivot role="tablist" aria-label="Sekcje: Dostępy i Infrastruktura IT">
+    <button type="button" role="tab" id="itm-tab-start" aria-controls="itm-p-start" data-tab="start">Start</button>
+    <button type="button" role="tab" id="itm-tab-konta" aria-controls="itm-p-konta" data-tab="konta">Ostatnie konta</button>
+    <button type="button" role="tab" id="itm-tab-hasla" aria-controls="itm-p-hasla" data-tab="hasla">Ostatnie hasła</button>
   </div>
 
-  <div class="row g-4">
+  <!-- Start: kafle serwisów -->
+  <section id="itm-p-start" data-pvm-panel="start" role="tabpanel" aria-labelledby="itm-tab-start" tabindex="-1">
+    <section class="mt-grp" aria-labelledby="itm-h-serwisy">
+      <h2 class="mt-grp-h" id="itm-h-serwisy">Konta w serwisach</h2>
+      <?php if ($stats): ?>
+      <nav class="mt-grid" aria-labelledby="itm-h-serwisy">
+        <?php $i = 0; foreach ($stats as $slug => $s):
+            panelMetroTile([
+                'href'  => APP_URL . '/it/accounts.php?service=' . urlencode($slug),
+                'icon'  => $s['service']['icon'] ?: 'bi-hdd-network',
+                'label' => $s['service']['name'],
+                'val'   => (string)$s['active'],
+                'sub'   => 'aktywne' . ($s['inactive'] ? ' · ' . $s['inactive'] . ' nieaktywne' : ''),
+                'color' => $it_tile_color((string)$s['service']['color'], $i++),
+            ]);
+        endforeach; ?>
+      </nav>
+      <?php else: ?>
+      <div class="mt-empty" role="status">Brak aktywnych serwisów.</div>
+      <?php endif; ?>
+    </section>
 
-    <!-- Ostatnie konta -->
-    <div class="col-lg-7">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white d-flex align-items-center justify-content-between py-2">
-          <span class="fw-semibold"><i class="bi bi-person-badge me-2 text-orange"></i>Ostatnie konta IT</span>
-          <a href="<?= APP_URL ?>/it/accounts.php" class="btn btn-sm btn-link p-0">Wszystkie →</a>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-hover mb-0 small">
-            <thead class="table-light">
-              <tr>
-                <th>Serwis</th>
-                <th>Login</th>
-                <th>Umowa</th>
-                <th>Status</th>
-                <th>Akt.</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($recent_accounts as $a): ?>
-              <tr>
-                <td>
-                  <i class="bi <?= h($a['service_icon']) ?>" style="color:<?= h($a['service_color']) ?>"></i>
-                  <span class="ms-1"><?= h($a['service_name']) ?></span>
-                </td>
-                <td class="font-monospace">
-                  <a href="<?= APP_URL ?>/it/accounts.php?id=<?= $a['id'] ?>" class="text-decoration-none">
-                    <?= h($a['login'] ?: $a['display_name'] ?: '—') ?>
-                  </a>
-                </td>
-                <td>
-                  <?php if ($a['contract_type'] && $a['contract_id']): ?>
-                  <a href="<?= it_contract_url($a['contract_type'], (int)$a['contract_id']) ?>"
-                     class="text-decoration-none text-muted" style="font-size:.78rem">
-                    <?= h(it_contract_label($a['contract_type'])) ?>
-                    <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem"></i>
-                  </a>
-                  <?php else: ?>—<?php endif; ?>
-                </td>
-                <td>
-                  <?php if ($a['is_active']): ?>
-                  <span class="badge bg-success-subtle text-success border border-success-subtle">aktywne</span>
-                  <?php else: ?>
-                  <span class="badge bg-secondary-subtle text-secondary border">nieaktywne</span>
-                  <?php endif; ?>
-                </td>
-                <td class="text-muted" style="font-size:.72rem"><?= date_pl(substr($a['updated_at'],0,10)) ?></td>
-              </tr>
-              <?php endforeach; ?>
-              <?php if (!$recent_accounts): ?>
-              <tr><td colspan="5" class="text-muted py-3 text-center">Brak kont IT</td></tr>
-              <?php endif; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <section class="mt-grp" aria-labelledby="itm-h-narz">
+      <h2 class="mt-grp-h" id="itm-h-narz">Przegląd</h2>
+      <nav class="mt-grid" aria-labelledby="itm-h-narz">
+        <?php
+        panelMetroTile(['href' => APP_URL . '/it/accounts.php', 'icon' => 'bi-person-badge', 'label' => 'Wszystkie konta',
+            'val' => (string)$total_active, 'sub' => 'aktywnych łącznie', 'color' => 'orange', 'size' => 'w']);
+        panelMetroTile(['href' => APP_URL . '/it/passwords.php', 'icon' => 'bi-key-fill', 'label' => 'Wydane hasła',
+            'val' => (string)$total_passwords, 'sub' => 'łącznie w historii', 'color' => 'dark']);
+        panelMetroTile(['href' => '#konta', 'go' => 'konta', 'icon' => 'bi-clock-history', 'label' => 'Ostatnie konta',
+            'val' => (string)count($recent_accounts), 'sub' => 'ostatnio zmienione', 'color' => 'teal']);
+        panelMetroTile(['href' => '#hasla', 'go' => 'hasla', 'icon' => 'bi-shield-lock', 'label' => 'Ostatnie hasła',
+            'val' => (string)count($recent_passwords), 'sub' => 'ostatnio wydane', 'color' => 'indigo']);
+        if (is_admin()) {
+            panelMetroTile(['href' => APP_URL . '/it/services.php', 'icon' => 'bi-gear', 'label' => 'Serwisy',
+                'val' => (string)count($services), 'sub' => 'konfiguracja', 'color' => 'grey']);
+        }
+        ?>
+      </nav>
+    </section>
+  </section>
+
+  <!-- Ostatnie konta -->
+  <section id="itm-p-konta" data-pvm-panel="konta" role="tabpanel" aria-labelledby="itm-tab-konta" tabindex="-1" hidden>
+    <div class="itm-bar">
+      <h2 class="mt-h2" id="itm-h-konta"><b>Ostatnie konta IT</b></h2>
+      <a href="<?= APP_URL ?>/it/accounts.php" class="mt-btn mt-btn--ghost">Wszystkie konta <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
     </div>
-
-    <!-- Ostatnie hasła -->
-    <div class="col-lg-5">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white d-flex align-items-center justify-content-between py-2">
-          <span class="fw-semibold"><i class="bi bi-key me-2" style="color:#fd7e14"></i>Ostatnie hasła</span>
-          <a href="<?= APP_URL ?>/it/passwords.php" class="btn btn-sm btn-link p-0">Wszystkie →</a>
+    <?php if ($recent_accounts): ?>
+    <ul class="itm-rows" aria-labelledby="itm-h-konta">
+      <?php foreach ($recent_accounts as $a): ?>
+      <li class="mt-svc" style="--c:<?= h($a['service_color'] ?: '#5f5f5f') ?>">
+        <i class="bi <?= h($a['service_icon'] ?: 'bi-hdd-network') ?> ic" aria-hidden="true"></i>
+        <div class="mt-svc__bd">
+          <h3>
+            <a href="<?= APP_URL ?>/it/accounts.php?id=<?= (int)$a['id'] ?>"><?= h($a['login'] ?: $a['display_name'] ?: '—') ?></a>
+            <?php if ($a['is_active']): ?>
+            <span class="mt-badge mt-badge--ok">aktywne</span>
+            <?php else: ?>
+            <span class="mt-badge">nieaktywne</span>
+            <?php endif; ?>
+          </h3>
+          <div class="itm-meta">
+            <span><?= h($a['service_name']) ?></span>
+            <?php if ($a['contract_type'] && $a['contract_id']): ?>
+            <a href="<?= it_contract_url($a['contract_type'], (int)$a['contract_id']) ?>"><?= h(it_contract_label($a['contract_type'])) ?> — umowa <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+            <?php endif; ?>
+          </div>
         </div>
-        <ul class="list-group list-group-flush">
-          <?php foreach ($recent_passwords as $p): ?>
-          <li class="list-group-item py-2 px-3">
-            <div class="d-flex align-items-center gap-2">
-              <i class="bi <?= h($p['service_icon']) ?>" style="color:<?= h($p['service_color']) ?>;font-size:.9rem"></i>
-              <span class="font-monospace small"><?= h($p['login'] ?: '—') ?></span>
-              <?php if ($p['sent_to_email']): ?>
-              <i class="bi bi-envelope-check text-success ms-auto" title="Wysłano na: <?= h($p['sent_to_email']) ?>"></i>
-              <?php endif; ?>
-            </div>
-            <div class="text-muted" style="font-size:.72rem">
-              <?= date_pl(substr($p['issued_at'],0,10)) ?>
-              <?php if ($p['issued_by_name']): ?>· <?= h($p['issued_by_name']) ?><?php endif; ?>
-              <?php if ($p['is_superseded']): ?><span class="badge bg-secondary ms-1" style="font-size:.6rem">wygasłe</span><?php endif; ?>
-            </div>
-          </li>
-          <?php endforeach; ?>
-          <?php if (!$recent_passwords): ?>
-          <li class="list-group-item text-muted py-3 text-center small">Brak historii haseł</li>
-          <?php endif; ?>
-        </ul>
-      </div>
-    </div>
+        <span class="itm-date"><span class="visually-hidden">Aktualizacja: </span><?= date_pl(substr((string)$a['updated_at'], 0, 10)) ?></span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php else: ?>
+    <div class="mt-empty" role="status">Brak kont IT</div>
+    <?php endif; ?>
+  </section>
 
-  </div>
+  <!-- Ostatnie hasła -->
+  <section id="itm-p-hasla" data-pvm-panel="hasla" role="tabpanel" aria-labelledby="itm-tab-hasla" tabindex="-1" hidden>
+    <div class="itm-bar">
+      <h2 class="mt-h2" id="itm-h-hasla"><b>Ostatnie hasła</b></h2>
+      <a href="<?= APP_URL ?>/it/passwords.php" class="mt-btn mt-btn--ghost">Wszystkie hasła <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <?php if ($recent_passwords): ?>
+    <ul class="itm-rows" aria-labelledby="itm-h-hasla">
+      <?php foreach ($recent_passwords as $p): ?>
+      <li class="mt-svc" style="--c:<?= h($p['service_color'] ?: '#5f5f5f') ?>">
+        <i class="bi <?= h($p['service_icon'] ?: 'bi-key') ?> ic" aria-hidden="true"></i>
+        <div class="mt-svc__bd">
+          <h3>
+            <span class="mono"><?= h($p['login'] ?: '—') ?></span>
+            <?php if ($p['is_superseded']): ?><span class="mt-badge">wygasłe</span><?php endif; ?>
+            <?php if ($p['sent_to_email']): ?>
+            <i class="bi bi-envelope-check itm-ok" title="Wysłano na: <?= h($p['sent_to_email']) ?>" aria-hidden="true"></i>
+            <span class="visually-hidden">Wysłano na: <?= h($p['sent_to_email']) ?></span>
+            <?php endif; ?>
+          </h3>
+          <div class="itm-meta">
+            <span><?= h($p['service_name']) ?></span>
+            <?php if ($p['issued_by_name']): ?><span>wydał(a): <?= h($p['issued_by_name']) ?></span><?php endif; ?>
+          </div>
+        </div>
+        <span class="itm-date"><span class="visually-hidden">Wydano: </span><?= date_pl(substr((string)$p['issued_at'], 0, 10)) ?></span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php else: ?>
+    <div class="mt-empty" role="status">Brak historii haseł</div>
+    <?php endif; ?>
+  </section>
+
+</div>
 </div>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
