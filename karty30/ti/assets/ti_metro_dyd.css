@@ -219,7 +219,11 @@ html body.dyd-usos .modal-title { font-weight:300 !important; font-size:1.35rem;
    Data jako duża lekka liczba, status pełnym kolorem (kolor statusu przyciemniony do AA z bielą),
    akcje w jednym rzędzie jako płaskie polecenia, nagłówki miesięcy i sekcji jak tytuły Metro. */
 html body.dyd-usos #dyd-table-lekcje .table > tbody > tr[data-filter-item] > td { padding-top:.7rem !important; padding-bottom:.7rem !important; }
-html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] { border-left-width:5px !important; }
+/* Kolor statusu jako kropka przy dacie zamiast pionowej opaski (--st z wiersza; kolor przyciemniony jak znacznik) */
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] { border-left:0 !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child { position:relative; padding-left:1.75rem !important; }
+html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child::before { content:''; position:absolute; left:.6rem; top:1.35rem;
+  width:10px; height:10px; border-radius:50% !important; background:color-mix(in srgb, var(--st, #8a8a8a) 75%, #000); }
 html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child a { color:var(--dm-dark) !important; }
 html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child .fw-semibold { font-size:1.3rem; font-weight:300 !important; letter-spacing:-.01em; }
 html body.dyd-usos #dyd-table-lekcje tr[data-filter-item] > td:first-child .text-body-secondary { color:var(--dm-muted) !important; }
@@ -247,7 +251,9 @@ html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-todo > th { background:#fbeee5
 html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-todo .badge { background:var(--dm-orange) !important; }
 html body.dyd-usos #dyd-table-lekcje .dyd-lek-sec-d { color:var(--dm-muted); }
 /* Widok „Oś czasu”: karty bez zaokrągleń i cienia */
-html body.dyd-usos #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] { border-color:var(--dm-line) !important; box-shadow:none !important; }
+html body.dyd-usos #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] { border:1px solid var(--dm-line) !important; box-shadow:none !important; }
+html body.dyd-usos #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:first-child { padding-left:1.1rem !important; }
+html body.dyd-usos #dyd-table-lekcje.dyd-lek-os tr[data-filter-item] > td:first-child::before { left:0; top:.5rem; }
 html body.dyd-usos #dyd-table-lekcje.dyd-lek-os tr.dyd-lek-month th { border-bottom:0 !important; }
 /* Karty zajęć cyklicznych i legenda */
 html body.dyd-usos .lek-recur-card { border-color:var(--dm-line); border-left:4px solid var(--dm-acc); }

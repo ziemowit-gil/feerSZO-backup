@@ -228,6 +228,12 @@ if ($_sms_enabled && $cur_course) {
     <?php if ($pending_cancel_total > 0): ?><span class="badge text-bg-warning"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i><?= $pending_cancel_total ?></span><?php endif; ?>
     <?php $_n_drafts = (int)(db_one("SELECT COUNT(*) AS n FROM k30_ti_sessions WHERE course_id=? AND status='draft' AND draft_id IS NULL", [(int)$cur_course])['n'] ?? 0); ?>
     <div class="ms-auto d-flex align-items-center gap-2">
+      <?php if ($recurring_rules): ?>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="lekRecurBtn" aria-expanded="false" aria-controls="lekRecur"
+              title="Pokaż / schowaj zajęcia stałe (reguły powtarzania terminów)">
+        <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Zajęcia stałe <span class="badge text-bg-secondary"><?= count($recurring_rules) ?></span>
+      </button>
+      <?php endif; ?>
       <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#dydPrintModal">
         <i class="bi bi-printer me-1" aria-hidden="true"></i>Wydruki<?php if ($_n_drafts > 0): ?> <span class="badge text-bg-secondary" title="Wersje robocze"><?= $_n_drafts ?></span><?php endif; ?>
       </button>
@@ -387,7 +393,7 @@ if ($_sms_enabled && $cur_course) {
     $_rr_rooms = [];
     foreach (db_all("SELECT id, name, short_label FROM k30_pl_rooms") as $_rm) $_rr_rooms[(int)$_rm['id']] = trim((string)$_rm['short_label']) !== '' ? (string)$_rm['short_label'] : (string)$_rm['name'];
   ?>
-  <div class="lek-recur">
+  <div class="lek-recur" id="lekRecur" hidden>
     <h3 class="lek-recur-h"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Zajęcia stałe <span class="badge rounded-pill"><?= count($recurring_rules) ?></span></h3>
     <?php /* Akcje masowe na zaznaczonych regułach */ ?>
     <form method="post" id="rrBulk" class="lek-recur-bulk"
@@ -458,6 +464,18 @@ if ($_sms_enabled && $cur_course) {
     <script>
     function rrBulkCount(){ var n=document.querySelectorAll('input[name="rule_ids[]"][form=rrBulk]:checked').length; document.getElementById('rrBulkN').textContent='Zaznaczone: '+n; }
     document.addEventListener('change', function(e){ if (e.target.matches('input[name="rule_ids[]"][form=rrBulk]')) rrBulkCount(); });
+    // Zajęcia stałe schowane pod przyciskiem w pasku „Lekcje”; stan pamiętany w przeglądarce
+    (function () {
+      var box = document.getElementById('lekRecur'), btn = document.getElementById('lekRecurBtn'), KEY = 'dyd:lekRecurOpen';
+      if (!box || !btn) return;
+      function set(open) {
+        box.hidden = !open; btn.setAttribute('aria-expanded', open ? 'true' : 'false'); btn.classList.toggle('active', open);
+        try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
+      }
+      var start = false; try { start = localStorage.getItem(KEY) === '1'; } catch (e) {}
+      set(start);
+      btn.addEventListener('click', function () { set(box.hidden); if (!box.hidden) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+    })();
     </script>
   </div>
   <?php endif; ?>
@@ -597,7 +615,7 @@ if ($_sms_enabled && $cur_course) {
                  : ($_held ? 'done' : 'upcoming'));
         ?>
         <tr data-filter-item="1" data-date="<?= h($s['lesson_date']) ?>" data-time="<?= h(substr((string)$s['time_from'], 0, 5)) ?>" data-section="<?= $_sec ?>"
-            style="border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
+            style="--st:<?= h($st['color']) ?>;border-left:3px solid <?= h($st['color']) ?>;<?= $s['status']==='remote_material' ? 'background:'.$st['bg'] : '' ?>"
             class="<?= $is_past && $s['status']==='planned' ? 'opacity-75' : '' ?>">
           <td style="font-size:.82rem;line-height:1.3">
             <a href="index.php?course=<?= (int)$cur_course ?>&tab=lekcje&lesson=<?= (int)$s['id'] ?>" data-dyd-lesson="<?= (int)$s['id'] ?>"
