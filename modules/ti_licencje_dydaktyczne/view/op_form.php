@@ -13,7 +13,7 @@ $inv = fn(string $k) => isset($errors[$k]) ? ' is-invalid" aria-invalid="true" a
 $am20 = $form === OperationForm::Am20;
 ?>
 <div class="pivot"><a href="<?= h(route('ld.accounts')) ?>">Operacje na licencjach</a><a href="<?= h(route('ld.account', ['kind' => $acc['kind'], 'id' => $acc['id']])) ?>"><?= h($acc['name']) ?></a><a href="#" aria-current="page"><?= h($form->value) ?></a></div>
-<h1><span class="sym" style="background:<?= h($form->color()) ?>"><?= h($form->value) ?></span> <?= h($form->title()) ?></h1>
+<h1><span class="sym" style="background:<?= h($form->color()) ?>"><?= h($form->value) ?></span> <?= h($form->title()) ?><?= $am20 ? ' <small class="text-secondary fs-6">formularz elektroniczny AM20 + AM20-1</small>' : '' ?></h1>
 <p class="text-secondary"><?= h($acc['name']) ?> · <?= h($acc['role']) ?> · numer sprawy: <b><?= h(LD_OP_PREFIX . '-' . $form->value . '/' . LD_OP_ORG_ID . '/NNNNNNXX/' . date('Y') . '/' . $acc['sub_id']) ?></b> ·
   <?= $form->needsApproval() ? 'decyzję podejmuje kierownik (decyzja cyfrowa)' : '<b>bez akceptacji kierownika</b> — osoba potwierdza wniosek przez link (e-mail + SMS), zmiana wchodzi po potwierdzeniu' ?> · realizacja do <?= LD_REALIZATION_DAYS ?> dni.</p>
 <?php if ($errors): ?><div class="alert alert-danger" role="alert">Popraw zaznaczone pola (<?= count($errors) ?>).</div><?php endif; ?>
@@ -92,30 +92,12 @@ $am20 = $form === OperationForm::Am20;
 <section class="panel"><p class="small mb-0"><?= h($form->statement()) ?></p></section>
 <?php endif; ?>
 
-<?php if ($am20): $docs = array_values((array)($old['am20_1'] ?? [])); $docsTarget = max(3, count($docs) + 2); while (count($docs) < $docsTarget) $docs[] = ['typ' => '', 'numer' => '', 'data' => '', 'kwota' => '', 'zrodlo' => '']; ?>
+<?php if ($am20): ?>
 <section class="panel" id="am20-1">
   <h2 class="mt-0"><span class="sym" style="background:#008a00">AM20-1</span> Wykaz dokumentów księgowych wystawionych dotąd przez FEER</h2>
-  <p class="small text-secondary">Dokumenty związane z opłatą za tę licencję (faktury, faktury zbiorcze, korekty, dopłaty w rozliczeniach) z kwotami. Wiersze z rejestru faktur i rozliczeń TI
-    są podpowiedzią — sprawdź je, popraw albo dopisz brakujące. Na wydruku AM20-1 pojawi się suma oraz data pierwszej i ostatniej faktury.</p>
-  <?= $err('am20_1') ?>
-  <div class="table-responsive"><table class="table table-sm align-middle mb-2">
-    <thead><tr><th style="width:20%">Rodzaj</th><th>Numer dokumentu</th><th style="width:17%">Data wystawienia</th><th style="width:16%">Kwota brutto (zł)</th><th class="small text-secondary">Źródło</th></tr></thead>
-    <tbody>
-    <?php foreach ($docs as $i => $dd): ?>
-      <tr>
-        <td><label class="visually-hidden" for="dt<?= $i ?>">Rodzaj dokumentu <?= $i + 1 ?></label><input class="form-control form-control-sm" id="dt<?= $i ?>" name="am20_1[<?= $i ?>][typ]" value="<?= h($dd['typ']) ?>" list="am20-typy" placeholder="faktura"></td>
-        <td><label class="visually-hidden" for="dn<?= $i ?>">Numer dokumentu <?= $i + 1 ?></label><input class="form-control form-control-sm" id="dn<?= $i ?>" name="am20_1[<?= $i ?>][numer]" value="<?= h($dd['numer']) ?>"></td>
-        <td><label class="visually-hidden" for="dd<?= $i ?>">Data dokumentu <?= $i + 1 ?></label><input class="form-control form-control-sm" type="date" id="dd<?= $i ?>" name="am20_1[<?= $i ?>][data]" value="<?= h($dd['data']) ?>"></td>
-        <td><label class="visually-hidden" for="dk<?= $i ?>">Kwota dokumentu <?= $i + 1 ?></label><input class="form-control form-control-sm" id="dk<?= $i ?>" name="am20_1[<?= $i ?>][kwota]" value="<?= h($dd['kwota']) ?>" inputmode="decimal"></td>
-        <td class="small text-secondary"><?= h($dd['zrodlo'] ?: 'ręcznie') ?><input type="hidden" name="am20_1[<?= $i ?>][zrodlo]" value="<?= h($dd['zrodlo'] ?: 'ręcznie') ?>"></td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table></div>
-  <datalist id="am20-typy"><option value="faktura"><option value="faktura zbiorcza"><option value="faktura korygująca"><option value="rachunek"><option value="nota księgowa"><option value="rozliczenie TI (dopłata)"></datalist>
-  <div class="form-check"><input class="form-check-input" type="checkbox" id="am20b" name="am20_1_brak" value="1"<?= !empty($old['am20_1_brak']) ? ' checked' : '' ?>>
-    <label class="form-check-label small" for="am20b">FEER nie wystawiała dotąd dokumentów księgowych za tę licencję</label></div>
-  <p class="small text-secondary mb-0">Więcej wierszy: zapisz z błędem lub dopisz po ponownym otwarciu — puste wiersze są pomijane.</p>
+  <p class="small text-secondary">Formularz elektroniczny załącznika: dokumenty związane z opłatą za tę licencję (faktury, faktury zbiorcze, korekty, dopłaty w rozliczeniach) z kwotami.
+    Wiersze z rejestru faktur i rozliczeń TI są podpowiedzią — sprawdź, popraw albo dopisz brakujące.</p>
+  <?php $docs = (array)($old['am20_1'] ?? []); $brak = !empty($old['am20_1_brak']); $errAm = $errors['am20_1'] ?? ''; include __DIR__ . '/_am20_1_table.php'; ?>
 </section>
 <?php endif; ?>
 

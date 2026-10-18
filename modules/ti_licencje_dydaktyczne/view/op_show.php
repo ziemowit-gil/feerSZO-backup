@@ -88,6 +88,24 @@ $opVal = function (array $def, string $v): string {
 </div></section>
 </div>
 
+<?php if ($f === OperationForm::Am20): ?>
+<section class="panel" id="am20-1">
+  <h2 class="mt-0"><span class="sym" style="background:#008a00">AM20-1</span> Wykaz dokumentów księgowych <?= $st === OperationStatus::Signing ? '— formularz elektroniczny (do potwierdzenia przez osobę)' : '' ?></h2>
+  <?php if ($st === OperationStatus::Signing): ?>
+    <form method="post" action="<?= h(route('ld.op.am20annex', ['id' => $id])) ?>"><?= Router::csrfField() ?>
+      <?php $docs = (array)($op['request']['am20_1'] ?? []); $brak = !empty($op['request']['am20_1_brak']); $errAm = ''; include __DIR__ . '/_am20_1_table.php'; ?>
+      <button class="btn btn-metro green mt-2">Zapisz AM20-1</button>
+    </form>
+  <?php else: $am = (array)($op['request']['am20_1'] ?? []); $sm = LicenseResources::accountingSummary($am); ?>
+    <?php if (!$am): ?><p class="mb-0"><?= !empty($op['request']['am20_1_brak']) ? 'FEER nie wystawiała dokumentów za tę licencję.' : '—' ?></p><?php else: ?>
+    <table class="table table-sm small mb-1"><thead><tr><th>Rodzaj</th><th>Numer</th><th>Data</th><th class="text-end">Kwota</th></tr></thead><tbody>
+      <?php foreach ($am as $dd): ?><tr><td><?= h($dd['typ']) ?></td><td><b><?= h($dd['numer']) ?></b></td><td><?= h(ldDate($dd['data'])) ?></td><td class="text-end"><?= $dd['kwota'] !== '' ? h(LicenseOperationService::money((float)$dd['kwota'])) : '—' ?></td></tr><?php endforeach; ?>
+    </tbody></table>
+    <p class="small mb-0">Razem <b><?= h(LicenseOperationService::money($sm['sum'])) ?></b> · pierwsza faktura <b><?= h(ldDate($sm['first_invoice']) ?: '—') ?></b> · ostatnia <b><?= h(ldDate($sm['last_invoice']) ?: '—') ?></b></p><?php endif; ?>
+  <?php endif; ?>
+</section>
+<?php endif; ?>
+
 <?php if ($history): ?>
 <section class="panel">
   <h2 class="mt-0">Historia płatników licencji</h2>

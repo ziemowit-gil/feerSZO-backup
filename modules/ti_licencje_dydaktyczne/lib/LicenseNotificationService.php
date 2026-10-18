@@ -24,6 +24,9 @@ final class LicenseNotificationService
     public const MODULE = 'ti_licencje_dyd';
     public const SMS_KIND = 'ti_licencja_am5';
 
+    /** $module — znacznik w notification_logs i kontekst mail_queue (np. 'ti_dop' dla wniosków DOP1/DOP2). */
+    public function __construct(private readonly string $module = self::MODULE) {}
+
     /** Podstawowe kanały rodzaju powiadomienia. */
     private static function primary(LicenseNotificationType $t): array
     {
@@ -103,7 +106,7 @@ final class LicenseNotificationService
         if ($html === '') return 'skipped';
         if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
         try {
-            $id = mail_queue_add($email, $name, $subject, $html, '', self::MODULE, (int)$ref['id'], '', true, $attachments);
+            $id = mail_queue_add($email, $name, $subject, $html, '', $this->module, (int)$ref['id'], '', true, $attachments);
             if ($id <= 0) { $this->log($type, 'email', $email, 'skipped', 'adres zablokowany (konto wirtualne)', $ref, $actor, $fallback); return 'skipped'; }
             $row = db_one("SELECT status, last_error FROM mail_queue WHERE id = ?", [$id]);
             $st = ($row['status'] ?? '') === 'sent' ? 'sent' : 'queued';
@@ -121,7 +124,8 @@ final class LicenseNotificationService
         if ($phone === '') { $this->log($type, 'sms', '', 'skipped', 'brak numeru telefonu', $ref, $actor, $fallback); return 'skipped'; }
         if (!function_exists('sms_send')) require_once dirname(__DIR__, 3) . '/includes/sms.php';
         try {
-            $r = sms_send($phone, self::ascii($text), 'ti_licencja_am5');
+            // rodzaj SMS musi być literałem (cli/smsKindsLint.php): wnioski DOP mają własny rodzaj
+            $r = $this->module === 'ti_dop' ? sms_send($phone, self::ascii($text), 'ti_dop_notice') : sms_send($phone, self::ascii($text), 'ti_licencja_am5');
             $err = '';
             if ($r === '' && function_exists('sms_last_send')) $err = implode('; ', array_map('strval', (array)(sms_last_send()['errors'] ?? [])));
             $this->log($type, 'sms', $phone, $r !== '' ? 'sent' : 'failed', $r === 'odlozony' ? 'odłożony do 7:00 (cisza nocna)' : $err, $ref, $actor, $fallback);
@@ -159,7 +163,7 @@ final class LicenseNotificationService
     private function log(LicenseNotificationType $type, string $channel, string $to, string $status, string $error, array $ref, array $actor, bool $fallback, ?int $queueId = null): void
     {
         try {
-            db_insert('notification_logs', ['module' => self::MODULE, 'ref_type' => (string)$ref['type'], 'ref_id' => (int)$ref['id'], 'type' => $type->value,
+            db_insert('notification_logs', ['module' => $this->module, 'ref_type' => (string)$ref['type'], 'ref_id' => (int)$ref['id'], 'type' => $type->value,
                 'channel' => $channel, 'recipient' => $channel === 'email' ? self::maskEmail($to) : self::maskPhone($to), 'status' => $status,
                 'error' => mb_substr(preg_replace('/[\w.+-]+@[\w.-]+/', '***@***', $error) ?? '', 0, 500), 'is_fallback' => $fallback ? 1 : 0,
                 'queue_id' => $queueId, 'actor_id' => ($actor['id'] ?? 0) ?: null, 'created_at' => ldNow()]);

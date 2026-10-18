@@ -69,6 +69,30 @@ final class LicenseOperationController
         return $this->view('op_account.php', ['acc' => $acc, 'res' => LicenseResources::forAccount($acc, true), 'list' => $this->ops->search(['account' => $kind . ':' . $id])]);
     }
 
+    /** Kreator formularza elektronicznego AM20 (+ AM20-1): osoba → licencja → formularz. */
+    public function am20Wizard(): string
+    {
+        $q = (string)($_GET['q'] ?? '');
+        $acc = null; $res = [];
+        if (!empty($_GET['konto'])) {
+            [$k, $i] = array_pad(explode(':', (string)$_GET['konto'], 2), 2, '0');
+            $acc = in_array($k, ['client', 'user'], true) ? LicenseResources::account($k, (int)$i) : null;
+            if ($acc) $res = LicenseResources::forAccount($acc);
+        }
+        return $this->view('am20_wizard.php', ['q' => $q, 'found' => LicenseResources::searchAccounts($q), 'acc' => $acc, 'res' => $res]);
+    }
+
+    /** Elektroniczna poprawka AM20-1 przed potwierdzeniem wniosku przez osobę. */
+    public function am20AnnexSave(int $id): ?string
+    {
+        $op = $this->op($id);
+        try {
+            $this->ops->updateAnnex($id, $_POST, $this->actor());
+            flash_set('success', 'Zapisano wykaz AM20-1.');
+        } catch (\Throwable $e) { return $this->fail($e, route('ld.op', ['id' => $id]) . '#am20-1'); }
+        return Router::redirect(route('ld.op', ['id' => $id]) . '#am20-1');
+    }
+
     // ── Nowa operacja ───────────────────────────────────────────────────────────
 
     public function createForm(array $errors = [], ?array $old = null): string

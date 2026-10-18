@@ -41,6 +41,7 @@ if ($_ldAcc):
     <a class="btn btn-sm btn-outline-primary py-0" href="<?= h($_ldNew('AM12')) ?>">AM12 — zwrot kosztów / refaktura</a>
     <a class="btn btn-sm btn-outline-primary py-0" href="<?= h($_ldNew('AM13')) ?>">AM13 — licencja finansowana zewnętrznie</a>
   </div>
+  <div class="mt-1"><a class="btn btn-sm btn-success py-0" href="<?= h($_ldUrl(['_route' => '/am20', 'konto' => 'client:' . $_ldAcc['id']])) ?>">AM20 + AM20-1 — formularz elektroniczny</a></div>
   <div class="small mt-1">Wzory do druku:
     <a href="<?= h($_ldUrl(['_route' => '/wzor-op/AM20'])) ?>" target="_blank" rel="noopener">AM20 — zmiana płatnika</a> ·
     <a href="<?= h($_ldUrl(['_route' => '/wzor-op/AM20-1'])) ?>" target="_blank" rel="noopener">AM20-1 — wykaz dokumentów księgowych</a></div>

@@ -432,6 +432,27 @@ final class LicenseOperationService
         return $report;
     }
 
+    /** AM20-1: zmiana wykazu dokumentów księgowych, dopóki osoba nie potwierdziła wniosku. */
+    public function updateAnnex(int $id, array $in, array $actor): void
+    {
+        $op = $this->get($id);
+        if (!$op || $op['formEnum'] !== OperationForm::Am20) throw new DomainException('To nie jest wniosek AM20.');
+        if ($op['statusEnum'] !== OperationStatus::Signing) throw new DomainException('Wykaz AM20-1 można zmieniać tylko przed potwierdzeniem wniosku przez osobę.');
+        $acc = ['kind' => $op['account_kind']];
+        $full = $op['request'];
+        $full['am20_1'] = $in['am20_1'] ?? [];
+        $full['am20_1_brak'] = $in['am20_1_brak'] ?? '';
+        [$data, $err] = self::validate(OperationForm::Am20, $full, $acc);
+        if (isset($err['am20_1'])) throw new InvalidArgumentException($err['am20_1']);
+        $req = $op['request'];
+        $req['am20_1'] = $data['am20_1'];
+        $req['am20_1_brak'] = $data['am20_1_brak'];
+        db_exec("UPDATE license_operations SET request_data = ?, updated_at = ? WHERE id = ?", [json_encode($req, JSON_UNESCAPED_UNICODE), ldNow(), $id]);
+        $s = LicenseResources::accountingSummary($req['am20_1']);
+        $this->event($id, 'op.am20_1', 'Zmieniono wykaz AM20-1: ' . $s['count'] . ' dok., razem ' . self::money($s['sum']) . '.', $actor);
+        $this->saveRecord($id);
+    }
+
     /** Ręczne zamknięcie zadania (wykonane u dostawcy / w finansach). */
     public function markExecuted(int $id, string $notes, array $actor): void
     {
