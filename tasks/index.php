@@ -5,6 +5,7 @@
  * 2026-09-03). Podział na pliki, patrz tasks/includes/:
  *   - index_style.php        — style (Tailwind @apply)
  *   - index_onboarding.php   — ekran powitalny (brak obszarów)
+ *   - index_ws_side.php      — kolumna obszarów po lewej
  *   - index_toolbar.php      — nagłówek obszaru + pasek filtrów
  *   - index_list_render.php  — funkcja _tasks_list_html() (tabela/kanban)
  *   - index_modals.php       — offcanvas szczegółów + modale
@@ -96,6 +97,7 @@ if ($ws_id) {
                     tl.is_done_state,
                     ou.name  AS unit_name,
                     ou.short_name AS unit_short,
+                    cu.name  AS creator_name,
                     (SELECT COUNT(*) FROM task_assignments ta WHERE ta.task_id = t.id)            AS assignee_count,
                     (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id)             AS st_total,
                     (SELECT COUNT(*) FROM task_subtasks   ts WHERE ts.task_id = t.id AND ts.is_done=1) AS st_done,
@@ -109,6 +111,7 @@ if ($ws_id) {
              FROM tasks t
              JOIN task_lists tl ON tl.id = t.list_id
              LEFT JOIN org_units ou ON ou.id = t.unit_id
+             LEFT JOIN users cu ON cu.id = t.created_by
              WHERE t.workspace_id = ? AND t.deleted_at IS NULL AND t.archived_at IS NULL
              ORDER BY
                CASE WHEN t.completed_at IS NULL AND t.due_date IS NOT NULL
@@ -239,8 +242,13 @@ require_once __DIR__ . '/includes/header_tasks.php';
 <?php else: ?>
 
 <?php if ($workspace): ?>
+<div class="tk-layout">
+<?php require __DIR__ . '/includes/index_ws_side.php'; ?>
+<div class="tk-layout-main">
 <?php require_once __DIR__ . '/includes/index_toolbar.php'; ?>
 <?php echo _tasks_list_html($tasks, $cnt, $lists_map, $ws_id, $view_mode, $workspace, $can_add, $is_admin, $all_org_units); ?>
+</div>
+</div>
 <?php endif; /* workspace */ ?>
 <?php endif; /* workspaces */ ?>
 

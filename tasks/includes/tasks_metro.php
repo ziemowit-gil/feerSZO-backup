@@ -273,6 +273,62 @@ html body #tsk-main .tk-card-asgn{width:22px;height:22px;background:var(--tm-ind
 html body #tsk-main .tk-card-drop-hint{border:2px dashed var(--tm-field);background:transparent}
 /* Moje zadania / dashboard — wiersze */
 html body .tsk-dash .tsk-row:hover,html body #tsk-main .tsk-row:hover{background:var(--tm-light)}
+
+/* ══ Lista: kolumna obszarów po lewej + gęsta tabela ═════════════════════ */
+html body #tsk-main .tk-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:1.5rem;align-items:start}
+html body #tsk-main .tk-layout-main{min-width:0}
+html body #tsk-main .tk-ws-side{position:sticky;top:120px;background:var(--tm-light);padding:.5rem 0}
+html body #tsk-main .tk-ws-side-h{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--tm-muted);padding:.4rem 1rem .5rem}
+html body #tsk-main .tk-ws-side-list{list-style:none;margin:0;padding:0}
+html body #tsk-main .tk-ws-side-link{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem .55rem calc(1rem - 4px);border-left:4px solid transparent;
+  color:var(--tsk-text);text-decoration:none;font-size:.88rem;line-height:1.25}
+html body #tsk-main .tk-ws-side-link i{color:var(--ws);font-size:1rem;flex-shrink:0}
+html body #tsk-main .tk-ws-side-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #tsk-main .tk-ws-side-cnt{font-size:.72rem;color:var(--tm-muted);flex-shrink:0}
+html body #tsk-main .tk-ws-side-link:hover{background:var(--tm-light-h)}
+html body #tsk-main .tk-ws-side-link.active{background:#fff;border-left-color:var(--ws);font-weight:600}
+html body #tsk-main .tk-ws-side-manage{display:flex;align-items:center;gap:.5rem;margin-top:.5rem;padding:.6rem 1rem;border-top:1px solid #dcdcdc;
+  font-size:.8rem;color:var(--tm-muted);text-decoration:none}
+html body #tsk-main .tk-ws-side-manage:hover{color:var(--tsk-text);background:var(--tm-light-h)}
+@media(max-width:991.98px){
+  html body #tsk-main .tk-layout{grid-template-columns:minmax(0,1fr);gap:1rem}
+  html body #tsk-main .tk-ws-side{position:static;padding:0;display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none}
+  html body #tsk-main .tk-ws-side-h,html body #tsk-main .tk-ws-side-manage{display:none}
+  html body #tsk-main .tk-ws-side-list{display:flex}
+  html body #tsk-main .tk-ws-side-link{border-left:0;border-bottom:4px solid transparent;padding:.6rem .9rem;white-space:nowrap}
+  html body #tsk-main .tk-ws-side-link.active{border-bottom-color:var(--ws)}
+}
+
+html body #tsk-main .tk-table td{vertical-align:top;padding:.8rem .7rem}
+html body #tsk-main .tk-table th.th-title{min-width:300px}
+html body #tsk-main .tk-table th.th-status{width:150px}
+html body #tsk-main .tk-table th.th-pri{width:110px}
+html body #tsk-main .tk-table th.th-due{width:130px}
+html body #tsk-main .tk-table th.th-people{width:170px}
+html body #tsk-main .tk-table th.th-created{width:120px}
+html body #tsk-main .tk-table th.th-act{width:96px}
+html body #tsk-main .tk-table td.td-check{padding-top:.95rem}
+html body #tsk-main .tk-table .tk-title{font-size:.94rem;-webkit-line-clamp:2}
+html body #tsk-main .tk-table .tk-subtitle{font-size:.78rem;margin-top:.15rem}
+html body #tsk-main .tk-meta{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .8rem;margin-top:.4rem;font-size:.73rem;color:var(--tm-muted)}
+html body #tsk-main .tk-meta>span{display:inline-flex;align-items:center;gap:.25rem;white-space:nowrap}
+html body #tsk-main .tk-meta i{font-size:.8rem}
+html body #tsk-main .tk-meta .is-warn{color:var(--tm-orange);font-weight:600}
+html body #tsk-main .tk-meta .is-ok{color:var(--tsk-green)}
+html body #tsk-main .tk-meta .tk-tag{font-size:.66rem;font-weight:700;padding:.08rem .4rem;color:inherit}
+html body #tsk-main .tk-meta .tk-tag--more{background:var(--tm-light-h);color:var(--tm-muted)}
+html body #tsk-main .tk-status-cell{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+html body #tsk-main .tk-due{display:flex;flex-direction:column;line-height:1.25}
+html body #tsk-main .tk-due-d{font-size:.84rem;font-weight:600;color:var(--tsk-text)}
+html body #tsk-main .tk-due-rel{font-size:.72rem;color:var(--tm-muted)}
+html body #tsk-main .tk-due.is-over .tk-due-d,html body #tsk-main .tk-due.is-over .tk-due-rel{color:var(--tm-red)}
+html body #tsk-main .tk-due.is-soon .tk-due-rel{color:var(--tm-orange);font-weight:600}
+html body #tsk-main .tk-none{font-size:.76rem;color:var(--tm-field)}
+html body #tsk-main .tk-people{display:flex;align-items:center;gap:.5rem;min-width:0}
+html body #tsk-main .tk-people-names{font-size:.8rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+html body #tsk-main .tk-created{font-size:.8rem}
+html body #tsk-main .tk-created-by{font-size:.72rem;color:var(--tm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+html body #tsk-main .tk-table td:last-child .tk-actions{padding-top:2px}
 @media(prefers-reduced-motion:reduce){html body #taskOffcanvas.offcanvas{transition:none}}
 
 /* Tabele nie ucinają kolumn: kontener przewija się w poziomie (było overflow:hidden). */

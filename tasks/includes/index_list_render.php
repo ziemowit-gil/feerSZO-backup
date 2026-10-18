@@ -187,22 +187,20 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                    onchange="bulkToggleAll(this)"
                    aria-label="Zaznacz wszystkie zadania">
           </th>
-          <th scope="col" class="th-title" aria-label="Priorytet i tytuł">Zadanie</th>
-          <th scope="col" style="width:10%" class="th-center">Status</th>
-          <th scope="col" style="width:6%"  class="th-center" aria-label="Weryfikacja wykonania">Weryf.</th>
-          <th scope="col" style="width:8%"  class="th-center">Priorytet</th>
-          <th scope="col" style="width:8%">Termin</th>
-          <th scope="col" style="width:10%">Postęp</th>
-          <th scope="col" style="width:12%">Tagi</th>
-          <th scope="col" style="width:10%">Przypisani</th>
-          <th scope="col" style="width:9%"  class="th-center">Akcja</th>
+          <th scope="col" class="th-title">Zadanie</th>
+          <th scope="col" class="th-status">Status</th>
+          <th scope="col" class="th-pri">Priorytet</th>
+          <th scope="col" class="th-due">Termin</th>
+          <th scope="col" class="th-people">Przypisani</th>
+          <th scope="col" class="th-created">Dodane</th>
+          <th scope="col" class="th-act"><span class="visually-hidden">Akcje</span></th>
         </tr>
       </thead>
       <tbody id="tk-tbody">
 
       <?php if (!$tasks): ?>
       <tr>
-        <td colspan="10">
+        <td colspan="8">
           <?php $is_brand_new = ($workspace && empty($lists_map)); ?>
           <?php if ($is_brand_new && $can_add): ?>
           <div style="padding:2rem 1.5rem;text-align:center;max-width:480px;margin:0 auto">
@@ -277,16 +275,43 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                  aria-label="Zaznacz zadanie: <?= h($task['title']) ?>">
         </td>
 
-        <!-- Zadanie: tytuł + podtytuł -->
-        <td>
+        <!-- Zadanie: tytuł, opis, metadane, tagi -->
+        <td class="td-title">
           <div class="tk-title"><?= h($task['title']) ?></div>
           <?php if ($task['description']): ?>
-          <div class="tk-subtitle"><?= h(mb_substr(strip_tags($task['description']),0,80)) ?></div>
+          <div class="tk-subtitle"><?= h(mb_substr(trim(strip_tags($task['description'])),0,140)) ?></div>
           <?php endif; ?>
+          <div class="tk-meta">
+            <span title="Numer zadania">#<?= (int)$task['id'] ?></span>
+            <span title="Kolumna"><i class="bi bi-columns-gap" aria-hidden="true"></i><?= h($task['list_name']) ?></span>
+            <?php if (!empty($task['unit_name'])): ?>
+            <span title="Jednostka: <?= h($task['unit_name']) ?>"><i class="bi bi-diagram-3" aria-hidden="true"></i><?= h($task['unit_short'] ?: $task['unit_name']) ?></span>
+            <?php endif; ?>
+            <?php if ($st_total > 0): ?>
+            <span class="<?= $st_done===$st_total ? 'is-ok' : '' ?>" title="Podzadania: <?= $st_done ?> z <?= $st_total ?>"><i class="bi bi-check2-square" aria-hidden="true"></i><?= $st_done ?>/<?= $st_total ?></span>
+            <?php endif; ?>
+            <?php if ((int)$task['comment_count'] > 0): ?>
+            <span title="Komentarze"><i class="bi bi-chat-left-text" aria-hidden="true"></i><?= (int)$task['comment_count'] ?></span>
+            <?php endif; ?>
+            <?php if ((int)$task['file_count'] > 0): ?>
+            <span title="Pliki"><i class="bi bi-paperclip" aria-hidden="true"></i><?= (int)$task['file_count'] ?></span>
+            <?php endif; ?>
+            <?php if ((int)($task['blocked_count'] ?? 0) > 0): ?>
+            <span class="is-warn" title="Czeka na nieukończone zadania"><i class="bi bi-hourglass-split" aria-hidden="true"></i>czeka (<?= (int)$task['blocked_count'] ?>)</span>
+            <?php endif; ?>
+            <?php if (!empty($task['recurrence'])): ?>
+            <span title="Zadanie cykliczne"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>cykliczne</span>
+            <?php endif; ?>
+            <?php foreach (array_slice($task['tags'],0,4) as $tag): ?>
+            <span class="tk-tag" style="background:<?= h($tag['color']) ?>;color:<?= h($tag['text_color']) ?>"><?= h($tag['name']) ?></span>
+            <?php endforeach; ?>
+            <?php if (count($task['tags'])>4): ?><span class="tk-tag tk-tag--more">+<?= count($task['tags'])-4 ?></span><?php endif; ?>
+          </div>
         </td>
 
-        <!-- Status — klikalny przycisk inline -->
-        <td class="th-center" style="text-align:center" onclick="event.stopPropagation()">
+        <!-- Status (klikalny) + weryfikacja wykonania Z / ZP / O -->
+        <td class="td-status" onclick="event.stopPropagation()">
+          <div class="tk-status-cell">
           <?php if ($task['_status'] === 'done'): ?>
           <button type="button" class="tk-status s-done tk-status-btn"
                   data-task-id="<?= $task['id'] ?>"
@@ -294,19 +319,6 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                   title="Kliknij aby cofnąć ukończenie">
             <i class="bi bi-check-circle-fill" aria-hidden="true"></i> Ukończone
           </button>
-          <?php else: ?>
-          <button type="button" class="tk-status <?= $status_info[0] ?> tk-status-btn"
-                  data-task-id="<?= $task['id'] ?>"
-                  onclick="tkToggleDone(this, <?= $task['id'] ?>)"
-                  title="Kliknij aby oznaczyć jako ukończone">
-            <i class="bi <?= $status_info[2] ?>" aria-hidden="true"></i> <?= $status_info[1] ?>
-          </button>
-          <?php endif; ?>
-        </td>
-
-        <!-- Weryfikacja wykonania: Z / ZP / O -->
-        <td class="th-center" style="text-align:center">
-          <?php if ($task['_status'] === 'done'): ?>
             <?php if (!empty($task['confirmed_at'])): ?>
             <span class="tk-confirm-badge zp"
                   title="Potwierdzone przez lidera <?= h(substr($task['confirmed_at'],0,10)) ?>"
@@ -321,12 +333,18 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                   aria-label="Zakończone, ale niepotwierdzone przez lidera">Z</span>
             <?php endif; ?>
           <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">—</span>
+          <button type="button" class="tk-status <?= $status_info[0] ?> tk-status-btn"
+                  data-task-id="<?= $task['id'] ?>"
+                  onclick="tkToggleDone(this, <?= $task['id'] ?>)"
+                  title="Kliknij aby oznaczyć jako ukończone">
+            <i class="bi <?= $status_info[2] ?>" aria-hidden="true"></i> <?= $status_info[1] ?>
+          </button>
           <?php endif; ?>
+          </div>
         </td>
 
         <!-- Priorytet — dropdown inline -->
-        <td style="text-align:center" onclick="event.stopPropagation()">
+        <td onclick="event.stopPropagation()">
           <div class="dropdown d-inline-block">
             <button class="pri-btn btn btn-link btn-sm p-0" data-bs-toggle="dropdown"
                     style="text-decoration:none"
@@ -342,83 +360,45 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
           </div>
         </td>
 
-        <!-- Termin -->
-        <td>
-          <?php if ($task['due_date']): ?>
-          <span class="td-due <?= $task['_overdue']?'overdue':'' ?>"
-                aria-label="Termin: <?= h($task['due_date']) ?><?= $task['_overdue']?' (po terminie)':'' ?>">
-            <?php if ($task['_overdue']): ?>
-            <i class="bi bi-alarm me-1" aria-hidden="true"></i>
-            <?php else: ?>
-            <i class="bi bi-calendar3 me-1 text-muted" aria-hidden="true"></i>
-            <?php endif; ?>
-            <?= h(task_due_label($task, 'd.m.Y')) ?>
-          </span>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">—</span>
-          <?php endif; ?>
-        </td>
-
-        <!-- Postęp podzadań -->
-        <td>
-          <?php if ($st_total > 0): ?>
-          <div class="tk-prog-wrap"
-               aria-label="Podzadania: <?= $st_done ?>/<?= $st_total ?>">
-            <div class="tk-prog-track"
-                 role="progressbar"
-                 aria-valuenow="<?= $st_pct ?>"
-                 aria-valuemin="0" aria-valuemax="100">
-              <div class="tk-prog-fill <?= $st_done===$st_total?'bg-success':'bg-primary' ?>"
-                   style="width:<?= $st_pct ?>%"></div>
-            </div>
-            <span class="tk-prog-label"><?= $st_done ?>/<?= $st_total ?></span>
+        <!-- Termin + ile dni -->
+        <td class="td-due-cell">
+          <?php if ($task['due_date']):
+            $_dd = (int)floor((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
+            $_dd_lbl = $task['_status'] === 'done' ? '' : ($_dd < 0 ? abs($_dd) . ' dni po terminie' : ($_dd === 0 ? 'dziś' : ($_dd === 1 ? 'jutro' : 'za ' . $_dd . ' dni')));
+          ?>
+          <div class="tk-due <?= $task['_overdue'] ? 'is-over' : ($_dd >= 0 && $_dd <= 2 && $task['_status'] !== 'done' ? 'is-soon' : '') ?>"
+               aria-label="Termin: <?= h(task_due_label($task, 'd.m.Y')) ?><?= $_dd_lbl ? ', ' . $_dd_lbl : '' ?>">
+            <span class="tk-due-d"><?= h(task_due_label($task, 'd.m.Y')) ?></span>
+            <?php if ($_dd_lbl): ?><span class="tk-due-rel"><?= h($_dd_lbl) ?></span><?php endif; ?>
           </div>
           <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">—</span>
+          <span class="tk-none">brak terminu</span>
           <?php endif; ?>
         </td>
 
-        <!-- Tagi -->
-        <td>
-          <?php if ($task['tags']): ?>
-          <div class="tk-tags">
-            <?php foreach (array_slice($task['tags'],0,3) as $tag): ?>
-            <span class="tk-tag"
-                  style="background:<?= h($tag['color']) ?>;color:<?= h($tag['text_color']) ?>">
-              <?= h($tag['name']) ?>
-            </span>
-            <?php endforeach; ?>
-            <?php if (count($task['tags'])>3): ?>
-            <span class="tk-tag" style="background:#f1f5f9;color:#64748b">
-              +<?= count($task['tags'])-3 ?>
-            </span>
-            <?php endif; ?>
-          </div>
-          <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">—</span>
-          <?php endif; ?>
-        </td>
-
-        <!-- Przypisani + jednostka -->
+        <!-- Przypisani -->
         <td>
           <?php if ($task['assignees']): ?>
-          <div class="tk-av-stack" aria-label="Przypisani: <?= h(implode(', ', array_column($task['assignees'],'name'))) ?>">
-            <?php foreach (array_slice($task['assignees'],0,4) as $a): ?>
-            <?= task_avatar_initials($a['name'], '#2563eb', '#fff') ?>
-            <?php endforeach; ?>
-            <?php if (count($task['assignees'])>4): ?>
-            <span class="tk-av" style="background:#64748b"
-                  aria-label="+<?= count($task['assignees'])-4 ?> więcej">
-              +<?= count($task['assignees'])-4 ?>
-            </span>
-            <?php endif; ?>
+          <div class="tk-people" aria-label="Przypisani: <?= h(implode(', ', array_column($task['assignees'],'name'))) ?>">
+            <div class="tk-av-stack" aria-hidden="true">
+              <?php foreach (array_slice($task['assignees'],0,3) as $a): ?>
+              <?= task_avatar_initials($a['name'], '#0050ef', '#fff') ?>
+              <?php endforeach; ?>
+              <?php if (count($task['assignees'])>3): ?>
+              <span class="tk-av" style="background:#5f5f5f">+<?= count($task['assignees'])-3 ?></span>
+              <?php endif; ?>
+            </div>
+            <span class="tk-people-names" aria-hidden="true"><?= h(count($task['assignees']) === 1 ? $task['assignees'][0]['name'] : count($task['assignees']) . ' osoby') ?></span>
           </div>
           <?php else: ?>
-          <span class="text-muted" style="font-size:.75rem">Brak</span>
+          <span class="tk-none">nikt — do wzięcia</span>
           <?php endif; ?>
-          <?php if (!empty($task['unit_name'])): ?>
-          <div class="mt-1"><?= task_unit_badge((int)$task['unit_id']) ?></div>
-          <?php endif; ?>
+        </td>
+
+        <!-- Dodane -->
+        <td class="td-created">
+          <div class="tk-created"><?= $task['created_at'] ? h(date('d.m.Y', strtotime($task['created_at']))) : '—' ?></div>
+          <?php if (!empty($task['creator_name'])): ?><div class="tk-created-by"><?= h($task['creator_name']) ?></div><?php endif; ?>
         </td>
 
         <!-- Akcja (klik zatrzymuje propagację) -->
