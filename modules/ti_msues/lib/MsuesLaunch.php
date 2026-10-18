@@ -7,8 +7,8 @@ declare(strict_types=1);
  * Uruchomienie: zapisuje kto i kiedy (msues_launched_at/_by/_name, termin msues_deadline), opcjonalnie zakłada każdej osobie
  * z kadry aktywnych usług roboczą wersję oświadczenia (ogólnego, wypełnioną danymi z SZO) i kolejkuje e-mail informacyjny:
  * co to jest MSUES, po co Fundacji, co prowadzący ma zrobić i do kiedy, oraz krótki SMS z linkiem (rodzaj ti_msues_notice).
- * Każda osoba dostaje osobną wiadomość. E-maile idą przez mail_queue z terminem (wysyła je CRON kolejki), kontekst 'msues_launch';
- * SMS — od razu. Przypomnienie trafia tylko do osób bez zatwierdzonego oświadczenia; notify() — do jednej wybranej osoby.
+ * Każda osoba dostaje osobną wiadomość. E-maile wysyłane od razu (mail_queue_add z $immediate, kontekst 'msues_launch') —
+ * nieudane zostają w mail_queue do ponowienia przez CRON i są zgłaszane jako błąd; SMS — od razu. Przypomnienie trafia tylko do osób bez zatwierdzonego oświadczenia; notify() — do jednej wybranej osoby.
  */
 require_once __DIR__ . '/MsuesComplianceService.php';
 
@@ -90,7 +90,8 @@ final class MsuesLaunch
     }
 
     /**
-     * Powiadomienie jednej osoby: e-mail (kolejka, kontekst msues_launch) i/lub SMS (rodzaj ti_msues_notice — od razu).
+     * Powiadomienie jednej osoby: e-mail (od razu, kontekst msues_launch) i/lub SMS (rodzaj ti_msues_notice — od razu).
+     * 'mail' = true tylko, gdy wiadomość faktycznie wyszła (status 'sent'), nie gdy trafiła do kolejki.
      * @param array $t wiersz users (id, name, email, phone_number)
      * @return array{mail:bool, sms:bool, errors:list<string>}
      */
@@ -101,7 +102,13 @@ final class MsuesLaunch
         if ($mail && ($email = self::email($t)) !== '') {
             if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
             [$subject, $html] = self::mail($name, (string)$actor['name']);
-            try { $o['mail'] = mail_queue_add($email, $name, $subject, $html, '', 'msues_launch', (int)$t['id'], date('Y-m-d H:i:s')) > 0; }
+            try {
+                // bez terminu + $immediate — wysyłka od razu; termin w mail_queue_add zawsze oznacza czekanie na CRON
+                $id = mail_queue_add($email, $name, $subject, $html, '', 'msues_launch', (int)$t['id'], '', true);
+                $row = $id > 0 ? db_one("SELECT status, last_error FROM mail_queue WHERE id = ?", [$id]) : null;
+                $o['mail'] = ($row['status'] ?? '') === 'sent';
+                if ($id > 0 && !$o['mail']) $o['errors'][] = $name . ' (e-mail): nie wysłano od razu' . (($row['last_error'] ?? '') !== '' ? ' — ' . $row['last_error'] : '') . '; ponowi kolejka';
+            }
             catch (\Throwable $e) { $o['errors'][] = $name . ' (e-mail): ' . $e->getMessage(); }
         } elseif ($mail) {
             $o['errors'][] = $name . ': brak adresu e-mail';
