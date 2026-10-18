@@ -179,6 +179,7 @@ $groups = [
             ['icon'=>'bi-ui-checks-grid',       'label'=>'SelfService',              'url'=>'/onboarding/settings.php',      'kw'=>'onboarding selfservice'],
             ['icon'=>'bi-kanban',               'label'=>'Obszary zadań',            'url'=>'/admin/tasks_workspaces.php',   'kw'=>'zadania obszary'],
             ['icon'=>'bi-tag',                  'label'=>'Tagi zadań',               'url'=>'/admin/tasks_tags.php',         'kw'=>'zadania tagi'],
+            ['icon'=>'bi-book-half',            'label'=>'Słownik Centralny',        'url'=>'/modules/dictionary/router.php','tile'=>true, 'kw'=>'słowniki listy wyboru instytucje dotujące kategorie import eksport'],
             ['icon'=>'bi-ui-checks',            'label'=>'Pola w formularzach',      'url'=>'/admin/form_fields.php',        'kw'=>'wymagane pola formularze'],
             ['icon'=>'bi-building-heart',       'label'=>'Zasady i Wprowadzenie',    'url'=>'/admin/org_rules.php',          'kw'=>'zasady wprowadzenie e-learning'],
         ],

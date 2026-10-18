@@ -534,6 +534,7 @@ function _menu_editor(): array {
             _mi('Panel admina','/admin/index.php','bi-shield-shaded',['match'=>'/admin/index','kw'=>'admin panel ustawienia']),
             _mi('Wzory dokumentów','/admin/contract_templates.php','bi-file-earmark-text',['match'=>'/admin/contract_templates','kw'=>'wzory dokumentów szablony umów']),
             _mi('Harmonogram CRON','/admin/cron_dispatcher.php','bi-calendar2-range',['match'=>'/admin/cron_dispatcher','kw'=>'cron dispatcher dyspozytor harmonogram agenci zadania automatyczne interwał']),
+            _mi('Słownik Centralny','/modules/dictionary/router.php','bi-book-half',['match'=>'/modules/dictionary/','kw'=>'słownik słowniki centralny listy wyboru instytucje dotujące urzędy marszałkowskie niw kategorie import eksport']),
             _mi('Redis (cache)','/admin/redis.php','bi-lightning-charge',['match'=>'/admin/redis','kw'=>'redis cache pamięć podręczna przyspieszenie wydajność']),
             _mi('Kontrola IT','/modules/it_control/index.php','bi-clipboard2-pulse',['match'=>'/modules/it_control/','kw'=>'kontrola it audyt operacyjny status usług dysk backup certyfikat cron monitoring pulpit stanu']),
             _mi('Kontrola Dzienników','/modules/log_control/index.php','bi-journal-check',['match'=>'/modules/log_control/','kw'=>'kontrola dzienników logi błędy php anomalie bezpieczeństwo logowania brute force 2fa']),
@@ -560,7 +561,7 @@ function _menu_editor(): array {
             _mi('Wiad. od prowadzących','/admin/ti_admin_msgs.php','bi-envelope-exclamation',['match'=>'/admin/ti_admin_msgs','kw'=>'wiadomości prowadzący kierownictwo','badge'=>(function(){ if(!function_exists('ti_admin_msg_unread_count')){@require_once __DIR__.'/ti_messages.php';} return function_exists('ti_admin_msg_unread_count')?ti_admin_msg_unread_count():0; })()]),
         ];
         // aktywność (jak w header): /admin/ poza sekcjami przeniesionymi indziej
-        $admin_active = _menu_hit('/seeder-test') || _menu_hit('/admin/') && !_menu_hit('/admin/messages') && !_menu_hit('/admin/terminations')
+        $admin_active = _menu_hit('/seeder-test') || _menu_hit('/modules/dictionary/') || _menu_hit('/admin/') && !_menu_hit('/admin/messages') && !_menu_hit('/admin/terminations')
             && !_menu_hit('/admin/certificates') && !_menu_hit('/admin/timesheets') && !_menu_hit('/admin/shipments') && !_menu_hit('/admin/onboarding');
         // Zakładka-link do panelu admina — BEZ listy rozwijanej; wszystko jest na
         // pulpicie admin/index.php. Pozycje zostają tylko w wyszukiwarce (Ctrl+K).
