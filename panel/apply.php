@@ -60,6 +60,11 @@ $_term_module = module_enabled('terminations_enabled');
 if ($_term_module) {
     $types = array_values(array_filter($types, fn($t) => ($t['name'] ?? '') !== 'wniosek_rozwiazanie'));
 }
+// Bez umowy (np. personel biura): tylko typy niewymagające umowy — m.in. wzory ZSW-1, ZSW-2, DOK.
+$_all_types_cnt = count($types);
+if (!$contracts) {
+    $types = array_values(array_filter($types, fn($t) => empty($t['requires_contract'])));
+}
 $types_by_id = array_column($types, null, 'id');
 
 // ── Obsługa POST ──────────────────────────────────────────────────────────────
@@ -208,7 +213,7 @@ $_ap_pal = array_values(panelMetroPalette());
 
 <?php if ($_is_volunteer_only): ?>
 
-<?php if (!$types): ?>
+<?php if (!$types && ($contracts || !$_all_types_cnt)): ?>
 <div class="tz-card mb-4">
   <div class="tz-card__hd"><i class="bi bi-tools me-2" aria-hidden="true"></i>Brak typów wniosków</div>
   <div class="tz-card__bd">
@@ -218,7 +223,7 @@ $_ap_pal = array_values(panelMetroPalette());
     </div>
   </div>
 </div>
-<?php elseif (!$contracts): ?>
+<?php elseif (!$types): ?>
 <div class="tz-card mb-4">
   <div class="tz-card__hd"><i class="bi bi-exclamation-circle me-2" aria-hidden="true"></i>Brak umów</div>
   <div class="tz-card__bd">
@@ -444,7 +449,7 @@ $_ap_pal = array_values(panelMetroPalette());
 
 <?php else: /* !$_is_volunteer_only — admin/editor layout */ ?>
 
-<?php if (!$types): ?>
+<?php if (!$types && ($contracts || !$_all_types_cnt)): ?>
 <div class="tz-card mb-4">
   <div class="tz-card__bd">
     <div class="tz-empty">
@@ -453,7 +458,7 @@ $_ap_pal = array_values(panelMetroPalette());
     </div>
   </div>
 </div>
-<?php elseif (!$contracts): ?>
+<?php elseif (!$types): ?>
 <div class="tz-card mb-4">
   <div class="tz-card__bd">
     <div class="tz-empty">
