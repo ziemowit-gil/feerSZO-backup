@@ -515,6 +515,12 @@ include __DIR__ . '/includes/header_crm.php';
           <i class="bi bi-bell-fill" id="ibSoundIco" aria-hidden="true"></i><span id="ibSoundTxt">Sygnał przy nowej wiadomości</span>
         </button>
       </li>
+      <li>
+        <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#ibKeysModal">
+          <i class="bi bi-keyboard" aria-hidden="true"></i>Skróty klawiszowe
+          <span class="ib-menu-note">?</span>
+        </button>
+      </li>
       <li><hr class="dropdown-divider my-1"></li>
       <li><h6 class="dropdown-header">Działania</h6></li>
       <?php /* Odczytanie skrzynki po powrocie z urlopu. Zakres to bieżący widok
@@ -1382,6 +1388,46 @@ include __DIR__ . '/includes/header_crm.php';
 </div>
 <?php endforeach; ?>
 <?php endif; ?>
+</div>
+
+<!-- ══ SKRÓTY KLAWISZOWE ════════════════════════════════════════════════════ -->
+<div class="modal fade" id="ibKeysModal" tabindex="-1" aria-labelledby="ibKeysTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fw-bold" id="ibKeysTitle" style="font-size:1rem">
+          <i class="bi bi-keyboard me-2" aria-hidden="true"></i>Skróty klawiszowe Skrzynki
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="ibKeysOn" checked>
+          <label class="form-check-label" for="ibKeysOn">Skróty jednoklawiszowe włączone</label>
+          <div class="form-text">Wyłącz, jeśli używasz sterowania głosem albo skróty kolidują z czytnikiem ekranu. Ustawienie zapamiętuje przeglądarka.</div>
+        </div>
+        <table class="ib-keys">
+          <tr><th colspan="2">Przeglądanie</th></tr>
+          <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>następna / poprzednia wiadomość</td></tr>
+          <tr><td><kbd>↓</kbd> <kbd>↑</kbd></td><td>to samo, gdy kursor jest na liście</td></tr>
+          <tr><td><kbd>Enter</kbd> <kbd>o</kbd></td><td>otwórz i przejdź do treści</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>wróć do listy (na telefonie i z treści)</td></tr>
+          <tr><td><kbd>/</kbd></td><td>szukaj w skrzynce</td></tr>
+          <tr><td><kbd>x</kbd></td><td>zaznacz / odznacz wiadomość</td></tr>
+          <tr><th colspan="2">Działania na otwartej wiadomości</th></tr>
+          <tr><td><kbd>a</kbd></td><td>Wezmę to</td></tr>
+          <tr><td><kbd>r</kbd></td><td>Odpowiedz</td></tr>
+          <tr><td><kbd>e</kbd></td><td>Załatwione (albo Przywróć do obsługi)</td></tr>
+          <tr><td><kbd>u</kbd></td><td>oznacz jako nieprzeczytaną</td></tr>
+          <tr><td><kbd>!</kbd></td><td>spam</td></tr>
+          <tr><td><kbd>c</kbd></td><td>załóż sprawę CRM</td></tr>
+          <tr><td><kbd>z</kbd></td><td>zarejestruj w dzienniku EZD</td></tr>
+          <tr><td><kbd>f</kbd></td><td>przekaż e-mailem</td></tr>
+          <tr><td><kbd>?</kbd></td><td>to okno</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="ib-toast" id="ibToast" role="status" aria-live="polite" hidden></div>

@@ -669,4 +669,69 @@
       refreshList();
     }).catch(function () { f.removeAttribute('data-ib-xhr'); f.submit(); });
   });
+  /* ══ Skróty klawiszowe ═══════════════════════════════════════════════════
+     Jednoklawiszowe jak w Gmailu (j/k, e, r…). WCAG 2.1.4: da się je wyłączyć
+     w oknie „Skróty klawiszowe”, nie działają w polach tekstowych, przy
+     otwartym oknie ani menu, ani z Ctrl/Alt/Cmd. */
+  var keysOn = store('crmInboxKeys') !== '0';
+  var keysBox = document.getElementById('ibKeysOn');
+  if (keysBox) {
+    keysBox.checked = keysOn;
+    keysBox.addEventListener('change', function () { keysOn = keysBox.checked; store('crmInboxKeys', keysOn ? '1' : '0'); });
+  }
+  function typing(t) { return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '')); }
+  function pressKey(k) {
+    var b = document.querySelector('#ibMsgCol [data-ib-key="' + k + '"]');
+    if (b) { b.click(); return true; }
+    return false;
+  }
+  function openModal(id) {
+    var m = document.getElementById(id);
+    if (m && window.bootstrap) { window.bootstrap.Modal.getOrCreateInstance(m).show(); return true; }
+    return false;
+  }
+  function focusedRow(t) { return t && t.closest ? t.closest('#ibList .ib-row') : null; }
+
+  function onKey(e, fromFrame) {
+    if (!keysOn || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target;
+    if (typing(t)) {
+      if (e.key === 'Escape' && t.id === 'ibSearch') t.blur();
+      return;
+    }
+    if (document.querySelector('.modal.show, .dropdown-menu.show')) return;
+    var k = e.key, inList = !fromFrame && !!(t.closest && t.closest('#ibList'));
+    var done = true;
+    if (k === 'j' || (k === 'ArrowDown' && inList)) IB.go(1);
+    else if (k === 'k' || (k === 'ArrowUp' && inList)) IB.go(-1);
+    else if ((k === 'Enter' && inList && t.classList.contains('ib-item')) || k === 'o') {
+      var row = focusedRow(t) || document.querySelector('#ibList .ib-row.is-active');
+      if (!row) return;
+      if (parseInt(row.dataset.id, 10) === IB.currentId()) {
+        wrap.classList.add('is-reading');
+        var h1 = document.getElementById('ibMsgTitle'); if (h1) h1.focus();
+      } else loadMsg(IB.hrefOf(row), { focusPane: true });
+    }
+    else if (k === '/') { var s = document.getElementById('ibSearch'); if (s) { s.focus(); s.select(); } }
+    else if (k === 'Escape') {
+      var back = document.querySelector('#ibMsgCol [data-ib-back]');
+      if (wrap.classList.contains('is-reading') && isNarrow() && back) back.click();
+      else { var a = document.querySelector('#ibList .ib-row.is-active .ib-item'); if (a) a.focus(); else done = false; }
+    }
+    else if (k === 'x') {
+      var r = focusedRow(t) || document.querySelector('#ibList .ib-row.is-active');
+      var c = r && r.querySelector('.ib-check');
+      if (c) { c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true })); } else done = false;
+    }
+    else if (k === '?') done = openModal('ibKeysModal');
+    else if (k === 'c') done = openModal('mdCase');
+    else if (k === 'z') done = openModal('mdEzd');
+    else if (k === 'f') done = openModal('mdFwd');
+    else if ('aeru!'.indexOf(k) >= 0 && k.length === 1) done = pressKey(k);
+    else done = false;
+    if (done) e.preventDefault();
+  }
+  document.addEventListener('keydown', function (e) { onKey(e, false); });
+  // Klawisze z ramki z treścią (przekazuje je fitFrame)
+  document.addEventListener('ib:frame-key', function (ev) { onKey(ev.detail, true); });
 })();
