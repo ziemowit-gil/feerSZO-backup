@@ -296,7 +296,7 @@ if (isset($_GET['p']) || ($full && isset($_GET['u']))) {
     $nGroups = count(array_unique(array_column(array_filter($lessons, fn($l) => !$l['cancelled']), 'course_id')));
     $sub = 'prowadzący · zajęcia we wszystkich grupach' . ($nGroups ? ' (' . $nGroups . ')' : '') . ', także zastępstwa';
     tiPlanPortalOpen($base + ['title' => 'Plan prowadzącego ' . $ini, 'heading' => $ini, 'sub' => h($sub), 'current' => tiPlanPortalUrl($self, $q)]);
-    $nextBox(tiPlanPublicNext($lessons), (bool)$lessons);
+    if (!$lessons) $nextBox(null, false);   // plan prowadzącego: bez ramki „Najbliższe zajęcia”, tylko informacja o braku terminów
     $noteBox((string)$link['note']);
     tiPlanPortalSchedule($links + ['lessons' => $lessons, 'weeks' => $weeks, 'q' => $q, 'mode' => 'instr',
         'label' => 'prowadzącego ' . $ini, 'icsUrl' => $lessons ? tiPlanPortalUrl($self, $q + ['ics' => 1]) : '']);

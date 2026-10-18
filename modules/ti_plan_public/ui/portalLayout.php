@@ -10,6 +10,23 @@
 /** Adres strony portalu: tiPlanPortalUrl($self, ['g' => token, 't' => '2026-10-19']). */
 function tiPlanPortalUrl(string $self, array $q = []): string {
     $q = array_filter($q, fn($v) => $v !== null && $v !== '');
+    // Na hostach z aliasem /plan/ (ti*, szo*, kurs* — .htaccess) krótki adres zamiast …/planPubliczny.php?p=…
+    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if (str_ends_with($self, '/planPubliczny.php') && preg_match('/^(ti|szo|kurs)[^.]*\./', $host)) {
+        $rest  = array_diff_key($q, ['g' => 1, 'p' => 1, 's' => 1, 'k' => 1]);
+        $pick  = array_intersect_key($q, ['g' => 1, 'p' => 1, 's' => 1, 'k' => 1]);
+        $path  = null;
+        $tok   = fn($v) => preg_match('/^[a-z0-9]{24}$/', (string)$v) === 1;
+        if (!$pick) $path = '/plan/';
+        elseif (count($pick) === 1 && isset($pick['g']) && $tok($pick['g'])) $path = '/plan/' . $pick['g'];
+        elseif (count($pick) === 1 && isset($pick['p']) && $tok($pick['p'])) $path = '/plan/p/' . $pick['p'];
+        elseif (count($pick) === 1 && isset($pick['s']) && preg_match('/^([0-9]+|online)$/', (string)$pick['s'])) $path = '/plan/s/' . $pick['s'];
+        elseif (count($pick) === 1 && isset($pick['k']) && in_array($pick['k'], ['grupy', 'prowadzacy', 'sale', 'dk'], true)) $path = '/plan/' . $pick['k'];
+        // Widok pełny (c=, u=), logowanie itp. zostają na adresie skryptu
+        if ($path !== null && !array_intersect_key($rest, ['c' => 1, 'u' => 1, 'login' => 1, 'login_ti' => 1, 'logout' => 1])) {
+            return $path . ($rest ? '?' . http_build_query($rest, '', '&amp;') : '');
+        }
+    }
     return $self . ($q ? '?' . http_build_query($q, '', '&amp;') : '');
 }
 
