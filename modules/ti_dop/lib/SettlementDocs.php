@@ -63,6 +63,7 @@ enum SettleKind: string
     case Rrr  = 'RRR';
     case Rks  = 'RKS';
     case Sub1 = 'SUB1';
+    case Pfr1 = 'PFR1';
 
     public function title(): string
     {
@@ -76,17 +77,18 @@ enum SettleKind: string
             self::Rrr  => 'Rozliczenie roczne ręczne',
             self::Rks  => 'Ręczne księgowanie środków',
             self::Sub1 => 'Nowa procedura subkonta — wyczyszczenie historii i księgowanie ręczne',
+            self::Pfr1 => 'Informacja o szkoleniu lub konsultacji ze środków PFRON',
         };
     }
 
     public function suffix(): string
     {
-        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ', self::Rm, self::Rmr => 'MIES', self::Rr, self::Rrr => 'ROK', self::Rks => 'KSIEG', self::Sub1 => 'NOWAPROC' };
+        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ', self::Rm, self::Rmr => 'MIES', self::Rr, self::Rrr => 'ROK', self::Rks => 'KSIEG', self::Sub1 => 'NOWAPROC', self::Pfr1 => 'PFRON' };
     }
 
     public function color(): string
     {
-        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025', self::Rm => '#00aba9', self::Rr => '#0050ef', self::Rmr => '#d80073', self::Rrr => '#6a00ff', self::Rks => '#008a00', self::Sub1 => '#825a2c' };
+        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025', self::Rm => '#00aba9', self::Rr => '#0050ef', self::Rmr => '#d80073', self::Rrr => '#6a00ff', self::Rks => '#008a00', self::Sub1 => '#825a2c', self::Pfr1 => '#1ba1e2' };
     }
 
     /** Wyliczane z księgi (RM, RR) vs wpisywane ręcznie (RMR, RRR, PRZ, PRZ-P). */
@@ -226,6 +228,23 @@ final class SettlementDocs
                 if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj podstawę rozliczenia ręcznego (np. dokumentacja sprzed SZO).';
                 $d['rows'] = $rows;
             }
+        } elseif ($k === SettleKind::Pfr1) {
+            $d['typ'] = ($in['typ'] ?? '') === 'konsultacja' ? 'konsultacja' : 'szkolenie';
+            $d['pfron_contract_id'] = (int)($in['pfron_contract_id'] ?? 0);
+            if ($d['pfron_contract_id'] > 0 && !db_one("SELECT id FROM k30_pfron_contracts WHERE id = ? AND client_id = ?", [$d['pfron_contract_id'], $clientId])) $e['pfron_contract_id'] = 'Umowa PFRON nie należy do tego uczestnika.';
+            foreach (['temat' => 200, 'forma' => 20, 'miejsce' => 200, 'prowadzacy' => 160, 'program' => 200, 'umowa_nr' => 120, 'realizator' => 200] as $f => $len) $d[$f] = mb_substr(trim((string)($in[$f] ?? '')), 0, $len);
+            if ($d['temat'] === '') $e['temat'] = 'Podaj temat ' . ($d['typ'] === 'konsultacja' ? 'konsultacji' : 'szkolenia') . '.';
+            if (!in_array($d['forma'], ['zdalnie', 'stacjonarnie', 'hybrydowo'], true)) $d['forma'] = 'zdalnie';
+            if ($d['program'] === '') $d['program'] = 'Aktywny samorząd';
+            $d['od'] = (string)($in['od'] ?? ''); $d['do'] = (string)($in['do'] ?? '') ?: $d['od'];
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d['od']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d['do']) || $d['do'] < $d['od']) $e['od'] = 'Podaj okres realizacji (od – do).';
+            foreach (['godziny' => 'Liczba godzin', 'kwota_pfron' => 'Kwota ze środków PFRON', 'kwota_wlasna' => 'Wkład własny'] as $f => $l) {
+                $raw = trim((string)($in[$f] ?? '')); $v = self::num($raw);
+                if ($raw !== '' && ($v === null || $v < 0)) $e[$f] = $l . ': podaj liczbę ≥ 0.';
+                $d[$f] = $v;
+            }
+            if ($d['pfron_contract_id'] > 0 && $d['umowa_nr'] === '') $d['umowa_nr'] = (string)(db_one("SELECT COALESCE(NULLIF(doc_number, ''), contract_number) n FROM k30_pfron_contracts WHERE id = ?", [$d['pfron_contract_id']])['n'] ?? '');
+            if ($d['realizator'] === '') $d['realizator'] = ldOrgName();
         } elseif ($k === SettleKind::Sub1) {
             $d['course_id'] = 0;
             $d['since'] = (string)($in['since'] ?? date('Y-m-d'));
@@ -394,6 +413,8 @@ final class SettlementDocs
                     $res['billing_id'] = ti_billing_add_charge($cid, round(-$s0, 2), 'Saldo otwarcia ' . $r['number'] . ' (SUB1): ' . $d['opening_src'], (int)date('n', $t), (int)date('Y', $t));
                     $res['log'][] = 'saldo otwarcia −' . self::zl(-$s0) . ' (zaległość)';
                 } else $res['log'][] = 'saldo otwarcia 0,00 zł';
+            } elseif ($r['kindEnum'] === SettleKind::Pfr1) {
+                $res['log'][] = 'informacja PFR1 — dokument (bez zmian w księdze)';
             } elseif ($r['kindEnum'] === SettleKind::Rks) {
                 $t = strtotime((string)$d['date']); $gname = (int)$r['course_id'] > 0 ? ' [grupa: ' . self::courseName((int)$r['course_id']) . ']' : '';
                 if ((float)$d['nalezna'] > 0.004) {
@@ -526,6 +547,22 @@ final class SettlementDocs
             $snap['year_totals'] = ['charges' => round(array_sum(array_column($snap['months'], 'charges')), 2), 'payments' => round(array_sum(array_column($snap['months'], 'payments')), 2),
                                     'hours_billed' => round(array_sum(array_column($snap['months'], 'hours_billed')), 2), 'hours_attended' => round(array_sum(array_column($snap['months'], 'hours_attended')), 2)];
         }
+        if ($k === SettleKind::Pfr1 && !empty($d['od'])) {
+            $snap['sessions'] = [];
+            if ((int)($d['pfron_contract_id'] ?? 0) > 0) {
+                foreach (db_all("SELECT start_time, duration_minutes, free_hours, is_remote, resource_id, status FROM k30_schedules WHERE pfron_contract_id = ? AND billing_type = 'pfron' AND status NOT IN ('cancelled','rejected')
+                                 AND date(start_time) BETWEEN ? AND ? ORDER BY start_time", [(int)$d['pfron_contract_id'], $d['od'], $d['do']]) as $x)
+                    $snap['sessions'][] = ['date' => substr((string)$x['start_time'], 0, 10), 'time' => substr((string)$x['start_time'], 11, 5), 'h' => round((float)$x['free_hours'] > 0 ? (float)$x['free_hours'] : (int)$x['duration_minutes'] / 60, 2),
+                                           'mode' => $x['resource_id'] ? 'stacjonarnie' : 'zdalnie', 'status' => (string)$x['status']];
+                $c = db_one("SELECT hours_limit, valid_from, valid_to FROM k30_pfron_contracts WHERE id = ?", [(int)$d['pfron_contract_id']]);
+                if ($c) $snap['limit'] = ['limit' => (float)$c['hours_limit'], 'remaining' => function_exists('k30_pfron_hours_remaining') ? k30_pfron_hours_remaining((int)$d['pfron_contract_id']) : null, 'from' => (string)$c['valid_from'], 'to' => (string)$c['valid_to']];
+            } elseif ($courseId > 0) {
+                foreach (db_all("SELECT s.lesson_date, s.time_from, s.duration_min, s.mode, s.topic, COALESCE(a.attended, 0) AS attended FROM k30_ti_sessions s LEFT JOIN k30_ti_attendance a ON a.session_id = s.id AND a.client_id = ?
+                                 WHERE s.course_id = ? AND s.lesson_date BETWEEN ? AND ? AND s.status IN ('held','individual_change','remote_material','planned','scheduled') ORDER BY s.lesson_date, s.time_from", [$clientId, $courseId, $d['od'], $d['do']]) as $x)
+                    $snap['sessions'][] = ['date' => (string)$x['lesson_date'], 'time' => substr((string)$x['time_from'], 0, 5), 'h' => round((int)$x['duration_min'] / 60, 2), 'mode' => (string)$x['mode'], 'topic' => (string)$x['topic'], 'attended' => (int)$x['attended'] === 1];
+            }
+            $snap['hours_auto'] = round(array_sum(array_column($snap['sessions'], 'h')), 2);
+        }
         if ($k === SettleKind::Prz && $courseId > 0) {
             $snap['current'] = [];
             foreach ((array)($d['months'] ?? []) as $m) {
@@ -598,6 +635,22 @@ final class SettlementDocs
                 $rows .= '<tr><td class="f"><b>Razem</b></td><td class="f" style="text-align:right"><b>' . $e(array_sum(array_column($d['lines'], 'h'))) . ' h</b></td><td class="f"></td><td class="f" style="text-align:right"><b>' . $e($zl(array_sum(array_column($d['lines'], 'amount')))) . '</b></td></tr>';
                 $h .= '<table class="t">' . $sec('C', 'ROZLICZENIE RĘCZNE MIESIĄCA ' . ($d['ym'] ?? ''), 4) . $th(['Pozycja', 'Godziny', 'Stawka', 'Kwota']) . $rows . '</table>';
             }
+        } elseif ($k === SettleKind::Pfr1) {
+            $ss = $d['snapshot']['sessions'] ?? []; $hrs = $d['godziny'] ?? ($d['snapshot']['hours_auto'] ?? 0);
+            $h .= '<table class="t">' . $sec('B', ($d['typ'] === 'konsultacja' ? 'KONSULTACJA FINANSOWANA' : 'SZKOLENIE FINANSOWANE') . ' ZE ŚRODKÓW PFRON', 3) . '<tr>'
+                . $fld('Rodzaj', $e($d['typ']), ' width="33%"') . $fld('Temat', '<b>' . $e($d['temat']) . '</b>', ' colspan="2"') . '</tr><tr>'
+                . $fld('Okres realizacji', $e(ldDate($d['od']) . ($d['do'] !== $d['od'] ? ' – ' . ldDate($d['do']) : '')), '') . $fld('Liczba godzin', '<b>' . $e($hrs) . ' h</b>', '') . $fld('Forma', $e($d['forma']) . ($d['miejsce'] !== '' ? '<div class="small">' . $e($d['miejsce']) . '</div>' : ''), '') . '</tr><tr>'
+                . $fld('Realizator', $e($d['realizator']), '') . $fld('Prowadzący / prowadząca', $e($d['prowadzacy'] ?: '—'), ' colspan="2"') . '</tr></table>';
+            $lim = $d['snapshot']['limit'] ?? null;
+            $h .= '<table class="t">' . $sec('C', 'FINANSOWANIE', 3) . '<tr>' . $fld('Program / źródło', $e('Państwowy Fundusz Rehabilitacji Osób Niepełnosprawnych — ' . $d['program']), ' colspan="2"') . $fld('Umowa o dofinansowanie', $e($d['umowa_nr'] ?: '—'), '') . '</tr><tr>'
+                . $fld('Kwota ze środków PFRON', $d['kwota_pfron'] !== null ? '<b>' . $e($zl($d['kwota_pfron'])) . '</b>' : '—', ' width="33%"') . $fld('Wkład własny uczestnika', $d['kwota_wlasna'] !== null ? $e($zl($d['kwota_wlasna'])) : '—', ' width="33%"')
+                . $fld('Limit godzin umowy', $lim ? $e($lim['limit'] . ' h' . ($lim['remaining'] !== null ? ', pozostało ' . round((float)$lim['remaining'], 2) . ' h' : '') . ($lim['to'] ? ', do ' . ldDate($lim['to']) : '')) : '—', ' width="34%"') . '</tr></table>';
+            if ($ss) {
+                $rows = '';
+                foreach ($ss as $i => $x) $rows .= '<tr><td class="f">' . ($i + 1) . '.</td><td class="f">' . $e(ldDate($x['date']) . ' ' . $x['time']) . '</td><td class="f">' . $e(($x['topic'] ?? '') ?: '—') . '</td><td class="f">' . $e($x['mode']) . '</td><td class="f" style="text-align:right">' . $e($x['h']) . ' h</td></tr>';
+                $h .= '<table class="t">' . $sec('D', 'WYKAZ ZAJĘĆ W OKRESIE', 5) . $th(['Lp.', 'Termin', 'Temat', 'Forma', 'Godziny']) . $rows . '</table>';
+            }
+            $h .= '<p class="small">Informujemy, że ' . ($d['typ'] === 'konsultacja' ? 'konsultacja jest finansowana' : 'szkolenie jest finansowane') . ' ze środków Państwowego Funduszu Rehabilitacji Osób Niepełnosprawnych w ramach programu „' . $e($d['program']) . '”. Dokument ma charakter informacyjny.</p>';
         } elseif ($k === SettleKind::Sub1) {
             $ar = $d['archive'] ?? null;
             $h .= '<table class="t">' . $sec('B', 'NOWA PROCEDURA OD DNIA ' . ldDate($d['since']), 3) . '<tr>' . $fld('Dzień uruchomienia', '<b>' . $e(ldDate($d['since'])) . '</b>', ' width="33%"')

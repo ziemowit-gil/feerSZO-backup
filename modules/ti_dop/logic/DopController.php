@@ -283,6 +283,7 @@ final class DopController
         return $this->view('settle_form.php', ['kind' => $kind, 'c' => $c, 'courses' => $courses, 'clients' => $c ? [] : DopService::clients((string)($_GET['q'] ?? '')), 'q' => (string)($_GET['q'] ?? ''),
             'errors' => $errors, 'old' => $old ?? ['course_id' => (string)($_GET['grupa'] ?? ''), 'as_of' => ldToday(), 'mode' => 'approval', 'scope' => 'group'],
             'autoRm' => $c && $kind === SettleKind::Rm ? AutoRm::get($cid) : null,
+            'pfron' => $c && $kind === SettleKind::Pfr1 && function_exists('k30_pfron_contracts_for_client') ? k30_pfron_contracts_for_client($cid) : [],
             'baselines' => $c ? array_map(fn($x) => (int)$x['course_id'], SettlementDocs::search(['client' => $cid, 'kind' => 'PRZ-P', 'status' => 'applied'])) : [], 'requests' => $c ? RopStatement::requests($cid) : []]);
     }
 

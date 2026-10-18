@@ -18,6 +18,9 @@ $groups = [
     ['RKS', SettleKind::Rks->title() . ' (kierownik)', '#60a917', $c['RKS'] ?? 0, route('settle.new', ['kind' => 'RKS']), route('settle.index', ['kind' => 'RKS'])],
     ['SUB1', 'Nowa procedura subkonta: wyczyść historię, księguj ręcznie', '#825a2c', $c['SUB1'] ?? 0, route('settle.new', ['kind' => 'SUB1']), route('settle.index', ['kind' => 'SUB1'])],
   ],
+  'PFRON' => [
+    ['PFR1', SettleKind::Pfr1->title(), SettleKind::Pfr1->color(), $c['PFR1'] ?? 0, route('settle.new', ['kind' => 'PFR1']), route('settle.index', ['kind' => 'PFR1'])],
+  ],
   'Rozliczenia okresowe' => array_map(fn(SettleKind $k) => [$k->value, $k->title(), $k->color(), $c[$k->value] ?? 0, route('settle.new', ['kind' => $k->value]), route('settle.index', ['kind' => $k->value])], [SettleKind::Rm, SettleKind::Rmr, SettleKind::Rr, SettleKind::Rrr]),
   'Stan początkowy, przeliczenia i zamknięcie' => array_map(fn(SettleKind $k) => [$k->value, $k->title(), $k->color(), $c[$k->value] ?? 0, route('settle.new', ['kind' => $k->value]), route('settle.index', ['kind' => $k->value])], [SettleKind::Przp, SettleKind::Prz, SettleKind::Rko]),
 ];

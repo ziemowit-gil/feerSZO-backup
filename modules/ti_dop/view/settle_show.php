@@ -32,6 +32,11 @@ $zl = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
   <?php elseif (in_array($k, [SettleKind::Rm, SettleKind::Rmr], true)): $ms = $s['month'] ?? null; ?>
     <dt class="col-sm-4">Miesiąc</dt><dd class="col-sm-8"><?= h($d['ym']) ?><?= $ms ? ': ' . h($ms['lessons']) . ' zajęć, ' . h($ms['hours_attended']) . ' h obecności, rozliczono ' . h($ms['hours_billed']) . ' h; należności ' . h($zl($ms['charges'])) . ', wpłaty ' . h($zl($ms['payments'])) . ', saldo na koniec ' . h($zl($ms['balance_end'])) : '' ?></dd>
     <?php foreach (($d['lines'] ?? []) as $l): ?><dt class="col-sm-4"><?= h($l['opis']) ?></dt><dd class="col-sm-8"><?= h($l['h']) ?> h × <?= h($zl($l['rate'])) ?> = <b><?= h($zl($l['amount'])) ?></b></dd><?php endforeach; ?>
+  <?php elseif ($k === SettleKind::Pfr1): $ss = $d['snapshot']['sessions'] ?? []; ?>
+    <dt class="col-sm-4">Rodzaj i temat</dt><dd class="col-sm-8"><?= h($d['typ']) ?>: <b><?= h($d['temat']) ?></b></dd>
+    <dt class="col-sm-4">Okres</dt><dd class="col-sm-8"><?= h(ldDate($d['od']) . ' – ' . ldDate($d['do'])) ?> · <?= h($d['godziny'] ?? ($d['snapshot']['hours_auto'] ?? 0)) ?> h · <?= h($d['forma']) ?><?= $d['miejsce'] !== '' ? ', ' . h($d['miejsce']) : '' ?></dd>
+    <dt class="col-sm-4">Finansowanie</dt><dd class="col-sm-8">PFRON — <?= h($d['program']) ?><?= $d['umowa_nr'] !== '' ? ', umowa ' . h($d['umowa_nr']) : '' ?><?= $d['kwota_pfron'] !== null ? '; PFRON ' . h($zl($d['kwota_pfron'])) : '' ?><?= $d['kwota_wlasna'] !== null ? '; wkład własny ' . h($zl($d['kwota_wlasna'])) : '' ?></dd>
+    <dt class="col-sm-4">Zajęcia w okresie</dt><dd class="col-sm-8"><?= $ss ? count($ss) . ' (' . h(implode(', ', array_map(fn($x) => ldDate($x['date']), array_slice($ss, 0, 8)))) . (count($ss) > 8 ? ', …' : '') . ')' : 'brak w grafiku' ?></dd>
   <?php elseif ($k === SettleKind::Sub1): $ar = $d['archive'] ?? null; ?>
     <dt class="col-sm-4">Dzień uruchomienia</dt><dd class="col-sm-8"><?= h(ldDate($d['since'])) ?> — od tego dnia księgowanie ręczne (RKS)</dd>
     <dt class="col-sm-4">Saldo otwarcia</dt><dd class="col-sm-8"><?= h($zl($d['opening'])) ?><?= $d['opening_src'] !== '' ? ' — ' . h($d['opening_src']) : '' ?></dd>

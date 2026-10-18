@@ -40,7 +40,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
     <div class="form-check"><input class="form-check-input" type="radio" name="scope" id="sc1" value="group"<?= ($old['scope'] ?? 'group') !== 'account' ? ' checked' : '' ?>><label class="form-check-label" for="sc1">grupa (zakończenie kursu)</label></div>
     <div class="form-check"><input class="form-check-input" type="radio" name="scope" id="sc2" value="account"<?= ($old['scope'] ?? '') === 'account' ? ' checked' : '' ?>><label class="form-check-label" for="sc2">całe konto uczestnika</label></div></div>
   <?php endif; ?>
-  <div class="col-md-5"><label class="form-label" for="course_id">Grupa<?= in_array($kind, [SettleKind::Przp, SettleKind::Rm, SettleKind::Rr, SettleKind::Rrr, SettleKind::Rks], true) ? ' (puste = całe konto)' : '' ?></label>
+  <div class="col-md-5"><label class="form-label" for="course_id">Grupa<?= in_array($kind, [SettleKind::Przp, SettleKind::Rm, SettleKind::Rr, SettleKind::Rrr, SettleKind::Rks], true) ? ' (puste = całe konto)' : ($kind === SettleKind::Pfr1 ? ' (szkolenie w grupie TI — opcjonalnie)' : '') ?></label>
     <select class="form-select" id="course_id" name="course_id"><option value="0"><?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr], true) ? '— wybierz grupę —' : 'całe konto' ?></option>
       <?php foreach ($courses as $co): $lab = (trim((string)$co['display_name']) !== '' ? $co['display_name'] : $co['name']) . (trim((string)$co['group_code']) !== '' ? ' (' . $co['group_code'] . ')' : ''); ?>
         <option value="<?= (int)$co['id'] ?>"<?= (string)($old['course_id'] ?? '') === (string)$co['id'] ? ' selected' : '' ?>><?= h($lab) ?><?= $kind === SettleKind::Prz ? (in_array((int)$co['id'], $baselines, true) || in_array(0, $baselines, true) ? ' — PRZ-P ✓' : ' — brak PRZ-P') : '' ?></option><?php endforeach; ?></select><?= $err('course_id') ?></div>
@@ -70,6 +70,27 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
     <td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][charges]" value="<?= h($y['charges'] ?? '') ?>" inputmode="decimal" aria-label="Należności <?= $m ?>"></td><td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][payments]" value="<?= h($y['payments'] ?? '') ?>" inputmode="decimal" aria-label="Wpłaty <?= $m ?>"></td></tr><?php endfor; ?>
   </tbody></table></section>
 <?php endif; ?>
+<?php elseif ($kind === SettleKind::Pfr1): ?>
+<section class="panel"><h2 class="mt-0">Szkolenie / konsultacja ze środków PFRON</h2><div class="row g-3">
+  <div class="col-md-3"><span class="form-label d-block">Rodzaj</span>
+    <div class="form-check"><input class="form-check-input" type="radio" name="typ" id="t1" value="szkolenie"<?= ($old['typ'] ?? 'szkolenie') !== 'konsultacja' ? ' checked' : '' ?>><label class="form-check-label" for="t1">szkolenie</label></div>
+    <div class="form-check"><input class="form-check-input" type="radio" name="typ" id="t2" value="konsultacja"<?= ($old['typ'] ?? '') === 'konsultacja' ? ' checked' : '' ?>><label class="form-check-label" for="t2">konsultacja</label></div></div>
+  <div class="col-md-5"><label class="form-label" for="pc">Umowa PFRON uczestnika (konsultacje z grafiku)</label>
+    <select class="form-select" id="pc" name="pfron_contract_id"><option value="0">— bez umowy z rejestru —</option>
+      <?php foreach ($pfron ?? [] as $pc): ?><option value="<?= (int)$pc['id'] ?>"<?= (string)($old['pfron_contract_id'] ?? '') === (string)$pc['id'] ? ' selected' : '' ?>><?= h(($pc['doc_number'] ?: $pc['contract_number']) . ' · ' . $pc['hours_limit'] . ' h · ' . $pc['status']) ?></option><?php endforeach; ?></select><?= $err('pfron_contract_id') ?></div>
+  <div class="col-md-4"><label class="form-label" for="un">Nr umowy o dofinansowanie (puste = z rejestru)</label><input class="form-control" id="un" name="umowa_nr" value="<?= $v('umowa_nr') ?>"></div>
+  <div class="col-md-8"><label class="form-label" for="tm">Temat *</label><input class="form-control" id="tm" name="temat" value="<?= $v('temat') ?>" placeholder="np. Obsługa czytnika ekranu NVDA"><?= $err('temat') ?></div>
+  <div class="col-md-4"><label class="form-label" for="pg">Program PFRON</label><input class="form-control" id="pg" name="program" value="<?= $v('program') ?: 'Aktywny samorząd' ?>"></div>
+  <div class="col-md-3"><label class="form-label" for="od">Od *</label><input class="form-control" type="date" id="od" name="od" value="<?= $v('od') ?: h(date('Y-m-01')) ?>"><?= $err('od') ?></div>
+  <div class="col-md-3"><label class="form-label" for="do">Do</label><input class="form-control" type="date" id="do" name="do" value="<?= $v('do') ?: h(date('Y-m-t')) ?>"></div>
+  <div class="col-md-3"><label class="form-label" for="gd">Liczba godzin (puste = z zajęć)</label><input class="form-control" id="gd" name="godziny" value="<?= $v('godziny') ?>" inputmode="decimal"><?= $err('godziny') ?></div>
+  <div class="col-md-3"><label class="form-label" for="fm">Forma</label><select class="form-select" id="fm" name="forma"><?php foreach (['zdalnie', 'stacjonarnie', 'hybrydowo'] as $fo): ?><option<?= ($old['forma'] ?? 'zdalnie') === $fo ? ' selected' : '' ?>><?= $fo ?></option><?php endforeach; ?></select></div>
+  <div class="col-md-6"><label class="form-label" for="mj">Miejsce / platforma</label><input class="form-control" id="mj" name="miejsce" value="<?= $v('miejsce') ?>" placeholder="np. Zoom; Kraków, ul. …"></div>
+  <div class="col-md-6"><label class="form-label" for="pw">Prowadzący / prowadząca</label><input class="form-control" id="pw" name="prowadzacy" value="<?= $v('prowadzacy') ?>"></div>
+  <div class="col-md-4"><label class="form-label" for="kp">Kwota ze środków PFRON (zł)</label><input class="form-control" id="kp" name="kwota_pfron" value="<?= $v('kwota_pfron') ?>" inputmode="decimal"><?= $err('kwota_pfron') ?></div>
+  <div class="col-md-4"><label class="form-label" for="kw">Wkład własny uczestnika (zł)</label><input class="form-control" id="kw" name="kwota_wlasna" value="<?= $v('kwota_wlasna') ?>" inputmode="decimal"><?= $err('kwota_wlasna') ?></div>
+  <div class="col-md-4"><label class="form-label" for="rz">Realizator (puste = Fundacja)</label><input class="form-control" id="rz" name="realizator" value="<?= $v('realizator') ?>"></div>
+</div></section>
 <?php elseif ($kind === SettleKind::Sub1): ?>
 <section class="panel warn"><h2 class="mt-0">Nowa procedura subkonta</h2>
   <p class="small mb-2">Gdy historia subkonta w systemie jest błędna: po zatwierdzeniu przez kierownika dotychczasowa historia (wpłaty, należności, saldo) zostaje <b>zarchiwizowana w dokumencie SUB1</b> (PDF w teczce kursanta), saldo jest zerowane wpisami umorzenia, a wyciąg subkonta liczy się od nowa. Od dnia uruchomienia kierownik księguje ręcznie dokumentami <b>RKS</b> (kwota wpłacona / należna) — automatyczne rozliczenia z kalkulatora zostają wyłączone. Faktur ani danych bankowych nic nie kasuje.</p>
