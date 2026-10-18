@@ -138,9 +138,10 @@ function directory_save_profile(int $uid, array $data): void {
 
     $bio          = substr(trim($data['bio'] ?? ''), 0, 1000);
     $phone_public = empty($data['phone_public']) ? 0 : 1;
-    $avatar_file  = $data['avatar_file'] ?? '';
-
-    $exists = db_one("SELECT user_id FROM user_profiles WHERE user_id = ?", [$uid]);
+    $exists = db_one("SELECT user_id, avatar_file FROM user_profiles WHERE user_id = ?", [$uid]);
+    // Brak klucza avatar_file = nie zmieniaj zdjęcia (formularz profilu go nie wysyła;
+    // wcześniej każdy zapis kasował zatwierdzone zdjęcie).
+    $avatar_file  = array_key_exists('avatar_file', $data) ? (string)$data['avatar_file'] : (string)($exists['avatar_file'] ?? '');
     if ($exists) {
         $db->prepare("UPDATE user_profiles SET bio=?, phone_public=?, skills=?, avatar_file=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?")
            ->execute([$bio, $phone_public, $skills_json, $avatar_file, $uid]);
