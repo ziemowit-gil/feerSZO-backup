@@ -29,6 +29,7 @@ html body .ezb-modal .form-label{font-size:.72rem;font-weight:600;text-transform
     <button type="button" class="ezb-act ezb-act--danger" data-bs-toggle="modal" data-bs-target="#ezbCloseModal"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij</button>
     <button type="button" class="ezb-act" data-bs-toggle="modal" data-bs-target="#bulkModal"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Przerejestruj</button>
     <button type="button" class="ezb-act" data-bs-toggle="modal" data-bs-target="#ezbOwnerModal"><i class="bi bi-person-gear" aria-hidden="true"></i>Prowadzący</button>
+    <button type="button" class="ezb-act" data-bs-toggle="modal" data-bs-target="#ezbDeadlineModal"><i class="bi bi-calendar-event" aria-hidden="true"></i>Termin</button>
     <button type="button" class="ezb-act ezb-act--end" id="ezbClear"><i class="bi bi-x-lg" aria-hidden="true"></i>Odznacz</button>
   </div>
 </div>

@@ -117,3 +117,15 @@ function ezdBulkOwner(array $ids, int $userId, ?int $ownerId): array {
         return null;
     });
 }
+
+/** Ustawienie terminu ($deadline RRRR-MM-DD) albo jego usunięcie (''); koszulki ciągłe nie mają terminu. */
+function ezdBulkDeadline(array $ids, int $userId, string $deadline): array {
+    return ezdBulkEach($ids, $userId, function (array $sp) use ($userId, $deadline) {
+        if ($why = ezdBulkEditBlocker($sp, $userId)) return $why;
+        if (!empty($sp['ciagla'])) return 'koszulka ciągła — nie ma terminu';
+        if ((string)($sp['deadline'] ?? '') === $deadline) return $deadline === '' ? 'nie ma terminu' : 'ma już ten termin';
+        ezdBulkSave($sp, ['deadline' => $deadline], $userId,
+            'termin: ' . (($sp['deadline'] ?? '') ?: '(brak)') . ' → ' . ($deadline ?: '(brak)'));
+        return null;
+    });
+}

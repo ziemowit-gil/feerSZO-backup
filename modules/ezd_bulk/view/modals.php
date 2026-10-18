@@ -66,6 +66,34 @@ $ezbUsers = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name")
   </div>
 </div>
 
+<!-- Okno: termin -->
+<div class="modal fade ezb-modal" id="ezbDeadlineModal" tabindex="-1" aria-labelledby="ezbDeadlineTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="<?= h(ezdBulkUrl('/deadline')) ?>" data-ezb-ids>
+      <div class="modal-header">
+        <h2 class="modal-title h6 mb-0" id="ezbDeadlineTitle"><i class="bi bi-calendar-event me-2" aria-hidden="true"></i>Ustaw termin</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Anuluj"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="back" value="<?= h($ezbBack) ?>">
+        <div class="ezb-sum" data-ezb-sum="deadline"></div>
+        <label class="form-label" for="ezbDeadline">Termin</label>
+        <input type="date" class="form-control form-control-sm mb-2" id="ezbDeadline" name="deadline">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="ezbDeadlineClear" name="clear" value="1"
+                 onchange="document.getElementById('ezbDeadline').disabled=this.checked">
+          <label class="form-check-label small" for="ezbDeadlineClear">Usuń termin z zaznaczonych koszulek</label>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Zapisz w zaznaczonych</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 (function () {
   var bar = document.getElementById('ezbBar');
@@ -91,6 +119,11 @@ $ezbUsers = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name")
       txt += ' Zmiana jak w edycji pojedynczej koszulki — pominięte zostaną te bez prawa edycji'
         + (zamk ? ' oraz zamknięte (' + zamk + '), jeśli nie jesteś administratorem.' : '.');
       warn = zamk > 0;
+    }
+    if (kind === 'deadline') {
+      txt += ' Pominięte zostaną koszulki bez prawa edycji' + (zamk ? ', zamknięte (' + zamk + ', jeśli nie jesteś administratorem)' : '')
+        + (kind === 'deadline' && ciagle ? ' oraz ciągłe (' + ciagle + ') — nie mają terminu.' : '.');
+      warn = zamk > 0 || (kind === 'deadline' && ciagle > 0);
     }
     return {html: txt, warn: warn};
   }

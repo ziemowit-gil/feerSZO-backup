@@ -45,4 +45,17 @@ final class EzdBulkController
         ezdBulkRemember('Zmiana prowadzącego', ezdBulkOwner($ids, $this->userId(), $ownerId));
         return $this->back();
     }
+
+    public function deadline(): ?string {
+        if (!($ids = $this->ids())) return $this->back();
+        $deadline = !empty($_POST['clear']) ? '' : trim((string)($_POST['deadline'] ?? ''));
+        if ($deadline !== '') {
+            $d = DateTime::createFromFormat('!Y-m-d', $deadline);
+            if (!$d || $d->format('Y-m-d') !== $deadline) { flash_set('danger', 'Podaj poprawną datę terminu.'); return $this->back(); }
+        } elseif (empty($_POST['clear'])) {
+            flash_set('danger', 'Podaj datę terminu albo zaznacz „Usuń termin”.'); return $this->back();
+        }
+        ezdBulkRemember($deadline === '' ? 'Usunięcie terminu' : 'Ustawienie terminu ' . $deadline, ezdBulkDeadline($ids, $this->userId(), $deadline));
+        return $this->back();
+    }
 }
