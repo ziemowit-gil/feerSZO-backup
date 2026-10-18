@@ -2,6 +2,7 @@
 /**
  * panel/includes/header_panel.php — Standalone layout panelu wolontariusza.
  * Stały kolor — nie zależy od ustawień organizacji.
+ * Wygląd: Metro UI jak System Tożsamości — warstwa w pv_metro.php (ładowana na końcu <head>).
  */
 
 if (!defined('APP_INSTALLED')) require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -170,10 +171,9 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 [data-theme="hc"] .dropdown-item:hover,[data-theme="hc"] .dropdown-item:focus{background:#000;color:#fff}
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Warstwa wizualna modułu Tożsamość (tozsamosc/_head.php) — panel ma wyglądać
- * tak samo: spokojny biały pasek, kolumna 960 px, karty 12 px z cienką ramką,
- * przyciski 8 px/600, pigułkowe znaczniki. Kolor akcentu pozostaje kolorem
- * wybranym przez wolontariusza (--vol-color), struktura jest z Tożsamości.
+ * Układ paska górnego (pv-bar-inner, przycisk Menu, linki). Kolory i kształty
+ * Metro UI jak System Tożsamości nakłada pv_metro.php (ładowany niżej).
+ * Kolor akcentu pozostaje kolorem wybranym przez wolontariusza (--vol-color).
  * Tryb wysokiego kontrastu (data-theme="hc") zachowuje własne reguły.
  * ═══════════════════════════════════════════════════════════════════════════ */
 :root { --tz-line:#e5e7eb; --tz-muted:#6b7280; --tz-radius:12px; }
@@ -207,71 +207,13 @@ body{background:var(--pvl-body);font-family:system-ui,-apple-system,sans-serif;m
 [data-theme="hc"] .pv-lnk:hover { background:#000; color:#fff; }
 :root:not([data-theme="hc"]) { --pvl-sub:var(--tz-muted); }
 
-/* Nagłówek strony — .tz-h */
-#pv-main > h1:first-child, #pv-main .pv-page-title, #pv-main .tz-h h1 {
-  font-size:1.35rem; font-weight:700; letter-spacing:-.01em; margin:0 0 .1rem; color:var(--pvl-brand);
-}
-#pv-main .tz-h { margin-bottom:1rem }
-#pv-main .tz-h p { color:var(--pvl-sub); margin:.1rem 0 0; font-size:.85rem }
-
-/* Karty Bootstrap w wyglądzie .tz-card */
-:root:not([data-theme="hc"]) #pv-main .card {
-  background:var(--pvl-nav); border:1px solid var(--tz-line); border-radius:var(--tz-radius);
-  box-shadow:none; overflow:hidden;
-}
-:root:not([data-theme="hc"]) #pv-main .card-header {
-  background:var(--pvl-nav); border-bottom:1px solid var(--tz-line);
-  padding:.85rem 1.1rem; font-weight:600; font-size:.92rem; color:var(--pvl-brand);
-}
-:root:not([data-theme="hc"]) #pv-main .card-header i { color:var(--vol-color) }
-#pv-main .card-body { padding:1.1rem }
-:root:not([data-theme="hc"]) #pv-main .card-footer {
-  background:#f9fafb; border-top:1px solid var(--tz-line); font-size:.78rem; color:var(--pvl-sub);
-}
-
-/* Przyciski, pola i znaczniki — kształty z Tożsamości */
-#pv-main .btn, .pv-offcanvas .btn { border-radius:8px; font-weight:600; font-size:.87rem }
-#pv-main .btn-lg { border-radius:10px; font-size:.95rem }
-#pv-main .btn-sm { border-radius:7px; font-size:.78rem }
-#pv-main .badge { border-radius:999px; font-weight:600 }
-:root:not([data-theme="hc"]) #pv-main .form-control,
-:root:not([data-theme="hc"]) #pv-main .form-select { border-radius:8px; border-color:var(--tz-line) }
-:root:not([data-theme="hc"]) #pv-main .list-group-item { border-color:var(--tz-line) }
-:root:not([data-theme="hc"]) #pv-main .table > :not(caption) > * > * { border-color:var(--tz-line) }
-
-/* Komponenty Tożsamości dostępne wprost w treści panelu (tz-*) */
-#pv-main .tz-card { background:var(--pvl-nav); border:1px solid var(--tz-line); border-radius:var(--tz-radius); overflow:hidden; margin-bottom:1rem }
-#pv-main .tz-card__hd { padding:.85rem 1.1rem; border-bottom:1px solid var(--tz-line); display:flex; align-items:center; gap:.6rem; font-weight:600; font-size:.92rem }
-#pv-main .tz-card__hd i { color:var(--vol-color) }
-#pv-main .tz-card__bd { padding:1.1rem }
-#pv-main .tz-btn { background:var(--vol-color); color:var(--vol-on); border:none; border-radius:8px; padding:.55rem 1.2rem;
-  font-weight:600; font-size:.87rem; display:inline-flex; align-items:center; gap:.4rem; text-decoration:none }
-#pv-main .tz-btn:hover { filter:brightness(.92); color:var(--vol-on) }
-#pv-main .tz-btn--ghost { background:var(--pvl-nav); color:var(--pvl-txt); border:1.5px solid var(--tz-line) }
-#pv-main .tz-btn--ghost:hover { background:#f9fafb; color:var(--pvl-brand) }
-#pv-main .tz-badge { font-size:.7rem; font-weight:600; padding:.2rem .55rem; border-radius:999px; display:inline-flex; align-items:center; gap:.3rem }
-#pv-main .tz-badge--ok { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0 }
-#pv-main .tz-badge--warn { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa }
-#pv-main .tz-badge--off { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb }
-#pv-main .tz-dl { display:grid; grid-template-columns:1fr }
-@media(min-width:576px){ #pv-main .tz-dl { grid-template-columns:repeat(2,1fr) } }
-@media(min-width:992px){ #pv-main .tz-dl { grid-template-columns:repeat(3,1fr) } }
-#pv-main .tz-dl > div { padding:.75rem 1.1rem; border-top:1px solid var(--tz-line) }
-#pv-main .tz-dl dt { font-size:.68rem; color:var(--pvl-sub); margin:0; text-transform:uppercase; letter-spacing:.04em; font-weight:600 }
-#pv-main .tz-dl dd { font-weight:600; margin:.15rem 0 0; font-size:.9rem; word-break:break-word; color:var(--pvl-brand) }
-#pv-main .tz-tiles { display:grid; gap:.85rem; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); margin:.2rem 0 .65rem }
-#pv-main .tz-tile { display:block; text-align:left; background:var(--pvl-nav); border:1.5px solid var(--tz-line); border-radius:10px;
-  padding:1rem; text-decoration:none; color:inherit; transition:border-color .13s, box-shadow .13s }
-#pv-main .tz-tile:hover, #pv-main .tz-tile:focus-visible { border-color:var(--vol-color); box-shadow:0 0 0 3px var(--vol-bg); outline:none }
-#pv-main .tz-tile__ico { width:38px; height:38px; border-radius:9px; background:var(--vol-color); color:var(--vol-on);
-  display:flex; align-items:center; justify-content:center; font-size:1.1rem; margin-bottom:.6rem }
-#pv-main .tz-note { background:#f9fafb; border-top:1px solid var(--tz-line); padding:.55rem 1rem; font-size:.78rem;
-  color:var(--pvl-sub); display:flex; gap:.4rem; align-items:flex-start }
+/* Wygląd treści (nagłówki, karty, przyciski, pola, komponenty tz-*) — pv_metro.php. */
 </style>
 <?php /* Wspólny system stylów podstron (.pv-page-*, .pv-card, .vol-detail-*, …) */ ?>
 <?php require_once __DIR__ . '/pv_styles.php'; ?>
-<?php /* Tło aplikacji — geometria jak na ekranie logowania (kolor kanwy z motywu panelu) */ ?>
-<?php require_once dirname(dirname(__DIR__)) . '/includes/app_bg.php'; app_bg_css('var(--pvl-body)'); ?>
+<?php /* Szata Metro UI jak System Tożsamości (płaskie białe tło, ciemny app-bar, zero zaokrągleń) —
+         ostatni blok stylów, nadpisuje wygląd powłoki i komponentów podstron. */ ?>
+<?php require_once __DIR__ . '/pv_metro.php'; ?>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('<?= APP_URL ?>/sw.js')
