@@ -41,7 +41,7 @@ $manifest = [
     'start_url'        => $app . '/',
     'display'          => 'standalone',
     'background_color' => '#FFFFFF',
-    'theme_color'      => '#2E844A',
+    'theme_color'      => '#1d1d1d',
     'orientation'      => 'portrait-primary',
     'icons'            => $icons,
 ];

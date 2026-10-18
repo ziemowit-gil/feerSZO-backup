@@ -541,3 +541,72 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   font-size: .875rem;
   text-align: center;
 }
+
+/* ══ Szata Metro (2026-10-18) ═══════════════════════════════════════════════
+   Ta sama co reszta CRM (crm/includes/crm_metro.php): ciemny app-bar #1d1d1d,
+   Segoe UI, akcent Metro teal, ZERO zaokrągleń i cieni, zakładki jak pivot,
+   przyciski i pola kwadratowe z ramką 2px. Warstwa nadpisuje wyłącznie
+   wygląd — układ, rozmiary pól dotykowych (≥ 44 px) i znaczniki bez zmian. */
+:root {
+  --d-primary: #00807e; --d-primary-dark: #005e5c; --d-accent: #0050ef;
+  --d-bg: #f2f2f2; --d-card: #ffffff; --d-border: #e1e1e1; --d-text: #1d1d1d; --d-muted: #5f5f5f;
+  --d-danger: #a20025; --d-shadow: none; --d-bar: #1d1d1d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --d-primary: #4fc3c1; --d-primary-dark: #9fe0de; --d-accent: #7ca8ff;
+    --d-bg: #111111; --d-card: #1d1d1d; --d-border: #333333; --d-text: #f2f2f2; --d-muted: #b3b3b3;
+    --d-danger: #ff8fa3; --d-bar: #000000;
+  }
+}
+html, body { font-family: "Segoe UI", "Segoe UI Web (West European)", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; }
+*, *::before, *::after { border-radius: 0 !important; box-shadow: none !important; }
+:focus-visible { outline: 3px solid #fbbf24 !important; outline-offset: 2px !important; }
+
+/* App-bar: ciemny pas z tytułem, pod nim wyszukiwarka i pivot */
+.d-head { background: var(--d-bar); border-bottom: 0; padding-bottom: 0; color: #fff; }
+.d-title { font-weight: 300; font-size: 1.35rem; letter-spacing: 0; color: #fff; }
+.d-head .d-iconbtn { color: #fff; }
+.d-head .d-iconbtn:hover, .d-head .d-iconbtn:active { background: rgba(255,255,255,.14); color: #fff; }
+.d-search input { background: rgba(255,255,255,.12); border: 2px solid transparent; color: #fff; }
+.d-search input::placeholder { color: rgba(255,255,255,.7); }
+.d-search .d-search-ico { fill: rgba(255,255,255,.75); }
+.d-search input:focus-visible { background: #fff; color: #1d1d1d; border-color: var(--d-primary); outline-offset: 0 !important; }
+.d-search:focus-within .d-search-ico { fill: #5f5f5f; }
+.d-search:focus-within .d-search-clear { color: #5f5f5f; }
+.d-tabs { gap: 1.25rem; margin-top: .25rem; }
+.d-tab { flex: 0 0 auto; min-height: 44px; padding: .4rem 0; background: transparent; border: 0; border-bottom: 3px solid transparent;
+  color: rgba(255,255,255,.72); font-size: 1rem; font-weight: 400; }
+.d-tab[aria-selected="true"] { background: transparent; color: #fff; border-bottom-color: var(--d-primary); font-weight: 600; }
+@media (prefers-color-scheme: dark) { .d-tab[aria-selected="true"] { color: #fff; } }
+
+/* Kafle kontaktów */
+.d-card { border: 0; border-left: 4px solid transparent; margin-bottom: 2px; }
+.d-card:hover { border-left-color: var(--d-primary); }
+.d-avatar { background: var(--d-primary); color: #fff; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .d-avatar { color: #0b2b2a; } }
+.d-badge { background: transparent; color: var(--d-muted); border: 1px solid var(--d-border); font-weight: 600; }
+.d-call { background: var(--d-primary); font-weight: 600; }
+.d-call:active { background: var(--d-primary-dark); }
+@media (prefers-color-scheme: dark) { .d-call { color: #0b2b2a; } }
+.d-sms { background: transparent; border: 2px solid var(--d-border); color: var(--d-text); }
+.d-skeleton { background: var(--d-card); }
+
+/* Arkusze, przyciski, pola */
+.d-sheet { border-top: 4px solid var(--d-primary); }
+.d-sheet h2 { font-weight: 300; font-size: 1.5rem; }
+.d-sheet-grip { display: none; }
+.d-outcome { background: var(--d-card); border: 2px solid var(--d-border); font-weight: 600; }
+.d-outcome[aria-pressed="true"] { background: var(--d-primary); border-color: var(--d-primary); color: #fff; }
+.d-sheet textarea, .d-field input { border: 2px solid #8a8a8a; background: var(--d-card); }
+.d-sheet textarea:focus-visible, .d-field input:focus-visible { border-color: var(--d-primary); }
+.d-btn { border: 2px solid #8a8a8a; background: var(--d-card); font-weight: 600; }
+.d-btn-primary { background: var(--d-primary); border-color: var(--d-primary); color: #fff; }
+@media (prefers-color-scheme: dark) { .d-btn-primary { color: #0b2b2a; } }
+.d-toast { background: #1d1d1d; border-left: 4px solid var(--d-primary); }
+.d-banner { background: var(--d-danger); color: #fff; border-bottom: 0; }
+
+/* Ekran logowania */
+.d-login-body { background: var(--d-bar); }
+.d-login { background: var(--d-card); border-top: 4px solid var(--d-primary); }
+.d-login-title { font-weight: 300; }

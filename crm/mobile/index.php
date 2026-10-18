@@ -47,8 +47,8 @@ function d_icon(string $name): string
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2E844A" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1F1F1F" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#1d1d1d" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="robots" content="noindex, nofollow">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">

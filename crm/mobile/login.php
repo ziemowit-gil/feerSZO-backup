@@ -54,8 +54,8 @@ $ms_login = APP_URL . '/auth/login.php?redirect=' . urlencode($base . '/');
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2E844A" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1F1F1F" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#1d1d1d" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="robots" content="noindex, nofollow">
 <title>Zaloguj — Dzwoń</title>
 <link rel="manifest" href="<?= h($base) ?>/manifest.php">
