@@ -154,14 +154,47 @@ if ($_is_volunteer_only) {
 }
 ?>
 
-<div class="pv-wrap">
+<?php
+require_once dirname(__DIR__) . '/modules/panel_metro/lib/panelMetro.php';
+panelMetroAssets($_vol_color ?? '#0f6fa8');
+$_ap_pal = array_values(panelMetroPalette());
+?>
+<style>
+/* Wnioski — METRO: kafle typów, formularz po lewej, moje wnioski po prawej */
+.pvm .ap-cols{display:grid;gap:1.5rem;grid-template-columns:1fr;align-items:start}
+@media(min-width:1100px){.pvm .ap-cols{grid-template-columns:minmax(0,7fr) minmax(0,4fr)}}
+.pvm .ap-form{background:var(--pvm-light);padding:1.25rem}
+.pvm .ap-form .form-label{font-size:.82rem;font-weight:600;color:var(--pvm-ink)}
+.pvm .ap-types{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.pvm .ap-type{display:flex;flex-direction:column;justify-content:space-between;gap:.5rem;min-height:118px;margin:0;padding:.85rem 1rem;background:var(--pvm-bg);color:var(--pvm-ink);border-left:8px solid var(--c);cursor:pointer}
+.pvm .ap-type:hover{background:var(--pvm-light-h)}
+.pvm .ap-type .ic{font-size:1.6rem;line-height:1;color:var(--c)}
+.pvm .ap-type b{display:block;font-size:.92rem;font-weight:600;line-height:1.25}
+.pvm .ap-type small{display:block;font-size:.76rem;color:var(--pvm-muted);line-height:1.35}
+.pvm .btn-check:checked + .ap-type{background:var(--c);color:#fff}
+.pvm .btn-check:checked + .ap-type .ic,.pvm .btn-check:checked + .ap-type small{color:#fff}
+.pvm .btn-check:focus-visible + .ap-type{outline:3px solid #fbbf24;outline-offset:2px}
+.pvm .ap-fields{display:grid;gap:0 1rem;grid-template-columns:1fr}
+@media(min-width:576px){.pvm .ap-fields{grid-template-columns:1fr 1fr}}
+.pvm .ap-fields>.ap-full{grid-column:1/-1}
+.pvm .ap-side{position:sticky;top:5rem}
+.pvm .ap-h{display:flex;gap:.75rem;background:var(--pvm-light);border-left:6px solid var(--c);padding:.8rem 1rem;margin-bottom:6px}
+.pvm .ap-h__ttl{font-weight:600;font-size:.92rem;color:var(--pvm-ink)}
+.pvm .ap-h__meta{font-size:.76rem;color:var(--pvm-muted)}
+.pvm .ap-h__ans{margin-top:.4rem;background:var(--pvm-bg);padding:.5rem .65rem;font-size:.85rem}
+:root[data-theme="hc"] .pvm .ap-type{border:2px solid #000;border-left-width:8px}
+:root[data-theme="hc"] .pvm .btn-check:checked + .ap-type{background:#000}
+</style>
 
-<div class="pv-page-header">
-  <div class="pv-page-head-main">
-    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
-    <h1 class="pv-page-title"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Wnioski</h1>
-    <p class="pv-page-sub">Składaj wnioski związane z umową wolontariacką</p>
+<div class="pv-wrap pvm">
+
+<div class="mt-head">
+  <div>
+    <div class="mt-kicker">Panel współpracownika · Sprawy</div>
+    <h1 class="mt-title">Wnioski</h1>
+    <p class="mt-lead">Złóż pismo lub wniosek związany z umową — odpowiedź zobaczysz w „Moich wnioskach”.</p>
   </div>
+  <a href="<?= APP_URL ?>/panel/index.php" class="mt-btn mt-btn--ghost"><i class="bi bi-arrow-left" aria-hidden="true"></i>Pulpit</a>
 </div>
 
 <?= flash_html() ?>
@@ -190,9 +223,10 @@ if ($_is_volunteer_only) {
 </div>
 <?php else: ?>
 
-<div class="tz-card mb-4">
-  <div class="tz-card__hd"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Nowe pismo / wniosek</div>
-  <div class="tz-card__bd">
+<div class="ap-cols">
+<section aria-labelledby="ap-new-h">
+  <h2 class="mt-h2" id="ap-new-h">Nowe <b>pismo / wniosek</b></h2>
+  <div class="ap-form">
 
     <?php if ($errors): ?>
     <div class="pv-alert pv-alert-err" role="alert">
@@ -204,25 +238,20 @@ if ($_is_volunteer_only) {
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
       <div class="mb-4">
-        <label class="form-label fw-semibold">Typ pisma / wniosku <span class="text-danger">*</span></label>
-        <div class="row g-2">
-          <?php foreach ($types as $t):
+        <div class="form-label fw-semibold" id="ap-type-l">1. Wybierz rodzaj <span class="text-danger">*</span></div>
+        <div class="ap-types" role="radiogroup" aria-labelledby="ap-type-l">
+          <?php foreach ($types as $_ti => $t):
               $sel = $selected_type_id === $t['id']; ?>
-          <div class="col-sm-6">
+          <div>
             <input type="radio" class="btn-check type-radio" name="type_id"
                    id="type_<?= $t['id'] ?>" value="<?= $t['id'] ?>"
                    data-requires-contract="<?= $t['requires_contract'] ?>"
                    data-allow-attachment="<?= $t['allow_attachment'] ?>"
                    <?= $sel ? 'checked' : '' ?> required>
-            <label class="tz-card d-flex align-items-center gap-2 w-100 text-start p-3"
-                   for="type_<?= $t['id'] ?>">
-              <i class="bi <?= h($t['icon']) ?> flex-shrink-0" aria-hidden="true"></i>
-              <div>
-                <div class="fw-semibold"><?= h($t['label']) ?></div>
-                <?php if ($t['description']): ?>
-                <div class="text-muted"><?= h($t['description']) ?></div>
-                <?php endif; ?>
-              </div>
+            <label class="ap-type" for="type_<?= $t['id'] ?>" style="--c:<?= h($_ap_pal[$_ti % 8]) ?>">
+              <i class="bi <?= h($t['icon']) ?> ic" aria-hidden="true"></i>
+              <span><b><?= h($t['label']) ?></b>
+                <?php if ($t['description']): ?><small><?= h($t['description']) ?></small><?php endif; ?></span>
             </label>
           </div>
           <?php endforeach; ?>
@@ -238,6 +267,8 @@ if ($_is_volunteer_only) {
         <?php endif; ?>
       </div>
 
+      <div class="form-label fw-semibold mt-1">2. Uzupełnij szczegóły</div>
+      <div class="ap-fields">
       <div class="mb-3" id="contract-row">
         <label for="contract" class="form-label fw-semibold">
           Powiązana umowa <span id="contract-req-star" class="text-danger" style="display:none">*</span>
@@ -267,16 +298,18 @@ if ($_is_volunteer_only) {
                required aria-required="true">
       </div>
 
+      </div>
       <?php foreach ($types as $t) { ?>
       <div class="type-fields" id="fields-<?= $t['id'] ?>"
            style="<?= $selected_type_id !== $t['id'] ? 'display:none' : '' ?>">
+        <div class="ap-fields">
         <?php foreach ($t['fields'] as $f) {
             $val   = $_POST['field_' . $f['name']] ?? '';
             $ph    = h($f['placeholder']);
             $fid   = 'fld_' . h($f['name']) . '_' . $t['id'];
             $fname = 'field_' . h($f['name']);
         ?>
-        <div class="mb-3">
+        <div class="mb-3<?= in_array($f['field_type'], ['date', 'number'], true) ? '' : ' ap-full' ?>">
           <label class="form-label fw-semibold" for="<?= $fid ?>">
             <?= h($f['label']) ?>
             <?php if ($f['required']): ?><span class="text-danger">*</span><?php endif; ?>
@@ -310,7 +343,7 @@ if ($_is_volunteer_only) {
         </div>
         <?php } ?>
         <?php if (!$t['fields']): ?>
-        <div class="mb-3">
+        <div class="mb-3 ap-full">
           <label class="form-label fw-semibold" for="fld_fallback_<?= $t['id'] ?>">
             Treść / opis <span class="text-danger">*</span>
           </label>
@@ -320,6 +353,7 @@ if ($_is_volunteer_only) {
                     aria-required="true"><?= h($_POST['field__tresc_fallback'] ?? '') ?></textarea>
         </div>
         <?php endif; ?>
+        </div>
       </div>
       <?php } ?>
 
@@ -332,42 +366,38 @@ if ($_is_volunteer_only) {
         <div class="form-text">Dozwolone formaty: PDF, DOCX, JPG, PNG. Maks. 30 MB.</div>
       </div>
 
-      <div class="d-flex gap-2">
-        <button type="submit" class="tz-btn">
-          <i class="bi bi-send me-2" aria-hidden="true"></i>Wyślij
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="mt-btn">
+          <i class="bi bi-send" aria-hidden="true"></i>Wyślij
         </button>
-        <a href="<?= APP_URL ?>/panel/index.php" class="tz-btn tz-btn--ghost">Anuluj</a>
+        <a href="<?= APP_URL ?>/panel/index.php" class="mt-btn mt-btn--ghost">Anuluj</a>
       </div>
     </form>
   </div>
-</div>
+</section>
 
-<?php endif; ?>
-
-<?php if ($history): ?>
-<div class="tz-card">
-  <div class="tz-card__hd">
-    <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Moje wnioski
-    <span class="tz-badge ms-auto"><?= count($history) ?></span>
-  </div>
+<aside class="ap-side" aria-labelledby="ap-hist-h">
+  <h2 class="mt-h2" id="ap-hist-h">Moje <b>wnioski</b><?php if ($history): ?> <span class="mt-no" style="font-size:1rem">(<?= count($history) ?>)</span><?php endif; ?></h2>
+  <?php if (!$history): ?>
+  <div class="mt-empty"><i class="bi bi-inboxes" style="font-size:2rem;display:block;margin-bottom:.4rem" aria-hidden="true"></i><p class="mb-0">Nie złożono jeszcze żadnego wniosku.</p></div>
+  <?php endif; ?>
   <?php foreach ($history as $app):
       $st = $status_map[$app['status']] ?? ['label' => $app['status'], 'class' => 'secondary'];
       $fields_data = json_decode($app['fields_json'] ?? '{}', true) ?: [];
       $st_icon_map = ['primary' => 'bi-clock', 'warning' => 'bi-hourglass-split', 'success' => 'bi-check-circle-fill', 'danger' => 'bi-x-circle-fill'];
       $st_icon = $st_icon_map[$st['class']] ?? 'bi-circle';
   ?>
-  <div class="vol-activity-row">
-    <div class="vol-activity-icon bg-<?= $st['class'] ?> bg-opacity-15 text-<?= $st['class'] ?>">
-      <i class="bi <?= $st_icon ?>" aria-hidden="true"></i>
-    </div>
-    <div class="flex-grow-1">
+  <?php $_apc = ['primary'=>'var(--m-blue)','warning'=>'var(--m-orange)','success'=>'var(--m-green)','danger'=>'var(--m-red)'][$st['class']] ?? 'var(--m-grey)'; ?>
+  <article class="ap-h" style="--c:<?= $_apc ?>">
+    <i class="bi <?= $st_icon ?>" style="font-size:1.15rem;color:<?= $_apc ?>" aria-hidden="true"></i>
+    <div class="flex-grow-1" style="min-width:0">
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold"><?= h($app['tytul']) ?></span>
-        <span class="pv-status-pill pv-sp-<?= $st['class'] ?>"><?= $st['label'] ?></span>
+        <span class="ap-h__ttl"><?= h($app['tytul']) ?></span>
+        <span class="mt-badge" style="background:<?= $_apc ?>"><?= $st['label'] ?></span>
       </div>
-      <div class="text-muted"><?= h($app['type_label'] ?? '') ?></div>
+      <div class="ap-h__meta"><?= h($app['type_label'] ?? '') ?> · <?= h(date('d.m.Y', strtotime($app['created_at']))) ?></div>
       <?php if ($app['odpowiedz']): ?>
-      <div class="mt-1 p-2 rounded bg-body-secondary">
+      <div class="ap-h__ans">
         <i class="bi bi-reply me-1" aria-hidden="true"></i>
         <strong>Odpowiedź:</strong> <?= h($app['odpowiedz']) ?>
         <?php if ($app['odpowiedz_at']): ?>
@@ -377,17 +407,18 @@ if ($_is_volunteer_only) {
       <?php endif; ?>
       <?php if ($app['plik']): ?>
       <div class="mt-1">
-        <a href="<?= h(letter_file_url($app['plik'])) ?>" class="tz-btn tz-btn--ghost py-0 px-2"
+        <a href="<?= h(letter_file_url($app['plik'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem"
            download target="_blank">
           <i class="bi bi-paperclip me-1" aria-hidden="true"></i>Załącznik
         </a>
       </div>
       <?php endif; ?>
     </div>
-    <div class="text-muted text-nowrap"><?= h(substr($app['created_at'], 0, 10)) ?></div>
-  </div>
+  </article>
   <?php endforeach; ?>
-</div>
+</aside>
+</div><!-- /.ap-cols -->
+
 <?php endif; ?>
 
 <?php else: /* !$_is_volunteer_only — admin/editor layout */ ?>
