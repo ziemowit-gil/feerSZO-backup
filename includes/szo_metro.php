@@ -322,7 +322,7 @@ html body #content .cv-value,html body #content .detail-value{color:var(--sm-dar
    rozwinięte menu w kolorze akcentu. Pivot: duże lekkie nagłówki bez ikon. */
 html body #content .contract-hero-top{flex-direction:column;align-items:stretch;gap:.9rem}
 html body #content .contract-hero-actions{order:2;gap:0;background:var(--sm-light);flex-wrap:wrap;align-items:stretch}
-html body #content .contract-hero-actions>*{display:flex}
+html body #content .contract-hero-actions>.dropdown,html body #content .contract-hero-actions>.btn-group,html body #content .contract-hero-actions>form{display:flex}
 html body #content .contract-hero-actions .btn{height:40px;padding:0 1rem!important;border:0!important;background:transparent!important;
   color:var(--sm-dark)!important;font-weight:400;font-size:.88rem;display:inline-flex;align-items:center;gap:.45rem}
 html body #content .contract-hero-actions .btn:hover,html body #content .contract-hero-actions .btn:focus-visible{background:var(--sm-light-h)!important}
