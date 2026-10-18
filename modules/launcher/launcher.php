@@ -4,7 +4,7 @@
  *
  * Renderuje przycisk-wyzwalacz (#fl-trigger, w #mod-sw) i kontener #fl-root,
  * dokłada CSS/JS komponentu (raz na stronę) i konfigurację window.__feerLauncher.
- * Trzy układy do wyboru przez użytkownika (lista / szuflada / pełny ekran),
+ * Cztery układy do wyboru przez użytkownika (kafle Metro / lista / szuflada / pełny ekran),
  * wyszukiwarka, nawigacja klawiaturą, „Ostatnio używane” (localStorage).
  *
  * Parametry (ustaw PRZED include):

@@ -1,6 +1,7 @@
 /* modules/launcher/launcher.js — wspólny launcher modułów.
- * Trzy układy (lista / szuflada / pełny ekran) zapamiętane w localStorage,
- * wyszukiwarka, nawigacja klawiaturą (↑ ↓ Enter Esc), sekcja „Ostatnio używane”.
+ * Cztery układy (kafle Metro — domyślny / lista / szuflada / pełny ekran) zapamiętane
+ * w localStorage, wyszukiwarka, nawigacja klawiaturą (strzałki, Enter, Esc),
+ * sekcja „Ostatnio używane”.
  * Konfiguracja: window.__feerLauncher = {appUrl, portal, items:[{key,sec,label,desc,icon,mc,mb,url,on,badge}]}.
  */
 (function () {
@@ -11,9 +12,10 @@
   if (!trigger || !root) return;
   if (root.parentNode !== document.body) document.body.appendChild(root);
 
-  var KEY_LAYOUT = 'feerLauncherLayout', KEY_RECENT = 'feerLauncherRecent';
-  var VALID = ['list', 'drawer', 'overlay'];
-  var layout = lsGet(KEY_LAYOUT); if (VALID.indexOf(layout) < 0) layout = 'list';
+  // Klucz v2: przy wprowadzeniu kafli Metro wszyscy startują od nowego układu domyślnego.
+  var KEY_LAYOUT = 'feerLauncherLayout2', KEY_RECENT = 'feerLauncherRecent';
+  var VALID = ['tiles', 'list', 'drawer', 'overlay'];
+  var layout = lsGet(KEY_LAYOUT); if (VALID.indexOf(layout) < 0) layout = 'tiles';
   var isOpen = false, query = '', focusIdx = -1, visible = [];
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -44,7 +46,15 @@
   }
 
   // ── HTML ─────────────────────────────────────────────────────────────────
+  function tileHTML(it, idx) {
+    return '<a class="fl-item fl-tile' + (it.on ? ' fl-on' : '') + (idx === focusIdx ? ' fl-focus' : '') + '" href="' + esc(it.url) + '" data-idx="' + idx + '" data-key="' + esc(it.key) + '" role="option" aria-selected="' + (idx === focusIdx) + '" style="--t:' + esc(it.mc) + '"' + (it.desc ? ' title="' + esc(it.desc) + '"' : '') + '>'
+      + '<i class="bi ' + esc(it.icon) + ' fl-tile-ic" aria-hidden="true"></i>'
+      + '<span class="fl-tile-label">' + esc(it.label) + '</span>'
+      + (it.on ? '<span class="fl-tile-tag">Tutaj</span>' : (it.badge ? '<span class="fl-tile-tag fl-tile-tag--n" title="Do zrobienia">' + esc(it.badge) + '</span>' : ''))
+      + '</a>';
+  }
   function itemHTML(it, idx, big) {
+    if (layout === 'tiles') return tileHTML(it, idx);
     return '<a class="fl-item' + (big ? ' fl-item-big' : '') + (it.on ? ' fl-on' : '') + (idx === focusIdx ? ' fl-focus' : '') + '" href="' + esc(it.url) + '" data-idx="' + idx + '" data-key="' + esc(it.key) + '" role="option" aria-selected="' + (idx === focusIdx) + '">'
       + '<span class="fl-ic" style="--mc:' + esc(it.mc) + ';--mb:' + esc(it.mb) + '"><i class="bi ' + esc(it.icon) + '"></i></span>'
       + '<span class="fl-tx"><span class="fl-label">' + esc(it.label) + '</span>' + (it.desc ? '<span class="fl-desc">' + esc(it.desc) + '</span>' : '') + '</span>'
@@ -62,7 +72,7 @@
   }
   function switchHTML() {
     function b(k, icon, t) { return '<button type="button" class="fl-sw-btn' + (layout === k ? ' fl-sw-on' : '') + '" data-layout="' + k + '" title="' + t + '" aria-label="Układ: ' + t + '" aria-pressed="' + (layout === k) + '"><i class="bi ' + icon + '"></i></button>'; }
-    return '<div class="fl-switch" role="group" aria-label="Układ launchera">' + b('list', 'bi-list-ul', 'Lista') + b('drawer', 'bi-layout-sidebar-inset-reverse', 'Szuflada') + b('overlay', 'bi-fullscreen', 'Pełny ekran') + '</div>';
+    return '<div class="fl-switch" role="group" aria-label="Układ launchera">' + b('tiles', 'bi-grid-3x3-gap-fill', 'Kafle') + b('list', 'bi-list-ul', 'Lista') + b('drawer', 'bi-layout-sidebar-inset-reverse', 'Szuflada') + b('overlay', 'bi-fullscreen', 'Pełny ekran') + '</div>';
   }
   function headHTML() { return '<div class="fl-head"><span class="fl-title"><i class="bi bi-grid-3x3-gap-fill"></i>Moduły</span>' + switchHTML() + '<button type="button" class="fl-close" id="fl-close" aria-label="Zamknij"><i class="bi bi-x-lg"></i></button></div>'; }
   function searchHTML() { return '<div class="fl-search"><i class="bi bi-search"></i><input type="search" id="fl-q" placeholder="Szukaj modułu…" autocomplete="off" spellcheck="false" aria-label="Szukaj modułu" aria-controls="fl-scroll" value="' + esc(query) + '"></div>'; }
@@ -73,19 +83,19 @@
 
   function render() {
     root.className = 'fl-mode-' + layout;
-    var big = (layout === 'overlay');
+    var big = (layout === 'overlay' || layout === 'tiles');
     var inner = headHTML() + searchHTML() + '<div class="fl-scroll" id="fl-scroll" role="listbox" aria-label="Moduły">' + bodyHTML(big) + '</div>' + footHTML();
-    if (layout === 'list')        root.innerHTML = '<div class="fl-pop" role="dialog" aria-label="Wybór modułu">' + inner + '</div>';
+    if (layout === 'list' || layout === 'tiles') root.innerHTML = '<div class="fl-pop" role="dialog" aria-label="Wybór modułu">' + inner + '</div>';
     else if (layout === 'drawer') root.innerHTML = '<div class="fl-backdrop" data-close="1"></div><div class="fl-drawer" role="dialog" aria-modal="true" aria-label="Wybór modułu">' + inner + '</div>';
     else                          root.innerHTML = '<div class="fl-backdrop" data-close="1"></div><div class="fl-overlay-inner" role="dialog" aria-modal="true" aria-label="Wybór modułu">' + inner + '</div>';
-    if (layout === 'list') position();
+    if (layout === 'list' || layout === 'tiles') position();
     bind(big);
   }
   function position() {
     var pop = root.querySelector('.fl-pop'); if (!pop) return;
     var r = trigger.getBoundingClientRect();
     pop.style.top = (r.bottom + 6) + 'px';
-    var w = pop.offsetWidth || 320, left = r.left;
+    var w = pop.offsetWidth || 320, left = layout === 'tiles' ? r.right - w : r.left;
     if (left + w > window.innerWidth - 8) left = window.innerWidth - 8 - w;
     pop.style.left = Math.max(8, left) + 'px';
   }
@@ -139,7 +149,13 @@
   }
   function onKey(e) {
     if (e.key === 'Escape') { e.preventDefault(); close(); return; }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (layout === 'tiles' && /^Arrow(Up|Down|Left|Right)$/.test(e.key)) {
+      if (!visible.length) return;
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && document.activeElement && document.activeElement.id === 'fl-q' && focusIdx < 0) return;
+      e.preventDefault();
+      focusIdx = tileStep(e.key);
+      markFocus();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       if (!visible.length) return;
       e.preventDefault();
       var d = e.key === 'ArrowDown' ? 1 : -1;
@@ -149,8 +165,25 @@
       if (focusIdx >= 0 && visible[focusIdx]) { e.preventDefault(); pushRecent(visible[focusIdx].key); window.location.href = visible[focusIdx].url; }
     }
   }
+  // Nawigacja po siatce kafli: ←/→ sąsiad w kolejności, ↑/↓ najbliższy kafel w rzędzie wyżej/niżej.
+  function tileStep(key) {
+    if (focusIdx < 0) return key === 'ArrowUp' || key === 'ArrowLeft' ? visible.length - 1 : 0;
+    if (key === 'ArrowLeft')  return (focusIdx - 1 + visible.length) % visible.length;
+    if (key === 'ArrowRight') return (focusIdx + 1) % visible.length;
+    var nodes = root.querySelectorAll('.fl-tile'), cur = null;
+    nodes.forEach(function (n) { if (+n.getAttribute('data-idx') === focusIdx) cur = n.getBoundingClientRect(); });
+    if (!cur) return focusIdx;
+    var cx = cur.left + cur.width / 2, down = key === 'ArrowDown', best = -1, bestRow = Infinity, bestDx = Infinity;
+    nodes.forEach(function (n) {
+      var r = n.getBoundingClientRect(), dy = down ? r.top - cur.top : cur.top - r.top;
+      if (dy < 4) return;
+      var dx = Math.abs(r.left + r.width / 2 - cx);
+      if (dy < bestRow - 4 || (Math.abs(dy - bestRow) <= 4 && dx < bestDx)) { bestRow = dy; bestDx = dx; best = +n.getAttribute('data-idx'); }
+    });
+    return best < 0 ? focusIdx : best;
+  }
   function onDoc(e) {
-    if (layout !== 'list') return;
+    if (layout !== 'list' && layout !== 'tiles') return;
     if (root.contains(e.target) || trigger.contains(e.target)) return;
     close(false);
   }
