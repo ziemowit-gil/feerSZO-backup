@@ -546,12 +546,56 @@ foreach ($db_roles as $r) {
 }
 
 
+// Widok listy: tabela albo kafle — ?widok=, zapamiętany w sesji
+if (isset($_GET['widok'])) $_SESSION['tz_users_view'] = $_GET['widok'] === 'kafle' ? 'kafle' : 'lista';
+$tz_view = ($_SESSION['tz_users_view'] ?? 'lista') === 'kafle' ? 'kafle' : 'lista';
+$tz_url  = function (array $over = []) use ($filter_search, $filter_role, $filter_active): string {
+    $q = array_merge(['q' => $filter_search, 'role' => $filter_role, 'active' => $filter_active], $over);
+    $q = array_filter($q, fn($v) => $v !== '' && $v !== null);
+    return TZ_USERS_URL . ($q ? '?' . http_build_query($q) : '');
+};
+$mfa_count = 0;
+foreach ($users as $_u) {
+    if (isset($webauthn_uids[(int)$_u['id']]) || ($_u['twofa_method'] ?? '') === 'sms'
+        || (!empty($_u['totp_confirmed']) && !empty($_u['totp_secret']))) $mfa_count++;
+}
+
 $PAGE_TITLE = 'Użytkownicy';
 $TZ_ACTIVE  = 'uzytkownicy';
 include dirname(__DIR__) . '/tozsamosc/_head.php';
 ?>
 <style>
-.tz-wrap{max-width:1200px}
+/* Szeroki ekran: treść i pasek do 1680px */
+.tz-wrap,.tzbar .inner{max-width:1680px}
+/* Kafle statystyk (Metro live tiles) — zarazem szybkie filtry */
+.tzu-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.5rem;margin-bottom:1rem}
+.tzu-tile{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:112px;padding:.75rem .9rem;color:#fff;text-decoration:none;background:var(--tile,var(--tz));outline-offset:3px;transition:filter .12s}
+.tzu-tile:hover{color:#fff;filter:brightness(1.1)}
+.tzu-tile.on{box-shadow:inset 0 0 0 4px rgba(255,255,255,.85)}
+.tzu-tile i{font-size:1.5rem;opacity:.9}
+.tzu-tile .n{font-size:2.4rem;font-weight:300;line-height:1;position:absolute;right:.9rem;top:.65rem}
+.tzu-tile .l{font-size:.78rem;font-weight:600;letter-spacing:.02em}
+/* Przełącznik widoku */
+.tzu-seg{display:inline-flex;margin-left:.5rem}
+.tzu-seg a{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .7rem;font-size:.78rem;font-weight:600;text-decoration:none;color:#111827;background:#f2f2f2;border:2px solid #f2f2f2}
+.tzu-seg a:hover{background:#e6e6e6;border-color:#e6e6e6}
+.tzu-seg a.on{background:var(--tz);border-color:var(--tz);color:#fff}
+/* Kafle użytkowników */
+.tzu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:.5rem;padding:.75rem}
+.tzu-card{display:flex;flex-direction:column;background:#f2f2f2;border-top:4px solid var(--tz);min-width:0}
+.tzu-card.off{border-top-color:#8a8a8a;opacity:.78}
+.tzu-card__hd{display:flex;gap:.75rem;padding:.8rem .9rem .5rem;align-items:flex-start}
+.tzu-ava{width:48px;height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:1.05rem;background:var(--tz)}
+.tzu-card.off .tzu-ava{background:#647687}
+.tzu-name{font-weight:600;font-size:.95rem;line-height:1.25;color:#111827;word-break:break-word}
+.tzu-mail{font-size:.78rem;color:#5f5f5f;word-break:break-all}
+.tzu-meta{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;padding:0 .9rem .6rem;font-size:.75rem;color:#5f5f5f}
+.tzu-meta .badge{border-radius:0}
+.tzu-role{padding:0 .9rem .6rem}
+.tzu-role .form-select{border-radius:0;border:2px solid #8a8a8a;width:100%!important}
+.tzu-acts{margin-top:auto;padding:.5rem .9rem;background:#fff;border-top:1px solid #e1e1e1}
+.tzu-acts>div{justify-content:flex-start!important;flex-wrap:wrap}
+.tzu-acts .btn,.tzu-tiles+* .btn{border-radius:0}
 .tz-users-topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem}
 .tz-users-topbar h1{font-size:1.3rem;font-weight:700;color:#111827;margin:0;display:flex;align-items:center;gap:.55rem}
 </style>
@@ -588,33 +632,24 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 </div>
 <?php endif; ?>
 
-<!-- Stats cards -->
-<div class="row g-3 mb-3">
-  <div class="col-6 col-sm-3">
-    <div class="card text-center border-0 shadow-sm h-100">
-      <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-primary"><?= intval($stats['total']) ?></div>
-        <div class="small text-muted">Wszyscy użytkownicy</div>
-      </div>
-    </div>
+<!-- Kafle statystyk — klik = filtr -->
+<nav class="tzu-tiles" aria-label="Szybkie filtry">
+  <a href="<?= h($tz_url(['active' => ''])) ?>" class="tzu-tile<?= $filter_active === '' ? ' on' : '' ?>" style="--tile:#1ba1e2"<?= $filter_active === '' ? ' aria-current="true"' : '' ?>>
+    <i class="bi bi-people" aria-hidden="true"></i><span class="n"><?= intval($stats['total']) ?></span><span class="l">Wszyscy użytkownicy</span>
+  </a>
+  <a href="<?= h($tz_url(['active' => '1'])) ?>" class="tzu-tile<?= $filter_active === '1' ? ' on' : '' ?>" style="--tile:#007a00"<?= $filter_active === '1' ? ' aria-current="true"' : '' ?>>
+    <i class="bi bi-person-check" aria-hidden="true"></i><span class="n"><?= intval($stats['active']) ?></span><span class="l">Aktywni</span>
+  </a>
+  <a href="<?= h($tz_url(['active' => '0'])) ?>" class="tzu-tile<?= $filter_active === '0' ? ' on' : '' ?>" style="--tile:#647687"<?= $filter_active === '0' ? ' aria-current="true"' : '' ?>>
+    <i class="bi bi-person-dash" aria-hidden="true"></i><span class="n"><?= intval($stats['inactive']) ?></span><span class="l">Nieaktywni</span>
+  </a>
+  <div class="tzu-tile" style="--tile:#6a00ff" title="Liczone na bieżącej liście">
+    <i class="bi bi-shield-check" aria-hidden="true"></i><span class="n"><?= $mfa_count ?></span><span class="l">Z MFA (na liście)</span>
   </div>
-  <div class="col-6 col-sm-3">
-    <div class="card text-center border-0 shadow-sm h-100">
-      <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-success"><?= intval($stats['active']) ?></div>
-        <div class="small text-muted">Aktywni</div>
-      </div>
-    </div>
+  <div class="tzu-tile" style="--tile:#a20025" title="Liczone na bieżącej liście">
+    <i class="bi bi-shield-exclamation" aria-hidden="true"></i><span class="n"><?= count($users) - $mfa_count ?></span><span class="l">Bez MFA (na liście)</span>
   </div>
-  <div class="col-6 col-sm-3">
-    <div class="card text-center border-0 shadow-sm h-100">
-      <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-secondary"><?= intval($stats['inactive']) ?></div>
-        <div class="small text-muted">Nieaktywni</div>
-      </div>
-    </div>
-  </div>
-</div>
+</nav>
 
 <!-- Filter bar -->
 <div class="card shadow-sm mb-3">
@@ -656,44 +691,11 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
   </div>
 </div>
 
-<!-- Users table -->
-<div class="card shadow-sm">
-  <div class="card-header fw-semibold d-flex align-items-center gap-2">
-    <i class="bi bi-list-ul"></i> Lista użytkowników
-    <span class="badge bg-secondary ms-1"><?= count($users) ?></span>
-    <a href="<?= APP_URL ?>/admin/roles.php" class="btn btn-sm btn-outline-secondary ms-auto">
-      <i class="bi bi-shield-lock"></i> Zarządzaj rolami
-    </a>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>Imię i nazwisko</th>
-          <th>E-mail</th>
-          <th>Rola</th>
-          <th>MFA</th>
-          <th>Aktywny</th>
-          <th>Dodano</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($users as $u): ?>
-        <tr class="<?= !$u['is_active'] ? 'text-muted' : '' ?>">
-          <td class="fw-semibold">
-            <?= h($u['name']) ?>
-            <?php if ((int)$u['id'] === (int)$me['id']): ?>
-            <span class="badge bg-info ms-1">ja</span>
-            <?php endif; ?>
-          </td>
-          <td>
-            <?= h($u['email']) ?>
-            <?php if (!empty($u['microsoft_id'])): ?>
-            <i class="bi bi-microsoft ms-1 text-primary" style="font-size:.8rem;color:#00a4ef!important" title="Połączone z M365: <?= h($u['microsoft_id']) ?>"></i>
-            <?php endif; ?>
-          </td>
-          <td>
+<?php
+// Akcje i zmiana roli renderowane raz — wspólne dla widoku Lista i Kafle
+$u_acts = []; $u_role = [];
+foreach ($users as $u) {
+    ob_start(); ?>
             <form method="post" class="d-inline-flex align-items-center gap-1">
               <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="action" value="change_role">
@@ -707,36 +709,8 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
                 <?php endforeach; ?>
               </select>
             </form>
-          </td>
-          <td>
-            <?php
-              $u_wk   = isset($webauthn_uids[(int)$u['id']]);
-              $u_sms  = ($u['twofa_method'] ?? '') === 'sms';
-              $u_totp = !empty($u['totp_confirmed']) && !empty($u['totp_secret']);
-              $u_mfa  = $u_wk || $u_sms || $u_totp;
-              if ($u_mfa):
-                $u_methods = array_filter([
-                    $u_wk   ? '<i class="bi bi-fingerprint" title="Klucz sprzętowy"></i>' : '',
-                    $u_sms  ? '<i class="bi bi-chat-dots"   title="SMS"></i>' : '',
-                    $u_totp ? '<i class="bi bi-phone"        title="Authenticator"></i>' : '',
-                ]);
-            ?>
-            <span class="badge" style="background:#dcfce7;color:#166534;gap:.25rem;display:inline-flex;align-items:center">
-              <?= implode(' ', $u_methods) ?>
-            </span>
-            <?php else: ?>
-            <span class="badge bg-light text-muted border" title="Brak MFA">—</span>
-            <?php endif; ?>
-          </td>
-          <td>
-            <?php if ($u['is_active']): ?>
-            <span class="badge bg-success">Tak</span>
-            <?php else: ?>
-            <span class="badge bg-secondary">Nie</span>
-            <?php endif; ?>
-          </td>
-          <td class="small"><?= date_pl($u['created_at']) ?></td>
-          <td class="text-end">
+<?php $u_role[(int)$u['id']] = ob_get_clean();
+    ob_start(); ?>
             <div class="d-flex justify-content-end gap-1">
               <form method="post" class="d-inline">
                 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
@@ -895,7 +869,113 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
               </button>
               <?php endif; ?>
             </div>
+<?php $u_acts[(int)$u['id']] = ob_get_clean();
+}
+unset($u);
+?>
+<!-- Users table -->
+<div class="card shadow-sm" style="border-radius:0">
+  <div class="card-header fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-list-ul"></i> Lista użytkowników
+    <span class="badge bg-secondary ms-1"><?= count($users) ?></span>
+    <span class="tzu-seg" role="group" aria-label="Widok listy">
+      <a href="<?= h($tz_url(['widok' => 'lista'])) ?>" class="<?= $tz_view === 'lista' ? 'on' : '' ?>"<?= $tz_view === 'lista' ? ' aria-current="true"' : '' ?>><i class="bi bi-list-ul" aria-hidden="true"></i>Lista</a>
+      <a href="<?= h($tz_url(['widok' => 'kafle'])) ?>" class="<?= $tz_view === 'kafle' ? 'on' : '' ?>"<?= $tz_view === 'kafle' ? ' aria-current="true"' : '' ?>><i class="bi bi-grid-3x2-gap" aria-hidden="true"></i>Kafle</a>
+    </span>
+    <a href="<?= APP_URL ?>/admin/roles.php" class="btn btn-sm btn-outline-secondary ms-auto">
+      <i class="bi bi-shield-lock"></i> Zarządzaj rolami
+    </a>
+  </div>
+  <?php if ($tz_view === 'kafle'): ?>
+  <?php if (!$users): ?>
+  <div class="text-center text-muted py-4">Brak użytkowników spełniających kryteria.</div>
+  <?php endif; ?>
+  <ul class="tzu-grid list-unstyled mb-0">
+    <?php foreach ($users as $u):
+      $uid_ = (int)$u['id'];
+      $w_   = array_values(array_filter(preg_split('/\s+/u', trim(preg_replace('/\|.*$/u', '', (string)$u['name'])))));
+      $ini_ = $w_ ? mb_strtoupper(mb_substr($w_[0], 0, 1) . (count($w_) > 1 ? mb_substr(end($w_), 0, 1) : mb_substr($w_[0], 1, 1))) : '?';
+      $mfa_ = isset($webauthn_uids[$uid_]) || ($u['twofa_method'] ?? '') === 'sms' || (!empty($u['totp_confirmed']) && !empty($u['totp_secret']));
+    ?>
+    <li class="tzu-card<?= $u['is_active'] ? '' : ' off' ?>">
+      <div class="tzu-card__hd">
+        <div class="tzu-ava" aria-hidden="true"><?= h($ini_) ?></div>
+        <div class="min-w-0">
+          <div class="tzu-name"><?= h($u['name']) ?><?php if ($uid_ === (int)$me['id']): ?> <span class="badge bg-info">ja</span><?php endif; ?></div>
+          <div class="tzu-mail"><?= h($u['email']) ?><?php if (!empty($u['microsoft_id'])): ?> <i class="bi bi-microsoft" style="color:#00a4ef" title="Połączone z M365"></i><?php endif; ?></div>
+        </div>
+      </div>
+      <div class="tzu-meta">
+        <?php if ($u['is_active']): ?><span class="badge bg-success">Aktywny</span><?php else: ?><span class="badge bg-secondary">Nieaktywny</span><?php endif; ?>
+        <?php if ($mfa_): ?><span class="badge" style="background:#dcfce7;color:#166534">MFA</span><?php else: ?><span class="badge bg-light text-muted border">Bez MFA</span><?php endif; ?>
+        <span class="ms-auto">Dodano <?= date_pl($u['created_at']) ?></span>
+      </div>
+      <div class="tzu-role"><?= $u_role[$uid_] ?></div>
+      <div class="tzu-acts"><?= $u_acts[$uid_] ?></div>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+  <?php else: ?>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Imię i nazwisko</th>
+          <th>E-mail</th>
+          <th>Rola</th>
+          <th>MFA</th>
+          <th>Aktywny</th>
+          <th>Dodano</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($users as $u): ?>
+        <tr class="<?= !$u['is_active'] ? 'text-muted' : '' ?>">
+          <td class="fw-semibold">
+            <?= h($u['name']) ?>
+            <?php if ((int)$u['id'] === (int)$me['id']): ?>
+            <span class="badge bg-info ms-1">ja</span>
+            <?php endif; ?>
           </td>
+          <td>
+            <?= h($u['email']) ?>
+            <?php if (!empty($u['microsoft_id'])): ?>
+            <i class="bi bi-microsoft ms-1 text-primary" style="font-size:.8rem;color:#00a4ef!important" title="Połączone z M365: <?= h($u['microsoft_id']) ?>"></i>
+            <?php endif; ?>
+          </td>
+          <td>
+<?= $u_role[(int)$u['id']] ?>
+          </td>
+          <td>
+            <?php
+              $u_wk   = isset($webauthn_uids[(int)$u['id']]);
+              $u_sms  = ($u['twofa_method'] ?? '') === 'sms';
+              $u_totp = !empty($u['totp_confirmed']) && !empty($u['totp_secret']);
+              $u_mfa  = $u_wk || $u_sms || $u_totp;
+              if ($u_mfa):
+                $u_methods = array_filter([
+                    $u_wk   ? '<i class="bi bi-fingerprint" title="Klucz sprzętowy"></i>' : '',
+                    $u_sms  ? '<i class="bi bi-chat-dots"   title="SMS"></i>' : '',
+                    $u_totp ? '<i class="bi bi-phone"        title="Authenticator"></i>' : '',
+                ]);
+            ?>
+            <span class="badge" style="background:#dcfce7;color:#166534;gap:.25rem;display:inline-flex;align-items:center">
+              <?= implode(' ', $u_methods) ?>
+            </span>
+            <?php else: ?>
+            <span class="badge bg-light text-muted border" title="Brak MFA">—</span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <?php if ($u['is_active']): ?>
+            <span class="badge bg-success">Tak</span>
+            <?php else: ?>
+            <span class="badge bg-secondary">Nie</span>
+            <?php endif; ?>
+          </td>
+          <td class="small"><?= date_pl($u['created_at']) ?></td>
+          <td class="text-end"><?= $u_acts[(int)$u['id']] ?></td>
         </tr>
         <?php endforeach; ?>
         <?php if (!$users): ?>
@@ -904,6 +984,7 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
       </tbody>
     </table>
   </div>
+  <?php endif; ?>
 </div>
 
 <!-- Offcanvas: Add user -->
