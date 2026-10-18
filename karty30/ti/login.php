@@ -152,6 +152,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
     <?php foreach ($_ppRoles as $_rk => [$_rl, $_rt, $_rf]): ?><li><a href="login.php?tab=<?= $_rt ?><?= $_rf !== '' ? '&amp;fn=' . $_rf : '' ?>"<?= $_ppActive === $_rk ? ' aria-current="page"' : '' ?>><?= h($_rl) ?></a></li><?php endforeach; ?>
   </ul>
   <?php if ($error): ?><div class="pp-error" role="alert" aria-live="assertive"><?= h($error) ?></div><?php endif; ?>
+  <?php if (!$error && ($_GET['out'] ?? '') === '1'): ?><div class="pp-ok" role="status">Wylogowano z panelu. Aby wejść ponownie, zaloguj się przez Microsoft 365.</div><?php endif; ?>
   <div class="pp-cols">
     <div class="pp-form">
       <p class="tz-hint mt-0 mb-3"><?= h(implode(' ', array_slice($_side[$tab], 1))) ?></p>

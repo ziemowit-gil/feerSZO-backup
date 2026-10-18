@@ -89,6 +89,7 @@
   aside .pp-alt:nth-of-type(3) { background: var(--pp-purple); }
 
   .pp-error { border-left: 5px solid #b91c1c; background: #fdecec; color: #7f1d1d; padding: .8rem 1rem; margin-bottom: 1.2rem; }
+  .pp-ok { border-left: 5px solid #15803d; background: #e8f5ec; color: #14532d; padding: .8rem 1rem; margin-bottom: 1.2rem; }
   .pp-ok { border-left: 5px solid #15803d; background: #ecf8f0; color: #14532d; padding: .8rem 1rem; margin-bottom: 1.2rem; }
 
   .pp-foot-links { margin-top: 2rem; }
