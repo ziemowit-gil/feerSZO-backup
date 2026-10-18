@@ -181,6 +181,9 @@ $_facts[] = $_todo_n
     : ['check2-circle', 'Wszystko uzupełnione', ''];
 if (!empty($_kp_counts)) $_facts[] = ['building', 'Instytucja: ' . (int)$_kp_counts['groups'] . ' grup · ' . (int)$_kp_counts['students'] . ' kursantów', ''];
 echo dydWelcomeHero((string)(dyd_current()['name'] ?? ''), ($_day_pl[date('D')] ?? '') . ', ' . date('j') . ' ' . $_mon_gen[(int)date('n')] . ' ' . date('Y'), []); // liczby pokazują kafle Start poniżej ($_facts zostaje dla wariantu bez kafli)
+// Komunikat Certyfikacji MSUES (modules/ti_msues) — po uruchomieniu przez kierownika, dopóki sprawa nie jest załatwiona
+require_once dirname(__DIR__, 3) . '/modules/ti_msues/lib/MsuesNotice.php';
+echo msuesLoginNotice((int)(dyd_current()['user_id'] ?? 0), dyd_is_staff());
 ?>
 
 <?php
