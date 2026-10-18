@@ -33,7 +33,7 @@ const DYD_NAV_PAGES = [
     'certyfikat' => ['moj_certyfikat.php', 'certyfikaty.php'],
     'komunikacja' => ['konsultacjeKomunikacja.php'],
     'konsultacje' => ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'grupaUproszczona.php',
-                      'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php',
+                      'konsultacjeStart.php', 'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'kolejka.php', 'choose_mode.php',
                       'konsultacjeZestawienia.php', 'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php',
                       'konsultacjePfronDokumenty.php'],
     'planowanie' => ['planista.php', 'generatorCiagow.php', 'raportyPlanisty.php', 'kadraLimity.php', 'zgloszenia.php'],
@@ -50,7 +50,7 @@ function dyd_nav_sections(): array {
     // Tryb Konsultacje (choose_mode.php): menu tylko do konsultacji — karty, komunikacja, certyfikat (+ Kierownik)
     if (function_exists('dyd_mode') && dyd_mode() === 'konsultacje') {
         $s = [
-            'konsultacje' => ['Konsultacje', 'rezerwacje.php'],
+            'konsultacje' => ['Konsultacje', 'konsultacjeStart.php'],
             'komunikacja' => ['Komunikacja', 'konsultacjeKomunikacja.php'],   // e-mail / SMS do beneficjentów konsultacji
             'certyfikat'  => ['Certyfikat',  'moj_certyfikat.php'],
         ];

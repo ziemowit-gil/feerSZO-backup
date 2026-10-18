@@ -36,7 +36,7 @@ $groupIds = array_map(fn($c) => (int)$c['id'], $groups);
 $prefGroup = function_exists('dyd_pref') ? (int)dyd_pref((int)$s['user_id'], 'dyd_last_course') : 0;
 $go = function () use ($groupIds) {
     $g = (int)($_POST['course'] ?? 0);
-    if (dyd_mode() === 'konsultacje') header('Location: rezerwacje.php');
+    if (dyd_mode() === 'konsultacje') header('Location: konsultacjeStart.php');
     elseif ($g && in_array($g, $groupIds, true)) header('Location: index.php?course=' . $g . '&tab=pulpit');   // index.php zapamiętuje wybór
     else header('Location: index.php');
 };

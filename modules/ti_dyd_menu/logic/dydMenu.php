@@ -69,6 +69,7 @@ function dydMenuSections(): array
 
     if ($mode === 'konsultacje') {
         $sec[] = ['key' => 'konsultacje', 'label' => 'Konsultacje', 'items' => [
+            $it('', 'Start',                 'konsultacjeStart.php',         'grid-3x3-gap'),
             $it('', 'Rezerwacje terminów',   'rezerwacje.php',               'calendar-check'),
             $it('', 'Kalendarz rezerwacji',  'rezerwacjeKalendarz.php',      'calendar3'),
             $it('', 'Szybka rezerwacja',     'rezerwacja.php?szybka=1',      'lightning'),

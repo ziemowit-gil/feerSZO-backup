@@ -290,7 +290,7 @@ function dyd_require(): array {
     }
     if ($_need) { header('Location: choose_mode.php'); exit; }
     // Osoba tylko z Konsultacjami: ekrany Szkoleń są niedostępne (wiadomości i komunikaty — tak)
-    if ($_modes === ['konsultacje'] && !dyd_konsultacje_page()) { header('Location: rezerwacje.php'); exit; }
+    if ($_modes === ['konsultacje'] && !dyd_konsultacje_page()) { header('Location: konsultacjeStart.php'); exit; }
 
     // Pełne wcielenie w wybranego prowadzącego (patrz choose_context.php, opcja
     // „Wejdź jako inny prowadzący"). Od tego miejsca $s['user_id']/name/email to
@@ -354,7 +354,7 @@ function dyd_modes_available(?array $s = null): array {
 }
 
 /** Strony dostępne w samym trybie Konsultacje (osoba bez uprawnienia do Szkoleń). */
-const DYD_KONSULTACJE_PAGES = ['konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'konsultacjaPdf.php',
+const DYD_KONSULTACJE_PAGES = ['konsultacjeStart.php', 'konsultacje.php', 'konsultacja.php', 'konsultacjaTermin.php', 'konsultacjaPdf.php',
                                'rezerwacje.php', 'rezerwacja.php', 'rezerwacjeKalendarz.php', 'rezerwacjaPdf.php', 'kolejka.php',
                                'konsultacjeZestawienia.php', 'konsultacjeEksport.php', 'konsultacjeUstawienia.php', 'konsultacjeKomunikacja.php',
                                'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php', 'konsultacjePfronDokumenty.php',
