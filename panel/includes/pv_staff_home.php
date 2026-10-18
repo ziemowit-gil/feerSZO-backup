@@ -128,19 +128,11 @@ $_sh_lead = $_sh_admin
   <aside aria-label="Komunikaty i zadania"><?php panelMetroSideFeed($_sh_uid, (string)($user['role'] ?? '')); ?></aside>
   </div>
 
-  <?php if (module_enabled('tasks_enabled')): ?>
-  <section class="sh-sec" aria-label="Moje zadania"><?php include __DIR__ . '/pv_tasks_section.php'; ?></section>
-  <?php endif; ?>
   <?php
   ob_start(); include __DIR__ . '/pv_pelnomocnictwa.php'; $_sh_pel = trim((string)ob_get_clean());
-  ob_start(); include __DIR__ . '/pv_extra_sections.php'; $_sh_extra = trim((string)ob_get_clean());
   $GLOBALS['_pv_pelnomocnictwa_done'] = true;
+  $GLOBALS['_pv_tasks_section_done'] = true; // lista zadań nie wraca z panel/index.php — zadania są w kaflu i okienku po prawej
   ?>
   <?php if ($_sh_pel !== ''): ?><section class="sh-sec"><?= $_sh_pel ?></section><?php endif; ?>
-  <?php if ($_sh_extra !== ''): ?>
-  <section class="sh-sec" aria-labelledby="sh-extra-h">
-    <h2 class="mt-h2" id="sh-extra-h">Wydarzenia i <b>rezerwacje</b></h2>
-    <div class="mt-group"><?= $_sh_extra ?></div>
-  </section>
-  <?php endif; ?>
+  <?php /* Lista zadań i „Wydarzenia i rezerwacje” usunięte z pulpitu kadry (2026-10-18) — zadania są w kaflu i w okienku po prawej. */ ?>
 </div>
