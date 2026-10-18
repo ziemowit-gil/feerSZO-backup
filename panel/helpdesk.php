@@ -181,15 +181,39 @@ $sp_map = [
 ];
 ?>
 
-<div class="pv-wrap">
+<?php
+require_once dirname(__DIR__) . '/modules/panel_metro/lib/panelMetro.php';
+panelMetroAssets($_vol_color ?? '#0f6fa8');
+?>
+<style>
+.pvm .hd-cols{display:grid;gap:1.5rem;grid-template-columns:1fr;align-items:start}
+@media(min-width:992px){.pvm .hd-cols{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}}
+.pvm .hd-form{background:var(--pvm-light);padding:1.25rem}
+.pvm .hd-form .form-label{font-size:.82rem;font-weight:600;color:var(--pvm-ink)}
+.pvm .hd-prio label{cursor:pointer}
+.pvm .hd-prio label:focus-within{outline:3px solid #fbbf24;outline-offset:2px}
+.pvm .hd-prio input:checked + span,.pvm .hd-prio label.active{background:var(--pvm-ink);color:var(--pvm-bg)}
+.pvm .hd-side{position:sticky;top:5rem}
+.pvm .hd-it{display:flex;gap:1rem;align-items:flex-start;background:var(--m-teal);color:#fff;padding:1.1rem 1.2rem;text-decoration:none;margin-bottom:1rem}
+.pvm .hd-it:hover{filter:brightness(1.1);color:#fff}
+.pvm .hd-it .ic{font-size:2rem;line-height:1}
+.pvm .hd-it b{display:block;font-size:1.05rem}
+.pvm .hd-it span{font-size:.85rem;opacity:.95}
+.pvm .hd-t{display:flex;gap:.75rem;align-items:flex-start;background:var(--pvm-light);border-left:6px solid var(--c,var(--m-blue));padding:.8rem 1rem;margin-bottom:6px}
+.pvm .hd-t--closed{border-left-color:var(--pvm-line);opacity:.8}
+.pvm .hd-t__ttl{font-weight:600;font-size:.92rem;color:var(--pvm-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pvm .hd-t__meta{font-size:.76rem;color:var(--pvm-muted);margin-top:.15rem}
+</style>
 
-<!-- Nagłówek -->
-<div class="pv-page-header">
-  <div class="pv-page-head-main">
-    <a href="<?= APP_URL ?>/panel/index.php" class="pv-page-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Panel</a>
-    <h1 class="pv-page-title"><i class="bi bi-headset" aria-hidden="true"></i>Helpdesk IT</h1>
-    <p class="pv-page-sub">Zgłoś problem lub zapytanie do działu IT</p>
+<div class="pvm">
+
+<div class="mt-head">
+  <div>
+    <div class="mt-kicker">Panel współpracownika · Pomoc IT</div>
+    <h1 class="mt-title">Helpdesk IT</h1>
+    <p class="mt-lead">Zgłoś problem lub zapytanie do działu IT.</p>
   </div>
+  <a href="<?= APP_URL ?>/panel/index.php" class="mt-btn mt-btn--ghost"><i class="bi bi-arrow-left" aria-hidden="true"></i>Pulpit</a>
 </div>
 
 <?= flash_html() ?>
@@ -203,15 +227,12 @@ $sp_map = [
 </div>
 <?php endif; ?>
 
+<div class="hd-cols">
+<div>
 <!-- ═══ FORMULARZ NOWEGO ZGŁOSZENIA ═════════════════════════════════════════ -->
-<details <?= $errors ? 'open' : '' ?> id="hd-form-section" class="tz-card">
-<summary class="tz-card__hd" style="list-style:none;cursor:pointer">
-  <i class="bi bi-plus-circle-fill" aria-hidden="true"></i>
-  Nowe zgłoszenie IT
-  <i class="bi bi-chevron-down ms-auto" id="hdFormChevron" aria-hidden="true"></i>
-</summary>
-
-<div class="tz-card__bd">
+<section id="hd-form-section" aria-labelledby="hd-form-h">
+<h2 class="mt-h2" id="hd-form-h">Nowe <b>zgłoszenie</b></h2>
+<div class="hd-form">
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="_csrf"       value="<?= csrf_token() ?>">
     <input type="hidden" name="_new_ticket" value="1">
@@ -237,11 +258,11 @@ $sp_map = [
       <div class="col-sm-6">
         <fieldset>
           <legend class="form-label fw-semibold small">Pilność</legend>
-          <div class="d-flex gap-2 flex-wrap mt-1">
+          <div class="d-flex gap-2 flex-wrap mt-1 hd-prio">
             <?php foreach (HD_PRIORITIES as $k => $p):
               $checked = ($_POST['priority'] ?? 'normalny') === $k; ?>
             <label class="tz-btn tz-btn--ghost<?= $checked ? ' active' : '' ?>">
-              <input type="radio" name="priority" value="<?= h($k) ?>" class="d-none" <?= $checked ? 'checked' : '' ?>>
+              <input type="radio" name="priority" value="<?= h($k) ?>" class="visually-hidden" <?= $checked ? 'checked' : '' ?>>
               <?= h($p['label']) ?>
             </label>
             <?php endforeach; ?>
@@ -285,78 +306,60 @@ $sp_map = [
       </div>
     </div>
 
-    <button type="submit" class="tz-btn">
-      <i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij zgłoszenie
+    <button type="submit" class="mt-btn">
+      <i class="bi bi-send" aria-hidden="true"></i>Wyślij zgłoszenie
     </button>
   </form>
 </div>
-</details>
+</section>
+</div>
+
+<aside class="hd-side" aria-label="Usługi IT i Twoje zgłoszenia">
+<a class="hd-it" href="<?= APP_URL ?>/uslugi-it/">
+  <i class="bi bi-hdd-network ic" aria-hidden="true"></i>
+  <span><b>Informacje o usługach IT są teraz tutaj</b>
+  Portal Usług IT: opisy usług, instrukcje, komunikaty o przerwach i kontakt — <?= h(preg_replace('~^https?://~', '', APP_URL)) ?>/uslugi-it/</span>
+</a>
 
 <!-- ═══ LISTA MOICH ZGŁOSZEŃ ════════════════════════════════════════════════ -->
-<div class="vol-activity">
-  <div class="vol-activity-header">
-    <h2 class="vol-activity-title">
-      <i class="bi bi-list-check me-1" aria-hidden="true"></i>Moje zgłoszenia
-    </h2>
-    <?php if ($open_count): ?>
-    <span class="tz-badge"><?= $open_count ?> otwartych</span>
-    <?php endif; ?>
-  </div>
-
+<section aria-labelledby="hd-my-h">
+  <h2 class="mt-h2" id="hd-my-h">Moje <b>zgłoszenia</b><?php if ($open_count): ?> <span class="mt-badge mt-badge--warn" style="vertical-align:middle"><?= $open_count ?> otwartych</span><?php endif; ?></h2>
   <?php if (!$my_tickets): ?>
-  <div class="tz-card__bd">
-    <div id="ticket-0" class="tz-empty">
-      <div class="tz-empty__icon"><i class="bi bi-headset fs-1" aria-hidden="true"></i></div>
-      <p class="tz-empty__text">Brak zgłoszeń</p>
-    </div>
-  </div>
+  <div id="ticket-0" class="mt-empty"><i class="bi bi-headset" style="font-size:2rem;display:block;margin-bottom:.4rem" aria-hidden="true"></i><p class="mb-0">Brak zgłoszeń.</p></div>
   <?php else: ?>
-  <?php foreach ($my_tickets as $t):
+  <?php $_hdc = ['primary'=>'var(--m-blue)','warning'=>'var(--m-orange)','danger'=>'var(--m-red)','success'=>'var(--m-green)','info'=>'var(--m-teal)'];
+  foreach ($my_tickets as $t):
     $s      = HD_STATUSES[$t['status']] ?? ['label'=>$t['status'],'class'=>'secondary','icon'=>'bi-circle'];
     $p      = HD_PRIORITIES[$t['priority']] ?? ['label'=>$t['priority'],'class'=>'secondary'];
     $closed = in_array($t['status'], ['zamknięte','rozwiązane']);
-    $sp     = $sp_map[$s['class']] ?? 'closed';
   ?>
-  <div id="ticket-<?= $t['id'] ?>" class="vol-activity-row<?= $closed ? ' opacity-75' : '' ?>">
-
-    <div class="vol-activity-icon" aria-hidden="true">
-      <i class="bi <?= h($s['icon']) ?>"></i>
+  <article id="ticket-<?= $t['id'] ?>" class="hd-t<?= $closed ? ' hd-t--closed' : '' ?>" style="--c:<?= $_hdc[$s['class']] ?? 'var(--m-grey)' ?>">
+    <i class="bi <?= h($s['icon']) ?>" style="font-size:1.2rem;margin-top:.1rem" aria-hidden="true"></i>
+    <div style="flex:1;min-width:0">
+      <div class="hd-t__ttl"><?= h($t['title']) ?></div>
+      <div class="hd-t__meta"><span class="font-monospace"><?= h($t['number']) ?></span> · <?= h(HD_CATEGORIES[$t['category']] ?? $t['category']) ?> · <?= date('d.m.Y', strtotime($t['updated_at'])) ?><?php if (!empty($t['assigned_name'])): ?> · <?= h($t['assigned_name']) ?><?php endif; ?></div>
     </div>
-
-    <div class="flex-grow-1" style="min-width:0">
-      <div class="fw-bold small text-truncate"><?= h($t['title']) ?></div>
-      <div class="small text-muted mt-1">
-        <span class="font-monospace"><?= h($t['number']) ?></span>
-        &middot; <?= h(HD_CATEGORIES[$t['category']] ?? $t['category']) ?>
-        &middot; <?= date('d.m.Y', strtotime($t['updated_at'])) ?>
-        <?php if (!empty($t['assigned_name'])): ?>
-        &middot; Przypisany: <?= h($t['assigned_name']) ?>
-        <?php endif; ?>
-      </div>
-    </div>
-
     <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
-      <span class="pv-status-pill pv-sp-<?= h($sp) ?>"><?= h($s['label']) ?></span>
-      <span class="tz-badge"><?= h($p['label']) ?></span>
+      <span class="mt-badge" style="background:<?= $_hdc[$s['class']] ?? 'var(--m-grey)' ?>"><?= h($s['label']) ?></span>
+      <span class="mt-badge"><?= h($p['label']) ?></span>
     </div>
-  </div>
+  </article>
   <?php endforeach; ?>
-  <div class="text-muted small p-2 text-end"><?= count($my_tickets) ?> zgłoszeń łącznie</div>
+  <p class="mt-no small text-end mb-0"><?= count($my_tickets) ?> zgłoszeń łącznie</p>
   <?php endif; ?>
-</div>
+</section>
+</aside>
+</div><!-- /.hd-cols -->
 
-</div><!-- /.pv-wrap -->
+</div><!-- /.pvm -->
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>
 
 <script>
-// Obróć chevron przy <details>
-(function(){
-  var det = document.getElementById('hd-form-section');
-  var chv = document.getElementById('hdFormChevron');
-  if (!det || !chv) return;
-  det.addEventListener('toggle', function(){
-    chv.style.transform = det.open ? 'rotate(180deg)' : '';
+// Pilność: zaznaczona etykieta wyróżniona (radio ukryte w etykiecie)
+document.querySelectorAll('.hd-prio input[type=radio]').forEach(function (r) {
+  r.addEventListener('change', function () {
+    document.querySelectorAll('.hd-prio label').forEach(function (l) { l.classList.toggle('active', l.contains(document.querySelector('.hd-prio input:checked'))); });
   });
-})();
+});
 </script>
