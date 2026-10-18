@@ -8,6 +8,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/DopService.php';
 require_once dirname(__DIR__) . '/lib/RopStatement.php';
 require_once dirname(__DIR__) . '/lib/SettlementDocs.php';
+require_once dirname(__DIR__) . '/lib/AutoRm.php';
 require_once dirname(__DIR__) . '/lib/Dop5Statement.php';
 
 final class DopController
@@ -257,7 +258,20 @@ final class DopController
     public function settleIndex(): string
     {
         $f = ['client' => (int)($_GET['klient'] ?? 0), 'kind' => (string)($_GET['kind'] ?? ''), 'status' => (string)($_GET['status'] ?? '')];
-        return $this->view('settle_index.php', ['list' => SettlementDocs::search($f), 'f' => $f]);
+        return $this->view('settle_index.php', ['list' => SettlementDocs::search($f), 'f' => $f, 'autoRm' => $f['kind'] === 'RM' ? AutoRm::enabledList() : []]);
+    }
+
+    /** Włączenie / wyłączenie automatycznego RM co miesiąc (na prośbę uczestnika). */
+    public function autoRmSave(): ?string
+    {
+        $cid = (int)($_POST['klient'] ?? 0);
+        $on = ($_POST['enabled'] ?? '') === '1';
+        try {
+            AutoRm::set($cid, $on, (string)($_POST['requested_on'] ?? ''), (string)($_POST['request_note'] ?? ''), $this->actor());
+            flash_set('success', $on ? 'Włączono automatyczne RM — od ' . AutoRm::DAY . '. dnia każdego miesiąca za poprzedni miesiąc, z wysyłką do uczestnika i rodzica.' : 'Wyłączono automatyczne RM.');
+        } catch (\Throwable $e) { flash_set('danger', $e->getMessage()); }
+        $back = (string)($_POST['back'] ?? '');
+        return Router::redirect($back === 'index' ? route('settle.index', ['kind' => 'RM']) : route('settle.new', ['kind' => 'RM', 'klient' => $cid]));
     }
 
     public function settleForm(array $errors = [], ?array $old = null): string
@@ -268,6 +282,7 @@ final class DopController
         $courses = $c ? SettlementDocs::courses($cid) : [];
         return $this->view('settle_form.php', ['kind' => $kind, 'c' => $c, 'courses' => $courses, 'clients' => $c ? [] : DopService::clients((string)($_GET['q'] ?? '')), 'q' => (string)($_GET['q'] ?? ''),
             'errors' => $errors, 'old' => $old ?? ['course_id' => (string)($_GET['grupa'] ?? ''), 'as_of' => ldToday(), 'mode' => 'approval', 'scope' => 'group'],
+            'autoRm' => $c && $kind === SettleKind::Rm ? AutoRm::get($cid) : null,
             'baselines' => $c ? array_map(fn($x) => (int)$x['course_id'], SettlementDocs::search(['client' => $cid, 'kind' => 'PRZ-P', 'status' => 'applied'])) : [], 'requests' => $c ? RopStatement::requests($cid) : []]);
     }
 

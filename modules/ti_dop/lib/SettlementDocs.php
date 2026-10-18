@@ -266,7 +266,8 @@ final class SettlementDocs
         if (!db_one("SELECT id FROM k30_clients WHERE id = ?", [$clientId])) return ['id' => 0, 'errors' => ['client' => 'Wybierz uczestnika.'], 'report' => []];
         [$d, $e] = self::validate($k, $clientId, $in);
         if ($e) return ['id' => 0, 'errors' => $e, 'report' => []];
-        $mode = $mode === 'direct' ? 'direct' : 'approval';
+        // 'auto' — tylko RM z agenta CRON (AutoRm, aktor systemowy id 0): wykonanie od razu i wysyłka do kursanta i rodzica
+        $mode = $mode === 'auto' && $k === SettleKind::Rm && (int)($actor['id'] ?? 0) === 0 ? 'auto' : ($mode === 'direct' ? 'direct' : 'approval');
         // RKS księguje kierownik: bez uprawnień kierownika dokument zawsze czeka na jego zatwierdzenie
         if (in_array($k, [SettleKind::Rks, SettleKind::Sub1], true) && $mode === 'direct' && !DopService::canApprove((int)($actor['id'] ?? 0))) $mode = 'approval';
         $req = trim(preg_replace('/\s+/', '', (string)($in['request_number'] ?? '')));
@@ -278,6 +279,8 @@ final class SettlementDocs
         $report = [];
         if ($mode === 'direct') {
             $report = self::apply($id, $actor, 'Wystawiono bez akceptacji (tryb do akt).');
+        } elseif ($mode === 'auto') {
+            $report = self::apply($id, $actor, 'Wystawiono automatycznie na prośbę uczestnika.');
         } else {
             (new LicenseNotificationService('ti_dop'))->alertOffice($k->value . ' do zatwierdzenia — ' . self::get($id)['number'],
                 '<p>' . htmlspecialchars((string)$actor['name']) . ' wystawił(a) dokument <b>' . htmlspecialchars($k->value . ' — ' . $k->title()) . '</b>. Czeka na zatwierdzenie kierownika (Finanse › Wnioski DOP › Rozliczenia).</p>',
@@ -444,7 +447,7 @@ final class SettlementDocs
                 $msg[] = 'teczka kursanta';
             }
         } catch (\Throwable $e) { error_log('settle folder: ' . $e->getMessage()); }
-        if ($r['mode'] === 'approval') $msg[] = 'wysyłka: ' . self::send($id, $actor);
+        if ($r['mode'] === 'approval' || $r['mode'] === 'auto') $msg[] = 'wysyłka: ' . self::send($id, $actor);
         else $msg[] = 'tylko do akt (bez wysyłki)';
         return implode(', ', $msg);
     }
@@ -555,7 +558,7 @@ final class SettlementDocs
         $th = fn(array $cols) => '<tr>' . implode('', array_map(fn($c) => '<td class="lb" style="padding:1mm"><b>' . htmlspecialchars($c) . '</b></td>', $cols)) . '</tr>';
         $h = '<table class="hdr"><tr><td style="width:60%"><b style="font-size:11pt">' . $e(ldOrgName()) . '</b><br><span class="small">' . $e((string)org_setting('org_adres')) . '</span></td>'
            . '<td style="width:40%;text-align:right">' . $e(ldDate(substr((string)$r['created_at'], 0, 10))) . '<div class="small">data wystawienia</div></td></tr></table>'
-           . '<div class="title">' . $e($k->value) . ' – ' . $e(mb_strtoupper($k->title())) . '</div><div class="num">Numer: <b>' . $e($r['number']) . '</b> · ' . ($r['mode'] === 'direct' ? 'wystawiony bez akceptacji (do akt)' : 'tryb z akceptacją kierownika') . '</div>';
+           . '<div class="title">' . $e($k->value) . ' – ' . $e(mb_strtoupper($k->title())) . '</div><div class="num">Numer: <b>' . $e($r['number']) . '</b> · ' . ($r['mode'] === 'direct' ? 'wystawiony bez akceptacji (do akt)' : ($r['mode'] === 'auto' ? 'wystawiony automatycznie na prośbę uczestnika' : 'tryb z akceptacją kierownika')) . '</div>';
         $h .= '<table class="t">' . $sec('A', 'UCZESTNIK I ZAKRES') . '<tr>' . $fld('Uczestnik', '<b>' . $e($r['client_name']) . '</b> · ID ' . (int)$r['client_id'], ' width="50%"')
             . $fld('Zakres', $e((int)$r['course_id'] > 0 ? 'grupa: ' . self::courseName((int)$r['course_id']) : 'całe konto uczestnika'), ' width="50%"') . '</tr><tr>'
             . $fld('Wniosek', $e($r['request_number'] ?: '—'), '') . $fld('Uzasadnienie', $e($d['uzasadnienie'] ?? '') ?: '—', '') . '</tr></table>';
@@ -640,7 +643,7 @@ final class SettlementDocs
                 . $fld('Wynik', $bal > 0.004 ? 'nadpłata ' . $e($zl($bal)) . ' — do zwrotu wnioskiem DOP1 albo zaliczenia' : ($bal < -0.004 ? 'do dopłaty ' . $e($zl(-$bal)) : 'rozliczono bez salda'), ' width="60%"') . '</tr></table>';
         }
         $h .= '<table class="t" style="page-break-inside:avoid">' . $sec('E', 'PODPISY') . '<tr>' . $fld('Wystawił(a)', '<b>' . $e($r['created_name']) . '</b><div class="esig">Podpisano elektronicznie w SZO: ' . $e(ldDate(substr((string)$r['created_at'], 0, 10)) . ' ' . substr((string)$r['created_at'], 11, 5)) . ($r['created_ip'] ? ', IP ' . $e($r['created_ip']) : '') . '</div>', ' width="50%" style="height:14mm"')
-            . $fld('Zatwierdził(a)', $r['mode'] === 'direct' ? 'nie dotyczy (bez akceptacji)' : ($r['decided_at'] ? '<b>' . $e($r['decided_name']) . '</b><div class="esig">Zatwierdzono elektronicznie: ' . $e(ldDate(substr((string)$r['decided_at'], 0, 10)) . ' ' . substr((string)$r['decided_at'], 11, 5)) . ', IP ' . $e($r['decided_ip']) . '</div>' : ''), ' width="50%"') . '</tr></table>';
+            . $fld('Zatwierdził(a)', $r['mode'] !== 'approval' ? 'nie dotyczy (bez akceptacji)' : ($r['decided_at'] ? '<b>' . $e($r['decided_name']) . '</b><div class="esig">Zatwierdzono elektronicznie: ' . $e(ldDate(substr((string)$r['decided_at'], 0, 10)) . ' ' . substr((string)$r['decided_at'], 11, 5)) . ', IP ' . $e($r['decided_ip']) . '</div>' : ''), ' width="50%"') . '</tr></table>';
         return '<style>body{font-family:dejavusans;font-size:8.8pt}table.hdr{width:100%;border-collapse:collapse;margin-bottom:3mm}table.hdr td{vertical-align:top}.title{font-size:13pt;font-weight:bold;text-align:center;margin:2mm 0 1mm}.num{text-align:center;font-size:8.6pt;margin-bottom:3mm}table.t{width:100%;border-collapse:collapse;margin:0 0 2mm}table.t td{border:0.25mm solid #000;vertical-align:top}td.f{padding:0.8mm 1.6mm 1mm}td.sec{background:#bfbfbf;padding:1mm 1.6mm}.lb{font-size:6.6pt;color:#222;margin-bottom:0.4mm}.v{font-size:9.2pt}.small{font-size:7pt}.esig{font-size:6.6pt;color:#333;margin-top:0.8mm}</style>' . $h;
     }
 

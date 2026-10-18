@@ -16,7 +16,7 @@ $zl = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
 </div>
 <div class="tiles">
   <div class="tile wide" style="background:#1d1d1d"><span class="n" style="font-size:1rem;font-weight:600"><?= h($r['number']) ?></span><span class="l"><?= h($r['client_name']) ?> · <?= h(SettlementDocs::courseName((int)$r['course_id'])) ?></span></div>
-  <div class="tile" style="background:<?= $r['status'] === 'applied' ? '#008a00' : ($r['status'] === 'rejected' ? '#a20025' : '#f0a30a') ?>"><span class="n" style="font-size:1rem;font-weight:600"><?= h(['pending' => 'czeka na zatwierdzenie', 'approved' => 'zatwierdzony', 'applied' => 'wykonany', 'rejected' => 'odrzucony'][$r['status']] ?? $r['status']) ?></span><span class="l"><?= $r['mode'] === 'direct' ? 'bez akceptacji (akta)' : 'z akceptacją' ?></span></div>
+  <div class="tile" style="background:<?= $r['status'] === 'applied' ? '#008a00' : ($r['status'] === 'rejected' ? '#a20025' : '#f0a30a') ?>"><span class="n" style="font-size:1rem;font-weight:600"><?= h(['pending' => 'czeka na zatwierdzenie', 'approved' => 'zatwierdzony', 'applied' => 'wykonany', 'rejected' => 'odrzucony'][$r['status']] ?? $r['status']) ?></span><span class="l"><?= $r['mode'] === 'direct' ? 'bez akceptacji (akta)' : ($r['mode'] === 'auto' ? 'automatycznie (prośba uczestnika)' : 'z akceptacją') ?></span></div>
   <div class="tile" style="background:<?= ($s['balance'] ?? 0) < 0 ? '#a20025' : '#0050ef' ?>"><span class="n" style="font-size:1.2rem"><?= h($zl($s['balance'] ?? 0)) ?></span><span class="l">Saldo (<?= isset($d['snapshot_after']) ? 'po wykonaniu' : 'w chwili wystawienia' ?>)</span></div>
 </div>
 <div class="row g-3">

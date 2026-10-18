@@ -18,6 +18,20 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
 <?php else: ?>
 <p><b><?= h($c['name']) ?></b> · saldo teraz <?= h(number_format($c['balance'], 2, ',', ' ')) ?> zł · <a href="<?= h(route('settle.new', ['kind' => $kind->value])) ?>">inny uczestnik</a></p>
 <?php if ($errors): ?><div class="alert alert-danger" role="alert"><?= h(implode(' ', $errors)) ?></div><?php endif; ?>
+<?php if ($kind === SettleKind::Rm): $ar = $autoRm ?? null; $arOn = $ar && (int)$ar['enabled'] === 1; ?>
+<section class="panel <?= $arOn ? 'accent' : '' ?>" aria-labelledby="arm-h"><h2 class="mt-0" id="arm-h">Automatyczne RM co miesiąc <?= $arOn ? ldChip('włączone', '#008a00') : ldChip('wyłączone', '#647687') ?></h2>
+  <p class="small text-secondary">Na prośbę uczestnika: od <?= AutoRm::DAY ?>. dnia każdego miesiąca system sam wystawia RM za poprzedni miesiąc (całe konto) i wysyła PDF uczestnikowi i rodzicowi; kopia w teczce.<?= $arOn && $ar['last_ym'] !== '' ? ' Ostatnio: ' . h($ar['last_ym']) . '.' : '' ?></p>
+  <form method="post" action="<?= h(route('settle.autorm')) ?>" class="row g-2 align-items-end"><?= Router::csrfField() ?><input type="hidden" name="klient" value="<?= (int)$c['id'] ?>">
+    <?php if ($arOn): ?>
+      <div class="col-auto small">Prośba z dnia <b><?= h(ldDate($ar['requested_on'])) ?></b><?= $ar['request_note'] !== '' ? ' — ' . h($ar['request_note']) : '' ?> · włączył(a) <?= h($ar['set_by']) ?></div>
+      <div class="col-auto"><button class="btn btn-metro red" name="enabled" value="0">Wyłącz</button></div>
+    <?php else: ?>
+      <div class="col-md-3"><label class="form-label small" for="arq">Data prośby uczestnika</label><input class="form-control form-control-sm" type="date" id="arq" name="requested_on" value="<?= h(date('Y-m-d')) ?>" required></div>
+      <div class="col-md-6"><label class="form-label small" for="arn">Forma prośby (np. e-mail, telefon, wniosek)</label><input class="form-control form-control-sm" id="arn" name="request_note" maxlength="300"></div>
+      <div class="col-md-3"><button class="btn btn-metro green w-100" name="enabled" value="1">Włącz automatyczne RM</button></div>
+    <?php endif; ?>
+  </form></section>
+<?php endif; ?>
 <form method="post" action="<?= h(route('settle.new')) ?>" novalidate><?= Router::csrfField() ?><input type="hidden" name="kind" value="<?= h($kind->value) ?>"><input type="hidden" name="klient" value="<?= (int)$c['id'] ?>">
 <?php if ($kind === SettleKind::Sub1): ?><input type="hidden" name="course_id" value="0"><?php else: ?>
 <section class="panel accent"><div class="row g-3">

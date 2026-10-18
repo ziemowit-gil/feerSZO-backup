@@ -64,6 +64,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/rozliczenia',                   [DopController::class, 'settleIndex'])->name('settle.index');
     $r->get('/rozliczenia/nowy',              [DopController::class, 'settleForm'])->name('settle.new');
     $r->post('/rozliczenia/nowy',             [DopController::class, 'settleCreate']);
+    $r->post('/rozliczenia/auto-rm',          [DopController::class, 'autoRmSave'])->name('settle.autorm');
     $r->get('/rozliczenia/{id}',              [DopController::class, 'settleShow'])->name('settle.show');
     $r->get('/rozliczenia/{id}/pdf',          [DopController::class, 'settlePdf'])->name('settle.pdf');
     $r->post('/rozliczenia/{id}/decyzja',     [DopController::class, 'settleDecide'])->name('settle.decide');
