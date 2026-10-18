@@ -346,6 +346,11 @@ $_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontar
 // wg roli (panel współpracownika vs menu SZO); stary widok tylko dla kadry bez żadnej umowy.
 $_metro_home = $_is_volunteer_only || !empty($contracts);
 
+// Wymóg uzupełnienia profilu w Katalogu (/katalog) — w trybie „require” przekierowuje przed wysłaniem strony
+require_once dirname(__DIR__) . '/includes/directory.php';
+require_once dirname(__DIR__) . '/modules/directory_profile/lib/directoryProfile.php';
+$dpStatus = directoryProfileEnforce($user);
+
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';
 } else {

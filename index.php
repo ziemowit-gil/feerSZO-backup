@@ -228,6 +228,11 @@ $tone_css = [
     'slate'  => ['#475569', '#f8fafc', '#e2e8f0'],
 ];
 
+// Wymóg uzupełnienia profilu w Katalogu (/katalog) — w trybie „require” przekierowuje przed wysłaniem strony
+require_once __DIR__ . '/includes/directory.php';
+require_once __DIR__ . '/modules/directory_profile/lib/directoryProfile.php';
+$dpStatus = directoryProfileEnforce($_user) ?? directoryProfileStatus((int)$_user['id']);
+
 include __DIR__ . '/includes/header.php';
 ?>
 
@@ -341,8 +346,9 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <h1 class="dash-greet"><?= h($greeting) ?>, <?= h($first_name) ?> 👋</h1>
       <div class="dash-sub"><?= h($date_pl_long) ?><?= $org_name ? ' · ' . h($org_name) : '' ?></div>
     </div>
-    <?php if (can_edit()): ?>
     <div class="dash-actions">
+      <a href="<?= APP_URL ?>/directory/profile_edit.php" class="dash-btn"><i class="bi bi-person-lines-fill" style="color:<?= $dpStatus['complete'] ? '#00807e' : '#c25100' ?>"></i>Profil w katalogu<?php if ($dpStatus['total']): ?> <kbd><?= (int)$dpStatus['pct'] ?>%</kbd><?php endif; ?></a>
+    <?php if (can_edit()): ?>
       <?php if ($new_types): ?>
       <div class="dropdown">
         <button type="button" class="dash-btn dash-btn-primary" data-bs-toggle="dropdown" aria-expanded="false">
@@ -358,9 +364,11 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <?php endif; ?>
       <button type="button" class="dash-btn" data-cmdk-open><i class="bi bi-search"></i>Szukaj <kbd>Ctrl K</kbd></button>
       <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="dash-btn"><i class="bi bi-calendar-x" style="color:#d97706"></i>Monitoring wygasania</a>
-    </div>
     <?php endif; ?>
+    </div>
   </header>
+
+  <?php include __DIR__ . '/modules/directory_profile/view/pulpitNotice.php'; ?>
 
   <!-- ── KPI ──────────────────────────────────────────────────────────────── -->
   <section class="dash-kpi" aria-label="Wskaźniki">

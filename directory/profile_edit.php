@@ -27,6 +27,12 @@ $field_defs = directory_get_field_defs();
 $errors     = [];
 $is_own     = $target_id === (int)$cu['id'];
 
+// Wymóg uzupełnienia profilu (ustawienia: admin/profile_fields.php)
+require_once dirname(__DIR__) . '/modules/directory_profile/lib/directoryProfile.php';
+$dpReq  = directoryProfileMode() !== 'off' ? directoryProfileRequiredItems() : [];
+$dpMark = fn(string $k): string => in_array($k, $dpReq, true)
+    ? ' <span class="dir-req" aria-hidden="true">*</span><span class="visually-hidden"> (wymagane)</span>' : '';
+
 // ── POST ──────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -52,6 +58,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (mb_strlen($bio) > 1000) {
         $errors[] = ['field' => 'bio', 'msg' => 'Bio nie może przekraczać 1000 znaków.'];
+    }
+    if (in_array('bio', $dpReq, true) && $bio === '') {
+        $errors[] = ['field' => 'bio', 'msg' => 'Uzupełnij opis „O mnie” — organizacja wymaga go w katalogu.'];
+    }
+    if (in_array('phone', $dpReq, true) && $phone_new === '') {
+        $errors[] = ['field' => 'phone_number', 'msg' => 'Podaj numer telefonu — organizacja wymaga go w katalogu.'];
+    }
+    if (in_array('skills', $dpReq, true) && !$skills_arr) {
+        $errors[] = ['field' => 'skills', 'msg' => 'Dodaj co najmniej jedną umiejętność — organizacja wymaga tego w katalogu.'];
+    }
+    foreach ($field_defs as $fd) {
+        $key = 'field_' . (int)$fd['id'];
+        if (in_array($key, $dpReq, true) && trim($_POST[$key] ?? '') === '') {
+            $errors[] = ['field' => $key, 'msg' => 'Pole „' . $fd['label'] . '” jest wymagane.'];
+        }
     }
 
     if (empty($errors)) {
@@ -81,7 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $person['phone_public'] = $phone_pub;
     $person['skills_array'] = $skills_arr;
     $person['phone_number'] = $phone_new;
+    foreach ($field_defs as $fd) $person['field_values'][(int)$fd['id']] = trim($_POST['field_' . (int)$fd['id']] ?? '');
 }
+$dpStatus = $dpReq ? directoryProfileStatus($target_id, $person) : null;
 
 $display           = directory_display_name($person);
 $skills_json_value = json_encode($person['skills_array'] ?? [], JSON_UNESCAPED_UNICODE);
@@ -127,6 +150,18 @@ include __DIR__ . '/includes/header_dir.php';
   </div>
 </nav>
 
+<?php if ($dpStatus && !$dpStatus['complete']): ?>
+<div class="dir-req-note<?= $dpStatus['mode'] === 'require' ? ' is-require' : '' ?>" role="<?= !empty($_GET['wymagane']) ? 'alert' : 'note' ?>">
+  <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+  <div>
+    <strong><?= $dpStatus['mode'] === 'require'
+        ? ($is_own ? 'Uzupełnij profil, aby korzystać z pulpitu.' : 'Profil nie spełnia wymogu organizacji.')
+        : 'Organizacja prosi o uzupełnienie profilu w katalogu.' ?></strong>
+    <span>Brakuje: <?= h(implode(', ', $dpStatus['missing'])) ?>. Pola wymagane oznaczono gwiazdką (*).</span>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($errors)): ?>
 <div class="alert alert-danger" role="alert" aria-live="assertive" id="formErrors">
   <h2 class="h6 mb-2">
@@ -145,7 +180,7 @@ include __DIR__ . '/includes/header_dir.php';
 <!-- ── Zdjęcie profilowe ───────────────────────────────────────────────────── -->
 <div class="dir-info-card mb-3" style="max-width:720px">
   <div class="h6 mb-3">
-    <i class="bi bi-person-circle me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>Zdjęcie profilowe
+    <i class="bi bi-person-circle me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>Zdjęcie profilowe<?= $dpMark('avatar') ?>
   </div>
 
   <div class="d-flex align-items-center gap-4 flex-wrap">
@@ -233,12 +268,13 @@ include __DIR__ . '/includes/header_dir.php';
       <i class="bi bi-person-vcard me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>O mnie
     </legend>
     <label class="form-label text-muted" style="font-size:.82rem" for="bio">
-      Krótki opis / bio
+      Krótki opis / bio<?= $dpMark('bio') ?>
     </label>
     <textarea id="bio" name="bio" class="form-control" rows="5" maxlength="1000"
               placeholder="Kilka słów o sobie, zainteresowaniach, zadaniach w organizacji…"
               style="font-size:.9rem;resize:vertical"
               aria-describedby="bioHint<?= isset($field_errors['bio']) ? ' err-bio' : '' ?>"
+              <?= in_array('bio', $dpReq, true) ? 'aria-required="true"' : '' ?>
               <?= isset($field_errors['bio']) ? 'aria-invalid="true"' : '' ?>><?= h($person['bio']) ?></textarea>
     <div id="bioHint" class="d-flex justify-content-between mt-1" style="font-size:.75rem;color:#9CA3AF">
       <span>Maksymalnie 1000 znaków.</span>
@@ -251,7 +287,7 @@ include __DIR__ . '/includes/header_dir.php';
   <!-- ── Umiejętności ────────────────────────────────────────────────── -->
   <fieldset class="dir-info-card mb-3">
     <legend class="h6 mb-2">
-      <i class="bi bi-stars me-2" aria-hidden="true" style="color:#F59E0B"></i>Umiejętności
+      <i class="bi bi-stars me-2" aria-hidden="true" style="color:#F59E0B"></i>Umiejętności<?= $dpMark('skills') ?>
     </legend>
     <p id="skillsHint" class="form-label text-muted mb-2" style="font-size:.82rem">
       Wpisz umiejętność i naciśnij <kbd>Enter</kbd> lub przecinek. Kliknij × przy tagu, aby go usunąć.
@@ -287,7 +323,7 @@ include __DIR__ . '/includes/header_dir.php';
     <!-- Pole do wpisania / zmiany numeru -->
     <div class="mb-2">
       <label class="form-label" for="phone_number" style="font-size:.85rem;font-weight:600">
-        Numer do logowania kodem SMS
+        Numer do logowania kodem SMS<?= $dpMark('phone') ?>
       </label>
       <input type="tel"
              id="phone_number"
@@ -298,6 +334,7 @@ include __DIR__ . '/includes/header_dir.php';
              placeholder="np. 48123456789 lub 123456789"
              autocomplete="tel"
              inputmode="tel"
+             <?= in_array('phone', $dpReq, true) ? 'aria-required="true"' : '' ?>
              <?= $_ph_err ? 'aria-invalid="true" aria-describedby="phone-err"' : 'aria-describedby="phone-hint"' ?>>
       <?php if ($_ph_err): ?>
       <div id="phone-err" class="invalid-feedback"><?= h($_ph_err) ?></div>
@@ -343,7 +380,7 @@ include __DIR__ . '/includes/header_dir.php';
         $has_err = isset($field_errors[$key]);
     ?>
     <div class="mb-3">
-      <label class="form-label" for="<?= h($key) ?>" style="font-size:.85rem;font-weight:600"><?= h($fd['label']) ?></label>
+      <label class="form-label" for="<?= h($key) ?>" style="font-size:.85rem;font-weight:600"><?= h($fd['label']) ?><?= $dpMark($key) ?></label>
       <?php if ($fd['field_type'] === 'textarea'): ?>
         <textarea id="<?= h($key) ?>" name="<?= h($key) ?>" class="form-control" rows="3" style="font-size:.88rem"
                   <?= $has_err ? 'aria-invalid="true" aria-describedby="' . $err_id . '"' : '' ?>><?= h($cur_val) ?></textarea>

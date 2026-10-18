@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/includes/db.php';
 require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/directory.php';
+require_once dirname(__DIR__) . '/modules/directory_profile/lib/directoryProfile.php';
 
 require_role('admin');
 directory_migrate();
@@ -110,6 +111,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) { $error = $e->getMessage(); }
     }
 
+    // Wymóg uzupełnienia profilu (modules/directory_profile)
+    if ($action === 'dir_requirement') {
+        directoryProfileSaveSettings((string)($_POST['dp_mode'] ?? 'off'), (array)($_POST['dp_items'] ?? []));
+        $flash = 'Zapisano wymóg uzupełnienia profilu.';
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$error) {
         header('Location: ' . APP_URL . '/admin/profile_fields.php' . ($flash ? '?msg=' . urlencode($flash) : ''));
         exit;
@@ -151,6 +158,8 @@ include dirname(__DIR__) . '/includes/header.php';
     <i class="bi bi-exclamation-triangle me-2"></i><?= h($error) ?>
   </div>
   <?php endif; ?>
+
+  <?php include dirname(__DIR__) . '/modules/directory_profile/view/requirementSettings.php'; ?>
 
   <!-- Fields list -->
   <div class="card border-0 shadow-sm rounded-3 mb-4">

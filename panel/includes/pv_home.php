@@ -63,7 +63,10 @@ try {
 /* ── Nudge: profil w katalogu / logowanie SMS ────────────────────────────── */
 if (function_exists('auth_start')) auth_start();
 $_show_dir_invite = false;
-if (empty($_SESSION['_panel_dir_invited'])) {
+require_once $ROOT . '/includes/directory.php';
+require_once $ROOT . '/modules/directory_profile/lib/directoryProfile.php';
+$dpStatus = $dpStatus ?? directoryProfileStatus((int)$user['id']);
+if ($dpStatus['mode'] === 'off' && empty($_SESSION['_panel_dir_invited'])) {
     $_dir_profile = null;
     try { $_dir_profile = db_one("SELECT bio, avatar_file FROM user_profiles WHERE user_id=?", [(int)$user['id']]); } catch (\Throwable $e) {}
     if (empty($_dir_profile['bio']) && empty($_dir_profile['avatar_file'])) {
@@ -281,6 +284,7 @@ panelMetroAssets($_vol_color);
 
   <?php panelMetroImportant((int)$user['id'], (string)($user['role'] ?? 'viewer')); ?>
 
+  <?php include $ROOT . '/modules/directory_profile/view/pulpitNotice.php'; ?>
   <?php if ($_show_dir_invite): ?>
   <div class="mt-note" role="complementary" aria-label="Zaproszenie do uzupełnienia profilu">
     <i class="bi bi-people-fill" aria-hidden="true"></i>
@@ -344,6 +348,11 @@ panelMetroAssets($_vol_color);
     }
     panelMetroTile(['href'=>'#konta','go'=>'konta','icon'=>'bi-key','label'=>'Konta i dostępy',
                     'sub'=>$m365_login ?: ($email ?: 'loginy do usług'),'color'=>'blue','size'=>'w']);
+    panelMetroTile(['href'=>APP_URL.'/directory/profile_edit.php','icon'=>'bi-person-lines-fill','label'=>'Profil w katalogu',
+                    'val'=>$dpStatus['total'] ? $dpStatus['pct'] . '%' : '',
+                    'sub'=>$dpStatus['complete'] ? 'uzupełniony — zobacz katalog' : 'brakuje: ' . implode(', ', $dpStatus['missing']),
+                    'tag'=>!$dpStatus['complete'] && $dpStatus['mode'] !== 'off' ? 'wymagane' : '',
+                    'color'=>$dpStatus['complete'] ? 'teal' : ($dpStatus['mode'] === 'require' ? 'red' : 'orange')]);
     ?>
       </div>
     </section>

@@ -88,7 +88,7 @@ function directory_get_profile(int $user_id): ?array {
 
     $user['unit_name']       = $member['unit_name'] ?? '';
     $user['unit_id']         = $member['unit_id'] ?? null;
-    $user['position_name']   = $member['position_name'] ?: ($member['position_def_name'] ?? '');
+    $user['position_name']   = ($member['position_name'] ?? '') ?: ($member['position_def_name'] ?? '');
     $user['is_head']         = $member['is_head'] ?? 0;
     $user['phone_direct']    = $member['phone_direct'] ?? '';
     $user['phone_mobile']    = $member['phone_mobile'] ?? '';
