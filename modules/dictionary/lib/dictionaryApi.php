@@ -90,3 +90,31 @@ function dictAllowed(string $code, ?string $entryCode, array $fallback = []): bo
     } catch (\Throwable $e) {}
     return in_array($entryCode, $fallback, true);
 }
+
+/**
+ * <datalist> z podpowiedziami ze słownika dla zwykłego pola tekstowego (wolny tekst nadal dozwolony) — dodaj do pola
+ * atrybut list="dl-{$inputId}". $fill = [atrybut wpisu => id pola]: po wybraniu podpowiedzi uzupełnia PUSTE pola
+ * wartościami z atrybutów JSON wpisu (np. ['adres' => 'organ_adres']). Grupy (wpisy z dziećmi) są pomijane.
+ * Pusty słownik / błąd → pusty string (pole działa jak dotąd).
+ */
+function dictDatalist(string $code, string $inputId, array $fill = []): string
+{
+    $items = array_filter(dictItems($code), fn($i) => !$i['has_children']);
+    if (!$items) return '';
+    $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $map = [];
+    $html = '<datalist id="dl-' . $e($inputId) . '">';
+    foreach ($items as $i) {
+        $html .= '<option value="' . $e($i['label']) . '">' . $e($i['attributes']['miasto'] ?? '') . '</option>';
+        if ($fill) $map[$i['label']] = array_intersect_key($i['attributes'], $fill);
+    }
+    $html .= '</datalist>';
+    if ($fill && array_filter($map)) {
+        $json = json_encode(['input' => $inputId, 'fill' => $fill, 'map' => $map], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        $html .= '<script>(function(c){var el=document.getElementById(c.input);if(!el)return;'
+               . 'el.addEventListener("change",function(){var a=c.map[el.value];if(!a)return;'
+               . 'Object.keys(c.fill).forEach(function(k){var t=document.getElementById(c.fill[k]);'
+               . 'if(t&&!t.value&&a[k]){t.value=a[k];t.dispatchEvent(new Event("input",{bubbles:true}));}});});})(' . $json . ');</script>';
+    }
+    return $html;
+}
