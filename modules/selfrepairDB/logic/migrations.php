@@ -233,6 +233,17 @@ return [
         },
     ],
 
+    // Zmiana danych współpracownika (modules/collaborator_data): pola formularza (etykiety, grupa, czy zmiana wymaga
+    // akceptacji) i statusy zmian jako słowniki systemowe Słownika Centralnego. Kody używane w CollaboratorDataService.
+    '2026-10_collab_data_dictionary' => [
+        'desc' => 'Słownik Centralny: pola i statusy modułu Zmiana danych współpracownika',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/collaborator_data/lib/CollaboratorDataService.php';
+            $res = dictTransfer()->import(CollaboratorDataService::dictionarySeed(), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
     // Certyfikacja MSUES: hasła JRWA 56 (kadra dydaktyczna — MSUES), 561 (oświadczenia o kwalifikacjach, koszulki oświadczeń),
     // 562 (audyty MSUES — paczki audytowe). Tylko gdy EZD ma już tabelę JRWA; brakujące hasła doda też pierwsza rejestracja.
     '2026-10_msues_jrwa' => [

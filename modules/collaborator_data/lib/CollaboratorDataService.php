@@ -1,0 +1,349 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * modules/collaborator_data/lib/CollaboratorDataService.php — „Zmiana danych współpracownika”:
+ * aktualizacja kontaktu, adresu i danych rozliczeniowych z dziennikiem zmian (collaborator_data_changes:
+ * kto, kiedy, co, stara/nowa wartość, źródło, IP).
+ *
+ * Gdzie trafiają dane: kontakt → users (konto), adres i rozliczenia → persons (rejestr Osób, z którego
+ * korzystają umowy i oświadczenia MSUES). Umów już zawartych NIE zmieniamy — to dokumenty z dnia zawarcia.
+ *
+ * Pola i ich ustawienia (etykieta, grupa, czy zmiana wymaga akceptacji) pochodzą ze Słownika Centralnego
+ * (słownik systemowy COLLAB_FIELDS_DICT, atrybuty group/approval); stała COLLAB_FIELDS to logika zapisu
+ * i wartości zapasowe, gdy słownika jeszcze nie ma. Statusy zmian: enum CollabChangeStatus + słownik etykiet.
+ */
+
+require_once dirname(__DIR__, 2) . '/dictionary/lib/dictionaryApi.php';
+
+const COLLAB_FIELDS_DICT = 'zmiana_danych_pola';
+const COLLAB_STATUS_DICT = 'zmiana_danych_statusy';
+
+/** Kod pola => [etykieta, grupa, cel (user|person), kolumna, typ, wymaga akceptacji]. */
+const COLLAB_FIELDS = [
+    'telefon'                => ['Telefon',                                'kontakt',     'user',   'phone_number',           'phone', false],
+    'alt_email'              => ['Dodatkowy adres e-mail',                 'kontakt',     'user',   'alt_email',              'email', false],
+    'addr_street'            => ['Ulica',                                  'adres',       'person', 'addr_street',            'text',  false],
+    'addr_house'             => ['Nr domu',                                'adres',       'person', 'addr_house',             'text',  false],
+    'addr_flat'              => ['Nr lokalu',                              'adres',       'person', 'addr_flat',              'text',  false],
+    'addr_postal'            => ['Kod pocztowy',                           'adres',       'person', 'addr_postal',            'postal', false],
+    'addr_city'              => ['Miejscowość',                            'adres',       'person', 'addr_city',              'text',  false],
+    'addr_country'           => ['Kraj',                                   'adres',       'person', 'addr_country',           'text',  false],
+    'adres_korespondencyjny' => ['Adres do korespondencji (jeśli inny)',   'adres',       'person', 'adres_korespondencyjny', 'textarea', false],
+    'rachunek_bankowy'       => ['Numer rachunku bankowego',               'rozliczenia', 'person', 'rachunek_bankowy',       'iban',  true],
+    'urzad_skarbowy'         => ['Urząd skarbowy',                         'rozliczenia', 'person', 'urzad_skarbowy',         'text',  false],
+];
+
+const COLLAB_GROUPS = ['kontakt' => 'Kontakt', 'adres' => 'Adres', 'rozliczenia' => 'Dane rozliczeniowe'];
+
+enum CollabChangeStatus: string
+{
+    case Applied  = 'applied';
+    case Pending  = 'pending';
+    case Rejected = 'rejected';
+
+    public function label(): string
+    {
+        $fallback = match ($this) { self::Applied => 'wprowadzona', self::Pending => 'czeka na akceptację', self::Rejected => 'odrzucona' };
+        return (string)dictLabel(COLLAB_STATUS_DICT, $this->value, $fallback);
+    }
+
+    public function color(): string
+    {
+        return match ($this) { self::Applied => '#007a00', self::Pending => '#c25100', self::Rejected => '#a20025' };
+    }
+}
+
+/** Wynik zgłoszenia zmian. */
+final class CollabSubmitResult
+{
+    /** @param array<string,string> $errors */
+    public function __construct(public readonly int $applied = 0, public readonly int $pending = 0, public readonly array $errors = []) {}
+}
+
+final class CollaboratorDataService
+{
+    private static bool $schemaDone = false;
+
+    public function __construct(private readonly int $userId)
+    {
+        self::schema();
+    }
+
+    public static function schema(): void
+    {
+        if (self::$schemaDone) return;
+        self::$schemaDone = true;
+        db()->exec("CREATE TABLE IF NOT EXISTS collaborator_data_changes (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            person_id      INTEGER REFERENCES persons(id) ON DELETE SET NULL,
+            field          TEXT NOT NULL,
+            old_value      TEXT,
+            new_value      TEXT,
+            status         TEXT NOT NULL DEFAULT 'applied',
+            source         TEXT NOT NULL DEFAULT 'self',
+            application_id INTEGER REFERENCES user_applications(id) ON DELETE SET NULL,
+            changed_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            decided_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            decided_at     DATETIME,
+            decision_note  TEXT,
+            ip             TEXT,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_cdc_user ON collaborator_data_changes(user_id, created_at)");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_cdc_status ON collaborator_data_changes(status)");
+    }
+
+    /**
+     * Pola z ustawieniami ze Słownika Centralnego (etykieta, grupa, approval, aktywność); kody bez logiki pomijane.
+     * @return array<string, array{label:string, group:string, target:string, column:string, type:string, approval:bool}>
+     */
+    public static function fields(): array
+    {
+        $items = dictItems(COLLAB_FIELDS_DICT, []);
+        $out = [];
+        foreach (COLLAB_FIELDS as $code => [$label, $group, $target, $col, $type, $approval]) {
+            if ($items && !isset($items[$code])) continue;            // wyłączone w słowniku
+            $it = $items[$code] ?? null;
+            $out[$code] = [
+                'label'    => (string)($it['label'] ?? $label),
+                'group'    => isset(COLLAB_GROUPS[$it['attributes']['group'] ?? '']) ? (string)$it['attributes']['group'] : $group,
+                'target'   => $target, 'column' => $col, 'type' => $type,
+                'approval' => (bool)($it['attributes']['approval'] ?? $approval),
+            ];
+        }
+        return $out;
+    }
+
+    /** Seed słownika pól i statusów (format importu Słownika Centralnego) — dla migracji jednorazowej. */
+    public static function dictionarySeed(): string
+    {
+        $fields = [];
+        $i = 0;
+        foreach (COLLAB_FIELDS as $code => [$label, $group, , , , $approval]) {
+            $fields[] = ['code' => $code, 'label' => $label, 'parent_code' => null, 'sort_order' => (++$i) * 10, 'is_active' => true,
+                         'description' => 'Grupa: ' . COLLAB_GROUPS[$group] . ($approval ? '; zmiana wymaga akceptacji' : ''),
+                         'attributes' => ['group' => $group, 'approval' => $approval]];
+        }
+        $statuses = [];
+        foreach (CollabChangeStatus::cases() as $j => $s) {
+            $statuses[] = ['code' => $s->value, 'label' => match ($s) {
+                CollabChangeStatus::Applied => 'wprowadzona', CollabChangeStatus::Pending => 'czeka na akceptację', CollabChangeStatus::Rejected => 'odrzucona',
+            }, 'parent_code' => null, 'sort_order' => ($j + 1) * 10, 'is_active' => true, 'description' => null];
+        }
+        return json_encode(['format' => 'szo-dictionary', 'version' => 1, 'dictionaries' => [
+            ['code' => COLLAB_FIELDS_DICT, 'name' => 'Zmiana danych współpracownika — pola', 'kind' => 'system', 'parent_code' => null,
+             'is_protected' => false, 'sort_order' => 60,
+             'description' => 'Pola, które współpracownik zmienia samodzielnie (moduł Zmiana danych współpracownika). Kody są używane w kodzie — zmieniaj etykiety, kolejność, aktywność i atrybuty group (kontakt/adres/rozliczenia) oraz approval (true = zmiana czeka na akceptację administratora).',
+             'entries' => $fields],
+            ['code' => COLLAB_STATUS_DICT, 'name' => 'Zmiana danych współpracownika — statusy zmian', 'kind' => 'system', 'parent_code' => null,
+             'is_protected' => false, 'sort_order' => 61,
+             'description' => 'Statusy wpisów dziennika zmian danych współpracownika. Kody stałe — zmieniaj tylko etykiety.',
+             'entries' => $statuses],
+        ]], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @return array<string,mixed> */
+    public function user(): array
+    {
+        return db_one("SELECT * FROM users WHERE id = ?", [$this->userId]) ?: [];
+    }
+
+    /** Rekord w rejestrze Osób: po e-mailu konta, potem po person_id z umów osoby. */
+    public function person(): ?array
+    {
+        $u = $this->user();
+        $mail = mb_strtolower(trim((string)($u['email'] ?? '')));
+        if ($mail === '') return null;
+        $p = db_one("SELECT * FROM persons WHERE lower(email) = ? ORDER BY id LIMIT 1", [$mail]);
+        if ($p) return $p;
+        foreach (['wolontariat' => ['email', 'm365_login'], 'zlecenie' => ['email', 'm365_login'], 'dzielo' => ['m365_login'], 'praca' => ['email_login']] as $t => $cols) {
+            $w = implode(' OR ', array_map(fn($c) => "lower($c) = ?", $cols));
+            try {
+                $r = db_one("SELECT person_id FROM umowy_{$t} WHERE person_id IS NOT NULL AND ($w) ORDER BY id DESC LIMIT 1", array_fill(0, count($cols), $mail));
+                if ($r && ($p = db_one("SELECT * FROM persons WHERE id = ?", [(int)$r['person_id']]))) return $p;
+            } catch (\Throwable $e) {}
+        }
+        return null;
+    }
+
+    /** Aktualne wartości pól. @return array<string,string> */
+    public function current(): array
+    {
+        $u = $this->user();
+        $p = $this->person() ?? [];
+        $out = [];
+        foreach (self::fields() as $code => $f) {
+            $out[$code] = (string)(($f['target'] === 'user' ? $u : $p)[$f['column']] ?? '');
+        }
+        if (($out['telefon'] ?? '') === '' && !empty($p['telefon'])) $out['telefon'] = (string)$p['telefon'];
+        return $out;
+    }
+
+    /** Walidacja i normalizacja wartości; zwraca [wartość, błąd|null]. */
+    public static function normalize(string $type, string $value): array
+    {
+        $v = trim($value);
+        if ($v === '') return ['', null];
+        switch ($type) {
+            case 'phone':
+                $d = preg_replace('/[^\d+]/', '', $v);
+                return preg_match('/^\+?\d{9,15}$/', (string)$d) ? [(string)$d, null] : [$v, 'Podaj numer telefonu (9–15 cyfr, opcjonalnie z +).'];
+            case 'email':
+                return filter_var($v, FILTER_VALIDATE_EMAIL) ? [mb_strtolower($v), null] : [$v, 'Podaj poprawny adres e-mail.'];
+            case 'postal':
+                return preg_match('/^\d{2}-\d{3}$/', $v) ? [$v, null] : [$v, 'Kod pocztowy w formacie 00-000.'];
+            case 'iban':
+                $n = strtoupper(preg_replace('/\s+/', '', $v));
+                if (preg_match('/^\d{26}$/', $n)) $n = 'PL' . $n;
+                if (!preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/', $n) || !self::ibanOk($n)) return [$v, 'Numer rachunku nie przechodzi kontroli IBAN — sprawdź cyfry.'];
+                return [trim(chunk_split($n, 4, ' ')), null];
+        }
+        return [mb_substr($v, 0, 500), null];
+    }
+
+    private static function ibanOk(string $iban): bool
+    {
+        $r = substr($iban, 4) . substr($iban, 0, 4);
+        $num = '';
+        foreach (str_split($r) as $ch) $num .= ctype_alpha($ch) ? (string)(ord($ch) - 55) : $ch;
+        $mod = 0;
+        foreach (str_split($num, 7) as $chunk) $mod = (int)(($mod . $chunk) % 97);
+        return $mod === 1;
+    }
+
+    /**
+     * Zgłoszenie zmian. Pola z approval=true trafiają do akceptacji (status pending), pozostałe wchodzą od razu.
+     * Admin/redaktor zmieniający cudze dane: zmiany wchodzą od razu ($autoApprove).
+     * @param array<string,string> $input
+     */
+    public function submit(array $input, int $actorId, string $source = 'self', ?int $applicationId = null, bool $autoApprove = false): CollabSubmitResult
+    {
+        $fields = self::fields();
+        $cur = $this->current();
+        $errors = []; $todo = [];
+        foreach ($fields as $code => $f) {
+            if (!array_key_exists($code, $input)) continue;
+            [$val, $err] = self::normalize($f['type'], (string)$input[$code]);
+            if ($err) { $errors[$code] = $err; continue; }
+            if ($val === ($cur[$code] ?? '')) continue;
+            $todo[$code] = $val;
+        }
+        if ($errors) return new CollabSubmitResult(0, 0, $errors);
+
+        $applied = 0; $pending = 0;
+        $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
+        foreach ($todo as $code => $val) {
+            $f = $fields[$code];
+            $wait = $f['approval'] && !$autoApprove;
+            $personId = $this->person()['id'] ?? null;
+            db_insert('collaborator_data_changes', [
+                'user_id' => $this->userId, 'person_id' => $personId, 'field' => $code,
+                'old_value' => $cur[$code] ?? '', 'new_value' => $val,
+                'status' => ($wait ? CollabChangeStatus::Pending : CollabChangeStatus::Applied)->value,
+                'source' => $source, 'application_id' => $applicationId, 'changed_by' => $actorId,
+                'decided_by' => $wait ? null : $actorId, 'decided_at' => $wait ? null : date('Y-m-d H:i:s'), 'ip' => $ip,
+            ]);
+            if ($wait) { $pending++; continue; }
+            $this->write($code, $val, $actorId);
+            $applied++;
+        }
+        if ($pending) $this->notifyAdmins($pending);
+        return new CollabSubmitResult($applied, $pending, []);
+    }
+
+    /** Zapis wartości do users / persons (rekord Osoby tworzony, gdy go brak). */
+    private function write(string $code, string $val, int $actorId): void
+    {
+        $f = self::fields()[$code] ?? null;
+        if (!$f) return;
+        if ($f['target'] === 'user') {
+            db()->prepare("UPDATE users SET {$f['column']} = ? WHERE id = ?")->execute([$val, $this->userId]);
+            if ($code === 'telefon' && ($p = $this->person())) db_update('persons', ['telefon' => $val], (int)$p['id']);
+            return;
+        }
+        $p = $this->person();
+        if (!$p) {
+            $u = $this->user();
+            $name = trim(((string)($u['first_name'] ?? '')) . ' ' . ((string)($u['last_name'] ?? ''))) ?: (string)($u['name'] ?? '');
+            $pid = db_insert('persons', ['imie_nazwisko' => $name, 'email' => (string)($u['email'] ?? ''), 'telefon' => (string)($u['phone_number'] ?? ''), 'created_by' => $actorId]);
+            db()->prepare("UPDATE collaborator_data_changes SET person_id = ? WHERE user_id = ? AND person_id IS NULL")->execute([$pid, $this->userId]);
+            $p = db_one("SELECT * FROM persons WHERE id = ?", [$pid]) ?: [];
+        }
+        $data = [$f['column'] => $val];
+        if (str_starts_with($code, 'addr_')) {
+            $a = array_merge($p, $data);
+            $street = trim(trim((string)($a['addr_street'] ?? '')) . ' ' . trim((string)($a['addr_house'] ?? '')) . (trim((string)($a['addr_flat'] ?? '')) !== '' ? '/' . trim((string)$a['addr_flat']) : ''));
+            $data['adres'] = trim($street . ', ' . trim(trim((string)($a['addr_postal'] ?? '')) . ' ' . trim((string)($a['addr_city'] ?? ''))), ', ');
+        }
+        db_update('persons', $data, (int)$p['id']);
+    }
+
+    private function notifyAdmins(int $n): void
+    {
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/notifications.php';
+            $u = $this->user();
+            foreach (db_all("SELECT id FROM users WHERE role IN ('admin','editor') AND is_active = 1") as $a) {
+                notif_create((int)$a['id'], 'system', 'Zmiana danych do akceptacji: ' . ($u['name'] ?? ''), $n . ' zmian(y) czeka na decyzję',
+                             APP_URL . '/modules/collaborator_data/router.php/admin');
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    /** Decyzja administratora o zmianie oczekującej. */
+    public static function decide(int $changeId, bool $approve, int $actorId, string $note = ''): bool
+    {
+        self::schema();
+        $c = db_one("SELECT * FROM collaborator_data_changes WHERE id = ? AND status = ?", [$changeId, CollabChangeStatus::Pending->value]);
+        if (!$c) return false;
+        if ($approve) (new self((int)$c['user_id']))->write((string)$c['field'], (string)$c['new_value'], $actorId);
+        db()->prepare("UPDATE collaborator_data_changes SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?")
+            ->execute([($approve ? CollabChangeStatus::Applied : CollabChangeStatus::Rejected)->value, $actorId, date('Y-m-d H:i:s'), mb_substr($note, 0, 500), $changeId]);
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/notifications.php';
+            $label = self::fields()[$c['field']]['label'] ?? $c['field'];
+            notif_create((int)$c['user_id'], 'system', 'Zmiana danych: ' . $label . ' — ' . ($approve ? 'wprowadzona' : 'odrzucona'), $note,
+                         APP_URL . '/modules/collaborator_data/router.php');
+        } catch (\Throwable $e) {}
+        return true;
+    }
+
+    /** Dziennik zmian (dla osoby albo wszystkich). @return list<array<string,mixed>> */
+    public static function history(?int $userId = null, ?string $status = null, int $limit = 100): array
+    {
+        self::schema();
+        $w = []; $p = [];
+        if ($userId) { $w[] = 'c.user_id = ?'; $p[] = $userId; }
+        if ($status) { $w[] = 'c.status = ?'; $p[] = $status; }
+        return db_all("SELECT c.*, u.name AS user_name, u.email AS user_email, a.name AS actor_name, d.name AS decider_name
+                       FROM collaborator_data_changes c
+                       LEFT JOIN users u ON u.id = c.user_id LEFT JOIN users a ON a.id = c.changed_by LEFT JOIN users d ON d.id = c.decided_by"
+                     . ($w ? ' WHERE ' . implode(' AND ', $w) : '') . " ORDER BY c.id DESC LIMIT " . max(1, min(500, $limit)), $p);
+    }
+
+    /** Wartość do wyświetlenia w dzienniku (rachunek zamaskowany poza ostatnimi 4 cyframi). */
+    public static function display(string $field, ?string $value, bool $full = false): string
+    {
+        $v = trim((string)$value);
+        if ($v === '') return '—';
+        if ($field === 'rachunek_bankowy' && !$full) {
+            $d = preg_replace('/\s+/', '', $v);
+            return '•••• ' . substr((string)$d, -4);
+        }
+        return $v;
+    }
+
+    /** Typy wniosków modułu (SZD, SKK, UPO1–3, DYD1) aktywne w panelu wniosków. @return list<array<string,mixed>> */
+    public static function applicationTypes(): array
+    {
+        require_once dirname(__DIR__, 3) . '/includes/applications.php';
+        $out = [];
+        foreach (app_types_all(true) as $t) {
+            $tpl = appDocsTemplateFor($t['name'] ?? null);
+            if ($tpl && ($tpl['group'] ?? '') === 'collab') $out[] = $t + ['code' => $tpl['code']];
+        }
+        return $out;
+    }
+}
