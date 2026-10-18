@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/letters.php';
 require_once dirname(__DIR__) . '/includes/applications.php';
+require_once dirname(__DIR__) . '/modules/app_workflow/logic/appWorkflow.php';
 
 require_login();
 if (!can_read('admin') && !can_read('pisma')) {
@@ -38,11 +39,13 @@ if ($filter_type_id) {
     $where[] = 'a.type_id = ?'; $params[] = $filter_type_id;
 }
 
-$sql = "SELECT a.*, u.name AS user_name, u.email AS user_email, ab.name AS answered_by_name,
+appWfMigrate();
+$sql = "SELECT a.*, u.name AS user_name, u.email AS user_email, ab.name AS answered_by_name, ws.name AS wf_stage_name, ws.is_final AS wf_final,
                t.label AS type_label, t.icon AS type_icon, t.allow_attachment AS type_allow_att, t.name AS type_name
         FROM user_applications a
         JOIN users u ON u.id = a.user_id
         LEFT JOIN users ab ON ab.id = a.answered_by
+        LEFT JOIN app_wf_stages ws ON ws.id = a.wf_stage_id
         LEFT JOIN application_types t ON t.id = a.type_id"
      . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
      . " ORDER BY CASE a.status WHEN 'nowy' THEN 0 WHEN 'w_trakcie' THEN 1 ELSE 2 END, a.created_at DESC";
@@ -70,6 +73,9 @@ include dirname(__DIR__) . '/includes/header.php';
     <h4 class="mb-0">Pisma i wnioski użytkowników</h4>
     <div class="text-muted small">Wnioski i pisma złożone przez użytkowników systemu</div>
   </div>
+  <a href="<?= APP_URL ?>/modules/app_workflow/router.php" class="btn btn-outline-primary">
+    <i class="bi bi-diagram-3 me-1"></i> Workflow
+  </a>
   <?php if (can_write('admin')): ?>
   <a href="<?= APP_URL ?>/admin/application_types.php" class="btn btn-outline-primary">
     <i class="bi bi-ui-checks-grid me-1"></i> Typy wniosków
@@ -119,7 +125,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light"><tr>
-        <th scope="col">Pismo</th><th scope="col">Składający</th><th scope="col">Typ</th><th scope="col">Złożone</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Otwórz</span></th>
+        <th scope="col">Pismo</th><th scope="col">Składający</th><th scope="col">Typ</th><th scope="col">Złożone</th><th scope="col">Etap</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Otwórz</span></th>
       </tr></thead>
       <tbody>
       <?php foreach ($applications as $app):
@@ -137,6 +143,9 @@ include dirname(__DIR__) . '/includes/header.php';
           <?php if ($app['contract_type'] && $app['contract_id']): ?><div class="text-muted"><?= h($contract_labels[$app['contract_type']] ?? $app['contract_type']) ?> #<?= (int)$app['contract_id'] ?></div><?php endif; ?></td>
         <td class="small fw-normal text-nowrap"><?= h(date('d.m.Y H:i', strtotime($app['created_at']))) ?>
           <?php if ($app['odpowiedz_at']): ?><div class="text-muted">odp. <?= h(date('d.m.Y', strtotime($app['odpowiedz_at']))) ?><?= $app['answered_by_name'] ? ' · ' . h($app['answered_by_name']) : '' ?></div><?php endif; ?></td>
+        <td class="small fw-normal"><?php $od = $app['wf_due_at'] && strtotime($app['wf_due_at']) < time() && !(int)$app['wf_final']; ?>
+          <?= h($app['wf_stage_name'] ?: '—') ?>
+          <?php if ($app['wf_due_at'] && !(int)$app['wf_final']): ?><div class="<?= $od ? 'text-danger fw-semibold' : 'text-muted' ?>">do <?= h(date('d.m.Y', strtotime($app['wf_due_at']))) ?><?= $od ? ' — po terminie' : '' ?></div><?php endif; ?></td>
         <td><span class="badge bg-<?= $st['class'] ?>"><?= $st['label'] ?></span><?php if ($app['plik']): ?> <i class="bi bi-paperclip text-muted" title="z załącznikiem" aria-label="z załącznikiem"></i><?php endif; ?></td>
         <td class="text-end"><a href="<?= h($url) ?>" class="btn btn-sm btn-outline-primary" aria-label="Otwórz pismo <?= h($app['tytul']) ?>">Otwórz <i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
       </tr>

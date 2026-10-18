@@ -121,12 +121,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'plik'          => $plik,
             'status'        => 'nowy',
         ]);
-        // Wzory urzędowe (ZSW-1, ZSW-2, DOK): numer, suma kontrolna, rejestracja w EZD (RPW) z PDF
+        // Każdy wniosek: numer, suma kontrolna, rejestracja w EZD (RPW), potwierdzenie złożenia UPZ (PDF + e-mail),
+        // potem start workflow typu (modules/app_workflow — pierwszy etap i jego akcje)
         $_adoc_tpl = appDocsTemplateFor($app_type['name'] ?? null);
-        if ($_adoc_tpl) appDocsAfterSubmit((int)$_new_app_id);
-        flash_set('success', $_adoc_tpl
-            ? 'Wniosek ' . $_adoc_tpl['code'] . ' został złożony elektronicznie. Potwierdzenie złożenia znajdziesz w „Moich wnioskach”.'
-            : 'Pismo / wniosek został wysłany. Administrator wróci do Ciebie wkrótce.');
+        appDocsAfterSubmit((int)$_new_app_id);
+        require_once dirname(__DIR__) . '/modules/app_workflow/logic/appWorkflow.php';
+        appWfStart((int)$_new_app_id);
+        flash_set('success', ($_adoc_tpl
+            ? 'Wniosek ' . $_adoc_tpl['code'] . ' został złożony elektronicznie.'
+            : 'Pismo / wniosek został wysłany.') . ' Potwierdzenie złożenia (UPZ) wysłaliśmy e-mailem i znajdziesz je w „Moich wnioskach”.');
         require_once dirname(__DIR__) . '/includes/notifications.php';
         $admins = db_all("SELECT id FROM users WHERE role IN ('admin','editor') AND is_active=1");
         foreach ($admins as $adm) {
@@ -309,7 +312,8 @@ $_ap_pal = array_values(panelMetroPalette());
       </details>
       <?php endif; ?>
       <?php $_adoc = appDocsTemplateFor($app['type_name'] ?? null); ?>
-      <?php if ($app['plik'] || $_adoc): ?>
+      <?php $_upz = $_adoc || !empty($app['doc_number']); ?>
+      <?php if ($app['plik'] || $_upz): ?>
       <div class="mt-1 d-flex flex-wrap gap-1">
         <?php if ($_adoc): ?>
         <a href="<?= h(appDocsUrl((int)$app['id'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem" target="_blank">
@@ -318,8 +322,10 @@ $_ap_pal = array_values(panelMetroPalette());
         <a href="<?= h(appDocsUrl((int)$app['id'], true)) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem" target="_blank">
           <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>PDF
         </a>
+        <?php endif; ?>
+        <?php if ($_upz): ?>
         <a href="<?= h(appDocsReceiptUrl((int)$app['id'])) ?>" class="mt-btn mt-btn--ghost mt-btn--sm" style="min-height:32px;padding:.2rem .6rem;font-size:.8rem" target="_blank">
-          <i class="bi bi-patch-check me-1" aria-hidden="true"></i>Potwierdzenie złożenia
+          <i class="bi bi-patch-check me-1" aria-hidden="true"></i>Potwierdzenie złożenia (UPZ)
         </a>
         <?php endif; ?>
         <?php if ($app['plik']): ?>

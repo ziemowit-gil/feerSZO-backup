@@ -10,6 +10,8 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/letters.php';
 require_once dirname(__DIR__) . '/includes/applications.php';
+require_once dirname(__DIR__) . '/modules/app_workflow/logic/appWorkflow.php';
+require_once dirname(__DIR__) . '/modules/application_documents/logic/applicationDocuments.php';
 
 require_login();
 if (!can_read('admin') && !can_read('pisma')) {
@@ -53,12 +55,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ' . $SELF); exit;
 }
 
+appWfMigrate();
+appDocsMigrateUpz();
 $app = db_one(
     "SELECT a.*, u.name AS user_name, u.email AS user_email, ab.name AS answered_by_name,
-            t.label AS type_label, t.icon AS type_icon, t.allow_attachment AS type_allow_att, t.name AS type_name
+            t.label AS type_label, t.icon AS type_icon, t.allow_attachment AS type_allow_att, t.name AS type_name,
+            wa.name AS wf_assignee_name
      FROM user_applications a
      JOIN users u ON u.id = a.user_id
      LEFT JOIN users ab ON ab.id = a.answered_by
+     LEFT JOIN users wa ON wa.id = a.wf_assignee_id
      LEFT JOIN application_types t ON t.id = a.type_id
      WHERE a.id = ?", [$id]);
 if (!$app) { flash_set('danger', 'Pismo nie istnieje.'); header('Location: ' . $LIST); exit; }
@@ -67,6 +73,11 @@ $st     = $status_meta[$app['status']] ?? ['label' => $app['status'], 'class' =>
 $fields = $app['type_id'] ? app_type_fields((int)$app['type_id']) : [];
 $fdata  = json_decode($app['fields_json'] ?? '{}', true) ?: [];
 $field_labels = array_column($fields, 'label', 'name');
+[$wfStages, $wfCur] = appWfState($app);
+$wfLog   = appWfLog((int)$app['id']);
+$canWrite = can_write('pisma') || can_write('admin');
+$wfUrl   = APP_URL . '/modules/app_workflow/router.php';
+$overdue = $app['wf_due_at'] && strtotime($app['wf_due_at']) < time() && !(int)($wfStages[$wfCur]['is_final'] ?? 0);
 
 $PAGE_TITLE = $app['tytul'] . ' — pismo użytkownika';
 include dirname(__DIR__) . '/includes/header.php';
@@ -159,6 +170,79 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 
   <div class="col-lg-4">
+    <section class="card shadow-sm mb-4 border-primary" aria-labelledby="h-wf">
+      <div class="card-header bg-white d-flex align-items-center">
+        <h2 id="h-wf" class="h6 mb-0 flex-grow-1"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Workflow</h2>
+        <?php if ($app['type_id']): ?><a class="small text-decoration-none" href="<?= h($wfUrl . '/typ/' . (int)$app['type_id']) ?>">etapy typu</a><?php endif; ?>
+      </div>
+      <div class="card-body">
+        <ol class="wf-tl list-unstyled mb-3">
+          <?php foreach ($wfStages as $i => $ws): $state = $i < $wfCur ? 'done' : ($i === $wfCur ? 'cur' : 'todo'); ?>
+          <li class="wf-tl__i is-<?= $state ?>"<?= $state === 'cur' ? ' aria-current="step"' : '' ?>>
+            <span class="wf-tl__dot" aria-hidden="true"><?= $state === 'done' ? '✓' : $i + 1 ?></span>
+            <span class="wf-tl__n"><?= h($ws['name']) ?></span>
+            <span class="wf-tl__m"><?= h(APP_WF_STATUSES[$ws['status']] ?? $ws['status']) ?><?= (int)$ws['due_days'] ? ' · ' . (int)$ws['due_days'] . ' dni' : '' ?><?= (int)$ws['act_upz'] ? ' · UPZ' : '' ?><?= (int)$ws['act_notify'] ? ' · e-mail' : '' ?></span>
+          </li>
+          <?php endforeach; ?>
+        </ol>
+        <?php if ($app['wf_stage_at'] || $app['wf_due_at'] || $app['wf_assignee_name']): ?>
+        <p class="small mb-3">
+          <?php if ($app['wf_stage_at']): ?>Na etapie od <?= h(date('d.m.Y H:i', strtotime($app['wf_stage_at']))) ?>.<?php endif; ?>
+          <?php if ($app['wf_due_at']): ?><br><span class="<?= $overdue ? 'text-danger fw-semibold' : '' ?>">Termin: <?= h(date('d.m.Y', strtotime($app['wf_due_at']))) ?><?= $overdue ? ' — po terminie' : '' ?></span><?php endif; ?>
+          <?php if ($app['wf_assignee_name']): ?><br>Odpowiada: <?= h($app['wf_assignee_name']) ?><?php endif; ?>
+        </p>
+        <?php endif; ?>
+        <?php if ($canWrite): ?>
+        <form method="post" action="<?= h($wfUrl . '/wniosek/' . (int)$app['id']) ?>">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <label for="wf_to" class="form-label small mb-1 fw-semibold">Przekaż do etapu</label>
+          <select id="wf_to" name="to" class="form-select form-select-sm mb-2">
+            <?php foreach ($wfStages as $i => $ws): if ($i === $wfCur) continue; ?>
+            <option value="<?= $i ?>"<?= $i === $wfCur + 1 ? ' selected' : '' ?>><?= $i + 1 ?>. <?= h($ws['name']) ?><?= $i < $wfCur ? ' (cofnij)' : '' ?></option>
+            <?php endforeach; ?>
+          </select>
+          <label for="wf_note" class="visually-hidden">Uwagi do przejścia</label>
+          <textarea id="wf_note" name="note" rows="2" class="form-control form-control-sm mb-2" placeholder="Uwagi (trafią do historii i e-maila, jeśli etap go wysyła)"></textarea>
+          <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>Przekaż</button>
+        </form>
+        <?php endif; ?>
+        <?php if ($wfLog): ?>
+        <details class="mt-3 small">
+          <summary>Historia (<?= count($wfLog) ?>)</summary>
+          <ol class="list-unstyled mt-2 mb-0">
+            <?php foreach ($wfLog as $l): ?>
+            <li class="mb-2"><strong><?= h($l['from_name'] !== '' ? $l['from_name'] . ' → ' : '') ?><?= h($l['to_name']) ?></strong>
+              <div class="text-muted"><?= h(date('d.m.Y H:i', strtotime($l['created_at']))) ?> · <?= h($l['user_name'] ?: 'system') ?></div>
+              <?php if ($l['note'] !== ''): ?><div><?= nl2br(h($l['note'])) ?></div><?php endif; ?></li>
+            <?php endforeach; ?>
+          </ol>
+        </details>
+        <?php endif; ?>
+      </div>
+    </section>
+
+    <section class="card shadow-sm mb-4" aria-labelledby="h-upz">
+      <div class="card-header bg-white"><h2 id="h-upz" class="h6 mb-0"><i class="bi bi-patch-check me-1" aria-hidden="true"></i>Potwierdzenie złożenia (UPZ)</h2></div>
+      <div class="card-body small">
+        <?php if ($app['doc_number']): ?><div class="font-monospace mb-1"><?= h($app['doc_number']) ?></div><?php endif; ?>
+        <div class="text-muted mb-2">
+          <?= $app['upz_issued_at'] ? 'Wystawione ' . h(date('d.m.Y H:i', strtotime($app['upz_issued_at']))) : 'Jeszcze nie wystawione.' ?>
+          <?= $app['upz_mailed_at'] ? '<br>E-mail do składającego: ' . h(date('d.m.Y H:i', strtotime($app['upz_mailed_at']))) : '' ?>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="<?= h(appDocsReceiptUrl((int)$app['id'])) ?>" class="btn btn-sm btn-outline-secondary" target="_blank">Podgląd</a>
+          <a href="<?= h(appDocsReceiptUrl((int)$app['id'], true)) ?>" class="btn btn-sm btn-outline-secondary" target="_blank">PDF</a>
+          <?php if ($canWrite): ?>
+          <form method="post" action="<?= h($wfUrl . '/wniosek/' . (int)$app['id'] . '/upz') ?>" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <?php if ($app['upz_mailed_at']): ?><input type="hidden" name="resend" value="1"><?php endif; ?>
+            <button type="submit" class="btn btn-sm btn-outline-primary"><?= $app['upz_issued_at'] ? ($app['upz_mailed_at'] ? 'Wyślij ponownie' : 'Wyślij e-mailem') : 'Wystaw i wyślij' ?></button>
+          </form>
+          <?php endif; ?>
+        </div>
+      </div>
+    </section>
+
     <section class="card shadow-sm mb-4" aria-labelledby="h-who">
       <div class="card-header bg-white"><h2 id="h-who" class="h6 mb-0"><i class="bi bi-person me-1" aria-hidden="true"></i>Składający</h2></div>
       <div class="card-body small">
@@ -216,4 +300,16 @@ include dirname(__DIR__) . '/includes/header.php';
   </div>
 </div>
 
+<style>
+.wf-tl{position:relative}
+.wf-tl__i{display:grid;grid-template-columns:1.6rem 1fr;column-gap:.6rem;padding:.25rem 0;position:relative}
+.wf-tl__i:not(:last-child)::after{content:"";position:absolute;left:.78rem;top:1.7rem;bottom:-.3rem;width:2px;background:#dee2e6}
+.wf-tl__dot{grid-row:span 2;width:1.6rem;height:1.6rem;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:#e9ecef;color:#495057}
+.wf-tl__n{font-weight:600;font-size:.88rem}
+.wf-tl__m{font-size:.75rem;color:#6c757d}
+.wf-tl__i.is-done .wf-tl__dot{background:#198754;color:#fff}
+.wf-tl__i.is-cur .wf-tl__dot{background:#0d6efd;color:#fff;box-shadow:0 0 0 3px rgba(13,110,253,.25)}
+.wf-tl__i.is-cur .wf-tl__n{color:#0d6efd}
+.wf-tl__i.is-todo .wf-tl__n{color:#6c757d;font-weight:500}
+</style>
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>
