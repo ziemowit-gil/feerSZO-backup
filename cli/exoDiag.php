@@ -4,8 +4,8 @@
  * cli/exoDiag.php — diagnostyka „Exchange zwrócił HTTP 403 bez JSON” (stopka e-mail, aliasy).
  *
  * Pobiera token aplikacji certyfikatem SZO (jak stopkaExToken) i wywołuje TYLKO DO ODCZYTU
- * Get-AcceptedDomain w kilku wariantach adresu i nagłówków, wypisując kod HTTP i nagłówki diagnostyczne
- * każdej próby. Niczego nie zmienia w Exchange ani w bazie.
+ * Get-AcceptedDomain (InvokeCommand) z nagłówkami jak dotąd i z nagłówkami oficjalnego modułu PowerShell 3.x
+ * (wersja modułu, connection-id…), a także GET …/Mailbox — wypisując kod HTTP i nagłówki diagnostyczne. Niczego nie zmienia w Exchange ani w bazie.
  *
  * Użycie (na serwerze, w katalogu aplikacji):
  *   php cli/exoDiag.php
@@ -53,15 +53,17 @@ $call = function (string $url, array $extra) use ($tok): array {
 };
 
 $sys = 'SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@';
+$anchor = 'X-AnchorMailbox: UPN:' . $sys . ($initial ?: ($doms[0] ?? $tenant));
+$guid = fn() => sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x', ...array_map(fn() => random_int(0, 0xffff), range(1, 8)));
+// Nagłówki, które wysyła oficjalny moduł ExchangeOnlineManagement 3.x (Exchange może odrzucać klientów bez nich)
+$module = fn(string $ver) => ['X-ClientApplication: ExoManagementModule', 'X-ClientModuleVersion: ' . $ver,
+    'connection-id: ' . $guid(), 'client-request-id: ' . $guid(), 'X-SerializationLevel: Partial',
+    'Prefer: odata.maxpagesize=1000', 'User-Agent: Mozilla/5.0 (Windows NT; Windows NT 10.0; pl-PL) WindowsPowerShell/5.1'];
 $variants = [];
 foreach (array_unique(array_filter([$tenant, $initial])) as $t) {
-    foreach (['APP', 'UPN'] as $p) foreach ($doms as $d) {
-        $variants[] = ["/adminapi/beta/$t", ["X-AnchorMailbox: $p:$sys$d", 'X-ClientApplication: ExoManagementModule']];
-    }
-    $variants[] = ["/adminapi/beta/$t", ['X-ClientApplication: ExoManagementModule']];                    // bez kotwicy
-    $variants[] = ["/adminapi/beta/$t", ["X-AnchorMailbox: UPN:$sys" . ($initial ?: $doms[0] ?? '')]];   // bez X-ClientApplication
+    $variants[] = ["/adminapi/beta/$t", [$anchor, 'X-ClientApplication: ExoManagementModule']];
+    foreach (['3.9.0', '3.7.2', '3.5.1'] as $v) $variants[] = ["/adminapi/beta/$t", array_merge([$anchor], $module($v))];
 }
-
 $okAny = false;
 foreach ($variants as [$path, $extra]) {
     [$code, $h, $body] = $call('https://outlook.office365.com' . $path . '/InvokeCommand', $extra);
@@ -73,5 +75,23 @@ foreach ($variants as [$path, $extra]) {
     if ($body !== '') echo "      treść: $body\n";
     if ($code === 200) { echo "      → DZIAŁA. Ten wariant trzeba ustawić w SZO.\n"; break; }
 }
+// Inny punkt API (jak Get-EXOMailbox): GET …/Mailbox — gdy działa, a InvokeCommand nie, problem dotyczy tylko InvokeCommand
+foreach (array_unique(array_filter([$tenant, $initial])) as $t) {
+    $hdrs = [];
+    $ch = curl_init("https://outlook.office365.com/adminapi/beta/$t/Mailbox?\$top=1&\$select=UserPrincipalName");
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
+        CURLOPT_HTTPHEADER => array_merge(['Authorization: Bearer ' . $tok, 'Accept: application/json', $anchor], $module('3.9.0')),
+        CURLOPT_HEADERFUNCTION => function ($c, $l) use (&$hdrs) {
+            if (strpos($l, ':') !== false) { [$k, $v] = explode(':', $l, 2); $hdrs[strtolower(trim($k))] = trim($v); }
+            return strlen($l);
+        }]);
+    $out = (string)curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    printf("%-3s GET /adminapi/beta/%s/Mailbox (nagłówki modułu 3.9.0)\n", $code, $t);
+    foreach (['x-ms-diagnostics', 'www-authenticate', 'request-id'] as $k) if (!empty($h = $hdrs[$k] ?? '')) echo "      $k: $h\n";
+    if (($b = trim(mb_substr(preg_replace('/\s+/', ' ', strip_tags($out)), 0, 160))) !== '') echo "      treść: $b\n";
+    $okAny = $okAny || $code === 200;
+}
+
 echo $okAny ? "\nWynik: znaleziono działający wariant (wyżej).\n"
             : "\nWynik: wszystkie warianty odrzucone. Prześlij powyższy wydruk — nagłówki x-ms-diagnostics / x-feserver wskażą przyczynę.\n";
