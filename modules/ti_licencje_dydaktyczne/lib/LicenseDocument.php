@@ -485,6 +485,13 @@ final class LicenseDocument
         return self::css() . $h;
     }
 
+    /** Sam załącznik AM20-1 (wydruk osobny / pusty wzór do obiegu papierowego). */
+    public function am20AnnexOnlyHtml(array $op): string
+    {
+        $this->n = 0;
+        return self::css() . $this->am20AnnexHtml($op);
+    }
+
     /** AM20-1 — wykaz dokumentów księgowych wystawionych dotąd przez FEER w związku z opłatą za licencję. */
     private function am20AnnexHtml(array $op): string
     {
@@ -500,7 +507,10 @@ final class LicenseDocument
            . '<tr><td class="lgd"><b>Licencjobiorca / użytkownik:</b> ' . self::e($op['account_name']) . '.&nbsp; <b>Obecny płatnik:</b> ' . self::e((string)($r['obecny_platnik'] ?? '')) . '.&nbsp; <b>Nowy płatnik od</b> '
            . self::e(ldDate($r['data_zmiany'] ?? '')) . ': ' . self::e((string)($r['nowy_platnik'] ?? '')) . '.</td></tr></table>';
         $body = '';
-        if (!$rows) {
+        if (!$rows && (string)($op['number'] ?? '') === '') {
+            // pusty wzór do druku: wiersze do wypełnienia ręcznie
+            for ($i = 1; $i <= 14; $i++) $body .= '<tr><td class="f" style="text-align:center;height:7mm">' . $i . '</td><td class="f"></td><td class="f"></td><td class="f"></td><td class="f"></td></tr>';
+        } elseif (!$rows) {
             $body = '<tr><td class="pc" colspan="5"><div class="pt">' . (!empty($r['am20_1_brak']) ? 'Fundacja FEER nie wystawiała dotąd dokumentów księgowych w związku z opłatą za tę licencję.' : '<span class="ph">brak pozycji</span>') . '</div></td></tr>';
         }
         foreach ($rows as $i => $d) {

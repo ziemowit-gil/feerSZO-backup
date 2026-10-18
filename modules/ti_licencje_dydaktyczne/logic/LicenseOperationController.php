@@ -173,16 +173,18 @@ final class LicenseOperationController
     /** Pusty wzór operacji do druku: /wzor-op/AM20. */
     public function blank($form): ?string
     {
-        $f = OperationForm::tryFrom(strtoupper((string)$form));
+        $annex = strtoupper((string)$form) === 'AM20-1';
+        $f = $annex ? OperationForm::Am20 : OperationForm::tryFrom(strtoupper((string)$form));
         if (!$f) { http_response_code(404); return 'Nie ma takiego wzoru.'; }
         $op = ['formEnum' => $f, 'statusEnum' => OperationStatus::Pending, 'request' => [], 'decision' => [], 'state' => $f->needsResource() ? ['vendor' => '', 'sku' => '', 'type' => ''] : [],
                'number' => '', 'course_name' => '', 'created_name' => '', 'created_at' => '', 'created_ip' => '', 'due_on' => '', 'account_name' => '', 'account_role' => '',
                'account_kind' => '', 'account_id' => 0, 'account_login' => '', 'proof_name' => '', 'decided_name' => '', 'decided_at' => '', 'decided_ip' => '',
                'execution_mode' => '', 'helpdesk_number' => '', 'execution_notes' => ''];
-        $out = LicenseDocument::render((new LicenseDocument())->operationHtml($op), $f->title(), $f->value . ' — wzór', $f->value);
+        $out = $annex ? LicenseDocument::render((new LicenseDocument())->am20AnnexOnlyHtml($op), 'Wykaz dokumentów księgowych (AM20-1)', 'AM20-1 — wzór', 'AM20-1')
+                      : LicenseDocument::render((new LicenseDocument())->operationHtml($op), $f->title(), $f->value . ' — wzór', $f->value);
         while (ob_get_level() > 0) ob_end_clean();
         header('Content-Type: ' . $out['mime'] . ($out['ext'] === 'html' ? '; charset=utf-8' : ''));
-        header('Content-Disposition: inline; filename="' . $f->value . '-wzor.' . $out['ext'] . '"');
+        header('Content-Disposition: inline; filename="' . ($annex ? 'AM20-1' : $f->value) . '-wzor.' . $out['ext'] . '"');
         echo $out['bytes'];
         return null;
     }

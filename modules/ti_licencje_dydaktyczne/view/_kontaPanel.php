@@ -18,7 +18,7 @@ if ($_ldAcc):
     <div class="small fw-semibold text-body-secondary" id="ld-panel-h">Zarządzanie licencjami <span class="fw-normal">(zmiana płatnika AM20, plan AM21, zawieszenie AM22, cofnięcie AM23, przedłużenie AM24)</span></div>
     <a class="small ms-auto" href="<?= h($_ldUrl(['_route' => '/konto/client/' . $_ldAcc['id']])) ?>"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Karta licencji osoby</a>
   </div>
-  <?php if (!$_ldRes): ?><p class="text-body-secondary small mb-1">Brak posiadanych licencji.</p><?php else: ?>
+  <?php if (!$_ldRes): ?><p class="text-body-secondary small mb-1">Brak posiadanych licencji — <b>AM20 (zmiana płatnika)</b> i AM21–AM24 pojawią się przy licencji po jej przypisaniu.</p><?php else: ?>
   <ul class="list-group list-group-flush mb-2" style="max-width:760px">
     <?php foreach ($_ldRes as $_r): ?>
     <li class="list-group-item d-flex align-items-center gap-2 px-0 py-1 small flex-wrap">
@@ -41,5 +41,8 @@ if ($_ldAcc):
     <a class="btn btn-sm btn-outline-primary py-0" href="<?= h($_ldNew('AM12')) ?>">AM12 — zwrot kosztów / refaktura</a>
     <a class="btn btn-sm btn-outline-primary py-0" href="<?= h($_ldNew('AM13')) ?>">AM13 — licencja finansowana zewnętrznie</a>
   </div>
+  <div class="small mt-1">Wzory do druku:
+    <a href="<?= h($_ldUrl(['_route' => '/wzor-op/AM20'])) ?>" target="_blank" rel="noopener">AM20 — zmiana płatnika</a> ·
+    <a href="<?= h($_ldUrl(['_route' => '/wzor-op/AM20-1'])) ?>" target="_blank" rel="noopener">AM20-1 — wykaz dokumentów księgowych</a></div>
 </div>
 <?php endif; ?>

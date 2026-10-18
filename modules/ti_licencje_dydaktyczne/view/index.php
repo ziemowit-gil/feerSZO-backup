@@ -92,6 +92,9 @@ $tiles = [
     <p class="small text-secondary">Puste formularze — gdy licencjodawca lub uczestnik nie korzysta z portalu. Decyzję z papieru wpisuje się na karcie licencji.</p>
     <ul class="list-unstyled mb-0">
       <?php foreach (LicenseDoc::cases() as $d): ?><li class="mb-1"><span class="sym"<?= $d->form() === LicenseForm::Am7 ? ' style="background:#0050ef"' : '' ?>><?= h($d->symbol()) ?></span> <a href="<?= h(route('ld.blank', ['doc' => $d->slug()])) ?>" target="_blank" rel="noopener"><?= h($d->title()) ?></a></li><?php endforeach; ?>
+      <?php foreach (OperationForm::cases() as $f): ?><li class="mb-1"><span class="sym" style="background:<?= h($f->color()) ?>"><?= h($f->value) ?></span> <a href="<?= h(route('ld.op.blank', ['form' => $f->value])) ?>" target="_blank" rel="noopener"><?= h($f->title()) ?></a></li>
+        <?php if ($f === OperationForm::Am20): ?><li class="mb-1"><span class="sym" style="background:<?= h($f->color()) ?>">AM20-1</span> <a href="<?= h(route('ld.op.blank', ['form' => 'AM20-1'])) ?>" target="_blank" rel="noopener">Wykaz dokumentów księgowych wystawionych dotąd przez FEER (załącznik do AM20)</a></li><?php endif; ?>
+      <?php endforeach; ?>
     </ul>
   </div></section>
   <section class="col-md-6"><div class="panel h-100">
