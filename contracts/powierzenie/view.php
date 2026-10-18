@@ -88,7 +88,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <div class="card-header fw-semibold">Dane podstawowe</div>
 <div class="card-body">
 <div class="row g-3">
-  <div class="col-md-4"><div class="detail-label">Forma zlecenia</div><div class="detail-value"><?= h($formy_zlecenia[$row['forma_zlecenia']] ?? $row['forma_zlecenia']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Forma zlecenia</div><div class="detail-value"><?= h($formy_zlecenia[$row['forma_zlecenia'] ?? ''] ?? ($row['forma_zlecenia'] ?? '')) ?: '—' ?></div></div>
   <div class="col-md-4"><div class="detail-label">Opiekun</div><div class="detail-value"><?= h($row['opiekun']) ?: '—' ?></div></div>
   <div class="col-md-4"><div class="detail-label">Numer projektu</div><div class="detail-value"><?= h($row['numer_projektu']) ?: '—' ?></div></div>
 </div>
@@ -102,7 +102,7 @@ include dirname(dirname(__DIR__)) . '/includes/contract_view_header.php';
 <div class="row g-3">
   <div class="col-12"><div class="detail-label">Nazwa zadania</div><div class="detail-value fw-semibold"><?= h($row['nazwa_zadania']) ?: '—' ?></div></div>
   <div class="col-md-4"><div class="detail-label">Sfera pożytku publicznego</div><div class="detail-value"><?= h($row['sfera_zadania']) ?: '—' ?></div></div>
-  <div class="col-md-4"><div class="detail-label">Tryb zlecenia</div><div class="detail-value"><?= h($tryby[$row['tryb_zlecenia']] ?? $row['tryb_zlecenia']) ?: '—' ?></div></div>
+  <div class="col-md-4"><div class="detail-label">Tryb zlecenia</div><div class="detail-value"><?= h($tryby[$row['tryb_zlecenia'] ?? ''] ?? ($row['tryb_zlecenia'] ?? '')) ?: '—' ?></div></div>
   <div class="col-md-4"><div class="detail-label">Nr / nazwa konkursu</div><div class="detail-value"><?= h($row['nazwa_konkursu']) ?: '—' ?></div></div>
   <?php if ($row['zakres_rzeczowy']): ?>
   <div class="col-12"><div class="detail-label">Zakres rzeczowy</div><div class="detail-value"><?= nl2br(h($row['zakres_rzeczowy'])) ?></div></div>

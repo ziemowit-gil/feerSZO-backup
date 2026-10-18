@@ -62,7 +62,7 @@ $common = [
     'nr_system'              => $src['nr_system']              ?? null,
     'podpisujacy_fundacja'   => $src['podpisujacy_fundacja']   ?? null,
     'podpisujacy_stanowisko' => $src['podpisujacy_stanowisko'] ?? null,
-    'waluta'                 => $src['waluta'] ?: 'PLN',
+    'waluta'                 => ($src['waluta'] ?? '') ?: 'PLN',
 ];
 
 // Mapowanie specyficzne dla typu źródłowego.
