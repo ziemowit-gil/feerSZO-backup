@@ -20,6 +20,11 @@ $self = APP_URL . '/modules/stopka/index.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $do = (string)($_POST['_action'] ?? '');
+    if ($do === 'wizard_check' && is_admin()) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(stopkaExWizardState(), JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     if ($do === 'save_profile') {
         stopkaSaveProfile((int)$user['id'], trim((string)($_POST['job_title'] ?? '')), trim((string)($_POST['phone'] ?? '')));
         flash_set('success', 'Dane do stopki zapisane.');
@@ -177,6 +182,8 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     </form>
   </section>
 
+  <?php include __DIR__ . '/view/exchangeWizard.php'; ?>
+
   <section class="tw-bg-white tw-rounded tw-shadow tw-p-5 tw-mt-6" aria-labelledby="h-ex">
     <h2 id="h-ex" class="tw-text-lg tw-font-semibold tw-mb-1">Automatyczna stopka w Outlooku (Exchange Online)</h2>
     <p class="tw-text-sm tw-text-slate-600 tw-mb-3">Jedna reguła transportowa dopisuje stopkę do każdej wysłanej wiadomości — w Outlooku w przeglądarce, klasycznym i na telefonach. Imię, stanowisko, telefon i e-mail Exchange bierze z Entra ID.</p>
@@ -221,7 +228,7 @@ include dirname(__DIR__, 2) . '/includes/header.php';
     <?php endif; ?>
     <h3 class="tw-text-sm tw-font-semibold tw-mt-4 tw-mb-2">Podgląd stopki, jaką zobaczą odbiorcy (z Twoimi danymi)</h3>
     <div class="tw-border tw-border-solid tw-border-slate-200 tw-rounded tw-p-4 tw-overflow-x-auto"><?= stopkaExPreviewHtml($ex, $me) ?></div>
-    <p class="tw-text-xs tw-text-slate-500 tw-mt-2">Wymaga w Entra ID: uprawnienia aplikacji Exchange.ManageAsApp (zgoda admina) i roli Exchange Administrator dla tej aplikacji. Reguła odświeża się też automatycznie raz na dobę w nocy (agent CRON <code>stopka_exchange_sync</code>); ręcznie: <code>php cron/stopka_exchange_sync.php</code>.</p>
+    <p class="tw-text-xs tw-text-slate-500 tw-mt-2">Wymaga w Entra ID: uprawnienia aplikacji Exchange.ManageAsApp (zgoda admina) i roli Exchange Administrator dla tej aplikacji — zob. <a href="#h-wz" class="tw-text-blue-700 tw-underline">kreator konfiguracji</a> powyżej. Reguła odświeża się też automatycznie raz na dobę w nocy (agent CRON <code>stopka_exchange_sync</code>); ręcznie: <code>php cron/stopka_exchange_sync.php</code>.</p>
   </section>
   <?php endif; ?>
 </div>
