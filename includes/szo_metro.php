@@ -353,6 +353,53 @@ html body #content .badge.bg-secondary,html body #content .badge.text-bg-seconda
 html body #content .badge.bg-light{background:var(--sm-light)!important;color:var(--sm-dark)!important;border:0!important}
 html body #content .badge.bg-dark{background:var(--sm-dark)!important}
 
+/* Status umowy — duży kafel Metro po prawej (obok tytułu, paska poleceń i statystyk).
+   Kolor kafla z klasy statusu: startowo z data-st, po zmianie w selekcie z klasy cvh-status-* (:has). */
+html body #content .contract-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,320px);
+  grid-template-areas:"top status" "stats status" "prog prog";column-gap:1rem;align-items:start}
+html body #content .contract-hero>.contract-hero-top{grid-area:top;min-width:0}
+html body #content .contract-hero>.contract-hero-stats{grid-area:stats;margin-top:.25rem}
+html body #content .contract-hero>.contract-hero-progress{grid-area:prog}
+html body #content .contract-hero>.contract-hero-stat--status{--t:#6d6d6d;grid-area:status;align-self:stretch;display:flex;flex-direction:column;
+  min-height:150px;padding:1rem 1.15rem;background:var(--t);color:#fff;min-width:0}
+html body #content .contract-hero-stat--status .cvh-stat-label{color:rgba(255,255,255,.85);font-size:.66rem;letter-spacing:.16em}
+html body #content .contract-hero-stat--status>span,html body #content .contract-hero-stat--status>.badge{margin-top:auto}
+html body #content .contract-hero-stat--status .cvh-status-select{color:#fff!important;font-size:2rem;font-weight:300;line-height:1.15;padding:0 1.6rem 0 0;width:100%;
+  background-color:transparent;background-size:14px 9px;background-position:right .1rem center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff'/%3E%3C/svg%3E")}
+html body #content .contract-hero-stat--status .cvh-status-select:hover{background-color:rgba(255,255,255,.12)}
+html body #content .contract-hero-stat--status .cvh-status-select option{color:#1d1d1d;background:#fff;font-size:1rem}
+html body #content .contract-hero-stat--status .badge{background:transparent!important;color:#fff!important;font-size:2rem!important;font-weight:300;padding:0;letter-spacing:0;text-align:left;white-space:normal}
+html body #content .contract-hero-stat--status .badge+.badge,html body #content .contract-hero-stat--status .badge.ms-1{font-size:.72rem!important;font-weight:700;background:rgba(0,0,0,.25)!important;padding:.25rem .45rem;margin-top:.5rem}
+html body #content .contract-hero-stat--status .spinner-border{color:#fff!important}
+html body #content .contract-hero-stat--status[data-st="primary"]{--t:#0050ef}
+html body #content .contract-hero-stat--status[data-st="info"]{--t:#0f6fa8}
+html body #content .contract-hero-stat--status[data-st="success"]{--t:#007a00}
+html body #content .contract-hero-stat--status[data-st="warning"]{--t:#c25100}
+html body #content .contract-hero-stat--status[data-st="orange"]{--t:#c25100}
+html body #content .contract-hero-stat--status[data-st="danger"]{--t:#a20025}
+html body #content .contract-hero-stat--status[data-st="teal"]{--t:#00807e}
+html body #content .contract-hero-stat--status[data-st="indigo"]{--t:#6a00ff}
+html body #content .contract-hero-stat--status[data-st="purple"]{--t:#6a00ff}
+html body #content .contract-hero-stat--status[data-st="dark"]{--t:#1d1d1d}
+html body #content .contract-hero-stat--status[data-st="secondary"]{--t:#6d6d6d}
+/* po zmianie w selekcie — wyższa specyficzność niż data-st */
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-primary){--t:#0050ef}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-info){--t:#0f6fa8}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-success){--t:#007a00}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-warning){--t:#c25100}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-orange){--t:#c25100}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-danger){--t:#a20025}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-teal){--t:#00807e}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-indigo){--t:#6a00ff}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-purple){--t:#6a00ff}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-dark){--t:#1d1d1d}
+html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status-secondary){--t:#6d6d6d}
+@media (max-width:991.98px){
+  html body #content .contract-hero{grid-template-columns:1fr;grid-template-areas:"top" "status" "stats" "prog"}
+  html body #content .contract-hero>.contract-hero-stat--status{min-height:0;margin-top:.75rem}
+}
+
 /* Baner „Wyślij rachunek” i inne banery-alerty widoku umowy */
 html body #content .cv-banner{background:var(--sm-light);border:0;border-left:6px solid var(--sm-acc);padding:1rem 1.25rem}
 html body #content .cv-banner-ico{width:46px;height:46px;background:var(--sm-acc);color:#fff;font-size:1.4rem}

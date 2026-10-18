@@ -321,11 +321,8 @@ $_cvh_accent = match($_cvh_st['class']) {
 
   </div><!-- /hero-top -->
 
-  <!-- Stats row -->
-  <div class="contract-hero-stats">
-
-    <!-- Status (quick-change for editors) -->
-    <div class="contract-hero-stat">
+  <!-- Status — duży kafel po prawej (szata Metro), poza rzędem statystyk -->
+    <div class="contract-hero-stat contract-hero-stat--status" data-st="<?= h($_cvh_st['class']) ?>">
       <div class="cvh-stat-label">Status</div>
       <?php if (can_edit() && !$_cvh_locked): ?>
       <span class="d-inline-flex align-items-center gap-2">
@@ -405,6 +402,9 @@ $_cvh_accent = match($_cvh_st['class']) {
       <?php endif; ?>
       <?= needs_correction_badge($_cvh_row) ?><?= notatka_realizacji_badge($_cvh_row) ?>
     </div>
+
+  <!-- Stats row -->
+  <div class="contract-hero-stats">
 
     <!-- Amount -->
     <?php if ($_cvh_amount !== null && $_cvh_amount !== ''): ?>
