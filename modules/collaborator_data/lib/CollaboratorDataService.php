@@ -455,8 +455,11 @@ final class CollaboratorDataService
         return $rows;
     }
 
-    /** Wysyła (ponownie) kod podpisu. Zwraca ['ok'=>bool, 'channel'=>sms|email, 'to'=>zamaskowany adresat, 'error'=>?]. */
-    public function sendCode(string $token): array
+    /**
+     * Wysyła (ponownie) kod podpisu. $channel='email' wymusza e-mail (gdy SMS nie dotarł), inaczej SMS z zapasem na e-mail.
+     * Zwraca ['ok'=>bool, 'channel'=>sms|email, 'to'=>zamaskowany adresat, 'error'=>?].
+     */
+    public function sendCode(string $token, ?string $channel = null): array
     {
         $req = $this->signRequest($token);
         if (!$req || $req['status'] !== 'pending') return ['ok' => false, 'error' => 'Żądanie podpisu wygasło — zapisz zmiany ponownie.'];
@@ -465,8 +468,9 @@ final class CollaboratorDataService
         $u = $this->user();
         $org = org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'SZO');
         $phone = trim((string)($u['phone_number'] ?? ''));
+        $force = $channel === 'email';
         $channel = ''; $to = ''; $err = null;
-        try {
+        if (!$force) try {
             require_once dirname(__DIR__, 3) . '/includes/sms.php';
             if ($phone !== '' && function_exists('sms_is_enabled') && sms_is_enabled()) {
                 sms_send($phone, "Kod podpisu wniosku o zmianę danych (SZD): {$code}. Ważny 10 minut. Nie podawaj go nikomu. [{$org}]", 'authorization_code');

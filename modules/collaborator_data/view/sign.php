@@ -60,6 +60,9 @@ $hasApproval = (bool)array_filter($rows, fn($r) => $r[3]);
   </form>
   <div class="cds-alt">
     <form method="post" action="<?= h(route('cdc.sign.resend', ['token' => $token])) ?>"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><button type="submit"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Wyślij kod ponownie</button></form>
+    <?php if (($req['channel'] ?? '') !== 'email' && filter_var((string)($user['email'] ?? ''), FILTER_VALIDATE_EMAIL)): ?>
+    <form method="post" action="<?= h(route('cdc.sign.resend', ['token' => $token])) ?>"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><input type="hidden" name="channel" value="email"><button type="submit"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Nie dotarł SMS? Wyślij kod e-mailem</button></form>
+    <?php endif; ?>
     <form method="post" action="<?= h(route('cdc.sign.cancel', ['token' => $token])) ?>"><input type="hidden" name="_csrf" value="<?= csrf_token() ?>"><button type="submit"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Anuluj zmiany</button></form>
   </div>
 </div>

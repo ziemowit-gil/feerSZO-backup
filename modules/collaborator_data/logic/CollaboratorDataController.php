@@ -71,7 +71,7 @@ final class CollaboratorDataController
     public function resend(string|int $token): void
     {
         $token = (string)$token;
-        $r = (new CollaboratorDataService($this->uid()))->sendCode($token);
+        $r = (new CollaboratorDataService($this->uid()))->sendCode($token, ($_POST['channel'] ?? '') === 'email' ? 'email' : null);
         flash_set($r['ok'] ? 'success' : 'warning', $r['ok'] ? 'Wysłano nowy kod (' . ($r['channel'] === 'sms' ? 'SMS' : 'e-mail') . ': ' . $r['to'] . ').' : (string)$r['error']);
         header('Location: ' . route('cdc.sign', ['token' => $token])); exit;
     }
