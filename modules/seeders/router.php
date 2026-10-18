@@ -2,7 +2,8 @@
 /**
  * modules/seeders/router.php — jedyne wejście modułu Seedery (dane testowe). Tylko administrator.
  *
- * Adresy: /seeder-test (lista i formularze), /seeder-test/run (POST, uruchomienie akcji).
+ * Adresy: /seeder-test (lista i formularze), /seeder-test/run (POST, uruchomienie akcji),
+ *         /seeder-test/zarzadzanie (GET lista ustawień, POST zapis/przywrócenie).
  * .htaccess: ^seeder-test(/.*)?$ → ten plik (trasa ze ścieżki żądania, jak /nabor).
  * Bez przepisywania (np. php -S): /modules/seeders/router.php?_route=/seeder-test.
  */
@@ -22,6 +23,8 @@ $r->aliasMiddleware('admin', function () {
 $r->group(['admin'], function (Router $r) {
     $r->get('/seeder-test',      [SeedersController::class, 'index'])->name('seeders.index');
     $r->post('/seeder-test/run', [SeedersController::class, 'run'])->name('seeders.run');
+    $r->get('/seeder-test/zarzadzanie',  [SeedersController::class, 'manage'])->name('seeders.manage');
+    $r->post('/seeder-test/zarzadzanie', [SeedersController::class, 'save'])->name('seeders.save');
 });
 
 $r->dispatch();

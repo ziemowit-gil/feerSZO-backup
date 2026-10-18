@@ -6,8 +6,11 @@
  * run:   uruchamia wybraną akcję W PROCESIE strony (includes/cli_inproc.php → szo_cli_run),
  *        bez proc_open i binarki PHP — jak zakładka „Testy” TI (na hostingu z open_basedir).
  *        Wynik trafia do sesji (ostatnie 5 uruchomień) i na stronę po przekierowaniu.
+ * manage/save/reset: zarządzanie przez administratora — nazwa, grupa, kolejność, ukrycie
+ *        i opis „do czego, kiedy, jak posprzątać” (lib/seedersMeta.php, tabela seeders_meta).
  */
 require_once dirname(__DIR__) . '/lib/seedersRegistry.php';
+require_once dirname(__DIR__) . '/lib/seedersMeta.php';
 require_once dirname(__DIR__, 3) . '/includes/cli_inproc.php';
 
 final class SeedersController
@@ -17,14 +20,15 @@ final class SeedersController
 
     public function index(): ?string
     {
-        $registry = seedersRegistry();
+        $registry = seedersApplyMeta(seedersRegistry());
+        $hiddenN  = count(seedersApplyMeta(seedersRegistry(), true)) - count($registry);
         $history  = $_SESSION['seeders_history'] ?? [];
         $last     = $history[0] ?? null;
         $dbName   = basename((string)(defined('DB_PATH') ? DB_PATH : ''));
         $PAGE_TITLE = 'Seedery — dane testowe';
         ob_start();
         include dirname(__DIR__, 3) . '/includes/header.php';
-        echo Router::view(dirname(__DIR__) . '/view/index.php', compact('registry', 'history', 'last', 'dbName'));
+        echo Router::view(dirname(__DIR__) . '/view/index.php', compact('registry', 'history', 'last', 'dbName', 'hiddenN'));
         include dirname(__DIR__, 3) . '/includes/footer.php';
         return (string)ob_get_clean();
     }
@@ -40,6 +44,10 @@ final class SeedersController
         if (!$entry || !$action) {
             flash_set('danger', 'Nieznany seeder albo akcja.');
             return Router::redirect(route('seeders.index'));
+        }
+        if (!empty(seedersMetaAll()[$key]['hidden'])) {
+            flash_set('warning', 'Ten seeder jest ukryty przez administratora — przywróć go w Zarządzaniu, żeby uruchomić.');
+            return Router::redirect(route('seeders.manage') . '#m-' . $key);
         }
         $input = (array)($_POST['f'] ?? []);
         [$script, $args, $err] = seedersBuildArgs($entry, $action, $input);
@@ -66,10 +74,41 @@ final class SeedersController
         foreach ($secrets as $s) $out = str_replace($s, '********', $out);
         if (strlen($out) > self::MAX_OUT) $out = substr($out, 0, self::MAX_OUT) . "\n… (wyjście przycięte)\n";
         $this->remember($key, $entry, $action, $cmd, $res['code'], $out, $res['ms']);
+        seedersMetaRecordRun($key, (string)$action['label'], (int)$res['code'], (int)(current_user()['id'] ?? 0));
         error_log(sprintf('[seeders] %s uruchomił %s (%s) → kod %d', (string)(current_user()['email'] ?? '?'), $cmd, $action['label'], $res['code']));
         flash_set($res['code'] === 0 ? 'success' : 'danger',
             $entry['title'] . ' — ' . $action['label'] . ': ' . ($res['code'] === 0 ? 'zakończono' : 'błąd (kod ' . $res['code'] . ')') . '.');
         return Router::redirect(route('seeders.index') . '#wynik');
+    }
+
+    public function manage(): ?string
+    {
+        $registry = seedersApplyMeta(seedersRegistry(), true);
+        $groups   = array_values(array_unique(array_merge(array_column(seedersRegistry(), 'group'), array_column($registry, 'group'))));
+        $PAGE_TITLE = 'Seedery — zarządzanie';
+        ob_start();
+        include dirname(__DIR__, 3) . '/includes/header.php';
+        echo Router::view(dirname(__DIR__) . '/view/manage.php', compact('registry', 'groups'));
+        include dirname(__DIR__, 3) . '/includes/footer.php';
+        return (string)ob_get_clean();
+    }
+
+    public function save(): ?string
+    {
+        $key = (string)($_POST['seeder'] ?? '');
+        if (!isset(seedersRegistry()[$key])) {
+            flash_set('danger', 'Nieznany seeder.');
+            return Router::redirect(route('seeders.manage'));
+        }
+        $uid = (int)(current_user()['id'] ?? 0);
+        if (($_POST['op'] ?? '') === 'reset') {
+            seedersMetaReset($key, $uid);
+            flash_set('success', 'Przywrócono nazwę, grupę i kolejność z rejestru (opis administratora został).');
+        } else {
+            seedersMetaSave($key, (array)($_POST['m'] ?? []), $uid);
+            flash_set('success', 'Zapisano ustawienia seedera.');
+        }
+        return Router::redirect(route('seeders.manage') . '#m-' . $key);
     }
 
     private function remember(string $key, array $entry, array $action, string $cmd, ?int $code, string $out, int $ms = 0): void
