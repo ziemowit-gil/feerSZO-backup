@@ -341,7 +341,7 @@ $type_icons = [
 // Inicjały użytkownika
 $initials = implode('', array_map(fn($w) => mb_strtoupper(mb_substr($w, 0, 1)), array_slice(explode(' ', $user['name']), 0, 2)));
 
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']); // w podglądzie roli flaga nie działa
 // Pulpit METRO dla każdego, kto ma umowę (np. pracownik/edytor z umową wolontariatu) — powłoka zostaje
 // wg roli (panel współpracownika vs menu SZO); stary widok tylko dla kadry bez żadnej umowy.
 $_metro_home = $_is_volunteer_only || !empty($contracts);
