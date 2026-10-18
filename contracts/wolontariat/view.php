@@ -2837,51 +2837,60 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
 ?>
 <div class="tab-pane fade<?= ($_tab==='m365'||$_tab==='all')?' show active':'' ?>" id="tab-m365" role="tabpanel">
 
-  <!-- Baner: zarządzaj w module IT -->
-  <div class="alert py-2 px-3 mb-3 d-flex align-items-center gap-2" style="background:#fff3e0;border:1px solid #fd7e14;border-radius:8px">
-    <i class="bi bi-hdd-network" style="color:#fd7e14;font-size:1.1rem"></i>
-    <div class="small">
-      <strong style="color:#e65100">Dostępy IT</strong> są zarządzane w module
-      <a href="<?= APP_URL ?>/it/index.php" style="color:#e65100">Dostępy i Infrastruktura</a>.
-    </div>
-    <div class="ms-auto d-flex gap-2">
-      <?php if ($_it_m365_acc): ?>
-      <a href="<?= APP_URL ?>/it/accounts.php?id=<?= $_it_m365_acc['id'] ?>"
-         class="btn btn-sm" style="background:#fd7e14;color:#fff;border:none">
-        <i class="bi bi-box-arrow-up-right me-1"></i>Zarządzaj kontem
-      </a>
-      <?php endif; ?>
-      <a href="<?= APP_URL ?>/it/accounts.php?service=m365" class="btn btn-sm btn-outline-secondary">
-        Wszystkie konta M365
-      </a>
-    </div>
-  </div>
+  <?php
+  // ── Kafle Metro: Microsoft 365 · Canva Pro · Dostępy IT ──────────────────────
+  $_wm_has   = !empty($row['m365_konto']);
+  $_wm_on    = $_wm_has && !empty($row['m365_konto_aktywne']);
+  $_wm_state = $_wm_has ? ($_wm_on ? 'Aktywne' : 'Nieaktywne') : 'Brak konta';
+  $_wm_cls   = $_wm_has ? ($_wm_on ? 'is-m365' : 'is-grey') : 'is-light';
+  ?>
+  <style>
+  html body #content #tab-m365 .wm-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.5rem;margin:.25rem 0 1rem}
+  html body #content #tab-m365 .wm-tile{--t:#f2f2f2;--ink:#fff;background:var(--t);color:var(--ink);min-height:210px;padding:1rem 1.15rem;display:flex;flex-direction:column}
+  html body #content #tab-m365 .wm-tile.is-m365{--t:#0050ef}
+  html body #content #tab-m365 .wm-tile.is-canva{--t:#6a00ff}
+  html body #content #tab-m365 .wm-tile.is-wait{--t:#c25100}
+  html body #content #tab-m365 .wm-tile.is-grey{--t:#6d6d6d}
+  html body #content #tab-m365 .wm-tile.is-dark{--t:#1d1d1d}
+  html body #content #tab-m365 .wm-tile.is-light{--t:#f2f2f2;--ink:#1d1d1d}
+  html body #content #tab-m365 .wm-tile-top{display:flex;align-items:center;gap:.55rem;font-size:.66rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.9}
+  html body #content #tab-m365 .wm-tile-top .bi,html body #content #tab-m365 .wm-tile-top svg{font-size:1.15rem;opacity:1}
+  html body #content #tab-m365 .wm-tile-flag{margin-left:auto;font-size:.62rem;letter-spacing:.08em;padding:.15rem .45rem;background:rgba(0,0,0,.22)}
+  html body #content #tab-m365 .wm-tile.is-light .wm-tile-flag{background:#1d1d1d;color:#fff}
+  html body #content #tab-m365 .wm-tile-main{margin-top:auto;padding-top:1.25rem;font-size:1.9rem;font-weight:300;line-height:1.15;letter-spacing:-.01em;word-break:break-word}
+  html body #content #tab-m365 .wm-tile-main.is-mail{font-size:1.35rem}
+  html body #content #tab-m365 .wm-tile-sub{font-size:.8rem;opacity:.85;margin-top:.3rem}
+  html body #content #tab-m365 .wm-tile-actions{display:flex;flex-wrap:wrap;gap:2px;margin-top:.9rem}
+  html body #content #tab-m365 .wm-tile-actions form{display:flex;margin:0}
+  html body #content #tab-m365 .wm-btn{display:inline-flex;align-items:center;gap:.4rem;height:36px;padding:0 .85rem;border:0;background:rgba(255,255,255,.18);color:#fff!important;font-size:.82rem;font-weight:600;text-decoration:none;cursor:pointer}
+  html body #content #tab-m365 .wm-btn:hover,html body #content #tab-m365 .wm-btn:focus-visible{background:rgba(255,255,255,.32);color:#fff!important}
+  html body #content #tab-m365 .wm-btn.is-solid{background:#fff;color:var(--t)!important}
+  html body #content #tab-m365 .wm-btn.is-solid:hover{background:#1d1d1d;color:#fff!important}
+  html body #content #tab-m365 .wm-tile.is-light .wm-btn{background:#1d1d1d;color:#fff!important}
+  html body #content #tab-m365 .wm-tile.is-light .wm-btn:hover{background:#000}
+  html body #content #tab-m365 .wm-tile.is-light .wm-btn.is-accent{background:#6a00ff}
+  html body #content #tab-m365 .wm-tile.is-light .wm-btn.is-accent:hover{background:#4f00bf}
+  html body #content #tab-m365 .wm-tile-warn{margin-top:.75rem;padding:.45rem .6rem;background:#fff;color:#1d1d1d;border-left:4px solid #c25100;font-size:.78rem}
+  </style>
 
-  <!-- ── Dostępy (MS365 + panel) — zarządzane w Systemie Tożsamości ─────────── -->
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#EEF4FF;color:#1E6DFF"><i class="bi bi-shield-lock"></i></div>
-      <span class="cv-section-title">Dostępy — Microsoft 365 i panel</span>
+  <div class="wm-tiles">
+    <!-- Microsoft 365 i panel — zarządzane w Systemie Tożsamości -->
+    <section class="wm-tile <?= $_wm_cls ?>" aria-labelledby="wm-m365-h">
+      <div class="wm-tile-top"><i class="bi bi-microsoft" aria-hidden="true"></i><span id="wm-m365-h">Microsoft 365 i panel</span>
+        <span class="wm-tile-flag"><?= h($_wm_state) ?></span></div>
+      <div class="wm-tile-main<?= $_wm_has ? ' is-mail' : '' ?>"><?= $_wm_has ? h($row['m365_login'] ?: 'konto aktywne') : 'Brak konta' ?></div>
+      <div class="wm-tile-sub">
+        <?php if (!empty($row['m365_nie_wylaczaj'])): ?><i class="bi bi-shield-lock me-1"></i>Dostęp utrzymany po wygaśnięciu umowy.<br><?php endif; ?>
+        Konto, hasło i wysyłka danych do panelu — w Systemie Tożsamości.
+      </div>
       <?php if (can_edit()): ?>
-      <div class="cv-section-action">
-        <a href="<?= APP_URL ?>/tozsamosc/access.php?type=wolontariat&id=<?= (int)$id ?>" class="btn btn-sm btn-primary">
-          <i class="bi bi-shield-lock me-1"></i>Zarządzaj dostępem
+      <div class="wm-tile-actions">
+        <a href="<?= APP_URL ?>/tozsamosc/access.php?type=wolontariat&id=<?= (int)$id ?>" class="wm-btn<?= $_wm_has ? ' is-solid' : '' ?>">
+          <i class="bi bi-shield-lock"></i>Zarządzaj dostępem
         </a>
       </div>
       <?php endif; ?>
-    </div>
-    <div class="cv-fields">
-      <div class="cv-field"><div class="cv-label">Konto Microsoft 365</div>
-        <div class="cv-value"><?= !empty($row['m365_konto']) ? h($row['m365_login'] ?: 'konto aktywne') : '— brak —' ?></div></div>
-      <div class="cv-field"><div class="cv-label">Status M365</div>
-        <div class="cv-value"><?= !empty($row['m365_konto']) ? (!empty($row['m365_konto_aktywne']) ? 'Aktywne' : 'Nieaktywne') : '—' ?></div></div>
-    </div>
-    <div class="alert alert-primary d-flex gap-2 py-2 mt-2 mb-0" style="font-size:.83rem;background:#eef4ff;border-color:#bfdbfe;color:#1e40af">
-      <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
-      <div>Zarządzanie dostępem (Microsoft 365, hasło, wysyłka danych do panelu) przeniesiono do <strong>Systemu Tożsamości</strong> — użyj przycisku „Zarządzaj dostępem".</div>
-    </div>
-  </div>
-
+    </section>
   <?php if (false): // Sekcje przeniesione do /tozsamosc/access.php (zachowane wyłączone) ?>
   <div class="cv-section">
     <div class="cv-section-head">
@@ -3274,102 +3283,92 @@ foreach ($_it_accounts_tab as $_a) { if ($_a['service_slug'] === 'm365') { $_it_
   </div>
   <?php endif; // /Sekcje MS365 + Portal przeniesione do /tozsamosc/access.php ?>
 
-  <!-- ── Sekcja Canva ──────────────────────────────────────────────────────── -->
-  <?php if (can_edit()): ?>
-  <?php
-  $canva_access     = !empty($row['canva_access']);
-  $canva_invited_at = $row['canva_invited_at'] ?? null;
-  $has_m365_for_canva = !empty($row['m365_login']) || !empty($row['m365_user_id']);
-  ?>
-  <div class="cv-section">
-    <div class="cv-section-head">
-      <div class="cv-section-icon" style="background:#fdf4ff;color:#7c3aed">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/></svg>
+
+    <!-- Canva Pro -->
+    <?php if (can_edit()): ?>
+    <?php
+    $canva_access     = !empty($row['canva_access']);
+    $canva_invited_at = $row['canva_invited_at'] ?? null;
+    $has_m365_for_canva = !empty($row['m365_login']) || !empty($row['m365_user_id']);
+    $_wc_cls = $canva_access ? ($canva_invited_at ? 'is-canva' : 'is-wait') : 'is-light';
+    ?>
+    <section class="wm-tile <?= $_wc_cls ?>" aria-labelledby="wm-canva-h">
+      <div class="wm-tile-top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/></svg>
+        <span id="wm-canva-h">Canva Pro</span>
+        <span class="wm-tile-flag"><?= $canva_access ? ($canva_invited_at ? 'Aktywny' : 'Oczekuje') : 'Brak dostępu' ?></span>
       </div>
-      <span class="cv-section-title">Canva Pro</span>
-      <div class="cv-section-action">
-        <?php if ($canva_access && $canva_invited_at): ?>
-        <span class="badge bg-success" style="font-size:.72rem">
-          <i class="bi bi-check-lg me-1"></i>Zaproszony <?= date_pl($canva_invited_at) ?>
-        </span>
-        <?php elseif ($canva_access): ?>
-        <span class="badge bg-warning text-dark" style="font-size:.72rem">
-          <i class="bi bi-hourglass-split me-1"></i>Oczekuje na zaproszenie
-        </span>
-        <?php else: ?>
-        <span class="badge bg-light text-secondary border" style="font-size:.72rem">Brak dostępu</span>
-        <?php endif; ?>
+      <?php if (!$has_m365_for_canva): ?>
+      <div class="wm-tile-main">Brak dostępu</div>
+      <div class="wm-tile-warn"><i class="bi bi-exclamation-triangle-fill me-1"></i>Najpierw konto M365 — Canva loguje przez Microsoft 365.</div>
+
+      <?php elseif ($canva_access && $canva_invited_at): ?>
+      <div class="wm-tile-main">Zaproszony</div>
+      <div class="wm-tile-sub"><?= date_pl($canva_invited_at) ?> · logowanie kontem <strong><?= h($row['m365_login'] ?? '') ?></strong></div>
+      <div class="wm-tile-actions">
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_canva_toggle" value="1">
+          <input type="hidden" name="canva_access_val" value="0">
+          <button type="submit" class="wm-btn" onclick="return confirm('Cofnąć dostęp do Canva?')">
+            <i class="bi bi-x-circle"></i>Cofnij dostęp
+          </button>
+        </form>
       </div>
-    </div>
-    <div>
 
-    <?php if (!$has_m365_for_canva): ?>
-    <div class="alert alert-warning py-2 small mb-0 d-flex gap-2">
-      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
-      <span>Wolontariusz nie ma konta M365. Konto M365 jest <strong>wymagane</strong> do logowania w Canva przez Microsoft 365.</span>
-    </div>
-
-    <?php elseif ($canva_access && $canva_invited_at): ?>
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-      <div class="small text-success">
-        <i class="bi bi-check-circle-fill me-1"></i>
-        Dostęp aktywny. Wolontariusz loguje się do Canva kontem M365: <strong><?= h($row['m365_login'] ?? '') ?></strong>
+      <?php elseif ($canva_access): ?>
+      <div class="wm-tile-main">Do zaproszenia</div>
+      <div class="wm-tile-sub">Zaproś ręcznie w panelu Canva, potem oznacz zaproszenie.</div>
+      <div class="wm-tile-actions">
+        <a href="https://www.canva.com/brand/invite" target="_blank" rel="noopener" class="wm-btn">
+          <i class="bi bi-box-arrow-up-right"></i>Panel zaproszeń
+        </a>
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_canva_invited" value="1">
+          <button type="submit" class="wm-btn is-solid" title="Oznacz zaproszenie i powiadom wolontariusza">
+            <i class="bi bi-check-lg"></i>Wysłane — powiadom
+          </button>
+        </form>
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_canva_toggle" value="1">
+          <input type="hidden" name="canva_access_val" value="0">
+          <button type="submit" class="wm-btn"><i class="bi bi-x"></i>Anuluj</button>
+        </form>
       </div>
-      <form method="post" class="ms-auto">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_canva_toggle" value="1">
-        <input type="hidden" name="canva_access_val" value="0">
-        <button type="submit" class="btn btn-sm btn-outline-danger"
-                onclick="return confirm('Cofnąć dostęp do Canva?')">
-          <i class="bi bi-x-circle me-1"></i>Cofnij dostęp
-        </button>
-      </form>
-    </div>
 
-    <?php elseif ($canva_access): ?>
-    <div class="small text-muted mb-3">
-      <i class="bi bi-info-circle me-1"></i>
-      Dostęp zaznaczony. Zaproś ręcznie w panelu Canva, następnie oznacz poniżej.
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a href="https://www.canva.com/brand/invite" target="_blank"
-         class="btn btn-sm btn-primary" style="background:#7c3aed;border-color:#7c3aed">
-        <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz panel zaproszeń Canva
-      </a>
-      <form method="post" class="d-inline">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_canva_invited" value="1">
-        <button type="submit" class="btn btn-sm btn-success">
-          <i class="bi bi-check-lg me-1"></i>Zaproszenie wysłane — oznacz i powiadom wolontariusza
-        </button>
-      </form>
-      <form method="post" class="d-inline">
-        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="_canva_toggle" value="1">
-        <input type="hidden" name="canva_access_val" value="0">
-        <button type="submit" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-x me-1"></i>Anuluj
-        </button>
-      </form>
-    </div>
-
-    <?php else: ?>
-    <div class="small text-muted mb-2">
-      Brak dostępu do Canva. Nadaj dostęp — system powiadomi admina i wyśle instrukcję wolontariuszowi.
-    </div>
-    <form method="post" class="d-inline">
-      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-      <input type="hidden" name="_canva_toggle" value="1">
-      <input type="hidden" name="canva_access_val" value="1">
-      <button type="submit" class="btn btn-sm" style="background:#7c3aed;border-color:#7c3aed;color:#fff">
-        <i class="bi bi-plus-circle me-1"></i>Nadaj dostęp do Canva
-      </button>
-    </form>
+      <?php else: ?>
+      <div class="wm-tile-main">Brak dostępu</div>
+      <div class="wm-tile-sub">Po nadaniu system powiadomi admina i wyśle instrukcję wolontariuszowi.</div>
+      <div class="wm-tile-actions">
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="_canva_toggle" value="1">
+          <input type="hidden" name="canva_access_val" value="1">
+          <button type="submit" class="wm-btn is-accent"><i class="bi bi-plus-lg"></i>Nadaj dostęp</button>
+        </form>
+      </div>
+      <?php endif; ?>
+    </section>
     <?php endif; ?>
 
-    </div>
-  </div>
-  <?php endif; ?>
+    <!-- Dostępy i Infrastruktura IT -->
+    <section class="wm-tile is-dark" aria-labelledby="wm-it-h">
+      <div class="wm-tile-top"><i class="bi bi-hdd-network" aria-hidden="true"></i><span id="wm-it-h">Dostępy IT</span></div>
+      <div class="wm-tile-main">Infrastruktura</div>
+      <div class="wm-tile-sub">Konta i usługi IT prowadzi moduł Dostępy i Infrastruktura.</div>
+      <div class="wm-tile-actions">
+        <?php if ($_it_m365_acc): ?>
+        <a href="<?= APP_URL ?>/it/accounts.php?id=<?= $_it_m365_acc['id'] ?>" class="wm-btn is-solid">
+          <i class="bi bi-box-arrow-up-right"></i>Konto w module IT
+        </a>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/it/accounts.php?service=m365" class="wm-btn">Wszystkie konta M365</a>
+        <a href="<?= APP_URL ?>/it/index.php" class="wm-btn">Moduł IT</a>
+      </div>
+    </section>
+  </div><!-- /wm-tiles -->
 
 </div><!-- /tab-m365 -->
 
