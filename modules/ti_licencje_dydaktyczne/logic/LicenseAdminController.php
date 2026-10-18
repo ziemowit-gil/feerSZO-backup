@@ -177,6 +177,14 @@ final class LicenseAdminController
         return null;
     }
 
+    /** Ponowna wysyłka zatwierdzonej decyzji AM7 (np. gdy pierwszy e-mail wyszedł bez PDF). */
+    public function am7Resend(int $id): ?string
+    {
+        try { flash_set('success', $this->am7()->sendDecision($id, null, $this->actor(), true) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('ld.show', ['id' => $id])); }
+        return Router::redirect(route('ld.show', ['id' => $id]));
+    }
+
     public function am7Helpdesk(int $id): ?string
     {
         flash_set('info', 'Helpdesk IT: ' . $this->am7()->helpdeskTicket($id, $this->actor()) . '.');

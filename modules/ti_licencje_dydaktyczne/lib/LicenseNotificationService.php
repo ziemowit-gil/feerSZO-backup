@@ -75,12 +75,15 @@ final class LicenseNotificationService
         return $out;
     }
 
-    /** Załącznik mail_queue z pliku dokumentu (tylko PDF; HTML-owy fallback zostaje w module). */
+    /**
+     * Załącznik mail_queue z pliku dokumentu (tylko PDF; HTML-owy fallback zostaje w module).
+     * UWAGA: mail_queue oczekuje ścieżki WZGLĘDNEJ wobec UPLOAD_DIR (sam dokleja UPLOAD_DIR) — bezwzględna jest po cichu pomijana.
+     */
     public static function attachment(string $rel, string $name): array
     {
         $p = LicenseStorage::fullPath($rel);
         if (!$p || !str_ends_with($p, '.pdf')) return [];
-        return [['path' => $p, 'name' => ldFileName($name) . '.pdf', 'mime' => 'application/pdf', 'size' => (int)filesize($p)]];
+        return [['path' => ltrim($rel, '/'), 'name' => ldFileName($name) . '.pdf', 'mime' => 'application/pdf', 'size' => (int)filesize($p)]];
     }
 
     public static function statusLabel(string $s): string

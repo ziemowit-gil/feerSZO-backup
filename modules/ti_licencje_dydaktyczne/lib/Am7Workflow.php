@@ -203,19 +203,7 @@ final class Am7Workflow
         $pdf = $this->storeDecision($id);
         $l = $this->svc->licenses->get($id);
 
-        // Wysyłka decyzji e-mailem w PDF (fallback: SMS z informacją + alert do biura z prośbą o doręczenie)
-        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-        $subject = ($grant ? 'Decyzja o przyznaniu dostępu do Office 365' : 'Decyzja o odmowie dostępu do Office 365') . ' — sprawa ' . $l['case_number'];
-        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy decyzję <b>' . $e($pdf['number']) . '</b> — ' . $e($pdf['doc']->title()) . '.</p>'
-            . ($grant ? '<p>Konto: <b>' . $e($d['account'] ?? '') . '</b>, plan: <b>' . $e($d['plan'] ?? '') . '</b>, okres dostępu: <b>' . $e(ldDate($d['period_from'] ?? '') . ' — ' . ldDate($d['period_to'] ?? '')) . '</b>.</p>'
-                      . '<p>Helpdesk IT przygotuje konto w tenancie ośrodka. W osobnej wiadomości otrzymasz link do złożenia oświadczeń <b>AM7/4</b> i <b>AM7/5</b> (do ' . LD_REALIZATION_DAYS . ' dni).</p>'
-                      : '<p>Uzasadnienie: ' . $e($d['refusal_reason'] ?? '') . '</p>');
-        $sms = 'FEER: decyzja AM7 (sprawa ' . $l['case_number'] . ') - ' . ($grant ? 'PRZYZNANO dostep do Office 365.' : 'odmowa dostepu do Office 365.') . ' PDF wyslalismy e-mailem.';
-        $res = $this->svc->notify->send(LicenseNotificationType::DecisionInterested, $this->svc->interestedContact($l), $subject,
-            LicenseNotificationService::layout($grant ? 'Decyzja o przyznaniu' : 'Decyzja o odmowie', $body, '', '', 'AM7'), $sms,
-            ['type' => 'license', 'id' => $id], $actor, true, LicenseNotificationService::attachment($pdf['path'], $pdf['number']));
-        $report[] = 'Decyzja do kursanta: ' . $this->svc->describe($res);
-        $this->svc->licenses->event($id, 'decision.sent', 'Wysłano decyzję ' . $pdf['number'] . ' (PDF): ' . $this->svc->describe($res), $actor);
+        $report[] = $this->sendDecision($id, $pdf, $actor);
 
         if ($grant) {
             $report[] = 'Helpdesk IT: ' . $this->helpdeskTicket($id, $actor);
@@ -225,6 +213,50 @@ final class Am7Workflow
             } catch (\Throwable $ex) { $report[] = 'Przydział nieudany: ' . $ex->getMessage(); }
         }
         return $report;
+    }
+
+    /**
+     * Wysyłka wydanej decyzji kursantowi: e-mail z PDF (fallback: SMS z informacją; brak PDF → alert do biura).
+     * $pdf = wynik storeDecision(); null = istniejący decision_pdf (ponowna wysyłka). Zwraca linię raportu.
+     */
+    public function sendDecision(int $id, ?array $pdf, array $actor, bool $resend = false): string
+    {
+        $l = $this->svc->licenses->get($id);
+        if (!$l || $l['form'] !== LicenseForm::Am7 || empty($l['decision']['approved_at'])) throw new DomainException('Brak zatwierdzonej decyzji do wysłania.');
+        $d = $l['decision'];
+        $grant = !empty($d['grant']);
+        if ($pdf === null) {
+            $doc = $grant ? LicenseDoc::Am7Grant : LicenseDoc::Am7Refusal;
+            $pdf = LicenseStorage::fullPath((string)$l['decision_pdf'])
+                ? ['path' => (string)$l['decision_pdf'], 'ext' => str_ends_with((string)$l['decision_pdf'], '.pdf') ? 'pdf' : 'html', 'doc' => $doc, 'number' => LicenseDocument::number($doc, $l)]
+                : $this->storeDecision($id);
+        }
+        $report = [];
+        // Wysyłka decyzji e-mailem w PDF (fallback: SMS z informacją + alert do biura z prośbą o doręczenie)
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $subject = ($grant ? 'Decyzja o przyznaniu dostępu do Office 365' : 'Decyzja o odmowie dostępu do Office 365') . ' — sprawa ' . $l['case_number'];
+        $body = '<p>Dzień dobry ' . $e($l['interested_name']) . ',</p><p>w załączniku przesyłamy decyzję <b>' . $e($pdf['number']) . '</b> — ' . $e($pdf['doc']->title()) . '.</p>'
+            . ($grant ? '<p>Konto: <b>' . $e($d['account'] ?? '') . '</b>, plan: <b>' . $e($d['plan'] ?? '') . '</b>, okres dostępu: <b>' . $e(ldDate($d['period_from'] ?? '') . ' — ' . ldDate($d['period_to'] ?? '')) . '</b>.</p>'
+                      . '<p>Helpdesk IT przygotuje konto w tenancie ośrodka. W osobnej wiadomości otrzymasz link do złożenia oświadczeń <b>AM7/4</b> i <b>AM7/5</b> (do ' . LD_REALIZATION_DAYS . ' dni).</p>'
+                      : '<p>Uzasadnienie: ' . $e($d['refusal_reason'] ?? '') . '</p>');
+        $sms = 'FEER: decyzja AM7 (sprawa ' . $l['case_number'] . ') - ' . ($grant ? 'PRZYZNANO dostep do Office 365.' : 'odmowa dostepu do Office 365.') . ' PDF wyslalismy e-mailem.';
+        $att = LicenseNotificationService::attachment($pdf['path'], $pdf['number']);
+        if (!$att) {
+            // Fallback: PDF nie powstał (mPDF niedostępny → wersja HTML) — decyzja i tak wychodzi, biuro doręcza wydruk
+            $report[] = 'UWAGA: PDF decyzji niedostępny — e-mail bez załącznika, biuro powiadomione';
+            $this->svc->licenses->event($id, 'decision.no_pdf', 'Brak PDF decyzji ' . $pdf['number'] . ' (zapisano wersję ' . $pdf['ext'] . ') — e-mail bez załącznika.', $actor);
+            $this->svc->notify->alertOffice('Decyzja ' . $pdf['number'] . ' wysłana BEZ PDF',
+                '<p>Nie udało się wygenerować PDF decyzji (zapisano wersję ' . htmlspecialchars($pdf['ext']) . '). Prosimy doręczyć decyzję kursantowi <b>' . htmlspecialchars((string)$l['interested_name']) . '</b> inną drogą (wydruk z panelu).</p>',
+                ['type' => 'license', 'id' => $id], $actor, LicenseNotificationType::DecisionAdmin);
+            $body .= '<p><i>Dokument decyzji doręczymy osobno.</i></p>';
+        }
+        $res = $this->svc->notify->send(LicenseNotificationType::DecisionInterested, $this->svc->interestedContact($l), $subject,
+            LicenseNotificationService::layout($grant ? 'Decyzja o przyznaniu' : 'Decyzja o odmowie', $body, '', '', 'AM7'), $sms,
+            ['type' => 'license', 'id' => $id], $actor, true, $att);
+        $report[] = ($resend ? 'Ponowna wysyłka decyzji: ' : 'Decyzja do kursanta: ') . $this->svc->describe($res);
+        $this->svc->licenses->event($id, 'decision.sent', ($resend ? 'Ponownie wysłano decyzję ' : 'Wysłano decyzję ') . $pdf['number'] . ' (PDF): ' . $this->svc->describe($res), $actor);
+
+        return implode(' · ', $report);
     }
 
     /** Zlecenie dla Helpdesku IT po wysłaniu decyzji o przyznaniu (fallback: alert do biura, wpis w dzienniku). */

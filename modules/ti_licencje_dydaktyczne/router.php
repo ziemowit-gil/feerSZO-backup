@@ -67,6 +67,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/licencje/{id}/projekt-decyzji',   [LicenseAdminController::class, 'am7Prepare'])->name('ld.am7.prepare');
     $r->post('/licencje/{id}/zatwierdz',         [LicenseAdminController::class, 'am7Approve'])->name('ld.am7.approve');
     $r->get('/licencje/{id}/decyzja.pdf',        [LicenseAdminController::class, 'am7DecisionPdf'])->name('ld.am7.pdf');
+    $r->post('/licencje/{id}/decyzja-ponownie', [LicenseAdminController::class, 'am7Resend'])->name('ld.am7.resend');
     $r->post('/licencje/{id}/helpdesk',          [LicenseAdminController::class, 'am7Helpdesk'])->name('ld.am7.helpdesk');
     $r->get('/licencje/{id}/edycja',             [LicenseAdminController::class, 'editForm'])->name('ld.edit');
     $r->post('/licencje/{id}/edycja',            [LicenseAdminController::class, 'update']);

@@ -74,6 +74,7 @@ $chLabel = ['applied' => ['wprowadzona', '#008a00'], 'pending' => ['czeka na akc
 <section class="col-lg-5"><div class="panel h-100">
   <h2 class="mt-0">Akcje</h2>
   <div class="d-grid gap-2">
+  <?php if ($am7 && !empty($d['approved_at'])): ?><?= ldPost(route('ld.am7.resend', ['id' => $id]), 'Wyślij decyzję ponownie (PDF e-mailem)', 'btn-metro', [], 'Wysłać decyzję ponownie do kursanta?') ?><?php endif; ?>
   <?php if ($st === LicenseRequestStatus::Draft): ?>
     <a class="btn btn-metro dark" href="<?= h(route('ld.edit', ['id' => $id])) ?>">Edytuj wniosek</a>
     <form method="post" action="<?= h(route('ld.start', ['id' => $id])) ?>" class="d-grid gap-1"><?= Router::csrfField() ?>

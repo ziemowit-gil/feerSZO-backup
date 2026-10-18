@@ -279,7 +279,7 @@ final class LicenseManagementService
             . 'albo podpisać sekcję H wydruku i odesłać skan.</p><p><b>Prosimy o decyzję w ciągu ' . LD_REALIZATION_DAYS . ' dni — do ' . $e(ldDate($l['due_on'])) . '.</b> '
             . 'Link jest ważny ' . LD_TOKEN_DAYS . ' dni.</p>';
         $att = [];
-        if (($p = LicenseStorage::fullPath((string)$doc['path'])) && $doc['ext'] === 'pdf') $att[] = ['path' => $p, 'name' => ldFileName($nr) . '.pdf', 'mime' => 'application/pdf', 'size' => (int)filesize($p)];
+        if ($doc['ext'] === 'pdf') $att = LicenseNotificationService::attachment((string)$doc['path'], $nr);
         $st = 'failed';
         try {
             if (!function_exists('mail_queue_add')) require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
@@ -537,7 +537,7 @@ final class LicenseManagementService
     private function confirmToHolder(array $l, array $a, HolderDeclarationDto $dto, array $files, array $actor): void
     {
         $att = [];
-        foreach ($files as $f) if ($f['ext'] === 'pdf' && ($p = LicenseStorage::fullPath($f['rel']))) $att[] = ['path' => $p, 'name' => ldFileName($f['nr']) . '.pdf', 'mime' => 'application/pdf', 'size' => (int)filesize($p)];
+        foreach ($files as $f) if ($f['ext'] === 'pdf') $att = array_merge($att, LicenseNotificationService::attachment($f['rel'], $f['nr']));
         $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         $subject = 'Potwierdzenie złożenia oświadczeń ' . $l['form']->value . ' — ' . $l['title'];
         $body = '<p>Dzień dobry ' . $e($dto->name) . ',</p><p>potwierdzamy złożenie oświadczeń:</p><ul>'
