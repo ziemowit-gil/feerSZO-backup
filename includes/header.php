@@ -98,6 +98,8 @@ if ($_user && is_admin()) {
 }
 
 $_uri = $_SERVER['REQUEST_URI'] ?? '';
+// Powłoka EZD (topbar + menu boczne + szata Metro): strony /ezd/ oraz ustawienia modułu w /admin/ezd_*.php
+$_ezd_shell = str_contains($_uri, '/ezd/') || preg_match('#/admin/ezd_(settings|szablony|workflows)\.php#', $_uri) === 1;
 
 // SaaS context
 $_is_tenant      = defined('TENANT_SLUG') && TENANT_SLUG !== '';
@@ -214,7 +216,7 @@ if ($_user) {
 <?php $_app_css_path = dirname(__DIR__) . '/assets/css/app.css';
       $_app_css_v = @filemtime($_app_css_path) ?: date('Ymd'); ?>
 <link href="<?= APP_URL ?>/assets/css/app.css?v=<?= $_app_css_v ?>" rel="stylesheet">
-<?php if (str_contains($_uri, '/ezd/')):
+<?php if ($_ezd_shell):
       $_ezd_css_v = @filemtime(dirname(__DIR__) . '/assets/css/ezd-tz-theme.css') ?: '1'; ?>
 <link href="<?= APP_URL ?>/assets/css/ezd-tz-theme.css?v=<?= $_ezd_css_v ?>" rel="stylesheet">
 <?php endif; ?>
@@ -495,7 +497,7 @@ require_once __DIR__ . '/app_bg.php';
 $__bg_subtle = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ezd/') || !empty($APP_BG_SUBTLE);
 app_bg_css($__bg_subtle ? '#EFF1F5' : '#E8EBF0', $__bg_subtle ? 'subtle' : 'normal');
 /* EZD: szata Metro UI jak System Tożsamości — ostatni blok stylów (wygrywa z motywem i tłem) */
-if (str_contains($_uri, '/ezd/')) require __DIR__ . '/ezd_metro.php';
+if ($_ezd_shell) require __DIR__ . '/ezd_metro.php';
 ?>
 </head>
 <body>
@@ -558,7 +560,7 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
       require dirname(__DIR__) . '/modules/launcher/launcher.php'; ?>
     <?php endif; // can_edit ?>
 
-    <?php if (str_contains($_uri, '/ezd/')): ?>
+    <?php if ($_ezd_shell): ?>
     <button type="button" id="ezd-fs-btn" class="nb-icon-btn"
             title="Ukryj menu górne — EZD na całą stronę" aria-label="Ukryj menu górne">
       <i class="bi bi-arrows-fullscreen"></i>
@@ -1070,7 +1072,7 @@ $_nb_on_home = preg_match('#/index\.php(\?|$)#', $_uri) === 1 && !preg_match('#/
 </script>
 <?php endif; ?>
 
-<?php if (str_contains($_uri, '/ezd/')): ?>
+<?php if ($_ezd_shell): ?>
 <!-- Tryb pełnoekranowy EZD — chowa menu górne, stan zapamiętany w localStorage -->
 <style>
 body.ezd-fs #navbar, body.ezd-fs #page-title-bar, body.ezd-fs .nb-ptitle-m,
@@ -1196,7 +1198,7 @@ body.ezd-fs #ezd-fs-exit { display:inline-flex; }
 <?php require_once __DIR__ . '/mobywatel_notice.php'; ?>
 
 
-<?php if (str_contains($_uri, '/ezd/')): ?>
+<?php if ($_ezd_shell): ?>
 <div id="content" class="ezd-content-host">
 
 <!-- ── EZD Topbar (zastępuje globalny navbar na stronach /ezd/) ─── -->

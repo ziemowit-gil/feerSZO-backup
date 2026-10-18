@@ -2,7 +2,7 @@
 // Widok EZD ma węższą stopkę: pion ekranu jest tam cenny (długie listy pism,
 // koszulki), a stopka niesie tylko metryczkę systemu. Reszta aplikacji zostaje
 // bez zmian — dlatego klasa .ezd-footer, a nie zmiana wspólnych klas.
-$_ezd_view = str_contains($_SERVER['REQUEST_URI'] ?? '', '/ezd/');
+$_ezd_view = !empty($_ezd_shell) || str_contains($_SERVER['REQUEST_URI'] ?? '', '/ezd/');
 ?>
 <?php if ($_ezd_view): ?>
   </div><!-- /.ezd-main -->
