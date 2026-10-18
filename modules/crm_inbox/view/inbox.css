@@ -25,9 +25,10 @@
 .ib-pill:hover { color:var(--ib-text); background:var(--ib-soft) }
 .ib-pill.is-on { color:var(--ib-text); border-bottom-color:var(--crm-primary) }
 .ib-pill.is-on > .bi { color:var(--crm-primary) }
-.ib-cnt { display:inline-block; min-width:1.5rem; padding:0 .35rem; font-size:.7rem; font-weight:700; line-height:1.55; text-align:center;
-  background:#e6e6e6; color:#3f3f3f; font-variant-numeric:tabular-nums }
-.ib-cnt.is-zero { background:transparent; color:var(--ib-muted); box-shadow:inset 0 0 0 1px var(--ib-line) }
+.ib-cnt { display:inline-block; min-width:1.75rem; padding:0 .4rem; font-size:.8rem; font-weight:700; line-height:1.6; text-align:center;
+  background:#e6e6e6; color:#3f3f3f; font-variant-numeric:tabular-nums lining-nums }
+/* Zero ma wyglądać jak liczba, nie jak litera „o” — ramka zamiast pustego tła */
+.ib-cnt.is-zero { background:#fff; color:#3f3f3f; outline:1px solid #c6c6c6; outline-offset:-1px }
 .ib-pill.is-on .ib-cnt:not(.is-zero) { background:var(--crm-primary); color:#fff }
 .ib-more-menu .dropdown-item { display:flex; align-items:center; gap:.5rem }
 .ib-more-menu .dropdown-item .ib-cnt { margin-left:auto }
@@ -125,6 +126,10 @@ a.ib-stripe:hover, a.ib-stripe:focus-visible { width:8px }
 .ib-id { position:absolute; right:.6rem; bottom:.45rem; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.66rem; font-weight:700;
   color:var(--ib-muted); opacity:0; pointer-events:none }
 .ib-item:hover .ib-id, .ib-item:focus-visible .ib-id, .ib-row.is-active .ib-id { opacity:1 }
+/* Numer w prawym dolnym rogu nie może wchodzić na etykiety ani ostatni wiersz podglądu */
+.ib-item:has(.ib-id) .ib-tags { padding-right:4.6rem }
+.ib-item:has(.ib-id):not(:has(.ib-tags)) .ib-snip { padding-right:4.6rem }
+.ib-item:has(.ib-id):not(:has(.ib-tags)):not(:has(.ib-snip)) .ib-subj { padding-right:4.6rem }
 
 .ib-thread { margin:0 0 0 3rem; border-bottom:1px solid #ececec }
 .ib-thread > summary { list-style:none; cursor:pointer; padding:.3rem .6rem; font-size:.76rem; color:var(--ib-muted) }
@@ -174,11 +179,13 @@ a.ib-stripe:hover, a.ib-stripe:focus-visible { width:8px }
 .ib-meta { font-size:.84rem; color:var(--ib-muted); display:flex; flex-wrap:wrap; align-items:center; gap:.15rem .4rem }
 .ib-meta strong { color:var(--ib-text) }
 .ib-nav { display:flex; align-items:center; gap:.25rem; white-space:nowrap }
-.ib-nav-pos { font-size:.75rem; color:var(--ib-muted); margin-right:.2rem; font-variant-numeric:tabular-nums }
+.ib-nav-pos { font-size:.75rem; color:var(--ib-muted); margin-right:.2rem; font-variant-numeric:tabular-nums; white-space:nowrap }
+.ib-nav-pos:empty { display:none }
 .ib-nav a { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border:2px solid #c6c6c6; color:#3f3f3f; text-decoration:none }
 .ib-nav a:hover { border-color:#8a8a8a; color:var(--ib-text) }
 .ib-nav a[aria-disabled="true"] { opacity:.4; pointer-events:none }
-.ib-back { display:none }
+/* „Lista” tylko na wąskim ekranie — .ib-act niżej ustawia display, stąd wyższa specyficzność */
+.ib-nav .ib-back { display:none }
 .ib-chips { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.6rem; grid-column:1 / -1 }
 .ib-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .6rem; background:#ececec; font-size:.78rem; font-weight:600; color:#3f3f3f; text-decoration:none }
 a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
@@ -306,7 +313,7 @@ a.ib-chip:hover { background:#e0e0e0; color:var(--ib-text) }
   .ib-list, .ib-pane { overflow:visible; flex:none }
   .ib-wrap.is-reading .ib-col-list { display:none }
   .ib-wrap:not(.is-reading) .ib-col-msg { display:none }
-  .ib-back { display:inline-flex }
+  .ib-nav .ib-back { display:inline-flex; width:auto; padding:0 .7rem; margin-right:auto }
   .ib-bar { top:calc(var(--crm-topbar-h, 52px) + var(--crm-navbar-h, 48px)) }
   .ib-head { grid-template-columns:auto minmax(0, 1fr) }
   .ib-nav { grid-column:1 / -1; justify-content:space-between; margin-bottom:.6rem; order:-1 }

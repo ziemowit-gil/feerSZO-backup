@@ -682,7 +682,9 @@ include __DIR__ . '/includes/header_crm.php';
             <span class="ib-time"><?= h(date('H:i', strtotime((string)$r['sent_at']))) ?></span>
           </span>
           <span class="ib-subj"><?= h($r['subject'] ?: '(bez tematu)') ?></span>
-          <?php $snip = crm_mail_body_snippet($r, 240); if ($snip !== ''): ?>
+          <?php // Treść tekstowa bywa zapisana z encjami (&nbsp;) — w podglądzie mają być spacje
+                $snip = trim(preg_replace('/\s+/u', ' ', str_replace("\xc2\xa0", ' ', html_entity_decode(crm_mail_body_snippet($r, 240), ENT_QUOTES | ENT_HTML5, 'UTF-8'))) ?? '');
+                if ($snip !== ''): ?>
           <span class="ib-snip"><?= h($snip) ?></span>
           <?php endif; ?>
           <?php if (!empty($r['assigned_name']) || $r['inbox_status'] !== 'active' || (!$mbox_f && count($boxes) > 1 && !empty($r['mailbox_name']))): ?>
