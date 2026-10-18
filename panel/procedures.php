@@ -15,7 +15,7 @@ require_module_enabled('procedures_enabled', 'Moduł procedur');
 
 $user = current_user();
 $_is_volunteer_only = is_viewer()
-    && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+    && !user_is_k30_consultant((int)$user['id']);
 
 // Personel → pełny moduł procedur (z edycją)
 if (!$_is_volunteer_only) {

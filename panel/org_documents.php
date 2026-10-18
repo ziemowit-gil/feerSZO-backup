@@ -16,7 +16,7 @@ require_module_enabled('org_documents_enabled', 'Moduł dokumentów organizacji'
 
 $user = current_user();
 $_is_volunteer_only = is_viewer()
-    && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+    && !user_is_k30_consultant((int)$user['id']);
 
 // Zarządzanie tylko dla admina/edytora — reszta ogląda tutaj (wcześniej każdy „nie-wolontariusz”
 // trafiał do panelu admina i dostawał „Brak uprawnień do tej strony”).

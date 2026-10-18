@@ -26,7 +26,7 @@ $ai_ready   = asai_enabled();
 // w layoucie głównym kierujemy do bliźniaczego ekranu w Biurze — ten sam
 // asystent, tylko obudowa dopasowana do ich widoku.
 $_is_volunteer_only = is_viewer()
-    && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+    && !user_is_k30_consultant((int)$user['id']);
 if (!$_is_volunteer_only) {
     header('Location: ' . APP_URL . '/procedures/asystent.php');
     exit;

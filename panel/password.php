@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['phone_number'])) {
 // komunikatu o błędzie razem z formularzem).
 $show_pwd_form = $force_change || !$has_local_password || !empty($errors);
 
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';

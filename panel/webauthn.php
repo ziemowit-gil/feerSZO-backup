@@ -10,7 +10,7 @@ require_role('admin', 'editor');
 webauthn_migrate();
 
 $user = current_user();
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
     csrf_check();

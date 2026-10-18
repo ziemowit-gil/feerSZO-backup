@@ -13,7 +13,7 @@ $user = current_user();
 $_db_user = db_one("SELECT microsoft_id FROM users WHERE id = ?", [$user['id']]);
 $user['microsoft_id'] = $_db_user['microsoft_id'] ?? '';
 
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 
 // ── Umowy użytkownika (aktywne / rozwiązywalne) ───────────────────────────────
 function panel_terminable_contracts(array $user): array {

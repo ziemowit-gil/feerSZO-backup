@@ -16,7 +16,7 @@ $PAGE_TITLE = 'Godziny i rozliczenia — umowy zlecenie';
 $user  = current_user();
 $email = (string)($user['email'] ?? '');
 $ms_id = (string)($user['microsoft_id'] ?? '');
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 
 // ── Umowy zlecenie użytkownika (te same kryteria co viewer_owns_contract + e-mail z umowy) ──
 $conds = []; $params = [];

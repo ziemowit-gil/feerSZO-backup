@@ -41,6 +41,18 @@ function ctx_active(): ?array {
     return is_array($c) ? $c : null;
 }
 
+/**
+ * Czy konto ma flagę konsultanta TI (users.k30_consultant=1). W podglądzie roli zawsze
+ * false — admin oglądający „Wolontariusz / współpracownik” ma widzieć to, co zwykły
+ * wolontariusz (powłokę i pulpit panelu), a nie widok konsultanta z własnego konta.
+ */
+function user_is_k30_consultant(int $userId): bool {
+    if (($_SESSION['ctx']['mode'] ?? '') === 'role') return false;
+    try {
+        return (bool)db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [$userId]);
+    } catch (\Throwable $e) { return false; }
+}
+
 /** Czy użytkownik pracuje w cudzym/innym kontekście (admin albo rodzic→dziecko). */
 function ctx_is_impersonating(): bool {
     return ctx_active() !== null;

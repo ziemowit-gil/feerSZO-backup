@@ -44,7 +44,7 @@ try {
     }
 } catch (\Throwable $e) {}
 
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [$uid]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$uid);
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';

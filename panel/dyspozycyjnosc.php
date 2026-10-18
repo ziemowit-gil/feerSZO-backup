@@ -35,7 +35,7 @@ $_action_url = APP_URL . '/contracts/wolontariat/dyspo_action.php';
 $_return_url = APP_URL . '/panel/dyspozycyjnosc.php';
 $_today      = date('Y-m-d');
 
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';

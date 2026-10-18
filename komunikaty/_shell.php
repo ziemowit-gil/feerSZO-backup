@@ -17,7 +17,7 @@ $_kom_uid = (int)(current_user()['id'] ?? 0);
 
 // Wolontariusz „czysty" (viewer bez roli konsultanta TI) → powłoka panelu.
 $_is_volunteer_only = is_viewer()
-    && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [$_kom_uid]);
+    && !user_is_k30_consultant((int)$_kom_uid);
 
 if ($_is_volunteer_only) {
     include dirname(__DIR__) . '/panel/includes/header_panel.php';

@@ -12,7 +12,7 @@ require_login();
 $PAGE_TITLE = 'Moje konto Microsoft 365';
 $user = current_user();
 $uid  = (int)$user['id'];
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 
 // Znajdź konto M365 powiązane z użytkownikiem (z umów)
 $m365_contracts = [];

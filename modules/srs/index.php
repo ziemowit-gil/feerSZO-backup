@@ -99,7 +99,7 @@ $_res_dysponent = res_is_dysponent((int)$user['id']);
 
 // Powłoka: panel współpracownika dla samych wolontariuszy, powłoka SZO dla reszty
 $_is_volunteer_only = is_viewer()
-    && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+    && !user_is_k30_consultant((int)$user['id']);
 
 if ($_is_volunteer_only) {
     include dirname(__DIR__, 2) . '/panel/includes/header_panel.php';

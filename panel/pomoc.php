@@ -7,7 +7,7 @@ require_once dirname(__DIR__) . '/includes/functions.php';
 require_login();
 $PAGE_TITLE = 'Pomoc — Panel współpracownika';
 $user = current_user();
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';
 } else {

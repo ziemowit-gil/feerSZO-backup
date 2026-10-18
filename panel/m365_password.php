@@ -10,7 +10,7 @@ require_login();
 
 $PAGE_TITLE = 'Konto Microsoft 365';
 $user = current_user();
-$_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
 
 // Znajdź konto M365 wolontariusza
 $m365_row = db_one(

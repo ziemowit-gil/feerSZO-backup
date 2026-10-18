@@ -80,7 +80,7 @@ $extra_fields = json_decode($reservation['extra_fields'] ?? '{}', true) ?: [];
 $field_defs  = res_field_defs((int)$reservation['resource_id']);
 
 $_is_volunteer_only = is_viewer()
-    && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
+    && !user_is_k30_consultant((int)$user['id']);
 
 if ($_is_volunteer_only) {
     include dirname(__DIR__, 2) . '/panel/includes/header_panel.php';
