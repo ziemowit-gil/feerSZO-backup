@@ -11,7 +11,7 @@
  * Podział na pliki (przebudowa 2026-09-03, poprzednio jeden plik 1133 linii):
  *   - tasks/includes/tasks_topbar.php  — górny pasek (marka, przełącznik obszaru,
  *     powiadomienia, menu użytkownika)
- *   - tasks/includes/tasks_sidebar.php — offcanvas nawigacji
+ *   - tasks/includes/tasks_pivot.php   — pasek sekcji (Metro pivot) pod app-barem
  *   - tasks/includes/tasks_notif_modal.php — modal "Ustawienia powiadomień"
  *   - assets/js/tasks-header.js — cała logika JS (dawniej kilka inline <script>)
  */
@@ -405,8 +405,6 @@ body {
       require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/quick_actions_widget.php'; ?>
 <?php require_once dirname(dirname(__DIR__)) . '/includes/search_hotkey.php'; ?>
-
-<?php require_once __DIR__ . '/tasks_sidebar.php'; ?>
 
 <!-- ══ Treść główna ══════════════════════════════════════════════════════════ -->
 <main class="container-xl py-4" id="tsk-main" tabindex="-1" role="main">

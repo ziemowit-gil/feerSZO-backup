@@ -187,7 +187,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                    onchange="bulkToggleAll(this)"
                    aria-label="Zaznacz wszystkie zadania">
           </th>
-          <th scope="col" style="width:3%" aria-label="Priorytet i tytuł">Zadanie</th>
+          <th scope="col" class="th-title" aria-label="Priorytet i tytuł">Zadanie</th>
           <th scope="col" style="width:10%" class="th-center">Status</th>
           <th scope="col" style="width:6%"  class="th-center" aria-label="Weryfikacja wykonania">Weryf.</th>
           <th scope="col" style="width:8%"  class="th-center">Priorytet</th>

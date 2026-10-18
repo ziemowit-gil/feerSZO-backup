@@ -10,12 +10,6 @@
 <header class="tsk-navbar" role="banner">
   <div class="container-xl d-flex align-items-center gap-2 py-2">
 
-    <button class="tsk-menu-btn" type="button"
-            data-bs-toggle="offcanvas" data-bs-target="#tskNav"
-            aria-controls="tskNav" aria-label="Otwórz menu nawigacji">
-      <i class="bi bi-list" aria-hidden="true"></i>
-    </button>
-
     <a href="<?= APP_URL ?>/tasks/dashboard.php" class="tsk-brand"
        aria-label="Zadania — strona główna modułu">
       <span class="tsk-brand-icon" aria-hidden="true"><i class="bi bi-table"></i></span>
@@ -186,4 +180,5 @@
 
     </nav>
   </div>
+  <?php require __DIR__ . '/tasks_pivot.php'; ?>
 </header>

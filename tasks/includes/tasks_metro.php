@@ -43,16 +43,35 @@ html body .tsk-avatar{background:var(--tsk-green)}
 html body .tsk-navbar .dropdown-menu,html body .tsk-ws-switch-menu{border:0;box-shadow:0 12px 32px -12px rgba(16,24,40,.35)}
 html body .tsk-ws-switch-item.active{background:var(--tsk-green);color:#fff}
 
-/* ── Menu boczne (offcanvas) ─────────────────────────────────────────────── */
-html body .tsk-offcanvas .offcanvas-header{background:var(--tm-dark);color:#fff}
-html body .tsk-nav-label{letter-spacing:.14em;color:var(--tm-muted)}
-html body .tsk-nav-link{margin:0;border-left:0;padding:.6rem 1.1rem;color:var(--tsk-text)}
-html body .tsk-nav-link:hover{background:var(--tm-light);color:var(--tsk-text);border-left:0}
-html body .tsk-nav-link:hover i{color:var(--tsk-text)}
-html body .tsk-nav-link.active{background:var(--tsk-green);color:#fff;font-weight:600;border-left:0}
-html body .tsk-nav-link.active i{color:#fff}
-html body .tsk-nav-link.tsk-danger,html body .tsk-nav-link.tsk-danger i{color:var(--tm-red)}
-html body .tsk-nav-sep,html body .tsk-sidebar-bottom{border-color:var(--tm-line)}
+/* ── Pasek sekcji (pivot) — zastępuje dawne menu boczne ─────────────────── */
+html body .tsk-pivot{background:#fff;border-bottom:1px solid var(--tm-line);color:var(--tsk-text)}
+html body .tsk-pivot-inner{display:flex;align-items:stretch;gap:.5rem}
+html body .tsk-pivot-list{display:flex;align-items:stretch;gap:0;list-style:none;margin:0;padding:0;flex:1 1 auto;min-width:0;
+  overflow-x:auto;scrollbar-width:none}
+html body .tsk-pivot-list::-webkit-scrollbar{display:none}
+html body .tsk-pivot-list>li{flex:0 0 auto;display:flex}
+html body .tsk-pivot-link{display:inline-flex;align-items:center;gap:.45rem;padding:.7rem .85rem .6rem;border:0;border-bottom:3px solid transparent;
+  background:none;color:var(--tm-muted);font-size:.92rem;font-weight:400;text-decoration:none;white-space:nowrap;cursor:pointer;line-height:1.2}
+html body .tsk-pivot-link i{font-size:1rem}
+html body .tsk-pivot-link:hover{color:var(--tsk-text);background:var(--tm-light)}
+html body .tsk-pivot-link.active{color:var(--tsk-text);font-weight:600;border-bottom-color:var(--tsk-green)}
+html body .tsk-pivot-link.active i{color:var(--tsk-green)}
+html body .tsk-pivot-link:focus-visible{outline-offset:-3px!important}
+html body .tsk-pivot-chev{font-size:.62rem!important;opacity:.6}
+html body .tsk-pivot-more{flex:0 0 auto;display:flex;border-left:1px solid var(--tm-line)}
+html body .tsk-pivot-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:1.25rem;height:1.25rem;padding:0 .3rem;
+  background:var(--tsk-green);color:#fff;font-size:.68rem;font-weight:700;line-height:1}
+html body .tsk-pivot-cnt.is-alert{background:var(--tm-red)}
+html body .tsk-pivot-cnt.is-warn{background:var(--tm-orange)}
+html body .tsk-pivot-cnt.is-off{background:var(--tm-light-h);color:var(--tm-muted);font-weight:600}
+html body .tsk-pivot-menu{min-width:260px;padding:.35rem 0;font-size:.88rem;border:0;box-shadow:0 12px 32px -12px rgba(16,24,40,.35)}
+html body .tsk-pivot-menu .dropdown-header{font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--tm-muted);font-weight:700}
+html body .tsk-pivot-menu .dropdown-item{display:flex;align-items:center;gap:.6rem;padding:.5rem 1rem}
+html body .tsk-pivot-menu .dropdown-item i{width:1.1rem;text-align:center;color:var(--tm-muted)}
+html body .tsk-pivot-menu .dropdown-item .tsk-pivot-cnt{margin-left:auto}
+html body .tsk-pivot-menu .dropdown-item:hover,html body .tsk-pivot-menu .dropdown-item:focus{background:var(--tsk-green);color:#fff}
+html body .tsk-pivot-menu .dropdown-item:hover i,html body .tsk-pivot-menu .dropdown-item:focus i{color:#fff}
+@media(max-width:575.98px){html body .tsk-pivot-link span:not(.tsk-pivot-cnt){display:none}html body .tsk-pivot-link{padding:.7rem .75rem .6rem}}
 
 /* ── Treść ───────────────────────────────────────────────────────────────── */
 html body #tsk-main{max-width:1320px}
@@ -110,5 +129,39 @@ html body .modal-header,html body .modal-footer{border-color:var(--tm-line)}
 
 /* Stopka */
 html body .tsk-footer{background:#fff;border-top:1px solid var(--tm-line);color:var(--tm-muted)}
+
+/* ── Dashboard: kafle podsumowania jak żywe kafle Metro ──────────────────── */
+html body .tsk-dash .kpi-tile{display:flex;flex-direction:column;justify-content:space-between;min-height:128px;padding:.9rem 1rem .8rem;
+  background:var(--k,#1d1d1d);border:0;color:#fff;text-decoration:none;transition:filter .12s,outline-color .12s;transform:none;box-shadow:none}
+html body .tsk-dash .kpi-tile:hover,html body .tsk-dash .kpi-tile:focus-visible{transform:none;box-shadow:none;filter:brightness(1.12);color:#fff;outline:3px solid var(--tsk-text);outline-offset:2px}
+html body .tsk-dash .kpi-tile{--k:var(--tm-dark)}
+html body .tsk-dash .kpi-tile.is-green{--k:#008a00}
+html body .tsk-dash .kpi-tile.is-blue{--k:#0050ef}
+html body .tsk-dash .kpi-tile.is-slate{--k:#647687}
+html body .tsk-dash .kpi-tile.is-violet{--k:#6a00ff}
+html body .tsk-dash .kpi-tile.is-red{--k:var(--tm-red)}
+html body .tsk-dash .kpi-tile .kpi-tile__ico{width:auto;height:auto;margin:0;background:none!important;font-size:1.5rem;justify-content:flex-start;color:#fff}
+html body .tsk-dash .kpi-tile .kpi-tile__val{font-size:2.4rem;font-weight:300;line-height:1;color:#fff!important;margin-top:auto}
+html body .tsk-dash .kpi-tile .kpi-tile__lbl{font-size:.8rem;font-weight:600;color:rgba(255,255,255,.9);margin-top:.3rem}
+html body .tsk-dash .row.g-3{--bs-gutter-x:.5rem;--bs-gutter-y:.5rem}
+
+/* ── Lista: kolumna „Zadanie” bierze resztę szerokości ───────────────────── */
+html body #tsk-main .tk-table th.th-title{min-width:220px}
+html body #tsk-main .tk-table th.th-check,html body #tsk-main .tk-table td.td-check{width:44px}
+html body #tsk-main .tk-table .tk-title{font-weight:600;word-break:normal;overflow-wrap:anywhere}
+html body #tsk-main .tk-table tbody tr.selected{background:var(--tsk-green-bg)!important}
+
+/* ── Panel szczegółów zadania (offcanvas) — wspólny dla wszystkich stron ── */
+html body #taskOffcanvas{width:600px;max-width:100vw;border-left:0}
+html body #taskOffcanvas .offcanvas-header{background:var(--tm-dark);color:#fff;border-bottom:0!important}
+html body #taskOffcanvas .offcanvas-header .text-primary{color:#fff!important}
+html body #taskOffcanvas .offcanvas-header .btn-close{filter:invert(1) grayscale(1) brightness(2)}
+html body #td-root .td-props-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem}
+html body #td-root .td-props-grid>*,html body #td-root .form-control,html body #td-root .form-select{min-width:0}
+html body #td-root .td-label{color:var(--tsk-text);letter-spacing:.12em}
+html body #td-root .td-label i{color:var(--tsk-green)}
+html body #td-root .td-section{border-bottom-color:var(--tm-line)}
+html body #td-root .td-status-row .badge,html body #td-root .td-tag-btn{border-radius:0}
+@media(max-width:479.98px){html body #td-root .td-props-grid{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){html body #tsk-main *{transition:none!important;animation:none!important}}
 </style>
