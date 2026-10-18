@@ -4,7 +4,7 @@
  */
 
 const HD_STATUSES = [
-    'nowe'            => ['label' => 'Nowe',                            'class' => 'primary',   'icon' => 'bi-inbox-fill',         'text' => 'primary'],
+    'nowe'            => ['label' => 'Nowe',                            'class' => 'primary',   'icon' => 'bi-inbox-fill',         'text' => 'white'],
     'otwarte'         => ['label' => 'Otwarte',                         'class' => 'warning',   'icon' => 'bi-folder2-open',       'text' => 'dark'],
     'oczekuje'        => ['label' => 'Oczekuje',                        'class' => 'secondary', 'icon' => 'bi-hourglass-split',    'text' => 'white'],
     'krytyczne'       => ['label' => 'Krytyczne — wymaga interwencji',  'class' => 'danger',    'icon' => 'bi-exclamation-octagon-fill', 'text' => 'white'],
@@ -842,14 +842,14 @@ HTML;
 
 function hd_status_badge(string $status): string {
     $s = HD_STATUSES[$status] ?? ['label' => $status, 'class' => 'secondary', 'icon' => 'bi-question-circle', 'text' => 'white'];
-    return '<span class="badge bg-' . $s['class'] . ' text-' . $s['text'] . '">'
+    return '<span class="badge bg-' . $s['class'] . ' text-' . $s['text'] . '" data-hd-st="' . h($status) . '">'
          . '<i class="bi ' . $s['icon'] . ' me-1"></i>' . h($s['label']) . '</span>';
 }
 
 function hd_priority_badge(string $priority): string {
     $p = HD_PRIORITIES[$priority] ?? ['label' => $priority, 'class' => 'secondary'];
     return '<span class="badge bg-' . $p['class'] . '-subtle border border-' . $p['class']
-         . '-subtle text-' . $p['class'] . '-emphasis">' . h($p['label']) . '</span>';
+         . '-subtle text-' . $p['class'] . '-emphasis" data-hd-pr="' . h($priority) . '">' . h($p['label']) . '</span>';
 }
 
 // ── SLA — cele czasowe i śledzenie terminów ───────────────────────────────────
