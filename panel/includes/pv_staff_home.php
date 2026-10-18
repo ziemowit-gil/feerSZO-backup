@@ -113,6 +113,8 @@ $_sh_lead = $_sh_admin
         panelMetroTile(['href'=>APP_URL.'/panel/apply.php','icon'=>'bi-send','label'=>'Wnioski','val'=>$_sh_apps ? (string)$_sh_apps : '',
                         'sub'=>$_sh_apps ? 'w toku' : 'zaświadczenia, duplikaty, kserokopie','color'=>$_sh_apps ? 'orange' : 'blue']);
     }
+    panelMetroTile(['href'=>APP_URL.'/modules/collaborator_data/router.php','icon'=>'bi-person-gear','label'=>'Zmiana danych',
+                    'sub'=>'kontakt, adres, rachunek, upoważnienia','color'=>'teal']);
     panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_sh_hd ? (string)$_sh_hd : '',
                     'sub'=>$_sh_hd ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
     panelMetroTile(['href'=>APP_URL.'/panel/m365.php','icon'=>'bi-microsoft','label'=>'Microsoft 365 i poczta',
