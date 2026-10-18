@@ -462,87 +462,110 @@ $next_step = $next_etap !== null ? ($wf_steps[$cur_idx + 1] ?? null) : null;
 $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 ?>
 
-<style type="text/tailwindcss">
-/* ── Karta koszulki — warstwa wizualna (Tailwind bez preflightu: przy tw-border zawsze tw-border-solid).
-   Nazwy klas są zaczepami skryptów i motywu ezd-tz-theme.css (selektory `body .x`), dlatego reguły są
-   zakotwiczone w .ezd-main (wyższa specyficzność), a nazwy zostają. ── */
-.ezd-main .ezx-badge { @apply tw-inline-flex tw-items-center tw-gap-1 tw-rounded-full tw-px-2 tw-py-0.5 tw-text-[.66rem] tw-font-semibold tw-border tw-border-solid tw-whitespace-nowrap tw-leading-tight; }
-.ezd-main .ezx-badge--slate  { @apply tw-bg-slate-100 tw-text-slate-600 tw-border-slate-200; }
-.ezd-main .ezx-badge--sky    { @apply tw-bg-sky-50 tw-text-sky-700 tw-border-sky-200; }
-.ezd-main .ezx-badge--blue   { @apply tw-bg-blue-50 tw-text-blue-700 tw-border-blue-200; }
-.ezd-main .ezx-badge--amber  { @apply tw-bg-amber-50 tw-text-amber-700 tw-border-amber-200; }
-.ezd-main .ezx-badge--emerald{ @apply tw-bg-emerald-50 tw-text-emerald-700 tw-border-emerald-200; }
-.ezd-main .ezx-badge--rose   { @apply tw-bg-rose-50 tw-text-rose-700 tw-border-rose-200; }
-.ezd-main .ezx-badge--violet { @apply tw-bg-violet-50 tw-text-violet-700 tw-border-violet-200; }
-.ezd-main .ezx-badge--urgent { @apply tw-bg-rose-600 tw-text-white tw-border-rose-600; }
-.ezd-main .ezx-kv    { @apply tw-rounded-xl tw-bg-slate-50 tw-border tw-border-solid tw-border-slate-100 tw-px-3 tw-py-2 tw-min-w-0; }
-.ezd-main .ezx-kv dt { @apply tw-text-[.62rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-m-0 tw-truncate; }
-.ezd-main .ezx-kv dd { @apply tw-m-0 tw-mt-0.5 tw-text-[.84rem] tw-font-semibold tw-text-slate-900 tw-truncate; }
-.ezd-main .ezx-kv dd.overdue { @apply tw-text-rose-600; }
-/* Nagłówek + pasek metadanych */
-.ezd-main .sp-hero { @apply tw-bg-white tw-rounded-2xl tw-border tw-border-solid tw-border-slate-200 tw-shadow-sm tw-p-4 md:tw-p-5 tw-mb-3; }
-.ezd-main .sp-meta-actions { @apply tw-flex tw-flex-wrap tw-gap-1.5 tw-items-center; }
-.ezd-main .sp-meta-actions .btn { @apply tw-rounded-lg tw-font-semibold tw-text-xs tw-py-1.5 tw-px-2.5 tw-inline-flex tw-items-center tw-gap-1; }
-/* Dokumenty w koszulce (akta) */
-.ezd-main .sp-akta-hdr { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-3 tw-px-4 tw-py-3 tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-t-2xl tw-border-b-0; }
-.ezd-main .sp-akta-title { @apply tw-text-[.9rem] tw-font-semibold tw-text-slate-900; }
-.ezd-main .sp-akta-count { @apply tw-text-xs tw-text-slate-500 tw-font-normal; }
-.ezd-main .sp-akta-hdr .btn { @apply tw-rounded-lg tw-font-semibold tw-text-xs; }
-.ezd-main .sp-akta-body { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-b-2xl tw-overflow-hidden tw-mb-4 tw-shadow-sm; }
-.ezd-main .sp-file-row { @apply tw-flex tw-items-center tw-gap-2.5 tw-px-4 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-100 tw-text-[.8rem] last:tw-border-b-0 tw-transition hover:tw-bg-slate-50; }
-/* Zakładki */
-.ezd-main .sp-tabs { @apply tw-flex tw-gap-0.5 tw-p-1 tw-mb-0 tw-rounded-t-2xl tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-border-b-0 tw-overflow-x-auto tw-flex-nowrap tw-whitespace-nowrap; }
-.ezd-main .sp-tabs .nav-link { @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-2 tw-text-[.72rem] tw-font-bold tw-uppercase tw-tracking-[.06em] tw-text-slate-500 tw-border-0 tw-whitespace-nowrap tw-transition hover:tw-bg-slate-100 hover:tw-text-slate-900; }
-.ezd-main .sp-tabs .nav-link.active { @apply tw-bg-slate-900 tw-text-white tw-shadow-sm hover:tw-bg-slate-900 hover:tw-text-white; }
-.ezd-main .sp-tabs .nav-link .badge { @apply tw-rounded-full tw-text-[.62rem]; }
-.ezd-main .sp-tab-pane { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-border-t-0 tw-rounded-b-2xl tw-p-4 tw-shadow-sm; }
+<style>
+/* ── Karta koszulki — szata Metro UI jak System Tożsamości (warstwa wspólna: includes/ezd_metro.php).
+   Zero zaokrągleń, cieni i gradientów; płaskie szare grupy #f2f2f2; karty z ramką 1px i nagłówkiem w szarym
+   pasie; zakładki jak pivot; znaczniki w pełnych kolorach. Nazwy klas są zaczepami skryptów i motywu —
+   zostają; reguły zakotwiczone w `html body .ezd-main` (wygrywają z Tailwind CDN i ezd-tz-theme.css). ── */
+html body .ezd-main .ezx-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.12rem .45rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;line-height:1.3;color:#fff;background:var(--m-grey);border:0}
+html body .ezd-main .ezx-badge--slate{background:var(--m-grey)}
+html body .ezd-main .ezx-badge--sky{background:var(--m-teal)}
+html body .ezd-main .ezx-badge--blue{background:var(--m-blue)}
+html body .ezd-main .ezx-badge--amber{background:var(--m-orange)}
+html body .ezd-main .ezx-badge--emerald{background:var(--m-green)}
+html body .ezd-main .ezx-badge--rose,html body .ezd-main .ezx-badge--urgent{background:var(--m-red)}
+html body .ezd-main .ezx-badge--violet{background:var(--m-violet)}
+/* Nagłówek: kicker ze znakiem koszulki + lekki duży tytuł, metadane w szarej grupie */
+html body .ezd-main .sp-hero{background:transparent;border:0;padding:0;margin:0 0 1.5rem}
+html body .ezd-main .sp-kicker{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;margin-bottom:.5rem}
+html body .ezd-main .sp-znak{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;font-weight:700;letter-spacing:.06em;color:#fff;background:var(--em-acc);padding:.15rem .5rem}
+html body .ezd-main .sp-kicker-lbl{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--em-muted)}
+html body .ezd-main #sp-title{font-size:clamp(1.7rem,3.2vw,2.4rem)!important;font-weight:300!important;letter-spacing:-.02em;line-height:1.1;color:var(--em-ink)}
+html body .ezd-main .sp-desc{margin:.5rem 0 0;font-size:.95rem;font-weight:300;color:var(--em-muted);line-height:1.55;max-width:80ch}
+html body .ezd-main .sp-meta-actions{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+html body .ezd-main .sp-meta-actions .btn{font-size:.76rem;font-weight:600;padding:.32rem .65rem;display:inline-flex;align-items:center;gap:.3rem}
+html body .ezd-main .sp-kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:1.25rem 0 0;background:var(--em-line);border:1px solid var(--em-line)}
+@media(min-width:768px){html body .ezd-main .sp-kvs{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:1536px){html body .ezd-main .sp-kvs{grid-template-columns:repeat(5,minmax(0,1fr))}}
+html body .ezd-main .ezx-kv{background:var(--em-light);border:0;padding:.75rem 1rem;min-width:0}
+html body .ezd-main .ezx-kv dt{margin:0;font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--em-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html body .ezd-main .ezx-kv dt .bi{display:none}
+html body .ezd-main .ezx-kv dd{margin:.2rem 0 0;font-size:1.02rem;font-weight:300;color:var(--em-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html body .ezd-main .ezx-kv dd a{color:var(--em-ink)!important;text-decoration:underline;text-underline-offset:3px}
+html body .ezd-main .ezx-kv dd.overdue{color:var(--m-red);font-weight:600}
+html body .ezd-main .sp-closed{display:flex;align-items:center;gap:.6rem;background:var(--em-light);border-left:6px solid var(--m-grey);padding:.75rem 1rem;margin-bottom:1rem;font-size:.86rem}
+/* Dokumenty w koszulce (akta): karta z szarym pasem nagłówka */
+html body .ezd-main .sp-akta-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:.7rem 1rem;background:var(--em-light);border:1px solid var(--em-line);border-bottom:0}
+html body .ezd-main .sp-akta-title{font-size:1.15rem;font-weight:300;color:var(--em-ink);letter-spacing:-.01em}
+html body .ezd-main .sp-akta-title .bi{color:var(--em-acc)}
+html body .ezd-main .sp-akta-count{font-size:.8rem;color:var(--em-muted)}
+html body .ezd-main .sp-akta-hdr .btn{font-size:.76rem;font-weight:600}
+html body .ezd-main .sp-akta-body{background:#fff;border:1px solid var(--em-line);overflow:hidden;margin-bottom:1.25rem}
+html body .ezd-main .sp-file-row{display:flex;align-items:center;gap:.65rem;padding:.6rem 1rem;border-bottom:1px solid var(--em-line);font-size:.82rem;transition:background .1s}
+html body .ezd-main .sp-file-row:last-child{border-bottom:0}
+html body .ezd-main .sp-file-row:hover{background:var(--em-light)}
+/* Zakładki → pivot */
+html body .ezd-main .sp-tabs{display:flex;gap:1.5rem;margin:1.5rem 0 0!important;padding:0;background:transparent;border:0;border-bottom:1px solid var(--em-line);overflow-x:auto;flex-wrap:nowrap;white-space:nowrap;scrollbar-width:none}
+html body .ezd-main .sp-tabs::-webkit-scrollbar{display:none}
+html body .ezd-main .sp-tabs .nav-link{display:inline-flex;align-items:center;gap:.4rem;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;padding:.35rem 0 .6rem;font-size:1.2rem;font-weight:300;letter-spacing:-.01em;text-transform:none;color:var(--em-muted);white-space:nowrap}
+html body .ezd-main .sp-tabs .nav-link .bi{display:none}
+html body .ezd-main .sp-tabs .nav-link:hover{color:var(--em-ink)}
+html body .ezd-main .sp-tabs .nav-link.active{color:var(--em-ink);font-weight:600;border-bottom-color:var(--em-acc);background:none}
+html body .ezd-main .sp-tabs .nav-link .badge{font-size:.66rem;background:var(--m-red)!important;color:#fff!important;padding:.1rem .4rem}
+html body .ezd-main .sp-tab-pane{background:#fff;border:0;padding:1.1rem 0 0}
 /* Przekazania */
-.ezd-main .dekr-row { @apply tw-flex tw-items-start tw-gap-3 tw-py-2.5 tw-border-b tw-border-solid tw-border-slate-100 tw-text-[.8rem] last:tw-border-b-0; }
-/* Prawa kolumna: karty */
-.ezd-main .sp-side { @apply tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-2xl tw-shadow-sm tw-min-w-0 tw-overflow-hidden; }
-.ezd-main .sp-side-hd { @apply tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-3 tw-border-b tw-border-solid tw-border-slate-100; }
-.ezd-main .sp-side-h { @apply tw-m-0 tw-text-[.88rem] tw-font-semibold tw-text-slate-900 tw-tracking-tight; }
-.ezd-main .sp-side-bd { @apply tw-px-4 tw-py-3; }
-.ezd-main .sp-kv { @apply tw-grid tw-grid-cols-[minmax(96px,38%)_1fr] tw-gap-x-3 tw-gap-y-1.5 tw-m-0 tw-text-[.8rem]; }
-.ezd-main .sp-kv dt { @apply tw-text-slate-500 tw-font-normal tw-m-0 tw-min-w-0; }
-.ezd-main .sp-kv dd { @apply tw-m-0 tw-min-w-0 tw-text-slate-900 tw-break-words; }
-/* Stepper pionowy (obieg) */
-.ezd-main .sp-wf { @apply tw-list-none tw-m-0 tw-p-0 tw-grid tw-grid-cols-1; }
-.ezd-main .sp-wf-step { @apply tw-relative tw-flex tw-items-center tw-gap-3 tw-py-1.5 tw-pl-0; }
-.ezd-main .sp-wf-step::before { content: ''; @apply tw-absolute tw-left-[12px] tw-top-0 tw-bottom-0 tw-w-0.5 tw-bg-slate-200; }
-.ezd-main .sp-wf-step:first-child::before { @apply tw-top-1/2; }
-.ezd-main .sp-wf-step:last-child::before { @apply tw-bottom-1/2; }
-.ezd-main .sp-wf-dot { @apply tw-relative tw-z-[1] tw-w-[26px] tw-h-[26px] tw-shrink-0 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-bg-slate-100 tw-text-slate-500 tw-text-[.7rem] tw-border-2 tw-border-solid tw-border-white; box-shadow: 0 0 0 1px #e2e8f0; }
-.ezd-main .sp-wf-lbl { @apply tw-text-[.8rem] tw-text-slate-500 tw-leading-tight tw-min-w-0 tw-flex tw-items-center tw-gap-2 tw-flex-wrap; }
-.ezd-main .sp-wf-now { @apply tw-text-[.6rem] tw-font-semibold tw-uppercase tw-tracking-[.06em] tw-text-blue-700 tw-bg-blue-50 tw-rounded-full tw-px-1.5 tw-py-0.5; }
-.ezd-main .sp-wf-done::before { @apply tw-bg-emerald-500; }
-.ezd-main .sp-wf-done .sp-wf-dot { @apply tw-bg-emerald-500 tw-text-white; box-shadow: 0 0 0 1px #22c55e; }
-.ezd-main .sp-wf-done .sp-wf-lbl { @apply tw-text-emerald-700; }
-.ezd-main .sp-wf-current .sp-wf-dot { @apply tw-bg-blue-600 tw-text-white; box-shadow: 0 0 0 4px #dbeafe; }
-.ezd-main .sp-wf-current .sp-wf-lbl { @apply tw-text-slate-900 tw-font-bold; }
+html body .ezd-main .dekr-row{display:flex;align-items:flex-start;gap:.75rem;padding:.65rem 0;border-bottom:1px solid var(--em-line);font-size:.82rem}
+html body .ezd-main .dekr-row:last-child{border-bottom:0}
+/* Prawa kolumna: karty Metro */
+html body .ezd-main .sp-side{background:#fff;border:1px solid var(--em-line);min-width:0;overflow:hidden}
+html body .ezd-main .sp-side-hd{display:flex;align-items:center;gap:.5rem;padding:.65rem 1rem;background:var(--em-light);border-bottom:0}
+html body .ezd-main .sp-side-hd .bi{color:var(--em-acc)}
+html body .ezd-main .sp-side-h{margin:0;font-size:1rem;font-weight:600;color:var(--em-ink)}
+html body .ezd-main .sp-side-bd{padding:.85rem 1rem}
+html body .ezd-main .sp-kv{display:grid;grid-template-columns:minmax(96px,38%) 1fr;gap:.45rem .75rem;margin:0;font-size:.82rem}
+html body .ezd-main .sp-kv dt{margin:0;min-width:0;font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--em-muted);padding-top:.15rem}
+html body .ezd-main .sp-kv dd{margin:0;min-width:0;color:var(--em-ink);word-break:break-word}
+/* Obieg: kwadratowe kroki z pionową linią */
+html body .ezd-main .sp-wf{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr}
+html body .ezd-main .sp-wf-step{position:relative;display:flex;align-items:center;gap:.75rem;padding:.35rem 0}
+html body .ezd-main .sp-wf-step::before{content:'';position:absolute;left:12px;top:0;bottom:0;width:2px;background:var(--em-line)}
+html body .ezd-main .sp-wf-step:first-child::before{top:50%}
+html body .ezd-main .sp-wf-step:last-child::before{bottom:50%}
+html body .ezd-main .sp-wf-dot{position:relative;z-index:1;width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--em-light);color:var(--em-muted);font-size:.7rem;border:2px solid #fff}
+html body .ezd-main .sp-wf-lbl{font-size:.84rem;color:var(--em-muted);line-height:1.2;min-width:0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+html body .ezd-main .sp-wf-now{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#fff;background:var(--em-acc);padding:.1rem .4rem}
+html body .ezd-main .sp-wf-done::before{background:var(--m-green)}
+html body .ezd-main .sp-wf-done .sp-wf-dot{background:var(--m-green);color:#fff}
+html body .ezd-main .sp-wf-done .sp-wf-lbl{color:var(--m-green)}
+html body .ezd-main .sp-wf-current .sp-wf-dot{background:var(--em-acc);color:#fff}
+html body .ezd-main .sp-wf-current .sp-wf-lbl{color:var(--em-ink);font-weight:700}
 /* Historia operacji */
-.ezd-main .sp-log { @apply tw-max-h-[380px] tw-overflow-y-auto; }
-.ezd-main .sp-log-row { @apply tw-flex tw-items-start tw-gap-2 tw-py-1.5 tw-text-[.76rem] tw-border-b tw-border-solid tw-border-slate-100 last:tw-border-b-0; }
-.ezd-main .sp-log-dot { @apply tw-shrink-0 tw-mt-1.5 tw-w-2 tw-h-2 tw-rounded-full tw-bg-slate-300; }
-/* Oś czasu pism */
-.ezd-main .tl-wrap { @apply tw-relative tw-pl-8; }
-.ezd-main .tl-wrap::before { content: ''; @apply tw-absolute tw-left-[.55rem] tw-top-0 tw-bottom-0 tw-w-0.5 tw-bg-slate-200 tw-rounded; }
-.ezd-main .tl-item { @apply tw-relative tw-mb-3; }
-.ezd-main .tl-dot { @apply tw-absolute tw-left-[-1.45rem] tw-top-[.35rem] tw-w-3.5 tw-h-3.5 tw-rounded-full tw-bg-blue-600 tw-border-[2.5px] tw-border-solid tw-border-white; box-shadow: 0 0 0 2px #2563eb; }
-.ezd-main .tl-dot.pismo-in  { @apply tw-bg-cyan-600; box-shadow: 0 0 0 2px #0891b2; }
-.ezd-main .tl-dot.pismo-out { @apply tw-bg-blue-600; box-shadow: 0 0 0 2px #2563eb; }
-.ezd-main .tl-dot.pismo-int { @apply tw-bg-slate-400; box-shadow: 0 0 0 2px #94a3b8; }
-.ezd-main .tl-card { @apply tw-block tw-bg-white tw-border tw-border-solid tw-border-slate-200 tw-rounded-xl tw-px-4 tw-py-3 tw-no-underline tw-text-inherit tw-transition hover:tw-border-blue-300 hover:tw-shadow-md; }
-.ezd-main .tl-card.pismo-in  { @apply tw-border-l-[3px] tw-border-l-cyan-600; }
-.ezd-main .tl-card.pismo-out { @apply tw-border-l-[3px] tw-border-l-blue-600; }
-.ezd-main .tl-syg   { @apply tw-font-mono tw-text-[.7rem] tw-text-slate-500 tw-font-semibold; }
-.ezd-main .tl-title { @apply tw-font-bold tw-text-[.86rem] tw-text-slate-900 tw-my-0.5; }
-.ezd-main .tl-meta  { @apply tw-text-[.7rem] tw-text-slate-500 tw-flex tw-flex-wrap tw-gap-x-3 tw-gap-y-0.5; }
+html body .ezd-main .sp-log{max-height:380px;overflow-y:auto}
+html body .ezd-main .sp-log-row{display:flex;align-items:flex-start;gap:.5rem;padding:.4rem 0;font-size:.78rem;border-bottom:1px solid var(--em-line)}
+html body .ezd-main .sp-log-row:last-child{border-bottom:0}
+html body .ezd-main .sp-log-dot{flex-shrink:0;margin-top:.4rem;width:8px;height:8px;background:var(--em-field)}
+/* Oś czasu pism: kwadratowe znaczniki, karty z grubą lewą krawędzią w kolorze kierunku */
+html body .ezd-main .tl-wrap{position:relative;padding-left:2rem}
+html body .ezd-main .tl-wrap::before{content:'';position:absolute;left:.55rem;top:0;bottom:0;width:2px;background:var(--em-line)}
+html body .ezd-main .tl-item{position:relative;margin-bottom:.6rem}
+html body .ezd-main .tl-dot{position:absolute;left:-1.45rem;top:.55rem;width:12px;height:12px;background:var(--m-blue);border:2px solid #fff;border-radius:0!important}
+html body .ezd-main .tl-dot.pismo-in{background:var(--m-teal)}
+html body .ezd-main .tl-dot.pismo-out{background:var(--m-blue)}
+html body .ezd-main .tl-dot.pismo-int{background:var(--m-grey)}
+html body .ezd-main .tl-dot.umowa-card{background:var(--m-orange)}
+html body .ezd-main .tl-card{display:block;background:var(--em-light);border:0!important;border-left:6px solid var(--m-grey)!important;padding:.7rem 1rem;text-decoration:none;color:inherit;transition:background .1s}
+html body .ezd-main .tl-card:hover{background:var(--em-light-h);color:inherit}
+html body .ezd-main .tl-card.pismo-in{border-left-color:var(--m-teal)!important}
+html body .ezd-main .tl-card.pismo-out{border-left-color:var(--m-blue)!important}
+html body .ezd-main .tl-card.umowa-card{border-left-color:var(--m-orange)!important}
+html body .ezd-main .tl-syg{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.7rem;font-weight:700;color:var(--em-muted);letter-spacing:.04em}
+html body .ezd-main .tl-title{font-weight:600;font-size:.92rem;color:var(--em-ink);margin:.15rem 0}
+html body .ezd-main .tl-meta{font-size:.72rem;color:var(--em-muted);display:flex;flex-wrap:wrap;gap:.15rem .75rem}
 /* Drag-and-drop plików (bez zmian funkcjonalnych) */
-.sp-dz-overlay{position:absolute;inset:0;background:rgba(37,99,235,.08);border:2.5px dashed #2563eb;border-radius:16px;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none;backdrop-filter:blur(1px)}
+.sp-dz-overlay{position:absolute;inset:0;background:rgba(15,111,168,.08);border:3px dashed #0f6fa8;display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none}
 .sp-dz-overlay.active{display:flex}
-.sp-dz-msg{text-align:center;color:#2563eb;font-size:.95rem;font-weight:700;pointer-events:none;padding:1.5rem;text-shadow:0 1px 3px rgba(255,255,255,.8)}
-.sp-dz-progress{position:fixed;bottom:1.5rem;right:1.5rem;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:.8rem 1.1rem;box-shadow:0 4px 24px rgba(0,0,0,.13);z-index:9999;min-width:260px;font-size:.82rem;display:none}
+.sp-dz-msg{text-align:center;color:#0f6fa8;font-size:1.1rem;font-weight:300;pointer-events:none;padding:1.5rem}
+.sp-dz-progress{position:fixed;bottom:1.5rem;right:1.5rem;background:#fff;border:1px solid #e1e1e1;border-left:6px solid #0f6fa8;padding:.8rem 1.1rem;box-shadow:0 12px 32px -12px rgba(16,24,40,.35);z-index:9999;min-width:260px;font-size:.82rem;display:none}
 .sp-dz-progress.visible{display:block}
 </style>
 
@@ -558,7 +581,7 @@ $wf_custom = (bool) ezd_workflow_get((int)($sprawa['jrwa_id'] ?? 0));
 <?= flash_html() ?>
 
 <?php if ($is_closed): ?>
-<div class="tw-flex tw-items-center tw-gap-2 tw-rounded-2xl tw-bg-slate-100 tw-border tw-border-solid tw-border-slate-200 tw-text-slate-700 tw-px-4 tw-py-2.5 tw-mb-3 tw-text-[.82rem]" role="status">
+<div class="sp-closed" role="status">
   <i class="bi bi-lock-fill flex-shrink-0"></i>
   <span>Koszulka <strong>zamknięta</strong> — dodawanie treści i edycja są zablokowane.
   <?php if(!empty($sprawa['close_reason'])): ?> Powód: <em><?= h($sprawa['close_reason']) ?></em>.<?php endif; ?>
@@ -577,8 +600,9 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
 <section class="sp-hero" aria-labelledby="sp-title">
   <div class="tw-flex tw-flex-wrap tw-items-start tw-justify-between tw-gap-3">
     <div class="tw-min-w-0 tw-flex-1">
-      <div class="tw-flex tw-flex-wrap tw-items-center tw-gap-1.5 tw-mb-1.5">
-        <code class="tw-font-mono tw-text-[.8rem] tw-font-bold tw-text-blue-800 tw-bg-blue-50 tw-border tw-border-solid tw-border-blue-100 tw-rounded-md tw-px-2 tw-py-0.5"><?= h($sprawa['znak_sprawy']) ?></code>
+      <div class="sp-kicker">
+        <span class="sp-kicker-lbl"><?= $sprawa['parent_id'] ? 'Podkoszulka' : 'Koszulka' ?></span>
+        <code class="sp-znak"><?= h($sprawa['znak_sprawy']) ?></code>
         <span class="ezx-badge ezx-badge--<?= $TONE_V[$st_meta['class']] ?? 'slate' ?>"><?= h($st_meta['label']) ?></span>
         <?php if (!$mini): ?><span class="ezx-badge ezx-badge--<?= $cur_etap === 'akceptacja' ? 'violet' : ($TONE_V[$et_meta['class']] ?? 'slate') ?>"><i class="bi <?= h($et_meta['icon'] ?? 'bi-record-circle') ?>" aria-hidden="true"></i><?= $cur_etap === 'akceptacja' ? 'W akceptacji' : h($et_meta['label']) ?></span><?php endif; ?>
         <?php if (in_array($sprawa['priority'], ['high', 'urgent'], true)): ?><span class="ezx-badge ezx-badge--<?= $TONE_V[$pr_meta['class']] ?? 'slate' ?>"><i class="bi bi-flag-fill" aria-hidden="true"></i><?= h($pr_meta['label']) ?></span><?php endif; ?>
@@ -586,8 +610,8 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
         <?php if (!empty($sprawa['ciagla'])): ?><span class="ezx-badge ezx-badge--sky"><i class="bi bi-infinity" aria-hidden="true"></i>Ciągła</span><?php endif; ?>
         <?php if ($sprawa['parent_id']): ?><span class="ezx-badge ezx-badge--slate"><i class="bi bi-diagram-3" aria-hidden="true"></i>Podkoszulka</span><?php endif; ?>
       </div>
-      <h1 id="sp-title" class="tw-m-0 tw-text-[1.25rem] tw-font-bold tw-tracking-tight tw-text-slate-900 tw-leading-snug"><?= h($sprawa['title']) ?></h1>
-      <?php if ($sprawa['description']): ?><p class="tw-m-0 tw-mt-1.5 tw-text-[.84rem] tw-text-slate-500 tw-leading-relaxed"><?= nl2br(h($sprawa['description'])) ?></p><?php endif; ?>
+      <h1 id="sp-title" class="tw-m-0"><?= h($sprawa['title']) ?></h1>
+      <?php if ($sprawa['description']): ?><p class="sp-desc"><?= nl2br(h($sprawa['description'])) ?></p><?php endif; ?>
     </div>
     <div class="sp-meta-actions tw-shrink-0">
       <?php if($can_act): ?>
@@ -612,9 +636,9 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
     </div>
   </div>
 
-  <dl class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 2xl:tw-grid-cols-5 tw-gap-2 tw-mt-4 tw-mb-0">
+  <dl class="sp-kvs">
     <div class="ezx-kv"><dt><i class="bi bi-person" aria-hidden="true"></i> Prowadzący</dt><dd><?= $sprawa['owner_name'] ? h($sprawa['owner_name']) : '—' ?></dd></div>
-    <div class="ezx-kv"><dt><i class="bi bi-archive" aria-hidden="true"></i> Wykaz akt</dt><dd><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" class="tw-no-underline tw-text-slate-900 hover:tw-text-blue-700"><?= h($sprawa['teczka_symbol']) ?></a></dd></div>
+    <div class="ezx-kv"><dt><i class="bi bi-archive" aria-hidden="true"></i> Wykaz akt</dt><dd><a href="<?= APP_URL ?>/ezd/teczki/view.php?id=<?= $sprawa['teczka_id'] ?>" ><?= h($sprawa['teczka_symbol']) ?></a></dd></div>
     <div class="ezx-kv"><dt><i class="bi bi-calendar3" aria-hidden="true"></i> Data wszczęcia</dt><dd><?= date('d.m.Y', strtotime($sprawa['created_at'])) ?></dd></div>
     <div class="ezx-kv"><dt><i class="bi bi-calendar-event" aria-hidden="true"></i> Termin realizacji</dt>
       <dd class="<?= $overdue ? 'overdue' : '' ?>"><?php if(!empty($sprawa['ciagla'])): ?><span class="tw-text-sky-600"><i class="bi bi-infinity" aria-hidden="true"></i> stale otwarta</span><?php elseif($sprawa['deadline']): ?><?= date_pl($sprawa['deadline']) ?><?= $overdue ? ' <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>' : '' ?><?php else: ?>—<?php endif; ?></dd></div>

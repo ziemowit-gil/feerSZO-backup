@@ -138,6 +138,8 @@ html body .ezd-main .btn-outline-primary,html body .modal .btn-outline-primary{-
 html body .ezd-main .btn-outline-success,html body .modal .btn-outline-success{--bs-btn-color:var(--m-green);--bs-btn-border-color:var(--m-green);--bs-btn-hover-bg:var(--m-green);--bs-btn-hover-border-color:var(--m-green)}
 html body .ezd-main .btn-outline-danger,html body .modal .btn-outline-danger{--bs-btn-color:var(--m-red);--bs-btn-border-color:var(--m-red);--bs-btn-hover-bg:var(--m-red);--bs-btn-hover-border-color:var(--m-red)}
 html body .ezd-main .btn-outline-warning,html body .modal .btn-outline-warning{--bs-btn-color:var(--m-orange);--bs-btn-border-color:var(--m-orange);--bs-btn-hover-bg:var(--m-orange);--bs-btn-hover-border-color:var(--m-orange);--bs-btn-hover-color:#fff}
+html body .ezd-main .btn-outline-info,html body .modal .btn-outline-info{--bs-btn-color:var(--m-teal);--bs-btn-border-color:var(--m-teal);--bs-btn-hover-bg:var(--m-teal);--bs-btn-hover-border-color:var(--m-teal);--bs-btn-hover-color:#fff;--bs-btn-active-bg:var(--m-teal);--bs-btn-active-color:#fff;--bs-btn-disabled-color:var(--m-teal);--bs-btn-disabled-border-color:var(--m-teal)}
+html body .ezd-main .btn:disabled,html body .ezd-main .btn.disabled{opacity:.55}
 html body .ezd-main .btn-outline-dark{--bs-btn-color:var(--em-ink);--bs-btn-border-color:var(--em-ink)}
 html body .ezd-main .btn-link{border-width:0}
 html body .ezd-main .btn-group>.btn{border-width:2px}
