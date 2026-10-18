@@ -106,6 +106,7 @@ include __DIR__ . '/partials/ui.php';
 
 <header class="dash-h">
   <div>
+    <div class="dash-h__eyebrow">Finanse · ewidencja</div>
     <h1><span class="dash-h__ico" aria-hidden="true"><i class="bi bi-patch-check"></i></span> Hologramy</h1>
     <p>Ewidencja naklejek zabezpieczających na dokumenty i sprzęt — serie, wydania, zwroty i uszkodzenia.</p>
   </div>

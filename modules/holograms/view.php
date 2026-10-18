@@ -82,6 +82,7 @@ include __DIR__ . '/partials/ui.php';
 
 <header class="dash-h">
   <div>
+    <div class="dash-h__eyebrow">Hologramy · karta naklejki</div>
     <h1><span class="dash-h__ico" aria-hidden="true"><i class="bi bi-patch-check"></i></span> <span class="tw-font-mono"><?= h($row['holo_number']) ?></span></h1>
     <p class="tw-flex tw-flex-wrap tw-items-center tw-gap-2"><?= holo_status_badge($row['status']) ?>
       <?php if ($row['status'] === 'issued' && $row['assigned_to']): ?><span>przypisany do <strong style="color: var(--tz-ink)"><?= h($row['assigned_to']) ?></strong></span><?php endif; ?>
@@ -150,8 +151,8 @@ include __DIR__ . '/partials/ui.php';
         <fieldset class="tw-m-0 tw-p-0 tw-border-0 tw-space-y-2">
           <legend class="f-label">Operacja</legend>
           <?php foreach ($actions as $to => $lbl): ?>
-          <label class="tw-flex tw-cursor-pointer tw-gap-3 tw-rounded-xl tw-border tw-p-3 tw-transition-colors"
-                 :style="to === '<?= h($to) ?>' ? 'border-color: var(--holo-accent); background: #eff6ff' : 'border-color: var(--tz-line)'">
+          <label class="tw-flex tw-cursor-pointer tw-gap-3 tw-p-3 tw-transition-colors"
+                 :style="to === '<?= h($to) ?>' ? 'background: #fff; box-shadow: inset 4px 0 0 var(--holo-accent) !important' : 'background: var(--tz-light)'">
             <input type="radio" name="to_status" value="<?= h($to) ?>" x-model="to" class="h-check tw-mt-0.5" aria-describedby="hint_<?= h($to) ?>">
             <span>
               <span class="tw-block tw-text-sm tw-font-semibold" style="color: var(--tz-ink)"><?= h($lbl) ?></span>
