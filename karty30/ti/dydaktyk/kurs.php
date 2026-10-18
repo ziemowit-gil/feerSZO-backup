@@ -314,6 +314,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'plan_status'         => $up_plan_status,
             'plan_note'           => mb_substr($up_plan_note, 0, 500),
         ];
+        // Certyfikacja MSUES: przy włączonym wymogu (require_trainer_formal_declaration) nowy prowadzący musi mieć zatwierdzone oświadczenie
+        if ((int)$data['instructor_id'] && (int)$data['instructor_id'] !== (int)$course['instructor_id']) {
+            require_once dirname(__DIR__, 3) . '/modules/ti_msues/lib/MsuesComplianceService.php';
+            if (($msuesBlock = msuesAssignGuard((int)$data['instructor_id'], $id)) !== '') {
+                flash_set('danger', 'Nie zmieniono prowadzącego. ' . $msuesBlock . ' (panel › Kadra › Certyfikacja MSUES)');
+                header('Location: kurs.php?id=' . $id); exit;
+            }
+        }
         $set = []; $par = [];
         foreach ($data as $k => $v) { $set[] = "$k=?"; $par[] = $v; }
         $par[] = $id;
@@ -436,6 +444,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'coinstr_add') {
         $cu = (int)($_POST['coinstr_user_id'] ?? 0);
         if ($cu && $cu !== (int)$course['instructor_id']) {
+            require_once dirname(__DIR__, 3) . '/modules/ti_msues/lib/MsuesComplianceService.php';
+            if (($msuesBlock = msuesAssignGuard($cu, $id)) !== '') {
+                flash_set('danger', 'Nie dodano coProwadzącego. ' . $msuesBlock . ' (panel › Kadra › Certyfikacja MSUES)');
+                header('Location: kurs.php?id=' . $id . '#coinstructors'); exit;
+            }
             k30_ti_coinstruct_add($id, $cu, $uid);
             _dyd_zoom_sync_alt_hosts($id, $course);
             flash_set('success', 'CoProwadzący dodany.');
