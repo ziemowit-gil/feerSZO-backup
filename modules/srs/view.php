@@ -157,10 +157,11 @@ pv_page_header('Rezerwacja #' . $id, [
         <h2 class="tz-section-h">Cel rezerwacji</h2>
         <p class="mb-0" style="font-size:.9rem"><?= nl2br(h($reservation['purpose'])) ?></p>
         <?php if (!empty($extra_fields['ti_room_srs_form_id'])): ?>
-        <h2 class="tz-section-h">Formularz rezerwacji sali (TI)</h2>
+        <h2 class="tz-section-h">Formularz rezerwacji sali (TI)
+          <?= ($extra_fields['source'] ?? 'dyd') === 'szo' ? '<span class="badge text-bg-dark ms-1">złożone z SZO</span>' : '<span class="badge text-bg-info ms-1">złożone z panelu dydaktyka</span>' ?></h2>
         <p class="mb-0" style="font-size:.88rem">
-          <a class="tz-btn" href="<?= h(APP_URL . '/modules/ti_room_srs/router.php/formularz/' . (int)$extra_fields['ti_room_srs_form_id'] . '/docx') ?>">
-            <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Pobierz formularz (DOCX)</a>
+          <a class="tz-btn" href="<?= h(APP_URL . '/modules/ti_room_srs/router.php/formularz/' . (int)$extra_fields['ti_room_srs_form_id'] . '/plik') ?>">
+            <i class="bi bi-file-earmark-text" aria-hidden="true"></i> Pobierz formularz operatora</a>
           <span style="color:var(--tz-muted)">— bez PESEL-u i adresu osoby odpowiedzialnej (wpisywane tylko przy generowaniu w panelu dydaktyka).</span>
         </p>
         <?php endif; ?>

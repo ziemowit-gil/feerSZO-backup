@@ -1,15 +1,22 @@
 <?php
 /**
  * modules/ti_room_srs/logic/roomSrs.php — połączenie rezerwacji sal TI (k30_pl_rooms / k30_ti_sessions) z SRS
- * (modules/srs: resources / resource_reservations) i formularz rezerwacji sali operatora (RoomFormDocx).
+ * (modules/srs: resources / resource_reservations) i wnioski/formularze rezerwacji sal operatorów.
+ *
+ * Wzory operatorów (TI_ROOM_SRS_TEMPLATES) — oryginały wypełniane bez zmiany układu:
+ *   reymonta — „FORMULARZ REZERWACJI SALI”, Centrum Obywatelskie Reymonta 20 (DOCX, RoomFormDocx);
+ *   c10      — „WYNAJEM SAL W CENTRUM OBYWATELSKIM CENTRUM C 10 — WNIOSEK” (PDF, RoomFormC10Pdf).
  *
  * Tabele:
- *   ti_room_srs_rooms  — sala TI → zasób SRS + opcja „Sala” we wzorze operatora (1W040 / 1W014 / 1W038);
- *   ti_room_srs_forms  — wygenerowany formularz: grupa + sala + okres, terminy (session_ids), dane formularza
- *                        BEZ PESEL-u i adresu zamieszkania (wpisywane ręcznie, tylko do pobieranego pliku),
- *                        powiązana rezerwacja SRS.
+ *   ti_room_srs_rooms   — sala TI → wzór operatora + opcja „Sala” we wzorze + zasób SRS;
+ *   ti_room_srs_forms   — formularz: grupa + sala + okres (course_id > 0, terminy = lekcje) albo rezerwacja przestrzeni
+ *                         bez grupy (course_id = 0, data i godziny w form_data); dane BEZ PESEL-u i adresu zamieszkania
+ *                         (wpisywane ręcznie, tylko do pobieranego pliku); powiązana rezerwacja SRS;
+ *   ti_room_srs_bookers — uprawnienie „Może rezerwować” (kierownik panelu / administrator SRS ma je zawsze).
  *
- * Jeden formularz = jedna grupa w jednej sali w wybranym okresie (wszystkie terminy w jednym dokumencie).
+ * Dwa wejścia z tą samą logiką: panel dydaktyka (source = 'dyd') i SZO (source = 'szo'); źródło widać na listach
+ * formularzy i na karcie rezerwacji SRS (extra_fields.source).
+ *
  * Status rezerwacji SRS wraca do lekcji: zgoda/rezerwacja → „potwierdzone”, odmowa/anulowana → „do_rezerwacji”
  * (tiRoomSrsSyncFromSrs, wołane z res_change_status()).
  */
@@ -21,13 +28,32 @@ require_once dirname(__DIR__, 3) . '/includes/ti_planner_ext.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_room_reports.php';
 require_once dirname(__DIR__, 2) . '/srs/logic/srs.php';
 require_once dirname(__DIR__) . '/lib/RoomFormDocx.php';
+require_once dirname(__DIR__) . '/lib/RoomFormC10Pdf.php';
 
-/** Opcje pola „Sala” we wzorze operatora (Centrum Obywatelskie, Reymonta 20). */
-const TI_ROOM_SRS_FORM_ROOMS = [
-    '1W040' => 'Szkoleniowo – konferencyjna 1W040',
-    '1W014' => 'Sala konferencyjna „akwarium” 1W014',
-    '1W038' => 'Sala mała 1W038',
+/** Wzory operatorów: etykieta, format pliku, opcje pola „Sala”. */
+const TI_ROOM_SRS_TEMPLATES = [
+    'reymonta' => [
+        'label' => 'Centrum Obywatelskie — ul. Reymonta 20', 'format' => 'docx',
+        'rooms' => ['1W040' => 'Szkoleniowo – konferencyjna 1W040', '1W014' => 'Sala konferencyjna „akwarium” 1W014', '1W038' => 'Sala mała 1W038'],
+    ],
+    'c10' => [
+        'label' => 'Centrum Obywatelskie Centrum C10 — os. Centrum C 10', 'format' => 'pdf',
+        'rooms' => ['2' => '2 (sala coworkingowa)', '6' => '6 (sala szkoleniowa)'],
+    ],
 ];
+
+/** Rodzaj podmiotu we wniosku C10. */
+const TI_ROOM_SRS_ENTITY_TYPES = ['ngo' => 'organizacja pozarządowa', 'grupa' => 'grupa nieformalna', 'mieszkaniec' => 'mieszkanka / mieszkaniec Krakowa'];
+
+/** Skąd złożono formularz/rezerwację. */
+const TI_ROOM_SRS_SOURCES = ['dyd' => 'Panel dydaktyka', 'szo' => 'SZO'];
+
+function tiRoomSrsSourceBadge(?string $source): string
+{
+    $s = $source === 'szo' ? 'szo' : 'dyd';
+    return '<span class="badge ' . ($s === 'szo' ? 'text-bg-dark' : 'text-bg-info') . '" title="Złożone z: ' . h(TI_ROOM_SRS_SOURCES[$s]) . '">'
+         . ($s === 'szo' ? 'SZO' : 'DYD') . '</span>';
+}
 
 /** Statusy SRS, które oznaczają salę zarezerwowaną u operatora. */
 const TI_ROOM_SRS_CONFIRMED = ['zgoda', 'rezerwacja'];
@@ -46,6 +72,8 @@ function tiRoomSrsMigrate(): void
         form_room   TEXT NOT NULL DEFAULT '',
         updated_at  TEXT
     )");
+    $cols = array_column(db_all("PRAGMA table_info(ti_room_srs_rooms)"), 'name');
+    if (!in_array('template', $cols, true)) db()->exec("ALTER TABLE ti_room_srs_rooms ADD COLUMN template TEXT NOT NULL DEFAULT ''");
     db()->exec("CREATE TABLE IF NOT EXISTS ti_room_srs_forms (
         id                 INTEGER PRIMARY KEY AUTOINCREMENT,
         course_id          INTEGER NOT NULL,
@@ -59,30 +87,74 @@ function tiRoomSrsMigrate(): void
         created_at         TEXT,
         updated_at         TEXT
     )");
-    db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_ti_room_srs_forms_key ON ti_room_srs_forms(course_id, room_id, date_from, date_to)");
+    $fcols = array_column(db_all("PRAGMA table_info(ti_room_srs_forms)"), 'name');
+    if (!in_array('source', $fcols, true)) db()->exec("ALTER TABLE ti_room_srs_forms ADD COLUMN source TEXT NOT NULL DEFAULT 'dyd'");
+    // Klucz grupa+sala+okres tylko dla formularzy grup — rezerwacji przestrzeni bez grupy (course_id=0) może być wiele.
+    db()->exec("DROP INDEX IF EXISTS ux_ti_room_srs_forms_key");
+    db()->exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_ti_room_srs_forms_course ON ti_room_srs_forms(course_id, room_id, date_from, date_to) WHERE course_id > 0");
     db()->exec("CREATE INDEX IF NOT EXISTS ix_ti_room_srs_forms_res ON ti_room_srs_forms(srs_reservation_id)");
+    db()->exec("CREATE TABLE IF NOT EXISTS ti_room_srs_bookers (
+        user_id    INTEGER PRIMARY KEY,
+        granted_by INTEGER,
+        created_at TEXT
+    )");
 }
 
-/* ── Sale TI ↔ zasoby SRS ─────────────────────────────────────────────────── */
+/* ── Uprawnienie „Może rezerwować” ────────────────────────────────────────── */
 
-/** Kod sali we wzorze odgadnięty z nazwy/skrótu/nazwy operatora sali TI („…1W40” → 1W040). */
-function tiRoomSrsGuessFormRoom(array $room): string
+/** Kierownik (dyd_is_staff) zawsze; pozostali — z nadanym uprawnieniem w Zespole. */
+function tiRoomSrsCanBook(int $userId, bool $isStaff): bool
 {
-    $hay = implode(' ', [$room['operator_label'] ?? '', $room['short_label'] ?? '', $room['name'] ?? '']);
-    if (preg_match('/1W0?(\d{2})\b/i', $hay, $m)) {
-        $code = '1W0' . $m[1];
-        if (isset(TI_ROOM_SRS_FORM_ROOMS[$code])) return $code;
-    }
-    return '';
+    if ($isStaff) return true;
+    if ($userId <= 0) return false;
+    tiRoomSrsMigrate();
+    return (bool)db_one("SELECT 1 FROM ti_room_srs_bookers WHERE user_id = ?", [$userId]);
 }
 
-/** Sale TI (aktywne) z przypisanym zasobem SRS i opcją wzoru (zapisaną albo odgadniętą). */
+/** @return int[] user_id z uprawnieniem. */
+function tiRoomSrsBookerIds(): array
+{
+    tiRoomSrsMigrate();
+    return array_map('intval', array_column(db_all("SELECT user_id FROM ti_room_srs_bookers"), 'user_id'));
+}
+
+function tiRoomSrsSetBooker(int $userId, bool $on, int $grantedBy): void
+{
+    tiRoomSrsMigrate();
+    if ($on) {
+        db_exec("INSERT OR IGNORE INTO ti_room_srs_bookers (user_id, granted_by, created_at) VALUES (?,?,datetime('now'))", [$userId, $grantedBy ?: null]);
+    } else {
+        db_exec("DELETE FROM ti_room_srs_bookers WHERE user_id = ?", [$userId]);
+    }
+}
+
+/* ── Sale TI ↔ wzory operatorów ↔ zasoby SRS ──────────────────────────────── */
+
+/** Wzór i opcja sali odgadnięte z nazwy/skrótu/nazwy operatora sali TI. @return array{0:string,1:string} */
+function tiRoomSrsGuessFormRoom(array $room): array
+{
+    $hay = mb_strtolower(implode(' ', [$room['operator_label'] ?? '', $room['short_label'] ?? '', $room['name'] ?? '',
+                                       $room['location'] ?? '', $room['building_name'] ?? '', $room['building_address'] ?? '']));
+    if (preg_match('/1w0?(\d{2})\b/u', $hay, $m) && isset(TI_ROOM_SRS_TEMPLATES['reymonta']['rooms']['1W0' . $m[1]])) {
+        return ['reymonta', '1W0' . $m[1]];
+    }
+    if (preg_match('/\bc\s?10\b/u', $hay)) {
+        if (str_contains($hay, 'cowork')) return ['c10', '2'];
+        if (str_contains($hay, 'szkol')) return ['c10', '6'];
+        return ['c10', ''];
+    }
+    if (str_contains($hay, 'reymonta')) return ['reymonta', ''];
+    return ['', ''];
+}
+
+/** Sale TI (aktywne) z wzorem, opcją wzoru (zapisaną albo odgadniętą) i zasobem SRS. */
 function tiRoomSrsRooms(): array
 {
     tiRoomSrsMigrate();
     $rows = db_all(
         "SELECT r.*, b.name AS building_name, b.address AS building_address,
-                m.resource_id, m.form_room AS saved_form_room, res.name AS resource_name, res.is_active AS resource_active
+                m.resource_id, m.form_room AS saved_form_room, m.template AS saved_template,
+                res.name AS resource_name, res.is_active AS resource_active
          FROM k30_pl_rooms r
          LEFT JOIN k30_pl_buildings b ON b.id = r.building_id
          LEFT JOIN ti_room_srs_rooms m ON m.room_id = r.id
@@ -91,7 +163,18 @@ function tiRoomSrsRooms(): array
          ORDER BY r.name"
     );
     foreach ($rows as &$r) {
-        $r['form_room'] = $r['saved_form_room'] !== null ? (string)$r['saved_form_room'] : tiRoomSrsGuessFormRoom($r);
+        if ($r['saved_template'] !== null && $r['saved_template'] !== '') {
+            $r['template'] = (string)$r['saved_template'];
+            $r['form_room'] = (string)$r['saved_form_room'];
+        } elseif ($r['saved_form_room'] !== null && $r['saved_form_room'] !== '') {
+            // zapis sprzed wielu wzorów — opcje 1W0xx to wzór Reymonta 20
+            $r['template'] = 'reymonta';
+            $r['form_room'] = (string)$r['saved_form_room'];
+        } else {
+            [$r['template'], $r['form_room']] = tiRoomSrsGuessFormRoom($r);
+        }
+        if (!isset(TI_ROOM_SRS_TEMPLATES[$r['template']])) { $r['template'] = ''; $r['form_room'] = ''; }
+        elseif (!isset(TI_ROOM_SRS_TEMPLATES[$r['template']]['rooms'][$r['form_room']])) $r['form_room'] = '';
     }
     unset($r);
     return $rows;
@@ -103,14 +186,23 @@ function tiRoomSrsRoom(int $roomId): ?array
     return null;
 }
 
-function tiRoomSrsSaveRoom(int $roomId, ?int $resourceId, string $formRoom): void
+/** Sale z przypisanym wzorem operatora — do rezerwacji przestrzeni. */
+function tiRoomSrsBookableRooms(): array
+{
+    return array_values(array_filter(tiRoomSrsRooms(), fn($r) => $r['template'] !== ''));
+}
+
+function tiRoomSrsSaveRoom(int $roomId, ?int $resourceId, string $template, string $formRoom): void
 {
     tiRoomSrsMigrate();
-    $formRoom = isset(TI_ROOM_SRS_FORM_ROOMS[$formRoom]) ? $formRoom : '';
+    $template = isset(TI_ROOM_SRS_TEMPLATES[$template]) ? $template : '';
+    $formRoom = $template !== '' && isset(TI_ROOM_SRS_TEMPLATES[$template]['rooms'][$formRoom]) ? $formRoom : '';
     db_exec(
-        "INSERT INTO ti_room_srs_rooms (room_id, resource_id, form_room, updated_at) VALUES (?,?,?,datetime('now'))
-         ON CONFLICT(room_id) DO UPDATE SET resource_id=excluded.resource_id, form_room=excluded.form_room, updated_at=excluded.updated_at",
-        [$roomId, $resourceId ?: null, $formRoom]
+        "INSERT INTO ti_room_srs_rooms (room_id, resource_id, template, form_room, updated_at) VALUES (?,?,?,?,datetime('now'))
+         ON CONFLICT(room_id) DO UPDATE SET resource_id=excluded.resource_id, template=excluded.template,
+                                            form_room=excluded.form_room, updated_at=excluded.updated_at",
+        // pusty wzór zapisujemy jako '-', żeby „spoza wzoru” nie było nadpisywane podpowiedzią z nazwy
+        [$roomId, $resourceId ?: null, $template !== '' ? $template : '-', $formRoom]
     );
 }
 
@@ -132,10 +224,12 @@ function tiRoomSrsCreateResource(int $roomId, int $userId): int
     $room = tiRoomSrsRoom($roomId);
     if (!$room) throw new RuntimeException('Nie ma takiej sali.');
     $cat = db_one("SELECT id FROM resource_categories WHERE name = 'Sala' ORDER BY id LIMIT 1");
+    $tpl = TI_ROOM_SRS_TEMPLATES[$room['template']] ?? null;
+    $name = $tpl && $room['form_room'] !== '' ? $tpl['rooms'][$room['form_room']] . ' — ' . explode(' — ', $tpl['label'])[0] : (string)$room['name'];
     // Bez res_save(): ta bierze autora z current_user(), które w sesji panelu dydaktyka jest puste (FK do users).
     $resId = db_insert('resources', [
         'category_id'       => $cat ? (int)$cat['id'] : null,
-        'name'              => $room['form_room'] !== '' ? TI_ROOM_SRS_FORM_ROOMS[$room['form_room']] : (string)$room['name'],
+        'name'              => $name,
         'description'       => 'Sala TI: ' . $room['name'],
         'location'          => trim(($room['building_name'] ?? '') . ', ' . ($room['building_address'] ?? ''), ', ') ?: (string)$room['location'],
         'operator_label'    => (string)($room['operator_label'] ?? ''),
@@ -148,22 +242,23 @@ function tiRoomSrsCreateResource(int $roomId, int $userId): int
         'created_at'        => date('Y-m-d H:i:s'),
         'updated_at'        => date('Y-m-d H:i:s'),
     ]);
-    tiRoomSrsSaveRoom($roomId, $resId, (string)$room['form_room']);
+    tiRoomSrsSaveRoom($roomId, $resId, (string)$room['template'], (string)$room['form_room']);
     return $resId;
 }
 
 /* ── Grupy z salą w okresie ───────────────────────────────────────────────── */
 
 /**
- * Pary grupa + sala w okresie [from, to] z terminami (bez odwołanych), do wygenerowania formularza.
- * @return array<int, array{course_id:int, room_id:int, course_name:string, room_label:string, date_from:string,
- *   date_to:string, count:int, pending:int, session_ids:int[], sessions:array, form:?array}>
+ * Pary grupa + sala w okresie [from, to] z terminami (bez odwołanych). $instructorId > 0 — tylko grupy, które ta osoba
+ * prowadzi (lekcja albo grupa), dla prowadzącego z uprawnieniem „Może rezerwować”.
  */
-function tiRoomSrsCandidates(string $from, string $to): array
+function tiRoomSrsCandidates(string $from, string $to, int $instructorId = 0): array
 {
     tiRoomSrsMigrate();
     $out = [];
     foreach (_ti_room_reservation_rows($from, $to) as $r) {
+        if ($instructorId && (int)($r['instructor_id'] ?: $r['course_instructor_id']) !== $instructorId
+            && !k30_ti_instructor_owns_course($instructorId, (int)$r['course_id'])) continue;
         $k = $r['course_id'] . '|' . $r['room_id'];
         $out[$k] ??= [
             'course_id' => (int)$r['course_id'], 'room_id' => (int)$r['room_id'],
@@ -193,6 +288,13 @@ function tiRoomSrsSessions(int $courseId, int $roomId, string $from, string $to)
         fn($r) => (int)$r['course_id'] === $courseId && (int)$r['room_id'] === $roomId));
 }
 
+/** „termin” w liczbie: 1 termin, 2–4 terminy, 5+ terminów (12–14 terminów). */
+function tiRoomSrsTermWord(int $n): string
+{
+    if ($n === 1) return 'termin';
+    return ($n % 10 >= 2 && $n % 10 <= 4 && ($n % 100 < 12 || $n % 100 > 14)) ? 'terminy' : 'terminów';
+}
+
 /**
  * Linie pola „Termin rezerwacji wraz ze wskazaniem godzin”: jedna linia na dzień tygodnia + godziny,
  * z wszystkimi datami (operator dostaje konkretne dni, nie „co tydzień”).
@@ -217,13 +319,6 @@ function tiRoomSrsTermLines(array $sessions): array
                  . ' (' . count($dates) . ' ' . tiRoomSrsTermWord(count($dates)) . ')';
     }
     return $lines;
-}
-
-/** „termin” w liczbie: 1 termin, 2–4 terminy, 5+ terminów (12–14 terminów). */
-function tiRoomSrsTermWord(int $n): string
-{
-    if ($n === 1) return 'termin';
-    return ($n % 10 >= 2 && $n % 10 <= 4 && ($n % 100 < 12 || $n % 100 > 14)) ? 'terminy' : 'terminów';
 }
 
 /* ── Uczestnicy i małoletni ───────────────────────────────────────────────── */
@@ -282,7 +377,43 @@ function tiRoomSrsInstructor(array $sessions): ?array
     }
     if (!$cnt) return null;
     arsort($cnt);
-    return db_one("SELECT id, name, first_name, last_name, email, phone_number FROM users WHERE id = ?", [array_key_first($cnt)]);
+    return tiRoomSrsPerson((int)array_key_first($cnt));
+}
+
+function tiRoomSrsPerson(int $userId): ?array
+{
+    return db_one("SELECT id, name, first_name, last_name, email, phone_number FROM users WHERE id = ?", [$userId]);
+}
+
+/** Wspólne pola: organizacja z ustawień i osoba odpowiedzialna (PESEL/adres zawsze puste). */
+function tiRoomSrsBaseData(?array $person): array
+{
+    $org = ti_org_contact_info();
+    $first = trim((string)($person['first_name'] ?? ''));
+    $last  = trim((string)($person['last_name'] ?? ''));
+    if ($person && ($first === '' || $last === '')) {
+        $parts = preg_split('/\s+/u', trim((string)$person['name']));
+        $last = $last !== '' ? $last : (string)array_pop($parts);
+        $first = $first !== '' ? $first : implode(' ', $parts);
+    }
+    $krs = trim((string)org_setting('org_krs'));
+    return [
+        'room' => '', 'terms' => '',
+        'orgName' => $org['name'], 'orgAddress' => $org['address'], 'orgPhone' => $org['phone'], 'orgEmail' => $org['email'],
+        'orgKrs' => $krs !== '' ? 'KRS ' . $krs : '', 'entityType' => 'ngo', 'newsletter' => '',
+        'purpose' => 'wydarzenie', 'topic' => '', 'participants' => '', 'minors' => 'nie', 'statement' => 'nie_dotyczy',
+        'firstName' => $first, 'lastName' => $last, 'address' => '', 'pesel' => '',
+        'phone' => (string)($person['phone_number'] ?? ''), 'email' => (string)($person['email'] ?? ''), 'equipment' => '',
+    ];
+}
+
+/** Nakłada zapisane dane formularza (bez terminów, PESEL-u i adresu). */
+function tiRoomSrsMergeSaved(array $data, ?array $form, array $keepFresh = ['terms']): array
+{
+    if (!$form) return $data;
+    $saved = json_decode((string)$form['form_data'], true) ?: [];
+    foreach (array_merge($keepFresh, ['pesel', 'address']) as $k) unset($saved[$k]);
+    return array_merge($data, array_intersect_key($saved, $data));
 }
 
 /**
@@ -296,67 +427,78 @@ function tiRoomSrsDefaults(int $courseId, int $roomId, string $from, string $to)
     $room = tiRoomSrsRoom($roomId);
     if (!$course || !$room) throw new RuntimeException('Nie ma takiej grupy albo sali.');
     $sessions = tiRoomSrsSessions($courseId, $roomId, $from, $to);
-    $org = ti_org_contact_info();
     $pp = tiRoomSrsParticipants($courseId, $sessions ? (string)$sessions[0]['lesson_date'] : $from);
     $instr = tiRoomSrsInstructor($sessions);
-
-    $first = trim((string)($instr['first_name'] ?? ''));
-    $last  = trim((string)($instr['last_name'] ?? ''));
-    if ($instr && ($first === '' || $last === '')) {
-        $parts = preg_split('/\s+/u', trim((string)$instr['name']));
-        $last = $last !== '' ? $last : (string)array_pop($parts);
-        $first = $first !== '' ? $first : implode(' ', $parts);
-    }
 
     $name = trim((string)($course['display_name'] ?: $course['name']));
     $desc = trim(preg_replace('/\s+/u', ' ', strip_tags((string)$course['description'])));
     if (mb_strlen($desc) > 600) $desc = mb_substr($desc, 0, 597) . '…';
 
-    $data = [
+    $data = array_merge(tiRoomSrsBaseData($instr), [
         'room'         => (string)$room['form_room'],
         'terms'        => implode("\n", tiRoomSrsTermLines($sessions)),
-        'orgName'      => $org['name'],
-        'orgAddress'   => $org['address'],
-        'orgPhone'     => $org['phone'],
-        'orgEmail'     => $org['email'],
-        'purpose'      => 'wydarzenie',
         'topic'        => 'Zajęcia grupy „' . $name . '”' . ($desc !== '' ? ' — ' . $desc : ''),
         'participants' => (string)$pp['count'],
         'minors'       => $pp['minors'] > 0 ? 'tak' : 'nie',
         'statement'    => $pp['minors'] > 0 ? 'tak' : 'nie_dotyczy',
-        'firstName'    => $first,
-        'lastName'     => $last,
-        'address'      => '',
-        'pesel'        => '',
-        'phone'        => (string)($instr['phone_number'] ?? ''),
-        'email'        => (string)($instr['email'] ?? ''),
-        'equipment'    => '',
+    ]);
+    $form = tiRoomSrsFormFind($courseId, $roomId, $from, $to);
+    return [
+        'data' => tiRoomSrsMergeSaved($data, $form),
+        'meta' => ['course' => $course, 'room' => $room, 'sessions' => $sessions, 'participants' => $pp, 'instructor' => $instr, 'form' => $form],
     ];
-    $meta = [
-        'course' => $course, 'room' => $room, 'sessions' => $sessions, 'participants' => $pp, 'instructor' => $instr,
-        'form' => tiRoomSrsFormFind($courseId, $roomId, $from, $to),
-    ];
-    if ($meta['form']) {
-        $saved = json_decode((string)$meta['form']['form_data'], true) ?: [];
-        // Terminy zawsze świeże (lekcje mogły się zmienić); reszta — jak zapisano.
-        unset($saved['terms'], $saved['pesel'], $saved['address']);
-        $data = array_merge($data, array_intersect_key($saved, $data));
-    }
-    return ['data' => $data, 'meta' => $meta];
 }
 
-/** Dane z POST-u formularza (przycięte, opcje z dozwolonych wartości). */
-function tiRoomSrsDataFromPost(array $p): array
+/**
+ * Rezerwacja przestrzeni bez grupy (np. konsultacje, spotkanie): sala, dzień, godziny. Osoba odpowiedzialna = $userId.
+ * $formId > 0 — edycja zapisanej rezerwacji (sala, dzień i godziny z zapisu, chyba że podano nowe).
+ */
+function tiRoomSrsAdhocDefaults(int $roomId, string $date, string $tf, string $tt, int $userId, int $formId = 0): array
+{
+    tiRoomSrsMigrate();
+    $form = $formId ? tiRoomSrsFormGet($formId) : null;
+    if ($form && (int)$form['course_id'] !== 0) $form = null;
+    $saved = $form ? (json_decode((string)$form['form_data'], true) ?: []) : [];
+    if ($form) {
+        $roomId = $roomId ?: (int)$form['room_id'];
+        $date = $date !== '' ? $date : (string)$form['date_from'];
+        $tf = $tf !== '' ? $tf : (string)($saved['timeFrom'] ?? '');
+        $tt = $tt !== '' ? $tt : (string)($saved['timeTo'] ?? '');
+    }
+    $room = tiRoomSrsRoom($roomId);
+    $data = array_merge(tiRoomSrsBaseData($form ? tiRoomSrsPerson((int)$form['created_by']) : tiRoomSrsPerson($userId)), [
+        'room'  => (string)($room['form_room'] ?? ''),
+        'terms' => $date !== '' && $tf !== '' && $tt !== ''
+            ? TI_DAYS_PL_FULL[(int)date('N', strtotime($date))] . ', ' . date('d.m.Y', strtotime($date)) . ', ' . $tf . '–' . $tt : '',
+        'purpose' => 'wydarzenie',
+    ]);
+    $data = tiRoomSrsMergeSaved($data, $form, ['terms', 'room']);
+    if ($form && $roomId === (int)$form['room_id'] && (string)($saved['room'] ?? '') !== '') $data['room'] = (string)$saved['room'];
+    $conflicts = [];
+    if ($room && $date !== '' && $tf !== '' && $tt !== '') {
+        foreach (pl_room_availability($roomId, $date, $tf, $tt) as $c) {
+            $cn = db_one("SELECT name FROM k30_ti_courses WHERE id = ?", [(int)$c['course_id']]);
+            $conflicts[] = 'zajęcia TI „' . ($cn['name'] ?? '?') . '” ' . substr((string)$c['time_from'], 0, 5) . '–' . substr((string)$c['time_to'], 0, 5);
+        }
+    }
+    return ['data' => $data, 'meta' => ['room' => $room, 'form' => $form, 'date' => $date, 'timeFrom' => $tf, 'timeTo' => $tt, 'conflicts' => $conflicts]];
+}
+
+/** Dane z POST-u formularza (przycięte, opcje z dozwolonych wartości wzoru sali). */
+function tiRoomSrsDataFromPost(array $p, string $template): array
 {
     $s = fn($k, $max = 500) => mb_substr(trim((string)($p[$k] ?? '')), 0, $max);
     $opt = fn($k, array $allowed) => in_array($p[$k] ?? '', $allowed, true) ? (string)$p[$k] : '';
     return [
-        'room'         => $opt('room', array_keys(TI_ROOM_SRS_FORM_ROOMS)),
+        'room'         => $opt('room', array_map('strval', array_keys(TI_ROOM_SRS_TEMPLATES[$template]['rooms'] ?? []))),
         'terms'        => $s('terms', 4000),
         'orgName'      => $s('orgName'),
         'orgAddress'   => $s('orgAddress'),
         'orgPhone'     => $s('orgPhone', 60),
         'orgEmail'     => $s('orgEmail', 200),
+        'orgKrs'       => $s('orgKrs', 100),
+        'entityType'   => $opt('entityType', array_keys(TI_ROOM_SRS_ENTITY_TYPES)),
+        'newsletter'   => !empty($p['newsletter']) ? '1' : '',
         'purpose'      => $opt('purpose', ['coworking', 'wydarzenie']),
         'topic'        => $s('topic', 2000),
         'participants' => $s('participants', 20),
@@ -372,18 +514,26 @@ function tiRoomSrsDataFromPost(array $p): array
     ];
 }
 
-/** Dane w kształcie RoomFormDocx::render() (terminy jako linie). */
-function tiRoomSrsDocxData(array $data): array
+/**
+ * Plik formularza dla wzoru sali. @return array{bin:string, mime:string, ext:string}
+ */
+function tiRoomSrsRender(string $template, array $data): array
 {
     $data['terms'] = preg_split('/\R/u', (string)$data['terms']);
-    return $data;
+    if ($template === 'c10') {
+        return ['bin' => RoomFormC10Pdf::render($data), 'mime' => 'application/pdf', 'ext' => 'pdf'];
+    }
+    if ($template === 'reymonta') {
+        return ['bin' => RoomFormDocx::render($data), 'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'ext' => 'docx'];
+    }
+    throw new RuntimeException('Sala nie ma przypisanego wzoru formularza operatora — ustaw go w przypisaniu sal.');
 }
 
 /* ── Zapisane formularze i rezerwacje SRS ─────────────────────────────────── */
 
 function tiRoomSrsFormFind(int $courseId, int $roomId, string $from, string $to): ?array
 {
-    return db_one("SELECT * FROM ti_room_srs_forms WHERE course_id=? AND room_id=? AND date_from=? AND date_to=?",
+    return db_one("SELECT * FROM ti_room_srs_forms WHERE course_id=? AND room_id=? AND date_from=? AND date_to=? AND course_id > 0",
         [$courseId, $roomId, $from, $to]);
 }
 
@@ -399,61 +549,110 @@ function tiRoomSrsFormByReservation(int $reservationId): ?array
     return db_one("SELECT * FROM ti_room_srs_forms WHERE srs_reservation_id = ? ORDER BY id DESC LIMIT 1", [$reservationId]);
 }
 
+/** Rezerwacje przestrzeni bez grupy: wszystkie (kierownik) albo własne, od $from. */
+function tiRoomSrsAdhocList(int $userId, bool $all, string $from): array
+{
+    tiRoomSrsMigrate();
+    return db_all(
+        "SELECT f.*, r.name AS room_name, r.short_label AS room_short_label, u.name AS user_name, rr.status AS srs_status
+         FROM ti_room_srs_forms f
+         JOIN k30_pl_rooms r ON r.id = f.room_id
+         LEFT JOIN users u ON u.id = f.created_by
+         LEFT JOIN resource_reservations rr ON rr.id = f.srs_reservation_id
+         WHERE f.course_id = 0 AND f.date_to >= ?" . ($all ? '' : ' AND f.created_by = ?') . "
+         ORDER BY f.date_from, f.id",
+        $all ? [$from] : [$from, $userId]
+    );
+}
+
 /**
- * Zapisuje formularz (bez PESEL-u i adresu zamieszkania) i — gdy $withSrs i sala ma zasób SRS — zakłada albo
+ * Zapisuje formularz grupy (bez PESEL-u i adresu zamieszkania) i — gdy $withSrs i sala ma zasób SRS — zakłada albo
  * aktualizuje rezerwację w SRS. Zwraca id formularza.
  */
-function tiRoomSrsSave(int $courseId, int $roomId, string $from, string $to, array $data, int $userId, bool $withSrs): int
+function tiRoomSrsSave(int $courseId, int $roomId, string $from, string $to, array $data, int $userId, bool $withSrs, string $source = 'dyd'): int
 {
     tiRoomSrsMigrate();
     $sessions = tiRoomSrsSessions($courseId, $roomId, $from, $to);
     if (!$sessions) throw new RuntimeException('Grupa nie ma terminów w tej sali w wybranym okresie.');
     $ids = array_map(fn($s) => (int)$s['id'], $sessions);
-    $stored = $data;
-    unset($stored['pesel'], $stored['address']);
-    $json = json_encode($stored, JSON_UNESCAPED_UNICODE);
+    $json = tiRoomSrsStoredJson($data);
 
     $form = tiRoomSrsFormFind($courseId, $roomId, $from, $to);
     if ($form) {
-        db_exec("UPDATE ti_room_srs_forms SET session_ids=?, form_data=?, updated_at=datetime('now') WHERE id=?",
-            [json_encode($ids), $json, (int)$form['id']]);
+        db_exec("UPDATE ti_room_srs_forms SET session_ids=?, form_data=?, source=?, updated_at=datetime('now') WHERE id=?",
+            [json_encode($ids), $json, $source, (int)$form['id']]);
         $formId = (int)$form['id'];
     } else {
         $formId = db_insert('ti_room_srs_forms', [
             'course_id' => $courseId, 'room_id' => $roomId, 'date_from' => $from, 'date_to' => $to,
-            'session_ids' => json_encode($ids), 'form_data' => $json, 'created_by' => $userId ?: null,
+            'session_ids' => json_encode($ids), 'form_data' => $json, 'created_by' => $userId ?: null, 'source' => $source,
             'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
         ]);
     }
-    if ($withSrs) tiRoomSrsUpsertReservation($formId, $sessions, $userId);
+    if ($withSrs) {
+        $course = db_one("SELECT name, display_name FROM k30_ti_courses WHERE id = ?", [$courseId]);
+        $purpose = 'TI — zajęcia grupy „' . trim((string)($course['display_name'] ?: $course['name'])) . '” ('
+                 . count($sessions) . ' ' . tiRoomSrsTermWord(count($sessions)) . ').' . "\n" . implode("\n", tiRoomSrsTermLines($sessions));
+        tiRoomSrsUpsertReservation($formId, $from, $to,
+            min(array_map(fn($s) => substr((string)$s['time_from'], 0, 5), $sessions)),
+            max(array_map(fn($s) => substr((string)$s['time_to'], 0, 5), $sessions)), $purpose, $userId, $source);
+    }
     return $formId;
+}
+
+/** Zapisuje rezerwację przestrzeni bez grupy (nową albo $formId) i — gdy $withSrs — rezerwację w SRS. */
+function tiRoomSrsSaveAdhoc(int $formId, int $roomId, string $date, string $tf, string $tt, array $data, int $userId, bool $withSrs, string $source = 'dyd'): int
+{
+    tiRoomSrsMigrate();
+    if (!tiRoomSrsRoom($roomId)) throw new RuntimeException('Wybierz salę.');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !preg_match('/^\d{2}:\d{2}$/', $tf) || !preg_match('/^\d{2}:\d{2}$/', $tt) || $tf >= $tt) {
+        throw new RuntimeException('Podaj dzień i godziny (od wcześniejszej do późniejszej).');
+    }
+    $json = tiRoomSrsStoredJson($data + ['timeFrom' => $tf, 'timeTo' => $tt]);
+    $form = $formId ? tiRoomSrsFormGet($formId) : null;
+    if ($form && (int)$form['course_id'] === 0) {
+        db_exec("UPDATE ti_room_srs_forms SET room_id=?, date_from=?, date_to=?, form_data=?, source=?, updated_at=datetime('now') WHERE id=?",
+            [$roomId, $date, $date, $json, $source, $formId]);
+    } else {
+        $formId = db_insert('ti_room_srs_forms', [
+            'course_id' => 0, 'room_id' => $roomId, 'date_from' => $date, 'date_to' => $date, 'session_ids' => '[]',
+            'form_data' => $json, 'created_by' => $userId ?: null, 'source' => $source,
+            'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+    if ($withSrs) {
+        $purpose = 'Rezerwacja przestrzeni (' . TI_ROOM_SRS_SOURCES[$source === 'szo' ? 'szo' : 'dyd'] . '): ' . ($data['topic'] !== '' ? $data['topic'] : 'spotkanie') . "\n" . $data['terms'];
+        tiRoomSrsUpsertReservation($formId, $date, $date, $tf, $tt, $purpose, $userId, $source);
+    }
+    return $formId;
+}
+
+/** form_data bez PESEL-u i adresu zamieszkania. */
+function tiRoomSrsStoredJson(array $data): string
+{
+    unset($data['pesel'], $data['address']);
+    return (string)json_encode($data, JSON_UNESCAPED_UNICODE);
 }
 
 /**
  * Rezerwacja SRS dla formularza: nowa (status wg requires_approval zasobu, wpis w historii, powiadomienia SRS)
- * albo aktualizacja terminów istniejącej, jeśli nie jest odrzucona/anulowana.
+ * albo aktualizacja terminów istniejącej, jeśli nie jest odrzucona/anulowana. null — sala bez aktywnego zasobu SRS.
  */
-function tiRoomSrsUpsertReservation(int $formId, array $sessions, int $userId): ?int
+function tiRoomSrsUpsertReservation(int $formId, string $from, string $to, string $tf, string $tt, string $purpose, int $userId, string $source = 'dyd'): ?int
 {
     $form = tiRoomSrsFormGet($formId);
     $room = $form ? tiRoomSrsRoom((int)$form['room_id']) : null;
     $resourceId = (int)($room['resource_id'] ?? 0);
     if (!$form || !$resourceId || !(int)($room['resource_active'] ?? 0)) return null;
-
-    $course = db_one("SELECT name, display_name FROM k30_ti_courses WHERE id = ?", [(int)$form['course_id']]);
     $data = json_decode((string)$form['form_data'], true) ?: [];
-    $tf = min(array_map(fn($s) => substr((string)$s['time_from'], 0, 5), $sessions));
-    $tt = max(array_map(fn($s) => substr((string)$s['time_to'], 0, 5), $sessions));
-    $purpose = 'TI — zajęcia grupy „' . trim((string)($course['display_name'] ?: $course['name'])) . '” ('
-             . count($sessions) . ' term.).' . "\n" . implode("\n", tiRoomSrsTermLines($sessions))
-             . "\nLiczba uczestników: " . ($data['participants'] ?? '?')
-             . "\nFormularz rezerwacji sali: Panel dydaktyka › Formularze rezerwacji sal.";
+    $purpose .= "\nLiczba uczestników: " . (($data['participants'] ?? '') !== '' ? $data['participants'] : '?')
+              . "\nZłożone z: " . TI_ROOM_SRS_SOURCES[$source === 'szo' ? 'szo' : 'dyd'] . ' (Formularze rezerwacji sal).';
 
     $existing = (int)$form['srs_reservation_id'] ? db_one("SELECT id, status FROM resource_reservations WHERE id = ?", [(int)$form['srs_reservation_id']]) : null;
     if ($existing && !in_array($existing['status'], ['odmowa', 'anulowana'], true)) {
-        db_exec("UPDATE resource_reservations SET resource_id=?, date_from=?, date_to=?, time_from=?, time_to=?, purpose=?, updated_at=datetime('now') WHERE id=?",
-            [$resourceId, $form['date_from'], $form['date_to'], $tf, $tt, $purpose, (int)$existing['id']]);
-        res_log((int)$existing['id'], $userId, (string)$existing['status'], (string)$existing['status'], 'Zaktualizowano terminy z formularza TI');
+        db_exec("UPDATE resource_reservations SET resource_id=?, date_from=?, date_to=?, time_from=?, time_to=?, purpose=?, extra_fields=?, updated_at=datetime('now') WHERE id=?",
+            [$resourceId, $from, $to, $tf, $tt, $purpose, json_encode(['ti_room_srs_form_id' => $formId, 'source' => $source]), (int)$existing['id']]);
+        res_log((int)$existing['id'], $userId, (string)$existing['status'], (string)$existing['status'], 'Zaktualizowano z formularza rezerwacji sali (TI)');
         tiRoomSrsSyncFromSrs((int)$existing['id'], (string)$existing['status']);
         return (int)$existing['id'];
     }
@@ -462,12 +661,12 @@ function tiRoomSrsUpsertReservation(int $formId, array $sessions, int $userId): 
     $status = !empty($resource['requires_approval']) ? 'pending_admin' : 'rezerwacja';
     $resId = db_insert('resource_reservations', [
         'resource_id' => $resourceId, 'user_id' => $userId,
-        'date_from' => $form['date_from'], 'date_to' => $form['date_to'], 'time_from' => $tf, 'time_to' => $tt,
-        'purpose' => $purpose, 'extra_fields' => json_encode(['ti_room_srs_form_id' => $formId]),
+        'date_from' => $from, 'date_to' => $to, 'time_from' => $tf, 'time_to' => $tt,
+        'purpose' => $purpose, 'extra_fields' => json_encode(['ti_room_srs_form_id' => $formId, 'source' => $source]),
         'status' => $status, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
     ]);
     db_exec("UPDATE ti_room_srs_forms SET srs_reservation_id=? WHERE id=?", [$resId, $formId]);
-    res_log($resId, $userId, '', $status, 'Wniosek z formularza rezerwacji sali TI');
+    res_log($resId, $userId, '', $status, 'Wniosek z formularza rezerwacji sali (TI)');
     try { res_notify_event($resId, $status); } catch (Throwable $e) { error_log('ti_room_srs notify: ' . $e->getMessage()); }
     tiRoomSrsSyncFromSrs($resId, $status);
     return $resId;

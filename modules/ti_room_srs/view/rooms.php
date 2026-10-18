@@ -1,20 +1,22 @@
 <?php
 /**
- * modules/ti_room_srs/view/rooms.php — przypisanie sal TI do zasobów SRS i opcji „Sala” we wzorze operatora.
+ * modules/ti_room_srs/view/rooms.php — przypisanie sal TI do wzoru operatora (Reymonta 20 / Centrum C10), opcji „Sala”
+ * w tym wzorze i zasobu SRS.
  * Zmienne: $me, $rooms (tiRoomSrsRooms()), $resources (tiRoomSrsResources()). Kontroler: RoomSrsController::rooms.
  */
-$title = 'Sale TI ↔ SRS';
+$title = 'Sale TI ↔ wzory ↔ SRS';
 include __DIR__ . '/_head.php';
 ?>
 <nav aria-label="breadcrumb"><ol class="breadcrumb small">
   <li class="breadcrumb-item"><a href="<?= h(route('trs.index')) ?>">Formularze rezerwacji sal</a></li>
-  <li class="breadcrumb-item active" aria-current="page">Sale ↔ SRS</li>
+  <li class="breadcrumb-item active" aria-current="page">Sale ↔ wzory ↔ SRS</li>
 </ol></nav>
-<h1 class="h4 fw-bold mb-1"><i class="bi bi-link-45deg text-primary me-2" aria-hidden="true"></i>Sale TI ↔ zasoby SRS</h1>
+<h1 class="h4 fw-bold mb-1"><i class="bi bi-link-45deg text-primary me-2" aria-hidden="true"></i>Sale TI ↔ wzory operatorów ↔ zasoby SRS</h1>
 <p class="text-body-secondary small mb-3">
   Zasób SRS to sala w Systemie Rezerwacji Sal — do niego trafiają rezerwacje z formularzy, a jego akceptacja potwierdza
-  terminy lekcji. „Opcja we wzorze” to sala zaznaczana w formularzu operatora (Centrum Obywatelskie, Reymonta 20);
-  podpowiadamy ją z nazwy sali. Brakującą salę (np. 1W014 „akwarium”) dodaj najpierw w <a href="sale.php">wykazie sal</a>.
+  terminy lekcji. „Wzór i sala we wzorze” — który formularz operatora wypełniamy (Reymonta 20 — DOCX, Centrum C10 — PDF)
+  i którą salę w nim zaznaczamy; podpowiadamy z nazwy sali. Brakującą salę (np. 1W014 „akwarium”, sale C10) dodaj
+  najpierw w wykazie sal panelu dydaktyka (Sale / lokalizacje).
 </p>
 <?php if (!$rooms): ?>
 <div class="card"><div class="card-body text-center text-body-secondary py-4">Brak aktywnych sal TI.</div></div>
@@ -22,7 +24,7 @@ include __DIR__ . '/_head.php';
 <form method="post" action="<?= h(route('trs.rooms.save')) ?>">
   <?= Router::csrfField() ?>
   <div class="table-responsive"><table class="table table-sm align-middle">
-    <thead class="table-light"><tr><th scope="col">Sala TI</th><th scope="col">Opcja we wzorze</th><th scope="col">Zasób SRS</th></tr></thead>
+    <thead class="table-light"><tr><th scope="col">Sala TI</th><th scope="col">Wzór i sala we wzorze</th><th scope="col">Zasób SRS</th></tr></thead>
     <tbody>
     <?php foreach ($rooms as $r): $id = (int)$r['id']; ?>
       <tr>
@@ -30,9 +32,14 @@ include __DIR__ . '/_head.php';
           <div class="text-muted"><?= h((string)$r['name']) ?><?= $r['operator_label'] ? ' · operator: ' . h((string)$r['operator_label']) : '' ?></div></td>
         <td>
           <label class="visually-hidden" for="fr<?= $id ?>">Opcja we wzorze dla sali <?= h((string)$r['name']) ?></label>
-          <select class="form-select form-select-sm" id="fr<?= $id ?>" name="rooms[<?= $id ?>][form_room]">
-            <option value="">— spoza wzoru —</option>
-            <?php foreach (TI_ROOM_SRS_FORM_ROOMS as $k => $l): ?><option value="<?= h($k) ?>" <?= $r['form_room'] === $k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?>
+          <select class="form-select form-select-sm" id="fr<?= $id ?>" name="rooms[<?= $id ?>][form]">
+            <option value="">— bez wzoru operatora —</option>
+            <?php foreach (TI_ROOM_SRS_TEMPLATES as $tk => $t): ?>
+            <optgroup label="<?= h($t['label']) ?>">
+              <option value="<?= h($tk) ?>:" <?= $r['template'] === $tk && $r['form_room'] === '' ? 'selected' : '' ?>><?= h(explode(' — ', $t['label'])[0]) ?> — sala do wyboru w formularzu</option>
+              <?php foreach ($t['rooms'] as $k => $l): ?><option value="<?= h($tk . ':' . $k) ?>" <?= $r['template'] === $tk && $r['form_room'] === (string)$k ? 'selected' : '' ?>><?= h($l) ?></option><?php endforeach; ?>
+            </optgroup>
+            <?php endforeach; ?>
           </select>
         </td>
         <td>

@@ -373,6 +373,11 @@ function _menu_editor(): array {
     if ($cnt['has_kdok'])
         $fin[] = _mi('EOD Dok. Księgowych (archiwum)','/ksiegowosc/index.php','bi-archive',['match'=>'/ksiegowosc/index','kw'=>'księgowość faktury dokumenty kdok archiwum']);
     $fin[] = _mi('Zasoby','/modules/srs/','bi-box-seam',['match'=>'/modules/srs/','badge'=>$cnt['res'],'kw'=>'zasoby rezerwacje sprzęt srs']);
+    // Formularze rezerwacji sal operatorów (modules/ti_room_srs): administrator / zapis w SRS / uprawnienie „Może rezerwować”
+    $_trs_book = is_admin() || can_write('srs');
+    if (!$_trs_book) { try { $_trs_book = (bool)db_one("SELECT 1 FROM ti_room_srs_bookers WHERE user_id=?", [(int)(current_user()['id'] ?? 0)]); } catch (Throwable $e) {} }
+    if ($_trs_book)
+        $fin[] = _mi('Rezerwuj przestrzeń','/modules/ti_room_srs/router.php','bi-door-open',['match'=>'/modules/ti_room_srs/','kw'=>'rezerwacja sali przestrzeń formularz wniosek centrum obywatelskie reymonta c10 operator srs']);
     if (module_enabled('holograms_enabled') && in_array(current_user()['role'] ?? '', ['admin','editor'], true))
         $fin[] = _mi('Hologramy','/modules/holograms/index.php','bi-patch-check',['match'=>'/modules/holograms/','kw'=>'hologramy naklejki zabezpieczające plomby sprzęt dokumenty']);
     if (module_enabled('smart_cards_enabled') && in_array(current_user()['role'] ?? '', ['admin','editor'], true))
