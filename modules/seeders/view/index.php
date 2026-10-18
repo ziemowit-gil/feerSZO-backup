@@ -50,6 +50,23 @@ $kindCls = ['preview' => 'sdr-btn', 'apply' => 'sdr-btn sdr-btn--apply', 'danger
 .sdr-res-st{margin-left:auto;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--k,#5f5f5f);padding:.2rem .5rem}
 .sdr-pre{margin:0;max-height:420px;overflow:auto;background:#1d1d1d;color:#e6e6e6;font-size:.78rem;line-height:1.45;padding:.8rem 1rem;white-space:pre-wrap;word-break:break-word}
 .sdr details>summary{cursor:pointer;color:#003bb0;font-weight:600;margin:0 0 .5rem}
+/* Menu boczne: wszystkie seedery w grupach, przyklejone; na wąskim ekranie zostaje pasek grup u góry */
+.sdr-layout{display:grid;gap:2rem;grid-template-columns:260px minmax(0,1fr);align-items:start}
+.sdr-side{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto;border-right:1px solid #e1e1e1;padding:0 .75rem 1rem 0}
+.sdr-side-f{width:100%;border:2px solid #8a8a8a;padding:.35rem .5rem;font:inherit;font-size:.88rem;margin:0 0 .75rem;background:#fff;color:#1d1d1d}
+.sdr-side-f:focus{border-color:#0050ef;outline:0}
+.sdr-side h2{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#5f5f5f;margin:.9rem 0 .25rem;padding-left:.6rem;border-left:4px solid var(--k,#5f5f5f)}
+.sdr-side ul{list-style:none;margin:0;padding:0}
+.sdr-side a{display:block;padding:.3rem .6rem;color:#1d1d1d;text-decoration:none;font-size:.86rem;border-left:4px solid transparent}
+.sdr-side a:hover{background:#f2f2f2}
+.sdr-side a[aria-current="true"]{background:#f2f2f2;border-left-color:var(--k,#0050ef);font-weight:600}
+.sdr-side a:focus-visible{outline:3px solid #fbbf24;outline-offset:-3px}
+.sdr-side-res{display:block;padding:.35rem .6rem;margin:0 0 .25rem;font-weight:600;font-size:.86rem;color:#1d1d1d;text-decoration:none;background:#f2f2f2}
+.sdr-none{display:none;color:#5f5f5f;font-size:.84rem;padding:.3rem .6rem}
+.sdr-card.is-hidden,.sdr-side li.is-hidden,.sdr-group.is-hidden,.sdr-side section.is-hidden{display:none}
+.sdr-card:target{outline:3px solid #fbbf24;outline-offset:2px}
+@media (min-width:961px){.sdr-nav{display:none}}
+@media (max-width:960px){.sdr-layout{display:block}.sdr-side{display:none}}
 </style>
 
 <div class="sdr">
@@ -70,6 +87,26 @@ $kindCls = ['preview' => 'sdr-btn', 'apply' => 'sdr-btn sdr-btn--apply', 'danger
     <?php if ($last): ?><a href="#wynik">Ostatni wynik</a><?php endif; ?>
     <?php foreach (array_keys($groups) as $g): ?><a href="#g-<?= h(md5($g)) ?>"><?= h($g) ?></a><?php endforeach; ?>
   </nav>
+
+  <?php $gColors = ['#0050ef', '#00807e', '#c0006a', '#6a00ff', '#c25100']; ?>
+  <div class="sdr-layout">
+  <aside class="sdr-side" aria-label="Menu seederów">
+    <label class="visually-hidden" for="sdr-q">Szukaj seedera</label>
+    <input type="search" id="sdr-q" class="sdr-side-f" placeholder="Szukaj seedera…" autocomplete="off">
+    <?php if ($last): ?><a class="sdr-side-res" href="#wynik"><i class="bi bi-terminal" aria-hidden="true"></i> Ostatni wynik</a><?php endif; ?>
+    <?php $gi = 0; foreach ($groups as $gName => $items): $gk = $gColors[$gi++ % count($gColors)]; ?>
+    <section style="--k:<?= $gk ?>" data-sdr-menu-group>
+      <h2><a href="#g-<?= h(md5($gName)) ?>" style="padding:0;border:0;color:inherit;display:inline"><?= h($gName) ?></a></h2>
+      <ul>
+        <?php foreach ($items as $key => $e): ?>
+        <li data-sdr-find="<?= h(mb_strtolower($e['title'] . ' ' . $e['script'] . ' ' . $e['desc'] . ' ' . $gName, 'UTF-8')) ?>"><a href="#s-<?= h($key) ?>" data-sdr-link="s-<?= h($key) ?>"><?= h($e['title']) ?></a></li>
+        <?php endforeach; ?>
+      </ul>
+    </section>
+    <?php endforeach; ?>
+    <p class="sdr-none" id="sdr-none" role="status">Brak pasujących seederów.</p>
+  </aside>
+  <div class="sdr-main">
 
   <?php if ($history): ?>
   <section class="sdr-out" id="wynik" aria-labelledby="sdr-wynik-h">
@@ -92,7 +129,7 @@ $kindCls = ['preview' => 'sdr-btn', 'apply' => 'sdr-btn sdr-btn--apply', 'danger
   </section>
   <?php endif; ?>
 
-  <?php $gColors = ['#0050ef', '#00807e', '#c0006a', '#6a00ff', '#c25100']; $gi = 0;
+  <?php $gi = 0;
   foreach ($groups as $gName => $items): $gk = $gColors[$gi++ % count($gColors)]; ?>
   <section class="sdr-group" id="g-<?= h(md5($gName)) ?>" aria-labelledby="gh-<?= h(md5($gName)) ?>">
     <h2 class="sdr-gh" id="gh-<?= h(md5($gName)) ?>"><?= h($gName) ?></h2>
@@ -142,8 +179,44 @@ $kindCls = ['preview' => 'sdr-btn', 'apply' => 'sdr-btn sdr-btn--apply', 'danger
     </div>
   </section>
   <?php endforeach; ?>
+  </div><!-- /.sdr-main -->
+  </div><!-- /.sdr-layout -->
 </div>
 <script>
+// Menu boczne: filtr (karty + pozycje menu) i podświetlenie seedera widocznego na ekranie
+(function () {
+  var q = document.getElementById('sdr-q'), none = document.getElementById('sdr-none');
+  var items = document.querySelectorAll('.sdr-side li[data-sdr-find]');
+  if (q) q.addEventListener('input', function () {
+    var t = q.value.trim().toLowerCase(), shown = 0;
+    items.forEach(function (li) {
+      var hit = !t || li.getAttribute('data-sdr-find').indexOf(t) !== -1;
+      li.classList.toggle('is-hidden', !hit);
+      var card = document.getElementById(li.querySelector('a').getAttribute('data-sdr-link'));
+      if (card) card.classList.toggle('is-hidden', !hit);
+      if (hit) shown++;
+    });
+    document.querySelectorAll('[data-sdr-menu-group]').forEach(function (g) {
+      g.classList.toggle('is-hidden', !g.querySelector('li:not(.is-hidden)'));
+    });
+    document.querySelectorAll('.sdr-group').forEach(function (g) {
+      g.classList.toggle('is-hidden', !g.querySelector('.sdr-card:not(.is-hidden)'));
+    });
+    none.style.display = shown ? 'none' : 'block';
+  });
+  if (!('IntersectionObserver' in window)) return;
+  var links = {};
+  document.querySelectorAll('[data-sdr-link]').forEach(function (a) { links[a.getAttribute('data-sdr-link')] = a; });
+  var io = new IntersectionObserver(function (ents) {
+    ents.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      Object.keys(links).forEach(function (k) { links[k].removeAttribute('aria-current'); });
+      var a = links[en.target.id]; if (a) a.setAttribute('aria-current', 'true');
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('.sdr-card[id]').forEach(function (c) { io.observe(c); });
+})();
+
 // Przycisk wysłany → blokada formularza do odpowiedzi (seeder może trwać kilkanaście sekund)
 document.querySelectorAll('.sdr-form').forEach(function (f) {
   f.addEventListener('submit', function (ev) {

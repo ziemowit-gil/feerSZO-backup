@@ -532,6 +532,7 @@ function _menu_editor(): array {
             _mi('Redis (cache)','/admin/redis.php','bi-lightning-charge',['match'=>'/admin/redis','kw'=>'redis cache pamięć podręczna przyspieszenie wydajność']),
             _mi('Kontrola IT','/modules/it_control/index.php','bi-clipboard2-pulse',['match'=>'/modules/it_control/','kw'=>'kontrola it audyt operacyjny status usług dysk backup certyfikat cron monitoring pulpit stanu']),
             _mi('Kontrola Dzienników','/modules/log_control/index.php','bi-journal-check',['match'=>'/modules/log_control/','kw'=>'kontrola dzienników logi błędy php anomalie bezpieczeństwo logowania brute force 2fa']),
+            _mi('Seedery (dane testowe)','/seeder-test','bi-database-add',['match'=>'/seeder-test','kw'=>'seedery seeder dane testowe konta testowe qa sprzątanie cleanup rolametrotest demo']),
         ];
         $integ = [
             _mi('Microsoft 365','/admin/m365_settings.php','bi-microsoft',['match'=>'/admin/m365','kw'=>'m365 integracja graph']),
@@ -554,7 +555,7 @@ function _menu_editor(): array {
             _mi('Wiad. od prowadzących','/admin/ti_admin_msgs.php','bi-envelope-exclamation',['match'=>'/admin/ti_admin_msgs','kw'=>'wiadomości prowadzący kierownictwo','badge'=>(function(){ if(!function_exists('ti_admin_msg_unread_count')){@require_once __DIR__.'/ti_messages.php';} return function_exists('ti_admin_msg_unread_count')?ti_admin_msg_unread_count():0; })()]),
         ];
         // aktywność (jak w header): /admin/ poza sekcjami przeniesionymi indziej
-        $admin_active = _menu_hit('/admin/') && !_menu_hit('/admin/messages') && !_menu_hit('/admin/terminations')
+        $admin_active = _menu_hit('/seeder-test') || _menu_hit('/admin/') && !_menu_hit('/admin/messages') && !_menu_hit('/admin/terminations')
             && !_menu_hit('/admin/certificates') && !_menu_hit('/admin/timesheets') && !_menu_hit('/admin/shipments') && !_menu_hit('/admin/onboarding');
         // Zakładka-link do panelu admina — BEZ listy rozwijanej; wszystko jest na
         // pulpicie admin/index.php. Pozycje zostają tylko w wyszukiwarce (Ctrl+K).
