@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_schema.php';
 require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_pliki.php';
+require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_rachunek.php';
 require_once dirname(dirname(__DIR__)) . '/includes/contract_access.php';
 
 require_role('admin', 'editor');
@@ -65,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tryb_zlecenia', 'nazwa_konkursu', 'zakres_rzeczowy', 'rezultaty',
             'organ_zlecajacy', 'organ_reprezentacja', 'organ_adres', 'email',
             'kwota_dotacji', 'wklad_wlasny', 'wklad_osobowy', 'calkowity_koszt', 'waluta',
-            'rachunek_dotacji', 'transze', 'koszty_kwalifikowane',
+            'rachunek_dotacji', 'rachunek_dotacji_rodzaj', 'transze', 'koszty_kwalifikowane',
             'data_zawarcia', 'data_rozpoczecia', 'data_zakonczenia',
             'termin_wykorzystania', 'termin_sprawozdania',
             'numer_projektu', 'opiekun', 'forma_podpisania', 'platforma_el',
@@ -300,9 +301,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </select>
     </div>
     <div>
-      <label for="rachunek_dotacji" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Wyodrębniony rachunek bankowy dotacji</label>
-      <input id="rachunek_dotacji" name="rachunek_dotacji" class="tw-w-full tw-rounded-lg tw-border tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm tw-font-mono focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
-             value="<?= h($row['rachunek_dotacji'] ?? '') ?>">
+      <?= powierzenieRachunekPole($row) ?>
     </div>
   </div>
   <div id="wsparcie_fields" class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4 tw-mb-4" style="display:<?= ($row['forma_zlecenia'] ?? '') === 'wsparcie' ? '' : 'none' ?>">

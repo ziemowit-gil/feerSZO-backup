@@ -32,7 +32,7 @@ const CONTRACT_CARD_LABELS = [
     'forma_zlecenia' => 'Forma zlecenia', 'tryb_zlecenia' => 'Tryb zlecenia', 'nazwa_konkursu' => 'Nr / nazwa konkursu',
     'zakres_rzeczowy' => 'Zakres rzeczowy', 'rezultaty' => 'Rezultaty', 'kwota_dotacji' => 'Kwota dotacji',
     'wklad_wlasny' => 'Wkład własny finansowy', 'wklad_osobowy' => 'Wkład osobowy', 'calkowity_koszt' => 'Całkowity koszt zadania',
-    'rachunek_dotacji' => 'Rachunek dotacji', 'transze' => 'Transze', 'koszty_kwalifikowane' => 'Koszty kwalifikowane',
+    'rachunek_dotacji' => 'Rachunek dotacji', 'rachunek_dotacji_rodzaj' => 'Rodzaj rachunku dotacji', 'transze' => 'Transze', 'koszty_kwalifikowane' => 'Koszty kwalifikowane',
     'termin_wykorzystania' => 'Termin wykorzystania dotacji', 'termin_sprawozdania' => 'Termin sprawozdania końcowego',
     'stawka_kwota' => 'Stawka', 'typ_stawki' => 'Typ stawki', 'liczba_godzin_planowana' => 'Planowana liczba godzin',
     'sposob_rozliczenia' => 'Sposób rozliczenia', 'termin_platnosci' => 'Termin płatności', 'zus_skladki' => 'Składki ZUS',
@@ -88,6 +88,7 @@ function contractCardValue(string $c, $v): array {
         return [number_format((float)$v, 2, ',', ' '), 'money'];
     }
     if (($v === '0' || $v === '1') && preg_match('/^(bezterminowa|zwolnienie|wymagany|w_ramach|klauzula|is_|.*_aktywne)/', $c)) return [$v, 'check'];
+    if ($c === 'rachunek_dotacji_rodzaj' && $v !== '') return [['wyodrebniony' => 'Wyodrębniony rachunek dotacji', 'ogolny' => 'Ogólny rachunek Fundacji'][$v] ?? $v, 'text'];
     if ($c === 'forma_zlecenia' && $v !== '') return [['powierzenie' => 'Powierzenie (100% dotacji)', 'wsparcie' => 'Wsparcie (z wkładem własnym)'][$v] ?? $v, 'text'];
     $long = mb_strlen($v) > 70 || str_contains($v, "\n") || preg_match('/(przedmiot|opis|zakres|uwagi|rezultat|transze|koszty_kwal|notatka|adres$)/', $c);
     return [$v, $long ? 'long' : 'text'];

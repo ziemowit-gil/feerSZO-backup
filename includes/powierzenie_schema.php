@@ -49,6 +49,7 @@
         'calkowity_koszt'        => "DECIMAL(12,2)",
         'waluta'                 => "VARCHAR(10)",
         'rachunek_dotacji'       => "VARCHAR(50)",
+        'rachunek_dotacji_rodzaj'=> "VARCHAR(20)",   // wyodrebniony | ogolny (includes/powierzenie_rachunek.php)
         'transze'                => "TEXT",
         'koszty_kwalifikowane'   => "TEXT",
         'data_zawarcia'          => "DATE",

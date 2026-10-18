@@ -5,6 +5,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/auth.php';
 require_once dirname(dirname(__DIR__)) . '/includes/functions.php';
 require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_schema.php';
 require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_pliki.php';
+require_once dirname(dirname(__DIR__)) . '/includes/powierzenie_rachunek.php';
 require_once dirname(dirname(__DIR__)) . '/includes/messages.php';
 require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 
@@ -176,7 +177,7 @@ $_badge_obieg += count(array_filter($edit_requests, fn($r) => $r['status'] === '
       <div class="cv-field"><div class="cv-label">Całkowity koszt zadania</div><div class="cv-value"><?= money($row['calkowity_koszt'], $_cur) ?></div></div>
       <?php endif; ?>
       <?php if (!empty($row['rachunek_dotacji'])): ?>
-      <div class="cv-field-wide"><div class="cv-label">Wyodrębniony rachunek dotacji</div><div class="cv-value font-monospace"><?= h($row['rachunek_dotacji']) ?></div></div>
+      <div class="cv-field-wide"><div class="cv-label">Rachunek dotacji — <?= h(mb_strtolower(powierzenieRachunekEtykieta($row))) ?></div><div class="cv-value font-monospace"><?= h($row['rachunek_dotacji']) ?></div></div>
       <?php endif; ?>
       <?php if (!empty($row['transze'])): ?>
       <div class="cv-field-full"><div class="cv-label">Harmonogram / transze płatności</div><div class="cv-value"><?= nl2br(h($row['transze'])) ?></div></div>
