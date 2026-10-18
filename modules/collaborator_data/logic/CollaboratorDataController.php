@@ -41,7 +41,8 @@ final class CollaboratorDataController
             flash_set('info', 'Nie wprowadzono żadnych zmian.');
         } else {
             flash_set('success', trim(($res->applied ? 'Zapisano zmiany: ' . $res->applied . '. ' : '')
-                . ($res->pending ? 'Do akceptacji: ' . $res->pending . ' (np. rachunek bankowy) — dostaniesz powiadomienie po decyzji.' : '')));
+                . ($res->pending ? 'Do akceptacji: ' . $res->pending . ' (np. rachunek bankowy) — dostaniesz powiadomienie po decyzji. ' : '')
+                . ($res->applicationNumber !== '' ? 'Utworzono wniosek ' . $res->applicationNumber . ' — potwierdzenie złożenia (UPZ) znajdziesz w „Moich wnioskach”.' : '')));
         }
         header('Location: ' . route('cdc.index')); exit;
     }

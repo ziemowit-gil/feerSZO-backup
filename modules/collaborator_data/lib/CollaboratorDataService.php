@@ -54,11 +54,12 @@ enum CollabChangeStatus: string
     }
 }
 
-/** Wynik zgłoszenia zmian. */
+/** Wynik zgłoszenia zmian (z numerem wygenerowanego wniosku SZD, jeśli powstał). */
 final class CollabSubmitResult
 {
     /** @param array<string,string> $errors */
-    public function __construct(public readonly int $applied = 0, public readonly int $pending = 0, public readonly array $errors = []) {}
+    public function __construct(public readonly int $applied = 0, public readonly int $pending = 0, public readonly array $errors = [],
+                                public readonly ?int $applicationId = null, public readonly string $applicationNumber = '') {}
 }
 
 final class CollaboratorDataService
@@ -232,25 +233,98 @@ final class CollaboratorDataService
         }
         if ($errors) return new CollabSubmitResult(0, 0, $errors);
 
-        $applied = 0; $pending = 0;
+        $applied = 0; $pending = 0; $ids = []; $rows = [];
         $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
         foreach ($todo as $code => $val) {
             $f = $fields[$code];
             $wait = $f['approval'] && !$autoApprove;
             $personId = $this->person()['id'] ?? null;
-            db_insert('collaborator_data_changes', [
+            $ids[] = db_insert('collaborator_data_changes', [
                 'user_id' => $this->userId, 'person_id' => $personId, 'field' => $code,
                 'old_value' => $cur[$code] ?? '', 'new_value' => $val,
                 'status' => ($wait ? CollabChangeStatus::Pending : CollabChangeStatus::Applied)->value,
                 'source' => $source, 'application_id' => $applicationId, 'changed_by' => $actorId,
                 'decided_by' => $wait ? null : $actorId, 'decided_at' => $wait ? null : date('Y-m-d H:i:s'), 'ip' => $ip,
             ]);
+            $rows[] = [$f['label'], self::display($code, $cur[$code] ?? ''), $code === 'rachunek_bankowy' ? $val : self::display($code, $val), $wait];
             if ($wait) { $pending++; continue; }
             $this->write($code, $val, $actorId);
             $applied++;
         }
         if ($pending) $this->notifyAdmins($pending);
-        return new CollabSubmitResult($applied, $pending, []);
+        [$appId, $appNo] = $rows && $applicationId === null ? $this->generateApplication($rows, $ids, $pending > 0) : [$applicationId, ''];
+        return new CollabSubmitResult($applied, $pending, [], $appId, $appNo);
+    }
+
+    /**
+     * Każda zmiana danych w systemie tworzy wniosek SZD („Wniosek o zmianę danych w systemie”) — z tabelą
+     * pole / dotychczasowa / nowa wartość — i przechodzi drogę każdego wniosku: numer, suma kontrolna, przesyłka
+     * w EZD (RPW) z PDF, potwierdzenie UPZ. Zmiany wprowadzone od razu → wniosek „rozpatrzony” z adnotacją;
+     * zmiany czekające na akceptację → wniosek „nowy” i start obiegu typu.
+     * @param list<array{0:string,1:string,2:string,3:bool}> $rows  [etykieta, stara, nowa, czeka]
+     * @param list<int> $changeIds
+     * @return array{0:?int,1:string} [id wniosku, numer]
+     */
+    private function generateApplication(array $rows, array $changeIds, bool $hasPending): array
+    {
+        try {
+            $root = dirname(__DIR__, 3);
+            require_once $root . '/includes/applications.php';
+            _applications_init();
+            $type = db_one("SELECT id, name FROM application_types WHERE name = 'wniosek_szd' AND is_active = 1");
+            if (!$type) return [null, ''];
+            $u = $this->user();
+            $userArr = ['id' => $this->userId, 'name' => (string)($u['name'] ?? ''), 'email' => (string)($u['email'] ?? '')];
+            $fields = [
+                'identyfikator' => (string)($u['email'] ?? ''),
+                'kontakt'       => implode(', ', array_filter([(string)($u['phone_number'] ?? ''), (string)($u['email'] ?? '')])),
+                'system'        => 'SZO — dane współpracownika',
+                'rodzaj'        => 'aktualizacja danych',
+                'zmiany'        => implode("\n", array_map(fn($r) => str_replace('|', '/', $r[0]) . ' | ' . str_replace('|', '/', $r[1]) . ' | '
+                                       . str_replace('|', '/', $r[2]) . ($r[3] ? ' (czeka na akceptację)' : ''), $rows)),
+                'uzasadnienie'  => 'Aktualizacja danych przez współpracownika w module „Zmiana danych współpracownika”.',
+                'data_zmiany'   => date('Y-m-d'),
+                'zalaczniki'    => '',
+            ];
+            $fields = appDocsApplyLocked('wniosek_szd', $fields, $userArr);
+            $title = 'SZD — zmiana danych: ' . mb_substr(implode(', ', array_map(fn($r) => mb_strtolower($r[0]), $rows)), 0, 120);
+            $appId = db_insert('user_applications', [
+                'user_id' => $this->userId, 'type_id' => (int)$type['id'], 'contract_type' => '', 'contract_id' => 0,
+                'tytul' => $title, 'fields_json' => json_encode($fields, JSON_UNESCAPED_UNICODE), 'plik' => null,
+                'status' => $hasPending ? 'nowy' : 'rozpatrzony',
+                'odpowiedz' => $hasPending ? null : 'Zmiany wprowadzone automatycznie w systemie (moduł Zmiana danych współpracownika).',
+                'odpowiedz_at' => $hasPending ? null : date('Y-m-d H:i:s'),
+            ]);
+            if ($changeIds) {
+                db()->prepare("UPDATE collaborator_data_changes SET application_id = ? WHERE id IN (" . implode(',', array_map('intval', $changeIds)) . ")")
+                    ->execute([$appId]);
+            }
+            appDocsAfterSubmit($appId);
+            if ($hasPending && is_file($root . '/modules/app_workflow/logic/appWorkflow.php')) {
+                require_once $root . '/modules/app_workflow/logic/appWorkflow.php';
+                if (function_exists('appWfStart')) appWfStart($appId);
+            }
+            $no = (string)(db_one("SELECT doc_number FROM user_applications WHERE id = ?", [$appId])['doc_number'] ?? '');
+            return [$appId, $no];
+        } catch (\Throwable $e) {
+            error_log('[collaborator_data] wniosek SZD: ' . $e->getMessage());
+            return [null, ''];
+        }
+    }
+
+    /** Po decyzji: gdy wszystkie zmiany wniosku SZD są rozpatrzone — zamknij wniosek z podsumowaniem. */
+    private static function closeApplication(int $appId): void
+    {
+        $left = (int)(db_one("SELECT COUNT(*) AS c FROM collaborator_data_changes WHERE application_id = ? AND status = ?", [$appId, CollabChangeStatus::Pending->value])['c'] ?? 0);
+        if ($left) return;
+        $rej = (int)(db_one("SELECT COUNT(*) AS c FROM collaborator_data_changes WHERE application_id = ? AND status = ?", [$appId, CollabChangeStatus::Rejected->value])['c'] ?? 0);
+        $all = (int)(db_one("SELECT COUNT(*) AS c FROM collaborator_data_changes WHERE application_id = ?", [$appId])['c'] ?? 0);
+        $notes = array_filter(array_column(db_all("SELECT decision_note FROM collaborator_data_changes WHERE application_id = ? AND decision_note != ''", [$appId]), 'decision_note'));
+        db()->prepare("UPDATE user_applications SET status = ?, odpowiedz = ?, odpowiedz_at = ? WHERE id = ?")->execute([
+            $rej === $all ? 'odrzucony' : 'rozpatrzony',
+            ($rej ? 'Wprowadzono ' . ($all - $rej) . ' z ' . $all . ' zmian, odrzucono ' . $rej . '.' : 'Wszystkie zmiany wprowadzone.') . ($notes ? ' ' . implode(' ', $notes) : ''),
+            date('Y-m-d H:i:s'), $appId,
+        ]);
     }
 
     /** Zapis wartości do users / persons (rekord Osoby tworzony, gdy go brak). */
@@ -301,6 +375,7 @@ final class CollaboratorDataService
         if ($approve) (new self((int)$c['user_id']))->write((string)$c['field'], (string)$c['new_value'], $actorId);
         db()->prepare("UPDATE collaborator_data_changes SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?")
             ->execute([($approve ? CollabChangeStatus::Applied : CollabChangeStatus::Rejected)->value, $actorId, date('Y-m-d H:i:s'), mb_substr($note, 0, 500), $changeId]);
+        if (!empty($c['application_id'])) { try { self::closeApplication((int)$c['application_id']); } catch (\Throwable $e) {} }
         try {
             require_once dirname(__DIR__, 3) . '/includes/notifications.php';
             $label = self::fields()[$c['field']]['label'] ?? $c['field'];
