@@ -1486,6 +1486,23 @@ class M365Graph {
         return base64_decode($resp['contentBytes']);
     }
 
+    /**
+     * Pełna treść jednej wiadomości (body.contentType + body.content) — dla
+     * wiadomości zapisanych tylko ze skrótem (bodyPreview). Wymaga Mail.Read.
+     *
+     * @return array{type:string,content:string}
+     */
+    public function get_message_body(string $mailbox, string $message_id): array {
+        $url = "https://graph.microsoft.com/v1.0/users/" . urlencode($mailbox)
+             . "/messages/" . urlencode($message_id) . "?\$select=body";
+        $resp = $this->http_get($url);
+        if (isset($resp['error']) || !isset($resp['body']['content'])) {
+            $msg = $resp['error']['message'] ?? 'brak treści w odpowiedzi';
+            throw new \RuntimeException("Graph API (get_message_body): {$msg}");
+        }
+        return ['type' => strtolower((string)($resp['body']['contentType'] ?? 'html')), 'content' => (string)$resp['body']['content']];
+    }
+
     // ══ OUTLOOK CALENDARS ════════════════════════════════════════════════════
 
     /**

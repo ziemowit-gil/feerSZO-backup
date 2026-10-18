@@ -67,6 +67,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               ]));
                               break;
             case 'unhide':    crm_mailbox_set_hidden($mid, false); flash_set('success', 'Wiadomość wróciła do Skrzynki CRM.'); break;
+            case 'fetch_body':
+                $r = crmInboxFetchFullBody($mid);
+                flash_set(!empty($r['ok']) ? 'success' : 'danger', !empty($r['ok'])
+                    ? 'Pobrano pełną treść wiadomości ze skrzynki.' : ($r['error'] ?? 'Nie udało się pobrać treści.'));
+                break;
 
             case 'attach_case':
                 $r = crm_case_attach_message($mid, (int)($_POST['case_id'] ?? 0));
@@ -1117,6 +1122,13 @@ include __DIR__ . '/includes/header_crm.php';
                ramki dopasowuje skrypt do treści — przewija się cały panel, nie ramka. */
             $frame_doc = crmInboxFrameDoc($msg);
             $has_remote = crmInboxHasRemote((string)($msg['body_html'] ?? '') . (crm_mail_looks_html((string)($msg['body'] ?? '')) ? (string)$msg['body'] : '')); ?>
+      <?php if ($can_write && crmInboxBodyIsPreview($msg)): ?>
+      <form method="post" class="ib-imgbar" data-ib-xhr="fetch_body"><?= $hidden ?><input type="hidden" name="_op" value="fetch_body">
+        <i class="bi bi-scissors" aria-hidden="true"></i>
+        <span>Przy pobieraniu zapisano tylko <strong>skrót treści</strong> — reszta jest w skrzynce pocztowej.</span>
+        <button>Pobierz pełną treść</button>
+      </form>
+      <?php endif; ?>
       <?php if ($has_remote): ?>
       <div class="ib-imgbar" data-ib-imgbar>
         <i class="bi bi-image" aria-hidden="true"></i>

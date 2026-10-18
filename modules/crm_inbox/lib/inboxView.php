@@ -110,3 +110,46 @@ function crmInboxFrameDoc(array $msg): string
         . 'pre{white-space:pre-wrap}.plain{white-space:normal}.q{color:#5f5f5f}.empty{color:#5f5f5f;font-style:italic}'
         . '</style></head><body>' . $content . '</body></html>';
 }
+
+/**
+ * Czy w bazie jest najpewniej tylko skrót treści. Skaner zapisuje pełny HTML
+ * wyłącznie przy włączonym poczta_store_html — inaczej zostaje bodyPreview
+ * z Graph (≈255 znaków), czyli „kawałek treści, a pod nim pustka”.
+ */
+function crmInboxBodyIsPreview(array $msg): bool
+{
+    return trim((string)($msg['body_html'] ?? '')) === ''
+        && !empty($msg['outlook_message_id']) && !empty($msg['mailbox_name'])
+        && ($msg['direction'] ?? 'in') === 'in';
+}
+
+/**
+ * Dociąga pełną treść wiadomości ze skrzynki (Graph) i zapisuje ją przy
+ * wiadomości — kolejne otwarcia, lista i EZD mają już całość.
+ *
+ * @return array{ok:bool,error?:string}
+ */
+function crmInboxFetchFullBody(int $id): array
+{
+    $m = crm_mailbox_message($id);   // sprawdza też dostęp do skrzynki
+    if (!$m) return ['ok' => false, 'error' => 'Nie znaleziono wiadomości.'];
+    if (!crmInboxBodyIsPreview($m)) return ['ok' => true];
+    try {
+        require_once dirname(__DIR__, 3) . '/includes/m365.php';
+        $b = (new M365Graph())->get_message_body((string)$m['mailbox_name'], (string)$m['outlook_message_id']);
+    } catch (\Throwable $e) {
+        error_log('[crm inbox fetch body] ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'Skrzynka pocztowa nie oddała treści (wiadomość usunięta albo brak uprawnienia Mail.Read).'];
+    }
+    $html = $b['type'] === 'html' ? $b['content'] : '';
+    $text = $b['type'] === 'html' ? crm_mail_html_to_text($b['content']) : $b['content'];
+    $norm = crm_mail_normalize($text, $html);
+    if ($norm !== null) { $html = $norm['body_html']; $text = $norm['body']; }
+    if ($html === '' && $text !== '') {
+        $html = '<div style="white-space:pre-wrap">' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+    if ($html === '') return ['ok' => false, 'error' => 'Wiadomość w skrzynce jest pusta.'];
+    db()->prepare("UPDATE crm_communications SET body=?, body_html=? WHERE id=?")
+        ->execute([trim($text) ?: (string)$m['body'], $html, $id]);
+    return ['ok' => true];
+}
