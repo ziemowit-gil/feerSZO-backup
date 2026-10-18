@@ -4,6 +4,8 @@ declare(strict_types=1);
 /**
  * modules/ti_msues/router.php — trasy modułu „Certyfikacja MSUES 2.0” (oświadczenia kadry, checklisty, gotowość usług, paczki ZIP).
  *
+ * Wymagania usługi (profil, wezwania do uzupełnienia, dokumenty instytucji, normy sal): /wymagania, /uslugi/{id}/profil, /instytucja, /sale.
+ *
  * Wejście wyłącznie przez panel dydaktyka: /karty30/ti/dydaktyk/msues.php?_route=<trasa> (sesja i CSRF panelu: dyd_token/_token;
  * plik wejścia definiuje MSUES_PANEL przed załadowaniem tego routera). Bez wejścia panelu — 404.
  *   dyd        — każdy zalogowany w panelu (prowadzący: tylko własne dane — sprawdza kontroler),
@@ -59,6 +61,14 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/uslugi/{id}/gotowosc.json',  [MsuesController::class, 'serviceJson'])->name('msues.service.json');
     $r->get('/uslugi/{id}/paczka',         [MsuesController::class, 'package'])->name('msues.package');
     $r->post('/uslugi/{id}/paczka-ezd',    [MsuesController::class, 'packageEzd'])->name('msues.package.ezd');
+    $r->get('/wymagania',                  [MsuesController::class, 'requirements'])->name('msues.reqs');
+    $r->get('/uslugi/{id}/profil',         [MsuesController::class, 'profileForm'])->name('msues.profile');
+    $r->post('/uslugi/{id}/profil',        [MsuesController::class, 'profileSave'])->name('msues.profile.save');
+    $r->get('/instytucja',                 [MsuesController::class, 'orgDocs'])->name('msues.orgdocs');
+    $r->post('/instytucja',                [MsuesController::class, 'orgDocsSave'])->name('msues.orgdocs.save');
+    $r->get('/sale',                       [MsuesController::class, 'rooms'])->name('msues.rooms');
+    $r->get('/sale/{id}',                  [MsuesController::class, 'room'])->name('msues.room');
+    $r->post('/sale/{id}',                 [MsuesController::class, 'roomSave'])->name('msues.room.save');
 });
 
 $r->dispatch();

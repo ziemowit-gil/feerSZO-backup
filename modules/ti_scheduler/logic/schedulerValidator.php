@@ -183,6 +183,10 @@ function sc_validate(array $p): array {
     $zc = ti_zoom_slot_check($course, $lm, $date, $tf, $tt, $skip);
     if (!$zc['ok']) $add_h('CONFLICT_ZOOM', $zc['reason']);
 
+    // Usługa MSUES: dzień grupy — max 8 h, 15 min przerwy co 2 h, 45 min obiadu przy > 6 h (ostrzeżenie, modules/ti_msues)
+    require_once dirname(__DIR__, 2) . '/ti_msues/lib/MsuesRequirements.php';
+    foreach (msuesScheduleWarnings($course, $date, $tf, $tt, $skip) as $w) $add_s('MSUES_SCHEDULE', $w);
+
     return ['hard' => $hard, 'soft' => $soft];
 }
 

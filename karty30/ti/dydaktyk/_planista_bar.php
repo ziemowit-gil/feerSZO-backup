@@ -13,6 +13,8 @@ $_pl_defs = [
     ['Zgłoszenia trenerów',           'zgloszenia.php',        'inbox',           $_pl_pending, 'warning', 'Planowanie'],
     ['Generator ciągów zajęć',        'generatorCiagow.php',   'magic',           0, '', 'Planowanie'],
     ['Raporty planisty',              'raportyPlanisty.php',   'bar-chart-line',  0, '', 'Planowanie'],
+    ['Wymagania MSUES grup',          'msues.php?_route=%2Fwymagania', 'award',   0, '', 'Planowanie'],
+    ['Normy sal MSUES',               'msues.php?_route=%2Fsale', 'door-open',       0, '', 'Kadra i zasoby'],
     ['Limity i kwalifikacje kadry',   'kadraLimity.php',       'person-gear',     0, '', 'Kadra i zasoby'],
     ['Urlopy prowadzących',           'urlopy.php',            'airplane',        0, '', 'Kadra i zasoby'],
     ['Dostępności prowadzących',      'dostepnosci.php',       'clock-history',   0, '', 'Kadra i zasoby'],

@@ -14,6 +14,7 @@ require_once dirname(__DIR__) . '/lib/DeclarationDocument.php';
 require_once dirname(__DIR__) . '/lib/MsuesAuditPackage.php';
 require_once dirname(__DIR__) . '/lib/MsuesEzdService.php';
 require_once dirname(__DIR__) . '/lib/MsuesLaunch.php';
+require_once dirname(__DIR__) . '/lib/MsuesRequirements.php';
 
 final class MsuesController
 {
@@ -157,7 +158,7 @@ final class MsuesController
     public function service(int $id): string
     {
         try { $r = $this->svc->serviceReadiness($id); } catch (DomainException $e) { http_response_code(404); return $e->getMessage(); }
-        return $this->view('service.php', ['r' => $r, 'ezdActive' => MsuesEzdService::active(), 'audits' => $this->auditCases($id)]);
+        return $this->view('service.php', ['r' => $r, 'ezdActive' => MsuesEzdService::active(), 'audits' => $this->auditCases($id), 'req' => MsuesRequirements::evaluate($id)]);
     }
 
     public function serviceJson(int $id): array
@@ -209,6 +210,70 @@ final class MsuesController
             flash_set('success', 'Paczkę audytową odłożono do koszulki EZD ' . (ezd_sprawa_get($sid)['znak_sprawy'] ?? '#' . $sid) . '.');
         } catch (\Throwable $e) { return $this->fail($e, route('msues.service', ['id' => $id])); }
         return Router::redirect(route('msues.service', ['id' => $id]));
+    }
+
+    // ── Wymagania usługi MSUES: profil, lista wezwań, dokumenty instytucji, normy sal ─────────
+
+    public function requirements(): string
+    {
+        $rows = [];
+        foreach (MsuesRequirements::msuesCourses() as $c) {
+            $e = MsuesRequirements::evaluate((int)$c['id']);
+            if ($e) $rows[] = ['course' => $c, 'e' => $e];
+        }
+        $candidates = array_filter(MsuesSzoData::services(), fn($s) => !MsuesRequirements::isMsues((int)$s['id']));
+        return $this->view('requirements.php', ['rows' => $rows, 'candidates' => $candidates]);
+    }
+
+    public function profileForm(int $id): string
+    {
+        $e = MsuesRequirements::evaluate($id, true);
+        if (!$e) { http_response_code(404); return 'Nie ma takiej grupy.'; }
+        return $this->view('profile.php', ['e' => $e, 'people' => k30_ti_instructors() ?: [], 'staffUsers' => MsuesSzoData::trainerCandidates()]);
+    }
+
+    public function profileSave(int $id): ?string
+    {
+        if (!MsuesSzoData::course($id)) { flash_set('danger', 'Nie ma takiej grupy.'); return Router::redirect(route('msues.reqs')); }
+        $in = $_POST;
+        if (!empty($_POST['_quick'])) $in = ['is_msues' => 1] + MsuesRequirements::profile($id);   // „Oznacz jako usługę MSUES” z listy / kurs.php
+        try { MsuesRequirements::saveProfile($id, $in, $this->actor()); }
+        catch (\Throwable $e) { return $this->fail($e, route('msues.profile', ['id' => $id])); }
+        $e = MsuesRequirements::evaluate($id);
+        flash_set('success', $e ? 'Zapisano profil usługi MSUES. Do uzupełnienia: ' . $e['missing'] . '.' : 'Grupa nie jest już oznaczona jako usługa MSUES.');
+        return $this->back(route('msues.profile', ['id' => $id]));
+    }
+
+    public function orgDocs(): string
+    {
+        return $this->view('orgdocs.php', ['docs' => MsuesRequirements::orgDocs()]);
+    }
+
+    public function orgDocsSave(): ?string
+    {
+        MsuesRequirements::saveOrgDocs($_POST);
+        flash_set('success', 'Zapisano dokumenty instytucji.');
+        return $this->back(route('msues.orgdocs'));
+    }
+
+    public function rooms(): string
+    {
+        return $this->view('rooms.php', ['rooms' => MsuesRequirements::rooms(), 'room' => null]);
+    }
+
+    public function room(int $id): string
+    {
+        $room = MsuesRequirements::room($id);
+        if (!$room) { http_response_code(404); return 'Nie ma takiej sali.'; }
+        return $this->view('rooms.php', ['rooms' => MsuesRequirements::rooms(), 'room' => $room]);
+    }
+
+    public function roomSave(int $id): ?string
+    {
+        if (!MsuesRequirements::room($id)) { flash_set('danger', 'Nie ma takiej sali.'); return Router::redirect(route('msues.rooms')); }
+        MsuesRequirements::saveRoomNorms($id, (array)($_POST['norms'] ?? []), $this->actor());
+        flash_set('success', 'Zapisano normy sali.');
+        return $this->back(route('msues.room', ['id' => $id]));
     }
 
     private function auditCases(int $serviceId): array

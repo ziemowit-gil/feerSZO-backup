@@ -1,9 +1,10 @@
 <?php
 /**
  * modules/ti_msues/view/service.php — gotowość usługi (grupy TI) do audytu MSUES: checklista kadry, blokady, paczka ZIP, EZD.
- * Zmienne: $r (MsuesComplianceService::serviceReadiness), $ezdActive, $audits (koszulki paczek), $actor. Kontroler: MsuesController::service.
+ * Zmienne: $r (MsuesComplianceService::serviceReadiness), $ezdActive, $audits (koszulki paczek), $req (MsuesRequirements::evaluate albo null), $actor. Kontroler: MsuesController::service.
  */
 require __DIR__ . '/_parts.php';
+require __DIR__ . '/_reqList.php';
 $title = 'MSUES — ' . $r['service']['name'];
 $kierLabel = 'Certyfikacja MSUES';
 include __DIR__ . '/_head.php';
@@ -17,6 +18,16 @@ $sid = (int)$r['service']['id'];
   </div>
   <div style="min-width:260px"><?= msuesBar((int)$r['score'], (bool)$r['ready'], (bool)$r['blocked']) ?></div>
 </div>
+
+<section class="card mb-3"><div class="card-header fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span>Wymagania standardu MSUES (I–IV)</span>
+  <span class="d-flex gap-2 align-items-center"><?php if ($req): ?><span style="width:160px"><?= msuesReqSummary($req) ?></span><?php endif; ?>
+    <a class="btn btn-sm btn-outline-primary" href="<?= h(route('msues.profile', ['id' => $sid])) ?>">Profil usługi</a></span></div>
+  <?php if ($req): ?><?= msuesReqList($req) ?>
+  <?php else: ?><div class="card-body small">Grupa nie jest oznaczona jako usługa MSUES — wymagania usługi (analiza potrzeb, efekty, harmonogram, sale…) nie są sprawdzane.
+    <form method="post" action="<?= h(route('msues.profile.save', ['id' => $sid])) ?>" class="d-inline"><?= Router::csrfField() ?><input type="hidden" name="_quick" value="1"><input type="hidden" name="_back" value="<?= h(route('msues.service', ['id' => $sid])) ?>">
+      <button class="btn btn-sm btn-primary ms-2">Oznacz jako usługę MSUES</button></form></div><?php endif; ?>
+</section>
 
 <?php if ($r['blockers']): ?>
 <div class="alert <?= $r['blocked'] ? 'alert-danger' : 'alert-warning' ?>" role="status">

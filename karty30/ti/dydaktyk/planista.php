@@ -77,6 +77,29 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
   <a class="btn btn-outline-secondary btn-sm" href="generatorCiagow.php"><i class="bi bi-magic me-1"></i>Generator ciągów</a>
   <a class="btn btn-outline-secondary btn-sm" href="kadraLimity.php"><i class="bi bi-person-gear me-1"></i>Limity i kwalifikacje kadry</a>
 </div>
+<?php // Usługi MSUES z brakami — wezwania do uzupełnienia (modules/ti_msues)
+$plMsues = [];
+try {
+    require_once dirname(__DIR__, 3) . '/modules/ti_msues/lib/MsuesRequirements.php';
+    foreach (MsuesRequirements::msuesCourses() as $mc) {
+        $me_ = MsuesRequirements::evaluate((int)$mc['id']);
+        if ($me_ && $me_['missing']) $plMsues[] = ['c' => $mc, 'e' => $me_];
+    }
+} catch (\Throwable $e) { error_log('planista msues: ' . $e->getMessage()); }
+if ($plMsues): ?>
+<details class="alert alert-warning py-2 mb-2" id="plMsues">
+  <summary class="fw-semibold"><i class="bi bi-award me-1" aria-hidden="true"></i>Usługi MSUES do uzupełnienia: <?= count($plMsues) ?> <span class="fw-normal small">— harmonogram, sale i role sprawdzane są także przy przesuwaniu lekcji</span></summary>
+  <ul class="mb-1 mt-2 small">
+  <?php foreach ($plMsues as $m): $mcid = (int)$m['c']['id']; ?>
+    <li><a href="kurs.php?id=<?= $mcid ?>#msues"><?= h(MsuesSzoData::courseLabel($m['c'])) ?></a> —
+      <?= h(implode('; ', array_map(fn($i) => $i['label'], array_slice(array_values(array_filter($m['e']['items'], fn($i) => $i['state'] === 'missing' && !str_starts_with($i['code'], 'msues_doc_'))), 0, 4)))) ?: 'dokumenty instytucji' ?>
+      <?php foreach ($m['e']['items'] as $i) if ($i['code'] === 'harmonogram' && $i['state'] === 'missing'): ?><div class="text-danger"><?= h($i['msg']) ?></div><?php endif; ?>
+    </li>
+  <?php endforeach; ?>
+  </ul>
+  <a class="btn btn-sm btn-warning" href="msues.php?_route=<?= rawurlencode('/wymagania') ?>">Wszystkie wymagania MSUES</a>
+</details>
+<?php endif; ?>
 <p class="text-body-secondary small mb-2">
   Przeciągnij lekcję, aby zmienić termin, trenera lub salę. Serwer sprawdza nakładania (trener, sala, grupa, Zoom), urlopy,
   okna dostępności, kwalifikacje i limity godzin. Przesunięcie jednej lekcji nie zmienia reszty cyklu.

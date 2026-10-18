@@ -7,6 +7,8 @@ declare(strict_types=1);
  *   trainer_declarations        — oświadczenia o kwalifikacjach i kompetencjach (wiersz = wersja; series_id = id pierwszej wersji)
  *   trainer_declaration_events  — historia: utworzenie, edycje, zmiany statusu, skan, EZD (kto, kiedy, uwaga)
  *   msues_staff_documents       — dokumenty kadry do checklisty: CV, dyplomy, certyfikaty, umowy spoza rejestru
+ *   msues_service_profiles      — profil usługi MSUES (grupa TI): role, analiza potrzeb, efekty, materiały, wsparcie, ewaluacja
+ *   k30_pl_rooms.msues_norms    — spełnione normy sali i wyposażenia (JSON kodów)
  *
  * SQL przenośny (SQLite ↔ MySQL): znaczniki czasu liczy PHP (msuesNow()), bez funkcji dat bazy.
  * Ustawienia organizacji (tabela settings): require_trainer_formal_declaration, msues_ezd_jrwa, msues_ezd_auto, msues_launched_*.
@@ -96,4 +98,31 @@ function msuesMigrate(): void
         deleted_by INTEGER
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_msues_docs_trainer ON msues_staff_documents(trainer_id, kind)");
+
+    // Profil usługi MSUES (grupa TI oznaczona jako usługa w standardzie): role, analiza potrzeb, efekty, materiały, wsparcie, ewaluacja
+    $db->exec("CREATE TABLE IF NOT EXISTS msues_service_profiles (
+        course_id INTEGER PRIMARY KEY,
+        is_msues INTEGER NOT NULL DEFAULT 0,
+        service_kind VARCHAR(8) NOT NULL DEFAULT 'open',
+        opiekun_id INTEGER,
+        koordynator_id INTEGER,
+        needs_analysis_on VARCHAR(10) NOT NULL DEFAULT '',
+        needs_analysis_note TEXT,
+        learning_outcomes TEXT,
+        requirements TEXT,
+        materials_reviewed_on VARCHAR(10) NOT NULL DEFAULT '',
+        materials_note TEXT,
+        support_form TEXT,
+        evaluation_method TEXT,
+        evaluation_report_on VARCHAR(10) NOT NULL DEFAULT '',
+        evaluation_summary TEXT,
+        certificate_doc VARCHAR(255) NOT NULL DEFAULT '',
+        updated_by INTEGER,
+        updated_name VARCHAR(190) NOT NULL DEFAULT '',
+        updated_at VARCHAR(19)
+    )");
+    // Sala: spełnione normy MSUES (JSON listy kodów z MsuesRequirements::ROOM_NORMS) + kto i kiedy sprawdził
+    foreach (["msues_norms TEXT", "msues_checked_at VARCHAR(19)", "msues_checked_by VARCHAR(190) NOT NULL DEFAULT ''"] as $col) {
+        try { $db->exec("ALTER TABLE k30_pl_rooms ADD COLUMN {$col}"); } catch (\Throwable $e) {}
+    }
 }

@@ -212,6 +212,7 @@ function dydMenuSections(): array
         $it('', 'Zgłoszenia trenerów',    'zgloszenia.php',      'inbox', $scPending, 'warning'),
         $it('', 'Generator ciągów zajęć', 'generatorCiagow.php', 'magic'),
         $it('', 'Raporty planisty',       'raportyPlanisty.php', 'bar-chart-line'),
+        $it('', 'Wymagania MSUES grup',   'msues.php?_route=%2Fwymagania', 'award'),
         $it('', 'Sale / lokalizacje',     'sale.php',            'geo-alt'),
         $it('', 'Formularze rezerwacji sal', 'saleFormularz.php', 'file-earmark-text'),
         $it('', 'Okresy nauczania',       'okresy.php',          'calendar-range'),

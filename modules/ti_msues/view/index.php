@@ -12,6 +12,8 @@ include __DIR__ . '/_head.php';
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h4 mb-0"><i class="bi bi-award text-primary" aria-hidden="true"></i> Certyfikacja MSUES 2.0 <small class="text-muted fs-6">— kadra, oświadczenia, gotowość do audytu</small></h1>
   <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-sm btn-primary" href="<?= h(route('msues.reqs')) ?>"><i class="bi bi-clipboard2-check"></i> Wymagania usług</a>
+    <a class="btn btn-sm btn-outline-primary" href="<?= h(route('msues.orgdocs')) ?>"><i class="bi bi-building"></i> Dokumenty instytucji</a>
     <a class="btn btn-sm btn-outline-primary" href="<?= h(route('msues.decls')) ?>"><i class="bi bi-list-check"></i> Wszystkie oświadczenia</a>
     <a class="btn btn-sm btn-outline-secondary" href="<?= h(route('msues.mine')) ?>"><i class="bi bi-person"></i> Moje dokumenty</a>
   </div>
