@@ -76,9 +76,9 @@ foreach ($variants as [$path, $extra]) {
     if ($code === 200) { echo "      → DZIAŁA. Ten wariant trzeba ustawić w SZO.\n"; break; }
 }
 // Inny punkt API (jak Get-EXOMailbox): GET …/Mailbox — gdy działa, a InvokeCommand nie, problem dotyczy tylko InvokeCommand
-foreach (array_unique(array_filter([$tenant, $initial])) as $t) {
+foreach (array_unique(array_filter([$tenant, $initial])) as $t) foreach (['?\$top=1&\$select=UserPrincipalName', ''] as $q) {
     $hdrs = [];
-    $ch = curl_init("https://outlook.office365.com/adminapi/beta/$t/Mailbox?\$top=1&\$select=UserPrincipalName");
+    $ch = curl_init("https://outlook.office365.com/adminapi/beta/$t/Mailbox$q");
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60,
         CURLOPT_HTTPHEADER => array_merge(['Authorization: Bearer ' . $tok, 'Accept: application/json', $anchor], $module('3.9.0')),
         CURLOPT_HEADERFUNCTION => function ($c, $l) use (&$hdrs) {
@@ -87,7 +87,7 @@ foreach (array_unique(array_filter([$tenant, $initial])) as $t) {
         }]);
     $out = (string)curl_exec($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    printf("%-3s GET /adminapi/beta/%s/Mailbox (nagłówki modułu 3.9.0)\n", $code, $t);
+    printf("%-3s GET /adminapi/beta/%s/Mailbox%s (nagłówki modułu 3.9.0)\n", $code, $t, $q);
     foreach (['x-ms-diagnostics', 'www-authenticate', 'request-id'] as $k) if (!empty($h = $hdrs[$k] ?? '')) echo "      $k: $h\n";
     if (($b = trim(mb_substr(preg_replace('/\s+/', ' ', strip_tags($out)), 0, 160))) !== '') echo "      treść: $b\n";
     $okAny = $okAny || $code === 200;
