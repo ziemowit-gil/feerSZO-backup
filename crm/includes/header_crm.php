@@ -1,6 +1,7 @@
 <?php
 /**
- * crm/includes/header_crm.php — CRM layout z lewym sidebarem.
+ * crm/includes/header_crm.php — CRM layout: ciemny app-bar + pasek sekcji (pivot).
+ * Szata Metro UI w crm_metro.php (ostatni blok <head>).
  */
 
 if (!defined('APP_INSTALLED')) require_once dirname(dirname(__DIR__)) . '/config.php';
@@ -379,6 +380,7 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
 <!-- Quill — ładowany globalnie, potrzebny dla modalnego kompozytora -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<?php /* Szata Metro UI jak System Tożsamości — ostatni blok stylów */ require_once __DIR__ . '/crm_metro.php'; ?>
 </head>
 <body>
 
@@ -616,7 +618,7 @@ window.openCommModal = function(contactId, channel, opts) {
       </ul>
     </div>
 
-    <?php $msw_active='crm'; $msw_dark=false; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
+    <?php $msw_active='crm'; $msw_dark=true; require_once dirname(dirname(__DIR__)).'/includes/module_switcher.php'; ?>
 
     <?php if ($_cu): ?>
     <div class="dropdown">
