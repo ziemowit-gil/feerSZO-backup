@@ -61,6 +61,7 @@ enum SettleKind: string
     case Rr   = 'RR';
     case Rmr  = 'RMR';
     case Rrr  = 'RRR';
+    case Rks  = 'RKS';
 
     public function title(): string
     {
@@ -72,17 +73,18 @@ enum SettleKind: string
             self::Rr   => 'Rozliczenie roczne',
             self::Rmr  => 'Rozliczenie miesięczne ręczne',
             self::Rrr  => 'Rozliczenie roczne ręczne',
+            self::Rks  => 'Ręczne księgowanie środków',
         };
     }
 
     public function suffix(): string
     {
-        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ', self::Rm, self::Rmr => 'MIES', self::Rr, self::Rrr => 'ROK' };
+        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ', self::Rm, self::Rmr => 'MIES', self::Rr, self::Rrr => 'ROK', self::Rks => 'KSIEG' };
     }
 
     public function color(): string
     {
-        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025', self::Rm => '#00aba9', self::Rr => '#0050ef', self::Rmr => '#d80073', self::Rrr => '#6a00ff' };
+        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025', self::Rm => '#00aba9', self::Rr => '#0050ef', self::Rmr => '#d80073', self::Rrr => '#6a00ff', self::Rks => '#008a00' };
     }
 
     /** Wyliczane z księgi (RM, RR) vs wpisywane ręcznie (RMR, RRR, PRZ, PRZ-P). */
@@ -222,6 +224,18 @@ final class SettlementDocs
                 if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj podstawę rozliczenia ręcznego (np. dokumentacja sprzed SZO).';
                 $d['rows'] = $rows;
             }
+        } elseif ($k === SettleKind::Rks) {
+            $d['date'] = (string)($in['date'] ?? date('Y-m-d'));
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d['date'])) $e['date'] = 'Podaj datę księgowania.';
+            foreach (['wplacona' => 'Kwota wpłacona', 'nalezna' => 'Kwota należna'] as $f => $l) {
+                $raw = trim((string)($in[$f] ?? '')); $v = self::num($raw);
+                if ($raw !== '' && ($v === null || $v < 0)) $e[$f] = $l . ': podaj kwotę ≥ 0.';
+                $d[$f] = max(0.0, $v ?? 0.0);
+            }
+            if (!isset($e['wplacona']) && !isset($e['nalezna']) && $d['wplacona'] < 0.005 && $d['nalezna'] < 0.005) $e['wplacona'] = 'Podaj kwotę wpłaconą, należną albo obie.';
+            $d['method'] = in_array($in['method'] ?? '', ['transfer', 'cash', 'other'], true) ? $in['method'] : 'transfer';
+            $d['roznica'] = round($d['wplacona'] - $d['nalezna'], 2);
+            if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj tytuł / podstawę księgowania.';
         } else {
             $d['scope'] = ($in['scope'] ?? '') === 'account' ? 'account' : 'group';
             if ($d['scope'] === 'group' && $courseId <= 0) $e['course_id'] = 'Wybierz grupę albo rozliczenie całego konta.';
@@ -240,6 +254,8 @@ final class SettlementDocs
         [$d, $e] = self::validate($k, $clientId, $in);
         if ($e) return ['id' => 0, 'errors' => $e, 'report' => []];
         $mode = $mode === 'direct' ? 'direct' : 'approval';
+        // RKS księguje kierownik: bez uprawnień kierownika dokument zawsze czeka na jego zatwierdzenie
+        if ($k === SettleKind::Rks && $mode === 'direct' && !DopService::canApprove((int)($actor['id'] ?? 0))) $mode = 'approval';
         $req = trim(preg_replace('/\s+/', '', (string)($in['request_number'] ?? '')));
         $d['snapshot'] = self::snapshot($k, $clientId, $d);
         $id = db_insert('settlement_docs', ['kind' => $k->value, 'number' => self::number($k, $clientId, $req), 'client_id' => $clientId, 'course_id' => (int)$d['course_id'],
@@ -324,6 +340,18 @@ final class SettlementDocs
                 else db_insert('k30_ti_billing', ['client_id' => $cid, 'month' => $mo, 'year' => $y, 'course_id' => (int)$r['course_id'], 'hours_billed' => $h, 'hourly_rate' => $rate, 'amount' => $amt,
                     'manual_amount' => $amt, 'manual_note' => mb_substr($note, 0, 500), 'manual_by_name' => (string)$actor['name'], 'manual_at' => ldNow(), 'status' => 'issued', 'issued_at' => ldNow(), 'created_at' => ldNow(), 'due_date' => ldDue()]);
                 $res['log'][] = sprintf('%02d.%d', $mo, $y) . ': ' . $h . ' h → ' . self::zl($amt) . ' (kwota ręczna)';
+            } elseif ($r['kindEnum'] === SettleKind::Rks) {
+                $t = strtotime((string)$d['date']); $gname = (int)$r['course_id'] > 0 ? ' [grupa: ' . self::courseName((int)$r['course_id']) . ']' : '';
+                if ((float)$d['nalezna'] > 0.004) {
+                    $res['billing_id'] = ti_billing_add_charge($cid, (float)$d['nalezna'], 'RKS ' . $r['number'] . $gname . ': ' . $d['uzasadnienie'], (int)date('n', $t), (int)date('Y', $t));
+                    $res['log'][] = 'należność +' . self::zl((float)$d['nalezna']);
+                }
+                if ((float)$d['wplacona'] > 0.004) {
+                    $p = ti_payment_add($cid, (float)$d['wplacona'], (string)$d['date'], (string)$d['method'], 'RKS ' . $r['number'] . ': ' . $d['uzasadnienie'], 'rks', $id, (int)$r['course_id']);
+                    $res['payment_id'] = (int)($p['payment_id'] ?? 0);
+                    $res['log'][] = 'wpłata +' . self::zl((float)$d['wplacona']);
+                }
+                $res['log'][] = 'różnica (wpłacona − należna) ' . self::zl((float)$d['roznica']);
             } elseif (in_array($r['kindEnum'], [SettleKind::Rm, SettleKind::Rr, SettleKind::Rrr], true)) {
                 $res['log'][] = $r['kindEnum']->title() . ' — dokument (bez zmian w księdze)';
             } else {
@@ -516,6 +544,11 @@ final class SettlementDocs
                 $rows .= '<tr><td class="f"><b>Razem</b></td><td class="f" style="text-align:right"><b>' . $e(array_sum(array_column($d['lines'], 'h'))) . ' h</b></td><td class="f"></td><td class="f" style="text-align:right"><b>' . $e($zl(array_sum(array_column($d['lines'], 'amount')))) . '</b></td></tr>';
                 $h .= '<table class="t">' . $sec('C', 'ROZLICZENIE RĘCZNE MIESIĄCA ' . ($d['ym'] ?? ''), 4) . $th(['Pozycja', 'Godziny', 'Stawka', 'Kwota']) . $rows . '</table>';
             }
+        } elseif ($k === SettleKind::Rks) {
+            $diff = (float)$d['roznica'];
+            $h .= '<table class="t">' . $sec('B', 'KSIĘGOWANIE NA DZIEŃ ' . ldDate($d['date']), 3) . '<tr>' . $fld('Kwota wpłacona', '<b>' . $e($zl($d['wplacona'])) . '</b><div class="small">' . $e(['transfer' => 'przelew', 'cash' => 'gotówka', 'other' => 'inna forma'][$d['method']] ?? '') . '</div>', ' width="33%"')
+                . $fld('Kwota należna', '<b>' . $e($zl($d['nalezna'])) . '</b>', ' width="33%"') . $fld('Różnica (wpłacona − należna)', '<b>' . $e($zl($diff)) . '</b><div class="small">' . ($diff > 0.004 ? 'nadpłata' : ($diff < -0.004 ? 'niedopłata' : 'rozliczone')) . '</div>', ' width="34%"') . '</tr></table>';
+            if ($s) $h .= '<table class="t">' . $sec('C', 'SALDO KONTA PO KSIĘGOWANIU', 2) . '<tr>' . $fld('Saldo (+ nadpłata / − zaległość)', '<b>' . $e($zl($s['balance'] ?? 0)) . '</b>', ' width="50%"') . $fld('Do zapłaty / nadpłata', $e($zl($s['debt'] ?? 0)) . ' / ' . $e($zl($s['credit'] ?? 0)), ' width="50%"') . '</tr></table>';
         } elseif (in_array($k, [SettleKind::Rr, SettleKind::Rrr], true)) {
             $rows = '';
             if ($k === SettleKind::Rrr) {

@@ -32,6 +32,11 @@ $zl = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
   <?php elseif (in_array($k, [SettleKind::Rm, SettleKind::Rmr], true)): $ms = $s['month'] ?? null; ?>
     <dt class="col-sm-4">Miesiąc</dt><dd class="col-sm-8"><?= h($d['ym']) ?><?= $ms ? ': ' . h($ms['lessons']) . ' zajęć, ' . h($ms['hours_attended']) . ' h obecności, rozliczono ' . h($ms['hours_billed']) . ' h; należności ' . h($zl($ms['charges'])) . ', wpłaty ' . h($zl($ms['payments'])) . ', saldo na koniec ' . h($zl($ms['balance_end'])) : '' ?></dd>
     <?php foreach (($d['lines'] ?? []) as $l): ?><dt class="col-sm-4"><?= h($l['opis']) ?></dt><dd class="col-sm-8"><?= h($l['h']) ?> h × <?= h($zl($l['rate'])) ?> = <b><?= h($zl($l['amount'])) ?></b></dd><?php endforeach; ?>
+  <?php elseif ($k === SettleKind::Rks): ?>
+    <dt class="col-sm-4">Data księgowania</dt><dd class="col-sm-8"><?= h(ldDate($d['date'])) ?></dd>
+    <dt class="col-sm-4">Kwota wpłacona</dt><dd class="col-sm-8"><?= h($zl($d['wplacona'])) ?> (<?= h(['transfer' => 'przelew', 'cash' => 'gotówka', 'other' => 'inna'][$d['method']] ?? '') ?>)</dd>
+    <dt class="col-sm-4">Kwota należna</dt><dd class="col-sm-8"><?= h($zl($d['nalezna'])) ?></dd>
+    <dt class="col-sm-4">Różnica</dt><dd class="col-sm-8"><b><?= h($zl($d['roznica'])) ?></b> <?= $d['roznica'] > 0.004 ? '(nadpłata)' : ($d['roznica'] < -0.004 ? '(niedopłata)' : '(rozliczone)') ?></dd>
   <?php elseif (in_array($k, [SettleKind::Rr, SettleKind::Rrr], true)): ?>
     <dt class="col-sm-4">Rok</dt><dd class="col-sm-8"><?= h($d['year']) ?></dd>
     <?php foreach ($k === SettleKind::Rrr ? ($d['rows'] ?? []) : ($s['months'] ?? []) as $x): ?><dt class="col-sm-4"><?= h($k === SettleKind::Rrr ? sprintf('%02d.%d', $x['m'], $d['year']) : $x['label']) ?></dt>

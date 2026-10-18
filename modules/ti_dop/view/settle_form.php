@@ -25,7 +25,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
     <div class="form-check"><input class="form-check-input" type="radio" name="scope" id="sc1" value="group"<?= ($old['scope'] ?? 'group') !== 'account' ? ' checked' : '' ?>><label class="form-check-label" for="sc1">grupa (zakończenie kursu)</label></div>
     <div class="form-check"><input class="form-check-input" type="radio" name="scope" id="sc2" value="account"<?= ($old['scope'] ?? '') === 'account' ? ' checked' : '' ?>><label class="form-check-label" for="sc2">całe konto uczestnika</label></div></div>
   <?php endif; ?>
-  <div class="col-md-5"><label class="form-label" for="course_id">Grupa<?= in_array($kind, [SettleKind::Przp, SettleKind::Rm, SettleKind::Rr, SettleKind::Rrr], true) ? ' (puste = całe konto)' : '' ?></label>
+  <div class="col-md-5"><label class="form-label" for="course_id">Grupa<?= in_array($kind, [SettleKind::Przp, SettleKind::Rm, SettleKind::Rr, SettleKind::Rrr, SettleKind::Rks], true) ? ' (puste = całe konto)' : '' ?></label>
     <select class="form-select" id="course_id" name="course_id"><option value="0"><?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr], true) ? '— wybierz grupę —' : 'całe konto' ?></option>
       <?php foreach ($courses as $co): $lab = (trim((string)$co['display_name']) !== '' ? $co['display_name'] : $co['name']) . (trim((string)$co['group_code']) !== '' ? ' (' . $co['group_code'] . ')' : ''); ?>
         <option value="<?= (int)$co['id'] ?>"<?= (string)($old['course_id'] ?? '') === (string)$co['id'] ? ' selected' : '' ?>><?= h($lab) ?><?= $kind === SettleKind::Prz ? (in_array((int)$co['id'], $baselines, true) || in_array(0, $baselines, true) ? ' — PRZ-P ✓' : ' — brak PRZ-P') : '' ?></option><?php endforeach; ?></select><?= $err('course_id') ?></div>
@@ -54,6 +54,19 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
     <td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][charges]" value="<?= h($y['charges'] ?? '') ?>" inputmode="decimal" aria-label="Należności <?= $m ?>"></td><td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][payments]" value="<?= h($y['payments'] ?? '') ?>" inputmode="decimal" aria-label="Wpłaty <?= $m ?>"></td></tr><?php endfor; ?>
   </tbody></table></section>
 <?php endif; ?>
+<?php elseif ($kind === SettleKind::Rks): ?>
+<section class="panel"><h2 class="mt-0">Księgowanie</h2><div class="row g-3">
+  <div class="col-md-3"><label class="form-label" for="dt">Data księgowania *</label><input class="form-control" type="date" id="dt" name="date" value="<?= $v('date') ?: h(date('Y-m-d')) ?>"><?= $err('date') ?></div>
+  <div class="col-md-3"><label class="form-label" for="wp">Kwota wpłacona (zł)</label><input class="form-control" id="wp" name="wplacona" value="<?= $v('wplacona') ?>" inputmode="decimal" aria-describedby="rks-diff"><?= $err('wplacona') ?></div>
+  <div class="col-md-3"><label class="form-label" for="nl">Kwota należna (zł)</label><input class="form-control" id="nl" name="nalezna" value="<?= $v('nalezna') ?>" inputmode="decimal" aria-describedby="rks-diff"><?= $err('nalezna') ?></div>
+  <div class="col-md-3"><label class="form-label" for="mt">Forma wpłaty</label><select class="form-select" id="mt" name="method"><?php foreach (['transfer' => 'przelew', 'cash' => 'gotówka', 'other' => 'inna'] as $mk => $ml): ?><option value="<?= $mk ?>"<?= ($old['method'] ?? 'transfer') === $mk ? ' selected' : '' ?>><?= $ml ?></option><?php endforeach; ?></select></div>
+  <div class="col-12"><p class="mb-0" id="rks-diff" aria-live="polite">Różnica (wpłacona − należna): <b>0,00 zł</b></p>
+    <p class="small text-secondary mb-0">Wpłata trafia do księgi wpłat (z ROP do kursanta i rodzica), należność — jako opłata w rozliczeniu miesiąca daty księgowania. Księguje kierownik; inna osoba wystawia RKS do jego zatwierdzenia.</p></div>
+</div></section>
+<script>(function () { var w = document.getElementById('wp'), n = document.getElementById('nl'), o = document.getElementById('rks-diff').querySelector('b');
+  var num = function (x) { var v = parseFloat(String(x.value).replace(/\s/g, '').replace(',', '.')); return isNaN(v) ? 0 : v; };
+  var upd = function () { var d = num(w) - num(n); o.textContent = d.toFixed(2).replace('.', ',') + ' zł' + (d > 0.004 ? ' (nadpłata)' : d < -0.004 ? ' (niedopłata)' : ''); };
+  w.addEventListener('input', upd); n.addEventListener('input', upd); upd(); })();</script>
 <?php elseif ($kind === SettleKind::Przp): ?>
 <section class="panel"><h2 class="mt-0">Stan początkowy</h2><div class="row g-3">
   <div class="col-md-3"><label class="form-label" for="as_of">Na dzień *</label><input class="form-control" type="date" id="as_of" name="as_of" value="<?= $v('as_of') ?>"><?= $err('as_of') ?></div>
@@ -72,7 +85,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
   </tbody></table>
 </section>
 <?php endif; ?>
-<section class="panel"><label class="form-label" for="uz">Uzasadnienie<?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr, SettleKind::Rrr], true) ? ' *' : '' ?></label><textarea class="form-control" id="uz" name="uzasadnienie" rows="2"><?= $v('uzasadnienie') ?></textarea><?= $err('uzasadnienie') ?></section>
+<section class="panel"><label class="form-label" for="uz">Uzasadnienie<?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr, SettleKind::Rrr, SettleKind::Rks], true) ? ' *' : '' ?></label><textarea class="form-control" id="uz" name="uzasadnienie" rows="2"><?= $v('uzasadnienie') ?></textarea><?= $err('uzasadnienie') ?></section>
 <section class="panel warn"><h2 class="mt-0">Obieg</h2>
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m1" value="approval"<?= ($old['mode'] ?? 'approval') !== 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m1"><b>Z akceptacją kierownika</b> — po zatwierdzeniu wykonanie i PDF e-mailem do kursanta i rodzica</label></div>
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m2" value="direct"<?= ($old['mode'] ?? '') === 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m2"><b>Bez akceptacji, tylko do akt</b> — wykonanie od razu, Twój podpis, dokument w teczce kursanta (bez wysyłki)</label></div>
