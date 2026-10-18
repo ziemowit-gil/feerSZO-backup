@@ -220,12 +220,13 @@ foreach (CONTRACT_TYPES as $slug => $label)
     if (module_enabled('contract_' . $slug) && file_exists(__DIR__ . "/contracts/{$slug}/add.php"))
         $new_types[$slug] = $label;
 
+// Tony „Wymaga uwagi” — paleta Metro (przyciemniona do WCAG AA z białym tekstem)
 $tone_css = [
-    'red'    => ['#dc2626', '#fef2f2', '#fecaca'],
-    'amber'  => ['#d97706', '#fffbeb', '#fde68a'],
-    'violet' => ['#7c3aed', '#f5f3ff', '#ddd6fe'],
-    'blue'   => ['#2563eb', '#eff6ff', '#bfdbfe'],
-    'slate'  => ['#475569', '#f8fafc', '#e2e8f0'],
+    'red'    => ['#a20025', '#f2f2f2', '#e1e1e1'],
+    'amber'  => ['#c25100', '#f2f2f2', '#e1e1e1'],
+    'violet' => ['#6a00ff', '#f2f2f2', '#e1e1e1'],
+    'blue'   => ['#0050ef', '#f2f2f2', '#e1e1e1'],
+    'slate'  => ['#5f5f5f', '#f2f2f2', '#e1e1e1'],
 ];
 
 // Wymóg uzupełnienia profilu w Katalogu (/katalog) — w trybie „require” przekierowuje przed wysłaniem strony
@@ -236,106 +237,111 @@ $dpStatus = directoryProfileEnforce($_user) ?? directoryProfileStatus((int)$_use
 include __DIR__ . '/includes/header.php';
 ?>
 
-<style type="text/tailwindcss">
-/* ── Pulpit — nazwane klasy z @apply (pełna strona, więc Tailwind CDN je kompiluje) ── */
-.dash { @apply tw-max-w-[1440px] tw-mx-auto; }
+<style>
+/* ── Pulpit SZO — szata Metro UI (jak Tożsamość, EZD, CRM): lekki duży tytuł z kickerem,
+   wskaźniki jako pełnokolorowe kafle Start, płaskie panele z szarym nagłówkiem,
+   ZERO zaokrągleń i cieni, kwadratowe przyciski z ramką 2px, kafle modułów w kolorze modułu.
+   Zwykły CSS (bez @apply) — nie czeka na Tailwind CDN. Tokeny --sm-* z includes/szo_metro.php. */
+html body{background:#fff!important;background-image:none!important}
+.dash{max-width:1440px;margin:0 auto;font-family:var(--sm-font,"Segoe UI",system-ui,sans-serif);color:#1d1d1d}
+.dash *{border-radius:0!important}
+.dash .rounded-circle{border-radius:50%!important}
 
 /* Nagłówek */
-.dash-hero { @apply tw-flex tw-flex-wrap tw-items-end tw-justify-between tw-gap-3 tw-mb-5; }
-.dash-greet { @apply tw-text-2xl tw-font-extrabold tw-tracking-tight tw-text-slate-900 tw-m-0 tw-leading-tight; }
-.dash-sub { @apply tw-text-sm tw-text-slate-500 tw-mt-1; }
-.dash-actions { @apply tw-flex tw-flex-wrap tw-items-center tw-gap-2; }
-.dash-btn {
-    @apply tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-px-3 tw-py-1.5 tw-text-[.82rem] tw-font-semibold tw-no-underline tw-cursor-pointer tw-transition-colors;
-    background: #fff; color: #334155; border: 1px solid #e2e8f0;
-}
-.dash-btn:hover { background: #f8fafc; color: #0f172a; border-color: #cbd5e1; }
-.dash-btn kbd { @apply tw-text-[.6rem] tw-font-bold tw-rounded tw-px-1 tw-py-0.5 tw-ml-1; background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; font-family: inherit; }
-.dash-btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
-.dash-btn-primary:hover { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
-.dash-btn .bi { font-size: .9rem; }
+.dash-hero{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1rem;margin:0 0 1.5rem}
+.dash-kicker{font-size:.7rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#5f5f5f;margin:0 0 .35rem}
+.dash-greet{font-size:2.6rem;font-weight:300;letter-spacing:-.025em;line-height:1.05;color:#1d1d1d;margin:0}
+.dash-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
+.dash-btn{display:inline-flex;align-items:center;gap:.45rem;height:36px;padding:0 .9rem;font-size:.85rem;font-weight:600;text-decoration:none;cursor:pointer;
+  background:#fff;color:#1d1d1d;border:2px solid #1d1d1d;transition:background .12s,color .12s}
+.dash-btn:hover,.dash-btn:focus-visible,.dash-btn[aria-expanded="true"]{background:#1d1d1d;color:#fff}
+.dash-btn:hover .bi,.dash-btn:focus-visible .bi{color:#fff!important}
+.dash-btn kbd{font-family:inherit;font-size:.6rem;font-weight:700;padding:.05rem .3rem;background:#f2f2f2;color:#5f5f5f;border:0;margin-left:.15rem}
+.dash-btn-primary{background:#0050ef;border-color:#0050ef;color:#fff}
+.dash-btn-primary:hover,.dash-btn-primary[aria-expanded="true"]{background:#1d1d1d;border-color:#1d1d1d}
+.dash-btn .bi{font-size:.95rem}
 
-/* Karty KPI */
-.dash-kpi { @apply tw-grid tw-gap-3 tw-mb-4; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-.kpi-card {
-    @apply tw-relative tw-block tw-overflow-hidden tw-rounded-2xl tw-bg-white tw-no-underline tw-transition-shadow;
-    border: 1px solid #e2e8f0; padding: 1rem 1.1rem 1rem; color: inherit;
-}
-.kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--kpi-accent, #94a3b8); }
-a.kpi-card:hover { box-shadow: 0 8px 24px rgba(2,6,23,.08); color: inherit; }
-.kpi-top { @apply tw-flex tw-items-center tw-justify-between tw-gap-2 tw-mb-2; }
-.kpi-icon { @apply tw-w-9 tw-h-9 tw-rounded-xl tw-flex tw-items-center tw-justify-center tw-text-base tw-shrink-0; }
-.kpi-val { @apply tw-text-3xl tw-font-extrabold tw-leading-none tw-text-slate-900; }
-.kpi-lbl { @apply tw-text-[.72rem] tw-font-bold tw-uppercase tw-tracking-wider tw-text-slate-500 tw-mt-1.5; }
-.kpi-sub { @apply tw-text-[.72rem] tw-text-slate-400 tw-mt-0.5; }
+/* Kafle wskaźników — żywe kafle Start */
+.dash-kpi{display:grid;gap:.5rem;margin:0 0 1.75rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.kpi-card{--k:#6d6d6d;position:relative;display:flex;flex-direction:column;min-height:140px;padding:.9rem 1rem .85rem;background:var(--k);color:#fff;text-decoration:none;transition:filter .12s}
+a.kpi-card:hover,a.kpi-card:focus-visible{color:#fff;filter:brightness(1.12);outline:3px solid #1d1d1d;outline-offset:2px}
+.kpi-icon{font-size:1.5rem;line-height:1;color:#fff}
+.kpi-val{margin-top:auto;font-size:2.8rem;font-weight:300;line-height:1;color:#fff}
+.kpi-lbl{font-size:.82rem;font-weight:600;color:#fff;margin-top:.35rem}
+.kpi-sub{font-size:.72rem;color:rgba(255,255,255,.85);margin-top:.1rem}
+.kpi-sub b{color:#fff}
 
 /* Siatka główna */
-.dash-grid { @apply tw-grid tw-gap-4 tw-items-start; grid-template-columns: 1fr; }
-@media (min-width: 1280px) { .dash-grid { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); } }
-.dash-main { @apply tw-grid tw-gap-4 tw-min-w-0; grid-template-columns: 1fr; }
-@media (min-width: 768px) { .dash-main { grid-template-columns: 1fr 1fr; } }
-.dash-side { @apply tw-grid tw-gap-4 tw-min-w-0; }
+.dash-grid{display:grid;gap:1.25rem;align-items:start;grid-template-columns:1fr}
+@media (min-width:1280px){.dash-grid{grid-template-columns:minmax(0,2fr) minmax(300px,1fr)}}
+.dash-main{display:grid;gap:1.25rem;min-width:0;grid-template-columns:1fr}
+@media (min-width:768px){.dash-main{grid-template-columns:1fr 1fr}}
+.dash-side{display:grid;gap:1.25rem;min-width:0}
 
-/* Panele */
-.dash-panel { @apply tw-bg-white tw-rounded-2xl tw-overflow-hidden tw-min-w-0; border: 1px solid #e2e8f0; }
-.dash-panel-head { @apply tw-flex tw-items-center tw-justify-between tw-gap-2 tw-px-4 tw-py-2.5; border-bottom: 1px solid #f1f5f9; background: #fafbfc; }
-.dash-panel-title { @apply tw-flex tw-items-center tw-gap-2 tw-text-[.86rem] tw-font-bold tw-text-slate-800 tw-m-0; }
-.dash-panel-title .bi { font-size: .95rem; }
-.dash-panel-title .badge { font-size: .62rem; }
-.dash-link { @apply tw-text-[.76rem] tw-font-semibold tw-no-underline tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-px-2 tw-py-1 tw-transition-colors; color: #2563eb; }
-.dash-link:hover { background: #eff6ff; color: #1d4ed8; }
-.dash-empty { @apply tw-text-center tw-text-[.8rem] tw-text-slate-400 tw-py-6 tw-px-4; }
-.dash-empty .bi { color: #16a34a; margin-right: .3rem; }
+/* Panele — płaskie, nagłówek jak tytuł sekcji Metro */
+.dash-panel{background:#fff;min-width:0;border-top:2px solid #1d1d1d}
+.dash-panel-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.6rem 0 .55rem;border-bottom:1px solid #e1e1e1}
+.dash-panel-title{display:flex;align-items:center;gap:.55rem;font-size:1.2rem;font-weight:300;letter-spacing:-.01em;color:#1d1d1d;margin:0}
+.dash-panel-title .bi{font-size:1rem}
+.dash-panel-title .badge{font-size:.62rem;font-weight:700}
+.dash-link{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;font-weight:600;text-decoration:none;padding:.25rem .5rem;color:#003bb0}
+.dash-link:hover{background:#0050ef;color:#fff}
+.dash-empty{text-align:left;font-size:.84rem;color:#5f5f5f;padding:1.1rem 0}
+.dash-empty .bi{color:#007a00;margin-right:.35rem}
 
 /* Wiersze list */
-.dash-row {
-    @apply tw-flex tw-items-center tw-gap-3 tw-px-4 tw-py-2.5 tw-no-underline tw-transition-colors tw-w-full tw-text-left;
-    border-bottom: 1px solid #f8fafc; color: inherit; background: none; border-left: 0; border-right: 0; border-top: 0;
-}
-.dash-row:last-child { border-bottom: 0; }
-a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
-.dash-row-main { @apply tw-flex-1 tw-min-w-0; }
-.dash-row-title { @apply tw-text-[.83rem] tw-font-semibold tw-text-slate-900 tw-truncate; }
-.dash-row-sub { @apply tw-text-[.73rem] tw-text-slate-400 tw-truncate; }
-.dash-row-end { @apply tw-text-[.72rem] tw-text-slate-500 tw-whitespace-nowrap tw-text-right tw-shrink-0; }
-.dash-pill { @apply tw-inline-flex tw-items-center tw-justify-center tw-rounded-full tw-text-[.68rem] tw-font-bold tw-px-2 tw-py-0.5 tw-shrink-0 tw-min-w-[2.4rem]; }
-.dash-dot { @apply tw-w-2 tw-h-2 tw-rounded-full tw-shrink-0; }
-.dash-avatar { @apply tw-w-8 tw-h-8 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-text-[.65rem] tw-font-bold tw-shrink-0; }
+.dash-row{display:flex;align-items:center;gap:.75rem;width:100%;text-align:left;padding:.6rem .5rem;text-decoration:none;color:inherit;
+  background:none;border:0;border-bottom:1px solid #e1e1e1;transition:background .1s}
+.dash-row:last-child{border-bottom:0}
+a.dash-row:hover,button.dash-row:hover{background:#f2f2f2;color:inherit}
+.dash-row.is-unread{background:#e6eefd}
+.dash-row-main{flex:1;min-width:0}
+.dash-row-title{font-size:.88rem;font-weight:600;color:#1d1d1d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-row-sub{font-size:.75rem;color:#5f5f5f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-row-end{font-size:.75rem;color:#5f5f5f;white-space:nowrap;text-align:right;flex-shrink:0}
+.dash-pill{display:inline-flex;align-items:center;justify-content:center;min-width:3.2rem;padding:.2rem .4rem;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.dash-dot{width:8px;height:8px;flex-shrink:0}
+.dash-avatar{width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex-shrink:0;background:#e6e6e6;color:#1d1d1d}
+.dash-row.is-unread .dash-avatar{background:#0050ef;color:#fff}
+.dash-ic{width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0;background:#0050ef;color:#fff}
+.dash-panel .badge{font-weight:700;letter-spacing:.03em}
 
-/* Wymaga uwagi */
-.attn-row { @apply tw-flex tw-items-center tw-gap-3 tw-px-3 tw-py-2 tw-rounded-xl tw-no-underline tw-transition-colors; color: #0f172a; }
-.attn-row:hover { background: var(--bg); color: #0f172a; }
-.attn-ic { @apply tw-w-8 tw-h-8 tw-rounded-lg tw-flex tw-items-center tw-justify-center tw-text-[.9rem] tw-shrink-0; background: var(--bg); color: var(--fg); }
-.attn-lbl { @apply tw-flex-1 tw-min-w-0 tw-text-[.82rem] tw-font-medium tw-truncate; }
-.attn-n { @apply tw-text-[.74rem] tw-font-extrabold tw-rounded-full tw-px-2 tw-py-0.5 tw-shrink-0; background: var(--bg); color: var(--fg); border: 1px solid var(--bd); }
-.attn-list { @apply tw-p-2 tw-grid tw-gap-0.5; }
-.attn-ok { @apply tw-flex tw-items-center tw-gap-3 tw-px-4 tw-py-5; }
-.attn-ok-ic { @apply tw-w-10 tw-h-10 tw-rounded-full tw-flex tw-items-center tw-justify-center tw-text-lg tw-shrink-0; background: #f0fdf4; color: #16a34a; }
+/* Wymaga uwagi — wiersze z kwadratową ikoną w kolorze tonu */
+.attn-list{display:grid;gap:0}
+.attn-row{display:flex;align-items:center;gap:.75rem;padding:.5rem;text-decoration:none;color:#1d1d1d;border-bottom:1px solid #e1e1e1}
+.attn-row:last-child{border-bottom:0}
+.attn-row:hover{background:#f2f2f2;color:#1d1d1d}
+.attn-ic{width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0;background:var(--fg);color:#fff}
+.attn-lbl{flex:1;min-width:0;font-size:.86rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attn-n{font-size:1.4rem;font-weight:300;line-height:1;color:var(--fg);flex-shrink:0;min-width:1.6rem;text-align:right}
+.attn-ok{display:flex;align-items:center;gap:.75rem;padding:1rem 0}
+.attn-ok-ic{width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;background:#007a00;color:#fff}
+.attn-ok-t{font-size:.9rem;font-weight:600;color:#1d1d1d}
+.attn-ok-s{font-size:.76rem;color:#5f5f5f}
 
 /* Komunikaty */
-.ann-row { @apply tw-block tw-px-4 tw-py-2.5 tw-no-underline; border-bottom: 1px solid #f8fafc; color: inherit; }
-.ann-row:last-child { border-bottom: 0; }
-.ann-row:hover { background: #f8fafc; color: inherit; }
-.ann-row.unread { background: #eff6ff; }
-.ann-row.unread:hover { background: #dbeafe; }
-.ann-title { @apply tw-text-[.82rem] tw-font-semibold tw-text-slate-900 tw-flex tw-items-center tw-gap-1.5; }
-.ann-meta { @apply tw-text-[.71rem] tw-text-slate-400 tw-mt-0.5; }
+.ann-row{display:block;padding:.6rem .5rem;text-decoration:none;color:inherit;border-bottom:1px solid #e1e1e1}
+.ann-row:last-child{border-bottom:0}
+.ann-row:hover{background:#f2f2f2;color:inherit}
+.ann-row.unread{background:#e6eefd;box-shadow:inset 4px 0 0 #0050ef}
+.ann-title{display:flex;align-items:center;gap:.4rem;font-size:.86rem;font-weight:600;color:#1d1d1d;min-width:0}
+.ann-title span:not(.dash-dot){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ann-meta{font-size:.73rem;color:#5f5f5f;margin-top:.1rem}
 
-/* Moduły */
-.dash-mods { @apply tw-grid tw-gap-2 tw-p-3; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
-.dash-mod {
-    @apply tw-flex tw-flex-col tw-items-center tw-gap-1.5 tw-rounded-xl tw-no-underline tw-text-center tw-py-2.5 tw-px-1 tw-transition-colors;
-    border: 1px solid #eef2f7; color: #334155; font-size: .7rem; font-weight: 600; line-height: 1.15;
-}
-.dash-mod:hover { background: #f8fafc; color: #0f172a; border-color: #cbd5e1; }
-.dash-mod.on { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
-.dash-mod-ic { @apply tw-w-9 tw-h-9 tw-rounded-xl tw-flex tw-items-center tw-justify-center tw-text-[1.1rem]; background: var(--mb, #f8fafc); color: var(--mc, #64748b); }
+/* Moduły — kafle w kolorze modułu */
+.dash-mods{display:grid;gap:.35rem;padding:.75rem 0 0;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+.dash-mod{display:flex;flex-direction:column;justify-content:space-between;gap:.6rem;min-height:84px;padding:.6rem .65rem;text-decoration:none;
+  background:var(--mc,#5f5f5f);background:color-mix(in srgb,var(--mc,#5f5f5f) 80%,#000);color:#fff;font-size:.74rem;font-weight:600;line-height:1.15;transition:filter .12s}
+.dash-mod:hover,.dash-mod:focus-visible{color:#fff;filter:brightness(1.12);outline:3px solid #1d1d1d;outline-offset:2px}
+.dash-mod.on{box-shadow:inset 0 -4px 0 rgba(0,0,0,.35)}
+.dash-mod-ic{font-size:1.25rem;line-height:1;color:#fff}
 
-@media (max-width: 575.98px) {
-  .dash-kpi { grid-template-columns: repeat(2, 1fr); }
-  .kpi-val { @apply tw-text-2xl; }
-  .dash-greet { @apply tw-text-xl; }
+@media (max-width:575.98px){
+  .dash-kpi{grid-template-columns:repeat(2,1fr)}
+  .kpi-val{font-size:2.2rem}
+  .dash-greet{font-size:1.9rem}
 }
+@media (prefers-reduced-motion:reduce){.dash *{transition:none!important}}
 </style>
 
 <div class="dash">
@@ -343,8 +349,8 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
   <!-- ── Nagłówek ─────────────────────────────────────────────────────────── -->
   <header class="dash-hero">
     <div>
-      <h1 class="dash-greet"><?= h($greeting) ?>, <?= h($first_name) ?> 👋</h1>
-      <div class="dash-sub"><?= h($date_pl_long) ?><?= $org_name ? ' · ' . h($org_name) : '' ?></div>
+      <div class="dash-kicker"><?= h($date_pl_long) ?><?= $org_name ? ' · ' . h($org_name) : '' ?></div>
+      <h1 class="dash-greet"><?= h($greeting) ?>, <?= h($first_name) ?></h1>
     </div>
     <div class="dash-actions">
       <a href="<?= APP_URL ?>/directory/profile_edit.php" class="dash-btn"><i class="bi bi-person-lines-fill" style="color:<?= $dpStatus['complete'] ? '#00807e' : '#c25100' ?>"></i>Profil w katalogu<?php if ($dpStatus['total']): ?> <kbd><?= (int)$dpStatus['pct'] ?>%</kbd><?php endif; ?></a>
@@ -354,7 +360,7 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
         <button type="button" class="dash-btn dash-btn-primary" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="bi bi-plus-lg"></i>Nowa umowa <i class="bi bi-chevron-down" style="font-size:.6rem;opacity:.7"></i>
         </button>
-        <ul class="dropdown-menu shadow" style="min-width:220px;font-size:.84rem;border-radius:12px">
+        <ul class="dropdown-menu shadow" style="min-width:220px;font-size:.84rem">
           <li><h6 class="dropdown-header" style="font-size:.62rem;text-transform:uppercase;letter-spacing:.08em">Typ umowy</h6></li>
           <?php foreach ($new_types as $slug => $label): ?>
           <li><a class="dropdown-item py-2" href="<?= APP_URL ?>/contracts/<?= h($slug) ?>/add.php"><i class="bi <?= h($ct_icons[$slug] ?? 'bi-file-text') ?> me-2 text-muted"></i><?= h($label) ?></a></li>
@@ -373,56 +379,56 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
   <!-- ── KPI ──────────────────────────────────────────────────────────────── -->
   <section class="dash-kpi" aria-label="Wskaźniki">
 
-    <a href="<?= APP_URL ?>/contracts/rejestr.php" class="kpi-card" style="--kpi-accent:#2563eb">
-      <div class="kpi-top"><div class="kpi-icon" style="background:#eff6ff;color:#2563eb"><i class="bi bi-file-earmark-text-fill"></i></div></div>
+    <a href="<?= APP_URL ?>/contracts/rejestr.php" class="kpi-card" style="--k:#0050ef">
+      <i class="kpi-icon bi bi-file-earmark-text-fill" aria-hidden="true"></i>
       <div class="kpi-val"><?= $kpi['total'] ?></div>
       <div class="kpi-lbl">Wszystkich umów</div>
       <div class="kpi-sub">+<?= $kpi['new_month'] ?> w tym miesiącu</div>
     </a>
 
-    <div class="kpi-card" style="--kpi-accent:#16a34a">
-      <div class="kpi-top"><div class="kpi-icon" style="background:#f0fdf4;color:#16a34a"><i class="bi bi-check-circle-fill"></i></div></div>
+    <a href="<?= APP_URL ?>/contracts/rejestr.php" class="kpi-card" style="--k:#007a00">
+      <i class="kpi-icon bi bi-check-circle-fill" aria-hidden="true"></i>
       <div class="kpi-val"><?= $kpi['active'] ?></div>
       <div class="kpi-lbl">Aktywnych</div>
       <div class="kpi-sub"><?= $kpi['total'] > 0 ? round($kpi['active'] / $kpi['total'] * 100) : 0 ?>% wszystkich</div>
-    </div>
+    </a>
 
     <?php if ($kpi['expiring_7'] > 0): ?>
-    <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="kpi-card" style="--kpi-accent:#dc2626">
-      <div class="kpi-top"><div class="kpi-icon" style="background:#fef2f2;color:#dc2626"><i class="bi bi-calendar-x-fill"></i></div></div>
-      <div class="kpi-val" style="color:#dc2626"><?= $kpi['expiring_7'] ?></div>
+    <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="kpi-card" style="--k:#a20025">
+      <i class="kpi-icon bi bi-calendar-x-fill" aria-hidden="true"></i>
+      <div class="kpi-val"><?= $kpi['expiring_7'] ?></div>
       <div class="kpi-lbl">Wygasa w 7 dni</div>
       <div class="kpi-sub"><?= $kpi['expiring_30'] ?> w ciągu 30 dni</div>
     </a>
     <?php elseif ($kpi['expiring_30'] > 0): ?>
-    <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="kpi-card" style="--kpi-accent:#f59e0b">
-      <div class="kpi-top"><div class="kpi-icon" style="background:#fffbeb;color:#d97706"><i class="bi bi-calendar-event-fill"></i></div></div>
-      <div class="kpi-val" style="color:#d97706"><?= $kpi['expiring_30'] ?></div>
+    <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="kpi-card" style="--k:#c25100">
+      <i class="kpi-icon bi bi-calendar-event-fill" aria-hidden="true"></i>
+      <div class="kpi-val"><?= $kpi['expiring_30'] ?></div>
       <div class="kpi-lbl">Wygasa w 30 dni</div>
       <div class="kpi-sub">Sprawdź monitoring</div>
     </a>
     <?php else: ?>
-    <div class="kpi-card" style="--kpi-accent:#16a34a">
-      <div class="kpi-top"><div class="kpi-icon" style="background:#f0fdf4;color:#16a34a"><i class="bi bi-calendar-check-fill"></i></div></div>
+    <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="kpi-card" style="--k:#6d6d6d">
+      <i class="kpi-icon bi bi-calendar-check-fill" aria-hidden="true"></i>
       <div class="kpi-val">0</div>
       <div class="kpi-lbl">Wygasających</div>
       <div class="kpi-sub">Brak w ciągu 30 dni</div>
-    </div>
+    </a>
     <?php endif; ?>
 
-    <a href="<?= APP_URL ?>/admin/approvals.php" class="kpi-card" style="--kpi-accent:#7c3aed">
-      <div class="kpi-top"><div class="kpi-icon" style="background:#f5f3ff;color:#7c3aed"><i class="bi bi-hourglass-split"></i></div></div>
-      <div class="kpi-val" style="color:<?= $kpi['pending_approval'] ? '#7c3aed' : '#0f172a' ?>"><?= $kpi['pending_approval'] ?></div>
+    <a href="<?= APP_URL ?>/admin/approvals.php" class="kpi-card" style="--k:<?= $kpi['pending_approval'] ? '#6a00ff' : '#6d6d6d' ?>">
+      <i class="kpi-icon bi bi-hourglass-split" aria-hidden="true"></i>
+      <div class="kpi-val"><?= $kpi['pending_approval'] ?></div>
       <div class="kpi-lbl">Do akceptacji</div>
       <div class="kpi-sub"><?= $kpi['pending_approval'] ? 'Oczekuje na decyzję' : 'Brak oczekujących' ?></div>
     </a>
 
     <?php if (module_enabled('tasks_enabled')): ?>
-    <a href="<?= APP_URL ?>/tasks/index.php" class="kpi-card" style="--kpi-accent:#0ea5e9">
-      <div class="kpi-top"><div class="kpi-icon" style="background:#f0f9ff;color:#0ea5e9"><i class="bi bi-kanban-fill"></i></div></div>
+    <a href="<?= APP_URL ?>/tasks/index.php" class="kpi-card" style="--k:<?= $tasks_overdue ? '#a20025' : '#00807e' ?>">
+      <i class="kpi-icon bi bi-kanban-fill" aria-hidden="true"></i>
       <div class="kpi-val"><?= $kpi['tasks_mine'] ?></div>
       <div class="kpi-lbl">Moich zadań</div>
-      <div class="kpi-sub"><?= $tasks_overdue ? '<span style="color:#dc2626;font-weight:700">' . $tasks_overdue . ' po terminie</span> · ' : '' ?><?= $kpi['tasks_open'] ?> otwartych łącznie</div>
+      <div class="kpi-sub"><?= $tasks_overdue ? '<b>' . $tasks_overdue . ' po terminie</b> · ' : '' ?><?= $kpi['tasks_open'] ?> otwartych łącznie</div>
     </a>
     <?php endif; ?>
 
@@ -436,16 +442,15 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <!-- Wygasają wkrótce -->
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-calendar-x" style="color:#d97706"></i>Wygasają wkrótce</h2>
+          <h2 class="dash-panel-title"><i class="bi bi-calendar-x" style="color:#c25100"></i>Wygasają wkrótce</h2>
           <a href="<?= APP_URL ?>/admin/contract_expiry.php" class="dash-link">Wszystkie <i class="bi bi-arrow-right"></i></a>
         </div>
         <?php if ($expiring): foreach ($expiring as $r):
           $days = (int)round((strtotime($r['end_date']) - strtotime($today)) / 86400);
-          $dc = $days <= 7 ? '#dc2626' : ($days <= 14 ? '#d97706' : '#0284c7');
-          $db = $days <= 7 ? '#fef2f2' : ($days <= 14 ? '#fffbeb' : '#f0f9ff');
+          $dc = $days <= 7 ? '#a20025' : ($days <= 14 ? '#c25100' : '#0050ef');
         ?>
         <a href="<?= contract_url($r['type'], (int)$r['id']) ?>" class="dash-row">
-          <span class="dash-pill" style="background:<?= $db ?>;color:<?= $dc ?>"><?= $days ?> dni</span>
+          <span class="dash-pill" style="background:<?= $dc ?>"><?= $days ?> dni</span>
           <div class="dash-row-main">
             <div class="dash-row-title"><?= h($r['imie_nazwisko'] ?: ($r['numer_umowy'] ?: '—')) ?></div>
             <div class="dash-row-sub"><?= h($r['type_label']) ?><?= $r['numer_umowy'] ? ' · ' . h($r['numer_umowy']) : '' ?></div>
@@ -460,14 +465,14 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <!-- Do akceptacji -->
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-hourglass-split" style="color:#7c3aed"></i>Do akceptacji
-            <?php if ($kpi['pending_approval']): ?><span class="badge" style="background:#7c3aed"><?= $kpi['pending_approval'] ?></span><?php endif; ?>
+          <h2 class="dash-panel-title"><i class="bi bi-hourglass-split" style="color:#6a00ff"></i>Do akceptacji
+            <?php if ($kpi['pending_approval']): ?><span class="badge" style="background:#6a00ff"><?= $kpi['pending_approval'] ?></span><?php endif; ?>
           </h2>
           <a href="<?= APP_URL ?>/admin/approvals.php" class="dash-link">Rozpatrz <i class="bi bi-arrow-right"></i></a>
         </div>
         <?php if ($pending_approvals): foreach ($pending_approvals as $a): ?>
         <a href="<?= APP_URL ?>/admin/approvals.php" class="dash-row">
-          <span class="dash-dot" style="background:#7c3aed"></span>
+          <span class="dash-dot" style="background:#6a00ff"></span>
           <div class="dash-row-main">
             <div class="dash-row-title"><?= h($a['numer_umowy'] ?: ('#' . (int)$a['contract_id'])) ?></div>
             <div class="dash-row-sub"><?= h($a['requester_name'] ?? '') ?><?= !empty($a['contract_type']) ? ' · ' . h(CONTRACT_TYPES[$a['contract_type']] ?? $a['contract_type']) : '' ?></div>
@@ -483,11 +488,11 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <?php if (module_enabled('tasks_enabled')): ?>
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-kanban" style="color:#0ea5e9"></i>Moje zadania</h2>
+          <h2 class="dash-panel-title"><i class="bi bi-kanban" style="color:#00807e"></i>Moje zadania</h2>
           <a href="<?= APP_URL ?>/tasks/index.php" class="dash-link"><i class="bi bi-grid-3x3-gap"></i> Tablica</a>
         </div>
         <?php if ($my_tasks):
-          $prio_colors = ['high'=>'#ef4444','medium'=>'#f59e0b','low'=>'#94a3b8','critical'=>'#7c3aed'];
+          $prio_colors = ['high'=>'#a20025','medium'=>'#c25100','low'=>'#8a8a8a','critical'=>'#6a00ff'];
           foreach ($my_tasks as $t):
             $pc = $prio_colors[$t['priority'] ?? 'low'] ?? '#94a3b8';
             $overdue = $t['due_date'] && $t['due_date'] < $today;
@@ -499,7 +504,7 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
             <div class="dash-row-sub"><?= h($t['ws_name'] ?? '') ?><?= ($t['ws_name'] && $t['list_name']) ? ' › ' : '' ?><?= h($t['list_name'] ?? '') ?></div>
           </div>
           <?php if ($t['due_date']): ?>
-          <div class="dash-row-end" style="<?= $overdue ? 'color:#dc2626;font-weight:700' : '' ?>">
+          <div class="dash-row-end" style="<?= $overdue ? 'color:#a20025;font-weight:700' : '' ?>">
             <?= $overdue ? '<i class="bi bi-exclamation-circle-fill"></i> ' : '<i class="bi bi-calendar2"></i> ' ?><?= date_pl($t['due_date']) ?>
           </div>
           <?php endif; ?>
@@ -514,7 +519,7 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <?php if (can_edit()): $total_unread = array_sum(array_column($dash_threads, 'unread')); ?>
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-chat-dots" style="color:#2563eb"></i>Wiadomości
+          <h2 class="dash-panel-title"><i class="bi bi-chat-dots" style="color:#0050ef"></i>Wiadomości
             <?php if ($total_unread): ?><span class="badge bg-danger"><?= $total_unread ?></span><?php endif; ?>
           </h2>
           <a href="<?= APP_URL ?>/admin/messages.php" class="dash-link">Wszystkie <i class="bi bi-arrow-right"></i></a>
@@ -525,11 +530,11 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
           $preview  = mb_substr(strip_tags($_dt['last_body'] ?? ''), 0, 70);
           $sender   = $_dt['last_sender'] ? explode(' ', $_dt['last_sender'])[0] . ': ' : '';
         ?>
-        <button type="button" class="dash-row" style="<?= $unread ? 'background:#eff6ff' : '' ?>"
+        <button type="button" class="dash-row<?= $unread ? ' is-unread' : '' ?>"
           onclick="window.MsgWidget && window.MsgWidget.openThread('<?= h($_dt['context_type']) ?>',<?= (int)$_dt['context_id'] ?>,'<?= h($_dt['contract_type'] ?? '') ?>','<?= h($_dt['_label'] ?? '') ?>','<?= h($_dt['_url'] ?? '#') ?>')">
-          <span class="dash-avatar" style="<?= $unread ? 'background:#dbeafe;color:#1d4ed8' : 'background:#f1f5f9;color:#64748b' ?>"><?= h($initials) ?></span>
+          <span class="dash-avatar"><?= h($initials) ?></span>
           <div class="dash-row-main">
-            <div class="dash-row-title" style="<?= $unread ? 'color:#1d4ed8' : '' ?>"><?= h($_dt['_label'] ?? '—') ?><?= $_dt['_sub'] ? ' <span style="font-weight:400;color:#94a3b8">· ' . h($_dt['_sub']) . '</span>' : '' ?></div>
+            <div class="dash-row-title"><?= h($_dt['_label'] ?? '—') ?><?= $_dt['_sub'] ? ' <span style="font-weight:400;color:#5f5f5f">· ' . h($_dt['_sub']) . '</span>' : '' ?></div>
             <div class="dash-row-sub"><?= h($sender . $preview) ?></div>
           </div>
           <div class="dash-row-end">
@@ -550,8 +555,8 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <!-- Wymaga uwagi -->
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-lightning-charge-fill" style="color:#d97706"></i>Wymaga uwagi
-            <?php if ($attn_total): ?><span class="badge" style="background:#d97706"><?= $attn_total ?></span><?php endif; ?>
+          <h2 class="dash-panel-title"><i class="bi bi-lightning-charge-fill" style="color:#c25100"></i>Wymaga uwagi
+            <?php if ($attn_total): ?><span class="badge" style="background:#c25100"><?= $attn_total ?></span><?php endif; ?>
           </h2>
         </div>
         <?php if ($attn): ?>
@@ -568,8 +573,8 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
         <div class="attn-ok">
           <span class="attn-ok-ic"><i class="bi bi-check-lg"></i></span>
           <div>
-            <div class="tw-text-[.84rem] tw-font-semibold tw-text-slate-900">Nic nie czeka na Twoją decyzję</div>
-            <div class="tw-text-[.74rem] tw-text-slate-400">Wnioski, zgłoszenia i terminy są pod kontrolą.</div>
+            <div class="attn-ok-t">Nic nie czeka na Twoją decyzję</div>
+            <div class="attn-ok-s">Wnioski, zgłoszenia i terminy są pod kontrolą.</div>
           </div>
         </div>
         <?php endif; ?>
@@ -578,7 +583,7 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <!-- Komunikaty -->
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-megaphone-fill" style="color:#2563eb"></i>Komunikaty
+          <h2 class="dash-panel-title"><i class="bi bi-megaphone-fill" style="color:#0050ef"></i>Komunikaty
             <?php if ($ann_unread): ?><span class="badge bg-danger"><?= $ann_unread ?></span><?php endif; ?>
           </h2>
           <a href="<?= APP_URL ?>/komunikaty/index.php" class="dash-link">Wszystkie <i class="bi bi-arrow-right"></i></a>
@@ -586,9 +591,9 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
         <?php if ($ann_list): foreach ($ann_list as $an): $un = empty($an['is_read_by_me']); ?>
         <a href="<?= APP_URL ?>/komunikaty/index.php#ann-<?= (int)$an['id'] ?>" class="ann-row<?= $un ? ' unread' : '' ?>">
           <div class="ann-title">
-            <?php if (!empty($an['is_pinned'])): ?><i class="bi bi-pin-angle-fill" style="color:#d97706;font-size:.75rem" title="Przypięte"></i><?php endif; ?>
-            <span class="tw-truncate"><?= h($an['title']) ?></span>
-            <?php if ($un): ?><span class="dash-dot" style="background:#2563eb"></span><?php endif; ?>
+            <?php if (!empty($an['is_pinned'])): ?><i class="bi bi-pin-angle-fill" style="color:#c25100;font-size:.75rem" title="Przypięte"></i><?php endif; ?>
+            <span><?= h($an['title']) ?></span>
+            <?php if ($un): ?><span class="dash-dot" style="background:#0050ef"></span><?php endif; ?>
           </div>
           <div class="ann-meta"><?= h($an['author_name'] ?? '') ?><?= !empty($an['author_name']) ? ' · ' : '' ?><?= date_pl(substr((string)$an['created_at'], 0, 10)) ?></div>
         </a>
@@ -600,14 +605,14 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <!-- Ostatnie umowy -->
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-clock-history" style="color:#64748b"></i>Ostatnio dodane umowy</h2>
+          <h2 class="dash-panel-title"><i class="bi bi-clock-history" style="color:#5f5f5f"></i>Ostatnio dodane umowy</h2>
           <a href="<?= APP_URL ?>/contracts/rejestr.php" class="dash-link">Rejestr <i class="bi bi-arrow-right"></i></a>
         </div>
         <?php if ($recent): foreach ($recent as $r):
           $st = STATUS_LABELS[$r['status']] ?? ['class' => 'secondary', 'label' => $r['status']];
         ?>
         <a href="<?= contract_url($r['type'], (int)$r['id']) ?>" class="dash-row">
-          <span class="kpi-icon" style="width:30px;height:30px;font-size:.85rem;background:#eff6ff;color:#2563eb"><i class="bi <?= h($ct_icons[$r['type']] ?? 'bi-file-text') ?>"></i></span>
+          <span class="dash-ic"><i class="bi <?= h($ct_icons[$r['type']] ?? 'bi-file-text') ?>"></i></span>
           <div class="dash-row-main">
             <div class="dash-row-title"><?= h($r['imie_nazwisko'] ?: ($r['numer_umowy'] ?: '—')) ?></div>
             <div class="dash-row-sub"><?= h($r['type_label']) ?><?= $r['numer_umowy'] ? ' · ' . h($r['numer_umowy']) : '' ?></div>
@@ -623,12 +628,12 @@ a.dash-row:hover, button.dash-row:hover { background: #f8fafc; color: inherit; }
       <?php if (!empty($_sw_items)): ?>
       <section class="dash-panel">
         <div class="dash-panel-head">
-          <h2 class="dash-panel-title"><i class="bi bi-grid-3x3-gap-fill" style="color:#64748b"></i>Moduły</h2>
+          <h2 class="dash-panel-title"><i class="bi bi-grid-3x3-gap-fill" style="color:#5f5f5f"></i>Moduły</h2>
           <a href="<?= APP_URL ?>/portal.php" class="dash-link">Portal <i class="bi bi-arrow-right"></i></a>
         </div>
         <div class="dash-mods">
           <?php foreach ($_sw_items as $m): if (($m['label'] ?? '') === 'SZO') continue; ?>
-          <a href="<?= h($m['url']) ?>" class="dash-mod<?= !empty($m['on']) ? ' on' : '' ?>" style="--mc:<?= h($m['mc']) ?>;--mb:<?= h($m['mb']) ?>">
+          <a href="<?= h($m['url']) ?>" class="dash-mod<?= !empty($m['on']) ? ' on' : '' ?>" style="--mc:<?= h($m['mc']) ?>">
             <span class="dash-mod-ic"><i class="bi <?= h($m['icon']) ?>"></i></span><?= h($m['label']) ?>
           </a>
           <?php endforeach; ?>
