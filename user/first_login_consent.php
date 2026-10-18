@@ -109,60 +109,75 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
   <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
-    body {
-      background: #f0f4f8;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .consent-wrapper {
-      max-width: 640px;
-      width: 100%;
-    }
-    .info-box {
-      background: #e8f0fe;
-      border-left: 4px solid #0d6efd;
-      border-radius: 0 .375rem .375rem 0;
-      padding: 1rem 1.25rem;
-      font-size: .9rem;
-      line-height: 1.6;
-      white-space: pre-wrap;
-    }
-    .consent-box {
-      border: 1.5px solid #dee2e6;
-      border-radius: .5rem;
-      padding: 1rem 1.25rem;
-      background: #fff;
-    }
-    .toggle-alt-link {
-      font-size: .875rem;
-      cursor: pointer;
-      text-decoration: none;
-    }
+    /* METRO jak System Tożsamości: ciemny app-bar, Segoe UI, lekka duża typografia,
+       płaskie szare grupy, zero zaokrągleń i cieni. Formularz i logika bez zmian. */
+    :root{--m-acc:#0f6fa8;--m-acc-d:#0b5683;--m-green:#007a00;--m-red:#a20025;--m-dark:#1d1d1d;
+          --m-light:#f2f2f2;--m-line:#e1e1e1;--m-ink:#111827;--m-muted:#5f5f5f}
+    html,body{margin:0;min-height:100vh;background:#fff;color:var(--m-ink);-webkit-font-smoothing:antialiased;
+      font-family:"Segoe UI","Segoe UI Web (West European)",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif}
+    *:focus-visible{outline:3px solid #fbbf24!important;outline-offset:2px}
+    .fl-skip{position:absolute;left:-999px}.fl-skip:focus{left:1rem;top:1rem;z-index:1080;background:#fff;padding:.5rem 1rem;font-weight:600}
+    .flbar{background:var(--m-dark);color:#fff}
+    .flbar .inner{max-width:760px;margin:0 auto;padding:.45rem 1rem;display:flex;align-items:center;gap:.6rem}
+    .flbar .mark{width:34px;height:34px;background:var(--m-acc);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+    .flbar b{font-weight:700;font-size:.95rem;line-height:1.05}
+    .flbar small{display:block;font-size:.65rem;color:rgba(255,255,255,.65);font-weight:500}
+    .consent-wrapper{max-width:760px;margin:0 auto;padding:2.25rem 1rem 3rem}
+    .fl-kicker{font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--m-muted);margin-bottom:.35rem}
+    .fl-title{margin:0;font-size:clamp(1.9rem,4vw,2.5rem);font-weight:300;line-height:1.05;letter-spacing:-.02em}
+    .fl-lead{margin:.6rem 0 0;font-size:.95rem;font-weight:300;color:var(--m-muted);max-width:70ch}
+    .fl-h2{margin:0 0 .75rem;font-size:1.35rem;font-weight:300;letter-spacing:-.01em;display:flex;align-items:center;gap:.6rem}
+    .fl-h2 b{font-weight:600}
+    .fl-h2 .ico{width:34px;height:34px;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+    .fl-sec{margin-top:2rem}
+    .fl-group{background:var(--m-light);padding:1.25rem}
+    .info-box{background:#fff;border-left:6px solid var(--m-acc);padding:1rem 1.25rem;font-size:.92rem;line-height:1.6;white-space:pre-wrap}
+    .consent-box{background:#fff;padding:1rem 1.25rem;font-size:.92rem;line-height:1.6;margin-bottom:1rem}
+    .form-check{display:flex;align-items:flex-start;gap:.75rem;padding-left:0}
+    .form-check-input{float:none;margin:.15rem 0 0;width:1.4rem;height:1.4rem;border:2px solid var(--m-ink);border-radius:0!important;flex-shrink:0;cursor:pointer}
+    .form-check-input:checked{background-color:var(--m-green);border-color:var(--m-green)}
+    .form-check-input:focus{box-shadow:none}
+    .form-check-label{font-weight:600;cursor:pointer}
+    .toggle-alt-link{display:flex;align-items:center;gap:.75rem;color:var(--m-ink);text-decoration:none;font-weight:600;cursor:pointer}
+    .toggle-alt-link:hover{color:var(--m-ink)}
+    .toggle-alt-link .box{width:1.6rem;height:1.6rem;border:2px solid var(--m-ink);display:inline-flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0}
+    .toggle-alt-link[aria-expanded="true"] .box{background:var(--m-ink);color:#fff}
+    .toggle-alt-link .opt{color:var(--m-muted);font-weight:400}
+    .form-label{font-size:.8rem;font-weight:600;margin-bottom:.25rem}
+    .form-control,.input-group-text{border-radius:0!important;border:2px solid #8a8a8a}
+    .input-group-text{background:#fff;border-right:0}
+    .form-control:focus{border-color:var(--m-acc);box-shadow:none}
+    .form-text{font-size:.78rem;color:var(--m-muted)}
+    .fl-alert{background:var(--m-red);color:#fff;padding:.9rem 1.1rem;margin-top:1.5rem;display:flex;gap:.6rem;align-items:flex-start;font-size:.92rem}
+    .fl-submit{margin-top:2rem;width:100%;background:var(--m-acc);color:#fff;border:2px solid var(--m-acc);border-radius:0;
+      padding:1rem 1.25rem;font:inherit;font-size:1.15rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:.6rem;cursor:pointer}
+    .fl-submit:hover{background:var(--m-dark);border-color:var(--m-dark)}
+    .fl-foot{margin-top:1.25rem;font-size:.82rem;color:var(--m-muted);display:flex;gap:.4rem;align-items:flex-start}
   </style>
 </head>
 <body>
-<div class="consent-wrapper">
+<a href="#fl-main" class="fl-skip">Przejdź do treści</a>
+<header class="flbar">
+  <div class="inner">
+    <span class="mark" aria-hidden="true"><i class="bi bi-person-vcard-fill"></i></span>
+    <span><b><?= h($org_name) ?></b><small>Pierwsze logowanie</small></span>
+  </div>
+</header>
+
+<main id="fl-main" class="consent-wrapper">
 
   <!-- Nagłówek -->
-  <div class="text-center mb-4">
-    <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 mb-3"
-         style="width:64px;height:64px">
-      <i class="bi bi-envelope-check-fill text-primary fs-2"></i>
-    </div>
-    <h4 class="fw-bold mb-1">Witaj w panelu <?= h($org_name) ?></h4>
-    <p class="text-muted small mb-2">
-      To Twoje miejsce do <strong>komunikacji z organizacją</strong>
-      i&nbsp;obsługi <strong>formalności</strong> — umów, dokumentów i&nbsp;powiadomień.
-    </p>
-    <p class="text-muted small mb-0">Zanim przejdziesz dalej, potwierdź poniższe.</p>
-  </div>
+  <div class="fl-kicker">Panel współpracownika · witaj</div>
+  <h1 class="fl-title">Witaj w panelu <?= h($org_name) ?></h1>
+  <p class="fl-lead">
+    To Twoje miejsce do <strong>komunikacji z organizacją</strong>
+    i&nbsp;obsługi <strong>formalności</strong> — umów, dokumentów i&nbsp;powiadomień.
+    Zanim przejdziesz dalej, potwierdź poniższe.
+  </p>
 
   <?php if ($error !== ''): ?>
-  <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
-    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
+  <div class="fl-alert" role="alert">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
     <div><?= h($error) ?></div>
   </div>
   <?php endif; ?>
@@ -173,67 +188,61 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
 
     <!-- Pouczenie -->
     <?php if ($info_text !== ''): ?>
-    <div class="card shadow-sm mb-3">
-      <div class="card-body p-3">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-info-circle-fill text-primary"></i>
-          <span class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.04em">Pouczenie</span>
-        </div>
+    <section class="fl-sec" aria-labelledby="fl-info-h">
+      <h2 class="fl-h2" id="fl-info-h"><span class="ico" style="background:var(--m-acc)" aria-hidden="true"><i class="bi bi-info-lg"></i></span><b>Pouczenie</b></h2>
+      <div class="fl-group">
         <div class="info-box"><?= h($info_text) ?></div>
       </div>
-    </div>
+    </section>
     <?php endif; ?>
 
     <!-- Zgoda -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-body p-3">
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <i class="bi bi-file-earmark-check-fill text-success"></i>
-          <span class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.04em">Regulamin korzystania z panelu</span>
-        </div>
-        <div class="consent-box mb-3">
-          <p class="mb-0 small" style="line-height:1.6"><?= h($consent_text) ?></p>
+    <section class="fl-sec" aria-labelledby="fl-consent-h">
+      <h2 class="fl-h2" id="fl-consent-h"><span class="ico" style="background:var(--m-green)" aria-hidden="true"><i class="bi bi-file-earmark-check"></i></span>Regulamin <b>korzystania z panelu</b></h2>
+      <div class="fl-group">
+        <div class="consent-box">
+          <p class="mb-0"><?= h($consent_text) ?></p>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox"
                  name="consent_accept" id="consent_accept"
                  value="1" required
                  <?= !empty($_POST['consent_accept']) ? 'checked' : '' ?>>
-          <label class="form-check-label fw-semibold" for="consent_accept">
+          <label class="form-check-label" for="consent_accept">
             Zapoznałem/am się z regulaminem i akceptuję warunki korzystania z panelu.
           </label>
         </div>
       </div>
-    </div>
+    </section>
 
     <!-- Alternatywne kanały powiadomień (opcjonalne, zwijane) -->
-    <div class="card shadow-sm mb-4">
-      <div class="card-body p-3">
-        <a class="toggle-alt-link d-flex align-items-center gap-2 text-secondary"
+    <section class="fl-sec">
+      <div class="fl-group">
+        <a class="toggle-alt-link"
            data-bs-toggle="collapse" href="#altChannelsCollapse"
            role="button" aria-expanded="false" aria-controls="altChannelsCollapse">
-          <i class="bi bi-chevron-right" id="altChevron" style="transition:transform .2s"></i>
-          <span>Zdefiniuj alternatywne kanały powiadomień <span class="text-muted fw-normal">(opcjonalne)</span></span>
+          <span class="box" aria-hidden="true"><i class="bi bi-chevron-right" id="altChevron" style="transition:transform .2s"></i></span>
+          <span>Zdefiniuj alternatywne kanały powiadomień <span class="opt">(opcjonalne)</span></span>
         </a>
 
         <div class="collapse mt-3" id="altChannelsCollapse">
-          <p class="text-muted small mb-3">
+          <p class="small mb-3" style="color:var(--m-muted)">
             Możesz podać dodatkowy adres e-mail i/lub numer telefonu, na które będą
             kierowane powiadomienia systemowe zamiast Twoich danych podstawowych.
           </p>
           <div class="mb-3">
-            <label for="alt_email" class="form-label fw-semibold small">Alternatywny adres e-mail</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+            <label for="alt_email" class="form-label">Alternatywny adres e-mail</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-envelope" aria-hidden="true"></i></span>
               <input type="email" class="form-control" id="alt_email" name="alt_email"
                      placeholder="np. prywatny@domena.pl"
                      value="<?= h($_POST['alt_email'] ?? '') ?>">
             </div>
           </div>
           <div class="mb-1">
-            <label for="alt_phone_number" class="form-label fw-semibold small">Alternatywny numer telefonu</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text"><i class="bi bi-phone"></i></span>
+            <label for="alt_phone_number" class="form-label">Alternatywny numer telefonu</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-phone" aria-hidden="true"></i></span>
               <input type="tel" class="form-control" id="alt_phone_number" name="alt_phone_number"
                      placeholder="np. 600 100 200"
                      value="<?= h($_POST['alt_phone_number'] ?? '') ?>">
@@ -242,23 +251,21 @@ $org_name = defined('ORG_NAME') ? ORG_NAME : '';
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
     <!-- Przycisk zatwierdzenia -->
-    <div class="d-grid">
-      <button type="submit" class="btn btn-primary btn-lg">
-        <i class="bi bi-check-circle me-2"></i>Akceptuję — przejdź do panelu
-      </button>
-    </div>
+    <button type="submit" class="fl-submit">
+      <i class="bi bi-check2-square" aria-hidden="true"></i>Akceptuję — przejdź do panelu
+    </button>
 
   </form>
 
-  <p class="text-center text-muted small mt-3">
-    <i class="bi bi-lock me-1"></i>
-    Twoje dane są przetwarzane zgodnie z polityką prywatności <?= h($org_name) ?>.
+  <p class="fl-foot">
+    <i class="bi bi-lock" aria-hidden="true"></i>
+    <span>Twoje dane są przetwarzane zgodnie z polityką prywatności <?= h($org_name) ?>.</span>
   </p>
 
-</div><!-- /.consent-wrapper -->
+</main><!-- /.consent-wrapper -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmY+ASSbXX+/Y0DmfhVpJkJEYJA3"
