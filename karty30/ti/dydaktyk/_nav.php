@@ -110,7 +110,7 @@ function dyd_topbar_enrich(array $tb, bool $with_nav = true): array {
         ob_start(); ?>
 <nav class="dyd-topnav" aria-label="Sekcje panelu">
   <?php foreach (dyd_nav_sections() as $k => [$label, $href]): ?>
-  <a href="<?= h($href) ?>"<?= $k === 'kurs' ? ' class="dyd-topnav-kurs"' : '' ?><?= $cur === $k ? ' aria-current="page"' : '' ?>><?= h($label) ?><?php
+  <a href="<?= h($href) ?>"<?= in_array($k, ['kurs', 'planowanie'], true) ? ' class="dyd-topnav-' . $k . '"' : '' ?><?= $cur === $k ? ' aria-current="page"' : '' ?>><?= h($label) ?><?php
     if ($k === 'komunikacja' && $n_msg > 0): ?> <span class="badge text-bg-danger"><?= $n_msg ?><span class="visually-hidden"> nieprzeczytanych</span></span><?php endif;
     if ($k === 'certyfikat' && dyd_cert_missing()): ?> <span class="badge text-bg-danger">brak</span><?php endif; ?></a>
   <?php endforeach; ?>

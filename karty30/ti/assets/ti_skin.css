@@ -713,6 +713,8 @@ body.dyd-usos.ti-skin header .navbar .dyd-topnav a[aria-current="page"]{box-shad
 body.ti-skin header .navbar .dyd-topnav a.dyd-topnav-kurs{background:var(--m-acc,#0f6fa8);color:#fff;font-weight:600}
 body.ti-skin header .navbar .dyd-topnav a.dyd-topnav-kurs:hover{background:var(--m-acc-h,#0b5a8a)}
 body.dyd-usos.ti-skin header .navbar .dyd-topnav a.dyd-topnav-kurs[aria-current="page"]{box-shadow:inset 0 -3px 0 #fff}
+body.ti-skin header .navbar .dyd-topnav a.dyd-topnav-planowanie{background:#ad1457;color:#fff;font-weight:600}
+body.ti-skin header .navbar .dyd-topnav a.dyd-topnav-planowanie:hover{background:#880e4f}
 body.dyd-usos.ti-skin header .navbar .dyd-cs-btn,body.dyd-usos.ti-skin header .navbar .kp-work-as.kp-work-icon,
 body.dyd-usos.ti-skin header .navbar .kp-work-as.kp-acting{border-radius:0}
 body.dyd-usos.ti-skin header .navbar a:focus-visible,body.dyd-usos.ti-skin header .navbar button:focus-visible{outline:3px solid #fff;outline-offset:1px}

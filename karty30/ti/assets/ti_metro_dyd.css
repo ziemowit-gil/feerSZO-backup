@@ -48,6 +48,9 @@ html body.ti-metro header .navbar .dyd-topnav a[aria-current="page"] { color:#ff
 html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs { color:#fff !important; font-weight:600; background:var(--dm-acc) !important; }
 html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs:hover { background:var(--dm-acc-d) !important; }
 html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-kurs[aria-current="page"] { border-bottom-color:#fff !important; background:var(--dm-acc) !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie { color:#fff !important; font-weight:600; background:#ad1457 !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie:hover { background:#880e4f !important; }
+html body.ti-metro header .navbar .dyd-topnav a.dyd-topnav-planowanie[aria-current="page"] { border-bottom-color:#fff !important; background:#ad1457 !important; }
 html body.ti-metro header .navbar .dyd-topnav .badge { background:var(--dm-red) !important; color:#fff !important; }
 /* Przyciski paska: płaskie, na pełną wysokość */
 html body.ti-metro header .navbar .btn,
@@ -106,6 +109,11 @@ html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn) { color:#fff !impo
 html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn) .bi { color:rgba(255,255,255,.9); }
 html body.ti-metro .dyd-side .dyd-side-sec--staff a:not(.btn):hover { background:rgba(255,255,255,.14) !important; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) { background:#fff !important; color:#0b5582 !important; }
+/* Wyróżnione grupy kierownika: Planowanie — róż, Kontrola i raporty — purpura (biały tekst, kontrast ≥ 6:1) */
+html body.ti-metro .dyd-side .dyd-side-sec--k_plan { background:#ad1457; }
+html body.ti-metro .dyd-side .dyd-side-sec--k_plan a.active:not(.btn) { color:#ad1457 !important; }
+html body.ti-metro .dyd-side .dyd-side-sec--k_kontrola { background:#6a1b9a; }
+html body.ti-metro .dyd-side .dyd-side-sec--k_kontrola a.active:not(.btn) { color:#6a1b9a !important; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff a.active:not(.btn) .bi { color:#0b5582; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff .badge.text-bg-secondary { background:rgba(255,255,255,.9) !important; color:#0b5582 !important; }
 html body.ti-metro .dyd-side .dyd-side-sec--staff .dyd-side-grp:focus-visible,

@@ -272,7 +272,7 @@ function dydMenuRender(): string
     if (!empty($s['staff']) && !$staffHead): $staffHead = true; ?>
     <div class="dyd-side-band" aria-hidden="true">Kierownik</div>
   <?php endif; ?>
-    <section class="dyd-side-sec<?= $open ? ' is-open' : '' ?><?= !empty($s['staff']) ? ' dyd-side-sec--staff' : '' ?>">
+    <section class="dyd-side-sec<?= $open ? ' is-open' : '' ?><?= !empty($s['staff']) ? ' dyd-side-sec--staff' : '' ?> dyd-side-sec--<?= h($s['key']) ?>">
       <h2><button type="button" class="dyd-side-grp" id="dydSideB-<?= h($s['key']) ?>" aria-expanded="<?= $open ? 'true' : 'false' ?>" aria-controls="dydSideL-<?= h($s['key']) ?>">
         <span class="dyd-side-grp-l"><?= !empty($s['staff']) ? '<span class="visually-hidden">Kierownik: </span>' : '' ?><?= h($s['label']) ?></span>
         <?php if ($sum > 0): ?><span class="badge <?= $warn ? 'text-bg-danger' : 'text-bg-warning' ?>"><?= $sum ?><span class="visually-hidden"> do uwagi</span></span><?php endif; ?>
