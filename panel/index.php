@@ -417,149 +417,17 @@ if (count($contracts) > 1 && (empty($_SESSION['panel_contract_chosen']) || isset
 <?php if (!$_is_volunteer_only) { require_once __DIR__ . '/includes/pv_ui.php'; pv_ui_styles(); /* tokeny tz-* pod powłoką SZO */ } ?>
 <?php include __DIR__ . '/includes/pv_home.php'; /* pulpit METRO jak System Tożsamości: kafle + zakładki pivot */ ?>
 <?php else: ?>
-<?php /* ═══ STARY WIDOK DLA EDYTORÓW / ADMINÓW / k30_consultants ══════════ */ ?>
-<style>
-.panel-avatar { width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--bs-primary),#6610f2);color:#fff;font-size:1.3rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0 }
-.action-tile { display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:.4rem;padding:1.25rem .75rem;border-radius:.75rem;border:1px solid rgba(0,0,0,.07);text-decoration:none;color:inherit;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:transform .15s,box-shadow .15s,background .15s;position:relative }
-.action-tile:hover { transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,.12);background:var(--bs-primary);color:#fff!important }
-.action-tile:hover .tile-icon,.action-tile:hover .tile-label,.action-tile:hover .tile-count { color:#fff!important }
-.tile-icon{font-size:1.8rem}.tile-count{font-size:1.4rem;font-weight:700;line-height:1}.tile-label{font-size:.75rem;color:#6c757d}.tile-badge{position:absolute;top:.4rem;right:.5rem}
-.action-tile-duo{display:flex;flex-direction:column;border-radius:.75rem;border:1px solid rgba(0,0,0,.07);background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;height:100%}
-.action-tile-half{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:.2rem;padding:.7rem .5rem;flex:1;text-decoration:none;color:inherit;position:relative;transition:background .15s,color .15s}
-.action-tile-half .tile-icon{font-size:1.4rem}.action-tile-half .tile-count{font-size:1.1rem;font-weight:700}.action-tile-half .tile-label{font-size:.7rem;color:#6c757d}
-.action-tile-half:hover{background:#eff6ff;color:#2563eb!important}
-.action-tile-duo-sep{height:1px;background:rgba(0,0,0,.07);flex-shrink:0}
-.data-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:.1rem}
-.data-value{font-size:.92rem;font-weight:500}.pesel-masked{font-family:monospace;letter-spacing:.1em}
-</style>
-<?php
-$_first_name = explode(' ', trim($user['name']))[0];
-$_is_sys_admin = ($user['role'] ?? '') === 'admin';
-
-// Śmieszne hasła dla admina
-$_admin_quips = [
-    "Znowu tu jesteś? Nie masz nic lepszego do roboty? 😄",
-    "Panel współpracownika? Serio? Masz przecież cały admin. 🤭",
-    "Hej Szefie! Ten panel nie jest dla Ciebie… ale skoro już tu jesteś. 👋",
-    "Witaj, człowieku od wszystkiego. Ten panel jest dla innych, ale rozumiem ciekawość. 🔍",
-    "Admin w panelu współpracownika? To jak lekarz w kolejce do siebie. 😅",
-    "Sprawdzasz jak wygląda panel od środka? Szpiegowanie własnej aplikacji — klasyk. 🕵️",
-    "Tu nic ciekawego dla admina. Ale zadania poniżej — jak najbardziej Twoje! 📋",
-];
-$_quip = $_admin_quips[abs(crc32($user['name'])) % count($_admin_quips)];
-?>
-
-<?php if ($_is_sys_admin): ?>
-<!-- ── Admin easter egg ──────────────────────────────────────────────────── -->
-<div style="background:linear-gradient(135deg,#1e293b 0%,#312e81 100%);
-            border-radius:.85rem;padding:1.25rem 1.4rem;margin-bottom:1.25rem;
-            display:flex;align-items:center;gap:1rem;position:relative;overflow:hidden">
-  <!-- Dekoracja bg -->
-  <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;
-              border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none"></div>
-
-  <!-- Awatar z efektem crown -->
-  <div style="position:relative;flex-shrink:0">
-    <div class="panel-avatar"
-         style="background:linear-gradient(135deg,#f59e0b,#dc2626);
-                font-size:1.2rem;width:52px;height:52px">
-      <?= h($initials) ?>
-    </div>
-    <span style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);
-                 font-size:1.1rem" role="img" aria-label="korona">👑</span>
-  </div>
-
-  <div style="flex:1;min-width:0">
-    <div style="font-size:1rem;font-weight:800;color:#fff;margin-bottom:.15rem">
-      Witaj, <?= h($_first_name) ?>!
-      <span style="font-size:.75rem;font-weight:400;opacity:.6;margin-left:.4rem">
-        Administrator systemu
-      </span>
-    </div>
-    <div style="font-size:.84rem;color:rgba(255,255,255,.75);line-height:1.45">
-      <?= h($_quip) ?>
-    </div>
-    <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap">
-      <a href="<?= APP_URL ?>/admin/index.php"
-         style="font-size:.75rem;font-weight:600;padding:.22rem .65rem;border-radius:2rem;
-                background:rgba(255,255,255,.15);color:#fff;text-decoration:none;
-                border:1px solid rgba(255,255,255,.25);transition:background .12s"
-         onmouseover="this.style.background='rgba(255,255,255,.25)'"
-         onmouseout="this.style.background='rgba(255,255,255,.15)'">
-        <i class="bi bi-gear me-1"></i>Panel admina
-      </a>
-      <a href="<?= APP_URL ?>/tasks/dashboard.php"
-         style="font-size:.75rem;font-weight:600;padding:.22rem .65rem;border-radius:2rem;
-                background:rgba(16,185,129,.25);color:#6ee7b7;text-decoration:none;
-                border:1px solid rgba(16,185,129,.35);transition:background .12s"
-         onmouseover="this.style.background='rgba(16,185,129,.4)'"
-         onmouseout="this.style.background='rgba(16,185,129,.25)'">
-        <i class="bi bi-table me-1"></i>Moduł Zadania
-      </a>
-      <span style="font-size:.72rem;color:rgba(255,255,255,.4);align-self:center">
-        <?= h($user['email']) ?>
-      </span>
-    </div>
-  </div>
-</div>
-<?php else: ?>
-<!-- ── Standardowy nagłówek editora ──────────────────────────────────────── -->
-<div class="d-flex align-items-center gap-3 mb-4">
-  <div class="panel-avatar"><?= h($initials) ?></div>
-  <div class="flex-grow-1">
-    <h4 class="mb-0 fw-bold">Witaj, <?= h($_first_name) ?>!</h4>
-    <div class="text-muted small"><?= h($user['email']) ?></div>
-  </div>
-  <?php if (count($contracts) > 1): ?>
-  <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#contractPickerModal">
-    <i class="bi bi-arrow-left-right me-1"></i>Zmień umowę
-  </button>
-  <?php endif; ?>
-</div>
-<?php endif; ?>
-<?= flash_html() ?>
-<?php if ($contracts): ?>
-<?php if ($_active_row): ?>
-<div class="card shadow-sm mb-4 <?= $_is_guardian ? 'border-warning border-opacity-50' : '' ?>">
-  <div class="card-header bg-white d-flex align-items-center gap-2 py-2 px-3 border-bottom">
-    <i class="bi <?= $type_icons[$_active_contract['contract_type']] ?? 'bi-file-text' ?> text-primary"></i>
-    <span class="fw-semibold small"><?= h(CONTRACT_TYPES[$_active_contract['contract_type']] ?? '') ?> &nbsp;·&nbsp; <?= h($_active_row['numer_umowy'] ?? '') ?></span>
-    <?= status_badge($_active_contract['status']) ?>
-    <?php if ($_is_guardian): ?><span class="tz-badge tz-badge--warn ms-1"><i class="bi bi-person-hearts"></i>Opiekun</span><?php endif; ?>
-    <a href="<?= APP_URL ?>/contracts/<?= $_active_contract['contract_type'] ?>/view.php?id=<?= $_active_contract['id'] ?>" class="btn btn-outline-secondary btn-sm ms-auto" style="font-size:.75rem;padding:.15rem .5rem"><i class="bi bi-eye me-1"></i>Pełne dane</a>
-  </div>
-  <div class="card-body py-3">
-    <div class="row g-3 mb-3">
-      <?php $pesel_val=$_active_row['pesel']??null; if ($pesel_val): $p_masked=substr($pesel_val,0,2).'·····'.substr($pesel_val,7); ?>
-      <div class="col-6 col-md-4 col-lg-2"><div class="data-label">PESEL</div><div class="data-value d-flex align-items-center gap-1"><span class="pesel-masked small" id="peselVal" data-masked="<?= h($p_masked) ?>" data-full="<?= h($pesel_val) ?>"><?= h($p_masked) ?></span><button type="button" class="btn btn-link btn-sm p-0 text-muted" onclick="togglePesel()"><i class="bi bi-eye" id="peselIcon"></i></button></div></div>
-      <?php endif; ?>
-      <?php if ($_active_row['data_zawarcia']??null): ?><div class="col-6 col-md-4 col-lg-2"><div class="data-label">Zawarcia</div><div class="data-value"><?= date('d.m.Y',strtotime($_active_row['data_zawarcia'])) ?></div></div><?php endif; ?>
-      <?php if ($_active_contract['data_zakonczenia']??null): ?><div class="col-6 col-md-4 col-lg-2"><div class="data-label">Zakończenia</div><div class="data-value <?= ($contract_progress['ended']??false)?'text-danger':'' ?>"><?= date('d.m.Y',strtotime($_active_contract['data_zakonczenia'])) ?></div></div><?php endif; ?>
-      <?php if ($_active_row['adres']??null): ?><div class="col-12 col-md-6 col-lg-3"><div class="data-label">Adres</div><div class="data-value small"><?= h($_active_row['adres']) ?></div></div><?php endif; ?>
-    </div>
-    <?php if ($contract_progress): ?>
-    <div class="mt-1"><div class="d-flex justify-content-between mb-1"><span class="small text-muted"><?= $contract_progress['ended'] ? '<span class="text-danger fw-semibold">Zakończona</span>' : 'Pozostało <strong>'.$contract_progress['days_left'].'</strong> dni' ?></span><span class="small text-muted"><?= $contract_progress['pct'] ?>%</span></div><div class="progress" style="height:6px"><div class="progress-bar <?= $contract_progress['ended']?'bg-secondary':($contract_progress['pct']>85?'bg-warning':'bg-primary') ?>" style="width:<?= $contract_progress['pct'] ?>%"></div></div></div>
-    <?php endif; ?>
-  </div>
-</div>
-<?php endif; ?>
-<div class="row g-3 mb-4">
-  <div class="col-6 col-sm-4 col-lg-2"><div class="action-tile-duo"><a href="<?= APP_URL ?>/panel/letters.php" class="action-tile-half"><i class="bi bi-envelope-paper tile-icon text-primary"></i><div class="tile-count text-dark"><?= $my_letters_count ?></div><div class="tile-label">Pisma</div></a><div class="action-tile-duo-sep"></div><a href="<?= APP_URL ?>/panel/apply.php" class="action-tile-half"><?php if ($my_apps_new): ?><span class="tile-badge badge rounded-pill bg-primary" style="font-size:.6rem"><?= $my_apps_new ?></span><?php endif; ?><i class="bi bi-send tile-icon <?= $my_apps_new?'text-primary':'text-secondary' ?>"></i><div class="tile-count text-dark"><?= count($my_apps) ?></div><div class="tile-label">Wnioski</div></a></div></div>
-  <div class="col-6 col-sm-4 col-lg-2"><a href="<?= APP_URL ?>/panel/messages.php" class="action-tile h-100"><?php if ($msg_unread): ?><span class="tile-badge badge rounded-pill bg-danger"><?= $msg_unread ?></span><?php endif; ?><i class="bi bi-chat-left-text tile-icon <?= $msg_unread?'text-primary':'text-secondary' ?>"></i><div class="tile-count text-dark"><?= $msg_unread ?></div><div class="tile-label">Wiadomości</div></a></div>
-  <div class="col-6 col-sm-4 col-lg-2"><a href="<?= APP_URL ?>/panel/certificates.php" class="action-tile h-100"><?php if ($my_certs_pending): ?><span class="tile-badge badge rounded-pill bg-warning text-dark"><?= $my_certs_pending ?></span><?php endif; ?><i class="bi bi-award tile-icon text-success"></i><div class="tile-count text-dark"><?= count($my_certs) ?></div><div class="tile-label">Zaświadczenia</div></a></div>
-  <div class="col-6 col-sm-4 col-lg-2"><a href="<?= APP_URL ?>/panel/terminations.php" class="action-tile h-100"><?php if ($my_terms_pending): ?><span class="tile-badge badge rounded-pill bg-warning text-dark"><?= $my_terms_pending ?></span><?php endif; ?><i class="bi bi-file-earmark-x tile-icon text-danger"></i><div class="tile-count text-dark"><?= count($my_terms) ?></div><div class="tile-label">Rozwiązanie</div></a></div>
-</div>
-<?php endif; // $contracts (stary widok) ?>
+<?php /* ═══ KADRA BEZ UMOWY: „Mój panel” w stylu METRO (kafle + zadania + pełnomocnictwa + rezerwacje) ═══ */ ?>
+<?php include __DIR__ . '/includes/pv_staff_home.php'; ?>
 <?php endif; // $_metro_home — koniec bloku else (stary widok) ?>
 
 <!-- ── Zadania (gdy nie pokazano wyżej, np. widok edytora/admina) ──────────── -->
 <?php include __DIR__ . '/includes/pv_tasks_section.php'; ?>
 
 <!-- ── Moje pełnomocnictwa (widoczne dla każdego pełnomocnika) ─────────────── -->
-<?php include __DIR__ . '/includes/pv_pelnomocnictwa.php'; ?>
+<?php if (empty($GLOBALS['_pv_pelnomocnictwa_done'])) include __DIR__ . '/includes/pv_pelnomocnictwa.php'; ?>
 
-<!-- ── Sekcje wspólne: u wolontariusza w zakładce „Narzędzia" (pv_home), tu tylko dla edytora/admina ── -->
-<?php if (!$_metro_home) include __DIR__ . '/includes/pv_extra_sections.php'; ?>
+<!-- ── Sekcje wspólne (wydarzenia, rezerwacje) renderują pv_home.php i pv_staff_home.php w swoich sekcjach ── -->
 
 <!-- ── Modal wyboru umowy ─────────────────────────────────────────────────── -->
 <?php if (count($contracts) > 1): ?>
