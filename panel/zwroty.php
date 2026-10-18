@@ -15,7 +15,7 @@ require_login();
 $PAGE_TITLE = 'Moje zwroty kosztów';
 $user    = current_user();
 $user_id = (int)$user['id'];
-$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
+$_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 
 $_db_user = db_one("SELECT microsoft_id FROM users WHERE id = ?", [$user_id]);
 $user['microsoft_id'] = $_db_user['microsoft_id'] ?? '';

@@ -16,8 +16,7 @@
 $_kom_uid = (int)(current_user()['id'] ?? 0);
 
 // Wolontariusz „czysty" (viewer bez roli konsultanta TI) → powłoka panelu.
-$_is_volunteer_only = is_viewer()
-    && !user_is_k30_consultant((int)$_kom_uid);
+$_is_volunteer_only = panel_volunteer_shell(); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 
 if ($_is_volunteer_only) {
     include dirname(__DIR__) . '/panel/includes/header_panel.php';

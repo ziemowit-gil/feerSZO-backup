@@ -145,7 +145,7 @@ if ($_active) {
     $messages = msg_thread('contract', (int) $_active['id']);
 }
 
-$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
+$_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';

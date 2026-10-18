@@ -442,6 +442,22 @@ function user_has_volunteer_panel(): bool {
 }
 
 /**
+ * Czy podstrony /panel/ renderować w powłoce Panelu współpracownika (header_panel.php)?
+ * Tak dla wolontariusza (viewer bez flagi k30_consultant) ORAZ dla każdego, kto ma
+ * umowę (np. pracownik/edytor z umową wolontariatu) — sprawy umowne załatwia w panelu,
+ * nie w menu SZO. Kadra bez umowy zostaje w powłoce SZO. Wynik zapamiętany na żądanie.
+ */
+function panel_volunteer_shell(?array $u = null): bool {
+    static $cache = [];
+    $u = $u ?: current_user();
+    if (!$u) return false;
+    $uid = (int)($u['id'] ?? 0);
+    if (isset($cache[$uid])) return $cache[$uid];
+    if (is_viewer() && !(function_exists('user_is_k30_consultant') && user_is_k30_consultant($uid))) return $cache[$uid] = true;
+    return $cache[$uid] = user_volunteer_contract_count($u) > 0;
+}
+
+/**
  * Punkty wejścia (top-level moduły) dostępne dla kont WOLONTARIUSZA i ZAWĘŻONYCH.
  * Panel współpracownika liczy się jako osobny moduł. Zwraca [] dla kont zarządczych
  * (admin/editor/itp.) — te trafiają do pełnego portalu (który sam jest „wyborem").

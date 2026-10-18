@@ -89,7 +89,7 @@ if ($filter_typ) {
 // Counts for filter tabs
 $total_count = count($all_letters);
 
-$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
+$_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';

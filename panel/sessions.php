@@ -9,7 +9,7 @@ require_login();
 $PAGE_TITLE = 'Sesje i historia logowań';
 $user = current_user();
 $uid  = (int)$user['id'];
-$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
+$_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 $current_token = $_SESSION['_session_token'] ?? '';
 
 // ── Akcje ─────────────────────────────────────────────────────────────────────

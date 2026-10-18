@@ -12,7 +12,7 @@ require_module_enabled('timesheets_enabled', 'Ewidencja godzin');
 $PAGE_TITLE = 'Ewidencja godzin';
 $user       = current_user();
 $uid        = (int)$user['id'];
-$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$user['id']);
+$_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 $errors     = [];
 $success    = '';
 

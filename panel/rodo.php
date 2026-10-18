@@ -44,7 +44,7 @@ try {
     }
 } catch (\Throwable $e) {}
 
-$_is_volunteer_only = is_viewer() && !user_is_k30_consultant((int)$uid);
+$_is_volunteer_only = panel_volunteer_shell(); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';

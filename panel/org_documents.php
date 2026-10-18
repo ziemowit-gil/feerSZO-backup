@@ -15,8 +15,7 @@ require_login();
 require_module_enabled('org_documents_enabled', 'Moduł dokumentów organizacji');
 
 $user = current_user();
-$_is_volunteer_only = is_viewer()
-    && !user_is_k30_consultant((int)$user['id']);
+$_is_volunteer_only = panel_volunteer_shell($user); // powłoka panelu: wolontariusz albo ktokolwiek z umową
 
 // Zarządzanie tylko dla admina/edytora — reszta ogląda tutaj (wcześniej każdy „nie-wolontariusz”
 // trafiał do panelu admina i dostawał „Brak uprawnień do tej strony”).
