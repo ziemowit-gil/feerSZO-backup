@@ -423,12 +423,13 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
 
         <!-- Akcja (klik zatrzymuje propagację) -->
         <td style="text-align:center" onclick="event.stopPropagation()">
-          <div class="tk-actions justify-content-center">
+          <div class="tk-actions justify-content-end">
             <button type="button"
                     class="btn-open"
                     onclick="openTask(<?= $task['id'] ?>)"
+                    title="Otwórz szczegóły"
                     aria-label="Otwórz zadanie: <?= h($task['title']) ?>">
-              <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz
+              <i class="bi bi-arrow-right" aria-hidden="true"></i>
             </button>
             <?php if ($task['_status'] !== 'done'): ?>
             <?php if ($task['_mine']): ?>

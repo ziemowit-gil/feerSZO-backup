@@ -175,6 +175,7 @@ $_tk_active_filters = (int)((bool)$filter_priority) + (int)((bool)$filter_list)
     <button type="button" class="btn btn-outline-secondary btn-sm"
             onclick="openNotifyModal()"
             title="Powiadomienia dla tego obszaru"
+            aria-label="Powiadomienia dla tego obszaru<?= $np_active ? ' (włączone)' : '' ?>"
             aria-haspopup="dialog">
       <i class="bi bi-bell<?= $np_active ? '-fill text-warning' : '' ?>"></i>
     </button>

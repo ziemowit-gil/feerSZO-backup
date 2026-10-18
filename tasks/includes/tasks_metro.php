@@ -226,13 +226,36 @@ html body #tsk-main .tk-tag{padding:.12rem .45rem;letter-spacing:.02em}
 html body #tsk-main .tk-prog-track{height:6px;background:var(--tm-light-h)}
 html body #tsk-main .tk-av{width:28px;height:28px;font-size:.62rem;border:2px solid #fff}
 html body #tsk-main .tk-av-stack .tk-av+.tk-av{margin-left:-4px}
-html body #tsk-main .btn-open,html body #tsk-main .btn-claim,html body #tsk-main .btn-unclaim{font-size:.75rem;padding:.3rem .7rem;border-width:2px}
-html body #tsk-main .btn-open{background:#fff;border-color:var(--tsk-text);color:var(--tsk-text)}
-html body #tsk-main .btn-open:hover,html body #tsk-main .btn-open:focus-visible{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff}
-html body #tsk-main .btn-claim{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff}
-html body #tsk-main .btn-claim:hover,html body #tsk-main .btn-claim:focus-visible{background:var(--tm-dark);border-color:var(--tm-dark)}
-html body #tsk-main .btn-unclaim{border-color:transparent;background:none;color:var(--tm-muted)}
-html body #tsk-main .btn-unclaim:hover,html body #tsk-main .btn-unclaim:focus-visible{border-color:var(--tm-red);color:var(--tm-red)}
+/* Przyciski w wierszach: jedna wysokość 32px; „Otwórz” = kwadrat z ikoną, Weź = zielony, Oddaj = szary płaski */
+html body #tsk-main .tk-actions{gap:4px;flex-wrap:nowrap}
+html body #tsk-main .btn-open,html body #tsk-main .btn-claim,html body #tsk-main .btn-unclaim{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;
+  height:32px;padding:0 .75rem;border:0;font-size:.78rem;font-weight:600;white-space:nowrap;box-shadow:none;transition:background .1s,color .1s}
+html body #tsk-main .btn-open i,html body #tsk-main .btn-claim i,html body #tsk-main .btn-unclaim i{margin:0!important;font-size:.9rem}
+html body #tsk-main .btn-open{width:32px;padding:0;background:var(--tm-light-h);color:var(--tsk-text)}
+html body #tsk-main .btn-open:hover,html body #tsk-main .btn-open:focus-visible{background:var(--tsk-text);color:#fff}
+html body #tsk-main .btn-claim{background:var(--tsk-green);color:#fff}
+html body #tsk-main .btn-claim:hover,html body #tsk-main .btn-claim:focus-visible{background:var(--tm-dark);color:#fff}
+html body #tsk-main .btn-unclaim{background:var(--tm-light-h);color:var(--tsk-text)}
+html body #tsk-main .btn-unclaim:hover,html body #tsk-main .btn-unclaim:focus-visible{background:var(--tm-red);color:#fff}
+html body #tsk-main .tk-table th:last-child{text-align:right!important;padding-right:1rem}
+html body #tsk-main .tk-table td:last-child{padding-right:1rem}
+
+/* Pasek filtrów: szary pas, białe płaskie kontrolki 34px, wybrany filtr ciemny */
+html body #tsk-main .tk-toolbar{background:var(--tm-light);border:0!important;padding:.5rem;gap:.4rem}
+html body #tsk-main .tk-toolbar .tk-sep{background:#cfcfcf;height:1.5rem}
+html body #tsk-main .tk-search{height:34px;border:2px solid transparent!important;background:#fff}
+html body #tsk-main .tk-search:focus{outline:0;border-color:var(--tsk-green)!important}
+html body #tsk-main .tk-pill,html body #tsk-main .tk-filters-btn,html body #tsk-main .tk-toolbar .btn{display:inline-flex;align-items:center;gap:.4rem;
+  height:34px;padding:0 .75rem;border:0!important;background:#fff;color:var(--tsk-text);font-size:.8rem;font-weight:600;box-shadow:none;line-height:1}
+html body #tsk-main .tk-pill:hover,html body #tsk-main .tk-filters-btn:hover,html body #tsk-main .tk-toolbar .btn:hover,html body #tsk-main .tk-toolbar .btn:focus-visible{background:var(--tsk-text);color:#fff}
+html body #tsk-main .tk-pill.active,html body #tsk-main .tk-pill[data-s].active{background:var(--tsk-text);color:#fff}
+html body #tsk-main .tk-pill .pill-n{opacity:.6;font-weight:400}
+html body #tsk-main .tk-filters-btn.has-active{background:var(--tsk-green-bg);color:var(--tsk-green-dark)}
+html body #tsk-main .tk-filters-badge{border-radius:0;background:var(--tsk-green)}
+html body #tsk-main .tk-toolbar .btn i{margin:0!important}
+html body #tsk-main .tk-toolbar .btn .text-warning{color:var(--tm-orange)!important}
+html body #tsk-main .tk-toolbar .btn-outline-danger{color:var(--tm-red)}
+html body #tsk-main .tk-toolbar .btn-outline-danger:hover,html body #tsk-main .tk-toolbar .btn-outline-danger:focus-visible{background:var(--tm-red);color:#fff}
 html body #tsk-main .tk-legend{border-top-color:var(--tm-line);color:var(--tm-muted)}
 html body #tsk-main .tk-bulk-bar{background:var(--tm-dark);color:#fff;border:0}
 html body #tsk-main .tk-bulk-bar .tk-bulk-btn{background:rgba(255,255,255,.1);color:#fff;border:0}
