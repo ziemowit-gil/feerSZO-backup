@@ -7,6 +7,7 @@
  */
 require_once dirname(__DIR__) . '/logic/ezdBulk.php';
 $ezbToday = date('Y-m-d');
+$ezbUsers = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name");
 ?>
 <!-- Okno: zamknięcie zbiorcze -->
 <div class="modal fade ezb-modal" id="ezbCloseModal" tabindex="-1" aria-labelledby="ezbCloseTitle" aria-hidden="true">
@@ -38,6 +39,33 @@ $ezbToday = date('Y-m-d');
   </div>
 </div>
 
+<!-- Okno: zmiana prowadzącego -->
+<div class="modal fade ezb-modal" id="ezbOwnerModal" tabindex="-1" aria-labelledby="ezbOwnerTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="<?= h(ezdBulkUrl('/owner')) ?>" data-ezb-ids>
+      <div class="modal-header">
+        <h2 class="modal-title h6 mb-0" id="ezbOwnerTitle"><i class="bi bi-person-gear me-2" aria-hidden="true"></i>Zmień prowadzącego</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Anuluj"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="back" value="<?= h($ezbBack) ?>">
+        <div class="ezb-sum" data-ezb-sum="edit"></div>
+        <label class="form-label" for="ezbOwner">Nowy prowadzący</label>
+        <select class="form-select form-select-sm" id="ezbOwner" name="owner_id" required>
+          <option value="">— wybierz —</option>
+          <option value="none">(bez prowadzącego)</option>
+          <?php foreach ($ezbUsers as $u): ?><option value="<?= (int)$u['id'] ?>"><?= h($u['name']) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Anuluj</button>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Zmień w zaznaczonych</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 (function () {
   var bar = document.getElementById('ezbBar');
@@ -58,6 +86,11 @@ $ezbToday = date('Y-m-d');
       if (zamk) skip.push(zamk + ' już ' + (zamk === 1 ? 'zamknięta' : 'zamkniętych'));
       if (skip.length) { txt += ' Zostaną pominięte: ' + skip.join(', ') + ' — oraz te, których nie możesz zamknąć.'; warn = true; }
       else txt += ' Pominięte zostaną koszulki, których nie możesz zamknąć.';
+    }
+    if (kind === 'edit') {
+      txt += ' Zmiana jak w edycji pojedynczej koszulki — pominięte zostaną te bez prawa edycji'
+        + (zamk ? ' oraz zamknięte (' + zamk + '), jeśli nie jesteś administratorem.' : '.');
+      warn = zamk > 0;
     }
     return {html: txt, warn: warn};
   }

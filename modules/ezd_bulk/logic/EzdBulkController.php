@@ -30,7 +30,19 @@ final class EzdBulkController
             return $this->back();
         }
         $note = mb_substr(trim((string)($_POST['note'] ?? '')), 0, 500);
-        ezdBulkRemember('Zamknięto', ezdBulkClose($ids, $this->userId(), $note, $on));
+        ezdBulkRemember('Zamknięcie zbiorcze', ezdBulkClose($ids, $this->userId(), $note, $on));
+        return $this->back();
+    }
+
+    public function owner(): ?string {
+        if (!($ids = $this->ids())) return $this->back();
+        $raw = (string)($_POST['owner_id'] ?? '');
+        $ownerId = $raw === 'none' ? null : (int)$raw;
+        if ($ownerId !== null && !db_one("SELECT id FROM users WHERE id=? AND is_active=1", [$ownerId])) {
+            flash_set('danger', 'Wybierz prowadzącego z listy aktywnych użytkowników.');
+            return $this->back();
+        }
+        ezdBulkRemember('Zmiana prowadzącego', ezdBulkOwner($ids, $this->userId(), $ownerId));
         return $this->back();
     }
 }

@@ -8,7 +8,6 @@ $ezbRes = ezdBulkTakeResult();
 if (!$ezbRes) return;
 $ezbDone = count($ezbRes['done'] ?? []);
 $ezbSkip = $ezbRes['skipped'] ?? [];
-$ezbPl   = fn(int $n) => $n === 1 ? 'koszulkę' : ($n % 10 >= 2 && $n % 10 <= 4 && ($n % 100 < 12 || $n % 100 > 14) ? 'koszulki' : 'koszulek');
 ?>
 <style>
 html body .ezb-result{display:flex;gap:.75rem;align-items:flex-start;background:var(--em-light,#f2f2f2);border-left:6px solid var(--m-green,#007a00);padding:.75rem 1rem;margin-bottom:1rem;font-size:.86rem;color:var(--em-ink,#111827)}
@@ -21,7 +20,7 @@ html body .ezb-result .ezb-x:hover{background:var(--em-ink,#111827);color:#fff}
 <div class="ezb-result<?= $ezbDone ? '' : ' ezb-result--warn' ?>" role="status" id="ezbResult">
   <i class="bi <?= $ezbDone ? 'bi-check2-square' : 'bi-exclamation-triangle' ?>" aria-hidden="true" style="font-size:1.2rem;color:<?= $ezbDone ? 'var(--m-green,#007a00)' : 'var(--m-orange,#c25100)' ?>"></i>
   <div>
-    <strong><?= h($ezbRes['verb'] ?? 'Wykonano') ?> <?= $ezbDone ?> <?= $ezbPl($ezbDone) ?></strong><?= $ezbSkip ? ', pominięto ' . count($ezbSkip) . ':' : '.' ?>
+    <strong><?= h($ezbRes['verb'] ?? 'Akcja zbiorcza') ?></strong> — wykonano: <strong><?= $ezbDone ?></strong>, pominięto: <strong><?= count($ezbSkip) ?></strong><?= $ezbSkip ? ':' : '.' ?>
     <?php if ($ezbSkip): ?>
     <ul>
       <?php foreach (array_slice($ezbSkip, 0, 30) as $sk): ?>

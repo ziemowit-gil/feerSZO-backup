@@ -54,6 +54,7 @@ function ezdBulkEach(array $ids, int $userId, callable $fn): array {
 }
 
 /** Zapamiętuje podsumowanie do pokazania raz nad listą. */
+/** @param string $verb nazwa akcji, np. „Zamknięcie zbiorcze” */
 function ezdBulkRemember(string $verb, array $res): void {
     auth_start();
     $_SESSION['ezd_bulk_result'] = ['verb' => $verb] + $res;
@@ -76,6 +77,43 @@ function ezdBulkClose(array $ids, int $userId, string $note, string $closedOn): 
     return ezdBulkEach($ids, $userId, function (array $sp) use ($userId, $reason, $closedOn) {
         if ($why = ezd_sprawa_close_blocker($sp, $userId)) return $why;
         ezd_sprawa_close((int)$sp['id'], $userId, $reason, $closedOn);
+        return null;
+    });
+}
+
+/** Dlaczego nie można edytować metadanych koszulki (null = można) — warunki formularza ezd/sprawy/edit.php. */
+function ezdBulkEditBlocker(array $sp, int $userId): ?string {
+    if (ezd_sprawa_access($sp, $userId) !== 'write') return 'brak uprawnień do edycji';
+    if (($sp['status'] ?? '') === 'closed' && !is_admin()) return 'koszulka zamknięta — edycja tylko dla administratora';
+    return null;
+}
+
+/**
+ * Zapis zmienionych pól przez ezd_sprawa_update() — tę samą funkcję co edit.php (pozostałe pola bez zmian,
+ * dziennik „sprawa_update”), plus wpis w dzienniku mówiący, co zmieniła akcja zbiorcza.
+ */
+function ezdBulkSave(array $sp, array $changes, int $userId, string $what): void {
+    $d = [
+        'teczka_id'   => (int)$sp['teczka_id'],
+        'title'       => (string)$sp['title'],
+        'description' => (string)($sp['description'] ?? ''),
+        'status'      => (string)$sp['status'],
+        'priority'    => (string)$sp['priority'],
+        'owner_id'    => $sp['owner_id'] ? (int)$sp['owner_id'] : null,
+        'deadline'    => (string)($sp['deadline'] ?? ''),
+        'ciagla'      => (int)($sp['ciagla'] ?? 0),
+    ];
+    ezd_sprawa_update((int)$sp['id'], array_merge($d, $changes), $userId);
+    ezd_log(null, (int)$sp['id'], null, null, $userId, 'sprawa_bulk_update', 'Zmiana zbiorcza z listy koszulek — ' . $what);
+}
+
+/** Zmiana prowadzącego (owner_id); $ownerId null = bez prowadzącego. */
+function ezdBulkOwner(array $ids, int $userId, ?int $ownerId): array {
+    $name = $ownerId ? (string)(db_one("SELECT name FROM users WHERE id=?", [$ownerId])['name'] ?? '#' . $ownerId) : '(brak)';
+    return ezdBulkEach($ids, $userId, function (array $sp) use ($userId, $ownerId, $name) {
+        if ($why = ezdBulkEditBlocker($sp, $userId)) return $why;
+        if ((int)($sp['owner_id'] ?? 0) === (int)$ownerId) return 'ma już tego prowadzącego';
+        ezdBulkSave($sp, ['owner_id' => $ownerId], $userId, 'prowadzący: ' . ($sp['owner_name'] ?: '(brak)') . ' → ' . $name);
         return null;
     });
 }
