@@ -18,33 +18,5 @@ $_org_name_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 
 </div><!-- /dir-shell -->
 
-<script>
-(function () {
-  'use strict';
-  var btn     = document.getElementById('dirSidebarToggle');
-  var sidebar = document.getElementById('dirSidebar');
-  if (!btn || !sidebar) return;
-
-  btn.addEventListener('click', function () {
-    var open = sidebar.classList.toggle('open');
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    btn.setAttribute('aria-label', open ? 'Zamknij menu nawigacyjne' : 'Otwórz menu nawigacyjne');
-  });
-  document.addEventListener('click', function (e) {
-    if (!sidebar.contains(e.target) && !btn.contains(e.target) && sidebar.classList.contains('open')) {
-      sidebar.classList.remove('open');
-      btn.setAttribute('aria-expanded', 'false');
-      btn.setAttribute('aria-label', 'Otwórz menu nawigacyjne');
-    }
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
-      sidebar.classList.remove('open');
-      btn.setAttribute('aria-expanded', 'false');
-      btn.focus();
-    }
-  });
-})();
-</script>
 </body>
 </html>

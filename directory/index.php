@@ -49,230 +49,127 @@ $sql = "
     ORDER BY " . $order_map[$sort];
 
 try { $people = db_all($sql, $params); } catch (\Throwable $e) { $people = []; }
-try { $units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY name"); }
-catch (\Throwable $e) { $units = []; }
+// Jednostki wewnętrzne z liczbą aktywnych osób (kafle)
+try {
+    $units = db_all("SELECT u.id, u.name, u.code, u.parent_id,
+               (SELECT COUNT(DISTINCT m.user_id) FROM org_members m JOIN users mu ON mu.id=m.user_id AND mu.is_active=1
+                 WHERE m.unit_id=u.id AND m.status='active' AND (m.valid_to IS NULL OR m.valid_to >= date('now'))) AS cnt
+        FROM org_units u
+        WHERE u.status='active' AND COALESCE(u.kind,'internal') <> 'external'
+        ORDER BY u.sort_order, u.name");
+} catch (\Throwable $e) {
+    try { $units = db_all("SELECT id, name, '' AS code, NULL AS parent_id, 0 AS cnt FROM org_units WHERE status='active' ORDER BY name"); }
+    catch (\Throwable $e2) { $units = []; }
+}
+$unit_cur = null;
+foreach ($units as $u) if ((int)$u['id'] === $unit_id) $unit_cur = $u;
 
 $count = count($people);
 $result_label = $count === 0 ? 'Brak wyników'
-    : ($count === 1 ? '1 osoba' : $count . ' ' . ($count < 5 ? 'osoby' : 'osób'));
-if ($q || $unit_id) $result_label .= ' — wyniki wyszukiwania';
+    : ($count === 1 ? '1 osoba' : $count . ' ' . ($count % 10 >= 2 && $count % 10 <= 4 && ($count % 100 < 10 || $count % 100 >= 20) ? 'osoby' : 'osób'));
+
+// Własny profil — kafel „Ty” z postępem wymogu (modules/directory_profile)
+require_once dirname(__DIR__) . '/modules/katalog_metro/lib/katalogMetro.php';
+require_once dirname(__DIR__) . '/modules/directory_profile/lib/directoryProfile.php';
+$cu    = current_user();
+$me    = $cu ? directory_get_profile((int)$cu['id']) : null;
+$meSt  = $me ? directoryProfileStatus((int)$cu['id'], $me) : null;
+$base  = APP_URL . '/directory/';
+$qsKeep = fn(array $add) => $base . '?' . http_build_query(array_filter(array_merge(['q' => $q, 'unit_id' => $unit_id ?: null, 'sort' => $sort !== 'last_name' ? $sort : null], $add), fn($v) => $v !== null && $v !== ''));
 
 include __DIR__ . '/includes/header_dir.php';
+katalogMetroAssets();
 ?>
+<div class="pvm ktm">
 
-<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
-  <div>
-    <h1 class="h4 mb-0 fw-bold" style="color:var(--dir-text)">
-      <i class="bi bi-people-fill me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>Katalog współpracowników
-    </h1>
-    <p class="text-muted small mb-0 mt-1">Znajdź osobę, sprawdź jej profil i dane kontaktowe</p>
-  </div>
-</div>
-
-<section aria-label="Wyszukiwanie i filtry">
-  <form method="get" role="search" aria-label="Szukaj współpracownika">
-    <div class="dir-search-bar">
-      <div class="row g-2 align-items-end w-100">
-        <div class="col-12 col-md-5">
-          <label for="dir-q" class="visually-hidden">Imię, nazwisko lub e-mail</label>
-          <div class="input-group">
-            <span class="input-group-text bg-white" aria-hidden="true"><i class="bi bi-search text-muted"></i></span>
-            <input type="search" name="q" id="dir-q" class="form-control border-start-0"
-                   placeholder="Imię, nazwisko, e-mail…"
-                   value="<?= h($q) ?>" autocomplete="off">
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <label for="dir-unit" class="visually-hidden">Jednostka organizacyjna</label>
-          <select name="unit_id" id="dir-unit" class="form-select">
-            <option value="">Wszystkie jednostki</option>
-            <?php foreach ($units as $u): ?>
-            <option value="<?= (int)$u['id'] ?>" <?= $unit_id === (int)$u['id'] ? 'selected' : '' ?>><?= h($u['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-6 col-md-2">
-          <label for="dir-sort" class="visually-hidden">Sortowanie</label>
-          <select name="sort" id="dir-sort" class="form-select">
-            <option value="last_name"  <?= $sort==='last_name'  ? 'selected':'' ?>>Nazwisko A–Z</option>
-            <option value="first_name" <?= $sort==='first_name' ? 'selected':'' ?>>Imię A–Z</option>
-            <option value="unit_name"  <?= $sort==='unit_name'  ? 'selected':'' ?>>Jednostka</option>
-          </select>
-        </div>
-        <div class="col-12 col-md-2 d-flex gap-2">
-          <button type="submit" class="btn flex-grow-1" style="background:var(--dir-primary);color:#fff">
-            <i class="bi bi-funnel me-1" aria-hidden="true"></i>Szukaj
-          </button>
-          <?php if ($q || $unit_id): ?>
-          <a href="?" class="btn btn-outline-secondary" aria-label="Wyczyść filtry">
-            <i class="bi bi-x-lg" aria-hidden="true"></i>
-          </a>
-          <?php endif; ?>
-        </div>
-      </div>
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker">Katalog współpracowników<?= defined('ORG_NAME') ? ' · ' . h(ORG_NAME) : '' ?></div>
+      <h1 class="mt-title"><?= $unit_cur ? h($unit_cur['name']) : 'Kto jest kim' ?></h1>
+      <p class="mt-lead">Znajdź osobę, sprawdź jej jednostkę i dane kontaktowe.</p>
+      <form method="get" role="search" aria-label="Szukaj współpracownika" class="ktm-search">
+        <label for="ktm-q" class="visually-hidden">Imię, nazwisko, jednostka lub e-mail</label>
+        <input type="search" name="q" id="ktm-q" value="<?= h($q) ?>" placeholder="Imię, nazwisko, jednostka, e-mail…" autocomplete="off">
+        <?php if ($unit_id): ?><input type="hidden" name="unit_id" value="<?= (int)$unit_id ?>"><?php endif; ?>
+        <label for="ktm-sort" class="visually-hidden">Sortowanie</label>
+        <select name="sort" id="ktm-sort" onchange="this.form.submit()">
+          <option value="last_name"  <?= $sort === 'last_name'  ? 'selected' : '' ?>>Nazwisko A–Z</option>
+          <option value="first_name" <?= $sort === 'first_name' ? 'selected' : '' ?>>Imię A–Z</option>
+          <option value="unit_name"  <?= $sort === 'unit_name'  ? 'selected' : '' ?>>Jednostka</option>
+        </select>
+        <button type="submit"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Szukaj</span></button>
+      </form>
     </div>
-  </form>
-</section>
-
-<div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-  <p class="text-muted mb-0" style="font-size:.8rem"
-     aria-live="polite" aria-atomic="true" id="dirResultCount">
-    <i class="bi bi-people me-1" aria-hidden="true"></i><span id="dirCountLabel"><?= h($result_label) ?></span>
-  </p>
-  <div class="btn-group dir-view-toggle btn-group-sm" id="dirViewToggle" role="group" aria-label="Tryb widoku">
-    <button type="button" class="btn btn-outline-secondary" id="viewGrid" aria-pressed="true" title="Kafelki">
-      <i class="bi bi-grid-3x3-gap"></i>
-    </button>
-    <button type="button" class="btn btn-outline-secondary" id="viewList" aria-pressed="false" title="Lista">
-      <i class="bi bi-list-ul"></i>
-    </button>
   </div>
+
+  <?php if (!$q && !$unit_id && $me): ?>
+  <section class="mt-grp" aria-labelledby="ktm-ty">
+    <h2 class="mt-grp-h" id="ktm-ty">Ty</h2>
+    <div class="mt-grid">
+      <?php
+      $me['phone'] = $me['phone_display'] ?? '';
+      katalogPersonTile($me, ['size' => 'l', 'color' => KATALOG_ACCENT,
+          'sub' => implode(' · ', array_filter([$me['position_name'], $me['unit_name']])) ?: 'mój profil w katalogu']);
+      if ($meSt && $meSt['total']) {
+          panelMetroTile(['href' => APP_URL . '/directory/profile_edit.php', 'icon' => 'bi-person-lines-fill',
+              'label' => $meSt['complete'] ? 'Profil uzupełniony' : 'Uzupełnij profil', 'val' => $meSt['pct'] . '%',
+              'sub' => $meSt['complete'] ? 'dziękujemy' : 'brakuje: ' . implode(', ', $meSt['missing']),
+              'tag' => !$meSt['complete'] && $meSt['mode'] !== 'off' ? 'wymagane' : '',
+              'color' => $meSt['complete'] ? 'green' : ($meSt['mode'] === 'require' ? 'red' : 'orange'), 'size' => 'w']);
+      } else {
+          panelMetroTile(['href' => APP_URL . '/directory/profile_edit.php', 'icon' => 'bi-pencil-square', 'label' => 'Edytuj profil',
+              'sub' => 'zdjęcie, opis, umiejętności', 'color' => 'orange', 'size' => 'w']);
+      }
+      panelMetroTile(['href' => APP_URL . '/directory/org_chart.php', 'icon' => 'bi-diagram-3', 'label' => 'Struktura',
+          'val' => (string)count($units), 'sub' => 'jednostek', 'color' => 'dark']);
+      panelMetroTile(['href' => '#ktm-osoby-h', 'icon' => 'bi-people-fill', 'label' => 'Współpracownicy',
+          'val' => (string)$count, 'sub' => 'w katalogu', 'color' => 'teal']);
+      ?>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <?php if ($units): ?>
+  <section class="mt-grp" aria-labelledby="ktm-jedn" data-ktm-filter>
+    <div class="ktm-bar">
+      <h2 class="mt-grp-h" id="ktm-jedn">Jednostki</h2>
+      <?php if ($unit_id): ?><a class="ktm-chip" href="<?= h($qsKeep(['unit_id' => null])) ?>"><i class="bi bi-x-lg" aria-hidden="true"></i>Wszystkie jednostki</a><?php endif; ?>
+    </div>
+    <div class="mt-grid mt-grid--sm">
+      <?php foreach ($units as $u)
+          katalogUnitTile($u, $qsKeep(['unit_id' => (int)$u['id'] === $unit_id ? null : (int)$u['id']]) . '#ktm-osoby-h',
+              ['on' => (int)$u['id'] === $unit_id]); ?>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <section class="mt-grp" aria-labelledby="ktm-osoby-h" data-ktm-filter>
+    <div class="ktm-bar">
+      <h2 class="mt-grp-h" id="ktm-osoby-h"><?= $unit_cur ? 'Osoby · ' . h($unit_cur['name']) : 'Osoby' ?></h2>
+      <span class="ktm-count" aria-live="polite"><?= h($result_label) ?><?= $q ? ' dla „' . h($q) . '”' : '' ?> <span id="ktm-live"></span></span>
+    </div>
+    <?php if ($unit_cur): ?>
+    <p style="margin:-.2rem 0 .6rem"><a class="ktm-chip" href="<?= APP_URL ?>/directory/org_chart.php?unit=<?= (int)$unit_cur['id'] ?>#jednostka"><i class="bi bi-diagram-3" aria-hidden="true"></i>Karta jednostki</a></p>
+    <?php endif; ?>
+    <?php if (!$people): ?>
+    <div class="ktm-empty" role="status">
+      <i class="bi bi-person-x d-block mb-2" aria-hidden="true" style="font-size:2.5rem;opacity:.4"></i>
+      Nie znaleziono nikogo.<?php if ($q || $unit_id): ?> <a href="<?= $base ?>">Wyczyść filtry</a><?php endif; ?>
+    </div>
+    <?php else: ?>
+    <div class="mt-grid" role="list">
+      <?php foreach ($people as $person) {
+          $person['phone'] = $person['phone_public']
+              ? ($person['phone_direct'] ?: $person['phone_mobile'] ?: ($person['phone_number'] ?? '')) : '';
+          echo '<div role="listitem" style="display:contents">';
+          katalogPersonTile($person, ['hideUnit' => (bool)$unit_cur]);
+          echo '</div>';
+      } ?>
+    </div>
+    <?php endif; ?>
+  </section>
 </div>
 
-<section aria-label="Lista współpracowników" aria-describedby="dirResultCount">
-<?php if (empty($people)): ?>
-  <div class="text-center py-5" style="color:var(--dir-text-muted)" role="status">
-    <i class="bi bi-person-x" aria-hidden="true" style="font-size:3rem;opacity:.35;display:block;margin-bottom:.75rem"></i>
-    <p class="fs-5 mb-2">Nie znaleziono nikogo</p>
-    <?php if ($q || $unit_id): ?>
-    <a href="?" class="btn btn-outline-secondary btn-sm">Wyczyść filtry</a>
-    <?php endif; ?>
-  </div>
-<?php else: ?>
-  <ul class="row g-3 list-unstyled dir-people-grid" id="dirPeopleList" role="list">
-    <?php foreach ($people as $person):
-        $display = directory_display_name($person);
-        $phone_display = $person['phone_public']
-            ? ($person['phone_direct'] ?: $person['phone_mobile'] ?: ($person['phone_number'] ?? ''))
-            : '';
-        $parts = [$display];
-        if ($person['position_name']) $parts[] = $person['position_name'];
-        if ($person['unit_name'])     $parts[] = 'jednostka ' . $person['unit_name'];
-        if ($phone_display)           $parts[] = 'tel. ' . $phone_display;
-        $search_text = mb_strtolower($display . ' ' . ($person['position_name'] ?? '') . ' ' . ($person['unit_name'] ?? '') . ' ' . $person['email'], 'UTF-8');
-    ?>
-    <li class="col-6 col-md-4 col-lg-3" role="listitem"
-        data-text="<?= h($search_text) ?>">
-      <a href="<?= APP_URL ?>/directory/profile.php?id=<?= (int)$person['id'] ?>"
-         class="dir-person-card"
-         aria-label="<?= h(implode(', ', $parts)) ?> — otwórz profil">
-        <?= directory_avatar_html($person, 60) ?>
-        <div class="dir-name" aria-hidden="true"><?= h($display) ?></div>
-        <?php if ($person['position_name']): ?>
-        <div class="dir-position" aria-hidden="true"><?= h($person['position_name']) ?></div>
-        <?php endif; ?>
-        <?php if ($person['unit_name']): ?>
-        <div class="dir-unit" aria-hidden="true"><i class="bi bi-building me-1" aria-hidden="true"></i><?= h($person['unit_name']) ?></div>
-        <?php endif; ?>
-        <?php if ($phone_display): ?>
-        <div class="dir-phone" aria-hidden="true"><i class="bi bi-telephone me-1" aria-hidden="true"></i><?= h($phone_display) ?></div>
-        <?php endif; ?>
-      </a>
-    </li>
-    <?php endforeach; ?>
-  </ul>
-  <div id="dirNoResults" class="text-center py-5 d-none" style="color:var(--dir-text-muted)" role="status">
-    <i class="bi bi-search" aria-hidden="true" style="font-size:2.5rem;opacity:.3;display:block;margin-bottom:.75rem"></i>
-    <p class="mb-1">Brak wyników dla wpisanej frazy.</p>
-    <button class="btn btn-outline-secondary btn-sm mt-1" onclick="document.getElementById('dir-q').value='';dirFilter()">Wyczyść</button>
-  </div>
-<?php endif; ?>
-</section>
-
-<script>
-(function () {
-  // ── View toggle (grid / list) ─────────────────────────────────────
-  var STORAGE_KEY = 'dirView';
-  var list  = document.getElementById('dirPeopleList');
-  var btnG  = document.getElementById('viewGrid');
-  var btnL  = document.getElementById('viewList');
-
-  function applyView(v) {
-    if (!list) return;
-    var isGrid = v !== 'list';
-    list.classList.toggle('list-view', !isGrid);
-    if (btnG) { btnG.setAttribute('aria-pressed', isGrid ? 'true' : 'false'); btnG.classList.toggle('active', isGrid); }
-    if (btnL) { btnL.setAttribute('aria-pressed', !isGrid ? 'true' : 'false'); btnL.classList.toggle('active', !isGrid); }
-    // In list view collapse column classes
-    if (list) {
-      Array.from(list.children).forEach(function (li) {
-        if (!isGrid) {
-          li.dataset.origClass = li.className;
-          li.className = 'dir-list-li';
-        } else if (li.dataset.origClass) {
-          li.className = li.dataset.origClass;
-        }
-      });
-    }
-    try { localStorage.setItem(STORAGE_KEY, v); } catch(e) {}
-  }
-
-  if (btnG) btnG.addEventListener('click', function () { applyView('grid'); });
-  if (btnL) btnL.addEventListener('click', function () { applyView('list'); });
-
-  // Restore saved view
-  try {
-    var saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) applyView(saved);
-    else applyView('grid');
-  } catch(e) { applyView('grid'); }
-
-  // ── Live search (text filter) ────────────────────────────────────
-  var input     = document.getElementById('dir-q');
-  var noResults = document.getElementById('dirNoResults');
-  var counter   = document.getElementById('dirCountLabel');
-  var allTotal  = <?= $count ?>;
-  var timer;
-
-  function normalize(s) {
-    return s.toLowerCase()
-      .replace(/ą/g,'a').replace(/ć/g,'c').replace(/ę/g,'e')
-      .replace(/ł/g,'l').replace(/ń/g,'n').replace(/ó/g,'o')
-      .replace(/ś/g,'s').replace(/ź/g,'z').replace(/ż/g,'z');
-  }
-
-  function dirFilter() {
-    if (!list) return;
-    var term = normalize((input ? input.value : '').trim());
-    var items = Array.from(list.children);
-    var visible = 0;
-    items.forEach(function (li) {
-      var text = normalize(li.dataset.text || '');
-      var show = !term || text.indexOf(term) !== -1;
-      li.style.display = show ? '' : 'none';
-      if (show) visible++;
-    });
-    // Update count label
-    if (counter) {
-      if (!term) {
-        counter.textContent = allTotal === 1 ? '1 osoba' : allTotal + ' ' + (allTotal < 5 ? 'osoby' : 'osób');
-      } else {
-        counter.textContent = visible === 0 ? 'Brak wyników'
-          : visible + ' ' + (visible === 1 ? 'osoba' : (visible < 5 ? 'osoby' : 'osób')) + ' — wyniki filtrowania';
-      }
-    }
-    // Show/hide empty state
-    if (noResults) noResults.classList.toggle('d-none', visible > 0 || !term);
-    if (list)      list.style.display = (visible === 0 && term) ? 'none' : '';
-  }
-
-  // Make dirFilter global for the "Wyczyść" button
-  window.dirFilter = dirFilter;
-
-  if (input) {
-    input.addEventListener('input', function () {
-      clearTimeout(timer);
-      timer = setTimeout(dirFilter, 180);
-    });
-    // Prevent form submit on Enter when filtering live
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && input.value.trim()) {
-        e.preventDefault();
-        dirFilter();
-      }
-    });
-  }
-})();
-</script>
+<?php katalogFilterScript(); ?>
 
 <?php include __DIR__ . '/includes/footer_dir.php'; ?>

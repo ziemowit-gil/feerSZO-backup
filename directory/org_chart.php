@@ -188,122 +188,145 @@ include __DIR__ . '/includes/header_dir.php';
 }
 </style>
 
-<!-- Nagłówek strony -->
-<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-  <div>
-    <h1 class="h4 mb-0 fw-bold" style="color:var(--dir-text)">
-      <i class="bi bi-diagram-3 me-2" aria-hidden="true" style="color:var(--dir-primary)"></i>Struktura organizacyjna
-    </h1>
-    <p class="text-muted small mb-0 mt-1">Hierarchia jednostek i przypisania wolontariuszy</p>
-  </div>
-  <div class="d-flex gap-2">
-    <button class="btn btn-sm btn-outline-secondary"
-            onclick="ocExpandAll()"
-            aria-controls="ocTree"
-            aria-label="Rozwiń wszystkie węzły drzewa">
-      <i class="bi bi-arrows-expand me-1" aria-hidden="true"></i>Rozwiń wszystko
-    </button>
-    <button class="btn btn-sm btn-outline-secondary"
-            onclick="ocCollapseAll()"
-            aria-controls="ocTree"
-            aria-label="Zwiń wszystkie węzły drzewa">
-      <i class="bi bi-arrows-collapse me-1" aria-hidden="true"></i>Zwiń wszystko
-    </button>
-  </div>
-</div>
+<?php
+require_once dirname(__DIR__) . '/modules/katalog_metro/lib/katalogMetro.php';
+katalogMetroAssets();
+// Kafle: każda jednostka najwyższego poziomu = grupa (ona sama szeroko + wszystkie podległe)
+$ktmFlatten = function (array $nodes) use (&$ktmFlatten): array {
+    $out = [];
+    foreach ($nodes as $n) { $out[] = $n; if (!empty($n['children'])) $out = array_merge($out, $ktmFlatten($n['children'])); }
+    return $out;
+};
+$ktmHref = fn(int $id) => APP_URL . '/directory/org_chart.php?unit=' . $id . '#jednostka';
+?>
+<div class="pvm ktm">
 
-<?php if (!$has_units): ?>
-<div class="dir-info-card text-center py-5" style="color:var(--dir-text-muted)" role="status">
-  <i class="bi bi-diagram-3" aria-hidden="true" style="font-size:3rem;opacity:.25;display:block;margin-bottom:.75rem"></i>
-  <p class="mb-0">Struktura organizacyjna nie jest jeszcze skonfigurowana.</p>
-  <?php if (is_admin()): ?>
-  <a href="<?= APP_URL ?>/org/units/add.php" class="btn btn-sm mt-3" style="background:var(--dir-primary);color:#fff">
-    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Utwórz pierwszą jednostkę
-  </a>
-  <?php endif; ?>
-</div>
-<?php else: ?>
-
-<!-- Statystyki -->
-<div class="row g-3 mb-4" aria-label="Statystyki struktury organizacyjnej">
-  <?php foreach (array_filter([
-    ['Aktywnych jednostek',   $total_units,    'bi-diagram-3',   '#6366F1', '#EEF2FF'],
-    $total_external ? ['Jednostek zewnętrznych', $total_external, 'bi-buildings', '#0EA5E9', '#E0F2FE'] : null,
-    ['Wolontariuszy',         $total_members,  'bi-people-fill', '#16A34A', '#F0FDF4'],
-  ]) as [$lbl, $val, $icon, $col, $bg]): ?>
-  <div class="col-6 col-md-3">
-    <div style="background:#fff;border:1px solid var(--dir-border);border-radius:10px;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.8rem"
-         aria-label="<?= h($lbl) ?>: <?= $val ?>">
-      <div style="width:38px;height:38px;border-radius:9px;background:<?= $bg ?>;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:<?= $col ?>;flex-shrink:0"
-           aria-hidden="true">
-        <i class="bi <?= $icon ?>"></i>
-      </div>
-      <div>
-        <div style="font-size:1.4rem;font-weight:700;line-height:1;color:var(--dir-text)" aria-hidden="true"><?= $val ?></div>
-        <div style="font-size:.72rem;color:var(--dir-text-muted)" aria-hidden="true"><?= $lbl ?></div>
-      </div>
-    </div>
-  </div>
-  <?php endforeach; ?>
-</div>
-
-<!-- Drzewo + panel szczegółów -->
-<div class="row g-4">
-
-  <!-- Drzewo -->
-  <div class="col-lg-7 col-xl-6">
-    <div class="dir-info-card p-3" style="padding:0!important">
-      <div style="padding:.75rem 1rem;border-bottom:1px solid var(--dir-border);font-size:.8rem;font-weight:600;color:var(--dir-text-muted)">
-        <i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>Drzewo struktury
-        <span class="text-muted fw-normal ms-1">— kliknij jednostkę, by zobaczyć jej skład</span>
-      </div>
-      <div class="p-3 oc-tree" id="ocTree">
-        <?php if (!empty($internal_tree)): ?>
-        <ul role="tree" aria-label="Drzewo struktury organizacyjnej" class="list-unstyled mb-0">
-          <?php dir_render_tree($internal_tree, 1, $unit_focus); ?>
-        </ul>
-        <?php else: ?>
-        <p class="small text-muted mb-0 py-2"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Brak jednostek wewnętrznych.</p>
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
-
-  <!-- Panel szczegółów jednostki -->
-  <div class="col-lg-5 col-xl-6">
-    <div id="ocDetailPanel"
-         role="region"
-         aria-label="Szczegóły jednostki"
-         aria-live="polite">
-      <?php if ($unit_focus > 0):
-          dir_render_unit_detail($unit_focus);
-      else: ?>
-      <div class="dir-info-card text-center py-5" style="color:var(--dir-text-muted)">
-        <i class="bi bi-cursor-fill d-block mb-2" aria-hidden="true" style="font-size:2rem;opacity:.25"></i>
-        <p class="mb-0 small">Kliknij nazwę jednostki, aby zobaczyć jej skład i szczegóły.</p>
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker">Katalog współpracowników · struktura organizacyjna</div>
+      <h1 class="mt-title">Jednostki</h1>
+      <p class="mt-lead">Kliknij kafel jednostki, aby zobaczyć jej skład, kierownika i jednostki podległe.</p>
+      <?php if ($has_units): ?>
+      <div class="ktm-search" role="search">
+        <label for="ktm-q" class="visually-hidden">Filtruj jednostki i osoby</label>
+        <input type="search" id="ktm-q" placeholder="Filtruj jednostki…" autocomplete="off">
       </div>
       <?php endif; ?>
     </div>
   </div>
 
+<?php if (!$has_units): ?>
+  <div class="ktm-empty" role="status">
+    <i class="bi bi-diagram-3 d-block mb-2" aria-hidden="true" style="font-size:2.5rem;opacity:.4"></i>
+    Struktura organizacyjna nie jest jeszcze skonfigurowana.
+    <?php if (is_admin()): ?><p class="mt-3 mb-0"><a class="ktm-chip" href="<?= APP_URL ?>/org/units/add.php"><i class="bi bi-plus-lg" aria-hidden="true"></i>Utwórz pierwszą jednostkę</a></p><?php endif; ?>
+  </div>
+<?php else: ?>
+
+  <section class="mt-grp" aria-label="Podsumowanie">
+    <div class="mt-grid mt-grid--sm">
+      <?php
+      panelMetroTile(['href' => '#ktm-kafle', 'icon' => 'bi-diagram-3', 'label' => 'Jednostki', 'val' => (string)$total_units, 'sub' => 'aktywnych wewnętrznych', 'color' => 'indigo']);
+      panelMetroTile(['href' => APP_URL . '/directory/', 'icon' => 'bi-people-fill', 'label' => 'Osoby', 'val' => (string)$total_members, 'sub' => 'przypisań w jednostkach', 'color' => 'teal']);
+      if ($total_external) panelMetroTile(['href' => '#ktm-zewn', 'icon' => 'bi-buildings', 'label' => 'Zewnętrzne', 'val' => (string)$total_external, 'sub' => 'partnerzy', 'color' => 'grey']);
+      ?>
+    </div>
+  </section>
+
+  <?php if ($unit_focus > 0): ?>
+  <div id="jednostka" tabindex="-1">
+    <p style="margin:0 0 .6rem"><a class="ktm-chip" href="<?= APP_URL ?>/directory/org_chart.php"><i class="bi bi-x-lg" aria-hidden="true"></i>Zamknij kartę jednostki</a>
+       <a class="ktm-chip" href="<?= APP_URL ?>/directory/?unit_id=<?= (int)$unit_focus ?>"><i class="bi bi-people" aria-hidden="true"></i>Pokaż w katalogu osób</a></p>
+    <?php katalogUnitDetail($unit_focus); ?>
+  </div>
+  <?php endif; ?>
+
+  <nav class="mt-pivot" role="tablist" aria-label="Widok struktury">
+    <button type="button" role="tab" id="ktm-tab-kafle" aria-controls="ktm-kafle" aria-selected="true" data-ktm-tab="kafle">Kafle</button>
+    <button type="button" role="tab" id="ktm-tab-drzewo" aria-controls="ktm-drzewo" aria-selected="false" data-ktm-tab="drzewo" tabindex="-1">Drzewo</button>
+  </nav>
+
+  <div id="ktm-kafle" role="tabpanel" aria-labelledby="ktm-tab-kafle" tabindex="-1">
+    <?php foreach ($internal_tree as $root):
+        $desc = !empty($root['children']) ? $ktmFlatten($root['children']) : [];
+        $gid  = 'ktm-g' . (int)$root['id'];
+    ?>
+    <section class="mt-grp" aria-labelledby="<?= $gid ?>" data-ktm-filter>
+      <h2 class="mt-grp-h" id="<?= $gid ?>"><?= h($root['name']) ?></h2>
+      <div class="mt-grid mt-grid--sm">
+        <?php
+        $head = null; try { $head = org_unit_head((int)$root['id']); } catch (\Throwable $e) {}
+        katalogUnitTile($root, $ktmHref((int)$root['id']), ['size' => 'w', 'on' => (int)$root['id'] === $unit_focus,
+            'sub' => trim(((int)$root['member_count']) . ' os.' . ($desc ? ' · ' . count($desc) . ' podległych' : '') . ($head ? ' · ' . $head['user_name'] : ''))]);
+        foreach ($desc as $d) katalogUnitTile($d, $ktmHref((int)$d['id']), ['on' => (int)$d['id'] === $unit_focus,
+            'icon' => !empty($d['children']) ? 'bi-diagram-3' : 'bi-folder2']);
+        ?>
+      </div>
+    </section>
+    <?php endforeach; ?>
+    <?php if (!$internal_tree): ?><div class="ktm-empty" role="status">Brak jednostek wewnętrznych.</div><?php endif; ?>
+
+    <?php if ($external_units): ?>
+    <section class="mt-grp" aria-labelledby="ktm-zewn" data-ktm-filter>
+      <h2 class="mt-grp-h" id="ktm-zewn">Jednostki zewnętrzne · partnerzy</h2>
+      <div class="mt-grid mt-grid--sm">
+        <?php foreach ($external_units as $u) {
+            $type = (defined('ORG_EXT_TYPES') && !empty($u['cooperation_type']) && isset(ORG_EXT_TYPES[$u['cooperation_type']])) ? ORG_EXT_TYPES[$u['cooperation_type']] : 'partner';
+            katalogUnitTile($u, $ktmHref((int)$u['id']), ['external' => true, 'sub' => $type, 'on' => (int)$u['id'] === $unit_focus]);
+        } ?>
+      </div>
+    </section>
+    <?php endif; ?>
+  </div>
+
+  <div id="ktm-drzewo" role="tabpanel" aria-labelledby="ktm-tab-drzewo" tabindex="-1" hidden>
+    <div class="d-flex gap-2 mb-2">
+      <button class="btn btn-sm btn-outline-secondary" onclick="ocExpandAll()" aria-controls="ocTree"><i class="bi bi-arrows-expand me-1" aria-hidden="true"></i>Rozwiń wszystko</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="ocCollapseAll()" aria-controls="ocTree"><i class="bi bi-arrows-collapse me-1" aria-hidden="true"></i>Zwiń wszystko</button>
+    </div>
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="oc-tree" id="ocTree">
+          <?php if ($internal_tree): ?>
+          <ul role="tree" aria-label="Drzewo struktury organizacyjnej" class="list-unstyled mb-0">
+            <?php dir_render_tree($internal_tree, 1, $unit_focus); ?>
+          </ul>
+          <?php endif; ?>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div id="ocDetailPanel" role="region" aria-label="Szczegóły jednostki" aria-live="polite">
+          <div class="ktm-empty">Wybierz jednostkę w drzewie, aby zobaczyć jej skład.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+<?php endif; ?>
 </div>
 
-<!-- ── Katalog: Jednostki zewnętrzne ──────────────────────────────────────── -->
-<?php if (!empty($external_units)): ?>
-<div class="mt-4">
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <h2 class="h6 mb-0 fw-bold" style="color:var(--dir-text)">
-      <i class="bi bi-buildings me-2" aria-hidden="true" style="color:#0EA5E9"></i>Jednostki zewnętrzne
-    </h2>
-    <span class="oc-count" aria-hidden="true"><?= count($external_units) ?></span>
-  </div>
-  <p class="text-muted small mb-3">Organizacje partnerskie i współpracujące — kliknij, by zobaczyć szczegóły</p>
-  <div class="row g-3" aria-label="Katalog jednostek zewnętrznych">
-    <?php dir_render_external_catalog($external_units); ?>
-  </div>
-</div>
-<?php endif; ?>
-<?php endif; ?>
+<script>
+(function () {
+  var tabs = document.querySelectorAll('[data-ktm-tab]');
+  function show(key, focus) {
+    tabs.forEach(function (t) {
+      var on = t.getAttribute('data-ktm-tab') === key;
+      t.setAttribute('aria-selected', on ? 'true' : 'false'); t.tabIndex = on ? 0 : -1;
+      document.getElementById('ktm-' + t.getAttribute('data-ktm-tab')).hidden = !on;
+      if (on && focus) t.focus();
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { show(t.getAttribute('data-ktm-tab')); history.replaceState(null, '', t.getAttribute('data-ktm-tab') === 'drzewo' ? '#drzewo' : location.pathname + location.search); });
+    t.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      var n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; show(n.getAttribute('data-ktm-tab'), true);
+    });
+  });
+  if (location.hash === '#drzewo') show('drzewo');
+  var j = document.getElementById('jednostka'); if (j && location.hash === '#jednostka') j.focus();
+})();
+</script>
+<?php katalogFilterScript(); ?>
 
 <script>
 (function () {
@@ -587,154 +610,5 @@ function dir_render_tree(array $nodes, int $level = 1, int $focus_id = 0): void 
           <?php endif; ?>
         </li>
     <?php endforeach;
-}
-
-function dir_render_external_catalog(array $units): void {
-    foreach ($units as $u):
-        $active   = $u['status'] === 'active';
-        $type_lbl = (defined('ORG_EXT_TYPES') && !empty($u['cooperation_type']) && isset(ORG_EXT_TYPES[$u['cooperation_type']]))
-                  ? ORG_EXT_TYPES[$u['cooperation_type']] : '';
-        // Linia kontaktu
-        $contact = [];
-        if (!empty($u['contact_person'])) $contact[] = '<span><i class="bi bi-person me-1" aria-hidden="true"></i>' . h($u['contact_person']) . '</span>';
-        if (!empty($u['email']))          $contact[] = '<a href="mailto:' . h($u['email']) . '"><i class="bi bi-envelope me-1" aria-hidden="true"></i>' . h($u['email']) . '</a>';
-        elseif (!empty($u['contact_email'])) $contact[] = '<a href="mailto:' . h($u['contact_email']) . '"><i class="bi bi-envelope me-1" aria-hidden="true"></i>' . h($u['contact_email']) . '</a>';
-        if (!empty($u['phone']))           $contact[] = '<span><i class="bi bi-telephone me-1" aria-hidden="true"></i>' . h($u['phone']) . '</span>';
-        if (!empty($u['www']))             $contact[] = '<a href="' . h($u['www']) . '" target="_blank" rel="noopener"><i class="bi bi-globe me-1" aria-hidden="true"></i>strona</a>';
-        $a11y = h($u['name']) . ($type_lbl ? ', ' . h($type_lbl) : '') . ($active ? '' : ', nieaktywna');
-        ?>
-        <div class="col-md-6 col-xl-4">
-          <div class="oc-ext-card<?= $active ? '' : ' oc-inactive' ?>"
-               role="button" tabindex="0"
-               data-unit="<?= (int)$u['id'] ?>"
-               aria-label="<?= $a11y ?>">
-            <div class="oc-ext-head">
-              <span class="oc-ext-icon" aria-hidden="true"><i class="bi bi-buildings"></i></span>
-              <span class="oc-ext-name"><?= h($u['name']) ?></span>
-              <?php if ($u['code']): ?><span class="oc-code" aria-hidden="true"><?= h($u['code']) ?></span><?php endif; ?>
-            </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-              <?php if ($type_lbl): ?><span class="oc-ext-type"><?= h($type_lbl) ?></span><?php endif; ?>
-              <?php if (!$active): ?><span class="oc-ext-type" style="background:#F1F5F9;color:#64748B;border-color:#E2E8F0"><?= h(ORG_UNIT_STATUSES[$u['status']]['label'] ?? $u['status']) ?></span><?php endif; ?>
-            </div>
-            <?php if ($contact): ?>
-            <div class="oc-ext-meta"><?= implode('', $contact) ?></div>
-            <?php endif; ?>
-          </div>
-        </div>
-    <?php endforeach;
-}
-
-function dir_render_unit_detail(int $unit_id): void {
-    try {
-        $unit = org_unit_get($unit_id);
-    } catch (\Throwable $e) { $unit = null; }
-    if (!$unit) {
-        echo '<div class="alert alert-warning small" role="alert">Nie znaleziono jednostki.</div>';
-        return;
-    }
-
-    // Pobierz aktywnych członków
-    $members = [];
-    try {
-        $members = db_all("
-            SELECT om.id, om.user_id, om.position_name, om.is_head, om.status,
-                   om.phone_direct, om.phone_mobile,
-                   u.first_name, u.last_name, u.name AS user_name, u.email,
-                   COALESCE(up.phone_public,0) AS phone_public,
-                   COALESCE(up.avatar_file,'')  AS avatar_file
-            FROM org_members om
-            JOIN users u ON u.id = om.user_id
-            LEFT JOIN user_profiles up ON up.user_id = om.user_id
-            WHERE om.unit_id = ? AND om.status = 'active'
-              AND (om.valid_to IS NULL OR om.valid_to >= date('now'))
-            ORDER BY om.is_head DESC, om.sort_order, u.last_name
-        ", [$unit_id]);
-    } catch (\Throwable $e) {}
-
-    // Nowy header panelu z gradientem
-    $meta_parts = [];
-    if ($unit['short_name'])  $meta_parts[] = h($unit['short_name']);
-    if ($unit['location'])    $meta_parts[] = '<i class="bi bi-geo-alt me-1"></i>' . h($unit['location']);
-    if ($unit['phone'])       $meta_parts[] = '<i class="bi bi-telephone me-1"></i>' . h($unit['phone']);
-    if ($unit['parent_name']) $meta_parts[] = '<i class="bi bi-arrow-up-right me-1"></i>' . h($unit['parent_name']);
-
-    echo '<div class="oc-detail">';
-    echo '<div class="oc-detail-header">'
-       . '<div class="oc-detail-header-icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></div>'
-       . '<div>'
-       . '<div class="oc-detail-title">' . h($unit['name']) . '</div>'
-       . ($meta_parts ? '<div class="oc-detail-meta">' . implode(' &nbsp;·&nbsp; ', $meta_parts) . '</div>' : '')
-       . '</div>'
-       . '</div>';
-    echo '<div class="oc-detail-body">';
-
-    if ($unit['description']) {
-        echo '<p class="small text-muted mb-3" style="white-space:pre-wrap">' . h($unit['description']) . '</p>';
-    }
-
-    if (empty($members)) {
-        echo '<p class="small text-muted mb-0">'
-           . '<i class="bi bi-people me-1" aria-hidden="true"></i>'
-           . 'Brak wolontariuszy w tej jednostce.'
-           . '</p>';
-    } else {
-        $count = count($members);
-        echo '<div class="mb-2 d-flex align-items-center gap-2">'
-           . '<span style="font-size:.72rem;font-weight:700;color:var(--dir-text-muted);text-transform:uppercase;letter-spacing:.07em"><i class="bi bi-people me-1" aria-hidden="true"></i>Wolontariusze</span>'
-           . '<span class="oc-count">' . $count . '</span>'
-           . '</div>';
-        echo '<ul class="list-unstyled mb-0">';
-        foreach ($members as $m) {
-            $display = trim(($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
-            if (!$display) $display = $m['user_name'] ?? $m['email'];
-            $phone_show = ($m['phone_public'] && ($m['phone_direct'] ?: $m['phone_mobile']));
-
-            // Build accessible label
-            $a11y_label = h($display);
-            if ($m['position_name']) $a11y_label .= ', ' . h($m['position_name']);
-            if ($m['is_head'])       $a11y_label .= ', Kierownik';
-            if ($phone_show) {
-                $ph_val = $m['phone_direct'] ?: $m['phone_mobile'];
-                $a11y_label .= ', telefon: ' . h($ph_val);
-            }
-
-            echo '<li>';
-            echo '<a href="' . APP_URL . '/directory/profile.php?id=' . (int)$m['user_id'] . '"'
-               . ' class="oc-member-card"'
-               . ' aria-label="' . $a11y_label . '">';
-
-            // Avatar
-            $avatar_html = directory_avatar_html($m, 36);
-            if (strpos($avatar_html, '<img') !== false) {
-                $avatar_html = preg_replace(
-                    '/<img\b([^>]*?)(?:\s+alt="[^"]*")?([^>]*?)>/',
-                    '<img$1 alt=""$2>',
-                    $avatar_html
-                );
-            } elseif (strpos($avatar_html, '<span') !== false) {
-                $avatar_html = preg_replace('/<span\b/', '<span aria-hidden="true"', $avatar_html, 1);
-            }
-            echo $avatar_html;
-
-            echo '<div class="flex-grow-1 min-width-0" aria-hidden="true">';
-            echo '<div class="oc-member-name">' . h($display) . '</div>';
-            $pos = $m['position_name'] ?? '';
-            if ($pos) echo '<div class="oc-member-pos">' . h($pos) . '</div>';
-            if ($phone_show) {
-                $ph = $m['phone_direct'] ?: $m['phone_mobile'];
-                echo '<div class="oc-member-pos"><i class="bi bi-telephone me-1" aria-hidden="true" style="font-size:.7rem"></i>' . h($ph) . '</div>';
-            }
-            echo '</div>';
-            if ($m['is_head']) {
-                echo '<span class="oc-member-head-badge" aria-hidden="true"><i class="bi bi-star-fill me-1" aria-hidden="true"></i>Kierownik</span>';
-            }
-            echo '</a>';
-            echo '</li>';
-        }
-        echo '</ul>';
-    }
-    echo '</div>'; // oc-detail-body
-    echo '</div>'; // oc-detail
 }
 ?>

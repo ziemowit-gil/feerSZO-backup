@@ -96,11 +96,6 @@ try {
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════ -->
 <header class="dir-topbar" role="banner">
 
-  <button class="dir-topbar-hamburger" id="dirSidebarToggle"
-          aria-label="Otwórz menu nawigacyjne" aria-expanded="false"
-          aria-controls="dirSidebar">
-    <i class="bi bi-list" aria-hidden="true"></i>
-  </button>
 
   <a href="<?= APP_URL ?>/directory/" class="dir-topbar-brand"
      aria-label="Katalog współpracowników — strona główna">
@@ -186,99 +181,23 @@ try {
 <?php $ASAI_WIDGET_SCOPE = 'katalog';
       require_once dirname(dirname(__DIR__)) . '/includes/asystent_widget.php'; ?>
 
-<!-- ══ SIDEBAR ════════════════════════════════════════════════════════════ -->
-<nav class="dir-sidebar" id="dirSidebar"
-     aria-label="Nawigacja modułu Katalog współpracowników">
-
-  <!-- Karta zalogowanego użytkownika -->
-  <?php if ($_cu): ?>
-  <div class="dir-sidebar-user">
-    <a href="<?= APP_URL ?>/directory/profile.php?id=<?= $_cu_id ?>"
-       class="dir-sidebar-user-avatar" aria-label="Mój profil: <?= h($_cu_name) ?>">
-      <?= h($_cu_initials) ?>
-    </a>
-    <div class="dir-sidebar-user-body">
-      <div class="dir-sidebar-user-name"><?= h(explode(' ', $_cu_name)[0] ?? $_cu_name) ?></div>
-      <a href="<?= APP_URL ?>/directory/profile.php?id=<?= $_cu_id ?>"
-         class="dir-sidebar-user-link">Mój profil</a>
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <!-- Nawigacja główna -->
-  <div class="dir-nav-group" role="list">
-    <span class="dir-nav-section-label" role="presentation">Katalog</span>
-
-    <div role="listitem">
-      <a href="<?= APP_URL ?>/directory/"
-         class="dir-nav-item<?= $_on_index ? ' active" aria-current="page' : '' ?>">
-        <span class="dir-nav-icon" style="--c:#EEF2FF;--t:#4F46E5" aria-hidden="true">
-          <i class="bi bi-people-fill"></i>
-        </span>
-        <span>Wszyscy</span>
-      </a>
-    </div>
-
-    <?php if ($_cu_id): ?>
-    <div role="listitem">
-      <a href="<?= APP_URL ?>/directory/profile.php?id=<?= $_cu_id ?>"
-         class="dir-nav-item<?= $_on_own_profile ? ' active" aria-current="page' : '' ?>">
-        <span class="dir-nav-icon" style="--c:#F0FDFA;--t:#0D9488" aria-hidden="true">
-          <i class="bi bi-person-badge"></i>
-        </span>
-        <span>Mój profil</span>
-      </a>
-    </div>
-    <div role="listitem">
-      <a href="<?= APP_URL ?>/directory/profile_edit.php"
-         class="dir-nav-item<?= $_on_edit ? ' active" aria-current="page' : '' ?>">
-        <span class="dir-nav-icon" style="--c:#FFFBEB;--t:#D97706" aria-hidden="true">
-          <i class="bi bi-pencil-square"></i>
-        </span>
-        <span>Edytuj profil</span>
-        <?php if ($_dir_missing): ?><span class="dir-nav-badge" aria-label="brakuje <?= $_dir_missing ?> wymaganych pól"><?= $_dir_missing ?></span><?php endif; ?>
-      </a>
-    </div>
-    <?php endif; ?>
-
-    <div role="listitem">
-      <a href="<?= APP_URL ?>/directory/org_chart.php"
-         class="dir-nav-item<?= $_on_org ? ' active" aria-current="page' : '' ?>">
-        <span class="dir-nav-icon" style="--c:#E0F2FE;--t:#0284C7" aria-hidden="true">
-          <i class="bi bi-diagram-3"></i>
-        </span>
-        <span>Struktura org.</span>
-      </a>
-    </div>
-  </div>
-
-  <?php if (is_admin()): ?>
-  <div class="dir-nav-divider" role="separator" aria-hidden="true"></div>
-  <div class="dir-nav-group" role="list">
-    <span class="dir-nav-section-label" role="presentation">Administrator</span>
-    <div role="listitem">
-      <a href="<?= APP_URL ?>/admin/profile_fields.php"
-         class="dir-nav-item<?= $_on_admin_fields ? ' active" aria-current="page' : '' ?>">
-        <span class="dir-nav-icon" style="--c:#FFF1F2;--t:#E11D48" aria-hidden="true">
-          <i class="bi bi-card-list"></i>
-        </span>
-        <span>Pola profilu</span>
-      </a>
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <div class="dir-sidebar-bottom" role="list">
-    <div role="listitem">
-      <a href="<?= APP_URL ?>/index.php" class="dir-nav-item">
-        <span class="dir-nav-icon" style="--c:#F1F5F9;--t:#64748B" aria-hidden="true">
-          <i class="bi bi-box-arrow-left"></i>
-        </span>
-        <span>System główny</span>
-      </a>
-    </div>
-  </div>
-
+<!-- ══ PIVOT — nawigacja modułu (Metro, zamiast menu bocznego) ═══════════════ -->
+<?php
+$_on_units = $_on_org || str_contains($_uri_rel, '/directory/org_unit_detail.php');
+$_dir_nav = [
+    ['Wszyscy',    APP_URL . '/directory/',                         $_on_index, 0],
+    ['Jednostki',  APP_URL . '/directory/org_chart.php',            $_on_units, 0],
+];
+if ($_cu_id) {
+    $_dir_nav[] = ['Mój profil',    APP_URL . '/directory/profile.php?id=' . $_cu_id, $_on_own_profile, 0];
+    $_dir_nav[] = ['Edytuj profil', APP_URL . '/directory/profile_edit.php',          $_on_edit,        $_dir_missing];
+}
+if (is_admin()) $_dir_nav[] = ['Pola profilu', APP_URL . '/admin/profile_fields.php', $_on_admin_fields, 0];
+?>
+<nav class="dir-pivot" id="dirPivot" aria-label="Nawigacja modułu Katalog współpracowników">
+  <?php foreach ($_dir_nav as [$_l, $_h, $_on, $_n]): ?>
+  <a href="<?= h($_h) ?>"<?= $_on ? ' class="on" aria-current="page"' : '' ?>><?= h($_l) ?><?php if ($_n): ?><span class="cnt" aria-label="brakuje <?= (int)$_n ?> wymaganych pól"><?= (int)$_n ?></span><?php endif; ?></a>
+  <?php endforeach; ?>
 </nav>
 
 <!-- ══ SHELL ══════════════════════════════════════════════════════════════ -->
