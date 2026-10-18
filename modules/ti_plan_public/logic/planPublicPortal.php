@@ -502,7 +502,7 @@ function tiPlanPublicLessons(array $filter, string $from, string $to): array {
 
 /**
  * Konsultacje indywidualne z rezerwacji (k30_schedules, moduł ti_bookings) jako wpisy planu.
- * RODO: bez danych beneficjenta — tytuł „Konsultacja”, grupa „konsultacja indywidualna”.
+ * Tytuł „Konsultacje”, zamiast grupy inicjały beneficjenta (RODO: nigdy pełne nazwisko, także w widoku pełnym).
  */
 function tiPlanPublicConsultations(array $filter, string $from, string $to): array {
     try {
@@ -511,9 +511,10 @@ function tiPlanPublicConsultations(array $filter, string $from, string $to): arr
         if (isset($filter['instructor'])) { $where .= ' AND s.assigned_to = CAST(? AS INTEGER)'; $args[] = (int)$filter['instructor']; }
         if (!empty($filter['online'])) $where .= ' AND s.is_remote = 1';
         $rows = db_all("SELECT s.id, s.start_time, s.duration_minutes, s.time_from, s.time_to, s.status, s.is_remote, s.assigned_to,
-                               u.name AS instr_name, r.name AS res_name
+                               u.name AS instr_name, r.name AS res_name, cl.name AS client_name
                           FROM k30_schedules s
                           LEFT JOIN users u ON u.id = s.assigned_to
+                          LEFT JOIN k30_clients cl ON cl.id = s.client_id
                           LEFT JOIN resources r ON r.id = s.resource_id
                          WHERE $where ORDER BY s.start_time", $args);
     } catch (\Throwable $e) { return []; }   // brak modułu rezerwacji w tej instalacji
@@ -525,7 +526,7 @@ function tiPlanPublicConsultations(array $filter, string $from, string $to): arr
         $online = (int)$r['is_remote'] === 1;
         $out[] = [
             'date' => date('Y-m-d', $t), 'dow' => (int)date('N', $t), 'tf' => $tf, 'tt' => $tt, 'time' => $tf . '–' . $tt,
-            'course_id' => 0, 'course' => 'konsultacja indywidualna', 'subject' => 'Konsultacja',
+            'course_id' => 0, 'course' => tiPlanPublicInitials((string)($r['client_name'] ?? '')) ?: 'konsultacja indywidualna', 'subject' => 'Konsultacje',
             'instr' => tiPlanPublicPerson((string)($r['instr_name'] ?? '')), 'instr_id' => (int)$r['assigned_to'],
             'method' => $online ? 'online' : 'stacjonarnie', 'room' => $online ? '' : (string)($r['res_name'] ?? ''),
             'url' => '', 'cancelled' => str_starts_with((string)$r['status'], 'cancelled'),
