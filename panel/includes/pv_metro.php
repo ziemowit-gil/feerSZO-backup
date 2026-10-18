@@ -17,6 +17,11 @@
  * (specyficzność jednej klasy): wygrywają z pv_styles.php, ale PRZEGRYWAJĄ
  * z pulpitem w zestawie modules/panel_metro (.pvm .x) — pulpit stylizuje się sam.
  * Paleta i tryb ciemny zgodne z modules/panel_metro.
+ *
+ * KONTRAKT z pv_ui_styles() (panel/includes/pv_ui.php, 908398c7): pod powłoką SZO ten plik
+ * jest parsowany — brane są bloki :root, @media(prefers-color-scheme…) i reguły najwyższego
+ * poziomu zawierające „pv-main” (zakres podmieniany na .pv-wrap). Reguły treści trzymaj
+ * z selektorem #pv-main / :where(#pv-main), komentarze tylko w /∗ ∗/.
  */
 ?>
 <style>
