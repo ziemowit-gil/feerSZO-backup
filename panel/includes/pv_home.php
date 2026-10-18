@@ -198,6 +198,28 @@ $_tabs = ['umowa' => ['umowa', 0], 'sprawy' => ['sprawy', $_pending_total], 'nar
           'konta' => ['konta i dostępy', 0], 'wiadomosci' => ['wiadomości', (int)$msg_unread]];
 if ($_pv_extra_html !== '') $_tabs['wydarzenia'] = ['wydarzenia', 0];
 
+/* ── Kalendarz organizacji (kanał ICS z ustawień, ten sam co panel/calendar.php): najbliższe wydarzenia ── */
+$_pv_cal = [];
+if (module_enabled('org_calendar_enabled') && ($_cal_url = trim((string)org_setting('org_calendar_ics_url'))) !== '') {
+    try {
+        require_once $ROOT . '/includes/ics_parser.php';
+        $_cal_ics = IcsParser::fetch($_cal_url, max(300, (int)(org_setting('org_calendar_cache_ttl') ?: 3600)));
+        if ($_cal_ics !== null) {
+            $_cal_today = new \DateTimeImmutable('today', new \DateTimeZone(org_setting('timezone') ?: 'Europe/Warsaw'));
+            foreach (IcsParser::parse($_cal_ics) as $_ev) {
+                $_cal_s = $_ev['dtstart'] ?? null;
+                if (!$_cal_s instanceof \DateTimeInterface) continue;
+                $_cal_e = ($_ev['dtend'] ?? null) instanceof \DateTimeInterface ? $_ev['dtend'] : $_cal_s;
+                if ($_cal_e < $_cal_today) continue; // trwające i przyszłe
+                $_pv_cal[] = $_ev;
+            }
+            usort($_pv_cal, fn($x, $y) => $x['dtstart'] <=> $y['dtstart']);
+            $_pv_cal = array_slice($_pv_cal, 0, 8);
+        }
+    } catch (\Throwable $e) { $_pv_cal = []; }
+    $_tabs['kalendarz'] = ['kalendarz', 0];
+}
+
 /* ── Pełnomocnictwa: zakładka zamiast starego widżetu pod pulpitem (pv_pelnomocnictwa.php) ── */
 $_pv_peln = [];
 if (module_enabled('pelnomocnictwa_enabled')) {
@@ -286,7 +308,7 @@ panelMetroAssets($_vol_color);
     panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>$_ann_unread ? (string)$_ann_unread : '',
                     'sub'=>$_ann_unread ? 'nowych ogłoszeń' : 'ogłoszenia organizacji','color'=>'violet']);
     if (is_file($ROOT . '/panel/calendar.php')) {
-        panelMetroTile(['href'=>APP_URL.'/panel/calendar.php','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>'wydarzenia i dyżury','color'=>'green']);
+        panelMetroTile(['href'=>APP_URL.'/panel/calendar.php','go'=>isset($_tabs['kalendarz']) ? 'kalendarz' : '','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>isset($_tabs['kalendarz']) && $_pv_cal ? 'najbliższe: ' . $_pv_cal[0]['dtstart']->format('d.m') : 'wydarzenia i dyżury','color'=>'green']);
     }
     panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);
     if (is_file($ROOT . '/tozsamosc/index.php')) {
@@ -531,6 +553,53 @@ panelMetroAssets($_vol_color);
     <h2 class="mt-h2">Wydarzenia i <b>rezerwacje</b></h2>
     <?= $_pv_extra_html ?>
   </section>
+  <?php endif; ?>
+
+  <?php if (isset($_tabs['kalendarz'])):
+    $_mies = ['', 'sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+  ?>
+  <!-- ═══════════ KALENDARZ ORGANIZACJI ═══════════ -->
+  <section id="kalendarz" data-pvm-panel="kalendarz" role="tabpanel" aria-labelledby="pvm-tab-kalendarz" tabindex="-1" hidden>
+    <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2">
+      <h2 class="mt-h2">Kalendarz <b>organizacji</b></h2>
+      <a href="<?= APP_URL ?>/panel/calendar.php" class="mt-btn mt-btn--ghost">Cały kalendarz <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <?php if ($_pv_cal): ?>
+    <ul class="pv-cal" aria-label="Najbliższe wydarzenia organizacji">
+      <?php foreach ($_pv_cal as $_ev):
+        $_cs = $_ev['dtstart']; $_ce = ($_ev['dtend'] ?? null) instanceof \DateTimeInterface ? $_ev['dtend'] : null;
+        $_c_allday = !empty($_ev['all_day']);
+        $_c_today = $_cs->format('Y-m-d') === date('Y-m-d');
+        $_c_when = $_c_allday ? 'cały dzień' : ($_cs->format('H:i') . ($_ce ? '–' . $_ce->format('H:i') : ''));
+        $_c_loc = trim((string)($_ev['location'] ?? ''));
+      ?>
+      <li class="<?= $_c_today ? 'is-today' : '' ?>">
+        <span class="d" aria-hidden="true"><b><?= $_cs->format('j') ?></b><?= $_mies[(int)$_cs->format('n')] ?></span>
+        <span class="b">
+          <span class="t"><?= h($_ev['summary'] ?? '') ?></span>
+          <span class="m"><span class="visually-hidden"><?= $_cs->format('d.m.Y') ?>, </span><?= $_c_today ? 'dziś · ' : '' ?><?= h($_c_when) ?><?= $_c_loc !== '' ? ' · ' . h($_c_loc) : '' ?></span>
+        </span>
+      </li>
+      <?php endforeach; ?>
+    </ul>
+    <?php else: ?>
+    <div class="mt-empty">
+      <i class="bi bi-calendar3" style="font-size:2rem;display:block;margin-bottom:.5rem" aria-hidden="true"></i>
+      <p class="mb-2">Brak nadchodzących wydarzeń w kalendarzu organizacji.</p>
+      <a href="<?= APP_URL ?>/panel/calendar.php" class="mt-btn">Otwórz kalendarz</a>
+    </div>
+    <?php endif; ?>
+  </section>
+  <style>
+  .pvm .pv-cal{list-style:none;margin:0;padding:0}
+  .pvm .pv-cal li{display:flex;gap:1rem;align-items:center;background:var(--pvm-light);padding:.75rem 1rem;margin-bottom:4px}
+  .pvm .pv-cal .d{width:3.4rem;height:3.4rem;background:var(--m-green);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;line-height:1.1}
+  .pvm .pv-cal .d b{font-size:1.35rem;font-weight:300;letter-spacing:0}
+  .pvm .pv-cal li.is-today .d{background:var(--pvm-acc);color:var(--pvm-acc-on)}
+  .pvm .pv-cal .b{min-width:0;display:flex;flex-direction:column}
+  .pvm .pv-cal .t{font-weight:600;color:var(--pvm-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pvm .pv-cal .m{font-size:.82rem;color:var(--pvm-muted)}
+  </style>
   <?php endif; ?>
   </main>
 
