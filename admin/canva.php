@@ -174,7 +174,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <?php if ($canva_enabled): ?>
         Włączone — wolontariusze widzą w panelu prośbę o dostęp / kartę Canva, dostępny jest też Canva Creator.
         <?php else: ?>
-        Wyłączone — moduł Canva jest ukryty w panelu wolontariusza i w kreatorze projektów. Nowe wnioski nie są przyjmowane.
+        Wyłączone — moduł Canva jest ukryty w panelu współpracownika i w kreatorze projektów. Nowe wnioski nie są przyjmowane.
         <?php endif; ?>
       </div>
     </div>
@@ -213,7 +213,7 @@ include dirname(__DIR__) . '/includes/header.php';
       <button class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Zapisz</button>
       <a href="<?= APP_URL ?>/canva/creator.php" class="btn btn-sm <?= ($canva_enabled && canva_creator_enabled())?'btn-outline-primary':'btn-outline-secondary disabled' ?>"><i class="bi bi-box-arrow-up-right me-1"></i>Otwórz kreator</a>
     </form>
-    <?php if ($canva_enabled && canva_creator_enabled()): ?><div class="text-success mt-2" style="font-size:.78rem"><i class="bi bi-check-circle me-1"></i>Kreator aktywny — dostępny w panelu wolontariusza z dostępem do Canva.</div><?php endif; ?>
+    <?php if ($canva_enabled && canva_creator_enabled()): ?><div class="text-success mt-2" style="font-size:.78rem"><i class="bi bi-check-circle me-1"></i>Kreator aktywny — dostępny w panelu współpracownika z dostępem do Canva.</div><?php endif; ?>
   </div>
 </div>
 

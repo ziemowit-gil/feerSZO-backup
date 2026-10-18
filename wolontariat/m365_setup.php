@@ -318,7 +318,7 @@ if (!function_exists('h')) {
 
       <?php if ($app_url): ?>
       <a href="<?= h($app_url) ?>/panel/index.php" class="btn btn-outline-secondary w-100" style="border-radius:10px">
-        <i class="bi bi-house me-2"></i>Wróć do panelu wolontariusza
+        <i class="bi bi-house me-2"></i>Wróć do panelu współpracownika
       </a>
       <?php endif; ?>
 

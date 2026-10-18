@@ -31,7 +31,7 @@
  * więc uczyły, że „to samo bywa gdzie indziej".
  *
  * Dotyczy: CRM, Wirtualne biurko (EZD), Zadania, Poczta, Katalog, Strategia,
- * Wydarzenia, Panel wolontariusza, Tożsamość, TI (karty30).
+ * Wydarzenia, Panel współpracownika, Tożsamość, TI (karty30).
  *
  * Pozycje zdjęte z paska NIE znikają z systemu: trafiają do klucza `search`
  * węzła i są dalej wyszukiwalne w palecie Ctrl+K. Dodając nową pozycję do
@@ -214,7 +214,7 @@ function _menu_ezd_rpw_only(): array {
 /**
  * Pasek SZO dla wolontariusza.
  *
- * PODZIAŁ: panel wolontariusza ma własną, pełną nawigację (panel/includes/
+ * PODZIAŁ: panel współpracownika ma własną, pełną nawigację (panel/includes/
  * header_panel.php — dwadzieścia kilka pozycji). Powtarzanie jej tutaj dawało
  * dwa menu do tego samego, w innej kolejności i z innym zestawem — a pasek SZO
  * widać i tak tylko POZA panelem (Zasady organizacji, Komunikaty, Katalog).

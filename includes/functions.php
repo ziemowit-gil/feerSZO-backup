@@ -569,7 +569,7 @@ function menu_visible(string $key): bool {
     return empty($_menu_hidden[$key]);
 }
 
-/** Zwraca true jeśli pozycja panelu wolontariusza jest widoczna (nie ukryta). */
+/** Zwraca true jeśli pozycja panelu współpracownika jest widoczna (nie ukryta). */
 function panel_visible(string $key): bool {
     _menu_config_load();
     global $_panel_disabled;
@@ -577,7 +577,7 @@ function panel_visible(string $key): bool {
 }
 
 /**
- * Wywołaj na początku strony panelu wolontariusza — redirect z komunikatem
+ * Wywołaj na początku strony panelu współpracownika — redirect z komunikatem
  * jeśli moduł jest wyłączony przez admina dla wolontariuszy.
  */
 function panel_require_enabled(string $key, string $module_name = 'Ta sekcja'): void {

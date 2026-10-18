@@ -104,7 +104,7 @@ $data = [
     'opiekun'                 => $creator['name'],
     'projekt_program'         => 'Świetlica FEER',
     'forma_podpisania'        => 'papier',
-    // RPTS — kontakt z małoletnimi, zgoda jeszcze nieudzielona (popup w panelu wolontariusza)
+    // RPTS — kontakt z małoletnimi, zgoda jeszcze nieudzielona (popup w panelu współpracownika)
     'rpts_wymagana'           => 1,
     'rpts_zweryfikowano'      => 0,
     // Zgoda przedstawiciela ustawowego — jeszcze nieudzielona (popup w panelu opiekuna)

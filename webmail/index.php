@@ -16,7 +16,7 @@
  * jeden ciąg „ekranów wejścia", a nie osobna, obco wyglądająca strona.
  *
  * KLIENCI: z katalogu includes/webmail_clients.php (jedno źródło prawdy razem
- * z panelem wolontariusza i modułem Poczta). Klient bez ustawionego adresu
+ * z panelem współpracownika i modułem Poczta). Klient bez ustawionego adresu
  * (Admin → Poczta → Webmail) NIE pojawia się tutaj — strona nigdy nie reklamuje
  * usługi, której nie wdrożono.
  *
@@ -332,7 +332,7 @@ auth_screen_head([
 <?php
 auth_screen_foot([
     'links' => [
-        ['url' => APP_URL . '/panel/',             'label' => 'Panel wolontariusza', 'icon' => 'bi-house-door'],
+        ['url' => APP_URL . '/panel/',             'label' => 'Panel współpracownika', 'icon' => 'bi-house-door'],
         ['url' => APP_URL . '/panel/helpdesk.php', 'label' => 'Problem z pocztą?',   'icon' => 'bi-life-preserver'],
     ],
     // Podpowiedź „ostatnio wybierałeś" — progresywne ulepszenie. Świadomie BEZ

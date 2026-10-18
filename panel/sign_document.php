@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/sign_document.php — „Podpisz dokument" w panelu wolontariusza.
+ * panel/sign_document.php — „Podpisz dokument" w panelu współpracownika.
  * User wgrywa dokument, pobiera go, podpisuje SAMODZIELNIE własnym certyfikatem
  * X.509 (poza systemem — serwer nigdy nie widzi klucza prywatnego), a następnie
  * wgrywa podpisaną wersję z powrotem. Logika i walidacja: includes/doc_signing.php.

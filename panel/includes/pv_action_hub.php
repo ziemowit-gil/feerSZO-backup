@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/includes/pv_action_hub.php — „Centrum akcji" panelu wolontariusza.
+ * panel/includes/pv_action_hub.php — „Centrum akcji" panelu współpracownika.
  *
  * Siatka „Szybkich akcji" renderowana serwerowo + wyszukiwarka tekstowa i filtr
  * „Wymaga uwagi". Interakcja w waniliowym JS ze wspólnego pv_enhance.php

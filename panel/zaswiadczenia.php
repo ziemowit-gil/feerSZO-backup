@@ -1,6 +1,6 @@
 <?php
 /**
- * Panel wolontariusza — zaświadczenia własne EZD.
+ * Panel współpracownika — zaświadczenia własne EZD.
  * Przeglądanie własnych wniosków i składanie nowych.
  */
 require_once dirname(__DIR__) . '/config.php';

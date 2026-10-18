@@ -52,7 +52,7 @@ function notif_migrate(): void {
             UNIQUE(announcement_id, user_id)
         )");
 
-        // Sposób wyświetlania w panelu wolontariusza: 'feed' | 'banner' | 'popup' | 'important' (zob. ann_display_modes())
+        // Sposób wyświetlania w panelu współpracownika: 'feed' | 'banner' | 'popup' | 'important' (zob. ann_display_modes())
         try { db()->exec("ALTER TABLE announcements ADD COLUMN display_mode TEXT NOT NULL DEFAULT 'feed'"); } catch (\Throwable $e) {}
         // Kategoria ogłoszenia — zob. ann_kategoria_options()
         try { db()->exec("ALTER TABLE announcements ADD COLUMN kategoria TEXT NOT NULL DEFAULT 'ogolne'"); } catch (\Throwable $e) {}
@@ -311,7 +311,7 @@ const ANN_ACTIVE_CONTRACT_STATUSES = ['podpisana', 'w realizacji', 'obowiązują
  * Użytkownicy, którzy mają CO NAJMNIEJ JEDNĄ aktywną umowę — po statusie
  * i po dacie zakończenia (pusta data = umowa bezterminowa, liczy się).
  *
- * Dopasowanie umowa → konto idzie tymi samymi kolumnami co panel wolontariusza
+ * Dopasowanie umowa → konto idzie tymi samymi kolumnami co panel współpracownika
  * (panel/index.php::panel_contracts): adres e-mail konta, login M365 i
  * identyfikator M365. ŚWIADOMIE bez `rodzic_email` z umów wolontariackich —
  * opiekun prawny nie jest stroną umowy i nie ma służbowej skrzynki, więc nie
@@ -466,7 +466,7 @@ function _ann_user_can_see(string $audience, int $user_id, string $role): bool {
 }
 
 /**
- * Komunikaty do wyświetlenia bezpośrednio w panelu wolontariusza —
+ * Komunikaty do wyświetlenia bezpośrednio w panelu współpracownika —
  * tylko tryb 'banner' lub 'popup', nieprzeczytane przez danego użytkownika.
  * Wykorzystuje istniejące filtrowanie po audytorium i śledzenie odczytów.
  */

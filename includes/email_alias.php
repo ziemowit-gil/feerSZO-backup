@@ -72,7 +72,7 @@ function ealias_create_ticket(array $req): int {
 
     $alias = $req['requested_alias'];
     $login = $req['m365_login'] ?: '(brak)';
-    $desc  = "Wniosek o alias e-mail złożony z panelu wolontariusza.\n\n"
+    $desc  = "Wniosek o alias e-mail złożony z panelu współpracownika.\n\n"
            . "Konto (login/UPN): {$login}\n"
            . "Żądany alias: {$alias}\n\n"
            . "Alias zostanie dopisany do proxyAddresses po zatwierdzeniu przez operatora.";

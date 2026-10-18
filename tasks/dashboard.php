@@ -82,7 +82,7 @@ $pri_labels = [4=>'Krytyczny',3=>'Wysoki',2=>'Normalny',1=>'Niski'];
 ?>
 
 <style type="text/tailwindcss">
-/* ══ Dashboard zadań — styl „panel wolontariusza" (pvtz) ════════════════
+/* ══ Dashboard zadań — styl „panel współpracownika" (pvtz) ════════════════
    Zmienne strukturalne zgodne z .pvtz; akcent = --tsk-green (emerald).   */
 .tsk-dash {
   --tz-line: #E5E9F0;

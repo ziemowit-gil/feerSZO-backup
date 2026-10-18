@@ -52,7 +52,7 @@ include dirname(__DIR__) . '/includes/header.php';
         <input class="form-check-input" type="checkbox" role="switch"
                name="whatsapp_group_enabled" id="whatsapp_group_enabled" value="1"
                <?= $enabled ? 'checked' : '' ?>>
-        <label class="form-check-label fw-semibold" for="whatsapp_group_enabled">Podstrona „WhatsApp — grupa" widoczna w panelu wolontariusza</label>
+        <label class="form-check-label fw-semibold" for="whatsapp_group_enabled">Podstrona „WhatsApp — grupa" widoczna w panelu współpracownika</label>
       </div>
       <div class="form-text">Gdy wyłączona, link w menu panelu nie jest pokazywany.</div>
     </div>
@@ -107,7 +107,7 @@ include dirname(__DIR__) . '/includes/header.php';
     </div>
   </div>
   <a href="<?= APP_URL ?>/panel/whatsapp_group.php" target="_blank" class="btn btn-outline-secondary btn-sm w-100">
-    <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz podstronę w panelu wolontariusza
+    <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz podstronę w panelu współpracownika
   </a>
 </div>
 

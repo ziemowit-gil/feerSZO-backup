@@ -4,7 +4,7 @@
  *
  * Liczy zadania użytkownika (przypisane + dostępne) i renderuje panel
  * (pv_tasks_panel.php). Wydzielone z panel/index.php, by tę samą sekcję można
- * było pokazać wysoko w panelu wolontariusza ORAZ niżej w widoku edytora —
+ * było pokazać wysoko w panelu współpracownika ORAZ niżej w widoku edytora —
  * guard `_pv_tasks_section_done` gwarantuje, że renderuje się tylko raz.
  *
  * Wymaga w zasięgu: $user, APP_URL, db_all/db_one, h().

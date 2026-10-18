@@ -427,10 +427,10 @@ $_is_sys_admin = ($user['role'] ?? '') === 'admin';
 // Śmieszne hasła dla admina
 $_admin_quips = [
     "Znowu tu jesteś? Nie masz nic lepszego do roboty? 😄",
-    "Panel wolontariusza? Serio? Masz przecież cały admin. 🤭",
+    "Panel współpracownika? Serio? Masz przecież cały admin. 🤭",
     "Hej Szefie! Ten panel nie jest dla Ciebie… ale skoro już tu jesteś. 👋",
     "Witaj, człowieku od wszystkiego. Ten panel jest dla innych, ale rozumiem ciekawość. 🔍",
-    "Admin w panelu wolontariusza? To jak lekarz w kolejce do siebie. 😅",
+    "Admin w panelu współpracownika? To jak lekarz w kolejce do siebie. 😅",
     "Sprawdzasz jak wygląda panel od środka? Szpiegowanie własnej aplikacji — klasyk. 🕵️",
     "Tu nic ciekawego dla admina. Ale zadania poniżej — jak najbardziej Twoje! 📋",
 ];

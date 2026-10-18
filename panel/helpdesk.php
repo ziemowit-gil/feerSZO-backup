@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/helpdesk.php — Helpdesk IT w widoku panelu wolontariusza.
+ * panel/helpdesk.php — Helpdesk IT w widoku panelu współpracownika.
  * Wolontariusz może tworzyć i śledzić zgłoszenia bez dostępu do panelu admina.
  */
 require_once dirname(__DIR__) . '/config.php';

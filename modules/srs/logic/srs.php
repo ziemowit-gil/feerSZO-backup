@@ -456,7 +456,7 @@ function res_conflicts(int $resource_id, string $date_from, string $date_to, int
  *
  * Kształt jest w inline-style (a nie w klasie `.res-status-badge`), bo funkcja
  * bywa wołana ze stron, które tej klasy nie definiują (np. sekcja rezerwacji
- * w panelu wolontariusza) — wcześniej znacznik renderował się tam jako goły tekst.
+ * w panelu współpracownika) — wcześniej znacznik renderował się tam jako goły tekst.
  */
 function res_status_badge(string $status): string {
     $s = RES_STATUSES[$status] ?? ['label' => $status, 'color' => '#4b5563', 'bg' => '#f3f4f6'];

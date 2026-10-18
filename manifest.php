@@ -8,14 +8,14 @@ if (!defined('APP_INSTALLED')) require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/functions.php';
 
-$org_name    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Panel wolontariusza');
+$org_name    = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'Panel współpracownika');
 $theme_color = org_setting('volunteer_color') ?: '#1D4ED8';
 $base        = APP_URL;
 
 $manifest = [
     'name'             => $org_name,
     'short_name'       => 'Panel',
-    'description'      => 'Panel wolontariusza — ' . $org_name,
+    'description'      => 'Panel współpracownika — ' . $org_name,
     'start_url'        => $base . '/panel/index.php',
     'display'          => 'standalone',
     'background_color' => '#ffffff',

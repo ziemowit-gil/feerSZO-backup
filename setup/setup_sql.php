@@ -987,7 +987,7 @@ function migrate_tenant_db(PDO $pdo): array {
     }
 
     // ── Usunięcie integracji Moodle (2026-09-03) — moduł wycofany z całego
-    // systemu (TI + panel wolontariusza + wtyczka moodle-plugin/). DROP zamiast
+    // systemu (TI + panel współpracownika + wtyczka moodle-plugin/). DROP zamiast
     // ADD COLUMN — $run() obsługuje ten sam rejestr, więc jest równie idempotentne.
     $run('moodle.drop_v1.k30_ti_moodle_assignments', "DROP TABLE IF EXISTS k30_ti_moodle_assignments");
     $run('moodle.drop_v1.k30_ti_moodle_submissions', "DROP TABLE IF EXISTS k30_ti_moodle_submissions");

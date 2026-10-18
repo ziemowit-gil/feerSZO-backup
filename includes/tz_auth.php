@@ -236,7 +236,7 @@ function tz_module_label_from_url(string $url): string {
         '/admin/'       => 'Panel administracyjny',
         '/ksiegowosc/'  => 'Moduł finansowy',
         '/karty30/'     => 'Dydaktyka 3',
-        '/panel/'       => 'Panel wolontariusza',
+        '/panel/'       => 'Panel współpracownika',
         '/tozsamosc/'   => 'System Tożsamości',
         '/obiegi/'      => 'Obiegi',
         '/vpn/'         => 'VPN',

@@ -18,7 +18,7 @@
  *   title   — nazwa czynności widziana przez użytkownika,
  *   path    — ścieżka względem APP_URL (pusta = funkcja bez własnego ekranu),
  *   module  — klucz settings gatujący funkcję ('' = zawsze dostępna),
- *   roles   — 'all' | 'viewer' (panel wolontariusza) | 'editor' | 'admin',
+ *   roles   — 'all' | 'viewer' (panel współpracownika) | 'editor' | 'admin',
  *   kw      — słowa kluczowe (synonimy, potoczne nazwy) do wyszukiwania,
  *   desc    — co ta funkcja robi,
  *   steps   — kolejne kroki użytkownika (opcjonalne).
@@ -27,13 +27,13 @@
 /** Pełny katalog funkcji SZO. */
 function szo_features(): array {
     return [
-        // ── Panel wolontariusza / współpracownika ────────────────────────────
+        // ── Panel współpracownika ────────────────────────────
         [
             'id' => 'panel_pulpit', 'title' => 'Pulpit panelu — moja umowa',
             'path' => '/panel/index.php', 'module' => '', 'roles' => 'all',
             'kw' => 'panel pulpit moja umowa start strona główna przegląd numer umowy status',
             'desc' => 'Wejście do panelu: dane mojej umowy, jej status i termin, skróty do najczęstszych spraw oraz widżet „Moje zadania".',
-            'steps' => ['Zaloguj się', 'Panel wolontariusza → Pulpit', 'Jeśli masz kilka umów — wybierz aktywną umowę z listy u góry'],
+            'steps' => ['Zaloguj się', 'Panel współpracownika → Pulpit', 'Jeśli masz kilka umów — wybierz aktywną umowę z listy u góry'],
         ],
         [
             'id' => 'panel_wniosek', 'title' => 'Złożenie wniosku lub pisma do organizacji',
@@ -363,7 +363,7 @@ function szo_features(): array {
             'id' => 'admin_menu', 'title' => 'Widoczność menu i sekcji panelu',
             'path' => '/admin/menu_config.php', 'module' => '', 'roles' => 'admin',
             'kw' => 'menu ukryj pozycję sekcje panelu widoczność nawigacja porządek menu',
-            'desc' => 'Ukrywanie pozycji menu administracyjnego i sekcji panelu wolontariusza bez wyłączania całego modułu.',
+            'desc' => 'Ukrywanie pozycji menu administracyjnego i sekcji panelu współpracownika bez wyłączania całego modułu.',
         ],
         [
             'id' => 'admin_kopie', 'title' => 'Kopie zapasowe i aktualizacje',

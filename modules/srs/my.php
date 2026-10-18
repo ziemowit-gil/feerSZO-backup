@@ -2,7 +2,7 @@
 /**
  * resources/my.php — Moje rezerwacje.
  *
- * Powłoka: panel wolontariusza dla wolontariuszy, powłoka SZO dla edytorów/adminów.
+ * Powłoka: panel współpracownika dla wolontariuszy, powłoka SZO dla edytorów/adminów.
  * Treść w języku wizualnym modułu „Tożsamość" (pv_ui.php: .pv-table, .tz-card).
  */
 require_once dirname(__DIR__, 2) . '/config.php';

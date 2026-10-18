@@ -438,7 +438,7 @@ HTML;
     header('Location: view.php?id=' . $id); exit;
 }
 
-// ── Ponowne wysłanie danych do panelu wolontariusza ──────────────────────────
+// ── Ponowne wysłanie danych do panelu współpracownika ──────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_resend_portal']) && can_edit()) {
     csrf_check();
     $email = trim($row['email'] ?? '');

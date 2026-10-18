@@ -4,7 +4,7 @@
  *
  * JEDNO ŹRÓDŁO PRAWDY dla wszystkich miejsc, które pokazują „w czym czytać
  * pocztę": publicznej strony wyboru (webmail/index.php pod poczta.feer.org.pl),
- * kafla w panelu wolontariusza (panel/includes/pv_home.php) i modułu Poczta
+ * kafla w panelu współpracownika (panel/includes/pv_home.php) i modułu Poczta
  * (poczta/dashboard.php, poczta/index.php przez poczta_webmail_options()).
  *
  * Klient pojawia się w interfejsach TYLKO gdy admin ustawi jego adres

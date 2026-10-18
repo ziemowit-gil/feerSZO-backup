@@ -183,7 +183,7 @@ try {
 </script>
 <style type="text/tailwindcss">
 /* ══════════════════════════════════════════════════════════════
-   Moduł Zadania — layout w stylu panelu wolontariusza
+   Moduł Zadania — layout w stylu panelu współpracownika
    Paleta: emerald/teal  ·  WCAG AA
    Zmienne --tsk-* są WSPÓLNYM kontraktem z pozostałymi, jeszcze
    nieprzebudowanymi stronami modułu (dashboard.php, charts.php,

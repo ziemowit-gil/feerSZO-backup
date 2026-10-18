@@ -1,6 +1,6 @@
 <?php
 /**
- * Panel wolontariusza — Moje zwroty kosztów
+ * Panel współpracownika — Moje zwroty kosztów
  * Dostęp: każdy zalogowany użytkownik (require_login).
  * Pokazuje własne wnioski i umożliwia złożenie nowego dla aktywnych umów
  * wolontariackich z flagą zwrot_kosztow = 1.

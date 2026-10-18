@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/whatsapp_group.php — Podstrona "WhatsApp — grupa" w panelu wolontariusza.
+ * panel/whatsapp_group.php — Podstrona "WhatsApp — grupa" w panelu współpracownika.
  * Treść (opis + link zaproszenia) zarządzana przez administratora
  * w admin/whatsapp_group.php (settings: whatsapp_group_*).
  */

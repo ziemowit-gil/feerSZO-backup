@@ -71,7 +71,7 @@ $_lost_links  = [
     [
         'url'   => APP_URL . '/panel/index.php',
         'icon'  => 'bi-person-heart',
-        'label' => 'Panel wolontariusza i współpracownika',
+        'label' => 'Panel współpracownika',
         'desc'  => 'Umowy, zadania, godziny, zaświadczenia',
     ],
     [

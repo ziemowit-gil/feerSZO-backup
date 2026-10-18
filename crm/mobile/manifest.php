@@ -2,7 +2,7 @@
 /**
  * crm/mobile/manifest.php — manifest PWA dla mobilnego dialera CRM.
  *
- * Osobny scope (/crm/mobile/) niż manifest panelu wolontariusza, żeby dodanie
+ * Osobny scope (/crm/mobile/) niż manifest panelu współpracownika, żeby dodanie
  * dialera do ekranu głównego nie kolidowało z instalacją panelu.
  */
 

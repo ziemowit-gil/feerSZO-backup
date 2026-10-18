@@ -97,7 +97,7 @@ $my_pending = array_filter(
 $_res_admin     = is_admin() || can_write('srs');
 $_res_dysponent = res_is_dysponent((int)$user['id']);
 
-// Powłoka: panel wolontariusza dla samych wolontariuszy, powłoka SZO dla reszty
+// Powłoka: panel współpracownika dla samych wolontariuszy, powłoka SZO dla reszty
 $_is_volunteer_only = is_viewer()
     && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
 

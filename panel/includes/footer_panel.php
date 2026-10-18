@@ -4,7 +4,7 @@ $_pv_org_f = org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : '');
 </main>
 <footer class="pv-footer" role="contentinfo">
   <div class="pv-footer-inner">
-  <span><i class="bi bi-person-circle me-1" style="color:var(--vol-color)" aria-hidden="true"></i>Panel wolontariusza<?= $_pv_org_f ? ' · '.h($_pv_org_f) : '' ?></span>
+  <span><i class="bi bi-person-circle me-1" style="color:var(--vol-color)" aria-hidden="true"></i>Panel współpracownika<?= $_pv_org_f ? ' · '.h($_pv_org_f) : '' ?></span>
   <span style="font-size:.78rem;display:flex;align-items:center;gap:.5rem">
     <?php $_w=preg_split('/\s+/',trim($_pv_org_f??'')); echo count($_w)>=2?'<span style="opacity:.5">'.h(implode('',array_map(fn($w)=>mb_strtoupper(mb_substr($w,0,1,'UTF-8'),'UTF-8'),$_w))).'</span>':''; ?>
     Platforma NGO

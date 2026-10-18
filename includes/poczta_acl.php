@@ -217,7 +217,7 @@ function poczta_acl_revoke(int $mailbox_id, int $user_id): void {
  *
  * Cienka nakładka na katalog klientów (includes/webmail_clients.php), który jest
  * jednym źródłem prawdy także dla publicznej strony wyboru (webmail/index.php)
- * i kafla w panelu wolontariusza. Zwracany kształt zachowany dla istniejących
+ * i kafla w panelu współpracownika. Zwracany kształt zachowany dla istniejących
  * widoków (poczta/dashboard.php, poczta/index.php).
  *
  * @return array<int, array{key:string,label:string,url:string,hint:string,icon:string}>

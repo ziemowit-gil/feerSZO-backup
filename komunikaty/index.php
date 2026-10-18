@@ -2,7 +2,7 @@
 /**
  * komunikaty/index.php — Ogłoszenia organizacji + feed powiadomień użytkownika.
  *
- * Powłoka i komponenty: _shell.php (panel wolontariusza / powłoka SZO, język
+ * Powłoka i komponenty: _shell.php (panel współpracownika / powłoka SZO, język
  * wizualny modułu „Tożsamość").
  */
 require_once dirname(__DIR__) . '/config.php';

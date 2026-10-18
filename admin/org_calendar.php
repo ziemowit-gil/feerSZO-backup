@@ -2,7 +2,7 @@
 /**
  * admin/org_calendar.php — Ustawienia Kalendarza Organizacji (ICS)
  *
- * Konfiguracja kanału ICS widocznego w panelu wolontariusza.
+ * Konfiguracja kanału ICS widocznego w panelu współpracownika.
  */
 
 require_once dirname(__DIR__) . '/config.php';
@@ -98,7 +98,7 @@ include dirname(__DIR__) . '/includes/header.php';
     </h4>
     <a href="<?= APP_URL ?>/panel/calendar.php" target="_blank"
        class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-box-arrow-up-right me-1"></i>Podgląd w panelu wolontariusza
+      <i class="bi bi-box-arrow-up-right me-1"></i>Podgląd w panelu współpracownika
     </a>
   </div>
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/szkolenie.php — „Umów się na szkolenie" w panelu wolontariusza.
+ * panel/szkolenie.php — „Umów się na szkolenie" w panelu współpracownika.
  * Kreator rezerwacji terminu szkolenia (TidyCal) bez dostępu do panelu admina.
  */
 require_once dirname(__DIR__) . '/config.php';

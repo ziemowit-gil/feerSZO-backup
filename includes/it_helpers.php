@@ -71,7 +71,7 @@ function it_migrate(): void {
     // Seed domyślnych serwisów IT
     $defaults = [
         ['Microsoft 365',       'm365',   'bi-microsoft',      '#0078d4', 1],
-        ['Panel wolontariusza', 'panel',  'bi-person-circle',  '#7c3aed', 2],
+        ['Panel współpracownika', 'panel',  'bi-person-circle',  '#7c3aed', 2],
         ['Canva Pro',           'canva',  'bi-palette',        '#8b5cf6', 3],
     ];
     foreach ($defaults as [$name, $slug, $icon, $color, $order]) {

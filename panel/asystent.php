@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/asystent.php — asystent AI w pełnym oknie, dla panelu wolontariusza.
+ * panel/asystent.php — asystent AI w pełnym oknie, dla panelu współpracownika.
  *
  * Sam czat to includes/asystent_widget.php w trybie inline ($ASAI_WIDGET_INLINE),
  * więc pływający widżet z nagłówków i ten ekran to jedna implementacja rozmowy.

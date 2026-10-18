@@ -15,7 +15,7 @@ $ADMIN_MENU = [
     'actions'  => ['label' => 'Działania',        'icon' => 'bi-calendar-event', 'section' => 'Finanse i zasoby'],
 ];
 
-// Pozycje panelu wolontariusza (ukrywanie + wyłączanie z redirect)
+// Pozycje panelu współpracownika (ukrywanie + wyłączanie z redirect)
 $PANEL_ITEMS = [
     'komunikaty'    => ['label' => 'Komunikaty',           'icon' => 'bi-megaphone',        'page' => 'komunikaty/index.php'],
     'katalog'       => ['label' => 'Książka telefoniczna', 'icon' => 'bi-person-lines-fill','page' => 'directory/'],
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($PANEL_ITEMS as $key => $_) {
             $stmt->execute(['panel_disable_' . $key, isset($_POST['disable'][$key]) ? '1' : '0']);
         }
-        flash_set('success', 'Konfiguracja panelu wolontariusza zapisana.');
+        flash_set('success', 'Konfiguracja panelu współpracownika zapisana.');
         header('Location: ' . APP_URL . '/admin/menu_config.php?tab=panel'); exit;
     }
 }
@@ -90,7 +90,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <li class="nav-item">
     <button class="nav-link <?= $active_tab === 'panel' ? 'active' : '' ?>"
             data-bs-toggle="tab" data-bs-target="#tab-panel" type="button">
-      <i class="bi bi-person-circle me-1"></i>Panel wolontariusza
+      <i class="bi bi-person-circle me-1"></i>Panel współpracownika
       <?php $panel_disabled_count = count($current_disable);
       if ($panel_disabled_count > 0): ?>
       <span class="badge bg-warning text-dark ms-1"><?= $panel_disabled_count ?></span>
@@ -157,7 +157,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </form>
 </div>
 
-<!-- ══ TAB: Panel wolontariusza ═════════════════════════════════════════════ -->
+<!-- ══ TAB: Panel współpracownika ═════════════════════════════════════════════ -->
 <div class="tab-pane fade <?= $active_tab === 'panel' ? 'show active' : '' ?>" id="tab-panel">
 
   <div class="alert alert-light border d-flex gap-2 py-2 mb-3">

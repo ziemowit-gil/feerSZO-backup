@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/panel_color.php — Kolor panelu wolontariusza (per-user)
+ * panel/panel_color.php — Kolor panelu współpracownika (per-user)
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';

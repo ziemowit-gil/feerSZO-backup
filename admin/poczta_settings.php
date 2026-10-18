@@ -145,7 +145,7 @@ include dirname(__DIR__) . '/includes/header.php';
                     <p class="text-muted small mb-3">
                         Adresy tych klientów są jednym źródłem prawdy (<code>includes/webmail_clients.php</code>) dla:
                         publicznej strony wyboru <code>poczta.feer.org.pl</code> (= <code>szo.feer.org.pl/poczta</code>),
-                        kafla „Poczta organizacji" w panelu wolontariusza i przycisków w module Poczta.
+                        kafla „Poczta organizacji" w panelu współpracownika i przycisków w module Poczta.
                         <strong>Puste pole = klient nie pojawia się nigdzie</strong> — tak się go włącza i wyłącza,
                         bez zmian w kodzie.
                     </p>

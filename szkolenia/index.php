@@ -1,7 +1,7 @@
 <?php
 /**
  * szkolenia/index.php — „Umów się na szkolenie" w systemie głównym / portalu.
- * Ten sam kreator co w panelu wolontariusza (wspólny widżet tidycal_book_ui.php).
+ * Ten sam kreator co w panelu współpracownika (wspólny widżet tidycal_book_ui.php).
  */
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';

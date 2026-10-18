@@ -21,7 +21,7 @@ require_once __DIR__ . '/includes/permissions.php';
 
 // ── Routing kont wolontariusza i zawężonych (crm_only / ezd_only) ─────────────
 // Reguła: dostęp do WIĘCEJ NIŻ 2 modułów → ekran wyboru modułu; w przeciwnym
-// razie wejście wprost do modułu podstawowego. Panel wolontariusza liczy się
+// razie wejście wprost do modułu podstawowego. Panel współpracownika liczy się
 // jako osobny moduł. Konta zarządcze (admin/editor) dostają pełny portal poniżej
 // — to on pełni rolę „wyboru" (zawiera siatkę wszystkich modułów).
 $__choices = portal_entry_points();
@@ -181,7 +181,7 @@ $modules = [
         'badge'  => null,
     ],
     [
-        'title'  => 'Panel wolontariusza',
+        'title'  => 'Panel współpracownika',
         'desc'   => 'Twoje umowy, zadania, dokumenty i dane',
         'icon'   => 'bi-person-heart',
         'grad'   => 'linear-gradient(135deg,#9D174D,#EC4899)',

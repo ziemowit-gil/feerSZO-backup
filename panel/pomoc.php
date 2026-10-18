@@ -5,7 +5,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 
 require_login();
-$PAGE_TITLE = 'Pomoc — Panel wolontariusza';
+$PAGE_TITLE = 'Pomoc — Panel współpracownika';
 $user = current_user();
 $_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [(int)$user['id']]);
 if ($_is_volunteer_only) {
@@ -151,7 +151,7 @@ if ($_is_volunteer_only) {
 <div class="pv-page-header">
   <div class="pv-page-head-main">
     <h1 class="pv-page-title"><i class="bi bi-question-circle" aria-hidden="true"></i>Pomoc</h1>
-    <p class="pv-page-sub">Przewodnik po wszystkich funkcjach dostępnych w panelu wolontariusza.</p>
+    <p class="pv-page-sub">Przewodnik po wszystkich funkcjach dostępnych w panelu współpracownika.</p>
   </div>
 </div>
 

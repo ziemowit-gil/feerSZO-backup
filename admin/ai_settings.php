@@ -138,14 +138,14 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 <div class="card-body">
   <p class="small text-muted mb-2">
-    Pływający przycisk asystenta w nagłówku <strong>każdego modułu</strong> (panel wolontariusza,
+    Pływający przycisk asystenta w nagłówku <strong>każdego modułu</strong> (panel współpracownika,
     zadania, CRM, katalog, wydarzenia, poczta, Karty 30, strategia) oraz pełne okno rozmowy:
     <code>/panel/asystent.php</code> i <code>/procedures/asystent.php</code>.
   </p>
   <p class="small text-muted">
     W trybie zalogowanym asystent zna <strong>uprawnienia rozmówcy</strong> — podpowiada tylko
     dostępne dla niego ekrany i pokazuje wyłącznie jego własne umowy, godziny, zadania i wnioski.
-    Pozycję „Asystent AI" w panelu wolontariusza możesz osobno ukryć w
+    Pozycję „Asystent AI" w panelu współpracownika możesz osobno ukryć w
     <a href="<?= APP_URL ?>/admin/menu_config.php">Widoczności menu</a>.
   </p>
 
@@ -307,7 +307,7 @@ include dirname(__DIR__) . '/includes/header.php';
     <li>CRM → Masowa wysyłka → przycisk <strong>Wygeneruj AI</strong></li>
     <li>EZD → Koszulki → <strong>Przerejestrowanie (AI)</strong> — kwalifikacja spraw do Nowego JRWA</li>
     <li><strong>Asystent AI</strong> — pływający przycisk w nagłówku każdego modułu oraz pełne okno:
-        Biuro → Procedury → Asystent AI i Panel wolontariusza → Asystent AI. Odpowiada o procedury,
+        Biuro → Procedury → Asystent AI i Panel współpracownika → Asystent AI. Odpowiada o procedury,
         dokumenty, uchwały, zasady i komunikaty, o funkcje samego SZO (gdzie kliknąć, jakie kroki)
         oraz o własne sprawy rozmówcy (umowy, godziny, zadania, wnioski)</li>
     <li><strong>Publiczny asystent</strong> — link <code>/chatbot/{token}</code> do udostępnienia współpracownikom w intranecie (bez logowania, bez dostępu do danych osobowych)</li>

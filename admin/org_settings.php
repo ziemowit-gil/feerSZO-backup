@@ -665,9 +665,9 @@ include dirname(__DIR__) . '/includes/header.php';
             <div class="form-text">Wybierz gotowy kolor lub użyj pickera. Zalecane ciemne odcienie.</div>
           </div>
 
-          <!-- Kolor panelu wolontariusza -->
+          <!-- Kolor panelu współpracownika -->
           <div class="mb-3">
-            <label class="form-label fw-semibold">Kolor panelu wolontariusza</label>
+            <label class="form-label fw-semibold">Kolor panelu współpracownika</label>
             <div class="d-flex align-items-center gap-3 flex-wrap">
               <input type="color" name="volunteer_color" id="vol_color_input"
                      value="<?= h($saved['volunteer_color']) ?>"
@@ -689,7 +689,7 @@ include dirname(__DIR__) . '/includes/header.php';
                 <?php endforeach; ?>
               </div>
             </div>
-            <div class="form-text">Kolor akcentu w panelu wolontariusza (topbar, aktywne linki).</div>
+            <div class="form-text">Kolor akcentu w panelu współpracownika (topbar, aktywne linki).</div>
           </div>
 
           <!-- Podgląd sidebara -->

@@ -4,7 +4,7 @@
  *
  * Administrator decyduje, jak wejść do systemu:
  *   • Administrator — pełny system (domyślnie).
- *   • Mój panel — własny panel wolontariusza / współpracownika (jeśli konto admina
+ *   • Mój panel — własny panel współpracownika (jeśli konto admina
  *     ma własne umowy).
  *   • Wcielenie w użytkownika — podgląd cudzego konta z prawdziwymi danymi.
  *   • Podgląd roli — interfejs danej roli bez danych konkretnej osoby.

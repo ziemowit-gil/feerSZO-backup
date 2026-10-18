@@ -3,7 +3,7 @@
  * panel/includes/pv_ui.php — Wspólne komponenty UI podstron panelu.
  *
  * Zapewnia spójny nagłówek strony i style kart, niezależnie od powłoki
- * (panel wolontariusza header_panel.php LUB panel admina header.php).
+ * (panel współpracownika header_panel.php LUB panel admina header.php).
  * Style są samowystarczalne — używają zmiennej --vol-color z fallbackiem,
  * więc wyglądają poprawnie pod obiema powłokami.
  *

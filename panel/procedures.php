@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/procedures.php — Procedury (tryb tylko-do-odczytu) w panelu wolontariusza.
+ * panel/procedures.php — Procedury (tryb tylko-do-odczytu) w panelu współpracownika.
  * Personel korzysta z pełnego modułu /procedures/. Wolontariusz widzi listę
  * opublikowanych procedur i ich treść w spójnej powłoce panelu.
  */
@@ -44,7 +44,7 @@ if ($pid) {
     ];
     $procs      = proc_get_all($filter);
     $categories = proc_get_categories();
-    $PAGE_TITLE = 'Procedury — Panel wolontariusza';
+    $PAGE_TITLE = 'Procedury — Panel współpracownika';
 }
 
 include __DIR__ . '/includes/header_panel.php';

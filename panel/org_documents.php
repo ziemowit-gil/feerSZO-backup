@@ -1,6 +1,6 @@
 <?php
 /**
- * panel/org_documents.php — „Dokumenty organizacji" w panelu wolontariusza (odczyt).
+ * panel/org_documents.php — „Dokumenty organizacji" w panelu współpracownika (odczyt).
  * Personel zarządza w /admin/org_documents.php; wolontariusz przegląda i pobiera.
  */
 require_once dirname(__DIR__) . '/config.php';
@@ -27,7 +27,7 @@ $filter = [
 ];
 $docs       = org_docs_all($filter);
 $categories = org_docs_categories();
-$PAGE_TITLE = 'Dokumenty organizacji — Panel wolontariusza';
+$PAGE_TITLE = 'Dokumenty organizacji — Panel współpracownika';
 
 include __DIR__ . '/includes/header_panel.php';
 ?>

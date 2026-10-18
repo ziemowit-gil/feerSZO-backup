@@ -213,7 +213,7 @@ include __DIR__ . '/_head.php';
 </div>
 <?php endif; ?>
 
-<!-- ── Panel wolontariusza ── -->
+<!-- ── Panel współpracownika ── -->
 <section class="tz-card">
   <div class="tz-card__hd"><i class="bi bi-window-desktop" aria-hidden="true"></i>
     <span>Dostęp do panelu</span>

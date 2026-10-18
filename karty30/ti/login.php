@@ -310,7 +310,7 @@ $_ppActive = $tab === 'kursant' && in_array($_fn, ['szk', 'konsultacje'], true) 
 </main>
 <?php
 $ppFootLinks = ['Co nowego w panelu' => $TI_BASE . 'nowosci.php', 'Czym jest SSO' => $TI_BASE . 'sso.php', 'Strona Fundacji FEER' => 'https://feer.org.pl',
-                'Panel wolontariusza' => rtrim(APP_URL, '/') . '/panel/index.php', 'Logowanie do systemu (SZO)' => rtrim(APP_URL, '/') . '/auth/login.php'];
+                'Panel współpracownika' => rtrim(APP_URL, '/') . '/panel/index.php', 'Logowanie do systemu (SZO)' => rtrim(APP_URL, '/') . '/auth/login.php'];
 include dirname(__DIR__, 2) . '/modules/ti/view/portal/_footer.php';
 ?>
 

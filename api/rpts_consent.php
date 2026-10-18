@@ -1,6 +1,6 @@
 <?php
 /**
- * AJAX: popup zgody na weryfikację RPTS w panelu wolontariusza.
+ * AJAX: popup zgody na weryfikację RPTS w panelu współpracownika.
  * POST action=submit  {pesel, data_urodzenia, miejsce_urodzenia,
  *                       nazwisko_rodowe, imie_ojca, imie_matki, consent, _csrf}
  * POST action=snooze  {_csrf} — odłóż popup do następnego logowania (sesja)

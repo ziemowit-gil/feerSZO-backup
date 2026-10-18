@@ -687,7 +687,7 @@ function ezd_zas_get_log(int $zas_id): array {
     }
 }
 
-/** Zaświadczenia złożone przez danego użytkownika (dla panelu wolontariusza). */
+/** Zaświadczenia złożone przez danego użytkownika (dla panelu współpracownika). */
 function ezd_zas_my_all(int $user_id): array {
     return db_all(
         "SELECT w.id, w.nr_zaswiadczenia, w.status, w.wazne_do, w.created_at,

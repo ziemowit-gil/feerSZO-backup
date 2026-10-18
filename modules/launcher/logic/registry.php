@@ -80,7 +80,7 @@ function launcherCatalog(): array {
         ['key'=>'directory',  'sec'=>'Relacje i ludzie',   'label'=>'Katalog',        'desc'=>'Książka telefoniczna',
          'icon'=>'bi-person-lines-fill',  'mc'=>'#4338ca','mb'=>'#eef2ff','url'=>"$app/directory/",
          'check'=>null, 'match'=>['/directory/']],
-        ['key'=>'panel',      'sec'=>'Relacje i ludzie',   'label'=>'Panel wolontariusza','desc'=>'Moje umowy, godziny, dokumenty',
+        ['key'=>'panel',      'sec'=>'Relacje i ludzie',   'label'=>'Panel współpracownika','desc'=>'Moje umowy, godziny, dokumenty',
          'icon'=>'bi-person-heart',       'mc'=>'#be185d','mb'=>'#fdf2f8','url'=>"$app/panel/index.php",
          'check'=>fn()=>function_exists('user_has_volunteer_panel') && user_has_volunteer_panel(), 'match'=>['/panel/']],
         // ── Dydaktyka ────────────────────────────────────────────────────────

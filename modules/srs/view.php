@@ -7,7 +7,7 @@
  *  - admina/editora (panel zatwierdzania admin)
  *  - dysponenta zasobu (panel zatwierdzania dysponent)
  *
- * Powłoka: panel wolontariusza dla wolontariuszy, powłoka SZO dla edytorów/adminów.
+ * Powłoka: panel współpracownika dla wolontariuszy, powłoka SZO dla edytorów/adminów.
  * Treść w języku wizualnym modułu „Tożsamość" (pv_ui.php: .tz-card, .tz-dl, .tz-btn).
  */
 require_once dirname(__DIR__, 2) . '/config.php';

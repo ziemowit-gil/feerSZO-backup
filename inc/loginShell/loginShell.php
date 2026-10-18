@@ -131,7 +131,7 @@ function loginShellActions(): string {
         [$app . '/ezd/index.php',         'EZD (dokumenty)',        'bi-folder2-open',       '#2d2d2d'],
         [$app . '/tasks/index.php',       'Zadania',                'bi-check2-square',      '#2d2d2d'],
         [$app . '/webmail/index.php',     'Poczta',                 'bi-envelope',           '#2d2d2d'],
-        [$app . '/panel/index.php',       'Panel wolontariusza',    'bi-heart',              '#2d2d2d'],
+        [$app . '/panel/index.php',       'Panel współpracownika',    'bi-heart',              '#2d2d2d'],
         ['https://www.office.com',        'Microsoft 365',          'bi-microsoft',          '#2d2d2d'],
     ];
     // Aplikacje zewnętrzne logujące przez Tożsamość (SAML) — tylko gdy baza jest dostępna.

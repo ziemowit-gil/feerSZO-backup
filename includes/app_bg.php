@@ -3,7 +3,7 @@
  * includes/app_bg.php — wspólne tło aplikacji: geometria jak na ekranie
  * logowania, tylko przyciemniona i wyciszona, żeby nie przeszkadzała treści.
  *
- * Używane przez powłoki: SZO (includes/header.php), panel wolontariusza
+ * Używane przez powłoki: SZO (includes/header.php), panel współpracownika
  * (panel/includes/header_panel.php) i CRM (crm/includes/header_crm.php).
  * Wywoływać w <head> PO własnym bloku <style> powłoki — reguła body musi wygrać.
  *

@@ -375,7 +375,7 @@ function module_entry(string $key, bool $primary = false): ?array {
 }
 
 /**
- * Wpis launchera dla panelu wolontariusza (traktowany jak osobny moduł).
+ * Wpis launchera dla panelu współpracownika (traktowany jak osobny moduł).
  * Kieruje do panelu standalone, jeśli to wolontariusz bez umowy.
  */
 function module_entry_volunteer_panel(): array {
@@ -387,7 +387,7 @@ function module_entry_volunteer_panel(): array {
     } catch (\Throwable $e) {}
     return [
         'key'     => 'panel',
-        'label'   => 'Panel wolontariusza',
+        'label'   => 'Panel współpracownika',
         'desc'    => 'Twoje umowy, zadania, dokumenty i dane',
         'icon'    => 'bi-person-heart',
         'grad'    => 'linear-gradient(135deg,#9D174D,#EC4899)',
@@ -426,7 +426,7 @@ function user_volunteer_contract_count(?array $u = null): int {
 }
 
 /**
- * Czy bieżący użytkownik ma „panel wolontariusza" jako dostępny moduł?
+ * Czy bieżący użytkownik ma „panel współpracownika" jako dostępny moduł?
  * Dotyczy widzów (viewer), wolontariuszy bez umowy (standalone) oraz każdego,
  * kto ma powiązaną umowę (np. koordynator będący jednocześnie wolontariuszem).
  */
@@ -443,7 +443,7 @@ function user_has_volunteer_panel(): bool {
 
 /**
  * Punkty wejścia (top-level moduły) dostępne dla kont WOLONTARIUSZA i ZAWĘŻONYCH.
- * Panel wolontariusza liczy się jako osobny moduł. Zwraca [] dla kont zarządczych
+ * Panel współpracownika liczy się jako osobny moduł. Zwraca [] dla kont zarządczych
  * (admin/editor/itp.) — te trafiają do pełnego portalu (który sam jest „wyborem").
  * Pierwszy element to moduł podstawowy (domyślny cel przy ≤2 modułach).
  */
@@ -452,7 +452,7 @@ function portal_entry_points(): array {
     if (!$u) return [];
     $uid = (int)$u['id'];
 
-    // Konta zawężone: bazowy moduł + indywidualnie przyznane. Panelu wolontariusza
+    // Konta zawężone: bazowy moduł + indywidualnie przyznane. Panelu współpracownika
     // NIE dodajemy — require_login tych kont blokuje ścieżkę /panel/.
     $base = scoped_base_module();
     if ($base !== null) {
@@ -463,8 +463,8 @@ function portal_entry_points(): array {
         return array_values($eps);
     }
 
-    // Widz / wolontariusz (rola viewer = panel wolontariusza i konta standalone):
-    // panel wolontariusza (podstawowy) + indywidualnie przyznane moduły.
+    // Widz / wolontariusz (rola viewer = panel współpracownika i konta standalone):
+    // panel współpracownika (podstawowy) + indywidualnie przyznane moduły.
     // Uwaga: dla roli viewer NIE liczymy uprawnień roli (viewer ma odczyt wszędzie) —
     // tylko moduły przyznane konkretnemu użytkownikowi ponad rolę. Konta zarządcze
     // (admin/editor), które są też wolontariuszami, obsługuje pełny portal (kafel niżej).

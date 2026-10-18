@@ -1342,7 +1342,7 @@ function crm_offer_brand(): array {
 
     // Kolor dokumentu: własne ustawienie modułu, a domyślnie zieleń marki CRM
     // (--crm-primary z assets/css/crm-module.css). Świadomie NIE bierzemy
-    // volunteer_color — to kolor panelu wolontariusza, nie identyfikacja fundacji.
+    // volunteer_color — to kolor panelu współpracownika, nie identyfikacja fundacji.
     $primary = crm_offer_setting('crm_offer_brand_color', '');
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary)) $primary = '#0176D3';
     $dark    = function_exists('color_darken') ? color_darken($primary, 35) : $primary;

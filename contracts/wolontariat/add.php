@@ -1086,7 +1086,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
         <div class="text-muted small mt-1">
           Rejestracja historycznej współpracy wolontariackiej bez podpisywania nowej umowy.
           System automatycznie utworzy <strong>umowę techniczną</strong> i nada dostęp
-          do panelu wolontariusza.
+          do panelu współpracownika.
         </div>
       </label>
       <?php if ($is_tech_checked): ?>

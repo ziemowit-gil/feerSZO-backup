@@ -555,7 +555,7 @@ include dirname(__DIR__) . '/includes/header.php';
   <div>
     Konta otrzymuja role <strong>viewer</strong> — taki sam dostep jak wolontariusz z porozumieniem.
     Moga logowac sie do portalu, byc przypisywane do zadan, odbierac wiadomosci od organizacji i korzystac z poczty wewnetrznej.
-    Panel wolontariusza nie bedzie pokazywal umow (bo ich nie ma), ale wszystkie inne funkcje dzialaja normalnie.
+    Panel współpracownika nie bedzie pokazywal umow (bo ich nie ma), ale wszystkie inne funkcje dzialaja normalnie.
   </div>
 </div>
 

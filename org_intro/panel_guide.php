@@ -1,6 +1,6 @@
 <?php
 /**
- * org_intro/panel_guide.php — Przewodnik po panelu wolontariusza/pracownika.
+ * org_intro/panel_guide.php — Przewodnik po panelu współpracownika.
  *
  * Strona dynamicznie renderowana — pokazuje tylko sekcje
  * odpowiadające włączonym modułom i roli użytkownika.

@@ -2973,7 +2973,7 @@ function _ezd_rpts_teczka_id(int $rok, int $user_id): int {
 
 /**
  * Otwiera dedykowaną sprawę EZD dla weryfikacji RPTS danej osoby, zaraz po
- * złożeniu przez nią zgody w panelu wolontariusza (jedna sprawa na osobę,
+ * złożeniu przez nią zgody w panelu współpracownika (jedna sprawa na osobę,
  * nie ciągła — do zamknięcia po wykonaniu faktycznej weryfikacji i
  * odnotowaniu wyniku na umowie). Idempotentne — jeśli users.rpts_ezd_sprawa_id
  * jest już ustawione, zwraca istniejące id bez tworzenia duplikatu.
@@ -3004,7 +3004,7 @@ function ezd_register_rpts_consent(array $user, int $created_by = 0): ?int {
     $sprawa_id = ezd_sprawa_create([
         'teczka_id'   => $tid,
         'title'       => "Weryfikacja RPTS — {$name}",
-        'description' => 'Sprawa otwarta automatycznie po złożeniu zgody w panelu wolontariusza. '
+        'description' => 'Sprawa otwarta automatycznie po złożeniu zgody w panelu współpracownika. '
                         . 'Do zamknięcia po wykonaniu weryfikacji na rps.ms.gov.pl i odnotowaniu wyniku na umowie.',
         'priority'    => 'normal',
         'owner_id'    => null,
