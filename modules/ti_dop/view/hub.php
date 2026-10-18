@@ -16,7 +16,8 @@ $groups = [
   'Stan konta' => [
     ['ROP', 'Stan subkonta na dzień wpłaty', '#008a00', $c['rop'], route('rop.index'), route('rop.index')],
   ],
-  'Rozliczenia' => array_map(fn(SettleKind $k) => [$k->value, $k->title(), $k->color(), $c[$k->value] ?? 0, route('settle.new', ['kind' => $k->value]), route('settle.index', ['kind' => $k->value])], SettleKind::cases()),
+  'Rozliczenia okresowe' => array_map(fn(SettleKind $k) => [$k->value, $k->title(), $k->color(), $c[$k->value] ?? 0, route('settle.new', ['kind' => $k->value]), route('settle.index', ['kind' => $k->value])], [SettleKind::Rm, SettleKind::Rmr, SettleKind::Rr, SettleKind::Rrr]),
+  'Stan początkowy, przeliczenia i zamknięcie' => array_map(fn(SettleKind $k) => [$k->value, $k->title(), $k->color(), $c[$k->value] ?? 0, route('settle.new', ['kind' => $k->value]), route('settle.index', ['kind' => $k->value])], [SettleKind::Przp, SettleKind::Prz, SettleKind::Rko]),
 ];
 ?>
 <h1 class="mb-1">Dokumenty rozliczeniowe uczestnika</h1>

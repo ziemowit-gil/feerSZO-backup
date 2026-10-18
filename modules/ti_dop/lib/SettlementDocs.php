@@ -57,6 +57,10 @@ enum SettleKind: string
     case Przp = 'PRZ-P';
     case Prz  = 'PRZ';
     case Rko  = 'RKO';
+    case Rm   = 'RM';
+    case Rr   = 'RR';
+    case Rmr  = 'RMR';
+    case Rrr  = 'RRR';
 
     public function title(): string
     {
@@ -64,17 +68,27 @@ enum SettleKind: string
             self::Przp => 'Ustalenie stanu początkowego',
             self::Prz  => 'Ręczne przeliczenie godzin i rozliczenie',
             self::Rko  => 'Rozliczenie końcowe',
+            self::Rm   => 'Rozliczenie miesięczne',
+            self::Rr   => 'Rozliczenie roczne',
+            self::Rmr  => 'Rozliczenie miesięczne ręczne',
+            self::Rrr  => 'Rozliczenie roczne ręczne',
         };
     }
 
     public function suffix(): string
     {
-        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ' };
+        return match ($this) { self::Przp => 'SALDPocz', self::Rko => 'SALDKonc', self::Prz => 'GODZ', self::Rm, self::Rmr => 'MIES', self::Rr, self::Rrr => 'ROK' };
     }
 
     public function color(): string
     {
-        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025' };
+        return match ($this) { self::Przp => '#647687', self::Prz => '#fa6800', self::Rko => '#a20025', self::Rm => '#00aba9', self::Rr => '#0050ef', self::Rmr => '#d80073', self::Rrr => '#6a00ff' };
+    }
+
+    /** Wyliczane z księgi (RM, RR) vs wpisywane ręcznie (RMR, RRR, PRZ, PRZ-P). */
+    public function automatic(): bool
+    {
+        return in_array($this, [self::Rm, self::Rr, self::Rko], true);
     }
 }
 
@@ -177,6 +191,37 @@ final class SettlementDocs
             if (!$rows && !isset($e['m'])) $e['m'] = 'Dodaj co najmniej jeden miesiąc.';
             if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj powód ręcznego przeliczenia (trafi do rozliczenia).';
             $d['months'] = $rows;
+        } elseif (in_array($k, [SettleKind::Rm, SettleKind::Rmr], true)) {
+            $d['ym'] = (string)($in['ym'] ?? '');
+            if (!preg_match('/^(\d{4})-(\d{2})$/', $d['ym'])) $e['ym'] = 'Wybierz miesiąc rozliczenia.';
+            if ($k === SettleKind::Rmr) {
+                if ($courseId <= 0) $e['course_id'] = 'Rozliczenie ręczne dotyczy grupy — wybierz grupę.';
+                $lines = [];
+                foreach ((array)($in['l'] ?? []) as $row) {
+                    if (!is_array($row) || trim((string)($row['opis'] ?? '')) === '') continue;
+                    $h = self::num((string)($row['h'] ?? '')) ?? 0.0; $rate = self::num((string)($row['rate'] ?? '')) ?? 0.0; $amt = self::num((string)($row['amount'] ?? ''));
+                    if ($h < 0 || $rate < 0) { $e['l'] = 'Godziny i stawka nie mogą być ujemne.'; continue; }
+                    $lines[] = ['opis' => mb_substr(trim((string)$row['opis']), 0, 200), 'h' => $h, 'rate' => $rate, 'amount' => $amt ?? round($h * $rate, 2)];
+                }
+                if (!$lines) $e['l'] = 'Dodaj co najmniej jedną pozycję rozliczenia.';
+                if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj powód rozliczenia ręcznego.';
+                $d['lines'] = $lines;
+            }
+        } elseif (in_array($k, [SettleKind::Rr, SettleKind::Rrr], true)) {
+            $d['year'] = (int)($in['year'] ?? 0);
+            if ($d['year'] < 2000 || $d['year'] > (int)date('Y') + 1) $e['year'] = 'Podaj rok rozliczenia.';
+            if ($k === SettleKind::Rrr) {
+                $rows = [];
+                foreach ((array)($in['y'] ?? []) as $row) {
+                    if (!is_array($row) || (int)($row['m'] ?? 0) < 1) continue;
+                    $vals = ['h' => self::num((string)($row['h'] ?? '')) ?? 0.0, 'charges' => self::num((string)($row['charges'] ?? '')) ?? 0.0, 'payments' => self::num((string)($row['payments'] ?? '')) ?? 0.0];
+                    if ($vals['h'] == 0 && $vals['charges'] == 0 && $vals['payments'] == 0) continue;
+                    $rows[] = ['m' => min(12, (int)$row['m'])] + $vals + ['opis' => mb_substr(trim((string)($row['opis'] ?? '')), 0, 200)];
+                }
+                if (!$rows) $e['y'] = 'Wpisz dane co najmniej jednego miesiąca.';
+                if (mb_strlen($d['uzasadnienie']) < 5) $e['uzasadnienie'] = 'Podaj podstawę rozliczenia ręcznego (np. dokumentacja sprzed SZO).';
+                $d['rows'] = $rows;
+            }
         } else {
             $d['scope'] = ($in['scope'] ?? '') === 'account' ? 'account' : 'group';
             if ($d['scope'] === 'group' && $courseId <= 0) $e['course_id'] = 'Wybierz grupę albo rozliczenie całego konta.';
@@ -267,6 +312,20 @@ final class SettlementDocs
                     }
                     $res['log'][] = $label . ': ' . $m['h'] . ' h → ' . self::zl($m['amount']);
                 }
+            } elseif ($r['kindEnum'] === SettleKind::Rmr) {
+                [$y, $mo] = array_map('intval', explode('-', $d['ym']));
+                $h = array_sum(array_column($d['lines'], 'h')); $amt = round(array_sum(array_column($d['lines'], 'amount')), 2);
+                $b = db_one("SELECT * FROM k30_ti_billing WHERE client_id = ? AND month = ? AND year = ? AND course_id = ? AND status IN ('draft','issued','paid')", [$cid, $mo, $y, (int)$r['course_id']]);
+                if ($b && ti_billing_has_invoice($b)) throw new DomainException('Rozliczenie za ' . sprintf('%02d.%d', $mo, $y) . ' ma fakturę — kwoty dokumentu księgowego nie zmieniamy.');
+                $note = 'RMR ' . $r['number'] . ': ' . implode('; ', array_map(fn($l) => $l['opis'] . ' ' . $l['h'] . ' h = ' . number_format($l['amount'], 2, ',', ' ') . ' zł', $d['lines'])) . ' — ' . $d['uzasadnienie'];
+                $rate = $h > 0 ? round($amt / $h, 2) : 0.0;
+                if ($b) db_exec("UPDATE k30_ti_billing SET hours_billed = ?, hourly_rate = ?, amount = ?, manual_amount = ?, manual_note = ?, manual_by_name = ?, manual_at = ?, status = CASE WHEN status = 'draft' THEN 'issued' ELSE status END, issued_at = COALESCE(issued_at, ?) WHERE id = ?",
+                    [$h, $rate, $amt, $amt, mb_substr($note, 0, 500), (string)$actor['name'], ldNow(), ldNow(), (int)$b['id']]);
+                else db_insert('k30_ti_billing', ['client_id' => $cid, 'month' => $mo, 'year' => $y, 'course_id' => (int)$r['course_id'], 'hours_billed' => $h, 'hourly_rate' => $rate, 'amount' => $amt,
+                    'manual_amount' => $amt, 'manual_note' => mb_substr($note, 0, 500), 'manual_by_name' => (string)$actor['name'], 'manual_at' => ldNow(), 'status' => 'issued', 'issued_at' => ldNow(), 'created_at' => ldNow(), 'due_date' => ldDue()]);
+                $res['log'][] = sprintf('%02d.%d', $mo, $y) . ': ' . $h . ' h → ' . self::zl($amt) . ' (kwota ręczna)';
+            } elseif (in_array($r['kindEnum'], [SettleKind::Rm, SettleKind::Rr, SettleKind::Rrr], true)) {
+                $res['log'][] = $r['kindEnum']->title() . ' — dokument (bez zmian w księdze)';
             } else {
                 $res['log'][] = 'rozliczenie końcowe: saldo ' . self::zl((float)$d['snapshot']['balance']);
             }
@@ -376,6 +435,15 @@ final class SettlementDocs
                     array_filter($amz['items'] ?? [], fn($i) => !in_array($i['status'], ['Cofnięta', 'Wygasła', 'Zakończona', 'Wykorzystana'], true))));
             } catch (\Throwable $e) { $snap['resources'] = []; }
         }
+        if (in_array($k, [SettleKind::Rm, SettleKind::Rmr], true) && preg_match('/^(\d{4})-(\d{2})$/', (string)($d['ym'] ?? ''), $mm)) {
+            $snap['month'] = self::monthStats($clientId, (int)$mm[1], (int)$mm[2], $courseId);
+        }
+        if (in_array($k, [SettleKind::Rr, SettleKind::Rrr], true) && (int)($d['year'] ?? 0) > 0) {
+            $snap['months'] = [];
+            for ($m = 1; $m <= 12; $m++) { $ms = self::monthStats($clientId, (int)$d['year'], $m, $courseId); if ($ms['charges'] != 0 || $ms['payments'] != 0 || $ms['hours_attended'] != 0) $snap['months'][] = $ms; }
+            $snap['year_totals'] = ['charges' => round(array_sum(array_column($snap['months'], 'charges')), 2), 'payments' => round(array_sum(array_column($snap['months'], 'payments')), 2),
+                                    'hours_billed' => round(array_sum(array_column($snap['months'], 'hours_billed')), 2), 'hours_attended' => round(array_sum(array_column($snap['months'], 'hours_attended')), 2)];
+        }
         if ($k === SettleKind::Prz && $courseId > 0) {
             $snap['current'] = [];
             foreach ((array)($d['months'] ?? []) as $m) {
@@ -386,6 +454,23 @@ final class SettlementDocs
             if ($bl) $snap['baseline'] = ['number' => $bl['number'], 'as_of' => $bl['d']['as_of'] ?? '', 'h_used' => $bl['d']['godz_wykorzystane'] ?? 0, 'h_paid' => $bl['d']['godz_oplacone'] ?? 0, 'saldo' => $bl['d']['saldo'] ?? 0];
         }
         return $snap;
+    }
+
+    /** Miesiąc uczestnika (opcjonalnie grupa): zajęcia z obecnością, godziny, należności, wpłaty, saldo na koniec miesiąca. */
+    public static function monthStats(int $clientId, int $y, int $m, int $courseId = 0): array
+    {
+        $from = sprintf('%04d-%02d-01', $y, $m); $to = date('Y-m-t', strtotime($from));
+        $cw = $courseId > 0 ? ' AND s.course_id = ' . $courseId : '';
+        $att = db_one("SELECT COUNT(*) AS n, COALESCE(SUM(s.duration_min), 0) AS mins FROM k30_ti_attendance a JOIN k30_ti_sessions s ON s.id = a.session_id
+                        WHERE a.client_id = ? AND a.attended = 1 AND s.lesson_date BETWEEN ? AND ?" . $cw, [$clientId, $from, $to]) ?? [];
+        $b = db_one("SELECT COALESCE(SUM(hours_billed), 0) AS h, COALESCE(SUM(amount + COALESCE(adjustment, 0)), 0) AS due FROM k30_ti_billing WHERE client_id = ? AND month = ? AND year = ? AND status IN ('issued','paid')"
+                    . ($courseId > 0 ? ' AND course_id = ' . $courseId : ''), [$clientId, $m, $y]) ?? [];
+        $p = db_one("SELECT COALESCE(SUM(amount), 0) AS s FROM k30_ti_payments WHERE client_id = ? AND COALESCE(paid_at, date(created_at)) BETWEEN ? AND ? AND method NOT IN ('internal')"
+                    . ($courseId > 0 ? ' AND course_id IN (0, ' . $courseId . ')' : ''), [$clientId, $from, $to]) ?? [];
+        $end = 0.0;
+        try { require_once dirname(__DIR__, 2) . '/ti_subaccount/logic/subaccountManager.php'; $st = tiSubStatement($clientId, '', $to); $end = $st['lines'] ? (float)$st['lines'][count($st['lines']) - 1]['balance'] : (float)$st['opening']; } catch (\Throwable $e) {}
+        return ['m' => $m, 'y' => $y, 'label' => sprintf('%02d.%d', $m, $y), 'lessons' => (int)($att['n'] ?? 0), 'hours_attended' => round(((int)($att['mins'] ?? 0)) / 60, 2),
+                'hours_billed' => round((float)($b['h'] ?? 0), 2), 'charges' => round((float)($b['due'] ?? 0), 2), 'payments' => round((float)($p['s'] ?? 0), 2), 'balance_end' => round($end, 2)];
     }
 
     // ── Wydruk ──────────────────────────────────────────────────────────────────
@@ -420,6 +505,32 @@ final class SettlementDocs
             $h .= '<table class="t">' . $sec('B', 'STAN POCZĄTKOWY (PRZ-P)', 2) . '<tr>' . $fld('Dokument', $e($bl['number'] ?? '—') . ($bl ? ' z ' . $e(ldDate($bl['as_of'])) : ''), ' width="50%"')
                 . $fld('Godziny wykorzystane / opłacone, saldo', $bl ? $e($bl['h_used'] . ' h / ' . $bl['h_paid'] . ' h, ' . $zl($bl['saldo'])) : '—', ' width="50%"') . '</tr></table>';
             $h .= '<table class="t">' . $sec('C', 'PRZELICZENIE GODZIN I ROZLICZENIE', 6) . $th(['Miesiąc', 'Było: godziny', 'Było: kwota', 'Faktyczne godziny', 'Stawka', 'Kwota rozliczenia']) . $rows . '</table>';
+        } elseif (in_array($k, [SettleKind::Rm, SettleKind::Rmr], true)) {
+            $ms = $s['month'] ?? null;
+            if ($ms) $h .= '<table class="t">' . $sec('B', 'MIESIĄC ' . $ms['label'] . ' — STAN Z KSIĘGI' . ($k === SettleKind::Rmr ? ' (PRZED ROZLICZENIEM RĘCZNYM)' : ''), 3) . '<tr>'
+                . $fld('Zajęcia z obecnością / godziny', $e($ms['lessons'] . ' / ' . $ms['hours_attended'] . ' h'), ' width="33%"') . $fld('Godziny rozliczone', $e($ms['hours_billed'] . ' h'), ' width="33%"') . $fld('Należności miesiąca', '<b>' . $e($zl($ms['charges'])) . '</b>', ' width="34%"') . '</tr><tr>'
+                . $fld('Wpłaty w miesiącu', $e($zl($ms['payments'])), '') . $fld('Saldo na koniec miesiąca', '<b>' . $e($zl($ms['balance_end'])) . '</b>', '') . $fld('Saldo + nadpłata / − zaległość', '', '') . '</tr></table>';
+            if ($k === SettleKind::Rmr) {
+                $rows = '';
+                foreach ($d['lines'] as $l) $rows .= '<tr><td class="f">' . $e($l['opis']) . '</td><td class="f" style="text-align:right">' . $e($l['h']) . ' h</td><td class="f" style="text-align:right">' . $e($zl($l['rate'])) . '</td><td class="f" style="text-align:right"><b>' . $e($zl($l['amount'])) . '</b></td></tr>';
+                $rows .= '<tr><td class="f"><b>Razem</b></td><td class="f" style="text-align:right"><b>' . $e(array_sum(array_column($d['lines'], 'h'))) . ' h</b></td><td class="f"></td><td class="f" style="text-align:right"><b>' . $e($zl(array_sum(array_column($d['lines'], 'amount')))) . '</b></td></tr>';
+                $h .= '<table class="t">' . $sec('C', 'ROZLICZENIE RĘCZNE MIESIĄCA ' . ($d['ym'] ?? ''), 4) . $th(['Pozycja', 'Godziny', 'Stawka', 'Kwota']) . $rows . '</table>';
+            }
+        } elseif (in_array($k, [SettleKind::Rr, SettleKind::Rrr], true)) {
+            $rows = '';
+            if ($k === SettleKind::Rrr) {
+                foreach ($d['rows'] as $x) $rows .= '<tr><td class="f">' . $e(sprintf('%02d.%d', $x['m'], $d['year'])) . '</td><td class="f">' . $e($x['opis']) . '</td><td class="f" style="text-align:right">' . $e($x['h']) . ' h</td><td class="f" style="text-align:right">' . $e($zl($x['charges'])) . '</td><td class="f" style="text-align:right">' . $e($zl($x['payments'])) . '</td></tr>';
+                $tot = ['h' => array_sum(array_column($d['rows'], 'h')), 'c' => array_sum(array_column($d['rows'], 'charges')), 'p' => array_sum(array_column($d['rows'], 'payments'))];
+                $rows .= '<tr><td class="f" colspan="2"><b>Razem ' . $e($d['year']) . '</b></td><td class="f" style="text-align:right"><b>' . $e($tot['h']) . ' h</b></td><td class="f" style="text-align:right"><b>' . $e($zl($tot['c'])) . '</b></td><td class="f" style="text-align:right"><b>' . $e($zl($tot['p'])) . '</b></td></tr>';
+                $h .= '<table class="t">' . $sec('B', 'ROZLICZENIE ROCZNE RĘCZNE ' . $d['year'] . ' (DANE WPISANE)', 5) . $th(['Miesiąc', 'Opis', 'Godziny', 'Należności', 'Wpłaty']) . $rows
+                    . '<tr><td class="f" colspan="5"><b>Saldo roku (wpłaty − należności): ' . $e($zl($tot['p'] - $tot['c'])) . '</b></td></tr></table>';
+            } else {
+                foreach (($s['months'] ?? []) as $x) $rows .= '<tr><td class="f">' . $e($x['label']) . '</td><td class="f" style="text-align:right">' . $e($x['lessons']) . '</td><td class="f" style="text-align:right">' . $e($x['hours_attended']) . ' / ' . $e($x['hours_billed']) . ' h</td><td class="f" style="text-align:right">'
+                    . $e($zl($x['charges'])) . '</td><td class="f" style="text-align:right">' . $e($zl($x['payments'])) . '</td><td class="f" style="text-align:right"><b>' . $e($zl($x['balance_end'])) . '</b></td></tr>';
+                $t = $s['year_totals'] ?? ['charges' => 0, 'payments' => 0, 'hours_billed' => 0, 'hours_attended' => 0];
+                $rows .= '<tr><td class="f"><b>Razem</b></td><td class="f"></td><td class="f" style="text-align:right"><b>' . $e($t['hours_attended']) . ' / ' . $e($t['hours_billed']) . ' h</b></td><td class="f" style="text-align:right"><b>' . $e($zl($t['charges'])) . '</b></td><td class="f" style="text-align:right"><b>' . $e($zl($t['payments'])) . '</b></td><td class="f"></td></tr>';
+                $h .= '<table class="t">' . $sec('B', 'ROZLICZENIE ROCZNE ' . $d['year'] . ' — STAN Z KSIĘGI', 6) . $th(['Miesiąc', 'Zajęcia', 'Godziny (obecność / rozliczone)', 'Należności', 'Wpłaty', 'Saldo na koniec']) . ($rows ?: '<tr><td class="f" colspan="6">brak operacji w roku</td></tr>') . '</table>';
+            }
         } else {
             if (!empty($s['group'])) {
                 $g = $s['group'];

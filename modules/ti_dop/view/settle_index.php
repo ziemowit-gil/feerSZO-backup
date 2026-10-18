@@ -4,7 +4,7 @@
  * Zmienne: $list, $f.
  */
 require dirname(__DIR__, 2) . '/ti_licencje_dydaktyczne/view/_parts.php';
-$title = 'Rozliczenia — PRZ-P, PRZ, RKO';
+$title = 'Rozliczenia — RM, RR, RMR, RRR, PRZ-P, PRZ, RKO';
 include __DIR__ . '/_head.php';
 $stL = ['pending' => ['czeka na zatwierdzenie', '#f0a30a'], 'approved' => ['zatwierdzony', '#1ba1e2'], 'applied' => ['wykonany', '#008a00'], 'rejected' => ['odrzucony', '#a20025']];
 ?>

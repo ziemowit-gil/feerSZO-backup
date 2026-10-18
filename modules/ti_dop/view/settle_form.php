@@ -25,15 +25,36 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
     <div class="form-check"><input class="form-check-input" type="radio" name="scope" id="sc1" value="group"<?= ($old['scope'] ?? 'group') !== 'account' ? ' checked' : '' ?>><label class="form-check-label" for="sc1">grupa (zakończenie kursu)</label></div>
     <div class="form-check"><input class="form-check-input" type="radio" name="scope" id="sc2" value="account"<?= ($old['scope'] ?? '') === 'account' ? ' checked' : '' ?>><label class="form-check-label" for="sc2">całe konto uczestnika</label></div></div>
   <?php endif; ?>
-  <div class="col-md-5"><label class="form-label" for="course_id">Grupa<?= $kind === SettleKind::Przp ? ' (puste = całe konto)' : '' ?></label>
-    <select class="form-select" id="course_id" name="course_id"><option value="0"><?= $kind === SettleKind::Prz ? '— wybierz grupę —' : 'całe konto' ?></option>
+  <div class="col-md-5"><label class="form-label" for="course_id">Grupa<?= in_array($kind, [SettleKind::Przp, SettleKind::Rm, SettleKind::Rr, SettleKind::Rrr], true) ? ' (puste = całe konto)' : '' ?></label>
+    <select class="form-select" id="course_id" name="course_id"><option value="0"><?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr], true) ? '— wybierz grupę —' : 'całe konto' ?></option>
       <?php foreach ($courses as $co): $lab = (trim((string)$co['display_name']) !== '' ? $co['display_name'] : $co['name']) . (trim((string)$co['group_code']) !== '' ? ' (' . $co['group_code'] . ')' : ''); ?>
         <option value="<?= (int)$co['id'] ?>"<?= (string)($old['course_id'] ?? '') === (string)$co['id'] ? ' selected' : '' ?>><?= h($lab) ?><?= $kind === SettleKind::Prz ? (in_array((int)$co['id'], $baselines, true) || in_array(0, $baselines, true) ? ' — PRZ-P ✓' : ' — brak PRZ-P') : '' ?></option><?php endforeach; ?></select><?= $err('course_id') ?></div>
   <div class="col-md-3"><label class="form-label" for="rn">Numer wniosku (opcjonalnie)</label><input class="form-control" id="rn" name="request_number" value="<?= $v('request_number') ?>" list="rnl" placeholder="pusto = <?= h($kind->suffix()) ?>">
     <datalist id="rnl"><?php foreach ($requests as $rq): ?><option value="<?= h($rq) ?>"><?php endforeach; ?></datalist></div>
 </div></section>
 
-<?php if ($kind === SettleKind::Przp): ?>
+<?php if (in_array($kind, [SettleKind::Rm, SettleKind::Rmr], true)): ?>
+<section class="panel"><div class="row g-3"><div class="col-md-4"><label class="form-label" for="ym">Miesiąc rozliczenia *</label><input class="form-control" type="month" id="ym" name="ym" value="<?= $v('ym') ?: h(date('Y-m', strtotime('first day of last month'))) ?>"><?= $err('ym') ?></div>
+  <div class="col-md-8 small text-secondary align-self-end"><?= $kind === SettleKind::Rm ? 'Dane z księgi: zajęcia z obecnością, godziny, należności, wpłaty i saldo na koniec miesiąca.' : 'Pozycje rozliczenia wpisujesz ręcznie; po zatwierdzeniu staną się kwotą ręczną rozliczenia tego miesiąca (miesięcy z fakturą nie zmieniamy).' ?></div></div></section>
+<?php if ($kind === SettleKind::Rmr): $ls = array_values((array)($old['l'] ?? [])); while (count($ls) < 4) $ls[] = ['opis' => '', 'h' => '', 'rate' => '', 'amount' => '']; ?>
+<section class="panel"><h2 class="mt-0">Pozycje rozliczenia</h2><?= $err('l') ?>
+  <table class="table table-sm"><thead><tr><th>Pozycja (opis)</th><th>Godziny</th><th>Stawka (zł/h)</th><th>Kwota (puste = godz. × stawka)</th></tr></thead><tbody>
+  <?php foreach ($ls as $i => $l): ?><tr><td><input class="form-control form-control-sm" name="l[<?= $i ?>][opis]" value="<?= h($l['opis']) ?>" aria-label="Pozycja <?= $i + 1 ?>"></td><td><input class="form-control form-control-sm" name="l[<?= $i ?>][h]" value="<?= h($l['h']) ?>" inputmode="decimal" aria-label="Godziny <?= $i + 1 ?>"></td>
+    <td><input class="form-control form-control-sm" name="l[<?= $i ?>][rate]" value="<?= h($l['rate'] !== '' ? $l['rate'] : (string)($courses[0]['hourly_rate'] ?? '')) ?>" inputmode="decimal" aria-label="Stawka <?= $i + 1 ?>"></td><td><input class="form-control form-control-sm" name="l[<?= $i ?>][amount]" value="<?= h($l['amount']) ?>" inputmode="decimal" aria-label="Kwota <?= $i + 1 ?>"></td></tr><?php endforeach; ?>
+  </tbody></table></section>
+<?php endif; ?>
+<?php elseif (in_array($kind, [SettleKind::Rr, SettleKind::Rrr], true)): ?>
+<section class="panel"><div class="row g-3"><div class="col-md-3"><label class="form-label" for="yr">Rok *</label><input class="form-control" type="number" id="yr" name="year" min="2000" max="<?= (int)date('Y') + 1 ?>" value="<?= $v('year') ?: (int)date('Y') ?>"><?= $err('year') ?></div>
+  <div class="col-md-9 small text-secondary align-self-end"><?= $kind === SettleKind::Rr ? 'Dane z księgi miesiąc po miesiącu: zajęcia, godziny, należności, wpłaty, saldo na koniec miesiąca.' : 'Dane roczne wpisujesz ręcznie (np. za lata sprzed SZO) — dokument bez zmian w księdze.' ?></div></div></section>
+<?php if ($kind === SettleKind::Rrr): $ys = array_values((array)($old['y'] ?? [])); ?>
+<section class="panel"><h2 class="mt-0">Miesiące</h2><?= $err('y') ?>
+  <table class="table table-sm"><thead><tr><th>Miesiąc</th><th>Opis</th><th>Godziny</th><th>Należności (zł)</th><th>Wpłaty (zł)</th></tr></thead><tbody>
+  <?php for ($m = 1; $m <= 12; $m++): $y = $ys[$m - 1] ?? []; ?><tr><td><?= sprintf('%02d', $m) ?><input type="hidden" name="y[<?= $m - 1 ?>][m]" value="<?= $m ?>"></td>
+    <td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][opis]" value="<?= h($y['opis'] ?? '') ?>" aria-label="Opis <?= $m ?>"></td><td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][h]" value="<?= h($y['h'] ?? '') ?>" inputmode="decimal" aria-label="Godziny <?= $m ?>"></td>
+    <td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][charges]" value="<?= h($y['charges'] ?? '') ?>" inputmode="decimal" aria-label="Należności <?= $m ?>"></td><td><input class="form-control form-control-sm" name="y[<?= $m - 1 ?>][payments]" value="<?= h($y['payments'] ?? '') ?>" inputmode="decimal" aria-label="Wpłaty <?= $m ?>"></td></tr><?php endfor; ?>
+  </tbody></table></section>
+<?php endif; ?>
+<?php elseif ($kind === SettleKind::Przp): ?>
 <section class="panel"><h2 class="mt-0">Stan początkowy</h2><div class="row g-3">
   <div class="col-md-3"><label class="form-label" for="as_of">Na dzień *</label><input class="form-control" type="date" id="as_of" name="as_of" value="<?= $v('as_of') ?>"><?= $err('as_of') ?></div>
   <div class="col-md-3"><label class="form-label" for="gw">Godziny wykorzystane</label><input class="form-control" id="gw" name="godz_wykorzystane" value="<?= $v('godz_wykorzystane') ?>" inputmode="decimal"></div>
@@ -51,7 +72,7 @@ $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-blo
   </tbody></table>
 </section>
 <?php endif; ?>
-<section class="panel"><label class="form-label" for="uz">Uzasadnienie<?= $kind === SettleKind::Prz ? ' *' : '' ?></label><textarea class="form-control" id="uz" name="uzasadnienie" rows="2"><?= $v('uzasadnienie') ?></textarea><?= $err('uzasadnienie') ?></section>
+<section class="panel"><label class="form-label" for="uz">Uzasadnienie<?= in_array($kind, [SettleKind::Prz, SettleKind::Rmr, SettleKind::Rrr], true) ? ' *' : '' ?></label><textarea class="form-control" id="uz" name="uzasadnienie" rows="2"><?= $v('uzasadnienie') ?></textarea><?= $err('uzasadnienie') ?></section>
 <section class="panel warn"><h2 class="mt-0">Obieg</h2>
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m1" value="approval"<?= ($old['mode'] ?? 'approval') !== 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m1"><b>Z akceptacją kierownika</b> — po zatwierdzeniu wykonanie i PDF e-mailem do kursanta i rodzica</label></div>
   <div class="form-check"><input class="form-check-input" type="radio" name="mode" id="m2" value="direct"<?= ($old['mode'] ?? '') === 'direct' ? ' checked' : '' ?>><label class="form-check-label" for="m2"><b>Bez akceptacji, tylko do akt</b> — wykonanie od razu, Twój podpis, dokument w teczce kursanta (bez wysyłki)</label></div>

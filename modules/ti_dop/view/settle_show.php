@@ -29,6 +29,13 @@ $zl = fn($v) => number_format((float)$v, 2, ',', ' ') . ' zł';
     <dt class="col-sm-4">Stan początkowy</dt><dd class="col-sm-8"><?= h(($d['snapshot']['baseline']['number'] ?? '—')) ?></dd>
     <?php foreach ($d['months'] as $i => $m): $cur = $d['snapshot']['current'][$i] ?? []; ?><dt class="col-sm-4"><?= h(sprintf('%02d.%d', $m['month'], $m['year'])) ?></dt>
       <dd class="col-sm-8">było: <?= isset($cur['hours']) && $cur['hours'] !== null ? h($cur['hours']) . ' h, ' . h($zl($cur['amount'])) : 'brak rozliczenia' ?> → <b><?= h($m['h']) ?> h × <?= h($zl($m['rate'])) ?> = <?= h($zl($m['amount'])) ?></b></dd><?php endforeach; ?>
+  <?php elseif (in_array($k, [SettleKind::Rm, SettleKind::Rmr], true)): $ms = $s['month'] ?? null; ?>
+    <dt class="col-sm-4">Miesiąc</dt><dd class="col-sm-8"><?= h($d['ym']) ?><?= $ms ? ': ' . h($ms['lessons']) . ' zajęć, ' . h($ms['hours_attended']) . ' h obecności, rozliczono ' . h($ms['hours_billed']) . ' h; należności ' . h($zl($ms['charges'])) . ', wpłaty ' . h($zl($ms['payments'])) . ', saldo na koniec ' . h($zl($ms['balance_end'])) : '' ?></dd>
+    <?php foreach (($d['lines'] ?? []) as $l): ?><dt class="col-sm-4"><?= h($l['opis']) ?></dt><dd class="col-sm-8"><?= h($l['h']) ?> h × <?= h($zl($l['rate'])) ?> = <b><?= h($zl($l['amount'])) ?></b></dd><?php endforeach; ?>
+  <?php elseif (in_array($k, [SettleKind::Rr, SettleKind::Rrr], true)): ?>
+    <dt class="col-sm-4">Rok</dt><dd class="col-sm-8"><?= h($d['year']) ?></dd>
+    <?php foreach ($k === SettleKind::Rrr ? ($d['rows'] ?? []) : ($s['months'] ?? []) as $x): ?><dt class="col-sm-4"><?= h($k === SettleKind::Rrr ? sprintf('%02d.%d', $x['m'], $d['year']) : $x['label']) ?></dt>
+      <dd class="col-sm-8">należności <?= h($zl($x['charges'])) ?>, wpłaty <?= h($zl($x['payments'])) ?><?= $k === SettleKind::Rr ? ', saldo na koniec ' . h($zl($x['balance_end'])) : ', ' . h($x['h']) . ' h' ?></dd><?php endforeach; ?>
   <?php else: ?>
     <?php if (!empty($s['group'])): $g = $s['group']; ?><dt class="col-sm-4">Grupa</dt><dd class="col-sm-8"><?= h($g['name']) ?>: <?= h($g['lessons']) ?> zajęć, <?= h($g['hours_attended']) ?> h obecności, rozliczono <?= h($g['hours_billed']) ?> h; należności <?= h($zl($g['charges'])) ?>, wpłaty <?= h($zl($g['payments'])) ?></dd><?php endif; ?>
     <?php foreach (($s['groups'] ?? []) as $g): ?><dt class="col-sm-4"><?= h($g['name']) ?></dt><dd class="col-sm-8">należności <?= h($zl($g['charges'])) ?>, wpłaty <?= h($zl($g['payments'])) ?>, saldo <?= h($zl($g['credit'] - $g['debt'])) ?></dd><?php endforeach; ?>
