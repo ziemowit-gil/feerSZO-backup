@@ -4,13 +4,13 @@
  * Samonaprawa schematu tabeli umowy_powierzenie (idempotentna, agnostyczna silnikowo).
  *
  * Gwarantuje istnienie WSZYSTKICH kolumn zapisywanych przez kreator/edycję
- * (add.php, edit.php — lista $allowed). Bez tego zapis (db_insert/db_update)
+ * (add.php, edit.php — lista $allowed) i czytanych przez list.php/view.php. Bez tego zapis (db_insert/db_update)
  * pada z „no such column" → 500, gdy w bazie brakuje którejś kolumny
  * (moduł odblokowany bez uruchomienia migracji).
  *
  * Wzorzec identyczny jak includes/zlecenie_schema.php — ALTER ADD COLUMN per
  * kolumna w try/catch (duplikat → ignorujemy). Bez PRAGMA (MySQL/SQLite-safe),
- * bez DEFAULT na TEXT. Uruchamia się na górze add.php/edit.php — PRZED zapisem.
+ * bez DEFAULT na TEXT. Uruchamia się na górze add/edit/list/view/convert — PRZED zapytaniami.
  * Wymaga wcześniejszego includes/db.php.
  */
 
@@ -74,6 +74,10 @@
         'podpisujacy_fundacja'   => "VARCHAR(255)",
         'podpisujacy_stanowisko' => "VARCHAR(255)",
         'access_level'           => "TEXT",
+        // Zdejmowanie blokady przy zmianie statusu z grupy „zablokowana" (view.php).
+        'is_blocked'             => "INTEGER",
+        'unblocked_by'           => "INTEGER",
+        'unblocked_at'           => "DATETIME",
         'created_by'             => "INTEGER",
         'created_at'             => "DATETIME",
         'updated_at'             => "DATETIME",
