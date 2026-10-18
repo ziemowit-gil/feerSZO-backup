@@ -922,6 +922,23 @@ function _tn_schema_heal(): void {
         );
     } catch (\Throwable $e) {}
 
+    // Log błędów wysyłki (_tn_log_error). Dotąd tworzyła go tylko TaskNotificationService::ensureSchema(),
+    // więc na instalacjach, gdzie serwis jeszcze nie ruszył, nieudane e-maile/SMS-y nie zapisywały się
+    // nigdzie poza error_log. Definicja 1:1 z serwisu.
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS task_notification_errors (
+            id         INTEGER  PRIMARY KEY AUTOINCREMENT,
+            task_id    INTEGER  NOT NULL DEFAULT 0,
+            user_id    INTEGER  NOT NULL DEFAULT 0,
+            event_type TEXT     NOT NULL,
+            channel    TEXT     NOT NULL DEFAULT 'email',
+            error_msg  TEXT     NOT NULL,
+            context    TEXT     NOT NULL DEFAULT '{}',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )");
+        db()->exec("CREATE INDEX IF NOT EXISTS idx_tne_task ON task_notification_errors(task_id, created_at)");
+    } catch (\Throwable $e) {}
+
     // Kolumny dodane po wdrożeniu
     $add_cols = [
         'task_notification_prefs' => [
