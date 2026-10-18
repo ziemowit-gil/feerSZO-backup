@@ -208,6 +208,10 @@ html body .cv-chip{border:1px solid var(--cm-line);background:var(--cm-light);co
 html body a.cv-chip:hover{border-color:var(--crm-primary);background:var(--crm-primary);color:#fff}
 html body a.cv-chip:hover i{color:#fff}
 html body .crm-tag{border-radius:0}
+/* Długie tagi (np. zgoda:… z formularzy) zawijają się zamiast wychodzić poza kartę */
+html body .tag-cloud-item,html body .crm-content .crm-tag{max-width:100%;min-width:0;overflow-wrap:anywhere;word-break:break-word;white-space:normal}
+html body .tag-cloud-item{border-radius:0;border:0;background:var(--crm-primary-bg);color:var(--crm-primary-dark);line-height:1.3}
+html body .tag-cloud-item:hover,html body .tag-cloud-item.selected{background:var(--crm-primary);color:#fff}
 
 /* Zakładki → pivot (karta kontaktu, sprawy, ustawienia) */
 html body .cv-tabs,html body .crm-content .nav-tabs{border-bottom:1px solid var(--cm-line);gap:1.25rem}
