@@ -277,6 +277,11 @@ function cron_dispatcher_registry(): array
             'interval' => 82800,        // 23 h: start o 8:00 bez dryfu
             'schedule' => [8, 9],       // okno 8:00–9:00 — przypomnienia o wygasających domenach i hostingu kursantów TI (e-mail + zestawienie dla admina)
         ],
+        'ti_licencje_reminders' => [
+            'file'     => $cronDir . '/agents/tiLicenseReminders.php',
+            'interval' => 82800,        // 23 h: start o 7:00 bez dryfu
+            'schedule' => [7, 8],       // okno 7:00–8:00 — terminy 7 dni w sprawach licencji AM5/AM7 (oświadczenia, podpis AM7, alert dla biura); wyłączone, póki nie włączy kierownik
+        ],
         'ti_exam_notify' => [
             'file'     => $cronDir . '/agents/ti_exam_notify.php',
             'interval' => 3600,         // co godzinę — powiadomienia o otwarciu egzaminu i o zamknięciu w ciągu 24 h (e-mail + SMS), każde raz; wyłączone, póki nie włączy kierownik

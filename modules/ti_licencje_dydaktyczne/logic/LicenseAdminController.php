@@ -10,6 +10,7 @@ declare(strict_types=1);
  * Wyniki: string = HTML, null = akcja sama wysłała odpowiedź (pliki, przekierowania).
  */
 require_once dirname(__DIR__) . '/lib/LicenseManagementService.php';
+require_once dirname(__DIR__) . '/lib/LicenseDeadlineAgent.php';
 
 final class LicenseAdminController
 {
@@ -56,7 +57,7 @@ final class LicenseAdminController
                                WHERE a.status IN ('invited', 'rejected') AND a.due_on <> '' AND a.due_on < ? ORDER BY a.due_on", [ldToday()]);
         return $this->view('index.php', ['rows' => $this->svc->licenses->search($f), 'f' => $f, 'counts' => $this->svc->licenses->counts(),
             'toVerify' => $toVerify, 'overdueAsg' => $overdueAsg, 'alertEmails' => LicenseNotificationService::officeRecipients(),
-            'alertSetting' => (string)(db_one("SELECT value FROM settings WHERE key_ = 'ld_alert_email'")['value'] ?? '')]);
+            'alertSetting' => (string)(db_one("SELECT value FROM settings WHERE key_ = 'ld_alert_email'")['value'] ?? ''), 'agentOn' => LicenseDeadlineAgent::enabled()]);
     }
 
     public function remindDue(): ?string
@@ -73,6 +74,15 @@ final class LicenseAdminController
         foreach ($list as $m) if (!filter_var($m, FILTER_VALIDATE_EMAIL)) { flash_set('danger', 'Nieprawidłowy adres: ' . $m); return Router::redirect(route('ld.index')); }
         org_setting_set('ld_alert_email', implode(', ', $list));
         flash_set('success', $list ? 'Zapisano adresy alertów.' : 'Wyczyszczono — alerty pójdą na e-mail organizacji (fallback).');
+        return Router::redirect(route('ld.index'));
+    }
+
+    /** Włącznik agenta CRON ti_licencje_reminders (przypomnienia o terminie 7 dni, codziennie od 7:00). */
+    public function agentSettings(): ?string
+    {
+        $on = !empty($_POST['reminders_enabled']);
+        org_setting_set(LicenseDeadlineAgent::SETTING, $on ? '1' : '0');
+        flash_set('success', $on ? 'Włączono automatyczne przypomnienia — agent CRON wyśle je codziennie od 7:00.' : 'Wyłączono automatyczne przypomnienia — zostaje przycisk na pulpicie.');
         return Router::redirect(route('ld.index'));
     }
 

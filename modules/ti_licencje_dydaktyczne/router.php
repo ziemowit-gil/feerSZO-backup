@@ -57,6 +57,7 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/',                                 [LicenseAdminController::class, 'index'])->name('ld.index');
     $r->post('/przypomnij',                      [LicenseAdminController::class, 'remindDue'])->name('ld.remind');
     $r->post('/ustawienia',                      [LicenseAdminController::class, 'settings'])->name('ld.settings');
+    $r->post('/ustawienia/przypomnienia',        [LicenseAdminController::class, 'agentSettings'])->name('ld.settings.agent');
     $r->get('/nowy',                             [LicenseAdminController::class, 'createForm'])->name('ld.new');
     $r->post('/nowy',                            [LicenseAdminController::class, 'create']);
     $r->get('/nowy-am7',                         [LicenseAdminController::class, 'createAm7Form'])->name('ld.new7');

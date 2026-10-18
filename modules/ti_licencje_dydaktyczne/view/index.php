@@ -2,7 +2,7 @@
 /**
  * modules/ti_licencje_dydaktyczne/view/index.php — pulpit „Licencje dydaktyczne (AM5)”: kafle Metro (pula, wnioski, terminy 7 dni),
  * kolejka weryfikacji, przydziały po terminie, lista licencji z filtrem, wzory AM5 do druku, adresy alertów.
- * Zmienne: $rows, $f, $counts, $toVerify, $overdueAsg, $alertEmails, $alertSetting, $actor.
+ * Zmienne: $rows, $f, $counts, $toVerify, $overdueAsg, $alertEmails, $alertSetting, $agentOn, $actor.
  */
 require __DIR__ . '/_parts.php';
 $title = 'Licencje AM5 / Office 365 AM7';
@@ -100,6 +100,14 @@ $tiles = [
     <form method="post" action="<?= h(route('ld.settings')) ?>" class="d-flex gap-2"><?= Router::csrfField() ?>
       <label class="visually-hidden" for="ae">Adresy e-mail alertów</label>
       <input class="form-control" id="ae" name="alert_email" value="<?= h($alertSetting) ?>" placeholder="biuro@…, kierownik@…">
+      <button class="btn btn-metro">Zapisz</button></form>
+    <h2 class="mt-3">Automatyczne przypomnienia</h2>
+    <p class="small text-secondary">Agent CRON codziennie od 7:00: oświadczenia po terminie (nowy link i nowe <?= LD_REALIZATION_DAYS ?> dni), niepodpisane wnioski AM7,
+      a biuru — zestawienie wniosków AM5 bez decyzji licencjodawcy i projektów decyzji AM7 bez zatwierdzenia. Każda osoba i sprawa najwyżej raz na <?= LicenseDeadlineAgent::GAP_DAYS ?> dni.
+      Teraz: <b><?= $agentOn ? 'włączone' : 'wyłączone' ?></b>.</p>
+    <form method="post" action="<?= h(route('ld.settings.agent')) ?>" class="d-flex flex-wrap align-items-center gap-2"><?= Router::csrfField() ?>
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="ldRem" name="reminders_enabled" value="1"<?= $agentOn ? ' checked' : '' ?>>
+        <label class="form-check-label" for="ldRem">Wysyłaj przypomnienia automatycznie</label></div>
       <button class="btn btn-metro">Zapisz</button></form>
   </div></section>
 </div>
