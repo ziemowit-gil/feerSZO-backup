@@ -384,6 +384,19 @@ function res_change_status(int $reservation_id, string $new_status, string $note
     )->execute([$new_status, $reservation_id]);
     res_log($reservation_id, (int)(current_user()['id'] ?? 0), $old_status, $new_status, $note);
     res_notify_event($reservation_id, $new_status, $note);
+    res_ti_room_sync($reservation_id, $new_status);
+}
+
+/** Rezerwacja z formularza sali TI (modules/ti_room_srs): status wraca do terminów lekcji („Potwierdzone” / „Do rezerwacji”). */
+function res_ti_room_sync(int $reservation_id, string $new_status): void {
+    $extra = json_decode((string)(db_one("SELECT extra_fields FROM resource_reservations WHERE id=?", [$reservation_id])['extra_fields'] ?? ''), true);
+    if (empty($extra['ti_room_srs_form_id'])) return;
+    try {
+        require_once dirname(__DIR__, 2) . '/ti_room_srs/logic/roomSrs.php';
+        tiRoomSrsSyncFromSrs($reservation_id, $new_status);
+    } catch (Throwable $e) {
+        error_log('SRS → TI sale: ' . $e->getMessage());
+    }
 }
 
 function res_log(int $reservation_id, int $user_id, string $old, string $new, string $note): void {

@@ -156,6 +156,14 @@ pv_page_header('Rezerwacja #' . $id, [
       <div class="tz-card__bd" style="border-top:1px solid var(--tz-line)">
         <h2 class="tz-section-h">Cel rezerwacji</h2>
         <p class="mb-0" style="font-size:.9rem"><?= nl2br(h($reservation['purpose'])) ?></p>
+        <?php if (!empty($extra_fields['ti_room_srs_form_id'])): ?>
+        <h2 class="tz-section-h">Formularz rezerwacji sali (TI)</h2>
+        <p class="mb-0" style="font-size:.88rem">
+          <a class="tz-btn" href="<?= h(APP_URL . '/modules/ti_room_srs/router.php/formularz/' . (int)$extra_fields['ti_room_srs_form_id'] . '/docx') ?>">
+            <i class="bi bi-file-earmark-word" aria-hidden="true"></i> Pobierz formularz (DOCX)</a>
+          <span style="color:var(--tz-muted)">— bez PESEL-u i adresu osoby odpowiedzialnej (wpisywane tylko przy generowaniu w panelu dydaktyka).</span>
+        </p>
+        <?php endif; ?>
         <?php if ($reservation['admin_note']): ?>
         <h2 class="tz-section-h">Nota administratora</h2>
         <p class="mb-0" style="font-size:.88rem;color:var(--tz-muted)"><?= nl2br(h($reservation['admin_note'])) ?></p>
