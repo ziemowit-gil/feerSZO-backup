@@ -13,6 +13,7 @@
  * baner, więc kierownik nie zamknie sobie tą stroną drogi powrotnej.
  */
 require_once __DIR__ . '/auth.php';
+require_once dirname(__DIR__, 3) . '/modules/ti_panel_version/lib/tiPanelVersion.php';
 
 karty30_migrate();
 ti_blackout_migrate();
@@ -43,6 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('danger', $e->getMessage());
         }
         header('Location: wylaczenia.php#wylaczenia'); exit;
+    }
+
+    if ($op === 'version_save') {
+        try {
+            tiPanelVersionSet((string)($_POST['ti_panel_version'] ?? ''));
+            flash_set('success', 'Wersja panelu zapisana: ' . tiPanelVersion() . '.');
+        } catch (\Throwable $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        header('Location: wylaczenia.php#wersja-h'); exit;
     }
 
     if ($op === 'blackout_delete') {
@@ -338,6 +349,25 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
 
         <button type="submit" class="btn btn-primary">
           <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz ustawienia
+        </button>
+      </div>
+    </form>
+
+    <!-- ── Wersja panelu (stopka) ─────────────────────────────────────────── -->
+    <form method="post" action="" class="card mt-3 mb-0" aria-labelledby="wersja-h">
+      <?= csrf_field() ?>
+      <input type="hidden" name="_op" value="version_save">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-tag" aria-hidden="true"></i>
+        <h2 id="wersja-h" class="h6 m-0">Wersja panelu</h2>
+      </div>
+      <div class="card-body">
+        <label for="ti_panel_version" class="form-label">Numer wersji</label>
+        <input type="text" class="form-control" id="ti_panel_version" name="ti_panel_version" maxlength="20"
+               value="<?= h(tiPanelVersion()) ?>" style="max-width:160px" aria-describedby="ti_panel_version_help">
+        <div id="ti_panel_version_help" class="form-text">Widać ją w stopce panelu uczestnika, panelu dydaktyka i strony logowania. Puste pole = <?= h(TI_PANEL_VERSION_DEFAULT) ?>.</div>
+        <button type="submit" class="btn btn-primary mt-3">
+          <i class="bi bi-floppy me-1" aria-hidden="true"></i>Zapisz wersję
         </button>
       </div>
     </form>

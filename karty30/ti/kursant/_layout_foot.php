@@ -1,4 +1,6 @@
 <?php /** Wspólna stopka panelu kursanta/rodzica. */ ?>
+<?php require_once dirname(__DIR__, 3) . '/modules/ti_panel_version/lib/tiPanelVersion.php'; ?>
+<footer class="ti-panel-foot"><?= tiPanelVersionFooter() // wersja panelu — ustawia kierownik (dydaktyk/wylaczenia.php) ?></footer>
 <?php if (function_exists('dydMenuOn') && dydMenuOn()) echo dydMenuRender(); // stałe menu panelu dydaktyka (modules/ti_dyd_menu) ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>window.bootstrap || document.write('<script src="<?= h(APP_URL) ?>/karty30/ti/assets/vendor/bootstrap-5.3.3.bundle.min.js"><\/script>');</script>
