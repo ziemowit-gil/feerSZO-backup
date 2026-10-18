@@ -522,7 +522,9 @@ function res_notify(int $to_user_id, string $title, string $body_text, string $u
 
         $org      = defined('ORG_NAME') ? htmlspecialchars(ORG_NAME, ENT_QUOTES) : 'System';
         $rname    = htmlspecialchars($recipient['name'], ENT_QUOTES);
-        $body_esc = nl2br(htmlspecialchars($body_text, ENT_QUOTES));
+        // Treść ma pogrubienia <strong> (res_notify_event), a dane (imię, cel, nazwa) bywają dowolnym tekstem:
+        // escapujemy całość i przywracamy tylko <strong> — inaczej w mailu widać było dosłowne „<strong>”.
+        $body_esc = nl2br(str_replace(['&lt;strong&gt;', '&lt;/strong&gt;'], ['<strong>', '</strong>'], htmlspecialchars($body_text, ENT_QUOTES)));
         $btn      = $url
             ? "<p style='margin:18px 0 0'><a href='" . htmlspecialchars($url, ENT_QUOTES) . "'
                   style='display:inline-block;background:#6366f1;color:#fff;padding:11px 24px;
