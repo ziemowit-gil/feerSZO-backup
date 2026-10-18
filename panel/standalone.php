@@ -118,6 +118,7 @@ panelMetroAssets($_vol_color);
     <?php
     panelMetroTile(['href'=>APP_URL.'/tasks/index.php','icon'=>'bi-check2-square','label'=>'Moje zadania','val'=>(string)$task_count,
                     'sub'=>$task_count ? 'aktywnych' : 'wszystko zrobione','color'=>$task_count ? 'orange' : 'green','size'=>'w']);
+    panelMetroDydaktykTile();
     panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>(string)$notif_count,
                     'sub'=>$notif_count ? 'nowych' : 'ogłoszenia','color'=>'violet']);
     if (module_enabled('helpdesk_enabled')) {

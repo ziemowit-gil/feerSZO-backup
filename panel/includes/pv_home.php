@@ -260,6 +260,7 @@ panelMetroAssets($_vol_color);
     <?php
     panelMetroTile(['href'=>APP_URL.'/panel/messages.php','go'=>'wiadomosci','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>(string)(int)$msg_unread,
                     'sub'=>$msg_unread ? 'nowych od organizacji' : 'napisz do nas','color'=>$msg_unread ? 'indigo' : 'blue','size'=>'w']);
+    panelMetroDydaktykTile();
     panelMetroTile(['href'=>APP_URL.'/panel/apply.php','go'=>'sprawy','icon'=>'bi-inboxes','label'=>'Sprawy w toku','val'=>(string)$_pending_total,
                     'sub'=>$_pending_total ? 'czeka na odpowiedź' : 'wnioski, zaświadczenia','color'=>$_pending_total ? 'orange' : 'teal']);
     if ($_tasks_tab_on) {

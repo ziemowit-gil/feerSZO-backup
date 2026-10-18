@@ -86,6 +86,42 @@ function panelMetroTile(array $t): void {
 }
 
 /**
+ * Czy konto to dydaktyk TI (prowadzący, kierownik, kadra dydaktyki)? Celowo węziej niż
+ * kafel launchera: sam odczyt karty30 z roli (np. viewer) nie wystarcza — liczy się
+ * admin, flaga k30_consultant, rola panelu (k30_ti_panel_roles), zapis karty30 z roli
+ * albo indywidualne uprawnienie karty30 (user_permissions).
+ */
+function panelMetroIsDydaktyk(array $u): bool {
+    $uid = (int)($u['id'] ?? 0);
+    if ($uid <= 0) return false;
+    if (($u['role'] ?? '') === 'admin') return true;
+    try {
+        $row = db_one("SELECT k30_consultant FROM users WHERE id=?", [$uid]);
+        if (!empty($row['k30_consultant'])) return true;
+    } catch (\Throwable $e) {}
+    try {
+        if (db_one("SELECT 1 AS x FROM k30_ti_panel_roles WHERE user_id=? AND COALESCE(role,'')<>''", [$uid])) return true;
+    } catch (\Throwable $e) {}
+    if (function_exists('role_permissions') && !empty(role_permissions((string)($u['role'] ?? ''))['karty30']['can_write'])) return true;
+    if (function_exists('user_permissions')) {
+        $up = user_permissions($uid)['karty30'] ?? [];
+        if (!empty($up['can_read']) || !empty($up['can_write'])) return true;
+    }
+    return false;
+}
+
+/**
+ * Kafel „Dydaktyka – panel” — tylko dla dydaktyków (panelMetroIsDydaktyk). Wejście przez
+ * mostek karty30/ti/dydaktyk/office_enter.php (jak w launcherze) — bez ponownego logowania.
+ */
+function panelMetroDydaktykTile(): void {
+    $u = function_exists('current_user') ? (current_user() ?? []) : [];
+    if (!panelMetroIsDydaktyk($u)) return;
+    panelMetroTile(['href'=>APP_URL.'/karty30/ti/dydaktyk/office_enter.php','icon'=>'bi-easel2','label'=>'Dydaktyka – panel',
+                    'sub'=>'moje zajęcia, grupy i oceny','color'=>'orange','size'=>'w']);
+}
+
+/**
  * Siatka kafli z listy pozycji (format kafelków panelu: href, icon, label, sub, badge, count).
  * Kolory przydzielane po kolei z $colors; liczba „badge” > 0 = znacznik „N do uwagi”.
  */
