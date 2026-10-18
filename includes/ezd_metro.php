@@ -271,6 +271,17 @@ html body .ezd-main .ezx-kpi{border:1px solid var(--em-line)!important}
 html body .ezd-main .ezx-kpi-num{font-weight:300}
 html body .ezd-main .ezx-ico{background:var(--em-light)!important}
 
+/* Akcenty poszczególnych ekranów → paleta Metro */
+html body .ezd-main .inbox-item.inbox-unread{background:var(--tz-50);border-left:6px solid var(--em-acc)}
+html body .ezd-main .ezd-zt-row.normal .ezd-zt-indicator{background:var(--em-acc)}
+html body .ezd-main .ezd-zt-sign,html body .ezd-main .srch-sign{color:var(--em-acc-d);background:transparent;border:0}
+html body .ezd-main .ezdd-cal-today{background:var(--em-acc);aspect-ratio:auto}
+html body .ezd-main .ezdd-cal-nav button{border:2px solid var(--em-line)}
+html body .ezd-main .cal-event.sprawa{background:var(--em-acc);color:#fff}
+html body .ezd-main .zas-tresc{border-left:6px solid var(--em-acc);background:var(--em-light)}
+html body .ezd-main .sp-dz-overlay{border-color:var(--em-acc);background:rgba(15,111,168,.08)}
+html body .ezd-main .sp-dz-msg{color:var(--em-acc)}
+
 /* ── Stopka ─────────────────────────────────────────────────────────── */
 html body .ezd-footer{background:#fff!important;border-top:1px solid var(--em-line)!important;color:var(--em-muted)}
 @media(prefers-reduced-motion:reduce){html body .ezd-main *{transition:none!important;animation:none!important}}
