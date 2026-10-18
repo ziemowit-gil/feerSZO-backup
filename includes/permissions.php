@@ -32,6 +32,7 @@ const PERMISSION_MODULES = [
     'wsparcie_ou'   => 'Rozliczanie OU',
     'srs'           => 'System Rezerwacji Sal (SRS)',
     'analityka'     => 'Analityka TI (KPI i raporty zarządcze)',
+    'slowniki'      => 'Słownik Centralny (słowniki systemu)',
     'admin'         => 'Administracja',
 ];
 

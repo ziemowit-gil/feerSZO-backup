@@ -209,4 +209,16 @@ return [
         },
     ],
 
+    // Słownik Centralny: kategoria „Dotacje i granty” + instytucje udzielające dotacji (urzędy marszałkowskie, NIW-CRSO,
+    // ministerstwa, PFRON…) — podpowiedzi pola „Organ zlecający” w umowie powierzenia. Import po kodach: nie nadpisze
+    // wpisów zmienionych później ręcznie, bo wykonuje się raz.
+    '2026-10_dictionary_instytucje_dotujace' => [
+        'desc' => 'Słownik Centralny: zasiej instytucje udzielające dotacji',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/dictionary/lib/dictionaryApi.php';
+            $res = dictTransfer()->import((string)file_get_contents($ROOT . '/modules/dictionary/lib/seeds/instytucjeDotujace.json'), 'json');
+            foreach ($res as $r) if ($r['errors']) throw new \RuntimeException('Słownik ' . $r['dictionary'] . ': ' . implode('; ', $r['errors']));
+        },
+    ],
+
 ];

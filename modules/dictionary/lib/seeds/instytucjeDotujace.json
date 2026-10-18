@@ -1,0 +1,556 @@
+{
+  "format": "szo-dictionary",
+  "version": 1,
+  "dictionaries": [
+    {
+      "code": "dotacje",
+      "name": "Dotacje i granty",
+      "kind": "business",
+      "parent_code": null,
+      "is_protected": false,
+      "sort_order": 10,
+      "description": "Kategoria słowników związanych z dotacjami, konkursami ofert i umowami powierzenia/wsparcia.",
+      "entries": []
+    },
+    {
+      "code": "instytucje_dotujace",
+      "name": "Instytucje udzielające dotacji",
+      "kind": "dynamic",
+      "parent_code": "dotacje",
+      "is_protected": false,
+      "sort_order": 1,
+      "description": "Organy i instytucje zlecające zadania publiczne (umowy powierzenia/wsparcia). Podpowiada pole „Organ zlecający” w umowie powierzenia i uzupełnia adres z atrybutu „adres”. Adresy siedzib zweryfikuj przed wysyłką pisma; listę można rozszerzać (np. o gminy i powiaty).",
+      "entries": [
+        {
+          "code": "samorzad_wojewodztwa",
+          "label": "Samorząd województwa — urzędy marszałkowskie",
+          "parent_code": null,
+          "sort_order": 10,
+          "is_active": true,
+          "description": "Konkursy ofert w zakresie zadań publicznych województw, środki regionalne i europejskie (FE).",
+          "attributes": {
+            "grupa": true
+          },
+          "labels": {}
+        },
+        {
+          "code": "um_dln",
+          "label": "Urząd Marszałkowski Województwa Dolnośląskiego",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 1,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Wybrzeże J. Słowackiego 12-14, 50-411 Wrocław",
+            "miasto": "Wrocław",
+            "www": "https://www.umwd.dolnyslask.pl",
+            "wojewodztwo": "dolnośląskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Dolnośląskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_kpm",
+          "label": "Urząd Marszałkowski Województwa Kujawsko-Pomorskiego w Toruniu",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 2,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "Plac Teatralny 2, 87-100 Toruń",
+            "miasto": "Toruń",
+            "www": "https://www.kujawsko-pomorskie.pl",
+            "wojewodztwo": "kujawsko-pomorskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Kujawsko-pomorskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_lbl",
+          "label": "Urząd Marszałkowski Województwa Lubelskiego w Lublinie",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 3,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Artura Grottgera 4, 20-029 Lublin",
+            "miasto": "Lublin",
+            "www": "https://www.lubelskie.pl",
+            "wojewodztwo": "lubelskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Lubelskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_lbu",
+          "label": "Urząd Marszałkowski Województwa Lubuskiego",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 4,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Podgórna 7, 65-057 Zielona Góra",
+            "miasto": "Zielona Góra",
+            "www": "https://www.lubuskie.pl",
+            "wojewodztwo": "lubuskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Lubuskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_ldz",
+          "label": "Urząd Marszałkowski Województwa Łódzkiego",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 5,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "al. Piłsudskiego 8, 90-051 Łódź",
+            "miasto": "Łódź",
+            "www": "https://www.lodzkie.pl",
+            "wojewodztwo": "łódzkie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Łódzkie Voivodeship"
+          }
+        },
+        {
+          "code": "um_mlp",
+          "label": "Urząd Marszałkowski Województwa Małopolskiego",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 6,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Basztowa 22, 31-156 Kraków",
+            "miasto": "Kraków",
+            "www": "https://www.malopolska.pl",
+            "wojewodztwo": "małopolskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Małopolskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_maz",
+          "label": "Urząd Marszałkowski Województwa Mazowieckiego w Warszawie",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 7,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Jagiellońska 26, 03-719 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.mazovia.pl",
+            "wojewodztwo": "mazowieckie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Mazowieckie Voivodeship"
+          }
+        },
+        {
+          "code": "um_opo",
+          "label": "Urząd Marszałkowski Województwa Opolskiego",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 8,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Piastowska 14, 45-082 Opole",
+            "miasto": "Opole",
+            "www": "https://www.opolskie.pl",
+            "wojewodztwo": "opolskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Opolskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_pkr",
+          "label": "Urząd Marszałkowski Województwa Podkarpackiego w Rzeszowie",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 9,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "al. Łukasza Cieplińskiego 4, 35-010 Rzeszów",
+            "miasto": "Rzeszów",
+            "www": "https://www.podkarpackie.pl",
+            "wojewodztwo": "podkarpackie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Podkarpackie Voivodeship"
+          }
+        },
+        {
+          "code": "um_pdl",
+          "label": "Urząd Marszałkowski Województwa Podlaskiego w Białymstoku",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 10,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Kardynała Stefana Wyszyńskiego 1, 15-888 Białystok",
+            "miasto": "Białystok",
+            "www": "https://www.wrotapodlasia.pl",
+            "wojewodztwo": "podlaskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Podlaskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_pom",
+          "label": "Urząd Marszałkowski Województwa Pomorskiego w Gdańsku",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 11,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Okopowa 21/27, 80-810 Gdańsk",
+            "miasto": "Gdańsk",
+            "www": "https://www.pomorskie.eu",
+            "wojewodztwo": "pomorskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Pomorskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_slk",
+          "label": "Urząd Marszałkowski Województwa Śląskiego",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 12,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Ligonia 46, 40-037 Katowice",
+            "miasto": "Katowice",
+            "www": "https://www.slaskie.pl",
+            "wojewodztwo": "śląskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Śląskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_swk",
+          "label": "Urząd Marszałkowski Województwa Świętokrzyskiego w Kielcach",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 13,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "al. IX Wieków Kielc 3, 25-516 Kielce",
+            "miasto": "Kielce",
+            "www": "https://www.swietokrzyskie.pro",
+            "wojewodztwo": "świętokrzyskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Świętokrzyskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_wmz",
+          "label": "Urząd Marszałkowski Województwa Warmińsko-Mazurskiego w Olsztynie",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 14,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Emilii Plater 1, 10-562 Olsztyn",
+            "miasto": "Olsztyn",
+            "www": "https://www.warmia.mazury.pl",
+            "wojewodztwo": "warmińsko-mazurskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Warmińsko-mazurskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_wlk",
+          "label": "Urząd Marszałkowski Województwa Wielkopolskiego w Poznaniu",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 15,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "al. Niepodległości 34, 61-714 Poznań",
+            "miasto": "Poznań",
+            "www": "https://www.umww.pl",
+            "wojewodztwo": "wielkopolskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Wielkopolskie Voivodeship"
+          }
+        },
+        {
+          "code": "um_zpm",
+          "label": "Urząd Marszałkowski Województwa Zachodniopomorskiego w Szczecinie",
+          "parent_code": "samorzad_wojewodztwa",
+          "sort_order": 16,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd województwa",
+            "adres": "ul. Korsarzy 34, 70-540 Szczecin",
+            "miasto": "Szczecin",
+            "www": "https://www.wzp.pl",
+            "wojewodztwo": "zachodniopomorskie"
+          },
+          "labels": {
+            "en": "Marshal's Office of the Zachodniopomorskie Voivodeship"
+          }
+        },
+        {
+          "code": "administracja_rzadowa",
+          "label": "Administracja rządowa i agencje",
+          "parent_code": null,
+          "sort_order": 20,
+          "is_active": true,
+          "description": "Programy rządowe i konkursy ministerstw.",
+          "attributes": {
+            "grupa": true
+          },
+          "labels": {}
+        },
+        {
+          "code": "niw_crso",
+          "label": "Narodowy Instytut Wolności – Centrum Rozwoju Społeczeństwa Obywatelskiego",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 1,
+          "is_active": true,
+          "description": "Programy NOWEFIO, PROO, Korpus Solidarności, Rządowy Program Wspierania Rozwoju Organizacji Obywatelskich.",
+          "attributes": {
+            "typ": "agencja wykonawcza",
+            "adres": "al. Jana Pawła II 12, 00-124 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://niw.gov.pl"
+          },
+          "labels": {
+            "en": "National Freedom Institute – Centre for Civil Society Development"
+          }
+        },
+        {
+          "code": "mrpips",
+          "label": "Ministerstwo Rodziny, Pracy i Polityki Społecznej",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 2,
+          "is_active": true,
+          "description": "Programy osłonowe, Asystent osobisty osoby z niepełnosprawnością, Opieka wytchnieniowa, Senior+.",
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "ul. Nowogrodzka 1/3/5, 00-513 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/rodzina"
+          },
+          "labels": {
+            "en": "Ministry of Family, Labour and Social Policy"
+          }
+        },
+        {
+          "code": "mfipr",
+          "label": "Ministerstwo Funduszy i Polityki Regionalnej",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 3,
+          "is_active": true,
+          "description": "Programy krajowe funduszy europejskich (FERS, FEnIKS).",
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "ul. Wspólna 2/4, 00-926 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/fundusze-regiony"
+          },
+          "labels": {
+            "en": "Ministry of Development Funds and Regional Policy"
+          }
+        },
+        {
+          "code": "mc",
+          "label": "Ministerstwo Cyfryzacji",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 4,
+          "is_active": true,
+          "description": "Kompetencje cyfrowe, dostępność cyfrowa.",
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "ul. Królewska 27, 00-060 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/cyfryzacja"
+          },
+          "labels": {
+            "en": "Ministry of Digital Affairs"
+          }
+        },
+        {
+          "code": "men",
+          "label": "Ministerstwo Edukacji Narodowej",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 5,
+          "is_active": true,
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "al. J. Ch. Szucha 25, 00-918 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/edukacja"
+          },
+          "labels": {
+            "en": "Ministry of National Education"
+          }
+        },
+        {
+          "code": "mkidn",
+          "label": "Ministerstwo Kultury i Dziedzictwa Narodowego",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 6,
+          "is_active": true,
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "ul. Krakowskie Przedmieście 15/17, 00-071 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/kultura"
+          },
+          "labels": {
+            "en": "Ministry of Culture and National Heritage"
+          }
+        },
+        {
+          "code": "msit",
+          "label": "Ministerstwo Sportu i Turystyki",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 7,
+          "is_active": true,
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "ul. Senatorska 14, 00-082 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/sport"
+          },
+          "labels": {
+            "en": "Ministry of Sport and Tourism"
+          }
+        },
+        {
+          "code": "mz",
+          "label": "Ministerstwo Zdrowia",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 8,
+          "is_active": true,
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "ul. Miodowa 15, 00-952 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/zdrowie"
+          },
+          "labels": {
+            "en": "Ministry of Health"
+          }
+        },
+        {
+          "code": "ms",
+          "label": "Ministerstwo Sprawiedliwości",
+          "parent_code": "administracja_rzadowa",
+          "sort_order": 9,
+          "is_active": true,
+          "description": "Fundusz Pomocy Pokrzywdzonym oraz Pomocy Postpenitencjarnej (Fundusz Sprawiedliwości).",
+          "attributes": {
+            "typ": "ministerstwo",
+            "adres": "al. Ujazdowskie 11, 00-950 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.gov.pl/web/sprawiedliwosc"
+          },
+          "labels": {
+            "en": "Ministry of Justice"
+          }
+        },
+        {
+          "code": "fundusze_celowe",
+          "label": "Państwowe fundusze celowe",
+          "parent_code": null,
+          "sort_order": 30,
+          "is_active": true,
+          "attributes": {
+            "grupa": true
+          },
+          "labels": {}
+        },
+        {
+          "code": "pfron",
+          "label": "Państwowy Fundusz Rehabilitacji Osób Niepełnosprawnych",
+          "parent_code": "fundusze_celowe",
+          "sort_order": 1,
+          "is_active": true,
+          "description": "Zlecanie zadań organizacjom pozarządowym (art. 36 ustawy o rehabilitacji), programy celowe.",
+          "attributes": {
+            "typ": "fundusz celowy",
+            "adres": "al. Jana Pawła II 13, 00-828 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.pfron.org.pl"
+          },
+          "labels": {
+            "en": "State Fund for Rehabilitation of Disabled Persons"
+          }
+        },
+        {
+          "code": "jednostki_regionalne",
+          "label": "Regionalne jednostki polityki społecznej",
+          "parent_code": null,
+          "sort_order": 40,
+          "is_active": true,
+          "description": "Wojewódzkie samorządowe jednostki organizacyjne (ROPS) — m.in. konkursy z PFRON i polityki społecznej województwa.",
+          "attributes": {
+            "grupa": true
+          },
+          "labels": {}
+        },
+        {
+          "code": "mcps",
+          "label": "Mazowieckie Centrum Polityki Społecznej",
+          "parent_code": "jednostki_regionalne",
+          "sort_order": 1,
+          "is_active": true,
+          "attributes": {
+            "typ": "wojewódzka jednostka organizacyjna",
+            "wojewodztwo": "mazowieckie",
+            "adres": "ul. Grzybowska 80/82, 00-844 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://www.mcps.com.pl"
+          },
+          "labels": {}
+        },
+        {
+          "code": "samorzad_lokalny",
+          "label": "Samorząd gminny i powiatowy",
+          "parent_code": null,
+          "sort_order": 50,
+          "is_active": true,
+          "description": "Dotacje gmin, miast na prawach powiatu i powiatów (programy współpracy z organizacjami pozarządowymi).",
+          "attributes": {
+            "grupa": true
+          },
+          "labels": {}
+        },
+        {
+          "code": "um_st_warszawa",
+          "label": "Urząd m.st. Warszawy",
+          "parent_code": "samorzad_lokalny",
+          "sort_order": 1,
+          "is_active": true,
+          "attributes": {
+            "typ": "samorząd gminy (miasto na prawach powiatu)",
+            "wojewodztwo": "mazowieckie",
+            "adres": "pl. Bankowy 3/5, 00-950 Warszawa",
+            "miasto": "Warszawa",
+            "www": "https://um.warszawa.pl"
+          },
+          "labels": {
+            "en": "City of Warsaw"
+          }
+        }
+      ]
+    }
+  ]
+}
