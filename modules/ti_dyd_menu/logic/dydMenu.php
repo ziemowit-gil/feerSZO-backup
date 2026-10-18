@@ -204,6 +204,7 @@ function dydMenuSections(): array
         $it('', 'Generator ciągów zajęć', 'generatorCiagow.php', 'magic'),
         $it('', 'Raporty planisty',       'raportyPlanisty.php', 'bar-chart-line'),
         $it('', 'Sale / lokalizacje',     'sale.php',            'geo-alt'),
+        $it('', 'Formularze rezerwacji sal', 'saleFormularz.php', 'file-earmark-text'),
         $it('', 'Okresy nauczania',       'okresy.php',          'calendar-range'),
         $it('', 'Dni wolne',              'dni_wolne.php',       'calendar-x'),
         $it('', 'Rodzaje zajęć',          'przedmioty.php',      'tags'),

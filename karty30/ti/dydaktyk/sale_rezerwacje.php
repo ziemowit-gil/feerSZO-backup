@@ -98,6 +98,9 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <span class="small fw-semibold"><?= h($range_label) ?></span>
     <a href="?range=<?= h($range) ?>&w=<?= h($next) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>" class="btn btn-sm btn-outline-secondary" aria-label="Następny okres"><i class="bi bi-chevron-right"></i></a>
     <a href="?range=<?= h($range) ?>&w=<?= h(date('Y-m-d')) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>" class="btn btn-sm btn-outline-primary">Dziś</a>
+    <a href="saleFormularz.php?range=<?= h($range) ?>&amp;w=<?= h($from) ?>" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Formularze rezerwacji (SRS)
+    </a>
     <button onclick="window.print()" class="btn btn-sm btn-primary"><i class="bi bi-printer me-1"></i>Drukuj</button>
     <a href="sale_rezerwacje_pdf.php?range=<?= h($range) ?>&w=<?= h($from) ?>&view=<?= h($view) ?>&status=<?= h($status) ?>" target="_blank" class="btn btn-sm btn-primary">
       <i class="bi bi-file-earmark-pdf me-1"></i>Pobierz PDF
