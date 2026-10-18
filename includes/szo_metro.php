@@ -403,6 +403,24 @@ html body #content .contract-hero-stat--status:has(.cvh-status-select.cvh-status
   html body #content .contract-hero>.contract-hero-stat--status{min-height:0;margin-top:.75rem}
 }
 
+/* ── Kreator umowy (contracts/wolontariat/add.php) — tylko elementy usprawnień:
+   znacznik brakujących pól na kroku, lista „Brakuje” w podglądzie, „Krok X z 6”, skróty, baner szkicu.
+   Wygląd samego kreatora (.wiz-root) jest w stylach strony. */
+html body #content .wiz-hstep-miss{position:absolute;top:0;left:34px;min-width:18px;height:18px;padding:0 .25rem;background:var(--sm-red);color:#fff;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+html body #content .wiz-missing{background:#fff;border:1px solid var(--sm-line);border-top:0;border-left:6px solid var(--sm-red);padding:.6rem .8rem}
+html body #content .wiz-missing.is-ok{border-left-color:var(--sm-green);color:var(--sm-green);font-weight:600;font-size:.84rem}
+html body #content .wiz-missing-h{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--sm-red);margin-bottom:.35rem}
+html body #content .wiz-missing-i{display:flex;align-items:center;gap:.5rem;width:100%;text-align:left;background:none;border:0;padding:.25rem 0;font-size:.84rem;color:var(--sm-dark);cursor:pointer}
+html body #content .wiz-missing-i:hover{color:var(--sm-acc-d);text-decoration:underline}
+html body #content .wiz-missing-i span{flex:0 0 20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:var(--sm-dark);color:#fff;font-size:.66rem;font-weight:700}
+html body #content .wiz-nav-info{font-size:.9rem;font-weight:300;color:var(--sm-dark)}
+html body #content .wiz-nav-keys{font-size:.72rem;color:var(--sm-muted);margin-left:1rem}
+html body #content .wiz-nav-keys kbd{background:#fff;color:var(--sm-dark);border:1px solid var(--sm-line);font-size:.66rem;padding:.05rem .3rem}
+html body #content .wiz-draft:not([hidden]){display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;background:var(--sm-light);border-left:6px solid var(--sm-acc);padding:.7rem 1rem;margin:0 0 1rem}
+html body #content .wiz-draft>.bi{font-size:1.3rem;color:var(--sm-acc)}
+html body #content .wiz-draft-t{flex:1;min-width:220px;font-size:.9rem}
+html body #content .wiz-draft-t small{color:var(--sm-muted)}
+
 /* Baner „Wyślij rachunek” i inne banery-alerty widoku umowy */
 html body #content .cv-banner{background:var(--sm-light);border:0;border-left:6px solid var(--sm-acc);padding:1rem 1.25rem}
 html body #content .cv-banner-ico{width:46px;height:46px;background:var(--sm-acc);color:#fff;font-size:1.4rem}
