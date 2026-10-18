@@ -106,7 +106,7 @@ function _menu_counts_compute(): array {
     try { $r = db_one("SELECT COUNT(*) AS c FROM onboarding_volunteers WHERE status='pending'"); $c['ob'] = (int)($r['c'] ?? 0); } catch (\Throwable $e) {}
     try { $r = db_one("SELECT COUNT(*) AS c FROM resource_reservations WHERE status IN ('zlozony','pending_admin')"); $c['res'] = (int)($r['c'] ?? 0); } catch (\Throwable $e) {}
     try { $r = db_one("SELECT COUNT(*) AS c FROM mail_queue WHERE status='failed'"); $c['adm'] += (int)($r['c'] ?? 0); } catch (\Throwable $e) {}
-    try { $r = db_one("SELECT COUNT(*) AS c FROM user_applications WHERE status='nowy'"); $c['adm'] += (int)($r['c'] ?? 0); } catch (\Throwable $e) {}
+    try { $r = db_one("SELECT COUNT(*) AS c FROM user_applications WHERE status='nowy'"); $c['app'] = (int)($r['c'] ?? 0); $c['adm'] += $c['app']; } catch (\Throwable $e) {}
     try {
         if (module_enabled('helpdesk_enabled') && ($u = current_user())) {
             // Tryb „tylko frontend": brak operatorów w SZO → każdy widzi własne zgłoszenia.
@@ -315,6 +315,10 @@ function _menu_editor(): array {
         $obs[] = _mi('Akceptacje','/contracts/approvals/index.php','bi-check2-square',['match'=>'/contracts/approvals/','badge'=>$cnt['pending'],'kw'=>'akceptacja workflow']);
     if (module_enabled('letters_enabled'))
         $obs[] = _mi('Pisma','/contracts/letters/index.php','bi-envelope-paper',['match'=>'/contracts/letters/','kw'=>'pisma korespondencja']);
+    if (can_read('admin') || can_read('pisma')) {
+        $obs[] = _mi('Pisma i wnioski','/admin/applications.php','bi-inbox',['match'=>'/admin/applications.php','badge'=>$cnt['app'] ?? 0,'kw'=>'wnioski pisma użytkowników zsw dok upz']);
+        $obs[] = _mi('Workflow wniosków','/modules/app_workflow/router.php','bi-diagram-3',['match'=>'/modules/app_workflow/','kw'=>'workflow etapy wnioski obieg']);
+    }
     if (module_enabled('terminations_enabled'))
         $obs[] = _mi('Rozwiązania','/admin/terminations.php','bi-file-earmark-x',['match'=>'/admin/terminations','badge'=>$cnt['term'],'kw'=>'rozwiązanie umowy']);
     if (module_enabled('pelnomocnictwa_enabled'))
@@ -326,7 +330,8 @@ function _menu_editor(): array {
         'id'=>'umowy','label'=>'Umowy','icon'=>'bi-file-text','badge'=>$cnt['pending']+$cnt['term'],
         'active'=>(_menu_hit('/contracts/') && !_menu_hit('/contracts/wolontariat') && !_menu_hit('/contracts/rekrutacja'))
                  || _menu_hit('/contracts/approvals') || _menu_hit('/contracts/letters') || _menu_hit('/contracts/rejestr') || _menu_hit('/admin/terminations')
-                 || _menu_hit('/pelnomocnictwa/') || _menu_hit('/modules/skierowania_badania/'),
+                 || _menu_hit('/pelnomocnictwa/') || _menu_hit('/modules/skierowania_badania/')
+                 || _menu_hit('/admin/applications.php') || _menu_hit('/admin/application.php') || _menu_hit('/modules/app_workflow/'),
         'groups'=>$um_g,
     ];
 
