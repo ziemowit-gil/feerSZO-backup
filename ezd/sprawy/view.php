@@ -494,6 +494,25 @@ html body .ezd-main .ezx-kv dd{margin:.2rem 0 0;font-size:1.02rem;font-weight:30
 html body .ezd-main .ezx-kv dd a{color:var(--em-ink)!important;text-decoration:underline;text-underline-offset:3px}
 html body .ezd-main .ezx-kv dd.overdue{color:var(--m-red);font-weight:600}
 html body .ezd-main .sp-closed{display:flex;align-items:center;gap:.6rem;background:var(--em-light);border-left:6px solid var(--m-grey);padding:.75rem 1rem;margin-bottom:1rem;font-size:.86rem}
+/* Pasek poleceń Metro: jedna akcja główna (wypełniona), reszta płaska — ikona + etykieta bez ramki */
+html body .ezd-main .sp-cmd{--bs-btn-color:var(--em-ink);--bs-btn-bg:transparent;--bs-btn-border-color:transparent;--bs-btn-hover-color:var(--em-ink);--bs-btn-hover-bg:var(--em-light-h);--bs-btn-hover-border-color:transparent;--bs-btn-active-bg:var(--em-line);--bs-btn-active-border-color:transparent;--bs-btn-disabled-color:var(--em-muted);--bs-btn-disabled-bg:transparent;--bs-btn-disabled-border-color:transparent;font-weight:600;font-size:.8rem;display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .6rem}
+html body .ezd-main .sp-cmd > .bi{color:var(--em-acc);font-size:1rem}
+html body .ezd-main .sp-cmd:disabled > .bi{color:var(--em-muted)}
+html body .ezd-main .sp-cmd[aria-expanded="true"]{background:var(--em-light-h)}
+html body .ezd-main .sp-cmdbar{display:flex;flex-wrap:wrap;align-items:center;gap:.15rem}
+html body .ezd-main .sp-cmdbar .btn-primary{margin-left:.35rem}
+html body .ezd-main .sp-cmdbar--start{gap:.25rem}
+html body .ezd-main .sp-cmdbar--start .btn-primary{margin:0 .5rem 0 0}
+html body .ezd-main .sp-meta-actions .btn-primary{margin-right:.25rem}
+html body .ezd-main .sp-more{min-width:230px;padding:.3rem 0}
+html body .ezd-main .sp-more .dropdown-item,html body .ezd-main .sp-pm-menu .dropdown-item{display:flex;align-items:center;gap:.6rem;padding:.5rem 1rem;font-size:.85rem}
+html body .ezd-main .sp-more .dropdown-item .bi,html body .ezd-main .sp-pm-menu .dropdown-item .bi{color:var(--em-muted);width:1.1rem;text-align:center}
+html body .ezd-main .sp-more .sp-more-danger,html body .ezd-main .sp-more .sp-more-danger .bi{color:var(--m-red)}
+html body .ezd-main .sp-pm-menu.show{display:grid;grid-template-columns:1fr 1fr;padding:0;min-width:340px}
+html body .ezd-main .sp-pm-col{padding:.35rem 0}
+html body .ezd-main .sp-pm-col + .sp-pm-col{border-left:1px solid var(--em-line)}
+html body .ezd-main .sp-pm-h{display:flex;align-items:center;gap:.4rem;padding:.4rem 1rem .3rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--em-muted)}
+html body .ezd-main .sp-hero > .tw-flex{align-items:flex-end}
 /* Dokumenty w koszulce (akta): karta z szarym pasem nagłówka */
 html body .ezd-main .sp-akta-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:.7rem 1rem;background:var(--em-light);border:1px solid var(--em-line);border-bottom:0}
 html body .ezd-main .sp-akta-title{font-size:1.15rem;font-weight:300;color:var(--em-ink);letter-spacing:-.01em}
@@ -616,23 +635,29 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
     <div class="sp-meta-actions tw-shrink-0">
       <?php if($can_act): ?>
       <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#dekrModal"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>Przekaż</button>
-      <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#pismoModal"><i class="bi bi-envelope-plus" aria-hidden="true"></i>Pismo</button>
+      <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="modal" data-bs-target="#pismoModal"><i class="bi bi-envelope-plus" aria-hidden="true"></i>Pismo</button>
       <?php if($signed_pdfs): ?>
-      <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#sprawaSendMailModal"><i class="bi bi-send" aria-hidden="true"></i>Wyślij mailem</button>
+      <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="modal" data-bs-target="#sprawaSendMailModal"><i class="bi bi-send" aria-hidden="true"></i>Wyślij mailem</button>
       <?php endif; ?>
       <?php endif; ?>
-      <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#notatkiModal"><i class="bi bi-sticky" aria-hidden="true"></i>Notatki<?php if($notatki): ?> <span class="badge rounded-pill bg-secondary"><?= count($notatki) ?></span><?php endif; ?></button>
-      <a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="btn btn-sm btn-outline-dark" onclick="return confirm('Czy na pewno chcesz wydrukować ten dokument?')"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj</a>
-      <?php if(!$mini): ?>
-      <a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-clipboard-check" aria-hidden="true"></i>Metryka</a>
-      <?php endif; ?>
-      <?php if($can_edit_case): ?>
-      <a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="btn btn-sm btn-outline-primary" title="Przerejestruj (AI)"><i class="bi bi-stars" aria-hidden="true"></i>Przerejestruj</a>
-      <a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary" title="Edytuj metadane" aria-label="Edytuj metadane"><i class="bi bi-pencil" aria-hidden="true"></i></a>
-      <?php endif; ?>
-      <?php if($can_act): ?>
-      <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal" title="Zamknij koszulkę"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij</button>
-      <?php endif; ?>
+      <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="modal" data-bs-target="#notatkiModal"><i class="bi bi-sticky" aria-hidden="true"></i>Notatki<?php if($notatki): ?> <span class="badge rounded-pill bg-secondary"><?= count($notatki) ?></span><?php endif; ?></button>
+      <div class="dropdown">
+        <button type="button" class="btn btn-sm sp-cmd" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="menu"><i class="bi bi-three-dots" aria-hidden="true"></i>Więcej</button>
+        <ul class="dropdown-menu dropdown-menu-end sp-more">
+          <li><a href="<?= APP_URL ?>/ezd/sprawy/print.php?id=<?= $id ?>" class="dropdown-item" onclick="return confirm('Czy na pewno chcesz wydrukować ten dokument?')"><i class="bi bi-printer" aria-hidden="true"></i>Drukuj</a></li>
+          <?php if(!$mini): ?>
+          <li><a href="<?= APP_URL ?>/ezd/sprawy/metryka.php?id=<?= $id ?>" class="dropdown-item"><i class="bi bi-clipboard-check" aria-hidden="true"></i>Metryka koszulki</a></li>
+          <?php endif; ?>
+          <?php if($can_edit_case): ?>
+          <li><a href="<?= APP_URL ?>/ezd/sprawy/edit.php?id=<?= $id ?>" class="dropdown-item"><i class="bi bi-pencil" aria-hidden="true"></i>Edytuj metadane</a></li>
+          <li><a href="<?= APP_URL ?>/ezd/sprawy/przerejestruj.php?id=<?= $id ?>" class="dropdown-item"><i class="bi bi-stars" aria-hidden="true"></i>Przerejestruj (AI)</a></li>
+          <?php endif; ?>
+          <?php if($can_act): ?>
+          <li><hr class="dropdown-divider"></li>
+          <li><button type="button" class="dropdown-item sp-more-danger" data-bs-toggle="modal" data-bs-target="#zamknijModal"><i class="bi bi-lock" aria-hidden="true"></i>Zamknij koszulkę</button></li>
+          <?php endif; ?>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -658,18 +683,18 @@ $overdue = $sprawa['deadline'] && $sprawa['deadline'] < date('Y-m-d') && !$is_cl
       <span class="sp-akta-count">(<?= count($zalaczniki) ?>)</span>
     </div>
     <?php if($can_act): ?>
-    <div class="d-flex gap-2 flex-wrap">
+    <div class="sp-cmdbar">
       <?php if($zalaczniki): ?>
-      <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#przekazDokModal"><i class="bi bi-send-check me-1"></i>Przekaż</button>
-      <button id="qd-btn" class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#quickDispatchModal" disabled>
+      <button class="btn btn-sm sp-cmd" type="button" data-bs-toggle="modal" data-bs-target="#przekazDokModal"><i class="bi bi-send-check me-1"></i>Przekaż</button>
+      <button id="qd-btn" class="btn btn-sm sp-cmd" type="button" data-bs-toggle="modal" data-bs-target="#quickDispatchModal" disabled>
         <i class="bi bi-mailbox2 me-1"></i>Zarejestruj w wychodzących<span id="qd-count" class="badge bg-success ms-1 d-none">0</span>
       </button>
       <?php endif; ?>
-      <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
-      <a href="<?= APP_URL ?>/ezd/sprawy/spinacz.php?sprawa_id=<?= $id ?>" class="btn btn-sm btn-outline-info"><i class="bi bi-paperclip me-1"></i>Spinacz</a>
+      <button class="btn btn-sm sp-cmd" type="button" data-bs-toggle="collapse" data-bs-target="#new-grupa"><i class="bi bi-folder-plus me-1"></i>Nowa grupa</button>
+      <a href="<?= APP_URL ?>/ezd/sprawy/spinacz.php?sprawa_id=<?= $id ?>" class="btn btn-sm sp-cmd"><i class="bi bi-paperclip me-1"></i>Spinacz</a>
       <div class="dropdown">
         <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-          <i class="bi bi-plus-lg me-1"></i>DODAJ
+          <i class="bi bi-plus-lg me-1"></i>Dodaj
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
@@ -997,43 +1022,45 @@ document.querySelectorAll('.ezd-sign-req-btn').forEach(function(btn){
   <div class="tab-pane fade show active sp-tab-pane" id="tab-pisma">
     <?php if($can_create_pismo): ?>
     <div class="mb-3">
-      <div class="d-flex align-items-start gap-2 flex-wrap">
-        <!-- Quick-pick: kierunek × medium -->
-        <div class="d-flex flex-column gap-2">
-          <?php
-          $qk = ['przychodzace' => ['↓ Przychodzące','info'],
-                 'wychodzace'   => ['↑ Wychodzące','primary']];
-          $qm = ['papier'=>['bi-file-earmark-text','Papier'],
-                 'email' =>['bi-at','E-mail'],
-                 'epuap' =>['bi-mailbox2','eDoręczenia'],
-                 'faks'  =>['bi-printer','Faks']];
-          foreach($qk as $kv=>[$klabel,$kclass]): ?>
-          <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-<?= $kclass ?> text-nowrap fw-semibold" style="font-size:.72rem;min-width:100px;text-align:center"><?= $klabel ?></span>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Nowe pismo <?= $klabel ?>">
+      <div class="sp-cmdbar sp-cmdbar--start">
+        <!-- Quick-pick: kierunek × medium → pismoModal (.ezd-pm-pick, data-kierunek/data-medium) -->
+        <?php
+        $qk = ['przychodzace' => ['Przychodzące','bi-arrow-down'],
+               'wychodzace'   => ['Wychodzące','bi-arrow-up']];
+        $qm = ['papier'=>['bi-file-earmark-text','Papier'],
+               'email' =>['bi-at','E-mail'],
+               'epuap' =>['bi-mailbox2','eDoręczenia'],
+               'faks'  =>['bi-printer','Faks']];
+        ?>
+        <div class="dropdown">
+          <button type="button" class="btn btn-sm btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="menu">
+            <i class="bi bi-envelope-plus me-1" aria-hidden="true"></i>Zarejestruj pismo
+          </button>
+          <div class="dropdown-menu sp-pm-menu">
+            <?php foreach($qk as $kv=>[$klabel,$kicon]): ?>
+            <div class="sp-pm-col" role="group" aria-label="Nowe pismo — <?= $klabel ?>">
+              <div class="sp-pm-h"><i class="bi <?= $kicon ?>" aria-hidden="true"></i><?= $klabel ?></div>
               <?php foreach($qm as $mv=>[$micon,$mlabel]): ?>
-              <button type="button" class="btn btn-outline-secondary ezd-pm-pick"
+              <button type="button" class="dropdown-item ezd-pm-pick"
                       data-kierunek="<?= $kv ?>" data-medium="<?= $mv ?>"
                       title="<?= $klabel ?> · <?= $mlabel ?>">
-                <i class="bi <?= $micon ?>" aria-hidden="true"></i> <?= $mlabel ?>
+                <i class="bi <?= $micon ?>" aria-hidden="true"></i><?= $mlabel ?>
               </button>
               <?php endforeach; ?>
             </div>
+            <?php endforeach; ?>
           </div>
-          <?php endforeach; ?>
         </div>
         <!-- Notatka wewnętrzna -->
-        <button type="button" class="btn btn-sm btn-outline-secondary ezd-notatka-btn align-self-start">
+        <button type="button" class="btn btn-sm sp-cmd ezd-notatka-btn">
           <i class="bi bi-sticky me-1" aria-hidden="true"></i>Notatka
         </button>
         <!-- Generator pisma z szablonu -->
-        <a href="<?= APP_URL ?>/ezd/pisma/generator.php?sprawa_id=<?= $id ?>"
-           class="btn btn-sm btn-outline-primary align-self-start">
+        <a href="<?= APP_URL ?>/ezd/pisma/generator.php?sprawa_id=<?= $id ?>" class="btn btn-sm sp-cmd">
           <i class="bi bi-file-earmark-word me-1" aria-hidden="true"></i>Generuj DOCX
         </a>
         <!-- Import korespondencji e-mail do akt (pisma z crm_communications) -->
-        <a href="<?= APP_URL ?>/ezd/sprawy/import_mail.php?id=<?= $id ?>"
-           class="btn btn-sm btn-outline-primary align-self-start"
+        <a href="<?= APP_URL ?>/ezd/sprawy/import_mail.php?id=<?= $id ?>" class="btn btn-sm sp-cmd"
            title="Wybierz maile z dostępnych skrzynek i dołącz je do tej koszulki jako pisma">
           <i class="bi bi-envelope-arrow-down me-1" aria-hidden="true"></i>Importuj maile
         </a>
