@@ -381,6 +381,7 @@ body.crm-fullscreen .crm-content { max-width: 100%; }
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <?php /* Szata Metro UI jak System Tożsamości — ostatni blok stylów */ require_once __DIR__ . '/crm_metro.php'; ?>
+<?php /* Tabele nie ucinają kolumn */ require_once dirname(dirname(__DIR__)) . '/includes/table_overflow.php'; table_overflow_assets(); ?>
 </head>
 <body>
 

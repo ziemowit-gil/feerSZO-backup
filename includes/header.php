@@ -504,6 +504,8 @@ $__bg_subtle = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ezd/') || !empty($A
 app_bg_css($__bg_subtle ? '#EFF1F5' : '#E8EBF0', $__bg_subtle ? 'subtle' : 'normal');
 /* EZD: szata Metro UI jak System Tożsamości — ostatni blok stylów (wygrywa z motywem i tłem) */
 if ($_ezd_shell) require __DIR__ . '/ezd_metro.php';
+/* Tabele nie ucinają kolumn: przewijanie w poziomie + menu Bootstrapa „fixed” */
+require_once __DIR__ . '/table_overflow.php'; table_overflow_assets();
 ?>
 </head>
 <body>
