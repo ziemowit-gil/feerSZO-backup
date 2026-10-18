@@ -260,6 +260,17 @@ html body .ezd-main .mt-kicker{font-size:.72rem;font-weight:600;text-transform:u
 html body .ezd-main .mt-lead{font-size:.95rem;color:var(--em-muted);font-weight:300;margin:.5rem 0 0}
 html body .ezd-main .mt-group{background:var(--em-light);padding:1.1rem;margin-bottom:1rem}
 
+/* Szybkie akcje pulpitu (ezx-qa) — płaskie szare kafelki, ciemne po najechaniu */
+html body .ezd-main .ezx-qa{background:var(--em-light);border:0!important;color:var(--em-ink)}
+html body .ezd-main .ezx-qa:hover{background:var(--em-dark);color:#fff}
+html body .ezd-main .ezx-qa:hover .ezx-qa-ico{background:transparent!important;color:#fff!important}
+html body .ezd-main .ezx-qa-ico{background:transparent!important;font-size:1.4rem}
+html body .ezd-main .ezx-qa-lbl{font-size:.7rem}
+html body .ezd-main .ezx-qa-badge{background:var(--m-red);border:0!important}
+html body .ezd-main .ezx-kpi{border:1px solid var(--em-line)!important}
+html body .ezd-main .ezx-kpi-num{font-weight:300}
+html body .ezd-main .ezx-ico{background:var(--em-light)!important}
+
 /* ── Stopka ─────────────────────────────────────────────────────────── */
 html body .ezd-footer{background:#fff!important;border-top:1px solid var(--em-line)!important;color:var(--em-muted)}
 @media(prefers-reduced-motion:reduce){html body .ezd-main *{transition:none!important;animation:none!important}}

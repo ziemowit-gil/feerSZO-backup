@@ -409,36 +409,54 @@ include dirname(__DIR__) . '/includes/header.php';
 </form>
 
 <!-- ═══════════ KPI ═══════════ -->
-<div class="tw-grid tw-grid-cols-2 md:tw-grid-cols-3 2xl:tw-grid-cols-6 tw-gap-3 tw-mb-4" role="list" aria-label="Szybkie statystyki">
-  <button type="button" class="ezx-kpi" role="listitem" @click="go('dzialanie'); filter = 'all'">
-    <span class="ezx-eyebrow"><i class="bi bi-lightning-charge tw-text-amber-500" aria-hidden="true"></i> Do działania</span>
-    <span class="ezx-kpi-num"><?= $act_cnt['all'] ?></span>
-    <span class="ezx-muted"><?= $act_cnt['urgent'] ? '<span class="tw-text-rose-600 tw-font-semibold">' . $act_cnt['urgent'] . ' po terminie</span>' : 'wszystko w terminie' ?></span>
+<div class="mt-grid tw-mb-6" role="list" aria-label="Szybkie statystyki">
+  <button type="button" class="mt-tile" style="--c:#c25100" role="listitem" @click="go('dzialanie'); filter = 'all'">
+    <i class="bi bi-lightning-charge ic" aria-hidden="true"></i>
+    <span>
+      <span class="val"><?= $act_cnt['all'] ?></span>
+      <span class="lbl">Do działania</span>
+      <span class="sub"><?= $act_cnt['urgent'] ? '<span class="tw-text-rose-600 tw-font-semibold">' . $act_cnt['urgent'] . ' po terminie</span>' : 'wszystko w terminie' ?></span>
+    </span>
   </button>
-  <button type="button" class="ezx-kpi" role="listitem" @click="go('dzialanie'); filter = 'sign'">
-    <span class="ezx-eyebrow"><i class="bi bi-pen tw-text-amber-500" aria-hidden="true"></i> Do podpisu</span>
-    <span class="ezx-kpi-num"><?= count($my_sign_pending) ?></span>
-    <span class="ezx-muted">dokumentów czeka na Twój podpis</span>
+  <button type="button" class="mt-tile" style="--c:#a20025" role="listitem" @click="go('dzialanie'); filter = 'sign'">
+    <i class="bi bi-pen ic" aria-hidden="true"></i>
+    <span>
+      <span class="val"><?= count($my_sign_pending) ?></span>
+      <span class="lbl">Do podpisu</span>
+      <span class="sub">dokumentów czeka na Twój podpis</span>
+    </span>
   </button>
-  <button type="button" class="ezx-kpi" role="listitem" @click="go('dzialanie'); filter = 'confirm'">
-    <span class="ezx-eyebrow"><i class="bi bi-patch-check tw-text-emerald-500" aria-hidden="true"></i> Do potwierdzenia</span>
-    <span class="ezx-kpi-num"><?= count($my_sign_awaiting) ?></span>
-    <span class="ezx-muted">podpisanych wraca do Ciebie</span>
+  <button type="button" class="mt-tile" style="--c:#007a00" role="listitem" @click="go('dzialanie'); filter = 'confirm'">
+    <i class="bi bi-patch-check ic" aria-hidden="true"></i>
+    <span>
+      <span class="val"><?= count($my_sign_awaiting) ?></span>
+      <span class="lbl">Do potwierdzenia</span>
+      <span class="sub">podpisanych wraca do Ciebie</span>
+    </span>
   </button>
-  <button type="button" class="ezx-kpi" role="listitem" @click="go('wtoku'); sub = 'cases'">
-    <span class="ezx-eyebrow"><i class="bi bi-folder2-open tw-text-blue-500" aria-hidden="true"></i> Moje koszulki</span>
-    <span class="ezx-kpi-num"><?= $my_sprawy_cnt ?></span>
-    <span class="ezx-muted"><?= $my_sprawy_po_term_cnt ? '<span class="tw-text-rose-600 tw-font-semibold">' . $my_sprawy_po_term_cnt . ' po terminie</span> · ' : '' ?><?= $my_sprawy_ciagle_cnt ?> ciągłe</span>
+  <button type="button" class="mt-tile" style="--c:#0f6fa8" role="listitem" @click="go('wtoku'); sub = 'cases'">
+    <i class="bi bi-folder2-open ic" aria-hidden="true"></i>
+    <span>
+      <span class="val"><?= $my_sprawy_cnt ?></span>
+      <span class="lbl">Moje koszulki</span>
+      <span class="sub"><?= $my_sprawy_po_term_cnt ? '<span class="tw-text-rose-600 tw-font-semibold">' . $my_sprawy_po_term_cnt . ' po terminie</span> · ' : '' ?><?= $my_sprawy_ciagle_cnt ?> ciągłe</span>
+    </span>
   </button>
-  <button type="button" class="ezx-kpi" role="listitem" @click="go('wtoku'); sub = 'new'">
-    <span class="ezx-eyebrow"><i class="bi bi-envelope-arrow-down tw-text-sky-500" aria-hidden="true"></i> Nowe pisma</span>
-    <span class="ezx-kpi-num"><?= $nowe_pisma_jedn_cnt ?></span>
-    <span class="ezx-muted">przychodzące z 14 dni</span>
+  <button type="button" class="mt-tile" style="--c:#00807e" role="listitem" @click="go('wtoku'); sub = 'new'">
+    <i class="bi bi-envelope-arrow-down ic" aria-hidden="true"></i>
+    <span>
+      <span class="val"><?= $nowe_pisma_jedn_cnt ?></span>
+      <span class="lbl">Nowe pisma</span>
+      <span class="sub">przychodzące z 14 dni</span>
+    </span>
   </button>
-  <button type="button" class="ezx-kpi" role="listitem" @click="go('zakonczone')">
-    <span class="ezx-eyebrow"><i class="bi bi-check2-circle tw-text-emerald-500" aria-hidden="true"></i> Zakończone</span>
-    <span class="ezx-kpi-num"><?= $closed_cnt + $sign_cnt['potwierdzone'] ?></span>
-    <span class="ezx-muted"><?= $sign_cnt['potwierdzone'] ?> podpisanych<?= $sign_cnt['odrzucone'] ? ' · <span class="tw-text-rose-600 tw-font-semibold">' . $sign_cnt['odrzucone'] . ' odrzuc.</span>' : '' ?></span>
+  <button type="button" class="mt-tile" style="--c:#5f5f5f" role="listitem" @click="go('zakonczone')">
+    <i class="bi bi-check2-circle ic" aria-hidden="true"></i>
+    <span>
+      <span class="val"><?= $closed_cnt + $sign_cnt['potwierdzone'] ?></span>
+      <span class="lbl">Zakończone</span>
+      <span class="sub"><?= $sign_cnt['potwierdzone'] ?> podpisanych<?= $sign_cnt['odrzucone'] ? ' · <span class="tw-text-rose-600 tw-font-semibold">' . $sign_cnt['odrzucone'] . ' odrzuc.</span>' : '' ?></span>
+    </span>
   </button>
 </div>
 
