@@ -317,6 +317,42 @@ html body #content .cv-table th{color:var(--sm-muted);border-bottom:2px solid va
 html body #content .cv-table td{border-bottom-color:var(--sm-line)}
 html body #content .cv-value,html body #content .detail-value{color:var(--sm-dark)}
 
+/* ── Widok umowy: typowy układ Metro ─────────────────────────────────────────
+   Tytuł nad paskiem poleceń (app bar): płaskie przyciski bez ramek na szarym pasie,
+   rozwinięte menu w kolorze akcentu. Pivot: duże lekkie nagłówki bez ikon. */
+html body #content .contract-hero-top{flex-direction:column;align-items:stretch;gap:.9rem}
+html body #content .contract-hero-actions{order:2;gap:0;background:var(--sm-light);flex-wrap:wrap;align-items:stretch}
+html body #content .contract-hero-actions>*{display:flex}
+html body #content .contract-hero-actions .btn{height:40px;padding:0 1rem!important;border:0!important;background:transparent!important;
+  color:var(--sm-dark)!important;font-weight:400;font-size:.88rem;display:inline-flex;align-items:center;gap:.45rem}
+html body #content .contract-hero-actions .btn:hover,html body #content .contract-hero-actions .btn:focus-visible{background:var(--sm-light-h)!important}
+html body #content .contract-hero-actions .btn.show,html body #content .contract-hero-actions .btn[aria-expanded="true"]{background:var(--sm-acc)!important;color:#fff!important}
+html body #content .contract-hero-actions .btn.show .bi,html body #content .contract-hero-actions .btn[aria-expanded="true"] .bi{color:#fff!important}
+html body #content .contract-hero-actions .btn .bi{font-size:1rem}
+html body #content .contract-hero-actions .btn-outline-danger{color:var(--sm-red)!important}
+html body #content .contract-hero-actions .btn-outline-success .bi{color:var(--sm-green)}
+html body #content .contract-hero-actions .btn.disabled{opacity:.45}
+html body #content .contract-hero-actions>a:last-child,html body #content .contract-hero-actions>.btn:last-child{margin-left:auto}
+
+html body #content .cv-side-tabs .nav-link,html body #content #wolontariatTabs .nav-link{font-size:1.15rem;font-weight:300!important;padding:.45rem .9rem .5rem}
+html body #content .cv-side-tabs .nav-link>.bi:first-child,html body #content #wolontariatTabs .nav-link>.bi:first-child{display:none}
+html body #content .cv-side-tabs .nav-link.active,html body #content .cv-side-tabs .nav-link[aria-selected="true"],
+html body #content #wolontariatTabs .nav-link.active,html body #content #wolontariatTabs .nav-link[aria-selected="true"]{font-weight:400!important}
+html body #content #wolontariatTabs .cv-tab-all{margin-left:auto;display:flex}
+html body #content #wolontariatTabs .cv-tab-all .nav-link{font-size:.85rem;color:var(--sm-muted)!important}
+html body #content #wolontariatTabs .cv-tab-all .nav-link>.bi:first-child{display:inline-block}
+@media (max-width:860px){html body #content #wolontariatTabs{flex-wrap:nowrap;overflow-x:auto}}
+
+/* Znaczniki Bootstrapa w treści — pełne kolory Metro, biały tekst */
+html body #content .badge.bg-info,html body #content .badge.text-bg-info{background:var(--sm-blue)!important;color:#fff!important}
+html body #content .badge.bg-warning,html body #content .badge.text-bg-warning{background:var(--sm-orange)!important;color:#fff!important}
+html body #content .badge.bg-success,html body #content .badge.text-bg-success{background:var(--sm-green)!important;color:#fff!important}
+html body #content .badge.bg-danger,html body #content .badge.text-bg-danger{background:var(--sm-red)!important;color:#fff!important}
+html body #content .badge.bg-primary,html body #content .badge.text-bg-primary{background:var(--sm-acc)!important;color:#fff!important}
+html body #content .badge.bg-secondary,html body #content .badge.text-bg-secondary{background:var(--sm-muted)!important;color:#fff!important}
+html body #content .badge.bg-light{background:var(--sm-light)!important;color:var(--sm-dark)!important;border:0!important}
+html body #content .badge.bg-dark{background:var(--sm-dark)!important}
+
 /* Baner „Wyślij rachunek” i inne banery-alerty widoku umowy */
 html body #content .cv-banner{background:var(--sm-light);border:0;border-left:6px solid var(--sm-acc);padding:1rem 1.25rem}
 html body #content .cv-banner-ico{width:46px;height:46px;background:var(--sm-acc);color:#fff;font-size:1.4rem}

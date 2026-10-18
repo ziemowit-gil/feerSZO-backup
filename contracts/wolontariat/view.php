@@ -1020,7 +1020,7 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
     </a>
   </li>
   <?php endforeach; ?>
-  <li class="nav-item mt-2 pt-2 border-top" role="presentation">
+  <li class="nav-item cv-tab-all" role="presentation">
     <?php if ($_tab === 'all'): ?>
     <a class="nav-link text-secondary" href="<?= $_turl ?>umowa" title="Wróć do widoku zakładek">
       <i class="bi bi-layout-tabs"></i> Zakładki

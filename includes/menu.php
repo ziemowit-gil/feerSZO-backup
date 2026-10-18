@@ -161,6 +161,10 @@ function _menu_contract_icons(): array {
 /** Odfiltruj puste grupy (bez pozycji) i węzły bez treści. */
 function _menu_prune(array $nodes): array {
     $out = [];
+    /* Pozycja może siedzieć w kilku zakładkach (np. „Wolontariat” w Umowach i w Wolontariacie).
+       Gdy któraś zakładka jest aktywna jawnie, nie podświetlamy dodatkowo innych po pozycjach. */
+    $explicit = false;
+    foreach ($nodes as $n) if (!empty($n['active'])) { $explicit = true; break; }
     foreach ($nodes as $n) {
         if (!empty($n['path']) && empty($n['groups'])) { $out[] = $n; continue; } // zakładka-link
         $groups = [];
@@ -170,7 +174,7 @@ function _menu_prune(array $nodes): array {
         if (!$groups) continue;
         $n['groups'] = $groups;
         // aktywność zakładki = jawna lub dowolna aktywna pozycja
-        if (empty($n['active'])) {
+        if (empty($n['active']) && !$explicit) {
             foreach ($groups as $g) foreach ($g['items'] as $it) if (!empty($it['active'])) { $n['active'] = true; break 2; }
         }
         $out[] = $n;
