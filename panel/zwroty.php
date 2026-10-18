@@ -167,6 +167,7 @@ if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';
 } else {
     include dirname(__DIR__) . '/includes/header.php';
+    require_once __DIR__ . '/includes/pv_ui.php'; pv_ui_styles(); // style panelu (.tz-*, .pv-*) także pod powłoką SZO
 }
 ?>
 
