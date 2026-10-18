@@ -342,6 +342,9 @@ $type_icons = [
 $initials = implode('', array_map(fn($w) => mb_strtoupper(mb_substr($w, 0, 1)), array_slice(explode(' ', $user['name']), 0, 2)));
 
 $_is_volunteer_only = is_viewer() && !db_one("SELECT id FROM users WHERE id=? AND k30_consultant=1", [$user['id']]);
+// Pulpit METRO dla każdego, kto ma umowę (np. pracownik/edytor z umową wolontariatu) — powłoka zostaje
+// wg roli (panel współpracownika vs menu SZO); stary widok tylko dla kadry bez żadnej umowy.
+$_metro_home = $_is_volunteer_only || !empty($contracts);
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';
@@ -410,7 +413,8 @@ if (count($contracts) > 1 && (empty($_SESSION['panel_contract_chosen']) || isset
 <?php endif; ?>
 
 
-<?php if ($_is_volunteer_only): ?>
+<?php if ($_metro_home): ?>
+<?php if (!$_is_volunteer_only) { require_once __DIR__ . '/includes/pv_ui.php'; pv_ui_styles(); /* tokeny tz-* pod powłoką SZO */ } ?>
 <?php include __DIR__ . '/includes/pv_home.php'; /* pulpit METRO jak System Tożsamości: kafle + zakładki pivot */ ?>
 <?php else: ?>
 <?php /* ═══ STARY WIDOK DLA EDYTORÓW / ADMINÓW / k30_consultants ══════════ */ ?>
@@ -546,7 +550,7 @@ $_quip = $_admin_quips[abs(crc32($user['name'])) % count($_admin_quips)];
   <div class="col-6 col-sm-4 col-lg-2"><a href="<?= APP_URL ?>/panel/terminations.php" class="action-tile h-100"><?php if ($my_terms_pending): ?><span class="tile-badge badge rounded-pill bg-warning text-dark"><?= $my_terms_pending ?></span><?php endif; ?><i class="bi bi-file-earmark-x tile-icon text-danger"></i><div class="tile-count text-dark"><?= count($my_terms) ?></div><div class="tile-label">Rozwiązanie</div></a></div>
 </div>
 <?php endif; // $contracts (stary widok) ?>
-<?php endif; // $_is_volunteer_only — koniec bloku else ?>
+<?php endif; // $_metro_home — koniec bloku else (stary widok) ?>
 
 <!-- ── Zadania (gdy nie pokazano wyżej, np. widok edytora/admina) ──────────── -->
 <?php include __DIR__ . '/includes/pv_tasks_section.php'; ?>
@@ -555,7 +559,7 @@ $_quip = $_admin_quips[abs(crc32($user['name'])) % count($_admin_quips)];
 <?php include __DIR__ . '/includes/pv_pelnomocnictwa.php'; ?>
 
 <!-- ── Sekcje wspólne: u wolontariusza w zakładce „Narzędzia" (pv_home), tu tylko dla edytora/admina ── -->
-<?php if (!$_is_volunteer_only) include __DIR__ . '/includes/pv_extra_sections.php'; ?>
+<?php if (!$_metro_home) include __DIR__ . '/includes/pv_extra_sections.php'; ?>
 
 <!-- ── Modal wyboru umowy ─────────────────────────────────────────────────── -->
 <?php if (count($contracts) > 1): ?>
