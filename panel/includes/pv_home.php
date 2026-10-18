@@ -109,6 +109,22 @@ if (is_file($ROOT.'/panel/zgody.php')) $_pv_formal[] = ['href'=>APP_URL.'/panel/
 if (is_file($ROOT.'/panel/rodo.php')) $_pv_formal[] = ['href'=>APP_URL.'/panel/rodo.php','icon'=>'bi-shield-lock','label'=>'Twoje dane (RODO)','sub'=>'jak przetwarzamy dane'];
 if (module_enabled('terminations_enabled')) $_pv_formal[] = ['href'=>APP_URL.'/panel/terminations.php','icon'=>'bi-file-earmark-x','label'=>'Zakończ współpracę','sub'=>count($my_terms) ? 'wnioski złożone' : 'wniosek o rozwiązanie','badge'=>$my_terms_pending];
 
+/* ── Kafel Start „Godziny i rozliczenia” (umowa zlecenie: saldo z ewidencji) ── */
+$_pv_zl = null;
+foreach ($contracts ?? [] as $_c) {
+    if (($_c['contract_type'] ?? '') !== 'zlecenie') continue;
+    if (!$_pv_zl || (($_active_contract['contract_type'] ?? '') === 'zlecenie' && (int)$_c['id'] === (int)($_active_contract['id'] ?? 0))) $_pv_zl = $_c;
+}
+$_pv_zl_saldo = null;
+if ($_pv_zl) {
+    try {
+        require_once $ROOT . '/includes/zlecenie_rachunki.php';
+        $_zl_row = db_one("SELECT * FROM umowy_zlecenie WHERE id=? AND status NOT IN ('anulowana','rozwiązana')", [(int)$_pv_zl['id']]);
+        if ($_zl_row) $_pv_zl_saldo = (float)(zl_rozl_ledger($_zl_row)['suma']['pozostalo'] ?? 0);
+        else $_pv_zl = null;
+    } catch (\Throwable $e) { $_pv_zl_saldo = null; }
+}
+
 /* ── Narzędzia codzienne (kafelki zakładki 2) ────────────────────────────── */
 $_pv_daily = [];
 if (panel_visible('asystent') && function_exists('asai_enabled') && asai_enabled())
@@ -342,6 +358,14 @@ panelMetroAssets($_vol_color);
     <?php
     panelMetroTile(['href'=>APP_URL.'/panel/apply.php','go'=>'sprawy','icon'=>'bi-inboxes','label'=>'Sprawy w toku','val'=>(string)$_pending_total,
                     'sub'=>$_pending_total ? 'czeka na odpowiedź' : 'wnioski, zaświadczenia','color'=>$_pending_total ? 'orange' : 'teal']);
+    if ($_pv_zl) {
+        $_zl_s = $_pv_zl_saldo;
+        panelMetroTile(['href'=>APP_URL.'/panel/rozliczenia_zlecenie.php?id='.(int)$_pv_zl['id'],'icon'=>'bi-calculator','label'=>'Godziny i rozliczenia',
+                        'val'=>$_zl_s !== null ? money($_zl_s) : '',
+                        'sub'=>$_zl_s === null ? 'ewidencja godzin i saldo umowy zlecenie'
+                              : ($_zl_s > 0.004 ? 'pozostało do rozliczenia' : ($_zl_s < -0.004 ? 'nadpłata' : 'wszystko rozliczone')),
+                        'color'=>$_zl_s === null ? 'blue' : ($_zl_s > 0.004 ? 'orange' : ($_zl_s < -0.004 ? 'red' : 'green')),'size'=>'w']);
+    }
     if ($_pv_peln) {
         panelMetroTile(['href'=>'#pelnomocnictwa','go'=>'pelnomocnictwa','icon'=>'bi-person-badge','label'=>'Pełnomocnictwa',
                         'val'=>(string)count($_pv_peln),'sub'=>'ważne, udzielone Tobie','color'=>'indigo']);
