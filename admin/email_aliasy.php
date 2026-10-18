@@ -10,6 +10,7 @@ require_once dirname(__DIR__) . '/includes/auth.php';
 require_once dirname(__DIR__) . '/includes/functions.php';
 require_once dirname(__DIR__) . '/includes/m365.php';
 require_once dirname(__DIR__) . '/includes/email_alias.php';
+require_once dirname(__DIR__) . '/modules/mail_alias/logic/mailAlias.php';
 email_alias_migrate();
 
 require_login();
@@ -19,6 +20,35 @@ if (!hd_is_operator()) {
 }
 
 $me = current_user();
+
+$wizard_link = APP_URL . '/modules/stopka/index.php#h-wz';
+
+// ── Bezpośrednie nadawanie / usuwanie aliasu (Exchange Online) ──────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['_action'] ?? '', ['alias_add', 'alias_remove'], true)) {
+    csrf_check();
+    $mb_id = trim((string)($_POST['mb'] ?? ''));
+    try {
+        if ($mb_id === '') throw new InvalidArgumentException('Podaj skrzynkę.');
+        if ($_POST['_action'] === 'alias_add') {
+            $addr = trim((string)($_POST['alias_local'] ?? '')) . '@' . trim((string)($_POST['alias_domain'] ?? ''));
+            $mbx  = mailAliasAdd($mb_id, $addr);
+            $msg  = 'Dodano alias ' . strtolower($addr) . ' do skrzynki ' . $mbx['identity'] . '.';
+        } else {
+            $addr = (string)($_POST['alias'] ?? '');
+            $mbx  = mailAliasRemove($mb_id, $addr);
+            $msg  = 'Usunięto alias ' . strtolower($addr) . ' ze skrzynki ' . $mbx['identity'] . '.';
+        }
+        $target = db_one("SELECT id FROM users WHERE lower(COALESCE(NULLIF(m365_login,''), email))=?", [strtolower($mbx['identity'])]);
+        if (function_exists('log_user_action')) {
+            log_user_action((int)($target['id'] ?? 0), (int)$me['id'], 'mail_' . $_POST['_action'], $msg);
+        }
+        flash_set('success', $msg);
+    } catch (\Throwable $e) {
+        flash_set('danger', 'Exchange: ' . $e->getMessage()
+            . ' — jeśli to problem z uprawnieniami, użyj kreatora konfiguracji Exchange (link w sekcji „Nadaj alias”).');
+    }
+    header('Location: ' . APP_URL . '/admin/email_aliasy.php?mb=' . urlencode($mb_id) . '#nadaj'); exit;
+}
 
 // ── Obsługa decyzji ─────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -49,10 +79,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$enabled || !$tenant_id || !$client_id || !$client_secret) {
             flash_set('danger', 'Integracja Microsoft 365 nie jest skonfigurowana.');
-        } elseif (empty($req['m365_user_id'])) {
-            flash_set('danger', 'Wniosek nie ma powiązanego konta M365 (brak m365_user_id).');
+        } elseif (empty($req['m365_user_id']) && empty($req['m365_login'])) {
+            flash_set('danger', 'Wniosek nie ma powiązanego konta M365 (brak m365_user_id i loginu).');
         } else {
-            try {
+            // Exchange Online (Set-Mailbox) — jedyna droga dla skrzynek; Graph proxyAddresses tylko gdy Exchange niedostępny
+            $exo_ok = true;
+            try { stopkaExToken(); } catch (\Throwable $e) { $exo_ok = false; }
+            if ($exo_ok) {
+                try {
+                    mailAliasAdd($req['m365_login'] ?: $req['m365_user_id'], $req['requested_alias']);
+                    db()->prepare(
+                        "UPDATE email_alias_requests
+                         SET status='zatwierdzony', decided_by=?, decided_at=CURRENT_TIMESTAMP,
+                             decision_note=?, applied_at=CURRENT_TIMESTAMP, graph_error=NULL
+                         WHERE id=?"
+                    )->execute([(int)$me['id'], $note ?: null, $req_id]);
+                    _ealias_close_ticket((int)$req['ticket_id'], 'rozwiązane',
+                        "Alias {$req['requested_alias']} został ustawiony w Exchange Online. "
+                        . "Wiadomości na ten adres będą trafiać do skrzynki.");
+                    flash_set('success', 'Alias ustawiony w Exchange Online. Zgłoszenie oznaczone jako rozwiązane.');
+                } catch (\Throwable $e) {
+                    db()->prepare("UPDATE email_alias_requests SET status='błąd', graph_error=? WHERE id=?")
+                        ->execute([mb_substr('Exchange: ' . $e->getMessage(), 0, 500), $req_id]);
+                    flash_set('danger', 'Błąd Exchange: ' . $e->getMessage());
+                }
+            } else try {
                 $m365 = new M365Graph([
                     'tenant_id'     => $tenant_id,
                     'client_id'     => $client_id,
@@ -138,6 +189,19 @@ foreach (db_all("SELECT status, COUNT(*) AS c FROM email_alias_requests GROUP BY
     $counts[''] += (int)$row['c'];
 }
 
+// ── Nadaj alias: odczyt skrzynki (tylko gdy podano ?mb=) ────────────────────────
+$mb_q = trim((string)($_GET['mb'] ?? ''));
+$mbx = null; $mbx_err = null; $mb_domains = [];
+if ($mb_q !== '') {
+    try {
+        $mbx = mailAliasMailbox($mb_q);
+        $mb_domains = mailAliasDomains();
+    } catch (\Throwable $e) {
+        $mbx_err = $e->getMessage();
+    }
+}
+$known_mailboxes = mailAliasKnownMailboxes();
+
 $PAGE_TITLE = 'Aliasy e-mail';
 include dirname(__DIR__) . '/includes/header.php';
 ?>
@@ -147,6 +211,94 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <?= flash_html() ?>
+
+<!-- Nadaj alias bezpośrednio (Exchange Online) -->
+<div class="card shadow-sm mb-4" id="nadaj">
+  <div class="card-body">
+    <h5 class="card-title mb-1"><i class="bi bi-plus-circle text-primary"></i> Nadaj alias</h5>
+    <p class="small text-muted mb-3">Dodaje lub usuwa dodatkowy adres skrzynki w Exchange Online — bez wniosku.
+      Adres główny i login się nie zmieniają. Problem z uprawnieniami?
+      <a href="<?= h($wizard_link) ?>">Kreator konfiguracji Exchange</a>.</p>
+
+    <form method="get" class="row g-2 align-items-end mb-3" role="search">
+      <div class="col-sm-8 col-lg-6">
+        <label for="mb" class="form-label small mb-1">Skrzynka (login M365 lub adres e-mail)</label>
+        <input type="text" id="mb" name="mb" class="form-control" list="mb_list" value="<?= h($mb_q) ?>"
+               placeholder="jan.kowalski@feer.org.pl" autocomplete="off" required>
+        <datalist id="mb_list">
+          <?php foreach ($known_mailboxes as $km): ?>
+          <option value="<?= h($km['login']) ?>"><?= h($km['name']) ?></option>
+          <?php endforeach; ?>
+        </datalist>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-outline-primary"><i class="bi bi-search me-1" aria-hidden="true"></i>Pokaż adresy</button>
+      </div>
+    </form>
+
+    <?php if ($mbx_err): ?>
+    <div class="alert alert-danger small mb-0" role="alert">
+      <i class="bi bi-x-circle me-1" aria-hidden="true"></i><?= h($mbx_err) ?>
+      — <a href="<?= h($wizard_link) ?>" class="alert-link">Kreator konfiguracji Exchange</a>
+    </div>
+    <?php elseif ($mbx): ?>
+    <div class="border rounded p-3">
+      <div class="mb-2"><strong><?= h($mbx['name'] ?: $mbx['identity']) ?></strong>
+        <span class="text-muted small">(<?= h($mbx['identity']) ?>)</span></div>
+      <ul class="list-unstyled mb-3">
+        <li class="d-flex align-items-center gap-2 py-1">
+          <span class="font-monospace"><?= h($mbx['primary']) ?></span>
+          <span class="badge bg-primary">adres główny</span>
+        </li>
+        <?php foreach ($mbx['aliases'] as $al): ?>
+        <li class="d-flex align-items-center gap-2 py-1 border-top">
+          <span class="font-monospace flex-grow-1"><?= h($al) ?></span>
+          <form method="post" class="m-0">
+            <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="_action" value="alias_remove">
+            <input type="hidden" name="mb" value="<?= h($mbx['identity']) ?>">
+            <input type="hidden" name="alias" value="<?= h($al) ?>">
+            <button class="btn btn-sm btn-outline-danger" aria-label="Usuń alias <?= h($al) ?>"
+                    onclick="return confirm('Usunąć alias <?= h($al) ?>? Poczta na ten adres przestanie dochodzić.')">
+              <i class="bi bi-trash me-1" aria-hidden="true"></i>Usuń
+            </button>
+          </form>
+        </li>
+        <?php endforeach; ?>
+        <?php if (!$mbx['aliases']): ?>
+        <li class="small text-muted py-1 border-top">Brak aliasów.</li>
+        <?php endif; ?>
+      </ul>
+
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="alias_add">
+        <input type="hidden" name="mb" value="<?= h($mbx['identity']) ?>">
+        <div class="col-sm-7 col-lg-5">
+          <label for="alias_local" class="form-label small mb-1">Nowy alias</label>
+          <div class="input-group">
+            <input type="text" id="alias_local" name="alias_local" class="form-control" required
+                   pattern="[a-z0-9]([a-z0-9._\-]{0,62}[a-z0-9])?" placeholder="kasia" autocomplete="off"
+                   aria-describedby="alias_local_help">
+            <span class="input-group-text">@</span>
+            <select name="alias_domain" class="form-select" aria-label="Domena">
+              <?php foreach ($mb_domains as $dom): ?>
+              <option value="<?= h($dom) ?>"><?= h($dom) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div id="alias_local_help" class="form-text">Małe litery, cyfry, kropka, myślnik, podkreślenie.</div>
+        </div>
+        <div class="col-auto mb-4">
+          <button class="btn btn-primary"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Dodaj alias</button>
+        </div>
+      </form>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+
+<h5 class="mb-2">Wnioski</h5>
 
 <!-- Filtry -->
 <div class="mb-3 d-flex gap-2 flex-wrap">
