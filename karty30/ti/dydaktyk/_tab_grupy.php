@@ -54,9 +54,10 @@ $gr_inactive = array_filter($gr_all_courses, fn($c) =>  empty($c['is_active']) |
 $_dow = ['Mon'=>'Pn','Tue'=>'Wt','Wed'=>'Śr','Thu'=>'Cz','Fri'=>'Pt','Sat'=>'Sb','Sun'=>'Nd'];
 ?>
 
-<section aria-label="Przegląd grup" class="dyd-gr-wrap">
+<section aria-label="Przegląd grup" class="dyd-gr-wrap<?= $gr_view === 'tabela' ? ' dyd-gr-wrap--wide' : '' ?>">
 <style>
 .dyd-gr-wrap { padding: 1.1rem 0 2.5rem; max-width: 960px; }
+.dyd-gr-wrap--wide { max-width: none; }
 
 /* Pasek nad listą */
 .dyd-gr-toolbar {
