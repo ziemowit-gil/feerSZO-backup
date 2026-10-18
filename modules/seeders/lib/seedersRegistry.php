@@ -43,6 +43,16 @@ function seedersRegistry(): array
                 ['id' => 'delete', 'label' => 'Usuń',        'kind' => 'danger',  'args' => ['delete'], 'use' => ['domain']],
             ],
         ],
+        'dok_dydaktyk' => [
+            'group' => 'Konta testowe', 'title' => 'Dydaktyk + zleceniobiorca do dokumentacji', 'script' => 'seedDokumentacjaDydaktyk.php',
+            'desc'  => '„Anna Przykładowa” — dydaktyk w panelu TI i jednocześnie osoba na umowie zlecenie DOK/TEST/1 (w realizacji), z kartą w rejestrze Osób i „Kursem przykładowym (DOK)”. Dane fikcyjne, bez SMS i e-maili. Do zrzutów ekranu.',
+            'fields'  => ['password' => $pw, 'domain' => $dom],
+            'actions' => [
+                ['id' => 'status', 'label' => 'Stan',  'kind' => 'preview', 'args' => ['status'], 'use' => ['domain']],
+                ['id' => 'create', 'label' => 'Załóż', 'kind' => 'apply',   'args' => ['create'], 'use' => ['password', 'domain'], 'req' => ['password']],
+                ['id' => 'delete', 'label' => 'Usuń dane', 'kind' => 'danger', 'args' => ['delete'], 'use' => ['domain']],
+            ],
+        ],
         'edok_kontrahent' => [
             'group' => 'Konta testowe', 'title' => 'Kontrahent Portalu Kontrahenta (EODoK)', 'script' => 'seed_edok_kontrahent_test.php',
             'desc'  => 'Kontrahent testowy z aktywnym kontem (NIP + e-mail) i kilka dokumentów EODoK w różnych stanach.',
