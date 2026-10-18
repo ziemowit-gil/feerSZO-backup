@@ -179,50 +179,65 @@ try {
 } catch (\Throwable $e) {}
 ?>
 <style>
+/* Szata Metro: płasko, zero zaokrągleń/cieni/gradientów, akcent grupy menu (--sm-acc) */
+.hd-new-wrap { --hdn-acc: var(--sm-acc, var(--hd-accent)); --hdn-acc-d: var(--sm-acc-d, var(--hd-accent)); --hdn-acc-50: var(--sm-acc-50, var(--hd-accent-l)); }
 .hd-new-hero {
-  display: flex; align-items: center; gap: 1rem;
-  padding: 1.1rem 1.25rem; border-radius: 12px; margin-bottom: 1.5rem;
-  background: linear-gradient(120deg, var(--hd-accent) 0%, #7c3aed 100%); color: #fff;
-  box-shadow: 0 4px 24px rgba(79,70,229,.25);
+  display: flex; align-items: stretch; margin-bottom: 1.5rem;
+  background: var(--hdn-acc); color: #fff; min-height: 72px;
 }
+.hd-new-hero-back {
+  display: flex; align-items: center; justify-content: center; width: 56px; flex-shrink: 0;
+  color: #fff; text-decoration: none; font-size: 1.2rem; background: rgba(0,0,0,.12);
+}
+.hd-new-hero-back:hover { background: var(--hdn-acc-d); color: #fff; }
 .hd-new-hero-icon {
-  width: 46px; height: 46px; border-radius: 50%;
-  background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center;
-  font-size: 1.35rem; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; width: 72px; flex-shrink: 0;
+  font-size: 1.9rem;
 }
-.hd-new-card {
-  background: var(--hd-panel); border: 1px solid var(--hd-bd); border-radius: 12px;
-  box-shadow: var(--hd-shadow);
-}
-.hd-new-card-body { padding: 1.25rem 1.4rem; }
+.hd-new-hero-text { display: flex; flex-direction: column; justify-content: center; padding: .6rem 1.25rem .6rem 0; }
+.hd-new-hero-title { font-weight: 300; font-size: 1.6rem; line-height: 1.15; letter-spacing: -.01em; }
+.hd-new-hero-sub { font-size: .85rem; opacity: .9; }
+.hd-new-card { background: #fff; border: 1px solid var(--sm-line, var(--hd-bd)); }
+.hd-new-card-body { padding: 1.4rem 1.5rem; }
+.hd-new-wrap .form-control, .hd-new-wrap .form-select, .hd-new-wrap .btn { border-radius: 0; }
+.hd-new-wrap .form-control, .hd-new-wrap .form-select { border: 2px solid var(--sm-field, var(--hd-bd)); }
+.hd-new-wrap .form-control:focus, .hd-new-wrap .form-select:focus { border-color: var(--hdn-acc); box-shadow: none; }
 .hd-new-sec-head {
   font-size: .75rem; text-transform: uppercase; letter-spacing: .07em;
-  color: var(--hd-tx3); font-weight: 700; margin-bottom: .65rem;
+  color: var(--sm-muted, var(--hd-tx3)); font-weight: 700; margin-bottom: .65rem;
 }
 .hd-pri-btn {
   display: inline-flex; align-items: center; gap: .3rem;
-  padding: .32rem .75rem; border-radius: 8px; border: 1.5px solid var(--hd-bd);
-  font-size: .8rem; cursor: pointer; background: var(--hd-panel); color: var(--hd-tx2);
-  transition: all .12s; user-select: none;
+  padding: .38rem .85rem; border: 2px solid var(--sm-line, var(--hd-bd));
+  font-size: .82rem; cursor: pointer; background: var(--sm-light, var(--hd-panel)); color: var(--sm-ink, var(--hd-tx2));
+  user-select: none;
 }
-.hd-pri-btn.active-pri { border-color: var(--hd-accent); background: var(--hd-accent-l); color: var(--hd-accent); font-weight: 600; }
-.hd-info-card {
-  background: var(--hd-panel); border: 1px solid var(--hd-bd); border-radius: 10px;
-  overflow: hidden; margin-bottom: .75rem;
+.hd-pri-btn:hover { background: var(--sm-light-h, var(--hd-bg)); }
+.hd-pri-btn.active-pri { border-color: var(--hdn-acc); background: var(--hdn-acc); color: #fff; font-weight: 600; }
+.hd-pri-btn:focus-within { outline: 3px solid #fbbf24; outline-offset: 2px; }
+.hd-new-submit, .hd-new-submit:hover, .hd-new-submit:focus { background: var(--hdn-acc); border: 2px solid var(--hdn-acc); color: #fff; }
+.hd-new-submit:hover { background: var(--hdn-acc-d); border-color: var(--hdn-acc-d); }
+.hd-new-cancel { border: 2px solid var(--sm-field, #6c757d); color: var(--sm-ink, #212529); background: transparent; }
+.hd-new-cancel:hover { background: var(--sm-light-h, #e9ecef); color: var(--sm-ink, #212529); }
+.hd-info-card { background: var(--sm-light, var(--hd-panel)); margin-bottom: .75rem; }
+.hd-info-card-head {
+  padding: .6rem .9rem; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--sm-ink, var(--hd-tx1)); border-bottom: 3px solid var(--hdn-acc);
 }
-.hd-info-card-head { padding: .5rem .85rem; font-size: .78rem; font-weight: 700; background: var(--hd-bg); border-bottom: 1px solid var(--hd-bd-l); }
-.hd-info-card-body { padding: .7rem .85rem; font-size: .8rem; }
+.hd-info-card-body { padding: .75rem .9rem; font-size: .82rem; }
+.hd-info-card .badge { border-radius: 0; }
 </style>
 
+<div class="hd-new-wrap">
 <!-- Hero -->
 <div class="hd-new-hero">
-  <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:none" aria-label="Wróć do konsoli">
-    <i class="bi bi-arrow-left"></i>
+  <a href="<?= APP_URL ?>/helpdesk/index.php" class="hd-new-hero-back" aria-label="Wróć do konsoli">
+    <i class="bi bi-arrow-left" aria-hidden="true"></i>
   </a>
-  <div class="hd-new-hero-icon"><i class="bi bi-plus-circle"></i></div>
-  <div>
-    <div style="font-weight:800;font-size:1.05rem">Nowe zgłoszenie IT</div>
-    <div style="font-size:.82rem;opacity:.8">Opisz problem — zajmiemy się nim zgodnie z priorytetem SLA.</div>
+  <div class="hd-new-hero-icon" aria-hidden="true"><i class="bi bi-headset"></i></div>
+  <div class="hd-new-hero-text">
+    <h1 class="hd-new-hero-title m-0">Nowe zgłoszenie IT</h1>
+    <div class="hd-new-hero-sub">Opisz problem — zajmiemy się nim zgodnie z priorytetem SLA.</div>
   </div>
 </div>
 
@@ -306,10 +321,10 @@ try {
       </div>
 
       <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary px-4" style="background:var(--hd-accent);border-color:var(--hd-accent)">
+        <button type="submit" class="btn hd-new-submit px-4">
           <i class="bi bi-send-fill me-1"></i>Wyślij zgłoszenie
         </button>
-        <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn btn-outline-secondary">Anuluj</a>
+        <a href="<?= APP_URL ?>/helpdesk/index.php" class="btn hd-new-cancel">Anuluj</a>
       </div>
     </form>
   </div>
@@ -318,7 +333,7 @@ try {
 </div><!-- /col-8 -->
 <div class="col-lg-4">
   <div class="hd-info-card">
-    <div class="hd-info-card-head"><i class="bi bi-info-circle me-1" style="color:var(--hd-accent)"></i>Jak opisać problem?</div>
+    <div class="hd-info-card-head"><i class="bi bi-info-circle me-1" style="color:var(--hdn-acc)"></i>Jak opisać problem?</div>
     <div class="hd-info-card-body">
       <ul class="ps-3 mb-0" style="line-height:1.9;color:var(--hd-tx2)">
         <li>Co dokładnie próbowałeś/aś zrobić?</li>
@@ -330,7 +345,7 @@ try {
     </div>
   </div>
   <div class="hd-info-card">
-    <div class="hd-info-card-head"><i class="bi bi-speedometer2 me-1" style="color:#f59e0b"></i>Priorytety SLA</div>
+    <div class="hd-info-card-head"><i class="bi bi-speedometer2 me-1" style="color:var(--hdn-acc)"></i>Priorytety SLA</div>
     <div class="hd-info-card-body p-0">
       <?php foreach (HD_PRIORITIES as $k => $p): ?>
       <div class="d-flex align-items-start gap-2 px-3 py-2" style="border-bottom:1px solid var(--hd-bd-l)">
@@ -356,6 +371,7 @@ try {
   </div>
 </div>
 </div>
+</div><!-- /hd-new-wrap -->
 
 <script>
 document.querySelectorAll('.hd-pri-radio').forEach(function(r) {
