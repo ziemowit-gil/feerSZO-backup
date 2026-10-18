@@ -17,6 +17,36 @@
 /** Jednorazowo wstrzykuje wspólny system stylów (wywoływane przez pv_page_header). */
 function pv_ui_styles(): void {
     require_once __DIR__ . '/pv_styles.php';   // require_once => emisja <style> raz na żądanie
+    pv_ui_metro_szo();
+}
+
+/**
+ * Warstwa METRO (pv_metro.php) także pod powłoką SZO — dla osób, które oglądają podstrony
+ * panelu w ramce SZO (konsultanci TI, personel). pv_metro.php zakotwicza reguły treści
+ * w #pv-main (tylko ramka panelu), więc tu bierzemy z niego tokeny (:root) i reguły treści,
+ * podmieniamy zakres na .pv-wrap (opakowanie treści podstron) i emitujemy raz.
+ * Pod ramką panelu (header_panel.php już załadował pv_metro.php) — nic nie robi.
+ */
+function pv_ui_metro_szo(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $file = __DIR__ . '/pv_metro.php';
+    if (!is_file($file) || in_array(realpath($file), get_included_files(), true)) return;
+    $css = (string)file_get_contents($file);
+    if (!preg_match('~<style>(.*)</style>~s', $css, $m)) return;
+    $css = preg_replace('~/\*.*?\*/~s', '', $m[1]);
+    // Podział na reguły najwyższego poziomu (z uwzględnieniem zagnieżdżonych @media).
+    $out = []; $depth = 0; $buf = '';
+    foreach (str_split($css) as $ch) {
+        $buf .= $ch;
+        if ($ch === '{') $depth++;
+        elseif ($ch === '}' && --$depth === 0) { $out[] = trim($buf); $buf = ''; }
+    }
+    $keep = array_filter($out, fn($r) => str_starts_with($r, ':root')
+        || str_starts_with($r, '@media(prefers-color-scheme') || str_contains($r, 'pv-main'));
+    $scoped = str_replace(['#pv-main.container', ':where(#pv-main)', '#pv-main'], ['.pv-wrap', ':where(.pv-wrap)', '.pv-wrap'], implode("\n", $keep));
+    echo "<style>/* pv_metro.php → powłoka SZO (pv_ui_metro_szo) */\n" . $scoped . "\n</style>\n";
 }
 
 /**
