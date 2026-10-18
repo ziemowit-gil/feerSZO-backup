@@ -232,7 +232,7 @@ $_skin_css = __DIR__ . '/../assets/ti_skin.css';
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button></div>
   </div></div>
 </div>
-<div class="sc-toast" id="scToast" role="status" aria-live="polite"></div>
+<div class="sc-toast" id="scToast" role="status" aria-live="polite" aria-label="Powiadomienie"></div>
 
 <script>
 (() => {

@@ -2521,6 +2521,9 @@ document.querySelectorAll('[data-bs-target="#pismoFromZalModal"]').forEach(funct
     var t = document.createElement('div');
     t.className = 'position-fixed bottom-0 end-0 m-3 alert alert-' + (ok ? 'success' : 'danger') + ' py-2 px-3 shadow';
     t.style.cssText = 'font-size:.82rem;z-index:9999;max-width:280px';
+    t.setAttribute('role', ok ? 'status' : 'alert');
+    t.setAttribute('aria-live', ok ? 'polite' : 'assertive');
+    t.setAttribute('aria-label', ok ? 'Powiadomienie: Gotowe' : 'Powiadomienie: Błąd');
     t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(function() { t.remove(); }, 3000);

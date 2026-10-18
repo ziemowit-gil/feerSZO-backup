@@ -164,7 +164,7 @@ function d_icon(string $name): string
 </section>
 <?php endif; ?>
 
-<div class="d-toast" id="dToast" role="status" aria-live="polite"></div>
+<div class="d-toast" id="dToast" role="status" aria-live="polite" aria-label="Powiadomienie"></div>
 
 <script>
 window.D_CFG = {

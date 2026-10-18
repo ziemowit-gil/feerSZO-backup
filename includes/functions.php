@@ -269,6 +269,8 @@ function flash_html(): string {
     $title = $cfg['title'];
     $delay = $cfg['delay'];
     $live  = $cfg['live'];
+    // role="alert" zawsze działa jak assertive — dla zwykłych komunikatów status, żeby nie przerywać czytnika
+    $role  = $live === 'assertive' ? 'alert' : 'status';
     $close = "var t=document.getElementById('_flash_toast');if(t)t.classList.add('is-out');setTimeout(function(){var w=document.getElementById('_flash_wrap');if(w&&w.parentNode)w.remove();},220);";
     // Auto-zamykanie wstrzymane, gdy kursor/fokus jest na powiadomieniu (WCAG 2.2.1).
     $autodismiss = $delay > 0
@@ -278,7 +280,7 @@ function flash_html(): string {
         : '';
     $barHtml = $delay > 0 ? '<span class="_flash_bar" aria-hidden="true"></span>' : '';
     return <<<HTML
-<div id="_flash_wrap" role="alert" aria-live="{$live}" aria-atomic="true">
+<div id="_flash_wrap" role="{$role}" aria-live="{$live}" aria-atomic="true" aria-label="Powiadomienie: {$title}">
   <div id="_flash_toast" style="--fl-bg:{$bg}">
     <span class="_flash_ico" aria-hidden="true"><i class="bi {$icon}"></i></span>
     <div class="_flash_txt"><span class="_flash_ttl">{$title}</span><span class="_flash_msg">{$msg}</span></div>

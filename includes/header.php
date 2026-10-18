@@ -1831,6 +1831,11 @@ function ajaxToast(msg, type) {
   var t = document.createElement('div');
   t.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;padding:.75rem 1.1rem;border-radius:10px;font-size:.85rem;font-weight:600;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.18);animation:_toastIn .2s ease;max-width:300px';
   t.style.background = (type === 'success') ? '#16a34a' : '#dc2626';
+  // czytnik ekranu: błąd od razu (alert), sukces grzecznie (status); nazwa = rodzaj powiadomienia
+  t.setAttribute('role', type === 'success' ? 'status' : 'alert');
+  t.setAttribute('aria-live', type === 'success' ? 'polite' : 'assertive');
+  t.setAttribute('aria-atomic', 'true');
+  t.setAttribute('aria-label', type === 'success' ? 'Powiadomienie: Gotowe' : 'Powiadomienie: Błąd');
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(function() {

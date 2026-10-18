@@ -433,7 +433,7 @@ function formFieldsAttach(string $type, string $formSelector = 'form[x-data^="ta
     opts = opts || {};
     var hasReq = m.req.length > 0;
     var html = '<div class="ff-hd"><span><i class="bi bi-clipboard-check"></i> ' + (hasReq ? 'Brakuje wymaganych pól' : 'Warto uzupełnić') + '</span>'
-             + '<button type="button" class="ff-x" aria-label="Zamknij">&times;</button></div>';
+             + '<button type="button" class="ff-x" aria-label="Zamknij powiadomienie">&times;</button></div>';
     m.req.forEach(function (x) { html += '<div class="ff-row"><i class="bi bi-exclamation-circle-fill" style="color:#dc2626"></i><span><strong>' + x.label + '</strong> — pole wymagane</span></div>'; });
     m.rec.forEach(function (x) { html += '<div class="ff-row"><i class="bi bi-exclamation-triangle-fill" style="color:#d97706"></i><span>' + x.label + ' — zalecane do uzupełnienia</span></div>'; });
     html += '<div class="ff-ft">';
@@ -446,7 +446,8 @@ function formFieldsAttach(string $type, string $formSelector = 'form[x-data^="ta
     }
     html += '</div>';
     var t = document.createElement('div');
-    t.id = 'ff-toast'; t.className = 'ff-toast' + (hasReq ? ' ff-toast--req' : ''); t.setAttribute('role', 'status');
+    t.id = 'ff-toast'; t.className = 'ff-toast' + (hasReq ? ' ff-toast--req' : ''); t.setAttribute('role', hasReq ? 'alert' : 'status');
+    t.setAttribute('aria-label', hasReq ? 'Powiadomienie: brakuje wymaganych pól' : 'Powiadomienie: warto uzupełnić');
     t.innerHTML = html;
     t.querySelector('.ff-x').onclick = removeToast;
     if (opts.submit) {

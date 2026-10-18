@@ -1431,7 +1431,7 @@ include __DIR__ . '/includes/header_crm.php';
   </div>
 </div>
 
-<div class="ib-toast" id="ibToast" role="status" aria-live="polite" hidden></div>
+<div class="ib-toast" id="ibToast" role="status" aria-live="polite" aria-label="Powiadomienie" hidden></div>
 <div class="visually-hidden" id="ibLive" aria-live="polite"></div>
 
 <!-- ══ PODGLĄD ZAŁĄCZNIKA ════════════════════════════════════════════════════ -->

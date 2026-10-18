@@ -981,6 +981,7 @@ function showToast(msg) {
     const toast = document.createElement('div');
     toast.setAttribute('role', 'status');
     toast.setAttribute('aria-live', 'polite');
+    toast.setAttribute('aria-label', 'Powiadomienie');
     toast.style.cssText = 'background:#0f172a;color:#fff;border-radius:.55rem;padding:.6rem 1rem;'
         + 'font-size:.84rem;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.25);'
         + 'display:flex;align-items:center;gap:.5rem;max-width:280px;'

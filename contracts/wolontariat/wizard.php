@@ -886,6 +886,8 @@ function wzShowToast(required, recommended) {
 
   var toast = document.createElement('div');
   toast.id = 'wz-warn-toast';
+  toast.setAttribute('role', hasRequired ? 'alert' : 'status');
+  toast.setAttribute('aria-label', hasRequired ? 'Powiadomienie: uzupełnij wymagane pola' : 'Powiadomienie: warto uzupełnić');
   toast.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);'
     + 'z-index:9999;background:#fff;border:1px solid ' + (hasRequired ? '#fca5a5' : '#fde68a') + ';border-radius:.75rem;'
     + 'box-shadow:0 8px 32px rgba(0,0,0,.18);padding:1rem 1.25rem;min-width:320px;max-width:480px;font-size:.85rem;';
@@ -897,7 +899,7 @@ function wzShowToast(required, recommended) {
   toast.innerHTML = '<div class="d-flex justify-content-between align-items-center mb-2">'
     + '<strong style="font-size:.88rem"><i class="bi bi-clipboard-check me-1"></i>'
     + (hasRequired ? 'Uzupełnij wymagane pola' : 'Warto uzupełnić') + '</strong>'
-    + '<button type="button" onclick="document.getElementById(\'wz-warn-toast\').remove()" class="btn-close btn-close-sm" style="font-size:.65rem"></button>'
+    + '<button type="button" onclick="document.getElementById(\'wz-warn-toast\').remove()" class="btn-close btn-close-sm" style="font-size:.65rem" aria-label="Zamknij powiadomienie"></button>'
     + '</div>' + html
     + '<div class="mt-2 pt-2 border-top">' + footer + '</div>';
 
