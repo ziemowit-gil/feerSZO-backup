@@ -57,6 +57,7 @@ final class RoomSrsController
         return Router::view(self::VIEW . 'index.php', [
             'me' => $me, 'rr' => $rr, 'items' => $items, 'res' => $res, 'rooms' => $rooms,
             'adhoc' => tiRoomSrsAdhocList($me['id'], $me['staff'], date('Y-m-d', strtotime('-7 days'))),
+            'pending' => $me['staff'] ? tiRoomSrsPendingList() : [],
         ]);
     }
 
@@ -88,7 +89,7 @@ final class RoomSrsController
         $back = route('trs.form', ['course' => $courseId, 'room' => $roomId, 'from' => $from, 'to' => $to]);
         if (!$this->peselOk($data)) return Router::redirect($back);
         try {
-            $formId = tiRoomSrsSave($courseId, $roomId, $from, $to, $data, $me['id'], !empty($_POST['srs']), self::source());
+            $formId = tiRoomSrsSave($courseId, $roomId, $from, $to, $data, $me['id'], !empty($_POST['srs']), self::source(), $me['staff']);
         } catch (RuntimeException $e) {
             flash_set('danger', $e->getMessage());
             return Router::redirect($back);
@@ -126,13 +127,27 @@ final class RoomSrsController
         $back = route('trs.adhoc', array_filter(['id' => $formId ?: null, 'room' => $roomId ?: null, 'date' => $date, 'tf' => $tf, 'tt' => $tt]));
         if (!$this->peselOk($data)) return Router::redirect($back);
         try {
-            $formId = tiRoomSrsSaveAdhoc($formId, $roomId, $date, $tf, $tt, $data, $me['id'], !empty($_POST['srs']), self::source());
+            $formId = tiRoomSrsSaveAdhoc($formId, $roomId, $date, $tf, $tt, $data, $me['id'], !empty($_POST['srs']), self::source(), $me['staff']);
         } catch (RuntimeException $e) {
             flash_set('danger', $e->getMessage());
             return Router::redirect($back);
         }
         return $this->afterSave($formId, $data, (string)($room['template'] ?? ''), route('trs.adhoc', ['id' => $formId]),
             'Rezerwacja przestrzeni — ' . $date . ' ' . $tf . '–' . $tt, 0);
+    }
+
+    /** Kierownik: „Zatwierdź” — formularz można wydrukować, rezerwacja idzie do SRS, autor dostaje e-mail. */
+    public function approve(int $id): ?string
+    {
+        $me = self::me();
+        try {
+            tiRoomSrsApprove($id, $me['id']);
+            flash_set('success', 'Zatwierdzono formularz rezerwacji sali — autor dostał e-mail i może go wydrukować.');
+        } catch (RuntimeException $e) {
+            flash_set('danger', $e->getMessage());
+        }
+        $back = (string)($_POST['back'] ?? '');
+        return Router::redirect(str_starts_with($back, rtrim(APP_URL, '/') . '/') ? $back : route('trs.index'));
     }
 
     public function rooms(): string
@@ -181,6 +196,10 @@ final class RoomSrsController
 
     private function afterSave(int $formId, array $data, string $template, string $back, string $logLabel, int $courseId): ?string
     {
+        if (!tiRoomSrsIsApproved(tiRoomSrsFormGet($formId))) {
+            flash_set('info', 'Zapisano — formularz czeka na akceptację kierownika (dostał e-mail). Po zatwierdzeniu dostaniesz e-mail i pobierzesz plik do wydruku.');
+            return Router::redirect($back);
+        }
         if (($_POST['_op'] ?? '') === 'save') {
             flash_set('success', !empty($_POST['srs']) ? 'Zapisano, rezerwacja w SRS złożona/zaktualizowana.' : 'Zapisano.');
             return Router::redirect($back);

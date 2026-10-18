@@ -69,6 +69,21 @@ $radios = function (string $k, string $legend, array $opts) use ($trData, $fid) 
 </p>
 <?php endif; ?>
 
+<?php $trForm = $trMeta['form']; $trApproved = !$trForm || tiRoomSrsIsApproved($trForm); ?>
+<?php if ($trForm && !$trApproved): ?>
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 py-2">
+  <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+  <span class="me-auto">Formularz czeka na akceptację kierownika — wydruk będzie możliwy po zatwierdzeniu.</span>
+  <?php if ($me['staff']): ?>
+  <form method="post" action="<?= h(route('trs.approve', ['id' => (int)$trForm['id']])) ?>" class="d-inline">
+    <?= Router::csrfField() ?><input type="hidden" name="back" value="<?= h((string)($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '')) ?>">
+    <button class="btn btn-sm btn-success"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Zatwierdź</button>
+  </form>
+  <?php endif; ?>
+</div>
+<?php elseif ($trForm && !empty($trForm['approved_at'])): ?>
+<p class="small text-success mb-2"><i class="bi bi-check2-circle" aria-hidden="true"></i> Zatwierdzony <?= h(date('d.m.Y H:i', strtotime((string)$trForm['approved_at']))) ?>.</p>
+<?php endif; ?>
 <?php if ($room): ?>
 <p class="text-body-secondary small mb-3">
   <?= $tpl ? 'Wzór: <strong>' . h($tpl['label']) . '</strong> (' . strtoupper($tpl['format']) . ') — dokument powstaje z oryginału operatora bez zmiany układu; pola z systemu możesz poprawić.'
@@ -154,7 +169,11 @@ $radios = function (string $k, string $legend, array $opts) use ($trData, $fid) 
     </div>
     <div class="ms-auto d-flex gap-2">
       <button class="btn btn-outline-primary" name="_op" value="save"><i class="bi bi-save me-1" aria-hidden="true"></i>Zapisz bez pobierania</button>
+      <?php if ($me['staff'] || ($trForm && $trApproved)): ?>
       <button class="btn btn-primary" name="_op" value="file" <?= $tpl ? '' : 'disabled' ?>><i class="bi bi-download me-1" aria-hidden="true"></i>Zapisz i pobierz <?= $tpl ? strtoupper($tpl['format']) : 'plik' ?></button>
+      <?php else: ?>
+      <button class="btn btn-primary" name="_op" value="save"><i class="bi bi-send me-1" aria-hidden="true"></i>Wyślij do akceptacji kierownika</button>
+      <?php endif; ?>
     </div>
   </div>
 </form>

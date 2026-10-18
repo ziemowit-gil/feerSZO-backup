@@ -3,12 +3,14 @@
  * modules/ti_room_srs/view/index.php — grupy z salą w okresie (formularz operatora + rezerwacja SRS) i rezerwacje
  * przestrzeni bez grupy. Źródło każdej pozycji: DYD (panel dydaktyka) albo SZO.
  * Zmienne: $me, $rr (range/from/to/prev/next/label), $items (tiRoomSrsCandidates), $res (id rezerwacji SRS → status),
- * $rooms (id sali → tiRoomSrsRooms()), $adhoc (tiRoomSrsAdhocList). Kontroler: RoomSrsController::index.
+ * $rooms (id sali → tiRoomSrsRooms()), $adhoc (tiRoomSrsAdhocList), $pending (kierownik: czekające na akceptację).
+ * Kontroler: RoomSrsController::index.
  */
 $title = 'Formularze rezerwacji sal';
 include __DIR__ . '/_head.php';
 $nav = fn(string $w, ?string $range = null) => route('trs.index', ['range' => $range ?? $rr['range'], 'w' => $w]);
 $unmapped = array_filter($rooms, fn($r) => $r['template'] === '' || !(int)$r['resource_id']);
+$apprBadge = fn(?array $f) => $f && !tiRoomSrsIsApproved($f) ? ' <span class="badge text-bg-warning">czeka na akceptację</span>' : '';
 $badge = fn(?string $st, int $rid) => $st
     ? '<span class="badge" style="background:' . h(RES_STATUSES[$st]['bg'] ?? '#eee') . ';color:' . h(RES_STATUSES[$st]['color'] ?? '#333') . '">#' . $rid . ' ' . h(RES_STATUSES[$st]['label'] ?? $st) . '</span>'
     : '';
@@ -35,6 +37,37 @@ $badge = fn(?string $st, int $rid) => $st
 </div>
 <?php endif; ?>
 
+<?php if ($pending): ?>
+<section class="card border-warning mb-3" aria-labelledby="trs-pend-h">
+  <div class="card-header fw-semibold bg-warning-subtle" id="trs-pend-h"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Czeka na Twoją akceptację (<?= count($pending) ?>)</div>
+  <div class="card-body small text-body-secondary pb-0">Formularz można wydrukować dopiero po zatwierdzeniu. Zatwierdzenie składa też rezerwację w SRS (jeśli autor ją zaznaczył) i wysyła autorowi e-mail.</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead class="table-light"><tr><th scope="col">Co</th><th scope="col">Sala</th><th scope="col">Termin</th><th scope="col">Kto</th><th scope="col">Źródło</th><th scope="col"></th></tr></thead>
+    <tbody>
+    <?php foreach ($pending as $p): $pd = json_decode((string)$p['form_data'], true) ?: [];
+        $open = (int)$p['course_id'] > 0
+            ? route('trs.form', ['course' => (int)$p['course_id'], 'room' => (int)$p['room_id'], 'from' => $p['date_from'], 'to' => $p['date_to']])
+            : route('trs.adhoc', ['id' => (int)$p['id']]); ?>
+      <tr>
+        <td class="small"><?= (int)$p['course_id'] > 0 ? 'Grupa: ' . h((string)($p['course_display'] ?: $p['course_name'])) : 'Przestrzeń: ' . h(mb_strimwidth((string)($pd['topic'] ?? ''), 0, 60, '…')) ?></td>
+        <td class="small"><?= h((string)($p['room_short_label'] ?: $p['room_name'])) ?></td>
+        <td class="small"><?= nl2br(h(mb_strimwidth((string)($pd['terms'] ?? ''), 0, 160, '…'))) ?></td>
+        <td class="small"><?= h((string)$p['user_name']) ?></td>
+        <td><?= tiRoomSrsSourceBadge($p['source'] ?? 'dyd') ?></td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-sm btn-outline-secondary" href="<?= h($open) ?>">Sprawdź<span class="visually-hidden"> formularz — <?= h((string)$p['user_name']) ?></span></a>
+          <form method="post" action="<?= h(route('trs.approve', ['id' => (int)$p['id']])) ?>" class="d-inline">
+            <?= Router::csrfField() ?><input type="hidden" name="back" value="<?= h($nav($rr['from'])) ?>">
+            <button class="btn btn-sm btn-success"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Zatwierdź<span class="visually-hidden"> formularz — <?= h((string)$p['user_name']) ?></span></button>
+          </form>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table></div>
+</section>
+<?php endif; ?>
+
 <h2 class="h6 fw-bold mt-3">Rezerwacje przestrzeni (bez grupy)</h2>
 <?php if (!$adhoc): ?>
 <p class="small text-body-secondary">Brak bieżących rezerwacji przestrzeni<?= $me['staff'] ? '' : ' złożonych przez Ciebie' ?>.</p>
@@ -48,7 +81,7 @@ $badge = fn(?string $st, int $rid) => $st
       <td class="small"><?= h((string)($a['room_short_label'] ?: $a['room_name'])) ?></td>
       <td class="small"><?= h(mb_strimwidth((string)($fd['topic'] ?? ''), 0, 80, '…')) ?></td>
       <td class="small"><?= h((string)$a['user_name']) ?></td>
-      <td><?= tiRoomSrsSourceBadge($a['source'] ?? 'dyd') ?></td>
+      <td><?= tiRoomSrsSourceBadge($a['source'] ?? 'dyd') ?><?= $apprBadge($a) ?></td>
       <td class="small"><?= $badge($a['srs_status'], (int)$a['srs_reservation_id']) ?: '<span class="text-muted">—</span>' ?></td>
       <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="<?= h(route('trs.adhoc', ['id' => (int)$a['id']])) ?>">Otwórz<span class="visually-hidden"> rezerwację z <?= h($a['date_from']) ?></span></a></td>
     </tr>
@@ -93,7 +126,7 @@ $badge = fn(?string $st, int $rid) => $st
       <td class="text-center"><span class="badge bg-secondary"><?= (int)$it['count'] ?></span></td>
       <td class="small"><?php if ($it['pending'] === 0): ?><span class="badge text-bg-success">potwierdzone</span>
         <?php else: ?><span class="badge text-bg-warning"><?= (int)$it['pending'] ?>/<?= (int)$it['count'] ?> do rezerwacji</span><?php endif; ?></td>
-      <td><?= $it['form'] ? tiRoomSrsSourceBadge($it['form']['source'] ?? 'dyd') : '<span class="text-muted small">—</span>' ?></td>
+      <td><?= $it['form'] ? tiRoomSrsSourceBadge($it['form']['source'] ?? 'dyd') . $apprBadge($it['form']) : '<span class="text-muted small">—</span>' ?></td>
       <td class="small"><?= $badge($st, $rid) ?: ($it['form'] ? '<span class="text-muted">formularz zapisany</span>' : '<span class="text-muted">—</span>') ?></td>
       <td class="text-end">
         <a class="btn btn-sm btn-primary" href="<?= h(route('trs.form', ['course' => $it['course_id'], 'room' => $it['room_id'], 'from' => $it['date_from'], 'to' => $it['date_to'], 'back' => $nav($rr['from'])])) ?>">
