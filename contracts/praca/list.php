@@ -108,6 +108,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
 </div>
 
 <!-- ── Formularz filtrów ─────────────────────────────────────────────────────── -->
+<?php require_once dirname(__DIR__) . '/includes/status_tiles.php'; echo contract_status_tiles($TYPE, $TABLE, (string)$status); ?>
 <div class="card shadow-sm mb-3">
   <div class="card-body p-2">
     <form method="get" id="filter-form">
