@@ -165,6 +165,91 @@ html body #taskOffcanvas .offcanvas-body{overflow-y:auto;overscroll-behavior:con
 @media(min-width:900px){html body #td-root .td-props-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:575.98px){html body #taskOffcanvas.offcanvas{top:0;left:0;width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;transform:translateY(3%)}
   html body #taskOffcanvas.offcanvas.showing,html body #taskOffcanvas.offcanvas.show:not(.hiding){transform:none}}
+
+/* ══ Szczegóły zadania — Metro (fragment detail.php ma własne style; tu wyższa specyficzność) ══ */
+html body #td-root{--c-border:#e1e1e1;--c-soft:#f2f2f2;--c-accent:var(--tsk-green);--c-text:#111827;--c-muted:#5f5f5f;
+  --c-radius:0;--c-radius-sm:0;--c-shadow-xs:none;--c-shadow-sm:none;--c-shadow-md:none;--c-section:1.1rem 1.35rem;font-size:.88rem}
+html body #td-root .td-header{background:#fff;padding:1.2rem 1.35rem 1rem}
+html body #td-root .td-title-input,html body #td-root .td-title-static{font-size:1.45rem;font-weight:300;letter-spacing:-.01em;line-height:1.25;padding:.15rem .3rem;border:2px solid transparent!important}
+html body #td-root .td-title-input:hover{background:var(--tm-light)}
+html body #td-root .td-title-input:focus{outline:0;border-color:var(--tsk-green)!important;background:#fff}
+html body #td-root .td-status-row .badge{font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;padding:.3rem .55rem}
+html body #td-root .td-status-row .badge.bg-light{background:var(--tm-light)!important;border:0!important;color:var(--tsk-text)!important}
+html body #td-root .td-status-row>span[aria-label^="Priorytet"]{width:12px!important;height:12px!important;border-radius:0!important}
+html body #td-root .td-action-bar{gap:.4rem;padding-top:.8rem;border-top-color:var(--tm-line)}
+html body #td-root .td-ab-btn{border:2px solid var(--tsk-text);background:#fff;color:var(--tsk-text);font-size:.8rem;padding:.35rem .8rem;box-shadow:none;transform:none}
+html body #td-root .td-ab-btn:hover,html body #td-root .td-ab-btn:focus-visible{background:var(--tsk-text);border-color:var(--tsk-text);color:#fff;transform:none;box-shadow:none}
+html body #td-root .td-ab-primary{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff}
+html body #td-root .td-ab-primary:hover,html body #td-root .td-ab-primary:focus-visible{background:var(--tm-dark);border-color:var(--tm-dark)}
+html body #td-root .td-ab-confirm{background:var(--tm-violet);border-color:var(--tm-violet);color:#fff}
+html body #td-root .td-ab-confirm:hover{background:var(--tm-dark);border-color:var(--tm-dark)}
+html body #td-root .td-ab-danger{border-color:var(--tm-red);color:var(--tm-red)}
+html body #td-root .td-ab-danger:hover,html body #td-root .td-ab-danger:focus-visible{background:var(--tm-red);border-color:var(--tm-red);color:#fff}
+html body #td-root .td-ab-sep{background:var(--tm-line);height:1.6rem}
+html body #td-root .td-label{font-size:.66rem;margin-bottom:.65rem}
+html body #td-root .form-label{color:var(--tm-muted)!important;font-size:.74rem}
+html body #td-root .td-st-row,html body #td-root .td-file-row{background:var(--tm-light);border:0;border-left:3px solid transparent;margin-bottom:2px}
+html body #td-root .td-st-row:hover,html body #td-root .td-file-row:hover{background:var(--tm-light-h);border-left-color:var(--tsk-green);box-shadow:none}
+html body #td-root .td-progress-track{height:6px;background:var(--tm-light-h)}
+html body #td-root .td-progress-fill{background:var(--tsk-green)!important}
+html body #td-root .td-comment{background:var(--tm-light);border:0;border-left:3px solid var(--tsk-green);padding:.7rem .9rem;margin-bottom:.4rem}
+html body #td-root .td-comment:hover{box-shadow:none}
+html body #td-root .td-drop-zone{border:2px dashed var(--tm-field);background:#fff}
+html body #td-root .td-drop-zone.is-over{background:var(--tsk-green-bg);border-color:var(--tsk-green);color:var(--tsk-green-dark)}
+html body #td-root .td-hi-icon{border-radius:0;color:#fff!important;background:var(--tm-field)!important}
+html body #td-root .td-hi-badge,html body #td-root .td-hi-from,html body #td-root .td-hi-to,html body #td-root .td-hi-val,html body #td-root .td-mention{border-radius:0}
+html body #td-root .td-history-item{border-bottom-color:var(--tm-line)}
+html body #td-root .td-dep-link,html body #td-root .td-file-name{color:var(--tm-blue)}
+html body #td-root .ts-wrapper .ts-control{min-height:38px}
+html body #td-root .ts-wrapper .item{border-radius:0!important;background:var(--tm-light)!important;border:0!important}
+html body .td-preview-bar a,html body .td-preview-bar button,html body .td-preview-body{border-radius:0}
+
+/* ══ Lista zadań — Metro ═════════════════════════════════════════════════ */
+html body #tsk-main .tk-wrap{border:0;border-top:2px solid var(--tsk-text)}
+html body #tsk-main .tk-table{font-size:.86rem}
+html body #tsk-main .tk-table thead th{background:#fff;padding:.7rem .75rem;border-bottom:1px solid var(--tm-line)}
+html body #tsk-main .tk-table tbody tr{border-bottom:1px solid var(--tm-line)}
+html body #tsk-main .tk-table tbody tr:hover{background:var(--tm-light)}
+html body #tsk-main .tk-table td{padding:.75rem}
+html body #tsk-main .tk-table tbody tr td:first-child{border-left-width:4px}
+html body #tsk-main .tk-table .tk-subtitle{color:var(--tm-muted);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+html body #tsk-main .tk-status{border:0;padding:.25rem .55rem;font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+html body #tsk-main .tk-status.s-open{background:var(--tsk-green);color:#fff}
+html body #tsk-main .tk-status.s-taken{background:var(--tm-indigo);color:#fff}
+html body #tsk-main .tk-status.s-done{background:var(--tm-light-h);color:var(--tm-muted)}
+html body #tsk-main .tk-status:hover,html body #tsk-main .tk-status:focus-visible{filter:brightness(1.12)}
+html body #tsk-main .tk-pri{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:600;color:var(--tsk-text);white-space:nowrap}
+html body #tsk-main .tk-pri::before{content:"";width:10px;height:10px;background:var(--p);flex-shrink:0}
+html body #tsk-main .pri-btn:hover .tk-pri{text-decoration:underline}
+html body #tsk-main .tk-confirm-badge{min-width:1.6rem;height:1.3rem}
+html body #tsk-main .tk-tag{padding:.12rem .45rem;letter-spacing:.02em}
+html body #tsk-main .tk-prog-track{height:6px;background:var(--tm-light-h)}
+html body #tsk-main .tk-av{width:28px;height:28px;font-size:.62rem;border:2px solid #fff}
+html body #tsk-main .tk-av-stack .tk-av+.tk-av{margin-left:-4px}
+html body #tsk-main .btn-open,html body #tsk-main .btn-claim,html body #tsk-main .btn-unclaim{font-size:.75rem;padding:.3rem .7rem;border-width:2px}
+html body #tsk-main .btn-open{background:#fff;border-color:var(--tsk-text);color:var(--tsk-text)}
+html body #tsk-main .btn-open:hover,html body #tsk-main .btn-open:focus-visible{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff}
+html body #tsk-main .btn-claim{background:var(--tsk-green);border-color:var(--tsk-green);color:#fff}
+html body #tsk-main .btn-claim:hover,html body #tsk-main .btn-claim:focus-visible{background:var(--tm-dark);border-color:var(--tm-dark)}
+html body #tsk-main .btn-unclaim{border-color:transparent;background:none;color:var(--tm-muted)}
+html body #tsk-main .btn-unclaim:hover,html body #tsk-main .btn-unclaim:focus-visible{border-color:var(--tm-red);color:var(--tm-red)}
+html body #tsk-main .tk-legend{border-top-color:var(--tm-line);color:var(--tm-muted)}
+html body #tsk-main .tk-bulk-bar{background:var(--tm-dark);color:#fff;border:0}
+html body #tsk-main .tk-bulk-bar .tk-bulk-btn{background:rgba(255,255,255,.1);color:#fff;border:0}
+html body #tsk-main .tk-bulk-bar .tk-bulk-btn:hover{background:var(--tsk-green)}
+html body #tsk-main .tk-bulk-bar .tk-bulk-btn.danger:hover{background:var(--tm-red)}
+html body #tsk-main .tk-bulk-sep{background:rgba(255,255,255,.25)}
+html body #tsk-main .tk-bulk-bar .tk-bulk-count,html body #tsk-main .tk-bulk-bar .tk-bulk-close{color:#fff}
+/* Kanban */
+html body #tsk-main .tk-kanban-col{background:var(--tm-light)}
+html body #tsk-main .tk-kanban-hdr{border-top-width:4px!important;background:transparent;font-weight:600}
+html body #tsk-main .tk-card{border:0;background:#fff;box-shadow:none!important;margin-bottom:4px}
+html body #tsk-main .tk-card:hover{outline:2px solid var(--tsk-text);outline-offset:-2px}
+html body #tsk-main .tk-card-pri-bar{width:4px}
+html body #tsk-main .tk-card-asgn{width:22px;height:22px;background:var(--tm-indigo);color:#fff}
+html body #tsk-main .tk-card-drop-hint{border:2px dashed var(--tm-field);background:transparent}
+/* Moje zadania / dashboard — wiersze */
+html body .tsk-dash .tsk-row:hover,html body #tsk-main .tsk-row:hover{background:var(--tm-light)}
 @media(prefers-reduced-motion:reduce){html body #taskOffcanvas.offcanvas{transition:none}}
 
 /* Tabele nie ucinają kolumn: kontener przewija się w poziomie (było overflow:hidden). */

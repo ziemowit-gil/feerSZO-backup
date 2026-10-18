@@ -332,7 +332,7 @@ function _tasks_list_html(array $tasks, array $cnt, array $lists_map, int $ws_id
                     style="text-decoration:none"
                     title="Priorytet: <?= h($pri_meta[1]) ?>"
                     aria-label="Priorytet: <?= h($pri_meta[1]) ?>. Kliknij, aby zmienić">
-              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<?= $pri_meta[2] ?>;vertical-align:middle" aria-hidden="true"></span>
+              <span class="tk-pri" style="--p:<?= $pri_meta[2] ?>" aria-hidden="true"><?= h($pri_meta[1]) ?></span>
             </button>
             <ul class="dropdown-menu shadow-sm py-1">
               <?php foreach ([4=>'🔴 Krytyczny',3=>'🟡 Wysoki',2=>'🔵 Normalny',1=>'⚪ Niski'] as $p=>$pl): ?>
