@@ -24,9 +24,9 @@ function tiPlanPublicFull(?bool $set = null): bool {
     return $on;
 }
 
-/** Prowadzący na stronie: pełne imię i nazwisko w widoku pełnym, inaczej inicjały. */
+/** Prowadzący na stronie: pełne imię i nazwisko w widoku pełnym, inaczej kod „JKo” (tiPlanPublicStaffCode). */
 function tiPlanPublicPerson(string $name): string {
-    return tiPlanPublicFull() ? trim($name) : tiPlanPublicInitials($name);
+    return tiPlanPublicFull() ? trim($name) : tiPlanPublicStaffCode($name);
 }
 
 /** Hash hasła widoku pełnego (pusty = funkcja wyłączona). */
@@ -334,7 +334,7 @@ function tiPlanPublicDirectoryGroups(): array {
           WHERE l.is_enabled=1 AND l.in_directory=1 AND c.status NOT IN ('archived','cancelled')
           ORDER BY c.name COLLATE NOCASE");
     foreach ($rows as &$r) {
-        $r['instr'] = tiPlanPublicInitials((string)$r['instr_name']);
+        $r['instr'] = tiPlanPublicStaffCode((string)$r['instr_name']);
         $r['name']  = tiPlanPublicGroupLabel((int)$r['course_id'], (string)$r['name'], (string)$r['public_name'], (string)$r['subject_name']);
     }
     unset($r);
@@ -351,7 +351,7 @@ function tiPlanPublicDirectoryInstructors(): array {
     $dirCourses = [];
     foreach (tiPlanPublicDirectoryGroups() as $g) $dirCourses[(int)$g['course_id']] = $g['name'];
     foreach ($rows as &$r) {
-        $r['initials'] = tiPlanPublicInitials((string)$r['name']);
+        $r['initials'] = tiPlanPublicStaffCode((string)$r['name']);
         $ids = array_map('intval', array_column(db_all(
             "SELECT DISTINCT c.id FROM k30_ti_courses c
                LEFT JOIN k30_ti_sessions s ON s.course_id=c.id AND s.lesson_date >= date('now')

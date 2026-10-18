@@ -8,7 +8,7 @@
  *
  * Dane dla strony publicznej (tiPlanPublicData) celowo pomijają: kursantów, PESEL,
  * notatki lekcji, linki Zoom, rezerwacje (status reserved) i wersje robocze (draft);
- * prowadzący TYLKO inicjałami (tiPlanPublicInitials) — pełne nazwisko zostaje w wydrukach wewnętrznych.
+ * prowadzący TYLKO kodem „JKo” (tiPlanPublicStaffCode) — pełne nazwisko zostaje w wydrukach wewnętrznych.
  */
 require_once __DIR__ . '/planPublicSchema.php';
 require_once dirname(__DIR__, 3) . '/includes/ti_planner_ext.php';
@@ -113,6 +113,21 @@ function tiPlanPublicShortUrl(array $row): ?string {
 }
 
 /** Inicjały prowadzącego na stronę publiczną: „Maria Szczerbowska” → „M. S.”; placeholdery (VCT/DUU) bez zmian. */
+/**
+ * Kod prowadzącego / kadry na stronach publicznych: 1. litera imienia + 2 pierwsze litery nazwiska,
+ * np. „Jan Kowalski” → „JKo” (imię pierwsze, nazwisko ostatnie w users.name). Skróty typu VCT zostają.
+ */
+function tiPlanPublicStaffCode(string $name): string {
+    $name = trim($name);
+    if ($name === '' || $name === '—') return $name;
+    $parts = array_values(array_filter(array_map(
+        fn($w) => (string)preg_replace('/^[^\p{L}]+|[^\p{L}]+$/u', '', $w), preg_split('/\s+/u', $name) ?: []), fn($w) => $w !== ''));
+    if (!$parts) return $name;
+    if (count($parts) === 1) return mb_strlen($parts[0]) <= 4 && mb_strtoupper($parts[0]) === $parts[0] ? $parts[0] : mb_strtoupper(mb_substr($parts[0], 0, 1)) . mb_strtolower(mb_substr($parts[0], 1, 2));
+    $sur = (string)preg_replace('/-.*/u', '', end($parts));   // nazwisko dwuczłonowe: pierwszy człon
+    return mb_strtoupper(mb_substr($parts[0], 0, 1)) . mb_strtoupper(mb_substr($sur, 0, 1)) . mb_strtolower(mb_substr($sur, 1, 1));
+}
+
 function tiPlanPublicInitials(string $name): string {
     $name = trim($name);
     if ($name === '' || $name === '—') return $name;
@@ -159,7 +174,7 @@ function tiPlanPublicData(array $link): array {
             'dow'       => TI_DAYS_PL_FULL[(int)date('N', strtotime((string)$r['lesson_date']))] ?? '',
             'time'      => $r['time_from'] !== null && $r['time_from'] !== '' ? substr((string)$r['time_from'], 0, 5) . '–' . substr((string)$r['time_to'], 0, 5) : '',
             'method'    => $method,
-            'instr'     => tiPlanPublicInitials((string)($r['instr_name'] ?? '')),
+            'instr'     => tiPlanPublicStaffCode((string)($r['instr_name'] ?? '')),
             'room'      => $room !== '—' && $method !== 'online' ? $room : '',   // zajęcia online — bez sali
             'cancelled' => (string)$r['status'] === 'cancelled',
             'flag'      => (string)($r['date_flag'] ?? ''),
@@ -168,8 +183,8 @@ function tiPlanPublicData(array $link): array {
         ];
     }
     // Strona publiczna: prowadzący tylko inicjałami (siatka, nagłówek, kontakty)
-    foreach ($grid['grid'] ?? [] as $tk => $row) foreach ($row as $d => $cell) if ($cell) $grid['grid'][$tk][$d]['instructor'] = tiPlanPublicInitials((string)($cell['instructor'] ?? ''));
-    foreach ($grid['instructors'] ?? [] as $i => $ins) $grid['instructors'][$i]['name'] = tiPlanPublicInitials((string)$ins['name']);
-    if (!empty($grid['course'])) $grid['course']['instructor_name'] = tiPlanPublicInitials((string)($grid['course']['instructor_name'] ?? ''));
+    foreach ($grid['grid'] ?? [] as $tk => $row) foreach ($row as $d => $cell) if ($cell) $grid['grid'][$tk][$d]['instructor'] = tiPlanPublicStaffCode((string)($cell['instructor'] ?? ''));
+    foreach ($grid['instructors'] ?? [] as $i => $ins) $grid['instructors'][$i]['name'] = tiPlanPublicStaffCode((string)$ins['name']);
+    if (!empty($grid['course'])) $grid['course']['instructor_name'] = tiPlanPublicStaffCode((string)($grid['course']['instructor_name'] ?? ''));
     return ['grid' => $grid, 'list' => $list, 'from' => $from, 'to' => $to, 'weeks' => $weeks];
 }

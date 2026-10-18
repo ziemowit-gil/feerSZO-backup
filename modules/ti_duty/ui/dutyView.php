@@ -9,7 +9,7 @@
 /** Dyżurny na stronie: inicjały + funkcja (widok pełny: pełne imię i nazwisko). */
 function tiDutyPersonLabel(array $it): string {
     $name = trim((string)$it['person_name']);
-    $name = $name === '' ? '' : (tiPlanPublicFull() ? $name : tiPlanPublicInitials($name));
+    $name = $name === '' ? '' : (tiPlanPublicFull() ? $name : tiPlanPublicStaffCode($name));
     return implode(' — ', array_filter([$name, trim((string)$it['role_label'])]));
 }
 
