@@ -16,6 +16,7 @@ $new = fn(string $form, string $key = '') => route('ld.op.new', array_filter(['k
   <div class="tile" style="background:#0050ef"><span class="n" style="font-size:1rem;font-weight:600"><?= h($acc['course_name'] ?: '—') ?></span><span class="l">Kurs / projekt</span></div>
   <div class="tile" style="background:#647687"><span class="n" style="font-size:1.2rem"><?= h($acc['sub_id']) ?></span><span class="l">SubID (kurs / kursant)</span></div>
 </div>
+<?php if ($acc['kind'] === 'client'): ?><p><a class="btn btn-metro" style="background:#0050ef" href="<?= h(route('ld.amz', ['id' => $acc['id']])) ?>"><span class="sym" style="background:#1d1d1d">AMZ</span> Zestawienie licencji i usług na koncie kursanta</a></p><?php endif; ?>
 <?php if ($acc['kind'] === 'client' && $acc['student_account_id']): ?>
   <p><a href="konta.php?selected=<?= (int)$acc['student_account_id'] ?>&amp;ptab=licencje#detail-panel"><i class="bi bi-person-badge" aria-hidden="true"></i> Kartoteka uczestnika (Ewidencja Uczestników)</a></p>
 <?php endif; ?>

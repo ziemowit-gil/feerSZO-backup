@@ -16,7 +16,8 @@ if ($_ldAcc):
 <div class="border-top pt-2 mt-3" aria-labelledby="ld-panel-h">
   <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
     <div class="small fw-semibold text-body-secondary" id="ld-panel-h">Zarządzanie licencjami <span class="fw-normal">(zmiana płatnika AM20, plan AM21, zawieszenie AM22, cofnięcie AM23, przedłużenie AM24)</span></div>
-    <a class="small ms-auto" href="<?= h($_ldUrl(['_route' => '/konto/client/' . $_ldAcc['id']])) ?>"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Karta licencji osoby</a>
+    <a class="small ms-auto" href="<?= h($_ldUrl(['_route' => '/zestawienie/' . $_ldAcc['id']])) ?>"><i class="bi bi-list-check me-1" aria-hidden="true"></i>AMZ — zestawienie licencji i usług</a>
+    <a class="small" href="<?= h($_ldUrl(['_route' => '/konto/client/' . $_ldAcc['id']])) ?>"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Karta licencji osoby</a>
   </div>
   <?php if (!$_ldRes): ?><p class="text-body-secondary small mb-1">Brak posiadanych licencji — <b>AM20 (zmiana płatnika)</b> i AM21–AM24 pojawią się przy licencji po jej przypisaniu.</p><?php else: ?>
   <ul class="list-group list-group-flush mb-2" style="max-width:760px">

@@ -90,6 +90,9 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->get('/oswiadczenia/{id}',                [LicenseAdminController::class, 'declarationFile'])->name('ld.decl.file');
     // Rejestr operacji na licencjach: konta i posiadane licencje, AM11–AM13, AM20–AM24
     $r->get('/konta',                            [LicenseOperationController::class, 'accounts'])->name('ld.accounts');
+    $r->get('/zestawienie/{id}',                 [LicenseOperationController::class, 'amz'])->name('ld.amz');
+    $r->get('/zestawienie/{id}/pdf',             [LicenseOperationController::class, 'amzPdf'])->name('ld.amz.pdf');
+    $r->post('/zestawienie/{id}/wyslij',         [LicenseOperationController::class, 'amzSend'])->name('ld.amz.send');
     $r->get('/am20',                             [LicenseOperationController::class, 'am20Wizard'])->name('ld.am20');
     $r->post('/operacje/{id}/am20-1',            [LicenseOperationController::class, 'am20AnnexSave'])->name('ld.op.am20annex');
     $r->get('/konto/{kind}/{id}',                [LicenseOperationController::class, 'account'])->name('ld.account');

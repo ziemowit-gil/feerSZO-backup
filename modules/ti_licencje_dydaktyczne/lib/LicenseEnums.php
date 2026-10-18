@@ -267,6 +267,7 @@ enum LicenseNotificationType: string
     case Reminder             = 'reminder';               // przypomnienie o terminie 7 dni
     case RequestSigned        = 'request_signed';         // alert: kursant podpisał wniosek AM7 — do decyzji
     case HelpdeskTicket       = 'helpdesk_ticket';        // zlecenie dla Helpdesku IT po decyzji AM7 (log)
+    case Statement            = 'statement';              // AMZ — zestawienie licencji i usług wysłane kursantowi
 
     public function label(): string
     {
@@ -282,6 +283,7 @@ enum LicenseNotificationType: string
             self::Reminder           => 'Przypomnienie o terminie',
             self::RequestSigned      => 'Wniosek podpisany — alert',
             self::HelpdeskTicket     => 'Zlecenie Helpdesku IT',
+            self::Statement          => 'Zestawienie AMZ',
         };
     }
 }

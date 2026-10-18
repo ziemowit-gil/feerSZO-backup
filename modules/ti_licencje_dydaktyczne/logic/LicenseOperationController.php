@@ -69,6 +69,65 @@ final class LicenseOperationController
         return $this->view('op_account.php', ['acc' => $acc, 'res' => LicenseResources::forAccount($acc, true), 'list' => $this->ops->search(['account' => $kind . ':' . $id])]);
     }
 
+    // ── AMZ — zestawienie licencji i usług na koncie kursanta ───────────────────
+
+    private function amzData(int $clientId): array
+    {
+        require_once dirname(__DIR__) . '/lib/AmzStatement.php';
+        $st = AmzStatement::build($clientId);
+        if (!$st) { http_response_code(404); exit('Nie ma takiego uczestnika.'); }
+        return $st;
+    }
+
+    private function amzPdfOut(array $st): array
+    {
+        return LicenseDocument::render((new LicenseDocument())->amzHtml($st), 'Zestawienie licencji i usług — ' . $st['person']['name'], $st['number'], 'AMZ');
+    }
+
+    public function amz(int $id): string
+    {
+        $st = $this->amzData($id);
+        $sent = db_all("SELECT * FROM notification_logs WHERE module = 'ti_licencje_dyd' AND ref_type = 'amz' AND ref_id = ? ORDER BY id DESC LIMIT 10", [$id]);
+        return $this->view('amz.php', ['st' => $st, 'sent' => $sent]);
+    }
+
+    public function amzPdf(int $id): ?string
+    {
+        $st = $this->amzData($id);
+        $out = $this->amzPdfOut($st);
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Content-Type: ' . $out['mime'] . ($out['ext'] === 'html' ? '; charset=utf-8' : ''));
+        header('Content-Disposition: inline; filename="' . ldFileName($st['number']) . '.' . $out['ext'] . '"');
+        header('Cache-Control: no-store, private');
+        echo $out['bytes'];
+        return null;
+    }
+
+    /** Wysyłka AMZ (PDF) kursantowi — małoletniemu: opiekunowi (adres z konta). */
+    public function amzSend(int $id): ?string
+    {
+        $st = $this->amzData($id);
+        $out = $this->amzPdfOut($st);
+        $att = [];
+        if ($out['ext'] === 'pdf') {
+            [$rel] = LicenseStorage::put($out['bytes'], 'pdf', 'amz' . $id);
+            $att = LicenseNotificationService::attachment($rel, $st['number']);
+        }
+        $to = ['name' => $st['person']['name'], 'email' => $st['person']['email'], 'phone' => ''];
+        try {
+            require_once dirname(__DIR__, 2) . '/ti_subaccount/logic/subaccountManager.php';
+            $rc = tiSubRecipient($id);
+            if (!empty($rc['email'])) $to = ['name' => (string)($rc['name'] ?? $to['name']), 'email' => (string)$rc['email'], 'phone' => ''];
+        } catch (\Throwable $e) {}
+        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $body = '<p>Dzień dobry,</p><p>w załączniku przesyłamy <b>zestawienie licencji i usług</b> na koncie kursanta <b>' . $e($st['person']['name']) . '</b> (stan na ' . $e(ldDate(substr($st['generated_at'], 0, 10))) . '): '
+            . count($st['items']) . ' pozycji.</p><p>Kursy, materiały i pełne klucze licencyjne: <a href="' . $e($st['portal']) . '">panel kursanta</a>.</p>' . ($att ? '' : '<p><i>Zestawienie doręczymy osobno.</i></p>');
+        $r = (new LicenseNotificationService())->send(LicenseNotificationType::Statement, $to, 'Zestawienie licencji i usług (AMZ) — ' . $st['person']['name'],
+            LicenseNotificationService::layout('Zestawienie licencji i usług', $body, $st['portal'], 'Przejdź do panelu kursanta', 'AMZ'), '', ['type' => 'amz', 'id' => $id], $this->actor(), true, $att);
+        flash_set(!empty($r['delivered']) ? 'success' : 'warning', 'Zestawienie AMZ: ' . implode(', ', array_map(fn($c, $s) => ($c === 'email' ? 'e-mail' : 'SMS') . ' — ' . LicenseNotificationService::statusLabel($s), array_keys($r['channels']), $r['channels'])));
+        return Router::redirect(route('ld.amz', ['id' => $id]));
+    }
+
     /** Kreator formularza elektronicznego AM20 (+ AM20-1): osoba → licencja → formularz. */
     public function am20Wizard(): string
     {

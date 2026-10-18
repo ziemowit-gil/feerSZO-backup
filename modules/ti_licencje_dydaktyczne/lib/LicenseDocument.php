@@ -531,6 +531,56 @@ final class LicenseDocument
         return $h;
     }
 
+
+    // ── AMZ — zestawienie licencji i usług na koncie kursanta ───────────────────
+
+    public function amzHtml(array $st): string
+    {
+        $this->n = 0;
+        $p = $st['person'];
+        $h = '<table class="t"><tr>'
+           . $this->fld('Numer zestawienia', '<span class="big">' . self::e($st['number']) . '</span>', ' width="44%"')
+           . $this->fld('Stan na dzień', self::e(ldDate(substr($st['generated_at'], 0, 10)) . ' ' . substr($st['generated_at'], 11, 5)), ' width="36%"')
+           . '<td class="sym" width="20%" style="background:#0050ef"><div class="symb">AMZ</div><div class="symv">zestawienie</div></td></tr></table>'
+           . '<table class="t"><tr><td class="ttl"><div class="ttl1">ZESTAWIENIE LICENCJI I USŁUG NA KONCIE KURSANTA</div>'
+           . '<div class="ttl2">oprogramowanie, materiały dydaktyczne, Microsoft 365, kursy, egzaminy, domeny, hosting i inne usługi</div></td></tr></table>';
+        $h .= '<table class="t">' . self::sec('A', 'DANE IDENTYFIKACYJNE KURSANTA', 2) . '<tr>'
+            . $this->fld('Imię i nazwisko', self::e($p['name']), ' width="50%"')
+            . $this->fld('Identyfikator (ID uczestnika / login / e-mail)', self::e('#' . $p['id'] . ($p['login'] !== '' ? ' · ' . $p['login'] : '') . ($p['email'] !== '' ? ' · ' . $p['email'] : '')), ' width="50%"')
+            . '</tr><tr>' . $this->fld('Organizacja / firma (licencje grupowe)', self::val((string)$p['organization'], 'nie dotyczy'), ' width="50%"')
+            . $this->fld('Kurs / grupa', self::val((string)$p['course_name'], 'brak'), ' width="50%"') . '</tr></table>';
+        $rows = '';
+        $i = 0;
+        $group = '';
+        foreach ($st['items'] as $it) {
+            if ($it['group'] !== $group) { $group = $it['group']; $rows .= '<tr><td class="sub" colspan="6" style="background:#d9d9d9;padding:0.8mm 1.6mm"><b>' . self::e($group) . '</b></td></tr>'; }
+            $i++;
+            $period = trim(ldDate($it['from']) . ' — ' . ($it['to'] !== '' ? ldDate($it['to']) . ', 23:59' : 'bezterminowo'), ' —');
+            $usage = $it['usage'] . ($it['progress'] !== null ? ($it['usage'] !== '' ? '; ' : '') . 'postęp ' . $it['progress'] . '%' : '');
+            $extra = array_filter([$it['license_key'] !== '' ? 'klucz: ' . $it['license_key'] : '', $it['renewal']]);
+            $rows .= '<tr><td class="f" style="text-align:center">' . $i . '</td>'
+                . '<td class="f"><b>' . self::e($it['name']) . '</b><div class="lb">' . self::e($it['vendor']) . '</div></td>'
+                . '<td class="f">' . self::e($it['variant']) . '</td>'
+                . '<td class="f" style="white-space:nowrap"><b>' . self::e($it['status']) . '</b></td>'
+                . '<td class="f">' . self::e($period) . '</td>'
+                . '<td class="f">' . self::e($usage !== '' ? $usage : '—') . ($extra ? '<div class="lb">' . self::e(implode(' · ', $extra)) . '</div>' : '') . '</td></tr>';
+        }
+        if ($rows === '') $rows = '<tr><td class="pc" colspan="6">Na koncie nie ma przypisanych licencji ani usług.</td></tr>';
+        $h .= '<table class="t">' . self::sec('B', 'WYKAZ PRZYPISANYCH LICENCJI, DOSTĘPÓW I USŁUG', 6)
+            . '<tr><td class="lb" style="padding:1mm;width:4%"><b>Lp.</b></td><td class="lb" style="padding:1mm;width:25%"><b>Nazwa licencji / dostępu</b></td><td class="lb" style="padding:1mm;width:15%"><b>Typ / wariant</b></td>'
+            . '<td class="lb" style="padding:1mm;width:14%"><b>Status</b></td><td class="lb" style="padding:1mm;width:17%"><b>Okres obowiązywania</b></td><td class="lb" style="padding:1mm;width:25%"><b>Zużycie i limity</b></td></tr>' . $rows . '</table>';
+        $sum = [];
+        foreach ($st['counts'] as $k => $v) $sum[] = $k . ': ' . $v;
+        $certs = $st['certs'] ? implode('; ', array_map(fn($c) => $c['title'] . ' (' . ldDate(substr((string)$c['created_at'], 0, 10)) . ')', $st['certs'])) : '';
+        $h .= '<table class="t" style="page-break-inside:avoid">' . self::sec('C', 'PODSUMOWANIE, CERTYFIKATY I AKCJE', 2) . '<tr>'
+            . $this->fld('Liczba pozycji wg statusu', self::e($sum ? implode(' · ', $sum) : '—'), ' colspan="2"') . '</tr><tr>'
+            . $this->fld('Certyfikaty i zaświadczenia (do pobrania w panelu kursanta › Dokumenty)', self::val($certs, 'brak'), ' colspan="2"') . '</tr><tr>'
+            . $this->fld('Przejście do kursów, materiałów i kluczy licencyjnych', self::e($st['portal']), ' width="60%"')
+            . $this->fld('Przedłużenie / odnowienie', self::e('przez biuro ' . ldOrgName() . ' (wniosek AM24) albo portal płatności'), ' width="40%"') . '</tr>'
+            . '<tr><td class="pc" colspan="2"><div class="st2">Status „Wygasająca” oznacza koniec obowiązywania w ciągu ' . AmzStatement::SOON_DAYS . ' dni. Klucze licencyjne są w zestawieniu zamaskowane — pełny klucz jest widoczny po zalogowaniu do panelu kursanta. Zestawienie ma charakter informacyjny; stan na dzień i godzinę wydruku.</div></td></tr></table>';
+        return self::css() . $h;
+    }
+
     private static function css(): string
     {
         return '<style>
