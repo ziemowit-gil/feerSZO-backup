@@ -545,6 +545,29 @@ class EzdMailService
     }
 
     /**
+     * Oznacza jako przeczytane wszystkie nieprzeczytane przychodzące w skrzynce odbiorczej
+     * (opcjonalnie tylko w jednej skrzynce pocztowej) i przelicza liczniki wątków. Zwraca liczbę wiadomości.
+     */
+    public function markAllRead(?int $mailbox_id = null): int
+    {
+        $sql = "UPDATE crm_communications SET is_read=1, updated_at=CURRENT_TIMESTAMP
+                 WHERE direction='in' AND inbox_status='active' AND is_read=0";
+        $params = [];
+        if ($mailbox_id) { $sql .= " AND mailbox_id=?"; $params[] = $mailbox_id; }
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        $n = (int)$st->rowCount();
+        if ($n) {
+            $this->pdo->exec(
+                "UPDATE ezd_mail_threads SET unread_count=(SELECT COUNT(*) FROM crm_communications c
+                  WHERE c.thread_key=ezd_mail_threads.thread_key AND c.is_read=0)
+                 WHERE unread_count>0"
+            );
+        }
+        return $n;
+    }
+
+    /**
      * Przypisuje wiadomość do użytkownika (albo zdejmuje przypisanie: $user_id = null).
      *
      * Każda zmiana idzie do poczta_assign_log — to jedyne miejsce, przez które

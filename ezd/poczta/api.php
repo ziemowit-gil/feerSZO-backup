@@ -112,9 +112,9 @@ switch ($action) {
         break;
 
     case 'mark_all_read':
-        db()->exec("UPDATE crm_communications SET is_read=1 WHERE direction='in' AND inbox_status='active' AND is_read=0");
-        db()->exec("UPDATE ezd_mail_threads SET unread_count=0");
-        echo json_encode(['ok' => true]);
+        // Zakres = wybrana skrzynka pocztowa (filtr na liście) albo wszystkie
+        $n = $svc->markAllRead((int)($data['mailbox_id'] ?? 0) ?: null);
+        echo json_encode(['ok' => true, 'count' => $n]);
         break;
 
     case 'set_status':

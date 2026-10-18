@@ -49,6 +49,11 @@ $users     = db_all("SELECT id, name FROM users WHERE is_active=1 ORDER BY name"
 $unread_count = (int)(db_one(
     "SELECT COUNT(*) AS n FROM crm_communications WHERE direction='in' AND is_read=0 AND inbox_status='active'"
 )['n'] ?? 0);
+// Nieprzeczytane w wybranej skrzynce — zakres przycisku „Oznacz wszystkie jako przeczytane”
+$unread_scope = $filters['mailbox_id'] ? (int)(db_one(
+    "SELECT COUNT(*) AS n FROM crm_communications WHERE direction='in' AND is_read=0 AND inbox_status='active' AND mailbox_id=?",
+    [$filters['mailbox_id']]
+)['n'] ?? 0) : $unread_count;
 
 $status_tabs = [
     'active'   => ['Skrzynka odbiorcza',  'bi-inbox',           'primary'],
@@ -133,9 +138,13 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 
   <div class="d-flex align-items-center gap-2 mb-2" style="font-size:.82rem">
     <span class="text-muted"><?= number_format($total) ?> wiadomości</span>
-    <button class="btn btn-sm btn-outline-secondary ms-auto" id="btn-mark-all-read">
-      <i class="bi bi-check2-all me-1"></i>Oznacz wszystkie jako przeczytane
+    <?php if ($unread_scope > 0): ?>
+    <button class="btn btn-sm btn-primary ms-auto" id="btn-mark-all-read" data-mailbox="<?= (int)$filters['mailbox_id'] ?>"
+            title="Oznacz jako przeczytane wszystkie nieprzeczytane<?= $filters['mailbox_id'] ? ' w tej skrzynce' : '' ?> (Shift+I)">
+      <i class="bi bi-check2-all me-1" aria-hidden="true"></i>Oznacz wszystkie jako przeczytane
+      <span class="badge bg-light text-dark ms-1"><?= $unread_scope ?></span>
     </button>
+    <?php endif; ?>
   </div>
 
   <div class="card shadow-sm border-0">
@@ -454,10 +463,19 @@ document.querySelectorAll('.btn-archive').forEach(btn => {
 });
 
 // ── Oznacz wszystkie jako przeczytane ──────────────────────────────────────────
-document.getElementById('btn-mark-all-read')?.addEventListener('click', () => {
+const _markAllBtn = document.getElementById('btn-mark-all-read');
+_markAllBtn?.addEventListener('click', () => {
+  _markAllBtn.disabled = true;
   fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({_csrf:CSRF, action:'mark_all_read'})
+    body: JSON.stringify({_csrf:CSRF, action:'mark_all_read', mailbox_id: parseInt(_markAllBtn.dataset.mailbox, 10) || 0})
   }).then(() => location.reload());
+});
+// Skrót Shift+I (jak w Gmailu) — poza polami tekstowymi
+document.addEventListener('keydown', e => {
+  if (e.key !== 'I' || e.ctrlKey || e.metaKey || e.altKey || !_markAllBtn || _markAllBtn.disabled) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  e.preventDefault(); _markAllBtn.click();
 });
 </script>
 
