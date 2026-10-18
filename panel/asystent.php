@@ -25,8 +25,7 @@ $ai_ready   = asai_enabled();
 // Styl kart panelu żyje w layoucie panelu (#pv-main), więc osoby pracujące
 // w layoucie głównym kierujemy do bliźniaczego ekranu w Biurze — ten sam
 // asystent, tylko obudowa dopasowana do ich widoku.
-$_is_volunteer_only = is_viewer()
-    && !user_is_k30_consultant((int)$user['id']);
+$_is_volunteer_only = panel_volunteer_shell($user) && !in_array($user['role'] ?? '', ['admin', 'editor'], true);
 if (!$_is_volunteer_only) {
     header('Location: ' . APP_URL . '/procedures/asystent.php');
     exit;

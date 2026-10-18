@@ -174,6 +174,8 @@ $_is_dyd = function_exists('panelMetroIsDydaktyk') && panelMetroIsDydaktyk($user
 
 /* ── Najważniejsze narzędzia (prawa kolumna ekranu głównego) ─────────────── */
 $_pv_quick = [];
+$_ai_on = panel_visible('asystent') && function_exists('asai_enabled') && asai_enabled();
+if ($_ai_on) $_pv_quick[] = ['href'=>APP_URL.'/panel/asystent.php','icon'=>'bi-stars','label'=>'Asystent AI','sub'=>'zapytaj o procedury i sprawy','c'=>'var(--m-violet)'];
 if ($_tasks_tab_on) $_pv_quick[] = ['href'=>APP_URL.'/tasks/index.php','icon'=>'bi-check2-square','label'=>'Moje zadania','sub'=>$_tasks_mine ? $_tasks_mine . ' aktywnych' : 'brak aktywnych','c'=>'var(--m-orange)'];
 $_pv_quick[] = ['href'=>$_mail_chooser,'icon'=>'bi-envelope','label'=>'Poczta','sub'=>$_mail_chooser_label,'c'=>'var(--m-blue)','ext'=>true];
 if ($m365_login || !empty($u_db['microsoft_id'])) {
@@ -370,6 +372,9 @@ panelMetroAssets($_vol_color);
                         'sub'=>$_tasks_mine ? 'aktywnych' : 'wszystko zrobione','color'=>$_tasks_mine ? 'orange' : 'green','size'=>'w']);
     }
     panelMetroDydaktykTile();
+    if ($_ai_on) {
+        panelMetroTile(['href'=>APP_URL.'/panel/asystent.php','icon'=>'bi-stars','label'=>'Asystent AI','sub'=>'zapytaj o procedury i sprawy','color'=>'violet','size'=>'w']);
+    }
     panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_hd_my_open ? (string)$_hd_my_open : '',
                     'sub'=>$_hd_my_open ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
     panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);

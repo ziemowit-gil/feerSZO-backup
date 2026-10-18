@@ -14,10 +14,9 @@ require_login();
 require_module_enabled('procedures_enabled', 'Moduł procedur');
 
 $user = current_user();
-$_is_volunteer_only = is_viewer()
-    && !user_is_k30_consultant((int)$user['id']);
-
-// Personel → pełny moduł procedur (z edycją)
+// Osoba z umową / wolontariusz (panel_volunteer_shell) czyta procedury tutaj, w Panelu
+// współpracownika. Do pełnego modułu z edycją (menu SZO) trafiają tylko admin i edytor.
+$_is_volunteer_only = panel_volunteer_shell($user) && !in_array($user['role'] ?? '', ['admin', 'editor'], true);
 if (!$_is_volunteer_only) {
     $to = isset($_GET['id'])
         ? '/procedures/view.php?id=' . (int)$_GET['id']
@@ -50,143 +49,119 @@ if ($pid) {
 include __DIR__ . '/includes/header_panel.php';
 ?>
 
+<?php
+require_once dirname(__DIR__) . '/modules/panel_metro/lib/panelMetro.php';
+panelMetroAssets($_vol_color ?? '#0f6fa8');
+$_pal = array_values(panelMetroPalette());
+?>
+<style>
+.pvm .pr-search{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 1.25rem;max-width:760px}
+.pvm .pr-search input{flex:1 1 260px;min-height:44px}
+.pvm .pr-search select{flex:0 1 240px;min-height:44px}
+.pvm .pr-list{display:grid;gap:8px;grid-template-columns:1fr}
+@media(min-width:900px){.pvm .pr-list{grid-template-columns:1fr 1fr}}
+.pvm .pr-item{display:flex;gap:.9rem;background:var(--pvm-light);border-left:8px solid var(--c);padding:1rem 1.1rem;text-decoration:none;color:var(--pvm-ink);min-width:0}
+.pvm .pr-item:hover{background:var(--pvm-light-h);color:var(--pvm-ink)}
+.pvm .pr-item h3{margin:0;font-size:1.02rem;font-weight:600;line-height:1.3}
+.pvm .pr-item p{margin:.3rem 0 0;font-size:.84rem;color:var(--pvm-muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pvm .pr-doc{background:var(--pvm-light);padding:1.5rem;line-height:1.65;white-space:pre-wrap;word-break:break-word;max-width:80ch}
+</style>
+
+<div class="pvm">
 <?php if ($pid): /* ── Szczegóły procedury ──────────────────────────────── */ ?>
 
-<div class="pv-wrap">
-
-  <div class="pv-page-header">
-    <div class="pv-page-head-main">
-      <a href="procedures.php" class="pv-page-back">
-        <i class="bi bi-arrow-left" aria-hidden="true"></i>Wszystkie procedury
-      </a>
-      <h1 class="pv-page-title">
-        <i class="bi bi-journal-text" aria-hidden="true"></i><?= h($proc['title']) ?>
-      </h1>
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker">Procedury<?= !empty($proc['category']) ? ' · ' . h($proc['category']) : '' ?></div>
+      <h1 class="mt-title"><?= h($proc['title']) ?></h1>
+      <p class="mt-lead">Wersja <?= (int)$proc['version'] ?><?php if (!empty($proc['updated_at'])): ?> · aktualizacja <?= h(date_pl($proc['updated_at'])) ?><?php endif; ?></p>
     </div>
+    <a href="procedures.php" class="mt-btn mt-btn--ghost"><i class="bi bi-arrow-left" aria-hidden="true"></i>Wszystkie procedury</a>
   </div>
 
-  <div class="tz-card">
-    <div class="tz-card__bd">
-      <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-        <span class="tz-badge tz-badge--off">wersja <?= (int)$proc['version'] ?></span>
-        <?php if (!empty($proc['category'])): ?>
-        <span class="tz-badge tz-badge--off">
-          <i class="bi bi-tag" aria-hidden="true"></i><?= h($proc['category']) ?>
-        </span>
-        <?php endif; ?>
-        <?php if (!empty($proc['updated_at'])): ?>
-        <span class="ms-auto small" style="color:var(--tz-muted)">
-          <i class="bi bi-clock me-1" aria-hidden="true"></i>aktualizacja: <?= h(date_pl($proc['updated_at'])) ?>
-        </span>
-        <?php endif; ?>
-      </div>
-
-      <?php if (trim((string)($proc['content'] ?? '')) !== ''): ?>
-      <div style="line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--tz-ink)"><?= nl2br(h($proc['content'])) ?></div>
-      <?php else: ?>
-      <p class="mb-0" style="color:var(--tz-muted)">Brak treści — sprawdź załączniki poniżej.</p>
-      <?php endif; ?>
-    </div>
-  </div>
+  <?php if (trim((string)($proc['content'] ?? '')) !== ''): ?>
+  <div class="pr-doc"><?= nl2br(h($proc['content'])) ?></div>
+  <?php else: ?>
+  <div class="mt-empty"><p class="mb-0">Brak treści — sprawdź załączniki poniżej.</p></div>
+  <?php endif; ?>
 
   <?php if (!empty($attachments)): ?>
-  <div class="tz-card">
-    <div class="tz-card__hd">
-      <i class="bi bi-paperclip" aria-hidden="true"></i>Załączniki
+  <h2 class="mt-h2" style="margin-top:1.75rem"><b>Załączniki</b></h2>
+  <?php foreach ($attachments as $a): $an = $a['original_name'] ?? $a['filename']; ?>
+  <div class="mt-svc" style="--c:var(--m-blue);align-items:center">
+    <i class="bi <?= h(proc_file_icon($an)) ?> ic" aria-hidden="true"></i>
+    <div class="mt-svc__bd"><h3 style="word-break:break-all"><?= h($an) ?></h3><p><?= h(proc_filesize_human((int)($a['filesize'] ?? 0))) ?></p></div>
+    <a href="<?= APP_URL ?>/procedures/serve.php?id=<?= (int)$a['id'] ?>&download" class="mt-btn mt-btn--ghost" aria-label="Pobierz <?= h($an) ?>"><i class="bi bi-download" aria-hidden="true"></i>Pobierz</a>
+  </div>
+  <?php endforeach; ?>
+  <?php endif; ?>
+
+<?php else: /* ── Lista procedur ───────────────────────────────────────── */
+  $_cats = [];
+  foreach ((array)$categories as $c) { $cn = is_array($c) ? ($c['category'] ?? '') : $c; if ($cn !== '') $_cats[] = $cn; }
+  $_catIdx = array_flip($_cats);
+  $_self = APP_URL . '/panel/procedures.php';
+?>
+
+  <div class="mt-head">
+    <div>
+      <div class="mt-kicker">Panel współpracownika · Wiedza</div>
+      <h1 class="mt-title">Procedury</h1>
+      <p class="mt-lead">Dokumenty i instrukcje organizacji — jak coś zrobić krok po kroku.</p>
     </div>
-    <ul class="list-group list-group-flush">
-      <?php foreach ($attachments as $a): ?>
-      <li class="list-group-item d-flex align-items-center gap-2">
-        <i class="bi <?= h(proc_file_icon($a['original_name'] ?? $a['filename'])) ?>"
-           style="color:var(--tz)" aria-hidden="true"></i>
-        <span class="flex-grow-1 text-truncate" style="color:var(--tz-ink)"><?= h($a['original_name'] ?? $a['filename']) ?></span>
-        <span class="small" style="color:var(--tz-muted)"><?= h(proc_filesize_human((int)($a['filesize'] ?? 0))) ?></span>
-        <a href="<?= APP_URL ?>/procedures/serve.php?id=<?= (int)$a['id'] ?>&download"
-           class="tz-btn tz-btn--ghost ms-auto"
-           aria-label="Pobierz <?= h($a['original_name'] ?? $a['filename']) ?>">
-          <i class="bi bi-download" aria-hidden="true"></i>Pobierz
-        </a>
-      </li>
-      <?php endforeach; ?>
-    </ul>
+    <div class="d-flex flex-wrap gap-2">
+      <?php if (function_exists('asai_enabled') && asai_enabled()): ?>
+      <a href="<?= APP_URL ?>/panel/asystent.php" class="mt-btn"><i class="bi bi-stars" aria-hidden="true"></i>Zapytaj Asystenta AI</a>
+      <?php endif; ?>
+      <a href="<?= APP_URL ?>/panel/" class="mt-btn mt-btn--ghost"><i class="bi bi-arrow-left" aria-hidden="true"></i>Pulpit</a>
+    </div>
+  </div>
+
+  <?php if ($_cats): ?>
+  <h2 class="visually-hidden">Kategorie procedur</h2>
+  <div class="mt-grid mt-grid--sm" style="margin-bottom:1.25rem">
+    <?php
+    panelMetroTile(['href'=>$_self . ($filter['q'] !== '' ? '?q=' . urlencode($filter['q']) : ''),'icon'=>'bi-journal-text','label'=>'Wszystkie',
+                    'val'=>(string)count($procs),'color'=>$filter['category'] === '' ? 'var(--pvm-acc)' : 'dark','tag'=>$filter['category'] === '' ? 'wybrane' : '']);
+    foreach ($_cats as $_i => $_c) {
+        panelMetroTile(['href'=>$_self . '?' . http_build_query(array_filter(['category'=>$_c,'q'=>$filter['q']])),'icon'=>'bi-tag','label'=>$_c,
+                        'color'=>$_pal[$_i % 8],'tag'=>$filter['category'] === $_c ? 'wybrane' : '']);
+    }
+    ?>
   </div>
   <?php endif; ?>
 
-</div><!-- /.pv-wrap -->
-
-<?php else: /* ── Lista procedur ───────────────────────────────────────── */ ?>
-
-<div class="pv-wrap">
-
-  <div class="pv-page-header">
-    <div class="pv-page-head-main">
-      <a href="panel.php" class="pv-page-back">
-        <i class="bi bi-arrow-left" aria-hidden="true"></i>Panel
-      </a>
-      <h1 class="pv-page-title">
-        <i class="bi bi-journal-text" aria-hidden="true"></i>Procedury
-      </h1>
-      <p class="pv-page-sub">Dokumenty i instrukcje organizacji</p>
-    </div>
-  </div>
-
-  <form method="get" class="row g-2 mb-3" role="search" aria-label="Wyszukiwanie procedur">
-    <div class="col-12 col-sm">
-      <input type="search" name="q" value="<?= h($filter['q']) ?>" class="form-control"
-             placeholder="Szukaj procedury…" aria-label="Szukaj procedury">
-    </div>
-    <?php if (!empty($categories)): ?>
-    <div class="col-8 col-sm-auto">
-      <select name="category" class="form-select" aria-label="Kategoria">
-        <option value="">Wszystkie kategorie</option>
-        <?php foreach ($categories as $c): $cn = is_array($c) ? ($c['category'] ?? '') : $c; if ($cn==='') continue; ?>
-        <option value="<?= h($cn) ?>" <?= $filter['category']===$cn?'selected':'' ?>><?= h($cn) ?></option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <?php endif; ?>
-    <div class="col-4 col-sm-auto">
-      <button type="submit" class="tz-btn w-100" aria-label="Szukaj">
-        <i class="bi bi-search" aria-hidden="true"></i>
-      </button>
-    </div>
+  <form method="get" class="pr-search" role="search" aria-label="Wyszukiwanie procedur">
+    <?php if ($filter['category'] !== ''): ?><input type="hidden" name="category" value="<?= h($filter['category']) ?>"><?php endif; ?>
+    <label for="pr-q" class="visually-hidden">Szukaj procedury</label>
+    <input type="search" id="pr-q" name="q" value="<?= h($filter['q']) ?>" class="form-control" placeholder="Szukaj procedury…">
+    <button type="submit" class="mt-btn"><i class="bi bi-search" aria-hidden="true"></i>Szukaj</button>
   </form>
 
+  <h2 class="mt-h2"><?= $filter['category'] !== '' ? h($filter['category']) : 'Wszystkie <b>procedury</b>' ?> <span class="mt-no" style="font-size:1rem">(<?= count($procs) ?>)</span></h2>
+
   <?php if (empty($procs)): ?>
-  <div class="tz-empty">
-    <i class="bi bi-folder2-open" aria-hidden="true"></i>
-    Brak procedur<?= $filter['q'] !== '' || $filter['category'] !== '' ? ' dla podanych kryteriów' : '' ?>.
-  </div>
+  <div class="mt-empty"><i class="bi bi-folder2-open" style="font-size:2rem;display:block;margin-bottom:.5rem" aria-hidden="true"></i>
+    <p class="mb-0">Brak procedur<?= $filter['q'] !== '' || $filter['category'] !== '' ? ' dla podanych kryteriów' : '' ?>.</p></div>
   <?php else: ?>
-  <div class="list-group pv-list">
-    <?php foreach ($procs as $p): ?>
-    <a href="procedures.php?id=<?= (int)$p['id'] ?>"
-       class="list-group-item list-group-item-action d-flex align-items-start gap-3">
-      <i class="bi bi-file-earmark-text fs-5 flex-shrink-0 mt-1"
-         style="color:var(--tz)" aria-hidden="true"></i>
-      <div class="flex-grow-1 min-w-0">
-        <div class="fw-semibold d-flex align-items-center gap-2 flex-wrap" style="color:var(--tz-ink)">
-          <?= h($p['title']) ?>
-          <span class="tz-badge tz-badge--off">v<?= (int)$p['version'] ?></span>
-          <?php if (!empty($p['category'])): ?>
-          <span class="tz-badge tz-badge--off">
-            <i class="bi bi-tag" aria-hidden="true"></i><?= h($p['category']) ?>
-          </span>
-          <?php endif; ?>
-        </div>
-        <?php if (!empty($p['content'])): ?>
-        <div class="small text-truncate" style="color:var(--tz-muted)"><?= h(mb_substr(strip_tags($p['content']), 0, 140, 'UTF-8')) ?></div>
-        <?php endif; ?>
-      </div>
-      <i class="bi bi-chevron-right flex-shrink-0 mt-1"
-         style="color:var(--tz-muted)" aria-hidden="true"></i>
+  <div class="pr-list">
+    <?php foreach ($procs as $p): $_ci = $_catIdx[$p['category'] ?? ''] ?? null; ?>
+    <a href="procedures.php?id=<?= (int)$p['id'] ?>" class="pr-item" style="--c:<?= h($_ci === null ? 'var(--m-grey)' : $_pal[$_ci % 8]) ?>">
+      <i class="bi bi-file-earmark-text" style="font-size:1.6rem;line-height:1.1" aria-hidden="true"></i>
+      <span style="min-width:0;flex:1">
+        <h3><?= h($p['title']) ?></h3>
+        <span class="d-flex flex-wrap gap-1 mt-1">
+          <span class="mt-badge">v<?= (int)$p['version'] ?></span>
+          <?php if (!empty($p['category'])): ?><span class="mt-badge mt-badge--info"><?= h($p['category']) ?></span><?php endif; ?>
+        </span>
+        <?php if (!empty($p['content'])): ?><p><?= h(mb_substr(strip_tags($p['content']), 0, 220, 'UTF-8')) ?></p><?php endif; ?>
+      </span>
     </a>
     <?php endforeach; ?>
   </div>
   <?php endif; ?>
 
-</div><!-- /.pv-wrap -->
-
 <?php endif; /* lista / szczegóły */ ?>
+</div><!-- /.pvm -->
 
 <?php include __DIR__ . '/includes/footer_panel.php'; ?>
