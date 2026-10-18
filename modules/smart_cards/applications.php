@@ -157,7 +157,7 @@ include __DIR__ . '/partials/ui.php';
           'templates' => $templates, 'zones' => $zones, 'defaults_url' => $BASE . '?defaults=', 'prefix' => 'n',
       ]); ?>
     </div>
-    <div class="sc-modal__ft"><button type="button" class="h-btn h-btn--ghost" @click="modal = ''">Anuluj</button><button type="submit" class="h-btn h-btn--primary">Złóż wniosek</button></div>
+    <div class="sc-modal__ft"><button type="button" class="h-btn h-btn--ghost" @click="modal = ''">Anuluj</button></div>
   </form>
 </div>
 

@@ -82,7 +82,6 @@ include __DIR__ . '/partials/ui.php';
             'users' => null, 'supervisors' => $svc->supervisors(), 'user_id' => $uid, 'old' => $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : [],
             'defaults' => $svc->applicantDefaults($uid), 'templates' => $svc->templates(), 'zones' => $svc->zones(true), 'prefix' => 'm',
         ]); ?>
-        <button class="h-btn h-btn--primary" type="submit">Złóż wniosek</button>
       </form>
       <?php endif; ?>
     </div>
