@@ -599,14 +599,12 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
 <?php if ($_zl_days_end !== null && $_zl_open_status && $_zl_days_end <= 14): ?>
 <!-- ═══ BANER — umowa kończy się / minął termin ═══ -->
-<div class="alert d-flex flex-wrap align-items-center gap-3 no-print mb-3"
-     style="<?= $_zl_days_end < 0 ? 'background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fca5a5;border-left:5px solid #dc2626' : 'background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fcd34d;border-left:5px solid #d97706' ?>">
-  <div class="flex-shrink-0 d-flex align-items-center justify-content-center"
-       style="width:46px;height:46px;border-radius:12px;background:<?= $_zl_days_end < 0 ? '#dc2626' : '#d97706' ?>;color:#fff;font-size:1.4rem">
+<div class="alert cv-banner <?= $_zl_days_end < 0 ? 'cv-banner--danger' : 'cv-banner--warn' ?> d-flex flex-wrap align-items-center gap-3 no-print mb-3">
+  <div class="cv-banner-ico flex-shrink-0 d-flex align-items-center justify-content-center">
     <i class="bi <?= $_zl_days_end < 0 ? 'bi-exclamation-octagon' : 'bi-hourglass-split' ?>"></i>
   </div>
   <div class="flex-grow-1" style="min-width:220px">
-    <div class="fw-bold" style="font-size:1.05rem">
+    <div class="cv-banner-title">
       <?php if ($_zl_days_end < 0): ?>Termin umowy minął <?= -$_zl_days_end ?> dni temu (<?= date_pl($row['data_zakonczenia']) ?>)
       <?php elseif ($_zl_days_end === 0): ?>Umowa kończy się dziś
       <?php else: ?>Umowa kończy się za <?= $_zl_days_end ?> dni (<?= date_pl($row['data_zakonczenia']) ?>)<?php endif; ?>
@@ -624,14 +622,12 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
 <?php if (rachunek_banner_needed($row)): ?>
 <!-- ═══ BANER — brak rachunku za bieżący miesiąc ═══ -->
-<div class="alert d-flex flex-wrap align-items-center gap-3 no-print mb-3"
-     style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-left:5px solid #2563eb">
-  <div class="flex-shrink-0 d-flex align-items-center justify-content-center"
-       style="width:46px;height:46px;border-radius:12px;background:#2563eb;color:#fff;font-size:1.4rem">
+<div class="alert cv-banner d-flex flex-wrap align-items-center gap-3 no-print mb-3">
+  <div class="cv-banner-ico flex-shrink-0 d-flex align-items-center justify-content-center">
     <i class="bi bi-receipt"></i>
   </div>
   <div class="flex-grow-1" style="min-width:220px">
-    <div class="fw-bold" style="font-size:1.05rem">Wyślij rachunek za <?= h(rachunek_month_label()) ?></div>
+    <div class="cv-banner-title">Wyślij rachunek za <?= h(rachunek_month_label()) ?></div>
     <div class="small text-secondary">
       Umowa jest aktywna, a w rejestrze nie ma jeszcze rachunku za ten miesiąc.
       <?php if (trim((string)($row['email'] ?? ''))): ?>

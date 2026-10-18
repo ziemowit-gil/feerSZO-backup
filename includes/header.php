@@ -505,11 +505,15 @@ app_bg_css($__bg_subtle ? '#EFF1F5' : '#E8EBF0', $__bg_subtle ? 'subtle' : 'norm
 /* EZD: szata Metro UI jak System Tożsamości — ostatni blok stylów (wygrywa z motywem i tłem) */
 if ($_ezd_shell) require __DIR__ . '/ezd_metro.php';
 /* ── Nawigacja z rejestru menu (includes/menu.php) — jedno źródło prawdy ──
-   Budowana już tu, bo od aktywnej zakładki zależy szata Metro (Umowy, Wolontariat, Finanse). */
+   Budowana już tu, bo od aktywnej zakładki zależy akcent i szata Metro treści. */
 require_once __DIR__ . '/menu.php';
 $_menu = $_user ? menu_build() : ['mode' => 'guest', 'tree' => []];
 require_once __DIR__ . '/szo_metro.php';
-if (!$_ezd_shell && ($_szo_metro_group = szo_metro_group($_menu['tree']))) szo_metro_assets($_szo_metro_group);
+if (!$_ezd_shell && $_user) {
+    $_szo_metro_group = szo_metro_group($_menu['tree']);
+    szo_metro_header_assets($_szo_metro_group);                 // nagłówek: zawsze Metro
+    if ($_szo_metro_group) szo_metro_assets($_szo_metro_group);  // treść: Umowy, Wolontariat, Finanse, Ludzie
+}
 /* Tabele nie ucinają kolumn: przewijanie w poziomie + menu Bootstrapa „fixed” */
 require_once __DIR__ . '/table_overflow.php'; table_overflow_assets();
 ?>
