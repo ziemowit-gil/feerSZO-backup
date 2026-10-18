@@ -539,7 +539,8 @@ function appDocsBlocksHtml(array $app, array $tpl, callable $v, callable $fill, 
                 $out .= '<div class="ad-sign"><div class="ad-sign-box"><div class="ad-lbl">Złożono elektronicznie</div>'
                       . '<div>' . h($b[1]) . ': <b>' . h($app['user_name'] ?: $v('wnioskodawca')) . '</b>'
                       . (!empty($app['user_email']) ? ' (' . h($app['user_email']) . ')' : '') . '</div>'
-                      . '<div>po zalogowaniu do SZO, ' . h(date('d.m.Y, H:i', strtotime((string)$app['created_at']))) . '</div></div></div>';
+                      . '<div>po zalogowaniu do SZO, ' . h(date('d.m.Y, H:i', strtotime((string)$app['created_at']))) . '</div>'
+                      . ($v('podpis') !== '' ? '<div>' . h($v('podpis')) . '</div>' : '') . '</div></div>';
                 break;
             case 'decision':
                 $ans = trim((string)($app['odpowiedz'] ?? ''));

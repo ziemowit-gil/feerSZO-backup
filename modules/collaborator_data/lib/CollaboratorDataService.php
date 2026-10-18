@@ -94,6 +94,24 @@ final class CollaboratorDataService
         )");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_cdc_user ON collaborator_data_changes(user_id, created_at)");
         db()->exec("CREATE INDEX IF NOT EXISTS idx_cdc_status ON collaborator_data_changes(status)");
+        // Żądania podpisu wniosku SZD: zmiany czekają tu (payload), dopóki osoba nie podpisze wniosku kodem
+        db()->exec("CREATE TABLE IF NOT EXISTS collaborator_sign_requests (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            token          TEXT NOT NULL UNIQUE,
+            payload_json   TEXT NOT NULL,
+            code_hash      TEXT,
+            channel        TEXT,
+            sent_to        TEXT,
+            sent_at        DATETIME,
+            expires_at     DATETIME,
+            attempts       INTEGER NOT NULL DEFAULT 0,
+            status         TEXT NOT NULL DEFAULT 'pending',
+            application_id INTEGER REFERENCES user_applications(id) ON DELETE SET NULL,
+            ip             TEXT,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            signed_at      DATETIME
+        )");
     }
 
     /**
@@ -219,18 +237,29 @@ final class CollaboratorDataService
      * Admin/redaktor zmieniający cudze dane: zmiany wchodzą od razu ($autoApprove).
      * @param array<string,string> $input
      */
-    public function submit(array $input, int $actorId, string $source = 'self', ?int $applicationId = null, bool $autoApprove = false): CollabSubmitResult
+    /** Walidacja: [błędy, zmiany do wprowadzenia (tylko pola, których wartość się zmienia)]. */
+    public function prepare(array $input): array
     {
-        $fields = self::fields();
         $cur = $this->current();
         $errors = []; $todo = [];
-        foreach ($fields as $code => $f) {
+        foreach (self::fields() as $code => $f) {
             if (!array_key_exists($code, $input)) continue;
             [$val, $err] = self::normalize($f['type'], (string)$input[$code]);
             if ($err) { $errors[$code] = $err; continue; }
             if ($val === ($cur[$code] ?? '')) continue;
             $todo[$code] = $val;
         }
+        return [$errors, $todo];
+    }
+
+    /** @var array<string,string>|null dane podpisu wniosku SZD (sposób, adresat kodu, czas) — ustawiane przy sign() */
+    private ?array $signInfo = null;
+
+    public function submit(array $input, int $actorId, string $source = 'self', ?int $applicationId = null, bool $autoApprove = false): CollabSubmitResult
+    {
+        $fields = self::fields();
+        $cur = $this->current();
+        [$errors, $todo] = $this->prepare($input);
         if ($errors) return new CollabSubmitResult(0, 0, $errors);
 
         $applied = 0; $pending = 0; $ids = []; $rows = [];
@@ -285,22 +314,25 @@ final class CollaboratorDataService
                 'uzasadnienie'  => 'Aktualizacja danych przez współpracownika w module „Zmiana danych współpracownika”.',
                 'data_zmiany'   => date('Y-m-d'),
                 'zalaczniki'    => '',
+                'podpis'        => $this->signInfo
+                    ? 'podpisano kodem jednorazowym wysłanym ' . ($this->signInfo['channel'] === 'sms' ? 'SMS-em na numer ' : 'e-mailem na adres ') . $this->signInfo['to']
+                      . ', ' . date('d.m.Y, H:i', strtotime($this->signInfo['at']))
+                    : '',
             ];
             $fields = appDocsApplyLocked('wniosek_szd', $fields, $userArr);
             $title = 'SZD — zmiana danych: ' . mb_substr(implode(', ', array_map(fn($r) => mb_strtolower($r[0]), $rows)), 0, 120);
             $appId = db_insert('user_applications', [
                 'user_id' => $this->userId, 'type_id' => (int)$type['id'], 'contract_type' => '', 'contract_id' => 0,
                 'tytul' => $title, 'fields_json' => json_encode($fields, JSON_UNESCAPED_UNICODE), 'plik' => null,
-                'status' => $hasPending ? 'nowy' : 'rozpatrzony',
-                'odpowiedz' => $hasPending ? null : 'Zmiany wprowadzone automatycznie w systemie (moduł Zmiana danych współpracownika).',
-                'odpowiedz_at' => $hasPending ? null : date('Y-m-d H:i:s'),
+                'status' => 'nowy',
             ]);
             if ($changeIds) {
                 db()->prepare("UPDATE collaborator_data_changes SET application_id = ? WHERE id IN (" . implode(',', array_map('intval', $changeIds)) . ")")
                     ->execute([$appId]);
             }
+            // Podpisany wniosek jest składany jak każdy: numer, suma kontrolna, EZD (RPW), UPZ, start obiegu typu
             appDocsAfterSubmit($appId);
-            if ($hasPending && is_file($root . '/modules/app_workflow/logic/appWorkflow.php')) {
+            if (is_file($root . '/modules/app_workflow/logic/appWorkflow.php')) {
                 require_once $root . '/modules/app_workflow/logic/appWorkflow.php';
                 if (function_exists('appWfStart')) appWfStart($appId);
             }
@@ -383,6 +415,107 @@ final class CollaboratorDataService
                          APP_URL . '/modules/collaborator_data/router.php');
         } catch (\Throwable $e) {}
         return true;
+    }
+
+    // ── Podpis wniosku SZD kodem jednorazowym ─────────────────────────────────────
+
+    /**
+     * „Zapisz zmiany”: walidacja i żądanie podpisu wniosku SZD. Zmiany NIE wchodzą, dopóki osoba nie podpisze
+     * wniosku kodem (SMS na telefon z konta; bez telefonu lub bramki — e-mail). Zwraca ['errors'=>…] albo ['token'=>…].
+     */
+    public function requestSignature(array $input): array
+    {
+        [$errors, $todo] = $this->prepare($input);
+        if ($errors) return ['errors' => $errors];
+        if (!$todo) return ['token' => null];
+        // wcześniejsze niepodpisane żądania tej osoby tracą ważność — obowiązuje ostatni zapis
+        db()->prepare("UPDATE collaborator_sign_requests SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'")->execute([$this->userId]);
+        $token = bin2hex(random_bytes(16));
+        db_insert('collaborator_sign_requests', ['user_id' => $this->userId, 'token' => $token,
+            'payload_json' => json_encode($todo, JSON_UNESCAPED_UNICODE), 'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64)]);
+        $sent = $this->sendCode($token);
+        return ['token' => $token, 'sent' => $sent];
+    }
+
+    /** Żądanie podpisu tej osoby (pending, nieprzeterminowane payloadem) albo null. */
+    public function signRequest(string $token): ?array
+    {
+        $r = db_one("SELECT * FROM collaborator_sign_requests WHERE token = ? AND user_id = ?", [$token, $this->userId]);
+        return $r ?: null;
+    }
+
+    /** Wiersze podglądu wniosku: [etykieta, dotychczas, nowa, wymaga akceptacji]. */
+    public function previewRows(array $req): array
+    {
+        $fields = self::fields(); $cur = $this->current(); $rows = [];
+        foreach ((json_decode((string)$req['payload_json'], true) ?: []) as $code => $val) {
+            if (!isset($fields[$code])) continue;
+            $rows[] = [$fields[$code]['label'], self::display($code, $cur[$code] ?? ''), $code === 'rachunek_bankowy' ? (string)$val : self::display($code, (string)$val), $fields[$code]['approval']];
+        }
+        return $rows;
+    }
+
+    /** Wysyła (ponownie) kod podpisu. Zwraca ['ok'=>bool, 'channel'=>sms|email, 'to'=>zamaskowany adresat, 'error'=>?]. */
+    public function sendCode(string $token): array
+    {
+        $req = $this->signRequest($token);
+        if (!$req || $req['status'] !== 'pending') return ['ok' => false, 'error' => 'Żądanie podpisu wygasło — zapisz zmiany ponownie.'];
+        if (!empty($req['sent_at']) && strtotime((string)$req['sent_at']) > time() - 45) return ['ok' => false, 'error' => 'Kod wysłano przed chwilą — odczekaj chwilę przed ponowną wysyłką.'];
+        $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $u = $this->user();
+        $org = org_setting('org_short_name') ?: (defined('ORG_NAME') ? ORG_NAME : 'SZO');
+        $phone = trim((string)($u['phone_number'] ?? ''));
+        $channel = ''; $to = ''; $err = null;
+        try {
+            require_once dirname(__DIR__, 3) . '/includes/sms.php';
+            if ($phone !== '' && function_exists('sms_is_enabled') && sms_is_enabled()) {
+                sms_send($phone, "Kod podpisu wniosku o zmianę danych (SZD): {$code}. Ważny 10 minut. Nie podawaj go nikomu. [{$org}]", 'authorization_code');
+                $channel = 'sms'; $to = '••• ••• ' . substr(preg_replace('/\D/', '', $phone), -3);
+            }
+        } catch (\Throwable $e) { $err = $e->getMessage(); }
+        if ($channel === '') {
+            $mail = trim((string)($u['email'] ?? ''));
+            if (!filter_var($mail, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Brak telefonu i adresu e-mail do wysłania kodu podpisu — uzupełnij telefon w koncie.'];
+            require_once dirname(__DIR__, 3) . '/includes/mail_queue.php';
+            mail_queue_add($mail, (string)($u['name'] ?? ''), 'Kod podpisu wniosku o zmianę danych (SZD)',
+                '<p>Kod podpisu wniosku o zmianę danych: <strong style="font-size:1.4em;letter-spacing:.15em">' . $code . '</strong></p>'
+                . '<p>Kod jest ważny 10 minut. Jeśli to nie Ty zmieniasz dane w ' . htmlspecialchars((string)$org, ENT_QUOTES) . ', zignoruj tę wiadomość i zgłoś to administratorowi.</p>',
+                '', 'collab_sign', (int)$req['id'], '', true);
+            $channel = 'email';
+            [$l, $d] = array_pad(explode('@', $mail, 2), 2, '');
+            $to = mb_substr($l, 0, 2) . '•••@' . $d;
+        }
+        db()->prepare("UPDATE collaborator_sign_requests SET code_hash = ?, channel = ?, sent_to = ?, sent_at = ?, expires_at = ?, attempts = 0 WHERE id = ?")
+            ->execute([hash('sha256', $token . '|' . $code), $channel, $to, date('Y-m-d H:i:s'), date('Y-m-d H:i:s', time() + 600), (int)$req['id']]);
+        return ['ok' => true, 'channel' => $channel, 'to' => $to, 'error' => $err];
+    }
+
+    /** Podpis kodem → złożenie wniosku SZD i wprowadzenie zmian. Zwraca ['ok'=>bool, 'error'=>?, 'result'=>?CollabSubmitResult]. */
+    public function sign(string $token, string $code, int $actorId): array
+    {
+        $req = $this->signRequest($token);
+        if (!$req || $req['status'] !== 'pending') return ['ok' => false, 'error' => 'To żądanie podpisu nie jest już aktywne.'];
+        if (empty($req['code_hash']) || strtotime((string)$req['expires_at']) < time()) return ['ok' => false, 'error' => 'Kod wygasł — wyślij nowy.'];
+        if ((int)$req['attempts'] >= 5) return ['ok' => false, 'error' => 'Za dużo błędnych prób — wyślij nowy kod.'];
+        if (!hash_equals((string)$req['code_hash'], hash('sha256', $token . '|' . preg_replace('/\D/', '', $code)))) {
+            db()->prepare("UPDATE collaborator_sign_requests SET attempts = attempts + 1 WHERE id = ?")->execute([(int)$req['id']]);
+            return ['ok' => false, 'error' => 'Nieprawidłowy kod. Pozostało prób: ' . max(0, 4 - (int)$req['attempts']) . '.'];
+        }
+        $now = date('Y-m-d H:i:s');
+        // jednorazowość: tylko jedno żądanie przejdzie z pending na signed
+        $st = db()->prepare("UPDATE collaborator_sign_requests SET status = 'signed', signed_at = ? WHERE id = ? AND status = 'pending'");
+        $st->execute([$now, (int)$req['id']]);
+        if ($st->rowCount() !== 1) return ['ok' => false, 'error' => 'Wniosek został już podpisany.'];
+        $this->signInfo = ['channel' => (string)$req['channel'], 'to' => (string)$req['sent_to'], 'at' => $now];
+        $res = $this->submit(json_decode((string)$req['payload_json'], true) ?: [], $actorId, 'self');
+        $this->signInfo = null;
+        if ($res->applicationId) db()->prepare("UPDATE collaborator_sign_requests SET application_id = ? WHERE id = ?")->execute([$res->applicationId, (int)$req['id']]);
+        return ['ok' => true, 'result' => $res];
+    }
+
+    public function cancelSignature(string $token): void
+    {
+        db()->prepare("UPDATE collaborator_sign_requests SET status = 'cancelled' WHERE token = ? AND user_id = ? AND status = 'pending'")->execute([$token, $this->userId]);
     }
 
     /** Dziennik zmian (dla osoby albo wszystkich). @return list<array<string,mixed>> */

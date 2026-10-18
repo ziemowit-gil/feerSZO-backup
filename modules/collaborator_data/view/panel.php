@@ -49,7 +49,7 @@ foreach ($fields as $code => $f) $grouped[$f['group']][$code] = $f;
   <div class="cdc-k">Mój panel · dane współpracownika</div>
   <h1>Zmiana danych</h1>
   <p class="cdc-lead">Zaktualizuj swoje dane kontaktowe, adres i dane do rozliczeń. Każda zmiana trafia do dziennika (kto, kiedy, co).
-    Imię, nazwisko, PESEL i login zmienisz wnioskiem SZD — zmiana rachunku bankowego czeka na akceptację.</p>
+    Każdy zapis tworzy wniosek SZD, który podpisujesz kodem z SMS-a — zmiany wchodzą po podpisaniu; zmiana rachunku bankowego czeka dodatkowo na akceptację.</p>
   <?= flash_html() ?>
 
   <div class="cdc-cols">
@@ -78,7 +78,7 @@ foreach ($fields as $code => $f) $grouped[$f['group']][$code] = $f;
     </div>
     <?php endforeach; ?>
     <?php if (!$person): ?><p class="cdc-note mt-3"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Nie masz jeszcze karty w rejestrze Osób — założymy ją przy pierwszym zapisie adresu lub danych rozliczeniowych.</p><?php endif; ?>
-    <div class="cdc-save"><button type="submit"><i class="bi bi-check-lg me-1" aria-hidden="true"></i>Zapisz zmiany</button></div>
+    <div class="cdc-save"><button type="submit"><i class="bi bi-pen me-1" aria-hidden="true"></i>Zapisz i podpisz wniosek SZD</button></div>
   </form>
 
   <aside class="cdc-side" aria-label="Wnioski i dziennik zmian">
