@@ -394,6 +394,7 @@ panelMetroAssets($_vol_color);
                     'sub'=>$msg_unread ? 'nowych od organizacji' : 'napisz do nas','color'=>$msg_unread ? 'indigo' : 'blue','size'=>'w']);
     panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>$_ann_unread ? (string)$_ann_unread : '',
                     'sub'=>$_ann_unread ? 'nowych ogłoszeń' : 'ogłoszenia organizacji','color'=>'violet']);
+    panelMetroTile(['href'=>APP_URL.'/directory/','icon'=>'bi-person-lines-fill','label'=>'Katalog','sub'=>'kto jest kim · jednostki i działy','color'=>'indigo']);
     if (is_file($ROOT . '/panel/calendar.php')) {
         panelMetroTile(['href'=>APP_URL.'/panel/calendar.php','go'=>isset($_tabs['kalendarz']) ? 'kalendarz' : '','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>isset($_tabs['kalendarz']) && $_pv_cal ? 'najbliższe: ' . $_pv_cal[0]['dtstart']->format('d.m') : 'wydarzenia i dyżury','color'=>'green']);
     }

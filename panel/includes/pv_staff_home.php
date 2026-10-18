@@ -101,6 +101,7 @@ $_sh_lead = $_sh_admin
     panelMetroDydaktykTile();
     panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>$_sh_ann ? (string)$_sh_ann : '',
                     'sub'=>$_sh_ann ? 'nowych' : 'ogłoszenia organizacji','color'=>'violet']);
+    panelMetroTile(['href'=>APP_URL.'/directory/','icon'=>'bi-person-lines-fill','label'=>'Katalog','sub'=>'kto jest kim · jednostki i działy','color'=>'indigo']);
     if (module_enabled('messages_enabled')) {
         panelMetroTile(['href'=>APP_URL.'/panel/messages.php','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>!empty($msg_unread) ? (string)(int)$msg_unread : '',
                         'sub'=>!empty($msg_unread) ? 'nowych' : 'korespondencja','color'=>'blue']);
