@@ -235,9 +235,10 @@ function tiSubApply(int $clientId, array $in, string $by): array {
 
         $uid  = function_exists('current_user') ? (current_user()['id'] ?? null) : null;
         $base = 'Wpłata na subkonto ' . $nrb . ' z ' . date('d.m.Y', strtotime($date));
+        $ropIds = [];
         foreach ($todo as $t) {
             if ($t['assign'] <= 0.005) continue;
-            db_insert('k30_ti_payments', [
+            $ropIds[] = db_insert('k30_ti_payments', [
                 'client_id' => $clientId, 'course_id' => $t['r']['course_id'], 'amount' => $t['assign'],
                 'paid_at' => $date, 'method' => 'transfer', 'note' => mb_substr($base . ' — ' . $t['label'], 0, 500),
                 'source_type' => 'billing_match', 'source_id' => $t['r']['billing_id'], 'created_by' => $uid,
@@ -248,6 +249,9 @@ function tiSubApply(int $clientId, array $in, string $by): array {
         $pdo->rollBack();
         return ['ok' => false, 'errors' => ['Nie zapisano zmian: ' . $e->getMessage()]];
     }
+    // ROP — stan subkonta na dzień wpłaty (jeden dokument na całą wpłatę, także z resztą jako nadpłatą)
+    try { require_once dirname(__DIR__, 3) . '/modules/ti_dop/lib/RopStatement.php'; foreach ($ropIds as $_rid) ropQueuePayment($clientId, (int)$_rid); }
+    catch (\Throwable $e) { error_log('ROP queue: ' . $e->getMessage()); }
 
     $leftover = round($amount - $sum, 2);
     if ($leftover > 0.005) {   // reszta = nadpłata ogólna (ti_payment_add przelicza saldo i powiadamia o nadpłacie)

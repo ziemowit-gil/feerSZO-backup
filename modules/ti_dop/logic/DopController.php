@@ -6,6 +6,7 @@ declare(strict_types=1);
  * (podpis przez link albo wersja papierowa ze skanem), karta wniosku ze ścieżką obsługi, wydruk, puste wzory.
  */
 require_once dirname(__DIR__) . '/lib/DopService.php';
+require_once dirname(__DIR__) . '/lib/RopStatement.php';
 
 final class DopController
 {
@@ -149,6 +150,61 @@ final class DopController
         try { $this->svc->cancel($id, trim((string)($_POST['reason'] ?? '')), $this->actor()); flash_set('success', 'Wycofano wniosek.'); }
         catch (\Throwable $e) { return $this->fail($e, route('dop.show', ['id' => $id])); }
         return Router::redirect(route('dop.show', ['id' => $id]));
+    }
+
+    // ── ROP — stan subkonta na dzień wpłaty ─────────────────────────────────────
+
+    public function ropIndex(): string
+    {
+        $cid = (int)($_GET['klient'] ?? 0);
+        $c = $cid ? DopService::client($cid) : null;
+        $payments = $c ? db_all("SELECT id, amount, paid_at, note FROM k30_ti_payments WHERE client_id = ? AND amount > 0 AND method NOT IN ('internal','refund') ORDER BY COALESCE(paid_at, date(created_at)) DESC, id DESC LIMIT 30", [$cid]) : [];
+        return $this->view('rop.php', ['list' => RopStatement::search(['client' => $cid, 'q' => (string)($_GET['q'] ?? '')]), 'c' => $c, 'payments' => $payments,
+            'requests' => $c ? RopStatement::requests($cid) : [], 'clients' => $c ? [] : DopService::clients((string)($_GET['q'] ?? '')), 'q' => (string)($_GET['q'] ?? ''), 'auto' => RopStatement::autoEnabled()]);
+    }
+
+    public function ropCreate(): ?string
+    {
+        $cid = (int)($_POST['klient'] ?? 0);
+        $pids = array_values(array_filter(array_map('intval', (array)($_POST['payments'] ?? []))));
+        $date = (string)($_POST['as_of'] ?? '');
+        try {
+            if ($pids && $date === '') $date = (string)(db_one("SELECT MAX(COALESCE(paid_at, date(created_at))) AS d FROM k30_ti_payments WHERE id IN (" . implode(',', array_fill(0, count($pids), '?')) . ")", $pids)['d'] ?? '');
+            $r = RopStatement::create($cid, $date, $pids, (string)($_POST['request_number'] ?? ''), $this->actor(), false);
+            flash_set('success', 'Wystawiono ' . $r['number'] . '. Wysyłka: ' . $r['report'] . '.');
+            return Router::redirect(route('rop.show', ['id' => $r['id']]));
+        } catch (\Throwable $e) { return $this->fail($e, route('rop.index', ['klient' => $cid])); }
+    }
+
+    public function ropAuto(): ?string
+    {
+        $on = !RopStatement::autoEnabled();
+        org_setting_set('rop_auto_enabled', $on ? '1' : '0');
+        flash_set('success', $on ? 'Włączono automatyczny ROP po każdej wpłacie na subkonto.' : 'Wyłączono automatyczny ROP — wystawiaj ręcznie.');
+        return Router::redirect(route('rop.index'));
+    }
+
+    public function ropShow(int $id): string
+    {
+        $r = RopStatement::get($id);
+        if (!$r) { http_response_code(404); return 'Nie ma takiego dokumentu.'; }
+        return $this->view('rop_show.php', ['r' => $r]);
+    }
+
+    public function ropPdf(int $id): ?string
+    {
+        $r = RopStatement::get($id);
+        if (!$r) { http_response_code(404); return 'Nie ma takiego dokumentu.'; }
+        $p = DopService::fullPath((string)$r['pdf_path']);
+        if ($p) { while (ob_get_level() > 0) ob_end_clean(); header('Content-Type: application/pdf'); header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $r['number']) . '.pdf"'); header('Cache-Control: no-store, private'); readfile($p); return null; }
+        return $this->send(RopStatement::render($r), (string)$r['number']);
+    }
+
+    public function ropSend(int $id): ?string
+    {
+        try { flash_set('success', 'Wysłano ponownie: ' . RopStatement::send($id, $this->actor()) . '.'); }
+        catch (\Throwable $e) { return $this->fail($e, route('rop.show', ['id' => $id])); }
+        return Router::redirect(route('rop.show', ['id' => $id]));
     }
 
     public function blank($form): ?string

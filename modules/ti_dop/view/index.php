@@ -12,6 +12,7 @@ $u = fn(array $q) => h(route('dop.index', $q));
   <h1 class="me-auto mb-0"><span class="sym" style="background:#00aba9">DOP1</span> <span class="sym" style="background:#6a00ff">DOP2</span> Wnioski rozliczeniowe uczestnika</h1>
   <a class="btn btn-metro" style="background:#00aba9" href="<?= h(route('dop.new', ['form' => 'DOP1'])) ?>">Nowy DOP1 — zwrot nadpłaty</a>
   <a class="btn btn-metro" style="background:#6a00ff" href="<?= h(route('dop.new', ['form' => 'DOP2'])) ?>">Nowy DOP2 — płatność z subkonta</a>
+  <a class="btn btn-metro green" href="<?= h(route('rop.index')) ?>">ROP — stan subkonta na dzień wpłaty</a>
 </div>
 <p class="text-secondary">Wniosek podpisuje wnioskodawca przez link (e-mail + SMS, podpis elektroniczny) albo odręcznie — wtedy wgrywasz skan. Realizacja do <?= LD_REALIZATION_DAYS ?> dni;
   zwrot i płatność trafiają do księgi uczestnika (rejestr nadpłat, subkonto), a dokument końcowy — do teczki „Dokumenty kursanta”.</p>

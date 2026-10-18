@@ -1696,6 +1696,7 @@ function printBulk(){
         <div class="d-flex flex-wrap gap-1">
           <a class="btn btn-sm btn-outline-success py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/nowy', 'form' => 'DOP1', 'klient' => (int)$sa['client_id']])) ?>">DOP1 — zwrot nadpłaty</a>
           <a class="btn btn-sm btn-outline-primary py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/nowy', 'form' => 'DOP2', 'klient' => (int)$sa['client_id']])) ?>">DOP2 — płatność z subkonta</a>
+          <a class="btn btn-sm btn-outline-success py-0" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/rop', 'klient' => (int)$sa['client_id']])) ?>">ROP — stan subkonta</a>
           <a class="btn btn-sm btn-outline-secondary py-0" href="wnioskiDop.php?<?= h(http_build_query(['klient' => (int)$sa['client_id']])) ?>">wszystkie wnioski uczestnika</a>
         </div>
         <?php if ($_dopOpen): ?><div class="small mt-1">Otwarte: <?php foreach ($_dopOpen as $_d): ?><a class="me-2" href="wnioskiDop.php?<?= h(http_build_query(['_route' => '/wnioski/' . (int)$_d['id']])) ?>"><?= h($_d['number']) ?></a><?php endforeach; ?></div><?php endif; ?>

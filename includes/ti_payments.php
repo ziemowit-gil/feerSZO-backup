@@ -685,6 +685,14 @@ function ti_payment_add(int $client_id, float $amount, string $paid_at = '', str
     $credit = $res['credit'];
     $emailed = false;
 
+    // ROP — stan subkonta na dzień wpłaty do kursanta i rodzica (modules/ti_dop): kolejka, wykonanie na końcu żądania;
+    // tylko prawdziwe wpłaty (bez przeksięgowań, zwrotów i wypłat); błąd ROP nigdy nie blokuje księgowania.
+    if ($amount > 0 && !in_array($method, ['internal', 'refund'], true)
+        && !in_array($source_type, ['writeoff', 'transfer', 'overpay_refund', 'overpay_settle', 'overpay_transfer', 'dop2_payout'], true)) {
+        try { require_once dirname(__DIR__) . '/modules/ti_dop/lib/RopStatement.php'; ropQueuePayment($client_id, (int)$pid); }
+        catch (\Throwable $e) { error_log('ROP queue: ' . $e->getMessage()); }
+    }
+
     // Nadpłata powstała/wzrosła wskutek tej wpłaty → powiadom opiekuna/kursanta
     if ($credit > 0 && $credit + 0.001 >= $credit_before && $amount > 0 && $source_type !== 'writeoff') {
         $emailed = ti_payment_notify_overpay($client_id, $amount, $credit, $pid, max(0, $course_id));

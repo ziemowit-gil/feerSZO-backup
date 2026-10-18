@@ -52,6 +52,12 @@ $r->group(['dyd.staff'], function (Router $r) {
     $r->post('/wnioski/{id}/zatwierdzenie',   [DopController::class, 'approve'])->name('dop.approve');
     $r->post('/wnioski/{id}/realizacja',      [DopController::class, 'execute'])->name('dop.execute');
     $r->post('/wnioski/{id}/wycofaj',         [DopController::class, 'cancel'])->name('dop.cancel');
+    $r->get('/rop',                           [DopController::class, 'ropIndex'])->name('rop.index');
+    $r->post('/rop',                          [DopController::class, 'ropCreate'])->name('rop.create');
+    $r->post('/rop/auto',                     [DopController::class, 'ropAuto'])->name('rop.auto');
+    $r->get('/rop/{id}',                      [DopController::class, 'ropShow'])->name('rop.show');
+    $r->get('/rop/{id}/pdf',                  [DopController::class, 'ropPdf'])->name('rop.pdf');
+    $r->post('/rop/{id}/wyslij',              [DopController::class, 'ropSend'])->name('rop.send');
     $r->get('/wzor/{form}',                   [DopController::class, 'blank'])->name('dop.blank');
 });
 $r->dispatch();
