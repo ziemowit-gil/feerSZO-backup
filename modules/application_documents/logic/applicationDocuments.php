@@ -93,7 +93,247 @@ function appDocsTemplates(): array {
             'asks'        => ['sporządzenie kserokopii w formie papierowej;', 'przekazanie kserokopii w sposób: {sposob}.'],
             'fee'         => 'Jeżeli sporządzenie kserokopii wiąże się z opłatą, proszę o wskazanie jej wysokości oraz sposobu uiszczenia przed realizacją wniosku.',
         ],
+        // Wzory z sekcjami (treść jako 'blocks' — zob. appDocsBlocksHtml)
+        'wniosek_upo1' => [
+            'code'        => 'UPO1',
+            'label'       => 'UPO1 · Wniosek o wydanie upoważnienia',
+            'icon'        => 'bi-person-check',
+            'description' => 'Wniosek o wydanie upoważnienia do czynności lub informacji (wzór UPO1), składany elektronicznie.',
+            'sort'        => 18,
+            'title'       => 'WNIOSEK O WYDANIE UPOWAŻNIENIA',
+            'titleField'  => 'upow_osoba',
+            'fields'      => [
+                ['organ',        'Do: nazwa i adres organu lub instytucji',             'textarea', [], '', 1],
+                ['wnioskodawca', 'Imię i nazwisko / nazwa wnioskodawcy',                'text',     [], '', 1],
+                ['identyfikator','Identyfikator lub stanowisko',                        'text',     [], 'Jeśli dotyczy', 0],
+                ['kontakt',      'Dane kontaktowe',                                     'text',     [], 'Telefon lub e-mail', 1],
+                ['upow_osoba',   'Upoważnienie dla: imię i nazwisko',                   'text',     [], 'Osoba, która ma otrzymać upoważnienie', 1],
+                ['upow_ident',   'Identyfikator / dane kontaktowe osoby upoważnianej',  'text',     [], 'Jeśli wymagane', 0],
+                ['zakres',       'Zakres czynności lub informacji objętych upoważnieniem', 'textarea', [], 'np. dostęp do dokumentacji projektu, odbiór korespondencji', 1],
+                ['sprawa',       'Sprawa, system lub relacja, której dotyczy upoważnienie', 'text', [], 'np. system SZO, projekt „…”, umowa nr …', 1],
+                ['okres_od',     'Wnioskowany okres obowiązywania: od',                 'date',     [], '', 1],
+                ['okres_do',     'Wnioskowany okres obowiązywania: do',                 'date',     [], '', 0],
+                ['uzasadnienie', 'Uzasadnienie / dodatkowe informacje',                 'textarea', [], '', 0],
+                ['zalaczniki',   'Załączniki',                                          'textarea', [], 'Każdy w osobnym wierszu. Puste = brak.', 0],
+            ],
+            'blocks'      => [
+                ['to'],
+                ['h', 'Dane wnioskodawcy'],
+                ['kv', 'Imię i nazwisko / nazwa', 'wnioskodawca'],
+                ['kv', 'Identyfikator lub stanowisko', 'identyfikator'],
+                ['kv', 'Dane kontaktowe', 'kontakt'],
+                ['h', 'Treść wniosku'],
+                ['p', 'Wnoszę o wydanie upoważnienia dla:'],
+                ['kv', 'Imię i nazwisko', 'upow_osoba'],
+                ['kv', 'Identyfikator / dane kontaktowe', 'upow_ident'],
+                ['kv', 'Zakres czynności lub informacji objętych upoważnieniem', 'zakres'],
+                ['kv', 'Sprawa, system lub relacja, której dotyczy upoważnienie', 'sprawa'],
+                ['p', 'Wnioskowany okres obowiązywania: od {okres_od} do {okres_do_txt}.'],
+                ['kv', 'Uzasadnienie / dodatkowe informacje', 'uzasadnienie'],
+                ['p', 'Proszę o przekazanie informacji o sposobie i terminie wydania upoważnienia na wskazane dane kontaktowe.'],
+                ['att'],
+                ['sign', 'w miejsce podpisu wnioskodawcy'],
+                ['decision', 'Adnotacje podmiotu / decyzja'],
+            ],
+        ],
+        'wniosek_upo2' => [
+            'code'        => 'UPO2',
+            'label'       => 'UPO2 · Upoważnienie osoby trzeciej do kontaktu',
+            'icon'        => 'bi-people',
+            'description' => 'Upoważnienie osoby trzeciej do kontaktu w Twojej sprawie (wzór UPO2), składane elektronicznie.',
+            'sort'        => 19,
+            'title'       => 'UPOWAŻNIENIE OSOBY TRZECIEJ DO KONTAKTU',
+            'titleField'  => 'upow_osoba',
+            'fields'      => [
+                ['wnioskodawca', 'Osoba udzielająca upoważnienia: imię i nazwisko / nazwa', 'text', [], '', 1],
+                ['identyfikator','Identyfikator lub dane sprawy',                       'text',     [], 'np. nr umowy, nr sprawy', 0],
+                ['kontakt',      'Dane kontaktowe',                                     'text',     [], 'Telefon lub e-mail', 1],
+                ['upow_osoba',   'Osoba upoważniona: imię i nazwisko',                  'text',     [], '', 1],
+                ['upow_ident',   'Identyfikator / dane kontaktowe osoby upoważnionej',  'text',     [], 'Jeśli wymagane', 0],
+                ['kontakt_z',    'Kontakt z (podmiot)',                                 'text',     [], 'Z kim osoba upoważniona może się kontaktować', 1],
+                ['sprawa',       'W sprawie',                                           'text',     [], 'np. rozliczenia wolontariatu, zajęć TI', 1],
+                ['zakres',       'Zakres kontaktu i informacji',                         'textarea', [], 'np. informacje o terminach zajęć, frekwencji, płatnościach', 1],
+                ['okres_od',     'Okres obowiązywania: od',                             'date',     [], '', 1],
+                ['okres_do',     'Okres obowiązywania: do',                             'date',     [], '', 0],
+            ],
+            'blocks'      => [
+                ['h', 'Dane osoby udzielającej upoważnienia'],
+                ['kv', 'Imię i nazwisko / nazwa', 'wnioskodawca'],
+                ['kv', 'Identyfikator lub dane sprawy', 'identyfikator'],
+                ['kv', 'Dane kontaktowe', 'kontakt'],
+                ['h', 'Dane osoby upoważnionej'],
+                ['kv', 'Imię i nazwisko', 'upow_osoba'],
+                ['kv', 'Identyfikator / dane kontaktowe', 'upow_ident'],
+                ['h', 'Zakres upoważnienia'],
+                ['p', 'Upoważniam wskazaną wyżej osobę do kontaktowania się z {kontakt_z} w sprawie {sprawa}.'],
+                ['p', 'Upoważnienie obejmuje następujący zakres kontaktu i informacji: {zakres}.'],
+                ['p', 'Upoważnienie dotyczy wyłącznie wskazanego zakresu kontaktu i samo przez się nie obejmuje prawa do składania oświadczeń woli, zaciągania zobowiązań ani podejmowania decyzji w moim imieniu.'],
+                ['p', 'Okres obowiązywania: od {okres_od} do {okres_do_txt}.'],
+                ['sign', 'w miejsce podpisu osoby udzielającej upoważnienia'],
+                ['line', 'Potwierdzenie przyjęcia przez osobę upoważnioną (jeśli wymagane)'],
+            ],
+        ],
+        'wniosek_upo3' => [
+            'code' => 'UPO3', 'label' => 'UPO3 · Odwołanie upoważnienia', 'icon' => 'bi-person-x', 'sort' => 20,
+            'description' => 'Odwołanie udzielonego upoważnienia i cofnięcie powiązanego dostępu (wzór UPO3).',
+            'title' => 'ODWOŁANIE UPOWAŻNIENIA', 'titleField' => 'upow_osoba',
+            'fields' => array_merge([appDocsOrganField()], appDocsPersonFields('Imię i nazwisko / nazwa osoby odwołującej', 'Identyfikator lub dane sprawy'), [
+                ['upow_osoba',   'Imię i nazwisko osoby upoważnionej',            'text',     [], '', 1],
+                ['upow_ozn',     'Data udzielenia / oznaczenie upoważnienia',      'text',     [], 'np. 01.03.2026, UPO2/15/2026', 1],
+                ['zakres',       'Zakres, którego dotyczy odwołanie',              'textarea', [], 'Całość albo wskazana część upoważnienia', 1],
+                ['sprawa',       'Sprawa lub system',                              'text',     [], '', 1],
+                ['uwagi',        'Uwagi / żądany termin realizacji czynności technicznych', 'textarea', [], '', 0],
+            ]),
+            'blocks' => array_merge([['to']], appDocsPersonBlocks('Dane osoby odwołującej upoważnienie', 'Identyfikator lub dane sprawy'), [
+                ['h', 'Oświadczenie'],
+                ['p', 'Niniejszym odwołuję upoważnienie udzielone:'],
+                ['kv', 'Imię i nazwisko osoby upoważnionej', 'upow_osoba'],
+                ['kv', 'Data udzielenia / oznaczenie upoważnienia', 'upow_ozn'],
+                ['kv', 'Zakres, którego dotyczy odwołanie', 'zakres'],
+                ['kv', 'Sprawa lub system', 'sprawa'],
+                ['p', 'Proszę o odnotowanie odwołania oraz — jeśli dotyczy — cofnięcie powiązanego dostępu w systemie. Proszę o potwierdzenie daty odnotowania odwołania.'],
+                ['kv', 'Uwagi / żądany termin realizacji czynności technicznych', 'uwagi'],
+                ['sign', 'w miejsce podpisu'],
+                ['decision', 'Adnotacje podmiotu'],
+            ]),
+        ],
+        'wniosek_szd' => [
+            'code' => 'SZD', 'label' => 'SZD · Wniosek o zmianę danych w systemie', 'icon' => 'bi-pencil-square', 'sort' => 21,
+            'description' => 'Wniosek o zmianę danych w systemie — pola, dotychczasowe i nowe wartości (wzór SZD).',
+            'title' => 'WNIOSEK O ZMIANĘ DANYCH W SYSTEMIE', 'titleField' => 'system',
+            'fields' => array_merge([appDocsOrganField()], appDocsPersonFields('Imię i nazwisko / nazwa wnioskodawcy', 'Identyfikator użytkownika / numer sprawy'), [
+                ['system',       'Nazwa systemu',                                  'text',     [], 'np. SZO, Microsoft 365, panel kursanta', 1],
+                ['rodzaj',       'Rodzaj zmiany',                                  'select',   ['aktualizacja danych', 'korekta błędu', 'uzupełnienie danych', 'usunięcie danych', 'inna'], '', 1],
+                ['zmiany',       'Zmiany: pole | dotychczasowa wartość | nowa wartość', 'textarea', [], "Każda zmiana w osobnym wierszu, np.\nNazwisko | Kowalska | Nowak\nTelefon | 600 000 000 | 601 111 111", 1],
+                ['uzasadnienie', 'Uzasadnienie / podstawa zmiany',                 'textarea', [], '', 1],
+                ['data_zmiany',  'Wnioskowana data wprowadzenia zmiany',           'date',     [], '', 0],
+                ['zalaczniki',   'Załączniki potwierdzające zmianę (jeśli wymagane)', 'textarea', [], 'Każdy w osobnym wierszu. Puste = brak.', 0],
+            ]),
+            'blocks' => array_merge([['to']], appDocsPersonBlocks('Dane wnioskodawcy', 'Identyfikator użytkownika / numer sprawy'), [
+                ['h', 'Wnioskowana zmiana'],
+                ['kv', 'Nazwa systemu', 'system'],
+                ['kv', 'Rodzaj zmiany', 'rodzaj'],
+                ['table', 'zmiany', ['Pole / dana', 'Dotychczasowa wartość', 'Nowa wartość']],
+                ['kv', 'Uzasadnienie / podstawa zmiany', 'uzasadnienie'],
+                ['kv', 'Wnioskowana data wprowadzenia zmiany', 'data_zmiany'],
+                ['att', 'Załączniki potwierdzające zmianę'],
+                ['p', 'Proszę o potwierdzenie wprowadzenia zmiany albo wskazanie brakujących informacji.'],
+                ['sign', 'w miejsce podpisu wnioskodawcy'],
+                ['decision', 'Adnotacje realizującego'],
+            ]),
+        ],
+        'wniosek_skk' => [
+            'code' => 'SKK', 'label' => 'SKK · Wniosek o zmianę kanału kontaktu', 'icon' => 'bi-telephone-forward', 'sort' => 22,
+            'description' => 'Wniosek o zmianę kanału kontaktu — e-mail, telefon, inny kanał (wzór SKK).',
+            'title' => 'WNIOSEK O ZMIANĘ KANAŁU KONTAKTU', 'titleField' => 'kanal_nowy',
+            'fields' => array_merge([appDocsOrganField()], appDocsPersonFields('Imię i nazwisko / nazwa wnioskodawcy', 'Identyfikator użytkownika / numer sprawy'), [
+                ['kanal_stary',  'Dotychczasowy kanał kontaktu',                   'select',   ['e-mail', 'telefon / SMS', 'Panel współpracownika (SZO)', 'poczta tradycyjna', 'inny'], '', 1],
+                ['kanal_nowy',   'Wnioskowany kanał kontaktu',                     'select',   ['e-mail', 'telefon / SMS', 'Panel współpracownika (SZO)', 'poczta tradycyjna', 'inny'], '', 1],
+                ['kanal_dane',   'Nowy adres e-mail / numer telefonu / identyfikator kanału', 'text', [], '', 1],
+                ['zakres',       'Zakres spraw, którego dotyczy zmiana',           'textarea', [], 'Wszystkie sprawy albo wskazane', 1],
+                ['data_zmiany',  'Wnioskowana data zmiany',                        'date',     [], '', 0],
+                ['uwagi',        'Uwagi',                                          'textarea', [], '', 0],
+            ]),
+            'blocks' => array_merge([['to']], appDocsPersonBlocks('Dane wnioskodawcy', 'Identyfikator użytkownika / numer sprawy'), [
+                ['h', 'Zmiana kanału kontaktu'],
+                ['kv', 'Dotychczasowy kanał kontaktu', 'kanal_stary'],
+                ['kv', 'Wnioskowany kanał kontaktu', 'kanal_nowy'],
+                ['kv', 'Nowy adres e-mail / numer telefonu / identyfikator kanału', 'kanal_dane'],
+                ['kv', 'Zakres spraw, którego dotyczy zmiana', 'zakres'],
+                ['kv', 'Wnioskowana data zmiany', 'data_zmiany'],
+                ['p', 'Proszę o potwierdzenie wprowadzenia zmiany oraz wskazanie, czy wymaga ona dodatkowej weryfikacji.'],
+                ['kv', 'Uwagi', 'uwagi'],
+                ['sign', 'w miejsce podpisu wnioskodawcy'],
+                ['decision', 'Adnotacje realizującego'],
+            ]),
+        ],
+        'wniosek_itsm' => [
+            'code' => 'ITSM', 'label' => 'ITSM · Wniosek o aktywację licencji', 'icon' => 'bi-key', 'sort' => 23,
+            'description' => 'Wniosek o aktywację licencji systemu lub oprogramowania (wzór ITSM).',
+            'title' => 'WNIOSEK O AKTYWACJĘ LICENCJI', 'titleField' => 'system',
+            'fields' => [
+                appDocsOrganField(),
+                ['wnioskodawca', 'Imię i nazwisko osoby, której dotyczy wniosek', 'text',     [], '', 1],
+                ['identyfikator','Identyfikator konta / login służbowy',           'text',     [], 'np. imie.nazwisko@feer.org.pl', 1],
+                ['jednostka',    'Jednostka / stanowisko',                         'text',     [], '', 0],
+                ['kontakt',      'Dane kontaktowe',                                'text',     [], 'Telefon lub e-mail', 1],
+                ['system',       'Nazwa systemu lub oprogramowania',               'text',     [], 'np. Microsoft 365, Canva Pro, Adobe Acrobat', 1],
+                ['poziom',       'Rodzaj / poziom licencji',                       'text',     [], 'np. A3, Pro, Business Standard', 1],
+                ['data_aktywacji','Wnioskowana data aktywacji',                   'date',     [], '', 0],
+                ['okres',        'Okres obowiązywania, jeśli ograniczony',         'text',     [], 'np. do 30.06.2027', 0],
+                ['uzasadnienie', 'Uzasadnienie biznesowe',                         'textarea', [], '', 1],
+                ['zasob',        'Urządzenie / numer zasobu (jeśli wymagane)',     'text',     [], '', 0],
+                ['akceptujacy',  'Osoba zatwierdzająca / akceptacja',              'text',     [], 'Przełożony lub właściciel budżetu', 0],
+            ],
+            'blocks' => [
+                ['to'],
+                ['h', 'Dane osoby, której dotyczy wniosek'],
+                ['kv', 'Imię i nazwisko', 'wnioskodawca'],
+                ['kv', 'Identyfikator konta / login służbowy', 'identyfikator'],
+                ['kv', 'Jednostka / stanowisko', 'jednostka'],
+                ['kv', 'Dane kontaktowe', 'kontakt'],
+                ['h', 'Wnioskowane uprawnienie licencyjne'],
+                ['kv', 'Nazwa systemu lub oprogramowania', 'system'],
+                ['kv', 'Rodzaj / poziom licencji', 'poziom'],
+                ['kv', 'Wnioskowana data aktywacji', 'data_aktywacji'],
+                ['kv', 'Okres obowiązywania, jeśli ograniczony', 'okres'],
+                ['kv', 'Uzasadnienie biznesowe', 'uzasadnienie'],
+                ['kv', 'Urządzenie / numer zasobu', 'zasob'],
+                ['kv', 'Osoba zatwierdzająca / akceptacja', 'akceptujacy'],
+                ['p', 'Proszę o potwierdzenie aktywacji albo wskazanie brakujących danych lub wymaganej zgody.'],
+                ['sign', 'wnioskodawca'],
+                ['decision', 'Adnotacje zespołu IT'],
+            ],
+        ],
+        'wniosek_dyd1' => [
+            'code' => 'DYD1', 'label' => 'DYD1 · Upoważnienie do wglądu w panel', 'icon' => 'bi-eye', 'sort' => 24,
+            'description' => 'Upoważnienie innej osoby do wglądu w panel lub system — bez prawa zmian (wzór DYD1).',
+            'title' => 'UPOWAŻNIENIE DO WGLĄDU W PANEL', 'titleField' => 'upow_osoba',
+            'fields' => array_merge(appDocsPersonFields('Osoba udzielająca upoważnienia: imię i nazwisko / nazwa', 'Identyfikator użytkownika / numer sprawy'), [
+                ['upow_osoba',   'Osoba upoważniona: imię i nazwisko',             'text',     [], '', 1],
+                ['upow_ident',   'Identyfikator konta / dane kontaktowe osoby upoważnionej', 'text', [], '', 1],
+                ['system',       'Nazwa panelu / systemu',                         'text',     [], 'np. panel kursanta, panel dydaktyka', 1],
+                ['zakres',       'Zakres danych lub widoków do wglądu',            'textarea', [], 'np. plan zajęć, frekwencja, oceny', 1],
+                ['zmiany_zatw',  'Prawo do wprowadzania zmian (jeśli odrębnie zatwierdzono)', 'select', ['nie — wyłącznie wgląd', 'tak — odrębnie zatwierdzone'], '', 1],
+                ['okres_od',     'Okres obowiązywania: od',                        'date',     [], '', 1],
+                ['okres_do',     'Okres obowiązywania: do',                        'date',     [], '', 0],
+                ['uzasadnienie', 'Uzasadnienie / cel dostępu',                     'textarea', [], '', 1],
+            ]),
+            'blocks' => array_merge(appDocsPersonBlocks('Dane osoby udzielającej upoważnienia', 'Identyfikator użytkownika / numer sprawy'), [
+                ['h', 'Dane osoby upoważnionej'],
+                ['kv', 'Imię i nazwisko', 'upow_osoba'],
+                ['kv', 'Identyfikator konta / dane kontaktowe', 'upow_ident'],
+                ['h', 'Zakres dostępu'],
+                ['kv', 'Nazwa panelu / systemu', 'system'],
+                ['kv', 'Zakres danych lub widoków, do których ma być zapewniony wgląd', 'zakres'],
+                ['p', 'Zakres upoważnienia obejmuje wyłącznie wgląd, bez prawa do wprowadzania zmian, chyba że odrębnie zatwierdzono: {zmiany_zatw}.'],
+                ['p', 'Okres obowiązywania: od {okres_od} do {okres_do_txt}.'],
+                ['kv', 'Uzasadnienie / cel dostępu', 'uzasadnienie'],
+                ['p', 'Upoważnienie nie obejmuje udostępniania hasła ani danych uwierzytelniających innej osobie. Dostęp powinien zostać przypisany do indywidualnego konta osoby upoważnionej, jeśli system to umożliwia.'],
+                ['sign', 'w miejsce podpisu osoby udzielającej upoważnienia'],
+                ['decision', 'Akceptacja administratora / właściciela systemu (jeśli wymagana)'],
+            ]),
+        ],
     ];
+}
+
+/** Pole adresata wzorów z sekcjami (zablokowane — organizacja). */
+function appDocsOrganField(): array {
+    return ['organ', 'Do: nazwa i adres organu lub instytucji', 'textarea', [], '', 1];
+}
+
+/** Pola osoby składającej (imię i nazwisko zablokowane, identyfikator, kontakt). */
+function appDocsPersonFields(string $nameLabel, string $identLabel): array {
+    return [
+        ['wnioskodawca',  $nameLabel,  'text', [], '', 1],
+        ['identyfikator', $identLabel, 'text', [], 'Jeśli dotyczy', 0],
+        ['kontakt',       'Dane kontaktowe', 'text', [], 'Telefon lub e-mail', 1],
+    ];
+}
+
+/** Bloki sekcji osoby składającej. */
+function appDocsPersonBlocks(string $heading, string $identLabel): array {
+    return [['h', $heading], ['kv', 'Imię i nazwisko / nazwa', 'wnioskodawca'], ['kv', $identLabel, 'identyfikator'], ['kv', 'Dane kontaktowe', 'kontakt']];
 }
 
 /**
@@ -142,6 +382,7 @@ function appDocsPrefill(?string $typeName, string $field, array $user): string {
             return trim($name . "\n" . org_setting('org_adres'));
         case 'podmiot':     return (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''));
         case 'osoba':       return (string)($user['name'] ?? '');
+        case 'kontakt_z':   return (string)(org_setting('org_name') ?: (defined('ORG_NAME') ? ORG_NAME : ''));
         case 'miejscowosc': return '';
     }
     return '';
@@ -166,7 +407,7 @@ function appDocsApplyLocked(?string $typeName, array $fields, array $user): arra
 function appDocsDefaultTitle(string $typeName, array $fields): string {
     $t = appDocsTemplateFor($typeName);
     if (!$t) return '';
-    $what = trim((string)($fields['dokument'] ?? ''));
+    $what = trim((string)($fields[$t['titleField'] ?? 'dokument'] ?? ''));
     return $t['code'] . ($what !== '' ? ' — ' . mb_substr($what, 0, 120) : ' — ' . mb_strtolower($t['title']));
 }
 
@@ -200,13 +441,19 @@ function appDocsUrl(int $id, bool $pdf = false): string {
 /** Treść dokumentu (HTML, bez <html>) — wspólna dla podglądu i PDF. */
 function appDocsHtml(array $app, array $tpl): string {
     $f   = json_decode((string)($app['fields_json'] ?? '{}'), true) ?: [];
-    $v   = fn(string $k) => trim((string)($f[$k] ?? ''));
+    // daty z pól typu date (RRRR-MM-DD) w dokumencie po polsku: DD.MM.RRRR
+    $v   = function (string $k) use ($f) {
+        $x = trim((string)($f[$k] ?? ''));
+        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $x, $m) ? "$m[3].$m[2].$m[1]" : $x;
+    };
     $date = date('d.m.Y', strtotime((string)$app['created_at']));
-    $calc = ['forma_txt' => $v('forma') === 'elektroniczna' ? 'elektronicznej' : ($v('forma') === 'papierowa' ? 'papierowej' : '')];
+    $calc = ['forma_txt' => $v('forma') === 'elektroniczna' ? 'elektronicznej' : ($v('forma') === 'papierowa' ? 'papierowej' : ''),
+             'okres_do_txt' => $v('okres_do') !== '' ? $v('okres_do') : 'odwołania'];
     $fill = fn(string $s) => preg_replace_callback('/\{(\w+)\}/', function ($m) use ($v, $calc) {
         $val = $calc[$m[1]] ?? $v($m[1]);
         return '<b>' . nl2br(h($val !== '' ? $val : '—')) . '</b>';
     }, h($s));
+    if (!empty($tpl['blocks'])) return appDocsBlocksHtml($app, $tpl, $v, $fill, $date);
     $att = array_values(array_filter(array_map('trim', preg_split('/\R/', $v('zalaczniki')))));
     if (!empty($app['plik'])) $att[] = 'plik dołączony do wniosku: ' . basename((string)$app['plik']);
 
@@ -238,6 +485,75 @@ function appDocsHtml(array $app, array $tpl): string {
     return (string)ob_get_clean();
 }
 
+/**
+ * Treść wzoru z sekcjami (UPO1, UPO2): bloki 'to' (adresat), 'h' (sekcja), 'kv' (etykieta + pole),
+ * 'p' (akapit z {polami}), 'att' (załączniki), 'sign' (złożenie elektroniczne), 'decision' (adnotacje
+ * podmiotu — status i odpowiedź z SZO), 'line' (miejsce na podpis odręczny).
+ */
+function appDocsBlocksHtml(array $app, array $tpl, callable $v, callable $fill, string $date): string {
+    $att = array_values(array_filter(array_map('trim', preg_split('/\R/', $v('zalaczniki')))));
+    if (!empty($app['plik'])) $att[] = 'plik dołączony do wniosku: ' . basename((string)$app['plik']);
+    $out = '<div class="ad-place">' . h($date) . ' r.</div>';
+    $titleDone = false;
+    $title = '<h1 class="ad-title">' . h($tpl['title']) . '</h1><div class="ad-no">nr ' . h(appDocsNumber($app, $tpl)) . '</div>';
+    foreach ($tpl['blocks'] as $b) {
+        switch ($b[0]) {
+            case 'to':
+                $out .= '<table class="ad-parties"><tr><td></td><td class="ad-to"><div class="ad-lbl">Do:</div><div class="ad-val"><b>'
+                      . nl2br(h($v('organ'))) . '</b></div></td></tr></table>';
+                break;
+            case 'h':
+                if (!$titleDone) { $out .= $title; $titleDone = true; }
+                $out .= '<div class="ad-sec">' . h($b[1]) . '</div>';
+                break;
+            case 'kv':
+                $val = $v($b[2]);
+                $out .= '<table class="ad-kv"><tr><td class="ad-kv-l">' . h($b[1]) . ':</td><td class="ad-kv-v">'
+                      . ($val !== '' ? nl2br(h($val)) : '<span class="ad-muted">—</span>') . '</td></tr></table>';
+                break;
+            case 'p':
+                $out .= '<p>' . $fill($b[1]) . '</p>';
+                break;
+            case 'table':
+                $rows = array_values(array_filter(array_map('trim', preg_split('/\R/', (string)$v($b[1])))));
+                $out .= '<table class="ad-grid"><tr>' . implode('', array_map(fn($c) => '<th>' . h($c) . '</th>', $b[2])) . '</tr>';
+                foreach ($rows ?: [''] as $row) {
+                    $cells = array_map('trim', preg_split('/\s*[|;\t]\s*/', $row));
+                    $cells = array_pad(array_slice($cells, 0, count($b[2])), count($b[2]), '');
+                    $out .= '<tr>' . implode('', array_map(fn($c) => '<td>' . ($c !== '' ? h($c) : '&nbsp;') . '</td>', $cells)) . '</tr>';
+                }
+                $out .= '</table>';
+                break;
+            case 'att':
+                $out .= '<p class="ad-lbl2">' . h($b[1] ?? 'Załączniki') . ':</p><ul>';
+                $out .= $att ? implode('', array_map(fn($a) => '<li>' . h($a) . '</li>', $att)) : '<li>brak</li>';
+                $out .= '</ul>';
+                break;
+            case 'sign':
+                $out .= '<div class="ad-sign"><div class="ad-sign-box"><div class="ad-lbl">Złożono elektronicznie</div>'
+                      . '<div>' . h($b[1]) . ': <b>' . h($app['user_name'] ?: $v('wnioskodawca')) . '</b>'
+                      . (!empty($app['user_email']) ? ' (' . h($app['user_email']) . ')' : '') . '</div>'
+                      . '<div>po zalogowaniu do SZO, ' . h(date('d.m.Y, H:i', strtotime((string)$app['created_at']))) . '</div></div></div>';
+                break;
+            case 'decision':
+                $ans = trim((string)($app['odpowiedz'] ?? ''));
+                $st  = str_replace('_', ' ', (string)($app['status'] ?? ''));
+                $out .= '<div class="ad-box"><div class="ad-lbl">' . h($b[1]) . '</div>'
+                      . ($ans !== '' || !in_array($app['status'] ?? '', ['', 'nowy'], true)
+                          ? '<div>Status: <b>' . h($st) . '</b>' . (!empty($app['odpowiedz_at']) ? ' · ' . h(date('d.m.Y', strtotime((string)$app['odpowiedz_at']))) : '') . '</div>'
+                            . ($ans !== '' ? '<div>' . nl2br(h($ans)) . '</div>' : '')
+                          : '<div class="ad-blank">&nbsp;</div><div class="ad-blank">&nbsp;</div><div class="ad-blank">&nbsp;</div>')
+                      . '</div>';
+                break;
+            case 'line':
+                $out .= '<div class="ad-line"><div class="ad-line-l">' . h($b[1]) . ':</div><div class="ad-line-s">&nbsp;</div></div>';
+                break;
+        }
+    }
+    if (!$titleDone) $out = $title . $out;
+    return $out;
+}
+
 /** Arkusz stylów dokumentu (podgląd i mPDF — tylko proste selektory). */
 function appDocsCss(): string {
     return 'body{font-family:"DejaVu Sans","Segoe UI",Arial,sans-serif;font-size:10.5pt;color:#111;line-height:1.5}'
@@ -247,7 +563,14 @@ function appDocsCss(): string {
         . '.ad-lbl2{margin-bottom:2pt}.ad-title{font-size:13pt;text-align:center;margin:0 0 2pt;letter-spacing:.5pt}'
         . '.ad-no{text-align:center;font-size:8.5pt;color:#555;margin-bottom:16pt}'
         . 'p{margin:0 0 8pt;text-align:justify}ul{margin:0 0 8pt 16pt;padding:0}li{margin-bottom:2pt}'
-        . '.ad-sign{margin-top:30pt;text-align:right}.ad-sign-box{display:inline-block;text-align:left;border-left:3pt solid #0050ef;padding:4pt 0 4pt 8pt;font-size:9pt}';
+        . '.ad-sign{margin-top:30pt;text-align:right}.ad-sign-box{display:inline-block;text-align:left;border-left:3pt solid #0050ef;padding:4pt 0 4pt 8pt;font-size:9pt}'
+        . '.ad-sec{font-size:8.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:.8pt;border-bottom:1.2pt solid #111;padding-bottom:2pt;margin:14pt 0 6pt}'
+        . '.ad-kv{width:100%;border-collapse:collapse;margin-bottom:3pt}.ad-kv td{vertical-align:top;padding:2pt 0}'
+        . '.ad-kv-l{width:42%;color:#444;padding-right:8pt}.ad-kv-v{font-weight:bold}.ad-muted{color:#888;font-weight:normal}'
+        . '.ad-box{margin-top:18pt;border:1pt solid #111;padding:6pt 8pt;font-size:9.5pt}.ad-blank{border-bottom:.6pt dotted #888;height:16pt}'
+        . '.ad-grid{width:100%;border-collapse:collapse;margin:4pt 0 8pt}.ad-grid th,.ad-grid td{border:.8pt solid #111;padding:3pt 5pt;text-align:left;vertical-align:top;font-size:9.5pt}'
+        . '.ad-grid th{background:#e6e6e6;font-size:8pt;text-transform:uppercase;letter-spacing:.4pt}'
+        . '.ad-line{margin-top:22pt;font-size:9pt}.ad-line-s{border-bottom:.8pt solid #111;width:60%;height:18pt}';
 }
 
 /** PDF wniosku jako string albo null przy błędzie. */
