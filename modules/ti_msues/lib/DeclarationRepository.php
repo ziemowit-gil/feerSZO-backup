@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  * Wersjonowanie: wiersz = wersja; series_id = id pierwszej wersji. Nowa wersja kopiuje treść ostatniej i startuje jako robocza;
  * zatwierdzenie wersji oznacza wcześniejsze zatwierdzone tej serii jako „zastąpione”.
- * Zatwierdzenie pod audyt wymaga wgranego podpisanego skanu. Aktor: ['id' => int, 'name' => string, 'staff' => bool].
+ * Zatwierdzenie pod audyt wymaga wgranego podpisanego skanu; kierownik może zatwierdzić także własne (adnotacja w historii). Aktor: ['id' => int, 'name' => string, 'staff' => bool].
  */
 require_once __DIR__ . '/msuesSchema.php';
 require_once __DIR__ . '/DeclarationStatus.php';
@@ -127,7 +127,8 @@ final class DeclarationRepository
                 [$to->value, $now, $actor['id'] ?: null, $now, $id]);
         } elseif ($to === DeclarationStatus::Approved) {
             if ($d['scan_path'] === '') throw new DomainException('Do zatwierdzenia pod audyt potrzebny jest wgrany skan podpisanego oświadczenia.');
-            if ((int)$d['trainer_id'] === (int)$actor['id'] && !msuesActorIsAdmin($actor)) throw new DomainException('Nie można zatwierdzić własnego oświadczenia — zrobi to inna osoba z kierownictwa.');
+            // Kierownik może zatwierdzić własne oświadczenie — w historii zostaje adnotacja
+            if ((int)$d['trainer_id'] === (int)$actor['id']) $note = trim('Zatwierdzone przez składającego (kierownik). ' . $note);
             db()->beginTransaction();
             try {
                 foreach (db_all("SELECT id FROM trainer_declarations WHERE series_id = ? AND status = 'approved' AND id <> ?", [$d['series_id'], $id]) as $old) {
@@ -236,8 +237,3 @@ final class DeclarationRepository
     }
 }
 
-/** Aktor-administrator (users.role = admin) może zatwierdzić także własne oświadczenie (np. jedyny kierownik). */
-function msuesActorIsAdmin(array $actor): bool
-{
-    return !empty($actor['admin']);
-}
