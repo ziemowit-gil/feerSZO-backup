@@ -17,6 +17,9 @@
 
 require_once __DIR__ . '/db.php';
 
+/** Miesiąc ze znanym problemem z przeliczaniem godzin — panel zleceniobiorcy pokazuje ostrzeżenie (rozliczenia_zlecenie.php, kafel pulpitu). */
+if (!defined('ZL_ROZL_AUG_ISSUE_YM')) define('ZL_ROZL_AUG_ISSUE_YM', '2026-08');
+
 // ── Auto-migracja (tworzy tabelę + dokłada kolumny) ─────────────────────────────
 (function () {
     static $done = false;

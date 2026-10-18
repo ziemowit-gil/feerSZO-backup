@@ -115,12 +115,16 @@ foreach ($contracts ?? [] as $_c) {
     if (($_c['contract_type'] ?? '') !== 'zlecenie') continue;
     if (!$_pv_zl || (($_active_contract['contract_type'] ?? '') === 'zlecenie' && (int)$_c['id'] === (int)($_active_contract['id'] ?? 0))) $_pv_zl = $_c;
 }
-$_pv_zl_saldo = null;
+$_pv_zl_saldo = null; $_pv_zl_aug = false;
 if ($_pv_zl) {
     try {
         require_once $ROOT . '/includes/zlecenie_rachunki.php';
         $_zl_row = db_one("SELECT * FROM umowy_zlecenie WHERE id=? AND status NOT IN ('anulowana','rozwiązana')", [(int)$_pv_zl['id']]);
-        if ($_zl_row) $_pv_zl_saldo = (float)(zl_rozl_ledger($_zl_row)['suma']['pozostalo'] ?? 0);
+        if ($_zl_row) {
+            $_zl_led = zl_rozl_ledger($_zl_row);
+            $_pv_zl_saldo = (float)($_zl_led['suma']['pozostalo'] ?? 0);
+            $_pv_zl_aug   = in_array(ZL_ROZL_AUG_ISSUE_YM, array_column($_zl_led['miesiace'] ?? [], 'ym'), true);
+        }
         else $_pv_zl = null;
     } catch (\Throwable $e) { $_pv_zl_saldo = null; }
 }
@@ -364,6 +368,7 @@ panelMetroAssets($_vol_color);
                         'val'=>$_zl_s !== null ? money($_zl_s) : '',
                         'sub'=>$_zl_s === null ? 'ewidencja godzin i saldo umowy zlecenie'
                               : ($_zl_s > 0.004 ? 'pozostało do rozliczenia' : ($_zl_s < -0.004 ? 'nadpłata' : 'wszystko rozliczone')),
+                        'tag'=>$_pv_zl_aug ? 'sierpień do weryfikacji' : '',
                         'color'=>$_zl_s === null ? 'blue' : ($_zl_s > 0.004 ? 'orange' : ($_zl_s < -0.004 ? 'red' : 'green')),'size'=>'w']);
     }
     if ($_pv_peln) {

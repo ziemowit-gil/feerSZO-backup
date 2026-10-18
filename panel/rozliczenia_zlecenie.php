@@ -41,6 +41,8 @@ $row_m  = null;
 if ($ledger) foreach ($ledger['miesiace'] as $m) if ($m['ym'] === $ym) { $row_m = $m; break; }
 
 $fmt_h = fn($v) => number_format((float)$v, 2, ',', ' ');
+// Sierpień 2026: znany problem z przeliczaniem godzin — ostrzeżenie dla zleceniobiorcy, gdy ma ten miesiąc w rozliczeniu
+$_zl_aug_issue = $ledger && in_array(ZL_ROZL_AUG_ISSUE_YM, array_column($ledger['miesiace'], 'ym'), true);
 
 if ($_is_volunteer_only) {
     include __DIR__ . '/includes/header_panel.php';
@@ -70,6 +72,18 @@ if ($_is_volunteer_only) {
     <div class="mt-2">Nie znaleziono umowy zlecenie przypisanej do Twojego konta.</div>
   </div>
   <?php else: $S = $ledger['suma']; $typ = (string)($sel['typ_stawki'] ?? ''); ?>
+
+  <?php if ($_zl_aug_issue): ?>
+  <div class="alert alert-warning d-flex gap-2 align-items-start mb-3" role="note">
+    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0" aria-hidden="true"></i>
+    <div>
+      <div class="fw-bold">Rozliczenie za sierpień 2026 — prosimy się nim nie sugerować</div>
+      Kwoty i saldo za sierpień (a przez przeniesienie także w kolejnych miesiącach) mogą być nieprawidłowe.
+      Wynika to ze zidentyfikowanego w systemie problemu z przeliczaniem godzin, który poprawiamy.
+      Rachunek wystawia księgowość na podstawie zweryfikowanej ewidencji — nie musisz nic robić.
+    </div>
+  </div>
+  <?php endif; ?>
 
   <!-- Umowa + podsumowanie -->
   <div class="card shadow-sm mb-3">
@@ -110,7 +124,7 @@ if ($_is_volunteer_only) {
       <tbody>
       <?php foreach ($ledger['miesiace'] as $m): ?>
         <tr class="<?= $m['ym'] === $ym ? 'table-primary bg-opacity-10' : '' ?>">
-          <td class="text-nowrap"><a href="?id=<?= (int)$sel['id'] ?>&ym=<?= h($m['ym']) ?>" class="text-decoration-none fw-semibold"><?= h($m['label']) ?></a></td>
+          <td class="text-nowrap"><a href="?id=<?= (int)$sel['id'] ?>&ym=<?= h($m['ym']) ?>" class="text-decoration-none fw-semibold"><?= h($m['label']) ?></a><?php if ($m['ym'] === ZL_ROZL_AUG_ISSUE_YM): ?> <span class="badge text-bg-warning" title="Znany problem z przeliczaniem godzin — kwoty mogą być nieprawidłowe">do weryfikacji</span><?php endif; ?></td>
           <td class="text-end"><?= $fmt_h($m['godziny_rozl']) ?><?php if (abs($m['godziny_rozl'] - $m['godziny_ewid']) > 0.004): ?> <span class="text-muted small" title="po przesunięciach i korektach">(ewid. <?= $fmt_h($m['godziny_ewid']) ?>)</span><?php endif; ?></td>
           <td class="text-end text-nowrap"><?= money($m['naleznosc']) ?></td>
           <td class="text-end text-nowrap text-muted"><?= abs($m['przeniesione_in']) > 0.004 ? money($m['przeniesione_in']) : '—' ?></td>
