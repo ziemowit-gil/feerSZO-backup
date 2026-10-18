@@ -13,7 +13,7 @@
  *
  * Tylko CSS — żadnych zmian w znacznikach, ID ani zaczepach skryptów.
  * Ładowany WYŁĄCZNIE przez header_panel.php (powłoka Panelu współpracownika) jako
- * ostatni blok <style> w <head>. Reguły treści mają zakres :where(#pv-main)
+ * ostatni blok blok stylów w sekcji head. Reguły treści mają zakres :where(#pv-main)
  * (specyficzność jednej klasy): wygrywają z pv_styles.php, ale PRZEGRYWAJĄ
  * z pulpitem w zestawie modules/panel_metro (.pvm .x) — pulpit stylizuje się sam.
  * Paleta i tryb ciemny zgodne z modules/panel_metro.
@@ -205,6 +205,10 @@ body{font-family:var(--m-font);background:var(--m-bg);color:var(--m-ink);-webkit
 :where(#pv-main) .nav-tabs .nav-link.active{color:var(--m-ink);font-weight:600;border-bottom-color:var(--m-acc);background:none}
 :where(#pv-main) .nav-pills .nav-link.active{background:var(--m-acc)}
 
+/* Tabele nie ucinają kolumn: karta / kontener z tabelą przewija się w poziomie (pv_styles miał overflow:hidden). */
+:where(#pv-main) :is(.card,.tz-card,.pv-card,.vol-detail-card,.vol-activity,.card-body,.tz-card__bd,.pv-card-bd):has(table){overflow-x:auto}
+:where(#pv-main) .pv-table-wrap{overflow-x:auto}
+
 /* Okna modalne */
 .modal-content{border:0;box-shadow:0 20px 50px -20px rgba(0,0,0,.45)}
 .modal-header{border-bottom:0}
@@ -217,3 +221,11 @@ body{font-family:var(--m-font);background:var(--m-bg);color:var(--m-ink);-webkit
 [data-theme="hc"] :where(#pv-main) .tz-badge,[data-theme="hc"] :where(#pv-main) .pv-status-pill,[data-theme="hc"] :where(#pv-main) .pv-status-badge{background:#fff!important;color:#000!important;border:2px solid #000}
 @media(prefers-reduced-motion:reduce){:where(#pv-main) *{transition:none!important;animation:none!important}}
 </style>
+<script>
+/* Rozwijane menu pozycjonowane „fixed” — przewijany w poziomie kontener tabeli ich nie utnie (Bootstrap 5.3). */
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.bootstrap && bootstrap.Dropdown && bootstrap.Dropdown.Default) {
+    bootstrap.Dropdown.Default.popperConfig = function (cfg) { return Object.assign({}, cfg, { strategy: 'fixed' }); };
+  }
+});
+</script>
