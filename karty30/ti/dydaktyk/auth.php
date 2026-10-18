@@ -359,7 +359,7 @@ const DYD_KONSULTACJE_PAGES = ['konsultacje.php', 'konsultacja.php', 'konsultacj
                                'konsultacjeZestawienia.php', 'konsultacjeEksport.php', 'konsultacjeUstawienia.php', 'konsultacjeKomunikacja.php',
                                'konsultacjeKlienci.php', 'konsultacjeKlient.php', 'konsultacjePfron.php', 'konsultacjePfronDokumenty.php',
                                'licencjeKursantow.php', 'regulaminy.php',
-                               'moj_certyfikat.php', 'logout.php', 'choose_mode.php', 'office_enter.php', 'totp_gate.php'];
+                               'moj_certyfikat.php', 'saleFormularz.php', 'logout.php', 'choose_mode.php', 'office_enter.php', 'totp_gate.php'];
 
 function dyd_konsultacje_page(): bool {
     $script = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));

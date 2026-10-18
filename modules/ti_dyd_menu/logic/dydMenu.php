@@ -55,6 +55,9 @@ function dydMenuSections(): array
     $isAdm  = function_exists('dyd_is_admin') && dyd_is_admin();
     $isKier = (function_exists('is_admin') && is_admin()) || (function_exists('ti_panel_role') && ti_panel_role($uid) === 'kierownik');
     $modes  = function_exists('dyd_modes_available') ? dyd_modes_available($s) : ['kursy'];
+    // „Może rezerwować” (modules/ti_room_srs) — kierownik zawsze; skrót „Rezerwuj przestrzeń”
+    $canBook = $staff;
+    if (!$canBook && $uid) { try { $canBook = (bool)db_one("SELECT 1 FROM ti_room_srs_bookers WHERE user_id=?", [$uid]); } catch (\Throwable $e) {} }
     $nLcMine = 0; $nLcQueue = 0;   // Kontrola Lekcji i Wpisów: moje zaległe / kolejka audytora
     try {
         require_once dirname(__DIR__, 3) . '/modules/ti_lesson_control/logic/lessonControl.php';
@@ -69,6 +72,7 @@ function dydMenuSections(): array
             $it('', 'Rezerwacje terminów',   'rezerwacje.php',               'calendar-check'),
             $it('', 'Kalendarz rezerwacji',  'rezerwacjeKalendarz.php',      'calendar3'),
             $it('', 'Szybka rezerwacja',     'rezerwacja.php?szybka=1',      'lightning'),
+            ...($canBook ? [$it('', 'Rezerwuj przestrzeń', 'saleFormularz.php?_route=/nowa', 'door-open')] : []),
             $it('', 'Kolejka oczekujących',  'kolejka.php',                  'hourglass-split'),
             $it('', 'Karty konsultacji',     'konsultacje.php',              'clipboard2-check'),
             $it('', 'Nowa konsultacja',      'konsultacja.php?nowa=1',       'clipboard2-plus'),
@@ -140,6 +144,7 @@ function dydMenuSections(): array
             $it('',     'Biblioteka materiałów', '../ext/index.php?as=dyd', 'collection'),
             $it('',     'Sale / lokalizacje',    'sale.php',                'geo-alt'),
         ];
+        if ($canBook) $zasoby[] = $it('', 'Rezerwuj przestrzeń', 'saleFormularz.php?_route=/nowa', 'door-open');
         if (in_array('konsultacje', $modes, true)) {
             $zasoby[] = $it('', 'Rezerwacje konsultacji', 'rezerwacje.php', 'calendar-check');
             $zasoby[] = $it('', 'Karty konsultacji',      'konsultacje.php', 'clipboard2-check');

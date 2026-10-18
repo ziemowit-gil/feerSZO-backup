@@ -98,6 +98,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: zespol.php#tryby'); exit;
     }
 
+    // Uprawnienie „Może rezerwować” — formularze rezerwacji sal / „Rezerwuj przestrzeń” (modules/ti_room_srs)
+    if ($op === 'book_set') {
+        require_once dirname(__DIR__, 3) . '/modules/ti_room_srs/logic/roomSrs.php';
+        $zb_id = (int)($_POST['user_id'] ?? 0);
+        $zb_u  = $zb_id ? db_one("SELECT id, name FROM users WHERE id=? AND is_active=1", [$zb_id]) : null;
+        if ($zb_u) {
+            tiRoomSrsSetBooker($zb_id, !empty($_POST['on']), $uid);
+            flash_set('success', $zb_u['name'] . (!empty($_POST['on']) ? ' — może rezerwować sale.' : ' — bez uprawnienia do rezerwacji sal.'));
+        } else {
+            flash_set('danger', 'Nie znaleziono aktywnego użytkownika.');
+        }
+        header('Location: zespol.php#rezerwacje'); exit;
+    }
+
     if ($op === 'role_del') {
         $zu_id = (int)($_POST['user_id'] ?? 0);
         if ($zu_id === $uid && ti_panel_role($uid) !== '' && ($me['role'] ?? '') !== 'admin') {
@@ -430,6 +444,42 @@ $zm_people = TiWorkModes::people();
           </form>
         </td>
         <?php endif; ?>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<?php
+require_once dirname(__DIR__, 3) . '/modules/ti_room_srs/logic/roomSrs.php';
+$zb_ids = tiRoomSrsBookerIds();
+?>
+<section class="card mt-4" id="rezerwacje" aria-labelledby="zb-h">
+  <div class="card-header fw-semibold bg-white" id="zb-h"><i class="bi bi-door-open text-primary me-1" aria-hidden="true"></i>Rezerwacje sal: „Może rezerwować”</div>
+  <div class="card-body small text-body-secondary pb-0">
+    Kto może wypełniać formularze rezerwacji sal operatorów (Reymonta 20, Centrum C10) i składać rezerwacje w SRS —
+    dla własnych grup oraz „Rezerwuj przestrzeń” (np. na konsultacje). Kierownik i zastępca mogą zawsze.
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <caption class="visually-hidden">Uprawnienie do rezerwacji sal</caption>
+      <thead class="table-light"><tr><th scope="col">Osoba</th><th scope="col" class="text-center">Może rezerwować</th><th scope="col" class="text-end"><span class="visually-hidden">Zapis</span></th></tr></thead>
+      <tbody>
+      <?php foreach ($zm_people as $zp): $zb_on = $zp['staff'] || in_array((int)$zp['id'], $zb_ids, true); ?>
+      <tr>
+        <th scope="row" class="fw-semibold"><?= h($zp['name']) ?></th>
+        <td class="text-center"><?= $zb_on ? '<span class="badge text-bg-success">tak</span>' : '<span class="badge text-bg-light border">nie</span>' ?></td>
+        <td class="text-end">
+          <?php if ($zp['staff']): ?><span class="small text-body-secondary">kierownik — zawsze</span>
+          <?php else: ?>
+          <form method="post" class="d-inline">
+            <input type="hidden" name="_csrf" value="<?= h(csrf_token()) ?>"><input type="hidden" name="_op" value="book_set"><input type="hidden" name="user_id" value="<?= (int)$zp['id'] ?>">
+            <input type="hidden" name="on" value="<?= $zb_on ? '' : '1' ?>">
+            <button class="btn btn-sm <?= $zb_on ? 'btn-outline-danger' : 'btn-outline-primary' ?> py-0"><?= $zb_on ? 'Odbierz' : 'Nadaj' ?><span class="visually-hidden"> uprawnienie „Może rezerwować” — <?= h($zp['name']) ?></span></button>
+          </form>
+          <?php endif; ?>
+        </td>
       </tr>
       <?php endforeach; ?>
       </tbody>
