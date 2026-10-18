@@ -33,16 +33,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($row['numer_umowy']))   $errors[] = 'Numer umowy jest wymagany.';
     if (empty($row['status']))        $errors[] = 'Status jest wymagany.';
     if (empty($row['nazwa_zadania'])) $errors[] = 'Nazwa zadania publicznego jest wymagana.';
+    if (empty($_FILES['plik_jednostronna']['tmp_name'])) $errors[] = 'Dołącz umowę podpisaną jednostronnie (plik jest obowiązkowy).';
 
     if (!$errors) {
         // Upload plików
         $plik_umowy = handle_upload('plik_umowy', $TYPE);
         $plik_potw  = handle_upload('plik_potwierdzenia', $TYPE);
         $zalaczniki = handle_upload('zalaczniki', $TYPE);
+        $plik_proj  = handle_upload('plik_projekt', $TYPE);
+        $plik_jedn  = handle_upload('plik_jednostronna', $TYPE);
+        if ($plik_proj)  $row['plik_projekt']       = $plik_proj;
+        if ($plik_jedn)  $row['plik_jednostronna']  = $plik_jedn;
         if ($plik_umowy) $row['plik_umowy']         = $plik_umowy;
         if ($plik_potw)  $row['plik_potwierdzenia'] = $plik_potw;
         if ($zalaczniki) $row['zalaczniki']         = $zalaczniki;
 
+        if (!$plik_jedn) $errors[] = 'Umowa podpisana jednostronnie: dozwolone PDF/DOCX do 20 MB.';
+    }
+    if (!$errors) {
         $row['created_by'] = current_user()['id'];
         $row['created_at'] = date('Y-m-d H:i:s');
         $row['updated_at'] = date('Y-m-d H:i:s');
@@ -62,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'termin_wykorzystania', 'termin_sprawozdania',
             'numer_projektu', 'opiekun', 'forma_podpisania', 'platforma_el',
             'id_dokumentu_el', 'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
-            'plik_potwierdzenia', 'plik_umowy', 'zalaczniki', 'uwagi',
+            'plik_potwierdzenia', 'plik_projekt', 'plik_jednostronna', 'plik_umowy', 'zalaczniki', 'uwagi',
             'nr_roboczy', 'nr_system', 'nr_rejestru',
             'created_by', 'created_at', 'updated_at',
         ];
@@ -421,12 +429,25 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
         <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-paperclip"></i> Pliki</h2>
         <div class="tw-mb-3">
-          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Plik umowy (PDF/DOCX, max 20MB)</label>
+          <label for="plik_projekt" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">1. Projekt umowy</label>
+          <input id="plik_projekt" name="plik_projekt" type="file" accept=".pdf,.docx"
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Nieobowiązkowy — wersja robocza (PDF/DOCX, max 20 MB).</p>
+        </div>
+        <div class="tw-mb-3">
+          <label for="plik_jednostronna" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">2. Umowa podpisana jednostronnie <span class="tw-text-red-600">*</span></label>
+          <input id="plik_jednostronna" name="plik_jednostronna" type="file" accept=".pdf,.docx" required
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — podpisana przez jedną stronę.</p>
+        </div>
+        <div class="tw-mb-3">
+          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">3. Umowa podpisana dwustronnie</label>
           <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
                  class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Po podpisie obu stron.</p>
         </div>
         <div>
-          <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Załączniki</label>
+          <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">4. Załączniki</label>
           <input id="zalaczniki" name="zalaczniki" type="file" accept=".pdf,.docx,.jpg,.png"
                  class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
         </div>

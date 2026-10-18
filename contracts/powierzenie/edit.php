@@ -42,11 +42,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $plik_umowy = handle_upload('plik_umowy', $TYPE);
         $plik_potw  = handle_upload('plik_potwierdzenia', $TYPE);
         $zalaczniki = handle_upload('zalaczniki', $TYPE);
+        $plik_proj  = handle_upload('plik_projekt', $TYPE);
+        $plik_jedn  = handle_upload('plik_jednostronna', $TYPE);
 
+        $data['plik_projekt']       = $plik_proj  ?: ($row['plik_projekt'] ?? null);
+        $data['plik_jednostronna']  = $plik_jedn  ?: ($row['plik_jednostronna'] ?? null);
         $data['plik_umowy']         = $plik_umowy ?: $row['plik_umowy'];
         $data['plik_potwierdzenia'] = $plik_potw  ?: $row['plik_potwierdzenia'];
         $data['zalaczniki']         = $zalaczniki  ?: $row['zalaczniki'];
 
+        if (empty($data['plik_jednostronna'])) $errors[] = 'Dołącz umowę podpisaną jednostronnie (plik obowiązkowy; PDF/DOCX do 20 MB).';
+    }
+    if (!$errors) {
         $allowed = [
             'numer_umowy', 'status', 'nazwa_zadania', 'sfera_zadania', 'forma_zlecenia',
             'tryb_zlecenia', 'nazwa_konkursu', 'zakres_rzeczowy', 'rezultaty',
@@ -57,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'termin_wykorzystania', 'termin_sprawozdania',
             'numer_projektu', 'opiekun', 'forma_podpisania', 'platforma_el',
             'id_dokumentu_el', 'epodpis_dostawca', 'epodpis_nr_certyfikatu', 'epodpis_data_waznosci',
-            'plik_potwierdzenia', 'plik_umowy', 'zalaczniki', 'uwagi',
+            'plik_potwierdzenia', 'plik_projekt', 'plik_jednostronna', 'plik_umowy', 'zalaczniki', 'uwagi',
             'nr_roboczy', 'nr_system', 'nr_rejestru',
         ];
         $save = array_intersect_key($data, array_flip($allowed));
@@ -408,16 +415,29 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     <div class="lg:tw-col-span-1 tw-space-y-4">
       <div class="tw-rounded-xl tw-border tw-border-slate-200 tw-p-4">
         <h2 class="tw-text-xs tw-font-semibold tw-text-slate-500 tw-uppercase tw-tracking-wide tw-mb-3"><i class="bi bi-paperclip"></i> Pliki</h2>
-        <?php if ($row['plik_umowy']): ?>
-        <div class="tw-mb-2 tw-text-sm"><?= upload_link($row['plik_umowy']) ?></div>
-        <label for="plik_umowy" class="tw-block tw-text-xs tw-text-slate-500 tw-mb-1">Zastąp nowym plikiem:</label>
-        <?php else: ?>
-        <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Plik umowy (PDF/DOCX)</label>
-        <?php endif; ?>
-        <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
-               class="tw-w-full tw-text-sm tw-text-slate-600 tw-mb-3 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+        <div class="tw-mb-3">
+          <label for="plik_projekt" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">1. Projekt umowy</label>
+          <?php if (!empty($row['plik_projekt'])): ?><div class="tw-mb-1 tw-text-sm"><?= upload_link($row['plik_projekt']) ?> <span class="tw-text-xs tw-text-slate-500">— wybierz plik, aby zastąpić</span></div><?php endif; ?>
+          <input id="plik_projekt" name="plik_projekt" type="file" accept=".pdf,.docx"
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Nieobowiązkowy — wersja robocza (PDF/DOCX, max 20 MB).</p>
+        </div>
+        <div class="tw-mb-3">
+          <label for="plik_jednostronna" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">2. Umowa podpisana jednostronnie <span class="tw-text-red-600">*</span></label>
+          <?php if (!empty($row['plik_jednostronna'])): ?><div class="tw-mb-1 tw-text-sm"><?= upload_link($row['plik_jednostronna']) ?> <span class="tw-text-xs tw-text-slate-500">— wybierz plik, aby zastąpić</span></div><?php endif; ?>
+          <input id="plik_jednostronna" name="plik_jednostronna" type="file" accept=".pdf,.docx"<?= empty($row['plik_jednostronna']) ? ' required' : '' ?>
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — podpisana przez jedną stronę.</p>
+        </div>
+        <div class="tw-mb-3">
+          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">3. Umowa podpisana dwustronnie</label>
+          <?php if (!empty($row['plik_umowy'])): ?><div class="tw-mb-1 tw-text-sm"><?= upload_link($row['plik_umowy']) ?> <span class="tw-text-xs tw-text-slate-500">— wybierz plik, aby zastąpić</span></div><?php endif; ?>
+          <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
+                 class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Po podpisie obu stron.</p>
+        </div>
 
-        <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Załączniki</label>
+        <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">4. Załączniki</label>
         <?php if ($row['zalaczniki']): ?>
         <div class="tw-mb-1 tw-text-sm"><?= upload_link($row['zalaczniki']) ?></div>
         <?php endif; ?>

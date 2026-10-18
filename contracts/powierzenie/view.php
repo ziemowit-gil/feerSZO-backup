@@ -270,9 +270,11 @@ $_badge_obieg += count(array_filter($edit_requests, fn($r) => $r['status'] === '
     <div class="card shadow-sm mb-3">
     <div class="card-header fw-semibold"><i class="bi bi-paperclip"></i> Pliki</div>
     <div class="card-body">
-      <div class="mb-2"><div class="detail-label">Plik umowy</div><?= upload_link_signed($row['plik_umowy'] ?? '') ?></div>
+      <div class="mb-2"><div class="detail-label">1. Projekt umowy</div><?= !empty($row['plik_projekt']) ? upload_link_signed($row['plik_projekt']) : '<span class="text-muted small">nie dołączono</span>' ?></div>
+      <div class="mb-2"><div class="detail-label">2. Podpisana jednostronnie</div><?= !empty($row['plik_jednostronna']) ? upload_link_signed($row['plik_jednostronna']) : '<span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> brak — plik obowiązkowy</span>' ?></div>
+      <div class="mb-2"><div class="detail-label">3. Podpisana dwustronnie</div><?= upload_link_signed($row['plik_umowy'] ?? '') ?></div>
       <?php if (!empty($row['zalaczniki'])): ?>
-      <div class="mb-2"><div class="detail-label">Załączniki</div><?= upload_link($row['zalaczniki']) ?></div>
+      <div class="mb-2"><div class="detail-label">4. Załączniki</div><?= upload_link($row['zalaczniki']) ?></div>
       <?php endif; ?>
       <?php if (!empty($row['plik_potwierdzenia']) && ($row['forma_podpisania'] ?? '') !== 'elektroniczna'): ?>
       <div class="mb-2"><div class="detail-label">Plik potwierdzenia</div><?= upload_link_signed($row['plik_potwierdzenia']) ?></div>

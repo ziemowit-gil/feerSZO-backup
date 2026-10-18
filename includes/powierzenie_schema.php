@@ -65,7 +65,9 @@
         'epodpis_nr_certyfikatu' => "VARCHAR(255)",
         'epodpis_data_waznosci'  => "DATE",
         'plik_potwierdzenia'     => "VARCHAR(500)",
-        'plik_umowy'             => "VARCHAR(500)",
+        'plik_projekt'           => "VARCHAR(500)",   // 1. projekt umowy (nieobowiązkowy)
+        'plik_jednostronna'      => "VARCHAR(500)",   // 2. umowa podpisana jednostronnie (obowiązkowa)
+        'plik_umowy'             => "VARCHAR(500)",   // 3. umowa podpisana dwustronnie
         'zalaczniki'             => "VARCHAR(1000)",
         'uwagi'                  => "TEXT",
         'nr_roboczy'             => "VARCHAR(100)",
