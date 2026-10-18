@@ -54,6 +54,23 @@ function katalogMetroAssets(): void {
 .pvm .ktm-meta{display:flex;flex-wrap:wrap;gap:.35rem 1.1rem;font-size:.86rem;color:var(--pvm-muted);margin:.1rem 0 .6rem}
 .pvm .ktm-meta a{color:inherit}
 .pvm [data-ktm-hide]{display:none!important}
+.pvm .ktm-prof{display:grid;gap:1.5rem;grid-template-columns:1fr;align-items:start}
+@media(min-width:1100px){.pvm .ktm-prof{grid-template-columns:minmax(0,1fr) 300px}}
+.pvm .ktm-prof-top{display:grid;gap:8px;grid-template-columns:1fr;margin-bottom:1rem;align-items:stretch}
+@media(min-width:720px){.pvm .ktm-prof-top{grid-template-columns:308px minmax(0,1fr)}}
+.pvm .ktm-prof-card{grid-template-columns:repeat(2,150px)}
+.pvm .ktm-prof-top > .mt-group{margin:0}
+.pvm .ktm-prof-top .mt-kv{grid-template-columns:1fr}
+@media(min-width:1280px){.pvm .ktm-prof-top .mt-kv{grid-template-columns:repeat(2,1fr)}}
+.pvm .ktm-side{background:var(--pvm-light);padding:1rem}
+.pvm .ktm-side h2{margin:0 0 .6rem;font-size:1.05rem;font-weight:600;color:var(--pvm-ink)}
+.pvm .ktm-side ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.pvm .ktm-side a{display:flex;align-items:center;gap:.75rem;padding:.45rem;background:var(--pvm-bg);color:var(--pvm-ink);text-decoration:none;min-height:52px}
+.pvm .ktm-side a:hover{background:var(--pvm-light-h)}
+.pvm .ktm-side .sq{width:40px;height:40px;flex-shrink:0;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.25rem}
+.pvm .ktm-side b{display:block;font-size:.9rem;font-weight:600;line-height:1.2}
+.pvm .ktm-side small{display:block;font-size:.74rem;color:var(--pvm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+:root[data-theme="hc"] .pvm .ktm-side a{border:2px solid #000}
 </style>
     <?php
 }
