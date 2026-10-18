@@ -152,7 +152,23 @@ html body #tsk-main .tk-table .tk-title{font-weight:600;word-break:normal;overfl
 html body #tsk-main .tk-table tbody tr.selected{background:var(--tsk-green-bg)!important}
 
 /* ── Panel szczegółów zadania (offcanvas) — wspólny dla wszystkich stron ── */
-html body #taskOffcanvas{width:600px;max-width:100vw;border-left:0}
+/* Szczegóły zadania jako OKNO NA ŚRODKU EKRANU (było: wąski panel z prawej, ucinał pola).
+   Element i JS bez zmian — to dalej Bootstrap Offcanvas, więc zostaje cała dostępność:
+   role=dialog + aria-modal + aria-labelledby, pułapka fokusu, Esc zamyka, fokus wraca
+   na element wywołujący, tło blokuje stronę. Zmienia się tylko geometria i animacja. */
+html body #taskOffcanvas.offcanvas{top:50%;left:50%;right:auto;bottom:auto;width:min(1040px,94vw);max-width:94vw;
+  height:auto;max-height:90vh;border:0;transform:translate(-50%,-47%);opacity:0;
+  transition:transform .18s ease-out,opacity .18s ease-out,visibility .18s;box-shadow:0 24px 60px -20px rgba(0,0,0,.55)}
+html body #taskOffcanvas.offcanvas.showing,html body #taskOffcanvas.offcanvas.show:not(.hiding){transform:translate(-50%,-50%);opacity:1}
+html body #taskOffcanvas.offcanvas.hiding{transform:translate(-50%,-47%);opacity:0}
+html body #taskOffcanvas .offcanvas-body{overflow-y:auto;overscroll-behavior:contain}
+@media(min-width:900px){html body #td-root .td-props-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:575.98px){html body #taskOffcanvas.offcanvas{top:0;left:0;width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;transform:translateY(3%)}
+  html body #taskOffcanvas.offcanvas.showing,html body #taskOffcanvas.offcanvas.show:not(.hiding){transform:none}}
+@media(prefers-reduced-motion:reduce){html body #taskOffcanvas.offcanvas{transition:none}}
+
+/* Tabele nie ucinają kolumn: kontener przewija się w poziomie (było overflow:hidden). */
+html body #tsk-main .tk-wrap,html body #tsk-main .card:has(> .table),html body #tsk-main .card-body:has(> .table){overflow-x:auto}
 html body #taskOffcanvas .offcanvas-header{background:var(--tm-dark);color:#fff;border-bottom:0!important}
 html body #taskOffcanvas .offcanvas-header .text-primary{color:#fff!important}
 html body #taskOffcanvas .offcanvas-header .btn-close{filter:invert(1) grayscale(1) brightness(2)}
@@ -165,3 +181,12 @@ html body #td-root .td-status-row .badge,html body #td-root .td-tag-btn{border-r
 @media(max-width:479.98px){html body #td-root .td-props-grid{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){html body #tsk-main *{transition:none!important;animation:none!important}}
 </style>
+<script>
+/* Rozwijane menu (np. priorytet w wierszu tabeli) pozycjonowane „fixed”, żeby przewijany
+   w poziomie kontener tabeli ich nie ucinał. Domyślna konfiguracja Bootstrap 5.3. */
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.bootstrap && bootstrap.Dropdown && bootstrap.Dropdown.Default) {
+    bootstrap.Dropdown.Default.popperConfig = function (cfg) { return Object.assign({}, cfg, { strategy: 'fixed' }); };
+  }
+});
+</script>
