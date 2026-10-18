@@ -32,7 +32,7 @@ const POWIERZENIE_STATUSY = [
 /**
  * Pliki wymagane przy danym statusie: [pole => uzasadnienie].
  * Projekt i anulowana — nic; po podpisie Fundacji — egzemplarz jednostronny;
- * od zawarcia umowy (podpisana i dalej) — także egzemplarz dwustronny.
+ * przy statusie „Podpisana” — także egzemplarz dwustronny (tylko wtedy).
  */
 function powierzenie_wymagane_pliki(string $status): array {
     $lbl  = POWIERZENIE_STATUSY[$status] ?? $status;
@@ -43,13 +43,15 @@ function powierzenie_wymagane_pliki(string $status): array {
         case 'w podpisie w instytucji':
             return ['plik_jednostronna' => $jedn];
         case 'podpisana':
+            // Egzemplarz dwustronny wymagany wyłącznie przy statusie „Podpisana”
+            return ['plik_jednostronna' => 'status „' . $lbl . '”: etap podpisu jednostronnego musi być udokumentowany.',
+                    'plik_umowy'        => $dwu];
         case 'w realizacji':
         case 'zawieszona':
         case 'do rozliczenia':
         case 'zakończona':
         case 'rozwiązana':
-            return ['plik_jednostronna' => 'status „' . $lbl . '”: etap podpisu jednostronnego musi być udokumentowany.',
-                    'plik_umowy'        => $dwu];
+            return ['plik_jednostronna' => 'status „' . $lbl . '”: etap podpisu jednostronnego musi być udokumentowany.'];
         default:
             return [];
     }
