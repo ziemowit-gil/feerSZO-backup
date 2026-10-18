@@ -87,10 +87,26 @@ $_ezd_link_url  = '/contracts/ezd_link.php?type=' . urlencode($TYPE) . '&id=' . 
       <?php endif; ?>
 
     <?php elseif ($_ezd_can_write): ?>
+      <?php
+        $_ezd_req    = contract_ezd_requires_teczka($TYPE);
+        $_ezd_teczki = contract_ezd_teczki_open();
+        // Domyślnie segregator umów bieżącego roku (UMW.RRRR) — poza typami, gdzie tworzący musi wskazać sam
+        $_ezd_def    = $_ezd_req ? 0 : (int)(db_one("SELECT id FROM ezd_teczki WHERE status='open' AND rok=? AND symbol=?",
+                           [(int)date('Y'), (org_setting('contracts_ezd_jrwa') ?: 'UMW') . '.' . date('Y')])['id'] ?? 0);
+      ?>
       <p class="text-muted small mb-3">
         Ta umowa nie jest powiązana z żadną koszulką EZD.
-        Możesz automatycznie utworzyć koszulkę lub wyszukać istniejącą.
+        Wskaż segregator i utwórz koszulkę albo wyszukaj istniejącą.
       </p>
+      <div class="mb-2" style="max-width:32rem">
+        <label for="ezd-teczka-id" class="form-label small mb-1">Segregator koszulki<?= $_ezd_req ? ' <span class="text-danger">*</span>' : '' ?></label>
+        <select id="ezd-teczka-id" class="form-select form-select-sm"<?= $_ezd_req ? ' required' : '' ?>>
+          <option value=""><?= $_ezd_req ? '— wybierz segregator —' : 'Automatycznie (umowy bieżącego roku)' ?></option>
+          <?php foreach ($_ezd_teczki as $_t): ?>
+          <option value="<?= (int)$_t['id'] ?>"<?= (int)$_t['id'] === $_ezd_def ? ' selected' : '' ?>><?= h($_t['symbol'] . ' — ' . $_t['title'] . ' (' . $_t['rok'] . ')') ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
       <div class="d-flex gap-2 flex-wrap">
         <button type="button" class="btn btn-sm btn-primary" data-ezd-action="create"
                 data-url="<?= h($_ezd_link_url) ?>">
@@ -153,9 +169,15 @@ $_ezd_link_url  = '/contracts/ezd_link.php?type=' . urlencode($TYPE) . '&id=' . 
     const url    = btn.dataset.url;
 
     if (action === 'create') {
+      const sel = document.getElementById('ezd-teczka-id');
+      if (sel && sel.required && !sel.value) {
+        alert('Wskaż segregator, w którym ma powstać koszulka.');
+        sel.focus();
+        return;
+      }
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Tworzę…';
-      post(url, { action: 'create' }, function (d) {
+      post(url, { action: 'create', teczka_id: sel ? sel.value : '' }, function (d) {
         if (d.ok) {
           reloadPanel();
         } else {

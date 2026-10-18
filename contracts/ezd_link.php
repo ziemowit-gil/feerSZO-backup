@@ -3,7 +3,7 @@
  * AJAX handler: powiązanie umowy ↔ koszulka EZD.
  *
  * GET  ?type=zlecenie&id=42&action=search&q=UMW   → JSON {results:[...]}
- * POST action=create   → tworzy nową koszulkę i powiązuje
+ * POST action=create   → tworzy nową koszulkę (w segregatorze teczka_id lub automatycznym) i powiązuje
  * POST action=link     → powiązuje z istniejącą (sprawa_id w body)
  * POST action=unlink   → odwiązuje
  */
@@ -102,7 +102,7 @@ try {
     switch ($action) {
         case 'create':
             if (!function_exists('ezd_sprawa_create')) require_once __DIR__ . '/../includes/ezd.php';
-            $sprawa_id = contract_ezd_create_and_link($type, $id, (int)$USER['id'], $row);
+            $sprawa_id = contract_ezd_create_and_link($type, $id, (int)$USER['id'], $row, (int)($_POST['teczka_id'] ?? 0));
             echo json_encode(['ok' => true, 'sprawa_id' => $sprawa_id]);
             break;
 

@@ -10,7 +10,7 @@
  *   contract_ezd_get_sprawa_id(type, id) → ?int
  *   contract_ezd_link(type, id, sprawa_id|null, user_id)
  *   contract_ezd_get_sprawa(type, id) → ?array   (tylko gdy ezd_enabled)
- *   contract_ezd_create_and_link(type, id, user_id, row) → int  (sprawa_id)
+ *   contract_ezd_create_and_link(type, id, user_id, row, teczka_id = 0) → int  (sprawa_id; powierzenie wymaga teczka_id)
  *   contract_ezd_register_letter(letter_id)
  */
 
@@ -140,15 +140,33 @@ function _contract_ezd_teczka_id(int $user_id = 0): int {
     ], (int)_contract_ezd_actor_id($user_id));
 }
 
+/** Typy umów, dla których tworzący MUSI sam wskazać segregator koszulki (bez automatycznego UMW.RRRR). */
+function contract_ezd_requires_teczka(string $type): bool {
+    return $type === 'powierzenie';
+}
+
+/** Otwarte segregatory do wyboru przy tworzeniu koszulki umowy (najnowsze lata najpierw). */
+function contract_ezd_teczki_open(): array {
+    return db_all("SELECT id, symbol, title, rok FROM ezd_teczki WHERE status='open' ORDER BY rok DESC, symbol");
+}
+
 /**
  * Tworzy nową koszulkę EZD dla umowy i powiązuje ją.
  * Wymaga włączonego EZD i uprawnień write.
  * @return int sprawa_id
  */
-function contract_ezd_create_and_link(string $type, int $id, int $user_id, array $row): int {
+function contract_ezd_create_and_link(string $type, int $id, int $user_id, array $row, int $teczka_id = 0): int {
     if (!function_exists('ezd_sprawa_create')) require_once __DIR__ . '/ezd.php';
 
-    $teczka_id = _contract_ezd_teczka_id($user_id);
+    // Segregator wskazany przez tworzącego (musi być otwarty); bez wskazania — automatyczny UMW.RRRR
+    if ($teczka_id > 0) {
+        if (!db_one("SELECT 1 FROM ezd_teczki WHERE id=? AND status='open'", [$teczka_id]))
+            throw new \RuntimeException('Wskazany segregator nie istnieje albo jest zamknięty.');
+    } elseif (contract_ezd_requires_teczka($type)) {
+        throw new \RuntimeException('Wskaż segregator, w którym ma powstać koszulka.');
+    } else {
+        $teczka_id = _contract_ezd_teczka_id($user_id);
+    }
     $title     = contract_ezd_label($type, $row);
 
     $sprawa_id = ezd_sprawa_create([
