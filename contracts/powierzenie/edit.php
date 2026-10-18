@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data['zalaczniki']         = $zalaczniki  ?: $row['zalaczniki'];
 
         if (empty($data['plik_jednostronna'])) $errors[] = 'Dołącz umowę podpisaną jednostronnie (plik obowiązkowy; PDF/DOCX do 20 MB).';
+        if (empty($data['plik_umowy']))        $errors[] = 'Dołącz umowę podpisaną dwustronnie (plik obowiązkowy; PDF/DOCX do 20 MB).';
     }
     if (!$errors) {
         $allowed = [
@@ -430,11 +431,11 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — podpisana przez jedną stronę.</p>
         </div>
         <div class="tw-mb-3">
-          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">3. Umowa podpisana dwustronnie</label>
+          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">3. Umowa podpisana dwustronnie <span class="tw-text-red-600">*</span></label>
           <?php if (!empty($row['plik_umowy'])): ?><div class="tw-mb-1 tw-text-sm"><?= upload_link($row['plik_umowy']) ?> <span class="tw-text-xs tw-text-slate-500">— wybierz plik, aby zastąpić</span></div><?php endif; ?>
-          <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
+          <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"<?= empty($row['plik_umowy']) ? ' required' : '' ?>
                  class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
-          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Po podpisie obu stron.</p>
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — po podpisie obu stron.</p>
         </div>
 
         <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">4. Załączniki</label>

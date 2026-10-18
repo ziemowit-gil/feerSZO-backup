@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($row['status']))        $errors[] = 'Status jest wymagany.';
     if (empty($row['nazwa_zadania'])) $errors[] = 'Nazwa zadania publicznego jest wymagana.';
     if (empty($_FILES['plik_jednostronna']['tmp_name'])) $errors[] = 'Dołącz umowę podpisaną jednostronnie (plik jest obowiązkowy).';
+    if (empty($_FILES['plik_umowy']['tmp_name']))        $errors[] = 'Dołącz umowę podpisaną dwustronnie (plik jest obowiązkowy).';
 
     if (!$errors) {
         // Upload plików
@@ -48,7 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($plik_potw)  $row['plik_potwierdzenia'] = $plik_potw;
         if ($zalaczniki) $row['zalaczniki']         = $zalaczniki;
 
-        if (!$plik_jedn) $errors[] = 'Umowa podpisana jednostronnie: dozwolone PDF/DOCX do 20 MB.';
+        if (!$plik_jedn)  $errors[] = 'Umowa podpisana jednostronnie: dozwolone PDF/DOCX do 20 MB.';
+        if (!$plik_umowy) $errors[] = 'Umowa podpisana dwustronnie: dozwolone PDF/DOCX do 20 MB.';
     }
     if (!$errors) {
         $row['created_by'] = current_user()['id'];
@@ -441,10 +443,10 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
           <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — podpisana przez jedną stronę.</p>
         </div>
         <div class="tw-mb-3">
-          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">3. Umowa podpisana dwustronnie</label>
-          <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx"
+          <label for="plik_umowy" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">3. Umowa podpisana dwustronnie <span class="tw-text-red-600">*</span></label>
+          <input id="plik_umowy" name="plik_umowy" type="file" accept=".pdf,.docx" required
                  class="tw-w-full tw-text-sm tw-text-slate-600 file:tw-mr-3 file:tw-rounded-lg file:tw-border-0 file:tw-bg-slate-100 file:tw-px-3 file:tw-py-2 file:tw-text-sm file:tw-font-medium hover:file:tw-bg-slate-200">
-          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Po podpisie obu stron.</p>
+          <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0">Obowiązkowa — po podpisie obu stron.</p>
         </div>
         <div>
           <label for="zalaczniki" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">4. Załączniki</label>
