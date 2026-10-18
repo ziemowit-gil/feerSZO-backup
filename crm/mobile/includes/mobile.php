@@ -147,3 +147,22 @@ function crm_mobile_base(): string
     }
     return APP_URL . '/crm/mobile';
 }
+
+/** Wiersz kontaktu głównego → element listy (api/search.php, api/contact.php). */
+function crm_mobile_item_contact(array $r): ?array
+{
+    $phones = crm_mobile_phones($r['telefon'] ?? null);
+    if (!$phones) return null;
+
+    $sub = array_filter([trim((string)($r['stanowisko'] ?? '')), trim((string)($r['organizacja'] ?? ''))]);
+    return [
+        'key'      => 'c' . (int)$r['id'],
+        'cid'      => (int)$r['id'],
+        'pid'      => 0,
+        'name'     => (string)$r['imie_nazwisko'],
+        'sub'      => implode(' · ', $sub),
+        'initials' => crm_mobile_initials((string)$r['imie_nazwisko']),
+        'type'     => (string)($r['type'] ?? 'osoba'),
+        'phones'   => $phones,
+    ];
+}

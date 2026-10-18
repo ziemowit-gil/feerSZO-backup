@@ -19,25 +19,6 @@ $mode  = (string)($_GET['mode'] ?? '');
 $q     = trim((string)($_GET['q'] ?? ''));
 $limit = min(1000, max(1, (int)($_GET['limit'] ?? 40)));
 
-/** Wiersz kontaktu głównego → element listy. */
-function crm_mobile_item_contact(array $r): ?array
-{
-    $phones = crm_mobile_phones($r['telefon'] ?? null);
-    if (!$phones) return null;
-
-    $sub = array_filter([trim((string)($r['stanowisko'] ?? '')), trim((string)($r['organizacja'] ?? ''))]);
-    return [
-        'key'      => 'c' . (int)$r['id'],
-        'cid'      => (int)$r['id'],
-        'pid'      => 0,
-        'name'     => (string)$r['imie_nazwisko'],
-        'sub'      => implode(' · ', $sub),
-        'initials' => crm_mobile_initials((string)$r['imie_nazwisko']),
-        'type'     => (string)($r['type'] ?? 'osoba'),
-        'phones'   => $phones,
-    ];
-}
-
 /** Wiersz osoby kontaktowej (pracownik firmy) → element listy. */
 function crm_mobile_item_person(array $r): ?array
 {

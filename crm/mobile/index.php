@@ -36,6 +36,7 @@ function d_icon(string $name): string
         'refresh'=> 'M12 4a8 8 0 0 1 7.4 5 1 1 0 1 1-1.85.76A6 6 0 0 0 6.7 9.6l1.6.1a1 1 0 1 1-.14 2l-4-.3A1 1 0 0 1 3.2 10.4l.3-4a1 1 0 1 1 2 .15l-.07.98A8 8 0 0 1 12 4zm7.8 7.8a1 1 0 0 1 .93 1.07l-.3 4a1 1 0 1 1-2-.15l.07-.98A8 8 0 0 1 4.6 15a1 1 0 0 1 1.85-.76A6 6 0 0 0 17.3 14.4l-1.6-.1a1 1 0 1 1 .14-2l4 .3z',
         'nores'  => 'M10.5 3a7.5 7.5 0 0 1 5.96 12.04l4.25 4.25a1 1 0 0 1-1.42 1.42l-4.24-4.25A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-.7 2.3h1.4v4h-1.4zm0 5.2h1.4v1.4H9.8z',
         'wifi'   => 'M2.3 5.5a1 1 0 0 1 1.4-.1 13 13 0 0 1 16.6 0 1 1 0 0 1-1.3 1.5 11 11 0 0 0-14 0 1 1 0 0 1-1.4-.1zm3 3.4a1 1 0 0 1 1.4-.2 8 8 0 0 1 10.6 0 1 1 0 0 1-1.3 1.5 6 6 0 0 0-8 0 1 1 0 0 1-1.4-.1zM12 15a2 2 0 1 1 0 4 2 2 0 0 1 0-4z',
+        'add'    => 'M12 4a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5a1 1 0 0 1 1-1z',
         'logout' => 'M10 3a1 1 0 0 1 0 2H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h4a1 1 0 1 1 0 2H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3h4zm5.3 3.3 4.4 4.4a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 1 1-1.4-1.4l2.7-2.7H10a1 1 0 1 1 0-2h6.6l-2.7-2.7a1 1 0 1 1 1.4-1.4z',
     ];
     $p = $paths[$name] ?? '';
@@ -69,6 +70,9 @@ function d_icon(string $name): string
       <a class="d-iconbtn" href="<?= APP_URL ?>/crm/dashboard.php" aria-label="Wróć do CRM"><?= d_icon('back') ?></a>
     <?php endif; ?>
     <h1 class="d-title">Dzwoń</h1>
+<?php if ($can_write): ?>
+    <button type="button" class="d-iconbtn" id="dNewBtn" aria-label="Nowy kontakt" aria-haspopup="dialog"><?= d_icon('add') ?></button>
+    <?php endif; ?>
     <button type="button" class="d-iconbtn" id="dRefresh" aria-label="Odśwież listę kontaktów"><?= d_icon('refresh') ?></button>
   </div>
 
@@ -124,6 +128,41 @@ function d_icon(string $name): string
     <button type="button" class="d-btn d-btn-primary" id="dSave">Zapisz</button>
   </div>
 </section>
+
+<?php if ($can_write): ?>
+<!-- Arkusz „Nowy kontakt” — numer jest obowiązkowy, bo w dialerze bez niego kontakt nic nie da -->
+<div class="d-sheet-backdrop" id="dNewBackdrop" hidden></div>
+<section class="d-sheet" id="dNewSheet" role="dialog" aria-modal="true" aria-labelledby="dNewTitle" hidden>
+  <h2 id="dNewTitle">Nowy kontakt</h2>
+  <form id="dNewForm" novalidate>
+    <div class="d-seg" role="radiogroup" aria-label="Rodzaj kontaktu">
+      <label><input type="radio" name="kind" value="osoba" checked><span>Osoba</span></label>
+      <label><input type="radio" name="kind" value="organizacja"><span>Firma / organizacja</span></label>
+    </div>
+    <label class="d-field">
+      <span class="d-field-label" id="dNewNameLbl">Imię i nazwisko</span>
+      <input name="name" id="dNewName" required autocomplete="off" autocapitalize="words" maxlength="200">
+    </label>
+    <label class="d-field">
+      <span class="d-field-label">Telefon</span>
+      <input name="tel" id="dNewTel" type="tel" inputmode="tel" required autocomplete="off" maxlength="100" placeholder="np. 600 111 222">
+    </label>
+    <label class="d-field">
+      <span class="d-field-label">E-mail <span class="d-opt">(opcjonalnie)</span></span>
+      <input name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" maxlength="200">
+    </label>
+    <label class="d-field" id="dNewCompanyRow">
+      <span class="d-field-label">Firma <span class="d-opt">(opcjonalnie)</span></span>
+      <input name="company" autocomplete="off" maxlength="200">
+    </label>
+    <p class="d-form-err" id="dNewErr" role="alert" hidden></p>
+    <div class="d-sheet-foot">
+      <button type="button" class="d-btn" id="dNewCancel">Anuluj</button>
+      <button type="submit" class="d-btn d-btn-primary" id="dNewSave">Zapisz</button>
+    </div>
+  </form>
+</section>
+<?php endif; ?>
 
 <div class="d-toast" id="dToast" role="status" aria-live="polite"></div>
 

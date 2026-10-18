@@ -137,8 +137,14 @@
     function renderList(items, emptyMsg) {
         el.list.setAttribute('aria-busy', 'false');
         if (!items.length) {
+            const q = el.query.value.trim();
+            // Pusty wynik szukania = najczęściej ktoś, kogo jeszcze nie ma w CRM
+            const add = (CFG.canWrite && q)
+                ? '<button type="button" class="d-btn d-btn-primary d-empty-add" data-new-prefill="' + esc(q) + '">' +
+                  'Dodaj „' + esc(q) + '” jako nowy kontakt</button>'
+                : '';
             el.list.innerHTML = '<li class="d-empty">' + CFG.icons.nores +
-                                '<div>' + esc(emptyMsg) + '</div></li>';
+                                '<div>' + esc(emptyMsg) + '</div>' + add + '</li>';
             return;
         }
         el.list.innerHTML = items.map(cardHtml).join('');
@@ -404,6 +410,125 @@
 
     window.addEventListener('offline', () => banner('Brak połączenia — działa tylko kopia z tej sesji.'));
     window.addEventListener('online',  () => { banner(''); if (!snapshot) fetchSnapshot(); });
+
+    // ── Nowy kontakt ────────────────────────────────────────────────────────
+    // Arkusz z formularzem: rodzaj, nazwa, telefon (obowiązkowy), e-mail, firma.
+    // Po zapisie kontakt od razu ląduje na liście — można dzwonić.
+    const nw = {
+        btn:      document.getElementById('dNewBtn'),
+        sheet:    document.getElementById('dNewSheet'),
+        backdrop: document.getElementById('dNewBackdrop'),
+        form:     document.getElementById('dNewForm'),
+        err:      document.getElementById('dNewErr'),
+        cancel:   document.getElementById('dNewCancel'),
+        save:     document.getElementById('dNewSave'),
+        nameLbl:  document.getElementById('dNewNameLbl'),
+        company:  document.getElementById('dNewCompanyRow')
+    };
+    let newOpener = null, forceDup = false;
+
+    function newErr(msg, extraHtml) {
+        if (!msg) { nw.err.hidden = true; nw.err.innerHTML = ''; return; }
+        nw.err.innerHTML = esc(msg) + (extraHtml || '');
+        nw.err.hidden = false;
+    }
+    function syncKind() {
+        const org = nw.form.kind.value === 'organizacja';
+        nw.nameLbl.textContent = org ? 'Nazwa firmy lub organizacji' : 'Imię i nazwisko';
+        nw.company.hidden = org;
+    }
+    function openNew(prefill) {
+        newOpener = document.activeElement;
+        nw.form.reset(); forceDup = false; newErr('');
+        const p = String(prefill || '').trim();
+        // Wpisany numer trafia do telefonu, wpisane słowa — do nazwy
+        if (p) { if (/^[\d\s+()-]{6,}$/.test(p)) nw.form.tel.value = p; else nw.form.name.value = p; }
+        syncKind();
+        nw.backdrop.hidden = false; nw.sheet.hidden = false;
+        requestAnimationFrame(() => {
+            nw.backdrop.classList.add('is-on'); nw.sheet.classList.add('is-on');
+            (nw.form.name.value ? nw.form.tel : nw.form.name).focus();
+        });
+    }
+    function closeNew() {
+        nw.sheet.classList.remove('is-on'); nw.backdrop.classList.remove('is-on');
+        setTimeout(() => { nw.sheet.hidden = true; nw.backdrop.hidden = true; }, 220);
+        if (newOpener && newOpener.focus) newOpener.focus();
+    }
+
+    if (nw.sheet) {
+        nw.btn.addEventListener('click', () => openNew(el.query.value));
+        nw.cancel.addEventListener('click', closeNew);
+        nw.backdrop.addEventListener('click', closeNew);
+        nw.form.addEventListener('change', ev => { if (ev.target.name === 'kind') syncKind(); });
+        nw.form.addEventListener('input', () => { forceDup = false; });
+        document.addEventListener('click', ev => {
+            const b = ev.target.closest('[data-new-prefill]');
+            if (b) openNew(b.dataset.newPrefill);
+        });
+        document.addEventListener('keydown', ev => {
+            if (nw.sheet.hidden) return;
+            if (ev.key === 'Escape') { closeNew(); return; }
+            // Fokus zostaje w oknie (aria-modal)
+            if (ev.key === 'Tab') {
+                const f = Array.from(nw.sheet.querySelectorAll('input:not([type=hidden]), button')).filter(x => x.offsetParent !== null);
+                if (!f.length) return;
+                const first = f[0], last = f[f.length - 1];
+                if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+                else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+            }
+        });
+
+        nw.form.addEventListener('submit', async function (ev) {
+            ev.preventDefault();
+            const f = nw.form;
+            if (!f.name.value.trim()) { newErr(nw.nameLbl.textContent + ' — to pole jest wymagane.'); f.name.focus(); return; }
+            if (digitsOf(f.tel.value).length < 6) { newErr('Wpisz numer telefonu (co najmniej 6 cyfr).'); f.tel.focus(); return; }
+            newErr('');
+            nw.save.disabled = true;
+            try {
+                const res = await fetch(API + '/contact.php', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CFG.csrf },
+                    body: JSON.stringify({
+                        kind: f.kind.value, name: f.name.value.trim(), tel: f.tel.value.trim(),
+                        email: f.email.value.trim(), company: f.company.value.trim(), force: forceDup ? 1 : 0
+                    })
+                });
+                let d = null; try { d = await res.json(); } catch (e) {}
+                if (res.status === 401 && d && d.reauth) { location.reload(); return; }
+                if (d && d.dup) {
+                    // Numer już jest — pokazujemy kto i pozwalamy zapisać świadomie drugi raz
+                    forceDup = true;
+                    newErr(d.error, ' Naciśnij „Zapisz” jeszcze raz, żeby mimo to dodać nowy kontakt, albo ' +
+                        '<button type="button" class="d-linkbtn" data-new-show="' + esc(d.dup.name) + '">pokaż istniejący</button>.');
+                    return;
+                }
+                if (!res.ok || !d || !d.ok) { newErr((d && d.error) || 'Nie udało się zapisać kontaktu.'); return; }
+                const item = d.data;
+                if (item) {
+                    if (snapshot) snapshot.unshift(item);
+                    try { sessionStorage.setItem(SNAP_KEY, JSON.stringify(snapshot || [])); } catch (e) {}
+                    el.query.value = item.name; el.clear.hidden = false;
+                    ++seq; renderList([item], '');
+                }
+                closeNew();
+                toast('Kontakt zapisany w CRM — możesz dzwonić.');
+            } catch (e) {
+                newErr('Brak połączenia — kontakt nie został zapisany.');
+            } finally {
+                nw.save.disabled = false;
+            }
+        });
+
+        nw.sheet.addEventListener('click', ev => {
+            const b = ev.target.closest('[data-new-show]');
+            if (!b) return;
+            closeNew();
+            el.query.value = b.dataset.newShow; el.clear.hidden = false;
+            runSearch(b.dataset.newShow);
+        });
+    }
 
     // ── Start ───────────────────────────────────────────────────────────────
 
