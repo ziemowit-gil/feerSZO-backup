@@ -403,7 +403,7 @@ if ($_is_volunteer_only) {
 
 
 <?php if ($_is_volunteer_only): ?>
-<?php include __DIR__ . '/includes/pv_home.php'; /* nowy widok: styl Tozsamosc, 2 zakladki */ ?>
+<?php include __DIR__ . '/includes/pv_home.php'; /* pulpit METRO jak System Tożsamości: kafle + zakładki pivot */ ?>
 <?php else: ?>
 <?php /* ═══ STARY WIDOK DLA EDYTORÓW / ADMINÓW / k30_consultants ══════════ */ ?>
 <style>
