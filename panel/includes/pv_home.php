@@ -197,6 +197,19 @@ $_pv_extra_html = trim((string)ob_get_clean());
 $_tabs = ['umowa' => ['umowa', 0], 'sprawy' => ['sprawy', $_pending_total], 'narzedzia' => ['narzędzia', 0],
           'konta' => ['konta i dostępy', 0], 'wiadomosci' => ['wiadomości', (int)$msg_unread]];
 if ($_pv_extra_html !== '') $_tabs['wydarzenia'] = ['wydarzenia', 0];
+
+/* ── Pełnomocnictwa: zakładka zamiast starego widżetu pod pulpitem (pv_pelnomocnictwa.php) ── */
+$_pv_peln = [];
+if (module_enabled('pelnomocnictwa_enabled')) {
+    try {
+        require_once $ROOT . '/includes/pelnomocnictwa.php';
+        $_pv_peln = pelnomocnictwa_for_user((int)$user['id'], (string)($user['name'] ?? ''), true);
+    } catch (\Throwable $e) { $_pv_peln = []; }
+}
+if ($_pv_peln) {
+    $_tabs['pelnomocnictwa'] = ['pełnomocnictwa', 0];
+    $GLOBALS['_pv_pelnomocnictwa_done'] = true;
+}
 $_tab_first = array_key_first($_tabs);
 
 panelMetroAssets($_vol_color);
@@ -278,6 +291,10 @@ panelMetroAssets($_vol_color);
     panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);
     if (is_file($ROOT . '/tozsamosc/index.php')) {
         panelMetroTile(['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','color'=>'dark']);
+    }
+    if ($_pv_peln) {
+        panelMetroTile(['href'=>'#pelnomocnictwa','go'=>'pelnomocnictwa','icon'=>'bi-person-badge','label'=>'Pełnomocnictwa',
+                        'val'=>(string)count($_pv_peln),'sub'=>'ważne, udzielone Tobie','color'=>'indigo']);
     }
     ?>
   </div>
@@ -486,6 +503,29 @@ panelMetroAssets($_vol_color);
   </section>
 
   <?php if ($_pv_extra_html !== ''): ?>
+  <?php if ($_pv_peln): ?>
+  <!-- ═══════════ PEŁNOMOCNICTWA ═══════════ -->
+  <section id="pelnomocnictwa" data-pvm-panel="pelnomocnictwa" role="tabpanel" aria-labelledby="pvm-tab-pelnomocnictwa" tabindex="-1" hidden>
+    <h2 class="mt-h2">Moje <b>pełnomocnictwa</b> <span class="mt-no" style="font-size:1rem">(<?= count($_pv_peln) ?> ważne)</span></h2>
+    <?php foreach ($_pv_peln as $_p):
+      $_kor  = ($_p['rodzaj'] ?? 'ogolne') === 'korespondencja';
+      $_zakr = $_kor ? pelnomocnictwo_kor_opis($_p) : implode('; ', pelnomocnictwo_zakres_items($_p));
+    ?>
+    <div class="mt-svc" style="--c:var(--m-indigo)">
+      <i class="bi <?= $_kor ? 'bi-envelope' : 'bi-person-badge' ?> ic" aria-hidden="true"></i>
+      <div class="mt-svc__bd">
+        <h3><?= h($_p['numer']) ?> <span class="mt-no" style="font-weight:400">· od <?= h($_p['mocodawca']) ?></span>
+          <span class="mt-badge mt-badge--ok">ważne do <?= $_p['data_waznosci'] ? h(date_pl($_p['data_waznosci'])) : 'bezterminowo' ?></span></h3>
+        <?php if ($_zakr !== ''): ?><p><?= h($_zakr) ?></p><?php endif; ?>
+        <?php if (!empty($_p['dokument_plik'])): ?>
+        <div class="mt-links"><a href="<?= APP_URL ?>/pelnomocnictwa/dokument_download.php?id=<?= (int)$_p['id'] ?>"><i class="bi bi-download" aria-hidden="true"></i>Pobierz dokument<span class="visually-hidden"> pełnomocnictwa <?= h($_p['numer']) ?></span></a></div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </section>
+  <?php endif; ?>
+
   <!-- ═══════════ WYDARZENIA I REZERWACJE ═══════════ -->
   <section id="wydarzenia" data-pvm-panel="wydarzenia" role="tabpanel" aria-labelledby="pvm-tab-wydarzenia" tabindex="-1" hidden>
     <h2 class="mt-h2">Wydarzenia i <b>rezerwacje</b></h2>
