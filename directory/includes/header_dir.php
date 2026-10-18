@@ -192,6 +192,8 @@ if ($_cu_id) {
     $_dir_nav[] = ['Mój profil',    APP_URL . '/directory/profile.php?id=' . $_cu_id, $_on_own_profile, 0];
     $_dir_nav[] = ['Edytuj profil', APP_URL . '/directory/profile_edit.php',          $_on_edit,        $_dir_missing];
 }
+require_once dirname(dirname(__DIR__)) . '/modules/org_moves/lib/orgMoves.php';
+if (orgMovesCan()) $_dir_nav[] = ['Przenoszenie', APP_URL . '/modules/org_moves/router.php', str_contains($_uri_rel, '/modules/org_moves/'), 0];
 if (is_admin()) $_dir_nav[] = ['Pola profilu', APP_URL . '/admin/profile_fields.php', $_on_admin_fields, 0];
 ?>
 <nav class="dir-pivot" id="dirPivot" aria-label="Nawigacja modułu Katalog współpracowników">

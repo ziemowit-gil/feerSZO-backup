@@ -198,6 +198,11 @@ function katalogUnitDetail(int $unitId, string $hrefUnit = '', string $idSuffix 
       <h2 class="mt-h2" id="ktm-unit-h<?= $sx ?>"><b><?= h($unit['name']) ?></b><?php if (!empty($unit['code'])): ?> <span style="font-size:.9rem;color:var(--pvm-muted)"><?= h($unit['code']) ?></span><?php endif; ?></h2>
       <?php if ($meta): ?><div class="ktm-meta"><?= implode('', $meta) ?></div><?php endif; ?>
       <?php if (!empty($unit['description'])): ?><p style="white-space:pre-wrap;margin:0;font-weight:300"><?= h($unit['description']) ?></p><?php endif; ?>
+      <?php
+      require_once dirname(__DIR__, 2) . '/org_moves/lib/orgMoves.php';
+      if (!$ext && orgMovesCan()): ?>
+      <p style="margin:.7rem 0 0"><a class="ktm-chip" style="background:#fff" href="<?= APP_URL ?>/modules/org_moves/router.php?unit=<?= (int)$unitId ?>"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Przenieś osoby z <?= orgLevelOf($unit) === 'jednostka' ? 'tej jednostki' : 'tego działu' ?></a></p>
+      <?php endif; ?>
     </section>
     <?php if ($children): ?>
     <section class="mt-grp" aria-labelledby="ktm-sub-h<?= $sx ?>">

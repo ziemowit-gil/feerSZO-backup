@@ -53,6 +53,8 @@ $acts = [['href' => 'mailto:' . $person['email'], 'icon' => 'bi-envelope', 'labe
 if ($hasPhone) $acts[] = ['href' => 'tel:' . preg_replace('/[^\d+]/', '', $person['phone_display']), 'icon' => 'bi-telephone', 'label' => 'Zadzwoń', 'sub' => $person['phone_display'], 'c' => panelMetroColor('green')];
 if ($person['unit_name']) $acts[] = ['href' => APP_URL . '/directory/org_chart.php?unit=' . (int)$person['unit_id'] . '#jednostka', 'icon' => 'bi-diagram-3', 'label' => $person['unit_name'], 'sub' => 'jednostka · skład', 'c' => panelMetroColor('teal')];
 if ($can_edit) $acts[] = ['href' => $editHref, 'icon' => 'bi-pencil-square', 'label' => $is_own ? 'Edytuj mój profil' : 'Edytuj profil', 'sub' => 'zdjęcie, opis, umiejętności', 'c' => panelMetroColor('orange')];
+require_once dirname(__DIR__) . '/modules/org_moves/lib/orgMoves.php';
+if (orgMovesCan()) $acts[] = ['href' => APP_URL . '/modules/org_moves/router.php?user=' . $profile_id, 'icon' => 'bi-arrow-left-right', 'label' => 'Przenieś do innej jednostki', 'sub' => 'administrator i zarząd', 'c' => panelMetroColor('violet')];
 $acts[] = ['href' => APP_URL . '/directory/', 'icon' => 'bi-arrow-left', 'label' => 'Wszyscy', 'sub' => 'wróć do katalogu', 'c' => panelMetroColor('dark')];
 $person['phone'] = $hasPhone ? $person['phone_display'] : '';
 ?>
