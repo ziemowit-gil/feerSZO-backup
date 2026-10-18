@@ -1151,6 +1151,50 @@ function hd_ui_css(): string {
 @keyframes hdToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* ── Detail header badges ──────────────────────────────────── */
 .hd-detail-num{font:700 .8rem ui-monospace,SFMono-Regular,monospace;color:var(--hd-tx3);letter-spacing:.03em}
+/* ── Szata Metro ──────────────────────────────────────────────
+   Akcent z grupy menu (--sm-acc z includes/szo_metro.php; poza powłoką SZO stare indygo),
+   zero zaokrągleń, cieni i gradientów. Prefiks `html body` — wygrywa z <style> w _detail.php. */
+:root{
+  --hd-accent:var(--sm-acc,#4f46e5);--hd-accent-h:var(--sm-acc-d,#4338ca);
+  --hd-accent-l:var(--sm-acc-50,#eef2ff);--hd-accent-m:var(--sm-acc-50,#e0e7ff);
+  --hd-bg:var(--sm-light,#f6f7fb);--hd-bd:var(--sm-line,#e5e7eb);
+  --hd-tx:var(--sm-ink,#111827);--hd-tx2:var(--sm-muted,#6b7280);
+  --hd-shadow:none;--hd-shadow-md:none;
+}
+html body :is(.hd-skip,.hd-console :focus-visible,.hd-row.active::before,.hd-row-av,.hd-msg-av,.hd-msg,.hd-msg-intern-badge,
+  .hd-reply-box,.hd-macro-toggle,.hd-macro-card,.hd-quill-wrap .ql-toolbar.ql-snow,.hd-quill-wrap .ql-container.ql-snow,
+  .hd-quill-fs-box,.hd-email-badge,.hd-unread-badge,.hd-toast,.hd-det-num,.hd-side-card,.hd-side-stat-btn,
+  .hd-det-header .btn,.hd-reply-box .btn,.hd-side-card .btn,.hd-side-card .form-control,.hd-side-card .form-select,.hd-side-card .badge,.hd-det-header .badge){border-radius:0}
+html body :is(.hd-reply-box,.hd-side-card,.hd-toast,.hd-quill-fs-box,.hd-bulk-bar,.hd-macro-card:hover){box-shadow:none}
+/* Wiadomości: płaskie pasy z lewą krawędzią zamiast dymków */
+html body .hd-msg-av-req{background:#1ba1e2}
+html body .hd-msg-av-op{background:var(--hd-accent)}
+html body .hd-msg-av-sys{background:#647687}
+html body .hd-msg{border:0;border-left:4px solid var(--sm-field,#8a8a8a);background:var(--hd-bg)}
+html body .hd-msg-user{border-left-color:var(--hd-accent);background:var(--hd-accent-l)}
+html body .hd-msg-intern{background:#fff8e1;border-left:4px dashed #c25100}
+/* Pole odpowiedzi i karty boczne: tło #f2f2f2, nagłówki wersalikami z linią akcentu */
+html body .hd-reply-box{border:1px solid var(--hd-bd)}
+html body .hd-reply-hd{background:var(--hd-bg);border-bottom:3px solid var(--hd-accent);font-weight:600}
+html body .hd-quill-wrap .ql-toolbar.ql-snow{background:var(--hd-bg);border:2px solid var(--sm-field,#8a8a8a);border-bottom-width:1px}
+html body .hd-quill-wrap .ql-container.ql-snow{border:2px solid var(--sm-field,#8a8a8a);border-top:none}
+html body .hd-quill-wrap:focus-within .ql-toolbar.ql-snow,html body .hd-quill-wrap:focus-within .ql-container.ql-snow{border-color:var(--hd-accent)}
+html body .hd-side-card{background:var(--hd-bg);border:0}
+html body .hd-side-card-head{background:transparent;border-bottom:3px solid var(--hd-accent);text-transform:uppercase;letter-spacing:.07em;font-size:.72rem}
+html body .hd-side-stat-btn{border:2px solid var(--hd-bd);background:#fff}
+html body .hd-side-stat-btn:hover{background:var(--hd-accent);border-color:var(--hd-accent);color:#fff}
+html body .hd-det-num{background:var(--hd-accent);color:#fff}
+html body .hd-det-title{font-weight:300;font-size:1.5rem;letter-spacing:-.01em}
+html body .hd-macro-toggle,html body .hd-macro-card{border-width:2px}
+html body .hd-macro-toggle:hover,html body .hd-macro-toggle.open{background:var(--hd-accent);border-color:var(--hd-accent);color:#fff}
+html body .hd-toast{border-left-width:6px}
+html body .hd-bulk-bar{background:var(--sm-dark,#1e1b4b);color:#fff;border-top:3px solid var(--hd-accent)}
+html body .hd-bulk-count{color:#fff}
+html body .hd-bulk-bar .input-group-text,html body .hd-bulk-bar .form-select{background:#2b2b2b;border-color:#5f5f5f;color:#fff;border-radius:0}
+html body .hd-bulk-bar .btn{border-radius:0}
+html body .hd-bulk-bar .btn-outline-secondary{border-color:#8a8a8a;color:#fff}
+html body .hd-bulk-bar .btn-outline-secondary:hover{background:var(--hd-accent)}
+html body .hd-bulk-bar .btn-link{color:#fff}
 </style>
 CSS;
 }

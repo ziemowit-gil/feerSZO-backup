@@ -21,7 +21,7 @@ function _hd_det_initials(string $name): string {
     return mb_strtoupper(mb_substr($words[0], 0, 1) . mb_substr($words[count($words)-1], 0, 1));
 }
 function _hd_det_avcolor(string $name): string {
-    $colors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#06b6d4','#84cc16','#f97316'];
+    $colors = ['#0050ef','#6a00ff','#d80073','#c25100','#007a00','#1ba1e2','#a20025','#00807e','#647687','#76608a']; // paleta Metro (AA z bielą)
     return $colors[abs(crc32($name)) % count($colors)];
 }
 
