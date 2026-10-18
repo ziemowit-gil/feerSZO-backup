@@ -127,419 +127,353 @@ if ($_is_service_account) {
     }
 }
 
-// ── Grupy kafelków (9 grup, brak duplikatów) ──────────────────────────────────
+// ── Wiadomości od prowadzących TI (licznik) ───────────────────────────────────
+$cnt['ti_msgs'] = 0;
+try {
+    if (!function_exists('ti_admin_msg_unread_count')) { @require_once dirname(__DIR__) . '/includes/ti_messages.php'; }
+    if (function_exists('ti_admin_msg_unread_count')) $cnt['ti_msgs'] = (int)ti_admin_msg_unread_count();
+} catch (\Throwable $e) {}
+
+/*
+ * ── Grupy pulpitu (szata Metro) ──────────────────────────────────────────────
+ * Zakładka „Admin” w menu nie ma listy rozwijanej — to jest jedyne miejsce ze
+ * wszystkimi pozycjami admina. Każda grupa = sekcja z kaflami Start (pozycje 'tile')
+ * i listą rzadziej używanych pozycji pod kaflami. Pozycje 'danger' zawsze na liście.
+ * 'kw' = dodatkowe słowa dla filtra. Kolor grupy: odcień Metro z AA na białym tekście.
+ */
 $groups = [
 
-    'Użytkownicy i bezpieczeństwo' => [
+    'Konta i dostępy' => [
         'icon'  => 'bi-shield-person',
-        'color' => 'blue',
+        'color' => '#a20025',
         'items' => [
-            ['icon'=>'bi-people',               'label'=>'Użytkownicy',              'url'=>'/admin/users.php',              'badge'=>$cnt['users'] ?: null,      'badge_type'=>'secondary'],
+            ['icon'=>'bi-people',               'label'=>'Użytkownicy',              'url'=>'/admin/users.php',              'tile'=>true, 'badge'=>$cnt['users'] ?: null, 'badge_type'=>'secondary', 'kw'=>'konta loginy hasła'],
+            ['icon'=>'bi-shield-lock',          'label'=>'Role i uprawnienia',       'url'=>'/admin/roles.php',              'tile'=>true, 'kw'=>'role uprawnienia dostęp'],
+            ['icon'=>'bi-door-open',            'label'=>'Metody logowania',         'url'=>'/admin/login_settings.php',     'tile'=>true, 'kw'=>'logowanie 2fa office'],
+            ['icon'=>'bi-person-badge',         'label'=>'Podszywanie',              'url'=>'/admin/impersonate.php',        'tile'=>true, 'kw'=>'impersonacja zaloguj jako'],
+            ['icon'=>'bi-person-bounding-box',  'label'=>'Zdjęcia profilowe',        'url'=>'/admin/avatars.php',            'tile'=>true, 'badge'=>$cnt['pending_avatars'] ?: null, 'badge_type'=>'warning', 'kw'=>'awatary zdjęcia akceptacja'],
             ...(org_setting('allow_standalone_vol_accounts') === '1' ? [
-                ['icon'=>'bi-person-plus',      'label'=>'Wolontariusze bez umowy',  'url'=>'/admin/volunteer_accounts.php'],
+                ['icon'=>'bi-person-plus',      'label'=>'Wolontariusze bez umowy',  'url'=>'/admin/volunteer_accounts.php', 'kw'=>'konta wolontariuszy samodzielne'],
             ] : []),
-            ['icon'=>'bi-shield-lock',          'label'=>'Role i uprawnienia',       'url'=>'/admin/roles.php'],
-            ['icon'=>'bi-key',                  'label'=>'Kody IKA',                 'url'=>'/admin/manage_cpc.php'],
-            ['icon'=>'bi-door-open',            'label'=>'Metody logowania',         'url'=>'/admin/login_settings.php'],
-            ['icon'=>'bi-patch-check-fill',     'label'=>'Certyfikaty X.509',        'url'=>'/admin/x509_login.php'],
-            ['icon'=>'bi-shield-lock',          'label'=>'SAML Identity Provider',   'url'=>'/admin/saml.php'],
-            ['icon'=>'bi-journal-text',         'label'=>'Dziennik zdarzeń',         'url'=>'/admin/log.php',               'badge'=>$cnt['log_today'] ?: null,  'badge_type'=>'info'],
-            ['icon'=>'bi-shield-exclamation',   'label'=>'Audit log',                'url'=>'/admin/audit_log.php',         'badge'=>$cnt['audit_today'] ?: null,'badge_type'=>'secondary'],
-            ['icon'=>'bi-person-badge',         'label'=>'Podszywanie',              'url'=>'/admin/impersonate.php'],
+            ['icon'=>'bi-key',                  'label'=>'Kody IKA',                 'url'=>'/admin/manage_cpc.php',         'kw'=>'ika kody cpc'],
+            ['icon'=>'bi-patch-check-fill',     'label'=>'Certyfikaty X.509',        'url'=>'/admin/x509_login.php',         'kw'=>'x509 szocert certyfikat logowanie'],
+            ['icon'=>'bi-shield-lock',          'label'=>'SAML Identity Provider',   'url'=>'/admin/saml.php',               'kw'=>'saml sso idp'],
+            ['icon'=>'bi-person-lines-fill',    'label'=>'Pola profilu',             'url'=>'/admin/profile_fields.php',     'kw'=>'profil pola katalog'],
         ],
     ],
 
-    'Organizacja i konfiguracja' => [
-        'icon'  => 'bi-building',
-        'color' => 'purple',
+    'Ustawienia' => [
+        'icon'  => 'bi-sliders',
+        'color' => '#0050ef',
         'items' => [
-            ['icon'=>'bi-building',             'label'=>'Dane organizacji',         'url'=>'/admin/org_settings.php'],
-            ['icon'=>'bi-toggles2',             'label'=>'Moduły',                   'url'=>'/admin/modules_settings.php'],
-            ['icon'=>'bi-grid-3x3-gap-fill',    'label'=>'Widoczność modułów per rola','url'=>'/admin/module_perms.php'],
-            ['icon'=>'bi-calendar-event-fill',  'label'=>'Ustawienia wydarzeń',     'url'=>'/admin/events_settings.php'],
-            ['icon'=>'bi-building-gear',        'label'=>'Wirtualne biurko',           'url'=>'/admin/ezd_settings.php'],
-            ['icon'=>'bi-shield-check',         'label'=>'EU DSS (walidacja eIDAS)', 'url'=>'/admin/dss_settings.php'],
-            ['icon'=>'bi-diagram-2',            'label'=>'Procesy EZD (workflow)',   'url'=>'/admin/ezd_workflows.php'],
-            ['icon'=>'bi-diagram-3',            'label'=>'Workflow akceptacji',      'url'=>'/admin/approval_workflows.php'],
-            ['icon'=>'bi-ui-checks-grid',       'label'=>'SelfService',              'url'=>'/onboarding/settings.php'],
-            ['icon'=>'bi-kanban',               'label'=>'Obszary zadań',            'url'=>'/admin/tasks_workspaces.php'],
-            ['icon'=>'bi-tag',                  'label'=>'Tagi zadań',               'url'=>'/admin/tasks_tags.php'],
-            ['icon'=>'bi-person-bounding-box',  'label'=>'Zdjęcia profilowe',        'url'=>'/admin/avatars.php',           'badge'=>$cnt['pending_avatars'] ?: null, 'badge_type'=>'warning'],
-            ['icon'=>'bi-person-lines-fill',    'label'=>'Pola profilu',             'url'=>'/admin/profile_fields.php'],
-            ['icon'=>'bi-ui-checks',            'label'=>'Pola w formularzach',      'url'=>'/admin/form_fields.php'],
-            ['icon'=>'bi-stars',                'label'=>'Ustawienia AI',            'url'=>'/admin/ai_settings.php'],
-            ['icon'=>'bi-layout-sidebar',       'label'=>'Konfiguracja menu',        'url'=>'/admin/menu_config.php'],
-        ],
-    ],
-
-    'CRM' => [
-        'icon'  => 'bi-diagram-2-fill',
-        'color' => 'green',
-        'items' => [
-            ['icon'=>'bi-person-lines-fill',    'label'=>'Ustawienia CRM',           'url'=>'/crm/settings/'],
-            ['icon'=>'bi-bookmark-fill',        'label'=>'Statusy CRM',              'url'=>'/crm/settings/statuses.php'],
-            ['icon'=>'bi-layers',               'label'=>'Grupy pól',                'url'=>'/crm/settings/field_groups.php'],
-            ['icon'=>'bi-list-columns',         'label'=>'Pola formularza',          'url'=>'/crm/settings/fields.php'],
-            ['icon'=>'bi-diagram-2',            'label'=>'Dostęp CRM-only',          'url'=>'/admin/crm_access.php'],
-            ['icon'=>'bi-database-gear',        'label'=>'Baza danych CRM',          'url'=>'/admin/crm_database.php'],
-            ['icon'=>'bi-geo-alt-fill',         'label'=>'Import TERYT',             'url'=>'/admin/teryt_import.php'],
-            ['icon'=>'bi-check2-square',        'label'=>'Nozbe',                    'url'=>'/crm/settings/nozbe.php'],
-            ['icon'=>'bi-window-split',         'label'=>'Formularze webowe',        'url'=>'/crm/form/manage.php'],
-        ],
-    ],
-
-    'Komunikacja' => [
-        'icon'  => 'bi-envelope',
-        'color' => 'teal',
-        'items' => [
-            ['icon'=>'bi-megaphone',            'label'=>'Komunikaty / ogłoszenia', 'url'=>'/komunikaty/index.php'],
-            ['icon'=>'bi-megaphone-fill',       'label'=>'Nowe ogłoszenie',         'url'=>'/komunikaty/compose.php'],
-            ['icon'=>'bi-gear',                 'label'=>'Zarządzaj ogłoszeniami',  'url'=>'/komunikaty/manage.php'],
-            ['icon'=>'bi-bell',                 'label'=>'Powiadomienia e-mail',    'url'=>'/admin/msg_settings.php'],
-            ['icon'=>'bi-envelope-paper',       'label'=>'Maile systemowe',         'url'=>'/admin/email_templates.php'],
-            ['icon'=>'bi-send-check',           'label'=>'Kolejka e-mail',          'url'=>'/admin/mail_queue.php',        'badge'=>$cnt['mail_failed'] ?: null,'badge_type'=>'danger'],
-            ['icon'=>'bi-tags',                 'label'=>'Typy wiadomości',         'url'=>'/admin/message_types.php'],
-            ['icon'=>'bi-envelope-check',       'label'=>'Masowe maile',            'url'=>'/admin/bulk_email.php'],
-            ['icon'=>'bi-chat-dots',            'label'=>'SMS',                     'url'=>'/admin/sms_settings.php'],
-            ['icon'=>'bi-whatsapp',             'label'=>'WhatsApp',                'url'=>'/admin/whatsapp_settings.php'],
-            ['icon'=>'bi-whatsapp',             'label'=>'WhatsApp — grupa',        'url'=>'/admin/whatsapp_group.php'],
-            ['icon'=>'bi-envelope-at',          'label'=>'Postivo',                 'url'=>'/admin/postivo_settings.php'],
-            ['icon'=>'bi-envelope-heart',       'label'=>'Wysyłka powitalna',       'url'=>'/admin/resend_welcome.php'],
-        ],
-    ],
-
-    'Strategia i rozwój' => [
-        'icon'  => 'bi-bullseye',
-        'color' => 'purple',
-        'items' => [
-            ['icon'=>'bi-bullseye',              'label'=>'Strategia Rozwoju NGO',    'url'=>'/strategy/index.php'],
-            ['icon'=>'bi-globe2',                'label'=>'Sfery Pożytku Publicznego','url'=>'/strategy/spheres/index.php'],
-            ['icon'=>'bi-bar-chart-line',        'label'=>'Raporty strategiczne',     'url'=>'/strategy/reports/index.php'],
-        ],
-    ],
-
-    'Dokumenty i umowy' => [
-        'icon'  => 'bi-file-earmark-text',
-        'color' => 'orange',
-        'items' => [
-            ['icon'=>'bi-inbox',                'label'=>'Pisma / wnioski',          'url'=>'/admin/applications.php',     'badge'=>$cnt['applications'] ?: null,'badge_type'=>'danger'],
-            ['icon'=>'bi-ui-checks-grid',       'label'=>'Typy wniosków',            'url'=>'/admin/application_types.php'],
-            ['icon'=>'bi-file-earmark-text',    'label'=>'Wzory dokumentów',         'url'=>'/admin/contract_templates.php'],
-            ['icon'=>'bi-printer',              'label'=>'Wzory wydruków',           'url'=>'/admin/print_templates.php'],
-            ['icon'=>'bi-envelope',            'label'=>'Wzory kopert',             'url'=>'/admin/envelope_templates.php'],
-            ['icon'=>'bi-pen-fill',             'label'=>'Autenti eSign',            'url'=>'/admin/autenti_settings.php'],
-            ['icon'=>'bi-pen-fill',             'label'=>'DocuSign eSign',           'url'=>'/admin/docusign_settings.php'],
-            ['icon'=>'bi-calendar-x',           'label'=>'Wygasające umowy',         'url'=>'/admin/contract_expiry.php',   'badge'=>$cnt['expiring_7'] ?: ($cnt['expiring_30'] ?: null), 'badge_type'=>$cnt['expiring_7'] ? 'danger' : 'warning'],
-            ['icon'=>'bi-arrow-counterclockwise','label'=>'Status umowy — wycofanie', 'url'=>'/modules/contract_status/router.php', 'danger'=>true],
-            ['icon'=>'bi-calendar3',            'label'=>'Kalendarz umów',           'url'=>'/admin/calendar.php'],
-            ['icon'=>'bi-bar-chart-line',       'label'=>'Statystyki',               'url'=>'/reports/volunteer_stats.php'],
-        ],
-    ],
-
-    'E-learning i zasoby' => [
-        'icon'  => 'bi-mortarboard',
-        'color' => 'indigo',
-        'items' => [
-            ['icon'=>'bi-building-heart',       'label'=>'Zasady i Wprowadzenie',    'url'=>'/admin/org_rules.php'],
-            ['icon'=>'bi-calendar-check',       'label'=>'Rezerwacje zasobów (SRS)', 'url'=>'/modules/srs/admin/',          'badge'=>$cnt['res_pending'] ?: null, 'badge_type'=>'warning'],
-            ['icon'=>'bi-box',                  'label'=>'Zasoby',                   'url'=>'/modules/srs/admin/resources.php'],
-            ['icon'=>'bi-tags',                 'label'=>'Kategorie zasobów',        'url'=>'/modules/srs/admin/categories.php'],
+            ['icon'=>'bi-building',             'label'=>'Dane organizacji',         'url'=>'/admin/org_settings.php',       'tile'=>true, 'kw'=>'organizacja nazwa krs logo branding'],
+            ['icon'=>'bi-toggles2',             'label'=>'Moduły',                   'url'=>'/admin/modules_settings.php',   'tile'=>true, 'kw'=>'włączanie modułów'],
+            ['icon'=>'bi-grid-3x3-gap-fill',    'label'=>'Widoczność modułów per rola','url'=>'/admin/module_perms.php',     'tile'=>true, 'kw'=>'moduły role widoczność'],
+            ['icon'=>'bi-layout-sidebar',       'label'=>'Konfiguracja menu',        'url'=>'/admin/menu_config.php',        'tile'=>true, 'kw'=>'menu nawigacja'],
+            ['icon'=>'bi-stars',                'label'=>'Ustawienia AI',            'url'=>'/admin/ai_settings.php',        'tile'=>true, 'kw'=>'ai asystent'],
+            ['icon'=>'bi-calendar-event-fill',  'label'=>'Ustawienia wydarzeń',      'url'=>'/admin/events_settings.php',    'kw'=>'wydarzenia'],
+            ['icon'=>'bi-building-gear',        'label'=>'Wirtualne biurko',         'url'=>'/admin/ezd_settings.php',       'kw'=>'ezd ustawienia biurko'],
+            ['icon'=>'bi-shield-check',         'label'=>'EU DSS (walidacja eIDAS)', 'url'=>'/admin/dss_settings.php',       'kw'=>'dss eidas podpis walidacja'],
+            ['icon'=>'bi-diagram-2',            'label'=>'Procesy EZD (workflow)',   'url'=>'/admin/ezd_workflows.php',      'kw'=>'ezd bpm proces'],
+            ['icon'=>'bi-diagram-3',            'label'=>'Workflow akceptacji',      'url'=>'/admin/approval_workflows.php', 'kw'=>'akceptacja zatwierdzanie'],
+            ['icon'=>'bi-ui-checks-grid',       'label'=>'SelfService',              'url'=>'/onboarding/settings.php',      'kw'=>'onboarding selfservice'],
+            ['icon'=>'bi-kanban',               'label'=>'Obszary zadań',            'url'=>'/admin/tasks_workspaces.php',   'kw'=>'zadania obszary'],
+            ['icon'=>'bi-tag',                  'label'=>'Tagi zadań',               'url'=>'/admin/tasks_tags.php',         'kw'=>'zadania tagi'],
+            ['icon'=>'bi-ui-checks',            'label'=>'Pola w formularzach',      'url'=>'/admin/form_fields.php',        'kw'=>'wymagane pola formularze'],
+            ['icon'=>'bi-building-heart',       'label'=>'Zasady i Wprowadzenie',    'url'=>'/admin/org_rules.php',          'kw'=>'zasady wprowadzenie e-learning'],
         ],
     ],
 
     'Integracje' => [
         'icon'  => 'bi-plug',
-        'color' => 'slate',
+        'color' => '#00807e',
         'items' => [
-            ['icon'=>'bi-plug',                 'label'=>'Integracje',               'url'=>'/admin/integrations.php'],
-            ['icon'=>'bi-microsoft',            'label'=>'Microsoft 365',            'url'=>'/admin/m365_settings.php'],
-            ['icon'=>'bi-cloud-upload',         'label'=>'SharePoint',               'url'=>'/admin/sharepoint_settings.php'],
-            ['icon'=>'bi-cloud-arrow-down',      'label'=>'Pliki umów z SharePointa', 'url'=>'/admin/sp_contract_files.php'],
-            ['icon'=>'bi-file-earmark-arrow-down','label'=>'Skany z SharePointa → umowy', 'url'=>'/admin/sp_contract_match.php'],
-            ['icon'=>'bi-calendar2-check',      'label'=>'Szkolenia (TidyCal)',      'url'=>'/admin/tidycal_settings.php'],
-            ['icon'=>'bi-check2-square',        'label'=>'Zadania / Nozbe',          'url'=>'/admin/nozbe_settings.php'],
-            ['icon'=>'bi-receipt',              'label'=>'Comarch Betterfly',        'url'=>'/admin/betterfly_settings.php'],
-            ['icon'=>'bi-receipt',              'label'=>'Faktury / Comarch (API)',  'url'=>'/admin/comarch_settings.php'],
-            ['icon'=>'bi-credit-card',          'label'=>'Płatności / Stripe',       'url'=>'/admin/stripe_settings.php'],
-            ['icon'=>'bi-wallet2',              'label'=>'Płatności / PayU',         'url'=>'/admin/payu_settings.php'],
-            ['icon'=>'bi-wallet2',              'label'=>'Płatności / Przelewy24',   'url'=>'/admin/p24_settings.php'],
-            ['icon'=>'bi-credit-card-2-front',  'label'=>'Portal płatności (/platnosci)', 'url'=>'/platnosci/admin.php'],
-            ['icon'=>'bi-cloud-arrow-up',       'label'=>'Magazyn plików / ownCloud','url'=>'/admin/owncloud_settings.php'],
-            ['icon'=>'bi-key',                  'label'=>'API i webhooki',           'url'=>'/admin/api_manage.php'],
-            ['icon'=>'bi-kanban',               'label'=>'Redmine (Helpdesk)',       'url'=>'/admin/redmine_settings.php'],
+            ['icon'=>'bi-microsoft',            'label'=>'Microsoft 365',            'url'=>'/admin/m365_settings.php',      'tile'=>true, 'kw'=>'m365 office graph entra'],
+            ['icon'=>'bi-cloud-upload',         'label'=>'SharePoint',               'url'=>'/admin/sharepoint_settings.php','tile'=>true, 'kw'=>'sharepoint pliki'],
+            ['icon'=>'bi-credit-card-2-front',  'label'=>'Portal płatności (/platnosci)', 'url'=>'/platnosci/admin.php',     'tile'=>true, 'kw'=>'płatności portal nrb przelew'],
+            ['icon'=>'bi-cloud-arrow-up',       'label'=>'Magazyn plików / ownCloud','url'=>'/admin/owncloud_settings.php',  'tile'=>true, 'kw'=>'owncloud webdav magazyn'],
+            ['icon'=>'bi-key',                  'label'=>'API i webhooki',           'url'=>'/admin/api_manage.php',         'tile'=>true, 'kw'=>'api klucze webhooki rest'],
+            ['icon'=>'bi-plug',                 'label'=>'Integracje',               'url'=>'/admin/integrations.php',       'tile'=>true, 'kw'=>'integracje przegląd'],
+            ['icon'=>'bi-key-fill',             'label'=>'Kody dostępowe M365',      'url'=>'/admin/ms_edu_codes.php',       'kw'=>'m365 kody lccc edu'],
+            ['icon'=>'bi-people-fill',          'label'=>'Konta M365 Edu — hurtowo', 'url'=>'/modules/ms_edu_bulk/index.php','kw'=>'m365 edu konta hurtowo uczniowie'],
+            ['icon'=>'bi-magic',                'label'=>'Kreator kont M365 z listy (XLS)', 'url'=>'/modules/ms_edu_bulk/kreator.php', 'kw'=>'m365 kreator xls excel import'],
+            ['icon'=>'bi-person-gear',          'label'=>'Konta EDU — zarządzanie',  'url'=>'/modules/ms_edu_bulk/konta.php','kw'=>'m365 edu zarządzanie offboarding mfa'],
+            ['icon'=>'bi-cloud-arrow-down',     'label'=>'Pliki umów z SharePointa', 'url'=>'/admin/sp_contract_files.php',  'kw'=>'sharepoint pliki umów'],
+            ['icon'=>'bi-file-earmark-arrow-down','label'=>'Skany z SharePointa → umowy', 'url'=>'/admin/sp_contract_match.php', 'kw'=>'sharepoint skany dopasowanie'],
+            ['icon'=>'bi-credit-card',          'label'=>'Płatności / Stripe',       'url'=>'/admin/stripe_settings.php',    'kw'=>'stripe płatności'],
+            ['icon'=>'bi-wallet2',              'label'=>'Płatności / PayU',         'url'=>'/admin/payu_settings.php',      'kw'=>'payu płatności'],
+            ['icon'=>'bi-wallet2',              'label'=>'Płatności / Przelewy24',   'url'=>'/admin/p24_settings.php',       'kw'=>'p24 przelewy24 płatności'],
+            ['icon'=>'bi-receipt',              'label'=>'Comarch Betterfly',        'url'=>'/admin/betterfly_settings.php', 'kw'=>'betterfly faktury'],
+            ['icon'=>'bi-receipt',              'label'=>'Faktury / Comarch (API)',  'url'=>'/admin/comarch_settings.php',   'kw'=>'comarch faktury api'],
+            ['icon'=>'bi-calendar2-check',      'label'=>'Szkolenia (TidyCal)',      'url'=>'/admin/tidycal_settings.php',   'kw'=>'tidycal szkolenia'],
+            ['icon'=>'bi-check2-square',        'label'=>'Zadania / Nozbe',          'url'=>'/admin/nozbe_settings.php',     'kw'=>'nozbe zadania'],
+            ['icon'=>'bi-kanban',               'label'=>'Redmine (Helpdesk)',       'url'=>'/admin/redmine_settings.php',   'kw'=>'redmine helpdesk'],
         ],
     ],
 
-    // Pozycje TI przeniesione z listy rozwijanej „Admin” w menu (menu ma już tylko link do panelu).
+    'Kontrola i CRON' => [
+        'icon'  => 'bi-clipboard2-pulse',
+        'color' => '#c25100',
+        'items' => [
+            ['icon'=>'bi-clipboard2-pulse',     'label'=>'Kontrola IT (pulpit stanu)','url'=>'/modules/it_control/index.php','tile'=>true, 'kw'=>'kontrola it audyt monitoring'],
+            ['icon'=>'bi-journal-check',        'label'=>'Kontrola Dzienników (logi)','url'=>'/modules/log_control/index.php','tile'=>true, 'kw'=>'kontrola dzienników logi anomalie'],
+            ['icon'=>'bi-calendar2-range',      'label'=>'Harmonogram CRON (edytor)','url'=>'/admin/cron_dispatcher.php',    'tile'=>true, 'kw'=>'cron dispatcher harmonogram agenci'],
+            ['icon'=>'bi-toggles',              'label'=>'Status systemu',           'url'=>'/admin/system_status.php',      'tile'=>true, 'kw'=>'status system'],
+            ['icon'=>'bi-journal-text',         'label'=>'Dziennik zdarzeń',         'url'=>'/admin/log.php',                'tile'=>true, 'badge'=>$cnt['log_today'] ?: null, 'badge_type'=>'info', 'kw'=>'log logowania auth'],
+            ['icon'=>'bi-shield-exclamation',   'label'=>'Audit log',                'url'=>'/admin/audit_log.php',          'tile'=>true, 'badge'=>$cnt['audit_today'] ?: null, 'badge_type'=>'secondary', 'kw'=>'audyt admin'],
+            ['icon'=>'bi-clock-history',        'label'=>'Konfiguracja CRON',        'url'=>'/admin/cron_setup.php',         'kw'=>'cron token url'],
+            ['icon'=>'bi-journal-text',         'label'=>'Przeglądarka logów',       'url'=>'/admin/logs_global.php',        'kw'=>'logi php błędy'],
+            ['icon'=>'bi-shield-check',         'label'=>'Dziennik audytu (hologramy, karty)','url'=>'/modules/audit_logs/index.php', 'kw'=>'audyt hologramy karty nfc'],
+            ['icon'=>'bi-info-circle',          'label'=>'Informacje o systemie',    'url'=>'/admin/system_info.php',        'kw'=>'php wersja serwer'],
+            ['icon'=>'bi-lightning-charge',     'label'=>'Redis (cache)',            'url'=>'/admin/redis.php',              'kw'=>'redis cache'],
+        ],
+    ],
+
+    'Komunikacja' => [
+        'icon'  => 'bi-envelope',
+        'color' => '#c0006a',
+        'items' => [
+            ['icon'=>'bi-send-check',           'label'=>'Kolejka e-mail',           'url'=>'/admin/mail_queue.php',         'tile'=>true, 'badge'=>$cnt['mail_failed'] ?: null, 'badge_type'=>'danger', 'kw'=>'maile błędy kolejka'],
+            ['icon'=>'bi-megaphone',            'label'=>'Komunikaty / ogłoszenia',  'url'=>'/komunikaty/index.php',         'tile'=>true, 'kw'=>'ogłoszenia komunikaty'],
+            ['icon'=>'bi-envelope-paper',       'label'=>'Maile systemowe',          'url'=>'/admin/email_templates.php',    'tile'=>true, 'kw'=>'szablony maili'],
+            ['icon'=>'bi-chat-dots',            'label'=>'SMS',                      'url'=>'/admin/sms_settings.php',       'tile'=>true, 'kw'=>'sms smsapi serwersms'],
+            ['icon'=>'bi-megaphone-fill',       'label'=>'Nowe ogłoszenie',          'url'=>'/komunikaty/compose.php',       'kw'=>'ogłoszenie nowe'],
+            ['icon'=>'bi-gear',                 'label'=>'Zarządzaj ogłoszeniami',   'url'=>'/komunikaty/manage.php',        'kw'=>'ogłoszenia zarządzanie'],
+            ['icon'=>'bi-bell',                 'label'=>'Powiadomienia e-mail',     'url'=>'/admin/msg_settings.php',       'kw'=>'powiadomienia'],
+            ['icon'=>'bi-tags',                 'label'=>'Typy wiadomości',          'url'=>'/admin/message_types.php',      'kw'=>'wiadomości typy'],
+            ['icon'=>'bi-envelope-check',       'label'=>'Masowe maile',             'url'=>'/admin/bulk_email.php',         'kw'=>'masowa wysyłka'],
+            ['icon'=>'bi-whatsapp',             'label'=>'WhatsApp',                 'url'=>'/admin/whatsapp_settings.php',  'kw'=>'whatsapp'],
+            ['icon'=>'bi-whatsapp',             'label'=>'WhatsApp — grupa',         'url'=>'/admin/whatsapp_group.php',     'kw'=>'whatsapp grupa'],
+            ['icon'=>'bi-envelope-at',          'label'=>'Postivo',                  'url'=>'/admin/postivo_settings.php',   'kw'=>'postivo list poczta'],
+            ['icon'=>'bi-envelope-heart',       'label'=>'Wysyłka powitalna',        'url'=>'/admin/resend_welcome.php',     'kw'=>'powitanie mail'],
+        ],
+    ],
+
+    'Dokumenty i umowy' => [
+        'icon'  => 'bi-file-earmark-text',
+        'color' => '#6a00ff',
+        'items' => [
+            ['icon'=>'bi-inbox',                'label'=>'Pisma / wnioski',          'url'=>'/admin/applications.php',       'tile'=>true, 'badge'=>$cnt['applications'] ?: null, 'badge_type'=>'danger', 'kw'=>'wnioski pisma'],
+            ['icon'=>'bi-file-earmark-text',    'label'=>'Wzory dokumentów',         'url'=>'/admin/contract_templates.php', 'tile'=>true, 'kw'=>'szablony umów wzory'],
+            ['icon'=>'bi-calendar-x',           'label'=>'Wygasające umowy',         'url'=>'/admin/contract_expiry.php',    'tile'=>true, 'badge'=>$cnt['expiring_7'] ?: ($cnt['expiring_30'] ?: null), 'badge_type'=>$cnt['expiring_7'] ? 'danger' : 'warning', 'kw'=>'wygasanie koniec umowy'],
+            ['icon'=>'bi-calendar3',            'label'=>'Kalendarz umów',           'url'=>'/admin/calendar.php',           'tile'=>true, 'kw'=>'kalendarz'],
+            ['icon'=>'bi-ui-checks-grid',       'label'=>'Typy wniosków',            'url'=>'/admin/application_types.php',  'kw'=>'wnioski typy'],
+            ['icon'=>'bi-printer',              'label'=>'Wzory wydruków',           'url'=>'/admin/print_templates.php',    'kw'=>'wydruki szablony'],
+            ['icon'=>'bi-envelope',             'label'=>'Wzory kopert',             'url'=>'/admin/envelope_templates.php', 'kw'=>'koperty dl c5 c4'],
+            ['icon'=>'bi-pen-fill',             'label'=>'Autenti eSign',            'url'=>'/admin/autenti_settings.php',   'kw'=>'autenti podpis'],
+            ['icon'=>'bi-pen-fill',             'label'=>'DocuSign eSign',           'url'=>'/admin/docusign_settings.php',  'kw'=>'docusign podpis'],
+            ['icon'=>'bi-bar-chart-line',       'label'=>'Statystyki',               'url'=>'/reports/volunteer_stats.php',  'kw'=>'statystyki raporty wolontariusze'],
+            ['icon'=>'bi-arrow-counterclockwise','label'=>'Status umowy — wycofanie', 'url'=>'/modules/contract_status/router.php', 'danger'=>true, 'kw'=>'cofnij status umowy'],
+        ],
+    ],
+
     'TI — panel dydaktyka' => [
         'icon'  => 'bi-easel2',
-        'color' => 'purple',
+        'color' => '#76608a',
         'items' => [
-            ['icon'=>'bi-easel2',               'label'=>'Panel dydaktyka (TI) — wyłączenia', 'url'=>'/karty30/ti/dydaktyk/wylaczenia.php'],
-            ['icon'=>'bi-envelope-exclamation', 'label'=>'Wiad. od prowadzących',    'url'=>'/admin/ti_admin_msgs.php',
-             'badge'=>(function () { if (!function_exists('ti_admin_msg_unread_count')) { @require_once dirname(__DIR__) . '/includes/ti_messages.php'; }
-                                     return function_exists('ti_admin_msg_unread_count') ? (ti_admin_msg_unread_count() ?: null) : null; })(),
-             'badge_type'=>'danger'],
+            ['icon'=>'bi-easel2',               'label'=>'Panel dydaktyka (TI) — wyłączenia', 'url'=>'/karty30/ti/dydaktyk/wylaczenia.php', 'tile'=>true, 'kw'=>'ti przerwa komunikat wyłączenia blackout'],
+            ['icon'=>'bi-envelope-exclamation', 'label'=>'Wiad. od prowadzących',    'url'=>'/admin/ti_admin_msgs.php',      'tile'=>true, 'badge'=>$cnt['ti_msgs'] ?: null, 'badge_type'=>'danger', 'kw'=>'wiadomości prowadzący kierownictwo ti'],
+            ['icon'=>'bi-person-badge',         'label'=>'Dyżury kierownika / Zarządu (DK)', 'url'=>'/modules/ti_duty/index.php', 'tile'=>true, 'kw'=>'dyżury dk grafik zarząd ti'],
+        ],
+    ],
+
+    'CRM' => [
+        'icon'  => 'bi-diagram-2-fill',
+        'color' => '#007a00',
+        'items' => [
+            ['icon'=>'bi-person-lines-fill',    'label'=>'Ustawienia CRM',           'url'=>'/crm/settings/',                'tile'=>true, 'kw'=>'crm ustawienia'],
+            ['icon'=>'bi-window-split',         'label'=>'Formularze webowe',        'url'=>'/crm/form/manage.php',          'tile'=>true, 'kw'=>'crm formularze www'],
+            ['icon'=>'bi-database-gear',        'label'=>'Baza danych CRM',          'url'=>'/admin/crm_database.php',       'tile'=>true, 'kw'=>'crm baza'],
+            ['icon'=>'bi-bookmark-fill',        'label'=>'Statusy CRM',              'url'=>'/crm/settings/statuses.php',    'kw'=>'crm statusy'],
+            ['icon'=>'bi-layers',               'label'=>'Grupy pól',                'url'=>'/crm/settings/field_groups.php','kw'=>'crm pola grupy'],
+            ['icon'=>'bi-list-columns',         'label'=>'Pola formularza',          'url'=>'/crm/settings/fields.php',      'kw'=>'crm pola'],
+            ['icon'=>'bi-diagram-2',            'label'=>'Dostęp CRM-only',          'url'=>'/admin/crm_access.php',         'kw'=>'crm dostęp'],
+            ['icon'=>'bi-geo-alt-fill',         'label'=>'Import TERYT',             'url'=>'/admin/teryt_import.php',       'kw'=>'teryt gminy import'],
+            ['icon'=>'bi-check2-square',        'label'=>'Nozbe',                    'url'=>'/crm/settings/nozbe.php',       'kw'=>'crm nozbe'],
+        ],
+    ],
+
+    'Zasoby i rezerwacje' => [
+        'icon'  => 'bi-calendar-check',
+        'color' => '#825a2c',
+        'items' => [
+            ['icon'=>'bi-calendar-check',       'label'=>'Rezerwacje zasobów (SRS)', 'url'=>'/modules/srs/admin/',           'tile'=>true, 'badge'=>$cnt['res_pending'] ?: null, 'badge_type'=>'warning', 'kw'=>'srs rezerwacje sale'],
+            ['icon'=>'bi-box',                  'label'=>'Zasoby',                   'url'=>'/modules/srs/admin/resources.php', 'tile'=>true, 'kw'=>'srs zasoby sprzęt'],
+            ['icon'=>'bi-tags',                 'label'=>'Kategorie zasobów',        'url'=>'/modules/srs/admin/categories.php','kw'=>'srs kategorie'],
+        ],
+    ],
+
+    'Strategia i rozwój' => [
+        'icon'  => 'bi-bullseye',
+        'color' => '#5a6f52',
+        'items' => [
+            ['icon'=>'bi-bullseye',             'label'=>'Strategia Rozwoju NGO',    'url'=>'/strategy/index.php',           'tile'=>true, 'kw'=>'strategia cele'],
+            ['icon'=>'bi-globe2',               'label'=>'Sfery Pożytku Publicznego','url'=>'/strategy/spheres/index.php',   'tile'=>true, 'kw'=>'sfery pożytek'],
+            ['icon'=>'bi-bar-chart-line',       'label'=>'Raporty strategiczne',     'url'=>'/strategy/reports/index.php',   'tile'=>true, 'kw'=>'raporty strategia'],
         ],
     ],
 
     'EOD Dokumentów Księgowych' => [
         'icon'  => 'bi-file-earmark-check',
-        'color' => 'cyan',
+        'color' => '#0f6fa8',
         'items' => [
-            ['icon'=>'bi-shield-lock',          'label'=>'Role dostępu',             'url'=>'/admin/ksiegowosc_roles.php'],
-            ['icon'=>'bi-patch-check',          'label'=>'Certyfikaty X.509',        'url'=>'/admin/kdok_certs.php'],
-            ['icon'=>'bi-gear',                 'label'=>'Ustawienia (baza, MPK)',   'url'=>'/admin/ksiegowosc_settings.php'],
-            ['icon'=>'bi-grid-3x2',             'label'=>'Macierz uprawnień',        'url'=>'/admin/kdok_matrix.php'],
-            ['icon'=>'bi-cloud-arrow-up',       'label'=>'eArchiwum (FTP / R2)',     'url'=>'/admin/kdok_archive_settings.php'],
-            ['icon'=>'bi-receipt-cutoff',       'label'=>'KSeF — ustawienia',        'url'=>'/admin/kdok_ksef_settings.php'],
-            ['icon'=>'bi-arrow-repeat',         'label'=>'Wyczyść stare PDF',        'url'=>'/admin/kdok_cleanup_run.php'],
-            ['icon'=>'bi-trash3',               'label'=>'Wyczyść dane obiegu',      'url'=>'/admin/kdok_clear.php'],
+            ['icon'=>'bi-gear',                 'label'=>'Ustawienia (baza, MPK)',   'url'=>'/admin/ksiegowosc_settings.php','tile'=>true, 'kw'=>'kdok księgowość mpk'],
+            ['icon'=>'bi-receipt-cutoff',       'label'=>'KSeF — ustawienia',        'url'=>'/admin/kdok_ksef_settings.php', 'tile'=>true, 'kw'=>'ksef faktury'],
+            ['icon'=>'bi-grid-3x2',             'label'=>'Macierz uprawnień',        'url'=>'/admin/kdok_matrix.php',        'tile'=>true, 'kw'=>'kdok uprawnienia macierz'],
+            ['icon'=>'bi-shield-lock',          'label'=>'Role dostępu',             'url'=>'/admin/ksiegowosc_roles.php',   'kw'=>'kdok role'],
+            ['icon'=>'bi-patch-check',          'label'=>'Certyfikaty X.509',        'url'=>'/admin/kdok_certs.php',         'kw'=>'kdok certyfikaty x509'],
+            ['icon'=>'bi-cloud-arrow-up',       'label'=>'eArchiwum (FTP / R2)',     'url'=>'/admin/kdok_archive_settings.php', 'kw'=>'kdok archiwum ftp r2'],
+            ['icon'=>'bi-arrow-repeat',         'label'=>'Wyczyść stare PDF',        'url'=>'/admin/kdok_cleanup_run.php',   'kw'=>'kdok czyszczenie pdf'],
+            ['icon'=>'bi-trash3',               'label'=>'Wyczyść dane obiegu',      'url'=>'/admin/kdok_clear.php',         'danger'=>true, 'kw'=>'kdok czyszczenie obieg'],
         ],
     ],
 
-    'Narzędzia' => [
+    'System i narzędzia' => [
         'icon'  => 'bi-tools',
-        'color' => 'red',
+        'color' => '#1d1d1d',
         'items' => [
-            ['icon'=>'bi-toggles',              'label'=>'Status systemu',           'url'=>'/admin/system_status.php'],
-            ['icon'=>'bi-shield-lock',          'label'=>'Certyfikat i licencja',    'url'=>'/admin/app_license.php'],
-            ['icon'=>'bi-arrow-repeat',         'label'=>'Aktualizacja systemu',     'url'=>'/upgrade.php'],
-            ['icon'=>'bi-git',                  'label'=>'Wersja i historia zmian',  'url'=>'/admin/version.php'],
-            ['icon'=>'bi-clock-history',        'label'=>'Konfiguracja CRON',        'url'=>'/admin/cron_setup.php'],
-            ['icon'=>'bi-calendar2-range',      'label'=>'Harmonogram CRON (edytor)','url'=>'/admin/cron_dispatcher.php'],
-            ['icon'=>'bi-lightning-charge',     'label'=>'Redis (cache)',            'url'=>'/admin/redis.php'],
-            ['icon'=>'bi-info-circle',          'label'=>'Informacje o systemie',    'url'=>'/admin/system_info.php'],
-            ['icon'=>'bi-archive',              'label'=>'Kopie zapasowe',           'url'=>'/admin/backups.php'],
-            ['icon'=>'bi-database-fill-gear',   'label'=>'Narzędzia bazy danych',   'url'=>'/admin/db_tools.php'],
-            ['icon'=>'bi-journal-text',         'label'=>'Przeglądarka logów',       'url'=>'/admin/logs_global.php'],
-            ['icon'=>'bi-shield-check',         'label'=>'Dziennik audytu (hologramy, karty)','url'=>'/modules/audit_logs/index.php'],
-            ['icon'=>'bi-clipboard2-pulse',     'label'=>'Kontrola IT (pulpit stanu)','url'=>'/modules/it_control/index.php'],
-            ['icon'=>'bi-journal-check',        'label'=>'Kontrola Dzienników (logi)','url'=>'/modules/log_control/index.php'],
-            ['icon'=>'bi-database-gear',        'label'=>'Zarządzanie migracjami',   'url'=>'/admin/migrations.php'],
-            ['icon'=>'bi-database-add',         'label'=>'Seedery (dane testowe)',   'url'=>'/seeder-test'],
-            ['icon'=>'bi-link-45deg',           'label'=>'Krótkie linki',            'url'=>'/admin/short_urls.php'],
-            ['icon'=>'bi-rocket-takeoff',       'label'=>'Czyszczenie przed wdrożeniem','url'=>'/admin/clean_for_prod.php','danger'=>true],
-            ['icon'=>'bi-trash3',               'label'=>'Wyczyść bazę',             'url'=>'/admin/clean_db.php',         'danger'=>true],
+            ['icon'=>'bi-arrow-repeat',         'label'=>'Aktualizacja systemu',     'url'=>'/upgrade.php',                  'tile'=>true, 'kw'=>'upgrade aktualizacja'],
+            ['icon'=>'bi-archive',              'label'=>'Kopie zapasowe',           'url'=>'/admin/backups.php',            'tile'=>true, 'kw'=>'backup kopie'],
+            ['icon'=>'bi-database-fill-gear',   'label'=>'Narzędzia bazy danych',    'url'=>'/admin/db_tools.php',           'tile'=>true, 'kw'=>'baza sqlite'],
+            ['icon'=>'bi-git',                  'label'=>'Wersja i historia zmian',  'url'=>'/admin/version.php',            'tile'=>true, 'kw'=>'wersja changelog'],
+            ['icon'=>'bi-shield-lock',          'label'=>'Certyfikat i licencja',    'url'=>'/admin/app_license.php',        'kw'=>'certyfikat licencja'],
+            ['icon'=>'bi-database-gear',        'label'=>'Zarządzanie migracjami',   'url'=>'/admin/migrations.php',         'kw'=>'migracje schemat'],
+            ['icon'=>'bi-database-add',         'label'=>'Seedery (dane testowe)',   'url'=>'/seeder-test',                  'kw'=>'seedery dane testowe demo'],
+            ['icon'=>'bi-link-45deg',           'label'=>'Krótkie linki',            'url'=>'/admin/short_urls.php',         'kw'=>'skracacz linki'],
+            ['icon'=>'bi-rocket-takeoff',       'label'=>'Czyszczenie przed wdrożeniem','url'=>'/admin/clean_for_prod.php',  'danger'=>true, 'kw'=>'wdrożenie produkcja czyszczenie'],
+            ['icon'=>'bi-trash3',               'label'=>'Wyczyść bazę',             'url'=>'/admin/clean_db.php',           'danger'=>true, 'kw'=>'czyszczenie bazy'],
         ],
     ],
 
 ];
 
-// ── Paleta kolorów ────────────────────────────────────────────────────────────
-$color_map = [
-    'blue'   => ['bg'=>'#EFF6FF','border'=>'#BFDBFE','icon_bg'=>'#2563EB','icon_text'=>'#fff','head'=>'#1E40AF'],
-    'purple' => ['bg'=>'#F5F3FF','border'=>'#DDD6FE','icon_bg'=>'#7C3AED','icon_text'=>'#fff','head'=>'#5B21B6'],
-    'green'  => ['bg'=>'#F0FDF4','border'=>'#BBF7D0','icon_bg'=>'#16A34A','icon_text'=>'#fff','head'=>'#15803D'],
-    'teal'   => ['bg'=>'#F0FDFA','border'=>'#99F6E4','icon_bg'=>'#0D9488','icon_text'=>'#fff','head'=>'#0F766E'],
-    'orange' => ['bg'=>'#FFF7ED','border'=>'#FED7AA','icon_bg'=>'#EA580C','icon_text'=>'#fff','head'=>'#9A3412'],
-    'indigo' => ['bg'=>'#EEF2FF','border'=>'#C7D2FE','icon_bg'=>'#4F46E5','icon_text'=>'#fff','head'=>'#3730A3'],
-    'slate'  => ['bg'=>'#F8FAFC','border'=>'#CBD5E1','icon_bg'=>'#475569','icon_text'=>'#fff','head'=>'#1E293B'],
-    'cyan'   => ['bg'=>'#ECFEFF','border'=>'#A5F3FC','icon_bg'=>'#0891B2','icon_text'=>'#fff','head'=>'#155E75'],
-    'red'    => ['bg'=>'#FFF1F2','border'=>'#FECDD3','icon_bg'=>'#DC2626','icon_text'=>'#fff','head'=>'#991B1B'],
-];
-
-/**
- * Tokeny kolorów karty grupy. 'color' grupy może być nazwą z $color_map
- * (blue, purple, …) ALBO dowolnym kolorem hex (#RGB / #RRGGBB) — wtedy odcienie
- * tła, obramowania i nagłówka są wyliczane z podanej barwy.
- */
-$adm_color_tokens = function (string $color) use ($color_map): array {
-    $color = trim($color);
-    if (isset($color_map[$color])) return $color_map[$color];
-    if (!preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $color)) return $color_map['slate'];
-    $hex = ltrim($color, '#');
-    if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
-    $rgb = [hexdec(substr($hex,0,2)), hexdec(substr($hex,2,2)), hexdec(substr($hex,4,2))];
-    // mieszanie z bielą (t>0) lub czernią (t<0); $t = udział barwy docelowej
-    $mix = function (float $t) use ($rgb): string {
-        $target = $t >= 0 ? 255 : 0; $t = abs($t);
-        return sprintf('#%02X%02X%02X', ...array_map(fn($c) => (int)round($c + ($target - $c) * $t), $rgb));
-    };
-    $lum = (0.299*$rgb[0] + 0.587*$rgb[1] + 0.114*$rgb[2]) / 255;
-    return [
-        'bg'        => $mix(0.92),
-        'border'    => $mix(0.72),
-        'icon_bg'   => '#'.strtoupper($hex),
-        'icon_text' => $lum > 0.6 ? '#111827' : '#fff',
-        'head'      => $mix(-0.35),
-    ];
-};
+/** Słowa do filtra: etykieta + słowa kluczowe + nazwa grupy, małymi literami. */
+$adm_keys = fn(array $it, string $grp): string => mb_strtolower($it['label'] . ' ' . ($it['kw'] ?? '') . ' ' . $grp);
 
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
 <style>
-/* ── Układ strony ─────────────────────────────────────────────────── */
-.adm-page  { max-width: 1200px; padding: 2rem 1.5rem; }
-.adm-title { font-size: 1.5rem; font-weight: 800; color: #0F172A; margin-bottom: .2rem; display:flex;align-items:center;gap:.6rem; }
-.adm-sub   { font-size: .875rem; color: #64748B; margin-bottom: 1.75rem; }
+/* ── Pulpit admina w szacie Metro (warstwa wspólna: includes/szo_metro.php, grupa „admin”) ── */
+html body .adx{max-width:1320px;font-family:var(--sm-font,"Segoe UI",system-ui,sans-serif)}
+html body .adx-eyebrow{font-size:.7rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--sm-acc-d,#76001b);margin:0 0 .2rem}
+html body .adx-title{font-size:2.6rem;font-weight:300;letter-spacing:-.02em;line-height:1.05;color:#1d1d1d;margin:0}
+html body .adx-sub{font-size:.9rem;color:#5f5f5f;margin:.4rem 0 1.5rem}
 
-/* ── Pasek statystyk ──────────────────────────────────────────────── */
-.adm-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: .75rem;
-    margin-bottom: 1.75rem;
-}
-.adm-stat {
-    background: #fff;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px;
-    padding: .9rem 1.1rem;
-    text-decoration: none;
-    color: inherit;
-    transition: box-shadow .15s, border-color .15s;
-    display: flex;
-    align-items: center;
-    gap: .75rem;
-}
-.adm-stat:hover { box-shadow: 0 3px 12px rgba(0,0,0,.08); border-color: #CBD5E1; color: inherit; }
-.adm-stat-icon {
-    width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1rem;
-}
-.adm-stat-val  { font-size: 1.25rem; font-weight: 800; line-height: 1; }
-.adm-stat-lbl  { font-size: .72rem; color: #64748B; margin-top: .15rem; }
-.adm-stat-alert .adm-stat-val { color: #DC2626; }
+/* Liczniki — płaskie szare kafle z dużą lekką liczbą */
+html body .adx-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.25rem;margin-bottom:1.75rem}
+html body .adx-stat{display:flex;flex-direction:column;gap:.15rem;padding:.75rem 1rem .8rem;background:#f2f2f2;color:#1d1d1d;text-decoration:none;border-left:6px solid transparent}
+html body .adx-stat:hover{background:#e6e6e6;color:#1d1d1d}
+html body .adx-stat-val{font-size:2rem;font-weight:300;line-height:1}
+html body .adx-stat-lbl{font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5f5f5f;display:flex;align-items:center;gap:.35rem}
+html body .adx-stat.is-alert{border-left-color:#a20025}
+html body .adx-stat.is-alert .adx-stat-val{color:#a20025}
 
-/* ── Wyszukiwarka ─────────────────────────────────────────────────── */
-.adm-search-wrap {
-    position: relative;
-    margin-bottom: 1.5rem;
-    max-width: 420px;
-}
-.adm-search-wrap i {
-    position: absolute; left: .85rem; top: 50%; transform: translateY(-50%);
-    color: #94A3B8; font-size: .95rem; pointer-events: none;
-}
-#admSearch {
-    width: 100%;
-    padding: .55rem .9rem .55rem 2.4rem;
-    border: 1px solid #E2E8F0;
-    border-radius: 10px;
-    font-size: .88rem;
-    background: #fff;
-    transition: border-color .15s, box-shadow .15s;
-    outline: none;
-}
-#admSearch:focus { border-color: #93C5FD; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
-.adm-search-clear {
-    position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
-    display: none; background: none; border: none; color: #94A3B8; cursor: pointer;
-    font-size: .95rem; padding: 0; line-height: 1;
-}
-.adm-search-clear:hover { color: #475569; }
+/* Konfiguracja wstępna */
+html body .adx-setup{background:#f2f2f2;border-left:6px solid #c25100;padding:1rem 1.25rem;margin-bottom:1.75rem}
+html body .adx-setup-h{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem}
+html body .adx-setup-h strong{font-size:1.2rem;font-weight:300;color:#1d1d1d}
+html body .adx-setup-h span{margin-left:auto;font-size:.8rem;color:#5f5f5f}
+html body .adx-setup-bar{height:4px;background:#e1e1e1;margin-bottom:.85rem}
+html body .adx-setup-bar>div{height:100%;background:#c25100}
+html body .adx-setup-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.25rem}
+html body .adx-setup-i{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;font-size:.84rem;text-decoration:none;background:#fff;color:#8f3c00;border-left:3px solid #c25100}
+html body .adx-setup-i.ok{color:#005700;border-left-color:#007a00}
+html body .adx-setup-i.warn{color:#a20025;border-left-color:#a20025}
+html body .adx-setup-i:hover{background:#e6e6e6}
+html body .adx-setup-foot{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:.85rem;padding-top:.75rem;border-top:1px solid #e1e1e1;font-size:.8rem;color:#5f5f5f}
+html body .adx-setup-new{background:#fff;padding:1rem;margin-top:.85rem;border-left:3px solid #c25100}
 
-/* ── Siatka i karty ───────────────────────────────────────────────── */
-.adm-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; }
+/* Pasek: filtr + skoki do sekcji */
+html body .adx-bar{position:sticky;top:0;z-index:5;background:#fff;padding:.5rem 0 .6rem;margin-bottom:.5rem;border-bottom:1px solid #e1e1e1}
+html body .adx-search{position:relative;max-width:460px}
+html body .adx-search>.bi{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:#5f5f5f;pointer-events:none}
+html body .adx-search input{width:100%;height:40px;padding:0 2.4rem 0 2.3rem;border:2px solid #8a8a8a;background:#fff;font-size:.95rem;color:#1d1d1d;outline:none}
+html body .adx-search input:focus{border-color:var(--sm-acc,#a20025)}
+html body .adx-search input::-webkit-search-cancel-button{display:none}
+html body .adx-search-clear{position:absolute;right:0;top:0;width:40px;height:40px;border:0;background:none;color:#5f5f5f;display:none}
+html body .adx-search-clear:hover{background:#f2f2f2;color:#1d1d1d}
+html body .adx-jump{display:flex;flex-wrap:wrap;gap:0;margin-top:.5rem}
+html body .adx-jump a{padding:.25rem .65rem;font-size:.8rem;color:#5f5f5f;text-decoration:none;border-bottom:3px solid transparent}
+html body .adx-jump a:hover{color:#1d1d1d;background:#f2f2f2;border-bottom-color:var(--g)}
+html body .adx-jump a.is-off{display:none}
 
-.adm-card {
-    background: #fff;
-    border: 1px solid #E2E8F0;
-    border-radius: 14px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
-    transition: box-shadow .15s;
-}
-.adm-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
-.adm-card.adm-hidden { display: none; }
+/* Sekcje-grupy */
+html body .adx-sec{padding:1.25rem 0 .5rem;scroll-margin-top:110px}
+html body .adx-sec[hidden]{display:none}
+html body .adx-sec-h{display:flex;align-items:center;gap:.6rem;margin:0 0 .75rem;font-size:1.45rem;font-weight:300;color:#1d1d1d;letter-spacing:-.01em}
+html body .adx-sec-h .bi{color:var(--g);font-size:1.15rem}
+html body .adx-sec-h small{font-size:.75rem;color:#8a8a8a;font-weight:400;letter-spacing:0}
 
-.adm-card-head {
-    display: flex; align-items: center; gap: .75rem;
-    padding: .85rem 1.1rem;
-    border-bottom: 1px solid #F1F5F9;
-}
-.adm-card-head-icon {
-    width: 32px; height: 32px; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: .95rem; flex-shrink: 0;
-}
-.adm-card-head-label {
-    font-size: .78rem; font-weight: 700; letter-spacing: .05em;
-    text-transform: uppercase;
-}
+/* Kafle Start — kwadratowe, pełny kolor grupy, ikona + nazwa, plakietka z licznikiem */
+html body .adx-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.3rem;max-width:calc(6 * 190px)}
+html body .adx-tile{position:relative;aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:space-between;padding:.8rem .85rem .7rem;
+  background:var(--g);color:#fff;text-decoration:none;overflow:hidden;transition:filter .12s,transform .12s}
+html body .adx-tile:hover{color:#fff;filter:brightness(1.15)}
+html body .adx-tile:active{transform:scale(.97)}
+html body .adx-tile>.bi{font-size:2rem;line-height:1}
+html body .adx-tile-lbl{font-size:.86rem;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+html body .adx-badge{position:absolute;top:0;right:0;min-width:28px;padding:.3rem .5rem;background:#fff;color:#1d1d1d;font-size:.85rem;font-weight:700;text-align:center;line-height:1}
+html body .adx-badge-danger{color:#a20025}
+html body .adx-badge-warning{color:#8f3c00}
+html body .adx-badge-info{color:#003bb0}
 
-/* ── Elementy listy ───────────────────────────────────────────────── */
-.adm-items { padding: .3rem 0; }
-.adm-item {
-    display: flex; align-items: center; gap: .65rem;
-    padding: .5rem 1.1rem;
-    font-size: .875rem; font-weight: 500; color: #334155;
-    text-decoration: none;
-    transition: background .1s, color .1s;
-    border-left: 3px solid transparent;
-}
-.adm-item i { font-size: .9rem; width: 17px; text-align: center; color: #94A3B8; flex-shrink: 0; transition: color .1s; }
-.adm-item:hover { background: #F8FAFC; color: #0F172A; border-left-color: #2563EB; }
-.adm-item:hover i { color: #2563EB; }
-.adm-item.adm-item-hidden { display: none; }
+/* Lista rzadziej używanych pozycji pod kaflami */
+html body .adx-list{columns:3 260px;column-gap:1.5rem;margin:.6rem 0 0;padding:0;list-style:none}
+html body .adx-list li{break-inside:avoid}
+html body .adx-li{display:flex;align-items:center;gap:.6rem;padding:.38rem .6rem;font-size:.88rem;color:#1d1d1d;text-decoration:none;border-left:3px solid transparent}
+html body .adx-li>.bi{color:#5f5f5f;width:1.1rem;text-align:center;flex-shrink:0}
+html body .adx-li:hover{background:#f2f2f2;color:#1d1d1d;border-left-color:var(--g)}
+html body .adx-li:hover>.bi{color:var(--g)}
+html body .adx-li .adx-badge{position:static;margin-left:auto;background:#f2f2f2;padding:.15rem .4rem;font-size:.7rem}
+html body .adx-li.danger,html body .adx-li.danger>.bi{color:#a20025}
+html body .adx-li.danger:hover{border-left-color:#a20025}
+html body .adx-hide{display:none!important}
 
-.adm-item.danger { color: #DC2626; }
-.adm-item.danger i { color: #FCA5A5; }
-.adm-item.danger:hover { background: #FFF1F2; border-left-color: #DC2626; }
-.adm-item.danger:hover i { color: #DC2626; }
+html body .adx-none{display:none;padding:3rem 1rem;text-align:center;color:#5f5f5f;font-size:1.05rem;font-weight:300}
 
-.adm-badge {
-    margin-left: auto; font-size: .65rem; font-weight: 700;
-    padding: .15rem .45rem; border-radius: 10px; line-height: 1.4;
-    white-space: nowrap;
-}
-.adm-badge-danger    { background: #FEE2E2; color: #DC2626; }
-.adm-badge-warning   { background: #FEF9C3; color: #A16207; }
-.adm-badge-info      { background: #DBEAFE; color: #1D4ED8; }
-.adm-badge-secondary { background: #F1F5F9; color: #475569; }
+/* Panel SaaS (tylko konto serwisowe) */
+html body .adx-saas{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;background:#1d1d1d;color:#fff;padding:1rem 1.25rem;margin-top:2rem}
+html body .adx-saas>.bi{font-size:1.6rem;color:#fff;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:#6a00ff}
+html body .adx-saas-b{flex:1;min-width:220px}
+html body .adx-saas-t{font-size:1.2rem;font-weight:300}
+html body .adx-saas-d{font-size:.84rem;color:rgba(255,255,255,.7)}
+html body .adx-saas a{border:2px solid #fff;color:#fff;padding:.45rem 1rem;font-weight:600;text-decoration:none;font-size:.86rem}
+html body .adx-saas a:hover{background:#fff;color:#1d1d1d}
 
-/* ── Brak wyników wyszukiwania ────────────────────────────────────── */
-#admNoResults {
-    display: none;
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 3rem 1rem;
-    color: #94A3B8;
-    font-size: .9rem;
+@media (max-width:640px){
+  html body .adx-title{font-size:2rem}
+  html body .adx-tiles{grid-template-columns:repeat(3,1fr)}
+  html body .adx-tile{padding:.55rem}
+  html body .adx-tile>.bi{font-size:1.5rem}
+  html body .adx-tile-lbl{font-size:.74rem}
+  html body .adx-stats{grid-template-columns:repeat(2,1fr)}
 }
-
-/* ── Responsywność ────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-    .adm-grid        { grid-template-columns: 1fr; }
-    .adm-page        { padding: 1.25rem 1rem; }
-    .adm-stats       { grid-template-columns: repeat(2, 1fr); }
-    .adm-search-wrap { max-width: 100%; }
-}
+@media (prefers-reduced-motion:reduce){html body .adx-tile{transition:none}}
 </style>
 
-<div class="adm-page">
+<div class="adx">
 
-  <div class="adm-title">
-    <i class="bi bi-shield-shaded" style="color:#2563eb"></i>
-    Administrator
-  </div>
-  <p class="adm-sub">Centrum zarządzania systemem — użytkownicy, ustawienia, integracje i narzędzia.</p>
+  <p class="adx-eyebrow">SZO · Administracja</p>
+  <h1 class="adx-title">Administrator</h1>
+  <p class="adx-sub">Centrum zarządzania systemem — konta i dostępy, ustawienia, integracje, kontrola i narzędzia.</p>
 
   <?php
-  // ── Pasek szybkich statystyk ──────────────────────────────────────────────
+  // ── Liczniki ──────────────────────────────────────────────────────────────
   $stats = [
-      ['val'=>$cnt['users'],        'lbl'=>'Aktywnych użytkowników', 'icon'=>'bi-people',         'color'=>'#2563EB','bg'=>'#EFF6FF', 'url'=>'/admin/users.php',         'alert'=>false],
-      ['val'=>$cnt['applications'], 'lbl'=>'Nowych wniosków',       'icon'=>'bi-inbox',           'color'=>'#DC2626','bg'=>'#FEE2E2', 'url'=>'/admin/applications.php',  'alert'=>$cnt['applications']>0],
-      ['val'=>$cnt['mail_failed'],  'lbl'=>'Błędnych maili',        'icon'=>'bi-envelope-x',      'color'=>'#DC2626','bg'=>'#FEE2E2', 'url'=>'/admin/mail_queue.php',    'alert'=>$cnt['mail_failed']>0],
-      ['val'=>$cnt['expiring_30'],  'lbl'=>'Umów wygasa (30 dni)',  'icon'=>'bi-calendar-x',      'color'=>'#EA580C','bg'=>'#FFF7ED', 'url'=>'/admin/contract_expiry.php','alert'=>$cnt['expiring_7']>0],
-      ['val'=>$cnt['res_pending'],  'lbl'=>'Oczekujących rezerwacji','icon'=>'bi-calendar-check',  'color'=>'#4F46E5','bg'=>'#EEF2FF', 'url'=>'/modules/srs/admin/',      'alert'=>$cnt['res_pending']>0],
-      ['val'=>$cnt['log_today'],    'lbl'=>'Zdarzeń dzisiaj',       'icon'=>'bi-journal-text',     'color'=>'#0D9488','bg'=>'#F0FDFA', 'url'=>'/admin/log.php',           'alert'=>false],
+      ['val'=>$cnt['users'],        'lbl'=>'Aktywnych użytkowników', 'icon'=>'bi-people',         'url'=>'/admin/users.php',          'alert'=>false],
+      ['val'=>$cnt['applications'], 'lbl'=>'Nowych wniosków',        'icon'=>'bi-inbox',          'url'=>'/admin/applications.php',   'alert'=>$cnt['applications']>0],
+      ['val'=>$cnt['mail_failed'],  'lbl'=>'Błędnych maili',         'icon'=>'bi-envelope-x',     'url'=>'/admin/mail_queue.php',     'alert'=>$cnt['mail_failed']>0],
+      ['val'=>$cnt['expiring_30'],  'lbl'=>'Umów wygasa (30 dni)',   'icon'=>'bi-calendar-x',     'url'=>'/admin/contract_expiry.php','alert'=>$cnt['expiring_7']>0],
+      ['val'=>$cnt['res_pending'],  'lbl'=>'Oczekujących rezerwacji','icon'=>'bi-calendar-check', 'url'=>'/modules/srs/admin/',       'alert'=>$cnt['res_pending']>0],
+      ['val'=>$cnt['log_today'],    'lbl'=>'Zdarzeń dzisiaj',        'icon'=>'bi-journal-text',   'url'=>'/admin/log.php',            'alert'=>false],
   ];
   ?>
-
-  <div class="adm-stats">
+  <div class="adx-stats">
     <?php foreach ($stats as $st): ?>
-    <a href="<?= APP_URL . $st['url'] ?>" class="adm-stat<?= $st['alert'] ? ' adm-stat-alert' : '' ?>">
-      <div class="adm-stat-icon" style="background:<?= $st['bg'] ?>;color:<?= $st['color'] ?>">
-        <i class="bi <?= $st['icon'] ?>"></i>
-      </div>
-      <div>
-        <div class="adm-stat-val"><?= number_format($st['val']) ?></div>
-        <div class="adm-stat-lbl"><?= h($st['lbl']) ?></div>
-      </div>
+    <a href="<?= APP_URL . $st['url'] ?>" class="adx-stat<?= $st['alert'] ? ' is-alert' : '' ?>">
+      <span class="adx-stat-val"><?= number_format($st['val'], 0, ',', ' ') ?></span>
+      <span class="adx-stat-lbl"><i class="bi <?= $st['icon'] ?>" aria-hidden="true"></i><?= h($st['lbl']) ?></span>
     </a>
     <?php endforeach; ?>
   </div>
@@ -576,7 +510,7 @@ include dirname(__DIR__) . '/includes/header.php';
     ['ok'=>$s_cert,            'label'=>'Certyfikat instalacyjny', 'url'=>'/admin/app_license.php',              'tip'=>'x509 wymagany do uruchomienia'],
     ['ok'=>(bool)$s_cron,      'label'=>'Token CRON',              'url'=>'/admin/cron_setup.php',               'tip'=>'Potrzebny do URL-cron'],
     ['ok'=>$s_reps,            'label'=>'Osoby do reprezentacji',  'url'=>'/admin/org_settings.php#representatives','tip'=>'Podpisujący umowy'],
-    ['ok'=>$s_serwis_pass,     'label'=>'Hasło serwis@local',      'url'=>'/admin/users.php',                    'tip'=>'Zmień z domyślnego "serwis"','warn'=>true],
+    ['ok'=>$s_serwis_pass,     'label'=>'Hasło serwis@local',      'url'=>'/admin/users.php',                    'tip'=>'Zmień z domyślnego „serwis”','warn'=>true],
     ['ok'=>$s_org_admin,       'label'=>'Administrator org',       'url'=>'#create-admin',                       'tip'=>'Konto admina dla właściciela systemu','action'=>true],
   ];
 
@@ -585,200 +519,187 @@ include dirname(__DIR__) . '/includes/header.php';
 
   if ($done < $total && !org_setting('setup_complete')):
   ?>
-  <div class="card shadow-sm mb-4" style="border-left:4px solid #f59e0b">
-    <div class="card-body py-3">
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <i class="bi bi-list-check text-warning" style="font-size:1.1rem"></i>
-        <strong class="small">Konfiguracja wstępna</strong>
-        <span class="text-muted small ms-auto"><?= $done ?>/<?= $total ?> ukończone</span>
-      </div>
-      <div class="progress mb-3" style="height:4px">
-        <div class="progress-bar bg-warning" style="width:<?= round($done/$total*100) ?>%"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.35rem" id="setup">
-        <?php foreach ($setup_items as $si):
-          $is_ok   = $si['ok'];
-          $is_warn = !$is_ok && !empty($si['warn']);
-          $is_act  = !$is_ok && !empty($si['action']);
-          $href    = (!empty($si['action']) && !$is_ok) ? '#' : APP_URL . $si['url'];
-          $onclick = $is_act ? 'onclick="document.getElementById(\'createAdminModal\').classList.toggle(\'d-none\')"' : '';
-          $bg      = $is_ok ? '#f0fdf4' : ($is_warn ? '#fff1f2' : '#fffbeb');
-          $color   = $is_ok ? '#16a34a' : ($is_warn ? '#be123c' : '#b45309');
-          $icon    = $is_ok ? 'check-circle-fill' : ($is_warn ? 'exclamation-circle-fill' : 'circle');
-        ?>
-        <a href="<?= h($href) ?>" <?= $onclick ?>
-           class="text-decoration-none d-flex align-items-center gap-2 py-1 px-2 rounded"
-           style="font-size:.82rem;color:<?= $color ?>;background:<?= $bg ?>"
-           title="<?= h($si['tip']) ?>">
-          <i class="bi bi-<?= $icon ?>" style="flex-shrink:0"></i>
-          <?= h($si['label']) ?>
+  <section class="adx-setup" aria-label="Konfiguracja wstępna">
+    <div class="adx-setup-h">
+      <i class="bi bi-list-check" style="color:#c25100;font-size:1.2rem" aria-hidden="true"></i>
+      <strong>Konfiguracja wstępna</strong>
+      <span><?= $done ?>/<?= $total ?> ukończone</span>
+    </div>
+    <div class="adx-setup-bar"><div style="width:<?= round($done/$total*100) ?>%"></div></div>
+    <div class="adx-setup-grid" id="setup">
+      <?php foreach ($setup_items as $si):
+        $is_ok   = $si['ok'];
+        $is_warn = !$is_ok && !empty($si['warn']);
+        $is_act  = !$is_ok && !empty($si['action']);
+        $href    = (!empty($si['action']) && !$is_ok) ? '#' : APP_URL . $si['url'];
+        $onclick = $is_act ? 'onclick="document.getElementById(\'createAdminModal\').classList.toggle(\'d-none\');return false"' : '';
+        $icon    = $is_ok ? 'check-circle-fill' : ($is_warn ? 'exclamation-circle-fill' : 'circle');
+      ?>
+      <a href="<?= h($href) ?>" <?= $onclick ?> class="adx-setup-i<?= $is_ok ? ' ok' : ($is_warn ? ' warn' : '') ?>" title="<?= h($si['tip']) ?>">
+        <i class="bi bi-<?= $icon ?>" aria-hidden="true"></i><?= h($si['label']) ?>
+      </a>
+      <?php endforeach; ?>
+    </div>
+
+    <?php if (!$s_org_admin): ?>
+    <div id="createAdminModal" class="d-none adx-setup-new">
+      <div class="fw-semibold mb-2"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Utwórz administratora organizacji</div>
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="create_org_admin">
+        <div class="col-sm-4">
+          <label class="form-label small mb-1" for="adm_name">Imię i nazwisko</label>
+          <input type="text" id="adm_name" name="adm_name" class="form-control form-control-sm" placeholder="Jan Kowalski" required>
+        </div>
+        <div class="col-sm-5">
+          <label class="form-label small mb-1" for="adm_email">E-mail</label>
+          <input type="email" id="adm_email" name="adm_email" class="form-control form-control-sm" placeholder="jan@organizacja.pl" required>
+        </div>
+        <div class="col-sm-3">
+          <button class="btn btn-primary btn-sm w-100"><i class="bi bi-send me-1" aria-hidden="true"></i>Utwórz i wyślij</button>
+        </div>
+        <div class="col-12">
+          <div class="form-text">Hasło zostanie wygenerowane automatycznie i wysłane na podany adres e-mail.</div>
+        </div>
+      </form>
+    </div>
+    <?php endif; ?>
+
+    <div class="adx-setup-foot">
+      <span>
+        <?php if ($done < $total): ?>
+          Możesz pominąć pozostałe punkty i ręcznie zakończyć konfigurację wstępną.
+        <?php else: ?>
+          Wszystkie punkty ukończone — możesz zamknąć konfigurację wstępną.
+        <?php endif; ?>
+      </span>
+      <form method="post" class="ms-auto"
+            onsubmit="return confirm('Czy na pewno zakończyć konfigurację wstępną? Lista kontrolna zniknie z panelu.');">
+        <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
+        <input type="hidden" name="_action" value="finish_setup">
+        <button class="btn btn-success btn-sm">
+          <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Konfiguracja wstępna — zakończ
+        </button>
+      </form>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <!-- ── Filtr kafli + skoki do sekcji ─────────────────────────────────────── -->
+  <div class="adx-bar">
+    <div class="adx-search" role="search">
+      <i class="bi bi-search" aria-hidden="true"></i>
+      <input id="admSearch" type="search" placeholder="Szukaj funkcji…  ( / )" autocomplete="off" aria-label="Szukaj funkcji administratora">
+      <button type="button" class="adx-search-clear" id="admSearchClear" title="Wyczyść" aria-label="Wyczyść filtr"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+    </div>
+    <nav class="adx-jump" aria-label="Sekcje panelu">
+      <?php $gi = 0; foreach ($groups as $group_name => $group): $gi++; ?>
+      <a href="#adx-g<?= $gi ?>" data-jump="adx-g<?= $gi ?>" style="--g:<?= h($group['color']) ?>"><?= h($group_name) ?></a>
+      <?php endforeach; ?>
+    </nav>
+  </div>
+
+  <div id="admGrid">
+  <?php $gi = 0; foreach ($groups as $group_name => $group): $gi++;
+      $tiles = array_values(array_filter($group['items'], fn($it) => !empty($it['tile']) && empty($it['danger'])));
+      $rest  = array_values(array_filter($group['items'], fn($it) =>  empty($it['tile']) || !empty($it['danger'])));
+  ?>
+    <section class="adx-sec" id="adx-g<?= $gi ?>" data-group="<?= h($group_name) ?>" style="--g:<?= h($group['color']) ?>" aria-labelledby="adx-g<?= $gi ?>-h">
+      <h2 class="adx-sec-h" id="adx-g<?= $gi ?>-h"><i class="bi <?= $group['icon'] ?>" aria-hidden="true"></i><?= h($group_name) ?> <small><?= count($group['items']) ?></small></h2>
+
+      <?php if ($tiles): ?>
+      <div class="adx-tiles">
+        <?php foreach ($tiles as $item): ?>
+        <a href="<?= APP_URL . $item['url'] ?>" class="adx-tile" data-k="<?= h($adm_keys($item, $group_name)) ?>">
+          <i class="bi <?= $item['icon'] ?>" aria-hidden="true"></i>
+          <span class="adx-tile-lbl"><?= h($item['label']) ?></span>
+          <?php if (!empty($item['badge'])): ?>
+          <span class="adx-badge adx-badge-<?= h($item['badge_type'] ?? 'secondary') ?>"><?= (int)$item['badge'] ?></span>
+          <?php endif; ?>
         </a>
         <?php endforeach; ?>
-      </div>
-
-      <?php if (!$s_org_admin): ?>
-      <div id="createAdminModal" class="d-none mt-3 p-3 border rounded" style="background:#fffbeb">
-        <div class="fw-semibold small mb-2"><i class="bi bi-person-plus me-1"></i>Utwórz administratora organizacji</div>
-        <form method="post" class="row g-2 align-items-end">
-          <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="create_org_admin">
-          <div class="col-sm-4">
-            <label class="form-label small fw-semibold mb-1">Imię i nazwisko</label>
-            <input type="text" name="adm_name" class="form-control form-control-sm" placeholder="Jan Kowalski" required>
-          </div>
-          <div class="col-sm-5">
-            <label class="form-label small fw-semibold mb-1">E-mail</label>
-            <input type="email" name="adm_email" class="form-control form-control-sm" placeholder="jan@organizacja.pl" required>
-          </div>
-          <div class="col-sm-3">
-            <button class="btn btn-warning btn-sm w-100"><i class="bi bi-send me-1"></i>Utwórz i wyślij</button>
-          </div>
-          <div class="col-12">
-            <div class="form-text">Hasło zostanie wygenerowane automatycznie i wysłane na podany adres e-mail.</div>
-          </div>
-        </form>
       </div>
       <?php endif; ?>
 
-      <div class="d-flex align-items-center gap-2 mt-3 pt-2 border-top">
-        <span class="text-muted" style="font-size:.78rem">
-          <?php if ($done < $total): ?>
-            Możesz pominąć pozostałe punkty i ręcznie zakończyć konfigurację wstępną.
-          <?php else: ?>
-            Wszystkie punkty ukończone — możesz zamknąć konfigurację wstępną.
-          <?php endif; ?>
-        </span>
-        <form method="post" class="ms-auto"
-              onsubmit="return confirm('Czy na pewno zakończyć konfigurację wstępną? Lista kontrolna zniknie z panelu.');">
-          <input type="hidden" name="_csrf"   value="<?= csrf_token() ?>">
-          <input type="hidden" name="_action" value="finish_setup">
-          <button class="btn btn-success btn-sm">
-            <i class="bi bi-check2-circle me-1"></i>Konfiguracja wstępna — zakończ
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <!-- ── Wyszukiwarka ──────────────────────────────────────────────────────── -->
-  <div class="adm-search-wrap">
-    <i class="bi bi-search"></i>
-    <input id="admSearch" type="search" placeholder="Szukaj funkcji…" autocomplete="off">
-    <button class="adm-search-clear" id="admSearchClear" title="Wyczyść"><i class="bi bi-x"></i></button>
-  </div>
-
-  <!-- ── Siatka kart ───────────────────────────────────────────────────────── -->
-  <div class="adm-grid" id="admGrid">
-  <?php foreach ($groups as $group_name => $group): ?>
-    <?php $c = $adm_color_tokens((string)($group['color'] ?? 'slate')); ?>
-    <div class="adm-card" data-group="<?= h($group_name) ?>">
-
-      <div class="adm-card-head" style="background:<?= $c['bg'] ?>;border-bottom-color:<?= $c['border'] ?>">
-        <div class="adm-card-head-icon" style="background:<?= $c['icon_bg'] ?>;color:<?= $c['icon_text'] ?>">
-          <i class="bi <?= $group['icon'] ?>"></i>
-        </div>
-        <div class="adm-card-head-label" style="color:<?= $c['head'] ?>">
-          <?= h($group_name) ?>
-        </div>
-      </div>
-
-      <div class="adm-items">
-        <?php foreach ($group['items'] as $item): ?>
-        <a href="<?= APP_URL . $item['url'] ?>"
-           class="adm-item<?= !empty($item['danger']) ? ' danger' : '' ?>"
-           data-label="<?= h(mb_strtolower($item['label'])) ?>">
-          <i class="bi <?= $item['icon'] ?>"></i>
-          <?= h($item['label']) ?>
-          <?php if (!empty($item['badge'])): ?>
-          <span class="adm-badge adm-badge-<?= h($item['badge_type'] ?? 'secondary') ?>">
-            <?= (int)$item['badge'] ?>
-          </span>
-          <?php endif; ?>
-        </a>
+      <?php if ($rest): ?>
+      <ul class="adx-list">
+        <?php foreach ($rest as $item): ?>
+        <li>
+          <a href="<?= APP_URL . $item['url'] ?>" class="adx-li<?= !empty($item['danger']) ? ' danger' : '' ?>" data-k="<?= h($adm_keys($item, $group_name)) ?>">
+            <i class="bi <?= $item['icon'] ?>" aria-hidden="true"></i><?= h($item['label']) ?>
+            <?php if (!empty($item['badge'])): ?>
+            <span class="adx-badge adx-badge-<?= h($item['badge_type'] ?? 'secondary') ?>"><?= (int)$item['badge'] ?></span>
+            <?php endif; ?>
+          </a>
+        </li>
         <?php endforeach; ?>
-      </div>
-
-    </div>
+      </ul>
+      <?php endif; ?>
+    </section>
   <?php endforeach; ?>
 
-    <div id="admNoResults">
-      <i class="bi bi-search" style="font-size:1.5rem;display:block;margin-bottom:.5rem"></i>
+    <div class="adx-none" id="admNoResults" role="status">
+      <i class="bi bi-search d-block mb-2" style="font-size:1.6rem" aria-hidden="true"></i>
       Nie znaleziono funkcji pasujących do zapytania.
     </div>
   </div>
 
 <?php if ($_is_service_account && $_saas_panel_url): ?>
-<div class="adm-saas-banner mt-4">
-  <div class="adm-saas-icon"><i class="bi bi-server"></i></div>
-  <div class="adm-saas-body">
-    <div class="adm-saas-label">Panel zarządzania tenantami SaaS</div>
-    <div class="adm-saas-desc">Tworzenie i konfiguracja tenantów, provisioning baz danych, zarządzanie planami i modułami. Dostępny wyłącznie dla konta serwisowego.</div>
+  <div class="adx-saas">
+    <i class="bi bi-server" aria-hidden="true"></i>
+    <div class="adx-saas-b">
+      <div class="adx-saas-t">Panel zarządzania tenantami SaaS</div>
+      <div class="adx-saas-d">Tworzenie i konfiguracja tenantów, provisioning baz danych, zarządzanie planami i modułami. Dostępny wyłącznie dla konta serwisowego.</div>
+    </div>
+    <a href="<?= h($_saas_panel_url) ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Otwórz panel SaaS</a>
   </div>
-  <a href="<?= h($_saas_panel_url) ?>" class="adm-saas-btn" target="_blank">
-    <i class="bi bi-box-arrow-up-right me-1"></i>Otwórz panel SaaS
-  </a>
-</div>
-<style>
-.adm-saas-banner {
-  display:flex;align-items:center;gap:1.1rem;
-  background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);
-  border-radius:14px;padding:1.1rem 1.4rem;max-width:1200px;
-  box-shadow:0 4px 20px rgba(79,70,229,.25);
-}
-.adm-saas-icon {
-  width:46px;height:46px;border-radius:12px;flex-shrink:0;
-  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1.4rem;color:#a5b4fc;
-}
-.adm-saas-body   { flex:1;min-width:0; }
-.adm-saas-label  { font-size:.8rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#a5b4fc;margin-bottom:.2rem; }
-.adm-saas-desc   { font-size:.84rem;color:rgba(255,255,255,.65);line-height:1.4; }
-.adm-saas-btn {
-  flex-shrink:0;white-space:nowrap;
-  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);
-  color:#fff;border-radius:8px;padding:.55rem 1.1rem;
-  font-size:.84rem;font-weight:600;text-decoration:none;transition:background .15s;
-}
-.adm-saas-btn:hover { background:rgba(255,255,255,.2);color:#fff; }
-@media (max-width:640px) { .adm-saas-banner { flex-direction:column;align-items:flex-start;gap:.75rem; } }
-</style>
 <?php endif; ?>
 
 </div>
 
 <script>
 (function () {
-  const input   = document.getElementById('admSearch');
-  const clear   = document.getElementById('admSearchClear');
-  const noRes   = document.getElementById('admNoResults');
-  const cards   = document.querySelectorAll('.adm-card[data-group]');
+  const input = document.getElementById('admSearch');
+  const clear = document.getElementById('admSearchClear');
+  const noRes = document.getElementById('admNoResults');
+  const secs  = document.querySelectorAll('.adx-sec[data-group]');
+  const fold  = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
 
-  function filter(q) {
-    q = q.trim().toLowerCase();
-    clear.style.display = q ? 'block' : 'none';
-    let anyVisible = false;
-
-    cards.forEach(card => {
-      const items = card.querySelectorAll('.adm-item[data-label]');
-      let cardVisible = false;
-
-      items.forEach(item => {
-        const match = !q || item.dataset.label.includes(q);
-        item.classList.toggle('adm-item-hidden', !match);
-        if (match) cardVisible = true;
+  function filter(raw) {
+    const words = fold(raw.trim()).split(/\s+/).filter(Boolean);
+    clear.style.display = words.length ? 'block' : 'none';
+    let any = false;
+    secs.forEach(sec => {
+      let n = 0;
+      sec.querySelectorAll('[data-k]').forEach(el => {
+        const k = fold(el.dataset.k);
+        const hit = words.every(w => k.includes(w));
+        (el.closest('li') || el).classList.toggle('adx-hide', !hit);
+        if (hit) n++;
       });
-
-      card.classList.toggle('adm-hidden', !cardVisible);
-      if (cardVisible) anyVisible = true;
+      sec.hidden = n === 0;
+      const j = document.querySelector('[data-jump="' + sec.id + '"]');
+      if (j) j.classList.toggle('is-off', n === 0);
+      if (n) any = true;
     });
-
-    noRes.style.display = anyVisible ? 'none' : 'block';
+    noRes.style.display = any ? 'none' : 'block';
   }
 
   input.addEventListener('input', () => filter(input.value));
   clear.addEventListener('click', () => { input.value = ''; input.focus(); filter(''); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { input.value = ''; filter(''); }
+    if (e.key === 'Enter') {                       // Enter = otwórz pierwszą pasującą pozycję
+      const first = [...document.querySelectorAll('.adx-sec:not([hidden]) [data-k]')]
+        .find(el => !(el.closest('li') || el).classList.contains('adx-hide'));
+      if (first) { e.preventDefault(); location.href = first.href; }
+    }
+  });
+  document.addEventListener('keydown', e => {      // „/” = fokus na filtrze
+    if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable) {
+      e.preventDefault(); input.focus();
+    }
+  });
 })();
 </script>
 
