@@ -157,9 +157,32 @@ if ($_active_contract) {
 $_pending_total = (int)$my_apps_new + (int)$my_certs_pending + (int)$_zwroty_pending + (int)$my_terms_pending;
 $_ann_unread = 0;
 try { $_ann_unread = function_exists('notif_unread_count_type') ? notif_unread_count_type((int)$user['id'], 'announcement') : 0; } catch (\Throwable $e) {}
-$_trello_url = 'https://trello.com/b/VDjMNkbr/feer-wsp%C3%B3%C5%82praca-zespo%C5%82u';
-// Zadania są tymczasowo w Trello (kafel „Zadania”) — wspólny widżet zadań z panel/index.php pomijamy.
-if ($_tasks_tab_on) $GLOBALS['_pv_tasks_section_done'] = true;
+// Moje zadania: kafel „Moje zadania” → /tasks/ (moduł Zadań wrócił z Trello). Wspólny widżet
+// zadań z panel/index.php pomijamy — kafel i moduł Zadań go zastępują.
+$GLOBALS['_pv_tasks_section_done'] = true;
+$_tasks_mine = 0;
+if ($_tasks_tab_on) {
+    try {
+        $_tasks_mine = (int)(db_one(
+            "SELECT COUNT(*) AS c FROM task_assignments ta
+             JOIN tasks t ON t.id = ta.task_id AND t.status NOT IN ('done','cancelled','archived')
+             WHERE ta.user_id=?", [(int)$user['id']]
+        )['c'] ?? 0);
+    } catch (\Throwable $e) {}
+}
+$_is_dyd = function_exists('panelMetroIsDydaktyk') && panelMetroIsDydaktyk($user);
+
+/* ── Najważniejsze narzędzia (prawa kolumna ekranu głównego) ─────────────── */
+$_pv_quick = [];
+if ($_tasks_tab_on) $_pv_quick[] = ['href'=>APP_URL.'/tasks/index.php','icon'=>'bi-check2-square','label'=>'Moje zadania','sub'=>$_tasks_mine ? $_tasks_mine . ' aktywnych' : 'brak aktywnych','c'=>'var(--m-orange)'];
+$_pv_quick[] = ['href'=>$_mail_chooser,'icon'=>'bi-envelope','label'=>'Poczta','sub'=>$_mail_chooser_label,'c'=>'var(--m-blue)','ext'=>true];
+if ($m365_login || !empty($u_db['microsoft_id'])) {
+    $_pv_quick[] = ['href'=>'https://teams.microsoft.com','icon'=>'bi-microsoft-teams','label'=>'Teams','sub'=>'czat i spotkania','c'=>'#4b53bc','ext'=>true];
+    $_pv_quick[] = ['href'=>'https://www.office.com','icon'=>'bi-microsoft','label'=>'Microsoft 365','sub'=>'Word, Excel, OneDrive','c'=>'var(--m-indigo)','ext'=>true];
+}
+if ($_is_dyd) $_pv_quick[] = ['href'=>APP_URL.'/karty30/ti/dydaktyk/office_enter.php','icon'=>'bi-easel2','label'=>'Dydaktyka – panel','sub'=>'zajęcia, grupy, oceny','c'=>'var(--m-orange)'];
+$_pv_quick[] = ['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','sub'=>$_hd_my_open ? $_hd_my_open . ' otwartych' : 'zgłoś problem','c'=>'var(--m-magenta)'];
+if (is_file($ROOT . '/tozsamosc/index.php')) $_pv_quick[] = ['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','c'=>'var(--m-dark)'];
 
 $_pv_initials = function (string $name): string {
     $words = preg_split('/\s+/u', trim($name)) ?: [];
@@ -274,10 +297,28 @@ panelMetroAssets($_vol_color);
   </div>
   <?php else: ?>
 
-  <!-- ═══════════ KAFLE (Start) ═══════════ -->
+  <!-- ═══════════ EKRAN GŁÓWNY: grupy kafli + najważniejsze narzędzia po prawej ═══════════ -->
   <main id="pvtz-main">
-  <h2 class="visually-hidden">Skróty</h2>
-  <div class="mt-grid">
+  <style>
+  .pvm .pvm-start{display:grid;gap:1.5rem;grid-template-columns:1fr;align-items:start}
+  @media(min-width:1100px){.pvm .pvm-start{grid-template-columns:minmax(0,1fr) 280px}}
+  .pvm .mt-grp{margin-bottom:1.25rem}
+  .pvm .mt-grp-h{margin:0 0 .5rem;font-size:1.05rem;font-weight:300;color:var(--pvm-muted);letter-spacing:.01em}
+  .pvm .pvm-quick{background:var(--pvm-light);padding:1rem}
+  .pvm .pvm-quick h2{margin:0 0 .6rem;font-size:1.05rem;font-weight:600;color:var(--pvm-ink)}
+  .pvm .pvm-quick ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .pvm .pvm-quick a{display:flex;align-items:center;gap:.75rem;padding:.45rem;background:var(--pvm-bg);color:var(--pvm-ink);text-decoration:none;min-height:52px}
+  .pvm .pvm-quick a:hover{background:var(--pvm-light-h)}
+  .pvm .pvm-quick .sq{width:40px;height:40px;flex-shrink:0;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.25rem}
+  .pvm .pvm-quick b{display:block;font-size:.9rem;font-weight:600;line-height:1.2}
+  .pvm .pvm-quick small{display:block;font-size:.74rem;color:var(--pvm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+  :root[data-theme="hc"] .pvm .pvm-quick a{border:2px solid #000}
+  </style>
+  <div class="pvm-start">
+  <div>
+    <section class="mt-grp" aria-labelledby="grp-ja">
+      <h2 class="mt-grp-h" id="grp-ja">Ty i umowa</h2>
+      <div class="mt-grid">
     <a href="#umowa" class="mt-tile mt-tile--l mt-tile--acc" data-pvm-go="umowa"
        aria-label="<?= h(trim(($_active_row['imie_nazwisko'] ?? $user['name'] ?? '') . ' — ' . $_ct_label . ', ' . ($_status_labels[$_st] ?? $_st) . ($_pct !== null ? ', pozostało ' . (int)$contract_progress['days_left'] . ' dni' : ''))) ?>">
       <span class="ava" aria-hidden="true"><?= h($_pv_initials($_active_row['imie_nazwisko'] ?? $user['name'] ?? '')) ?></span>
@@ -293,32 +334,62 @@ panelMetroAssets($_vol_color);
       </span>
     </a>
     <?php
-    panelMetroTile(['href'=>APP_URL.'/panel/messages.php','go'=>'wiadomosci','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>(string)(int)$msg_unread,
-                    'sub'=>$msg_unread ? 'nowych od organizacji' : 'napisz do nas','color'=>$msg_unread ? 'indigo' : 'blue','size'=>'w']);
-    panelMetroDydaktykTile();
     panelMetroTile(['href'=>APP_URL.'/panel/apply.php','go'=>'sprawy','icon'=>'bi-inboxes','label'=>'Sprawy w toku','val'=>(string)$_pending_total,
                     'sub'=>$_pending_total ? 'czeka na odpowiedź' : 'wnioski, zaświadczenia','color'=>$_pending_total ? 'orange' : 'teal']);
-    if ($_tasks_tab_on) {
-        panelMetroTile(['href'=>$_trello_url,'external'=>true,'icon'=>'bi-trello','label'=>'Zadania','sub'=>'tymczasowo w Trello','color'=>'#0052cc']);
+    if ($_pv_peln) {
+        panelMetroTile(['href'=>'#pelnomocnictwa','go'=>'pelnomocnictwa','icon'=>'bi-person-badge','label'=>'Pełnomocnictwa',
+                        'val'=>(string)count($_pv_peln),'sub'=>'ważne, udzielone Tobie','color'=>'indigo']);
     }
-    panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_hd_my_open ? (string)$_hd_my_open : '',
-                    'sub'=>$_hd_my_open ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
-    panelMetroTile(['href'=>'#konta','go'=>'konta','icon'=>'bi-microsoft','label'=>'Microsoft 365 i poczta',
-                    'sub'=>$m365_login ?: ($email ?: 'konta i dostępy'),'color'=>'indigo','size'=>'w']);
+    panelMetroTile(['href'=>'#konta','go'=>'konta','icon'=>'bi-key','label'=>'Konta i dostępy',
+                    'sub'=>$m365_login ?: ($email ?: 'loginy do usług'),'color'=>'blue','size'=>'w']);
+    ?>
+      </div>
+    </section>
+
+    <section class="mt-grp" aria-labelledby="grp-kom">
+      <h2 class="mt-grp-h" id="grp-kom">Komunikacja</h2>
+      <div class="mt-grid">
+    <?php
+    panelMetroTile(['href'=>APP_URL.'/panel/messages.php','go'=>'wiadomosci','icon'=>'bi-chat-dots','label'=>'Wiadomości','val'=>(string)(int)$msg_unread,
+                    'sub'=>$msg_unread ? 'nowych od organizacji' : 'napisz do nas','color'=>$msg_unread ? 'indigo' : 'blue','size'=>'w']);
     panelMetroTile(['href'=>APP_URL.'/komunikaty/index.php','icon'=>'bi-megaphone','label'=>'Komunikaty','val'=>$_ann_unread ? (string)$_ann_unread : '',
                     'sub'=>$_ann_unread ? 'nowych ogłoszeń' : 'ogłoszenia organizacji','color'=>'violet']);
     if (is_file($ROOT . '/panel/calendar.php')) {
         panelMetroTile(['href'=>APP_URL.'/panel/calendar.php','go'=>isset($_tabs['kalendarz']) ? 'kalendarz' : '','icon'=>'bi-calendar3','label'=>'Kalendarz','sub'=>isset($_tabs['kalendarz']) && $_pv_cal ? 'najbliższe: ' . $_pv_cal[0]['dtstart']->format('d.m') : 'wydarzenia i dyżury','color'=>'green']);
     }
-    panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);
-    if (is_file($ROOT . '/tozsamosc/index.php')) {
-        panelMetroTile(['href'=>APP_URL.'/tozsamosc/','icon'=>'bi-person-vcard','label'=>'Tożsamość','sub'=>'hasło, MFA, telefon','color'=>'dark']);
-    }
-    if ($_pv_peln) {
-        panelMetroTile(['href'=>'#pelnomocnictwa','go'=>'pelnomocnictwa','icon'=>'bi-person-badge','label'=>'Pełnomocnictwa',
-                        'val'=>(string)count($_pv_peln),'sub'=>'ważne, udzielone Tobie','color'=>'indigo']);
-    }
     ?>
+      </div>
+    </section>
+
+    <section class="mt-grp" aria-labelledby="grp-praca">
+      <h2 class="mt-grp-h" id="grp-praca">Praca</h2>
+      <div class="mt-grid">
+    <?php
+    if ($_tasks_tab_on) {
+        panelMetroTile(['href'=>APP_URL.'/tasks/index.php','icon'=>'bi-check2-square','label'=>'Moje zadania','val'=>(string)$_tasks_mine,
+                        'sub'=>$_tasks_mine ? 'aktywnych' : 'wszystko zrobione','color'=>$_tasks_mine ? 'orange' : 'green','size'=>'w']);
+    }
+    panelMetroDydaktykTile();
+    panelMetroTile(['href'=>APP_URL.'/panel/helpdesk.php','icon'=>'bi-headset','label'=>'Helpdesk IT','val'=>$_hd_my_open ? (string)$_hd_my_open : '',
+                    'sub'=>$_hd_my_open ? 'otwartych zgłoszeń' : 'zgłoś problem','color'=>'magenta']);
+    panelMetroTile(['href'=>'#narzedzia','go'=>'narzedzia','icon'=>'bi-grid-3x3-gap','label'=>'Narzędzia','val'=>(string)count($_pv_tools),'color'=>'teal']);
+    ?>
+      </div>
+    </section>
+  </div>
+
+  <aside class="pvm-quick" aria-labelledby="pvm-quick-h">
+    <h2 id="pvm-quick-h">Najważniejsze narzędzia</h2>
+    <ul>
+      <?php foreach ($_pv_quick as $_q): ?>
+      <li><a href="<?= h($_q['href']) ?>"<?= !empty($_q['ext']) ? ' target="_blank" rel="noopener noreferrer"' : '' ?>>
+        <span class="sq" style="--c:<?= h($_q['c']) ?>" aria-hidden="true"><i class="bi <?= h($_q['icon']) ?>"></i></span>
+        <span style="min-width:0"><b><?= h($_q['label']) ?></b><small><?= h($_q['sub']) ?></small></span>
+        <?php if (!empty($_q['ext'])): ?><span class="visually-hidden"> (otwiera się w nowej karcie)</span><?php endif; ?>
+      </a></li>
+      <?php endforeach; ?>
+    </ul>
+  </aside>
   </div>
 
   <!-- ═══════════ PIVOT ═══════════ -->
@@ -524,29 +595,53 @@ panelMetroAssets($_vol_color);
     </div>
   </section>
 
-  <?php if ($_pv_extra_html !== ''): ?>
   <?php if ($_pv_peln): ?>
   <!-- ═══════════ PEŁNOMOCNICTWA ═══════════ -->
   <section id="pelnomocnictwa" data-pvm-panel="pelnomocnictwa" role="tabpanel" aria-labelledby="pvm-tab-pelnomocnictwa" tabindex="-1" hidden>
     <h2 class="mt-h2">Moje <b>pełnomocnictwa</b> <span class="mt-no" style="font-size:1rem">(<?= count($_pv_peln) ?> ważne)</span></h2>
     <?php foreach ($_pv_peln as $_p):
-      $_kor  = ($_p['rodzaj'] ?? 'ogolne') === 'korespondencja';
-      $_zakr = $_kor ? pelnomocnictwo_kor_opis($_p) : implode('; ', pelnomocnictwo_zakres_items($_p));
+      $_kor   = ($_p['rodzaj'] ?? 'ogolne') === 'korespondencja';
+      $_zakr  = $_kor ? pelnomocnictwo_kor_opis($_p) : implode('; ', pelnomocnictwo_zakres_items($_p));
+      $_od    = $_p['data_udzielenia'] ?? '';
+      $_do    = $_p['data_waznosci'] ?? '';
+      $_ppct  = null; $_pleft = null;
+      if ($_od && $_do && strtotime($_do) > strtotime($_od)) {
+          $_ppct  = (int)max(0, min(100, round((time() - strtotime($_od)) / (strtotime($_do) - strtotime($_od)) * 100)));
+          $_pleft = (int)max(0, ceil((strtotime($_do . ' 23:59:59') - time()) / 86400));
+      }
     ?>
-    <div class="mt-svc" style="--c:var(--m-indigo)">
-      <i class="bi <?= $_kor ? 'bi-envelope' : 'bi-person-badge' ?> ic" aria-hidden="true"></i>
-      <div class="mt-svc__bd">
-        <h3><?= h($_p['numer']) ?> <span class="mt-no" style="font-weight:400">· od <?= h($_p['mocodawca']) ?></span>
-          <span class="mt-badge mt-badge--ok">ważne do <?= $_p['data_waznosci'] ? h(date_pl($_p['data_waznosci'])) : 'bezterminowo' ?></span></h3>
-        <?php if ($_zakr !== ''): ?><p><?= h($_zakr) ?></p><?php endif; ?>
+    <article class="mt-group" style="border-left:8px solid var(--m-indigo);margin-bottom:8px" aria-labelledby="peln-<?= (int)$_p['id'] ?>">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <h3 id="peln-<?= (int)$_p['id'] ?>" class="m-0" style="font-size:1.4rem;font-weight:300"><?= h($_p['numer']) ?></h3>
+        <span class="mt-badge mt-badge--ok">ważne</span>
+        <span class="mt-badge"><?= $_kor ? 'korespondencja' : 'ogólne' ?></span>
+      </div>
+      <dl class="mt-kv">
+        <div><dt>Mocodawca</dt><dd><?= h($_p['mocodawca']) ?></dd></div>
+        <div><dt>Obowiązuje od</dt><dd class="big"><?= $_od ? h(date('d.m.Y', strtotime($_od))) : '—' ?></dd></div>
+        <div><dt>Obowiązuje do</dt><dd class="big"><?= $_do ? h(date('d.m.Y', strtotime($_do))) : 'bezterminowo' ?></dd></div>
+      </dl>
+      <?php if ($_ppct !== null): ?>
+      <div class="mt-progress" role="progressbar" aria-label="Okres pełnomocnictwa <?= h($_p['numer']) ?>" aria-valuenow="<?= $_ppct ?>" aria-valuemin="0" aria-valuemax="100"
+           aria-valuetext="Upłynęło <?= $_ppct ?>% okresu, pozostało <?= $_pleft ?> dni"><span style="width:<?= $_ppct ?>%"></span></div>
+      <div class="mt-progress-lbl" aria-hidden="true"><span><?= h(date('d.m.Y', strtotime($_od))) ?></span><span>pozostało <strong><?= $_pleft ?></strong> dni</span><span><?= h(date('d.m.Y', strtotime($_do))) ?></span></div>
+      <?php endif; ?>
+      <?php if ($_zakr !== ''): ?>
+      <h4 class="mt-3 mb-1" style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--pvm-muted)">Zakres</h4>
+      <div style="font-size:.92rem;line-height:1.55;color:var(--pvm-ink)"><?= h($_zakr) ?></div>
+      <?php endif; ?>
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <a class="mt-btn" href="<?= APP_URL ?>/pelnomocnictwa/pdf.php?id=<?= (int)$_p['id'] ?>&amp;download=1"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Pobierz pełnomocnictwo (PDF)<span class="visually-hidden"> <?= h($_p['numer']) ?></span></a>
         <?php if (!empty($_p['dokument_plik'])): ?>
-        <div class="mt-links"><a href="<?= APP_URL ?>/pelnomocnictwa/dokument_download.php?id=<?= (int)$_p['id'] ?>"><i class="bi bi-download" aria-hidden="true"></i>Pobierz dokument<span class="visually-hidden"> pełnomocnictwa <?= h($_p['numer']) ?></span></a></div>
+        <a class="mt-btn mt-btn--ghost" href="<?= APP_URL ?>/pelnomocnictwa/dokument_download.php?id=<?= (int)$_p['id'] ?>"><i class="bi bi-download" aria-hidden="true"></i>Pobierz podpisany skan<span class="visually-hidden"> <?= h($_p['numer']) ?></span></a>
         <?php endif; ?>
       </div>
-    </div>
+    </article>
     <?php endforeach; ?>
   </section>
   <?php endif; ?>
+
+  <?php if ($_pv_extra_html !== ''): ?>
 
   <!-- ═══════════ WYDARZENIA I REZERWACJE ═══════════ -->
   <section id="wydarzenia" data-pvm-panel="wydarzenia" role="tabpanel" aria-labelledby="pvm-tab-wydarzenia" tabindex="-1" hidden>
