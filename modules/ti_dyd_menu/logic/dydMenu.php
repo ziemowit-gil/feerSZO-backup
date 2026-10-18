@@ -106,6 +106,7 @@ function dydMenuSections(): array
             $it('',                'Hospitacje',        'hospitacje.php',       'clipboard2-pulse'),
             $it('',                'Umowa',             'index.php?tab=formalnosci#umowa', 'file-earmark-text', $nContr, 'success'),
             $it('',                'Mój certyfikat',    'moj_certyfikat.php',   'shield-check'),
+            $it('',                'Certyfikacja MSUES', 'msues.php?_route=/moje', 'award'),
         ];
         if (function_exists('dyd_plan_cykliczny_enabled') && dyd_plan_cykliczny_enabled()) $start[] = $it('cykliczne', 'Plan cykliczny', $gt('cykliczne'), 'arrow-repeat');
         if ($canAn && !$staff) $start[] = $it('', 'Analityka TI', 'analityka.php', 'speedometer2');
@@ -163,6 +164,8 @@ function dydMenuSections(): array
     $nNabor = 0;   // Nabór do grup: nowe zgłoszenia potwierdzone przez opiekunów (modules/ti, tabela może jeszcze nie istnieć)
     try { $nNabor = (int)(db_one("SELECT COUNT(*) AS c FROM ti_nabor_submissions WHERE status='new'")['c'] ?? 0); } catch (\Throwable $e) {}
     $rozDebt = (int)($g['_sb_roz_debt'] ?? 0);
+    $nMsues = 0;   // Certyfikacja MSUES: oświadczenia kadry czekające na weryfikację (modules/ti_msues, tabela może jeszcze nie istnieć)
+    try { $nMsues = (int)(db_one("SELECT COUNT(*) AS c FROM trainer_declarations WHERE status='pending'")['c'] ?? 0); } catch (\Throwable $e) {}
 
     $sec[] = ['key' => 'k_grupy', 'staff' => true, 'label' => 'Grupy i zajęcia', 'items' => [
         $it('grupy',        'Przegląd grup',           $gt('grupy'),          'people'),
@@ -222,6 +225,7 @@ function dydMenuSections(): array
         $it('', 'Limity i kwalifikacje kadry', 'kadraLimity.php',  'person-gear'),
         $it('', 'Zespół i role',               'zespol.php',       'people-fill'),
         $isKier ? $it('', 'Certyfikaty prowadzących', 'certyfikaty.php', 'shield-check') : null,
+        $it('', 'Certyfikacja MSUES',          'msues.php',        'award', $nMsues, 'warning'),
         $it('', 'Role w panelu TI', rtrim(APP_URL, '/') . '/tozsamosc/ti_role.php', 'person-gear'),
     ]))];
     $sec[] = ['key' => 'k_komunikacja', 'staff' => true, 'label' => 'Komunikacja z kursantami', 'items' => [
