@@ -1,0 +1,86 @@
+/* Umowy powierzenia (contracts/powierzenie/list|add|edit) — szata Metro.
+   Uzupełnia warstwę includes/szo_metro.php (grupa Umowy, akcent --sm-acc). Selektory od
+   `html body #content .pw-metro`, bo klasy tw-* z Tailwind CDN wstrzykują się później. */
+html body #content .pw-metro{--pa:var(--sm-acc,#0050ef);--pa-d:var(--sm-acc-d,#003bb0);--pa-50:var(--sm-acc-50,#e6eefd);
+  --pl:var(--sm-light,#f2f2f2);--pl-h:var(--sm-light-h,#e6e6e6);--pline:var(--sm-line,#e1e1e1);--pm:var(--sm-muted,#5f5f5f);
+  --pd:var(--sm-dark,#1d1d1d);--pf:var(--sm-field,#8a8a8a);--pg:var(--sm-green,#007a00);--po:var(--sm-orange,#c25100);--pr:var(--sm-red,#a20025)}
+html body #content .pw-metro *:not(.form-check-input):not(.tw-rounded-full){border-radius:0!important}
+html body #content .pw-metro *{box-shadow:none!important}
+
+/* Nagłówek strony */
+html body #content .pw-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem}
+html body #content .pw-eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--pa-d)}
+html body #content .pw-title{font-size:2.25rem!important;font-weight:300!important;letter-spacing:-.02em;line-height:1.1;color:var(--pd);margin:.15rem 0 0}
+html body #content .pw-title small{font-size:1rem;color:var(--pm);font-weight:400;margin-left:.5rem}
+html body #content .pw-cmds{display:flex;gap:2px;flex-wrap:wrap}
+html body #content .pw-cmd{display:inline-flex;align-items:center;gap:.45rem;height:40px;padding:0 1rem;background:var(--pl);color:var(--pd)!important;font-size:.88rem;font-weight:400;text-decoration:none;border:0}
+html body #content .pw-cmd:hover,html body #content .pw-cmd:focus-visible{background:var(--pl-h);color:var(--pd)!important}
+html body #content .pw-cmd.is-primary{background:var(--pa);color:#fff!important;font-weight:600}
+html body #content .pw-cmd.is-primary:hover{background:var(--pd)}
+
+/* Kafle statystyk listy — klikane filtry */
+html body #content .pw-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.4rem;margin-bottom:1.25rem}
+html body #content .pw-tile{--t:var(--pl);--ink:var(--pd);display:flex;flex-direction:column;min-height:112px;padding:.75rem 1rem;background:var(--t);color:var(--ink)!important;text-decoration:none;position:relative}
+html body #content a.pw-tile:hover{filter:brightness(.93)}
+html body #content .pw-tile.is-acc{--t:var(--pa);--ink:#fff}
+html body #content .pw-tile.is-green{--t:var(--pg);--ink:#fff}
+html body #content .pw-tile.is-orange{--t:var(--po);--ink:#fff}
+html body #content .pw-tile.is-dark{--t:var(--pd);--ink:#fff}
+html body #content .pw-tile.is-on{outline:3px solid var(--pd);outline-offset:-3px}
+html body #content .pw-tile.is-acc.is-on,html body #content .pw-tile.is-dark.is-on,html body #content .pw-tile.is-green.is-on,html body #content .pw-tile.is-orange.is-on{outline-color:#fbbf24}
+html body #content .pw-tile-lbl{font-size:.64rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.85;display:flex;align-items:center;gap:.4rem}
+html body #content .pw-tile-lbl .bi{font-size:1rem;opacity:1}
+html body #content .pw-tile-val{margin-top:auto;font-size:2.25rem;font-weight:300;line-height:1}
+html body #content .pw-tile-val.is-money{font-size:1.45rem}
+html body #content .pw-tile-sub{font-size:.72rem;opacity:.8;margin-top:.2rem}
+
+/* Pasek filtrów listy — płaska szara grupa */
+html body #content .pw-metro .pw-filter{background:var(--pl);border:0;margin-bottom:1rem}
+html body #content .pw-metro .pw-filter .card-body{padding:.6rem .75rem}
+html body #content .pw-metro .pw-filter .form-control,html body #content .pw-metro .pw-filter .form-select{background-color:#fff}
+html body #content .pw-metro .pw-filter .input-group-text{background:#fff}
+html body #content .pw-metro .adv-panel{background:#fff;border:0;padding:.85rem}
+html body #content .pw-metro .adv-toggle{color:var(--pd)!important;text-decoration:none;font-weight:600;font-size:.85rem}
+html body #content .pw-metro .adv-toggle.is-active{color:var(--pa-d)!important}
+
+/* Tabela listy */
+html body #content .pw-metro .pw-table-card{border:0;background:#fff}
+html body #content .pw-metro .contracts-table td{vertical-align:middle;border-bottom-color:var(--pline)}
+html body #content .pw-metro .pw-num{color:var(--pd)!important;font-weight:600;text-decoration:none}
+html body #content .pw-metro .pw-num:hover{color:var(--pa-d)!important;text-decoration:underline}
+html body #content .pw-metro .pw-end-soon{color:var(--po);font-weight:700}
+html body #content .pw-metro .pw-row-acts{display:inline-flex;gap:2px}
+html body #content .pw-metro .pw-row-acts .btn{border:0!important;background:var(--pl)!important;color:var(--pd)!important;width:32px;height:32px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
+html body #content .pw-metro .pw-row-acts .btn:hover{background:var(--pa)!important;color:#fff!important}
+html body #content .pw-metro .pw-row-acts .btn-outline-danger:hover{background:var(--pr)!important}
+html body #content .pw-metro .pw-table-card .card-footer{background:var(--pl)!important;border:0}
+html body #content .pw-metro .pw-empty{padding:3rem 1rem!important;color:var(--pm)}
+html body #content .pw-metro .pw-empty b{display:block;font-size:1.5rem;font-weight:300;color:var(--pd);margin-bottom:.25rem}
+
+/* Formularz dodawania/edycji (tabbedContractForm) */
+html body #content .pw-metro form.pw-form{border:0!important;background:#fff!important;overflow:visible!important}
+html body #content .pw-metro .pw-tabs{background:none!important;border-bottom:1px solid var(--pline)!important;padding:0!important;gap:0!important;margin-bottom:.25rem}
+html body #content .pw-metro .pw-tabs [role=tab]{background:none!important;border:0!important;border-bottom:3px solid transparent!important;margin-bottom:-1px;
+  padding:.5rem 1rem .55rem!important;font-size:1.15rem!important;font-weight:300!important;color:var(--pm)!important}
+html body #content .pw-metro .pw-tabs [role=tab]:hover{background:var(--pl)!important;color:var(--pd)!important}
+html body #content .pw-metro .pw-tabs [role=tab][aria-selected="true"]{color:var(--pd)!important;font-weight:400!important;border-bottom-color:var(--pa)!important}
+html body #content .pw-metro [data-tab-pane]{padding:1.5rem 0 1rem!important}
+html body #content .pw-metro [data-tab-pane] h2{font-size:1.15rem!important;font-weight:300!important;letter-spacing:0!important;text-transform:none!important;color:var(--pd)!important;
+  padding-bottom:.45rem;border-bottom:2px solid var(--pd);margin-bottom:1rem!important;display:flex;align-items:center;gap:.6rem}
+html body #content .pw-metro [data-tab-pane] h2>.bi{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:var(--pa);color:#fff;font-size:.9rem}
+html body #content .pw-metro label{color:var(--pd)!important}
+html body #content .pw-metro form.pw-form input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]),
+html body #content .pw-metro form.pw-form select,html body #content .pw-metro form.pw-form textarea{border:2px solid var(--pf)!important;background-color:#fff}
+html body #content .pw-metro form.pw-form input:not([type=checkbox]):not([type=radio]):not([type=file]):focus,
+html body #content .pw-metro form.pw-form select:focus,html body #content .pw-metro form.pw-form textarea:focus{border-color:var(--pa)!important;--tw-ring-shadow:0 0 #0000}
+html body #content .pw-metro form.pw-form input[type=checkbox]{accent-color:var(--pa)}
+html body #content .pw-metro form.pw-form [class*="tw-border-slate-200"][class*="tw-p-4"]{border:0!important;background:var(--pl)}
+html body #content .pw-metro .pw-actions{position:sticky;bottom:0;z-index:50;background:var(--pd)!important;border:0!important;padding:0 0 0 1rem!important;margin-top:1rem;color:#fff}
+html body #content .pw-metro .pw-actions label{color:rgba(255,255,255,.8)!important}
+html body #content .pw-metro .pw-actions>div{gap:0!important}
+html body #content .pw-metro .pw-actions a,html body #content .pw-metro .pw-actions button{height:48px;padding:0 1.25rem!important;border:0!important;background:transparent!important;color:#fff!important;font-weight:600}
+html body #content .pw-metro .pw-actions a:hover{background:rgba(255,255,255,.12)!important}
+html body #content .pw-metro .pw-actions button[type=submit]{background:var(--pa)!important}
+html body #content .pw-metro .pw-actions button[type=submit]:hover{background:var(--pa-d)!important}
+html body #content .pw-metro .pw-errors{background:var(--pl);border:0;border-left:6px solid var(--pr);color:var(--pd);padding:.85rem 1.1rem;margin-bottom:1rem;font-size:.88rem}
+@media (max-width:640px){html body #content .pw-title{font-size:1.6rem!important}}

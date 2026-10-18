@@ -77,34 +77,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
 
-<div class="tw-max-w-6xl tw-mx-auto">
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/powierzenie_metro.css?v=<?= (int)@filemtime(dirname(dirname(__DIR__)) . '/assets/css/powierzenie_metro.css') ?>">
+<div class="tw-max-w-6xl tw-mx-auto pw-metro">
 
-<div class="tw-flex tw-items-center tw-justify-between tw-mb-4 tw-flex-wrap tw-gap-2">
-  <h1 class="tw-text-xl tw-font-semibold tw-text-slate-800 tw-flex tw-items-center tw-gap-2">
-    <i class="bi bi-pencil tw-text-blue-600"></i> Edycja: <?= h($row['numer_umowy']) ?>
-  </h1>
-  <div class="tw-flex tw-gap-2">
-    <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
-      <i class="bi bi-eye"></i> Podgląd
-    </a>
-    <a href="list.php" class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-3 tw-py-1.5 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">
-      <i class="bi bi-arrow-left"></i> Lista
-    </a>
+<div class="pw-head">
+  <div>
+    <div class="pw-eyebrow"><i class="bi bi-bank me-1"></i>Umowa powierzenia zadania publicznego</div>
+    <h1 class="pw-title">Edycja<small><?= h($row['numer_umowy']) ?></small></h1>
+  </div>
+  <div class="pw-cmds">
+    <a href="view.php?id=<?= $id ?>" class="pw-cmd"><i class="bi bi-eye"></i>Podgląd</a>
+    <a href="list.php" class="pw-cmd"><i class="bi bi-arrow-left"></i>Lista</a>
   </div>
 </div>
 
 <?php if ($errors): ?>
-<div class="tw-rounded-lg tw-border tw-border-red-200 tw-bg-red-50 tw-text-red-800 tw-px-4 tw-py-3 tw-mb-4 tw-text-sm">
+<div class="pw-errors" role="alert">
   <ul class="tw-mb-0 tw-pl-4 tw-list-disc"><?php foreach ($errors as $e) echo '<li>' . h($e) . '</li>'; ?></ul>
 </div>
 <?php endif; ?>
 
 <form method="post" enctype="multipart/form-data" novalidate x-data="tabbedContractForm(4)" @submit="onSubmit($event)"
-      class="tw-bg-white tw-rounded-2xl tw-border tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
+      class="pw-form tw-bg-white tw-rounded-2xl tw-border tw-border-slate-200 tw-shadow-sm tw-overflow-hidden">
 <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
 
 <!-- Zakładki -->
-<div class="tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
+<div class="pw-tabs tw-flex tw-gap-1 tw-overflow-x-auto tw-border-b tw-border-slate-200 tw-bg-slate-50 tw-px-3 tw-pt-2" role="tablist" aria-label="Sekcje formularza umowy">
   <?php $_tabs = ['Umowa', 'Zadanie i zleceniodawca', 'Finansowanie i terminy', 'Podpisanie i pliki']; ?>
   <?php foreach ($_tabs as $_ti => $_tlabel): $_tn = $_ti + 1; ?>
   <button type="button" role="tab" :aria-selected="(tab===<?= $_tn ?>).toString()" @click="goTab(<?= $_tn ?>)"
@@ -435,7 +433,7 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
 </div>
 
 <!-- Pasek akcji — zawsze widoczny, niezależnie od aktywnej zakładki -->
-<div class="tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2 tw-border-t tw-border-slate-200 tw-bg-slate-50 tw-px-6 tw-py-4">
+<div class="pw-actions tw-flex tw-flex-wrap tw-items-center tw-justify-end tw-gap-2 tw-border-t tw-border-slate-200 tw-bg-slate-50 tw-px-6 tw-py-4">
   <a href="view.php?id=<?= $id ?>" class="tw-inline-flex tw-items-center tw-rounded-lg tw-border tw-border-slate-300 tw-bg-white tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-slate-700 hover:tw-bg-slate-50">Anuluj</a>
   <button type="submit" :disabled="submitting"
           class="tw-inline-flex tw-items-center tw-gap-1.5 tw-rounded-lg tw-bg-blue-600 tw-px-4 tw-py-2 tw-text-sm tw-font-medium tw-text-white hover:tw-bg-blue-700 disabled:tw-opacity-60">

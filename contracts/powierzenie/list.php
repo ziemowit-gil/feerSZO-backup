@@ -86,23 +86,64 @@ $statuses = ['projekt' => 'Projekt', 'podpisana' => 'Podpisana', 'w realizacji' 
 $formy_zlecenia = ['powierzenie' => 'Powierzenie', 'wsparcie' => 'Wsparcie'];
 $tryby = ['konkurs' => 'Otwarty konkurs ofert', 'art19a' => 'Art. 19a — mały grant', 'inny' => 'Inny tryb'];
 
+// ── Kafle Metro: przegląd umów (bez filtrów listy, z ograniczeniem dostępu)
+$_today = date('Y-m-d');
+$_in30  = date('Y-m-d', strtotime('+30 days'));
+$_st = db_one("SELECT COUNT(*) AS wszystkie,
+        SUM(CASE WHEN status IN ('podpisana','w realizacji') THEN 1 ELSE 0 END) AS realizacja,
+        SUM(CASE WHEN status = 'do rozliczenia' THEN 1 ELSE 0 END) AS rozliczenie,
+        SUM(CASE WHEN data_zakonczenia >= ? AND data_zakonczenia <= ?
+                  AND COALESCE(status,'') NOT IN ('zakończona','rozwiązana','anulowana') THEN 1 ELSE 0 END) AS konczace,
+        SUM(CASE WHEN COALESCE(status,'') NOT IN ('rozwiązana','anulowana','projekt') THEN CAST(kwota_dotacji AS REAL) ELSE 0 END) AS dotacje
+    FROM {$TABLE} WHERE " . contract_access_where($TYPE), [$_today, $_in30]) ?: [];
+$_soon_on = $koniec_od === $_today && $koniec_do === $_in30;
+
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 require_once dirname(__DIR__) . '/includes/adv_filter.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">
-    <i class="bi bi-bank text-primary"></i> Umowy powierzenia zadania publicznego
-    <span class="badge bg-secondary ms-1"><?= $total ?></span>
-  </h4>
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/powierzenie_metro.css?v=<?= (int)@filemtime(dirname(dirname(__DIR__)) . '/assets/css/powierzenie_metro.css') ?>">
+<div class="pw-metro">
+
+<div class="pw-head">
+  <div>
+    <div class="pw-eyebrow"><i class="bi bi-bank me-1"></i>Umowy · zadania publiczne</div>
+    <h1 class="pw-title">Umowy powierzenia<small><?= $total ?> <?= $total === 1 ? 'umowa' : (($total % 10 >= 2 && $total % 10 <= 4 && ($total % 100 < 12 || $total % 100 > 14)) ? 'umowy' : 'umów') ?></small></h1>
+  </div>
   <?php if (can_edit()): ?>
-  <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/add.php" class="btn btn-primary">
-    <i class="bi bi-plus-lg"></i> Nowa umowa
-  </a>
+  <div class="pw-cmds">
+    <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/add.php" class="pw-cmd is-primary"><i class="bi bi-plus-lg"></i>Nowa umowa</a>
+  </div>
   <?php endif; ?>
 </div>
 
-<div class="card shadow-sm mb-3">
+<nav class="pw-tiles" aria-label="Przegląd umów powierzenia">
+  <a href="?" class="pw-tile is-dark<?= !$search && !$status && !$forma && !$adv_count ? ' is-on' : '' ?>">
+    <span class="pw-tile-lbl"><i class="bi bi-collection"></i>Wszystkie</span>
+    <span class="pw-tile-val"><?= (int)($_st['wszystkie'] ?? 0) ?></span>
+  </a>
+  <a href="?status=<?= urlencode('w realizacji') ?>" class="pw-tile is-acc<?= $status === 'w realizacji' ? ' is-on' : '' ?>">
+    <span class="pw-tile-lbl"><i class="bi bi-play-circle"></i>W realizacji</span>
+    <span class="pw-tile-val"><?= (int)($_st['realizacja'] ?? 0) ?></span>
+    <span class="pw-tile-sub">podpisane i realizowane</span>
+  </a>
+  <a href="?koniec_od=<?= $_today ?>&amp;koniec_do=<?= $_in30 ?>&amp;sort=data_zakonczenia&amp;dir=asc" class="pw-tile<?= (int)($_st['konczace'] ?? 0) ? ' is-orange' : '' ?><?= $_soon_on ? ' is-on' : '' ?>">
+    <span class="pw-tile-lbl"><i class="bi bi-hourglass-split"></i>Kończą się</span>
+    <span class="pw-tile-val"><?= (int)($_st['konczace'] ?? 0) ?></span>
+    <span class="pw-tile-sub">w ciągu 30 dni</span>
+  </a>
+  <a href="?status=<?= urlencode('do rozliczenia') ?>" class="pw-tile<?= (int)($_st['rozliczenie'] ?? 0) ? ' is-green' : '' ?><?= $status === 'do rozliczenia' ? ' is-on' : '' ?>">
+    <span class="pw-tile-lbl"><i class="bi bi-calculator"></i>Do rozliczenia</span>
+    <span class="pw-tile-val"><?= (int)($_st['rozliczenie'] ?? 0) ?></span>
+  </a>
+  <div class="pw-tile">
+    <span class="pw-tile-lbl"><i class="bi bi-cash-stack"></i>Dotacje</span>
+    <span class="pw-tile-val is-money"><?= money((float)($_st['dotacje'] ?? 0), 'PLN') ?></span>
+    <span class="pw-tile-sub">umowy podpisane i dalej</span>
+  </div>
+</nav>
+
+<div class="card pw-filter">
   <div class="card-body p-2">
     <form method="get" id="filter-form">
       <div class="row g-2 align-items-center">
@@ -222,7 +263,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
   </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card pw-table-card">
   <div class="table-responsive">
     <table class="table table-hover contracts-table mb-0">
       <thead class="table-light">
@@ -246,7 +287,7 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
           <td class="ps-3">
             <input type="checkbox" class="cb-row form-check-input" value="<?= (int)$r['id'] ?>" aria-label="Zaznacz">
           </td>
-          <td class="fw-semibold"><?= h($r['numer_umowy']) ?></td>
+          <td><a class="pw-num" href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= (int)$r['id'] ?>"><?= h($r['numer_umowy'] ?: '#' . $r['id']) ?></a></td>
           <td class="font-monospace small d-none d-md-table-cell"><?= h($r['nr_rejestru'] ?? '') ?: '—' ?></td>
           <td style="font-size:.83rem;max-width:240px">
             <?= h($r['nazwa_zadania'] ?: '—') ?>
@@ -258,11 +299,14 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
           </td>
           <td class="d-none d-sm-table-cell" style="white-space:nowrap;font-size:.82rem">
             <?= date_pl($r['data_rozpoczecia']) ?: '—' ?>
-            <?php if ($r['data_zakonczenia']): ?><span class="text-muted">→</span> <?= date_pl($r['data_zakonczenia']) ?><?php endif; ?>
+            <?php if ($r['data_zakonczenia']):
+              $_soon = $r['data_zakonczenia'] >= $_today && $r['data_zakonczenia'] <= $_in30
+                    && !in_array($r['status'] ?? '', ['zakończona','rozwiązana','anulowana'], true); ?>
+            <span class="text-muted">→</span> <span class="<?= $_soon ? 'pw-end-soon' : '' ?>"<?= $_soon ? ' title="Kończy się w ciągu 30 dni"' : '' ?>><?= date_pl($r['data_zakonczenia']) ?></span><?php endif; ?>
           </td>
           <td class="d-none d-xl-table-cell"><?= money($r['kwota_dotacji'], $r['waluta'] ?: 'PLN') ?></td>
           <td><?= status_badge($r['status']) ?></td>
-          <td class="text-end" style="white-space:nowrap">
+          <td class="text-end" style="white-space:nowrap"><span class="pw-row-acts">
             <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/view.php?id=<?= $r['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2"><i class="bi bi-eye"></i></a>
             <?php if (can_edit()): ?>
             <a href="<?= APP_URL ?>/contracts/<?= $TYPE ?>/edit.php?id=<?= $r['id'] ?>" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="bi bi-pencil"></i></a>
@@ -276,20 +320,20 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
               <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Usuń"><i class="bi bi-trash"></i></button>
             </form>
             <?php endif; ?>
-          </td>
+          </span></td>
         </tr>
         <?php endforeach; ?>
         <?php if (!$rows): ?>
-        <tr><td colspan="9" class="text-center text-muted py-4">
-          <i class="bi bi-bank display-6 d-block mb-2 opacity-25"></i>
-          Brak umów<?= $search || $status || $forma || $adv_count ? ' spełniających kryteria' : '' ?>
+        <tr><td colspan="9" class="text-center pw-empty">
+          <b>Brak umów<?= $search || $status || $forma || $adv_count ? ' spełniających kryteria' : '' ?></b>
+          <?php if ($search || $status || $forma || $adv_count): ?><a href="?">Pokaż wszystkie</a><?php endif; ?>
         </td></tr>
         <?php endif; ?>
       </tbody>
     </table>
   </div>
   <?php include dirname(__DIR__) . '/includes/bulk_bar.php'; ?>
-  <div class="card-footer d-flex justify-content-between align-items-center py-2" style="background:#FAFAFA">
+  <div class="card-footer d-flex justify-content-between align-items-center py-2">
     <small class="text-muted">Znaleziono: <strong><?= $total ?></strong><?= $search || $status || $forma || $adv_count ? ' — filtrowanie aktywne' : '' ?></small>
     <?php if ($pag['pages'] > 1): ?>
     <?= pagination_html($pag) ?>
@@ -297,4 +341,5 @@ require_once dirname(__DIR__) . '/includes/adv_filter.php';
   </div>
 </div>
 
+</div><!-- /pw-metro -->
 <?php include dirname(dirname(__DIR__)) . '/includes/footer.php'; ?>
