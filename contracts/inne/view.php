@@ -9,6 +9,8 @@ require_once dirname(dirname(__DIR__)) . '/includes/supervisors.php';
 require_login();
 $TYPE  = 'inne';
 $TABLE = 'umowy_inne';
+require_once dirname(dirname(__DIR__)) . '/includes/contract_block_schema.php';
+contract_block_schema_ensure($TABLE);   // is_blocked/unblocked_* — zdejmowanie blokady w _set_status
 $id    = intval($_GET['id'] ?? 0);
 $row   = db_one("SELECT * FROM {$TABLE} WHERE id = ?", [$id]);
 if (!$row) { http_response_code(404); die('Nie znaleziono umowy.'); }
