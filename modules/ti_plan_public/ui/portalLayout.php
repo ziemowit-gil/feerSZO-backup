@@ -78,7 +78,8 @@ function tiPlanPortalOpen(array $o): void {
 <title><?= h($o['title']) ?><?= $orgName !== '' ? ' — ' . h($orgName) : '' ?></title>
 <?php $skin = tiPlanPortalSkin(); ?>
 <style><?php readfile(__DIR__ . '/portal.css'); ?></style>
-<?php if ($skin === 'metro'): ?><style><?php readfile(__DIR__ . '/portal_metro.css'); ?></style><?php endif; ?>
+<?php if ($skin === 'metro'): ?><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+<style><?php readfile(__DIR__ . '/portal_metro.css'); ?></style><?php endif; ?>
 </head>
 <body class="skin-<?= $skin ?>">
 <a class="skip" href="#tresc">Przejdź do planu</a>
