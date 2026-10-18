@@ -353,8 +353,7 @@ Connect-MgGraph -TenantId '$t' -Scopes 'Application.ReadWrite.All','AppRoleAssig
 \$rra = @(\$reg.RequiredResourceAccess | ForEach-Object {
   @{ ResourceAppId = \$_.ResourceAppId; ResourceAccess = @(\$_.ResourceAccess | ForEach-Object { @{ Id = \$_.Id; Type = \$_.Type } }) } })
 \$ex  = \$rra | Where-Object { \$_.ResourceAppId -eq '$exo' }
-if (-not \$ex) { \$rra += @{ ResourceAppId = '$exo'; ResourceAccess = @(@{ Id = '$rid'; Type = 'Role' }) } }
-elseif (-not (\$ex.ResourceAccess | Where-Object { \$_.Id -eq '$rid' })) { \$ex.ResourceAccess += @{ Id = '$rid'; Type = 'Role' } }
+if (-not \$ex) { \$rra += @{ ResourceAppId = '$exo'; ResourceAccess = @(@{ Id = '$rid'; Type = 'Role' }) } } elseif (-not (\$ex.ResourceAccess | Where-Object { \$_.Id -eq '$rid' })) { \$ex.ResourceAccess += @{ Id = '$rid'; Type = 'Role' } }
 Update-MgApplication -ApplicationId \$reg.Id -RequiredResourceAccess \$rra
 
 # Krok 3: zgoda administratora (przypisanie roli aplikacji)
